@@ -57,6 +57,15 @@ const h = vi.hoisted(() => ({
   sessionUserId: null as string | null,
 }));
 
+// Zadania crona idą przez funkcje serwerowe za `requireAdmin` (EXECUTE na
+// `run_event_reminders` / `chat_purge_expired_messages` ma tylko service_role).
+// Ich własny test: `communityJobs.functions.test.ts`.
+const jobs = vi.hoisted(() => ({
+  runEventRemindersNow: vi.fn<() => Promise<number>>(),
+  purgeExpiredMessagesNow: vi.fn<() => Promise<number>>(),
+}));
+vi.mock("@/lib/admin/communityJobs.functions", () => jobs);
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (table: string) => {
@@ -646,19 +655,19 @@ describe("softDeleteMessage", () => {
 });
 
 describe("purgeExpiredMessages", () => {
-  it.each([
-    ["liczba skasowanych", 42, 42],
-    ["ZERO (nic nie wygasło)", 0, 0],
-    ["zwrotka nie-liczbowa", "12", 0],
-    ["brak zwrotki", null, 0],
-  ])("%s => %s", async (_label, data, expected) => {
-    setRpc("chat_purge_expired_messages", ok(data));
-    await expect(purgeExpiredMessages()).resolves.toBe(expected);
+  // DAWNIEJ: `supabase.rpc("chat_purge_expired_messages")` klientem
+  // przeglądarki, a atrapa zwracała sukces - w bazie EXECUTE ma tylko
+  // service_role, więc przycisk zawsze dostawał 42501 (kontrakt TS <-> SQL).
+  it("idzie przez funkcję serwerową, NIE przez RPC klientem przeglądarki", async () => {
+    jobs.purgeExpiredMessagesNow.mockResolvedValueOnce(42);
+    await expect(purgeExpiredMessages()).resolves.toBe(42);
+    expect(jobs.purgeExpiredMessagesNow).toHaveBeenCalledTimes(1);
+    expect(h.rpcCalls.map((c) => c.fn)).not.toContain("chat_purge_expired_messages");
   });
 
-  it("błąd podnosi wyjątek", async () => {
-    setRpc("chat_purge_expired_messages", fail("purge denied", "42501"));
-    await expect(purgeExpiredMessages()).rejects.toThrow("purge denied");
+  it("błąd funkcji serwerowej podnosi wyjątek", async () => {
+    jobs.purgeExpiredMessagesNow.mockRejectedValueOnce(new Error("Forbidden: admin role required"));
+    await expect(purgeExpiredMessages()).rejects.toThrow("admin role required");
   });
 });
 
@@ -864,19 +873,19 @@ describe("createEvent", () => {
 });
 
 describe("runEventReminders", () => {
-  it.each([
-    ["liczba wysłanych", 7, 7],
-    ["ZERO (nie było czego wysłać)", 0, 0],
-    ["zwrotka nie-liczbowa", "7", 0],
-    ["brak zwrotki", null, 0],
-  ])("%s => %s", async (_label, data, expected) => {
-    setRpc("run_event_reminders", ok(data));
-    await expect(runEventReminders()).resolves.toBe(expected);
+  // DAWNIEJ: `supabase.rpc("run_event_reminders")` klientem przeglądarki -
+  // EXECUTE ma tylko service_role, więc „Uruchom przypomnienia" zawsze
+  // kończyło się 42501 (audyt ed13 R-N-PRZYPOMNIENIA_UCZESTNIKA-s2).
+  it("idzie przez funkcję serwerową, NIE przez RPC klientem przeglądarki", async () => {
+    jobs.runEventRemindersNow.mockResolvedValueOnce(7);
+    await expect(runEventReminders()).resolves.toBe(7);
+    expect(jobs.runEventRemindersNow).toHaveBeenCalledTimes(1);
+    expect(h.rpcCalls.map((c) => c.fn)).not.toContain("run_event_reminders");
   });
 
-  it("błąd podnosi wyjątek", async () => {
-    setRpc("run_event_reminders", fail("reminders denied", "42501"));
-    await expect(runEventReminders()).rejects.toThrow("reminders denied");
+  it("błąd funkcji serwerowej podnosi wyjątek", async () => {
+    jobs.runEventRemindersNow.mockRejectedValueOnce(new Error("Forbidden: admin role required"));
+    await expect(runEventReminders()).rejects.toThrow("admin role required");
   });
 });
 

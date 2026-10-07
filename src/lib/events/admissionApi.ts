@@ -293,11 +293,15 @@ export async function fetchPackagesOffer(slug: string): Promise<EventPackageOffe
   return data ?? [];
 }
 
+/**
+ * Ładunek zakupu pakietu. BEZ firmy: firmę zamówienia ustala organizator (most
+ * faktur przy wystawieniu, panel), a klucz `company_id` w ładunku baza odrzuca
+ * jako `forbidden_field` (migracja 20261007120000).
+ */
 export interface PackagePurchaseInput {
   packageId: string;
   buyerName: string;
   buyerEmail: string;
-  companyId: string | null;
   invoiceNote: string;
   couponCode: string;
 }
@@ -315,7 +319,6 @@ export async function purchasePackage(input: PackagePurchaseInput): Promise<Pack
   const payload: Record<string, Json> = { package_id: input.packageId };
   if (input.buyerName.trim() !== "") payload.buyer_name = input.buyerName.trim();
   if (input.buyerEmail.trim() !== "") payload.buyer_email = input.buyerEmail.trim();
-  if (input.companyId !== null) payload.company_id = input.companyId;
   if (input.invoiceNote.trim() !== "") payload.invoice_note = input.invoiceNote.trim();
   if (input.couponCode.trim() !== "") payload.coupon_code = input.couponCode.trim();
 

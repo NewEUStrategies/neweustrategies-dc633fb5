@@ -26,6 +26,7 @@ import {
   type AdSlot,
   type AdSlotKind,
 } from "@/lib/ads/types";
+import { fetchAdminAdSlots } from "@/lib/ads/adminSlots";
 import { emptySlot } from "../model";
 import { TargetingEditor } from "../molecules/TargetingEditor";
 import { TargetingHeader } from "../molecules/TargetingHeader";
@@ -37,13 +38,12 @@ export function SlotsPanel() {
   const [draft, setDraft] = useState<Partial<AdSlot>>(emptySlot());
   const [busy, setBusy] = useState(false);
 
+  // Pełne wiersze (z notatkami operatora) tylko przez funkcję redakcji -
+  // `notes` nie jest czytelne wprost nawet dla zalogowanych (20261007120100).
   const load = async () => {
-    const { data, error } = await supabase
-      .from("ad_slots")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { slots: rows, error } = await fetchAdminAdSlots(supabase);
     if (error) toast.error(error.message);
-    else setSlots((data as AdSlot[]) ?? []);
+    else setSlots(rows);
   };
   useEffect(() => {
     load();

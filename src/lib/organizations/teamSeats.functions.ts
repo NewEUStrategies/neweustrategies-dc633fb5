@@ -107,11 +107,12 @@ export const setTeamSeatLimit = createServerFn({ method: "POST" })
       if (!res.ok) {
         return { ok: false as const, error: `provider: ${res.error}`.slice(0, 160) };
       }
+      // Lustro `subscriptions.quantity` uzupełnia webhook operatora
+      // (`customer.subscription.updated`, `webhookDispatch.server.ts`). Zapis
+      // stąd szedł klientem użytkownika, który nie ma UPDATE na
+      // `subscriptions` - nigdy się nie wykonał, a błąd był połykany
+      // (znalezisko kontraktu TS <-> SQL).
       providerSynced = true;
-      await supabase
-        .from("subscriptions")
-        .update({ quantity: data.seats })
-        .eq("provider_subscription_id", org.provider_subscription_id);
     }
 
     const source: SeatsSource = org.provider_subscription_id ? "subscription" : "manual";

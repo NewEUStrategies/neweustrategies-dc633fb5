@@ -58,9 +58,24 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
 }));
 
+// Kod rabatowy i rezerwacja jego użycia idą rolą serwisową z jawnym najemcą
+// i kontem (`couponRpc.server.ts`, migracja 20261007120200). Atrapa kieruje
+// wywołania `*_for_user` do TEJ SAMEJ tabeli odpowiedzi co klient kupującego.
+const couponAdmin = vi.hoisted(() => ({
+  forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+}));
+
+vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/tenant.server")>()),
+  resolveTenantIdForHost: async () => "tenant-alfa",
+}));
+
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
-    rpc: (fn: string, args: unknown) => {
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      if (couponAdmin.forward !== null && fn.endsWith("_for_user")) {
+        return couponAdmin.forward(fn, args);
+      }
       admin.rpcCalls.push({ fn, args });
       return Promise.resolve({ data: true, error: null });
     },
@@ -224,6 +239,7 @@ beforeEach(() => {
   chain = supabaseFromStub();
   rpcCalls = [];
   rpcResponses = new Map<string, SupabaseResult>();
+  couponAdmin.forward = (fn, args) => client().rpc(fn, args);
 
   vi.stubEnv("LOVABLE_API_KEY", "");
   vi.stubEnv("STRIPE_SANDBOX_API_KEY", "");
@@ -247,8 +263,8 @@ beforeEach(() => {
     ok({ mode: "paid", one_time_price_cents: 1500, one_time_currency: "PLN" }),
   );
   chain.setResponse("posts", ok({ title_pl: "Analiza CEE", title_en: "CEE analysis" }));
-  rpcResponses.set("validate_b2b_coupon", ok([couponOk()]));
-  rpcResponses.set("redeem_b2b_coupon", ok(true));
+  rpcResponses.set("validate_b2b_coupon_for_user", ok([couponOk()]));
+  rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
 
@@ -270,14 +286,14 @@ describe("createCheckoutOrder - kupon ważny", () => {
     // skąd przyszło żądanie.
     await call(planPayload({ coupon_code: "partner-cee" }));
 
-    expect(rpcArgs("validate_b2b_coupon")?._code).toBe("PARTNER-CEE");
+    expect(rpcArgs("validate_b2b_coupon_for_user")?._code).toBe("PARTNER-CEE");
     expect(orderMetadata().coupon_code).toBe("PARTNER-CEE");
   });
 
   it("walidacja idzie w ORYGINALNEJ walucie i kwocie planu", async () => {
     await call(planPayload());
 
-    expect(rpcArgs("validate_b2b_coupon")).toMatchObject({
+    expect(rpcArgs("validate_b2b_coupon_for_user")).toMatchObject({
       _amount_cents: 4900,
       _currency: "PLN",
       _plan_id: PLAN_ID,
@@ -289,7 +305,7 @@ describe("createCheckoutOrder - kupon ważny", () => {
     // a nie `null`, bo argument RPC jest wymagany. Gdyby handler wysłał tu
     // identyfikator z poprzedniego kroku, kupon „tylko dla planu X" dałby się
     // użyć na zakupie, do którego nie był przeznaczony.
-    rpcResponses.set("validate_b2b_coupon", ok([couponRefused("plan_not_eligible")]));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok([couponRefused("plan_not_eligible")]));
 
     await call({
       kind: "one_time",
@@ -300,8 +316,10 @@ describe("createCheckoutOrder - kupon ważny", () => {
       coupon_code: "PARTNER",
     });
 
-    expect(rpcArgs("validate_b2b_coupon")?._plan_id).toBe("00000000-0000-0000-0000-000000000000");
-    expect(rpcArgs("validate_b2b_coupon")?._amount_cents).toBe(1500);
+    expect(rpcArgs("validate_b2b_coupon_for_user")?._plan_id).toBe(
+      "00000000-0000-0000-0000-000000000000",
+    );
+    expect(rpcArgs("validate_b2b_coupon_for_user")?._amount_cents).toBe(1500);
   });
 
   it("audyt kuponu ląduje w metadanych zamówienia - webhook liczy z niego przychód netto", async () => {
@@ -318,7 +336,11 @@ describe("createCheckoutOrder - kupon ważny", () => {
   it("użycie kuponu jest REZERWOWANE atomowo na tym zamówieniu", async () => {
     await call(planPayload());
 
-    expect(rpcArgs("redeem_b2b_coupon")).toEqual({
+    // Najemca rezerwacji to STEMPEL ZAMÓWIENIA (`tenant_id` z insertu), konto
+    // - sesja kasy; baza odmawia rezerwacji na cudzym zamówieniu.
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toEqual({
+      _tenant_id: "tenant-alfa",
+      _user_id: "user-kupujacy",
       _coupon_id: COUPON_ID,
       _order_id: "order-1",
       _applied_cents: 1000,
@@ -327,11 +349,52 @@ describe("createCheckoutOrder - kupon ważny", () => {
     });
   });
 
+  it("walidacja idzie rolą serwisową: najemca hosta, konto sesji i solony skrót adresu", async () => {
+    // Od 20261007120200 kasa nie woła walidatora JWT kupującego - baza liczy
+    // pudła kasy także po adresie (audyt ed13 D-13-1), a surowy adres nie
+    // trafia do bazy.
+    await call(planPayload());
+
+    expect(rpcArgs("validate_b2b_coupon_for_user")).toMatchObject({
+      _tenant_id: "tenant-alfa",
+      _user_id: "user-kupujacy",
+      _probe_subject: expect.stringMatching(/^ip:[0-9a-f]{32}$/),
+    });
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_b2b_coupon");
+  });
+
+  it("OKNO WDROŻENIA: bez funkcji serwerowych (PGRST202) kasa woła stare RPC klientem kupującego", async () => {
+    rpcResponses.set(
+      "validate_b2b_coupon_for_user",
+      fail("Could not find the function public.validate_b2b_coupon_for_user", "PGRST202"),
+    );
+    rpcResponses.set(
+      "redeem_b2b_coupon_for_user",
+      fail("Could not find the function public.redeem_b2b_coupon_for_user", "PGRST202"),
+    );
+    rpcResponses.set("validate_b2b_coupon", ok([couponOk()]));
+    rpcResponses.set("redeem_b2b_coupon", ok(true));
+
+    const result = await call(planPayload());
+
+    expect(result.ok).toBe(true);
+    expect(rpcArgs("validate_b2b_coupon")).toEqual({
+      _code: "PARTNER-CEE",
+      _plan_id: PLAN_ID,
+      _amount_cents: 4900,
+      _currency: "PLN",
+    });
+    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+      _coupon_id: COUPON_ID,
+      _order_id: "order-1",
+    });
+  });
+
   it("bez kodu kuponu nie ma ani walidacji, ani rezerwacji, ani metadanych", async () => {
     await call(planPayload({ coupon_code: undefined }));
 
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_b2b_coupon");
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_b2b_coupon_for_user");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
     expect(orderMetadata()).not.toHaveProperty("coupon_code");
   });
 
@@ -340,7 +403,7 @@ describe("createCheckoutOrder - kupon ważny", () => {
     // odmowa „not_found" wywróciłaby zamówienie, którego nikt nie kuponował.
     await call(planPayload({ coupon_code: "   " }));
 
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_b2b_coupon_for_user");
     expect(insertedOrder()?.amount_cents).toBe(4900);
   });
 });
@@ -355,13 +418,13 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
     ["nie dla tego planu", "plan_not_eligible"],
     ["nieznany albo cudzego najemcy", "not_found"],
   ])("kupon %s: zamówienie NIE powstaje, powód wraca bez tłumaczenia", async (_opis, reason) => {
-    rpcResponses.set("validate_b2b_coupon", ok([couponRefused(reason)]));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok([couponRefused(reason)]));
 
     const result = await call(planPayload());
 
     expect(result).toEqual({ ok: false, mode: "coupon", error: reason });
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
   });
 
   it("cudzy najemca: RLS bazy nie oddaje ŻADNEGO wiersza, a to też jest odmowa", async () => {
@@ -369,7 +432,7 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
     // z punktu widzenia wołającego. Pusta odpowiedź MUSI dawać odmowę, nie
     // zamówienie bez rabatu (klient zapłaciłby pełną cenę mimo obietnicy)
     // ani zamówienie z rabatem zerowym przypisanym do cudzego kuponu.
-    rpcResponses.set("validate_b2b_coupon", ok([]));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok([]));
 
     const result = await call(planPayload());
 
@@ -378,7 +441,7 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
   });
 
   it("odpowiedź `null` z bazy również jest odmową, nie przepustką", async () => {
-    rpcResponses.set("validate_b2b_coupon", ok(null));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok(null));
 
     const result = await call(planPayload());
 
@@ -386,7 +449,7 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
   });
 
   it("odmowa BEZ powodu schodzi na `not_found`, a nie na pusty komunikat", async () => {
-    rpcResponses.set("validate_b2b_coupon", ok([{ ...couponRefused(""), error: null }]));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok([{ ...couponRefused(""), error: null }]));
 
     const result = await call(planPayload());
 
@@ -396,14 +459,17 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
   it("BŁĄD walidacji kuponu jest zgłaszany, a nie zamieniany na „kupon nieważny”", async () => {
     // Różnica jest praktyczna: nieważny kupon to komunikat dla klienta,
     // a awaria bazy to incydent - zamiana jednego w drugie ukrywa awarię.
-    rpcResponses.set("validate_b2b_coupon", fail("function validate_b2b_coupon does not exist"));
+    rpcResponses.set(
+      "validate_b2b_coupon_for_user",
+      fail("function validate_b2b_coupon_for_user does not exist"),
+    );
 
-    await expect(call(planPayload())).rejects.toThrow("validate_b2b_coupon");
+    await expect(call(planPayload())).rejects.toThrow("validate_b2b_coupon_for_user");
   });
 
   it("limit prób kodów z bazy to wyjątek o stałej treści - nie odmowa kuponu `mode: coupon`", async () => {
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       fail("rate_limited: too many code attempts, try again later"),
     );
 
@@ -416,7 +482,7 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
     // Rabat 100% dawałby zamówienie na zero, którego dostawca i tak nie
     // przyjmie - a które w trybie mock nadałoby dostęp za darmo.
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       ok([couponOk({ discount_cents: 4900, final_cents: 0 })]),
     );
 
@@ -428,7 +494,7 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
 
   it("kwota końcowa 49 groszy również nie przechodzi", async () => {
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       ok([couponOk({ discount_cents: 4851, final_cents: 49 })]),
     );
 
@@ -439,7 +505,7 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
 
   it("kwota końcowa równa minimum przechodzi - granica jest po stronie dozwolonej", async () => {
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       ok([couponOk({ discount_cents: 4850, final_cents: 50 })]),
     );
 
@@ -457,7 +523,7 @@ describe("createCheckoutOrder - werdykt jako JEDEN obiekt jsonb (od 202610012100
   // wdrożeniu migracji kończyłby się odmową `not_found` albo, gorzej,
   // zamówieniem w pełnej cenie mimo obiecanego rabatu.
   it("ważny kupon jako obiekt: ta sama kwota, audyt i rezerwacja co przy wierszu", async () => {
-    rpcResponses.set("validate_b2b_coupon", ok(couponOk()));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok(couponOk()));
 
     const result = await call(planPayload());
 
@@ -469,7 +535,11 @@ describe("createCheckoutOrder - werdykt jako JEDEN obiekt jsonb (od 202610012100
       coupon_discount_cents: 1000,
       original_amount_cents: 4900,
     });
-    expect(rpcArgs("redeem_b2b_coupon")).toEqual({
+    // Najemca rezerwacji to STEMPEL ZAMÓWIENIA (`tenant_id` z insertu), konto
+    // - sesja kasy; baza odmawia rezerwacji na cudzym zamówieniu.
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toEqual({
+      _tenant_id: "tenant-alfa",
+      _user_id: "user-kupujacy",
       _coupon_id: COUPON_ID,
       _order_id: "order-1",
       _applied_cents: 1000,
@@ -479,17 +549,17 @@ describe("createCheckoutOrder - werdykt jako JEDEN obiekt jsonb (od 202610012100
   });
 
   it("odmowa jako obiekt zatrzymuje zamówienie z powodem z bazy", async () => {
-    rpcResponses.set("validate_b2b_coupon", ok(couponRefused("expired")));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok(couponRefused("expired")));
 
     const result = await call(planPayload());
 
     expect(result).toEqual({ ok: false, mode: "coupon", error: "expired" });
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
   });
 
   it("odmowa jako obiekt BEZ powodu schodzi na `not_found`", async () => {
-    rpcResponses.set("validate_b2b_coupon", ok({ ...couponRefused(""), error: null }));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok({ ...couponRefused(""), error: null }));
 
     const result = await call(planPayload());
 
@@ -508,13 +578,16 @@ describe("createCheckoutOrder - werdykt jako JEDEN obiekt jsonb (od 202610012100
       // kwoty końcowej nie wiadomo, ile pobrać. Przepuszczenie go dałoby
       // zamówienie z rabatem przypisanym do nikogo albo z kwotą `undefined`.
       const verdict = couponOkWithout(key);
-      rpcResponses.set("validate_b2b_coupon", ok(shape === "obiekt" ? verdict : [verdict]));
+      rpcResponses.set(
+        "validate_b2b_coupon_for_user",
+        ok(shape === "obiekt" ? verdict : [verdict]),
+      );
 
       const result = await call(planPayload());
 
       expect(result).toEqual({ ok: false, mode: "coupon", error: "not_found" });
       expect(chain.chainsFor("payment_orders")).toHaveLength(0);
-      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
     },
   );
 });
@@ -524,7 +597,7 @@ describe("createCheckoutOrder - przegrany wyścig o ostatnie użycie kuponu", ()
     // Zamówienie powstaje PRZED rezerwacją, więc przegrany wyścig zostawiłby
     // wiersz `pending` bez sesji - dokładnie ten stan, który panel admina
     // raportuje jako „zamówienie wiszące".
-    rpcResponses.set("redeem_b2b_coupon", ok(false));
+    rpcResponses.set("redeem_b2b_coupon_for_user", ok(false));
 
     const result = await call(planPayload());
 
@@ -536,7 +609,7 @@ describe("createCheckoutOrder - przegrany wyścig o ostatnie użycie kuponu", ()
   });
 
   it("BŁĄD rezerwacji jest traktowany jak przegrany wyścig, a nie jak sukces", async () => {
-    rpcResponses.set("redeem_b2b_coupon", fail("could not obtain lock on row"));
+    rpcResponses.set("redeem_b2b_coupon_for_user", fail("could not obtain lock on row"));
 
     const result = await call(planPayload());
 
@@ -547,7 +620,7 @@ describe("createCheckoutOrder - przegrany wyścig o ostatnie użycie kuponu", ()
   it("gdy nawet unieważnienie przez RPC zawiedzie, domyka je rola serwisowa", async () => {
     // `markOrderSession` ma świadomy zapas: bez niego zamówienie zostaje
     // `pending` mimo odmowy kuponu i wygląda na czekające na płatność.
-    rpcResponses.set("redeem_b2b_coupon", ok(false));
+    rpcResponses.set("redeem_b2b_coupon_for_user", ok(false));
     rpcResponses.set("payment_order_mark_session", fail("schema cache stale"));
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -588,7 +661,7 @@ describe("createCheckoutOrder - waluta prezentacji", () => {
   it("audyt użycia kuponu jest zapisywany w TEJ SAMEJ walucie co zamówienie", async () => {
     await call(oneTimePlanPayload({ display_currency: "EUR" }));
 
-    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({
       _applied_cents: 250,
       _original_cents: 1225,
       _currency: "EUR",
@@ -613,7 +686,7 @@ describe("createCheckoutOrder - waluta prezentacji", () => {
   it("kupon jest walidowany PRZED konwersją - kupony są definiowane per waluta", async () => {
     await call(oneTimePlanPayload({ display_currency: "EUR" }));
 
-    expect(rpcArgs("validate_b2b_coupon")).toMatchObject({
+    expect(rpcArgs("validate_b2b_coupon_for_user")).toMatchObject({
       _amount_cents: 4900,
       _currency: "PLN",
     });
@@ -642,7 +715,7 @@ describe("createCheckoutOrder - waluta prezentacji", () => {
     vi.stubGlobal("fetch", () => Promise.reject(new Error("NBP unreachable")));
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       ok([couponOk({ discount_cents: 0, final_cents: 4900 })]),
     );
 

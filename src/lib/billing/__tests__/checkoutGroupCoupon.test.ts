@@ -58,8 +58,25 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
 }));
 
+// Kod rabatowy i rezerwacja jego użycia idą rolą serwisową z jawnym najemcą
+// i kontem (`couponRpc.server.ts`, migracja 20261007120200). Atrapa kieruje
+// wywołania `*_for_user` do TEJ SAMEJ tabeli odpowiedzi co klient kupującego.
+const couponAdmin = vi.hoisted(() => ({
+  forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+}));
+
+vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/tenant.server")>()),
+  resolveTenantIdForHost: async () => "tenant-alfa",
+}));
+
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { rpc: () => Promise.resolve({ data: true, error: null }) },
+  supabaseAdmin: {
+    rpc: (fn: string, args: Record<string, unknown>) =>
+      couponAdmin.forward !== null && fn.endsWith("_for_user")
+        ? couponAdmin.forward(fn, args)
+        : Promise.resolve({ data: true, error: null }),
+  },
 }));
 
 vi.mock("@/lib/stripe.server", async (importOriginal) => {
@@ -257,6 +274,7 @@ beforeEach(() => {
   chain = supabaseFromStub();
   rpcCalls = [];
   rpcResponses = new Map();
+  couponAdmin.forward = (fn, args) => client().rpc(fn, args);
 
   vi.stubEnv("BILLING_RETURN_HOSTS", "kasa.example.org");
   vi.stubEnv("LOVABLE_API_KEY", "klucz-testowy-bramki");
@@ -289,7 +307,7 @@ beforeEach(() => {
   rpcResponses.set("event_ticket_public_options", ok({ tax_mode: "inclusive" }));
   rpcResponses.set("event_registration_group_seats", ok(3));
   rpcResponses.set("validate_event_ticket_coupon", fixedCode(2000));
-  rpcResponses.set("redeem_b2b_coupon", ok(true));
+  rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
 
@@ -319,7 +337,7 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
       coupon_discount_per_seat_cents: 2000,
       original_amount_cents: 30000,
     });
-    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({
       _coupon_id: COUPON_ID,
       _order_id: "order-grupa",
       _applied_cents: 6000,
@@ -389,7 +407,7 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
 
     expect(result).toEqual({ ok: false, mode: "coupon", error: "final_amount_too_low" });
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
   });
 
   it("odmowa kodu przez bazę wraca z POWODEM bazy i nie zakłada zamówienia", async () => {
@@ -423,7 +441,7 @@ describe("createCheckoutOrder - werdykt kodu jako JEDEN obiekt jsonb (od 2026100
       coupon_discount_per_seat_cents: 2000,
       original_amount_cents: 30000,
     });
-    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({
       _coupon_id: COUPON_ID,
       _applied_cents: 6000,
       _original_cents: 30000,
@@ -455,7 +473,7 @@ describe("createCheckoutOrder - werdykt kodu jako JEDEN obiekt jsonb (od 2026100
 
       expect(result).toEqual({ ok: false, mode: "coupon", error: "not_found" });
       expect(chain.chainsFor("payment_orders")).toHaveLength(0);
-      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
       expect(stripeCoupons()).toEqual([]);
     },
   );
@@ -648,7 +666,7 @@ describe("createCheckoutOrder - liczba miejsc jest fail-closed", () => {
     );
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
     expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_event_ticket_coupon");
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
     expect(logged.mock.calls.some((args) => String(args[0]).includes("group seats failed"))).toBe(
       true,
     );

@@ -87,7 +87,6 @@ function purchaseInput(overrides: Partial<PackagePurchaseInput> = {}): PackagePu
     packageId: "pkg-1",
     buyerName: "Kupujacy",
     buyerEmail: "kupujacy@example.com",
-    companyId: null,
     invoiceNote: "",
     couponCode: "",
     ...overrides,
@@ -461,7 +460,7 @@ describe("useMyPackageSeats", () => {
 
 describe("mutacje kupujacego", () => {
   it("usePurchasePackage oddaje warstwie RPC CALY formularz zakupu", async () => {
-    const input = purchaseInput({ companyId: "co-1", couponCode: "LATO", invoiceNote: "PO 12" });
+    const input = purchaseInput({ couponCode: "LATO", invoiceNote: "PO 12" });
     const outcome = {
       orderId: "ord-1",
       seats: 5,

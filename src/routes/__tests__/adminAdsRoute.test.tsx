@@ -33,9 +33,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ok, okCount, type SupabaseFromStub } from "@/test/supabaseChain";
+import type { SupabaseRpcStub } from "@/test/supabase/rpc";
 
 const h = vi.hoisted(() => ({
   from: null as unknown,
+  rpc: null as unknown,
   rt: null as unknown,
   ensureI18n: vi.fn(),
   shellProps: [] as Array<{ hideSidebar?: boolean }>,
@@ -61,14 +63,18 @@ vi.mock("@/components/admin/AdminShell", () => ({
 
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
+  const { supabaseRpcStub } = await import("@/test/supabase/rpc");
   const { realtimeStub } = await import("@/test/supabase/realtime");
   const from = supabaseFromStub();
+  const rpc = supabaseRpcStub();
   const rt = realtimeStub();
   h.from = from;
+  h.rpc = rpc;
   h.rt = rt;
   return {
     supabase: {
       from: from.from,
+      rpc: rpc.rpc,
       channel: rt.channel.bind(rt),
       removeChannel: rt.removeChannel.bind(rt),
     },
@@ -96,10 +102,14 @@ import { Route as AdsRoute } from "@/routes/admin.ads";
 const PATH = "/admin/ads";
 
 const db = () => h.from as SupabaseFromStub;
+const rpc = () => h.rpc as SupabaseRpcStub;
+
+/** Pelne wiersze slotow czyta funkcja redakcji (migracja 20261007120100). */
+const LIST_RPC = "admin_list_ad_slots";
 
 /** Panel startuje na zakładce Sloty - tylko jej odczyty muszą być zaplanowane. */
 function pustaBaza(): void {
-  db().setResponse("ad_slots", ok([]));
+  rpc().setData(LIST_RPC, []);
   db().setResponse("ad_placements", ok([]));
   db().setResponse("ad_events", () => okCount(0));
   db().setResponse("categories", ok([]));
@@ -112,6 +122,7 @@ async function zamontuj() {
 
 beforeEach(() => {
   db().reset();
+  rpc().reset();
   (h.rt as { reset(): void }).reset();
   h.ensureI18n.mockClear();
   h.shellProps.length = 0;
@@ -125,7 +136,7 @@ describe("trasa /admin/ads - sklejenie adresu z panelem", () => {
     expect(screen.getByRole("heading", { name: "adsAdmin.title" })).toBeInTheDocument();
     // Dowód, że przez trasę przeszedł CAŁY organizm, a nie sam nagłówek:
     // pierwsza zakładka zdążyła odpytać bazę o sloty.
-    await waitFor(() => expect(db().chainsFor("ad_slots").length).toBe(1));
+    await waitFor(() => expect(rpc().callsFor(LIST_RPC).length).toBe(1));
     cleanup();
   });
 

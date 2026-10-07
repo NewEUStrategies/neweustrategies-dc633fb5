@@ -35,6 +35,8 @@ const h = vi.hoisted(() => ({
   rpc: vi.fn(),
   headers: null as Headers | null,
   requestThrows: false,
+  // Najemca hosta dla odblokowania hasłem (migracja 20261007120400).
+  tenant: "77777777-7777-4777-8777-777777777777" as string | null,
 }));
 
 vi.mock("@tanstack/react-start", async () => {
@@ -53,6 +55,10 @@ vi.mock("@tanstack/react-start/server", () => ({
 
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { rpc: (name: string, args: unknown) => h.rpc(name, args) },
+}));
+
+vi.mock("@/lib/server/tenant.server", () => ({
+  resolveTenantIdForHost: async () => h.tenant,
 }));
 
 const { preAuthGuard, unlockContentPassword } = await import("@/lib/auth/bruteforce.functions");
@@ -427,7 +433,50 @@ describe("unlockContentPassword - paywall", () => {
 
   beforeEach(() => {
     h.rpc.mockReset();
+    h.tenant = "77777777-7777-4777-8777-777777777777";
     withIp(IP_A);
+  });
+
+  it("woła wariant z JAWNYM najemcą hosta - rola serwisowa nie niesie hosta", async () => {
+    // Dawne `verify_content_password` liczyło `public_tenant_id()`, które pod
+    // rolą serwisową bez nagłówka oddaje najemcę DOMYŚLNEGO - wpis chroniony
+    // hasłem na domenie innego najemcy nigdy się nie odblokowywał.
+    h.rpc.mockResolvedValue({ data: [{ ok: true, content_pl: "treść" }], error: null });
+
+    await callServerFn(unlockContentPassword, UNLOCK, { supabase: null });
+
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.rpc.mock.calls[0]![0]).toBe("verify_content_password_for_tenant");
+    expect(h.rpc.mock.calls[0]![1]).toMatchObject({
+      _tenant_id: "77777777-7777-4777-8777-777777777777",
+      _entity_type: "post",
+      _entity_id: UNLOCK.entityId,
+      _password: UNLOCK.password,
+    });
+  });
+
+  it("bez najemcy hosta: awaria bez pytania bazy (to nie jest złe hasło)", async () => {
+    h.tenant = null;
+    await expect(callServerFn(unlockContentPassword, UNLOCK, { supabase: null })).rejects.toThrow(
+      "content_password: failed",
+    );
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("OKNO WDROŻENIA (PGRST202): stara funkcja z tym samym skrótem adresu", async () => {
+    h.rpc
+      .mockResolvedValueOnce({ data: null, error: { code: "PGRST202", message: "no function" } })
+      .mockResolvedValueOnce({ data: [{ ok: true, content_pl: "treść" }], error: null });
+
+    const res = await callServerFn<Record<string, unknown>>(unlockContentPassword, UNLOCK, {
+      supabase: null,
+    });
+
+    expect(res.ok).toBe(true);
+    expect(h.rpc.mock.calls[1]![0]).toBe("verify_content_password");
+    expect((h.rpc.mock.calls[1]![1] as { _ip_hash?: string })._ip_hash).toBe(
+      (h.rpc.mock.calls[0]![1] as { _ip_hash?: string })._ip_hash,
+    );
   });
 
   it("przekazuje SKRÓT adresu, nie adres - limit liczy baza", async () => {

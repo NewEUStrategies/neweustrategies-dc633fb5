@@ -663,13 +663,16 @@ export const sendActivationEmailForUser = createServerFn({ method: "POST" })
   .validator((input) => z.object({ userId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }): Promise<SendResult> => {
     const { tenantId } = await assertAdmin(context.supabase, context.userId);
-    const { data: profile, error: profileError } = await context.supabase
-      .from("profiles")
-      .select("email, display_name")
-      .eq("id", data.userId)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
+    // `profiles.email` nie jest czytelne dla `authenticated` (grant kolumnowy,
+    // 20260703090100), więc `select("email")` klientem admina kończył się
+    // 42501 przy KAŻDYM wysłaniu aktywacji (znalezisko kontraktu TS <-> SQL).
+    // E-mail czytamy funkcją redakcji `admin_get_user` - ta sama bramka co
+    // ekran użytkownika: najemca wołającego i rola admin, bez roli serwisowej.
+    const { data: rows, error: profileError } = await context.supabase.rpc("admin_get_user", {
+      _user_id: data.userId,
+    });
     if (profileError) throw new Error(profileError.message);
+    const profile = (Array.isArray(rows) ? rows[0] : null) ?? null;
     if (!profile?.email) throw new Error("activation_email_missing");
 
     const email = profile.email.trim().toLowerCase();

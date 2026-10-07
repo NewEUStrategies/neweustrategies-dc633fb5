@@ -295,19 +295,32 @@ describe("DEFEKT 2: zerowy UUID NIE jest przez RPC traktowany jak NULL", () => {
    */
   const MIGRATIONS = resolve(process.cwd(), "supabase/migrations");
 
+  /**
+   * Ostatnia definicja funkcji, w ktorej ZYJE logika walidacji kodu na plan.
+   * Od 20261007120200 `validate_b2b_coupon` i `validate_b2b_coupon_for_user`
+   * sa cienkimi wrapperami, a cialo siedzi w rdzeniu `_validate_b2b_coupon` -
+   * gdy rdzen istnieje, czytamy JEGO, nie wrapper.
+   */
   function latestValidateCouponBody(): string {
     const files = readdirSync(MIGRATIONS)
       .filter((f) => f.endsWith(".sql"))
       .sort();
-    let body = "";
-    for (const f of files) {
-      const sql = readFileSync(join(MIGRATIONS, f), "utf8");
-      const idx = sql.lastIndexOf("CREATE OR REPLACE FUNCTION public.validate_b2b_coupon(");
-      if (idx === -1) continue;
-      const end = sql.indexOf("END $$;", idx);
-      body = sql.slice(idx, end === -1 ? undefined : end);
-    }
-    if (!body) throw new Error("test: nie znaleziono definicji validate_b2b_coupon w migracjach");
+    const latest = (anchor: string): string => {
+      let body = "";
+      for (const f of files) {
+        const sql = readFileSync(join(MIGRATIONS, f), "utf8");
+        const idx = sql.lastIndexOf(anchor);
+        if (idx === -1) continue;
+        const end = sql.indexOf("END $$;", idx);
+        body = sql.slice(idx, end === -1 ? undefined : end);
+      }
+      return body;
+    };
+    const body =
+      latest("CREATE OR REPLACE FUNCTION public._validate_b2b_coupon(") ||
+      latest("CREATE OR REPLACE FUNCTION public.validate_b2b_coupon(");
+    if (!body)
+      throw new Error("test: nie znaleziono definicji walidacji kodu na plan w migracjach");
     return body;
   }
 

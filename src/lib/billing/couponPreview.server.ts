@@ -3,8 +3,9 @@
 // KOLEJNOŚĆ ŚCIAN:
 //   1. limit prób (`allowCodeProbe`): kubełek IP, potem kubełek konta -
 //      FAIL-CLOSED, odmowa PRZED bazą;
-//   2. `validate_b2b_coupon` klientem z JWT kupującego (baza dokłada własny
-//      kubełek pudeł na konto - `_coupon_probe_guard`);
+//   2. `validate_b2b_coupon_for_user` rolą serwisową z jawnym najemcą, kontem
+//      i skrótem adresu (`couponRpc.server.ts`) - baza dokłada własne kubełki
+//      PUDEŁ na konto i na adres (`_coupon_probe_guard`, 20261007120200);
 //   3. wynik oczyszczony: bez coupon_id i nazwy kodu NAWET przy sukcesie.
 //
 // ODMOWA LIMITU I AWARIA TO NIE ORZECZENIE O KODZIE. Obie wracają jako własne
@@ -23,6 +24,7 @@ import {
   parseCouponVerdict,
   type ValidateCouponResult,
 } from "@/lib/billing/coupons";
+import { validatePlanCouponForUser } from "@/lib/billing/couponRpc.server";
 import { allowCodeProbe } from "@/lib/events/codeProbeLimit.server";
 
 type CouponError = NonNullable<ValidateCouponResult["error"]>;
@@ -79,11 +81,12 @@ export async function previewPlanCouponForUser(
   const allowed = await allowCodeProbe(requestHeaders(), async () => userId);
   if (!allowed) return refusal("rate_limited", input.amountCents);
 
-  const { data, error } = await supabase.rpc("validate_b2b_coupon", {
-    _code: normalizeCouponCode(input.code),
-    _plan_id: input.planId ?? NO_PLAN,
-    _amount_cents: input.amountCents,
-    _currency: input.currency,
+  const { data, error } = await validatePlanCouponForUser(supabase, {
+    userId,
+    code: normalizeCouponCode(input.code),
+    planId: input.planId ?? NO_PLAN,
+    amountCents: input.amountCents,
+    currency: input.currency,
   });
   if (error) {
     return refusal(

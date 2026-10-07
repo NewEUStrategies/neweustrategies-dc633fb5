@@ -51,6 +51,16 @@ vi.mock("@/lib/billing/mockMode.server", () => ({
 
 vi.mock("@/lib/stripe.server", () => ({ resolveEnvironment: () => "sandbox" }));
 
+// Rezerwacja użycia kodu idzie rolą serwisową z jawnym najemcą i kontem
+// (`couponRpc.server.ts`, migracja 20261007120200) - atrapa przekazuje ją do
+// TEJ SAMEJ tabeli odpowiedzi co klient użytkownika.
+const admin = vi.hoisted(() => ({
+  rpc: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+}));
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: { rpc: (fn: string, args: Record<string, unknown>) => admin.rpc!(fn, args) },
+}));
+
 const { quoteEventTicketCheckout } = await import("@/lib/billing/eventTicketQuote.functions");
 const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions");
 
@@ -106,6 +116,7 @@ beforeEach(() => {
   chain = supabaseFromStub();
   rpcCalls = [];
   rpcResponses = new Map();
+  admin.rpc = (fn, args) => client().rpc(fn, args);
   chain.setResponse("payment_orders", ok({ id: "order-1", tenant_id: "tenant-alfa" }));
   rpcResponses.set(
     "event_registration_payment_context",
@@ -127,7 +138,7 @@ beforeEach(() => {
   rpcResponses.set("event_ticket_public_options", ok({ tax_mode: "inclusive" }));
   rpcResponses.set("event_registration_group_seats", ok(3));
   rpcResponses.set("validate_event_ticket_coupon", fixedCode(2000));
-  rpcResponses.set("redeem_b2b_coupon", ok(true));
+  rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
 });
 
 describe("quoteEventTicketCheckout - obudowa", () => {
@@ -198,7 +209,7 @@ describe("quoteEventTicketCheckout - ta sama liczba co kasa, bez skutku", () => 
       couponError: null,
       coupon: { code: "MINUS20", kind: "fixed", percent: null, perSeatCents: 2000 },
     });
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
 
     // Ta sama baza, ta sama prośba - teraz przez kasę.
@@ -224,7 +235,13 @@ describe("quoteEventTicketCheckout - ta sama liczba co kasa, bez skutku", () => 
     expect(order.metadata.quantity).toBe(quote.seats);
     expect(order.metadata.coupon_discount_cents).toBe(quote.discountCents);
     // Rezerwacja użycia należy do KASY - dopiero ona ją robi.
-    expect(rpcCalls.filter((c) => c.fn === "redeem_b2b_coupon")).toHaveLength(1);
+    expect(rpcCalls.filter((c) => c.fn === "redeem_b2b_coupon_for_user")).toHaveLength(1);
+    // Najemca rezerwacji to stempel zamówienia, konto - sesja kasy.
+    expect(rpcCalls.find((c) => c.fn === "redeem_b2b_coupon_for_user")?.args).toMatchObject({
+      _tenant_id: "tenant-alfa",
+      _user_id: "user-lead",
+      _order_id: "order-1",
+    });
   });
 
   it("odmowa kodu nie jest błędem podglądu: suma bez kodu i powód odmowy", async () => {

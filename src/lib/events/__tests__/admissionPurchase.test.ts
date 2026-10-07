@@ -73,7 +73,6 @@ const api = await import("@/lib/events/admissionApi");
 const PACKAGE_ID = "9a1b0000-0000-4000-8000-000000000101";
 const TICKET_TYPE_ID = "9a1b0000-0000-4000-8000-000000000202";
 const ORDER_ID = "9a1b0000-0000-4000-8000-000000000303";
-const COMPANY_ID = "9a1b0000-0000-4000-8000-000000000404";
 
 function rpc(): SupabaseRpcStub {
   if (h.rpc === null) throw new Error("test: atrapa RPC nie zostala ustawiona");
@@ -96,7 +95,6 @@ const buyer: import("@/lib/events/admissionApi").PackagePurchaseInput = {
   packageId: PACKAGE_ID,
   buyerName: "  Zofia Wierzbicka  ",
   buyerEmail: "  Zofia.Wierzbicka@example.com  ",
-  companyId: COMPANY_ID,
   invoiceNote: "  PO 2026/114  ",
   couponCode: "  partner2026  ",
 };
@@ -295,13 +293,15 @@ describe("purchasePackage - ladunek zakupu", () => {
       "seats",
       "seats_total",
       "status",
+      // Firme zamowienia ustala organizator (most faktur); klucz w ladunku baza
+      // odrzuca jako `forbidden_field` (20261007120000).
+      "company_id",
     ]) {
       expect(forbidden in sent, `zakup nie moze dyktowac pola ${forbidden}`).toBe(false);
     }
     expect(Object.keys(sent).sort()).toEqual([
       "buyer_email",
       "buyer_name",
-      "company_id",
       "coupon_code",
       "invoice_note",
       "package_id",
@@ -331,13 +331,12 @@ describe("purchasePackage - ladunek zakupu", () => {
   // Klucz pominiety znaczy „nie mam tej danej"; klucz z pustym napisem
   // znaczylby „wyczysc" i wpisalby pusty adres na zamowieniu, ktore idzie do
   // ksiegowosci.
-  it("pola puste i brak firmy sa POMIJANE, zostaje sam pakiet", async () => {
+  it("pola puste sa POMIJANE, zostaje sam pakiet", async () => {
     rpc().setData("event_package_purchase", purchased);
     await api.purchasePackage({
       packageId: PACKAGE_ID,
       buyerName: "   ",
       buyerEmail: "",
-      companyId: null,
       invoiceNote: "  ",
       couponCode: "   ",
     });

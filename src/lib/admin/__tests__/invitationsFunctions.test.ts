@@ -307,6 +307,12 @@ let db: ReturnType<typeof supabaseFromStub>;
 let rpcCalls: { name: string; args: unknown }[] = [];
 /** Wynik `admin_list_users` - lista kont w najemcy wywołującego. */
 let rpcUsers: { id: string; email: string | null; slug?: string | null }[] = [];
+/**
+ * Odpowiedź `admin_get_user` (e-mail adresata aktywacji). `profiles.email`
+ * nie jest czytelne dla `authenticated`, więc handler czyta go funkcją
+ * redakcji, a nie `select("email")` - atrapa tabeli przyjmowała oba.
+ */
+let adminGetUser: SupabaseResult | null = null;
 
 /**
  * Klient w kształcie, jakiego oczekuje handler: `from()` z atrapy łańcucha
@@ -321,6 +327,7 @@ function client(): { from: (table: string) => unknown; rpc: (name: string) => Pr
       rpcCalls.push({ name, args });
       if (name === "admin_claim_invitation_send" && h.claimError)
         return Promise.resolve({ data: null, error: h.claimError });
+      if (name === "admin_get_user" && adminGetUser) return Promise.resolve(adminGetUser);
       return Promise.resolve({ data: rpcUsers, error: null });
     },
   };
@@ -406,6 +413,7 @@ beforeEach(() => {
   db = supabaseFromStub();
   rpcCalls = [];
   rpcUsers = [];
+  adminGetUser = null;
   h.authCalls = [];
   h.authUserId = "aaaa1111-2222-4333-8444-555566667777";
   h.authError = null;
@@ -2996,11 +3004,8 @@ describe("CRM company suggestions for invitations", () => {
 describe("activation from the member directory", () => {
   function profile(result: SupabaseResult): void {
     grantAdmin();
-    db.setResponse("profiles", (chain) =>
-      chain.calls.some((c) => c.method === "eq" && c.args[1] === IDS.existingUser)
-        ? result
-        : ok({ tenant_id: IDS.tenant }),
-    );
+    // `admin_get_user` zwraca TABLICĘ wierszy (zero albo jeden).
+    adminGetUser = result.error ? result : ok(result.data === null ? [] : [result.data]);
   }
   it.each([fail("profile unavailable"), ok(null), ok({ email: "" })])(
     "rejects missing or unreadable recipient data",
@@ -3015,6 +3020,25 @@ describe("activation from the member directory", () => {
       expect(h.emails).toHaveLength(0);
     },
   );
+  it("reads the recipient e-mail through admin_get_user, never select(email) on profiles", async () => {
+    // `profiles.email` nie jest czytelne dla `authenticated` (grant kolumnowy) -
+    // `select("email")` klientem admina kończył się w bazie 42501, a atrapa
+    // tabeli go przyjmowała (kontrakt TS <-> SQL).
+    profile(ok({ email: "member@example.org", display_name: "Member" }));
+    db.setResponse("user_invitations", fail("stop after lookup"));
+    await expect(
+      callServerFn(sendActivationEmailForUser, {
+        data: { userId: IDS.existingUser },
+        context: context(),
+      }),
+    ).rejects.toThrow("stop after lookup");
+    expect(rpcCalls.find((c) => c.name === "admin_get_user")?.args).toEqual({
+      _user_id: IDS.existingUser,
+    });
+    expect(
+      db.chainsFor("profiles").some((c) => String(c.argsOf("select")?.[0] ?? "").includes("email")),
+    ).toBe(false);
+  });
   it("propagates invitation lookup failure", async () => {
     profile(ok({ email: "member@example.org", display_name: "Member" }));
     db.setResponse("user_invitations", fail("lookup unavailable"));
@@ -3189,11 +3213,7 @@ describe("invitation delivery recovery branches", () => {
 describe("activation record persistence failures", () => {
   function profileReady() {
     grantAdmin();
-    db.setResponse("profiles", (chain) =>
-      chain.calls.some((c) => c.method === "eq" && c.args[1] === IDS.existingUser)
-        ? ok({ email: "member@example.org", display_name: "Member" })
-        : ok({ tenant_id: IDS.tenant }),
-    );
+    adminGetUser = ok([{ email: "member@example.org", display_name: "Member" }]);
   }
   it("propagates role lookup failure before creating an activation record", async () => {
     profileReady();

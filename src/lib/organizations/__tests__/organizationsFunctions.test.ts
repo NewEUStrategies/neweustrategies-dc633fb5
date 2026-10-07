@@ -252,8 +252,10 @@ describe("setTeamSeatLimit", () => {
       "sub_1",
       { priceExternalId: "team_monthly_seat", quantity: 5, previousQuantity: 3 },
     ]);
-    // Nowa liczba opłaconych miejsc zapisuje się też lokalnie.
-    expect(db.chainsFor("subscriptions").some((c) => c.has("update"))).toBe(true);
+    // Lustro `subscriptions.quantity` uzupełnia webhook operatora. Klient
+    // użytkownika nie ma UPDATE na `subscriptions` - dawny zapis stąd nigdy się
+    // nie wykonywał (atrapa go przyjmowała, baza nie; kontrakt TS <-> SQL).
+    expect(db.chainsFor("subscriptions").some((c) => c.has("update"))).toBe(false);
   });
 
   it("odmowa operatora zatrzymuje zmianę limitu w bazie", async () => {
