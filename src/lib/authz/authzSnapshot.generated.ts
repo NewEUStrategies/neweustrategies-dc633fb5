@@ -31,7 +31,7 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:change_user_role/2","kind":"function","object":"change_user_role","file":"20260703090100_profiles_column_grants_and_role_audit.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:club_capabilities/3","kind":"function","object":"club_capabilities","file":"20261007100100_club_post_mentions_and_link_validation.sql","anyRoles":["editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:comments_guard_update/0","kind":"function","object":"comments_guard_update","file":"20260724090400_fix_comments_remoderate_on_edit.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"row","securityDefiner":true,"featureKeys":[]},
-    {"ref":"fn:crm_backfill_all_leads/0","kind":"function","object":"crm_backfill_all_leads","file":"20260722080948_7dc684cd-0761-4c1c-90a6-91dd2e940438.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
+    {"ref":"fn:crm_backfill_all_leads/0","kind":"function","object":"crm_backfill_all_leads","file":"20261007140500_crm_newsletter_writers_bound.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:crm_set_merydian_secret/2","kind":"function","object":"crm_set_merydian_secret","file":"20260712175237_8b79ff74-c8a7-46f4-9f02-8ebbaac10629.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:get_engagement_overview/0","kind":"function","object":"get_engagement_overview","file":"20260713099000_engagement_overview.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":["chatham_house_events","pro_briefings","recordings"]},
@@ -80,5 +80,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260814221337_7032c52d-ad30-4821-a2e9-4ae1fa855a8f.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":1098,"functions":1472,"policies":655},
+  stats: {"migrations":1100,"functions":1476,"policies":655},
 };
