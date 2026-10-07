@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
-import type { StripeDiscountResolution } from "@/lib/billing/discounts.server";
 
 const envSchema = z.enum(["sandbox", "live"]);
 
@@ -182,50 +181,6 @@ export const resumeStripeSubscription = createServerFn({ method: "POST" })
     );
     if (!result.ok) return { error: result.error };
     return { ok: true as const, mode: "cancellation_reverted" as const };
-  });
-
-/**
- * Kod promocyjny dla nakładki płatności: waliduje kupon w bazie i zwraca
- * identyfikator rabatu u dostawcy (tworząc go leniwie, gdy jeszcze nie istnieje).
- *
- * PUBLICZNA SONDA KODU: bez sesji, a walidacja idzie kluczem serwisowym, więc
- * kubełek pudeł w bazie (per konto) jej nie liczy. Dlatego przed bazą stoi ten
- * sam limit prób co przy odsłanianiu biletów (IP, a przy sesji też konto;
- * fail-closed) - inaczej byłaby to druga, nieograniczona wyrocznia kodów
- * (i darmowe tworzenie obiektów rabatu u dostawcy).
- */
-export const resolveStripeDiscount = createServerFn({ method: "POST" })
-  .inputValidator(
-    (data: {
-      code: string;
-      planId: string;
-      amountCents: number;
-      currency: string;
-      environment: StripeEnv;
-    }) =>
-      z
-        .object({
-          code: z.string().trim().min(1).max(64),
-          planId: z.string().uuid(),
-          amountCents: z.number().int().positive(),
-          currency: z.string().trim().length(3),
-          environment: envSchema,
-        })
-        .parse(data),
-  )
-  .handler(async ({ data }): Promise<StripeDiscountResolution> => {
-    const { allowCodeProbeForRequest } = await import("@/lib/events/codeProbeLimit.server");
-    if (!(await allowCodeProbeForRequest())) {
-      return { ok: false, discountId: null, error: "rate_limited", discountCents: 0 };
-    }
-    const { resolveDiscountForCoupon } = await import("@/lib/billing/discounts.server");
-    return await resolveDiscountForCoupon({
-      environment: data.environment,
-      code: data.code,
-      planId: data.planId,
-      amountCents: data.amountCents,
-      currency: data.currency.toUpperCase(),
-    });
   });
 
 /**
