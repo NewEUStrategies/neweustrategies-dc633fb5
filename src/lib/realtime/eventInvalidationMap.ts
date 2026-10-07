@@ -167,14 +167,32 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   // i per watek, a nie per autor.
   "club_thread.created.v1": (event) => clubEventKeys(event),
   "club_thread.status_changed.v1": (event) => clubEventKeys(event),
-  "club_reply.created.v1": (event) => [
-    ...clubEventKeys(event),
-    clubKeys.repliesAll(eventPayloadText(event, "thread_id")),
-  ],
+  // WLASNA odpowiedz (aktor = zalogowany) trafia tu ~250 ms po mutacji, ktora
+  // juz odswiezyla to, czego potrzebuje: `useReplyFromFeed` celowo NIE
+  // uniewaznia poddrzewa klubu (licznik poprawia w miejscu), bo odswiezona
+  // lista „goracych" przestawialaby karty pod kursorem autora. Szyna dostarcza
+  // zdarzenie wlasnie aktorowi, wiec bez tego wyjatku cofalaby te decyzje.
+  // Zostaja odpowiedzi watku - tanie i aktualne takze w innych kartach autora.
+  "club_reply.created.v1": (event, ctx) => {
+    const repliesKey = clubKeys.repliesAll(eventPayloadText(event, "thread_id"));
+    return isOwnEvent(event, ctx) ? [repliesKey] : [...clubEventKeys(event), repliesKey];
+  },
   "club_reply.status_changed.v1": (event) => [
     ...clubEventKeys(event),
     clubKeys.repliesAll(eventPayloadText(event, "thread_id")),
   ],
+  // Komentarz pod wpisem: WYLACZNIE komentarze tego wpisu. Nie sciana - jej
+  // przeladowanie wypycha z pierwszej strony karte, pod ktora czytelnik pisze
+  // (patrz `postCommentKeys`), a licznik w karcie poprawia mutacja w miejscu.
+  // Uszkodzony payload degraduje do szerszego klucza (klub, potem caly modul),
+  // ale nie przy wlasnym zdarzeniu - wtedy mutacja juz odswiezyla swoje.
+  "club_post_comment.created.v1": (event, ctx) => {
+    const clubId = eventPayloadText(event, "club_id");
+    const postId = eventPayloadText(event, "post_id");
+    if (clubId !== "" && postId !== "") return [clubKeys.postComments(clubId, postId)];
+    if (isOwnEvent(event, ctx)) return [];
+    return clubId === "" ? [clubKeys.all] : [clubKeys.club(clubId)];
+  },
   // Zmiana czlonkostwa rusza takze WLASNE czlonkostwa odbiorcy: lista "Moje
   // kluby" w naglowku produktu przestaje byc prawdziwa w tej samej chwili.
   "club_member.changed.v1": (event) => [...clubEventKeys(event), clubKeys.memberships()],
@@ -416,6 +434,16 @@ function donationKeys(): QueryKey[] {
  * watek, gdy zdarzenie go wskazuje. To ta sama argumentacja co przy kluczach
  * sieci: w chwili odbioru zdarzenia nie znamy wszystkich wspolrzednych.
  */
+/**
+ * Zdarzenie wywolane przez zalogowanego uzytkownika. Szyna dostarcza je
+ * aktorowi (polityka `domain_events_actor_select`), wiec karta, ktora wlasnie
+ * wykonala mutacje, dostaje echo wlasnego zapisu. Brak aktora (wpis anonimowy)
+ * albo brak sesji nigdy nie jest „wlasnym" zdarzeniem.
+ */
+function isOwnEvent(event: DomainEventRow, ctx: InvalidationContext): boolean {
+  return ctx.userId !== undefined && event.actor_id !== null && event.actor_id === ctx.userId;
+}
+
 function clubEventKeys(event: DomainEventRow): QueryKey[] {
   const clubId = eventPayloadText(event, "club_id");
   const keys: QueryKey[] = [clubKeys.all];

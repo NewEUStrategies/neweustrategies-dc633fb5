@@ -10,12 +10,19 @@
 // (2) PODPIĘCIE POD WĄTEK JEST POKAZANE ZAWSZE, GDY ISTNIEJE - to jedyna
 //     rzecz, która łączy krótką formę ze strukturą klubu (nagłówek
 //     `ClubPostCard.tsx`). `hideThreadLink` zdejmuje plakietkę TYLKO tam,
-//     gdzie wątek JEST kontekstem ekranu, i wtedy zdejmuje też wejście
-//     w dyskusję - inaczej ekran wątku proponowałby przejście do siebie.
-// (3) KOMENTARZ PROWADZI DO WĄTKU, A GDY WĄTKU NIE MA - DO JEGO ZAŁOŻENIA.
-//     Martwy przycisk jest tu najgorszą opcją, a nowy wątek musi wystartować
-//     W TYM DZIALE, z którego pochodzi wpis (parametr `groupId`), inaczej
-//     materiał ucieka z działu, w którym go opublikowano.
+//     gdzie wątek JEST kontekstem ekranu, i wtedy zdejmuje też udostępnienie
+//     adresem wątku - ale NIE komentarze, bo te żyją pod wpisem, nie w wątku.
+// (3) KOMENTARZ ZOSTAJE POD WPISEM. „Komentuj" jest PRZEŁĄCZNIKIEM sekcji
+//     rozmowy karty (`aria-expanded`/`aria-controls` wskazują istniejący
+//     węzeł także przy zwiniętej sekcji), otwarcie przenosi fokus do pola
+//     (`focusKey`), a licznik komentarzy w pasie liczników rozwija tę samą
+//     sekcję. Zawartość montuje się dopiero przy pierwszym rozwinięciu
+//     i ZOSTAJE po zwinięciu (szkic nie przepada). Tryb sekcji jest iloczynem
+//     sesji, prawa głosu w klubie i `post.can_comment` (prawo w dziale) - gość
+//     i członek bez głosu też rozwijają sekcję, ale bez kompozytora.
+//     Wpis wskazany adresem (`focusComments`) rozwija się sam, bez fokusu.
+//     Sama sekcja (lista, kompozytor, usuwanie) ma własny plik:
+//     `clubFeedComments.test.tsx` - tutaj jest ATRAPĄ wypisującą propsy.
 // (4) TREŚĆ JEST TEKSTEM, NIE HTML-em. Adresy w treści stają się linkami
 //     (`target=_blank`, `rel` z `noopener`), a wszystko inne zostaje tekstem -
 //     wstrzykiwanie znaczników z pola użytkownika to gotowy XSS.
@@ -126,7 +133,36 @@ vi.mock("@/lib/mentions/useMentionProfile", () => ({
   useMentionProfile: () => ({ data: null, isPending: false }),
 }));
 
+// Sekcja komentarzy ma własny plik testowy; tu dowodzimy DELEGACJI: kiedy
+// karta ją montuje i z jakim trybem oraz sygnałem fokusu.
+vi.mock("@/components/clubs/molecules/ClubFeedComments", () => ({
+  ClubFeedComments: ({
+    post,
+    clubSlug,
+    mode,
+    focusKey,
+  }: {
+    post: { id: string };
+    clubSlug: string;
+    mode: string;
+    focusKey?: number;
+  }) => (
+    <div
+      data-testid="club-feed-comments-stub"
+      data-post-id={post.id}
+      data-club-slug={clubSlug}
+      data-mode={mode}
+      data-focus-key={String(focusKey ?? 0)}
+    />
+  ),
+}));
+
 import { ClubPostCard } from "@/components/clubs/organisms/ClubPostCard";
+import {
+  clearFeedDrafts,
+  postDraftKey,
+  writeFeedDraft,
+} from "@/components/clubs/molecules/feedDrafts";
 import { CLUB_BASE_ISO, CLUB_IDS, clubIsoOffset } from "@/test/clubs/fixtures";
 import { clubPostRow } from "@/test/clubs/hubFixtures";
 
@@ -153,6 +189,7 @@ function imageAttachment(path: string, extra: Record<string, Json> = {}): Json {
 beforeEach(() => {
   h.previewed = [];
   cleanup();
+  clearFeedDrafts();
 });
 
 describe("ClubPostCard - autor i pochodzenie", () => {
@@ -220,7 +257,7 @@ describe("ClubPostCard - autor i pochodzenie", () => {
 });
 
 describe("ClubPostCard - podpięcie pod wątek i wejście w dyskusję", () => {
-  it("wpis podpięty pod wątek pokazuje plakietkę wątku i prowadzi do kompozytora odpowiedzi", () => {
+  it("wpis podpięty pod wątek pokazuje plakietkę wątku, a „Komentuj” zostaje pod wpisem", () => {
     render(
       <ClubPostCard
         post={clubPostRow({ thread_slug: "temat-pierwszy", thread_title: "Temat pierwszy" })}
@@ -237,9 +274,12 @@ describe("ClubPostCard - podpięcie pod wątek i wejście w dyskusję", () => {
     expect(title.className).toContain("min-h-6");
     expect(title.className).toContain("text-[length:var(--fs-button)]");
 
+    // „Komentuj" to PRZYCISK sekcji w karcie, nie link do wątku.
     const comment = screen.getByTestId("club-post-comment");
-    expect(comment.getAttribute("href")).toBe("/club/klub-energetyczny/t/temat-pierwszy");
-    expect(comment.getAttribute("data-search")).toBe('{"reply":true}');
+    expect(comment.tagName).toBe("BUTTON");
+    expect(comment.hasAttribute("href")).toBe(false);
+    // Zakładanie wątku zniknęło - wpis ma własną rozmowę.
+    expect(screen.queryByTestId("club-post-start-thread")).toBeNull();
   });
 
   it("wątek bez tytułu (projekcja bez nazwy) dostaje zastępczy klucz plakietki", () => {
@@ -256,34 +296,7 @@ describe("ClubPostCard - podpięcie pod wątek i wejście w dyskusję", () => {
     ).toBeTruthy();
   });
 
-  it("wpis BEZ wątku proponuje jego założenie - w dziale, z którego pochodzi", () => {
-    render(
-      <ClubPostCard
-        post={clubPostRow({ group_id: CLUB_IDS.group, thread_slug: null })}
-        clubSlug={CLUB_SLUG}
-        mediaUrls={{}}
-      />,
-    );
-
-    const start = screen.getByTestId("club-post-start-thread");
-    expect(start.getAttribute("href")).toBe("/club/klub-energetyczny/new");
-    expect(start.getAttribute("data-search")).toBe(`{"groupId":"${CLUB_IDS.group}"}`);
-    expect(screen.queryByTestId("club-post-comment")).toBeNull();
-  });
-
-  it("wpis bez wątku i bez działu zakłada wątek bez zawężenia do działu", () => {
-    render(
-      <ClubPostCard
-        post={clubPostRow({ group_id: null, thread_slug: null })}
-        clubSlug={CLUB_SLUG}
-        mediaUrls={{}}
-      />,
-    );
-
-    expect(screen.getByTestId("club-post-start-thread").getAttribute("data-search")).toBe("{}");
-  });
-
-  it("`hideThreadLink` zdejmuje ZARAZEM plakietkę i wejście w dyskusję", () => {
+  it("`hideThreadLink` zdejmuje plakietkę i udostępnienie, ale NIE komentarze", () => {
     render(
       <ClubPostCard
         post={clubPostRow({ thread_slug: "temat-pierwszy", thread_title: "Temat pierwszy" })}
@@ -294,24 +307,161 @@ describe("ClubPostCard - podpięcie pod wątek i wejście w dyskusję", () => {
     );
 
     expect(screen.queryByTestId("club-post-thread-link")).toBeNull();
-    expect(screen.queryByTestId("club-post-comment")).toBeNull();
-    expect(screen.queryByTestId("club-post-start-thread")).toBeNull();
+    expect(screen.queryByTestId("club-feed-share")).toBeNull();
+    // Komentarze żyją pod wpisem - ekran wątku nie prowadzi przez nie do siebie.
+    expect(screen.getByTestId("club-post-comment")).toBeTruthy();
+  });
+});
+
+describe("ClubPostCard - komentarze w karcie", () => {
+  it("„Komentuj” przełącza sekcję: aria-controls wskazuje istniejący węzeł, treść montuje się dopiero po otwarciu", () => {
+    render(
+      <ClubPostCard post={clubPostRow()} clubSlug={CLUB_SLUG} mediaUrls={{}} signedIn canComment />,
+    );
+
+    const toggle = screen.getByTestId("club-post-comment");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    const zoneId = toggle.getAttribute("aria-controls") ?? "";
+    const zone = document.getElementById(zoneId);
+    // Węzeł istnieje także przy zwiniętej sekcji - `aria-controls` nie wisi w próżni.
+    expect(zone).not.toBeNull();
+    expect(zone?.hidden).toBe(true);
+    expect(zone?.getAttribute("data-feed-zone")).toBe("comments");
+    expect(zone?.getAttribute("aria-label")).toBe("club.comments.sectionLabel");
+    // Zero zapytań przed rozwinięciem: sekcja nie jest zamontowana.
+    expect(screen.queryByTestId("club-feed-comments-stub")).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(zone?.hidden).toBe(false);
+    const stub = screen.getByTestId("club-feed-comments-stub");
+    expect(stub.getAttribute("data-mode")).toBe("write");
+    expect(stub.getAttribute("data-post-id")).toBe("post-1");
+    expect(stub.getAttribute("data-club-slug")).toBe(CLUB_SLUG);
+    // Otwarcie przyciskiem prosi sekcję o fokus w polu.
+    expect(stub.getAttribute("data-focus-key")).toBe("1");
+
+    // Zwinięcie chowa sekcję, ale jej nie odmontowuje - szkic zostaje.
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(zone?.hidden).toBe(true);
+    expect(screen.getByTestId("club-feed-comments-stub")).toBeTruthy();
   });
 
-  it("bez prawa głosu w klubie nie ma ani komentarza, ani zakładania wątku", () => {
+  it("licznik komentarzy w pasie liczników rozwija sekcję, a drugi klik jej nie zwija", () => {
     render(
       <ClubPostCard
-        post={clubPostRow({ thread_slug: "temat-pierwszy" })}
+        post={clubPostRow({ comment_count: 4 })}
         clubSlug={CLUB_SLUG}
         mediaUrls={{}}
-        canComment={false}
+        signedIn
       />,
     );
 
-    expect(screen.queryByTestId("club-post-comment")).toBeNull();
-    expect(screen.queryByTestId("club-post-start-thread")).toBeNull();
-    // Plakietka wątku ZOSTAJE - czytanie nie wymaga prawa głosu.
-    expect(screen.getByTestId("club-post-thread-link")).toBeTruthy();
+    const counter = screen.getByTestId("club-post-comment-count");
+    expect(counter.textContent).toBe("club.comments.count(count=4)");
+    expect(counter.closest('[data-feed-zone="social"]')).not.toBeNull();
+    // Rozmiar na PODPISIE, nie na przycisku: atom przycisku wymusza
+    // `--fs-button`, a sąsiedzi w pasie liczników mają 11 px (`text-xs`).
+    expect(counter.firstElementChild).toHaveClass("text-xs");
+    expect(counter.className).not.toContain("text-xs");
+    // Akcja niesie liczbę w nazwie dostępnej.
+    expect(screen.getByTestId("club-post-comment").getAttribute("aria-label")).toBe(
+      "club.hub.feed.commentWithCount(n=4)",
+    );
+
+    fireEvent.click(counter);
+    expect(counter.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(counter);
+    expect(counter.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("club-feed-comments-stub").getAttribute("data-focus-key")).toBe("2");
+  });
+
+  it("karta wracająca do strumienia z niewysłanym komentarzem sama rozwija rozmowę", () => {
+    // Hub podmienił strumień (wyszukiwanie, szkielet) i karta się odmontowała -
+    // szkic przeżył w rejestrze, więc po powrocie czeka w otwartej sekcji.
+    writeFeedDraft(postDraftKey("post-1"), "Pół zdania");
+    render(<ClubPostCard post={clubPostRow()} clubSlug={CLUB_SLUG} mediaUrls={{}} signedIn />);
+
+    expect(screen.getByTestId("club-post-comment").getAttribute("aria-expanded")).toBe("true");
+    // Bez kradzieży fokusu - czytelnik nie prosił o pole.
+    expect(screen.getByTestId("club-feed-comments-stub").getAttribute("data-focus-key")).toBe("0");
+
+    cleanup();
+    // Sam biały znak to nie szkic.
+    writeFeedDraft(postDraftKey("post-1"), "   ");
+    render(<ClubPostCard post={clubPostRow()} clubSlug={CLUB_SLUG} mediaUrls={{}} signedIn />);
+    expect(screen.getByTestId("club-post-comment").getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("bez komentarzy licznik nie istnieje, a etykieta akcji nie ma liczby", () => {
+    render(<ClubPostCard post={clubPostRow()} clubSlug={CLUB_SLUG} mediaUrls={{}} />);
+    expect(screen.queryByTestId("club-post-comment-count")).toBeNull();
+    expect(screen.getByTestId("club-post-comment").getAttribute("aria-label")).toBe(
+      "club.hub.feed.comment",
+    );
+  });
+
+  it.each([
+    ["gość", { signedIn: false, canComment: false, can_comment: false }, "guest"],
+    [
+      "bez prawa głosu w klubie",
+      { signedIn: true, canComment: false, can_comment: true },
+      "readOnly",
+    ],
+    [
+      "bez prawa głosu w DZIALE wpisu",
+      { signedIn: true, canComment: true, can_comment: false },
+      "readOnly",
+    ],
+    ["z prawem głosu", { signedIn: true, canComment: true, can_comment: true }, "write"],
+  ])("tryb sekcji: %s", (_label, input, expected) => {
+    render(
+      <ClubPostCard
+        post={clubPostRow({ can_comment: input.can_comment })}
+        clubSlug={CLUB_SLUG}
+        mediaUrls={{}}
+        signedIn={input.signedIn}
+        canComment={input.canComment}
+      />,
+    );
+    // Przycisk stoi w KAŻDYM trybie - czytanie komentarzy nie wymaga głosu.
+    fireEvent.click(screen.getByTestId("club-post-comment"));
+    expect(screen.getByTestId("club-feed-comments-stub").getAttribute("data-mode")).toBe(expected);
+  });
+
+  it("wpis wskazany adresem rozwija komentarze sam - BEZ prośby o fokus", () => {
+    const { rerender } = render(
+      <ClubPostCard post={clubPostRow()} clubSlug={CLUB_SLUG} mediaUrls={{}} signedIn />,
+    );
+    expect(screen.queryByTestId("club-feed-comments-stub")).toBeNull();
+
+    // Karta już stała w strumieniu, a adres zmienił się na `?post=<ten wpis>`.
+    rerender(
+      <ClubPostCard
+        post={clubPostRow()}
+        clubSlug={CLUB_SLUG}
+        mediaUrls={{}}
+        signedIn
+        focusComments
+      />,
+    );
+    expect(screen.getByTestId("club-post-comment").getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("club-feed-comments-stub").getAttribute("data-focus-key")).toBe("0");
+  });
+
+  it("wpis wskazany adresem już przy pierwszym renderze startuje z rozwiniętą sekcją", () => {
+    render(
+      <ClubPostCard
+        post={clubPostRow()}
+        clubSlug={CLUB_SLUG}
+        mediaUrls={{}}
+        signedIn
+        focusComments
+      />,
+    );
+    expect(screen.getByTestId("club-post-comment").getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("club-feed-comments-stub")).toBeTruthy();
   });
 });
 

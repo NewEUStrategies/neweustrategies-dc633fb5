@@ -16,7 +16,14 @@
 // więc każdy plik potrzebuje podpisu - a podpisywanie per karta znaczyłoby
 // tyle żądań, ile wpisów na ekranie. Mapa `mediaUrls` przychodzi z jednego
 // zbiorczego zapytania nad całym strumieniem.
-import { useEffect, useRef, useState } from "react";
+//
+// KOMENTARZE SĄ POD WPISEM, NIE W WĄTKU. Wpis ma własną, płaską rozmowę
+// (`ClubFeedComments`): „Komentuj" i licznik komentarzy rozwijają ją w karcie,
+// z fokusem w polu. Gość i członek bez prawa głosu w dziale też ją rozwijają -
+// czytają komentarze i dostają powód zamiast kompozytora, nie martwy przycisk.
+// Adres powiadomienia (`?post=<id>`) rozwija komentarze tej karty sam
+// (`focusComments`), bez kradzieży fokusu.
+import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -42,10 +49,13 @@ import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import {
   CLUB_FEED_ACTION_ICON,
   CLUB_FEED_ACTION_LABEL,
+  CLUB_FEED_COUNTER,
+  CLUB_FEED_COUNTER_LABEL,
   CLUB_FEED_PAD,
   ClubFeedActionBar,
   ClubFeedActor,
   ClubFeedCard,
+  ClubFeedCommentsZone,
   ClubFeedContext,
   ClubFeedMedia,
   ClubFeedSocialRow,
@@ -55,6 +65,9 @@ import {
 import { ClubFeedGallery, ClubFeedVideo } from "@/components/clubs/molecules/ClubFeedGallery";
 import { ClubFeedShareAction } from "@/components/clubs/molecules/ClubFeedShareAction";
 import { ClubReactionSummary } from "@/components/clubs/molecules/ClubEngagementBar";
+import { ClubFeedComments } from "@/components/clubs/molecules/ClubFeedComments";
+import { clubFeedDiscussionMode } from "@/components/clubs/molecules/feedDiscussion";
+import { hasFeedDraft, postDraftKey } from "@/components/clubs/molecules/feedDrafts";
 import { useMentionEntity } from "@/components/mentions/MentionDirectory";
 import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
 import { fileLabel, isPreviewable } from "@/lib/files/fileKinds";
@@ -288,6 +301,8 @@ export function ClubPostCard({
   onLike,
   onDelete,
   canComment = true,
+  signedIn = false,
+  focusComments = false,
   /** Ukrywa plakietkę wątku tam, gdzie wątek JEST kontekstem ekranu. */
   hideThreadLink = false,
   index = 0,
@@ -302,8 +317,13 @@ export function ClubPostCard({
   onSourceSelect?: (groupId: string | null) => void;
   onLike?: (postId: string) => void;
   onDelete?: (postId: string) => void;
-  /** Wyłącza wejście w dyskusję dla użytkownika bez prawa głosu w klubie. */
+  /** Prawo głosu w klubie (sesja i `can_reply`). Iloczyn z `post.can_comment`
+   *  (prawo w DZIALE wpisu, liczone przez bazę) decyduje o kompozytorze. */
   canComment?: boolean;
+  /** Sesja czytelnika - gość dostaje w sekcji drogę do logowania. */
+  signedIn?: boolean;
+  /** Wpis wskazany adresem - komentarze rozwijają się same. */
+  focusComments?: boolean;
   hideThreadLink?: boolean;
   /** Pozycja w strumieniu - kaskada wejścia. */
   index?: number;
@@ -334,6 +354,33 @@ export function ClubPostCard({
     openFile({ url, name: item.name, mime: item.mime, size: item.size });
 
   const likeOthers = post.like_count - (post.liked_by_me ? 1 : 0);
+
+  const commentsId = useId();
+  // `mounted` zostaje po zwinięciu, a szkic żyje w rejestrze poza kartą
+  // (`feedDrafts`): karta, która wraca do strumienia z niewysłanym
+  // komentarzem, sama rozwija rozmowę, w której ten szkic czeka.
+  const [comments, setComments] = useState(() => {
+    const open = focusComments || hasFeedDraft(postDraftKey(post.id));
+    return { open, mounted: open, focusKey: 0 };
+  });
+  const openComments = (focus: boolean): void =>
+    setComments((current) => ({
+      open: true,
+      mounted: true,
+      focusKey: focus ? current.focusKey + 1 : current.focusKey,
+    }));
+  const toggleComments = (): void =>
+    comments.open ? setComments((current) => ({ ...current, open: false })) : openComments(true);
+  // Wejście z powiadomienia (karta już stała w strumieniu, zmienił się adres):
+  // rozwinięcie BEZ fokusu - czytelnik przyszedł czytać, a fokus w polu
+  // otwierałby klawiaturę na telefonie.
+  useEffect(() => {
+    if (!focusComments) return;
+    setComments((current) =>
+      current.open && current.mounted ? current : { ...current, open: true, mounted: true },
+    );
+  }, [focusComments]);
+  const commentCount = Math.max(0, post.comment_count);
 
   return (
     <ClubFeedCard
@@ -468,8 +515,27 @@ export function ClubPostCard({
           ) : null
         }
         right={
-          media.length > 0 ? (
-            <span>{t("club.post.attachmentsCount", { count: media.length })}</span>
+          media.length > 0 || commentCount > 0 ? (
+            <>
+              {commentCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => openComments(true)}
+                  aria-expanded={comments.open}
+                  aria-controls={commentsId}
+                  className={CLUB_FEED_COUNTER}
+                  data-testid="club-post-comment-count"
+                >
+                  <span className={CLUB_FEED_COUNTER_LABEL}>
+                    {t("club.comments.count", { count: commentCount })}
+                  </span>
+                </button>
+              ) : null}
+              {commentCount > 0 && media.length > 0 ? <span aria-hidden="true">·</span> : null}
+              {media.length > 0 ? (
+                <span>{t("club.post.attachmentsCount", { count: media.length })}</span>
+              ) : null}
+            </>
           ) : null
         }
       />
@@ -507,42 +573,51 @@ export function ClubPostCard({
           <span className={CLUB_FEED_ACTION_LABEL}>{t("club.post.like")}</span>
         </button>
 
-        {/* KOMENTARZ PROWADZI DO WĄTKU. Wpis jest krótką formą i celowo nie ma
-            własnej nitki komentarzy - pogłębiona dyskusja ma jedno miejsce.
-            Gdy wpis jest już podpięty pod wątek, idziemy prosto do kompozytora
-            odpowiedzi; gdy nie jest, jedyną uczciwą propozycją jest ZAŁOŻENIE
-            wątku, a nie martwy przycisk. */}
-        {canComment && !hideThreadLink ? (
-          post.thread_slug !== null ? (
-            <Link
-              to="/club/$clubSlug/t/$threadSlug"
-              params={{ clubSlug, threadSlug: post.thread_slug }}
-              search={{ reply: true }}
-              className={clubFeedActionClass()}
-              data-testid="club-post-comment"
-            >
-              <MessageSquareText className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
-              <span className={CLUB_FEED_ACTION_LABEL}>{t("club.hub.feed.comment")}</span>
-            </Link>
-          ) : (
-            <Link
-              to="/club/$clubSlug/new"
-              params={{ clubSlug }}
-              search={post.group_id === null ? {} : { groupId: post.group_id }}
-              className={clubFeedActionClass()}
-              data-testid="club-post-start-thread"
-            >
-              <MessagesSquare className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
-              <span className={CLUB_FEED_ACTION_LABEL}>{t("club.post.startThread")}</span>
-            </Link>
-          )
-        ) : null}
+        {/* KOMENTARZ ZOSTAJE POD WPISEM - przełącznik sekcji rozmowy karty.
+            Stoi także u gościa i u członka bez prawa głosu: rozwinięcie pokazuje
+            komentarze i powód braku kompozytora, a nie martwy przycisk. */}
+        <button
+          type="button"
+          onClick={toggleComments}
+          aria-expanded={comments.open}
+          aria-controls={commentsId}
+          aria-label={
+            commentCount > 0
+              ? t("club.hub.feed.commentWithCount", { n: commentCount })
+              : t("club.hub.feed.comment")
+          }
+          className={clubFeedActionClass({
+            className: comments.open ? "bg-secondary text-foreground" : undefined,
+          })}
+          data-testid="club-post-comment"
+        >
+          <MessageSquareText className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
+          <span className={CLUB_FEED_ACTION_LABEL}>{t("club.hub.feed.comment")}</span>
+        </button>
 
         {/* Wpis nie ma własnego adresu - udostępnia się rozmowę, w której stoi. */}
         {threadPath !== null && !hideThreadLink ? (
           <ClubFeedShareAction path={threadPath} title={post.thread_title ?? ""} />
         ) : null}
       </ClubFeedActionBar>
+
+      <ClubFeedCommentsZone
+        id={commentsId}
+        open={comments.open}
+        label={t("club.comments.sectionLabel")}
+      >
+        {comments.mounted ? (
+          <ClubFeedComments
+            post={post}
+            clubSlug={clubSlug}
+            focusKey={comments.focusKey}
+            mode={clubFeedDiscussionMode({
+              signedIn,
+              canWrite: canComment && post.can_comment,
+            })}
+          />
+        ) : null}
+      </ClubFeedCommentsZone>
     </ClubFeedCard>
   );
 }

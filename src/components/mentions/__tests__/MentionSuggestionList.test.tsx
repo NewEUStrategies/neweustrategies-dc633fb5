@@ -262,12 +262,30 @@ describe("MentionSuggestionList - podgląd celu", () => {
     expect(card.textContent).toBe("...");
   });
 
-  it("nierozwiązany cel mówi to wprost, BEZ sluga", async () => {
+  it("nierozwiązany cel dostaje wizytówkę z danych podpowiedzi, BEZ sluga", async () => {
     renderList();
     const card = await hover("ACME");
 
-    expect(card.textContent).toBe("mentions.noProfile");
+    // Nazwa i podpis z samej podpowiedzi - nie „nie znaleziono profilu".
+    expect(within(card).getByText("ACME Europe")).toBeInTheDocument();
+    expect(within(card).getByText("Energetyka")).toBeInTheDocument();
+    expect(card.textContent).not.toContain("mentions.noProfile");
     expect(card.textContent).not.toContain("org-");
+  });
+
+  it("członek klubu spoza katalogu redakcji: imię, prawdziwe inicjały i stanowisko z podpowiedzi", async () => {
+    // `club_mention_members` podpowiada zwykłych członków, a pełna wizytówka
+    // (`get_mention_target`) rozwiązuje tylko redakcję - profil wraca pusty.
+    state.profile = { data: null, isPending: false };
+    renderList({
+      suggestions: [suggestion({ slug: "anna-nowak", name: "Anna Nowak", subtitle: "Analityk" })],
+    });
+    const card = await hover("Anna Nowak");
+
+    expect(within(card).getByText("Anna Nowak")).toBeInTheDocument();
+    expect(within(card).getByText("AN")).toBeInTheDocument();
+    expect(within(card).getByText("Analityk")).toBeInTheDocument();
+    expect(card.textContent).not.toContain("mentions.noProfile");
   });
 
   it("osoba bez zdjęcia dostaje PRAWDZIWE inicjały i pełną wizytówkę", async () => {

@@ -147,9 +147,51 @@ export function threadEditedKeys(clubId: string, _threadSlug: string): readonly 
   return [clubKeys.club(clubId), clubKeys.searchAll()];
 }
 
+/**
+ * Odpowiedz w watku wyslana Z KARTY STRUMIENIA. Swiadomie WEZSZA niz
+ * `threadReplyKeys`: tamta uniewaznia cale poddrzewo klubu, czyli kazda strone
+ * nieskonczonej listy watkow huba. Przy sortowaniu „gorace" lista wraca wtedy
+ * w innej kolejnosci i karta, pod ktora czytelnik wlasnie napisal odpowiedz,
+ * odjezdza mu spod kursora - dokladnie to, czego zabrania doktryna
+ * `useDeferredReplies` (nowa tresc nie przesuwa widoku bez zgody czytelnika).
+ *
+ * Zostaja dwa klucze:
+ *   * prefiks odpowiedzi watku - obejmuje podglad w karcie (`replyPreview`)
+ *     i strone watku, jesli jest w cache;
+ *   * karta watku (`thread`) - liczniki i stan, z ktorych korzysta strona
+ *     watku po przejsciu „Zobacz cala dyskusje".
+ *
+ * Licznik odpowiedzi NA LISCIE poprawia hook punktowo (`setQueryData`), a nie
+ * uniewaznienie - patrz `useReplyFromFeed`.
+ */
+export function feedReplyKeys(
+  clubId: string,
+  threadSlug: string,
+  threadId: string,
+): readonly QueryKey[] {
+  return [clubKeys.repliesAll(threadId), clubKeys.thread(clubId, threadSlug)];
+}
+
 /** Redakcja odpowiedzi - caly prefiks odpowiedzi watku. */
 export function replyEditedKeys(threadId: string): readonly QueryKey[] {
   return [clubKeys.repliesAll(threadId)];
+}
+
+/**
+ * Nowy, usuniety albo zmoderowany komentarz wpisu sciany. JEDEN klucz -
+ * komentarze TEGO wpisu, nie sciana.
+ *
+ * DLACZEGO NIE SCIANA. Odswiezenie sciany NIE jest niewinne, choc jej
+ * kolejnosc nie zalezy od komentarzy. Hub wczytuje pierwsza strone wpisow, a
+ * nowy wpis innego czlonka (bez zdarzenia realtime - te trafiaja tylko do
+ * aktora) wypycha z niej najstarszy - czesto ten, pod ktorym czytelnik wlasnie
+ * pisze. Karta znika razem z polem komentarza, a na gorze pojawiaja sie wpisy,
+ * o ktore nikt nie prosil. Z tego samego powodu nic nie przeladowuje sciany po
+ * polubieniu. Licznik `comment_count` w karcie poprawiaja hooki W MIEJSCU
+ * (`useClubPosts.ts`), a komentarze innych wpisow zostaja nietkniete.
+ */
+export function postCommentKeys(clubId: string, postId: string): readonly QueryKey[] {
+  return [clubKeys.postComments(clubId, postId)];
 }
 
 /**
@@ -221,6 +263,7 @@ export function clubInvalidationsForTest(
   clubId: string,
   threadSlug: string,
   threadId: string,
+  postId: string = "post-1",
 ): Record<string, readonly QueryKey[]> {
   return {
     clubCardKeys: clubCardKeys(clubId),
@@ -235,8 +278,10 @@ export function clubInvalidationsForTest(
     clubMembershipsOnlyKeys: clubMembershipsOnlyKeys(),
     clubTreeKeys: clubTreeKeys(),
     threadReplyKeys: threadReplyKeys(clubId, threadSlug, threadId),
+    feedReplyKeys: feedReplyKeys(clubId, threadSlug, threadId),
     threadEditedKeys: threadEditedKeys(clubId, threadSlug),
     replyEditedKeys: replyEditedKeys(threadId),
+    postCommentKeys: postCommentKeys(clubId, postId),
     threadResolvedKeys: threadResolvedKeys(clubId, threadSlug, threadId),
     threadStanceKeys: threadStanceKeys(threadId),
     reactionKeys: reactionKeys("thread", [threadId]),

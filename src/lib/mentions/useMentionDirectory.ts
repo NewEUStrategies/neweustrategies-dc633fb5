@@ -81,6 +81,15 @@ export function useMentionDirectory(
       enabled: hasProvider && wanted.length > 0,
       staleTime: 5 * 60_000,
       retry: false,
+      // Zmiana zestawu slugów (nowy komentarz, doczytana starsza strona, nowa
+      // wzmianka) to NOWY klucz. Bez tego katalog na czas zapytania wracałby
+      // do pustego i każdy podpis w sekcji - stanowisko autora, etykieta
+      // wzmianki - mrugałby do zastępczego. Poprzednia mapa zostaje, dopóki nie
+      // dojedzie nowa, więc na chwilę bez danych zostają tylko NOWE slugi.
+      // Tylko w tym samym języku: po zmianie języka stara mapa niesie biogramy
+      // w drugim.
+      placeholderData: (previous, previousQuery) =>
+        previousQuery?.queryKey[2] === lang ? previous : undefined,
       queryFn: async (): Promise<MentionDirectory> => {
         const orgSlugs = wanted.filter((slug) => decodeOrganizationMentionSlug(slug) !== null);
         const personSlugs = wanted.filter((slug) => decodeOrganizationMentionSlug(slug) === null);

@@ -15,6 +15,9 @@
 //      i wracalny przyciskiem „wstecz”. `validateSearch` obcina tag do 50
 //      znaków - to jedyna obrona przed adresem, w którym ktoś przesyła
 //      kilobajt tekstu jako filtr.
+//      `?post=<uuid>` (adres powiadomienia o komentarzu we wpisie ściany)
+//      przechodzi WYŁĄCZNIE jako uuid, znormalizowany do małych liter - trafia
+//      do selektora karty, więc nie może być kanałem na dowolny tekst.
 //   3. MINISITE liczy poziom dostępu z CZTERECH niezależnych źródeł (personel,
 //      `can_read`, status członkostwa, zaproszenie, ranga warstwy) i wsuwa
 //      wynik do organizmu. Trasa nie może tego liczyć sama - i tego pilnujemy:
@@ -257,6 +260,38 @@ describe("hub klubu - `?tag=` jako kontrakt linkowalnego widoku", () => {
 
   it("parametry nadmiarowe są odcinane", () => {
     expect(validate({ tag: "korytarz", utm_source: "linkedin" })).toEqual({ tag: "korytarz" });
+  });
+});
+
+describe("hub klubu - `?post=` jako adres powiadomienia o wpisie", () => {
+  const validate = routeSearchValidator(HubRoute);
+  const POST_ID = "0b6f3c1e-9a2d-4e5f-8a7b-1c2d3e4f5a6b";
+
+  it("przepuszcza uuid wpisu razem z tagiem", () => {
+    expect(validate({ post: POST_ID, tag: "korytarz" })).toEqual({
+      tag: "korytarz",
+      post: POST_ID,
+    });
+  });
+
+  it("normalizuje uuid do małych liter i zdejmuje spacje - tak oddaje go baza", () => {
+    expect(validate({ post: `  ${POST_ID.toUpperCase()} ` })).toEqual({ post: POST_ID });
+  });
+
+  it.each([
+    ["pusty napis", ""],
+    ["nie-uuid", "post-1"],
+    ["uuid z doklejonym selektorem", `${POST_ID}"] body [x="`],
+    ["liczba", 42],
+    ["tablica", [POST_ID]],
+    ["null", null],
+  ])("odrzuca %s", (_label, post) => {
+    expect(validate({ post })).toEqual({});
+  });
+
+  it("przechodzi przez adres trasy", async () => {
+    const rendered = await mountHub(`/club/${SLUG}?post=${POST_ID}`);
+    expect(rendered.search()).toEqual({ post: POST_ID });
   });
 });
 

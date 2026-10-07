@@ -94,6 +94,7 @@ function firstArgument(name: string): string {
   const THREAD_FIRST = new Set([
     "replies",
     "repliesAll",
+    "replyPreview",
     "stances",
     "subscription",
     "workspace",
@@ -151,6 +152,7 @@ describe("prefiksowość: unieważnienie klubu musi dosięgnąć jego gałęzi",
     ["invitations", clubKeys.invitations(CLUB)],
     ["inviteLinks", clubKeys.inviteLinks(CLUB)],
     ["threads", clubKeys.threads(CLUB, null, "hot", null)],
+    ["threadsAll", clubKeys.threadsAll(CLUB)],
     ["thread", clubKeys.thread(CLUB, "slug")],
     ["adminThreads", clubKeys.adminThreads(CLUB, null, null, null, "", 0)],
     ["moderationQueue", clubKeys.moderationQueue(CLUB)],
@@ -160,6 +162,8 @@ describe("prefiksowość: unieważnienie klubu musi dosięgnąć jego gałęzi",
     ["documentsAll", clubKeys.documentsAll(CLUB)],
     ["posts", clubKeys.posts(CLUB, null, null)],
     ["postsAll", clubKeys.postsAll(CLUB)],
+    ["postComments", clubKeys.postComments(CLUB, "post-1")],
+    ["postCommentsPage", clubKeys.postCommentsPage(CLUB, "post-1", 3)],
     ["events", clubKeys.events(CLUB, null, null, null)],
     ["eventsAll", clubKeys.eventsAll(CLUB)],
     ["event", clubKeys.event(CLUB, "slug")],
@@ -287,6 +291,94 @@ describe("udokumentowane wyjątki od hierarchii", () => {
     expect(startsWith(clubKeys.replies(THREAD, "new"), clubKeys.repliesAll(OTHER_THREAD))).toBe(
       false,
     );
+  });
+});
+
+describe("komentarze z karty strumienia", () => {
+  // Dwie gałęzie dopisane dla komentowania wprost ze strumienia. Podgląd
+  // odpowiedzi stoi pod prefiksem odpowiedzi wątku, więc realtime trafia w niego
+  // bez zmian w regułach. Komentarze wpisu stoją pod klubem, ale OBOK ściany:
+  // jej unieważnienie (usunięcie wpisu, komentarz pod innym wpisem) nie może
+  // przeładowywać każdej rozwiniętej dotąd rozmowy.
+  it("komentarze wpisu wiszą pod klubem, ale NIE pod prefiksem ściany", () => {
+    expect(startsWith(clubKeys.postComments(CLUB, "post-1"), clubKeys.club(CLUB))).toBe(true);
+    expect(startsWith(clubKeys.postComments(CLUB, "post-1"), clubKeys.postsAll(CLUB))).toBe(false);
+    expect(startsWith(clubKeys.postCommentsPage(CLUB, "post-1", 3), clubKeys.postsAll(CLUB))).toBe(
+      false,
+    );
+    expect(
+      startsWith(
+        clubKeys.postCommentsPage(CLUB, "post-1", 3),
+        clubKeys.postComments(CLUB, "post-1"),
+      ),
+    ).toBe(true);
+  });
+
+  it("komentarze jednego wpisu nie dotykają komentarzy drugiego", () => {
+    expect(
+      startsWith(
+        clubKeys.postCommentsPage(CLUB, "post-2", 3),
+        clubKeys.postComments(CLUB, "post-1"),
+      ),
+    ).toBe(false);
+  });
+
+  it("komentarze nie zderzają się z żadnym wariantem ściany", () => {
+    // `posts()` ma na tym miejscu dział (uuid albo „all") - literał „comments"
+    // nie może być ani prefiksem listy wpisów, ani jej potomkiem.
+    for (const posts of [
+      clubKeys.posts(CLUB, null, null),
+      clubKeys.posts(CLUB, "group-1", null),
+      clubKeys.posts(CLUB, null, "thread-1"),
+    ]) {
+      expect(startsWith(posts, clubKeys.postComments(CLUB, "post-1"))).toBe(false);
+      expect(startsWith(clubKeys.postComments(CLUB, "post-1"), posts)).toBe(false);
+    }
+  });
+
+  it("rozmiar strony komentarzy jest częścią klucza", () => {
+    expect(clubKeys.postCommentsPage(CLUB, "post-1", 3)).not.toEqual(
+      clubKeys.postCommentsPage(CLUB, "post-1", 10),
+    );
+  });
+
+  it("podgląd odpowiedzi wisi pod prefiksem odpowiedzi wątku - realtime go dosięga", () => {
+    expect(startsWith(clubKeys.replyPreview(THREAD, 2), clubKeys.repliesAll(THREAD))).toBe(true);
+    expect(startsWith(clubKeys.replyPreview(THREAD, 2), clubKeys.repliesAll(OTHER_THREAD))).toBe(
+      false,
+    );
+  });
+
+  it("podgląd NIE dzieli wpisu cache ze stroną wątku w żadnym sorcie", () => {
+    // Pułapka, dla której podgląd ma własny człon: `replies(threadId, sort)` nie
+    // ma rozmiaru strony, więc dwa wiersze podglądu pod tym kluczem oddałyby
+    // stronie wątku dwie odpowiedzi zamiast dwustu.
+    for (const sort of ["chronological", "best", "stance"]) {
+      const page = clubKeys.replies(THREAD, sort);
+      expect(clubKeys.replyPreview(THREAD, 2)).not.toEqual(page);
+      expect(startsWith(clubKeys.replyPreview(THREAD, 2), page), sort).toBe(false);
+      expect(startsWith(page, clubKeys.replyPreview(THREAD, 2)), sort).toBe(false);
+    }
+  });
+
+  it("limit podglądu jest częścią klucza", () => {
+    expect(clubKeys.replyPreview(THREAD, 2)).not.toEqual(clubKeys.replyPreview(THREAD, 3));
+  });
+
+  it("prefiks list wątków obejmuje każdy filtr, a nie dotyka karty wątku", () => {
+    expect(startsWith(clubKeys.threads(CLUB, null, "hot", null), clubKeys.threadsAll(CLUB))).toBe(
+      true,
+    );
+    expect(
+      startsWith(
+        clubKeys.threads(CLUB, "group-1", "new", "question", "open", true, true, "energia"),
+        clubKeys.threadsAll(CLUB),
+      ),
+    ).toBe(true);
+    expect(startsWith(clubKeys.thread(CLUB, "slug"), clubKeys.threadsAll(CLUB))).toBe(false);
+    expect(
+      startsWith(clubKeys.adminThreads(CLUB, null, null, null, "", 0), clubKeys.threadsAll(CLUB)),
+    ).toBe(false);
   });
 });
 

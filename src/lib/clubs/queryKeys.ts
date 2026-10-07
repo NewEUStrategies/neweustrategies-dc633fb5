@@ -99,11 +99,23 @@ export const clubKeys = {
   thread: (clubId: string, threadSlug: string) =>
     [...clubKeys.club(clubId), "thread", threadSlug] as const,
 
+  /** Prefiks WSZYSTKICH list watkow klubu (kazdy filtr, kazdy sort). Sluzy do
+   *  punktowej korekty licznika odpowiedzi po odpowiedzi z karty strumienia -
+   *  bez uniewazniania, ktore przetasowaloby karty pod kursorem. */
+  threadsAll: (clubId: string) => [...clubKeys.club(clubId), "threads"] as const,
+
   replies: (threadId: string, sort: string) =>
     [...clubKeys.all, "replies", threadId, sort] as const,
   /** Prefiks bez sortowania - do uniewaznienia WSZYSTKICH wariantow sortu
    *  jednego watku. Zdarzenie realtime nie wie, ktory sort ma otwarty czytelnik. */
   repliesAll: (threadId: string) => [...clubKeys.all, "replies", threadId] as const,
+  /** Podglad NAJNOWSZYCH odpowiedzi w karcie strumienia. Osobny czlon
+   *  "preview" i limit w kluczu: `replies(threadId, sort)` nie ma rozmiaru
+   *  strony, wiec podglad dwoch odpowiedzi pod tym samym kluczem oddalby
+   *  stronie watku DWA wiersze zamiast dwustu w oknie swiezosci. Wisi pod
+   *  `repliesAll`, wiec realtime i kazda mutacja odpowiedzi trafiaja i w niego. */
+  replyPreview: (threadId: string, limit: number) =>
+    [...clubKeys.repliesAll(threadId), "preview", limit] as const,
 
   /** Reakcje partii celow. Klucz niesie CALA partie, bo zapytanie jest wsadowe
    *  - klucz per cel dalby N wpisow w cache dla jednego zapytania. */
@@ -240,6 +252,21 @@ export const clubKeys = {
     [...clubKeys.club(clubId), "posts", groupId ?? "all", threadId ?? "all"] as const,
   /** Prefiks wszystkich wariantow sciany - mutacja nie zna otwartych filtrow. */
   postsAll: (clubId: string) => [...clubKeys.club(clubId), "posts"] as const,
+  /** Komentarze JEDNEGO wpisu - prefiks wszystkich rozmiarow strony.
+   *
+   *  Wisi pod `club(clubId)` (wyrzucenie z klubu i moderacja dalej je czyszcza),
+   *  ale OBOK `postsAll`, nie pod nim. Pod sciana kazde jej uniewaznienie
+   *  (usuniecie wpisu, komentarz pod innym wpisem) przeladowywaloby wszystkie
+   *  rozwiniete dotad rozmowy - kazda karta to osobne zapytanie nieskonczone,
+   *  wiec dziesiec otwartych sekcji to dziesiec serii zadan naraz. Licznik
+   *  komentarzy w karcie poprawiaja mutacje w miejscu (`useClubPosts.ts`). */
+  postComments: (clubId: string, postId: string) =>
+    [...clubKeys.club(clubId), "postComments", postId] as const,
+  /** Strony komentarzy wpisu. ROZMIAR STRONY JEST CZESCIA KLUCZA - ten sam blad,
+   *  co przy `board` i `eventAttendees`: dwa widoki z roznym rozmiarem na
+   *  jednym wpisie cache licza `hasOlder` z cudzych stron. */
+  postCommentsPage: (clubId: string, postId: string, pageSize: number) =>
+    [...clubKeys.postComments(clubId, postId), pageSize] as const,
 
   /** Podpisane adresy plikow wpisow. Poza galezia klubu, bo ten sam plik moze
    *  byc czytany z kilku ekranow, a podpis jest wspolny. */

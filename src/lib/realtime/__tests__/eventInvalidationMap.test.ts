@@ -3,6 +3,7 @@
 import { describe, it, expect } from "vitest";
 import { DOMAIN_EVENT_TYPES, type DomainEventRow } from "@/lib/realtime/domainEvents";
 import { eventInvalidationMap, invalidationKeysFor } from "@/lib/realtime/eventInvalidationMap";
+import { clubKeys } from "@/lib/clubs/queryKeys";
 
 function eventOf(eventType: string): DomainEventRow {
   return {
@@ -150,5 +151,86 @@ describe("eventInvalidationMap", () => {
     expect(keys).toContainEqual(["admin-badges"]);
     expect(keys).toContainEqual(["contributor-leaderboard"]);
     expect(keys).toContainEqual(["public", "experts-directory"]);
+  });
+});
+
+describe("kluby - echo własnej mutacji i komentarze wpisu", () => {
+  // Klucze LITERALNE, nie z fabryki: test ma przypiąć kontrakt, a nie powtórzyć
+  // to, co i tak liczy `clubKeys`.
+  const reply = (actorId: string | null, payload: Record<string, string>) => ({
+    ...eventOf("club_reply.created.v1"),
+    actor_id: actorId,
+    payload,
+  });
+  const comment = (actorId: string | null, payload: Record<string, string>) => ({
+    ...eventOf("club_post_comment.created.v1"),
+    actor_id: actorId,
+    payload,
+  });
+
+  it("club_reply.created: WŁASNA odpowiedź odświeża tylko odpowiedzi wątku - nie klub", () => {
+    // Mutacja z karty już odświeżyła swoje; poddrzewo klubu przestawiłoby
+    // „gorące” karty pod kursorem autora.
+    const keys = invalidationKeysFor(reply("u1", { club_id: "c1", thread_id: "t1" }), {
+      userId: "u1",
+    });
+    expect(keys).toEqual([["clubs", "replies", "t1"]]);
+    expect(keys).not.toContainEqual(["clubs"]);
+    expect(keys).not.toContainEqual(["clubs", "club", "c1"]);
+  });
+
+  it("club_reply.created: cudza albo anonimowa odpowiedź dalej odświeża klub", () => {
+    for (const actorId of ["u2", null]) {
+      expect(
+        invalidationKeysFor(reply(actorId, { club_id: "c1", thread_id: "t1" }), { userId: "u1" }),
+        String(actorId),
+      ).toEqual([["clubs"], ["clubs", "club", "c1"], ["clubs", "replies", "t1"]]);
+    }
+  });
+
+  it("club_reply.created: bez sesji żadne zdarzenie nie jest „własne”", () => {
+    expect(
+      invalidationKeysFor(reply("u1", { club_id: "c1", thread_id: "t1" }), { userId: undefined }),
+    ).toEqual([["clubs"], ["clubs", "club", "c1"], ["clubs", "replies", "t1"]]);
+  });
+
+  it("club_post_comment.created: wyłącznie komentarze TEGO wpisu - nie ściana", () => {
+    const event = comment("u2", { club_id: "c1", post_id: "p1", status: "visible" });
+    const keys = invalidationKeysFor(event, { userId: "u1" });
+    expect(keys).toEqual([["clubs", "club", "c1", "postComments", "p1"]]);
+    // Prefiks rzeczywiście sięga stron komentarzy wpisu...
+    const page = clubKeys.postCommentsPage("c1", "p1", 3);
+    expect(page.slice(0, 5)).toEqual(["clubs", "club", "c1", "postComments", "p1"]);
+    // ...a nie ściany ani rozmów pod innym wpisem.
+    expect(keys).not.toContainEqual(["clubs", "club", "c1", "posts"]);
+    expect(clubKeys.postCommentsPage("c1", "p2", 3).slice(0, 5)).not.toEqual(keys[0]);
+  });
+
+  it("club_post_comment.created: własny komentarz też odświeża tylko swoją rozmowę", () => {
+    // Inne karty autora dostają świeżą listę; ta, w której pisał, tanio powtarza
+    // jedno zapytanie.
+    const event = comment("u1", { club_id: "c1", post_id: "p1", status: "visible" });
+    expect(invalidationKeysFor(event, { userId: "u1" })).toEqual([
+      ["clubs", "club", "c1", "postComments", "p1"],
+    ]);
+  });
+
+  it("club_post_comment.created: uszkodzony payload degraduje do klubu, potem do modułu", () => {
+    expect(invalidationKeysFor(comment("u2", { club_id: "c1" }), { userId: "u1" })).toEqual([
+      ["clubs", "club", "c1"],
+    ]);
+    expect(invalidationKeysFor(comment("u2", { post_id: "p1" }), { userId: "u1" })).toEqual([
+      ["clubs"],
+    ]);
+    expect(invalidationKeysFor(comment(null, { post_id: "p1" }), { userId: "u1" })).toEqual([
+      ["clubs"],
+    ]);
+  });
+
+  it("club_post_comment.created: przy WŁASNYM zdarzeniu z uszkodzonym payloadem nic się nie przeładowuje", () => {
+    // Mutacja już odświeżyła swoją rozmowę i licznik; szeroki klucz cofnąłby
+    // tę decyzję dla całego klubu.
+    expect(invalidationKeysFor(comment("u1", { club_id: "c1" }), { userId: "u1" })).toEqual([]);
+    expect(invalidationKeysFor(comment("u1", {}), { userId: "u1" })).toEqual([]);
   });
 });

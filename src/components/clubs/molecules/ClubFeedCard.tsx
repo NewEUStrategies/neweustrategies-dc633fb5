@@ -15,6 +15,8 @@
 //                  do krawędzi karty (`ClubFeedMedia`), bo to one niosą treść.
 //   4. LICZNIKI  - kto i ile zareagował po lewej, odpowiedzi po prawej.
 //   5. AKCJE     - równe kolumny: zareaguj, komentuj, udostępnij.
+//   6. ROZMOWA   - rozwijana „Komentuj": kompozytor i najnowsze komentarze
+//                  (wpis) albo odpowiedzi (wątek) - bez wychodzenia ze strumienia.
 //
 // Strefy są OPCJONALNE (termin nie ma autora, etap nie ma liczników), ale
 // kolejność i odstępy są wspólne - dzięki temu kolumna kart różnych rodzajów
@@ -23,6 +25,14 @@
 // RUCH. Karta wchodzi krótkim uniesieniem (`club-feed-card-in`, kaskada po
 // indeksie), krawędź przy najeździe przyjmuje kolor rodzaju - jak dawny
 // wiersz dossier - a `prefers-reduced-motion` wyłącza wszystko poza kolorem.
+//
+// KARTA Z FOKUSEM STOI NAD SĄSIADKĄ (`focus-within:z-10`). Lista podpowiedzi
+// @wzmianek nie jest portalem i przy kompozytorze na dole karty wystaje poza
+// jej krawędź. Po animacji wejścia karta nie tworzy już kontekstu nakładania
+// (patrz `styles.css`), ale przez pierwsze 320 ms po rozwinięciu rozmowy
+// tworzy - podniesienie karty z fokusem zamyka to okno. Lista otwiera się
+// tylko przy fokusie w polu, a wybór idzie `onMouseDown` z `preventDefault`,
+// więc fokus (i podniesienie) trwa aż do wyboru osoby.
 import { useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { HUB_LABEL_TEXT, HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
@@ -80,7 +90,7 @@ export function ClubFeedCard({
       style={style}
       className={cn(
         HUB_SURFACE,
-        "club-feed-card-in relative",
+        "club-feed-card-in relative focus-within:z-10",
         "transition-colors duration-300 ease-out",
         "hover:border-[color-mix(in_oklab,var(--dossier-tone)_40%,transparent)]",
         "focus-within:border-[color-mix(in_oklab,var(--dossier-tone)_40%,transparent)]",
@@ -229,6 +239,19 @@ export function ClubFeedSocialRow({ left, right }: { left?: ReactNode; right?: R
   );
 }
 
+/**
+ * Licznik w pasie rozmowy („5 odpowiedzi", „3 komentarze") - link do wątku
+ * albo przełącznik sekcji w karcie. ROZMIAR SIEDZI NA PODPISIE
+ * (`CLUB_FEED_COUNTER_LABEL`), nie na elemencie: globalny atom przycisku
+ * wymusza na `<button>` `--fs-button` (`!important`), więc licznik-przycisk
+ * miał 12 px obok 11 px kropki i „3 uczestników" w tym samym rzędzie.
+ */
+export const CLUB_FEED_COUNTER =
+  "rounded-sm transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/** Podpis licznika - stopień pisma pasa liczników (11 px w skali klubu). */
+export const CLUB_FEED_COUNTER_LABEL = "text-xs";
+
 /** Pas akcji: włos wcięty jak treść, pod nim równe kolumny przycisków. */
 export function ClubFeedActionBar({
   children,
@@ -288,6 +311,46 @@ export const CLUB_FEED_ACTION_ICON = "h-[18px] w-[18px] shrink-0";
 
 /** Podpis akcji - zawija się między słowami, nigdy nie znika pod wielokropkiem. */
 export const CLUB_FEED_ACTION_LABEL = "min-w-0 max-w-full text-center [overflow-wrap:break-word]";
+
+/**
+ * Strefa rozmowy pod paskiem akcji (6.): kompozytor i komentarze karty.
+ *
+ * ELEMENT ISTNIEJE ZAWSZE, treść - dopiero po pierwszym rozwinięciu.
+ * Przycisk „Komentuj" wskazuje go przez `aria-controls`, więc identyfikator
+ * musi prowadzić do węzła także przy zwiniętej sekcji (`hidden`). Ciężka
+ * zawartość (zapytania, kompozytor) montuje się dopiero na żądanie - strumień
+ * dwudziestu kart nie oznacza dwudziestu zapytań o komentarze - i zostaje po
+ * zwinięciu, więc niewysłany szkic nie przepada przy przypadkowym kliknięciu.
+ *
+ * RUCH. Treść wchodzi tym samym uniesieniem, co karta (`club-feed-card-in`).
+ * Kaskada karty (`--feed-i`) jest tu ZEROWANA: zmienna dziedziczy się z karty,
+ * a sekcja otwierana kliknięciem nie może czekać na swoją pozycję w strumieniu.
+ */
+export function ClubFeedCommentsZone({
+  id,
+  open,
+  label,
+  children,
+}: {
+  id: string;
+  open: boolean;
+  /** Nazwa regionu dla czytnika ekranu. */
+  label: string;
+  children?: ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      hidden={!open}
+      aria-label={label}
+      data-feed-zone="comments"
+      className={cn("pb-3.5 sm:pb-4", CLUB_FEED_PAD)}
+      style={{ "--feed-i": 0 } as CSSProperties}
+    >
+      <div className="club-feed-card-in border-t border-border/60 pt-3">{children}</div>
+    </section>
+  );
+}
 
 /**
  * Pas mediów od krawędzi do krawędzi karty. Bez wcięcia - zdjęcie, wykres
