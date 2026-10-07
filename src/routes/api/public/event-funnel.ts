@@ -23,7 +23,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { countryFromHeaders } from "@/lib/analytics/geoHeaders";
 import { EVENT_FUNNEL_MAX_BODY, parseEventFunnelBeacon } from "@/lib/events/eventFunnelWire";
 import { isBotUserAgent } from "@/lib/http/botFilter";
-import { clientIpFromHeaders, createRateLimiter } from "@/lib/http/rateLimit";
+import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 
@@ -49,7 +49,7 @@ export const Route = createFileRoute("/api/public/event-funnel")({
       POST: async () => {
         try {
           const req = getRequest();
-          if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) return noContent();
+          if (!limiter.check(rateLimitIpSubject(req.headers), Date.now())) return noContent();
           if (isBotUserAgent(req.headers.get("user-agent"))) return noContent();
           const raw = await req.text();
           if (raw === "" || raw.length > EVENT_FUNNEL_MAX_BODY) return noContent();

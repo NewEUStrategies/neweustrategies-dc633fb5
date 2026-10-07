@@ -11,7 +11,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { timingSafeEqual } from "node:crypto";
-import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 
 const limiter = createRateLimiter({ capacity: 10, refillPerSec: 0.2 });
 
@@ -61,7 +61,7 @@ export const Route = createFileRoute("/api/public/billing-cron")({
     handlers: {
       POST: async () => {
         const req = getRequest();
-        if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) {
+        if (!limiter.check(rateLimitIpSubject(req.headers), Date.now())) {
           return new Response(null, { status: 429 });
         }
         const provided = req.headers.get("x-billing-cron-secret");

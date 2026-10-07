@@ -7,7 +7,7 @@
 // other roles), mirroring /api/public/vitals.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { redactPii, redactUrl, redactMeta } from "@/lib/observability/redact";
 import { isIgnorableClientError } from "@/lib/observability/noise";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/api/public/client-errors")({
       POST: async () => {
         try {
           const req = getRequest();
-          if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) return noContent();
+          if (!limiter.check(rateLimitIpSubject(req.headers), Date.now())) return noContent();
           // sendBeacon sends a JSON string (content-type text/plain), so read raw.
           const raw = await req.text();
           if (!raw || raw.length > 16_000) return noContent();

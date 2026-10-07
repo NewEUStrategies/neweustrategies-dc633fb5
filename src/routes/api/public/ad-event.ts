@@ -4,7 +4,7 @@
 // other roles). Mirrors /api/public/vitals.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { redactUrl } from "@/lib/observability/redact";
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/api/public/ad-event")({
       POST: async () => {
         try {
           const req = getRequest();
-          if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) return noContent();
+          if (!limiter.check(rateLimitIpSubject(req.headers), Date.now())) return noContent();
           // sendBeacon delivers a JSON string; read raw.
           const raw = await req.text();
           if (!raw || raw.length > MAX_BODY) return noContent();

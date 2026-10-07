@@ -16,7 +16,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 
 const SALT = () =>
   process.env.SESSION_SECRET ||
@@ -45,7 +45,7 @@ function currentIpHash(): string {
     const req = getRequest();
     const headers = req?.headers;
     if (!headers) return hashSubject("ip", "unknown");
-    return hashSubject("ip", clientIpFromHeaders(headers));
+    return hashSubject("ip", rateLimitIpSubject(headers));
   } catch {
     return hashSubject("ip", "unknown");
   }

@@ -4,7 +4,7 @@
 // other roles). Mirrors /api/public/vitals.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
-import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
 
@@ -23,7 +23,7 @@ export const Route = createFileRoute("/api/public/popup-event")({
       POST: async () => {
         try {
           const req = getRequest();
-          if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) return noContent();
+          if (!limiter.check(rateLimitIpSubject(req.headers), Date.now())) return noContent();
           const raw = await req.text();
           if (!raw || raw.length > MAX_BODY) return noContent();
           const body = JSON.parse(raw) as Record<string, unknown>;

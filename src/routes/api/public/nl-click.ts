@@ -10,7 +10,7 @@
 // the site origin, so the endpoint can never launder an attacker-supplied URL
 // through our trusted domain. Always redirects (fail-safe).
 import { createFileRoute } from "@tanstack/react-router";
-import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { isSafeHttpUrl } from "@/lib/newsletter/tracking";
 import { verifyTrackingToken, verifyTrackingLink } from "@/lib/newsletter/trackingToken.server";
 import { recordCampaignEvent } from "@/lib/newsletter/trackingEvents.server";
@@ -40,7 +40,7 @@ export const Route = createFileRoute("/api/public/nl-click")({
             campaignId &&
             subscriberId &&
             target &&
-            limiter.check(clientIpFromHeaders(request.headers), Date.now())
+            limiter.check(rateLimitIpSubject(request.headers), Date.now())
           ) {
             // `first_party` = nasze przekierowanie. Patrz nl-open: pisze
             // wyłącznie źródło prawdy, żeby jedno kliknięcie było jednym wierszem.
