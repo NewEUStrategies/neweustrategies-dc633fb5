@@ -10,7 +10,7 @@
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Ticket } from "lucide-react";
 
 import { fetchMyRegistrations } from "@/lib/events/participantTicketsApi";
 import { groupMyEvents } from "@/lib/events/myEventsGrouping";
@@ -20,6 +20,13 @@ import { ensureI18n } from "@/lib/i18n-cart";
 ensureI18n();
 
 const MAX_ITEMS = 3;
+
+// Geometria i skala napisów takie same jak w pozostałych wierszach menu konta
+// (`AccountMenuWidget`): tytuł `.account-menu-title`, podtytuł `.account-menu-subtitle`.
+const ROW_CLASS =
+  "group flex w-full items-center gap-3 rounded-[6px] px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60";
+const ICON_CLASS =
+  "h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[color:var(--account-accent)]";
 
 export function AccountMenuEventsSection({ onNavigate }: { onNavigate: () => void }) {
   const { t, i18n } = useTranslation();
@@ -43,9 +50,7 @@ export function AccountMenuEventsSection({ onNavigate }: { onNavigate: () => voi
   return (
     <>
       <div className="my-1.5 h-px bg-border/70" />
-      <div className="px-2.5 pb-1 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-        {t("myEvents.title")}
-      </div>
+      <div className="account-menu-heading px-2.5 pb-1 pt-0.5">{t("myEvents.title")}</div>
       <div className="flex flex-col gap-0.5">
         {rows.map((item) => {
           const title = (lang === "en" ? item.eventTitleEn : item.eventTitlePl) ?? item.eventSlug;
@@ -55,12 +60,9 @@ export function AccountMenuEventsSection({ onNavigate }: { onNavigate: () => voi
               to="/events/$slug/me"
               params={{ slug: item.eventSlug }}
               onClick={onNavigate}
-              className="group flex w-full items-center gap-3 rounded-[6px] px-2.5 py-2 text-left text-sm transition-colors hover:bg-muted/60"
+              className={ROW_CLASS}
             >
-              <CalendarDays
-                className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[color:var(--account-accent)]"
-                aria-hidden="true"
-              />
+              <CalendarDays className={ICON_CLASS} aria-hidden="true" />
               <span className="min-w-0 flex-1">
                 <span className="account-menu-title block truncate">{title}</span>
                 <span className="account-menu-subtitle block">{t("myEvents.myPanel")}</span>
@@ -68,12 +70,11 @@ export function AccountMenuEventsSection({ onNavigate }: { onNavigate: () => voi
             </Link>
           );
         })}
-        <Link
-          to="/profile/events"
-          onClick={onNavigate}
-          className="rounded-[6px] px-2.5 py-1.5 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-        >
-          {t("myEvents.manageTickets")}
+        <Link to="/profile/events" onClick={onNavigate} className={ROW_CLASS}>
+          <Ticket className={ICON_CLASS} aria-hidden="true" />
+          <span className="account-menu-title min-w-0 flex-1 truncate">
+            {t("myEvents.manageTickets")}
+          </span>
         </Link>
       </div>
     </>

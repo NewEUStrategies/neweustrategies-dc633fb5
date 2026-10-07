@@ -700,10 +700,10 @@ function AccountMenuPanel({
             name={it.icon || "LogOut"}
             className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-[color:var(--account-accent)]"
           />
-          <span className="flex-1">
-            <span className="block font-medium leading-tight">{entry.label || logoutLabel}</span>
+          <span className="flex-1 min-w-0">
+            <span className="account-menu-title block truncate">{entry.label || logoutLabel}</span>
             {entry.desc ? (
-              <span className="block text-xs text-muted-foreground mt-0.5">{entry.desc}</span>
+              <span className="account-menu-subtitle block line-clamp-2">{entry.desc}</span>
             ) : null}
           </span>
         </button>
@@ -912,7 +912,7 @@ function AccountMenuPanel({
         >
           {panelLabel && (
             <div
-              className="account-menu-section px-2.5 pb-1.5 text-[11px] font-bold uppercase tracking-widest text-muted-foreground"
+              className="account-menu-section account-menu-heading px-2.5 pb-1.5"
               style={{ ["--am-i" as string]: 0 } as CSSProperties}
             >
               {panelLabel}
@@ -1001,7 +1001,7 @@ function AccountMenuPanel({
                     <>
                       <div className="my-1.5 h-px bg-border/70" />
                       <div
-                        className="account-menu-section px-2.5 pb-1 pt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+                        className="account-menu-section account-menu-heading px-2.5 pb-1 pt-0.5"
                         style={{ ["--am-i" as string]: base } as CSSProperties}
                       >
                         {isSuperAdmin ? "Super Admin" : lang === "pl" ? "Zespół" : "Staff"}
