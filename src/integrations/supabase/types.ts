@@ -22246,23 +22246,42 @@ export type Database = {
     }
     Functions: {
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
-      _b2b_coupon_evaluate: {
-        Args: {
-          _amount_cents: number
-          _currency: string
-          c: Database["public"]["Tables"]["b2b_coupons"]["Row"]
-        }
-        Returns: {
-          coupon_id: string
-          discount_cents: number
-          discount_kind: string
-          discount_percent: number
-          error: string
-          final_cents: number
-          label: string
-          ok: boolean
-        }[]
-      }
+      _b2b_coupon_evaluate:
+        | {
+            Args: {
+              _amount_cents: number
+              _currency: string
+              c: Database["public"]["Tables"]["b2b_coupons"]["Row"]
+            }
+            Returns: {
+              coupon_id: string
+              discount_cents: number
+              discount_kind: string
+              discount_percent: number
+              error: string
+              final_cents: number
+              label: string
+              ok: boolean
+            }[]
+          }
+        | {
+            Args: {
+              _amount_cents: number
+              _currency: string
+              c: Database["public"]["Tables"]["b2b_coupons"]["Row"]
+              p_uid: string
+            }
+            Returns: {
+              coupon_id: string
+              discount_cents: number
+              discount_kind: string
+              discount_percent: number
+              error: string
+              final_cents: number
+              label: string
+              ok: boolean
+            }[]
+          }
       _caller_tenant: { Args: never; Returns: string }
       _club_slugify: { Args: { p_text: string }; Returns: string }
       _club_unique_slug: {
@@ -22273,8 +22292,16 @@ export type Database = {
         Args: { p_uid: string }
         Returns: Record<string, unknown>
       }
-      _coupon_probe_guard: { Args: never; Returns: undefined }
-      _coupon_probe_miss: { Args: never; Returns: undefined }
+      _coupon_probe_guard:
+        | { Args: never; Returns: undefined }
+        | { Args: { p_ip_subject: string; p_uid: string }; Returns: undefined }
+      _coupon_probe_ip_bucket: {
+        Args: { p_subject: string }
+        Returns: Record<string, unknown>
+      }
+      _coupon_probe_miss:
+        | { Args: never; Returns: undefined }
+        | { Args: { p_ip_subject: string; p_uid: string }; Returns: undefined }
       _coupon_refusal: {
         Args: { p_amount_cents: number; p_error: string }
         Returns: Json
@@ -22282,6 +22309,10 @@ export type Database = {
       _crm_source_type_rank: {
         Args: { p_source_type: string }
         Returns: number
+      }
+      _event_admission_quote: {
+        Args: { p_ip_subject: string; p_payload: Json }
+        Returns: Json
       }
       _event_ads_clean: {
         Args: { p_max: number; p_value: string }
@@ -22878,6 +22909,10 @@ export type Database = {
         Returns: Json
       }
       _event_package_coupon_link_backfill: { Args: never; Returns: Json }
+      _event_package_purchase: {
+        Args: { p_ip_subject: string; p_payload: Json }
+        Returns: Json
+      }
       _event_page_chain_published: {
         Args: { _page_id: string }
         Returns: boolean
@@ -23300,9 +23335,70 @@ export type Database = {
         }[]
       }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
+      _redeem_b2b_coupon: {
+        Args: {
+          _applied_cents: number
+          _coupon_id: string
+          _currency: string
+          _order_id: string
+          _original_cents: number
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: boolean
+      }
+      _require_server_identity: {
+        Args: { p_probe_subject: string; p_tenant: string; p_uid: string }
+        Returns: undefined
+      }
+      _set_request_identity: {
+        Args: { p_claims: string; p_role: string; p_sub: string }
+        Returns: undefined
+      }
       _suggest_score: {
         Args: { _a: string; _b: string; _q: string }
         Returns: number
+      }
+      _validate_b2b_coupon: {
+        Args: {
+          _amount_cents: number
+          _code: string
+          _currency: string
+          _plan_id: string
+          p_ip_subject: string
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: Json
+      }
+      _validate_event_ticket_coupon: {
+        Args: {
+          _amount_cents: number
+          _code: string
+          _currency: string
+          _event_id: string
+          _ticket_type_id: string
+          p_ip_subject: string
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: Json
+      }
+      _verify_content_password: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _ip_hash: string
+          _password: string
+          p_tenant: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          content_en: string
+          content_pl: string
+          ok: boolean
+        }[]
       }
       accept_my_user_invitation: {
         Args: never
