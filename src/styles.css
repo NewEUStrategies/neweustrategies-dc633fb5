@@ -9378,13 +9378,26 @@ input[type="reset"],
   }
 }
 
-/* Menu konta: jedna hierarchia - tytuł pozycji większy, podtytuł mniejszy i wyciszony. */
-[data-account-menu] .account-menu-title {
+/* Menu konta (popover na desktopie i sekcja konta w szufladzie mobilnej):
+   JEDNA skala o trzech poziomach - nagłówek sekcji, tytuł pozycji (większy)
+   i podtytuł (mniejszy, wyciszony). Rozmiar siedzi na samym napisie, a nie
+   na wierszu, bo wiersz bywa <button> (Wyloguj), a globalna reguła przycisków
+   wymusza na nim `--fs-button` (12 px) z !important - napis dziedziczący
+   rozmiar po wierszu był wtedy mniejszy niż w sąsiednich linkach. */
+:is([data-account-menu], [data-account-section]) .account-menu-heading {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+:is([data-account-menu], [data-account-section]) .account-menu-title {
   font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.25;
 }
-[data-account-menu] .account-menu-subtitle {
+:is([data-account-menu], [data-account-section]) .account-menu-subtitle {
   margin-top: 0.125rem;
   font-size: 0.6875rem;
   font-weight: 400;
