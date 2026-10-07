@@ -254,6 +254,8 @@ function happyPath(
     tenantId?: string | null;
     actorProfile?: SupabaseResult;
     targetProfile?: SupabaseResult;
+    /** Role celu w najemcy aktora (domyślnie: zwykłe konto, bez ról). */
+    targetRoles?: SupabaseResult;
   } = {},
 ): void {
   rpcResult = { data: true, error: null };
@@ -265,6 +267,7 @@ function happyPath(
     const [, id] = recorded.argsOf("eq") ?? [];
     return id === IDS.actor ? actor : target;
   });
+  db().setResponse("user_roles", options.targetRoles ?? ok([]));
   db().setResponse("impersonation_sessions", ok({ id: IDS.session }));
 }
 
@@ -612,6 +615,52 @@ describe("podszycie - granica najemcy", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 5b. RANGA CELU - bez podszycia pod innego super_admina.
+// ---------------------------------------------------------------------------
+// Magic link loguje JAKO cel i omija jego TOTP: podszycie pod równorzędnego
+// super_admina dawałoby sesję najwyższej rangi bez jego drugiego składnika.
+
+describe("podszycie - ranga celu", () => {
+  it("odmawia podszycia pod super_admina - bez konta celu, tokenu i audytu", async () => {
+    happyPath({ targetRoles: ok([{ role: "editor" }, { role: "super_admin" }]) });
+    await expect(
+      callServerFn(startImpersonation, { data: startInput(), context: context() }),
+    ).rejects.toThrow("Forbidden: cannot impersonate a super_admin");
+    expect(h.authCalls).toEqual([]);
+    expect(db().chainsFor("impersonation_sessions")).toEqual([]);
+  });
+
+  it("czyta role celu po identyfikatorze celu, w najemcy aktora", async () => {
+    happyPath();
+    await callServerFn(startImpersonation, { data: startInput(), context: context() });
+    const roles = chain("user_roles");
+    expect(roles.argsOf("select")).toEqual(["role"]);
+    expect(roles.calls.filter((call) => call.method === "eq").map((call) => call.args)).toEqual([
+      ["user_id", IDS.target],
+      ["tenant_id", IDS.tenant],
+    ]);
+  });
+
+  it("fail closed: błąd odczytu ról celu to odmowa, nie brak ról", async () => {
+    happyPath({ targetRoles: fail("connection reset") });
+    await expect(
+      callServerFn(startImpersonation, { data: startInput(), context: context() }),
+    ).rejects.toThrow("Forbidden: could not verify target role");
+    expect(h.authCalls).toEqual([]);
+    expect(db().chainsFor("impersonation_sessions")).toEqual([]);
+  });
+
+  it("admin i redakcja pozostają dostępne do podszycia", async () => {
+    happyPath({ targetRoles: ok([{ role: "admin" }, { role: "editor" }]) });
+    const result = await callServerFn<{ ok: boolean }>(startImpersonation, {
+      data: startInput(),
+      context: context(),
+    });
+    expect(result.ok).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 6. NAJEMCA AKTORA W WIERSZU AUDYTU.
 // ---------------------------------------------------------------------------
 
@@ -929,7 +978,7 @@ describe("podszycie - wpis audytowy i wynik", () => {
     expect(result.tokenHash).not.toContain("example.com");
   });
 
-  it("kolejność kroków: rola, profil aktora, profil celu, konto celu, token, audyt", async () => {
+  it("kolejność kroków: rola, profil aktora, profil celu, ranga celu, konto celu, token, audyt", async () => {
     // Kolejność JEST regułą, nie szczegółem: każdy krok dalej jest droższy
     // i bardziej nieodwracalny od poprzedniego. Oba odczyty `profiles` stoją
     // PRZED `generateLink`, więc odmowa za obcy tenant wyprzedza powstanie
@@ -941,6 +990,7 @@ describe("podszycie - wpis audytowy i wynik", () => {
     expect(db().chains.map((entry) => entry.table)).toEqual([
       "profiles",
       "profiles",
+      "user_roles",
       "impersonation_sessions",
     ]);
   });

@@ -10,6 +10,7 @@ const KEY_BY_CODE: Record<string, string> = {
   [ADMIN_ACCOUNT_ERROR.confirmMismatch]: "adminUsers.accountErrConfirmMismatch",
   [ADMIN_ACCOUNT_ERROR.lookupFailed]: "adminUsers.accountErrLookupFailed",
   [ADMIN_ACCOUNT_ERROR.deleteFailed]: "adminUsers.accountErrDeleteFailed",
+  [ADMIN_ACCOUNT_ERROR.superAdminRequired]: "adminUsers.accountErrSuperAdminRequired",
 };
 
 /** Starsze/serwerowe komunikaty techniczne rozpoznawane po treści. */

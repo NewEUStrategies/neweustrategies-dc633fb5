@@ -155,6 +155,8 @@ const pl = {
       "To konto nie należy do Twojej organizacji, więc nie możesz nim zarządzać. Poproś administratora właściwej organizacji.",
     accountErrSelfDelete:
       "Nie możesz usunąć własnego konta z panelu. Poproś innego administratora.",
+    accountErrSuperAdminRequired:
+      "To konto ma rolę super administratora - może je usunąć tylko inny super administrator.",
     accountErrConfirmMismatch:
       "Wpisany adres e-mail nie zgadza się z adresem tego konta. Wpisz go dokładnie tak, jak widnieje powyżej.",
     accountErrLookupFailed:
@@ -304,6 +306,8 @@ const en = {
       "This account does not belong to your organisation, so you cannot manage it. Ask an administrator of that organisation.",
     accountErrSelfDelete:
       "You cannot delete your own account from the panel. Ask another administrator.",
+    accountErrSuperAdminRequired:
+      "This account has the super administrator role - only another super administrator can delete it.",
     accountErrConfirmMismatch:
       "The e-mail you typed does not match this account. Enter it exactly as shown above.",
     accountErrLookupFailed: "We could not verify the account details. Refresh the page and retry.",

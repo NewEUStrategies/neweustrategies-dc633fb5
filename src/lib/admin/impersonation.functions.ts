@@ -111,6 +111,24 @@ export const startImpersonation = createServerFn({ method: "POST" })
       throw new Error("Forbidden: target user is outside your tenant");
     }
 
+    // RANGA CELU. Magic link loguje JAKO cel i omija jego drugi składnik
+    // (TOTP), więc podszycie pod innego super_admina dawałoby pełną sesję
+    // najwyższej rangi bez jego MFA, z działaniami przypisanymi jemu. Super
+    // admin ma własne uprawnienia - podszycie służy do oglądania platformy
+    // oczami zwykłych kont i redakcji, nie do przejmowania równorzędnych.
+    // Role są tenantowe, więc czytamy je w tym samym najemcy. Fail closed.
+    const { data: targetRoles, error: rolesErr } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", data.targetUserId)
+      .eq("tenant_id", tenantId);
+    if (rolesErr) {
+      throw new Error("Forbidden: could not verify target role");
+    }
+    if ((targetRoles ?? []).some((row) => row.role === "super_admin")) {
+      throw new Error("Forbidden: cannot impersonate a super_admin");
+    }
+
     const { data: target, error: getErr } = await supabaseAdmin.auth.admin.getUserById(
       data.targetUserId,
     );
