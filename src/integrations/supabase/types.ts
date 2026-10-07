@@ -22245,6 +22245,14 @@ export type Database = {
       }
     }
     Functions: {
+      _access_code_probe_guard: {
+        Args: { p_ip_subject: string; p_ticket: string; p_uid: string }
+        Returns: undefined
+      }
+      _access_code_probe_miss: {
+        Args: { p_ip_subject: string; p_ticket: string; p_uid: string }
+        Returns: undefined
+      }
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
       _b2b_coupon_evaluate:
         | {
@@ -23238,6 +23246,16 @@ export type Database = {
         Returns: undefined
       }
       _event_sponsor_web_url: { Args: { p_raw: string }; Returns: string }
+      _event_ticket_checkout_quote: {
+        Args: {
+          p_access_code: string
+          p_ip_subject: string
+          p_tenant: string
+          p_ticket_type_id: string
+          p_uid: string
+        }
+        Returns: Json
+      }
       _event_ticket_code_confirm:
         | {
             Args: {
@@ -23342,6 +23360,15 @@ export type Database = {
           _currency: string
           _order_id: string
           _original_cents: number
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: boolean
+      }
+      _release_b2b_coupon: {
+        Args: {
+          _coupon_id: string
+          _order_id: string
           p_tenant: string
           p_uid: string
         }
@@ -31094,6 +31121,7 @@ export type Database = {
           hits: number
         }[]
       }
+      rate_limits_prune: { Args: { p_limit?: number }; Returns: number }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
