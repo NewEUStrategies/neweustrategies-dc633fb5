@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Run the application typecheck with `tsgo --noEmit`, because the equivalent TypeScript check must finish within the preview gate timeout.
+
 - Keep club content-kind navigation in the shared rail, reuse thread-kind icons, and resolve its filter from validated URL search so workspace links and browser history stay synchronized.
 
 - Resolve per-widget dark accents from CMS content `accentColorDark`, falling back to existing accent inversion, so instance-specific colors never override all section labels.

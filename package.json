@@ -17,7 +17,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "npm run typecheck:tsc && npm run typecheck:scripts",
-    "typecheck:tsc": "NODE_OPTIONS=\"--max-old-space-size=10240\" tsc --noEmit",
+    "typecheck:tsc": "tsgo --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:static": "bun run scripts/verify-static.ts",
@@ -157,7 +157,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
-    "@lovable.dev/vite-tanstack-config": "2.25.2",
+    "@lovable.dev/vite-tanstack-config": "2.26.0",
     "@playwright/test": "^1.63.0",
     "@resvg/resvg-wasm": "^2.6.2",
     "@tailwindcss/oxide": "4.3.3",
