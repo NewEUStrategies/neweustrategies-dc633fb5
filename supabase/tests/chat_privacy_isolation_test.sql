@@ -135,10 +135,12 @@ SELECT is(
   'user tenanta B nie widzi wierszy uczestników konwersacji tenanta A'
 );
 
-SELECT is(
-  public.is_conversation_member((SELECT id FROM tconv), 'b0000000-0000-0000-0000-0000000000b1'),
-  true,
-  'stare is_conversation_member uznaje legacy członkostwo (kontekst regresji)'
+-- Stare is_conversation_member (legacy czlonkostwo bez tenanta) bylo dla
+-- klienta wyrocznia czlonkostwa w cudzych rozmowach; od 20261007140100 woluja
+-- je wylacznie funkcje SECURITY DEFINER, a klient nie ma EXECUTE.
+SELECT ok(
+  NOT has_function_privilege('authenticated', 'public.is_conversation_member(uuid, uuid)', 'EXECUTE'),
+  'stare is_conversation_member nie jest juz wykonywalne dla klienta (wyrocznia zamknieta)'
 );
 
 SELECT is(

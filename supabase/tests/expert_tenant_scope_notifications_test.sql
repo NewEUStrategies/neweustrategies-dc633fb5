@@ -143,7 +143,10 @@ SELECT is(
   false, 'brak tenanta = brak statusu (nigdy „gdziekolwiek")');
 
 -- ── 6) Wariant 1-arg rozstrzyga OBSZAR WYWOŁANIA ────────────────────────────
-SET LOCAL ROLE authenticated;
+-- Predykaty woluja wylacznie funkcje SECURITY DEFINER (DM, krag, pula zapytan,
+-- wysylka zapytania); od 20261007140100 klient nie ma do nich EXECUTE. Obszar
+-- wywolania wynika z JWT (auth.uid()), wiec sprawdzamy go w kontekscie claims,
+-- rola wlasciciela - tak, jak widza go te funkcje.
 
 SELECT set_config('request.jwt.claims',
   '{"sub":"7c000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
@@ -170,7 +173,7 @@ SELECT is(
   false, 'ACL: anon bez EXECUTE na tenant-scoped is_expert_user');
 SELECT is(
   has_function_privilege('authenticated', 'public.is_vip_user(uuid, uuid)', 'EXECUTE'),
-  true, 'ACL: authenticated z EXECUTE na tenant-scoped is_vip_user');
+  false, 'ACL: authenticated BEZ EXECUTE na is_vip_user (wyrocznia poziomu cudzego konta; konsumenci sa SECURITY DEFINER - 20261007140100)');
 
 -- ── 8) Konsumenci przekazują tenanta JAWNIE (bramka strukturalna) ───────────
 SELECT ok(
