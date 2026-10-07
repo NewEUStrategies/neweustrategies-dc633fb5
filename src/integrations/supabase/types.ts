@@ -26232,34 +26232,6 @@ export type Database = {
         Args: { p_badge: string; p_note?: string; p_user_id: string }
         Returns: string
       }
-      admin_list_ad_slots: {
-        Args: never
-        Returns: {
-          created_at: string
-          height: number | null
-          html: string | null
-          id: string
-          image_alt: string | null
-          image_link: string | null
-          image_url: string | null
-          kind: Database["public"]["Enums"]["ad_slot_kind"]
-          name: string
-          notes: string | null
-          requires_consent: boolean
-          script: string | null
-          status: Database["public"]["Enums"]["ad_slot_status"]
-          targeting: Json
-          tenant_id: string
-          updated_at: string
-          width: number | null
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "ad_slots"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
       admin_list_events: {
         Args: { p_q?: string; p_status?: string }
         Returns: {
@@ -28834,15 +28806,6 @@ export type Database = {
         Returns: string
       }
       event_admission_quote: { Args: { p_payload: Json }; Returns: Json }
-      event_admission_quote_for_user: {
-        Args: {
-          _probe_subject: string
-          _tenant_id: string
-          _user_id: string
-          p_payload: Json
-        }
-        Returns: Json
-      }
       event_ads_retention_prune: { Args: never; Returns: Json }
       event_agenda: {
         Args: { p_slug: string }
@@ -29165,15 +29128,6 @@ export type Database = {
         Returns: Json
       }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
-      event_package_purchase_for_user: {
-        Args: {
-          _probe_subject: string
-          _tenant_id: string
-          _user_id: string
-          p_payload: Json
-        }
-        Returns: Json
-      }
       event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
       event_packages_offer: {
         Args: { p_slug: string }
@@ -31074,18 +31028,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      redeem_b2b_coupon_for_user: {
-        Args: {
-          _applied_cents: number
-          _coupon_id: string
-          _currency: string
-          _order_id: string
-          _original_cents: number
-          _tenant_id: string
-          _user_id: string
-        }
-        Returns: boolean
-      }
       redeem_b2b_coupon_with_effects: {
         Args: {
           _applied_cents: number
@@ -31624,18 +31566,6 @@ export type Database = {
         }
         Returns: Json
       }
-      validate_b2b_coupon_for_user: {
-        Args: {
-          _amount_cents: number
-          _code: string
-          _currency: string
-          _plan_id: string
-          _probe_subject: string
-          _tenant_id: string
-          _user_id: string
-        }
-        Returns: Json
-      }
       validate_event_ticket_coupon: {
         Args: {
           _amount_cents: number
@@ -31643,19 +31573,6 @@ export type Database = {
           _currency: string
           _event_id: string
           _ticket_type_id: string
-        }
-        Returns: Json
-      }
-      validate_event_ticket_coupon_for_user: {
-        Args: {
-          _amount_cents: number
-          _code: string
-          _currency: string
-          _event_id: string
-          _probe_subject: string
-          _tenant_id: string
-          _ticket_type_id: string
-          _user_id: string
         }
         Returns: Json
       }
@@ -31681,22 +31598,6 @@ export type Database = {
           _entity_type: Database["public"]["Enums"]["access_entity_type"]
           _ip_hash?: string
           _password: string
-        }
-        Returns: {
-          blocks_data: Json
-          builder_data: Json
-          content_en: string
-          content_pl: string
-          ok: boolean
-        }[]
-      }
-      verify_content_password_for_tenant: {
-        Args: {
-          _entity_id: string
-          _entity_type: Database["public"]["Enums"]["access_entity_type"]
-          _ip_hash: string
-          _password: string
-          _tenant_id: string
         }
         Returns: {
           blocks_data: Json
