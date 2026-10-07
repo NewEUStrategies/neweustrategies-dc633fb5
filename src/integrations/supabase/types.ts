@@ -27297,6 +27297,20 @@ export type Database = {
           verified: boolean
         }[]
       }
+      club_mention_members: {
+        Args: { p_club_id: string; p_limit?: number; p_q?: string }
+        Returns: {
+          avatar_url: string
+          id: string
+          kind: string
+          label: string
+          logo_url: string
+          slug: string
+          subtitle: string
+          verified: boolean
+          website: string
+        }[]
+      }
       club_mention_visible_to: {
         Args: { p_source_id: string; p_source_type: string; p_user_id: string }
         Returns: boolean
@@ -27421,6 +27435,41 @@ export type Database = {
         }
         Returns: undefined
       }
+      club_post_comment_create: {
+        Args: { p_body: string; p_link_preview?: Json; p_post_id: string }
+        Returns: {
+          comment_id: string
+          comment_status: string
+        }[]
+      }
+      club_post_comment_delete: {
+        Args: { p_comment_id: string }
+        Returns: boolean
+      }
+      club_post_comments_list: {
+        Args: {
+          p_before?: string
+          p_before_id?: string
+          p_limit?: number
+          p_post_id: string
+        }
+        Returns: {
+          author_alias: string
+          author_avatar: string
+          author_id: string
+          author_name: string
+          author_slug: string
+          body: string
+          can_manage: boolean
+          created_at: string
+          edited_at: string
+          id: string
+          link_preview: Json
+          post_id: string
+          status: string
+          total_count: number
+        }[]
+      }
       club_post_create: {
         Args: {
           p_attachments?: Json
@@ -27456,8 +27505,10 @@ export type Database = {
           author_name: string
           author_slug: string
           body: string
+          can_comment: boolean
           can_manage: boolean
           club_id: string
+          comment_count: number
           created_at: string
           edited_at: string
           group_id: string
