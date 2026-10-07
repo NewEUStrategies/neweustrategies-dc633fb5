@@ -33,6 +33,7 @@ import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import type { TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy } from "@/lib/email-templates/tx-copy";
 import { formatEventMoment } from "@/lib/events/registrationNotify.server";
+import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 export interface TicketRevokedNotice {
   registrationId: string;
@@ -137,9 +138,6 @@ async function deliver(row: Record<string, unknown>): Promise<SendOutcome> {
 /** Budżet partii, gdy wołający nie poda terminu (`community-cron`). */
 const TICKET_REVOCATIONS_BUDGET_MS = 10_000;
 
-/** PostgREST nie zna funkcji albo Postgres jej nie ma - migracja jeszcze nie weszła. */
-const MIGRATION_PENDING_CODES: ReadonlySet<string> = new Set(["PGRST202", "42883"]);
-
 export interface PendingTicketRevocationsResult {
   /** Zawiadomienia zajęte w tej partii. */
   notices: number;
@@ -168,7 +166,7 @@ export async function runPendingTicketRevocations(
     p_limit: limit,
   });
   if (error) {
-    if (MIGRATION_PENDING_CODES.has(error.code)) return { ...result, skipped: "migration_pending" };
+    if (isMigrationPending(error)) return { ...result, skipped: "migration_pending" };
     throw new Error(error.message);
   }
 
