@@ -41,8 +41,17 @@ describe("snapshot bramek autoryzacji vs migracje", () => {
   // schować się między wpisami o przeniesionej definicji, a każdy wpis wymienia
   // DOKŁADNIE te pola, które się różnią (wcześniej komunikat potrafił pokazać dwa
   // identyczne obiekty i twierdzić, że się rozjechały - patrz authzGates.ts).
+  // LICZNIKI SKANU NIE SĄ UPRAWNIENIEM. `stats` (ile migracji, funkcji i polityk
+  // przeczytał skan) rosną z KAŻDĄ nową migracją, także taką, która żadnej bramki
+  // nie dotyka - więc każdy PR z migracją i każde scalenie main do gałęzi
+  // oblewało ten test, choć krąg uprawnionych był ten sam (raport sam mówił
+  // „wystarczy regeneracja"). Czerwony sygnał bez zmiany uprawnień uczy
+  // ignorowania czerwieni. Bramka dalej łapie KAŻDĄ zmianę ról, flag i miejsca
+  // definicji bramki; liczniki pilnuje test wyżej (skan coś znalazł).
   it("zacommitowany snapshot zgadza się z odtworzeniem z migracji", () => {
-    const drift = collectAuthzSnapshotDrift(AUTHZ_SNAPSHOT, selected);
+    const drift = collectAuthzSnapshotDrift(AUTHZ_SNAPSHOT, selected).filter(
+      (entry) => entry.kind !== "stats",
+    );
     expect(
       drift.map((entry) => `[${entry.severity}] ${entry.message}`),
       formatAuthzDriftReport(drift),
