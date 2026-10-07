@@ -10,15 +10,22 @@
 // Zamiast tego kubełek jest PRYWATNY, zapis ograniczony polityką do katalogu
 // `<uid>/`, a odczyt idzie przez adresy podpisane na godzinę.
 import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 import {
+  CLUB_POST_COMMENT_PAGE_SIZE,
   CLUB_POST_MAX_FILE_BYTES,
   CLUB_POST_MEDIA_BUCKET,
+  clubLinkSnapshotFromPreview,
   clubPostMediaKind,
+  isClubPostCommentStatus,
+  type ClubLinkSnapshot,
   type ClubPostAttachment,
+  type ClubPostCommentRow,
   type ClubPostMediaAttachment,
   type ClubPostRow,
 } from "./postTypes";
+
+type Fn = Database["public"]["Functions"];
 
 export interface ClubPostsPage {
   rows: ClubPostRow[];
@@ -42,7 +49,14 @@ export async function fetchClubPosts(params: ClubPostsQuery): Promise<ClubPostsP
     p_cursor: params.cursor ?? undefined,
   });
   if (error) throw error;
-  const rows = (data ?? []) as ClubPostRow[];
+  // Liczniki komentarzy NORMALIZUJEMY, zamiast ufać rzutowaniu: przed
+  // wdrożeniem migracji komentarzy RPC nie zwraca tych kolumn, a `undefined`
+  // w liczniku renderowałoby się w karcie jako „Komentuj · undefined".
+  const rows = ((data ?? []) as ClubPostRow[]).map((row) => ({
+    ...row,
+    comment_count: Number(row.comment_count ?? 0) || 0,
+    can_comment: row.can_comment === true,
+  }));
   return { rows, total: rows.length > 0 ? Number(rows[0].total_count) : 0 };
 }
 
@@ -85,6 +99,151 @@ export async function toggleClubPostLike(postId: string): Promise<ClubPostLikeRe
   const rows = (data ?? []) as Array<{ liked: boolean; like_count: number }>;
   const row = rows[0];
   return { liked: row?.liked === true, likeCount: Number(row?.like_count ?? 0) };
+}
+
+// ---------------------------------------------------------------------------
+// Komentarze wpisów
+//
+// KOLEJNOŚĆ: NAJNOWSZE PIERWSZE, kursor KEYSET `(created_at, id)`. Karta
+// pokazuje najświeższe komentarze, a „wcześniejsze" doczytuje w głąb - offset
+// przesuwałby się przy każdym nowym komentarzu i dublował wiersz na granicy
+// stron, a sam znacznik czasu (jak w `club_posts_list`) gubiłby komentarze
+// z tej samej mikrosekundy. Odwrócenie do kolejności czytania robi hook.
+// ---------------------------------------------------------------------------
+
+export interface ClubPostCommentsCursor {
+  createdAt: string;
+  id: string;
+}
+
+export interface ClubPostCommentsPage {
+  /** Strona w kolejności RPC: najnowszy komentarz pierwszy. */
+  rows: ClubPostCommentRow[];
+  /** Wszystkie komentarze widoczne dla wołającego, nie tylko ta strona. */
+  total: number;
+}
+
+export interface ClubPostCommentsQuery {
+  postId: string;
+  limit?: number;
+  /** Ostatni (najstarszy) wiersz poprzedniej strony; brak = najnowsze. */
+  before?: ClubPostCommentsCursor | null;
+}
+
+type CommentRpcRow = Fn["club_post_comments_list"]["Returns"][number];
+
+/**
+ * Wiersz RPC -> wiersz widoku. Każde pole jest przepisane JAWNIE (nie
+ * rzutowaniem), więc przemianowana kolumna w `types.ts` wychodzi błędem
+ * kompilacji tutaj, a nie pustym polem w karcie. Status spoza słownika
+ * odrzucamy: komponent porównujący go z `"pending"` pisałby warunek, który
+ * nigdy nie jest prawdziwy.
+ */
+function toCommentRow(row: CommentRpcRow): ClubPostCommentRow | null {
+  if (!isClubPostCommentStatus(row.status)) return null;
+  return {
+    id: row.id,
+    post_id: row.post_id,
+    body: row.body ?? "",
+    link_preview: row.link_preview ?? null,
+    status: row.status,
+    author_id: row.author_id ?? null,
+    author_name: row.author_name ?? null,
+    author_avatar: row.author_avatar ?? null,
+    author_slug: row.author_slug ?? null,
+    author_alias: row.author_alias ?? null,
+    created_at: row.created_at,
+    edited_at: row.edited_at ?? null,
+    can_manage: row.can_manage === true,
+    total_count: Number(row.total_count ?? 0) || 0,
+  };
+}
+
+export async function fetchClubPostComments(
+  params: ClubPostCommentsQuery,
+): Promise<ClubPostCommentsPage> {
+  const before = params.before ?? null;
+  const { data, error } = await supabase.rpc("club_post_comments_list", {
+    p_post_id: params.postId,
+    p_limit: params.limit ?? CLUB_POST_COMMENT_PAGE_SIZE,
+    // Kursor jedzie PARĄ albo wcale - sam znacznik czasu bez `id` to inny
+    // (i błędny) warunek strony.
+    p_before: before?.createdAt ?? undefined,
+    p_before_id: before?.id ?? undefined,
+  });
+  if (error) throw error;
+  const raw = data ?? [];
+  const rows: ClubPostCommentRow[] = [];
+  for (const item of raw) {
+    const row = toCommentRow(item);
+    if (row !== null) rows.push(row);
+  }
+  return { rows, total: raw.length > 0 ? Number(raw[0].total_count ?? 0) || 0 : 0 };
+}
+
+/**
+ * Wynik dodania komentarza. `queued` = kolejka premoderacji: komentarz wraca
+ * z listy WYŁĄCZNIE autorowi (z plakietką), reszta zobaczy go po akceptacji.
+ */
+export interface ClubPostCommentOutcome {
+  id: string;
+  queued: boolean;
+}
+
+export interface CreateClubPostCommentInput {
+  postId: string;
+  body: string;
+  /** Migawka podglądu z kompozytora; `null`/brak = komentarz bez karty linku. */
+  linkPreview?: ClubLinkSnapshot | null;
+}
+
+/**
+ * Nowy komentarz. Treść jest PRZYCINANA tutaj, a nie u wołającego: końcowy
+ * znak nowej linii z pola tekstowego nie jest treścią, a w `pre-wrap` rysuje
+ * pusty wiersz w dymku.
+ *
+ * Migawka jest normalizowana PRZED wysyłką do dokładnie pięciu pól, które
+ * przyjmuje RPC. Podgląd jest dodatkiem: migawka nie do przyjęcia (np. adres
+ * bez https) jedzie jako brak migawki, zamiast zablokować cały komentarz
+ * błędem `invalid link preview`.
+ */
+export async function createClubPostComment(
+  input: CreateClubPostCommentInput,
+): Promise<ClubPostCommentOutcome> {
+  const snapshot = clubLinkSnapshotFromPreview(input.linkPreview);
+  const { data, error } = await supabase.rpc("club_post_comment_create", {
+    p_post_id: input.postId,
+    p_body: input.body.trim(),
+    p_link_preview:
+      snapshot === null
+        ? undefined
+        : {
+            url: snapshot.url,
+            title: snapshot.title,
+            description: snapshot.description,
+            image: snapshot.image,
+            siteName: snapshot.siteName,
+          },
+  });
+  if (error) throw error;
+  // Pusta odpowiedź nie powinna się zdarzyć, ale udawanie publikacji byłoby
+  // gorsze niż błąd - ta sama zasada, co w `replyToClubThread`.
+  const row = (data ?? [])[0];
+  if (row === undefined) throw new Error("club_post_comment_create: brak wiersza wyniku");
+  return { id: row.comment_id, queued: row.comment_status === "pending" };
+}
+
+/**
+ * Usunięcie komentarza (miękkie, `status = 'deleted'`). Idzie po SAMYM
+ * identyfikatorze - wpis i klub ustala RPC z wiersza, a prawo (autor albo
+ * moderator) sprawdza `club_capabilities`. `false` = już usunięty / nie ma.
+ */
+export async function deleteClubPostComment(commentId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_post_comment_delete", {
+    p_comment_id: commentId,
+  });
+  if (error) throw error;
+  return data === true;
 }
 
 // ---------------------------------------------------------------------------

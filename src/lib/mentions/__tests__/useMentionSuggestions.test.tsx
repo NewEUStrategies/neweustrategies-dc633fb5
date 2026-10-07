@@ -7,8 +7,10 @@ const { rpcMock } = vi.hoisted(() => ({ rpcMock: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: rpcMock } }));
 
 import {
+  mergeMentionSuggestions,
   useMentionSuggestions,
   MENTION_SUGGESTION_LIMIT,
+  type MentionSuggestion,
 } from "@/lib/mentions/useMentionSuggestions";
 
 function wrapper() {
@@ -50,7 +52,12 @@ function organizationRow(over: Record<string, unknown> = {}) {
   };
 }
 
-beforeEach(() => rpcMock.mockReset());
+// Klamry są istotne: `mockReset()` ZWRACA atrapę, a funkcja zwrócona
+// z `beforeEach` jest dla vitest sprzątaniem - wołałby wtedy `rpcMock()` bez
+// argumentów po każdym teście, czyli z implementacją ustawioną przez test.
+beforeEach(() => {
+  rpcMock.mockReset();
+});
 
 describe("useMentionSuggestions", () => {
   it("does not query when there is no active mention (query null)", async () => {
@@ -118,5 +125,224 @@ describe("useMentionSuggestions", () => {
     rpcMock.mockResolvedValue({ data: null, error: { message: "missing function" } });
     const { result } = renderHook(() => useMentionSuggestions("x", "pl"), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.data).toEqual([]));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Zakres klubu: członkowie klubu + katalog publiczny
+//
+// Publiczny katalog zna wyłącznie autorów redakcyjnych i ekspertów, więc bez
+// zakresu zwykły członek klubu nie dawał się wzmiankować w rozmowie we własnym
+// klubie. Z zakresem hak pyta RÓWNOLEGLE `club_mention_members` i scala wyniki.
+// ---------------------------------------------------------------------------
+
+function memberRow(over: Record<string, unknown> = {}) {
+  return {
+    kind: "person",
+    id: "m1",
+    slug: "ewa-czlonek",
+    label: "Ewa Członek",
+    subtitle: "Ekonomistka",
+    avatar_url: null,
+    logo_url: null,
+    website: null,
+    verified: false,
+    ...over,
+  };
+}
+
+/** Odpowiedź atrapy zależna od NAZWY funkcji - dwa źródła, dwie odpowiedzi. */
+function respond(byName: Record<string, { data: unknown; error: unknown } | Error>) {
+  rpcMock.mockImplementation(async (name: string) => {
+    const planned = byName[name];
+    if (planned === undefined) throw new Error(`nieplanowane RPC ${name}`);
+    if (planned instanceof Error) throw planned;
+    return planned;
+  });
+}
+
+function suggestion(slug: string, kind: MentionSuggestion["kind"] = "person"): MentionSuggestion {
+  return {
+    kind,
+    slug,
+    name: slug,
+    avatarUrl: null,
+    logoUrl: null,
+    website: null,
+    subtitle: null,
+    verified: false,
+  };
+}
+
+describe("useMentionSuggestions - zakres klubu", () => {
+  it("pyta OBA źródła z tą samą frazą i limitem, klub idzie jako `p_club_id`", async () => {
+    respond({
+      club_mention_members: { data: [memberRow()], error: null },
+      search_mention_targets: { data: [personRow()], error: null },
+    });
+    const { result } = renderHook(() => useMentionSuggestions("e", "pl", { clubId: "club-1" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.data?.length).toBe(2));
+    expect(rpcMock).toHaveBeenCalledWith("club_mention_members", {
+      p_club_id: "club-1",
+      p_q: "e",
+      p_limit: MENTION_SUGGESTION_LIMIT,
+    });
+    expect(rpcMock).toHaveBeenCalledWith("search_mention_targets", {
+      _q: "e",
+      _limit: MENTION_SUGGESTION_LIMIT,
+    });
+  });
+
+  it("członkowie klubu idą PIERWSI, przed katalogiem publicznym", async () => {
+    respond({
+      club_mention_members: { data: [memberRow()], error: null },
+      search_mention_targets: { data: [personRow(), organizationRow()], error: null },
+    });
+    const { result } = renderHook(() => useMentionSuggestions("", "pl", { clubId: "club-1" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.data?.length).toBe(3));
+    expect(result.current.data?.map((s) => s.slug)).toEqual([
+      "ewa-czlonek",
+      "jan-kowalski",
+      "org-123e4567-e89b-12d3-a456-426614174000",
+    ]);
+    // Pusta fraza (goły `@`) nie wysyła `p_q` - serwer bierze domyślne.
+    expect(rpcMock).toHaveBeenCalledWith("club_mention_members", {
+      p_club_id: "club-1",
+      p_q: undefined,
+      p_limit: MENTION_SUGGESTION_LIMIT,
+    });
+  });
+
+  it("osoba obecna w obu źródłach pojawia się RAZ - z danymi członka klubu", async () => {
+    respond({
+      club_mention_members: {
+        data: [memberRow({ slug: "jan-kowalski", label: "Jan Kowalski (klub)" })],
+        error: null,
+      },
+      search_mention_targets: { data: [personRow()], error: null },
+    });
+    const { result } = renderHook(() => useMentionSuggestions("jan", "pl", { clubId: "club-1" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.data?.length).toBe(1));
+    expect(result.current.data?.[0].name).toBe("Jan Kowalski (klub)");
+  });
+
+  it("scalona lista nie przekracza limitu", async () => {
+    const members = Array.from({ length: 5 }, (_, i) => memberRow({ id: `m${i}`, slug: `m-${i}` }));
+    const targets = Array.from({ length: 5 }, (_, i) => personRow({ id: `p${i}`, slug: `p-${i}` }));
+    respond({
+      club_mention_members: { data: members, error: null },
+      search_mention_targets: { data: targets, error: null },
+    });
+    const { result } = renderHook(() => useMentionSuggestions("x", "pl", { clubId: "club-1" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.data?.length).toBe(MENTION_SUGGESTION_LIMIT));
+    expect(result.current.data?.map((s) => s.slug)).toEqual([
+      "m-0",
+      "m-1",
+      "m-2",
+      "m-3",
+      "m-4",
+      "p-0",
+    ]);
+  });
+
+  it("błąd źródła CZŁONKÓW nie gasi katalogu publicznego", async () => {
+    respond({
+      club_mention_members: { data: null, error: { message: "missing function" } },
+      search_mention_targets: { data: [personRow()], error: null },
+    });
+    const { result } = renderHook(() => useMentionSuggestions("jan", "pl", { clubId: "club-1" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.data?.map((s) => s.slug)).toEqual(["jan-kowalski"]));
+  });
+
+  it("odrzucona obietnica katalogu publicznego nie gasi członków klubu", async () => {
+    respond({
+      club_mention_members: { data: [memberRow()], error: null },
+      search_mention_targets: new Error("network down"),
+    });
+    const { result } = renderHook(() => useMentionSuggestions("e", "pl", { clubId: "club-1" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.data?.map((s) => s.slug)).toEqual(["ewa-czlonek"]));
+  });
+
+  it("bez zakresu (albo z pustym klubem) NIE pyta o członków", async () => {
+    respond({ search_mention_targets: { data: [personRow()], error: null } });
+    const first = renderHook(() => useMentionSuggestions("jan", "pl"), { wrapper: wrapper() });
+    await waitFor(() => expect(first.result.current.data?.length).toBe(1));
+    const second = renderHook(() => useMentionSuggestions("jan", "pl", { clubId: "  " }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(second.result.current.data?.length).toBe(1));
+    expect(rpcMock.mock.calls.map(([name]) => name)).toEqual([
+      "search_mention_targets",
+      "search_mention_targets",
+    ]);
+  });
+
+  it("klub jest częścią klucza - ta sama fraza w innym klubie to nowe zapytanie", async () => {
+    respond({
+      club_mention_members: { data: [memberRow()], error: null },
+      search_mention_targets: { data: [], error: null },
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const shared = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    const { result, rerender } = renderHook(
+      (props: { clubId: string }) => useMentionSuggestions("e", "pl", { clubId: props.clubId }),
+      { wrapper: shared, initialProps: { clubId: "club-1" } },
+    );
+    await waitFor(() => expect(result.current.data?.length).toBe(1));
+    rerender({ clubId: "club-2" });
+    await waitFor(() =>
+      expect(
+        rpcMock.mock.calls.filter(([name]) => name === "club_mention_members").map(([, a]) => a),
+      ).toEqual([
+        { p_club_id: "club-1", p_q: "e", p_limit: MENTION_SUGGESTION_LIMIT },
+        { p_club_id: "club-2", p_q: "e", p_limit: MENTION_SUGGESTION_LIMIT },
+      ]),
+    );
+  });
+});
+
+describe("mergeMentionSuggestions", () => {
+  it("kolejność źródeł = priorytet, duplikat zostaje w pierwszym źródle", () => {
+    const merged = mergeMentionSuggestions([
+      [suggestion("anna"), suggestion("jan")],
+      [suggestion("jan", "organization"), suggestion("ola")],
+    ]);
+    expect(merged.map((s) => `${s.kind}:${s.slug}`)).toEqual([
+      "person:anna",
+      "person:jan",
+      "person:ola",
+    ]);
+  });
+
+  it("slugi porównuje bez względu na wielkość liter", () => {
+    expect(mergeMentionSuggestions([[suggestion("Jan")], [suggestion("jan")]])).toHaveLength(1);
+  });
+
+  it("przycina do limitu", () => {
+    const many = Array.from({ length: 10 }, (_, i) => suggestion(`s-${i}`));
+    expect(mergeMentionSuggestions([many], 4).map((s) => s.slug)).toEqual([
+      "s-0",
+      "s-1",
+      "s-2",
+      "s-3",
+    ]);
+  });
+
+  it("puste źródła dają pustą listę", () => {
+    expect(mergeMentionSuggestions([[], []])).toEqual([]);
   });
 });

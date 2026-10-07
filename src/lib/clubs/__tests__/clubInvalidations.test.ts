@@ -34,7 +34,9 @@ import {
   clubSettingsKeys,
   clubTreeKeys,
   clubUpsertedKeys,
+  feedReplyKeys,
   invalidateKeys,
+  postCommentKeys,
   reactionKeys,
   replyEditedKeys,
   threadEditedKeys,
@@ -204,6 +206,60 @@ describe("skutki w watku", () => {
 
     expect(covers(keys, clubKeys.reactions("thread", ids))).toBe(true);
     expect(covers(keys, clubKeys.reactionActors("thread", ids))).toBe(true);
+  });
+});
+
+describe("skutki komentowania z karty strumienia", () => {
+  it("odpowiedź z karty odświeża podgląd w karcie, stronę wątku i kartę wątku", () => {
+    const keys = feedReplyKeys(CLUB, SLUG, THREAD);
+
+    expect(covers(keys, clubKeys.replyPreview(THREAD, 2))).toBe(true);
+    expect(covers(keys, clubKeys.replies(THREAD, "chronological"))).toBe(true);
+    expect(covers(keys, clubKeys.thread(CLUB, SLUG))).toBe(true);
+  });
+
+  it("REGRESJA: odpowiedź z karty NIE unieważnia list wątków ani poddrzewa klubu", () => {
+    // Pełne unieważnienie (`threadReplyKeys`) przeładowuje każdą stronę listy
+    // wątków huba; w sortowaniu „gorące" karta, pod którą czytelnik właśnie
+    // odpowiedział, odjeżdża mu spod kursora.
+    const keys = feedReplyKeys(CLUB, SLUG, THREAD);
+
+    expect(covers(keys, clubKeys.threads(CLUB, null, "hot", null))).toBe(false);
+    expect(covers(keys, clubKeys.threadsAll(CLUB))).toBe(false);
+    expect(covers(keys, clubKeys.club(CLUB))).toBe(false);
+    expect(covers(keys, clubKeys.posts(CLUB, null, null))).toBe(false);
+    // ...podczas gdy pełny skutek strony wątku je obejmuje - to jest różnica.
+    expect(covers(threadReplyKeys(CLUB, SLUG, THREAD), clubKeys.threadsAll(CLUB))).toBe(true);
+  });
+
+  it("odpowiedź z karty nie dotyka podglądu INNEGO wątku", () => {
+    expect(covers(feedReplyKeys(CLUB, SLUG, THREAD), clubKeys.replyPreview("thread-2", 2))).toBe(
+      false,
+    );
+  });
+
+  it("komentarz wpisu odświeża licznik na ścianie I rozwinięte komentarze - jednym kluczem", () => {
+    const keys = postCommentKeys(CLUB, "post-1");
+
+    expect(keys).toEqual([clubKeys.postsAll(CLUB)]);
+    expect(covers(keys, clubKeys.posts(CLUB, null, null))).toBe(true);
+    expect(covers(keys, clubKeys.posts(CLUB, "group-1", null))).toBe(true);
+    expect(covers(keys, clubKeys.postCommentsPage(CLUB, "post-1", 3))).toBe(true);
+  });
+
+  it("komentarz wpisu nie rusza wątków ani innego klubu", () => {
+    const keys = postCommentKeys(CLUB, "post-1");
+
+    expect(covers(keys, clubKeys.threadsAll(CLUB))).toBe(false);
+    expect(covers(keys, clubKeys.thread(CLUB, SLUG))).toBe(false);
+    expect(covers(keys, clubKeys.postsAll("club-2"))).toBe(false);
+  });
+
+  it("oba skutki są w rejestrze - inaczej omijałyby inwarianty niżej", () => {
+    const registry = clubInvalidationsForTest(CLUB, SLUG, THREAD, "post-1");
+
+    expect(registry.feedReplyKeys).toEqual(feedReplyKeys(CLUB, SLUG, THREAD));
+    expect(registry.postCommentKeys).toEqual(postCommentKeys(CLUB, "post-1"));
   });
 });
 

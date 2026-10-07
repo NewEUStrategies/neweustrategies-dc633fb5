@@ -147,9 +147,51 @@ export function threadEditedKeys(clubId: string, _threadSlug: string): readonly 
   return [clubKeys.club(clubId), clubKeys.searchAll()];
 }
 
+/**
+ * Odpowiedz w watku wyslana Z KARTY STRUMIENIA. Swiadomie WEZSZA niz
+ * `threadReplyKeys`: tamta uniewaznia cale poddrzewo klubu, czyli kazda strone
+ * nieskonczonej listy watkow huba. Przy sortowaniu „gorace" lista wraca wtedy
+ * w innej kolejnosci i karta, pod ktora czytelnik wlasnie napisal odpowiedz,
+ * odjezdza mu spod kursora - dokladnie to, czego zabrania doktryna
+ * `useDeferredReplies` (nowa tresc nie przesuwa widoku bez zgody czytelnika).
+ *
+ * Zostaja dwa klucze:
+ *   * prefiks odpowiedzi watku - obejmuje podglad w karcie (`replyPreview`)
+ *     i strone watku, jesli jest w cache;
+ *   * karta watku (`thread`) - liczniki i stan, z ktorych korzysta strona
+ *     watku po przejsciu „Zobacz cala dyskusje".
+ *
+ * Licznik odpowiedzi NA LISCIE poprawia hook punktowo (`setQueryData`), a nie
+ * uniewaznienie - patrz `useReplyFromFeed`.
+ */
+export function feedReplyKeys(
+  clubId: string,
+  threadSlug: string,
+  threadId: string,
+): readonly QueryKey[] {
+  return [clubKeys.repliesAll(threadId), clubKeys.thread(clubId, threadSlug)];
+}
+
 /** Redakcja odpowiedzi - caly prefiks odpowiedzi watku. */
 export function replyEditedKeys(threadId: string): readonly QueryKey[] {
   return [clubKeys.repliesAll(threadId)];
+}
+
+/**
+ * Nowy albo usuniety komentarz wpisu sciany. JEDEN klucz - prefiks sciany:
+ * licznik komentarzy jest kolumna `club_posts_list`, a komentarze wpisu wisza
+ * POD `postsAll`, wiec to jedno uniewaznienie odswieza i licznik w karcie,
+ * i rozwinieta liste. Dopisanie obok `postComments(...)` byloby para
+ * (prefiks, potomek), czyli zbednym drugim wywolaniem.
+ *
+ * Kolejnosc sciany nie zalezy od komentarzy (wpisy ida po `created_at`), wiec
+ * - inaczej niz przy watkach - odswiezenie sciany nie przestawia kart.
+ *
+ * `postId` zostaje w sygnaturze: nazywa intencje i pozwala kiedys zawezic
+ * skutek do jednego wpisu bez zmiany hookow.
+ */
+export function postCommentKeys(clubId: string, _postId: string): readonly QueryKey[] {
+  return [clubKeys.postsAll(clubId)];
 }
 
 /**
@@ -221,6 +263,7 @@ export function clubInvalidationsForTest(
   clubId: string,
   threadSlug: string,
   threadId: string,
+  postId: string = "post-1",
 ): Record<string, readonly QueryKey[]> {
   return {
     clubCardKeys: clubCardKeys(clubId),
@@ -235,8 +278,10 @@ export function clubInvalidationsForTest(
     clubMembershipsOnlyKeys: clubMembershipsOnlyKeys(),
     clubTreeKeys: clubTreeKeys(),
     threadReplyKeys: threadReplyKeys(clubId, threadSlug, threadId),
+    feedReplyKeys: feedReplyKeys(clubId, threadSlug, threadId),
     threadEditedKeys: threadEditedKeys(clubId, threadSlug),
     replyEditedKeys: replyEditedKeys(threadId),
+    postCommentKeys: postCommentKeys(clubId, postId),
     threadResolvedKeys: threadResolvedKeys(clubId, threadSlug, threadId),
     threadStanceKeys: threadStanceKeys(threadId),
     reactionKeys: reactionKeys("thread", [threadId]),

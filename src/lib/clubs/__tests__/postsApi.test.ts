@@ -93,7 +93,10 @@ import { CLUB_POST_MAX_FILE_BYTES, CLUB_POST_MEDIA_BUCKET } from "../postTypes";
 import {
   ClubMediaError,
   createClubPost,
+  createClubPostComment,
   deleteClubPost,
+  deleteClubPostComment,
+  fetchClubPostComments,
   fetchClubPosts,
   removeClubPostMedia,
   signClubMediaUrls,
@@ -475,5 +478,248 @@ describe("signClubMediaUrls", () => {
     sb.state.signResult = [{ path: "obcy-uid/tajne.png", signedUrl: "https://s.example/x" }];
     await signClubMediaUrls(["obcy-uid/tajne.png"]);
     expect(sb.state.signRequests[0].paths).toEqual(["obcy-uid/tajne.png"]);
+  });
+});
+
+describe("fetchClubPosts - liczniki komentarzy", () => {
+  it("licznik i prawo do komentowania przechodzą z wiersza", async () => {
+    sb.state.rpcData = [{ id: "p1", total_count: 1, comment_count: 4, can_comment: true }];
+    const page = await fetchClubPosts({ clubId: CLUB });
+    expect(page.rows[0]).toMatchObject({ comment_count: 4, can_comment: true });
+  });
+
+  it("PRZED migracją (brak kolumn) licznik to zero, a prawo - brak", async () => {
+    // Bez normalizacji karta pokazałaby „Komentuj · undefined" i czynny
+    // przycisk komentarza, którego RPC jeszcze nie ma.
+    sb.state.rpcData = [{ id: "p1", total_count: 1 }];
+    const page = await fetchClubPosts({ clubId: CLUB });
+    expect(page.rows[0]).toMatchObject({ comment_count: 0, can_comment: false });
+  });
+
+  it("licznik `bigint` w tekście zamienia się w liczbę", async () => {
+    sb.state.rpcData = [{ id: "p1", total_count: 1, comment_count: "12", can_comment: "true" }];
+    const page = await fetchClubPosts({ clubId: CLUB });
+    expect(page.rows[0].comment_count).toBe(12);
+    // Tylko prawdziwe `true` daje prawo - tekst „true" to rozjazd kontraktu.
+    expect(page.rows[0].can_comment).toBe(false);
+  });
+});
+
+function commentRpcRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "c1",
+    post_id: "post-9",
+    body: "Komentarz",
+    link_preview: null,
+    status: "visible",
+    author_id: "user-2",
+    author_name: "Anna Nowak",
+    author_avatar: null,
+    author_slug: "anna-nowak",
+    author_alias: null,
+    created_at: "2026-08-14T08:00:00.000Z",
+    edited_at: null,
+    can_manage: false,
+    total_count: 7,
+    ...overrides,
+  };
+}
+
+describe("fetchClubPostComments - kontrakt argumentów", () => {
+  it("pierwsza strona: wpis, domyślny limit trzech, BEZ kursora", async () => {
+    await fetchClubPostComments({ postId: "post-9" });
+    expect(lastRpc().name).toBe("club_post_comments_list");
+    expect(lastRpc().args).toEqual({
+      p_post_id: "post-9",
+      p_limit: 3,
+      p_before: undefined,
+      p_before_id: undefined,
+    });
+  });
+
+  it("kursor jedzie PARĄ - znacznik czasu i identyfikator", async () => {
+    // Sam znacznik czasu gubiłby komentarze z tej samej chwili na granicy stron.
+    await fetchClubPostComments({
+      postId: "post-9",
+      limit: 10,
+      before: { createdAt: "2026-08-14T08:00:00.000Z", id: "c3" },
+    });
+    expect(lastRpc().args).toEqual({
+      p_post_id: "post-9",
+      p_limit: 10,
+      p_before: "2026-08-14T08:00:00.000Z",
+      p_before_id: "c3",
+    });
+  });
+
+  it("`before: null` to pierwsza strona, nie kursor z NULL-ami", async () => {
+    await fetchClubPostComments({ postId: "post-9", before: null });
+    expect(lastRpc().args?.p_before).toBeUndefined();
+    expect(lastRpc().args?.p_before_id).toBeUndefined();
+  });
+
+  it("wiersze i licznik całości wracają z odpowiedzi", async () => {
+    sb.state.rpcData = [commentRpcRow(), commentRpcRow({ id: "c2", status: "pending" })];
+    const page = await fetchClubPostComments({ postId: "post-9" });
+    expect(page.total).toBe(7);
+    expect(page.rows.map((row) => [row.id, row.status])).toEqual([
+      ["c1", "visible"],
+      ["c2", "pending"],
+    ]);
+    expect(page.rows[0]).toEqual(commentRpcRow({ total_count: 7 }));
+  });
+
+  it("status spoza słownika jest pomijany, a reszta strony zostaje", async () => {
+    sb.state.rpcData = [commentRpcRow(), commentRpcRow({ id: "c2", status: "removed" })];
+    const page = await fetchClubPostComments({ postId: "post-9" });
+    expect(page.rows.map((row) => row.id)).toEqual(["c1"]);
+  });
+
+  it("pola autora w trybie Chatham House zostają NULL-ami, pseudonim przechodzi", async () => {
+    sb.state.rpcData = [
+      commentRpcRow({
+        author_id: null,
+        author_name: null,
+        author_slug: null,
+        author_alias: "K7Q2M",
+      }),
+    ];
+    const [row] = (await fetchClubPostComments({ postId: "post-9" })).rows;
+    expect(row).toMatchObject({
+      author_id: null,
+      author_name: null,
+      author_slug: null,
+      author_alias: "K7Q2M",
+    });
+  });
+
+  it("pusta odpowiedź daje zero, nie `NaN`", async () => {
+    sb.state.rpcData = null;
+    await expect(fetchClubPostComments({ postId: "post-9" })).resolves.toEqual({
+      rows: [],
+      total: 0,
+    });
+  });
+
+  it("błąd RPC jest rzucany, nie zamieniany w „brak komentarzy”", async () => {
+    sb.state.rpcError = { message: "permission denied" };
+    await expect(fetchClubPostComments({ postId: "post-9" })).rejects.toBeTruthy();
+  });
+});
+
+describe("createClubPostComment - kontrakt argumentów", () => {
+  it("wpis i PRZYCIĘTA treść; bez migawki argument jest pominięty", async () => {
+    sb.state.rpcData = [{ comment_id: "c9", comment_status: "visible" }];
+    const outcome = await createClubPostComment({ postId: "post-9", body: "  Dobra uwaga.\n" });
+    expect(lastRpc().name).toBe("club_post_comment_create");
+    expect(lastRpc().args).toEqual({
+      p_post_id: "post-9",
+      p_body: "Dobra uwaga.",
+      p_link_preview: undefined,
+    });
+    expect(outcome).toEqual({ id: "c9", queued: false });
+  });
+
+  it("premoderacja wraca jako `queued`", async () => {
+    sb.state.rpcData = [{ comment_id: "c9", comment_status: "pending" }];
+    await expect(createClubPostComment({ postId: "post-9", body: "x" })).resolves.toEqual({
+      id: "c9",
+      queued: true,
+    });
+  });
+
+  it("migawka jedzie DOKŁADNIE pięcioma polami", async () => {
+    sb.state.rpcData = [{ comment_id: "c9", comment_status: "visible" }];
+    await createClubPostComment({
+      postId: "post-9",
+      body: "Zobaczcie https://energia.example/raport",
+      linkPreview: {
+        url: "https://energia.example/raport",
+        title: "Raport",
+        description: null,
+        image: "https://energia.example/og.png",
+        siteName: "Energia",
+      },
+    });
+    expect(lastRpc().args?.p_link_preview).toEqual({
+      url: "https://energia.example/raport",
+      title: "Raport",
+      description: null,
+      image: "https://energia.example/og.png",
+      siteName: "Energia",
+    });
+  });
+
+  it("obraz `http:` z serwera podglądów jest zdejmowany PRZED wysyłką", async () => {
+    // RPC odrzuciłoby taki obraz błędem całego komentarza.
+    sb.state.rpcData = [{ comment_id: "c9", comment_status: "visible" }];
+    await createClubPostComment({
+      postId: "post-9",
+      body: "x",
+      linkPreview: {
+        url: "https://energia.example/raport",
+        title: "Raport",
+        description: null,
+        image: "http://energia.example/og.png",
+        siteName: null,
+      },
+    });
+    expect(lastRpc().args?.p_link_preview).toMatchObject({ image: null });
+  });
+
+  it("migawka nie do przyjęcia jedzie jako BRAK migawki, nie blokuje komentarza", async () => {
+    sb.state.rpcData = [{ comment_id: "c9", comment_status: "visible" }];
+    await createClubPostComment({
+      postId: "post-9",
+      body: "x",
+      linkPreview: {
+        url: "javascript:alert(1)",
+        title: null,
+        description: null,
+        image: null,
+        siteName: null,
+      },
+    });
+    expect(lastRpc().args?.p_link_preview).toBeUndefined();
+  });
+
+  it("pusta odpowiedź RPC to błąd, nie udawana publikacja", async () => {
+    sb.state.rpcData = [];
+    await expect(createClubPostComment({ postId: "post-9", body: "x" })).rejects.toThrow(
+      /brak wiersza/,
+    );
+  });
+
+  it("odmowa bazy przechodzi z komunikatem - widok mapuje ją na tekst", async () => {
+    sb.state.rpcError = { message: "clubs: comment burst limit" };
+    await expect(createClubPostComment({ postId: "post-9", body: "x" })).rejects.toMatchObject({
+      message: "clubs: comment burst limit",
+    });
+  });
+});
+
+describe("deleteClubPostComment", () => {
+  it("idzie po SAMYM identyfikatorze komentarza - zakres ustala serwer", async () => {
+    sb.state.rpcData = true;
+    await expect(deleteClubPostComment("c9")).resolves.toBe(true);
+    expect(lastRpc()).toMatchObject({
+      name: "club_post_comment_delete",
+      args: { p_comment_id: "c9" },
+    });
+    expect(lastRpc().args).toEqual({ p_comment_id: "c9" });
+  });
+
+  it("cokolwiek innego niż `true` to brak usunięcia", async () => {
+    sb.state.rpcData = false;
+    await expect(deleteClubPostComment("c9")).resolves.toBe(false);
+    sb.state.rpcData = null;
+    await expect(deleteClubPostComment("c9")).resolves.toBe(false);
+  });
+
+  it("brak prawa jest rzucany", async () => {
+    sb.state.rpcError = { message: "clubs: forbidden" };
+    await expect(deleteClubPostComment("c9")).rejects.toMatchObject({
+      message: "clubs: forbidden",
+    });
   });
 });

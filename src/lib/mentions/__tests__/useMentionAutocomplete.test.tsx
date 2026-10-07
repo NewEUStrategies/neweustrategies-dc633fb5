@@ -11,6 +11,8 @@
 // (3) WYBÓR podmienia token pod kursorem, a po renderze przywraca fokus
 //     i kursor za wstawioną wzmianką.
 // (4) WYŁĄCZONY hak nie wykrywa wzmianek i nie pyta o podpowiedzi.
+// (5) ZAKRES KLUBU (`scope`) dojeżdża do zapytania o podpowiedzi bez zmian -
+//     bez niego kompozytor w klubie nie podpowiadałby członków klubu.
 //
 // Zapytanie RPC (`useMentionSuggestions`) i opóźnienie są atrapami - mają
 // własne testy; tu liczy się stan i klawiatura.
@@ -23,13 +25,15 @@ const state = vi.hoisted(() => ({
   suggestions: [] as unknown[],
   fetching: false,
   queries: [] as Array<string | null>,
+  scopes: [] as unknown[],
 }));
 
 vi.mock("@/hooks/useDebouncedValue", () => ({ useDebouncedValue: <T,>(value: T) => value }));
 vi.mock("@/lib/mentions/useMentionSuggestions", () => ({
   MENTION_SUGGESTION_LIMIT: 6,
-  useMentionSuggestions: (query: string | null) => {
+  useMentionSuggestions: (query: string | null, _lang: string, scope?: unknown) => {
     state.queries.push(query);
+    state.scopes.push(scope);
     return { data: query === null ? [] : state.suggestions, isFetching: state.fetching };
   },
 }));
@@ -98,6 +102,7 @@ beforeEach(() => {
   state.suggestions = [JAN, ANNA, OLA];
   state.fetching = false;
   state.queries = [];
+  state.scopes = [];
   document.body.innerHTML = "";
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
     cb(0);
@@ -308,5 +313,23 @@ describe("useMentionAutocomplete - wybór", () => {
 
     expect(onChange).toHaveBeenCalledWith("@jan-kowalski ");
     expect(document.activeElement).not.toBe(el);
+  });
+});
+
+describe("useMentionAutocomplete - zakres klubu", () => {
+  it("zakres dojeżdża do podpowiedzi bez zmian", () => {
+    const scope = { clubId: "club-1" };
+    const { type } = setup({ scope });
+    type("@an");
+
+    expect(state.queries.at(-1)).toBe("an");
+    expect(state.scopes.at(-1)).toEqual({ clubId: "club-1" });
+  });
+
+  it("bez zakresu podpowiedzi dostają `null` - katalog publiczny", () => {
+    const { type } = setup();
+    type("@an");
+
+    expect(state.scopes.at(-1)).toBeNull();
   });
 });

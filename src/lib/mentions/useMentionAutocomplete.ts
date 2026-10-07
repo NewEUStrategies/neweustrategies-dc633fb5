@@ -25,6 +25,7 @@ import {
 import {
   useMentionSuggestions,
   type MentionSuggestion,
+  type MentionSuggestionScope,
 } from "@/lib/mentions/useMentionSuggestions";
 
 export interface UseMentionAutocompleteOptions {
@@ -35,6 +36,8 @@ export interface UseMentionAutocompleteOptions {
   enabled?: boolean;
   /** Ref do textarei; hook nadal utrzymuje własny (wewnętrzny) uchwyt. */
   textareaRef?: MutableRefObject<HTMLTextAreaElement | null>;
+  /** Rozmowa w klubie: podpowiedzi obejmują wtedy także członków tego klubu. */
+  scope?: MentionSuggestionScope | null;
 }
 
 export interface MentionTextareaAriaProps {
@@ -70,6 +73,7 @@ export function useMentionAutocomplete({
   lang,
   enabled = true,
   textareaRef,
+  scope = null,
 }: UseMentionAutocompleteOptions): UseMentionAutocompleteResult {
   const ref = useRef<HTMLTextAreaElement | null>(null);
   const listId = useId();
@@ -85,7 +89,7 @@ export function useMentionAutocomplete({
   // Debounce tylko częściowego query; brak aktywnej wzmianki wyłącza RPC natychmiast.
   const debouncedQuery = useDebouncedValue(active?.query ?? "", 160);
   const queryForHook = active ? debouncedQuery : null;
-  const { data: suggestions = [], isFetching } = useMentionSuggestions(queryForHook, lang);
+  const { data: suggestions = [], isFetching } = useMentionSuggestions(queryForHook, lang, scope);
 
   const open = enabled && !dismissed && active !== null && (suggestions.length > 0 || isFetching);
 

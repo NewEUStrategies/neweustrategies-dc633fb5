@@ -164,6 +164,10 @@ export interface ClubPostRow {
   created_at: string;
   edited_at: string | null;
   total_count: number;
+  /** Komentarze `visible` wpisu - licznik w pasie karty, zanim lista dojedzie. */
+  comment_count: number;
+  /** `club_capabilities(klub, dział).can_reply` WOŁAJĄCEGO; gość zawsze `false`. */
+  can_comment: boolean;
 }
 
 function readString(source: Record<string, unknown>, key: string): string | null {
@@ -239,4 +243,259 @@ export function extractFirstUrl(text: string): string | null {
 /** Czy wpis da się w ogóle zapisać (ten sam warunek, co CHECK w bazie). */
 export function canSubmitClubPost(body: string, attachments: readonly unknown[]): boolean {
   return body.trim().length > 0 || attachments.length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Komentarze wpisów ściany (`club_post_comments`)
+//
+// DLACZEGO KOMENTARZ NIE JEST ODPOWIEDZIĄ W WĄTKU. Wpis jest formą krótką
+// i bez cyklu życia (nagłówek pliku), więc rozmowa pod nim też jest krótka:
+// PŁASKA lista bez drzewa, bez rozstrzygnięć i bez stanowisk. „Odpowiedz" na
+// komentarz to wzmianka `@slug` w nowym komentarzu - powiadamia adresata, a nie
+// buduje gałęzi, której karta w strumieniu i tak nie miałaby gdzie pokazać.
+// ---------------------------------------------------------------------------
+
+/** Twardy limit treści komentarza - ten sam, co CHECK w `club_post_comments`. */
+export const CLUB_POST_COMMENT_MAX = 3000;
+
+/** Ile komentarzy pokazuje karta, zanim czytelnik poprosi o wcześniejsze. */
+export const CLUB_POST_COMMENT_PAGE_SIZE = 3;
+
+/** Górny limit adresu w migawce linku (url i obraz) - jak walidacja RPC. */
+export const CLUB_LINK_URL_MAX = 2048;
+
+/** Górny limit pól tekstowych migawki (tytuł, opis, nazwa serwisu). */
+export const CLUB_LINK_TEXT_MAX = 300;
+
+/** Statusy komentarza - słownik zamknięty, zgodny z CHECK-iem tabeli. */
+export const CLUB_POST_COMMENT_STATUSES = ["pending", "visible", "hidden", "deleted"] as const;
+export type ClubPostCommentStatus = (typeof CLUB_POST_COMMENT_STATUSES)[number];
+
+export function isClubPostCommentStatus(value: unknown): value is ClubPostCommentStatus {
+  return (CLUB_POST_COMMENT_STATUSES as readonly unknown[]).includes(value);
+}
+
+/**
+ * Wiersz `club_post_comments_list`.
+ *
+ * Pola autora są NULL-ami w trybie Chatham House - wtedy `author_alias` niesie
+ * stabilny pseudonim per wpis. Komponent renderuje autora WYŁĄCZNIE przez
+ * `toAuthorLabel` (`types.ts`), więc decyzja o anonimowości zostaje w bazie.
+ */
+export interface ClubPostCommentRow {
+  id: string;
+  post_id: string;
+  body: string;
+  /** Migawka podglądu linku z chwili wysłania; czytać przez `parseClubLinkSnapshot`. */
+  link_preview: Json | null;
+  status: ClubPostCommentStatus;
+  author_id: string | null;
+  author_name: string | null;
+  author_avatar: string | null;
+  author_slug: string | null;
+  author_alias: string | null;
+  created_at: string;
+  edited_at: string | null;
+  /** Autor komentarza albo moderator klubu/działu - może usunąć. */
+  can_manage: boolean;
+  /** Komentarze widoczne dla WOŁAJĄCEGO (bez kursora) - licznik „wcześniejszych". */
+  total_count: number;
+}
+
+/**
+ * Czy komentarz da się wysłać. JEDNO miejsce dla przycisku i dla uchwytu
+ * skrótu klawiszowego (ta sama zasada, co `canSubmitClubReply`): rozjazd
+ * tych dwóch warunków daje przycisk, który wygląda na czynny i nic nie robi.
+ *
+ * Długość liczymy w PUNKTACH KODOWYCH, jak `char_length` w Postgresie - emoji
+ * to jeden znak dla bazy i dwie jednostki UTF-16 dla `String.length`.
+ */
+export function canSubmitClubComment(body: string, pending: boolean): boolean {
+  if (pending) return false;
+  const length = Array.from(body.trim()).length;
+  return length > 0 && length <= CLUB_POST_COMMENT_MAX;
+}
+
+// ---------------------------------------------------------------------------
+// Migawka podglądu linku
+// ---------------------------------------------------------------------------
+
+/**
+ * Podgląd OpenGraph ZAMROŻONY w chwili wysyłki. Ten sam kształt, co
+ * `ClubPostLinkAttachment` bez `type` i co wynik `fetchClubLinkPreview`.
+ *
+ * DLACZEGO MIGAWKA, A NIE POBRANIE PRZY ODCZYCIE. Serwer podglądów nie ma
+ * pamięci podręcznej, a limit 30 podglądów na minutę na konto zamyka się na
+ * twardo - strumień z dwudziestoma komentarzami z linkami wyczerpałby go
+ * jednym przewinięciem. Podgląd pobiera więc AUTOR (raz), a czytelnicy dostają
+ * zapisane pięć pól.
+ */
+export interface ClubLinkSnapshot {
+  url: string;
+  title: string | null;
+  description: string | null;
+  image: string | null;
+  siteName: string | null;
+}
+
+/** Znaki sterujące C0, DEL i C1 - ten sam zbiór, który baza odrzuca jako `[:cntrl:]`. */
+function hasControlChar(text: string): boolean {
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) return true;
+  }
+  return false;
+}
+
+function isLoneSurrogate(char: string): boolean {
+  if (char.length !== 1) return false;
+  const code = char.charCodeAt(0);
+  return code >= 0xd800 && code <= 0xdfff;
+}
+
+/**
+ * Tekst przycięty do `max` PUNKTÓW KODOWYCH, bez osieroconych surogatów.
+ *
+ * DLACZEGO NIE `slice`. `slice(0, 300)` tnie po jednostkach UTF-16, więc emoji
+ * na granicy zostawia połówkę pary. `JSON.stringify` zapisuje ją jako `\ud83d`,
+ * a `jsonb` w Postgresie odrzuca taki escape - komentarz z podglądem padałby
+ * błędem bazy, którego autor nie ma jak zrozumieć.
+ */
+function clampText(value: unknown, max: number): string | null {
+  if (typeof value !== "string") return null;
+  const chars = Array.from(value.trim()).filter((char) => !isLoneSurrogate(char));
+  const text = chars.slice(0, max).join("").trim();
+  return text === "" ? null : text;
+}
+
+/**
+ * Adres https albo `null`. Schemat sprawdzamy na surowym tekście I przez
+ * parser `URL` - samo `startsWith` przepuściłoby `https://` bez hosta,
+ * a sam parser przyjąłby `javascript:` jako poprawny adres.
+ */
+function readHttpsUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (!/^https:\/\//i.test(raw)) return null;
+  if (Array.from(raw).length > CLUB_LINK_URL_MAX) return null;
+  // Biały znak albo znak sterujący WEWNĄTRZ adresu: parser `URL` po cichu go
+  // zakoduje albo wytnie, więc karta prowadziłaby gdzie indziej, niż pokazuje.
+  if (/\s/.test(raw) || hasControlChar(raw)) return null;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== "https:" || parsed.hostname === "") return null;
+  } catch {
+    return null;
+  }
+  // Baza sprawdza prefiks dosłownie, więc `HTTPS://` normalizujemy do małych
+  // liter - reszta adresu zostaje bajt w bajt taka, jaką wkleił autor.
+  return `https://${raw.slice("https://".length)}`;
+}
+
+function normalizeSnapshot(source: Record<string, unknown>): ClubLinkSnapshot | null {
+  const url = readHttpsUrl(source.url);
+  if (url === null) return null;
+  return {
+    url,
+    title: clampText(source.title, CLUB_LINK_TEXT_MAX),
+    description: clampText(source.description, CLUB_LINK_TEXT_MAX),
+    // Obraz spoza https (albo za długi) znika, ale karta zostaje - tytuł
+    // i adres wystarczą, a `http:` w `<img>` to mieszana treść i ślad wizyty.
+    image: readHttpsUrl(source.image),
+    siteName: clampText(source.siteName, CLUB_LINK_TEXT_MAX),
+  };
+}
+
+/**
+ * Odczyt migawki z jsonb (`link_preview` komentarza).
+ *
+ * TOLERANCYJNY jak `parseClubPostAttachments`: śmieć daje `null` (brak karty),
+ * nigdy wyjątek - komentarz z uszkodzoną migawką ma się wyświetlić. Te same
+ * granice, co walidacja RPC (https, 2048 / 300 znaków), więc wiersz zapisany
+ * z pominięciem RPC i tak nie wstawi do karty `data:` ani `javascript:`.
+ */
+export function parseClubLinkSnapshot(json: Json | null | undefined): ClubLinkSnapshot | null {
+  if (json === null || json === undefined || typeof json !== "object" || Array.isArray(json)) {
+    return null;
+  }
+  return normalizeSnapshot(json as Record<string, unknown>);
+}
+
+/**
+ * Migawka z wyniku `fetchClubLinkPreview` - PRZED wysyłką.
+ *
+ * Serwer podglądów może oddać obraz `http:` (rozwiązuje adres względny
+ * strony), a RPC komentarza odrzuciłoby go całym błędem. Normalizacja tutaj
+ * sprawia, że podgląd nigdy nie blokuje komentarza: w najgorszym razie karta
+ * jedzie bez obrazu, a przy adresie nie do przyjęcia - nie jedzie wcale.
+ */
+export function clubLinkSnapshotFromPreview(
+  preview: Readonly<Partial<ClubLinkSnapshot>> | null | undefined,
+): ClubLinkSnapshot | null {
+  if (preview === null || preview === undefined) return null;
+  return normalizeSnapshot({ ...preview });
+}
+
+/** Element `type: "link"` dla `p_attachments` nowego wpisu ściany. */
+export function clubLinkSnapshotToAttachment(snapshot: ClubLinkSnapshot): ClubPostLinkAttachment {
+  return {
+    type: "link",
+    url: snapshot.url,
+    title: snapshot.title,
+    description: snapshot.description,
+    image: snapshot.image,
+    siteName: snapshot.siteName,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Błędy komentowania z karty strumienia
+// ---------------------------------------------------------------------------
+
+/**
+ * Klucze i18n komunikatów o odmowie. Lista jest JAWNA, żeby test słowników
+ * mógł sprawdzić, że każdy klucz ma tekst w PL i EN.
+ */
+export const CLUB_COMMENT_ERROR_KEYS = [
+  "club.comments.error.rateLimit",
+  "club.comments.error.burstLimit",
+  "club.comments.error.forbidden",
+  "club.comments.error.locked",
+  "club.comments.error.notFound",
+  "club.comments.error.invalid",
+  "club.comments.error.generic",
+] as const;
+export type ClubCommentErrorKey = (typeof CLUB_COMMENT_ERROR_KEYS)[number];
+
+function errorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error !== null && typeof error === "object" && "message" in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "";
+}
+
+/**
+ * Komunikat odmowy dla komentarza wpisu (`club_post_comment_create`) ORAZ
+ * odpowiedzi w wątku wysłanej z karty (`club_reply`).
+ *
+ * DLACZEGO PO TEKŚCIE. PostgREST gubi SQLSTATE po drodze do klienta, więc
+ * jedynym stabilnym nośnikiem powodu jest treść `RAISE EXCEPTION 'clubs: …'`
+ * - te same napisy, na których stoi `toClubSaveError`. Kolejność sprawdzeń
+ * ma znaczenie: „burst limit" sprawdzamy PRZED „rate limit", a brak sesji
+ * (`authentication required`) traktujemy jak brak prawa - z karty i tak nie da
+ * się w tej chwili napisać, a powód „zaloguj się" pokazuje sam widok gościa.
+ */
+export function clubCommentErrorKey(error: unknown): ClubCommentErrorKey {
+  const message = errorMessage(error).toLowerCase();
+  if (message.includes("burst limit")) return "club.comments.error.burstLimit";
+  if (message.includes("rate limit")) return "club.comments.error.rateLimit";
+  if (message.includes("thread locked")) return "club.comments.error.locked";
+  if (message.includes("clubs: forbidden") || message.includes("authentication required")) {
+    return "club.comments.error.forbidden";
+  }
+  if (message.includes("not found")) return "club.comments.error.notFound";
+  if (message.includes("invalid")) return "club.comments.error.invalid";
+  return "club.comments.error.generic";
 }
