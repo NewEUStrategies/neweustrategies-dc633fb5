@@ -27446,6 +27446,10 @@ export type Database = {
         Args: { p_comment_id: string }
         Returns: boolean
       }
+      club_post_comment_moderate: {
+        Args: { p_action: string; p_comment_id: string }
+        Returns: boolean
+      }
       club_post_comments_list: {
         Args: {
           p_before?: string
@@ -27460,6 +27464,7 @@ export type Database = {
           author_name: string
           author_slug: string
           body: string
+          can_approve: boolean
           can_manage: boolean
           created_at: string
           edited_at: string
