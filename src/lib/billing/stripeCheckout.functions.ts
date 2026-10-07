@@ -186,7 +186,16 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         await import("@/lib/billing/markOrderSession.server")
       ).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
       if (couponId) {
-        await supabase.rpc("release_b2b_coupon", { _coupon_id: couponId, _order_id: order.id });
+        const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
+        const { error: releaseErr } = await releaseCouponForUser(supabase, {
+          tenantId: order.tenant_id,
+          userId,
+          couponId,
+          orderId: order.id,
+        });
+        if (releaseErr) {
+          console.error("[stripe-checkout] coupon release failed", order.id, releaseErr.message);
+        }
       }
       return { ok: false as const, error: result.error };
     }

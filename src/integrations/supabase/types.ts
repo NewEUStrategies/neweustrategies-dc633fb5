@@ -31133,6 +31133,15 @@ export type Database = {
         Args: { _coupon_id: string; _order_id: string }
         Returns: boolean
       }
+      release_b2b_coupon_for_user: {
+        Args: {
+          _coupon_id: string
+          _order_id: string
+          _tenant_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       release_included_event_ticket: {
         Args: { p_event_id: string; p_user?: string }
         Returns: boolean

@@ -60,6 +60,15 @@ export interface EventTicketCouponValidation {
   currency: string;
 }
 
+/** Zwolnienie użycia kodu na NIEOPŁACONYM zamówieniu tego konta. */
+export interface CouponRelease {
+  /** `tenant_id` zamówienia - stempel bazy, nie wartość z żądania. */
+  tenantId: string;
+  userId: string;
+  couponId: string;
+  orderId: string;
+}
+
 export interface CouponRedemption {
   /** `tenant_id` zamówienia - stempel bazy, nie wartość z żądania. */
   tenantId: string;
@@ -188,6 +197,33 @@ export async function redeemCouponForUser(
     _applied_cents: input.appliedCents,
     _original_cents: input.originalCents,
     _currency: input.currency,
+  });
+  return { data: legacy.data, error: legacy.error };
+}
+
+/**
+ * Zwolnienie użycia kodu po odmowie dostawcy płatności (`true` = oddane).
+ * Baza oddaje użycie wyłącznie dla nieopłaconego (pending/failed/canceled)
+ * zamówienia TEGO konta w TYM najemcy (20261007140200) - wcześniej każdy
+ * zalogowany zwalniał realizację także opłaconego zamówienia i kod
+ * jednorazowy był znów ważny.
+ */
+export async function releaseCouponForUser(
+  userClient: UserClient,
+  input: CouponRelease,
+): Promise<CouponRpcResult> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.rpc("release_b2b_coupon_for_user", {
+    _tenant_id: input.tenantId,
+    _user_id: input.userId,
+    _coupon_id: input.couponId,
+    _order_id: input.orderId,
+  });
+  if (!isMigrationPending(error)) return { data, error };
+
+  const legacy = await userClient.rpc("release_b2b_coupon", {
+    _coupon_id: input.couponId,
+    _order_id: input.orderId,
   });
   return { data: legacy.data, error: legacy.error };
 }

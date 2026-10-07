@@ -368,7 +368,7 @@ beforeEach(() => {
   rpcResponses.set("event_registration_group_seats", ok(1));
   rpcResponses.set("validate_b2b_coupon_for_user", ok([couponOk()]));
   rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
-  rpcResponses.set("release_b2b_coupon", ok(true));
+  rpcResponses.set("release_b2b_coupon_for_user", ok(true));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
 
@@ -537,7 +537,11 @@ describe("createCheckoutOrder - operator ODMAWIA sesji subskrypcyjnej", () => {
 
     await call(planPayload({ coupon_code: "PARTNER-CEE" }));
 
-    expect(rpcArgs("release_b2b_coupon")).toEqual({
+    // Zwolnienie idzie rolą serwisową w najemcy ZAMÓWIENIA i dla konta z sesji
+    // (20261007140200) - baza oddaje użycie tylko nieopłaconemu zamówieniu.
+    expect(rpcArgs("release_b2b_coupon_for_user")).toEqual({
+      _tenant_id: "tenant-alfa",
+      _user_id: "user-kupujacy",
       _coupon_id: COUPON_ID,
       _order_id: "order-1",
     });
@@ -550,7 +554,7 @@ describe("createCheckoutOrder - operator ODMAWIA sesji subskrypcyjnej", () => {
 
     await call(planPayload());
 
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("release_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("release_b2b_coupon_for_user");
     logged.mockRestore();
   });
 
@@ -558,7 +562,7 @@ describe("createCheckoutOrder - operator ODMAWIA sesji subskrypcyjnej", () => {
     // Zwolnienie jest operacją naprawczą - jej cicha porażka zostawia
     // zablokowane użycie bez żadnego śladu do diagnozy.
     h.state.prices = [];
-    rpcResponses.set("release_b2b_coupon", fail("release failed"));
+    rpcResponses.set("release_b2b_coupon_for_user", fail("release failed"));
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const result = await call(planPayload({ coupon_code: "PARTNER-CEE" }));
@@ -687,12 +691,12 @@ describe("createCheckoutOrder - cena OSADZONA (treść, bilet)", () => {
 
     await call(entityPayload({ coupon_code: "PARTNER-CEE" }));
 
-    expect(rpcArgs("release_b2b_coupon")).toMatchObject({ _coupon_id: COUPON_ID });
+    expect(rpcArgs("release_b2b_coupon_for_user")).toMatchObject({ _coupon_id: COUPON_ID });
     logged.mockRestore();
   });
 
   it("nieudane zwolnienie kuponu na ścieżce ceny osadzonej też jest logowane", async () => {
-    rpcResponses.set("release_b2b_coupon", fail("release failed"));
+    rpcResponses.set("release_b2b_coupon_for_user", fail("release failed"));
     h.state.sessionError = new Error("operator unavailable");
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -710,7 +714,7 @@ describe("createCheckoutOrder - cena OSADZONA (treść, bilet)", () => {
 
     await call(entityPayload());
 
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("release_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("release_b2b_coupon_for_user");
     logged.mockRestore();
   });
 });

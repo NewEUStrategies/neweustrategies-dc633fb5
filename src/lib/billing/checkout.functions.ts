@@ -526,9 +526,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
             await import("@/lib/billing/markOrderSession.server")
           ).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
           if (couponId) {
-            const { error: releaseErr } = await supabase.rpc("release_b2b_coupon", {
-              _coupon_id: couponId,
-              _order_id: order.id,
+            const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
+            const { error: releaseErr } = await releaseCouponForUser(supabase, {
+              tenantId: order.tenant_id,
+              userId,
+              couponId,
+              orderId: order.id,
             });
             if (releaseErr) {
               console.error("[checkout] coupon release failed", order.id, releaseErr.message);
@@ -647,9 +650,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         // odmówił, użycie musi wrócić do puli - inaczej limit przepadłby za
         // zamówienie, którego nikt nigdy nie opłaci.
         if (couponId) {
-          const { error: releaseErr } = await supabase.rpc("release_b2b_coupon", {
-            _coupon_id: couponId,
-            _order_id: order.id,
+          const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
+          const { error: releaseErr } = await releaseCouponForUser(supabase, {
+            tenantId: order.tenant_id,
+            userId,
+            couponId,
+            orderId: order.id,
           });
           if (releaseErr) {
             console.error("[checkout] coupon release failed", order.id, releaseErr.message);

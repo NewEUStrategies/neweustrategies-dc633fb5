@@ -333,7 +333,7 @@ beforeEach(() => {
   chain.setResponse("events", ok(null));
   rpcResponses.set("validate_b2b_coupon_for_user", ok([couponOk()]));
   rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
-  rpcResponses.set("release_b2b_coupon", ok(true));
+  rpcResponses.set("release_b2b_coupon_for_user", ok(true));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
 
@@ -741,7 +741,11 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
 
     await planCall({ couponCode: "PARTNER-CEE" });
 
-    expect(rpcArgs("release_b2b_coupon")).toEqual({
+    // Zwolnienie idzie rolą serwisową w najemcy ZAMÓWIENIA i dla konta z sesji
+    // (20261007140200) - baza oddaje użycie tylko nieopłaconemu zamówieniu.
+    expect(rpcArgs("release_b2b_coupon_for_user")).toEqual({
+      _tenant_id: "tenant-alfa",
+      _user_id: "user-kupujacy",
       _coupon_id: COUPON_ID,
       _order_id: "order-1",
     });
@@ -754,7 +758,7 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
 
     await planCall();
 
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("release_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("release_b2b_coupon_for_user");
     logged.mockRestore();
   });
 
