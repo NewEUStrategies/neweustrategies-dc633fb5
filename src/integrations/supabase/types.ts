@@ -3020,6 +3020,70 @@ export type Database = {
           },
         ]
       }
+      club_post_comments: {
+        Row: {
+          author_id: string | null
+          body: string
+          club_id: string
+          created_at: string
+          edited_at: string | null
+          id: string
+          link_preview: Json | null
+          post_id: string
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          club_id: string
+          created_at?: string
+          edited_at?: string | null
+          id?: string
+          link_preview?: Json | null
+          post_id: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          club_id?: string
+          created_at?: string
+          edited_at?: string | null
+          id?: string
+          link_preview?: Json | null
+          post_id?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_post_comments_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "club_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_post_comments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       club_post_likes: {
         Row: {
           created_at: string
@@ -27164,6 +27228,7 @@ export type Database = {
       }
       club_join: { Args: { p_club_id: string }; Returns: string }
       club_leave: { Args: { p_club_id: string }; Returns: boolean }
+      club_link_snapshot_normalize: { Args: { p_link: Json }; Returns: Json }
       club_linked_item_label: {
         Args: { p_id: string; p_type: string }
         Returns: string
@@ -27435,6 +27500,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      club_post_author_alias: {
+        Args: { _author_id: string; _post_id: string }
+        Returns: string
+      }
       club_post_comment_create: {
         Args: { p_body: string; p_link_preview?: Json; p_post_id: string }
         Returns: {
@@ -27488,6 +27557,19 @@ export type Database = {
         }[]
       }
       club_post_delete: { Args: { p_post_id: string }; Returns: boolean }
+      club_post_seam_context: {
+        Args: { p_post_id: string }
+        Returns: {
+          club_id: string
+          club_slug: string
+          emit: boolean
+          group_id: string
+          hide_actor: boolean
+          post_author_id: string
+          post_status: string
+          tenant_id: string
+        }[]
+      }
       club_post_toggle_like: {
         Args: { p_post_id: string }
         Returns: {
@@ -28172,6 +28254,10 @@ export type Database = {
           p_source_hash: string
           p_thread_id: string
         }
+        Returns: boolean
+      }
+      club_user_can_read: {
+        Args: { _club_id: string; _group_id: string; _user_id: string }
         Returns: boolean
       }
       club_view: {
