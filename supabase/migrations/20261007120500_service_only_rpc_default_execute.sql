@@ -20,10 +20,9 @@
 --      bramki: anon zakladal i scalal leady CRM w DOWOLNYM najemcy (najemca
 --      jest argumentem). Rodzenstwo 11-argumentowe (z `_custom`) zamknieto juz
 --      w 20260708120000; to zostalo z grantem domyslnym.
---   3. `career_cv_gc_scan/claim/done/fail` - bramka `is_super_admin` dla
---      zalogowanych istnieje, ale kod woluje je wylacznie z joba retencji
---      (`careerCvRetention.server.ts`, supabaseAdmin). Kolejka niesie SCIEZKI
---      do plikow CV - zadnej powierzchni klienta tu nie potrzeba.
+--   (3. funkcje retencji CV - osobna migracja 20261007120510: harness kariery
+--      stawia wylacznie migracje modulu kariery, w ktorym dwoch powyzszych
+--      funkcji nie ma.)
 --
 -- Wywolujacy SQL (`_event_person_crm_sync`, `club_application_crm_sync`,
 -- `crm_import_leads`) to SECURITY DEFINER - wykonuja sie jako wlasciciel,
@@ -41,12 +40,3 @@ REVOKE ALL ON FUNCTION public.crm_upsert_from_form(uuid, text, text, text, text,
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.crm_upsert_from_form(uuid, text, text, text, text, text, text, text, text, text)
   TO service_role;
-
-REVOKE ALL ON FUNCTION public.career_cv_gc_scan(integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.career_cv_gc_claim(integer) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.career_cv_gc_done(text[]) FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.career_cv_gc_fail(text, text) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.career_cv_gc_scan(integer) TO service_role;
-GRANT EXECUTE ON FUNCTION public.career_cv_gc_claim(integer) TO service_role;
-GRANT EXECUTE ON FUNCTION public.career_cv_gc_done(text[]) TO service_role;
-GRANT EXECUTE ON FUNCTION public.career_cv_gc_fail(text, text) TO service_role;

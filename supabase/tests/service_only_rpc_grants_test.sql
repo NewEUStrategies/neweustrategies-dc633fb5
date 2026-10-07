@@ -1,5 +1,6 @@
 -- pgTAP: funkcje wolane z TS wylacznie rola serwisowa nie sa wykonywalne dla
--- klienta (migracja 20261007120500_service_only_rpc_default_execute).
+-- klienta (migracje 20261007120500_service_only_rpc_default_execute
+-- i 20261007120510_career_cv_gc_service_only).
 --
 -- DEFEKT. Domyslne uprawnienia platformy nadaja EXECUTE na kazda nowa funkcje
 -- w `public` JAWNIE rolom anon i authenticated; migracje tych funkcji zdjely
