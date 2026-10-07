@@ -90,6 +90,10 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:rpc-contract
 
+      - name: Kontrakt TS ⇄ SQL - zasięg ekstrakcji (pełne sprawdzenie w jobie pgtap)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:ts-sql-contract
+
       - name: Generated Supabase types are not stale vs migrations
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:types-freshness
@@ -230,6 +234,20 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: "2.111.0"
+
+      # Kontrakt TypeScript ⇄ SQL: wywołania z kodu `src/**` (RPC, tabele,
+      # kolumny, literały, cele onConflict, kolumny publiczne) jako test pgTAP
+      # na TEJ bazie, którą stawia krok niżej. Plik nie jest w repo - powstaje
+      # z bieżącego kodu, więc nie może się zestarzeć.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.23"
+
+      - name: Install dependencies (generator kontraktu TS ⇄ SQL)
+        run: bun install --frozen-lockfile
+
+      - name: Generate TS ⇄ SQL contract test
+        run: bun run generate:ts-sql-contract
 
       - name: Start local database (migrations + seed)
         run: supabase db start

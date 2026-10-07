@@ -99,3 +99,8 @@ test-results-cms-performance/
 
 # Python bytecode cache (narzędzia pomiarowe w docs/performance/*/narzedzia).
 __pycache__/
+
+# Kontrakt TypeScript <-> SQL - generowany z bieżącego kodu tuż przed pgTAP
+# (job `pgtap` w CI, `bun run test:pgtap-local`); patrz
+# scripts/generate-ts-sql-contract.ts.
+supabase/tests/ts_sql_contract_test.sql

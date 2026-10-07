@@ -185,6 +185,14 @@ apply_migrations() {
 
 run_tests() {
   local pat="${1:-}" files pass=0 fail=0
+  # Kontrakt TypeScript <-> SQL nie lezy w repo - powstaje z biezacego kodu
+  # (scripts/generate-ts-sql-contract.ts), tak jak w jobie `pgtap` w CI.
+  if command -v bun >/dev/null 2>&1; then
+    (cd "$REPO" && bun run scripts/generate-ts-sql-contract.ts) \
+      || echo "UWAGA: generator kontraktu TS <-> SQL zawiodl - ts_sql_contract_test.sql moze byc nieaktualny"
+  else
+    echo "UWAGA: brak bun - kontrakt TS <-> SQL (ts_sql_contract_test.sql) nie zostal wygenerowany"
+  fi
   files=$(ls "$REPO"/supabase/tests/*.sql | sort)
   [ -n "$pat" ] && files=$(echo "$files" | grep -- "$pat")
   : > "$PGDIR/test-failures.txt"
