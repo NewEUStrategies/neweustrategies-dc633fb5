@@ -29,7 +29,7 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"ref":"fn:can_access_entity_presence/2","kind":"function","object":"can_access_entity_presence","file":"20260915194500_tenant_scope_presence_and_rsvp_owner_read.sql","anyRoles":["admin","author","editor","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:can_publish_content/1","kind":"function","object":"can_publish_content","file":"20260702113027_d3940358-76a0-4e77-bf9c-52f475d524b6.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:change_user_role/2","kind":"function","object":"change_user_role","file":"20260703090100_profiles_column_grants_and_role_audit.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
-    {"ref":"fn:club_capabilities/3","kind":"function","object":"club_capabilities","file":"20260812091500_club_capabilities_group_read_scope.sql","anyRoles":["editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
+    {"ref":"fn:club_capabilities/3","kind":"function","object":"club_capabilities","file":"20261007100100_club_post_mentions_and_link_validation.sql","anyRoles":["editor"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:comments_guard_update/0","kind":"function","object":"comments_guard_update","file":"20260724090400_fix_comments_remoderate_on_edit.sql","anyRoles":["admin","editor"],"allRoles":[],"tenantRef":"row","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:crm_backfill_all_leads/0","kind":"function","object":"crm_backfill_all_leads","file":"20260722080948_7dc684cd-0761-4c1c-90a6-91dd2e940438.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"none","securityDefiner":true,"featureKeys":[]},
     {"ref":"fn:crm_set_merydian_secret/2","kind":"function","object":"crm_set_merydian_secret","file":"20260712175237_8b79ff74-c8a7-46f4-9f02-8ebbaac10629.sql","anyRoles":["admin","super_admin"],"allRoles":[],"tenantRef":"caller","securityDefiner":true,"featureKeys":[]},
@@ -80,5 +80,5 @@ export const AUTHZ_SNAPSHOT: AuthzSnapshotModule = {
     {"capability":"recordings","ref":"fn:get_event_access/1","kind":"function","object":"get_event_access","file":"20260822171037_bea8e790-36d6-4b46-b752-c39b673da2ea.sql","bypassRoles":["admin","editor"],"tenantRef":"caller"},
     {"capability":"regulatory_monitoring","ref":"policy:eu_policy_follows/policy follows owner all","kind":"policy","object":"eu_policy_follows","file":"20260814221337_7032c52d-ad30-4821-a2e9-4ae1fa855a8f.sql","bypassRoles":[],"tenantRef":"row"},
   ],
-  stats: {"migrations":1086,"functions":1449,"policies":655},
+  stats: {"migrations":1086,"functions":1450,"policies":655},
 };

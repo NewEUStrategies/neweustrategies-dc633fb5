@@ -30,11 +30,22 @@
 --      wszystkich czytelników.
 --   6. `club_posts_list` dostaje `comment_count` i `can_comment`. Zmiana typu
 --      zwracanego wymaga DROP + CREATE w tym samym pliku (bramka replay).
---      Cała reszta ciała jest przeniesiona 1:1 z jedynej definicji
---      (20260809093335) - łącznie z jawnym autorem wpisu.
+--      Reszta ciała pochodzi z jedynej definicji (20260809093335) - łącznie
+--      z jawnym autorem wpisu - z jedną poprawką: strumień całego klubu
+--      filtruje wpisy prawem odczytu ICH działu (patrz sekcja 6).
+--   7. Premoderacja ma wyjście: `club_post_comment_moderate` zatwierdza albo
+--      ukrywa komentarz i zostawia ślad w `club_moderation_log` (cel
+--      `post_comment`). Bez tego komentarz `pending` czekał wiecznie - żadna
+--      funkcja nie przestawiała statusu poza usunięciem. Lista oddaje
+--      `can_approve`, bo `can_manage` jest prawdziwe także dla autora,
+--      a w trybie chatham klient nie ma `author_id`, żeby ich rozróżnić.
+--   8. Powiadomienie autora wpisu i @wzmianki rodzą się tylko raz: przy
+--      komentarzu od razu widocznym albo przy przejściu pending -> visible.
+--      Ponowne odsłonięcie ukrytego komentarza nie powiadamia drugi raz.
 --
--- Wzmianki (`process_mentions`), bramka odbiorców i walidacja linków
--- w `club_post_create` są w kolejnej migracji (20261007100100).
+-- Wzmianki (`process_mentions`), bramka odbiorców, walidacja linków
+-- i limity tempa w `club_post_create` oraz odczyt działów klubu publicznego
+-- przez gościa są w kolejnej migracji (20261007100100).
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -61,7 +72,7 @@ CREATE TABLE IF NOT EXISTS public.club_post_comments (
 );
 
 COMMENT ON TABLE public.club_post_comments IS
-  'Płaskie komentarze wpisów ściany klubu. Dostęp wyłącznie przez RPC (club_post_comments_list, club_post_comment_create, club_post_comment_delete). author_id zapisany zawsze; Chatham House realizuje projekcja listy.';
+  'Płaskie komentarze wpisów ściany klubu. Dostęp wyłącznie przez RPC (club_post_comments_list, club_post_comment_create, club_post_comment_delete, club_post_comment_moderate). author_id zapisany zawsze; Chatham House realizuje projekcja listy.';
 
 -- Strona listy: najnowsze pierwsze, kursor (created_at, id).
 CREATE INDEX IF NOT EXISTS club_post_comments_post_recent_idx
@@ -165,6 +176,14 @@ GRANT EXECUTE ON FUNCTION public.club_post_author_alias(uuid, uuid) TO service_r
 --   image       - null albo https://..., najwyżej 2048 znaków;
 --   title, description, siteName - null albo tekst najwyżej 300 znaków.
 -- Puste teksty zamieniają się w null; nieznane klucze są pomijane.
+--
+-- ZNAKI STERUJĄCE (C0, DEL, C1) wypadają z tekstów, a w adresach dają
+-- odrzucenie - tak samo jak w kliencie (`clampText`, `readHttpsUrl`). Zakresy
+-- są wypisane jawnie, nie przez `[:cntrl:]`: zawartość tej klasy zależy od
+-- locale bazy, a serwer i klient mają usuwać DOKŁADNIE ten sam zbiór
+-- (< U+0020 i U+007F..U+009F). Sam U+0000 nie dociera tu wcale - `jsonb`
+-- odrzuca `\u0000` już przy parsowaniu argumentu (22P05), więc tę zaporę
+-- stawia klient.
 CREATE OR REPLACE FUNCTION public.club_link_snapshot_normalize(p_link jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql IMMUTABLE
@@ -172,7 +191,9 @@ SET search_path = public
 AS $$
 DECLARE
   -- Schemat i niepusty host; bez białych znaków i znaków sterujących.
-  c_https constant text := '^https://[^[:space:][:cntrl:]/?#]+([/?#][^[:space:][:cntrl:]]*)?$';
+  c_https constant text :=
+    '^https://[^[:space:]\u0001-\u001f\u007f-\u009f/?#]+([/?#][^[:space:]\u0001-\u001f\u007f-\u009f]*)?$';
+  c_cntrl constant text := '[\u0001-\u001f\u007f-\u009f]';
   v_out   jsonb;
   v_val   jsonb;
   v_text  text;
@@ -210,7 +231,7 @@ BEGIN
     IF v_val IS NULL OR jsonb_typeof(v_val) = 'null' THEN
       v_out := v_out || jsonb_build_object(v_key, NULL);
     ELSIF jsonb_typeof(v_val) = 'string' THEN
-      v_text := NULLIF(btrim(v_val #>> '{}'), '');
+      v_text := NULLIF(btrim(regexp_replace(v_val #>> '{}', c_cntrl, '', 'g')), '');
       IF v_text IS NOT NULL AND char_length(v_text) > 300 THEN
         RETURN NULL;
       END IF;
@@ -225,7 +246,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.club_link_snapshot_normalize(jsonb) IS
-  'Migawka podglądu linku do postaci kanonicznej {url, title, description, image, siteName}: tylko https, url/image do 2048 znaków, teksty do 300. NULL = migawka niepoprawna.';
+  'Migawka podglądu linku do postaci kanonicznej {url, title, description, image, siteName}: tylko https bez znaków sterujących, url/image do 2048 znaków, teksty do 300 (znaki sterujące usunięte). NULL = migawka niepoprawna.';
 
 REVOKE ALL ON FUNCTION public.club_link_snapshot_normalize(jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.club_link_snapshot_normalize(jsonb) TO service_role;
@@ -241,7 +262,9 @@ GRANT EXECUTE ON FUNCTION public.club_link_snapshot_normalize(jsonb) TO service_
 -- o komentarzu muszą pytać o ODBIORCĘ.
 --
 -- Gałąź odczytu jest przepisana 1:1 z `club_capabilities`
--- (20260812091500): najemca domowy, ban, rola z kadencją, klub tajny,
+-- (20260812091500; 20261007100100 zmienia tam wyłącznie gałąź gościa,
+-- a gość nie bywa tu odbiorcą - `_user_id` NULL daje `false`):
+-- najemca domowy, ban, rola z kadencją, klub tajny,
 -- status klubu, widoczność grupy (szkic i okno przed `opens_at` ukrywają,
 -- `frozen`/`archived` nie) oraz widoczność klubu/grupy. Próg planu dla
 -- cudzego konta - tak jak tam - nie blokuje odczytu, bo `has_tier_rank` zna
@@ -360,6 +383,11 @@ GRANT EXECUTE ON FUNCTION public.club_post_seam_context(uuid) TO service_role;
 -- Najnowsze pierwsze, kursor keyset (created_at, id). Nieczytelny albo
 -- usunięty wpis daje PUSTY zbiór, nie błąd - karta strumienia nie ma czego
 -- obsługiwać, a brak rozróżnienia nie zdradza istnienia wpisu.
+--
+-- `can_manage` (usuń) przysługuje autorowi i moderacji, `can_approve`
+-- (zatwierdź z kolejki) WYŁĄCZNIE moderacji i tylko dla `pending` - autor
+-- nie zatwierdza sam siebie, a przycisk „Zatwierdź" nie może zależeć od
+-- `author_id`, którego w trybie chatham lista nie oddaje.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.club_post_comments_list(
   p_post_id   uuid,
@@ -371,7 +399,7 @@ RETURNS TABLE (
   id uuid, post_id uuid, body text, link_preview jsonb, status text,
   author_id uuid, author_name text, author_avatar text, author_slug text,
   author_alias text, created_at timestamptz, edited_at timestamptz,
-  can_manage boolean, total_count bigint
+  can_manage boolean, can_approve boolean, total_count bigint
 )
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
@@ -424,6 +452,7 @@ AS $$
          THEN public.club_post_author_alias(v.post_id, v.author_id) ELSE NULL END,
     v.created_at, v.edited_at,
     (auth.uid() IS NOT NULL AND (v.author_id = auth.uid() OR cap.can_moderate)),
+    (v.status = 'pending' AND auth.uid() IS NOT NULL AND COALESCE(cap.can_moderate, false)),
     (SELECT count(*) FROM visible)
   FROM page v
   CROSS JOIN post
@@ -433,7 +462,7 @@ AS $$
 $$;
 
 COMMENT ON FUNCTION public.club_post_comments_list(uuid, integer, timestamptz, uuid) IS
-  'Komentarze wpisu ściany, najnowsze pierwsze, kursor (p_before, p_before_id). visible dla czytających, pending dla autora i moderacji. W trybie chatham autor ukryty, author_alias = pseudonim per wpis. total_count bez kursora.';
+  'Komentarze wpisu ściany, najnowsze pierwsze, kursor (p_before, p_before_id). visible dla czytających, pending dla autora i moderacji. W trybie chatham autor ukryty, author_alias = pseudonim per wpis. can_approve = pending i can_moderate wołającego. total_count bez kursora.';
 
 REVOKE ALL ON FUNCTION public.club_post_comments_list(uuid, integer, timestamptz, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.club_post_comments_list(uuid, integer, timestamptz, uuid)
@@ -544,8 +573,23 @@ GRANT EXECUTE ON FUNCTION public.club_post_comment_create(uuid, text, jsonb)
   TO authenticated, service_role;
 
 -- ----------------------------------------------------------------------------
--- 5) RPC: usunięcie komentarza (miękkie)
+-- 5) Moderacja komentarza: dziennik, usunięcie (miękkie), zatwierdzenie
+--
+-- Dziennik moderacji zna dotąd cele 'thread', 'reply', 'member', 'group',
+-- 'club' (ostatnia lista: 20261004090000). Dopisujemy 'post_comment' -
+-- wyłącznie POSZERZENIE, więc żaden istniejący wiersz nie narusza nowej
+-- listy. Akcje 'approve', 'hide' i 'delete' lista akcji już zna. Klient czyta
+-- ten słownik z `CLUB_LOG_TARGETS` (bramka `clubLogDbParity.test.ts`).
 -- ----------------------------------------------------------------------------
+ALTER TABLE public.club_moderation_log
+  DROP CONSTRAINT IF EXISTS club_moderation_log_target_type_check;
+ALTER TABLE public.club_moderation_log
+  ADD CONSTRAINT club_moderation_log_target_type_check
+  CHECK (target_type IN ('thread', 'reply', 'member', 'group', 'club', 'post_comment'));
+
+-- Autor usuwa własny komentarz bez śladu w dzienniku (to nie jest
+-- moderacja); usunięcie CUDZEGO komentarza przez moderację zostawia wpis
+-- 'delete' - jak każda akcja `club_moderate` na wątku i odpowiedzi.
 CREATE OR REPLACE FUNCTION public.club_post_comment_delete(p_comment_id uuid)
 RETURNS boolean
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -561,7 +605,8 @@ BEGIN
     RAISE EXCEPTION 'clubs: authentication required' USING ERRCODE = '42501';
   END IF;
 
-  SELECT * INTO v_comment FROM public.club_post_comments pc WHERE pc.id = p_comment_id;
+  SELECT * INTO v_comment FROM public.club_post_comments pc
+   WHERE pc.id = p_comment_id FOR UPDATE;
   IF NOT FOUND OR v_comment.status = 'deleted' THEN
     RETURN false;
   END IF;
@@ -573,27 +618,109 @@ BEGIN
   END IF;
 
   UPDATE public.club_post_comments pc SET status = 'deleted' WHERE pc.id = p_comment_id;
+
+  IF v_comment.author_id IS DISTINCT FROM v_uid THEN
+    INSERT INTO public.club_moderation_log (
+      tenant_id, club_id, moderator_id, action, target_type, target_id
+    ) VALUES (
+      v_comment.tenant_id, v_comment.club_id, v_uid, 'delete', 'post_comment', p_comment_id
+    );
+  END IF;
   RETURN true;
 END;
 $$;
 
 COMMENT ON FUNCTION public.club_post_comment_delete(uuid) IS
-  'Miękkie usunięcie komentarza wpisu (status deleted). Autor albo moderacja klubu/grupy wpisu. Brak komentarza albo już usunięty = false.';
+  'Miękkie usunięcie komentarza wpisu (status deleted). Autor albo moderacja klubu/grupy wpisu; usunięcie cudzego komentarza trafia do club_moderation_log (delete, post_comment). Brak komentarza albo już usunięty = false.';
 
 REVOKE ALL ON FUNCTION public.club_post_comment_delete(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.club_post_comment_delete(uuid) TO authenticated, service_role;
 
+-- Zatwierdzenie z kolejki premoderacji albo ukrycie komentarza.
+--   approve: pending/hidden -> visible;  hide: pending/visible -> hidden.
+-- Wyłącznie `can_moderate` w klubie/dziale WPISU (autor nie zatwierdza sam
+-- siebie). Brak komentarza, komentarz usunięty albo stan docelowy już
+-- osiągnięty -> `false` bez zmiany i bez wpisu w dzienniku - klient czyta to
+-- jak „ktoś zrobił to przed tobą" i po prostu odświeża listę.
+-- Przejście pending -> visible uruchamia triggery: powiadomienie autora
+-- wpisu (sekcja 7) i @wzmianki (20261007100100) - dopiero teraz treść
+-- widzą wszyscy czytelnicy wpisu.
+CREATE OR REPLACE FUNCTION public.club_post_comment_moderate(
+  p_comment_id uuid,
+  p_action     text
+)
+RETURNS boolean
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_uid     uuid := auth.uid();
+  v_comment public.club_post_comments%ROWTYPE;
+  v_group   uuid;
+  v_caps    record;
+  v_status  text;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION 'clubs: authentication required' USING ERRCODE = '42501';
+  END IF;
+  IF p_action IS NULL OR p_action NOT IN ('approve', 'hide') THEN
+    RAISE EXCEPTION 'clubs: invalid moderation action' USING ERRCODE = '22023';
+  END IF;
+
+  -- FOR UPDATE: dwóch moderatorów klikających naraz nie zapisze dwóch
+  -- wpisów w dzienniku ani dwóch powiadomień - drugi zobaczy stan docelowy.
+  SELECT * INTO v_comment FROM public.club_post_comments pc
+   WHERE pc.id = p_comment_id FOR UPDATE;
+  IF NOT FOUND OR v_comment.status = 'deleted' THEN
+    RETURN false;
+  END IF;
+
+  SELECT po.group_id INTO v_group FROM public.club_posts po WHERE po.id = v_comment.post_id;
+  SELECT * INTO v_caps FROM public.club_capabilities(v_comment.club_id, v_group, v_uid);
+  IF NOT COALESCE(v_caps.can_moderate, false) THEN
+    RAISE EXCEPTION 'clubs: forbidden' USING ERRCODE = '42501';
+  END IF;
+
+  v_status := CASE p_action WHEN 'approve' THEN 'visible' ELSE 'hidden' END;
+  IF v_comment.status = v_status THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public.club_post_comments pc SET status = v_status WHERE pc.id = p_comment_id;
+
+  INSERT INTO public.club_moderation_log (
+    tenant_id, club_id, moderator_id, action, target_type, target_id
+  ) VALUES (
+    v_comment.tenant_id, v_comment.club_id, v_uid, p_action, 'post_comment', p_comment_id
+  );
+  RETURN true;
+END;
+$$;
+
+COMMENT ON FUNCTION public.club_post_comment_moderate(uuid, text) IS
+  'Moderacja komentarza wpisu: approve (pending/hidden -> visible) albo hide (pending/visible -> hidden). Tylko can_moderate klubu/grupy wpisu; wpis w club_moderation_log (post_comment). Brak komentarza, usunięty albo bez zmiany = false. Zatwierdzenie z kolejki powiadamia autora wpisu i wzmiankowanych.';
+
+REVOKE ALL ON FUNCTION public.club_post_comment_moderate(uuid, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.club_post_comment_moderate(uuid, text)
+  TO authenticated, service_role;
+
 -- ----------------------------------------------------------------------------
 -- 6) club_posts_list: + comment_count, + can_comment
 --
--- Ciało przeniesione 1:1 z 20260809093335 (jedyna definicja - żadna późniejsza
+-- Ciało przeniesione z 20260809093335 (jedyna definicja - żadna późniejsza
 -- migracja go nie łatała). Dochodzą dwie kolumny:
 --   * comment_count - komentarze `visible` wpisu (pending nie podbija licznika,
 --     bo pozostali czytelnicy go nie widzą);
 --   * can_comment - `can_reply` wołającego w klubie/grupie KAŻDEGO wpisu, nie
 --     w filtrze listy: strumień całego klubu miesza wpisy z różnych grup,
---     a zamrożona grupa ma być tylko do odczytu także w strumieniu. Zdolności
---     liczymy raz na grupę widoczną na stronie, nie raz na wiersz.
+--     a zamrożona grupa ma być tylko do odczytu także w strumieniu.
+-- oraz jedna poprawka odczytu: strumień całego klubu (`p_group_id` NULL)
+-- sprawdzał wyłącznie prawo do KLUBU, więc pokazywał wpisy z działów
+-- roboczych, jeszcze nieotwartych i zamkniętych dla osób spoza klubu -
+-- z licznikiem komentarzy, których `club_post_comments_list` (prawo działu)
+-- potem nie oddawała. Teraz wpis przechodzi przez `can_read` SWOJEGO działu,
+-- zanim trafi na stronę i do `total_count`. Zdolności liczymy raz na dział
+-- klubu (`gcap`), nie raz na wiersz; ten sam wynik daje `can_comment`.
 -- ----------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.club_posts_list(uuid, uuid, uuid, integer, timestamptz);
 CREATE FUNCTION public.club_posts_list(
@@ -635,12 +762,24 @@ AS $$
   WITH cap AS (
     SELECT * FROM public.club_capabilities(p_club_id, p_group_id, auth.uid())
   ),
+  -- Ściana klubu (gid NULL) i każdy dział, z którego mogą pochodzić wpisy.
+  gcap AS (
+    SELECT gs.gid, cc.can_read, cc.can_reply
+      FROM (SELECT NULL::uuid AS gid WHERE p_group_id IS NULL
+            UNION ALL
+            SELECT g.id FROM public.club_groups g
+             WHERE g.club_id = p_club_id
+               AND (p_group_id IS NULL OR g.id = p_group_id)) gs
+      CROSS JOIN LATERAL public.club_capabilities(p_club_id, gs.gid, auth.uid()) cc
+  ),
   visible AS (
-    SELECT po.*
+    SELECT po.*, gc.can_reply AS g_can_reply
       FROM public.club_posts po
       CROSS JOIN cap
+      JOIN gcap gc ON gc.gid IS NOT DISTINCT FROM po.group_id
      WHERE po.club_id = p_club_id
        AND cap.can_read
+       AND COALESCE(gc.can_read, false)
        AND po.status = 'published'
        AND (p_group_id IS NULL OR po.group_id = p_group_id)
        AND (p_thread_id IS NULL OR po.thread_id = p_thread_id)
@@ -650,13 +789,6 @@ AS $$
      WHERE p_cursor IS NULL OR v.created_at < p_cursor
      ORDER BY v.created_at DESC
      LIMIT LEAST(GREATEST(COALESCE(p_limit, 20), 1), 50)
-  ),
-  gcap AS (
-    SELECT gs.gid,
-           COALESCE((SELECT cc.can_reply
-                       FROM public.club_capabilities(p_club_id, gs.gid, auth.uid()) cc), false)
-             AS can_reply
-      FROM (SELECT DISTINCT pg.group_id AS gid FROM page pg) gs
   )
   SELECT
     v.id, v.club_id, v.group_id, g.name_pl, g.name_en,
@@ -673,19 +805,18 @@ AS $$
              WHERE l.post_id = v.id AND l.user_id = auth.uid()),
     (auth.uid() IS NOT NULL
      AND (v.author_id = auth.uid() OR (SELECT cap.can_moderate FROM cap))),
-    (auth.uid() IS NOT NULL AND COALESCE(gc.can_reply, false)),
+    (auth.uid() IS NOT NULL AND COALESCE(v.g_can_reply, false)),
     v.created_at, v.edited_at,
     (SELECT count(*) FROM visible)
   FROM page v
   LEFT JOIN public.profiles p ON p.id = v.author_id
   LEFT JOIN public.club_groups g ON g.id = v.group_id
   LEFT JOIN public.club_threads t ON t.id = v.thread_id
-  LEFT JOIN gcap gc ON gc.gid IS NOT DISTINCT FROM v.group_id
   ORDER BY v.created_at DESC
 $$;
 
 COMMENT ON FUNCTION public.club_posts_list(uuid, uuid, uuid, integer, timestamptz) IS
-  'Wpisy ściany klubu (najnowsze pierwsze, kursor po created_at). comment_count = komentarze visible; can_comment = can_reply wołającego w klubie/grupie wpisu (anon: false).';
+  'Wpisy ściany klubu (najnowsze pierwsze, kursor po created_at); każdy wpis tylko przy can_read wołającego w SWOIM dziale. comment_count = komentarze visible; can_comment = can_reply wołającego w klubie/grupie wpisu (anon: false).';
 
 REVOKE ALL ON FUNCTION public.club_posts_list(uuid, uuid, uuid, integer, timestamptz) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.club_posts_list(uuid, uuid, uuid, integer, timestamptz)
@@ -695,8 +826,11 @@ GRANT EXECUTE ON FUNCTION public.club_posts_list(uuid, uuid, uuid, integer, time
 -- 7) Powiadomienie autora wpisu
 --
 -- Wzorzec `club_replies_notify` (A8): wyłącznie gdy komentarz STAJE SIĘ
--- widoczny (INSERT jako visible albo zatwierdzenie z kolejki), bez
--- samopowiadomienia (`club_notify`). Różnice, świadome:
+-- widoczny po raz pierwszy - INSERT jako visible albo zatwierdzenie
+-- z kolejki (pending -> visible) - bez samopowiadomienia (`club_notify`).
+-- Odsłonięcie komentarza ukrytego przez moderację (hidden -> visible) NIE
+-- powiadamia: autor wpisu dostał już sygnał przy pierwszej publikacji.
+-- Różnice, świadome:
 --   * w trybie chatham tytuł nie niesie nazwiska - pseudonim w liście jest
 --     per wpis, więc nawet on nie trafia do skrzynki;
 --   * adresat musi nadal móc CZYTAĆ klub (`club_user_can_read`): autor, który
@@ -719,7 +853,7 @@ BEGIN
   IF NEW.status <> 'visible' THEN
     RETURN NULL;
   END IF;
-  IF TG_OP = 'UPDATE' AND OLD.status = 'visible' THEN
+  IF TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM 'pending' THEN
     RETURN NULL;
   END IF;
 
@@ -761,7 +895,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.club_post_comments_notify() IS
-  'Komentarz staje się widoczny -> powiadomienie autora wpisu (club_notify, bez samopowiadomienia). W trybie chatham bez nazwiska; adresat musi móc czytać klub.';
+  'Komentarz widoczny od razu albo zatwierdzony z kolejki (pending -> visible) -> powiadomienie autora wpisu (club_notify, bez samopowiadomienia). Odsłonięcie ukrytego nie powiadamia. W trybie chatham bez nazwiska; adresat musi móc czytać klub.';
 
 REVOKE ALL ON FUNCTION public.club_post_comments_notify() FROM PUBLIC, anon, authenticated;
 
