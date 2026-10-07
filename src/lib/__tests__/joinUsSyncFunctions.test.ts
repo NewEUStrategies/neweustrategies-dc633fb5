@@ -112,6 +112,8 @@ import {
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const TENANT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const EMAIL = "zapisujaca.sie@example.com";
+/** Adres KONTA z sesji (wielkie litery celowo - wiązanie normalizuje adres). */
+const SESSION_EMAIL = "Zapisujaca.Sie@example.com";
 
 /** Wszystkie siedem pól puste - kształt, który zwraca `EMPTY` w produkcji. */
 const EMPTY_PREFILL: JoinUsPrefill = {
@@ -157,6 +159,7 @@ function context(): ServerFnContext {
       },
     },
     userId: USER_ID,
+    claims: { email: SESSION_EMAIL },
   };
 }
 
@@ -475,6 +478,25 @@ describe("join-us sync - handler linkJoinUsAndBackfill", () => {
       _company: "Przykładowa Fundacja",
       _position: "Analityczka",
     });
+  });
+
+  it("`_email` do powiązania pochodzi z SESJI, nie z formularza", async () => {
+    // Regresja: adres z ładunku pozwalał przepiąć na siebie cudzą subskrypcję
+    // (`UPDATE newsletter_subscribers SET user_id = _user_id WHERE email = _email`).
+    await callServerFn(linkJoinUsAndBackfill, {
+      data: linkInput({ email: "ofiara@example.com" }),
+      context: context(),
+    });
+    expect(backfillArgs()._email).toBe("zapisujaca.sie@example.com");
+  });
+
+  it("sesja bez adresu: nic nie jest wiązane (pusty adres), profil nadal uzupełniany", async () => {
+    await callServerFn(linkJoinUsAndBackfill, {
+      data: linkInput({ firstName: "Anna" }),
+      context: { ...context(), claims: {} },
+    });
+    expect(backfillArgs()._email).toBe("");
+    expect(backfillArgs()._first_name).toBe("Anna");
   });
 
   it("`_user_id` pochodzi z SESJI, nie z wejścia", async () => {

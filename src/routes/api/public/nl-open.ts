@@ -4,7 +4,7 @@
 // verified server-side - NOT the unsubscribe token, so a leaked pixel URL can
 // never unsubscribe the recipient.
 import { createFileRoute } from "@tanstack/react-router";
-import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { verifyTrackingToken } from "@/lib/newsletter/trackingToken.server";
 import { recordCampaignEvent } from "@/lib/newsletter/trackingEvents.server";
 
@@ -36,7 +36,7 @@ export const Route = createFileRoute("/api/public/nl-open")({
     handlers: {
       GET: async ({ request }) => {
         try {
-          if (limiter.check(clientIpFromHeaders(request.headers), Date.now())) {
+          if (limiter.check(rateLimitIpSubject(request.headers), Date.now())) {
             const url = new URL(request.url);
             const c = url.searchParams.get("c");
             const s = url.searchParams.get("s");

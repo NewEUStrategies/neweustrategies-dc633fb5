@@ -77,6 +77,27 @@ vi.mock("@/lib/events/ticketAllowance.server", async () => {
   };
 });
 
+// Wycena idzie rolą serwisową z jawnym najemcą, kontem i skrótem adresu
+// (`quoteTicketCheckoutForUser`, migracja 20261007140400). Atrapa kieruje
+// wywołania `*_for_user` do TEGO SAMEGO klienta, co reszta handlera.
+const quoteAdmin = vi.hoisted(() => ({
+  forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+}));
+
+vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/tenant.server")>()),
+  resolveTenantIdForHost: async () => "tenant-1",
+}));
+
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: {
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      if (quoteAdmin.forward === null) throw new Error("test: brak przekierowania roli serwisowej");
+      return quoteAdmin.forward(fn, args);
+    },
+  },
+}));
+
 const { callServerFn } = await import("@/test/serverFn");
 const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions");
 
@@ -88,7 +109,7 @@ function client() {
       if (fn === "event_registration_payment_context") {
         return { data: state.paymentContext, error: null };
       }
-      if (fn === "event_ticket_checkout_quote") {
+      if (fn === "event_ticket_checkout_quote_for_user") {
         return { data: state.quote, error: null };
       }
       // Liczba miejsc jest fail-closed: `null` z tej funkcji to odmowa
@@ -151,6 +172,7 @@ function paymentContext(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   rpcCalls.length = 0;
   inserted.length = 0;
+  quoteAdmin.forward = (fn, args) => client().rpc(fn, args);
   state.paymentContext = paymentContext();
   state.quote = {
     ticket_type_id: TICKET_ID,

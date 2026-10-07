@@ -3,7 +3,7 @@
 //  - getJoinUsPrefill  → zwraca wartości z profiles do prefill'u (imię, nazwisko,
 //    kraj/lokalizacja, LinkedIn, telefon, firma, stanowisko)
 //  - linkJoinUsAndBackfill → po udanym subscribe wiąże newsletter_subscribers.user_id
-//    z auth.uid() oraz uzupełnia w profiles WYŁĄCZNIE puste pola (nie nadpisuje
+//    z auth.uid() (wyłącznie wiersz adresu KONTA z sesji) oraz uzupełnia w profiles WYŁĄCZNIE puste pola (nie nadpisuje
 //    istniejących) - przez RPC public.join_us_link_and_backfill.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
@@ -77,11 +77,18 @@ export const linkJoinUsAndBackfill = createServerFn({ method: "POST" })
     const tenantId = await resolveTenantIdForHost(await currentTenantHost());
     if (!tenantId) return { ok: false };
 
+    // Subskrypcję wiążemy po adresie z SESJI (adres konta), nie z formularza.
+    // Adres z ładunku pozwalał każdemu zalogowanemu przepiąć na siebie cudzą
+    // subskrypcję w tym najemcy (imię, zgody, preferencje, IP zapisu) - ta sama
+    // klasa co `company_id` z ładunku. Zapis innym adresem nadal działa
+    // (robi go `subscribeToNewsletter`); po prostu nie jest wiązany z kontem.
+    const sessionEmail = (context.claims?.email ?? "").toString().trim().toLowerCase();
+
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("join_us_link_and_backfill", {
       _user_id: userId,
       _tenant_id: tenantId,
-      _email: data.email,
+      _email: sessionEmail,
       _first_name: data.firstName,
       _last_name: data.lastName,
       _country: data.country,

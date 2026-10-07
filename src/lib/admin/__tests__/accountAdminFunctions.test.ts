@@ -172,6 +172,8 @@ function profiles(
     target?: SupabaseResult;
     callerTenant?: string | null;
     targetTenant?: string | null;
+    /** Role celu w tenancie wywołującego (domyślnie: zwykłe konto, bez ról). */
+    targetRoles?: SupabaseResult;
   } = {},
 ): void {
   const callerRow = options.caller ?? ok({ tenant_id: options.callerTenant ?? IDS.tenant });
@@ -194,6 +196,13 @@ function profiles(
     return callerRow;
   });
   rls.setResponse("user_invitations", ok(null));
+  admin().setResponse("user_roles", (chain) => {
+    const [, id] = chain.argsOf("eq") ?? [];
+    if (id !== IDS.target) {
+      return fail(`test: role czytane dla nieoczekiwanego konta "${String(id)}"`);
+    }
+    return options.targetRoles ?? ok([]);
+  });
 }
 
 /** Konto w warstwie auth - istniejące, z potwierdzonym adresem. */
@@ -437,5 +446,92 @@ describe("deleteUserAccount - granica najemcy", () => {
     expect(result).toEqual({ ok: true, retainedEvidence: 3 });
     expect(h.billingCalls.map((call) => call.step)).toEqual(["closeBilling", "retainEvidence"]);
     expect(h.authCalls.at(-1)).toEqual({ step: "deleteUser", args: IDS.target });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. RANGA CELU - konto super_admina usuwa tylko super_admin.
+// ---------------------------------------------------------------------------
+// Ta sama reguła co `change_user_role` w bazie (`super_admin_required`): admin
+// tenanta nie może zdjąć super_adminowi roli, więc nie może też usunąć jego
+// konta - inaczej zostawałby najwyższą rangą w organizacji.
+describe("deleteUserAccount - ranga celu", () => {
+  it("admin (nie super_admin) NIE usuwa konta super_admina - nic nieodwracalnego się nie dzieje", async () => {
+    rpcResult = { data: false, error: null };
+    profiles({ targetRoles: ok([{ role: "admin" }, { role: "super_admin" }]) });
+    authAccount();
+
+    const err = await rejection(() =>
+      callServerFn(deleteUserAccount, { data: deleteInput(), context: context() }),
+    );
+
+    expect(errorMessage(err)).toBe(ADMIN_ACCOUNT_ERROR.superAdminRequired);
+    expect(rpcCalls.map((call) => call.name)).toEqual(["is_super_admin"]);
+    expect(h.authCalls).toEqual([]);
+    expect(h.billingCalls).toEqual([]);
+  });
+
+  it("role celu czyta kluczem serwisowym, zawężone do tenanta wywołującego", async () => {
+    rpcResult = { data: false, error: null };
+    profiles({ targetRoles: ok([{ role: "super_admin" }]) });
+
+    await rejection(() =>
+      callServerFn(deleteUserAccount, { data: deleteInput(), context: context() }),
+    );
+
+    const [rolesChain] = admin().chainsFor("user_roles");
+    expect(rolesChain.argsOf("select")).toEqual(["role"]);
+    expect(
+      rolesChain.calls.filter((call) => call.method === "eq").map((call) => call.args),
+    ).toEqual([
+      ["user_id", IDS.target],
+      ["tenant_id", IDS.tenant],
+    ]);
+  });
+
+  it("super_admin usuwa konto innego super_admina w swoim tenancie", async () => {
+    rpcResult = { data: true, error: null };
+    profiles({ targetRoles: ok([{ role: "super_admin" }]) });
+    authAccount();
+
+    const result = await callServerFn<{ ok: true }>(deleteUserAccount, {
+      data: deleteInput(),
+      context: context(),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(h.authCalls.at(-1)).toEqual({ step: "deleteUser", args: IDS.target });
+  });
+
+  it("zwykłe konto: ranga wywołującego nie jest w ogóle sprawdzana", async () => {
+    rpcResult = { data: false, error: null };
+    profiles({ targetRoles: ok([{ role: "editor" }]) });
+    authAccount();
+
+    await callServerFn(deleteUserAccount, { data: deleteInput(), context: context() });
+
+    expect(rpcCalls).toEqual([]);
+    expect(h.authCalls.at(-1)).toEqual({ step: "deleteUser", args: IDS.target });
+  });
+
+  it.each([
+    ["odczyt ról celu padł", fail("connection reset"), { data: true, error: null }],
+    [
+      "odczyt rangi wywołującego padł",
+      ok([{ role: "super_admin" }]),
+      { data: null, error: { message: "connection reset" } },
+    ],
+  ])("fail closed: %s - odmowa, nic nieodwracalnego", async (_tytul, targetRoles, rpc) => {
+    rpcResult = rpc;
+    profiles({ targetRoles });
+    authAccount();
+
+    const err = await rejection(() =>
+      callServerFn(deleteUserAccount, { data: deleteInput(), context: context() }),
+    );
+
+    expect(errorMessage(err)).toBe(ADMIN_ACCOUNT_ERROR.lookupFailed);
+    expect(h.authCalls).toEqual([]);
+    expect(h.billingCalls).toEqual([]);
   });
 });

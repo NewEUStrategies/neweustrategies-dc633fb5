@@ -30,6 +30,8 @@ import type { Database } from "@/integrations/supabase/types";
 type Client = SupabaseClient<Database>;
 
 export interface PlanTicketRedeemInput {
+  /** Konto z sesji - wycena liczy pudła kodu dostępu w jego kubełku. */
+  userId: string;
   eventId: string;
   ticketTypeId: string;
   registrationId: string;
@@ -77,6 +79,7 @@ export async function redeemPlanTicket(
 ): Promise<PlanTicketRedeemResult> {
   const { priceEventTicket } = await import("@/lib/billing/eventTicketPricing.server");
   const price = await priceEventTicket(supabase, {
+    userId: input.userId,
     eventId: input.eventId,
     ticketTypeId: input.ticketTypeId,
     registrationId: input.registrationId,

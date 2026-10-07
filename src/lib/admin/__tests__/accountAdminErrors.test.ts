@@ -18,6 +18,9 @@ describe("accountAdminErrorKey", () => {
     expect(accountAdminErrorKey(new Error(ADMIN_ACCOUNT_ERROR.deleteFailed))).toBe(
       "adminUsers.accountErrDeleteFailed",
     );
+    expect(accountAdminErrorKey(new Error(ADMIN_ACCOUNT_ERROR.superAdminRequired))).toBe(
+      "adminUsers.accountErrSuperAdminRequired",
+    );
   });
 
   it("tłumaczy stare techniczne komunikaty", () => {
@@ -37,6 +40,7 @@ describe("accountAdminErrorKey", () => {
       "accountErrSelfDelete",
       "accountErrConfirmMismatch",
       "accountErrLookupFailed",
+      "accountErrSuperAdminRequired",
       "accountErrDeleteFailed",
       "accountErrGeneric",
     ] as const;

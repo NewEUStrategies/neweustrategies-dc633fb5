@@ -257,6 +257,16 @@ describe("zapis - odczyt odpowiedzi", () => {
     h.rpc?.setError("event_register", "ticket_required: wybierz wejsciowke");
     await expect(api.submitRegistration(minimalInput())).rejects.toThrow(/ticket_required/);
   });
+
+  it("pudlo kodu dostepu zwrocone WARTOSCIA daje ten sam klucz co dawny wyjatek", async () => {
+    // Od 20261007140400 baza oddaje pudlo wartoscia (wyjatek wycofywal
+    // zliczenie proby). Ekran mapuje odmowe po glowie komunikatu - musi dostac
+    // `invalid_access_code`, a nie `unknown` z gałęzi „brak identyfikatora".
+    h.rpc?.setData("event_register", { ok: false, error: "invalid_access_code" });
+    await expect(
+      api.submitRegistration({ ...minimalInput(), ticketTypeId: TICKET, accessCode: "PRESS" }),
+    ).rejects.toThrow(/^invalid_access_code: /);
+  });
 });
 
 describe("widok samoobslugi zgloszenia", () => {

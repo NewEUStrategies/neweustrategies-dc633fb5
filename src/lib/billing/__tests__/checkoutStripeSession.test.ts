@@ -358,7 +358,7 @@ beforeEach(() => {
   );
   chain.setResponse("posts", ok({ title_pl: "Analiza CEE", title_en: "CEE analysis" }));
   rpcResponses.set("my_ticket_allowance", ok(null));
-  rpcResponses.set("event_ticket_checkout_quote", ok(ticketQuote()));
+  rpcResponses.set("event_ticket_checkout_quote_for_user", ok(ticketQuote()));
   rpcResponses.set(
     "event_registration_payment_context",
     ok({ ok: true, event_id: EVENT_ID, ticket_type_id: TICKET_ID }),
@@ -368,7 +368,7 @@ beforeEach(() => {
   rpcResponses.set("event_registration_group_seats", ok(1));
   rpcResponses.set("validate_b2b_coupon_for_user", ok([couponOk()]));
   rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
-  rpcResponses.set("release_b2b_coupon", ok(true));
+  rpcResponses.set("release_b2b_coupon_for_user", ok(true));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
 
@@ -537,7 +537,11 @@ describe("createCheckoutOrder - operator ODMAWIA sesji subskrypcyjnej", () => {
 
     await call(planPayload({ coupon_code: "PARTNER-CEE" }));
 
-    expect(rpcArgs("release_b2b_coupon")).toEqual({
+    // Zwolnienie idzie rolą serwisową w najemcy ZAMÓWIENIA i dla konta z sesji
+    // (20261007140200) - baza oddaje użycie tylko nieopłaconemu zamówieniu.
+    expect(rpcArgs("release_b2b_coupon_for_user")).toEqual({
+      _tenant_id: "tenant-alfa",
+      _user_id: "user-kupujacy",
       _coupon_id: COUPON_ID,
       _order_id: "order-1",
     });
@@ -550,7 +554,7 @@ describe("createCheckoutOrder - operator ODMAWIA sesji subskrypcyjnej", () => {
 
     await call(planPayload());
 
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("release_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("release_b2b_coupon_for_user");
     logged.mockRestore();
   });
 
@@ -558,7 +562,7 @@ describe("createCheckoutOrder - operator ODMAWIA sesji subskrypcyjnej", () => {
     // Zwolnienie jest operacją naprawczą - jej cicha porażka zostawia
     // zablokowane użycie bez żadnego śladu do diagnozy.
     h.state.prices = [];
-    rpcResponses.set("release_b2b_coupon", fail("release failed"));
+    rpcResponses.set("release_b2b_coupon_for_user", fail("release failed"));
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const result = await call(planPayload({ coupon_code: "PARTNER-CEE" }));
@@ -687,12 +691,12 @@ describe("createCheckoutOrder - cena OSADZONA (treść, bilet)", () => {
 
     await call(entityPayload({ coupon_code: "PARTNER-CEE" }));
 
-    expect(rpcArgs("release_b2b_coupon")).toMatchObject({ _coupon_id: COUPON_ID });
+    expect(rpcArgs("release_b2b_coupon_for_user")).toMatchObject({ _coupon_id: COUPON_ID });
     logged.mockRestore();
   });
 
   it("nieudane zwolnienie kuponu na ścieżce ceny osadzonej też jest logowane", async () => {
-    rpcResponses.set("release_b2b_coupon", fail("release failed"));
+    rpcResponses.set("release_b2b_coupon_for_user", fail("release failed"));
     h.state.sessionError = new Error("operator unavailable");
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -710,7 +714,7 @@ describe("createCheckoutOrder - cena OSADZONA (treść, bilet)", () => {
 
     await call(entityPayload());
 
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("release_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("release_b2b_coupon_for_user");
     logged.mockRestore();
   });
 });
@@ -720,7 +724,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
     // Bez tego kupujący widzi samą kwotę końcową i nie ma jak sprawdzić, że
     // promocja („pierwsza fala") faktycznie zadziałała.
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: 15000 })),
     );
 
@@ -738,7 +742,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
     ["cokolwiek_nowego", "Kupon Rabat"],
   ])("faza `%s` dostaje etykietę `%s`", async (source, expected) => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: 15000, phase: { source } })),
     );
 
@@ -749,7 +753,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
 
   it("własna etykieta fazy z bazy bije etykietę zastępczą", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(
         ticketQuote({
           amount_cents: 12000,
@@ -766,7 +770,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
 
   it("etykieta fazy schodzi na angielską, gdy nie ma polskiej", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(
         ticketQuote({
           amount_cents: 12000,
@@ -783,7 +787,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
 
   it("faza podana jako tablica jest ignorowana - etykietą zostaje `Rabat`", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: 15000, phase: [] })),
     );
 
@@ -794,7 +798,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
 
   it("nieliczbowa cena regularna nie tworzy rabatu fazy", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: "15000" })),
     );
 
@@ -815,7 +819,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
     // Rabat jest ozdobą podsumowania; kwota do zapłaty jest już policzona.
     // Awaria tworzenia kuponu nie może kosztować sprzedaży wejściówki.
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: 15000 })),
     );
     h.state.couponError = new Error("coupon api down");
@@ -834,7 +838,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
 
   it("odpowiedź bez identyfikatora kuponu zostawia cenę końcową na pozycji", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: 15000 })),
     );
     h.state.coupon = {};

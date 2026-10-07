@@ -30,7 +30,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { rpc: (...args: unknown[]) => h.admin(...args) },
 }));
 
-const { purchasePackageForUser, quoteAdmissionForUser } =
+const { purchasePackageForUser, quoteAdmissionForUser, quoteTicketCheckoutForUser } =
   await import("@/lib/events/admissionRpc.server");
 const { validatePlanCouponForUser } = await import("@/lib/billing/couponRpc.server");
 
@@ -121,6 +121,66 @@ describe.each([
       data: null,
       error: { code: "P0001", message: "rate_limited: too many code attempts, try again later" },
     });
+    expect(h.user).not.toHaveBeenCalled();
+  });
+});
+
+// Wycena wejściówki z kodem dostępu (migracja 20261007140400): kod dostępu to
+// też sonda, więc idzie tą samą drogą - najemca hosta, konto z sesji, skrót
+// adresu - a pusty kod nie jedzie do bazy jako pusty napis.
+describe("wycena wejściówki (kod dostępu)", () => {
+  const TICKET = "cccccccc-0000-4000-8000-000000000003";
+
+  it("woła wersję serwerową z najemcą hosta, kontem i solonym skrótem adresu", async () => {
+    await quoteTicketCheckoutForUser(userClient, USER, {
+      ticketTypeId: TICKET,
+      accessCode: "PRESS",
+    });
+
+    expect(h.admin).toHaveBeenCalledWith("event_ticket_checkout_quote_for_user", {
+      _tenant_id: "aaaaaaaa-0000-4000-8000-00000000000a",
+      _user_id: USER,
+      _probe_subject: expect.stringMatching(/^ip:[0-9a-f]{32}$/),
+      p_ticket_type_id: TICKET,
+      p_access_code: "PRESS",
+    });
+    expect(JSON.stringify(h.admin.mock.lastCall)).not.toContain("203.0.113.41");
+    expect(h.user).not.toHaveBeenCalled();
+  });
+
+  it("pusty kod nie jedzie do bazy jako pusty napis", async () => {
+    await quoteTicketCheckoutForUser(userClient, USER, { ticketTypeId: TICKET, accessCode: "" });
+
+    expect(h.admin.mock.lastCall?.[1]).toMatchObject({ p_access_code: undefined });
+  });
+
+  it.each(["PGRST202", "42883"])(
+    "OKNO WDROŻENIA (%s): stara funkcja klientem kupującego",
+    async (code) => {
+      h.admin.mockResolvedValue({ data: null, error: { code, message: "no function" } });
+      h.user.mockResolvedValue({ data: { amount_cents: 100 }, error: null });
+
+      expect(
+        await quoteTicketCheckoutForUser(userClient, USER, {
+          ticketTypeId: TICKET,
+          accessCode: "PRESS",
+        }),
+      ).toEqual({ data: { amount_cents: 100 }, error: null });
+      expect(h.user).toHaveBeenCalledWith("event_ticket_checkout_quote", {
+        p_ticket_type_id: TICKET,
+        p_access_code: "PRESS",
+      });
+    },
+  );
+
+  it("limit prób to wynik, nie powód do starej ścieżki", async () => {
+    h.admin.mockResolvedValue({
+      data: null,
+      error: { code: "P0001", message: "rate_limited: too many code attempts, try again later" },
+    });
+
+    const result = await quoteTicketCheckoutForUser(userClient, USER, { ticketTypeId: TICKET });
+    expect(result.error?.message).toMatch(/^rate_limited/);
     expect(h.user).not.toHaveBeenCalled();
   });
 });

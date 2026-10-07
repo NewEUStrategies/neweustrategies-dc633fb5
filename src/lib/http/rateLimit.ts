@@ -100,15 +100,66 @@ export function clientIpFromHeaders(headers: Headers): string {
   return chain[chain.length - 1] ?? "unknown";
 }
 
+/** Osiem grup IPv6 jako liczby albo `null`, gdy napis nie jest adresem IPv6. */
+function ipv6Groups(address: string): number[] | null {
+  let text = address;
+  // Ogon IPv4 (`::ffff:192.0.2.1`, `64:ff9b::192.0.2.1`) to dwie ostatnie grupy.
+  const tail = /(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(text);
+  if (tail) {
+    const octets = tail.slice(1).map(Number);
+    if (octets.some((octet) => octet > 255)) return null;
+    const hi = ((octets[0] << 8) | octets[1]).toString(16);
+    const lo = ((octets[2] << 8) | octets[3]).toString(16);
+    text = `${text.slice(0, tail.index)}${hi}:${lo}`;
+  }
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const parse = (part: string): string[] => (part === "" ? [] : part.split(":"));
+  const head = parse(halves[0]);
+  const rest = halves.length === 2 ? parse(halves[1]) : [];
+  const missing = 8 - head.length - rest.length;
+  if (halves.length === 1 ? missing !== 0 : missing < 1) return null;
+  const groups = [...head, ...Array<string>(halves.length === 2 ? missing : 0).fill("0"), ...rest];
+  if (groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return null;
+  return groups.map((group) => parseInt(group, 16));
+}
+
 /**
- * Ten sam odczyt pod nazwą mówiącą, PO CO się go woła: to jest podmiot kubełka
- * limitu. Cienki alias, a nie druga kolejność precedencji - dwie kolejności
- * oznaczałyby dwa różne kubełki na to samo żądanie.
+ * Klucz kubełka po adresie. IPv6 sprowadzamy do prefiksu /64: tyle dostaje
+ * jedno łącze (dom, VPS), więc pojedynczy host z routowaną pulą /64 losował
+ * dotąd nowy adres na każde żądanie i KAŻDE dostawało świeży kubełek - sondy
+ * kodów, haseł treści i formularzy publicznych nie miały sufitu. IPv4
+ * zmapowane na IPv6 (`::ffff:a.b.c.d`) to ten sam host co `a.b.c.d`.
+ * Wszystko, co nie jest adresem IPv6, wraca bez zmian (IPv4, "unknown").
+ */
+export function ipRateKey(ip: string): string {
+  const value = ip.trim().toLowerCase();
+  if (!value.includes(":")) return value;
+  const address = value.replace(/^\[|\]$/g, "").split("%")[0];
+  const groups = ipv6Groups(address);
+  if (groups === null) return value;
+  if (groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff) {
+    return [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join(".");
+  }
+  return `${groups
+    .slice(0, 4)
+    .map((g) => g.toString(16))
+    .join(":")}::/64`;
+}
+
+/**
+ * Podmiot kubełka limitu: adres dzwoniącego z JEDYNEJ definicji kolejności
+ * nagłówków (`clientIpFromHeaders`), ze zwiniętym IPv6 do /64 (`ipRateKey`).
+ * To jest klucz LIMITU - zapisy dowodowe (zgody, audyt podszycia) biorą pełny
+ * adres z `clientIpFromHeaders`.
  *
  * Gwarancja: nigdy nie zwraca wartości pustej. Żądanie „nie wiadomo od kogo"
  * dostaje wspólny, LEGALNY kubełek "unknown" - dzieli go z resztą ruchu bez
  * rozpoznawalnego adresu, zamiast wymykać się limitowi.
+ *
+ * UWAGA WDROŻENIOWA: dla adresów IPv6 klucz się zmienia, więc jedno okno
+ * każdego limitu po adresie rusza po wdrożeniu od zera.
  */
 export function rateLimitIpSubject(headers: Headers): string {
-  return clientIpFromHeaders(headers);
+  return ipRateKey(clientIpFromHeaders(headers));
 }

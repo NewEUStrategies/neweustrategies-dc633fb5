@@ -25,6 +25,7 @@ export const ADMIN_ACCOUNT_ERROR = {
   confirmMismatch: "ADMIN_ACCOUNT/CONFIRM_MISMATCH",
   lookupFailed: "ADMIN_ACCOUNT/LOOKUP_FAILED",
   deleteFailed: "ADMIN_ACCOUNT/DELETE_FAILED",
+  superAdminRequired: "ADMIN_ACCOUNT/SUPER_ADMIN_REQUIRED",
 } as const;
 
 /**
@@ -48,7 +49,7 @@ async function assertSameTenant(
   supabase: SupabaseClient<Database>,
   callerId: string,
   targetId: string,
-): Promise<{ email: string | null }> {
+): Promise<{ email: string | null; tenantId: string }> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: target, error: targetError } = await supabaseAdmin
     .from("profiles")
@@ -71,7 +72,38 @@ async function assertSameTenant(
   if (!callerTenant || target.tenant_id !== callerTenant) {
     throw new Error(ADMIN_ACCOUNT_ERROR.outsideTenant);
   }
-  return { email: target.email ?? null };
+  return { email: target.email ?? null, tenantId: callerTenant };
+}
+
+/**
+ * Ranga celu: konto z rolą super_admin może usunąć wyłącznie super_admin.
+ * Ta sama reguła co w bazie (`change_user_role`: „Only a super_admin may
+ * grant super_admin or demote one" -> `super_admin_required`). Bez niej
+ * administrator tenanta, który nie może zdjąć super_adminowi roli, mógł
+ * usunąć całe jego konto - i zostać najwyższą rangą w organizacji.
+ *
+ * Role celu czytamy KLUCZEM SERWISOWYM i tylko w tenancie wywołującego (role
+ * są tenantowe). Pytanie o rangę wywołującego pada wyłącznie, gdy cel jest
+ * super_adminem - zwykłe usunięcie nie kosztuje dodatkowego wywołania.
+ * Fail closed: błąd odczytu ról to odmowa, nie „brak ról".
+ */
+async function assertCallerOutranksTarget(
+  supabase: SupabaseClient<Database>,
+  tenantId: string,
+  targetId: string,
+): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: roles, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", targetId)
+    .eq("tenant_id", tenantId);
+  if (error) throw new Error(ADMIN_ACCOUNT_ERROR.lookupFailed);
+  if (!(roles ?? []).some((row) => row.role === "super_admin")) return;
+
+  const { data: callerIsSuper, error: callerError } = await supabase.rpc("is_super_admin");
+  if (callerError) throw new Error(ADMIN_ACCOUNT_ERROR.lookupFailed);
+  if (callerIsSuper !== true) throw new Error(ADMIN_ACCOUNT_ERROR.superAdminRequired);
 }
 
 type AccountStateInput = {
@@ -223,7 +255,8 @@ const DeleteSchema = z.object({
 /**
  * Nieodwracalnie usuwa cudze konto. Kolejność jak przy samodzielnym usunięciu:
  * zamknięcie rozliczeń -> anonimizacja dowodów księgowych -> deleteUser.
- * Administrator nie może usunąć samego siebie.
+ * Administrator nie może usunąć samego siebie, a konto super_admina usuwa
+ * tylko super_admin (patrz assertCallerOutranksTarget).
  */
 export const deleteUserAccount = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
@@ -234,6 +267,7 @@ export const deleteUserAccount = createServerFn({ method: "POST" })
     }
 
     const target = await assertSameTenant(context.supabase, context.userId, data.userId);
+    await assertCallerOutranksTarget(context.supabase, target.tenantId, data.userId);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(data.userId);

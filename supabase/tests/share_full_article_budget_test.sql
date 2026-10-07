@@ -97,8 +97,14 @@ INSERT INTO public.user_purchases (user_id, tenant_id, entity_type, entity_id, a
 SET LOCAL ROLE anon;
 SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
 
+-- `can_share_full_article()` woluja wylacznie funkcje SECURITY DEFINER
+-- (gift_article_state, create_gift_link, redeem_gift_link); od 20261007140100
+-- klient nie ma do niej EXECUTE. Semantyke sprawdzamy w TYM SAMYM kontekscie
+-- JWT, ale rola wlasciciela - tak, jak widza ja te funkcje.
+RESET ROLE;
 SELECT is(public.can_share_full_article(), false,
   'anonim nie moze udostepnic pelnego artykulu');
+SET LOCAL ROLE anon;
 SELECT results_eq(
   $$ SELECT requires_auth, can_gift FROM public.gift_article_state('c0000000-0000-0000-0000-0000000000a1') $$,
   $$ VALUES (true, false) $$,
@@ -111,8 +117,10 @@ SELECT set_config('request.jwt.claims',
 
 SELECT is(public.can_gift_articles(), false,
   'kontrola: nadawca NIE ma platnej subskrypcji');
+RESET ROLE;
 SELECT is(public.can_share_full_article(), true,
   'eligibility=registered: zwykle konto moze udostepnic');
+SET LOCAL ROLE authenticated;
 
 -- ── 2) Idempotencja linku ──────────────────────────────────────────────────
 SELECT is(
@@ -308,8 +316,10 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"c0000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
 
+RESET ROLE;
 SELECT is(public.can_share_full_article(), false,
   'eligibility=subscribers: konto bez subskrypcji traci uprawnienie');
+SET LOCAL ROLE authenticated;
 SELECT throws_ok(
   $$ SELECT public.create_gift_link('c0000000-0000-0000-0000-0000000000a4') $$,
   'P0001',

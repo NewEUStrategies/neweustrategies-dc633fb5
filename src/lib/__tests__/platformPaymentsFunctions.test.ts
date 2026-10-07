@@ -17,7 +17,6 @@ const h = vi.hoisted(() => ({
   unpause: vi.fn(),
   revertCancellation: vi.fn(),
   seats: vi.fn(),
-  discount: vi.fn(),
   sync: vi.fn(),
   paymentMethod: vi.fn(),
   portal: vi.fn(),
@@ -25,7 +24,6 @@ const h = vi.hoisted(() => ({
   preview: vi.fn(),
   createClient: vi.fn(),
   returnUrl: vi.fn(),
-  allowProbe: vi.fn(),
 }));
 vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFnHarness")).serverFnStubModule(),
@@ -46,8 +44,6 @@ vi.mock("@/lib/billing/subscriptionProvider.server", () => ({
   resumeScheduledCancellation: h.revertCancellation,
   updateSubscriptionQuantity: h.seats,
 }));
-vi.mock("@/lib/billing/discounts.server", () => ({ resolveDiscountForCoupon: h.discount }));
-vi.mock("@/lib/events/codeProbeLimit.server", () => ({ allowCodeProbeForRequest: h.allowProbe }));
 vi.mock("@/lib/billing/selfSync.server", () => ({ syncUserSubscriptionsFromProvider: h.sync }));
 vi.mock("@/lib/billing/paymentMethod.server", () => ({
   fetchPaymentMethodPreview: h.paymentMethod,
@@ -93,10 +89,8 @@ beforeEach(() => {
   for (const fn of [h.change, h.cancel, h.unpause, h.revertCancellation])
     fn.mockResolvedValue({ ok: true });
   h.seats.mockResolvedValue({ ok: true, quantity: 5 });
-  h.allowProbe.mockResolvedValue(true);
   h.sync.mockResolvedValue({ synced: 2 });
   h.paymentMethod.mockResolvedValue({ brand: "visa", last4: "4242" });
-  h.discount.mockResolvedValue({ discountId: "promo_valid" });
   h.portal.mockResolvedValue({ url: "https://billing.stripe.test/session" });
   h.returnUrl.mockReturnValue("https://example.test/account");
   h.retrieve.mockResolvedValue({ items: { data: [{ id: "si_own" }] } });
@@ -186,7 +180,7 @@ describe("payment server function boundaries", () => {
   );
 });
 
-describe("catalog and discount resolution", () => {
+describe("catalog resolution", () => {
   it("allows anonymous price lookup, synchronizes first and returns the resolved provider id", async () => {
     expect(serverFnMiddlewareNames(payments.resolveStripePrice)).toEqual([]);
     expect(asServerFn(payments.resolveStripePrice).method).toBe("GET");
@@ -216,36 +210,12 @@ describe("catalog and discount resolution", () => {
     ).rejects.toThrow();
     expect(h.syncCatalog).not.toHaveBeenCalled();
   });
-  it("normalizes a coupon without accepting caller-supplied ownership or provider ids", async () => {
-    const coupon = {
-      code: " SUMMER ",
-      planId: "00000000-0000-4000-8000-000000000001",
-      amountCents: 1000,
-      currency: " pln ",
-      environment: "sandbox",
-    };
-    expect(await invoke("resolveStripeDiscount", { ...coupon, userId: "victim" })).toEqual({
-      discountId: "promo_valid",
-    });
-    expect(h.discount).toHaveBeenCalledWith({ ...coupon, code: "SUMMER", currency: "PLN" });
-    expect(serverFnMiddlewareNames(payments.resolveStripeDiscount)).toEqual([]);
-    expect(h.allowProbe).toHaveBeenCalledTimes(1);
-    await expect(invoke("resolveStripeDiscount", { ...coupon, amountCents: 0 })).rejects.toThrow();
-  });
-  it("a code probe over the attempt limit is refused before the database and the provider", async () => {
-    // Publiczna sonda kodu: limit prob (IP + konto, fail-closed) stoi PRZED
-    // walidacja kluczem serwisowym, ktorej kubelek pudel w bazie nie liczy.
-    h.allowProbe.mockResolvedValue(false);
-    expect(
-      await invoke("resolveStripeDiscount", {
-        code: "SUMMER",
-        planId: "00000000-0000-4000-8000-000000000001",
-        amountCents: 1000,
-        currency: "PLN",
-        environment: "sandbox",
-      }),
-    ).toEqual({ ok: false, discountId: null, error: "rate_limited", discountCents: 0 });
-    expect(h.discount).not.toHaveBeenCalled();
+  it("the anonymous coupon-to-provider-discount probe no longer ships", () => {
+    // `resolveStripeDiscount` nie mial wywolan w UI, a jako publiczny server fn
+    // walidowal kody najemcy DOMYSLNEGO kluczem serwisowym (bez kubelka pudel
+    // w bazie) i przy trafieniu zakladal rabat u operatora. Kody planu
+    // przechodza wylacznie przez kase (`validate_b2b_coupon_for_user`).
+    expect(Object.keys(payments)).not.toContain("resolveStripeDiscount");
   });
 });
 

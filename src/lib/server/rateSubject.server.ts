@@ -10,7 +10,7 @@
 // używa lektor kanoniczny: działa w każdym runtime, w którym stoi worker.
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
-import { clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 
 const SALT = () =>
   process.env.SESSION_SECRET ||
@@ -38,6 +38,7 @@ export function requestRateSubject(
 ): string {
   if (userId) return hashedRateSubject("user", userId);
   if (!headers) return hashedRateSubject("ip", "unknown");
-  const ip = clientIpFromHeaders(headers);
-  return hashedRateSubject("ip", ip);
+  // IPv6 zwinięte do /64 (`rateLimitIpSubject` -> `ipRateKey`): jeden host
+  // z pulą /64 to jeden kubełek, także w bazie (`_coupon_probe_ip_bucket`).
+  return hashedRateSubject("ip", rateLimitIpSubject(headers));
 }

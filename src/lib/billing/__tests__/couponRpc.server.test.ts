@@ -33,8 +33,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { rpc: (...args: unknown[]) => h.admin(...args) },
 }));
 
-const { redeemCouponForUser, validateEventTicketCouponForUser, validatePlanCouponForUser } =
-  await import("@/lib/billing/couponRpc.server");
+const {
+  redeemCouponForUser,
+  releaseCouponForUser,
+  validateEventTicketCouponForUser,
+  validatePlanCouponForUser,
+} = await import("@/lib/billing/couponRpc.server");
 
 const USER = "dddddddd-0000-4000-8000-00000000000d";
 const PLAN = "cccccccc-0000-4000-8000-00000000000c";
@@ -250,6 +254,46 @@ describe("redeemCouponForUser", () => {
     h.admin.mockResolvedValue({ data: false, error: null });
 
     expect(await redeemCouponForUser(userClient, redemption)).toEqual({ data: false, error: null });
+    expect(h.user).not.toHaveBeenCalled();
+  });
+});
+
+describe("releaseCouponForUser (zwolnienie po odmowie dostawcy, 20261007140200)", () => {
+  const release = {
+    tenantId: "bbbbbbbb-0000-4000-8000-00000000000b",
+    userId: USER,
+    couponId: "eeeeeeee-0000-4000-8000-00000000000e",
+    orderId: "ffffffff-0000-4000-8000-00000000000f",
+  };
+
+  it("zwalnia rolą serwisową w najemcy ZAMÓWIENIA i dla konta z sesji", async () => {
+    h.admin.mockResolvedValue({ data: true, error: null });
+
+    expect(await releaseCouponForUser(userClient, release)).toEqual({ data: true, error: null });
+    expect(h.admin).toHaveBeenCalledWith("release_b2b_coupon_for_user", {
+      _tenant_id: "bbbbbbbb-0000-4000-8000-00000000000b",
+      _user_id: USER,
+      _coupon_id: "eeeeeeee-0000-4000-8000-00000000000e",
+      _order_id: "ffffffff-0000-4000-8000-00000000000f",
+    });
+    expect(h.user).not.toHaveBeenCalled();
+  });
+
+  it("OKNO WDROŻENIA: stare zwolnienie klientem kupującego", async () => {
+    h.admin.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "no function" } });
+    h.user.mockResolvedValue({ data: true, error: null });
+
+    expect(await releaseCouponForUser(userClient, release)).toEqual({ data: true, error: null });
+    expect(h.user).toHaveBeenCalledWith("release_b2b_coupon", {
+      _coupon_id: "eeeeeeee-0000-4000-8000-00000000000e",
+      _order_id: "ffffffff-0000-4000-8000-00000000000f",
+    });
+  });
+
+  it("odmowa bazy (opłacone albo cudze zamówienie) wraca jako false, bez starej ścieżki", async () => {
+    h.admin.mockResolvedValue({ data: false, error: null });
+
+    expect(await releaseCouponForUser(userClient, release)).toEqual({ data: false, error: null });
     expect(h.user).not.toHaveBeenCalled();
   });
 });

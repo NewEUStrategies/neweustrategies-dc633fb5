@@ -24,6 +24,7 @@ export const redeemEventTicketFromPlan = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<PlanTicketRedeemResult> => {
     const { redeemPlanTicket } = await import("@/lib/billing/eventTicketPlanRedeem.server");
     return redeemPlanTicket(context.supabase, {
+      userId: context.userId,
       eventId: data.event_id,
       ticketTypeId: data.ticket_type_id,
       registrationId: data.registration_id,

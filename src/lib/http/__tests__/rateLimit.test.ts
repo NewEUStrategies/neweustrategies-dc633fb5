@@ -3,6 +3,7 @@ import {
   tickBucket,
   createRateLimiter,
   clientIpFromHeaders,
+  ipRateKey,
   rateLimitIpSubject,
 } from "@/lib/http/rateLimit";
 
@@ -115,8 +116,8 @@ describe("clientIpFromHeaders - kto naprawdę dzwoni", () => {
   });
 });
 
-describe("rateLimitIpSubject - cienki alias, nie druga precedencja", () => {
-  it("oddaje DOKŁADNIE to samo, co `clientIpFromHeaders`", () => {
+describe("rateLimitIpSubject - ta sama precedencja, klucz po `ipRateKey`", () => {
+  it("oddaje adres z `clientIpFromHeaders` (dla IPv4 - DOKŁADNIE ten sam)", () => {
     const przypadki = [
       new Headers({ "cf-connecting-ip": "203.0.113.7", "x-forwarded-for": "1.2.3.4" }),
       new Headers({ "x-forwarded-for": "1.2.3.4, 203.0.113.9" }),
@@ -125,6 +126,7 @@ describe("rateLimitIpSubject - cienki alias, nie druga precedencja", () => {
       new Headers(),
     ];
     for (const h of przypadki) {
+      expect(rateLimitIpSubject(h)).toBe(ipRateKey(clientIpFromHeaders(h)));
       expect(rateLimitIpSubject(h)).toBe(clientIpFromHeaders(h));
     }
   });
@@ -133,5 +135,46 @@ describe("rateLimitIpSubject - cienki alias, nie druga precedencja", () => {
     expect(rateLimitIpSubject(new Headers())).toBe("unknown");
     expect(rateLimitIpSubject(new Headers({ "x-forwarded-for": " " }))).toBe("unknown");
     expect(rateLimitIpSubject(new Headers({ "x-forwarded-for": " " }))).not.toBe("");
+  });
+});
+
+describe("ipRateKey - jeden host IPv6 to jeden kubełek", () => {
+  it("IPv6 zwija się do prefiksu /64 - adresy z jednej puli dzielą kubełek", () => {
+    const a = ipRateKey("2001:db8:abcd:12:1111:2222:3333:4444");
+    const b = ipRateKey("2001:0DB8:ABCD:0012:ffff:0:0:1");
+    expect(a).toBe("2001:db8:abcd:12::/64");
+    expect(b).toBe(a);
+  });
+
+  it("inny /64 to inny kubełek", () => {
+    expect(ipRateKey("2001:db8:abcd:13::1")).not.toBe(ipRateKey("2001:db8:abcd:12::1"));
+  });
+
+  it("kompresja `::`, nawiasy i identyfikator strefy nie zmieniają klucza", () => {
+    expect(ipRateKey("2001:db8::1")).toBe("2001:db8:0:0::/64");
+    expect(ipRateKey("[2001:db8::1]")).toBe("2001:db8:0:0::/64");
+    expect(ipRateKey("fe80::1%eth0")).toBe("fe80:0:0:0::/64");
+    expect(ipRateKey("::1")).toBe("0:0:0:0::/64");
+  });
+
+  it("IPv4 zmapowane na IPv6 to ten sam host co IPv4", () => {
+    expect(ipRateKey("::ffff:203.0.113.7")).toBe("203.0.113.7");
+    expect(ipRateKey("::ffff:cb00:7107")).toBe("203.0.113.7");
+  });
+
+  it("IPv4, „unknown” i napisy nie-adresowe wracają bez zmian", () => {
+    expect(ipRateKey("203.0.113.7")).toBe("203.0.113.7");
+    expect(ipRateKey("unknown")).toBe("unknown");
+    expect(ipRateKey("1:2:3")).toBe("1:2:3");
+    expect(ipRateKey("1::2::3")).toBe("1::2::3");
+    expect(ipRateKey("::ffff:999.0.0.1")).toBe("::ffff:999.0.0.1");
+  });
+
+  it("podmiot limitu z nagłówków niesie zwinięty klucz", () => {
+    expect(
+      rateLimitIpSubject(
+        new Headers({ "cf-connecting-ip": "2001:db8:abcd:12:aaaa:bbbb:cccc:dddd" }),
+      ),
+    ).toBe("2001:db8:abcd:12::/64");
   });
 });

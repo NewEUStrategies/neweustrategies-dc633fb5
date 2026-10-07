@@ -22,7 +22,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { timingSafeEqual } from "node:crypto";
-import { createRateLimiter, clientIpFromHeaders } from "@/lib/http/rateLimit";
+import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 import {
   isSchedulerAlarming,
   normalizeSchedulerSource,
@@ -246,7 +246,7 @@ export const Route = createFileRoute("/api/public/community-cron")({
       // GET): zero efektów ubocznych, ale pełna diagnoza zastoju.
       GET: async () => {
         const req = getRequest();
-        if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) {
+        if (!limiter.check(rateLimitIpSubject(req.headers), Date.now())) {
           return new Response(null, { status: 429 });
         }
         if (!(await authorize(req))) return json({ error: "unauthorized" }, 401);
@@ -278,7 +278,7 @@ export const Route = createFileRoute("/api/public/community-cron")({
 
       POST: async () => {
         const req = getRequest();
-        if (!limiter.check(clientIpFromHeaders(req.headers), Date.now())) {
+        if (!limiter.check(rateLimitIpSubject(req.headers), Date.now())) {
           return new Response(null, { status: 429 });
         }
         if (!(await authorize(req))) return json({ error: "unauthorized" }, 401);

@@ -128,7 +128,7 @@ beforeEach(() => {
     ok({ ok: true, event_id: EVENT_ID, ticket_type_id: TICKET_ID }),
   );
   rpcResponses.set(
-    "event_ticket_checkout_quote",
+    "event_ticket_checkout_quote_for_user",
     ok({
       event_id: EVENT_ID,
       amount_cents: 10000,
@@ -182,7 +182,9 @@ describe("quoteEventTicketCheckout - obudowa", () => {
       context: context(),
     });
 
-    expect(rpcCalls.find((c) => c.fn === "event_ticket_checkout_quote")?.args).toMatchObject({
+    expect(
+      rpcCalls.find((c) => c.fn === "event_ticket_checkout_quote_for_user")?.args,
+    ).toMatchObject({
       p_access_code: "ZAPROSZENIE-1",
     });
     // Kod sprawdza rola serwisowa z kontem z SESJI podglądu i skrótem adresu.
