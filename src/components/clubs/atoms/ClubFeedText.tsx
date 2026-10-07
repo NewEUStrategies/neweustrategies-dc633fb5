@@ -84,7 +84,9 @@ export function ClubFeedText({
   };
 
   return (
-    <div className={cn("relative", className)}>
+    // Długie tokeny (adres zapisu, numer aktu) łamią się w dowolnym miejscu -
+    // w przyciętym pudełku `overflow: clip` ucięłyby się bez śladu.
+    <div className={cn("relative [overflow-wrap:anywhere]", className)}>
       <div
         ref={ref}
         id={id}

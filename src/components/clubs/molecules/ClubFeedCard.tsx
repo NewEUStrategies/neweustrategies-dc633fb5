@@ -245,7 +245,13 @@ export function ClubFeedActionBar({
       <div className={CLUB_FEED_PAD}>
         <div className="border-t border-border/60" />
       </div>
-      <div role="group" aria-label={label} className="flex items-stretch gap-1 px-1.5 py-1 sm:px-2">
+      {/* Siatka równych kolumn (`auto-cols-fr`), nie `flex-1`: kolumna reakcji
+          z opakowaniem palety była węższa od pozostałych. */}
+      <div
+        role="group"
+        aria-label={label}
+        className="grid auto-cols-fr grid-flow-col gap-1 px-1.5 py-1 sm:px-2"
+      >
         {children}
       </div>
     </div>
@@ -264,7 +270,10 @@ export function ClubFeedActionBar({
  */
 export function clubFeedActionClass(options?: { className?: string }): string {
   return cn(
-    "group/feed-act relative inline-flex min-h-11 min-w-0 flex-1 select-none flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1",
+    // Na telefonie (piktogram nad podpisem) treść stoi od góry: gdy jeden
+    // podpis zawinie się do dwóch linii, piktogramy wszystkich kolumn zostają
+    // w jednym rzędzie, zamiast rozjechać się przez centrowanie w pionie.
+    "group/feed-act relative inline-flex min-h-11 min-w-0 flex-1 select-none flex-col items-center justify-start gap-0.5 rounded-lg px-2 py-1 sm:justify-center",
     "text-[length:var(--fs-button)] font-semibold leading-tight text-muted-foreground sm:min-h-10 sm:flex-row sm:gap-2",
     "transition-[background-color,color,scale] duration-150 ease-out",
     "hover:bg-muted/70 hover:text-foreground active:scale-[0.97] motion-reduce:active:scale-100",

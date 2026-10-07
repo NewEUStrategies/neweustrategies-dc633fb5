@@ -38,6 +38,15 @@ export const HUB_LABEL = cn(
   HUB_LABEL_TEXT,
 );
 
+/**
+ * Kwadrat o wysokości etykiety (ikona rodzaju obok `HUB_LABEL`). Liczony
+ * z TYCH SAMYCH składników co etykieta - linia pisma w px z tokenu, odstępy
+ * w rem, włos 1 px - bo korzeń serwisu skaluje rem z szerokością okna i stałe
+ * `h-6` rozjeżdżało się z etykietą o 1-2 px na laptopie.
+ */
+export const HUB_LABEL_SQUARE =
+  "size-[max(1.5rem,calc(var(--fs-button)*1.2_+_0.5rem_+_2px))] shrink-0";
+
 /** Cichy ton etykiety - obszar, kotwica, wszystko bez własnego koloru. */
 export const HUB_LABEL_QUIET = "border-border/60 bg-muted/40 text-muted-foreground";
 

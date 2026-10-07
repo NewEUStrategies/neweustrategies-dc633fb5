@@ -38,7 +38,11 @@ import {
   clubThreadTone,
 } from "@/components/clubs/atoms/ClubDossierRow";
 import { ClubFeedText } from "@/components/clubs/atoms/ClubFeedText";
-import { HUB_LABEL, HUB_LABEL_QUIET } from "@/components/clubs/atoms/ClubHubPrimitives";
+import {
+  HUB_LABEL,
+  HUB_LABEL_QUIET,
+  HUB_LABEL_SQUARE,
+} from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
@@ -95,7 +99,8 @@ const EMPTY_SOURCES: ReadonlyMap<string, ClubSourceMark> = new Map();
 const EMPTY_TOPICS: readonly ClubTopicOption[] = [];
 
 /** Tytuł karty - jedna skala dla wszystkich rodzajów. */
-const TITLE = "text-base font-semibold leading-snug tracking-tight text-foreground sm:text-lg";
+const TITLE =
+  "text-base font-semibold leading-snug tracking-tight text-foreground [overflow-wrap:anywhere] sm:text-lg";
 /** Treść karty - `lh` w `ClubFeedText` liczy się z tej wysokości linii. */
 const BODY = "text-sm leading-6 text-foreground/85";
 /** Nazwisko autora i podpis karty bez autora - pełne, bez wielokropka. */
@@ -184,11 +189,12 @@ function ThreadCard({
             <span className="sr-only">{t("club.hub.sources.unread")}</span>
           </span>
         ) : null}
-        {/* Kwadrat ikony ma wysokość etykiety obok (24 px) i ten sam promień. */}
+        {/* Kwadrat ikony ma wysokość etykiety obok i ten sam promień. */}
         <span
           aria-hidden="true"
           className={cn(
-            "grid h-6 w-6 shrink-0 place-items-center rounded-lg border [&_svg]:h-3.5 [&_svg]:w-3.5",
+            "grid place-items-center rounded-lg border [&_svg]:h-3.5 [&_svg]:w-3.5",
+            HUB_LABEL_SQUARE,
             clubDossierIconBoxClass(tone),
           )}
         >
@@ -477,7 +483,7 @@ function MilestoneCard({
         name={
           <>
             <span className={NAME}>{t("club.hub.feed.stageLabel")}</span>
-            <ClubMilestoneStateChip state={state} className={HUB_LABEL} />
+            <ClubMilestoneStateChip state={state} wrap className={HUB_LABEL} />
           </>
         }
         meta={

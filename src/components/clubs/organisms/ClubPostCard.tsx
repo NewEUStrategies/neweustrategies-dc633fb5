@@ -177,8 +177,10 @@ function FileAttachmentRow({
   const size = formatBytes(item.size);
   return (
     <div className="group/file flex items-center gap-3 rounded-lg border border-border/70 bg-muted/30 p-2.5 transition-colors hover:border-primary/40">
-      {/* Kafel strony z zagiętym rogiem - dokument rozpoznawalny bez czytania. */}
-      <span className="relative grid h-12 w-10 shrink-0 place-items-center rounded-md border border-primary/20 bg-primary/10 text-[10px] font-bold uppercase tracking-wider text-primary [clip-path:polygon(0_0,72%_0,100%_22%,100%_100%,0_100%)]">
+      {/* Kafel strony z zagiętym rogiem - dokument rozpoznawalny bez czytania.
+          Szerokość rośnie z etykietą (`PAGES`, `MPEG4`), zamiast ciąć jej
+          pierwszą i ostatnią literę zagiętym rogiem. */}
+      <span className="relative grid h-12 min-w-10 shrink-0 px-1 place-items-center rounded-md border border-primary/20 bg-primary/10 text-[10px] font-bold uppercase tracking-wider text-primary [clip-path:polygon(0_0,72%_0,100%_22%,100%_100%,0_100%)]">
         {fileLabel(item.name, item.mime)}
       </span>
       <span className="min-w-0 flex-1">

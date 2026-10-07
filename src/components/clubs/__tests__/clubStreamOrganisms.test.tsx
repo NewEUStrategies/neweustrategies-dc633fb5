@@ -277,7 +277,7 @@ describe("ClubFeedItem - etykiety bez przycinania, jedna skala", () => {
     "whitespace-normal",
   ];
 
-  function renderThread() {
+  function renderThread(reactions?: ReadonlyMap<string, ClubReactionTally[]>) {
     render(
       <ClubFeedItem
         entry={threadEntry(THREAD)}
@@ -286,6 +286,8 @@ describe("ClubFeedItem - etykiety bez przycinania, jedna skala", () => {
         onSourceSelect={() => undefined}
         topicsCatalog={TOPICS}
         onTopicSelect={() => undefined}
+        threadReactions={reactions}
+        onThreadReact={reactions === undefined ? undefined : () => undefined}
       />,
     );
     return screen.getByTestId("club-feed-thread");
@@ -319,11 +321,19 @@ describe("ClubFeedItem - etykiety bez przycinania, jedna skala", () => {
     expect(within(card).getByTestId("club-feed-anchor").textContent).toBe(LONG_ANCHOR);
   });
 
-  it("nazwisko autora i podpisy akcji nie są ucinane", () => {
-    const card = renderThread();
+  it("nazwisko autora i podpisy akcji (także reakcji) nie są ucinane", () => {
+    // Moja reakcja - podpis akcji staje się jej nazwą (najdłuższy podpis paska).
+    const card = renderThread(new Map([[THREAD.id, [{ kind: "question", total: 1, mine: true }]]]));
     expect(within(card).getByText("Anna Nowak").className).not.toContain("truncate");
     const actions = card.querySelector('[data-feed-zone="actions"]');
+    const react = within(card).getByTestId("club-add-reaction");
+    expect(actions?.contains(react)).toBe(true);
+    expect(react.lastElementChild?.textContent).toBe("club.reaction.question");
+    expect(react.lastElementChild?.className).not.toContain("truncate");
     expect(actions?.querySelector(".truncate")).toBeNull();
+    // Równe kolumny siatki - kolumna reakcji nie jest węższa od pozostałych.
+    const group = within(card).getByRole("group", { name: "club.hub.feed.actionsLabel" });
+    expect(group.className).toContain("auto-cols-fr");
     // Akcja-link mówi tym samym stopniem pisma co akcja-przycisk obok.
     const comment = within(card).getByTestId("club-comment-link");
     expect(comment.className).toContain("text-[length:var(--fs-button)]");
@@ -351,6 +361,8 @@ describe("ClubFeedItem - etykiety bez przycinania, jedna skala", () => {
     const milestone = screen.getByTestId("club-feed-milestone");
     const state = milestone.querySelector<HTMLElement>("[data-club-milestone-state]");
     expect(state?.className.split(" ")).toEqual(expect.arrayContaining(LABEL_TOKENS));
+    // Nazwa stanu zawija się razem z etykietą - wewnętrzny `truncate` by to zablokował.
+    expect(state?.querySelector(".truncate")).toBeNull();
     expect(milestone.querySelector('[data-feed-zone="actions"] .truncate')).toBeNull();
   });
 });
