@@ -26,9 +26,11 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { ok, okCount, type SupabaseFromStub } from "@/test/supabaseChain";
+import type { SupabaseRpcStub } from "@/test/supabase/rpc";
 
 const h = vi.hoisted(() => ({
   from: null as unknown,
+  rpc: null as unknown,
   rt: null as unknown,
   ensureI18n: vi.fn(),
   shellProps: [] as Array<{ hideSidebar?: boolean }>,
@@ -56,14 +58,18 @@ vi.mock("@/components/admin/AdminShell", () => ({
 
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
+  const { supabaseRpcStub } = await import("@/test/supabase/rpc");
   const { realtimeStub } = await import("@/test/supabase/realtime");
   const from = supabaseFromStub();
+  const rpc = supabaseRpcStub();
   const rt = realtimeStub();
   h.from = from;
+  h.rpc = rpc;
   h.rt = rt;
   return {
     supabase: {
       from: from.from,
+      rpc: rpc.rpc,
       channel: rt.channel.bind(rt),
       removeChannel: rt.removeChannel.bind(rt),
     },
@@ -90,8 +96,11 @@ vi.mock("@/components/ui/datetime-picker", async () => {
 import { AdsAdmin } from "../AdsAdmin";
 
 const db = () => h.from as SupabaseFromStub;
+const rpc = () => h.rpc as SupabaseRpcStub;
 
 function withEmptyDatabase(): void {
+  // Zakladka SLOTY czyta pelne wiersze przez funkcje redakcji (20261007120100).
+  rpc().setData("admin_list_ad_slots", []);
   db().setResponse("ad_slots", ok([]));
   db().setResponse("ad_placements", ok([]));
   db().setResponse("ad_events", () => okCount(0));
@@ -101,6 +110,7 @@ function withEmptyDatabase(): void {
 
 beforeEach(() => {
   db().reset();
+  rpc().reset();
   (h.rt as { reset(): void }).reset();
   h.ensureI18n.mockClear();
   h.shellProps.length = 0;
@@ -148,7 +158,8 @@ describe("AdsAdmin", () => {
     // Trzy panele zamontowane naraz to trzy komplety zapytan przy kazdym
     // wejsciu na strone - w tym po jednej parze liczacej na KAZDY slot.
     renderWithQueryClient(<AdsAdmin />);
-    await waitFor(() => expect(db().chainsFor("ad_slots").length).toBe(1));
+    await waitFor(() => expect(rpc().callsFor("admin_list_ad_slots").length).toBe(1));
+    expect(db().chainsFor("ad_slots")).toHaveLength(0);
     expect(db().chainsFor("ad_placements")).toHaveLength(0);
     expect(db().chainsFor("ad_events")).toHaveLength(0);
   });

@@ -56,11 +56,15 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
     let couponDiscountCents = 0;
     if (data.couponCode) {
       const normalizedCode = data.couponCode.trim().toUpperCase();
-      const { data: rows, error: validateErr } = await supabase.rpc("validate_b2b_coupon", {
-        _code: normalizedCode,
-        _plan_id: data.planId,
-        _amount_cents: plan.price_cents,
-        _currency: plan.currency,
+      // Rola serwisowa z jawnym najemcą, kontem i skrótem adresu - baza liczy
+      // pudła tej kasy także po adresie (20261007120200, audyt ed13 N-13-1).
+      const { validatePlanCouponForUser } = await import("@/lib/billing/couponRpc.server");
+      const { data: rows, error: validateErr } = await validatePlanCouponForUser(supabase, {
+        userId,
+        code: normalizedCode,
+        planId: data.planId,
+        amountCents: plan.price_cents,
+        currency: plan.currency,
       });
       // Limit prób kodów (`_coupon_probe_guard`) wraca WŁASNYM powodem: strona
       // kasy mówi wtedy „odczekaj", a nie „płatności nieskonfigurowane".
@@ -129,12 +133,15 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       // raport kosztu kuponów pokazywał zero rabatu, a „przychód netto"
       // w `b2b_coupons_analytics` i w `monetization_dashboard` był zawyżony
       // dokładnie o udzielony rabat - i to tylko dla zamówień z TEGO silnika.
-      const { data: redeemed, error: redeemErr } = await supabase.rpc("redeem_b2b_coupon", {
-        _coupon_id: couponId,
-        _order_id: order.id,
-        _applied_cents: couponDiscountCents,
-        _original_cents: plan.price_cents,
-        _currency: plan.currency,
+      const { redeemCouponForUser } = await import("@/lib/billing/couponRpc.server");
+      const { data: redeemed, error: redeemErr } = await redeemCouponForUser(supabase, {
+        tenantId: order.tenant_id,
+        userId,
+        couponId,
+        orderId: order.id,
+        appliedCents: couponDiscountCents,
+        originalCents: plan.price_cents,
+        currency: plan.currency,
       });
       if (redeemErr || !redeemed) {
         await (

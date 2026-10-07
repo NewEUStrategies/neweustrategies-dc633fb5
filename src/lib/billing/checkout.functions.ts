@@ -262,6 +262,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         // miejsca - ta sama funkcja liczy podgląd kasy.
         const { applyEventTicketCoupon } = await import("@/lib/billing/eventTicketPricing.server");
         const applied = await applyEventTicketCoupon(supabase, {
+          userId,
           code: normalizedCode,
           eventId: data.event_id,
           ticketTypeId: data.ticket_type_id ?? null,
@@ -278,12 +279,16 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         couponDiscountCents = applied.discountCents;
         amountCents = applied.finalCents;
       } else {
-        // Pozostałe zakupy: kod ogólny (plan, odblokowanie treści).
-        const { data: rows, error: validateErr } = await supabase.rpc("validate_b2b_coupon", {
-          _code: normalizedCode,
-          _plan_id: data.plan_id ?? "00000000-0000-0000-0000-000000000000",
-          _amount_cents: amountCents,
-          _currency: currency,
+        // Pozostałe zakupy: kod ogólny (plan, odblokowanie treści). Rola
+        // serwisowa z jawnym najemcą, kontem i skrótem adresu - baza liczy
+        // pudła kasy także po adresie (20261007120200, audyt ed13 D-13-1).
+        const { validatePlanCouponForUser } = await import("@/lib/billing/couponRpc.server");
+        const { data: rows, error: validateErr } = await validatePlanCouponForUser(supabase, {
+          userId,
+          code: normalizedCode,
+          planId: data.plan_id ?? "00000000-0000-0000-0000-000000000000",
+          amountCents,
+          currency,
         });
         // Limit prób kodów to wyjątek, nie odmowa kodu (`codeProbeRpcError`).
         if (validateErr) throw codeProbeRpcError(validateErr);
@@ -447,13 +452,18 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     // Atomowe rezerwowanie użycia kuponu - RPC sam sprawdza limity pod
     // blokadą wiersza, więc nawet równoległe zamówienia nie przekroczą maxa.
+    // Najemca rezerwacji to stempel ZAMÓWIENIA, nie host - baza odmawia
+    // rezerwacji na zamówieniu innego konta albo najemcy.
     if (couponId) {
-      const { data: redeemed, error: redeemErr } = await supabase.rpc("redeem_b2b_coupon", {
-        _coupon_id: couponId,
-        _order_id: order.id,
-        _applied_cents: couponDiscountCents,
-        _original_cents: originalCents,
-        _currency: currency,
+      const { redeemCouponForUser } = await import("@/lib/billing/couponRpc.server");
+      const { data: redeemed, error: redeemErr } = await redeemCouponForUser(supabase, {
+        tenantId: order.tenant_id,
+        userId,
+        couponId,
+        orderId: order.id,
+        appliedCents: couponDiscountCents,
+        originalCents,
+        currency,
       });
       if (redeemErr || !redeemed) {
         // Ktoś przejął ostatnie użycie zanim doszliśmy tutaj - unieważniamy zamówienie.

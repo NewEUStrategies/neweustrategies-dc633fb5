@@ -160,6 +160,17 @@ CREATE OR REPLACE FUNCTION storage.extension(name text) RETURNS text
   LANGUAGE sql IMMUTABLE AS $$ SELECT split_part(split_part(name, '/', -1), '.', -1) $$;
 
 GRANT USAGE ON SCHEMA public, extensions, auth, storage TO anon, authenticated, service_role;
+
+-- DOMYSLNE EXECUTE NA FUNKCJE - jak w bazie, ktora CI stawia `supabase db start`.
+-- Kazda NOWA funkcja w `public` dostaje JAWNY grant EXECUTE dla anon,
+-- authenticated i service_role, wiec samo `REVOKE ... FROM PUBLIC` go nie
+-- zdejmuje (patrz 20261002140000). Bez tej linii runner byl SCISLEJSZY niz CI
+-- i produkcja: funkcja zamknieta tylko dla PUBLIC wygladala tu na niedostepna
+-- dla anona - dziura byla niewidoczna wlasnie tam, gdzie jej szukamy.
+-- TABEL i SEKWENCJI ta sama baza NIE nadaje domyslnie (job pgtap na main
+-- przechodzi `pii_column_grants_test`, a migracje nadaja granty tabel jawnie),
+-- wiec ich tu nie emulujemy - inaczej runner bylby LUZNIEJSZY niz CI.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 GRANT SELECT ON auth.users TO authenticated, service_role;
 GRANT ALL ON storage.buckets, storage.objects TO authenticated, service_role;
 

@@ -83,9 +83,24 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
 }));
 
+// Kod rabatowy i rezerwacja jego użycia idą rolą serwisową z jawnym najemcą
+// i kontem (`couponRpc.server.ts`, migracja 20261007120200). Atrapa kieruje
+// wywołania `*_for_user` do TEJ SAMEJ tabeli odpowiedzi co klient kupującego.
+const couponAdmin = vi.hoisted(() => ({
+  forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+}));
+
+vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/tenant.server")>()),
+  resolveTenantIdForHost: async () => "tenant-alfa",
+}));
+
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
-    rpc: () => Promise.resolve({ data: true, error: null }),
+    rpc: (fn: string, args: Record<string, unknown>) =>
+      couponAdmin.forward !== null && fn.endsWith("_for_user")
+        ? couponAdmin.forward(fn, args)
+        : Promise.resolve({ data: true, error: null }),
   },
 }));
 
@@ -312,6 +327,7 @@ beforeEach(() => {
   chain = supabaseFromStub();
   rpcCalls = [];
   rpcResponses = new Map<string, SupabaseResult>();
+  couponAdmin.forward = (fn, args) => client().rpc(fn, args);
 
   // Bramka SKONFIGUROWANA - wartości syntetyczne, nigdzie nie wychodzą:
   // klient operatora jest atrapą, więc żadne żądanie sieciowe nie powstaje.
@@ -350,8 +366,8 @@ beforeEach(() => {
   // Zgłoszenie bez gości to w bazie jedno miejsce. Brak odpowiedzi byłby
   // odmową `seats_unavailable` - liczba miejsc jest fail-closed.
   rpcResponses.set("event_registration_group_seats", ok(1));
-  rpcResponses.set("validate_b2b_coupon", ok([couponOk()]));
-  rpcResponses.set("redeem_b2b_coupon", ok(true));
+  rpcResponses.set("validate_b2b_coupon_for_user", ok([couponOk()]));
+  rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
   rpcResponses.set("release_b2b_coupon", ok(true));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
@@ -471,7 +487,7 @@ describe("createCheckoutOrder - kupon B2B w sesji subskrypcji", () => {
 
   it("kupon bez rabatu kwotowego nie zakłada rabatu u operatora", async () => {
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       ok([couponOk({ discount_cents: 0, final_cents: 4900 })]),
     );
 
@@ -663,7 +679,7 @@ describe("createCheckoutOrder - cena OSADZONA (treść, bilet)", () => {
       ok({ mode: "paid", one_time_price_cents: 3000, one_time_currency: "PLN" }),
     );
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       ok([couponOk({ discount_cents: 1000, final_cents: 2000 })]),
     );
     h.state.sessionError = new Error("operator unavailable");

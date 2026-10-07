@@ -14,6 +14,8 @@ import { fail, ok } from "@/test/supabaseChain";
 const EVENT_ID = "bbbbbbbb-0000-4000-8000-000000000002";
 const TICKET_ID = "cccccccc-0000-4000-8000-000000000003";
 const COUPON_ID = "ffffffff-0000-4000-8000-00000000000c";
+/** Konto z sesji - kubełek pudeł kodu liczy się po nim (i po adresie). */
+const USER_ID = "dddddddd-0000-4000-8000-00000000000d";
 
 /**
  * Pula planu wołającego (kształt `my_ticket_allowance`); domyślnie brak planu.
@@ -36,6 +38,28 @@ vi.mock("@/lib/events/ticketAllowance.server", async () => {
   };
 });
 
+// Kod na bilet waliduje rola serwisowa z jawnym najemcą, kontem i skrótem
+// adresu (`couponRpc.server.ts`, migracja 20261007120600). Atrapa kieruje
+// wywołania `*_for_user` do TEJ SAMEJ tabeli odpowiedzi co klient kupującego.
+const couponAdmin = vi.hoisted(() => ({
+  forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+}));
+
+vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/tenant.server")>()),
+  resolveTenantIdForHost: async () => "tenant-alfa",
+}));
+
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: {
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      if (couponAdmin.forward === null)
+        throw new Error("test: brak przekierowania roli serwisowej");
+      return couponAdmin.forward(fn, args);
+    },
+  },
+}));
+
 const {
   applyEventTicketCoupon,
   priceEventTicket,
@@ -49,18 +73,20 @@ type Client = Parameters<typeof applyEventTicketCoupon>[0];
 let rpcCalls: { fn: string; args: Record<string, unknown> }[];
 let rpcResponses: Map<string, unknown>;
 
+/** Jedna tabela odpowiedzi dla klienta kupującego i roli serwisowej. */
+function recordedRpc(fn: string, args: Record<string, unknown> = {}): Promise<unknown> {
+  rpcCalls.push({ fn, args });
+  return Promise.resolve(rpcResponses.get(fn) ?? fail(`test: brak odpowiedzi RPC "${fn}"`));
+}
+
 function client(): Client {
-  const stub = {
-    rpc: (fn: string, args: Record<string, unknown> = {}) => {
-      rpcCalls.push({ fn, args });
-      return Promise.resolve(rpcResponses.get(fn) ?? fail(`test: brak odpowiedzi RPC "${fn}"`));
-    },
-  };
+  const stub = { rpc: recordedRpc };
   return stub as never;
 }
 
 function couponInput(over: Record<string, unknown> = {}) {
   return {
+    userId: USER_ID,
     code: "KOD",
     eventId: EVENT_ID,
     ticketTypeId: TICKET_ID,
@@ -76,6 +102,7 @@ beforeEach(() => {
   plan.calls = 0;
   rpcCalls = [];
   rpcResponses = new Map();
+  couponAdmin.forward = recordedRpc;
   rpcResponses.set(
     "event_ticket_checkout_quote",
     ok({
@@ -91,9 +118,29 @@ beforeEach(() => {
   rpcResponses.set("event_ticket_public_options", ok({ tax_mode: "exclusive" }));
 });
 
+describe("applyEventTicketCoupon - tożsamość sondy kodu (20261007120600)", () => {
+  it("kod idzie rolą serwisową z kontem z sesji, najemcą hosta i skrótem adresu", async () => {
+    rpcResponses.set("validate_event_ticket_coupon_for_user", ok(null));
+
+    await applyEventTicketCoupon(client(), couponInput());
+
+    const call = rpcCalls.find((c) => c.fn === "validate_event_ticket_coupon_for_user");
+    expect(call?.args).toMatchObject({
+      _tenant_id: "tenant-alfa",
+      _user_id: USER_ID,
+      _probe_subject: expect.stringMatching(/^ip:[0-9a-f]{32}$/),
+      _code: "KOD",
+      _event_id: EVENT_ID,
+      _ticket_type_id: TICKET_ID,
+    });
+    // Stara funkcja z JWT kupującego nie jest wołana, gdy nowa istnieje.
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_event_ticket_coupon");
+  });
+});
+
 describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () => {
   it("pusta odpowiedź (`null`) to odmowa `not_found`", async () => {
-    rpcResponses.set("validate_event_ticket_coupon", ok(null));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", ok(null));
 
     expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
       ok: false,
@@ -102,7 +149,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
   });
 
   it("odmowa bez powodu schodzi na `not_found`, a nie na pusty napis", async () => {
-    rpcResponses.set("validate_event_ticket_coupon", ok([{ ok: false, error: null }]));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", ok([{ ok: false, error: null }]));
 
     expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
       ok: false,
@@ -111,7 +158,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
   });
 
   it("BŁĄD walidacji kodu jest zgłaszany, a nie zamieniany na „kod nieważny”", async () => {
-    rpcResponses.set("validate_event_ticket_coupon", fail("permission denied"));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fail("permission denied"));
 
     await expect(applyEventTicketCoupon(client(), couponInput())).rejects.toMatchObject({
       message: "permission denied",
@@ -122,7 +169,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
     // Odmowa KODU (`ok:false`) kazałaby kasie zdjąć kod z pamięci i zapłacić
     // pełną cenę - limit prób to nie orzeczenie o kodzie.
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       fail("rate_limited: too many code attempts, try again later"),
     );
 
@@ -137,7 +184,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
 
   it("kod procentowy bez procentu w odpowiedzi nie udaje procentu", async () => {
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok([
         {
           ok: true,
@@ -163,7 +210,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
 
   it("nieznany rodzaj kodu jest liczony jak procent - bez rozbicia na miejsca", async () => {
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok([
         {
           ok: true,
@@ -186,7 +233,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
 
   it("kwota końcowa równa minimum przechodzi, o grosz niżej - odmowa", async () => {
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok([
         {
           ok: true,
@@ -201,7 +248,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
     expect((await applyEventTicketCoupon(client(), couponInput())).ok).toBe(true);
 
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok([
         {
           ok: true,
@@ -235,9 +282,9 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
   };
 
   it("kod kwotowy jako obiekt: to samo rozbicie na miejsca co przy wierszu", async () => {
-    rpcResponses.set("validate_event_ticket_coupon", ok(FIXED));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", ok(FIXED));
     const fromObject = await applyEventTicketCoupon(client(), couponInput());
-    rpcResponses.set("validate_event_ticket_coupon", ok([FIXED]));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", ok([FIXED]));
     const fromRow = await applyEventTicketCoupon(client(), couponInput());
 
     // Trzy miejsca po 100 zł, kod 20 zł zdejmuje się z KAŻDEGO miejsca.
@@ -255,7 +302,7 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
 
   it("kod procentowy jako obiekt: procent i kwoty z bazy, bez kwoty na miejsce", async () => {
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok({
         ...FIXED,
         discount_kind: "percent",
@@ -278,7 +325,7 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
 
   it("odmowa jako obiekt niesie powód z bazy; bez powodu schodzi na `not_found`", async () => {
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok({ ok: false, error: "expired", coupon_id: null, discount_cents: 0, final_cents: 0 }),
     );
     expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
@@ -286,7 +333,7 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
       error: "expired",
     });
 
-    rpcResponses.set("validate_event_ticket_coupon", ok({ ok: false, error: null }));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", ok({ ok: false, error: null }));
     expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
       ok: false,
       error: "not_found",
@@ -304,7 +351,10 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
     // transakcji. Przepuszczenie go dałoby bilet tańszy bez żadnego kodu.
     const verdict: Partial<typeof FIXED> = { ...FIXED };
     delete verdict[key];
-    rpcResponses.set("validate_event_ticket_coupon", ok(shape === "obiekt" ? verdict : [verdict]));
+    rpcResponses.set(
+      "validate_event_ticket_coupon_for_user",
+      ok(shape === "obiekt" ? verdict : [verdict]),
+    );
 
     expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
       ok: false,
@@ -314,9 +364,10 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
 
   it("podgląd: sukces bez `coupon_id` jako obiekt daje cenę bez rabatu i powód `not_found`", async () => {
     const { coupon_id: _missing, ...withoutCouponId } = FIXED;
-    rpcResponses.set("validate_event_ticket_coupon", ok(withoutCouponId));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", ok(withoutCouponId));
 
     const quote = await quoteEventTicketOrder(client(), {
+      userId: USER_ID,
       eventId: EVENT_ID,
       ticketTypeId: TICKET_ID,
       registrationId: null,
@@ -333,6 +384,7 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
 describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
   it("bez kodu: suma, waluta i brak kodu - bez pytania o kod i o grupę", async () => {
     const quote = await quoteEventTicketOrder(client(), {
+      userId: USER_ID,
       eventId: EVENT_ID,
       ticketTypeId: TICKET_ID,
       registrationId: null,
@@ -363,6 +415,7 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
     rpcResponses.set("event_ticket_public_options", ok(null));
 
     const quote = await quoteEventTicketOrder(client(), {
+      userId: USER_ID,
       eventId: EVENT_ID,
       ticketTypeId: TICKET_ID,
       registrationId: null,
@@ -373,6 +426,7 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
 
   it("kod z samych spacji jest brakiem kodu, a nie kodem `not_found`", async () => {
     const quote = await quoteEventTicketOrder(client(), {
+      userId: USER_ID,
       eventId: EVENT_ID,
       ticketTypeId: TICKET_ID,
       registrationId: null,
@@ -380,16 +434,17 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
     });
 
     expect(quote.couponError).toBeNull();
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_event_ticket_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_event_ticket_coupon_for_user");
   });
 
   it("kod odrzucony przez bazę: podgląd bez rabatu, z powodem odmowy kodu", async () => {
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok([{ ok: false, error: "expired", coupon_id: null, discount_cents: 0, final_cents: 0 }]),
     );
 
     const quote = await quoteEventTicketOrder(client(), {
+      userId: USER_ID,
       eventId: EVENT_ID,
       ticketTypeId: TICKET_ID,
       registrationId: null,
@@ -403,7 +458,7 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
 
   it("kod procentowy: rabat od sumy, procent w odpowiedzi, bez kwoty na miejsce", async () => {
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok([
         {
           ok: true,
@@ -417,6 +472,7 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
     );
 
     const quote = await quoteEventTicketOrder(client(), {
+      userId: USER_ID,
       eventId: EVENT_ID,
       ticketTypeId: TICKET_ID,
       registrationId: null,
@@ -462,6 +518,7 @@ describe("benefit planu - tylko na miejscu wołającego", () => {
   }
 
   const input = (over: Record<string, unknown> = {}) => ({
+    userId: USER_ID,
     eventId: EVENT_ID,
     ticketTypeId: TICKET_ID,
     registrationId: REGISTRATION_ID,
@@ -574,7 +631,7 @@ describe("benefit planu - tylko na miejscu wołającego", () => {
       couponError: null,
       planRedemption: true,
     });
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_event_ticket_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_event_ticket_coupon_for_user");
     expect(claimArgs()).toEqual([{ p_registration_id: REGISTRATION_ID, p_dry_run: true }]);
   });
 
@@ -712,7 +769,7 @@ describe("benefit planu - tylko na miejscu wołającego", () => {
       ok({ claimed: true, reused: false, dry_run: true }),
     );
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok([
         {
           ok: true,

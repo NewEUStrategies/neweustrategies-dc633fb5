@@ -18,17 +18,10 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
+import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 import { ticketCodeFrom } from "./ticketCode";
 import type { EventSeatState, MyEventTicket } from "./ticketTypes";
-
-/**
- * PostgREST nie zna funkcji albo Postgres jej nie ma - migracja
- * 20261002210000 jeszcze nie weszła. Tylko w tym oknie wdrożenia liczymy
- * dawną regułą (pula legacy), żeby kasa nie stanęła; każdy inny błąd odczytu
- * miejsc RZUCA - bramka sprzedaży nie może czytać awarii jako „bez limitu".
- */
-const MIGRATION_PENDING_CODES: ReadonlySet<string> = new Set(["PGRST202", "42883"]);
 
 function publicClient(): SupabaseClient {
   const key = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
@@ -103,7 +96,11 @@ async function legacySeatsFor(supabase: SupabaseClient, eventId: string): Promis
 async function seatsFor(supabase: SupabaseClient, eventId: string): Promise<EventSeatState> {
   const { data, error } = await supabase.rpc("event_seat_state", { p_event_id: eventId });
   if (error) {
-    if (MIGRATION_PENDING_CODES.has(String(error.code ?? ""))) {
+    // PostgREST nie zna funkcji albo Postgres jej nie ma - migracja
+    // 20261002210000 jeszcze nie weszła. Tylko w tym oknie wdrożenia liczymy
+    // dawną regułą (pula legacy), żeby kasa nie stanęła; każdy inny błąd odczytu
+    // miejsc RZUCA - bramka sprzedaży nie może czytać awarii jako „bez limitu".
+    if (isMigrationPending(error)) {
       return legacySeatsFor(supabase, eventId);
     }
     throw new Error(`seat_state_unavailable: ${error.message}`);

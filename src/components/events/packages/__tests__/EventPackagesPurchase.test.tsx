@@ -495,7 +495,6 @@ describe("EventPackagesPurchase - wycena i zamówienie", () => {
         packageId: "pkg-1",
         buyerName: "Acme sp. z o.o.",
         buyerEmail: "biuro@acme.example",
-        companyId: null,
         invoiceNote: "PO 2026/114",
         couponCode: "PARTNER2026",
       } satisfies PackagePurchaseInput,

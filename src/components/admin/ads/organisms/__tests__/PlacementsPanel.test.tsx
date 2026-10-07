@@ -29,7 +29,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { fail, ok, type SupabaseFromStub } from "@/test/supabaseChain";
 import { axeViolations, summarize } from "@/test/axe";
-import type { AdPlacement, AdSlot } from "@/lib/ads/types";
+import { AD_SLOT_PICKER_COLUMNS, type AdPlacement, type AdSlot } from "@/lib/ads/types";
 
 /** Ksztalt pytania, ktore panel zadaje przed usunieciem (patrz `@/lib/appDialogs`). */
 type ConfirmDialogOptions = {
@@ -191,6 +191,15 @@ describe("PlacementsPanel - lista", () => {
     await renderPanel([SLOT], []);
     expect(db().lastChain("ad_slots")?.argsOf("order")).toEqual(["name"]);
     expect(db().lastChain("ad_placements")?.argsOf("order")).toEqual(["sort_order"]);
+  });
+
+  it("lista slotow do wyboru czyta WASKA projekcje - bez tresci kreacji i bez `notes`", async () => {
+    // `ad_slots.notes` nie jest czytelne wprost (20261007120100), wiec
+    // `select("*")` padaloby na odmowie uprawnien; wybor slotu potrzebuje
+    // tylko nazwy.
+    await renderPanel([SLOT], []);
+    expect(db().lastChain("ad_slots")?.argsOf("select")).toEqual([AD_SLOT_PICKER_COLUMNS]);
+    expect(AD_SLOT_PICKER_COLUMNS).not.toMatch(/\bnotes\b/);
   });
 
   it("wiersz laczy pozycje z NAZWA slotu, a nie z jego identyfikatorem", async () => {

@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { fail, ok, okCount, type RecordedChain, type SupabaseFromStub } from "@/test/supabaseChain";
 import { axeViolations, summarize } from "@/test/axe";
-import type { AdSlot } from "@/lib/ads/types";
+import { AD_SLOT_PICKER_COLUMNS, type AdSlot } from "@/lib/ads/types";
 
 const h = vi.hoisted(() => ({ from: null as unknown }));
 
@@ -114,6 +114,9 @@ describe("StatsPanel - stany tabeli", () => {
     render(<StatsPanel />);
     await screen.findByText("Baner glowny");
     expect(db().lastChain("ad_slots")?.argsOf("order")).toEqual(["name"]);
+    // Raport potrzebuje nazwy, nie notatek operatora - `notes` nie jest
+    // czytelne wprost (20261007120100), a `select("*")` padaloby na odmowie.
+    expect(db().lastChain("ad_slots")?.argsOf("select")).toEqual([AD_SLOT_PICKER_COLUMNS]);
   });
 
   it("ODMOWA odczytu slotow konczy sie pusta tabela, a nie wieczna ladowarka", async () => {

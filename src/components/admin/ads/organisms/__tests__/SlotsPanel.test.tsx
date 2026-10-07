@@ -25,6 +25,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, type SupabaseFromStub } from "@/test/supabaseChain";
+import type { SupabaseRpcStub } from "@/test/supabase/rpc";
 import { axeViolations, summarize } from "@/test/axe";
 import type { AdSlot } from "@/lib/ads/types";
 
@@ -38,6 +39,7 @@ type ConfirmDialogOptions = {
 
 const h = vi.hoisted(() => ({
   from: null as unknown,
+  rpc: null as unknown,
   rt: null as unknown,
   // Sygnatura z argumentem, bo test asertuje TRESC pytania (tytul, wariant
   // destrukcyjny) - `vi.fn<() => ...>` dawal krotke zerowej dlugosci.
@@ -55,14 +57,18 @@ vi.mock("@/lib/adminToasts", () => ({
 
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
+  const { supabaseRpcStub } = await import("@/test/supabase/rpc");
   const { realtimeStub } = await import("@/test/supabase/realtime");
   const from = supabaseFromStub();
+  const rpc = supabaseRpcStub();
   const rt = realtimeStub();
   h.from = from;
+  h.rpc = rpc;
   h.rt = rt;
   return {
     supabase: {
       from: from.from,
+      rpc: rpc.rpc,
       channel: rt.channel.bind(rt),
       removeChannel: rt.removeChannel.bind(rt),
     },
@@ -82,6 +88,13 @@ vi.mock("@/components/ui/switch", async () =>
 import { SlotsPanel } from "../SlotsPanel";
 
 const db = () => h.from as SupabaseFromStub;
+const rpc = () => h.rpc as SupabaseRpcStub;
+
+/** Funkcja redakcji z pełnymi wierszami slotów (migracja 20261007120100). */
+const LIST_RPC = "admin_list_ad_slots";
+
+/** Ile razy panel przeczytał listę slotów. */
+const listReads = () => rpc().callsFor(LIST_RPC).length;
 
 const SLOT_A: AdSlot = {
   id: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
@@ -127,10 +140,11 @@ function withCatalog(): void {
 }
 
 async function renderPanel(slots: AdSlot[]) {
-  db().setResponse("ad_slots", ok(slots));
+  rpc().setData(LIST_RPC, slots);
+  db().setResponse("ad_slots", ok(null));
   withCatalog();
   const utils = renderWithQueryClient(<SlotsPanel />);
-  await waitFor(() => expect(db().chainsFor("ad_slots").length).toBeGreaterThan(0));
+  await waitFor(() => expect(listReads()).toBeGreaterThan(0));
   return utils;
 }
 
@@ -141,6 +155,7 @@ function selectKind(): HTMLSelectElement {
 
 beforeEach(() => {
   db().reset();
+  rpc().reset();
   (h.rt as { reset(): void }).reset();
   h.confirm.mockReset();
   h.toastSuccess.mockReset();
@@ -153,10 +168,29 @@ describe("SlotsPanel - lista", () => {
     expect(await screen.findByText("adsAdmin.slots.empty")).toBeInTheDocument();
   });
 
-  it("odczyt listy idzie po `ad_slots` i sortuje od najnowszych", async () => {
-    // Kolejnosc nie jest kosmetyka: redaktor po zapisie szuka swojego wiersza
-    // na gorze. Odwrocenie sortu chowa nowa kreacje na koncu dlugiej listy.
+  it('odczyt listy idzie przez funkcje redakcji, NIE przez `select("*")` na tabeli', async () => {
+    // `ad_slots.notes` (notatki operatora) nie jest czytelne wprost nawet dla
+    // zalogowanych (20261007120100), wiec `select("*")` konczy sie odmowa
+    // uprawnien takze redakcji. Pelne wiersze daje `admin_list_ad_slots()`,
+    // ktora sortuje od najnowszych (ORDER BY created_at DESC - pgTAP
+    // `ad_slots_private_notes_test.sql`).
     await renderPanel([]);
+    expect(rpc().lastCall(LIST_RPC)?.keys()).toEqual([]);
+    expect(
+      db()
+        .chainsFor("ad_slots")
+        .some((c) => c.has("select")),
+    ).toBe(false);
+  });
+
+  it("OKNO WDROZENIA: bez funkcji w bazie (PGRST202) panel czyta tabele jak dawniej", async () => {
+    // Kod wychodzi przed migracja; do jej wejscia tabela ma jeszcze SELECT
+    // tabelowy, wiec stara sciezka dziala - i tylko w tym jednym przypadku.
+    rpc().setError(LIST_RPC, "Could not find the function public.admin_list_ad_slots", "PGRST202");
+    db().setResponse("ad_slots", ok([SLOT_A]));
+    withCatalog();
+    renderWithQueryClient(<SlotsPanel />);
+    expect(await screen.findByText("Baner glowny")).toBeInTheDocument();
     const chain = db().lastChain("ad_slots");
     expect(chain?.argsOf("select")).toEqual(["*"]);
     expect(chain?.argsOf("order")).toEqual(["created_at", { ascending: false }]);
@@ -189,12 +223,16 @@ describe("SlotsPanel - lista", () => {
   it("BLAD odczytu listy konczy sie komunikatem, nie cicha pusta tabela", async () => {
     // Pusta tabela po odmowie RLS mowi „nie masz zadnych slotow" - redaktor
     // zaklada wtedy drugi slot o tej samej nazwie zamiast szukac przyczyny.
-    db().setResponse("ad_slots", fail("permission denied for table ad_slots", "42501"));
+    rpc().setError(LIST_RPC, "forbidden: ad slots are managed by admins and editors", "42501");
     withCatalog();
     renderWithQueryClient(<SlotsPanel />);
     await waitFor(() =>
-      expect(h.toastError).toHaveBeenCalledWith("permission denied for table ad_slots"),
+      expect(h.toastError).toHaveBeenCalledWith(
+        "forbidden: ad slots are managed by admins and editors",
+      ),
     );
+    // Odmowa uprawnien to NIE okno wdrozenia - bez cichego powrotu do tabeli.
+    expect(db().chainsFor("ad_slots").length).toBe(0);
   });
 });
 
@@ -256,18 +294,12 @@ describe("SlotsPanel - zapis", () => {
     // Bez ponownego odczytu nowy slot nie pojawia sie w tabeli, wiec redaktor
     // klika „Dodaj" jeszcze raz i robi duplikat.
     await renderPanel([]);
-    const przed = db().chainsFor("ad_slots").length;
+    const przed = listReads();
     fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldName"), {
       target: { value: "Kreacja partnera" },
     });
     fireEvent.click(screen.getByRole("button", { name: /adsAdmin\.slots\.addAction/ }));
-    await waitFor(() =>
-      expect(
-        db()
-          .chainsFor("ad_slots")
-          .filter((c) => c.has("select")).length,
-      ).toBeGreaterThan(przed - 1),
-    );
+    await waitFor(() => expect(listReads()).toBeGreaterThan(przed));
   });
 
   it("ODMOWA bazy zostawia wpisane dane i pokazuje komunikat", async () => {
@@ -424,10 +456,11 @@ describe("SlotsPanel - usuwanie", () => {
 
   it("ODMOWA usuniecia (np. przypieta pozycja) konczy sie komunikatem", async () => {
     h.confirm.mockResolvedValue(true);
+    rpc().setData(LIST_RPC, [SLOT_A]);
     db().setResponse("ad_slots", (chain) =>
       chain.has("delete")
         ? fail('update or delete on table "ad_slots" violates foreign key constraint', "23503")
-        : ok([SLOT_A]),
+        : ok(null),
     );
     withCatalog();
     renderWithQueryClient(<SlotsPanel />);
@@ -692,7 +725,7 @@ describe("SlotsPanel - braki i18n (naprawione)", () => {
 
   it("komunikat o pustej liscie pochodzi ze slownika", async () => {
     await renderPanel([]);
-    await waitFor(() => expect(db().chainsFor("ad_slots").length).toBeGreaterThan(0));
+    await waitFor(() => expect(listReads()).toBeGreaterThan(0));
     expect(screen.queryByText("Brak slotów. Dodaj pierwszy poniżej.")).toBeNull();
   });
 
@@ -701,7 +734,7 @@ describe("SlotsPanel - braki i18n (naprawione)", () => {
     // „URL grafiki", „Skrypt (np. AdSense)" - piec literalow w jednym
     // formularzu. JEST: klucze `adsAdmin.slots.*` w PL i EN.
     await renderPanel([]);
-    await waitFor(() => expect(db().chainsFor("ad_slots").length).toBeGreaterThan(0));
+    await waitFor(() => expect(listReads()).toBeGreaterThan(0));
     expect(screen.queryByText("Typ")).toBeNull();
     expect(screen.queryByText("Aktywny")).toBeNull();
     expect(screen.queryByText("Wymaga zgody marketingowej (RODO)")).toBeNull();

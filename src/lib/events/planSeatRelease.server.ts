@@ -15,9 +15,7 @@
 // nie może zaczerwienić przebiegu crona.
 //
 // Moduł server-only (klient service_role).
-
-/** PostgREST nie zna funkcji albo Postgres jej nie ma - migracja jeszcze nie weszła. */
-const MIGRATION_PENDING_CODES: ReadonlySet<string> = new Set(["PGRST202", "42883"]);
+import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 export interface PlanSeatReleaseResult {
   /** Bilety zwrócone do puli w tym przebiegu. */
@@ -35,8 +33,7 @@ export async function runPlanSeatRelease(limit = 500): Promise<PlanSeatReleaseRe
     p_limit: limit,
   });
   if (error) {
-    if (MIGRATION_PENDING_CODES.has(error.code))
-      return { released: 0, skipped: "migration_pending" };
+    if (isMigrationPending(error)) return { released: 0, skipped: "migration_pending" };
     throw new Error(error.message);
   }
   return { released: typeof data === "number" ? data : 0 };

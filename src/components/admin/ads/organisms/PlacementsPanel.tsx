@@ -25,21 +25,22 @@ import {
   AD_POSITION_LABEL_KEYS,
   type AdPageType,
   type AdPlacement,
+  AD_SLOT_PICKER_COLUMNS,
   type AdPosition,
-  type AdSlot,
+  type AdSlotPickerRow,
 } from "@/lib/ads/types";
 import { emptyPlacement } from "../model";
 
 export function PlacementsPanel() {
   const { t } = useTranslation();
-  const [slots, setSlots] = useState<AdSlot[]>([]);
+  const [slots, setSlots] = useState<AdSlotPickerRow[]>([]);
   const [placements, setPlacements] = useState<AdPlacement[]>([]);
   const [draft, setDraft] = useState<Partial<AdPlacement>>(emptyPlacement());
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     const [slotsRes, placementsRes] = await Promise.all([
-      supabase.from("ad_slots").select("*").order("name"),
+      supabase.from("ad_slots").select(AD_SLOT_PICKER_COLUMNS).order("name"),
       supabase.from("ad_placements").select("*").order("sort_order"),
     ]);
     // Odmowa RLS i awaria sieci daly wczesniej DOKLADNIE ten sam widok, co
@@ -48,7 +49,7 @@ export function PlacementsPanel() {
     // zawsze; ten robi to teraz tak samo.
     const error = slotsRes.error ?? placementsRes.error;
     if (error) toast.error(error.message);
-    setSlots((slotsRes.data as AdSlot[]) ?? []);
+    setSlots((slotsRes.data as AdSlotPickerRow[] | null) ?? []);
     setPlacements((placementsRes.data as AdPlacement[]) ?? []);
   };
   useEffect(() => {

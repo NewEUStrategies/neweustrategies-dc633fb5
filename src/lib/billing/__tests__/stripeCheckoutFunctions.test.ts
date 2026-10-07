@@ -71,8 +71,25 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
 }));
 
+// Kod rabatowy i rezerwacja jego użycia idą rolą serwisową z jawnym najemcą
+// i kontem (`couponRpc.server.ts`, migracja 20261007120200). Atrapa kieruje
+// wywołania `*_for_user` do TEJ SAMEJ tabeli odpowiedzi co klient kupującego.
+const couponAdmin = vi.hoisted(() => ({
+  forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+}));
+
+vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/tenant.server")>()),
+  resolveTenantIdForHost: async () => "tenant-alfa",
+}));
+
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { rpc: () => Promise.resolve({ data: true, error: null }) },
+  supabaseAdmin: {
+    rpc: (fn: string, args: Record<string, unknown>) =>
+      couponAdmin.forward !== null && fn.endsWith("_for_user")
+        ? couponAdmin.forward(fn, args)
+        : Promise.resolve({ data: true, error: null }),
+  },
 }));
 
 vi.mock("@/lib/stripe.server", async (importOriginal) => {
@@ -285,6 +302,7 @@ beforeEach(() => {
   chain = supabaseFromStub();
   rpcCalls = [];
   rpcResponses = new Map<string, SupabaseResult>();
+  couponAdmin.forward = (fn, args) => client().rpc(fn, args);
 
   // Host wdrożenia testowego MUSI być zadeklarowany, odkąd `resolveReturnUrl`
   // przechodzi przez bramkę dozwolonych hostów (`lib/billing/returnUrl.server`).
@@ -313,8 +331,8 @@ beforeEach(() => {
   );
   chain.setResponse("posts", ok({ title_pl: "Analiza CEE", title_en: "CEE analysis" }));
   chain.setResponse("events", ok(null));
-  rpcResponses.set("validate_b2b_coupon", ok([couponOk()]));
-  rpcResponses.set("redeem_b2b_coupon", ok(true));
+  rpcResponses.set("validate_b2b_coupon_for_user", ok([couponOk()]));
+  rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
   rpcResponses.set("release_b2b_coupon", ok(true));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
@@ -371,8 +389,8 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
   it("bez kodu kuponu nie ma walidacji, rezerwacji ani rabatu u operatora", async () => {
     await planCall();
 
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_b2b_coupon");
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_b2b_coupon_for_user");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
     expect(stripeCall("coupons.create")).toBeUndefined();
     expect(orderMetadata()).toEqual({});
   });
@@ -380,7 +398,12 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
   it("kod jest normalizowany i walidowany W BAZIE kwotą i walutą planu", async () => {
     await planCall({ couponCode: "partner-cee" });
 
-    expect(rpcArgs("validate_b2b_coupon")).toEqual({
+    // Rola serwisowa z jawnym najemcą, kontem i solonym skrótem adresu
+    // (20261007120200) - surowy adres nie trafia do bazy.
+    expect(rpcArgs("validate_b2b_coupon_for_user")).toEqual({
+      _tenant_id: "tenant-alfa",
+      _user_id: "user-kupujacy",
+      _probe_subject: expect.stringMatching(/^ip:[0-9a-f]{32}$/),
       _code: "PARTNER-CEE",
       _plan_id: PLAN_ID,
       _amount_cents: 4900,
@@ -395,7 +418,7 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
     ["inna waluta", "currency_mismatch"],
     ["nieznany albo cudzego najemcy", "not_found"],
   ])("kupon %s: sesja NIE powstaje, zamówienie NIE powstaje", async (_opis, reason) => {
-    rpcResponses.set("validate_b2b_coupon", ok([couponRefused(reason)]));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok([couponRefused(reason)]));
 
     const result = await planCall({ couponCode: "PARTNER-CEE" });
 
@@ -405,7 +428,7 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
   });
 
   it("pusta odpowiedź bazy (cudzy najemca) daje `not_found`, a nie zamówienie bez rabatu", async () => {
-    rpcResponses.set("validate_b2b_coupon", ok([]));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok([]));
 
     const result = await planCall({ couponCode: "PARTNER-CEE" });
 
@@ -415,7 +438,7 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
   it("odpowiedź `null` zamiast wierszy jest odmową, nie przepustką", async () => {
     // Awaria kształtu odpowiedzi RPC nie może się skończyć zamówieniem bez
     // rabatu ani sesją z kuponem, którego baza nie potwierdziła.
-    rpcResponses.set("validate_b2b_coupon", ok(null));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok(null));
 
     const result = await planCall({ couponCode: "PARTNER-CEE" });
 
@@ -424,7 +447,7 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
   });
 
   it("odmowa bez powodu schodzi na `not_found`", async () => {
-    rpcResponses.set("validate_b2b_coupon", ok([{ ...couponRefused(""), error: null }]));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok([{ ...couponRefused(""), error: null }]));
 
     const result = await planCall({ couponCode: "PARTNER-CEE" });
 
@@ -432,7 +455,7 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
   });
 
   it("BŁĄD walidacji kuponu jest zgłaszany", async () => {
-    rpcResponses.set("validate_b2b_coupon", fail("function does not exist"));
+    rpcResponses.set("validate_b2b_coupon_for_user", fail("function does not exist"));
 
     await expect(planCall({ couponCode: "PARTNER-CEE" })).rejects.toThrow(
       "function does not exist",
@@ -441,7 +464,7 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
 
   it("limit prób kodów z bazy wraca WŁASNYM powodem, nie wyjątkiem „płatności nieskonfigurowane”", async () => {
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       fail("rate_limited: too many code attempts, try again later"),
     );
 
@@ -466,14 +489,14 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
     // Kupon bez rabatu kwotowego (np. nadający wyłącznie warstwę członkostwa)
     // nadal zużywa limit - inaczej dałoby się go użyć bez ograniczeń.
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       ok([couponOk({ discount_cents: 0, final_cents: 4900 })]),
     );
 
     await planCall({ couponCode: "PARTNER-CEE" });
 
     expect(stripeCall("coupons.create")).toBeUndefined();
-    expect(rpcArgs("redeem_b2b_coupon")).toBeDefined();
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toBeDefined();
   });
 
   it("odpowiedź operatora bez identyfikatora kuponu nie wywraca sesji", async () => {
@@ -486,7 +509,7 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
   });
 
   it("PRZEGRANY WYŚCIG o ostatnie użycie unieważnia założone zamówienie", async () => {
-    rpcResponses.set("redeem_b2b_coupon", ok(false));
+    rpcResponses.set("redeem_b2b_coupon_for_user", ok(false));
 
     const result = await planCall({ couponCode: "PARTNER-CEE" });
 
@@ -499,7 +522,7 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
   });
 
   it("BŁĄD rezerwacji jest traktowany jak przegrany wyścig", async () => {
-    rpcResponses.set("redeem_b2b_coupon", fail("could not obtain lock"));
+    rpcResponses.set("redeem_b2b_coupon_for_user", fail("could not obtain lock"));
 
     const result = await planCall({ couponCode: "PARTNER-CEE" });
 
@@ -513,7 +536,7 @@ describe("createPlanCheckoutSession - werdykt jako JEDEN obiekt jsonb (od 202610
   // dawny `[wiersz]` - inaczej po wdrożeniu migracji ważny kupon dawałby tu
   // `not_found`, a w drugim silniku rabat.
   it("ważny kupon jako obiekt: rabat u operatora, rezerwacja i audyt jak przy wierszu", async () => {
-    rpcResponses.set("validate_b2b_coupon", ok(couponOk()));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok(couponOk()));
 
     const result = await planCall({ couponCode: "PARTNER-CEE" });
 
@@ -524,7 +547,7 @@ describe("createPlanCheckoutSession - werdykt jako JEDEN obiekt jsonb (od 202610
       duration: "once",
     });
     expect(lastSession()?.discounts).toEqual([{ coupon: "coupon_1" }]);
-    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({
       _coupon_id: COUPON_ID,
       _applied_cents: 1000,
       _original_cents: 4900,
@@ -538,7 +561,7 @@ describe("createPlanCheckoutSession - werdykt jako JEDEN obiekt jsonb (od 202610
   });
 
   it("odmowa jako obiekt: sesja i zamówienie NIE powstają, powód z bazy", async () => {
-    rpcResponses.set("validate_b2b_coupon", ok(couponRefused("expired")));
+    rpcResponses.set("validate_b2b_coupon_for_user", ok(couponRefused("expired")));
 
     const result = await planCall({ couponCode: "PARTNER-CEE" });
 
@@ -559,14 +582,17 @@ describe("createPlanCheckoutSession - werdykt jako JEDEN obiekt jsonb (od 202610
       // kwoty końcowej werdykt nie jest pełny. Przepuszczenie go dałoby rabat
       // u operatora, którego baza nie przypisała do żadnego kuponu.
       const verdict = couponOkWithout(key);
-      rpcResponses.set("validate_b2b_coupon", ok(shape === "obiekt" ? verdict : [verdict]));
+      rpcResponses.set(
+        "validate_b2b_coupon_for_user",
+        ok(shape === "obiekt" ? verdict : [verdict]),
+      );
 
       const result = await planCall({ couponCode: "PARTNER-CEE" });
 
       expect(result).toEqual({ ok: false, error: "not_found" });
       expect(chain.chainsFor("payment_orders")).toHaveLength(0);
       expect(stripeCall("coupons.create")).toBeUndefined();
-      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
     },
   );
 });
@@ -800,7 +826,7 @@ describe("createPlanCheckoutSession - audyt kuponu", () => {
   it("rezerwacja zapisuje RABAT policzony przez bazę, nie zero", async () => {
     await planCall({ couponCode: "PARTNER-CEE" });
 
-    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({
       _coupon_id: COUPON_ID,
       _original_cents: 4900,
       _applied_cents: 1000,
@@ -812,13 +838,13 @@ describe("createPlanCheckoutSession - audyt kuponu", () => {
     // gdy baza faktycznie policzyła zerowy rabat (kupon nadający wyłącznie
     // warstwę członkostwa). Niezmiennik kolumny zostaje spełniony.
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       ok([couponOk({ discount_cents: 0, final_cents: 4900 })]),
     );
 
     await planCall({ couponCode: "PARTNER-CEE" });
 
-    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({
       _applied_cents: 0,
       _original_cents: 4900,
     });
@@ -865,7 +891,7 @@ describe("createPlanCheckoutSession - audyt kuponu", () => {
     // `final_cents` dałoby historię płatności, w której rabat odejmuje się
     // dwa razy.
     rpcResponses.set(
-      "validate_b2b_coupon",
+      "validate_b2b_coupon_for_user",
       ok([couponOk({ discount_cents: 2500, final_cents: 2400 })]),
     );
 

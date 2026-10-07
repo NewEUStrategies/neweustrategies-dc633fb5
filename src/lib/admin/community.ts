@@ -172,10 +172,11 @@ export async function softDeleteMessage(messageId: string): Promise<void> {
   if (error) throw error;
 }
 
+// Zadanie crona (EXECUTE tylko `service_role`) - przez funkcję serwerową za
+// `requireAdmin`; klient przeglądarki dostawał 42501 przy każdym kliknięciu.
 export async function purgeExpiredMessages(): Promise<number> {
-  const { data, error } = await supabase.rpc("chat_purge_expired_messages");
-  if (error) throw error;
-  return typeof data === "number" ? data : 0;
+  const { purgeExpiredMessagesNow } = await import("@/lib/admin/communityJobs.functions");
+  return purgeExpiredMessagesNow();
 }
 
 // ------- Events --------
@@ -293,10 +294,11 @@ export async function createEvent(input: {
   return row;
 }
 
+// Zadanie crona (EXECUTE tylko `service_role`) - przez funkcję serwerową za
+// `requireAdmin`; klient przeglądarki dostawał 42501 przy każdym kliknięciu.
 export async function runEventReminders(): Promise<number> {
-  const { data, error } = await supabase.rpc("run_event_reminders");
-  if (error) throw error;
-  return typeof data === "number" ? data : 0;
+  const { runEventRemindersNow } = await import("@/lib/admin/communityJobs.functions");
+  return runEventRemindersNow();
 }
 
 // ------- Prelegenci wydarzen + profile prelegentow --------

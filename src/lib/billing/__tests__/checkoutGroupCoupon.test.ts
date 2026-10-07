@@ -58,8 +58,25 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
 }));
 
+// Kod rabatowy i rezerwacja jego użycia idą rolą serwisową z jawnym najemcą
+// i kontem (`couponRpc.server.ts`, migracja 20261007120200). Atrapa kieruje
+// wywołania `*_for_user` do TEJ SAMEJ tabeli odpowiedzi co klient kupującego.
+const couponAdmin = vi.hoisted(() => ({
+  forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+}));
+
+vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/tenant.server")>()),
+  resolveTenantIdForHost: async () => "tenant-alfa",
+}));
+
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { rpc: () => Promise.resolve({ data: true, error: null }) },
+  supabaseAdmin: {
+    rpc: (fn: string, args: Record<string, unknown>) =>
+      couponAdmin.forward !== null && fn.endsWith("_for_user")
+        ? couponAdmin.forward(fn, args)
+        : Promise.resolve({ data: true, error: null }),
+  },
 }));
 
 vi.mock("@/lib/stripe.server", async (importOriginal) => {
@@ -257,6 +274,7 @@ beforeEach(() => {
   chain = supabaseFromStub();
   rpcCalls = [];
   rpcResponses = new Map();
+  couponAdmin.forward = (fn, args) => client().rpc(fn, args);
 
   vi.stubEnv("BILLING_RETURN_HOSTS", "kasa.example.org");
   vi.stubEnv("LOVABLE_API_KEY", "klucz-testowy-bramki");
@@ -288,8 +306,8 @@ beforeEach(() => {
   rpcResponses.set("my_ticket_allowance", ok(null));
   rpcResponses.set("event_ticket_public_options", ok({ tax_mode: "inclusive" }));
   rpcResponses.set("event_registration_group_seats", ok(3));
-  rpcResponses.set("validate_event_ticket_coupon", fixedCode(2000));
-  rpcResponses.set("redeem_b2b_coupon", ok(true));
+  rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(2000));
+  rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
 
@@ -304,7 +322,7 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
 
     expect(result).toMatchObject({ ok: true, mode: "stripe", clientSecret: "cs_grupa_secret" });
     // Baza dostaje SUMĘ za miejsca - rozbicie na miejsca robi kasa.
-    expect(rpcArgs("validate_event_ticket_coupon")).toMatchObject({
+    expect(rpcArgs("validate_event_ticket_coupon_for_user")).toMatchObject({
       _code: "MINUS20",
       _amount_cents: 30000,
       _ticket_type_id: TICKET_ID,
@@ -319,7 +337,7 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
       coupon_discount_per_seat_cents: 2000,
       original_amount_cents: 30000,
     });
-    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({
       _coupon_id: COUPON_ID,
       _order_id: "order-grupa",
       _applied_cents: 6000,
@@ -366,7 +384,7 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
   });
 
   it("kod procentowy 10% na 3 × 100 zł: 270 zł, bez kwoty na miejsce w metadanych", async () => {
-    rpcResponses.set("validate_event_ticket_coupon", percentCode(10));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", percentCode(10));
 
     await call({ coupon_code: "PROC10" });
 
@@ -383,18 +401,18 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
   });
 
   it("kod 150 zł przy cenie miejsca 100 zł schodzi najwyżej do ceny: 0 zł to odmowa, bez zamówienia", async () => {
-    rpcResponses.set("validate_event_ticket_coupon", fixedCode(15000));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(15000));
 
     const result = await call({ coupon_code: "WIELKI" });
 
     expect(result).toEqual({ ok: false, mode: "coupon", error: "final_amount_too_low" });
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
   });
 
   it("odmowa kodu przez bazę wraca z POWODEM bazy i nie zakłada zamówienia", async () => {
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok([{ ok: false, error: "ticket_not_eligible", coupon_id: COUPON_ID }]),
     );
 
@@ -411,7 +429,7 @@ describe("createCheckoutOrder - werdykt kodu jako JEDEN obiekt jsonb (od 2026100
   // inaczej po wdrożeniu migracji kod -20 zł dawałby odmowę `not_found` albo
   // zamówienie w pełnej cenie mimo kodu przyjętego przez bazę.
   it("kod -20 zł jako obiekt na 3 × 100 zł: 240 zł, audyt i rezerwacja 60 zł", async () => {
-    rpcResponses.set("validate_event_ticket_coupon", asJsonbObject(fixedCode(2000)));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", asJsonbObject(fixedCode(2000)));
 
     const result = await call({ coupon_code: "minus20" });
 
@@ -423,7 +441,7 @@ describe("createCheckoutOrder - werdykt kodu jako JEDEN obiekt jsonb (od 2026100
       coupon_discount_per_seat_cents: 2000,
       original_amount_cents: 30000,
     });
-    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({
       _coupon_id: COUPON_ID,
       _applied_cents: 6000,
       _original_cents: 30000,
@@ -433,7 +451,7 @@ describe("createCheckoutOrder - werdykt kodu jako JEDEN obiekt jsonb (od 2026100
 
   it("odmowa jako obiekt wraca z POWODEM bazy i nie zakłada zamówienia", async () => {
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok({ ok: false, error: "ticket_not_eligible", coupon_id: COUPON_ID }),
     );
 
@@ -449,13 +467,16 @@ describe("createCheckoutOrder - werdykt kodu jako JEDEN obiekt jsonb (od 2026100
       // `ok: true` bez kuponu nie wskazuje, czyje użycie zarezerwować, a bez
       // kwoty końcowej nie ma od czego liczyć minimum transakcji. Kasa, która
       // by go przepuściła, sprzedałaby bilet taniej bez żadnego kodu.
-      rpcResponses.set("validate_event_ticket_coupon", asJsonbObject(fixedCode(2000), key));
+      rpcResponses.set(
+        "validate_event_ticket_coupon_for_user",
+        asJsonbObject(fixedCode(2000), key),
+      );
 
       const result = await call({ coupon_code: "minus20" });
 
       expect(result).toEqual({ ok: false, mode: "coupon", error: "not_found" });
       expect(chain.chainsFor("payment_orders")).toHaveLength(0);
-      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
       expect(stripeCoupons()).toEqual([]);
     },
   );
@@ -528,7 +549,7 @@ describe("createCheckoutOrder - benefit planu tylko na miejscu członka", () => 
   it("bilet z puli i kod -80 zł: kod schodzi z gości, miejsce prowadzącego już jest za zero", async () => {
     rpcResponses.set("my_ticket_allowance", ok({ granted: 1, used: 0 }));
     rpcResponses.set("event_registration_claim_plan_seat", ok({ claimed: true, reused: true }));
-    rpcResponses.set("validate_event_ticket_coupon", fixedCode(8000));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(8000));
 
     await call({ coupon_code: "MINUS80" });
 
@@ -614,7 +635,7 @@ describe("createCheckoutOrder - benefit planu w pozycji Stripe i w walucie zamó
 
   it("waluta prezentacji EUR bez benefitu i z kodem procentowym: nic do przeliczenia na miejscu", async () => {
     stubNbpRate(4);
-    rpcResponses.set("validate_event_ticket_coupon", percentCode(10));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", percentCode(10));
 
     await call({ coupon_code: "PROC10", display_currency: "EUR" });
 
@@ -647,8 +668,8 @@ describe("createCheckoutOrder - liczba miejsc jest fail-closed", () => {
       "registration_not_payable:seats_unavailable",
     );
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_event_ticket_coupon");
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("validate_event_ticket_coupon_for_user");
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
     expect(logged.mock.calls.some((args) => String(args[0]).includes("group seats failed"))).toBe(
       true,
     );
@@ -717,7 +738,7 @@ describe("createCheckoutOrder - pozycja w Stripe i pole kodu operatora", () => {
       "event_ticket_checkout_quote",
       ok(quote({ amount_cents: 1003, list_price_cents: 1003 })),
     );
-    rpcResponses.set("validate_event_ticket_coupon", percentCode(25));
+    rpcResponses.set("validate_event_ticket_coupon_for_user", percentCode(25));
     h.state.couponError = new Error("coupon api down");
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -814,7 +835,7 @@ describe("createCheckoutOrder - kod na bilet z wiersza wydarzenia (bez cennika)"
 
     await call({ ticket_type_id: undefined, registration_id: undefined, coupon_code: "MINUS20" });
 
-    expect(rpcArgs("validate_event_ticket_coupon")).toMatchObject({
+    expect(rpcArgs("validate_event_ticket_coupon_for_user")).toMatchObject({
       _ticket_type_id: "00000000-0000-0000-0000-000000000000",
       _amount_cents: 15000,
     });

@@ -21,6 +21,9 @@ const h = vi.hoisted(() => ({
   probeHeaders: [] as unknown[],
   probeUsers: [] as (string | null)[],
   rpc: vi.fn(),
+  // Rola serwisowa (`couponRpc.server.ts`): domyślnie oddaje odpowiedź tej
+  // samej atrapy co klient kupującego, żeby werdykty testów grały w obu.
+  adminRpc: vi.fn(),
   request: new Request("https://nes.example/_serverFn", {
     headers: { "cf-connecting-ip": "192.0.2.7" },
   }),
@@ -38,6 +41,12 @@ vi.mock("@tanstack/react-start/server", () => ({
 vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
 }));
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: { rpc: (...args: unknown[]) => h.adminRpc(...args) },
+}));
+vi.mock("@/lib/server/tenant.server", () => ({
+  resolveTenantIdForHost: async () => "aaaaaaaa-0000-4000-8000-00000000000a",
+}));
 vi.mock("@/lib/events/codeProbeLimit.server", () => ({
   allowCodeProbe: async (headers: unknown, resolveUserId: () => Promise<string | null>) => {
     h.probeHeaders.push(headers);
@@ -52,6 +61,7 @@ import { previewPlanCoupon } from "@/lib/billing/couponPreview.functions";
 const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 const PLAN = "cccccccc-0000-4000-8000-00000000000c";
 const USER = "dddddddd-0000-4000-8000-00000000000d";
+const TENANT = "aaaaaaaa-0000-4000-8000-00000000000a";
 
 type Client = Parameters<typeof previewPlanCouponForUser>[0];
 // Atrapa ma tylko `rpc` - jedyna metoda, ktorej podglad uzywa.
@@ -78,6 +88,8 @@ beforeEach(() => {
   h.probeHeaders = [];
   h.probeUsers = [];
   h.rpc.mockReset();
+  h.adminRpc.mockReset();
+  h.adminRpc.mockImplementation((...args: unknown[]) => h.rpc(...args));
   h.rpc.mockResolvedValue({
     data: [
       {
@@ -105,14 +117,47 @@ describe("previewPlanCouponForUser", () => {
     expect(h.probeUsers).toEqual([USER]);
   });
 
-  it("woła RPC klientem kupującego z kodem po normalizacji", async () => {
+  it("woła funkcję serwerową z najemcą hosta, kontem sesji i SOLONYM skrótem adresu", async () => {
+    // Od 20261007120200 `validate_b2b_coupon` nie jest wykonywalne dla
+    // `authenticated` - zalogowany wołający PostgREST wprost omijał kubełek
+    // adresu (N-13-1). Adres idzie do bazy wyłącznie jako skrót z solą.
     await previewPlanCouponForUser(supabase, USER, input());
-    expect(h.rpc).toHaveBeenCalledWith("validate_b2b_coupon", {
+    expect(h.adminRpc).toHaveBeenCalledWith("validate_b2b_coupon_for_user", {
+      _tenant_id: TENANT,
+      _user_id: USER,
+      _probe_subject: expect.stringMatching(/^ip:[0-9a-f]{32}$/),
       _code: "RABAT-10",
       _plan_id: PLAN,
       _amount_cents: 10_000,
       _currency: "PLN",
     });
+    const subject = String(h.adminRpc.mock.lastCall?.[1]?._probe_subject);
+    expect(subject).not.toContain("192.0.2.7");
+  });
+
+  it("OKNO WDROŻENIA: bez funkcji serwerowej (PGRST202) stare RPC klientem kupującego", async () => {
+    h.adminRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "PGRST202", message: "Could not find the function" },
+    });
+    await previewPlanCouponForUser(supabase, USER, input());
+    expect(h.rpc).toHaveBeenLastCalledWith("validate_b2b_coupon", {
+      _code: "RABAT-10",
+      _plan_id: PLAN,
+      _amount_cents: 10_000,
+      _currency: "PLN",
+    });
+  });
+
+  it("odmowa uprawnień funkcji serwerowej to awaria, NIE powód do starej ścieżki", async () => {
+    h.adminRpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: "42501", message: "permission denied for function" },
+    });
+    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(
+      refusal("technical_error"),
+    );
+    expect(h.rpc).not.toHaveBeenCalledWith("validate_b2b_coupon", expect.anything());
   });
 
   it("brak planu idzie do RPC jako zerowy UUID, jak dotąd z przeglądarki", async () => {

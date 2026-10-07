@@ -76,6 +76,16 @@ export type PublicAdSlot = Omit<AdSlot, "notes">;
 export const PUBLIC_AD_SLOT_COLUMNS =
   "id, tenant_id, name, kind, status, html, script, image_url, image_link, image_alt, width, height, requires_consent, targeting, created_at, updated_at";
 
+/**
+ * Kolumny slotu dla list wyboru w panelu (zakładki pozycji i statystyk). Te
+ * widoki potrzebują nazwy i rodzaju, nie treści kreacji ani `notes` - pełny
+ * wiersz z notatkami ma tylko formularz slotu (`fetchAdminAdSlots`).
+ */
+export const AD_SLOT_PICKER_COLUMNS = "id, name, kind, status";
+
+/** Wiersz `AD_SLOT_PICKER_COLUMNS`. */
+export type AdSlotPickerRow = Pick<AdSlot, "id" | "name" | "kind" | "status">;
+
 export interface AdPlacementWithSlot extends AdPlacement {
   slot: PublicAdSlot;
 }

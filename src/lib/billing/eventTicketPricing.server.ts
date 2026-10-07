@@ -32,12 +32,16 @@
 // raz, a trigger płatności i tak oznaczał wszystkich gości jako opłaconych.
 // Teraz to odmowa z nazwą, którą ekran mapuje na zdanie.
 //
-// Moduł server-only: woła RPC klientem Z SESJĄ wołającego (RLS i `auth.uid()`),
-// nigdy rolą serwisową.
+// Moduł server-only: woła RPC klientem Z SESJĄ wołającego (RLS i `auth.uid()`).
+// Jedyny wyjątek to walidacja KODU (`validate_event_ticket_coupon_for_user`,
+// 20261007120600): rola serwisowa z jawnym kontem i skrótem adresu przez
+// `couponRpc.server.ts`, bo kubełek pudeł po adresie musi siedzieć w bazie,
+// a funkcja z JWT była dla zalogowanego osiągalna wprost przez PostgREST.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/integrations/supabase/types";
 import { codeProbeRpcError, parseCouponVerdict } from "@/lib/billing/coupons";
+import { validateEventTicketCouponForUser } from "@/lib/billing/couponRpc.server";
 import { groupCouponDiscount } from "@/lib/events/groupOrderPricing";
 import { ticketAmountCents } from "@/lib/events/ticketAllowance";
 import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
@@ -295,6 +299,8 @@ export async function priceEventTicket(
 }
 
 export interface EventTicketCouponInput {
+  /** Konto z sesji - baza liczy pudła kodu w kubełku TEGO konta i adresu. */
+  userId: string;
   /** Kod już znormalizowany (trim + wielkie litery). */
   code: string;
   eventId: string;
@@ -340,12 +346,15 @@ export async function applyEventTicketCoupon(
   supabase: Client,
   input: EventTicketCouponInput,
 ): Promise<EventTicketCouponResult> {
-  const { data: rows, error } = await supabase.rpc("validate_event_ticket_coupon", {
-    _code: input.code,
-    _event_id: input.eventId,
-    _ticket_type_id: input.ticketTypeId ?? NO_TICKET_TYPE,
-    _amount_cents: input.amountCents,
-    _currency: input.currency,
+  // Rola serwisowa z jawnym kontem i skrótem adresu (20261007120600); przed
+  // migracją - stare wywołanie JWT kupującego (`couponRpc.server.ts`).
+  const { data: rows, error } = await validateEventTicketCouponForUser(supabase, {
+    userId: input.userId,
+    code: input.code,
+    eventId: input.eventId,
+    ticketTypeId: input.ticketTypeId ?? NO_TICKET_TYPE,
+    amountCents: input.amountCents,
+    currency: input.currency,
   });
   // Limit prób kodów (`rate_limited` z `_coupon_probe_guard`) to NIE odmowa
   // kodu: idzie wyjątkiem, który wycena i kasa pokazują jako limit, a nie jako
@@ -381,6 +390,8 @@ export async function applyEventTicketCoupon(
 }
 
 export interface EventTicketQuoteInput extends EventTicketPriceInput {
+  /** Konto z sesji (`requireSupabaseAuth`) - kubełek pudeł kodu. */
+  userId: string;
   couponCode?: string;
 }
 
@@ -452,6 +463,7 @@ export async function quoteEventTicketOrder(
   // sprawdzamy (ani nie przyjmujemy, ani nie odrzucamy).
   if (code === "" || base.planRedemption) return base;
   const applied = await applyEventTicketCoupon(supabase, {
+    userId: input.userId,
     code,
     eventId: input.eventId,
     ticketTypeId: input.ticketTypeId,

@@ -2,6 +2,8 @@
 
 - Run the application typecheck with `tsgo --noEmit`, because the equivalent TypeScript check must finish within the preview gate timeout.
 
+- Call Supabase with literal RPC/table names and keep each client grant equal to what the TypeScript callers use (server-only RPCs executable by `service_role` alone, private columns outside public column constants such as `PUBLIC_AD_SLOT_COLUMNS`, identity like tenant/company/user derived from the session, never from a request payload), because the generated TS↔SQL pgTAP contract (`bun run generate:ts-sql-contract`) checks every call against the real schema in CI.
+
 - Keep club content-kind navigation in the shared rail, reuse thread-kind icons, and resolve its filter from validated URL search so workspace links and browser history stay synchronized.
 
 - Resolve per-widget dark accents from CMS content `accentColorDark`, falling back to existing accent inversion, so instance-specific colors never override all section labels.

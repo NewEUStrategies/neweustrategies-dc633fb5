@@ -118,7 +118,6 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
         packageId: pkg.id,
         buyerName,
         buyerEmail,
-        companyId: null,
         invoiceNote,
         couponCode: appliedCoupon,
       },

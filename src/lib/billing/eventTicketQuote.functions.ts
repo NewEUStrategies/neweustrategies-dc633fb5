@@ -25,6 +25,7 @@ export const quoteEventTicketCheckout = createServerFn({ method: "GET" })
   .handler(async ({ data, context }): Promise<EventTicketQuote> => {
     const { quoteEventTicketOrder } = await import("@/lib/billing/eventTicketPricing.server");
     return quoteEventTicketOrder(context.supabase, {
+      userId: context.userId,
       eventId: data.event_id,
       ticketTypeId: data.ticket_type_id,
       registrationId: data.registration_id ?? null,

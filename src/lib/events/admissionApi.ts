@@ -10,8 +10,14 @@
 // POWOD ODMOWY NIE JEST WYJATKIEM. Wycena zwraca `{ ok: false, reason }`, bo
 // „jeszcze nie w sprzedazy" albo „stawka wymaga potwierdzenia" to normalny stan
 // ekranu, a nie awaria - zdanie dla czlowieka sklada `admissionQuoteMessageKey`.
+//
+// WYCENA I ZAKUP IDA PRZEZ SERWER (`admission.functions.ts`). Kazde wywolanie
+// z kodem rabatowym to sonda kodu; z przegladarki omijala kubelek pudel po
+// adresie (migracja 20261007120600). Odpowiedz wraca w ksztalcie PostgREST,
+// wiec odmowy i bledy czyta ten sam slownik co dotad.
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { purchaseEventPackage, quoteEventAdmission } from "@/lib/events/admission.functions";
 
 type Fns = Database["public"]["Functions"];
 
@@ -275,7 +281,9 @@ export async function quoteAdmission(input: AdmissionQuoteInput): Promise<Admiss
   const code = (input.couponCode ?? "").trim();
   if (code !== "") payload.coupon_code = code;
 
-  const { data, error } = await supabase.rpc("event_admission_quote", { p_payload: payload });
+  // Z serwera, nie z przegladarki: sonda kodu liczy sie w kubelku konta
+  // I adresu (migracja 20261007120600, `admission.functions.ts`).
+  const { data, error } = await quoteEventAdmission({ data: payload });
   if (error) throw rpcError(error);
   return parseAdmissionQuote(data);
 }
@@ -293,11 +301,15 @@ export async function fetchPackagesOffer(slug: string): Promise<EventPackageOffe
   return data ?? [];
 }
 
+/**
+ * Ładunek zakupu pakietu. BEZ firmy: firmę zamówienia ustala organizator (most
+ * faktur przy wystawieniu, panel), a klucz `company_id` w ładunku baza odrzuca
+ * jako `forbidden_field` (migracja 20261007120000).
+ */
 export interface PackagePurchaseInput {
   packageId: string;
   buyerName: string;
   buyerEmail: string;
-  companyId: string | null;
   invoiceNote: string;
   couponCode: string;
 }
@@ -315,11 +327,10 @@ export async function purchasePackage(input: PackagePurchaseInput): Promise<Pack
   const payload: Record<string, Json> = { package_id: input.packageId };
   if (input.buyerName.trim() !== "") payload.buyer_name = input.buyerName.trim();
   if (input.buyerEmail.trim() !== "") payload.buyer_email = input.buyerEmail.trim();
-  if (input.companyId !== null) payload.company_id = input.companyId;
   if (input.invoiceNote.trim() !== "") payload.invoice_note = input.invoiceNote.trim();
   if (input.couponCode.trim() !== "") payload.coupon_code = input.couponCode.trim();
 
-  const { data, error } = await supabase.rpc("event_package_purchase", { p_payload: payload });
+  const { data, error } = await purchaseEventPackage({ data: payload });
   if (error) throw rpcError(error);
   const row = record(data);
   // Odmowe `coupon_unknown` baza zwraca WARTOSCIA (20261001210000), bo wyjatek

@@ -29,7 +29,7 @@ type Experience = {
   description: string | null;
   logo_url: string | null;
 };
-type Skill = { id: string; name: string; level: number | null; endorsements_count: number | null };
+type Skill = { id: string; name: string; level: number | null };
 type Cv = {
   id: string;
   file_url: string;
@@ -227,15 +227,7 @@ export function ProfileSyncCard({ leadId, lang }: { leadId: string; lang: "pl" |
         <Section title={t("Umiejętności", "Skills")} icon={<Sparkles className="h-3.5 w-3.5" />}>
           <div className="flex flex-wrap gap-1">
             {data.skills.slice(0, 12).map((s) => (
-              <span
-                key={s.id}
-                className="rounded bg-muted px-1.5 py-0.5 text-[10px]"
-                title={
-                  s.endorsements_count
-                    ? `${s.endorsements_count} ${t("rekomendacji", "endorsements")}`
-                    : undefined
-                }
-              >
+              <span key={s.id} className="rounded bg-muted px-1.5 py-0.5 text-[10px]">
                 {s.name}
               </span>
             ))}

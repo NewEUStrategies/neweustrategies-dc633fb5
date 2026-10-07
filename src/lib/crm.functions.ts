@@ -451,9 +451,13 @@ export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true })
         .limit(50),
+      // Kolumny z bazy, aliasy dla karty CRM: tabela ma `label` (nie `name`)
+      // i nie ma licznika rekomendacji - dawne `name, endorsements_count`
+      // kończyło się 42703, a pusty wynik udawał profil bez umiejętności
+      // (znalezisko kontraktu TS <-> SQL).
       admin
         .from("profile_skills")
-        .select("id, name, level, endorsements_count")
+        .select("id, name:label, level")
         .eq("user_id", userId)
         .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true })
@@ -464,11 +468,12 @@ export const getCrmLeadProfileSync = createServerFn({ method: "POST" })
         .eq("user_id", userId)
         .eq("is_current", true)
         .maybeSingle(),
+      // `awarded_at` w bazie, `issued_on` w karcie CRM - ten sam rozjazd 42703.
       admin
         .from("profile_awards")
-        .select("id, title, issuer, issued_on, description")
+        .select("id, title, issuer, issued_on:awarded_at, description")
         .eq("user_id", userId)
-        .order("issued_on", { ascending: false })
+        .order("awarded_at", { ascending: false })
         .limit(20),
       admin
         .from("profile_education")

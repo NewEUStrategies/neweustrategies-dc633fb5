@@ -3,21 +3,23 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-ads-admin";
 import { supabase } from "@/integrations/supabase/client";
-import type { AdSlot } from "@/lib/ads/types";
+import { AD_SLOT_PICKER_COLUMNS, type AdSlotPickerRow } from "@/lib/ads/types";
 
 // Impressions / clicks / CTR per slot. Reads ad_events via the staff-read RLS
 // (tenant-scoped); table not in generated types yet -> cast. A handful of slots,
 // so two head-count queries per slot is cheap.
 export function StatsPanel() {
   const { t } = useTranslation();
-  const [rows, setRows] = useState<{ slot: AdSlot; impressions: number; clicks: number }[]>([]);
+  const [rows, setRows] = useState<
+    { slot: AdSlotPickerRow; impressions: number; clicks: number }[]
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.from("ad_slots").select("*").order("name");
-      const slots = (data as AdSlot[]) ?? [];
+      const { data } = await supabase.from("ad_slots").select(AD_SLOT_PICKER_COLUMNS).order("name");
+      const slots = (data as AdSlotPickerRow[] | null) ?? [];
       const withCounts = await Promise.all(
         slots.map(async (s) => {
           const [{ count: imp }, { count: clk }] = await Promise.all([
