@@ -8,8 +8,11 @@
 //     ją; wybór z palety oddaje rodzaj i poprzedni stan, a paleta się zwija.
 // (3) Licznik mówi KTO: nazwisko pierwszej osoby albo „Ty i N innych", a bez
 //     nazwisk (tryb poufny) - samą liczbę.
-// (4) Komentarz prowadzi do wątku z intencją odpowiedzi (`?reply`), a liczba
-//     odpowiedzi jest linkiem do wątku.
+// (4) Z SEKCJĄ W KARCIE (`comments`) „Komentuj" jest PRZYCISKIEM, który ją
+//     przełącza (`aria-expanded`/`aria-controls`), a licznik odpowiedzi ją
+//     rozwija (nigdy nie zwija). BEZ sekcji - degradacja do linku do wątku
+//     z intencją odpowiedzi (`?reply`), a liczba odpowiedzi jest linkiem do
+//     wątku. W żadnym wariancie nie ma martwego przycisku.
 // (5) Udostępnienie kopiuje adres wątku i potwierdza to komunikatem.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -294,7 +297,7 @@ describe("ClubEngagementBar - licznik", () => {
 });
 
 describe("ClubEngagementBar - rozmowa i udostępnienie", () => {
-  it("komentarz prowadzi do kompozytora odpowiedzi, liczba odpowiedzi - do wątku", () => {
+  it("bez sekcji w karcie komentarz prowadzi do kompozytora odpowiedzi, liczba odpowiedzi - do wątku", () => {
     renderBar({ replyCount: 4, participantCount: 2 });
     const link = screen.getByTestId("club-comment-link");
     expect(link).toHaveAttribute("href", "/club/transport/t/korytarz-baltyk-adriatyk");
@@ -331,5 +334,62 @@ describe("ClubEngagementBar - rozmowa i udostępnienie", () => {
     });
 
     expect(h.toast.error).toHaveBeenCalledWith("club.hub.feed.linkCopyFailed");
+  });
+});
+
+describe("ClubEngagementBar - sekcja rozmowy w karcie", () => {
+  function comments(overrides: Partial<{ open: boolean }> = {}) {
+    return {
+      id: "replies-zone",
+      open: false,
+      onToggle: vi.fn(),
+      onOpen: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  it("„Komentuj” jest przyciskiem sekcji, nie linkiem do wątku", () => {
+    const control = comments();
+    renderBar({ replyCount: 3, comments: control });
+
+    expect(screen.queryByTestId("club-comment-link")).not.toBeInTheDocument();
+    const toggle = screen.getByTestId("club-comment-toggle");
+    expect(toggle.tagName).toBe("BUTTON");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", "replies-zone");
+    expect(toggle).toHaveAttribute("aria-label", "club.hub.feed.commentWithCount");
+    // Ten sam stopień pisma i geometria, co reszta akcji paska.
+    expect(toggle.className).toContain("text-[length:var(--fs-button)]");
+
+    fireEvent.click(toggle);
+    expect(control.onToggle).toHaveBeenCalledTimes(1);
+    expect(control.onOpen).not.toHaveBeenCalled();
+  });
+
+  it("otwarta sekcja jest widoczna na przycisku (aria-expanded + wyróżnienie)", () => {
+    renderBar({ comments: comments({ open: true }) });
+    const toggle = screen.getByTestId("club-comment-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle.className).toContain("bg-secondary");
+    // Bez odpowiedzi etykieta nie ma liczby.
+    expect(toggle).toHaveAttribute("aria-label", "club.hub.feed.comment");
+  });
+
+  it("licznik odpowiedzi ROZWIJA sekcję zamiast prowadzić do wątku", () => {
+    const control = comments();
+    renderBar({ replyCount: 4, comments: control });
+
+    expect(screen.queryByRole("link", { name: "club.repliesCount" })).not.toBeInTheDocument();
+    const counter = screen.getByTestId("club-replies-count");
+    expect(counter).toHaveAttribute("aria-controls", "replies-zone");
+    fireEvent.click(counter);
+    expect(control.onOpen).toHaveBeenCalledTimes(1);
+    expect(control.onToggle).not.toHaveBeenCalled();
+  });
+
+  it("brak prawa głosu zdejmuje reakcję, ale nie przełącznik rozmowy", () => {
+    renderBar({ canReact: false, onToggle: () => {}, comments: comments() });
+    expect(screen.queryByTestId("club-add-reaction")).not.toBeInTheDocument();
+    expect(screen.getByTestId("club-comment-toggle")).toBeInTheDocument();
   });
 });

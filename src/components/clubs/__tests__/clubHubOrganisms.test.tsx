@@ -24,6 +24,11 @@
 //     na telefonie znaczą, że czytelnik nie wie, którą czyta. Fraza poniżej
 //     dwóch znaków nie idzie do RPC. `?tag=` jest kontraktem adresu, więc
 //     zdjęcie tagu musi usunąć parametr, a nie tylko wyczyścić pole.
+//  6. ROZMOWA W KARTACH I WEJŚCIE Z POWIADOMIENIA. Hub podaje kartom klub
+//     i sesję (rozmowa w karcie, gość z drogą do logowania), katalog wzmianek
+//     dostaje autorów ORAZ @wzmianki z treści wpisów (autorzy pierwsi),
+//     a `?post=<uuid>` przewija JEDNORAZOWO do wczytanej karty wpisu
+//     i rozwija jej komentarze - śmieć zamiast uuid nie przewija niczego.
 //  5. UPRAWNIENIA SĄ ILOCZYNEM SESJI I ZDOLNOŚCI. `can_see_members`
 //     przepuszcza anonima w klubie publicznym, a RPC z nazwiskami jest dla
 //     niego zamknięte - dlatego panel spotkania dostaje `signedIn && can_*`,
@@ -63,7 +68,9 @@ const h = vi.hoisted(() => ({
   lang: "pl" as string,
   session: { user: { id: "user-me" } } as { user: { id: string } } | null,
   /** Parametry adresu (`?tag=`) widziane przez hub. */
-  search: {} as { tag?: string; kind?: ClubThreadKind },
+  search: {} as { tag?: string; kind?: ClubThreadKind; post?: string },
+  /** Slugi oddane katalogowi wzmianek strumienia. */
+  directorySlugs: [] as readonly string[],
   navigate: vi.fn(),
 
   // --- odpowiedzi zapytań (każde ma stan „w locie” przez `undefined`) -------
@@ -429,10 +436,27 @@ vi.mock("@/components/clubs/molecules/ClubSpotlightPanel", () => ({
   ClubSpotlightPanel: () => <div data-testid="spotlight-panel" />,
 }));
 
+vi.mock("@/components/mentions/MentionDirectory", () => ({
+  MentionDirectoryProvider: ({
+    slugs,
+    children,
+  }: {
+    slugs: readonly string[];
+    children?: ReactNode;
+  }) => {
+    h.directorySlugs = slugs;
+    return <>{children}</>;
+  },
+  useMentionEntity: () => null,
+}));
+
 vi.mock("@/components/clubs/organisms/ClubFeedItem", () => ({
   ClubFeedItem: (props: {
-    entry: { kind: string };
+    entry: { kind: string; post?: { id: string } };
     canReact: boolean;
+    clubId?: string;
+    signedIn?: boolean;
+    focusPostId?: string | null;
     reactionsPending?: boolean;
     threadReactions?: ReadonlyMap<string, unknown[]>;
     onSourceSelect?: (groupId: string | null) => void;
@@ -445,9 +469,21 @@ vi.mock("@/components/clubs/organisms/ClubFeedItem", () => ({
       canReact: props.canReact,
       reactionsPending: props.reactionsPending,
       hasReactions: props.threadReactions !== undefined,
+      clubId: props.clubId,
+      signedIn: props.signedIn,
+      focusPostId: props.focusPostId ?? null,
     };
     return (
-      <div data-testid="feed-item" data-kind={props.entry.kind}>
+      <div
+        data-testid="feed-item"
+        data-kind={props.entry.kind}
+        data-post-id={props.entry.post?.id}
+        data-focus={
+          props.entry.post !== undefined && props.entry.post.id === props.focusPostId
+            ? ""
+            : undefined
+        }
+      >
         <button
           type="button"
           data-testid="feed-source"
@@ -526,6 +562,7 @@ vi.mock("@/components/clubs/molecules/ClubCoverEditor", () => ({
   ClubCoverEditor: () => <div data-testid="cover-editor" />,
 }));
 
+import { QueryClientProvider } from "@tanstack/react-query";
 import { ClubHub } from "@/components/clubs/organisms/ClubHub";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
@@ -628,6 +665,7 @@ afterEach(() => {
   h.roster = null;
   h.feedItem = null;
   h.searchPanel = null;
+  h.directorySlugs = [];
 });
 
 describe("ClubHub - kontrakt argumentów sześciu zapytań", () => {
@@ -1234,6 +1272,140 @@ describe("ClubHub - ściana i reakcje", () => {
     mount();
 
     expect(h.feedItem?.hasReactions).toBe(false);
+  });
+});
+
+describe("ClubHub - rozmowa w kartach i wejście z powiadomienia", () => {
+  const POST_ID = "0b6f3c1e-9a2d-4e5f-8a7b-1c2d3e4f5a6b";
+
+  /** `requestAnimationFrame` synchronicznie + szpieg przewijania. */
+  function stubScroll() {
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    return vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => undefined);
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("karty dostają klub i sesję - rozmowa w karcie i gość z drogą do logowania", () => {
+    fullData();
+    mount();
+    expect(h.feedItem?.clubId).toBe(CLUB_IDS.club);
+    expect(h.feedItem?.signedIn).toBe(true);
+    expect(h.feedItem?.focusPostId).toBeNull();
+
+    cleanup();
+    h.session = null;
+    mount();
+    expect(h.feedItem?.signedIn).toBe(false);
+  });
+
+  it("katalog wzmianek dostaje autorów ORAZ wzmianki z treści wpisów - autorzy pierwsi", () => {
+    fullData();
+    h.threadPages = [
+      { rows: [clubThreadListRow({ id: "thread-1", author_slug: "jan-kowalski" })] },
+    ];
+    h.postPages = [
+      {
+        rows: [
+          clubPostRow({
+            author_slug: "anna-nowak",
+            body: "Zgadzam się z @Piotr-Zielinski i z @org-firma, #energia https://a.example",
+          }),
+        ],
+        total: 1,
+      },
+    ];
+    mount();
+
+    expect(h.directorySlugs).toEqual([
+      "jan-kowalski",
+      "anna-nowak",
+      "piotr-zielinski",
+      "org-firma",
+    ]);
+  });
+
+  it("`?post=<uuid>` przewija RAZ do wczytanej karty wpisu i rozwija jej komentarze", () => {
+    const scroll = stubScroll();
+    fullData();
+    h.postPages = [{ rows: [clubPostRow({ id: POST_ID })], total: 1 }];
+    h.search = { post: POST_ID.toUpperCase() };
+    const { rerender, queryClient } = mount();
+
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.calls[0]?.[0]).toEqual({ block: "center", behavior: "smooth" });
+    const card = document.querySelector(`[data-post-id="${POST_ID}"]`);
+    expect(card).not.toBeNull();
+    // Po obsłużeniu wskazanie gaśnie - karta zostaje rozwinięta własnym stanem,
+    // a odświeżenie listy nie szarpie widoku z powrotem.
+    expect(h.feedItem?.focusPostId).toBeNull();
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ClubHub club={clubViewRow()} />
+      </QueryClientProvider>,
+    );
+    expect(scroll).toHaveBeenCalledTimes(1);
+  });
+
+  it("wskazanie czeka, aż karta wpisu stanie w strumieniu (szkielet listy)", () => {
+    const scroll = stubScroll();
+    fullData();
+    h.threadsPending = true;
+    h.postPages = [{ rows: [clubPostRow({ id: POST_ID })], total: 1 }];
+    h.search = { post: POST_ID };
+    const { rerender, queryClient } = mount();
+    expect(scroll).not.toHaveBeenCalled();
+
+    h.threadsPending = false;
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ClubHub club={clubViewRow()} />
+      </QueryClientProvider>,
+    );
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(document.querySelector(`[data-post-id="${POST_ID}"]`)).not.toBeNull();
+  });
+
+  it("ograniczony ruch przewija bez animacji", () => {
+    const scroll = stubScroll();
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("prefers-reduced-motion"),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
+    fullData();
+    h.postPages = [{ rows: [clubPostRow({ id: POST_ID })], total: 1 }];
+    h.search = { post: POST_ID };
+    mount();
+    expect(scroll.mock.calls[0]?.[0]).toEqual({ block: "center", behavior: "auto" });
+  });
+
+  it.each([
+    ["śmieć zamiast uuid", "post-1"],
+    ["wstrzyknięcie selektora", '"] body [data-x="'],
+  ])("`?post=` z wartością %s nie przewija niczego", (_label, value) => {
+    const scroll = stubScroll();
+    fullData();
+    h.search = { post: value };
+    mount();
+    expect(scroll).not.toHaveBeenCalled();
+    expect(h.feedItem?.focusPostId).toBeNull();
+  });
+
+  it("wpis spoza wczytanej partii nie przewija - nie ma dokąd", () => {
+    const scroll = stubScroll();
+    fullData();
+    h.search = { post: POST_ID };
+    mount();
+    expect(scroll).not.toHaveBeenCalled();
   });
 });
 

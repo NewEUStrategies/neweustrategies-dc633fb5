@@ -22,6 +22,7 @@ import { ClubDetailSkeleton } from "@/components/clubs/atoms/ClubSkeletons";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
 import { ClubAccessGate } from "@/components/clubs/organisms/ClubAccessGate";
 import { ClubHub } from "@/components/clubs/organisms/ClubHub";
+import { parseClubPostFocus } from "@/components/clubs/organisms/clubHubPostFocus";
 
 import { useClubBySlug } from "@/lib/clubs/useClubs";
 import { buildClubHead } from "@/lib/clubs/clubHead";
@@ -32,16 +33,27 @@ import { parseClubThreadKind, type ClubThreadKind } from "@/lib/clubs/threadKind
 // `?tag=` to segmentacja wątków przez #tagi w treści: klik w tag w dowolnym
 // wpisie zawęża strumień klubu do tej frazy. Trzymamy to w URL-u, bo taki
 // widok ma być linkowalny (i wracalny przyciskiem wstecz).
+//
+// `?post=<uuid>` to adres powiadomienia o komentarzu lub wzmiance we wpisie
+// ściany: hub przewija do karty wpisu i rozwija jej komentarze. Cokolwiek
+// innego niż uuid jest odcinane (`parseClubPostFocus`).
 interface ClubHubSearch {
   tag?: string;
   kind?: ClubThreadKind;
+  post?: string;
 }
 
 export const Route = createFileRoute("/club/$clubSlug/")({
-  validateSearch: (raw: Record<string, unknown>): ClubHubSearch => ({
-    ...(typeof raw.tag === "string" && raw.tag !== "" ? { tag: raw.tag.slice(0, 50) } : {}),
-    ...(parseClubThreadKind(raw.kind) ? { kind: parseClubThreadKind(raw.kind) ?? undefined } : {}),
-  }),
+  validateSearch: (raw: Record<string, unknown>): ClubHubSearch => {
+    const post = parseClubPostFocus(raw.post);
+    return {
+      ...(typeof raw.tag === "string" && raw.tag !== "" ? { tag: raw.tag.slice(0, 50) } : {}),
+      ...(parseClubThreadKind(raw.kind)
+        ? { kind: parseClubThreadKind(raw.kind) ?? undefined }
+        : {}),
+      ...(post !== null ? { post } : {}),
+    };
+  },
   // Indeksowalność liczy się z WIDOCZNOŚCI klubu, a head() jest synchroniczne -
   // stąd loader. Klub `public` jest jedyną powierzchnią modułu, która ma
   // dowozić ruch z wyszukiwarek (V1 §5.1).

@@ -12,6 +12,14 @@
 // (termin, etap, materiały) są CELOWO cichsze - zamiast twarzy autora mają
 // kwadrat rodzaju w tym samym rozmiarze, więc nagłówki wszystkich kart stoją
 // w jednej linii, ale nie konkurują z rozmową o uwagę.
+//
+// ROZMOWA W KARCIE. Karta wątku i karta wpisu mają pod paskiem akcji strefę
+// rozmowy (`ClubFeedCommentsZone`): „Komentuj" rozwija ją w miejscu, a jej
+// zawartość montuje się dopiero przy pierwszym rozwinięciu - lista dwudziestu
+// kart nie pyta o dwadzieścia rozmów. Karta wątku potrzebuje do tego `clubId`
+// (odpowiedź z karty unieważnia dane klubu); bez niego „Komentuj" zostaje
+// linkiem do kompozytora wątku.
+import { useId, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -59,11 +67,17 @@ import {
   ClubFeedActionBar,
   ClubFeedActor,
   ClubFeedCard,
+  ClubFeedCommentsZone,
   ClubFeedContext,
   ClubFeedKindAvatar,
   ClubFeedTime,
   clubFeedActionClass,
 } from "@/components/clubs/molecules/ClubFeedCard";
+import { ClubFeedThreadReplies } from "@/components/clubs/molecules/ClubFeedThreadReplies";
+import {
+  clubFeedDiscussionMode,
+  isClubThreadClosed,
+} from "@/components/clubs/molecules/feedDiscussion";
 import {
   toAuthorLabel,
   type ClubReactionActor,
@@ -128,6 +142,8 @@ function ThreadCard({
   reactionsPending,
   canReact = true,
   onReact,
+  clubId,
+  signedIn = false,
 }: {
   thread: ClubThreadListRow;
   clubSlug: string;
@@ -144,10 +160,22 @@ function ThreadCard({
   /** Czy zalogowany użytkownik ma prawo reagować w tym klubie. */
   canReact?: boolean;
   onReact?: (targetId: string, kind: ClubReactionKind, active: boolean) => void;
+  /** Klub karty - włącza rozmowę w karcie (podgląd odpowiedzi i kompozytor). */
+  clubId?: string;
+  signedIn?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
+  const repliesId = useId();
+  // `mounted` zostaje po zwinięciu - szkic odpowiedzi nie przepada.
+  const [replies, setReplies] = useState({ open: false, mounted: false, focusKey: 0 });
+  const openReplies = (focus: boolean): void =>
+    setReplies((current) => ({
+      open: true,
+      mounted: true,
+      focusKey: focus ? current.focusKey + 1 : current.focusKey,
+    }));
   const entity = useMentionEntity(author.profileSlug);
   const jobTitle = entity !== null && entity.kind === "person" ? entity.jobTitle : null;
   const stamp = thread.last_reply_at ?? thread.created_at;
@@ -305,7 +333,42 @@ function ThreadCard({
         onToggle={
           onReact === undefined ? undefined : (kind, active) => onReact(thread.id, kind, active)
         }
+        comments={
+          clubId === undefined
+            ? undefined
+            : {
+                id: repliesId,
+                open: replies.open,
+                onToggle: () =>
+                  replies.open
+                    ? setReplies((current) => ({ ...current, open: false }))
+                    : openReplies(true),
+                onOpen: () => openReplies(true),
+              }
+        }
       />
+
+      {clubId !== undefined ? (
+        <ClubFeedCommentsZone
+          id={repliesId}
+          open={replies.open}
+          label={t("club.comments.threadSectionLabel")}
+        >
+          {replies.mounted ? (
+            <ClubFeedThreadReplies
+              clubId={clubId}
+              clubSlug={clubSlug}
+              thread={thread}
+              focusKey={replies.focusKey}
+              mode={clubFeedDiscussionMode({
+                signedIn,
+                canWrite: canReact,
+                locked: isClubThreadClosed(thread.status),
+              })}
+            />
+          ) : null}
+        </ClubFeedCommentsZone>
+      ) : null}
     </ClubFeedCard>
   );
 }
@@ -535,6 +598,9 @@ export function ClubFeedItem({
   reactionsPending,
   canReact = true,
   onThreadReact,
+  clubId,
+  signedIn = false,
+  focusPostId = null,
 }: {
   entry: ClubFeedEntry;
   clubSlug: string;
@@ -559,6 +625,12 @@ export function ClubFeedItem({
   reactionsPending?: boolean;
   canReact?: boolean;
   onThreadReact?: (threadId: string, kind: ClubReactionKind, active: boolean) => void;
+  /** Klub strumienia - rozmowa w karcie wątku (odpowiedź z karty). */
+  clubId?: string;
+  /** Sesja czytelnika - gość dostaje w rozmowie drogę do logowania. */
+  signedIn?: boolean;
+  /** Wpis wskazany adresem (`?post=`) - jego karta rozwija komentarze. */
+  focusPostId?: string | null;
 }) {
   if (entry.kind === "thread") {
     return (
@@ -577,6 +649,8 @@ export function ClubFeedItem({
         reactionsPending={reactionsPending}
         canReact={canReact}
         onReact={onThreadReact}
+        clubId={clubId}
+        signedIn={signedIn}
       />
     );
   }
@@ -593,6 +667,8 @@ export function ClubFeedItem({
         onLike={onPostLike}
         onDelete={onPostDelete}
         canComment={canReact}
+        signedIn={signedIn}
+        focusComments={focusPostId !== null && focusPostId === entry.post.id}
       />
     );
   }

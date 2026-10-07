@@ -18,6 +18,13 @@
 // TRZY DROGI DO PLIKU: przyciski (zdjęcie / wideo / plik), upuszczenie na
 // kompozytor i wklejenie ze schowka (zrzut ekranu wykresu to najczęstszy
 // załącznik w think tanku).
+//
+// @WZMIANKI I LINKI. Pole jest tym samym `ClubMentionField`, co kompozytor
+// komentarza w karcie: podpowiedzi osób i firm (z członkami TEGO klubu)
+// i Ctrl/Cmd+Enter do wysyłki. Pierwszy adres https w treści dostaje kartę
+// podglądu (`useComposerLinkPreview`); nieodrzucona karta jedzie z wpisem
+// jako element `type: "link"` w `attachments` - ten sam kształt, który karta
+// wpisu rysuje od krawędzi do krawędzi (`LinkAttachmentCard`).
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -33,18 +40,25 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { applyListAutoformat } from "@/lib/text/listAutoformat";
 import { HUB_LABEL, HUB_LABEL_TEXT, HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
+import { ClubMentionField } from "@/components/clubs/atoms/ClubMentionField";
+import { ClubComposerLinkCard } from "@/components/clubs/molecules/ClubComposerLinkCard";
+import { useComposerLinkPreview } from "@/components/clubs/molecules/useComposerLinkPreview";
 import { useCreateClubPost } from "@/lib/clubs/useClubPosts";
 import { removeClubPostMedia, uploadClubPostMedia } from "@/lib/clubs/postsApi";
 import {
   CLUB_POST_ACCEPT_ATTR,
   CLUB_POST_IMAGE_MIME,
+  CLUB_POST_MAX_ATTACHMENTS,
+  CLUB_POST_MAX_BODY,
   CLUB_POST_VIDEO_MIME,
+  clubLinkSnapshotToAttachment,
+  type ClubPostAttachment,
   type ClubPostMediaAttachment,
 } from "@/lib/clubs/postTypes";
+import { uiLang } from "@/lib/i18n/format";
 import {
   CLUB_POST_IMAGE_FORMATS,
   clubFeedFrame,
@@ -94,10 +108,12 @@ export function ClubPostComposer({
   chromeless?: boolean;
   className?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const create = useCreateClubPost(clubId);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [body, setBody] = useState("");
+  const link = useComposerLinkPreview(body, canPost);
   const [media, setMedia] = useState<ClubPostMediaAttachment[]>([]);
   // Lokalne podglądy zdjęć (blob:) - zanim kubełek odda podpisany adres.
   const [previews, setPreviews] = useState<Record<string, string>>({});
@@ -167,14 +183,22 @@ export function ClubPostComposer({
   const submit = (): void => {
     const trimmed = body.trim();
     if (trimmed === "" && media.length === 0) return;
+    if (create.isPending || uploading) return;
+    // Karta linku jest dodatkiem: jedzie tylko wtedy, gdy autor jej nie
+    // odrzucił i gdy mieści się w limicie załączników razem z plikami.
+    const attachments: ClubPostAttachment[] =
+      link.snapshot !== null && media.length < CLUB_POST_MAX_ATTACHMENTS
+        ? [...media, clubLinkSnapshotToAttachment(link.snapshot)]
+        : media;
     create.mutate(
-      { groupId: groupId ?? null, threadId, body: trimmed, attachments: media },
+      { groupId: groupId ?? null, threadId, body: trimmed, attachments },
       {
         onSuccess: () => {
           setBody("");
           setMedia([]);
           Object.values(previews).forEach(release);
           setPreviews({});
+          link.reset();
           toast.success(t("club.post.published"));
         },
         onError: (error) => toast.error(error.message),
@@ -210,12 +234,19 @@ export function ClubPostComposer({
         void handleFiles(event.dataTransfer.files);
       }}
     >
-      <Textarea
+      <ClubMentionField
         value={body}
-        onChange={(event) => setBody(event.target.value)}
+        onChange={setBody}
+        lang={lang}
+        clubId={clubId}
+        label={t("club.post.placeholder")}
         placeholder={t("club.post.placeholder")}
-        aria-label={t("club.post.placeholder")}
-        className="min-h-[72px] resize-none rounded-lg border-border/70 text-sm"
+        maxLength={CLUB_POST_MAX_BODY}
+        rows={3}
+        maxRows={12}
+        onSubmit={submit}
+        testId="club-post-composer-field"
+        textareaClassName="min-h-[72px] border-border/70"
         onPaste={(event) => {
           // Zrzut ekranu wklejony skrótem trafia tym samym torem, co wybór
           // z dysku. Sam tekst wkleja się normalnie - przechwytujemy tylko pliki.
@@ -228,10 +259,8 @@ export function ClubPostComposer({
           void handleFiles(pasted);
         }}
         onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-            submit();
-            return;
-          }
+          // Autoformat list dostaje klawisz dopiero wtedy, gdy nie zjadła go
+          // lista podpowiedzi @wzmianek (Enter wybiera wtedy osobę).
           const target = event.currentTarget;
           const result = applyListAutoformat(
             target.value,
@@ -246,6 +275,16 @@ export function ClubPostComposer({
           }
         }}
       />
+
+      {link.url !== null ? (
+        <ClubComposerLinkCard
+          url={link.url}
+          snapshot={link.snapshot}
+          loading={link.loading}
+          onDismiss={link.dismiss}
+          className="mt-2.5"
+        />
+      ) : null}
 
       {images.length > 0 ? (
         <div className="mt-2.5" data-testid="club-post-composer-images">

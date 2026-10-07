@@ -24,7 +24,12 @@
 // DANE. Sześć zapytań, wszystkie już istniejące - hub niczego nie dokłada po
 // stronie bazy. Cztery z nich (dokumenty, kalendarz, harmonogram, pomiar) są
 // LEKKIE i mają krótkie limity, bo w hubie służą za kontekst, a pełne listy
-// mają własne ekrany.
+// mają własne ekrany. Rozmowy w kartach (komentarze wpisów, podgląd odpowiedzi
+// wątków) pytają o siebie same - i dopiero po rozwinięciu.
+//
+// WEJŚCIE Z POWIADOMIENIA. `?post=<uuid>` (komentarz lub wzmianka we wpisie
+// ściany) przewija JEDNORAZOWO do karty tego wpisu, gdy jest już wczytana,
+// i rozwija jej komentarze.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -94,7 +99,9 @@ import { ClubSpotlightPanel } from "@/components/clubs/molecules/ClubSpotlightPa
 import { ClubThreadTopicBar } from "@/components/clubs/molecules/ClubThreadTopicBar";
 import { ClubFeedItem } from "@/components/clubs/organisms/ClubFeedItem";
 import { MentionDirectoryProvider } from "@/components/mentions/MentionDirectory";
-import { withAuthorSlugs } from "@/lib/mentions/directory";
+import { collectMentionSlugs, withAuthorSlugs } from "@/lib/mentions/directory";
+import { splitInline } from "@/lib/clubs/inlineSegments";
+import { parseClubPostFocus } from "@/components/clubs/organisms/clubHubPostFocus";
 import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobalSearch";
 import { buildClubSourceIndex } from "@/lib/clubs/threadSources";
 import { uiLang, uiLocale } from "@/lib/i18n/format";
@@ -111,6 +118,14 @@ const FEED_ICONS = {
   documents: FileText,
   calendar: CalendarDays,
 } as const;
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
 
 /** Dzisiaj jako `YYYY-MM-DD` w czasie LOKALNYM - `due_on` jest datą bez strefy. */
 function localToday(): string {
@@ -255,20 +270,62 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   );
   // Autorzy CAŁEJ widocznej partii strumienia jednym zapytaniem - byline
   // dokłada firmę z profilu, a bez katalogu każda karta pytałaby osobno.
-  const feedAuthorSlugs = useMemo(
+  // Do tego @wzmianki z treści wpisów ściany (wpis renderuje treść z
+  // wizytówkami) - inaczej wzmianka pokazywała imię zgadnięte ze sluga i bez
+  // twarzy, a rozwiązywała się dopiero po najechaniu. Autorzy idą PIERWSI:
+  // katalog ma limit, a bylina każdej karty jest ważniejsza niż awatar
+  // w środku zdania. Zajawki wątków są czystym tekstem - nie mają wzmianek.
+  const feedDirectorySlugs = useMemo(
     () =>
       withAuthorSlugs(
-        [],
-        feed.flatMap((entry) =>
-          entry.kind === "thread"
-            ? [entry.thread.author_slug]
-            : entry.kind === "post"
-              ? [entry.post.author_slug]
-              : [],
+        withAuthorSlugs(
+          [],
+          feed.flatMap((entry) =>
+            entry.kind === "thread"
+              ? [entry.thread.author_slug]
+              : entry.kind === "post"
+                ? [entry.post.author_slug]
+                : [],
+          ),
+        ),
+        collectMentionSlugs(
+          feed.flatMap((entry) => (entry.kind === "post" ? [entry.post.body] : [])),
+          splitInline,
         ),
       ),
     [feed],
   );
+
+  // `?post=` - jednorazowe przewinięcie do karty wpisu. „Jednorazowe" jest
+  // stanem, nie efektem ubocznym: po obsłużeniu identyfikator trafia do
+  // `focusHandled`, więc odświeżenie listy (nowy komentarz, doładowanie) nie
+  // szarpie widoku z powrotem do tej karty. Inny `?post=` - nowe przewinięcie.
+  const focusPostId = parseClubPostFocus(routeSearch.post);
+  const [focusHandled, setFocusHandled] = useState<string | null>(null);
+  const pendingFocus = focusPostId !== null && focusPostId !== focusHandled ? focusPostId : null;
+  // Karta musi STAĆ w DOM-ie: wpisy bywają wczytane, zanim lista wątków
+  // zdejmie szkielet, a pod wyszukiwaniem strumienia nie ma wcale.
+  const focusReady =
+    pendingFocus !== null &&
+    !searching &&
+    !threadsQ.isPending &&
+    !threadsQ.isError &&
+    feed.some((entry) => entry.kind === "post" && entry.post.id === pendingFocus);
+  useEffect(() => {
+    if (!focusReady || pendingFocus === null) return;
+    // Klatka zwłoki: karta rozwija komentarze w tym samym commicie, a układ
+    // ma się ustalić, zanim policzymy, dokąd przewinąć.
+    const frame = requestAnimationFrame(() => {
+      const card = document.querySelector<HTMLElement>(`[data-post-id="${pendingFocus}"]`);
+      if (card === null) return;
+      card.scrollIntoView({
+        block: "center",
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+      });
+      setFocusHandled(pendingFocus);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusReady, pendingFocus]);
 
   const threadReactionsQ = useClubReactions({ targetType: "thread", targetIds: feedThreadIds });
   const threadActorsQ = useClubReactionActors({
@@ -614,7 +671,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
                   : t(`club.hub.feed.empty.${mode}`)}
             </p>
           ) : (
-            <MentionDirectoryProvider slugs={feedAuthorSlugs} lang={lang}>
+            <MentionDirectoryProvider slugs={feedDirectorySlugs} lang={lang}>
               <div className="flex flex-col gap-3">
                 {feed.map((entry, index) => (
                   <ClubFeedItem
@@ -642,6 +699,9 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
                     onThreadReact={(threadId, kind, active) =>
                       toggleThreadReaction.mutate({ targetId: threadId, kind, active })
                     }
+                    clubId={club.id}
+                    signedIn={signedIn}
+                    focusPostId={pendingFocus}
                   />
                 ))}
               </div>

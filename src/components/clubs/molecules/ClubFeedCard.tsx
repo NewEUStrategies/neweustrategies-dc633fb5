@@ -15,6 +15,8 @@
 //                  do krawędzi karty (`ClubFeedMedia`), bo to one niosą treść.
 //   4. LICZNIKI  - kto i ile zareagował po lewej, odpowiedzi po prawej.
 //   5. AKCJE     - równe kolumny: zareaguj, komentuj, udostępnij.
+//   6. ROZMOWA   - rozwijana „Komentuj": kompozytor i najnowsze komentarze
+//                  (wpis) albo odpowiedzi (wątek) - bez wychodzenia ze strumienia.
 //
 // Strefy są OPCJONALNE (termin nie ma autora, etap nie ma liczników), ale
 // kolejność i odstępy są wspólne - dzięki temu kolumna kart różnych rodzajów
@@ -288,6 +290,46 @@ export const CLUB_FEED_ACTION_ICON = "h-[18px] w-[18px] shrink-0";
 
 /** Podpis akcji - zawija się między słowami, nigdy nie znika pod wielokropkiem. */
 export const CLUB_FEED_ACTION_LABEL = "min-w-0 max-w-full text-center [overflow-wrap:break-word]";
+
+/**
+ * Strefa rozmowy pod paskiem akcji (6.): kompozytor i komentarze karty.
+ *
+ * ELEMENT ISTNIEJE ZAWSZE, treść - dopiero po pierwszym rozwinięciu.
+ * Przycisk „Komentuj" wskazuje go przez `aria-controls`, więc identyfikator
+ * musi prowadzić do węzła także przy zwiniętej sekcji (`hidden`). Ciężka
+ * zawartość (zapytania, kompozytor) montuje się dopiero na żądanie - strumień
+ * dwudziestu kart nie oznacza dwudziestu zapytań o komentarze - i zostaje po
+ * zwinięciu, więc niewysłany szkic nie przepada przy przypadkowym kliknięciu.
+ *
+ * RUCH. Treść wchodzi tym samym uniesieniem, co karta (`club-feed-card-in`).
+ * Kaskada karty (`--feed-i`) jest tu ZEROWANA: zmienna dziedziczy się z karty,
+ * a sekcja otwierana kliknięciem nie może czekać na swoją pozycję w strumieniu.
+ */
+export function ClubFeedCommentsZone({
+  id,
+  open,
+  label,
+  children,
+}: {
+  id: string;
+  open: boolean;
+  /** Nazwa regionu dla czytnika ekranu. */
+  label: string;
+  children?: ReactNode;
+}) {
+  return (
+    <section
+      id={id}
+      hidden={!open}
+      aria-label={label}
+      data-feed-zone="comments"
+      className={cn("pb-3.5 sm:pb-4", CLUB_FEED_PAD)}
+      style={{ "--feed-i": 0 } as CSSProperties}
+    >
+      <div className="club-feed-card-in border-t border-border/60 pt-3">{children}</div>
+    </section>
+  );
+}
 
 /**
  * Pas mediów od krawędzi do krawędzi karty. Bez wcięcia - zdjęcie, wykres
