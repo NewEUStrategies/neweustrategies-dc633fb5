@@ -27,6 +27,7 @@ import {
 import { ClubFeedReactAction } from "@/components/clubs/molecules/ClubFeedReactAction";
 import { ClubFeedShareAction } from "@/components/clubs/molecules/ClubFeedShareAction";
 import type { ClubReactionActor, ClubReactionKind, ClubReactionTally } from "@/lib/clubs/types";
+import { countDistinctReactors } from "@/lib/clubs/reactionSummary";
 
 export interface ClubEngagementBarProps {
   clubSlug: string;
@@ -63,11 +64,16 @@ function topKinds(tallies: readonly ClubReactionTally[]): ClubReactionKind[] {
 export function ClubReactionSummary({
   kinds,
   total,
+  people,
   actors,
   mine,
 }: {
   kinds: readonly ClubReactionKind[];
+  /** Suma reakcji - może być większa niż liczba osób. */
   total: number;
+  /** Liczba RÓŻNYCH osób albo `null`, gdy nie da się jej ustalić
+   *  (patrz `countDistinctReactors`) - wtedy licznik mówi „i inni". */
+  people: number | null;
   actors?: readonly ClubReactionActor[];
   /** Czy wśród reagujących jestem ja - gdy cel nie ma listy osób (wpis ściany). */
   mine?: boolean;
@@ -77,20 +83,26 @@ export function ClubReactionSummary({
 
   const me = mine ?? actors?.some((actor) => actor.isMe) === true;
   const named = actors?.find((actor) => !actor.isMe && actor.userId !== null && actor.name) ?? null;
-  const others = total - 1;
+  const others = people === null ? null : people - 1;
   let text: string;
   if (me) {
     text =
-      others > 0
-        ? t("club.hub.feed.reactors.youAndOthers", { count: others })
-        : t("club.reactionActors.you");
+      others === null
+        ? t("club.hub.feed.reactors.youAndMore")
+        : others > 0
+          ? t("club.hub.feed.reactors.youAndOthers", { count: others })
+          : t("club.reactionActors.you");
   } else if (named !== null && named.name !== null) {
     text =
-      others > 0
-        ? t("club.hub.feed.reactors.nameAndOthers", { name: named.name, count: others })
-        : named.name;
+      others === null
+        ? t("club.hub.feed.reactors.nameAndMore", { name: named.name })
+        : others > 0
+          ? t("club.hub.feed.reactors.nameAndOthers", { name: named.name, count: others })
+          : named.name;
   } else {
-    text = String(total);
+    // Bez nazwisk (tryb poufny) zostaje liczba - osób, gdy jest pewna,
+    // inaczej reakcji (czytnik ekranu i tak słyszy, że to reakcje).
+    text = String(people ?? total);
   }
 
   // Dymek z pełną listą: kto i jak - bez rozwijania osobnego panelu.
@@ -168,7 +180,15 @@ export function ClubEngagementBar({
       <ClubFeedSocialRow
         left={
           total > 0 ? (
-            <ClubReactionSummary kinds={topKinds(tallies)} total={total} actors={actors} />
+            <ClubReactionSummary
+              kinds={topKinds(tallies)}
+              total={total}
+              people={countDistinctReactors(tallies, actors)}
+              actors={actors}
+              // „Ja" z liczników, nie z twarzy: liczniki zmieniają się
+              // optymistycznie od razu, twarze dopiero po odświeżeniu.
+              mine={tallies.some((tally) => tally.mine)}
+            />
           ) : null
         }
         right={conversation}

@@ -443,6 +443,9 @@ describe("ClubPostCard - załączniki graficzne i pliki", () => {
     expect(buttons[1]?.parentElement?.getAttribute("style")).toContain(
       "grid-template-columns: repeat(2, minmax(0, 1fr))",
     );
+    // Oba wiersze mają `min-h-0` - załadowany obraz nie rozpycha ich ponad proporcję.
+    expect(buttons[0]?.parentElement?.className).toContain("min-h-0");
+    expect(buttons[1]?.parentElement?.className).toContain("min-h-0");
     expect(screen.getByText("club.post.attachmentsCount(count=3)")).toBeTruthy();
   });
 
@@ -465,9 +468,52 @@ describe("ClubPostCard - załączniki graficzne i pliki", () => {
     const buttons = within(grid).getAllByRole("button");
     expect(buttons).toHaveLength(4);
     expect(buttons[0]?.className).toContain("row-span-full");
-    // Ostatni widoczny kafel niesie licznik nadwyżki - także w nazwie dostępnej.
-    expect(buttons[3]?.getAttribute("aria-label")).toBe("club.post.preview: a/4.png (+2)");
-    expect(within(buttons[3] as HTMLElement).getByText("+2")).toBeTruthy();
+    // Ostatni widoczny kafel niesie licznik nadwyżki i ROZWIJA galerię -
+    // podgląd w platformie pokazuje jeden plik, więc bez tego zdjęcia od
+    // piątego w górę byłyby nieosiągalne.
+    const more = buttons[3] as HTMLElement;
+    expect(more.getAttribute("aria-label")).toBe("club.post.showAllImages(count=6)");
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    expect(within(more).getByText("+2")).toBeTruthy();
+
+    fireEvent.click(more);
+    expect(h.previewed).toEqual([]);
+    const all = screen.getByTestId("club-post-images");
+    expect(all.getAttribute("data-layout")).toBe("all");
+    const tiles = within(all).getAllByRole("button");
+    expect(tiles).toHaveLength(6);
+    // Odsłonięte zdjęcia nie mają jeszcze podpisu (wyłączone zastępniki),
+    // więc fokus trafia na samą siatkę - nie ginie na niewidocznym kaflu.
+    expect(tiles[4]?.hasAttribute("disabled")).toBe(true);
+    expect(document.activeElement).toBe(all);
+    fireEvent.click(tiles[3] as HTMLElement);
+    expect(h.previewed).toEqual([
+      { url: "https://podpis.example/4.png", name: "a/4.png", mime: "image/png", size: 2048 },
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "club.post.showFewerImages" }));
+    const collapsed = screen.getByTestId("club-post-images");
+    expect(collapsed.getAttribute("data-layout")).toBe("left");
+    // Zwinięcie oddaje fokus kaflowi „+N" - nie ginie na <body>.
+    expect(document.activeElement).toBe(within(collapsed).getAllByRole("button")[3]);
+  });
+
+  it("po rozwinięciu fokus trafia na pierwsze odsłonięte zdjęcie, które da się otworzyć", () => {
+    const attachments = Array.from({ length: 5 }, (_, i) => imageAttachment(`b/${i + 1}.png`));
+    render(
+      <ClubPostCard
+        post={clubPostRow({ attachments })}
+        clubSlug={CLUB_SLUG}
+        mediaUrls={Object.fromEntries(
+          attachments.map((_, i) => [`b/${i + 1}.png`, `https://podpis.example/b${i + 1}.png`]),
+        )}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "club.post.showAllImages(count=5)" }));
+    const tiles = within(screen.getByTestId("club-post-images")).getAllByRole("button");
+    expect(tiles).toHaveLength(5);
+    expect(document.activeElement).toBe(tiles[4]);
   });
 
   it("nagranie: z adresem odtwarzacz, bez adresu sam zastępnik", () => {

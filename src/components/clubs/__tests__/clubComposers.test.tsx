@@ -445,6 +445,76 @@ describe("ClubPostComposer - zdjęcia i zalecane formaty", () => {
   });
 });
 
+describe("ClubPostComposer - wklejanie ze schowka", () => {
+  it("wklejony zrzut ekranu wgrywa się jak wybrany plik, pusty schowek nie robi nic", async () => {
+    h.upload.mockResolvedValue(
+      attachment({ type: "image", path: "p/zrzut.png", name: "zrzut.png", mime: "image/png" }),
+    );
+    renderWithQueryClient(<ClubPostComposer clubId={CLUB_IDS.club} canPost />);
+    const shot = new File(["a"], "zrzut.png", { type: "image/png" });
+
+    const textOnly = fireEvent.paste(bodyField(), {
+      clipboardData: { files: [], getData: () => "" },
+    });
+    expect(textOnly).toBe(true);
+    expect(h.upload).not.toHaveBeenCalled();
+
+    const withFile = fireEvent.paste(bodyField(), {
+      clipboardData: { files: [shot], getData: () => "" },
+    });
+    // Plik przechwycony - przeglądarka nie wkleja jego nazwy do pola.
+    expect(withFile).toBe(false);
+    await screen.findByText("zrzut.png");
+    expect(h.upload).toHaveBeenCalledWith(shot);
+  });
+});
+
+describe("ClubPostComposer - schowek z tekstem i upuszczanie", () => {
+  it("tekst z Worda/Excela (z obrazkiem obok) wkleja się jako tekst, bez wysyłki obrazka", () => {
+    renderWithQueryClient(<ClubPostComposer clubId={CLUB_IDS.club} canPost />);
+    const bitmap = new File(["a"], "image.png", { type: "image/png" });
+
+    const notPrevented = fireEvent.paste(bodyField(), {
+      clipboardData: {
+        files: [bitmap],
+        getData: (type: string) => (type === "text/plain" ? "A\tB" : ""),
+      },
+    });
+
+    expect(notPrevented).toBe(true);
+    expect(h.upload).not.toHaveBeenCalled();
+  });
+
+  it("upuszczenie pliku w trakcie wysyłki nie oddaje strony przeglądarce", async () => {
+    let finish = (value: ClubPostMediaAttachment): void => void value;
+    h.upload.mockImplementation(
+      () =>
+        new Promise<ClubPostMediaAttachment>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const { container } = renderWithQueryClient(
+      <ClubPostComposer clubId={CLUB_IDS.club} canPost />,
+    );
+    chooseFiles(container, [new File(["a"], "raport.pdf", { type: "application/pdf" })]);
+    await waitFor(() => expect(mediaButton()).toBeDisabled());
+
+    const composer = screen.getByTestId("club-post-composer");
+    const dropped = fireEvent.drop(composer, {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["b"], "drugi.png", { type: "image/png" })],
+      },
+    });
+    // Domyślna akcja (otwarcie pliku zamiast strony) zablokowana, drugi plik pominięty.
+    expect(dropped).toBe(false);
+    expect(h.upload).toHaveBeenCalledTimes(1);
+
+    finish(attachment());
+    await screen.findByText("raport.pdf");
+  });
+});
+
 describe("ClubPostComposer - klawiatura", () => {
   it("Cmd+Enter i Ctrl+Enter wysyłają wpis", async () => {
     renderWithQueryClient(<ClubPostComposer clubId={CLUB_IDS.club} canPost />);

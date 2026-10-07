@@ -14,7 +14,17 @@
 // „…więcej" pojawia się DOPIERO po pomiarze, czyli tylko wtedy, gdy tekst
 // faktycznie się nie mieści - krótki wpis nie dostaje martwej obietnicy.
 // Rozwinięcie przenosi fokus na treść, bo przycisk znika razem z przycięciem.
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+//
+// RÓWNE LINIE. Odstępy między akapitami i punktami nie są wielokrotnością
+// wysokości linii, więc w przyciętym widoku trzecia linia bywała ucięta
+// w pół glifu. Na czas zwinięcia odstępy pionowe znikają (linie leżą na
+// siatce `1lh`), a wysokość docelowa rozwinięcia jest mierzona dopiero PO
+// ich przywróceniu, w `useLayoutEffect` - przed pierwszym malowaniem.
+//
+// FOKUS W UKRYTEJ CZĘŚCI. Pudełko jest `overflow: clip`, nie `hidden`: Tab
+// na link poniżej trzeciej linii nie przewija go już w środku, a wejście
+// fokusu w treść rozwija ją - odnośnik nie może dostać fokusu niewidoczny.
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
@@ -56,10 +66,16 @@ export function ClubFeedText({
     return () => clearTimeout(timer);
   }, [phase]);
 
-  const expand = (): void => {
-    setTarget(ref.current?.scrollHeight ?? 0);
+  // Pomiar PO przywróceniu odstępów, przed malowaniem - przejście startuje
+  // z trzech linii i kończy na prawdziwej wysokości całości.
+  useLayoutEffect(() => {
+    if (phase === "opening") setTarget(ref.current?.scrollHeight ?? 0);
+  }, [phase]);
+
+  const expand = (moveFocus: boolean): void => {
+    setTarget(0);
     setPhase("opening");
-    ref.current?.focus({ preventScroll: true });
+    if (moveFocus) ref.current?.focus({ preventScroll: true });
   };
 
   return (
@@ -69,13 +85,19 @@ export function ClubFeedText({
         id={id}
         tabIndex={-1}
         data-feed-text={phase}
+        onFocus={(event) => {
+          if (phase === "collapsed" && overflowing && event.target !== event.currentTarget) {
+            expand(false);
+          }
+        }}
         className={cn(
-          "overflow-hidden outline-none",
+          "overflow-clip outline-none",
           "transition-[max-height] duration-300 ease-out motion-reduce:transition-none",
+          phase === "collapsed" && "[&_*]:my-0!",
           className,
         )}
         style={
-          phase === "collapsed"
+          phase === "collapsed" || (phase === "opening" && target === 0)
             ? { maxHeight: `calc(${lines} * 1lh)` }
             : phase === "opening"
               ? { maxHeight: `${target}px` }
@@ -87,7 +109,7 @@ export function ClubFeedText({
       {phase === "collapsed" && overflowing ? (
         <button
           type="button"
-          onClick={expand}
+          onClick={() => expand(true)}
           aria-expanded={false}
           aria-controls={id}
           data-testid="club-feed-more"

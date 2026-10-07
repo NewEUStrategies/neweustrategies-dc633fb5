@@ -141,6 +141,67 @@ describe("ClubEngagementBar - reakcja", () => {
     expect(screen.queryByTestId("club-reaction-picker")).not.toBeInTheDocument();
   });
 
+  it("szybkie kliknięcie po najechaniu NIE otwiera palety chwilę później", () => {
+    vi.useFakeTimers();
+    const onToggle = vi.fn();
+    renderBar({ onToggle });
+    const trigger = screen.getByTestId("club-add-reaction");
+
+    fireEvent.pointerEnter(trigger.parentElement as HTMLElement, { pointerType: "mouse" });
+    act(() => vi.advanceTimersByTime(200));
+    fireEvent.click(trigger);
+    act(() => vi.advanceTimersByTime(400));
+
+    expect(onToggle).toHaveBeenCalledWith("insightful", false);
+    expect(screen.queryByTestId("club-reaction-picker")).not.toBeInTheDocument();
+  });
+
+  it("strzałka w górę przy palecie otwartej najazdem przenosi fokus do palety", () => {
+    vi.useFakeTimers();
+    renderBar({ onToggle: () => {} });
+    const trigger = screen.getByTestId("club-add-reaction");
+    fireEvent.pointerEnter(trigger.parentElement as HTMLElement, { pointerType: "mouse" });
+    act(() => vi.advanceTimersByTime(400));
+    expect(screen.getByTestId("club-reaction-picker")).toBeInTheDocument();
+
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(screen.getByTestId("club-reaction-option-insightful"));
+  });
+
+  it("czytnik ekranu otwiera paletę osobnym przyciskiem z aria-expanded", () => {
+    renderBar({ onToggle: () => {} });
+    const trigger = screen.getByTestId("club-add-reaction");
+    // Akcja główna jest przełącznikiem, nie wyzwalaczem menu.
+    expect(trigger).not.toHaveAttribute("aria-haspopup");
+    expect(trigger).not.toHaveAttribute("aria-expanded");
+
+    const toggle = screen.getByRole("button", { name: "club.hub.feed.reactionPicker" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+
+    const picker = screen.getByTestId("club-reaction-picker");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveAttribute("aria-controls", picker.id);
+    expect(document.activeElement).toBe(screen.getByTestId("club-reaction-option-insightful"));
+  });
+
+  it("paleta ma jeden przystanek tabulacji i zamyka się, gdy fokus z niej wyjdzie", () => {
+    renderBar({ onToggle: () => {} });
+    fireEvent.keyDown(screen.getByTestId("club-add-reaction"), { key: "ArrowUp" });
+    const picker = screen.getByTestId("club-reaction-picker");
+
+    fireEvent.keyDown(picker, { key: "ArrowRight" });
+    const second = screen.getByTestId("club-reaction-option-evidence");
+    expect(document.activeElement).toBe(second);
+    expect(second).toHaveAttribute("tabindex", "0");
+    expect(screen.getByTestId("club-reaction-option-insightful")).toHaveAttribute("tabindex", "-1");
+
+    // Tab na „Komentuj" - fokus wychodzi poza akcję i paletę.
+    fireEvent.blur(second, { relatedTarget: screen.getByTestId("club-comment-link") });
+    expect(screen.queryByTestId("club-reaction-picker")).not.toBeInTheDocument();
+  });
+
   it("bez prawa głosu w klubie nie proponuje reakcji", () => {
     renderBar({ canReact: false, onToggle: () => {} });
     expect(screen.queryByTestId("club-add-reaction")).not.toBeInTheDocument();
@@ -168,9 +229,9 @@ describe("ClubEngagementBar - licznik", () => {
     renderBar({
       tallies: [
         { kind: "agree", total: 1, mine: true },
-        { kind: "insightful", total: 3, mine: false },
+        { kind: "insightful", total: 2, mine: false },
       ],
-      actors: [actor({ isMe: true, kinds: ["agree"] }), actor({ userId: "u2" })],
+      actors: [actor({ isMe: true, kinds: ["agree", "insightful"] }), actor({ userId: "u2" })],
     });
     const summary = screen.getByTestId("club-reaction-summary");
     expect(summary).toHaveTextContent("club.hub.feed.reactors.youAndOthers");
@@ -178,6 +239,44 @@ describe("ClubEngagementBar - licznik", () => {
       node.getAttribute("data-reaction-glyph"),
     );
     expect(glyphs).toEqual(["insightful", "agree"]);
+  });
+
+  it("jedna osoba z dwiema reakcjami to „Ty”, a nie „Ty i 1 inna osoba”", () => {
+    renderBar({
+      tallies: [
+        { kind: "insightful", total: 1, mine: true },
+        { kind: "evidence", total: 1, mine: true },
+      ],
+      actors: [actor({ isMe: true, kinds: ["insightful", "evidence"] })],
+    });
+    expect(screen.getByTestId("club-reaction-summary").textContent).toContain(
+      "club.reactionActors.you",
+    );
+    expect(screen.getByTestId("club-reaction-summary").textContent).not.toContain("youAndOthers");
+  });
+
+  it("niepewna liczba osób (lista twarzy niekompletna) to „i inni”, bez zmyślonej liczby", () => {
+    renderBar({
+      tallies: [
+        { kind: "insightful", total: 9, mine: false },
+        { kind: "agree", total: 2, mine: false },
+      ],
+      actors: [actor({}), actor({ userId: "u2", name: "Piotr" })],
+    });
+    expect(screen.getByTestId("club-reaction-summary").textContent).toContain(
+      "club.hub.feed.reactors.nameAndMore",
+    );
+  });
+
+  it("moja świeża reakcja liczy się od razu, zanim twarze się odświeżą", () => {
+    // Liczniki już optymistycznie z moją reakcją, twarze jeszcze sprzed niej.
+    renderBar({
+      tallies: [{ kind: "insightful", total: 2, mine: true }],
+      actors: [actor()],
+    });
+    expect(screen.getByTestId("club-reaction-summary").textContent).toContain(
+      "club.hub.feed.reactors.youAndOthers",
+    );
   });
 
   it("tryb poufny (bez nazwisk) pokazuje samą liczbę", () => {

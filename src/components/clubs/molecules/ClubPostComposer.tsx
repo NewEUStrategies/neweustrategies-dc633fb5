@@ -14,6 +14,10 @@
 // (poziome 1.91:1, kwadrat 1:1, pionowe 4:5) i uwagi jakości: za mała
 // rozdzielczość, waga ponad 5 MB, proporcja spoza kadru. To są podpowiedzi,
 // nie blokady - wpis z każdą z nich da się opublikować.
+//
+// TRZY DROGI DO PLIKU: przyciski (zdjęcie / wideo / plik), upuszczenie na
+// kompozytor i wklejenie ze schowka (zrzut ekranu wykresu to najczęstszy
+// załącznik w think tanku).
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -198,8 +202,11 @@ export function ClubPostComposer({
       }}
       onDrop={(event) => {
         // Upuszczenie zdjęcia na kompozytor - ten sam tor co wybór z dysku.
-        if (event.dataTransfer.files.length === 0 || busy) return;
+        // Domyślną akcję przeglądarki (otwarcie pliku zamiast strony, czyli
+        // utrata szkicu) blokujemy ZAWSZE, także w trakcie wysyłki.
+        if (!event.dataTransfer.types.includes("Files")) return;
         event.preventDefault();
+        if (busy || event.dataTransfer.files.length === 0) return;
         void handleFiles(event.dataTransfer.files);
       }}
     >
@@ -209,6 +216,17 @@ export function ClubPostComposer({
         placeholder={t("club.post.placeholder")}
         aria-label={t("club.post.placeholder")}
         className="min-h-[72px] resize-none rounded-lg border-border/70 text-sm"
+        onPaste={(event) => {
+          // Zrzut ekranu wklejony skrótem trafia tym samym torem, co wybór
+          // z dysku. Sam tekst wkleja się normalnie - przechwytujemy tylko pliki.
+          const pasted = Array.from(event.clipboardData.files);
+          if (pasted.length === 0 || busy) return;
+          // Word, Excel i PowerPoint kładą obok tekstu jego OBRAZEK - wtedy
+          // członek wkleja tekst, a nie zrzut, więc zostawiamy przeglądarce.
+          if (event.clipboardData.getData("text/plain").trim() !== "") return;
+          event.preventDefault();
+          void handleFiles(pasted);
+        }}
         onKeyDown={(event) => {
           if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
             submit();
@@ -269,7 +287,7 @@ export function ClubPostComposer({
                       <span
                         className={cn(
                           "absolute bottom-1 left-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
-                          flagged ? "bg-amber-500 text-white" : "bg-background/90 text-foreground",
+                          flagged ? "bg-amber-700 text-white" : "bg-background/90 text-foreground",
                         )}
                       >
                         {flagged ? <AlertTriangle className="h-3 w-3" aria-hidden="true" /> : null}

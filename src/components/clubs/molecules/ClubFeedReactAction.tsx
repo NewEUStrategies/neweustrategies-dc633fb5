@@ -7,8 +7,14 @@
 //   * myszą      - po krótkim zatrzymaniu kursora nad przyciskiem,
 //   * dotykiem   - po przytrzymaniu (kliknięcie po przytrzymaniu nie liczy się),
 //   * klawiaturą - strzałką w górę; strzałki w bok chodzą po palecie, Escape
-//                  wraca do przycisku.
-// Paleta znika po wyborze, po zjechaniu kursorem i po dotknięciu poza nią.
+//                  wraca do przycisku,
+//   * czytnikiem ekranu - osobnym przyciskiem „Wybierz reakcję" tuż za akcją
+//                  (widocznym przy fokusie z klawiatury): w trybie przeglądania
+//                  NVDA/JAWS strzałki należą do wirtualnego kursora, więc sam
+//                  skrót nie wystarcza.
+// Paleta znika po wyborze, po zjechaniu kursorem, po dotknięciu poza nią
+// i gdy fokus z niej wyjdzie (Tab). Fokus chodzi po palecie jednym
+// przystankiem tabulacji (roving tabindex).
 //
 // RUCH. Glify wskakują kaskadą z lekkim przestrzeleniem (`club-reaction-pop`),
 // a najechany glif podnosi się i powiększa z podpisem nad sobą. Postawienie
@@ -53,7 +59,10 @@ export function ClubFeedReactAction({
 }) {
   const { t } = useTranslation();
   const hintId = useId();
+  const pickerId = useId();
   const [open, setOpen] = useState(false);
+  // Jedyny przystanek tabulacji w palecie - przesuwa się ze strzałkami.
+  const [activeIndex, setActiveIndex] = useState(0);
   // Zmiana klucza restartuje animację odbicia piktogramu.
   const [tapKey, setTapKey] = useState(0);
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -92,14 +101,33 @@ export function ClubFeedReactAction({
   }, [open]);
 
   // Otwarcie z klawiatury przenosi fokus na pierwszy glif - po renderze palety.
+  // Zamknięcie zdejmuje niewykorzystaną flagę, żeby późniejsze otwarcie
+  // najazdem nie wyrwało fokusu z miejsca, w którym akurat jest użytkownik.
   useEffect(() => {
-    if (open && focusFirst.current) {
+    if (!open) {
       focusFirst.current = false;
-      optionRefs.current[0]?.focus();
+      return;
+    }
+    if (focusFirst.current) {
+      focusFirst.current = false;
+      optionRefs.current[0]?.focus({ preventScroll: true });
     }
   }, [open]);
 
+  /** Otwarcie z klawiatury lub czytnika: fokus na pierwszy glif. */
+  const openFromKeyboard = (): void => {
+    clearTimers();
+    setActiveIndex(0);
+    if (open) {
+      optionRefs.current[0]?.focus({ preventScroll: true });
+      return;
+    }
+    focusFirst.current = true;
+    setOpen(true);
+  };
+
   const choose = (kind: ClubReactionKind): void => {
+    clearTimers();
     const active = isMine(kind);
     setOpen(false);
     if (!active) setTapKey((key) => key + 1);
@@ -108,6 +136,9 @@ export function ClubFeedReactAction({
   };
 
   const primary = (): void => {
+    // Kliknięcie anuluje otwarcie zaplanowane najazdem - inaczej paleta
+    // wyskakiwałaby chwilę PO postawieniu reakcji.
+    clearTimers();
     if (pressOpened.current) {
       pressOpened.current = false;
       return;
@@ -137,14 +168,22 @@ export function ClubFeedReactAction({
         clearTimers();
         hoverTimer.current = setTimeout(() => setOpen(false), HOVER_CLOSE_MS);
       }}
+      onBlur={(event) => {
+        // Fokus wyszedł poza akcję i paletę (Tab) - paleta nie może zostać
+        // nad kartą. Brak `relatedTarget` (klik w coś niefokusowalnego)
+        // obsługuje nasłuch `pointerdown` wyżej.
+        const next = event.relatedTarget;
+        if (next instanceof Node && !event.currentTarget.contains(next)) {
+          clearTimers();
+          setOpen(false);
+        }
+      }}
     >
       <button
         ref={triggerRef}
         type="button"
         disabled={disabled}
         aria-pressed={mine !== null}
-        aria-haspopup="true"
-        aria-expanded={open}
         aria-describedby={hintId}
         aria-label={
           mine !== null
@@ -181,8 +220,7 @@ export function ClubFeedReactAction({
         onKeyDown={(event) => {
           if (event.key === "ArrowUp") {
             event.preventDefault();
-            focusFirst.current = true;
-            setOpen(true);
+            openFromKeyboard();
           } else if (event.key === "Escape" && open) {
             setOpen(false);
           }
@@ -200,9 +238,34 @@ export function ClubFeedReactAction({
       <span id={hintId} className="sr-only">
         {t("club.hub.feed.reactionHint")}
       </span>
+      {/* Wejście do palety dla czytnika ekranu i klawiatury - niewidoczne,
+          dopóki nie dostanie fokusu, żeby nie rozbijać równych kolumn akcji. */}
+      <button
+        type="button"
+        disabled={disabled}
+        aria-expanded={open}
+        aria-controls={open ? pickerId : undefined}
+        data-testid="club-reaction-picker-toggle"
+        onClick={() => {
+          if (open) {
+            setOpen(false);
+            return;
+          }
+          openFromKeyboard();
+        }}
+        className={cn(
+          "sr-only",
+          "focus-visible:not-sr-only focus-visible:absolute focus-visible:-top-3 focus-visible:right-1 focus-visible:z-40",
+          "focus-visible:rounded-md focus-visible:bg-popover focus-visible:px-2 focus-visible:py-1 focus-visible:text-xs",
+          "focus-visible:font-medium focus-visible:text-popover-foreground focus-visible:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        )}
+      >
+        {t("club.hub.feed.reactionPicker")}
+      </button>
 
       {open ? (
         <div
+          id={pickerId}
           role="toolbar"
           aria-label={t("club.hub.feed.reactionPicker")}
           data-testid="club-reaction-picker"
@@ -220,6 +283,7 @@ export function ClubFeedReactAction({
               event.preventDefault();
               const step = event.key === "ArrowRight" ? 1 : -1;
               const next = (current + step + ORDER.length) % ORDER.length;
+              setActiveIndex(next);
               optionRefs.current[next]?.focus();
             }
           }}
@@ -244,7 +308,8 @@ export function ClubFeedReactAction({
                     type="button"
                     aria-pressed={active}
                     aria-label={reaction}
-                    tabIndex={index === 0 ? 0 : -1}
+                    tabIndex={index === activeIndex ? 0 : -1}
+                    onFocus={() => setActiveIndex(index)}
                     onClick={() => choose(kind)}
                     data-testid={`club-reaction-option-${kind}`}
                     className="group/glyph relative grid h-10 w-10 place-items-center rounded-full focus-visible:outline-none"

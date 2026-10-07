@@ -451,6 +451,8 @@ export function ClubPostCard({
             <ClubReactionSummary
               kinds={["agree"]}
               total={post.like_count}
+              // Docenienie stawia się raz na osobę - licznik JEST liczbą osób.
+              people={post.like_count}
               mine={post.liked_by_me}
             />
           ) : null
