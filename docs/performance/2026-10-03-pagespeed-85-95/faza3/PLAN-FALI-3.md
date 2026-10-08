@@ -232,6 +232,38 @@ Bramka fali 3 po partiach: jak W2 (`faza1/PLAN.md`, fala 3) + SI: speedline bez 
 (mobile i desktop), `backend: 0` zapytań w oknie bootu. Weryfikacja produkcyjna po wdrożeniu: Lighthouse z kontenera
 (skrypt w `diagnoza/stan-wejsciowy.md`), sondy curl cache (L2), a jeśli właściciel ustawi `PSI_API_KEY` — `psi.yml`.
 
+## 3a. Partie 3–5 po planowaniu (2026-10-08, `plany/`)
+
+Specyfikacje wykonawcze z planowania agentów (jeden planista na pozycję + krytyk międzypozycyjny):
+`plany/P3.2a.md`, `plany/P3.2b.md`, `plany/P3.9.md`, `plany/P3.7.md`, `plany/P3.1.md`, `plany/P3.10.md`,
+`plany/P3.11.md`, `plany/KRYTYKA.md` (konflikty plików, luki L1–L17, kolejność). Specyfikacje są wiążące dla
+wykonawców razem z rozstrzygnięciami poniżej (nadrzędnymi).
+
+| Partia | Pozycje (równolegle)                                                                                                                  | Kolejność scalania / warunki                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 3      | P3.7a (minifikacja statycznych literałów CSS, reguły sidebara do arkusza admina, metryka komentarzy CSS), P3.2b, P3.9                 | po scaleniu i pomiarze partii 2; P3.7a jako jedyny edytor konfiguracji Vite; P3.7a daje ulgę bootu potrzebną partii 4 |
+| 4      | P3.2a, P3.7b (koperta zapytań, zajawki, speculation rules, pasek z językiem, T5, T6, metryki stanu; bez T3), P3.1 (A, B; C warunkowo) | scalanie P3.2a → P3.7b → P3.1                                                                                         |
+| 5      | P3.10 (+ P7.5 jawna mapa ikon chrome, jeśli plikowo rozłączna)                                                                        | ostatnia                                                                                                              |
+| fala 4 | P3.11 (podział arkusza, NO-GO w fali 3), K16/PB7, P3.7 T3 (publiczny klucz menu), normalizacja `--brand-font-*`                       | poza falą 3                                                                                                           |
+
+Rozstrzygnięcia (właściciel 2026-10-08 = W; orkiestrator = O):
+
+- W: drabina `srcset` 5 rozmiarów [480, 640, 768, 1280, 1920] (DPR 3 dostaje 768w, retina full-bleed 1920w).
+- W: Red Hat Display z osią wag przyciętą do 400–900 (24,3 KB), jedyny font w ścieżce krytycznej.
+- W: zasada „jeden font” pilnowana bramką CI (`fontPreloadCount` w progach document-weight, test jednego żądania
+  woff2), bez blokowania krojów dodawanych w CMS.
+- O: awatar autora (`PostContextViews.tsx`) i zdjęcia prelegentów (`SpeakersWidget.tsx`) bez zmian (decyzja o awatarach).
+- O: logo nagłówka eager tylko w wariancie jasnym.
+- O: P3.1 A przyjęte (jednorazowe przeliczenie stylu przy pierwszej kotwicy/Tab przed ciszą zamiast w każdym boocie).
+- O: bez zmian danych w CMS (W6 z krytyki) — kod P3.2b działa niezależnie.
+- O: P3.10 S7 ujednolica format rozmiaru plików („kB”, przecinek w PL, maks. 1 miejsce); `profileSyncView.ts` wyjęty
+  z S7 (moduł w chunku wejściowym, L11); nowe moduły testowe/skryptowe z partii 3–4 wykluczone z usuwania (L12).
+- O: `CopyrightBar.tsx` (linki prawne niemontowane) i toasty czatu (`useIncomingChatToasts`) zostają w kodzie i
+  wychodzą jako osobne zadania dla właściciela — to brakujące podłączenia, nie martwy kod.
+- O: progi `scripts/performance/document-weight-budgets.json` zmienia tylko orkiestrator (ratchet w dół w commicie
+  scalenia partii); bramka `bootClosureRawBytes` ma po partii 2 ok. 155 B zapasu (L1) — każda pozycja dodająca kod do
+  wejścia mierzy raw i gzip domknięcia bootu.
+
 ## 4. Działania właściciela (poza kodem)
 
 1. Sekret `PSI_API_KEY` (repo → Settings → Secrets → Actions) — opcjonalny, tylko dla pomiaru: bez niego `psi.yml`
