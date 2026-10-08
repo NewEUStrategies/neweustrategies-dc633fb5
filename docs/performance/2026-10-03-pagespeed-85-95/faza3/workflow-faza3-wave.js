@@ -46,7 +46,8 @@ const OUT = SCRATCH + "/phase3/wave" + WAVE;
 const WTDIR = SCRATCH + "/wt3";
 const MAX_FIX_ROUNDS = 2;
 const LH_ENV = `LIGHTHOUSE_CLI=${SCRATCH}/tools/node_modules/lighthouse/cli/index.js CHROME_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`;
-const LH_DEFAULT_FLAGS = "--client-backend fixture --third-party fake-gtag --save-artifacts --warm-ua bot";
+const LH_DEFAULT_FLAGS =
+  "--client-backend fixture --third-party fake-gtag --save-artifacts --warm-ua bot";
 if (!ITEMS.length) throw new Error("args.items = [{id, prove?, notes?}] is required");
 
 const TRAILER =

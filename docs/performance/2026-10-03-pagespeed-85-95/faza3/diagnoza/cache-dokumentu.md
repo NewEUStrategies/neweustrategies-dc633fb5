@@ -60,23 +60,23 @@ Czasy to chwila zakończenia żądania (UTC). Rozmiar to zdekodowany HTML (trans
 typu A, ~73-78 KB dla pełnego). W kolumnie „degraded” jest pole `degraded` z zdehydratowanego
 `loaderData` trasy `/` (`src/routes/index.tsx:270-288`) — patrz §1.1.
 
-| próbka                | UA           | `x-nes-cache`     | TTFB s | `edge-routing` ms | `ssr` ms | `db` n / Σms | HTML B  | `degraded` | klasa                     |
-| --------------------- | ------------ | ----------------- | -----: | ----------------: | -------: | ------------ | ------: | ---------- | ------------------------- |
-| lh-1 08:59:42         | Lighthouse m | MISS              |   3,43 |               480 |     1064 | 24 / 4952    | 460 417 | true       | B1                        |
-| lh-2 08:59:48         | Lighthouse m | MISS              |   3,11 |               493 |      938 | 23 / 3591    | 499 484 | true       | B2                        |
-| lh-3 08:59:54         | Lighthouse m | MISS              |   2,68 |               278 |      874 | 24 / 3510    | 460 337 | true       | B1                        |
-| lh-4 08:59:58         | Lighthouse m | MISS              |   1,71 |             **0** |     1071 | 23 / 3480    | 499 484 | true       | B2 (ciepły izolat)        |
-| desk-1 09:01:03       | Chrome desk  | **HIT L1** 68 s   |   0,70 |                 0 |        – | –            | 500 741 | false      | czysty                    |
-| desk-2 09:01:10       | Chrome desk  | MISS              |   3,24 |               697 |  **600** | 10 / 1647    | 507 874 | true       | B2                        |
-| desk-3 09:01:16       | Chrome desk  | MISS              |   2,98 |               472 |      600 | 7 / 1482     | 185 841 | true       | **A**                     |
-| desk-4 09:01:21       | Chrome desk  | MISS              |   2,35 |               283 |      600 | 13 / 2015    | 468 663 | true       | B1                        |
-| mob-1 09:05:26        | Chrome mob   | MISS              |   4,07 |               757 |      600 | 8 / 1231     | 185 841 | true       | **A**                     |
-| mob-2 09:05:32        | Chrome mob   | MISS              |   2,45 |               287 |      600 | 7 / 1047     | 467 310 | true       | B1                        |
-| mob-3 09:05:36        | Chrome mob   | **HIT L1** 4 s    |   0,30 |                 0 |        – | –            | 507 263 | false      | czysty                    |
-| l2chk-1 09:05:49      | Chrome desk  | MISS              |   1,08 |             **0** |      316 | 1 / 316      | 504 998 | **false**  | czysty, ciepły izolat     |
-| l2chk-2 09:05:52      | Chrome desk  | HIT L1 3,6 s      |   0,33 |                 0 |        – | –            | 504 998 | false      | ten sam izolat co l2chk-1 |
-| l2chk-3 09:05:58      | Chrome desk  | MISS              |   2,37 |               273 |      600 | 9 / 1500     | 467 310 | true       | B1                        |
-| user d1/d3/d5, mob ×3 | desk/mob     | MISS              | 2,8-3,9 |          698-836 |      600 | 4-7 / 1231-1709 | ~185 KB | true    | **A** (6/6)               |
+| próbka                | UA           | `x-nes-cache`   |  TTFB s | `edge-routing` ms | `ssr` ms | `db` n / Σms    |  HTML B | `degraded` | klasa                     |
+| --------------------- | ------------ | --------------- | ------: | ----------------: | -------: | --------------- | ------: | ---------- | ------------------------- |
+| lh-1 08:59:42         | Lighthouse m | MISS            |    3,43 |               480 |     1064 | 24 / 4952       | 460 417 | true       | B1                        |
+| lh-2 08:59:48         | Lighthouse m | MISS            |    3,11 |               493 |      938 | 23 / 3591       | 499 484 | true       | B2                        |
+| lh-3 08:59:54         | Lighthouse m | MISS            |    2,68 |               278 |      874 | 24 / 3510       | 460 337 | true       | B1                        |
+| lh-4 08:59:58         | Lighthouse m | MISS            |    1,71 |             **0** |     1071 | 23 / 3480       | 499 484 | true       | B2 (ciepły izolat)        |
+| desk-1 09:01:03       | Chrome desk  | **HIT L1** 68 s |    0,70 |                 0 |        – | –               | 500 741 | false      | czysty                    |
+| desk-2 09:01:10       | Chrome desk  | MISS            |    3,24 |               697 |  **600** | 10 / 1647       | 507 874 | true       | B2                        |
+| desk-3 09:01:16       | Chrome desk  | MISS            |    2,98 |               472 |      600 | 7 / 1482        | 185 841 | true       | **A**                     |
+| desk-4 09:01:21       | Chrome desk  | MISS            |    2,35 |               283 |      600 | 13 / 2015       | 468 663 | true       | B1                        |
+| mob-1 09:05:26        | Chrome mob   | MISS            |    4,07 |               757 |      600 | 8 / 1231        | 185 841 | true       | **A**                     |
+| mob-2 09:05:32        | Chrome mob   | MISS            |    2,45 |               287 |      600 | 7 / 1047        | 467 310 | true       | B1                        |
+| mob-3 09:05:36        | Chrome mob   | **HIT L1** 4 s  |    0,30 |                 0 |        – | –               | 507 263 | false      | czysty                    |
+| l2chk-1 09:05:49      | Chrome desk  | MISS            |    1,08 |             **0** |      316 | 1 / 316         | 504 998 | **false**  | czysty, ciepły izolat     |
+| l2chk-2 09:05:52      | Chrome desk  | HIT L1 3,6 s    |    0,33 |                 0 |        – | –               | 504 998 | false      | ten sam izolat co l2chk-1 |
+| l2chk-3 09:05:58      | Chrome desk  | MISS            |    2,37 |               273 |      600 | 9 / 1500        | 467 310 | true       | B1                        |
+| user d1/d3/d5, mob ×3 | desk/mob     | MISS            | 2,8-3,9 |           698-836 |      600 | 4-7 / 1231-1709 | ~185 KB | true       | **A** (6/6)               |
 
 Obserwacje **[F]**:
 
@@ -121,14 +121,14 @@ Szybka sonda: `curl … | grep -ao 'degraded:![01]'`.
 `QueryClient`. Pierwszy wołający go tworzy: loader korzenia (`src/routes/__root.tsx:716`) albo
 loader `/` (`src/routes/index.tsx:122`).
 
-| Faza | Budżet | Gdzie | Skutek po przekroczeniu |
-| ---- | ------ | ----- | ----------------------- |
-| Termin całości | `HOME_SSR_BUDGET_MS = 600` | `homeSsrBudget.ts:16` | — |
-| Fala 1 korzenia (`site_settings`, tokeny, `globalColors`) | `min(termin, +400 ms)` (`HOME_THEME_BUDGET_MS`, `homeSsrBudget.ts:17`) | `__root.tsx:835-850` | anulowanie i `no-store` (`__root.tsx:852-863`) |
-| Chrome (ticker, baner, widgety nagłówka/stopki) | `remainingHomeBudget(termin, 500)` | `__root.tsx:947-950` | `expired()` → `markDegraded("failed")` i render na fallbackach **bez dalszego czekania** (`__root.tsx:1059-1061`, `src/lib/ssr/chromeWarmup.tsx:58-63`) |
-| Trasa `/`: `home.page`, `home.mode`, `home.settings` | `deadlineAt` przez `loadResilient` | `index.tsx:121-140` | zasiew fallbacku z `updatedAt: 0` (`resilientLoad.ts:147-153`) |
-| Widgety nad zgięciem | `min(reszta, 500 ms)` (`HOME_ABOVE_FOLD_BUDGET_MS`, `homeSsrBudget.ts:18`) | `index.tsx:239-249` | `degraded ||=` za każdy brakujący klucz |
-| Werdykt | — | `index.tsx:270` | `resilientCacheControl(degraded)` → `private, no-store` (`resilientLoad.ts:185-190`) |
+| Faza                                                      | Budżet                                                                     | Gdzie                 | Skutek po przekroczeniu                                                                                                                                 |
+| --------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Termin całości                                            | `HOME_SSR_BUDGET_MS = 600`                                                 | `homeSsrBudget.ts:16` | —                                                                                                                                                       |
+| Fala 1 korzenia (`site_settings`, tokeny, `globalColors`) | `min(termin, +400 ms)` (`HOME_THEME_BUDGET_MS`, `homeSsrBudget.ts:17`)     | `__root.tsx:835-850`  | anulowanie i `no-store` (`__root.tsx:852-863`)                                                                                                          |
+| Chrome (ticker, baner, widgety nagłówka/stopki)           | `remainingHomeBudget(termin, 500)`                                         | `__root.tsx:947-950`  | `expired()` → `markDegraded("failed")` i render na fallbackach **bez dalszego czekania** (`__root.tsx:1059-1061`, `src/lib/ssr/chromeWarmup.tsx:58-63`) |
+| Trasa `/`: `home.page`, `home.mode`, `home.settings`      | `deadlineAt` przez `loadResilient`                                         | `index.tsx:121-140`   | zasiew fallbacku z `updatedAt: 0` (`resilientLoad.ts:147-153`)                                                                                          |
+| Widgety nad zgięciem                                      | `min(reszta, 500 ms)` (`HOME_ABOVE_FOLD_BUDGET_MS`, `homeSsrBudget.ts:18`) | `index.tsx:239-249`   | `degraded                                                                                                                                               |     | =` za każdy brakujący klucz |
+| Werdykt                                                   | —                                                                          | `index.tsx:270`       | `resilientCacheControl(degraded)` → `private, no-store` (`resilientLoad.ts:185-190`)                                                                    |
 
 **Ścieżka krytyczna treści strony głównej** (`src/lib/queries/public.ts:470-541`) to trzy szeregowe
 round-tripy:
@@ -144,11 +144,11 @@ strumieniem.
 
 ### 2.2 Trzy klasy zdegradowanego MISS-a [F, z HTML i stanu zdehydratowanego]
 
-| klasa | rozmiar | co brakuje / dlaczego | czy dokument kompletny dla czytelnika |
-| ----- | ------- | --------------------- | ------------------------------------- |
-| **A** (8/16) | ~185 KB | `["public","home-page"]` ma `dataUpdatedAt:0`, czyli fallback z `loadResilient` (label `home.page`). `Index` pokazuje `HomeLoadingNotice` (`index.tsx:435-441`): „Wczytujemy stronę główną. Treść nie dotarła jeszcze z serwera…”. Brak slidera hero (sekcja `e0439441…`), 7 sekcji pod zgięciem, tickera i preloadu LCP: `heroPreloads` jest puste, bo `contentDegraded` (`index.tsx:227`). | **Nie**: tylko nagłówek, komunikat, sekcja przed stopką, stopka i baner zgód |
-| **B1** (5/16) | ~460-468 KB | Brak paska „Warte przeczytania” (ticker w nagłówku). Zegar chrome wygasł, więc `readChromeWarmup` od razu oznacza `failed` i renderuje nagłówek na pustym wpisie (`chromeWarmup.tsx:58-63`). Zasłania to też wynik loadera. | Prawie: brak tylko tickera |
-| **B2** (3/16) | ~499-508 KB | Tekst identyczny z czystym HIT-em (różnica 0 linii). Sekcje dociągnął `ServerSectionGate` strumieniem (7 bloków `<div hidden id="S:…">`). Mimo to `degraded:true`: dane widgetów nad zgięciem nie leżały w cache w chwili końca loadera (`index.tsx:242-249`). Wniosek przez eliminację, bo `home-page`/`home-mode`/`settings`/tokeny mają w stanie końcowym prawdziwe `dataUpdatedAt`. | **Tak** |
+| klasa         | rozmiar     | co brakuje / dlaczego                                                                                                                                                                                                                                                                                                                                                                        | czy dokument kompletny dla czytelnika                                        |
+| ------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| **A** (8/16)  | ~185 KB     | `["public","home-page"]` ma `dataUpdatedAt:0`, czyli fallback z `loadResilient` (label `home.page`). `Index` pokazuje `HomeLoadingNotice` (`index.tsx:435-441`): „Wczytujemy stronę główną. Treść nie dotarła jeszcze z serwera…”. Brak slidera hero (sekcja `e0439441…`), 7 sekcji pod zgięciem, tickera i preloadu LCP: `heroPreloads` jest puste, bo `contentDegraded` (`index.tsx:227`). | **Nie**: tylko nagłówek, komunikat, sekcja przed stopką, stopka i baner zgód |
+| **B1** (5/16) | ~460-468 KB | Brak paska „Warte przeczytania” (ticker w nagłówku). Zegar chrome wygasł, więc `readChromeWarmup` od razu oznacza `failed` i renderuje nagłówek na pustym wpisie (`chromeWarmup.tsx:58-63`). Zasłania to też wynik loadera.                                                                                                                                                                  | Prawie: brak tylko tickera                                                   |
+| **B2** (3/16) | ~499-508 KB | Tekst identyczny z czystym HIT-em (różnica 0 linii). Sekcje dociągnął `ServerSectionGate` strumieniem (7 bloków `<div hidden id="S:…">`). Mimo to `degraded:true`: dane widgetów nad zgięciem nie leżały w cache w chwili końca loadera (`index.tsx:242-249`). Wniosek przez eliminację, bo `home-page`/`home-mode`/`settings`/tokeny mają w stanie końcowym prawdziwe `dataUpdatedAt`.      | **Tak**                                                                      |
 
 Zasada działania bramki potwierdza B2. Według `src/lib/builder/sectionStreaming.tsx:1-5` zapytania
 spóźnione względem terminu loadera „stream real HTML without delaying the shell. This includes the
@@ -174,6 +174,7 @@ first fold”. Werdykt cache zapada jednak w loaderze, zanim strumień się sko�
   Bot dostaje typ A tak samo, bo `allReady` nie pomaga: komunikat nie jest granicą Suspense. Dla PSI
   typ A oznaczałby LCP zależne od łańcucha JS i danych, czyli katastrofę wyniku. Dziś PSI widział
   B1/B2, ale przy tym samym terminie typ A jest możliwy.
+
 - **Typ B1 [H].** Ticker dociąga klient po hydratacji. `HeaderSkeleton` czyta ten sam pusty wpis
   (`__root.tsx`, komentarz przy `headerAds`), więc nie rezerwuje miejsca na pasek. Możliwe
   przesunięcie całej strony.
@@ -298,14 +299,14 @@ albo `stores` = 0.
 
 ## 5. Pytanie 4: rozgrzewka (P0.7)
 
-| element | stan [F] |
-| ------- | -------- |
-| P0.7 (pg_cron + pg_net, monitor wieloregionowy, UA Chrome) | **nie wdrożone**: „odłożone (cron rozgrzewania; decyzja później)” (`faza2/STAN-FALI-0.md:36`), „plan zakłada brak cronu” (`faza2/PLAN-FALE-1-2.md:26`). Nie ma migracji `*_edge_warm_cron.sql`. |
+| element                                                                                                                    | stan [F]                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0.7 (pg_cron + pg_net, monitor wieloregionowy, UA Chrome)                                                                 | **nie wdrożone**: „odłożone (cron rozgrzewania; decyzja później)” (`faza2/STAN-FALI-0.md:36`), „plan zakłada brak cronu” (`faza2/PLAN-FALE-1-2.md:26`). Nie ma migracji `*_edge_warm_cron.sql`.          |
 | Stary warmer: krok „Warm NES Edge Cache” w `.github/workflows/scheduler.yml:166-176`, skrypt `scripts/warm-edge-cache.mjs` | **No-op**: `vars.APP_BASE_URL` nie jest ustawione, a log przebiegu 37743752408 (2026-10-08 07:29Z) mówi „[warm] brak WARM_BASE_URL/APP_BASE_URL - pomijam grzanie cache.” (`warm-edge-cache.mjs:31,74`). |
-| Częstotliwość | `cron: "*/5 * * * *"` (`scheduler.yml:33`), ale GitHub dławi harmonogram: 40 przebiegów od 2026-10-01 14:49 do 2026-10-08 07:29, co ~2-6 h. |
-| Kolonie | Runner GitHuba (USA), więc najwyżej jedna kolonia w USA. |
-| UA | `NES-EdgeWarmer/1 (+github-actions)` (`warm-edge-cache.mjs:58`). Dla `isbot` to przeglądarka, więc wariant strumieniowy. |
-| ścieżki | `/,/en,/blog,/en/blog` |
+| Częstotliwość                                                                                                              | `cron: "*/5 * * * *"` (`scheduler.yml:33`), ale GitHub dławi harmonogram: 40 przebiegów od 2026-10-01 14:49 do 2026-10-08 07:29, co ~2-6 h.                                                              |
+| Kolonie                                                                                                                    | Runner GitHuba (USA), więc najwyżej jedna kolonia w USA.                                                                                                                                                 |
+| UA                                                                                                                         | `NES-EdgeWarmer/1 (+github-actions)` (`warm-edge-cache.mjs:58`). Dla `isbot` to przeglądarka, więc wariant strumieniowy.                                                                                 |
+| ścieżki                                                                                                                    | `/,/en,/blog,/en/blog`                                                                                                                                                                                   |
 
 **Dlaczego nie utrzyma HIT-u PSI nawet po skonfigurowaniu [F/H].** Przy samym L1 jedno żądanie
 warmera trafia jeden losowy izolat jednej kolonii, a PSI trafi w inny izolat, a zwykle także
@@ -354,16 +355,16 @@ w eu-west-1 grzałby kolonię najbliższą Dublinowi (DUB/LHR), a nie AMS/FRA, z
 
 ## 7. Przyczyny źródłowe (ranking wpływu)
 
-| # | przyczyna | status | plik:linia |
-| - | --------- | ------ | ---------- |
-| P1 | Cache API (`caches.default`) wyłączone w runtime hostingu, więc martwe są L2 dokumentów, L2 danych, migawki routingu i cache mediów | H (silna: 3 objawy + dokumentacja CF dla WfP untrusted) | `documentCacheL2.server.ts:92-100`; konsumenci `bootstrapCache.server.ts:72-121`, `ssrCacheL2.server.ts:111,148`, `mediaCache.server.ts:17` |
-| P2 | Wspólny termin 600 ms na stronie głównej przy 3 szeregowych falach do eu-west-1 | F | `homeSsrBudget.ts:16-18`, `index.tsx:121-140`, `public.ts:474-541` |
-| P3 | Werdykt zapisu zapada w loaderze (~600 ms), a nie po strumieniu, więc dokumenty kompletne (B2) i prawie kompletne (B1) są odrzucane | F | `index.tsx:242-249,270`; `chromeWarmup.tsx:58-63`; `__root.tsx:1059-1061`; `documentCache.server.ts:628-653` |
-| P4 | `edge-routing`: 2 szeregowe odczyty service-role przed cache dokumentów | F (koszt), H (dlaczego migawki nie działają, patrz P1) | `start.ts:341-373`, `redirects.server.ts:375-394`, `tenant.server.ts:118-166` |
-| P5 | Brak rozgrzewki: zmienna nieskonfigurowana, harmonogram GitHuba co 2-6 h, P0.7 odłożone | F | `scheduler.yml:33,166-176`, `warm-edge-cache.mjs:31,74` |
-| P6 | Wariant zapisany zależy od UA, które wyzwoliło render albo rewalidację; bot czeka `allReady` na MISS | F | `server.ts:161-182`; `renderRouterToStream.js:31` |
-| P7 | Telemetria ślepa na kolonię i L2: `colo` puste, `l2Stats.enabled` mierzy obecność obiektu, nie działanie | F (objaw), H (przyczyna: brak `request.cf`) | `server.ts:386-390,501-504`; `ssrTiming.ts:148-159,197-204`; `documentCacheL2.server.ts:281` |
-| P8 | Start zimnego izolatu i render na zimnym JIT: 0,8-2,4 s poza `app;dur` | H | — (zamrożony zegar; `server.ts:306-317`) |
+| #   | przyczyna                                                                                                                           | status                                                  | plik:linia                                                                                                                                  |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | Cache API (`caches.default`) wyłączone w runtime hostingu, więc martwe są L2 dokumentów, L2 danych, migawki routingu i cache mediów | H (silna: 3 objawy + dokumentacja CF dla WfP untrusted) | `documentCacheL2.server.ts:92-100`; konsumenci `bootstrapCache.server.ts:72-121`, `ssrCacheL2.server.ts:111,148`, `mediaCache.server.ts:17` |
+| P2  | Wspólny termin 600 ms na stronie głównej przy 3 szeregowych falach do eu-west-1                                                     | F                                                       | `homeSsrBudget.ts:16-18`, `index.tsx:121-140`, `public.ts:474-541`                                                                          |
+| P3  | Werdykt zapisu zapada w loaderze (~600 ms), a nie po strumieniu, więc dokumenty kompletne (B2) i prawie kompletne (B1) są odrzucane | F                                                       | `index.tsx:242-249,270`; `chromeWarmup.tsx:58-63`; `__root.tsx:1059-1061`; `documentCache.server.ts:628-653`                                |
+| P4  | `edge-routing`: 2 szeregowe odczyty service-role przed cache dokumentów                                                             | F (koszt), H (dlaczego migawki nie działają, patrz P1)  | `start.ts:341-373`, `redirects.server.ts:375-394`, `tenant.server.ts:118-166`                                                               |
+| P5  | Brak rozgrzewki: zmienna nieskonfigurowana, harmonogram GitHuba co 2-6 h, P0.7 odłożone                                             | F                                                       | `scheduler.yml:33,166-176`, `warm-edge-cache.mjs:31,74`                                                                                     |
+| P6  | Wariant zapisany zależy od UA, które wyzwoliło render albo rewalidację; bot czeka `allReady` na MISS                                | F                                                       | `server.ts:161-182`; `renderRouterToStream.js:31`                                                                                           |
+| P7  | Telemetria ślepa na kolonię i L2: `colo` puste, `l2Stats.enabled` mierzy obecność obiektu, nie działanie                            | F (objaw), H (przyczyna: brak `request.cf`)             | `server.ts:386-390,501-504`; `ssrTiming.ts:148-159,197-204`; `documentCacheL2.server.ts:281`                                                |
+| P8  | Start zimnego izolatu i render na zimnym JIT: 0,8-2,4 s poza `app;dur`                                                              | H                                                       | — (zamrożony zegar; `server.ts:306-317`)                                                                                                    |
 
 ---
 
@@ -488,9 +489,9 @@ zbędne.
 
 - **(a) Jedna fala, ryzyko niskie.** Przekierowania dobierane po domenie hosta jednym zapytaniem
   (embed `tenants!inner(domain)` albo RPC service-role `routing_bootstrap(_host)` z wynikiem tenant
-  + reguły), równolegle z katalogiem albo zamiast niego.
-  - Pliki: `src/lib/seo/redirects.server.ts:375-394`, `src/lib/server/tenant.server.ts` (poza macierzą).
-  - Testy: istniejące testy przekierowań i tenantów (`src/lib/seo/__tests__`,
+  - reguły), równolegle z katalogiem albo zamiast niego.
+  * Pliki: `src/lib/seo/redirects.server.ts:375-394`, `src/lib/server/tenant.server.ts` (poza macierzą).
+  * Testy: istniejące testy przekierowań i tenantów (`src/lib/seo/__tests__`,
     `src/lib/server/__tests__`), `platformRequestHost.test.ts`.
 - **(b) P7.2/SC-4, ryzyko średnie.** Lookup L1/L2 przed `redirectMiddleware` dla `GET`+`text/html`
   na kluczu cache'owalnym (`src/start.ts:546-565`, P7.2). Klucz z hosta surowego jest bezpieczny,

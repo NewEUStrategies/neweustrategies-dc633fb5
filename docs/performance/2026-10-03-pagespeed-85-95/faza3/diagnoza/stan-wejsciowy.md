@@ -1,11 +1,13 @@
 # Notatki orkiestratora - fala 3 (sesja 2026-10-08)
 
 ## Stan wejściowy
+
 - PR #476 (fala 2) scalony do main 2026-10-06 (3ec18dd1) i wdrożony przez Lovable (f213e561). Gałąź claude/zen-ritchie-hzur21 przesunięta FF do origin/main 7c924ae5.
 - Sekret PSI_API_KEY nie jest ustawiony: psi.yml kończy się na zielono bez próbkowania (3 przebiegi 10-05..10-07). Anonimowe API PSI = 429.
 - CrUX: za mało danych dla originu (link właściciela) - CWV oceniane wyłącznie laboratoryjnie.
 
 ## Produkcja (LH 13.5 z kontenera, kolo IAD, Chrome 141, symulowane dławienie, UA Chrome-Lighthouse, Accept-Language pl)
+
 - mobile-1 odrzucony (bench 1378, świeży kontener, rywalizacja CPU).
 - mobile-2: 87; FCP 2,18 LCP 3,25 SI 2,96 TBT 190 CLS 0; obs SI 1101; TTFB 100 ms (HIT).
 - mobile-3: 85; FCP 1,94 LCP 2,99 SI 4,01 TBT 291 CLS 0,0014; obs SI 1849 - slider hero przeskakuje na 2. slajd ok. 8,1 s (speedline: 85-86% od 1,06 s do 8,2 s).
@@ -19,6 +21,7 @@
 - Klient po boocie: 7 zapytań Supabase + 7 preflight (site_design_tokens, post_layout_settings, ad_placements, newsletter_settings, builder_popups, categories, tags); na produkcji 5 z nich podwójnie.
 
 ## Baza lokalna W3 (main 7c924ae5, fixture, ramię bot, n=3)
+
 - mobile 93 (TBT 55/260/359), desktop 100 (1 przebieg 468 ms po restarcie serwera), desktop4x 81 (TBT 346-475).
 - Księga d4x-2: ScriptCatchup 181, Script:(dokument) [Style 73%] 146 (wymuszony układ loadera przy DCL, K4i), vendor-react 54, Timer:index 19.
 - Księga m-1: ScriptCatchup 101, Style 70, vendor-react 54, Timer:dynamic-icon 23.

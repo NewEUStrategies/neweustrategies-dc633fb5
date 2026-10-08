@@ -158,9 +158,9 @@ AGENTS.md, polski w komentarzach i commitach, zero nowych zależności, parytet 
 
 - Wg `faza1/PLAN.md` P3.2 (LP-7, HW-4) + P4.2 (względne URL-e TYLKO w `src`/`srcset` renderowanym do HTML, w
   preloadzie `<head>` i w nagłówku `Link`) + awatary 1x/2x (src = 1x, srcset tylko 2x; 42 z 83 `<img>` to ten sam awatar)
-  + logo nagłówka eager. Diagnoza: `diagnoza/waga-dokumentu.md` (pozycje 1, 3, 4, 10). Pliki z planu głównego
-  (`cropSizes.ts`, `imageSlot.ts`, `sliderSizes.ts`, `widgetImageSizes.ts`, `heroImage.ts`, `OptimizedImage.tsx`,
-  `sliderVariants.tsx`, `TrendingTicker.tsx` — awatary) + emitery preloadu/`Link` + testy.
+  - logo nagłówka eager. Diagnoza: `diagnoza/waga-dokumentu.md` (pozycje 1, 3, 4, 10). Pliki z planu głównego
+    (`cropSizes.ts`, `imageSlot.ts`, `sliderSizes.ts`, `widgetImageSizes.ts`, `heroImage.ts`, `OptimizedImage.tsx`,
+    `sliderVariants.tsx`, `TrendingTicker.tsx` — awatary) + emitery preloadu/`Link` + testy.
 - Dowód: `check-document-weight` (bajty `srcset` w dół, preload = kandydat), żądanie hero 640w na mobile, ΔLCP mobile
   ≤ −0,1 s albo raport.
 
@@ -218,13 +218,13 @@ AGENTS.md, polski w komentarzach i commitach, zero nowych zależności, parytet 
 
 ## 3. Partie i własność plików
 
-| Partia | Pozycje (równolegle) | Uwagi |
-| --- | --- | --- |
-| 1 | P3.4, P3.5, P3.6a | rozłączne pliki; P3.5 tworzy `interactionOrQuiet.ts` dla P3.8 |
-| 2 | P3.3, P3.6b, P3.8 | `__root.tsx`: P3.6b tylko gałąź chrome `expired()`, P3.8 rozgrzewki i nakładki — orkiestrator scala ręcznie |
-| 3 | P3.2a, P3.2b, P3.9 | `sliderVariants.tsx`/`TrendingTicker.tsx` po P3.5; `styles.css` P3.2b tylko `@font-face` |
-| 4 | P3.7, P3.1 | po księdze partii 1–3 |
-| 5 | P3.10 (+ P3.11, jeśli zatwierdzone) | ostatnia |
+| Partia | Pozycje (równolegle)                | Uwagi                                                                                                       |
+| ------ | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 1      | P3.4, P3.5, P3.6a                   | rozłączne pliki; P3.5 tworzy `interactionOrQuiet.ts` dla P3.8                                               |
+| 2      | P3.3, P3.6b, P3.8                   | `__root.tsx`: P3.6b tylko gałąź chrome `expired()`, P3.8 rozgrzewki i nakładki — orkiestrator scala ręcznie |
+| 3      | P3.2a, P3.2b, P3.9                  | `sliderVariants.tsx`/`TrendingTicker.tsx` po P3.5; `styles.css` P3.2b tylko `@font-face`                    |
+| 4      | P3.7, P3.1                          | po księdze partii 1–3                                                                                       |
+| 5      | P3.10 (+ P3.11, jeśli zatwierdzone) | ostatnia                                                                                                    |
 
 Bramka fali 3 po partiach: jak W2 (`faza1/PLAN.md`, fala 3) + SI: speedline bez późnych zmian od autoplay, CLS = 0
 (mobile i desktop), `backend: 0` zapytań w oknie bootu. Weryfikacja produkcyjna po wdrożeniu: Lighthouse z kontenera
