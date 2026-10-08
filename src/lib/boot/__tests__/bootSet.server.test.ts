@@ -4,8 +4,7 @@
 //
 // Dwie warstwy dowodu:
 //   1. czyste funkcje (`composeBootSet`, `bootModeFor`, `bootSetHtml`) - kolejność serii,
-//      deduplikacja, filtr URL-i, reguła trybu, granice grup serii (P3.4: domknięcie wejścia |
-//      słownik + trasa | widgety, tylko tryb `lcp`, bez pustych grup);
+//      deduplikacja, filtr URL-i, reguła trybu;
 //   2. PRAWDZIWY render routera TanStack (`createRequestHandler` + `defaultStreamHandler`, ta sama
 //      para, którą składa `createStartHandler`) w zasięgu żądania h3, przez PRAWDZIWE `src/server.ts`
 //      (atrapą jest wyłącznie wirtualny moduł `server-entry`, którego build nie generuje w teście -
@@ -63,7 +62,7 @@ vi.mock("@tanstack/react-start/server-entry", async () => {
 });
 
 describe("composeBootSet - skład serii", () => {
-  it("kolejność: wejście, preloady korzenia, słownik, trasy, hinty modułów z `Link`; bez duplikatów; granice grup", () => {
+  it("kolejność: wejście, preloady korzenia, słownik, trasy, hinty modułów z `Link`; bez duplikatów", () => {
     const set = composeBootSet({
       manifest: MANIFEST,
       mode: "lcp",
@@ -73,8 +72,6 @@ describe("composeBootSet - skład serii", () => {
         ", ",
       ),
     });
-    // Grupy (P3.4): [wejście, vendor-react] | [słownik, trasa] | [widget]. `vendor-react` z trasy
-    // i słownik z `Link` zostają w pierwszej grupie, w której wystąpiły.
     expect(set).toEqual<BootSet>({
       m: "lcp",
       e: MANIFEST.entry,
@@ -85,42 +82,7 @@ describe("composeBootSet - skład serii", () => {
         "/assets/index-route-R1r1R1r1.js",
         "/assets/widget-hero-W1w1W1w1.js",
       ],
-      g: [2, 4],
     });
-  });
-
-  it("granice grup bez pustych grup: brak widgetów, brak słownika i trasy, sam rdzeń", () => {
-    const base = { manifest: MANIFEST, mode: "lcp" as const, matches: [{ routeId: "/" }] };
-    // Bez hintów widgetów: dwie grupy.
-    expect(composeBootSet({ ...base, dictionary: DICTIONARY_PL }).g).toEqual([2]);
-    // Bez słownika i bez trasy w mapie: domknięcie wejścia | widgety.
-    expect(
-      composeBootSet({ ...base, dictionary: null, matches: [], linkHeader: WIDGET_HINT }).g,
-    ).toEqual([2]);
-    // Sam rdzeń: jedna grupa, bez klucza `g` w węźle (bajty `<head>`).
-    const core = composeBootSet({ ...base, dictionary: null, matches: [] });
-    expect(core.u).toEqual(MANIFEST.rootPreloads);
-    expect(core).not.toHaveProperty("g");
-    // Wszystko z drugiej grupy już w pierwszej (np. trasa = same vendory): granica nie powstaje.
-    const dup = composeBootSet({
-      ...base,
-      manifest: { ...MANIFEST, routePreloads: { "/": [MANIFEST.entry] } },
-      dictionary: null,
-      linkHeader: WIDGET_HINT,
-    });
-    expect(dup.g).toEqual([2]);
-  });
-
-  it("tryb `now` startuje serię naraz - zestaw bez granic grup", () => {
-    const set = composeBootSet({
-      manifest: MANIFEST,
-      mode: "now",
-      dictionary: DICTIONARY_PL,
-      matches: [{ routeId: "/konto" }],
-      linkHeader: WIDGET_HINT,
-    });
-    expect(set.u).toHaveLength(5);
-    expect(set).not.toHaveProperty("g");
   });
 
   it("odrzuca URL-e spoza ścieżek/http(s) i id tras trafiające w prototyp", () => {
@@ -302,7 +264,6 @@ describe("dokument przez potok serwera: render, `Link`, cache", () => {
       "/assets/index-route-R1r1R1r1.js",
       "/assets/widget-hero-W1w1W1w1.js",
     ],
-    g: [2, 4],
   };
 
   it.each([
@@ -352,7 +313,6 @@ describe("dokument przez potok serwera: render, `Link`, cache", () => {
     const html = await response.text();
     const [set] = bootSetsIn(html) as BootSet[];
     expect(set.m).toBe("now");
-    expect(set.g).toBeUndefined();
     expect(set.u).toEqual([
       "/assets/index-E1e1E1e1.js",
       "/assets/vendor-react-V1v1V1v1.js",

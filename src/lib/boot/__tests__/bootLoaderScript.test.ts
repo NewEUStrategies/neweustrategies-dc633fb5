@@ -13,7 +13,7 @@
 // parsowania dokumentu (poprawka po Prove: moduł wstawiony skryptem jest `async`, a `hydrate()` bez
 // ogona dokumentu rzuca), idempotencja, watchdog sondy i doktryna skryptu inline. P3.4: pole
 // kandydata bez geometrii w handlerze DCL (K4i - pomiar w zadaniu po pierwszej klatce), seria
-// grupami zestawu w osobnych zadaniach z wejściem po ostatniej grupie i po DCL, `now` naraz.
+// jednym zadaniem z wejściem za każdym `modulepreload` (grupy zmierzone i wycofane).
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,20 +28,6 @@ import {
 
 const ENTRY = "/assets/index-AbCdEf12.js";
 const LCP_SET = { m: "lcp", e: ENTRY, u: [ENTRY, "/assets/vendor-react-x.js", "/assets/pl-y.js"] };
-/** Zestaw z granicami grup (P3.4): domknięcie wejścia | słownik + trasa | widgety. */
-const GROUPED_SET = {
-  m: "lcp",
-  e: ENTRY,
-  u: [
-    ENTRY,
-    "/assets/vendor-react-x.js",
-    "/assets/pl-y.js",
-    "/assets/index-route-r.js",
-    "/assets/PostsSliderWidget-w.js",
-    "/assets/sliderVariants-v.js",
-  ],
-  g: [2, 4],
-};
 /** rAF atrapy (16 ms) + `setTimeout(0)` zaplanowany w nim - zadanie po pierwszej klatce. */
 const FRAME_MS = 17;
 
@@ -624,22 +610,12 @@ describe("BOOT_LOADER_SCRIPT - pole kandydata bez wymuszonego układu (K4i)", ()
   });
 });
 
-// SERIA GRUPAMI (P3.4). `g` z zestawu dzieli serię na grupy: (1) domknięcie wejścia, (2) słownik
-// + trasa, (3) widgety nad zgięciem. Każda grupa w osobnym zadaniu (`setTimeout(0)`), wejście
-// dopiero po zażądaniu ostatniej grupy I po sparsowaniu dokumentu; `now` wstawia całą serię naraz.
-describe("BOOT_LOADER_SCRIPT - seria grupami w osobnych zadaniach (P3.4)", () => {
-  function groupedPage(set: unknown = GROUPED_SET): Harness & { img: Element } {
-    let img: Element | null = null;
-    const h = runLoader({
-      before: (doc) => {
-        doc.head.appendChild(bootSetNode(doc, set));
-        img = candidate(doc);
-      },
-    });
-    return { ...h, img: img as unknown as Element };
-  }
-
-  /** Wejście stoi w `<head>` za KAŻDYM `modulepreload` serii (zażądane po ostatniej grupie). */
+// SERIA JEDNYM ZADANIEM (P3.4). Wariant z grupami `modulepreload` w osobnych zadaniach nie
+// podzielił `ScriptCatchup` (księga Prove) i został wycofany. Reguła CLS z werdyktu boot-js C3:
+// cała seria jest zażądana w zadaniu wyzwalacza, a wejście stoi w `<head>` za KAŻDYM jej
+// `modulepreload` - żaden moduł nie ewaluuje się przed zażądaniem wszystkich.
+describe("BOOT_LOADER_SCRIPT - seria jednym zadaniem, wejście za całą serią", () => {
+  /** Wejście stoi w `<head>` za każdym `modulepreload` serii. */
   function entryAfterAllPreloads(doc: Document): boolean {
     const entry = doc.head.querySelector('script[type="module"]');
     if (!entry) return false;
@@ -648,104 +624,39 @@ describe("BOOT_LOADER_SCRIPT - seria grupami w osobnych zadaniach (P3.4)", () =>
     );
   }
 
-  it("grupy w kolejności zestawu, każda w osobnym zadaniu; wejście w zadaniu ostatniej grupy", () => {
-    const h = groupedPage();
+  function page(): Harness & { img: Element } {
+    let img: Element | null = null;
+    const h = runLoader({
+      before: (doc) => {
+        doc.head.appendChild(bootSetNode(doc));
+        img = candidate(doc);
+      },
+    });
+    return { ...h, img: img as unknown as Element };
+  }
+
+  it("wyzwalacz po DCL: cała seria i wejście w tym samym zadaniu wyzwalacza", () => {
+    const h = page();
     h.dcl();
     vi.advanceTimersByTime(FRAME_MS);
     FakeObserver.last?.emit({ element: h.img, size: 90_000 });
     vi.advanceTimersByTime(BOOT_AFTER_LCP_DELAY_MS - 1);
     expect(h.preloads()).toEqual([]);
-    vi.advanceTimersToNextTimer();
+    vi.advanceTimersByTime(1);
     expect(h.why()).toBe("lcp");
-    expect(h.preloads()).toEqual(GROUPED_SET.u.slice(0, 2));
-    expect(h.modules()).toEqual([]);
-    vi.advanceTimersToNextTimer();
-    expect(h.preloads()).toEqual(GROUPED_SET.u.slice(0, 4));
-    expect(h.modules()).toEqual([]);
-    expect(h.arm).not.toHaveBeenCalled();
-    vi.advanceTimersToNextTimer();
-    expect(h.preloads()).toEqual(GROUPED_SET.u);
-    expect(h.modules()).toEqual([ENTRY]);
-    expect(entryAfterAllPreloads(h.doc)).toBe(true);
-    expect(h.arm).toHaveBeenCalledTimes(1);
-  });
-
-  it("wyzwalacz przed DCL (dokument w porcjach): wszystkie grupy, wejście dopiero przy DCL", () => {
-    const h = groupedPage();
-    FakeObserver.last?.emit({ element: h.img, size: 90_000 });
-    vi.advanceTimersByTime(10_000);
-    expect(h.preloads()).toEqual(GROUPED_SET.u);
-    expect(h.modules()).toEqual([]);
-    expect(h.arm).not.toHaveBeenCalled();
-    h.dcl();
-    expect(h.modules()).toEqual([ENTRY]);
-    expect(entryAfterAllPreloads(h.doc)).toBe(true);
-    expect(h.arm).toHaveBeenCalledTimes(1);
-  });
-
-  it("DCL w trakcie serii: wejście nie przed ostatnią grupą", () => {
-    const h = groupedPage();
-    FakeObserver.last?.emit({ element: h.img, size: 90_000 });
-    vi.advanceTimersByTime(BOOT_AFTER_LCP_DELAY_MS - 1);
-    vi.advanceTimersToNextTimer();
-    expect(h.preloads()).toEqual(GROUPED_SET.u.slice(0, 2));
-    h.dcl();
-    expect(h.modules()).toEqual([]);
-    vi.advanceTimersToNextTimer();
-    expect(h.preloads()).toEqual(GROUPED_SET.u.slice(0, 4));
-    expect(h.modules()).toEqual([]);
-    vi.advanceTimersToNextTimer();
-    expect(h.preloads()).toEqual(GROUPED_SET.u);
-    expect(h.modules()).toEqual([ENTRY]);
-    // Późniejsze zdarzenia nie dublują serii ani wejścia.
-    h.win.dispatchEvent(new h.win.Event("keydown"));
-    h.win.dispatchEvent(new h.win.Event("load"));
-    vi.advanceTimersByTime(BOOT_HARD_CAP_MS + BOOT_AFTER_LOAD_DELAY_MS);
-    expect(h.preloads()).toEqual(GROUPED_SET.u);
-    expect(h.modules()).toEqual([ENTRY]);
-    expect(h.arm).toHaveBeenCalledTimes(1);
-  });
-
-  it("tryb `now` bez czekania: cała seria w zadaniu skryptu, także gdy zestaw niesie grupy", () => {
-    const now = runLoader({
-      before: (doc) => doc.head.appendChild(bootSetNode(doc, { ...GROUPED_SET, m: "now" })),
-    });
-    expect(now.why()).toBe("now");
-    expect(now.preloads()).toEqual(GROUPED_SET.u);
-    now.dcl();
-    expect(now.modules()).toEqual([ENTRY]);
-    // Zapisana sesja na stronie `lcp` to też `now`.
-    const session = runLoader({
-      before: (doc, win) => {
-        win.localStorage.setItem("sb-abc-auth-token", '{"access_token":"x"}');
-        doc.head.appendChild(bootSetNode(doc, GROUPED_SET));
-      },
-    });
-    expect(session.why()).toBe("now");
-    expect(session.preloads()).toEqual(GROUPED_SET.u);
-  });
-
-  it("zestaw bez `g` (format sprzed P3.4) to jedna grupa w zadaniu wyzwalacza", () => {
-    const h = groupedPage(LCP_SET);
-    h.dcl();
-    h.win.dispatchEvent(new h.win.Event("pointerdown"));
-    expect(h.why()).toBe("input");
     expect(h.preloads()).toEqual(LCP_SET.u);
     expect(h.modules()).toEqual([ENTRY]);
+    expect(entryAfterAllPreloads(h.doc)).toBe(true);
+    expect(h.arm).toHaveBeenCalledTimes(1);
   });
 
-  it.each([
-    ["granica za końcem", [0, 99]],
-    ["granice malejące", [5, 2]],
-    ["śmieci zamiast liczb", ["x", null]],
-    ["liczba zamiast tablicy", 3],
-    ["null", null],
-  ])("%s: każdy URL serii dokładnie raz, bez `undefined`, wejście na końcu", (_label, g) => {
-    const h = groupedPage({ ...GROUPED_SET, g });
+  it("wyzwalacz przed DCL: cała seria od razu, wejście przy DCL za każdym `modulepreload`", () => {
+    const h = page();
+    h.win.dispatchEvent(new h.win.Event("keydown"));
+    expect(h.why()).toBe("input");
+    expect(h.preloads()).toEqual(LCP_SET.u);
+    expect(h.modules()).toEqual([]);
     h.dcl();
-    h.win.dispatchEvent(new h.win.Event("pointerdown"));
-    vi.advanceTimersByTime(100);
-    expect(h.preloads()).toEqual(GROUPED_SET.u);
     expect(h.modules()).toEqual([ENTRY]);
     expect(entryAfterAllPreloads(h.doc)).toBe(true);
   });

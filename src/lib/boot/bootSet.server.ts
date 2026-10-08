@@ -1,6 +1,5 @@
-// ZESTAW BOOTU PER ŻĄDANIE (P2.1, krok 1; P3.4) - serwer składa listę modułów, które przeglądarka
-// pobierze serią w chwili bootu (w trybie `lcp` trzema grupami), i wstrzykuje ją do dokumentu poza
-// drzewem Reacta.
+// ZESTAW BOOTU PER ŻĄDANIE (P2.1, krok 1) - serwer składa listę modułów, które przeglądarka
+// pobierze JEDNĄ serią w chwili bootu, i wstrzykuje ją do dokumentu poza drzewem Reacta.
 //
 // PO CO. Manifest TanStack Start nie niesie już preloadów ani skryptu wejścia
 // (`scripts/lib/bootAfterLcpPlugin.ts`), więc dokument nie startuje JS-a sam. Startuje go
@@ -22,13 +21,6 @@
 // Punkt 4 czyta nagłówek zdarzenia h3 w chwili dehydratacji: loadery już się skończyły, a ich
 // hinty modułów leżą w jednym miejscu (akumulator `Link` per żądanie, `responseHeaders.ts`).
 // Dzięki temu każdy hint modułu dołożony przez loader trafia do serii bootu.
-//
-// GRUPY SERII (P3.4). Seria trybu `lcp` idzie w trzech grupach, każda w osobnym zadaniu loadera
-// (`bootLoaderScript.ts`, „SERIA GRUPAMI”): (1) punkt 1 - domknięcie wejścia, (2) punkty 2-3 -
-// słownik i chunki trasy, (3) punkt 4 - widgety nad zgięciem. Zestaw niesie granice w `g`
-// (indeksy w `u` po deduplikacji, rosnące, bez pustych grup), a `u` zostaje pełną listą w tej
-// samej kolejności - format jest zgodny wstecz (`documentWeight.ts`, e2e i loader bez `g` widzą
-// jedną grupę). Tryb `now` startuje całą serię naraz, więc granic nie dostaje (bajty `<head>`).
 //
 // NAGŁÓWEK `Link`. Tryb dokumentu idzie wewnętrznym nagłówkiem `x-nes-boot-mode`, który
 // `frameworkPreloads.server.ts` czyta i zdejmuje z odpowiedzi (nie trafia do klienta ani do
@@ -78,15 +70,12 @@ export type { BootMode };
 
 /**
  * Zestaw bootu w dokumencie. Klucze jednoliterowe, bo węzeł stoi w `<head>` każdego dokumentu
- * (budżet `headRawBytes`): `m` tryb, `e` wejście, `u` URL-e serii (wejście pierwsze), `g` granice
- * grup serii - indeksy w `u`, od których zaczyna się grupa 2 i 3 (tylko tryb `lcp`, bez pustych
- * grup; brak = jedna grupa).
+ * (budżet `headRawBytes`): `m` tryb, `e` wejście, `u` URL-e serii (wejście pierwsze).
  */
 export interface BootSet {
   readonly m: BootMode;
   readonly e: string;
   readonly u: readonly string[];
-  readonly g?: readonly number[];
 }
 
 /** Trasy publiczne SSR z kandydatem LCP (id tras routera; `/en` przepisuje się na `/`). */
@@ -135,19 +124,15 @@ export interface ComposeBootSetInput {
   readonly linkHeader?: string | null;
 }
 
-/** Skład zestawu (kolejność, grupy i reguły w nagłówku pliku). Funkcja czysta. */
+/** Skład zestawu (kolejność i reguły w nagłówku pliku). Funkcja czysta. */
 export function composeBootSet(input: ComposeBootSetInput): BootSet {
   const { manifest } = input;
   const urls = new Set<string>();
   const add = (url: unknown) => {
     if (isBootUrl(url)) urls.add(url);
   };
-  // Granica = liczba URL-i po domknięciu grupy; URL powtórzony w późniejszej grupie zostaje
-  // w pierwszej (deduplikacja `Set`), więc granice liczą się po deduplikacji.
-  const bounds: number[] = [];
   add(manifest.entry);
   manifest.rootPreloads.forEach(add);
-  bounds.push(urls.size);
   add(input.dictionary);
   for (const match of input.matches) {
     // `hasOwn`: id trasy jest kluczem danych - `constructor` czy `__proto__` nie mogą trafić
@@ -156,13 +141,8 @@ export function composeBootSet(input: ComposeBootSetInput): BootSet {
       manifest.routePreloads[match.routeId].forEach(add);
     }
   }
-  bounds.push(urls.size);
   modulePreloadTargets(input.linkHeader).forEach(add);
-  const set: BootSet = { m: input.mode, e: manifest.entry, u: [...urls] };
-  if (input.mode !== "lcp") return set;
-  // Bez pustych grup: granica na początku, na końcu albo równa poprzedniej nic nie dzieli.
-  const g = bounds.filter((at, i) => at > 0 && at < urls.size && at !== bounds[i - 1]);
-  return g.length ? { ...set, g } : set;
+  return { m: input.mode, e: manifest.entry, u: [...urls] };
 }
 
 /** Węzeł danych zestawu: `<` jako `\u003c`, więc treść nie domknie `</script>`. */
