@@ -91,6 +91,8 @@ vi.mock("@/lib/http/responseHeaders", () => ({
   setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
   appendLinkHeader: (value: string) => void h.linkHeaders.push(value),
   readRouteCacheDirective: () => null,
+  // R7c (P3.6b): odporny loader odnotowuje etykietę degradacji per żądanie.
+  noteDocumentDegradation: () => {},
 }));
 
 // Widok archiwum ciągnie rejestr sześciu layoutów - dla kontraktu LOADERA jest

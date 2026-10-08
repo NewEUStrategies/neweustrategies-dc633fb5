@@ -36,7 +36,7 @@ import appCss from "../styles.css?url";
 import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
 import { appendLinkHeader, setCacheControlHeader } from "../lib/http/responseHeaders";
-import { resilientCacheControl } from "../lib/ssr/resilientLoad";
+import { markDeliberateSeed, resilientCacheControl } from "../lib/ssr/resilientLoad";
 import { chromeDegradedCacheControl } from "../lib/http/cachePolicy";
 import {
   HOME_THEME_BUDGET_MS,
@@ -908,6 +908,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       context.queryClient.setQueryData(postLayoutKey, defaultPostLayoutSettings(), {
         updatedAt: 0,
       });
+      // LISTA CELOWYCH ZASIEWÓW (P3.6b): predykat kompletności dokumentu
+      // (`trackSsrQueryCompleteness`) liczy każdy zasiew z `updatedAt: 0` jako
+      // zgubione dane - poza zadeklarowanymi tutaj. Ten zasiew nie jest
+      // fallbackiem awarii, tylko parytetem SSR/klienta (uzasadnienie wyżej).
+      // `import.meta.env.SSR`, nie `isServer`: Vite podmienia go na stałą, więc
+      // wywołanie znika z bootu klienta (`isServer` z router-core nie zwija się).
+      if (import.meta.env.SSR) markDeliberateSeed(context.queryClient, postLayoutKey);
     }
     const settings = context.queryClient.getQueryData<Readonly<Record<string, unknown>>>(
       siteSettingsQueryOptions.queryKey,
@@ -991,7 +998,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           chromeQueryKeys.push(headerTickerQueryOptions(trending).queryKey);
         }
         const tickerWarm = () =>
-          chromeBudget > 0 && headerVisible && trending.enabled !== false
+          headerVisible && trending.enabled !== false
             ? context.queryClient.ensureQueryData(headerTickerQueryOptions(trending))
             : Promise.resolve();
         // Nawigacja i pozostałe data-bound widgety CHROME (header + footer to
@@ -1020,7 +1027,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // w stanie `pending` w dehydratowanym `$_TSR.router` - inaczej klient
         // po hydratacji czekałby w nieskończoność na strumień, który nie wróci
         // (poniżej strażnik, który taki stan resetuje).
-        const chromeWarm: Array<() => Promise<unknown>> = [tickerWarm, warmMenus];
+        //
+        // Praca fali chrome to fabryki z BUDŻETEM w ms (P3.6b): `warm` niżej
+        // podaje `chromeBudget`, dogrzanie strony głównej po terminie
+        // (`warmLate`) - własny budżet bramki. Jedna lista dla obu dróg, więc
+        // praca dopisana tutaj grzeje się także po terminie.
+        const chromeWarm: Array<(budgetMs: number) => Promise<unknown>> = [tickerWarm, warmMenus];
         // Reklama jest DEKORACJĄ i dlatego jej klucz NIE trafia do
         // `chromeQueryKeys`. Tamta lista rozstrzyga, czy dokument wolno utrwalić
         // na brzegu: nierozgrzany slot znaczyłby „dokument niekompletny" i
@@ -1049,10 +1061,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
               sectionQueryOptionsList(section, lang).map((options) => options.queryKey),
             ),
           );
-          if (chromeBudget > 0)
-            chromeWarm.push(() =>
-              prefetchCachedRouteQueries(context.queryClient, doc, lang, chromeBudget),
-            );
+          chromeWarm.push((budgetMs) =>
+            prefetchCachedRouteQueries(context.queryClient, doc, lang, budgetMs),
+          );
         }
         const initialChromeWarmup = registerChromeWarmup(context.queryClient, {
           ready: () => chromeQueryKeys.every((key) => hasSsrQueryData(context.queryClient, key)),
@@ -1068,10 +1079,26 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             setCacheControlHeader(
               kind === "failed" ? resilientCacheControl(true) : chromeDegradedCacheControl(),
             ),
+          // STRONA GŁÓWNA PO TERMINIE (P3.6b, R2c): `warm` niżej jest związane
+          // wspólnym terminem dokumentu (`chromeBudget`, `homeDeadline`), więc po
+          // jego minięciu niczego już nie dogrzewa i bramka oznaczała `failed`
+          // (pasek „Na czasie" doskakiwał po hydratacji, dokument szedł
+          // `no-store`). Ta sama lista `chromeWarm` z budżetem bramki
+          // (`HOME_CHROME_LATE_BUDGET_MS`, lib/ssr/chromeWarmup.tsx); reklama
+          // jak w `warm`, bo `HeaderSkeleton` rezerwuje jej wysokość z tego
+          // wpisu. Granica nagłówka czeka na całą tę pracę (najwyżej budżet
+          // bramki): baner dostrumieniowany PO nagłówku rozjechałby hydratację.
+          // Bramka `import.meta.env.SSR` (stała Vite), nie `isServer`: tylko ona
+          // wycina to domknięcie z chunku wejściowego klienta (+298 B bootu).
+          warmLate:
+            import.meta.env.SSR && homeDeadline !== undefined
+              ? (budgetMs: number) =>
+                  withBudget(Promise.allSettled(chromeWarm.map((work) => work(budgetMs))), budgetMs)
+              : undefined,
           warm: async () => {
             if (chromeBudget <= 0) return;
             await withBudget(
-              Promise.allSettled(chromeWarm.map((work) => work())),
+              Promise.allSettled(chromeWarm.map((work) => work(chromeBudget))),
               CHROME_WARM_BUDGET_MS,
               homeDeadline,
             );

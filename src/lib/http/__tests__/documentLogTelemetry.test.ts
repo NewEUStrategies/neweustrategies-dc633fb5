@@ -48,6 +48,8 @@ vi.mock("@tanstack/react-start/server-entry", async () => {
 
 const { default: serverEntry } = await import("../../../server");
 const { resetDocumentCacheForTests } = await import("../documentCache.server");
+const { noteDocumentDegradation, registerDocumentCompletenessCheck } =
+  await import("../responseHeaders");
 const { setColoCacheForTests } = await import("../documentCacheL2.server");
 
 const CACHEABLE = {
@@ -190,5 +192,82 @@ describe("R7b: wynik samotestu L2 izolatu w linii dokumentu", () => {
     hoisted.render = () => new Response("<html>ok</html>", { headers: CACHEABLE });
     await visit("/martwe");
     expect(await visit("/martwe-druga")).toMatchObject({ l2Verified: false });
+  });
+});
+
+// R7c (fala 3, P3.6b): obok etapu linia mówi, KTÓRE dane zdegradowały render -
+// etykiety odpornych loaderów i odstępstwa predykatu kompletności na końcu
+// strumienia.
+describe("R7c: przyczyny degradacji (`degradedBy`) w linii dokumentu", () => {
+  it("`loader`: etykiety odnotowane w zasięgu żądania", async () => {
+    hoisted.render = (request) => {
+      noteDocumentDegradation("home.page", request);
+      noteDocumentDegradation("home.mode", request);
+      return new Response("<html>typ A</html>", {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "private, no-store",
+        },
+      });
+    };
+    expect(await visit("/")).toMatchObject({
+      degraded: true,
+      degradedAt: "loader",
+      degradedBy: ["home.page", "home.mode"],
+    });
+  });
+
+  it("`stream`: predykat kompletności odrzuca zapis i podaje odstępstwa", async () => {
+    hoisted.render = (request) => {
+      registerDocumentCompletenessCheck(
+        () => ({ complete: false, reasons: ["dropped:builder-post-list"] }),
+        request,
+      );
+      return new Response("<html>sekcja bez danych</html>", { headers: CACHEABLE });
+    };
+    const line = await visit("/b2-zgubione");
+    expect(line).toMatchObject({
+      cache: "MISS",
+      degraded: true,
+      degradedAt: "stream",
+      store: "degraded",
+      degradedBy: ["dropped:builder-post-list"],
+    });
+    // Zdegradowany MISS nie zasiał magazynu.
+    expect(await visit("/b2-zgubione")).toMatchObject({ cache: "MISS" });
+  });
+
+  it("predykat kompletny: zapis, bez `degraded` i bez przyczyn", async () => {
+    hoisted.render = (request) => {
+      registerDocumentCompletenessCheck(() => ({ complete: true, reasons: [] }), request);
+      return new Response("<html>kompletny</html>", { headers: CACHEABLE });
+    };
+    const line = await visit("/b2-kompletny");
+    expect(line).toMatchObject({ cache: "MISS", degraded: false, store: "stored" });
+    expect(line).not.toHaveProperty("degradedBy");
+    expect(await visit("/b2-kompletny")).toMatchObject({ cache: "HIT" });
+  });
+
+  it("etykiety jednego żądania nie przeciekają do następnego", async () => {
+    hoisted.render = (request) => {
+      noteDocumentDegradation("home.page", request);
+      return new Response("<html>x</html>", {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "private, no-store",
+        },
+      });
+    };
+    await visit("/izolacja");
+    hoisted.render = () =>
+      new Response("<html>x</html>", {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "private, no-store",
+        },
+      });
+    const second = await visit("/izolacja");
+    expect(second).toMatchObject({ degraded: true });
+    expect(second).not.toHaveProperty("degradedBy");
   });
 });

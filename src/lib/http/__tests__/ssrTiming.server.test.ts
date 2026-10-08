@@ -559,6 +559,44 @@ describe("buildDocumentLogLine", () => {
       }),
     ).not.toHaveProperty("degradedAt");
   });
+
+  // R7c (fala 3, P3.6b): KTÓRE dane zdegradowały render.
+  it("`degradedBy` tylko przy `degraded: true`, z zamkniętego alfabetu, bez duplikatów, z sufitem", () => {
+    const base = {
+      path: "/",
+      status: 200,
+      cacheStatus: "MISS",
+      serverTiming: null,
+      serverInitMs: 0,
+      appMs: 1,
+    };
+    expect(
+      buildDocumentLogLine({
+        ...base,
+        degraded: true,
+        degradedBy: ["home.page", "dropped:builder-post-list", "home.page"],
+      }).degradedBy,
+    ).toEqual(["home.page", "dropped:builder-post-list"]);
+    // Czysty MISS nie niesie przyczyn, nawet gdy wołający je poda.
+    expect(
+      buildDocumentLogLine({ ...base, degraded: false, degradedBy: ["home.page"] }),
+    ).not.toHaveProperty("degradedBy");
+    // Napis spoza alfabetu (spacje, cudzysłów, JSON) odpada; pusta lista = brak klucza.
+    expect(
+      buildDocumentLogLine({
+        ...base,
+        degraded: true,
+        degradedBy: ['["public","home-page"]', "zły napis", ""],
+      }),
+    ).not.toHaveProperty("degradedBy");
+    const many = Array.from({ length: 20 }, (_, index) => `seed:k${index}`);
+    expect(buildDocumentLogLine({ ...base, degraded: true, degradedBy: many }).degradedBy).toEqual(
+      many.slice(0, 8),
+    );
+    expect(buildDocumentLogLine({ ...base, degraded: true, degradedBy: null })).not.toHaveProperty(
+      "degradedBy",
+    );
+  });
 });
 
 // OBSERWOWALNOŚĆ CACHE'U DOKUMENTÓW I TTFB (plan PSI 85/95, P0.4 = SC-1).

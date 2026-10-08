@@ -349,3 +349,54 @@ describe("resilientCacheControl", () => {
     expect(resilientCacheControl(true)).toBe("private, no-store");
   });
 });
+
+// R7c (fala 3, P3.6b): KTÓRY loader się zdegradował ma trafić do linii logu
+// dokumentu (`degradedBy`), a nie wyłącznie do osobnej linii konsoli, której
+// korelacja z dokumentem wymagała szukania po wywołaniu Workers.
+describe("loadResilient - etykieta degradacji w rejestrze żądania", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  async function inRequest(work: (request: Request) => Promise<void>): Promise<string[]> {
+    const { requestHandler } = await import("@tanstack/react-start/server");
+    const { readDocumentDegradations } = await import("@/lib/http/responseHeaders");
+    let seen: Request | null = null;
+    const handler = requestHandler(async (request: Request) => {
+      seen = request;
+      await work(request);
+      return new Response("ok");
+    });
+    await handler(new Request("https://tenant-a.eu/"), {});
+    return seen ? readDocumentDegradations(seen) : [];
+  }
+
+  it("zasiew na serwerze odnotowuje etykietę loadera", async () => {
+    vi.stubEnv("SSR", true);
+    const labels = await inRequest(async () => {
+      await loadResilient(client(), failingOptions("page"), EMPTY, { label: "home.page" });
+      await loadResilient(client(), failingOptions("mode"), EMPTY, { label: "home.mode" });
+    });
+    expect(labels).toEqual(["home.page", "home.mode"]);
+  });
+
+  it("bez etykiety: dwa wiodące elementy tekstowe klucza (jak `[ssr-resilient]` w konsoli)", async () => {
+    vi.stubEnv("SSR", true);
+    const labels = await inRequest(async () => {
+      await loadResilient(client(), failingOptions("tajny-slug"), EMPTY);
+    });
+    expect(labels).toEqual(["fail.tajny-slug"]);
+  });
+
+  it("czysty odczyt niczego nie odnotowuje", async () => {
+    vi.stubEnv("SSR", true);
+    const labels = await inRequest(async () => {
+      await loadResilient(client(), okOptions("rows", EMPTY), EMPTY, { label: "home.page" });
+    });
+    expect(labels).toEqual([]);
+  });
+});

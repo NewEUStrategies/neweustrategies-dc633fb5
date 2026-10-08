@@ -30,7 +30,11 @@
 //     koperty SSR i framework ubijał serwerowy cykl życia renderu w trakcie
 //     streamowania (incydent ~61 s, opis przy `decorateMissAndDeferStore`);
 //     kopia zbiera się pod `ctx.waitUntil`, więc domknięcie żądania jej nie
-//     ucina;
+//     ucina. O zapisie decyduje KONIEC strumienia (fala 3, P3.6b): dyrektywa
+//     trasy po ewentualnym zawężeniu (z niej też świeżość wpisu) i predykat
+//     kompletności zarejestrowany przez loader - dokument, którego sekcje
+//     dostrumieniowały się po terminie loadera, jest zapisywany, a dokument
+//     z zasiewem awaryjnym, błędem albo zgubioną sekcją nie;
 //   - budżet bajtów z approx-LRU (Map w kolejności wstawień, odświeżanej przy
 //     trafieniu) - ten sam wzorzec co `edgeTtlCache`, ale liczony w bajtach;
 //   - klucz prefiksowany hostem tenanta ("by construction", multi-tenant safe);
@@ -61,7 +65,12 @@ import {
   planDocumentCache,
   type NesCacheStatus,
 } from "@/lib/http/documentCache";
-import { readRouteCacheDirective } from "@/lib/http/responseHeaders";
+import { narrowestCacheControl } from "@/lib/http/cachePolicy";
+import {
+  noteDocumentDegradation,
+  readDocumentCompleteness,
+  readRouteCacheDirective,
+} from "@/lib/http/responseHeaders";
 import { currentTenantHost, trustedPublicHost } from "@/lib/http/requestHost";
 import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
 import {
@@ -240,8 +249,8 @@ export interface DocumentCacheDecision {
    * strumieniowania. Dwa ostatnie etapy zapadają PO zapisaniu decyzji, więc
    * pole (razem z `degradedRevalidation`) jest dopisywane do tego samego wpisu
    * pierścienia - wcześniej taki MISS wyglądał w pierścieniu jak czysty.
-   * KTÓRY loader się zdegradował, mówi linia `[ssr-resilient]` z tego samego
-   * wywołania.
+   * KTÓRE dane zdegradowały render, mówi pole `degradedBy` linii logu
+   * dokumentu (P3.6b). Etap `stream` daje też predykat kompletności.
    */
   degradedAt?: DegradationStage;
   /**
@@ -938,16 +947,40 @@ export function applyDeferredDocumentStore(
       decide("degraded", "stream");
       return false;
     }
+    // WERDYKT KOMPLETNOŚCI NA KOŃCU STRUMIENIA (fala 3, P3.6b, R2b). Loader
+    // trasy rejestruje predykat (`registerDocumentCompletenessCheck`), bo jego
+    // własny werdykt zapadał ~600 ms po starcie i nie widział sekcji
+    // dostrumieniowanych później: odrzucał dokumenty kompletne (klasa B2
+    // diagnozy). Tu dokument jest już CAŁY. `false` = degradacja etapu
+    // `stream` z tym samym odświeżeniem w tle co wyżej, a etykiety odstępstw
+    // idą do linii logu (`degradedBy`). Trasa bez predykatu = kompletna.
+    const completeness = readDocumentCompleteness(record.request);
+    if (!completeness.complete) {
+      for (const reason of completeness.reasons) noteDocumentDegradation(reason, record.request);
+      markLateDegradation(record, "stream");
+      decide("degraded", "stream");
+      return false;
+    }
+    // ŚWIEŻOŚĆ Z DYREKTYWY KOŃCOWEJ (P3.6b, R2b): rekord niesie politykę
+    // z chwili rejestracji w middleware, a trasa mogła ją W TRAKCIE
+    // strumieniowania zawęzić (np. chrome dostrumieniowany po flushu: 30 s
+    // zamiast 900 s). Wpis dostaje świeżość i nagłówek z węższej z obu - inaczej
+    // dokument „krótki" żyłby w magazynie pełne 3 min świeżości i dobę STALE.
+    const directive = readRouteCacheDirective(record.request);
+    const cacheControl = directive
+      ? narrowestCacheControl(record.cacheControl, directive)
+      : record.cacheControl;
+    const finalPolicy = documentStorePolicy(response.status, record.contentType, cacheControl);
     const entry: DocumentCacheEntry = {
       body,
       bytes: body.byteLength,
       contentType: record.contentType,
-      cacheControl: record.cacheControl,
+      cacheControl,
       contentLanguage: record.contentLanguage,
       link,
       storedAt: record.storedAt,
-      freshMs: record.freshMs,
-      swrMs: record.swrMs,
+      freshMs: Math.min(record.freshMs, finalPolicy.freshMs),
+      swrMs: Math.min(record.swrMs, finalPolicy.swrMs),
     };
     // Decyzja zgłaszana PRZED `setEntry`: od `setEntry` wpis jest HIT-em
     // (patrz `onOutcome` wyżej).

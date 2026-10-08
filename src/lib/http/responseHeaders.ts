@@ -89,6 +89,117 @@ export const readRouteCacheDirective = createIsomorphicFn()
   .client((): string | null => null);
 
 /**
+ * Werdykt kompletności dokumentu wydawany NA KOŃCU STRUMIENIA (fala 3, P3.6b,
+ * R2 diagnozy `faza3/diagnoza/cache-dokumentu.md`). `reasons` to krótkie
+ * etykiety odstępstw (np. `dropped:builder-post-list`) - trafiają do linii
+ * logu dokumentu jako `degradedBy`.
+ */
+export interface DocumentCompleteness {
+  readonly complete: boolean;
+  readonly reasons: readonly string[];
+}
+
+/**
+ * Predykat kompletności rejestrowany przez loader trasy. Wołany przez magazyn
+ * NES Edge Cache dopiero po zebraniu CAŁEGO dokumentu, więc widzi to, co
+ * dostrumieniowało się po flushu powłoki - werdykt loadera (~600 ms) tego nie
+ * widział i odrzucał dokumenty kompletne (klasa B2 diagnozy).
+ */
+export type DocumentCompletenessCheck = () => DocumentCompleteness;
+
+/** Werdykt „kompletny" - pola tylko do odczytu w typie; bez wywołań w zasięgu modułu. */
+const COMPLETE: DocumentCompleteness = { complete: true, reasons: [] };
+
+/**
+ * Predykaty i etykiety degradacji per ŻĄDANIE - ten sam kanał poza nagłówkami
+ * zdarzenia h3 i ta sama tożsamość klucza (`getRequest() === h3Event.req`) co
+ * `routeCacheDirectives` wyżej. Czytający spoza zasięgu żądania (magazyn
+ * w `applyDeferredDocumentStore`, linia logu w `src/server.ts`) podaje obiekt
+ * `Request` wprost. WeakMap = zero wycieków.
+ */
+const completenessChecks = new WeakMap<Request, DocumentCompletenessCheck[]>();
+const degradationLabels = new WeakMap<Request, Set<string>>();
+
+/** Sufit etykiet na żądanie: linia logu ma być krótka, a pętla nie może jej rozdmuchać. */
+const MAX_DEGRADATION_LABELS = 16;
+
+function scopedRequest(request?: Request): Request | null {
+  if (request) return request;
+  try {
+    return getRequest();
+  } catch {
+    /* not inside a request scope - ignore */
+    return null;
+  }
+}
+
+/**
+ * Zarejestruj predykat kompletności dokumentu bieżącego żądania. Kilka
+ * predykatów składa się koniunkcją. No-op na kliencie i poza zasięgiem żądania.
+ */
+export const registerDocumentCompletenessCheck = createIsomorphicFn()
+  .server((check: DocumentCompletenessCheck, request?: Request) => {
+    const scoped = scopedRequest(request);
+    if (!scoped) return;
+    const checks = completenessChecks.get(scoped);
+    if (checks) checks.push(check);
+    else completenessChecks.set(scoped, [check]);
+  })
+  .client(() => {});
+
+/**
+ * Werdykt wszystkich predykatów żądania. Brak predykatu = kompletny (trasy
+ * bez predykatu zachowują się jak dotąd). Predykat, który rzuca, to odstępstwo:
+ * konserwatywnie brak zapisu, nigdy wyjątek w potoku dokumentu.
+ */
+export const readDocumentCompleteness = createIsomorphicFn()
+  .server((request?: Request): DocumentCompleteness => {
+    const scoped = scopedRequest(request);
+    const checks = scoped ? completenessChecks.get(scoped) : undefined;
+    if (!checks?.length) return COMPLETE;
+    const reasons: string[] = [];
+    for (const check of checks) {
+      try {
+        const verdict = check();
+        if (!verdict.complete)
+          reasons.push(...(verdict.reasons.length ? verdict.reasons : ["incomplete"]));
+      } catch {
+        reasons.push("check-failed");
+      }
+    }
+    return reasons.length ? { complete: false, reasons } : COMPLETE;
+  })
+  .client((): DocumentCompleteness => COMPLETE);
+
+/**
+ * Odnotuj przyczynę degradacji renderu (etykieta odpornego loadera, chrome,
+ * odstępstwo predykatu kompletności) - R7c, pole `degradedBy` linii logu
+ * dokumentu. Kolejność pierwszego zgłoszenia, bez duplikatów, z sufitem.
+ */
+export const noteDocumentDegradation = createIsomorphicFn()
+  .server((label: string, request?: Request) => {
+    if (!label) return;
+    const scoped = scopedRequest(request);
+    if (!scoped) return;
+    let labels = degradationLabels.get(scoped);
+    if (!labels) {
+      labels = new Set<string>();
+      degradationLabels.set(scoped, labels);
+    }
+    if (labels.size < MAX_DEGRADATION_LABELS) labels.add(label);
+  })
+  .client(() => {});
+
+/** Etykiety degradacji odnotowane dla żądania (pusta lista, gdy brak). */
+export const readDocumentDegradations = createIsomorphicFn()
+  .server((request?: Request): string[] => {
+    const scoped = scopedRequest(request);
+    const labels = scoped ? degradationLabels.get(scoped) : undefined;
+    return labels ? [...labels] : [];
+  })
+  .client((): string[] => []);
+
+/**
  * Akumulator wartości nagłówka `Link` per ŻĄDANIE. Loadery tras (root + trasa
  * potomna) biegną równolegle, więc naiwny odczyt-scal-zapis na samym nagłówku
  * gubiłby jeden z wpisów. Każde dołożenie odkłada wartość do zbioru w WeakMap

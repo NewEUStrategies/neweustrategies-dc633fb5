@@ -51,7 +51,13 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import type { BlogArchiveResult, BlogListItem, HomepageMode, PageData } from "@/lib/queries/public";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import { QueryClient } from "@tanstack/react-query";
-import { HOME_SSR_BUDGET_MS, homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
+import {
+  HOME_CONTENT_BUDGET_MS,
+  HOME_SSR_BUDGET_MS,
+  homeContentDeadline,
+  homeSsrDeadline,
+} from "@/lib/ssr/homeSsrBudget";
+import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
 import { axeViolations, summarize } from "@/test/axe";
 
 const h = vi.hoisted(() => ({
@@ -66,18 +72,24 @@ const h = vi.hoisted(() => ({
   homePage: null as PageData | null,
   homePageFails: false,
   homePageHangs: false,
+  /** Opóźnienie odpowiedzi strony głównej w ms (0 = od razu). */
+  homePageDelayMs: 0,
   homeMode: "" as HomepageMode,
   homeModeFails: false,
   settings: {} as Record<string, unknown>,
   settingsFails: false,
   archive: null as BlogArchiveResult | null,
   archiveFails: false,
+  /** Opóźnienie odpowiedzi archiwum w ms (0 = od razu). */
+  archiveDelayMs: 0,
   /** Która rozgrzewka widgetów pobiegła - to jest przedmiot dowodu, nie detal. */
   prefetch: [] as string[],
   /** Nagłówek `Cache-Control`, jaki trasa ustawiła na odpowiedzi SSR. */
   cacheControl: [] as string[],
   /** Wartości nagłówka HTTP `Link` dołożone przez trasę. */
   linkHeaders: [] as string[],
+  /** Predykaty kompletności dokumentu zarejestrowane przez loader (P3.6b). */
+  completenessChecks: [] as unknown[],
   /** Wymuszona awaria RENDERU kanwy - osobna powierzchnia od awarii DANYCH. */
   builderThrows: false,
   /** Sesja czytelnika (`null` = gość - wartość domyślna kontekstu `useAuth`). */
@@ -144,6 +156,8 @@ vi.mock("@/lib/seo/request", async (importOriginal) => ({
 vi.mock("@/lib/http/responseHeaders", () => ({
   setCacheControlHeader: (value: string) => h.cacheControl.push(value),
   appendLinkHeader: (value: string) => h.linkHeaders.push(value),
+  registerDocumentCompletenessCheck: (check: unknown) => h.completenessChecks.push(check),
+  noteDocumentDegradation: () => {},
 }));
 
 vi.mock("@/lib/queries/public", async (importOriginal) => ({
@@ -155,7 +169,11 @@ vi.mock("@/lib/queries/public", async (importOriginal) => ({
         ? new Promise<PageData | null>(() => {})
         : h.homePageFails
           ? Promise.reject(new Error("blip backendu: strona główna"))
-          : Promise.resolve(h.homePage),
+          : h.homePageDelayMs > 0
+            ? new Promise<PageData | null>((resolve) =>
+                setTimeout(() => resolve(h.homePage), h.homePageDelayMs),
+              )
+            : Promise.resolve(h.homePage),
   }),
   homepageModeQueryOptions: () => ({
     queryKey: ["public", "home-mode"],
@@ -172,7 +190,11 @@ vi.mock("@/lib/queries/public", async (importOriginal) => ({
     queryFn: () =>
       h.archiveFails || h.archive === null
         ? Promise.reject(new Error("blip backendu: archiwum"))
-        : Promise.resolve(h.archive),
+        : h.archiveDelayMs > 0
+          ? new Promise<BlogArchiveResult | null>((resolve) =>
+              setTimeout(() => resolve(h.archive), h.archiveDelayMs),
+            )
+          : Promise.resolve(h.archive),
   }),
 }));
 
@@ -363,15 +385,18 @@ beforeEach(() => {
   h.homePage = null;
   h.homePageFails = false;
   h.homePageHangs = false;
+  h.homePageDelayMs = 0;
   h.homeMode = "";
   h.homeModeFails = false;
   h.settings = { reading: { posts_per_page: 2 } };
   h.settingsFails = false;
   h.archive = null;
   h.archiveFails = false;
+  h.archiveDelayMs = 0;
   h.prefetch = [];
   h.cacheControl = [];
   h.linkHeaders = [];
+  h.completenessChecks = [];
   h.builderThrows = false;
   h.renderLang = "pl";
   h.session = null;
@@ -764,6 +789,63 @@ describe("/ - tryb „najnowsze wpisy”", () => {
     expect(screen.getByRole("link", { name: /Wpis p2/ })).toBeTruthy();
   });
 
+  // P3.6b, R3a (recenzja rundy 9, m2): w tym trybie archiwum JEST treścią
+  // strony, więc czeka do terminu treści (`HOME_CONTENT_BUDGET_MS`), a nie do
+  // wspólnych 600 ms - jak strona i tryb w trybie strony statycznej.
+  describe("archiwum na terminie treści (SSR)", () => {
+    const archiveKey = ["public", "blog", "archive", { page: 1, pageSize: 2 }];
+    type Loader = (args: {
+      context: { queryClient: QueryClient };
+      deps: { page: number };
+    }) => Promise<{ degraded: boolean }>;
+    let qc: QueryClient;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+      h.server = true;
+      // Budżet loadera działa wyłącznie w SSR (`isSsrRequest()` = brak `document`).
+      vi.stubGlobal("document", undefined);
+    });
+
+    afterEach(() => {
+      qc.clear();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    });
+
+    it("lista po wspólnym terminie, ale w terminie treści, jest prawdziwa i współdzielona", async () => {
+      h.archiveDelayMs = HOME_SSR_BUDGET_MS + 300;
+      const loader = HomeRoute.options.loader as unknown as Loader;
+      const result = loader({ context: { queryClient: qc }, deps: { page: 1 } });
+      await vi.advanceTimersByTimeAsync(h.archiveDelayMs);
+      expect(await result).toMatchObject({ degraded: false });
+      expect(qc.getQueryState(archiveKey)?.dataUpdatedAt).toBeGreaterThan(0);
+      expect(qc.getQueryData<BlogArchiveResult>(archiveKey)?.posts).toHaveLength(2);
+      expect(h.cacheControl.at(-1)).toContain("s-maxage=900");
+    });
+
+    it("lista po terminie treści: zasiew pustej siatki DOKŁADNIE w terminie treści i `no-store`", async () => {
+      h.archiveDelayMs = 5_000;
+      homeSsrDeadline(qc);
+      const deadline = homeContentDeadline(qc);
+      const loader = HomeRoute.options.loader as unknown as Loader;
+      const result = loader({ context: { queryClient: qc }, deps: { page: 1 } });
+      let settled = false;
+      void result.then(() => {
+        settled = true;
+      });
+      // Wspólny termin mija, a loader NADAL czeka na archiwum.
+      await vi.advanceTimersByTimeAsync(HOME_SSR_BUDGET_MS);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(HOME_CONTENT_BUDGET_MS - HOME_SSR_BUDGET_MS);
+      expect(await result).toMatchObject({ degraded: true });
+      expect(Date.now()).toBe(deadline);
+      expect(qc.getQueryState(archiveKey)).toMatchObject({ status: "success", dataUpdatedAt: 0 });
+      expect(h.cacheControl.at(-1)).toBe("private, no-store");
+    });
+  });
+
   it("SEO ukrytej strony statycznej NIE przecieka do listy wpisów", async () => {
     // W trybie listy `homePageQueryOptions` z konstrukcji zwraca null, więc
     // tytuł i robots muszą spaść na defaulty marki - nie na SEO kanwy.
@@ -907,7 +989,7 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("a hanging SSR homepage stops at the shared deadline and seeds recoverable data", async () => {
+  it("a hanging SSR homepage stops at the CONTENT deadline and seeds recoverable data", async () => {
     vi.useFakeTimers();
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
     try {
@@ -921,9 +1003,12 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
       // nawigacji SPA (recenzja PR #382, P1).
       vi.stubGlobal("document", undefined);
       h.homePageHangs = true;
-      const deadline = homeSsrDeadline(qc);
+      homeSsrDeadline(qc);
+      // P3.6b, R3a: strona i tryb mają własny termin treści na TYM SAMYM
+      // zegarze żądania (start + 1 200 ms), nie wspólne 600 ms.
+      const deadline = homeContentDeadline(qc);
       // Root has already used 400 ms. The home loader may not start a fresh
-      // 600 ms timer when it joins the same request later.
+      // timer when it joins the same request later.
       await vi.advanceTimersByTimeAsync(400);
       type Loader = (args: {
         context: { queryClient: QueryClient };
@@ -935,7 +1020,15 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
       }>;
       const loader = HomeRoute.options.loader as unknown as Loader;
       const result = loader({ context: { queryClient: qc }, deps: { page: 1 } });
+      // Wspólny termin 600 ms mija, a loader NADAL czeka na treść.
       await vi.advanceTimersByTimeAsync(HOME_SSR_BUDGET_MS - 400);
+      let settled = false;
+      void result.then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(HOME_CONTENT_BUDGET_MS - HOME_SSR_BUDGET_MS);
       expect(await result).toMatchObject({ degraded: true, homePage: null, coverPreload: null });
       expect(Date.now()).toBe(deadline);
       expect(qc.getQueryState(["public", "home-page"])).toMatchObject({
@@ -949,6 +1042,56 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
       vi.unstubAllGlobals();
       vi.useRealTimers();
     }
+  });
+
+  // P3.6b, R3a. Z kolonii dalekiej od bazy trzy szeregowe round-tripy treści
+  // trwają 0,6-0,9 s; przy wspólnym terminie 600 ms kończyły się dokumentem
+  // „typu A" (komunikat zamiast treści, `no-store`). Treść spóźniona względem
+  // wspólnego terminu, ale w terminie treści, jest PRAWDZIWA.
+  it("treść po wspólnym terminie, ale w terminie treści, nie jest „typem A”", async () => {
+    vi.useFakeTimers();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    try {
+      h.server = true;
+      vi.stubGlobal("document", undefined);
+      h.homeMode = "static_page";
+      h.homePage = homePageData();
+      h.homePageDelayMs = 900;
+      type Loader = (args: {
+        context: { queryClient: QueryClient };
+        deps: { page: number };
+      }) => Promise<{ degraded: boolean; homePage: PageData | null }>;
+      const loader = HomeRoute.options.loader as unknown as Loader;
+      const result = loader({ context: { queryClient: qc }, deps: { page: 1 } });
+      await vi.advanceTimersByTimeAsync(900);
+      expect(await result).toMatchObject({ degraded: false, homePage: { id: "page-home" } });
+      expect(qc.getQueryState(["public", "home-page"])?.dataUpdatedAt).toBeGreaterThan(0);
+      expect(h.cacheControl.at(-1)).toContain("s-maxage=900");
+    } finally {
+      qc.clear();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("brak strony głównej (typ A) to ZAWSZE `no-store`, także po terminie treści", async () => {
+    h.homePageFails = true;
+    h.homeMode = "static_page";
+    await mountHome();
+    expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  });
+
+  it("SSR rejestruje predykat kompletności na końcu loadera; nawigacja SPA - nie", async () => {
+    h.homeMode = "static_page";
+    h.homePage = homePageData();
+    await mountHome();
+    expect(h.completenessChecks).toHaveLength(0);
+
+    cleanup();
+    h.server = true;
+    await mountHome();
+    expect(h.completenessChecks).toHaveLength(1);
+    expect(typeof h.completenessChecks[0]).toBe("function");
   });
 
   it("awaria archiwum daje pustą siatkę I ODCINA cache współdzielony", async () => {
@@ -1093,7 +1236,13 @@ describe("/ - dostępność", () => {
   });
 });
 
-it("does not cache an above-fold data widget whose prefetch missed the deadline", async () => {
+// P3.6b, R2a. Do fali 3 ten sam przypadek kończył się `no-store`: werdykt
+// loadera (~600 ms) nie widział, że `ServerSectionGate` dostrumieniowuje sekcję
+// z prawdziwym HTML-em, i odrzucał dokumenty kompletne (klasa B2 diagnozy).
+// Teraz loader daje KRÓTKĄ politykę wspólną (dokument kompletny, ale bez
+// preloadu hero i z sekcją podmienianą skryptem), a o zapisie decyduje
+// predykat kompletności na końcu strumienia.
+it("an above-fold data widget whose prefetch missed the deadline is shared only briefly", async () => {
   h.server = true;
   const doc = {
     version: 1,
@@ -1116,5 +1265,7 @@ it("does not cache an above-fold data widget whose prefetch missed the deadline"
   const view = await mountHome();
   expect(h.prefetch).toEqual(["nad-zgieciem"]);
   expect(view.queryClient.getQueryState(["public", "home-page"])?.dataUpdatedAt).toBeGreaterThan(0);
-  expect(h.cacheControl.at(-1)).toBe("private, no-store");
+  expect(h.cacheControl.at(-1)).toBe(chromeDegradedCacheControl());
+  expect(h.cacheControl).not.toContain("private, no-store");
+  expect(h.completenessChecks).toHaveLength(1);
 });
