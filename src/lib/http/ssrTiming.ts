@@ -349,6 +349,26 @@ const DOCUMENT_STORE_OUTCOMES: ReadonlySet<string> = new Set<DocumentStoreOutcom
   "failed",
 ]);
 
+/**
+ * Etap, na którym polityka zapisu odrzuciła MISS pełnego dokumentu (R7c):
+ *   - `loader`  - `private, no-store` widoczne już w middleware (odporny
+ *                 loader zdegradował render przed jego zwrotem),
+ *   - `handler` - dyrektywa trasy zawężona dopiero na granicy handlera,
+ *   - `stream`  - zawężona W TRAKCIE strumieniowania (np. chrome po flushu).
+ * Ten sam słownik niesie pierścień decyzji (`degradedAt` w
+ * documentCache.server.ts) i linia logu dokumentu.
+ */
+export type DegradationStage = "loader" | "handler" | "stream";
+
+/** Etapy odkrywane PO decyzji middleware - zgłasza je `applyDeferredDocumentStore`. */
+export type LateDegradationStage = Exclude<DegradationStage, "loader">;
+
+const DEGRADATION_STAGES: ReadonlySet<string> = new Set<DegradationStage>([
+  "loader",
+  "handler",
+  "stream",
+]);
+
 // ── Log dokumentu do Workers Logs (audyt 0.1 / F40) ─────────────────────────
 //
 // Warstwa hostingu ZDEJMUJE `Server-Timing` i `x-nes-cache` z odpowiedzi
@@ -499,6 +519,21 @@ export interface DocumentLogLine {
    */
   degraded?: boolean;
   /**
+   * Tylko przy `degraded: true`: etap degradacji (`DegradationStage`, R7c).
+   * `loader` - nagłówki zdegradowane już w middleware; `handler`/`stream` -
+   * decyzja magazynu (`store: "degraded"`). KTÓRY loader, mówi nadal linia
+   * `[ssr-resilient]` z tego samego wywołania.
+   */
+  degradedAt?: DegradationStage;
+  /**
+   * Wynik samotestu L2 izolatu, który obsłużył dokument (R7b): `true` - nazwany
+   * cache (albo `caches.default`) przeszedł zapis i odczyt, `false` - nie
+   * przeszedł i L2 jest w tym izolacie wyłączone. Brak klucza: samotest trwa
+   * albo nie dotyczy (runtime bez `caches.open`, poza Workers). Bez tego pola
+   * brak `layer: "L2"` nie odróżnia martwego magazynu od braku wpisu.
+   */
+  l2Verified?: boolean;
+  /**
    * Wynik odroczonego zapisu (`DocumentStoreOutcome`), gdy magazyn
    * zarejestrował ten MISS do zapisu i decyzja zapadła przed linią. Brak
    * klucza: odpowiedź nie była kandydatem do zapisu (HIT, BYPASS, `no-store`
@@ -537,6 +572,10 @@ export interface DocumentLogInput {
   /** Surowy nagłówek `cf-ray` - do logu trafia tylko po walidacji kształtu. */
   cfRay?: string | null;
   degraded?: boolean;
+  /** Etap degradacji - do linii trafia tylko przy `degraded: true` i ze słownika. */
+  degradedAt?: DegradationStage | null;
+  /** Wynik samotestu L2 izolatu; null/undefined = trwa albo nie dotyczy. */
+  l2Verified?: boolean | null;
   /** Wynik odroczonego zapisu - do linii trafia tylko wartość ze słownika. */
   storeOutcome?: DocumentStoreOutcome | null;
 }
@@ -587,6 +626,10 @@ export function buildDocumentLogLine(input: DocumentLogInput): DocumentLogLine {
   const ray = sanitizeRay(input.cfRay);
   if (ray) line.ray = ray;
   if (typeof input.degraded === "boolean") line.degraded = input.degraded;
+  if (line.degraded === true && input.degradedAt && DEGRADATION_STAGES.has(input.degradedAt)) {
+    line.degradedAt = input.degradedAt;
+  }
+  if (typeof input.l2Verified === "boolean") line.l2Verified = input.l2Verified;
   const store = input.storeOutcome;
   if (store && DOCUMENT_STORE_OUTCOMES.has(store)) line.store = store;
   return line;

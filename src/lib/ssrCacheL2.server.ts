@@ -6,8 +6,9 @@
 // ticker, strona główna, rezolucja ścieżki) były więc odbudowywane z bazy na
 // każdym zimnym izolacie, także w kolonii, która miała już ciepły L2
 // dokumentów (audyt CWV 2026-09-20, F03 / plan 1.3: 6-9 round-tripów w 3
-// falach ≈ 0,4 s). Ten moduł kładzie pod L1 migawkę w `caches.default` przez
-// istniejące `readBootstrapSnapshot` / `writeBootstrapSnapshot` - ten sam
+// falach ≈ 0,4 s). Ten moduł kładzie pod L1 migawkę w magazynie kolonii
+// (`getColoCache()`: nazwany cache z samotestem, patrz `documentCacheL2.server`)
+// przez istniejące `readBootstrapSnapshot` / `writeBootstrapSnapshot` - ten sam
 // mechanizm, którym katalog tenantów i reguły przekierowań przeżywają rotację.
 //
 // PODZIAŁ ODPOWIEDZIALNOŚCI. Polityka (biała lista kluczy, TTL, okno
@@ -29,10 +30,19 @@
 // (publikacja wpisu) wersji nie rusza: migawki dogania okno świeżości (TTL),
 // dokładnie tak, jak dotąd doganiały je izolaty z własnym L1.
 //
+// BUILD W KLUCZU (P3.6a, MAJOR-1 recenzji). Okno serve-stale kluczy chrome to
+// doba, a nieświeża migawka jest podawana od ręki. Bez segmentu buildu
+// wartość zapisana przez poprzedni deploy (inny kształt menu, ustawień,
+// tokenów, `public:resolved:*`) zasilałaby render NOWEGO kodu, a ten trafiałby
+// do L1/L2 dokumentów już pod nowym buildem. Klucz migawki niesie więc ten sam
+// segment buildu co klucz dokumentu (`l2BuildId()`), a build produkcyjny bez
+// identyfikatora wyłącza warstwę (`enabled()` = false). Migawki tenantów
+// i przekierowań (`bootstrapCache`) mają stały kształt i zostają bez zmian.
+//
 // Poza Workers (vite dev, vitest, Node preview) `getColoCache()` zwraca null,
 // a bez `SUPABASE_URL` migawka nie ma adresu - wszystko degraduje do no-op.
 import { readBootstrapSnapshot, writeBootstrapSnapshot } from "@/lib/http/bootstrapCache.server";
-import { getColoCache } from "@/lib/http/documentCacheL2.server";
+import { getColoCache, l2BuildId } from "@/lib/http/documentCacheL2.server";
 
 /** Migawka z L2 z werdyktem świeżości (`stale` = wiek >= ttlMs, patrz bootstrapCache). */
 export interface EdgeTtlL2Snapshot<T> {
@@ -125,17 +135,21 @@ function readVersion(scope: string): Promise<string> {
 }
 
 /**
- * Klucz migawki pod BIEŻĄCYMI wersjami. `readBootstrapSnapshot` dokłada z
- * przodu origin bazy (środowiska dzielące kolonię nie mieszają danych), a
- * `scope` to host żądania (`"no-host"` bez hosta) - ten sam, którym L1 kluczuje
- * wpisy, więc migawka tenanta A nigdy nie zasili L1 tenanta B.
+ * Klucz migawki pod BIEŻĄCYM buildem i wersjami. `readBootstrapSnapshot`
+ * dokłada z przodu origin bazy (środowiska dzielące kolonię nie mieszają
+ * danych), segment buildu odcina migawki innych deployów (patrz nagłówek),
+ * a `scope` to host żądania (`"no-host"` bez hosta) - ten sam, którym L1
+ * kluczuje wpisy, więc migawka tenanta A nigdy nie zasili L1 tenanta B.
+ * Null = build produkcyjny bez identyfikatora (warstwa wyłączona).
  */
-async function snapshotKey(scope: string, key: string): Promise<string> {
+async function snapshotKey(scope: string, key: string): Promise<string | null> {
+  const build = l2BuildId();
+  if (build === null) return null;
   const [globalVersion, hostVersion] = await Promise.all([
     readVersion(GLOBAL_SCOPE),
     readVersion(scope),
   ]);
-  return `edge:v${globalVersion}.${hostVersion}:${scope}::${key}`;
+  return `edge:${build}:v${globalVersion}.${hostVersion}:${scope}::${key}`;
 }
 
 function hasSnapshotOrigin(): boolean {
@@ -145,16 +159,15 @@ function hasSnapshotOrigin(): boolean {
 const isPresent = <T>(value: unknown): value is T => value !== null && value !== undefined;
 
 export const edgeTtlL2Adapter: EdgeTtlL2Adapter = {
-  enabled: () => getColoCache() !== null && hasSnapshotOrigin(),
+  enabled: () => getColoCache() !== null && hasSnapshotOrigin() && l2BuildId() !== null,
 
   async read(scope: string, key: string, ttlMs: number, maxAgeMs: number) {
     try {
-      const snapshot = await readBootstrapSnapshot<unknown>(
-        await snapshotKey(scope, key),
-        ttlMs,
-        isPresent,
-        { maxAgeMs },
-      );
+      const address = await snapshotKey(scope, key);
+      if (address === null) return null;
+      const snapshot = await readBootstrapSnapshot<unknown>(address, ttlMs, isPresent, {
+        maxAgeMs,
+      });
       return snapshot ? { value: snapshot.value, at: snapshot.at, stale: snapshot.stale } : null;
     } catch {
       return null;
@@ -163,7 +176,9 @@ export const edgeTtlL2Adapter: EdgeTtlL2Adapter = {
 
   async write(scope, key, snapshot, ttlMs, maxAgeMs) {
     try {
-      await writeBootstrapSnapshot(await snapshotKey(scope, key), snapshot, ttlMs, { maxAgeMs });
+      const address = await snapshotKey(scope, key);
+      if (address === null) return;
+      await writeBootstrapSnapshot(address, snapshot, ttlMs, { maxAgeMs });
     } catch {
       // L2 to akcelerator, nigdy warunek poprawności - błąd zapisu jest cichy.
     }

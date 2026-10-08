@@ -155,7 +155,7 @@ describe("zdegradowany MISS planuje odświeżenie w tle (F02)", () => {
   it("żądanie REWALIDACYJNE nigdy nie planuje kolejnej rewalidacji (brak rekurencji)", async () => {
     const revalidator = vi.fn(async () => false);
     setDocumentRevalidator(revalidator);
-    const [marker, nonce] = revalidationHeader();
+    const [marker, nonce] = revalidationHeader()!;
     const request = new Request("https://example.org/article", { headers: { [marker]: nonce } });
     await ((await handleDocumentRequest(request, render)) as Response).text();
     await flush();

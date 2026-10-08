@@ -31,7 +31,11 @@ export const NES_CACHE_AGE_HEADER = "x-nes-cache-age";
  * Wartością jest losowy nonce izolatu (`documentCache.server.ts`), nie stała:
  * rewalidacja biegnie W PROCESIE (ten sam izolat wywołuje ten sam handler),
  * więc nonce nigdy nie opuszcza pamięci workera i nie da się go podrobić
- * z zewnątrz. Bez tego nagłówek byłby darmowym cache-busterem dla każdego.
+ * z zewnątrz. Nonce jest losowany leniwie, w zakresie żądania - w zakresie
+ * globalnym workerd losowanie jest zabronione, a zegar stoi na 0 (dawny
+ * fallback dawał przewidywalne `nes-0`). Bez losowości rewalidacja jest
+ * wyłączona i nagłówek ignorowany. Bez tego nagłówek byłby darmowym
+ * cache-busterem dla każdego.
  */
 export const NES_REVALIDATE_HEADER = "x-nes-revalidate";
 
@@ -49,10 +53,18 @@ export const DOCUMENT_CACHE_MAX_FRESH_MS = 180_000;
  * Górny pułap okna serwowania stale (rewalidacja w tle single-flight).
  * 24 h (pełne okno `stale-while-revalidate` z contentCacheControl), nie 6 h:
  * przy niskim ruchu pierwszy czytelnik kolonii po dłuższej ciszy płacił pełny
- * render (sekundy TTFB), choć L2 wciąż trzymał poprawny dokument. Serwowanie
- * stale jest bezpieczne z konstrukcji: publikacja robi purge (bump wersji L2 -
- * wpis natychmiast nieosiągalny w całej kolonii), a rewalidacja i tak biegnie
- * ZA odpowiedzią przy pierwszym trafieniu w okno stale.
+ * render (sekundy TTFB), choć L2 wciąż trzymał poprawny dokument.
+ *
+ * Granice tego okna (P3.6a, MAJOR-2 recenzji): purge publikacji (bump wersji
+ * albo `l2Delete`) działa w KOLONII, która go obsłużyła - tam wpis jest
+ * natychmiast nieosiągalny. W pozostałych koloniach pierwsze trafienie po
+ * świeżości podaje jeszcze stary dokument jako STALE i odpala odświeżenie ZA
+ * odpowiedzią. Przy AKTUALIZACJI treści odświeżenie nadpisuje wpis nową wersją.
+ * Przy ZDJĘCIU albo PRZEKIEROWANIU ostateczne 404/410/3xx odświeżenia usuwa
+ * wpis z L1 i L2 tej kolonii (`documentCache.server.ts`, `evictGoneDocument`),
+ * więc kolejni czytelnicy nie dostają już starego dokumentu. Zdjęty dokument
+ * żyje w kolonii najwyżej przez czas jednego odświeżenia (plus po jednym
+ * trafieniu STALE na każdy izolat, który trzymał go we własnym L1), a nie dobę.
  */
 export const DOCUMENT_CACHE_MAX_SWR_MS = 24 * 60 * 60 * 1000;
 

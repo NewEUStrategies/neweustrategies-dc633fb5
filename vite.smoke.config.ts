@@ -29,6 +29,17 @@ import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim";
 import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin";
 import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";
 
+// Identyfikator buildu dla kluczy L2 (P3.6a): segment kluczy dokumentów i migawek danych w
+// Cache API kolonii (`l2BuildId()` w src/lib/http/documentCacheL2.server.ts), więc HTML i dane
+// poprzedniego deployu nie przeżywają wdrożenia. `LOVABLE_BUILD_ID`, a bez niego znacznik czasu
+// policzony RAZ przy ładowaniu konfiguracji - wspólny dla klienta i serwera jednego `vite build`,
+// inny w każdym buildzie. Przycięty do [A-Za-z0-9_-], bo trafia do ścieżki klucza. Czyta go
+// wyłącznie kod serwera (za bramką SSR), więc hashe chunków klienta się nie zmieniają. Ten sam
+// blok w obu presetach (parytet: src/lib/ci/__tests__/viteChunkParity.test.ts).
+const NES_BUILD_ID = (process.env.LOVABLE_BUILD_ID || `t${Date.now().toString(36)}`)
+  .replace(/[^A-Za-z0-9_-]/g, "_")
+  .slice(0, 64);
+
 // `minify: true` jak w produkcyjnym vite.config.ts - smoke ma odwzorowywać
 // realny artefakt (różni się wyłącznie presetem: node-server zamiast
 // cloudflare-module, żeby dało się go odpalić lokalnie). Zmienna pośrednia:
@@ -64,6 +75,9 @@ export default defineConfig({
       // Parytet z vite.config.ts: manifest bez preloadów i skryptu wejścia (P2.1).
       bootAfterLcpPlugin(),
     ],
+
+    // P3.6a: identyfikator buildu kluczy L2 (patrz `NES_BUILD_ID` wyżej).
+    define: { __NES_BUILD_ID__: JSON.stringify(NES_BUILD_ID) },
 
     // These are only reached through TanStack Start's dev-time SSR/client
     // bridge, so Vite's initial crawl misses them and discovers them during the

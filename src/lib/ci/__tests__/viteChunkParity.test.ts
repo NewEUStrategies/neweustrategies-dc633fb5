@@ -100,6 +100,21 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     }
   });
 
+  it("oba presety wstrzykują TEN SAM identyfikator buildu kluczy L2 (P3.6a)", () => {
+    // Klucze L2 dokumentów i migawek danych niosą segment buildu ze stałej `define`. Smoke bez
+    // niej budowałby serwer bez identyfikatora (L2 wyłączone w buildzie produkcyjnym), a inny
+    // sposób liczenia dawałby inną przestrzeń kluczy niż produkcja.
+    const buildIdBlock = (source: string, file: string): string => {
+      const start = source.indexOf("const NES_BUILD_ID = ");
+      expect(start, `${file}: brak NES_BUILD_ID`).toBeGreaterThan(-1);
+      return source.slice(start, source.indexOf(";", start) + 1);
+    };
+    expect(buildIdBlock(smoke, "vite.smoke.config.ts")).toBe(buildIdBlock(main, "vite.config.ts"));
+    const define = "define: { __NES_BUILD_ID__: JSON.stringify(NES_BUILD_ID) },";
+    expect(main).toContain(define);
+    expect(smoke).toContain(define);
+  });
+
   it("reguła vendorowa pomija moduł WEJŚCIOWY (pułapka zapadania się chunku)", () => {
     // Bez tej linii `manualChunks` może przypisać entry do nazwanego chunku,
     // a wtedy Rollup wciąga cały ten chunk z powrotem do entry - bez ostrzeżenia.
