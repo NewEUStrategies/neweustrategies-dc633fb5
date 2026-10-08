@@ -1,6 +1,6 @@
 // Read-only widget renderers (no inline editing). Returns null when the
 // widget type isn't handled here - caller falls through to the main switch.
-import { type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
@@ -96,6 +96,7 @@ import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 import { siteYear } from "@/lib/i18n/format";
+import { useMotionGate } from "@/lib/performance/motionGate";
 export { ResizableBox } from "./resizeWrappers";
 
 // Render-prop most do globalnych linków social (site_settings → opcje motywu).
@@ -107,6 +108,118 @@ function WithGlobalSocials({
   render: (links: GlobalSocialLinks) => ReactElement;
 }): ReactElement {
   return render(useGlobalSocialLinks());
+}
+
+// BRAMKA RUCHU (P3.5, `lib/performance/motionGate`). Ruch w pętli i autoplay
+// wideo z HTML-a z serwera ruszają dopiero po pierwszej interakcji albo w
+// punkcie ciszy strony - inaczej każda klatka ruchu w kadrze odsuwa Speed
+// Index. Renderery żyją w switchu, więc hook dostaje mikro-komponenty.
+
+/** Ikona z animacją w pętli (`spin`/`pulse`/`bounce`): pauza do otwarcia bramki. */
+function LoopingIcon({ className, children }: { className: string; children: ReactNode }) {
+  useMotionGate();
+  return (
+    <span className={className} data-motion-loop="">
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Wideo z autoplay: bez atrybutu `autoplay` w HTML-u (przeglądarka nie rusza
+ * go przy pierwszym malowaniu), `play()` dopiero po otwarciu bramki. Wyciszone
+ * jak dotąd - inaczej polityka autoplay przeglądarki i tak by je zatrzymała.
+ */
+function AutoplayVideo({
+  src,
+  controls,
+  loop,
+  style,
+}: {
+  src: string;
+  controls: boolean;
+  loop: boolean;
+  style: CSSProperties;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  const motion = useMotionGate();
+  useEffect(() => {
+    const el = ref.current;
+    if (!motion || !el) return;
+    el.muted = true;
+    void el.play().catch(() => undefined);
+  }, [motion, src]);
+  return (
+    <video
+      ref={ref}
+      src={src}
+      controls={controls}
+      muted
+      loop={loop}
+      playsInline
+      className="w-full rounded"
+      style={style}
+    />
+  );
+}
+
+const YOUTUBE_ORIGIN = "https://www.youtube.com";
+
+/**
+ * Osadzenie YouTube. Autoplay NIE idzie parametrem `autoplay=1` (odtwarzacz
+ * ruszałby przy pierwszym malowaniu): adres ma `enablejsapi=1` i `mute=1` od
+ * początku, a po otwarciu bramki strona wysyła odtwarzaczowi `playVideo`
+ * (`postMessage`). Zmiana adresu po otwarciu przeładowałaby ramkę - i
+ * zrestartowała film, który czytelnik sam włączył wewnątrz ramki (kliknięcie
+ * w ramkę innego originu nie dociera do bramki). Ramka mogła załadować się
+ * przed hydratacją, więc polecenie idzie od razu i ponownie przy `load`.
+ */
+function YouTubeEmbed({
+  videoId,
+  autoplay,
+  loop,
+  controls,
+}: {
+  videoId: string;
+  autoplay: boolean;
+  loop: boolean;
+  controls: boolean;
+}) {
+  const ref = useRef<HTMLIFrameElement | null>(null);
+  const motion = useMotionGate(autoplay);
+  useEffect(() => {
+    const frame = ref.current;
+    if (!autoplay || !motion || !frame) return;
+    const play = () => {
+      frame.contentWindow?.postMessage(
+        JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+        YOUTUBE_ORIGIN,
+      );
+    };
+    play();
+    frame.addEventListener("load", play);
+    return () => frame.removeEventListener("load", play);
+  }, [autoplay, motion]);
+  const params = new URLSearchParams();
+  if (autoplay) {
+    params.set("mute", "1");
+    params.set("enablejsapi", "1");
+  }
+  if (loop) {
+    params.set("loop", "1");
+    params.set("playlist", videoId);
+  }
+  if (!controls) params.set("controls", "0");
+  const q = params.toString();
+  return (
+    <iframe
+      ref={ref}
+      src={`${YOUTUBE_ORIGIN}/embed/${videoId}${q ? `?${q}` : ""}`}
+      title="video"
+      className="w-full h-full rounded"
+      allowFullScreen
+    />
+  );
 }
 
 // Wraps AnimatedHeadingRender with dynamic-token resolution. Runs on every
@@ -894,8 +1007,12 @@ export function renderSimpleWidget(
               : variant === "outlined"
                 ? "inline-flex items-center justify-center rounded-lg border border-border p-3"
                 : "inline-flex";
-      return (
-        <span key={`${name}-${size}-${variant}`} className={`${wrapperCls} ${spinCls}`.trim()}>
+      return spinCls ? (
+        <LoopingIcon key={`${name}-${size}-${variant}`} className={`${wrapperCls} ${spinCls}`}>
+          <DynamicIcon name={name} size={size} />
+        </LoopingIcon>
+      ) : (
+        <span key={`${name}-${size}-${variant}`} className={wrapperCls}>
           <DynamicIcon name={name} size={size} />
         </span>
       );
@@ -934,24 +1051,13 @@ export function renderSimpleWidget(
         );
       const ytMatch = url.match(/(?:youtube\.com\/.*v=|youtu\.be\/)([\w-]+)/);
       if (ytMatch) {
-        const params = new URLSearchParams();
-        if (autoplay) {
-          params.set("autoplay", "1");
-          params.set("mute", "1");
-        }
-        if (loop) {
-          params.set("loop", "1");
-          params.set("playlist", ytMatch[1]);
-        }
-        if (!controls) params.set("controls", "0");
-        const q = params.toString();
         return (
           <div style={ratioStyle}>
-            <iframe
-              src={`https://www.youtube.com/embed/${ytMatch[1]}${q ? `?${q}` : ""}`}
-              title="video"
-              className="w-full h-full rounded"
-              allowFullScreen
+            <YouTubeEmbed
+              videoId={ytMatch[1]}
+              autoplay={autoplay}
+              loop={loop}
+              controls={controls}
             />
           </div>
         );
@@ -966,12 +1072,12 @@ export function renderSimpleWidget(
             niedozwolony URL
           </div>
         );
-      return (
+      return autoplay ? (
+        <AutoplayVideo src={safe} controls={controls} loop={loop} style={ratioStyle} />
+      ) : (
         <video
           src={safe}
           controls={controls}
-          autoPlay={autoplay}
-          muted={autoplay}
           loop={loop}
           playsInline
           className="w-full rounded"

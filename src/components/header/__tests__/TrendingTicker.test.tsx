@@ -22,6 +22,10 @@
 //      rezerwa miała zawsze geometrię klasyczną (41 px), a skórki szklane są
 //      wyższe - podmiana przesuwała stronę, a pomiar `--hdr-tt` z rezerwy
 //      zamykał pasek w za niskim pudełku.
+//   7. BRAMKA RUCHU (P3.5): porcje wpisów nie rotują przed pierwszą
+//      interakcją albo punktem ciszy (punkt ciszy jest tu atrapą), a pierwsza
+//      zmiana porcji przychodzi pełne `intervalSec` po otwarciu; każda
+//      nieskończona animacja treści z HTML-a nosi znacznik pauzy bramki.
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -71,6 +75,13 @@ vi.mock("@/lib/views/headerTickerQuery", async (importOriginal) => ({
   }),
 }));
 
+// Punkt ciszy bramki ruchu tylko na żądanie testu (prawdziwy detektor otwiera
+// bramkę po ~5 s fałszywego czasu).
+vi.mock("@/lib/performance/whenQuiescent", () => ({ onQuiescent: () => () => {} }));
+
+const { __openMotionGateForTests, __resetMotionGateForTests } =
+  await import("@/lib/performance/motionGate");
+
 const {
   TrendingTicker,
   TypewriterText,
@@ -110,9 +121,13 @@ function renderTicker(props: Record<string, unknown> = {}): ReactElement {
 beforeEach(() => {
   feed.posts = posts(3);
   feed.loading = false;
+  __resetMotionGateForTests();
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  __resetMotionGateForTests();
+});
 
 describe("czyste reguły paska", () => {
   it("historyczny tryb `rotate` to ten sam ruch, co `slide`", () => {
@@ -250,7 +265,7 @@ describe("układ klasyczny i plakietkowy", () => {
     expect(container.innerHTML).toContain("#123456");
   });
 
-  it("tryb inny niż przewijanie rotuje partie wpisów w czasie", async () => {
+  it("tryb inny niż przewijanie rotuje partie wpisów dopiero po otwarciu bramki ruchu", async () => {
     vi.useFakeTimers();
     try {
       feed.posts = posts(4);
@@ -261,8 +276,21 @@ describe("układ klasyczny i plakietkowy", () => {
       expect(screen.getByText("Wpis p1")).toBeTruthy();
       expect(screen.queryByText("Wpis p3")).toBeNull();
 
+      // Bramka zamknięta: 30 s bez jednej zmiany porcji.
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2000);
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      expect(screen.getByText("Wpis p1")).toBeTruthy();
+      expect(screen.queryByText("Wpis p3")).toBeNull();
+
+      // Pierwsza zmiana dokładnie pełny interwał po otwarciu.
+      act(() => __openMotionGateForTests());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1999);
+      });
+      expect(screen.queryByText("Wpis p3")).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
       });
       expect(screen.getByText("Wpis p3")).toBeTruthy();
       expect(screen.queryByText("Wpis p1")).toBeNull();
@@ -311,6 +339,24 @@ describe("układ klasyczny i plakietkowy", () => {
 });
 
 describe("układy szklane (marquee i pionowa rotacja)", () => {
+  it.each<[LayoutStyle, LiveDirection]>([
+    ["glassMarquee", "vertical"],
+    ["glassCards", "vertical"],
+    ["glassLive", "vertical"],
+    ["glassLive", "horizontal"],
+  ])(
+    "%s/%s: każda nieskończona animacja treści z HTML-a stoi do otwarcia bramki ruchu",
+    async (layoutStyle, liveDirection) => {
+      render(renderTicker({ layoutStyle, liveDirection, mode: "typewriter" }));
+      await screen.findByTestId("trending-ticker");
+      const looping = Array.from(document.querySelectorAll<HTMLElement>("[style]")).filter((el) =>
+        /infinite/.test(el.style.animation),
+      );
+      expect(looping.length).toBeGreaterThan(0);
+      for (const el of looping) expect(el.hasAttribute("data-motion-loop")).toBe(true);
+    },
+  );
+
   it("poziomy marquee DUBLUJE listę, a kopia jest ukryta przed czytnikiem", async () => {
     // Duplikat to technika pętli bez szwu; gdyby był widoczny dla czytnika
     // ekranu, każdy tytuł byłby czytany dwa razy.

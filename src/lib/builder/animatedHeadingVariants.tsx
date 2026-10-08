@@ -5,8 +5,10 @@
 //  • rotate: cycles through a list of words in the highlighted spot.
 // Colors are split into two: `color` (static text - non-animated) and
 // `accentColor` (animated text + the shape stroke - duo tone).
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { hardenStyleCss } from "@/lib/sanitize";
+import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 
 export type AnimatedHeadingMode = "highlight" | "rotate" | "hover-underline" | "hover-allsides";
 
@@ -326,12 +328,25 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
   "hover-allsides-8": 0,
 };
 
+/**
+ * Kształt rysowany pod/na wyróżnieniu. `loop` - cykl rysuj/trzymaj/wygaś/pauza
+ * w nieskończoność; bez niego jedno rysowanie, które zostaje (`forwards`).
+ *
+ * `resumeLoop` (bramka ruchu, P3.5): pętla zastępuje JUŻ NARYSOWANY kształt
+ * (do otwarcia bramki szła gałąź `forwards`), więc startuje od stanu
+ * „narysowany" (ujemne opóźnienie = czas rysowania) - samo otwarcie bramki
+ * nie zmienia klatki, a pierwsza zmiana to wygaszenie po pełnym `hold`. Nazwy
+ * klatek pętli są inne niż gałęzi `forwards`: zmiana samego czasu trwania
+ * zachowałaby czas startu animacji z pierwszego malowania i kształt
+ * przeskoczyłby w losową fazę cyklu.
+ */
 function ShapeSvg({
   shape,
   color,
   durationMs,
   delayMs,
   loop,
+  resumeLoop = false,
   animKey,
 }: {
   shape: AnimatedHeadingShape;
@@ -339,6 +354,7 @@ function ShapeSvg({
   durationMs: number;
   delayMs: number;
   loop: boolean;
+  resumeLoop?: boolean;
   animKey: string | number;
 }) {
   if (shape === "none") return null;
@@ -356,8 +372,10 @@ function ShapeSvg({
     const totalDur = loop ? drawDur + holdMs + fadeMs + pauseMs : drawDur;
     const len1 = 210;
     const len2 = 150;
-    const animA = `aHead-scribbleA-${animKey}`;
-    const animB = `aHead-scribbleB-${animKey}`;
+    const loopTag = loop ? "loop-" : "";
+    const animA = `aHead-scribbleA-${loopTag}${animKey}`;
+    const animB = `aHead-scribbleB-${loopTag}${animKey}`;
+    const loopDelay = resumeLoop ? `-${drawDur}ms` : `${delayMs}ms`;
     const aHalf = (halfDur / totalDur) * 100;
     const aDrawEnd = (drawDur / totalDur) * 100;
     const aHoldEnd = ((drawDur + holdMs) / totalDur) * 100;
@@ -382,12 +400,12 @@ function ShapeSvg({
       .ahead-scribbleA-${animKey} {
         stroke-dasharray: ${len1};
         stroke-dashoffset: ${len1};
-        animation: ${animA} ${totalDur}ms ${delayMs}ms infinite ease-out;
+        animation: ${animA} ${totalDur}ms ${loopDelay} infinite ease-out;
       }
       .ahead-scribbleB-${animKey} {
         stroke-dasharray: ${len2};
         stroke-dashoffset: ${len2};
-        animation: ${animB} ${totalDur}ms ${delayMs}ms infinite ease-out;
+        animation: ${animB} ${totalDur}ms ${loopDelay} infinite ease-out;
       }
     `
       : `
@@ -447,7 +465,8 @@ function ShapeSvg({
   const stroke = shapeStroke[shape];
   const len = shapePathLen[shape];
   const delay = `${delayMs}ms`;
-  const animName = `aHead-draw-${animKey}`;
+  const animName = loop ? `aHead-loop-${animKey}` : `aHead-draw-${animKey}`;
+  const loopDelay = resumeLoop ? `-${durationMs}ms` : delay;
 
   // Cycle: draw → hold → fade-out → pause → repeat (when loop is true).
   // Single-shot: draw and stay (forwards).
@@ -471,7 +490,7 @@ function ShapeSvg({
     .ahead-path-${animKey} {
       stroke-dasharray: ${len};
       stroke-dashoffset: ${len};
-      animation: ${animName} ${cycleMs}ms ${delay} infinite ease-in-out;
+      animation: ${animName} ${cycleMs}ms ${loopDelay} infinite ease-in-out;
     }
   `
     : `
@@ -673,11 +692,22 @@ export function AnimatedHeadingRender({
   useEffect(() => {
     setWIdx(0);
   }, [words.length, mode]);
+  // BRAMKA RUCHU (P3.5): rotacja słów i pętla kształtu ruszają dopiero po
+  // pierwszej interakcji albo w punkcie ciszy strony. Do tego czasu kształt
+  // rysuje się raz i zostaje (gałąź `forwards`), a pierwsza zmiana słowa
+  // przychodzi pełny interwał po otwarciu. `prefers-reduced-motion`: bez
+  // rotacji (czytane w efekcie, nie w renderze).
+  const rotates = mode === "rotate" && !preview && words.length > 1;
+  const shapeLoops = mode !== "rotate" && loop;
+  const motion = useMotionGate(rotates || shapeLoops);
+  // Pętla, która zastępuje kształt narysowany przed otwarciem, wznawia się od
+  // stanu „narysowany"; komponent zamontowany już po otwarciu rysuje od zera.
+  const mountedBeforeMotion = useRef(!motion);
   useEffect(() => {
-    if (mode !== "rotate" || preview || words.length < 2) return;
+    if (!rotates || !motion || prefersReducedMotion()) return;
     const t = window.setInterval(() => setWIdx((i) => (i + 1) % words.length), durationMs + 600);
     return () => window.clearInterval(t);
-  }, [mode, preview, words.length, durationMs]);
+  }, [rotates, motion, words.length, durationMs]);
 
   // Re-key the shape animation when the rotating word changes so the SVG
   // re-draws for each new word.
@@ -750,7 +780,8 @@ export function AnimatedHeadingRender({
           color={accent}
           durationMs={durationMs}
           delayMs={delayMs}
-          loop={mode === "rotate" ? false : loop}
+          loop={shapeLoops && motion}
+          resumeLoop={mountedBeforeMotion.current}
           animKey={animKey}
         />
       </span>

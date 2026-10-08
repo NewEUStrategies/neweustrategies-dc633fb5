@@ -7,7 +7,10 @@
 //        K12) i przeliczał style;
 //  F10 - nieskończony ruch ozdobny (płomień, `live`, `ribbon`) rusza dopiero po
 //        pierwszej interakcji albo w punkcie ciszy: przy starcie korzeń paska
-//        nie ma `data-tt-motion`.
+//        nie ma `data-tt-motion`;
+//  P3.5 - ten sam (wspólny) zatrzask otwiera bramkę ruchu całej strony: razem
+//        z `data-tt-motion` na korzeniu paska staje `data-motion="on"` na
+//        `<html>`, a porcje wpisów zaczynają rotować dopiero od otwarcia.
 // Kaskadę arkusza (animacja płomienia dopiero pod `[data-tt-motion]`, ruch
 // ozdobny wyłączony przy `prefers-reduced-motion`) sprawdza prawdziwa
 // przeglądarka: `e2e-performance/header-intent.spec.ts` (computed style).
@@ -18,6 +21,7 @@ import type { ReactElement } from "react";
 import "@/lib/i18n";
 import { __resetFirstInteractionForTests } from "@/lib/performance/firstInteraction";
 import { __resetPostInteractionQueueForTests } from "@/lib/performance/postInteractionQueue";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 
 const feed = vi.hoisted(() => ({
   posts: [1, 2, 3, 4].map((n) => ({
@@ -77,9 +81,11 @@ beforeEach(() => {
   vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
   __resetFirstInteractionForTests();
   __resetPostInteractionQueueForTests();
+  __resetMotionGateForTests();
 });
 
 afterEach(() => {
+  __resetMotionGateForTests();
   cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -90,6 +96,7 @@ afterEach(() => {
 describe("pasek „Na czasie” przy starcie strony (P2.3)", () => {
   it("F11: zmiana porcji wpisów nie przepisuje bloków <style>", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    __openMotionGateForTests();
     const { container } = render(
       ticker({ mode: "flip", intervalSec: 2, visibleCount: 1, iconAnimation: "flicker" }),
     );
@@ -128,6 +135,7 @@ describe("pasek „Na czasie” przy starcie strony (P2.3)", () => {
     });
     for (let i = 0; i < 4 && !root.hasAttribute("data-tt-motion"); i += 1) await frame();
     expect(root.getAttribute("data-tt-motion")).toBe("");
+    expect(document.documentElement.getAttribute("data-motion")).toBe("on");
   });
 
   it("F10: bez interakcji ruch rusza w punkcie ciszy", async () => {
@@ -140,5 +148,6 @@ describe("pasek „Na czasie” przy starcie strony (P2.3)", () => {
       for (const task of quiet.tasks.splice(0)) task();
     });
     expect(root.getAttribute("data-tt-motion")).toBe("");
+    expect(document.documentElement.getAttribute("data-motion")).toBe("on");
   });
 });

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { SignupShowcase } from "../signup-showcase";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import { defaultNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import { resolvePopupPalette } from "@/lib/newsletter/popupDesign";
 
@@ -30,6 +31,7 @@ function showcase(single = false) {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  __resetMotionGateForTests();
 });
 
 describe("showcase delivery", () => {
@@ -47,6 +49,8 @@ describe("showcase delivery", () => {
 
   it("single mode loads the active slide and never rotates into unsupported fifth slots", () => {
     vi.useFakeTimers();
+    // Rotacja czeka na bramkę ruchu (P3.5) - otwieramy ją jak pierwsza interakcja.
+    __openMotionGateForTests();
     const { container } = showcase(true);
     expect(container.querySelectorAll("img")).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Slide 4" }));

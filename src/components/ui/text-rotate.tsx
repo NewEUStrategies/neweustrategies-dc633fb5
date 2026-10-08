@@ -25,6 +25,7 @@ import {
 } from "react";
 import { cn } from "@/lib/utils";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 
 export type TextRotateSplitBy = "characters" | "words" | "lines";
 
@@ -156,7 +157,11 @@ export const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(function Te
   // Auto-rotacja. Przy prefers-reduced-motion nie startuje wcale - rotujący
   // tekst to ruch w rozumieniu preferencji, klasa motion-reduce nie wyłączy
   // timera ani stylów inline. Bez pętli staje na ostatnim tekście.
-  const rotating = auto && !reducedMotion && count > 1 && (loop || activeIndex < count - 1);
+  // Bramka ruchu (P3.5): pierwszy obrót dopiero po pierwszej interakcji albo w
+  // punkcie ciszy strony, pełny `rotationInterval` od otwarcia.
+  const motion = useMotionGate(auto && count > 1);
+  const rotating =
+    auto && motion && !reducedMotion && count > 1 && (loop || activeIndex < count - 1);
   useEffect(() => {
     if (!rotating) return;
     const timer = setTimeout(() => advance(1), rotationInterval);

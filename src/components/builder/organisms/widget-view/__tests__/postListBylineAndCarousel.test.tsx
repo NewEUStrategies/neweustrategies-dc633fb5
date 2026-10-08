@@ -12,6 +12,8 @@
 //     niekonsumowane) - karuzela byla czystym scroll-snapem. Teraz autoplay
 //     dziala, ma dostepne kontrolki, zatrzymuje sie na hover / fokusie /
 //     zadanie uzytkownika i nie rusza przy `prefers-reduced-motion`.
+//     Bramka ruchu (P3.5): rusza dopiero po pierwszej interakcji albo w
+//     punkcie ciszy (tu atrapa), pierwszy krok pełny interwał po otwarciu.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // Prawdziwe zasoby i18n: bez tego `t()` zwraca GOŁY KLUCZ, a asercje na
 // widoczny tekst przechodziły wyłącznie dzięki `defaultValue` wpisanemu przy
@@ -55,7 +57,11 @@ vi.mock("@/hooks/usePrefersReducedMotion", () => ({
   usePrefersReducedMotion: () => motion.reduced,
 }));
 
+// Punkt ciszy bramki ruchu tylko na żądanie testu.
+vi.mock("@/lib/performance/whenQuiescent", () => ({ onQuiescent: () => () => {} }));
+
 import { PostListView } from "../PostListView";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import { POST_LIST_BYLINE_VARIANTS } from "@/lib/builder/postListQuery";
 import type { WidgetContent } from "@/lib/builder/types";
 
@@ -150,10 +156,12 @@ describe("PostListView - karuzela z autoodtwarzaniem", () => {
       value: scrollTo,
     });
     vi.useFakeTimers({ shouldAdvanceTime: true });
+    __openMotionGateForTests();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    __resetMotionGateForTests();
   });
 
   const rows = [post({ id: "c1" }), post({ id: "c2" }), post({ id: "c3" })];
@@ -175,6 +183,27 @@ describe("PostListView - karuzela z autoodtwarzaniem", () => {
     expect(screen.queryByLabelText("Zatrzymaj automatyczne przewijanie")).toBeNull();
     await tick(30_000);
     expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("bramka ruchu zamknięta: tor stoi jako `paused`; po otwarciu krok po pełnym interwale", async () => {
+    __resetMotionGateForTests();
+    const { container } = renderCarousel({ autoplay: true, autoplayIntervalMs: 2000 });
+    const track = await waitFor(() => {
+      const el = container.querySelector<HTMLElement>("[data-autoplay]");
+      expect(el).not.toBeNull();
+      return el as HTMLElement;
+    });
+    expect(track.getAttribute("data-autoplay")).toBe("paused");
+    await tick(30_000);
+    expect(scrollTo).not.toHaveBeenCalled();
+
+    act(() => __openMotionGateForTests());
+    expect(track.getAttribute("data-autoplay")).toBe("running");
+    // Zegar płynie tu też z czasem rzeczywistym (`shouldAdvanceTime`), stąd zapas.
+    await tick(1800);
+    expect(scrollTo).not.toHaveBeenCalled();
+    await tick(200);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
   });
 
   it("z autoplay przewija tor w zadanym tempie", async () => {

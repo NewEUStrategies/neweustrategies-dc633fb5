@@ -11,6 +11,7 @@ import { getBool, getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { lcpCandidateAttr, type LcpImage } from "@/lib/builder/aboveFold";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
@@ -744,7 +745,11 @@ function PostListCarousel({
   const [interacting, setInteracting] = useState(false);
   const slides = Array.isArray(children) ? children.length : children ? 1 : 0;
   const controllable = autoplay && slides > 1;
-  const running = controllable && !reducedMotion && !userPaused && !interacting;
+  // Bramka ruchu (P3.5): automat rusza dopiero po pierwszej interakcji albo w
+  // punkcie ciszy strony (pierwszy krok = otwarcie + pełny interwał). Do tego
+  // czasu tor raportuje `data-autoplay="paused"` - tak samo w HTML z SSR.
+  const motion = useMotionGate(controllable);
+  const running = controllable && motion && !reducedMotion && !userPaused && !interacting;
 
   // Przewijamy do KRAWEDZI kolejnego slajdu (a nie o stala liczbe pikseli),
   // dzieki czemu snap nie zostawia karty przycietej w polowie. Na koncu toru

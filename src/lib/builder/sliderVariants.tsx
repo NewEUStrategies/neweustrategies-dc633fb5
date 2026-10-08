@@ -11,6 +11,8 @@ import { SLIDER_FULL_BLEED_SIZES, sliderImageSizes } from "./sliderSizes";
 import { useResolvedPostRefs } from "./contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
 import { CAROUSEL_DEFAULTS, useCarouselDefaults } from "@/lib/theme/carouselDefaults";
+import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import { AppLink, toClientHref } from "@/components/atoms/AppLink";
 import { useRouter } from "@tanstack/react-router";
 import {
@@ -982,8 +984,15 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
   // Pauza autoplay pod kursorem (globalny default z możliwością nadpisania);
   // dotyczy tylko automatu - ręczna nawigacja działa zawsze.
   const [hovered, setHovered] = useState(false);
+  // BRAMKA RUCHU (P3.5): automat startuje dopiero po pierwszej interakcji
+  // albo w punkcie ciszy strony, więc pierwszy przeskok = otwarcie + PEŁNY
+  // interwał. Hero strony głównej przeskakiwał ~4,5 s po montażu, w środku
+  // śladu Lighthouse'a (Speed Index). `prefers-reduced-motion`: bez automatu
+  // (czytane w efekcie, nie w renderze); ręczna nawigacja działa zawsze.
+  const autoplayWanted = !preview && autoplay && items.length > 1;
+  const motion = useMotionGate(autoplayWanted);
   useEffect(() => {
-    if (preview || !autoplay || items.length < 2) return;
+    if (!autoplayWanted || !motion || prefersReducedMotion()) return;
     if (pauseOnHover && hovered) return;
     const t = window.setInterval(
       () =>
@@ -997,7 +1006,7 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
       intervalMs,
     );
     return () => window.clearInterval(t);
-  }, [autoplay, intervalMs, items.length, preview, stepCount, pauseOnHover, hovered, loopSlides]);
+  }, [autoplayWanted, motion, intervalMs, stepCount, pauseOnHover, hovered, loopSlides]);
 
   const dragRef = useRef<{ startX: number; lastX: number; pointerId: number; active: boolean }>({
     startX: 0,

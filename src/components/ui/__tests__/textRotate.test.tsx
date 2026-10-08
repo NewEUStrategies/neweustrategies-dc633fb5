@@ -10,20 +10,29 @@
 //      segmenty są ukryte; `aria-label` na <span> bez roli zniknął.
 //   4. AUTO-ROTACJA zatrzymuje się przy `prefers-reduced-motion` i nie emituje
 //      wtedy przejść CSS.
+//   5. BRAMKA RUCHU (P3.5): pierwszy obrót dopiero pełny interwał po otwarciu
+//      bramki (pierwsza interakcja albo punkt ciszy - tu atrapa); pozostałe
+//      przypadki otwierają bramkę w `beforeEach`.
 import { act, render } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TextRotate, type TextRotateRef } from "@/components/ui/text-rotate";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
+
+// Punkt ciszy bramki ruchu tylko na żądanie testu.
+vi.mock("@/lib/performance/whenQuiescent", () => ({ onQuiescent: () => () => {} }));
 
 beforeEach(() => {
   vi.useFakeTimers({
     toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],
   });
+  __openMotionGateForTests();
 });
 
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  __resetMotionGateForTests();
 });
 
 /** Dwie klatki animacji - tyle czeka efekt wejścia. */
@@ -127,6 +136,22 @@ describe("TextRotate - wejście i opóźnienia", () => {
 });
 
 describe("TextRotate - auto-rotacja", () => {
+  it("przed otwarciem bramki ruchu stoi 30 s; pierwszy obrót pełny interwał po otwarciu", () => {
+    __resetMotionGateForTests();
+    const { container } = render(<TextRotate texts={["A", "B"]} rotationInterval={1000} />);
+    wejdz();
+    // Krokami po 0,5 s: skok 30 s mógłby wrócić na pierwszy tekst po pełnych obrotach.
+    for (let step = 0; step < 60; step += 1) {
+      act(() => vi.advanceTimersByTime(500));
+      expect(tekstSr(container)).toBe("A");
+    }
+    act(() => __openMotionGateForTests());
+    act(() => vi.advanceTimersByTime(999));
+    expect(tekstSr(container)).toBe("A");
+    act(() => vi.advanceTimersByTime(1));
+    expect(tekstSr(container)).toBe("B");
+  });
+
   it("zmienia tekst co interwał i zawija w pętli", () => {
     const { container } = render(<TextRotate texts={["A", "B"]} rotationInterval={1000} />);
     wejdz();

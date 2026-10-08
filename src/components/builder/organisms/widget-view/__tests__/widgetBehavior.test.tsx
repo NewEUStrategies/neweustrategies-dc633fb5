@@ -3,9 +3,10 @@
 // asserts the actual DOM each widget produces: tags, sanitisation, link
 // safety, i18n fallback and the major per-widget variant branches.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { act, render, screen, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import type {
   WidgetNode,
   WidgetType,
@@ -104,7 +105,10 @@ function renderNode(
   );
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  __resetMotionGateForTests();
+});
 
 describe("heading", () => {
   it("renders the configured tag and localized text with a subtitle", () => {
@@ -288,6 +292,53 @@ describe("video", () => {
     const { container } = renderNode("video", { url: "https://www.youtube.com/watch?v=abc123" });
     const iframe = container.querySelector("iframe");
     expect(iframe?.getAttribute("src")).toContain("youtube.com/embed/abc123");
+  });
+
+  // Bramka ruchu (P3.5): wideo z autoplay nie rusza przy pierwszym malowaniu.
+  it("autoplay pliku: bez atrybutu autoplay w HTML, play() wyciszone dopiero po otwarciu bramki", () => {
+    const play = vi.fn(() => Promise.resolve());
+    const original = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "play");
+    Object.defineProperty(HTMLMediaElement.prototype, "play", { configurable: true, value: play });
+    try {
+      const { container } = renderNode("video", {
+        url: "https://cdn.example.com/clip.mp4",
+        autoplay: "on",
+      });
+      const video = container.querySelector("video") as HTMLVideoElement;
+      expect(video.hasAttribute("autoplay")).toBe(false);
+      expect(play).not.toHaveBeenCalled();
+      act(() => __openMotionGateForTests());
+      expect(play).toHaveBeenCalledOnce();
+      expect(video.muted).toBe(true);
+    } finally {
+      if (original) Object.defineProperty(HTMLMediaElement.prototype, "play", original);
+    }
+  });
+
+  it("autoplay YouTube: adres bez autoplay=1, po otwarciu bramki polecenie playVideo do ramki", () => {
+    const { container } = renderNode("video", {
+      url: "https://www.youtube.com/watch?v=abc123",
+      autoplay: "on",
+    });
+    const iframe = container.querySelector("iframe") as HTMLIFrameElement;
+    const src = new URL(iframe.getAttribute("src") ?? "");
+    expect(src.searchParams.get("autoplay")).toBeNull();
+    expect(src.searchParams.get("mute")).toBe("1");
+    expect(src.searchParams.get("enablejsapi")).toBe("1");
+    const postMessage = vi.fn();
+    Object.defineProperty(iframe, "contentWindow", {
+      configurable: true,
+      value: { postMessage },
+    });
+    expect(postMessage).not.toHaveBeenCalled();
+    act(() => __openMotionGateForTests());
+    expect(postMessage).toHaveBeenCalledWith(
+      JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+      "https://www.youtube.com",
+    );
+    // Ramka załadowana dopiero po otwarciu dostaje polecenie jeszcze raz.
+    iframe.dispatchEvent(new Event("load"));
+    expect(postMessage).toHaveBeenCalledTimes(2);
   });
 
   it("renders a direct video element for an https source", () => {

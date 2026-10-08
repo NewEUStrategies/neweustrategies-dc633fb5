@@ -28,6 +28,9 @@
 //  5. `loop={false}` DAJE JEDNORAZOWE RYSOWANIE ZE SCHODKIEM. Cztery ternary
 //     naraz (czas, opóźnienie, liczba powtórzeń, krzywa) - przestawienie
 //     któregokolwiek zamienia „narysuj raz" w wieczną pętlę albo w skok.
+//  5a. BRAMKA RUCHU (P3.5): nieskończone animacje z HTML-a serwera (pętla
+//     łuków i iskier, puls znaczników) niosą znacznik pauzy bramki, a
+//     jednorazowe rysowanie `loop={false}` - nie (rusza od razu, jak dotąd).
 //  6. NAJECHANIE NA ZNACZNIK PODŚWIETLA ZNACZNIK I JEGO ETYKIETĘ (i gaśnie po
 //     zjechaniu z mapy). Łuku NIE podświetla - to defekt produkcyjny, przypięty
 //     niżej jako `it.fails` z kontrolą dodatnią.
@@ -342,6 +345,30 @@ describe("WorldMap - harmonogram animacji", () => {
     const css = container.querySelector("style")?.textContent ?? "";
     expect(css.match(/@keyframes nes-wm-[^-]*-0\{/)).not.toBeNull();
     expect(css.match(/@keyframes nes-wm-[^-]*-1\{/)).not.toBeNull();
+  });
+
+  it("bramka ruchu: każda nieskończona animacja stoi do otwarcia, jednorazowe rysowanie - nie", () => {
+    const looping = render(<WorldMap dots={oneArc} />);
+    const infinite = Array.from(
+      looping.container.querySelectorAll<SVGElement>(
+        ".nes-world-map__arc, .nes-world-map__spark, .nes-world-map__pulse",
+      ),
+    );
+    // Pętla łuków (poświata + rdzeń), iskra i puls dwóch znaczników.
+    expect(infinite).toHaveLength(5);
+    for (const el of infinite) expect(el.hasAttribute("data-motion-loop")).toBe(true);
+    looping.unmount();
+
+    const once = render(<WorldMap dots={oneArc} loop={false} />);
+    const drawn = Array.from(
+      once.container.querySelectorAll<SVGElement>(".nes-world-map__arc, .nes-world-map__spark"),
+    );
+    expect(drawn).toHaveLength(3);
+    for (const el of drawn) expect(el.hasAttribute("data-motion-loop")).toBe(false);
+    // Puls znacznika jest nieskończony w obu trybach.
+    for (const el of once.container.querySelectorAll(".nes-world-map__pulse")) {
+      expect(el.hasAttribute("data-motion-loop")).toBe(true);
+    }
   });
 });
 

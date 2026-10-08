@@ -11,10 +11,14 @@
 //      ognisku (niezależnie), brak przy `prefers-reduced-motion`.
 //   4. Postęp co klatkę nie renderuje slajdów (osobny kontekst).
 //   5. Pierwszy slajd jest aktywny już w HTML-u serwera, gdy wywołujący go wskaże.
+//   6. BRAMKA RUCHU (P3.5): pasek stoi na zerze do pierwszej interakcji albo
+//      punktu ciszy (tu atrapa); przypadki auto-play otwierają bramkę w
+//      `beforeEach`.
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { Profiler, useState } from "react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import {
   ProgressSlider,
   SliderBtn,
@@ -24,6 +28,9 @@ import {
   useProgressSliderContext,
   type ProgressSliderProps,
 } from "@/components/ui/progressive-carousel";
+
+// Punkt ciszy bramki ruchu tylko na żądanie testu.
+vi.mock("@/lib/performance/whenQuiescent", () => ({ onQuiescent: () => () => {} }));
 
 const SLAJDY = ["most", "gory", "morze"];
 
@@ -72,11 +79,29 @@ beforeEach(() => {
   vi.useFakeTimers({
     toFake: ["requestAnimationFrame", "cancelAnimationFrame", "performance", "setTimeout"],
   });
+  __openMotionGateForTests();
 });
 
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  __resetMotionGateForTests();
+});
+
+describe("ProgressSlider - bramka ruchu (P3.5)", () => {
+  it("przed otwarciem pasek stoi na zerze przez 30 s; po otwarciu przejście po pełnym czasie", () => {
+    __resetMotionGateForTests();
+    render(<Karuzela />);
+    czas(30_000);
+    expect(aktywny()).toBe("Slajd most");
+    expect(procent("most")).toBe(0);
+    act(() => __openMotionGateForTests());
+    czas(500);
+    expect(aktywny()).toBe("Slajd most");
+    expect(procent("most")).toBeGreaterThan(0);
+    czas(600);
+    expect(aktywny()).toBe("Slajd gory");
+  });
 });
 
 describe("ProgressSlider - A1: klik przełącza slajd", () => {

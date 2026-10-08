@@ -5,6 +5,7 @@ import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { AppLink } from "@/components/atoms/AppLink";
 import { dedupeAndSlice, type Lang } from "@/lib/builder/postListQuery";
 import { WidgetStyleSheet, WIDGET_SHEET_PRECEDENCE } from "./widgetStyleSheets";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import {
   newsTickerQueryOptions,
   newsTickerDisplayLimit,
@@ -163,6 +164,10 @@ function NewsTickerVertical({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
+  // Bramka ruchu (P3.5): nieskończony przesuw jest w HTML z SSR, więc tor i
+  // „ping" etykiety noszą `data-motion-loop` (pauza do pierwszej interakcji
+  // albo punktu ciszy); hook uzbraja bramkę na stronie bez innych konsumentów.
+  useMotionGate();
   const items = Array.isArray(children) ? children : [children];
   const count = items.length;
   // Duplicate the first item at the end for a seamless vertical loop.
@@ -187,7 +192,10 @@ function NewsTickerVertical({
     >
       <div className="relative z-30 flex shrink-0 items-center gap-2 bg-[linear-gradient(135deg,var(--brand),color-mix(in_oklab,var(--brand)_70%,white))] px-4 text-[10px] font-black uppercase tracking-[0.18em] text-brand-foreground shadow-[4px_0_12px_rgba(0,0,0,0.08)]">
         <span aria-hidden className="relative flex h-1.5 w-1.5 items-center justify-center">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-40" />
+          <span
+            data-motion-loop=""
+            className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-40"
+          />
           <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-current" />
         </span>
         <span>{badge}</span>
@@ -199,6 +207,7 @@ function NewsTickerVertical({
 
         <div
           className="flex flex-col"
+          data-motion-loop=""
           style={{
             animation: `${animName} ${durationSec}s cubic-bezier(0.65, 0, 0.35, 1) infinite`,
             animationPlayState: "running",
@@ -283,6 +292,8 @@ function NewsTickerMarqueeHorizontal({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
+  // Bramka ruchu (P3.5) - jak w pionowym torze wyżej.
+  useMotionGate();
 
   return (
     <div
@@ -298,6 +309,7 @@ function NewsTickerMarqueeHorizontal({
       <div className="relative flex-1 overflow-hidden">
         <div
           className="flex w-max items-center gap-4 py-2 pl-4"
+          data-motion-loop=""
           style={{
             animation: `${NEWS_TICKER_H_ANIM} ${durationSec}s linear infinite`,
             animationPlayState: "running",

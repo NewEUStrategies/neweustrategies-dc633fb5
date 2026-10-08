@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
 import { DeferredFrame } from "@/components/atoms/DeferredFrame";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import { ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 
 // ===== Hero =====
@@ -251,14 +252,17 @@ export function ImageCarouselView({
     [total],
   );
 
+  // Bramka ruchu (P3.5): automat rusza dopiero po pierwszej interakcji albo w
+  // punkcie ciszy strony - pierwszy przeskok = otwarcie + pełny interwał.
+  const motion = useMotionGate(Boolean(autoplay) && total > 1);
   useEffect(() => {
-    if (!autoplay || paused || total < 2) return;
+    if (!autoplay || !motion || paused || total < 2) return;
     const t = window.setInterval(
       () => setIdx((cur) => (cur + 1) % total),
       Math.max(1500, interval),
     );
     return () => window.clearInterval(t);
-  }, [autoplay, paused, interval, total]);
+  }, [autoplay, motion, paused, interval, total]);
 
   if (total === 0) return null;
   const aspectCls = ASPECT_CLS[aspect] ?? ASPECT_CLS["16:9"];

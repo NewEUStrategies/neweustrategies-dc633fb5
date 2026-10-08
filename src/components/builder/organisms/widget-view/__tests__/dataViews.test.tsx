@@ -110,6 +110,7 @@ vi.mock("@/components/web-stories/StoryViewer", () => ({
 import { RatedListView } from "../RatedListView";
 import { TabsBlock } from "../TabsBlock";
 import { NewsTickerView } from "../NewsTickerView";
+import { TrendingNowView } from "../TrendingNowView";
 import { PodcastLatestView } from "../PodcastLatestView";
 import { WebStoriesCarouselView } from "../WebStoriesCarouselView";
 import { PostListView } from "../PostListView";
@@ -290,6 +291,46 @@ describe("NewsTickerView", () => {
     db.tables.posts = [];
     wrap(<NewsTickerView c={{}} lang="pl" />);
     expect(await screen.findByText(/Brak wpisów/)).toBeTruthy();
+  });
+
+  // Bramka ruchu (P3.5): nieskończony przesuw jest w HTML z serwera, więc stoi
+  // w pierwszej klatce do pierwszej interakcji albo punktu ciszy (reguła w
+  // `styles.css` dla `[data-motion-loop]`; pauzę liczy przeglądarka w e2e).
+  it.each(["vertical", "horizontal"])(
+    "%s: każda nieskończona animacja tickera (tor i puls etykiety) stoi do otwarcia bramki ruchu",
+    async (direction) => {
+      db.tables.posts = [
+        { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
+        { id: "2", slug: "beta", title_pl: "Beta", title_en: "Beta", author_id: "a1" },
+      ];
+      db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
+      const { container } = wrap(
+        <NewsTickerView c={{ badge_pl: "Najnowsze", limit: 10, direction }} lang="pl" />,
+      );
+      await screen.findAllByText("Alfa");
+      const looping = Array.from(container.querySelectorAll<HTMLElement>("*")).filter(
+        (el) => /infinite/.test(el.style.animation) || el.classList.contains("animate-ping"),
+      );
+      expect(looping.length).toBeGreaterThan(0);
+      for (const el of looping) expect(el.hasAttribute("data-motion-loop")).toBe(true);
+    },
+  );
+});
+
+describe("TrendingNowView", () => {
+  it("nieskończona rotacja kart stoi do otwarcia bramki ruchu (P3.5)", async () => {
+    db.tables.posts = [
+      { id: "1", slug: "alpha", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
+      { id: "2", slug: "beta", title_pl: "Beta", title_en: "Beta", author_id: "a1" },
+    ];
+    db.tables.profiles = [{ id: "a1", display_name: "Anna", avatar_url: null }];
+    const { container } = wrap(<TrendingNowView c={{ badge_pl: "Na czasie" }} lang="pl" />);
+    await screen.findAllByText("Alfa");
+    const looping = Array.from(container.querySelectorAll<HTMLElement>("*")).filter((el) =>
+      /infinite/.test(el.style.animation),
+    );
+    expect(looping).toHaveLength(1);
+    expect(looping[0].hasAttribute("data-motion-loop")).toBe(true);
   });
 });
 
