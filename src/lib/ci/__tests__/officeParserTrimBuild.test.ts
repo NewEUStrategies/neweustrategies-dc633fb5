@@ -14,11 +14,15 @@
 //
 // Plik testowy niesie wszystko, co przechodzi przez wycięte miejsca: pięć encji
 // XML (`&amp; &lt; &gt; &quot; &apos;`) i encję numeryczną - to jedyna droga,
-// którą parser sięga po tablicę encji - oraz znaki Symbol/Wingdings (`w:sym`)
-// i styl akapitu z mapy stylów, której używa podgląd.
+// którą parser sięga po tablicę encji - oraz znaki Symbol/Wingdings (`w:sym`,
+// tablica dingbatów) i styl akapitu z mapy stylów, której używa podgląd.
+// Zastępca bluebirda (`promises`) jest na ścieżce KAŻDEJ konwersji, więc
+// dodatkowo porównujemy oba bundle na wszystkich plikach .docx z testów
+// mammoth: obrazy, przypisy, komentarze, tabele, listy, pola tekstowe, błąd
+// zewnętrznego obrazu, format strict, BOM i pusty dokument.
 //
 // i18n: brak treści dla użytkownika - narzędzie CI.
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -173,16 +177,42 @@ describe("nes:office-parser-trim - prawdziwy build mammoth", () => {
     expect(await full.convert(bytes)).toEqual(result);
   });
 
-  it("z bundla zniknęły dokładnie dwie wycięte części", () => {
+  it("pliki testowe mammoth: ten sam HTML i te same komunikaty z obu bundli", async () => {
+    const dir = join(require.resolve("mammoth/package.json"), "../test/test-data");
+    const files = readdirSync(dir).filter((name) => name.endsWith(".docx"));
+    expect(files.length).toBeGreaterThanOrEqual(15);
+    const outcome = async (convert: Convert, input: ArrayBuffer) => {
+      try {
+        return await convert(input);
+      } catch (error) {
+        return { error: String(error) };
+      }
+    };
+    for (const name of files) {
+      const buffer = readFileSync(join(dir, name));
+      const input = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      expect(await outcome(trimmed.convert, input), name).toEqual(
+        await outcome(full.convert, input),
+      );
+    }
+  });
+
+  it("z bundla zniknęły wycięte i zastąpione części", () => {
     // `Aacute` - pierwsza pozycja tablicy encji HTML; „Missing element name"
-    // - komunikat `XMLElement` z xmlbuilder. Oba są w bundlu bez wtyczki,
-    // więc ich brak dowodzi, że przekierowanie zadziałało, a nie że test
-    // szuka nieistniejącego napisu.
-    for (const marker of ["Aacute", "Missing element name"]) {
+    // - komunikat `XMLElement` z xmlbuilder; „circular promise resolution
+    // chain" - błąd bluebirda; „Typeface name" - klucz wierszy tablicy
+    // dingbatów. Wszystkie są w bundlu bez wtyczki, więc ich brak dowodzi, że
+    // przekierowanie zadziałało, a nie że test szuka nieistniejącego napisu.
+    for (const marker of [
+      "Aacute",
+      "Missing element name",
+      "circular promise resolution chain",
+      "Typeface name",
+    ]) {
       expect(full.code, marker).toContain(marker);
       expect(trimmed.code, marker).not.toContain(marker);
     }
     expect(trimmed.code).toContain("encji HTML jest wycięta");
-    expect(trimmed.code.length).toBeLessThan(full.code.length - 60_000);
+    expect(trimmed.code.length).toBeLessThan(full.code.length - 250_000);
   });
 });

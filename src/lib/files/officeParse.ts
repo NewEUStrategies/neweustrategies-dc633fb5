@@ -71,6 +71,8 @@ export async function parseDocx(buffer: ArrayBuffer): Promise<DocxResult> {
   // tablicy encji HTML xmldom (`scripts/lib/officeParserTrim.ts`, ~22 KB gzip
   // martwego kodu): `embedStyleMap` i parsowanie HTML przez xmldom rzucą tu
   // błędem zamiast zadziałać. `convertToHtml` niczego z tego nie używa.
+  // Bluebird i tablica dingbatów mammoth mają tam zastępców o tej samej
+  // semantyce (kolejne ~33 KB gzip mniej, ten sam HTML).
   const mammoth = await import("mammoth");
   const result = await mammoth.convertToHtml(
     { arrayBuffer: buffer },

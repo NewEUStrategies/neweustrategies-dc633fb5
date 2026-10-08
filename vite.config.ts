@@ -101,8 +101,9 @@ export default defineConfig({
     // BUNDLE_INVENTORY=1 (patrz nagłówek wtyczki). Nie duplikuje żadnej wtyczki
     // z @lovable.dev/vite-tanstack-config: ma wyłącznie hook `generateBundle`.
     // `officeParserTrimPlugin`: martwy kod parsera .docx (zapis XML mammoth,
-    // tablica encji HTML xmldom) poza bundlem przeglądarki - przekierowania
-    // zawężone do importera, uzasadnienie w nagłówku wtyczki.
+    // tablica encji HTML xmldom) poza bundlem przeglądarki, a bluebird i tablica
+    // dingbatów mammoth zastąpione odpowiednikami o tej samej semantyce -
+    // przekierowania zawężone do importera, uzasadnienie w nagłówku wtyczki.
     plugins: [
       chunkInventoryPlugin(),
       localeChunkPlugin(),
