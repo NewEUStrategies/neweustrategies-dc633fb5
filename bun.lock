@@ -11,10 +11,8 @@
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
-        "@fortawesome/fontawesome-svg-core": "^7.3.1",
         "@fortawesome/free-brands-svg-icons": "^7.3.1",
         "@fortawesome/free-solid-svg-icons": "^7.3.1",
-        "@fortawesome/react-fontawesome": "^3.5.0",
         "@lovable.dev/email-js": "^0.1.2",
         "@lovable.dev/mcp-js": "^0.20.1",
         "@lovable.dev/webhooks-js": "^0.0.2",
@@ -314,13 +312,9 @@
 
     "@fortawesome/fontawesome-common-types": ["@fortawesome/fontawesome-common-types@7.3.1", "", {}, "sha512-k0C0sdHmZtAo6dRDtd1Z/qcpyHbL0CKsjV8seMY/21xGhY5Wsv0XRmiI/xEEH4y2c9b1+jvgNs/3EqhV27yUEA=="],
 
-    "@fortawesome/fontawesome-svg-core": ["@fortawesome/fontawesome-svg-core@7.3.1", "", { "dependencies": { "@fortawesome/fontawesome-common-types": "7.3.1" } }, "sha512-BoxVN3PKnMbgStHhjoaky/oWdxHomDqmBVA24IA3KEmssFGeI7u9YT/BJceOjIum/t6TpPa/vcMKaVYQeIQ/3Q=="],
-
     "@fortawesome/free-brands-svg-icons": ["@fortawesome/free-brands-svg-icons@7.3.1", "", { "dependencies": { "@fortawesome/fontawesome-common-types": "7.3.1" } }, "sha512-8eiNzycuFhy3mZsi5EVO8JpO3H8l7/kSCl4Gk4iUew9hJuzYFqAAD6kqgeEup3+YZ9hL+5cjjorGzrRLkYuURg=="],
 
     "@fortawesome/free-solid-svg-icons": ["@fortawesome/free-solid-svg-icons@7.3.1", "", { "dependencies": { "@fortawesome/fontawesome-common-types": "7.3.1" } }, "sha512-v0BLa0eqg7ubvVWeNSHVBs8fWH/GJicERZoJaxJ3FE/lj67VSqzoMg9pzfZVOfLMX10y0pGwQAuxoRVVH2patg=="],
-
-    "@fortawesome/react-fontawesome": ["@fortawesome/react-fontawesome@3.5.0", "", { "peerDependencies": { "@fortawesome/fontawesome-svg-core": "~6 || ~7", "react": "^18.0.0 || ^19.0.0" } }, "sha512-63mlRr6fiBbJ0wjr1Cf6dsDGtP2lNvk9lnatKgxs/fIkhslsZT291hIUzJkuUkI9yr69ZvWnWfgb2qXm4QyVaA=="],
 
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
 
