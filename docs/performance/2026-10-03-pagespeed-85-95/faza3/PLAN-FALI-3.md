@@ -232,8 +232,11 @@ Bramka fali 3 po partiach: jak W2 (`faza1/PLAN.md`, fala 3) + SI: speedline bez 
 
 ## 4. Działania właściciela (poza kodem)
 
-1. Sekret `PSI_API_KEY` (repo → Settings → Secrets → Actions) — bez niego `psi.yml` nie próbkuje PSI.
-2. Zmienna `vars.APP_BASE_URL` = `https://neweuropeanstrategies.com` — bez niej krok rozgrzewki w `scheduler.yml` jest
-   no-opem.
-3. Analityka Lovable `~flock.js` (wstrzykiwana przez hosting): zadanie 59 ms na mobile; jeśli niepotrzebna, wyłączyć
-   w ustawieniach projektu Lovable.
+1. Sekret `PSI_API_KEY` (repo → Settings → Secrets → Actions) — opcjonalny, tylko dla pomiaru: bez niego `psi.yml`
+   nie próbkuje PSI, a weryfikacja po wdrożeniu idzie Lighthouse'em z kontenera. Właściciel nie ma dziś klucza
+   (2026-10-08); instrukcja w PR #485.
+2. ~~Zmienna `vars.APP_BASE_URL`~~ — niepotrzebna dla rozgrzewki: krok `Warm NES Edge Cache` w `scheduler.yml`
+   domyślnie grzeje produkcję (2026-10-08). Zmienna jest nadal potrzebna dla ticku doręczeń (razem z sekretem
+   `COMMUNITY_CRON_SECRET`), ale to poza zakresem wydajności.
+3. Analityka Lovable `~flock.js` — właściciel jej NIE wyłącza (decyzja 2026-10-08); zadanie 59 ms na mobile zostaje
+   jako koszt stały poza kodem.
