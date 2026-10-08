@@ -39,7 +39,8 @@
 // build: nazwę pliku wejścia klienta z `BOOT_MANIFEST.entry` (hash treści,
 // który obejmuje też nazwę arkusza i - przez kaskadę hashy - cały graf
 // chunków). Poza buildem (vitest, dev) segment to stały napis; w buildzie
-// produkcyjnym bez mapy bootu L2 dokumentów jest wyłączone.
+// produkcyjnym bez mapy bootu L2 dokumentów jest wyłączone. Skutek dla układu
+// artefaktu serwera (chunk manifestu w `_ssr/`) opisuje `documentBuildId()`.
 //
 // Unieważnianie bez iterowania kluczy (Cache API nie ma listowania):
 // KLUCZ WERSJONOWANY. Adres wpisu dokumentu zawiera dwa segmenty wersji -
@@ -54,8 +55,13 @@
 // wpis najpóźniej po oknie świeżości (fresh <= 3 min - ten sam sufit co L1),
 // czyli dokładnie tak, jak dotąd doganiały ją inne IZOLATY. Z działającym L2
 // purge przestaje być per izolat i staje się per kolonia; pozostałe kolonie
-// doganiają w oknie świeżości. Zmiana jest ściśle nie-gorsza: świeżość bez
-// zmian, hit-rate rośnie z per-isolate do per-colo.
+// doganiają w oknie świeżości. Dla AKTUALIZACJI treści zmiana jest ściśle
+// nie-gorsza: świeżość bez zmian, hit-rate rośnie z per-isolate do per-colo.
+// ZDJĘCIE albo PRZEKIEROWANIE ścieżki dogania inaczej: rewalidacja kończy się
+// wtedy 404/3xx bez zapisu (`src/server.ts`: „wpis zostaje STALE"), więc
+// kolonia bez purge podaje STALE do końca okna swr wpisu L2 - dotąd dotyczyło
+// to pojedynczego, krótko żyjącego izolatu. Zasada usuwania wpisu po
+// ostatecznym 404/3xx należy do zasad zapisu (P3.6b), nie do tej warstwy.
 //
 // Poza Workers (brak `caches` - vite dev na Node, vitest, Node preview) każda
 // funkcja degraduje do no-op, a testom pozwala wstrzyknąć własny magazyn przez
@@ -389,11 +395,32 @@ function buildIdFromEntry(entry: string | null | undefined): string | null {
 }
 
 /**
- * Identyfikator buildu do klucza dokumentu. Mapa bootu jest importowana
- * DYNAMICZNIE za bramką SSR: statyczna krawędź wciągnęłaby moduł manifestu
- * Start (~200 KB) do grafu wejścia Workera, który dziś ładuje go leniwie razem
- * z handlerem. Gdy dokument dociera do L2, handler (a z nim manifest) jest już
- * wczytany, więc import rozwiązuje się z rejestru modułów.
+ * Identyfikator buildu do klucza dokumentu, raz na izolat.
+ *
+ * Mapa bootu jest importowana DYNAMICZNIE za bramką SSR. Statyczna krawędź
+ * wciągnęłaby moduł manifestu Start (~216 KB) do chunku wejścia Workera
+ * (`_ssr/index.mjs`), wykonywanego przy starcie każdego izolatu - także dla
+ * żądań, które L2 dokumentów w ogóle nie dotykają (API, zalogowani, zasoby).
+ * Dynamicznie manifest ładuje się przy pierwszym dostępie do L2 dokumentu
+ * (albo razem z handlerem, jeśli ten był pierwszy), raz na izolat.
+ *
+ * UKŁAD ARTEFAKTU (P3.6a, runda 9). Zaślepka jest w buildzie czystym
+ * reeksportem, więc ten import robi z niej nowy dynamiczny punkt wejścia,
+ * który Rollup scala z modułem manifestu w jeden chunk nazwany od ostatniego
+ * modułu: `.output/server/_ssr/bootManifest-*.mjs` zamiast
+ * `.output/server/_tanstack-start-manifest_v-*.mjs`. Runtime tego nie widzi
+ * (framework importuje ten sam moduł z tego samego chunku), ale bramki
+ * artefaktu, które czytają z manifestu chunk startowy klienta
+ * (`check:bundle`, `check:entry-purity`, fallback wagi dokumentu), muszą
+ * szukać mapy bootu także w `_ssr/`. Import wirtualnego modułu manifestu wprost
+ * zachowałby dawny układ, ale analiza importów vitest (środowisko `client`,
+ * bez wtyczek Start) nie rozwiązuje tego specyfikatora i nie transformuje
+ * wtedy żadnego modułu importującego L2.
+ *
+ * Nieudany import NIE jest zapamiętywany: przejściowy błąd ładowania chunku na
+ * zimnym izolacie nie może wyłączyć L2 dokumentów na całe życie izolatu -
+ * następne żądanie spróbuje znowu. Zapamiętywany jest wyłącznie wynik
+ * rozstrzygnięty (także `null` buildu produkcyjnego bez mapy).
  */
 async function documentBuildId(): Promise<string | null> {
   if (buildId !== undefined) return buildId;
@@ -402,7 +429,7 @@ async function documentBuildId(): Promise<string | null> {
     try {
       entry = (await import("@/lib/boot/bootManifest")).BOOT_MANIFEST?.entry;
     } catch {
-      entry = undefined;
+      return import.meta.env.PROD ? null : DEV_BUILD_ID;
     }
   }
   // Build produkcyjny bez mapy bootu nie ma stałego identyfikatora - wtedy

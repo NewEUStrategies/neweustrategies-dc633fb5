@@ -17,10 +17,18 @@ import {
   type ColoCache,
 } from "@/lib/http/documentCacheL2.server";
 
-const manifest = vi.hoisted(() => ({ current: null as BootManifest | null }));
+const manifest = vi.hoisted(() => ({
+  current: null as BootManifest | null,
+  /** Następny odczyt mapy kończy się błędem (np. nieudane ładowanie chunku na zimnym izolacie). */
+  failNext: false,
+}));
 
 vi.mock("@/lib/boot/bootManifest", () => ({
   get BOOT_MANIFEST() {
+    if (manifest.failNext) {
+      manifest.failNext = false;
+      throw new Error("Failed to fetch dynamically imported module");
+    }
     return manifest.current;
   },
 }));
@@ -80,6 +88,7 @@ beforeEach(() => {
 
 afterEach(() => {
   manifest.current = null;
+  manifest.failNext = false;
   setColoCacheForTests(undefined);
   vi.unstubAllEnvs();
 });
@@ -134,6 +143,27 @@ describe("segment buildu w kluczu dokumentu L2", () => {
     expect(await l2Match("tenant-a.eu", "tenant-a.eu::/")).toBeNull();
     expect(await l2Delete("tenant-a.eu", "tenant-a.eu::/")).toBe(false);
     expect(l2Stats()).toMatchObject({ build: null, stores: 0 });
+  });
+
+  it("nieudany odczyt mapy NIE jest zapamiętywany - następne żądanie izolatu próbuje znowu", async () => {
+    vi.stubEnv("PROD", true);
+    const colo = memoryColoCache();
+    deploy(colo, bootManifest("/assets/index-CCCCCCCC.js"));
+    manifest.failNext = true;
+
+    // Pierwsze żądanie: mapa nie doszła - bez L2 dokumentów, jak w buildzie bez mapy.
+    await l2Put("tenant-a.eu", "tenant-a.eu::/", entry("<html>po błędzie</html>"));
+    expect(docKeys(colo)).toEqual([]);
+    expect(l2Stats().build).toBeNull();
+
+    // Kolejne żądanie TEGO SAMEGO izolatu (bez rotacji): odczyt się udaje, L2 działa.
+    await l2Put("tenant-a.eu", "tenant-a.eu::/", entry("<html>po ponowieniu</html>"));
+    expect(docKeys(colo)).toEqual([
+      `https://nes-edge-cache.internal/__nes/doc/index-CCCCCCCC/0/0/${encodeURIComponent("tenant-a.eu::/")}`,
+    ]);
+    expect(l2Stats().build).toBe("index-CCCCCCCC");
+    const hit = await l2Match("tenant-a.eu", "tenant-a.eu::/");
+    expect(new TextDecoder().decode(hit!.body)).toBe("<html>po ponowieniu</html>");
   });
 
   it("poza buildem (vitest, dev) segment to stały napis `dev`, nie zegar", async () => {
