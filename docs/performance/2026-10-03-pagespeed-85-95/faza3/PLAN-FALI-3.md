@@ -157,10 +157,11 @@ AGENTS.md, polski w komentarzach i commitach, zero nowych zależności, parytet 
 ### P3.2a [MUST] Bajty obrazów w HTML i ścieżce LCP
 
 - Wg `faza1/PLAN.md` P3.2 (LP-7, HW-4) + P4.2 (względne URL-e TYLKO w `src`/`srcset` renderowanym do HTML, w
-  preloadzie `<head>` i w nagłówku `Link`) + awatary 1x/2x (src = 1x, srcset tylko 2x; 42 z 83 `<img>` to ten sam awatar)
-  - logo nagłówka eager. Diagnoza: `diagnoza/waga-dokumentu.md` (pozycje 1, 3, 4, 10). Pliki z planu głównego
-    (`cropSizes.ts`, `imageSlot.ts`, `sliderSizes.ts`, `widgetImageSizes.ts`, `heroImage.ts`, `OptimizedImage.tsx`,
-    `sliderVariants.tsx`, `TrendingTicker.tsx` — awatary) + emitery preloadu/`Link` + testy.
+  preloadzie `<head>` i w nagłówku `Link`) + logo nagłówka eager. Diagnoza: `diagnoza/waga-dokumentu.md` (pozycje 1,
+  3, 10). Pliki z planu głównego (`cropSizes.ts`, `imageSlot.ts`, `sliderSizes.ts`, `widgetImageSizes.ts`,
+  `heroImage.ts`, `OptimizedImage.tsx`, `sliderVariants.tsx`) + emitery preloadu/`Link` + testy.
+- **Decyzja właściciela (2026-10-08): awatarów NIE zmieniamy** — ani rozmiaru wyświetlania, ani ich `src`/`srcset`
+  (pozycja 4 diagnozy i awatary 1x/2x z HW-4 wypadają z zakresu; `TrendingTicker.tsx` poza listą plików P3.2a).
 - Dowód: `check-document-weight` (bajty `srcset` w dół, preload = kandydat), żądanie hero 640w na mobile, ΔLCP mobile
   ≤ −0,1 s albo raport.
 
