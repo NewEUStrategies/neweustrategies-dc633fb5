@@ -64,6 +64,9 @@ import { Bookmark, CalendarDays, ListTodo, NotebookPen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { onOpenChatWindow } from "@/lib/chat/chatDockBus";
+import { minimizedChatsStore } from "@/lib/chat/minimizedChats";
+import { useIncomingChatToasts } from "@/lib/chat/useIncomingChatToasts";
+import { useCommunityModules } from "@/lib/community/useCommunityModules";
 import { type DockToolId } from "@/lib/dock/types";
 import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/lib/dock/dockState";
 import { useDockReservedSpace } from "@/lib/dock/useDockReservedSpace";
@@ -146,6 +149,18 @@ export function WorkspaceDock() {
   const { ref: barRef, height: barHeight } = useDockReservedSpace();
   const { user } = useAuth();
 
+  // TOASTY NOWYCH WIADOMOŚCI montuje ten pasek - raz na sesję członka.
+  // Jedynym ich montażem był `ChatBell`, którego od przeniesienia rozmów do
+  // doku nic nie renderuje, więc żadna wiadomość nie dawała toasta. Pasek ma
+  // właściwe bramki (zalogowany, poza /admin i /login, leniwy chunk - gość
+  // nie pobiera kodu ani nie otwiera kanału), stoi w stałej pozycji drzewa
+  // `SiteChrome` i to on słucha szyny, w którą celuje akcja „Otwórz" toasta.
+  // Moduł czatu wyłączony w panelu nie otwiera kanału. Ustawienie pochodzi
+  // z tego samego zapytania `site_settings`, z którego pasek czyta niżej
+  // konfigurację skrótów, więc nie kosztuje osobnego żądania.
+  const chatEnabled = useCommunityModules().chat_enabled;
+  useIncomingChatToasts(chatEnabled);
+
   // Jedyna powierzchnia rozmów: kliknięcie "Napisz" gdziekolwiek w serwisie
   // (szyna chatDockBus) otwiera lewą skrzynkę z wybraną konwersacją.
   //
@@ -158,6 +173,14 @@ export function WorkspaceDock() {
   useEffect(
     () =>
       onOpenChatWindow((request) => {
+        // Rozmowa zminimalizowana wraca przez API wspólnego magazynu sesji
+        // (to samo, co klik w jej pigułkę). Bez tego pigułka zostawała na
+        // pasku obok tej samej rozmowy otwartej w skrzynce - np. po „Otwórz"
+        // w toaście albo „Napisz" w profilu.
+        const { minimized } = minimizedChatsStore.getSnapshot();
+        if (minimized.some((chat) => chat.id === request.conversationId)) {
+          minimizedChatsStore.restore(request.conversationId);
+        }
         setPendingChat({ conversationId: request.conversationId });
         dispatch({ type: "open", tool: "chat" });
       }),

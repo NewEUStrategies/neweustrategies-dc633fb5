@@ -1,15 +1,32 @@
-// Global "someone wrote to you" toast + bell pulse. Subscribes ONCE per user
-// to messages INSERT (RLS restricts to conversations the caller belongs to)
-// and surfaces incoming messages as sonner toasts anywhere in the app.
-// Suppressed when the corresponding chat window is already open AND focused,
-// or when the sender is the current user (echo / other tab).
+// Globalny toast „ktoś do Ciebie napisał" (i zdarzenie dla animowanych
+// dzwonków). JEDNA subskrypcja INSERT na `messages` na użytkownika (RLS
+// przepuszcza tylko rozmowy, w których jest uczestnikiem) zamienia nowe
+// wiadomości w toasty sonnera w dowolnym miejscu serwisu. Toast milknie, gdy
+// okno tej rozmowy jest otwarte I karta ma fokus, gdy rozmowa jest wyciszona
+// oraz gdy nadawcą jest sam użytkownik (echo z drugiej karty).
+//
+// GDZIE TO ŻYJE. Hak montuje `WorkspaceDock` - jedyna powierzchnia rozmów,
+// leniwy chunk renderowany wyłącznie dla zalogowanych, poza /admin i /login,
+// w stałej pozycji drzewa `SiteChrome` (nawigacja go nie przemontowuje).
+// Wcześniej montował go tylko `ChatBell`, którego nic nie renderuje, więc
+// kanał nie powstawał i żadna wiadomość nie dawała toasta. Gość nie pobiera
+// tego kodu i nie otwiera kanału.
+//
+// KANAŁ IDZIE PRZEZ `tableChannelHub` - wspólną implementację kanałów
+// `postgres_changes` w repozytorium. Własny kanał o stałej nazwie
+// `chat-incoming:<uid>` ginął, gdy hak montował się ponownie, zanim serwer
+// potwierdził opuszczenie poprzedniego, już dołączonego kanału (zejście
+// i powrót doku, ponowne zalogowanie): realtime-js oddaje wtedy z
+// `supabase.channel()` ten sam, opuszczany obiekt, `subscribe()` na nim
+// nie dołącza, a po potwierdzeniu kanał jest rozbierany - toasty cicho
+// przestają przychodzić. Hub nadaje nazwie losowy sufiks i liczy referencje.
 import { useEffect } from "react";
-import type { RealtimeChannel } from "@supabase/supabase-js";
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-chat";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import { openChatWindow } from "./chatDockBus";
 import { mutedUntilMs } from "./useConversations";
 import type { MessageRow, PeerProfile } from "./types";
@@ -27,8 +44,8 @@ export function onIncomingChatMessage(handler: (message: MessageRow) => void) {
   return () => window.removeEventListener(INCOMING_EVENT, listener);
 }
 
-let channel: RealtimeChannel | null = null;
-let channelUid: string | null = null;
+let unsubscribe: (() => void) | null = null;
+let subscribedUid: string | null = null;
 let refCount = 0;
 const seenIds = new Set<string>();
 const peerCache = new Map<string, PeerProfile>();
@@ -122,6 +139,10 @@ async function handleInsert(uid: string, row: MessageRow) {
   if (await isMutedConversation(uid, row.conversation_id)) return;
 
   const peer = await resolvePeer(row.sender_id);
+  // Odczyty wyżej trwają. W tym czasie sesja mogła się skończyć (wylogowanie,
+  // zejście doku) albo użytkownik mógł otworzyć tę rozmowę - spóźniony toast
+  // nie może trafić do innej sesji ani dublować okna, które już czyta.
+  if (subscribedUid !== uid || isConversationFocused(row.conversation_id)) return;
   const name = peer?.display_name ?? i18n.t("chat.incoming.someone");
   const preview = buildPreview(row);
   const openLabel = i18n.t("chat.incoming.open");
@@ -139,50 +160,39 @@ async function handleInsert(uid: string, row: MessageRow) {
 
 function acquire(uid: string) {
   refCount += 1;
-  if (channel && channelUid === uid) return;
-  if (channel) {
-    void supabase.removeChannel(channel);
-    channel = null;
-  }
-  channelUid = uid;
-  channel = supabase
-    .channel(`chat-incoming:${uid}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "messages",
-        filter: `sender_id=neq.${uid}`,
-      },
-      (payload) => {
-        void handleInsert(uid, payload.new as MessageRow);
-      },
-    )
-    .subscribe();
+  if (unsubscribe && subscribedUid === uid) return;
+  unsubscribe?.();
+  subscribedUid = uid;
+  unsubscribe = subscribeToTable(
+    { table: "messages", event: "INSERT", filter: `sender_id=neq.${uid}` },
+    (payload) => {
+      void handleInsert(uid, payload.new as MessageRow);
+    },
+  );
 }
 
 function release() {
   refCount = Math.max(0, refCount - 1);
-  if (refCount === 0 && channel) {
-    void supabase.removeChannel(channel);
-    channel = null;
-    channelUid = null;
-    seenIds.clear();
-    muteCache.clear();
-  }
+  if (refCount > 0 || !unsubscribe) return;
+  unsubscribe();
+  unsubscribe = null;
+  subscribedUid = null;
+  seenIds.clear();
+  muteCache.clear();
 }
 
 /**
- * Mount once (per surface) - the underlying channel is refcounted, so
- * ChatBell + ChatDock + /messages together keep exactly one websocket.
+ * Montowany raz na sesję członka przez `WorkspaceDock`. Subskrypcja jest
+ * liczona na poziomie modułu, więc dodatkowa powierzchnia wołająca ten hak
+ * nie otworzy drugiego kanału. `enabled = false` (moduł czatu wyłączony
+ * w panelu) nie otwiera kanału wcale, a wyłączenie w trakcie sesji go zwalnia.
  */
-export function useIncomingChatToasts(): void {
+export function useIncomingChatToasts(enabled = true): void {
   const { user } = useAuth();
   const uid = user?.id;
   useEffect(() => {
-    if (!uid) return;
+    if (!uid || !enabled) return;
     acquire(uid);
     return release;
-  }, [uid]);
+  }, [uid, enabled]);
 }

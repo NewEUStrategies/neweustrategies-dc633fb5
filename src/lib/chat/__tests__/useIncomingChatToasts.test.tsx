@@ -8,14 +8,19 @@
 // rozmowy (`isConversationFocused`), nagrobek wiadomości cofniętej
 // (`handleInsert`) i budowa podglądu (`buildPreview` + `attachmentSummary`).
 //
-// KONTRAKT REFCOUNTU. `ChatBell`, `ChatDock` i trasa `/messages` montują ten
-// hook równolegle, a kanał ma być JEDEN. Zgubiony `removeChannel` nie psuje
-// żadnego widoku od razu - dopiero po kilku przejściach kończy się limit
-// kanałów i toasty cicho przestają przychodzić. Stąd dowody na licznik.
+// KONTRAKT REFCOUNTU. Hak montuje `WorkspaceDock` (raz na sesję członka),
+// ale każda dodatkowa powierzchnia może go wywołać obok, a kanał ma być
+// JEDEN. Zgubiony `removeChannel` nie psuje żadnego widoku od razu - dopiero
+// po kilku przejściach kończy się limit kanałów i toasty cicho przestają
+// przychodzić. Stąd dowody na licznik. Kanał idzie przez `tableChannelHub`,
+// więc jego nazwa to klucz specyfikacji huba z losowym sufiksem.
+//
+// Montaż w prawdziwym pasku (zalogowany tak, gość nie, otwarta rozmowa bez
+// toasta, akcja „Otwórz") dowodzi `dock/__tests__/WorkspaceDock.incomingToasts`.
 //
 // RODO: rozmówcy to identyfikatory z `CHAT_IDS`, treści zmyślone.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import "@/lib/i18n-chat";
 import { chatPl } from "@/lib/i18n-chat";
 import {
@@ -29,6 +34,7 @@ import {
   supabaseFromStub,
 } from "@/test/chat/fixtures";
 import type { MessageRow } from "@/lib/chat/types";
+import type { FakeChannel } from "@/test/supabase";
 
 interface ToastCall {
   readonly title: string;
@@ -44,6 +50,12 @@ const h = vi.hoisted(() => ({
   rpc: vi.fn(),
   realtime: null as unknown,
   from: null as unknown,
+  /**
+   * Emulacja realtime-js 2.x: `supabase.channel(nazwa)` oddaje ISTNIEJĄCY
+   * obiekt o tej nazwie, dopóki serwer nie potwierdzi opuszczenia, a samo
+   * `removeChannel` kończy się dopiero po tym potwierdzeniu (asynchronicznie).
+   */
+  emulateLeaveAck: false,
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -67,8 +79,13 @@ vi.mock("@/integrations/supabase/client", async () => {
   h.from = from;
   return {
     supabase: {
-      channel: realtime.channel,
-      removeChannel: realtime.removeChannel,
+      channel: (name: string, config?: Record<string, unknown>) =>
+        (h.emulateLeaveAck ? realtime.liveChannels().find((c) => c.name === name) : undefined) ??
+        realtime.channel(name, config),
+      removeChannel: (channel: FakeChannel) =>
+        h.emulateLeaveAck
+          ? Promise.resolve().then(() => realtime.removeChannel(channel))
+          : realtime.removeChannel(channel),
       from: from.from,
       rpc: (fn: string, args: unknown) => h.rpc(fn, args),
     },
@@ -89,11 +106,32 @@ const from = () => h.from as FromStub;
 
 const t = chatPl.chat;
 
-/** Kanał tego użytkownika (jeden na sesję, refcountowany). */
+/** Prefiks nazwy kanału w hubie: schemat, tabela, zdarzenie i filtr nadawcy. */
+function channelPrefix(uid: string | null = h.uid): string {
+  return `hub:public|messages|INSERT|sender_id=neq.${uid}:`;
+}
+
+/** ŻYWY kanał tego użytkownika (jeden na sesję, refcountowany). */
 function incomingChannel() {
-  const channel = realtime().channelByPrefix(`chat-incoming:${h.uid}`);
+  const [channel] = realtime().liveChannels(channelPrefix());
   if (!channel) throw new Error("test: kanał toastów nie powstał");
   return channel;
+}
+
+/**
+ * Odpowiedź RPC trzymana do ręcznego zwolnienia - okno „odczyty trwają".
+ * Nadawca musi być NOWY: profile żyją w cache'u modułu przez całą sesję,
+ * a profil z cache'u nie pyta RPC i okna by nie było.
+ */
+function deferredPeers() {
+  let release: () => void = () => {};
+  h.rpc = vi.fn(
+    () =>
+      new Promise((resolve) => {
+        release = () => resolve(ok([peerProfile({ display_name: "Zofia Testowa" })]));
+      }),
+  );
+  return { release: () => release() };
 }
 
 function emitInsert(row: MessageRow): void {
@@ -133,6 +171,7 @@ function freshConversation(): string {
 
 beforeEach(() => {
   h.uid = CHAT_IDS.me;
+  h.emulateLeaveAck = false;
   h.toasts = [];
   h.rpc = vi.fn(async () => ok([peerProfile({ display_name: "Zofia Testowa" })]));
   realtime().reset();
@@ -150,25 +189,53 @@ afterEach(() => {
 describe("cykl życia kanału", () => {
   it("montowanie otwiera DOKŁADNIE jeden kanał, odmontowanie go zwalnia", () => {
     const { unmount } = renderHook(() => useIncomingChatToasts());
-    expect(realtime().liveChannels(`chat-incoming:${CHAT_IDS.me}`)).toHaveLength(1);
+    expect(realtime().liveChannels(channelPrefix(CHAT_IDS.me))).toHaveLength(1);
     expect(incomingChannel().subscribeCount).toBe(1);
 
     unmount();
-    expect(realtime().liveChannels(`chat-incoming:${CHAT_IDS.me}`)).toHaveLength(0);
+    expect(realtime().liveChannels(channelPrefix(CHAT_IDS.me))).toHaveLength(0);
   });
 
-  it("trzy powierzchnie naraz trzymają JEDEN websocket, zwalniany dopiero przy ostatniej", () => {
-    const bell = renderHook(() => useIncomingChatToasts());
-    const dock = renderHook(() => useIncomingChatToasts());
-    const inbox = renderHook(() => useIncomingChatToasts());
+  it("trzy montaże naraz trzymają JEDEN websocket, zwalniany dopiero przy ostatnim", () => {
+    const first = renderHook(() => useIncomingChatToasts());
+    const second = renderHook(() => useIncomingChatToasts());
+    const third = renderHook(() => useIncomingChatToasts());
     expect(realtime().channels).toHaveLength(1);
 
-    bell.unmount();
-    dock.unmount();
-    expect(realtime().liveChannels(`chat-incoming:${CHAT_IDS.me}`)).toHaveLength(1);
+    first.unmount();
+    second.unmount();
+    expect(realtime().liveChannels(channelPrefix(CHAT_IDS.me))).toHaveLength(1);
 
-    inbox.unmount();
-    expect(realtime().liveChannels(`chat-incoming:${CHAT_IDS.me}`)).toHaveLength(0);
+    third.unmount();
+    expect(realtime().liveChannels(channelPrefix(CHAT_IDS.me))).toHaveLength(0);
+  });
+
+  it("ponowny montaż, zanim serwer potwierdzi opuszczenie kanału, nadal doręcza", async () => {
+    // Zejście i powrót doku w oknie potwierdzenia `leave`. Kanał o stałej
+    // nazwie wracał z klienta jako ten sam, opuszczany obiekt i po
+    // potwierdzeniu znikał razem z nowym nasłuchem.
+    h.emulateLeaveAck = true;
+    renderHook(() => useIncomingChatToasts()).unmount();
+    renderHook(() => useIncomingChatToasts());
+    await settle();
+
+    expect(realtime().liveChannels(channelPrefix(CHAT_IDS.me))).toHaveLength(1);
+    emitInsert(messageRow({ id: "msg-remount", conversation_id: freshConversation() }));
+    await settle();
+    expect(h.toasts).toHaveLength(1);
+  });
+
+  it("wyłączony moduł czatu nie otwiera kanału, a wyłączenie w trakcie sesji go zwalnia", () => {
+    const { rerender } = renderHook(({ enabled }) => useIncomingChatToasts(enabled), {
+      initialProps: { enabled: false },
+    });
+    expect(realtime().channels).toHaveLength(0);
+
+    rerender({ enabled: true });
+    expect(realtime().liveChannels(channelPrefix(CHAT_IDS.me))).toHaveLength(1);
+
+    rerender({ enabled: false });
+    expect(realtime().liveChannels(channelPrefix(CHAT_IDS.me))).toHaveLength(0);
   });
 
   it("anonim nie otwiera żadnego kanału", () => {
@@ -284,6 +351,51 @@ describe("bramki widoczności", () => {
 
     expect(h.toasts).toHaveLength(1);
     vi.restoreAllMocks();
+  });
+
+  it("rozmowa otwarta i skupiona W TRAKCIE odczytów nie dostaje spóźnionego toasta", async () => {
+    const conversationId = freshConversation();
+    const peers = deferredPeers();
+    renderHook(() => useIncomingChatToasts());
+    emitInsert(
+      messageRow({
+        id: "msg-toast-late-open",
+        conversation_id: conversationId,
+        sender_id: "user-late-open",
+      }),
+    );
+    await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
+
+    // Profil nadawcy jeszcze nie dotarł, a użytkownik już otworzył rozmowę.
+    const marker = document.createElement("div");
+    marker.setAttribute("data-active-conversation", conversationId);
+    document.body.append(marker);
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    peers.release();
+    await settle();
+
+    expect(h.toasts).toHaveLength(0);
+    vi.restoreAllMocks();
+  });
+
+  it("toast spóźniony za zakończeniem sesji przepada", async () => {
+    const peers = deferredPeers();
+    const { unmount } = renderHook(() => useIncomingChatToasts());
+    emitInsert(
+      messageRow({
+        id: "msg-toast-after-logout",
+        conversation_id: freshConversation(),
+        sender_id: "user-late-logout",
+      }),
+    );
+    await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
+
+    unmount();
+    peers.release();
+    await settle();
+
+    expect(h.toasts).toHaveLength(0);
   });
 
   it("INNA otwarta rozmowa nie ucisza toasta z tej, która przyszła", async () => {

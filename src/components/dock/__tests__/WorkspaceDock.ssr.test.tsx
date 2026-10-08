@@ -71,6 +71,13 @@ vi.mock("@/lib/chat/minimizedChats", () => ({
   minimizedChatsStore: { restore: () => {}, remove: () => {}, clearRequest: () => {} },
 }));
 vi.mock("@/components/mobile/bottomBar/LiveTabBadge", () => ({ LiveTabBadge: () => null }));
+// Kanał toastów otwiera się w efekcie, więc nie zmienia HTML-a serwera ani
+// hydratacji; montaż dowodzi `WorkspaceDock.incomingToasts.test.tsx`. Atrapa
+// zostawia `invalidateMuteCache`, które importuje warstwa danych rozmów.
+vi.mock("@/lib/chat/useIncomingChatToasts", () => ({
+  useIncomingChatToasts: () => {},
+  invalidateMuteCache: () => {},
+}));
 
 import { WorkspaceDock } from "../WorkspaceDock";
 
