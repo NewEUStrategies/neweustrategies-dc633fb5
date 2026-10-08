@@ -59,13 +59,20 @@ function writeAnon(v: AnonStored) {
   }
 }
 
-export function useInterestCatalog(lang: "pl" | "en" = "pl") {
+/**
+ * Katalog kategorii i tagów (dwa GET-y). `enabled = false` wstrzymuje pobranie,
+ * nie odczyt: wpis już w cache'u (inny widget, nawigacja SPA) czyta się dalej.
+ * Formularze newslettera wstrzymują go do zatrzasku interakcji/ciszy (P3.8,
+ * `useInterestGroups` w `components/interests/TopicsDroplist.tsx`).
+ */
+export function useInterestCatalog(lang: "pl" | "en" = "pl", enabled = true) {
   const qc = useQueryClient();
   // Tożsamość z jedynego AuthProvider - patrz `useCurrentUserId` niżej.
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const query = useQuery<InterestCatalog>({
     queryKey: ["interests-catalog", lang],
+    enabled,
     staleTime: 60_000,
     queryFn: async () => {
       const [{ data: cats }, { data: tags }] = await Promise.all([

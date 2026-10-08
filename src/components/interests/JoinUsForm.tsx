@@ -227,18 +227,31 @@ export function JoinUsForm({
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
   // Projekcja formularza inline (P2.5): ten sam klucz grzeje SSR (`prefetch.ts`).
   const { data: nl } = useNewsletterInlineSettings();
-  const interestGroups = useInterestGroups(lang, interestSlugs);
-  const fieldLabels = useNewsletterFieldLabelsFrom(nl?.field_labels, lang);
-  const catalog = interestGroups.catalog;
   const my = useMyInterests();
-  const subscribe = useServerFn(subscribeToNewsletter);
-  const fetchPrefill = useServerFn(getJoinUsPrefill);
-  const linkAndBackfill = useServerFn(linkJoinUsAndBackfill);
-  const saveConsent = useServerFn(setMyConsent);
   // Non-null only inside the CMS builder canvas (BuilderModeProvider). In the
   // builder the widget must NEVER unmount to null — otherwise disabling the
   // newsletter in settings makes it silently vanish from the canvas.
   const inBuilder = useBuilderMode() !== null;
+  // Katalog przy montażu tylko tam, gdzie jest potrzebny od razu (P3.8):
+  // chipsy, wymagany wybór (walidacja wysyłki), zapisane tematy (pigułki)
+  // i kanwa buildera. Droplista bez wymagań czeka na zatrzask interakcji/ciszy,
+  // a formularz bez listy tematów nie pobiera katalogu wcale.
+  const hasSavedInterests = !!my.data && my.data.categoryIds.length + my.data.tagIds.length > 0;
+  const interestGroups = useInterestGroups(
+    lang,
+    interestSlugs,
+    !showInterests
+      ? "off"
+      : interestsDisplay === "chips" || requireInterests || hasSavedInterests || inBuilder
+        ? "mount"
+        : "latch",
+  );
+  const fieldLabels = useNewsletterFieldLabelsFrom(nl?.field_labels, lang);
+  const catalog = interestGroups.catalog;
+  const subscribe = useServerFn(subscribeToNewsletter);
+  const fetchPrefill = useServerFn(getJoinUsPrefill);
+  const linkAndBackfill = useServerFn(linkJoinUsAndBackfill);
+  const saveConsent = useServerFn(setMyConsent);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");

@@ -127,7 +127,13 @@ export function NewsletterForm({
 
   // Wspólne dla wszystkich widgetów newslettera: etykiety pól + droplista tematów.
   const fieldLabels = useNewsletterFieldLabelsFrom(s?.field_labels, lang);
-  const { allItems, groups } = useInterestGroups(lang, null);
+  // Katalog tematów przy zatrzasku interakcji/ciszy, nie przy montażu (P3.8);
+  // w kanwie buildera od razu, bez listy tematów - wcale.
+  const { allItems, groups } = useInterestGroups(
+    lang,
+    null,
+    !boolCfg(cfg, "showInterests", true) ? "off" : inBuilder ? "mount" : "latch",
+  );
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const togglePick = (id: string) =>
     setPicked((prev) => {

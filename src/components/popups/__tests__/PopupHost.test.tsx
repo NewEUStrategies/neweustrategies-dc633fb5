@@ -636,3 +636,79 @@ describe("PopupHost: modal lifecycle regressions", () => {
     expect(env.released).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// KOTWICA OPÓŹNIENIA (P3.8). Korzeń montuje host dopiero przy pierwszej
+// interakcji albo w punkcie ciszy, więc PIERWSZE uzbrojenie wyzwalacza
+// w dokumencie liczy `delay` od startu nawigacji (`performance.now()` - fałszywy
+// zegar startuje od zera), z podłogą 400 ms od uzbrojenia. Flaga kotwicy żyje
+// w module, więc każdy przypadek bierze świeży moduł hosta.
+// ---------------------------------------------------------------------------
+describe("opóźnienie liczone od startu nawigacji (P3.8)", () => {
+  async function freshHost() {
+    vi.resetModules();
+    return (await import("@/components/popups/PopupHost")).PopupHost;
+  }
+
+  it("pierwsze uzbrojenie: `delay` liczy się od startu nawigacji, nie od montażu", async () => {
+    const Host = await freshHost();
+    vi.advanceTimersByTime(3_000);
+    env.popups = [popup({ trigger: "delay", delaySeconds: 5 })];
+    render(<Host />);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_500);
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("popup `immediate` montowany długo po starcie i tak czeka ~400 ms od uzbrojenia", async () => {
+    const Host = await freshHost();
+    vi.advanceTimersByTime(20_000);
+    env.popups = [popup({ trigger: "immediate" })];
+    render(<Host />);
+
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("kolejne uzbrojenie w dokumencie (inny popup po nawigacji SPA) liczy pełne opóźnienie", async () => {
+    const Host = await freshHost();
+    vi.advanceTimersByTime(3_000);
+    env.popups = [
+      popup({ trigger: "delay", delaySeconds: 5, includePaths: ["/"] }, "glowna"),
+      popup({ trigger: "delay", delaySeconds: 5, includePaths: ["/inna-strona"] }, "inna"),
+    ];
+    const view = render(<Host />);
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+
+    env.pathname = "/inna-strona";
+    view.rerender(<Host />);
+    await act(async () => {
+      vi.advanceTimersByTime(3_000);
+    });
+    // Kotwica dotyczyła pierwszego uzbrojenia (popup strony głównej za ~1 s);
+    // popup tej ścieżki uzbraja się od nowa - pełne 5 s od nawigacji.
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(2_500);
+    });
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(env.beacons).toEqual([{ kind: "view", id: "inna" }]);
+  });
+});

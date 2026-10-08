@@ -37,6 +37,22 @@ const LS_KEY = "nl_popup_last";
 // shownRef). Survives route changes; resets on a full reload.
 let shownThisSession = false;
 
+// KOTWICA OPÓŹNIENIA (P3.8). Korzeń montuje popup dopiero przy pierwszej
+// interakcji albo w punkcie ciszy (`useOverlayGates`), więc liczenie
+// `popup_delay_seconds` od montażu przesuwałoby popup o cały czas do zatrzasku.
+// PIERWSZE uzbrojenie w dokumencie liczy więc opóźnienie od startu nawigacji
+// (`performance.now()`), z podłogą 1 s od uzbrojenia (popup nie miga w klatce
+// montażu). Kolejne uzbrojenia (nawigacja SPA, zmiana ustawień) liczą od
+// siebie, jak dotąd.
+let delayAnchoredToNavigation = false;
+const MIN_TRIGGER_DELAY_MS = 1_000;
+
+function triggerDelayMs(configuredMs: number): number {
+  if (delayAnchoredToNavigation) return configuredMs;
+  delayAnchoredToNavigation = true;
+  return Math.max(MIN_TRIGGER_DELAY_MS, configuredMs - performance.now());
+}
+
 function shouldShow(freqDays: number): boolean {
   if (typeof window === "undefined") return false;
   let raw: string | null;
@@ -161,6 +177,10 @@ export function NewsletterPopup() {
     // najgorszym razie razem z nim - `trigger()` i tak czeka na `prepare()`).
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
       .connection;
+    const delayMs =
+      s.popup_trigger === "delay"
+        ? triggerDelayMs(Math.max(MIN_TRIGGER_DELAY_MS, s.popup_delay_seconds * 1000))
+        : 0;
     function warm() {
       cancelWarm = whenIdle(() => {
         void prepare().catch(() => {});
@@ -177,7 +197,7 @@ export function NewsletterPopup() {
     }
     if (!connection?.saveData) {
       if (s.popup_trigger === "delay") {
-        warmTimer = setTimeout(warm, Math.max(0, Math.max(1, s.popup_delay_seconds) * 1000 - 1500));
+        warmTimer = setTimeout(warm, Math.max(0, delayMs - 1500));
       } else {
         const passive: AddEventListenerOptions = { passive: true };
         window.addEventListener("scroll", onFirstSignal, passive);
@@ -228,7 +248,7 @@ export function NewsletterPopup() {
     };
 
     if (s.popup_trigger === "delay") {
-      timer = setTimeout(trigger, Math.max(1, s.popup_delay_seconds) * 1000);
+      timer = setTimeout(trigger, delayMs);
     } else if (s.popup_trigger === "scroll") {
       onScroll = () => {
         const doc = document.documentElement;

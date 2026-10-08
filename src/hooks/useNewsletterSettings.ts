@@ -181,11 +181,27 @@ export function defaultNewsletterSettings(): NewsletterSettings {
   };
 }
 
+let inflightSettings: Promise<NewsletterSettings> | null = null;
+
 /**
  * Odczyt wiersza `newsletter_settings` scalonego z wartościami domyślnymi -
  * wspólne ciało pełnego zapytania i projekcji formularza inline.
+ *
+ * DEDUP W LOCIE (P3.8, wzorzec `fetchSiteDesignTokensRow`). Pełny klucz
+ * (popup) i projekcja (formularz inline) czytają TEN SAM wiersz tym samym
+ * URL-em; gdy oba odświeżają się naraz (np. przy otwarciu zatrzasku
+ * interakcji/ciszy), szły dwa identyczne GET-y. W przeglądarce równoległe
+ * wywołania dzielą jeden lot; serwer obsługuje wielu najemców jednym modułem,
+ * więc tam dedupu nie ma.
  */
-async function fetchNewsletterSettings(): Promise<NewsletterSettings> {
+function fetchNewsletterSettings(): Promise<NewsletterSettings> {
+  if (typeof window === "undefined") return loadNewsletterSettings();
+  return (inflightSettings ??= loadNewsletterSettings().finally(() => {
+    inflightSettings = null;
+  }));
+}
+
+async function loadNewsletterSettings(): Promise<NewsletterSettings> {
   const { data, error } = await supabase.from("newsletter_settings").select("*").maybeSingle();
   if (error && error.code !== "PGRST116") throw error;
   const def = defaultNewsletterSettings();

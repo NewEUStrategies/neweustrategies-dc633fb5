@@ -113,6 +113,9 @@ import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
+import { fontScaleQueryOptions } from "../hooks/useFontScale";
+import { EMPTY_FONT_SCALE } from "../lib/theme/fontScale";
+import { useInteractionOrQuiet } from "../lib/performance/interactionOrQuiet";
 // Lekki moduł z pustym domyślnym - nie `globalColors.ts` (44 kB katalogu
 // slotów), który od 2026-10 dociera do przeglądarki wyłącznie leniwie.
 import { EMPTY_GLOBAL_COLORS } from "../lib/builder/globalColorsValue";
@@ -226,9 +229,8 @@ function AuthenticatedLiveSync() {
 }
 
 /**
- * Ile czekamy z montażem nakładek „na później" (newsletter, popupy buildera,
- * Toaster). Te same 3 000 ms, co heartbeat niżej: nic z tego nie ma prawa
- * konkurować z LCP ani z pierwszą interakcją.
+ * Ile czekamy z montażem Toastera „na później". Te same 3 000 ms, co heartbeat
+ * niżej: nic z tego nie ma prawa konkurować z LCP ani z pierwszą interakcją.
  */
 const OVERLAY_IDLE_TIMEOUT_MS = 3_000;
 
@@ -261,23 +263,25 @@ const OVERLAY_IDLE_TIMEOUT_MS = 3_000;
  * `marketing: true` nie dostanie slotu przed pierwszym zgłoszeniem stanu zgody
  * (od P1.3 zgłasza go korzeń zaraz po hydratacji, potem baner). Drugiej
  * warstwy tutaj świadomie NIE dokładamy: montaż `NewsletterPopup` i
- * `PopupHost` to samo pobranie chunku i uzbrojenie wyzwalaczy (nic nie widać),
- * więc wiązanie go ze zgodami przesunęłoby tę pracę z okna bezczynności w
- * gorszy moment, a nakładka spoza tego drzewa (pasek reklamowy w stopce) i tak
- * omijałaby bramkę z `__root`. Czas montażu nakładek jest celowo BEZ ZMIAN
- * (P1.3, TP-4 „tylko części niewidoczne"): od niego liczą się wyzwalacze
- * `delay`/`immediate`, więc późniejszy montaż byłby widocznie późniejszym
- * popupem.
+ * `PopupHost` to samo pobranie chunku, zapytania o ustawienia i uzbrojenie
+ * wyzwalaczy (nic nie widać), a nakładka spoza tego drzewa (pasek reklamowy
+ * w stopce) i tak omijałaby bramkę z `__root`.
+ *
+ * MOMENT MONTAŻU (P3.8, zmiana świadoma). Do P3.8 nakładki montowały się po
+ * `load` i bezczynności (`afterPageLoad`, limit 3 s), czyli 1-2,5 s po `load`:
+ * dwa chunki, dwa GET-y Supabase i dwa preflighty w oknie, w którym Lighthouse
+ * czeka na ciszę sieci i CPU. Od P3.8 montaż czeka na wspólny zatrzask
+ * „pierwsza interakcja ALBO punkt ciszy" (`interactionOrQuiet.ts`). Dawny
+ * argument „późniejszy montaż to widocznie późniejszy popup" zamyka kotwica
+ * wyzwalaczy: opóźnienia `delay`/`immediate` przy pierwszym uzbrojeniu
+ * w dokumencie liczą się od STARTU NAWIGACJI, nie od montażu
+ * (`NewsletterPopup`, `PopupHost`), więc popup z opóźnieniem dłuższym niż
+ * czas do zatrzasku pokazuje się tak jak dotąd. Zmienia się jedno: popup
+ * `immediate` (dotąd ~400 ms po montażu, czyli tuż po `load`) pojawia się
+ * nie wcześniej niż przy pierwszej interakcji albo w punkcie ciszy.
  */
 function useOverlayGates(): { overlaysReady: boolean } {
-  const [overlaysReady, setOverlaysReady] = useState(false);
-
-  useEffect(() => {
-    const cancel = afterPageLoad(() => setOverlaysReady(true), OVERLAY_IDLE_TIMEOUT_MS);
-    return cancel;
-  }, []);
-
-  return { overlaysReady };
+  return { overlaysReady: useInteractionOrQuiet() };
 }
 
 // ── POWŁOKA I BANER ZGÓD (P1.3) ───────────────────────────────────────────
@@ -468,23 +472,29 @@ export const ConsentSurface = memo(function ConsentSurface() {
 });
 
 /**
- * `PopupHost` nie montuje się tylko wtedy, gdy ISTNIEJĄCE dane SSR jednoznacznie
- * mówią „brak aktywnych popupów" (P1.3, TP-4): odwodniony wpis zapytania
- * `useActivePopups` z pustą listą. Bez nowego zapisu dehydratacji
- * (`check:ssr-budgets`) - dziś żaden loader tego klucza nie grzeje, więc host
- * montuje się jak dotąd; bramka zadziała sama, gdy wpis pojawi się w stanie SSR.
+ * `PopupHost` nie montuje się tylko wtedy, gdy dane SSR jednoznacznie mówią
+ * „brak aktywnych popupów" (P1.3, TP-4): odwodniony wpis zapytania
+ * `useActivePopups` z pustą listą. Od P3.8 wpis grzeje fala chrome korzenia
+ * (`warmNoActivePopups` w `lib/builder/popups.ts`: projekcja obecności, zapis
+ * WYŁĄCZNIE pustej listy), więc u najemcy bez aktywnych popupów host - jego
+ * chunk, GET `builder_popups` i preflight - nie powstaje wcale. Brak wpisu
+ * (porażka, budżet, trasa bez chrome'u) = host montuje się jak dotąd.
  * UWAGA: wartość jest ZAMROŻONA na całą wizytę (odczyt raz, w pierwszym
  * renderze) - popup aktywowany w trakcie tej samej sesji nie zamontuje hosta
- * do następnego wejścia. Kto zacznie grzać ten klucz w SSR, musi to przyjąć
- * albo zamienić odczyt na subskrypcję zapytania.
+ * do następnego wejścia, a anonimowy czytelnik zobaczy nowo aktywowany popup
+ * dopiero z dokumentem i projekcją młodszymi niż aktywacja (minuty: świeżość
+ * dokumentu na brzegu + TTL izolatu). Kompromis przyjęty w P3.8 - ale NIE dla
+ * redakcji: zespół (`isStaff`) montuje host zawsze, więc popup aktywowany
+ * w panelu da się od razu obejrzeć na stronie, jak przed P3.8.
  */
 export function useNoActivePopupsFromSsr(): boolean {
   const queryClient = useQueryClient();
+  const { isStaff } = useAuth();
   const [empty] = useState(() => {
     const data = queryClient.getQueryData([WIDGET_QUERY_ROOTS.popupsActive]);
     return Array.isArray(data) && data.length === 0;
   });
-  return empty;
+  return empty && !isStaff;
 }
 
 /**
@@ -803,9 +813,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // serwerowego i klienckiego renderu - a zasiew przesądza, że pierwszy render
     // klienta czyta dokładnie to, co wypisał serwer, zamiast przechodzić przez
     // `data === undefined`. (2) WARTOŚCI NAJEMCY. Zasiew jest
-    // PRZETERMINOWANY (`updatedAt: 0`), więc klient dociąga wiersz z bazy
-    // natychmiast po hydratacji; bez wpisu zapytanie i tak by wystartowało, ale
-    // cache korzenia nie niósłby żadnej informacji o tym kluczu do dehydracji.
+    // PRZETERMINOWANY (`updatedAt: 0`), więc klient dociąga wiersz z bazy - od
+    // P3.8 nie przy hydratacji, tylko przy pierwszej interakcji albo w punkcie
+    // ciszy (`components/ContentAreaStyle.tsx`); bez wpisu zapytanie i tak by
+    // wystartowało, ale cache korzenia nie niósłby żadnej informacji o tym
+    // kluczu do dehydracji.
     //
     // Zasiew niżej kosztuje ZERO round-tripów i jest PRZYWRÓCENIEM stanu
     // z `main` (tam ten sam `defaultPostLayoutSettings()` był zasiewany
@@ -821,6 +833,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // nadpisania `--background`/`--foreground`/`--primary`/`--card` i mostek
     // klas widgetów - czyli funduje repaint motywu po hydratacji na każdej
     // stronie. Zmierzone: 3 równoległe podżądania -> 2.
+    //
+    // `fontScale` (P3.8) - ten sam wiersz i ten sam lot co dwa wyżej, więc
+    // też za zero podżądań. Bez niego wpisu `site_font_scale` nie było w stanie
+    // SSR: serwer renderował `:root` z pustą tabelą rozmiarów, a klient pobierał
+    // wiersz zaraz po hydratacji (GET + preflight na KAŻDEJ trasie) - przy
+    // niepustej tabeli z późnym przepisaniem arkusza i zmianą rozmiarów liter.
     // TERMIN FALI 1 - trzy rozłączne kontrakty: strona główna (wspólny deadline
     // renderu docięty `HOME_THEME_BUDGET_MS`), dokument bez serwerowego renderu
     // (uzasadnienie i wartość: `lib/routing/clientOnlyDocument.ts`), reszta
@@ -845,6 +863,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         context.queryClient.ensureQueryData(siteSettingsQueryOptions),
         context.queryClient.ensureQueryData(designTokensQueryOptions),
         context.queryClient.ensureQueryData(globalColorsQueryOptions),
+        context.queryClient.ensureQueryData(fontScaleQueryOptions),
       ]),
       ROOT_WARM_BUDGET_MS,
       themeDeadline,
@@ -856,6 +875,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         siteSettingsQueryOptions.queryKey,
         designTokensQueryOptions.queryKey,
         globalColorsQueryOptions.queryKey,
+        fontScaleQueryOptions.queryKey,
       ]) {
         if (!hasSsrQueryData(context.queryClient, queryKey)) {
           setCacheControlHeader(resilientCacheControl(true));
@@ -895,14 +915,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         updatedAt: 0,
       });
     }
+    if (!context.queryClient.getQueryData(fontScaleQueryOptions.queryKey)) {
+      context.queryClient.setQueryData(fontScaleQueryOptions.queryKey, EMPTY_FONT_SCALE, {
+        updatedAt: 0,
+      });
+    }
     // ZASIEW BEZ ROZGRZEWKI - jedyny taki tutaj i dlatego z osobnym zdaniem.
-    // Trzy zasiewy wyżej domykają zapytania, które fala 1 PRÓBOWAŁA pobrać; ten
+    // Zasiewy wyżej domykają zapytania, które fala 1 PRÓBOWAŁA pobrać; ten
     // domyka klucz, którego fala 1 świadomie NIE dotyka (uzasadnienie wyżej).
     // `ContentAreaStyle` radzi sobie dziś bez niego (emituje blok z tej samej
     // stałej), więc zasiew nie ratuje już pierwszego malowania - trzyma PARYTET
     // SSR/KLIENT na jednej wartości. `{ updatedAt: 0 }` znaczy, że klient i tak
-    // dociągnie wartości najemcy natychmiast po hydratacji - domyślne są tu
-    // pierwszym malowaniem, nie ostatnim słowem.
+    // dociągnie wartości najemcy (P3.8: przy pierwszej interakcji albo w punkcie
+    // ciszy, nie w hydratacji) - domyślne są tu pierwszym malowaniem, nie
+    // ostatnim słowem.
     const postLayoutKey = postLayoutSettingsQueryOptions().queryKey;
     if (!context.queryClient.getQueryData(postLayoutKey)) {
       context.queryClient.setQueryData(postLayoutKey, defaultPostLayoutSettings(), {
@@ -1031,6 +1057,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         if (headerAds) {
           chromeWarm.push(() => context.queryClient.ensureQueryData(headerAds));
         }
+        // SYGNAŁ „BRAK AKTYWNYCH POPUPÓW" (P3.8) - też dekoracja, więc też poza
+        // `chromeQueryKeys`. Pusta lista w stanie SSR wyłącza montaż `PopupHost`
+        // na całą wizytę (`useNoActivePopupsFromSsr`): bez chunku, GET-u
+        // i preflightu po boocie. Wyłącznie serwer (bramka czyta stan raz,
+        // w renderze hydratacji) i import dynamiczny - moduł popupów nie wchodzi
+        // do zamknięcia bootu. Porażka albo spóźnienie = brak wpisu = host
+        // montuje się jak dotąd.
+        if (isServer) chromeWarm.push(() => warmNoActivePopupsOnServer(context.queryClient));
         // NAGŁÓWEK I STOPKA JEDNĄ PĘTLĄ, nie dwoma kopiami tego samego bloku.
         // Oba są pełnoprawnymi dokumentami buildera i dostają DOKŁADNIE tę samą
         // obsługę (klucze sekcji do listy świeżości + jedna rozgrzewka w budżecie
@@ -1121,6 +1155,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
+
+// Sygnał „brak aktywnych popupów" (P3.8) grzeje wyłącznie serwer: kompilator
+// Start wycina gałąź `.server()` z bundla przeglądarki razem z dynamicznym
+// importem modułu popupów (ta sama doktryna co skrypt zgód niżej).
+const warmNoActivePopupsOnServer = createIsomorphicFn()
+  .server((queryClient: QueryClient): Promise<void> =>
+    import("../lib/builder/popups").then((popups) => popups.warmNoActivePopups(queryClient)),
+  )
+  .client((): Promise<void> => Promise.resolve());
 
 // Tekst skryptu zgód w bundlu przeglądarki byłby martwym ciężarem (~1 KB
 // gzip): skrypt wykonał się z HTML-a, zanim wystartował jakikolwiek moduł.

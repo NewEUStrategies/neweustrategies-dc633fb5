@@ -32,6 +32,22 @@ const WIDTH_PX: Record<PopupSettings["width"], number> = {
   xl: 1080,
 };
 
+// KOTWICA OPÓŹNIENIA (P3.8). Host montuje się dopiero przy pierwszej
+// interakcji albo w punkcie ciszy (`useOverlayGates` w `__root.tsx`), więc
+// PIERWSZE uzbrojenie wyzwalacza w dokumencie liczy `delay` od startu nawigacji
+// (`performance.now()`), z podłogą 400 ms od uzbrojenia - tą samą, co
+// `immediate`. Popup `immediate` pojawia się więc ~400 ms po otwarciu
+// zatrzasku (dawniej ~400 ms po `load`). Kolejne uzbrojenia (nawigacja SPA)
+// liczą od siebie, jak dotąd.
+const IMMEDIATE_DELAY_MS = 400;
+let delayAnchoredToNavigation = false;
+
+function triggerDelayMs(configuredMs: number): number {
+  if (delayAnchoredToNavigation) return configuredMs;
+  delayAnchoredToNavigation = true;
+  return Math.max(IMMEDIATE_DELAY_MS, configuredMs - performance.now());
+}
+
 function viewportDevice(): Device {
   if (typeof window === "undefined") return "desktop";
   if (window.innerWidth < 768) return "mobile";
@@ -107,9 +123,9 @@ export function PopupHost() {
     };
 
     if (s.trigger === "immediate") {
-      timer = setTimeout(fire, 400);
+      timer = setTimeout(fire, triggerDelayMs(IMMEDIATE_DELAY_MS));
     } else if (s.trigger === "delay") {
-      timer = setTimeout(fire, Math.max(1, s.delaySeconds) * 1000);
+      timer = setTimeout(fire, triggerDelayMs(Math.max(1, s.delaySeconds) * 1000));
     } else if (s.trigger === "scroll") {
       onScroll = () => {
         const el = document.documentElement;

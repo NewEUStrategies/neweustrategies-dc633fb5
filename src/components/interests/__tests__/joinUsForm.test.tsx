@@ -33,7 +33,7 @@
 // - POLA WŁASNYCH: `CustomFieldsRenderer` i `validateCustomFields` mają testy
 //   przy konfiguracji pól; tutaj sprawdzamy tylko, że formularz respektuje wynik.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
@@ -72,6 +72,8 @@ const h = vi.hoisted(() => ({
   savedInterests: [] as { categoryIds: string[]; tagIds: string[] }[],
   /** Język interfejsu - decyduje o komunikatach składanych w kodzie. */
   language: "pl",
+  /** Tabele odpytane przez `supabase.from` - dowód, KIEDY idzie katalog (P3.8). */
+  fromCalls: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -96,7 +98,10 @@ vi.mock("@/integrations/supabase/client", () => {
   const channel = { on: () => channel, subscribe: () => channel };
   return {
     supabase: {
-      from: (table: string) => makeChain(table),
+      from: (table: string) => {
+        h.fromCalls.push(table);
+        return makeChain(table);
+      },
       channel: () => channel,
       removeChannel: () => Promise.resolve("ok"),
     },
@@ -172,7 +177,18 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.language),
 );
 
+// Punkt ciszy to czas przeglądarki - zatrzask interakcji/ciszy otwiera tu
+// wyłącznie test (`__openInteractionOrQuietForTests`).
+vi.mock("@/lib/performance/whenQuiescent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/performance/whenQuiescent")>()),
+  onQuiescent: () => () => {},
+}));
+
 import { JoinUsForm } from "@/components/interests/JoinUsForm";
+import {
+  __openInteractionOrQuietForTests,
+  __resetInteractionOrQuietForTests,
+} from "@/lib/performance/interactionOrQuiet";
 
 function mount(props: Partial<React.ComponentProps<typeof JoinUsForm>> = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -225,9 +241,60 @@ beforeEach(() => {
   h.consentCalls = 0;
   h.savedInterests = [];
   h.language = "pl";
+  h.fromCalls = [];
+  __resetInteractionOrQuietForTests();
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  __resetInteractionOrQuietForTests();
+});
+
+// ---------------------------------------------------------------------------
+// KATALOG POZA OKNEM BOOTU (P3.8, poprawka #6). Katalog to dwa GET-y
+// (`categories`, `tags`) z preflightami. Droplista bez wymagań pobiera go przy
+// zatrzasku „pierwsza interakcja ALBO punkt ciszy", a nie przy montażu wyspy
+// sekcji; tam, gdzie jest potrzebny od razu (chipsy, wymagany wybór), bez zmian.
+// ---------------------------------------------------------------------------
+describe("katalog zainteresowań poza oknem bootu (P3.8)", () => {
+  const catalogCalls = () => h.fromCalls.filter((t) => t === "categories" || t === "tags");
+  const droplistTrigger = () => document.querySelector("button[aria-haspopup='listbox']");
+
+  beforeEach(() => {
+    h.categories = [
+      { id: "c1", slug: "afryka", name_pl: "Afryka", name_en: null, parent_id: null },
+    ];
+  });
+
+  it("droplista bez wymagań NIE pobiera katalogu przed zatrzaskiem; zatrzask go pobiera", async () => {
+    mount({ showInterests: true });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(catalogCalls()).toEqual([]);
+    expect(droplistTrigger()).toBeNull();
+
+    act(() => __openInteractionOrQuietForTests());
+
+    await waitFor(() => expect(droplistTrigger()).not.toBeNull());
+    expect(catalogCalls().sort()).toEqual(["categories", "tags"]);
+  });
+
+  it("formularz BEZ listy tematów nie pobiera katalogu wcale", async () => {
+    mount({ showInterests: false });
+    act(() => __openInteractionOrQuietForTests());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(catalogCalls()).toEqual([]);
+  });
+
+  it("wymagany wybór pobiera katalog przy montażu - walidacja wysyłki bez zmian", async () => {
+    mount({ showInterests: true, requireInterests: true });
+    await waitFor(() => expect(droplistTrigger()).not.toBeNull());
+    expect(catalogCalls()).toContain("categories");
+  });
+});
 
 describe("widoczność widgetu", () => {
   it("wyłączony newsletter ukrywa widget na stronie publicznej", () => {
