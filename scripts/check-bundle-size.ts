@@ -1933,8 +1933,8 @@ const CLIENT_DIR =
 //   P9.1 (C10: `experimentalMinChunkSize` 2048 -> 1) usuwa przyczynę ogólnie;
 //   przypięcie z pkt 1 nie koliduje z tą zmianą.
 //
-// 2026-10-08 XXIV  OVERALL 4772 -> 4802 Z LOGU RUNNERA (P6.1 / D10). CSS i boot
-//             wróciły pod progi cięciami w tym samym PR, bez ruszania ich floorów.
+// 2026-10-08 XXIV  OVERALL WRACA POD 4772 CIĘCIAMI, BEZ ZMIANY PROGU. CSS i boot
+//             też wróciły pod progi cięciami w tym samym PR (#484).
 //
 // STAN WYJŚCIOWY. Krok „Bundle size budget" jest czerwony na main od scalenia
 // #476 (run 37441423321, f213e56); ostatni zielony: 824584d, run 37339137397.
@@ -1943,42 +1943,39 @@ const CLIENT_DIR =
 // `--frozen-lockfile`, Bun 1.2.23). main 2c5c2ee: overall 4801,6 ✗, css 97,1 ✗,
 // public css 82,9, public 2858,2, boot 485,2.
 //
-// PO CIĘCIACH TEGO PR (runner, run 37711944106): overall 4800,3 ✗, css 94,8 ✓,
-// public css 81,0 ✓, public 2857,4 ✓, boot 483,4 ✓ (raw 1596,8). Cięcia CSS
-// i bootu są w osobnych commitach; ten wpis dotyczy wyłącznie OVERALL.
-//
 // SKĄD +29 KB (host, ten sam `node_modules`, `BUNDLE_INVENTORY=1 bun run
 // build` na trzech drzewach; suma wiader liczona tą bramką):
 //   824584d (zielony)       4661,7
 //   f213e56 (po #476)       4671,0   +9,3  fala 2 PSI: wyspy hydratacji
 //                                          (`hydrationIsland.tsx` 20,9 kB przed
 //                                          minifikacją), zestaw bootu; reszta to
-//                                          przetasowanie sklejania (np.
-//                                          `EventPortalContent` +9,6 przy
-//                                          `i18n-event-front` -10,1)
-//   2c5c2ee + ten PR        4691,0  +20,0  #477-#481 strumień klubu: chunk trasy
-//                                          `club.$clubSlug.index` +16,3 (karty,
-//                                          dyskusja w karcie, reakcje, galeria,
-//                                          komentarze, kompozytor z podglądem
-//                                          linku, @wzmianki), `i18n-club` +2,8,
-//                                          wzmianki +1,8; reszta ±1,5 w sklejaniu
-// Różnica host <-> runner jest stała po obu stronach (`xlsx` 0.20.3 tylko na
-// runnerze: `spreadsheet.worker` 130,5 KB), więc runner na 824584d to
-// ~4800,3 - 29,3 = ~4771 - czyli zielony na styk, zgodnie z historią joba.
+//                                          przetasowanie sklejania
+//   2c5c2ee + cięcia CSS    4691,0  +20,0  #477-#481 strumień klubu: chunk trasy
+//                                          `club.$clubSlug.index` +16,3,
+//                                          `i18n-club` +2,8, wzmianki +1,8
+// W strumieniu klubu nie ma martwego kodu, a przenoszenie kodu do leniwych
+// chunków nie zmienia OVERALL. Zmiana `experimentalMinChunkSize` zmierzona na
+// tym drzewie: 1 -> +59,6 KB, 1024 -> +29,9, 1280 i 1536 -> chunk
+// `admin.analytics` w domknięciu bootu - wszystkie odrzucone.
 //
-// CZEGO NIE DA SIĘ TU ŚCIĄĆ BEZ USUWANIA FUNKCJI. Cały przyrost jest w kodzie
-// PUBLICZNYM (admin-only -2,4), a w strumieniu klubu nie ma martwego kodu:
-// `ClubPostCard` renderuje `ClubFeedItem`, każdy nowy moduł ma konsumenta.
-// Przenoszenie kodu do leniwych chunków nie zmienia OVERALL (liczy każdy
-// plik). Zmiana `experimentalMinChunkSize` zmierzona na tym drzewie: 1 ->
-// +59,6 KB OVERALL, 1024 -> +29,9, 1280 i 1536 -> chunk `admin.analytics`
-// w domknięciu bootu - wszystkie odrzucone.
-//
-// FORMUŁA JAK W WPISACH XX/XXI: runner 4800,3 -> sufit 4801 -> +1 na granicę
-// zaokrąglenia = 4802. Plan P6.1 przewidywał „≈4826 do potwierdzenia
-// pierwszym zielonym logiem runnera" - próg wychodzi o 24 KB niżej, bo liczony
-// z pomiaru, nie z projekcji. Zapas po zmianie: 1,7 KB (0,04%) - następna
-// funkcja publiczna zapali bramkę i musi przynieść własny pomiar.
+// CO ZAMIAST PROGU. Biblioteki, które niosły wielokrotnie więcej kodu niż
+// zadanie, zastąpione odpowiednikami o tej samej semantyce (host, ta sama
+// bramka; każde cięcie ma test równoważności z oryginałem):
+//   4691,0  stan wyjściowy (po cięciach CSS i bootu)
+//   -23,3   `lucide-shim.fa`: FaGlyph rysuje SVG z definicji ikony sam, bez
+//           `@fortawesome/fontawesome-svg-core` (markup bajt w bajt ten sam)
+//   -10,1   `icons-0..3`: porcje bez kluczy Reacta i z gołymi ścieżkami `d`,
+//           węzeł odtwarza `unpackIconNode` (ten sam SVG dla 1703 ikon)
+//   -36,9   chunk podglądu .docx: bluebird -> `vendor/mammothPromises.ts`,
+//           tablica `dingbat-to-unicode` -> `vendor/dingbatToUnicode.ts`
+//           (`scripts/lib/officeParserTrim.ts`; HTML i komunikaty identyczne
+//           na wszystkich plikach .docx z testów mammoth)
+//   4620,6  po cięciach (przetasowanie sklejania ±1 KB w sumie)
+// Różnica host <-> runner jest stała (`xlsx` 0.20.3 tylko na runnerze:
+// `spreadsheet.worker` 130,5 KB; runner 4800,3 przy hoście 4691,0), więc runner
+// po cięciach to ~4729,9: ~42 KB pod progiem 4772. Progu nie obniżam w tym
+// wpisie - zapas zostaje do decyzji właściciela (ratchet z logu runnera, jak
+// w XX/XXI).
 
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
@@ -2099,10 +2096,7 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 4768 -> 4772 (wpis 2026-09-27 XXI): poprawki z przegladu PR #414
   // (skaner +0,6, lejek Ads +1,1, rejestracja +0,3, entry +0,3). Runner XX
   // 4765,45 + delta hosta +4,63 = 4770,08 -> 4771 -> +1.
-  // Ratchet 4772 -> 4802 (wpis 2026-10-08 XXIV): strumień klubu #477-#481
-  // (+20,0 na hoście) i fala 2 PSI #476 (+9,3). Runner 4800,3 (run 37711944106)
-  // -> 4801 -> +1.
-  overall: 4802,
+  overall: 4772,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
