@@ -1932,6 +1932,53 @@ const CLIENT_DIR =
 //      i P2.6 (statyczne style -> klasy) mają go zmierzyć przed scaleniem.
 //   P9.1 (C10: `experimentalMinChunkSize` 2048 -> 1) usuwa przyczynę ogólnie;
 //   przypięcie z pkt 1 nie koliduje z tą zmianą.
+//
+// 2026-10-08 XXIV  OVERALL 4772 -> 4802 Z LOGU RUNNERA (P6.1 / D10). CSS i boot
+//             wróciły pod progi cięciami w tym samym PR, bez ruszania ich floorów.
+//
+// STAN WYJŚCIOWY. Krok „Bundle size budget" jest czerwony na main od scalenia
+// #476 (run 37441423321, f213e56); ostatni zielony: 824584d, run 37339137397.
+// Log kroku jest w środku ~10 000 linii logu joba, więc odczytałem go osobnym
+// przebiegiem na runnerze (sam install + build + ta bramka, ten sam
+// `--frozen-lockfile`, Bun 1.2.23). main 2c5c2ee: overall 4801,6 ✗, css 97,1 ✗,
+// public css 82,9, public 2858,2, boot 485,2.
+//
+// PO CIĘCIACH TEGO PR (runner, run 37711944106): overall 4800,3 ✗, css 94,8 ✓,
+// public css 81,0 ✓, public 2857,4 ✓, boot 483,4 ✓ (raw 1596,8). Cięcia CSS
+// i bootu są w osobnych commitach; ten wpis dotyczy wyłącznie OVERALL.
+//
+// SKĄD +29 KB (host, ten sam `node_modules`, `BUNDLE_INVENTORY=1 bun run
+// build` na trzech drzewach; suma wiader liczona tą bramką):
+//   824584d (zielony)       4661,7
+//   f213e56 (po #476)       4671,0   +9,3  fala 2 PSI: wyspy hydratacji
+//                                          (`hydrationIsland.tsx` 20,9 kB przed
+//                                          minifikacją), zestaw bootu; reszta to
+//                                          przetasowanie sklejania (np.
+//                                          `EventPortalContent` +9,6 przy
+//                                          `i18n-event-front` -10,1)
+//   2c5c2ee + ten PR        4691,0  +20,0  #477-#481 strumień klubu: chunk trasy
+//                                          `club.$clubSlug.index` +16,3 (karty,
+//                                          dyskusja w karcie, reakcje, galeria,
+//                                          komentarze, kompozytor z podglądem
+//                                          linku, @wzmianki), `i18n-club` +2,8,
+//                                          wzmianki +1,8; reszta ±1,5 w sklejaniu
+// Różnica host <-> runner jest stała po obu stronach (`xlsx` 0.20.3 tylko na
+// runnerze: `spreadsheet.worker` 130,5 KB), więc runner na 824584d to
+// ~4800,3 - 29,3 = ~4771 - czyli zielony na styk, zgodnie z historią joba.
+//
+// CZEGO NIE DA SIĘ TU ŚCIĄĆ BEZ USUWANIA FUNKCJI. Cały przyrost jest w kodzie
+// PUBLICZNYM (admin-only -2,4), a w strumieniu klubu nie ma martwego kodu:
+// `ClubPostCard` renderuje `ClubFeedItem`, każdy nowy moduł ma konsumenta.
+// Przenoszenie kodu do leniwych chunków nie zmienia OVERALL (liczy każdy
+// plik). Zmiana `experimentalMinChunkSize` zmierzona na tym drzewie: 1 ->
+// +59,6 KB OVERALL, 1024 -> +29,9, 1280 i 1536 -> chunk `admin.analytics`
+// w domknięciu bootu - wszystkie odrzucone.
+//
+// FORMUŁA JAK W WPISACH XX/XXI: runner 4800,3 -> sufit 4801 -> +1 na granicę
+// zaokrąglenia = 4802. Plan P6.1 przewidywał „≈4826 do potwierdzenia
+// pierwszym zielonym logiem runnera" - próg wychodzi o 24 KB niżej, bo liczony
+// z pomiaru, nie z projekcji. Zapas po zmianie: 1,7 KB (0,04%) - następna
+// funkcja publiczna zapali bramkę i musi przynieść własny pomiar.
 
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
@@ -2052,7 +2099,10 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 4768 -> 4772 (wpis 2026-09-27 XXI): poprawki z przegladu PR #414
   // (skaner +0,6, lejek Ads +1,1, rejestracja +0,3, entry +0,3). Runner XX
   // 4765,45 + delta hosta +4,63 = 4770,08 -> 4771 -> +1.
-  overall: 4772,
+  // Ratchet 4772 -> 4802 (wpis 2026-10-08 XXIV): strumień klubu #477-#481
+  // (+20,0 na hoście) i fala 2 PSI #476 (+9,3). Runner 4800,3 (run 37711944106)
+  // -> 4801 -> +1.
+  overall: 4802,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
