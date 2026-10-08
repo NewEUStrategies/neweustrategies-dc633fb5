@@ -16,12 +16,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
 import type { Database } from "@/integrations/supabase/types";
 import { invalidationKeysForNotificationKind } from "./kindInvalidation";
-import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
-  NOTIFICATION_PREFERENCE_SELECT,
-  type NotificationKind,
-  type NotificationPreferences,
-} from "./preferences";
+import type { NotificationKind, NotificationPreferences } from "./preferences";
+import { notificationPreferencesKey as prefsKey } from "./preferencesQuery";
 
 export type NotificationRow = Database["public"]["Tables"]["notifications"]["Row"];
 
@@ -35,9 +31,11 @@ export type {
   NotificationKind,
   NotificationPreferences,
 } from "./preferences";
-
-const prefsKey = (uid: string | undefined) =>
-  ["notifications", "preferences", uid ?? "anon"] as const;
+// Odczyt preferencji mieszka w lekkim `./preferencesQuery` (klucz cache,
+// zapytanie, kształt danych), żeby pasek doku nie ciągnął całej warstwy
+// powiadomień. Re-eksport zostawia jedno miejsce importu dla pozostałych
+// konsumentów i jeden wpis cache dla wszystkich.
+export { useNotificationPreferences } from "./preferencesQuery";
 
 const countKey = (uid: string | undefined) =>
   ["notifications", "unread-count", uid ?? "anon"] as const;
@@ -329,31 +327,6 @@ export function useMarkNotificationUnread() {
       void qc.invalidateQueries({ queryKey: ["notifications"] });
       void qc.invalidateQueries({ queryKey: countKey(user?.id) });
     },
-  });
-}
-
-/** Per-user notification preferences (upserted on first save). */
-export function useNotificationPreferences(): UseQueryResult<NotificationPreferences> {
-  const { user } = useAuth();
-  return useQuery({
-    queryKey: prefsKey(user?.id),
-    enabled: !!user,
-    queryFn: async (): Promise<NotificationPreferences> => {
-      // Lista kolumn wyprowadzona z DEFAULT_NOTIFICATION_PREFERENCES - ręczna
-      // gubiła nowe flagi (enabled_saved_search, enabled_crm_task), przez co
-      // zapisane "wyłączone" wracało do UI jako "włączone".
-      const { data, error } = await supabase
-        .from("notification_preferences")
-        .select(NOTIFICATION_PREFERENCE_SELECT)
-        .eq("user_id", user!.id)
-        .maybeSingle();
-      if (error) throw error;
-      return {
-        ...DEFAULT_NOTIFICATION_PREFERENCES,
-        ...((data ?? {}) as Partial<NotificationPreferences>),
-      };
-    },
-    staleTime: 60_000,
   });
 }
 

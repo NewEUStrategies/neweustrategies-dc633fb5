@@ -57,13 +57,18 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bookmark, CalendarDays, ListTodo, NotebookPen } from "lucide-react";
 
 import { useAuth } from "@/hooks/useAuth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { onOpenChatWindow } from "@/lib/chat/chatDockBus";
+import { minimizedChatsStore } from "@/lib/chat/minimizedChats";
+import { dismissIncomingChatToast, useIncomingChatToasts } from "@/lib/chat/useIncomingChatToasts";
+import { useCommunityModules } from "@/lib/community/useCommunityModules";
+import { stripLangPrefix } from "@/lib/i18n/localePath";
+import { useNotificationPreferences } from "@/lib/notifications/preferencesQuery";
 import { type DockToolId } from "@/lib/dock/types";
 import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/lib/dock/dockState";
 import { useDockReservedSpace } from "@/lib/dock/useDockReservedSpace";
@@ -132,6 +137,13 @@ const DRAWER_ID = "workspace-dock-chat";
 /** Wysokość zapasowa, gdy pomiar jeszcze nie doszedł (pasek ma ~33-38 px). */
 const FALLBACK_BAR_HEIGHT = 40;
 
+/**
+ * Wysokość otwartego panelu narzędzia, publikowana na `<html>`. Region toastów
+ * (`ui/sonner.tsx`) dodaje ją do `--mbb-reserve`, więc toast staje NAD panelem,
+ * zamiast na 6 s zasłaniać jego dół (pole dodawania zadania czy notatki).
+ */
+const PANEL_SPACE_PROP = "--wd-panel-space";
+
 export function WorkspaceDock() {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
@@ -146,6 +158,39 @@ export function WorkspaceDock() {
   const { ref: barRef, height: barHeight } = useDockReservedSpace();
   const { user } = useAuth();
 
+  // TOASTY NOWYCH WIADOMOŚCI montuje ten pasek - raz na sesję członka.
+  // Jedynym ich montażem był `ChatBell`, którego od przeniesienia rozmów do
+  // doku nic nie renderuje, więc żadna wiadomość nie dawała toasta. Pasek ma
+  // właściwe bramki (zalogowany, poza /admin i /login, leniwy chunk - gość
+  // nie pobiera kodu ani nie otwiera kanału), stoi w stałej pozycji drzewa
+  // `SiteChrome` i to on słucha szyny, w którą celuje akcja toasta.
+  //
+  // Kanał nie powstaje (a otwarty się zamyka), gdy:
+  //  - moduł czatu jest wyłączony w panelu (to samo zapytanie `site_settings`,
+  //    z którego pasek czyta niżej konfigurację skrótów);
+  //  - użytkownik wyłączył „Wiadomości na czacie" (`enabled_message`);
+  //  - ma tryb cichy (`allow_messages_from = 'nobody'`).
+  // Dwa ostatnie warunki serwer stosuje do powiadomień o wiadomościach
+  // (20260713100000_chat_improvements_round3.sql, fan-out; tryb cichy w kręgu:
+  // 20260713200000_chat_admin_tenant_scope_fix.sql), więc toast nie może ich
+  // omijać. Preferencje czyta ten sam klucz cache co `NotificationsBell`
+  // w nagłówku: gdy dzwonek je już pobrał, pasek nie wysyła żądania. Hak
+  // pochodzi z lekkiego `preferencesQuery`, nie z `useNotifications`, żeby
+  // leniwy chunk paska nie czekał na całą warstwę powiadomień.
+  //
+  // DO CZASU WCZYTANIA PREFERENCJI KANAŁU NIE MA. Przy pustym cache (twarde
+  // wczytanie) „włączone” do odpowiedzi dawało join, a po RTT leave - i toast
+  // z wiadomości w tym oknie wbrew jawnemu „wyłączone” albo trybowi cichemu.
+  // Błąd odczytu bez danych nadal znaczy „włączone” (jak inne flagi).
+  const chatEnabled = useCommunityModules().chat_enabled;
+  const prefsQuery = useNotificationPreferences();
+  const notificationPrefs = prefsQuery.data;
+  const messageToastsAllowed = notificationPrefs
+    ? notificationPrefs.enabled_message !== false &&
+      notificationPrefs.allow_messages_from !== "nobody"
+    : prefsQuery.isError;
+  useIncomingChatToasts(chatEnabled && messageToastsAllowed);
+
   // Jedyna powierzchnia rozmów: kliknięcie "Napisz" gdziekolwiek w serwisie
   // (szyna chatDockBus) otwiera lewą skrzynkę z wybraną konwersacją.
   //
@@ -154,11 +199,39 @@ export function WorkspaceDock() {
   // pola - świeży literał sam wystarcza. Zegar w rozdzielczości milisekundy
   // i tak nie różnicował dwóch wysłań w tej samej milisekundzie, a dok ma
   // dobry powód być powierzchnią bez odczytu zegara.
+  //
+  // NA STRONIE /messages rozmowy pokazuje sama strona. Skrzynka doku nad nią
+  // dawałaby dwa okna czatu naraz (strona z rozmową B, szuflada z A), każde
+  // z własnymi kanałami pisania i odczytu. Tam szyna przełącza więc rozmowę
+  // strony (`?c=<id>`, które trasa obsługuje), a pigułkę tej rozmowy zdejmuje.
+  // Skrzynkę otwartą wcześniej na tej stronie (zakładka „Czaty”) zamyka z tego
+  // samego powodu - inaczej po akcji zostałyby dwa okna rozmów.
   const [pendingChat, setPendingChat] = useState<{ conversationId: string } | null>(null);
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   useEffect(
     () =>
       onOpenChatWindow((request) => {
-        setPendingChat({ conversationId: request.conversationId });
+        const { conversationId } = request;
+        // Otwarta rozmowa nie potrzebuje już toasta o swojej wiadomości.
+        dismissIncomingChatToast(conversationId);
+        const { minimized } = minimizedChatsStore.getSnapshot();
+        const isMinimized = minimized.some((chat) => chat.id === conversationId);
+        if (stripLangPrefix(pathnameRef.current).pathname === "/messages") {
+          if (isMinimized) minimizedChatsStore.remove(conversationId);
+          if (stateRef.current.open === "chat") dispatch({ type: "close" });
+          void navigateRef.current({ to: "/messages", search: { c: conversationId } });
+          return;
+        }
+        // Rozmowa zminimalizowana wraca przez API wspólnego magazynu sesji
+        // (to samo, co klik w jej pigułkę). Bez tego pigułka zostawała na
+        // pasku obok tej samej rozmowy otwartej w skrzynce - np. po akcji
+        // toasta albo „Napisz" w profilu.
+        if (isMinimized) minimizedChatsStore.restore(conversationId);
+        setPendingChat({ conversationId });
         dispatch({ type: "open", tool: "chat" });
       }),
     [],
@@ -256,6 +329,25 @@ export function WorkspaceDock() {
   const toolOpen = state.open !== null && state.open !== "chat";
   const panel = useDockPresence(toolOpen, "panel");
   const drawer = useDockPresence(state.open === "chat", "drawer");
+
+  // Toast nad otwartym panelem: pomiar węzła panelu i publikacja jego
+  // wysokości, dopóki panel jest otwarty. Zamknięcie zdejmuje zmienną od razu,
+  // więc toast wraca nad pasek razem z wyjściem panelu. Zmiana narzędzia nie
+  // przemontowuje węzła - nową wysokość łapie obserwator.
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = panelRef.current;
+    if (!toolOpen || !panel.mounted || !node) return;
+    const root = document.documentElement;
+    const publish = () => root.style.setProperty(PANEL_SPACE_PROP, `${node.offsetHeight}px`);
+    publish();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(publish);
+    observer?.observe(node);
+    return () => {
+      observer?.disconnect();
+      root.style.removeProperty(PANEL_SPACE_PROP);
+    };
+  }, [toolOpen, panel.mounted]);
 
   // JEDEN nasłuch Escape na całą powierzchnię doku - nie dwa, jak wcześniej
   // (panel przez `DockPanelShell`, skrzynka u siebie). Reducer trzyma
@@ -378,6 +470,7 @@ export function WorkspaceDock() {
           style={{ bottom: `calc(${offset}px + 8px)` }}
         >
           <div
+            ref={panelRef}
             id={PANEL_ID}
             data-state={panel.state}
             inert={panel.state === "exiting" ? true : undefined}

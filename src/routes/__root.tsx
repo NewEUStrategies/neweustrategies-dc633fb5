@@ -174,9 +174,10 @@ const ConsentPreviewPanel = lazy(() =>
 // całą bibliotekę sonner (~63 kB źródeł) w chunku wejściowym. Moduły ścieżki
 // bootowania wołają toasty przez leniwy most lib/notify.ts (kolejka FIFO do
 // czasu załadowania chunku), więc semantyka wywołań nie zmienia się.
-// Świadomy kompromis: toast wystrzelony między hydratacją a montażem chunku
-// przepada (sonner nie odtwarza historii subskrybentom) - realny nadawca
-// (mutacje operatora) nie kończy się przed hydratacją.
+// Toast wystrzelony przed montażem chunku nie przepada: sonner 2.x odtwarza
+// nowemu subskrybentowi wszystkie AKTYWNE toasty (`Observer.subscribe` ->
+// `getActiveToasts()`). Nie wraca tylko toast zdjęty (`toast.dismiss`)
+// przed montażem.
 const Toaster = lazy(() => import("../components/ui/sonner").then((m) => ({ default: m.Toaster })));
 
 // ── ŻYWA SYNCHRONIZACJA (realtime) - WYŁĄCZNIE DLA ZALOGOWANYCH ───────────
@@ -492,8 +493,9 @@ export function useNoActivePopupsFromSsr(): boolean {
  *
  * DWA NIEZALEŻNE WYZWALACZE, oba potrzebne:
  *   1. `onFirstToast` z `lib/notify.ts` - NATYCHMIAST, gdy toast pada wcześniej
- *      niż bezczynność. Bez tego toast ze ścieżki bootowania przepadłby
- *      (sonner nie odtwarza historii nowym subskrybentom);
+ *      niż bezczynność. Bez tego toast ze ścieżki bootowania czekałby na
+ *      montaż po bezczynności (sonner 2.x odtwarza nowemu subskrybentowi
+ *      aktywne toasty, więc by nie przepadł, ale pokazałby się do 3 s później);
  *   2. `afterPageLoad(…, 3000)` - bezwarunkowo, bo most `lib/notify.ts` widzi
  *      WYŁĄCZNIE swoich wołających, a `import { toast } from "sonner"` wprost
  *      robi w tym repozytorium kilkaset modułów (m.in. akcje przy wpisie).

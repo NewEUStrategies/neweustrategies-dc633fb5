@@ -118,7 +118,7 @@ export const chatPl = {
     },
     incoming: {
       someone: "Ktoś",
-      open: "Otwórz",
+      open: "Otwórz rozmowę",
       emptyBody: "...",
       newMessageFrom: "Nowa wiadomość od {{name}}",
       pulseLabel: "Masz nowe nieprzeczytane wiadomości",
@@ -616,7 +616,7 @@ export const chatEn = {
     },
     incoming: {
       someone: "Someone",
-      open: "Open",
+      open: "Open conversation",
       emptyBody: "...",
       newMessageFrom: "New message from {{name}}",
       pulseLabel: "You have new unread messages",

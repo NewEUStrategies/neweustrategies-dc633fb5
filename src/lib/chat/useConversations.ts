@@ -14,11 +14,8 @@ import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { subscribeToTable } from "@/lib/realtime/tableChannelHub";
+import { subscribeToTable, type TableSubscriptionSpec } from "@/lib/realtime/tableChannelHub";
 import { chatKeys } from "./keys";
-// Cykl modułowy (useIncomingChatToasts importuje stąd mutedUntilMs) jest
-// bezpieczny: obie strony sięgają po eksporty wyłącznie wewnątrz funkcji.
-import { invalidateMuteCache } from "./useIncomingChatToasts";
 import type {
   ChatContactHit,
   ConversationRow,
@@ -418,9 +415,9 @@ export function useSetConversationMuted() {
         p_seconds: args.seconds as number,
       });
       if (error) throw error;
-      // The toast layer caches mute state for 60 s - drop it so muting
-      // silences incoming toasts immediately, not after the TTL.
-      invalidateMuteCache(args.conversationId);
+      // Toasty nowych wiadomości nie trzymają już pamięci wyciszeń: czytają
+      // `muted_until` z ładunku zdarzenia własnego wiersza uczestnika, więc
+      // wyciszenie działa od następnej wiadomości bez żadnego unieważniania.
     },
   );
 }
@@ -543,6 +540,16 @@ function scheduleMarkDelivered(): void {
   }, 800);
 }
 
+/**
+ * Specyfikacja kanału WŁASNYCH wierszy uczestnika. Jedna dla listy rozmów
+ * i dla toastów nowych wiadomości (`useIncomingChatToasts`): identyczna
+ * specyfikacja to w hubie jeden kanał, a Realtime sprawdza RLS tylko dla
+ * właściciela wiersza.
+ */
+export function ownParticipantsChannel(uid: string): TableSubscriptionSpec {
+  return { table: "conversation_participants", filter: `user_id=eq.${uid}` };
+}
+
 export function useChatListRealtime(): void {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -552,12 +559,9 @@ export function useChatListRealtime(): void {
     // Everything that arrived while this client was offline counts as
     // delivered the moment the list mounts.
     scheduleMarkDelivered();
-    return subscribeToTable(
-      { table: "conversation_participants", filter: `user_id=eq.${uid}` },
-      () => {
-        void qc.invalidateQueries({ queryKey: chatKeys.conversations(uid) });
-        scheduleMarkDelivered();
-      },
-    );
+    return subscribeToTable(ownParticipantsChannel(uid), () => {
+      void qc.invalidateQueries({ queryKey: chatKeys.conversations(uid) });
+      scheduleMarkDelivered();
+    });
   }, [uid, qc]);
 }
