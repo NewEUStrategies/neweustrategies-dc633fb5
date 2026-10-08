@@ -36,7 +36,7 @@ import appCss from "../styles.css?url";
 import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
 import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
 import { appendLinkHeader, setCacheControlHeader } from "../lib/http/responseHeaders";
-import { resilientCacheControl } from "../lib/ssr/resilientLoad";
+import { markDeliberateSeed, resilientCacheControl } from "../lib/ssr/resilientLoad";
 import { chromeDegradedCacheControl } from "../lib/http/cachePolicy";
 import {
   HOME_THEME_BUDGET_MS,
@@ -908,6 +908,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       context.queryClient.setQueryData(postLayoutKey, defaultPostLayoutSettings(), {
         updatedAt: 0,
       });
+      // LISTA CELOWYCH ZASIEWÓW (P3.6b): predykat kompletności dokumentu
+      // (`trackSsrQueryCompleteness`) liczy każdy zasiew z `updatedAt: 0` jako
+      // zgubione dane - poza zadeklarowanymi tutaj. Ten zasiew nie jest
+      // fallbackiem awarii, tylko parytetem SSR/klienta (uzasadnienie wyżej).
+      if (isServer) markDeliberateSeed(context.queryClient, postLayoutKey);
     }
     const settings = context.queryClient.getQueryData<Readonly<Record<string, unknown>>>(
       siteSettingsQueryOptions.queryKey,
@@ -1068,6 +1073,32 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             setCacheControlHeader(
               kind === "failed" ? resilientCacheControl(true) : chromeDegradedCacheControl(),
             ),
+          // STRONA GŁÓWNA PO TERMINIE (P3.6b, R2c): `warm` niżej jest związane
+          // wspólnym terminem dokumentu (`chromeBudget`, `homeDeadline`), więc po
+          // jego minięciu niczego już nie dogrzewa i bramka oznaczała `failed`
+          // (pasek „Na czasie" doskakiwał po hydratacji, dokument szedł
+          // `no-store`). Ta sama praca z budżetem bramki
+          // (`HOME_CHROME_LATE_BUDGET_MS`, lib/ssr/chromeWarmup.tsx); reklama
+          // jak w `warm`, bo `HeaderSkeleton` rezerwuje jej wysokość z tego wpisu.
+          warmLate:
+            isServer && homeDeadline !== undefined
+              ? (budgetMs: number) =>
+                  withBudget(
+                    Promise.allSettled([
+                      warmMenus(),
+                      headerVisible && trending.enabled !== false
+                        ? context.queryClient.ensureQueryData(headerTickerQueryOptions(trending))
+                        : undefined,
+                      headerAds ? context.queryClient.ensureQueryData(headerAds) : undefined,
+                      ...[headerVisible ? header.builder_data : null, footerDoc].map((doc) =>
+                        doc?.sections?.length
+                          ? prefetchCachedRouteQueries(context.queryClient, doc, lang, budgetMs)
+                          : undefined,
+                      ),
+                    ]),
+                    budgetMs,
+                  )
+              : undefined,
           warm: async () => {
             if (chromeBudget <= 0) return;
             await withBudget(

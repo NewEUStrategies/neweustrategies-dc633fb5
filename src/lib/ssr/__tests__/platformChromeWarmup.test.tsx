@@ -11,6 +11,7 @@ import {
   type ChromeDegradation,
 } from "../chromeWarmup";
 import { sweepQueryCacheForSerialization } from "../postRenderSweep";
+import { HOME_CHROME_LATE_BUDGET_MS } from "../homeSsrBudget";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -289,6 +290,110 @@ describe("rodzaj degradacji zgłaszany bramce (F02)", () => {
     // Odczyt: najpierw ostrożne `chrome` (rozgrzewka wystartowała), potem
     // `failed`, gdy ponowienie padło - `no-store` wygrywa w scaleniu nagłówka.
     expect(rec.kinds).toEqual(["failed", "chrome", "failed"]);
+    qc.clear();
+  });
+});
+
+describe("strona główna po terminie: dogrzanie z własnym budżetem (P3.6b, R2c)", () => {
+  function recorder() {
+    const kinds: ChromeDegradation[] = [];
+    return { kinds, markDegraded: (kind?: ChromeDegradation) => void kinds.push(kind ?? "chrome") };
+  }
+
+  it("wyczerpany termin NIE daje już `failed` od ręki: bramka czeka i oznacza `chrome`", async () => {
+    const qc = client();
+    const rec = recorder();
+    const late = pending();
+    let ready = false;
+    const warmLate = vi.fn((budgetMs: number) => {
+      expect(budgetMs).toBeGreaterThan(0);
+      expect(budgetMs).toBeLessThanOrEqual(HOME_CHROME_LATE_BUDGET_MS);
+      return late.promise;
+    });
+    registerChromeWarmup(qc, {
+      ready: () => ready,
+      expired: () => true,
+      warm: async () => {},
+      warmLate,
+      markDegraded: rec.markDegraded,
+    });
+    const gate = readPromise(qc);
+    expect(rec.kinds).toEqual(["chrome"]);
+    await vi.waitFor(() => expect(warmLate).toHaveBeenCalledOnce());
+    ready = true;
+    late.resolve();
+    await gate;
+    // Pasek dojechał w budżecie bramki: dokument kompletny, krótka polityka.
+    expect(rec.kinds).toEqual(["chrome"]);
+    expect(() => readChromeWarmup(qc)).not.toThrow();
+    qc.clear();
+  });
+
+  it("dane nadal niegotowe po budżecie bramki: nagłówek na fallbackach i `failed`", async () => {
+    const qc = client();
+    const rec = recorder();
+    registerChromeWarmup(qc, {
+      ready: () => false,
+      expired: () => true,
+      warm: async () => {},
+      warmLate: async () => {},
+      markDegraded: rec.markDegraded,
+    });
+    await readPromise(qc);
+    expect(rec.kinds).toEqual(["chrome", "failed"]);
+    expect(() => readChromeWarmup(qc)).not.toThrow();
+    qc.clear();
+  });
+
+  it("`warm()` z resztką terminu skończyło się bez danych: dogrzanie do końca budżetu bramki", async () => {
+    const qc = client();
+    const rec = recorder();
+    let ready = false;
+    const warmLate = vi.fn(async () => {
+      ready = true;
+    });
+    registerChromeWarmup(qc, {
+      ready: () => ready,
+      expired: () => false,
+      warm: async () => {},
+      warmLate,
+      markDegraded: rec.markDegraded,
+    });
+    await readPromise(qc);
+    expect(warmLate).toHaveBeenCalledOnce();
+    expect(rec.kinds).toEqual(["chrome"]);
+    qc.clear();
+  });
+
+  it("awaria dogrzania to `failed`, jak awaria `warm()`", async () => {
+    const qc = client();
+    const rec = recorder();
+    registerChromeWarmup(qc, {
+      ready: () => false,
+      expired: () => true,
+      warm: async () => {},
+      warmLate: async () => {
+        throw new Error("offline");
+      },
+      markDegraded: rec.markDegraded,
+    });
+    await readPromise(qc);
+    expect(rec.kinds).toEqual(["chrome", "failed"]);
+    qc.clear();
+  });
+
+  it("trasy bez `warmLate` (poza stroną główną) zachowują się jak dotąd", async () => {
+    const qc = client();
+    const rec = recorder();
+    registerChromeWarmup(qc, {
+      ready: () => false,
+      expired: () => false,
+      warm: async () => {},
+      markDegraded: rec.markDegraded,
+    });
+    await readPromise(qc);
+    // Bez dogrzania: `warm()` się skończyło, nagłówek renderuje się z tym, co jest.
+    expect(rec.kinds).toEqual(["chrome"]);
     qc.clear();
   });
 });

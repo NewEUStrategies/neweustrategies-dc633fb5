@@ -37,6 +37,7 @@ import {
   setDocumentRevalidator,
 } from "./lib/http/documentCache.server";
 import { l2SelfTestVerified } from "./lib/http/documentCacheL2.server";
+import { readDocumentDegradations } from "./lib/http/responseHeaders";
 import { NES_CACHE_HEADER, documentStorePolicy } from "./lib/http/documentCache";
 import { runAfterResponse } from "./lib/http/waitUntil.server";
 import { LANG_COOKIE } from "./lib/i18n/langCookie";
@@ -514,6 +515,10 @@ function logDocument(request: Request, response: Response, timing: DocumentLogTi
           cfRay: timing.cfRay !== undefined ? timing.cfRay : request.headers.get("cf-ray"),
           degraded,
           degradedAt: degradationStage(degraded, timing),
+          // R7c (P3.6b): KTÓRE dane zdegradowały render - etykiety odnotowane
+          // w zasięgu tego żądania (odporne loadery, chrome, predykat
+          // kompletności). Rewalidacja w tle ma własne, syntetyczne żądanie.
+          degradedBy: degraded ? readDocumentDegradations(request) : undefined,
           l2Verified: l2SelfTestVerified(),
           storeOutcome: timing.storeOutcome,
         }),

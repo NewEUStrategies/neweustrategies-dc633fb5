@@ -48,10 +48,17 @@
 // W przeglądarce loader po prostu CZEKA na zapytanie, a degradacja zostaje
 // zarezerwowana dla BŁĘDU - fallback i `degraded: true` po odrzuceniu działają
 // tam bez zmian, bo komunikat awarii po realnej awarii jest prawdą.
-import type { EnsureQueryDataOptions, QueryClient, QueryKey } from "@tanstack/react-query";
+import {
+  hashKey,
+  type EnsureQueryDataOptions,
+  type QueryCacheNotifyEvent,
+  type QueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 
 import { withBudget } from "@/lib/asyncBudget";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
+import { noteDocumentDegradation, type DocumentCompleteness } from "@/lib/http/responseHeaders";
 import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
 
 /**
@@ -150,7 +157,149 @@ export async function loadResilient<
   console.warn(
     `[ssr-resilient] degraded render, seeded fallback for ${label ?? keyLabel(queryKey)}`,
   );
+  // R7c: KTÓRY loader się zdegradował trafia do linii logu dokumentu
+  // (`degradedBy`), a nie tylko do osobnej linii konsoli.
+  if (import.meta.env.SSR) noteDocumentDegradation(label ?? queryLabel(queryKey));
   return { data: fallback, degraded: true };
+}
+
+// ── KOMPLETNOŚĆ DOKUMENTU NA KOŃCU STRUMIENIA (fala 3, P3.6b, R2a) ─────────────
+//
+// Zasiew z `updatedAt: 0` (wyżej) jest jedną z trzech dróg, którymi render
+// gubi dane. Druga to zapytanie z błędem. Trzecia nie zostawia śladu w stanie
+// końcowym: bramka sekcji (`ServerSectionGate`), której minął budżet, anuluje
+// i USUWA swoje zapytania, a sekcja renderuje się bez danych - w stanie
+// końcowym cache'u zapytania po prostu nie ma. Dlatego predykat śledzi
+// zdarzenia `fetch` od chwili uzbrojenia: zapytanie pobierane po uzbrojeniu,
+// którego na końcu nie ma albo które nie ma danych, to dane zgubione
+// (`dropped`).
+//
+// KIEDY UZBROIĆ. Loader trasy uzbraja predykat na swoim KOŃCU. Pobrania
+// z fazy loaderów i tak nie przeżywają dehydratacji: zamiatanie przed renderem
+// (`lib/ssr/postRenderSweep.ts`) anuluje wszystko, co jeszcze leci, a bramki
+// renderu pobierają ponownie to, czego potrzebują - i te pobrania predykat
+// widzi. Gdyby uzbroić go wcześniej, zapytanie rozgrzane w loaderze dla widgetu
+// niewidocznego na tym urządzeniu (bramka go nie ponawia) wyglądałoby na
+// zgubione i blokowało zapis kompletnego dokumentu.
+//
+// KIEDY ODCZYTAĆ. Integracja router<->query (`@tanstack/router-ssr-query-core`)
+// w `serverSsr.cleanup()` woła `queryClient.cancelQueries()` i
+// `queryClient.clear()` ZARAZ po zamknięciu strumienia dokumentu - zanim
+// kolektor zapisu NES Edge Cache przeczyta ostatni fragment. W chwili decyzji
+// o zapisie cache zapytań jest więc pusty. Predykat zamraża werdykt w ostatnim
+// momencie, w którym cache opisuje wyrenderowany dokument: tuż przed
+// `QueryCache.clear()` tego żądania. Bez sprzątania (testy, przerwany potok)
+// werdykt liczy się na żywo.
+//
+// Konserwatywnie: każde odstępstwo = brak zapisu (dokument idzie `degraded`
+// i rusza odświeżenie w tle). Zbyt luźny predykat zamroziłby niekompletny
+// dokument na 180 s świeżości i do doby STALE.
+
+/**
+ * Pierwsze elementy klucza zapytań DEKORACYJNYCH, których brak albo błąd nie
+ * czyni dokumentu niekompletnym. Dziś wyłącznie reklamy - doktryna korzenia
+ * (`routes/__root.tsx`, komentarz przy `headerAds`): „brak sprzedanej emisji
+ * kosztowałby cache CAŁEGO serwisu", więc klucz reklamy nie wchodzi też do
+ * listy gotowości chrome'u.
+ */
+const DECORATIVE_QUERY_ROOTS: ReadonlySet<string> = new Set(["ad_placements"]);
+
+/**
+ * Jawna lista CELOWYCH zasiewów żądania: klucze zasiane z `updatedAt: 0` nie
+ * jako fallback awarii, tylko dla parytetu SSR/klienta (dziś
+ * `post-layout-settings` w loaderze korzenia). Deklaruje je wołający w miejscu
+ * zasiewu (`markDeliberateSeed`), więc wyjątek dotyczy wyłącznie tego, co
+ * naprawdę zasiano w tym żądaniu.
+ */
+const deliberateSeeds = new WeakMap<QueryClient, Set<string>>();
+
+/** Zadeklaruj celowy zasiew (`updatedAt: 0`), którego predykat kompletności nie liczy. */
+export function markDeliberateSeed(queryClient: QueryClient, queryKey: QueryKey): void {
+  let seeds = deliberateSeeds.get(queryClient);
+  if (!seeds) {
+    seeds = new Set<string>();
+    deliberateSeeds.set(queryClient, seeds);
+  }
+  seeds.add(hashKey(queryKey));
+}
+
+/**
+ * Krótka etykieta klucza do logu: najwyżej dwa wiodące elementy tekstowe
+ * (`["public","home-page"]` -> `public.home-page`). Identyfikatory i obiekty
+ * parametrów odpadają - linia ma mówić KTÓRE dane, bez wartości.
+ */
+export function queryLabel(queryKey: QueryKey): string {
+  const parts: string[] = [];
+  for (const part of queryKey) {
+    if (typeof part !== "string" || parts.length === 2) break;
+    parts.push(part);
+  }
+  return (
+    parts
+      .join(".")
+      .replace(/[^A-Za-z0-9._-]/g, "")
+      .slice(0, 48) || "query"
+  );
+}
+
+function isDecorative(queryKey: QueryKey): boolean {
+  const root = queryKey[0];
+  return typeof root === "string" && DECORATIVE_QUERY_ROOTS.has(root);
+}
+
+/**
+ * Uzbrój predykat kompletności dokumentu nad `QueryClient` żądania SSR
+ * (opis wyżej). Zwraca predykat do `registerDocumentCompletenessCheck`.
+ * Tylko serwer: w przeglądarce `QueryClient` żyje całą sesję.
+ */
+export function trackSsrQueryCompleteness(queryClient: QueryClient): () => DocumentCompleteness {
+  const cache = queryClient.getQueryCache();
+  const fetched = new Map<string, QueryKey>();
+  let frozen: DocumentCompleteness | null = null;
+
+  const unsubscribe = cache.subscribe((event: QueryCacheNotifyEvent) => {
+    if (event.type === "updated" && event.action.type === "fetch") {
+      fetched.set(event.query.queryHash, event.query.queryKey);
+    }
+  });
+
+  const evaluate = (): DocumentCompleteness => {
+    const seeds = deliberateSeeds.get(queryClient);
+    const reasons = new Set<string>();
+    const present = new Set<string>();
+    for (const query of cache.getAll()) {
+      present.add(query.queryHash);
+      if (isDecorative(query.queryKey)) continue;
+      const { status, dataUpdatedAt, fetchStatus } = query.state;
+      const label = queryLabel(query.queryKey);
+      if (status === "error") reasons.add(`error:${label}`);
+      else if (status === "success") {
+        if (dataUpdatedAt <= 0 && !seeds?.has(query.queryHash)) reasons.add(`seed:${label}`);
+      } else if (fetched.has(query.queryHash) || fetchStatus !== "idle") {
+        // Pobierane w renderze (albo wciąż w locie), a bez danych na końcu.
+        reasons.add(`dropped:${label}`);
+      }
+      // Pozostałe `pending` to obserwatory renderu, które na serwerze z założenia
+      // nie pobierają (`useQuery` bez suspense) - nie są danymi tego dokumentu.
+    }
+    for (const [hash, queryKey] of fetched) {
+      if (!present.has(hash) && !isDecorative(queryKey)) {
+        reasons.add(`dropped:${queryLabel(queryKey)}`);
+      }
+    }
+    return { complete: reasons.size === 0, reasons: [...reasons] };
+  };
+
+  const clear = cache.clear.bind(cache);
+  cache.clear = () => {
+    if (!frozen) {
+      frozen = evaluate();
+      unsubscribe();
+    }
+    clear();
+  };
+
+  return () => frozen ?? evaluate();
 }
 
 /**

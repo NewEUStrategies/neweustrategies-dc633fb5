@@ -526,6 +526,16 @@ export interface DocumentLogLine {
    */
   degradedAt?: DegradationStage;
   /**
+   * Tylko przy `degraded: true`: PRZYCZYNY degradacji (R7c, fala 3 P3.6b) -
+   * etykiety odpornych loaderów (`home.page`, `home.mode`, ...), `chrome`
+   * (bramka nagłówka na fallbackach) i odstępstwa predykatu kompletności na
+   * końcu strumienia (`seed:<klucz>`, `error:<klucz>`, `dropped:<klucz>`).
+   * Kolejność pierwszego zgłoszenia, bez duplikatów, najwyżej
+   * `DEGRADED_BY_MAX` pozycji z zamkniętego alfabetu. Brak klucza: przyczyny
+   * nie odnotowano (np. motyw korzenia na stronie głównej).
+   */
+  degradedBy?: string[];
+  /**
    * Wynik samotestu L2 izolatu, który obsłużył dokument (R7b): `true` - nazwany
    * cache (albo `caches.default`) przeszedł zapis i odczyt, `false` - nie
    * przeszedł i L2 jest w tym izolacie wyłączone. Brak klucza: samotest trwa
@@ -574,6 +584,8 @@ export interface DocumentLogInput {
   degraded?: boolean;
   /** Etap degradacji - do linii trafia tylko przy `degraded: true` i ze słownika. */
   degradedAt?: DegradationStage | null;
+  /** Przyczyny degradacji - do linii trafiają tylko przy `degraded: true` i po walidacji. */
+  degradedBy?: readonly string[] | null;
   /** Wynik samotestu L2 izolatu; null/undefined = trwa albo nie dotyczy. */
   l2Verified?: boolean | null;
   /** Wynik odroczonego zapisu - do linii trafia tylko wartość ze słownika. */
@@ -582,6 +594,22 @@ export interface DocumentLogInput {
 
 /** Ścieżka w logu ma górny limit - URL od klienta może mieć kilobajty. */
 const LOG_PATH_MAX = 2048;
+
+/** Sufit przyczyn degradacji w jednej linii logu. */
+const DEGRADED_BY_MAX = 8;
+/** Zamknięty alfabet etykiety przyczyny: bez spacji, cudzysłowów i wartości spoza kodu. */
+const DEGRADED_BY_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
+
+function sanitizeDegradedBy(labels: readonly string[] | null | undefined): string[] {
+  const out: string[] = [];
+  for (const label of labels ?? []) {
+    if (out.length >= DEGRADED_BY_MAX) break;
+    if (typeof label === "string" && DEGRADED_BY_RE.test(label) && !out.includes(label)) {
+      out.push(label);
+    }
+  }
+  return out;
+}
 
 /**
  * Zbuduj linię logu dokumentu. Fazy z Server-Timing są opcjonalne: brak
@@ -628,6 +656,10 @@ export function buildDocumentLogLine(input: DocumentLogInput): DocumentLogLine {
   if (typeof input.degraded === "boolean") line.degraded = input.degraded;
   if (line.degraded === true && input.degradedAt && DEGRADATION_STAGES.has(input.degradedAt)) {
     line.degradedAt = input.degradedAt;
+  }
+  if (line.degraded === true) {
+    const degradedBy = sanitizeDegradedBy(input.degradedBy);
+    if (degradedBy.length > 0) line.degradedBy = degradedBy;
   }
   if (typeof input.l2Verified === "boolean") line.l2Verified = input.l2Verified;
   const store = input.storeOutcome;

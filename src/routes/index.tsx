@@ -61,11 +61,21 @@ import {
 import { metaDescription } from "@/lib/routing/publicSegments";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
-import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import {
+  appendLinkHeader,
+  registerDocumentCompletenessCheck,
+  setCacheControlHeader,
+} from "@/lib/http/responseHeaders";
+import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
+import {
+  loadResilient,
+  resilientCacheControl,
+  trackSsrQueryCompleteness,
+} from "@/lib/ssr/resilientLoad";
 import {
   HOME_ABOVE_FOLD_BUDGET_MS,
   hasSsrQueryData,
+  homeContentDeadline,
   homeSsrDeadline,
   remainingHomeBudget,
 } from "@/lib/ssr/homeSsrBudget";
@@ -120,17 +130,24 @@ export const Route = createFileRoute("/")({
     // a clean render.
     const queryClient = context.queryClient;
     const deadlineAt = isServer ? homeSsrDeadline(queryClient) : undefined;
+    // ŚCIEŻKA KRYTYCZNA TREŚCI z własnym terminem (P3.6b, R3a): trzy szeregowe
+    // round-tripy strony i trybu nie mieszczą się z kolonii dalekiej od bazy
+    // we wspólnych 600 ms, a ich fallback to dokument „typu A" (komunikat
+    // zamiast treści, bez hero, `no-store`). Treść czeka do
+    // `HOME_CONTENT_BUDGET_MS` na tym samym zegarze żądania; ustawienia, widgety
+    // nad zgięciem i chrome zostają przy wspólnym terminie.
+    const contentDeadlineAt = isServer ? homeContentDeadline(queryClient) : undefined;
     const emptySettings: SettingsMap = Object.freeze({});
     // Root and home execute concurrently, but all serial phases within home
     // share ONE deadline. Settings start alongside the page/mode, never as a
     // new unbounded SEO request at the end of the loader.
     const [homePageRes, homeModeRes, settingsRes] = await Promise.all([
       loadResilient(queryClient, homePageQueryOptions(), null, {
-        deadlineAt,
+        deadlineAt: contentDeadlineAt,
         label: "home.page",
       }),
       loadResilient(queryClient, homepageModeQueryOptions(), "", {
-        deadlineAt,
+        deadlineAt: contentDeadlineAt,
         label: "home.mode",
       }),
       loadResilient(queryClient, siteSettingsQueryOptions, emptySettings, {
@@ -169,6 +186,11 @@ export const Route = createFileRoute("/")({
     // kandydata ani preloadu (lib/builder/aboveFold.tsx).
     let coverPreload: ImagePreloadInput | null = null;
     let heroPreloads: LcpImagePreload[] = [];
+    // Dane widgetów nad zgięciem nie zdążyły przed końcem loadera (P3.6b,
+    // R2a). To NIE jest już degradacja: `ServerSectionGate` dostrumieniowuje
+    // te sekcje z prawdziwym HTML-em, a o zapisie decyduje predykat
+    // kompletności na końcu strumienia (niżej).
+    let aboveFoldLate = false;
 
     if (!contentDegraded && homeMode === "latest_posts") {
       const pageSize = resolvePostsPerPage(settingsRes.data);
@@ -239,7 +261,7 @@ export const Route = createFileRoute("/")({
         } else {
           const budgetMs = remainingHomeBudget(deadlineAt, HOME_ABOVE_FOLD_BUDGET_MS);
           if (budgetMs > 0) await prefetchAboveFoldQueries(queryClient, doc, lang, { budgetMs });
-          degraded ||= doc.sections
+          aboveFoldLate = doc.sections
             .slice(0, ABOVE_FOLD_SECTION_COUNT)
             .some((section) =>
               sectionQueryOptionsList(section, lang).some(
@@ -266,8 +288,29 @@ export const Route = createFileRoute("/")({
     // lives in the URL path (PL at "/", EN at "/en"), so each variant is its own
     // cache entry - no cookie-driven personalization, no poisoning. A degraded
     // render opts out entirely (private, no-store) so the blip is never served
-    // to the next visitor.
-    setCacheControlHeader(resilientCacheControl(degraded));
+    // to the next visitor - w tym ZAWSZE dokument „typu A" (zasiew strony albo
+    // trybu), niezależnie od predykatu niżej.
+    //
+    // Spóźnione dane nad zgięciem (P3.6b) dają dokument KOMPLETNY, ale nie
+    // kanoniczny: hero dostrumieniował się po flushu (szkielet sekcji w powłoce
+    // i podmiana skryptem), a preload obrazu LCP i nagłówek `Link` liczone
+    // w loaderze go nie znają. Ta sama klasa co chrome dostrumieniowany po
+    // flushu, więc ta sama odpowiedź: krótka świeżość wspólna - pierwszy
+    // czytelnik zasiewa L1/L2, a odświeżenie przy pierwszym STALE podmienia wpis
+    // na render czysty.
+    setCacheControlHeader(
+      degraded
+        ? resilientCacheControl(true)
+        : aboveFoldLate
+          ? chromeDegradedCacheControl()
+          : resilientCacheControl(false),
+    );
+    // WERDYKT ZAPISU NA KOŃCU STRUMIENIA (P3.6b, R2a-b): nagłówek wyżej mówi,
+    // co wiadomo w chwili loadera, a predykat - czy na końcu strumienia każde
+    // dane tego dokumentu przyszły prawdziwe (bez zasiewów awaryjnych, błędów
+    // i sekcji, którym minął budżet bramki). Uzbrajany TUTAJ, na końcu
+    // loadera: opis w `trackSsrQueryCompleteness` (lib/ssr/resilientLoad.ts).
+    if (isServer) registerDocumentCompletenessCheck(trackSsrQueryCompleteness(queryClient));
     // Ten sam preload także jako nagłówek HTTP `Link`: przeglądarka startuje
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).

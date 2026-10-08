@@ -1,6 +1,9 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
+import { noteDocumentDegradation } from "@/lib/http/responseHeaders";
+import { HOME_CHROME_LATE_BUDGET_MS } from "./homeSsrBudget";
+
 /**
  * Rodzaj degradacji zgłaszany przez bramkę chrome:
  *   - `"chrome"`: dane powłoki NIE były gotowe przy flushu shella, ale
@@ -27,6 +30,14 @@ interface ChromeWarmup {
    * zachowanie - rozróżnienie włącza się dopiero po zmapowaniu rodzaju.
    */
   markDegraded: (kind?: ChromeDegradation) => void;
+  /**
+   * Dogrzanie z WŁASNYM budżetem (ms), niezależnym od terminu dokumentu
+   * (fala 3, P3.6b, R2c). Podaje je wyłącznie strona główna: tam `warm`
+   * jest związane wspólnym terminem 600 ms, więc po jego minięciu niczego już
+   * nie dogrzewa. Brak = dawne zachowanie (wyczerpany termin to `failed`
+   * od ręki).
+   */
+  warmLate?: (budgetMs: number) => Promise<unknown>;
   settled?: boolean;
   promise?: Promise<void>;
 }
@@ -34,6 +45,15 @@ interface ChromeWarmup {
 // A QueryClient belongs to one SSR request. Never share a pending render,
 // tenant's settings or a degradation flag between requests.
 const warmups = new WeakMap<QueryClient, ChromeWarmup>();
+
+/**
+ * Chrome renderuje się na fallbackach: dokument `no-store` (`failed`) i etykieta
+ * `chrome` w linii logu dokumentu (R7c, `degradedBy`).
+ */
+function markFailed(warmup: ChromeWarmup): void {
+  warmup.markDegraded("failed");
+  if (import.meta.env.SSR) noteDocumentDegradation("chrome");
+}
 
 export function registerChromeWarmup(client: QueryClient, warmup: ChromeWarmup): Promise<void> {
   warmups.set(client, warmup);
@@ -46,7 +66,18 @@ export function registerChromeWarmup(client: QueryClient, warmup: ChromeWarmup):
   return warmup
     .warm()
     .then(() => undefined)
-    .catch(() => warmup.markDegraded("failed"));
+    .catch(() => markFailed(warmup));
+}
+
+/**
+ * Dogrzanie po `warm()` do końca budżetu bramki (P3.6b, R2c): gdy dane wciąż
+ * nie są gotowe, a wołający podał `warmLate`, granica nagłówka czeka dalej,
+ * ale najwyżej do `deadline` liczonego od pierwszego odczytu bramki.
+ */
+function lateWarm(record: ChromeWarmup, deadline: number): Promise<unknown> {
+  const remaining = deadline - Date.now();
+  if (!record.warmLate || record.ready() || remaining <= 0) return Promise.resolve();
+  return record.warmLate(remaining);
 }
 
 export function readChromeWarmup(client: QueryClient): void {
@@ -55,10 +86,12 @@ export function readChromeWarmup(client: QueryClient): void {
   if (!record.promise) {
     // Headers must be conservative BEFORE the shell flushes - we cannot know
     // yet whether `warm()` will make it before the stream ends.
-    if (record.expired()) {
-      // Wyczerpany budżet dokumentu: nikt już nie dogrzeje powłoki, więc render
-      // pójdzie na fallbackach - to degradacja treści, nie samego chrome'u.
-      record.markDegraded("failed");
+    const expired = record.expired();
+    if (expired && !record.warmLate) {
+      // Wyczerpany budżet dokumentu, a wołający nie ma dogrzania z własnym
+      // budżetem: nikt już nie dogrzeje powłoki, więc render pójdzie na
+      // fallbackach - to degradacja treści, nie samego chrome'u.
+      markFailed(record);
       record.settled = true;
       return;
     }
@@ -68,10 +101,25 @@ export function readChromeWarmup(client: QueryClient): void {
     // `setCacheControlHeader` gwarantuje, że `no-store` wygra także po flushu,
     // a odroczony zapis do NES Edge Cache sprawdza dyrektywę ponownie na końcu
     // strumienia (`applyDeferredDocumentStore`).
+    //
+    // STRONA GŁÓWNA (`warmLate`, P3.6b): wyczerpany wspólny termin nie oznacza
+    // już `failed` od ręki. Granica nagłówka czeka najwyżej
+    // `HOME_CHROME_LATE_BUDGET_MS` od tego odczytu (także wtedy, gdy `warm()`
+    // skończyło się z resztką terminu, a danych nadal brak), pasek „Na czasie"
+    // dostrumieniowuje się, a o zapisie dokumentu decyduje predykat
+    // kompletności na końcu strumienia. Gdy po tym czasie dane wciąż nie są
+    // gotowe, nagłówek renderuje się na fallbackach i dokument jest `failed`.
     record.markDegraded("chrome");
-    record.promise = record
-      .warm()
-      .catch(() => record.markDegraded("failed"))
+    const deadline = Date.now() + HOME_CHROME_LATE_BUDGET_MS;
+    const first = expired ? Promise.resolve() : record.warm();
+    record.promise = first
+      .then(() => lateWarm(record, deadline))
+      .then(
+        () => {
+          if (record.warmLate && !record.ready()) markFailed(record);
+        },
+        () => markFailed(record),
+      )
       .then(() => {
         record.settled = true;
       });

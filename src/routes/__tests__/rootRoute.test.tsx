@@ -834,7 +834,12 @@ describe("root chrome gate uses real query freshness", () => {
       qc.clear();
     }
   });
-  it("does not delay a home shell after the shared deadline expires", async () => {
+  // P3.6b (R2c): do fali 3 wyczerpany termin strony głównej dawał `failed` od
+  // ręki - nagłówek renderował się na fallbackach (pasek „Na czasie" doskakiwał
+  // po hydratacji), a dokument szedł `no-store` (klasa B1 diagnozy). Teraz
+  // granica nagłówka czeka NAJWYŻEJ `HOME_CHROME_LATE_BUDGET_MS`; gdy dane
+  // i tak nie przyjdą, zachowanie jest dawne: fallbacki i `no-store`.
+  it("an expired home shell waits only the chrome late budget, then renders on fallbacks", async () => {
     h.server = true;
     h.menusHang = true;
     try {
@@ -842,8 +847,17 @@ describe("root chrome gate uses real query freshness", () => {
       const now = Date.now();
       const clock = vi.spyOn(Date, "now").mockReturnValue(now + 10_000);
       try {
-        expect(() => readChromeWarmup(qc)).not.toThrow();
+        let suspended: unknown;
+        try {
+          readChromeWarmup(qc);
+        } catch (value) {
+          suspended = value;
+        }
+        expect(suspended).toBeInstanceOf(Promise);
+        expect(h.cacheControl.at(-1)).toBe(chromeDegradedCacheControl());
+        await suspended;
         expect(h.cacheControl.at(-1)).toBe("private, no-store");
+        expect(() => readChromeWarmup(qc)).not.toThrow();
       } finally {
         clock.mockRestore();
       }
@@ -851,7 +865,7 @@ describe("root chrome gate uses real query freshness", () => {
       h.menusHang = false;
       qc.clear();
     }
-  });
+  }, 10_000);
   it("registers configured header and footer widget queries for freshness checking", async () => {
     const doc = {
       version: 1,
