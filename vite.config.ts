@@ -358,6 +358,14 @@ export default defineConfig({
                 if (id.endsWith("/src/components/clubs/atoms/ClubThreadKindIcon.tsx")) {
                   return "club-thread-kind-icon";
                 }
+                // Listwa prawna stopki (`LegalLinks`, ~1 KB) jest leniwym chunkiem
+                // wyspy stopki, a serwer renderuje ją statycznie. Bez nazwy łączenie
+                // małych chunków wkleiło ją do chunku wejściowego (zmierzone na
+                // artefakcie: kod listwy w `index-*`), bo wejście jest zawsze już
+                // załadowane, gdy pada jej `import()`. Moduł importuje wyłącznie
+                // z nazwanych chunków vendorowych (React, router, i18next), więc
+                // nazwany chunk nie wciąga do siebie niczego z wejścia.
+                if (id.endsWith("/src/components/footer/LegalLinks.tsx")) return "legal-links";
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
                 // WEJŚCIOWEGO do nazwanego chunku. Gdy `manualChunks` przypisze

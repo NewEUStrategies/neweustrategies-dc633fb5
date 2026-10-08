@@ -1,7 +1,7 @@
-import { Link } from "@tanstack/react-router";
 import type { FooterChrome } from "@/lib/theme/footerSettings";
 import { resolveCopyright } from "@/lib/theme/footerSettings";
-import { footerLinksByGroup, labelFor } from "@/lib/seo/footerNavigation";
+import { FOOTER_LINKS } from "@/lib/seo/footerNavigation";
+import { LegalLinks } from "./LegalLinks";
 
 interface Props {
   chrome: FooterChrome;
@@ -12,7 +12,9 @@ export function CopyrightBar({ chrome, lang }: Props) {
   const text = resolveCopyright(chrome, lang);
   // Linki prawne renderujemy zawsze - niezależnie od dokumentu buildera -
   // bo muszą być dostępne z każdej strony (wymóg operatora płatności).
-  const legal = footerLinksByGroup("legal");
+  // Listwa jest wspólna ze stopką publiczną (`LegalLinks`, tam montowana
+  // wprost pod dokumentem buildera), więc adresy, etykiety i nazwa dostępna
+  // nawigacji mają jedno źródło.
   const alignCls = chrome.layout === "centered" ? "text-center" : "text-left sm:text-left";
   const toneCls =
     chrome.layout === "dark"
@@ -35,23 +37,15 @@ export function CopyrightBar({ chrome, lang }: Props) {
         ].join(" ")}
       >
         {text ? <div>{text}</div> : <span />}
-        <nav
-          aria-label={lang === "en" ? "Legal" : "Informacje prawne"}
-          className={[
-            "flex flex-wrap gap-x-4 gap-y-1",
+        <LegalLinks
+          links={FOOTER_LINKS}
+          lang={lang}
+          className=""
+          listClassName={[
+            "m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0",
             chrome.layout === "centered" ? "justify-center" : "",
           ].join(" ")}
-        >
-          {legal.map((link) => (
-            <Link
-              key={link.href}
-              to={link.href}
-              className="underline-offset-2 transition-opacity hover:underline hover:opacity-80"
-            >
-              {labelFor(link, lang)}
-            </Link>
-          ))}
-        </nav>
+        />
       </div>
     </div>
   );

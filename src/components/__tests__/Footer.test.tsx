@@ -43,8 +43,16 @@
  *
  * CO ZOSTAJE PRAWDZIWE: React, `useQuery` na PRAWDZIWYM `QueryClient`
  * z zasianym cache, `resolveSetting`, `FooterChromeSchema`, `defaultDocFor`,
- * `resolveCopyright`, `footerLinksByGroup`/`labelFor`, `CopyrightBar`
- * i `BackToTop`.
+ * wyspa hydratacji stopki, listwa prawna `LegalLinks` (leniwy chunk wyspy -
+ * stąd `findBy*` w jej przypadkach) i `BackToTop`.
+ *
+ * LISTWA PRAWNA (6.). Linki do regulaminu, polityki prywatności, zwrotów,
+ * cookies i RODO są wymogiem operatora płatności, więc stopka renderuje je
+ * z rejestru `FOOTER_LINKS` niezależnie od dokumentu buildera - także przy
+ * wbudowanej stopce domyślnej. Adresy EN (`/en/...`) dokłada przepisanie
+ * wyjścia prawdziwego routera; tu `Link` jest atrapą, więc prefiks dowodzi
+ * `footer/__tests__/LegalLinks.test.tsx`, a obecność w HTML-u SSR -
+ * `e2e/legal-links.boot-home.spec.ts`.
  *
  * ZNALEZISKA (stan istniejący, przypięty niżej - naprawa ma być widoczna jako
  * zmiana testu, nie cicha zmiana zachowania):
@@ -61,7 +69,7 @@
  * RODO: żadnych prawdziwych osób ani adresów - fixture używa example.com
  * i nazw zmyślonych.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -194,6 +202,15 @@ const lastLinkEvent = (): FooterClickPayload => {
   if (!last) throw new Error("Nie zgłoszono żadnego kliknięcia w stopce.");
   return last as FooterClickPayload;
 };
+
+// Listwa prawna jest leniwym chunkiem wyspy stopki. Pierwszy montaż w pliku
+// rozwiązuje `React.lazy` (moduł jest wspólny dla wszystkich przypadków), więc
+// kolejne przypadki renderują ją synchronicznie - bez wyścigu z końcem testu.
+beforeAll(async () => {
+  renderFooter({});
+  await screen.findByRole("navigation", { name: dict("pl", "footer.legal_nav") });
+  cleanup();
+});
 
 beforeEach(() => {
   h.lang = "pl";
@@ -425,6 +442,72 @@ describe("Footer - nasłuchy po odmontowaniu", () => {
     fireEvent.click(link);
 
     expect(h.linkEvents).toHaveLength(0);
+  });
+});
+
+// --- Listwa prawna ----------------------------------------------------------
+
+describe("Footer - listwa prawna (wymóg operatora płatności)", () => {
+  const REQUIRED = [
+    "/regulamin",
+    "/polityka-prywatnosci",
+    "/zwroty-i-reklamacje",
+    "/cookies",
+    "/rodo",
+  ];
+
+  const legalNav = (lang: Lang): Promise<HTMLElement> =>
+    screen.findByRole("navigation", { name: dict(lang, "footer.legal_nav") });
+
+  const hrefsIn = (nav: HTMLElement): (string | null)[] =>
+    within(nav)
+      .getAllByRole("link")
+      .map((link) => link.getAttribute("href"));
+
+  it("PL: stopka niesie wszystkie wymagane dokumenty, niezależnie od dokumentu buildera", async () => {
+    h.lang = "pl";
+    renderFooter({ footer: { builder_data: doc(1) } });
+
+    const nav = await legalNav("pl");
+    // Listwa jest częścią stopki, ale NIE częścią dokumentu buildera - redakcja
+    // nie może jej wyłączyć, przebudowując stopkę w edytorze.
+    expect(footerEl()).toContainElement(nav);
+    expect(screen.getByTestId("builder")).not.toContainElement(nav);
+    expect(hrefsIn(nav)).toEqual(expect.arrayContaining(REQUIRED));
+    expect(within(nav).getByRole("link", { name: "Zwroty i reklamacje" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "RODO" })).toBeInTheDocument();
+  });
+
+  it("EN: nazwa nawigacji i etykiety dokumentów idą za językiem strony", async () => {
+    h.lang = "en";
+    renderFooter({ footer: { builder_data: doc(1) } });
+
+    const nav = await legalNav("en");
+    expect(hrefsIn(nav)).toEqual(expect.arrayContaining(REQUIRED));
+    expect(within(nav).getByRole("link", { name: "Refund policy" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Cookie policy" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "GDPR" })).toBeInTheDocument();
+  });
+
+  it("wbudowana stopka domyślna (brak dokumentu w ustawieniach) też ma listwę", async () => {
+    renderFooter({});
+
+    const nav = await legalNav("pl");
+    expect(hrefsIn(nav)).toEqual(expect.arrayContaining(REQUIRED));
+  });
+
+  it("klik w listwę trafia do pomiaru stopki jako grupa legal", async () => {
+    renderFooter({ footer: { builder_data: doc(1) } });
+
+    const nav = await legalNav("pl");
+    fireEvent.click(within(nav).getByRole("link", { name: "Polityka cookies" }));
+
+    expect(lastLinkEvent()).toEqual({
+      href: "/cookies",
+      label: "Polityka cookies",
+      group: "legal",
+      external: false,
+    });
   });
 });
 
