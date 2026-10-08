@@ -498,13 +498,6 @@ export function pointPercent(view: ViewBox, p: Point2D): { left: number; top: nu
   };
 }
 
-/** Współrzędna geograficzna po walidacji; poza zakresem -> `null`. */
-export function coerceLat(value: unknown): number | null {
-  const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) && n >= -90 && n <= 90 ? n : null;
-}
-
-export function coerceLng(value: unknown): number | null {
-  const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) && n >= -180 && n <= 180 ? n : null;
-}
+// Walidacja współrzędnych mieszka osobno, żeby parsowanie treści widgetu
+// (ścieżka bootu przez rejestr prefetchu) nie ciągnęło tej geometrii.
+export { coerceLat, coerceLng } from "./geoCoords";
