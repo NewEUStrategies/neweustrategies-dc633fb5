@@ -73,11 +73,26 @@ export function registerChromeWarmup(client: QueryClient, warmup: ChromeWarmup):
  * Dogrzanie po `warm()` do końca budżetu bramki (P3.6b, R2c): gdy dane wciąż
  * nie są gotowe, a wołający podał `warmLate`, granica nagłówka czeka dalej,
  * ale najwyżej do `deadline` liczonego od pierwszego odczytu bramki.
+ *
+ * Czeka na GOTOWOŚĆ (`ready()`), nie na całą pracę: `warmLate` grzeje też
+ * dekorację (reklama nagłówka), której klucz nie wchodzi do listy gotowości.
+ * Gdy dane powłoki już są, wolna emisja nie trzyma nagłówka do końca budżetu -
+ * jak na zwykłej ścieżce, gdzie bramka z gotowymi danymi w ogóle nie czeka.
+ * Reszta pracy biegnie dalej w tle (`withBudget` po stronie wołającego).
  */
-function lateWarm(record: ChromeWarmup, deadline: number): Promise<unknown> {
+function lateWarm(client: QueryClient, record: ChromeWarmup, deadline: number): Promise<unknown> {
   const remaining = deadline - Date.now();
   if (!record.warmLate || record.ready() || remaining <= 0) return Promise.resolve();
-  return record.warmLate(remaining);
+  const work = record.warmLate(remaining);
+  let stop: () => void = () => {};
+  const ready = new Promise<void>((resolve) => {
+    stop = client.getQueryCache().subscribe(() => {
+      if (record.ready()) resolve();
+    });
+    // Dane mogły dojść synchronicznie już w trakcie startu `warmLate`.
+    if (record.ready()) resolve();
+  });
+  return Promise.race([work, ready]).finally(() => stop());
 }
 
 export function readChromeWarmup(client: QueryClient): void {
@@ -113,7 +128,7 @@ export function readChromeWarmup(client: QueryClient): void {
     const deadline = Date.now() + HOME_CHROME_LATE_BUDGET_MS;
     const first = expired ? Promise.resolve() : record.warm();
     record.promise = first
-      .then(() => lateWarm(record, deadline))
+      .then(() => lateWarm(client, record, deadline))
       .then(
         () => {
           if (record.warmLate && !record.ready()) markFailed(record);

@@ -36,7 +36,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createBackgroundScope } from "@/lib/backgroundScope";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GA4_MEASUREMENT_ID } from "@/lib/analytics/ga4Client";
-import { homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
+import { HOME_CHROME_LATE_BUDGET_MS, homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
 import { trackSsrQueryCompleteness } from "@/lib/ssr/resilientLoad";
 import { stripLangPrefix } from "@/lib/i18n/localePath";
 
@@ -899,6 +899,63 @@ describe("root chrome gate uses real query freshness", () => {
       qc.clear();
     }
   }, 10_000);
+  // P3.6b (recenzja rundy 9, m3/m4): dogrzanie po terminie to TA SAMA lista
+  // pracy co `warm` (ticker, menu, baner, widgety nagłówka i stopki), tylko
+  // z budżetem bramki zamiast wyczerpanego terminu dokumentu. Wolny baner
+  // (dekoracja) nie trzyma przy tym granicy nagłówka, gdy dane powłoki już są.
+  it("an expired home shell late-warms the shared chrome work list and releases on ready data", async () => {
+    h.server = true;
+    h.adsHang = true;
+    h.settings = {
+      header: { builder_data: { sections: [{ id: "s" }] } },
+      footer: { builder_data: { sections: [{ id: "f" }] } },
+    };
+    // Ustawienia są już w cache'u - konfiguracja nagłówka nie zależy od fali 1.
+    qc.setQueryData(["site-settings"], h.settings);
+    // Zegar żądania wygasł, zanim korzeń doszedł do fali chrome: `warm` nie ma
+    // budżetu i niczego nie grzeje.
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() - 10_000);
+    homeSsrDeadline(qc);
+    clock.mockRestore();
+    try {
+      vi.stubEnv("SSR", true);
+      await runLoader(qc);
+      vi.unstubAllEnvs();
+      expect(h.ticker).toEqual([]);
+      expect(h.prefetch).toEqual([]);
+      const headersBefore = h.cacheControl.length;
+      let suspended: unknown;
+      try {
+        readChromeWarmup(qc);
+      } catch (value) {
+        suspended = value;
+      }
+      expect(suspended).toBeInstanceOf(Promise);
+      let released = false;
+      void (suspended as Promise<unknown>).then(() => {
+        released = true;
+      });
+      // Baner wisi, a granica puszcza nagłówek, gdy menu i ticker są gotowe -
+      // długo przed końcem budżetu bramki.
+      await vi.waitFor(() => expect(released).toBe(true), { timeout: 500 });
+      expect(h.ticker).toEqual(["warm"]);
+      expect(qc.getQueryState(["ad_placements", "header_banner", "home", null])).toMatchObject({
+        fetchStatus: "fetching",
+      });
+      expect(h.prefetch).toHaveLength(2);
+      for (const { budget } of h.prefetch) {
+        expect(budget).toBeGreaterThan(0);
+        expect(budget).toBeLessThanOrEqual(HOME_CHROME_LATE_BUDGET_MS);
+      }
+      // Krótka świeżość wspólna (`chrome`), bez zaostrzenia do `no-store`.
+      expect(h.cacheControl.slice(headersBefore)).toEqual([chromeDegradedCacheControl()]);
+      expect(() => readChromeWarmup(qc)).not.toThrow();
+    } finally {
+      vi.unstubAllEnvs();
+      await qc.cancelQueries();
+      qc.clear();
+    }
+  });
   it("registers configured header and footer widget queries for freshness checking", async () => {
     const doc = {
       version: 1,

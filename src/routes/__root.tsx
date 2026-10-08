@@ -998,7 +998,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           chromeQueryKeys.push(headerTickerQueryOptions(trending).queryKey);
         }
         const tickerWarm = () =>
-          chromeBudget > 0 && headerVisible && trending.enabled !== false
+          headerVisible && trending.enabled !== false
             ? context.queryClient.ensureQueryData(headerTickerQueryOptions(trending))
             : Promise.resolve();
         // Nawigacja i pozostałe data-bound widgety CHROME (header + footer to
@@ -1027,7 +1027,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // w stanie `pending` w dehydratowanym `$_TSR.router` - inaczej klient
         // po hydratacji czekałby w nieskończoność na strumień, który nie wróci
         // (poniżej strażnik, który taki stan resetuje).
-        const chromeWarm: Array<() => Promise<unknown>> = [tickerWarm, warmMenus];
+        //
+        // Praca fali chrome to fabryki z BUDŻETEM w ms (P3.6b): `warm` niżej
+        // podaje `chromeBudget`, dogrzanie strony głównej po terminie
+        // (`warmLate`) - własny budżet bramki. Jedna lista dla obu dróg, więc
+        // praca dopisana tutaj grzeje się także po terminie.
+        const chromeWarm: Array<(budgetMs: number) => Promise<unknown>> = [tickerWarm, warmMenus];
         // Reklama jest DEKORACJĄ i dlatego jej klucz NIE trafia do
         // `chromeQueryKeys`. Tamta lista rozstrzyga, czy dokument wolno utrwalić
         // na brzegu: nierozgrzany slot znaczyłby „dokument niekompletny" i
@@ -1056,10 +1061,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
               sectionQueryOptionsList(section, lang).map((options) => options.queryKey),
             ),
           );
-          if (chromeBudget > 0)
-            chromeWarm.push(() =>
-              prefetchCachedRouteQueries(context.queryClient, doc, lang, chromeBudget),
-            );
+          chromeWarm.push((budgetMs) =>
+            prefetchCachedRouteQueries(context.queryClient, doc, lang, budgetMs),
+          );
         }
         const initialChromeWarmup = registerChromeWarmup(context.queryClient, {
           ready: () => chromeQueryKeys.every((key) => hasSsrQueryData(context.queryClient, key)),
@@ -1079,34 +1083,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           // wspólnym terminem dokumentu (`chromeBudget`, `homeDeadline`), więc po
           // jego minięciu niczego już nie dogrzewa i bramka oznaczała `failed`
           // (pasek „Na czasie" doskakiwał po hydratacji, dokument szedł
-          // `no-store`). Ta sama praca z budżetem bramki
-          // (`HOME_CHROME_LATE_BUDGET_MS`, lib/ssr/chromeWarmup.tsx); reklama
-          // jak w `warm`, bo `HeaderSkeleton` rezerwuje jej wysokość z tego wpisu.
+          // `no-store`). Ta sama lista `chromeWarm` z budżetem bramki
+          // (`HOME_CHROME_LATE_BUDGET_MS`, lib/ssr/chromeWarmup.tsx). Granica
+          // nagłówka czeka tylko do `ready()`: dekoracja (reklama) dogrzewa się
+          // dalej w tle, ale jej nie trzyma (`lateWarm` w chromeWarmup.tsx).
           // Bramka `import.meta.env.SSR` (stała Vite), nie `isServer`: tylko ona
           // wycina to domknięcie z chunku wejściowego klienta (+298 B bootu).
           warmLate:
             import.meta.env.SSR && homeDeadline !== undefined
               ? (budgetMs: number) =>
-                  withBudget(
-                    Promise.allSettled([
-                      warmMenus(),
-                      headerVisible && trending.enabled !== false
-                        ? context.queryClient.ensureQueryData(headerTickerQueryOptions(trending))
-                        : undefined,
-                      headerAds ? context.queryClient.ensureQueryData(headerAds) : undefined,
-                      ...[headerVisible ? header.builder_data : null, footerDoc].map((doc) =>
-                        doc?.sections?.length
-                          ? prefetchCachedRouteQueries(context.queryClient, doc, lang, budgetMs)
-                          : undefined,
-                      ),
-                    ]),
-                    budgetMs,
-                  )
+                  withBudget(Promise.allSettled(chromeWarm.map((work) => work(budgetMs))), budgetMs)
               : undefined,
           warm: async () => {
             if (chromeBudget <= 0) return;
             await withBudget(
-              Promise.allSettled(chromeWarm.map((work) => work())),
+              Promise.allSettled(chromeWarm.map((work) => work(chromeBudget))),
               CHROME_WARM_BUDGET_MS,
               homeDeadline,
             );

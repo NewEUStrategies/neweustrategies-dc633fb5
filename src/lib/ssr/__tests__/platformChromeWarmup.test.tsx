@@ -329,6 +329,50 @@ describe("strona główna po terminie: dogrzanie z własnym budżetem (P3.6b, R2
     qc.clear();
   });
 
+  // Recenzja rundy 9 (m4): `warmLate` grzeje też dekorację (reklama nagłówka),
+  // której klucz nie wchodzi do `ready()`. Granica czeka na gotowość powłoki,
+  // nie na całą pracę - wolna emisja nie może trzymać nagłówka do końca budżetu.
+  it("gotowe dane powłoki zwalniają granicę od razu - wolna dekoracja jej nie trzyma", async () => {
+    const qc = client();
+    const rec = recorder();
+    const key = ["menu-with-items", "main"];
+    const menu = pending();
+    const ad = pending();
+    const warmLate = vi.fn(() =>
+      Promise.allSettled([
+        qc.ensureQueryData({
+          queryKey: key,
+          queryFn: async () => {
+            await menu.promise;
+            return ["nawigacja"];
+          },
+        }),
+        ad.promise,
+      ]),
+    );
+    registerChromeWarmup(qc, {
+      ready: () => qc.getQueryData(key) !== undefined,
+      expired: () => true,
+      warm: async () => {},
+      warmLate,
+      markDegraded: rec.markDegraded,
+    });
+    const gate = readPromise(qc);
+    let released = false;
+    void gate.then(() => {
+      released = true;
+    });
+    await vi.waitFor(() => expect(warmLate).toHaveBeenCalledOnce());
+    expect(released).toBe(false);
+    menu.resolve();
+    // Reklama nadal wisi, a nagłówek już się dostrumieniowuje.
+    await vi.waitFor(() => expect(released).toBe(true), { timeout: 500 });
+    expect(rec.kinds).toEqual(["chrome"]);
+    expect(() => readChromeWarmup(qc)).not.toThrow();
+    ad.resolve();
+    qc.clear();
+  });
+
   it("dane nadal niegotowe po budżecie bramki: nagłówek na fallbackach i `failed`", async () => {
     const qc = client();
     const rec = recorder();

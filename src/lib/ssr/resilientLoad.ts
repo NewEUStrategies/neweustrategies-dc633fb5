@@ -57,6 +57,7 @@ import {
 } from "@tanstack/react-query";
 
 import { withBudget } from "@/lib/asyncBudget";
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
 import { noteDocumentDegradation, type DocumentCompleteness } from "@/lib/http/responseHeaders";
 import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
@@ -196,13 +197,23 @@ export async function loadResilient<
 // dokument na 180 s świeżości i do doby STALE.
 
 /**
- * Pierwsze elementy klucza zapytań DEKORACYJNYCH, których brak albo błąd nie
- * czyni dokumentu niekompletnym. Dziś wyłącznie reklamy - doktryna korzenia
- * (`routes/__root.tsx`, komentarz przy `headerAds`): „brak sprzedanej emisji
- * kosztowałby cache CAŁEGO serwisu", więc klucz reklamy nie wchodzi też do
- * listy gotowości chrome'u.
+ * Pierwsze elementy klucza zapytań DEKORACYJNYCH, których stan (zasiew, błąd,
+ * brak) nie czyni dokumentu niekompletnym:
+ *  - reklamy - doktryna korzenia (`routes/__root.tsx`, komentarz przy
+ *    `headerAds`): „brak sprzedanej emisji kosztowałby cache CAŁEGO serwisu",
+ *    więc klucz reklamy nie wchodzi też do listy gotowości chrome'u;
+ *  - popupy buildera - nakładka spoza HTML-a SSR. Fala chrome korzenia (P3.8)
+ *    zapisuje pod tym kluczem sygnał „brak aktywnych popupów": pustą listę
+ *    z `updatedAt: 0`, żeby redakcja omijająca bramkę i tak pobrała pełną
+ *    listę. To nie fallback awarii - bez tego wyjątku KAŻDY render `/` u
+ *    najemcy bez popupów kończyłby się `seed:builder-popups-active` i strona
+ *    główna nie trafiałaby do NES Edge Cache ani z przebiegu czytelnika, ani
+ *    z odświeżenia w tle.
  */
-const DECORATIVE_QUERY_ROOTS: ReadonlySet<string> = new Set(["ad_placements"]);
+const DECORATIVE_QUERY_ROOTS: ReadonlySet<string> = new Set([
+  "ad_placements",
+  WIDGET_QUERY_ROOTS.popupsActive,
+]);
 
 /**
  * Jawna lista CELOWYCH zasiewów żądania: klucze zasiane z `updatedAt: 0` nie
@@ -224,9 +235,15 @@ export function markDeliberateSeed(queryClient: QueryClient, queryKey: QueryKey)
 }
 
 /**
- * Krótka etykieta klucza do logu: najwyżej dwa wiodące elementy tekstowe
- * (`["public","home-page"]` -> `public.home-page`). Identyfikatory i obiekty
- * parametrów odpadają - linia ma mówić KTÓRE dane, bez wartości.
+ * Krótka etykieta klucza do logu: najwyżej dwa WIODĄCE elementy tekstowe
+ * (`["public","home-page"]` -> `public.home-page`), po oczyszczeniu do
+ * `[A-Za-z0-9._-]` i 48 znaków. Odpada wszystko od pierwszego elementu
+ * nietekstowego (obiekty parametrów, liczby, `null`) i wszystko po drugim
+ * elemencie. Tekstowy DRUGI element przechodzi jednak bez zmian - także
+ * identyfikator z adresu (`["public-profile","<handle>"]` ->
+ * `public-profile.<handle>`). Dziś to slug ze ścieżki żądania, którą ta sama
+ * linia logu i tak niesie w `path`; klucz z identyfikatorem spoza adresu
+ * wymaga jawnej etykiety (`label` w `loadResilient`).
  */
 export function queryLabel(queryKey: QueryKey): string {
   const parts: string[] = [];

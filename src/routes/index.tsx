@@ -135,7 +135,8 @@ export const Route = createFileRoute("/")({
     // we wspólnych 600 ms, a ich fallback to dokument „typu A" (komunikat
     // zamiast treści, bez hero, `no-store`). Treść czeka do
     // `HOME_CONTENT_BUDGET_MS` na tym samym zegarze żądania; ustawienia, widgety
-    // nad zgięciem i chrome zostają przy wspólnym terminie.
+    // nad zgięciem i chrome zostają przy wspólnym terminie. W trybie „najnowsze
+    // wpisy" treścią jest archiwum (niżej), więc ono też czeka do tego terminu.
     const contentDeadlineAt = isServer ? homeContentDeadline(queryClient) : undefined;
     const emptySettings: SettingsMap = Object.freeze({});
     // Root and home execute concurrently, but all serial phases within home
@@ -195,11 +196,14 @@ export const Route = createFileRoute("/")({
     if (!contentDegraded && homeMode === "latest_posts") {
       const pageSize = resolvePostsPerPage(settingsRes.data);
       const listOptions = blogArchiveQueryOptions({ page: deps.page, pageSize });
+      // Archiwum jest w tym trybie TREŚCIĄ strony (P3.6b, R3a): termin treści,
+      // nie wspólne 600 ms - inaczej lista spóźniona o kilkaset ms dawała pustą
+      // siatkę i dokument `no-store`, choć stronę i tryb chroni już ten termin.
       const listRes = await loadResilient(
         queryClient,
         listOptions,
         { posts: [], total: 0, page: deps.page, pageSize } satisfies BlogArchiveResult,
-        { deadlineAt, label: "home.archive" },
+        { deadlineAt: contentDeadlineAt, label: "home.archive" },
       );
       degraded ||= listRes.degraded;
       // Pierwsza karta siatki jest priority (PaginatedPostGrid) - preload jej

@@ -80,6 +80,8 @@ const h = vi.hoisted(() => ({
   settingsFails: false,
   archive: null as BlogArchiveResult | null,
   archiveFails: false,
+  /** Opóźnienie odpowiedzi archiwum w ms (0 = od razu). */
+  archiveDelayMs: 0,
   /** Która rozgrzewka widgetów pobiegła - to jest przedmiot dowodu, nie detal. */
   prefetch: [] as string[],
   /** Nagłówek `Cache-Control`, jaki trasa ustawiła na odpowiedzi SSR. */
@@ -188,7 +190,11 @@ vi.mock("@/lib/queries/public", async (importOriginal) => ({
     queryFn: () =>
       h.archiveFails || h.archive === null
         ? Promise.reject(new Error("blip backendu: archiwum"))
-        : Promise.resolve(h.archive),
+        : h.archiveDelayMs > 0
+          ? new Promise<BlogArchiveResult | null>((resolve) =>
+              setTimeout(() => resolve(h.archive), h.archiveDelayMs),
+            )
+          : Promise.resolve(h.archive),
   }),
 }));
 
@@ -386,6 +392,7 @@ beforeEach(() => {
   h.settingsFails = false;
   h.archive = null;
   h.archiveFails = false;
+  h.archiveDelayMs = 0;
   h.prefetch = [];
   h.cacheControl = [];
   h.linkHeaders = [];
@@ -780,6 +787,63 @@ describe("/ - tryb „najnowsze wpisy”", () => {
     await mountHome();
     expect(screen.getByRole("link", { name: /Wpis p1/ })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Wpis p2/ })).toBeTruthy();
+  });
+
+  // P3.6b, R3a (recenzja rundy 9, m2): w tym trybie archiwum JEST treścią
+  // strony, więc czeka do terminu treści (`HOME_CONTENT_BUDGET_MS`), a nie do
+  // wspólnych 600 ms - jak strona i tryb w trybie strony statycznej.
+  describe("archiwum na terminie treści (SSR)", () => {
+    const archiveKey = ["public", "blog", "archive", { page: 1, pageSize: 2 }];
+    type Loader = (args: {
+      context: { queryClient: QueryClient };
+      deps: { page: number };
+    }) => Promise<{ degraded: boolean }>;
+    let qc: QueryClient;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+      h.server = true;
+      // Budżet loadera działa wyłącznie w SSR (`isSsrRequest()` = brak `document`).
+      vi.stubGlobal("document", undefined);
+    });
+
+    afterEach(() => {
+      qc.clear();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    });
+
+    it("lista po wspólnym terminie, ale w terminie treści, jest prawdziwa i współdzielona", async () => {
+      h.archiveDelayMs = HOME_SSR_BUDGET_MS + 300;
+      const loader = HomeRoute.options.loader as unknown as Loader;
+      const result = loader({ context: { queryClient: qc }, deps: { page: 1 } });
+      await vi.advanceTimersByTimeAsync(h.archiveDelayMs);
+      expect(await result).toMatchObject({ degraded: false });
+      expect(qc.getQueryState(archiveKey)?.dataUpdatedAt).toBeGreaterThan(0);
+      expect(qc.getQueryData<BlogArchiveResult>(archiveKey)?.posts).toHaveLength(2);
+      expect(h.cacheControl.at(-1)).toContain("s-maxage=900");
+    });
+
+    it("lista po terminie treści: zasiew pustej siatki DOKŁADNIE w terminie treści i `no-store`", async () => {
+      h.archiveDelayMs = 5_000;
+      homeSsrDeadline(qc);
+      const deadline = homeContentDeadline(qc);
+      const loader = HomeRoute.options.loader as unknown as Loader;
+      const result = loader({ context: { queryClient: qc }, deps: { page: 1 } });
+      let settled = false;
+      void result.then(() => {
+        settled = true;
+      });
+      // Wspólny termin mija, a loader NADAL czeka na archiwum.
+      await vi.advanceTimersByTimeAsync(HOME_SSR_BUDGET_MS);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(HOME_CONTENT_BUDGET_MS - HOME_SSR_BUDGET_MS);
+      expect(await result).toMatchObject({ degraded: true });
+      expect(Date.now()).toBe(deadline);
+      expect(qc.getQueryState(archiveKey)).toMatchObject({ status: "success", dataUpdatedAt: 0 });
+      expect(h.cacheControl.at(-1)).toBe("private, no-store");
+    });
   });
 
   it("SEO ukrytej strony statycznej NIE przecieka do listy wpisów", async () => {

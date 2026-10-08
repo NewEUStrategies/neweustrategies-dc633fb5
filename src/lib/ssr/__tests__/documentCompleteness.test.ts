@@ -13,13 +13,16 @@
 //    w locie;
 //  * POZYTYWNE - dokument kompletny przechodzi: sekcja dostrumieniowana po
 //    terminie loadera (B2), celowy zasiew zadeklarowany w korzeniu, dekoracja
-//    (reklama), obserwator renderu, który na serwerze z założenia nie pobiera,
+//    (reklama, sygnał „brak aktywnych popupów" z P3.8), obserwator renderu,
+//    który na serwerze z założenia nie pobiera,
 //    zapytanie loadera zamiecione przed renderem i nieponowione (widget
 //    niewidoczny na tym urządzeniu);
 //  * ZAMROŻENIE - integracja router<->query czyści cache (`clear()`) ZANIM
 //    kolektor zapisu przeczyta koniec dokumentu; werdykt musi to przeżyć.
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 
 import { sweepQueryCacheForSerialization } from "../postRenderSweep";
 import { markDeliberateSeed, queryLabel, trackSsrQueryCompleteness } from "../resilientLoad";
@@ -116,6 +119,17 @@ describe("negatywne: każde odstępstwo = brak zapisu", () => {
     expect(check()).toEqual({ complete: false, reasons: ["seed:site_settings"] });
   });
 
+  it("pusta lista z `updatedAt: 0` pod kluczem TREŚCI nie jest dekoracją jak sygnał popupów", () => {
+    const qc = client();
+    const check = trackSsrQueryCompleteness(qc);
+    qc.setQueryData([WIDGET_QUERY_ROOTS.popupsActive], [], { updatedAt: 0 });
+    qc.setQueryData([WIDGET_QUERY_ROOTS.globalWidgets], [], { updatedAt: 0 });
+    expect(check()).toEqual({
+      complete: false,
+      reasons: [`seed:${WIDGET_QUERY_ROOTS.globalWidgets}`],
+    });
+  });
+
   it("deklaracja celowego zasiewu jest per żądanie (`QueryClient`), nie globalna", () => {
     markDeliberateSeed(client(), ["post-layout-settings"]);
     const qc = client();
@@ -163,6 +177,24 @@ describe("pozytywne: dokument kompletny przechodzi", () => {
       queryFn: () => new Promise<string[]>(() => {}),
     });
     expect(check().complete).toBe(true);
+  });
+
+  // Fala chrome korzenia (P3.8, `warmNoActivePopups` w lib/builder/popups.ts)
+  // zapisuje DOKŁADNIE to u najemcy bez aktywnych popupów - na każdym renderze
+  // `/`. Gdyby predykat liczył to jako zasiew awaryjny, strona główna nigdy nie
+  // trafiłaby do NES Edge Cache.
+  it("sygnał „brak aktywnych popupów” (pusta lista z `updatedAt: 0`) nie blokuje zapisu", () => {
+    const qc = client();
+    const check = trackSsrQueryCompleteness(qc);
+    const key = [WIDGET_QUERY_ROOTS.popupsActive];
+    qc.setQueryData(key, [], { updatedAt: 0 });
+    // Przesłanka: wpis wygląda jak zasiew awaryjny (sukces bez znacznika czasu).
+    expect(qc.getQueryState(key)).toMatchObject({
+      status: "success",
+      dataUpdatedAt: 0,
+      fetchStatus: "idle",
+    });
+    expect(check()).toEqual({ complete: true, reasons: [] });
   });
 
   it("obserwator renderu, który na serwerze nie pobiera (`useQuery` bez suspense)", () => {
@@ -234,9 +266,11 @@ describe("zamrożenie werdyktu przed sprzątaniem integracji router<->query", ()
   });
 });
 
-describe("queryLabel - etykieta do logu bez wartości", () => {
+describe("queryLabel - etykieta do logu z wiodących elementów tekstowych", () => {
   it.each([
     [["public", "home-page"], "public.home-page"],
+    // Tekstowy drugi element przechodzi - także slug z adresu żądania.
+    [["public-profile", "jan-kowalski"], "public-profile.jan-kowalski"],
     [["header_ticker", "trending", 7, 8, null], "header_ticker.trending"],
     [["builder-post-list", { limit: 6, slug: "tajne" }], "builder-post-list"],
     [["menu-with-items", "main", "extra"], "menu-with-items.main"],
