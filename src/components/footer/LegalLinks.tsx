@@ -42,11 +42,25 @@ export interface LegalLinksProps {
   readonly listClassName?: string;
 }
 
-const NAV_CLASS = "mx-auto w-full max-w-[1400px] px-5 pb-4 text-xs text-muted-foreground";
-const LIST_CLASS = "m-0 flex list-none flex-wrap items-center justify-center gap-x-4 p-0";
-// `min-h-6`: cel dotyku 24 px (WCAG 2.5.8) przy piśmie `text-xs`.
+// `pb-20` (5rem): listwa jest ostatnią treścią strony, a pływający przycisk
+// „Wróć na górę" (`BackToTop`: `fixed bottom-6 right-6 h-11 w-11`, widoczny na
+// każdej szerokości po przewinięciu) zajmuje pas 1,5-4,25rem od dołu ekranu
+// przy prawej krawędzi. Przy `pb-4` na telefonie (412 px, trzy wiersze) ostatni
+// link wiersza (RODO/GDPR) stał pod przyciskiem nawet po przewinięciu do końca:
+// stuknięcie trafiało w przycisk, a fokus był zasłonięty (WCAG 2.4.11). 5rem =
+// 4,25rem pasa przycisku + 0,75rem luzu; obie miary w rem, więc zapas trzyma
+// się przy każdym rozmiarze korzenia. Geometria wspólna dla motywów.
+const NAV_CLASS = "mx-auto w-full max-w-[1400px] px-5 pb-20 text-xs text-muted-foreground";
+// `gap-y-2`: odstęp między zawiniętymi wierszami (telefon) - cele dotyku nie
+// stykają się krawędziami. Na desktopie listwa to jeden wiersz, więc bez zmian.
+const LIST_CLASS = "m-0 flex list-none flex-wrap items-center justify-center gap-x-4 gap-y-2 p-0";
+// `min-h-6`: cel dotyku 1,5rem (24 px przy korzeniu 16 px; przy płynnym korzeniu
+// desktopu ok. 23 px - WCAG 2.5.8 spełnia wtedy wyjątek odstępu `gap-x-4`).
+// `focus-visible:underline`: podkreślenie w kolorze tekstu jako drugi sygnał
+// fokusu - pierścień z tokenu `--ring` ma w jasnym motywie za mały kontrast
+// wobec tła stopki (WCAG 1.4.11), podkreślenie ma kontrast samego tekstu.
 const LINK_CLASS =
-  "inline-flex min-h-6 items-center rounded-sm underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "inline-flex min-h-6 items-center rounded-sm underline-offset-2 transition-colors hover:text-foreground hover:underline focus-visible:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export function LegalLinks({
   links,
@@ -57,7 +71,8 @@ export function LegalLinks({
   const { t } = useTranslation();
   return (
     <nav aria-label={t("footer.legal_nav", { lng: lang })} className={className}>
-      <ul className={listClassName}>
+      {/* `role="list"`: Safari/VoiceOver gubi semantykę listy przy `list-none`. */}
+      <ul role="list" className={listClassName}>
         {links
           .filter((link) => link.group === "legal")
           .map((link) => (

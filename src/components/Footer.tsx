@@ -11,6 +11,7 @@ import {
   type FooterChrome,
 } from "@/lib/theme/footerSettings";
 import { BackToTop } from "@/components/footer/BackToTop";
+import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { LegalLinks } from "@/components/footer/LegalLinks";
 import { trackFooterLink, trackFooterNewsletterSubmit } from "@/lib/analytics/footerTracking";
 import { FOOTER_LINKS, type FooterLinkGroup } from "@/lib/seo/footerNavigation";
@@ -56,6 +57,30 @@ import { SECTION_ISLAND_TRIGGER, sectionIslandInfo } from "@/lib/builder/section
  * `Suspense` chroni dokument stopki przy świeżym montażu po nawigacji SPA
  * (np. z /admin): stopka nie znika na czas pobierania listwy, a listwa
  * dochodzi na samym dole, pod wszystkim, więc niczego nie przesuwa.
+ *
+ * KOSZT: jedno żądanie chunku `legal-links-*.js` (~0,5 KB gzip, cache
+ * `immutable`) na odsłonę, gdy wyspa stopki się otwiera (widoczność,
+ * interakcja albo punkt ciszy - zwykle zaraz po boocie, także bez
+ * przewijania), poza ścieżką do LCP. Wyspa czeka na ten chunk przed
+ * hydratacją stopki. Świadomie: kilkaset bajtów poza domknięciem bootu
+ * zamiast kodu listwy w chunku wejściowym każdej strony. Danych listwa nie
+ * czyta (rejestr w kodzie, język z `useLang`). Preloadu zależności chunk nie
+ * ma (`modulePreload.resolveDependencies` w obu konfiguracjach Vite): importuje
+ * wyłącznie chunki vendorowe, które boot już załadował.
+ *
+ * AWARIA CHUNKU DEGRADUJE DO BRAKU LISTWY, NIE DO EKRANU BŁĘDU.
+ * `RenderErrorBoundary` łapie odrzucony import (`React.lazy` rzuca nim przy
+ * renderze): React porzuca HTML listwy (najbliższa granica `Suspense`),
+ * granica renderuje pusty, ukryty znacznik i raportuje błąd, a dokument
+ * stopki, treść i nagłówek zostają. Bez tej granicy wyjątek dochodził do
+ * globalnego `ErrorBoundary` korzenia i podmieniał CAŁĄ stronę. Osobno
+ * wyspa zgłasza odrzucony chunk (`reportError`), a globalna siatka
+ * `cacheBusting.ts` robi na każdy chunk-load error JEDNO twarde przeładowanie
+ * (`?_v=`) - celowo, dla dokumentu sprzed wdrożenia, którego chunków już nie
+ * ma. Kolejne przeładowanie w ciągu 15 s blokuje strażnik w `sessionStorage`,
+ * więc przy trwałej awarii strona po jednym przeładowaniu zostaje - bez listwy
+ * (przy zablokowanym `sessionStorage` strażnik nie działa - stan siatki sprzed
+ * tej zmiany, wspólny dla każdego leniwego chunku).
  */
 const LegalLinksChunk = lazy(() => import("@/components/footer/LegalLinks"));
 
@@ -178,13 +203,15 @@ function FooterInner({ compact }: FooterProps) {
       >
         <HydrationIsland id="site-footer" trigger={SECTION_ISLAND_TRIGGER} chunks={islandChunks}>
           <BuilderRenderer doc={doc} lang={lang} />
-          <Suspense fallback={null}>
-            {import.meta.env.SSR ? (
-              <LegalLinks links={FOOTER_LINKS} lang={lang} />
-            ) : (
-              <LegalLinksChunk links={FOOTER_LINKS} lang={lang} />
-            )}
-          </Suspense>
+          <RenderErrorBoundary label="footer:legal-links">
+            <Suspense fallback={null}>
+              {import.meta.env.SSR ? (
+                <LegalLinks links={FOOTER_LINKS} lang={lang} />
+              ) : (
+                <LegalLinksChunk links={FOOTER_LINKS} lang={lang} />
+              )}
+            </Suspense>
+          </RenderErrorBoundary>
         </HydrationIsland>
       </footer>
       {chromeCfg.back_to_top ? (
