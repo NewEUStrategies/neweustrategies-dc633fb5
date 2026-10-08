@@ -17,11 +17,12 @@
 //   - SSR: no-op (toasty nie mają sensu w renderze serwerowym; sonner i tak
 //     renderuje je wyłącznie po stronie klienta).
 //
-// ŚWIADOMY KOMPROMIS: toast wystrzelony w oknie między hydratacją a montażem
-// leniwego Toastera przepada (sonner nie odtwarza historii nowym
-// subskrybentom - zweryfikowane w źródle: subscribe() nie robi replay).
-// To okno istniało już wcześniej dla toastów sprzed hydratacji; mutacje
-// operatora, jedyny realny nadawca, nie są w stanie zakończyć się przed nią.
+// TOAST PRZED MONTAŻEM TOASTERA NIE PRZEPADA: sonner 2.x przy subskrypcji
+// odtwarza nowemu subskrybentowi wszystkie AKTYWNE toasty
+// (`Observer.subscribe` -> `getActiveToasts()`, `sonner/dist/index.mjs`).
+// Zdjęty (`toast.dismiss`) przed montażem nie wraca. Wcześniejsza wersja tego
+// komentarza opisywała starszego sonnera, w którym `subscribe()` nie robił
+// replay.
 type ToastFn = (message: string) => unknown;
 
 let toastModule: { success: ToastFn; error: ToastFn } | null = null;

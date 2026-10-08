@@ -113,9 +113,16 @@ vi.mock("@/lib/chat/useConversations", () => ({
   usePeerProfiles: () => ({ data: undefined }),
 }));
 vi.mock("@/components/chat/chatWindowChunk", () => ({ prefetchChatWindow: () => {} }));
-// Toasty nowych wiadomości (kanał realtime) dowodzi osobny plik
-// `WorkspaceDock.incomingToasts.test.tsx` - tutaj pasek nie sięga po sieć.
-vi.mock("@/lib/chat/useIncomingChatToasts", () => ({ useIncomingChatToasts: () => {} }));
+// Toasty nowych wiadomości (kanał realtime, preferencje powiadomień) dowodzi
+// osobny plik `WorkspaceDock.incomingToasts.test.tsx` - tutaj pasek nie sięga
+// po sieć.
+vi.mock("@/lib/chat/useIncomingChatToasts", () => ({
+  useIncomingChatToasts: () => {},
+  dismissIncomingChatToast: () => {},
+}));
+vi.mock("@/lib/notifications/useNotifications", () => ({
+  useNotificationPreferences: () => ({ data: undefined }),
+}));
 
 vi.mock("@/components/mobile/bottomBar/LiveTabBadge", () => ({
   LiveTabBadge: () => null,

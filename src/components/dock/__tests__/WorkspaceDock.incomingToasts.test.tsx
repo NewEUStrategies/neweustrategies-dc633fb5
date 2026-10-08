@@ -7,11 +7,19 @@
 // haka renderowały go w izolacji, a test paska go atrapował.
 //
 // Dlatego tu PRAWDZIWE są: pasek, hak, hub kanałów, szyna `chatDockBus`,
-// magazyn zminimalizowanych rozmów i odczyt ustawień modułów (zasiany w cache
-// zapytania `site_settings`, tak jak robi to loader korzenia). Atrapą jest
-// tylko klient Supabase (kanały, odczyt wyciszenia, profil nadawcy), sonner
-// (zapis toastów) i leniwa skrzynka czatu, która - jak prawdziwe `ChatWindow`
-// - wystawia znacznik `data-active-conversation` otwartej rozmowy.
+// magazyn zminimalizowanych rozmów, odczyt ustawień modułów (zasiany w cache
+// zapytania `site_settings`, tak jak robi to loader korzenia) i odczyt
+// preferencji powiadomień (zasiany pod kluczem, który wypełnia dzwonek
+// w nagłówku). Atrapą jest klient Supabase (kanały, podgląd rozmowy, profil
+// nadawcy), sonner (zapis toastów), nawigacja routera i leniwa skrzynka
+// czatu, która - jak prawdziwe `ChatWindow` - wystawia znacznik
+// `data-active-conversation` otwartej rozmowy.
+//
+// Źródłem toastów są WŁASNE wiersze uczestnika (`conversation_participants`,
+// `user_id=eq.<uid>`), nie tabela `messages`, której RLS przepuszcza
+// personelowi cały tenant. Wiadomość emulujemy tak, jak zapisuje ją trigger
+// `messages_after_insert`: rozmowa dostaje `last_message_*`, wiersz odbiorcy
+// podbity licznik i `updated_at` z tej samej transakcji.
 //
 // RODO: rozmówcy to identyfikatory z `CHAT_IDS`, treści zmyślone.
 import { StrictMode } from "react";
@@ -19,19 +27,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@/test/i18nReal";
-import { CHAT_IDS, messageRow, ok, peerProfile } from "@/test/chat/fixtures";
+import { CHAT_IDS, conversationRow, ok, participantRow, peerProfile } from "@/test/chat/fixtures";
 import type { RealtimeStub, SupabaseFromStub } from "@/test/supabase";
-import type { MessageRow } from "@/lib/chat/types";
+import type { ConversationRow, ParticipantRow } from "@/lib/chat/types";
+import type { NotificationPreferences } from "@/lib/notifications/preferences";
 
 interface ToastCall {
   readonly title: string;
-  readonly options: { description?: string; action?: { label: string; onClick: () => void } };
+  readonly options: {
+    id?: string;
+    description?: string;
+    action?: { label: string; onClick: () => void };
+  };
 }
 
 const h = vi.hoisted(() => ({
   uid: "user-me" as string | null,
   pathname: "/",
   toasts: [] as ToastCall[],
+  dismissed: [] as string[],
+  navigations: [] as unknown[],
+  conversations: new Map<string, unknown>(),
   rpc: vi.fn(),
   realtime: null as unknown,
   from: null as unknown,
@@ -45,7 +61,10 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   useRouterState: <T,>({ select }: { select: (state: unknown) => T }): T =>
     select({ location: { pathname: h.pathname } }),
-  useNavigate: () => () => Promise.resolve(),
+  useNavigate: () => (options: unknown) => {
+    h.navigations.push(options);
+    return Promise.resolve();
+  },
 }));
 
 vi.mock("@/components/atoms/AppLink", async () => ({
@@ -56,8 +75,15 @@ vi.mock("sonner", () => ({
   toast: Object.assign(
     (title: string, options: ToastCall["options"]) => {
       h.toasts.push({ title, options });
+      return options.id;
     },
-    { error: vi.fn(), success: vi.fn() },
+    {
+      error: vi.fn(),
+      success: vi.fn(),
+      dismiss: (id: string) => {
+        h.dismissed.push(id);
+      },
+    },
   ),
 }));
 
@@ -101,7 +127,7 @@ vi.mock("@/lib/dock/useTodos", () => ({ useOpenTodoCount: () => 0 }));
 vi.mock("@/components/mobile/bottomBar/LiveTabBadge", () => ({ LiveTabBadge: () => null }));
 vi.mock("@/components/chat/chatWindowChunk", () => ({ prefetchChatWindow: () => {} }));
 // Szyna zminimalizowanych rozmów dociąga awatary z listy rozmów - bez sieci.
-// `mutedUntilMs` (bramka wyciszenia toasta) zostaje prawdziwe.
+// Specyfikacja kanału własnych wierszy i `mutedUntilMs` zostają prawdziwe.
 vi.mock("@/lib/chat/useConversations", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/chat/useConversations")>()),
   useConversations: () => ({ data: [] }),
@@ -111,35 +137,46 @@ vi.mock("@/lib/chat/useConversations", async (importOriginal) => ({
 import { WorkspaceDock } from "../WorkspaceDock";
 import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { minimizedChatsStore } from "@/lib/chat/minimizedChats";
-import { invalidateMuteCache } from "@/lib/chat/useIncomingChatToasts";
 import { COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
+import { DEFAULT_NOTIFICATION_PREFERENCES } from "@/lib/notifications/preferences";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 const realtime = () => h.realtime as RealtimeStub;
 const from = () => h.from as SupabaseFromStub;
 
-/** Kanał wiadomości przychodzących (hub: tabela, zdarzenie, filtr nadawcy). */
-const INCOMING = `hub:public|messages|INSERT|sender_id=neq.${CHAT_IDS.me}:`;
+/** Kanał własnych wierszy uczestnika (hub: tabela, każde zdarzenie, filtr właściciela). */
+const PARTICIPANTS = `hub:public|conversation_participants|*|user_id=eq.${CHAT_IDS.me}:`;
 
 /**
- * Klient zapytań z ZASIANYMI ustawieniami serwisu - tak, jak zostawia je
- * loader korzenia. Świeże dane nie są pobierane ponownie, więc każde
- * żądanie widoczne w atrapie byłoby kosztem dołożonym przez pasek.
+ * Klucz preferencji powiadomień w cache (`useNotificationPreferences`), ten
+ * sam, który wypełnia dzwonek w nagłówku. Gdyby się rozjechał, pasek
+ * wysłałby własne żądanie - test „bez żadnego zapytania" by to wychwycił.
  */
-function settingsClient(chatEnabled = true): QueryClient {
+const prefsKey = (uid: string) => ["notifications", "preferences", uid] as const;
+
+/**
+ * Klient zapytań z ZASIANYMI ustawieniami serwisu (loader korzenia)
+ * i preferencjami powiadomień (dzwonek). Świeże dane nie są pobierane
+ * ponownie, więc każde żądanie widoczne w atrapie byłoby kosztem paska.
+ */
+function settingsClient(
+  chatEnabled = true,
+  prefs: Partial<NotificationPreferences> | null = {},
+): QueryClient {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(siteSettingsQueryOptions.queryKey, {
     [COMMUNITY_MODULES_KEY]: { chat_enabled: chatEnabled },
   });
+  if (prefs) {
+    client.setQueryData(prefsKey(CHAT_IDS.me), { ...DEFAULT_NOTIFICATION_PREFERENCES, ...prefs });
+  }
   return client;
 }
 
-/** Przełącznik modułu zapisany w panelu - React Query powiadamia w makrozadaniu. */
-async function setChatEnabled(client: QueryClient, chatEnabled: boolean): Promise<void> {
+/** Zmiana w cache, o której React Query powiadamia w makrozadaniu. */
+async function updateCache(change: () => void): Promise<void> {
   await act(async () => {
-    client.setQueryData(siteSettingsQueryOptions.queryKey, {
-      [COMMUNITY_MODULES_KEY]: { chat_enabled: chatEnabled },
-    });
+    change();
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
@@ -154,18 +191,52 @@ function renderDock(client: QueryClient = settingsClient()) {
   return { ...view, client, rerenderDock: () => view.rerender(tree()) };
 }
 
-function emitInsert(row: MessageRow): void {
-  const [channel] = realtime().liveChannels(INCOMING);
-  if (!channel) throw new Error("test: kanał wiadomości przychodzących nie istnieje");
+let clock = Date.parse("2026-10-08T12:00:00.000Z");
+let seq = 0;
+/** Unikalny identyfikator - stan rozmów żyje w module przez całą sesję. */
+function fresh(prefix: string): string {
+  seq += 1;
+  return `${prefix}-dock-${seq}`;
+}
+
+function emitParticipant(row: Partial<ParticipantRow>): void {
+  const [channel] = realtime().liveChannels(PARTICIPANTS);
+  if (!channel) throw new Error("test: kanał wierszy uczestnika nie istnieje");
   act(() => {
-    channel.emitPostgres("messages", { eventType: "INSERT", new: row });
+    channel.emitPostgres("conversation_participants", {
+      eventType: "UPDATE",
+      new: participantRow({ user_id: CHAT_IDS.me, ...row }),
+    });
   });
 }
 
-/** Odczekanie na asynchroniczną obsługę (wyciszenie -> profil -> toast). */
+/** Wiadomość od rozmówcy w zapisie triggera `messages_after_insert`. */
+function deliver(
+  conversationId: string,
+  options: { unread?: number; body?: string; sender?: string } = {},
+): void {
+  clock += 1000;
+  const at = new Date(clock).toISOString();
+  h.conversations.set(
+    conversationId,
+    conversationRow({
+      id: conversationId,
+      last_message_at: at,
+      last_message_preview: options.body ?? "Masz chwilę?",
+      last_message_sender: options.sender ?? CHAT_IDS.peer,
+    }),
+  );
+  emitParticipant({
+    conversation_id: conversationId,
+    unread_count: options.unread ?? 1,
+    updated_at: at,
+  });
+}
+
+/** Odczekanie na asynchroniczną obsługę (podgląd rozmowy -> profil -> toast). */
 async function settle(): Promise<void> {
   await act(async () => {
-    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 
@@ -180,24 +251,22 @@ async function openConversationInDrawer(conversationId: string): Promise<void> {
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
 }
 
-let seq = 0;
-/** Unikalny identyfikator - zbiór widzianych wiadomości i cache wyciszeń żyją w module. */
-function fresh(prefix: string): string {
-  seq += 1;
-  return `${prefix}-dock-${seq}`;
-}
-
 const originalObserver = globalThis.ResizeObserver;
 
 beforeEach(() => {
   h.uid = CHAT_IDS.me;
   h.pathname = "/";
   h.toasts = [];
+  h.dismissed = [];
+  h.navigations = [];
+  h.conversations = new Map();
   h.rpc = vi.fn(async () => ok([peerProfile({ display_name: "Zofia Testowa" })]));
   realtime().reset();
   from().reset();
-  from().setResponse("conversation_participants", ok({ muted_until: null }));
-  invalidateMuteCache();
+  from().setResponse("conversations", (chain) => {
+    const [, id] = chain.argsOf("eq") ?? [];
+    return ok((h.conversations.get(String(id)) as ConversationRow | undefined) ?? null);
+  });
   minimizedChatsStore.reset();
   globalThis.ResizeObserver = class {
     observe() {}
@@ -216,22 +285,30 @@ afterEach(() => {
 });
 
 describe("montaż: raz na sesję, tylko dla członka", () => {
-  it("zalogowany członek dostaje JEDEN kanał, filtrowany po nadawcy, bez żadnego zapytania", () => {
+  it("zalogowany członek dostaje JEDEN kanał własnych wierszy, bez żadnego zapytania", () => {
     renderDock();
 
-    const live = realtime().liveChannels(INCOMING);
+    const live = realtime().liveChannels(PARTICIPANTS);
     expect(live).toHaveLength(1);
     expect(live[0]?.subscribeCount).toBe(1);
     expect(live[0]?.listeners.find((l) => l.type === "postgres_changes")?.filter).toMatchObject({
-      event: "INSERT",
       schema: "public",
-      table: "messages",
-      filter: `sender_id=neq.${CHAT_IDS.me}`,
+      table: "conversation_participants",
+      filter: `user_id=eq.${CHAT_IDS.me}`,
     });
-    // Bramka modułu czyta zasiane ustawienia, a sam kanał niczego nie pobiera
-    // - do pierwszej wiadomości toasty nie kosztują żadnego żądania.
+    // Ustawienia modułów i preferencje są w cache, a sam kanał niczego nie
+    // pobiera - do pierwszej wiadomości toasty nie kosztują żadnego żądania.
     expect(from().chains).toHaveLength(0);
     expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("bez preferencji w cache pasek wysyła JEDNO żądanie preferencji i nic poza nim", async () => {
+    from().setResponse("notification_preferences", ok(null));
+    renderDock(settingsClient(true, null));
+    await settle();
+
+    expect(from().chains.map((chain) => chain.table)).toEqual(["notification_preferences"]);
+    expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(1);
   });
 
   it("nawigacja przerysowuje pasek, ale nie otwiera drugiego kanału", () => {
@@ -242,7 +319,7 @@ describe("montaż: raz na sesję, tylko dla członka", () => {
     rerenderDock();
 
     expect(realtime().channels).toHaveLength(1);
-    expect(realtime().liveChannels(INCOMING)).toHaveLength(1);
+    expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(1);
   });
 
   it("gość: pasek się nie renderuje, zero kanałów, zero zapytań i zero RPC", () => {
@@ -256,8 +333,6 @@ describe("montaż: raz na sesję, tylko dla członka", () => {
   });
 
   it("StrictMode (podwójny efekt klienta) zostawia JEDEN żywy kanał, który doręcza", async () => {
-    // Klient TanStack Start hydratuje w `<StrictMode>`: w dev efekt biegnie
-    // dwa razy, czyli zwolnienie i ponowny montaż w jednej chwili.
     const client = settingsClient();
     render(
       <StrictMode>
@@ -267,17 +342,20 @@ describe("montaż: raz na sesję, tylko dla członka", () => {
       </StrictMode>,
     );
 
-    expect(realtime().liveChannels(INCOMING)).toHaveLength(1);
-    emitInsert(messageRow({ id: fresh("msg"), conversation_id: fresh("conv") }));
+    expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(1);
+    deliver(fresh("conv"));
     await waitFor(() => expect(h.toasts).toHaveLength(1));
   });
 
-  it("zejście paska (wejście do /admin, wylogowanie) zwalnia kanał", () => {
+  it("zejście paska (wejście do /admin, wylogowanie) zwalnia kanał i zdejmuje toasty", async () => {
+    const conversationId = fresh("conv-unmount");
     const { unmount } = renderDock();
-    expect(realtime().liveChannels(INCOMING)).toHaveLength(1);
+    deliver(conversationId);
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
 
     unmount();
-    expect(realtime().liveChannels(INCOMING)).toHaveLength(0);
+    expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(0);
+    expect(h.dismissed).toEqual([`chat-incoming:${conversationId}`]);
   });
 
   it("moduł czatu wyłączony w panelu: pasek działa, kanału nie ma, włączenie go otwiera", async () => {
@@ -286,25 +364,97 @@ describe("montaż: raz na sesję, tylko dla członka", () => {
     expect(document.querySelector("[data-workspace-dock]")).not.toBeNull();
     expect(realtime().channels).toHaveLength(0);
 
-    await setChatEnabled(client, true);
-    expect(realtime().liveChannels(INCOMING)).toHaveLength(1);
+    await updateCache(() =>
+      client.setQueryData(siteSettingsQueryOptions.queryKey, {
+        [COMMUNITY_MODULES_KEY]: { chat_enabled: true },
+      }),
+    );
+    expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(1);
 
-    await setChatEnabled(client, false);
-    expect(realtime().liveChannels(INCOMING)).toHaveLength(0);
+    await updateCache(() =>
+      client.setQueryData(siteSettingsQueryOptions.queryKey, {
+        [COMMUNITY_MODULES_KEY]: { chat_enabled: false },
+      }),
+    );
+    expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(0);
   });
 });
 
-describe("toast i akcja „Otwórz”", () => {
-  it("wiadomość od rozmówcy daje toast, a jego akcja otwiera skrzynkę na tej rozmowie", async () => {
+describe("preferencje powiadomień (jak serwerowy fan-out)", () => {
+  it("wyłączone „Wiadomości na czacie” (`enabled_message`): kanału nie ma", () => {
+    renderDock(settingsClient(true, { enabled_message: false }));
+    expect(realtime().channels).toHaveLength(0);
+  });
+
+  it("tryb cichy (`allow_messages_from = 'nobody'`): kanału nie ma", () => {
+    renderDock(settingsClient(true, { allow_messages_from: "nobody" }));
+    expect(realtime().channels).toHaveLength(0);
+  });
+
+  it("„tylko kontakty” nie wycisza wiadomości w istniejących wątkach", () => {
+    renderDock(settingsClient(true, { allow_messages_from: "contacts" }));
+    expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(1);
+  });
+
+  it("wyłączenie w trakcie sesji (np. w innej karcie) zamyka kanał i zdejmuje toasty", async () => {
+    const conversationId = fresh("conv-prefs");
+    const { client } = renderDock();
+    deliver(conversationId);
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+
+    await updateCache(() =>
+      client.setQueryData(prefsKey(CHAT_IDS.me), {
+        ...DEFAULT_NOTIFICATION_PREFERENCES,
+        enabled_message: false,
+      }),
+    );
+    expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(0);
+    expect(h.dismissed).toEqual([`chat-incoming:${conversationId}`]);
+  });
+});
+
+describe("tylko własne rozmowy", () => {
+  it("cudzy wiersz uczestnika (personel czyta cały tenant): zero toastów, zapytań i RPC", async () => {
+    renderDock();
+    const conversationId = fresh("conv-foreign");
+    h.conversations.set(
+      conversationId,
+      conversationRow({ id: conversationId, last_message_preview: "prywatna treść" }),
+    );
+    emitParticipant({
+      conversation_id: conversationId,
+      user_id: CHAT_IDS.stranger,
+      unread_count: 1,
+    });
+    await settle();
+
+    expect(h.toasts).toHaveLength(0);
+    expect(from().chains).toHaveLength(0);
+    expect(h.rpc).not.toHaveBeenCalled();
+    const tables = realtime()
+      .liveChannels()
+      .flatMap((channel) => channel.listeners.map((l) => l.filter.table));
+    expect(tables).not.toContain("messages");
+  });
+
+  it("własna wiadomość (echo z drugiej karty) nie daje toasta", async () => {
+    renderDock();
+    deliver(fresh("conv"), { sender: CHAT_IDS.me });
+    await settle();
+    expect(h.toasts).toHaveLength(0);
+  });
+});
+
+describe("toast i jego akcja", () => {
+  it("wiadomość od rozmówcy daje toast, a akcja otwiera skrzynkę na tej rozmowie", async () => {
     const conversationId = fresh("conv");
     renderDock();
 
-    emitInsert(
-      messageRow({ id: fresh("msg"), conversation_id: conversationId, body: "Masz chwilę?" }),
-    );
+    deliver(conversationId, { body: "Masz chwilę?" });
     await waitFor(() => expect(h.toasts).toHaveLength(1));
     expect(h.toasts[0]?.title).toBe("Zofia Testowa");
     expect(h.toasts[0]?.options.description).toBe("Masz chwilę?");
+    expect(h.toasts[0]?.options.action?.label).toBe("Otwórz rozmowę");
     expect(screen.queryByTestId("panel-chat")).toBeNull();
 
     await act(async () => {
@@ -312,6 +462,19 @@ describe("toast i akcja „Otwórz”", () => {
     });
     const drawer = await screen.findByTestId("panel-chat");
     expect(drawer.getAttribute("data-active-conversation")).toBe(conversationId);
+    expect(h.navigations).toEqual([]);
+  });
+
+  it("otwarcie rozmowy szyną (np. „Napisz”) zdejmuje jej toast", async () => {
+    const conversationId = fresh("conv-bus");
+    renderDock();
+    deliver(conversationId);
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+
+    await act(async () => {
+      openChatWindow({ conversationId });
+    });
+    expect(h.dismissed).toEqual([`chat-incoming:${conversationId}`]);
   });
 
   it("rozmowa otwarta w skrzynce i skupiona nie dostaje toasta, inna - dostaje", async () => {
@@ -320,11 +483,11 @@ describe("toast i akcja „Otwórz”", () => {
     renderDock();
     await openConversationInDrawer(openId);
 
-    emitInsert(messageRow({ id: fresh("msg"), conversation_id: openId }));
+    deliver(openId);
     await settle();
     expect(h.toasts).toHaveLength(0);
 
-    emitInsert(messageRow({ id: fresh("msg"), conversation_id: otherId }));
+    deliver(otherId);
     await waitFor(() => expect(h.toasts).toHaveLength(1));
 
     await act(async () => {
@@ -345,7 +508,7 @@ describe("toast i akcja „Otwórz”", () => {
     renderDock();
     expect(document.querySelectorAll("[data-mobile-minimized-chats] > button")).toHaveLength(2);
 
-    emitInsert(messageRow({ id: fresh("msg"), conversation_id: conversationId }));
+    deliver(conversationId);
     await waitFor(() => expect(h.toasts).toHaveLength(1));
 
     await act(async () => {
@@ -362,12 +525,26 @@ describe("toast i akcja „Otwórz”", () => {
     expect(drawer.getAttribute("data-active-conversation")).toBe(conversationId);
   });
 
-  it("własna wiadomość (echo z drugiej karty) nie daje toasta", async () => {
+  it("na /messages akcja przełącza rozmowę STRONY (`?c=`), zamiast otwierać skrzynkę nad nią", async () => {
+    const conversationId = fresh("conv-page");
+    const otherId = fresh("conv-page-other");
+    h.pathname = "/messages";
+    minimizedChatsStore.minimize({ id: otherId, name: "Krąg roboczy" });
+    minimizedChatsStore.minimize({ id: conversationId, name: "Zofia Testowa" });
     renderDock();
-    emitInsert(
-      messageRow({ id: fresh("msg"), conversation_id: fresh("conv"), sender_id: CHAT_IDS.me }),
-    );
-    await settle();
-    expect(h.toasts).toHaveLength(0);
+
+    deliver(conversationId);
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+    await act(async () => {
+      h.toasts[0]?.options.action?.onClick();
+    });
+
+    expect(h.navigations).toEqual([{ to: "/messages", search: { c: conversationId } }]);
+    expect(screen.queryByTestId("panel-chat")).toBeNull();
+    // Rozmowę pokazuje strona, więc jej pigułka schodzi z paska bez prośby
+    // o otwarcie skrzynki; druga zostaje.
+    const snapshot = minimizedChatsStore.getSnapshot();
+    expect(snapshot.minimized.map((chat) => chat.id)).toEqual([otherId]);
+    expect(snapshot.requested).toBeNull();
   });
 });

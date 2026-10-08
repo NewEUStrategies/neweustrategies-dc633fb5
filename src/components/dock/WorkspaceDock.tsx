@@ -57,7 +57,7 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bookmark, CalendarDays, ListTodo, NotebookPen } from "lucide-react";
 
@@ -65,8 +65,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { onOpenChatWindow } from "@/lib/chat/chatDockBus";
 import { minimizedChatsStore } from "@/lib/chat/minimizedChats";
-import { useIncomingChatToasts } from "@/lib/chat/useIncomingChatToasts";
+import { dismissIncomingChatToast, useIncomingChatToasts } from "@/lib/chat/useIncomingChatToasts";
 import { useCommunityModules } from "@/lib/community/useCommunityModules";
+import { stripLangPrefix } from "@/lib/i18n/localePath";
+import { useNotificationPreferences } from "@/lib/notifications/useNotifications";
 import { type DockToolId } from "@/lib/dock/types";
 import { dockReducer, initialDockState, readLastTool, writeLastTool } from "@/lib/dock/dockState";
 import { useDockReservedSpace } from "@/lib/dock/useDockReservedSpace";
@@ -154,12 +156,24 @@ export function WorkspaceDock() {
   // doku nic nie renderuje, więc żadna wiadomość nie dawała toasta. Pasek ma
   // właściwe bramki (zalogowany, poza /admin i /login, leniwy chunk - gość
   // nie pobiera kodu ani nie otwiera kanału), stoi w stałej pozycji drzewa
-  // `SiteChrome` i to on słucha szyny, w którą celuje akcja „Otwórz" toasta.
-  // Moduł czatu wyłączony w panelu nie otwiera kanału. Ustawienie pochodzi
-  // z tego samego zapytania `site_settings`, z którego pasek czyta niżej
-  // konfigurację skrótów, więc nie kosztuje osobnego żądania.
+  // `SiteChrome` i to on słucha szyny, w którą celuje akcja toasta.
+  //
+  // Kanał nie powstaje (a otwarty się zamyka), gdy:
+  //  - moduł czatu jest wyłączony w panelu (to samo zapytanie `site_settings`,
+  //    z którego pasek czyta niżej konfigurację skrótów);
+  //  - użytkownik wyłączył „Wiadomości na czacie" (`enabled_message`);
+  //  - ma tryb cichy (`allow_messages_from = 'nobody'`).
+  // Dwa ostatnie warunki serwer stosuje do powiadomień o wiadomościach
+  // (20260713100000_chat_improvements_round3.sql, fan-out; tryb cichy w kręgu:
+  // 20260713200000_chat_admin_tenant_scope_fix.sql), więc toast nie może ich
+  // omijać. Preferencje czyta ten sam klucz cache co `NotificationsBell`
+  // w nagłówku: gdy dzwonek je już pobrał, pasek nie wysyła żądania.
   const chatEnabled = useCommunityModules().chat_enabled;
-  useIncomingChatToasts(chatEnabled);
+  const notificationPrefs = useNotificationPreferences().data;
+  const messageToastsAllowed =
+    notificationPrefs?.enabled_message !== false &&
+    notificationPrefs?.allow_messages_from !== "nobody";
+  useIncomingChatToasts(chatEnabled && messageToastsAllowed);
 
   // Jedyna powierzchnia rozmów: kliknięcie "Napisz" gdziekolwiek w serwisie
   // (szyna chatDockBus) otwiera lewą skrzynkę z wybraną konwersacją.
@@ -169,19 +183,36 @@ export function WorkspaceDock() {
   // pola - świeży literał sam wystarcza. Zegar w rozdzielczości milisekundy
   // i tak nie różnicował dwóch wysłań w tej samej milisekundzie, a dok ma
   // dobry powód być powierzchnią bez odczytu zegara.
+  //
+  // NA STRONIE /messages rozmowy pokazuje sama strona. Skrzynka doku nad nią
+  // dawałaby dwa okna czatu naraz (strona z rozmową B, szuflada z A), każde
+  // z własnymi kanałami pisania i odczytu. Tam szyna przełącza więc rozmowę
+  // strony (`?c=<id>`, które trasa obsługuje), a pigułkę tej rozmowy zdejmuje.
   const [pendingChat, setPendingChat] = useState<{ conversationId: string } | null>(null);
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   useEffect(
     () =>
       onOpenChatWindow((request) => {
+        const { conversationId } = request;
+        // Otwarta rozmowa nie potrzebuje już toasta o swojej wiadomości.
+        dismissIncomingChatToast(conversationId);
+        const { minimized } = minimizedChatsStore.getSnapshot();
+        const isMinimized = minimized.some((chat) => chat.id === conversationId);
+        if (stripLangPrefix(pathnameRef.current).pathname === "/messages") {
+          if (isMinimized) minimizedChatsStore.remove(conversationId);
+          void navigateRef.current({ to: "/messages", search: { c: conversationId } });
+          return;
+        }
         // Rozmowa zminimalizowana wraca przez API wspólnego magazynu sesji
         // (to samo, co klik w jej pigułkę). Bez tego pigułka zostawała na
-        // pasku obok tej samej rozmowy otwartej w skrzynce - np. po „Otwórz"
-        // w toaście albo „Napisz" w profilu.
-        const { minimized } = minimizedChatsStore.getSnapshot();
-        if (minimized.some((chat) => chat.id === request.conversationId)) {
-          minimizedChatsStore.restore(request.conversationId);
-        }
-        setPendingChat({ conversationId: request.conversationId });
+        // pasku obok tej samej rozmowy otwartej w skrzynce - np. po akcji
+        // toasta albo „Napisz" w profilu.
+        if (isMinimized) minimizedChatsStore.restore(conversationId);
+        setPendingChat({ conversationId });
         dispatch({ type: "open", tool: "chat" });
       }),
     [],
