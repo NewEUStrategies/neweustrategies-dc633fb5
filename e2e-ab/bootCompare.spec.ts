@@ -235,7 +235,7 @@ test(`[A/B ${LABEL}] pierwsze wczytanie na ${ROUTE}`, async ({ page }) => {
   // to już NIE WPŁYWA na żadną inną metrykę, bo tamte są zebrane.
   const readyMs = await page
     .waitForFunction(
-      () => (window as Window & { __nesAbReadyAt?: number | null }).__nesAbReadyAt ?? false,
+      () => (window as Window & { __nesAbReadyAt?: number | null }).__nesAbReadyAt ?? null,
       undefined,
       { timeout: READY_POLL_BUDGET_MS - OBSERVATION_WINDOW_MS, polling: READY_POLL_INTERVAL_MS },
     )
