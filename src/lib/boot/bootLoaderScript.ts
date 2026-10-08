@@ -1,8 +1,8 @@
 // LOADER BOOTU (P2.1, krok 2; P3.4) - klasyczny, inline'owy skrypt w `<head>`, zaraz po sondzie
 // bootu (`lib/observability/bootProbeScript.ts`). Startuje aplikację: wstawia `<link
-// rel=modulepreload>` listy z `#nes-boot-set` (`bootSet.server.ts`) grupami zestawu i `<script
-// type="module" src=wejście>` - to drugie NIGDY przed zażądaniem ostatniej grupy ani przed końcem
-// parsowania dokumentu (niżej, „SERIA GRUPAMI” i „WEJŚCIE PO PARSOWANIU”).
+// rel=modulepreload>` całej listy z `#nes-boot-set` (`bootSet.server.ts`) i `<script type="module"
+// src=wejście>` - to drugie NIGDY przed końcem parsowania dokumentu (niżej, „WEJŚCIE PO
+// PARSOWANIU”).
 //
 // PO CO. Manifest TanStack Start nie startuje już JS-a (`scripts/lib/bootAfterLcpPlugin.ts`).
 // Lantern liczy do grafu FCP/LCP każdy skrypt zakończony przed OBSERWOWANYM LCP (PLAN §1.3,
@@ -34,17 +34,18 @@
 // `setTimeout(0)`): układ jest wtedy czysty, bo policzyła go klatka, więc odczyt nic nie wymusza.
 // Tam też zapada `nocand` dla kandydata poza oknem; dokument BEZ kandydata nie dotyka geometrii
 // wcale (pusta lista `img[data-lcp-candidate]`). Wpis LCP sprzed pomiaru czeka w V i jest
-// oceniany w X - jak dawniej w handlerze DCL.
+// oceniany w X - jak dawniej w handlerze DCL. Zmierzone (Prove P3.4): Style+Layout nie znika,
+// tylko robi go klatka (TBT bez zmiany ponad szum). Gdy DCL przychodzi PRZED pierwszą klatką
+// (harness: dokument w jednej porcji), Lantern dolicza zadanie tej klatki do FCP desktop
+// (~+0,09 s sym. przy FCP 0,4-0,6 s - ocena FCP bez zmiany); na produkcji klatka jest przed DCL
+// (6/6 śladów LH 2026-10-08), więc tam zadanie pierwszego Paint niosło ten układ już wcześniej.
 //
-// SERIA GRUPAMI (P3.4). Zestaw niesie granice grup w `g` (indeksy w `u`, wyznacza je serwer):
-// (1) domknięcie wejścia (wejście + vendory), (2) słownik języka + chunki trasy, (3) chunki
-// widgetów nad zgięciem. Każda grupa idzie w OSOBNYM zadaniu (`setTimeout(0)` między grupami),
-// żeby dokończenia kompilacji serii nie lądowały w jednym długim zadaniu (`ScriptCatchup`).
-// Wejście dopiero po zażądaniu ostatniej grupy, więc reguła CLS z werdyktu boot-js C3 („chunki
-// widgetów nad zgięciem w tym samym burście co wejście”) obowiązuje nadal: żaden moduł nie
-// ewaluuje się przed zażądaniem wszystkich. Wyzwalacz `now` (zalogowani, panel, trasy bez
-// kandydata) wstawia całą serię naraz - bez czekania. Zestaw bez `g` (albo z `g` spoza zakresu)
-// to jedna grupa.
+// SERIA JEDNYM ZADANIEM (P3.4, zmierzone i wycofane). Wariant z grupami `modulepreload`
+// w osobnych zadaniach (domknięcie wejścia | słownik + trasa | widgety, `setTimeout(0)` między
+// grupami) nie podzielił `ScriptCatchup`: przeglądarka linkuje domknięcie wejścia jednym zadaniem
+// niezależnie od podziału żądań (15/15 przebiegów), a wejście szło 4-16 ms później. Wejście stoi
+// za całą serią, więc reguła CLS z werdyktu boot-js C3 („chunki widgetów nad zgięciem w tym samym
+// burście co wejście”) obowiązuje: żaden moduł nie ewaluuje się przed zażądaniem wszystkich.
 //
 // WEJŚCIE PO PARSOWANIU (poprawka po Prove P2.1). Na bazie wejście było skryptem parserowym
 // (`type=module` = `defer`): wykonywało się dopiero po sparsowaniu CAŁEGO dokumentu. Moduł
@@ -60,14 +61,14 @@
 //
 // ZESTAW CZYTANY LENIWIE. `#nes-boot-set` przychodzi z buforem routera przy pierwszej granicy
 // strumienia. W zmierzonych dokumentach stoi PRZED loaderem (baza W3: offset 11 727 B wobec
-// 23 290 B loadera; spike P2.1: 498–11 497 B w 36/36), więc odczyt przy starcie skryptu go
-// zastaje. Gdy go nie ma, ostatnia szansa to DOMContentLoaded (P3.4: bez `MutationObserver`
-// z `subtree` na całym dokumencie w trakcie parsowania - w śladach bazy nie był ani razu
-// uzbrojony, a jego rolę przejmuje odczyt przy DCL; dokument `now` i tak ma serię w nagłówku
-// `Link`). Brak przy DOMContentLoaded (dev: `<Scripts>` frameworka startuje aplikację sam) - nic
-// nie robimy. Węzeł jest USUWANY od razu po odczycie, czyli zawsze przed wstawieniem wejścia:
-// obcy węzeł w zwykłym (nie singletonowym) rodzicu byłby niedopasowaniem hydratacji (React 19
-// pomija obce węzły tylko w `html`/`head`/`body`).
+// 23 290 B loadera; spike P2.1: 498–11 497 B w 36/36; strażnik kolejności w e2e `boot-home`),
+// więc odczyt przy starcie skryptu go zastaje. Gdy go nie ma, ostatnia szansa to DOMContentLoaded
+// (P3.4: bez `MutationObserver` z `subtree` na całym dokumencie w trakcie parsowania - w śladach
+// bazy nie był ani razu uzbrojony, a jego rolę przejmuje odczyt przy DCL; dokument `now` i tak ma
+// serię w nagłówku `Link`). Brak przy DOMContentLoaded (dev: `<Scripts>` frameworka startuje
+// aplikację sam) - nic nie robimy. Węzeł jest USUWANY od razu po odczycie, czyli zawsze przed
+// wstawieniem wejścia: obcy węzeł w zwykłym (nie singletonowym) rodzicu byłby niedopasowaniem
+// hydratacji (React 19 pomija obce węzły tylko w `html`/`head`/`body`).
 //
 // OBSERWOWALNOŚĆ. `window.__nesBootWhy` = `now` | `lcp` | `input` | `nocand` | `load` | `cap`
 // (co wyzwoliło boot - e2e i pomiar; ustawiane przy wyzwoleniu, przed DCL też), a
@@ -83,7 +84,7 @@
 // ten sam tekst z wykonanego już węzła `script[data-nes-boot]`, więc literał nie trafia do bundla
 // klienta (zapas domknięcia bootu, `check:bundle` i `document-weight`). Tekst stoi w `<head>`
 // każdego dokumentu, a próg `headRawBytes` ma ~0,4 KB zapasu: P3.4 nie powiększa go netto
-// (grupy i pomiar po klatce opłacone usunięciem obserwatora mutacji).
+// (pomiar po klatce opłacony usunięciem obserwatora mutacji).
 import { STORED_SESSION_EXPR } from "@/integrations/supabase/sessionHint";
 
 /** Id węzła zestawu bootu - kontrakt z `bootSet.server.ts`, e2e i `documentWeight.ts`. */
@@ -108,26 +109,24 @@ declare global {
 }
 
 // Nazwy w skrypcie (jednoliterowe, bo tekst stoi w `<head>` każdego dokumentu - budżet
-// `headRawBytes`): B boot, J kolejna grupa serii, H wstawienie wejścia (po ostatniej grupie
-// i po parsowaniu), T opóźniony boot, L wywołanie po pierwszej klatce (rAF + `setTimeout(0)`),
-// M boot `nocand`, G interakcja, Q odczyt zestawu, O przyjęcie wpisu LCP, Z widoczne pole
-// elementu, X pole kandydata po klatce, C decyzja trybu, Y DOMContentLoaded, I kandydaci;
-// S zestaw, R zestaw odczytany, D decyzja zapadła, F boot wykonany, W powód sprzed odczytu,
-// P PerformanceObserver, V ostatni wpis LCP, A pole kandydata, U nazwa zdarzenia DCL,
-// g granice grup, k następna granica.
+// `headRawBytes`): B boot, H wstawienie wejścia (po parsowaniu), T opóźniony boot, L wywołanie
+// po pierwszej klatce (rAF + `setTimeout(0)`), M boot `nocand`, G interakcja, Q odczyt zestawu,
+// O przyjęcie wpisu LCP, Z widoczne pole elementu, X pole kandydata po klatce, C decyzja trybu,
+// Y DOMContentLoaded, I kandydaci; S zestaw, R zestaw odczytany, D decyzja zapadła, F boot
+// wykonany, W powód sprzed odczytu, P PerformanceObserver, V ostatni wpis LCP, A pole kandydata,
+// U nazwa zdarzenia DCL.
 export const BOOT_LOADER_SCRIPT = [
   "(function(){",
   'var w=window,d=document,S,R,D,F,W,P,V,A=0,N="largest-contentful-paint",U="DOMContentLoaded",',
   'E=["pointerdown","keydown","touchstart","focusin"],K="data-lcp-candidate";',
-  // Boot: seria `modulepreload` grupami (każda grupa w osobnym zadaniu, `now` naraz), wejście
-  // po ostatniej grupie i po sparsowaniu dokumentu (H); bez zestawu zapamiętuje powód do chwili
-  // odczytu. Granica spoza zakresu nie wstawia `undefined` (warunek `i<S.u.length`).
+  // Boot: seria `modulepreload` od razu (jednym zadaniem), wejście dopiero po sparsowaniu
+  // dokumentu (H); bez zestawu zapamiętuje powód do chwili odczytu.
   "function B(y){if(F)return;if(!S){W=W||y;return}F=1;w.__nesBootWhy=y;",
-  'for(var i=0,k=0,g=y=="now"?[]:S.g||[];i<E.length;i++)w.removeEventListener(E[i],G,!0);',
-  "try{P&&P.disconnect()}catch(x){}i=0;",
-  "(function J(){for(var j=k<g.length?g[k++]:S.u.length,l;i<j&&i<S.u.length;i++){",
-  'l=d.createElement("link");l.rel="modulepreload";l.href=S.u[i];d.head.appendChild(l)}',
-  'i<S.u.length?setTimeout(J):d.readyState=="loading"?d.addEventListener(U,H):H()})()}',
+  "for(var i=0;i<E.length;i++)w.removeEventListener(E[i],G,!0);",
+  "try{P&&P.disconnect()}catch(x){}",
+  'for(i=0;i<S.u.length;i++){var l=d.createElement("link");l.rel="modulepreload";',
+  "l.href=S.u[i];d.head.appendChild(l)}",
+  'd.readyState=="loading"?d.addEventListener(U,H):H()}',
   // Wejście (semantyka `defer` z bazy): moduł wstawiony skryptem jest `async`, a hydratacja
   // TanStack wymaga ogona dokumentu (`$_TSR`); watchdog sondy liczy od tej chwili.
   'function H(){w.__nesBootArm&&w.__nesBootArm();var l=d.createElement("script");',
