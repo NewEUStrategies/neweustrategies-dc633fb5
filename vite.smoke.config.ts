@@ -301,7 +301,7 @@ export default defineConfig({
                   return "vendor-i18n";
                 }
                 // Biblioteki bez zależności (zod / tailwind-merge / dompurify)
-                // i sonner (zależny wyłącznie od react) - własne chunki
+                // i biblioteka sonner (zależna wyłącznie od react) - własne chunki
                 // vendorowe zamiast zapadania się w chunk wejściowy. Dla zod i
                 // tailwind-merge (nadal statycznie osiągalne z entry) nie
                 // zmniejsza to bajtów pierwszej wizyty, ale zdejmuje ~230 kB
@@ -311,9 +311,12 @@ export default defineConfig({
                 // i lib/notify.ts) - nazwany chunk stabilizuje ich adres,
                 // a bramka check-entry-purity pilnuje, żeby nie wróciły.
                 // Domknięcie zależności (incydent 2026-07-20): zod,
-                // tailwind-merge i dompurify nie importują niczego; sonner
-                // importuje wyłącznie react/react-dom (vendor-react, krawędź
-                // jednokierunkowa).
+                // tailwind-merge i dompurify nie importują niczego; biblioteka
+                // sonner importuje wyłącznie react/react-dom (vendor-react,
+                // krawędź jednokierunkowa). Opakowanie `ui/sonner.tsx` w tym
+                // samym chunku dokłada krawędź do `vendor-i18n` (etykieta
+                // regionu toastów) - też jednokierunkową, bo vendor-i18n nie
+                // importuje sonnera.
                 // Tylko zod TOP-LEVEL: @tanstack/react-start wozi ZAGNIEŻDŻONĄ
                 // kopię zod 4 (node_modules/@tanstack/.../node_modules/zod) -
                 // mieszanie dwóch wersji w jednym cache-stabilnym chunku
