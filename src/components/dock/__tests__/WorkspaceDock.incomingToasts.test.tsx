@@ -24,11 +24,18 @@
 // RODO: rozmówcy to identyfikatory z `CHAT_IDS`, treści zmyślone.
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import "@/test/i18nReal";
-import { CHAT_IDS, conversationRow, ok, participantRow, peerProfile } from "@/test/chat/fixtures";
-import type { RealtimeStub, SupabaseFromStub } from "@/test/supabase";
+import {
+  CHAT_IDS,
+  conversationRow,
+  fail,
+  ok,
+  participantRow,
+  peerProfile,
+} from "@/test/chat/fixtures";
+import type { RealtimeStub, SupabaseFromStub, SupabaseResult } from "@/test/supabase";
 import type { ConversationRow, ParticipantRow } from "@/lib/chat/types";
 import type { NotificationPreferences } from "@/lib/notifications/preferences";
 
@@ -139,6 +146,7 @@ import { openChatWindow } from "@/lib/chat/chatDockBus";
 import { minimizedChatsStore } from "@/lib/chat/minimizedChats";
 import { COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
 import { DEFAULT_NOTIFICATION_PREFERENCES } from "@/lib/notifications/preferences";
+import { useNotificationPreferences as useBellPreferences } from "@/lib/notifications/useNotifications";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 const realtime = () => h.realtime as RealtimeStub;
@@ -305,10 +313,11 @@ describe("montaż: raz na sesję, tylko dla członka", () => {
   it("bez preferencji w cache pasek wysyła JEDNO żądanie preferencji i nic poza nim", async () => {
     from().setResponse("notification_preferences", ok(null));
     renderDock(settingsClient(true, null));
-    await settle();
+    // Kanał powstaje dopiero po odpowiedzi preferencji (patrz niżej).
+    await waitFor(() => expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(1));
 
     expect(from().chains.map((chain) => chain.table)).toEqual(["notification_preferences"]);
-    expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(1);
+    expect(realtime().channels).toHaveLength(1);
   });
 
   it("nawigacja przerysowuje pasek, ale nie otwiera drugiego kanału", () => {
@@ -380,7 +389,83 @@ describe("montaż: raz na sesję, tylko dla członka", () => {
   });
 });
 
+/** Odpowiedź preferencji trzymana do ręcznego zwolnienia - okno „jeszcze się wczytują”. */
+function deferredPreferences() {
+  let release: (result: SupabaseResult) => void = () => {};
+  from().setResponse(
+    "notification_preferences",
+    () =>
+      new Promise<SupabaseResult>((resolve) => {
+        release = resolve;
+      }),
+  );
+  return {
+    resolve: async (result: SupabaseResult) => {
+      await act(async () => {
+        release(result);
+      });
+      await settle();
+    },
+  };
+}
+
+/** Dzwonek w nagłówku: ten sam odczyt preferencji, ścieżką ciężkiej warstwy powiadomień. */
+function BellPreferencesProbe({ onData }: { onData: (value: unknown) => void }) {
+  onData(useBellPreferences().data);
+  return null;
+}
+
 describe("preferencje powiadomień (jak serwerowy fan-out)", () => {
+  it("do czasu wczytania preferencji kanału nie ma - „wyłączone” nie daje join i leave", async () => {
+    const prefs = deferredPreferences();
+    renderDock(settingsClient(true, null));
+    await settle();
+    expect(from().chains.map((chain) => chain.table)).toEqual(["notification_preferences"]);
+    expect(realtime().channels).toHaveLength(0);
+
+    await prefs.resolve(ok({ enabled_message: false }));
+    // Ani jednego kanału w całej sesji - wiadomość z okna wczytywania nie
+    // mogła więc dać toasta wbrew jawnemu „wyłączone”.
+    expect(realtime().channels).toHaveLength(0);
+  });
+
+  it("po wczytaniu „włączonych” kanał się otwiera i doręcza", async () => {
+    const prefs = deferredPreferences();
+    renderDock(settingsClient(true, null));
+    await settle();
+    expect(realtime().channels).toHaveLength(0);
+
+    await prefs.resolve(ok(null));
+    expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(1);
+    deliver(fresh("conv-prefs-loaded"));
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+  });
+
+  it("błąd odczytu preferencji nie wyłącza toastów (jak przy innych flagach)", async () => {
+    from().setResponse("notification_preferences", fail("boom"));
+    renderDock(settingsClient(true, null));
+    await waitFor(() => expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(1));
+  });
+
+  it("pasek i dzwonek dzielą JEDEN wpis cache - jedno żądanie preferencji dla obu", async () => {
+    from().setResponse("notification_preferences", ok({ allow_messages_from: "contacts" }));
+    const client = settingsClient(true, null);
+    const seen: unknown[] = [];
+    render(
+      <QueryClientProvider client={client}>
+        <WorkspaceDock />
+        <BellPreferencesProbe onData={(value) => seen.push(value)} />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(realtime().liveChannels(PARTICIPANTS)).toHaveLength(1));
+
+    expect(from().chainsFor("notification_preferences")).toHaveLength(1);
+    expect(seen.at(-1)).toEqual({
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      allow_messages_from: "contacts",
+    });
+  });
+
   it("wyłączone „Wiadomości na czacie” (`enabled_message`): kanału nie ma", () => {
     renderDock(settingsClient(true, { enabled_message: false }));
     expect(realtime().channels).toHaveLength(0);
@@ -546,5 +631,31 @@ describe("toast i jego akcja", () => {
     const snapshot = minimizedChatsStore.getSnapshot();
     expect(snapshot.minimized.map((chat) => chat.id)).toEqual([otherId]);
     expect(snapshot.requested).toBeNull();
+  });
+
+  it("na /messages z otwartą skrzynką doku akcja ją zamyka - zostaje JEDNO okno rozmów", async () => {
+    const conversationId = fresh("conv-page-drawer");
+    h.pathname = "/messages";
+    renderDock();
+
+    // Członek otworzył „Czaty” w doku na stronie rozmów.
+    const [chatsTab] = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-dock-tab="chats"]'),
+    );
+    if (!chatsTab) throw new Error("test: brak zakładki czatów");
+    fireEvent.click(chatsTab);
+    expect(await screen.findByTestId("panel-chat")).toBeTruthy();
+
+    deliver(conversationId);
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+    await act(async () => {
+      h.toasts[0]?.options.action?.onClick();
+    });
+
+    expect(h.navigations).toEqual([{ to: "/messages", search: { c: conversationId } }]);
+    await waitFor(() => expect(screen.queryByTestId("panel-chat")).toBeNull());
+    for (const tab of document.querySelectorAll('[data-dock-tab="chats"]')) {
+      expect(tab.getAttribute("aria-expanded")).toBe("false");
+    }
   });
 });

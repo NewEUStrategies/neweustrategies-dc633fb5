@@ -21,12 +21,20 @@
 //  - Nowa wiadomość to wzrost `unread_count` względem ostatnio widzianej
 //    wartości tej rozmowy. Potwierdzenie dostarczenia, wyciszenie czy
 //    przypięcie licznika nie zmieniają, więc toasta nie dają.
-//  - Pierwsze zdarzenie rozmowy w sesji nie ma punktu odniesienia (przy RLS
-//    Realtime nie przysyła starego wiersza). Wtedy wymagamy podpisu
+//  - Pierwsze zdarzenie rozmowy w sesji nie ma punktu odniesienia (Realtime
+//    nie przysyła starego wiersza: tabela ma REPLICA IDENTITY DEFAULT, a przy
+//    RLS i tak dostalibyśmy tylko klucz). Wtedy wymagamy podpisu
 //    transakcji: `updated_at` wiersza równe `last_message_at` rozmowy.
 //    Potwierdzenie dostarczenia sprzed chwili tego podpisu nie ma.
+//  - Punkt odniesienia trzyma też ZNACZNIK ODCZYTU wiersza (`id`,
+//    `last_read_at`, `cleared_before`). Realtime nie odtwarza zdarzeń
+//    z czasu zerwanego gniazda (uśpiony laptop, karta w tle), więc zerowanie
+//    licznika (odczyt na telefonie, czyszczenie historii) mogło przepaść.
+//    Inny znacznik albo licznik niższy niż zapamiętany znaczy, że punkt
+//    odniesienia jest nieaktualny - wtedy też rozstrzyga podpis transakcji.
 //  - Spadek do zera (przeczytano tutaj, w innej karcie albo na innym
-//    urządzeniu) zdejmuje toast tej rozmowy.
+//    urządzeniu) zdejmuje toast tej rozmowy, także gdy przyjdzie w trakcie
+//    odczytów: po nich toast powstaje tylko, jeśli licznik nadal jest > 0.
 // Podgląd i nadawcę daje JEDEN select `conversations.last_message_*` (RLS
 // członka). Wyciszenie przychodzi w ładunku zdarzenia (`muted_until`), więc
 // nie kosztuje zapytania.
@@ -41,6 +49,11 @@
 // wiadomości i karta w tle nie piętrzą stosu. Pokazane identyfikatory trzyma
 // rejestr modułu. Koniec sesji (wylogowanie, zmiana konta, wyłączenie) zdejmuje
 // je wszystkie, a otwarcie rozmowy zdejmuje jej toast.
+//
+// KANAŁ JEST WSPÓLNY z listą rozmów, a hub woła handlery jeden po drugim,
+// bez izolacji. Pasek rejestruje toasty jako pierwsze, więc wyjątek w ich
+// obsłudze zabrałby liście unieważnienie i potwierdzenie dostarczenia. Dlatego
+// handler toastów łapie własne wyjątki (`reportError`) i nigdy nie rzuca dalej.
 //
 // GDZIE TO ŻYJE. Hak montuje `WorkspaceDock`, jedyna powierzchnia rozmów:
 // leniwy chunk renderowany wyłącznie dla zalogowanych, poza /admin i /login,
@@ -118,8 +131,15 @@ let refCount = 0;
 /** Pokolenie sesji: rośnie przy każdym otwarciu i zamknięciu kanału. */
 let generation = 0;
 
-/** Ostatnio widziany `unread_count` per rozmowa, czyli punkt odniesienia. */
-const lastUnread = new Map<string, number>();
+/** Punkt odniesienia rozmowy: ostatnio widziany licznik i znacznik odczytu. */
+interface Baseline {
+  readonly unread: number;
+  /** `id|last_read_at|cleared_before` wiersza - zmienia się przy każdym zerowaniu. */
+  readonly readMark: string;
+}
+
+/** Ostatnio widziany stan własnego wiersza per rozmowa. */
+const baselines = new Map<string, Baseline>();
 /** `last_message_at` (ms) ostatniej obsłużonej wiadomości per rozmowa. */
 const handledAt = new Map<string, number>();
 const runs = new Map<string, ConversationRun>();
@@ -151,6 +171,12 @@ export function dismissIncomingChatToast(conversationId: string): void {
   toast.dismiss(id);
 }
 
+/** Błąd toastów idzie do globalnej obsługi błędów, nie do pętli huba. */
+function report(error: unknown): void {
+  if (typeof reportError === "function") reportError(error);
+  else console.error(error);
+}
+
 function isCurrent(uid: string, gen: number): boolean {
   return subscribedUid === uid && generation === gen;
 }
@@ -168,15 +194,21 @@ function clip(text: string): string {
 }
 
 /**
- * Podgląd z denormalizacji rozmowy: dla tekstu to treść, dla zdjęcia
- * i pliku podpis albo nazwa pliku, dla głosówki nic (etykietę nadaje klient).
- * Przycinamy WYNIK KOŃCOWY, razem z etykietą załącznika.
+ * Podgląd z denormalizacji rozmowy: dla tekstu to treść, dla pliku podpis
+ * albo nazwa pliku, dla głosówki nic (etykietę nadaje klient). Przycinamy
+ * WYNIK KOŃCOWY, razem z etykietą załącznika.
+ *
+ * Zdjęcie to zawsze sama etykieta, jak na liście rozmów. Trigger zapisuje
+ * w podglądzie podpis ALBO nazwę pliku (`COALESCE(NULLIF(left(body,140),''),
+ * attachment_name)`), a klient wysyła nazwę oryginału, więc zdjęcie bez
+ * podpisu dawało „Zdjęcie - IMG_4521.HEIC”. Podpisu nie da się odróżnić od
+ * nazwy pliku, więc nie pokazujemy żadnego.
  */
 function buildPreview(conversation: ConversationPreview): string {
   const text = (conversation.last_message_preview ?? "").trim();
   switch (conversation.last_message_kind) {
     case "image":
-      return clip(text ? `${i18n.t("chat.photo")} - ${text}` : i18n.t("chat.photo"));
+      return i18n.t("chat.photo");
     case "file":
       return clip(text ? `${i18n.t("chat.file")}: ${text}` : i18n.t("chat.file"));
     case "audio":
@@ -273,9 +305,12 @@ async function announce(
 
   const peer = await resolvePeer(senderId);
   // Odczyty trwają. W tym czasie sesja mogła się skończyć (wylogowanie,
-  // zejście doku) albo użytkownik mógł otworzyć tę rozmowę. Spóźniony toast
-  // nie może trafić do innej sesji ani dublować okna, które już czyta.
+  // zejście doku), użytkownik mógł otworzyć tę rozmowę albo przeczytać ją
+  // gdzie indziej (licznik 0 przyszedł, zanim toast powstał, więc nie było
+  // czego zdjąć). Spóźniony toast nie może trafić do innej sesji, dublować
+  // okna, które już czyta, ani wisieć nad przeczytaną rozmową.
   if (!isCurrent(uid, gen) || isConversationFocused(conversationId)) return;
+  if ((baselines.get(conversationId)?.unread ?? 0) <= 0) return;
   const message: IncomingChatMessage = { conversationId, senderId, at };
   window.dispatchEvent(new CustomEvent<IncomingChatMessage>(INCOMING_EVENT, { detail: message }));
   showToast(conversation, peer);
@@ -325,20 +360,27 @@ function handleChange(uid: string, gen: number, payload: Parameters<TableChangeH
   }
   const conversationId = row.conversation_id;
   const unread = typeof row.unread_count === "number" ? row.unread_count : 0;
-  const previous = lastUnread.get(conversationId);
-  remember(lastUnread, conversationId, unread);
+  const readMark = `${row.id ?? ""}|${row.last_read_at ?? ""}|${row.cleared_before ?? ""}`;
+  const previous = baselines.get(conversationId);
+  remember(baselines, conversationId, { unread, readMark });
 
   if (unread <= 0) {
     dismissIncomingChatToast(conversationId);
     return;
   }
-  if (previous !== undefined && unread <= previous) return;
+  // Punkt odniesienia jest wiarygodny, gdy od jego zapisu nikt rozmowy nie
+  // przeczytał ani nie wyczyścił (ten sam znacznik), a licznik nie spadł.
+  // Inaczej przepadło nam zerowanie i nowa wiadomość może dać licznik równy
+  // albo niższy niż zapamiętany - rozstrzyga wtedy podpis transakcji.
+  const trusted =
+    previous !== undefined && previous.readMark === readMark && unread >= previous.unread;
+  if (trusted && unread === previous.unread) return;
 
   const mutedUntil = mutedUntilMs(row.muted_until ?? null);
   if (mutedUntil !== null && mutedUntil > Date.now()) return;
   if (isConversationFocused(conversationId)) return;
 
-  schedule(uid, gen, conversationId, row, previous === undefined);
+  schedule(uid, gen, conversationId, row, !trusted);
 }
 
 /** Zamyka kanał i czyści stan sesji, w tym jej toasty i pamięć profili. */
@@ -349,7 +391,7 @@ function closeSession(): void {
   generation += 1;
   for (const id of shownToasts) toast.dismiss(id);
   shownToasts.clear();
-  lastUnread.clear();
+  baselines.clear();
   handledAt.clear();
   runs.clear();
   peerCache.clear();
@@ -363,9 +405,13 @@ function acquire(uid: string): void {
   subscribedUid = uid;
   generation += 1;
   const gen = generation;
-  unsubscribe = subscribeToTable(ownParticipantsChannel(uid), (payload) =>
-    handleChange(uid, gen, payload),
-  );
+  unsubscribe = subscribeToTable(ownParticipantsChannel(uid), (payload) => {
+    try {
+      handleChange(uid, gen, payload);
+    } catch (error) {
+      report(error);
+    }
+  });
 }
 
 function release(): void {

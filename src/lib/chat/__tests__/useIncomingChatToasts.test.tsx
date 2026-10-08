@@ -171,6 +171,8 @@ interface Delivery {
   readonly sender?: string;
   readonly mutedUntil?: string | null;
   readonly conversation?: Partial<ConversationRow>;
+  /** Pozostałe pola wiersza odbiorcy (np. `last_read_at` po odczycie gdzie indziej). */
+  readonly participant?: Partial<ParticipantRow>;
 }
 
 /**
@@ -196,6 +198,7 @@ function deliver(delivery: Delivery): string {
     unread_count: delivery.unread,
     updated_at: at,
     muted_until: delivery.mutedUntil ?? null,
+    ...delivery.participant,
   });
   return at;
 }
@@ -306,6 +309,51 @@ describe("cykl życia kanału", () => {
     expect(realtime().liveChannels(channelPrefix())).toHaveLength(1);
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
+  });
+
+  it("wyjątek w obsłudze toastu nie zabiera liście rozmów zdarzenia na wspólnym kanale", () => {
+    // Pasek rejestruje toasty PIERWSZE, a hub woła handlery w pętli. Gdyby
+    // obsługa toastu rzuciła, lista nie dostałaby unieważnienia ani
+    // potwierdzenia dostarczenia.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const reported = vi.fn();
+    vi.stubGlobal("reportError", reported);
+    try {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const invalidate = vi.spyOn(client, "invalidateQueries");
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+      renderHook(
+        () => {
+          useIncomingChatToasts();
+          useChatListRealtime();
+        },
+        { wrapper },
+      );
+      const boom = new Error("toast");
+      vi.spyOn(document, "hasFocus").mockImplementation(() => {
+        throw boom;
+      });
+
+      let thrown: unknown = null;
+      try {
+        emitParticipant({ conversation_id: fresh("conv-throw"), unread_count: 1 });
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeNull();
+      expect(reported).toHaveBeenCalledWith(boom);
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: ["chat", "conversations", CHAT_IDS.me],
+      });
+    } finally {
+      cleanup();
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("trzy montaże naraz trzymają JEDEN websocket, zwalniany dopiero przy ostatnim", () => {
@@ -511,6 +559,152 @@ describe("rozpoznawanie nowej wiadomości", () => {
 
     expect(h.toasts).toHaveLength(1);
   });
+
+  it("seria przy PIERWSZYM zdarzeniu rozmowy: niezgodny podpis pierwszej, toast z najnowszą", async () => {
+    // Odczyt dla pierwszej wiadomości widzi już drugą, więc podpis pierwszego
+    // zdarzenia się nie zgadza. Drugie zdarzenie ma już punkt odniesienia
+    // i powtarza odczyt - toast pokazuje najnowszą treść, a nie żadną.
+    const conversationId = fresh("conv-first-burst");
+    renderHook(() => useIncomingChatToasts());
+    const first = nextIso();
+    const second = nextIso();
+    h.conversations.set(
+      conversationId,
+      conversationRow({
+        id: conversationId,
+        last_message_at: second,
+        last_message_kind: "text",
+        last_message_preview: "Druga",
+        last_message_sender: CHAT_IDS.peer,
+      }),
+    );
+    act(() => {
+      const channel = participantsChannel();
+      for (const [unread, at] of [
+        [1, first],
+        [2, second],
+      ] as const) {
+        channel.emitPostgres("conversation_participants", {
+          eventType: "UPDATE",
+          new: participantRow({
+            user_id: CHAT_IDS.me,
+            conversation_id: conversationId,
+            unread_count: unread,
+            updated_at: at,
+          }),
+        });
+      }
+    });
+
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+    expect(h.toasts[0]?.options.description).toBe("Druga");
+    expect(conversationReads()).toHaveLength(2);
+  });
+});
+
+describe("zgubione zdarzenia (gniazdo zerwane, karta uśpiona)", () => {
+  // Realtime nie odtwarza zdarzeń z czasu zerwanego gniazda. Odczyt na
+  // telefonie zeruje licznik i stempluje `last_read_at`, ale ta karta tego
+  // nie widzi - jej punkt odniesienia zostaje wysoki.
+
+  it("zgubione „przeczytane” (3 -> odczyt gdzie indziej -> 1): pierwsza nowa wiadomość MA toast", async () => {
+    const conversationId = fresh("conv-lost-read");
+    renderHook(() => useIncomingChatToasts());
+    deliver({ conversationId, unread: 3, body: "Przed snem" });
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+
+    const readOnPhone = nextIso();
+    deliver({
+      conversationId,
+      unread: 1,
+      body: "Po przebudzeniu",
+      participant: { last_read_at: readOnPhone },
+    });
+    await waitFor(() => expect(h.toasts).toHaveLength(2));
+    expect(h.toasts[1]?.options.description).toBe("Po przebudzeniu");
+
+    // Punkt odniesienia jest znowu wiarygodny: kolejna wiadomość bez podpisu.
+    deliver({
+      conversationId,
+      unread: 2,
+      body: "Kolejna",
+      participant: { last_read_at: readOnPhone },
+    });
+    await waitFor(() => expect(h.toasts).toHaveLength(3));
+  });
+
+  it("zgubione „przeczytane” przy RÓWNYM liczniku (1 -> odczyt -> 1) też daje toast", async () => {
+    const conversationId = fresh("conv-lost-equal");
+    renderHook(() => useIncomingChatToasts());
+    deliver({ conversationId, unread: 1, body: "Pierwsza" });
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+
+    deliver({
+      conversationId,
+      unread: 1,
+      body: "Druga po odczycie",
+      participant: { last_read_at: nextIso() },
+    });
+    await waitFor(() => expect(h.toasts).toHaveLength(2));
+    expect(h.toasts[1]?.options.description).toBe("Druga po odczycie");
+  });
+
+  it("zgubione wyczyszczenie historii (`cleared_before`) też unieważnia punkt odniesienia", async () => {
+    const conversationId = fresh("conv-lost-clear");
+    renderHook(() => useIncomingChatToasts());
+    deliver({ conversationId, unread: 2 });
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+
+    deliver({
+      conversationId,
+      unread: 1,
+      body: "Po wyczyszczeniu",
+      participant: { cleared_before: nextIso() },
+    });
+    await waitFor(() => expect(h.toasts).toHaveLength(2));
+  });
+
+  it("licznik NIŻSZY niż zapamiętany (bez znacznika odczytu) rozstrzyga podpis wiadomości", async () => {
+    const conversationId = fresh("conv-lost-lower");
+    renderHook(() => useIncomingChatToasts());
+    deliver({ conversationId, unread: 3 });
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+
+    deliver({ conversationId, unread: 1, body: "Nowa" });
+    await waitFor(() => expect(h.toasts).toHaveLength(2));
+    expect(h.toasts[1]?.options.description).toBe("Nowa");
+  });
+
+  it("po zgubionym odczycie zdarzenie BEZ podpisu wiadomości (dostarczenie) nie daje toasta", async () => {
+    // Wiadomość przyszła, gdy gniazdo spało (jej zdarzenie też przepadło),
+    // a po powrocie dociera tylko potwierdzenie dostarczenia. To zaległość,
+    // nie świeża wiadomość - toast byłby spóźniony o godziny.
+    const conversationId = fresh("conv-lost-ack");
+    renderHook(() => useIncomingChatToasts());
+    deliver({ conversationId, unread: 3 });
+    await waitFor(() => expect(h.toasts).toHaveLength(1));
+
+    h.conversations.set(
+      conversationId,
+      conversationRow({
+        id: conversationId,
+        last_message_at: nextIso(),
+        last_message_preview: "Zaległa",
+        last_message_sender: CHAT_IDS.peer,
+      }),
+    );
+    emitParticipant({
+      conversation_id: conversationId,
+      unread_count: 1,
+      last_read_at: nextIso(),
+      last_delivered_at: nextIso(),
+      updated_at: nextIso(),
+    });
+    await settle();
+
+    expect(conversationReads()).toHaveLength(2);
+    expect(h.toasts).toHaveLength(1);
+  });
 });
 
 describe("bramki widoczności", () => {
@@ -557,6 +751,56 @@ describe("bramki widoczności", () => {
     await settle();
 
     expect(h.toasts).toHaveLength(0);
+  });
+
+  it("rozmowa przeczytana gdzie indziej W TRAKCIE odczytu profilu nie dostaje toasta", async () => {
+    // Licznik 0 przychodzi, zanim toast powstał, więc nie ma czego zdjąć.
+    // Po odczytach toast nie może zawisnąć nad przeczytaną rozmową.
+    const conversationId = fresh("conv-read-race");
+    const peers = deferredPeers();
+    const seen: IncomingChatMessage[] = [];
+    const off = onIncomingChatMessage((message) => seen.push(message));
+    renderHook(() => useIncomingChatToasts());
+    deliver({ conversationId, unread: 1, sender: fresh("user-read-race") });
+    await waitFor(() => expect(peerCalls()).toHaveLength(1));
+
+    emitParticipant({ conversation_id: conversationId, unread_count: 0, updated_at: nextIso() });
+    peers.release();
+    await settle();
+
+    expect(h.toasts).toHaveLength(0);
+    expect(seen).toHaveLength(0);
+    off();
+  });
+
+  it("wiadomość, która przyszła PO takim odczycie, dostaje toast z najnowszą treścią", async () => {
+    const conversationId = fresh("conv-read-race-new");
+    const sender = fresh("user-race-new");
+    const peers = deferredPeers();
+    renderHook(() => useIncomingChatToasts());
+    deliver({ conversationId, unread: 1, body: "Przeczytana", sender });
+    await waitFor(() => expect(peerCalls()).toHaveLength(1));
+
+    const readAt = nextIso();
+    emitParticipant({
+      conversation_id: conversationId,
+      unread_count: 0,
+      last_read_at: readAt,
+      updated_at: readAt,
+    });
+    deliver({
+      conversationId,
+      unread: 1,
+      body: "Nowa po odczycie",
+      sender,
+      participant: { last_read_at: readAt },
+    });
+    peers.release();
+
+    await waitFor(() => expect(h.toasts.at(-1)?.options.description).toBe("Nowa po odczycie"));
+    expect(new Set(h.toasts.map((call) => call.options.id))).toEqual(
+      new Set([`chat-incoming:${conversationId}`]),
+    );
   });
 
   it("toast spóźniony za zakończeniem sesji przepada", async () => {
@@ -800,14 +1044,14 @@ describe("podgląd treści", () => {
     return h.toasts[0]?.options.description;
   }
 
-  it("zdjęcie bez podpisu ma własny zastępnik", async () => {
+  it("zdjęcie bez podglądu ma własny zastępnik", async () => {
     expect(await previewOf({ kind: "image", body: null })).toBe(t.photo);
   });
 
-  it("zdjęcie z podpisem skleja oba człony", async () => {
-    expect(await previewOf({ kind: "image", body: "Wykres zużycia" })).toBe(
-      `${t.photo} - Wykres zużycia`,
-    );
+  it("zdjęcie bez podpisu NIE pokazuje surowej nazwy pliku (tak zapisuje je trigger)", async () => {
+    // `messages_after_insert` zapisuje dla zdjęcia podpis ALBO nazwę pliku
+    // oryginału. Toast mówi to samo, co lista rozmów: „Zdjęcie”.
+    expect(await previewOf({ kind: "image", body: "IMG_4521.HEIC" })).toBe(t.photo);
   });
 
   it("plik pokazuje nazwę albo podpis z podglądu rozmowy", async () => {
@@ -830,10 +1074,10 @@ describe("podgląd treści", () => {
     expect(preview?.endsWith("...")).toBe(true);
   });
 
-  it("długi PODPIS załącznika też jest ucinany - limit obejmuje cały wynik", async () => {
-    const preview = await previewOf({ kind: "image", body: "a".repeat(140) });
+  it("długa NAZWA pliku też jest ucinana - limit obejmuje cały wynik", async () => {
+    const preview = await previewOf({ kind: "file", body: "a".repeat(140) });
     expect(preview).toHaveLength(120);
-    expect(preview?.startsWith(`${t.photo} - `)).toBe(true);
+    expect(preview?.startsWith(`${t.file}: `)).toBe(true);
     expect(preview?.endsWith("...")).toBe(true);
   });
 

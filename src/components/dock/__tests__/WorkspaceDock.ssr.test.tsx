@@ -78,8 +78,8 @@ vi.mock("@/lib/chat/useIncomingChatToasts", () => ({
   useIncomingChatToasts: () => {},
   dismissIncomingChatToast: () => {},
 }));
-vi.mock("@/lib/notifications/useNotifications", () => ({
-  useNotificationPreferences: () => ({ data: undefined }),
+vi.mock("@/lib/notifications/preferencesQuery", () => ({
+  useNotificationPreferences: () => ({ data: undefined, isError: false }),
 }));
 
 import { WorkspaceDock } from "../WorkspaceDock";

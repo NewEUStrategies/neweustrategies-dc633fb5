@@ -120,8 +120,8 @@ vi.mock("@/lib/chat/useIncomingChatToasts", () => ({
   useIncomingChatToasts: () => {},
   dismissIncomingChatToast: () => {},
 }));
-vi.mock("@/lib/notifications/useNotifications", () => ({
-  useNotificationPreferences: () => ({ data: undefined }),
+vi.mock("@/lib/notifications/preferencesQuery", () => ({
+  useNotificationPreferences: () => ({ data: undefined, isError: false }),
 }));
 
 vi.mock("@/components/mobile/bottomBar/LiveTabBadge", () => ({
@@ -197,6 +197,7 @@ afterEach(() => {
   delete document.documentElement.dataset.mbb;
   delete document.documentElement.dataset.mbbOwner;
   document.documentElement.style.removeProperty("--mbb-space");
+  document.documentElement.style.removeProperty("--wd-panel-space");
 });
 
 describe("bramka gościa", () => {
@@ -466,6 +467,55 @@ describe("rezerwacja dolnej krawędzi", () => {
     view.unmount();
     expect(document.documentElement.dataset.mbb).toBeUndefined();
     expect(document.documentElement.style.getPropertyValue("--mbb-space")).toBe("");
+  });
+});
+
+describe("toasty nad otwartym panelem narzędzia", () => {
+  // Region toastów (`ui/sonner.tsx`) dodaje `--wd-panel-space` do rezerwacji
+  // paska. Bez tej publikacji toast stawał na dole otwartego panelu i przez
+  // 6 s zasłaniał jego pole wpisywania (dodawanie zadania, notatki).
+  const MEASURED_PANEL_HEIGHT = 420;
+  const panelSpace = () => document.documentElement.style.getPropertyValue("--wd-panel-space");
+
+  beforeEach(() => {
+    Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get() {
+        const node = this as HTMLElement;
+        if (node.hasAttribute("data-workspace-dock")) return MEASURED_BAR_HEIGHT;
+        return node.id === "workspace-dock-panel" ? MEASURED_PANEL_HEIGHT : 0;
+      },
+    });
+  });
+
+  it("otwarty panel publikuje swoją wysokość, a zamknięcie ją zdejmuje", async () => {
+    renderDock();
+    expect(panelSpace()).toBe("");
+
+    fireEvent.click(tab("todos"));
+    expect(await screen.findByTestId("panel-todos")).toBeTruthy();
+    await waitFor(() => expect(panelSpace()).toBe(`${MEASURED_PANEL_HEIGHT}px`));
+
+    fireEvent.click(tab("todos"));
+    await waitFor(() => expect(panelSpace()).toBe(""));
+  });
+
+  it("skrzynka czatu (lewa krawędź) nie przesuwa toastów", async () => {
+    renderDock();
+    await act(async () => {
+      openChatWindow({ conversationId: "conv-a" });
+    });
+    expect(await screen.findByTestId("panel-chat")).toBeTruthy();
+    expect(panelSpace()).toBe("");
+  });
+
+  it("zejście paska z otwartym panelem nie zostawia przesunięcia", async () => {
+    const view = renderDock();
+    fireEvent.click(tab("notes"));
+    await waitFor(() => expect(panelSpace()).toBe(`${MEASURED_PANEL_HEIGHT}px`));
+
+    view.unmount();
+    expect(panelSpace()).toBe("");
   });
 });
 
