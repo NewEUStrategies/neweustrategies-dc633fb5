@@ -4,7 +4,11 @@
 import { toJson } from "@/lib/builder/types";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+// Toasty przez leniwy most `@/lib/notify`, nie `import { toast } from "sonner"`:
+// moduł jest mały (< `experimentalMinChunkSize`), więc łączenie małych chunków
+// potrafi go wkleić do chunku wejściowego (P3.8, Prove 2026-10-08) - a wtedy
+// statyczny import sonnera wciąga `vendor-sonner` do bootu każdej strony.
+import { notifyError, notifySuccess } from "@/lib/notify";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
 const CAROUSEL_TRANSITIONS = ["slide", "fade", "zoom"] as const;
@@ -99,9 +103,9 @@ export function useSaveCarouselDefaults() {
     onSuccess: (next) => {
       qc.setQueryData(QUERY_KEY, next);
       qc.invalidateQueries({ queryKey: ["site_settings_public", "all"] });
-      toast.success("Zapisano domyślne ustawienia karuzeli");
+      notifySuccess("Zapisano domyślne ustawienia karuzeli");
     },
-    onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
+    onError: (e: Error) => notifyError(e.message || "Błąd zapisu"),
   });
 }
 
