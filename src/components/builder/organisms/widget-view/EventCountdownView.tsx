@@ -12,6 +12,7 @@ import { ArrowRight } from "@/lib/lucide-shim";
 import { eventByIdQueryOptions } from "@/lib/builder/eventsQuery";
 import { countdownParts, pad2, parseCountdownTarget } from "@/lib/events/countdown";
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
+import { MOTION_IDLE_TICK_MS, useMotionGate } from "@/lib/performance/motionGate";
 import { getBool, getStr, type Lang } from "./frame";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {
@@ -73,9 +74,17 @@ export function EventCountdownView({ c, lang }: { c: WidgetContent; lang: Lang }
   useEffect(() => {
     if (targetMs === null) return;
     setNowMs(Date.now());
-    const interval = window.setInterval(() => setNowMs(Date.now()), showSeconds ? 1000 : 30_000);
+  }, [targetMs]);
+  // Bramka ruchu (P3.5): do pierwszej interakcji albo punktu ciszy zegar tyka
+  // co minutę (cyfra sekund stoi), potem co sekundę. Samo otwarcie niczego
+  // nie przelicza - pierwszy takt sekundnika przychodzi pełną sekundę później.
+  const motion = useMotionGate(targetMs !== null);
+  const tickMs = !motion ? MOTION_IDLE_TICK_MS : showSeconds ? 1000 : 30_000;
+  useEffect(() => {
+    if (targetMs === null) return;
+    const interval = window.setInterval(() => setNowMs(Date.now()), tickMs);
     return () => window.clearInterval(interval);
-  }, [targetMs, showSeconds]);
+  }, [targetMs, tickMs]);
 
   const accentStyle: CSSProperties | undefined = accent
     ? { ["--speakers-accent" as string]: accent }

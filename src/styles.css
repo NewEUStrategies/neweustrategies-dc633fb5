@@ -7880,6 +7880,19 @@ html[data-mbb="on"] [data-site-shell] {
   --ring: color-mix(in oklab, var(--brand) 60%, transparent);
 }
 
+/* Bramka ruchu (P3.5, src/lib/performance/motionGate.ts). Nieskończony ruch
+   treści obecny już w HTML z serwera (marquee i karty paska "Na czasie",
+   tickery widgetów, kropka Ticker Strip, pętle mapy i koła) stoi w swojej
+   pierwszej klatce, dopóki bramka nie ustawi data-motion="on" na <html>
+   (pierwsza interakcja albo punkt ciszy). Pauza zamiast "animation: none":
+   otwarcie bramki nie zmienia klatki, ruch rusza od tej, która już stoi.
+   !important wygrywa ze stylem inline (animation w atrybucie style); po
+   otwarciu reguła przestaje pasować, więc pauza pod kursorem i
+   prefers-reduced-motion działają jak dotąd. */
+:root:not([data-motion="on"]) [data-motion-loop] {
+  animation-play-state: paused !important;
+}
+
 /* Warianty widgetu "Etykieta sekcji" (21 Ticker Strip, 22 Underline Sweep).
    Trzymane globalnie, bo renderer jest wspólny dla buildera i strony publicznej. */
 @keyframes nes-ticker-dot-kf {

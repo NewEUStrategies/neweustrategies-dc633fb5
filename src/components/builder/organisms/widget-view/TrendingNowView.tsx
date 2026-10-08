@@ -14,6 +14,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { dedupeAndSlice, type Lang } from "@/lib/builder/postListQuery";
 import { asBool, asNum, asStr } from "@/lib/content-model/contentValue";
 import { WIDGET_SHEET_PRECEDENCE } from "./widgetStyleSheets";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import {
   newsTickerQueryOptions,
   newsTickerDisplayLimit,
@@ -73,6 +74,11 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
     if (visibleIdsKey) used.register(visibleIdsKey.split(","));
   }, [visibleIdsKey, used]);
 
+  // Bramka ruchu (P3.5): nieskończona rotacja jest w HTML z SSR, więc tor
+  // nosi `data-motion-loop` (pauza do pierwszej interakcji albo punktu ciszy);
+  // hook uzbraja bramkę na stronie bez innych konsumentów.
+  useMotionGate(rows.length > 1);
+
   if ((isLoading && !rows.length) || !rows.length) {
     return (
       <div className="cms-meta w-full overflow-hidden rounded-full border border-border bg-card px-4 py-2">
@@ -113,6 +119,7 @@ export function TrendingNowView({ c, lang }: { c: WidgetContent; lang: Lang }) {
       <div className="relative min-w-0 flex-1 overflow-hidden rounded-r-2xl border border-l-0 border-border bg-card">
         <div
           className="flex flex-col"
+          data-motion-loop={keyframes ? "" : undefined}
           style={
             keyframes
               ? { animation: `${animName} ${durationSec}s cubic-bezier(.65,0,.35,1) infinite` }

@@ -8,6 +8,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 import { safeUrl, sanitizeHtml } from "@/lib/sanitize";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
+import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import { getStr, getNum, type Lang } from "./frame";
 
 interface Item {
@@ -103,15 +105,21 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
   }, [items.length, active]);
 
   // Autoplay - zatrzymuje się na hover/focus by nie walczyć z użytkownikiem.
+  // Bramka ruchu (P3.5): automat i nieskończone animacje koła (obrót, puls,
+  // „ping" aktywnej pozycji, oznaczone `data-motion-loop`) ruszają dopiero po
+  // pierwszej interakcji albo w punkcie ciszy; pierwszy przeskok = otwarcie +
+  // pełny interwał. `prefers-reduced-motion`: bez automatu.
   const pausedRef = useRef(false);
+  const autoplayWanted = autoplay && items.length > 1;
+  const motion = useMotionGate(autoplayWanted || animation !== "none");
   useEffect(() => {
-    if (!autoplay || items.length < 2) return;
+    if (!autoplayWanted || !motion || prefersReducedMotion()) return;
     const id = window.setInterval(() => {
       if (pausedRef.current) return;
       setActive((i) => (i + 1) % items.length);
     }, intervalMs);
     return () => window.clearInterval(id);
-  }, [autoplay, intervalMs, items.length]);
+  }, [autoplayWanted, motion, intervalMs, items.length]);
 
   const positions = useMemo(() => computePositions(items.length, layout), [items.length, layout]);
 
@@ -157,6 +165,7 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
           className={`absolute inset-0 w-full h-full pointer-events-none ${arcCls}`}
+          data-motion-loop={arcCls ? "" : undefined}
           aria-hidden
         >
           {layout === "full" ? (
@@ -246,6 +255,7 @@ export function InteractiveCircleWidget({ node, lang }: { node: WidgetNode; lang
               {animation === "pulse" && isActive && (
                 <span
                   aria-hidden
+                  data-motion-loop=""
                   className="absolute inset-0 rounded-full animate-ping"
                   style={{
                     background: activeBg || "hsl(var(--primary))",

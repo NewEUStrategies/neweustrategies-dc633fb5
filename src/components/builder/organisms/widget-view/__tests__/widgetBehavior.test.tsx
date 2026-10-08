@@ -3,9 +3,10 @@
 // asserts the actual DOM each widget produces: tags, sanitisation, link
 // safety, i18n fallback and the major per-widget variant branches.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { act, render, screen, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import type {
   WidgetNode,
   WidgetType,
@@ -104,7 +105,10 @@ function renderNode(
   );
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  __resetMotionGateForTests();
+});
 
 describe("heading", () => {
   it("renders the configured tag and localized text with a subtitle", () => {
@@ -283,6 +287,33 @@ describe("icon", () => {
   });
 });
 
+/**
+ * Ramka YouTube pod kontrolą testu: `postMessage` do ramki zapisuje polecenia
+ * (`sent()` - nazwy zdarzeń/funkcji), a `reply()` wysyła do strony wiadomość
+ * odtwarzacza z originu YouTube i z TEJ ramki (nadpisywalne w `init`).
+ */
+function stubYouTubeFrame(iframe: HTMLIFrameElement) {
+  const frameWindow = { postMessage: vi.fn() };
+  Object.defineProperty(iframe, "contentWindow", { configurable: true, value: frameWindow });
+  const sent = () =>
+    frameWindow.postMessage.mock.calls.map(([data, origin]: unknown[]) => {
+      expect(origin).toBe("https://www.youtube.com");
+      const message = JSON.parse(String(data)) as { event: string; func?: string };
+      return message.func ?? message.event;
+    });
+  const reply = (data: object, init: { origin?: string; source?: unknown } = {}) =>
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: JSON.stringify(data),
+          origin: init.origin ?? "https://www.youtube.com",
+          source: (init.source ?? frameWindow) as Window,
+        }),
+      );
+    });
+  return { frameWindow, sent, reply };
+}
+
 describe("video", () => {
   it("embeds a YouTube iframe", () => {
     const { container } = renderNode("video", { url: "https://www.youtube.com/watch?v=abc123" });
@@ -290,9 +321,133 @@ describe("video", () => {
     expect(iframe?.getAttribute("src")).toContain("youtube.com/embed/abc123");
   });
 
+  // Bramka ruchu (P3.5): wideo z autoplay nie rusza przy pierwszym malowaniu.
+  it("autoplay pliku: bez atrybutu autoplay w HTML, play() wyciszone dopiero po otwarciu bramki", () => {
+    const play = vi.fn(() => Promise.resolve());
+    const original = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "play");
+    Object.defineProperty(HTMLMediaElement.prototype, "play", { configurable: true, value: play });
+    try {
+      const { container } = renderNode("video", {
+        url: "https://cdn.example.com/clip.mp4",
+        autoplay: "on",
+      });
+      const video = container.querySelector("video") as HTMLVideoElement;
+      expect(video.hasAttribute("autoplay")).toBe(false);
+      // Do otwarcia stoi pierwsza klatka - także na iOS (fragment `#t=`).
+      expect(video.getAttribute("src")).toBe("https://cdn.example.com/clip.mp4#t=0.001");
+      expect(play).not.toHaveBeenCalled();
+      act(() => __openMotionGateForTests());
+      expect(play).toHaveBeenCalledOnce();
+      expect(video.muted).toBe(true);
+    } finally {
+      if (original) Object.defineProperty(HTMLMediaElement.prototype, "play", original);
+    }
+  });
+
+  it("autoplay YouTube: adres bez autoplay=1; po otwarciu bramki uzgodnienie, playVideo dopiero po onReady z tej ramki", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderNode("video", {
+        url: "https://www.youtube.com/watch?v=abc123",
+        autoplay: "on",
+      });
+      const iframe = container.querySelector("iframe") as HTMLIFrameElement;
+      const src = new URL(iframe.getAttribute("src") ?? "");
+      expect(src.searchParams.get("autoplay")).toBeNull();
+      expect(src.searchParams.get("mute")).toBe("1");
+      expect(src.searchParams.get("enablejsapi")).toBe("1");
+      const { frameWindow, sent, reply } = stubYouTubeFrame(iframe);
+      expect(sent()).toEqual([]);
+
+      act(() => __openMotionGateForTests());
+      // Odtwarzacz może jeszcze nie słuchać: strona woła co 250 ms.
+      expect(sent()).toEqual(["listening"]);
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(sent()).toEqual(["listening", "listening", "listening"]);
+
+      // Obcy origin ani obca ramka nie uruchamiają odtwarzania.
+      reply({ event: "onReady" }, { origin: "https://evil.example" });
+      reply({ event: "onReady" }, { source: window });
+      expect(sent()).not.toContain("playVideo");
+
+      // Pierwsza odpowiedź odtwarzacza kończy wołanie, ale gra dopiero `onReady`.
+      reply({ event: "initialDelivery", info: { playerState: -1 } });
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(sent()).toEqual(["listening", "listening", "listening"]);
+      reply({ event: "onReady", info: null, id: 1 });
+      expect(sent()).toEqual(["listening", "listening", "listening", "playVideo"]);
+      // Jedno polecenie: dalsze wiadomości odtwarzacza niczego nie wysyłają.
+      reply({ event: "onReady" });
+      expect(sent()).toHaveLength(4);
+      expect(frameWindow.postMessage).toHaveBeenLastCalledWith(
+        JSON.stringify({ event: "command", func: "playVideo", args: [] }),
+        "https://www.youtube.com",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("autoplay YouTube: ramka odpowiadająca późno nadal dostaje polecenie; odmontowanie gasi wołanie", () => {
+    vi.useFakeTimers();
+    try {
+      const { container } = renderNode("video", {
+        url: "https://youtu.be/abc123",
+        autoplay: "on",
+      });
+      const iframe = container.querySelector("iframe") as HTMLIFrameElement;
+      const { sent, reply } = stubYouTubeFrame(iframe);
+      act(() => __openMotionGateForTests());
+      // Odtwarzacz ładuje się długo: strona woła dalej (jedno wołanie od razu + co 250 ms).
+      act(() => {
+        vi.advanceTimersByTime(30_000);
+      });
+      expect(sent()).toHaveLength(121);
+      reply({ event: "onReady" });
+      expect(sent().at(-1)).toBe("playVideo");
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      expect(sent()).toHaveLength(122);
+
+      // Odmontowanie przed odpowiedzią: żadnego wołania ani polecenia później.
+      cleanup();
+      __resetMotionGateForTests();
+      const again = renderNode("video", { url: "https://youtu.be/abc123", autoplay: "on" });
+      const frame = again.container.querySelector("iframe") as HTMLIFrameElement;
+      const second = stubYouTubeFrame(frame);
+      act(() => __openMotionGateForTests());
+      again.unmount();
+      act(() => {
+        vi.advanceTimersByTime(5_000);
+      });
+      second.reply({ event: "onReady" });
+      expect(second.sent()).toEqual(["listening"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bez autoplay YouTube nie uzbraja bramki ani nie rozmawia z ramką", () => {
+    const { container } = renderNode("video", { url: "https://www.youtube.com/watch?v=abc123" });
+    const iframe = container.querySelector("iframe") as HTMLIFrameElement;
+    expect(new URL(iframe.src).searchParams.get("enablejsapi")).toBeNull();
+    const { sent } = stubYouTubeFrame(iframe);
+    act(() => __openMotionGateForTests());
+    expect(sent()).toEqual([]);
+  });
+
   it("renders a direct video element for an https source", () => {
     const { container } = renderNode("video", { url: "https://cdn.example.com/clip.mp4" });
     expect(container.querySelector("video")).toBeTruthy();
+    // Bez autoplay adres zostaje nietknięty (plik nie stoi za bramką ruchu).
+    expect(container.querySelector("video")?.getAttribute("src")).toBe(
+      "https://cdn.example.com/clip.mp4",
+    );
   });
 
   it("shows a placeholder when no url is set", () => {

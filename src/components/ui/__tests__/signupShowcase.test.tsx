@@ -7,11 +7,14 @@
 //      atrament galerii daje na nim ~5,7:1.
 //   2. AUTO-ROTACJA podpisu stoi pod kursorem i przy ognisku w galerii, nie
 //      startuje przy `prefers-reduced-motion` i ma interwał przycięty do 0,8-30 s.
+//      Rusza dopiero po otwarciu bramki ruchu (P3.5: pierwsza interakcja albo
+//      punkt ciszy - tu atrapa).
 //   3. UKŁADY SIATKI (referencyjny 1-4 kafle, mozaika, pojedynczy kadr), bloki
 //      w kolejności z panelu i każdy blok opcjonalny.
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SignupShowcase, type ShowcaseImage } from "@/components/ui/signup-showcase";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import { defaultNewsletterSettings } from "@/hooks/useNewsletterSettings";
 import {
   resolvePopupPalette,
@@ -73,9 +76,13 @@ const kropka = (n: number) => screen.getByRole("button", { name: `Kadr ${n}` });
 const kafle = (c: HTMLElement) =>
   Array.from(c.querySelectorAll<HTMLElement>("[data-showcase-grid] .grid > div"));
 
+// Punkt ciszy bramki ruchu tylko na żądanie testu.
+vi.mock("@/lib/performance/whenQuiescent", () => ({ onQuiescent: () => () => {} }));
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  __resetMotionGateForTests();
 });
 
 describe("SignupShowcase - atrament galerii", () => {
@@ -293,6 +300,24 @@ describe("SignupShowcase - siatka", () => {
 });
 
 describe("SignupShowcase - auto-rotacja", () => {
+  beforeEach(() => __openMotionGateForTests());
+
+  it("przed otwarciem bramki ruchu stoi 30 s; pierwszy kadr pełny interwał po otwarciu", () => {
+    __resetMotionGateForTests();
+    vi.useFakeTimers();
+    galeria({ autoRotate: true, rotateMs: 1000 });
+    // Krokami po 0,5 s: skok 30 s mógłby wrócić na pierwszy kadr po pełnych obrotach.
+    for (let step = 0; step < 60; step += 1) {
+      act(() => vi.advanceTimersByTime(500));
+      expect(kropka(1).getAttribute("aria-current")).toBe("true");
+    }
+    act(() => __openMotionGateForTests());
+    act(() => vi.advanceTimersByTime(999));
+    expect(kropka(1).getAttribute("aria-current")).toBe("true");
+    act(() => vi.advanceTimersByTime(1));
+    expect(kropka(2).getAttribute("aria-current")).toBe("true");
+  });
+
   it("przechodzi do następnego kadru co interwał, nie częściej niż co 0,8 s", () => {
     vi.useFakeTimers();
     galeria({ autoRotate: true, rotateMs: 10 });

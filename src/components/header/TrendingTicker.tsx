@@ -30,8 +30,7 @@ import {
 } from "@/components/header/headerGeometry";
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
 import { StyleSink } from "@/components/theme/StyleSink";
-import { enqueue } from "@/lib/performance/postInteractionQueue";
-import { onQuiescent } from "@/lib/performance/whenQuiescent";
+import { useMotionGate } from "@/lib/performance/motionGate";
 
 export type { TickerMode };
 
@@ -81,37 +80,26 @@ export function safeAttr(id: string): string {
   return id.replace(/[^a-zA-Z0-9_-]/g, "_") || "default";
 }
 
-/**
- * Ruch OZDOBNY paska (płomień etykiety, pulsowanie skórki `live`, przesuw
- * gradientu skórki `ribbon`) rusza dopiero po pierwszej interakcji albo w
- * punkcie ciszy strony (F10 z diagnozy P0.5, pozycja P2.3).
- *
- * PO CO. Start animacji CSS przy ładowaniu to osobne zadanie głównego wątku
- * (K8 w księdze P0.5: powiadomienie o starcie animacji kompozytora), a
- * nieskończone animacje ozdobne paska startowały razem z pierwszą klatką - w
- * oknie TBT, bez żadnej korzyści dla czytelnika. Atrybut `data-tt-motion` na
- * korzeniu paska włącza je w `TICKER_CSS`; do tego czasu ikona stoi w swojej
- * pierwszej klatce (ten sam wygląd, bez ruchu). Animacje treści (marquee,
- * wejście kolejnej porcji wpisów) nie są tu bramkowane - to funkcja paska.
- *
- * Kolejka P0.3 (`enqueue`, klasa `overlays`) puszcza zmianę po pierwszej
- * interakcji, jedno zadanie na klatkę, a punkt ciszy jest zapasem dla
- * odwiedzającego, który niczego nie dotknie. Serwer i pierwszy render klienta
- * dają `false` - atrybutu nie ma w HTML, więc hydratacja go nie porównuje.
+/*
+ * RUCH PASKA (P2.3 F10, P3.5). Cały ruch paska - ozdobny i treści - stoi do
+ * otwarcia wspólnej bramki ruchu (`motionGate.ts`: pierwsza interakcja albo
+ * punkt ciszy strony):
+ *  a/b. porcje wpisów silnika pasma (`fade`/`slide`/`flip`/`typewriter`) -
+ *       timer zakłada się dopiero po otwarciu, więc pierwsza zmiana porcji =
+ *       otwarcie + pełne `intervalSec`;
+ *  c/d. marquee i karty szklane - nieskończona animacja inline jest w HTML z
+ *       SSR, więc tor nosi `data-motion-loop` (pauza z `styles.css` od
+ *       pierwszego malowania do `data-motion="on"` na `<html>`); to samo
+ *       mrugający kursor `typewriter`;
+ *  e.   ruch OZDOBNY (płomień etykiety, pulsowanie skórki `live`, przesuw
+ *       gradientu `ribbon`) - atrybut `data-tt-motion` na korzeniu paska
+ *       włącza go w `TICKER_CSS`; zostaje jako alias bramki, bo podnosi
+ *       specyficzność reguł, które wyłącza ostatni blok reduced motion.
+ * Start animacji CSS przy ładowaniu to osobne zadanie głównego wątku (K8 w
+ * księdze P0.5), a każda zmiana porcji w kadrze odsuwa Speed Index - bez
+ * korzyści dla czytelnika, który jeszcze niczego nie dotknął. Serwer i render
+ * hydratacji dają `false`: atrybutów bramki nie ma w HTML-u.
  */
-function useDecorativeMotion(): boolean {
-  const [motion, setMotion] = useState(false);
-  useEffect(() => {
-    const allow = () => setMotion(true);
-    const cancelInteraction = enqueue(allow, { priority: "overlays" });
-    const cancelQuiet = onQuiescent(allow, { priority: "overlays" });
-    return () => {
-      cancelInteraction();
-      cancelQuiet();
-    };
-  }, []);
-  return motion;
-}
 
 export function TrendingTicker({
   source = "trending",
@@ -141,7 +129,7 @@ export function TrendingTicker({
   const palette = colors ?? DEFAULT_TICKER_COLORS;
   const vid = safeAttr(variantId);
   const isBadge = layoutStyle === "badge";
-  const motion = useDecorativeMotion();
+  const motion = useMotionGate();
   const motionAttr = motion ? "" : undefined;
 
   const { data, isLoading } = useQuery(
@@ -162,11 +150,11 @@ export function TrendingTicker({
 
   const [batch, setBatch] = useState(0);
   useEffect(() => {
-    if (kind === "scroll" || totalBatches < 2) return;
+    if (!motion || kind === "scroll" || totalBatches < 2) return;
     const ms = Math.max(2, intervalSec) * 1000;
     const t = window.setInterval(() => setBatch((b) => (b + 1) % totalBatches), ms);
     return () => window.clearInterval(t);
-  }, [kind, intervalSec, totalBatches]);
+  }, [motion, kind, intervalSec, totalBatches]);
 
   // REZERWA W HTML Z SERWERA. Pasek stoi NAD całą stroną, a montuje się dopiero
   // z danymi - dopóki zwracał tu `null`, jego ~40 px doskakiwało po hydratacji
@@ -485,13 +473,25 @@ export const TYPEWRITER_STEP_MS = 22;
  *
  * `prefers-reduced-motion`: pełny tytuł od razu i zero timerów - czytane
  * w efekcie, nie w renderze (patrz `lib/a11y/reducedMotion`).
+ *
+ * BRAMKA RUCHU (P3.5). Tytuł zamontowany przed otwarciem bramki - w tym
+ * pierwsza porcja z HTML-a serwera i z renderu hydratacji - stoi w CAŁOŚCI
+ * od pierwszego malowania i nie pisze się wcale (także po otwarciu): pisanie
+ * po hydratacji było zmianą wizualną w oknie śladu Lighthouse'a. Piszą się
+ * wyłącznie tytuły montowane po otwarciu, czyli kolejne porcje (timer porcji
+ * startuje dopiero po otwarciu, a `key` = tytuł montuje każdy tytuł od nowa).
  */
 export function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
-  const [n, setN] = useState(0);
+  const motion = useMotionGate();
+  // Stan z PIERWSZEGO renderu: `false` na serwerze i w hydratacji
+  // (`getServerSnapshot`), `true` dla montażu po otwarciu.
+  const [types] = useState(motion);
+  const [n, setN] = useState(types ? 0 : text.length);
   useEffect(() => {
-    // Pusty tytuł nie ma czego wypisywać, a ograniczony ruch nie chce animacji
-    // w ogóle - w obu przypadkach stan końcowy od razu i żadnego timera.
-    if (text.length === 0 || prefersReducedMotion()) {
+    // Pusty tytuł nie ma czego wypisywać, ograniczony ruch nie chce animacji
+    // w ogóle, a tytuł sprzed otwarcia bramki stoi - stan końcowy od razu i
+    // żadnego timera.
+    if (!types || text.length === 0 || prefersReducedMotion()) {
       setN(text.length);
       return;
     }
@@ -513,11 +513,11 @@ export function TypewriterText({ text, delayMs }: { text: string; delayMs: numbe
       window.clearTimeout(timeout);
       if (interval !== undefined) window.clearInterval(interval);
     };
-  }, [text, delayMs]);
+  }, [types, text, delayMs]);
   return (
     <span className="font-medium truncate max-w-[220px] sm:max-w-none sm:whitespace-nowrap leading-none">
       {text.slice(0, n)}
-      <span className="tt-caret" aria-hidden>
+      <span className="tt-caret" data-motion-loop="" aria-hidden>
         |
       </span>
     </span>
@@ -664,6 +664,7 @@ function TickerGlassMarquee({
         <div
           ref={trackRef}
           className="flex w-max items-center gap-3 py-2"
+          data-motion-loop=""
           style={{ animation: `${anim} ${durationSec}s linear infinite` }}
           onMouseEnter={(e) => {
             e.currentTarget.style.animationPlayState = "paused";
@@ -756,6 +757,7 @@ function TickerGlassCards({
       >
         <div
           className="flex flex-col"
+          data-motion-loop=""
           style={{ animation: `${anim} ${durationSec}s cubic-bezier(.65,0,.35,1) infinite` }}
           onMouseEnter={(e) => {
             e.currentTarget.style.animationPlayState = "paused";
@@ -883,7 +885,7 @@ function TickerPaletteStyle({ vid, palette }: { vid: string; palette: TickerColo
  * F10: płomień etykiety bez `will-change` (warstwa kompozytora trzymana przez
  * całe życie strony, także gdy ikona stoi), a nieskończone animacje ozdobne
  * (płomień, pulsowanie `live`, gradient `ribbon`) tylko pod
- * `[data-tt-motion]` - patrz `useDecorativeMotion`. Atrybut podnosi
+ * `[data-tt-motion]` - patrz RUCH PASKA nad `TrendingTicker`. Atrybut podnosi
  * specyficzność tych reguł, więc wyłącza je dopiero ostatni blok
  * `prefers-reduced-motion` (z `!important`, ten sam selektor z atrybutem) -
  * zwykła reguła `.tt-skin--live .tt-chip-icon::before` już by nie wygrała.

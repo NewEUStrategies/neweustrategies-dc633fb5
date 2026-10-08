@@ -11,7 +11,9 @@
 //   wartość z bazy nie potrafi zamknąć elementu `<style>`,
 // * wideo tła: `IntersectionObserver` odtwarza je w kadrze i PAUZUJE poza nim
 //   (to była realna oszczędność pasma i baterii na długich stronach), a brak
-//   `IntersectionObserver` w przeglądarce nie wywraca renderu,
+//   `IntersectionObserver` w przeglądarce nie wywraca renderu; HTML nie ma
+//   atrybutu `autoplay`, a odtwarzanie zaczyna się dopiero po otwarciu bramki
+//   ruchu (P3.5: pierwsza interakcja albo punkt ciszy - tu atrapa),
 // * `data-section-kind="people"` - siatka osób rozpoznawana po zawartości
 //   kolumn, także w sekcji zagnieżdżonej.
 //
@@ -24,6 +26,7 @@ import { act, cleanup } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import "@/test/i18nReal";
 import { __resetBuilderDebugForTests } from "@/lib/builder/builderDebug";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import { BuilderRenderer } from "../BuilderRenderer";
 import {
   column,
@@ -40,6 +43,9 @@ vi.mock(
   () => import("@/test/eagerWidgetChunks"),
 );
 
+// Punkt ciszy bramki ruchu tylko na żądanie testu.
+vi.mock("@/lib/performance/whenQuiescent", () => ({ onQuiescent: () => () => {} }));
+
 let observers: ReturnType<typeof stubObservers>;
 
 beforeEach(() => {
@@ -51,6 +57,7 @@ afterEach(() => {
   cleanup();
   observers.restore();
   __resetBuilderDebugForTests();
+  __resetMotionGateForTests();
 });
 
 describe("znacznik i atrybuty sekcji", () => {
@@ -277,16 +284,42 @@ describe("wideo w tle sekcji", () => {
   const zWideo = (videoUrl: string) =>
     doc([simpleSection("a", { background: { type: "video", videoUrl } })]);
 
-  it("renderuje odtwarzacz z autoplay, wyciszeniem i preload=metadata", () => {
+  beforeEach(() => __openMotionGateForTests());
+
+  it("renderuje odtwarzacz BEZ autoplay w HTML, z wyciszeniem, pętlą i preload=metadata", () => {
     const { container } = renderWithQueryClient(
       <BuilderRenderer doc={zWideo("https://example.org/tlo.mp4")} lang="pl" />,
     );
     const video = container.querySelector("video");
-    expect(video?.getAttribute("src")).toBe("https://example.org/tlo.mp4");
+    // Fragment `#t=` wymusza pierwszą klatkę na iOS, zanim bramka puści wideo
+    // (sekcja nie ma plakatu - bez niego tło stałoby puste).
+    expect(video?.getAttribute("src")).toBe("https://example.org/tlo.mp4#t=0.001");
     expect(video?.getAttribute("preload")).toBe("metadata");
-    expect(video?.hasAttribute("autoplay")).toBe(true);
+    // Przeglądarka nie rusza wideo przy pierwszym malowaniu - robi to bramka ruchu.
+    expect(video?.hasAttribute("autoplay")).toBe(false);
     expect(video?.muted || video?.hasAttribute("muted")).toBeTruthy();
     expect(video?.hasAttribute("loop")).toBe(true);
+  });
+
+  it("przed otwarciem bramki ruchu wideo w kadrze nie rusza; po otwarciu - rusza", () => {
+    __resetMotionGateForTests();
+    const { container } = renderWithQueryClient(
+      <BuilderRenderer doc={zWideo("https://example.org/tlo.mp4")} lang="pl" />,
+    );
+    const video = container.querySelector("video") as HTMLVideoElement;
+    const play = vi.fn(() => Promise.resolve());
+    Object.defineProperty(video, "play", { configurable: true, value: play });
+    act(() => {
+      observers.triggerIntersection(true);
+    });
+    expect(play).not.toHaveBeenCalled();
+
+    act(() => __openMotionGateForTests());
+    act(() => {
+      observers.triggerIntersection(true);
+    });
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(video.muted).toBe(true);
   });
 
   it("tło typu video BEZ adresu nie renderuje odtwarzacza", () => {

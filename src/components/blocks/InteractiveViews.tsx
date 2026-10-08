@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useState, useCallback } from "react";
 import type { Json } from "@/lib/blocks/types";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { useRevealOnScroll } from "@/hooks/useRevealOnScroll";
+import { MOTION_IDLE_TICK_MS, useMotionGate } from "@/lib/performance/motionGate";
 import { ChevronDown } from "lucide-react";
 
 type Lang = "pl" | "en";
@@ -224,9 +225,17 @@ export function CountdownView({ targetAt, label, expiredText, lang = "pl", cls }
   useEffect(() => {
     if (target === null) return;
     setNow(Date.now());
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
   }, [target]);
+  // Bramka ruchu (P3.5): do pierwszej interakcji albo punktu ciszy zegar tyka
+  // co minutę (cyfra sekund stoi), potem co sekundę. Samo otwarcie niczego
+  // nie przelicza - pierwszy takt przychodzi pełną sekundę później.
+  const motion = useMotionGate(target !== null);
+  const tickMs = motion ? 1000 : MOTION_IDLE_TICK_MS;
+  useEffect(() => {
+    if (target === null) return;
+    const id = window.setInterval(() => setNow(Date.now()), tickMs);
+    return () => window.clearInterval(id);
+  }, [target, tickMs]);
 
   if (target === null) return null;
 

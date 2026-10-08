@@ -28,6 +28,11 @@
 //  5. `loop={false}` DAJE JEDNORAZOWE RYSOWANIE ZE SCHODKIEM. Cztery ternary
 //     naraz (czas, opóźnienie, liczba powtórzeń, krzywa) - przestawienie
 //     któregokolwiek zamienia „narysuj raz" w wieczną pętlę albo w skok.
+//  5a. BRAMKA RUCHU (P3.5): nieskończone animacje z HTML-a serwera (pętla
+//     łuków i iskier, puls znaczników) niosą znacznik pauzy bramki, a
+//     jednorazowe rysowanie `loop={false}` - nie (rusza od razu, jak dotąd).
+//     Klatka, w której pauza trzyma pętlę (ujemne opóźnienie od SSR), ma
+//     wszystkie łuki narysowane i iskry wygaszone - mapa nie stoi bez tras.
 //  6. NAJECHANIE NA ZNACZNIK PODŚWIETLA ZNACZNIK I JEGO ETYKIETĘ (i gaśnie po
 //     zjechaniu z mapy). Łuku NIE podświetla - to defekt produkcyjny, przypięty
 //     niżej jako `it.fails` z kontrolą dodatnią.
@@ -43,6 +48,7 @@
 // RODO: nazwiska w etykietach są zmyślone, adresy zdjęć wskazują na example.com.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import type { MapArc } from "@/lib/maps/worldMapGeo";
 
 const h = vi.hoisted(() => ({
@@ -343,7 +349,91 @@ describe("WorldMap - harmonogram animacji", () => {
     expect(css.match(/@keyframes nes-wm-[^-]*-0\{/)).not.toBeNull();
     expect(css.match(/@keyframes nes-wm-[^-]*-1\{/)).not.toBeNull();
   });
+
+  it("bramka ruchu: każda nieskończona animacja stoi do otwarcia, jednorazowe rysowanie - nie", () => {
+    const looping = render(<WorldMap dots={oneArc} />);
+    const infinite = Array.from(
+      looping.container.querySelectorAll<SVGElement>(
+        ".nes-world-map__arc, .nes-world-map__spark, .nes-world-map__pulse",
+      ),
+    );
+    // Pętla łuków (poświata + rdzeń), iskra i puls dwóch znaczników.
+    expect(infinite).toHaveLength(5);
+    for (const el of infinite) expect(el.hasAttribute("data-motion-loop")).toBe(true);
+    looping.unmount();
+
+    const once = render(<WorldMap dots={oneArc} loop={false} />);
+    const drawn = Array.from(
+      once.container.querySelectorAll<SVGElement>(".nes-world-map__arc, .nes-world-map__spark"),
+    );
+    expect(drawn).toHaveLength(3);
+    for (const el of drawn) expect(el.hasAttribute("data-motion-loop")).toBe(false);
+    // Puls znacznika jest nieskończony w obu trybach.
+    for (const el of once.container.querySelectorAll(".nes-world-map__pulse")) {
+      expect(el.hasAttribute("data-motion-loop")).toBe(true);
+    }
+  });
+
+  it("bramka ruchu: klatka pauzy pętli (od HTML-a serwera) ma WSZYSTKIE łuki narysowane, iskry wygaszone", () => {
+    const threeArcs: MapArc[] = [
+      ...oneArc,
+      { start: { ...BRUSSELS, label: "Bruksela" }, end: { ...KAMCHATKA, label: "Kamczatka" } },
+      { start: { ...BRUSSELS, label: "Bruksela" }, end: { ...WASHINGTON, label: "Waszyngton" } },
+    ];
+    // KONSEKWENCJA: pauza bramki trzyma PIERWSZĄ klatkę animacji aż do
+    // interakcji albo ciszy (5-20 s). Przy opóźnieniu 0 s ta klatka to łuk
+    // przed rysowaniem (`stroke-dashoffset: 1`) - mapa bez tras.
+    const html = renderToString(<WorldMap dots={threeArcs} />);
+    const ssrDelays = [...html.matchAll(/animation-delay:(-?[\d.]+)s/g)].map((m) => m[1]);
+    expect(ssrDelays).toHaveLength(9);
+    expect(new Set(ssrDelays).size).toBe(1);
+    expect(Number(ssrDelays[0])).toBeLessThan(0);
+
+    const { container } = render(<WorldMap dots={threeArcs} />);
+    const css = container.querySelector("style")?.textContent ?? "";
+    const paths = Array.from(
+      container.querySelectorAll<SVGPathElement>(".nes-world-map__arc, .nes-world-map__spark"),
+    );
+    expect(paths).toHaveLength(9);
+    for (const path of paths) {
+      // Klient liczy to samo opóźnienie co serwer (parytet hydratacji).
+      expect(path.style.animationDelay).toBe(`${ssrDelays[0]}s`);
+      const phasePct =
+        (-parseFloat(path.style.animationDelay) / parseFloat(path.style.animationDuration)) * 100;
+      const at = keyframeStateAt(css, path.style.animationName, phasePct);
+      if (path.classList.contains("nes-world-map__spark")) {
+        expect(at.map((frame) => frame.opacity)).toEqual(["0", "0"]);
+      } else {
+        expect(at.map((frame) => frame["stroke-dashoffset"])).toEqual(["0", "0"]);
+        expect(at.map((frame) => frame.opacity)).toEqual(["1", "1"]);
+      }
+    }
+  });
 });
+
+/**
+ * Dwie klatki kluczowe, między którymi leży `pct` (bez interpolacji: gdy obie
+ * mają tę samą wartość właściwości, cała faza ma właśnie ją).
+ */
+function keyframeStateAt(
+  css: string,
+  name: string,
+  pct: number,
+): Array<Record<string, string | undefined>> {
+  const block = css.match(new RegExp(`@keyframes ${name}\\{(.*?)\\}\\}`))?.[1] ?? "";
+  const frames = [...`${block}}`.matchAll(/([\d.]+)%\{([^}]*)\}/g)].map((m) => ({
+    at: Number(m[1]),
+    props: Object.fromEntries(
+      m[2]
+        .split(";")
+        .filter(Boolean)
+        .map((decl) => decl.split(":") as [string, string]),
+    ) as Record<string, string | undefined>,
+  }));
+  const next = frames.findIndex((frame) => frame.at >= pct);
+  expect(next).toBeGreaterThan(0);
+  return [frames[next - 1].props, frames[next].props];
+}
 
 describe("WorldMap - podświetlenie po najechaniu i ognisku", () => {
   /** Etykieta-link: jedyny wariant, w którym napis reaguje na wskaźnik. */

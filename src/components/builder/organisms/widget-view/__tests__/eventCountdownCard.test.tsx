@@ -3,9 +3,10 @@
 // events, link /events/$slug), stany odliczania (przyszłość, "Już wkrótce!",
 // zakończone), przełączniki sekcji (sekundy, uczestnicy, lokalizacja,
 // countdown), CTA (własne vs domyślne per stan) oraz podpowiedź w builderze
-// przy braku daty.
+// przy braku daty. Bramka ruchu (P3.5): do pierwszej interakcji albo punktu
+// ciszy takt minutowy (sekundy stoją), potem co sekundę.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { act, render, screen, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
@@ -35,6 +36,7 @@ vi.mock("@/integrations/supabase/client", () => {
 
 import { EventCountdownCardView } from "../EventCountdownCardView";
 import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import type { WidgetContent } from "@/lib/builder/types";
 
 function wrap(ui: ReactElement) {
@@ -52,7 +54,38 @@ beforeEach(() => {
   db.event = null;
   db.rsvp = [];
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  __resetMotionGateForTests();
+});
+
+describe("EventCountdownCardView - bramka ruchu (P3.5)", () => {
+  it("do otwarcia sekundy stoją (takt minutowy), po otwarciu takt co sekundę", () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    vi.setSystemTime(new Date("2026-10-08T10:00:00.000Z"));
+    const target = new Date(Date.now() + 3 * 86_400_000 + 5 * 60_000 + 30_000).toISOString();
+    renderCard({ targetAt: target });
+    const tile = (label: string) => screen.getByText(label).previousElementSibling?.textContent;
+    expect(tile("sek.")).toBe("30");
+    act(() => {
+      vi.advanceTimersByTime(59_999);
+    });
+    expect(tile("sek.")).toBe("30");
+    expect(tile("min")).toBe("05");
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(tile("min")).toBe("04");
+    expect(tile("sek.")).toBe("30");
+
+    act(() => __openMotionGateForTests());
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(tile("sek.")).toBe("29");
+  });
+});
 
 describe("EventCountdownCardView - tryb custom", () => {
   it("renders the countdown grid with seconds, meta and image for a future date", () => {

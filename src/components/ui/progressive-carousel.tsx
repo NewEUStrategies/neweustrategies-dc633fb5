@@ -22,6 +22,7 @@ import {
 } from "react";
 import { cn } from "@/lib/utils";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 
 interface ProgressSliderContextValue {
   active: string;
@@ -106,7 +107,11 @@ export const ProgressSlider: FC<ProgressSliderProps> = ({
     if (activeSlider) setActive(activeSlider);
   }, [activeSlider]);
 
-  const autoPlay = !paused && !reducedMotion && !hovered && !focused && values.length > 1;
+  // Bramka ruchu (P3.5): pasek postępu stoi na zerze do pierwszej interakcji
+  // albo punktu ciszy strony; pierwsze przejście = otwarcie + pełny `duration`.
+  // Klik w przycisk (dobieg `fastDuration`) działa niezależnie od bramki.
+  const motion = useMotionGate(!paused && values.length > 1);
+  const autoPlay = !paused && motion && !reducedMotion && !hovered && !focused && values.length > 1;
 
   const updateProgress = useCallback((next: number) => {
     progressRef.current = next;

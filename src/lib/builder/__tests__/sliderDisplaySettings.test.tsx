@@ -35,6 +35,11 @@
 //  4. PUSTY STAN jest stanem widgetu, nie awarią: musi trzymać proporcje
 //     i promień z konfiguracji, a lista złożona z samych wartości pustych
 //     ma dawać ten sam stan, a nie wywracać render.
+//  5. BRAMKA RUCHU (P3.5): automat stoi do pierwszej interakcji albo punktu
+//     ciszy strony, a pierwszy przeskok przychodzi DOKŁADNIE interwał po
+//     otwarciu bramki; przy `prefers-reduced-motion` automatu nie ma wcale.
+//     Testy automatu otwierają bramkę przed renderem; punkt ciszy jest
+//     atrapą, więc sam upływ czasu bramki nie otworzy.
 //
 // GRANICA DOWODU: z tego poziomu nie da się udowodnić układu wizualnego.
 // happy-dom nie liczy layoutu, a szerokość karty multi-card jest podawana jako
@@ -51,6 +56,10 @@ import type { ReactElement } from "react";
 vi.mock("@/lib/builder/contentRefs", () => ({
   useResolvedPostRefs: () => new Map(),
 }));
+
+// Punkt ciszy (zapas bramki ruchu) tylko na żądanie testu - prawdziwy detektor
+// otworzyłby bramkę po ~5 s fałszywego czasu.
+vi.mock("@/lib/performance/whenQuiescent", () => ({ onQuiescent: () => () => {} }));
 
 vi.mock("@/integrations/supabase/client", () => {
   const builder: Record<string, unknown> = {};
@@ -72,6 +81,7 @@ import {
   type SliderRatio,
   type SliderRounded,
 } from "../sliderVariants";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 
 const ITEMS: SliderItem[] = [
   {
@@ -119,6 +129,7 @@ afterEach(cleanup);
 // muszą znikać razem z testem, żeby nie wyciekły na sąsiednie przypadki.
 afterEach(() => {
   vi.useRealTimers();
+  __resetMotionGateForTests();
 });
 
 describe("slider (tryb ręczny) - przełącznik tytułu", () => {
@@ -467,6 +478,7 @@ describe("slider - koercja pozostałych ustawień", () => {
     [false, "Slajd 3"],
   ])("po ostatnim slajdzie automat z pętlą=%s zatrzymuje się na %s", (loop, expected) => {
     vi.useFakeTimers();
+    __openMotionGateForTests();
     const { container } = renderSlider({
       items: THREE_SLIDES,
       autoplay: true,
@@ -490,6 +502,7 @@ describe("slider - koercja pozostałych ustawień", () => {
 
   it("podnosi zbyt krótki interwał autoplay do dolnego limitu 1500 ms", () => {
     vi.useFakeTimers();
+    __openMotionGateForTests();
     const { container } = renderSlider({
       items: THREE_SLIDES,
       autoplay: true,
@@ -973,6 +986,7 @@ describe("slider - pauza automatu pod kursorem", () => {
 
   it("zatrzymuje automat pod kursorem, gdy pauza jest włączona, i wznawia po zjechaniu", () => {
     vi.useFakeTimers();
+    __openMotionGateForTests();
     const { container } = startAutoplay(true);
     const root = container.querySelector<HTMLElement>(".eh-slider")!;
     fireEvent.mouseOver(root);
@@ -989,12 +1003,93 @@ describe("slider - pauza automatu pod kursorem", () => {
 
   it("nie zatrzymuje automatu pod kursorem, gdy pauza jest wyłączona", () => {
     vi.useFakeTimers();
+    __openMotionGateForTests();
     const { container } = startAutoplay(false);
     fireEvent.mouseOver(container.querySelector<HTMLElement>(".eh-slider")!);
     act(() => {
       vi.advanceTimersByTime(1600);
     });
     expect(container.textContent).toContain("Slajd 2");
+  });
+});
+
+describe("slider - bramka ruchu (P3.5)", () => {
+  const titleOf = (root: HTMLElement) => root.querySelector("h3.cms-post-title")?.textContent;
+
+  it("przed otwarciem bramki automat stoi przez 30 s; po otwarciu przeskok dokładnie po interwale", () => {
+    vi.useFakeTimers();
+    const { container } = renderSlider({ items: THREE_SLIDES, autoplay: true, intervalMs: 4500 });
+    // Krokami po sekundzie: pojedynczy skok 30 s mógłby trafić z powrotem na
+    // pierwszy slajd po pełnych obrotach pętli.
+    for (let second = 0; second < 30; second += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(titleOf(container)).toBe("Slajd 1");
+    }
+
+    act(() => __openMotionGateForTests());
+    act(() => {
+      vi.advanceTimersByTime(4499);
+    });
+    // Samo otwarcie niczego nie przestawia - interwał liczy się od otwarcia.
+    expect(titleOf(container)).toBe("Slajd 1");
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(titleOf(container)).toBe("Slajd 2");
+  });
+
+  it("globalny autoplay z ustawień (hero bez własnego klucza) też czeka na bramkę", () => {
+    vi.useFakeTimers();
+    // Brak `autoplay` w konfiguracji = CAROUSEL_DEFAULTS (autoplay true, 4500 ms).
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { container } = render(
+      <QueryClientProvider client={qc}>
+        <SliderRender config={{ items: THREE_SLIDES }} lang="pl" />
+      </QueryClientProvider>,
+    );
+    // Krokami po sekundzie: pojedynczy skok 30 s mógłby trafić z powrotem na
+    // pierwszy slajd po pełnych obrotach pętli.
+    for (let second = 0; second < 30; second += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(titleOf(container)).toBe("Slajd 1");
+    }
+    act(() => __openMotionGateForTests());
+    act(() => {
+      vi.advanceTimersByTime(4500);
+    });
+    expect(titleOf(container)).toBe("Slajd 2");
+  });
+
+  it("prefers-reduced-motion: po otwarciu bramki automat nie rusza, strzałki działają", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: query.includes("prefers-reduced-motion"),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList,
+    );
+    try {
+      __openMotionGateForTests();
+      const { container } = renderSlider({ items: THREE_SLIDES, autoplay: true, intervalMs: 1500 });
+      for (let second = 0; second < 30; second += 1) {
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+        expect(titleOf(container)).toBe("Slajd 1");
+      }
+      fireEvent.click(within(container).getAllByLabelText("Następny slajd")[0]);
+      expect(titleOf(container)).toBe("Slajd 2");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

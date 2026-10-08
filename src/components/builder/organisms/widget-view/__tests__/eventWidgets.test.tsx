@@ -4,8 +4,10 @@
 // inline i profilowy + dialog profilu) oraz SpeakersWidget w trybach zrodla
 // (manual/directory) z dialogiem profilu prelegenta. Warstwa danych jest
 // stubowana per-tabela + per-RPC, wiec cwiczymy realne sciezki renderu.
+// Bramka ruchu (P3.5): do pierwszej interakcji albo punktu ciszy odliczanie
+// tyka co minute (cyfra sekund stoi), potem co sekunde.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
+import { act, render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import type { WidgetContent, WidgetNode } from "@/lib/builder/types";
@@ -96,6 +98,7 @@ import { EventCountdownView } from "../EventCountdownView";
 import { EventScheduleView } from "../EventScheduleView";
 import { SpeakersWidget } from "../SpeakersWidget";
 import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 
 function renderWithClient(ui: ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -160,7 +163,11 @@ beforeEach(() => {
   db.rpc = {};
   rpcSpy.mockClear();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  __resetMotionGateForTests();
+});
 
 describe("EventsListView", () => {
   it("renders event cards with kind badge, countdown chip and event link", async () => {
@@ -252,6 +259,38 @@ describe("EventCountdownView", () => {
     );
     expect(await screen.findByText("days")).toBeInTheDocument();
     expect(screen.queryByText("sec")).not.toBeInTheDocument();
+  });
+
+  it("bramka ruchu: do otwarcia takt minutowy (sekundy stoją), po otwarciu takt co sekundę", () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    vi.setSystemTime(new Date("2026-10-08T10:00:00.000Z"));
+    // Cel: 3 dni, 5 min i 30 s od „teraz".
+    const target = new Date(Date.now() + 3 * 86_400_000 + 5 * 60_000 + 30_000).toISOString();
+    renderWithClient(<EventCountdownView c={{ mode: "custom", targetAt: target }} lang="pl" />);
+    const tile = (label: string) => screen.getByText(label).previousElementSibling?.textContent;
+    expect(tile("sek.")).toBe("30");
+    expect(tile("min")).toBe("05");
+
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    expect(tile("sek.")).toBe("30");
+    act(() => {
+      vi.advanceTimersByTime(30_000);
+    });
+    // Takt minutowy: minuty idą, sekundy po pełnej minucie mają tę samą wartość.
+    expect(tile("min")).toBe("04");
+    expect(tile("sek.")).toBe("30");
+
+    act(() => __openMotionGateForTests());
+    act(() => {
+      vi.advanceTimersByTime(999);
+    });
+    expect(tile("sek.")).toBe("30");
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(tile("sek.")).toBe("29");
   });
 
   it("shows the finished state for past targets", async () => {
