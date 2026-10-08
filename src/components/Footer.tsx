@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { memo, Suspense, useEffect, useMemo, useRef } from "react";
+import { lazy, memo, Suspense, useEffect, useMemo, useRef } from "react";
 import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
@@ -11,6 +11,8 @@ import {
   type FooterChrome,
 } from "@/lib/theme/footerSettings";
 import { BackToTop } from "@/components/footer/BackToTop";
+import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
+import { LegalLinks } from "@/components/footer/LegalLinks";
 import { trackFooterLink, trackFooterNewsletterSubmit } from "@/lib/analytics/footerTracking";
 import { FOOTER_LINKS, type FooterLinkGroup } from "@/lib/seo/footerNavigation";
 import { useLang } from "@/lib/i18n/useLang";
@@ -33,6 +35,54 @@ import { SECTION_ISLAND_TRIGGER, sectionIslandInfo } from "@/lib/builder/section
  * Wyzwalacze i typy widgetów (klucze rejestru chunków) - te same co w
  * wyspach sekcji treści (`sectionStreaming.tsx`).
  */
+
+/**
+ * LISTWA PRAWNA NIEZALEŻNA OD DOKUMENTU BUILDERA. Regulamin, polityka
+ * prywatności, zwroty, cookies i RODO muszą być osiągalne z każdej strony
+ * (wymóg operatora płatności), także gdy redakcja przebuduje stopkę
+ * w builderze - dlatego listwa idzie z rejestru `FOOTER_LINKS`, a nie
+ * z dokumentu. Dawny `CopyrightBar` zszedł ze stopki 2026-09-08 (commity
+ * 5b6b114e i 50aaf602, bez uzasadnienia) i z nim zniknęły te linki; listwa nie
+ * powtarza wiersza praw autorskich, który dokument stopki ma własny.
+ *
+ * SERWER RENDERUJE JĄ STATYCZNIE (linki w HTML-u SSR - SEO i zgodność),
+ * KLIENT DOCIĄGA JĄ RAZEM Z WYSPĄ. `import.meta.env.SSR` Vite podmienia na
+ * literał, więc w bundlu klienta zostaje sam `lazy()`, a statyczny import
+ * czystego modułu znika - domknięcie bootu strony głównej nie rośnie o kod
+ * listwy, tylko o ten `lazy()` (nazwany chunk `legal-links` w obu
+ * konfiguracjach Vite - bez nazwy łączenie małych chunków wkleja listwę
+ * z powrotem do wejścia). Chunk jest podany wyspie w `chunks` (kontrakt
+ * `hydrationIsland`: każdy `React.lazy` w wyspie jako komponent), więc wyspa
+ * go gruntuje przed hydratacją i HTML serwera hydratuje bez zawieszenia. Własna granica
+ * `Suspense` chroni dokument stopki przy świeżym montażu po nawigacji SPA
+ * (np. z /admin): stopka nie znika na czas pobierania listwy, a listwa
+ * dochodzi na samym dole, pod wszystkim, więc niczego nie przesuwa.
+ *
+ * KOSZT: jedno żądanie chunku `legal-links-*.js` (~0,5 KB gzip, cache
+ * `immutable`) na odsłonę, gdy wyspa stopki się otwiera (widoczność,
+ * interakcja albo punkt ciszy - zwykle zaraz po boocie, także bez
+ * przewijania), poza ścieżką do LCP. Wyspa czeka na ten chunk przed
+ * hydratacją stopki. Świadomie: kilkaset bajtów poza domknięciem bootu
+ * zamiast kodu listwy w chunku wejściowym każdej strony. Danych listwa nie
+ * czyta (rejestr w kodzie, język z `useLang`). Preloadu zależności chunk nie
+ * ma (`modulePreload.resolveDependencies` w obu konfiguracjach Vite): importuje
+ * wyłącznie chunki vendorowe, które boot już załadował.
+ *
+ * AWARIA CHUNKU DEGRADUJE DO BRAKU LISTWY, NIE DO EKRANU BŁĘDU.
+ * `RenderErrorBoundary` łapie odrzucony import (`React.lazy` rzuca nim przy
+ * renderze): React porzuca HTML listwy (najbliższa granica `Suspense`),
+ * granica renderuje pusty, ukryty znacznik i raportuje błąd, a dokument
+ * stopki, treść i nagłówek zostają. Bez tej granicy wyjątek dochodził do
+ * globalnego `ErrorBoundary` korzenia i podmieniał CAŁĄ stronę. Osobno
+ * wyspa zgłasza odrzucony chunk (`reportError`), a globalna siatka
+ * `cacheBusting.ts` robi na każdy chunk-load error JEDNO twarde przeładowanie
+ * (`?_v=`) - celowo, dla dokumentu sprzed wdrożenia, którego chunków już nie
+ * ma. Kolejne przeładowanie w ciągu 15 s blokuje strażnik w `sessionStorage`,
+ * więc przy trwałej awarii strona po jednym przeładowaniu zostaje - bez listwy
+ * (przy zablokowanym `sessionStorage` strażnik nie działa - stan siatki sprzed
+ * tej zmiany, wspólny dla każdego leniwego chunku).
+ */
+const LegalLinksChunk = lazy(() => import("@/components/footer/LegalLinks"));
 
 type FooterSettings = {
   builder_data?: BuilderDocument | null;
@@ -71,14 +121,15 @@ function FooterInner({ compact }: FooterProps) {
     [builderData],
   );
 
-  // Chunki leniwych widgetów stopki dla bramki wyspy (czytane przy montażu).
+  // Chunki leniwych widgetów stopki i listwy prawnej dla bramki wyspy
+  // (czytane przy montażu).
   const islandChunks = useMemo(
     () =>
       islandChunksFor(
         (Array.isArray(doc.sections) ? doc.sections : []).flatMap((section) =>
           section ? sectionIslandInfo(section).widgetTypes : [],
         ),
-      ),
+      ).concat(LegalLinksChunk),
     [doc],
   );
 
@@ -152,6 +203,15 @@ function FooterInner({ compact }: FooterProps) {
       >
         <HydrationIsland id="site-footer" trigger={SECTION_ISLAND_TRIGGER} chunks={islandChunks}>
           <BuilderRenderer doc={doc} lang={lang} />
+          <RenderErrorBoundary label="footer:legal-links">
+            <Suspense fallback={null}>
+              {import.meta.env.SSR ? (
+                <LegalLinks links={FOOTER_LINKS} lang={lang} />
+              ) : (
+                <LegalLinksChunk links={FOOTER_LINKS} lang={lang} />
+              )}
+            </Suspense>
+          </RenderErrorBoundary>
         </HydrationIsland>
       </footer>
       {chromeCfg.back_to_top ? (

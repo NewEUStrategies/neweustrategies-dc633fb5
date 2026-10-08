@@ -134,6 +134,18 @@ export default defineConfig({
           // Przywraca minifikację bundla przeglądarki (patrz komentarz przy
           // top-level `minify: false`, które jest dla SSR/workera).
           minify: "esbuild",
+          // Listwa prawna stopki (`legal-links`, leniwy chunk wyspy stopki) BEZ
+          // preloadu zależności: importuje wyłącznie `vendor-react`,
+          // `vendor-tanstack` i `vendor-i18n`, które leżą w domknięciu bootu,
+          // więc ich preload przy `import()` listwy niczego nie przyspiesza, a jego
+          // lista (`__vite__mapDeps`) kosztowała bajty w chunku wejściowym
+          // (zmierzone na artefakcie). Dotyczy WYŁĄCZNIE tego chunku; każdy inny
+          // `import()` dostaje swoje zależności bez zmian. Obie konfiguracje
+          // identycznie (`viteChunkParity.test.ts`).
+          modulePreload: {
+            resolveDependencies: (file: string, deps: string[]) =>
+              /(?:^|\/)legal-links-[\w-]+\.js$/.test(file) ? [] : deps,
+          },
           rollupOptions: {
             output: {
               // Bez hoistowania importów tranzytywnych: nagłówki chunków
@@ -164,6 +176,14 @@ export default defineConfig({
                 if (id.endsWith("/src/components/clubs/atoms/ClubThreadKindIcon.tsx")) {
                   return "club-thread-kind-icon";
                 }
+                // Listwa prawna stopki (`LegalLinks`, ~1 KB) jest leniwym chunkiem
+                // wyspy stopki, a serwer renderuje ją statycznie. Bez nazwy łączenie
+                // małych chunków wkleiło ją do chunku wejściowego (zmierzone na
+                // artefakcie: kod listwy w `index-*`), bo wejście jest zawsze już
+                // załadowane, gdy pada jej `import()`. Moduł importuje wyłącznie
+                // z nazwanych chunków vendorowych (React, router, i18next), więc
+                // nazwany chunk nie wciąga do siebie niczego z wejścia.
+                if (id.endsWith("/src/components/footer/LegalLinks.tsx")) return "legal-links";
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
                 // WEJŚCIOWEGO do nazwanego chunku. Gdy `manualChunks` przypisze

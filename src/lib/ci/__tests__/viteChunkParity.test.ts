@@ -115,6 +115,34 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     expect(smoke).toContain(define);
   });
 
+  it("oba presety zdejmują preload zależności WYŁĄCZNIE chunkowi listwy prawnej", () => {
+    // `modulePreload.resolveDependencies` steruje listą `__vite__mapDeps` każdego
+    // `import()` w bundlu klienta. Smoke z inną regułą mierzyłby inne wejście niż
+    // produkcja, a zbyt szeroki wzorzec zdjąłby preload innym leniwym chunkom.
+    const preloadBlock = (source: string, file: string): string => {
+      const start = source.indexOf("modulePreload: {");
+      expect(start, `${file}: brak modulePreload`).toBeGreaterThan(-1);
+      const end = source.indexOf("\n          },\n", start);
+      expect(end, `${file}: nie znaleziono końca modulePreload`).toBeGreaterThan(start);
+      return source.slice(start, end);
+    };
+    const block = preloadBlock(main, "vite.config.ts");
+    expect(preloadBlock(smoke, "vite.smoke.config.ts")).toBe(block);
+    const literal = block.match(/^\s*\/(.+)\/\.test\(file\) \? \[\] : deps,$/m)?.[1];
+    expect(literal, "reguła: <wzorzec>.test(file) ? [] : deps").toBeDefined();
+    const isLegalLinksChunk = new RegExp(literal ?? "(?!)");
+    expect(isLegalLinksChunk.test("assets/legal-links-Cqw847lN.js")).toBe(true);
+    for (const other of [
+      "assets/index-Cicti5oJ.js",
+      "assets/vendor-react-Bx1.js",
+      "assets/footer-legal-links-Ab_1.js",
+      "assets/LegalLinksPanel-Ab_1.js",
+      "assets/legal-links-Cqw847lN.css",
+    ]) {
+      expect(isLegalLinksChunk.test(other), other).toBe(false);
+    }
+  });
+
   it("reguła vendorowa pomija moduł WEJŚCIOWY (pułapka zapadania się chunku)", () => {
     // Bez tej linii `manualChunks` może przypisać entry do nazwanego chunku,
     // a wtedy Rollup wciąga cały ten chunk z powrotem do entry - bez ostrzeżenia.

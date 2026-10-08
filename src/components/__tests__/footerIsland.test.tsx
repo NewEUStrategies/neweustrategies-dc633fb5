@@ -13,6 +13,10 @@
 //  4. Dotknięcie linku w czekającej stopce: tor pilny otwiera wyspę przed
 //     `click`, a telemetria linków (`<footer>` poza wyspą) dostaje klik.
 //  5. Zapisana sesja: hydratacja od razu, jak bez wyspy.
+//  6. Listwa prawna (`LegalLinks`): serwer renderuje ją statycznie w wyspie
+//     (pod rendererem buildera), klient - leniwym chunkiem, który wyspa
+//     gruntuje przed hydratacją. Po otwarciu wyspy zostaje TEN SAM węzeł
+//     serwera (hydratacja, nie render od nowa) i nie ma błędu odzyskiwalnego.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
@@ -40,6 +44,12 @@ vi.mock("react-i18next", () => ({
 vi.mock("@/lib/i18n/localeRuntime", () => ({ currentLang: () => "pl", setClientLang: () => {} }));
 vi.mock("@/lib/ssr/chromeWarmup", () => ({
   ChromeDataGate: ({ children }: { children: ReactElement }) => children,
+}));
+// Listwa prawna stopki renderuje `Link` routera, który bez `RouterProvider`
+// rzuca - wspólna atrapa daje ten sam znacznik <a href>.
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
 }));
 vi.mock("@/lib/analytics/footerTracking", () => ({
   trackFooterLink: (payload: unknown) => {
@@ -69,6 +79,13 @@ import { __resetFirstInteractionForTests } from "@/lib/performance/firstInteract
 import { __resetPostInteractionQueueForTests } from "@/lib/performance/postInteractionQueue";
 
 h.t = (lang) => realT(lang);
+
+// Moduł listwy prawnej załadowany z góry: wyspa gruntuje jej `React.lazy` przed
+// otwarciem bramki, a pierwsze przekształcenie modułu przez vitest trwałoby
+// dłużej niż klatki, które odlicza ten plik.
+await import("@/components/footer/LegalLinks");
+
+const LEGAL_NAV = `nav[aria-label="${String(realT("pl")("footer.legal_nav"))}"]`;
 
 class FakeIntersectionObserver {
   static instances: FakeIntersectionObserver[] = [];
@@ -132,6 +149,7 @@ async function hydrateFooter() {
   }
   document.body.append(host);
   const serverSection = host.querySelector('[data-probe="footer-section"]');
+  const serverLegalNav = host.querySelector(LEGAL_NAV);
   const errors: unknown[] = [];
   let root!: Root;
   await act(async () => {
@@ -139,7 +157,7 @@ async function hydrateFooter() {
   });
   roots.push({ root, host });
   const island = () => host.querySelector<HTMLElement>('[data-island-id="site-footer"]');
-  return { host, client, errors, serverSection, island };
+  return { host, client, errors, serverSection, serverLegalNav, island };
 }
 
 beforeEach(() => {
@@ -178,6 +196,21 @@ describe("Footer - stopka jedną wyspą hydratacji (P2.2)", () => {
     expect(island?.getAttribute("data-island-state")).toBe("pending");
     expect(island?.firstElementChild?.hasAttribute("data-builder-renderer")).toBe(true);
     expect(page.host.innerHTML).not.toContain("data-island-fallback");
+    // Listwa prawna: w HTML-u serwera, wewnątrz wyspy, pod dokumentem buildera.
+    expect(page.serverLegalNav).not.toBeNull();
+    expect(island?.contains(page.serverLegalNav ?? null)).toBe(true);
+    const hrefs = [...(page.serverLegalNav?.querySelectorAll("a[href]") ?? [])].map((a) =>
+      a.getAttribute("href"),
+    );
+    expect(hrefs).toEqual(
+      expect.arrayContaining([
+        "/regulamin",
+        "/polityka-prywatnosci",
+        "/zwroty-i-reklamacje",
+        "/cookies",
+        "/rodo",
+      ]),
+    );
     const backToTop = page.host.querySelector("footer[data-site-footer] ~ *");
     expect(backToTop === null || island?.contains(backToTop) === false).toBe(true);
     expect(page.errors).toEqual([]);
@@ -219,6 +252,8 @@ describe("Footer - stopka jedną wyspą hydratacji (P2.2)", () => {
     expect(page.island()?.getAttribute("data-island-state")).toBe("hydrated");
     expect(h.clientRenders).toBeGreaterThan(0);
     expect(page.host.querySelector('[data-probe="footer-section"]')).toBe(page.serverSection);
+    // Listwa prawna uwodniona na węźle serwera (leniwy chunk zgruntowany przez wyspę).
+    expect(page.host.querySelector(LEGAL_NAV)).toBe(page.serverLegalNav);
     expect(page.errors).toEqual([]);
   });
 
@@ -245,6 +280,7 @@ describe("Footer - stopka jedną wyspą hydratacji (P2.2)", () => {
     const page = await hydrateFooter();
     expect(page.island()?.getAttribute("data-island-state")).toBe("hydrated");
     expect(page.host.querySelector('[data-probe="footer-section"]')).toBe(page.serverSection);
+    expect(page.host.querySelector(LEGAL_NAV)).toBe(page.serverLegalNav);
     expect(page.errors).toEqual([]);
   });
 });
