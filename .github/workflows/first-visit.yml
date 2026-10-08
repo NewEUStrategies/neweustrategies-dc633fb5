@@ -29,14 +29,14 @@ jobs:
     timeout-minutes: 45
     # Build both artifacts first, then alternate equivalent cases on ONE runner.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: harness
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: baseline
           ref: ${{ github.event.before || 'main' }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: candidate
       # FILTR ŚCIEŻEK DLA A/B LIGHTHOUSE'A - liczony z DRZEW, nie z historii git.
@@ -94,7 +94,7 @@ jobs:
             echo "A/B Lighthouse'a pominiete - brak zmian w src/, scripts/lib/, public/, vite*.config.ts, tsconfig.json, package.json ani bun.lock"
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24.19.0"
       - uses: oven-sh/setup-bun@v2
@@ -195,7 +195,7 @@ jobs:
         run: node scripts/performance/lighthouse-local.mjs --compare ../baseline ../candidate --runs 5 --forms mobile --idle-wait 30 --label ci --out reports/lighthouse-local/ci
       - name: Upload baseline evidence
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: first-visit-baseline
           path: |
@@ -206,7 +206,7 @@ jobs:
           retention-days: 14
       - name: Upload candidate evidence
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: first-visit-candidate
           path: |

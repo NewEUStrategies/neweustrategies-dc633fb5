@@ -64,12 +64,12 @@ jobs:
     # = 30 min kroku + checkout, setup-node i wysyłka + zapas.
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Ten sam runtime co pozostałe workflowy pomiarowe. Bez instalacji
       # zależności: próbnik importuje wyłącznie moduły wbudowane node i dwa
       # pliki .ts z repo (type stripping node 24).
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24.19.0"
 
@@ -125,7 +125,7 @@ jobs:
 
       - name: Upload PSI reports
         if: ${{ !cancelled() && steps.key.outputs.present == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: psi-${{ github.run_id }}
           path: |

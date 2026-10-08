@@ -23,12 +23,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Keep tests and artifact measurements on the same Node runtime.
       # Coverage uses Istanbul after V8 remapping produced invalid counters on
       # both Node 22 and 24. Bun alone does not pin the Node runtime.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24.19.0"
 
@@ -37,7 +37,7 @@ jobs:
           bun-version: "1.2.23"
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       # CI has no pre-installed browser (unlike the dev sandbox), so fetch Chromium.
       - name: Install Playwright Chromium
@@ -54,7 +54,7 @@ jobs:
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: playwright-report/
@@ -69,12 +69,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Keep tests and artifact measurements on the same Node runtime.
       # Coverage uses Istanbul after V8 remapping produced invalid counters on
       # both Node 22 and 24. Bun alone does not pin the Node runtime.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24.19.0"
 
@@ -83,7 +83,7 @@ jobs:
           bun-version: "1.2.23"
 
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Install Playwright Chromium
         run: bunx playwright install --with-deps chromium
@@ -135,7 +135,7 @@ jobs:
 
       - name: Upload seeded Playwright report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-seeded
           path: playwright-report/
@@ -143,7 +143,7 @@ jobs:
 
       - name: Upload popup registration evidence
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: popup-registration-report
           path: |

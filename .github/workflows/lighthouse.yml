@@ -99,12 +99,12 @@ jobs:
     # `--max-time 90` dawało do 42 min, czyli prawie cały limit joba.
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Keep tests and artifact measurements on the same Node runtime.
       # Coverage uses Istanbul after V8 remapping produced invalid counters on
       # both Node 22 and 24. Bun alone does not pin the Node runtime.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24.19.0"
 
@@ -404,7 +404,7 @@ jobs:
       # tych liczb byłoby znowu zgadywaniem.
       - name: Upload Lighthouse reports and the artifact server log
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lighthouse-${{ vars.LHCI_URL != '' && 'deployed' || 'production-artifact' }}
           path: |
