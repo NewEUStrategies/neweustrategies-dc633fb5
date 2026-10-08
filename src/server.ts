@@ -149,12 +149,29 @@ async function normalizeCatastrophicSsrResponse(
 // remains cacheable between routes instead of being copied into each document.
 
 /**
+ * User-agent KAŻDEGO odświeżenia w tle: stały, przeglądarkowy (fala 3, P3.6a,
+ * R6 diagnozy `faza3/diagnoza/cache-dokumentu.md`). Klucz cache'u dokumentów
+ * nie rozróżnia UA, a router renderuje automatom (isbot) INNY wariant: czeka na
+ * `allReady` i oddaje dokument buforowany zamiast strumienia. Kopia UA żądania
+ * wyzwalającego sprawiała, że o wariancie wpisu na całe okno świeżości
+ * decydował przypadek - STALE albo zdegradowany MISS z Lighthouse'a/PSI zasiewał
+ * wpis wariantem bota dla wszystkich czytelników, a przebiegi PSI raz mierzyły
+ * jeden wariant, raz drugi. Stały UA przeglądarki daje zawsze wariant
+ * strumieniowy - ten sam, który mierzy harness (`--warm-ua browser`, ten sam
+ * napis co `WARM_USER_AGENT` w `scripts/performance/artifactServer.ts`).
+ * Żądanie syntetyczne nie opuszcza izolatu, więc napis nie trafia do sieci.
+ */
+const REVALIDATION_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
+
+/**
  * Nagłówki syntetycznego żądania odświeżenia. Świadomie WĄSKA lista:
  *   - `host` / `x-forwarded-host` / `x-forwarded-proto` - bez nich render
  *     trafiłby w innego tenanta (klucz cache jest prefiksowany hostem),
  *   - `accept` / `accept-language` - odtwarzają negocjację języka, żeby
  *     odświeżenie nie skończyło się redirectem zamiast dokumentem,
- *   - ciasteczko JĘZYKA (i tylko ono) - z tego samego powodu.
+ *   - ciasteczko JĘZYKA (i tylko ono) - z tego samego powodu,
+ *   - `user-agent` NIE jest kopiowany: zawsze `REVALIDATION_USER_AGENT`.
  * `authorization` i ciasteczka sesji `sb-*` są WYKLUCZONE z definicji:
  * dokument w cache'u jest anonimową skorupą i taki musi pozostać.
  */
@@ -166,11 +183,11 @@ function revalidationHeaders(request: Request): Headers {
     "x-forwarded-proto",
     "accept",
     "accept-language",
-    "user-agent",
   ]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  headers.set("user-agent", REVALIDATION_USER_AGENT);
   const lang = (request.headers.get("cookie") ?? "")
     .split(";")
     .map((part) => part.trim())

@@ -6,8 +6,10 @@
 // Architektura dwupoziomowa:
 //   - L1: mapa w pamięci izolatu (mikrosekundy, znika z rotacją izolatu);
 //   - L2: Cloudflare Cache API per-colo (`documentCacheL2.server.ts`) -
-//     współdzielone między izolatami kolonii, unieważniane kluczem
-//     wersjonowanym przy purge; poza Workers L2 degraduje do no-op.
+//     nazwany cache współdzielony między izolatami kolonii, sprawdzany
+//     samotestem raz na izolat, unieważniany kluczem wersjonowanym przy purge
+//     (klucz niesie też identyfikator buildu); poza Workers L2 degraduje do
+//     no-op.
 //
 // Właściwości:
 //   - HIT: odpowiedź prosto z L1 (zero SSR, zero odczytów bazy); L1 miss
@@ -33,8 +35,9 @@
 //     trafieniu) - ten sam wzorzec co `edgeTtlCache`, ale liczony w bajtach;
 //   - klucz prefiksowany hostem tenanta ("by construction", multi-tenant safe);
 //   - Server-Timing: status cache + `ssr;dur` (czas renderu) + `db;dur`
-//     (koszt round-tripów planu anon, patrz `ssrTiming.server.ts`) + na końcu
-//     `nes-layer` - poziom, który podał dokument (L1 / L2 / render);
+//     (koszt round-tripów planu anon, patrz `ssrTiming.server.ts`) +
+//     `nes-layer` - poziom, który podał dokument (L1 / L2 / render) - i, gdy
+//     izolat ma samotest L2, na końcu `nes-l2` ze stanem samotestu;
 //   - kill-switch środowiskowy: NES_EDGE_CACHE=off.
 //
 // Spójność publikacji: purge czyści L1 bieżącego izolatu i podbija wersję L2
@@ -63,9 +66,11 @@ import {
   l2Delete,
   l2Match,
   l2Put,
+  l2SelfTestLabel,
   l2Stats,
   recordL2Serve,
   type L2DocumentEntry,
+  type L2Store,
 } from "@/lib/http/documentCacheL2.server";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import {
@@ -140,6 +145,17 @@ export interface DocumentCacheL2Snapshot {
    * je zawsze.
    */
   deletes?: number;
+  /**
+   * Wynik samotestu L2 izolatu (zapis + odczyt wpisu z nonce); null = trwa
+   * albo nie dotyczy. `enabled` bez samotestu mówiło tylko, że obiekt Cache
+   * API istnieje - także przy martwej warstwie. Opcjonalne W TYPIE z tego
+   * samego powodu co `deletes`.
+   */
+  verified?: boolean | null;
+  /** Magazyn L2 izolatu: nazwany cache albo `caches.default`. */
+  store?: L2Store | null;
+  /** Segment buildu w kluczach dokumentów L2. */
+  build?: string | null;
 }
 
 export interface DocumentCacheSnapshot {
@@ -206,6 +222,17 @@ export interface DocumentCacheDecision {
    * MISS czysty albo rewalidacja.
    */
   degradedRevalidation?: "scheduled" | "throttled";
+  /**
+   * Etap, na którym polityka zapisu odrzuciła MISS (R7c): `loader` - nagłówki
+   * odpowiedzi już w middleware (`no-store` z loadera), `handler` - dyrektywa
+   * zawężona na granicy handlera, `stream` - zawężona dopiero W TRAKCIE
+   * strumieniowania. Dwa ostatnie etapy zapadają PO zapisaniu decyzji, więc
+   * pole (razem z `degradedRevalidation`) jest dopisywane do tego samego wpisu
+   * pierścienia - wcześniej taki MISS wyglądał w pierścieniu jak czysty.
+   * KTÓRY loader się zdegradował, mówi linia `[ssr-resilient]` z tego samego
+   * wywołania.
+   */
+  degradedAt?: "loader" | "handler" | "stream";
 }
 
 const store = new Map<string, DocumentCacheEntry>();
@@ -433,6 +460,18 @@ function touchEntry(key: string, entry: DocumentCacheEntry): void {
 }
 
 /**
+ * Stan samotestu L2 izolatu jako ostatnia metryka Server-Timing dokumentu
+ * (`nes-l2;desc="named"|"default"|"pending"|"off"`, R7b) - sonda produkcyjna:
+ * jedno `curl` mówi, czy L2 izolatu, który odpowiedział, w ogóle działa.
+ * Bez samotestu (atrapa w testach, runtime bez `caches.open`, poza Workers)
+ * wartość jest bajt w bajt dawnym napisem.
+ */
+function withL2SelfTest(serverTiming: string): string {
+  const label = l2SelfTestLabel();
+  return label ? `${serverTiming}, nes-l2;desc="${label}"` : serverTiming;
+}
+
+/**
  * Odtworzenie wpisu z magazynu. `layer` mówi, SKĄD wpis przyszedł w TYM
  * żądaniu: z pamięci izolatu (`L1`) czy z kolonii (`L2`, świeży izolat).
  * Wpis L2 zasiewa L1, więc kolejne trafienie tego samego izolatu jest już L1 -
@@ -461,13 +500,8 @@ function replay(
     "cache-control": entry.cacheControl,
     [NES_CACHE_HEADER]: status,
     [NES_CACHE_AGE_HEADER]: String(Math.max(0, Math.round((now - entry.storedAt) / 1000))),
-    "server-timing": buildServerTimingValue(
-      status,
-      undefined,
-      undefined,
-      now - entry.storedAt,
-      phases,
-      layer,
+    "server-timing": withL2SelfTest(
+      buildServerTimingValue(status, undefined, undefined, now - entry.storedAt, phases, layer),
     ),
   });
   if (entry.contentLanguage) headers.set("content-language", entry.contentLanguage);
@@ -513,13 +547,15 @@ function withCacheStatus(
   // a czytelnik bez drivera rewalidacji zapłacił render synchronicznie.
   headers.set(
     "server-timing",
-    buildServerTimingValue(
-      status,
-      timing?.renderMs,
-      timing?.db,
-      undefined,
-      timing?.phases,
-      "render",
+    withL2SelfTest(
+      buildServerTimingValue(
+        status,
+        timing?.renderMs,
+        timing?.db,
+        undefined,
+        timing?.phases,
+        "render",
+      ),
     ),
   );
   return new Response(response.body, {
@@ -586,6 +622,8 @@ interface DeferredDocumentStore {
   storedAt: number;
   freshMs: number;
   swrMs: number;
+  /** Wpis pierścienia tego MISS-a - degradacja odkryta później dopisuje się do niego. */
+  decision: DocumentCacheDecision;
 }
 
 const deferredStores = new WeakMap<ReadableStream<Uint8Array>, DeferredDocumentStore>();
@@ -625,18 +663,21 @@ function decorateMissAndDeferStore(
   // Pełny (200) dokument HTML, którego polityka NIE wpuszcza do magazynu, to
   // zdegradowany render (`no-store` z loadera): czytelnik dostał go już
   // z pełnym kosztem, a bez odświeżenia w tle następny zapłaci to samo.
-  const degradedRevalidation =
-    !policy.store && response.status === 200 && contentType?.includes("text/html")
-      ? scheduleDegradedRevalidation(request, key, now)
-      : undefined;
-  recordDecision({
+  const degraded =
+    !policy.store && response.status === 200 && contentType?.includes("text/html") === true;
+  const degradedRevalidation = degraded
+    ? scheduleDegradedRevalidation(request, key, now)
+    : undefined;
+  const decision: DocumentCacheDecision = {
     at: new Date(now).toISOString(),
     path,
     status: "MISS",
     ...(timing?.renderMs === undefined ? {} : { renderMs: timing.renderMs }),
     cacheControl: response.headers.get("cache-control") ?? undefined,
     ...(degradedRevalidation ? { degradedRevalidation } : {}),
-  });
+    ...(degraded ? { degradedAt: "loader" as const } : {}),
+  };
+  recordDecision(decision);
   if (policy.store && response.body) {
     deferredStores.set(response.body, {
       request,
@@ -649,9 +690,22 @@ function decorateMissAndDeferStore(
       storedAt: now,
       freshMs: policy.freshMs,
       swrMs: policy.swrMs,
+      decision,
     });
   }
   return withCacheStatus(response, "MISS", timing);
+}
+
+/**
+ * Degradacja odkryta PO decyzji middleware (granica handlera albo strumień):
+ * odświeżenie w tle jak w `decorateMissAndDeferStore` (ten sam limit prób per
+ * klucz) i dopisanie etapu do wpisu pierścienia tego MISS-a (R7c) - karta
+ * /admin/performance nie pokazuje go już jako czystego.
+ */
+function markLateDegradation(record: DeferredDocumentStore, stage: "handler" | "stream"): void {
+  const degradedRevalidation = scheduleDegradedRevalidation(record.request, record.key, Date.now());
+  record.decision.degradedAt = stage;
+  if (degradedRevalidation) record.decision.degradedRevalidation = degradedRevalidation;
 }
 
 /**
@@ -717,7 +771,7 @@ export function applyDeferredDocumentStore(
     // Degradacja, która dotarła do odpowiedzi dopiero na granicy handlera:
     // ten MISS też nie zasieje magazynu, więc dostaje to samo odświeżenie w tle
     // co gałąź w `decorateMissAndDeferStore` (ten sam limit prób per klucz).
-    scheduleDegradedRevalidation(record.request, record.key, Date.now());
+    markLateDegradation(record, "handler");
     decide("degraded");
     const headers = new Headers(response.headers);
     headers.set("cache-control", "private, no-store");
@@ -761,7 +815,7 @@ export function applyDeferredDocumentStore(
       // Degradacja odkryta W TRAKCIE strumieniowania (np. chrome, którego
       // `warm()` padło po flushu shella) - dokument poszedł do czytelnika, ale
       // nie wchodzi do cache'a. Tło ma szansę oddać czysty; limit prób jak wyżej.
-      scheduleDegradedRevalidation(record.request, record.key, Date.now());
+      markLateDegradation(record, "stream");
       decide("degraded");
       return false;
     }
