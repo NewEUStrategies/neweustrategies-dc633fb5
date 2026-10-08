@@ -53,8 +53,11 @@ describe("`degradedAt` w pierścieniu decyzji", () => {
       req(),
       () => new Response("ok", { headers: CACHEABLE }),
     )) as Response;
-    await applyDeferredDocumentStore(response).text();
+    const onOutcome = vi.fn();
+    await applyDeferredDocumentStore(response, undefined, onOutcome).text();
     await flush();
+    // Zapis bez degradacji: decyzja bez etapu (jeden argument).
+    expect(onOutcome).toHaveBeenCalledWith("stored");
     const miss = lastMiss();
     expect(miss.degradedAt).toBeUndefined();
     expect(miss.degradedRevalidation).toBeUndefined();
@@ -80,8 +83,12 @@ describe("`degradedAt` w pierścieniu decyzji", () => {
     expect(lastMiss().degradedAt).toBeUndefined();
     response.headers.set("cache-control", "private, no-store");
 
-    await applyDeferredDocumentStore(response).text();
+    // Linia logu dokumentu (R7c) dostaje etap razem z decyzją magazynu.
+    const onOutcome = vi.fn();
+    await applyDeferredDocumentStore(response, undefined, onOutcome).text();
     await flush();
+    expect(onOutcome).toHaveBeenCalledTimes(1);
+    expect(onOutcome).toHaveBeenCalledWith("degraded", "handler");
     expect(getDocumentCacheSnapshot().recent.filter((d) => d.status === "MISS")).toHaveLength(1);
     expect(lastMiss()).toMatchObject({ degradedAt: "handler", degradedRevalidation: "scheduled" });
     expect(getDocumentCacheSnapshot().entries).toBe(0);
@@ -110,12 +117,18 @@ describe("`degradedAt` w pierścieniu decyzji", () => {
     });
     const response = await rendered(req(), {});
     let work: Promise<boolean> | undefined;
-    const final = applyDeferredDocumentStore(response, (pending) => {
-      work = pending;
-    });
+    const onOutcome = vi.fn();
+    const final = applyDeferredDocumentStore(
+      response,
+      (pending) => {
+        work = pending;
+      },
+      onOutcome,
+    );
     complete();
     expect(await final.text()).toContain("fallback");
     await expect(work).resolves.toBe(false);
+    expect(onOutcome).toHaveBeenCalledWith("degraded", "stream");
     await flush();
     expect(lastMiss()).toMatchObject({ degradedAt: "stream", degradedRevalidation: "scheduled" });
     expect(getDocumentCacheSnapshot().entries).toBe(0);

@@ -32,15 +32,14 @@
 // Do rozstrzygnięcia samotestu fasada działa optymistycznie - pierwsze żądanie
 // zimnego izolatu to dokładnie to, które ma skorzystać z wpisu kolonii.
 //
-// IDENTYFIKATOR BUILDU W KLUCZU DOKUMENTU. Dotąd L1 znikało z każdym deployem
-// (nowe izolaty startują puste), więc stary HTML nie przeżywał wdrożenia.
-// Działające L2 z oknem STALE do doby podawałoby HTML wskazujący chunki
-// poprzedniego deployu. Klucz dokumentu ma więc segment buildu, stały per
-// build: nazwę pliku wejścia klienta z `BOOT_MANIFEST.entry` (hash treści,
-// który obejmuje też nazwę arkusza i - przez kaskadę hashy - cały graf
-// chunków). Poza buildem (vitest, dev) segment to stały napis; w buildzie
-// produkcyjnym bez mapy bootu L2 dokumentów jest wyłączone. Skutek dla układu
-// artefaktu serwera (chunk manifestu w `_ssr/`) opisuje `documentBuildId()`.
+// IDENTYFIKATOR BUILDU W KLUCZU. Dotąd L1 znikało z każdym deployem (nowe
+// izolaty startują puste), więc stary HTML nie przeżywał wdrożenia. Działające
+// L2 z oknem STALE do doby podawałoby HTML wskazujący chunki poprzedniego
+// deployu, a migawki danych (`ssrCacheL2.server.ts`) - wartości w kształcie
+// starego kodu. Klucze dokumentów i migawek mają więc segment buildu: stałą
+// `__NES_BUILD_ID__` z `define` Vite (`l2BuildId()`), policzoną raz przy
+// ładowaniu konfiguracji. Poza buildem (vitest) segment to stały napis `dev`;
+// build produkcyjny bez stałej nie używa L2 dokumentów ani migawek wcale.
 //
 // Unieważnianie bez iterowania kluczy (Cache API nie ma listowania):
 // KLUCZ WERSJONOWANY. Adres wpisu dokumentu zawiera dwa segmenty wersji -
@@ -57,11 +56,12 @@
 // purge przestaje być per izolat i staje się per kolonia; pozostałe kolonie
 // doganiają w oknie świeżości. Dla AKTUALIZACJI treści zmiana jest ściśle
 // nie-gorsza: świeżość bez zmian, hit-rate rośnie z per-isolate do per-colo.
-// ZDJĘCIE albo PRZEKIEROWANIE ścieżki dogania inaczej: rewalidacja kończy się
-// wtedy 404/3xx bez zapisu (`src/server.ts`: „wpis zostaje STALE"), więc
-// kolonia bez purge podaje STALE do końca okna swr wpisu L2 - dotąd dotyczyło
-// to pojedynczego, krótko żyjącego izolatu. Zasada usuwania wpisu po
-// ostatecznym 404/3xx należy do zasad zapisu (P3.6b), nie do tej warstwy.
+// ZDJĘCIE albo PRZEKIEROWANIE ścieżki: pierwsze trafienie STALE w kolonii bez
+// purge podaje jeszcze stary dokument i odpala odświeżenie w tle; gdy to kończy
+// się ostatecznym 404/410/3xx, `documentCache.server.ts` usuwa wpis z L1 tego
+// izolatu i z L2 kolonii (`l2Delete`), więc kolejni czytelnicy dostają już
+// odpowiedź renderu. Bez tej zasady wpis byłby podawany jako STALE do końca
+// okna swr (do doby) w każdej kolonii, która nie obsłużyła publikacji.
 //
 // Poza Workers (brak `caches` - vite dev na Node, vitest, Node preview) każda
 // funkcja degraduje do no-op, a testom pozwala wstrzyknąć własny magazyn przez
@@ -134,9 +134,19 @@ const SELF_TEST_TTL_SECONDS = 60;
  * odczyt pod `waitUntil`, nigdy czas czytelnika.
  */
 const SELF_TEST_RETRY_MS = 100;
-/** Segment buildu poza buildem (vitest, dev): stały napis, nigdy zegar. */
+/** Segment buildu poza buildem (vitest): stały napis, nigdy zegar. */
 const DEV_BUILD_ID = "dev";
 const BUILD_ID_MAX_LENGTH = 64;
+
+/**
+ * Identyfikator buildu wstrzykiwany przez `define` Vite (`vite.config.ts`
+ * i `vite.smoke.config.ts`, ten sam blok - parytet pilnuje
+ * `viteChunkParity.test.ts`): `LOVABLE_BUILD_ID` albo znacznik czasu policzony
+ * RAZ przy ładowaniu konfiguracji. Deklaracja w module, nie globalna: stałą
+ * czyta wyłącznie `l2BuildId()`, a programy TS skryptów nie muszą jej znać.
+ * Poza buildem identyfikator nie istnieje - stąd odczyt przez `typeof`.
+ */
+declare const __NES_BUILD_ID__: string | undefined;
 
 // Nagłówki metadanych wpisu dokumentu (prefiks x-nes-l2-*).
 const H_STORED_AT = "x-nes-l2-stored-at";
@@ -175,12 +185,6 @@ interface RuntimeState {
 }
 
 let runtime: RuntimeState | null = null;
-
-/**
- * Segment buildu w kluczu dokumentu; undefined = jeszcze nie rozstrzygnięty,
- * null = build produkcyjny bez mapy bootu (L2 dokumentów wyłączone).
- */
-let buildId: string | null | undefined;
 
 interface VersionMemoEntry {
   at: number;
@@ -369,13 +373,12 @@ export function getColoCache(): ColoCache | null {
 
 /**
  * Hak testowy: wstrzyknij magazyn (null = symuluj brak Cache API). Każde
- * wywołanie zeruje też stan izolatu L2 (fasada, samotest, build, memo wersji,
+ * wywołanie zeruje też stan izolatu L2 (fasada, samotest, memo wersji,
  * liczniki) - `setColoCacheForTests(undefined)` to „rotacja izolatu" dla L2.
  */
 export function setColoCacheForTests(cache: ColoCache | null | undefined): void {
   injectedCache = cache;
   runtime = null;
-  buildId = undefined;
   versionMemo.clear();
   stats.hits = 0;
   stats.stale = 0;
@@ -384,59 +387,34 @@ export function setColoCacheForTests(cache: ColoCache | null | undefined): void 
   stats.deletes = 0;
 }
 
-/** Segment buildu z URL-a wejścia klienta (`/assets/index-AbC123.js` -> `index-AbC123`). */
-function buildIdFromEntry(entry: string | null | undefined): string | null {
-  const file = (entry ?? "").split("/").pop() ?? "";
-  const token = file
-    .replace(/\.m?js$/, "")
-    .replace(/[^A-Za-z0-9_-]/g, "_")
-    .slice(0, BUILD_ID_MAX_LENGTH);
-  return token || null;
-}
-
 /**
- * Identyfikator buildu do klucza dokumentu, raz na izolat.
+ * Segment buildu w kluczach L2 (dokumenty tutaj, migawki danych
+ * w `ssrCacheL2.server.ts`): stała `__NES_BUILD_ID__` przycięta do
+ * `[A-Za-z0-9_-]` (trafia do ścieżki klucza Cache API). Odczyt wyłącznie za
+ * bramką SSR: w bundlu klienta gałąź znika, więc stała - inna przy każdym
+ * buildzie - nie zmienia hashy chunków klienta, nawet gdyby ten moduł kiedyś
+ * trafił do jego grafu. Bez stałej: `dev` poza buildem produkcyjnym (vitest),
+ * a w buildzie produkcyjnym null - lepiej nie mieć L2 dokumentów i migawek niż
+ * podawać HTML albo dane poprzedniego deployu.
  *
- * Mapa bootu jest importowana DYNAMICZNIE za bramką SSR. Statyczna krawędź
- * wciągnęłaby moduł manifestu Start (~216 KB) do chunku wejścia Workera
- * (`_ssr/index.mjs`), wykonywanego przy starcie każdego izolatu - także dla
- * żądań, które L2 dokumentów w ogóle nie dotykają (API, zalogowani, zasoby).
- * Dynamicznie manifest ładuje się przy pierwszym dostępie do L2 dokumentu
- * (albo razem z handlerem, jeśli ten był pierwszy), raz na izolat.
- *
- * UKŁAD ARTEFAKTU (P3.6a, runda 9). Zaślepka jest w buildzie czystym
- * reeksportem, więc ten import robi z niej nowy dynamiczny punkt wejścia,
- * który Rollup scala z modułem manifestu w jeden chunk nazwany od ostatniego
- * modułu: `.output/server/_ssr/bootManifest-*.mjs` zamiast
- * `.output/server/_tanstack-start-manifest_v-*.mjs`. Runtime tego nie widzi
- * (framework importuje ten sam moduł z tego samego chunku), ale bramki
- * artefaktu, które czytają z manifestu chunk startowy klienta
- * (`check:bundle`, `check:entry-purity`, fallback wagi dokumentu), muszą
- * szukać mapy bootu także w `_ssr/`. Import wirtualnego modułu manifestu wprost
- * zachowałby dawny układ, ale analiza importów vitest (środowisko `client`,
- * bez wtyczek Start) nie rozwiązuje tego specyfikatora i nie transformuje
- * wtedy żadnego modułu importującego L2.
- *
- * Nieudany import NIE jest zapamiętywany: przejściowy błąd ładowania chunku na
- * zimnym izolacie nie może wyłączyć L2 dokumentów na całe życie izolatu -
- * następne żądanie spróbuje znowu. Zapamiętywany jest wyłącznie wynik
- * rozstrzygnięty (także `null` buildu produkcyjnego bez mapy).
+ * Stała zastępuje odczyt `BOOT_MANIFEST.entry` (P3.6a, runda 10): dynamiczny
+ * import mapy bootu robił z jej zaślepki nowy punkt wejścia i przenosił chunk
+ * manifestu Start do `_ssr/`, czego nie widzą bramki artefaktu. Stała nie
+ * dotyka grafu modułów, a obejmuje też deploy zmieniający wyłącznie serwer.
  */
-async function documentBuildId(): Promise<string | null> {
-  if (buildId !== undefined) return buildId;
-  let entry: string | undefined;
-  if (import.meta.env.SSR) {
-    try {
-      entry = (await import("@/lib/boot/bootManifest")).BOOT_MANIFEST?.entry;
-    } catch {
-      return import.meta.env.PROD ? null : DEV_BUILD_ID;
-    }
+export function l2BuildId(): string | null {
+  let raw = "";
+  let production = false;
+  try {
+    production = Boolean(import.meta.env.PROD);
+    if (import.meta.env.SSR && typeof __NES_BUILD_ID__ === "string") raw = __NES_BUILD_ID__;
+  } catch {
+    // W buildzie oba odczyty są literałami. Bez podstawienia `import.meta.env`
+    // bywa w runtime nieczytelne (vitest bez globalnego `process`) - jak brak stałej.
   }
-  // Build produkcyjny bez mapy bootu nie ma stałego identyfikatora - wtedy
-  // lepiej nie mieć L2 dokumentów niż podawać HTML poprzedniego deployu.
-  const resolved = buildIdFromEntry(entry) ?? (import.meta.env.PROD ? null : DEV_BUILD_ID);
-  buildId = resolved;
-  return resolved;
+  const token = raw.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, BUILD_ID_MAX_LENGTH);
+  if (token) return token;
+  return production ? null : DEV_BUILD_ID;
 }
 
 function versionRequest(scope: string): Request {
@@ -499,7 +477,7 @@ async function documentRequest(
   host: string | null,
   planKey: string,
 ): Promise<Request | null> {
-  const build = await documentBuildId();
+  const build = l2BuildId();
   if (build === null) return null;
   const [globalVersion, hostVersion] = await Promise.all([
     readVersion(cache, "__global"),
@@ -616,7 +594,7 @@ export function l2Stats(): {
   verified: boolean | null;
   /** Magazyn izolatu: nazwany cache albo `caches.default`; null = nieznany/brak. */
   store: L2Store | null;
-  /** Segment buildu w kluczach dokumentów; null = jeszcze nieustalony albo build bez mapy. */
+  /** Segment buildu w kluczach L2; null = build produkcyjny bez identyfikatora. */
   build: string | null;
   hits: number;
   stale: number;
@@ -631,7 +609,7 @@ export function l2Stats(): {
     enabled,
     verified: state?.verified ?? null,
     store: state?.store ?? null,
-    build: buildId ?? null,
+    build: l2BuildId(),
     ...stats,
   };
 }
@@ -648,6 +626,17 @@ export function l2SelfTestLabel(): L2SelfTestLabel | null {
   if (!state?.selfTest) return null;
   if (state.verified === null) return "pending";
   return state.verified && state.store ? state.store : "off";
+}
+
+/**
+ * Wynik samotestu L2 tego izolatu dla linii logu dokumentu (`l2Verified`,
+ * R7b): true/false po rozstrzygnięciu, null - samotest trwa albo nie dotyczy.
+ * Sam odczyt stanu: niczego nie otwiera i nie planuje samotestu.
+ */
+export function l2SelfTestVerified(): boolean | null {
+  const label = l2SelfTestLabel();
+  if (label === null || label === "pending") return null;
+  return label !== "off";
 }
 
 /** Doliczanie trafień L2 (wołane z warstwy wykonawczej L1). */

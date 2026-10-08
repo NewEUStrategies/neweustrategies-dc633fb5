@@ -11,6 +11,8 @@ vi.mock("../lib/error-capture", () => ({ consumeLastCapturedError: () => h.captu
 vi.mock("../lib/error-page", () => ({ renderErrorPage: () => "<html>safe error</html>" }));
 vi.mock("../lib/http/documentCache.server", () => ({
   revalidationHeader: () => ["x-revalidation", "test-marker"],
+  isRevalidationRequest: (request: Request) =>
+    request.headers.get("x-revalidation") === "test-marker",
   setDocumentRevalidator: (fn: typeof h.revalidate) => {
     h.revalidate = fn;
   },

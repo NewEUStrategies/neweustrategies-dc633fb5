@@ -213,6 +213,8 @@ describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () =>
       // Atrapa renderu nie niesie Cache-Control, więc wg polityki zapisu
       // (documentStorePolicy) ten MISS jest zdegradowany - jak w magazynie.
       degraded: true,
+      // R7c (P3.6a): polityka odmówiła już w nagłówkach middleware.
+      degradedAt: "loader",
     });
     // Bez PII: ani query string, ani cookie, ani host nie mają prawa być w logu.
     expect(lines[0]).not.toContain("sekret");
@@ -380,7 +382,7 @@ describe("entry SSR: driver rewalidacji w tle", () => {
 
     const synthetic = call[0];
     if (!(synthetic instanceof Request)) throw new Error("driver nie podał Requestu");
-    const [markerName, markerValue] = revalidationHeader();
+    const [markerName, markerValue] = revalidationHeader()!;
     expect(synthetic.headers.get(markerName)).toBe(markerValue);
     expect(synthetic.method).toBe("GET");
     expect(synthetic.url).toBe("https://tenant-a.eu/blog");
@@ -509,6 +511,8 @@ describe("entry SSR: linia dokumentu niesie prawdziwy wynik zapisu", () => {
       path: "/w-trakcie",
       cache: "MISS",
       degraded: true,
+      // R7c (P3.6a): dyrektywa zawęziła się W TRAKCIE strumieniowania.
+      degradedAt: "stream",
       store: "degraded",
     });
     expect(lines[0]).not.toHaveProperty("streamEnd");
@@ -588,6 +592,8 @@ describe("entry SSR: linia rewalidacji w tle", () => {
       revalidation: true,
       cache: "MISS",
       degraded: true,
+      // Etap dociera też do linii odświeżenia w tle (`onOutcome` drivera).
+      degradedAt: "stream",
       store: "degraded",
     });
     // Żądanie wyzwalające bez `cf-ray`: brak kolonii i ray-a, a nie śmieci.
