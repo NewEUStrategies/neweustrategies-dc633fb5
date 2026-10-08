@@ -167,6 +167,7 @@ AGENTS.md, polski w komentarzach i commitach, zero nowych zależności, parytet 
 
 ### P3.2b [MUST] Jeden font w ścieżce krytycznej i dopasowana metryka zastępcza (CLS)
 
+- **Decyzja właściciela (2026-10-08): jedynym fontem w ścieżce krytycznej jest Red Hat Display** (ten sam krój co dziś, podzbiór latin + polskie znaki, oś wag zachowana); żaden inny krój nie dochodzi ani nie zastępuje go w preloadzie.
 - Wg `faza1/PLAN.md` P3.2 LP-8 (jeden plik Red Hat Display latin+PL, preload jedynego fontu; dziś preload dwóch:
   latin i latin-ext) + naprawa przesunięcia 0,0163 na desktopie (`div.relative.w-full.h-full`, przyczyna: załadowanie
   `red-hat-display-latin`) przez metrykę zastępczą (`size-adjust`, `ascent/descent-override`). Pliki: `src/styles.css`
