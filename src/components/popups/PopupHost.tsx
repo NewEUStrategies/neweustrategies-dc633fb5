@@ -16,6 +16,7 @@ import { isEmptyDocument, type Device } from "@/lib/builder/types";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { useBodyScrollLock } from "@/lib/a11y/useBodyScrollLock";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
+import { sinceNavigationStart } from "./sinceNavigationStart";
 import {
   evaluatePopupTargeting,
   isPopupFrequencyOk,
@@ -35,7 +36,8 @@ const WIDTH_PX: Record<PopupSettings["width"], number> = {
 // KOTWICA OPÓŹNIENIA (P3.8). Host montuje się dopiero przy pierwszej
 // interakcji albo w punkcie ciszy (`useOverlayGates` w `__root.tsx`), więc
 // PIERWSZE uzbrojenie wyzwalacza w dokumencie liczy `delay` od startu nawigacji
-// (`performance.now()`), z podłogą 400 ms od uzbrojenia - tą samą, co
+// (`sinceNavigationStart` - w dokumencie prerenderowanym od aktywacji), z podłogą
+// 400 ms od uzbrojenia - tą samą, co
 // `immediate`. Popup `immediate` pojawia się więc ~400 ms po otwarciu
 // zatrzasku (dawniej ~400 ms po `load`). Kolejne uzbrojenia (nawigacja SPA)
 // liczą od siebie, jak dotąd.
@@ -45,7 +47,7 @@ let delayAnchoredToNavigation = false;
 function triggerDelayMs(configuredMs: number): number {
   if (delayAnchoredToNavigation) return configuredMs;
   delayAnchoredToNavigation = true;
-  return Math.max(IMMEDIATE_DELAY_MS, configuredMs - performance.now());
+  return Math.max(IMMEDIATE_DELAY_MS, configuredMs - sinceNavigationStart());
 }
 
 function viewportDevice(): Device {

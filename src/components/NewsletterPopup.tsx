@@ -20,6 +20,7 @@ import { useBodyScrollLock } from "@/lib/a11y/useBodyScrollLock";
 import { useTheme } from "@/components/ThemeProvider";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
 import { whenIdle } from "@/lib/ads/idle";
+import { sinceNavigationStart } from "@/components/popups/sinceNavigationStart";
 import { loadPopupContent, type PopupContent } from "@/lib/newsletter/popupContent";
 import { warmPopupImages, POPUP_COVER_SIZES, POPUP_SIDE_SIZES } from "@/lib/newsletter/popupImages";
 import { PopupImage } from "@/components/atoms/PopupImage";
@@ -41,7 +42,8 @@ let shownThisSession = false;
 // interakcji albo w punkcie ciszy (`useOverlayGates`), więc liczenie
 // `popup_delay_seconds` od montażu przesuwałoby popup o cały czas do zatrzasku.
 // PIERWSZE uzbrojenie w dokumencie liczy więc opóźnienie od startu nawigacji
-// (`performance.now()`), z podłogą 1 s od uzbrojenia (popup nie miga w klatce
+// (`sinceNavigationStart` - w dokumencie prerenderowanym od aktywacji, nie od
+// startu prerenderu), z podłogą 1 s od uzbrojenia (popup nie miga w klatce
 // montażu). Kolejne uzbrojenia (nawigacja SPA, zmiana ustawień) liczą od
 // siebie, jak dotąd.
 let delayAnchoredToNavigation = false;
@@ -50,7 +52,7 @@ const MIN_TRIGGER_DELAY_MS = 1_000;
 function triggerDelayMs(configuredMs: number): number {
   if (delayAnchoredToNavigation) return configuredMs;
   delayAnchoredToNavigation = true;
-  return Math.max(MIN_TRIGGER_DELAY_MS, configuredMs - performance.now());
+  return Math.max(MIN_TRIGGER_DELAY_MS, configuredMs - sinceNavigationStart());
 }
 
 function shouldShow(freqDays: number): boolean {

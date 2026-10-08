@@ -8,6 +8,10 @@ import {
   sectionCacheTargets,
 } from "@/lib/builder/prefetch";
 import { whenIdle, type CancelIdle } from "@/lib/ads/idle";
+import {
+  isInteractionOrQuietOpen,
+  onInteractionOrQuiet,
+} from "@/lib/performance/interactionOrQuiet";
 
 /**
  * Najpóźniejszy moment startu prefetchu sekcji. Praca jest z definicji
@@ -60,8 +64,18 @@ function dedupeKey(section: SectionNode, lang: Lang): string {
  * has cached data whose age is below the matching `staleTime`. In that case
  * we skip the prefetch entirely - the cached payload renders synchronously
  * and TanStack Query revalidates on its own schedule.
+ *
+ * `ssrAnyAge` (P3.8, okno bootu): zamiast wieku pyta, czy KAŻDY wpis niesie
+ * prawdziwe dane z dokumentu - `dataUpdatedAt > 0` (nie zasiew fallbackowy
+ * z `updatedAt: 0`) i bez inwalidacji. Wiek takiego wpisu rozstrzyga dopiero
+ * zatrzask interakcji/ciszy (`useSectionPreload` niżej).
  */
-export function isSectionFresh(client: QueryClient, section: SectionNode, lang: Lang): boolean {
+export function isSectionFresh(
+  client: QueryClient,
+  section: SectionNode,
+  lang: Lang,
+  ssrAnyAge = false,
+): boolean {
   const widgets = collectSectionWidgets(section);
   const targets = sectionCacheTargets(widgets, lang);
   if (targets.length === 0) return true;
@@ -69,7 +83,9 @@ export function isSectionFresh(client: QueryClient, section: SectionNode, lang: 
   return targets.every(({ key, staleTime }) => {
     const state = client.getQueryState(key);
     if (!state || state.data === undefined) return false;
-    return now - state.dataUpdatedAt < staleTime;
+    return ssrAnyAge
+      ? state.dataUpdatedAt > 0 && !state.isInvalidated
+      : now - state.dataUpdatedAt < staleTime;
   });
 }
 
@@ -85,6 +101,9 @@ export function isSectionFresh(client: QueryClient, section: SectionNode, lang: 
  *   danymi z SSR nie płaci za prefetch przy pierwszej wizycie (F39).
  * - Idle-scheduled: sama praca prefetchu jedzie przez `whenIdle`, żeby nie
  *   startowała w klatce przewijania, w której obserwator ją zauważył.
+ * - Okno bootu (P3.8): sekcja z danymi z SSR czeka z prefetchem na zatrzask
+ *   „pierwsza interakcja ALBO punkt ciszy", nawet gdy dokument jest starszy
+ *   niż `staleTime` jej zapytań.
  */
 export function useSectionPreload(
   section: SectionNode,
@@ -145,13 +164,32 @@ export function useSectionPreload(
     // całej sekcji. `whenIdle` przesuwa tę pracę na bezczynny wątek główny
     // (najpóźniej po `PREFETCH_IDLE_TIMEOUT_MS`), więc nie ląduje w oknie
     // mierzonym jako zacięcie przewijania.
+    //
+    // OKNO BOOTU (P3.8). Sekcja wyrenderowana z danymi z SSR, z dokumentu
+    // starszego niż `staleTime` jej zapytań (listy wpisów: 120 s, a dokument
+    // z brzegu bywa STALE po 180 s), dostawała tu `prefetchQuery` ~1 s po
+    // hydratacji: 5-8 GET-ów `posts` z preflightami w oknie LCP/SI - obok
+    // polityki `refetchOnMount` w `router.tsx`, która te same wpisy celowo
+    // wstrzymuje. Dopóki zatrzask jest zamknięty, a KAŻDY wpis sekcji niesie
+    // prawdziwe dane z dokumentu (`isSectionFresh(..., true)`), planowanie
+    // czeka na zatrzask, a dopiero po nim idzie zwykłą drogą (bezczynność,
+    // świeżość, rejestr) - pobranie, które wtedy wystartuje, łączy się
+    // z odświeżeniem `router.tsx` w locie. Zasiew `updatedAt: 0`, wpis
+    // unieważniony albo brak danych: od razu, jak dotąd. Uchwyt odwołania
+    // zatrzasku siedzi w `cancelIdle`, więc odmontowanie odwołuje oba.
     let cancelIdle: CancelIdle | null = null;
     const schedule = () => {
       if (didPrefetchRef.current || cancelIdle) return;
-      cancelIdle = whenIdle(() => {
-        cancelIdle = null;
-        run();
-      }, PREFETCH_IDLE_TIMEOUT_MS);
+      cancelIdle =
+        !isInteractionOrQuietOpen() && isSectionFresh(queryClient, section, lang, true)
+          ? onInteractionOrQuiet(() => {
+              cancelIdle = null;
+              schedule();
+            })
+          : whenIdle(() => {
+              cancelIdle = null;
+              run();
+            }, PREFETCH_IDLE_TIMEOUT_MS);
     };
 
     const el = ref.current;

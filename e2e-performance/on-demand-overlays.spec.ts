@@ -191,6 +191,11 @@ test("first-use overlays stay out of startup and respond to the first request", 
   // przed pierwszą interakcją (punkt ciszy zapada najwcześniej 5 s po `load`,
   // a klik w powłoce był zaraz po gotowości aplikacji). Kontrola pozytywna:
   // po kliknięciu chunk `NewsletterPopup` przychodzi - „później", nie „nigdy".
+  // UWAGA (recenzja P3.8, m1): klik pada zwykle PRZED `load`, więc dawny montaż
+  // „po `load` i bezczynności" też przeszedłby tę asercję - to kontrola
+  // pozytywna, nie dowód nowego momentu montażu. Ten dowodzą
+  // `e2e/backend-quiet.boot-home.spec.ts` (zero chunków i zapytań do `load`
+  // + 3 s bez interakcji) i `src/routes/__tests__/rootShellRender.test.tsx`.
   expect(
     overlayTimings.nakladki
       .filter((entry) => /\/(?:NewsletterPopup-|PopupHost-)/.test(entry.path))

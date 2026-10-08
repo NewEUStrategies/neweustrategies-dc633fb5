@@ -9,6 +9,17 @@ import {
 } from "@/lib/builder/useSectionPreload";
 import * as prefetchMod from "@/lib/builder/prefetch";
 import type { SectionNode, WidgetNode } from "@/lib/builder/types";
+import {
+  __openInteractionOrQuietForTests,
+  __resetInteractionOrQuietForTests,
+} from "@/lib/performance/interactionOrQuiet";
+
+// Punkt ciszy jest GRANICĄ czasu przeglądarki: zatrzask „interakcja albo
+// cisza" (P3.8) otwiera w tym pliku wyłącznie test.
+vi.mock("@/lib/performance/whenQuiescent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/performance/whenQuiescent")>()),
+  onQuiescent: () => () => {},
+}));
 
 function makeWidget(type: WidgetNode["type"], extra: Partial<WidgetNode> = {}): WidgetNode {
   return {
@@ -51,14 +62,29 @@ function makeWrapper(qc: QueryClient) {
   );
 }
 
+/** Wpisy sekcji z danymi postarzonymi ręcznie (`dataUpdatedAt`), jak z dokumentu sprzed minut. */
+function seedSection(qc: QueryClient, section: SectionNode, dataUpdatedAt: number): void {
+  const targets = prefetchMod.sectionCacheTargets(prefetchMod.collectSectionWidgets(section), "pl");
+  targets.forEach(({ key }) => {
+    qc.setQueryData(key, []);
+    const state = qc.getQueryState(key);
+    const q = qc.getQueryCache().find({ queryKey: key });
+    if (q && state) q.setState({ ...state, dataUpdatedAt });
+  });
+}
+
 describe("useSectionPreload", () => {
   let qc: QueryClient;
   beforeEach(() => {
     qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     __resetSectionPrefetchRegistry(qc);
+    __resetInteractionOrQuietForTests();
     vi.spyOn(prefetchMod, "prefetchSectionQueries").mockResolvedValue(undefined);
   });
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    __resetInteractionOrQuietForTests();
+  });
 
   /** Zamontuj, przepuść bezczynność, odmontuj - jedna "wizyta" na stronie. */
   async function visit(section: SectionNode, lang: "pl" | "en" = "pl"): Promise<void> {
@@ -115,17 +141,10 @@ describe("useSectionPreload", () => {
 
   it("prefetchuje dane nieświeże RAZ, a powtórną nawigację ucina rejestr", async () => {
     const section = withWidgets([makeWidget("post-list")]);
-    const targets = prefetchMod.sectionCacheTargets(
-      prefetchMod.collectSectionWidgets(section),
-      "pl",
-    );
     // Dane w cache'u, ale postarzone ręcznie - bramka świeżości ich nie puści.
-    targets.forEach(({ key }) => {
-      qc.setQueryData(key, []);
-      const state = qc.getQueryState(key);
-      const q = qc.getQueryCache().find({ queryKey: key });
-      if (q && state) q.setState({ ...state, dataUpdatedAt: 1 });
-    });
+    seedSection(qc, section, 1);
+    // Po otwarciu zatrzasku interakcji/ciszy (okno bootu - sekcja niżej).
+    __openInteractionOrQuietForTests();
 
     await visit(section);
     await visit(section);
@@ -147,6 +166,92 @@ describe("useSectionPreload", () => {
 
     expect(prefetchMod.prefetchSectionQueries).not.toHaveBeenCalled();
   });
+});
+
+// ---------------------------------------------------------------------------
+// OKNO BOOTU (P3.8). Sekcja z danymi z SSR z dokumentu starszego niż `staleTime`
+// jej zapytań (listy wpisów: 120 s) robiła `prefetchQuery` ~1 s po hydratacji:
+// 5-8 GET-ów `posts` z preflightami w oknie LCP/SI. Dopóki zatrzask „pierwsza
+// interakcja ALBO punkt ciszy" jest zamknięty, taka sekcja czeka na niego;
+// zasiew `updatedAt: 0`, wpis unieważniony i brak danych - od razu, jak dotąd.
+// ---------------------------------------------------------------------------
+describe("useSectionPreload: okno bootu (P3.8)", () => {
+  let qc: QueryClient;
+  beforeEach(() => {
+    qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    __resetSectionPrefetchRegistry(qc);
+    __resetInteractionOrQuietForTests();
+    vi.spyOn(prefetchMod, "prefetchSectionQueries").mockResolvedValue(undefined);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    __resetInteractionOrQuietForTests();
+  });
+
+  const TEN_MINUTES_AGO = () => Date.now() - 10 * 60_000;
+
+  it("dane z SSR starsze niż `staleTime` czekają na zatrzask; zatrzask prefetchuje raz", async () => {
+    const section = withWidgets([makeWidget("post-list")], "s-ssr");
+    seedSection(qc, section, TEN_MINUTES_AGO());
+
+    const view = renderHook(() => useSectionPreload(section, "pl"), {
+      wrapper: makeWrapper(qc),
+    });
+    await flushIdle();
+    await flushIdle();
+    expect(prefetchMod.prefetchSectionQueries).not.toHaveBeenCalled();
+
+    act(() => __openInteractionOrQuietForTests());
+    await flushIdle();
+
+    expect(prefetchMod.prefetchSectionQueries).toHaveBeenCalledTimes(1);
+    view.unmount();
+  });
+
+  it("zasiew fallbackowy (`updatedAt: 0`) prefetchuje od razu, także przed zatrzaskiem", async () => {
+    const section = withWidgets([makeWidget("post-list")], "s-seed");
+    seedSection(qc, section, 0);
+
+    await visit(section);
+
+    expect(prefetchMod.prefetchSectionQueries).toHaveBeenCalledTimes(1);
+  });
+
+  it("wpis unieważniony prefetchuje od razu, także przed zatrzaskiem", async () => {
+    const section = withWidgets([makeWidget("post-list")], "s-invalid");
+    seedSection(qc, section, TEN_MINUTES_AGO());
+    await qc.invalidateQueries({ refetchType: "none" });
+
+    await visit(section);
+
+    expect(prefetchMod.prefetchSectionQueries).toHaveBeenCalledTimes(1);
+  });
+
+  it("sekcja bez danych w cache'u prefetchuje od razu, także przed zatrzaskiem", async () => {
+    await visit(withWidgets([makeWidget("post-list")], "s-empty-cache"));
+
+    expect(prefetchMod.prefetchSectionQueries).toHaveBeenCalledTimes(1);
+  });
+
+  it("odmontowanie przed zatrzaskiem odwołuje odroczony prefetch", async () => {
+    const section = withWidgets([makeWidget("post-list")], "s-gone");
+    seedSection(qc, section, TEN_MINUTES_AGO());
+
+    await visit(section);
+    act(() => __openInteractionOrQuietForTests());
+    await flushIdle();
+
+    expect(prefetchMod.prefetchSectionQueries).not.toHaveBeenCalled();
+  });
+
+  /** Zamontuj, przepuść bezczynność, odmontuj - jedna "wizyta" na stronie. */
+  async function visit(section: SectionNode): Promise<void> {
+    const view = renderHook(() => useSectionPreload(section, "pl"), {
+      wrapper: makeWrapper(qc),
+    });
+    await flushIdle();
+    view.unmount();
+  }
 });
 
 describe("isSectionFresh", () => {
@@ -172,5 +277,20 @@ describe("isSectionFresh", () => {
     );
     targets.forEach(({ key }) => qc.setQueryData(key, []));
     expect(isSectionFresh(qc, section, "pl")).toBe(true);
+  });
+
+  it("`ssrAnyAge`: dane z dokumentu w dowolnym wieku tak, zasiew `updatedAt: 0` i inwalidacja nie", async () => {
+    const section = withWidgets([makeWidget("post-list")]);
+    expect(isSectionFresh(qc, section, "pl", true)).toBe(false);
+
+    seedSection(qc, section, Date.now() - 10 * 60_000);
+    expect(isSectionFresh(qc, section, "pl")).toBe(false);
+    expect(isSectionFresh(qc, section, "pl", true)).toBe(true);
+
+    await qc.invalidateQueries({ refetchType: "none" });
+    expect(isSectionFresh(qc, section, "pl", true)).toBe(false);
+
+    seedSection(qc, section, 0);
+    expect(isSectionFresh(qc, section, "pl", true)).toBe(false);
   });
 });

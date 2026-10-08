@@ -23,6 +23,7 @@ import {
 import type { AdPageType } from "@/lib/ads/types";
 import { useTranslation } from "react-i18next";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
+import { sinceNavigationStart } from "@/components/popups/sinceNavigationStart";
 
 interface Props {
   pageType: AdPageType;
@@ -55,7 +56,12 @@ export function FooterSlideup({ pageType, pageId }: Props) {
       }
     }
     let disposed = false;
-    const delay = Math.max(0, Number(cfg.delay_ms ?? 3000) - (bootMount ? performance.now() : 0));
+    // Pasek z bootu: od startu nawigacji (w dokumencie prerenderowanym - od
+    // aktywacji, `sinceNavigationStart`), nie od chwili, w której przyszły dane.
+    const delay = Math.max(
+      0,
+      Number(cfg.delay_ms ?? 3000) - (bootMount ? sinceNavigationStart() : 0),
+    );
     const handle = setTimeout(() => {
       // Ask the coordinator for a slot: a non-modal slide-up still counts as an
       // interruption, must not appear on top of a popup, and shares the budget.

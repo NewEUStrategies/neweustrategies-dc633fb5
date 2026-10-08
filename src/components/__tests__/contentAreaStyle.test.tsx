@@ -6,10 +6,11 @@
 // `refetchOnMount` wysyłał GET `post_layout_settings` + preflight w efekcie
 // hydratacji KAŻDEJ trasy bez własnej rozgrzewki - także `/`, gdzie żaden
 // selektor tego arkusza nie ma elementu. Od P3.8:
-//   - zasiew NIE odświeża się przy montażu (hydratacji);
-//   - wartości najemcy dociąga zatrzask „pierwsza interakcja ALBO punkt ciszy";
+//   - zapytanie jest włączone dopiero od otwarcia zatrzasku „pierwsza
+//     interakcja ALBO punkt ciszy" - do tej chwili czyta cache bez sieci;
+//   - otwarcie zatrzasku dociąga wartości najemcy (wpis nieświeży), raz;
 //   - wiersz już świeży (rozgrzany przez `$.tsx`) nie idzie do sieci wcale;
-//   - brak wpisu i inwalidacja (zapis w panelu) pobierają jak dotąd.
+//   - po otwarciu zatrzasku zapis w panelu (inwalidacja) odświeża od razu.
 //
 // ATRAPUJEMY WYŁĄCZNIE GRANICE: klienta Supabase (sieć) i detektor ciszy (czas
 // przeglądarki). Zapytanie, zatrzask i `StyleSink` biegną prawdziwe.
@@ -104,22 +105,43 @@ describe("ContentAreaStyle: bez pobrania w hydratacji (P3.8 #3)", () => {
     expect(css()).toContain("margin-bottom: 2.25rem");
   });
 
-  it("bez wpisu w cache'u pobiera przy montażu, jak dotąd", async () => {
+  it("bez wpisu w cache'u też czeka na zatrzask (korzeń zawsze zasiewa ten klucz)", async () => {
     mount(client);
+    await settle();
+    expect(fetches()).toBe(0);
+    // Pierwsze malowanie z domyślnych - ten sam blok, który wypisałby SSR.
+    expect(css()).toContain("margin-bottom: 1.5rem");
 
-    await waitFor(() => expect(fetches()).toBe(1));
+    act(() => __openInteractionOrQuietForTests());
+
     await waitFor(() => expect(css()).toContain("margin-bottom: 2.25rem"));
+    expect(fetches()).toBe(1);
   });
 
-  it("zapis w panelu (inwalidacja) odświeża od razu, także przed zatrzaskiem", async () => {
-    client.setQueryData(KEY, defaultPostLayoutSettings(), { updatedAt: 0 });
+  it("po otwarciu zatrzasku zapis w panelu (inwalidacja) odświeża od razu", async () => {
+    client.setQueryData(KEY, TENANT_ROW, { updatedAt: Date.now() });
+    __openInteractionOrQuietForTests();
     mount(client);
     await settle();
     expect(fetches()).toBe(0);
 
+    from().setResponse("post_layout_settings", ok({ ...TENANT_ROW, paragraph_spacing_rem: 3 }));
     await act(() => client.invalidateQueries({ queryKey: KEY }));
 
     expect(fetches()).toBe(1);
+    await waitFor(() => expect(css()).toContain("margin-bottom: 3rem"));
+  });
+
+  it("inwalidacja PRZED zatrzaskiem nie idzie do sieci; zatrzask dociąga wpis raz", async () => {
+    client.setQueryData(KEY, defaultPostLayoutSettings(), { updatedAt: 0 });
+    mount(client);
+    await settle();
+
+    await act(() => client.invalidateQueries({ queryKey: KEY }));
+    expect(fetches()).toBe(0);
+
+    act(() => __openInteractionOrQuietForTests());
     await waitFor(() => expect(css()).toContain("margin-bottom: 2.25rem"));
+    expect(fetches()).toBe(1);
   });
 });

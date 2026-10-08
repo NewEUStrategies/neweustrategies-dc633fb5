@@ -114,7 +114,6 @@ import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
 import { fontScaleQueryOptions } from "../hooks/useFontScale";
-import { EMPTY_FONT_SCALE } from "../lib/theme/fontScale";
 import { useInteractionOrQuiet } from "../lib/performance/interactionOrQuiet";
 // Lekki moduł z pustym domyślnym - nie `globalColors.ts` (44 kB katalogu
 // slotów), który od 2026-10 dociera do przeglądarki wyłącznie leniwie.
@@ -839,6 +838,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // SSR: serwer renderował `:root` z pustą tabelą rozmiarów, a klient pobierał
     // wiersz zaraz po hydratacji (GET + preflight na KAŻDEJ trasie) - przy
     // niepustej tabeli z późnym przepisaniem arkusza i zmianą rozmiarów liter.
+    // Ten klucz celowo NIE MA zasiewu niżej: `DesignTokensStyle` i tak czyta
+    // brak danych jako `EMPTY_FONT_SCALE` (ten sam arkusz w SSR i hydratacji),
+    // a klient bez wpisu pobiera go przy montażu dokładnie tak, jak zasiew
+    // z `updatedAt: 0` - zasiew dokładałby tylko wpis do stanu SSR i bajty do
+    // chunku wejściowego.
     // TERMIN FALI 1 - trzy rozłączne kontrakty: strona główna (wspólny deadline
     // renderu docięty `HOME_THEME_BUDGET_MS`), dokument bez serwerowego renderu
     // (uzasadnienie i wartość: `lib/routing/clientOnlyDocument.ts`), reszta
@@ -915,13 +919,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         updatedAt: 0,
       });
     }
-    if (!context.queryClient.getQueryData(fontScaleQueryOptions.queryKey)) {
-      context.queryClient.setQueryData(fontScaleQueryOptions.queryKey, EMPTY_FONT_SCALE, {
-        updatedAt: 0,
-      });
-    }
     // ZASIEW BEZ ROZGRZEWKI - jedyny taki tutaj i dlatego z osobnym zdaniem.
-    // Zasiewy wyżej domykają zapytania, które fala 1 PRÓBOWAŁA pobrać; ten
+    // Trzy zasiewy wyżej domykają zapytania, które fala 1 PRÓBOWAŁA pobrać; ten
     // domyka klucz, którego fala 1 świadomie NIE dotyka (uzasadnienie wyżej).
     // `ContentAreaStyle` radzi sobie dziś bez niego (emituje blok z tej samej
     // stałej), więc zasiew nie ratuje już pierwszego malowania - trzyma PARYTET

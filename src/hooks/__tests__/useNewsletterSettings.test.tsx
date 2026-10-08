@@ -17,6 +17,10 @@ vi.mock("@/integrations/supabase/client", async () => {
   return { supabase: { from: from.from } };
 });
 
+// Ciało odczytu jedzie w leniwym `newsletterSettingsData.ts` (P3.8, zamknięcie
+// bootu), więc fabryki zapytań nie importują klienta statycznie - atrapę
+// uruchamiamy jawnie, zanim `beforeEach` sięgnie po jej rejestr.
+import "@/integrations/supabase/client";
 import {
   newsletterInlineSettingsQueryOptions,
   newsletterSettingsQueryOptions,

@@ -254,6 +254,31 @@ describe("poza oknem bootu (P3.8)", () => {
     expect(slideup()).not.toBeNull();
   });
 
+  it("dokument prerenderowany: opóźnienie liczy się od aktywacji, nie od startu prerenderu", async () => {
+    respondWith([placement({ config: { delay_ms: 8000 } })]);
+    // Aktywacja 2 s po starcie dokumentu (tyle trwał prerender w tle).
+    const entries = vi
+      .spyOn(performance, "getEntriesByType")
+      .mockReturnValue([
+        { entryType: "navigation", activationStart: 2_000 } as unknown as PerformanceEntry,
+      ]);
+    try {
+      renderWithQueryClient(<FooterSlideup pageType="home" />);
+      await tick(2_000);
+
+      act(() => __openInteractionOrQuietForTests());
+      await waitFor(() => expect(from().chainsFor("ad_placements").length).toBeGreaterThan(0));
+
+      // Od startu dokumentu zostałoby ~6 s; od aktywacji zostaje ~8 s.
+      await tick(6_500);
+      expect(slideup()).toBeNull();
+      await tick(2_000);
+      expect(slideup()).not.toBeNull();
+    } finally {
+      entries.mockRestore();
+    }
+  });
+
   it("opóźnienie krótsze niż czas do zatrzasku pokazuje pasek zaraz po danych", async () => {
     respondWith([placement({ config: { delay_ms: 3000 } })]);
     renderWithQueryClient(<FooterSlideup pageType="home" />);

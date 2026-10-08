@@ -667,6 +667,34 @@ describe("opóźnienie liczone od startu nawigacji (P3.8)", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
+  it("dokument prerenderowany: `delay` liczy się od aktywacji, nie od startu prerenderu", async () => {
+    const Host = await freshHost();
+    vi.advanceTimersByTime(3_000);
+    // Aktywacja 2,5 s po starcie dokumentu (tyle trwał prerender w tle).
+    const entries = vi
+      .spyOn(performance, "getEntriesByType")
+      .mockReturnValue([
+        { entryType: "navigation", activationStart: 2_500 } as unknown as PerformanceEntry,
+      ]);
+    try {
+      env.popups = [popup({ trigger: "delay", delaySeconds: 5 })];
+      render(<Host />);
+
+      // Od startu dokumentu zostałyby 2 s; od aktywacji zostaje 4,5 s.
+      await act(async () => {
+        vi.advanceTimersByTime(3_000);
+      });
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      await act(async () => {
+        vi.advanceTimersByTime(2_000);
+      });
+      expect(screen.getByRole("dialog")).toBeTruthy();
+    } finally {
+      entries.mockRestore();
+    }
+  });
+
   it("popup `immediate` montowany długo po starcie i tak czeka ~400 ms od uzbrojenia", async () => {
     const Host = await freshHost();
     vi.advanceTimersByTime(20_000);

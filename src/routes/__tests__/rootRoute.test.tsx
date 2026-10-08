@@ -479,9 +479,10 @@ describe("__root loader", () => {
     expect(st?.dataUpdatedAt).toBe(0);
     expect(qc.getQueryState(["design-tokens"])?.dataUpdatedAt).toBe(0);
     expect(qc.getQueryState(["global-colors"])?.dataUpdatedAt).toBe(0);
-    // P3.8 #1: pusta tabela rozmiarów, też przeterminowana - klient ją wyleczy.
-    expect(qc.getQueryData(["font-scale"])).toEqual({});
-    expect(qc.getQueryState(["font-scale"])?.dataUpdatedAt).toBe(0);
+    // P3.8 #1: tabela rozmiarów BEZ zasiewu - brak wpisu daje w SSR i w
+    // hydratacji ten sam pusty arkusz, a klient pobiera go przy montażu tak samo
+    // jak zasiew z `updatedAt: 0`; zasiew dokładałby tylko wpis do stanu SSR.
+    expect(qc.getQueryData(["font-scale"])).toBeUndefined();
     await qc.cancelQueries();
   });
 
@@ -497,18 +498,22 @@ describe("__root loader", () => {
     expect(qc.getQueryState(["font-scale"])?.dataUpdatedAt).toBeGreaterThan(0);
   });
 
-  it("strona główna anuluje zawieszoną tabelę rozmiarów jak tokeny i zasiewa domyślne", async () => {
+  it("strona główna anuluje zawieszoną tabelę rozmiarów jak tokeny - bez wpisu w stanie SSR", async () => {
     h.server = true;
     h.fontScaleHangs = true;
     const cancel = vi.spyOn(qc, "cancelQueries");
     await runLoader(qc, "/");
     expect(cancel).toHaveBeenCalledWith({ queryKey: ["font-scale"], exact: true });
-    expect(qc.getQueryState(["font-scale"])).toMatchObject({ dataUpdatedAt: 0 });
+    // Anulowane zapytanie bez danych nie przechodzi `shouldDehydrateQuery`
+    // (status `success`), więc dokument go nie niesie, a klient pobiera tabelę
+    // przy montażu - jak przy każdej porażce fali 1.
+    expect(qc.getQueryData(["font-scale"])).toBeUndefined();
+    expect(qc.getQueryState(["font-scale"])?.status).not.toBe("success");
     expect(h.cacheControl).toContain("private, no-store");
     cancel.mockRestore();
   });
 
-  it("prawdziwa tabela rozmiarów NIE jest nadpisywana zasiewem", async () => {
+  it("prawdziwa tabela rozmiarów zostaje w cache'u tak, jak przyszła z bazy", async () => {
     await runLoader(qc);
     expect(qc.getQueryData(["font-scale"])).toEqual({ h1: 40 });
   });

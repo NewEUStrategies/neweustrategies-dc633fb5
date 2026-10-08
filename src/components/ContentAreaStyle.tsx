@@ -1,12 +1,12 @@
 // Wstrzykuje styl typografii Content Area (z `post_layout_settings`) jako
 // klasy `.post-content` na publicznym widoku. Komponent montowany raz w
 // `__root.tsx`, podobnie jak <DesignTokensStyle/>.
-import { useEffect, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { defaultPostLayoutSettings, type PostLayoutSettings } from "@/lib/postLayouts";
 import { StyleSink } from "@/components/theme/StyleSink";
-import { onInteractionOrQuiet } from "@/lib/performance/interactionOrQuiet";
+import { useInteractionOrQuiet } from "@/lib/performance/interactionOrQuiet";
 
 /** Jedna instancja defaultów - `defaultPostLayoutSettings()` tworzy nowy obiekt. */
 const DEFAULT_SETTINGS: PostLayoutSettings = defaultPostLayoutSettings();
@@ -115,25 +115,18 @@ ${
  * hydratacji i przesuwały całą treść wpisu (audyt CWV, F29a).
  */
 export function ContentAreaStyle() {
-  const queryClient = useQueryClient();
-  // BEZ ODŚWIEŻENIA W HYDRATACJI (P3.8). Korzeń zasiewa ten klucz domyślnymi
+  // BEZ POBRANIA W HYDRATACJI (P3.8). Korzeń zasiewa ten klucz domyślnymi
   // z `updatedAt: 0` (`routes/__root.tsx`), więc zwykły `refetchOnMount`
   // wysyłał GET `post_layout_settings` + preflight w efekcie hydratacji KAŻDEJ
   // trasy bez własnej rozgrzewki - także `/`, na której żaden selektor tego
-  // arkusza nie ma elementu. Komponent wisi w korzeniu i montuje się raz, więc
-  // `refetchOnMount: false` dotyczy wyłącznie hydratacji; wartości najemcy
-  // dociąga `prefetchQuery` przy pierwszej interakcji albo w punkcie ciszy
-  // (pobiera tylko wpis nieświeży: zasiew tak, wiersz rozgrzany przez `$.tsx`
-  // nie). Brak wpisu nadal pobiera od razu, a inwalidacja (zapis w panelu)
-  // odświeża niezależnie od tej opcji.
-  const { data } = useQuery({ ...postLayoutSettingsQueryOptions(), refetchOnMount: false });
-  useEffect(
-    () =>
-      onInteractionOrQuiet(() => {
-        void queryClient.prefetchQuery(postLayoutSettingsQueryOptions());
-      }),
-    [queryClient],
-  );
+  // arkusza nie ma elementu. Zapytanie jest więc włączone dopiero od otwarcia
+  // zatrzasku „pierwsza interakcja ALBO punkt ciszy": do tej chwili obserwator
+  // czyta wpis z cache'u (zasiew albo wiersz rozgrzany przez `$.tsx`) bez
+  // sieci, a włączenie pobiera wyłącznie wpis nieświeży (zasiew tak, świeży
+  // wiersz z `$.tsx` nie). Zatrzask jest faktem dokumentu, więc w panelu
+  // (po pierwszej interakcji) zapis i inwalidacja odświeżają wpis jak dotąd.
+  const latchOpen = useInteractionOrQuiet();
+  const { data } = useQuery({ ...postLayoutSettingsQueryOptions(), enabled: latchOpen });
   // CSS zależy WYŁĄCZNIE od wiersza ustawień, a komponent wisi przy korzeniu
   // aplikacji - bez memo przeliczał się przy każdym renderze drzewa.
   // `StyleSink` utwardza go w miejscu renderu i nie przepisuje `<style>`, gdy
