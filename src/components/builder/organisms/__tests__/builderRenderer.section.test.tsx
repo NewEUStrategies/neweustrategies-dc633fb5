@@ -291,7 +291,9 @@ describe("wideo w tle sekcji", () => {
       <BuilderRenderer doc={zWideo("https://example.org/tlo.mp4")} lang="pl" />,
     );
     const video = container.querySelector("video");
-    expect(video?.getAttribute("src")).toBe("https://example.org/tlo.mp4");
+    // Fragment `#t=` wymusza pierwszą klatkę na iOS, zanim bramka puści wideo
+    // (sekcja nie ma plakatu - bez niego tło stałoby puste).
+    expect(video?.getAttribute("src")).toBe("https://example.org/tlo.mp4#t=0.001");
     expect(video?.getAttribute("preload")).toBe("metadata");
     // Przeglądarka nie rusza wideo przy pierwszym malowaniu - robi to bramka ruchu.
     expect(video?.hasAttribute("autoplay")).toBe(false);

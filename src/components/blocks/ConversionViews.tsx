@@ -1,7 +1,7 @@
 // Publiczne renderery dla Phase 4 batch 13 (konwersja / SEO).
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { htmlToPlainText } from "@/lib/sanitize";
-import { useMotionGate } from "@/lib/performance/motionGate";
+import { firstFrameVideoSrc, useGatedVideoAutoplay } from "@/lib/performance/motionGate";
 
 import type { Json } from "@/lib/blocks/types";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -318,18 +318,13 @@ export function VideoHeroView({
   const heightCls = VIDEO_HERO_HEIGHT[height] ?? VIDEO_HERO_HEIGHT.lg;
   const isCenter = align === "center";
   const ov = Math.max(0, Math.min(90, overlay));
-  // Bramka ruchu (P3.5): HTML z serwera nie ma atrybutu `autoplay` (wideo nie
-  // rusza przy pierwszym malowaniu, w środku śladu Lighthouse'a), a `play()`
-  // przychodzi po pierwszej interakcji albo w punkcie ciszy strony. Do tego
-  // czasu stoi plakat albo pierwsza klatka.
+  // Bramka ruchu (P3.5, `useGatedVideoAutoplay`): HTML z serwera nie ma
+  // atrybutu `autoplay` (wideo nie rusza przy pierwszym malowaniu, w środku
+  // śladu Lighthouse'a), a wyciszone `play()` przychodzi po pierwszej
+  // interakcji albo w punkcie ciszy strony. Do tego czasu stoi plakat z CMS-u
+  // albo - bez plakatu - pierwsza klatka, także na iOS (`firstFrameVideoSrc`).
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const motion = useMotionGate(autoplay && Boolean(src));
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!autoplay || !motion || !el) return;
-    el.muted = true;
-    void el.play().catch(() => undefined);
-  }, [autoplay, motion, src]);
+  useGatedVideoAutoplay(videoRef, autoplay && Boolean(src), src ?? "");
 
   return (
     <section className={`relative overflow-hidden rounded-2xl ${heightCls} ${cls ?? ""}`}>
@@ -337,7 +332,7 @@ export function VideoHeroView({
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
-          src={src}
+          src={autoplay ? firstFrameVideoSrc(src, poster) : src}
           poster={poster || undefined}
           muted
           loop={loop}

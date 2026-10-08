@@ -25,9 +25,12 @@
 //   7. BRAMKA RUCHU (P3.5): porcje wpisów nie rotują przed pierwszą
 //      interakcją albo punktem ciszy (punkt ciszy jest tu atrapą), a pierwsza
 //      zmiana porcji przychodzi pełne `intervalSec` po otwarciu; każda
-//      nieskończona animacja treści z HTML-a nosi znacznik pauzy bramki.
+//      nieskończona animacja treści z HTML-a nosi znacznik pauzy bramki;
+//      `typewriter` pisze wyłącznie tytuły montowane po otwarciu (pierwsza
+//      porcja stoi w całości od HTML-a serwera).
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import "@/lib/i18n";
@@ -299,24 +302,36 @@ describe("układ klasyczny i plakietkowy", () => {
     }
   });
 
-  it("tryb maszyny do pisania wypisuje tytuł znak po znaku", async () => {
+  it("tryb maszyny do pisania: pierwsza porcja stoi w całości, pisze się porcja po otwarciu bramki", async () => {
     vi.useFakeTimers();
     try {
-      feed.posts = [post({ id: "p1" })];
-      render(renderTicker({ mode: "typewriter" }));
+      feed.posts = posts(2);
+      render(renderTicker({ mode: "typewriter", intervalSec: 2 }));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(50);
       });
-      // Po kilku klatkach widać początek tytułu, a nie jego całość naraz.
+      // Pełny tytuł od pierwszego renderu - pisanie po hydratacji byłoby
+      // zmianą wizualną w oknie śladu (bramka ruchu, P3.5).
+      const title = () =>
+        (document.querySelector(".tt-caret")?.parentElement?.textContent ?? "").replace(/\|$/, "");
+      expect(title()).toBe("Wpis p1");
+      // Otwarcie bramki nie zaczyna pisać tytułu, który już stoi.
+      act(() => __openMotionGateForTests());
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(66);
+        await vi.advanceTimersByTimeAsync(500);
       });
-      const caret = document.querySelector(".tt-caret");
-      expect(caret).not.toBeNull();
+      expect(title()).toBe("Wpis p1");
+
+      // Kolejna porcja (pełny interwał po otwarciu) wypisuje się znak po znaku.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1500);
+      });
+      expect(title()).not.toBe("Wpis p2");
+      expect("Wpis p2".startsWith(title())).toBe(true);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1000);
       });
-      expect(screen.getByText(/Wpis p1/)).toBeTruthy();
+      expect(title()).toBe("Wpis p2");
     } finally {
       vi.useRealTimers();
     }
@@ -565,10 +580,34 @@ function stubReducedMotion(reduce: boolean) {
   }));
 }
 
+describe("TypewriterText - bramka ruchu", () => {
+  it("serwer i montaż przed otwarciem: pełny tytuł i zero timerów, także po otwarciu", () => {
+    expect(renderToString(<TypewriterText text="Abc" delayMs={90} />)).toContain("Abc");
+    stubReducedMotion(false);
+    const clock = installFakeClock("liczba");
+    try {
+      const { container } = render(<TypewriterText text="Abc" delayMs={90} />);
+      expect(typed(container)).toBe("Abc");
+      act(() => __openMotionGateForTests());
+      clock.advance(1000);
+      expect(typed(container)).toBe("Abc");
+      expect(clock.timeouts).toHaveLength(0);
+      expect(clock.intervals).toHaveLength(0);
+    } finally {
+      cleanup();
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe.each<HandleShape>(["liczba", "obiekt"])(
   "TypewriterText - timery przy uchwycie typu %s",
   (shape) => {
-    beforeEach(() => stubReducedMotion(false));
+    // Pisze się wyłącznie tytuł montowany po otwarciu bramki ruchu.
+    beforeEach(() => {
+      stubReducedMotion(false);
+      __openMotionGateForTests();
+    });
     afterEach(() => {
       // Najpierw odmontowanie (sprzątanie efektu trafia jeszcze w atrapy),
       // dopiero potem przywrócenie prawdziwych timerów.

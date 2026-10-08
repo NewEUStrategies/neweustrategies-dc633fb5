@@ -61,6 +61,25 @@ describe("VideoHeroView", () => {
     expect(html).not.toMatch(/autoplay/i);
   });
 
+  it("do otwarcia bramki stoi plakat z CMS-u, a bez plakatu pierwsza klatka (`#t=`, iOS)", () => {
+    const withoutPoster = renderToString(<VideoHeroView src="https://cdn.example.com/hero.mp4" />);
+    expect(withoutPoster).toContain('src="https://cdn.example.com/hero.mp4#t=0.001"');
+    // Początkowe przewinięcie do `t` zdjęłoby plakat - z plakatem adres bez fragmentu.
+    const withPoster = renderToString(
+      <VideoHeroView
+        src="https://cdn.example.com/hero.mp4"
+        poster="https://cdn.example.com/p.jpg"
+      />,
+    );
+    expect(withPoster).toContain('src="https://cdn.example.com/hero.mp4"');
+    expect(withPoster).toContain('poster="https://cdn.example.com/p.jpg"');
+    // Bez autoplay wideo nie stoi za bramką - adres nietknięty.
+    const still = renderToString(
+      <VideoHeroView src="https://cdn.example.com/hero.mp4" autoplay={false} />,
+    );
+    expect(still).toContain('src="https://cdn.example.com/hero.mp4"');
+  });
+
   it("wyciszone play() dopiero po otwarciu bramki; `autoplay={false}` nie gra wcale", () => {
     const play = vi.fn(() => Promise.resolve());
     const original = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "play");

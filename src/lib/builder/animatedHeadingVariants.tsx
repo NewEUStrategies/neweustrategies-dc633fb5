@@ -332,13 +332,16 @@ const shapePathLen: Record<AnimatedHeadingShape, number> = {
  * Kształt rysowany pod/na wyróżnieniu. `loop` - cykl rysuj/trzymaj/wygaś/pauza
  * w nieskończoność; bez niego jedno rysowanie, które zostaje (`forwards`).
  *
- * `resumeLoop` (bramka ruchu, P3.5): pętla zastępuje JUŻ NARYSOWANY kształt
- * (do otwarcia bramki szła gałąź `forwards`), więc startuje od stanu
- * „narysowany" (ujemne opóźnienie = czas rysowania) - samo otwarcie bramki
- * nie zmienia klatki, a pierwsza zmiana to wygaszenie po pełnym `hold`. Nazwy
- * klatek pętli są inne niż gałęzi `forwards`: zmiana samego czasu trwania
- * zachowałaby czas startu animacji z pierwszego malowania i kształt
- * przeskoczyłby w losową fazę cyklu.
+ * `resumeAtMs` (bramka ruchu, P3.5): pętla zastępuje gałąź `forwards`, która
+ * biegła do otwarcia bramki, więc startuje w TEJ SAMEJ fazie - `resumeAtMs`
+ * to czas od startu tamtej animacji (z opóźnieniem `delayMs`). Pierwszy
+ * odcinek obu gałęzi jest identyczny (ten sam czas i krzywa rysowania), więc
+ * opóźnienie pętli `delayMs - resumeAtMs`, przycięte do końca rysowania,
+ * daje dokładnie tę klatkę, która stoi na ekranie: kształt narysowany wznawia
+ * się od stanu „narysowany", a przerwany w połowie - rysuje się dalej (bez
+ * skoku do pełnej długości). Nazwy klatek pętli są inne niż gałęzi
+ * `forwards`: zmiana samego czasu trwania zachowałaby czas startu animacji z
+ * pierwszego malowania i kształt przeskoczyłby w losową fazę cyklu.
  */
 function ShapeSvg({
   shape,
@@ -346,7 +349,7 @@ function ShapeSvg({
   durationMs,
   delayMs,
   loop,
-  resumeLoop = false,
+  resumeAtMs = null,
   animKey,
 }: {
   shape: AnimatedHeadingShape;
@@ -354,9 +357,13 @@ function ShapeSvg({
   durationMs: number;
   delayMs: number;
   loop: boolean;
-  resumeLoop?: boolean;
+  resumeAtMs?: number | null;
   animKey: string | number;
 }) {
+  // Opóźnienie pętli: od zera (`delayMs`) albo wznowienie w fazie gałęzi
+  // `forwards` (najdalej w stanie „narysowany" po `drawMs`).
+  const loopDelayFor = (drawMs: number) =>
+    `${resumeAtMs === null ? delayMs : Math.round(delayMs - Math.min(resumeAtMs, delayMs + drawMs))}ms`;
   if (shape === "none") return null;
   if (shape.startsWith("hover-line-")) return null;
   if (shape.startsWith("hover-allsides-")) return null;
@@ -375,7 +382,7 @@ function ShapeSvg({
     const loopTag = loop ? "loop-" : "";
     const animA = `aHead-scribbleA-${loopTag}${animKey}`;
     const animB = `aHead-scribbleB-${loopTag}${animKey}`;
-    const loopDelay = resumeLoop ? `-${drawDur}ms` : `${delayMs}ms`;
+    const loopDelay = loopDelayFor(drawDur);
     const aHalf = (halfDur / totalDur) * 100;
     const aDrawEnd = (drawDur / totalDur) * 100;
     const aHoldEnd = ((drawDur + holdMs) / totalDur) * 100;
@@ -466,7 +473,7 @@ function ShapeSvg({
   const len = shapePathLen[shape];
   const delay = `${delayMs}ms`;
   const animName = loop ? `aHead-loop-${animKey}` : `aHead-draw-${animKey}`;
-  const loopDelay = resumeLoop ? `-${durationMs}ms` : delay;
+  const loopDelay = loopDelayFor(durationMs);
 
   // Cycle: draw → hold → fade-out → pause → repeat (when loop is true).
   // Single-shot: draw and stay (forwards).
@@ -668,6 +675,21 @@ function SegmentLink({
   );
 }
 
+/**
+ * Czas (ms) od startu jednorazowego rysowania kształtu (gałąź `forwards`,
+ * razem z opóźnieniem), odczytany z animacji CSS w poddrzewie. Animacja
+ * zakończona trzyma czas końca. Bez `getAnimations` (stare przeglądarki,
+ * jsdom) albo bez animacji (np. reduced motion) - `Infinity`, czyli
+ * „narysowany"; animacja jeszcze nierozpoczęta - 0.
+ */
+function shapeElapsedMs(host: Element | null): number {
+  const animation = host
+    ?.getAnimations?.({ subtree: true })
+    .find((a) => "animationName" in a && String(a.animationName).startsWith("aHead-"));
+  if (!animation) return Number.POSITIVE_INFINITY;
+  return typeof animation.currentTime === "number" ? animation.currentTime : 0;
+}
+
 export function AnimatedHeadingRender({
   config,
   preview = false,
@@ -700,9 +722,17 @@ export function AnimatedHeadingRender({
   const rotates = mode === "rotate" && !preview && words.length > 1;
   const shapeLoops = mode !== "rotate" && loop;
   const motion = useMotionGate(rotates || shapeLoops);
-  // Pętla, która zastępuje kształt narysowany przed otwarciem, wznawia się od
-  // stanu „narysowany"; komponent zamontowany już po otwarciu rysuje od zera.
-  const mountedBeforeMotion = useRef(!motion);
+  // Pętla, która zastępuje gałąź `forwards` biegnącą przed otwarciem, wznawia
+  // się w jej fazie: czas od startu rysowania czytany z animacji w chwili
+  // otwarcia (wczesne otwarcie - w trakcie rysowania - nie skacze do pełnej
+  // kreski). Do odczytu pętla czeka na gałęzi `forwards`. Nagłówek
+  // zamontowany już po otwarciu rysuje pętlę od zera.
+  const [resumes] = useState(!motion);
+  const shapeHostRef = useRef<HTMLSpanElement | null>(null);
+  const [resumeAtMs, setResumeAtMs] = useState<number | null>(null);
+  useEffect(() => {
+    if (resumes && shapeLoops && motion) setResumeAtMs(shapeElapsedMs(shapeHostRef.current));
+  }, [resumes, shapeLoops, motion]);
   useEffect(() => {
     if (!rotates || !motion || prefersReducedMotion()) return;
     const t = window.setInterval(() => setWIdx((i) => (i + 1) % words.length), durationMs + 600);
@@ -762,6 +792,7 @@ export function AnimatedHeadingRender({
       ) : null}
       <span
         key={animKey}
+        ref={shapeHostRef}
         className={hoverClass}
         style={{
           position: "relative",
@@ -780,8 +811,8 @@ export function AnimatedHeadingRender({
           color={accent}
           durationMs={durationMs}
           delayMs={delayMs}
-          loop={shapeLoops && motion}
-          resumeLoop={mountedBeforeMotion.current}
+          loop={shapeLoops && motion && (!resumes || resumeAtMs !== null)}
+          resumeAtMs={resumes ? resumeAtMs : null}
           animKey={animKey}
         />
       </span>

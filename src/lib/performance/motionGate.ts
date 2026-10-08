@@ -31,11 +31,16 @@
 // zapis atrybutu także na stronie, na której nie ma innych konsumentów.
 // `useMotionGate(false)` niczego nie uzbraja (widget bez autoplay).
 //
+// WIDEO Z AUTOPLAY: `useGatedVideoAutoplay` (wyciszone `play()` po otwarciu,
+// wariant tła tylko przy viewporcie) i `firstFrameVideoSrc` (pierwsza klatka
+// zamiast pustego prostokąta na iOS do otwarcia) - jedno wykonanie dla wideo
+// widgetu, hero wideo i wideo tła sekcji.
+//
 // REDUCED MOTION: niezależne. Bramka tylko opóźnia ruch; reguły
 // `prefers-reduced-motion` i odczyty `prefersReducedMotion()` w konsumentach
 // zostają, jak były.
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore, type RefObject } from "react";
 import {
   __openInteractionOrQuietForTests,
   __resetInteractionOrQuietForTests,
@@ -95,6 +100,59 @@ export function useMotionGate(enabled = true): boolean {
     enabled ? isInteractionOrQuietOpen : readClosed,
     readClosed,
   );
+}
+
+/**
+ * Autoplay wideo za bramką - jedno wykonanie dla wideo widgetu, hero wideo i
+ * wideo tła sekcji. HTML nie ma atrybutu `autoplay` (przeglądarka nie rusza
+ * wideo przy pierwszym malowaniu, w środku śladu Lighthouse'a), a wyciszone
+ * `play()` przychodzi po otwarciu bramki (ponownie przy zmianie `src`).
+ * `inViewOnly`: gra tylko przy viewporcie (`IntersectionObserver`, margines
+ * 200 px) i pauzuje poza nim - wideo tła na długich stronach paliło pasmo,
+ * dekodowanie i baterię. Przy `enabled === false` niczego nie uzbraja.
+ */
+export function useGatedVideoAutoplay(
+  ref: RefObject<HTMLVideoElement | null>,
+  enabled: boolean,
+  src: string,
+  inViewOnly = false,
+): void {
+  const motion = useMotionGate(enabled);
+  useEffect(() => {
+    const el = ref.current;
+    if (!motion || !el) return;
+    // Polityka autoplay przeglądarki wpuszcza bez gestu wyłącznie wyciszone wideo.
+    el.muted = true;
+    const play = () => void el.play().catch(noop);
+    if (!inViewOnly || typeof IntersectionObserver === "undefined") {
+      play();
+      return inViewOnly ? () => el.pause() : undefined;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) play();
+          else el.pause();
+        }
+      },
+      { rootMargin: "200px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [motion, src, inViewOnly, ref]);
+}
+
+/**
+ * Adres wideo, które stoi do otwarcia bramki. Bez atrybutu `autoplay`, przy
+ * `preload="metadata"` i bez plakatu Safari na iOS nie dekoduje pierwszej
+ * klatki - prostokąt wideo (tło sekcji, hero) zostaje pusty aż do `play()`.
+ * Fragment mediów `#t=0.001` (start 1 ms) wymusza zdekodowanie i namalowanie
+ * pierwszej klatki; fragment nie idzie do serwera, więc cache i transfer bez
+ * zmian. Plakat z CMS-u wygrywa (początkowe przewinięcie do `t` zdjęłoby
+ * plakat), a adres z własnym fragmentem zostaje nietknięty.
+ */
+export function firstFrameVideoSrc(src: string, poster?: string): string {
+  return poster || src.includes("#") ? src : `${src}#t=0.001`;
 }
 
 /**

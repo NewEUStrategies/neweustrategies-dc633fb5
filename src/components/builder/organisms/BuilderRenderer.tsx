@@ -63,7 +63,7 @@ import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { HydrationIsland, islandChunksFor } from "@/lib/performance/hydrationIsland";
-import { useMotionGate } from "@/lib/performance/motionGate";
+import { firstFrameVideoSrc, useGatedVideoAutoplay } from "@/lib/performance/motionGate";
 import {
   createViewportDeviceSource,
   useRendererDevice,
@@ -664,45 +664,21 @@ function ExperimentSection({
  * videos were silently burning bandwidth, decode time and battery on long
  * builder pages.
  *
- * BRAMKA RUCHU (P3.5): HTML z serwera nie ma atrybutu `autoplay`, więc wideo
- * nie rusza przy pierwszym malowaniu (w środku śladu Lighthouse'a). Odtwarzanie
- * zaczyna się po pierwszej interakcji albo w punkcie ciszy strony - nadal
- * tylko wtedy, gdy sekcja jest przy viewporcie. Do tego czasu stoi pierwsza
- * klatka.
+ * BRAMKA RUCHU (P3.5, `useGatedVideoAutoplay`): HTML z serwera nie ma atrybutu
+ * `autoplay`, więc wideo nie rusza przy pierwszym malowaniu (w środku śladu
+ * Lighthouse'a). Odtwarzanie zaczyna się po pierwszej interakcji albo w
+ * punkcie ciszy strony - nadal tylko wtedy, gdy sekcja jest przy viewporcie.
+ * Do tego czasu stoi pierwsza klatka, także na iOS (`firstFrameVideoSrc`:
+ * sekcja nie ma plakatu, a bez fragmentu `#t=` tło byłoby puste).
  */
 function SectionBackgroundVideo({ src }: { src: string }) {
   const ref = useRef<HTMLVideoElement | null>(null);
-  const motion = useMotionGate();
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !motion) return;
-    // Polityka autoplay przeglądarki wpuszcza bez gestu wyłącznie wyciszone wideo.
-    el.muted = true;
-    if (typeof IntersectionObserver === "undefined") {
-      void el.play().catch(() => undefined);
-      return () => el.pause();
-    }
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            void el.play().catch(() => undefined);
-          } else {
-            el.pause();
-          }
-        }
-      },
-      { rootMargin: "200px 0px" },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [motion, src]);
+  useGatedVideoAutoplay(ref, true, src, true);
 
   return (
     <video
       ref={ref}
-      src={src}
+      src={firstFrameVideoSrc(src)}
       muted
       loop
       playsInline

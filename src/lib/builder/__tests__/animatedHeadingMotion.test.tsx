@@ -8,7 +8,10 @@
 //     serwera. Po otwarciu pętla podmienia NAZWĘ klatek (nowa animacja od
 //     chwili otwarcia) i startuje z ujemnym opóźnieniem równym czasowi
 //     rysowania, czyli od stanu „narysowany": samo otwarcie nie zmienia klatki.
-//     Nagłówek zamontowany już po otwarciu rysuje pętlę od zera.
+//     Nagłówek zamontowany już po otwarciu rysuje pętlę od zera. Wczesne
+//     otwarcie (w trakcie rysowania albo jeszcze w opóźnieniu) wznawia pętlę
+//     w fazie gałęzi `forwards` odczytanej z `getAnimations` - kreska nie
+//     skacze do pełnej długości.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
@@ -110,6 +113,55 @@ describe("pętla kształtu", () => {
     expect(sheet).toContain("@keyframes aHead-loop-h-0");
     expect(sheet).toMatch(/animation: aHead-loop-h-0 \d+ms -1600ms infinite/);
     expect(sheet).not.toContain("aHead-draw-h-0");
+  });
+
+  /** Atrapa `getAnimations`: gałąź `forwards` z danym czasem od startu. */
+  function stubForwardsAt(currentTime: number | null) {
+    const getAnimations = vi.fn(() => [
+      { animationName: "aHead-draw-h-0", currentTime } as unknown as Animation,
+    ]);
+    Object.defineProperty(HTMLElement.prototype, "getAnimations", {
+      configurable: true,
+      value: getAnimations,
+    });
+    return getAnimations;
+  }
+  afterEach(() => {
+    delete (HTMLElement.prototype as Partial<HTMLElement>).getAnimations;
+  });
+
+  it.each([
+    // [czas od startu gałęzi `forwards`, oczekiwane opóźnienie pętli]
+    [700, "-500ms"], // otwarcie W TRAKCIE rysowania: 500 ms z 1600 już narysowane
+    [50, "150ms"], // jeszcze w opóźnieniu 200 ms: pętla dopiero zacznie rysować
+    [5000, "-1600ms"], // dawno narysowany: od stanu „narysowany"
+    [null, "200ms"], // animacja jeszcze nie wystartowała: rysowanie od zera
+  ])(
+    "wczesne otwarcie: pętla wznawia się w fazie gałęzi `forwards` (%s ms -> %s)",
+    (currentTime, delay) => {
+      const getAnimations = stubForwardsAt(currentTime);
+      const { container } = render(<AnimatedHeadingRender config={config} />);
+      act(() => __openMotionGateForTests());
+      expect(getAnimations).toHaveBeenCalledWith({ subtree: true });
+      expect(css(container)).toContain(`animation: aHead-loop-h-0 4400ms ${delay} infinite`);
+    },
+  );
+
+  it("wczesne otwarcie przy `scribble`: faza przycięta do końca rysowania obu kresek", () => {
+    stubForwardsAt(700);
+    const { container } = render(
+      <AnimatedHeadingRender config={{ ...config, shape: "scribble" }} />,
+    );
+    act(() => __openMotionGateForTests());
+    // Pół rysowania = round(1600 * 0,55) = 880 ms; 700 ms od startu = 500 ms rysowania.
+    expect(css(container)).toMatch(/aHead-scribbleA-loop-h-0 \d+ms -500ms infinite/);
+    cleanup();
+    __resetMotionGateForTests();
+
+    stubForwardsAt(9000);
+    const late = render(<AnimatedHeadingRender config={{ ...config, shape: "scribble" }} />);
+    act(() => __openMotionGateForTests());
+    expect(css(late.container)).toMatch(/aHead-scribbleB-loop-h-0 \d+ms -1760ms infinite/);
   });
 
   it("zamontowany po otwarciu rysuje pętlę od zera (dodatnie opóźnienie)", () => {

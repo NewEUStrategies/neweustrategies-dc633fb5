@@ -96,7 +96,11 @@ import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 import { siteYear } from "@/lib/i18n/format";
-import { useMotionGate } from "@/lib/performance/motionGate";
+import {
+  firstFrameVideoSrc,
+  useGatedVideoAutoplay,
+  useMotionGate,
+} from "@/lib/performance/motionGate";
 export { ResizableBox } from "./resizeWrappers";
 
 // Render-prop most do globalnych linków social (site_settings → opcje motywu).
@@ -126,35 +130,31 @@ function LoopingIcon({ className, children }: { className: string; children: Rea
 }
 
 /**
- * Wideo z autoplay: bez atrybutu `autoplay` w HTML-u (przeglądarka nie rusza
- * go przy pierwszym malowaniu), `play()` dopiero po otwarciu bramki. Wyciszone
- * jak dotąd - inaczej polityka autoplay przeglądarki i tak by je zatrzymała.
+ * Wideo widgetu (plik). Z autoplay: bez atrybutu `autoplay` w HTML-u,
+ * wyciszone `play()` po otwarciu bramki (`useGatedVideoAutoplay`), a do tego
+ * czasu namalowana pierwsza klatka także na iOS (`firstFrameVideoSrc`).
  */
-function AutoplayVideo({
+function WidgetVideo({
   src,
+  autoplay,
   controls,
   loop,
   style,
 }: {
   src: string;
+  autoplay: boolean;
   controls: boolean;
   loop: boolean;
   style: CSSProperties;
 }) {
   const ref = useRef<HTMLVideoElement | null>(null);
-  const motion = useMotionGate();
-  useEffect(() => {
-    const el = ref.current;
-    if (!motion || !el) return;
-    el.muted = true;
-    void el.play().catch(() => undefined);
-  }, [motion, src]);
+  useGatedVideoAutoplay(ref, autoplay, src);
   return (
     <video
       ref={ref}
-      src={src}
+      src={autoplay ? firstFrameVideoSrc(src) : src}
       controls={controls}
-      muted
+      muted={autoplay}
       loop={loop}
       playsInline
       className="w-full rounded"
@@ -164,15 +164,24 @@ function AutoplayVideo({
 }
 
 const YOUTUBE_ORIGIN = "https://www.youtube.com";
+/** Krok uzgadniania z odtwarzaczem YouTube (jak `iframe_api`: co 250 ms). */
+const YOUTUBE_HANDSHAKE_MS = 250;
 
 /**
  * Osadzenie YouTube. Autoplay NIE idzie parametrem `autoplay=1` (odtwarzacz
  * ruszałby przy pierwszym malowaniu): adres ma `enablejsapi=1` i `mute=1` od
- * początku, a po otwarciu bramki strona wysyła odtwarzaczowi `playVideo`
+ * początku, a po otwarciu bramki strona każe odtwarzaczowi grać
  * (`postMessage`). Zmiana adresu po otwarciu przeładowałaby ramkę - i
  * zrestartowała film, który czytelnik sam włączył wewnątrz ramki (kliknięcie
- * w ramkę innego originu nie dociera do bramki). Ramka mogła załadować się
- * przed hydratacją, więc polecenie idzie od razu i ponownie przy `load`.
+ * w ramkę innego originu nie dociera do bramki).
+ *
+ * UZGODNIENIE (protokół `iframe_api`). Polecenie wysłane, zanim odtwarzacz w
+ * ramce nasłuchuje, przepada bez śladu - przy wczesnym otwarciu bramki
+ * autoplay po cichu by nie nastąpił. Dlatego strona, tak jak `iframe_api`,
+ * woła `{"event":"listening"}` co 250 ms do pierwszej odpowiedzi odtwarzacza
+ * (ramka ładująca się długo też ją w końcu da), a `playVideo` wysyła dopiero
+ * po `onReady` z originu YouTube i z TEJ ramki - odtwarzacz podłączony już
+ * po swoim załadowaniu też odpowiada `onReady`.
  */
 function YouTubeEmbed({
   videoId,
@@ -190,15 +199,24 @@ function YouTubeEmbed({
   useEffect(() => {
     const frame = ref.current;
     if (!autoplay || !motion || !frame) return;
-    const play = () => {
-      frame.contentWindow?.postMessage(
-        JSON.stringify({ event: "command", func: "playVideo", args: [] }),
-        YOUTUBE_ORIGIN,
-      );
+    const send = (message: object) =>
+      frame.contentWindow?.postMessage(JSON.stringify(message), YOUTUBE_ORIGIN);
+    const listen = () => send({ event: "listening" });
+    const timer = window.setInterval(listen, YOUTUBE_HANDSHAKE_MS);
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== frame.contentWindow || event.origin !== YOUTUBE_ORIGIN) return;
+      window.clearInterval(timer);
+      if (String(event.data).includes('"event":"onReady"')) {
+        window.removeEventListener("message", onMessage);
+        send({ event: "command", func: "playVideo", args: [] });
+      }
     };
-    play();
-    frame.addEventListener("load", play);
-    return () => frame.removeEventListener("load", play);
+    window.addEventListener("message", onMessage);
+    listen();
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("message", onMessage);
+    };
   }, [autoplay, motion]);
   const params = new URLSearchParams();
   if (autoplay) {
@@ -1072,15 +1090,12 @@ export function renderSimpleWidget(
             niedozwolony URL
           </div>
         );
-      return autoplay ? (
-        <AutoplayVideo src={safe} controls={controls} loop={loop} style={ratioStyle} />
-      ) : (
-        <video
+      return (
+        <WidgetVideo
           src={safe}
+          autoplay={autoplay}
           controls={controls}
           loop={loop}
-          playsInline
-          className="w-full rounded"
           style={ratioStyle}
         />
       );

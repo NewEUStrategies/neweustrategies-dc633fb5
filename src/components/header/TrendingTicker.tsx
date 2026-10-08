@@ -473,13 +473,25 @@ export const TYPEWRITER_STEP_MS = 22;
  *
  * `prefers-reduced-motion`: pełny tytuł od razu i zero timerów - czytane
  * w efekcie, nie w renderze (patrz `lib/a11y/reducedMotion`).
+ *
+ * BRAMKA RUCHU (P3.5). Tytuł zamontowany przed otwarciem bramki - w tym
+ * pierwsza porcja z HTML-a serwera i z renderu hydratacji - stoi w CAŁOŚCI
+ * od pierwszego malowania i nie pisze się wcale (także po otwarciu): pisanie
+ * po hydratacji było zmianą wizualną w oknie śladu Lighthouse'a. Piszą się
+ * wyłącznie tytuły montowane po otwarciu, czyli kolejne porcje (timer porcji
+ * startuje dopiero po otwarciu, a `key` = tytuł montuje każdy tytuł od nowa).
  */
 export function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
-  const [n, setN] = useState(0);
+  const motion = useMotionGate();
+  // Stan z PIERWSZEGO renderu: `false` na serwerze i w hydratacji
+  // (`getServerSnapshot`), `true` dla montażu po otwarciu.
+  const [types] = useState(motion);
+  const [n, setN] = useState(types ? 0 : text.length);
   useEffect(() => {
-    // Pusty tytuł nie ma czego wypisywać, a ograniczony ruch nie chce animacji
-    // w ogóle - w obu przypadkach stan końcowy od razu i żadnego timera.
-    if (text.length === 0 || prefersReducedMotion()) {
+    // Pusty tytuł nie ma czego wypisywać, ograniczony ruch nie chce animacji
+    // w ogóle, a tytuł sprzed otwarcia bramki stoi - stan końcowy od razu i
+    // żadnego timera.
+    if (!types || text.length === 0 || prefersReducedMotion()) {
       setN(text.length);
       return;
     }
@@ -501,7 +513,7 @@ export function TypewriterText({ text, delayMs }: { text: string; delayMs: numbe
       window.clearTimeout(timeout);
       if (interval !== undefined) window.clearInterval(interval);
     };
-  }, [text, delayMs]);
+  }, [types, text, delayMs]);
   return (
     <span className="font-medium truncate max-w-[220px] sm:max-w-none sm:whitespace-nowrap leading-none">
       {text.slice(0, n)}
