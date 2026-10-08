@@ -22,7 +22,7 @@
 //     wysokość; redakcja skaluje kadr, kod nie zgaduje breakpointów.
 //   * `rounded-xl` -> platformowe **6 px** jako domyślne zaokrąglenie, ale
 //     wystawione jako ustawienie panelu (`radius`).
-//   * `from-black/70 via-black/30` -> kolor nakładki + dwa krycia z panelu;
+//   * `from-black/70` + środkowy przystanek czerni o kryciu 30% -> kolor nakładki + dwa krycia z panelu;
 //     gradient liczy arkusz (`.pcx-overlay`), bo `color-mix()` wpisany wprost
 //     w atrybut `style` przepada w silnikach DOM bez wsparcia tej funkcji.
 //   * `<a target="_blank">` na sztywno -> przełącznik `newTab`; link wewnętrzny

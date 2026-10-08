@@ -53,8 +53,8 @@ import type { ReactNode } from "react";
 // baza, potem klasa aktywna, potem nieaktywna, rozdzielone spacją. Bieżący
 // odnośnik miał więc DWIE klasy koloru napisu naraz. Oba to arbitralne utility
 // o TEJ SAMEJ specyficzności, więc rozstrzygała KOLEJNOŚĆ W ARKUSZU - a Tailwind
-// emituje `text-[color:var(--event-nav-fg-muted,red)]` PÓŹNIEJ niż
-// `text-[color:var(--event-nav-fg,red)]` (pomiar na zbudowanym arkuszu: linie 7564
+// emituje arbitralny kolor tekstu z `--event-nav-fg-muted` PÓŹNIEJ niż
+// ten z `--event-nav-fg` (pomiar na zbudowanym arkuszu: linie 7564
 // i 7567). Czyli klasa WYCISZONA wygrywała i bieżąca zakładka na pasku
 // z ustawionym kolorem nawigacji dostawała odcień wyciszony. Rozróżnienie
 // „bieżąca / pozostałe”, zamierzone jako DWUSTOPNIOWE (grubość ORAZ odcień),

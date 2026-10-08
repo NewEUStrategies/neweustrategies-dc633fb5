@@ -32,7 +32,6 @@ export default defineConfig({
       provider: "istanbul",
       reporter: ["text-summary", "text", "html", "json-summary", "json", "lcov"],
       reportOnFailure: true,
-      all: true,
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "**/__tests__/**",

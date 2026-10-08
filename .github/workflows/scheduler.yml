@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Bez `bun install` i bez build-stepu: sterownik ticku to czysty Node 18+
       # (globalne fetch), więc przebieg kosztuje sekundy, nie minuty.

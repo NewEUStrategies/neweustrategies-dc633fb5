@@ -1,6 +1,7 @@
 import { lazy, type ComponentType } from "react";
 import { createLucideIcon, HelpCircle, type IconNode, type LucideProps } from "lucide-react";
 import { iconChunkIndex } from "./iconChunkIndex.js";
+import { unpackIconNode } from "./iconNodePacking";
 
 const chunks = [
   () => import("./chunks/icons-0.json"),
@@ -10,29 +11,13 @@ const chunks = [
 ];
 const cache = new Map<string, ComponentType<LucideProps>>();
 
-function isIconNode(value: unknown): value is IconNode {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      (part) =>
-        Array.isArray(part) &&
-        part.length === 2 &&
-        ["circle", "ellipse", "g", "line", "path", "polygon", "polyline", "rect"].includes(
-          part[0],
-        ) &&
-        part[1] !== null &&
-        typeof part[1] === "object",
-    )
-  );
-}
-
 async function loadNode(name: string): Promise<IconNode | null> {
   const module = await chunks[iconChunkIndex(name)]();
   const registry: Record<string, unknown> = module.default;
   const node = registry[name];
   // Historical aliases point to a canonical entry instead of duplicating SVGs.
   if (typeof node === "string") return loadNode(node);
-  return isIconNode(node) ? node : null;
+  return unpackIconNode(node);
 }
 
 /** Public content pays for one small data chunk, not the complete icon picker. */

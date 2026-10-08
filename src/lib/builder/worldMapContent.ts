@@ -6,7 +6,8 @@
 // a renderem (bramka wierności ustawień porównuje DOKŁADNE klucze magazynowe).
 import type { WidgetContent } from "./types";
 import { safeWidgetColor } from "./cssColor";
-import { coerceLat, coerceLng, type MapArc, type MapFit } from "@/lib/maps/worldMapGeo";
+import { coerceLat, coerceLng } from "@/lib/maps/geoCoords";
+import type { MapArc, MapFit } from "@/lib/maps/worldMapGeo";
 
 export type WorldMapLang = "pl" | "en";
 

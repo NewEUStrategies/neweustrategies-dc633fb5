@@ -925,7 +925,7 @@ export function renderChromeWidget(frame: WidgetFrame): React.ReactNode | undefi
       // so `.prose` alone would leave bullets/numbers invisible. Mirror the
       // authoring toolbar (RichHtmlField) 1:1 so canvas == public output.
       // Wcięcia list dopasowane 1:1 do neweuropeanstrategies.com:
-      // - list-outside + pl-5 (marker poza kolumną tekstu, jedno spójne wcięcie)
+      // - marker na zewnątrz (list-style-position: outside) + pl-5 (marker poza kolumną tekstu, jedno spójne wcięcie)
       // - zagnieżdżone listy: bez dodatkowego pl (dziedziczą pl-5 z reguły ogólnej),
       //   zmienia się tylko kształt markera (circle/lower-alpha).
       const proseCls = `cms-rich-content cms-elementor-richtext prose prose-sm max-w-none [&_*]:text-inherit [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:my-2 [&_h2]:font-semibold [&_h3]:font-semibold [&_a]:underline ${dropCap ? "first-letter:float-left first-letter:text-5xl first-letter:font-display first-letter:mr-2 first-letter:leading-none" : ""}`;

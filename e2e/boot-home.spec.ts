@@ -84,7 +84,9 @@ for (const [path, lang] of [
       // Boot przez loader: powód zapisany, węzeł zestawu zdjęty przed hydratacją, wejście w DOM.
       expect(
         await page.evaluate(() =>
-          ["lcp", "nocand", "load", "cap", "input"].includes(String(window.__nesBootWhy)),
+          ["lcp", "nocand", "load", "cap", "input"].includes(
+            String((window as Window & { __nesBootWhy?: string }).__nesBootWhy),
+          ),
         ),
       ).toBe(true);
       await expect(page.locator("#nes-boot-set")).toHaveCount(0);
@@ -112,5 +114,9 @@ test("zapisana sesja: strona główna bootuje od razu (`now`), bez czekania na L
   });
   await page.setExtraHTTPHeaders({ "accept-language": "pl" });
   await page.goto("/");
-  await expect.poll(() => page.evaluate(() => window.__nesBootWhy ?? null)).toBe("now");
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as Window & { __nesBootWhy?: string }).__nesBootWhy ?? null),
+    )
+    .toBe("now");
 });

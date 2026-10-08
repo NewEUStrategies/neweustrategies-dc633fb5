@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "e2e/**/*.ts",
+    "e2e-ab/**/*.ts",
+    "e2e-performance/**/*.ts",
+    "integration/**/*.ts",
+    "playwright*.config.ts",
+    "vite.smoke.config.ts",
+    "vite.measure.config.ts",
+    "vitest*.config.ts"
+  ],
+  "compilerOptions": { "incremental": false, "types": ["node", "vite/client"] }
+}

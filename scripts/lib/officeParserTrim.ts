@@ -1,8 +1,8 @@
-// Martwy kod parsera .docx w bundlu przeglądarki: dwa przekierowania modułów
-// ZAWĘŻONE DO IMPORTERA.
+// Parser .docx w bundlu przeglądarki bez martwego i przewymiarowanego kodu:
+// przekierowania modułów ZAWĘŻONE DO IMPORTERA.
 //
 // PO CO. Podgląd .docx (`src/lib/files/officeParse.ts` -> `mammoth.convertToHtml`)
-// to chunk ~99 KB gzip, a dwie jego części nie wykonują się nigdy, bo żadna
+// to chunk ~99 KB gzip. Dwie jego części nie wykonują się nigdy, bo żadna
 // ścieżka z `convertToHtml` do nich nie prowadzi:
 //
 //   1. `xmlbuilder` (~9 KB gzip). W mammoth wymaga go tylko
@@ -14,9 +14,22 @@
 //      (`isHTML ? HTML_ENTITIES : XML_ENTITIES`), a mammoth woła
 //      `parseFromString(string)` bez typu - zawsze XML.
 //
+// Dwie kolejne wykonują się, ale niosą wielokrotnie więcej kodu niż zadanie,
+// więc dostają zastępców o TEJ SAMEJ semantyce (wynik konwersji bez zmian):
+//
+//   3. bluebird (~21 KB gzip) pod `mammoth/lib/promises.js`. Mammoth bierze
+//      z niego kilka funkcji i metod łańcucha; `vendor/mammothPromises.ts`
+//      daje je na natywnym `Promise`. Przekierowany jest import `promises`
+//      z KAŻDEGO pliku mammoth, który go wymaga (lista niżej, test pilnuje
+//      kompletności i tego, że mammoth nie woła niczego spoza zastępcy).
+//   4. Tablica `dingbat-to-unicode` (~12 KB gzip, 1061 obiektów z pięcioma
+//      polami tekstowymi), z której `docx/body-reader.js` czyta jedno: znak
+//      Unicode dla `<w:sym>`. `vendor/dingbatToUnicode.ts` niesie te same
+//      pary w zwięzłym zapisie; test porównuje z pakietem każde zapytanie.
+//
 // Bramka `overall` w `scripts/check-bundle-size.ts` liczy ten chunk przy każdym
-// buildzie (kronika, wpis XXII); to ~22 KB gzip kodu, który nie ma prawa się
-// wykonać.
+// buildzie (kronika, wpisy XXII i XXIV); razem to ~55 KB gzip kodu, który albo
+// nie ma prawa się wykonać, albo robi to samo co kilka kB zastępcy.
 //
 // ZASADA: PRZEKIEROWANIE WYŁĄCZNIE PO PARZE (specyfikator, importer). Ten sam
 // specyfikator z innego pliku rozwiązuje się normalnie - inny pakiet, który
@@ -29,10 +42,11 @@
 // Serwer, proces arkuszy i dev (esbuild prebundluje mammoth bez wtyczek Rollupa)
 // dostają nietknięte pakiety - zachowanie jest to samo, różni się tylko waga.
 //
-// ZAŁOŻENIA SĄ PRZYPIĘTE TESTAMI: `src/lib/files/__tests__/officeParserTrim.test.ts`
-// czyta źródła mammoth i xmldom (aktualizacja pakietu, która zmieni którąś
-// ścieżkę, zapali test), a `officeParserTrimBuild.test.ts` buduje mammoth
-// z tą wtyczką i porównuje HTML z prawdziwego .docx z wynikiem nietkniętej
+// ZAŁOŻENIA SĄ PRZYPIĘTE TESTAMI: `src/lib/ci/__tests__/officeParserTrim.test.ts`
+// czyta źródła mammoth, xmldom i dingbat-to-unicode (aktualizacja pakietu, która
+// zmieni którąś ścieżkę, zapali test), a `officeParserTrimBuild.test.ts` buduje
+// mammoth z tą wtyczką i porównuje HTML i komunikaty z prawdziwych plików .docx
+// (własny plik testu i wszystkie pliki testowe mammoth) z wynikiem nietkniętej
 // biblioteki.
 //
 // Współdzielona przez vite.config.ts i vite.smoke.config.ts (parytet pilnuje
@@ -63,6 +77,32 @@ export const OFFICE_PARSER_REDIRECTS: readonly OfficeParserRedirect[] = [
     importer: "/node_modules/@xmldom/xmldom/lib/dom-parser.js",
     replacement: "src/lib/files/vendor/xmldomXmlEntities.ts",
   },
+  {
+    source: "dingbat-to-unicode",
+    importer: "/node_modules/mammoth/lib/docx/body-reader.js",
+    replacement: "src/lib/files/vendor/dingbatToUnicode.ts",
+  },
+  // `require("…/promises")` z każdego pliku mammoth poza CLI (`lib/main.js`).
+  // `lib/unzip.js` i `lib/docx/files.js` w przeglądarce podmienia pole
+  // `browser` pakietu, ale para zostaje - gdyby mapa `browser` się zmieniła.
+  ...(
+    [
+      ["./promises", "lib/images.js"],
+      ["./promises", "lib/document-to-html.js"],
+      ["./promises", "lib/unzip.js"],
+      ["../promises", "lib/xml/reader.js"],
+      ["../promises", "lib/docx/office-xml-reader.js"],
+      ["../promises", "lib/docx/files.js"],
+      ["../promises", "lib/docx/docx-reader.js"],
+      ["../promises", "lib/docx/style-map.js"],
+      ["../lib/promises", "browser/unzip.js"],
+      ["../../lib/promises", "browser/docx/files.js"],
+    ] as const
+  ).map(([source, file]) => ({
+    source,
+    importer: `/node_modules/mammoth/${file}`,
+    replacement: "src/lib/files/vendor/mammothPromises.ts",
+  })),
 ];
 
 const REPO_ROOT = fileURLToPath(new URL("../../", import.meta.url));

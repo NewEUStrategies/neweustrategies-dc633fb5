@@ -3,10 +3,17 @@
  * to "fontawesome" (the default is "lucide"), so @fortawesome never enters the
  * eager first-load bundle. lucide-shim.tsx dynamically imports this module's
  * default export and renders it inside a Suspense boundary.
+ *
+ * Definicje ikon rysujemy sami, bez `FontAwesomeIcon`. Komponent wciągał
+ * `@fortawesome/fontawesome-svg-core` (~138 kB przed minifikacją: parser
+ * transformacji, maski, warstwy, animacje, ~10 kB wstrzykiwanego CSS) tylko po
+ * to, żeby z `[szerokość, wysokość, , , ścieżka]` zrobić `<svg><path/></svg>`.
+ * Markup jest identyczny z tym, co renderował `FontAwesomeIcon` 3.5 (te same
+ * atrybuty i ich kolejność, `aria-hidden` jak w bibliotece, `title` pomijany jak
+ * tam), a jedyna reguła CSS rdzenia, która dotyczy tych ikon, trafia do
+ * dokumentu tym samym mechanizmem co w `insertCss` rdzenia - patrz niżej.
  */
 import { type CSSProperties, type SVGAttributes } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import {
   faArrowLeft,
   faArrowRight,
@@ -118,6 +125,9 @@ import {
 
 // Map of icon export name -> Font Awesome definition. Keys mirror the exports in
 // lucide-shim.tsx (the second argument passed to makeIcon).
+/** `IconDefinition` z `@fortawesome/fontawesome-common-types`, bez importu pakietu tranzytywnego. */
+type IconDefinition = typeof faHouse;
+
 const FA_MAP: Record<string, IconDefinition> = {
   ArrowLeft: faArrowLeft,
   ArrowRight: faArrowRight,
@@ -231,10 +241,32 @@ const FA_MAP: Record<string, IconDefinition> = {
   Youtube: faYoutube,
 };
 
+// Reguła bazowa z CSS, które `fontawesome-svg-core` 7.3 wstrzykiwał przy
+// załadowaniu modułu (`autoAddCss`). Z całego arkusza rdzenia tylko ona trafia
+// w te ikony: rozmiar i `vertical-align` i tak nadpisuje styl inline niżej, ale
+// `display`, `overflow` i `box-sizing` zostają z niej. Wstawiamy ją tak jak
+// rdzeń - PRZED pierwszy `<style>`/`<link>` w `<head>` - więc w kaskadzie
+// przegrywa z każdą regułą aplikacji o tej samej specyficzności, dokładnie jak
+// dotąd. Moduł ładuje się tylko w paczce „fontawesome", więc reguła też.
+const FA_BASE_CSS =
+  ".svg-inline--fa{box-sizing:content-box;display:var(--fa-display,inline-block);height:1em;overflow:visible;vertical-align:-.125em;width:var(--fa-width,1.25em)}";
+
+if (typeof document !== "undefined" && document.head) {
+  const style = document.createElement("style");
+  style.setAttribute("type", "text/css");
+  style.textContent = FA_BASE_CSS;
+  const first = Array.from(document.head.childNodes).find((node) =>
+    ["STYLE", "LINK"].includes(((node as Element).tagName || "").toUpperCase()),
+  );
+  document.head.insertBefore(style, first ?? null);
+}
+
 interface FaGlyphProps extends Omit<SVGAttributes<SVGSVGElement>, "color"> {
   name: string;
   size?: number | string;
   color?: string;
+  /** Przyjmowany i pomijany, jak w `FontAwesomeIcon` 3.5 (bez `<title>`). */
+  title?: string;
 }
 
 export default function FaGlyph({
@@ -243,6 +275,9 @@ export default function FaGlyph({
   color,
   className,
   style,
+  role,
+  title: _title,
+  "aria-hidden": ariaHiddenProp,
   ...rest
 }: FaGlyphProps) {
   const faDef = FA_MAP[name];
@@ -258,12 +293,29 @@ export default function FaGlyph({
     verticalAlign: "middle",
     ...style,
   };
+  const [width, height, , , pathData] = faDef.icon;
+  // Jak w `FontAwesomeIcon`: domyślnie ukryta dla czytników, chyba że wołający
+  // podał `aria-label` (wtedy zawsze "false") albo jawne `aria-hidden`.
+  const ariaHidden = rest["aria-label"] ? "false" : (ariaHiddenProp ?? "true");
   return (
-    <FontAwesomeIcon
-      icon={faDef}
-      className={className}
-      style={merged as CSSProperties & Record<`--fa-${string}`, string>}
-      {...(rest as Record<string, unknown>)}
-    />
+    <svg
+      data-prefix={faDef.prefix}
+      data-icon={faDef.iconName}
+      className={`svg-inline--fa fa-${faDef.iconName}${className ? ` ${className}` : ""}`}
+      role={role ?? "img"}
+      viewBox={`0 0 ${width} ${height}`}
+      aria-hidden={ariaHidden}
+      style={merged}
+      {...rest}
+    >
+      {Array.isArray(pathData) ? (
+        <g className="fa-duotone-group">
+          <path className="fa-secondary" fill="currentColor" d={pathData[0]} />
+          <path className="fa-primary" fill="currentColor" d={pathData[1]} />
+        </g>
+      ) : (
+        <path fill="currentColor" d={pathData} />
+      )}
+    </svg>
   );
 }

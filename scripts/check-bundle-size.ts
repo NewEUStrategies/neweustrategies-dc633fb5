@@ -1932,6 +1932,50 @@ const CLIENT_DIR =
 //      i P2.6 (statyczne style -> klasy) mają go zmierzyć przed scaleniem.
 //   P9.1 (C10: `experimentalMinChunkSize` 2048 -> 1) usuwa przyczynę ogólnie;
 //   przypięcie z pkt 1 nie koliduje z tą zmianą.
+//
+// 2026-10-08 XXIV  OVERALL WRACA POD 4772 CIĘCIAMI, BEZ ZMIANY PROGU. CSS i boot
+//             też wróciły pod progi cięciami w tym samym PR (#484).
+//
+// STAN WYJŚCIOWY. Krok „Bundle size budget" jest czerwony na main od scalenia
+// #476 (run 37441423321, f213e56); ostatni zielony: 824584d, run 37339137397.
+// Log kroku jest w środku ~10 000 linii logu joba, więc odczytałem go osobnym
+// przebiegiem na runnerze (sam install + build + ta bramka, ten sam
+// `--frozen-lockfile`, Bun 1.2.23). main 2c5c2ee: overall 4801,6 ✗, css 97,1 ✗,
+// public css 82,9, public 2858,2, boot 485,2.
+//
+// SKĄD +29 KB (host, ten sam `node_modules`, `BUNDLE_INVENTORY=1 bun run
+// build` na trzech drzewach; suma wiader liczona tą bramką):
+//   824584d (zielony)       4661,7
+//   f213e56 (po #476)       4671,0   +9,3  fala 2 PSI: wyspy hydratacji
+//                                          (`hydrationIsland.tsx` 20,9 kB przed
+//                                          minifikacją), zestaw bootu; reszta to
+//                                          przetasowanie sklejania
+//   2c5c2ee + cięcia CSS    4691,0  +20,0  #477-#481 strumień klubu: chunk trasy
+//                                          `club.$clubSlug.index` +16,3,
+//                                          `i18n-club` +2,8, wzmianki +1,8
+// W strumieniu klubu nie ma martwego kodu, a przenoszenie kodu do leniwych
+// chunków nie zmienia OVERALL. Zmiana `experimentalMinChunkSize` zmierzona na
+// tym drzewie: 1 -> +59,6 KB, 1024 -> +29,9, 1280 i 1536 -> chunk
+// `admin.analytics` w domknięciu bootu - wszystkie odrzucone.
+//
+// CO ZAMIAST PROGU. Biblioteki, które niosły wielokrotnie więcej kodu niż
+// zadanie, zastąpione odpowiednikami o tej samej semantyce (host, ta sama
+// bramka; każde cięcie ma test równoważności z oryginałem):
+//   4691,0  stan wyjściowy (po cięciach CSS i bootu)
+//   -23,3   `lucide-shim.fa`: FaGlyph rysuje SVG z definicji ikony sam, bez
+//           `@fortawesome/fontawesome-svg-core` (markup bajt w bajt ten sam)
+//   -10,1   `icons-0..3`: porcje bez kluczy Reacta i z gołymi ścieżkami `d`,
+//           węzeł odtwarza `unpackIconNode` (ten sam SVG dla 1703 ikon)
+//   -36,9   chunk podglądu .docx: bluebird -> `vendor/mammothPromises.ts`,
+//           tablica `dingbat-to-unicode` -> `vendor/dingbatToUnicode.ts`
+//           (`scripts/lib/officeParserTrim.ts`; HTML i komunikaty identyczne
+//           na wszystkich plikach .docx z testów mammoth)
+//   4620,6  po cięciach (przetasowanie sklejania ±1 KB w sumie)
+// Różnica host <-> runner jest stała (`xlsx` 0.20.3 tylko na runnerze:
+// `spreadsheet.worker` 130,5 KB; runner 4800,3 przy hoście 4691,0), więc runner
+// po cięciach to ~4729,9: ~42 KB pod progiem 4772. Progu nie obniżam w tym
+// wpisie - zapas zostaje do decyzji właściciela (ratchet z logu runnera, jak
+// w XX/XXI).
 
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,

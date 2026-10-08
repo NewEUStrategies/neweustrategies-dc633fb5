@@ -90,7 +90,7 @@ export function consentPolicyHrefs(
 // jako zapasem - to trzyma jasny/ciemny motyw bez drugiej palety.
 //
 // ALIASY KOLORÓW (P1.3, poprawka 9). Karta stoi w HTML-u KAŻDEJ strony (powłoka
-// SSR), a każda klasa `text-[color:var(--cb-fg,var(--muted-foreground))]` to
+// SSR), a każda klasa koloru z `--cb-fg` i zapasem `--muted-foreground` to
 // ok. 50 bajtów surowego HTML-a - powtarzane łańcuchy z zapasami były większością
 // 6,3 KB powłoki (dowód P1.3, §3: `check-document-weight` czerwony). Dlatego
 // pary „nadpisanie + zapas" używane wielokrotnie są zdefiniowane RAZ, jako

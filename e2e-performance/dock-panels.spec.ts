@@ -7,6 +7,7 @@ import {
   DOCK_REQUIRED_TABLES,
   DOCK_ROUND_TRIP_MS,
   dockFixtureResponse,
+  type DockFixtureResult,
   dockSession,
   isDockBackend,
   savedBookmarkMarker,
@@ -133,7 +134,7 @@ async function routeBackend(page: Page, sink: Sink): Promise<void> {
           headers: request.headers(),
           body: request.method() === "POST" ? (request.postData() ?? undefined) : undefined,
         }),
-      ).catch((error: unknown) => {
+      ).catch((error: unknown): DockFixtureResult => {
         sink.errors.push(String(error));
         return { response: Response.json({ message: String(error) }, { status: 501 }) };
       });

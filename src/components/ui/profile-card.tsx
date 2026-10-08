@@ -16,11 +16,11 @@
 //   * `framer-motion` -> klasy CSS `.pc-rise-*` (biblioteki nie ma w projekcie,
 //     a jedyny ruch we wzorcu to wejście karty, które CSS robi bez kosztu JS
 //     i z poszanowaniem `prefers-reduced-motion`),
-//   * `rounded-3xl` -> platformowe **6 px** na zdjęciu, karcie i przyciskach
+//   * zaokrąglenie 3xl ze wzorca -> platformowe **6 px** na zdjęciu, karcie i przyciskach
 //     social (jedno zaokrąglenie w całym systemie),
 //   * ikona Twittera -> logotyp **X** (dostarcza wywołujący),
-//   * kolory wyłącznie z tokenów semantycznych - `bg-gray-900 dark:bg-gray-100`
-//     i `text-white dark:text-gray-900` ze wzorca to dokładnie para
+//   * kolory wyłącznie z tokenów semantycznych - szare tło (odcień 900, w ciemnym motywie 100)
+//     i biały tekst (w ciemnym motywie szary 900) ze wzorca to dokładnie para
 //     `foreground`/`background`, więc dark mode działa bez dodatkowej pracy.
 import type { ComponentType, CSSProperties, ReactNode, SVGProps } from "react";
 import { User } from "@/lib/lucide-shim";

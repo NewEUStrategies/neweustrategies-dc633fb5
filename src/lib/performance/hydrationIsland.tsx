@@ -54,7 +54,7 @@
 //    wyspie (albo jej dzieciach-elementach) -> `enqueue(open, {priority:
 //    "islands", target: korzeń, release: "immediate"})`; treść bez elementów
 //    zostawia sam korzeń, który z klasą `contents` (domyślną albo podaną, także
-//    z wariantem, np. `md:contents`) nie ma pudełka i nigdy się nie przetnie
+//    z wariantem, np. md) nie ma pudełka i nigdy się nie przetnie
 //    (w DEV ostrzeżenie z `id`; korzeń z pudełkiem z `className` - bez
 //    ostrzeżenia);
 //  - `interaction: "any"` - pierwsza interakcja gdziekolwiek ->
@@ -559,7 +559,7 @@ function handleClick(event: MouseEvent): void {
   for (const island of [...clickGuards]) island.guardClick(event, target);
 }
 
-/** Klasa `contents` w atrybucie `class` (także z wariantem, np. `md:contents`). */
+/** Klasa `contents` w atrybucie `class` (także z wariantem, np. md). */
 const CONTENTS_CLASS = /(?:^|[\s:])contents(?:\s|$)/;
 
 /** Elementy, których widoczność otwiera wyspę: sekcje buildera, dzieci otoczki albo ona sama. */

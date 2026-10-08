@@ -13,12 +13,14 @@ const nodes = data("LUCIDE_ICON_NODES");
 const aliases = data("LUCIDE_ICON_ALIASES");
 const chunks = Array.from({ length: 4 }, () => ({}));
 for (const [name, node] of Object.entries(nodes)) {
-  // React keys are local to each immutable SVG node list. Index keys preserve
-  // identity while avoiding thousands of high-entropy library-generated IDs.
-  chunks[iconChunkIndex(name)][name] = node.map(([tag, attrs], index) => [
-    tag,
-    { ...attrs, key: String(index) },
-  ]);
+  // Chunks carry SVG data only: `unpackIconNode` restores the React index keys
+  // at load time, and a `<path>` whose only attribute is `d` is stored as the
+  // bare path string (~10 KB gzip less across the 4 chunks, same markup).
+  chunks[iconChunkIndex(name)][name] = node.map(([tag, attrs]) => {
+    const { key: _key, ...rest } = attrs;
+    const keys = Object.keys(rest);
+    return tag === "path" && keys.length === 1 && keys[0] === "d" ? rest.d : [tag, rest];
+  });
 }
 for (const [name, canonical] of Object.entries(aliases)) {
   if (nodes[canonical]) chunks[iconChunkIndex(name)][name] = canonical;

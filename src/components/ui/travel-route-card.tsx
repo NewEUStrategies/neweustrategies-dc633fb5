@@ -20,7 +20,7 @@
 //   * `rounded-2xl` -> platformowe **6 px** jako DOMYŚLNE zaokrąglenie, ale
 //     wystawione jako ustawienie panelu (`radius`) - redakcja może wrócić do
 //     16 px wzorca, kod nie narzuca ani jednego, ani drugiego,
-//   * `bg-blue-500/60 dark:bg-blue-800/70` -> kolor nakładki + krycie z panelu,
+//   * niebieska nakładka (odcień 500 przy kryciu 60%, w ciemnym motywie odcień 800 przy 70%) -> kolor nakładki + krycie z panelu,
 //     domyślnie kolor marki (`var(--brand)`); jeden zapis dla light i dark, bo
 //     karta i tak jest kontrastową płaszczyzną z białym tekstem,
 //   * `text-8xl` (96 px na sztywno) -> `distanceSizePx` z panelu; węzeł niesie

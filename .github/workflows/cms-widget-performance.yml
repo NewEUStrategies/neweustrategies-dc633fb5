@@ -20,17 +20,17 @@ jobs:
         engine: [builder, blocks]
         variant: [text, form]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: harness
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: baseline
           ref: ${{ github.event.before || 'main' }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: candidate
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24.19.0"
       - uses: oven-sh/setup-bun@v2
@@ -64,7 +64,7 @@ jobs:
           NES_PERFORMANCE_BASELINE: "1"
       - name: Preserve baseline evidence
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cms-baseline-${{ matrix.engine }}-${{ matrix.variant }}
           path: |
@@ -96,7 +96,7 @@ jobs:
         run: exit 1
       - name: Preserve candidate and comparison evidence
         if: ${{ !cancelled() && steps.measure_candidate.outcome != 'skipped' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cms-candidate-${{ matrix.engine }}-${{ matrix.variant }}
           path: |
