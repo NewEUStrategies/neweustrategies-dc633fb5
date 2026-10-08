@@ -5,7 +5,7 @@
 // (theme_options.logo - wariant jasny/ciemny przełączany klasą `.dark`,
 // bez migotania przy SSR), rotujący wiersz profili zgodnych z realnie
 // otwartymi rolami i liczby dowodowe odliczające przy wejściu w viewport.
-// Tło: wyłącznie miękka poświata marki (crs-aurora), gasnąca przy
+// Tło: wyłącznie miękka poświata marki (careers-hero-glass), gasnąca przy
 // prefers-reduced-motion.
 import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";

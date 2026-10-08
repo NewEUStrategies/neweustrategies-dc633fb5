@@ -35,7 +35,6 @@
   --neh-anim-ease: cubic-bezier(0.22, 1, 0.36, 1);
   /* Przejście między stanami danych: 350 ms z krzywą standardową. */
   --neh-state-ms: 350ms;
-  --neh-state-ease: cubic-bezier(0.4, 0, 0.2, 1);
   /* Podświetlenie pod kursorem i pojawienie tooltipa. */
   --neh-hover-ms: 150ms;
   --neh-tip-ms: 120ms;
@@ -512,29 +511,6 @@
    nic nie nawiguje. */
 .neh-metric-trigger {
   cursor: help;
-}
-
-/* PODKŁAD AKCENTU ZAWSZE Z OBRAMOWANIEM, i to jest cała treść tej klasy.
-   Kontrast #fff4ed do tła strony #f8f6f4 wynosi 1,003:1 - identyczna jasność
-   przy różnicy samego odcienia. Taka krawędź nie istnieje w skali szarości,
-   w druku jednobarwnym ani dla odbiorcy z achromatopsją: podkład działa jako
-   podkład (ciemny tusz ma na nim 16,78:1), ale POWIERZCHNI NIE WYZNACZA.
-   Dlatego tło i obramowanie idą razem, jedną klasą - kto użyje samego tokena,
-   dostanie prostokąt bez granicy, i nie da się tego zauważyć na ekranie.
-
-   Ciekawostka użytkowa: #fff4ed na bieli daje 1,082:1, a pasmo #FA9346 przy
-   10% krycia 1,084:1 - praktycznie ten sam ton, więc oba są wymienne. */
-.neh-accent-bg {
-  background: var(--chart-accent-bg);
-  /* OBRAMOWANIE Z WARIANTU AUDYTOWEGO GRAFIKI, i to jest dokładnie ten
-     przypadek, dla którego on istnieje: linia, która ma NIEŚĆ GRANICĘ SAMA,
-     musi przejść próg 3,0:1. #cb7032 ma 3,30:1 na tle strony i 3,29:1 na
-     samym podkładzie; firmowy #FA9346 ma 2,09:1, więc granica nadal byłaby
-     niewystarczająco widoczna. W ciemnym motywie ten token jest
-     równy akcentowi (6,86:1 na podniesionej powierzchni), więc jedna
-     deklaracja obsługuje oba tryby. */
-  border: 1px solid var(--chart-accent-audit-graphic);
-  border-radius: var(--chart-radius);
 }
 
 /* Interaktywne obszary trafień - większe niż znaczniki (>=24px). */

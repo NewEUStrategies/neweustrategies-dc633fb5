@@ -2,8 +2,8 @@
 // o zasięgu instancji widgetu.
 //
 // DLACZEGO CSS W <style>, A NIE KLASY TAILWINDA
-//  1. Ważność zapisuje się w Tailwindzie 4 SUFIKSEM (`[color:red]!`). Klasa
-//     `group-hover:![color:var(--sb-fg)]` (składnia z v3, używana tu wcześniej)
+//  1. Ważność zapisuje się w Tailwindzie 4 SUFIKSEM (wykrzyknik NA KOŃCU klasy arbitralnej). Wariant
+//     group-hover z wykrzyknikiem NA POCZĄTKU i kolorem `--sb-fg` (składnia z v3, używana tu wcześniej)
 //     nie generowała ŻADNEJ reguły, więc ikona z jawnym kolorem (`colorMode`
 //     dark / custom / brand / official) zostawała po najechaniu ciemna także w
 //     light mode. Kafelek trzyma kolor w atrybucie `style`, a bez `!important`

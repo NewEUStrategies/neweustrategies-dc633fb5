@@ -29,12 +29,7 @@
 .admin-compact
   .block-canvas
   input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
-.admin-compact .block-canvas textarea,
-.admin-compact [data-admin-form] select,
-.admin-compact
-  [data-admin-form]
-  input:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
-.admin-compact [data-admin-form] textarea {
+.admin-compact .block-canvas textarea {
   background: var(--card, hsl(0 0% 100%));
   color: var(--foreground);
   border: 1px solid var(--border);
@@ -49,8 +44,7 @@
   -webkit-appearance: none;
   appearance: none;
 }
-.admin-compact .block-canvas select,
-.admin-compact [data-admin-form] select {
+.admin-compact .block-canvas select {
   padding-right: 1.75rem;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
@@ -59,33 +53,22 @@
   cursor: pointer;
 }
 .admin-compact .block-canvas select:hover,
-.admin-compact [data-admin-form] select:hover,
 .admin-compact
   .block-canvas
   input:hover:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
-.admin-compact
-  [data-admin-form]
-  input:hover:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
-.admin-compact .block-canvas textarea:hover,
-.admin-compact [data-admin-form] textarea:hover {
+.admin-compact .block-canvas textarea:hover {
   border-color: color-mix(in oklab, var(--foreground) 30%, transparent);
 }
 .admin-compact .block-canvas select:focus,
-.admin-compact [data-admin-form] select:focus,
 .admin-compact
   .block-canvas
   input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
-.admin-compact
-  [data-admin-form]
-  input:focus:not([type="color"]):not([type="range"]):not([type="checkbox"]):not([type="radio"]),
-.admin-compact .block-canvas textarea:focus,
-.admin-compact [data-admin-form] textarea:focus {
+.admin-compact .block-canvas textarea:focus {
   outline: none;
   border-color: #fa9346;
   box-shadow: 0 0 0 2px color-mix(in oklab, #fa9346 30%, transparent);
 }
-.admin-compact .block-canvas select option,
-.admin-compact [data-admin-form] select option {
+.admin-compact .block-canvas select option {
   background: var(--popover);
   color: var(--popover-foreground);
   padding: 0.25rem 0.5rem;
@@ -127,12 +110,6 @@
   height: auto;
   min-height: 56px;
   padding-block: 6px;
-}
-.wp-compact [data-radix-select-trigger] {
-  height: 26px;
-  font-size: 11px;
-  padding-block: 2px;
-  padding-inline: 6px;
 }
 .wp-compact h4 {
   font-size: 10px;
@@ -374,10 +351,6 @@
 }
 .admin-compact button {
   font-size: 12.5px;
-}
-.admin-compact .btn-sm,
-.admin-compact [data-size="sm"] {
-  font-size: 11.5px;
 }
 .admin-compact [class*="rounded-lg"][class*="border"] {
   padding: 0.75rem;

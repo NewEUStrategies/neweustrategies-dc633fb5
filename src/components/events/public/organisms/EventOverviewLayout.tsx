@@ -5,7 +5,7 @@
 // mają 483 / 963 / 481 pikseli obrazu przy rynnach po 39 - czyli 1 : 2 : 1
 // z rynną 20 punktów logicznych, a cała treść ma ~1000 punktów. Stąd
 // `max-w-5xl` (1024, przez `EVENT_PORTAL_CONTENT_CLASS`) i
-// `grid-cols-[1fr_2fr_1fr] gap-5`: kolumna środkowa wychodzi 492 punkty przy
+// `lg:grid-cols-[1fr_2fr_1fr] gap-5`: kolumna środkowa wychodzi 492 punkty przy
 // zmierzonych 481. TYCH PROPORCJI NIE WOLNO ZMIENIAĆ „na oko”.
 //
 // PO CO OSOBNY KOMPONENT NA SIATKĘ. Bo była tylko w trasie, a podgląd w studiu
