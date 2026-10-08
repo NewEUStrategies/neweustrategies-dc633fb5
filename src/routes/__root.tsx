@@ -912,7 +912,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // (`trackSsrQueryCompleteness`) liczy każdy zasiew z `updatedAt: 0` jako
       // zgubione dane - poza zadeklarowanymi tutaj. Ten zasiew nie jest
       // fallbackiem awarii, tylko parytetem SSR/klienta (uzasadnienie wyżej).
-      if (isServer) markDeliberateSeed(context.queryClient, postLayoutKey);
+      // `import.meta.env.SSR`, nie `isServer`: Vite podmienia go na stałą, więc
+      // wywołanie znika z bootu klienta (`isServer` z router-core nie zwija się).
+      if (import.meta.env.SSR) markDeliberateSeed(context.queryClient, postLayoutKey);
     }
     const settings = context.queryClient.getQueryData<Readonly<Record<string, unknown>>>(
       siteSettingsQueryOptions.queryKey,
@@ -1080,8 +1082,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           // `no-store`). Ta sama praca z budżetem bramki
           // (`HOME_CHROME_LATE_BUDGET_MS`, lib/ssr/chromeWarmup.tsx); reklama
           // jak w `warm`, bo `HeaderSkeleton` rezerwuje jej wysokość z tego wpisu.
+          // Bramka `import.meta.env.SSR` (stała Vite), nie `isServer`: tylko ona
+          // wycina to domknięcie z chunku wejściowego klienta (+298 B bootu).
           warmLate:
-            isServer && homeDeadline !== undefined
+            import.meta.env.SSR && homeDeadline !== undefined
               ? (budgetMs: number) =>
                   withBudget(
                     Promise.allSettled([

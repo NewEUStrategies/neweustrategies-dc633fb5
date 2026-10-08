@@ -37,6 +37,7 @@ import { createBackgroundScope } from "@/lib/backgroundScope";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GA4_MEASUREMENT_ID } from "@/lib/analytics/ga4Client";
 import { homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
+import { trackSsrQueryCompleteness } from "@/lib/ssr/resilientLoad";
 import { stripLangPrefix } from "@/lib/i18n/localePath";
 
 const h = vi.hoisted(() => ({
@@ -463,6 +464,32 @@ describe("__root loader", () => {
     expect(state?.dataUpdatedAt).toBe(0);
   });
 
+  // P3.6b: ten zasiew jest na LIŚCIE CELOWYCH ZASIEWÓW predykatu kompletności
+  // dokumentu - inaczej każdy dokument liczyłby się jako niekompletny i nigdy
+  // nie trafiał do NES Edge Cache z przebiegu czytelnika. Deklaracja jest
+  // wyłącznie serwerowa (`import.meta.env.SSR`, stała Vite): w przeglądarce
+  // `QueryClient` żyje całą sesję i predykatu nie ma, więc kod nie jedzie
+  // w bootcie klienta.
+  it("zasiew układu treści jest CELOWY dla predykatu kompletności tylko w SSR", async () => {
+    const reasonsAfterLoader = async (client: QueryClient) => {
+      await runLoader(client, "/cookies");
+      return trackSsrQueryCompleteness(client)().reasons;
+    };
+    vi.stubEnv("SSR", true);
+    try {
+      expect(await reasonsAfterLoader(qc)).not.toContain("seed:post-layout-settings");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    // Kontrola: bez deklaracji ten sam zasiew byłby zgubionymi danymi.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    try {
+      expect(await reasonsAfterLoader(client)).toContain("seed:post-layout-settings");
+    } finally {
+      client.clear();
+    }
+  });
+
   it("zasiew układu treści NIE nadpisuje wartości, którą ktoś już rozgrzał", async () => {
     // `/$` grzeje ten klucz sam; zasiew korzenia nie może mu wejść w drogę.
     const own = { list_style: "disc" };
@@ -843,7 +870,12 @@ describe("root chrome gate uses real query freshness", () => {
     h.server = true;
     h.menusHang = true;
     try {
+      // `warmLate` jest bramkowane `import.meta.env.SSR` (stała Vite - domknięcie
+      // znika z bootu klienta), a pod vitestem ta stała jest fałszem. Decyzja
+      // zapada w loaderze, więc atrapa obejmuje tylko jego przebieg.
+      vi.stubEnv("SSR", true);
       await runLoader(qc);
+      vi.unstubAllEnvs();
       const now = Date.now();
       const clock = vi.spyOn(Date, "now").mockReturnValue(now + 10_000);
       try {
@@ -862,6 +894,7 @@ describe("root chrome gate uses real query freshness", () => {
         clock.mockRestore();
       }
     } finally {
+      vi.unstubAllEnvs();
       h.menusHang = false;
       qc.clear();
     }
