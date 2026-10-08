@@ -74,25 +74,20 @@ export function registerChromeWarmup(client: QueryClient, warmup: ChromeWarmup):
  * nie są gotowe, a wołający podał `warmLate`, granica nagłówka czeka dalej,
  * ale najwyżej do `deadline` liczonego od pierwszego odczytu bramki.
  *
- * Czeka na GOTOWOŚĆ (`ready()`), nie na całą pracę: `warmLate` grzeje też
- * dekorację (reklama nagłówka), której klucz nie wchodzi do listy gotowości.
- * Gdy dane powłoki już są, wolna emisja nie trzyma nagłówka do końca budżetu -
- * jak na zwykłej ścieżce, gdzie bramka z gotowymi danymi w ogóle nie czeka.
- * Reszta pracy biegnie dalej w tle (`withBudget` po stronie wołającego).
+ * Czeka na CAŁĄ pracę `warmLate`, z dekoracją (reklama nagłówka) włącznie,
+ * a nie tylko na `ready()` - tak samo jak `warm()` na zwykłej ścieżce, gdy
+ * danych nie ma przy pierwszym odczycie. Ta praca startuje z bramki, czyli już
+ * po `dehydrate()`, więc zamiatanie przed renderem jej nie anuluje. Reklama
+ * puszczona w tle po zwolnieniu granicy dostrumieniowałaby się do klienta PO
+ * HTML-u nagłówka (`AdZone` bez danych renderuje w SSR `null`): niezgodność
+ * hydratacji w granicy nagłówka i skok banera ~90 px (F26) - w dokumencie,
+ * który predykat kompletności wpuszcza do NES Edge Cache. Czas czekania
+ * ogranicza wołający (`withBudget(…, budgetMs)` w korzeniu).
  */
-function lateWarm(client: QueryClient, record: ChromeWarmup, deadline: number): Promise<unknown> {
+function lateWarm(record: ChromeWarmup, deadline: number): Promise<unknown> {
   const remaining = deadline - Date.now();
   if (!record.warmLate || record.ready() || remaining <= 0) return Promise.resolve();
-  const work = record.warmLate(remaining);
-  let stop: () => void = () => {};
-  const ready = new Promise<void>((resolve) => {
-    stop = client.getQueryCache().subscribe(() => {
-      if (record.ready()) resolve();
-    });
-    // Dane mogły dojść synchronicznie już w trakcie startu `warmLate`.
-    if (record.ready()) resolve();
-  });
-  return Promise.race([work, ready]).finally(() => stop());
+  return record.warmLate(remaining);
 }
 
 export function readChromeWarmup(client: QueryClient): void {
@@ -128,7 +123,7 @@ export function readChromeWarmup(client: QueryClient): void {
     const deadline = Date.now() + HOME_CHROME_LATE_BUDGET_MS;
     const first = expired ? Promise.resolve() : record.warm();
     record.promise = first
-      .then(() => lateWarm(client, record, deadline))
+      .then(() => lateWarm(record, deadline))
       .then(
         () => {
           if (record.warmLate && !record.ready()) markFailed(record);

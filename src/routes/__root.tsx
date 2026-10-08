@@ -1084,9 +1084,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           // jego minięciu niczego już nie dogrzewa i bramka oznaczała `failed`
           // (pasek „Na czasie" doskakiwał po hydratacji, dokument szedł
           // `no-store`). Ta sama lista `chromeWarm` z budżetem bramki
-          // (`HOME_CHROME_LATE_BUDGET_MS`, lib/ssr/chromeWarmup.tsx). Granica
-          // nagłówka czeka tylko do `ready()`: dekoracja (reklama) dogrzewa się
-          // dalej w tle, ale jej nie trzyma (`lateWarm` w chromeWarmup.tsx).
+          // (`HOME_CHROME_LATE_BUDGET_MS`, lib/ssr/chromeWarmup.tsx); reklama
+          // jak w `warm`, bo `HeaderSkeleton` rezerwuje jej wysokość z tego
+          // wpisu. Granica nagłówka czeka na całą tę pracę (najwyżej budżet
+          // bramki): baner dostrumieniowany PO nagłówku rozjechałby hydratację.
           // Bramka `import.meta.env.SSR` (stała Vite), nie `isServer`: tylko ona
           // wycina to domknięcie z chunku wejściowego klienta (+298 B bootu).
           warmLate:

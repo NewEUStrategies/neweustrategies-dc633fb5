@@ -63,6 +63,8 @@ const h = vi.hoisted(() => ({
   brand: [] as unknown[],
   ads: [] as string[],
   adsHang: false,
+  /** Reklama czeka na tę obietnicę (emisja wolniejsza od menu i tickera). */
+  adsGate: null as Promise<void> | null,
   /** `syncI18nToRequest` odrzuca - awaria warstwy językowej żądania. */
   i18nSyncFails: false,
   /** Fabryka opcji menu rzuca - rozgrzewka menu odrzuca JESZCZE przed falą 1. */
@@ -214,7 +216,9 @@ vi.mock("@/lib/ads/queries", async (o) => ({
     queryFn: () =>
       h.adsHang
         ? new Promise(() => {})
-        : Promise.resolve((h.ads.push(`${position}:${pageType}`), [])),
+        : h.adsGate
+          ? h.adsGate.then(() => (h.ads.push(`${position}:${pageType}`), []))
+          : Promise.resolve((h.ads.push(`${position}:${pageType}`), [])),
   }),
 }));
 vi.mock("@/lib/views/headerTickerQuery", async (o) => ({
@@ -305,6 +309,7 @@ beforeEach(() => {
   h.menus = [];
   h.ads = [];
   h.adsHang = false;
+  h.adsGate = null;
   h.social = [];
   h.brand = [];
   h.canonicalCalls = 0;
@@ -899,13 +904,16 @@ describe("root chrome gate uses real query freshness", () => {
       qc.clear();
     }
   }, 10_000);
-  // P3.6b (recenzja rundy 9, m3/m4): dogrzanie po terminie to TA SAMA lista
-  // pracy co `warm` (ticker, menu, baner, widgety nagłówka i stopki), tylko
-  // z budżetem bramki zamiast wyczerpanego terminu dokumentu. Wolny baner
-  // (dekoracja) nie trzyma przy tym granicy nagłówka, gdy dane powłoki już są.
-  it("an expired home shell late-warms the shared chrome work list and releases on ready data", async () => {
+  // P3.6b (recenzja rundy 9 m3, rundy poprawek 1 M1): dogrzanie po terminie to
+  // TA SAMA lista pracy co `warm` (ticker, menu, baner, widgety nagłówka
+  // i stopki), tylko z budżetem bramki zamiast wyczerpanego terminu dokumentu.
+  // Granica nagłówka czeka na całą tę pracę, baner też: praca startuje po
+  // `dehydrate()`, więc baner puszczony w tle dostrumieniowałby się PO HTML-u
+  // nagłówka (`AdZone` w SSR bez danych = `null`) - niezgodność hydratacji
+  // i skok ~90 px (F26) w dokumencie, który trafia do NES Edge Cache.
+  const homeBannerKey = ["ad_placements", "header_banner", "home", null];
+  async function loadExpiredHomeWithChromeDocs() {
     h.server = true;
-    h.adsHang = true;
     h.settings = {
       header: { builder_data: { sections: [{ id: "s" }] } },
       footer: { builder_data: { sections: [{ id: "f" }] } },
@@ -917,32 +925,49 @@ describe("root chrome gate uses real query freshness", () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() - 10_000);
     homeSsrDeadline(qc);
     clock.mockRestore();
+    vi.stubEnv("SSR", true);
+    await runLoader(qc);
+    vi.unstubAllEnvs();
+    expect(h.ticker).toEqual([]);
+    expect(h.prefetch).toEqual([]);
+  }
+  function suspendChromeGate(): Promise<unknown> {
+    let suspended: unknown;
     try {
-      vi.stubEnv("SSR", true);
-      await runLoader(qc);
-      vi.unstubAllEnvs();
-      expect(h.ticker).toEqual([]);
-      expect(h.prefetch).toEqual([]);
+      readChromeWarmup(qc);
+    } catch (value) {
+      suspended = value;
+    }
+    expect(suspended).toBeInstanceOf(Promise);
+    return suspended as Promise<unknown>;
+  }
+  it("an expired home shell late-warms the shared chrome work list and holds the header for a banner within budget", async () => {
+    let releaseBanner!: () => void;
+    h.adsGate = new Promise<void>((resolve) => {
+      releaseBanner = resolve;
+    });
+    try {
+      await loadExpiredHomeWithChromeDocs();
       const headersBefore = h.cacheControl.length;
-      let suspended: unknown;
-      try {
-        readChromeWarmup(qc);
-      } catch (value) {
-        suspended = value;
-      }
-      expect(suspended).toBeInstanceOf(Promise);
+      const gate = suspendChromeGate();
       let released = false;
-      void (suspended as Promise<unknown>).then(() => {
+      let bannerAtRelease: unknown;
+      void gate.then(() => {
         released = true;
+        bannerAtRelease = qc.getQueryState(homeBannerKey);
       });
-      // Baner wisi, a granica puszcza nagłówek, gdy menu i ticker są gotowe -
-      // długo przed końcem budżetu bramki.
+      // Menu, ticker i widgety nagłówka i stopki są już gotowe...
+      await vi.waitFor(() => expect(h.ticker).toEqual(["warm"]));
+      await vi.waitFor(() => expect(h.prefetch).toHaveLength(2));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      // ...ale baner jeszcze leci: nagłówek NIE puszcza.
+      expect(released).toBe(false);
+      releaseBanner();
       await vi.waitFor(() => expect(released).toBe(true), { timeout: 500 });
-      expect(h.ticker).toEqual(["warm"]);
-      expect(qc.getQueryState(["ad_placements", "header_banner", "home", null])).toMatchObject({
-        fetchStatus: "fetching",
-      });
-      expect(h.prefetch).toHaveLength(2);
+      // Baner dojechał w budżecie bramki: jest w cache'u w chwili zwolnienia
+      // granicy, więc renderuje się w HTML-u nagłówka, a nie strumieniem po nim.
+      expect(bannerAtRelease).toMatchObject({ status: "success", fetchStatus: "idle", data: [] });
+      expect(h.ads).toEqual(["header_banner:home"]);
       for (const { budget } of h.prefetch) {
         expect(budget).toBeGreaterThan(0);
         expect(budget).toBeLessThanOrEqual(HOME_CHROME_LATE_BUDGET_MS);
@@ -956,6 +981,37 @@ describe("root chrome gate uses real query freshness", () => {
       qc.clear();
     }
   });
+  it("a hanging banner holds the expired home header no longer than the chrome late budget", async () => {
+    h.adsHang = true;
+    try {
+      await loadExpiredHomeWithChromeDocs();
+      const headersBefore = h.cacheControl.length;
+      const readAt = Date.now();
+      const gate = suspendChromeGate();
+      let releasedAt = 0;
+      void gate.then(() => {
+        releasedAt = Date.now();
+      });
+      await vi.waitFor(() => expect(releasedAt).toBeGreaterThan(0), {
+        timeout: HOME_CHROME_LATE_BUDGET_MS + 2_000,
+        interval: 20,
+      });
+      // Granica czekała na baner do końca budżetu bramki (nie puściła przy
+      // gotowym menu i tickerze) i ani chwili dłużej, niż pozwala `withBudget`
+      // korzenia. Pomiar zegarem ściennym: dolna granica z luzem na zaokrąglenia.
+      expect(releasedAt - readAt).toBeGreaterThanOrEqual(HOME_CHROME_LATE_BUDGET_MS - 50);
+      expect(h.ticker).toEqual(["warm"]);
+      expect(qc.getQueryState(homeBannerKey)?.status).toBe("pending");
+      // Powłoka gotowa: nagłówek z menu i tickerem, bez banera. Dekoracja nie
+      // zaostrza polityki do `failed`.
+      expect(h.cacheControl.slice(headersBefore)).toEqual([chromeDegradedCacheControl()]);
+      expect(() => readChromeWarmup(qc)).not.toThrow();
+    } finally {
+      vi.unstubAllEnvs();
+      await qc.cancelQueries();
+      qc.clear();
+    }
+  }, 10_000);
   it("registers configured header and footer widget queries for freshness checking", async () => {
     const doc = {
       version: 1,

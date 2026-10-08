@@ -12,6 +12,7 @@ import {
 } from "../chromeWarmup";
 import { sweepQueryCacheForSerialization } from "../postRenderSweep";
 import { HOME_CHROME_LATE_BUDGET_MS } from "../homeSsrBudget";
+import { withBudget } from "@/lib/asyncBudget";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -329,48 +330,113 @@ describe("strona główna po terminie: dogrzanie z własnym budżetem (P3.6b, R2
     qc.clear();
   });
 
-  // Recenzja rundy 9 (m4): `warmLate` grzeje też dekorację (reklama nagłówka),
-  // której klucz nie wchodzi do `ready()`. Granica czeka na gotowość powłoki,
-  // nie na całą pracę - wolna emisja nie może trzymać nagłówka do końca budżetu.
-  it("gotowe dane powłoki zwalniają granicę od razu - wolna dekoracja jej nie trzyma", async () => {
+  // Recenzja rundy poprawek 1 (M1): `warmLate` grzeje też dekorację (reklama
+  // nagłówka), której klucz nie wchodzi do `ready()`. Ta praca startuje po
+  // `dehydrate()`, więc reklama puszczona w tle po zwolnieniu granicy
+  // dostrumieniowałaby się PO HTML-u nagłówka (niezgodność hydratacji, skok
+  // banera ~90 px). Granica czeka więc na całą pracę, jak `warm()`.
+  const adKey = ["ad_placements", "header_banner", "home", null];
+  const menuKey = ["menu-with-items", "main"];
+
+  it("granica czeka na całą pracę dogrzania: reklama z budżetu jest w cache'u, gdy nagłówek puszcza", async () => {
     const qc = client();
     const rec = recorder();
-    const key = ["menu-with-items", "main"];
     const menu = pending();
     const ad = pending();
     const warmLate = vi.fn(() =>
       Promise.allSettled([
         qc.ensureQueryData({
-          queryKey: key,
+          queryKey: menuKey,
           queryFn: async () => {
             await menu.promise;
             return ["nawigacja"];
           },
         }),
-        ad.promise,
+        qc.ensureQueryData({
+          queryKey: adKey,
+          queryFn: async () => {
+            await ad.promise;
+            return [{ id: "baner" }];
+          },
+        }),
       ]),
     );
     registerChromeWarmup(qc, {
-      ready: () => qc.getQueryData(key) !== undefined,
+      ready: () => qc.getQueryData(menuKey) !== undefined,
       expired: () => true,
       warm: async () => {},
       warmLate,
       markDegraded: rec.markDegraded,
     });
     const gate = readPromise(qc);
+    let adAtRelease: unknown;
     let released = false;
     void gate.then(() => {
       released = true;
+      adAtRelease = qc.getQueryState(adKey);
     });
     await vi.waitFor(() => expect(warmLate).toHaveBeenCalledOnce());
-    expect(released).toBe(false);
     menu.resolve();
-    // Reklama nadal wisi, a nagłówek już się dostrumieniowuje.
-    await vi.waitFor(() => expect(released).toBe(true), { timeout: 500 });
+    await vi.waitFor(() => expect(qc.getQueryData(menuKey)).toEqual(["nawigacja"]));
+    // Powłoka jest gotowa, a reklama jeszcze leci: nagłówek NIE puszcza
+    // (kilka makrozadań - powiadomienia QueryCache idą przez `setTimeout(0)`).
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(released).toBe(false);
+    ad.resolve();
+    await gate;
+    expect(released).toBe(true);
+    expect(adAtRelease).toMatchObject({
+      status: "success",
+      fetchStatus: "idle",
+      data: [{ id: "baner" }],
+    });
     expect(rec.kinds).toEqual(["chrome"]);
     expect(() => readChromeWarmup(qc)).not.toThrow();
-    ad.resolve();
     qc.clear();
+  });
+
+  it("wisząca reklama nie trzyma granicy dłużej niż `HOME_CHROME_LATE_BUDGET_MS`", async () => {
+    vi.useFakeTimers();
+    const qc = client();
+    try {
+      const rec = recorder();
+      const budgets: number[] = [];
+      // Jak korzeń: praca ograniczona `withBudget(…, budgetMs)`.
+      const warmLate = vi.fn((budgetMs: number) => {
+        budgets.push(budgetMs);
+        return withBudget(
+          Promise.allSettled([
+            qc.ensureQueryData({ queryKey: menuKey, queryFn: async () => ["nawigacja"] }),
+            qc.ensureQueryData({ queryKey: adKey, queryFn: () => new Promise<never>(() => {}) }),
+          ]),
+          budgetMs,
+        );
+      });
+      registerChromeWarmup(qc, {
+        ready: () => qc.getQueryData(menuKey) !== undefined,
+        expired: () => true,
+        warm: async () => {},
+        warmLate,
+        markDegraded: rec.markDegraded,
+      });
+      const gate = readPromise(qc);
+      let released = false;
+      void gate.then(() => {
+        released = true;
+      });
+      await vi.advanceTimersByTimeAsync(HOME_CHROME_LATE_BUDGET_MS - 1);
+      expect(qc.getQueryData(menuKey)).toEqual(["nawigacja"]);
+      expect(released).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(released).toBe(true);
+      expect(budgets).toEqual([HOME_CHROME_LATE_BUDGET_MS]);
+      // Powłoka gotowa: nagłówek z menu, bez banera, krótka polityka (bez `failed`).
+      expect(rec.kinds).toEqual(["chrome"]);
+    } finally {
+      await qc.cancelQueries();
+      qc.clear();
+      vi.useRealTimers();
+    }
   });
 
   it("dane nadal niegotowe po budżecie bramki: nagłówek na fallbackach i `failed`", async () => {
