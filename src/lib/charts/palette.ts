@@ -20,6 +20,7 @@
 // miejsca (paleta jasna: 19,89 / 23,12 / 16,99 wobec deklarowanych 19,9 / 23,1
 // / 17,0; paleta ciemna: 24,60 / 26,19 / 24,44 wobec 24,6 / 26,2 / 24,4),
 // więc porównania wewnątrz repo są spójne z tamtymi.
+import type { MapSequentialScheme } from "./types";
 
 /** Powierzchnia, na której paleta jest mierzona: token `--card` obu motywów. */
 export const CHART_PLATE = { light: "#ffffff", dark: "#0f0f0f" } as const;
@@ -643,6 +644,109 @@ export const SEQ_RAMP = {
 } as const;
 
 /**
+ * RAMPY MAPY do wyboru przez autora - kopia arkusza dla bramki, tak samo jak
+ * SEQ_RAMP wyżej (tokeny `--chart-map-{schemat}-min/max`).
+ *
+ * `blue` JEST SEQ_RAMP co do hexa, nie podobnym rampem: opublikowane mapy bez
+ * zapisanego schematu dostają `blue` i nie mogą zmienić koloru. Pozostałe
+ * cztery są wyprowadzone w OKLCh tą samą regułą: koniec maksymalny przy
+ * jasności, która daje próg grafiki na płycie z zapasem, koniec minimalny
+ * przy jasności rampu niebieskiego (0,93 na jasnym, 0,28 na ciemnym) i niskiej
+ * chromie - więc pierwsza klasa każdego rampu stoi tak samo daleko od koloru
+ * „brak danych".
+ *
+ *   * `accent` - WYŁĄCZNIE rodzina pomarańczu marki: koniec jasnego motywu to
+ *     wariant tekstowy akcentu #ab5517 (5,19:1), koniec ciemnego to sam akcent
+ *     #fa9346 (8,51:1 na #0f0f0f); końce blade mają odcień akcentu (53°).
+ *   * `teal` (192°) i `violet` (300°) - dwa odcienie poza rodziną znaku: teal
+ *     nie jest dodatnim (#1b6f8c, 226°), a fiolet nie jest „powyżej
+ *     przedziału" (#7c4dbf ma inną chromę i jasność w obu motywach).
+ *   * `slate` - ramp NEUTRALNY dla wskaźników bez wartościowania; koniec
+ *     maksymalny to łupek główny (`--chart-s-main`) obu motywów.
+ *
+ * Bursztynu i żółci nie ma w żadnym rampie ani w żadnej mieszaninie między
+ * końcami - bramka sprawdza próbki rampu względem MAP_HUE_EXCLUDED.
+ */
+export const MAP_RAMPS = {
+  blue: SEQ_RAMP,
+  accent: {
+    light: { min: "#ffe1cf", max: "#ab5517" },
+    dark: { min: "#3a2212", max: "#fa9346" },
+  },
+  teal: {
+    light: { min: "#d2efed", max: "#005957" },
+    dark: { min: "#162e2d", max: "#6fcdc9" },
+  },
+  violet: {
+    light: { min: "#ebe4fa", max: "#5a358c" },
+    dark: { min: "#2c243a", max: "#ba9cef" },
+  },
+  slate: {
+    light: { min: "#e3e8f0", max: "#3e4c5e" },
+    dark: { min: "#22272e", max: "#a9b6c6" },
+  },
+} as const satisfies Record<
+  MapSequentialScheme,
+  Record<ChartThemeName, { min: string; max: string }>
+>;
+
+/**
+ * Neutralne kolory mapy - kopia arkusza dla bramki.
+ *
+ *   * `divMid` (`--chart-map-div-mid`) - środek schematu rozbieżnego. Końce
+ *     tego schematu to `--chart-negative` i `--chart-positive`, czyli ta sama
+ *     para, która na wykresach koduje znak - mapa rozbieżna mówi tym samym
+ *     językiem, a para ma już zmierzoną rozdzielność dla daltonizmu.
+ *   * `nodata` (`--chart-map-nodata`) - wypełnienie kraju BEZ danych. Leży
+ *     POZA zakresem jasności wszystkich rampów (jaśniej od każdego końca
+ *     minimalnego na jasnym motywie, ciemniej na ciemnym), więc nie zrówna
+ *     się luminancją z ŻADNĄ klasą ani z żadnym punktem skali ciągłej, a nie
+ *     tylko z pierwszą klasą. Kształt kraju bez danych niesie kreskowanie.
+ *   * `nodataHatch` (`--chart-map-nodata-hatch`) - linie kreskowania. To one
+ *     są nośnikiem STRUKTURALNYM różnicy „brak danych" wobec „mało": kolor
+ *     wypełnienia stoi blisko płyty, a kreskowanie przeżywa druk w skali
+ *     szarości i daltonizm.
+ */
+export const MAP_NEUTRALS = {
+  light: { divMid: "#ebe8e5", nodata: "#fbfaf9", nodataHatch: "#b3ada7" },
+  dark: { divMid: "#2a2928", nodata: "#161514", nodataHatch: "#4f4b47" },
+} as const satisfies Record<
+  ChartThemeName,
+  { divMid: string; nodata: string; nodataHatch: string }
+>;
+
+/**
+ * ODCIENIE ZAKAZANE NA MAPIE: bursztyn, złoto i żółć - kąt OKLCh 62°-115°.
+ *
+ * Dolna granica leży nad rodziną pomarańczu marki (#fa9346 to 54,5°,
+ * #ab5517 50,6°), górna za żółcią (#f7dd14 to 100,6°). Bursztyn wzorca
+ * (#B7791F) ma 70,4° i wpada w środek pasma. Reguła obowiązuje wyłącznie
+ * odcienie, które oko widzi JAKO odcień - poniżej MAP_HUE_CHROMA_FLOOR kolor
+ * jest szarością, a kąt szarości jest szumem obliczeń (ciepła szarość
+ * rusztowania wypada przy ~68°).
+ */
+export const MAP_HUE_EXCLUDED = { from: 62, to: 115 } as const;
+export const MAP_HUE_CHROMA_FLOOR = 0.03;
+
+/** Rodzina pomarańczu marki w OKLCh - jedyne pasmo, w którym wolno leżeć rampowi `accent`. */
+export const BRAND_ORANGE_HUE = { from: 48, to: 58 } as const;
+
+/**
+ * Próg rozdzielności końców rampu rozbieżnego dla daltonizmu - ta sama
+ * liczba, którą bramka ról stawia parze dodatni/ujemny na wykresach (30 CIE76
+ * w KAŻDYM rodzaju widzenia), bo to jest ta sama para.
+ */
+export const MAP_DIVERGING_CVD_MIN = 30;
+
+/**
+ * Minimalny kontrast luminancji między kolorem „brak danych" a pierwszą klasą
+ * mapy. Kreskowanie jest nośnikiem strukturalnym, a ten próg jest drugim:
+ * gdy kreskowanie zniknie (zbyt mały kraj, druk o niskiej rozdzielczości),
+ * wypełnienia nadal się różnią.
+ */
+export const MAP_NODATA_CONTRAST_MIN = 1.15;
+
+/**
  * Warianty AUDYTOWE akcentu - dwa, bo próg zależy od tego, czym akcent ma być.
  *
  * Akcent marki nie przechodzi na jasnym tle ŻADNEGO progu WCAG (`#FA9346` ma
@@ -1082,6 +1186,40 @@ export function fromOklch(l: number, c: number, h: number): string {
   }
   const rgb = linearFromOklch(l, chroma, h).map(linearToSrgb) as [number, number, number];
   return formatHex(rgb);
+}
+
+/** Współrzędne OKLab: jasność 0..1 i dwie osie barwne. */
+export interface Oklab {
+  l: number;
+  a: number;
+  b: number;
+}
+
+export function oklabOf(hex: string): Oklab {
+  const { l, c, h } = oklchOf(hex);
+  const rad = (h * Math.PI) / 180;
+  return { l, a: c * Math.cos(rad), b: c * Math.sin(rad) };
+}
+
+/**
+ * Odpowiednik CSS `color-mix(in oklab, first pct%, second)` jako hex.
+ *
+ * PO CO TO W JS, skoro silnik maluje samym `color-mix()`: bramki liczą
+ * kontrast KAŻDEGO stopnia, który arkusz wymiesza (stopnie neutralne tarczy,
+ * klasy mapy), a kontrast liczy się z hexa. Ta funkcja jest tą samą
+ * arytmetyką - liniowa mieszanina współrzędnych OKLab z wagą `pct` dla
+ * pierwszego koloru - i tym samym mapowaniem do gamutu przez obniżenie
+ * chromy (`fromOklch`), którym przeglądarka wraca do sRGB. Służy też jako
+ * awaryjne wypełnienie w silnikach bez `color-mix()`.
+ */
+export function colorMixOklab(first: string, pct: number, second: string): string {
+  const w = Math.max(0, Math.min(100, pct)) / 100;
+  const p = oklabOf(first);
+  const q = oklabOf(second);
+  const l = p.l * w + q.l * (1 - w);
+  const a = p.a * w + q.a * (1 - w);
+  const b = p.b * w + q.b * (1 - w);
+  return fromOklch(l, Math.hypot(a, b), ((Math.atan2(b, a) * 180) / Math.PI + 360) % 360);
 }
 
 /**

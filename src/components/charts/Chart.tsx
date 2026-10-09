@@ -27,7 +27,7 @@ import {
 } from "./ChartFrame";
 import { PointDialog } from "./PointDialog";
 import { slotsNeedingPattern } from "@/lib/charts/palette";
-import { seriesPaint } from "@/lib/charts/seriesStyle";
+import { seriesPaint, seriesRank } from "@/lib/charts/seriesStyle";
 import { effectiveBand } from "@/lib/charts/status";
 import { ZOOM_MIN_POINTS } from "@/lib/charts/geometry";
 import { CartesianChart } from "./CartesianChart";
@@ -284,7 +284,12 @@ export function Chart({
       // legenda nie może pokazać innego koloru niż linia.
       const patterned = slotsNeedingPattern(config.series.map((s) => s.colorSlot));
       return config.series.map((s, index) => {
-        const paint = seriesPaint(s.colorSlot, index, config.palette, patterned);
+        const paint = seriesPaint(
+          s.colorSlot,
+          seriesRank(index, config.accentSeries),
+          config.palette,
+          patterned,
+        );
         return {
           key: `series-${index}`,
           name: s.name,

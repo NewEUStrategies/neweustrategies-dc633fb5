@@ -1065,6 +1065,30 @@ body {
   --chart-seq-min: #e0eaf2;
   --chart-seq-max: #00375f;
 
+  /* Rampy mapy do wyboru przez autora (kopia dla bramki: MAP_RAMPS
+     w palette.ts). `blue` = rampa sekwencyjna wyżej co do hexa, więc mapy
+     bez zapisanego schematu nie zmieniają koloru. Koniec maksymalny każdej
+     rampy >= 3:1 na płycie (12,27 / 5,19 / 8,18 / 9,04 / 8,75), koniec
+     minimalny przy jasności OKLCh 0,93. `accent` to wyłącznie rodzina
+     pomarańczu marki, a bursztynu i żółci nie ma w żadnej rampie. */
+  --chart-map-blue-min: #e0eaf2;
+  --chart-map-blue-max: #00375f;
+  --chart-map-accent-min: #ffe1cf;
+  --chart-map-accent-max: #ab5517;
+  --chart-map-teal-min: #d2efed;
+  --chart-map-teal-max: #005957;
+  --chart-map-violet-min: #ebe4fa;
+  --chart-map-violet-max: #5a358c;
+  --chart-map-slate-min: #e3e8f0;
+  --chart-map-slate-max: #3e4c5e;
+  /* Środek rampy rozbieżnej (końce: --chart-negative / --chart-positive). */
+  --chart-map-div-mid: #ebe8e5;
+  /* Brak danych: jaśniej od pierwszej klasy KAŻDEJ rampy (>= 1,16:1), więc
+     nie zrówna się luminancją z żadną klasą; kształt niesie kreskowanie
+     (2,13:1 do wypełnienia, 2,22:1 do płyty). */
+  --chart-map-nodata: #fbfaf9;
+  --chart-map-nodata-hatch: #b3ada7;
+
   /* ---- Delikatność: osiem parametrów, każdy z warunkiem zmiany ----
      JEDEN promień 6 px na wszystkim (karty, panele, tooltipy, słupki,
      strefa prognozy) - żaden element nie ma własnej wartości. 6 px to punkt,
@@ -1603,6 +1627,25 @@ body {
      wartość zostaje najwidoczniejsza (min/max 7,58:1, max na płycie 9,85:1). */
   --chart-seq-min: #1e2935;
   --chart-seq-max: #8fbef0;
+
+  /* Rampy mapy - kotwica przestawiona jak wyżej: ciemny -> jasny, koniec
+     maksymalny >= 3:1 na płycie #0f0f0f (9,85 / 8,51 / 10,27 / 8,30 /
+     9,30), koniec minimalny przy jasności OKLCh 0,28. */
+  --chart-map-blue-min: #1e2935;
+  --chart-map-blue-max: #8fbef0;
+  --chart-map-accent-min: #3a2212;
+  --chart-map-accent-max: #fa9346;
+  --chart-map-teal-min: #162e2d;
+  --chart-map-teal-max: #6fcdc9;
+  --chart-map-violet-min: #2c243a;
+  --chart-map-violet-max: #ba9cef;
+  --chart-map-slate-min: #22272e;
+  --chart-map-slate-max: #a9b6c6;
+  --chart-map-div-mid: #2a2928;
+  /* Brak danych: CIEMNIEJ od pierwszej klasy każdej rampy (>= 1,21:1);
+     kreskowanie 2,11:1 do wypełnienia. */
+  --chart-map-nodata: #161514;
+  --chart-map-nodata-hatch: #4f4b47;
 
   /* GEOMETRIA I TYPOGRAFIA NIE ZALEŻĄ OD MOTYWU. Grubość linii, rozmiar
      punktu i wagi pisma dziedziczą z bloku jasnego - przełączenie motywu

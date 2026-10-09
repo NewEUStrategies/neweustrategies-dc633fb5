@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { ChoroplethMap } from "@/components/charts/ChoroplethMap";
 import { chartLangFrom } from "@/lib/charts/format";
+import { defaultDataMapConfig } from "@/lib/charts/parse";
 import type { DataMapConfig, MapRegion } from "@/lib/charts/types";
 import { countryNamer } from "@/lib/admin/dashboard/labels";
 import { formatCount } from "@/lib/admin/dashboard/compare";
@@ -60,6 +61,9 @@ export function GeoPanel({ traffic, leads }: GeoPanelProps) {
 
   const config = useMemo<DataMapConfig>(
     () => ({
+      // Na `defaultDataMapConfig()`, nie na literale: pola schematu koloru,
+      // klas i podpisu dostają wartości domyślne (skala ciągła, ramp `blue`).
+      ...defaultDataMapConfig(),
       region,
       // Tytuł i opis puste: nagłówek rysuje karta sekcji, a rama silnika pomija
       // swój własny dokładnie wtedy, gdy oba są puste.

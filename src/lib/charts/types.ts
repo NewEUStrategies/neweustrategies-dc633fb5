@@ -267,6 +267,21 @@ export interface ChartConfig {
    */
   palette: ChartPalette;
   /**
+   * Która seria (pozycja w KONFIGURACJI, nie wśród widocznych) jest serią
+   * wyróżnioną - dostaje akcent w palecie `focus`, a pozostałe zachowują
+   * względną kolejność ról (`seriesRank`). Domyślnie 0, czyli pierwsza seria,
+   * tak jak przed wprowadzeniem pola. Parser trzyma ją w zakresie serii.
+   */
+  accentSeries: number;
+  /**
+   * Wyróżniona KATEGORIA dla rodzajów, w których kolor należy do kategorii,
+   * a nie do serii (tarcza, pierścień): indeks w `categories` albo null, gdy
+   * wyróżniony ma być wycinek największy. Indeks spoza zakresu parser zamienia
+   * na null, a nie na pierwszą kategorię - inaczej akcent trafiałby w wycinek,
+   * którego autor nie wybrał.
+   */
+  accentCategory: number | null;
+  /**
    * Pasmo optimum. Rysowane i używane do oceny WYŁĄCZNIE ze źródłem albo jako
    * demonstracyjne - patrz `effectiveBand`. null = brak benchmarku.
    */
@@ -378,6 +393,54 @@ export interface MapDatum {
   value: number;
 }
 
+/**
+ * SCHEMATY KOLORU MAPY - tablica jest źródłem, typ wyprowadzeniem, tym samym
+ * wzorcem co `CHART_KINDS` i `MAP_REGIONS`.
+ *
+ * Pięć rampów SEKWENCYJNYCH (jeden odcień, zmiana jasności) i jeden
+ * ROZBIEŻNY (ujemny - neutralny - dodatni wokół punktu środkowego). `blue`
+ * jest rampem sprzed wprowadzenia wyboru i ma te same kotwice co
+ * `--chart-seq-min/max`, więc opublikowane mapy nie zmieniają koloru.
+ * Bursztynu i żółci nie ma w żadnym z nich - patrz `MAP_RAMPS` w `palette.ts`.
+ */
+export const MAP_SCHEMES = ["blue", "accent", "teal", "violet", "slate", "diverging"] as const;
+export type MapScheme = (typeof MAP_SCHEMES)[number];
+
+/** Schematy z jedną parą kotwic min/max - wszystkie poza rozbieżnym. */
+export const MAP_SEQUENTIAL_SCHEMES = ["blue", "accent", "teal", "violet", "slate"] as const;
+export type MapSequentialScheme = (typeof MAP_SEQUENTIAL_SCHEMES)[number];
+
+/**
+ * Metody podziału na klasy: kwantyle (każda klasa ma podobną liczbę krajów -
+ * jeden kraj odstający nie spłaszcza reszty w blady koniec) albo równe
+ * przedziały (klasy czyta się jak podziałkę, ale odstający kraj zostawia
+ * klasy puste).
+ */
+export const MAP_METHODS = ["quantile", "equal"] as const;
+export type MapMethod = (typeof MAP_METHODS)[number];
+
+/**
+ * Zakres liczby klas. Zero znaczy skalę CIĄGŁĄ i jest osobną wartością, nie
+ * dolną granicą: poniżej trzech klas mapa nie stopniuje niczego, powyżej
+ * siedmiu oko nie odróżnia sąsiednich odcieni jednego rampu.
+ */
+export const MAP_CLASSES_MIN = 3;
+export const MAP_CLASSES_MAX = 7;
+/**
+ * Liczba klas NOWEJ mapy (domyślne bloku i widgetu w rejestrach). Parser
+ * przy braku klucza daje 0, czyli skalę ciągłą - opublikowane mapy zachowują
+ * wygląd, a nowe startują od klas.
+ */
+export const MAP_CLASSES_NEW = 5;
+
+export function isMapScheme(raw: unknown): raw is MapScheme {
+  return typeof raw === "string" && (MAP_SCHEMES as readonly string[]).includes(raw);
+}
+
+export function isMapMethod(raw: unknown): raw is MapMethod {
+  return typeof raw === "string" && (MAP_METHODS as readonly string[]).includes(raw);
+}
+
 export interface DataMapConfig {
   region: MapRegion;
   title: string;
@@ -387,6 +450,36 @@ export interface DataMapConfig {
   showLegend: boolean;
   animate: boolean;
   source: string;
+  /** Ramp koloru. Domyślnie `blue` - ramp sprzed wprowadzenia wyboru. */
+  scheme: MapScheme;
+  /**
+   * 0 = skala ciągła (domyślna przy braku klucza, zachowuje opublikowane
+   * mapy), 3..7 = liczba klas.
+   */
+  classes: number;
+  /** Podział na klasy; przy skali ciągłej nieużywany. */
+  method: MapMethod;
+  /**
+   * Punkt środkowy schematu rozbieżnego (np. średnia UE, zero zmiany);
+   * null = 0. Poza schematem rozbieżnym nieużywany.
+   */
+  midpoint: number | null;
+  /** Pochodzenie liczb (D/W/B/E/?) - litera w podtytule, jak przy wykresie. */
+  provenance: Provenance | null;
+  /** Dane demonstracyjne - znaczek „demo" przy tytule. */
+  demo: boolean;
+  /** Źródła z przypisami. */
+  sources: ChartSource[];
+  /** Podpis pod mapą. */
+  caption: string;
+  /** Data danych (nie publikacji) - do podpisu. */
+  sourceDate: string;
+  /** Liczba obserwacji; null = autor nie podał. */
+  sampleSize: number | null;
+  /** Trzy zdania pod mapą - te same pola i ten sam powód, co przy wykresie. */
+  notesShows: string;
+  notesSurprising: string;
+  notesHidden: string;
 }
 
 /** Kształt statycznego zasobu geometrii z public/geo/*.json. */

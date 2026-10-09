@@ -47,7 +47,7 @@ import {
 import { useTranslation } from "react-i18next";
 import type { ChartConfig, ChartSeries } from "@/lib/charts/types";
 import { slotsNeedingPattern } from "@/lib/charts/palette";
-import { markerPath, seriesPaint, type SeriesPaint } from "@/lib/charts/seriesStyle";
+import { markerPath, seriesPaint, seriesRank, type SeriesPaint } from "@/lib/charts/seriesStyle";
 import { ROLE } from "@/lib/charts/roles";
 import { effectiveBand, referenceExtent } from "@/lib/charts/status";
 import {
@@ -296,10 +296,15 @@ function CartesianPlot({
         .map((s, index) => ({
           s,
           index,
-          paint: seriesPaint(s.colorSlot, index, config.palette, patterned),
+          paint: seriesPaint(
+            s.colorSlot,
+            seriesRank(index, config.accentSeries),
+            config.palette,
+            patterned,
+          ),
         }))
         .filter((e) => !hidden?.has(e.index) && e.s.values.some((v) => v !== null)),
-    [config.series, config.palette, patterned, hidden],
+    [config.series, config.palette, config.accentSeries, patterned, hidden],
   );
   const series = useMemo(() => entries.map((e) => e.s), [entries]);
   const stacked = config.stacked && !isLine && !isWaterfall && series.length > 1;
