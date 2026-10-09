@@ -1091,6 +1091,7 @@ it("/llms.txt wiąże treści PL/EN z właściwymi adresami i sekcjami tenanta",
     "- [Wywiady / Interviews](https://neweuropeanstrategies.com/category/wywiady)",
     "- [Wydarzenia / Events](https://neweuropeanstrategies.com/wydarzenia)",
     "- [Policy papers](https://neweuropeanstrategies.com/category/policy-papers)",
+    "- [Podcast](https://neweuropeanstrategies.com/podcasts)",
     "- [O nas / About us](https://neweuropeanstrategies.com/o-nas)",
   ].map((line) => body.indexOf(line, key));
   expect(order.every((at) => at > key && at < categoriesAt)).toBe(true);

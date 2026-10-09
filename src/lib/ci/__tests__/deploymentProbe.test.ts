@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { probeMigrationVersions, probeSchemaObjects, readDeploymentRpc } from "../deploymentProbe";
+import {
+  probeMigrationVersions,
+  probeSchemaColumns,
+  probeSchemaObjects,
+  readDeploymentRpc,
+} from "../deploymentProbe";
 
 const config = { url: "https://db.example.test", key: "private-fixture-key" };
 const object = { kind: "function" as const, name: "dangerous_default_rpc", file: "001.sql" };
@@ -49,6 +54,51 @@ describe("deployment metadata probes", () => {
     await expect(
       probeSchemaObjects([object], config, vi.fn().mockResolvedValue(json(response))),
     ).rejects.toThrow("Schema probe:");
+  });
+  it("checks columns in bounded batches and returns only requested missing columns", async () => {
+    const column = { table: "podcasts", column: "explicit", file: "20260725090500.sql" };
+    const columns = [
+      column,
+      ...Array.from({ length: 45 }, (_, i) => ({ ...column, column: `col_${i}` })),
+    ];
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(json([{ table: "podcasts", column: "explicit" }]))
+      .mockResolvedValueOnce(json([]));
+    expect(await probeSchemaColumns(columns, config, request)).toEqual([column]);
+    expect(request).toHaveBeenCalledTimes(2);
+    for (const [target, init] of request.mock.calls) {
+      const url = new URL(String(target));
+      expect(url.pathname).toBe("/rest/v1/rpc/missing_schema_columns");
+      const sent = JSON.parse(url.searchParams.get("_columns")!);
+      expect(sent.length).toBeLessThanOrEqual(40);
+      // Plik migracji zostaje po stronie CI - baza dostaje tylko parę nazw.
+      expect(Object.keys(sent[0]).sort()).toEqual(["column", "table"]);
+      expect(init).toMatchObject({ method: "GET", redirect: "error" });
+      expect(init?.body).toBeUndefined();
+    }
+  });
+  it.each(
+    [
+      null,
+      {},
+      [null],
+      [{ table: "podcasts", column: "unrequested" }],
+      [
+        { table: "podcasts", column: "explicit" },
+        { table: "podcasts", column: "explicit" },
+      ],
+    ].map((response) => [response]),
+  )("rejects an invalid column response %j", async (response) => {
+    const column = { table: "podcasts", column: "explicit", file: "001.sql" };
+    await expect(
+      probeSchemaColumns([column], config, vi.fn().mockResolvedValue(json(response))),
+    ).rejects.toThrow("Column probe:");
+  });
+  it("does not send an empty column request", async () => {
+    const request = vi.fn<typeof fetch>();
+    expect(await probeSchemaColumns([], config, request)).toEqual([]);
+    expect(request).not.toHaveBeenCalled();
   });
   it("validates every ledger batch and uses PostgreSQL array syntax", async () => {
     const versions = Array.from({ length: 41 }, (_, i) => String(20260912000000 + i));

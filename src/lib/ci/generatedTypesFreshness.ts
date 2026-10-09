@@ -260,16 +260,14 @@ export function scanColumnEvents(migrations: readonly ScannedMigration[]): Colum
 }
 
 /**
- * Kolumny żywe po migracjach, których nie ma w wygenerowanych typach.
- *
- * Tabele nieznane typom są pomijane: świeżo utworzona tabela nie skompiluje się
- * w kodzie w ogóle, więc nie potrzebuje tej bramki, a jej `ALTER`-y dawałyby
- * tu wyłącznie szum.
+ * Kolumny żywe po odtworzeniu wszystkich `ALTER TABLE` i `DROP TABLE`:
+ * `tabela.kolumna` -> migracja, która wprowadziła kolumnę pod tą nazwą.
+ * Wspólne źródło dla tej bramki i dla kontraktu kolumn po wdrożeniu
+ * (`src/lib/ci/dbContract.ts`) - obie pytają o TEN SAM zbiór.
  */
-export function findStaleColumns(
+export function replayLiveColumns(
   migrations: readonly ScannedMigration[],
-  generated: GeneratedColumns,
-): StaleColumn[] {
+): ReadonlyMap<string, string> {
   const live = new Map<string, string>();
   for (const event of scanColumnEvents(migrations)) {
     switch (event.kind) {
@@ -310,8 +308,22 @@ export function findStaleColumns(
       }
     }
   }
+  return live;
+}
+
+/**
+ * Kolumny żywe po migracjach, których nie ma w wygenerowanych typach.
+ *
+ * Tabele nieznane typom są pomijane: świeżo utworzona tabela nie skompiluje się
+ * w kodzie w ogóle, więc nie potrzebuje tej bramki, a jej `ALTER`-y dawałyby
+ * tu wyłącznie szum.
+ */
+export function findStaleColumns(
+  migrations: readonly ScannedMigration[],
+  generated: GeneratedColumns,
+): StaleColumn[] {
   const out: StaleColumn[] = [];
-  for (const [key, file] of live) {
+  for (const [key, file] of replayLiveColumns(migrations)) {
     const cut = key.indexOf(".");
     const table = key.slice(0, cut);
     const column = key.slice(cut + 1);

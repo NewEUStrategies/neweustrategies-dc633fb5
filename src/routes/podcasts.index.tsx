@@ -19,6 +19,7 @@ import {
   latestPodcastsQueryOptions,
   publishedShowsQueryOptions,
   showEpisodeStatsQueryOptions,
+  type PodcastListItem,
   type ShowEpisodeStat,
 } from "@/lib/queries/podcasts";
 import {
@@ -27,7 +28,6 @@ import {
   formatDuration,
   showTitle,
   showDescription,
-  type Podcast,
   type PodcastShow,
 } from "@/lib/podcast/types";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
@@ -46,7 +46,7 @@ import {
 const INDEX_LIMIT = 30;
 
 /** Puste kolekcje jako fallback zdegradowanego renderu (lib/ssr/resilientLoad). */
-const NO_EPISODES: Podcast[] = [];
+const NO_EPISODES: PodcastListItem[] = [];
 const NO_SHOWS: PodcastShow[] = [];
 const NO_STATS: ShowEpisodeStat[] = [];
 

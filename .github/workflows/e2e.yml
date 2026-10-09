@@ -108,6 +108,9 @@ jobs:
           eval "$(supabase status -o env | grep -E '^[A-Z_]+=')"
           export SUPABASE_URL="$API_URL"
           export SUPABASE_PUBLISHABLE_KEY="$ANON_KEY"
+          # Baza z migracji: znany dryf produkcji (KNOWN_COLUMN_DRIFT) tu nie
+          # obowiązuje - każda kolumna dopisana migracją musi istnieć.
+          export DB_CONTRACT_TARGET=replay
           bun run check:db-contract
 
       - name: Run seeded E2E (user paths)
