@@ -14,7 +14,12 @@
 //   - fallback z jedną twarzą dla wszystkich wag albo metryką niepasującą do
 //     pliku: tekst przed podmianą ma inną szerokość niż RHD = CLS;
 //   - preload innego pliku niż `url()` w `@font-face`: dwa pobrania;
-//   - drugi preloadowany font: bramka `fontPreloadCount` w `check:document-weight`.
+//   - drugi preloadowany font: bramka `fontPreloadCount` w `check:document-weight`;
+//   - druga twarz w rodzinie "Red Hat Display" (np. latin-ext z powrotem obok
+//     pliku głównego): strona jej nie pobiera, ale sama niepobrana twarz w
+//     rodzinie podwajała pierwszy Layout `/` (Prove P3.2b: 11 -> 24 ms, FCP
+//     desktop4x +0,08 s). latin-ext jest więc twarzą rodziny zastępczej, po
+//     jednej na zakres wag twarzy lokalnej, zadeklarowaną po niej.
 //
 // RECEPTURA PLIKU (narzędzia poza repo, bez zależności w package.json; szczegóły
 // i hashe w komentarzu nad `@font-face` w `src/styles.css`):
@@ -127,10 +132,13 @@ const percent = (value: string | undefined) => {
 const faces = fontFaces(read("src/styles.css"));
 const rhd = faces.filter((f) => f.family === "Red Hat Display");
 const fallback = faces.filter((f) => f.family === "Red Hat Display Fallback");
+/** Twarze kroju zastępczego z fontów systemowych (`local()`): metryka per waga. */
+const localFaces = fallback.filter((f) => /\blocal\(/.test(f.descriptors["src"] ?? ""));
+/** Twarze latin-ext (RHD, bez preloadu) w rodzinie zastępczej, po jednej na zakres wag. */
+const extFaces = fallback.filter((f) => f.descriptors["src"]?.includes(EXT_FILE));
 const mainFace = rhd.find((f) => f.descriptors["src"]?.includes(MAIN_FILE));
-const extFace = rhd.find((f) => f.descriptors["src"]?.includes(EXT_FILE));
 const mainRange = unicodeRanges(mainFace?.descriptors["unicode-range"] ?? "U+0");
-const extRange = unicodeRanges(extFace?.descriptors["unicode-range"] ?? "U+0");
+const extRange = unicodeRanges(extFaces[0]?.descriptors["unicode-range"] ?? "U+0");
 
 /** Znaki napisów publicznych: słowniki PL i EN + napisy fixture pomiaru `/`. */
 function corpusCharacters(): Set<string> {
@@ -189,6 +197,17 @@ describe("plik główny: pokrycie polskich liter i zakresy", () => {
     expect(mainCmap.has(0x0102)).toBe(false);
     expect(extCmap.has(0x0102)).toBe(true);
     expect(inRanges(extRange, 0x0102)).toBe(true);
+  });
+
+  it("zakres latin-ext = dokładnie znaki pliku latin-ext, których nie ma plik główny", () => {
+    // Znak pliku głównego w tym zakresie: przed pobraniem pliku głównego strona
+    // PL/EN pobrałaby latin-ext. Znak spoza pliku latin-ext: puste pobranie.
+    // Brak znaku z pliku: diakrytyk rysowany Arialem zamiast RHD.
+    const hex = (codes: Iterable<number>) =>
+      [...codes].sort((a, b) => a - b).map((c) => `U+${c.toString(16).toUpperCase()}`);
+    const covered = new Set<number>();
+    for (const [from, to] of extRange) for (let code = from; code <= to; code++) covered.add(code);
+    expect(hex(covered)).toEqual(hex([...extCmap].filter((code) => !mainCmap.has(code))));
   });
 });
 
@@ -251,20 +270,47 @@ describe("plik główny: metryki, oś wag i rozmiar", () => {
 });
 
 describe("`@font-face` Red Hat Display w styles.css", () => {
-  it("dokładnie dwie twarze z woff2, główna zadeklarowana PO latin-ext", () => {
-    expect(rhd).toHaveLength(2);
-    expect(rhd.every((f) => /url\([^)]*\.woff2[^)]*\)/.test(f.descriptors["src"] ?? ""))).toBe(
-      true,
-    );
-    // Przy nakładających się zakresach przeglądarka sprawdza najpierw ostatnią regułę.
-    expect(rhd[1]).toBe(mainFace);
-    expect(rhd[0]).toBe(extFace);
+  it("rodzina Red Hat Display ma JEDNĄ twarz: plik główny z woff2", () => {
+    // Każda inna twarz tej rodziny (choćby nigdy niepobierana) wchodzi do fontu
+    // segmentowanego, który Chrome otwiera dla każdego tekstu strony - pierwszy
+    // Layout `/` rósł z 11 do 24 ms (Prove P3.2b).
+    expect(rhd).toEqual([mainFace]);
+    expect(mainFace?.descriptors["src"]).toMatch(/url\([^)]*\.woff2[^)]*\)/);
   });
 
-  it("obie twarze: font-display swap i font-weight 400 900", () => {
-    for (const face of rhd) {
+  it("twarz główna: font-display swap i font-weight 400 900", () => {
+    expect(mainFace?.descriptors["font-display"]).toBe("swap");
+    expect(mainFace?.descriptors["font-weight"]).toBe("400 900");
+  });
+});
+
+describe("latin-ext jako twarz rodziny zastępczej (bez preloadu)", () => {
+  it("jedna twarz latin-ext na każdą twarz lokalną, z identycznymi deskryptorami wagi i stylu", () => {
+    // Inne deskryptory = osobny zestaw możliwości: przeglądarka wybrałaby twarz
+    // lokalną ALBO latin-ext zamiast złożyć je w jeden font.
+    const key = (f: FontFace) =>
+      `${f.descriptors["font-weight"]}/${f.descriptors["font-style"] ?? "normal"}`;
+    expect(extFaces.map(key)).toEqual(localFaces.map(key));
+  });
+
+  it("każda twarz latin-ext zadeklarowana PO twarzy lokalnej o tym samym zakresie wag", () => {
+    // Przy nakładających się zakresach przeglądarka sprawdza najpierw regułę
+    // zadeklarowaną ostatnią; odwrotna kolejność oddaje znaki latin-ext Arialowi.
+    for (const ext of extFaces) {
+      const local = localFaces.find(
+        (f) => f.descriptors["font-weight"] === ext.descriptors["font-weight"],
+      );
+      expect(local).toBeDefined();
+      expect(faces.indexOf(ext)).toBeGreaterThan(faces.indexOf(local!));
+    }
+  });
+
+  it("swap, sam plik latin-ext (woff2) i ten sam unicode-range w każdej twarzy", () => {
+    expect(extFaces.length).toBeGreaterThan(0);
+    for (const face of extFaces) {
       expect(face.descriptors["font-display"]).toBe("swap");
-      expect(face.descriptors["font-weight"]).toBe("400 900");
+      expect(face.descriptors["src"]).toBe(`url("./assets/fonts/${EXT_FILE}") format("woff2")`);
+      expect(face.descriptors["unicode-range"]).toBe(extFaces[0].descriptors["unicode-range"]);
     }
   });
 });
@@ -274,7 +320,7 @@ describe("krój zastępczy Red Hat Display Fallback", () => {
   const upm = readHead(main).unitsPerEm;
   const ascent = (100 * hhea.ascender) / upm; // 101,8%
   const descent = (100 * -hhea.descender) / upm; // 30,5%
-  const weights = fallback.map((f) => {
+  const weights = localFaces.map((f) => {
     const [min, max] = (f.descriptors["font-weight"] ?? "").split(" ").map(Number);
     return { face: f, min, max };
   });

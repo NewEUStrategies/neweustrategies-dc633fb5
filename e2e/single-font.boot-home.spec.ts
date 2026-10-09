@@ -15,7 +15,12 @@ import { expect, test } from "@playwright/test";
 //   2. jedyne żądanie woff2 z buildu (`/assets/*.woff2`) to ten plik - w
 //      szczególności PL nie pobiera już `latin-ext` (polskie litery są w pliku
 //      głównym, a `unicode-range` latin-ext ich nie obejmuje);
-//   3. przeglądarka ma załadowaną dokładnie jedną twarz Red Hat Display.
+//   3. rodzina "Red Hat Display" ma w przeglądarce dokładnie jedną twarz i jest
+//      ona załadowana - także niepobrana druga twarz tej rodziny (dawne
+//      latin-ext) podwajała pierwszy Layout `/` (Prove P3.2b: 11 -> 24 ms);
+//   4. znak latin-ext spoza polskich liter (š) nadal rysuje Red Hat Display:
+//      stos strony dociąga wtedy plik latin-ext (twarz rodziny zastępczej, bez
+//      preloadu) - dopiero po sprawdzeniu, że strona sama go nie pobrała.
 //
 // Kroje dodane w CMS (`@font-face` z `site_design_tokens`) przychodzą spoza
 // `/assets/` i nie mają preloadu, więc ta bramka ich nie blokuje (decyzja
@@ -93,15 +98,29 @@ for (const [path, lang] of [
       await page.evaluate(() => window.document.fonts.ready);
       expect(requested).toEqual(preloads);
 
-      // 3. Dokładnie jedna załadowana twarz Red Hat Display.
-      const loaded = await page.evaluate(
-        () =>
-          [...window.document.fonts].filter(
-            (face) =>
-              face.family.replace(/["']/g, "") === "Red Hat Display" && face.status === "loaded",
-          ).length,
+      // 3. Rodzina Red Hat Display: jedna twarz i jest załadowana.
+      const family = await page.evaluate(() =>
+        [...window.document.fonts]
+          .filter((face) => face.family.replace(/["']/g, "") === "Red Hat Display")
+          .map((face) => face.status),
       );
-      expect(loaded).toBe(1);
+      expect(family).toEqual(["loaded"]);
+
+      // 4. Znak latin-ext w stosie strony dociąga plik latin-ext z buildu.
+      await page.evaluate(async () => {
+        const probe = window.document.createElement("span");
+        probe.style.fontFamily =
+          '"Red Hat Display", "Red Hat Display Fallback", system-ui, sans-serif';
+        probe.textContent = "Babiš";
+        window.document.body.append(probe);
+        // Odczyt geometrii wymusza układ, a z nim wybór twarzy i start pobrania.
+        void probe.getBoundingClientRect().width;
+        await window.document.fonts.ready;
+        probe.remove();
+      });
+      await expect
+        .poll(() => requested.slice(preloads.length))
+        .toEqual([expect.stringMatching(/^\/assets\/red-hat-display-latin-ext-[\w-]+\.woff2$/)]);
     });
   });
 }

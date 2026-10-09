@@ -39,11 +39,10 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
    `red-hat-display-latin-pl.woff2` niesie latin + 18 polskich liter i jest
    jedynym preloadowanym fontem (`src/lib/seo/fontPreload.ts`) - ten sam dla PL
    i EN. Dawniej PL płacił dwa żądania (latin 30 672 B + latin-ext 14 060 B)
-   za 18 liter z latin-ext. `red-hat-display-latin-ext.woff2` zostaje BEZ
-   preloadu dla pozostałych diakrytyków: jego `unicode-range` nie zawiera
-   niczego, co niesie plik główny, więc strona PL i EN nigdy go nie pobiera.
-   Kolejność reguł jest znacząca: przy nakładających się zakresach
-   przeglądarka sprawdza najpierw regułę zadeklarowaną OSTATNIĄ (główną).
+   za 18 liter z latin-ext. To JEDYNA twarz rodziny "Red Hat Display":
+   pozostałe diakrytyki (`red-hat-display-latin-ext.woff2`, bez preloadu)
+   są twarzami rodziny zastępczej niżej - dlaczego, opisuje komentarz nad
+   twarzami latin-ext na końcu bloku.
 
    Receptura pliku (narzędzia poza repo, bez zależności w package.json):
    źródło Google Fonts `ofl/redhatdisplay/RedHatDisplay[wght].ttf`, wersja
@@ -55,18 +54,6 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
    sha256 efaa4dc4bd8f71147656ff6a6509c2ee06f3266e955f53182c9c6b7c9a6a75c7.
    Oś przycięta do 400-900 (decyzja właściciela): wagi < 400 i tak klampuje
    deskryptor `font-weight: 400 900`; szerokości identyczne z wydaniem 1.030. */
-@font-face {
-  font-family: "Red Hat Display";
-  font-style: normal;
-  font-weight: 400 900;
-  font-display: swap;
-  src: url("./assets/fonts/red-hat-display-latin-ext.woff2") format("woff2");
-  unicode-range:
-    U+0100-0103, U+0108-0117, U+011A-0130, U+0132-0140, U+0145-0151, U+0154-0159, U+015C-0178,
-    U+017D-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
-    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F,
-    U+A720-A7FF;
-}
 @font-face {
   font-family: "Red Hat Display";
   font-style: normal;
@@ -122,7 +109,8 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
    zależą od wybranego źródła - narzucają metryki pionowe wprost.
 
    ROZJAZD STOSÓW Z CMS: stos rodziny bez tej nazwy spada do `system-ui`
-   (DejaVu Sans Bold jest o ~27% szerszy niż RHD 600). Stosy Theme Design
+   (DejaVu Sans Bold jest o ~27% szerszy niż RHD 600) i rysuje krojem
+   systemowym także znaki latin-ext (twarze niżej). Stosy Theme Design
    z CMS normalizuje `withRedHatDisplayFallback` w `src/lib/theme/themeDesign.ts`.
    Wartości pilnuje `src/lib/ci/__tests__/fontGlyphCoverage.test.ts`; dowód
    przeglądarkowy: `e2e-performance/font-swap-cls.spec.ts`. */
@@ -197,6 +185,93 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
   ascent-override: 101.16%;
   descent-override: 30.31%;
   line-gap-override: 0%;
+}
+
+/* ZNAKI LATIN-EXT SPOZA POLSKICH LITER (czeskie, słowackie, rumuńskie,
+   węgierskie, bałtyckie...: š, č, ő, ă, ė) rysuje nadal Red Hat Display z
+   pliku `red-hat-display-latin-ext.woff2`, bez preloadu, pobieranego dopiero
+   wtedy, gdy taki znak pojawi się w tekście. Plik jest twarzą rodziny
+   ZASTĘPCZEJ, nie rodziny "Red Hat Display" (P3.2b, poprawka po Prove):
+     * Chrome składa twarze jednej rodziny o tych samych deskryptorach w jeden
+       font segmentowany i otwiera go dla każdego tekstu w tej rodzinie.
+       Niepobrana twarz latin-ext w rodzinie "Red Hat Display" (strona PL/EN
+       nigdy jej nie pobiera) podwajała pierwszy Layout strony `/`: 11 -> 24 ms
+       na desktopie, FCP desktop4x +0,08 s; z jedną twarzą 10-11 ms.
+     * Rodzinę zastępczą przeglądarka otwiera dopiero dla znaku, którego nie
+       ma plik główny, albo zanim plik główny się pobierze. Pierwszy Layout
+       zostaje więc jak przy jednej twarzy (11 ms), a znaki latin-ext mają te
+       same glify co dawniej (szerokości w wagach 400-900 identyczne).
+   Twarz latin-ext powtarza się dla KAŻDEGO zakresu wag twarzy lokalnej, z
+   identycznymi `font-style` i `font-weight`: tylko wtedy Chrome składa ją z
+   twarzą lokalną w jeden font (przy innym zakresie wybrałby jedną z dwóch).
+   Twarze latin-ext są zadeklarowane PO twarzach lokalnych, bo przy
+   nakładających się zakresach przeglądarka sprawdza najpierw regułę
+   zadeklarowaną ostatnią; odwrotna kolejność oddaje te znaki Arialowi.
+   `unicode-range` = znaki pliku latin-ext, których nie ma plik główny (test
+   pilnuje równości): strona PL/EN nie pobiera tego pliku także przed
+   pobraniem pliku głównego, a znak spoza pliku nie wywołuje pustego
+   pobrania. Wagi poniżej 400 (na stronach publicznych praktycznie
+   nieużywane) rysują te znaki osią 300 pliku latin-ext, bo zakres 1-449 nie
+   klampuje wagi do 400 jak deskryptor twarzy głównej. */
+@font-face {
+  font-family: "Red Hat Display Fallback";
+  font-style: normal;
+  font-weight: 1 449;
+  font-display: swap;
+  src: url("./assets/fonts/red-hat-display-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-0103, U+0108-0117, U+011A-0130, U+0132-013E, U+0145-0148, U+014A-0151, U+0154-0159,
+    U+015C-0178, U+017D-017E, U+0218-021B, U+0237, U+02C7, U+02DD, U+1E80-1E85, U+1E9E, U+1EF2-1EF3;
+}
+@font-face {
+  font-family: "Red Hat Display Fallback";
+  font-style: normal;
+  font-weight: 450 549;
+  font-display: swap;
+  src: url("./assets/fonts/red-hat-display-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-0103, U+0108-0117, U+011A-0130, U+0132-013E, U+0145-0148, U+014A-0151, U+0154-0159,
+    U+015C-0178, U+017D-017E, U+0218-021B, U+0237, U+02C7, U+02DD, U+1E80-1E85, U+1E9E, U+1EF2-1EF3;
+}
+@font-face {
+  font-family: "Red Hat Display Fallback";
+  font-style: normal;
+  font-weight: 550 649;
+  font-display: swap;
+  src: url("./assets/fonts/red-hat-display-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-0103, U+0108-0117, U+011A-0130, U+0132-013E, U+0145-0148, U+014A-0151, U+0154-0159,
+    U+015C-0178, U+017D-017E, U+0218-021B, U+0237, U+02C7, U+02DD, U+1E80-1E85, U+1E9E, U+1EF2-1EF3;
+}
+@font-face {
+  font-family: "Red Hat Display Fallback";
+  font-style: normal;
+  font-weight: 650 749;
+  font-display: swap;
+  src: url("./assets/fonts/red-hat-display-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-0103, U+0108-0117, U+011A-0130, U+0132-013E, U+0145-0148, U+014A-0151, U+0154-0159,
+    U+015C-0178, U+017D-017E, U+0218-021B, U+0237, U+02C7, U+02DD, U+1E80-1E85, U+1E9E, U+1EF2-1EF3;
+}
+@font-face {
+  font-family: "Red Hat Display Fallback";
+  font-style: normal;
+  font-weight: 750 849;
+  font-display: swap;
+  src: url("./assets/fonts/red-hat-display-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-0103, U+0108-0117, U+011A-0130, U+0132-013E, U+0145-0148, U+014A-0151, U+0154-0159,
+    U+015C-0178, U+017D-017E, U+0218-021B, U+0237, U+02C7, U+02DD, U+1E80-1E85, U+1E9E, U+1EF2-1EF3;
+}
+@font-face {
+  font-family: "Red Hat Display Fallback";
+  font-style: normal;
+  font-weight: 850 1000;
+  font-display: swap;
+  src: url("./assets/fonts/red-hat-display-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-0103, U+0108-0117, U+011A-0130, U+0132-013E, U+0145-0148, U+014A-0151, U+0154-0159,
+    U+015C-0178, U+017D-017E, U+0218-021B, U+0237, U+02C7, U+02DD, U+1E80-1E85, U+1E9E, U+1EF2-1EF3;
 }
 
 @custom-variant dark (&:is(.dark *));
