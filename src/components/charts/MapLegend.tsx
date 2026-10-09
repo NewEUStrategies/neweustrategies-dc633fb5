@@ -52,15 +52,20 @@ function paint(name: "--neh-map-swatch" | "--neh-map-bar", value: string): CSSPr
 export function MapLegend({ scale, colorOf, method, lang, unit, showNoData }: MapLegendProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "chartsMap" });
   const t: MapT = (key, values) => scoped(key, { lng: lang, ...values });
-  if (scale.classes.length === 0) return null;
+  // BEZ SKALI (żaden kraj z wartością nie trafił na rysunek - np. same kody
+  // spoza regionu) mapa jest w całości kreskowana, więc klucz zostaje
+  // z jedną pozycją „brak danych": bez niego nic nie mówi, co znaczy wzór.
+  // Pustka dopiero wtedy, gdy nie ma ani skali, ani kraju bez danych.
+  const scaled = scale.classes.length > 0;
+  if (!scaled && !showNoData) return null;
 
   const [lo, hi] = scale.domain;
   const span = hi - lo;
   const single = span <= 0;
   const fmt = (value: number): string => formatChartValue(value, lang, unit);
 
-  let body: ReactNode;
-  if (scale.kind === "continuous") {
+  let body: ReactNode = null;
+  if (scaled && scale.kind === "continuous") {
     // Przystanki gradientu w POŁOŻENIU wartości - w schemacie rozbieżnym
     // środek nie leży w połowie paska, tylko tam, gdzie leży w domenie.
     const stops = scale.classes
@@ -84,7 +89,7 @@ export function MapLegend({ scale, colorOf, method, lang, unit, showNoData }: Ma
         {!single && <span className="text-xs tabular-nums text-muted-foreground">{fmt(hi)}</span>}
       </div>
     );
-  } else {
+  } else if (scaled) {
     body = (
       <>
         <ol className="neh-map-legend-classes">
@@ -111,10 +116,10 @@ export function MapLegend({ scale, colorOf, method, lang, unit, showNoData }: Ma
       className="neh-map-legend"
       role="group"
       aria-label={t("legend.label")}
-      data-scale={scale.kind}
+      data-scale={scaled ? scale.kind : "none"}
     >
       {body}
-      {scale.midpoint !== null && (
+      {scaled && scale.midpoint !== null && (
         <span className="neh-map-legend-note" data-map-midpoint>
           {t("legend.midpoint", { value: fmt(scale.midpoint) })}
         </span>

@@ -243,7 +243,7 @@ describe("meta panelu - mapa mówi to samo co wykres", () => {
     fireEvent.click(screen.getByRole("button", { name: /how to read/i }));
     const text = (document.querySelector("dialog[open]") as HTMLElement).textContent ?? "";
     expect(text).toContain("Scheme: Slate.");
-    expect(text).toContain("Continuous scale:");
+    expect(text).toContain("Method: Continuous scale.");
   });
 });
 
@@ -263,7 +263,7 @@ describe("eksport i powiększenie", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zapisz wykres jako PNG" }));
     await waitFor(() => expect(exportMocks.svgDoPng).toHaveBeenCalledTimes(1));
     const klucz = exportMocks.svgDoPng.mock.calls[0]?.[1].klucz ?? [];
-    expect(klucz.map((w) => w.label)).toEqual([...legenda, "brak danych"]);
+    expect(klucz.map((w) => w.label)).toEqual([...legenda, "brak danych (kreskowanie)"]);
   });
 
   it("mapa z wyłączoną legendą eksportuje się bez klucza - tak, jak wygląda", async () => {

@@ -35,7 +35,8 @@
 // DOTYK: stuknięcie kraju otwiera tooltip i trzyma go (na dotyku nie ma
 // „najechania"), stuknięcie obok albo Escape zamyka. Klawiatura: kraj z danymi
 // jest przystankiem Tab, fokus otwiera tooltip w środku kraju, Escape go
-// chowa, zostawiając obrys fokusu.
+// chowa, zostawiając obrys fokusu. Fokus i wskazanie to DWA stany: kursor
+// przejeżdżający nad innym krajem nie zdejmuje obrysu krajowi z fokusem.
 //
 // SSR: rama + tabela danych + legenda renderują się na serwerze (crawler widzi
 // liczby); sam SVG dogrywa się po stronie klienta w miejsce migotki, której
@@ -76,7 +77,9 @@ import {
   classRangeLabel,
   hatchTransform,
   MAP_HATCH,
+  MAP_INTERACTION_KEYS,
   MAP_METHOD_KEYS,
+  MAP_NODATA_KEY,
   MAP_NODATA_SWATCH,
   MAP_SCHEME_KEYS,
   mapPaintOf,
@@ -249,10 +252,12 @@ export function ChoroplethMap({
           n: scale.classes.length,
           method: t(MAP_METHOD_KEYS[config.method]),
         })
-      : t("read.scaleContinuous");
+      : t("read.scaleContinuous", { method: t("methods.continuous") });
 
   // Klucz PNG - te same pozycje, które czytelnik widzi w legendzie; mapa
-  // z wyłączoną legendą eksportuje się bez klucza, tak jak wygląda.
+  // z wyłączoną legendą eksportuje się bez klucza, tak jak wygląda. Pozycja
+  // „brak danych" ma w pliku średni ton kreskowania i napis o kreskowaniu
+  // (`MAP_NODATA_KEY`) - płótno klucza nie umie namalować wzoru.
   const exportKey = (): ChartExportKeyItem[] => {
     if (!config.showLegend) return [];
     const items: ChartExportKeyItem[] =
@@ -263,7 +268,7 @@ export function ChoroplethMap({
           }))
         : scale.classes.map((s) => ({ label: fmt(s.from), color: colorOf(s.from) }));
     const unique = items.filter((item, i) => items.findIndex((x) => x.label === item.label) === i);
-    if (showNoData) unique.push({ label: t("noData"), color: "var(--chart-map-nodata-hatch)" });
+    if (showNoData) unique.push({ label: t("noDataHatched"), color: MAP_NODATA_KEY });
     return unique;
   };
 
@@ -272,7 +277,7 @@ export function ChoroplethMap({
     help: {
       elements: t("read.elements"),
       colours: `${coloursText} ${scaleText}`,
-      interactions: t("read.interactions"),
+      interactions: t(MAP_INTERACTION_KEYS[scale.kind]),
     },
     exportKey,
     demo: config.demo,
@@ -346,9 +351,11 @@ export function ChoroplethMap({
   // PUSTY ZESTAW zostaje panelem: tytuł, źródło i rama stoją, a w miejscu
   // rysunku jest komunikat o wysokości regionu. Goła notka zamiast karty
   // zmieniała wysokość widgetu i gubiła tytuł, który autor już wpisał.
+  // Bez przycisków PNG/SVG: nie ma rysunku, więc eksport kończyłby się
+  // zawsze komunikatem o błędzie.
   if (!hasValues) {
     return (
-      <ChartFrame {...frameProps} table={table}>
+      <ChartFrame {...frameProps} table={table} exportable={false}>
         <MapEmpty region={config.region} text={t("empty")} />
       </ChartFrame>
     );
@@ -391,6 +398,10 @@ export function ChoroplethMap({
         <>
           <MapCanvas {...canvas} maxHeight={height} />
           {legend}
+          {/* Nota o kodach spoza regionu jedzie też do powiększenia: legenda
+              liczy domenę z krajów narysowanych, więc bez noty okno nie
+              mówiłoby, czego na rysunku brakuje. */}
+          <ChartNotes notes={notes} />
         </>
       )}
     >
@@ -419,8 +430,24 @@ function MapEmpty({ region, text }: { region: MapRegion; text: string }) {
   );
 }
 
-/** Kto ostatnio wskazał kraj - decyduje, co zamyka tooltip. */
+/** Kto wskazał kraj - decyduje, co zamyka tooltip. */
 type ActiveSource = "pointer" | "touch" | "focus";
+
+/**
+ * Czy fokus przyszedł z KLAWIATURY. Klik i stuknięcie też fokusują ścieżkę
+ * z `tabIndex`, ale wtedy wskazanie niesie stan wskaźnika - fokus z myszy
+ * trzymałby obrys i dymek klikniętego kraju po odjechaniu kursora.
+ * Heurystykę daje przeglądarka (`:focus-visible`). Zdarzenie fokusu bez
+ * faktycznego fokusu (syntetyczne) i silnik bez tej pseudoklasy liczą się
+ * jak klawiatura - lepiej obrys w nadmiarze niż fokus bez wskaźnika.
+ */
+function keyboardFocus(el: Element): boolean {
+  try {
+    return el.matches(":focus-visible") || !el.matches(":focus");
+  } catch {
+    return true;
+  }
+}
 
 interface ActiveCountry {
   id: string;
@@ -472,7 +499,12 @@ function MapCanvas({
   loadError,
 }: MapCanvasProps) {
   const { ref: widthRef, width } = useContainerWidth<HTMLDivElement>(720);
-  const [active, setActive] = useState<ActiveCountry | null>(null);
+  // DWA STANY, NIE JEDEN. Wskazanie wskaźnikiem (mysz, pióro, palec) i fokus
+  // klawiatury żyją osobno: wspólny stan sprawiał, że najechanie na
+  // dowolny kraj i zjechanie z niego zdejmowało obrys krajowi, który wciąż
+  // trzymał fokus - zostawał wtedy tylko pierścień akcentu 1,02:1.
+  const [pointed, setPointed] = useState<ActiveCountry | null>(null);
+  const [focused, setFocused] = useState<ActiveCountry | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   // Identyfikator wzoru z `useId`, oczyszczony z dwukropków i nawiasów
   // Reacta - `url(#...)` w atrybucie nie znosi ich we wszystkich silnikach.
@@ -489,24 +521,28 @@ function MapCanvas({
     maxHeight === undefined ? width : Math.max(1, Math.min(width, Math.floor(maxHeight / aspect)));
   const mapHeight = Math.round(drawWidth * aspect);
 
-  const activeSource = active?.source ?? null;
+  const pointedSource = pointed?.source ?? null;
+  const listening = pointed !== null || focused !== null;
   useEffect(() => {
-    if (activeSource === null) return;
+    if (!listening) return;
+    // Escape zamyka KAŻDY dymek: wskazanie wskaźnikiem znika w całości,
+    // a fokus chowa dymek i zostawia obrys.
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== "Escape") return;
-      setActive((a) => (a === null ? null : a.source === "focus" ? { ...a, tip: false } : null));
+      setPointed(null);
+      setFocused((f) => (f === null || !f.tip ? f : { ...f, tip: false }));
     };
     // Dotyk nie ma „opuszczenia" kraju: tooltip ze stuknięcia zamyka
     // stuknięcie gdziekolwiek poza krajem tej mapy (inny kraj przełącza).
     const onDown = (e: PointerEvent): void => {
-      if (activeSource !== "touch") return;
+      if (pointedSource !== "touch") return;
       const target = e.target as Element | null;
       const onCountry =
         target !== null &&
         svgRef.current?.contains(target) === true &&
         typeof target.closest === "function" &&
         target.closest(".neh-country") !== null;
-      if (!onCountry) setActive(null);
+      if (!onCountry) setPointed(null);
     };
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onDown, true);
@@ -514,7 +550,7 @@ function MapCanvas({
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onDown, true);
     };
-  }, [activeSource]);
+  }, [listening, pointedSource]);
 
   const anchorOf = (e: ReactPointerEvent<SVGPathElement>): { x: number; y: number } | null => {
     const host = e.currentTarget.ownerSVGElement?.parentElement;
@@ -528,27 +564,30 @@ function MapCanvas({
       // Ruch palca to przewijanie strony, nie wskazanie.
       if (e.pointerType === "touch") return;
       const at = anchorOf(e);
-      if (at) setActive({ id, hasData, ...at, source: "pointer", tip: true });
+      if (at) setPointed({ id, hasData, ...at, source: "pointer", tip: true });
     },
     onPointerLeave: (e: ReactPointerEvent<SVGPathElement>) => {
       // Na dotyku „opuszczenie" przychodzi zaraz po stuknięciu - tooltip
       // stuknięcia musi je przeżyć.
+      // Zjechanie zdejmuje WYŁĄCZNIE wskazanie - fokus klawiatury (inny stan)
+      // wraca wtedy z obrysem i dymkiem.
       if (e.pointerType === "touch") return;
-      setActive((a) => (a !== null && a.id === id && a.source !== "touch" ? null : a));
+      setPointed((a) => (a !== null && a.id === id && a.source !== "touch" ? null : a));
     },
     onPointerUp: (e: ReactPointerEvent<SVGPathElement>) => {
       if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
       const at = anchorOf(e);
-      if (at) setActive({ id, hasData, ...at, source: "touch", tip: true });
+      if (at) setPointed({ id, hasData, ...at, source: "touch", tip: true });
     },
   });
 
   const onFocus = (e: FocusEvent<SVGPathElement>, id: string) => {
+    if (!keyboardFocus(e.currentTarget)) return;
     const box = e.currentTarget.getBBox();
     const vb = e.currentTarget.ownerSVGElement?.viewBox.baseVal;
     if (!vb || vb.width === 0) return;
     const scale = drawWidth / vb.width;
-    setActive({
+    setFocused({
       id,
       hasData: true,
       x: (box.x + box.width / 2) * scale,
@@ -559,13 +598,20 @@ function MapCanvas({
   };
 
   // Wskazanie aktualne wobec OBECNYCH danych (patrz `hasData`).
-  const shown =
-    active !== null && geo !== undefined && valueById.has(active.id) === active.hasData
-      ? active
-      : null;
-  const shownShape =
-    shown !== null ? (geo?.countries.find((c) => c.id === shown.id) ?? null) : null;
-  const tip = shown !== null && shown.tip ? tipOf(shown.id) : null;
+  const current = (a: ActiveCountry | null): ActiveCountry | null =>
+    a !== null && geo !== undefined && valueById.has(a.id) === a.hasData ? a : null;
+  const shownPointed = current(pointed);
+  const shownFocused = current(focused);
+  // Dymek ma JEDEN: wskazanie wskaźnikiem (ostatni gest) przed fokusem.
+  const shown = shownPointed ?? (shownFocused !== null && shownFocused.tip ? shownFocused : null);
+  const tip = shown !== null ? tipOf(shown.id) : null;
+  // Obrysów może być DWA: kraj z fokusem klawiatury trzyma swój, kiedy kursor
+  // wskazuje inny kraj - wskaźnik fokusu nie znika pod najechaniem.
+  const outlinedIds = [shownFocused?.id, shownPointed?.id].filter(
+    (id, i, all): id is string => id !== undefined && all.indexOf(id) === i,
+  );
+  const outlined = outlinedIds.flatMap((id) => geo?.countries.find((c) => c.id === id) ?? []);
+  const outlinedSet = new Set(outlinedIds);
 
   let drawing: ReactNode;
   if (geoError) {
@@ -622,7 +668,7 @@ function MapCanvas({
                 d={c.d}
                 className="neh-country"
                 data-nodata="true"
-                data-active={shown?.id === c.id || undefined}
+                data-active={outlinedSet.has(c.id) || undefined}
                 // Wzór w atrybucie: `url(#...)` nie potrzebuje tokenu, a tokeny
                 // niesie wnętrze wzoru (tło i linie kreskowania).
                 fill={`url(#${hatchId})`}
@@ -640,7 +686,7 @@ function MapCanvas({
                   key={c.id}
                   d={c.d}
                   className="neh-country"
-                  data-active={shown?.id === c.id || undefined}
+                  data-active={outlinedSet.has(c.id) || undefined}
                   fill={paint.fill}
                   // style, nie atrybut - var() w atrybutach prezentacyjnych
                   // SVG nie jest wspierany wszędzie.
@@ -656,29 +702,34 @@ function MapCanvas({
                   aria-label={`${nameOf(c.id)}: ${formatValue(value)}`}
                   {...handlers(c.id, true)}
                   onFocus={(e) => onFocus(e, c.id)}
-                  onBlur={() =>
-                    setActive((a) =>
-                      a !== null && a.id === c.id && a.source === "focus" ? null : a,
-                    )
-                  }
+                  onBlur={() => setFocused((a) => (a !== null && a.id === c.id ? null : a))}
                 />
               );
             })}
         </g>
-        {shownShape !== null && (
-          <g className="neh-map-outline" data-outline={shownShape.id} aria-hidden="true">
-            <path
-              d={shownShape.d}
-              fillRule="evenodd"
-              className="neh-map-outline-halo"
-              vectorEffect="non-scaling-stroke"
-            />
-            <path
-              d={shownShape.d}
-              fillRule="evenodd"
-              className="neh-map-outline-ink"
-              vectorEffect="non-scaling-stroke"
-            />
+        {outlined.length > 0 && (
+          // Najpierw WSZYSTKIE halo, potem wszystkie tusze: przy dwóch
+          // sąsiadach (fokus i wskazanie) halo drugiego nie zamaluje tuszu
+          // pierwszego na wspólnej granicy.
+          <g className="neh-map-outline" data-outline={outlinedIds.join(" ")} aria-hidden="true">
+            {outlined.map((shape) => (
+              <path
+                key={`halo-${shape.id}`}
+                d={shape.d}
+                fillRule="evenodd"
+                className="neh-map-outline-halo"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+            {outlined.map((shape) => (
+              <path
+                key={`ink-${shape.id}`}
+                d={shape.d}
+                fillRule="evenodd"
+                className="neh-map-outline-ink"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
           </g>
         )}
       </svg>

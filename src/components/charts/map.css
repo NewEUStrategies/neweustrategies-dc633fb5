@@ -34,9 +34,13 @@
   stroke-width: 2px;
 }
 /* Pierścień fokusu niesie nakładka - obrys ścieżki w kolorze akcentu
-   (charts.css) ginął na środku rampy (1,02:1 na jasnym motywie). */
+   (charts.css) ginął na środku rampy (1,02:1 na jasnym motywie), więc tu
+   wraca do zwykłej krawędzi kraju (ta sama farba i grubość co bez fokusu),
+   a nie zostaje akcentem udającym wskaźnik. */
 .neh-chart .neh-map-canvas .neh-country:focus-visible {
   outline: none;
+  stroke: var(--card);
+  stroke-width: 0.6;
 }
 .neh-chart .neh-map-canvas .neh-country[data-nodata] {
   cursor: default;

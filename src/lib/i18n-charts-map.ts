@@ -45,6 +45,9 @@ const pl = {
     loadError: "Nie udało się wczytać mapy.",
     // Kraj BEZ wartości - tooltip i legenda (próbka kreskowana).
     noData: "brak danych",
+    // Ta sama pozycja w kluczu PNG: płótno eksportu maluje próbkę jednym
+    // kolorem, więc kreskowanie mówi słowami.
+    noDataHatched: "brak danych (kreskowanie)",
     // Przedział klasy w legendzie i w tooltipie. Słowami, nie łącznikiem:
     // „-5 - 3%" przy wartościach ujemnych czyta się jak odejmowanie.
     range: "od {{from}} do {{to}}",
@@ -73,10 +76,15 @@ const pl = {
         "Schemat: {{scheme}}. Kolor neutralny to punkt środkowy ({{midpoint}}); jeden odcień oznacza wartości poniżej niego, drugi - powyżej. Im mocniejszy kolor, tym dalej od środka.",
       scaleClassed:
         "Liczba klas: {{n}}, podział: {{method}}. Kraje w jednej klasie mają ten sam kolor, a granice klas podaje legenda.",
+      // `{{method}}` to kanoniczna nazwa `methods.continuous` - jedno źródło.
       scaleContinuous:
-        "Skala ciągła: kolor zmienia się płynnie wraz z wartością, a legenda podaje wartość najniższą i najwyższą.",
-      interactions:
-        "Najedź na kraj albo przejdź do niego klawiszem Tab, aby zobaczyć wartość, pozycję i przedział. Na ekranie dotykowym stuknij kraj; stuknięcie obok albo klawisz Escape zamyka dymek.",
+        "Podział: {{method}}. Kolor zmienia się płynnie wraz z wartością, a legenda podaje wartość najniższą i najwyższą.",
+      // Dwa zdania, bo dymek skali ciągłej nie ma przedziału klasy - pomoc
+      // nie obiecuje faktu, którego czytelnik nie zobaczy.
+      interactionsClassed:
+        "Najedź na kraj albo przejdź do niego klawiszem Tab, aby zobaczyć wartość, pozycję i przedział klasy. Na ekranie dotykowym stuknij kraj; stuknięcie obok albo klawisz Escape zamyka dymek.",
+      interactionsContinuous:
+        "Najedź na kraj albo przejdź do niego klawiszem Tab, aby zobaczyć wartość i pozycję. Na ekranie dotykowym stuknij kraj; stuknięcie obok albo klawisz Escape zamyka dymek.",
     },
   },
 };
@@ -101,6 +109,7 @@ const en: typeof pl = {
     empty: "No map data.",
     loadError: "Map failed to load.",
     noData: "no data",
+    noDataHatched: "no data (hatched)",
     range: "{{from}} to {{to}}",
     tip: {
       value: "Value",
@@ -126,9 +135,11 @@ const en: typeof pl = {
       scaleClassed:
         "Number of classes: {{n}}, method: {{method}}. Countries in one class share one colour, and the legend gives the class boundaries.",
       scaleContinuous:
-        "Continuous scale: the colour changes smoothly with the value, and the legend gives the lowest and the highest value.",
-      interactions:
+        "Method: {{method}}. The colour changes smoothly with the value, and the legend gives the lowest and the highest value.",
+      interactionsClassed:
         "Hover over a country or reach it with the Tab key to see its value, rank and class range. On a touch screen, tap a country; tapping elsewhere or pressing Escape closes the tooltip.",
+      interactionsContinuous:
+        "Hover over a country or reach it with the Tab key to see its value and rank. On a touch screen, tap a country; tapping elsewhere or pressing Escape closes the tooltip.",
     },
   },
 };
