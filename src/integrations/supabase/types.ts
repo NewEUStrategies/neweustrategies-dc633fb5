@@ -16538,6 +16538,15 @@ export type Database = {
           autoplay_next: boolean
           default_player_variant: string
           google_url: string | null
+          itunes_author: string | null
+          itunes_category: string
+          itunes_copyright: string | null
+          itunes_explicit: boolean
+          itunes_image_url: string | null
+          itunes_owner_email: string | null
+          itunes_owner_name: string | null
+          itunes_subcategory: string | null
+          itunes_type: string
           rss_url: string | null
           show_speed_control: boolean
           spotify_url: string | null
@@ -16550,6 +16559,15 @@ export type Database = {
           autoplay_next?: boolean
           default_player_variant?: string
           google_url?: string | null
+          itunes_author?: string | null
+          itunes_category?: string
+          itunes_copyright?: string | null
+          itunes_explicit?: boolean
+          itunes_image_url?: string | null
+          itunes_owner_email?: string | null
+          itunes_owner_name?: string | null
+          itunes_subcategory?: string | null
+          itunes_type?: string
           rss_url?: string | null
           show_speed_control?: boolean
           spotify_url?: string | null
@@ -16562,6 +16580,15 @@ export type Database = {
           autoplay_next?: boolean
           default_player_variant?: string
           google_url?: string | null
+          itunes_author?: string | null
+          itunes_category?: string
+          itunes_copyright?: string | null
+          itunes_explicit?: boolean
+          itunes_image_url?: string | null
+          itunes_owner_email?: string | null
+          itunes_owner_name?: string | null
+          itunes_subcategory?: string | null
+          itunes_type?: string
           rss_url?: string | null
           show_speed_control?: boolean
           spotify_url?: string | null
@@ -16609,6 +16636,14 @@ export type Database = {
           description_en: string
           description_pl: string
           id: string
+          itunes_author: string | null
+          itunes_category: string | null
+          itunes_complete: boolean
+          itunes_explicit: boolean | null
+          itunes_owner_email: string | null
+          itunes_owner_name: string | null
+          itunes_subcategory: string | null
+          itunes_type: string | null
           slug: string
           sort_order: number
           spotify_url: string | null
@@ -16627,6 +16662,14 @@ export type Database = {
           description_en?: string
           description_pl?: string
           id?: string
+          itunes_author?: string | null
+          itunes_category?: string | null
+          itunes_complete?: boolean
+          itunes_explicit?: boolean | null
+          itunes_owner_email?: string | null
+          itunes_owner_name?: string | null
+          itunes_subcategory?: string | null
+          itunes_type?: string | null
           slug: string
           sort_order?: number
           spotify_url?: string | null
@@ -16645,6 +16688,14 @@ export type Database = {
           description_en?: string
           description_pl?: string
           id?: string
+          itunes_author?: string | null
+          itunes_category?: string | null
+          itunes_complete?: boolean
+          itunes_explicit?: boolean | null
+          itunes_owner_email?: string | null
+          itunes_owner_name?: string | null
+          itunes_subcategory?: string | null
+          itunes_type?: string | null
           slug?: string
           sort_order?: number
           spotify_url?: string | null
@@ -16676,8 +16727,10 @@ export type Database = {
           deleted_at: string | null
           duration_seconds: number
           episode_number: number | null
+          episode_type: string
           excerpt_en: string
           excerpt_pl: string
+          explicit: boolean
           id: string
           program_id: string | null
           published_at: string | null
@@ -16707,8 +16760,10 @@ export type Database = {
           deleted_at?: string | null
           duration_seconds?: number
           episode_number?: number | null
+          episode_type?: string
           excerpt_en?: string
           excerpt_pl?: string
+          explicit?: boolean
           id?: string
           program_id?: string | null
           published_at?: string | null
@@ -16738,8 +16793,10 @@ export type Database = {
           deleted_at?: string | null
           duration_seconds?: number
           episode_number?: number | null
+          episode_type?: string
           excerpt_en?: string
           excerpt_pl?: string
+          explicit?: boolean
           id?: string
           program_id?: string | null
           published_at?: string | null
@@ -30555,6 +30612,7 @@ export type Database = {
         Args: { _versions: string[] }
         Returns: string[]
       }
+      missing_schema_columns: { Args: { _columns: Json }; Returns: Json }
       missing_schema_objects: { Args: { _objects: Json }; Returns: Json }
       monetization_dashboard: {
         Args: {
