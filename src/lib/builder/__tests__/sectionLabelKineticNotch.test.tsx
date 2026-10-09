@@ -138,7 +138,7 @@ describe("Kinetic Signal Notch", () => {
     expect(new Set(widths).size).toBe(1);
   });
 
-  it("paski są węższe - krótka baza i umiarkowane rozsunięcie w hoverze", () => {
+  it("paski rozsuwają się subtelnie - krótki przyrost i ruch bez wyskoku", () => {
     const { container } = renderVariant();
     const bars = [...container.querySelectorAll<HTMLElement>(".nes-kinetic-bar")];
     // "bazowe linie maja byc wezsze" - baza 16 px (w-4), nie 24 px.
@@ -146,13 +146,17 @@ describe("Kinetic Signal Notch", () => {
       expect(bar.className).toContain("w-4");
       expect(bar.className).not.toMatch(/(?:^|\s)w-(3|5|6)\b/);
     }
-    // "rozsuniecie nie ma byc tak szerokie" - najdłuższy pasek dochodzi do
-    // 28 px (w-7), najkrótszy do 20 px (w-5); szerokie 32-40 px zniknęły.
-    const grows = bars
-      .map((bar) => bar.className.match(/(?:^|\s)(group-hover:w-[^\s]+)/)?.[1])
-      .sort();
-    expect(grows).toEqual(["group-hover:w-5", "group-hover:w-6", "group-hover:w-7"]);
-    expect(grows.join(" ")).not.toMatch(/w-(8|9|10)\b|w-\[2[2-9]px\]/);
+    expect(widthPx(baseToken(bars[0]?.className ?? ""))).toBe(16);
+    // "niech mniej sie rozsuwa" - zaden pasek nie przyrasta o wiecej niz 5 px,
+    // a caly wiersz zyskuje najwyzej 12 px (bylo 24 px).
+    const deltas = growDeltas(bars);
+    expect(Math.min(...deltas)).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...deltas)).toBeLessThanOrEqual(5);
+    expect(deltas.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(12);
+    // "subtelnie" - krzywa `width` nie wyskokuje poza szerokosc docelowa.
+    const [x1, y1, x2, y2] = barEasing();
+    expect([x1, y1, x2, y2].every((v) => Number.isFinite(v))).toBe(true);
+    expect(Math.max(y1, y2)).toBeLessThanOrEqual(1);
   });
 
   it("pigułka (sm) trzyma ten sam proporcjonalny skrót szerokości", () => {
@@ -161,10 +165,12 @@ describe("Kinetic Signal Notch", () => {
     for (const bar of bars) {
       expect(bar.className).toContain("w-2.5");
     }
-    const grows = bars
-      .map((bar) => bar.className.match(/(?:^|\s)(group-hover:w-[^\s]+)/)?.[1])
-      .sort();
-    expect(grows).toEqual(["group-hover:w-3", "group-hover:w-3.5", "group-hover:w-[18px]"]);
+    expect(widthPx(baseToken(bars[0]?.className ?? ""))).toBe(10);
+    // Ta sama proporcja co w szerokim widżecie: przyrost rzędu 1-3 px na pasek.
+    const deltas = growDeltas(bars);
+    expect(Math.min(...deltas)).toBeGreaterThanOrEqual(1);
+    expect(Math.max(...deltas)).toBeLessThanOrEqual(3);
+    expect(deltas.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(6);
   });
 
   it("utrzymuje sygnał i tytuł w jednym wierszu, a akcję nad nimi", () => {
