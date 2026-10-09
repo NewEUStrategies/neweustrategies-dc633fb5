@@ -203,6 +203,16 @@ export function expectedColumns(
 }
 
 /**
+ * Wspólny dowód dla `tenant_id` czterech tabel `research_program_*`.
+ * Tabele powstały w 20260713181044 bez tej kolumny; expert_hub dosypuje ją
+ * `ADD COLUMN` w JEDNEJ transakcji z wyzwalaczami i politykami, które jej
+ * używają - kształt tabel w types.ts to dokładnie 20260713181044, a żadna
+ * zmiana właściwa tylko expert_hub na produkcji nie istnieje.
+ */
+const EXPERT_HUB_NEVER_RAN =
+  "20260714130000_expert_hub nie wykonała się na produkcji w ogóle (jedna transakcja; tabela w kształcie z 20260713181044). Izolacja najemców trzyma się polityk przez `programs.tenant_id` rodzica (20260714112155, 20260815110437) - to brak warstwy obrony, nie wyciek. Ponowienie: kolumna nullable, backfill z `programs.tenant_id` po `program_id`, dopiero potem NOT NULL i wyzwalacz - NIE `DEFAULT public.public_tenant_id()` z expert_hub, który ostemplowałby każdy istniejący wiersz domyślnym najemcą.";
+
+/**
  * ZNANY DRYF PRODUKCJI: kolumny, które migracje dodają, a których produkcja
  * NIE MA - zmierzone, nie przepisane. Lista może TYLKO maleć: każdy wpis
  * znika migracją, która kolumnę faktycznie zakłada, a bramka oblewa, gdy
@@ -220,16 +230,12 @@ export const KNOWN_COLUMN_DRIFT: Readonly<Record<string, string>> = {
     "20260725090300 (apply_coupon_effects_after_payment) weszła na produkcję częściowo: `effects_applied_at` z tego pliku jest, ta kolumna nie. SKUTEK (ścieżka pieniędzy): `apply_b2b_coupon_effects` (20260801214845) wstawia ją do `membership_grants`, więc kupon z `grants_tier_key` po opłaceniu nie nadaje warstwy - błąd 42703 kończy się wyłącznie `console.error` w couponEffects.server.ts, zamówienie zostaje `paid`, webhook nie ponawia.",
   "notifications.meta":
     "Dodawana przez 20260711100000 i 20260711120000 (engagement); produkcyjna tabela `notifications` jej nie ma. SKUTEK: `notify_profile_welcome` i `notify_new_follower` łapią 42703 (EXCEPTION WHEN OTHERS), więc żadna akcja użytkownika nie pada, ale powiadomienie powitalne ginie, a powiadomienia o obserwacji tracą 7-dniową deduplikację albo nie powstają.",
-  "research_program_items.tenant_id":
-    "20260714130000_expert_hub: tabela powstała wcześniej (20260713181044) bez tej kolumny, `CREATE TABLE IF NOT EXISTS` był no-opem, a `ADD COLUMN` nie doszedł.",
+  "research_program_items.tenant_id": EXPERT_HUB_NEVER_RAN,
   "research_program_members.id":
-    "20260714130000_expert_hub: tabela powstała wcześniej (20260713181044) z kluczem (program_id, profile_id) i bez tej kolumny; `ADD COLUMN` nie doszedł.",
-  "research_program_members.tenant_id":
-    "20260714130000_expert_hub: tabela powstała wcześniej (20260713181044) bez tej kolumny, `CREATE TABLE IF NOT EXISTS` był no-opem, a `ADD COLUMN` nie doszedł.",
-  "research_program_partners.tenant_id":
-    "20260714130000_expert_hub: tabela powstała wcześniej (20260713181044) bez tej kolumny, `CREATE TABLE IF NOT EXISTS` był no-opem, a `ADD COLUMN` nie doszedł.",
-  "research_program_projects.tenant_id":
-    "20260714130000_expert_hub: tabela powstała wcześniej (20260713181044) bez tej kolumny, `CREATE TABLE IF NOT EXISTS` był no-opem, a `ADD COLUMN` nie doszedł.",
+    "20260714130000_expert_hub nie wykonała się na produkcji (patrz pozostałe wpisy research_program_*). Tabela ma klucz (program_id, profile_id) z 20260713181044 i na nim stoi kod panelu oraz deduplikacja w 20260815110844 (po ctid, bo `id` nie ma); ponowienie dodaje `id` z gen_random_uuid() i indeksem UNIQUE, bez zmiany klucza głównego.",
+  "research_program_members.tenant_id": EXPERT_HUB_NEVER_RAN,
+  "research_program_partners.tenant_id": EXPERT_HUB_NEVER_RAN,
+  "research_program_projects.tenant_id": EXPERT_HUB_NEVER_RAN,
 };
 
 export interface ColumnDriftReport {
