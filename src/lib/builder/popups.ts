@@ -4,8 +4,9 @@
 // visitors (RLS). The pure targeting logic lives here so it is unit-testable;
 // the DOM wiring (timers, scroll, exit-intent) lives in PopupHost.
 import { useCallback, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { edgeTtlCache } from "@/lib/ssrCache";
 import { useCurrentTenantId } from "@/lib/tenant";
 import type { BuilderDocument, Device } from "./types";
 import { emptyDocument, toJson } from "./types";
@@ -214,6 +215,41 @@ export function useActivePopups(enabled: boolean) {
       return ((data ?? []) as RawRow[]).map(toPopup);
     },
   });
+}
+
+/** TTL projekcji obecności w cache'u izolatu - ta sama obietnica świeżości co reklamy. */
+const POPUPS_PRESENCE_TTL_MS = 60_000;
+
+/**
+ * SYGNAŁ „BRAK AKTYWNYCH POPUPÓW" DLA SSR (P3.8). Projekcja obecności
+ * (`select=id`, `limit=1`) za `edgeTtlCache`, czyli w stanie ustalonym zero
+ * podżądań. Zapisuje WYŁĄCZNIE pustą listę pod kluczem `useActivePopups`:
+ * odwodniony wpis `[]` wyłącza montaż `PopupHost` (`useNoActivePopupsFromSsr`
+ * w `routes/__root.tsx`). Przy aktywnym popupie nic nie zapisuje - host musi
+ * dostać pełne wiersze z `builder_data`, nie projekcję - i montuje się jak
+ * dotąd. Błąd odczytu rzuca (wołający ma `allSettled`): brak wpisu, nie fałszywe
+ * „brak popupów". Wpis rodzi się PRZETERMINOWANY (`updatedAt: 0`): to sygnał
+ * bramki, nie dane hosta - kto mimo niego zamontuje `PopupHost` (zespół
+ * redakcji omija bramkę), pobiera pełną listę od razu, zamiast ufać pustce
+ * z dokumentu.
+ */
+export async function warmNoActivePopups(queryClient: QueryClient): Promise<void> {
+  const queryKey = [WIDGET_QUERY_ROOTS.popupsActive];
+  if (queryClient.getQueryData(queryKey) !== undefined) return;
+  const hasActive = await edgeTtlCache(
+    "builder_popups:presence",
+    POPUPS_PRESENCE_TTL_MS,
+    async (): Promise<boolean> => {
+      const { data, error } = await supabase
+        .from("builder_popups")
+        .select("id")
+        .eq("status", "active")
+        .limit(1);
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+  );
+  if (!hasActive) queryClient.setQueryData<BuilderPopup[]>(queryKey, [], { updatedAt: 0 });
 }
 
 /** Admin CRUD - tenant-scoped list + mutations. */

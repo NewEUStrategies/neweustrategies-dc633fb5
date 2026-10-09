@@ -75,6 +75,7 @@ import {
   useActivePopups,
   usePopupEditor,
   usePopupsAdmin,
+  warmNoActivePopups,
   type BuilderPopup,
 } from "@/lib/builder/popups";
 
@@ -157,6 +158,60 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   h.db?.reset();
+});
+
+// ---------------------------------------------------------------------------
+// SYGNAŁ „BRAK AKTYWNYCH POPUPÓW" DLA SSR (P3.8 #4a). Odwodniona pusta lista pod
+// kluczem `useActivePopups` wyłącza montaż `PopupHost` (chunk, GET, preflight).
+// ---------------------------------------------------------------------------
+describe("warmNoActivePopups - sygnał „brak aktywnych popupów” dla SSR (P3.8)", () => {
+  const KEY = [WIDGET_QUERY_ROOTS.popupsActive];
+
+  it("pusty wynik zapisuje PUSTĄ listę pod kluczem hosta - z projekcji obecności", async () => {
+    respondPopups({ list: ok([]) });
+    const client = new QueryClient();
+
+    await warmNoActivePopups(client);
+
+    expect(client.getQueryData(KEY)).toEqual([]);
+    // Sygnał bramki, nie dane hosta: host zamontowany mimo niego (zespół
+    // redakcji) pobiera pełną listę od razu.
+    expect(client.getQueryState(KEY)?.dataUpdatedAt).toBe(0);
+    const chain = db().lastChain(TABLE);
+    // Obecność, nie pełne wiersze: bez `builder_data` w podżądaniu SSR.
+    expect(chain?.argsOf("select")).toEqual(["id"]);
+    expect(chain?.argsOf("eq")).toEqual(["status", "active"]);
+    expect(chain?.argsOf("limit")).toEqual([1]);
+  });
+
+  it("aktywny popup: NIC nie zapisuje - host musi dostać pełne wiersze i montuje się jak dotąd", async () => {
+    respondPopups({ list: ok([{ id: "pop-1" }]) });
+    const client = new QueryClient();
+
+    await warmNoActivePopups(client);
+
+    expect(client.getQueryData(KEY)).toBeUndefined();
+  });
+
+  it("błąd odczytu nie udaje „braku popupów” - rzuca i nie zapisuje niczego", async () => {
+    respondPopups({ list: fail("baza niedostępna") });
+    const client = new QueryClient();
+
+    await expect(warmNoActivePopups(client)).rejects.toThrow("baza niedostępna");
+    expect(client.getQueryData(KEY)).toBeUndefined();
+  });
+
+  it("wpis już obecny w cache'u zostaje i nie kosztuje podżądania", async () => {
+    respondPopups({ list: ok([]) });
+    const client = new QueryClient();
+    const rows = [{ id: "pop-1" }];
+    client.setQueryData(KEY, rows);
+
+    await warmNoActivePopups(client);
+
+    expect(client.getQueryData(KEY)).toBe(rows);
+    expect(db().chainsFor(TABLE)).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------

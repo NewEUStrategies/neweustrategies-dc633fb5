@@ -48,6 +48,8 @@ import type { ReactNode } from "react";
 const h = vi.hoisted(() => ({
   categories: [] as Record<string, unknown>[],
   tags: [] as Record<string, unknown>[],
+  /** Tabele odpytane przez `supabase.from` (P3.8: KIEDY idzie katalog). */
+  fromCalls: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -68,13 +70,21 @@ vi.mock("@/integrations/supabase/client", () => {
   const channel = { on: () => channel, subscribe: () => channel };
   return {
     supabase: {
-      from: (table: string) => makeChain(table),
+      from: (table: string) => {
+        h.fromCalls.push(table);
+        return makeChain(table);
+      },
       channel: () => channel,
       removeChannel: () => Promise.resolve("ok"),
     },
   };
 });
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: null }) }));
+// Punkt ciszy to czas przeglądarki - zatrzask otwiera tu wyłącznie test.
+vi.mock("@/lib/performance/whenQuiescent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/performance/whenQuiescent")>()),
+  onQuiescent: () => () => {},
+}));
 
 import {
   TopicsDroplist,
@@ -84,6 +94,10 @@ import {
 import type { InterestItem } from "@/hooks/useInterests";
 import { topicLabel, topicsTriggerText } from "@/lib/newsletter/newsletterFieldLabels";
 import { axeViolations, summarize } from "@/test/axe";
+import {
+  __openInteractionOrQuietForTests,
+  __resetInteractionOrQuietForTests,
+} from "@/lib/performance/interactionOrQuiet";
 
 function wrapper({ children }: { children: ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -153,9 +167,59 @@ async function openDroplist() {
 beforeEach(() => {
   h.categories = [];
   h.tags = [];
+  h.fromCalls = [];
+  __resetInteractionOrQuietForTests();
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  __resetInteractionOrQuietForTests();
+});
+
+// KIEDY POBRAĆ KATALOG (P3.8 #6). Katalog to dwa GET-y z preflightami;
+// formularze newslettera w wyspach sekcji nie dokładają ich do okna bootu.
+describe("useInterestGroups - kiedy pobrać katalog (P3.8)", () => {
+  function stableWrapper() {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  }
+
+  beforeEach(() => {
+    h.categories = [{ id: "afryka", slug: "afryka", name_pl: "Afryka", name_en: null }];
+  });
+
+  it("`latch`: nic przed zatrzaskiem interakcji/ciszy, katalog po jego otwarciu", async () => {
+    const { result } = renderHook(() => useInterestGroups("pl", null, "latch"), {
+      wrapper: stableWrapper(),
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(h.fromCalls).toEqual([]);
+    expect(result.current.allItems).toEqual([]);
+
+    act(() => __openInteractionOrQuietForTests());
+
+    await waitFor(() => expect(result.current.allItems.map((i) => i.id)).toEqual(["afryka"]));
+    expect(h.fromCalls.sort()).toEqual(["categories", "tags"]);
+  });
+
+  it("`off`: katalog nie pobiera się wcale, także po zatrzasku", async () => {
+    renderHook(() => useInterestGroups("pl", null, "off"), { wrapper: stableWrapper() });
+    act(() => __openInteractionOrQuietForTests());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(h.fromCalls).toEqual([]);
+  });
+
+  it("domyślnie (`mount`) - przy montażu, jak dotąd", async () => {
+    const { result } = renderHook(() => useInterestGroups("pl"), { wrapper: stableWrapper() });
+    await waitFor(() => expect(result.current.allItems.map((i) => i.id)).toEqual(["afryka"]));
+  });
+});
 
 describe("useInterestGroups - grupowanie katalogu", () => {
   it("kategoria-dziecko idzie pod etykietę RODZICA, nie pod „Obszary”", async () => {

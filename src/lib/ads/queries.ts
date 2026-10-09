@@ -93,7 +93,16 @@ async function fetchPlacementRows(
   positions: readonly AdPosition[],
   pageType: AdPageType,
 ): Promise<AdPlacementWithSlot[]> {
-  const nowIso = new Date().toISOString();
+  // OKNO W PEŁNYCH MINUTACH (P3.8). Znacznik w milisekundach dawał inny URL przy
+  // każdym zapytaniu, więc przeglądarka nie mogła ponownie użyć ani preflightu
+  // CORS (`Access-Control-Max-Age` jest per URL), ani odpowiedzi. Filtr bazy
+  // jest teraz NADZBIOREM okna na całą bieżącą minutę: start do końca minuty,
+  // koniec od jej początku. Dokładne okno w chwili odczytu i tak liczy
+  // `isWithinEmissionWindow` przy projekcji, więc czytelnik nie zobaczy
+  // kampanii przed startem ani po końcu.
+  const minute = Math.floor(Date.now() / 60_000) * 60_000;
+  const startsBefore = new Date(minute + 60_000).toISOString();
+  const endsAfter = new Date(minute).toISOString();
   const { data, error } = await supabase
     .from("ad_placements")
     .select(PLACEMENTS_SELECT)
@@ -104,8 +113,8 @@ async function fetchPlacementRows(
     .in("page_type", dbPageTypes(pageType))
     .eq("active", true)
     .eq("slot.status", "active")
-    .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
-    .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
+    .or(`starts_at.is.null,starts_at.lte.${startsBefore}`)
+    .or(`ends_at.is.null,ends_at.gte.${endsAfter}`)
     .order("sort_order");
 
   if (error) throw error;
@@ -269,7 +278,8 @@ export async function prefetchAdPlacementQueries(
       // round-tripu po hydratacji. Ale wpis serwowany z okna serve-stale (do
       // 5 x TTL) dostawał dotąd znacznik „teraz" i przeglądarka trzymała go
       // jeszcze minutę - obietnica 60 s rozciągała się do sześciu. Z prawdziwym
-      // czasem przeglądarka odświeża go zaraz po hydratacji, a SSR i tak
+      // czasem przeglądarka go odświeża (od P3.8 przy pierwszej interakcji albo
+      // w punkcie ciszy, nie w hydratacji - `router.tsx`), a SSR i tak
       // zarezerwował piksele slotu, więc nie ma skoku układu.
       queryClient.setQueryData(
         adPlacementsQueryOptions(target.position, pageType, id).queryKey,
@@ -287,6 +297,8 @@ export function useAdPlacements(
   pageType: AdPageType,
   pageId?: string | null,
   content?: AdContentContext,
+  /** `false` = bez pobrania (np. pasek dolny przed zatrzaskiem interakcji/ciszy, P3.8). */
+  enabled = true,
 ) {
   const { i18n } = useTranslation();
   const language: AdLanguage = i18n.language === "en" ? "en" : "pl";
@@ -295,6 +307,7 @@ export function useAdPlacements(
 
   return useQuery({
     ...adPlacementsQueryOptions(position, pageType, pageId),
+    enabled,
     select: (placements) =>
       placements.filter((p) =>
         matchesAdTargeting(parseAdTargeting(p.slot.targeting), {
