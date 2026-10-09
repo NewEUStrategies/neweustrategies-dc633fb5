@@ -12,7 +12,6 @@
 // CO ZOSTAJE W `__root.tsx`: wstrzyknięcie URL-i assetów (importy `?url`
 // rozwiązuje bundler) i wywołanie `appendLinkHeader` (zakres żądania).
 // Ten moduł jest czysty i przyjmuje URL-e parametrem.
-import type { AppLang } from "@/lib/i18n/localePath";
 import { feedDiscoveryLinks } from "./meta";
 import { fontPreloadLinkHeaderValues, fontPreloadLinks } from "./fontPreload";
 
@@ -33,10 +32,12 @@ export const SUPABASE_PRECONNECT_ORIGIN = "https://unnltowbgszpdzwpawdu.supabase
 export interface RootAssets {
   /** Arkusz stylów aplikacji (`?url`). */
   readonly appCss: string;
-  /** Podzbiór fontu Latin. */
-  readonly fontLatin: string;
-  /** Podzbiór Latin-ext (polskie diakrytyki). */
-  readonly fontLatinExt: string;
+  /**
+   * Jedyny font ścieżki krytycznej: Red Hat Display latin + polskie litery
+   * (`?url`, ten sam plik co `url()` twarzy głównej w `styles.css`). Ten sam
+   * dla PL i EN (P3.2b), więc zestawy nie zależą od języka.
+   */
+  readonly font: string;
 }
 
 /** Deskryptor `<link>` w kształcie, w jakim przyjmuje go router. */
@@ -49,11 +50,7 @@ export type RootLinkDescriptor = Record<string, string>;
  * connection used by the Supabase API needs warming; a second image socket
  * is unused. Keep the HTTP Link hint in the same credentials mode.
  */
-export function rootDocumentLinks(
-  lang: AppLang,
-  origin: string,
-  assets: RootAssets,
-): RootLinkDescriptor[] {
+export function rootDocumentLinks(origin: string, assets: RootAssets): RootLinkDescriptor[] {
   return [
     { rel: "stylesheet", href: assets.appCss },
     // Favicon jawnie zadeklarowany, żeby crawlery i podglądy linków pobrały
@@ -65,7 +62,7 @@ export function rootDocumentLinks(
     // (+150 ms LCP mobile w 4/15 przebiegów, raport faza2 P2.1-PROVE-2 §4). Ekran
     // początkowy iOS dostaje osobny PNG 180 px.
     { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
-    ...fontPreloadLinks(lang, { latin: assets.fontLatin, latinExt: assets.fontLatinExt }),
+    ...fontPreloadLinks(assets.font),
     { rel: "dns-prefetch", href: SUPABASE_PRECONNECT_ORIGIN },
     { rel: "preconnect", href: SUPABASE_PRECONNECT_ORIGIN, crossOrigin: "anonymous" },
     ...feedDiscoveryLinks(origin),
@@ -115,16 +112,13 @@ export function dictionaryPreloadLinkHeaderValue(chunkUrl: string | null): strin
  * Wartości nagłówka HTTP `Link` dla tych samych zasobów krytycznych.
  *
  * Kolejność jest kontraktem: arkusz stylów pierwszy (blokuje render),
- * potem rozgrzanie połączenia do hosta obrazów, na końcu fonty.
+ * potem rozgrzanie połączenia do API, na końcu font.
  */
-export function rootLinkHeaderValues(lang: AppLang, assets: RootAssets): string[] {
+export function rootLinkHeaderValues(assets: RootAssets): string[] {
   return [
     `<${assets.appCss}>; rel="preload"; as="style"`,
     // Same anonymous CORS socket as the document hint.
     `<${SUPABASE_PRECONNECT_ORIGIN}>; rel="preconnect"; crossorigin="anonymous"`,
-    ...fontPreloadLinkHeaderValues(lang, {
-      latin: assets.fontLatin,
-      latinExt: assets.fontLatinExt,
-    }),
+    ...fontPreloadLinkHeaderValues(assets.font),
   ];
 }

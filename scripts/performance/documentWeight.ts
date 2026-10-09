@@ -307,6 +307,14 @@ export interface DocumentWeight {
   readonly documentPreloadDuplicates: number;
   readonly duplicates: readonly DuplicateEntry[];
   readonly imagePreloadCount: number;
+  /**
+   * Unikalne preloadowane fonty (`preload as=font` z `<head>`/body i nagłówka
+   * `Link` łącznie; ten sam plik w obu zestawach liczy się raz - jak
+   * `modulepreloadCount`). Zasada „jeden font w ścieżce krytycznej” (P3.2b,
+   * decyzja właściciela 2026-10-08: jedynym jest Red Hat Display latin + PL):
+   * drugi preloadowany font to żądanie przed LCP. Kroje dodane w CMS
+   * (`designTokens.ts`, `@font-face` bez preloadu) tej liczby nie zmieniają.
+   */
   readonly fontPreloadCount: number;
   readonly imgCount: number;
   readonly imgFetchpriorityHigh: number;
@@ -630,7 +638,9 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     ),
     duplicates,
     imagePreloadCount: preloads.filter((l) => l.as === "image").length,
-    fontPreloadCount: preloads.filter((l) => l.as === "font").length,
+    fontPreloadCount: new Set(
+      preloads.filter((l) => l.as === "font").map((l) => anyAssetName(l.href) ?? l.href),
+    ).size,
     imgCount: imgs.length,
     imgFetchpriorityHigh: imgs.filter((a) => (a["fetchpriority"] ?? "").toLowerCase() === "high")
       .length,
@@ -672,6 +682,8 @@ export const GATED_METRICS = [
   "inlineStyleBytes",
   // P3.7a - komentarze w inline `<style>` (definicja: komentarz pola wyżej).
   "inlineCssCommentBytes",
+  // P3.2b - jeden font w ścieżce krytycznej (definicja: komentarz pola wyżej).
+  "fontPreloadCount",
   "inlineScriptBytes",
   "inlineExecutableScriptBytes",
   "dehydratedStateBytes",

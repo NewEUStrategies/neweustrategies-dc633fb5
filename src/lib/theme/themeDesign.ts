@@ -523,6 +523,28 @@ function normalizeColor(c: string): string {
   return c.replace(/hsl\(\s*var\((--[a-z0-9-]+)\)(?:\s*\/\s*[^)]+)?\s*\)/gi, "var($1)");
 }
 
+// Stos rodziny z CMS zapisany przed wprowadzeniem kroju zastępczego
+// („"Red Hat Display", system-ui, …”, m.in. produkcyjny wiersz `theme_design`
+// i fixture pomiaru) spadał do czasu pobrania fontu do `system-ui`: DejaVu Sans
+// Bold jest o ~27% szerszy niż RHD 600, więc tytuły kart zawijały się o linię
+// więcej i po podmianie fontu karty się kurczyły (CLS 0,0163 na desktopie,
+// P3.2b). Nazwa rodziny w cudzysłowie albo bez; dopasowanie wyłącznie całej
+// pozycji stosu, więc „Red Hat Display Pro” i sam krój zastępczy się nie łapią.
+const RHD_FAMILY = /(^|,)(\s*)(["']?)Red Hat Display\3(?=\s*(?:,|$))/i;
+const RHD_FALLBACK = /(["']?)Red Hat Display Fallback\1/i;
+
+/**
+ * Wstawia metrycznie dopasowany krój zastępczy (`"Red Hat Display Fallback"`
+ * z `styles.css`) zaraz za Red Hat Display, jeśli stos go nie ma. Stos bez RHD
+ * i stos, który już ma krój zastępczy, wraca bez zmian (idempotentna).
+ * Normalizacja dzieje się WYŁĄCZNIE przy emisji CSS - panel nadal pokazuje
+ * i zapisuje to, co wybrał administrator (`themeDesignFromRaw` jej nie robi).
+ */
+export function withRedHatDisplayFallback(stack: string): string {
+  if (RHD_FALLBACK.test(stack) || !RHD_FAMILY.test(stack)) return stack;
+  return stack.replace(RHD_FAMILY, (match) => `${match}, "Red Hat Display Fallback"`);
+}
+
 /** Serializes the design tokens to CSS variables under `:root` for light mode,
  *  plus a `.dark` selector block for any per-field dark overrides. Empty
  *  overrides fall through to the light value (which itself may reference a
@@ -612,14 +634,14 @@ export function themeDesignToCss(t: ThemeDesign): string {
   light.push(`--td-si-py:${t.socialIcons.paddingY};`);
   light.push(`--td-li-opacity:${t.listIndex.opacity};`);
   light.push(`--td-li-weight:${t.listIndex.weight};`);
-  light.push(`--td-pt-family:${t.postTitle.fontFamily};`);
+  light.push(`--td-pt-family:${withRedHatDisplayFallback(t.postTitle.fontFamily)};`);
   light.push(`--td-pt-size:${t.postTitle.fontSize};`);
   light.push(`--td-pt-size-sm:${t.postTitle.fontSizeSm};`);
   light.push(`--td-pt-weight:${t.postTitle.fontWeight};`);
   light.push(`--td-pt-lh:${t.postTitle.lineHeight};`);
   light.push(`--td-pt-transform:${t.postTitle.textTransform};`);
   light.push(`--td-pt-spacing:${t.postTitle.letterSpacing};`);
-  light.push(`--td-pe-family:${t.postExcerpt.fontFamily};`);
+  light.push(`--td-pe-family:${withRedHatDisplayFallback(t.postExcerpt.fontFamily)};`);
   light.push(`--td-pe-size:${t.postExcerpt.fontSize};`);
   light.push(`--td-pe-weight:${t.postExcerpt.fontWeight};`);
   light.push(`--td-pe-lh:${t.postExcerpt.lineHeight};`);

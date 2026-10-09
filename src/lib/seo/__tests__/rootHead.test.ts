@@ -13,8 +13,8 @@
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. `fontPreloadLinks` /
 // `fontPreloadLinkHeaderValues` (100% pokryte, własny plik) i
-// `feedDiscoveryLinks` z `meta.ts` - tu sprawdzamy TYLKO, że korzeń je woła
-// i z jakim językiem, a nie co same zwracają.
+// `feedDiscoveryLinks` z `meta.ts` - tu sprawdzamy TYLKO, że korzeń je woła,
+// a nie co same zwracają.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -29,8 +29,7 @@ import { LOCALE_CHUNK_URLS } from "../localeChunks";
 
 const ASSETS: RootAssets = {
   appCss: "/assets/app-abc123.css",
-  fontLatin: "/assets/rhd-latin-1.woff2",
-  fontLatinExt: "/assets/rhd-latin-ext-1.woff2",
+  font: "/assets/red-hat-display-latin-pl-1.woff2",
 };
 
 const ORIGIN = "https://neweuropeanstrategies.com";
@@ -44,50 +43,55 @@ describe("parytet `<link>` i nagłówka `Link`", () => {
   it("arkusz stylów jest w OBU zestawach", () => {
     // CSS blokuje render; brak w nagłówku to stracone Early Hints, brak
     // w `<head>` to strona bez stylów.
-    expect(hrefs(rootDocumentLinks("pl", ORIGIN, ASSETS), "stylesheet")).toEqual([ASSETS.appCss]);
-    expect(rootLinkHeaderValues("pl", ASSETS)).toContain(
-      `<${ASSETS.appCss}>; rel="preload"; as="style"`,
-    );
+    expect(hrefs(rootDocumentLinks(ORIGIN, ASSETS), "stylesheet")).toEqual([ASSETS.appCss]);
+    expect(rootLinkHeaderValues(ASSETS)).toContain(`<${ASSETS.appCss}>; rel="preload"; as="style"`);
   });
 
   it("połączenie API jest rozgrzewane w OBU zestawach w tym samym trybie CORS", () => {
-    const links = rootDocumentLinks("pl", ORIGIN, ASSETS);
+    const links = rootDocumentLinks(ORIGIN, ASSETS);
     expect(hrefs(links, "preconnect")).toContain(SUPABASE_PRECONNECT_ORIGIN);
-    expect(rootLinkHeaderValues("pl", ASSETS)).toContain(
+    expect(rootLinkHeaderValues(ASSETS)).toContain(
       `<${SUPABASE_PRECONNECT_ORIGIN}>; rel="preconnect"; crossorigin="anonymous"`,
     );
   });
 
-  it("preload fontów jest per-język i ZGODNY między zestawami", () => {
-    // Latin-ext to polskie diakrytyki: pobierany dla PL, pomijany dla EN.
-    // Gdyby zestawy różniły się językiem, jeden pobierałby font, którego
-    // drugi nie zapowiada.
-    for (const lang of ["pl", "en"] as const) {
-      const zLinkow = hrefs(rootDocumentLinks(lang, ORIGIN, ASSETS), "preload").filter((h) =>
-        h.endsWith(".woff2"),
-      );
-      const zNaglowka = rootLinkHeaderValues(lang, ASSETS)
-        .filter((v) => v.includes(".woff2"))
-        .map((v) => v.slice(1, v.indexOf(">")));
-      expect(zNaglowka).toEqual(zLinkow);
-    }
+  it("preload fontu jest ZGODNY między zestawami i jest dokładnie jeden", () => {
+    // Jeden font w ścieżce krytycznej (P3.2b, decyzja właściciela): Red Hat
+    // Display latin + polskie litery. Gdyby zestawy się różniły, jeden
+    // pobierałby font, którego drugi nie zapowiada.
+    const zLinkow = hrefs(rootDocumentLinks(ORIGIN, ASSETS), "preload").filter((h) =>
+      h.endsWith(".woff2"),
+    );
+    const zNaglowka = rootLinkHeaderValues(ASSETS)
+      .filter((v) => v.includes(".woff2"))
+      .map((v) => v.slice(1, v.indexOf(">")));
+    expect(zLinkow).toEqual([ASSETS.font]);
+    expect(zNaglowka).toEqual(zLinkow);
   });
 
-  it("PL pobiera latin-ext, EN nie", () => {
-    const pl = rootLinkHeaderValues("pl", ASSETS).join(" ");
-    const en = rootLinkHeaderValues("en", ASSETS).join(" ");
-    expect(pl).toContain(ASSETS.fontLatinExt);
-    expect(en).not.toContain(ASSETS.fontLatinExt);
-    // Latin podpiera OBA języki.
-    expect(en).toContain(ASSETS.fontLatin);
+  it("PL i EN dostają ten sam font - zestawy nie zależą od języka", () => {
+    // Dawniej PL preloadował dodatkowo latin-ext (polskie diakrytyki); teraz
+    // polskie litery są w pliku głównym, a API nie przyjmuje języka. Jedyny
+    // hint zależny od języka (chunk słownika) żyje w osobnej funkcji niżej.
+    const links = rootDocumentLinks(ORIGIN, ASSETS).filter((l) => l.as === "font");
+    expect(links).toEqual([
+      {
+        rel: "preload",
+        as: "font",
+        type: "font/woff2",
+        href: ASSETS.font,
+        crossOrigin: "anonymous",
+      },
+    ]);
   });
 
-  it("kolejność w nagłówku: arkusz, potem połączenie, potem fonty", () => {
+  it("kolejność w nagłówku: arkusz, potem połączenie, potem font", () => {
     // Kolejność jest kontraktem: CSS blokuje render, więc idzie pierwszy.
-    const values = rootLinkHeaderValues("pl", ASSETS);
+    const values = rootLinkHeaderValues(ASSETS);
     expect(values[0]).toContain(ASSETS.appCss);
     expect(values[1]).toContain(SUPABASE_PRECONNECT_ORIGIN);
-    expect(values.slice(2).every((v) => v.includes(".woff2"))).toBe(true);
+    expect(values.slice(2)).toHaveLength(1);
+    expect(values[2]).toContain(ASSETS.font);
   });
 });
 
@@ -120,10 +124,8 @@ describe("preload chunku słownika - nagłówek TAK, `<link>` NIE", () => {
     // w pierwszym renderze klienta. To rozjazd tożsamości KORZENIA DOKUMENTU -
     // ta sama klasa awarii, którą naprawia cały ten obszar. Ten test istnieje,
     // żeby „domknięcie parytetu" nie wprowadziło jej z powrotem.
-    for (const lang of ["pl", "en"] as const) {
-      const rels = rootDocumentLinks(lang, ORIGIN, ASSETS).map((l) => l.rel);
-      expect(rels).not.toContain("modulepreload");
-    }
+    const rels = rootDocumentLinks(ORIGIN, ASSETS).map((l) => l.rel);
+    expect(rels).not.toContain("modulepreload");
   });
 
   it("korzeń wysyła ten hint TYLKO nagłówkiem", () => {
@@ -137,7 +139,7 @@ describe("preload chunku słownika - nagłówek TAK, `<link>` NIE", () => {
 
 describe("zestaw `<link>` korzenia", () => {
   it("rozgrzewa tylko CORS: obrazy korzystają z same-origin /media", () => {
-    const links = rootDocumentLinks("pl", ORIGIN, ASSETS);
+    const links = rootDocumentLinks(ORIGIN, ASSETS);
     const preconnects = links.filter(
       (l) => l.rel === "preconnect" && l.href === SUPABASE_PRECONNECT_ORIGIN,
     );
@@ -149,19 +151,19 @@ describe("zestaw `<link>` korzenia", () => {
   it("dns-prefetch poprzedza preconnect do tego samego hosta", () => {
     // Fallback dla przeglądarek ignorujących preconnect - musi wskazywać
     // DOKŁADNIE ten sam host, inaczej rozgrzewa nie to połączenie.
-    const links = rootDocumentLinks("pl", ORIGIN, ASSETS);
+    const links = rootDocumentLinks(ORIGIN, ASSETS);
     expect(hrefs(links, "dns-prefetch")).toEqual([SUPABASE_PRECONNECT_ORIGIN]);
   });
 
   it("favicon i apple-touch-icon są jawne", () => {
     // Bez jawnej deklaracji podglądy linków i crawlery biorą znak generatora.
-    const links = rootDocumentLinks("pl", ORIGIN, ASSETS);
+    const links = rootDocumentLinks(ORIGIN, ASSETS);
     expect(hrefs(links, "icon")).toEqual(["/favicon.ico"]);
     expect(hrefs(links, "apple-touch-icon")).toEqual(["/apple-touch-icon.png"]);
   });
 
   it("autodiscovery feedów dostaje origin żądania", () => {
-    const links = rootDocumentLinks("pl", ORIGIN, ASSETS);
+    const links = rootDocumentLinks(ORIGIN, ASSETS);
     const alternates = links.filter((l) => l.rel === "alternate");
     expect(alternates.length).toBeGreaterThan(0);
     expect(alternates.every((l) => l.href.startsWith(ORIGIN))).toBe(true);
@@ -170,7 +172,7 @@ describe("zestaw `<link>` korzenia", () => {
   it("pusty origin nie produkuje adresów zaczynających się od ukośnika podwójnego", () => {
     // W teście jednostkowym `getOrigin()` zwraca "" (brak zakresu żądania),
     // więc ta gałąź jest realna także w produkcji przy renderze po hydracji.
-    const links = rootDocumentLinks("pl", "", ASSETS);
+    const links = rootDocumentLinks("", ASSETS);
     expect(links.every((l) => !l.href.startsWith("//"))).toBe(true);
   });
 });

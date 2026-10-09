@@ -33,8 +33,9 @@ import { I18nextProvider } from "react-i18next";
 import appCss from "../styles.css?url";
 // Fingerprinted by Vite to the SAME emitted file the @font-face in styles.css
 // references, so the preload is reused (not a second download). See styles.css.
-import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
-import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
+// Jedyny font ścieżki krytycznej, ten sam dla PL i EN (P3.2b): latin + polskie
+// litery; latin-ext zostaje w styles.css jako twarz bez preloadu.
+import redHatDisplay from "../assets/fonts/red-hat-display-latin-pl.woff2?url";
 import { appendLinkHeader, setCacheControlHeader } from "../lib/http/responseHeaders";
 import { markDeliberateSeed, resilientCacheControl } from "../lib/ssr/resilientLoad";
 import { chromeDegradedCacheControl } from "../lib/http/cachePolicy";
@@ -564,11 +565,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
  * URL-e zasobów krytycznych rozwiązane przez bundler (`?url`). Jeden obiekt dla
  * `<head>` i dla nagłówka HTTP `Link` - gdyby były dwa, mogłyby się rozjechać.
  */
-const ROOT_ASSETS: RootAssets = {
-  appCss,
-  fontLatin: redHatDisplayLatin,
-  fontLatinExt: redHatDisplayLatinExt,
-};
+const ROOT_ASSETS: RootAssets = { appCss, font: redHatDisplay };
 
 // Identyfikator pomiaru GA4 dla tagu w SSR: zmienna konektora Google Analytics
 // (build-time) WYŁĄCZNIE gdy ma kształt identyfikatora pomiaru - klucz API
@@ -673,7 +670,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // połączenia do hosta obrazów, autodiscovery feedów) żyje w
       // `lib/seo/rootHead.ts` RAZEM z wartościami nagłówka HTTP `Link` niżej -
       // oba opisują ten sam plan pobierania i muszą mówić to samo.
-      links: rootDocumentLinks(lang, getOrigin(), ROOT_ASSETS),
+      links: rootDocumentLinks(getOrigin(), ROOT_ASSETS),
       // Speculation Rules API: natywny prefetch (hover) publicznych nawigacji;
       // powierzchnie zalogowane i transakcyjne wykluczone (wspólna lista z NES
       // Edge Cache). Prerender świadomie pominięty - AppLink przechwytuje
@@ -725,10 +722,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // przeglądarka startuje pobieranie CSS i fontów z nagłówków odpowiedzi,
     // zanim sparsuje pierwszy bajt HTML, a NES Edge Cache utrwala nagłówek na
     // HIT/STALE - to fundament pod 103 Early Hints na Cloudflare. Zestaw jest
-    // per-język (latin-ext tylko dla PL), a dokumenty są keyowane ścieżką
-    // z prefiksem języka, więc wpis cache nigdy nie niesie cudzych hintów.
+    // ten sam dla PL i EN (jeden font, P3.2b); jedyny wpis zależny od języka
+    // to chunk słownika niżej, a dokumenty są keyowane ścieżką z prefiksem
+    // języka, więc wpis cache nigdy nie niesie cudzych hintów.
     const renderLang = currentLang();
-    for (const value of rootLinkHeaderValues(renderLang, ROOT_ASSETS)) {
+    for (const value of rootLinkHeaderValues(ROOT_ASSETS)) {
       appendLinkHeader(value);
     }
     // Chunk rdzenia SŁOWNIKA aktywnego języka - WYŁĄCZNIE nagłówkiem, nigdy
