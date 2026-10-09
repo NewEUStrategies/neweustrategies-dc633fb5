@@ -456,6 +456,47 @@ describe("strażnik bez magazynu: przeładowanie najwyżej raz na okienko", () =
     handleChunkLoadFailure(CHUNK_ERROR);
     expect(reloadedTo()).toHaveLength(2);
   });
+
+  // Szerokość okien jest przypięta co do milisekundy. Szersze okno wstrzymuje
+  // odzysk po kolejnym deployu dłużej, niż obiecuje nagłówek modułu. Węższe,
+  // albo kotwica bez zapasu na zaokrąglony zegar, przywraca pętlę przeładowań.
+  it.each([
+    { wiek: 14_999, wynik: "wstrzymuje reload", reloady: 0 },
+    { wiek: 15_000, wynik: "już nie wstrzymuje reloadu", reloady: 1 },
+  ])(
+    "wpis nawigacji bez adresu: `_v` w bieżącym adresie wydany $wiek ms temu $wynik",
+    ({ wiek, reloady }) => {
+      // Bez adresu załadowania kotwica milczy, więc decyduje samo okno `_v`:
+      // 0 <= teraz - `_v` < 15 s.
+      blockStorage();
+      openDocument(`${START_URL}?_v=${(NOW - wiek).toString(36)}`);
+      vi.spyOn(performance, "getEntriesByType").mockReturnValue([
+        { name: "document" },
+      ] as PerformanceEntry[]);
+      handleChunkLoadFailure(CHUNK_ERROR);
+      expect(reloadedTo()).toHaveLength(reloady);
+    },
+  );
+
+  it.each([
+    // Zegar zaokrąglony (Firefox z resistFingerprinting): start nawigacji
+    // dokumentu z naszego reloadu wypada odrobinę PRZED chwilą zapisaną w `_v`.
+    { nazwa: "2 s przed `_v`", odstep: -2_000, wynik: "późny błąd nie przeładowuje", reloady: 0 },
+    { nazwa: "2,001 s przed `_v`", odstep: -2_001, wynik: "późny błąd przeładowuje", reloady: 1 },
+    { nazwa: "14,999 s po `_v`", odstep: 14_999, wynik: "późny błąd nie przeładowuje", reloady: 0 },
+    // Na przykład link z `_v` otwarty w nowej karcie: to już nie jest dokument
+    // z naszego reloadu.
+    { nazwa: "15 s po `_v`", odstep: 15_000, wynik: "późny błąd przeładowuje", reloady: 1 },
+  ])("kotwica: nawigacja ruszyła $nazwa, $wynik", ({ odstep, reloady }) => {
+    // Kotwica: -2 s <= start nawigacji - `_v` < 15 s. Błąd przychodzi 2 min po
+    // starcie nawigacji, gdy `_v` od dawna nie jest świeży, więc decyduje sama
+    // kotwica.
+    blockStorage();
+    openDocument(`${START_URL}?_v=${(NOW - odstep).toString(36)}`);
+    vi.advanceTimersByTime(2 * 60_000);
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(reloady);
+  });
 });
 
 // P1.3 (TP-4): korzeń buforuje błędy sprzed importu modułu w punkcie ciszy
