@@ -12,6 +12,7 @@ import {
 import { lcpCandidateIds as lcpCandidateIdsFor } from "@/lib/builder/lcpCandidate";
 import { GUEST_ACCESS_CONTEXT, evaluateAccess } from "@/lib/builder/accessControl";
 import { imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
+import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
@@ -902,6 +903,42 @@ describe("builderContentHeroPreloads - silnik treści strony (recenzja m7)", () 
     expect(builderContentHeroPreloads({ editor: "builder", builderDoc: null }, qc, "pl")).toEqual(
       [],
     );
+  });
+});
+
+describe("builderHeroPreload - adresy względne kanonicznego `/media/` (P3.2a/P4.2)", () => {
+  const BRANDED = `${PUBLIC_MEDIA_ORIGIN}/media/okladka.jpg`;
+
+  it("kanoniczny adres markowy: `href` i każdy kandydat `imageSrcSet` względne", () => {
+    const preload = builderHeroPreload(
+      docWith([sectionWith([widget("image", { src: BRANDED, alt_pl: "Okładka" })])]),
+      new QueryClient(),
+      "pl",
+    );
+    expect(preload?.href).toBe("/media/okladka.jpg");
+    const candidates = (preload?.imageSrcSet ?? "").split(", ");
+    expect(candidates).toHaveLength(5);
+    for (const candidate of candidates)
+      expect(candidate.startsWith("/media/okladka.jpg?")).toBe(true);
+    expect(lcpPreloadLinkHeaderValue(preload!)).toMatch(/^<\/media\/okladka\.jpg>;/);
+  });
+
+  it("host techniczny magazynu i adres nietransformowalny zostają bez zmian", () => {
+    const qc = new QueryClient();
+    const storage = builderHeroPreload(
+      docWith([sectionWith([widget("image", { src: COVER, alt_pl: "Okładka" })])]),
+      qc,
+      "pl",
+    );
+    expect(storage?.href).toBe(COVER);
+    // SVG bez srcSet: kluczem zasobu jest `href` = `src` obrazu - absolutny jak `<img>`.
+    const svg = `${PUBLIC_MEDIA_ORIGIN}/media/wykres.svg`;
+    const vector = builderHeroPreload(
+      docWith([sectionWith([widget("image", { src: svg, alt_pl: "Wykres" })])]),
+      qc,
+      "pl",
+    );
+    expect(vector).toMatchObject({ href: svg, imageSrcSet: "" });
   });
 });
 

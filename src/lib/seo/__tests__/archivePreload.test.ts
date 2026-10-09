@@ -22,7 +22,8 @@ describe("archiveFirstCardPreload", () => {
   it("srcSet pochodzi z transformacji Supabase (render endpoint) - parytet z <img>", () => {
     const preload = archiveFirstCardPreload([{ cover_image_url: COVER }], false);
     expect(preload?.imageSrcSet).toContain("/storage/v1/render/image/public/");
-    expect(preload?.imageSrcSet).toContain("320w");
+    // Najmniejszy kandydat domyślnej drabiny (P3.2a: 5 szerokości od 480w).
+    expect(preload?.imageSrcSet).toContain("480w");
   });
 
   it("URL spoza Supabase: preload samego href (pusty srcSet)", () => {

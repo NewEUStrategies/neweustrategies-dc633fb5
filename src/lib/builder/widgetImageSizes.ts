@@ -3,7 +3,7 @@
 // przez renderery widgetów i budowniczego preloadu LCP (heroImage), żeby
 // `imagesizes` preloadu było bajtowo identyczne z `<img sizes>` renderu.
 // Wyłącznie czyste helpery - bez zależności od Reacta i rendererów widgetów.
-import { imageSlotSizes, type ImageSlot } from "./imageSlot";
+import { imageSlotSizes, mobileSlotSize, type ImageSlot } from "./imageSlot";
 import type { WidgetContent } from "./types";
 
 export function imageDimensionPx(value: unknown): number {
@@ -26,9 +26,13 @@ export function imageWidgetSizes(content: WidgetContent, slot?: ImageSlot): stri
     vw: slot?.[device].vw ?? 100,
     cap: Math.min(slot?.[device].cap ?? Infinity, cap),
   });
-  return imageSlotSizes({ desktop: limit("desktop"), tablet: limit("tablet") }).replace(
-    "(max-width: 767px) 100vw",
-    `(max-width: 767px) min(100vw, ${cap}px)`,
+  // Mobilna część przekazana wprost (P3.2a): dawny `.replace("... 100vw")`
+  // przestałby po cichu działać przy marginesie kolumny w `imageSlotSizes`.
+  return imageSlotSizes(
+    { desktop: limit("desktop"), tablet: limit("tablet") },
+    1,
+    1,
+    `min(${mobileSlotSize(slot)}, ${cap}px)`,
   );
 }
 

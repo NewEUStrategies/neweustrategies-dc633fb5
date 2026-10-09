@@ -6,7 +6,7 @@ import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 
 import { useQuery } from "@tanstack/react-query";
 import { AngleChevron } from "./sectionLabelVariants";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
-import { buildImageSrcSet, buildTransformedImageUrl } from "@/lib/cropSizes";
+import { buildImageSrcSet, buildTransformedImageUrl, renderedMediaUrl } from "@/lib/cropSizes";
 import { SLIDER_FULL_BLEED_SIZES, sliderImageSizes } from "./sliderSizes";
 import { useResolvedPostRefs } from "./contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
@@ -383,7 +383,9 @@ function ResilientSliderImage({
   return (
     <img
       ref={imgRef}
-      src={shouldLoad ? displaySrc : undefined}
+      // Atrybut względny obok względnego `srcSet` (P3.2a/P4.2); stan (`displaySrc`,
+      // `originalSrc`, `onBrokenSource`) zostaje absolutny.
+      src={shouldLoad ? (srcSet ? renderedMediaUrl(displaySrc) : displaySrc) : undefined}
       srcSet={srcSet || undefined}
       sizes={srcSet ? `${priority ? "" : "auto, "}${sizes}` : undefined}
       alt=""

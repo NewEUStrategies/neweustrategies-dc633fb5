@@ -1,5 +1,10 @@
 import { useState, type ImgHTMLAttributes, type CSSProperties } from "react";
-import { buildTransformedImageUrl, buildImageSrcSet, RESPONSIVE_WIDTHS } from "@/lib/cropSizes";
+import {
+  buildTransformedImageUrl,
+  buildImageSrcSet,
+  renderedMediaUrl,
+  RESPONSIVE_WIDTHS,
+} from "@/lib/cropSizes";
 
 export type HoverEffect = "none" | "zoom" | "fade" | "slide";
 
@@ -9,6 +14,13 @@ type OptimizedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "loading" |
   width?: number;
   height?: number;
   priority?: boolean;
+  /**
+   * `loading="eager"` BEZ `fetchpriority="high"` (P3.2a, LP-6): obraz potrzebny w
+   * pierwszej klatce, który nie jest kandydatem LCP (logo nagłówka chrome). Wysoki
+   * priorytet zostaje wyłącznie dla kandydata (`priority`, budżet
+   * `imgFetchpriorityHigh`).
+   */
+  eager?: boolean;
   aspectRatio?: number;
   fadeIn?: boolean;
   /** Optional hover effect (wraps img in overflow-hidden container). */
@@ -45,6 +57,7 @@ export function OptimizedImage({
   width,
   height,
   priority = false,
+  eager = false,
   aspectRatio,
   fadeIn = true,
   hoverEffect = "none",
@@ -64,10 +77,16 @@ export function OptimizedImage({
 
   const ratio = aspectRatio ?? (width && height ? width / height : undefined);
 
-  const finalSrc = crop ? buildTransformedImageUrl(src, crop) : src;
   // Responsive srcSet only when opted-in, no fixed crop, and the source is a
   // transformable storage URL (else "" -> we omit srcSet, no broken candidates).
   const srcSet = !crop && responsive ? buildImageSrcSet(src, responsiveWidths, quality) : "";
+  // `src` względny tylko obok względnego `srcSet` domyślnej drabiny (P3.2a/P4.2):
+  // bez `srcSet` kluczem preloadu jest `src`, a trasy preloadują go absolutnie.
+  const finalSrc = crop
+    ? buildTransformedImageUrl(src, crop)
+    : srcSet && responsiveWidths === RESPONSIVE_WIDTHS
+      ? renderedMediaUrl(src)
+      : src;
 
   const computedStyle: CSSProperties = {
     ...(ratio ? { aspectRatio: String(ratio) } : null),
@@ -118,11 +137,16 @@ export function OptimizedImage({
       {...rest}
       src={finalSrc}
       srcSet={srcSet || undefined}
-      sizes={srcSet ? `${!priority && autoSizes ? "auto, " : ""}${sizes ?? "100vw"}` : sizes}
+      // `sizes` bez `srcset` nic nie robi (P3.2a) - same bajty w HTML-u.
+      sizes={
+        srcSet
+          ? `${!priority && !eager && autoSizes ? "auto, " : ""}${sizes ?? "100vw"}`
+          : undefined
+      }
       alt={alt}
       width={width}
       height={height}
-      loading={priority ? "eager" : "lazy"}
+      loading={priority || eager ? "eager" : "lazy"}
       // async także dla priority: sync potrafi blokować główny wątek na czas
       // dekodowania hero-coveru; eager + fetchPriority=high w pełni ustawiają
       // priorytet sieciowy, a async pozwala malować resztę strony równolegle.

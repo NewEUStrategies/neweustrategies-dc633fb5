@@ -401,6 +401,25 @@ export interface DocumentWeight {
    * P2.1: w trybie `lcp` pula JS jest pusta (seria bootu rusza po wpisie LCP).
    */
   readonly preLcpTransferBytes: number;
+  // ── BAJTY OBRAZÓW W HTML-U (P3.2a: HW-4 + P4.2) ─────────────────────────
+  /**
+   * Największa liczba kandydatów z deskryptorem `w` w jednym `srcset` (`<img>`,
+   * `<source>`) albo `imagesrcset` (preload w dokumencie i nagłówku `Link`).
+   * Domyślna drabina okładek ma 5 szerokości (`RESPONSIVE_WIDTHS`); więcej znaczy
+   * powrót długiej drabiny w HTML-u. Awatary (`1x/2x/3x`) nie mają deskryptora
+   * `w`. Zdjęcia osób na dawnej drabinie (awatar autora w bloku kontekstu wpisu,
+   * prelegenci - decyzja właściciela 2026-10-08: 9 szerokości, adresy absolutne)
+   * liczą się jak każdy `srcset`: na `/` ich nie ma, a wyjątek po liście
+   * szerokości ukryłby powrót dawnej drabiny DOMYŚLNEJ (te same szerokości).
+   */
+  readonly srcsetCandidatesMax: number;
+  /**
+   * Kandydaci `w` (te same źródła co wyżej) z adresem ABSOLUTNYM kanonicznego
+   * originu mediów (`https://neweuropeanstrategies.com/media/...`). Render do
+   * HTML-u używa ścieżki względnej (`renderedMediaUrl`, P4.2), więc każdy taki
+   * kandydat to zbędne ~33 B i znak, że emiter ominął `buildImageSrcSet`.
+   */
+  readonly absoluteCanonicalMediaInRenderedSrcset: number;
 }
 
 export interface AnalyzeInput {
@@ -476,6 +495,29 @@ function siteHeaderRanges(html: string): Array<[number, number]> {
   return out;
 }
 
+/**
+ * Origin kanoniczny mediów (domyślny `PUBLIC_MEDIA_ORIGIN`, `src/lib/media/publicUrl.ts`
+ * - moduł czyta `import.meta.env`, więc skrypt node go nie importuje).
+ */
+export const CANONICAL_MEDIA_ORIGIN = "https://neweuropeanstrategies.com";
+
+/** Kandydaci `w` każdego `srcset` (`<img>`, `<source>`) i `imagesrcset` (preloady). */
+function widthCandidateSets(html: string, links: readonly LinkEntry[]): string[][] {
+  const sets = [
+    ...[...html.matchAll(/<(?:img|source)\b[^>]*>/gi)].map((m) => parseAttributes(m[0])["srcset"]),
+    ...links.map((l) => l.imagesrcset),
+  ];
+  return sets.flatMap((set) => {
+    // Kandydaci rozdzieleni przecinkiem ZE SPACJĄ - przecinek w `data:...;base64,`
+    // nie rozcina adresu.
+    const candidates = (set ?? "")
+      .split(/,\s+/)
+      .map((c) => c.trim())
+      .filter((c) => /\s\d+w$/.test(c));
+    return candidates.length ? [candidates] : [];
+  });
+}
+
 export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
   const { html } = input;
   const headMatch = /<head\b[^>]*>([\s\S]*?)<\/head>/i.exec(html);
@@ -527,6 +569,7 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     if (l.rel === "preload" && l.as === "image" && candidateKeys.has(linkImageKey(l))) return false;
     return true;
   }).length;
+  const srcsetSets = widthCandidateSets(html, links);
   const bodyStart = html.search(/<body\b/i);
   const body = bodyStart >= 0 ? html.slice(bodyStart) : html;
 
@@ -670,6 +713,10 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     lcpImageBytes,
     preLcpTransferBytes:
       htmlGzipBytes + cssSum.gzipBytes + preloadedSum.gzipBytes + fontPreloadBytes + lcpImageBytes,
+    srcsetCandidatesMax: Math.max(0, ...srcsetSets.map((set) => set.length)),
+    absoluteCanonicalMediaInRenderedSrcset: srcsetSets
+      .flat()
+      .filter((c) => c.startsWith(`${CANONICAL_MEDIA_ORIGIN}/media/`)).length,
   };
 }
 
@@ -705,6 +752,9 @@ export const GATED_METRICS = [
   "imagePreloadNonCandidate",
   "linkHeaderDisallowed",
   "preLcpTransferBytes",
+  // P3.2a - bajty obrazów w HTML-u (definicje: komentarze pól wyżej).
+  "srcsetCandidatesMax",
+  "absoluteCanonicalMediaInRenderedSrcset",
   // P2.1 - zestaw bootu (definicje: komentarze pól wyżej).
   "bootEntryMissing",
   "bootBurstCount",
