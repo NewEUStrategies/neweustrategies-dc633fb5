@@ -1185,14 +1185,15 @@ export function SectionLabelRender({
       // jest przez `.nes-kinetic-action` w styles.css.
       const barH = isSm ? 2 : 3;
       // Kreski sa identyczne: ta sama grubosc i dlugosc. Baza jest waska
-      // (16 px / 10 px), a rozsuniecie w hoverze umiarkowane - najdłuższy pasek
-      // dochodzi do 28 px / 18 px, więc efekt pozostaje delikatnym sygnałem, a
-      // nie rozbudowanym paskiem. Opoznienia daja efekt fali.
+      // (16 px / 10 px), a rozsuniecie w hoverze jest subtelne - najdluzszy
+      // pasek przyrasta o 5 px (do 21 px), srodkowy zostaje w srodku tej skali,
+      // a najkrotszy o 2 px, wiec caly wiersz zyskuje 10 px, a nie 24 px.
+      // Opoznienia daja efekt fali.
       const barW = isSm ? "w-2.5" : "w-4";
       const bars: ReadonlyArray<{ id: string; grow: string; delay: string }> = [
-        { id: "lead", grow: isSm ? "group-hover:w-3.5" : "group-hover:w-6", delay: "0ms" },
-        { id: "mid", grow: isSm ? "group-hover:w-[18px]" : "group-hover:w-7", delay: "75ms" },
-        { id: "tail", grow: isSm ? "group-hover:w-3" : "group-hover:w-5", delay: "150ms" },
+        { id: "lead", grow: isSm ? "group-hover:w-3" : "group-hover:w-[19px]", delay: "0ms" },
+        { id: "mid", grow: isSm ? "group-hover:w-[13px]" : "group-hover:w-[21px]", delay: "75ms" },
+        { id: "tail", grow: isSm ? "group-hover:w-[11px]" : "group-hover:w-[18px]", delay: "150ms" },
       ];
       // Ciasny tracking tytulu (litery blisko siebie), z-delikatnym otwarciem na hoverze.
       const titleCls = isSm
