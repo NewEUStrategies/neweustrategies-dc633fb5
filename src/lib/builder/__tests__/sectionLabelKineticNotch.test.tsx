@@ -62,6 +62,37 @@ function renderVariant(props: VariantProps = {}) {
   );
 }
 
+// Pikselowa szerokosc z tokenu Tailwind: `w-4` = 4 * 4 px, `w-[19px]` = 19 px.
+function widthPx(token: string): number {
+  const arbitrary = token.match(/w-\[(\d+(?:\.\d+)?)px\]/);
+  if (arbitrary) return Number(arbitrary[1]);
+  const scale = token.match(/w-(\d+(?:\.\d+)?)(?:\s|$)/);
+  return scale ? Number(scale[1]) * 4 : Number.NaN;
+}
+
+// Baza (`w-4`) i hover (`group-hover:w-[19px]`) zyja w tej samej klasie -
+// rozdzielamy je po prefiksie warstwy, zebymy mierzyli wlasciwy stan.
+function baseToken(className: string): string {
+  return className.match(/(?:^|\s)(w-(?:\d+(?:\.\d+)?|\[\d+px\]))/)?.[1] ?? "";
+}
+
+function growToken(className: string): string {
+  return className.match(/(?:^|\s)(group-hover:w-\S+)/)?.[1] ?? "";
+}
+
+// Przyrost kazdego paska nad baze, w pikselach.
+function growDeltas(bars: ReadonlyArray<HTMLElement>): number[] {
+  const base = widthPx(baseToken(bars[0]?.className ?? ""));
+  return bars.map((bar) => widthPx(growToken(bar.className)) - base);
+}
+
+// Krzywa `width` z `.nes-kinetic-bar` - y > 1 oznacza wyskok poza szerokosc
+// docelowa, czyli dokladnie to „rozpychanie", ktorego wariant ma nie dac.
+function barEasing(): number[] {
+  const raw = stylesCss.match(/\.nes-kinetic-bar \{[^}]*cubic-bezier\(([^)]*)\)/)?.[1] ?? "";
+  return raw.split(",").map((v) => Number(v.trim()));
+}
+
 afterEach(() => cleanup());
 
 describe("katalog wariantów", () => {
