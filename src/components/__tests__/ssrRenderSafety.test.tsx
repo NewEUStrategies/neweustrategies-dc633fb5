@@ -324,8 +324,15 @@ describe("Powierzchnie SSR-owe z pomiarem przed malowaniem (D10-D13)", () => {
     expect(html).toContain('aria-expanded="false"');
     // Kotwica panelu jest MIERZONA (`getBoundingClientRect`), a portal wymaga
     // `mounted && open && anchor` - w SSR nie ma żadnego z tych trzech, więc
-    // treści panelu w serwerowym HTML-u nie ma wcale.
-    expect(html).not.toContain("Energia");
+    // samego panelu w serwerowym HTML-u nie ma wcale.
+    expect(html).not.toContain('role="menu"');
+    // Podpozycja jest w HTML-u WYŁĄCZNIE jako link ukrytego lustra dla
+    // crawlera (`CrawlableMenuLinks`, 2026-10-09) - deterministycznego, bez
+    // pomiaru, więc bez ryzyka rozjazdu przy hydratacji.
+    const mirror =
+      /<ul hidden=""[^>]*data-site-menu-crawl[^>]*>[\s\S]*?<\/ul>/.exec(html)?.[0] ?? "";
+    expect(mirror).toContain('<a href="/analizy/energia">Energia</a>');
+    expect(html.replace(mirror, "")).not.toContain("Energia");
   });
 
   it("FootnoteTooltips: warstwa dymków nie wnosi do serwerowego HTML-a nic", () => {

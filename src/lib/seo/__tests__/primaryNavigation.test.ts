@@ -24,14 +24,15 @@ describe("primarySiteSections", () => {
       "Wywiady",
       "Wydarzenia",
       "Policy papers",
-      "Podcast",
       "O nas",
     ]);
   });
 
-  it("nie deklaruje „Kontaktu” ani dokumentów prawnych jako sekcji głównych", () => {
+  it("nie deklaruje „Kontaktu”, dokumentów prawnych ani zdegradowanego /podcasts", () => {
     const hrefs = primarySiteSections().map((link) => link.href);
     expect(hrefs).not.toContain("/kontakt");
+    // /podcasts wraca, gdy przestanie zwracać kartę błędu (pomiar 2026-10-09).
+    expect(hrefs).not.toContain("/podcasts");
     expect(primarySiteSections().some((link) => link.group === "legal")).toBe(false);
   });
 
