@@ -178,9 +178,8 @@ function postListPreload(
     widget.type === "carousel" || !isPostListLeadVariant(variant)
       ? POST_LIST_GRID_COVER_SIZES
       : POST_LIST_LEAD_SIZES[variant];
-  const surface = widget.type === "carousel" ? "carousel" : "list";
   const first = queryClient.getQueryData<PostRow[]>(
-    postListQueryOptions(c, lang, surface).queryKey,
+    postListQueryOptions(c, lang, widget.type).queryKey,
   )?.[0];
   if (!first) return null;
   return preloadOf(

@@ -9,37 +9,31 @@
 // Ten moduł jest JEDYNYM źródłem odpowiedzi „czy ten widget renderuje
 // zajawkę": czytają go widok (`PostListView`, `PostsSliderWidget`) i fabryki
 // kluczy (`postListQuery`, `sliderPostsQuery`), więc widok i klucz nie mogą się
-// rozjechać. Predykat jest w kluczu zapytania (`withExcerpt`), a projekcja w
-// `queryFn` - SSR, hydratacja i refetch mają ten sam kształt wiersza.
+// rozjechać. Predykat jest w kluczu zapytania (`withExcerpt`) po obu stronach,
+// a samo ścinanie (`withoutExcerpts`) biegnie WYŁĄCZNIE na serwerze, w `queryFn`
+// za bramką `import.meta.env.SSR` - jego kod nie trafia do chunku wejściowego
+// (runda poprawek 9: budżet domknięcia bootu). Refetch klienta zostawia wiersz
+// pełny, a znacznik się nie zmienia: widget z `withExcerpt === false` zajawki
+// nie rysuje bez względu na treść wiersza (kontrakt znacznika w
+// `localizedPostRowsParity.test.tsx`).
 //
 // PUŁAPKA POWIERZCHNI: widget `carousel` używa TEGO SAMEGO klucza post-listy
 // i renderuje KAŻDY wariant przez `PostCard` z zajawką (także `ranked`
 // i `numbered`), więc wykluczenia wariantów dotyczą wyłącznie powierzchni
 // `list` (widget `post-list`).
-import type { WidgetContent } from "@/lib/builder/types";
-
-/** Powierzchnia renderu post-listy: widget `post-list` albo `carousel`. */
-export type PostListSurface = "list" | "carousel";
+import type { WidgetContent, WidgetType } from "@/lib/builder/types";
+// `getBool` widoku (ten sam moduł leży w chunku wejściowym, więc import nie
+// dokłada krawędzi do domknięcia bootu): wariant `numbered` czyta przełącznik
+// zajawki DOKŁADNIE tą funkcją.
+import { getBool } from "@/components/builder/organisms/widget-view/frame";
 
 /**
- * Kopia 1:1 `getBool` z `components/builder/organisms/widget-view/frame.ts`
- * (moduł `lib` nie importuje z `components`). Równoważność pilnuje test
- * `postListExcerpt.test.ts` - zmiana jednej kopii bez drugiej czerwieni go.
+ * Kto czyta wpis post-listy: powierzchnia (`list` = widget `post-list`) albo
+ * wprost typ widgetu - rejestr prefetchu i preload LCP podają `widget.type`
+ * (bez przeliczania na powierzchnię w każdym miejscu wywołania). Zajawkę
+ * w KAŻDYM wariancie rysuje wyłącznie `carousel`.
  */
-export function excerptFrameBool(c: WidgetContent, k: string, dflt = false): boolean {
-  const v = c[k];
-  if (typeof v === "boolean") return v;
-  if (typeof v === "string") {
-    const normalized = v.trim().toLowerCase();
-    if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
-    if (normalized === "false" || normalized === "0" || normalized === "no") return false;
-  }
-  if (typeof v === "number") {
-    if (v === 1) return true;
-    if (v === 0) return false;
-  }
-  return dflt;
-}
+export type PostListSurface = "list" | WidgetType;
 
 /**
  * Globalny przełącznik zajawki post-listy - DOKŁADNIE semantyka widoku
@@ -47,8 +41,7 @@ export function excerptFrameBool(c: WidgetContent, k: string, dflt = false): boo
  * napisy): tylko napis `"0"` wyłącza; `false`, `0` i brak wartości nie.
  */
 export function postListExcerptToggle(c: WidgetContent): boolean {
-  const v = c["showExcerpt"];
-  return !(typeof v === "string" && v === "0");
+  return c["showExcerpt"] !== "0";
 }
 
 /**
@@ -58,12 +51,24 @@ export function postListExcerptToggle(c: WidgetContent): boolean {
  *  - lista, wariant `ranked` (bez zajawki w ogóle);
  *  - lista, wariant `numbered` z `showExcerpt` fałszywym w sensie `getBool`.
  * Wariant `overlay` zostaje z zajawką: wiersz bez okładki spada na kartę.
+ * Wariant widoku to `getStr(c, "variant") || "card"`, więc porównanie surowej
+ * wartości z nazwą wariantu daje ten sam wynik.
  */
 export function postListRendersExcerpt(c: WidgetContent, surface: PostListSurface): boolean {
   if (!postListExcerptToggle(c)) return false;
   if (surface === "carousel") return true;
-  const variant = typeof c["variant"] === "string" && c["variant"] ? c["variant"] : "card";
-  if (variant === "ranked") return false;
-  if (variant === "numbered" && !excerptFrameBool(c, "showExcerpt", true)) return false;
-  return true;
+  const variant = c["variant"];
+  return !(variant === "ranked" || (variant === "numbered" && !getBool(c, "showExcerpt", true)));
+}
+
+/**
+ * Wiersze bez pól `excerpt_*` (klucze zdjęte, nie `null`) dla widgetu, który
+ * zajawki nie rysuje. TYLKO SERWER: wywołanie stoi w `queryFn` za bramką
+ * `import.meta.env.SSR`, więc ta funkcja nie trafia do bundla klienta. Wspólna
+ * dla post-listy i slidera wpisów.
+ */
+export function withoutExcerpts<T extends { excerpt_pl?: unknown; excerpt_en?: unknown }>(
+  rows: readonly T[],
+): T[] {
+  return rows.map(({ excerpt_pl: _pl, excerpt_en: _en, ...rest }) => rest as T);
 }

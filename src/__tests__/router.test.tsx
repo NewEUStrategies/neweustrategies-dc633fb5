@@ -365,9 +365,13 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
         queryStream,
       } as never);
       expect(seen).toHaveLength(1);
-      // Integracja widzi PEŁNĄ kopertę: `queryHash` z klucza i pełny stan.
-      expect(seen[0].dehydratedQueryClient).toEqual(full);
-      expect(seen[0].chunks).toEqual([full]);
+      // Integracja widzi PEŁNĄ kopertę: `queryHash` z klucza i pełny stan. Pustej
+      // listy mutacji klient nie odtwarza - `hydrate` query-core czyta
+      // `mutations || []`.
+      const { mutations, ...withoutMutations } = full;
+      expect(mutations).toEqual([]);
+      expect(seen[0].dehydratedQueryClient).toEqual(withoutMutations);
+      expect(seen[0].chunks).toEqual([withoutMutations]);
       expect(full.queries[0].queryHash).toBe(hashKey(["home-mode"]));
     } finally {
       h.hydrateImpl = undefined;

@@ -90,8 +90,14 @@ export type HeaderTickerPost = Pick<
  * DIETA STANU ODWODNIONEGO (P2.5, HW-3b): projekcja wpisów paska na pola
  * renderowane. Pasek jedzie w stanie `$tsr` KAŻDEGO dokumentu z chrome, a
  * okładka (pełny URL storage), data, `parent_page_id` i `views_count` nie mają
- * w nim odbiorcy. Projekcja w `queryFn`, więc SSR, hydratacja i refetch mają
- * ten sam kształt.
+ * w nim odbiorcy.
+ *
+ * TYLKO SERWER (runda poprawek 9 P3.7b, budżet domknięcia bootu): projekcja stoi
+ * w `queryFn` za bramką `import.meta.env.SSR`, więc jej kod nie trafia do chunku
+ * wejściowego, a jej odbiorcą jest wyłącznie stan odwodniony. Refetch klienta
+ * (miękka zmiana języka, koniec świeżości) trzyma pełny wiersz z server fn -
+ * pasek liczy z niego ten sam tytuł i adres (`itemTitle`, `itemHref`), więc
+ * znacznik jest ten sam.
  *
  * JEDEN JĘZYK (fala 3, P3.7b, T4b - przekazanie z P2.5). Klucz paska niesie
  * język (`headerTickerQueryOptions(cfg, lang)`), więc wpis niesie tytuł
@@ -174,7 +180,10 @@ export function headerTickerQueryOptions(cfg: TickerConfig, lang: AppLang = curr
       selectedIds.join(","),
       mixedFill,
     ] as const,
-    queryFn: async () => projectHeaderTickerPosts(await fetchRows(), lang),
+    queryFn: async () => {
+      const rows = await fetchRows();
+      return import.meta.env.SSR ? projectHeaderTickerPosts(rows, lang) : rows;
+    },
     // Miękka zmiana języka: nowy klucz pokazuje poprzednie wpisy, aż przyjdą
     // nowe - pasek nie zwija się do rezerwy wysokości (CLS 0).
     placeholderData: keepPreviousData,

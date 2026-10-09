@@ -1,10 +1,11 @@
 // Pasek „Na czasie" przy MIĘKKIEJ zmianie języka (P3.7b, T4b).
 //
-// Od P3.7b klucz paska niesie język, a wpis - tytuł wyłącznie w tym języku
-// (`headerTickerQuery.ts`). Zmiana języka bez przeładowania to więc NOWY klucz
-// bez danych. Bez `placeholderData: keepPreviousData` pasek wracałby wtedy do
-// rezerwy wysokości (pusty pas), a po odpowiedzi znów do treści - mignięcie
-// i przesunięcie strony pod nagłówkiem. Ten test montuje PRAWDZIWE opcje
+// Od P3.7b klucz paska niesie język, a wpis w stanie odwodnionym - tytuł
+// wyłącznie w tym języku (`headerTickerQuery.ts`, projekcja na serwerze).
+// Zmiana języka bez przeładowania to więc NOWY klucz bez danych. Bez
+// `placeholderData: keepPreviousData` pasek wracałby wtedy do rezerwy wysokości
+// (pusty pas), a po odpowiedzi znów do treści - mignięcie i przesunięcie strony
+// pod nagłówkiem. Ten test montuje PRAWDZIWE opcje
 // zapytania (podmienione są tylko server functions) i trzyma odpowiedź dla EN
 // w zawieszeniu, żeby zobaczyć stan pośredni.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -61,6 +62,7 @@ function row(id: string): Row {
 
 afterEach(async () => {
   cleanup();
+  vi.unstubAllEnvs();
   h.calls = [];
   const i18n = (await import("@/lib/i18n")).default;
   if (i18n.language !== "pl") {
@@ -82,10 +84,23 @@ describe("miękka zmiana języka paska (P3.7b, T4b)", () => {
     // Zimny start PL: rezerwa (ta sama geometria co gotowy pasek), potem treść.
     expect(screen.getByTestId("trending-ticker-reserve")).toBeTruthy();
     await waitFor(() => expect(h.calls).toHaveLength(1));
+    // Wpis PL jak z dokumentu: projekcja na język klucza biegnie WYŁĄCZNIE na
+    // serwerze (`import.meta.env.SSR` czytane w chwili rozstrzygnięcia `queryFn`),
+    // więc wpis hydratowany niesie tylko `title_pl`.
+    vi.stubEnv("SSR", true);
     await act(async () => {
       h.calls[0].resolve([row("a"), row("b")]);
     });
+    vi.stubEnv("SSR", false);
     expect(await screen.findByRole("link", { name: /Wpis a/ })).toBeTruthy();
+    const pl = client
+      .getQueryCache()
+      .getAll()
+      .find((q) => q.queryKey.includes("pl"));
+    expect(pl?.state.data).toEqual([
+      expect.not.objectContaining({ title_en: expect.anything() }),
+      expect.not.objectContaining({ title_en: expect.anything() }),
+    ]);
 
     // Zmiana języka bez przeładowania: nowy klucz `en`, odpowiedź w zawieszeniu.
     await act(async () => {
@@ -103,14 +118,14 @@ describe("miękka zmiana języka paska (P3.7b, T4b)", () => {
     });
     expect(await screen.findByRole("link", { name: /Post a/ })).toBeTruthy();
     expect(screen.queryByTestId("trending-ticker-reserve")).toBeNull();
-    // Wpis EN niesie wyłącznie tytuł EN (projekcja na język klucza).
+    // Refetch KLIENTA trzyma pełny wiersz z server fn: projekcja na język klucza
+    // biegnie wyłącznie na serwerze (stan odwodniony; runda poprawek 9 - kod
+    // poza chunkiem wejściowym), a pasek liczy z pełnego wiersza ten sam tytuł
+    // języka renderu (link „Post a" wyżej).
     const en = client
       .getQueryCache()
       .getAll()
       .find((q) => q.queryKey.includes("en"));
-    expect(en?.state.data).toEqual([
-      expect.not.objectContaining({ title_pl: expect.anything() }),
-      expect.not.objectContaining({ title_pl: expect.anything() }),
-    ]);
+    expect(en?.state.data).toEqual([row("a"), row("b")]);
   });
 });

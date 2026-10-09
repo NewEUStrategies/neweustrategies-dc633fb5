@@ -84,6 +84,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 describe("resolveTickerSource - które źródło naprawdę zagra", () => {
@@ -221,6 +222,8 @@ describe("headerTickerQueryOptions - klucz wspólny dla SSR i klienta", () => {
   });
 
   it("loader SSR i klient budują ten sam klucz, więc druga strona NIE strzela do serwera", async () => {
+    // Loader biegnie na serwerze: wpis w cache to projekcja (stan odwodniony).
+    vi.stubEnv("SSR", true);
     const qc = client();
     const cfgSsr: TickerConfig = { source: "trending", days: 3, limit: 6 };
     const cfgClient: TickerConfig = { source: "trending", days: 3, limit: 6 };
@@ -339,6 +342,7 @@ describe("headerTickerQueryOptions - gałęzie pobrania", () => {
   });
 
   it("`latest` bez przypinki pobiera najnowsze wpisy", async () => {
+    vi.stubEnv("SSR", true);
     const rows = await client().fetchQuery(headerTickerQueryOptions({ source: "latest" }));
 
     expect(h.ticker).toHaveBeenCalledWith({
@@ -417,7 +421,8 @@ describe("headerTickerQueryOptions - język w kluczu (P3.7b, T4)", () => {
     ]);
   });
 
-  it("queryFn rzutuje na język KLUCZA", async () => {
+  it("queryFn na SERWERZE rzutuje na język KLUCZA", async () => {
+    vi.stubEnv("SSR", true);
     h.trending.mockResolvedValue([row("t1")]);
     const rows = await client().fetchQuery(headerTickerQueryOptions({}, "en"));
     expect(rows).toEqual([
@@ -429,6 +434,18 @@ describe("headerTickerQueryOptions - język w kluczu (P3.7b, T4)", () => {
         author_avatar_url: null,
       },
     ]);
+  });
+
+  // Runda poprawek 9 (budżet domknięcia bootu): projekcja stoi za bramką
+  // `import.meta.env.SSR`, więc jej kod nie trafia do chunku wejściowego. Klient
+  // trzyma pełny wiersz - pasek liczy z niego ten sam tytuł (`itemTitle`) i adres
+  // (`itemHref`), co z wiersza zrzutowanego (test miękkiej zmiany języka w
+  // `TrendingTicker.langSwitch.test.tsx` renderuje z pełnych wierszy).
+  it("queryFn na KLIENCIE oddaje pełny wiersz z server fn (projekcja tylko na serwerze)", async () => {
+    vi.stubEnv("SSR", false);
+    h.trending.mockResolvedValue([row("t1")]);
+    const rows = await client().fetchQuery(headerTickerQueryOptions({}, "en"));
+    expect(rows).toEqual([row("t1")]);
   });
 
   it("miękka zmiana języka: poprzedni wpis jest `placeholderData`, pasek się nie zapada", () => {

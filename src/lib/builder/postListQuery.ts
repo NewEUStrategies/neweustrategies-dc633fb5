@@ -4,7 +4,11 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { asBool, asNum, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { authorDisplayMode, type AuthorDisplayMode } from "@/lib/builder/authorDisplay";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
-import { postListRendersExcerpt, type PostListSurface } from "@/lib/builder/postListExcerpt";
+import {
+  postListRendersExcerpt,
+  withoutExcerpts,
+  type PostListSurface,
+} from "@/lib/builder/postListExcerpt";
 import { edgeTtlCache } from "@/lib/ssrCache";
 import {
   postsConstrainedByTaxonomy,
@@ -131,7 +135,9 @@ interface PostListInput {
   excludeIds: string[];
   lang: Lang;
   /** Czy widget RENDERUJE zajawkę (P3.7b, T2; `postListRendersExcerpt`). W kluczu,
-   *  bo decyduje o kształcie wiersza; poza kluczem cache brzegowego (niżej). */
+   *  bo stan odwodniony widgetu bez zajawki jedzie bez `excerpt_*` (ścinanie na
+   *  serwerze) i widget z zajawką nie może trafić w jego wpis; poza kluczem cache
+   *  brzegowego (niżej). */
   withExcerpt: boolean;
 }
 
@@ -460,24 +466,10 @@ async function attachAuthorNames(rows: PostRow[], withAuthors: boolean): Promise
  * „język z fallbackiem" zmieniłoby angielskie strony bez zajawki EN.
  * Projekcja żyje w `queryFn` (po cache brzegowym, w którym leży pełny wiersz),
  * więc SSR, hydratacja i refetch klienta mają ten sam kształt.
- *
- * ZAJAWKI TYLKO TAM, GDZIE WIDGET JE RENDERUJE (P3.7b, T2): przy
- * `withExcerpt === false` wiersz nie niesie żadnego pola `excerpt_*` (klucze
- * zdjęte, nie `null`) - predykat `postListRendersExcerpt` mówi, że żadna gałąź
- * widoku tego widgetu zajawki nie rysuje.
  */
-export function localizePostListRows(
-  rows: readonly PostRow[],
-  lang: Lang,
-  withExcerpt = true,
-): PostRow[] {
+export function localizePostListRows(rows: readonly PostRow[], lang: Lang): PostRow[] {
   return rows.map((row) => {
     const { title_pl, title_en, excerpt_pl, excerpt_en, ...rest } = row;
-    if (!withExcerpt) {
-      return lang === "pl"
-        ? { ...rest, title_pl: title_pl || title_en || null }
-        : { ...rest, title_en: title_en || title_pl || null };
-    }
     return lang === "pl"
       ? { ...rest, title_pl: title_pl || title_en || null, excerpt_pl: excerpt_pl ?? null }
       : { ...rest, title_en: title_en || title_pl || null, excerpt_en: excerpt_en ?? null };
@@ -488,8 +480,9 @@ export function localizePostListRows(
  * Opcje zapytania post-listy. `surface` jest WYMAGANE (P3.7b, T2): widget
  * `carousel` dzieli ten klucz z `post-list`, ale renderuje zajawkę w każdym
  * wariancie, więc każde miejsce wywołania musi powiedzieć, który widget czyta
- * wpis - inaczej klucz SSR i klucz widoku rozjechałyby się (refetch po
- * hydratacji) albo widok dostałby wiersze bez zajawki, którą rysuje.
+ * wpis (powierzchnia albo `widget.type`) - inaczej klucz SSR i klucz widoku
+ * rozjechałyby się (refetch po hydratacji) albo widok dostałby wiersze bez
+ * zajawki, którą rysuje.
  */
 export const postListQueryOptions = (c: WidgetContent, lang: Lang, surface: PostListSurface) => {
   const input = postListInput(c, lang, surface);
@@ -500,8 +493,8 @@ export const postListQueryOptions = (c: WidgetContent, lang: Lang, surface: Post
     // dehydrated rows instead of refetching under a divergent key. uniqueOnPage
     // de-dup happens client-side via dedupeAndSlice, not in this key.
     queryKey: [WIDGET_QUERY_ROOTS.postList, input] as const,
-    queryFn: async () =>
-      localizePostListRows(
+    queryFn: async () => {
+      const rows = localizePostListRows(
         // Per-isolate TTL: pojedynczy widget post-list to wewnętrznie do 5
         // zapytań w 3 falach (słowniki taksonomii + ranking, wpisy, autorzy);
         // chrome i strony builderowe prefetchują go na każdym
@@ -513,8 +506,13 @@ export const postListQueryOptions = (c: WidgetContent, lang: Lang, surface: Post
               fetchPostListRows(fetchInput),
             ),
         input.lang,
-        withExcerpt,
-      ),
+      );
+      // ZAJAWKI TYLKO TAM, GDZIE WIDGET JE RENDERUJE (P3.7b, T2): stan odwodniony
+      // widgetu, który zajawki nie rysuje, jedzie bez `excerpt_*`. Tylko serwer
+      // (bramka wycina kod z bundla klienta); refetch klienta zostawia wiersz
+      // pełny, a znacznik jest ten sam (`postListExcerpt.ts`).
+      return import.meta.env.SSR && !withExcerpt ? withoutExcerpts(rows) : rows;
+    },
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,
   });

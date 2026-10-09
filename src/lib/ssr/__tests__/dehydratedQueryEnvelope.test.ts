@@ -2,13 +2,16 @@
 //
 // KOMPAKTOWA KOPERTA ZAPYTAŃ (P3.7b, T1) - dowód na PRAWDZIWYM `dehydrate()`
 // i `hydrate()` przypiętego query-core, nie na ręcznie złożonych obiektach:
-//  1. ROUND-TRIP: `expand(compact(d))` równa się `d` dla każdego kształtu, który
-//     może trafić do przesyłki (sukces, odświeżone dwa razy, `meta`, zapytanie
-//     nieskończone, błąd po danych, klucz z obiektem o innej kolejności pól);
+//  1. ROUND-TRIP: `expand(compact(d))` równa się `d` (bez pustej listy mutacji,
+//     której klient nie odtwarza - `hydrate` czyta `mutations || []`) dla
+//     każdego kształtu, który może trafić do przesyłki (sukces, odświeżone dwa
+//     razy, `meta`, zapytanie nieskończone, błąd po danych, klucz z obiektem
+//     o innej kolejności pól);
 //  2. CACHE PO HYDRATACJI jest identyczny dla obu kopert (hash i stan);
 //  3. PORCJA STRUMIENIA po zamontowaniu obserwatora dostaje dane - to jest
 //     scenariusz, w którym brak `queryHash` gubiłby dane (kontrola negatywna);
-//  4. własny `queryKeyHashFn` zachowuje hash, `data` zostaje tą samą referencją;
+//  4. własny `queryKeyHashFn` i klucz z instancją klasy zachowują hash, `data`
+//     zostaje tą samą referencją;
 //  5. strumień i ładunek routera: prawdziwa integracja router<->query hydratuje
 //     kompaktową barierę i kompaktową porcję strumienia.
 import { describe, expect, it } from "vitest";
@@ -88,7 +91,9 @@ describe("compact/expand na prawdziwym dehydrate()", () => {
       "builder-post-list",
       "blad-po-danych",
     ]);
-    expect(expandDehydratedState(compactDehydratedState(d))).toEqual(d);
+    const { mutations, ...withoutMutations } = d;
+    expect(mutations).toEqual([]);
+    expect(expandDehydratedState(compactDehydratedState(d))).toEqual(withoutMutations);
   });
 
   it("koperta kompaktowa nie niesie `queryHash` ani pól równych stałej; reszta zostaje", async () => {
@@ -163,6 +168,25 @@ describe("compact/expand na prawdziwym dehydrate()", () => {
     hydrate(target, expandDehydratedState(c));
     expect(target.getQueryCache().get("wlasny")?.state.data).toBe("x");
   });
+
+  it("klucz z instancją klasy zachowuje hash (po deserializacji byłby obiektem prostym)", async () => {
+    class Filtr {
+      constructor(
+        readonly zakres: string,
+        readonly autor: string,
+      ) {}
+    }
+    const qc = client();
+    // Pola instancji NIE są sortowane przez `hashKey` (tylko obiekty proste), a po
+    // deserializacji seroval klient dostałby obiekt prosty i hash z innym porządkiem.
+    const key = ["filtr", new Filtr("tydzien", "a1")];
+    await qc.fetchQuery({ queryKey: key, queryFn: () => "x" });
+    await qc.fetchQuery({ queryKey: ["prosty", { b: 1, a: 2 }], queryFn: () => "y" });
+    const c = compactDehydratedState(dehydrate(qc)) as CompactDehydratedState;
+    const byKey = (name: string) => c.queries.find((q) => q.queryKey[0] === name)!;
+    expect(byKey("filtr").queryHash).toBe(hashKey(key));
+    expect(byKey("prosty")).not.toHaveProperty("queryHash");
+  });
 });
 
 describe("porcja strumienia po zamontowaniu obserwatora", () => {
@@ -228,10 +252,24 @@ describe("strumień i ładunek routera", () => {
     await expect(drain(mapQueryStream(source, (n) => n))).rejects.toThrow("zerwany strumień");
   });
 
-  it("ładunek bez koperty i strumienia wraca nietknięty", () => {
-    const payload = { manifest: {} };
-    expect(expandRouterDehydrated(payload)).toBe(payload);
+  it("ładunek bez koperty i strumienia wraca bez zmiany treści", () => {
+    const payload = { manifest: { a: 1 } };
+    const out = expandRouterDehydrated(payload) as Record<string, unknown>;
+    expect(out.manifest).toBe(payload.manifest);
+    expect(out.dehydratedQueryClient).toBeUndefined();
+    expect(out).not.toHaveProperty("queryStream");
     expect(expandRouterDehydrated(undefined)).toBeUndefined();
+  });
+
+  it("anulowanie strumienia wynikowego anuluje źródło", async () => {
+    let cancelled: unknown;
+    const source = new ReadableStream<number>({
+      cancel(reason) {
+        cancelled = reason;
+      },
+    });
+    await mapQueryStream(source, (n) => n).cancel("koniec");
+    expect(cancelled).toBe("koniec");
   });
 
   it("PRAWDZIWA integracja hydratuje kompaktową barierę i kompaktową porcję strumienia", async () => {

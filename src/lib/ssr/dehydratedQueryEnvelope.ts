@@ -21,8 +21,12 @@
 // każdej porcji strumienia (`expandRouterDehydrated`).
 //
 // ZASADY BEZPIECZEŃSTWA:
-//  * `queryHash` znika WYŁĄCZNIE, gdy równa się `hashKey(queryKey)` - zapytanie
-//    z własnym `queryKeyHashFn` zachowuje swój hash z konstrukcji;
+//  * `queryHash` znika WYŁĄCZNIE, gdy równa się `hashKey(queryKey)`, a klucz jest
+//    STRUKTURALNY (prymitywy, tablice, obiekty proste) - zapytanie z własnym
+//    `queryKeyHashFn` zachowuje swój hash z konstrukcji, a klucz z instancją
+//    klasy też: klient liczy hash z klucza PO deserializacji seroval, gdzie
+//    instancja wraca jako obiekt prosty z polami sortowanymi przez `hashKey`,
+//    więc hash różniłby się od hasha `useQuery` (recenzja P3.7b, m4);
 //  * ze stanu znikają WYŁĄCZNIE pola równe (`Object.is`) stałej niżej - pole
 //    dodane w nowym query-core albo wartość inna niż domyślna jedzie dalej;
 //  * `data` zostaje TĄ SAMĄ referencją, więc seroval dalej emituje `$R[n]` dla
@@ -31,10 +35,21 @@
 //    `queryHash` oryginałów w `sentQueries`, zanim my dostaniemy kopertę.
 // Kompaktowanie jest idempotentne, a rozwinięcie przyjmuje też pełną kopertę
 // (dokument sprzed zmiany hydratuje się bez różnicy).
+//
+// KOSZT KLIENTA (runda poprawek 9). Do chunku wejściowego trafia WYŁĄCZNIE
+// rozwijanie (`expandRouterDehydrated`, `expandDehydratedState`,
+// `mapQueryStream`); kompaktowanie biegnie w gałęzi serwera `router.tsx`
+// i jest wycinane z bundla klienta. Dlatego rozwijanie nie ma osłon, których
+// przesyłka z naszego serwera nie potrzebuje: pustej listy mutacji nie
+// odtwarzamy (`hydrate` query-core czyta `mutations || []`), a zapytanie
+// rozwijamy bez sprawdzania kształtu (pełne zapytanie przechodzi bez zmiany
+// treści). Liczenie `hashKey` na kliencie to cena za zdjęcie hashy
+// z dokumentu: przenosi ok. 1,3-1,5 ms (bez dławienia CPU) z parsowania `$tsr`
+// do makrozadania hydratacji (sonda CPU w PROVE pozycji, §5.4).
 import { hashKey, type DehydratedState, type QueryKey } from "@tanstack/react-query";
 
 /** Stały ogon stanu zapytania rozstrzygniętego z sukcesem (query-core 5.101.2). */
-export const DEFAULT_SUCCESS_STATE = Object.freeze({
+export const DEFAULT_SUCCESS_STATE = {
   dataUpdateCount: 1,
   error: null,
   errorUpdateCount: 0,
@@ -45,7 +60,7 @@ export const DEFAULT_SUCCESS_STATE = Object.freeze({
   isInvalidated: false,
   status: "success",
   fetchStatus: "idle",
-} as const);
+} as const;
 
 type DehydratedQuery = DehydratedState["queries"][number];
 
@@ -67,8 +82,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function hasQueries(value: unknown): value is { mutations?: unknown; queries: unknown[] } {
-  return isRecord(value) && Array.isArray(value.queries);
+/**
+ * Klucz, którego `hashKey` po deserializacji seroval jest taki sam jak na
+ * serwerze: prymitywy, tablice i obiekty proste (prototyp `Object` albo `null`).
+ */
+function isStructuralKey(value: unknown): boolean {
+  if (!isRecord(value)) return typeof value !== "function" && typeof value !== "symbol";
+  if (Array.isArray(value)) return value.every(isStructuralKey);
+  const proto: unknown = Object.getPrototypeOf(value);
+  return (
+    (proto === Object.prototype || proto === null) && Object.values(value).every(isStructuralKey)
+  );
 }
 
 function compactQuery(query: DehydratedQuery): CompactDehydratedQuery {
@@ -81,16 +105,10 @@ function compactQuery(query: DehydratedQuery): CompactDehydratedQuery {
     compactState[key] = value;
   }
   const out: CompactDehydratedQuery = { ...rest, state: compactState };
-  if (queryHash !== hashKey(query.queryKey)) out.queryHash = queryHash;
+  if (!isStructuralKey(query.queryKey) || queryHash !== hashKey(query.queryKey)) {
+    out.queryHash = queryHash;
+  }
   return out;
-}
-
-function expandQuery(query: CompactDehydratedQuery): DehydratedQuery {
-  return {
-    ...query,
-    queryHash: query.queryHash ?? hashKey(query.queryKey as QueryKey),
-    state: { ...DEFAULT_SUCCESS_STATE, ...query.state } as DehydratedQuery["state"],
-  };
 }
 
 /**
@@ -98,7 +116,7 @@ function expandQuery(query: CompactDehydratedQuery): DehydratedQuery {
  * {@link DEFAULT_SUCCESS_STATE}. Wartość innego kształtu wraca bez zmian.
  */
 export function compactDehydratedState(state: unknown): unknown {
-  if (!hasQueries(state)) return state;
+  if (!isRecord(state) || !Array.isArray(state.queries)) return state;
   const { mutations, queries, ...rest } = state;
   const out: Record<string, unknown> = {
     ...rest,
@@ -115,23 +133,21 @@ export function compactDehydratedState(state: unknown): unknown {
 }
 
 /**
- * Klient: pełna koperta, której oczekuje `hydrate` z query-core (odwrotność
- * {@link compactDehydratedState}). Pełna koperta przechodzi bez zmian treści.
+ * Klient: koperta, której oczekuje `hydrate` z query-core (odwrotność
+ * {@link compactDehydratedState}; pustej listy mutacji nie odtwarza, bo `hydrate`
+ * czyta `mutations || []`). Pełna koperta przechodzi bez zmian treści.
  */
 export function expandDehydratedState(state: unknown): unknown {
-  if (!hasQueries(state)) return state;
+  const queries = (state as { queries?: unknown } | null | undefined)?.queries;
+  if (!Array.isArray(queries)) return state;
   return {
-    ...state,
-    mutations: Array.isArray(state.mutations) ? state.mutations : [],
-    queries: (state.queries as CompactDehydratedQuery[]).map((query) =>
-      isRecord(query) && Array.isArray(query.queryKey) ? expandQuery(query) : query,
-    ),
+    ...(state as object),
+    queries: (queries as CompactDehydratedQuery[]).map((query) => ({
+      ...query,
+      queryHash: query.queryHash ?? hashKey(query.queryKey as QueryKey),
+      state: { ...DEFAULT_SUCCESS_STATE, ...query.state },
+    })),
   };
-}
-
-/** Strumień porcji (seroval odtwarza go na kliencie jako `ReadableStream`). */
-function isReadableLike(value: unknown): value is ReadableStream<unknown> {
-  return isRecord(value) && typeof value.getReader === "function";
 }
 
 /**
@@ -145,38 +161,31 @@ export function mapQueryStream<T>(
   source: ReadableStream<T>,
   map: (chunk: T) => T,
 ): ReadableStream<T> {
-  let reader: ReadableStreamDefaultReader<T> | undefined;
+  const reader = source.getReader();
   return new ReadableStream<T>({
-    start() {
-      reader = source.getReader();
-    },
-    async pull(controller) {
-      const result = await reader!.read();
-      if (result.done) controller.close();
-      else controller.enqueue(map(result.value));
-    },
-    cancel(reason) {
-      return reader?.cancel(reason);
-    },
+    pull: (controller) =>
+      reader.read().then((result) => {
+        if (result.done) controller.close();
+        else controller.enqueue(map(result.value));
+      }),
+    cancel: (reason) => reader.cancel(reason),
   });
 }
 
 /**
  * Klient: ładunek routera z rozwiniętą kopertą bariery i strumieniem, który
- * rozwija każdą porcję - przekazywany do `hydrate` integracji router<->query.
- * Nowy obiekt; wejście bez tych pól wraca nietknięte.
+ * rozwija każdą porcję - przekazywany do `hydrate` integracji router<->query
+ * (ta czyta `queryStream` zawsze, a barierę tylko, gdy jest). Nowy obiekt.
  */
 export function expandRouterDehydrated<T>(dehydrated: T): T {
-  if (!isRecord(dehydrated)) return dehydrated;
-  const { dehydratedQueryClient, queryStream } = dehydrated;
-  if (dehydratedQueryClient === undefined && !isReadableLike(queryStream)) return dehydrated;
+  if (!dehydrated) return dehydrated;
+  const { dehydratedQueryClient, queryStream } = dehydrated as {
+    dehydratedQueryClient?: unknown;
+    queryStream?: ReadableStream<unknown>;
+  };
   return {
     ...dehydrated,
-    ...(dehydratedQueryClient !== undefined && {
-      dehydratedQueryClient: expandDehydratedState(dehydratedQueryClient),
-    }),
-    ...(isReadableLike(queryStream) && {
-      queryStream: mapQueryStream(queryStream, expandDehydratedState),
-    }),
+    dehydratedQueryClient: expandDehydratedState(dehydratedQueryClient),
+    ...(queryStream && { queryStream: mapQueryStream(queryStream, expandDehydratedState) }),
   };
 }

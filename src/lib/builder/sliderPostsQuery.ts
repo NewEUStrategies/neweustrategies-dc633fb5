@@ -10,6 +10,7 @@ import type { WidgetContent } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
 import { asBool, asNum, asStr } from "@/lib/content-model/contentValue";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
+import { withoutExcerpts } from "@/lib/builder/postListExcerpt";
 import { edgeTtlCache } from "@/lib/ssrCache";
 import {
   postsConstrainedByTaxonomy,
@@ -59,7 +60,8 @@ export interface SliderPostsInput {
    *  zwracalo liste posortowana po drugim jezyku. */
   lang: Lang;
   /** Czy slider RENDERUJE zajawkę (P3.7b, T2; `sliderShowsExcerpt`). W kluczu, bo
-   *  decyduje o kształcie wiersza; poza kluczem cache brzegowego. */
+   *  stan odwodniony slidera bez zajawki jedzie bez `excerpt_*` (ścinanie na
+   *  serwerze); poza kluczem cache brzegowego. */
   withExcerpt: boolean;
 }
 
@@ -166,23 +168,13 @@ async function fetchSliderPosts(input: SliderPostsFetchInput): Promise<SliderPos
  * zajawka SCHODZI na drugi język (w post-liście nie). Projekcja wpieka ten
  * wynik w pole języka klucza i zdejmuje pola drugiego języka, więc slajd z
  * wiersza zrzutowanego ma ten sam tytuł i zajawkę co z pełnego.
- *
- * Slider z wyłączoną zajawką (`withExcerpt === false`, P3.7b T2) dostaje wiersze
- * bez żadnego pola `excerpt_*` - widok buduje wtedy pusty podtytuł bez względu
- * na treść wiersza.
  */
 export function localizeSliderPostRows(
   rows: readonly SliderPostRow[],
   lang: Lang,
-  withExcerpt = true,
 ): SliderPostRow[] {
   return rows.map((row) => {
     const { title_pl, title_en, excerpt_pl, excerpt_en, ...rest } = row;
-    if (!withExcerpt) {
-      return lang === "pl"
-        ? { ...rest, title_pl: title_pl || title_en || null }
-        : { ...rest, title_en: title_en || title_pl || null };
-    }
     return lang === "pl"
       ? {
           ...rest,
@@ -208,8 +200,8 @@ export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
     // posortowany po EN (i odwrotnie) do końca okna świeżości. Od P2.5 język
     // klucza decyduje też o KSZTAŁCIE wiersza (`localizeSliderPostRows`).
     queryKey: [WIDGET_QUERY_ROOTS.sliderPosts, input] as const,
-    queryFn: async () =>
-      localizeSliderPostRows(
+    queryFn: async () => {
+      const rows = localizeSliderPostRows(
         // Per-isolate TTL: hero-slider strony głównej to do 3 zapytań w 2 falach na
         // render. Klucz cache pochodzi z całego inputu (zawiera już `lang`); w
         // cache brzegowym leży pełny wiersz, projekcja idzie po nim.
@@ -217,8 +209,13 @@ export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
           fetchSliderPosts(fetchInput),
         ),
         input.lang,
-        withExcerpt,
-      ),
+      );
+      // Slider z wyłączoną zajawką (P3.7b, T2): stan odwodniony bez `excerpt_*`,
+      // ścinany WYŁĄCZNIE na serwerze (`postListExcerpt.ts`). Widok buduje wtedy
+      // pusty podtytuł bez względu na treść wiersza, więc pełny wiersz po refetchu
+      // klienta daje ten sam znacznik.
+      return import.meta.env.SSR && !withExcerpt ? withoutExcerpts(rows) : rows;
+    },
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,
   });

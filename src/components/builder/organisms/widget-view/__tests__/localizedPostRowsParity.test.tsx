@@ -33,7 +33,7 @@ import {
   postListInput,
   postListQueryOptions,
 } from "@/lib/builder/postListQuery";
-import { postListRendersExcerpt } from "@/lib/builder/postListExcerpt";
+import { postListRendersExcerpt, withoutExcerpts } from "@/lib/builder/postListExcerpt";
 import {
   localizeSliderPostRows,
   sliderPostsInput,
@@ -202,13 +202,15 @@ describe("PostsSliderWidget: wiersz zrzutowany na język = ten sam slajd", () =>
 });
 
 // ZAJAWKI TYLKO TAM, GDZIE WIDGET JE RENDERUJE (P3.7b, T2) - KONTRAKT
-// BEZPIECZEŃSTWA. Projekcja zdejmuje `excerpt_*`, gdy predykat klucza
-// (`postListRendersExcerpt`) mówi, że widget zajawki nie rysuje. Miara jest ta
-// sama co wyżej: znacznik z wierszy zrzutowanych = znacznik z PEŁNYCH wierszy,
-// dla KAŻDEGO wariantu, wartości przełącznika i powierzchni (`post-list`
-// i `carousel`, który dzieli klucz i rysuje zajawkę w każdym wariancie). Gdy
-// predykat jest fałszywy, pełny wiersz też nie daje `.cms-post-excerpt` - czyli
-// zdjęte pole naprawdę nie miało odbiorcy.
+// BEZPIECZEŃSTWA. Serwer zdejmuje `excerpt_*` (`withoutExcerpts`), gdy predykat
+// klucza (`postListRendersExcerpt`) mówi, że widget zajawki nie rysuje. Miara
+// jest ta sama co wyżej: znacznik z wierszy zrzutowanych = znacznik z PEŁNYCH
+// wierszy, dla KAŻDEGO wariantu, wartości przełącznika i powierzchni
+// (`post-list` i `carousel`, który dzieli klucz i rysuje zajawkę w każdym
+// wariancie). Gdy predykat jest fałszywy, pełny wiersz też nie daje
+// `.cms-post-excerpt` - czyli zdjęte pole naprawdę nie miało odbiorcy. Ten sam
+// kontrakt czyni bezpiecznym ścinanie TYLKO na serwerze: refetch klienta pod tym
+// samym kluczem zostawia wiersz pełny, a znacznik się nie zmienia.
 describe("zajawki tylko tam, gdzie widget je renderuje (P3.7b, T2)", () => {
   const variants = [
     "card",
@@ -248,7 +250,8 @@ describe("zajawki tylko tam, gdzie widget je renderuje (P3.7b, T2)", () => {
           const full = client();
           full.setQueryData(key, localizePostListRows(ROWS, "pl"));
           const projected = client();
-          const rows = localizePostListRows(ROWS, "pl", withExcerpt);
+          const localized = localizePostListRows(ROWS, "pl");
+          const rows = withExcerpt ? localized : withoutExcerpts(localized);
           if (!withExcerpt) {
             for (const row of rows) expect(Object.keys(row), label).not.toContain("excerpt_pl");
           }
@@ -282,7 +285,7 @@ describe("zajawki tylko tam, gdzie widget je renderuje (P3.7b, T2)", () => {
     };
     expect(sliderPostsInput(c, "pl").withExcerpt).toBe(false);
     const key = sliderPostsQueryOptions(c, "pl").queryKey;
-    const rows = localizeSliderPostRows(ROWS, "pl", false);
+    const rows = withoutExcerpts(localizeSliderPostRows(ROWS, "pl"));
     for (const row of rows) expect(Object.keys(row)).not.toContain("excerpt_pl");
     const render1 = async (data: ReturnType<typeof localizeSliderPostRows>) => {
       const qc = client();

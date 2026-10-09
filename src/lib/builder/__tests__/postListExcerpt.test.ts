@@ -3,16 +3,18 @@
 // Predykat siedzi w kluczu zapytania post-listy (`withExcerpt`) i decyduje, czy
 // wiersze w stanie `$tsr` niosą `excerpt_*`. Fałsz w miejscu, w którym widok
 // zajawkę rysuje, to znikająca zajawka - dlatego tabela niżej wypisuje każdą
-// gałąź widoku jawnie, a kopia `getBool` ma test równoważności z oryginałem.
-// Kontrakt z samym znacznikiem (render pełnych i zrzutowanych wierszy) jest
-// w `widget-view/__tests__/localizedPostRowsParity.test.tsx`.
+// gałąź widoku jawnie (`numbered` czyta przełącznik tym samym `getBool` z
+// `widget-view/frame.ts`, co widok). Kontrakt z samym znacznikiem (render
+// pełnych i zrzutowanych wierszy) jest w
+// `widget-view/__tests__/localizedPostRowsParity.test.tsx`, a bramka
+// „ścinanie tylko na serwerze" w `postListQueryData.test.ts`.
 import { describe, expect, it } from "vitest";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getBool } from "@/components/builder/organisms/widget-view/frame";
 import {
-  excerptFrameBool,
   postListExcerptToggle,
   postListRendersExcerpt,
+  withoutExcerpts,
 } from "@/lib/builder/postListExcerpt";
 import { postListInput, postListQueryOptions } from "@/lib/builder/postListQuery";
 
@@ -55,19 +57,6 @@ describe("postListExcerptToggle - semantyka `getStr(c, 'showExcerpt') !== '0'` w
   });
 });
 
-describe("excerptFrameBool = getBool z widget-view/frame.ts", () => {
-  it("ta sama odpowiedź dla każdej wartości i obu domyślnych", () => {
-    for (const v of TOGGLES) {
-      for (const dflt of [true, false]) {
-        const c = { showExcerpt: v } as WidgetContent;
-        expect(excerptFrameBool(c, "showExcerpt", dflt), `${String(v)}/${dflt}`).toBe(
-          getBool(c, "showExcerpt", dflt),
-        );
-      }
-    }
-  });
-});
-
 describe("postListRendersExcerpt - tabela wariant x przełącznik x powierzchnia", () => {
   /** Oczekiwanie wypisane z gałęzi `PostListView` (komentarze przy przypadkach). */
   function expected(variant: string, toggle: unknown, surface: "list" | "carousel"): boolean {
@@ -97,6 +86,11 @@ describe("postListRendersExcerpt - tabela wariant x przełącznik x powierzchnia
           expect(postListInput(c, "pl", surface).withExcerpt, label).toBe(
             postListRendersExcerpt(c, surface),
           );
+          // Rejestr prefetchu i preload LCP podają wprost `widget.type`.
+          const widgetType = surface === "list" ? "post-list" : "carousel";
+          expect(postListRendersExcerpt(c, widgetType), label).toBe(
+            postListRendersExcerpt(c, surface),
+          );
         }
       }
     });
@@ -123,5 +117,31 @@ describe("klucz post-listy z `withExcerpt` (P3.7b, T2)", () => {
     expect(postListQueryOptions(card, "pl", "list").queryKey).toEqual(
       postListQueryOptions(card, "pl", "carousel").queryKey,
     );
+  });
+});
+
+describe("withoutExcerpts - ścinanie zajawek (wyłącznie serwer, P3.7b T2)", () => {
+  it("zdejmuje OBA klucze `excerpt_*` (nie `null`), resztę wiersza zostawia", () => {
+    const rows = [
+      { id: "a", title_pl: "Tytuł", excerpt_pl: "Zajawka", excerpt_en: null, slug: "a" },
+      { id: "b", title_en: "Title", excerpt_en: "Excerpt" },
+      { id: "c" },
+    ];
+    const out = withoutExcerpts(rows);
+    expect(out).toEqual([
+      { id: "a", title_pl: "Tytuł", slug: "a" },
+      { id: "b", title_en: "Title" },
+      { id: "c" },
+    ]);
+    for (const row of out) {
+      expect(row).not.toHaveProperty("excerpt_pl");
+      expect(row).not.toHaveProperty("excerpt_en");
+    }
+  });
+
+  it("nie mutuje wejścia (wiersze z cache brzegowego są współdzielone)", () => {
+    const row = { id: "a", excerpt_pl: "Zajawka" };
+    withoutExcerpts([row]);
+    expect(row).toEqual({ id: "a", excerpt_pl: "Zajawka" });
   });
 });
