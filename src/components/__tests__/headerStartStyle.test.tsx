@@ -2,7 +2,10 @@
 // zapisuje `--sticky-header-h` na <html>, gdy zmierzona wysokość równa się
 // domyślnej z CSS (różnica < 2 px), nie przełącza `data-settled` i nie
 // przerenderowuje chrome'u przy zwijaniu - każdy taki zapis wymuszał przeliczenie
-// stylu całego dokumentu w oknie TBT (zadanie K13 z diagnozy P0.5).
+// stylu całego dokumentu w oknie TBT (zadanie K13 z diagnozy P0.5). Od P3.1 A
+// (PB5) montaż nie zapisuje zmiennej wcale: pierwszy zapis daje zatrzask
+// „interakcja albo cisza" albo synchroniczny nasłuch capture (klik w kotwicę
+// tego dokumentu, Tab), przed domyślną akcją przeglądarki.
 // Testy wydzielone przy scaleniu main (PR #475 usunął dawny Header.test.tsx
 // razem z testami prezentacyjnymi); atrapy i sterowane klatki jak w tamtym pliku.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -197,7 +200,20 @@ vi.mock("@/components/SearchOverlay", () => ({
   ),
 }));
 
+// Punkt ciszy to czas przeglądarki - zatrzask interakcji/ciszy otwiera tu
+// wyłącznie test (`__openInteractionOrQuietForTests`) albo nasłuch capture.
+vi.mock("@/lib/performance/whenQuiescent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/performance/whenQuiescent")>()),
+  onQuiescent: () => () => {},
+}));
+
 import { realT } from "@/test/i18nReal";
+import {
+  __openInteractionOrQuietForTests,
+  __resetInteractionOrQuietForTests,
+} from "@/lib/performance/interactionOrQuiet";
+import { __resetPostInteractionQueueForTests } from "@/lib/performance/postInteractionQueue";
+import { __resetFirstInteractionForTests } from "@/lib/performance/firstInteraction";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { clearTickerDraft } from "@/lib/views/tickerDraftBridge";
@@ -369,6 +385,13 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  // Zatrzask, kolejka i detektor interakcji są faktami dokumentu - każdy test
+  // zaczyna przed pierwszą interakcją.
+  __resetInteractionOrQuietForTests();
+  __resetPostInteractionQueueForTests();
+  __resetFirstInteractionForTests();
+  document.getElementById("p31-target")?.remove();
+  for (const link of document.querySelectorAll('a[href*="p31-target"], a[href="#"]')) link.remove();
   clearTickerDraft();
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -406,8 +429,26 @@ function spyStickyWrites() {
   return () => spy.mock.calls.filter(([name]) => name === "--sticky-header-h");
 }
 
+/** Otwiera zatrzask „pierwsza interakcja albo cisza" tą samą ścieżką co przeglądarka. */
+function openLatch(): void {
+  act(() => __openInteractionOrQuietForTests());
+}
+
+/** Kotwica + cel w dokumencie (poza drzewem Reacta), sprzątane w `afterEach`. */
+function addAnchor(href: string): HTMLAnchorElement {
+  const target = document.createElement("div");
+  target.id = "p31-target";
+  const link = document.createElement("a");
+  link.href = href;
+  link.textContent = "do celu";
+  // Bez nawigacji happy-doma - liczy się tylko kolejność nasłuchów.
+  link.addEventListener("click", (event) => event.preventDefault());
+  document.body.append(link, target);
+  return link;
+}
+
 describe("Header - start bez przeliczenia stylu dokumentu (P1.2, F2/F2b)", () => {
-  it("wysokość równa domyślnej z CSS: montaż NIE zapisuje --sticky-header-h na <html>", async () => {
+  it("wysokość równa domyślnej z CSS: ani montaż, ani zatrzask NIE zapisują --sticky-header-h", async () => {
     const removeDefault = injectStickyDefault(212);
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect(212));
     const writes = spyStickyWrites();
@@ -420,6 +461,7 @@ describe("Header - start bez przeliczenia stylu dokumentu (P1.2, F2/F2b)", () =>
       expect(getComputedStyle(document.documentElement).getPropertyValue("--sticky-header-h")).toBe(
         "212px",
       );
+      openLatch();
       expect(writes()).toEqual([]);
       expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("");
     } finally {
@@ -427,29 +469,114 @@ describe("Header - start bez przeliczenia stylu dokumentu (P1.2, F2/F2b)", () =>
     }
   });
 
-  it("różnica mniejsza niż 2 px też nie zapisuje; 2 px i więcej publikuje pomiar", async () => {
+  it("różnica mniejsza niż 2 px nie zapisuje nawet po otwarciu zatrzasku", async () => {
     const removeDefault = injectStickyDefault(212);
-    const boundingRect = vi
-      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
-      .mockReturnValue(rect(211));
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect(211));
     const writes = spyStickyWrites();
     try {
-      const view = renderHeader({ header: { builder_data: doc(1) } });
-      await settleLazyOverlay();
-      expect(writes()).toEqual([]);
-      view.unmount();
-
-      boundingRect.mockReturnValue(rect(214));
       renderHeader({ header: { builder_data: doc(1) } });
       await settleLazyOverlay();
-      expect(writes()).toEqual([["--sticky-header-h", "214px"]]);
-      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("214px");
+      openLatch();
+      expect(writes()).toEqual([]);
+    } finally {
+      removeDefault();
+    }
+  });
+});
+
+describe("Header - leniwa pierwsza publikacja --sticky-header-h (P3.1 A, PB5)", () => {
+  it("montaż przy różnicy ≥ 2 px NIE zapisuje; zatrzask daje dokładnie jeden zapis z pomiarem", async () => {
+    const removeDefault = injectStickyDefault(212);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect(259));
+    const writes = spyStickyWrites();
+    try {
+      renderHeader({ header: { builder_data: doc(1) } });
+      await settleLazyOverlay();
+      expect(writes()).toEqual([]);
+      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("");
+
+      openLatch();
+      expect(writes()).toEqual([["--sticky-header-h", "259px"]]);
+      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("259px");
     } finally {
       removeDefault();
     }
   });
 
-  it("po montażu bez zapisu obserwator nadal publikuje realną zmianę wysokości", async () => {
+  it("klik w kotwicę tego dokumentu publikuje synchronicznie, zanim zobaczy go handler bąbelkowy", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect(259));
+    const writes = spyStickyWrites();
+    renderHeader({ header: { builder_data: doc(1) } });
+    await settleLazyOverlay();
+    const link = addAnchor("#p31-target");
+    const seen: string[] = [];
+    link.addEventListener("click", () => {
+      seen.push(document.documentElement.style.getPropertyValue("--sticky-header-h"));
+    });
+
+    expect(writes()).toEqual([]);
+    link.click();
+    expect(seen).toEqual(["259px"]);
+    expect(writes()).toEqual([["--sticky-header-h", "259px"]]);
+
+    // Jednorazowo: późniejszy zatrzask niczego już nie dopisuje.
+    openLatch();
+    expect(writes()).toHaveLength(1);
+  });
+
+  it("klik w link innej ścieżki, pusty fragment i klawisz inny niż Tab nie publikują; Tab publikuje", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect(259));
+    const writes = spyStickyWrites();
+    renderHeader({ header: { builder_data: doc(1) } });
+    await settleLazyOverlay();
+
+    addAnchor("/inna-strona#p31-target").click();
+    addAnchor("#").click();
+    // `<a>` z SVG pasuje do `a[href]`, ale nie ma `hash` - bez publikacji i bez wyjątku.
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    const svgLink = document.createElementNS("http://www.w3.org/2000/svg", "a");
+    svgLink.setAttribute("href", "#p31-target");
+    svg.append(svgLink);
+    document.body.append(svg);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    svgLink.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    svg.remove();
+    expect(errors).not.toHaveBeenCalled();
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true }));
+    expect(writes()).toEqual([]);
+
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    expect(writes()).toEqual([["--sticky-header-h", "259px"]]);
+  });
+
+  it("`navigate` z Navigation API: nawigacja do fragmentu publikuje synchronicznie, inna nie", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect(259));
+    const navigation = new EventTarget();
+    Object.defineProperty(window, "navigation", { configurable: true, value: navigation });
+    const navigate = (hashChange: boolean) =>
+      navigation.dispatchEvent(Object.assign(new Event("navigate"), { hashChange }));
+    try {
+      const writes = spyStickyWrites();
+      const added = vi.spyOn(navigation, "addEventListener");
+      const removed = vi.spyOn(navigation, "removeEventListener");
+      renderHeader({ header: { builder_data: doc(1) } });
+      await settleLazyOverlay();
+      expect(added).toHaveBeenCalledTimes(1);
+
+      navigate(false);
+      expect(writes()).toEqual([]);
+      navigate(true);
+      expect(writes()).toEqual([["--sticky-header-h", "259px"]]);
+      // Jednorazowo: publikacja zdejmuje ten sam nasłuch, który montaż podpiął.
+      expect(removed).toHaveBeenCalledWith("navigate", added.mock.calls[0]?.[1]);
+      navigate(true);
+      expect(writes()).toHaveLength(1);
+    } finally {
+      Reflect.deleteProperty(window, "navigation");
+    }
+  });
+
+  it("ResizeObserver przed pierwszą publikacją nic nie publikuje, po niej publikuje realną zmianę", async () => {
     vi.useFakeTimers();
     stubFrames();
     stubResizeObserver();
@@ -457,30 +584,26 @@ describe("Header - start bez przeliczenia stylu dokumentu (P1.2, F2/F2b)", () =>
     const boundingRect = vi
       .spyOn(HTMLElement.prototype, "getBoundingClientRect")
       .mockReturnValue(rect(212));
+    const writes = spyStickyWrites();
     try {
       renderHeader({ header: { builder_data: doc(1) } });
       await settleLazyOverlay();
-      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("");
 
-      // Zmiana o mniej niż 2 px wobec domyślnej - dalej bez zapisu.
-      boundingRect.mockReturnValue(rect(213));
-      act(() => {
-        fireResizeObservers();
-        vi.advanceTimersByTime(200);
-        flushFrames();
-      });
-      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("");
-
-      // Realna zmiana (np. baner reklamowy po hydratacji) - publikacja jak dotąd.
+      // Realna zmiana wysokości PRZED zatrzaskiem - zapis nie ma jeszcze odbiorcy.
       boundingRect.mockReturnValue(rect(320));
       act(() => {
         fireResizeObservers();
         vi.advanceTimersByTime(200);
         flushFrames();
       });
+      expect(writes()).toEqual([]);
+      expect(frames).toHaveLength(0);
+
+      // Zatrzask: pomiar bieżącej wysokości od razu.
+      openLatch();
       expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("320px");
 
-      // Od tej chwili porównanie idzie z ostatnim zapisem, nie z domyślną.
+      // Zmiana o mniej niż 2 px wobec ostatniego zapisu - bez zapisu.
       boundingRect.mockReturnValue(rect(321));
       act(() => {
         fireResizeObservers();
@@ -488,11 +611,66 @@ describe("Header - start bez przeliczenia stylu dokumentu (P1.2, F2/F2b)", () =>
         flushFrames();
       });
       expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("320px");
+
+      // Realna zmiana (np. baner reklamowy po hydratacji) - publikacja jak dotąd.
+      boundingRect.mockReturnValue(rect(212));
+      act(() => {
+        fireResizeObservers();
+        vi.advanceTimersByTime(200);
+        flushFrames();
+      });
+      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("212px");
+      expect(writes()).toEqual([
+        ["--sticky-header-h", "320px"],
+        ["--sticky-header-h", "212px"],
+      ]);
     } finally {
       removeDefault();
     }
   });
 
+  it("poza trybem sticky-shrink `0px` trafia na <html> dopiero po zatrzasku", async () => {
+    h.pathname = "/post/przyklad";
+    const writes = spyStickyWrites();
+    renderHeader({ header: { builder_data: doc(1) } });
+    await settleLazyOverlay();
+    expect(headerEl()).toHaveAttribute("data-header-mode", "reading");
+    expect(writes()).toEqual([]);
+
+    openLatch();
+    expect(writes()).toEqual([["--sticky-header-h", "0px"]]);
+  });
+
+  it("odmontowanie przed zatrzaskiem: brak zapisu i brak wiszących nasłuchów", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect(259));
+    const writes = spyStickyWrites();
+    const added = vi.spyOn(document, "addEventListener");
+    const removed = vi.spyOn(document, "removeEventListener");
+    const view = renderHeader({ header: { builder_data: doc(1) } });
+    await settleLazyOverlay();
+    const captureListeners = added.mock.calls.filter(
+      ([type, , options]) =>
+        (type === "click" || type === "keydown") &&
+        typeof options === "object" &&
+        options !== null &&
+        options.capture === true,
+    );
+    expect(captureListeners.map(([type]) => type).sort()).toEqual(["click", "keydown"]);
+
+    view.unmount();
+    for (const [type, listener] of captureListeners) {
+      expect(removed).toHaveBeenCalledWith(type, listener, true);
+    }
+
+    openLatch();
+    addAnchor("#p31-target").click();
+    document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    expect(writes()).toEqual([]);
+    expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("");
+  });
+});
+
+describe("Header - zwijanie bez przeliczeń stylu dokumentu (P1.2, F2/F2b)", () => {
   it("montaż nie przełącza data-settled (true -> false -> true) - tylko zmiana scrolled to robi", async () => {
     vi.useFakeTimers();
     stubScroll(0, 6000);
