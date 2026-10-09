@@ -22,10 +22,12 @@
 // Kolejność odpowiada temu, po co czytelnik wyszukuje markę: najpierw
 // formaty redakcyjne (analizy, wywiady), potem wydarzenia i materiały
 // eksperckie, na końcu tożsamość wydawcy. „Kontakt" świadomie NIE należy do
-// tej listy - zostaje w stopce i na stronie „O nas". Podcast wróci tu, gdy
-// /podcasts przestanie zwracać kartę „Nie udało się załadować podcastów"
-// (pomiar 2026-10-09: 3/3 odpowiedzi zdegradowane) - sekcja główna nie może
-// prowadzić crawlera ani asystenta AI na stronę błędu.
+// tej listy - zostaje w stopce i na stronie „O nas". Podcast wypadł stąd na
+// czas, gdy /podcasts zwracała wyłącznie kartę „Nie udało się załadować
+// podcastów" (pomiar 2026-10-09: 3/3 odpowiedzi zdegradowane, 42703 na
+// `podcasts.explicit`) - sekcja główna nie może prowadzić crawlera ani
+// asystenta AI na stronę błędu. Wrócił, gdy lista odcinków przestała zależeć
+// od kolumn metadanych Apple (`PODCAST_LIST_FIELDS`, migracja 20261009100000).
 import { FOOTER_LINKS, type FooterLink } from "@/lib/seo/footerNavigation";
 
 export const PRIMARY_SECTION_HREFS = [
@@ -33,6 +35,7 @@ export const PRIMARY_SECTION_HREFS = [
   "/category/wywiady",
   "/wydarzenia",
   "/category/policy-papers",
+  "/podcasts",
   "/o-nas",
 ] as const;
 

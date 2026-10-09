@@ -624,6 +624,7 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
       "https://neweuropeanstrategies.com/category/wywiady",
       "https://neweuropeanstrategies.com/wydarzenia",
       "https://neweuropeanstrategies.com/category/policy-papers",
+      "https://neweuropeanstrategies.com/podcasts",
       "https://neweuropeanstrategies.com/o-nas",
     ]);
   });
@@ -637,6 +638,7 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
       "Interviews",
       "Events",
       "Policy papers",
+      "Podcast",
       "About us",
     ]);
     expect(nav.itemListElement[2]?.url).toBe("https://neweuropeanstrategies.com/en/wydarzenia");

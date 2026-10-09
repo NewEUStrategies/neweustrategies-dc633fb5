@@ -24,16 +24,24 @@ describe("primarySiteSections", () => {
       "Wywiady",
       "Wydarzenia",
       "Policy papers",
+      "Podcast",
       "O nas",
     ]);
   });
 
-  it("nie deklaruje „Kontaktu”, dokumentów prawnych ani zdegradowanego /podcasts", () => {
+  it("nie deklaruje „Kontaktu” ani dokumentów prawnych", () => {
     const hrefs = primarySiteSections().map((link) => link.href);
     expect(hrefs).not.toContain("/kontakt");
-    // /podcasts wraca, gdy przestanie zwracać kartę błędu (pomiar 2026-10-09).
-    expect(hrefs).not.toContain("/podcasts");
     expect(primarySiteSections().some((link) => link.group === "legal")).toBe(false);
+  });
+
+  it("/podcasts wraca między policy papers a „O nas” - katalog renderuje listę, nie kartę błędu", () => {
+    // Pomiar 2026-10-09: 3/3 odpowiedzi /podcasts zdegradowane (42703 na
+    // `podcasts.explicit`), więc sekcja wypadła z listy. Lista odcinków czyta
+    // już tylko kolumny karty (`podcastsIndexRoute.test.tsx`).
+    const hrefs = primarySiteSections().map((link) => link.href);
+    expect(hrefs.indexOf("/podcasts")).toBe(hrefs.indexOf("/category/policy-papers") + 1);
+    expect(hrefs.indexOf("/o-nas")).toBe(hrefs.indexOf("/podcasts") + 1);
   });
 
   it("nie ma duplikatów adresów", () => {
