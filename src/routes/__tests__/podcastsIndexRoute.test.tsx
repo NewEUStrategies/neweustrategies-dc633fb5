@@ -71,6 +71,12 @@ const h = vi.hoisted(() => ({
   cacheControl: [] as string[],
   /** Czy okładka programu ma RZUCIĆ w renderze (awaria renderu, nie odczytu). */
   coverThrows: false,
+  /**
+   * Kolumny (`tabela.kolumna`), których WDROŻONA baza nie ma. PostgREST
+   * odrzuca wtedy całe zapytanie błędem 42703, zanim przeczyta choć jeden
+   * wiersz - tak padał katalog na produkcji 2026-10-09.
+   */
+  missingColumns: new Set<string>(),
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -87,13 +93,32 @@ vi.mock("@/integrations/supabase/client", async () => {
     return value;
   }
 
-  stub.setResponse("podcast_shows", async () => {
+  /** Kolumny z `select("a,b,c")`; `null`, gdy łańcuch nie zawęża projekcji. */
+  function selectedColumns(select: unknown): string[] | null {
+    if (typeof select !== "string" || select.trim() === "*") return null;
+    return select.split(",").map((column) => column.trim());
+  }
+
+  /**
+   * Odpowiedź jak z PostgREST: 42703 dla kolumny, której wdrożona baza nie ma,
+   * a w przeciwnym razie WYŁĄCZNIE wybrane kolumny - komponent nie dostaje
+   * pól, o które zapytanie nie prosiło.
+   */
+  function respond(table: string, select: unknown, rows: Record<string, unknown>[]) {
+    const columns = selectedColumns(select);
+    if (!columns) return ok(rows);
+    const missing = columns.find((column) => h.missingColumns.has(`${table}.${column}`));
+    if (missing) return fail(`column ${table}.${missing} does not exist`, "42703");
+    return ok(rows.map((row) => Object.fromEntries(columns.map((c) => [c, row[c]]))));
+  }
+
+  stub.setResponse("podcast_shows", async (chain) => {
     h.reads.push("podcast_shows:published");
     if (h.broken.has("podcast_shows")) return delayed(fail("test: podcast_shows niedostepna"));
-    return delayed(ok(visible(h.shows)));
+    return delayed(respond("podcast_shows", chain.argsOf("select")?.[0], visible(h.shows)));
   });
   stub.setResponse("podcasts", async (chain) => {
-    // Katalog czyta `podcasts` DWA RAZY z różnymi kolumnami: pełne wiersze
+    // Katalog czyta `podcasts` DWA RAZY z różnymi kolumnami: kolumny karty
     // (lista najnowszych) i lekką projekcję (statystyki per program). Etykieta
     // rozdziela je po `select`, bo tylko wtedy pomiar mówi, czego brakuje.
     // `argsOf` oddaje `undefined`, gdy ogniwa nie było - łańcuch bez `select`
@@ -104,7 +129,7 @@ vi.mock("@/integrations/supabase/client", async () => {
     if (h.broken.has(isStats ? "podcasts_stats" : "podcasts")) {
       return delayed(fail("test: podcasts niedostepna"));
     }
-    return delayed(ok(visible(h.episodes)));
+    return delayed(respond("podcasts", select, visible(h.episodes)));
   });
   return { supabase: { from: stub.from } };
 });
@@ -252,6 +277,7 @@ beforeEach(async () => {
   h.requestUrl = "https://nes.example.org/podcasts";
   h.cacheControl = [];
   h.coverThrows = false;
+  h.missingColumns = new Set<string>();
 });
 
 afterEach(async () => {
@@ -440,6 +466,54 @@ describe("trasa /podcasts - pusto kontra nie dojechało", () => {
 
     expect(h.cacheControl.at(-1)).toContain("s-maxage");
     expect(h.cacheControl.at(-1)).not.toContain("no-store");
+  });
+});
+
+describe("trasa /podcasts - baza bez kolumn migracji 20260725090500", () => {
+  // INCYDENT 2026-10-09: produkcja nie miała ŻADNEJ z 20 kolumn metadanych
+  // Apple (migracja nigdy się nie wykonała), a lista najnowszych prosiła
+  // o pełne PODCAST_FIELDS z `explicit` i `episode_type`. PostgREST odrzucał
+  // zapytanie (400, 42703) przy każdym żądaniu, więc katalog był trwale
+  // zdegradowany: HTTP 200, `no-store` i sam komunikat awarii - także dla
+  // Googlebota. Lista renderuje wyłącznie kolumny karty i nie może zależeć od
+  // metadanych, które czyta tylko kanał RSS.
+  const APPLE_METADATA_COLUMNS = [
+    "podcasts.explicit",
+    "podcasts.episode_type",
+    "podcast_shows.itunes_author",
+    "podcast_shows.itunes_owner_name",
+    "podcast_shows.itunes_owner_email",
+    "podcast_shows.itunes_category",
+    "podcast_shows.itunes_subcategory",
+    "podcast_shows.itunes_explicit",
+    "podcast_shows.itunes_type",
+    "podcast_shows.itunes_complete",
+  ];
+
+  it("katalog renderuje programy i odcinki, a odpowiedź zostaje cache'owalna", async () => {
+    h.missingColumns = new Set(APPLE_METADATA_COLUMNS);
+    await mount();
+
+    expect(await screen.findByRole("link", { name: /Zima bez gazu/ })).toHaveAttribute(
+      "href",
+      "/podcast/odcinek-pierwszy",
+    );
+    expect(screen.getByRole("heading", { name: "Programy" })).toBeInTheDocument();
+    expect(screen.getByText(/1 odcinek/)).toBeInTheDocument();
+    expect(screen.queryByText("Nie udało się załadować podcastów")).toBeNull();
+    expect(h.cacheControl.at(-1)).not.toContain("no-store");
+  });
+
+  it("KONTROLA DODATNIA: zapytanie o kolumnę, której baza nie ma, nadal degraduje katalog", async () => {
+    // Bez tej pary poprzedni test przechodziłby też wtedy, gdyby atrapa
+    // ignorowała `select` - a to nie jest dowód, tylko brak sprawdzenia.
+    h.missingColumns = new Set(["podcasts.duration_seconds"]);
+    await mount();
+
+    await waitFor(() =>
+      expect(screen.getByText("Nie udało się załadować podcastów")).toBeInTheDocument(),
+    );
+    expect(h.cacheControl.at(-1)).toContain("no-store");
   });
 });
 

@@ -72,6 +72,10 @@ const BASELINE: readonly string[] = [
   // przyszła furtka"). Usunięte zgodnie z jej własną instrukcją.
   "membership_grants.source_coupon_id",
   "notifications.meta",
+  // 2026-10-09: 20 kolumn z 20260725090500 to NIE nieświeże typy, tylko
+  // migracja, która nigdy nie poszła na produkcję (PostgREST: 42703 dla
+  // `podcasts.explicit`; types.ts generowany z produkcji ich nie zna). Ponawia
+  // ją 20261009100000 - po wdrożeniu i regeneracji types.ts wpisy znikają.
   "podcast_settings.itunes_author",
   "podcast_settings.itunes_category",
   "podcast_settings.itunes_copyright",

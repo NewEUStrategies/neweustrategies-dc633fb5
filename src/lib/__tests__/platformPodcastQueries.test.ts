@@ -109,6 +109,29 @@ describe("public podcast read contracts", () => {
       }
     },
   );
+  it("latest list reads only card columns - no transcripts, notes or RSS-only Apple metadata", async () => {
+    // 2026-10-09: the full PODCAST_FIELDS projection failed in production with
+    // 42703 (`podcasts.explicit` never deployed), degrading /podcasts and the
+    // `podcast-latest` widget. The list must not depend on columns it never renders.
+    db.setResponse("podcasts", ok([]));
+    await qc.fetchQuery(q.latestPodcastsQueryOptions(30));
+    const [chain] = db.chainsFor("podcasts");
+    const columns = String(chain.argsOf("select")?.[0]).split(",");
+    expect(columns).toEqual(q.PODCAST_LIST_FIELDS.split(","));
+    for (const column of [
+      "explicit",
+      "episode_type",
+      "transcript_pl",
+      "transcript_en",
+      "show_notes_pl",
+      "show_notes_en",
+      "chapters",
+      "quotes",
+      "resources",
+    ]) {
+      expect(columns).not.toContain(column);
+    }
+  });
   it("uses stable batch identity and does not issue a database read for an empty batch", async () => {
     expect(q.episodesPeopleQueryOptions(["b", "a"]).queryKey).toEqual(
       q.episodesPeopleQueryOptions(["a", "b"]).queryKey,
