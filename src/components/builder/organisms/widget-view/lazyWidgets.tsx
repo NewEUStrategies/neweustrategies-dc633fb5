@@ -368,7 +368,9 @@ const ChartWidgetViewLazy = lazy(() =>
 export const ChartWidgetView = withSuspense(ChartWidgetViewLazy);
 
 const DataMapWidgetViewLazy = lazy(() =>
-  import("./DataVizWidgets").then((m) => ({ default: m.DataMapWidgetView })),
+  import("./DataVizWidgets")
+    .then((m) => ({ default: m.DataMapWidgetView }))
+    .catch(() => ({ default: ChartLoadFailed })),
 ) as ComponentType<ComponentProps<typeof DataMapWidgetViewImpl>>;
 export const DataMapWidgetView = withSuspense(DataMapWidgetViewLazy);
 
