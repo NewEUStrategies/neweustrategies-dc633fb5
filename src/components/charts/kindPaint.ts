@@ -26,6 +26,7 @@
 // motywów; w ciemnym token ma wartość akcentu, więc obwódka zlewa się
 // z wypełnieniem, a geometria zostaje ta sama.
 import type { ChartConfig } from "@/lib/charts/types";
+import { BAR_EDGE_INSET } from "@/lib/charts/geometry";
 import { ROLE } from "@/lib/charts/roles";
 import { seriesPaint, seriesRank, type SeriesPaint } from "@/lib/charts/seriesStyle";
 
@@ -34,6 +35,32 @@ export const FOCUS_MIX = { inner: 18, hover: 85, band: 12 } as const;
 
 /** Grubość obwódki drugiego nośnika akcentu, w px - ta sama w obu motywach. */
 export const ACCENT_EDGE_PX = 1;
+
+/**
+ * Grubość KRAWĘDZI ODCZYTU (wąs i poprzeczka pudełka, kreska końca bliższego
+ * w tornado, obwódka słupka w wariancie bladym), w px - JEDNA w obu motywach.
+ *
+ * Token `--chart-bar-edge` ma w motywach różne wartości (1,5 px jasny,
+ * 1,25 px ciemny - korekta irradiacji), czyli przełączenie motywu
+ * przesuwało krawędzie rysunku, a w motywie mają się zmieniać wyłącznie
+ * kolory (AGENTS.md). Wartość to dwa wsunięcia kształtu (`BAR_EDGE_INSET`),
+ * więc obwódka i wsunięcie słupka nadal się znoszą. Arkusz ma tę samą liczbę
+ * w regule `.neh-bar[data-edged="true"]` - pilnuje tego bramka
+ * `themeInvariantGeometry.test.ts`.
+ */
+export const EDGE_STROKE_PX = 2 * BAR_EDGE_INSET;
+
+/**
+ * Tusz NA PEŁNYM WYPEŁNIENIU AKCENTEM (kreska albo liczba na akcencie).
+ *
+ * Kolor płyty ma na akcencie 2,25:1 (biel), a tusz główny w ciemnym motywie
+ * jest jasny - żaden z nich nie przechodzi progu linii 3:1 w obu motywach.
+ * Akcent jest ochrą marki ze slotu 2 (`--chart-2` ma tę samą wartość co
+ * `--chart-accent` w jasnym, ciemnym i druku), więc jego tusz to tusz slotu 2
+ * dobrany do nasyconego wypełnienia: ~8:1 na akcencie w każdym motywie.
+ * Równość obu tokenów pilnuje bramka `accentSecondCarrier.test.tsx`.
+ */
+export const ACCENT_INK = "var(--chart-ink-2)";
 
 export interface PaintVariants {
   /** Kolor znacznika - wypełnienie pełne, linia, punkt (próg grafiki). */

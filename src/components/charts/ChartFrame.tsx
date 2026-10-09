@@ -87,7 +87,7 @@ export interface ChartCaption {
  */
 export type ChartFamily = KindCaps["family"] | "map";
 
-/** Wpis klucza dołączanego do eksportu PNG - nazwa i kolor próbki. */
+/** Wpis klucza dołączanego do eksportu (PNG i SVG) - nazwa i kolor próbki. */
 export interface ChartExportKeyItem {
   label: string;
   /** Kolor próbki; wyrażenie CSS z tokenami jest rozwiązywane przed rysowaniem. */
@@ -107,7 +107,7 @@ export interface ChartPanelMeta {
    */
   help?: { elements: string; colours: string; interactions: string };
   /**
-   * Klucz do eksportu PNG podany przez rysunek. Brak = klucz zebrany
+   * Klucz do eksportu (PNG i SVG) podany przez rysunek. Brak = klucz zebrany
    * z legendy ramy (`.neh-legend`). Rysunek bez legendy serii (mapa, tarcza
    * z kluczem w tabeli) podaje go tutaj, żeby plik nie był bezimienny.
    */
@@ -309,13 +309,10 @@ export function ChartFrame({
         styl.getPropertyValue("--card").trim() || styl.backgroundColor || "#ffffff";
       const fontFamily = getComputedStyle(svg).fontFamily || styl.fontFamily;
       const name = nazwaPliku(title, lang === "en" ? "chart" : "wykres");
-      if (type === "svg") {
-        pobierzPlik(`${name}.svg`, svgDoPliku(svg, { background, fontFamily }));
-        return;
-      }
-      // KLUCZ DOKLEJONY DO PNG - podany przez rysunek albo z próbek legendy,
-      // które czytelnik widzi (pozycje ukryte pomijamy, bo nie ma ich na
-      // rysunku).
+      // KLUCZ DOKLEJONY DO PLIKU (PNG i SVG) - podany przez rysunek albo
+      // z próbek legendy, które czytelnik widzi (pozycje ukryte pomijamy, bo
+      // nie ma ich na rysunku). SVG dostaje ten sam klucz co PNG: tarcza pod
+      // paletą ról ma stopnie szarości, których bez klucza nie da się nazwać.
       const exportKey = meta?.exportKey;
       const klucz = exportKey
         ? kluczRysunku(figure, exportKey())
@@ -334,6 +331,10 @@ export function ChartFrame({
               },
             ];
           });
+      if (type === "svg") {
+        pobierzPlik(`${name}.svg`, svgDoPliku(svg, { background, fontFamily, klucz }));
+        return;
+      }
       pobierzPlik(`${name}.png`, await svgDoPng(svg, { background, scale: 2, klucz }));
     } catch {
       setExportError(true);

@@ -76,6 +76,19 @@ function sliceInk(slice: PieSlice): { fill: string; halo: boolean } {
     : { fill: ROLE.ink, halo: true };
 }
 
+/**
+ * Kolejność malowania liczby w łuku z obwódką płyty - także ATRYBUTEM
+ * PREZENTACYJNYM, nie tylko z arkusza (tak jak w mapie cieplnej). Kolor
+ * i grubość obwódki (3 px, ta sama w obu motywach) niesie arkusz, a eksport
+ * wkleja je ze stylu obliczonego; `paint-order` w atrybucie jest asekuracją
+ * na wypadek, gdyby przeglądarka nie oddała go w stylu obliczonym - bez niego
+ * plik wraca do kolejności domyślnej (obwódka NA literze) i cyfry giną pod
+ * plamą w kolorze płyty.
+ */
+function haloProps(halo: boolean) {
+  return halo ? { "data-halo": "true", paintOrder: "stroke" } : {};
+}
+
 interface PieChartProps {
   config: ChartConfig;
   lang: ChartLang;
@@ -332,7 +345,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
                       textAnchor="middle"
                       fontSize={12}
                       fill={ink.fill}
-                      data-halo={ink.halo ? "true" : undefined}
+                      {...haloProps(ink.halo)}
                       className="neh-arc-label neh-value-label tabular-nums"
                     >
                       {label}
@@ -344,7 +357,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
                         textAnchor="middle"
                         fontSize={11}
                         fill={ink.fill}
-                        data-halo={ink.halo ? "true" : undefined}
+                        {...haloProps(ink.halo)}
                         className="neh-arc-label neh-pie-value tabular-nums"
                       >
                         {formatChartValue(s.value, lang, config.unit)}
