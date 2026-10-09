@@ -82,6 +82,18 @@ const h = vi.hoisted(() => ({
   fontScaleHangs: false,
   /** Rozgrzewki sygnału „brak aktywnych popupów" (P3.8 #4a). */
   popupWarms: 0,
+  /**
+   * Odpowiedź projekcji obecności popupów (`builder_popups:presence`). `null` =
+   * uproszczona atrapa rozgrzewki; wartość = PRAWDZIWE `warmNoActivePopups`
+   * z tą odpowiedzią „backendu".
+   */
+  popupsPresence: null as boolean | null,
+  /**
+   * Wiersz `site_design_tokens` istnieje: tokeny i kolory przychodzą jak
+   * z prawdziwego `queryFn` (nigdy `null`). Domyślnie atrapa oddaje `null`,
+   * czyli fala 1 kończy się zasiewem - na tym stoją testy zasiewów.
+   */
+  themeRow: false,
   /** Sesja zespołu redakcji (`useAuth().isStaff`). */
   staff: false,
 }));
@@ -177,11 +189,17 @@ vi.mock("@/lib/useSiteSetting", async (o) => ({
 }));
 vi.mock("@/lib/builder/designTokens", async (o) => ({
   ...(await o<typeof import("@/lib/builder/designTokens")>()),
-  designTokensQueryOptions: { queryKey: ["design-tokens"], queryFn: async () => null },
+  designTokensQueryOptions: {
+    queryKey: ["design-tokens"],
+    queryFn: async () => (h.themeRow ? { colors: [], fonts: {}, scale: {} } : null),
+  },
 }));
 vi.mock("@/hooks/useGlobalColors", async (o) => ({
   ...(await o<typeof import("@/hooks/useGlobalColors")>()),
-  globalColorsQueryOptions: { queryKey: ["global-colors"], queryFn: async () => null },
+  globalColorsQueryOptions: {
+    queryKey: ["global-colors"],
+    queryFn: async () => (h.themeRow ? {} : null),
+  },
 }));
 // Tabela rozmiarów czcionek (P3.8 #1): ten sam wiersz co tokeny, osobny klucz.
 vi.mock("@/hooks/useFontScale", async (o) => ({
@@ -196,13 +214,32 @@ vi.mock("@/hooks/useFontScale", async (o) => ({
 }));
 // Sygnał „brak aktywnych popupów" (P3.8 #4a): atrapa zapisuje to, co prawdziwa
 // projekcja przy pustym wyniku - pustą listę pod kluczem `useActivePopups`.
-vi.mock("@/lib/builder/popups", async (o) => ({
-  ...(await o<typeof import("@/lib/builder/popups")>()),
-  warmNoActivePopups: async (qcArg: QueryClient) => {
-    h.popupWarms += 1;
-    qcArg.setQueryData(["builder-popups-active"], []);
-  },
-}));
+// Z `h.popupsPresence` biegnie PRAWDZIWA funkcja P3.8 (ten sam zapis, który
+// widzi predykat kompletności P3.6b), a atrapą jest tylko odpowiedź projekcji
+// obecności (`edgeTtlCache` niżej).
+vi.mock("@/lib/builder/popups", async (o) => {
+  const actual = await o<typeof import("@/lib/builder/popups")>();
+  return {
+    ...actual,
+    warmNoActivePopups: async (qcArg: QueryClient) => {
+      h.popupWarms += 1;
+      if (h.popupsPresence !== null) return actual.warmNoActivePopups(qcArg);
+      qcArg.setQueryData(["builder-popups-active"], []);
+    },
+  };
+});
+// „Backend" projekcji obecności popupów: pozostałe klucze idą prawdziwym
+// `edgeTtlCache`.
+vi.mock("@/lib/ssrCache", async (o) => {
+  const actual = await o<typeof import("@/lib/ssrCache")>();
+  return {
+    ...actual,
+    edgeTtlCache: ((key, ttlMs, fetcher, opts) =>
+      key === "builder_popups:presence" && h.popupsPresence !== null
+        ? Promise.resolve(h.popupsPresence)
+        : actual.edgeTtlCache(key, ttlMs, fetcher, opts)) as typeof actual.edgeTtlCache,
+  };
+});
 vi.mock("@/hooks/useAuth", async (o) => {
   const actual = await o<typeof import("@/hooks/useAuth")>();
   return {
@@ -365,6 +402,8 @@ beforeEach(() => {
   h.fontScaleFetches = 0;
   h.fontScaleHangs = false;
   h.popupWarms = 0;
+  h.popupsPresence = null;
+  h.themeRow = false;
   h.staff = false;
 });
 
@@ -1138,6 +1177,54 @@ describe("root chrome gate uses real query freshness", () => {
     await vi.dynamicImportSettled();
     expect(h.popupWarms).toBe(0);
     expect(qc.getQueryData(["builder-popups-active"])).toBeUndefined();
+  });
+
+  // ── P3.6b × P3.8: ZAPISY SSR KORZENIA A PREDYKAT KOMPLETNOŚCI ─────────────
+  //
+  // Predykat strony głównej (P3.6b, `trackSsrQueryCompleteness`) liczy KAŻDY
+  // wpis z `updatedAt: 0` jako zgubione dane, poza celowymi zasiewami
+  // i dekoracjami. Korzeń po P3.8 zapisuje w SSR dwie nowe rzeczy: tabelę
+  // rozmiarów czcionek z fali 1 i sygnał „brak aktywnych popupów" (`[]`
+  // z `updatedAt: 0`) z fali chrome - na KAŻDEJ trasie z chrome'em, także `/`.
+  // Gdyby predykat nie znał sygnału, strona główna u najemcy bez popupów nie
+  // trafiałaby do NES Edge Cache ani z przebiegu czytelnika, ani z odświeżenia
+  // w tle. Tu: prawdziwy loader korzenia na `/`, prawdziwe `warmNoActivePopups`
+  // (atrapą jest tylko odpowiedź projekcji obecności) i prawdziwy predykat,
+  // zamrożony sprzątaniem integracji router<->query. Uzbrojenie PRZED
+  // korzeniem jest ostrzejsze niż w produkcji (koniec loadera `/`): śledzi
+  // każde pobranie korzenia.
+  it("strona główna: zapisy SSR korzenia z P3.8 nie odbierają kompletnemu dokumentowi zapisu", async () => {
+    h.server = true;
+    h.themeRow = true;
+    h.popupsPresence = false;
+    h.settings = { header: { builder_data: { sections: [{ id: "s" }] } } };
+    const verdict = trackSsrQueryCompleteness(qc);
+    vi.stubEnv("SSR", true);
+    try {
+      await runLoader(qc, "/");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    // Fala chrome strony głównej biegnie w tle - loader `/` na nią nie czeka
+    // (import dynamiczny modułu popupów: luz na obciążony CI).
+    await vi.waitFor(() => expect(qc.getQueryData(["builder-popups-active"])).toEqual([]), {
+      timeout: 5_000,
+    });
+    // Przesłanki: sygnał to zasiew `updatedAt: 0` (nie dane hosta), tabela
+    // rozmiarów to prawdziwe dane z fali 1, układ treści - celowy zasiew korzenia.
+    expect(h.popupWarms).toBe(1);
+    expect(qc.getQueryState(["builder-popups-active"])).toMatchObject({
+      status: "success",
+      dataUpdatedAt: 0,
+    });
+    expect(qc.getQueryState(["font-scale"])?.status).toBe("success");
+    expect(qc.getQueryState(["font-scale"])?.dataUpdatedAt).toBeGreaterThan(0);
+    expect(qc.getQueryState(["post-layout-settings"])?.dataUpdatedAt).toBe(0);
+    expect(h.cacheControl).not.toContain("private, no-store");
+    // Sprzątanie integracji po zamknięciu strumienia zamraża werdykt.
+    await qc.cancelQueries();
+    qc.clear();
+    expect(verdict()).toEqual({ complete: true, reasons: [] });
   });
 });
 
