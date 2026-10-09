@@ -1,18 +1,33 @@
-// Model tarczy kołowej: co rysuje wykres, jakim slotem palety i z jakiego
+// Model tarczy kołowej: co rysuje wykres, jakim kolorem i z jakiego
 // mianownika liczy udziały. Osobny moduł, bo z tego samego modelu korzystają
-// TRZY drogi do tych samych liczb - grafika (PieChart), legenda i tabela
-// danych (Chart) - a rozjazd między nimi jest defektem samym w sobie.
+// TRZY drogi do tych samych liczb - grafika (PieChart), klucz eksportu
+// i tabela danych (Chart) - a rozjazd między nimi jest defektem samym
+// w sobie.
 import i18n from "@/lib/i18n";
 import type { ChartConfig } from "@/lib/charts/types";
 import { PIE_MAX_SLICES } from "@/lib/charts/types";
 import type { ChartLang } from "@/lib/charts/format";
+import { SLOT_SEQUENCE } from "@/lib/charts/palette";
+import { categoryPaint } from "@/lib/charts/seriesStyle";
 import "@/lib/i18n-charts";
 
 export interface PieSlice {
   label: string;
   value: number;
   share: number;
+  /**
+   * Indeks KATEGORII w konfiguracji; `null` dla wycinka zbiorczego
+   * „Pozostałe", który nie jest żadną kategorią arkusza.
+   */
+  index: number | null;
+  /** Slot palety kategorialnej - z POZYCJI wycinka w `SLOT_SEQUENCE`. */
   colorSlot: number;
+  /** Wycinek wyróżniony (`accentCategory`, domyślnie największy). */
+  accent: boolean;
+  /** Wypełnienie łuku - to samo dla łuku, klucza, dymka i eksportu. */
+  color: string;
+  /** Napis identyfikujący wycinek (próg tekstu). */
+  textColor: string;
   startAngle: number;
   endAngle: number;
 }
@@ -72,15 +87,28 @@ export interface PieModel {
  * "Pozostałe" ze stustoma procentami - cztery odczytywalne kategorie znikały
  * bez śladu. Limit pilnuje liczby wycinków, więc musi liczyć wycinki.
  *
- * Slot z pozycji ma drugą zaletę: nigdy nie wychodzi poza 1-5, czyli zostaje
- * w zestawie bezpiecznym dla daltonizmu. Sloty 7-8 różnią się od 1-2 o ~10-12
- * jednostek CIELAB po symulacji i potrzebują kreskowania jako drugiego
- * nośnika różnicy - a wycinka tarczy nie da się zakreskować, więc na tarczy
- * takie sloty byłyby po prostu nierozróżnialne.
+ * SLOT Z POZYCJI IDZIE PRZEZ `SLOT_SEQUENCE`, nie po numerach 1-5. Pierwsze
+ * pozycje sekwencji to zestaw bezpieczny dla daltonizmu, a numery 1-5
+ * zawierały slot 2 - czyli dokładnie kolor marki (#FA9346). Na KAŻDEJ tarczy
+ * w palecie kategorialnej drugi co do wielkości wycinek wyglądał więc jak
+ * wyróżniony, choć niczym się nie wyróżniał. Wycinka tarczy nie da się
+ * zakreskować, więc rozdzielność musi nieść sam kolor.
+ *
+ * PALETA RÓL (`focus`, domyślna): wycinek wyróżniony w akcencie, pozostałe
+ * w stopniach neutralnych (`categoryPaint`) - w kolejności rysowania, więc
+ * najjaśniejszy stopień dostaje najmniejszy wycinek albo „Pozostałe".
+ *
+ * WYCINEK WYRÓŻNIONY NIGDY NIE ZNIKA W „POZOSTAŁYCH". Autor wskazał go
+ * (`accentCategory`) po to, żeby był widoczny; zwinięcie go do ogona
+ * zostawiłoby akcent bez kształtu. Głowa to więc wyróżniony plus największe
+ * pozostałe - razem PIE_MAX_SLICES-1 własnych wycinków i wycinek zbiorczy.
+ * Brak wyboru (`null`) albo kategoria, której tarcza nie rysuje (zero, brak,
+ * wartość ujemna), oddaje akcent wycinkowi największemu.
  *
  * Dwa wycinki w tym samym kolorze przestają być kluczem legendy, więc pozycje
  * są unikalne z definicji, a nadmiar kategorii ani nie zawija palety, ani nie
- * wypada z mianownika: ostatni slot niesie jeden wycinek zbiorczy z sumą ogona.
+ * wypada z mianownika: ostatnia pozycja niesie jeden wycinek zbiorczy z sumą
+ * ogona.
  *
  * LIMIT WYCINKÓW TO PIĘĆ, NIE OSIEM, i jest to zmiana świadoma. Tarcza koduje
  * kątem i powierzchnią, czyli kanałami z dolnej połowy hierarchii
@@ -112,28 +140,61 @@ export function pieModel(config: ChartConfig, lang: ChartLang): PieModel {
   // przypadkowe kategorie z końca arkusza.
   drawable.sort((a, b) => b.value - a.value);
 
+  // Wyróżniony: wskazany przez autora, o ile tarcza go rysuje; inaczej
+  // największy (po sortowaniu - pierwszy).
+  const accentIndex =
+    drawable.find((d) => d.index === config.accentCategory)?.index ?? drawable[0]?.index ?? null;
   const overflow = drawable.length > PIE_MAX_SLICES;
-  const head = overflow ? drawable.slice(0, PIE_MAX_SLICES - 1) : drawable;
-  const parts: { label: string; value: number; colorSlot: number }[] = head.map((d, pos) => ({
+  // Głowa: wyróżniony + największe pozostałe, w kolejności MALEJĄCEJ (filtr
+  // zachowuje porządek sortowania, więc wyróżniony stoi tam, gdzie wypada
+  // jego wartość). Ogon: wszystko inne - bez wyróżnionego.
+  const headSize = PIE_MAX_SLICES - 1;
+  const others = drawable.filter((d) => d.index !== accentIndex);
+  const headIds = new Set(
+    overflow
+      ? [
+          ...(accentIndex === null ? [] : [accentIndex]),
+          ...others.slice(0, headSize - 1).map((d) => d.index),
+        ]
+      : drawable.map((d) => d.index),
+  );
+  const head = drawable.filter((d) => headIds.has(d.index));
+  const parts: { label: string; value: number; index: number | null }[] = head.map((d) => ({
     label: d.label,
     value: d.value,
-    colorSlot: pos + 1,
+    index: d.index,
   }));
   if (overflow) {
-    const rest = drawable.slice(PIE_MAX_SLICES - 1);
+    const rest = drawable.filter((d) => !headIds.has(d.index));
     parts.push({
       label: i18n.t("charts.frame.other", { lng: lang }),
       value: rest.reduce((a, d) => a + d.value, 0),
-      colorSlot: PIE_MAX_SLICES,
+      index: null,
     });
   }
 
+  // Ranga koloru pod paletą ról: wyróżniony 0, pozostałe 1..n-1 w kolejności
+  // rysowania (wycinek zbiorczy jest ostatni, więc dostaje stopień
+  // najjaśniejszy - tło tła).
+  let nextRank = 1;
   let angle = -Math.PI / 2;
-  const slices: PieSlice[] = parts.map((part) => {
+  const slices: PieSlice[] = parts.map((part, pos) => {
     const share = total > 0 ? part.value / total : 0;
     const startAngle = angle;
     angle += share * Math.PI * 2;
-    return { ...part, share, startAngle, endAngle: angle };
+    const accent = part.index !== null && part.index === accentIndex;
+    const colorSlot = SLOT_SEQUENCE[pos % SLOT_SEQUENCE.length];
+    const paint = categoryPaint(accent ? 0 : nextRank++, parts.length, config.palette, colorSlot);
+    return {
+      ...part,
+      share,
+      colorSlot,
+      accent,
+      color: paint.color,
+      textColor: paint.textColor,
+      startAngle,
+      endAngle: angle,
+    };
   });
   // Suma kontrolna liczona z WARTOŚCI, nie z kątów - patrz `shareSum`.
   //

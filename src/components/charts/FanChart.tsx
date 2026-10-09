@@ -96,6 +96,8 @@ import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
+import { sourceLine } from "./chartFacts";
+import { kindSinglePaint } from "./kindPaint";
 import "@/lib/i18n-charts";
 import { categorySelection, isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 
@@ -467,15 +469,18 @@ export function FanChart({ config, lang, onSelect, ariaLabel: nazwaZadana }: Fan
    *
    * Gdy ścieżki nie ma (`null`), zostaje slot pierwszej kolumny: wachlarz bez
    * centrum i tak nie ma czego pokazać, a rysunek musi się czymś narysować.
+   *
+   * PALETA RÓL (domyślna): wachlarz jest w AKCENCIE - mówi o jednej
+   * wielkości, więc to ona jest wyróżniona - a krycie pasm idzie ze stałej
+   * mieszanki pasma (12%, `kindPaint`) zamiast z krycia slotu.
    */
   const colorSlot = config.series[model.centralIndex ?? 0]?.colorSlot ?? 1;
-  const kolor = `var(--chart-${colorSlot})`;
+  const farba = kindSinglePaint({ palette: config.palette }, colorSlot);
+  const kolor = farba.color;
   const krycie = (layer: number): string =>
-    `calc(var(--chart-band-${colorSlot}) * ${mnoznikWarstwy(
-      layer,
-      model.levels.length,
-      nakladajace,
-    ).toFixed(3)})`;
+    `calc(${farba.bandOpacity} * ${mnoznikWarstwy(layer, model.levels.length, nakladajace).toFixed(
+      3,
+    )})`;
 
   /** Etykieta poziomu pewności. Liczba idzie z DEKLARACJI autora, nie ze zmierzonej szerokości. */
   const etykietaPasma = (level: FanLevel): string =>
@@ -730,6 +735,7 @@ export function FanChart({ config, lang, onSelect, ariaLabel: nazwaZadana }: Fan
               ? BRAK_WARTOSCI
               : formatChartValue(czynny.central, lang, config.unit),
           colorSlot,
+          color: kolor,
           emphasised: true,
         },
         // PO JEDNYM WIERSZU NA POZIOM PEWNOŚCI, w kolejności warstw - tej
@@ -792,6 +798,7 @@ export function FanChart({ config, lang, onSelect, ariaLabel: nazwaZadana }: Fan
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{ height, borderRadius: "var(--chart-radius)" }}
         tabIndex={0}
@@ -1087,6 +1094,7 @@ export function FanChart({ config, lang, onSelect, ariaLabel: nazwaZadana }: Fan
                 : t("forecast.historyLabel")
           }
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
 

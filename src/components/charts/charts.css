@@ -48,6 +48,16 @@
      postawiony jako element flex zapadłby się do zera. */
   container-type: inline-size;
   width: 100%;
+  /* TYPOGRAFIA WIDGETU BUILDERA NIE PRZESTAWIA WYKRESU. Reguły „Theme
+     Design" omijają potomków `[data-typography-exempt]` (rama i dymek go
+     niosą), ale generator stawia też krój, światło, transformację i styl na
+     SAMEJ ramce widgetu - a te własności się dziedziczą. Wartości domyślne
+     zadeklarowane tutaj przecinają to dziedziczenie, więc wykres w widgecie
+     wygląda jak ten sam wykres w bloku. */
+  font-style: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: start;
 }
 @container (max-width: 599px) {
   .neh-chart-body {
@@ -327,28 +337,37 @@
   stroke-width: 1.4;
 }
 
-/* WYCINEK TARCZY. Wskazanie i fokus zmieniają POWIERZCHNIĘ, nie kodowanie:
-   wypełnienie idzie o jeden krok w stronę nasycenia, obwódka na czysty token
-   serii, a grubość obwódki i geometria łuku zostają bez zmian. Wcześniejsza
-   wersja wysuwała wskazany wycinek 4 px na zewnątrz - to zmieniało długość
-   łuku przy krawędzi zewnętrznej i zawyżało udział, czyli robiło dokładnie
-   to, czego zabrania zasada o niezmiennym kodowaniu. */
+/* WYCINEK TARCZY - wypełnienie PEŁNE (PR2). Wskazanie i fokus zmieniają
+   POWIERZCHNIĘ, nie kodowanie: wypełnienie idzie na 85% koloru na płycie,
+   a geometria łuku zostaje bez zmian. Wcześniejsza wersja wysuwała wskazany
+   wycinek 4 px na zewnątrz - to zmieniało długość łuku przy krawędzi
+   zewnętrznej i zawyżało udział, czyli robiło dokładnie to, czego zabrania
+   zasada o niezmiennym kodowaniu. */
 .neh-chart .neh-slice {
-  /* GRUBOŚĆ OBWÓDKI Z TOKENA, tak samo jak w słupku: 1,5 px na jasnym
-     i 1,25 px na ciemnym, bo jasna linia na ciemnym tle optycznie grubieje.
-     Bez tej deklaracji łuk brał domyślną grubość SVG, czyli 1 px w obu
-     motywach - a obwódka jest w wariancie bladym JEDYNYM nośnikiem koloru
-     serii (wnętrze ma do płyty 1,20-1,28:1), więc jej ścienienie o trzecią
-     część realnie osłabia rozróżnienie kategorii. W atrybucie prezentacyjnym
-     tego podać nie można, bo `var()` nie jest tam wspierane wszędzie. */
-  stroke-width: var(--chart-bar-edge, 1.5px);
+  /* JEDNA GRUBOŚĆ W OBU MOTYWACH. Obwódkę ma wyłącznie wycinek w akcencie
+     (drugi nośnik, 1 px w `--chart-accent-audit-graphic`); pozostałe mają
+     `stroke="none"`. Grubość z tokena `--chart-bar-edge` (1,5 px jasny,
+     1,25 px ciemny) przesuwałaby granicę wycinka przy przełączeniu motywu,
+     a w motywie mają się zmieniać wyłącznie kolory. W atrybucie
+     prezentacyjnym tego podać nie można, bo `var()` nie jest tam wspierane
+     wszędzie. */
+  stroke-width: 1px;
   transition:
     fill var(--neh-hover-ms) ease-out,
     stroke var(--neh-hover-ms) ease-out;
 }
 .neh-chart .neh-slice[data-active="true"] {
   fill: var(--neh-arc-hover);
-  stroke: var(--neh-arc-token);
+}
+/* LICZBA W ŁUKU Z OBWÓDKĄ PŁYTY (paleta ról): na części stopni neutralnych
+   żaden pojedynczy tusz nie ma 4,5:1, więc kontrast liczy się między literą
+   a jej obwódką, nie między literą a wycinkiem. Grubość stała w obu
+   motywach. */
+.neh-chart .neh-arc-label[data-halo="true"] {
+  stroke: var(--card);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+  paint-order: stroke;
 }
 /* Obramowanie fokusu: linia CIĄGŁA 2 px z odstępem 2 px, wyłącznie dla
    `:focus-visible`, więc kliknięcie wskaźnikiem go nie wywołuje. Na łuku
@@ -362,11 +381,12 @@
 .neh-chart .neh-slice:focus-visible {
   outline: none;
   stroke: var(--foreground);
+  stroke-width: 2px;
 }
 
 /* TABELA KLUCZA obok pierścienia. Wskazany wiersz oznaczony WAGĄ FONTU
    i promocją koloru liczb z recesywnego na pełny tusz - nigdy tłem: wash pod
-   bladą próbką koloru zmieniałby przez kontrast jednoczesny jej wygląd, czyli
+   próbką koloru zmieniałby przez kontrast jednoczesny jej wygląd, czyli
    podświetlenie fałszowałoby klucz. Szerokości kolumn są stałe (`colgroup`
    w komponencie), więc pogrubienie nie rozpycha tabeli. */
 .neh-chart .neh-pie-key tr[data-active="true"] th,
@@ -1121,21 +1141,12 @@
     display: none !important;
   }
 
-  /* ---- W DRUKU ŁUKI TARCZY SĄ SOLIDNE ----
-     Wariant blady łuku stoi na tym, że wnętrze ma do płyty 1,20-1,28:1,
-     a granicę niesie obwódka. Na papierze 1,2:1 nie ma czym się odbić od
-     bieli, więc łuk drukuje się czystym tokenem. Słupki są pełne zawsze,
-     więc nie potrzebują osobnej reguły druku. */
-  .neh-chart .neh-slice,
+  /* ---- ŁUK TARCZY W DRUKU: kolor wycinka bez stanu wskazania ----
+     Łuki są pełne także na ekranie (PR2), więc druk nie ma już czego
+     przełączać - zdejmuje tylko wskazanie, którego na papierze nie ma.
+     Liczby w łuku mają tusz dobrany do wypełnienia już na ekranie. */
   .neh-chart .neh-slice[data-active="true"] {
     fill: var(--neh-arc-token);
-    stroke: none;
-  }
-  /* Liczba w łuku przechodzi na TUSZ SLOTU, bo leży teraz na nasyconym
-     kolorze: tusz semantyczny ma na granacie 2,25:1, a ink slotu 8,07:1.
-     Na ekranie jest odwrotnie i dlatego to nadpisanie jest tylko tutaj. */
-  .neh-chart .neh-arc-label {
-    fill: var(--neh-arc-ink);
   }
 
   /* ---- STREFA PROGNOZY: KRESKOWANIE ZAMIAST PŁASKIEGO TINTU ----

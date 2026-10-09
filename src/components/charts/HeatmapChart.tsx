@@ -141,6 +141,7 @@ import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
 import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
+import { sourceLine } from "./chartFacts";
 
 /**
  * Liczba kubełków rampy SEKWENCYJNEJ.
@@ -769,6 +770,7 @@ export function HeatmapChart({
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{
           height,
@@ -1076,6 +1078,7 @@ export function HeatmapChart({
               : [activeCell.rowLabel, activeCell.columnLabel].filter(Boolean).join(ADDRESS_SEP)
           }
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
 

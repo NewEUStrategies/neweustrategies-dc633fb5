@@ -108,6 +108,8 @@ import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
+import { sourceLine } from "./chartFacts";
+import { kindSeriesPaint } from "./kindPaint";
 import "@/lib/i18n-charts";
 import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 
@@ -687,8 +689,22 @@ export function PercentStackedChart({
   // każdy numer od 1 do 8). Bez odsiania powtórzeń szły do `<defs>` dwa
   // elementy o jednym `id` - dokument z podwójnym identyfikatorem jest
   // niepoprawny, a React dostaje na dodatek dwa dzieci o tym samym kluczu.
+  //
+  // Rampa gradientu jest PER SLOT, więc istnieje tylko w palecie
+  // kategorialnej - rola palety ról nie ma stopni `-deep/-mid/-face`.
   const gradientSlots =
-    barStyle === "gradient" ? [...new Set(model.series.map((s) => s.colorSlot))] : [];
+    barStyle === "gradient" && config.palette !== "focus"
+      ? [...new Set(model.series.map((s) => s.colorSlot))]
+      : [];
+  // FARBA SERII z rangi (`accentSeries`): pod paletą ról seria wyróżniona
+  // w akcencie, pozostałe w neutralnych - ta sama seria ma ten sam kolor co
+  // na słupkach i liniach we wpisie. Klucz to indeks serii w arkuszu.
+  const farba = (seriesIndex: number, colorSlot: number) =>
+    kindSeriesPaint(
+      { palette: config.palette, accentSeries: config.accentSeries },
+      colorSlot,
+      seriesIndex,
+    );
   const cascade = cascadeStepMs(bars.length);
   const yZera = finite(value(0), padTop + innerH);
 
@@ -814,6 +830,7 @@ export function PercentStackedChart({
                 ? napisUdzialu(czynnySegment.displayShare)
                 : BRAK_WARTOSCI,
               colorSlot: czynnySegment.colorSlot,
+              color: farba(czynnySegment.seriesIndex, czynnySegment.colorSlot).color,
               emphasised: true,
             },
             {
@@ -896,6 +913,7 @@ export function PercentStackedChart({
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{
           height,
@@ -1063,6 +1081,8 @@ export function PercentStackedChart({
                     obwodka,
                   );
                   const czynny = activeBar === bar.index && activeSeg === seg.seriesIndex;
+                  const p = farba(seg.seriesIndex, seg.colorSlot);
+                  const gradient = styl === "gradient" && gradientSlots.length > 0;
                   return (
                     <g key={seg.seriesIndex}>
                       <path
@@ -1074,33 +1094,23 @@ export function PercentStackedChart({
                         data-edged={obwodka ? "true" : undefined}
                         data-style={styl}
                         className="neh-bar"
-                        fill={
-                          styl === "gradient"
-                            ? `url(#${gradientId(seg.colorSlot)})`
-                            : `var(--chart-${seg.colorSlot})`
-                        }
+                        fill={gradient ? `url(#${gradientId(seg.colorSlot)})` : p.color}
                         // PRZEŚWIT STOSU W KOLORZE PŁYTY jest geometrią, nie
                         // dekoracją: bez niego dwa sąsiednie segmenty stykają
                         // się i na granicy powstaje fałszywy trzeci kolor.
                         // Segment wąski go nie dostaje, bo linia zjadłaby go
                         // w całości.
-                        stroke={
-                          styl === "gradient"
-                            ? `var(--chart-${seg.colorSlot})`
-                            : waski
-                              ? undefined
-                              : "var(--card)"
-                        }
+                        stroke={gradient ? p.color : waski ? undefined : "var(--card)"}
                         strokeWidth={obwodka ? undefined : waski ? 0 : SEGMENT_GAP_PX}
                         // Kaskada idzie PO SŁUPKACH, nie po segmentach:
                         // wchodzące kolumny czyta się jako rysunek, który się
                         // buduje, a wchodzące segmenty - jako rozsypany stos.
                         style={{
                           ["--neh-i" as string]: bar.index,
-                          ["--neh-unified-inner" as string]: `var(--chart-${seg.colorSlot}-inner)`,
-                          ["--neh-unified-edge" as string]: `var(--chart-${seg.colorSlot}-edge)`,
-                          ["--neh-bar-hover" as string]: `var(--chart-${seg.colorSlot}-active, var(--chart-${seg.colorSlot}-hover))`,
-                          ["--neh-bar-token" as string]: `var(--chart-${seg.colorSlot})`,
+                          ["--neh-unified-inner" as string]: p.inner,
+                          ["--neh-unified-edge" as string]: p.edge,
+                          ["--neh-bar-hover" as string]: p.hover,
+                          ["--neh-bar-token" as string]: p.color,
                         }}
                       />
                     </g>
@@ -1229,6 +1239,7 @@ export function PercentStackedChart({
           title={czynnySlupek?.label ?? ""}
           note={tooltipNote}
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
 

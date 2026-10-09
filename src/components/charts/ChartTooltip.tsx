@@ -146,7 +146,16 @@ export function ChartTooltip({
   }
 
   return (
-    <div ref={ref} className="neh-tooltip" role="presentation" aria-hidden style={style}>
+    <div
+      ref={ref}
+      className="neh-tooltip"
+      role="presentation"
+      aria-hidden
+      style={style}
+      // Typografia widgetu buildera omija dymek i jego potomków - wiersze
+      // `dt`/`dd` i `span` dostawałyby inaczej rozmiar opisu widgetu.
+      data-typography-exempt=""
+    >
       {title && <div className="neh-tip-head">{title}</div>}
       {note && (
         <div className="mb-1 text-[0.6875rem] uppercase tracking-wide opacity-60">{note}</div>

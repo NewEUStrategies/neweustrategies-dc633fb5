@@ -45,6 +45,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MetricTooltip } from "./MetricTooltip";
 import { ChartDialog } from "./ChartDialog";
+import { READ_GENERIC_KEYS, READ_HELP_KEYS } from "./readHelp";
 import "@/lib/i18n-charts";
 
 export interface LegendItem {
@@ -240,6 +241,7 @@ export function ChartFrame({
   const tableId = useId();
   const titleId = useId();
   const panel = variant === "panel";
+  const readKeys = meta?.family !== undefined ? READ_HELP_KEYS[meta.family] : READ_GENERIC_KEYS;
   // Legenda przy jednej serii to szum - tytuł nazywa jedyny kolor.
   const legendVisible = showLegend && legend.length >= 2 && !legendSuppressed;
   const legendPosition = legend.length > 4 ? "bottom" : "top";
@@ -434,6 +436,11 @@ export function ChartFrame({
       // - podgląd w edytorze podaje `my-0` i bez scalenia dostawał oba marginesy,
       // a o wyniku decydowała kolejność reguł w arkuszu, nie intencja.
       className={cn("neh-chart not-prose", panel ? "my-6 border bg-card p-4" : "my-0", className)}
+      // TYPOGRAFIA „THEME DESIGN" WIDGETU BUILDERA NIE SIĘGA DO WYKRESU.
+      // Szablon (`styles.css`) i generator (`typographyCss.ts`) omijają
+      // element oznaczony i WSZYSTKICH jego potomków - legenda, podtytuł,
+      // tabela, okna i dymek mają w widgecie ten sam krój i rozmiar co w bloku.
+      data-typography-exempt=""
       style={
         panel
           ? { borderColor: "var(--chart-grid)", borderRadius: "var(--chart-radius)" }
@@ -594,15 +601,16 @@ export function ChartFrame({
           closeLabel={t("panel.close")}
         >
           {/* `meta.help` - zdania GOTOWE od rysunku (np. kartogram) - mają
-              pierwszeństwo przed ogólnymi zdaniami słownika. */}
+              pierwszeństwo przed zdaniami słownika dla rodziny rysunku
+              (`READ_HELP_KEYS`), a te przed zdaniami ogólnymi. */}
           <h3>{t("read.elements")}</h3>
-          <p>{meta?.help?.elements ?? t("read.elementsText")}</p>
+          <p>{meta?.help?.elements ?? t(readKeys.elements)}</p>
           <h3>{t("read.colors")}</h3>
           <p>
             {meta?.help?.colours ??
-              (meta?.palette === "categorical"
-                ? t("read.colorsCategorical")
-                : t("read.colorsFocus"))}
+              t(
+                meta?.palette === "categorical" ? readKeys.colorsCategorical : readKeys.colorsFocus,
+              )}
           </p>
           {(meta?.hasBand || meta?.hasTarget) && (
             <>
@@ -611,7 +619,7 @@ export function ChartFrame({
             </>
           )}
           <h3>{t("read.interactions")}</h3>
-          <p>{meta?.help?.interactions ?? t("read.interactionsText")}</p>
+          <p>{meta?.help?.interactions ?? t(readKeys.interactions)}</p>
           {meta?.zoomable && <p>{t("read.zoomText")}</p>}
           <h3>{t("read.export")}</h3>
           <p>{t("read.exportText")}</p>

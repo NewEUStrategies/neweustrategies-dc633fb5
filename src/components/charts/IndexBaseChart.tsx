@@ -38,6 +38,7 @@
 // rysowanie i tłumaczenie kluczy.
 import {
   useCallback,
+  useEffect,
   useId,
   useMemo,
   useState,
@@ -82,8 +83,15 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 import "@/lib/i18n-charts";
-import { categorySelection, isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
+import {
+  categorySelection,
+  isSelectKey,
+  type ChartSelectHandler,
+  type LegendMode,
+} from "@/lib/charts/selection";
 import { slotsNeedingPattern } from "@/lib/charts/palette";
+import { sourceLine } from "./chartFacts";
+import { kindSeriesPaint, type KindPaint } from "./kindPaint";
 
 /**
  * OBSERWACJE DLA CZYTELNIKA, wypisane jawnie. Sklejenie
@@ -219,6 +227,12 @@ interface IndexBaseChartProps {
    * pulpicie. Ta właściwość oddaje mu nazwę bez rysowania drugiego nagłówka.
    */
   ariaLabel?: string;
+  /**
+   * Rysunek mówi ramie, czy serie nazywają ETYKIETY PRZY KOŃCU LINII (2-4
+   * serie) - wtedy legenda ramy byłaby drugim kluczem do tych samych linii
+   * i rama ją zdejmuje. Ta sama umowa, co w `CartesianChart`.
+   */
+  onLegendMode?: (mode: LegendMode) => void;
 }
 
 export function IndexBaseChart({
@@ -227,6 +241,7 @@ export function IndexBaseChart({
   baseAt,
   onSelect,
   ariaLabel: nazwaZadana,
+  onLegendMode,
 }: IndexBaseChartProps) {
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = useCallback(
@@ -259,6 +274,27 @@ export function IndexBaseChart({
     [naRysunku],
   );
   const bezposrednie = naRysunku.length > 0 && naRysunku.length <= DIRECT_LABEL_MAX_SERIES;
+  useEffect(() => {
+    onLegendMode?.(bezposrednie ? "labels" : "legend");
+  }, [bezposrednie, onLegendMode]);
+  // FARBA SERII z rangi (`accentSeries`) - ta sama droga co w rysunku
+  // kartezjańskim, więc ta sama seria ma ten sam kolor, kształt kreski
+  // i wariant tekstowy na obu rodzajach. Klucz to indeks serii w arkuszu.
+  const paints = useMemo(() => {
+    const out = new Map<number, KindPaint>();
+    for (const s of model.series) {
+      out.set(
+        s.index,
+        kindSeriesPaint(
+          { palette: config.palette, accentSeries: config.accentSeries },
+          s.colorSlot,
+          s.index,
+          kreskowaneSloty,
+        ),
+      );
+    }
+    return out;
+  }, [model, config.palette, config.accentSeries, kreskowaneSloty]);
 
   const geometry = useMemo(() => {
     // ZAKRES OSI PRZYCHODZI Z MODELU I NIE JEST TU POPRAWIANY. `indexBaseExtent`
@@ -737,6 +773,7 @@ export function IndexBaseChart({
             name: s.name,
             value: liczba(s.indexed[czynny]),
             colorSlot: s.indexable ? s.colorSlot : null,
+            color: s.indexable ? paints.get(s.index)?.color : undefined,
           }));
 
   const ariaLabel =
@@ -753,6 +790,7 @@ export function IndexBaseChart({
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{
           height,
@@ -889,7 +927,9 @@ export function IndexBaseChart({
             const samotne = new Set(
               biegi.filter((bieg) => bieg.punkty.length === 1).map((bieg) => bieg.indeksy[0]),
             );
-            const kreskowana = kreskowaneSloty.has(s.colorSlot);
+            const farba = paints.get(s.index);
+            const kreskowana = farba?.dashed ?? kreskowaneSloty.has(s.colorSlot);
+            const kolor = farba?.color ?? `var(--chart-${s.colorSlot})`;
             const podpis = skrocNazwe(s.name);
             const yPodpisu = yEtykiet.get(s.index);
             return (
@@ -897,7 +937,7 @@ export function IndexBaseChart({
                 <path
                   d={d}
                   fill="none"
-                  stroke={`var(--chart-${s.colorSlot})`}
+                  stroke={kolor}
                   strokeWidth={LINE_PX}
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -917,7 +957,7 @@ export function IndexBaseChart({
                       // widać sam pierścień, a on czyta się jako „tu jest
                       // pomiar", nie jako kolejny znacznik danych.
                       fill="var(--card)"
-                      stroke={`var(--chart-${s.colorSlot})`}
+                      stroke={kolor}
                       strokeWidth={DOT_RING_PX}
                       className="neh-dot neh-fade"
                       data-role="series-point"
@@ -940,7 +980,7 @@ export function IndexBaseChart({
                     x={padLeft + innerW + 6}
                     y={yPodpisu + 3.5}
                     fontSize={FONT_AXIS}
-                    fill={`var(--chart-${s.colorSlot}t)`}
+                    fill={farba?.textColor ?? `var(--chart-${s.colorSlot}t)`}
                     className="neh-fade neh-value-label"
                   >
                     {podpis}
@@ -1002,6 +1042,7 @@ export function IndexBaseChart({
             czynny !== null && czynny === model.baseAt ? t("indexBase.table.baseRow") : undefined
           }
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
 

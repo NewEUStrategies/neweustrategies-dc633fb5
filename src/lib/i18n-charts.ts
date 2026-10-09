@@ -1055,6 +1055,75 @@ const pl = {
       exportText:
         "PNG zapisuje wykres w podwójnej rozdzielczości, z tłem obecnego motywu. SVG zapisuje go wektorowo, z tłem i fontem.",
       sources: "Źródła",
+      // „Jak czytać" PER RODZINA RYSUNKU (`READ_HELP_KEYS` w ChartFrame).
+      // Zdania ogólne wyżej zostają dla ramy bez rodziny.
+      family: {
+        cartesian: {
+          elements:
+            "Oś pozioma pokazuje kategorie albo okresy, oś pionowa - wartości w jednostce podanej nad osią. Punkty i słupki to pomiary; linia między punktami nie oznacza pomiarów pośrednich. Pasma wokół linii centralnej (wachlarz) to przedziały niepewności prognozy, a indeks 100 oznacza okres bazowy.",
+          colorsFocus:
+            "Jedna seria w akcencie (pomarańcz) - to wskaźnik najważniejszy. Pozostałe serie są w odcieniach neutralnych i służą do porównania. Serie różnią się też kształtem punktu, a trzecia i dalsze - linią przerywaną. W wykresie kaskadowym kolor oznacza kierunek zmiany: wzrost, spadek albo poziom.",
+          colorsCategorical:
+            "Każda seria ma własny kolor z palety. Serie różnią się też kształtem punktu, a trzecia i dalsze - linią przerywaną. W wykresie kaskadowym kolor oznacza kierunek zmiany: wzrost, spadek albo poziom.",
+          interactions:
+            "Najedź na wykres albo przesuń aktywny punkt strzałkami, aby zobaczyć wartości w punkcie osi. Na wykresach liniowych i słupkowych pozycja legendy ukrywa albo pokazuje serię, a kliknięcie punktu otwiera definicję wskaźnika. Escape zamyka okna i tooltip.",
+        },
+        distribution: {
+          elements:
+            "Wykres pokazuje rozkład obserwacji na osi wartości. Histogram liczy obserwacje w przedziałach, pudełko obejmuje połowę środkową (od pierwszego do trzeciego kwartyla) z kreską mediany, a kropki roju to pojedyncze obserwacje. Pod każdą grupą stoi liczba obserwacji n.",
+          colorsFocus:
+            "Rozkład jest w kolorze akcentu (pomarańcz) z cienką ciemniejszą obwódką. Przy kilku grupach w akcencie jest grupa wyróżniona, a pozostałe są w odcieniach neutralnych.",
+          colorsCategorical:
+            "Każda grupa ma własny kolor z palety; kolor identyfikuje grupę, a nie wartość.",
+          interactions:
+            "Najedź na przedział, grupę albo kropkę albo przesuń wskazanie strzałkami, aby zobaczyć liczby w tooltipie. Escape zdejmuje wskazanie. Pełne wartości są w tabeli danych.",
+        },
+        part: {
+          elements:
+            "Wykres pokazuje udział części w całości. W tarczy kąt i pole wycinka odpowiadają udziałowi, wycinki idą malejąco od godziny dwunastej, a drobne kategorie łączą się w wycinek „Pozostałe”. W słupkach 100% każda kolumna to całość, a segment - udział serii.",
+          colorsFocus:
+            "Wyróżniona część jest w akcencie (pomarańcz) z cienką ciemniejszą obwódką, pozostałe są w odcieniach neutralnych od ciemnego do jasnego. Części oddziela wąska przerwa w kolorze tła.",
+          colorsCategorical:
+            "Każda część ma własny kolor z palety. Części oddziela wąska przerwa w kolorze tła.",
+          interactions:
+            "Najedź na wycinek albo segment, przejdź do niego klawiszem Tab albo strzałkami, aby zobaczyć udział i wartość. Wiersz tabeli klucza podświetla swój wycinek. Escape zdejmuje wskazanie.",
+        },
+        relation: {
+          elements:
+            "Każdy punkt to jedna obserwacja: położenie w poziomie i w pionie to dwie zmienne. Linia trendu, gdy jest, ma przy sobie miarę dopasowania R² i liczbę obserwacji n.",
+          colorsFocus:
+            "Wyróżniona chmura punktów jest w akcencie (pomarańcz), pozostałe są w odcieniach neutralnych.",
+          colorsCategorical: "Każda chmura punktów ma własny kolor z palety.",
+          interactions:
+            "Najedź na punkt albo przesuń wskazanie strzałkami, aby zobaczyć jego współrzędne. Escape zdejmuje wskazanie.",
+        },
+        sensitivity: {
+          elements:
+            "Mapa ciepła pokazuje wynik dla każdej pary wartości dwóch parametrów. Tornado pokazuje, o ile zmienia się wynik, gdy jeden parametr przyjmuje wartość niską albo wysoką, i porządkuje parametry od najsilniejszego wpływu.",
+          colors:
+            "Kolor koduje wartość albo kierunek, a nie serię: na mapie ciepła skala barw z klucza przy rysunku przypisuje kolor przedziałom wartości, a w tornado jeden kolor oznacza wzrost wyniku, drugi - spadek. Wybór palety tych rysunków nie zmienia.",
+          interactions:
+            "Najedź na komórkę albo pasek albo przesuń wskazanie strzałkami, aby zobaczyć liczby w tooltipie. Escape zdejmuje wskazanie.",
+        },
+        panels: {
+          elements:
+            "Każdy panel to jeden podmiot na tej samej osi kategorii; nazywa go nagłówek panelu. Panele mają wspólną skalę wartości, chyba że podpis mówi inaczej, więc wysokości można porównywać między panelami.",
+          colorsFocus:
+            "Wszystkie panele są w kolorze akcentu (pomarańcz) - podmiot nazywa nagłówek panelu, nie kolor.",
+          colorsCategorical:
+            "Panele mają kolor z palety; podmiot nazywa nagłówek panelu, nie kolor.",
+          interactions:
+            "Najedź na panel albo przesuń wskazanie strzałkami, aby zobaczyć jego podsumowanie. Escape zdejmuje wskazanie.",
+        },
+        map: {
+          elements:
+            "Każdy kraj jest pomalowany według swojej wartości; kraje bez danych są zakreskowane. Region i jednostkę podaje nagłówek.",
+          colors:
+            "Kolor koduje wartość według skali w legendzie: ciemniejszy odcień to wyższa wartość, a w skali rozbieżnej kolory po dwóch stronach środka oznaczają spadek i wzrost.",
+          interactions:
+            "Najedź na kraj albo stuknij go, aby zobaczyć wartość w tooltipie. Stuknięcie poza mapą albo Escape zamyka tooltip.",
+        },
+      },
     },
     point: {
       value: "Wartość",
@@ -1893,6 +1962,73 @@ const en = {
       exportText:
         "PNG saves the chart at double resolution with the current theme's background. SVG saves it as vector graphics with background and font.",
       sources: "Sources",
+      family: {
+        cartesian: {
+          elements:
+            "The horizontal axis shows categories or periods, the vertical axis shows values in the unit named above it. Points and bars are measurements; the line between points does not imply measurements in between. Bands around the central line (fan chart) are forecast uncertainty intervals, and an index of 100 marks the base period.",
+          colorsFocus:
+            "One series in the accent colour (orange) - the key metric. The other series are in neutral shades for comparison. Series also differ by point shape, and the third and later ones by a dashed line. In a waterfall chart colour shows the direction of change: increase, decrease or level.",
+          colorsCategorical:
+            "Each series has its own palette colour. Series also differ by point shape, and the third and later ones by a dashed line. In a waterfall chart colour shows the direction of change: increase, decrease or level.",
+          interactions:
+            "Hover over the chart or move the active point with the arrow keys to see the values at that point on the axis. On line and bar charts a legend entry hides or shows a series, and clicking a point opens the metric definition. Escape closes dialogs and the tooltip.",
+        },
+        distribution: {
+          elements:
+            "The chart shows how observations are distributed along the value axis. A histogram counts observations in intervals, a box spans the middle half (first to third quartile) with a median line, and the dots of a beeswarm are single observations. The number of observations n stands under each group.",
+          colorsFocus:
+            "The distribution is in the accent colour (orange) with a thin darker outline. With several groups the highlighted group is in the accent colour and the others are in neutral shades.",
+          colorsCategorical:
+            "Each group has its own palette colour; colour identifies the group, not the value.",
+          interactions:
+            "Hover over an interval, a group or a dot, or move the selection with the arrow keys, to see the numbers in the tooltip. Escape clears the selection. The data table holds every value.",
+        },
+        part: {
+          elements:
+            "The chart shows how parts make up a whole. In a pie the angle and area of a slice match its share, slices run in descending order from twelve o’clock, and small categories are merged into an “Other” slice. In 100% bars each column is the whole and each segment is a series share.",
+          colorsFocus:
+            "The highlighted part is in the accent colour (orange) with a thin darker outline; the others are in neutral shades from dark to light. A narrow gap in the background colour separates the parts.",
+          colorsCategorical:
+            "Each part has its own palette colour. A narrow gap in the background colour separates the parts.",
+          interactions:
+            "Hover over a slice or a segment, or reach it with Tab or the arrow keys, to see its share and value. A key table row highlights its slice. Escape clears the selection.",
+        },
+        relation: {
+          elements:
+            "Each point is one observation: its horizontal and vertical position are two variables. A trend line, when present, carries its R² fit and the number of observations n.",
+          colorsFocus:
+            "The highlighted point cloud is in the accent colour (orange), the others are in neutral shades.",
+          colorsCategorical: "Each point cloud has its own palette colour.",
+          interactions:
+            "Hover over a point or move the selection with the arrow keys to see its coordinates. Escape clears the selection.",
+        },
+        sensitivity: {
+          elements:
+            "A heat map shows the result for every pair of values of two parameters. A tornado chart shows how much the result changes when one parameter takes its low or high value, and orders the parameters from the strongest effect.",
+          colors:
+            "Colour encodes a value or a direction, not a series: in a heat map the colour scale in the key next to the drawing assigns colours to value intervals, and in a tornado chart one colour means the result rises and the other that it falls. The palette choice does not change these charts.",
+          interactions:
+            "Hover over a cell or a bar, or move the selection with the arrow keys, to see the numbers in the tooltip. Escape clears the selection.",
+        },
+        panels: {
+          elements:
+            "Each panel is one subject on the same category axis, named by the panel heading. Panels share one value scale unless the caption says otherwise, so heights can be compared across panels.",
+          colorsFocus:
+            "Every panel is in the accent colour (orange) - the panel heading names the subject, not the colour.",
+          colorsCategorical:
+            "Panels take a palette colour; the panel heading names the subject, not the colour.",
+          interactions:
+            "Hover over a panel or move the selection with the arrow keys to see its summary. Escape clears the selection.",
+        },
+        map: {
+          elements:
+            "Each country is coloured by its value; countries without data are hatched. The heading names the region and the unit.",
+          colors:
+            "Colour encodes the value on the scale in the legend: a darker shade is a higher value, and on a diverging scale the colours on either side of the midpoint mean decrease and increase.",
+          interactions:
+            "Hover over or tap a country to see its value in the tooltip. Tapping outside the map or pressing Escape closes the tooltip.",
+        },
+      },
     },
     point: {
       value: "Value",

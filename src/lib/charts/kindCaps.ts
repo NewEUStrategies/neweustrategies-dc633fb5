@@ -80,17 +80,24 @@ export const KIND_CAPS: Record<ChartKind, KindCaps> = {
     facts: true,
     family: "cartesian",
   },
-  pie: { ...PLAIN, colorTarget: "category", family: "part" },
-  donut: { ...PLAIN, colorTarget: "category", family: "part" },
-  histogram: { ...PLAIN, colorTarget: "single", family: "distribution" },
-  boxplot: { ...PLAIN, colorTarget: "series", family: "distribution" },
-  beeswarm: { ...PLAIN, colorTarget: "series", family: "distribution" },
-  scatter: { ...PLAIN, colorTarget: "series", family: "relation" },
+  // PALETA RÓL W KAŻDYM RODZAJU (PR2): rysowniki spoza silnika
+  // kartezjańskiego malują przez `components/charts/kindPaint.ts` (rola
+  // z `seriesRank`, wycinki z `categoryPaint`), więc wybór palety zmienia
+  // ich rysunek - flaga `palette` stoi tam, gdzie kolor jest WYBOREM.
+  // Przełączanie serii w legendzie zostaje wyłącznie kartezjańskie.
+  pie: { ...PLAIN, palette: true, colorTarget: "category", family: "part" },
+  donut: { ...PLAIN, palette: true, colorTarget: "category", family: "part" },
+  histogram: { ...PLAIN, palette: true, colorTarget: "single", family: "distribution" },
+  boxplot: { ...PLAIN, palette: true, colorTarget: "series", family: "distribution" },
+  beeswarm: { ...PLAIN, palette: true, colorTarget: "series", family: "distribution" },
+  scatter: { ...PLAIN, palette: true, colorTarget: "series", family: "relation" },
+  // Kolor KODUJE wartość (mapa ciepła) albo znak (tornado) - paleta nie ma
+  // tu czego zmieniać.
   heatmap: { ...PLAIN, colorTarget: "encoded", family: "sensitivity" },
   tornado: { ...PLAIN, colorTarget: "encoded", family: "sensitivity" },
   // Wachlarz rysuje JEDNĄ linię centralną z pasmami - kolor ma ta linia.
-  fan: { ...PLAIN, colorTarget: "single", family: "cartesian" },
-  "index-base": { ...PLAIN, colorTarget: "series", family: "cartesian" },
-  "percent-stacked": { ...PLAIN, colorTarget: "series", family: "part" },
-  "small-multiples": { ...PLAIN, colorTarget: "panels", family: "panels" },
+  fan: { ...PLAIN, palette: true, colorTarget: "single", family: "cartesian" },
+  "index-base": { ...PLAIN, palette: true, colorTarget: "series", family: "cartesian" },
+  "percent-stacked": { ...PLAIN, palette: true, colorTarget: "series", family: "part" },
+  "small-multiples": { ...PLAIN, palette: true, colorTarget: "panels", family: "panels" },
 };

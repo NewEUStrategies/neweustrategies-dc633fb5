@@ -16,6 +16,13 @@
 // KOLEJNOŚĆ MA ZNACZENIE: klonujemy, potem czytamy styl z ORYGINAŁU (klon nie
 // jest w drzewie, więc `getComputedStyle` nie ma dla niego czego policzyć)
 // i zapisujemy w klonie.
+//
+// KOLOR W PLIKU JEST PRZENOŚNY: każdy atrybut koloru wychodzi jako `#rrggbb`
+// albo `rgba()` (`exportColor.ts`). Przeglądarka oddaje styl obliczony
+// w zapisie, który sama rozumie (`oklab(...)`, `color(srgb ...)`), a plik
+// otwierają też programy, które tych zapisów nie znają - i malują wtedy
+// wypełnienie domyślne, czyli czerń.
+import { normalizujKolor, type OdczytZmiennej } from "./exportColor";
 
 /**
  * Własności, które niosą wygląd znacznika.
@@ -60,6 +67,16 @@ const FARBA = [
  */
 const FARBA_STOPNIA = ["stop-color", "stop-opacity"] as const;
 
+/** Atrybuty niosące KOLOR - te przechodzą przez `normalizujKolor`. */
+const KOLOR = ["fill", "stroke", "stop-color", "flood-color", "lighting-color", "color"] as const;
+
+/**
+ * Atrybuty farby, w których po wklejeniu został jeszcze zapis z odwołaniem do
+ * arkusza (`var(`) albo funkcją koloru - poza stroną nic nie znaczą, więc
+ * znikają, zamiast zostać w pliku jako zapis, którego nikt nie odczyta.
+ */
+const ZAPIS_ARKUSZA = /var\(|color-mix\(|color\(|oklab\(|oklch\(/i;
+
 /** Czy napis jest wartością, której nie ma sensu wklejać. */
 function pusta(value: string): boolean {
   return value === "" || value === "auto" || value === "normal";
@@ -80,8 +97,10 @@ export function svgZWklejonaFarba(zrodlo: SVGSVGElement): SVGSVGElement {
   for (let i = 0; i < oryginaly.length && i < kopie.length; i++) {
     const el = oryginaly[i];
     const kopia = kopie[i];
+    let zmienna: OdczytZmiennej | undefined;
     if (widok !== null) {
       const styl = widok.getComputedStyle(el);
+      zmienna = (nazwa) => styl.getPropertyValue(nazwa);
       const nazwy = el.tagName.toLowerCase() === "stop" ? [...FARBA, ...FARBA_STOPNIA] : [...FARBA];
       for (const nazwa of nazwy) {
         const value = styl.getPropertyValue(nazwa).trim();
@@ -92,6 +111,21 @@ export function svgZWklejonaFarba(zrodlo: SVGSVGElement): SVGSVGElement {
         if (pusta(value) || value.includes("var(")) continue;
         kopia.setAttribute(nazwa, value);
       }
+    }
+    // KOLOR NA ZAPIS PRZENOŚNY. Wartość z atrybutu (wklejona albo zastana)
+    // idzie przez `normalizujKolor`; `var()` rozwiązuje się zmiennymi
+    // obliczonego stylu ORYGINAŁU. Kolor nierozwiązywalny znika - atrybut
+    // z `var()` i tak nie znaczyłby w pliku nic.
+    for (const nazwa of KOLOR) {
+      const wartosc = kopia.getAttribute(nazwa);
+      if (wartosc === null) continue;
+      const kolor = normalizujKolor(wartosc, zmienna);
+      if (kolor === null) kopia.removeAttribute(nazwa);
+      else kopia.setAttribute(nazwa, kolor);
+    }
+    for (const nazwa of [...FARBA, ...FARBA_STOPNIA]) {
+      const wartosc = kopia.getAttribute(nazwa);
+      if (wartosc !== null && ZAPIS_ARKUSZA.test(wartosc)) kopia.removeAttribute(nazwa);
     }
     kopia.removeAttribute("class");
     kopia.removeAttribute("style");
@@ -119,13 +153,15 @@ export function svgDoPliku(
   const wys = Math.max(1, Math.round(zrodlo.getBoundingClientRect().height || 320));
   if (!klon.getAttribute("viewBox")) klon.setAttribute("viewBox", `0 0 ${szer} ${wys}`);
   if (opcje.fontFamily) klon.setAttribute("font-family", opcje.fontFamily);
-  if (opcje.background) {
+  // Tło też w zapisie przenośnym - płyta motywu jasnego to `oklch(1 0 0)`.
+  const background = opcje.background ? (normalizujKolor(opcje.background) ?? "#ffffff") : null;
+  if (background !== null) {
     const tlo = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
     tlo.setAttribute("x", "0");
     tlo.setAttribute("y", "0");
     tlo.setAttribute("width", "100%");
     tlo.setAttribute("height", "100%");
-    tlo.setAttribute("fill", opcje.background);
+    tlo.setAttribute("fill", background);
     klon.insertBefore(tlo, klon.firstChild);
   }
   return new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${klon.outerHTML}`], {
@@ -275,7 +311,7 @@ export async function svgDoPng(
       wiersze.length === 0 ? 0 : wiersze.length * KLUCZ.wysWiersza + 2 * KLUCZ.marginesY;
 
     canvas.height = (wys + wysKlucza) * scale;
-    ctx.fillStyle = background;
+    ctx.fillStyle = normalizujKolor(background) ?? background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(obraz, 0, 0, szer * scale, wys * scale);
 

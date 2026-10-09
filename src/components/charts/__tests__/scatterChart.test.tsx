@@ -170,10 +170,18 @@ describe("ScatterChart - kropka obserwacji", () => {
     // płyty (nie w bieli) sprawia, że w trybie ciemnym kropka sama staje się
     // ciemna i nadal odcina się od tła - hex w kodzie rysującym psuje tryb
     // ciemny w tym jednym miejscu, którego nikt potem nie szuka.
-    const { container } = render(<ScatterChart config={cfg(baza(X_ROSNIE, Y_ROSNIE))} lang="pl" />);
-    const pierwsza = punkty(container)[0];
+    const kat = render(
+      <ScatterChart config={cfg(baza(X_ROSNIE, Y_ROSNIE, { palette: "categorical" }))} lang="pl" />,
+    );
+    const pierwsza = punkty(kat.container)[0];
     expect(pierwsza.getAttribute("stroke")).toMatch(/^var\(--chart-\d\)$/);
     expect(pierwsza.getAttribute("fill")).toBe("var(--card)");
+    kat.unmount();
+    // Paleta ról (domyślna): jedyna chmura jest chmurą „o której mowa" - akcent.
+    const { container } = render(<ScatterChart config={cfg(baza(X_ROSNIE, Y_ROSNIE))} lang="pl" />);
+    const wRoli = punkty(container)[0];
+    expect(wRoli.getAttribute("stroke")).toBe("var(--chart-accent)");
+    expect(wRoli.getAttribute("fill")).toBe("var(--card)");
   });
 
   it("żadna kropka nie wychodzi z pola rysunku", () => {
@@ -204,8 +212,11 @@ describe("ScatterChart - kropka obserwacji", () => {
     expect(zdublowane).toHaveLength(2);
     expect(num(zdublowane[0], "cx")).toBeCloseTo(num(zdublowane[1], "cx"), 6);
     expect(num(zdublowane[0], "cy")).toBeCloseTo(num(zdublowane[1], "cy"), 6);
-    // Wypełnienie jest jedynym dozwolonym nośnikiem tej informacji na rysunku.
-    expect(zdublowane[0].getAttribute("fill")).toMatch(/^var\(--chart-\d-inner\)$/);
+    // Wypełnienie jest jedynym dozwolonym nośnikiem tej informacji na rysunku:
+    // pod paletą ról blade wnętrze to stała mieszanka koloru roli z płytą.
+    expect(zdublowane[0].getAttribute("fill")).toBe(
+      "color-mix(in oklab, var(--chart-accent) 18%, var(--card))",
+    );
   });
 });
 

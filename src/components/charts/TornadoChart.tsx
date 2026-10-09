@@ -131,6 +131,7 @@ import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
 import { categorySelection, isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
+import { sourceLine } from "./chartFacts";
 
 /**
  * Rozdzielnik zakresu. Półpauza, nie myślnik: para liczb to zakres, a nie
@@ -627,6 +628,7 @@ export function TornadoChart({
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{
           height,
@@ -966,6 +968,7 @@ export function TornadoChart({
           title={activeLane?.row.label ?? ""}
           note={tooltipNote}
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
 

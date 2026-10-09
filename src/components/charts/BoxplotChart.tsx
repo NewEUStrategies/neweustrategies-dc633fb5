@@ -99,6 +99,8 @@ import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
+import { sourceLine } from "./chartFacts";
+import { ACCENT_EDGE_PX, kindSeriesPaint, type KindPaint } from "./kindPaint";
 
 /**
  * SUFIT SZEROKOŚCI PUDŁA w pikselach - jedyna proporcja, o której decyduje
@@ -250,13 +252,33 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
   // i tak ma być: blade wnętrze nie niesie tożsamości serii (odległość CIELAB
   // między bladymi wypełnieniami spada do ~1,1), a tu kolor jest jedynym
   // nośnikiem tożsamości grupy - patrz `resolveBarStyle`.
-  const barStyle = resolveBarStyle(config.barStyle, {
-    seriesCount: boxes.length,
-    stacked: false,
-    patterned: false,
-  });
+  //
+  // PALETA RÓL (domyślna) MALUJE PUDŁO PEŁNYM KOLOREM: grupa wyróżniona
+  // w akcencie, pozostałe w neutralnych, i każda ma swój kolor wypełnienia -
+  // tak jak słupek. Blade wnętrze zostaje wyborem palety kategorialnej.
+  const barStyle =
+    config.palette === "focus"
+      ? "solid"
+      : resolveBarStyle(config.barStyle, {
+          seriesCount: boxes.length,
+          stacked: false,
+          patterned: false,
+        });
   const edged = barStyleHasEdge(barStyle);
   const cascade = cascadeStepMs(boxes.length);
+  // Farba grupy z RANGI serii (`accentSeries`), ta sama droga co w każdym
+  // rodzaju - grupa jest serią arkusza.
+  const paints: readonly KindPaint[] = useMemo(
+    () =>
+      boxes.map((b) =>
+        kindSeriesPaint(
+          { palette: config.palette, accentSeries: config.accentSeries },
+          b.colorSlot,
+          b.index,
+        ),
+      ),
+    [boxes, config.palette, config.accentSeries],
+  );
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (boxes.length === 0) return;
@@ -308,6 +330,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
         name: t("boxplot.tooltip.median"),
         value: num(b.median),
         colorSlot: b.colorSlot,
+        color: active === null ? undefined : paints[active]?.color,
         emphasised: true,
       });
       rows.push({
@@ -405,6 +428,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{
           height,
@@ -482,7 +506,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
 
           {columns.map((col, i) => {
             const b = col.box;
-            const slot = b.colorSlot;
+            const paint = paints[i];
             const left = col.cx - col.boxW / 2;
             const capLeft = col.cx - col.capW / 2;
             const q1 = b.q1;
@@ -490,7 +514,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
             const median = b.median;
             const wLow = b.whiskerLow;
             const wHigh = b.whiskerHigh;
-            const edgeInk = `var(--chart-${slot}-edge)`;
+            const edgeInk = paint.edge;
             // MEDIANA NA WYPEŁNIENIU SOLIDNYM IDZIE W KOLORZE PŁYTY, bo ciemna
             // kreska na nasyconym wypełnieniu tego samego odcienia ma kontrast
             // poniżej progu linii (3,0:1) i mediana - najważniejsza liczba na
@@ -557,10 +581,10 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                     y={value(q3)}
                     width={col.boxW}
                     height={Math.max(0, value(q1) - value(q3))}
-                    fill={
-                      barStyle === "solid" ? `var(--chart-${slot})` : `var(--chart-${slot}-inner)`
-                    }
-                    stroke={edged ? edgeInk : undefined}
+                    fill={barStyle === "solid" ? paint.color : paint.inner}
+                    // Obwódka wariantu bladego ALBO drugi nośnik akcentu na
+                    // wypełnieniu pełnym (1 px, ta sama w obu motywach).
+                    stroke={edged ? edgeInk : (paint.accentEdge ?? undefined)}
                     className="neh-bar"
                     data-role="box"
                     data-active={active === i ? "true" : undefined}
@@ -568,8 +592,11 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                     data-style={barStyle}
                     style={{
                       ["--neh-i" as string]: i,
-                      ["--neh-bar-hover" as string]: `var(--chart-${slot}-active, var(--chart-${slot}-hover))`,
-                      ["--neh-bar-token" as string]: `var(--chart-${slot})`,
+                      ["--neh-bar-hover" as string]: paint.hover,
+                      ["--neh-bar-token" as string]: paint.color,
+                      ...(!edged && paint.accentEdge !== null
+                        ? { strokeWidth: `${ACCENT_EDGE_PX}px` }
+                        : {}),
                     }}
                   />
                 )}
@@ -603,8 +630,8 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                     cx={col.cx + p.offset * col.boxW}
                     cy={value(p.value)}
                     r={DOT_R}
-                    fill={p.severity === "far" ? `var(--chart-${slot})` : "var(--card)"}
-                    stroke={p.severity === "far" ? "var(--card)" : `var(--chart-${slot})`}
+                    fill={p.severity === "far" ? paint.color : "var(--card)"}
+                    stroke={p.severity === "far" ? "var(--card)" : paint.color}
                     strokeWidth={1.6}
                     className="neh-dot neh-fade"
                     data-role="outlier"
@@ -621,7 +648,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                     cx={col.cx + p.offset * col.boxW}
                     cy={value(p.value)}
                     r={DOT_R}
-                    fill={`var(--chart-${slot}-inner)`}
+                    fill={paint.inner}
                     stroke={edgeInk}
                     strokeWidth={1.6}
                     className="neh-dot neh-fade"
@@ -727,6 +754,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
           containerWidth={width}
           title={activeColumn?.box.label ?? ""}
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
 
