@@ -92,6 +92,12 @@ export interface ChartExportKeyItem {
   label: string;
   /** Kolor próbki; wyrażenie CSS z tokenami jest rozwiązywane przed rysowaniem. */
   color: string;
+  /**
+   * Kreskowanie próbki (linie `color` co `spacingPx`, grubość `linePx`) na tle
+   * koloru próbki - pozycja „brak danych" kartogramu ma w pliku ten sam wzór
+   * co na mapie, a nie płaski kolor udający klasę.
+   */
+  hatch?: { color: string; spacingPx: number; linePx: number };
 }
 
 /** Fakty o wykresie, z których rama składa podtytuł, przypisy i „Jak czytać". */
@@ -201,11 +207,22 @@ function kluczRysunku(figure: HTMLElement, items: readonly ChartExportKeyItem[])
   figure.appendChild(sonda);
   try {
     const textColor = getComputedStyle(figure).color;
-    return items.map((item) => {
+    const rozwiaz = (kolor: string): string => {
       sonda.style.color = "";
-      sonda.style.color = item.color;
-      const color = getComputedStyle(sonda).color || item.color;
-      return { label: item.label, color, textColor: textColor || color };
+      sonda.style.color = kolor;
+      return getComputedStyle(sonda).color || kolor;
+    };
+    return items.map((item) => {
+      const color = rozwiaz(item.color);
+      const wpis: WpisKlucza = { label: item.label, color, textColor: textColor || color };
+      if (item.hatch) {
+        wpis.kreskowanie = {
+          linia: rozwiaz(item.hatch.color),
+          odstep: item.hatch.spacingPx,
+          grubosc: item.hatch.linePx,
+        };
+      }
+      return wpis;
     });
   } finally {
     sonda.remove();

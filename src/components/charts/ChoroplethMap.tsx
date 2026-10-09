@@ -256,8 +256,8 @@ export function ChoroplethMap({
 
   // Klucz PNG - te same pozycje, które czytelnik widzi w legendzie; mapa
   // z wyłączoną legendą eksportuje się bez klucza, tak jak wygląda. Pozycja
-  // „brak danych" ma w pliku średni ton kreskowania i napis o kreskowaniu
-  // (`MAP_NODATA_KEY`) - płótno klucza nie umie namalować wzoru.
+  // „brak danych" ma w pliku to samo kreskowanie co legenda (`MAP_NODATA_KEY`)
+  // i napis, który mówi o nim słowami.
   const exportKey = (): ChartExportKeyItem[] => {
     if (!config.showLegend) return [];
     const items: ChartExportKeyItem[] =
@@ -268,7 +268,7 @@ export function ChoroplethMap({
           }))
         : scale.classes.map((s) => ({ label: fmt(s.from), color: colorOf(s.from) }));
     const unique = items.filter((item, i) => items.findIndex((x) => x.label === item.label) === i);
-    if (showNoData) unique.push({ label: t("noDataHatched"), color: MAP_NODATA_KEY });
+    if (showNoData) unique.push({ label: t("noDataHatched"), ...MAP_NODATA_KEY });
     return unique;
   };
 

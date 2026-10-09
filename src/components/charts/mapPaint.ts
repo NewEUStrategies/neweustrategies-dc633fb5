@@ -135,16 +135,19 @@ export function hatchTransform(vbWidth: number, drawWidth: number): string {
 export const MAP_NODATA_SWATCH = `repeating-linear-gradient(${MAP_HATCH.angle}deg, var(--chart-map-nodata-hatch) 0 ${MAP_HATCH.linePx}px, var(--chart-map-nodata) ${MAP_HATCH.linePx}px ${MAP_HATCH.swatchSpacingPx}px)`;
 
 /**
- * Próbka „brak danych" w KLUCZU PNG. Płótno eksportu maluje próbkę jednym
- * kolorem, więc wzoru tam nie ma - stoi ŚREDNI TON kreskowania (linie
- * zajmują `linePx / spacingPx` powierzchni), czyli to, co oko widzi na
- * mapie z odległości. Sam kolor linii (średnio szary) czytał się w pliku
- * jak środkowa klasa, a samo tło (prawie płyta) znikało. Napis klucza mówi
- * dodatkowo słowami, że te kraje są kreskowane.
+ * Pozycja „brak danych" w KLUCZU eksportu (PNG i SVG): tło i kreskowanie
+ * próbki legendy (`MAP_NODATA_SWATCH`), z tokenów. Rama rozwiązuje oba kolory
+ * w motywie strony, a eksport rysuje te same linie „\" co wzór na mapie.
+ * Płaski kolor czytał się w pliku jak jeszcze jedna klasa skali.
  */
-export const MAP_NODATA_KEY = `color-mix(in srgb, var(--chart-map-nodata-hatch) ${Math.round(
-  (MAP_HATCH.linePx / MAP_HATCH.spacingPx) * 100,
-)}%, var(--chart-map-nodata))`;
+export const MAP_NODATA_KEY = {
+  color: "var(--chart-map-nodata)",
+  hatch: {
+    color: "var(--chart-map-nodata-hatch)",
+    spacingPx: MAP_HATCH.swatchSpacingPx,
+    linePx: MAP_HATCH.linePx,
+  },
+} as const;
 
 /** Hexy kreskowania dla atrybutów awaryjnych wzoru SVG. */
 export function nodataHex(theme: ChartThemeName): { fill: string; hatch: string } {

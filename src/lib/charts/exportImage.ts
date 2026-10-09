@@ -243,6 +243,20 @@ function svgZKluczem(
       probka.setAttribute("height", String(KLUCZ.probka));
       probka.setAttribute("fill", normalizujKolor(wpis.color) ?? tusz);
       grupa.appendChild(probka);
+      if (wpis.kreskowanie) {
+        const k = wpis.kreskowanie;
+        const kreski = doc.createElementNS(SVG_NS, "path");
+        kreski.setAttribute(
+          "d",
+          odcinkiKreskowania(x, y - KLUCZ.probka / 2, KLUCZ.probka, k.odstep)
+            .map(([x1, y1, x2, y2]) => `M${zaokr(x1)} ${zaokr(y1)}L${zaokr(x2)} ${zaokr(y2)}`)
+            .join(""),
+        );
+        kreski.setAttribute("stroke", normalizujKolor(k.linia) ?? tusz);
+        kreski.setAttribute("stroke-width", String(k.grubosc));
+        kreski.setAttribute("fill", "none");
+        grupa.appendChild(kreski);
+      }
       x += KLUCZ.probka + KLUCZ.odstepProbki;
       const napis = doc.createElementNS(SVG_NS, "text");
       napis.setAttribute("x", String(x));
@@ -308,6 +322,42 @@ export interface WpisKlucza {
   color: string;
   /** Kolor NAPISU. Osobny, bo próbka i napis mają różne progi kontrastu. */
   textColor: string;
+  /**
+   * Kreskowanie próbki - linie `linia` co `odstep` px CSS (grubość `grubosc`)
+   * na tle `color`. Kartogram znaczy tak kraje bez danych; płaski kolor
+   * w pliku czytałby się jak jeszcze jedna klasa skali.
+   */
+  kreskowanie?: { linia: string; odstep: number; grubosc: number };
+}
+
+/**
+ * Odcinki kreskowania kwadratu `bok` x `bok` o lewym górnym rogu (x, y):
+ * linie „\" (kierunek (1, 1), jak `rotate(45)` wzoru na mapie) co `odstep`
+ * px MIERZONYCH PROSTOPADLE, przycięte do kwadratu analitycznie - bez
+ * `clipPath` w SVG i bez ścieżki przycięcia na płótnie, więc PNG i SVG
+ * rysują dokładnie te same odcinki.
+ */
+export function odcinkiKreskowania(
+  x: number,
+  y: number,
+  bok: number,
+  odstep: number,
+): [number, number, number, number][] {
+  const krok = Math.max(0.5, odstep) * Math.SQRT2;
+  const odcinki: [number, number, number, number][] = [];
+  // Linia y' = x' + c przecina kwadrat dla c w (-bok, bok).
+  for (let c = -bok + krok / 2; c < bok; c += krok) {
+    const od = Math.max(0, -c);
+    const doX = Math.min(bok, bok - c);
+    if (doX - od <= 0) continue;
+    odcinki.push([x + od, y + od + c, x + doX, y + doX + c]);
+  }
+  return odcinki;
+}
+
+/** Współrzędna do zapisu w pliku - dwa miejsca po przecinku wystarczą. */
+function zaokr(v: number): number {
+  return Math.round(v * 100) / 100;
 }
 
 /** Geometria paska klucza w pikselach CSS, przed przemnożeniem przez `scale`. */
@@ -425,6 +475,24 @@ export async function svgDoPng(
         for (const wpis of wiersz) {
           ctx.fillStyle = wpis.color;
           ctx.fillRect(x, y - KLUCZ.probka / 2, KLUCZ.probka, KLUCZ.probka);
+          if (wpis.kreskowanie) {
+            const k = wpis.kreskowanie;
+            ctx.save();
+            ctx.strokeStyle = k.linia;
+            ctx.lineWidth = k.grubosc;
+            ctx.beginPath();
+            for (const [x1, y1, x2, y2] of odcinkiKreskowania(
+              x,
+              y - KLUCZ.probka / 2,
+              KLUCZ.probka,
+              k.odstep,
+            )) {
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+            }
+            ctx.stroke();
+            ctx.restore();
+          }
           x += KLUCZ.probka + KLUCZ.odstepProbki;
           ctx.fillStyle = wpis.textColor;
           ctx.fillText(wpis.label, x, y);

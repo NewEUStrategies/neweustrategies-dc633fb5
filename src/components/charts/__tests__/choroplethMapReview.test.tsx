@@ -227,21 +227,23 @@ describe("fokus i wskazanie - dwa stany", () => {
 });
 
 describe("klucz PNG - pozycja „brak danych”", () => {
-  it("ma średni ton kreskowania z tokenów i napis o kreskowaniu", async () => {
+  it("ma kreskowanie z tokenów (tło i linie próbki legendy) i napis o kreskowaniu", async () => {
     await mapa(KLASY);
     fireEvent.click(screen.getByRole("button", { name: "Zapisz wykres jako PNG" }));
     await waitFor(() => expect(exportMocks.svgDoPng).toHaveBeenCalledTimes(1));
     const klucz = exportMocks.svgDoPng.mock.calls[0]?.[1].klucz ?? [];
     const brak = klucz.at(-1);
     expect(brak?.label).toBe("brak danych (kreskowanie)");
-    // Rama rozwiązuje kolor sondą; happy-dom nie zna color-mix(), więc
-    // sprawdzamy wejście - stałą, którą mapa podaje ramie.
-    expect(MAP_NODATA_KEY).toBe(
-      `color-mix(in srgb, var(--chart-map-nodata-hatch) ${Math.round(
-        (MAP_HATCH.linePx / MAP_HATCH.spacingPx) * 100,
-      )}%, var(--chart-map-nodata))`,
-    );
-    expect(MAP_NODATA_KEY).not.toMatch(/#[0-9a-f]{3,8}/i);
+    // Rama przekłada wzór na kreskowanie wpisu klucza - ten sam odstęp
+    // i grubość co próbka legendy, nie płaski kolor udający klasę.
+    expect(brak?.kreskowanie).toMatchObject({
+      odstep: MAP_HATCH.swatchSpacingPx,
+      grubosc: MAP_HATCH.linePx,
+    });
+    // Rama rozwiązuje kolory sondą; sprawdzamy też wejście - same tokeny.
+    expect(MAP_NODATA_KEY.color).toBe("var(--chart-map-nodata)");
+    expect(MAP_NODATA_KEY.hatch.color).toBe("var(--chart-map-nodata-hatch)");
+    expect(JSON.stringify(MAP_NODATA_KEY)).not.toMatch(/#[0-9a-f]{3,8}/i);
   });
 
   it("po angielsku napis też mówi o kreskowaniu", async () => {
