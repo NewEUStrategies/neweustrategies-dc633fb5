@@ -3,12 +3,14 @@ import { loadMigrationFiles } from "../../../../scripts/lib/sqlMigrations";
 import {
   KNOWN_COLUMN_DRIFT,
   columnDriftFailed,
+  columnDriftRegistry,
   compareColumnDrift,
   contractFailed,
   dbColumnKey,
   expectedColumns,
   extractExpectedContract,
   inconclusiveColumnDrift,
+  parseContractTarget,
   renderColumnDriftReport,
   renderContractReport,
 } from "../dbContract";
@@ -191,6 +193,26 @@ describe("kontrakt kolumn", () => {
     expect(columnDriftFailed(report)).toBe(true);
     expect(renderColumnDriftReport(report)).toContain("Sonda kolumn nie wykonana");
     expect(columnDriftFailed(compareColumnDrift([], [], {}))).toBe(true);
+  });
+
+  it("baza odtworzona z migracji (replay) nie stosuje rejestru dryfu produkcji", () => {
+    // e2e-seeded sonduje bazę z migracji: kolumny z rejestru tam SĄ - to nie
+    // martwe wpisy, a brak dowolnej kolumny jest błędem, także z rejestru.
+    const known = { "notifications.meta": "zmierzone na produkcji" };
+    expect(columnDriftRegistry("production")).toBe(KNOWN_COLUMN_DRIFT);
+    const replay = columnDriftRegistry("replay");
+    expect(columnDriftFailed(compareColumnDrift(expected, [], replay))).toBe(false);
+    expect(compareColumnDrift(expected, [expected[2]], replay).missing).toEqual([expected[2]]);
+    // KONTROLA DODATNIA: ten sam stan z rejestrem produkcji oblewa jako martwy wpis.
+    expect(compareColumnDrift(expected, [], known).resolved).toEqual(["notifications.meta"]);
+  });
+
+  it("cel sondy: domyślnie produkcja, literówka to błąd", () => {
+    expect(parseContractTarget(undefined)).toBe("production");
+    expect(parseContractTarget("")).toBe("production");
+    expect(parseContractTarget("production")).toBe("production");
+    expect(parseContractTarget("replay")).toBe("replay");
+    expect(() => parseContractTarget("Replay")).toThrow("DB_CONTRACT_TARGET");
   });
 
   it("każdy wpis KNOWN_COLUMN_DRIFT to kolumna, której migracje naprawdę oczekują", () => {

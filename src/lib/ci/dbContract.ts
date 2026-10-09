@@ -238,6 +238,26 @@ export const KNOWN_COLUMN_DRIFT: Readonly<Record<string, string>> = {
   "research_program_projects.tenant_id": EXPERT_HUB_NEVER_RAN,
 };
 
+/**
+ * Na jaką bazę patrzy sonda. Dryf z `KNOWN_COLUMN_DRIFT` to fakt o PRODUKCJI;
+ * baza odtworzona z migracji (krok e2e-seeded przed scaleniem) ma każdą
+ * oczekiwaną kolumnę, więc tam rejestr nie obowiązuje: każdy brak to błąd,
+ * a obecność kolumny z rejestru nie jest „martwym wpisem".
+ */
+export type ContractTarget = "production" | "replay";
+
+/** `DB_CONTRACT_TARGET`: brak = produkcja (post-deploy); literówka to błąd, nie cicha produkcja. */
+export function parseContractTarget(raw: string | undefined): ContractTarget {
+  if (raw === undefined || raw === "" || raw === "production") return "production";
+  if (raw === "replay") return "replay";
+  throw new Error(`DB_CONTRACT_TARGET: nieznany cel "${raw}" (production | replay)`);
+}
+
+/** Rejestr znanego dryfu dla celu sondy. */
+export function columnDriftRegistry(target: ContractTarget): Readonly<Record<string, string>> {
+  return target === "replay" ? {} : KNOWN_COLUMN_DRIFT;
+}
+
 export interface ColumnDriftReport {
   readonly checked: number;
   /** Kolumn brak, a rejestr ich nie zna - NOWY dryf. */

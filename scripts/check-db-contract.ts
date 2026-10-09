@@ -3,14 +3,15 @@ import { probeSchemaColumns, probeSchemaObjects } from "../src/lib/ci/deployment
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
-  KNOWN_COLUMN_DRIFT,
   columnDriftFailed,
+  columnDriftRegistry,
   compareColumnDrift,
   contractFailed,
   dbColumnKey,
   expectedColumns,
   extractExpectedContract,
   inconclusiveColumnDrift,
+  parseContractTarget,
   renderColumnDriftReport,
   renderContractReport,
   type ColumnDriftReport,
@@ -53,6 +54,8 @@ async function main(): Promise<void> {
     throw new Error("Missing deployment database configuration");
   }
 
+  // production (domyślnie, post-deploy) albo replay (baza z migracji w e2e-seeded).
+  const target = parseContractTarget(process.env["DB_CONTRACT_TARGET"]);
   const migrations = loadMigrations();
   const contract = extractExpectedContract(migrations);
   const all = [...contract.tables, ...contract.views, ...contract.functions].filter(
@@ -79,7 +82,7 @@ async function main(): Promise<void> {
     : compareColumnDrift(
         columns,
         await probeSchemaColumns(columns, { url, key }),
-        KNOWN_COLUMN_DRIFT,
+        columnDriftRegistry(target),
       );
 
   const markdown = `${renderContractReport(report)}\n\n${renderColumnDriftReport(columnReport)}`;
@@ -93,6 +96,7 @@ async function main(): Promise<void> {
     `${JSON.stringify(
       {
         status: objectsFailed || columnsFailed ? "failed" : "passed",
+        target,
         checked: report.checked,
         missing: report.missing.map((o) => ({ kind: o.kind, name: o.name, file: o.file })),
         inconclusive: report.inconclusive.map((o) => ({ kind: o.kind, name: o.name })),
@@ -124,7 +128,7 @@ async function main(): Promise<void> {
   }
   if (objectsFailed || columnsFailed) process.exit(1);
   console.log(
-    `✓ Kontrakt bazy spełniony (${report.checked} obiektów, ${columnReport.checked} kolumn; ` +
+    `✓ Kontrakt bazy spełniony [${target}] (${report.checked} obiektów, ${columnReport.checked} kolumn; ` +
       `znany dryf: ${columnReport.known.length}).`,
   );
 }
