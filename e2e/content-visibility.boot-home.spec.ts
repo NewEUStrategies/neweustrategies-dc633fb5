@@ -14,11 +14,16 @@ import { expect, test, type Page } from "@playwright/test";
 //     sekcje (dorysowują się ~1,5 ekranu przed widokiem, a zmiana wysokości pasa zastępczego
 //     przesuwa tylko to, czego nie widać) i żaden wpis - także przy wczytaniu - nie pochodzi
 //     z obszaru cv (opakowania, wszystko za pierwszym z nich, stopka).
-//  3. Kotwica `#id` w dalszej sekcji: po wczytaniu (cv włączone, nawigacja do fragmentu
-//     aktywuje pominiętą sekcję celu) cel stoi tuż pod nagłówkiem, a dorysowanie sekcji nad
-//     nim przy przewinięciu w górę nie rusza celu (zakotwiczenie przewijania); przy wejściu
-//     z fragmentem w adresie strażnik bloku cv (`html[data-cv-off]`) zdejmuje cv przed
-//     parsowaniem sekcji i strona zachowuje się jak bez P3.3.
+//  3. Kotwica `#id` w dalszej sekcji na WOLNYM TELEFONIE (CDP: CPU x6; desktop bez dławienia):
+//     po wczytaniu - `location.hash`, klik w link `#id`, wstecz/dalej między fragmentami - cel
+//     staje tuż pod nagłówkiem i już z tego miejsca nie ucieka (próbka po każdej klatce aż do
+//     spoczynku), także gdy cel stoi na samej górze sekcji, a pominięte sekcje nad nim mają
+//     już ułożone poddrzewa (ktoś czytał w nich geometrię - w CI snapshotter trace'u
+//     Playwrighta). Bez wyłącznika strażnika zakotwiczenie Chromium brało wtedy kotwicę
+//     w pominiętej sekcji nad celem i wzrost tej sekcji spychał cel ~1000 px w dół (porażka
+//     CI na `4d1e2791`: `top` 1239,875). Przy wejściu z fragmentem w adresie strażnik bloku
+//     cv (`html[data-cv-off]`) zdejmuje cv przed parsowaniem sekcji i strona zachowuje się
+//     jak bez P3.3.
 //  4. Przeładowanie w połowie strony (przywrócenie przewinięcia TanStacka z
 //     `sessionStorage`): strażnik zdejmuje cv i pozycja wraca jak na bazie; powrót „wstecz"
 //     w SPA renderuje stronę po stronie klienta - bez cv, więc router liczy na prawdziwym
@@ -57,10 +62,28 @@ interface SectionProbe {
   height: number;
 }
 
+/** Położenie celu kotwicy po jednej klatce (ms od nawigacji, px w widoku). */
+interface TargetSample {
+  t: number;
+  top: number;
+  /** Dół nagłówka (`sticky-shrink` kurczy się po skoku). */
+  hb: number;
+  y: number;
+}
+
+interface TargetTrack {
+  /** `performance.now()` pierwszego `popstate` po starcie (nawigacja do fragmentu, wstecz/dalej). */
+  navAt: number | null;
+  /** ms od nawigacji do pierwszego `onRendered` routera po niej (`null` - jeszcze nie było). */
+  renderedAfter: number | null;
+  samples: TargetSample[];
+}
+
 declare global {
   interface Window {
     __nesAppReady?: boolean;
     __cvShifts?: ShiftEntry[];
+    __cvTrack?: { start: (id: string) => void; rendered: () => boolean; stop: () => TargetTrack };
   }
 }
 
@@ -68,6 +91,20 @@ const VIEWPORTS = [
   { name: "telefon", viewport: { width: 412, height: 823 } },
   { name: "desktop", viewport: { width: 1350, height: 940 } },
 ] as const;
+
+/**
+ * Wolny telefon w scenariuszach kotwicy: dławienie CPU przez CDP
+ * (`Emulation.setCPUThrottlingRate`) od początku wczytania. Runner CI jest wolniejszy od
+ * maszyny dewelopera, a lądowanie kotwicy zależy od kolejności zadań (skok, odsłonięcie sekcji
+ * przez przeglądarkę, przewinięcie routera po renderze). Desktop jedzie bez dławienia.
+ */
+const PHONE_CPU_THROTTLE = 6;
+
+async function throttleCpu(page: Page, rate: number): Promise<void> {
+  if (rate <= 1) return;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate });
+}
 
 /** Wszystkie wpisy `layout-shift` od początku wczytania (także sprzed pierwszego odczytu). */
 async function observeShifts(page: Page): Promise<void> {
@@ -175,11 +212,12 @@ async function wheel(page: Page, deltaY: number, steps: number, pauseMs = 60): P
 /**
  * Czeka, aż `scrollY` i dół nagłówka staną na 5 kolejnych odczytów co 100 ms. Po skoku do
  * kotwicy nagłówek `sticky-shrink` kurczy się z animacją, a zakotwiczenie przewijania koryguje
- * `scrollY` jeszcze ~1,1 s (zmierzone) - pomiar w trakcie widzi pozycję pośrednią.
+ * `scrollY` jeszcze ~1,1 s (zmierzone) - pomiar w trakcie widzi pozycję pośrednią. Pod
+ * dławieniem CPU wszystko trwa kilka razy dłużej, stąd wyższy limit odczytów.
  */
-async function settle(page: Page): Promise<void> {
+async function settle(page: Page, maxPolls = 60): Promise<void> {
   let last = "";
-  for (let polls = 0, stable = 0; polls < 60 && stable < 5; polls += 1) {
+  for (let polls = 0, stable = 0; polls < maxPolls && stable < 5; polls += 1) {
     await page.waitForTimeout(100);
     const now = await page.evaluate(
       () =>
@@ -202,6 +240,231 @@ async function scrollToBottom(page: Page): Promise<void> {
   }
   // Sekcje i stopka dorysowane, ostatnie wpisy obserwatora dostarczone.
   await page.waitForTimeout(800);
+}
+
+interface AnchorTargets {
+  /** Element z `id` w najdalszej sekcji treści od indeksu 2 (na fixture: nagłówek formularza „Dołącz" - cel z CI). */
+  far: string;
+  /**
+   * Góra tej samej sekcji: `id` dopisany elementowi sekcji, jak nagłówek z kotwicą na początku
+   * rich-textu. Bez przodka `overflow: hidden` działa pełny `scroll-margin-top`, więc po skoku
+   * cel stoi ~2 x wysokość nagłówka pod górą widoku, a sekcja nad nim wchodzi w obszar, z którego
+   * zakotwiczenie przewijania wybiera kotwicę (widok minus `scroll-padding-top`).
+   */
+  sectionTop: string;
+  /** Góra drugiej sekcji z cv (do wstecz/dalej: daleko od dwóch pozostałych celów). */
+  earlier: string;
+  /** Liczba sekcji z cv przed sekcją celu `far`. */
+  cvBefore: number;
+  farInCv: boolean;
+  earlierInCv: boolean;
+}
+
+async function anchorTargets(page: Page): Promise<AnchorTargets> {
+  const targets = await page.evaluate(() => {
+    const root = document.querySelector("main [data-lcp-root]");
+    const sections = [...(root?.querySelectorAll<HTMLElement>("[data-sec-id]") ?? [])];
+    const inCv = (el: Element) => !!el.closest("[data-cv]");
+    const firstCv = sections.findIndex(inCv);
+    for (let i = sections.length - 1; i >= 2; i -= 1) {
+      const el = sections[i].querySelector("[id]");
+      if (!el) continue;
+      const earlier = sections[firstCv + 1];
+      sections[i].id = "e2e-gora-sekcji-celu";
+      earlier.id = "e2e-gora-wczesniejszej-sekcji";
+      return {
+        far: el.id,
+        sectionTop: sections[i].id,
+        earlier: earlier.id,
+        cvBefore: sections.slice(0, i).filter(inCv).length,
+        farInCv: inCv(sections[i]),
+        earlierInCv: firstCv >= 0 && firstCv + 1 < i && inCv(earlier),
+      };
+    }
+    return null;
+  });
+  expect(targets).not.toBeNull();
+  expect(targets!.farInCv).toBe(true);
+  expect(targets!.earlierInCv).toBe(true);
+  expect(targets!.cvBefore).toBeGreaterThanOrEqual(2);
+  return targets!;
+}
+
+/**
+ * Pomiar geometrii w pominiętych sekcjach - jak pomiar widgetu przy hydratacji, skrypt
+ * analityki czytający położenie elementów przy nawigacji albo snapshotter trace'u Playwrighta,
+ * który przy każdej akcji czyta `scrollTop` każdego elementu (tak było w porażce z CI). Odczyt
+ * wymusza ułożenie poddrzewa sekcji BEZ jej renderowania (opakowanie nadal stoi na pasie
+ * z szacunku), a od tej chwili zakotwiczenie przewijania Chromium może wybrać kotwicę
+ * W pominiętej sekcji nad celem - wzrost tej sekcji pod kotwicą nie jest kompensowany. Raz
+ * teraz i przy każdym `popstate`, czyli tuż przed przewinięciem do fragmentu (nasłuch strony
+ * po nasłuchach routera i strażnika cv). Zwraca liczbę sekcji pominiętych w chwili pomiaru.
+ */
+async function measureSkippedSections(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const measure = () => {
+      for (const el of document.querySelectorAll<HTMLElement>("main [data-cv] *")) {
+        void el.scrollTop;
+      }
+    };
+    let skipped = 0;
+    for (const wrapper of document.querySelectorAll<HTMLElement>("main [data-cv]")) {
+      const row = wrapper.querySelector("[data-columns-row]");
+      if (row && !row.checkVisibility({ contentVisibilityAuto: true })) skipped += 1;
+    }
+    measure();
+    addEventListener("popstate", measure);
+    return skipped;
+  });
+}
+
+/**
+ * Śledzenie celu po każdej klatce (odczyt PO klatce: rAF -> `setTimeout(0)`, więc nie
+ * wymusza układu przed klatką) od pierwszego `popstate` po `start` - nawigacja do fragmentu
+ * i wstecz/dalej zaczynają się od niego, a przeglądarka przewija dopiero po jego nasłuchach.
+ * Notuje też pierwszy `onRendered` routera po nawigacji: TanStack obsługuje każdą zmianę `#`
+ * pełnym `router.load` i renderem, a po nim przewija do celu (`scrollIntoView`) - pod
+ * dławieniem x6 nawet kilka sekund po skoku.
+ */
+async function installTargetTracker(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    let state: {
+      id: string;
+      navAt: number | null;
+      renderedAfter: number | null;
+      samples: TargetSample[];
+      on: boolean;
+    } | null = null;
+    addEventListener("popstate", () => {
+      if (state && state.navAt === null) state.navAt = performance.now();
+    });
+    (
+      window as unknown as {
+        __TSR_ROUTER__: { subscribe: (event: "onRendered", listener: () => void) => unknown };
+      }
+    ).__TSR_ROUTER__.subscribe("onRendered", () => {
+      if (state && state.navAt !== null && state.renderedAfter === null) {
+        state.renderedAfter = Math.round(performance.now() - state.navAt);
+      }
+    });
+    const sample = () => {
+      const el = state?.on && state.navAt !== null ? document.getElementById(state.id) : null;
+      if (!state || !el) return;
+      const header = document.querySelector("[data-site-header]")?.getBoundingClientRect();
+      state.samples.push({
+        t: Math.round(performance.now() - state.navAt!),
+        top: Math.round(el.getBoundingClientRect().top * 10) / 10,
+        hb: Math.round(Math.max(0, header?.bottom ?? 0) * 10) / 10,
+        y: Math.round(scrollY),
+      });
+    };
+    const frame = () => {
+      if (!state?.on) return;
+      setTimeout(sample, 0);
+      requestAnimationFrame(frame);
+    };
+    window.__cvTrack = {
+      start(id) {
+        state = { id, navAt: null, renderedAfter: null, samples: [], on: true };
+        requestAnimationFrame(frame);
+      },
+      rendered: () => state?.renderedAfter != null,
+      stop() {
+        const done = state!;
+        state = null;
+        return { navAt: done.navAt, renderedAfter: done.renderedAfter, samples: done.samples };
+      },
+    };
+  });
+}
+
+/**
+ * Spoczynek po nawigacji do fragmentu: najpierw render routera po niej (jego `scrollIntoView`
+ * przychodzi pod dławieniem z opóźnieniem i inaczej wpadłby w kolejny krok testu), potem
+ * stabilny `scrollY` i nagłówek.
+ */
+async function settleAfterNavigation(page: Page, maxPolls: number): Promise<void> {
+  await expect
+    .poll(() => page.evaluate(() => window.__cvTrack!.rendered()), { timeout: 60_000 })
+    .toBe(true);
+  await settle(page, maxPolls);
+}
+
+/** Cel stoi tuż pod nagłówkiem: nie schowany pod nim, nie w dole ekranu. */
+const onTarget = (top: number, headerBottom: number, viewportHeight: number) =>
+  top >= headerBottom - 1 && top < headerBottom + viewportHeight / 3;
+
+/**
+ * Cel stoi pod nagłówkiem w każdej klatce aż do spoczynku - żadnego „złej sekcji, a potem
+ * skoku". Nawigację do fragmentu (`location.hash`, link) przeglądarka przewija synchronicznie,
+ * więc liczy się już pierwsza klatka po niej (`fromFirstFrame`). Wstecz/dalej przewija router
+ * dopiero po renderze - liczy się każda klatka od pierwszej, w której cel stanął na miejscu.
+ */
+function expectStaysOnTarget(
+  track: TargetTrack,
+  viewportHeight: number,
+  label: string,
+  fromFirstFrame: boolean,
+): void {
+  expect(track.navAt, `${label}: brak nawigacji (popstate)`).not.toBeNull();
+  expect(track.samples.length, `${label}: brak klatek po nawigacji`).toBeGreaterThan(0);
+  const ok = (s: TargetSample) => onTarget(s.top, s.hb, viewportHeight);
+  const first = fromFirstFrame ? 0 : track.samples.findIndex(ok);
+  expect(
+    first,
+    `${label}: cel ani razu nie stanął pod nagłówkiem: ${JSON.stringify(track.samples.slice(-6))}`,
+  ).toBeGreaterThanOrEqual(0);
+  const off = track.samples.slice(first).filter((s) => !ok(s));
+  expect(
+    off.slice(0, 6),
+    `${label}: cel poza miejscem pod nagłówkiem w ${off.length} z ${track.samples.length - first} klatek od ${track.samples[first].t} ms po nawigacji (render routera: ${track.renderedAfter} ms)`,
+  ).toEqual([]);
+}
+
+/** Stan po spoczynku: położenie celu, nagłówek, `scrollY`, wyłącznik i cv sekcji celu. */
+const where = (id: string) => {
+  const el = document.getElementById(id)!;
+  const header = document.querySelector("[data-site-header]")?.getBoundingClientRect();
+  return {
+    top: el.getBoundingClientRect().top,
+    headerBottom: Math.max(0, header?.bottom ?? 0),
+    scrollY,
+    cvOff: document.documentElement.hasAttribute("data-cv-off"),
+    sectionCv: getComputedStyle(el.closest("[data-cv]")!).contentVisibility,
+  };
+};
+
+/**
+ * Po spoczynku cel stoi tuż pod nagłówkiem, a strona jest przewinięta co najmniej o `minScrollY`
+ * (domyślnie ekran: cel leżał daleko pod zgięciem).
+ */
+function expectLanded(
+  landed: ReturnType<typeof where>,
+  viewportHeight: number,
+  minScrollY = viewportHeight,
+): void {
+  expect(landed.scrollY, JSON.stringify(landed)).toBeGreaterThan(minScrollY);
+  expect(onTarget(landed.top, landed.headerBottom, viewportHeight), JSON.stringify(landed)).toBe(
+    true,
+  );
+}
+
+/** Link `#id` w rogu widoku (`position: fixed`), w który test klika jak użytkownik. */
+async function anchorLink(page: Page, id: string): Promise<void> {
+  await page.evaluate((target) => {
+    let a = document.getElementById("e2e-kotwica") as HTMLAnchorElement | null;
+    if (!a) {
+      a = document.createElement("a");
+      a.id = "e2e-kotwica";
+      a.textContent = "Przejdź do celu";
+      a.setAttribute(
+        "style",
+        "position:fixed;left:8px;bottom:8px;z-index:2147483647;padding:14px;background:#ff0;color:#000;font:16px sans-serif",
+      );
+      document.body.append(a);
+    }
+    a.href = `#${target}`;
+  }, id);
 }
 
 for (const { name, viewport } of VIEWPORTS) {
@@ -259,82 +522,146 @@ for (const { name, viewport } of VIEWPORTS) {
       await expect(page.locator("footer[data-site-footer]")).toBeInViewport();
     });
 
-    test("kotwica #id w dalszej sekcji trafia w cel: po wczytaniu (cv włączone) i przy wejściu z fragmentem (strażnik)", async ({
+    // KOTWICA PO WCZYTANIU NA WOLNYM TELEFONIE (scenariusz 3). Każdy przypadek na świeżej
+    // stronie z cv włączonym: pierwsza nawigacja do fragmentu w obszarze cv jest tą, o którą
+    // chodzi (strażnik wyłącza cv raz, na resztę życia dokumentu).
+    const cpuRate = viewport.width < 768 ? PHONE_CPU_THROTTLE : 1;
+    const ANCHOR_TIMEOUT = cpuRate > 1 ? 120_000 : 60_000;
+    const settlePolls = cpuRate > 1 ? 150 : 60;
+
+    async function openForAnchor(page: Page): Promise<AnchorTargets> {
+      await throttleCpu(page, cpuRate);
+      await openHome(page);
+      const targets = await anchorTargets(page);
+      const skipped = await measureSkippedSections(page);
+      if (viewport.width < 768) {
+        // Na telefonie sekcje nad celem są przy skoku naprawdę pominięte (pasy z szacunku).
+        expect(skipped).toBeGreaterThanOrEqual(2);
+      }
+      await installTargetTracker(page);
+      return targets;
+    }
+
+    for (const mode of ["location.hash", "klik w link #id"] as const) {
+      for (const which of ["far", "sectionTop"] as const) {
+        const label = which === "far" ? "nagłówek w dalszej sekcji" : "góra dalszej sekcji";
+        test(`kotwica po wczytaniu (${mode}, ${label}, CPU x${cpuRate}): cel staje pod nagłówkiem i już nie ucieka`, async ({
+          page,
+        }) => {
+          test.setTimeout(ANCHOR_TIMEOUT);
+          const targets = await openForAnchor(page);
+          const id = targets[which];
+
+          if (mode === "location.hash") {
+            await page.evaluate((target) => {
+              window.__cvTrack!.start(target);
+              location.hash = target;
+            }, id);
+          } else {
+            await anchorLink(page, id);
+            await page.evaluate((target) => window.__cvTrack!.start(target), id);
+            await page.locator("#e2e-kotwica").click();
+          }
+          await settleAfterNavigation(page, settlePolls);
+          const track = await page.evaluate(() => window.__cvTrack!.stop());
+          expectStaysOnTarget(track, viewport.height, `${mode} -> #${id}`, true);
+          const landed = await page.evaluate(where, id);
+          expectLanded(landed, viewport.height);
+
+          if (mode === "location.hash" && which === "far") {
+            // Przewinięcie kółkiem w górę przesuwa cel w widoku dokładnie o obrót kółka: nic
+            // nad celem nie dorysowuje się już z pasa z szacunku (skok pasa to dziesiątki-setki
+            // pikseli).
+            const WHEEL_UP = 300;
+            await wheel(page, -WHEEL_UP, 1);
+            await settle(page, settlePolls);
+            const up = await page.evaluate(where, id);
+            expect(
+              Math.abs(up.top - landed.top - WHEEL_UP),
+              JSON.stringify({ landed, up }),
+            ).toBeLessThanOrEqual(2);
+          }
+        });
+      }
+    }
+
+    test(`kotwica: wstecz/dalej między fragmentami (CPU x${cpuRate}) - każdy cel wraca pod nagłówek, a powrót sprzed pierwszej kotwicy - do miejsca czytania`, async ({
+      page,
+    }) => {
+      test.setTimeout(ANCHOR_TIMEOUT);
+      const targets = await openForAnchor(page);
+      const step = async (
+        id: string,
+        go: () => Promise<unknown>,
+        label: string,
+        fromFirstFrame: boolean,
+      ) => {
+        await page.evaluate((target) => window.__cvTrack!.start(target), id);
+        await go();
+        await settleAfterNavigation(page, settlePolls);
+        const track = await page.evaluate(() => window.__cvTrack!.stop());
+        expectStaysOnTarget(track, viewport.height, label, fromFirstFrame);
+        // Druga sekcja z cv stoi na desktopie niecały ekran pod górą strony (zmierzone: 485 px).
+        const minScrollY = id === targets.earlier ? 0 : viewport.height;
+        expectLanded(await page.evaluate(where, id), viewport.height, minScrollY);
+      };
+
+      // Czytelnik jest już kawałek niżej: router zapisze tę pozycję w `popstate` pierwszej
+      // nawigacji do fragmentu (wpis, z którego się wychodzi) - strażnik nie może przewinąć
+      // przed tym zapisem.
+      await wheel(page, 400, 1);
+      await settle(page, settlePolls);
+      const reading = await page.evaluate(() => scrollY);
+      expect(reading).toBeGreaterThan(0);
+
+      await step(
+        targets.earlier,
+        () =>
+          page.evaluate((target) => {
+            location.hash = target;
+          }, targets.earlier),
+        "location.hash #wcześniejsza",
+        true,
+      );
+      await anchorLink(page, targets.sectionTop);
+      await step(
+        targets.sectionTop,
+        () => page.locator("#e2e-kotwica").click(),
+        "klik #dalsza",
+        true,
+      );
+      await step(targets.earlier, () => page.goBack(), "wstecz", false);
+      await step(targets.sectionTop, () => page.goForward(), "dalej", false);
+
+      // Dwa wpisy wstecz: dokument sprzed pierwszej kotwicy, router przywraca miejsce czytania.
+      await page.evaluate((target) => window.__cvTrack!.start(target), targets.earlier);
+      await page.evaluate(() => history.go(-2));
+      await settleAfterNavigation(page, settlePolls);
+      await page.evaluate(() => window.__cvTrack!.stop());
+      const back = await page.evaluate(() => ({ y: scrollY, hash: location.hash }));
+      expect(back.hash).toBe("");
+      expect(Math.abs(back.y - reading), JSON.stringify({ reading, back })).toBeLessThanOrEqual(2);
+    });
+
+    test(`kotwica przy wejściu z fragmentem w adresie (CPU x${cpuRate}): strażnik zdejmuje cv przed parsowaniem sekcji`, async ({
       page,
       context,
     }) => {
+      test.setTimeout(ANCHOR_TIMEOUT);
+      await throttleCpu(page, cpuRate);
       await openHome(page);
-      // Cel: element z `id` w najdalszej sekcji treści od indeksu 2 (na fixture: nagłówek
-      // formularza „Dołącz"), za sekcjami z cv.
-      const target = await page.evaluate(() => {
-        const root = document.querySelector("main [data-lcp-root]");
-        const sections = [...(root?.querySelectorAll<HTMLElement>("[data-sec-id]") ?? [])];
-        for (let i = sections.length - 1; i >= 2; i -= 1) {
-          const el = sections[i].querySelector("[id]");
-          if (el) {
-            return {
-              id: el.id,
-              sectionCv: !!sections[i].closest("[data-cv]"),
-              cvBefore: sections.slice(0, i).filter((s) => s.closest("[data-cv]")).length,
-            };
-          }
-        }
-        return null;
-      });
-      expect(target).not.toBeNull();
-      expect(target!.sectionCv).toBe(true);
-      expect(target!.cvBefore).toBeGreaterThanOrEqual(2);
+      const { far } = await anchorTargets(page);
 
-      const where = (id: string) => {
-        const el = document.getElementById(id)!;
-        const header = document.querySelector("[data-site-header]")?.getBoundingClientRect();
-        return {
-          top: el.getBoundingClientRect().top,
-          headerBottom: Math.max(0, header?.bottom ?? 0),
-          scrollY,
-          cvOff: document.documentElement.hasAttribute("data-cv-off"),
-          sectionCv: getComputedStyle(el.closest("[data-cv]")!).contentVisibility,
-        };
-      };
-      const expectLanded = (landed: ReturnType<typeof where>) => {
-        expect(landed.scrollY).toBeGreaterThan(viewport.height);
-        // Cel widoczny tuż pod nagłówkiem (nie schowany pod nim, nie w dole ekranu).
-        expect(landed.top).toBeGreaterThanOrEqual(landed.headerBottom - 1);
-        expect(landed.top).toBeLessThan(landed.headerBottom + viewport.height / 3);
-      };
-
-      // 1. Po wczytaniu, przy włączonym cv: nawigacja do fragmentu aktywuje pominiętą sekcję
-      //    celu, choć sekcje nad nim stoją na pasach z szacunku.
-      await page.evaluate((id) => {
-        location.hash = id;
-      }, target!.id);
-      await settle(page);
-      const inPage = await page.evaluate(where, target!.id);
-      expect(inPage.cvOff).toBe(false);
-      expect(inPage.sectionCv).toBe("auto");
-      expectLanded(inPage);
-      // Przewinięcie kółkiem w górę dorysowuje sekcje nad celem, a cel przesuwa się w widoku
-      // dokładnie o obrót kółka (zmierzone 12/12: 300,0 px): sekcje tuż nad widokiem są już
-      // wyrenderowane z bliskości, a zmianę wysokości dalszych pochłania zakotwiczenie
-      // przewijania (korekta `scrollY`). Skok pasa z szacunku to dziesiątki-setki pikseli.
-      const WHEEL_UP = 300;
-      await wheel(page, -WHEEL_UP, 1);
-      await settle(page);
-      const up = await page.evaluate(where, target!.id);
-      expect(
-        Math.abs(up.top - inPage.top - WHEEL_UP),
-        JSON.stringify({ inPage, up }),
-      ).toBeLessThanOrEqual(2);
-
-      // 2. Wejście z fragmentem w adresie: strażnik zdejmuje cv przed parsowaniem sekcji, więc
-      //    skrypt kotwicy TanStacka i przeglądarka liczą na prawdziwym układzie (jak bez P3.3).
+      // Strażnik zdejmuje cv przed parsowaniem sekcji, więc skrypt kotwicy TanStacka
+      // i przeglądarka liczą na prawdziwym układzie (jak bez P3.3).
       const deep = await context.newPage();
-      await openHome(deep, `/#${encodeURIComponent(target!.id)}`);
-      await settle(deep);
-      const entered = await deep.evaluate(where, target!.id);
+      await throttleCpu(deep, cpuRate);
+      await openHome(deep, `/#${encodeURIComponent(far)}`);
+      await settle(deep, settlePolls);
+      const entered = await deep.evaluate(where, far);
       expect(entered.cvOff).toBe(true);
       expect(entered.sectionCv).toBe("visible");
-      expectLanded(entered);
+      expectLanded(entered, viewport.height);
     });
 
     test("przeładowanie w połowie strony: strażnik zdejmuje cv, przywrócenie trafia w ten sam punkt", async ({
