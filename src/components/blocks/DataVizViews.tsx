@@ -27,7 +27,16 @@ export function ChartBlockView({ data, lang = "pl", cls, footnotes }: ChartBlock
   );
 }
 
-export function DataMapBlockView({ data, lang = "pl", cls }: ChartBlockViewProps) {
+export function DataMapBlockView({ data, lang = "pl", cls, footnotes }: ChartBlockViewProps) {
   const config = parseDataMapConfig(data);
-  return <ChoroplethMap config={config} lang={lang} className={cls} />;
+  // Źródła mapy numeruje artykuł tak samo jak źródła wykresu - jedna
+  // sekwencja przypisów i jedna bibliografia na stronę.
+  return (
+    <ChoroplethMap
+      config={config}
+      lang={lang}
+      className={cls}
+      footnoteNumbers={footnotes && footnotes.size > 0 ? footnotes : undefined}
+    />
+  );
 }
