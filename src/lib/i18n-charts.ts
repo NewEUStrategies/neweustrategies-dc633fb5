@@ -1093,8 +1093,6 @@ const pl = {
       library: "Biblioteka wykresów nie załadowała się. Sprawdź połączenie.",
     },
     kpi: {
-      noChange: "bez zmian",
-      vsPrevious: "wobec poprzedniego okresu",
       tooLow: "Za nisko: poniżej {{value}}",
       optimum: "Optimum: {{min}} - {{max}}",
       tooHigh: "Za wysoko: powyżej {{value}}",
@@ -1105,7 +1103,6 @@ const pl = {
       marker: "Wartość {{value}}: {{status}}",
       scale: "Skala przedziału",
       bandSource: "Źródło przedziału",
-      trend: "Trend: {{from}} - {{to}}",
     },
     a11y: {
       chart: "Wykres: {{title}}",
@@ -1939,8 +1936,6 @@ const en = {
       library: "The chart library failed to load. Check your connection.",
     },
     kpi: {
-      noChange: "no change",
-      vsPrevious: "versus the previous period",
       tooLow: "Too low: below {{value}}",
       optimum: "Optimum: {{min}} - {{max}}",
       tooHigh: "Too high: above {{value}}",
@@ -1951,7 +1946,6 @@ const en = {
       marker: "Value {{value}}: {{status}}",
       scale: "Range scale",
       bandSource: "Range source",
-      trend: "Trend: {{from}} - {{to}}",
     },
     a11y: {
       chart: "Chart: {{title}}",
