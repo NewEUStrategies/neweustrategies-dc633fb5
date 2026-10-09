@@ -425,7 +425,7 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
               y={value(tick) + 3.5}
               textAnchor="end"
               fontSize={FONT_AXIS}
-              fill="var(--muted-foreground)"
+              fill="var(--chart-ink3)"
               className="tabular-nums"
             >
               {formatAxisTick(tick, lang)}
@@ -494,7 +494,7 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
                 y={PAD_TOP + innerH + 16}
                 textAnchor="middle"
                 fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
+                fill="var(--chart-ink3)"
                 className="tabular-nums"
               >
                 {formatAxisTick(b.from, lang)}
@@ -506,7 +506,7 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
             y={PAD_TOP + innerH + 16}
             textAnchor="end"
             fontSize={FONT_AXIS}
-            fill="var(--muted-foreground)"
+            fill="var(--chart-ink3)"
             className="tabular-nums"
           >
             {formatAxisTick(geometry.dom.max, lang)}

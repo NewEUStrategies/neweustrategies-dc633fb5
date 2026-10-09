@@ -777,6 +777,27 @@ body {
   --chart-accent-audit: #ab5517;
   --chart-accent-audit-graphic: #cb7032;
 
+  /* ---- Role systemu wykresów (specyfikacja 2026-10) ----
+     Jedna seria w akcencie, reszta w odcieniach neutralnych. Kolejność serii:
+     akcent, łupek główny, łupek drugi, dodatni, "powyżej przedziału".
+     Nazwy i progi stoją w src/lib/charts/roles.ts - bramka roles.test.ts
+     porównuje je z tym arkuszem co do hexa.
+
+     Łupek drugi jest o krok ciemniejszy od wzorca (#9aa6b5 dawał 2,47:1),
+     żeby trzecia seria przechodziła próg grafiki 3,0:1 także bez kreskowania.
+     "Powyżej przedziału" jest FIOLETEM, nie bursztynem: bursztyn leży w tej
+     samej rodzinie co pomarańcz marki i przy deuteranopii zlewał się z nim.
+     Atrament wykresu ma trzy stopnie: tytuł / etykiety danych / opisy osi. */
+  --chart-acc-l: #fdb078;
+  --chart-s-main: #3e4c5e;
+  --chart-s-alt: #8794a4;
+  --chart-s-alt-t: #66717f;
+  --chart-warn: #7c4dbf;
+  --chart-ink: #141313;
+  --chart-ink2: #3f3c3a;
+  --chart-ink3: #6b6662;
+  --chart-tip-mute: #b9b2ab;
+
   /* ---- Druga powierzchnia sekcyjna ----
      Tło ciemniejsze od domyślnego o 1,14:1, dla sekcji, które mają odstąpić
      od reszty strony. JEDNO OGRANICZENIE, i jest ono twarde: SERIE NIE MOGĄ
@@ -1029,12 +1050,12 @@ body {
   --chart-zone: #12161c;
   --chart-zone-alpha: 0.022;
 
-  /* Rusztowanie. Siatka ma być WYCZUWALNA, NIE WIDOCZNA - 1,177:1 do płyty,
-     poniżej progu 1,3. Oś bazowa jest od niej mocniejsza (1,397:1), bo zero
-     jest informacją, a nie tłem. Rusztowania nie zaokrąglamy i nie
-     animujemy. */
-  --chart-grid: #ecede8;
-  --chart-axis: #d9dbd4;
+  /* Rusztowanie w ciepłej szarości systemu wykresów. Siatka ma być
+     WYCZUWALNA, NIE WIDOCZNA - 1,28:1 do płyty, poniżej progu 1,3. Linia osi
+     X jest od niej mocniejsza (1,54:1), bo zero jest informacją, a nie tłem.
+     Rusztowania nie zaokrąglamy i nie animujemy. */
+  --chart-grid: #e7e3df;
+  --chart-axis: #d5cfc9;
 
   /* Rampa sekwencyjna (mapy-choroplety): JEDEN odcień, zmiana jasności.
      Wyprowadzona z granatu, żeby mapa i wykres mówiły tym samym głosem.
@@ -1052,10 +1073,11 @@ body {
      inaczej niski słupek zamienia się w owal i zaokrąglenie zaczyna
      ZNIEKSZTAŁCAĆ DANE.
 
-     Grubość linii 2 px: cieńsza linia wygląda na precyzyjniejszą niż 2,5-3.
-     Punkt obserwacji 2,8 px z obwódką 1,6 px w kolorze płyty - punkty są
-     WARUNKIEM UCZCIWOŚCI wygładzenia, bez nich czytelnik nie wie, gdzie są
-     dane, a gdzie interpolacja.
+     Grubość linii 2 px (2,5 px dla serii pod kursorem). Punkt obserwacji
+     7 px średnicy, wypełniony kolorem serii, z obwódką 1,5 px w kolorze
+     płyty - przy ponad 20 punktach chowany i pokazywany tylko pod kursorem.
+     Te same wymiary w obu motywach: przełączenie motywu zmienia kolory,
+     nigdy geometrię.
 
      Siła wygładzenia 0,55 dotyczy monotonicznego Hermite'a
      (Fritsch-Carlson), nie Catmull-Roma: zwykły spline przestrzeliwuje poza
@@ -1063,23 +1085,24 @@ body {
      Zero przy prawdziwych skokach albo poniżej czterech punktów. */
   --chart-radius: 6px;
   --chart-stroke: 2px;
-  --chart-dot: 2.8px;
-  --chart-dot-ring: 1.6px;
+  --chart-dot: 3.5px;
+  --chart-dot-ring: 1.5px;
   --chart-label-weight: 500;
   --chart-label-weight-strong: 600;
   --chart-label-weight-total: 700;
-  /* Prowadnice miękkie zamiast twardego `3 3`, z zaokrąglonymi końcami. */
-  /* Kreskowanie serii poza zestawem bezpiecznym dla daltonizmu (sloty 7-8). */
-  --chart-series-dash: 7 4;
+  /* Trzecia i dalsze serie linią przerywaną - drugi nośnik różnicy obok
+     kształtu punktu, więc kolor nie jest jedynym. */
+  --chart-series-dash: 6 4;
   /* Cień dwuwarstwowy słaby zamiast jednego mocnego. */
-  --chart-shadow: 0 1px 2px rgb(18 22 28 / 0.04), 0 8px 24px rgb(18 22 28 / 0.05);
+  --chart-shadow: 0 1px 2px rgb(20 19 19 / 0.04), 0 6px 20px rgb(20 19 19 / 0.05);
 
   /* Tooltip. W motywie jasnym jest ODWRÓCONY wobec płyty (ciemny prostokąt
      na białym tle jest czytelny); w ciemnym NIE odwracamy, tylko podnosimy
-     powierzchnię - patrz blok .dark. */
-  --chart-tip-bg: #1a1f27;
+     powierzchnię. Bez obramowania - odcina go cień. Etykiety wierszy
+     w tuszu wyciszonym (8,85:1 na tle tooltipa). */
+  --chart-tip-bg: #141313;
   --chart-tip-border: transparent;
-  --chart-tip-ink: #ffffff;
+  --chart-tip-ink: #f8f6f4;
 
   /* Czcionka wykresów. Domyślnie schodzi z ustawienia panelu admina
      (--brand-font-body -> --font-sans); wykres nie ma prawa mieć własnej
@@ -1317,6 +1340,19 @@ body {
      czyli byłby GORSZY od tokena - furtka audytowa ma tu wartość tokena
      właśnie dlatego, że jest niepotrzebna. */
   --chart-accent-audit-graphic: #fa9346;
+
+  /* Role systemu wykresów - wartości ciemne. Łupki zamieniają się miejscami
+     jasności (główny jasny, drugi przygaszony), żeby hierarchia serii
+     została ta sama co na jasnym. */
+  --chart-acc-l: #fdb078;
+  --chart-s-main: #a9b6c6;
+  --chart-s-alt: #5d6876;
+  --chart-s-alt-t: #7d8897;
+  --chart-warn: #ab92ec;
+  --chart-ink: #ede9e7;
+  --chart-ink2: #d2ccc6;
+  --chart-ink3: #9d968f;
+  --chart-tip-mute: #a9a29b;
 
   /* ---- Druga powierzchnia sekcyjna: W CIEMNYM JEJ NIE MA ----
      Ciemne tło strony jest już samym #141313, a wprowadzanie pod nie jeszcze
@@ -1557,26 +1593,20 @@ body {
   /* Siatka i oś mają w obu motywach TEN SAM KONTRAST WZGLĘDEM PŁYTY, nie ten
      sam kolor - to właściwe przeniesienie reguły "siatka wyczuwalna, nie
      widoczna". Wartości są przeliczone pod płytę #0f0f0f, nie przepisane
-     z arkusza o jaśniejszej płycie: siatka 1,179:1, oś 1,400:1. */
-  --chart-grid: #212020;
-  --chart-axis: #2f2d2d;
+     z arkusza o jaśniejszej płycie: siatka 1,18:1, oś 1,53:1 - te same
+     proporcje co we wzorcu na płycie #1f1e1d. */
+  --chart-grid: #22201f;
+  --chart-axis: #363331;
 
   /* Rampa sekwencyjna - kotwica przestawiona: ciemny -> jasny. Najwyższa
      wartość zostaje najwidoczniejsza (min/max 7,58:1, max na płycie 9,85:1). */
   --chart-seq-min: #1e2935;
   --chart-seq-max: #8fbef0;
 
-  /* LINIA OPTYCZNIE GRUBIEJE. Jasny obiekt na ciemnym tle wydaje się większy
-     niż ciemny na jasnym o tych samych wymiarach (irradiacja). Bez tej
-     korekty wykres na ciemnym wygląda o klasę ciężej niż ten sam wykres na
-     jasnym. Geometria niezmienna w obu motywach: promień 6 px z przycięciem,
-     siła wygładzenia 0,55, kreskowanie prowadnic, skala odstępów 4 px. */
-  --chart-stroke: 1.75px;
-  --chart-dot: 2.6px;
-  --chart-dot-ring: 1.4px;
-  --chart-label-weight: 450;
-  --chart-label-weight-strong: 550;
-  --chart-label-weight-total: 650;
+  /* GEOMETRIA I TYPOGRAFIA NIE ZALEŻĄ OD MOTYWU. Grubość linii, rozmiar
+     punktu i wagi pisma dziedziczą z bloku jasnego - przełączenie motywu
+     zmienia wyłącznie kolory, więc wykres nie "chudnie" ani nie przeskakuje
+     układem przy zmianie motywu. */
 
   /* CIEŃ PRZESTAJE ISTNIEĆ. Cień symuluje przesłonięcie światła; na ciemnym
      tle nie ma czego przesłaniać, więc box-shadow po prostu nie jest
@@ -1586,10 +1616,10 @@ body {
 
   /* TOOLTIPA NIE ODWRACAMY, TYLKO PODNOSIMY. Lustrzane odwrócenie dałoby na
      ciemnym jasny prostokąt, który świeci jak latarka i rozbija wykres.
-     Powierzchnia 1,242:1 nad płytą, obramowanie 1,392:1, tekst 12,80:1
-     wewnątrz tooltipa - kontrast liczy się względem JEGO tła, nie płyty. */
-  --chart-tip-bg: #262424;
-  --chart-tip-border: #2d2d2d;
+     Tekst 12,6:1, etykiety wierszy 5,67:1 wewnątrz tooltipa - kontrast liczy
+     się względem JEGO tła, nie płyty. */
+  --chart-tip-bg: #2c2a28;
+  --chart-tip-border: transparent;
   --chart-tip-ink: #ede9e7;
 }
 

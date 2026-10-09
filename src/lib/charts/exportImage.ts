@@ -100,12 +100,68 @@ export function svgZWklejonaFarba(zrodlo: SVGSVGElement): SVGSVGElement {
   return klon;
 }
 
-/** Rysunek jako samodzielny plik SVG. */
-export function svgDoPliku(zrodlo: SVGSVGElement): Blob {
+/**
+ * Rysunek jako samodzielny plik SVG - Z TŁEM I FONTEM.
+ *
+ * Tło jest prostokątem pod rysunkiem, nie stylem: SVG bez tła wklejony do
+ * dokumentu o innym kolorze pokazuje tusz motywu na obcej płycie (jasne
+ * etykiety ciemnego motywu na białej stronie znikają). Rodzina fontu idzie
+ * atrybutem na korzeniu, bo każdy `<text>` ją dziedziczy, a arkusza strony
+ * w pliku już nie ma.
+ */
+export function svgDoPliku(
+  zrodlo: SVGSVGElement,
+  opcje: { background?: string; fontFamily?: string } = {},
+): Blob {
   const klon = svgZWklejonaFarba(zrodlo);
+  const doc = zrodlo.ownerDocument;
+  const szer = Math.max(1, Math.round(zrodlo.getBoundingClientRect().width || 720));
+  const wys = Math.max(1, Math.round(zrodlo.getBoundingClientRect().height || 320));
+  if (!klon.getAttribute("viewBox")) klon.setAttribute("viewBox", `0 0 ${szer} ${wys}`);
+  if (opcje.fontFamily) klon.setAttribute("font-family", opcje.fontFamily);
+  if (opcje.background) {
+    const tlo = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+    tlo.setAttribute("x", "0");
+    tlo.setAttribute("y", "0");
+    tlo.setAttribute("width", "100%");
+    tlo.setAttribute("height", "100%");
+    tlo.setAttribute("fill", opcje.background);
+    klon.insertBefore(tlo, klon.firstChild);
+  }
   return new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${klon.outerHTML}`], {
     type: "image/svg+xml;charset=utf-8",
   });
+}
+
+/**
+ * Pobranie pliku przez tymczasowy link. Adres obiektu jest zwalniany
+ * z opóźnieniem - część przeglądarek zaczyna pobieranie asynchronicznie
+ * i natychmiastowe zwolnienie dawało pusty plik.
+ */
+export function pobierzPlik(nazwa: string, blob: Blob): void {
+  if (typeof window === "undefined") return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nazwa;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Bezpieczna nazwa pliku z tytułu wykresu („CTR spada" -> „ctr-spada"). */
+export function nazwaPliku(tytul: string, zapas = "wykres"): string {
+  const base = tytul
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ł/g, "l")
+    .replace(/Ł/g, "L")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return base === "" ? zapas : base;
 }
 
 /**

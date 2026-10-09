@@ -668,7 +668,7 @@ export function TornadoChart({
               y={plotBottom + AXIS_BASELINE_PX}
               textAnchor="middle"
               fontSize={FONT_AXIS}
-              fill="var(--muted-foreground)"
+              fill="var(--chart-ink3)"
               className="tabular-nums"
               data-role="value-tick"
             >
@@ -696,7 +696,7 @@ export function TornadoChart({
             y={padTop - LABEL_GAP_PX}
             textAnchor="end"
             fontSize={FONT_AXIS}
-            fill="var(--muted-foreground)"
+            fill="var(--chart-ink3)"
             data-role="parameter-axis"
           >
             {t("tornado.axis.parameter")}
@@ -706,7 +706,7 @@ export function TornadoChart({
             y={plotBottom + AXIS_BASELINE_PX}
             textAnchor="end"
             fontSize={FONT_AXIS}
-            fill="var(--muted-foreground)"
+            fill="var(--chart-ink3)"
             data-role="value-axis"
           >
             {t("tornado.axis.value")}
@@ -897,7 +897,7 @@ export function TornadoChart({
                   y={lane.centerY + TEXT_MIDDLE_PX}
                   textAnchor="end"
                   fontSize={FONT_AXIS}
-                  fill="var(--muted-foreground)"
+                  fill="var(--chart-ink3)"
                   data-role="param-label"
                 >
                   {clipped ? `${r.label.slice(0, Math.max(1, labelBudget - 1))}…` : r.label}

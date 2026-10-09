@@ -7,7 +7,7 @@
 // wskazywać dokładnie te znaczniki, które rysunek naprawdę narysował, a tabela
 // musi liczyć udziały z tego samego mianownika, którym rysunek liczy kąty.
 // Trzymanie obu w rysunku rozjeżdżało grafikę z jej alternatywą tekstową.
-import { Fragment, useCallback, useMemo, type ReactElement } from "react";
+import { Fragment, useCallback, useMemo, useState, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChartConfig, ChartKind } from "@/lib/charts/types";
 import {
@@ -18,7 +18,18 @@ import {
 } from "@/lib/charts/format";
 import { isZeroBaselineBroken } from "@/lib/charts/honesty";
 import { waterfallModel } from "@/lib/charts/waterfall";
-import { ChartFrame, CHART_TABLE_CLS, type ChartCaption, type LegendItem } from "./ChartFrame";
+import {
+  ChartFrame,
+  CHART_TABLE_CLS,
+  type ChartCaption,
+  type ChartPanelMeta,
+  type LegendItem,
+} from "./ChartFrame";
+import { PointDialog } from "./PointDialog";
+import { slotsNeedingPattern } from "@/lib/charts/palette";
+import { seriesPaint } from "@/lib/charts/seriesStyle";
+import { effectiveBand } from "@/lib/charts/status";
+import { ZOOM_MIN_POINTS } from "@/lib/charts/geometry";
 import { CartesianChart } from "./CartesianChart";
 import { PieChart } from "./PieChart";
 import { HistogramChart } from "./HistogramChart";
@@ -106,7 +117,18 @@ const TORNADO_NOTE_KEYS: Record<TornadoRowNote, string> = {
 };
 import { pieModel, pieShare } from "./pieModel";
 import "@/lib/i18n-charts";
-import type { ChartSelectHandler } from "@/lib/charts/selection";
+import type {
+  ChartPointDetail,
+  ChartPointHandler,
+  ChartSelectHandler,
+  LegendMode,
+} from "@/lib/charts/selection";
+
+/**
+ * Rodzaje rysowane przez `CartesianChart` - jedyne, które znają paletę ról,
+ * ukrywanie serii z legendy i etykiety przy końcu linii.
+ */
+const KARTEZJANSKIE_Z_SERIAMI = new Set<ChartKind>(["line", "area", "bar", "bar-horizontal"]);
 
 interface ChartProps {
   config: ChartConfig;
@@ -128,9 +150,34 @@ interface ChartProps {
    * osadzenie. Bez niej wszystkie wykresy pulpitu nazywają się „Wykres".
    */
   ariaLabel?: string;
+  /**
+   * Numeracja przypisów STRONY (artykuł): identyfikator źródła -> numer
+   * w sekcji przypisów na dole wpisu. Bez niej wykres numeruje swoje źródła
+   * od jedynki.
+   */
+  footnoteNumbers?: ReadonlyMap<string, number>;
+  /**
+   * `embedded` - karta pulpitu rysuje własny nagłówek i eksport, więc rama
+   * nie dokłada drugiej karty ani drugiego zestawu przycisków.
+   */
+  variant?: "panel" | "embedded";
 }
 
-export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartProps) {
+export function Chart({
+  config,
+  lang,
+  className,
+  onSelect,
+  ariaLabel,
+  footnoteNumbers,
+  variant = "panel",
+}: ChartProps) {
+  // Serie ukryte w legendzie - POZYCJE w konfiguracji, nie nazwy (nazwa
+  // bywa pusta albo powtórzona).
+  const [hidden, setHidden] = useState<ReadonlySet<number>>(() => new Set());
+  const [legendMode, setLegendMode] = useState<LegendMode>("legend");
+  const [point, setPoint] = useState<ChartPointDetail | null>(null);
+  const zSeriami = KARTEZJANSKIE_Z_SERIAMI.has(config.kind);
   // Prefiks przez `keyPrefix` haka - tylko taki widzi bramka rozjazdu
   // kod<->słownik; klucz sklejony template literalem wypada z kontroli
   // parytetu PL/EN.
@@ -169,6 +216,15 @@ export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartPro
       // jedyna legenda, jaka ma tu sens; nazwy kroków niesie oś kategorii.
       const klucze: LegendItem[] = [
         {
+          // POZIOM (stan początkowy i końcowy) - łupek główny, bo to nie jest
+          // zmiana, tylko stan, od którego zmiany się liczy.
+          key: "level",
+          name: t("tip.level"),
+          color: "var(--chart-s-main)",
+          textColor: "var(--chart-s-main)",
+          shape: "rect" as const,
+        },
+        {
           key: "increase",
           name: t("waterfall.increase"),
           color: "var(--chart-positive)",
@@ -196,8 +252,8 @@ export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartPro
         klucze.push({
           key: "flat",
           name: t("waterfall.flat"),
-          color: "var(--muted-foreground)",
-          textColor: "var(--muted-foreground)",
+          color: "var(--chart-s-alt)",
+          textColor: "var(--chart-s-alt-t)",
           shape: "rect" as const,
         });
       }
@@ -223,6 +279,23 @@ export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartPro
     if (wlasnyKluczRysunku) return [];
     const shape =
       config.kind === "line" || config.kind === "area" ? ("line" as const) : ("rect" as const);
+    if (zSeriami) {
+      // Wygląd z TEGO SAMEGO rozstrzygnięcia co rysunek (`seriesPaint`) -
+      // legenda nie może pokazać innego koloru niż linia.
+      const patterned = slotsNeedingPattern(config.series.map((s) => s.colorSlot));
+      return config.series.map((s, index) => {
+        const paint = seriesPaint(s.colorSlot, index, config.palette, patterned);
+        return {
+          key: `series-${index}`,
+          name: s.name,
+          color: paint.color,
+          textColor: paint.textColor,
+          shape,
+          dashed: shape === "line" && paint.dashed,
+          toggleable: true,
+        };
+      });
+    }
     return config.series.map((s) => ({
       key: `slot-${s.colorSlot}-${s.name}`,
       name: s.name,
@@ -231,7 +304,7 @@ export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartPro
       shape,
       dashed: false,
     }));
-  }, [config, wlasnyKluczRysunku, isPie, isWaterfall, t]);
+  }, [config, wlasnyKluczRysunku, isPie, isWaterfall, zSeriami, t]);
 
   const shareSumMismatch: string | null = useMemo(() => {
     if (!isPie) return null;
@@ -265,6 +338,23 @@ export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartPro
     notesShows: config.notesShows,
     notesSurprising: config.notesSurprising,
     notesHidden: config.notesHidden,
+    caption: config.caption,
+  };
+
+  const meta: ChartPanelMeta = {
+    palette: config.palette,
+    demo: config.demo,
+    provenance: config.provenance,
+    sources: config.sources,
+    footnoteNumbers,
+    hasBand:
+      effectiveBand(
+        config.band,
+        config.sources.map((s) => s.id),
+      ) !== null,
+    hasTarget: config.target !== null,
+    zoomable:
+      zSeriami && config.kind !== "bar-horizontal" && config.categories.length > ZOOM_MIN_POINTS,
   };
 
   if (!hasData) {
@@ -280,6 +370,22 @@ export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartPro
   const Drawing = DRAWING_BY_KIND[config.kind];
   const DataTable = TABLE_BY_KIND[config.kind];
   const table = <DataTable config={config} lang={lang} />;
+  // OKNO PUNKTU tylko tam, gdzie nikt inny nie obsługuje wskazania: panel
+  // analityczny ma swoje okno szczegółów (`onSelect`).
+  const onPointClick: ChartPointHandler | undefined = onSelect ? undefined : setPoint;
+  const hiddenKeys = new Set([...hidden].map((index) => `series-${index}`));
+  const toggle = (key: string): void => {
+    const index = Number(key.replace("series-", ""));
+    if (!Number.isInteger(index)) return;
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      // OSTATNIA WIDOCZNA SERIA ZOSTAJE: wykres bez serii nie ma czego
+      // pokazać, a czytelnik nie widziałby już pozycji, którą kliknął.
+      else if (config.series.length - next.size > 1) next.add(index);
+      return next;
+    });
+  };
 
   return (
     <ChartFrame
@@ -292,8 +398,36 @@ export function Chart({ config, lang, className, onSelect, ariaLabel }: ChartPro
       caption={caption}
       table={table}
       className={className}
+      hiddenLegend={hiddenKeys}
+      onToggleLegend={zSeriami ? toggle : undefined}
+      legendSuppressed={zSeriami && legendMode === "labels"}
+      meta={meta}
+      variant={variant}
+      renderExpanded={(height) => (
+        <Drawing
+          config={{ ...config, height, animate: false }}
+          lang={lang}
+          onSelect={onSelect}
+          ariaLabel={ariaLabel}
+          hidden={hidden}
+          onPointClick={onPointClick}
+        />
+      )}
+      dialogs={
+        zSeriami ? (
+          <PointDialog config={config} lang={lang} point={point} onClose={() => setPoint(null)} />
+        ) : null
+      }
     >
-      <Drawing config={config} lang={lang} onSelect={onSelect} ariaLabel={ariaLabel} />
+      <Drawing
+        config={config}
+        lang={lang}
+        onSelect={onSelect}
+        ariaLabel={ariaLabel}
+        hidden={hidden}
+        onPointClick={onPointClick}
+        onLegendMode={setLegendMode}
+      />
     </ChartFrame>
   );
 }
@@ -326,6 +460,10 @@ type KindView = (props: {
   lang: ChartLang;
   onSelect?: ChartSelectHandler;
   ariaLabel?: string;
+  /** Tylko rysunki kartezjańskie: ukryte serie, kliknięty punkt, tryb legendy. */
+  hidden?: ReadonlySet<number>;
+  onPointClick?: ChartPointHandler;
+  onLegendMode?: (mode: LegendMode) => void;
 }) => ReactElement | null;
 
 const DRAWING_BY_KIND: Record<ChartKind, KindView> = {

@@ -30,7 +30,7 @@
 // Czysto wizualny duplikat danych - pełne wartości ZAWSZE niesie tabela
 // w ChartFrame, bo tooltip nie istnieje ani na klawiaturze bez focusu, ani
 // w druku, ani dla czytnika ekranu.
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 /** Margines bezpieczeństwa od krawędzi kontenera, w px. */
 const EDGE_PAD = 4;
@@ -43,12 +43,30 @@ export interface TooltipRow {
   /** null = wiersz bez klucza koloru (np. suma, krok mostka). */
   colorSlot: number | null;
   /**
+   * Kolor próbki podany wprost (rola palety `focus`, kolor znaku). Wygrywa
+   * ze slotem - seria w palecie ról nie ma koloru pod numerem slotu.
+   */
+  color?: string;
+  /**
    * Seria pod kursorem. Wyróżniana WAGĄ FONTU, nie tłem wiersza: tło
    * wprowadziłoby do dymka drugą powierzchnię i konkurowało z próbką koloru,
    * a waga pisma jest nośnikiem, który nie zajmuje miejsca i nie koduje nic
    * poza "to ta, na której stoisz".
    */
   emphasised?: boolean;
+}
+
+/**
+ * Wiersz klucz-wartość pod seriami: zmiana, status, znaczenie, konwersja.
+ * Wiersz bez wartości się nie wyświetla - pusta etykieta jest szumem.
+ */
+export interface TooltipFact {
+  label: string;
+  value: string;
+  /** Kolor wartości (status) - zawsze OBOK słowa, nigdy zamiast niego. */
+  color?: string;
+  /** Zdanie zamiast liczby (znaczenie) - wyrównane do lewej. */
+  wide?: boolean;
 }
 
 interface ChartTooltipProps {
@@ -61,6 +79,9 @@ interface ChartTooltipProps {
   /** Dopisek pod tytułem - np. oznaczenie, że kategoria jest prognozą. */
   note?: string;
   rows: TooltipRow[];
+  facts?: readonly TooltipFact[];
+  /** Linia źródła na dole („Źródło: Twoje dane"); null = brak. */
+  source?: string | null;
 }
 
 export function ChartTooltip({
@@ -71,6 +92,8 @@ export function ChartTooltip({
   title,
   note,
   rows,
+  facts = [],
+  source = null,
 }: ChartTooltipProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -86,7 +109,8 @@ export function ChartTooltip({
     setSize((prev) => (prev && prev.w === w && prev.h === h ? prev : { w, h }));
   });
 
-  if (!visible || rows.length === 0) return null;
+  const shownFacts = facts.filter((f) => f.label !== "" && f.value !== "");
+  if (!visible || (rows.length === 0 && shownFacts.length === 0)) return null;
 
   let style: CSSProperties;
   if (size === null || (size.w === 0 && size.h === 0)) {
@@ -123,38 +147,55 @@ export function ChartTooltip({
 
   return (
     <div ref={ref} className="neh-tooltip" role="presentation" aria-hidden style={style}>
-      {title && <div className="mb-1 font-medium opacity-80">{title}</div>}
+      {title && <div className="neh-tip-head">{title}</div>}
       {note && (
         <div className="mb-1 text-[0.6875rem] uppercase tracking-wide opacity-60">{note}</div>
       )}
-      <dl className="m-0 space-y-0.5">
-        {rows.map((row, i) => (
-          <div key={i} className="flex items-center justify-between gap-3">
-            <dt className="flex min-w-0 items-center gap-1.5">
-              {row.colorSlot !== null && (
-                /* PRÓBKA KWADRATOWA, nie kreska. Kreska czyta się jako
-                   fragment linii serii, czyli jako znacznik danych; kwadrat
-                   czyta się jako klucz. Ta sama forma co próbka legendy. */
-                <span
-                  aria-hidden
-                  className="h-2 w-2 shrink-0 rounded-[2px]"
-                  style={{ background: `var(--chart-${row.colorSlot})` }}
-                />
-              )}
-              <span className={`truncate ${row.emphasised ? "font-medium" : "opacity-80"}`}>
-                {row.name}
-              </span>
-            </dt>
-            <dd
-              className={`m-0 shrink-0 tabular-nums ${
-                row.emphasised ? "font-bold" : "font-semibold"
-              }`}
-            >
-              {row.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {rows.length > 0 && (
+        <dl className="m-0 space-y-0.5">
+          {rows.map((row, i) => (
+            <div key={i} className="flex items-center justify-between gap-3">
+              <dt className="flex min-w-0 items-center gap-1.5">
+                {(row.color !== undefined || row.colorSlot !== null) && (
+                  /* PRÓBKA KWADRATOWA, nie kreska. Kreska czyta się jako
+                     fragment linii serii, czyli jako znacznik danych; kwadrat
+                     czyta się jako klucz. */
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 shrink-0 rounded-[2px]"
+                    // Pierścień w jasnym tuszu: ciemny łupek na ciemnym tooltipie
+                    // byłby niewidoczny, a próbka MUSI mieć kolor linii.
+                    style={{
+                      background: row.color ?? `var(--chart-${row.colorSlot})`,
+                      boxShadow: "0 0 0 1px rgb(255 255 255 / 0.35)",
+                    }}
+                  />
+                )}
+                <span className={`truncate ${row.emphasised ? "font-semibold" : "opacity-85"}`}>
+                  {row.name}
+                </span>
+              </dt>
+              <dd className="m-0 shrink-0 font-bold tabular-nums">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {shownFacts.length > 0 && (
+        <dl className="neh-tip-facts">
+          {shownFacts.map((fact) => (
+            <Fragment key={fact.label}>
+              <dt>{fact.label}</dt>
+              <dd
+                data-wide={fact.wide ? "true" : undefined}
+                style={fact.color ? { color: fact.color } : undefined}
+              >
+                {fact.value}
+              </dd>
+            </Fragment>
+          ))}
+        </dl>
+      )}
+      {source && <div className="neh-tip-source">{source}</div>}
     </div>
   );
 }

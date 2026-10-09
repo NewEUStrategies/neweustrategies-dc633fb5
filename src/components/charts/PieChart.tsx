@@ -357,13 +357,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
                   pierścienia. Podpis niesie NAZWĘ STANU i jednostkę, w tej
                   kolejności - bez nazwy stanu ta sama liczba raz znaczyłaby
                   całość, a raz jeden segment, i nic by tego nie odróżniało. */}
-                <text
-                  x={cx}
-                  y={cy + 16}
-                  textAnchor="middle"
-                  fontSize={11}
-                  fill="var(--muted-foreground)"
-                >
+                <text x={cx} y={cy + 16} textAnchor="middle" fontSize={11} fill="var(--chart-ink3)">
                   {centreCaption}
                 </text>
               </g>

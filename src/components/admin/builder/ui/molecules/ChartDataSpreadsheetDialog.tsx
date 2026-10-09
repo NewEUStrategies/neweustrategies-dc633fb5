@@ -186,6 +186,10 @@ export function ChartDataSpreadsheetDialog({
       showLegend: asBool(c.showLegend, true),
       showGrid: asBool(c.showGrid, true),
       showValues: asBool(c.showValues, false),
+      // Paleta zmienia KOLORY serii, więc podgląd bez niej pokazywałby inny
+      // wykres niż kanwa. Ta sama reguła co w `ChartWidgetView`: wszystko
+      // poza jawnym `categorical` to paleta ról.
+      palette: c.palette === "categorical" ? "categorical" : "focus",
       // Animacja wejścia jest wyłączona TYLKO w podglądzie arkusza: wykres
       // przeskakuje tu przy każdym naciśnięciu klawisza, a odpalanie animacji
       // na każdą zmianę komórki byłoby migotaniem, nie podglądem.

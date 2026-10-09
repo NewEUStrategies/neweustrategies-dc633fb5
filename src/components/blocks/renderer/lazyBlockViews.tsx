@@ -31,6 +31,7 @@
 // `import type` so the compiler still sees each view's props without dragging
 // the implementation into this file's static graph (that would collapse the
 // split boundary).
+import { ChartLoadFailed } from "@/components/charts/ChartLoadFailed";
 import {
   lazy,
   memo,
@@ -79,7 +80,9 @@ export const CalendarView = withSuspense(CalendarViewLazy);
 
 // --- data-viz (custom SVG chart engine + choropleth + geo assets) ----------
 const ChartBlockViewLazy = lazy(() =>
-  import("../DataVizViews").then((m) => ({ default: m.ChartBlockView })),
+  import("../DataVizViews")
+    .then((m) => ({ default: m.ChartBlockView }))
+    .catch(() => ({ default: ChartLoadFailed })),
 ) as ComponentType<ComponentProps<typeof ChartBlockViewImpl>>;
 export const ChartBlockView = withSuspense(ChartBlockViewLazy);
 

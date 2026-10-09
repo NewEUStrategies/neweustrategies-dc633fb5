@@ -115,3 +115,24 @@ export function formatPercentPoints(points: number, lang: ChartLang): string {
     maximumFractionDigits: 1,
   })}%`;
 }
+
+/**
+ * Wartość ZE ZNAKIEM - zmiana w mostku, zmiana w tooltipie. Znak „+" przy
+ * dodatniej jest obowiązkowy: bez niego „12" w kolumnie zmian czyta się jak
+ * poziom, a nie jak przyrost.
+ */
+export function formatSignedValue(value: number, lang: ChartLang, unit = ""): string {
+  if (!skonczona(value)) return NIE_LICZBA;
+  const body = formatChartValue(value, lang, unit);
+  return value > 0 ? `+${body}` : body;
+}
+
+/** Zmiana procentowa ze znakiem i jednym miejscem po przecinku („+4,2%"). */
+export function formatSignedPercent(change: number, lang: ChartLang): string {
+  if (!skonczona(change)) return NIE_LICZBA;
+  const body = change.toLocaleString(localeOf(lang), {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
+  return `${change > 0 ? "+" : ""}${body}%`;
+}

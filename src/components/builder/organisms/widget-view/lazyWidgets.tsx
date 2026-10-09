@@ -69,6 +69,7 @@ import {
   type NamedExoticComponent,
 } from "react";
 import { withSuspense } from "./lazySuspense";
+import { ChartLoadFailed } from "@/components/charts/ChartLoadFailed";
 import { createIsomorphicFn } from "@tanstack/react-start";
 import {
   HydrationIsland,
@@ -358,8 +359,11 @@ const AnimatedHeadingRenderLazy = serverReadingWidgets
 export const AnimatedHeadingRender = withSuspense(AnimatedHeadingRenderLazy);
 
 // --- data-viz (shared chart engine) ---------------------------------------
+// Chunk silnika, który się nie załadował, daje komunikat zamiast pustej dziury.
 const ChartWidgetViewLazy = lazy(() =>
-  import("./DataVizWidgets").then((m) => ({ default: m.ChartWidgetView })),
+  import("./DataVizWidgets")
+    .then((m) => ({ default: m.ChartWidgetView }))
+    .catch(() => ({ default: ChartLoadFailed })),
 ) as ComponentType<ComponentProps<typeof ChartWidgetViewImpl>>;
 export const ChartWidgetView = withSuspense(ChartWidgetViewLazy);
 

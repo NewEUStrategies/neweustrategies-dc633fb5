@@ -5,6 +5,8 @@
 // at or below the first number is "good", at or below the second is
 // "needs-improvement", above is "poor".
 
+import type { ChartSource } from "@/lib/charts/sources";
+
 export type VitalName = "LCP" | "CLS" | "INP" | "FCP" | "TTFB" | "FID";
 export type VitalRating = "good" | "needs-improvement" | "poor";
 
@@ -38,3 +40,50 @@ export function rateVital(name: VitalName, value: number): VitalRating {
 export function vitalUnit(name: VitalName): "ms" | "" {
   return name === "CLS" ? "" : "ms";
 }
+
+/**
+ * ŹRÓDŁA PROGÓW - przedział oceny bez źródła nie istnieje (patrz
+ * `effectiveBand` w `src/lib/charts/status.ts`). Progi „good" pochodzą
+ * z dokumentacji Google na web.dev; daty publikacji i aktualizacji przepisane
+ * ze stron, data dostępu to dzień weryfikacji progów z tymi stronami.
+ * Wiarygodność A: Google definiuje te metryki, więc to źródło pierwotne.
+ */
+const WEB_VITALS_SOURCE: ChartSource = {
+  id: "web-vitals",
+  author: "Walton, Philip",
+  title: "Web Vitals",
+  container: "web.dev",
+  publisher: "Google",
+  published: "2020-05-04 (aktualizacja 2024-10-31)",
+  accessed: "2026-10-09",
+  url: "https://web.dev/articles/vitals",
+  reliability: "A",
+};
+
+export const VITAL_THRESHOLD_SOURCES: Partial<Record<VitalName, ChartSource>> = {
+  LCP: WEB_VITALS_SOURCE,
+  INP: WEB_VITALS_SOURCE,
+  CLS: WEB_VITALS_SOURCE,
+  FCP: {
+    id: "web-vitals-fcp",
+    author: "Walton, Philip",
+    title: "First Contentful Paint (FCP)",
+    container: "web.dev",
+    publisher: "Google",
+    published: "aktualizacja 2023-12-06",
+    accessed: "2026-10-09",
+    url: "https://web.dev/articles/fcp",
+    reliability: "A",
+  },
+  TTFB: {
+    id: "web-vitals-ttfb",
+    author: "Pollard, Barry, i Jeremy Wagner",
+    title: "Time to First Byte (TTFB)",
+    container: "web.dev",
+    publisher: "Google",
+    published: "2021-10-26",
+    accessed: "2026-10-09",
+    url: "https://web.dev/articles/ttfb",
+    reliability: "A",
+  },
+};

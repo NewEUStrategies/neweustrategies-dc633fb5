@@ -45,7 +45,13 @@ import { Card } from "@/components/ui/card";
 import { biChart } from "./biChart";
 import { getVitalsSummary, type VitalsSummaryResult } from "@/lib/observability/vitals.functions";
 import { useCurrentTenantId } from "@/lib/tenant";
-import { VITAL_THRESHOLDS, type VitalName } from "@/lib/observability/vitalsThresholds";
+import {
+  VITAL_THRESHOLDS,
+  VITAL_THRESHOLD_SOURCES,
+  vitalUnit,
+  type VitalName,
+} from "@/lib/observability/vitalsThresholds";
+import { chartLangFrom } from "@/lib/charts/format";
 import { ChartCard } from "./ChartCard";
 import type { ChartDrillDetail } from "./ChartDrillDialog";
 import type { ChartSelection } from "@/lib/charts/selection";
@@ -87,7 +93,8 @@ function sparkForMetric(report: VitalsSummaryResult, metric: VitalName): number[
 }
 
 export function VitalsBiDashboard() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const chartLang = chartLangFrom(i18n.language);
   const fetchVitals = useServerFn(getVitalsSummary);
   const tenantId = useCurrentTenantId();
   const [range, setRange] = useState<TimeRangeValue>(() => buildPresetRange("7d"));
@@ -551,6 +558,13 @@ export function VitalsBiDashboard() {
                   current={m.p75}
                   series={sparkForMetric(report, metric)}
                   higherIsBetter={false}
+                  // PRZEDZIAŁ OCENY ZE ŹRÓDŁEM: „good" według web.dev, na
+                  // 75. percentylu - dokładnie tym, który pokazuje kafelek.
+                  band={{ min: 0, max: VITAL_THRESHOLDS[metric][0] }}
+                  bandSource={VITAL_THRESHOLD_SOURCES[metric] ?? null}
+                  showScale
+                  unit={vitalUnit(metric) ? ` ${vitalUnit(metric)}` : ""}
+                  lang={chartLang}
                 />
               );
             })}

@@ -24,7 +24,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
 import { freezeClock } from "@/test/time";
 import { parseChartConfig } from "@/lib/charts/parse";
-import { BAR_MAX } from "@/lib/charts/geometry";
+import { barLayout } from "@/lib/charts/geometry";
 import { Chart } from "../Chart";
 import { CartesianChart } from "../CartesianChart";
 import { slotForSeries } from "@/lib/charts/palette";
@@ -46,13 +46,19 @@ const cfg = (data: Record<string, Json>) => parseChartConfig(data);
 const all = (root: HTMLElement, sel: string): Element[] => [...root.querySelectorAll(sel)];
 const textOf = (root: HTMLElement, sel: string): string[] =>
   all(root, sel).map((e) => e.textContent ?? "");
-/** Pasma i pola: krycie z tokena siedzi w `style`, nie w atrybucie. */
-const bandsOf = (root: HTMLElement): Element[] =>
-  all(root, "path").filter((el) =>
-    (el.getAttribute("style") ?? "").includes(
-      `fill-opacity: var(--chart-band-${slotForSeries(0)})`,
-    ),
-  );
+/** Pasma niepewności prognozy. */
+const bandsOf = (root: HTMLElement): Element[] => all(root, "path[data-role='forecast-band']");
+
+/**
+ * Punkty obserwacji - znaczniki w kształcie serii. Pierwsza seria ma koło
+ * zapisane ścieżką `M(cx - r) cy a r r ...`, więc środek odczytujemy z niej.
+ */
+const dotsOf = (root: HTMLElement): Element[] => all(root, "path[data-role='series-point']");
+const dotCx = (el: Element): number => {
+  const m = /^M(-?[\d.]+) (-?[\d.]+)a(-?[\d.]+)/.exec(el.getAttribute("d") ?? "");
+  if (!m) throw new Error("znacznik nie jest kołem");
+  return Number(m[1]) + Number(m[3]);
+};
 
 /**
  * Kontener wykresu - jedyny element, który przyjmuje fokus i strzałki.
@@ -77,7 +83,7 @@ const box = (root: HTMLElement): HTMLElement => {
  * nigdy.
  */
 const catLabels = (root: HTMLElement): Element[] =>
-  all(root, "text[fill='var(--muted-foreground)']:not(.tabular-nums)").filter((el) =>
+  all(root, "text[fill='var(--chart-ink3)']:not(.tabular-nums)").filter((el) =>
     el.hasAttribute("text-anchor"),
   );
 
@@ -107,8 +113,9 @@ describe("ChartFrame - podpis uczciwościowy", () => {
       />,
     );
     const text = container.textContent ?? "";
-    expect(text).toContain("Źródło: Eurostat");
-    expect(text).toContain("Jednostka: %");
+    // Jednostka i źródło stoją w PODTYTULE panelu („%. Źródło: Eurostat"),
+    // `n` i data danych - w podpisie pod rysunkiem.
+    expect(container.querySelector(".neh-panel-sub")?.textContent).toBe("%. Źródło: Eurostat");
     expect(text).toContain("n = 48");
     expect(text).toContain("Dane na dzień: 2026-06-30");
   });
@@ -119,7 +126,7 @@ describe("ChartFrame - podpis uczciwościowy", () => {
     const { container } = render(<Chart config={cfg(SERIES_4)} lang="pl" />);
     const text = container.textContent ?? "";
     expect(text).not.toContain("n =");
-    expect(text).not.toContain("Jednostka:");
+    expect(container.querySelector(".neh-panel-sub")).toBeNull();
     expect(text).not.toContain("Dane na dzień:");
   });
 
@@ -174,7 +181,7 @@ describe("ChartFrame - podpis uczciwościowy", () => {
       />,
     );
     const labels = textOf(container, "dl dt").filter((l) =>
-      ["Co pokazuje", "Co jest zaskakujące", "Czego nie pokazuje"].includes(l),
+      ["Co pokazuje", "Co zaskakuje", "Czego nie pokazuje"].includes(l),
     );
     // Autor podał dwa z trzech: kolejność zostaje, brakujące nie robi dziury.
     expect(labels).toEqual(["Co pokazuje", "Czego nie pokazuje"]);
@@ -189,7 +196,8 @@ describe("ChartFrame - podpis uczciwościowy", () => {
     const en = render(<Chart config={config} lang="en" />);
     const text = en.container.textContent ?? "";
     expect(text).toContain("What it does not show");
-    expect(text).toContain("Unit: %");
+    expect(text).toContain("n = 12");
+    expect(text).toContain("How to read");
     expect(text).not.toContain("Czego nie pokazuje");
   });
 });
@@ -256,12 +264,12 @@ describe("CartesianChart - prognoza", () => {
     // i na zrzucie ekranu. Kropka nad wartością prognozowaną podawała
     // interpolację za pomiar.
     const { container } = render(<CartesianChart config={cfg(FORECAST)} lang="pl" />);
-    const dots = all(container, "circle.neh-dot");
+    const dots = dotsOf(container);
     // Sześć kategorii, prognoza od indeksu 4 - zostają cztery kropki historii.
     expect(dots).toHaveLength(4);
     const divider = Number(all(container, "line.neh-forecast-divider")[0].getAttribute("x1"));
     for (const dot of dots) {
-      expect(Number(dot.getAttribute("cx"))).toBeLessThan(divider);
+      expect(dotCx(dot)).toBeLessThan(divider);
     }
   });
 
@@ -269,7 +277,7 @@ describe("CartesianChart - prognoza", () => {
     const { container } = render(
       <CartesianChart config={cfg({ ...FORECAST, forecastFrom: null })} lang="pl" />,
     );
-    expect(all(container, "circle.neh-dot")).toHaveLength(6);
+    expect(dotsOf(container)).toHaveLength(6);
     expect(all(container, "line.neh-forecast-divider")).toHaveLength(0);
   });
 
@@ -284,7 +292,7 @@ describe("CartesianChart - prognoza", () => {
     // może przez niego przechodzić.
     const { container } = render(<CartesianChart config={cfg(FORECAST)} lang="pl" />);
     const divider = Number(all(container, "line.neh-forecast-divider")[0].getAttribute("x1"));
-    const dots = all(container, "circle.neh-dot").map((c) => Number(c.getAttribute("cx")));
+    const dots = dotsOf(container).map(dotCx);
     // Kropki są już TYLKO na historii, więc ostatnia z nich jest ostatnią
     // obserwacją. Pierwszą prognozę bierzemy z pasma niepewności: jego
     // obwiednia startuje na kategorii granicznej, a więc jej drugi punkt jest
@@ -300,12 +308,17 @@ describe("CartesianChart - prognoza", () => {
     expect(divider).toBeLessThan(firstForecast);
   });
 
-  it("pasmo niepewności istnieje i ma krycie Z TOKENA slotu", () => {
-    const { container } = render(<CartesianChart config={cfg(FORECAST)} lang="pl" />);
+  it("pasmo niepewności istnieje i ma krycie Z TOKENA slotu w palecie kategorialnej", () => {
+    const { container } = render(
+      <CartesianChart config={cfg({ ...FORECAST, palette: "categorical" })} lang="pl" />,
+    );
     // Krycie w `style`, nie w atrybucie - `var()` w atrybutach prezentacyjnych
     // SVG nie jest wspierane wszędzie, a nierozwiązane krycie to plama.
     const bands = bandsOf(container);
     expect(bands.length).toBeGreaterThan(0);
+    expect(bands[0].getAttribute("style")).toContain(
+      `fill-opacity: var(--chart-band-${slotForSeries(0)})`,
+    );
   });
 
   it("pasmo ma na granicy szerokość ZERO - pomiar nie ma niepewności prognozy", () => {
@@ -414,10 +427,10 @@ describe("CartesianChart - prognoza", () => {
     expect(divider).toBeCloseTo(centers[2] - band / 2, 6);
     expect(divider).toBeCloseTo((centers[1] + centers[2]) / 2, 6);
 
-    // I ta liczba leży w SZCZELINIE: kolumna jest węższa od pasma (72% pasma,
-    // najwyżej 24 px), więc separator nie dotyka ani ostatniej zmierzonej
+    // I ta liczba leży w SZCZELINIE: kolumna jest węższa od pasma (80% pasma,
+    // najwyżej 22 px), więc separator nie dotyka ani ostatniej zmierzonej
     // kolumny, ani pierwszej prognozowanej.
-    const barW = Math.min(BAR_MAX, band * 0.72);
+    const barW = barLayout(band, 1, false).width;
     expect(divider).toBeGreaterThan(centers[1] + barW / 2);
     expect(divider).toBeLessThan(centers[2] - barW / 2);
 
@@ -471,10 +484,10 @@ describe("CartesianChart - mostek (waterfall)", () => {
     const { container } = render(<CartesianChart config={cfg(BRIDGE)} lang="pl" />);
     const bars = all(container, "path.neh-bar");
     expect(bars).toHaveLength(5);
-    // Filary (pierwszy i ostatni) niosą POZIOM, nie zmianę - więc kolor serii,
-    // nie semantyka znaku.
-    expect(bars[0].getAttribute("fill")).toBe(`var(--chart-${slotForSeries(0)})`);
-    expect(bars[4].getAttribute("fill")).toBe(`var(--chart-${slotForSeries(0)})`);
+    // Filary (pierwszy i ostatni) niosą POZIOM, nie zmianę - więc łupek
+    // główny (sumy w wykresie kaskadowym), nie semantyka znaku.
+    expect(bars[0].getAttribute("fill")).toBe("var(--chart-s-main)");
+    expect(bars[4].getAttribute("fill")).toBe("var(--chart-s-main)");
     // Składniki: dodatni tealem, ujemne czerwienią.
     expect(bars[1].getAttribute("fill")).toBe("var(--chart-positive)");
     expect(bars[2].getAttribute("fill")).toBe("var(--chart-negative)");
@@ -512,11 +525,10 @@ describe("CartesianChart - mostek (waterfall)", () => {
   // twierdził o wzroście, którego nie było, a mostek dekompozycji marży
   // gubił przy tym osobną informację - pozycję, która się nie ruszyła.
   //
-  // CZEMU TRZECI TUSZ, A NIE TOKEN OSI. Wkład zerowy nie ma znaku, więc nie
+  // CZEMU ŁUPEK DRUGI, A NIE TOKEN OSI. Wkład zerowy nie ma znaku, więc nie
   // może dostać koloru znaku; ale jest ZNACZNIKIEM DANYCH, więc obowiązuje go
-  // próg obiektu graficznego 3,0:1. Token osi ma do płyty 1,40:1 i kreska
-  // byłaby praktycznie niewidoczna; `--muted-foreground` daje 5,11:1
-  // w najgorszym przypadku.
+  // próg obiektu graficznego 3,0:1. Token osi ma do płyty 1,54:1 i kreska
+  // byłaby praktycznie niewidoczna; łupek drugi daje 3,09:1.
   describe("składnik o wkładzie zerowym", () => {
     const Z_ZEREM: Record<string, Json> = {
       kind: "waterfall",
@@ -530,7 +542,7 @@ describe("CartesianChart - mostek (waterfall)", () => {
       const { container } = render(<CartesianChart config={cfg(Z_ZEREM)} lang="pl" />);
       const bars = all(container, "path.neh-bar");
       expect(bars).toHaveLength(5);
-      expect(bars[2].getAttribute("fill")).toBe("var(--muted-foreground)");
+      expect(bars[2].getAttribute("fill")).toBe("var(--chart-s-alt)");
       expect(bars[1].getAttribute("fill")).toBe("var(--chart-positive)");
       expect(bars[3].getAttribute("fill")).toBe("var(--chart-negative)");
     });
@@ -800,7 +812,8 @@ describe("Legenda - warianty tekstowe i kreskowanie", () => {
     const { container } = render(
       <Chart
         config={cfg({
-          kind: "line",
+          kind: "bar",
+          palette: "categorical",
           categories: ["a", "b", "c", "d"],
           series: [
             { name: "Granat", values: [1, 2, 3, 4] },
@@ -816,11 +829,12 @@ describe("Legenda - warianty tekstowe i kreskowanie", () => {
     expect(names[1]).toContain(`var(--chart-${slotForSeries(1)}t)`);
   });
 
-  it("legenda zawsze pokazuje pełne kolory, bez kreskowania", () => {
+  it("legenda słupków pokazuje pełne kolory, bez kreskowania", () => {
     const { container } = render(
       <Chart
         config={cfg({
-          kind: "line",
+          kind: "bar",
+          palette: "categorical",
           categories: ["a", "b", "c", "d"],
           series: [
             { name: "Pierwsza", values: [1, 2, 3, 4], colorSlot: 9 },
@@ -845,6 +859,7 @@ describe("Legenda - warianty tekstowe i kreskowanie", () => {
       <CartesianChart
         config={cfg({
           kind: "line",
+          palette: "categorical",
           categories: ["a", "b", "c", "d"],
           series: [
             { name: "Pierwsza", values: [1, 2, 3, 4], colorSlot: 9 },
@@ -858,5 +873,55 @@ describe("Legenda - warianty tekstowe i kreskowanie", () => {
     const lines = all(container, "path.neh-line");
     expect(lines[0].getAttribute("class")).not.toContain("neh-line-pattern");
     expect(lines[1].getAttribute("class")).toContain("neh-line-pattern");
+  });
+
+  it("paleta ROLI: pierwsza seria w akcencie, druga w łupku, napisy w wariantach tekstowych", () => {
+    const { container } = render(
+      <Chart
+        config={cfg({
+          kind: "bar",
+          categories: ["a", "b", "c"],
+          series: [
+            { name: "Wskaźnik", values: [1, 2, 3] },
+            { name: "Porównanie", values: [3, 2, 1] },
+          ],
+          animate: false,
+        })}
+        lang="pl"
+      />,
+    );
+    const swatches = all(container, ".neh-legend li span[aria-hidden]").map(
+      (el) => el.getAttribute("style") ?? "",
+    );
+    expect(swatches[0]).toContain("var(--chart-accent)");
+    expect(swatches[1]).toContain("var(--chart-s-main)");
+    const names = all(container, ".neh-legend li span:last-child").map(
+      (el) => el.getAttribute("style") ?? "",
+    );
+    expect(names[0]).toContain("var(--chart-accent-audit)");
+  });
+
+  it("trzecia seria: linia przerywana i inny KSZTAŁT punktu niż pierwsze dwie", () => {
+    const { container } = render(
+      <CartesianChart
+        config={cfg({
+          kind: "line",
+          categories: ["a", "b", "c", "d"],
+          series: [
+            { name: "A", values: [1, 2, 3, 4] },
+            { name: "B", values: [2, 3, 4, 5] },
+            { name: "C", values: [3, 4, 5, 6] },
+          ],
+          animate: false,
+        })}
+        lang="pl"
+      />,
+    );
+    const lines = all(container, "path.neh-line");
+    expect(lines[0].getAttribute("class")).not.toContain("neh-line-pattern");
+    expect(lines[1].getAttribute("class")).not.toContain("neh-line-pattern");
+    expect(lines[2].getAttribute("class")).toContain("neh-line-pattern");
+    const shapes = new Set(dotsOf(container).map((el) => el.getAttribute("data-marker")));
+    expect(shapes).toEqual(new Set(["circle", "diamond", "triangle"]));
   });
 });

@@ -13,7 +13,7 @@
  * a formula are neutralised on the way out (see `neutralizeFormula`).
  *
  */
-import { svgDoPng, type WpisKlucza } from "@/lib/charts/exportImage";
+import { svgDoPliku, svgDoPng, type WpisKlucza } from "@/lib/charts/exportImage";
 
 /**
  * Znaki, od których arkusz zaczyna czytać komórkę jako FORMUŁĘ, a nie jako
@@ -153,24 +153,32 @@ function kluczZRysunku(container: HTMLElement): WpisKlucza[] {
     });
   }
 
-  return [...ramka.querySelectorAll(":scope > ul > li")].flatMap((li) => {
-    const probka = li.querySelector("span[aria-hidden]");
-    const nazwa = probka?.nextElementSibling ?? null;
-    if (probka === null || nazwa === null) return [];
-    return [
-      {
-        label: nazwa.textContent!,
-        // Seria poza zestawem bezpiecznym dla daltonizmu ma próbkę kreskowaną
-        // (gradient), a `background-color` jest wtedy przezroczysty - bierzemy
-        // wówczas kolor napisu, żeby kwadrat nie wyszedł niewidzialny.
-        color: (() => {
-          const tlo = styl(probka, "background-color");
-          return tlo === "" || tlo === "rgba(0, 0, 0, 0)" ? styl(nazwa, "color") : tlo;
-        })(),
-        textColor: styl(nazwa, "color"),
-      },
-    ];
-  });
+  // Legenda silnika (`.neh-legend`) stoi nad rysunkiem albo pod nim, więc nie
+  // jest już dzieckiem ramy; stary układ (`figure > ul`) zostaje jako zapas.
+  // Pozycja przełączona na „ukryta" nie ma serii na rysunku, więc nie jedzie
+  // do klucza pliku.
+  const pozycje = ramka.querySelectorAll(".neh-legend > li");
+  return [...(pozycje.length > 0 ? pozycje : ramka.querySelectorAll(":scope > ul > li"))].flatMap(
+    (li) => {
+      if (li.querySelector('[aria-pressed="false"]')) return [];
+      const probka = li.querySelector("span[aria-hidden]");
+      const nazwa = probka?.nextElementSibling ?? null;
+      if (probka === null || nazwa === null) return [];
+      return [
+        {
+          label: nazwa.textContent!,
+          // Seria poza zestawem bezpiecznym dla daltonizmu ma próbkę kreskowaną
+          // (gradient), a `background-color` jest wtedy przezroczysty - bierzemy
+          // wówczas kolor napisu, żeby kwadrat nie wyszedł niewidzialny.
+          color: (() => {
+            const tlo = styl(probka, "background-color");
+            return tlo === "" || tlo === "rgba(0, 0, 0, 0)" ? styl(nazwa, "color") : tlo;
+          })(),
+          textColor: styl(nazwa, "color"),
+        },
+      ];
+    },
+  );
 }
 
 /**
@@ -203,4 +211,20 @@ export async function exportPng(filename: string, container: HTMLElement | null)
     klucz: kluczZRysunku(container),
   });
   triggerDownload(filename.endsWith(".png") ? filename : `${filename}.png`, blob);
+}
+
+/**
+ * Zrzut rysunku do SVG - wektor z tłem płyty i fontem strony, ten sam
+ * zapis, który daje przycisk SVG w panelu wykresu.
+ */
+export function exportSvg(filename: string, container: HTMLElement | null): void {
+  const svg =
+    container?.querySelector(".neh-canvas svg") ?? container?.querySelector("svg") ?? null;
+  if (svg === null) return;
+  const plyta = getComputedStyle(document.documentElement).getPropertyValue("--card").trim();
+  const blob = svgDoPliku(svg as SVGSVGElement, {
+    background: plyta === "" ? "#ffffff" : plyta,
+    fontFamily: getComputedStyle(svg).fontFamily,
+  });
+  triggerDownload(filename.endsWith(".svg") ? filename : `${filename}.svg`, blob);
 }

@@ -444,7 +444,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
               y={value(tick) + 3.5}
               textAnchor="end"
               fontSize={FONT_AXIS}
-              fill="var(--muted-foreground)"
+              fill="var(--chart-ink3)"
               className="tabular-nums"
             >
               {formatAxisTick(tick, lang)}
@@ -669,7 +669,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                   y={plotBottom + LABEL_BASELINE}
                   textAnchor="middle"
                   fontSize={FONT_AXIS}
-                  fill="var(--muted-foreground)"
+                  fill="var(--chart-ink3)"
                   data-role="group-label"
                 >
                   {clipped ? `${b.label.slice(0, Math.max(1, budget - 1))}…` : b.label}
@@ -680,7 +680,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                   y={plotBottom + LABEL_BASELINE + FONT_AXIS + 1}
                   textAnchor="middle"
                   fontSize={FONT_AXIS}
-                  fill="var(--muted-foreground)"
+                  fill="var(--chart-ink3)"
                   className="tabular-nums"
                   data-role="group-n"
                 >

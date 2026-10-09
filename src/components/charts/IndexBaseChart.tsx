@@ -629,7 +629,7 @@ export function IndexBaseChart({
   /* ---------------------------------------------------------------------- */
 
   const yBazy = value(finite(model.baseline));
-  const pokazKropki = shouldShowDots(model.periodCount, 0);
+  const pokazKropki = shouldShowDots(model.periodCount);
   const cascade = cascadeStepMs(model.periodCount);
 
   /**
@@ -792,7 +792,7 @@ export function IndexBaseChart({
               y={value(tick) + 3.5}
               textAnchor="end"
               fontSize={FONT_AXIS}
-              fill="var(--muted-foreground)"
+              fill="var(--chart-ink3)"
               className="tabular-nums"
             >
               {formatAxisTick(tick, lang)}

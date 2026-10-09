@@ -102,7 +102,7 @@ describe("HistogramChart - oś pozioma jest CIĄGŁA, nie pasmowa", () => {
     // "od ile do ile", a nie "który to słupek". Bez podpisanej ostatniej
     // krawędzi nie wiadomo, jaki zakres pokazuje rysunek.
     const { container } = render(<HistogramChart config={cfg(BAZA)} lang="pl" />);
-    const podpisy = all(container, "text.tabular-nums[fill='var(--muted-foreground)']").map(
+    const podpisy = all(container, "text.tabular-nums[fill='var(--chart-ink3)']").map(
       (e) => e.textContent ?? "",
     );
     expect(podpisy.length).toBeGreaterThan(2);
@@ -121,7 +121,7 @@ describe("HistogramChart - oś wartości", () => {
     // zniekształca proporcję między przedziałami wprost (sekcja 8).
     // `histogramExtent` nie ma na to parametru i ta asercja tego pilnuje.
     const { container } = render(<HistogramChart config={cfg(BAZA)} lang="pl" />);
-    const podpisy = all(container, "text.tabular-nums[fill='var(--muted-foreground)']").map(
+    const podpisy = all(container, "text.tabular-nums[fill='var(--chart-ink3)']").map(
       (e) => e.textContent ?? "",
     );
     expect(podpisy).toContain("0");

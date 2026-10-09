@@ -227,20 +227,41 @@ const CASES: ReadonlyArray<VisibilityCase> = [
   },
   {
     widget: "chart",
-    keys: ["barStyle"],
-    // Ten sam warunek co skumulowanie: wariant wypelnienia dotyczy SLUPKOW,
-    // wiec pusta tresc (rodzaj jeszcze niewybrany, czyli domyslnie slupkowy)
-    // MUSI go pokazywac. Tarcza i linia nie maja czego wypelniac.
-    why: "wariant wypelnienia tylko dla slupkow - w tym dla domyslnego rodzaju",
-    visible: [{}, { kind: "bar" }, { kind: "bar-horizontal" }, { kind: "" }],
-    hidden: [{ kind: "pie" }, { kind: "donut" }, { kind: "line" }, { kind: "area" }],
-  },
-  {
-    widget: "chart",
     keys: ["showGrid"],
     why: "siatka wszedzie POZA wykresami bez osi (kolowy, pierscien)",
     visible: [{}, { kind: "bar" }, { kind: "line" }],
     hidden: [{ kind: "pie" }, { kind: "donut" }],
+  },
+  {
+    widget: "chart",
+    keys: [
+      "bandSourceAuthor",
+      "bandSourceTitle",
+      "bandSourceContainer",
+      "bandSourcePublisher",
+      "bandSourcePublished",
+      "bandSourceAccessed",
+      "bandSourceUrl",
+      "bandSourceReliability",
+    ],
+    // Renderer (`parseChartBand`) tworzy pasmo dopiero z OBU krawedzi, wiec
+    // przypis pasma bez jednej z nich bylby ustawieniem bez skutku. Krawedzie
+    // sa napisami (`getStr`) - liczba zapisana z zewnatrz nie otwiera pol, bo
+    // renderer tez jej nie widzi. Zero jest krawedzia, nie brakiem.
+    why: "przypis pasma optimum tylko przy obu krawedziach pasma",
+    visible: [
+      { bandMin: "2", bandMax: "4" },
+      { bandMin: "0", bandMax: "0" },
+      { bandMin: "2,5", bandMax: "4,5", kind: "line" },
+    ],
+    hidden: [
+      {},
+      { bandMin: "2" },
+      { bandMax: "4" },
+      { bandMin: " ", bandMax: "4" },
+      { bandMin: "2", bandMax: "" },
+      { bandMin: 2, bandMax: 4 },
+    ],
   },
 
   // ---- mapa swiata ----

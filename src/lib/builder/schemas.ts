@@ -5,6 +5,14 @@ import type { WidgetType } from "./types";
 import { asBool } from "@/lib/content-model/contentValue";
 import { SOCIAL_IDLE_ICON_COLOR } from "./socialBrand";
 import { MAP_REGIONS, type MapRegion } from "@/lib/charts/types";
+import { CHART_PALETTES, type ChartPalette } from "@/lib/charts/seriesStyle";
+import { METRIC_DIRECTIONS, type MetricDirection } from "@/lib/charts/status";
+import {
+  PROVENANCES,
+  RELIABILITIES,
+  type Provenance,
+  type Reliability,
+} from "@/lib/charts/sources";
 import {
   PROMO_CARD_DEFAULTS,
   PROMO_CARD_RATIOS,
@@ -43,6 +51,77 @@ const MAP_REGION_LABEL_PL: Record<MapRegion, string> = {
 const MAP_REGION_OPTIONS: ReadonlyArray<{ value: string; label: string }> = MAP_REGIONS.map(
   (value) => ({ value, label: MAP_REGION_LABEL_PL[value] }),
 );
+
+/**
+ * System wykresów (specyfikacja 2026-10) - opcje palety, kierunku wskaźnika,
+ * pochodzenia liczb i wiarygodności źródła WYPROWADZONE z `src/lib/charts`,
+ * dokładnie jak regiony map wyżej: etykieta jest literałem, ale tablica
+ * typowana `Record<Unia, string>` nie skompiluje się, gdy do źródła dojdzie
+ * wartość bez etykiety. Słownictwo jest to samo, co w tooltipie i przypisie
+ * wykresu (`charts.direction.*`, `charts.provenance.*`,
+ * `charts.reliability.*`), żeby autor wybierał zdanie, które przeczyta
+ * czytelnik. Na angielski mapuje je `BUILDER_LABELS_EN`.
+ */
+const CHART_PALETTE_LABEL_PL: Record<ChartPalette, string> = {
+  focus: "akcent + neutralne (domyślna)",
+  categorical: "kategorialna (kolor serii z palety)",
+};
+
+const CHART_DIRECTION_LABEL_PL: Record<MetricDirection, string> = {
+  higher: "wyżej znaczy lepiej",
+  lower: "niżej znaczy lepiej",
+  range: "najlepiej w przedziale",
+};
+
+const CHART_PROVENANCE_LABEL_PL: Record<Provenance, string> = {
+  D: "D - Twoje dane",
+  W: "W - wyliczenie",
+  B: "B - benchmark ze źródła",
+  E: "E - szacunek lub heurystyka",
+  "?": "? - brak danych",
+};
+
+const CHART_RELIABILITY_LABEL_PL: Record<Reliability, string> = {
+  A: "A - źródło pierwotne",
+  B: "B - źródło wtórne, rzetelne",
+  C: "C - omówienie",
+};
+
+const CHART_PALETTE_OPTIONS: ReadonlyArray<{ value: string; label: string }> = CHART_PALETTES.map(
+  (value) => ({ value, label: CHART_PALETTE_LABEL_PL[value] }),
+);
+
+// Pusta wartość na czele = „brak deklaracji": renderer (`chartReferenceFields`)
+// odrzuca wszystko spoza dziedziny, więc wykres nie dostaje kierunku,
+// litery pochodzenia ani oceny wiarygodności, której autor nie wybrał.
+const CHART_DIRECTION_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "", label: "brak" },
+  ...METRIC_DIRECTIONS.map((value) => ({ value, label: CHART_DIRECTION_LABEL_PL[value] })),
+];
+
+const CHART_PROVENANCE_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "", label: "brak" },
+  ...PROVENANCES.map((value) => ({ value, label: CHART_PROVENANCE_LABEL_PL[value] })),
+];
+
+const CHART_RELIABILITY_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "", label: "nie oceniono" },
+  ...RELIABILITIES.map((value) => ({ value, label: CHART_RELIABILITY_LABEL_PL[value] })),
+];
+
+const CHART_REFERENCE_GROUP = "System wykresów / odniesienia";
+
+/**
+ * Pola przypisu pasma optimum mają sens dopiero przy OBU krawędziach pasma:
+ * renderer (`parseChartBand`) bez jednej z nich pasma nie tworzy, więc przypis
+ * nad nieistniejącym pasmem byłby obietnicą bez pokrycia. Krawędzie są
+ * NAPISAMI (renderer czyta je `getStr`), stąd sprawdzenie typu.
+ */
+const hasChartBandEdges = (c: Record<string, unknown>): boolean =>
+  typeof c.bandMin === "string" &&
+  c.bandMin.trim() !== "" &&
+  typeof c.bandMax === "string" &&
+  c.bandMax.trim() !== "";
 
 /**
  * Proporcje kadru karty promocyjnej - opcje WYPROWADZONE z `PROMO_CARD_RATIOS`,
@@ -870,17 +949,6 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
       visibleWhen: (c) => c.kind === "bar" || c.kind === "bar-horizontal" || !c.kind,
     },
-    {
-      key: "barStyle",
-      type: "select",
-      label: "Wypełnienie słupków",
-      options: [
-        { value: "pale", label: "blade wnętrze z obwódką" },
-        { value: "gradient", label: "gradient z obwódką" },
-        { value: "solid", label: "pełne wypełnienie" },
-      ],
-      visibleWhen: (c) => c.kind === "bar" || c.kind === "bar-horizontal" || !c.kind,
-    },
     { key: "height", type: "number", label: "Wysokość (px)", min: 160, max: 640, step: 10 },
     {
       key: "showLegend",
@@ -923,6 +991,121 @@ export const WIDGET_SCHEMAS: Partial<Record<WidgetType, ReadonlyArray<SchemaFiel
       ],
     },
     { key: "source", type: "i18nText", label: "Źródło danych" },
+    { key: "caption", type: "i18nText", label: "Podpis pod wykresem" },
+    // ---- System wykresów / odniesienia (specyfikacja 2026-10) ----
+    // Pola PŁASKIE: panel buildera nie ma edytora list, więc pasmo optimum ma
+    // tu jedno źródło (`bandSource*`), które renderer składa w przypis. Cel
+    // i krawędzie pasma są NAPISAMI (`text`, nie `number`) - renderer czyta
+    // je `getStr` i parsuje tym samym `num` co blok CMS, z przecinkiem
+    // dziesiętnym; pole `number` zapisywałoby liczbę, której `getStr` nie widzi.
+    {
+      key: "palette",
+      type: "select",
+      label: "Paleta kolorów",
+      group: CHART_REFERENCE_GROUP,
+      options: CHART_PALETTE_OPTIONS,
+      default: "focus",
+      hint: "Akcent + neutralne: pierwsza seria w akcencie, pozostałe jako tło porównania. Kategorialna: każda seria we własnym kolorze - dla serii równorzędnych.",
+    },
+    {
+      key: "direction",
+      type: "select",
+      label: "Kierunek wskaźnika",
+      group: CHART_REFERENCE_GROUP,
+      options: CHART_DIRECTION_OPTIONS,
+      hint: "Rozstrzyga, które wyjście poza pasmo optimum jest dobrą wiadomością - kolor statusu i zmiany w tooltipie.",
+    },
+    {
+      key: "provenance",
+      type: "select",
+      label: "Pochodzenie liczb",
+      group: CHART_REFERENCE_GROUP,
+      options: CHART_PROVENANCE_OPTIONS,
+      hint: "Litera przy podtytule mówi czytelnikowi, czy liczba jest pomiarem, wyliczeniem, benchmarkiem czy szacunkiem.",
+    },
+    {
+      key: "target",
+      type: "text",
+      label: "Linia celu (wartość)",
+      group: CHART_REFERENCE_GROUP,
+      placeholder: "np. 25",
+      hint: "Puste = bez linii celu. Wartość rysuje się przerywaną linią „cel X”.",
+    },
+    {
+      key: "bandMin",
+      type: "text",
+      label: "Pasmo optimum - od",
+      group: CHART_REFERENCE_GROUP,
+    },
+    {
+      key: "bandMax",
+      type: "text",
+      label: "Pasmo optimum - do",
+      group: CHART_REFERENCE_GROUP,
+      hint: "Pasmo rysuje się tylko ze źródłem (tytuł albo adres niżej). Bez źródła wykres pokaże „brak benchmarku”.",
+    },
+    {
+      key: "bandSourceAuthor",
+      type: "text",
+      label: "Autor lub instytucja",
+      group: CHART_REFERENCE_GROUP,
+      placeholder: "np. Eurostat",
+      visibleWhen: hasChartBandEdges,
+    },
+    {
+      key: "bandSourceTitle",
+      type: "text",
+      label: "Tytuł źródła",
+      group: CHART_REFERENCE_GROUP,
+      visibleWhen: hasChartBandEdges,
+    },
+    {
+      key: "bandSourceContainer",
+      type: "text",
+      label: "Całość (czasopismo, serwis, seria)",
+      group: CHART_REFERENCE_GROUP,
+      hint: "Puste = dzieło samodzielne (raport, książka) - tytuł idzie kursywą.",
+      visibleWhen: hasChartBandEdges,
+    },
+    {
+      key: "bandSourcePublisher",
+      type: "text",
+      label: "Wydawca",
+      group: CHART_REFERENCE_GROUP,
+      visibleWhen: hasChartBandEdges,
+    },
+    {
+      key: "bandSourcePublished",
+      type: "text",
+      label: "Data publikacji",
+      group: CHART_REFERENCE_GROUP,
+      visibleWhen: hasChartBandEdges,
+    },
+    {
+      key: "bandSourceAccessed",
+      type: "text",
+      label: "Data dostępu",
+      group: CHART_REFERENCE_GROUP,
+      visibleWhen: hasChartBandEdges,
+    },
+    {
+      // `text`, nie `url`: pole `url` podpowiada STRONY SERWISU i bibliotekę
+      // mediów, a źródło benchmarku to adres zewnętrzny.
+      key: "bandSourceUrl",
+      type: "text",
+      label: "Adres źródła (URL)",
+      group: CHART_REFERENCE_GROUP,
+      placeholder: "https://",
+      visibleWhen: hasChartBandEdges,
+    },
+    {
+      key: "bandSourceReliability",
+      type: "select",
+      label: "Wiarygodność źródła",
+      group: CHART_REFERENCE_GROUP,
+      options: CHART_RELIABILITY_OPTIONS,
+      visibleWhen: hasChartBandEdges,
+    },
   ],
   "data-map": [
     { key: "region", type: "select", label: "Region", options: MAP_REGION_OPTIONS },

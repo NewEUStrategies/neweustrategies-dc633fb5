@@ -1976,6 +1976,47 @@ const CLIENT_DIR =
 // po cięciach to ~4729,9: ~42 KB pod progiem 4772. Progu nie obniżam w tym
 // wpisie - zapas zostaje do decyzji właściciela (ratchet z logu runnera, jak
 // w XX/XXI).
+//
+// 2026-10-09 XXV  SYSTEM WYKRESÓW 2026-10 (PR #488). Floory OVERALL 4772 -> 4786
+//             i CSS 96 -> 98, DECYZJĄ ZAMAWIAJĄCEGO, z pomiarem obu drzew.
+//             PUBLIC, CHUNK, PUBLIC CSS i BOOT nie ruszone - mieszczą się.
+//
+// POMIAR (ten sam host, `bun run build` + ta bramka; host ma już `xlsx` 0.20.3,
+// `spreadsheet.worker` jest w obu drzewach, więc różnica z wpisu XXIV znika):
+//   baza fe63feed (main po #486):  overall 4759,7  public 2808,9  css 95,8
+//                                  public css 81,5  boot 503,3
+//   gałąź po cięciach niżej:       overall 4784,1  public 2822,8  css 97,0
+//                                  public css 82,8  boot 503,3
+// Baza miała 12,3 KB zapasu OVERALL i 0,2 KB zapasu CSS - każda nowa
+// powierzchnia czytelnika zapalała tę bramkę.
+//
+// SKŁAD PRZYROSTU (gzip per chunk, różnica drzew; reszta to przetasowanie
+// sklejania małych modułów, które w sumie się znosi):
+//   +7,3  ChartFrame - w 75% słownik `i18n-charts` (PL i EN w jednym module;
+//         same nowe napisy +3,3 KB: tooltip, status, znaczenie, pochodzenie
+//         liczb, wiarygodność źródła, okna „Jak czytać" i przypisu)
+//   +4,7  Chart - pasmo optimum, linia celu, przygaszanie serii, suwak zakresu,
+//         okno definicji punktu, etykiety przy końcu linii
+//   +3,6  KpiTile + biChart (admin) - sparkline z pasmem i skala przedziału
+//   +4,6  edytory (admin): blok CMS i panel buildera, pola odniesień i źródeł
+//   +1,2  arkusz `styles` - nagłówek panelu, legenda-przełącznik, natywne okna,
+//         siatka klucz-wartość tooltipa, container queries ramy
+// `report:chunk-inventory` dla ChartFrame, Chart, KpiTile i biChart: wyłącznie
+// moduły systemu wykresów, nic wciągniętego przypadkiem.
+//
+// CO PRÓBOWANO, ZANIM PRÓG RUSZYŁ:
+//   * usunięte martwe klucze `charts.*` (sześć) i kontrolka „Wypełnienie
+//     słupków", która po przejściu na pełne słupki nie zmieniała rysunku;
+//   * deklaracje układu panelu na istniejących klasach Tailwind - zmierzone
+//     -0,28 KB gzip CSS przy potrzebie 1,0 KB; odrzucone, bo przepisanie
+//     znaczników nie schodziło pod próg;
+//   * cięcie funkcji (okno powiększenia, suwak zakresu) - 3-5 KB JS przy luce
+//     12,1 KB; odrzucone, bo zabiera to, o co zamawiający prosił.
+//
+// FORMUŁA JAK W XIX-XXI: pomiar hosta w górę do pełnego KB, +1 na granicę
+// zaokrąglenia: overall 4784,1 -> 4785 -> 4786; css 97,0 -> 97 -> 98.
+// ZASADA Z WPISU V OBOWIĄZUJE: krok bramki nie działa na PR-ach, więc pierwszy
+// log runnera na main po scaleniu jest podstawą korekty w dół.
 
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
@@ -2096,7 +2137,9 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 4768 -> 4772 (wpis 2026-09-27 XXI): poprawki z przegladu PR #414
   // (skaner +0,6, lejek Ads +1,1, rejestracja +0,3, entry +0,3). Runner XX
   // 4765,45 + delta hosta +4,63 = 4770,08 -> 4771 -> +1.
-  overall: 4772,
+  // Ratchet 4772 -> 4786 (wpis 2026-10-09 XXV): system wykresów 2026-10,
+  // decyzją zamawiającego. Host 4784,1 przy bazie 4759,7 -> 4785 -> +1.
+  overall: 4786,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
@@ -2205,7 +2248,10 @@ const FROZEN_BUDGET_KB = {
   // NASTĘPNY WZROST MA SIĘ ZMIERZYĆ, NIE PRZEFLOOROWAĆ: część nieredukowalna
   // arkusza pisanego ręcznie jest wciąż największą pozycją i to ona jest
   // pierwszym miejscem do pracy.
-  css: 96,
+  // 2026-10-09: css 96 -> 98 (wpis XXV), decyzją zamawiającego. Arkusz `styles`
+  // +1,2 KB za panel, legendę, okna i tooltip systemu wykresów; baza 95,8,
+  // gałąź 97,0 -> 97 -> +1. Zapas po podniesieniu 1,0 KB.
+  css: 98,
   // 2026-09-07: publicCss 74 -> 75. PRZEFLOOROWANE ŚWIADOMIE, z pomiarem
   // przyczyny i z rachunkiem wymiany - bo tego wymaga reguła na końcu tego
   // pliku, a nie dlatego, że próg „przeszkadzał".

@@ -244,6 +244,12 @@ export const WIDGETS: WidgetDef[] = [
       animate: "on",
       source_pl: "",
       source_en: "",
+      caption_pl: "",
+      caption_en: "",
+      // Paleta ze specyfikacji 2026-10 (akcent + neutralne) zapisana JAWNIE,
+      // żeby panel pokazywał wybór od pierwszego otwarcia; renderer i tak
+      // traktuje brak klucza jak `focus`.
+      palette: "focus",
     }),
   },
   {

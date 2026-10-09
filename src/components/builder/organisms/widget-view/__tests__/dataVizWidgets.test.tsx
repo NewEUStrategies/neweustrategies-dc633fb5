@@ -47,14 +47,16 @@ describe("ChartWidgetView", () => {
     );
     expect(getByText("Handel")).toBeTruthy();
     expect(container.querySelectorAll("path.neh-bar")).toHaveLength(4);
-    expect(getByText("Źródło: test")).toBeTruthy();
+    // Podtytuł panelu: „jednostka. Źródło: X" - prefiks „Źródło:" wpisany
+    // przez autora nie jest dublowany.
+    expect(getByText("mld. Źródło: test")).toBeTruthy();
   });
 
   it("uses the EN title for lang=en and falls back to PL when missing", () => {
     const { getByText } = withClient(<ChartWidgetView node={node("chart", content)} lang="en" />);
     expect(getByText("Trade")).toBeTruthy();
-    // source_en puste -> fallback do source_pl.
-    expect(getByText("Źródło: test")).toBeTruthy();
+    // source_en puste -> fallback do source_pl; prefiks idzie w języku strony.
+    expect(getByText("mld. Source: test")).toBeTruthy();
   });
 
   it("renders the empty state for missing data", () => {
@@ -64,35 +66,24 @@ describe("ChartWidgetView", () => {
     expect(getByText("Brak danych wykresu.")).toBeTruthy();
   });
 
-  it("czyta WARIANT WYPEŁNIENIA z treści widgetu", () => {
-    // REGRESJA z przeglądu. Wariant był w parserze i w silniku, ale żaden
-    // interfejs autorski go nie ustawiał: schemat buildera nie miał pola,
-    // a ten widok nie czytał wartości. Warianty `gradient` i `solid` były
-    // więc nieosiągalne inaczej niż ręczną edycją zapisanego JSON-a.
-    //
-    // Jedna seria, bez kreskowania i bez skumulowania - inaczej silnik
-    // słusznie wymusiłby `solid` (blade wnętrze nie niesie tożsamości serii)
-    // i test mówiłby o wymuszeniu, a nie o odczycie ustawienia.
+  it("słupki są pełne także przy wariancie zapisanym przez starszy edytor", () => {
+    // Specyfikacja systemu wykresów: słupek ma pełne wypełnienie w kolorze
+    // serii. Warianty blady i gradientowy zniknęły z edytorów, ale treść
+    // widgetu pochodzi z bazy i może je nadal nieść - nie mogą wrócić na
+    // rysunek ani wywrócić strony.
     const jedna = { ...content, data: "; Eksport\n2023; 10\n2024; 14" };
-    for (const style of ["pale", "gradient", "solid"] as const) {
+    for (const style of ["pale", "gradient", "neon"]) {
       const { container, unmount } = withClient(
         <ChartWidgetView node={node("chart", { ...jedna, barStyle: style })} lang="pl" />,
       );
       const slupki = [...container.querySelectorAll("path.neh-bar")];
       expect(slupki.length).toBeGreaterThan(0);
-      for (const slupek of slupki) expect(slupek.getAttribute("data-style")).toBe(style);
+      for (const slupek of slupki) {
+        expect(slupek.getAttribute("data-style")).toBeNull();
+        expect(slupek.getAttribute("fill")).toBe("var(--chart-accent)");
+      }
       unmount();
     }
-  });
-
-  it("nieznany wariant wypełnienia wraca do bladego, a nie wywraca strony", () => {
-    // Treść widgetu pochodzi z bazy, więc musi znieść zapis z przyszłej albo
-    // cofniętej wersji edytora.
-    const jedna = { ...content, data: "; Eksport\n2023; 10\n2024; 14" };
-    const { container } = withClient(
-      <ChartWidgetView node={node("chart", { ...jedna, barStyle: "neon" })} lang="pl" />,
-    );
-    expect(container.querySelector("path.neh-bar")?.getAttribute("data-style")).toBe("pale");
   });
 });
 

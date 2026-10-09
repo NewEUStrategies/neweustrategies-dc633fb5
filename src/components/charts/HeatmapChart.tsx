@@ -919,7 +919,7 @@ export function HeatmapChart({
                 y={PAD_TOP + (r + 0.5) * cellH + TEXT_MIDDLE}
                 textAnchor="end"
                 fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
+                fill="var(--chart-ink3)"
                 data-role="row-label"
                 data-row={r}
               >
@@ -942,7 +942,7 @@ export function HeatmapChart({
                 y={plotBottom + LABEL_BASELINE}
                 textAnchor="middle"
                 fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
+                fill="var(--chart-ink3)"
                 data-role="column-label"
                 data-column={c}
               >
@@ -962,7 +962,7 @@ export function HeatmapChart({
             y={legendHeadY}
             textAnchor="start"
             fontSize={FONT_AXIS}
-            fill="var(--muted-foreground)"
+            fill="var(--chart-ink3)"
             className="tabular-nums"
             data-role="legend-head"
           >
@@ -998,7 +998,7 @@ export function HeatmapChart({
                   // wyśrodkowana wystawałaby za płytę i zostałaby ucięta.
                   textAnchor={i === 0 ? "start" : i === bandBounds.length - 1 ? "end" : "middle"}
                   fontSize={FONT_AXIS}
-                  fill="var(--muted-foreground)"
+                  fill="var(--chart-ink3)"
                   className="tabular-nums"
                   data-role="legend-bound"
                   data-bound={i}
@@ -1030,7 +1030,7 @@ export function HeatmapChart({
                 y={legendHeadY}
                 textAnchor="end"
                 fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
+                fill="var(--chart-ink3)"
                 data-role="legend-gap-label"
               >
                 {t("heatmap.legend.empty")}

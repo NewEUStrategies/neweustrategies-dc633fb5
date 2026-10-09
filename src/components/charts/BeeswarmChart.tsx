@@ -659,7 +659,7 @@ export function BeeswarmChart({ config, lang, ariaLabel: nazwaZadana }: Beeswarm
               y={PAD_TOP + innerH + 16}
               textAnchor="middle"
               fontSize={FONT_AXIS}
-              fill="var(--muted-foreground)"
+              fill="var(--chart-ink3)"
               className="neh-bee-tick tabular-nums"
             >
               {formatAxisTick(tick, lang)}
@@ -675,7 +675,7 @@ export function BeeswarmChart({ config, lang, ariaLabel: nazwaZadana }: Beeswarm
             y={PAD_TOP + innerH + 16}
             textAnchor="end"
             fontSize={FONT_AXIS}
-            fill="var(--muted-foreground)"
+            fill="var(--chart-ink3)"
             className="neh-bee-axis"
           >
             {clipLabel(t("beeswarm.axis.value"))}
@@ -710,7 +710,7 @@ export function BeeswarmChart({ config, lang, ariaLabel: nazwaZadana }: Beeswarm
                     y={cy + 11}
                     textAnchor="end"
                     fontSize={FONT_AXIS}
-                    fill="var(--muted-foreground)"
+                    fill="var(--chart-ink3)"
                     className="neh-bee-n tabular-nums"
                   >
                     {`${t("beeswarm.summary.n")} ${licznosc}`}

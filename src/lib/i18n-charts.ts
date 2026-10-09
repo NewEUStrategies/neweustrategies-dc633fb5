@@ -53,7 +53,7 @@ const pl = {
       // Trzy zdania, których kolejność się nie zmienia, żeby czytelnik uczył
       // się, gdzie czego szukać.
       shows: "Co pokazuje",
-      surprising: "Co jest zaskakujące",
+      surprising: "Co zaskakuje",
       hidden: "Czego nie pokazuje",
     },
     forecast: {
@@ -950,10 +950,6 @@ const pl = {
       checksumFailed:
         "Suma składników ({{sum}}) nie zgadza się z różnicą stanów ({{delta}}) - mostek jest niekompletny.",
     },
-    series: {
-      // Kreskowanie serii poza zestawem bezpiecznym dla daltonizmu.
-      patternHint: "seria oznaczona kreskowaniem",
-    },
     metric: {
       open: "Wyjaśnij wskaźnik {{name}}",
       close: "Zamknij wyjaśnienie",
@@ -962,6 +958,145 @@ const pl = {
       reading: "Czytanie",
       levers: "Dźwignie",
       caution: "Uwaga",
+    },
+    // SYSTEM WYKRESÓW (specyfikacja 2026-10): pasmo optimum, cel, statusy,
+    // tooltip, panel z przyciskami, przypisy, suwak zakresu, karta KPI.
+    band: {
+      label: "przedział",
+      labelDemo: "optimum (demo)",
+    },
+    target: {
+      label: "cel {{value}}",
+    },
+    tip: {
+      change: "Zmiana",
+      status: "Status",
+      meaning: "Znaczenie",
+      level: "Poziom",
+      source: "Źródło: {{source}}",
+      sourceUser: "Źródło: Twoje dane",
+      sourceDemo: "Źródło: dane demo",
+    },
+    status: {
+      below: "poniżej przedziału",
+      within: "w normie",
+      above: "powyżej przedziału",
+      better: "lepiej niż przedział",
+      none: "brak benchmarku",
+    },
+    meaning: {
+      belowHigher:
+        "Wynik jest poniżej przedziału, a ten wskaźnik powinien rosnąć - to sygnał do działania.",
+      belowRange: "Wynik jest poniżej przedziału - wskaźnik wyszedł poza normę w dół.",
+      aboveLower:
+        "Wynik jest powyżej przedziału, a ten wskaźnik powinien maleć - to sygnał do działania.",
+      aboveRange: "Wynik jest powyżej przedziału - wskaźnik wyszedł poza normę w górę.",
+      within: "Wynik mieści się w przedziale uznanym za normę dla tego wskaźnika.",
+      betterHigher:
+        "Wynik przekracza górną granicę przedziału, a dla tego wskaźnika więcej znaczy lepiej.",
+      betterLower:
+        "Wynik jest niższy niż dolna granica przedziału, a dla tego wskaźnika mniej znaczy lepiej.",
+      none: "Dla tego wskaźnika nie ma przedziału ze źródłem, więc wyniku nie oceniamy.",
+    },
+    direction: {
+      label: "Kierunek",
+      higher: "wyżej znaczy lepiej",
+      lower: "niżej znaczy lepiej",
+      range: "najlepiej w przedziale",
+    },
+    provenance: {
+      D: "Twoje dane",
+      W: "wyliczenie",
+      B: "benchmark ze źródła",
+      E: "szacunek lub heurystyka",
+      unknown: "brak danych",
+    },
+    reliability: {
+      label: "Wiarygodność",
+      A: "A - źródło pierwotne",
+      B: "B - źródło wtórne, rzetelne",
+      C: "C - omówienie",
+    },
+    panel: {
+      demo: "demo",
+      demoData: "dane demo",
+      source: "Źródło: {{source}}",
+      howToRead: "Jak czytać wykres",
+      howToReadShort: "Jak czytać",
+      info: "Jak czytać ten wykres",
+      expand: "Powiększ wykres",
+      exportPng: "Zapisz wykres jako PNG",
+      exportSvg: "Zapisz wykres jako SVG",
+      png: "PNG",
+      svg: "SVG",
+      close: "Zamknij",
+      sources: "Źródła wykresu",
+      noSources: "Wykres nie podaje źródeł zewnętrznych.",
+      exportFailed: "Nie udało się zapisać pliku. Spróbuj ponownie.",
+    },
+    read: {
+      elements: "Elementy",
+      elementsText:
+        "Oś pozioma pokazuje kategorie albo okresy, oś pionowa - wartości w jednostce podanej nad osią. Punkty i słupki to pomiary; linia między punktami nie oznacza pomiarów pośrednich.",
+      colors: "Kolory",
+      colorsFocus:
+        "Jedna seria w akcencie (pomarańcz) - to wskaźnik najważniejszy. Pozostałe serie są w odcieniach neutralnych i służą do porównania. Serie różnią się też kształtem punktu, a trzecia i dalsze - linią przerywaną.",
+      colorsCategorical:
+        "Każda seria ma własny kolor z palety. Serie różnią się też kształtem punktu, a trzecia i dalsze - linią przerywaną.",
+      band: "Pasmo i cel",
+      bandText:
+        "Jasnopomarańczowe pasmo to przedział uznany za normę - jego źródło podaje przypis. Przerywana pozioma linia to cel.",
+      interactions: "Interakcje",
+      interactionsText:
+        "Najedź na wykres, aby zobaczyć wartości wszystkich serii w punkcie osi. Kliknij pozycję legendy, aby ukryć albo pokazać serię. Kliknij punkt, aby otworzyć definicję wskaźnika. Strzałki przesuwają aktywny punkt, Escape zamyka okna i tooltip.",
+      zoomText:
+        "Przy ponad 30 punktach suwak pod wykresem zawęża zakres, a Shift z kółkiem myszy przybliża.",
+      export: "Eksport",
+      exportText:
+        "PNG zapisuje wykres w podwójnej rozdzielczości, z tłem obecnego motywu. SVG zapisuje go wektorowo, z tłem i fontem.",
+      sources: "Źródła",
+    },
+    point: {
+      value: "Wartość",
+      unit: "Jednostka",
+      formula: "Wzór",
+      measures: "Co mierzy",
+      interpretation: "Interpretacja",
+      band: "Przedział",
+    },
+    footnote: {
+      title: "Przypis {{n}}",
+      marker: "Przypis {{n}} - pokaż źródło",
+      open: "Otwórz źródło w nowej karcie",
+      copy: "Kopiuj link",
+      copied: "Skopiowano link",
+      published: "Data publikacji",
+      accessed: "Data dostępu",
+    },
+    zoom: {
+      slider: "Zakres osi: {{from}} - {{to}}",
+      start: "Początek zakresu",
+      end: "Koniec zakresu",
+      window: "Przesuń zakres",
+    },
+    legend: {
+      label: "Legenda",
+      toggle: "{{name}} - pokaż lub ukryj serię",
+    },
+    error: {
+      library: "Biblioteka wykresów nie załadowała się. Sprawdź połączenie.",
+    },
+    kpi: {
+      tooLow: "Za nisko: poniżej {{value}}",
+      optimum: "Optimum: {{min}} - {{max}}",
+      tooHigh: "Za wysoko: powyżej {{value}}",
+      betterLow: "Lepiej: poniżej {{value}}",
+      betterHigh: "Lepiej: powyżej {{value}}",
+      noBenchmark: "Brak benchmarku",
+      noBenchmarkHint: "Dodaj przedział ze źródłem w ustawieniach wskaźnika, aby ocenić wynik.",
+      marker: "Wartość {{value}}: {{status}}",
+      scale: "Skala przedziału",
+      bandSource: "Źródło przedziału",
     },
     a11y: {
       chart: "Wykres: {{title}}",
@@ -1655,9 +1790,6 @@ const en = {
       checksumFailed:
         "The components ({{sum}}) do not add up to the change between states ({{delta}}) - the bridge is incomplete.",
     },
-    series: {
-      patternHint: "series marked with a dashed stroke",
-    },
     metric: {
       open: "Explain the {{name}} metric",
       close: "Close the explanation",
@@ -1666,6 +1798,143 @@ const en = {
       reading: "Reading",
       levers: "Levers",
       caution: "Caution",
+    },
+    band: {
+      label: "range",
+      labelDemo: "optimum (demo)",
+    },
+    target: {
+      label: "target {{value}}",
+    },
+    tip: {
+      change: "Change",
+      status: "Status",
+      meaning: "Meaning",
+      level: "Level",
+      source: "Source: {{source}}",
+      sourceUser: "Source: your data",
+      sourceDemo: "Source: demo data",
+    },
+    status: {
+      below: "below range",
+      within: "within range",
+      above: "above range",
+      better: "better than range",
+      none: "no benchmark",
+    },
+    meaning: {
+      belowHigher:
+        "The result is below the range and this metric should go up - it calls for action.",
+      belowRange: "The result is below the range - the metric has left the norm on the low side.",
+      aboveLower:
+        "The result is above the range and this metric should go down - it calls for action.",
+      aboveRange: "The result is above the range - the metric has left the norm on the high side.",
+      within: "The result is within the range regarded as normal for this metric.",
+      betterHigher:
+        "The result exceeds the upper edge of the range, and for this metric more is better.",
+      betterLower:
+        "The result is below the lower edge of the range, and for this metric less is better.",
+      none: "This metric has no sourced range, so the result is not assessed.",
+    },
+    direction: {
+      label: "Direction",
+      higher: "higher is better",
+      lower: "lower is better",
+      range: "best within range",
+    },
+    provenance: {
+      D: "your data",
+      W: "calculation",
+      B: "sourced benchmark",
+      E: "estimate or heuristic",
+      unknown: "no data",
+    },
+    reliability: {
+      label: "Reliability",
+      A: "A - primary source",
+      B: "B - reliable secondary source",
+      C: "C - commentary",
+    },
+    panel: {
+      demo: "demo",
+      demoData: "demo data",
+      source: "Source: {{source}}",
+      howToRead: "How to read this chart",
+      howToReadShort: "How to read",
+      info: "How to read this chart",
+      expand: "Enlarge chart",
+      exportPng: "Save chart as PNG",
+      exportSvg: "Save chart as SVG",
+      png: "PNG",
+      svg: "SVG",
+      close: "Close",
+      sources: "Chart sources",
+      noSources: "This chart cites no external sources.",
+      exportFailed: "The file could not be saved. Please try again.",
+    },
+    read: {
+      elements: "Elements",
+      elementsText:
+        "The horizontal axis shows categories or periods, the vertical axis shows values in the unit named above it. Points and bars are measurements; the line between points does not imply measurements in between.",
+      colors: "Colours",
+      colorsFocus:
+        "One series in the accent colour (orange) - the key metric. The other series are in neutral shades for comparison. Series also differ by point shape, and the third and later ones by a dashed line.",
+      colorsCategorical:
+        "Each series has its own palette colour. Series also differ by point shape, and the third and later ones by a dashed line.",
+      band: "Range and target",
+      bandText:
+        "The light orange band is the range regarded as normal - its source is given in the footnote. The dashed horizontal line is the target.",
+      interactions: "Interaction",
+      interactionsText:
+        "Hover over the chart to see every series at that point on the axis. Click a legend entry to hide or show a series. Click a point to open the metric definition. Arrow keys move the active point, Escape closes dialogs and the tooltip.",
+      zoomText:
+        "With more than 30 points, the slider below the chart narrows the range and Shift with the mouse wheel zooms.",
+      export: "Export",
+      exportText:
+        "PNG saves the chart at double resolution with the current theme's background. SVG saves it as vector graphics with background and font.",
+      sources: "Sources",
+    },
+    point: {
+      value: "Value",
+      unit: "Unit",
+      formula: "Formula",
+      measures: "Measures",
+      interpretation: "Interpretation",
+      band: "Range",
+    },
+    footnote: {
+      title: "Footnote {{n}}",
+      marker: "Footnote {{n}} - show source",
+      open: "Open source in a new tab",
+      copy: "Copy link",
+      copied: "Link copied",
+      published: "Published",
+      accessed: "Accessed",
+    },
+    zoom: {
+      slider: "Axis range: {{from}} - {{to}}",
+      start: "Range start",
+      end: "Range end",
+      window: "Move range",
+    },
+    legend: {
+      label: "Legend",
+      toggle: "{{name}} - show or hide series",
+    },
+    error: {
+      library: "The chart library failed to load. Check your connection.",
+    },
+    kpi: {
+      tooLow: "Too low: below {{value}}",
+      optimum: "Optimum: {{min}} - {{max}}",
+      tooHigh: "Too high: above {{value}}",
+      betterLow: "Better: below {{value}}",
+      betterHigh: "Better: above {{value}}",
+      noBenchmark: "No benchmark",
+      noBenchmarkHint: "Add a sourced range in the metric settings to assess the result.",
+      marker: "Value {{value}}: {{status}}",
+      scale: "Range scale",
+      bandSource: "Range source",
     },
     a11y: {
       chart: "Chart: {{title}}",

@@ -26,6 +26,8 @@ import { readBlocksArray, sanitize } from "./data";
 import type { InlineEntityRegistry } from "@/lib/blocks/inlineEntities/model";
 import { containsInlineEntityMarkup } from "@/lib/blocks/inlineEntities/registry";
 import { expandInlineEntities } from "@/lib/blocks/inlineEntities/expand";
+import { parseChartSources } from "@/lib/charts/parse";
+import { chicagoBibliographyHtml } from "@/lib/charts/sources";
 
 const NO_ENTITIES: InlineEntityRegistry = {};
 
@@ -85,6 +87,7 @@ export function precomputeFootnotes(
   fn: FootnoteCollector,
   out: Map<string, string>,
   entities: InlineEntityRegistry = NO_ENTITIES,
+  lang: "pl" | "en" = "pl",
 ): void {
   // Pełne treści przypisów WP żyją w końcowej tabeli źródeł - zbieramy je z
   // CAŁEGO dokumentu, zanim znormalizujemy pojedynczy blok (skrót "Czytaj dalej").
@@ -133,14 +136,25 @@ export function precomputeFootnotes(
           if (v !== null) out.set(`${b.id}:cell:${ri}:${ci}`, v);
         });
       });
+    } else if (b.type === "chart") {
+      // ŹRÓDŁA WYKRESU (pasmo optimum, punkty odniesienia) dostają numery
+      // z TEJ SAMEJ sekwencji co przypisy tekstu i trafiają do tej samej
+      // sekcji na dole wpisu - czytelnik ma jedną bibliografię strony, a nie
+      // osobną listę pod każdym wykresem. Numer jedzie do bloku kluczem
+      // `${id}:source:${sourceId}`.
+      for (const source of parseChartSources(b.data.sources)) {
+        const id = fn.counter++;
+        fn.notes.push({ id, html: chicagoBibliographyHtml(source, lang) });
+        out.set(`${b.id}:source:${source.id}`, String(id));
+      }
     } else if (b.type === "columns") {
-      precomputeFootnotes(readBlocksArray(b.data.left), fn, out, entities);
-      precomputeFootnotes(readBlocksArray(b.data.right), fn, out, entities);
+      precomputeFootnotes(readBlocksArray(b.data.left), fn, out, entities, lang);
+      precomputeFootnotes(readBlocksArray(b.data.right), fn, out, entities, lang);
     } else if (b.type === "group" || b.type === "row" || b.type === "stack" || b.type === "grid") {
       // Kontenery trzymają dzieci pod `data.children`; przechodzimy je też, bo
       // inaczej przypisy w zagnieżdżonym paragraphie renderują się jako dosłowne
       // shortcody i wypadają z sekcji przypisów.
-      precomputeFootnotes(readBlocksArray(b.data.children), fn, out, entities);
+      precomputeFootnotes(readBlocksArray(b.data.children), fn, out, entities, lang);
     }
   }
 }

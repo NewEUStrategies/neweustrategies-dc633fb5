@@ -149,6 +149,9 @@ export interface ChartSeries {
 }
 
 import type { BarStyle } from "./palette";
+import type { ChartPalette } from "./seriesStyle";
+import type { ChartBand, ChartTarget, MetricDirection } from "./status";
+import type { ChartSource, Provenance } from "./sources";
 
 export interface ChartConfig {
   kind: ChartKind;
@@ -256,6 +259,30 @@ export interface ChartConfig {
    * potrzebuje wyjaśnienia (np. bezwzględne kwoty). Patrz `ChartMetric`.
    */
   metric: ChartMetric | null;
+
+  /**
+   * Paleta serii: `focus` (jedna seria w akcencie, reszta neutralna -
+   * domyślna) albo `categorical` (kolor z zapisanego slotu). Patrz
+   * `src/lib/charts/seriesStyle.ts`.
+   */
+  palette: ChartPalette;
+  /**
+   * Pasmo optimum. Rysowane i używane do oceny WYŁĄCZNIE ze źródłem albo jako
+   * demonstracyjne - patrz `effectiveBand`. null = brak benchmarku.
+   */
+  band: ChartBand | null;
+  /** Linia celu; null = brak. */
+  target: ChartTarget | null;
+  /** Co jest dobre dla tego wskaźnika - steruje statusem i kolorem zmiany. */
+  direction: MetricDirection | null;
+  /** Pochodzenie liczb na wykresie (D/W/B/E/?) - litera w podtytule. */
+  provenance: Provenance | null;
+  /** Dane demonstracyjne - znaczek „demo" przy tytule, „dane demo" w źródle. */
+  demo: boolean;
+  /** Źródła z przypisami (pasmo optimum, punkty odniesienia). */
+  sources: ChartSource[];
+  /** Opcjonalny podpis pod wykresem. */
+  caption: string;
 }
 
 /**

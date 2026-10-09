@@ -887,7 +887,7 @@ export function ScatterChart({
               y={px(toY(tick), bottom) + 3.5}
               textAnchor="end"
               fontSize={FONT_AXIS}
-              fill="var(--muted-foreground)"
+              fill="var(--chart-ink3)"
               className="tabular-nums"
               data-role="tick-y"
             >
@@ -908,7 +908,7 @@ export function ScatterChart({
                 y={bottom + 16}
                 textAnchor="middle"
                 fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
+                fill="var(--chart-ink3)"
                 className="tabular-nums"
                 data-role="tick-x"
               >
@@ -948,7 +948,7 @@ export function ScatterChart({
             y={bottom + 16 + FONT_AXIS + 2}
             textAnchor="middle"
             fontSize={FONT_AXIS}
-            fill="var(--muted-foreground)"
+            fill="var(--chart-ink3)"
             data-role="axis-x-title"
           >
             {xLabel}
@@ -959,7 +959,7 @@ export function ScatterChart({
             transform={`translate(${AXIS_TITLE_PX - 8}, ${top + innerH / 2}) rotate(-90)`}
             textAnchor="middle"
             fontSize={FONT_AXIS}
-            fill="var(--muted-foreground)"
+            fill="var(--chart-ink3)"
             data-role="axis-y-title"
           >
             {yLabel}
@@ -1008,7 +1008,7 @@ export function ScatterChart({
                 y={Math.min(bottom, Math.max(top + FONT_AXIS, tr.y2 - 4))}
                 textAnchor={zaWaskie ? "end" : "start"}
                 fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
+                fill="var(--chart-ink3)"
                 className="neh-fade tabular-nums"
                 data-role="trend-label"
                 data-cloud={tr.cloud}

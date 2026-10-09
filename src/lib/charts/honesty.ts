@@ -5,8 +5,9 @@
 // liczyć na czujność autora ani na listę kontrolną w dokumencie. Ten moduł
 // trzyma te sprawdzenia jako czyste funkcje, a rama wykresu wypisuje ich
 // wynik pod rysunkiem.
-import { niceScale, seriesExtent } from "./scale";
-import { valueTickTarget } from "./geometry";
+import { extendDomain, niceScale, seriesExtent } from "./scale";
+import { VALUE_HEADROOM, valueTickTarget } from "./geometry";
+import { effectiveBand, referenceExtent } from "./status";
 import type { ChartConfig, ChartSeries } from "./types";
 
 /** Serie, które cokolwiek rysują - reszta nie wpływa na domenę. */
@@ -30,10 +31,22 @@ export function isZeroBaselineBroken(config: ChartConfig): boolean {
   if (config.kind !== "line" && config.kind !== "area") return false;
   const series = drawableSeries(config);
   if (series.length === 0) return false;
-  const extent = seriesExtent(series, config.categories.length, {
-    stacked: false,
-    includeZero: false,
-  });
+  const extent = extendDomain(
+    seriesExtent(series, config.categories.length, {
+      stacked: false,
+      includeZero: false,
+    }),
+    [
+      referenceExtent(
+        effectiveBand(
+          config.band,
+          config.sources.map((s) => s.id),
+        ),
+        config.target,
+      ),
+    ],
+    VALUE_HEADROOM,
+  );
   const scale = niceScale(extent.min, extent.max, valueTickTarget(config.height, false));
   return scale.min > 0 || scale.max < 0;
 }

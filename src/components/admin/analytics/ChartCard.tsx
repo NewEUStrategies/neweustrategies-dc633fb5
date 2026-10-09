@@ -33,7 +33,7 @@ import { Chart } from "@/components/charts/Chart";
 import type { ChartConfig } from "@/lib/charts/types";
 import { chartLangFrom } from "@/lib/charts/format";
 import type { ChartSelection } from "@/lib/charts/selection";
-import { exportCsv, exportPng } from "./exportChart";
+import { exportCsv, exportPng, exportSvg } from "./exportChart";
 import { ChartDrillDialog, type ChartDrillDetail } from "./ChartDrillDialog";
 
 export interface ChartCardProps {
@@ -99,6 +99,10 @@ export function ChartCard({
 
   const doPng = useCallback(() => {
     void exportPng(pngName ?? slug(title), plotRef.current);
+  }, [pngName, title]);
+
+  const doSvg = useCallback(() => {
+    exportSvg(pngName ?? slug(title), plotRef.current);
   }, [pngName, title]);
 
   const doCsv = useCallback(() => {
@@ -167,6 +171,13 @@ export function ChartCard({
               >
                 <Download className="w-3.5 h-3.5 mr-2" /> {t("adminAnalytics.chartCard.exportPng")}
               </button>
+              <button
+                type="button"
+                onClick={doSvg}
+                className="w-full text-left flex items-center px-2 py-1.5 text-sm rounded hover:bg-accent"
+              >
+                <Download className="w-3.5 h-3.5 mr-2" /> {t("adminAnalytics.chartCard.exportSvg")}
+              </button>
               {csv ? (
                 <button
                   type="button"
@@ -204,6 +215,9 @@ export function ChartCard({
           // nierozróżnialnych obrazków.
           ariaLabel={t("adminAnalytics.chartCard.chartRegion", { title })}
           onSelect={onDataClick ? handleSelect : undefined}
+          // Karta ma własny nagłówek, pełny ekran i eksport - rama silnika
+          // nie dokłada drugiej karty ani drugiego zestawu przycisków.
+          variant="embedded"
         />
       </div>
       {footer ? (
