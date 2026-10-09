@@ -201,17 +201,66 @@ export function buildScaledImageUrl(
   }
 }
 
-/** Default responsive breakpoints (device-ish widths) for cover/card imagery.
- *  Górny wariant 2400, nie 2560: transformacje Supabase przycinają width do
- *  2500 px, więc kandydat "2560w" kłamał przeglądarce o swojej szerokości
- *  (dostawała 2500 px pod etykietą 2560w) - na ekranach 2560+ wybierany był
- *  wariant realnie mniejszy niż deklarowany. */
-export const RESPONSIVE_WIDTHS = [320, 480, 640, 768, 1024, 1280, 1536, 1920, 2400] as const;
+/** Domyślna drabina `srcSet` okładek i kart (P3.2a, HW-4, decyzja właściciela
+ *  2026-10-08): 5 szerokości zamiast 9. Każdy kandydat to ok. 120 B w HTML-u
+ *  (`<img>`, preload w `<head>`, nagłówek `Link`), a pośrednie warianty 320/1024/
+ *  1536 dawały głównie podwójne pobrania tej samej okładki (karta 320w + karta
+ *  480w na desktopie). 640 ZOSTAJE: na nim stoi wybór hero na telefonie PSI
+ *  (412 px x DPR 1,75 przy `sizes` z marginesem kolumny, `imageSlot.ts`). Telefony
+ *  DPR 3 dostają 768w (gęstość ok. 2,3x), retina full-bleed 1920w. Górny wariant
+ *  ≤ 2500: transformacje Supabase przycinają width do 2500 px, więc większy
+ *  deskryptor kłamałby przeglądarce o szerokości kandydata. */
+export const RESPONSIVE_WIDTHS = [480, 640, 768, 1280, 1920] as const;
+
+/**
+ * Dawna drabina 9 szerokości - WYŁĄCZNIE dla zdjęć osób renderowanych przez
+ * `OptimizedImage responsive` (awatar autora w bloku kontekstu wpisu, zdjęcia
+ * prelegentów). Decyzja właściciela 2026-10-08: awatary bez zmian - ani
+ * szerokości, ani adresu. Własna drabina (inna referencja niż `RESPONSIVE_WIDTHS`)
+ * zostawia też adresy absolutne, więc `srcset` i `src` są bajt w bajt dawne.
+ */
+export const LEGACY_AVATAR_RESPONSIVE_WIDTHS = [
+  320, 480, 640, 768, 1024, 1280, 1536, 1920, 2400,
+] as const;
+
+/**
+ * Adres pliku `/media/...` KANONICZNEGO originu jako ścieżka względna (P3.2a/P4.2).
+ *
+ * WYŁĄCZNIE dla `src`/`srcset` renderowanego do HTML-u, preloadu obrazu w `<head>`
+ * i nagłówka `Link` - nigdy dla og:image, JSON-LD, RSS, sitemap, e-maili,
+ * stemplowania `public_url` ani stanu odwodnionego (te muszą być absolutne).
+ * Trasa `/media/$` nie zależy od hosta, więc ścieżka działa na każdym hoście
+ * aplikacji (domeny najemców, podgląd, localhost), a na domenie kanonicznej to
+ * dokładnie ten sam zasób - mniej bajtów, ten sam plik i ten sam klucz cache.
+ * Inny origin (także dodatkowe originy najemców i host techniczny magazynu),
+ * adres względny, `data:` i śmieci wracają bez zmian. Deterministyczna (stała
+ * z builda), więc SSR i hydratacja dają ten sam atrybut.
+ */
+export function renderedMediaUrl(url: string): string {
+  if (!url.startsWith(`${PUBLIC_MEDIA_ORIGIN}/media/`)) return url;
+  try {
+    // Parser odrzuca segmenty `..`, `\` i inne sztuczki, po których ścieżka
+    // przestaje być `/media/...` - wtedy adres zostaje absolutny.
+    const { pathname, search, hash } = new URL(url);
+    return pathname.startsWith("/media/") ? pathname + search + hash : url;
+  } catch {
+    return url;
+  }
+}
 
 /**
  * Build a `srcSet` of width-scaled candidates for a Supabase storage image.
  * Returns "" for non-transformable URLs so callers can omit srcSet entirely
  * (the browser then just uses the original src - no broken candidates).
+ *
+ * DOMYŚLNA DRABINA = ADRESY WZGLĘDNE (P3.2a/P4.2). Reguła stoi na drabinie
+ * domyślnej (porównanie referencji z `RESPONSIVE_WIDTHS`), bo wszyscy jej
+ * konsumenci to renderowany `<img>`, preload w `<head>` albo nagłówek `Link`
+ * (okładki, slider, preload kandydata LCP, trasy wpisu, archiwów, klubów,
+ * programów, web stories, popup). Preload i `<img>` każdej trasy przesuwają się
+ * więc razem, bez edycji tras - klucz zasobu (`srcSet\nsizes`) zostaje wspólny.
+ * Własne drabiny (miniatury, treść wpisu, mega menu, zespół, stara drabina
+ * awatarów) zostają absolutne bajt w bajt.
  */
 export function buildImageSrcSet(
   src: string,
@@ -219,10 +268,12 @@ export function buildImageSrcSet(
   quality?: number,
 ): string {
   if (!isSupabaseStorageUrl(src) || /\.svg(?:[?#]|$)/i.test(src)) return "";
+  // Ścieżka względna wchodzi do `buildScaledImageUrl` i wychodzi względna.
+  const base = widths === RESPONSIVE_WIDTHS ? renderedMediaUrl(src) : src;
   // Bez jawnej jakosci kazdy kandydat dostaje swoja (male warianty taniej) -
   // jawna wartosc obowiazuje caly zestaw, bo wolajacy wie lepiej.
   return widths
-    .map((w) => `${buildScaledImageUrl(src, w, quality ?? qualityForWidth(w))} ${w}w`)
+    .map((w) => `${buildScaledImageUrl(base, w, quality ?? qualityForWidth(w))} ${w}w`)
     .join(", ");
 }
 

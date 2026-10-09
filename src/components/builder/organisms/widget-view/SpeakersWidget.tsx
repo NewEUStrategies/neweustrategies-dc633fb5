@@ -28,6 +28,7 @@ import {
   ShieldCheck,
 } from "@/lib/lucide-shim";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { LEGACY_AVATAR_RESPONSIVE_WIDTHS } from "@/lib/cropSizes";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
   speakersQueryOptions,
@@ -648,6 +649,9 @@ function SpeakerCard({
             src={photo}
             alt={name || ""}
             responsive
+            // Zdjęcie osoby bez zmian (decyzja właściciela 2026-10-08, PLAN-FALI-3
+            // §3a): dawna drabina i adres absolutny, jak awatar autora.
+            responsiveWidths={LEGACY_AVATAR_RESPONSIVE_WIDTHS}
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
             className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.05]"
           />

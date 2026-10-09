@@ -35,7 +35,9 @@
     "",
     "P3.7a (fala 3, 2026-10-08) - NOWA METRYKA `inlineCssCommentBytes` (bajty komentarzy `/* */` w inline `<style>`; definicja: komentarz pola w documentWeight.ts). Statyczne literały CSS (`TICKER_CSS`, `SHARED_STYLES` slidera, most `globalColorsToCss`, `SEARCH_WIDGET_CSS`) minifikuje w buildzie `scripts/lib/staticCssPlugin.ts`, więc komentarz w dokumencie znaczy, że wtyczka nie zadziałała albo doszedł nowy nieminifikowany arkusz. Dokument fixture bazy (7c924ae5 i P3.3, 5 348 B): slider 2 130 + most marki 1 511 + pasek trendów 1 190 + `data-content-area` 517 B. Po P3.7a zostaje WYŁĄCZNIE szablon `src/components/ContentAreaStyle.tsx` (krok S1g wyłączony z P3.7a, bo plik należy do P3.8): 517 B, treść stała (szablon, nie dane), więc próg = ta wartość bez zapasu 2%. Cel 0 po minifikacji `ContentAreaStyle` (S1g). Pozostałe progi bez zmian - ratchet po pomiarze artefaktu robi orkiestrator.",
     "",
-    "P3.2b (fala 3, 2026-10-09) - NOWA METRYKA `fontPreloadCount` (unikalne preloadowane fonty z `<head>` i nagłówka `Link` łącznie; definicja: komentarz pola w documentWeight.ts). Decyzja właściciela 2026-10-08: jedynym fontem w ścieżce krytycznej jest Red Hat Display (jeden plik latin + polskie litery, ten sam dla PL i EN), a zasady pilnuje bramka CI, bez blokowania krojów dodawanych w CMS (te nie mają preloadu). Baza fali (d5bd11fb) preloadowała na PL dwa pliki (latin + latin-ext) - po P3.2b jeden; wartość wynika z kodu (`rootDocumentLinks`/`rootLinkHeaderValues` wskazują ten sam plik, test `src/lib/ci/__tests__/fontGlyphCoverage.test.ts` liczy ją `analyzeDocument` na wyjściu tych funkcji), więc próg = 1 bez zapasu. Pozostałe progi bez zmian (P3.2b zdejmuje wpis `Link` i duplikat preloadu fontu: `linkHeaderEntries` 5 -> 4, `preloadDuplicates` 3 -> 2 - ratchet po pomiarze artefaktu robi orkiestrator)."
+    "P3.2b (fala 3, 2026-10-09) - NOWA METRYKA `fontPreloadCount` (unikalne preloadowane fonty z `<head>` i nagłówka `Link` łącznie; definicja: komentarz pola w documentWeight.ts). Decyzja właściciela 2026-10-08: jedynym fontem w ścieżce krytycznej jest Red Hat Display (jeden plik latin + polskie litery, ten sam dla PL i EN), a zasady pilnuje bramka CI, bez blokowania krojów dodawanych w CMS (te nie mają preloadu). Baza fali (d5bd11fb) preloadowała na PL dwa pliki (latin + latin-ext) - po P3.2b jeden; wartość wynika z kodu (`rootDocumentLinks`/`rootLinkHeaderValues` wskazują ten sam plik, test `src/lib/ci/__tests__/fontGlyphCoverage.test.ts` liczy ją `analyzeDocument` na wyjściu tych funkcji), więc próg = 1 bez zapasu. Pozostałe progi bez zmian (P3.2b zdejmuje wpis `Link` i duplikat preloadu fontu: `linkHeaderEntries` 5 -> 4, `preloadDuplicates` 3 -> 2 - ratchet po pomiarze artefaktu robi orkiestrator).",
+    "",
+    "P3.2a (fala 3, 2026-10-09) - DWIE NOWE METRYKI BAJTÓW OBRAZÓW W HTML-U (definicje: komentarze pól w documentWeight.ts). `srcsetCandidatesMax` <= 5: największa liczba kandydatów `w` w jednym `srcset`/`imagesrcset` (dokument i `Link`); domyślna drabina okładek ma od P3.2a 5 szerokości [480, 640, 768, 1280, 1920] zamiast 9 (decyzja właściciela 2026-10-08), więc próg = rozmiar drabiny. `absoluteCanonicalMediaInRenderedSrcset` = 0: kandydaci `w` z absolutnym adresem `https://neweuropeanstrategies.com/media/...` (render do HTML-u używa ścieżki względnej, P4.2; og:image, JSON-LD i stan zostają absolutne, bo nie są `srcset`). Zdjęcia osób na dawnej drabinie (awatar autora w bloku kontekstu wpisu, prelegenci - 9 szerokości, adresy absolutne, decyzja właściciela) liczą się jak każdy `srcset`: na `/` ich nie ma, a wyjątek po liście szerokości ukryłby powrót dawnej drabiny domyślnej (te same szerokości); `--html` na stronie wpisu z blokiem autora pokaże je świadomie (9 / 9). Fixture `/` nie ma ani jednego `srcset` (obrazy `fixture.invalid` są nietransformowalne), więc `measured` = 0 dla obu; dowodem na prawdziwym HTML-u jest `--html` na HIT produkcji (przed P3.2a: 9 i kilkaset). UWAGA dla `--ratchet`: liczniki ratchetuje się do pomiaru, więc `srcsetCandidatesMax` spadłby na fixture do 0 - próg ma zostać 5 (rozmiar drabiny), dopóki fixture nie ma `srcset`."
   ],
   "path": "/",
   "measuredAt": "2026-10-03",
@@ -175,6 +177,16 @@
       "max": 181594,
       "measured": 178033,
       "target": 307200
+    },
+    "srcsetCandidatesMax": {
+      "max": 5,
+      "measured": 0,
+      "target": 5
+    },
+    "absoluteCanonicalMediaInRenderedSrcset": {
+      "max": 0,
+      "measured": 0,
+      "target": 0
     },
     "bootEntryMissing": {
       "max": 0,

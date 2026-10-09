@@ -7,6 +7,7 @@ import { Menu, Moon, Search, Sun, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
+import { renderedMediaUrl } from "@/lib/cropSizes";
 import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import type { BuilderDocument } from "@/lib/builder/types";
 import type { TickerConfig } from "@/lib/views/headerTickerQuery";
@@ -300,7 +301,7 @@ const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = fal
           >
             {mobileLogo ? (
               <img
-                src={mobileLogo}
+                src={renderedMediaUrl(mobileLogo)}
                 alt={siteName}
                 className="h-8 w-auto max-w-[180px] object-contain"
                 loading="eager"

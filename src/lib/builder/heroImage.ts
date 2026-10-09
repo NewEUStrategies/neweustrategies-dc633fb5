@@ -58,7 +58,7 @@ import { GUEST_ACCESS_CONTEXT, evaluateAccess } from "@/lib/builder/accessContro
 import { resolveContentEngine, type ContentEngineInput } from "@/lib/content/contentEngine";
 import { asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { safeImageUrl } from "@/lib/sanitizePure";
-import { buildImageSrcSet } from "@/lib/cropSizes";
+import { buildImageSrcSet, renderedMediaUrl } from "@/lib/cropSizes";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { SLIDER_VARIANT_VALUES } from "@/lib/builder/sliderOptions";
 import {
@@ -84,9 +84,16 @@ function getStr(c: WidgetContent, key: string): string {
   return asStr(c[key]);
 }
 
-/** Deskryptor preloadu z parą srcSet/sizes zbudowaną z jednego URL-a. */
+/**
+ * Deskryptor preloadu z parą srcSet/sizes zbudowaną z jednego URL-a. `href`
+ * (wartość `<...>` nagłówka `Link`) jest względny tylko obok `imageSrcSet`, który
+ * już jest względny (`buildImageSrcSet`, P3.2a/P4.2) - jak `src` malowanego `<img>`;
+ * bez srcSet kluczem zasobu jest `href` i zostaje bajt w bajt `src` obrazu.
+ */
 function preloadOf(href: string, sizes: string): LcpImagePreload | null {
-  return href ? { href, imageSrcSet: buildImageSrcSet(href), imageSizes: sizes } : null;
+  if (!href) return null;
+  const imageSrcSet = buildImageSrcSet(href);
+  return { href: imageSrcSet ? renderedMediaUrl(href) : href, imageSrcSet, imageSizes: sizes };
 }
 
 /**
