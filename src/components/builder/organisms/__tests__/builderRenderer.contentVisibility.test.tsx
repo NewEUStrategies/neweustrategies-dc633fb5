@@ -250,15 +250,32 @@ describe("content-visibility ogona sekcji od indeksu 2 (P3.3)", () => {
     ).toBeTruthy();
   });
 
-  describe("strażnik wejścia w połowie strony", () => {
-    const html = document.documentElement;
-    const uruchomStraznika = () => {
-      const script = blokCv(ssrDom(tresc())).script[0];
-      // Skrypt inline wykonuje się tak, jak w przeglądarce przy parsowaniu HTML-u.
-      new Function(script.textContent ?? "")();
-      return html.hasAttribute("data-cv-off");
+  // Nasłuchy, które skrypt strażnika założył na oknie w danym teście (zdejmowane po teście,
+  // żeby kolejne uruchomienia nie dublowały się w tym samym oknie happy-dom).
+  const nasluchyStraznika: Array<[string, EventListener, (boolean | AddEventListenerOptions)?]> =
+    [];
+  const html = document.documentElement;
+  /**
+   * Skrypt strażnika z HTML-u serwera, wykonany tak, jak w przeglądarce przy parsowaniu
+   * (`addEventListener` skryptu = okno; podstawione tylko po to, by zapamiętać nasłuchy).
+   */
+  const uruchomStraznika = (host: ParentNode = ssrDom(tresc())) => {
+    const script = blokCv(host).script[0];
+    const dodaj = (type: string, fn: EventListener, opcje?: boolean | AddEventListenerOptions) => {
+      window.addEventListener(type, fn, opcje);
+      nasluchyStraznika.push([type, fn, opcje]);
     };
+    new Function("addEventListener", script.textContent ?? "")(dodaj);
+    return html.hasAttribute("data-cv-off");
+  };
 
+  afterEach(() => {
+    for (const [type, fn, opcje] of nasluchyStraznika.splice(0)) {
+      window.removeEventListener(type, fn, opcje);
+    }
+  });
+
+  describe("strażnik wejścia w połowie strony", () => {
     afterEach(() => {
       html.removeAttribute("data-cv-off");
       window.sessionStorage.clear();
@@ -299,6 +316,221 @@ describe("content-visibility ogona sekcji od indeksu 2 (P3.3)", () => {
       window.history.replaceState({ __TSR_key: "k-1" }, "", "/");
       window.sessionStorage.setItem(scrollRestorationStorageKey, "{nie-json");
       expect(uruchomStraznika()).toBe(false);
+    });
+
+    // Fragment tekstowy (`/#:~:text=…`): Chromium wycina dyrektywę z adresu dokumentu
+    // (`location.hash` pusty), zostaje ona w nazwie wpisu nawigacji tego dokumentu.
+    const wpisNawigacji = (...nazwy: string[]) =>
+      vi
+        .spyOn(performance, "getEntriesByType")
+        .mockImplementation((typ) =>
+          typ === "navigation"
+            ? nazwy.map((name) => ({ name, entryType: typ }) as PerformanceEntry)
+            : [],
+        );
+
+    it("wejście z fragmentem tekstowym (`/#:~:text=…`, `location.hash` pusty): cv wyłączone", () => {
+      window.history.replaceState(null, "", "/");
+      wpisNawigacji(`${location.origin}/#:~:text=Zapisz%20si%C4%99%20do%20newslettera`);
+      expect(location.hash).toBe("");
+      expect(uruchomStraznika()).toBe(true);
+    });
+
+    it("fragment tekstowy przy uszkodzonym wpisie w `sessionStorage`: cv wyłączone (osobne sprawdzenie)", () => {
+      window.history.replaceState({ __TSR_key: "k-1" }, "", "/");
+      window.sessionStorage.setItem(scrollRestorationStorageKey, "{nie-json");
+      wpisNawigacji(`${location.origin}/strona#:~:text=cel`);
+      expect(uruchomStraznika()).toBe(true);
+    });
+
+    it("`:~:` poza fragmentem (zapytanie) albo zwykły wpis nawigacji: cv zostaje", () => {
+      wpisNawigacji(`${location.origin}/szukaj?q=:~:text=cel`);
+      expect(uruchomStraznika()).toBe(false);
+    });
+
+    it("brak wpisu nawigacji nie rzuca i nie blokuje przywrócenia przewinięcia", () => {
+      wpisNawigacji();
+      expect(uruchomStraznika()).toBe(false);
+      window.history.replaceState({ __TSR_key: "k-1" }, "", "/");
+      window.sessionStorage.setItem(
+        scrollRestorationStorageKey,
+        JSON.stringify({ "k-1": { window: { scrollX: 0, scrollY: 2400 } } }),
+      );
+      expect(uruchomStraznika()).toBe(true);
+    });
+  });
+
+  // KOTWICA PO WCZYTANIU (BuilderRenderer.tsx): pierwsza nawigacja do fragmentu, którego cel
+  // leży w obszarze cv, wyłącza cv ZANIM przeglądarka policzy przewinięcie. Geometrię
+  // (lądowanie celu pod nagłówkiem na wolnym telefonie) mierzy e2e
+  // `content-visibility.boot-home.spec.ts`; tu - które nawigacje przełączają wyłącznik.
+  describe("strażnik: nawigacja do fragmentu po wczytaniu", () => {
+    let stronaHtml: HTMLElement;
+    let przewiniecia: string[];
+    /** Wywołania `requestAnimationFrame` strażnika - test sam „maluje" klatkę (`klatka()`). */
+    let klatki: FrameRequestCallback[];
+    const klatka = () => {
+      for (const cb of klatki.splice(0)) cb(performance.now());
+    };
+
+    /** Dokument z HTML-em serwera: cel w ogonie z cv (`s3`), cel nad ogonem (`s0`), cel za rendererem. */
+    beforeEach(() => {
+      stronaHtml = ssrDom(tresc());
+      sekcja(stronaHtml, "s0")!.id = "gora";
+      sekcja(stronaHtml, "s3")!.id = "cel";
+      sekcja(stronaHtml, "s4")!.id = "zażółć";
+      const stopka = document.createElement("footer");
+      stopka.id = "stopka";
+      stronaHtml.append(stopka);
+      document.body.append(stronaHtml);
+      przewiniecia = [];
+      klatki = [];
+      vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (this: Element) {
+        przewiniecia.push(this.id);
+      });
+      vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+        klatki.push(cb);
+        return klatki.length;
+      });
+      expect(uruchomStraznika(stronaHtml)).toBe(false);
+    });
+
+    afterEach(() => {
+      stronaHtml.remove();
+      html.removeAttribute("data-cv-off");
+      window.history.replaceState(null, "", "/");
+    });
+
+    /**
+     * Klik w link (jak przeglądarka: zdarzenie przed domyślną akcją). Zwraca stan wyłącznika
+     * w chwili, gdy klik dociera do samego linku - czyli przed nawigacją i przewinięciem.
+     * Ten sam nasłuch anuluje domyślną akcję (happy-dom nie nawiguje ani nie otwiera okna).
+     */
+    const kliknij = (href: string, init: MouseEventInit = {}, target?: string) => {
+      const a = document.createElement("a");
+      a.href = href;
+      if (target) a.target = target;
+      a.append(document.createElement("span"));
+      stronaHtml.append(a);
+      let wChwiliKliku: boolean | null = null;
+      a.addEventListener("click", (event) => {
+        wChwiliKliku = html.hasAttribute("data-cv-off");
+        event.preventDefault();
+      });
+      a.firstElementChild!.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true, ...init }),
+      );
+      a.remove();
+      return wChwiliKliku;
+    };
+
+    it("klik w link `#id` do celu w ogonie z cv wyłącza cv, zanim klik dotrze do linku (przed przewinięciem)", () => {
+      expect(kliknij("#cel")).toBe(true);
+      klatka();
+      expect(przewiniecia).toEqual([]);
+    });
+
+    it("klik w link do celu za obszarem cv (stopka) i w link z adresem tej samej strony (`/#id`, link routera) też", () => {
+      expect(kliknij("#stopka")).toBe(true);
+      html.removeAttribute("data-cv-off");
+      expect(kliknij(`${location.pathname}#cel`)).toBe(true);
+    });
+
+    it("identyfikator z kodowaniem procentowym w `href` trafia w cel", () => {
+      expect(kliknij(`#${encodeURIComponent("zażółć")}`)).toBe(true);
+    });
+
+    it.each<[string, string, MouseEventInit, string?]>([
+      ["cel nad ogonem z cv (link „przejdź do treści”)", "#gora", {}],
+      ["fragment bez elementu", "#nie-ma-takiego", {}],
+      ["pusty fragment (`#`)", "#", {}],
+      ["fragment innego dokumentu", "/inna-strona#cel", {}],
+      ["klik z modyfikatorem (nowa karta)", "#cel", { ctrlKey: true }],
+      ["link z `target=_blank`", "#cel", {}, "_blank"],
+    ])("cv zostaje: %s", (_, href, init, target) => {
+      expect(kliknij(href, init, target)).toBe(false);
+      expect(html.hasAttribute("data-cv-off")).toBe(false);
+    });
+
+    /** Położenie celu w widoku w chwili zdarzenia (przy włączonym cv - na pasach z szacunku). */
+    const celNa = (id: string, top: number) =>
+      vi
+        .spyOn(document.getElementById(id)!, "getBoundingClientRect")
+        .mockReturnValue(new DOMRect(0, top, 300, 120));
+
+    it("`popstate` PRZED przewinięciem (Chromium: cel jeszcze daleko pod widokiem) wyłącza cv i niczego nie przewija - przewija przeglądarka", () => {
+      celNa("cel", 4000);
+      window.history.replaceState(null, "", "/#cel");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      expect(html.hasAttribute("data-cv-off")).toBe(true);
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+      klatka();
+      expect(przewiniecia).toEqual([]);
+    });
+
+    it("`popstate` PO przewinięciu na pasach (WebKit: cel już w widoku) wyłącza cv i przewija cel w najbliższej klatce - już po nasłuchu `popstate` routera", () => {
+      celNa("cel", 244);
+      // Nasłuch routera (TanStack zapisuje w nim pozycję wpisu, z którego się wychodzi)
+      // stoi za strażnikiem: w tej chwili nic jeszcze nie może być przewinięte.
+      let przewinieciaWNasluchuRoutera: string[] | null = null;
+      const router = () => (przewinieciaWNasluchuRoutera = [...przewiniecia]);
+      window.addEventListener("popstate", router);
+      window.history.replaceState(null, "", "/#cel");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      window.removeEventListener("popstate", router);
+      expect(html.hasAttribute("data-cv-off")).toBe(true);
+      expect(przewinieciaWNasluchuRoutera).toEqual([]);
+      klatka();
+      expect(przewiniecia).toEqual(["cel"]);
+      // `hashchange` tej samej nawigacji niczego nie powtarza (użytkownik mógł już przewijać).
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+      klatka();
+      expect(przewiniecia).toEqual(["cel"]);
+    });
+
+    it("`popstate` bez fragmentu albo z celem nad ogonem: cv zostaje", () => {
+      window.history.replaceState(null, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      window.history.replaceState(null, "", "/#gora");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      klatka();
+      expect(html.hasAttribute("data-cv-off")).toBe(false);
+      expect(przewiniecia).toEqual([]);
+    });
+
+    it("`hashchange` przy włączonym cv (silnik bez `popstate` przy fragmencie, cel już w widoku): wyłącza cv i przewija do celu w najbliższej klatce", () => {
+      celNa("cel", 244);
+      window.history.replaceState(null, "", "/#cel");
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+      expect(html.hasAttribute("data-cv-off")).toBe(true);
+      klatka();
+      expect(przewiniecia).toEqual(["cel"]);
+    });
+
+    it("cv wyłączone wcześniej (klik albo poprzednia nawigacja): `popstate` i `hashchange` niczego nie przewijają", () => {
+      expect(kliknij("#cel")).toBe(true);
+      celNa("cel", 244);
+      for (const hash of ["#cel", "#stopka"]) {
+        window.history.replaceState(null, "", `/${hash}`);
+        window.dispatchEvent(new PopStateEvent("popstate"));
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      }
+      klatka();
+      expect(przewiniecia).toEqual([]);
+    });
+
+    it("dokument bez opakowań cv (render kliencki po nawigacji SPA): nawigacje niczego nie przełączają", () => {
+      for (const w of stronaHtml.querySelectorAll("[data-cv]")) w.remove();
+      const cel = document.createElement("div");
+      cel.id = "cel-spa";
+      stronaHtml.append(cel);
+      expect(kliknij("#cel-spa")).toBe(false);
+      window.history.replaceState(null, "", "/#cel-spa");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+      klatka();
+      expect(html.hasAttribute("data-cv-off")).toBe(false);
+      expect(przewiniecia).toEqual([]);
     });
   });
 

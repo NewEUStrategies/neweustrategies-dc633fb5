@@ -572,11 +572,59 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
 // (`CV_GUARD_SCRIPT`, inline przed sekcjami): gdy czeka przywrócenie okna albo
 // adres ma fragment, ustawia `html[data-cv-off]`, a reguła z `CV_CSS` zdejmuje
 // cv ze wszystkich opakowań, zanim parser do nich dojdzie - strona zachowuje
-// się wtedy dokładnie jak bez P3.3. Pierwsze wejście (i przebieg Lighthouse'a)
-// nie ma ani wpisu przywrócenia, ani fragmentu. Kotwica PO wczytaniu (link
-// `#id` na stronie, nawigacja routera) trafia przy włączonym cv:
-// `scrollIntoView` i nawigacja do fragmentu aktywują pominiętą sekcję celu,
-// a zakotwiczenie przewijania trzyma cel, gdy dorysowują się sekcje nad nim.
+// się wtedy dokładnie jak bez P3.3. Fragment tekstowy (`/#:~:text=…`: linki
+// z wyszukiwarki, „Kopiuj link do wyróżnienia" w Chrome) też: Chromium wycina
+// dyrektywę fragmentu z adresu dokumentu (`location.hash` jest wtedy pusty),
+// ale zostaje ona w nazwie wpisu nawigacji
+// (`performance.getEntriesByType("navigation")[0].name`, dostępnej już przy
+// parsowaniu). Bez tego przewinięcie do tekstu liczyło się na pasach
+// z szacunku, a odsłonięcie sekcji nad celem spychało go o ekran w dół (albo
+// pozycja przepadała). Osobny `try`: zepsuty albo zablokowany
+// `sessionStorage` nie wyłącza tego sprawdzenia, a brak wpisu nawigacji - wpisu
+// przywrócenia. Pierwsze wejście (i przebieg Lighthouse'a) nie ma ani wpisu
+// przywrócenia, ani fragmentu.
+//
+// KOTWICA PO WCZYTANIU (nawigacja do fragmentu w tym samym dokumencie: link
+// `#id`, `location.hash`, wstecz/dalej między fragmentami). Przeglądarka
+// przewija do celu na układzie z chwili skoku: sekcje z cv nad celem stoją
+// wtedy na pasach z szacunku (na telefonie 1,3-3x za niskich) i dorysowują się
+// dopiero kilka klatek później. Zakotwiczenie przewijania Chromium nie zawsze
+// to wyrówna: kotwica bywa wybrana W pominiętej sekcji nad celem (jej poddrzewo
+// ułożył już ktoś, kto czytał w nim geometrię - pomiar widgetu, snapshotter
+// trace'u Playwrighta w CI), a wtedy wzrost tej sekcji pod kotwicą spycha cel
+// o setki pikseli w dół (CI fali 3: cel 1240 px pod górą widoku telefonu);
+// Safari zakotwiczenia nie ma wcale. Dlatego strażnik nasłuchuje też nawigacji
+// do fragmentu i przy PIERWSZEJ, której cel leży w obszarze cv (w opakowaniu
+// albo za pierwszym z nich - cele nad ogonem, np. link „przejdź do treści",
+// nic nie kosztują), ustawia ten sam wyłącznik `html[data-cv-off]`, ZANIM
+// przeglądarka policzy przewinięcie:
+//  - `click` w fazie przechwytywania na oknie (przed każdym handlerem strony
+//    i routera): link albo obszar mapy z `href` do fragmentu tego samego
+//    dokumentu, bez modyfikatora i bez `target` innego niż `_self`;
+//  - `popstate`: przychodzi synchronicznie w nawigacji do fragmentu
+//    (`location.hash`, pasek adresu) i przy wstecz/dalej. Chromium wysyła je
+//    PRZED przewinięciem (zmierzone), WebKit PO nim, na pasach
+//    (`FrameLoader::loadInSameDocument`). Strażnik czyta więc położenie celu
+//    jeszcze na pasach: cel już w widoku znaczy, że przeglądarka przewinęła
+//    (WebKit). Wtedy po wyłączeniu cv przewija cel (`scrollIntoView`) na
+//    prawdziwym układzie w najbliższej klatce (`requestAnimationFrame` - przed
+//    jej malowaniem, ale PO nasłuchu `popstate` routera: TanStack zapamiętuje
+//    w nim pozycję wpisu, z którego się wychodzi, a przewinięcie przed tym
+//    zapisem psułoby powrót „wstecz" do miejsca czytania). W Chromium
+//    przeglądarka umieściła już cel w tym samym miejscu. Cel poza widokiem
+//    (Chromium, wstecz/dalej): tylko wyłączenie, przewinięcie zostaje
+//    przeglądarce albo routerowi;
+//  - `hashchange` jako siatka (silnik bez `popstate` przy fragmencie): gdy cv
+//    jest jeszcze włączone - to samo.
+// Strażnik przewija tylko w klatce zaraz po nawigacji, która wyłączyła cv,
+// więc nie walczy z przewijaniem, które użytkownik zaczyna po skoku. Raz
+// wyłączone cv zostaje wyłączone do końca życia dokumentu. Koszt: jednorazowe
+// odsłonięcie sekcji w zadaniu tej nawigacji, więc INP tego jednego kliku
+// wraca do poziomu sprzed P3.3; zysk przy wczytaniu i przy zwykłym
+// przewijaniu zostaje. `<Link hash>` i `router.navigate({ hash })` na tej
+// samej stronie w ogóle nie przewijają (`defaultHashScrollIntoView: false`
+// w `src/router.tsx`), a klik w taki link i tak wyłącza cv w fazie
+// przechwytywania.
 //
 // WYŁĄCZENIA SEKCJI (`serverSectionCv`). `content-visibility: auto` włącza na
 // stałe zawieranie układu, stylu i malowania opakowania: staje się ono blokiem
@@ -781,17 +829,40 @@ const CV_CSS =
   "[data-cv-off] [data-cv]{content-visibility:visible!important}";
 
 /**
- * Strażnik wejścia w połowie strony (PRZYWRÓCENIE PRZEWINIĘCIA I KOTWICA PRZY
- * WEJŚCIU wyżej). Czyta to samo co skrypt przywracania TanStacka: wpis okna
- * w `sessionStorage["tsr-scroll-restoration-v1_3"]` (`storageKey` z
- * `@tanstack/router-core` - zgodność pilnuje test) pod kluczem
- * `history.state.__TSR_key`. Atrybut na `<html>` (`suppressHydrationWarning`
- * w `__root.tsx`, jak skrypty zgód). Literał - bramka `check:dangerous-html`.
+ * Strażnik cv (ES5, jedno IIFE bez zmiennych globalnych).
+ *
+ * 1. Wejście w połowie strony (PRZYWRÓCENIE PRZEWINIĘCIA I KOTWICA PRZY
+ *    WEJŚCIU wyżej). Czyta to samo co skrypt przywracania TanStacka: wpis okna
+ *    w `sessionStorage["tsr-scroll-restoration-v1_3"]` (`storageKey` z
+ *    `@tanstack/router-core` - zgodność pilnuje test) pod kluczem
+ *    `history.state.__TSR_key`, oraz fragment adresu - także tekstowy (`:~:`
+ *    po `#` w nazwie wpisu nawigacji; Chromium nie pokazuje go w `location`).
+ * 2. Nawigacja do fragmentu po wczytaniu (KOTWICA PO WCZYTANIU wyżej): `f`
+ *    zamienia fragment na element w obszarze cv (`compareDocumentPosition`
+ *    z pierwszym opakowaniem: bit FOLLOWING = 4 obejmuje też jego potomków)
+ *    albo `null`; `o` ustawia wyłącznik raz i mówi, czy to zrobił; `g`
+ *    (`popstate`, `hashchange`) czyta położenie celu jeszcze przy cv i przewija
+ *    go w najbliższej klatce tylko wtedy, gdy samo wyłączyło cv, a przeglądarka
+ *    już przewinęła (cel w widoku).
+ *
+ * Atrybut na `<html>` (`suppressHydrationWarning` w `__root.tsx`, jak skrypty
+ * zgód). Literał - bramka `check:dangerous-html`.
  */
 const CV_GUARD_SCRIPT =
-  "try{var k=(history.state||{}).__TSR_key,w=k&&(JSON.parse(sessionStorage.getItem(" +
-  '"tsr-scroll-restoration-v1_3")||"{}")[k]||{}).window;if(location.hash.length>1||' +
-  'w&&w.scrollY>0)document.documentElement.setAttribute("data-cv-off","")}catch(e){}';
+  '(function(d,h,c){function o(e){if(!e||h.hasAttribute(c))return 0;h.setAttribute(c,"");' +
+  "return 1}function f(s){try{var i=s.slice(1),e=i&&(d.getElementById(i)||d.getElementById(" +
+  'decodeURIComponent(i))),w=d.querySelector("[data-cv]");return e&&w&&w.compareDocumentPosition(' +
+  "e)&4?e:null}catch(x){return null}}function g(){var e=f(location.hash),t=e&&!h.hasAttribute(c)" +
+  "&&e.getBoundingClientRect().top;o(e)&&t>=0&&t<innerHeight&&requestAnimationFrame(function(){" +
+  "e.scrollIntoView()})}try{var k=(history.state||{}).__TSR_key,w=k&&(JSON.parse(" +
+  'sessionStorage.getItem("tsr-scroll-restoration-v1_3")||"{}")[k]||{}).window;' +
+  "if(location.hash.length>1||w&&w.scrollY>0)o(h)}catch(x){}" +
+  'try{/#.*:~:/.test(performance.getEntriesByType("navigation")[0].name)&&o(h)}catch(x){}' +
+  'addEventListener("click",function(v){try{var a=v.target.closest("a[href],area[href]");' +
+  'a&&!(v.ctrlKey||v.metaKey||v.shiftKey||v.altKey)&&(!a.target||a.target=="_self")&&' +
+  'a.href.split("#")[0]==location.href.split("#")[0]&&o(f(a.hash))}catch(x){}},!0);' +
+  'addEventListener("popstate",g);addEventListener("hashchange",g)})(document,' +
+  'document.documentElement,"data-cv-off")';
 
 /**
  * Treść bloku cv (serwer): reguły i strażnik w jednym ukrytym węźle - `<style>`
