@@ -15,44 +15,68 @@
 //      widoczności taba). Jeśli wersja się zmieniła, robimy MIĘKKIE
 //      odświeżenie w tle (`router.invalidate`), bez przeładowania strony.
 //
-// STRAŻNIK PRZEŁADOWANIA jest warstwowy. Reload wstrzymujemy, gdy KTÓRYKOLWIEK
-// znacznik jest świeży, czyli wydany 0 <= teraz - ts < 15 s. Znacznik z
-// przyszłości, nieczytelny albo starszy nie wstrzymuje niczego, więc
-// udostępniony, zakładkowy czy przestawiony zegarem `_v` nigdy nie blokuje
-// odzysku na stałe.
-//   a) Zatrzask w pamięci modułu: drugi błąd w tym samym dokumencie (para
-//      `error` + `unhandledrejection`, bufor wczesnych błędów korzenia) nie
-//      wydaje drugiego `location.replace`.
-//   b) `?_v=<ts36>`, parametr dokładany przez sam reload, czytany z bieżącego
-//      adresu ORAZ z adresu, pod którym przeglądarka załadowała dokument
-//      (wpis nawigacji w Performance API). Drugi odczyt jest odporny na
+// STRAŻNIK PRZEŁADOWANIA jest warstwowy. Reload wstrzymuje KTÓRYKOLWIEK
+// z warunków a-d. Znacznik czasu jest świeży, gdy wydano go
+// 0 <= teraz - ts < 15 s. Znacznik z przyszłości, nieczytelny albo starszy
+// nie wstrzymuje niczego, więc udostępniony, zakładkowy czy przestawiony
+// zegarem `_v` nigdy nie blokuje odzysku na stałe.
+//   a) Zatrzask w pamięci modułu: dokument, który wydał już `location.replace`,
+//      nie wyda drugiego. Dotyczy pary `error` + `unhandledrejection`, bufora
+//      wczesnych błędów korzenia i nawigacji, która na zimnym SSR wisi dłużej
+//      niż 15 s (kolejny `replace` zacząłby ją od nowa).
+//   b) Kotwica dokumentu: dokument urodzony z NASZEGO reloadu nie przeładowuje
+//      się przez pierwsze 5 min życia. „Urodzony z reloadu" znaczy, że jego
+//      nawigacja ruszyła w chwili zapisanej w `_v` adresu załadowania:
+//      -2 s <= start nawigacji - `_v` < 15 s (2 s zapasu na zaokrąglanie
+//      zegarów, np. Firefox z resistFingerprinting). Start nawigacji to
+//      `Date.now() - performance.now()`, a wiek dokumentu to monotoniczny
+//      `performance.now()`. Nie używamy `performance.timeOrigin`, bo nie ma go
+//      w Safari < 16, a w Chromium rozjeżdża się z `Date.now()` po uśpieniu
+//      systemu. Bez kotwicy błąd trwały, który w nowym dokumencie przychodzi
+//      później niż 15 s po reloadzie (żądanie chunku wiszące do timeoutu proxy,
+//      bardzo wolny boot), dawał powolną pętlę, także przy działającym
+//      magazynie.
+//   c) `?_v=<ts36>`, parametr dokładany przez sam reload, świeży w bieżącym
+//      adresie ALBO w adresie, pod którym przeglądarka załadowała dokument
+//      (wpis nawigacji w Performance API; bez wpisu, jak w Safari < 15, liczy
+//      się bieżący adres). Adres załadowania jest odporny na
 //      `history.replaceState` bez `_v` w nowym dokumencie (AutoLoadNextPost,
 //      ClubHub, /scanner?t). Router nie jest `search.strict`, a przekierowania
 //      serwera zachowują query, więc `_v` przeżywa przeładowanie bez magazynu.
-//   c) `sessionStorage["__lov_cb_reload"]`: dotychczasowy strażnik, ten sam
+//   d) `sessionStorage["__lov_cb_reload"]`: dotychczasowy strażnik, ten sam
 //      klucz, format i TTL. Odczyt i zapis są best-effort. Wyjątek (zablokowane
 //      cookies, WebView bez DOM storage, pełna quota, prywatne Safari <= 10,
 //      gdzie odczyt działa, a zapis rzuca) oznacza tylko brak tej warstwy, a NIE
 //      zgodę na reload. Wcześniej każdy wyjątek magazynu kończył się
 //      bezwarunkowym reloadem, więc trwale niedostępny chunk (adblock, CSP,
-//      proxy) przeładowywał stronę bez końca.
-// Gdy żaden znacznik nie jest świeży, przeładowujemy i zapisujemy wszystkie
-// warstwy naraz, więc pierwszy odzysk po deployu działa także bez magazynu.
+//      proxy) przeładowywał stronę bez końca. Warstwy b i c działają także przy
+//      sprawnym magazynie, więc magazyn, który nie przeżywa przeładowania
+//      (WebView, czyszczenie przez kod), też nie daje pętli.
+// Gdy żaden warunek nie zachodzi, przeładowujemy i zapisujemy wszystkie
+// znaczniki naraz, więc pierwszy odzysk po deployu działa także bez magazynu.
 //
 // Czego strażnik NIE chroni:
-//   - błędu trwałego, który w nowym dokumencie pojawia się później niż 15 s po
-//     reloadzie: przy bardzo wolnym boocie to powolna pętla z okresem > TTL,
-//     jak dotąd przy działającym magazynie, a chunk dociągany dopiero po
-//     interakcji daje najwyżej jeden reload na interakcję;
 //   - przekierowania 3xx, które zdejmuje `_v` (np. reguła brzegowa), przy
-//     zablokowanym magazynie. `window.name` tego nie ratuje: odpowiedź 3xx
-//     bez nagłówka COOP przełącza w Chromium grupę kontekstów przeglądania
-//     i zeruje nazwę okna (sprawdzone w Playwright; nasz własny 302 `/` ->
-//     `/en` też nie ma COOP), dlatego tej warstwy nie ma;
+//     zablokowanym magazynie: kotwica też czyta `_v`, więc pętla zostaje.
+//     W kodzie aplikacji takiego przekierowania nie ma. `window.name` tego nie
+//     ratuje: nasze dokumenty wysyłają COOP same-origin (`start.ts`), a
+//     odpowiedź 3xx go nie ma, więc polityki się różnią i Chromium przełącza
+//     grupę kontekstów przeglądania, co zeruje nazwę okna (sprawdzone
+//     w Playwright; nasz własny 302 `/` -> `/en` też jest bez COOP). Dlatego
+//     tej warstwy nie ma;
+//   - błędu trwałego po 5 min życia dokumentu z reloadu (chunk dociągany
+//     dopiero po interakcji): najwyżej jeden reload na 5 min, a nie pętla;
+//   - kolejnego deployu w pierwszych 5 min życia dokumentu z reloadu: zamiast
+//     drugiego odzysku zostaje Error Boundary. To cena kotwicy;
+//   - świeżego linku z `_v` otwartego w nowej karcie w ciągu 15 s: wygląda jak
+//     dokument z reloadu, więc odzysk wraca dopiero po 5 min;
 //   - niedostępnego chunku samego tego modułu: wtedy nie ma ani pętli, ani
 //     odzysku.
-// Świeży link z `_v` otwarty w nowej karcie w ciągu 15 s kosztuje jeden
-// pominięty odzysk (Error Boundary zamiast reloadu).
+//
+// Rozmiar: moduł siedzi w leniwym chunku poza zamknięciem bootu, ale
+// `experimentalMinChunkSize` Rollupa potrafi go przegrupować. Po każdej zmianie
+// kodu tutaj sprawdź host modułu w `reports/chunk-inventory.json`
+// (`BUNDLE_INVENTORY=1` przy buildzie).
 //
 // Wszystko jest opt-in i uruchamiane po hydratacji: żadnego wpływu na SSR
 // ani na FCP. Od P1.3 (TP-4) korzeń importuje ten moduł w punkcie ciszy P0.3
@@ -73,6 +97,10 @@ export interface SoftRefreshable {
 
 const RELOAD_GUARD_KEY = "__lov_cb_reload";
 const RELOAD_GUARD_TTL_MS = 15_000;
+/** Jak długo dokument urodzony z naszego reloadu nie przeładowuje się znowu (warstwa b). */
+const RELOAD_ANCHOR_MS = 5 * 60_000;
+/** Zapas na zaokrąglanie zegarów przy rozpoznaniu dokumentu z reloadu. */
+const RELOAD_ANCHOR_SKEW_MS = 2_000;
 const POLL_INTERVAL_MS = 5 * 60_000;
 
 /**
@@ -110,34 +138,48 @@ function isFresh(t: number, now: number): boolean {
   return now - t >= 0 && now - t < RELOAD_GUARD_TTL_MS;
 }
 
-/** Reload wydany przez ten dokument (warstwa a). */
-let lastReload = NaN;
+/** Ten dokument wydał już `location.replace` (warstwa a). */
+let reloadIssued = false;
 
-/** `_v` z adresu, pod którym załadowano dokument (warstwa b, poza historią). */
-function loadedMark(): number {
+/**
+ * `_v` z adresu, pod którym przeglądarka załadowała dokument (wpis nawigacji
+ * w Performance API, poza historią); bez wpisu - z bieżącego adresu.
+ */
+function loadedMark(href: string): number {
   try {
     const entry = performance.getEntriesByType("navigation")[0];
-    return entry ? markTime(entry.name) : NaN;
+    return markTime(entry ? entry.name : href);
   } catch {
     return NaN;
   }
 }
 
 function safeReloadOnce(reason: string): void {
+  // Nawigacja z `replace` jest w toku (albo ją anulowano): drugi `replace`
+  // zacząłby ją od nowa.
+  if (reloadIssued) return;
   const now = Date.now();
   const href = window.location.href;
+  const loaded = loadedMark(href);
+  // Wiek dokumentu (zegar monotoniczny) i odstęp startu jego nawigacji od `_v`.
+  const age = performance.now();
+  const born = now - age - loaded;
   // Już przeładowaliśmy niedawno - błąd jest rzeczywisty, nie stary bundle.
   // Zostawiamy Error Boundary do obsługi.
-  if (isFresh(lastReload, now) || isFresh(markTime(href), now) || isFresh(loadedMark(), now)) {
+  if (
+    (born >= -RELOAD_ANCHOR_SKEW_MS && born < RELOAD_GUARD_TTL_MS && age < RELOAD_ANCHOR_MS) ||
+    isFresh(loaded, now) ||
+    isFresh(markTime(href), now)
+  ) {
     return;
   }
   try {
     if (isFresh(Number(sessionStorage.getItem(RELOAD_GUARD_KEY)), now)) return;
     sessionStorage.setItem(RELOAD_GUARD_KEY, String(now));
   } catch {
-    // Magazyn zablokowany albo pełny: decyzję niesie `_v` w adresie.
+    // Magazyn zablokowany albo pełny: decyzję niesie `_v` w adresie (warstwy b i c).
   }
-  lastReload = now;
+  reloadIssued = true;
   const url = new URL(href);
   url.searchParams.set("_v", now.toString(36));
   if (process.env.NODE_ENV !== "production") {

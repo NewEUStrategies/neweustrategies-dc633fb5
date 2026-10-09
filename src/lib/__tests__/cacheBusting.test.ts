@@ -8,10 +8,12 @@
 //   * za dużo reloadów -> PĘTLA przeładowań, czyli strona nie do użycia.
 // Strażnik przeładowania jest tu jedyną rzeczą, która oddziela jedno od
 // drugiego - i to jego przede wszystkim sprawdzają asercje niżej. Ma warstwy:
-// `sessionStorage`, a gdy magazyn jest zablokowany albo pełny, `?_v=` w adresie
-// (bieżącym i tym, pod którym załadowano dokument). Pętlę widać dopiero na
+// zatrzask na cały dokument, kotwicę dokumentu urodzonego z reloadu (5 min
+// spokoju liczone od startu jego nawigacji), `?_v=` w adresie (bieżącym i tym,
+// pod którym załadowano dokument) oraz `sessionStorage`. Pętlę widać dopiero na
 // DWÓCH dokumentach, więc testy strażnika symulują przeładowanie: świeży import
-// modułu (pamięć modułu znika), adres z `location.replace` i to, co przeżywa
+// modułu (pamięć modułu znika), adres z `location.replace`, nowy start
+// nawigacji (`performance.now()` liczy wiek nowego dokumentu) i to, co przeżywa
 // nawigację w tej samej karcie (`sessionStorage`, jeśli działa).
 //
 // USTALENIE, KTÓRE ZMIENIA ZAKRES TESTU. Zadanie opisywało ten plik jako
@@ -64,14 +66,16 @@ function setLocation(href: string): void {
 }
 
 /**
- * Nowy dokument pod adresem `href`: bieżący adres i wpis nawigacji
- * (Performance API), czyli adres, pod którym przeglądarka go załadowała.
+ * Nowy dokument pod adresem `href`: bieżący adres, wpis nawigacji
+ * (Performance API), czyli adres, pod którym przeglądarka go załadowała, oraz
+ * zegar dokumentu - `performance.now()` liczy od startu jego nawigacji.
  */
-function openDocument(href: string): void {
+function openDocument(href: string, navigationStart = Date.now()): void {
   setLocation(href);
   vi.spyOn(performance, "getEntriesByType").mockImplementation((type) =>
     type === "navigation" ? [{ name: href } as PerformanceEntry] : [],
   );
+  vi.spyOn(performance, "now").mockImplementation(() => Date.now() - navigationStart);
 }
 
 /** Chrome/Firefox/Safari przy zablokowanych cookies: sam dostęp do magazynu rzuca. */
@@ -100,9 +104,33 @@ function fullStorage() {
   return setItem;
 }
 
+/** Firefox z `dom.storage.enabled=false` i część WebView: `sessionStorage === null`. */
+function nullStorage(): void {
+  Object.defineProperty(window, "sessionStorage", { configurable: true, value: null });
+}
+
 /** Adresy, na które moduł kazał przeładować stronę. */
 function reloadedTo(): string[] {
   return replace.mock.calls.map((call) => String(call[0]));
+}
+
+/** Adres ostatniego `location.replace`. */
+function lastReload(): string {
+  return reloadedTo()[reloadedTo().length - 1];
+}
+
+/**
+ * Przeładowanie: nawigacja rusza w chwili wywołania (tuż po `location.replace`),
+ * a przeglądarka otwiera `href` w NOWYM dokumencie po `afterMs`. Pamięć modułu
+ * znika (świeży import), zostaje adres i `sessionStorage`, jeśli działa.
+ */
+async function reloadInto(href: string, afterMs = 3_000): Promise<void> {
+  stop();
+  stop = () => undefined;
+  const navigationStart = Date.now();
+  vi.advanceTimersByTime(afterMs);
+  openDocument(href, navigationStart);
+  await loadModule();
 }
 
 beforeEach(async () => {
@@ -212,11 +240,24 @@ describe("chunk-load error -> twardy reload", () => {
     expect(reloadedTo()).toHaveLength(1);
   });
 
-  it("po wygaśnięciu okienka strażnika przeładowuje ponownie", () => {
-    // Kolejny deploy po kwadransie to nowa sytuacja, nie ta sama pętla.
+  it("ten sam dokument przeładowuje najwyżej raz, także gdy nawigacja wisi dłużej niż okienko", () => {
+    // Zimny SSR na wolnej sieci potrafi odpowiadać dłużej niż 15 s. Drugi
+    // `replace` ze starego dokumentu przerwałby nawigację, która właśnie
+    // odzyskuje stronę, i zaczął ją od nowa.
     stop = startCacheBusting(fakeRouter());
     window.dispatchEvent(new ErrorEvent("error", { error: new Error("ChunkLoadError") }));
     vi.advanceTimersByTime(15_001);
+    window.dispatchEvent(new ErrorEvent("error", { error: new Error("ChunkLoadError") }));
+    expect(reloadedTo()).toHaveLength(1);
+  });
+
+  it("kolejny deploy po wygaśnięciu strażnika znów przeładowuje", async () => {
+    // Kolejny deploy po kwadransie to nowa sytuacja, nie ta sama pętla.
+    stop = startCacheBusting(fakeRouter());
+    window.dispatchEvent(new ErrorEvent("error", { error: new Error("ChunkLoadError") }));
+    await reloadInto(lastReload());
+    vi.advanceTimersByTime(15 * 60_000);
+    stop = startCacheBusting(fakeRouter());
     window.dispatchEvent(new ErrorEvent("error", { error: new Error("ChunkLoadError") }));
     expect(reloadedTo()).toHaveLength(2);
   });
@@ -247,24 +288,6 @@ describe("strażnik bez magazynu: przeładowanie najwyżej raz na okienko", () =
   const CHUNK_ERROR = new TypeError("Failed to fetch dynamically imported module: /assets/x.js");
   const KEY = "__lov_cb_reload";
 
-  /**
-   * Przeładowanie: przeglądarka otwiera `href` w NOWYM dokumencie po `afterMs`.
-   * Pamięć modułu znika (świeży import), zostaje adres i `sessionStorage`,
-   * jeśli działa.
-   */
-  async function reloadInto(href: string, afterMs = 3_000): Promise<void> {
-    stop();
-    stop = () => undefined;
-    vi.advanceTimersByTime(afterMs);
-    openDocument(href);
-    await loadModule();
-  }
-
-  /** Adres ostatniego `location.replace`. */
-  function lastReload(): string {
-    return reloadedTo()[reloadedTo().length - 1];
-  }
-
   it("magazyn zablokowany: ten sam błąd po przeładowaniu już nie przeładowuje", async () => {
     blockStorage();
     handleChunkLoadFailure(CHUNK_ERROR);
@@ -286,22 +309,63 @@ describe("strażnik bez magazynu: przeładowanie najwyżej raz na okienko", () =
     expect(reloadedTo()).toHaveLength(1);
   });
 
-  it("po okienku 15 s kolejny błąd znów przeładowuje - raz na okienko, nie w pętli", async () => {
-    // Kolejny deploy to nowa sytuacja: wygasły znacznik nie może blokować
-    // odzysku na resztę wizyty, choć `_v` zostaje w adresie.
+  it("dokument z naszego reloadu nie przeładowuje się przez 5 min życia, potem odzysk wraca", async () => {
+    // Kolejny deploy to nowa sytuacja: kotwica jest ograniczona wiekiem
+    // dokumentu, więc nie blokuje odzysku na resztę wizyty, choć `_v` zostaje
+    // w adresie. Okno liczy się od startu nawigacji, a nie od błędu.
     blockStorage();
     handleChunkLoadFailure(CHUNK_ERROR);
     await reloadInto(lastReload(), 3_000);
     handleChunkLoadFailure(CHUNK_ERROR);
     expect(reloadedTo()).toHaveLength(1);
 
-    vi.advanceTimersByTime(12_001);
+    vi.advanceTimersByTime(5 * 60_000 - 3_001);
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+
+    vi.advanceTimersByTime(1);
     handleChunkLoadFailure(CHUNK_ERROR);
     expect(reloadedTo()).toHaveLength(2);
 
     await reloadInto(lastReload());
     handleChunkLoadFailure(CHUNK_ERROR);
     expect(reloadedTo()).toHaveLength(2);
+  });
+
+  it.each([
+    { tryb: "działa", przygotuj: () => undefined },
+    { tryb: "zablokowany (dostęp rzuca)", przygotuj: blockStorage },
+    { tryb: "pełny (zapis rzuca)", przygotuj: () => void fullStorage() },
+    { tryb: "wyłączony (`null`)", przygotuj: nullStorage },
+  ])(
+    "magazyn $tryb: błąd trwały później niż 15 s po reloadzie nie daje powolnej pętli",
+    async ({ przygotuj }) => {
+      // Żądanie chunku wiszące do timeoutu proxy albo bardzo wolny boot: błąd
+      // przychodzi po wygaśnięciu znaczników 15 s. Decyduje kotwica dokumentu.
+      przygotuj();
+      handleChunkLoadFailure(CHUNK_ERROR);
+      expect(reloadedTo()).toHaveLength(1);
+
+      await reloadInto(lastReload(), 16_000);
+      handleChunkLoadFailure(CHUNK_ERROR);
+      vi.advanceTimersByTime(44_000);
+      handleChunkLoadFailure(CHUNK_ERROR);
+      vi.advanceTimersByTime(3 * 60_000);
+      handleChunkLoadFailure(CHUNK_ERROR);
+      expect(reloadedTo()).toHaveLength(1);
+    },
+  );
+
+  it("magazyn działa, ale jest czyszczony między dokumentami: ten sam błąd już nie przeładowuje", async () => {
+    // WebView z nową instancją magazynu per nawigacja albo kod, który go
+    // czyści: odczyt i zapis działają, a nowy dokument widzi pusty magazyn.
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+    sessionStorage.clear();
+
+    await reloadInto(lastReload());
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
   });
 
   it("para `error` + `unhandledrejection` w jednym dokumencie daje jedno `location.replace`", () => {
@@ -325,10 +389,23 @@ describe("strażnik bez magazynu: przeładowanie najwyżej raz na okienko", () =
     expect(reloadedTo()).toHaveLength(1);
   });
 
-  it("bez wpisu nawigacji w Performance API (Safari < 15) decyduje bieżący adres", async () => {
+  it.each([
+    { nazwa: "bez wpisu nawigacji w Performance API (Safari < 15)", wpisy: [] },
+    // Wczesne Navigation Timing 2 nazywało wpis „document" zamiast adresu.
+    { nazwa: "wpis nawigacji bez adresu (`document`)", wpisy: [{ name: "document" }] },
+  ])("$nazwa: decyduje `_v` z bieżącego adresu", async ({ wpisy }) => {
     blockStorage();
     handleChunkLoadFailure(CHUNK_ERROR);
     await reloadInto(lastReload());
+    vi.spyOn(performance, "getEntriesByType").mockReturnValue(wpisy as PerformanceEntry[]);
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+  });
+
+  it("bez wpisu nawigacji kotwica czyta `_v` z bieżącego adresu (błąd po 15 s)", async () => {
+    blockStorage();
+    handleChunkLoadFailure(CHUNK_ERROR);
+    await reloadInto(lastReload(), 16_000);
     vi.spyOn(performance, "getEntriesByType").mockReturnValue([]);
     handleChunkLoadFailure(CHUNK_ERROR);
     expect(reloadedTo()).toHaveLength(1);
@@ -337,7 +414,8 @@ describe("strażnik bez magazynu: przeładowanie najwyżej raz na okienko", () =
   const NOW = Date.parse("2026-08-21T10:00:00.000Z");
   it.each([
     { nazwa: "stary (sprzed minuty, zakładka)", v: (NOW - 60_000).toString(36) },
-    { nazwa: "z przyszłości (cudzy zegar)", v: (NOW + 1_000).toString(36) },
+    // Kotwica toleruje 2 s rozjazdu zegarów; cudzy zegar spieszy się bardziej.
+    { nazwa: "z przyszłości (cudzy zegar)", v: (NOW + 60_000).toString(36) },
     { nazwa: "śmieciowy", v: "nie-znacznik" },
     // `parseInt` przeczytałby świeży czas z przedrostka - liczy się tylko
     // dokładnie format, który zapisuje reload.
@@ -373,7 +451,8 @@ describe("strażnik bez magazynu: przeładowanie najwyżej raz na okienko", () =
     handleChunkLoadFailure(CHUNK_ERROR);
     expect(reloadedTo()).toHaveLength(1);
 
-    vi.advanceTimersByTime(1_001);
+    // Dokładnie 15 000 ms po zapisie znacznik już nie jest świeży.
+    vi.advanceTimersByTime(1_000);
     handleChunkLoadFailure(CHUNK_ERROR);
     expect(reloadedTo()).toHaveLength(2);
   });
