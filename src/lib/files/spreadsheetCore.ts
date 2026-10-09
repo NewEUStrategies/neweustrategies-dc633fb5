@@ -1,7 +1,11 @@
 import * as XLSX from "xlsx";
 import type { SheetResult } from "./officeParse";
 import {
+  IMPORT_MAX_COLUMNS,
+  IMPORT_MAX_ROWS,
+  IMPORT_MAX_SHEETS,
   SPREADSHEET_MAX_BYTES,
+  type SpreadsheetBook,
   type SpreadsheetCell,
   type SpreadsheetRequest,
   type SpreadsheetResults,
@@ -38,27 +42,117 @@ export function decodeSpreadsheet(buffer: ArrayBuffer): SheetResult[] {
 }
 
 /**
- * Import danych: surowe komórki każdego arkusza. `cellDates`, bo oś kategorii
- * wykresu potrzebuje daty jako daty, nie numeru dnia Excela; formatowanie
- * komórek do napisów zostaje po stronie strony (`importTable.formatImportedCell`),
- * bo zależy od strefy czasowej przeglądarki, a ta jest w procesie ta sama.
+ * Czy format liczby jest procentowy. Znak „%" w cudzysłowie, po ukośniku
+ * wstecznym albo w nawiasie kwadratowym jest LITERAŁEM - Excel go wypisuje,
+ * ale wartości nie mnoży - więc liczy się tylko „%" poza nimi.
  */
-export function readSpreadsheetRows(buffer: ArrayBuffer): SpreadsheetRows[] {
+export function isPercentFormat(format: string): boolean {
+  return /%/.test(format.replace(/"[^"]*"|\\.|\[[^\]]*\]/g, ""));
+}
+
+/**
+ * Komórka do importu - DWIE poprawki, obie po to, żeby plik i schowek dawały
+ * tę samą liczbę z tej samej komórki.
+ *
+ * PROCENT: komórka „12,5%" ma w pliku wartość 0,125, a w schowku napis
+ * „12,5%", który parser strony czyta jako 12,5 (procent NIE dzieli przez sto -
+ * reguła w `importTable.parseImportedNumber`). Bez tej poprawki ten sam
+ * arkusz dawał 0,125 z pliku i 12,5 z wklejenia. `toPrecision(15)` zdejmuje
+ * ogon binarny (0,07 · 100 = 7,000000000000001).
+ *
+ * BŁĄD: „#N/D!" (`#N/A`) w surowym odczycie zamieniał się w pustą komórkę, czyli
+ * w CICHĄ lukę. Napis błędu jedzie dalej jako tekst, a strona zgłasza go jako
+ * komórkę nieliczbową - dokładnie tak, jak przy wklejeniu.
+ */
+function normaliseImportCell(cell: XLSX.CellObject | undefined): void {
+  if (cell === undefined || cell === null) return;
+  if (cell.t === "n" && typeof cell.v === "number" && typeof cell.z === "string") {
+    if (isPercentFormat(cell.z)) cell.v = Number((cell.v * 100).toPrecision(15));
+  } else if (cell.t === "e") {
+    cell.t = "s";
+    cell.v = cell.w ?? "#ERR";
+  }
+}
+
+function normaliseImportSheet(sheet: XLSX.WorkSheet): void {
+  const dense = sheet["!data"];
+  if (Array.isArray(dense)) {
+    for (const row of dense) if (Array.isArray(row)) row.forEach(normaliseImportCell);
+    return;
+  }
+  for (const key of Object.keys(sheet)) {
+    if (!key.startsWith("!")) normaliseImportCell(sheet[key] as XLSX.CellObject);
+  }
+}
+
+/** Zakres arkusza albo `null` dla arkusza pustego. */
+function rangeOf(ref: unknown): XLSX.Range | null {
+  return typeof ref === "string" && ref !== "" ? XLSX.utils.decode_range(ref) : null;
+}
+
+/**
+ * Import danych: surowe komórki arkuszy, w limitach `IMPORT_MAX_*`.
+ *
+ * `cellDates`, bo oś kategorii wykresu potrzebuje daty jako daty, nie numeru
+ * dnia Excela; formatowanie komórek do napisów zostaje po stronie strony
+ * (`importTable.formatImportedCell`), bo zależy od strefy czasowej
+ * przeglądarki, a ta jest w procesie ta sama. `cellNF` - bo bez formatu nie
+ * da się rozpoznać komórki procentowej. `raw` dotyczy wyłącznie czytników
+ * tekstowych (HTML): bez niego SheetJS zgaduje typy i zamienia „2024-01" na
+ * datę, a „12,5%" na 0,125 BEZ formatu - czyli wbrew regule procentu.
+ *
+ * LIMITY SĄ DOKŁADNE. `sheetRows` ucina odczyt, a pełny zakres zostaje
+ * w `!fullref`; z różnicy wychodzi liczba pominiętych wierszy. Czytniki
+ * tekstowe (HTML, SYLK, DIF) `!fullref` nie ustawiają - gdy taki arkusz
+ * dobił do limitu, rdzeń czyta plik drugi raz bez limitu (format tekstowy
+ * mieści się w limicie bajtów strony), żeby liczba była prawdziwa, a nie
+ * „co najmniej".
+ */
+export function readSpreadsheetRows(buffer: ArrayBuffer): SpreadsheetBook {
   if (buffer.byteLength > SPREADSHEET_MAX_BYTES) throw new Error("spreadsheet:file-limit");
-  const book = XLSX.read(buffer, { type: "array", cellDates: true });
-  const out: SpreadsheetRows[] = [];
-  for (const name of book.SheetNames) {
+  const names = XLSX.read(buffer, { type: "array", bookSheets: true }).SheetNames;
+  const wanted = names.slice(0, IMPORT_MAX_SHEETS);
+  const opts: XLSX.ParsingOptions = {
+    type: "array",
+    cellDates: true,
+    cellNF: true,
+    raw: true,
+    dense: true,
+    sheets: wanted,
+  };
+  const book = XLSX.read(buffer, { ...opts, sheetRows: IMPORT_MAX_ROWS });
+  let unbounded: XLSX.WorkBook | null = null;
+  const sheets: SpreadsheetRows[] = [];
+  for (const name of wanted) {
     const sheet = book.Sheets[name];
     if (sheet === undefined) continue;
+    const read = rangeOf(sheet["!ref"]);
+    let full = rangeOf(sheet["!fullref"]) ?? read;
+    if (read !== null && sheet["!fullref"] === undefined && read.e.r + 1 >= IMPORT_MAX_ROWS) {
+      unbounded ??= XLSX.read(buffer, opts);
+      full = rangeOf(unbounded.Sheets[name]?.["!ref"]) ?? read;
+    }
+    if (read === null || full === null) {
+      sheets.push({ name, rows: [], rowsDropped: 0, columnsDropped: 0 });
+      continue;
+    }
+    const lastColumn = Math.min(read.e.c, read.s.c + IMPORT_MAX_COLUMNS - 1);
+    normaliseImportSheet(sheet);
     const rows = XLSX.utils.sheet_to_json<SpreadsheetCell[]>(sheet, {
       header: 1,
       raw: true,
       defval: null,
       blankrows: false,
+      range: { s: read.s, e: { r: read.e.r, c: lastColumn } },
     });
-    out.push({ name, rows });
+    sheets.push({
+      name,
+      rows,
+      rowsDropped: Math.max(0, full.e.r - read.e.r),
+      columnsDropped: Math.max(0, full.e.c - lastColumn),
+    });
   }
-  return out;
+  return { sheets, sheetsDropped: names.length - wanted.length };
 }
 
 /**

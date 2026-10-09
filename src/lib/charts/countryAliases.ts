@@ -1,0 +1,457 @@
+// Kody i nazwy krajów spoza zasobu geometrii -> kod ISO-2, którym mapa rysuje.
+//
+// SKOROWIDZ Z ZASOBU NIE WYSTARCZA. Zasób geometrii (`public/geo/*.json`) zna
+// jeden kod i dwie nazwy na kraj, a nazwy angielskie są w nim FORMALNE:
+// „Russian Federation", „Moldova, Republic of", „Holy See (Vatican City State)".
+// Tabela z Eurostatu, Banku Światowego albo GUS-u przychodzi z nazwami
+// potocznymi („Russia", „Czechia", „Niderlandy"), z kodami ISO-3 („POL") albo
+// z kodami Eurostatu, które z ISO-2 rozjeżdżają się w dwóch miejscach: Grecja
+// to „EL", Wielka Brytania to „UK". Każdy taki wiersz kończył się jako
+// „nierozpoznany kraj" - albo, bez skorowidza, wchodził jako kod, którego mapa
+// nigdy nie narysuje.
+//
+// ALIAS NIE ZGADUJE. Tabela jest zamknięta i kuratorowana: każda pozycja
+// wskazuje JEDEN kraj zasobu, a bramka (`countryAliases.test.ts`) pilnuje, że
+// cel istnieje w geometrii i że alias nie przykrywa nazwy, którą zasób daje
+// innemu krajowi. Nazwy skrócone rozstrzyga uzus statystyki publicznej:
+// „Congo" bez dopowiedzenia to Republika Konga (krótka nazwa ONZ), „Korea" bez
+// przymiotnika to Korea Południowa. Przypadki sporne („Republika Chińska") są
+// pominięte - wiersz wyjdzie jako nieznany, a to jest zgłoszone, nie zgadnięte.
+//
+// ZASTOSOWANIE ALIASU JEST RAPORTOWANE (`aliasesApplied` w `importTable.ts`):
+// redaktor ma zobaczyć, że „Holland" stało się NL, zanim opublikuje mapę.
+
+/** Normalizacja do porównań: bez ogonków, bez interpunkcji, małymi literami. */
+export function normaliseCountryName(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/ł/g, "l")
+    .replace(/Ł/g, "l")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/**
+ * Klucz aliasu: normalizacja z `normaliseCountryName` plus dwie zamiany, które
+ * w nazwach krajów nie zmieniają znaczenia - „&" czytane jako „and"
+ * („Bosnia & Herzegovina") i początkowe „the" („The Netherlands",
+ * „The Gambia").
+ */
+export function countryAliasKey(raw: string): string {
+  return normaliseCountryName(raw.replace(/&/g, " and ")).replace(/^the /, "");
+}
+
+/**
+ * ISO 3166-1 alpha-3 -> alpha-2 dla KAŻDEGO kraju zasobów geometrii, który
+ * kod alpha-3 ma. Bez pozycji zostały dwa obszary bez kodu ISO: Cypr Północny
+ * (XN) i Somaliland (XS) - zasób nadaje im kody użytkownika. Kosowo (XK) ma
+ * kod użytkownika XKX, którego używają Komisja Europejska i Bank Światowy.
+ * Trzy kody wycofane (ROM, ZAR, TMP) zostały, bo żyją w starszych szeregach.
+ */
+export const ISO3_TO_ISO2: Readonly<Record<string, string>> = {
+  ABW: "AW",
+  AFG: "AF",
+  AGO: "AO",
+  AIA: "AI",
+  ALA: "AX",
+  ALB: "AL",
+  AND: "AD",
+  ARE: "AE",
+  ARG: "AR",
+  ARM: "AM",
+  ASM: "AS",
+  ATF: "TF",
+  ATG: "AG",
+  AUS: "AU",
+  AUT: "AT",
+  AZE: "AZ",
+  BDI: "BI",
+  BEL: "BE",
+  BEN: "BJ",
+  BFA: "BF",
+  BGD: "BD",
+  BGR: "BG",
+  BHR: "BH",
+  BHS: "BS",
+  BIH: "BA",
+  BLM: "BL",
+  BLR: "BY",
+  BLZ: "BZ",
+  BMU: "BM",
+  BOL: "BO",
+  BRA: "BR",
+  BRB: "BB",
+  BRN: "BN",
+  BTN: "BT",
+  BWA: "BW",
+  CAF: "CF",
+  CAN: "CA",
+  CHE: "CH",
+  CHL: "CL",
+  CHN: "CN",
+  CIV: "CI",
+  CMR: "CM",
+  COD: "CD",
+  COG: "CG",
+  COK: "CK",
+  COL: "CO",
+  COM: "KM",
+  CPV: "CV",
+  CRI: "CR",
+  CUB: "CU",
+  CUW: "CW",
+  CYM: "KY",
+  CYP: "CY",
+  CZE: "CZ",
+  DEU: "DE",
+  DJI: "DJ",
+  DMA: "DM",
+  DNK: "DK",
+  DOM: "DO",
+  DZA: "DZ",
+  ECU: "EC",
+  EGY: "EG",
+  ERI: "ER",
+  ESH: "EH",
+  ESP: "ES",
+  EST: "EE",
+  ETH: "ET",
+  FIN: "FI",
+  FJI: "FJ",
+  FLK: "FK",
+  FRA: "FR",
+  FRO: "FO",
+  FSM: "FM",
+  GAB: "GA",
+  GBR: "GB",
+  GEO: "GE",
+  GGY: "GG",
+  GHA: "GH",
+  GIN: "GN",
+  GMB: "GM",
+  GNB: "GW",
+  GNQ: "GQ",
+  GRC: "GR",
+  GRD: "GD",
+  GRL: "GL",
+  GTM: "GT",
+  GUM: "GU",
+  GUY: "GY",
+  HKG: "HK",
+  HND: "HN",
+  HRV: "HR",
+  HTI: "HT",
+  HUN: "HU",
+  IDN: "ID",
+  IMN: "IM",
+  IND: "IN",
+  IOT: "IO",
+  IRL: "IE",
+  IRN: "IR",
+  IRQ: "IQ",
+  ISL: "IS",
+  ISR: "IL",
+  ITA: "IT",
+  JAM: "JM",
+  JEY: "JE",
+  JOR: "JO",
+  JPN: "JP",
+  KAZ: "KZ",
+  KEN: "KE",
+  KGZ: "KG",
+  KHM: "KH",
+  KIR: "KI",
+  KNA: "KN",
+  KOR: "KR",
+  KWT: "KW",
+  LAO: "LA",
+  LBN: "LB",
+  LBR: "LR",
+  LBY: "LY",
+  LCA: "LC",
+  LIE: "LI",
+  LKA: "LK",
+  LSO: "LS",
+  LTU: "LT",
+  LUX: "LU",
+  LVA: "LV",
+  MAC: "MO",
+  MAF: "MF",
+  MAR: "MA",
+  MCO: "MC",
+  MDA: "MD",
+  MDG: "MG",
+  MDV: "MV",
+  MEX: "MX",
+  MHL: "MH",
+  MKD: "MK",
+  MLI: "ML",
+  MLT: "MT",
+  MMR: "MM",
+  MNE: "ME",
+  MNG: "MN",
+  MNP: "MP",
+  MOZ: "MZ",
+  MRT: "MR",
+  MSR: "MS",
+  MUS: "MU",
+  MWI: "MW",
+  MYS: "MY",
+  NAM: "NA",
+  NCL: "NC",
+  NER: "NE",
+  NFK: "NF",
+  NGA: "NG",
+  NIC: "NI",
+  NIU: "NU",
+  NLD: "NL",
+  NOR: "NO",
+  NPL: "NP",
+  NRU: "NR",
+  NZL: "NZ",
+  OMN: "OM",
+  PAK: "PK",
+  PAN: "PA",
+  PCN: "PN",
+  PER: "PE",
+  PHL: "PH",
+  PLW: "PW",
+  PNG: "PG",
+  POL: "PL",
+  PRI: "PR",
+  PRK: "KP",
+  PRT: "PT",
+  PRY: "PY",
+  PSE: "PS",
+  PYF: "PF",
+  QAT: "QA",
+  ROU: "RO",
+  RUS: "RU",
+  RWA: "RW",
+  SAU: "SA",
+  SDN: "SD",
+  SEN: "SN",
+  SGP: "SG",
+  SGS: "GS",
+  SHN: "SH",
+  SLB: "SB",
+  SLE: "SL",
+  SLV: "SV",
+  SMR: "SM",
+  SOM: "SO",
+  SPM: "PM",
+  SRB: "RS",
+  SSD: "SS",
+  STP: "ST",
+  SUR: "SR",
+  SVK: "SK",
+  SVN: "SI",
+  SWE: "SE",
+  SWZ: "SZ",
+  SXM: "SX",
+  SYC: "SC",
+  SYR: "SY",
+  TCA: "TC",
+  TCD: "TD",
+  TGO: "TG",
+  THA: "TH",
+  TJK: "TJ",
+  TKM: "TM",
+  TLS: "TL",
+  TON: "TO",
+  TTO: "TT",
+  TUN: "TN",
+  TUR: "TR",
+  TWN: "TW",
+  TZA: "TZ",
+  UGA: "UG",
+  UKR: "UA",
+  URY: "UY",
+  USA: "US",
+  UZB: "UZ",
+  VAT: "VA",
+  VCT: "VC",
+  VEN: "VE",
+  VGB: "VG",
+  VIR: "VI",
+  VNM: "VN",
+  VUT: "VU",
+  WLF: "WF",
+  WSM: "WS",
+  XKX: "XK",
+  YEM: "YE",
+  ZAF: "ZA",
+  ZMB: "ZM",
+  ZWE: "ZW",
+  // Kody wycofane, wciąż obecne w starszych szeregach statystycznych.
+  ROM: "RO",
+  TMP: "TL",
+  ZAR: "CD",
+};
+
+/**
+ * Kody DWULITEROWE spoza ISO-2, które statystyka publiczna stosuje naprawdę:
+ * Eurostat pisze Grecję jako „EL", a Wielką Brytanię jako „UK". Bez tej
+ * tabeli import BEZ skorowidza przepuszczał „EL" jako poprawny kod - mapa
+ * dostawała daną, której nigdy nie narysuje.
+ */
+export const CODE_ALIASES: Readonly<Record<string, string>> = {
+  EL: "GR",
+  UK: "GB",
+};
+
+/**
+ * Nazwy zastępcze -> ISO-2. Klucze są już w postaci `countryAliasKey`
+ * (bramka sprawdza, że normalizacja niczego w nich nie zmienia). Nazwy, które
+ * zasób zna sam (pl i en), tu NIE wchodzą - rozwiązuje je skorowidz zasobu.
+ */
+const NAME_ALIASES: ReadonlyMap<string, string> = new Map([
+  // Angielskie nazwy potoczne i krótkie.
+  ["russia", "RU"],
+  ["czechia", "CZ"],
+  ["czech rep", "CZ"],
+  ["turkey", "TR"],
+  ["north macedonia", "MK"],
+  ["macedonia", "MK"],
+  ["fyrom", "MK"],
+  ["former yugoslav republic of macedonia", "MK"],
+  ["moldova", "MD"],
+  ["republic of moldova", "MD"],
+  ["vatican", "VA"],
+  ["vatican city", "VA"],
+  ["holy see", "VA"],
+  ["holland", "NL"],
+  ["great britain", "GB"],
+  ["britain", "GB"],
+  ["u k", "GB"],
+  ["united kingdom of great britain and northern ireland", "GB"],
+  ["united states", "US"],
+  ["u s", "US"],
+  ["u s a", "US"],
+  ["korea", "KR"],
+  ["republic of korea", "KR"],
+  ["korea republic of", "KR"],
+  ["korea rep", "KR"],
+  ["korea south", "KR"],
+  ["dprk", "KP"],
+  ["democratic people s republic of korea", "KP"],
+  ["korea dem people s rep", "KP"],
+  ["korea democratic people s republic of", "KP"],
+  ["korea north", "KP"],
+  ["iran", "IR"],
+  ["iran islamic republic of", "IR"],
+  ["iran islamic rep", "IR"],
+  ["syria", "SY"],
+  ["laos", "LA"],
+  ["lao pdr", "LA"],
+  ["viet nam", "VN"],
+  ["brunei", "BN"],
+  ["tanzania", "TZ"],
+  ["tanzania united republic of", "TZ"],
+  ["taiwan", "TW"],
+  ["china", "CN"],
+  ["prc", "CN"],
+  ["ivory coast", "CI"],
+  ["cabo verde", "CV"],
+  ["swaziland", "SZ"],
+  ["burma", "MM"],
+  ["east timor", "TL"],
+  ["micronesia", "FM"],
+  ["micronesia fed sts", "FM"],
+  ["gambia", "GM"],
+  ["gambia the", "GM"],
+  ["bahamas the", "BS"],
+  ["congo", "CG"],
+  ["republic of congo", "CG"],
+  ["congo rep", "CG"],
+  ["congo brazzaville", "CG"],
+  ["dr congo", "CD"],
+  ["drc", "CD"],
+  ["congo dem rep", "CD"],
+  ["congo kinshasa", "CD"],
+  ["democratic republic of congo", "CD"],
+  ["congo democratic republic of the", "CD"],
+  ["bosnia", "BA"],
+  ["bosnia herzegovina", "BA"],
+  ["egypt arab rep", "EG"],
+  ["venezuela rb", "VE"],
+  ["venezuela bolivarian republic of", "VE"],
+  ["bolivia plurinational state of", "BO"],
+  ["yemen rep", "YE"],
+  ["hong kong sar", "HK"],
+  ["hong kong sar china", "HK"],
+  ["macau", "MO"],
+  ["macao sar china", "MO"],
+  ["slovak republic", "SK"],
+  ["kyrgyz republic", "KG"],
+  ["palestine", "PS"],
+  ["west bank and gaza", "PS"],
+  ["st lucia", "LC"],
+  ["st kitts and nevis", "KN"],
+  ["st vincent and the grenadines", "VC"],
+  ["uae", "AE"],
+  ["falkland islands", "FK"],
+  ["british virgin islands", "VG"],
+  ["us virgin islands", "VI"],
+  ["u s virgin islands", "VI"],
+  ["united states virgin islands", "VI"],
+  ["saint martin", "MF"],
+  ["luxemburg", "LU"],
+  ["federal republic of germany", "DE"],
+  // Polskie nazwy zastępcze, urzędowe i skrótowce.
+  ["republika czeska", "CZ"],
+  ["niderlandy", "NL"],
+  ["krolestwo niderlandow", "NL"],
+  ["federacja rosyjska", "RU"],
+  ["zjednoczone krolestwo", "GB"],
+  ["wielka brytania i irlandia polnocna", "GB"],
+  ["zjednoczone krolestwo wielkiej brytanii i irlandii polnocnej", "GB"],
+  ["stany zjednoczone ameryki", "US"],
+  ["republika macedonii polnocnej", "MK"],
+  ["republika moldawii", "MD"],
+  ["moldowa", "MD"],
+  ["panstwo watykanskie", "VA"],
+  ["stolica apostolska", "VA"],
+  ["korea pld", "KR"],
+  ["republika korei", "KR"],
+  ["korea pln", "KP"],
+  ["koreanska republika ludowo demokratyczna", "KP"],
+  ["krld", "KP"],
+  ["chinska republika ludowa", "CN"],
+  ["chrl", "CN"],
+  ["rpa", "ZA"],
+  ["republika poludniowej afryki", "ZA"],
+  ["zea", "AE"],
+  ["birma", "MM"],
+  ["suazi", "SZ"],
+  ["wyspy zielonego przyladka", "CV"],
+  ["zielony przyladek", "CV"],
+  ["republika konga", "CG"],
+  ["kongo brazzaville", "CG"],
+  ["dr konga", "CD"],
+  ["drk", "CD"],
+  ["kongo kinszasa", "CD"],
+  ["autonomia palestynska", "PS"],
+  ["kirgizja", "KG"],
+  ["makao", "MO"],
+]);
+
+/** Wszystkie klucze tabeli nazw - dla bramki, nie dla logiki. */
+export function countryNameAliases(): ReadonlyMap<string, string> {
+  return NAME_ALIASES;
+}
+
+/**
+ * Kod ISO-2 dla etykiety, której skorowidz zasobu nie zna: kod Eurostatu,
+ * kod ISO-3 albo nazwa zastępcza. `null`, gdy żadna tabela jej nie zna -
+ * wtedy wołający zgłasza nieznany kraj, a nie zgaduje.
+ */
+export function resolveCountryAlias(label: string): string | null {
+  const upper = label.trim().toUpperCase();
+  const code = Object.hasOwn(CODE_ALIASES, upper) ? CODE_ALIASES[upper] : undefined;
+  if (code !== undefined) return code;
+  if (/^[A-Z]{3}$/.test(upper) && Object.hasOwn(ISO3_TO_ISO2, upper)) return ISO3_TO_ISO2[upper];
+  return NAME_ALIASES.get(countryAliasKey(label)) ?? null;
+}

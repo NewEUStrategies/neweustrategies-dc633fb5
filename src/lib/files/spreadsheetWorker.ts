@@ -4,8 +4,8 @@ import {
   type SpreadsheetOp,
   type SpreadsheetRequest,
   type SpreadsheetResponse,
+  type SpreadsheetBook,
   type SpreadsheetResults,
-  type SpreadsheetRows,
   type WritableCell,
 } from "./spreadsheetProtocol";
 
@@ -71,11 +71,11 @@ export function runSpreadsheetWorker(
   return callSpreadsheetWorker({ op: "preview", buffer }, signal);
 }
 
-/** Import danych wykresu i mapy: surowe komórki wszystkich arkuszy. */
+/** Import danych wykresu i mapy: surowe komórki arkuszy z liczbami pominiętych za limitem. */
 export function readSpreadsheetRowsInWorker(
   buffer: ArrayBuffer,
   signal?: AbortSignal,
-): Promise<SpreadsheetRows[]> {
+): Promise<SpreadsheetBook> {
   return callSpreadsheetWorker({ op: "rows", buffer }, signal);
 }
 

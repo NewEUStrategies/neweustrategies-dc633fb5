@@ -166,9 +166,9 @@ const pl = {
         button: "Importuj z pliku",
         areaTitle: "Dane z pliku",
         hintChart:
-          "xlsx, csv, tsv, ods - pierwszy wiersz to nazwy serii, pierwsza kolumna to kategorie",
+          "xlsx, xls, ods, csv, tsv i inne arkusze - pierwszy wiersz to nazwy serii, pierwsza kolumna to kategorie",
         hintMap:
-          "xlsx, csv, tsv, ods - pierwsza kolumna to kraj (kod ISO-2 albo nazwa), druga to wartość",
+          "xlsx, xls, ods, csv, tsv i inne arkusze - pierwsza kolumna to kraj (kod ISO-2, ISO-3 albo nazwa), druga to wartość",
         chooseSheet: "Skoroszyt ma kilka arkuszy - wybierz jeden:",
         sheetRows: "{{count}} wierszy",
         ok: "Wczytano dane z pliku.",
@@ -184,6 +184,23 @@ const pl = {
         pDuplicateCountries: "Kraje powtórzone (zostało pierwsze wystąpienie): {{labels}}.",
         pLabelsAdjusted:
           "{{count}} etykiet zawierało średnik albo złamanie wiersza - zamienione, bo ten format ich nie uniesie.",
+        pHeaderAssumed:
+          "Nie rozpoznano wiersza nagłówka - pierwszy wiersz wczytano jako dane, a serie ponumerowano.",
+        pColumnsIgnored: "Pominięto kolumny z liczbami: {{labels}} - mapa pokazuje jedną kolumnę.",
+        pAliasesApplied: "Kraje rozpoznane po nazwie zastępczej albo kodzie: {{labels}}.",
+        pDataFlags:
+          "{{count}} wartości miało flagi statystyczne (np. p, e) - flagi usunięto, liczby zostały.",
+        pEncodingFallback:
+          "Plik nie był zapisany w UTF-8 - odczytano go jako Windows-1250. Sprawdź polskie znaki w etykietach.",
+        pLocaleAmbiguous:
+          "{{count}} liczb ma jeden rozdzielacz, a po nim trzy cyfry (np. 1,234) - odczytano go jako znak dziesiętny. Jeśli to rozdzielacz tysięcy, wybierz format liczb.",
+        pCellsTruncatedRows: "Arkusz przekracza limit odczytu - pominięto {{count}} wierszy.",
+        pCellsTruncatedColumns: "Arkusz przekracza limit odczytu - pominięto {{count}} kolumn.",
+        pCellsTruncatedBoth:
+          "Arkusz przekracza limit odczytu - pominięto {{rows}} wierszy i {{columns}} kolumn.",
+        pSheetsTruncated:
+          "Skoroszyt ma więcej arkuszy niż limit - pominięto {{count}} ostatnich arkuszy.",
+        pPasteTruncated: "Wklejone dane przekraczają limit - wczytano tylko ich początek.",
       },
       conversionBlocks: {
         sectionTitle: "Tytuł sekcji (opcjonalnie)",
@@ -1100,9 +1117,9 @@ const en: typeof pl = {
         button: "Import from file",
         areaTitle: "Data from a file",
         hintChart:
-          "xlsx, csv, tsv, ods - first row holds series names, first column holds categories",
+          "xlsx, xls, ods, csv, tsv and other spreadsheets - first row holds series names, first column holds categories",
         hintMap:
-          "xlsx, csv, tsv, ods - first column is the country (ISO-2 code or name), second is the value",
+          "xlsx, xls, ods, csv, tsv and other spreadsheets - first column is the country (ISO-2 code, ISO-3 code or name), second is the value",
         chooseSheet: "The workbook has several sheets - pick one:",
         sheetRows: "{{count}} rows",
         ok: "Data loaded from the file.",
@@ -1118,6 +1135,25 @@ const en: typeof pl = {
         pDuplicateCountries: "Duplicate countries (the first occurrence was kept): {{labels}}.",
         pLabelsAdjusted:
           "{{count}} labels contained a semicolon or line break - replaced, because this format cannot carry them.",
+        pHeaderAssumed:
+          "No header row was recognised - the first row was read as data and the series were numbered.",
+        pColumnsIgnored:
+          "Columns with numbers were ignored: {{labels}} - the map shows one column.",
+        pAliasesApplied: "Countries recognised by an alternative name or code: {{labels}}.",
+        pDataFlags:
+          "{{count}} values carried statistical flags (e.g. p, e) - the flags were removed and the numbers kept.",
+        pEncodingFallback:
+          "The file was not saved in UTF-8 - it was read as Windows-1250. Check accented characters in the labels.",
+        pLocaleAmbiguous:
+          "{{count}} numbers have a single separator followed by three digits (e.g. 1,234) - it was read as the decimal mark. If it separates thousands, choose the number format.",
+        pCellsTruncatedRows: "The sheet exceeds the read limit - {{count}} rows were dropped.",
+        pCellsTruncatedColumns:
+          "The sheet exceeds the read limit - {{count}} columns were dropped.",
+        pCellsTruncatedBoth:
+          "The sheet exceeds the read limit - {{rows}} rows and {{columns}} columns were dropped.",
+        pSheetsTruncated:
+          "The workbook has more sheets than the limit - the last {{count}} sheets were dropped.",
+        pPasteTruncated: "The pasted data exceeds the limit - only its beginning was read.",
       },
       conversionBlocks: {
         sectionTitle: "Section title (optional)",

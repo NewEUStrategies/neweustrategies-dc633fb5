@@ -69,6 +69,29 @@ function problemText(
       return tr("pDuplicateCountries", { labels: p.labels.join(", ") });
     case "labelsAdjusted":
       return tr("pLabelsAdjusted", { count: p.count });
+    case "headerAssumed":
+      return tr("pHeaderAssumed");
+    case "columnsIgnored":
+      return tr("pColumnsIgnored", { labels: p.labels.join(", ") });
+    case "aliasesApplied":
+      return tr("pAliasesApplied", { labels: p.labels.join(", ") });
+    case "dataFlags":
+      return tr("pDataFlags", { count: p.count });
+    case "encodingFallback":
+      return tr("pEncodingFallback");
+    case "localeAmbiguous":
+      return tr("pLocaleAmbiguous", { count: p.count });
+    case "cellsTruncated":
+      if (p.rows > 0 && p.columns > 0) {
+        return tr("pCellsTruncatedBoth", { rows: p.rows, columns: p.columns });
+      }
+      return p.rows > 0
+        ? tr("pCellsTruncatedRows", { count: p.rows })
+        : tr("pCellsTruncatedColumns", { count: p.columns });
+    case "sheetsTruncated":
+      return tr("pSheetsTruncated", { count: p.dropped });
+    case "pasteTruncated":
+      return tr("pPasteTruncated");
   }
 }
 

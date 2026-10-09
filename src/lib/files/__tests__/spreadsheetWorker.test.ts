@@ -99,19 +99,24 @@ describe("spreadsheet worker lifecycle", () => {
 });
 
 describe("chart import through the same worker", () => {
-  it("sends the file bytes and returns the raw rows of every sheet", async () => {
+  it("sends the file bytes and returns the raw rows of every sheet with the truncation counts", async () => {
     const buffer = new ArrayBuffer(8);
     const promise = readSpreadsheetRowsInWorker(buffer);
     expect(FakeWorker.latest.postMessage).toHaveBeenCalledWith({ op: "rows", buffer });
-    const result = [
-      {
-        name: "Data",
-        rows: [
-          ["Country", "Value"],
-          ["PL", 42],
-        ],
-      },
-    ];
+    const result = {
+      sheets: [
+        {
+          name: "Data",
+          rows: [
+            ["Country", "Value"],
+            ["PL", 42],
+          ],
+          rowsDropped: 3,
+          columnsDropped: 0,
+        },
+      ],
+      sheetsDropped: 1,
+    };
     FakeWorker.latest.onmessage?.({ data: { ok: true, result } });
     await expect(promise).resolves.toEqual(result);
     expect(FakeWorker.latest.terminate).toHaveBeenCalledOnce();
