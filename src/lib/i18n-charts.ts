@@ -952,7 +952,6 @@ const pl = {
     },
     series: {
       // Kreskowanie serii poza zestawem bezpiecznym dla daltonizmu.
-      patternHint: "seria oznaczona kreskowaniem",
     },
     metric: {
       open: "Wyjaśnij wskaźnik {{name}}",
@@ -1050,7 +1049,6 @@ const pl = {
       band: "Pasmo i cel",
       bandText:
         "Jasnopomarańczowe pasmo to przedział uznany za normę - jego źródło podaje przypis. Przerywana pozioma linia to cel.",
-      bandNone: "Wykres nie ma przedziału ze źródłem, więc wyniki nie są oceniane względem normy.",
       interactions: "Interakcje",
       interactionsText:
         "Najedź na wykres, aby zobaczyć wartości wszystkich serii w punkcie osi. Kliknij pozycję legendy, aby ukryć albo pokazać serię. Kliknij punkt, aby otworzyć definicję wskaźnika. Strzałki przesuwają aktywny punkt, Escape zamyka okna i tooltip.",
@@ -1077,7 +1075,6 @@ const pl = {
       copied: "Skopiowano link",
       published: "Data publikacji",
       accessed: "Data dostępu",
-      bibliography: "Bibliografia",
     },
     zoom: {
       slider: "Zakres osi: {{from}} - {{to}}",
@@ -1797,7 +1794,6 @@ const en = {
         "The components ({{sum}}) do not add up to the change between states ({{delta}}) - the bridge is incomplete.",
     },
     series: {
-      patternHint: "series marked with a dashed stroke",
     },
     metric: {
       open: "Explain the {{name}} metric",
@@ -1893,7 +1889,6 @@ const en = {
       band: "Range and target",
       bandText:
         "The light orange band is the range regarded as normal - its source is given in the footnote. The dashed horizontal line is the target.",
-      bandNone: "This chart has no sourced range, so results are not assessed against a norm.",
       interactions: "Interaction",
       interactionsText:
         "Hover over the chart to see every series at that point on the axis. Click a legend entry to hide or show a series. Click a point to open the metric definition. Arrow keys move the active point, Escape closes dialogs and the tooltip.",
@@ -1920,7 +1915,6 @@ const en = {
       copied: "Link copied",
       published: "Published",
       accessed: "Accessed",
-      bibliography: "Bibliography",
     },
     zoom: {
       slider: "Axis range: {{from}} - {{to}}",
