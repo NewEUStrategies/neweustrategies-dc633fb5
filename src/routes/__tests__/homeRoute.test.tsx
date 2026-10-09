@@ -241,8 +241,11 @@ vi.mock("@/components/ads/useInFeedAds", () => ({ useInFeedAds: () => () => null
 vi.mock("@/components/AdSlot", () => ({ AdZone: () => null, AdSlotView: () => null }));
 vi.mock("@/components/NewsletterForm", () => ({ NewsletterForm: () => null }));
 
-const { renderRoute, routeMeta, routeSearchValidator } = await import("@/test/routeHarness");
+const { renderRoute, routeHead, routeMeta, routeSearchValidator } =
+  await import("@/test/routeHarness");
 const { Route: HomeRoute } = await import("@/routes/index");
+const { heroPreloadsFor } = await import("@/lib/builder/heroPreloadStore");
+const { parseSeoSettings } = await import("@/lib/seo/settings");
 
 /** Adres w kształcie storage Supabase - tylko dla takiego powstaje srcSet. */
 const COVER = "https://przyklad.supabase.co/storage/v1/object/public/media/okladka.jpg";
@@ -591,6 +594,42 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     expect(types).toEqual(["NewsMediaOrganization", "WebSite", "ItemList"]);
   });
 
+  // DIETA ŁADUNKU ROUTERA (P3.7b, T5 + T6). Dane loadera jadą w `$tsr` każdego
+  // dokumentu: `seoSettings` ma być TĄ SAMĄ referencją co `seo` w zapytaniu
+  // ustawień (seroval emituje wtedy odwołanie zamiast kopii), a preloady
+  // kandydatów LCP w ogóle tam nie jadą (magazyn żądania).
+  it("T5: `seoSettings` loadera to ta sama referencja co `seo` w cache; JSON-LD bez zmian", async () => {
+    const seo = {
+      organization_same_as: ["https://x.example/nes", "https://y.example/nes"],
+      publisher_logo_url: "https://cdn.example/logo.png",
+    };
+    h.settings = { ...h.settings, seo };
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const loader = HomeRoute.options.loader as unknown as (args: {
+      context: { queryClient: QueryClient };
+      deps: { page: number };
+    }) => Promise<Record<string, unknown>>;
+    const data = await loader({ context: { queryClient }, deps: { page: 1 } });
+    const cached = queryClient.getQueryData<Record<string, unknown>>(["site-settings"]);
+    expect(data.seoSettings).toBe(cached?.seo);
+    expect(data).not.toHaveProperty("heroPreloads");
+    // `head()` parsuje surowe `seo` - JSON-LD bajtowo równy wersji sprzed zmiany
+    // (loader oddawał już sparsowany obiekt).
+    const raw = routeHead(HomeRoute, { loaderData: data });
+    const parsed = routeHead(HomeRoute, {
+      loaderData: { ...data, seoSettings: parseSeoSettings(seo) },
+    });
+    expect(raw.scripts).toEqual(parsed.scripts);
+    expect(JSON.stringify(raw.scripts)).toContain("https://y.example/nes");
+    expect(JSON.stringify(raw.scripts)).toContain("https://cdn.example/logo.png");
+    // Brak ustawień (zasiew awaryjny): te same domyślne co dawniej.
+    const none = routeHead(HomeRoute, { loaderData: { ...data, seoSettings: undefined } });
+    const defaults = routeHead(HomeRoute, {
+      loaderData: { ...data, seoSettings: parseSeoSettings(null) },
+    });
+    expect(none.scripts).toEqual(defaults.scripts);
+  });
+
   it("BEZ originu w adresie żądania warstwa encji wypada CAŁA, nie po kawałku", async () => {
     // Render bez kontekstu żądania (prerender bez hosta): absolutne adresy encji
     // byłyby zmyślone, a zmyślony `@id` psuje graf wiedzy trwale.
@@ -680,6 +719,17 @@ describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
     ).toHaveLength(1);
     // Nagłówek `Link` (103 Early Hints na brzegu) karmiony TYM SAMYM kandydatem.
     const header = h.linkHeaders.find((value) => value.includes(src));
+    // P3.7b, T6: deskryptor w magazynie żądania (czyta go komponent), NIE
+    // w danych loadera - te jadą w `$tsr` każdego dokumentu.
+    const stored = heroPreloadsFor(view.queryClient);
+    expect(stored).toHaveLength(1);
+    expect(stored?.[0]?.href).toBe(src);
+    expect(link?.getAttribute("imagesrcset")).toBe(stored?.[0]?.imageSrcSet);
+    // KRYTYKA P3.7b: predykat kompletności P3.6b czyta wyłącznie cache zapytań -
+    // przeniesienie preloadów do magazynu żądania nie zmienia werdyktu zapisu:
+    // strona główna z kandydatem LCP nadal trafia do cache dokumentu.
+    const [check] = h.completenessChecks as Array<() => { complete: boolean; reasons: string[] }>;
+    expect(check()).toEqual({ complete: true, reasons: [] });
     // Kontrola pozytywna licznika z testu nawigacji SPA niżej.
     expect(h.heroPreloadCalls).toBeGreaterThan(0);
     expect(header).toContain('rel="preload"');

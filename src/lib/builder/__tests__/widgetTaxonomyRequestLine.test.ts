@@ -126,6 +126,7 @@ const WIDGETS: readonly WidgetCase[] = [
             excludeTagsCsv: "archiwum",
           },
           "pl",
+          "list",
         ),
       )(),
   },

@@ -15,6 +15,11 @@ import { LazyFriendlyErrorPage } from "./components/error/LazyFriendlyErrorPage"
 import { errorCopy } from "./lib/errorCopy";
 import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
 import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
+import {
+  compactDehydratedState,
+  expandRouterDehydrated,
+  mapQueryStream,
+} from "./lib/ssr/dehydratedQueryEnvelope";
 import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
 import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
 import { injectBootSet, type BootRouterLike } from "./lib/boot/bootSet.server";
@@ -249,10 +254,22 @@ export const getRouter = () => {
 
       const dehydrated = (await integrationDehydrate?.()) as
         (Record<string, unknown> & { queryStream?: ReadableStream<unknown> }) | undefined;
+      // KOMPAKTOWA KOPERTA (P3.7b, T1; `lib/ssr/dehydratedQueryEnvelope.ts`): bariera
+      // i każda porcja strumienia jadą bez `queryHash` i bez stałego ogona stanu,
+      // a klient odtwarza je przed `hydrate` (gałąź klienta niżej). Strumień
+      // kompaktujemy ZA strażnikiem - strażnik zostaje nietknięty i dalej domyka
+      // strumień integracji, a integracja zapisała już hashe oryginałów
+      // w `sentQueries` (kopie, nie mutacja).
       if (dehydrated?.queryStream) {
-        dehydrated.queryStream = guardQueryStream(dehydrated.queryStream, queryClient, {
-          label: router.state.location.pathname,
-        });
+        dehydrated.queryStream = mapQueryStream(
+          guardQueryStream(dehydrated.queryStream, queryClient, {
+            label: router.state.location.pathname,
+          }),
+          compactDehydratedState,
+        );
+      }
+      if (dehydrated?.dehydratedQueryClient !== undefined) {
+        dehydrated.dehydratedQueryClient = compactDehydratedState(dehydrated.dehydratedQueryClient);
       }
 
       return dehydrated;
@@ -314,7 +331,13 @@ export const getRouter = () => {
       // a nie literałem i szpiegowaniem globalnej konsoli. Zachowanie
       // produkcyjne bez zmian. Tam też jest zapisane, czego ten bezpiecznik
       // w obecnej wersji integracji NIE ŚCINA (zmierzone).
-      await withHydrateBudget(integrationHydrate?.(dehydrated), { label: "router-hydrate" });
+      //
+      // Koperta zapytań przychodzi kompaktowa (P3.7b, T1): `expandRouterDehydrated`
+      // odtwarza `queryHash` i stały ogon stanu bariery oraz każdej porcji
+      // strumienia, zanim zobaczy je `hydrate` integracji.
+      await withHydrateBudget(integrationHydrate?.(expandRouterDehydrated(dehydrated)), {
+        label: "router-hydrate",
+      });
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
       // Makrozadanie 2: chunki tras; makrozadanie 3: reszta hydratacji routera.
       prewarmRouteChunks();

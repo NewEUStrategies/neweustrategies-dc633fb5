@@ -4,6 +4,7 @@ import type { WidgetContent } from "@/lib/builder/types";
 import { asBool, asNum, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { authorDisplayMode, type AuthorDisplayMode } from "@/lib/builder/authorDisplay";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
+import { postListRendersExcerpt, type PostListSurface } from "@/lib/builder/postListExcerpt";
 import { edgeTtlCache } from "@/lib/ssrCache";
 import {
   postsConstrainedByTaxonomy,
@@ -129,7 +130,14 @@ interface PostListInput {
   includeIds: string[];
   excludeIds: string[];
   lang: Lang;
+  /** Czy widget RENDERUJE zajawkę (P3.7b, T2; `postListRendersExcerpt`). W kluczu,
+   *  bo decyduje o kształcie wiersza; poza kluczem cache brzegowego (niżej). */
+  withExcerpt: boolean;
 }
+
+/** Wejście pobrania wierszy: bez `withExcerpt`, więc widgety z różnym przełącznikiem
+ *  dzielą jeden wpis `edgeTtlCache` (w cache brzegowym leży pełny wiersz). */
+type PostListFetchInput = Omit<PostListInput, "withExcerpt">;
 
 // Extra rows fetched when a widget opts into uniqueOnPage, so that after the
 // client filters out posts already shown by earlier widgets there are still
@@ -178,7 +186,11 @@ function wantsUniqueOnPage(c: WidgetContent): boolean {
   return asBool(c["uniqueOnPage"], false);
 }
 
-export function postListInput(c: WidgetContent, lang: Lang): PostListInput {
+export function postListInput(
+  c: WidgetContent,
+  lang: Lang,
+  surface: PostListSurface = "list",
+): PostListInput {
   const displayLimit = postListDisplayLimit(c);
   // Over-fetch when uniqueOnPage so the client-side de-dup (which removes posts
   // already shown by earlier widgets) can still fill the grid. The fetch size is
@@ -208,6 +220,7 @@ export function postListInput(c: WidgetContent, lang: Lang): PostListInput {
     includeIds: csv(c, "includeIdsCsv"),
     excludeIds: csv(c, "excludeIdsCsv"),
     lang,
+    withExcerpt: postListRendersExcerpt(c, surface),
   };
 }
 
@@ -303,7 +316,7 @@ async function fetchPopularPostIds(
 const POST_LIST_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate";
 
-async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
+async function fetchPostListRows(input: PostListFetchInput): Promise<PostRow[]> {
   // Ranking popularności nie zależy od taksonomii, więc RPC biegnie w TEJ SAMEJ
   // fali co odczyt słowników - jedna fala round-tripów mniej przed zapytaniem
   // o wpisy.
@@ -341,7 +354,7 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
     : null;
 
   let popularIds: string[] | null = null;
-  let effectiveOrderBy: PostListInput["orderByRaw"] = input.orderByRaw;
+  let effectiveOrderBy: PostListFetchInput["orderByRaw"] = input.orderByRaw;
   if (input.orderByRaw === "popular") {
     if (ranked === null) {
       effectiveOrderBy = "published_at";
@@ -447,18 +460,40 @@ async function attachAuthorNames(rows: PostRow[], withAuthors: boolean): Promise
  * „język z fallbackiem" zmieniłoby angielskie strony bez zajawki EN.
  * Projekcja żyje w `queryFn` (po cache brzegowym, w którym leży pełny wiersz),
  * więc SSR, hydratacja i refetch klienta mają ten sam kształt.
+ *
+ * ZAJAWKI TYLKO TAM, GDZIE WIDGET JE RENDERUJE (P3.7b, T2): przy
+ * `withExcerpt === false` wiersz nie niesie żadnego pola `excerpt_*` (klucze
+ * zdjęte, nie `null`) - predykat `postListRendersExcerpt` mówi, że żadna gałąź
+ * widoku tego widgetu zajawki nie rysuje.
  */
-export function localizePostListRows(rows: readonly PostRow[], lang: Lang): PostRow[] {
+export function localizePostListRows(
+  rows: readonly PostRow[],
+  lang: Lang,
+  withExcerpt = true,
+): PostRow[] {
   return rows.map((row) => {
     const { title_pl, title_en, excerpt_pl, excerpt_en, ...rest } = row;
+    if (!withExcerpt) {
+      return lang === "pl"
+        ? { ...rest, title_pl: title_pl || title_en || null }
+        : { ...rest, title_en: title_en || title_pl || null };
+    }
     return lang === "pl"
       ? { ...rest, title_pl: title_pl || title_en || null, excerpt_pl: excerpt_pl ?? null }
       : { ...rest, title_en: title_en || title_pl || null, excerpt_en: excerpt_en ?? null };
   });
 }
 
-export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {
-  const input = postListInput(c, lang);
+/**
+ * Opcje zapytania post-listy. `surface` jest WYMAGANE (P3.7b, T2): widget
+ * `carousel` dzieli ten klucz z `post-list`, ale renderuje zajawkę w każdym
+ * wariancie, więc każde miejsce wywołania musi powiedzieć, który widget czyta
+ * wpis - inaczej klucz SSR i klucz widoku rozjechałyby się (refetch po
+ * hydratacji) albo widok dostałby wiersze bez zajawki, którą rysuje.
+ */
+export const postListQueryOptions = (c: WidgetContent, lang: Lang, surface: PostListSurface) => {
+  const input = postListInput(c, lang, surface);
+  const { withExcerpt, ...fetchInput } = input;
   return queryOptions({
     // Snapshot-independent key: identical between the server prefetch/stream gate
     // and the client render, so a streamed uniqueOnPage widget reuses the
@@ -473,11 +508,12 @@ export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {
         // renderze. Wariant "random" celowo POZA cache - zamrożenie kolejności
         // na minutę zmieniłoby zachowanie widgetu (na kliencie przezroczyste).
         input.orderByRaw === "random"
-          ? await fetchPostListRows(input)
-          : await edgeTtlCache(`builder:post-list:${JSON.stringify(input)}`, 60_000, () =>
-              fetchPostListRows(input),
+          ? await fetchPostListRows(fetchInput)
+          : await edgeTtlCache(`builder:post-list:${JSON.stringify(fetchInput)}`, 60_000, () =>
+              fetchPostListRows(fetchInput),
             ),
         input.lang,
+        withExcerpt,
       ),
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,

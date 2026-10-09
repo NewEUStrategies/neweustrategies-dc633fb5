@@ -163,7 +163,7 @@ async function homeState(lang: "pl" | "en"): Promise<DehydratedState> {
     prefetchBuilderDocumentQueries(qc, header.builder_data, lang),
     prefetchBuilderDocumentQueries(qc, footer.builder_data, lang),
     prefetchBuilderDocumentQueries(qc, fixture["home-body"][0].builder_data, lang),
-    qc.prefetchQuery(headerTickerQueryOptions(resolveActiveTickerConfig(header.trending))),
+    qc.prefetchQuery(headerTickerQueryOptions(resolveActiveTickerConfig(header.trending), lang)),
   ]);
   return dehydrate(qc, { shouldDehydrateQuery: (q) => q.state.status === "success" });
 }
@@ -254,20 +254,44 @@ describe("stan odwodniony `/` na fixture (P2.5)", () => {
     }
   });
 
-  it("pasek „na czasie” niesie wyłącznie pola, które renderuje", async () => {
-    const state = await homeState("pl");
-    const rows = rowsOf(state, "header_ticker");
-    expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) {
-      expect(Object.keys(row).sort()).toEqual([
-        "author_avatar_url",
-        "author_display_name",
-        "href",
-        "id",
-        "slug",
-        "title_en",
-        "title_pl",
-      ]);
+  it("pasek „na czasie” niesie wyłącznie pola, które renderuje - jeden tytuł (P3.7b, T4)", async () => {
+    // Język w kluczu paska: tytuł tylko w języku klucza, `slug` tylko bez `href`.
+    for (const lang of ["pl", "en"] as const) {
+      const state = await homeState(lang);
+      const rows = rowsOf(state, "header_ticker");
+      expect(rows.length).toBeGreaterThan(0);
+      for (const row of rows) {
+        expect(Object.keys(row).sort()).toEqual([
+          "author_avatar_url",
+          "author_display_name",
+          "href",
+          "id",
+          `title_${lang}`,
+        ]);
+      }
+    }
+  });
+
+  it("zajawki tylko w zapytaniach widgetów, które je renderują (P3.7b, T2)", async () => {
+    for (const lang of ["pl", "en"] as const) {
+      const state = await homeState(lang);
+      const entries = state.queries.filter(
+        (q) => q.queryKey[0] === "builder-post-list" || q.queryKey[0] === "builder-slider-posts",
+      );
+      expect(entries.length).toBeGreaterThan(0);
+      let withoutExcerpt = 0;
+      for (const entry of entries) {
+        const input = entry.queryKey[1] as { withExcerpt?: unknown };
+        expect(typeof input.withExcerpt, JSON.stringify(entry.queryKey)).toBe("boolean");
+        if (input.withExcerpt) continue;
+        withoutExcerpt += 1;
+        for (const row of entry.state.data as Row[]) {
+          expect(Object.keys(row).filter((k) => k.startsWith("excerpt_"))).toEqual([]);
+        }
+      }
+      // Fixture `/`: każdy widget post-listy i slidera ma zajawkę wyłączoną
+      // (`showExcerpt: "0"`/`false` albo wariant `ranked`) - asercja nie jest pusta.
+      expect(withoutExcerpt).toBe(entries.length);
     }
   });
 

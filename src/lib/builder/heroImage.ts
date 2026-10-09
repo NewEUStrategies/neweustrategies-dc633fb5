@@ -178,7 +178,10 @@ function postListPreload(
     widget.type === "carousel" || !isPostListLeadVariant(variant)
       ? POST_LIST_GRID_COVER_SIZES
       : POST_LIST_LEAD_SIZES[variant];
-  const first = queryClient.getQueryData<PostRow[]>(postListQueryOptions(c, lang).queryKey)?.[0];
+  const surface = widget.type === "carousel" ? "carousel" : "list";
+  const first = queryClient.getQueryData<PostRow[]>(
+    postListQueryOptions(c, lang, surface).queryKey,
+  )?.[0];
   if (!first) return null;
   return preloadOf(
     safeImageUrl(readThumbnailOverrides(c)[first.id] ?? first.cover_image_url ?? ""),

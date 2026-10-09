@@ -73,7 +73,7 @@ function rpc(): SupabaseRpcStub {
 
 /** Uruchamia `queryFn` opcji tak, jak zrobilby to react-query. */
 function runQueryFn(content: WidgetContent, lang: Lang = "pl"): Promise<PostRow[]> {
-  const options = postListQueryOptions(content, lang);
+  const options = postListQueryOptions(content, lang, "list");
   return (options.queryFn as () => Promise<PostRow[]>)();
 }
 

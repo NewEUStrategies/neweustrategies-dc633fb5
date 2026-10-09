@@ -8,7 +8,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
-import { asNum, asStr } from "@/lib/content-model/contentValue";
+import { asBool, asNum, asStr } from "@/lib/content-model/contentValue";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
 import {
@@ -58,6 +58,20 @@ export interface SliderPostsInput {
    *  Bez niego PL i EN dzielily jeden wpis cache: przelaczenie jezyka
    *  zwracalo liste posortowana po drugim jezyku. */
   lang: Lang;
+  /** Czy slider RENDERUJE zajawkę (P3.7b, T2; `sliderShowsExcerpt`). W kluczu, bo
+   *  decyduje o kształcie wiersza; poza kluczem cache brzegowego. */
+  withExcerpt: boolean;
+}
+
+/** Wejście pobrania wierszy: bez `withExcerpt` (jeden wpis `edgeTtlCache` dla obu przełączników). */
+type SliderPostsFetchInput = Omit<SliderPostsInput, "withExcerpt">;
+
+/**
+ * Czy slider wpisów renderuje zajawkę - DOKŁADNIE przełącznik widoku
+ * (`PostsSliderWidget`: `asBool(c.showExcerpt, true)`), który czyta stąd.
+ */
+export function sliderShowsExcerpt(c: WidgetContent): boolean {
+  return asBool(c.showExcerpt, true);
 }
 
 /** The display limit a posts-mode slider renders. */
@@ -78,6 +92,7 @@ export function sliderPostsInput(c: WidgetContent, lang: Lang): SliderPostsInput
     excludeIds: csv(c, "excludeIds"),
     orderBy: getStr(c, "orderBy") || "newest",
     lang,
+    withExcerpt: sliderShowsExcerpt(c),
   };
 }
 
@@ -116,7 +131,7 @@ export function sliderUsesPostsSource(c: WidgetContent): boolean {
 const SLIDER_POST_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id";
 
-async function fetchSliderPosts(input: SliderPostsInput): Promise<SliderPostRow[]> {
+async function fetchSliderPosts(input: SliderPostsFetchInput): Promise<SliderPostRow[]> {
   const { limit, categorySlugs, tagSlugs, excludeIds, orderBy, lang } = input;
   // Zawężenie kategorią i tagiem robi BAZA (osadzenia `!inner()` po
   // identyfikatorach terminów) - wcześniej stał tu odczyt całej tabeli
@@ -151,13 +166,23 @@ async function fetchSliderPosts(input: SliderPostsInput): Promise<SliderPostRow[
  * zajawka SCHODZI na drugi język (w post-liście nie). Projekcja wpieka ten
  * wynik w pole języka klucza i zdejmuje pola drugiego języka, więc slajd z
  * wiersza zrzutowanego ma ten sam tytuł i zajawkę co z pełnego.
+ *
+ * Slider z wyłączoną zajawką (`withExcerpt === false`, P3.7b T2) dostaje wiersze
+ * bez żadnego pola `excerpt_*` - widok buduje wtedy pusty podtytuł bez względu
+ * na treść wiersza.
  */
 export function localizeSliderPostRows(
   rows: readonly SliderPostRow[],
   lang: Lang,
+  withExcerpt = true,
 ): SliderPostRow[] {
   return rows.map((row) => {
     const { title_pl, title_en, excerpt_pl, excerpt_en, ...rest } = row;
+    if (!withExcerpt) {
+      return lang === "pl"
+        ? { ...rest, title_pl: title_pl || title_en || null }
+        : { ...rest, title_en: title_en || title_pl || null };
+    }
     return lang === "pl"
       ? {
           ...rest,
@@ -174,6 +199,7 @@ export function localizeSliderPostRows(
 
 export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
   const input = sliderPostsInput(c, lang);
+  const { withExcerpt, ...fetchInput } = input;
   return queryOptions({
     // Korzeń klucza z WIDGET_QUERY_ROOTS - ten sam literał, z którego wyprowadzony
     // jest zbiór inwalidacji live, więc rozjazd nazw jest niewyrażalny.
@@ -187,10 +213,11 @@ export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
         // Per-isolate TTL: hero-slider strony głównej to do 3 zapytań w 2 falach na
         // render. Klucz cache pochodzi z całego inputu (zawiera już `lang`); w
         // cache brzegowym leży pełny wiersz, projekcja idzie po nim.
-        await edgeTtlCache(`builder:slider-posts:${JSON.stringify(input)}`, 60_000, () =>
-          fetchSliderPosts(input),
+        await edgeTtlCache(`builder:slider-posts:${JSON.stringify(fetchInput)}`, 60_000, () =>
+          fetchSliderPosts(fetchInput),
         ),
         input.lang,
+        withExcerpt,
       ),
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,

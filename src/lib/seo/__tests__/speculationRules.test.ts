@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
 
+import { PUBLIC_DOCUMENT_DENY_PREFIXES } from "@/lib/http/documentCache";
 import { buildSpeculationRules, speculationRulesJson } from "../speculationRules";
 
 type Rules = ReturnType<typeof buildSpeculationRules>;
+
+/**
+ * Rozwija grupy opcjonalne wzorca URLPattern (`{tekst}?`) do wszystkich
+ * wariantów bez grup - pomocnik testu, który pozwala porównać jeden wzorzec
+ * z grupami z dawną listą wzorców płaskich.
+ */
+function expandUrlPatternGroups(pattern: string): string[] {
+  const group = /\{([^{}]*)\}\?/.exec(pattern);
+  if (!group) return [pattern];
+  const head = pattern.slice(0, group.index);
+  const tail = pattern.slice(group.index + group[0].length);
+  return [`${head}${tail}`, `${head}${group[1]}${tail}`].flatMap(expandUrlPatternGroups);
+}
 
 function denyList(where: Rules["prefetch"][number]["where"]): string[] {
   const clause = where.and.find(
@@ -46,12 +60,47 @@ describe("speculationRules", () => {
   });
 
   it("oba zestawy wykluczają powierzchnie zalogowane/transakcyjne w obu językach", () => {
+    // P3.7b, X1: jeden wzorzec z grupami URLPattern na prefiks. Rozwinięcie
+    // grup opcjonalnych daje DOKŁADNIE dawną listę (4 wzorce x każdy prefiks).
+    const legacy = PUBLIC_DOCUMENT_DENY_PREFIXES.flatMap((prefix) => [
+      prefix,
+      `${prefix}/*`,
+      `/en${prefix}`,
+      `/en${prefix}/*`,
+    ]);
     const parsed = JSON.parse(speculationRulesJson()) as Rules;
     for (const where of [parsed.prefetch[0].where, parsed.prerender[0].where]) {
       const deny = denyList(where);
-      for (const expected of ["/admin", "/admin/*", "/en/admin/*", "/checkout/*", "/api/*"]) {
-        expect(deny).toContain(expected);
-      }
+      expect(deny).toHaveLength(PUBLIC_DOCUMENT_DENY_PREFIXES.length);
+      expect(deny).toContain("/{en/}?admin{/*}?");
+      // Wzorzec ścieżki absolutnej: napis od `{` byłby względny wobec katalogu.
+      for (const pattern of deny) expect(pattern.startsWith("/")).toBe(true);
+      expect(new Set(deny.flatMap(expandUrlPatternGroups))).toEqual(new Set(legacy));
+      expect(deny.flatMap(expandUrlPatternGroups)).toHaveLength(legacy.length);
+    }
+  });
+
+  it("reguły są krótsze niż w wersji z czterema wzorcami na prefiks (-1,1 KB w `<head>`)", () => {
+    // 2 zestawy x 17 prefiksów; dawny dokument: 2 334 B.
+    expect(speculationRulesJson().length).toBeLessThan(1300);
+  });
+
+  // Node 22 nie ma `URLPattern` (jest w Chromium i w Bun) - semantykę w
+  // przeglądarce sprawdza raport P3.7b (Chromium); tu biegnie tam, gdzie jest.
+  const URLPatternCtor = (globalThis as { URLPattern?: new (p: string, b: string) => unknown })
+    .URLPattern as (new (p: string, b: string) => { test(u: string): boolean }) | undefined;
+  it.skipIf(!URLPatternCtor)("semantyka URLPattern = dawne cztery wzorce", () => {
+    const base = "https://nes.test/";
+    const deny = denyList(buildSpeculationRules().prefetch[0].where);
+    const match = (path: string) =>
+      deny.some((pattern) =>
+        new URLPatternCtor!(pattern, base).test(`${base.slice(0, -1)}${path}`),
+      );
+    for (const path of ["/admin", "/admin/", "/admin/x/y", "/en/admin", "/en/admin/x", "/_/a"]) {
+      expect(match(path), path).toBe(true);
+    }
+    for (const path of ["/administrator", "/en/adminx", "/enadmin", "/x/admin", "/", "/en"]) {
+      expect(match(path), path).toBe(false);
     }
   });
 

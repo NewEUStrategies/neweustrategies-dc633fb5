@@ -220,7 +220,10 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
     out.push(menuWithItemsQueryOptions(key));
   }
   if (widget.type === "post-list" || widget.type === "carousel") {
-    out.push(postListQueryOptions(widget.content, lang));
+    // Powierzchnia w kluczu (P3.7b, T2): karuzela renderuje zajawkę w każdym wariancie.
+    out.push(
+      postListQueryOptions(widget.content, lang, widget.type === "carousel" ? "carousel" : "list"),
+    );
   }
   if (widget.type === "news-ticker" || widget.type === "trending-now") {
     out.push(newsTickerQueryOptions(widget.content, lang));
@@ -460,7 +463,11 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
   if (widget.type === "post-list" || widget.type === "carousel") {
-    const opts = postListQueryOptions(widget.content, lang);
+    const opts = postListQueryOptions(
+      widget.content,
+      lang,
+      widget.type === "carousel" ? "carousel" : "list",
+    );
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
   if (widget.type === "news-ticker" || widget.type === "trending-now") {

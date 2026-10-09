@@ -57,7 +57,7 @@ const LANG_AWARE_FACTORIES: ReadonlyArray<{
   {
     name: "postListQueryOptions",
     module: "postListQuery.ts",
-    call: (lang) => postListQueryOptions({ limit: 4, orderBy: "title" }, lang).queryKey,
+    call: (lang) => postListQueryOptions({ limit: 4, orderBy: "title" }, lang, "list").queryKey,
   },
   {
     name: "sliderPostsQueryOptions",

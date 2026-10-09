@@ -28,8 +28,17 @@ vi.mock("@/lib/builder/contentRefs", () => ({ useResolvedPostRefs: () => new Map
 
 import { PostListView } from "../PostListView";
 import { PostsSliderWidget } from "../PostsSliderWidget";
-import { localizePostListRows, postListQueryOptions } from "@/lib/builder/postListQuery";
-import { localizeSliderPostRows, sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
+import {
+  localizePostListRows,
+  postListInput,
+  postListQueryOptions,
+} from "@/lib/builder/postListQuery";
+import { postListRendersExcerpt } from "@/lib/builder/postListExcerpt";
+import {
+  localizeSliderPostRows,
+  sliderPostsInput,
+  sliderPostsQueryOptions,
+} from "@/lib/builder/sliderPostsQuery";
 
 type Lang = "pl" | "en";
 
@@ -105,7 +114,7 @@ describe("PostListView: wiersz zrzutowany na język = ten sam znacznik", () => {
     for (const variant of variants) {
       it(`${lang}, wariant ${variant}`, () => {
         const c: WidgetContent = { variant, limit: 4, columns: 2 };
-        const key = postListQueryOptions(c, lang).queryKey;
+        const key = postListQueryOptions(c, lang, "list").queryKey;
         const full = client();
         full.setQueryData(key, ROWS);
         const projected = client();
@@ -190,4 +199,109 @@ describe("PostsSliderWidget: wiersz zrzutowany na język = ten sam slajd", () =>
       expect(await sliderHtml(projected, c, lang)).toBe(expected);
     });
   }
+});
+
+// ZAJAWKI TYLKO TAM, GDZIE WIDGET JE RENDERUJE (P3.7b, T2) - KONTRAKT
+// BEZPIECZEŃSTWA. Projekcja zdejmuje `excerpt_*`, gdy predykat klucza
+// (`postListRendersExcerpt`) mówi, że widget zajawki nie rysuje. Miara jest ta
+// sama co wyżej: znacznik z wierszy zrzutowanych = znacznik z PEŁNYCH wierszy,
+// dla KAŻDEGO wariantu, wartości przełącznika i powierzchni (`post-list`
+// i `carousel`, który dzieli klucz i rysuje zajawkę w każdym wariancie). Gdy
+// predykat jest fałszywy, pełny wiersz też nie daje `.cms-post-excerpt` - czyli
+// zdjęte pole naprawdę nie miało odbiorcy.
+describe("zajawki tylko tam, gdzie widget je renderuje (P3.7b, T2)", () => {
+  const variants = [
+    "card",
+    "list",
+    "minimal",
+    "overlay",
+    "ranked",
+    "numbered",
+    "classic",
+    "flex-grid",
+    "boxed-grid",
+    "boxed-list",
+  ];
+  const toggles: Array<string | boolean | number | undefined> = [
+    "0",
+    "1",
+    true,
+    false,
+    0,
+    undefined,
+  ];
+
+  for (const surface of ["list", "carousel"] as const) {
+    for (const variant of variants) {
+      it(`post-lista: ${surface}, wariant ${variant} - każda wartość przełącznika`, () => {
+        for (const showExcerpt of toggles) {
+          const c: WidgetContent = {
+            variant,
+            limit: 4,
+            columns: 2,
+            ...(showExcerpt === undefined ? {} : { showExcerpt }),
+          };
+          const label = `${surface}/${variant}/${String(showExcerpt)}`;
+          const withExcerpt = postListInput(c, "pl", surface).withExcerpt;
+          expect(withExcerpt, label).toBe(postListRendersExcerpt(c, surface));
+          const key = postListQueryOptions(c, "pl", surface).queryKey;
+          const full = client();
+          full.setQueryData(key, localizePostListRows(ROWS, "pl"));
+          const projected = client();
+          const rows = localizePostListRows(ROWS, "pl", withExcerpt);
+          if (!withExcerpt) {
+            for (const row of rows) expect(Object.keys(row), label).not.toContain("excerpt_pl");
+          }
+          projected.setQueryData(key, rows);
+          const ui = <PostListView c={c} lang="pl" carousel={surface === "carousel"} />;
+          const expected = html(full, ui);
+          if (!withExcerpt) expect(expected, label).not.toContain("cms-post-excerpt");
+          expect(html(projected, ui), label).toBe(expected);
+        }
+      });
+    }
+  }
+
+  it("predykat po stronie widoku: lista `ranked` i `numbered` z wyłączonym `getBool` bez zajawki", () => {
+    expect(postListRendersExcerpt({ variant: "ranked" }, "list")).toBe(false);
+    expect(postListRendersExcerpt({ variant: "ranked" }, "carousel")).toBe(true);
+    expect(postListRendersExcerpt({ variant: "numbered", showExcerpt: false }, "list")).toBe(false);
+    expect(postListRendersExcerpt({ variant: "numbered", showExcerpt: false }, "carousel")).toBe(
+      true,
+    );
+    expect(postListRendersExcerpt({ variant: "card", showExcerpt: false }, "list")).toBe(true);
+    expect(postListRendersExcerpt({ variant: "card", showExcerpt: "0" }, "carousel")).toBe(false);
+  });
+
+  it("slider z wyłączoną zajawką: wiersze bez `excerpt_*`, ten sam slajd, bez tekstu zajawki", async () => {
+    const c: WidgetContent = {
+      source: "posts",
+      variant: "multi-card",
+      autoplay: false,
+      showExcerpt: false,
+    };
+    expect(sliderPostsInput(c, "pl").withExcerpt).toBe(false);
+    const key = sliderPostsQueryOptions(c, "pl").queryKey;
+    const rows = localizeSliderPostRows(ROWS, "pl", false);
+    for (const row of rows) expect(Object.keys(row)).not.toContain("excerpt_pl");
+    const render1 = async (data: ReturnType<typeof localizeSliderPostRows>) => {
+      const qc = client();
+      qc.setQueryData(key, data);
+      const view = render(
+        <QueryClientProvider client={qc}>
+          <PostsSliderWidget c={c} lang="pl" />
+        </QueryClientProvider>,
+      );
+      await waitFor(() => expect(view.container.querySelector(".eh-slider")).not.toBeNull(), {
+        timeout: 15_000,
+      });
+      const out = view.container.innerHTML.replace(/_r_[0-9a-z]+_/g, "_r_");
+      view.unmount();
+      return out;
+    };
+    const expected = await render1(localizeSliderPostRows(ROWS, "pl"));
+    expect(expected).not.toContain("Zajawka polska");
+    expect(expected).not.toContain("English only excerpt");
+    expect(await render1(rows)).toBe(expected);
+  });
 });

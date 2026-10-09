@@ -132,16 +132,21 @@ export function TrendingTicker({
   const motion = useMotionGate();
   const motionAttr = motion ? "" : undefined;
 
+  // Język renderu w kluczu (P3.7b, T4b): wpis niesie tytuł tylko w tym języku,
+  // a przy miękkiej zmianie języka poprzedni wpis trzyma pasek (`keepPreviousData`).
   const { data, isLoading } = useQuery(
-    headerTickerQueryOptions({
-      source,
-      days,
-      limit,
-      pinnedPostId,
-      pinnedUntil,
-      selectedPostIds,
-      mixedFill,
-    }),
+    headerTickerQueryOptions(
+      {
+        source,
+        days,
+        limit,
+        pinnedPostId,
+        pinnedUntil,
+        selectedPostIds,
+        mixedFill,
+      },
+      lang,
+    ),
   );
 
   const posts = data ?? [];
@@ -391,8 +396,9 @@ interface TickerItemProps {
     id: string;
     slug?: string;
     href?: string;
-    title_pl: string | null;
-    title_en: string | null;
+    /** Wpis paska niesie tytuł tylko w języku klucza (P3.7b, T4b). */
+    title_pl?: string | null;
+    title_en?: string | null;
     author_display_name?: string | null;
     author_avatar_url?: string | null;
   };
