@@ -46,7 +46,19 @@ vi.mock("@/integrations/supabase/client", async () => {
   };
 });
 
+// Punkt ciszy jest GRANICĄ czasu przeglądarki: prawdziwy detektor przy
+// fałszywym zegarze mógłby otworzyć zatrzask sam, w środku testu „przed
+// zatrzaskiem". Zatrzask otwiera tu wyłącznie test (`__openInteractionOrQuietForTests`).
+vi.mock("@/lib/performance/whenQuiescent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/performance/whenQuiescent")>()),
+  onQuiescent: () => () => {},
+}));
+
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
+import {
+  __openInteractionOrQuietForTests,
+  __resetInteractionOrQuietForTests,
+} from "@/lib/performance/interactionOrQuiet";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
 import { ok, type SupabaseFromStub } from "@/test/supabaseChain";
@@ -191,6 +203,10 @@ beforeEach(() => {
   window.localStorage.clear();
   beacons.calls = [];
   respondWith([placement()]);
+  // Zachowanie paska po otwarciu zatrzasku „interakcja albo cisza" (P3.8) -
+  // tak jak po nawigacji SPA. Pasek zamontowany w bocie ma własną sekcję niżej.
+  __resetInteractionOrQuietForTests();
+  __openInteractionOrQuietForTests();
 });
 
 afterEach(() => {
@@ -198,6 +214,82 @@ afterEach(() => {
   vi.useRealTimers();
   globalThis.IntersectionObserver = realIntersectionObserver;
   __resetOverlayCoordinator();
+  __resetInteractionOrQuietForTests();
+});
+
+// ---------------------------------------------------------------------------
+// POZA OKNEM BOOTU (P3.8). Pozycji `footer_slideup` nie grzeje SSR, więc
+// zapytanie z efektu hydratacji było GET-em + preflightem w bocie każdej strony
+// z paskiem. Uzbraja je dopiero zatrzask „pierwsza interakcja albo cisza",
+// a opóźnienie paska zamontowanego w bocie liczy się od startu nawigacji.
+// ---------------------------------------------------------------------------
+describe("poza oknem bootu (P3.8)", () => {
+  beforeEach(() => {
+    __resetInteractionOrQuietForTests();
+  });
+
+  it("przed zatrzaskiem interakcji/ciszy NIE pyta bazy i nie pokazuje paska", async () => {
+    respondWith([placement({ config: { delay_ms: 0 } })]);
+
+    renderWithQueryClient(<FooterSlideup pageType="home" />);
+    await tick(2_000);
+
+    expect(from().chainsFor("ad_placements")).toHaveLength(0);
+    expect(slideup()).toBeNull();
+  });
+
+  it("otwarcie zatrzasku uzbraja zapytanie, a opóźnienie liczy się od startu nawigacji", async () => {
+    respondWith([placement({ config: { delay_ms: 8000 } })]);
+    renderWithQueryClient(<FooterSlideup pageType="home" />);
+    await tick(2_000);
+    expect(from().chainsFor("ad_placements")).toHaveLength(0);
+
+    act(() => __openInteractionOrQuietForTests());
+    await waitFor(() => expect(from().chainsFor("ad_placements").length).toBeGreaterThan(0));
+
+    // ~2 s po starcie nawigacji: do 8 s zostało ~6 s, a nie pełne 8 s od danych.
+    await tick(4_500);
+    expect(slideup()).toBeNull();
+    await tick(2_000);
+    expect(slideup()).not.toBeNull();
+  });
+
+  it("dokument prerenderowany: opóźnienie liczy się od aktywacji, nie od startu prerenderu", async () => {
+    respondWith([placement({ config: { delay_ms: 8000 } })]);
+    // Aktywacja 2 s po starcie dokumentu (tyle trwał prerender w tle).
+    const entries = vi
+      .spyOn(performance, "getEntriesByType")
+      .mockReturnValue([
+        { entryType: "navigation", activationStart: 2_000 } as unknown as PerformanceEntry,
+      ]);
+    try {
+      renderWithQueryClient(<FooterSlideup pageType="home" />);
+      await tick(2_000);
+
+      act(() => __openInteractionOrQuietForTests());
+      await waitFor(() => expect(from().chainsFor("ad_placements").length).toBeGreaterThan(0));
+
+      // Od startu dokumentu zostałoby ~6 s; od aktywacji zostaje ~8 s.
+      await tick(6_500);
+      expect(slideup()).toBeNull();
+      await tick(2_000);
+      expect(slideup()).not.toBeNull();
+    } finally {
+      entries.mockRestore();
+    }
+  });
+
+  it("opóźnienie krótsze niż czas do zatrzasku pokazuje pasek zaraz po danych", async () => {
+    respondWith([placement({ config: { delay_ms: 3000 } })]);
+    renderWithQueryClient(<FooterSlideup pageType="home" />);
+    await tick(4_000);
+
+    act(() => __openInteractionOrQuietForTests());
+    await waitFor(() => expect(from().chainsFor("ad_placements").length).toBeGreaterThan(0));
+    await tick(0);
+
+    expect(slideup()).not.toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

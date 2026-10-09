@@ -2,13 +2,28 @@
 // można go zamknąć (per-sesja, sessionStorage). Honoruje zgodę marketingową
 // poprzez AdSlotView, a przez koordynator nakładek nie nakłada się na popupy
 // (jedna nakładka naraz + wspólny budżet przerwań).
+//
+// POZA BOOTEM (P3.8). Pozycji `footer_slideup` nie grzeje SSR, więc zapytanie
+// szło w efekcie hydratacji: GET + preflight w oknie bootu każdej strony
+// z paskiem, choć pasek i tak czeka `delay_ms` i slot koordynatora. Zapytanie
+// jest uzbrajane dopiero przy pierwszej interakcji albo w punkcie ciszy
+// (wspólny zatrzask `interactionOrQuiet.ts`), a opóźnienie paska zamontowanego
+// w bocie liczy się od STARTU NAWIGACJI, nie od danych - pasek pokazuje się
+// po max(zatrzask, `delay_ms`), a nie po zatrzask + `delay_ms`. Pasek
+// zamontowany po otwarciu zatrzasku (nawigacja SPA) czeka `delay_ms` od danych,
+// jak dotąd.
 import { useEffect, useRef, useState } from "react";
 import { X } from "@/lib/lucide-shim";
 import { AdSlotView } from "@/components/AdSlot";
 import { useAdPlacements } from "@/lib/ads/queries";
+import {
+  isInteractionOrQuietOpen,
+  useInteractionOrQuiet,
+} from "@/lib/performance/interactionOrQuiet";
 import type { AdPageType } from "@/lib/ads/types";
 import { useTranslation } from "react-i18next";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
+import { sinceNavigationStart } from "@/components/popups/sinceNavigationStart";
 
 interface Props {
   pageType: AdPageType;
@@ -18,7 +33,10 @@ interface Props {
 const STORAGE_PREFIX = "ad_slideup_dismissed:";
 
 export function FooterSlideup({ pageType, pageId }: Props) {
-  const { data } = useAdPlacements("footer_slideup", pageType, pageId);
+  const armed = useInteractionOrQuiet();
+  // Montaż w bocie (zatrzask jeszcze zamknięty) = opóźnienie od startu nawigacji.
+  const [bootMount] = useState(() => !isInteractionOrQuietOpen());
+  const { data } = useAdPlacements("footer_slideup", pageType, pageId, undefined, armed);
   const { t } = useTranslation();
   const [visibleId, setVisibleId] = useState<string | null>(null);
   const releaseSlotRef = useRef<(() => void) | null>(null);
@@ -38,7 +56,12 @@ export function FooterSlideup({ pageType, pageId }: Props) {
       }
     }
     let disposed = false;
-    const delay = Math.max(0, Number(cfg.delay_ms ?? 3000));
+    // Pasek z bootu: od startu nawigacji (w dokumencie prerenderowanym - od
+    // aktywacji, `sinceNavigationStart`), nie od chwili, w której przyszły dane.
+    const delay = Math.max(
+      0,
+      Number(cfg.delay_ms ?? 3000) - (bootMount ? sinceNavigationStart() : 0),
+    );
     const handle = setTimeout(() => {
       // Ask the coordinator for a slot: a non-modal slide-up still counts as an
       // interruption, must not appear on top of a popup, and shares the budget.
@@ -59,7 +82,7 @@ export function FooterSlideup({ pageType, pageId }: Props) {
       releaseSlotRef.current?.();
       releaseSlotRef.current = null;
     };
-  }, [placement]);
+  }, [placement, bootMount]);
 
   if (!placement || visibleId !== placement.id) return null;
 

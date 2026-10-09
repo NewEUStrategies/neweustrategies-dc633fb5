@@ -18,6 +18,11 @@ import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
 import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
 import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
 import { injectBootSet, type BootRouterLike } from "./lib/boot/bootSet.server";
+import {
+  isInteractionOrQuietOpen,
+  onInteractionOrQuiet,
+  type CancelInteractionOrQuiet,
+} from "./lib/performance/interactionOrQuiet";
 
 // USTĄPIENIE PO DRZEWIE TRAS (P1.7, runda 9; recenzja I-2). Moduły, które ten
 // plik importuje - przede wszystkim `./routeTree.gen` z top-levelem kilkuset
@@ -65,6 +70,28 @@ function DefaultNotFoundComponent() {
 }
 
 export const getRouter = () => {
+  // ODŚWIEŻANIE PRZY MONTAŻU W OKNIE BOOTU (P3.8, poprawka #5). Wpis z SSR jest
+  // stemplowany chwilą renderu serwera, a dokument z brzegu bywa starszy niż
+  // `staleTime` (świeży do 180 s, potem STALE do 24 h). Domyślny
+  // `refetchOnMount` pobierał więc przy hydratacji każdy zamontowany wpis
+  // młodszy niż dokument - reklamy i autorów (60 s) już po minucie, listy
+  // wpisów po kilku - w oknie LCP/SI i z preflightem na każde żądanie.
+  //
+  // Polityka klienta (`refetchOnMount` niżej): dopóki wspólny zatrzask
+  // „pierwsza interakcja ALBO punkt ciszy" (`interactionOrQuiet.ts`) jest
+  // zamknięty, wpis Z DANYMI nie odświeża się przy montażu tylko z powodu
+  // wieku. Odświeżają się od razu: zasiewy z `updatedAt: 0` (doktryna leczenia
+  // po degradacji SSR - `ssr-degradation`) i wpisy unieważnione
+  // (`invalidateQueries`: zapisy panelu, zmiana sesji). Zapytanie bez danych
+  // (np. prywatne dane zalogowanego) ładuje się przy montażu zawsze - tej
+  // ścieżki opcja nie dotyczy. Pierwsze wstrzymanie zapisuje JEDNO
+  // `refetchQueries({ type: "active", stale: true })` przy otwarciu zatrzasku
+  // (`bootCatchUp`), więc nic nie zostaje nieświeże na dłużej niż do pierwszej
+  // interakcji albo ciszy; `cancelRefetch: false` łączy je z pobraniami już
+  // w locie (bez podwójnych żądań). Po otwarciu zatrzasku - zachowanie
+  // domyślne. Serwer: bez zmian (`true`). Domknięcie zamiast osobnej fabryki,
+  // bo kod siedzi w chunku wejściowym (zamknięcie bootu, `check:document-weight`).
+  let bootCatchUp: CancelInteractionOrQuiet | undefined;
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -76,6 +103,25 @@ export const getRouter = () => {
         retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
         refetchOnWindowFocus: false,
         refetchOnReconnect: "always",
+        // Okno bootu (P3.8 #5, uzasadnienie na początku `getRouter`).
+        refetchOnMount:
+          isServer ||
+          ((query) => {
+            if (
+              isInteractionOrQuietOpen() ||
+              !query.state.dataUpdatedAt ||
+              query.state.isInvalidated
+            ) {
+              return true;
+            }
+            bootCatchUp ??= onInteractionOrQuiet(() => {
+              void queryClient.refetchQueries(
+                { type: "active", stale: true },
+                { cancelRefetch: false },
+              );
+            });
+            return false;
+          }),
       },
       mutations: { retry: 0 },
       // SSR: never serialize a query that cannot settle on the server. A

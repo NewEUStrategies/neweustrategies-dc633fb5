@@ -1,16 +1,11 @@
 import { useQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import type { NlDoc } from "@/lib/newsletter-builder/types";
 import {
   resolvePopupFields,
   type PopupFieldConfig,
   type PopupFieldKey,
 } from "@/lib/newsletter/popupFields";
-import {
-  defaultPopupDesign,
-  resolvePopupDesign,
-  type PopupDesign,
-} from "@/lib/newsletter/popupDesign";
+import { defaultPopupDesign, type PopupDesign } from "@/lib/newsletter/popupDesign";
 
 type NewsletterPopupTrigger = "delay" | "scroll" | "exit-intent";
 type NewsletterPopupLayout = "stacked" | "split" | "showcase";
@@ -182,30 +177,14 @@ export function defaultNewsletterSettings(): NewsletterSettings {
 }
 
 /**
- * Odczyt wiersza `newsletter_settings` scalonego z wartościami domyślnymi -
- * wspólne ciało pełnego zapytania i projekcji formularza inline.
+ * Ciała odczytu i zapisu wiersza `newsletter_settings` (scalenie z domyślnymi,
+ * dedup lotu, zapis z panelu) żyją w `newsletterSettingsData.ts`, ładowanym
+ * LENIWIE (P3.8): ten moduł jedzie w chunku wejściowym przez rejestr prefetchu
+ * widgetów, a przeglądarka sięga po te ciała dopiero przy pierwszym pobraniu
+ * (odświeżenie przy zatrzasku interakcji/ciszy, popup, nawigacja SPA) albo
+ * zapisie. Serwer (rozgrzewka SSR) ładuje ten sam moduł tak samo.
  */
-async function fetchNewsletterSettings(): Promise<NewsletterSettings> {
-  const { data, error } = await supabase.from("newsletter_settings").select("*").maybeSingle();
-  if (error && error.code !== "PGRST116") throw error;
-  const def = defaultNewsletterSettings();
-  if (!data) return def;
-  const row = data as Record<string, unknown>;
-  const lists = row.popup_mailing_lists;
-  const showcase = row.popup_showcase_images;
-  return {
-    ...def,
-    ...(data as unknown as Partial<NewsletterSettings>),
-    popup_mailing_lists: Array.isArray(lists) ? (lists as unknown as NewsletterMailingList[]) : [],
-    popup_showcase_images: Array.isArray(showcase)
-      ? (showcase as unknown as NewsletterShowcaseImage[])
-      : [],
-    popup_fields: resolvePopupFields(row.popup_fields),
-    popup_design: resolvePopupDesign(row.popup_design),
-    popup_note_pl: typeof row.popup_note_pl === "string" ? row.popup_note_pl : def.popup_note_pl,
-    popup_note_en: typeof row.popup_note_en === "string" ? row.popup_note_en : def.popup_note_en,
-  };
-}
+const settingsData = () => import("./newsletterSettingsData");
 
 /**
  * Fabryka zapytania o ustawienia newslettera - JEDNO źródło klucza dla hooka
@@ -219,7 +198,7 @@ async function fetchNewsletterSettings(): Promise<NewsletterSettings> {
 export function newsletterSettingsQueryOptions() {
   return queryOptions({
     queryKey: ["newsletter-settings"] as const,
-    queryFn: fetchNewsletterSettings,
+    queryFn: () => settingsData().then((data) => data.fetchNewsletterSettings()),
     staleTime: 60_000,
   });
 }
@@ -335,8 +314,7 @@ export function projectNewsletterInlineSettings(s: NewsletterSettings): Newslett
 export function newsletterInlineSettingsQueryOptions() {
   return queryOptions({
     queryKey: ["newsletter-settings", "inline"] as const,
-    queryFn: async (): Promise<NewsletterInlineSettings> =>
-      projectNewsletterInlineSettings(await fetchNewsletterSettings()),
+    queryFn: () => settingsData().then((data) => data.fetchNewsletterInlineSettings()),
     staleTime: 60_000,
   });
 }
@@ -348,31 +326,8 @@ export function useNewsletterInlineSettings() {
 export function useSaveNewsletterSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (patch: Partial<NewsletterSettings>) => {
-      const { data: existing } = await supabase
-        .from("newsletter_settings")
-        .select("tenant_id")
-        .maybeSingle();
-      const body = patch as unknown as Record<string, unknown>;
-      const client = supabase as unknown as {
-        from: (t: string) => {
-          update: (b: Record<string, unknown>) => {
-            eq: (c: string, v: string) => Promise<{ error: unknown }>;
-          };
-          insert: (b: Record<string, unknown>) => Promise<{ error: unknown }>;
-        };
-      };
-      if (existing) {
-        const { error } = await client
-          .from("newsletter_settings")
-          .update(body)
-          .eq("tenant_id", existing.tenant_id);
-        if (error) throw error;
-      } else {
-        const { error } = await client.from("newsletter_settings").insert(body);
-        if (error) throw error;
-      }
-    },
+    mutationFn: (patch: Partial<NewsletterSettings>) =>
+      settingsData().then((data) => data.saveNewsletterSettings(patch)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["newsletter-settings"] }),
   });
 }

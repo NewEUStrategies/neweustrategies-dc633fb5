@@ -185,5 +185,34 @@ test("first-use overlays stay out of startup and respond to the first request", 
     overlayTimings.nakladki.filter((entry) => /\/ConsentPreviewPanel-/.test(entry.path)),
   ).toEqual([]);
 
+  // P3.8: popupy marketingowe (`NewsletterPopup`, `PopupHost`) montują się przy
+  // zatrzasku „pierwsza interakcja ALBO punkt ciszy", a nie po `load` i
+  // bezczynności - ich chunki (i zapytania o ustawienia) nie mają prawa ruszyć
+  // przed pierwszą interakcją (punkt ciszy zapada najwcześniej 5 s po `load`,
+  // a klik w powłoce był zaraz po gotowości aplikacji). Kontrola pozytywna:
+  // po kliknięciu chunk `NewsletterPopup` przychodzi - „później", nie „nigdy".
+  // UWAGA (recenzja P3.8, m1): klik pada zwykle PRZED `load`, więc dawny montaż
+  // „po `load` i bezczynności" też przeszedłby tę asercję - to kontrola
+  // pozytywna, nie dowód nowego momentu montażu. Ten dowodzą
+  // `e2e/backend-quiet.boot-home.spec.ts` (zero chunków i zapytań do `load`
+  // + 3 s bez interakcji) i `src/routes/__tests__/rootShellRender.test.tsx`.
+  expect(
+    overlayTimings.nakladki
+      .filter((entry) => /\/(?:NewsletterPopup-|PopupHost-)/.test(entry.path))
+      .filter((entry) => entry.startTime < beforeFirstInteraction)
+      .map((entry) => entry.path),
+  ).toEqual([]);
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() =>
+          performance
+            .getEntriesByType("resource")
+            .some((entry) => /\/NewsletterPopup-/.test(new URL(entry.name).pathname)),
+        ),
+      { message: "chunk NewsletterPopup po pierwszej interakcji", timeout: 10_000 },
+    )
+    .toBe(true);
+
   expect(errors).toEqual([]);
 });

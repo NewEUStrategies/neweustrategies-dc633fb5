@@ -265,25 +265,57 @@ describe("okno emisji starts_at / ends_at", () => {
 
   it("porównuje z CZASEM WYWOŁANIA, nie ze stałą z modułu", async () => {
     respondWith([]);
-    const before = new Date().toISOString();
+    const before = Date.now();
 
     await loadPlacements("sidebar", "post", null);
 
-    const after = new Date().toISOString();
-    const stamp = orArgs()[0].split("starts_at.lte.")[1];
+    const after = Date.now();
+    const [starts, ends] = orArgs();
+    const startsBefore = Date.parse(starts.split("starts_at.lte.")[1]);
+    const endsAfter = Date.parse(ends.split("ends_at.gte.")[1]);
     // Zamrożony znacznik (np. policzony raz przy imporcie modułu) emitowałby
-    // kampanie wygasłe od startu procesu - w SSR proces żyje godzinami.
-    expect(stamp >= before).toBe(true);
-    expect(stamp <= after).toBe(true);
+    // kampanie wygasłe od startu procesu - w SSR proces żyje godzinami. Okno
+    // jest kwantowane do minuty wywołania (P3.8), więc granice leżą najwyżej
+    // minutę od chwili zapytania - i zawsze PO właściwej stronie.
+    expect(endsAfter).toBeLessThanOrEqual(before);
+    expect(endsAfter).toBeGreaterThan(before - 60_000);
+    expect(startsBefore).toBeGreaterThan(after);
+    expect(startsBefore).toBeLessThanOrEqual(after + 60_000);
   });
 
-  it("oba warunki niosą TEN SAM znacznik czasu - okno jest spójne", async () => {
+  // KWANTYZACJA (P3.8): URL z milisekundami był inny przy każdym zapytaniu, więc
+  // przeglądarka nie mogła ponownie użyć preflightu CORS ani odpowiedzi. Okno
+  // bazy to NADZBIÓR bieżącej minuty: start do jej końca, koniec od jej
+  // początku; dokładne okno liczy projekcja (`isWithinEmissionWindow`).
+  it("okno bazy to cała bieżąca minuta: start do jej końca, koniec od jej początku", async () => {
     respondWith([]);
 
     await loadPlacements("sidebar", "post", null);
 
     const [starts, ends] = orArgs();
-    expect(starts.split("starts_at.lte.")[1]).toBe(ends.split("ends_at.gte.")[1]);
+    const startsBefore = Date.parse(starts.split("starts_at.lte.")[1]);
+    const endsAfter = Date.parse(ends.split("ends_at.gte.")[1]);
+    expect(endsAfter % 60_000).toBe(0);
+    expect(startsBefore - endsAfter).toBe(60_000);
+  });
+
+  it("dwa zapytania w tej samej minucie wysyłają IDENTYCZNE filtry okna", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-08T10:15:05.123Z"));
+      respondWith([]);
+      await loadPlacements("sidebar", "post", null);
+      const first = orArgs();
+      vi.setSystemTime(new Date("2026-10-08T10:15:58.900Z"));
+      await loadPlacements("sidebar", "post", "inna-strona");
+      const second = orArgs();
+
+      expect(second).toEqual(first);
+      expect(first[0]).toBe("starts_at.is.null,starts_at.lte.2026-10-08T10:16:00.000Z");
+      expect(first[1]).toBe("ends_at.is.null,ends_at.gte.2026-10-08T10:15:00.000Z");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

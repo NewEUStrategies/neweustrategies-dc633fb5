@@ -77,6 +77,13 @@ const h = vi.hoisted(() => ({
   widgetHints: [] as string[],
   /** Montaże atrapy banera zgód (P1.3): props `takeover` z każdego renderu. */
   bannerMounts: [] as unknown[],
+  /** Pobrania tabeli rozmiarów czcionek (P3.8 #1) i jej zawieszenie. */
+  fontScaleFetches: 0,
+  fontScaleHangs: false,
+  /** Rozgrzewki sygnału „brak aktywnych popupów" (P3.8 #4a). */
+  popupWarms: 0,
+  /** Sesja zespołu redakcji (`useAuth().isStaff`). */
+  staff: false,
 }));
 
 vi.mock("@/lib/i18n/localeRuntime", async (o) => ({
@@ -176,6 +183,36 @@ vi.mock("@/hooks/useGlobalColors", async (o) => ({
   ...(await o<typeof import("@/hooks/useGlobalColors")>()),
   globalColorsQueryOptions: { queryKey: ["global-colors"], queryFn: async () => null },
 }));
+// Tabela rozmiarów czcionek (P3.8 #1): ten sam wiersz co tokeny, osobny klucz.
+vi.mock("@/hooks/useFontScale", async (o) => ({
+  ...(await o<typeof import("@/hooks/useFontScale")>()),
+  fontScaleQueryOptions: {
+    queryKey: ["font-scale"],
+    queryFn: () => {
+      h.fontScaleFetches += 1;
+      return h.fontScaleHangs ? new Promise(() => {}) : Promise.resolve({ h1: 40 });
+    },
+  },
+}));
+// Sygnał „brak aktywnych popupów" (P3.8 #4a): atrapa zapisuje to, co prawdziwa
+// projekcja przy pustym wyniku - pustą listę pod kluczem `useActivePopups`.
+vi.mock("@/lib/builder/popups", async (o) => ({
+  ...(await o<typeof import("@/lib/builder/popups")>()),
+  warmNoActivePopups: async (qcArg: QueryClient) => {
+    h.popupWarms += 1;
+    qcArg.setQueryData(["builder-popups-active"], []);
+  },
+}));
+vi.mock("@/hooks/useAuth", async (o) => {
+  const actual = await o<typeof import("@/hooks/useAuth")>();
+  return {
+    ...actual,
+    useAuth: () => {
+      const real = actual.useAuth();
+      return h.staff ? { ...real, isStaff: true } : real;
+    },
+  };
+});
 vi.mock("@/lib/menus/queries", () => ({
   menuWithItemsQueryOptions: (key: string) => {
     if (h.menusThrow) throw new Error("modul menu padl");
@@ -325,6 +362,10 @@ beforeEach(() => {
   h.tickerThrows = false;
   h.dictionaryChunk = null;
   h.widgetHints = [];
+  h.fontScaleFetches = 0;
+  h.fontScaleHangs = false;
+  h.popupWarms = 0;
+  h.staff = false;
 });
 
 describe("__root loader", () => {
@@ -437,12 +478,50 @@ describe("__root loader", () => {
 
   it("zasiewa PRZETERMINOWANE domyślne, gdy fala 1 nic nie dowiozła", async () => {
     h.settingsHangs = true;
+    h.fontScaleHangs = true;
     await runLoader(qc);
     const st = qc.getQueryState(["site-settings"]);
     expect(qc.getQueryData(["site-settings"])).toEqual({});
     expect(st?.dataUpdatedAt).toBe(0);
     expect(qc.getQueryState(["design-tokens"])?.dataUpdatedAt).toBe(0);
     expect(qc.getQueryState(["global-colors"])?.dataUpdatedAt).toBe(0);
+    // P3.8 #1: tabela rozmiarów BEZ zasiewu - brak wpisu daje w SSR i w
+    // hydratacji ten sam pusty arkusz, a klient pobiera go przy montażu tak samo
+    // jak zasiew z `updatedAt: 0`; zasiew dokładałby tylko wpis do stanu SSR.
+    expect(qc.getQueryData(["font-scale"])).toBeUndefined();
+    await qc.cancelQueries();
+  });
+
+  // ── TABELA ROZMIARÓW CZCIONEK W FALI 1 (P3.8 #1) ──────────────────────────
+  //
+  // Bez rozgrzewki wpisu `site_font_scale` nie było w stanie SSR: serwer
+  // renderował `:root` z pustą tabelą, a klient pobierał wiersz
+  // `site_design_tokens` zaraz po hydratacji (GET + preflight na każdej trasie).
+  it("fala 1 grzeje tabelę rozmiarów czcionek - wpis jedzie w stanie SSR", async () => {
+    await runLoader(qc, "/blog");
+    expect(h.fontScaleFetches).toBe(1);
+    expect(qc.getQueryData(["font-scale"])).toEqual({ h1: 40 });
+    expect(qc.getQueryState(["font-scale"])?.dataUpdatedAt).toBeGreaterThan(0);
+  });
+
+  it("strona główna anuluje zawieszoną tabelę rozmiarów jak tokeny - bez wpisu w stanie SSR", async () => {
+    h.server = true;
+    h.fontScaleHangs = true;
+    const cancel = vi.spyOn(qc, "cancelQueries");
+    await runLoader(qc, "/");
+    expect(cancel).toHaveBeenCalledWith({ queryKey: ["font-scale"], exact: true });
+    // Anulowane zapytanie bez danych nie przechodzi `shouldDehydrateQuery`
+    // (status `success`), więc dokument go nie niesie, a klient pobiera tabelę
+    // przy montażu - jak przy każdej porażce fali 1.
+    expect(qc.getQueryData(["font-scale"])).toBeUndefined();
+    expect(qc.getQueryState(["font-scale"])?.status).not.toBe("success");
+    expect(h.cacheControl).toContain("private, no-store");
+    cancel.mockRestore();
+  });
+
+  it("prawdziwa tabela rozmiarów zostaje w cache'u tak, jak przyszła z bazy", async () => {
+    await runLoader(qc);
+    expect(qc.getQueryData(["font-scale"])).toEqual({ h1: 40 });
   });
 
   // ── ZASIEW UKŁADU TREŚCI - bez rozgrzewki sieciowej, ale MUSI BYĆ ─────────
@@ -1036,6 +1115,30 @@ describe("root chrome gate uses real query freshness", () => {
     expect(qc.getQueryData(["menu-with-items", "main"])).toEqual([]);
     expect(h.prefetch).toHaveLength(2);
   });
+
+  // ── SYGNAŁ „BRAK AKTYWNYCH POPUPÓW" (P3.8 #4a) ───────────────────────────
+  it("SSR z chrome'em grzeje sygnał „brak aktywnych popupów” w fali chrome", async () => {
+    h.server = true;
+    await runLoader(qc, "/blog");
+    expect(h.popupWarms).toBe(1);
+    expect(qc.getQueryData(["builder-popups-active"])).toEqual([]);
+  });
+
+  it("nawigacja klienta NIE grzeje sygnału popupów - bramka czyta go tylko z SSR", async () => {
+    h.server = false;
+    await runLoader(qc, "/blog");
+    await vi.dynamicImportSettled();
+    expect(h.popupWarms).toBe(0);
+  });
+
+  it("dokument bez chrome'u NIE grzeje sygnału popupów (host montuje się jak dotąd)", async () => {
+    h.server = true;
+    h.chrome = false;
+    await runLoader(qc, "/blog");
+    await vi.dynamicImportSettled();
+    expect(h.popupWarms).toBe(0);
+    expect(qc.getQueryData(["builder-popups-active"])).toBeUndefined();
+  });
 });
 
 describe("__root loader -> tag Google w SSR", () => {
@@ -1462,6 +1565,12 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
     const some = new QueryClient();
     some.setQueryData(["builder-popups-active"], [{ id: "p1" }]);
     expect(probe(some)).toBe(false);
+    // Zespół redakcji montuje host zawsze (P3.8): popup aktywowany w panelu da
+    // się obejrzeć od razu, mimo zamrożonego sygnału z dokumentu.
+    h.staff = true;
+    const staff = new QueryClient();
+    staff.setQueryData(["builder-popups-active"], []);
+    expect(probe(staff)).toBe(false);
   });
 
   it("siatka cache-bustingu: chunk-load error sprzed ciszy przeładowuje raz, inny błąd - nic", async () => {

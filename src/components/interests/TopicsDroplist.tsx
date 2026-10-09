@@ -17,6 +17,7 @@ import { createPortal } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useInterestCatalog, type InterestItem } from "@/hooks/useInterests";
+import { useInteractionOrQuiet } from "@/lib/performance/interactionOrQuiet";
 import { topicLabel, topicsTriggerText } from "@/lib/newsletter/newsletterFieldLabels";
 
 export interface InterestGroup {
@@ -30,9 +31,27 @@ export interface InterestGroup {
  * Katalog zainteresowań pogrupowany po obszarach: kategorie-dzieci trafiają pod
  * etykietę rodzica (Region, Specjalizacja...), top-level pod "Obszary", a tagi
  * do grupy "Tematy". Ta sama struktura zasila droplistę i chipsy.
+ *
+ * KIEDY POBRAĆ KATALOG (`load`, P3.8) - GET `categories` + GET `tags`, każdy
+ * z preflightem:
+ *  - `"mount"` (domyślnie): przy montażu, jak dotąd - gdy katalog jest
+ *    potrzebny od razu (chipsy, wymagany wybór, zapisane tematy, kanwa
+ *    buildera, panel subskrybenta);
+ *  - `"latch"`: przy pierwszej interakcji albo w punkcie ciszy
+ *    (`interactionOrQuiet.ts`). Formularz w wyspie sekcji otwartej w bocie
+ *    (widoczność) nie dokłada wtedy dwóch żądań do okna bootu, a czytelnik,
+ *    który przewinie do formularza, otwiera wyspę i zatrzask tym samym gestem,
+ *    więc widzi listę tak samo jak dotąd;
+ *  - `"off"`: wcale (formularz bez listy tematów).
+ * Wpis już obecny w cache'u czyta się w każdym trybie.
  */
-export function useInterestGroups(lang: "pl" | "en", interestSlugs?: string[] | null) {
-  const catalog = useInterestCatalog(lang);
+export function useInterestGroups(
+  lang: "pl" | "en",
+  interestSlugs?: string[] | null,
+  load: "mount" | "latch" | "off" = "mount",
+) {
+  const armed = useInteractionOrQuiet(load === "latch");
+  const catalog = useInterestCatalog(lang, load === "mount" || (load === "latch" && armed));
 
   const allItems = useMemo<InterestItem[]>(() => {
     const cats = catalog.data?.categories ?? [];

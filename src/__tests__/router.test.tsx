@@ -27,9 +27,9 @@
 // więc podmieniamy CAŁE drzewo na jeden goły korzeń. `createRouter` to przyjmuje.
 // Druga atrapa to sama integracja router<->query: podstawiamy dokładnie te dwa
 // haki, które `router.tsx` owija.
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
-import type { QueryClient } from "@tanstack/react-query";
+import { QueryObserver, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { errorCopy } from "@/lib/errorCopy";
 
 const h = vi.hoisted(() => ({
@@ -93,6 +93,8 @@ vi.mock("@/lib/boot/bootSet.server", () => ({
 
 const { getRouter } = await import("@/router");
 const { HYDRATE_BUDGET_MS } = await import("@/lib/ssr/hydrateBudget");
+const latch = await import("@/lib/performance/interactionOrQuiet");
+const quiet = await import("@/lib/performance/whenQuiescent");
 
 function queryClientOf(router: ReturnType<typeof getRouter>): QueryClient {
   return (router.options.context as { queryClient: QueryClient }).queryClient;
@@ -631,6 +633,118 @@ describe("getRouter - domyślne ekrany błędu", () => {
     expect(html).not.toContain("TAJNY-STACK-Z-SERWERA");
     expect(html).toContain("<h1");
     expect(html.length).toBeGreaterThan(50);
+  });
+});
+
+// ODŚWIEŻANIE PRZY MONTAŻU W OKNIE BOOTU (P3.8, poprawka #5). Wpis z SSR ma
+// znacznik renderu serwera, a dokument z brzegu bywa starszy niż `staleTime`,
+// więc domyślny `refetchOnMount` pobierał przy hydratacji wszystko, co młodsze
+// od dokumentu. Przed zatrzaskiem „pierwsza interakcja ALBO punkt ciszy" wpis
+// z danymi nie odświeża się z powodu samego wieku; zasiewy `updatedAt: 0`
+// i wpisy unieważnione - od razu; zatrzask nadrabia jednym odświeżeniem.
+describe("getRouter - odświeżanie przy montażu w oknie bootu (P3.8 #5)", () => {
+  afterEach(() => {
+    latch.__resetInteractionOrQuietForTests();
+    quiet.__resetQuiescenceForTests();
+    h.server = false;
+  });
+
+  const TEN_MINUTES_AGO = () => Date.now() - 10 * 60_000;
+
+  /** Obserwator jak `useQuery` przy montażu (subskrypcja = montaż). */
+  function mount(client: QueryClient, queryKey: QueryKey, queryFn: () => Promise<unknown>) {
+    const observer = new QueryObserver(client, { queryKey, queryFn });
+    return observer.subscribe(() => {});
+  }
+
+  async function settle(): Promise<void> {
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+  }
+
+  it("wpis z SSR starszy niż `staleTime` NIE pobiera się przy montażu; zatrzask odświeża go raz", async () => {
+    const client = queryClientOf(getRouter());
+    client.setQueryData(["lista"], "z-dokumentu", { updatedAt: TEN_MINUTES_AGO() });
+    const fetch = vi.fn().mockResolvedValue("swieze");
+    const unmount = mount(client, ["lista"], fetch);
+    await settle();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(client.getQueryData(["lista"])).toBe("z-dokumentu");
+
+    latch.__openInteractionOrQuietForTests();
+    await vi.waitFor(() => expect(client.getQueryData(["lista"])).toBe("swieze"));
+    expect(fetch).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+
+  it("zasiew z `updatedAt: 0` leczy się od razu - doktryna degradacji SSR bez zmian", async () => {
+    const client = queryClientOf(getRouter());
+    client.setQueryData(["ustawienia"], {}, { updatedAt: 0 });
+    const fetch = vi.fn().mockResolvedValue({ prawdziwe: true });
+    const unmount = mount(client, ["ustawienia"], fetch);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    unmount();
+  });
+
+  it("wpis UNIEWAŻNIONY (zapis panelu, zmiana sesji) pobiera się przy montażu od razu", async () => {
+    const client = queryClientOf(getRouter());
+    client.setQueryData(["profil"], "stary", { updatedAt: Date.now() });
+    await client.invalidateQueries({ queryKey: ["profil"], refetchType: "none" });
+    const fetch = vi.fn().mockResolvedValue("nowy");
+    const unmount = mount(client, ["profil"], fetch);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    unmount();
+  });
+
+  it("zapytanie BEZ danych (prywatne dane zalogowanego) ładuje się przy montażu", async () => {
+    const client = queryClientOf(getRouter());
+    const fetch = vi.fn().mockResolvedValue(["zakladka"]);
+    const unmount = mount(client, ["moje-zakladki", "u1"], fetch);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    unmount();
+  });
+
+  it("po otwarciu zatrzasku montaż działa domyślnie: nieświeży wpis pobiera się od razu", async () => {
+    const client = queryClientOf(getRouter());
+    latch.__openInteractionOrQuietForTests();
+    client.setQueryData(["po-nawigacji"], "stary", { updatedAt: TEN_MINUTES_AGO() });
+    const fetch = vi.fn().mockResolvedValue("nowy");
+    const unmount = mount(client, ["po-nawigacji"], fetch);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    unmount();
+  });
+
+  it("świeży wpis z SSR nie pobiera się ani przy montażu, ani przy zatrzasku", async () => {
+    const client = queryClientOf(getRouter());
+    client.setQueryData(["swiezy"], "z-dokumentu", { updatedAt: Date.now() });
+    const fetch = vi.fn().mockResolvedValue("nowy");
+    const unmount = mount(client, ["swiezy"], fetch);
+    latch.__openInteractionOrQuietForTests();
+    await settle();
+    expect(fetch).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  it("odświeżenie przy zatrzasku łączy się z pobraniem już w locie - bez drugiego żądania", async () => {
+    const client = queryClientOf(getRouter());
+    client.setQueryData(["uklad"], "zasiew", { updatedAt: TEN_MINUTES_AGO() });
+    let resolve: (value: string) => void = () => {};
+    const fetch = vi.fn(() => new Promise<string>((done) => (resolve = done)));
+    const unmount = mount(client, ["uklad"], fetch);
+    await settle();
+    // Ktoś (np. `ContentAreaStyle` w tym samym punkcie) pobiera ten klucz pierwszy.
+    void client.prefetchQuery({ queryKey: ["uklad"], queryFn: fetch });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    latch.__openInteractionOrQuietForTests();
+    await settle();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    resolve("wiersz");
+    await vi.waitFor(() => expect(client.getQueryData(["uklad"])).toBe("wiersz"));
+    unmount();
+  });
+
+  it("serwer: `refetchOnMount` bez zmian", () => {
+    h.server = true;
+    expect(queryClientOf(getRouter()).getDefaultOptions().queries!.refetchOnMount).toBe(true);
   });
 });
 
