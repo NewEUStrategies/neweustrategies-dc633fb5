@@ -8,14 +8,14 @@ Specyfikacja zakłada Apache ECharts 5.5 z rendererem SVG. Repozytorium świadom
 
 Wymagania z sekcji 1 są więc spełnione mechanizmem silnika, nie ECharts:
 
-| Wymaganie | Realizacja |
-|---|---|
-| SVG, eksport bez strat | rysunek jest SVG; eksport `svgDoPliku` (z tłem i fontem) i `svgDoPng` (2x, tło motywu) w `src/lib/charts/exportImage.ts` |
-| `role="img"`, `aria-label` = tytuł | kontener `.neh-canvas` (`a11y.chart`) |
-| resize z opóźnieniem 160 ms, ignoruj < 4 px | `src/hooks/useContainerWidth.ts` (`RESIZE_DEBOUNCE_MS`, `RESIZE_MIN_DELTA_PX`) |
-| przerysowanie po zmianie motywu, kolory z CSS | rysunek podaje wyłącznie `var(--chart-*)` - przełączenie `.dark` przemalowuje go bez renderu Reacta |
-| komunikat, gdy biblioteka się nie załaduje | `ChartLoadFailed` jako zapas leniwego importu bloku CMS i widgetu buildera |
-| `dispose` przy zmianie widoku | nie dotyczy - komponent Reacta nie trzyma instancji poza drzewem |
+| Wymaganie                                     | Realizacja                                                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| SVG, eksport bez strat                        | rysunek jest SVG; eksport `svgDoPliku` (z tłem i fontem) i `svgDoPng` (2x, tło motywu) w `src/lib/charts/exportImage.ts` |
+| `role="img"`, `aria-label` = tytuł            | kontener `.neh-canvas` (`a11y.chart`)                                                                                    |
+| resize z opóźnieniem 160 ms, ignoruj < 4 px   | `src/hooks/useContainerWidth.ts` (`RESIZE_DEBOUNCE_MS`, `RESIZE_MIN_DELTA_PX`)                                           |
+| przerysowanie po zmianie motywu, kolory z CSS | rysunek podaje wyłącznie `var(--chart-*)` - przełączenie `.dark` przemalowuje go bez renderu Reacta                      |
+| komunikat, gdy biblioteka się nie załaduje    | `ChartLoadFailed` jako zapas leniwego importu bloku CMS i widgetu buildera                                               |
+| `dispose` przy zmianie widoku                 | nie dotyczy - komponent Reacta nie trzyma instancji poza drzewem                                                         |
 
 ## 2. Kolory - role zamiast hexów
 
@@ -25,15 +25,15 @@ Paleta serii `focus` (domyślna, `seriesStyle.ts`): akcent, łupek główny, łu
 
 Odstępstwa od wzorca, każde z pomiaru (kontrast WCAG, odległość CIELAB po symulacji daltonizmu):
 
-| Rola | Wzorzec | Wdrożone | Powód |
-|---|---|---|---|
-| `--pos` | #2D7A6A / #5BB8A3 | #1b6f8c / #6fb3c9 (`--chart-positive`) | para wzorcowa z czerwienią: protanopia 8,5; nasza: 34,6 |
-| `--warn` | #B7791F / #E0A84A | #7c4dbf / #ab92ec (fiolet) | decyzja właściciela: bez bursztynu; bursztyn leży w rodzinie pomarańczu marki |
-| `--s-alt` jasny | #9AA6B5 (2,47:1) | #8794a4 (3,09:1) | trzecia seria przechodzi próg grafiki 3:1 także bez kreskowania |
-| `--acc-t` jasny | #ED751A (2,93:1) | #ab5517 (5,19:1, `--chart-accent-audit`) | etykieta pasma i tekst akcentu muszą przejść próg tekstu 4,5:1 |
-| `--line`/`--line2` ciemny | #2E2B29 / #403C39 | #22201f / #363331 | przeliczone pod naszą płytę #0f0f0f z tym samym kontrastem, jaki wzorzec miał na #1f1e1d |
-| `--panel` ciemny | #1F1E1D | `var(--card)` (#0f0f0f) | płyta, wobec której zwalidowana jest cała paleta |
-| akcent | #FA9346 | #FA9346 | kolor marki bez zmian; na bieli ma 2,25:1, więc seria w akcencie zawsze ma drugi nośnik: kształt punktu, etykietę, tooltip, tabelę danych |
+| Rola                      | Wzorzec           | Wdrożone                                 | Powód                                                                                                                                     |
+| ------------------------- | ----------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `--pos`                   | #2D7A6A / #5BB8A3 | #1b6f8c / #6fb3c9 (`--chart-positive`)   | para wzorcowa z czerwienią: protanopia 8,5; nasza: 34,6                                                                                   |
+| `--warn`                  | #B7791F / #E0A84A | #7c4dbf / #ab92ec (fiolet)               | decyzja właściciela: bez bursztynu; bursztyn leży w rodzinie pomarańczu marki                                                             |
+| `--s-alt` jasny           | #9AA6B5 (2,47:1)  | #8794a4 (3,09:1)                         | trzecia seria przechodzi próg grafiki 3:1 także bez kreskowania                                                                           |
+| `--acc-t` jasny           | #ED751A (2,93:1)  | #ab5517 (5,19:1, `--chart-accent-audit`) | etykieta pasma i tekst akcentu muszą przejść próg tekstu 4,5:1                                                                            |
+| `--line`/`--line2` ciemny | #2E2B29 / #403C39 | #22201f / #363331                        | przeliczone pod naszą płytę #0f0f0f z tym samym kontrastem, jaki wzorzec miał na #1f1e1d                                                  |
+| `--panel` ciemny          | #1F1E1D           | `var(--card)` (#0f0f0f)                  | płyta, wobec której zwalidowana jest cała paleta                                                                                          |
+| akcent                    | #FA9346           | #FA9346                                  | kolor marki bez zmian; na bieli ma 2,25:1, więc seria w akcencie zawsze ma drugi nośnik: kształt punktu, etykietę, tooltip, tabelę danych |
 
 Tooltip jest ciemny w obu motywach, więc napisy oceny (zmiana, status) mają w nim własne warianty (`TOOLTIP_STATUS_TEXT`, >= 4,9:1).
 
