@@ -122,12 +122,18 @@ export const Route = createFileRoute("/llms.txt")({
           descriptionPl: siteDescriptionOverride(settings, "pl") || SITE_DEFAULT_DESCRIPTION.pl,
           descriptionEn: siteDescriptionOverride(settings, "en") || SITE_DEFAULT_DESCRIPTION.en,
           // Kolejność sekcji głównych - wspólna z JSON-LD strony głównej.
-          // Lista statyczna, więc nie wchodzi do oceny degradacji niżej
-          // (ta liczy kategorie i artykuły z bazy).
-          primarySections: primarySiteSections().map((l) => ({
-            name: l.label.pl === l.label.en ? l.label.pl : `${l.label.pl} / ${l.label.en}`,
-            url: `${origin}${l.href}`,
-          })),
+          // Adresy są adresami MARKI (FOOTER_LINKS), więc blok wychodzi tylko
+          // na hoście marki z rozpoznanym tenantem: domena innego tenanta nie
+          // może ogłaszać cudzych sekcji, a przewodnik zdegradowany (bez
+          // tenanta) jest z założenia „bez sekcji i artykułów". Lista jest
+          // statyczna, więc nie wchodzi do oceny degradacji niżej.
+          primarySections:
+            tenantId && classifyCrawlHost({ host }) === "brand"
+              ? primarySiteSections().map((l) => ({
+                  name: l.label.pl === l.label.en ? l.label.pl : `${l.label.pl} / ${l.label.en}`,
+                  url: `${origin}${l.href}`,
+                }))
+              : [],
           sections: categories.map((c) => ({
             name:
               c.name_pl && c.name_en && c.name_pl !== c.name_en

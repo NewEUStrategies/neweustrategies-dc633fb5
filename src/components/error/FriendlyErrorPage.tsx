@@ -69,6 +69,21 @@ const CODE_LABEL: Record<Exclude<ErrorKind, "generic">, string> = {
   degraded: "200",
 };
 
+/** Status HTTP niesiony przez błąd (`status` albo `statusCode`), jeśli jest liczbą. */
+function errorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const e = error as { status?: unknown; statusCode?: unknown };
+  if (typeof e.status === "number") return e.status;
+  return typeof e.statusCode === "number" ? e.statusCode : undefined;
+}
+
+/** Czy błąd jest TRWAŁĄ cechą adresu (patrz `useErrorNoindex` w komponencie). */
+function isPersistentFailure(kind: ErrorKind, error: unknown): boolean {
+  if (kind === "unauthorized" || kind === "sessionExpired") return true;
+  const status = errorStatus(error);
+  return status === 404 || status === 410;
+}
+
 export function FriendlyErrorPage({
   error,
   reset,
@@ -84,12 +99,16 @@ export function FriendlyErrorPage({
   const Icon = ICONS[kind];
   const code = kind === "generic" ? copy.genericCode : CODE_LABEL[kind];
   const lang = currentLang();
-  // Pełnoekranowy ekran błędu zastępuje treść adresu, więc nie może trafić do
-  // indeksu jako jego treść (sitelink „Problem z połączeniem", 2026-10-09).
-  // Wariant kompaktowy siedzi wewnątrz poprawnej strony, a degradacja jest
-  // renderem HTTP 200 z prawdziwą resztą treści - żadne z nich nie wyłącza
-  // indeksowania całego dokumentu.
-  useErrorNoindex(variant === "page" && kind !== "degraded");
+  // `noindex` WYŁĄCZNIE dla stanów TRWAŁYCH adresu: brak strony (404/410)
+  // i wymagane logowanie. Tak brzmi zalecenie Google dla aplikacji JS - noindex
+  // dla „soft 404" - i tylko tam działa na korzyść serwisu. Błąd sieci,
+  // nieudany import chunku czy przekroczony czas to stan CHWILOWY: renderer
+  // Googlebota trafia na niego na adresie, który istnieje i dla którego serwer
+  // oddał 200 z treścią, więc noindex usuwałby z indeksu poprawną stronę - także
+  // sekcje, które mają zostać sitelinkami. Tam zostaje `data-nosnippet` niżej.
+  // Wariant kompaktowy siedzi wewnątrz poprawnej strony i nie wyłącza
+  // indeksowania całego dokumentu nigdy.
+  useErrorNoindex(variant === "page" && isPersistentFailure(kind, error));
 
   useEffect(() => {
     // Degradacja nie jest awarią klienta: serwer zalogował ją już przy zasiewie

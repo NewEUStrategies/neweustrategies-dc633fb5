@@ -16,10 +16,12 @@
 //
 // PLIKI GENEROWANE IDĄ Z REJESTRU (`MACHINE_SURFACES`), nie z listy w tym
 // pliku. Do 2026-10 kokpit wymieniał na sztywno trzy pliki (robots.txt,
-// sitemap.xml, llms.txt), podczas gdy serwis publikował dziesięć - mapę
-// Google News, feedy RSS (PL i EN), alias indeksu mapy. Rejestr jest tym samym
-// źródłem, z którego llms.txt ogłasza zasoby, a test kontraktu pilnuje, że
-// każda trasa maszynowa jest w nim wpisana - nowy plik pojawia się tu sam.
+// sitemap.xml, llms.txt), podczas gdy rejestr powierzchni GLOBALNYCH liczył
+// dziesięć - mapę Google News, feedy RSS (PL i EN), alias indeksu mapy. Rejestr
+// jest tym samym źródłem, z którego llms.txt ogłasza zasoby, a test kontraktu
+// pilnuje, że każda globalna trasa maszynowa jest w nim wpisana - nowy plik
+// globalny pojawia się tu sam. Feedy per element (kategoria, tag, podcast)
+// i shardy mapy nie mają jednego adresu i zostają poza tą listą.
 //
 // EKRAN JEST TYLKO DO CZYTANIA. Nie ma tu ani jednej mutacji i tak ma zostać -
 // pilnuje tego `adminRouteAuthority.gate.test.ts`. Każda liczba jest linkiem do
@@ -37,6 +39,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useRequiredTenant } from "@/hooks/useAuth";
+import { useTenantPublicOrigin } from "@/lib/seo/useTenantPublicOrigin";
 import { useSettings } from "@/lib/admin/useSettings";
 import { SeoScorePill } from "@/components/admin/seo/SeoScorePill";
 import { BrandFindingList } from "@/components/admin/seo/BrandFindingList";
@@ -129,6 +132,11 @@ function SeoDashboard() {
   // Czytamy ustawienia, ale NIGDY nie wołamy `save` - patrz nagłówek pliku.
   const { query } = useSettings<SeoSettings>(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS);
   const settings = query.data;
+  // Linki do plików i sekcji idą na PUBLICZNY origin tenanta, nie na host
+  // panelu - ta sama reguła co w `TechnicalFoundationCard`: względny
+  // `/sitemap.xml` otwarty z panelu na innym hoście pokazałby pliki CUDZEGO
+  // serwisu. `null` = tenant bez publicznego adresu (komunikat zamiast linków).
+  const publicOrigin = useTenantPublicOrigin();
 
   const postsQuery = useQuery(seoContentQueryOptions("posts", tenantId));
   const pagesQuery = useQuery(seoContentQueryOptions("pages", tenantId));
@@ -311,21 +319,28 @@ function SeoDashboard() {
           {sections.map((section, i) => (
             <li
               key={section.href}
+              data-section-href={section.href}
               className="flex items-center gap-3 border-b border-border px-3 py-2 last:border-0"
             >
               <span className="w-5 shrink-0 font-mono text-xs text-muted-foreground">{i + 1}</span>
               <span className="font-medium">{labelFor(section, "pl")}</span>
               <span className="text-xs text-muted-foreground">{labelFor(section, "en")}</span>
               {/* Sekcje to strony CMS-owe (trasa catch-all) - zwykły <a>. */}
-              <a
-                href={section.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto inline-flex items-center gap-1 font-mono text-xs text-brand hover:underline"
-              >
-                {section.href}
-                <ExternalLink className="h-3 w-3 shrink-0" />
-              </a>
+              {publicOrigin ? (
+                <a
+                  href={`${publicOrigin}${section.href}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto inline-flex items-center gap-1 font-mono text-xs text-brand hover:underline"
+                >
+                  {section.href}
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+              ) : (
+                <span className="ml-auto font-mono text-xs text-muted-foreground">
+                  {section.href}
+                </span>
+              )}
             </li>
           ))}
         </ol>
@@ -334,6 +349,11 @@ function SeoDashboard() {
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">{t("adminSeoHub.sectionFiles")}</h2>
         <p className="text-xs text-muted-foreground">{t("adminSeoHub.filesIntro")}</p>
+        {publicOrigin === null ? (
+          <p className="text-xs text-muted-foreground" data-seo-files-origin="none">
+            {t("adminSeoHub.noPublicDomain")}
+          </p>
+        ) : null}
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-sm">
             <tbody>
@@ -349,28 +369,30 @@ function SeoDashboard() {
                     {/* Pliki generowane NIE są trasami routera - muszą iść
                         zwykłym <a>, inaczej router próbowałby dopasować je do
                         drzewa tras i wyświetlił stronę 404 zamiast pliku. */}
-                    <span className="inline-flex flex-col items-end gap-1">
-                      <a
-                        href={file.path}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-brand hover:underline"
-                      >
-                        {t("adminSeoHub.open")}
-                        <ExternalLink className="h-3 w-3 shrink-0" />
-                      </a>
-                      {file.localized ? (
+                    {publicOrigin ? (
+                      <span className="inline-flex flex-col items-end gap-1">
                         <a
-                          href={localizedPath(file.path, "en")}
+                          href={`${publicOrigin}${file.path}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-brand hover:underline"
                         >
-                          {t("adminSeoHub.fileOpenEn")}
+                          {t("adminSeoHub.open")}
                           <ExternalLink className="h-3 w-3 shrink-0" />
                         </a>
-                      ) : null}
-                    </span>
+                        {file.localized ? (
+                          <a
+                            href={`${publicOrigin}${localizedPath(file.path, "en")}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-brand hover:underline"
+                          >
+                            {t("adminSeoHub.fileOpenEn")}
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                          </a>
+                        ) : null}
+                      </span>
+                    ) : null}
                   </td>
                 </tr>
               ))}

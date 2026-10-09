@@ -102,11 +102,11 @@ const pl = {
     shortcutRedirectsHint: "Stare adresy, które mają prowadzić do nowych.",
     sectionFiles: "Pliki generowane",
     filesIntro:
-      "Wszystkie pliki maszynowe, które serwis publikuje dla wyszukiwarek, czytników RSS i asystentów AI. Lista idzie z rejestru, z którego korzysta też llms.txt, więc nowy plik pojawia się tu automatycznie.",
+      "Globalne pliki maszynowe serwisu (mapy strony, feedy RSS, llms.txt, robots.txt). Lista idzie z rejestru, z którego korzysta też llms.txt, więc nowy plik globalny pojawia się tu automatycznie. Feedy kategorii, tagów i podcastów oraz części mapy strony są ogłaszane w indeksie mapy i w nagłówku swoich stron.",
     fileOpenEn: "Otwórz EN",
     sectionPrimaryNav: "Kolejność sekcji głównych",
     primaryNavIntro:
-      "Sekcje, które strona główna deklaruje wyszukiwarkom jako nawigację serwisu (dane strukturalne), w tej kolejności - tę samą listę publikuje llms.txt. Google dobiera sitelinki samodzielnie; ta lista i menu nagłówka to sygnały, na które serwis ma wpływ.",
+      "Sekcje, które strona główna deklaruje w danych strukturalnych jako najważniejsze, w tej kolejności - tę samą listę publikuje llms.txt. Google dobiera sitelinki automatycznie, ze struktury linków serwisu: o tym, które sekcje mają szansę, decydują przede wszystkim linki w menu nagłówka i w stopce (Wygląd → Menu).",
     open: "Otwórz",
     download: "Pobierz plik",
 
@@ -288,11 +288,11 @@ const en: typeof pl = {
     shortcutRedirectsHint: "Old addresses that should lead to new ones.",
     sectionFiles: "Generated files",
     filesIntro:
-      "Every machine-readable file the site publishes for search engines, RSS readers and AI assistants. The list comes from the same registry llms.txt uses, so a new file appears here automatically.",
+      "The site's global machine-readable files (sitemaps, RSS feeds, llms.txt, robots.txt). The list comes from the same registry llms.txt uses, so a new global file appears here automatically. Category, tag and podcast feeds and sitemap shards are announced in the sitemap index and in their pages' head.",
     fileOpenEn: "Open EN",
     sectionPrimaryNav: "Main section order",
     primaryNavIntro:
-      "The sections the homepage declares to search engines as the site navigation (structured data), in this order - llms.txt publishes the same list. Google picks sitelinks on its own; this list and the header menu are the signals the site controls.",
+      "The sections the homepage declares in structured data as the most important, in this order - llms.txt publishes the same list. Google picks sitelinks automatically from the site's link structure: which sections stand a chance depends mainly on the links in the header menu and the footer (Appearance → Menu).",
     open: "Open",
     download: "Download file",
 

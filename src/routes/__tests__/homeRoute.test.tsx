@@ -53,6 +53,7 @@ import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import { QueryClient } from "@tanstack/react-query";
 import {
   HOME_CONTENT_BUDGET_MS,
+  HOME_CRAWLER_CONTENT_BUDGET_MS,
   HOME_SSR_BUDGET_MS,
   homeContentDeadline,
   homeSsrDeadline,
@@ -74,6 +75,10 @@ const h = vi.hoisted(() => ({
   homePageHangs: false,
   /** Opóźnienie odpowiedzi strony głównej w ms (0 = od razu). */
   homePageDelayMs: 0,
+  /** UA żądania SSR to crawler indeksujący (`isSearchCrawlerRequest`). */
+  crawler: false,
+  /** Ile razy loader oznaczył żądanie do 503 dla crawlera. */
+  crawlerUnavailable: 0,
   homeMode: "" as HomepageMode,
   homeModeFails: false,
   settings: {} as Record<string, unknown>,
@@ -151,6 +156,7 @@ vi.mock("@/lib/i18n/localeRuntime", async (importOriginal) => ({
 vi.mock("@/lib/seo/request", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/seo/request")>()),
   getRequestUrl: () => h.requestUrl,
+  isSearchCrawlerRequest: () => h.crawler,
 }));
 
 vi.mock("@/lib/http/responseHeaders", () => ({
@@ -158,6 +164,7 @@ vi.mock("@/lib/http/responseHeaders", () => ({
   appendLinkHeader: (value: string) => h.linkHeaders.push(value),
   registerDocumentCompletenessCheck: (check: unknown) => h.completenessChecks.push(check),
   noteDocumentDegradation: () => {},
+  markCrawlerUnavailable: () => void h.crawlerUnavailable++,
 }));
 
 vi.mock("@/lib/queries/public", async (importOriginal) => ({
@@ -389,6 +396,8 @@ beforeEach(() => {
   h.homePageFails = false;
   h.homePageHangs = false;
   h.homePageDelayMs = 0;
+  h.crawler = false;
+  h.crawlerUnavailable = 0;
   h.homeMode = "";
   h.homeModeFails = false;
   h.settings = { reading: { posts_per_page: 2 } };
@@ -586,12 +595,51 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     expect(h.cacheControl.at(-1)).toContain("s-maxage");
   });
 
-  it("strona główna niesie warstwę encji: wydawca, serwis i nawigacja stopki", async () => {
+  it("strona główna niesie warstwę encji: wydawca, serwis i sekcje główne", async () => {
     // Google zaleca trzymać te encje WYŁĄCZNIE na stronie głównej - jeden mocny
     // sygnał, po którym grafy wiedzy i asystenci AI rozpoznają markę.
     const view = await mountHome();
     const types = view.headScripts().map((s) => jsonLdType(s));
     expect(types).toEqual(["NewsMediaOrganization", "WebSite", "ItemList"]);
+  });
+
+  /** Graf nawigacji (`ItemList`) z JSON-LD strony głównej. */
+  function navGraph(view: { headScripts: () => Record<string, unknown>[] }) {
+    const graphs = view
+      .headScripts()
+      .map((s) => JSON.parse(String(s.children)) as Record<string, unknown>);
+    return graphs.find((g) => g["@type"] === "ItemList") as {
+      "@id": string;
+      itemListElement: Array<{ name: string; url: string }>;
+    };
+  }
+
+  it("nawigacja w JSON-LD to sekcje główne w zaplanowanej kolejności, nie mapa stopki", async () => {
+    // Zgłoszenie 2026-10-09: 25 linków stopki z „Kontaktem" i dokumentami
+    // prawnymi zastąpiła lista sekcji głównych (`lib/seo/primaryNavigation.ts`).
+    const nav = navGraph(await mountHome());
+    expect(nav["@id"]).toBe("https://neweuropeanstrategies.com/#primary-navigation");
+    expect(nav.itemListElement.map((i) => i.url)).toEqual([
+      "https://neweuropeanstrategies.com/analizy",
+      "https://neweuropeanstrategies.com/category/wywiady",
+      "https://neweuropeanstrategies.com/wydarzenia",
+      "https://neweuropeanstrategies.com/category/policy-papers",
+      "https://neweuropeanstrategies.com/o-nas",
+    ]);
+  });
+
+  it("EN: te same sekcje pod /en i z etykietami EN", async () => {
+    h.lang = "en";
+    h.requestUrl = "https://neweuropeanstrategies.com/en";
+    const nav = navGraph(await mountHome());
+    expect(nav.itemListElement.map((i) => i.name)).toEqual([
+      "Analyses",
+      "Interviews",
+      "Events",
+      "Policy papers",
+      "About us",
+    ]);
+    expect(nav.itemListElement[2]?.url).toBe("https://neweuropeanstrategies.com/en/wydarzenia");
   });
 
   // DIETA ŁADUNKU ROUTERA (P3.7b, T5 + T6). Dane loadera jadą w `$tsr` każdego
@@ -1124,6 +1172,58 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
     }
   });
 
+  /** Loader SSR z treścią spóźnioną o `delayMs` (albo zawieszoną) dla danego UA. */
+  async function runServerLoader(opts: { crawler: boolean; delayMs?: number; hangs?: boolean }) {
+    vi.useFakeTimers();
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+    try {
+      h.server = true;
+      h.crawler = opts.crawler;
+      vi.stubGlobal("document", undefined);
+      h.homeMode = "static_page";
+      h.homePage = homePageData();
+      h.homePageDelayMs = opts.delayMs ?? 0;
+      h.homePageHangs = opts.hangs ?? false;
+      type Loader = (args: {
+        context: { queryClient: QueryClient };
+        deps: { page: number };
+      }) => Promise<{ degraded: boolean; homePage: PageData | null }>;
+      const loader = HomeRoute.options.loader as unknown as Loader;
+      const result = loader({ context: { queryClient: qc }, deps: { page: 1 } });
+      await vi.advanceTimersByTimeAsync(HOME_CRAWLER_CONTENT_BUDGET_MS + 100);
+      return await result;
+    } finally {
+      qc.clear();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  }
+
+  // Zgłoszenie 2026-10-09: 4 z 10 żądań z UA Googlebota dostawało dokument
+  // bez treści, bo crawler czekał na nią tyle samo co czytelnik (1,2 s).
+  it("crawler indeksujący dostaje treść spóźnioną ponad termin czytelnika", async () => {
+    const delayMs = (HOME_CONTENT_BUDGET_MS + HOME_CRAWLER_CONTENT_BUDGET_MS) / 2;
+    expect(await runServerLoader({ crawler: true, delayMs })).toMatchObject({
+      degraded: false,
+      homePage: { id: "page-home" },
+    });
+    expect(h.crawlerUnavailable).toBe(0);
+    expect(await runServerLoader({ crawler: false, delayMs })).toMatchObject({
+      degraded: true,
+      homePage: null,
+    });
+    // Czytelnik dostaje 200 z komunikatem - 503 jest wyłącznie dla crawlera.
+    expect(h.crawlerUnavailable).toBe(0);
+  });
+
+  it("treść nie zdążyła nawet w terminie crawlera -> żądanie oznaczone do 503", async () => {
+    expect(await runServerLoader({ crawler: true, hangs: true })).toMatchObject({
+      degraded: true,
+      homePage: null,
+    });
+    expect(h.crawlerUnavailable).toBe(1);
+  });
+
   it("brak strony głównej (typ A) to ZAWSZE `no-store`, także po terminie treści", async () => {
     h.homePageFails = true;
     h.homeMode = "static_page";
@@ -1186,9 +1286,19 @@ describe("/ - degradacja: awaria danych NIE jest tym samym co pustka", () => {
     const h1s = view.container.querySelectorAll("h1");
     expect(h1s).toHaveLength(1);
     expect(h1s[0].textContent).toContain("New European Strategies");
+    // Bez treści nazwa serwisu jest WIDOCZNA - najwidoczniejszym tekstem
+    // dokumentu nie może być komunikat o wczytywaniu (zgłoszenie 2026-10-09).
+    expect(h1s[0].className).not.toContain("sr-only");
     // Zdegradowany render nadal NIE wchodzi do cache'u współdzielonego -
     // zapasowy nagłówek niczego w tej decyzji nie zmienia.
     expect(h.cacheControl.at(-1)).toContain("no-store");
+  });
+
+  it("przy treści dostępnej `h1` wraca do `sr-only` - kanwa ma własny hero", async () => {
+    h.homeMode = "static_page";
+    h.homePage = homePageData();
+    const view = await mountHome();
+    expect(view.container.querySelector("h1")?.className).toBe("sr-only");
   });
 
   it("awaria ustawień serwisu nie zabiera czytelnikowi treści ani powłoki", async () => {
@@ -1210,8 +1320,18 @@ describe("/ - powierzchnie awaryjne trasy", () => {
     h.homeMode = "static_page";
     h.homePage = homePageData();
     h.builderThrows = true;
-    await mountHome();
-    expect(screen.getByRole("heading", { name: "Nie udało się załadować strony" })).toBeTruthy();
+    const view = await mountHome();
+    // Jedyny `h1` to nazwa serwisu, a komunikat awarii jest alertem, nie
+    // nagłówkiem - inaczej Google mógłby wziąć „Nie udało się załadować strony"
+    // za tytuł wyniku na nazwę marki (zgłoszenie 2026-10-09).
+    expect(screen.getAllByRole("heading", { level: 1 }).map((el) => el.textContent)).toEqual([
+      "New European Strategies",
+    ]);
+    expect(screen.getByRole("alert").textContent).toBe("Nie udało się załadować strony");
+    // Celowo BEZ `noindex` na "/" (uzasadnienie w HomeErrorNotice.tsx), a tekst
+    // awarii nie trafia do fragmentu wyniku.
+    expect(document.head.querySelector("meta[data-nes-error-noindex]")).toBeNull();
+    expect(view.container.querySelector("[data-nosnippet]")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Strona główna" })).toHaveAttribute("href", "/");
     // Techniczny komunikat wyjątku NIE trafia na ekran czytelnika.

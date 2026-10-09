@@ -410,6 +410,7 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           className={`shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
         />
       </button>
+      <CrawlableMenuLinks node={node} lang={lang} />
       {mounted && open && anchor
         ? createPortal(
             (() => {
@@ -451,6 +452,49 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
           )
         : null}
     </li>
+  );
+}
+
+/**
+ * Lustro linków panelu W HTML-U SERWERA - dla crawlera, nie dla człowieka.
+ *
+ * Pozycja z panelem jest triggerem `<button>` (bez `href`), a sam panel
+ * montuje się w portalu dopiero po najechaniu albo kliknięciu. W dokumencie,
+ * który dostaje wyszukiwarka, Analizy, Wydarzenia czy O nas nie były więc
+ * ŻADNYM linkiem - pomiar 2026-10-09 na produkcji: nagłówek strony głównej
+ * niósł wyłącznie /category/wywiady, /category/policy-papers i
+ * /category/raport. Google buduje sitelinki ze struktury linków wewnętrznych
+ * (https://developers.google.com/search/docs/appearance/sitelinks), więc
+ * najważniejsze sekcje serwisu nie miały szans na sitelink.
+ *
+ * `hidden` zdejmuje listę z layoutu i z drzewa dostępności - wygląd,
+ * klawiatura i czytnik ekranu zostają dokładnie takie, jak przed zmianą -
+ * a `href` pozostają w HTML-u, z którego crawler wyciąga linki. Zawartość:
+ * strona samej sekcji, jej podpozycje (dwa poziomy) i linki kolumn mega,
+ * czyli to samo, co redakcja pokazuje w panelu i w akordeonie mobilnym.
+ */
+function CrawlableMenuLinks({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
+  const links: Array<{ key: string; href: string; label: string }> = [];
+  const push = (key: string, href: string, label: string) => {
+    if (label && href !== "#") links.push({ key, href, label });
+  };
+  push(node.id, itemHref(node), pickLabel(node, lang));
+  for (const child of node.children) {
+    push(child.id, itemHref(child), pickLabel(child, lang));
+    for (const grandchild of child.children) {
+      push(grandchild.id, itemHref(grandchild), pickLabel(grandchild, lang));
+    }
+  }
+  mobileMegaLinks(node, lang).forEach((lnk, i) => push(`m-${i}`, lnk.href, lnk.label));
+  if (links.length === 0) return null;
+  return (
+    <ul hidden data-site-menu-crawl>
+      {links.map((lnk) => (
+        <li key={lnk.key}>
+          <a href={lnk.href}>{lnk.label}</a>
+        </li>
+      ))}
+    </ul>
   );
 }
 

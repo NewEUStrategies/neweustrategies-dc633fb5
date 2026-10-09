@@ -119,7 +119,7 @@ function navigationItemUrl(origin: string, href: string, lang: Lang): string {
  * sekcje główne (`lib/seo/primaryNavigation.ts`). Różnią się `@id` i nazwą
  * listy, żeby dwa grafy nigdy nie zlały się w jeden węzeł.
  */
-export type SiteNavigationKind = "footer" | "primary";
+type SiteNavigationKind = "footer" | "primary";
 
 const NAVIGATION_LIST: Record<SiteNavigationKind, { id: string; name: Record<Lang, string> }> = {
   footer: { id: "footer-navigation", name: { pl: "Nawigacja stopki", en: "Footer navigation" } },

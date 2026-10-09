@@ -9,7 +9,8 @@ import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
 import { isPreviewHost } from "@/lib/http/host";
 import { tenantAssertionMiddleware } from "@/lib/http/tenantAssertionCookie.server";
 import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
-import { readRouteCacheDirective } from "@/lib/http/responseHeaders";
+import { readCrawlerUnavailable, readRouteCacheDirective } from "@/lib/http/responseHeaders";
+import { crawlerUnavailableResponse } from "@/lib/http/crawlerUnavailable";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import { renderErrorPage } from "@/lib/error-page";
 import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
@@ -428,6 +429,22 @@ const defaultCacheControlMiddleware = createMiddleware().server(async ({ request
 });
 
 /**
+ * Strona główna bez treści dla crawlera indeksującego -> 503 + `Retry-After`
+ * (uzasadnienie: `lib/http/crawlerUnavailable.ts`). Siedzi NAJGŁĘBIEJ w
+ * łańcuchu, więc `defaultCacheControlMiddleware` i `documentCacheMiddleware`
+ * widzą już 503 - a polityka zapisu NES Edge Cache przepuszcza wyłącznie 200.
+ * Decyzję podejmuje loader (`markCrawlerUnavailable`), bo tylko on wie, że
+ * treść nie zdążyła; tu jest wyłącznie przepisanie statusu.
+ */
+const crawlerUnavailableMiddleware = createMiddleware().server(async ({ next }) => {
+  const result = await next();
+  if (!readCrawlerUnavailable()) return result;
+  const response = getMiddlewareResponse(result);
+  if (!response) return result;
+  return withMiddlewareResponse(result, crawlerUnavailableResponse(response));
+});
+
+/**
  * Add response headers without mutating a framework/fetch-owned Headers object.
  * Responses created by the Worker runtime (redirects and proxied fetches in
  * particular) can use the Web Platform `immutable` header guard. Calling
@@ -562,6 +579,7 @@ export const startInstance = createStart(() => ({
     tenantAssertionMiddleware,
     documentCacheMiddleware,
     defaultCacheControlMiddleware,
+    crawlerUnavailableMiddleware,
   ],
   functionMiddleware: [attachSupabaseAuth],
 }));

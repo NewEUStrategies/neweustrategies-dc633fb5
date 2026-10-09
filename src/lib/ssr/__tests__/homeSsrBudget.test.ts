@@ -12,6 +12,7 @@ import {
   homeSsrDeadline,
   remainingHomeBudget,
 } from "../homeSsrBudget";
+import { SSR_QUERY_TIMEOUT_MS } from "../queryTimeout";
 
 afterEach(() => vi.useRealTimers());
 
@@ -76,5 +77,8 @@ it("gives an indexing crawler a longer, still bounded content deadline", () => {
   expect(homeContentDeadline(qc, false)).toBe(start + HOME_CONTENT_BUDGET_MS);
   expect(homeSsrDeadline(qc)).toBe(shared);
   expect(HOME_CRAWLER_CONTENT_BUDGET_MS).toBeGreaterThan(HOME_CONTENT_BUDGET_MS);
-  expect(HOME_CRAWLER_CONTENT_BUDGET_MS).toBeLessThanOrEqual(5_000);
+  // Doktryna budżetów (`resilientLoad.ts`): loader degraduje się SAM, zanim
+  // strażnik zapytań anuluje je z `revert: true` - inaczej o każdym wolnym
+  // renderze crawlera decydowałby strażnik, a nie ten termin.
+  expect(HOME_CRAWLER_CONTENT_BUDGET_MS).toBeLessThan(SSR_QUERY_TIMEOUT_MS);
 });

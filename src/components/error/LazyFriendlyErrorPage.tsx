@@ -19,7 +19,6 @@
 // awaryjnego (`errorCopy` nie potrzebuje providera i18n) i przeładowaniem.
 import { Component, Suspense, lazy, type ErrorInfo, type ReactNode } from "react";
 import { errorCopy } from "@/lib/errorCopy";
-import { useErrorNoindex } from "@/lib/seo/useErrorNoindex";
 import type { FriendlyErrorPageProps } from "./FriendlyErrorPage";
 
 const FriendlyErrorPage = lazy(() =>
@@ -45,8 +44,9 @@ function ReservedSpace({ variant }: { variant: Variant }) {
 /** Ostatnia linia obrony: chunk ekranu błędu nie dojechał. */
 function ChunkLoadFallback({ variant }: { variant: Variant }) {
   const copy = errorCopy();
-  // Ta sama reguła indeksowania co w `FriendlyErrorPage` (useErrorNoindex).
-  useErrorNoindex(variant === "page");
+  // Bez `noindex`: ta karta znaczy, że chunk nie dojechał - stan chwilowy
+  // z definicji (reguła w `FriendlyErrorPage`). Tekst awarii nie trafia za to
+  // do fragmentu wyniku (`data-nosnippet`).
   return (
     <div
       role="alert"

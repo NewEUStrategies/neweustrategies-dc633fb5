@@ -202,6 +202,41 @@ describe("wariant desktopowy", () => {
     expect(within(panel).getByText(/Przejdź do strony/)).toBeTruthy();
   });
 
+  it("pozycja z panelem niesie w HTML-u ukryte linki sekcji i podpozycji dla crawlera", async () => {
+    // Zgłoszenie 2026-10-09: trigger panelu to `<button>` bez `href`, a panel
+    // montuje się dopiero po najechaniu - Analizy, Wydarzenia i O nas nie były
+    // w dokumencie serwera żadnym linkiem, więc nie mogły zostać sitelinkiem.
+    setMenu([
+      item({ id: "a", label_pl: "Wiedza", href: "/wiedza" }),
+      item({ id: "a1", parent_id: "a", label_pl: "Analizy", href: "/analizy" }),
+      item({ id: "x", parent_id: "a1", label_pl: "Raporty", href: "/raporty" }),
+      item({ id: "b", label_pl: "Kontakt", href: "/kontakt", position: 1 }),
+    ]);
+    const { container } = await renderMenu();
+    const mirror = container.querySelector("ul[data-site-menu-crawl]");
+    expect(mirror?.hasAttribute("hidden")).toBe(true);
+    expect([...(mirror?.querySelectorAll("a") ?? [])].map((a) => a.getAttribute("href"))).toEqual([
+      "/wiedza",
+      "/analizy",
+      "/raporty",
+    ]);
+    // Lustro jest poza drzewem dostępności: czytnik ekranu i klawiatura widzą
+    // nawigację dokładnie taką jak wcześniej (trigger + jeden zwykły link).
+    const nav = screen.getByRole("navigation", { name: "Nawigacja główna" });
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((a) => a.getAttribute("href")),
+    ).toEqual(["/kontakt"]);
+    expect(within(nav).getByRole("button", { name: /Wiedza/ })).toBeTruthy();
+  });
+
+  it("pozycja bez panelu nie dostaje lustra linków", async () => {
+    setMenu([item({ id: "a", label_pl: "Kontakt", href: "/kontakt" })]);
+    const { container } = await renderMenu();
+    expect(container.querySelector("[data-site-menu-crawl]")).toBeNull();
+  });
+
   it("mega z ręczną konfiguracją pokazuje kolumny administratora", async () => {
     setMenu([
       item({
@@ -665,6 +700,8 @@ describe("projekcja przesyłki menu (P2.5)", () => {
     const { container } = await renderMenu();
     expect(container.innerHTML.replace(/_r_[0-9a-z]+_/g, "_r_")).toBe(full);
     fireEvent.click(screen.getByRole("button", { name: /Analizy/ }));
-    expect(await screen.findByText("Roczne")).toBeTruthy();
+    // W panelu, nie w całym dokumencie: ukryte lustro linków dla crawlera
+    // (`data-site-menu-crawl`) też niesie „Roczne".
+    expect(await within(await screen.findByRole("menu")).findByText("Roczne")).toBeTruthy();
   });
 });

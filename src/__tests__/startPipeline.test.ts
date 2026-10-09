@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { requestHandler } from "@tanstack/react-start/server";
 import { startInstance, applySecurityHeaders } from "../start";
-import { setCacheControlHeader } from "../lib/http/responseHeaders";
+import { markCrawlerUnavailable, setCacheControlHeader } from "../lib/http/responseHeaders";
 import { getMiddlewareResponse } from "../lib/http/middlewareResult";
 
 const h = vi.hoisted(() => ({ redirect: vi.fn(), log404: vi.fn(), background: vi.fn() }));
@@ -46,7 +46,8 @@ afterEach(() => {
 describe("registered request middleware", () => {
   it("retains auth attacher and the registered request chain", () => {
     expect(options.functionMiddleware).toHaveLength(1);
-    expect(middleware).toHaveLength(11);
+    // 11 = crawlerUnavailable (2026-10-09): najgłębiej, pod defaultCacheControl.
+    expect(middleware).toHaveLength(12);
   });
   it.each([new Response(null, { status: 401 }), { statusCode: 404 }, { status: 403 }])(
     "preserves intentional HTTP short circuits: %s",
@@ -409,6 +410,39 @@ describe("registered request middleware", () => {
   it("gives an anonymous document its default policy", async () => {
     const res = response(await run(10, request()));
     expect(res.headers.get("cache-control")).toContain("s-maxage=900");
+  });
+});
+
+// Strona główna bez treści dla crawlera indeksującego -> 503 (zgłoszenie
+// 2026-10-09, `lib/http/crawlerUnavailable.ts`). Decyzję podejmuje loader;
+// ogniwo 11 tylko przepisuje status, i to WYŁĄCZNIE dla oznaczonego żądania.
+describe("crawler bez treści strony głównej (ogniwo 11)", () => {
+  it("żądanie oznaczone przez loader dostaje 503 z Retry-After i no-store", async () => {
+    const handler = requestHandler(async (req) =>
+      response(
+        await run(11, req, async () => {
+          markCrawlerUnavailable();
+          return document();
+        }),
+      ),
+    );
+    const res = await handler(request("/"), {});
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("120");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.text()).toContain("treść");
+  });
+
+  it("żądanie NIEoznaczone przechodzi bez zmian (czytelnik dostaje 200)", async () => {
+    const handler = requestHandler(async (req) => response(await run(11, req)));
+    const res = await handler(request("/"), {});
+    expect(res.status).toBe(200);
+    expect(res.headers.get("retry-after")).toBeNull();
+  });
+
+  it("wynik bez Response (envelope innego typu) przechodzi bez zmian", async () => {
+    const token = { handled: true };
+    expect(await run(11, request("/"), async () => token)).toBe(token);
   });
 });
 

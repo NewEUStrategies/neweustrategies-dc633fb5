@@ -731,7 +731,10 @@ describe("classifyUserAgent - z UA do logu trafia wyłącznie klasa", () => {
   it.each<[string | null | undefined, string]>([
     [LIGHTHOUSE_MOBILE_UA, "lighthouse"],
     ["Mozilla/5.0 (compatible; Google-PageSpeed Insights)", "lighthouse"],
-    ["Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "bot"],
+    // Crawler indeksujący ma własną klasę - własny termin treści i 503 na "/".
+    ["Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "crawler"],
+    ["Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)", "crawler"],
+    ["Mozilla/5.0 (compatible; Slackbot-LinkExpanding 1.0)", "bot"],
     ["curl/8.5.0", "bot"],
     ["Mozilla/5.0 HeadlessChrome/141.0.0.0", "bot"],
     ["", "bot"],

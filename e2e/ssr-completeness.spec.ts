@@ -144,13 +144,56 @@ test.describe("SSR HTML completeness", () => {
 
         const heading = page.getByRole("heading", { level: 1 });
         await expect(heading).toHaveCount(1);
-        // `sr-only` nie jest "visible" dla Playwrighta, a strona główna właśnie
-        // takiego H1 używa - liczy się obecność w drzewie dostępności i treść.
+        // `sr-only` nie jest "visible" dla Playwrighta, a strona główna z treścią
+        // właśnie takiego H1 używa - liczy się obecność w drzewie dostępności
+        // i treść. Bez treści (stan tej bramki: placeholderowe poświadczenia
+        // Supabase) nazwa serwisu jest WIDOCZNA - patrz `HomeSrHeading`.
         await expect(heading).not.toBeEmpty();
+        if (await page.locator("[data-home-loading]").count()) await expect(heading).toBeVisible();
         await expect(page.locator("html")).toHaveAttribute("lang", lang);
         await expect(page).toHaveURL(new RegExp(`${path === "/" ? "/$" : `${path}/?$`}`));
         expect(errors, `page errors: ${errors.join("; ")}`).toHaveLength(0);
       });
+    });
+  }
+});
+
+// Zgłoszenie 2026-10-09: Google pokazywał „Loading the homepage" jako tytuł
+// wyniku na nazwę marki - 4 z 10 żądań z UA Googlebota dostawało HTTP 200
+// z komunikatem zamiast treści. Ta bramka czyta SUROWY dokument dla UA
+// crawlera indeksującego (prawdziwe `isSearchCrawlerRequest` pod Start):
+//   - bez treści: 503 + `Retry-After` (wyszukiwarka zachowuje poprzednią
+//     wersję adresu i ponawia), nigdy 200 z komunikatem;
+//   - z treścią: 200, komunikat nie jest nagłówkiem, nawigacja w JSON-LD to
+//     sekcje główne bez „Kontaktu".
+const GOOGLEBOT_UA =
+  "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.6668.71 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+
+test.describe("strona główna dla crawlera indeksującego", () => {
+  for (const path of ["/", "/en"] as const) {
+    test(`Googlebot ${path}: 503 bez treści, 200 z marką i sekcjami głównymi`, async ({
+      request,
+    }) => {
+      const res = await request.get(path, {
+        timeout: SSR_BUDGET_MS,
+        headers: { "user-agent": GOOGLEBOT_UA, accept: "text/html" },
+      });
+      const html = await res.text();
+      // Nagłówek z komunikatem o wczytywaniu to dokładnie zgłoszony defekt.
+      expect(html).not.toMatch(/<h[1-6][^>]*>\s*(Wczytujemy stronę główną|Loading the homepage)/);
+      if (html.includes("data-home-loading")) {
+        expect(res.status(), `${path}: dokument bez treści dla crawlera`).toBe(503);
+        expect(res.headers()["retry-after"]).toBe("120");
+        expect(res.headers()["cache-control"]).toBe("no-store");
+        return;
+      }
+      expect(res.status()).toBe(200);
+      const graphs = [
+        ...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g),
+      ].map((m) => JSON.parse(m[1]) as Record<string, unknown>);
+      const nav = graphs.find((g) => g["@type"] === "ItemList");
+      expect(String(nav?.["@id"])).toMatch(/\/#primary-navigation$/);
+      expect(JSON.stringify(nav)).not.toContain("/kontakt");
     });
   }
 });
