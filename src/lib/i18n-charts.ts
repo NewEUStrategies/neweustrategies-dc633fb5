@@ -950,9 +950,6 @@ const pl = {
       checksumFailed:
         "Suma składników ({{sum}}) nie zgadza się z różnicą stanów ({{delta}}) - mostek jest niekompletny.",
     },
-    series: {
-      // Kreskowanie serii poza zestawem bezpiecznym dla daltonizmu.
-    },
     metric: {
       open: "Wyjaśnij wskaźnik {{name}}",
       close: "Zamknij wyjaśnienie",
@@ -1792,8 +1789,6 @@ const en = {
       flat: "No change",
       checksumFailed:
         "The components ({{sum}}) do not add up to the change between states ({{delta}}) - the bridge is incomplete.",
-    },
-    series: {
     },
     metric: {
       open: "Explain the {{name}} metric",
