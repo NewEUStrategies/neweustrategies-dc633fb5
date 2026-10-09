@@ -54,6 +54,8 @@ import { Route as SocialRoute } from "@/routes/admin.seo.social";
 import { Route as HomepageRoute } from "@/routes/admin.seo.homepage";
 import { Route as DashboardRoute } from "@/routes/admin.seo.index";
 import { SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
+import { MACHINE_SURFACES } from "@/lib/seo/machineSurfaces";
+import { primarySiteSections } from "@/lib/seo/primaryNavigation";
 
 const h = vi.hoisted(() => ({
   /** Ustawienia oddawane przez `useSettings` (undefined = ładowanie). */
@@ -763,6 +765,29 @@ describe("/admin/seo/ - kokpit", () => {
     await mount();
     expect(screen.getAllByText("adminSeoHub.finding.sameAsMissing")).toHaveLength(1);
     expect(screen.getAllByText("adminSeoHub.finding.ogImageBuiltIn")).toHaveLength(1);
+  });
+
+  it("sekcja plików pokazuje KAŻDY wpis rejestru powierzchni maszynowych", async () => {
+    // Do 2026-10 kokpit wymieniał na sztywno trzy pliki z dziesięciu - lista
+    // z rejestru nie może się już rozjechać z tym, co serwis publikuje.
+    await mount();
+    expect(screen.getByText("adminSeoHub.sectionFiles")).toBeTruthy();
+    for (const surface of MACHINE_SURFACES) {
+      expect(screen.getByText(surface.path)).toBeTruthy();
+    }
+    // Feedy lokalizowane mają osobny link do wariantu EN.
+    const localized = MACHINE_SURFACES.filter((surface) => surface.localized).length;
+    expect(screen.getAllByText("adminSeoHub.fileOpenEn")).toHaveLength(localized);
+  });
+
+  it("sekcje główne są w zaplanowanej kolejności, bez „Kontaktu”", async () => {
+    await mount();
+    const list = screen.getByText("adminSeoHub.sectionPrimaryNav").parentElement;
+    const labels = [...(list?.querySelectorAll("li") ?? [])].map(
+      (item) => item.querySelector(".font-medium")?.textContent,
+    );
+    expect(labels).toEqual(primarySiteSections().map((link) => link.label.pl));
+    expect(labels).not.toContain("Kontakt");
   });
 
   it("na domyślnych ustawieniach marki wynik NIE jest pełny", async () => {

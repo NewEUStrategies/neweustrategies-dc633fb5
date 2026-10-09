@@ -12,7 +12,14 @@ import { errorCopy } from "@/lib/errorCopy";
 export function HomeErrorNotice({ onRetry }: { onRetry: () => void }) {
   const copy = errorCopy();
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    // `data-nosnippet`: tekst awarii nie może trafić do fragmentu wyniku na
+    // nazwę marki. Celowo BEZ `noindex` (por. `useErrorNoindex`) - wypadnięcie
+    // adresu "/" z indeksu po jednym nieudanym renderze kosztowałoby więcej
+    // niż chwilowo gorszy wynik.
+    <div
+      data-nosnippet
+      className="flex min-h-screen items-center justify-center bg-background px-4"
+    >
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">{copy.errorTitle}</h1>
         <p className="mt-2 text-sm text-muted-foreground">{copy.errorBody}</p>

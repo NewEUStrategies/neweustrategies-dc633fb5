@@ -12,6 +12,7 @@ import { SITE_DEFAULT_DESCRIPTION } from "@/lib/seo/meta";
 import { feedCacheControl, LLMS_TXT_CACHE_CONTROL_FULL } from "@/lib/seo/feedCache";
 import { buildLlmsTxt, type LlmsTxtArticle } from "@/lib/seo/llms";
 import { llmsTxtResourceLines } from "@/lib/seo/machineSurfaces";
+import { primarySiteSections } from "@/lib/seo/primaryNavigation";
 import { parseSeoSettings, robotsUsagePolicy, siteDescriptionOverride } from "@/lib/seo/settings";
 import {
   fetchPublicCategories,
@@ -120,6 +121,13 @@ export const Route = createFileRoute("/llms.txt")({
           origin,
           descriptionPl: siteDescriptionOverride(settings, "pl") || SITE_DEFAULT_DESCRIPTION.pl,
           descriptionEn: siteDescriptionOverride(settings, "en") || SITE_DEFAULT_DESCRIPTION.en,
+          // Kolejność sekcji głównych - wspólna z JSON-LD strony głównej.
+          // Lista statyczna, więc nie wchodzi do oceny degradacji niżej
+          // (ta liczy kategorie i artykuły z bazy).
+          primarySections: primarySiteSections().map((l) => ({
+            name: l.label.pl === l.label.en ? l.label.pl : `${l.label.pl} / ${l.label.en}`,
+            url: `${origin}${l.href}`,
+          })),
           sections: categories.map((c) => ({
             name:
               c.name_pl && c.name_en && c.name_pl !== c.name_en

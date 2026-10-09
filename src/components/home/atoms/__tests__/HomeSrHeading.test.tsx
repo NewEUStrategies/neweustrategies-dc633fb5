@@ -107,6 +107,22 @@ describe("HomeSrHeading - kiedy strona główna rysuje własny h1", () => {
     const { container } = renderHeading();
     expect(container.querySelector("h1")?.className).toBe("sr-only");
   });
+
+  it("przy treści niedostępnej nagłówek marki jest WIDOCZNY (zgłoszenie 2026-10-09)", () => {
+    // Bez tego jedynym widocznym nagłówkiem dokumentu zdegradowanego był
+    // komunikat „Loading the homepage" - i to on trafił do Google jako tytuł
+    // wyniku na nazwę marki.
+    const { container } = renderHeading({ visible: true });
+    const h1 = container.querySelector("h1");
+    expect(h1?.textContent).toBe("New European Strategies");
+    expect(h1?.className).not.toContain("sr-only");
+    expect(headings(container)).toHaveLength(1);
+  });
+
+  it("widoczność nie łamie reguły jednego h1, gdy kanwa niesie własny", () => {
+    const { container } = renderHeading({ doc: docWithHeading(), visible: true });
+    expect(headings(container)).toEqual([]);
+  });
 });
 
 describe("homeSrHeadingText - to samo źródło, co domyślny <title>", () => {

@@ -11,7 +11,15 @@
 // główna rozstrzyga wynik na nazwę własną serwisu i to ona była źródłem
 // defektu, od którego zaczęła się ta przebudowa (Google zdejmował nazwę marki
 // z tytułu - patrz nagłówek `admin.seo.homepage.tsx`). Dopiero potem zaległości
-// w treściach, a na końcu skróty do plików generowanych.
+// w treściach, potem kolejność sekcji głównych i pliki generowane, a na końcu
+// skróty do ustawień.
+//
+// PLIKI GENEROWANE IDĄ Z REJESTRU (`MACHINE_SURFACES`), nie z listy w tym
+// pliku. Do 2026-10 kokpit wymieniał na sztywno trzy pliki (robots.txt,
+// sitemap.xml, llms.txt), podczas gdy serwis publikował dziesięć - mapę
+// Google News, feedy RSS (PL i EN), alias indeksu mapy. Rejestr jest tym samym
+// źródłem, z którego llms.txt ogłasza zasoby, a test kontraktu pilnuje, że
+// każda trasa maszynowa jest w nim wpisana - nowy plik pojawia się tu sam.
 //
 // EKRAN JEST TYLKO DO CZYTANIA. Nie ma tu ani jednej mutacji i tak ma zostać -
 // pilnuje tego `adminRouteAuthority.gate.test.ts`. Każda liczba jest linkiem do
@@ -53,6 +61,10 @@ import {
   type SeoContentStatus,
 } from "@/lib/seo/contentStatus";
 import { seoContentCoverage, seoContentQueryOptions } from "@/lib/seo/seoContentQuery";
+import { MACHINE_SURFACES } from "@/lib/seo/machineSurfaces";
+import { primarySiteSections } from "@/lib/seo/primaryNavigation";
+import { labelFor } from "@/lib/seo/footerNavigation";
+import { localizedPath } from "@/lib/i18n/localePath";
 import {
   DEFAULT_SEO_SETTINGS,
   SEO_SETTINGS_KEY,
@@ -179,39 +191,29 @@ function SeoDashboard() {
   const severity = countBySeverity(findings);
   const score = brandAuditScore(findings);
 
-  const shortcuts: Array<{ id: string; label: string; hint: string; href?: string; to?: string }> =
-    [
-      {
-        id: "robots",
-        label: t("adminSeoHub.shortcutRobots"),
-        hint: t("adminSeoHub.shortcutRobotsHint"),
-        href: "/robots.txt",
-      },
-      {
-        id: "sitemap",
-        label: t("adminSeoHub.shortcutSitemap"),
-        hint: t("adminSeoHub.shortcutSitemapHint"),
-        href: "/sitemap.xml",
-      },
-      {
-        id: "llms",
-        label: t("adminSeoHub.shortcutLlms"),
-        hint: t("adminSeoHub.shortcutLlmsHint"),
-        href: "/llms.txt",
-      },
-      {
-        id: "settings",
-        label: t("adminSeoHub.shortcutSettings"),
-        hint: t("adminSeoHub.shortcutSettingsHint"),
-        to: "/admin/settings/seo",
-      },
-      {
-        id: "redirects",
-        label: t("adminSeoHub.shortcutRedirects"),
-        hint: t("adminSeoHub.shortcutRedirectsHint"),
-        to: "/admin/redirects",
-      },
-    ];
+  // Opisy redakcyjne dla plików, które redakcja zna z nazwy; pozostałe wpisy
+  // rejestru niosą własną, dwujęzyczną etykietę (tę samą co w llms.txt).
+  const fileHints: Record<string, string> = {
+    "/robots.txt": t("adminSeoHub.shortcutRobotsHint"),
+    "/sitemap.xml": t("adminSeoHub.shortcutSitemapHint"),
+    "/llms.txt": t("adminSeoHub.shortcutLlmsHint"),
+  };
+  const sections = primarySiteSections();
+
+  const shortcuts: Array<{ id: string; label: string; hint: string; to: string }> = [
+    {
+      id: "settings",
+      label: t("adminSeoHub.shortcutSettings"),
+      hint: t("adminSeoHub.shortcutSettingsHint"),
+      to: "/admin/settings/seo",
+    },
+    {
+      id: "redirects",
+      label: t("adminSeoHub.shortcutRedirects"),
+      hint: t("adminSeoHub.shortcutRedirectsHint"),
+      to: "/admin/redirects",
+    },
+  ];
 
   return (
     <div className="space-y-5">
@@ -303,6 +305,81 @@ function SeoDashboard() {
       <TechnicalFoundationCard />
 
       <section className="space-y-3">
+        <h2 className="text-sm font-semibold">{t("adminSeoHub.sectionPrimaryNav")}</h2>
+        <p className="text-xs text-muted-foreground">{t("adminSeoHub.primaryNavIntro")}</p>
+        <ol className="overflow-hidden rounded-lg border border-border text-sm">
+          {sections.map((section, i) => (
+            <li
+              key={section.href}
+              className="flex items-center gap-3 border-b border-border px-3 py-2 last:border-0"
+            >
+              <span className="w-5 shrink-0 font-mono text-xs text-muted-foreground">{i + 1}</span>
+              <span className="font-medium">{labelFor(section, "pl")}</span>
+              <span className="text-xs text-muted-foreground">{labelFor(section, "en")}</span>
+              {/* Sekcje to strony CMS-owe (trasa catch-all) - zwykły <a>. */}
+              <a
+                href={section.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto inline-flex items-center gap-1 font-mono text-xs text-brand hover:underline"
+              >
+                {section.href}
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </a>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold">{t("adminSeoHub.sectionFiles")}</h2>
+        <p className="text-xs text-muted-foreground">{t("adminSeoHub.filesIntro")}</p>
+        <div className="overflow-hidden rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <tbody>
+              {MACHINE_SURFACES.map((file) => (
+                <tr key={file.path} className="border-b border-border last:border-0">
+                  <td className="w-1/3 px-3 py-2 align-top font-mono text-xs font-medium">
+                    {file.path}
+                  </td>
+                  <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+                    {fileHints[file.path] ?? file.label}
+                  </td>
+                  <td className="w-32 px-3 py-2 text-right align-top">
+                    {/* Pliki generowane NIE są trasami routera - muszą iść
+                        zwykłym <a>, inaczej router próbowałby dopasować je do
+                        drzewa tras i wyświetlił stronę 404 zamiast pliku. */}
+                    <span className="inline-flex flex-col items-end gap-1">
+                      <a
+                        href={file.path}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-brand hover:underline"
+                      >
+                        {t("adminSeoHub.open")}
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                      </a>
+                      {file.localized ? (
+                        <a
+                          href={localizedPath(file.path, "en")}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-brand hover:underline"
+                        >
+                          {t("adminSeoHub.fileOpenEn")}
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                        </a>
+                      ) : null}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="space-y-3">
         <h2 className="text-sm font-semibold">{t("adminSeoHub.sectionShortcuts")}</h2>
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full text-sm">
@@ -312,25 +389,9 @@ function SeoDashboard() {
                   <td className="w-1/3 px-3 py-2 align-top font-medium">{row.label}</td>
                   <td className="px-3 py-2 align-top text-xs text-muted-foreground">{row.hint}</td>
                   <td className="w-24 px-3 py-2 text-right align-top">
-                    {/* Pliki generowane NIE są trasami routera - muszą iść
-                        zwykłym <a>, inaczej router próbowałby dopasować je do
-                        drzewa tras i wyświetlił stronę 404 zamiast pliku. */}
-                    {row.href ? (
-                      <a
-                        href={row.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-brand hover:underline"
-                      >
-                        {t("adminSeoHub.open")}
-                        <ExternalLink className="h-3 w-3 shrink-0" />
-                      </a>
-                    ) : null}
-                    {row.to ? (
-                      <Link to={row.to} className="text-brand hover:underline">
-                        {t("adminSeoHub.open")}
-                      </Link>
-                    ) : null}
+                    <Link to={row.to} className="text-brand hover:underline">
+                      {t("adminSeoHub.open")}
+                    </Link>
                   </td>
                 </tr>
               ))}

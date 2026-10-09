@@ -115,10 +115,25 @@ function navigationItemUrl(origin: string, href: string, lang: Lang): string {
 }
 
 /**
- * SiteNavigationElement graph - ujawnia crawlerom kluczowe linki stopki
- * (Editorial / Topics / Community / Institute / Legal). ItemList z ListItem
- * o typie SiteNavigationElement jest wzorcem rekomendowanym w schema.org do
- * opisania nawigacji globalnej strony.
+ * Która nawigacja jest opisywana: pełna mapa stopki albo wybrane, uporządkowane
+ * sekcje główne (`lib/seo/primaryNavigation.ts`). Różnią się `@id` i nazwą
+ * listy, żeby dwa grafy nigdy nie zlały się w jeden węzeł.
+ */
+export type SiteNavigationKind = "footer" | "primary";
+
+const NAVIGATION_LIST: Record<SiteNavigationKind, { id: string; name: Record<Lang, string> }> = {
+  footer: { id: "footer-navigation", name: { pl: "Nawigacja stopki", en: "Footer navigation" } },
+  primary: {
+    id: "primary-navigation",
+    name: { pl: "Główne sekcje serwisu", en: "Main site sections" },
+  },
+};
+
+/**
+ * SiteNavigationElement graph - ujawnia crawlerom kluczowe linki serwisu.
+ * ItemList z ListItem o typie SiteNavigationElement jest wzorcem
+ * rekomendowanym w schema.org do opisania nawigacji globalnej strony;
+ * `position` niesie zaplanowaną kolejność.
  *
  * Hrefy to kanoniczne ścieżki BEZ prefiksu (`FOOTER_LINKS`) - są lokalizowane
  * per język renderu, tak jak w `breadcrumbListJsonLd`: graf z `inLanguage: "en"`
@@ -128,12 +143,14 @@ export function siteNavigationJsonLd(
   origin: string,
   items: readonly SiteNavigationItem[],
   lang: Lang,
+  kind: SiteNavigationKind = "footer",
 ): Record<string, unknown> {
+  const list = NAVIGATION_LIST[kind];
   return {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    "@id": `${origin}/#footer-navigation`,
-    name: lang === "en" ? "Footer navigation" : "Nawigacja stopki",
+    "@id": `${origin}/#${list.id}`,
+    name: list.name[lang],
     inLanguage: lang,
     itemListElement: items.map((item, i) => ({
       "@type": "SiteNavigationElement",

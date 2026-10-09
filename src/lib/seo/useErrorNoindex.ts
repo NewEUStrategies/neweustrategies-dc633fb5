@@ -1,0 +1,38 @@
+// `noindex` dla ekranów błędu renderowanych PO STRONIE PRZEGLĄDARKI.
+//
+// PRZYCZYNA (zgłoszenie 2026-10-09): w wynikach Google na nazwę marki pojawił
+// się sitelink „Problem z połączeniem" ze snippetem „Co zrobić? 1 Sprawdź, czy
+// masz aktywne połączenie...". To treść `FriendlyErrorPage` (scenariusz
+// `network`), która trafiła do indeksu jako zwykła strona serwisu.
+//
+// SKĄD TO SIĘ BIERZE. Błąd w SSR kończy się statusem 4xx/5xx i nie jest
+// indeksowany. Ekran błędu, który powstaje dopiero w przeglądarce - nieudany
+// import chunku po wdrożeniu, przerwany `fetch` w rendererze Googlebota - ma
+// za sobą odpowiedź HTTP 200 i bez dodatkowego sygnału jest dla wyszukiwarki
+// pełnoprawną treścią adresu. Google zaleca dla takich widoków w aplikacjach
+// JavaScript dokładnie ten mechanizm: dopisać `<meta name="robots"
+// content="noindex">` skryptem
+// (https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics#avoid-soft-404s).
+//
+// DLACZEGO OSOBNY ELEMENT, A NIE EDYCJA ISTNIEJĄCEGO. `<meta name="robots">`
+// z `head()` trasy należy do `HeadContent` routera - zmiana jego atrybutu
+// zostałaby nadpisana przy następnej nawigacji albo rozjechałaby się z drzewem
+// Reacta. Drugi znacznik jest bezpieczny: przy kilku dyrektywach robots
+// wyszukiwarka stosuje najbardziej restrykcyjną. Znacznik znika razem z ekranem
+// błędu, więc udane ponowienie albo nawigacja przywracają indeksowalność.
+import { useEffect } from "react";
+
+/** Atrybut znacznika - pozwala testom i diagnostyce odróżnić go od `head()`. */
+export const ERROR_NOINDEX_ATTR = "data-nes-error-noindex";
+
+export function useErrorNoindex(active = true): void {
+  useEffect(() => {
+    if (!active) return;
+    const meta = document.createElement("meta");
+    meta.setAttribute("name", "robots");
+    meta.setAttribute("content", "noindex");
+    meta.setAttribute(ERROR_NOINDEX_ATTR, "");
+    document.head.appendChild(meta);
+    return () => meta.remove();
+  }, [active]);
+}

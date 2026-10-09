@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { errorCopy, classifyError, type ErrorKind } from "@/lib/errorCopy";
 import { reportPlatformError } from "@/lib/platform-error-reporting";
+import { useErrorNoindex } from "@/lib/seo/useErrorNoindex";
 
 export interface FriendlyErrorPageProps {
   /** The raw error from TanStack Router / server function / fetch. */
@@ -83,6 +84,12 @@ export function FriendlyErrorPage({
   const Icon = ICONS[kind];
   const code = kind === "generic" ? copy.genericCode : CODE_LABEL[kind];
   const lang = currentLang();
+  // Pełnoekranowy ekran błędu zastępuje treść adresu, więc nie może trafić do
+  // indeksu jako jego treść (sitelink „Problem z połączeniem", 2026-10-09).
+  // Wariant kompaktowy siedzi wewnątrz poprawnej strony, a degradacja jest
+  // renderem HTTP 200 z prawdziwą resztą treści - żadne z nich nie wyłącza
+  // indeksowania całego dokumentu.
+  useErrorNoindex(variant === "page" && kind !== "degraded");
 
   useEffect(() => {
     // Degradacja nie jest awarią klienta: serwer zalogował ją już przy zasiewie
@@ -191,7 +198,10 @@ export function FriendlyErrorPage({
 
   if (variant === "compact") {
     return (
-      <div className="relative overflow-hidden rounded-[6px] border border-border bg-card p-6 text-card-foreground shadow-sm">
+      <div
+        data-nosnippet
+        className="relative overflow-hidden rounded-[6px] border border-border bg-card p-6 text-card-foreground shadow-sm"
+      >
         <div
           className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand/10 blur-3xl"
           aria-hidden="true"
@@ -225,7 +235,10 @@ export function FriendlyErrorPage({
   }
 
   return (
-    <div className="relative flex min-h-[calc(100vh-4rem)] flex-col justify-center overflow-hidden bg-background px-4 py-12">
+    <div
+      data-nosnippet
+      className="relative flex min-h-[calc(100vh-4rem)] flex-col justify-center overflow-hidden bg-background px-4 py-12"
+    >
       {/* Tło: delikatna siatka + poświata marki. Dekoracja, nie treść. */}
       <div
         aria-hidden="true"
