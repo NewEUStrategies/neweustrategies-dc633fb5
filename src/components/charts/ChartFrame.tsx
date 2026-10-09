@@ -34,7 +34,14 @@ import {
   type Provenance,
   type Reliability,
 } from "@/lib/charts/sources";
-import { nazwaPliku, pobierzPlik, svgDoPliku, svgDoPng } from "@/lib/charts/exportImage";
+import {
+  nazwaPliku,
+  pobierzPlik,
+  svgDoPliku,
+  svgDoPng,
+  type WpisKlucza,
+} from "@/lib/charts/exportImage";
+import { cn } from "@/lib/utils";
 import { MetricTooltip } from "./MetricTooltip";
 import { ChartDialog } from "./ChartDialog";
 import "@/lib/i18n-charts";
@@ -71,9 +78,39 @@ export interface ChartCaption {
   caption?: string;
 }
 
+/**
+ * Rodzina rysunku - rozstrzyga o tekstach „Jak czytać". Wartości wykresów są
+ * TE SAME co `KindCaps["family"]` (`src/lib/charts/kindCaps.ts`), plus `map`
+ * dla kartogramu, który nie jest rodzajem wykresu.
+ */
+export type ChartFamily =
+  "cartesian" | "distribution" | "part" | "relation" | "sensitivity" | "panels" | "map";
+
+/** Wpis klucza dołączanego do eksportu PNG - nazwa i kolor próbki. */
+export interface ChartExportKeyItem {
+  label: string;
+  /** Kolor próbki; wyrażenie CSS z tokenami jest rozwiązywane przed rysowaniem. */
+  color: string;
+}
+
 /** Fakty o wykresie, z których rama składa podtytuł, przypisy i „Jak czytać". */
 export interface ChartPanelMeta {
-  palette: ChartPalette;
+  /** Paleta rysunku; brak = rysunek bez wyboru palety (np. kartogram). */
+  palette?: ChartPalette;
+  /** Rodzina rysunku dla tekstów „Jak czytać"; brak = teksty ogólne. */
+  family?: ChartFamily;
+  /**
+   * Teksty „Jak czytać" GOTOWE (już przetłumaczone) - nadpisują zdania
+   * słownika `charts.read.*` w oknie pomocy. Kartogram podaje tu własne
+   * zdania (`chartsMap.*`), bo nie ma osi ani serii.
+   */
+  help?: { elements: string; colours: string; interactions: string };
+  /**
+   * Klucz do eksportu PNG podany przez rysunek. Brak = klucz zebrany
+   * z legendy ramy (`.neh-legend`). Rysunek bez legendy serii (mapa, tarcza
+   * z kluczem w tabeli) podaje go tutaj, żeby plik nie był bezimienny.
+   */
+  exportKey?: () => ChartExportKeyItem[];
   demo: boolean;
   provenance: Provenance | null;
   sources: readonly ChartSource[];
@@ -142,6 +179,29 @@ function swatchStyle(item: LegendItem): CSSProperties {
     };
   }
   return { background: item.color };
+}
+
+/**
+ * Klucz eksportu podany przez rysunek, z kolorami ROZWIĄZANYMI w ramie.
+ * Płótno PNG nie zna `var(--chart-*)` ani `color-mix()`, więc kolor próbki
+ * przechodzi przez styl obliczony elementu-sondy wewnątrz figury (tam, gdzie
+ * obowiązują tokeny motywu), a napis bierze kolor tekstu figury.
+ */
+function kluczRysunku(figure: HTMLElement, items: readonly ChartExportKeyItem[]): WpisKlucza[] {
+  const sonda = document.createElement("span");
+  sonda.hidden = true;
+  figure.appendChild(sonda);
+  try {
+    const textColor = getComputedStyle(figure).color;
+    return items.map((item) => {
+      sonda.style.color = "";
+      sonda.style.color = item.color;
+      const color = getComputedStyle(sonda).color || item.color;
+      return { label: item.label, color, textColor: textColor || color };
+    });
+  } finally {
+    sonda.remove();
+  }
 }
 
 export function ChartFrame({
@@ -222,11 +282,24 @@ export function ChartFrame({
     [t("notes.hidden"), caption.notesHidden],
   ].filter((row): row is [string, string] => Boolean(row[1]));
 
-  /** Eksport rysunku z kontenera - tło płyty OBECNEGO motywu, font strony. */
+  /**
+   * Eksport rysunku z kontenera - tło płyty OBECNEGO motywu, font strony.
+   *
+   * CEL EKSPORTU: `<svg>` w elemencie oznaczonym `data-chart-canvas`; klasa
+   * `.neh-canvas` zostaje aliasem dla rysunków sprzed tego znacznika. Brak
+   * rysunku to BŁĄD WIDOCZNY dla czytelnika, nie ciche nic: przycisk, który
+   * po kliknięciu nie robi niczego, wygląda na zepsutą stronę.
+   */
   const exportFrom = async (container: HTMLElement | null, type: "png" | "svg"): Promise<void> => {
-    const svg = container?.querySelector<SVGSVGElement>(".neh-canvas svg") ?? null;
+    const svg =
+      container?.querySelector<SVGSVGElement>("[data-chart-canvas] svg") ??
+      container?.querySelector<SVGSVGElement>(".neh-canvas svg") ??
+      null;
     const figure = figureRef.current;
-    if (svg === null || figure === null) return;
+    if (svg === null || figure === null) {
+      setExportError(true);
+      return;
+    }
     setExportError(false);
     try {
       const styl = getComputedStyle(figure);
@@ -238,23 +311,27 @@ export function ChartFrame({
         pobierzPlik(`${name}.svg`, svgDoPliku(svg, { background, fontFamily }));
         return;
       }
-      // KLUCZ DOKLEJONY DO PNG - z próbek legendy, które czytelnik widzi
-      // (pozycje ukryte pomijamy, bo nie ma ich na rysunku).
-      const klucz = [...figure.querySelectorAll(".neh-legend > li")].flatMap((li) => {
-        if (li.querySelector('[aria-pressed="false"]')) return [];
-        const probka = li.querySelector(".neh-legend-swatch");
-        const nazwa = probka?.nextElementSibling ?? null;
-        if (probka === null || nazwa === null) return [];
-        const tekst = getComputedStyle(nazwa).color;
-        const tlo = getComputedStyle(probka).backgroundColor;
-        return [
-          {
-            label: nazwa.textContent ?? "",
-            color: tlo === "" || tlo === "rgba(0, 0, 0, 0)" ? tekst : tlo,
-            textColor: tekst,
-          },
-        ];
-      });
+      // KLUCZ DOKLEJONY DO PNG - podany przez rysunek albo z próbek legendy,
+      // które czytelnik widzi (pozycje ukryte pomijamy, bo nie ma ich na
+      // rysunku).
+      const exportKey = meta?.exportKey;
+      const klucz = exportKey
+        ? kluczRysunku(figure, exportKey())
+        : [...figure.querySelectorAll(".neh-legend > li")].flatMap((li) => {
+            if (li.querySelector('[aria-pressed="false"]')) return [];
+            const probka = li.querySelector(".neh-legend-swatch");
+            const nazwa = probka?.nextElementSibling ?? null;
+            if (probka === null || nazwa === null) return [];
+            const tekst = getComputedStyle(nazwa).color;
+            const tlo = getComputedStyle(probka).backgroundColor;
+            return [
+              {
+                label: nazwa.textContent ?? "",
+                color: tlo === "" || tlo === "rgba(0, 0, 0, 0)" ? tekst : tlo,
+                textColor: tekst,
+              },
+            ];
+          });
       pobierzPlik(`${name}.png`, await svgDoPng(svg, { background, scale: 2, klucz }));
     } catch {
       setExportError(true);
@@ -353,13 +430,10 @@ export function ChartFrame({
     <figure
       ref={figureRef}
       aria-labelledby={title ? titleId : undefined}
-      className={[
-        "neh-chart not-prose",
-        panel ? "my-6 border bg-card p-4" : "my-0",
-        className ?? "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      // `cn` (tailwind-merge), nie sklejanie: klasa wołającego WYGRYWA z domyślną
+      // - podgląd w edytorze podaje `my-0` i bez scalenia dostawał oba marginesy,
+      // a o wyniku decydowała kolejność reguł w arkuszu, nie intencja.
+      className={cn("neh-chart not-prose", panel ? "my-6 border bg-card p-4" : "my-0", className)}
       style={
         panel
           ? { borderColor: "var(--chart-grid)", borderRadius: "var(--chart-radius)" }
@@ -519,11 +593,16 @@ export function ChartFrame({
           title={t("panel.howToRead")}
           closeLabel={t("panel.close")}
         >
+          {/* `meta.help` - zdania GOTOWE od rysunku (np. kartogram) - mają
+              pierwszeństwo przed ogólnymi zdaniami słownika. */}
           <h3>{t("read.elements")}</h3>
-          <p>{t("read.elementsText")}</p>
+          <p>{meta?.help?.elements ?? t("read.elementsText")}</p>
           <h3>{t("read.colors")}</h3>
           <p>
-            {meta?.palette === "categorical" ? t("read.colorsCategorical") : t("read.colorsFocus")}
+            {meta?.help?.colours ??
+              (meta?.palette === "categorical"
+                ? t("read.colorsCategorical")
+                : t("read.colorsFocus"))}
           </p>
           {(meta?.hasBand || meta?.hasTarget) && (
             <>
@@ -532,7 +611,7 @@ export function ChartFrame({
             </>
           )}
           <h3>{t("read.interactions")}</h3>
-          <p>{t("read.interactionsText")}</p>
+          <p>{meta?.help?.interactions ?? t("read.interactionsText")}</p>
           {meta?.zoomable && <p>{t("read.zoomText")}</p>}
           <h3>{t("read.export")}</h3>
           <p>{t("read.exportText")}</p>

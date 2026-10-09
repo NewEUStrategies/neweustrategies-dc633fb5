@@ -7,7 +7,8 @@
 //      jest typ `ChartKind`;
 //   2. toolbar szybkiego przełączania wariantu - `src/lib/blocks/variants.ts`;
 //   3. edytor bloku CMS - `KIND_OPTIONS` w `DataVizBlocks.tsx`;
-//   4. schemat widgetu buildera - `WIDGET_SCHEMAS.chart` w `schemas.ts`;
+//   4. schemat widgetu buildera - `WIDGET_SCHEMAS.chart`
+//      (`src/lib/builder/dataVizSchemas/chart.ts`);
 //   5. słownik PL i EN - `kinds.*` w `i18n-admin-blocks.ts`.
 //
 // Punkty 2-5 to zwykłe tablice literałów i obiekty słownika. Dopisanie rodzaju

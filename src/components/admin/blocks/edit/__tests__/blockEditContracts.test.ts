@@ -6,7 +6,7 @@
 //  1. KTO MAPUJE TYP BLOKU NA EDYTOR. Jeden `switch (block.type)` w
 //     `src/components/admin/blocks/BlockEditRenderer.tsx` - nie mapa, nie
 //     rejestr. Import każdego edytora jest STATYCZNY: żadnego `React.lazy`
-//     ani dynamicznego `import()`, więc cały katalog (62 pliki) wchodzi do
+//     ani dynamicznego `import()`, więc cały katalog (64 pliki) wchodzi do
 //     bundla panelu razem z pierwszym blokiem. Bramka niżej czyta to ZE
 //     ŹRÓDŁA, bo z samego typu tego nie widać.
 //  2. JAKI JEST WSPÓLNY TYP PROPSÓW. NIE MA GO. Każdy plik deklaruje własne,
@@ -85,16 +85,19 @@ describe("2. wspólny typ propsów - NIE ISTNIEJE", () => {
     const zWlasnym = editFiles().filter((name) =>
       /^(interface|type) Props\b/m.test(readFileSync(`${EDIT_DIR}/${name}`, "utf8")),
     );
-    // 62 pliki, 61 z lokalnym `Props` - `PageBreak.tsx` nie bierze propsów
-    // w ogóle (blok nie ma żadnych opcji), więc nie ma czego deklarować.
-    expect(editFiles()).toHaveLength(62);
-    expect(zWlasnym).toHaveLength(61);
+    // 64 pliki, 62 z lokalnym `Props` - `PageBreak.tsx` nie bierze propsów
+    // w ogóle (blok nie ma żadnych opcji), więc nie ma czego deklarować,
+    // a `dataVizShared.tsx` nie jest edytorem bloku, tylko modułem klocków
+    // formy wspólnych dla wykresu i mapy (dyspozytor go nie woła).
+    expect(editFiles()).toHaveLength(64);
+    expect(zWlasnym).toHaveLength(62);
     expect(zWlasnym).not.toContain("PageBreak.tsx");
+    expect(zWlasnym).not.toContain("dataVizShared.tsx");
   });
 
   it("nie ma eksportowanego typu `BlockEditProps` ani wspólnego pliku propsów", () => {
     // Gdyby taki typ powstał, TA asercja ma się oblać jako pierwsza - to sygnał
-    // do przeniesienia 61 lokalnych deklaracji i uproszczenia harnessu testu.
+    // do przeniesienia 62 lokalnych deklaracji i uproszczenia harnessu testu.
     const wszystkie = editFiles()
       .map((name) => readFileSync(`${EDIT_DIR}/${name}`, "utf8"))
       .join("\n");

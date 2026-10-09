@@ -21,6 +21,8 @@ import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { buildCountryIndex, mapValuesToText, tableToMapValues } from "@/lib/charts/importTable";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import type { MapRegion } from "@/lib/charts/types";
+import type { Json } from "@/lib/builder/types";
+import type { ContentPatch } from "@/lib/builder/schemas";
 import "@/lib/i18n-admin-blocks";
 
 interface Props {
@@ -29,6 +31,15 @@ interface Props {
   region: MapRegion;
   rows?: number;
   placeholder?: string;
+  /**
+   * Pełna treść widgetu, język i zapis - od P0a podaje je `SchemaFieldControl`,
+   * żeby pole mogło zapisać dane razem z innymi kluczami mapy jako JEDEN krok
+   * historii (`setContentPatch`, `undefined` usuwa klucz).
+   */
+  content?: Record<string, unknown>;
+  lang?: "pl" | "en";
+  setContent?: (key: string, value: Json) => void;
+  setContentPatch?: (patch: ContentPatch) => void;
 }
 
 export function MapDataField({ value, onChange, region, rows, placeholder }: Props) {

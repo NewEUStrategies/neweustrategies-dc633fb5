@@ -29,6 +29,8 @@ import { parseChartData } from "@/lib/charts/csv";
 import { needsTextCellFix, safeTextCell, tableToChartData } from "@/lib/charts/importTable";
 import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
 import { asBool, asNumInRange } from "@/lib/content-model/contentValue";
+import type { Json } from "@/lib/builder/types";
+import type { ContentPatch } from "@/lib/builder/schemas";
 
 interface Props {
   value: string;
@@ -43,6 +45,13 @@ interface Props {
    */
   content?: Record<string, unknown>;
   lang: "pl" | "en";
+  /**
+   * Zapis pojedynczego klucza i zapis WIELU kluczy jako jeden krok historii
+   * (`undefined` usuwa klucz) - od P0a podaje je `SchemaFieldControl`, żeby
+   * arkusz mógł zapisać dane razem z kolorami i akcentem serii.
+   */
+  setContent?: (key: string, value: Json) => void;
+  setContentPatch?: (patch: ContentPatch) => void;
 }
 
 interface Grid {

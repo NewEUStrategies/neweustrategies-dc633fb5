@@ -311,6 +311,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   Azja: "Asia",
   "Ameryka Północna": "North America",
   "Ameryka Południowa": "South America",
+  // data-map widget (PR2)
 
   // --------------------------------------------------------------- structure
   "Tag (SEO)": "Tag (SEO)",
@@ -565,6 +566,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "A - źródło pierwotne": "A - primary source",
   "B - źródło wtórne, rzetelne": "B - reliable secondary source",
   "C - omówienie": "C - commentary",
+  // chart widget (PR2)
   "Wyniki na żywo": "Live results",
   "Liczba wpisów": "Number of posts",
   "Liczba odcinków": "Number of episodes",

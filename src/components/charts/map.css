@@ -1,0 +1,11 @@
+/* ============================================================
+   Kartogram (mapa danych - src/components/charts/ChoroplethMap.tsx)
+   ------------------------------------------------------------
+   Reguły mapy: legenda klas, kreskowanie „brak danych", obrys
+   najechania i fokusu. Te same zasady co w charts.css - w kodzie
+   rysującym nie ma ani jednego hexa, kolory idą przez tokeny
+   --chart-*, a geometria i typografia nie zależą od motywu.
+
+   Plik jest importowany w src/styles.css zaraz po charts.css, więc
+   jedzie w tym samym skompresowanym arkuszu co paleta.
+   ============================================================ */

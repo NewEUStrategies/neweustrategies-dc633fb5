@@ -2,8 +2,12 @@
 // Arkusz danych (kategorie x serie) + ustawienia + PODGLĄD NA ŻYWO nad formą -
 // autor widzi dokładnie ten sam render, który trafi na stronę publiczną
 // (wspólny silnik src/components/charts).
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+//
+// Edytor mapy żyje w `DataMapBlock.tsx`, a pomocniki formy i edytory
+// odniesień wspólne dla obu bloków (źródła, pochodzenie liczb, podpis, data
+// danych, `n`, trzy zdania) w `dataVizShared.tsx`. Ten plik re-eksportuje
+// `DataMapBlock`, więc dyspozytor i testy importują oba edytory stąd.
+import { useMemo } from "react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block, Json } from "@/lib/blocks/types";
@@ -13,25 +17,20 @@ import type { Block, Json } from "@/lib/blocks/types";
 // audytowalnym miejscu, a bramka `check:unknown-casts` pilnuje, żeby nie
 // rozsypał się po komponentach.
 import { toJson } from "@/lib/content-model/json";
-import { Plus, Trash2, TriangleAlert } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { AdminSelect } from "../AdminSelect";
 import {
   CHART_HEIGHT_MAX,
   CHART_HEIGHT_MIN,
   MAX_CATEGORIES,
   parseChartConfig,
-  parseDataMapConfig,
-  parseMapRegion,
 } from "@/lib/charts/parse";
 import {
   CATEGORICAL_SAFE_SERIES,
-  MAP_REGIONS,
-  mapRegionLabelKey,
   MAX_COLOR_SLOT,
   MAX_SERIES,
   PIE_MAX_SLICES,
   type ChartKind,
-  type MapRegion,
 } from "@/lib/charts/types";
 import { pieModel } from "@/components/charts/pieModel";
 import {
@@ -54,24 +53,32 @@ import {
   METRIC_DIRECTIONS,
   type MetricDirection,
 } from "@/lib/charts/status";
-import {
-  isProvenance,
-  isReliability,
-  MAX_CHART_SOURCES,
-  PROVENANCES,
-  RELIABILITIES,
-  type Provenance,
-  type Reliability,
-} from "@/lib/charts/sources";
 import type { ChartLang } from "@/lib/charts/format";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-charts";
 import "@/lib/i18n-charts-editor";
-import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
 import { Chart } from "@/components/charts/Chart";
-import { ChoroplethMap } from "@/components/charts/ChoroplethMap";
 import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
-import { buildCountryIndex, tableToChartData, tableToMapValues } from "@/lib/charts/importTable";
+import { tableToChartData } from "@/lib/charts/importTable";
+import {
+  asRecord,
+  CaptionField,
+  cellCls,
+  DecimalInput,
+  DemoCheckbox,
+  FieldGroup,
+  inputCls,
+  NotesFields,
+  ProvenanceSelect,
+  readDecimal,
+  readText,
+  Shell,
+  SourceDateSampleFields,
+  SourcesEditor,
+  Warning,
+} from "./dataVizShared";
+
+export { DataMapBlock } from "./DataMapBlock";
 
 interface Props {
   block: Block;
@@ -120,29 +127,13 @@ const KIND_OPTIONS: ReadonlyArray<{ value: ChartKind; labelKey: string }> = [
   { value: "small-multiples", labelKey: "kinds.smallMultiples" },
 ];
 
-function Shell({ label, children }: { label: string; children?: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-dashed border-border p-3 space-y-2 bg-muted/20">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-const inputCls = "w-full text-xs bg-background border border-border rounded px-2 py-2 h-9";
-const areaCls =
-  "w-full text-xs bg-background border border-border rounded px-2 py-2 min-h-[60px] resize-y";
-const cellCls =
-  "w-full min-w-[72px] text-xs bg-background border border-border rounded px-2 py-1.5 h-8 tabular-nums";
-
 // ETYKIETY OPCJI SYSTEMU WYKRESÓW - klucze słownika JAWNIE, nie sklejane
-// z wartości. `Record` po unii jest wyczerpujący: nowa paleta, kierunek,
-// litera pochodzenia albo stopień wiarygodności dopisane w `src/lib/charts`
-// bez etykiety tutaj NIE SKOMPILUJĄ SIĘ, zamiast wyjść w liście wyboru jako
-// surowy klucz. Opcje idą z tablic źródłowych (`CHART_PALETTES` i in.), więc
-// edytor nie może zaoferować wartości, której parser nie zna.
+// z wartości. `Record` po unii jest wyczerpujący: nowa paleta albo kierunek
+// dopisane w `src/lib/charts` bez etykiety tutaj NIE SKOMPILUJĄ SIĘ, zamiast
+// wyjść w liście wyboru jako surowy klucz. Opcje idą z tablic źródłowych
+// (`CHART_PALETTES` i in.), więc edytor nie może zaoferować wartości, której
+// parser nie zna. Etykiety pochodzenia i wiarygodności żyją przy swoich
+// edytorach w `dataVizShared.tsx`.
 const PALETTE_LABEL_KEYS: Record<ChartPalette, string> = {
   focus: "palettes.focus",
   categorical: "palettes.categorical",
@@ -152,20 +143,6 @@ const DIRECTION_LABEL_KEYS: Record<MetricDirection, string> = {
   higher: "directions.higher",
   lower: "directions.lower",
   range: "directions.range",
-};
-
-const PROVENANCE_LABEL_KEYS: Record<Provenance, string> = {
-  D: "provenances.D",
-  W: "provenances.W",
-  B: "provenances.B",
-  E: "provenances.E",
-  "?": "provenances.unknown",
-};
-
-const RELIABILITY_LABEL_KEYS: Record<Reliability, string> = {
-  A: "reliabilities.A",
-  B: "reliabilities.B",
-  C: "reliabilities.C",
 };
 
 // ===== Chart =====
@@ -210,36 +187,6 @@ function seriesToJson(series: SeriesDraft[]): Json[] {
 
 // ---- Odniesienia: pasmo optimum, cel, źródła ----
 
-function asRecord(raw: Json | undefined): Record<string, Json> {
-  return raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
-}
-
-/**
- * Napis z treści do pola formy. Liczba wraca jako tekst, a obiekt i tablica
- * jako PUSTKA - `String()` wpisałby redaktorowi w pole „[object Object]",
- * które pierwsza edycja utrwaliłaby w dokumencie.
- */
-function readText(raw: Json | undefined): string {
-  if (typeof raw === "string") return raw;
-  if (typeof raw === "number" && Number.isFinite(raw)) return String(raw);
-  return "";
-}
-
-/** Liczba z pola tekstowego: przecinek dziesiętny dozwolony, pustka i śmieć = brak. */
-function parseDecimal(raw: string): number | null {
-  const text = raw.trim().replace(",", ".");
-  if (text === "") return null;
-  const value = Number(text);
-  return Number.isFinite(value) ? value : null;
-}
-
-/** Ta sama koercja co `num` w `parseChartConfig` - pole pokazuje to, co narysuje wykres. */
-function readDecimal(raw: Json | undefined): number | null {
-  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
-  if (typeof raw === "string") return parseDecimal(raw);
-  return null;
-}
-
 interface BandDraft {
   min: number | null;
   max: number | null;
@@ -268,82 +215,6 @@ function bandToJson(band: BandDraft): Json | undefined {
     return undefined;
   }
   return { min: band.min, max: band.max, sourceId: band.sourceId, demo: band.demo };
-}
-
-/** Pola tekstowe źródła w kolejności opisu bibliograficznego (Chicago). */
-const SOURCE_TEXT_FIELDS = [
-  "author",
-  "title",
-  "container",
-  "publisher",
-  "published",
-  "accessed",
-  "url",
-] as const;
-type SourceTextField = (typeof SOURCE_TEXT_FIELDS)[number];
-
-const SOURCE_FIELD_LABEL_KEYS: Record<SourceTextField, string> = {
-  author: "sourceAuthor",
-  title: "sourceTitle",
-  container: "sourceContainer",
-  publisher: "sourcePublisher",
-  published: "sourcePublished",
-  accessed: "sourceAccessed",
-  url: "sourceUrl",
-};
-
-type SourceDraft = Record<SourceTextField, string> & {
-  id: string;
-  reliability: Reliability | "";
-};
-
-/**
- * Wiersze źródeł TAKIE, JAKIE SĄ w treści - także szkice bez tytułu i adresu,
- * które parser wykresu pomija. Autor musi widzieć wiersz, który właśnie
- * dodał, zanim wpisze w nim cokolwiek.
- */
-function readSources(raw: Json | undefined): SourceDraft[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.slice(0, MAX_CHART_SOURCES).map((item) => {
-    const o = asRecord(item);
-    return {
-      id: readText(o.id).trim(),
-      author: readText(o.author),
-      title: readText(o.title),
-      container: readText(o.container),
-      publisher: readText(o.publisher),
-      published: readText(o.published),
-      accessed: readText(o.accessed),
-      url: readText(o.url),
-      reliability: isReliability(o.reliability) ? o.reliability : "",
-    };
-  });
-}
-
-function sourcesToJson(sources: SourceDraft[]): Json[] {
-  return sources.map((s) => ({
-    id: s.id,
-    author: s.author,
-    title: s.title,
-    container: s.container,
-    publisher: s.publisher,
-    published: s.published,
-    accessed: s.accessed,
-    url: s.url,
-    reliability: s.reliability === "" ? null : s.reliability,
-  }));
-}
-
-/**
- * Identyfikator nowego źródła - JAWNY i stały. Bez niego parser nadaje
- * identyfikator pozycją, a ta zmienia się po usunięciu wiersza wyżej: pasmo
- * wskazywałoby wtedy cicho inne źródło niż to, które autor wybrał.
- */
-function nextSourceId(sources: readonly SourceDraft[]): string {
-  const used = new Set(sources.map((s) => s.id));
-  let n = sources.length + 1;
-  while (used.has(`s${n}`)) n += 1;
-  return `s${n}`;
 }
 
 export function ChartBlock({ block, onChange }: Props) {
@@ -402,10 +273,10 @@ export function ChartBlock({ block, onChange }: Props) {
   // ---- SYSTEM WYKRESÓW / ODNIESIENIA ----
   // Wartości spoza dziedziny (stara wersja edytora, ręczna edycja JSON-a)
   // wracają do tego, co narysuje parser: brak klucza palety to `focus`,
-  // nieznany kierunek i pochodzenie to „brak".
+  // nieznany kierunek i pochodzenie to „brak" (pochodzenie czyta
+  // `ProvenanceSelect` ze wspólnego modułu).
   const palette: ChartPalette = isChartPalette(block.data.palette) ? block.data.palette : "focus";
   const direction = isMetricDirection(block.data.direction) ? block.data.direction : "";
-  const provenance = isProvenance(block.data.provenance) ? block.data.provenance : "";
   const targetRaw = block.data.target;
   const target = readDecimal(
     typeof targetRaw === "number" || typeof targetRaw === "string"
@@ -413,7 +284,6 @@ export function ChartBlock({ block, onChange }: Props) {
       : asRecord(targetRaw).value,
   );
   const band = readBand(block.data.band);
-  const sources = readSources(block.data.sources);
   // Lista wyboru źródła pasma idzie z PARSERA, nie z wierszy formy: pasmo
   // wolno narysować tylko ze źródłem, które przeżyje parsowanie (ma tytuł
   // albo adres), więc autor nie może wskazać szkicu, który wykres pominie.
@@ -423,8 +293,6 @@ export function ChartBlock({ block, onChange }: Props) {
     previewConfig.band !== null && effectiveBand(previewConfig.band, parsedSourceIds) === null;
 
   const patchBand = (next: Partial<BandDraft>) => write({ band: bandToJson({ ...band, ...next }) });
-  const setSources = (next: SourceDraft[], extra: Record<string, Json | undefined> = {}) =>
-    write({ sources: next.length > 0 ? sourcesToJson(next) : undefined, ...extra });
 
   // ---- OSTRZEŻENIA DYSCYPLINY ----
   // Reguły doboru formy i palety, których kod NIE MOŻE wymusić, bo mają
@@ -810,45 +678,8 @@ export function ChartBlock({ block, onChange }: Props) {
           placeholder={bt.editor("chart", "source")}
           onChange={(e) => patch({ source: e.target.value })}
         />
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            className={inputCls}
-            value={String(block.data.sourceDate ?? "")}
-            placeholder={bt.editor("chart", "sourceDate")}
-            onChange={(e) => patch({ sourceDate: e.target.value })}
-          />
-          <input
-            className={inputCls}
-            inputMode="numeric"
-            value={block.data.sampleSize == null ? "" : String(block.data.sampleSize)}
-            placeholder={bt.editor("chart", "sampleSize")}
-            onChange={(e) => {
-              const raw = e.target.value.trim();
-              patch({ sampleSize: raw === "" ? null : Number(raw) });
-            }}
-          />
-        </div>
-        <input
-          className={inputCls}
-          value={String(block.data.notesShows ?? "")}
-          placeholder={bt.editor("chart", "notesShows")}
-          onChange={(e) => patch({ notesShows: e.target.value })}
-        />
-        <input
-          className={inputCls}
-          value={String(block.data.notesSurprising ?? "")}
-          placeholder={bt.editor("chart", "notesSurprising")}
-          onChange={(e) => patch({ notesSurprising: e.target.value })}
-        />
-        <input
-          className={inputCls}
-          value={String(block.data.notesHidden ?? "")}
-          placeholder={bt.editor("chart", "notesHidden")}
-          onChange={(e) => patch({ notesHidden: e.target.value })}
-        />
-        {!String(block.data.notesHidden ?? "").trim() && (
-          <Warning text={ct("editor.missingNotes")} />
-        )}
+        <SourceDateSampleFields data={block.data} write={write} />
+        <NotesFields data={block.data} write={write} />
       </FieldGroup>
 
       {/* ---- SYSTEM WYKRESÓW / ODNIESIENIA (specyfikacja 2026-10) ----
@@ -883,36 +714,10 @@ export function ChartBlock({ block, onChange }: Props) {
               </option>
             ))}
           </AdminSelect>
-          <AdminSelect
-            className={inputCls}
-            value={provenance}
-            onChange={(e) => write({ provenance: e.target.value || undefined })}
-            aria-label={bt.editor("chart", "provenance")}
-          >
-            <option value="">{bt.editor("chart", "provenances.none")}</option>
-            {PROVENANCES.map((p) => (
-              <option key={p} value={p}>
-                {bt.editor("chart", PROVENANCE_LABEL_KEYS[p])}
-              </option>
-            ))}
-          </AdminSelect>
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={block.data.demo === true}
-              onChange={(e) => patch({ demo: e.target.checked })}
-            />
-            {bt.editor("chart", "demo")}
-          </label>
+          <ProvenanceSelect data={block.data} write={write} />
+          <DemoCheckbox data={block.data} write={write} />
         </div>
-        <textarea
-          className={areaCls}
-          rows={2}
-          value={readText(block.data.caption)}
-          placeholder={bt.editor("chart", "caption")}
-          aria-label={bt.editor("chart", "caption")}
-          onChange={(e) => patch({ caption: e.target.value })}
-        />
+        <CaptionField data={block.data} write={write} />
         {/* Cel: `{ value }` albo BRAK klucza - pusty obiekt celu nie jest
             stanem, który parser umie odróżnić od „cel = nic". */}
         <DecimalInput
@@ -967,101 +772,19 @@ export function ChartBlock({ block, onChange }: Props) {
         {bandWithoutSource && <Warning text={bt.editor("chart", "bandWithoutSource")} />}
 
         {/* ŹRÓDŁA - przypisy w stylu chicagowskim. Pola w kolejności opisu
-            bibliograficznego, żeby autor wypełniał je tak, jak się je czyta. */}
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground pt-1">
-          {bt.editor("chart", "sourcesLabel")}
-        </div>
-        <p className="text-[10px] text-muted-foreground">{bt.editor("chart", "sourcesHint")}</p>
-        {sources.map((s, si) => (
-          <div key={si} className="space-y-1.5 rounded border border-border/60 p-2">
-            <div className="flex items-center gap-2">
-              <span className="flex-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                {bt.editor("chart", "sourceN", { n: si + 1 })}
-              </span>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-destructive"
-                aria-label={bt.editor("chart", "removeSource", {
-                  name: s.title || s.author || si + 1,
-                })}
-                onClick={() =>
-                  // Usunięcie źródła, na które wskazuje pasmo, zdejmuje też
-                  // wskazanie - w tym samym zapisie, żeby pasmo nie zostało
-                  // z identyfikatorem prowadzącym donikąd.
-                  setSources(
-                    sources.filter((_, i) => i !== si),
-                    s.id !== "" && s.id === band.sourceId
-                      ? { band: bandToJson({ ...band, sourceId: "" }) }
-                      : {},
-                  )
-                }
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {SOURCE_TEXT_FIELDS.map((field) => (
-                <input
-                  key={field}
-                  className={inputCls}
-                  inputMode={field === "url" ? "url" : undefined}
-                  value={s[field]}
-                  placeholder={bt.editor("chart", SOURCE_FIELD_LABEL_KEYS[field])}
-                  aria-label={bt.editor("chart", SOURCE_FIELD_LABEL_KEYS[field])}
-                  onChange={(e) =>
-                    setSources(
-                      sources.map((x, i) => (i === si ? { ...x, [field]: e.target.value } : x)),
-                    )
-                  }
-                />
-              ))}
-              <AdminSelect
-                className={inputCls}
-                value={s.reliability}
-                onChange={(e) => {
-                  const next = e.target.value;
-                  setSources(
-                    sources.map((x, i) =>
-                      i === si ? { ...x, reliability: isReliability(next) ? next : "" } : x,
-                    ),
-                  );
-                }}
-                aria-label={bt.editor("chart", "sourceReliability")}
-              >
-                <option value="">{bt.editor("chart", "reliabilities.none")}</option>
-                {RELIABILITIES.map((r) => (
-                  <option key={r} value={r}>
-                    {bt.editor("chart", RELIABILITY_LABEL_KEYS[r])}
-                  </option>
-                ))}
-              </AdminSelect>
-            </div>
-          </div>
-        ))}
-        {sources.length < MAX_CHART_SOURCES && (
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
-            onClick={() =>
-              setSources([
-                ...sources,
-                {
-                  id: nextSourceId(sources),
-                  author: "",
-                  title: "",
-                  container: "",
-                  publisher: "",
-                  published: "",
-                  accessed: "",
-                  url: "",
-                  reliability: "",
-                },
-              ])
-            }
-          >
-            <Plus className="w-3.5 h-3.5" /> {bt.editor("chart", "addSource")}
-          </button>
-        )}
+            bibliograficznego, żeby autor wypełniał je tak, jak się je czyta.
+            Usunięcie źródła, na które wskazuje pasmo, zdejmuje też
+            wskazanie - w tym samym zapisie, żeby pasmo nie zostało
+            z identyfikatorem prowadzącym donikąd. */}
+        <SourcesEditor
+          data={block.data}
+          write={write}
+          removeExtra={(removed) =>
+            removed.id !== "" && removed.id === band.sourceId
+              ? { band: bandToJson({ ...band, sourceId: "" }) }
+              : {}
+          }
+        />
       </FieldGroup>
 
       {/* ---- KSZTAŁT I PROGNOZA ---- */}
@@ -1177,261 +900,6 @@ export function ChartBlock({ block, onChange }: Props) {
           </>
         )}
       </FieldGroup>
-    </Shell>
-  );
-}
-
-/**
- * Pole liczby z WŁASNYM SZKICEM tekstu. Zapis idzie liczbą (kontrakt
- * `parseChartConfig`: `{ value: number }`, krawędzie pasma), ale pole
- * sterowane samą liczbą zjadałoby znaki w trakcie pisania: po „2," pokazałoby
- * z powrotem „2" i ułamka nie dałoby się wpisać. Wpis niebędący liczbą
- * zapisuje BRAK, bo tyle właśnie narysuje wykres - podgląd nad formą nie może
- * pokazywać starej liczby pod polem, w którym stoi co innego.
- *
- * Szkic ustępuje wartości z treści tylko wtedy, gdy ta zmieniła się z zewnątrz
- * (cofnięcie, wklejenie bloku) i mówi już co innego niż szkic - wzorzec
- * „poprzednia wartość w stanie", bez efektu i bez podwójnego renderu.
- */
-function DecimalInput({
-  value,
-  placeholder,
-  onCommit,
-}: {
-  value: number | null;
-  placeholder: string;
-  onCommit: (next: number | null) => void;
-}) {
-  const [draft, setDraft] = useState(value === null ? "" : String(value));
-  const [seen, setSeen] = useState(value);
-  if (seen !== value) {
-    setSeen(value);
-    if (parseDecimal(draft) !== value) setDraft(value === null ? "" : String(value));
-  }
-  return (
-    <input
-      className={inputCls}
-      inputMode="decimal"
-      value={draft}
-      placeholder={placeholder}
-      aria-label={placeholder}
-      onChange={(e) => {
-        setDraft(e.target.value);
-        onCommit(parseDecimal(e.target.value));
-      }}
-    />
-  );
-}
-
-/** Sekcja formy z podpisem - grupuje pola, których autor inaczej nie znajdzie. */
-function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5 rounded-md border border-border/60 p-2">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-/**
- * Ostrzeżenie dyscypliny. NIE BLOKUJE zapisu - mówi, co się psuje, i zostawia
- * decyzję autorowi. Blokada byłaby tu gorsza: reguły doboru formy mają
- * wyjątki, których kod nie zna, a zablokowany autor obchodzi walidację
- * zamiast czytać powód.
- */
-function Warning({ text }: { text: string }) {
-  return (
-    <p
-      className="flex items-start gap-1.5 text-[11px] leading-snug"
-      style={{ color: "var(--chart-negative-text)" }}
-    >
-      <TriangleAlert className="mt-px h-3 w-3 shrink-0" aria-hidden />
-      <span>{text}</span>
-    </p>
-  );
-}
-
-// ===== Data map =====
-
-interface MapRowDraft {
-  id: string;
-  value: number | null;
-}
-
-function readMapValues(raw: Json | undefined): MapRowDraft[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((item) => {
-    const o = (item ?? {}) as Record<string, Json>;
-    const v = o.value;
-    return {
-      id: String(o.id ?? "").toUpperCase(),
-      value: typeof v === "number" && Number.isFinite(v) ? v : null,
-    };
-  });
-}
-
-export function DataMapBlock({ block, onChange }: Props) {
-  const bt = useBlocksI18n();
-  // Region idzie przez parser bloku, a nie przez porównanie z dwoma literałami:
-  // ta sama droga, co w renderze publicznym, więc podgląd nad formą pokazuje
-  // DOKŁADNIE to, co zobaczy czytelnik - także wtedy, gdy w treści siedzi
-  // region z nowszej wersji edytora.
-  const region: MapRegion = parseMapRegion(block.data.region);
-  const rows = readMapValues(block.data.values);
-  const previewConfig = useMemo(() => parseDataMapConfig(block.data), [block.data]);
-
-  // Lista krajów z tego samego statycznego zasobu, który rysuje mapę -
-  // zero dodatkowych danych w bundlu, opcje zawsze zgodne z geometrią.
-  const geo = useQuery(geoAssetQueryOptions(region));
-  const countryOptions = useMemo(
-    () =>
-      (geo.data?.countries ?? [])
-        .map((c) => ({ id: c.id, label: `${c.pl} (${c.id})` }))
-        .sort((a, b) => a.label.localeCompare(b.label, "pl")),
-    [geo.data],
-  );
-
-  const patch = (data: Record<string, Json>) =>
-    onChange({ ...block, data: { ...block.data, ...data } });
-
-  const setRows = (next: MapRowDraft[]) =>
-    patch({ values: next.map((r) => ({ id: r.id, value: r.value })) });
-
-  return (
-    <Shell label={bt.editor("dataMap", "shellLabel")}>
-      <div className="pointer-events-none">
-        <ChoroplethMap config={{ ...previewConfig, animate: false }} lang="pl" className="my-0" />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <AdminSelect
-          className={inputCls}
-          value={region}
-          onChange={(e) => patch({ region: e.target.value })}
-        >
-          {/* Opcje WYPROWADZONE ze źródła regionów - wcześniej stały tu dwa
-              ręcznie wpisane `<option>`, więc dołożenie regionu wymagało
-              dotknięcia edytora i było o jedno przeoczenie od regionu, którego
-              autor nie mógł wybrać, choć silnik już go umiał narysować. */}
-          {MAP_REGIONS.map((r) => (
-            <option key={r} value={r}>
-              {bt.editor("dataMap", mapRegionLabelKey(r))}
-            </option>
-          ))}
-        </AdminSelect>
-        <input
-          className={inputCls}
-          value={String(block.data.unit ?? "")}
-          placeholder={bt.editor("dataMap", "unit")}
-          onChange={(e) => patch({ unit: e.target.value })}
-        />
-      </div>
-      <input
-        className={inputCls}
-        value={String(block.data.title ?? "")}
-        placeholder={bt.editor("dataMap", "title")}
-        onChange={(e) => patch({ title: e.target.value })}
-      />
-      <input
-        className={inputCls}
-        value={String(block.data.description ?? "")}
-        placeholder={bt.editor("common", "subtitle")}
-        onChange={(e) => patch({ description: e.target.value })}
-      />
-
-      {/* Skorowidz nazw powstaje z TEGO SAMEGO zasobu, który rysuje mapę,
-          więc kraj spoza wybranego regionu wyjdzie jako nierozpoznany
-          zamiast wejść do danych i nigdy się nie narysować. */}
-      <DataImportControl
-        hint={bt.editor("dataImport", "hintMap")}
-        onRows={(rowsIn) => {
-          const wynik = tableToMapValues(rowsIn, buildCountryIndex(geo.data?.countries ?? []));
-          patch({ values: wynik.values.map((v) => ({ id: v.id, value: v.value })) });
-          return wynik.problems;
-        }}
-      />
-
-      <div className="space-y-1.5">
-        {rows.map((row, ri) => (
-          <div key={ri} className="flex items-center gap-2">
-            <AdminSelect
-              className={`${inputCls} flex-1`}
-              value={row.id}
-              onChange={(e) =>
-                setRows(rows.map((r, i) => (i === ri ? { ...r, id: e.target.value } : r)))
-              }
-            >
-              <option value="">{bt.editor("dataMap", "selectCountry")}</option>
-              {countryOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
-              ))}
-              {/* Zachowaj kod spoza listy (np. zanim zasób się wczyta). */}
-              {row.id && !countryOptions.some((o) => o.id === row.id) && (
-                <option value={row.id}>{row.id}</option>
-              )}
-            </AdminSelect>
-            <input
-              className={`${cellCls} w-28`}
-              inputMode="decimal"
-              value={row.value === null ? "" : String(row.value)}
-              placeholder={bt.editor("dataMap", "value")}
-              onChange={(e) => {
-                const raw = e.target.value.trim().replace(",", ".");
-                const v = raw === "" ? null : Number(raw);
-                setRows(
-                  rows.map((r, i) =>
-                    i === ri ? { ...r, value: v === null || !Number.isFinite(v) ? null : v } : r,
-                  ),
-                );
-              }}
-            />
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-destructive"
-              aria-label={bt.editor("dataMap", "removeRow", { name: row.id || ri + 1 })}
-              onClick={() => setRows(rows.filter((_, i) => i !== ri))}
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
-          onClick={() => setRows([...rows, { id: "", value: null }])}
-        >
-          <Plus className="w-3.5 h-3.5" /> {bt.editor("dataMap", "addCountry")}
-        </button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={block.data.showLegend !== false}
-            onChange={(e) => patch({ showLegend: e.target.checked })}
-          />
-          {bt.editor("common", "legend")}
-        </label>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={block.data.animate !== false}
-            onChange={(e) => patch({ animate: e.target.checked })}
-          />
-          {bt.editor("common", "animate")}
-        </label>
-      </div>
-      <input
-        className={inputCls}
-        value={String(block.data.source ?? "")}
-        placeholder={bt.editor("dataMap", "source")}
-        onChange={(e) => patch({ source: e.target.value })}
-      />
     </Shell>
   );
 }

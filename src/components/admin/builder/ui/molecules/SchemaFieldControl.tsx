@@ -5,7 +5,7 @@ import { useState } from "react";
 import { toJson } from "@/lib/builder/types";
 import type { Json } from "@/lib/builder/types";
 import { asBool } from "@/lib/content-model/contentValue";
-import type { SchemaField as SchemaFieldDef } from "@/lib/builder/schemas";
+import type { ContentPatch, SchemaField as SchemaFieldDef } from "@/lib/builder/schemas";
 import { Input } from "@/components/ui/input";
 import { AdminColorPicker } from "@/components/admin/blocks/AdminColorPicker";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +22,11 @@ import { ImageSlot } from "../organisms/widget-properties/ImageSlot";
 import { EventPicker } from "../organisms/widget-properties/EventPicker";
 import { ChartDataSpreadsheetDialog } from "./ChartDataSpreadsheetDialog";
 import { MapDataField } from "./MapDataField";
+// Pola wizualizacji danych (PR2) - każde ma własny komponent, bo zapis bywa
+// wielokluczowy (`setContentPatch`) i potrzebuje hooków (patrz `MapDataField`).
+import { ChartSeriesColorsField } from "@/components/admin/charts/ChartSeriesColorsField";
+import { ChartAccentField } from "@/components/admin/charts/ChartAccentField";
+import { MapSchemeField } from "@/components/admin/charts/MapSchemeField";
 // Region pola danych mapy idzie tym samym parserem, co render - porównanie
 // z dwoma literałami podawało skorowidzowi nazw Europę dla każdego regionu
 // spoza pary, więc kraje Azji wychodziły z importu jako NIEROZPOZNANE.
@@ -39,6 +44,13 @@ interface Props {
   lang: "pl" | "en";
   content: Record<string, unknown>;
   setContent: (key: string, value: Json) => void;
+  /**
+   * Zapis WIELU kluczy jako JEDEN krok historii buildera (`undefined` usuwa
+   * klucz). Podaje go panel właściwości; wołający bez historii (edytory
+   * niestandardowe, testy) mogą go pominąć - wtedy klucze idą kolejnymi
+   * `setContent`, a usunięcie zapisuje `null`.
+   */
+  setContentPatch?: (patch: ContentPatch) => void;
 }
 
 const asString = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -53,7 +65,7 @@ const splitLines = (raw: string): string[] =>
     .map((line) => line.trim())
     .filter(Boolean);
 
-export function SchemaFieldControl({ field, lang, content, setContent }: Props) {
+export function SchemaFieldControl({ field, lang, content, setContent, setContentPatch }: Props) {
   const { t } = useTranslation();
   // Schema copy is authored in Polish; render it in the admin's UI language.
   const bl = useBuilderLabel();
@@ -86,6 +98,11 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
   const label = bl(field.label);
   const hint = bl(field.hint);
   const placeholder = bl(field.placeholder);
+  const patchContent =
+    setContentPatch ??
+    ((patch: ContentPatch) => {
+      for (const [key, value] of Object.entries(patch)) setContent(key, value ?? null);
+    });
 
   switch (field.type) {
     case "text":
@@ -232,6 +249,8 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
               // kanwa, wbrew temu, co deklaruje nagłówek samego dialogu.
               content={content}
               lang={lang}
+              setContent={setContent}
+              setContentPatch={patchContent}
             />
           </div>
         </PropField>
@@ -246,8 +265,45 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
             region={parseMapRegion(asString(content["region"]))}
             rows={field.rows}
             placeholder={t("builder.schemaField.mapDataPlaceholder")}
+            content={content}
+            lang={lang}
+            setContent={setContent}
+            setContentPatch={patchContent}
           />
         </PropField>
+      );
+
+    case "chartSeriesColors":
+      return (
+        <ChartSeriesColorsField
+          field={field}
+          content={content}
+          lang={lang}
+          setContent={setContent}
+          setContentPatch={patchContent}
+        />
+      );
+
+    case "chartAccent":
+      return (
+        <ChartAccentField
+          field={field}
+          content={content}
+          lang={lang}
+          setContent={setContent}
+          setContentPatch={patchContent}
+        />
+      );
+
+    case "mapScheme":
+      return (
+        <MapSchemeField
+          field={field}
+          content={content}
+          lang={lang}
+          setContent={setContent}
+          setContentPatch={patchContent}
+        />
       );
 
     case "number": {
@@ -366,5 +422,15 @@ export function SchemaFieldControl({ field, lang, content, setContent }: Props) 
           />
         </PropField>
       );
+
+    default: {
+      // WYCZERPANIE UNII. Typ pola dopisany do `FieldType` bez gałęzi tutaj
+      // NIE SKOMPILUJE SIĘ - zamiast rysować w panelu pustkę nad ustawieniem,
+      // którego redakcja nie ma jak zmienić. W czasie wykonania (schemat
+      // spoza typów) pole po prostu się nie rysuje, jak dotąd.
+      const unhandled: never = field.type;
+      void unhandled;
+      return null;
+    }
   }
 }

@@ -17,6 +17,7 @@
 /* Keep chart rules beside the shared palette in one compressed response.
    Splitting their repeated print tokens into another asset increases total CSS. */
 @import "./components/charts/charts.css";
+@import "./components/charts/map.css";
 
 /* UnreadBadge: neutralizuje `font-size: 14px !important` z reguł
    `[data-w-id] span:not(...)` widgetów Theme Design, aby licznik

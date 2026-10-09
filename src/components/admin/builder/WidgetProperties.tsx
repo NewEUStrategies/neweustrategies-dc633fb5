@@ -21,6 +21,7 @@ import type {
   HoverStyle,
 } from "@/lib/builder/types";
 import { WIDGETS } from "@/lib/builder/registry";
+import { contentPatchMutation } from "@/lib/builder/contentPatch";
 import {
   pickMode,
   setMode as setThemedMode,
@@ -69,7 +70,7 @@ import { AuthorDisplayControl } from "./ui/molecules/AuthorDisplayControl";
 import { WidgetLivePreview } from "./ui/organisms/WidgetLivePreview";
 import { LinkPicker } from "./ui/molecules/LinkPicker";
 
-import { WIDGET_SCHEMAS, type SchemaField } from "@/lib/builder/schemas";
+import { WIDGET_SCHEMAS, type ContentPatch, type SchemaField } from "@/lib/builder/schemas";
 import {
   readDesktopHeight,
   writeDesktopHeight,
@@ -154,6 +155,11 @@ export function WidgetProperties({
       w.content = w.content ?? {};
       w.content[k] = v;
     });
+  // Zapis WIELU kluczy treści w JEDNYM `onChange`, czyli jednym kroku historii
+  // buildera (`updateWidget` -> jeden `history.set`). Edytory wykresu i mapy
+  // zmieniają dane razem z kolorami i akcentem serii - kolejne `setContent`
+  // zostawiałyby po cofnięciu dokument w stanie pośrednim.
+  const setContentPatch = (patch: ContentPatch) => onChange(contentPatchMutation(patch));
   const setOptionalNumberContent = (k: string, v: number | null) =>
     onChange((w) => {
       const content = { ...(w.content ?? {}) } as Record<string, Json>;
@@ -437,7 +443,12 @@ export function WidgetProperties({
         <WidgetLivePreview widget={widget} lang={lang} device={device} mode={mode} />
 
         <TabsContent value="content" className="wp-panel-content mt-2 space-y-2">
-          <WidgetContentFields widget={widget} lang={lang} setContent={setContent} />
+          <WidgetContentFields
+            widget={widget}
+            lang={lang}
+            setContent={setContent}
+            setContentPatch={setContentPatch}
+          />
         </TabsContent>
 
         <TabsContent value="style" className="wp-panel-content mt-2 space-y-2">
@@ -1382,10 +1393,13 @@ export function WidgetContentFields({
   widget,
   lang,
   setContent,
+  setContentPatch,
 }: {
   widget: WidgetNode;
   lang: "pl" | "en";
   setContent: (k: string, v: Json) => void;
+  /** Zapis wielu kluczy jako jeden krok historii - patrz `WidgetProperties`. */
+  setContentPatch?: (patch: ContentPatch) => void;
 }) {
   const { t } = useTranslation();
   const bl = useBuilderLabel();
@@ -1440,6 +1454,7 @@ export function WidgetContentFields({
                 lang={lang}
                 content={c}
                 setContent={setContent}
+                setContentPatch={setContentPatch}
               />
             ))}
           </div>
@@ -1480,6 +1495,7 @@ export function WidgetContentFields({
                 lang={lang}
                 content={c}
                 setContent={setContent}
+                setContentPatch={setContentPatch}
               />
             ))}
           </div>

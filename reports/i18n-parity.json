@@ -50,7 +50,10 @@
     "adminEventOffers",
     "eventFollowUp",
     "adminEventFollowUp",
-    "eventHead"
+    "eventHead",
+    "chartsMap",
+    "mapEditor",
+    "chartEditor"
   ],
   "missing": [],
   "missingEn": [],
