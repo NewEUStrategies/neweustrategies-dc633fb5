@@ -64,6 +64,7 @@ import {
 } from "@/lib/lucide-shim";
 import type { LucideIcon } from "@/lib/lucide-shim";
 import { toJson } from "@/lib/builder/types";
+import { MAP_CLASSES_NEW } from "@/lib/charts/types";
 
 export interface WidgetDef {
   type: WidgetType;
@@ -270,6 +271,11 @@ export const WIDGETS: WidgetDef[] = [
       animate: "on",
       source_pl: "",
       source_en: "",
+      // Nowa mapa startuje od klas (kwantyle), opublikowana bez klucza
+      // zostaje przy skali ciągłej - patrz `MAP_CLASSES_NEW`.
+      scheme: "blue",
+      classes: String(MAP_CLASSES_NEW),
+      method: "quantile",
     }),
   },
   // Mapa świata z animowanymi łukami połączeń (silnik: src/components/maps).

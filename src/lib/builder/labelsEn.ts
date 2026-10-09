@@ -312,6 +312,35 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Ameryka Północna": "North America",
   "Ameryka Południowa": "South America",
   // data-map widget (PR2)
+  "Podpis pod mapą": "Caption under the map",
+  "Mapa / skala barw": "Map / color scale",
+  "Schemat barw": "Color scheme",
+  // Nazwy schematów i metod są KANONICZNE - te same co w nakładkach
+  // `mapEditor.*` i `chartsMap.*` (autor wybiera nazwę z legendy czytelnika).
+  niebieski: "Blue",
+  łupkowy: "Slate",
+  "pomarańczowy (akcent)": "Orange (accent)",
+  "rozbieżny (spadek - wzrost)": "Diverging (decrease - increase)",
+  "Rozbieżny - dla wskaźnika z punktem odniesienia (spadek - wzrost wokół środka skali).":
+    "Diverging - for an indicator with a reference point (decrease - increase around the middle of the scale).",
+  "Liczba klas": "Number of classes",
+  "skala ciągła": "Continuous scale",
+  "3 klasy": "3 classes",
+  "4 klasy": "4 classes",
+  "5 klas": "5 classes",
+  "6 klas": "6 classes",
+  "7 klas": "7 classes",
+  "Klasy łatwiej porównać z legendą; skala ciągła pokazuje każdą różnicę.":
+    "Classes are easier to match against the legend; a continuous scale shows every difference.",
+  "Metoda podziału": "Classification method",
+  "kwantyle (równe liczebności)": "Quantiles (equal counts)",
+  "równe przedziały": "Equal intervals",
+  "Kwantyle: podobna liczba krajów w każdej klasie. Równe przedziały: klasy jak podziałka, ale kraj odstający zostawia klasy puste.":
+    "Quantiles: a similar number of countries in each class. Equal intervals: classes read like a ruler, but an outlying country leaves classes empty.",
+  "Środek skali": "Scale midpoint",
+  "np. 0": "e.g. 0",
+  "Wartość w neutralnym środku skali rozbieżnej (np. średnia UE). Puste = 0.":
+    "The value at the neutral middle of the diverging scale (e.g. the EU average). Empty = 0.",
 
   // --------------------------------------------------------------- structure
   "Tag (SEO)": "Tag (SEO)",
@@ -567,6 +596,30 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "B - źródło wtórne, rzetelne": "B - reliable secondary source",
   "C - omówienie": "C - commentary",
   // chart widget (PR2)
+  "System wykresów / kolory": "Chart system / colors",
+  "System wykresów / uczciwość": "Chart system / honesty",
+  "System wykresów / prognoza": "Chart system / forecast",
+  "Kolory serii": "Series colors",
+  "np. 3;4;8": "e.g. 3;4;8",
+  "Numery kolorów palety po średniku, w kolejności serii; puste miejsce = kolor domyślny serii. Kolory własne działają w palecie kategorialnej.":
+    "Palette color numbers separated by semicolons, in series order; an empty position = the series' default color. Custom colors apply in the categorical palette.",
+  "Seria wyróżniona": "Highlighted series",
+  "Seria w akcencie marki; pozostałe są tłem porównania. Puste = pierwsza seria.":
+    "The series in the brand accent; the rest are the comparison background. Empty = the first series.",
+  "Wycinek wyróżniony": "Highlighted slice",
+  "Wycinek w akcencie marki - nigdy nie trafia do „Pozostałe”. Puste = największy wycinek.":
+    "The slice in the brand accent - never folded into “Other”. Empty = the largest slice.",
+  "Dane demonstracyjne (odznaka „demo”)": "Demo data (“demo” badge)",
+  "Data danych": "Data as of",
+  "np. 2026-06-30": "e.g. 2026-06-30",
+  "n - liczba obserwacji": "n - number of observations",
+  "Co pokazuje": "What it shows",
+  "Co jest zaskakujące": "What is surprising",
+  "Czego NIE pokazuje": "What it does NOT show",
+  "Prognoza od kategorii numer": "Forecast from category number",
+  "Puste = cały szereg jest historią. Numer 2 znaczy: prognoza od drugiej kategorii.":
+    "Empty = the whole series is history. Number 2 means: forecast from the second category.",
+  "Pasmo niepewności ±%": "Uncertainty band ±%",
   "Wyniki na żywo": "Live results",
   "Liczba wpisów": "Number of posts",
   "Liczba odcinków": "Number of episodes",

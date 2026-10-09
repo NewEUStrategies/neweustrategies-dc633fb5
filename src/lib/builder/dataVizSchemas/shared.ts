@@ -6,7 +6,19 @@
 // korzystają, są tutaj - JEDNA kopia, importowana przez `schemas.ts` i oba
 // schematy. Moduł nie importuje `schemas.ts` w czasie wykonania (tylko typy),
 // więc nie ma cyklu inicjalizacji.
-import { MAP_REGIONS, type MapRegion } from "@/lib/charts/types";
+import {
+  MAP_CLASSES_MAX,
+  MAP_CLASSES_MIN,
+  MAP_METHODS,
+  MAP_REGIONS,
+  MAP_SCHEMES,
+  isChartKind,
+  type ChartKind,
+  type MapMethod,
+  type MapRegion,
+  type MapScheme,
+} from "@/lib/charts/types";
+import { KIND_CAPS, type KindCaps } from "@/lib/charts/kindCaps";
 import { CHART_PALETTES, type ChartPalette } from "@/lib/charts/seriesStyle";
 import { METRIC_DIRECTIONS, type MetricDirection } from "@/lib/charts/status";
 import {
@@ -122,3 +134,100 @@ export const hasChartBandEdges = (c: Record<string, unknown>): boolean =>
   c.bandMin.trim() !== "" &&
   typeof c.bandMax === "string" &&
   c.bandMax.trim() !== "";
+
+// ---- Kolory, uczciwość i prognoza wykresu (PR2) ----
+
+export const CHART_COLORS_GROUP = "System wykresów / kolory";
+export const CHART_HONESTY_GROUP = "System wykresów / uczciwość";
+export const CHART_FORECAST_GROUP = "System wykresów / prognoza";
+
+/**
+ * Zdolności rodzaju zapisanego w treści. Brak albo nieznany zapis to rodzaj
+ * domyślny („bar"), dokładnie jak w parserze (`parseChartKind`), więc pole
+ * widoczne warunkowo pokazuje się tak, jak rysuje renderer.
+ *
+ * Predykaty `visibleWhen` wołają to jako `capsOfKind(c.kind)`, a nie
+ * `capsOfKind(c)`: generator próbek bramki zgodności ustawień rozpoznaje
+ * klucz, od którego zależy widoczność, po ŹRÓDLE predykatu.
+ */
+export function capsOfKind(kind: unknown): KindCaps {
+  const k: ChartKind = isChartKind(kind) ? kind : "bar";
+  return KIND_CAPS[k];
+}
+
+/** Kolor ma seria (albo panel) - wybór kolorów serii ma sens. */
+export const chartColorsBySeries = (kind: unknown): boolean => {
+  const target = capsOfKind(kind).colorTarget;
+  return target === "series" || target === "panels";
+};
+
+/** Kolor ma kategoria (wycinki tarczy) - wybiera się wycinek w akcencie. */
+export const chartColorsByCategory = (kind: unknown): boolean =>
+  capsOfKind(kind).colorTarget === "category";
+
+/**
+ * Prognoza: granicę historii rysuje rysownik kartezjański i wachlarz; pasmo
+ * niepewności tylko linia, pole i wachlarz (`CartesianChart`: `bandPct` przy
+ * `isLine`, `fanChart.ts`: droga z `forecastBandPct`).
+ */
+export const chartHasForecast = (kind: unknown): boolean => capsOfKind(kind).family === "cartesian";
+
+export const chartHasForecastBand = (kind: unknown): boolean =>
+  kind === "line" || kind === "area" || kind === "fan";
+
+/**
+ * Schematy barw i metody podziału kartogramu. Nazwy są KANONICZNE - te same
+ * co w nakładkach `mapEditor.*` (autor) i `chartsMap.*` (czytelnik), żeby
+ * autor wybierał nazwę, którą czytelnik zobaczy w legendzie. Tablice typowane
+ * `Record<Unia, string>` nie skompilują się, gdy w `types.ts` przybędzie
+ * schemat albo metoda bez etykiety.
+ */
+const MAP_SCHEME_LABEL_PL: Record<MapScheme, string> = {
+  blue: "niebieski",
+  slate: "łupkowy",
+  accent: "pomarańczowy (akcent)",
+  diverging: "rozbieżny (spadek - wzrost)",
+};
+
+const MAP_METHOD_LABEL_PL: Record<MapMethod, string> = {
+  quantile: "kwantyle (równe liczebności)",
+  equal: "równe przedziały",
+};
+
+export const MAP_SCHEME_OPTIONS: ReadonlyArray<SchemaOption> = MAP_SCHEMES.map((value) => ({
+  value,
+  label: MAP_SCHEME_LABEL_PL[value],
+}));
+
+export const MAP_METHOD_OPTIONS: ReadonlyArray<SchemaOption> = MAP_METHODS.map((value) => ({
+  value,
+  label: MAP_METHOD_LABEL_PL[value],
+}));
+
+/** Polska odmiana „klasa" po liczebniku 3..7 (3-4 „klasy", 5-7 „klas"). */
+function classesLabelPl(n: number): string {
+  return `${n} ${n >= 2 && n <= 4 ? "klasy" : "klas"}`;
+}
+
+/**
+ * Liczba klas: zero (skala ciągła) NA CZELE, bo tak parser czyta brak klucza
+ * - opublikowana mapa bez zapisu widzi w panelu dokładnie to, co rysuje.
+ * Zapis jest NAPISEM ("0", "3".."7"); adapter widgetu parsuje go `num`.
+ */
+export const MAP_CLASS_OPTIONS: ReadonlyArray<SchemaOption> = [
+  { value: "0", label: "skala ciągła" },
+  ...Array.from({ length: MAP_CLASSES_MAX - MAP_CLASSES_MIN + 1 }, (_, i) => {
+    const n = MAP_CLASSES_MIN + i;
+    return { value: String(n), label: classesLabelPl(n) };
+  }),
+];
+
+/** Metoda podziału ma sens tylko przy klasach - skala ciągła jej nie używa. */
+export const mapHasClasses = (classes: unknown): boolean => {
+  const n = typeof classes === "number" ? classes : Number(classes);
+  return (
+    (typeof classes === "number" || (typeof classes === "string" && classes.trim() !== "")) &&
+    Number.isFinite(n) &&
+    Math.round(n) > 0
+  );
+};

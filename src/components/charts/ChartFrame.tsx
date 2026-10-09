@@ -24,6 +24,7 @@
 import { Fragment, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Table2, TriangleAlert } from "lucide-react";
+import type { KindCaps } from "@/lib/charts/kindCaps";
 import type { ChartLang } from "@/lib/charts/format";
 import type { ChartMetric } from "@/lib/charts/types";
 import type { ChartPalette } from "@/lib/charts/seriesStyle";
@@ -79,12 +80,11 @@ export interface ChartCaption {
 }
 
 /**
- * Rodzina rysunku - rozstrzyga o tekstach „Jak czytać". Wartości wykresów są
- * TE SAME co `KindCaps["family"]` (`src/lib/charts/kindCaps.ts`), plus `map`
+ * Rodzina rysunku - rozstrzyga o tekstach „Jak czytać". Rodziny wykresów idą
+ * wprost z `KindCaps["family"]` (`src/lib/charts/kindCaps.ts`), plus `map`
  * dla kartogramu, który nie jest rodzajem wykresu.
  */
-export type ChartFamily =
-  "cartesian" | "distribution" | "part" | "relation" | "sensitivity" | "panels" | "map";
+export type ChartFamily = KindCaps["family"] | "map";
 
 /** Wpis klucza dołączanego do eksportu PNG - nazwa i kolor próbki. */
 export interface ChartExportKeyItem {

@@ -214,11 +214,19 @@ function probeEntries(
       return { [key]: bools };
     case "number":
       return { [key]: num() };
-    case "select": {
+    // Schemat barw mapy jest listą wyboru z własną kontrolką - próbka ta sama.
+    case "select":
+    case "mapScheme": {
       const first = field.options?.[0]?.value;
       const value = typeof field.default === "string" ? field.default : first;
       return value === undefined ? {} : { [key]: value };
     }
+    // Kolory serii: napis pozycyjny numerów slotów, jak zapisuje go panel.
+    case "chartSeriesColors":
+      return { [key]: "3;4" };
+    // Akcent: indeks liczony od zera - pierwsza seria albo kategoria.
+    case "chartAccent":
+      return { [key]: 0 };
     case "color":
       return { [key]: "#3b82f6" };
     case "url":
@@ -267,7 +275,11 @@ function branchSelectKeys(
     .map((f) => String(f.visibleWhen));
   const keys = new Set<string>();
   for (const field of schema) {
-    if (field.type !== "select" || !field.options?.length) continue;
+    // `mapScheme` to lista wyboru z własną kontrolką (próbki skali barw) - od
+    // jej wartości zależy widoczność środka skali rozbieżnej.
+    if ((field.type !== "select" && field.type !== "mapScheme") || !field.options?.length) {
+      continue;
+    }
     const mentioned = predicates.some((src) => src.includes(field.key));
     if (mentioned || (scope === "renderer" && BRANCH_KEY_HINTS.has(field.key))) keys.add(field.key);
   }

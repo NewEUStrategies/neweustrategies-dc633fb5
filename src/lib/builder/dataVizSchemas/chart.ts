@@ -7,11 +7,18 @@
 // `visibleWhen` w bramce `schemaVisibleWhen.test.ts`.
 import type { SchemaField } from "../schemas";
 import {
+  CHART_COLORS_GROUP,
   CHART_DIRECTION_OPTIONS,
+  CHART_FORECAST_GROUP,
+  CHART_HONESTY_GROUP,
   CHART_PALETTE_OPTIONS,
   CHART_PROVENANCE_OPTIONS,
   CHART_REFERENCE_GROUP,
   CHART_RELIABILITY_OPTIONS,
+  chartColorsByCategory,
+  chartColorsBySeries,
+  chartHasForecast,
+  chartHasForecastBand,
   hasChartBandEdges,
 } from "./shared";
 
@@ -220,5 +227,101 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     group: CHART_REFERENCE_GROUP,
     options: CHART_RELIABILITY_OPTIONS,
     visibleWhen: hasChartBandEdges,
+  },
+  // ---- System wykresów / kolory (PR2) ----
+  // Klucze czyta adapter `widgetChartConfig` (`src/lib/charts/widgetConfig.ts`).
+  // `seriesColors` jest napisem POZYCYJNYM numerów slotów ("3;4;8" - seria 1,
+  // 2, 3), akcenty są INDEKSAMI liczonymi od zera, jak w bloku CMS.
+  {
+    key: "seriesColors",
+    type: "chartSeriesColors",
+    label: "Kolory serii",
+    group: CHART_COLORS_GROUP,
+    placeholder: "np. 3;4;8",
+    hint: "Numery kolorów palety po średniku, w kolejności serii; puste miejsce = kolor domyślny serii. Kolory własne działają w palecie kategorialnej.",
+    visibleWhen: (c) => chartColorsBySeries(c.kind),
+  },
+  {
+    key: "accentSeries",
+    type: "chartAccent",
+    label: "Seria wyróżniona",
+    group: CHART_COLORS_GROUP,
+    hint: "Seria w akcencie marki; pozostałe są tłem porównania. Puste = pierwsza seria.",
+    // W palecie kategorialnej każda seria ma własny kolor, więc nie ma czego
+    // wyróżniać akcentem.
+    visibleWhen: (c) => chartColorsBySeries(c.kind) && c.palette !== "categorical",
+  },
+  {
+    key: "accentCategory",
+    type: "chartAccent",
+    label: "Wycinek wyróżniony",
+    group: CHART_COLORS_GROUP,
+    hint: "Wycinek w akcencie marki - nigdy nie trafia do „Pozostałe”. Puste = największy wycinek.",
+    visibleWhen: (c) => chartColorsByCategory(c.kind),
+  },
+  // ---- System wykresów / uczciwość (PR2) ----
+  // Te same pola co w bloku CMS (`CaptionMetaFields`) i te same etykiety.
+  {
+    key: "demo",
+    type: "select",
+    label: "Dane demonstracyjne (odznaka „demo”)",
+    group: CHART_HONESTY_GROUP,
+    options: [
+      { value: "off", label: "nie" },
+      { value: "on", label: "tak" },
+    ],
+  },
+  {
+    key: "sourceDate",
+    type: "text",
+    label: "Data danych",
+    group: CHART_HONESTY_GROUP,
+    placeholder: "np. 2026-06-30",
+  },
+  {
+    key: "sampleSize",
+    type: "number",
+    label: "n - liczba obserwacji",
+    group: CHART_HONESTY_GROUP,
+    min: 1,
+    step: 1,
+  },
+  { key: "notesShows", type: "i18nText", label: "Co pokazuje", group: CHART_HONESTY_GROUP },
+  {
+    key: "notesSurprising",
+    type: "i18nText",
+    label: "Co jest zaskakujące",
+    group: CHART_HONESTY_GROUP,
+  },
+  {
+    key: "notesHidden",
+    type: "i18nText",
+    label: "Czego NIE pokazuje",
+    group: CHART_HONESTY_GROUP,
+  },
+  // ---- System wykresów / prognoza (PR2) ----
+  {
+    // NUMER kategorii liczony od jednej, jak w edytorze bloku; adapter
+    // widgetu przelicza go na indeks silnika.
+    key: "forecastFrom",
+    type: "number",
+    label: "Prognoza od kategorii numer",
+    group: CHART_FORECAST_GROUP,
+    // Od drugiej: prognoza od pierwszej kategorii nie ma historii, a parser
+    // takiej granicy nie przyjmuje.
+    min: 2,
+    step: 1,
+    hint: "Puste = cały szereg jest historią. Numer 2 znaczy: prognoza od drugiej kategorii.",
+    visibleWhen: (c) => chartHasForecast(c.kind),
+  },
+  {
+    key: "forecastBandPct",
+    type: "number",
+    label: "Pasmo niepewności ±%",
+    group: CHART_FORECAST_GROUP,
+    min: 0,
+    max: 100,
+    step: 1,
+    visibleWhen: (c) => chartHasForecastBand(c.kind),
   },
 ];

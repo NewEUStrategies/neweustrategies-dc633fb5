@@ -51,6 +51,21 @@ function numeric(c: Record<string, unknown>, key: string): Json {
 }
 
 /**
+ * Prognoza od kategorii NUMER - pole panelu liczy kategorie od jednej, jak
+ * edytor bloku („Prognoza od kategorii numer": 2 znaczy druga kategoria),
+ * a silnik trzyma INDEKS liczony od zera. Przeliczamy tu, w jednym miejscu;
+ * bez tego wpis 2 dawałby prognozę od TRZECIEJ kategorii. Wartość spoza
+ * liczb przechodzi bez zmian, żeby parser rozstrzygnął ją po swojemu.
+ */
+function forecastIndex(c: Record<string, unknown>, key: string): Json {
+  const v = c[key];
+  if (typeof v === "number") return Number.isFinite(v) ? Math.round(v) - 1 : null;
+  if (typeof v !== "string") return null;
+  const n = v.trim() === "" ? Number.NaN : Number(v.replace(",", "."));
+  return Number.isFinite(n) ? Math.round(n) - 1 : v;
+}
+
+/**
  * Sloty kolorów serii zapisane jako "3;4;8" - pozycja na liście to pozycja
  * serii. Pusta pozycja (albo brak klucza) zostawia slot domyślny po pozycji
  * (`slotForSeries` z `csv.ts`). Zakres 1..MAX_COLOR_SLOT sprawdza parser
@@ -127,7 +142,7 @@ export function widgetChartConfig(content: Record<string, unknown>, lang: Widget
     notesSurprising: i18n(c, "notesSurprising", lang),
     notesHidden: i18n(c, "notesHidden", lang),
     demo: str(c, "demo") === "on",
-    forecastFrom: numeric(c, "forecastFrom"),
+    forecastFrom: forecastIndex(c, "forecastFrom"),
     forecastBandPct: numeric(c, "forecastBandPct"),
   });
 }

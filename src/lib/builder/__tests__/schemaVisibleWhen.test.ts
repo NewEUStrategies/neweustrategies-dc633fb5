@@ -263,6 +263,67 @@ const CASES: ReadonlyArray<VisibilityCase> = [
       { bandMin: 2, bandMax: 4 },
     ],
   },
+  {
+    widget: "chart",
+    keys: ["seriesColors"],
+    // Kolor ma seria albo panel (`KIND_CAPS.colorTarget`). Brak `kind` to
+    // slupki, wiec swiezy widget pokazuje kolory serii.
+    why: "kolory serii tylko tam, gdzie kolor ma seria albo panel",
+    visible: [
+      {},
+      { kind: "line" },
+      { kind: "scatter" },
+      { kind: "small-multiples" },
+      { kind: "?" },
+    ],
+    hidden: [{ kind: "pie" }, { kind: "donut" }, { kind: "heatmap" }, { kind: "histogram" }],
+  },
+  {
+    widget: "chart",
+    keys: ["accentSeries"],
+    why: "seria w akcencie tylko w palecie rol i tylko gdy kolor ma seria",
+    visible: [{}, { palette: "focus" }, { kind: "line", palette: "focus" }],
+    hidden: [{ palette: "categorical" }, { kind: "pie" }, { kind: "tornado" }],
+  },
+  {
+    widget: "chart",
+    keys: ["accentCategory"],
+    why: "wycinek w akcencie tylko na tarczy (kolor ma kategoria)",
+    visible: [{ kind: "pie" }, { kind: "donut", palette: "categorical" }],
+    hidden: [{}, { kind: "bar" }, { kind: "line" }],
+  },
+  {
+    widget: "chart",
+    keys: ["forecastFrom"],
+    why: "granica prognozy tylko w rodzinie kartezjanskiej (w tym wachlarz)",
+    visible: [{}, { kind: "line" }, { kind: "fan" }, { kind: "index-base" }],
+    hidden: [{ kind: "pie" }, { kind: "scatter" }, { kind: "heatmap" }],
+  },
+  {
+    widget: "chart",
+    keys: ["forecastBandPct"],
+    why: "pasmo niepewnosci rysuja tylko linia, pole i wachlarz",
+    visible: [{ kind: "line" }, { kind: "area" }, { kind: "fan" }],
+    hidden: [{}, { kind: "bar" }, { kind: "pie" }],
+  },
+
+  // ---- mapa danych ----
+  {
+    widget: "data-map",
+    keys: ["method"],
+    // Brak klucza i "0" to skala ciagla (parser `parseMapClasses`), ktora
+    // metody podzialu nie uzywa.
+    why: "metoda podzialu tylko przy klasach",
+    visible: [{ classes: "5" }, { classes: "3" }, { classes: 7 }],
+    hidden: [{}, { classes: "0" }, { classes: "" }, { classes: "abc" }, { classes: 0 }],
+  },
+  {
+    widget: "data-map",
+    keys: ["midpoint"],
+    why: "srodek skali tylko w schemacie rozbieznym",
+    visible: [{ scheme: "diverging" }],
+    hidden: [{}, { scheme: "blue" }, { scheme: "accent" }, { scheme: "Diverging" }],
+  },
 
   // ---- mapa swiata ----
   {

@@ -200,14 +200,21 @@ describe("widgetChartConfig - nowe klucze", () => {
     expect(widgetChartConfig({ ...CHART, sampleSize: 0 }, "pl").sampleSize).toBeNull();
   });
 
-  it("prognoza: granica w zakresie kategorii, deklaracja zapamiętana, pasmo w 0..100", () => {
-    const ok = widgetChartConfig({ ...CHART, forecastFrom: 2, forecastBandPct: 15 }, "pl");
+  it("prognoza: NUMER kategorii z panelu -> indeks silnika, deklaracja zapamiętana, pasmo w 0..100", () => {
+    // Panel pyta o „kategorię numer" (od jednej), silnik trzyma indeks od zera.
+    const ok = widgetChartConfig({ ...CHART, forecastFrom: 3, forecastBandPct: 15 }, "pl");
     expect(ok.forecastFrom).toBe(2);
     expect(ok.forecastFromDeclared).toBe(2);
     expect(ok.forecastBandPct).toBe(15);
+    expect(widgetChartConfig({ ...CHART, forecastFrom: "2,0" }, "pl").forecastFrom).toBe(1);
+    // Numer 1 = cały szereg prognozą, bez historii - parser takiej granicy
+    // nie przyjmuje, a deklaracja zostaje dla orzeczeń uczciwości.
+    const bezHistorii = widgetChartConfig({ ...CHART, forecastFrom: 1 }, "pl");
+    expect(bezHistorii.forecastFrom).toBeNull();
+    expect(bezHistorii.forecastFromDeclared).toBe(0);
     const poza = widgetChartConfig({ ...CHART, forecastFrom: "40", forecastBandPct: 500 }, "pl");
     expect(poza.forecastFrom).toBeNull();
-    expect(poza.forecastFromDeclared).toBe(40);
+    expect(poza.forecastFromDeclared).toBe(39);
     expect(poza.forecastBandPct).toBe(100);
     const puste = widgetChartConfig({ ...CHART, forecastFrom: "" }, "pl");
     expect(puste.forecastFrom).toBeNull();
