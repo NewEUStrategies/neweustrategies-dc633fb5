@@ -45,7 +45,7 @@ Wszystkie liczby stoją w `src/lib/charts/geometry.ts` i są pilnowane przez `ge
 - siatka: lewy 6, prawy 24 (14), górny 30; jednostka jako nazwa osi nad osią; maksimum z 4% zapasu nad punktem, pasmem albo celem (`extendDomain`, wspólne z orzeczeniem o uciętej osi);
 - linia 2 px (2,5 px pod kursorem), punkty 7 px w czterech kształtach z obwódką płyty, chowane powyżej 20 punktów; trzecia i dalsze serie przerywane 6 4;
 - pole pod linią: gradient 15% (seria główna) / 8% (pozostałe na wykresie pól) do zera przy bazie;
-- słupki pełne, najwyżej 22 px (34 px w stosie), odstęp serii 25%, koniec danych zaokrąglony 4 px, ujemna wartość pojedynczej serii w czerwieni, trzecia seria kreskowana;
+- słupki pełne, najwyżej 22 px (34 px w stosie), odstęp serii 25%, koniec danych zaokrąglony 4 px, ujemna wartość pojedynczej serii w czerwieni, trzecia seria kreskowana; wspólna reguła `charts.css` daje pełne wypełnienie każdemu słupkowi (także histogram, tornado, stos 100%), więc ustawienie „Wypełnienie słupków" (blade / gradient) zniknęło z edytora bloku i z panelu buildera - parser nadal przyjmuje zapisany klucz `barStyle`, żeby starsze treści się wczytywały;
 - pasmo optimum (akcent 10%, etykieta „przedział" / „optimum (demo)") i linia celu (5 4, „cel X");
 - wykres kaskadowy: zmiany w dodatnim/czerwieni, poziomy w łupku głównym, etykiety ze znakiem „+";
 - animacja 400 ms cubicOut, aktualizacja 300 ms, bez kaskady, wyłączona przy `prefers-reduced-motion`; tooltip bez zwłoki;

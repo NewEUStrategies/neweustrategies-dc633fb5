@@ -12,7 +12,6 @@ import {
   CHART_HEIGHT_MAX,
   CHART_HEIGHT_MIN,
   defaultChartConfig,
-  parseBarStyle,
   parseChartBand,
   parseChartKind,
   parseChartSources,
@@ -48,10 +47,6 @@ export function ChartWidgetView({ node, lang }: WidgetProps) {
     categories,
     series,
     stacked: getStr(c, "stacked") === "on",
-    // Wariant wypełnienia idzie tą samą drogą, co w bloku CMS: przez parser,
-    // więc nieznana albo pusta wartość wraca do `pale`. Bez tej linii widget
-    // buildera ignorował ustawienie autora, choć schemat je zapisywał.
-    barStyle: parseBarStyle(getStr(c, "barStyle")),
     unit: getStr(c, "unit"),
     height: Math.max(
       CHART_HEIGHT_MIN,

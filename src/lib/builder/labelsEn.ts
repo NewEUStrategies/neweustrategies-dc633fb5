@@ -521,10 +521,6 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Markery (węzły)": "Markers (nodes)",
   "Paski w komórkach": "In-cell bars",
   "Skumulowany (stacked)": "Stacked",
-  "Wypełnienie słupków": "Bar fill",
-  "blade wnętrze z obwódką": "pale interior with border",
-  "gradient z obwódką": "gradient with border",
-  "pełne wypełnienie": "solid fill",
   // ------------------------- chart: chart system / references (2026-10 spec)
   "Podpis pod wykresem": "Caption under the chart",
   "System wykresów / odniesienia": "Chart system / references",
