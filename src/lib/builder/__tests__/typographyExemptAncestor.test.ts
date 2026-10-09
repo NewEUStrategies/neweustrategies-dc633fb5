@@ -20,7 +20,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildWidgetTypographyCss } from "@/lib/builder/typographyCss";
-import { parseCssRules } from "@/test/cssRules";
+import { buildJoinUsSizeCss } from "@/lib/interests/joinUsSizeCss";
+import { parseCssRules, specificity, specificityAbove } from "@/test/cssRules";
 
 const ANCESTOR = ":not([data-typography-exempt] *)";
 
@@ -88,5 +89,59 @@ describe("generator reguł per widget", () => {
       .filter(trafiaWTekst);
     expect(ogolny.length).toBeGreaterThan(0);
     for (const s of ogolny) expect(s, s).toContain(ANCESTOR);
+  });
+});
+
+// ZWOLNIENIE NIE WAŻY NIC W KASKADZIE. Samo `:not([data-typography-exempt] *)`
+// ma specyficzność (0,1,0), czyli podbijało każdą gałąź elementów - reguły,
+// które celowo biją typografię widgetu specyficznością, przegrywały nagle
+// z regułą dotąd słabszą (rozmiary „Dołącz do nas": (0,9,0) przeciw gałęzi
+// ogólnej (0,8,1), po podbiciu (0,9,1)). Forma przodka stoi więc w `:where()`.
+describe("forma przodka nie zmienia specyficzności gałęzi", () => {
+  const BEZ_WAGI = `:where(${ANCESTOR})`;
+  const szablon = parseCssRules(readFileSync("src/styles.css", "utf8"))
+    .filter((r) => r.context.length === 0 && r.selectors.some((s) => s.includes("[data-wt~=")))
+    .flatMap((r) => r.selectors.map(squash));
+  const generator = parseCssRules(
+    buildWidgetTypographyCss(
+      "w-3",
+      {
+        fontSize: { desktop: "18px" },
+        descriptionFontSize: { desktop: "14px" },
+        fontWeight: "700",
+      },
+      "desktop",
+      { specificity: 3 },
+    ),
+  ).flatMap((r) => r.selectors.map(squash));
+  const zeZwolnieniem = [...szablon, ...generator].filter((s) => s.includes(ANCESTOR));
+
+  it("każde zwolnienie przodka stoi w `:where()`", () => {
+    expect(zeZwolnieniem.length).toBeGreaterThan(6);
+    for (const s of zeZwolnieniem) {
+      expect(s.split(ANCESTOR).length, s).toBe(s.split(BEZ_WAGI).length);
+    }
+  });
+
+  it("specyficzność ze zwolnieniem = specyficzność bez niego", () => {
+    for (const s of zeZwolnieniem) {
+      expect(specificity(s), s).toEqual(specificity(s.split(BEZ_WAGI).join("")));
+    }
+  });
+
+  it("rozmiar opisu „Dołącz do nas” nadal bije gałąź ogólną widgetu", () => {
+    const joinUs = parseCssRules(buildJoinUsSizeCss("j-1", { descriptionSize: 15 }))
+      .flatMap((r) => r.selectors)
+      .find((s) => s.endsWith('[data-edit-target="descriptionSize"]'));
+    expect(joinUs).toBeDefined();
+    const ogolna = parseCssRules(
+      buildWidgetTypographyCss("w-4", { fontSize: { desktop: "16px" } }, "desktop", {
+        specificity: 3,
+      }),
+    )
+      .flatMap((r) => r.selectors.map(squash))
+      .find((s) => s.includes(":is(p,span,"));
+    expect(ogolna).toBeDefined();
+    expect(specificityAbove(specificity(joinUs!), specificity(ogolna!))).toBe(true);
   });
 });
