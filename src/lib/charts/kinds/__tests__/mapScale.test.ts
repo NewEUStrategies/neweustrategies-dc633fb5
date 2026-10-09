@@ -5,9 +5,11 @@
 // zmieniła odcienie opublikowanych map.
 import { describe, expect, it } from "vitest";
 import { MAP_CONTINUOUS_FLOOR, mapScale } from "@/lib/charts/kinds/mapScale";
+import { colorMixOklab, MAP_RAMPS, SEQ_RAMP, type ChartThemeName } from "@/lib/charts/palette";
 import {
   MAP_CLASSES_MAX,
   MAP_CLASSES_MIN,
+  MAP_SCHEMES,
   MAP_SEQUENTIAL_SCHEMES,
   type MapScheme,
 } from "@/lib/charts/types";
@@ -57,10 +59,10 @@ describe("mapScale - skala ciągła (classes = 0)", () => {
   });
 
   it("legenda dostaje dwa przystanki: minimum i maksimum", () => {
-    const s = mapScale([3, 9, 6], "teal", 0, "equal", null);
+    const s = mapScale([3, 9, 6], "slate", 0, "equal", null);
     expect(s.classes.map((c) => c.from)).toEqual([3, 9]);
     expect(s.classes[0].color).toBe(s.colorOf(3));
-    expect(s.classes[1].color).toBe("var(--chart-map-teal-max)");
+    expect(s.classes[1].color).toBe("var(--chart-map-slate-max)");
   });
 
   it("jedna wartość albo wszystkie równe: bez zmyślonej rozpiętości, podłoga rampu", () => {
@@ -138,10 +140,10 @@ describe("mapScale - klasy kwantylowe", () => {
   });
 
   it("kolory klas idą od końca minimalnego do maksymalnego, po równych krokach", () => {
-    const s = mapScale([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "violet", 5, "quantile", null);
-    expect(s.classes.map((c) => shareOf(c.color, "violet"))).toEqual([0, 25, 50, 75, 100]);
-    expect(s.classes[0].color).toBe("var(--chart-map-violet-min)");
-    expect(s.classes[4].color).toBe("var(--chart-map-violet-max)");
+    const s = mapScale([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "accent", 5, "quantile", null);
+    expect(s.classes.map((c) => shareOf(c.color, "accent"))).toEqual([0, 25, 50, 75, 100]);
+    expect(s.classes[0].color).toBe("var(--chart-map-accent-min)");
+    expect(s.classes[4].color).toBe("var(--chart-map-accent-max)");
   });
 
   it("duplikaty zlepiają kwantyle - klas jest mniej, ale żadna nie jest pusta z definicji", () => {
@@ -182,7 +184,7 @@ describe("mapScale - klasy kwantylowe", () => {
 
   it("wszystkie wartości równe: jedna klasa, dla obu metod", () => {
     for (const method of ["quantile", "equal"] as const) {
-      const s = mapScale([3, 3, 3, 3], "teal", 4, method, null);
+      const s = mapScale([3, 3, 3, 3], "slate", 4, method, null);
       expect(s.classes).toHaveLength(1);
       expect(s.domain).toEqual([3, 3]);
     }
@@ -298,6 +300,120 @@ describe("mapScale - dane brzegowe", () => {
         for (const c of s.classes) expect(c.color).toMatch(/^(var|color-mix)\(/);
         for (const v of values) expect(s.colorOf(v)).not.toMatch(/#[0-9a-f]{3,6}/i);
       }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// stopOf - TEN SAM kolor co colorOf, tylko jako para kotwic hex i udział.
+//
+// Wypełnienie awaryjne (przeglądarka bez color-mix()) i eksport SVG liczą
+// kolor z tej pary. Gdyby udział albo kotwice rozjechały się z wyrażeniem
+// CSS, mapa w starszej przeglądarce i w pliku eksportu miałaby inne klasy
+// niż na ekranie - a żaden test renderujący tego nie zobaczy, bo jsdom nie
+// liczy color-mix().
+// ---------------------------------------------------------------------------
+
+/** Wartości tokenów rampy w danym motywie - te same hexy, które bramka palety porównuje z arkuszem. */
+function tokenHexes(theme: ChartThemeName): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const scheme of MAP_SEQUENTIAL_SCHEMES) {
+    out[`--chart-map-${scheme}-min`] = MAP_RAMPS[scheme][theme].min;
+    out[`--chart-map-${scheme}-max`] = MAP_RAMPS[scheme][theme].max;
+  }
+  out["--chart-negative"] = MAP_RAMPS.diverging[theme].min;
+  out["--chart-positive"] = MAP_RAMPS.diverging[theme].max;
+  out["--chart-map-div-mid"] = MAP_RAMPS.diverging[theme].mid;
+  return out;
+}
+
+/** Wyrażenie koloru z modelu rozwiązane tak, jak robi to przeglądarka (`color-mix` w OKLab). */
+function resolveCss(color: string, tokens: Record<string, string>): string {
+  const plain = /^var\((--[a-z0-9-]+)\)$/.exec(color);
+  if (plain) return tokens[plain[1]];
+  const mix = /^color-mix\(in oklab, var\((--[a-z0-9-]+)\) (\d+)%, var\((--[a-z0-9-]+)\)\)$/.exec(
+    color,
+  );
+  if (!mix) throw new Error(`nieoczekiwany kolor: ${color}`);
+  return colorMixOklab(tokens[mix[1]], Number(mix[2]), tokens[mix[3]]);
+}
+
+function stopHex(stop: { from: string; to: string; t: number }): string {
+  return colorMixOklab(stop.to, stop.t * 100, stop.from);
+}
+
+describe("mapScale - stopOf: kotwice hex dla wypełnienia awaryjnego i eksportu", () => {
+  const values = [-7, -3, 0, 0.5, 2, 2, 5, 9, 14, 30];
+
+  it("każdy schemat, każda liczba klas, oba motywy: stopOf daje DOKŁADNIE kolor colorOf", () => {
+    for (const theme of ["light", "dark"] as const) {
+      const tokens = tokenHexes(theme);
+      for (const scheme of MAP_SCHEMES) {
+        for (const classes of [0, 3, 4, 5, 6, 7]) {
+          for (const method of ["quantile", "equal"] as const) {
+            const s = mapScale(values, scheme, classes, method, null);
+            for (const v of values) {
+              const stop = s.stopOf(v, theme);
+              expect(stop, `${scheme} k=${classes} ${method} ${v}`).not.toBeNull();
+              expect(stopHex(stop!), `${theme} ${scheme} k=${classes} ${method} ${v}`).toBe(
+                resolveCss(s.colorOf(v), tokens),
+              );
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("kotwice to hexy z MAP_RAMPS, a udział jest procentem z wyrażenia CSS", () => {
+    for (const scheme of MAP_SCHEMES) {
+      const s = mapScale(values, scheme, 5, "quantile", null);
+      for (const v of values) {
+        const stop = s.stopOf(v)!;
+        expect(stop.from).toMatch(/^#[0-9a-f]{6}$/);
+        expect(stop.to).toMatch(/^#[0-9a-f]{6}$/);
+        expect(stop.t * 100).toBeCloseTo(Math.round(stop.t * 100), 9);
+        expect(stop.t).toBeGreaterThanOrEqual(0);
+        expect(stop.t).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("`blue` ciągła: kotwice SEQ_RAMP i udział wzoru sprzed modelu (podłoga 15%)", () => {
+    const s = mapScale([10, 60, 110], "blue", 0, "quantile", null);
+    for (const theme of ["light", "dark"] as const) {
+      expect(s.stopOf(10, theme)).toEqual({
+        from: SEQ_RAMP[theme].min,
+        to: SEQ_RAMP[theme].max,
+        t: 0.15,
+      });
+      expect(s.stopOf(60, theme)?.t).toBe(Math.round((0.15 + 0.85 * 0.5) * 100) / 100);
+      expect(s.stopOf(110, theme)?.t).toBe(1);
+    }
+  });
+
+  it("bez motywu - kotwice jasne (druk i eksport malują na jasnej płycie)", () => {
+    const s = mapScale([1, 2, 3], "accent", 3, "equal", null);
+    expect(s.stopOf(2)).toEqual(s.stopOf(2, "light"));
+    expect(s.stopOf(2)?.from).toBe(MAP_RAMPS.accent.light.min);
+    expect(s.stopOf(2, "dark")?.from).toBe(MAP_RAMPS.accent.dark.min);
+  });
+
+  it("rozbieżna: środek to kotwica `from`, koniec po stronie znaku to `to`", () => {
+    const s = mapScale([-10, 0, 5, 10], "diverging", 0, "quantile", 0);
+    const { light } = MAP_RAMPS.diverging;
+    expect(s.stopOf(0)).toEqual({ from: light.mid, to: light.max, t: 0 });
+    expect(s.stopOf(-10)).toEqual({ from: light.mid, to: light.min, t: 1 });
+    expect(s.stopOf(5)).toEqual({ from: light.mid, to: light.max, t: 0.5 });
+  });
+
+  it("null dla wartości nieskończonej i dla skali bez wartości", () => {
+    for (const classes of [0, 5]) {
+      const s = mapScale([1, 2, 3], "blue", classes, "quantile", null);
+      expect(s.stopOf(Number.NaN)).toBeNull();
+      expect(s.stopOf(Number.POSITIVE_INFINITY)).toBeNull();
+      expect(mapScale([], "blue", classes, "quantile", null).stopOf(1)).toBeNull();
+      expect(mapScale([], "diverging", classes, "quantile", null).stopOf(1)).toBeNull();
     }
   });
 });

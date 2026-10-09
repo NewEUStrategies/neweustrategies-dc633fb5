@@ -13,21 +13,32 @@
 // razem: podmiana odcienia w CSS bez przeliczenia palety oblewa bramkę.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { mapScale } from "@/lib/charts/kinds/mapScale";
 import {
   CATEGORICAL_SAFE_SERIES,
+  MAP_CLASSES_MAX,
+  MAP_CLASSES_MIN,
+  MAP_SCHEMES,
   MAP_SEQUENTIAL_SCHEMES,
   MAX_COLOR_SLOT,
   MAX_SERIES,
+  type MapScheme,
 } from "@/lib/charts/types";
 import {
   BRAND_ORANGE_HUE,
   colorMixOklab,
+  MAP_ACCENT_HUE,
+  MAP_ADJACENT_CLASS_DL_MIN,
+  MAP_DIV_MID_NODATA_DL_MIN,
   MAP_DIVERGING_CVD_MIN,
   MAP_HUE_CHROMA_FLOOR,
   MAP_HUE_EXCLUDED,
   MAP_NEUTRALS,
   MAP_NODATA_CONTRAST_MIN,
+  MAP_NON_ACCENT_HUE_EXCLUDED,
+  MAP_PLATE_CONTRAST_MIN,
   MAP_RAMPS,
+  oklabOf,
   BAND_CONTRAST_RANGE,
   CATEGORICAL_SAFE_MAX,
   CHART_PLATE,
@@ -1105,8 +1116,28 @@ const SIGN = {
 } as const;
 
 describe("palette - RAMPY MAPY: arkusz zgadza się z modułem", () => {
-  it("moduł ma rampę dla KAŻDEGO schematu sekwencyjnego i żadnej więcej", () => {
-    expect(Object.keys(MAP_RAMPS).sort()).toEqual([...MAP_SEQUENTIAL_SCHEMES].sort());
+  it("moduł ma rampę dla KAŻDEGO schematu i żadnej więcej", () => {
+    expect(Object.keys(MAP_RAMPS).sort()).toEqual([...MAP_SCHEMES].sort());
+  });
+
+  it("schematy to blue, slate, accent i diverging - bez turkusu i fioletu, także w arkuszu", () => {
+    // Turkus czyta się jak --chart-positive, fiolet jak --chart-warn: rampa
+    // ozdobna w tych odcieniach mówiłaby o statusie, którego mapa nie koduje.
+    expect([...MAP_SCHEMES]).toEqual(["blue", "slate", "accent", "diverging"]);
+    expect([...MAP_SEQUENTIAL_SCHEMES]).toEqual(["blue", "slate", "accent"]);
+    expect(css).not.toMatch(/--chart-map-(teal|violet)-/);
+  });
+
+  it.each([
+    ["jasny", "light", LIGHT_BLOCK] as const,
+    ["ciemny", "dark", DARK_BLOCK] as const,
+    ["druk", "light", CHART_PRINT_BLOCK] as const,
+  ])("%s: rampa rozbieżna w module = tokeny znaku i środek z arkusza", (_n, theme, block) => {
+    expect(MAP_RAMPS.diverging[theme]).toEqual({
+      min: hexToken(block, "--chart-negative"),
+      mid: hexToken(block, "--chart-map-div-mid"),
+      max: hexToken(block, "--chart-positive"),
+    });
   });
 
   it("`blue` jest rampą sekwencyjną SPRZED wyboru co do hexa - opublikowane mapy bez zmian", () => {
@@ -1298,6 +1329,194 @@ describe("palette - RAMPY MAPY: progi", () => {
         const d = cvdDistance(neg, pos, kind);
         expect(d, `${kind}: ${d.toFixed(1)}`).toBeGreaterThanOrEqual(MAP_DIVERGING_CVD_MIN);
       }
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// RAMPY MAPY: PROGI NA KLASACH 3..7 - jasny, ciemny i druk.
+//
+// Bramki wyżej patrzą na kotwice i na próbki co 5%. Te patrzą na to, co
+// czytelnik dostaje naprawdę: kolory KLAS z modelu skali (`mapScale`)
+// rozwiązane na tokenach arkusza danego bloku - tak, jak robi to
+// przeglądarka. Rampa rozbieżna jest próbkowana w klasach symetrycznych
+// wokół środka (równe przedziały), bo tylko tam położenie klasy nie zależy
+// od danych.
+// ---------------------------------------------------------------------------
+
+type MapGateTheme = "light" | "dark" | "print";
+
+const MAP_GATE_THEMES: ReadonlyArray<readonly [string, MapGateTheme]> = [
+  ["jasny", "light"],
+  ["ciemny", "dark"],
+  ["druk", "print"],
+];
+
+function mapBlock(theme: MapGateTheme): string {
+  if (theme === "dark") return DARK_BLOCK;
+  return theme === "print" ? CHART_PRINT_BLOCK : LIGHT_BLOCK;
+}
+
+/** Płyta: druk to papier, czyli płyta jasna. */
+function mapPlate(theme: MapGateTheme): string {
+  return theme === "dark" ? CHART_PLATE.dark : CHART_PLATE.light;
+}
+
+/** Wyrażenie koloru z modelu skali rozwiązane na tokenach bloku arkusza. */
+function resolveMapColor(color: string, block: string): string {
+  const plain = /^var\((--[a-z0-9-]+)\)$/.exec(color);
+  if (plain) return hexToken(block, plain[1]);
+  const mix = /^color-mix\(in oklab, var\((--[a-z0-9-]+)\) (\d+)%, var\((--[a-z0-9-]+)\)\)$/.exec(
+    color,
+  );
+  if (!mix) throw new Error(`nieoczekiwany kolor mapy: ${color}`);
+  return colorMixOklab(hexToken(block, mix[1]), Number(mix[2]), hexToken(block, mix[3]));
+}
+
+/**
+ * Kolory klas schematu przy `k` klasach, rosnąco. Sekwencyjne: k wartości
+ * w równych odstępach (klasa na wartość). Rozbieżna: przedziały symetryczne
+ * wokół zera, od pełnego ujemnego do pełnego dodatniego.
+ */
+function classHexes(scheme: MapScheme, k: number, theme: MapGateTheme): string[] {
+  const s =
+    scheme === "diverging"
+      ? mapScale([-1, 1], scheme, k, "equal", 0)
+      : mapScale(
+          Array.from({ length: k }, (_, i) => i),
+          scheme,
+          k,
+          "equal",
+          null,
+        );
+  expect(s.classes, `${scheme} k=${k}`).toHaveLength(k);
+  return s.classes.map((c) => resolveMapColor(c.color, mapBlock(theme)));
+}
+
+const CLASS_COUNTS = Array.from(
+  { length: MAP_CLASSES_MAX - MAP_CLASSES_MIN + 1 },
+  (_, i) => MAP_CLASSES_MIN + i,
+);
+
+describe("palette - RAMPY MAPY: progi na klasach 3..7", () => {
+  it("okna odcienia są skalibrowane: bursztyn i pomarańcz marki poza rampami nieakcentowymi, czerwień znaku i lazur w nich", () => {
+    const inNonAccentBand = (hex: string) => {
+      const { h } = oklchOf(hex);
+      return h >= MAP_NON_ACCENT_HUE_EXCLUDED.from && h <= MAP_NON_ACCENT_HUE_EXCLUDED.to;
+    };
+    const inAccentBand = (hex: string) =>
+      Math.abs(oklchOf(hex).h - MAP_ACCENT_HUE.centre) <= MAP_ACCENT_HUE.tolerance;
+    for (const hex of ["#b7791f", "#f7dd14", "#fa9346", "#ab5517"]) {
+      expect(inNonAccentBand(hex), hex).toBe(true);
+    }
+    for (const hex of [CHART_SEMANTIC.negativeLight, CHART_SEMANTIC.positiveLight, "#00375f"]) {
+      expect(inNonAccentBand(hex), hex).toBe(false);
+    }
+    for (const hex of ["#fa9346", "#ab5517"]) expect(inAccentBand(hex), hex).toBe(true);
+    for (const hex of ["#b7791f", CHART_SEMANTIC.negativeLight]) {
+      expect(inAccentBand(hex), hex).toBe(false);
+    }
+    // Okno wewnętrzne rodziny marki mieści się w tolerancji klas.
+    expect(BRAND_ORANGE_HUE.from).toBeGreaterThanOrEqual(
+      MAP_ACCENT_HUE.centre - MAP_ACCENT_HUE.tolerance,
+    );
+    expect(BRAND_ORANGE_HUE.to).toBeLessThanOrEqual(
+      MAP_ACCENT_HUE.centre + MAP_ACCENT_HUE.tolerance,
+    );
+  });
+
+  it.each(MAP_GATE_THEMES)(
+    "%s: odcień klas - `accent` w 54° +/- 10°, pozostałe poza 30°-110° (tylko przy chromie >= 0,03)",
+    (_n, theme) => {
+      for (const scheme of MAP_SCHEMES) {
+        for (const k of CLASS_COUNTS) {
+          for (const hex of classHexes(scheme, k, theme)) {
+            const { c, h } = oklchOf(hex);
+            // Poniżej progu chromy kolor jest szarością, a jego kąt - szumem.
+            if (c < MAP_HUE_CHROMA_FLOOR) continue;
+            const label = `${scheme} k=${k} ${hex} ${h.toFixed(1)}°`;
+            if (scheme === "accent") {
+              expect(Math.abs(h - MAP_ACCENT_HUE.centre), label).toBeLessThanOrEqual(
+                MAP_ACCENT_HUE.tolerance,
+              );
+            } else {
+              const inside =
+                h >= MAP_NON_ACCENT_HUE_EXCLUDED.from && h <= MAP_NON_ACCENT_HUE_EXCLUDED.to;
+              expect(inside, label).toBe(false);
+            }
+          }
+        }
+      }
+    },
+  );
+
+  it.each(MAP_GATE_THEMES)(
+    "%s: sąsiednie klasy różnią się jasnością OKLab o >= 0,04 (także przy 7 klasach)",
+    (_n, theme) => {
+      for (const scheme of MAP_SCHEMES) {
+        for (const k of CLASS_COUNTS) {
+          const labs = classHexes(scheme, k, theme).map((hex) => oklabOf(hex));
+          for (let i = 1; i < labs.length; i += 1) {
+            const [p, q] = [labs[i - 1], labs[i]];
+            const label = `${scheme} k=${k} klasy ${i - 1}/${i}`;
+            // Przy PARZYSTEJ liczbie klas rozbieżnych dwie środkowe leżą po
+            // przeciwnych stronach punktu środkowego, w tej samej odległości
+            // od niego - więc z definicji mają podobną jasność, a różni je
+            // ZNAK, czyli odcień (czerwień wobec lazuru). Dla tej jednej pary
+            // próg dotyczy pełnej odległości OKLab, nie samej jasności.
+            const straddle = scheme === "diverging" && k % 2 === 0 && i === k / 2;
+            const d = straddle ? Math.hypot(p.l - q.l, p.a - q.a, p.b - q.b) : Math.abs(p.l - q.l);
+            expect(d, `${label}: ${d.toFixed(3)}`).toBeGreaterThanOrEqual(
+              MAP_ADJACENT_CLASS_DL_MIN,
+            );
+          }
+        }
+      }
+    },
+  );
+
+  it.each(MAP_GATE_THEMES)("%s: klasa skrajna >= 3:1 na płycie", (_n, theme) => {
+    for (const scheme of MAP_SCHEMES) {
+      for (const k of CLASS_COUNTS) {
+        const hexes = classHexes(scheme, k, theme);
+        // Rampa rozbieżna ma DWA końce pełne - oba muszą być widoczne.
+        const ends =
+          scheme === "diverging" ? [hexes[0], hexes[hexes.length - 1]] : [hexes[hexes.length - 1]];
+        for (const hex of ends) {
+          const r = contrastRatio(hex, mapPlate(theme));
+          expect(r, `${scheme} k=${k} ${hex}: ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(
+            CONTRAST_MIN.graphic,
+          );
+        }
+      }
+    }
+  });
+
+  it.each(MAP_GATE_THEMES)(
+    "%s: KAŻDA klasa (więc i pierwsza) odróżnia się od płyty o >= 1,15:1 - granice krajów to płyta",
+    (_n, theme) => {
+      for (const scheme of MAP_SCHEMES) {
+        for (const k of CLASS_COUNTS) {
+          for (const hex of classHexes(scheme, k, theme)) {
+            const r = contrastRatio(hex, mapPlate(theme));
+            expect(r, `${scheme} k=${k} ${hex}: ${r.toFixed(3)}:1`).toBeGreaterThanOrEqual(
+              MAP_PLATE_CONTRAST_MIN,
+            );
+          }
+        }
+      }
+    },
+  );
+
+  it.each(MAP_GATE_THEMES)(
+    "%s: środek rampy rozbieżnej różni się od braku danych jasnością OKLab o >= 0,05",
+    (_n, theme) => {
+      const block = mapBlock(theme);
+      const dl = Math.abs(
+        oklabOf(hexToken(block, "--chart-map-div-mid")).l -
+          oklabOf(hexToken(block, "--chart-map-nodata")).l,
+      );
+      expect(dl, dl.toFixed(4)).toBeGreaterThanOrEqual(MAP_DIV_MID_NODATA_DL_MIN);
     },
   );
 });

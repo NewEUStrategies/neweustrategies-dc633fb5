@@ -397,17 +397,24 @@ export interface MapDatum {
  * SCHEMATY KOLORU MAPY - tablica jest źródłem, typ wyprowadzeniem, tym samym
  * wzorcem co `CHART_KINDS` i `MAP_REGIONS`.
  *
- * Pięć rampów SEKWENCYJNYCH (jeden odcień, zmiana jasności) i jeden
- * ROZBIEŻNY (ujemny - neutralny - dodatni wokół punktu środkowego). `blue`
- * jest rampem sprzed wprowadzenia wyboru i ma te same kotwice co
- * `--chart-seq-min/max`, więc opublikowane mapy nie zmieniają koloru.
- * Bursztynu i żółci nie ma w żadnym z nich - patrz `MAP_RAMPS` w `palette.ts`.
+ * Trzy rampy SEKWENCYJNE (jeden odcień, zmiana jasności) i jedna
+ * ROZBIEŻNA (ujemny - neutralny - dodatni wokół punktu środkowego). `blue`
+ * jest rampą sprzed wprowadzenia wyboru i ma te same kotwice co
+ * `--chart-seq-min/max`, więc opublikowane mapy nie zmieniają koloru;
+ * `slate` jest neutralna (wskaźnik bez wartościowania), `accent` to
+ * wyłącznie rodzina pomarańczu marki. Bursztynu i żółci nie ma w żadnej -
+ * patrz `MAP_RAMPS` w `palette.ts`.
+ *
+ * Turkusu i fioletu CELOWO NIE MA: turkus czyta się jak dodatni
+ * (`--chart-positive`), a fiolet jak „powyżej przedziału" (`--chart-warn`),
+ * więc rampa ozdobna w tych odcieniach mówiłaby o statusie, którego mapa
+ * nie koduje.
  */
-export const MAP_SCHEMES = ["blue", "accent", "teal", "violet", "slate", "diverging"] as const;
+export const MAP_SCHEMES = ["blue", "slate", "accent", "diverging"] as const;
 export type MapScheme = (typeof MAP_SCHEMES)[number];
 
 /** Schematy z jedną parą kotwic min/max - wszystkie poza rozbieżnym. */
-export const MAP_SEQUENTIAL_SCHEMES = ["blue", "accent", "teal", "violet", "slate"] as const;
+export const MAP_SEQUENTIAL_SCHEMES = ["blue", "slate", "accent"] as const;
 export type MapSequentialScheme = (typeof MAP_SEQUENTIAL_SCHEMES)[number];
 
 /**

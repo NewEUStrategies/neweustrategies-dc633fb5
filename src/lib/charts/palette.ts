@@ -20,7 +20,7 @@
 // miejsca (paleta jasna: 19,89 / 23,12 / 16,99 wobec deklarowanych 19,9 / 23,1
 // / 17,0; paleta ciemna: 24,60 / 26,19 / 24,44 wobec 24,6 / 26,2 / 24,4),
 // więc porównania wewnątrz repo są spójne z tamtymi.
-import type { MapSequentialScheme } from "./types";
+import type { MapScheme } from "./types";
 
 /** Powierzchnia, na której paleta jest mierzona: token `--card` obu motywów. */
 export const CHART_PLATE = { light: "#ffffff", dark: "#0f0f0f" } as const;
@@ -644,53 +644,6 @@ export const SEQ_RAMP = {
 } as const;
 
 /**
- * RAMPY MAPY do wyboru przez autora - kopia arkusza dla bramki, tak samo jak
- * SEQ_RAMP wyżej (tokeny `--chart-map-{schemat}-min/max`).
- *
- * `blue` JEST SEQ_RAMP co do hexa, nie podobnym rampem: opublikowane mapy bez
- * zapisanego schematu dostają `blue` i nie mogą zmienić koloru. Pozostałe
- * cztery są wyprowadzone w OKLCh tą samą regułą: koniec maksymalny przy
- * jasności, która daje próg grafiki na płycie z zapasem, koniec minimalny
- * przy jasności rampu niebieskiego (0,93 na jasnym, 0,28 na ciemnym) i niskiej
- * chromie - więc pierwsza klasa każdego rampu stoi tak samo daleko od koloru
- * „brak danych".
- *
- *   * `accent` - WYŁĄCZNIE rodzina pomarańczu marki: koniec jasnego motywu to
- *     wariant tekstowy akcentu #ab5517 (5,19:1), koniec ciemnego to sam akcent
- *     #fa9346 (8,51:1 na #0f0f0f); końce blade mają odcień akcentu (53°).
- *   * `teal` (192°) i `violet` (300°) - dwa odcienie poza rodziną znaku: teal
- *     nie jest dodatnim (#1b6f8c, 226°), a fiolet nie jest „powyżej
- *     przedziału" (#7c4dbf ma inną chromę i jasność w obu motywach).
- *   * `slate` - ramp NEUTRALNY dla wskaźników bez wartościowania; koniec
- *     maksymalny to łupek główny (`--chart-s-main`) obu motywów.
- *
- * Bursztynu i żółci nie ma w żadnym rampie ani w żadnej mieszaninie między
- * końcami - bramka sprawdza próbki rampu względem MAP_HUE_EXCLUDED.
- */
-export const MAP_RAMPS = {
-  blue: SEQ_RAMP,
-  accent: {
-    light: { min: "#ffe1cf", max: "#ab5517" },
-    dark: { min: "#3a2212", max: "#fa9346" },
-  },
-  teal: {
-    light: { min: "#d2efed", max: "#005957" },
-    dark: { min: "#162e2d", max: "#6fcdc9" },
-  },
-  violet: {
-    light: { min: "#ebe4fa", max: "#5a358c" },
-    dark: { min: "#2c243a", max: "#ba9cef" },
-  },
-  slate: {
-    light: { min: "#e3e8f0", max: "#3e4c5e" },
-    dark: { min: "#22272e", max: "#a9b6c6" },
-  },
-} as const satisfies Record<
-  MapSequentialScheme,
-  Record<ChartThemeName, { min: string; max: string }>
->;
-
-/**
  * Neutralne kolory mapy - kopia arkusza dla bramki.
  *
  *   * `divMid` (`--chart-map-div-mid`) - środek schematu rozbieżnego. Końce
@@ -714,6 +667,69 @@ export const MAP_NEUTRALS = {
   ChartThemeName,
   { divMid: string; nodata: string; nodataHatch: string }
 >;
+
+/**
+ * Kotwice jednej rampy w jednym motywie. `mid` ma wyłącznie rampa
+ * rozbieżna: wtedy `min` to pełny ujemny, `max` pełny dodatni, a klasy
+ * mieszają koniec ze środkiem (nie koniec z końcem).
+ */
+export interface MapRampAnchors {
+  min: string;
+  max: string;
+  mid?: string;
+}
+
+/**
+ * RAMPY MAPY do wyboru przez autora - kopia arkusza dla bramki, tak samo jak
+ * SEQ_RAMP wyżej (tokeny `--chart-map-{schemat}-min/max`), i jedyne źródło
+ * hexów dla wypełnienia awaryjnego i eksportu (`MapScale.stopOf`).
+ *
+ * `blue` JEST SEQ_RAMP co do hexa, nie podobnym rampem: opublikowane mapy bez
+ * zapisanego schematu dostają `blue` i nie mogą zmienić koloru. Pozostałe
+ * rampy sekwencyjne są wyprowadzone w OKLCh tą samą regułą: koniec
+ * maksymalny przy jasności, która daje próg grafiki na płycie z zapasem,
+ * koniec minimalny przy jasności rampu niebieskiego (0,93 na jasnym, 0,28 na
+ * ciemnym) i niskiej chromie - więc pierwsza klasa każdego rampu stoi tak
+ * samo daleko od płyty i od koloru „brak danych".
+ *
+ *   * `slate` - ramp NEUTRALNY dla wskaźników bez wartościowania; koniec
+ *     maksymalny to łupek główny (`--chart-s-main`) obu motywów.
+ *   * `accent` - WYŁĄCZNIE rodzina pomarańczu marki: koniec jasnego motywu to
+ *     wariant tekstowy akcentu #ab5517 (5,19:1), koniec ciemnego to sam akcent
+ *     #fa9346 (8,51:1 na #0f0f0f); końce blade mają odcień akcentu (53°).
+ *   * `diverging` - końce to tokeny znaku (`--chart-negative`,
+ *     `--chart-positive`), środek `--chart-map-div-mid`; hexy są tu
+ *     odwołaniami do CHART_SEMANTIC i MAP_NEUTRALS, nie kopiami.
+ *
+ * Turkusu i fioletu nie ma: turkus czyta się jak dodatni (#1b6f8c),
+ * a fiolet jak „powyżej przedziału" (#7c4dbf) - rampa ozdobna w tych
+ * odcieniach mówiłaby o statusie. Bursztynu i żółci nie ma w żadnym rampie
+ * ani w żadnej mieszaninie między końcami - bramka sprawdza próbki rampu
+ * względem MAP_HUE_EXCLUDED.
+ */
+export const MAP_RAMPS = {
+  blue: SEQ_RAMP,
+  slate: {
+    light: { min: "#e3e8f0", max: "#3e4c5e" },
+    dark: { min: "#22272e", max: "#a9b6c6" },
+  },
+  accent: {
+    light: { min: "#ffe1cf", max: "#ab5517" },
+    dark: { min: "#3a2212", max: "#fa9346" },
+  },
+  diverging: {
+    light: {
+      min: CHART_SEMANTIC.negativeLight,
+      mid: MAP_NEUTRALS.light.divMid,
+      max: CHART_SEMANTIC.positiveLight,
+    },
+    dark: {
+      min: CHART_SEMANTIC.negativeDark,
+      mid: MAP_NEUTRALS.dark.divMid,
+      max: CHART_SEMANTIC.positiveDark,
+    },
+  },
+} as const satisfies Record<MapScheme, Record<ChartThemeName, MapRampAnchors>>;
 
 /**
  * ODCIENIE ZAKAZANE NA MAPIE: bursztyn, złoto i żółć - kąt OKLCh 62°-115°.
@@ -745,6 +761,46 @@ export const MAP_DIVERGING_CVD_MIN = 30;
  * wypełnienia nadal się różnią.
  */
 export const MAP_NODATA_CONTRAST_MIN = 1.15;
+
+/**
+ * Pasmo odcieni zakazane rampom BEZ akcentu (`blue`, `slate`, `diverging`)
+ * w klasach 3..7: szersze od MAP_HUE_EXCLUDED w dół, aż do 30°, żeby żadna
+ * klasa rampy nieakcentowej nie zbliżyła się do pomarańczu marki - ten
+ * odcień na mapie znaczy wyłącznie „akcent". Obowiązuje tylko odcienie
+ * o chromie >= MAP_HUE_CHROMA_FLOOR.
+ */
+export const MAP_NON_ACCENT_HUE_EXCLUDED = { from: 30, to: 110 } as const;
+
+/**
+ * Tolerancja odcienia klas rampy `accent`: 54° (akcent marki) +/- 10°.
+ * Bursztyn leży przy ~75°, więc klasa, która wyszłaby poza to okno, zaczęłaby
+ * czytać się jak ostrzeżenie, a nie jak marka. BRAND_ORANGE_HUE jest
+ * węższym, wewnętrznym oknem tej samej reguły.
+ */
+export const MAP_ACCENT_HUE = { centre: 54, tolerance: 10 } as const;
+
+/**
+ * Najmniejsza różnica jasności OKLab między SĄSIEDNIMI klasami przy
+ * siedmiu klasach (najgęstszy podział, na jaki pozwala MAP_CLASSES_MAX).
+ * Poniżej tego sąsiednie klasy zlewają się w jedną i legenda z siedmioma
+ * przedziałami kłamie o rozdzielczości mapy.
+ */
+export const MAP_ADJACENT_CLASS_DL_MIN = 0.04;
+
+/**
+ * Najmniejszy kontrast KAŻDEJ klasy wobec płyty. Granice krajów są w kolorze
+ * płyty (`--card`), więc kraj w klasie zbyt bliskiej płycie traci obrys
+ * i znika z mapy razem z wartością.
+ */
+export const MAP_PLATE_CONTRAST_MIN = 1.15;
+
+/**
+ * Najmniejsza różnica jasności OKLab między środkiem rampy rozbieżnej
+ * a kolorem „brak danych". Oba są neutralną szarością, więc różni je
+ * WYŁĄCZNIE jasność - kraj „dokładnie w punkcie środkowym" nie może
+ * wyglądać jak kraj bez danych także tam, gdzie kreskowanie nie wybrzmi.
+ */
+export const MAP_DIV_MID_NODATA_DL_MIN = 0.05;
 
 /**
  * Warianty AUDYTOWE akcentu - dwa, bo próg zależy od tego, czym akcent ma być.
