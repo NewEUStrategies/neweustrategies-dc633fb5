@@ -351,9 +351,11 @@ export function ChoroplethMap({
   // PUSTY ZESTAW zostaje panelem: tytuł, źródło i rama stoją, a w miejscu
   // rysunku jest komunikat o wysokości regionu. Goła notka zamiast karty
   // zmieniała wysokość widgetu i gubiła tytuł, który autor już wpisał.
+  // Bez przycisków PNG/SVG: nie ma rysunku, więc eksport kończyłby się
+  // zawsze komunikatem o błędzie.
   if (!hasValues) {
     return (
-      <ChartFrame {...frameProps} table={table}>
+      <ChartFrame {...frameProps} table={table} exportable={false}>
         <MapEmpty region={config.region} text={t("empty")} />
       </ChartFrame>
     );

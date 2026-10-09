@@ -148,6 +148,13 @@ interface ChartFrameProps {
    * bo osadzenie (karta pulpitu) ma własny nagłówek i własny eksport.
    */
   variant?: "panel" | "embedded";
+  /**
+   * `false` - nagłówek bez przycisków PNG/SVG i „Jak czytać" bez akapitu
+   * o eksporcie: rama nie ma rysunku do zapisania (pusty zestaw mapy),
+   * a przycisk, który zawsze kończy się komunikatem o błędzie, wygląda na
+   * zepsutą stronę. Domyślnie `true`.
+   */
+  exportable?: boolean;
   /** Okna dorzucane przez rysunek (definicja klikniętego punktu). */
   dialogs?: ReactNode;
 }
@@ -221,6 +228,7 @@ export function ChartFrame({
   meta,
   renderExpanded,
   variant = "panel",
+  exportable = true,
   dialogs,
 }: ChartFrameProps) {
   const [tableOpen, setTableOpen] = useState(false);
@@ -502,24 +510,28 @@ export function ChartFrame({
                   <span aria-hidden>⤢</span>
                 </button>
               )}
-              <button
-                type="button"
-                className="neh-btn"
-                aria-label={t("panel.exportPng")}
-                title={t("panel.exportPng")}
-                onClick={() => void exportFrom(plotRef.current, "png")}
-              >
-                {t("panel.png")}
-              </button>
-              <button
-                type="button"
-                className="neh-btn"
-                aria-label={t("panel.exportSvg")}
-                title={t("panel.exportSvg")}
-                onClick={() => void exportFrom(plotRef.current, "svg")}
-              >
-                {t("panel.svg")}
-              </button>
+              {exportable && (
+                <>
+                  <button
+                    type="button"
+                    className="neh-btn"
+                    aria-label={t("panel.exportPng")}
+                    title={t("panel.exportPng")}
+                    onClick={() => void exportFrom(plotRef.current, "png")}
+                  >
+                    {t("panel.png")}
+                  </button>
+                  <button
+                    type="button"
+                    className="neh-btn"
+                    aria-label={t("panel.exportSvg")}
+                    title={t("panel.exportSvg")}
+                    onClick={() => void exportFrom(plotRef.current, "svg")}
+                  >
+                    {t("panel.svg")}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </figcaption>
@@ -613,8 +625,12 @@ export function ChartFrame({
           <h3>{t("read.interactions")}</h3>
           <p>{meta?.help?.interactions ?? t("read.interactionsText")}</p>
           {meta?.zoomable && <p>{t("read.zoomText")}</p>}
-          <h3>{t("read.export")}</h3>
-          <p>{t("read.exportText")}</p>
+          {exportable && (
+            <>
+              <h3>{t("read.export")}</h3>
+              <p>{t("read.exportText")}</p>
+            </>
+          )}
           <h3>{t("read.sources")}</h3>
           {sourceList}
         </ChartDialog>
