@@ -464,6 +464,7 @@
       "trasy": ["admin.tsx", "admin.index.tsx", "admin.performance.tsx", "admin.i18n.tsx"],
       "obiektyBazy": [
         "missing_schema_objects$",
+        "missing_schema_columns$",
         "admin_dashboard_",
         "buckets$",
         "claim_",

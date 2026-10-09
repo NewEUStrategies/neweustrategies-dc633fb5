@@ -339,7 +339,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run check:tenant-isolation
 
-  # Po scaleniu do main: czy produkcyjna baza ma wszystkie tabele, widoki i RPC
+  # Po scaleniu do main: czy produkcyjna baza ma wszystkie tabele, widoki, RPC i kolumny
   # oraz czy migracje z repo zostały na niej faktycznie zastosowane. Bez
   # sekretów Supabase w repozytorium job kończy się ostrzeżeniem zamiast
   # czerwonego statusu, bo nie ma czego sondować.
@@ -383,7 +383,7 @@ jobs:
         if: ${{ steps.creds.outputs.ready == 'true' }}
         run: bun install --frozen-lockfile
 
-      - name: Database contract (tables / views / RPC)
+      - name: Database contract (tables / views / RPC / columns)
         if: ${{ steps.creds.outputs.ready == 'true' }}
         run: bun run check:db-contract
 

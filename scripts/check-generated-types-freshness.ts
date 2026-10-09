@@ -70,12 +70,16 @@ const BASELINE: readonly string[] = [
   // bazy. types.ts zostało jednak przegenerowane w tym samym wydaniu i OBIE kolumny w nim SĄ,
   // więc wpisy zrobiły się martwe - a bramka słusznie się na nie zapala ("martwy wpis to
   // przyszła furtka"). Usunięte zgodnie z jej własną instrukcją.
+  //
+  // 2026-10-09: wpisy poniżej to dryf PRODUKCJI, nie nieświeże typy -
+  // types.ts generuje się z produkcji, a sonda PostgREST dała 42703 dla
+  // każdej z 7 kolumn spoza podcastów i dla 4 z 19 kolumn 20260725090500
+  // (kolumna kontrolna tej samej tabeli: 200). Podcast_* ponawia
+  // 20261009100000; pozostałe 7 to `KNOWN_COLUMN_DRIFT` w
+  // src/lib/ci/dbContract.ts (bramka post-deploy).
+  // Wpis znika, gdy kolumna faktycznie powstanie i types.ts się zregeneruje.
   "membership_grants.source_coupon_id",
   "notifications.meta",
-  // 2026-10-09: 20 kolumn z 20260725090500 to NIE nieświeże typy, tylko
-  // migracja, która nigdy nie poszła na produkcję (PostgREST: 42703 dla
-  // `podcasts.explicit`; types.ts generowany z produkcji ich nie zna). Ponawia
-  // ją 20261009100000 - po wdrożeniu i regeneracji types.ts wpisy znikają.
   "podcast_settings.itunes_author",
   "podcast_settings.itunes_category",
   "podcast_settings.itunes_copyright",

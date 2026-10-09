@@ -16,7 +16,7 @@
 -- nie wykonala sie na produkcji: nie ma jej kopii z pipeline'u (zadnego
 -- bliznika z UUID w nazwie), a `src/integrations/supabase/types.ts`,
 -- generowany z produkcyjnej bazy i przegenerowany jeszcze 2026-09-21, nie zna
--- zadnej z jej 20 kolumn - ta sama lista siedzi jako "zamrozony dlug" w
+-- zadnej z jej 19 kolumn - ta sama lista siedzi jako "zamrozony dlug" w
 -- `scripts/check-generated-types-freshness.ts`, czytana dotad jako nieswieze
 -- typy, a nie jako brakujaca migracja.
 --

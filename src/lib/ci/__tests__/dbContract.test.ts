@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { contractFailed, extractExpectedContract, renderContractReport } from "../dbContract";
+import { loadMigrationFiles } from "../../../../scripts/lib/sqlMigrations";
+import {
+  KNOWN_COLUMN_DRIFT,
+  columnDriftFailed,
+  compareColumnDrift,
+  contractFailed,
+  dbColumnKey,
+  expectedColumns,
+  extractExpectedContract,
+  inconclusiveColumnDrift,
+  renderColumnDriftReport,
+  renderContractReport,
+} from "../dbContract";
 
 describe("extractExpectedContract", () => {
   it("recreates an object dropped earlier in the same migration", () => {
@@ -91,5 +103,104 @@ describe("raport kontraktu", () => {
     expect(contractFailed(failing)).toBe(true);
     expect(contractFailed({ checked: 0, missing: [], inconclusive: [] })).toBe(true);
     expect(renderContractReport(failing)).toContain("table posts");
+  });
+});
+
+describe("kontrakt kolumn", () => {
+  // 2026-10-09: 20260725090500 dodała 20 kolumn i nigdy nie poszła na
+  // produkcję; kontrakt obiektowy był zielony, katalog /podcasts - martwy.
+  const migrations = [
+    {
+      file: "0001.sql",
+      sql: `CREATE TABLE public.podcasts (id uuid, title text);
+            CREATE TABLE public.legacy (id uuid);`,
+    },
+    {
+      file: "0002.sql",
+      sql: `ALTER TABLE public.podcasts ADD COLUMN IF NOT EXISTS explicit boolean,
+              ADD COLUMN IF NOT EXISTS episode_type text;
+            ALTER TABLE auth.users ADD COLUMN nickname text;
+            ALTER TABLE public.legacy ADD COLUMN note text;
+            ALTER TABLE public.Podcasts RENAME COLUMN title TO title_pl;`,
+    },
+    { file: "0003.sql", sql: "DROP TABLE public.legacy;" },
+  ];
+
+  it("oczekuje kolumn dopisanych ALTER-em do żywych tabel - bez kolumn z CREATE TABLE", () => {
+    const contract = extractExpectedContract(migrations);
+    expect(expectedColumns(migrations, contract.tables)).toEqual([
+      { table: "podcasts", column: "episode_type", file: "0002.sql" },
+      { table: "podcasts", column: "explicit", file: "0002.sql" },
+      { table: "podcasts", column: "title_pl", file: "0002.sql" },
+    ]);
+  });
+
+  it("nie zgłasza fantomów: schemat zarządzany ani tabela skasowana nie są oczekiwane", () => {
+    const contract = extractExpectedContract(migrations);
+    const keys = expectedColumns(migrations, contract.tables).map(dbColumnKey);
+    expect(keys).not.toContain("auth.nickname");
+    expect(keys.some((key) => key.startsWith("legacy."))).toBe(false);
+  });
+
+  const expected = [
+    { table: "podcasts", column: "explicit", file: "0002.sql" },
+    { table: "podcasts", column: "episode_type", file: "0002.sql" },
+    { table: "notifications", column: "meta", file: "0003.sql" },
+  ];
+
+  it("brak kolumny spoza rejestru to NOWY dryf i blokuje bramkę", () => {
+    const report = compareColumnDrift(expected, [expected[0]], {});
+    expect(report.missing).toEqual([expected[0]]);
+    expect(columnDriftFailed(report)).toBe(true);
+    const markdown = renderColumnDriftReport(report);
+    expect(markdown).toContain("`podcasts.explicit` (migracja: 0002.sql)");
+    expect(markdown).toContain("NOWEJ wersji");
+  });
+
+  it("znany dryf z uzasadnieniem nie blokuje, ale jest w raporcie", () => {
+    const report = compareColumnDrift(expected, [expected[2]], {
+      "notifications.meta": "zmierzone",
+    });
+    expect(report.missing).toEqual([]);
+    expect(report.known).toEqual([expected[2]]);
+    expect(columnDriftFailed(report)).toBe(false);
+    expect(renderColumnDriftReport(report)).toContain("Znany dryf");
+  });
+
+  it("wpis rejestru, którego baza nie potwierdza, jest martwy i blokuje bramkę", () => {
+    // Kolumna doszła (albo przestała być oczekiwana) - wpis musi zniknąć,
+    // inaczej zostaje zgodą na brak, o którym nikt już nie pamięta.
+    const report = compareColumnDrift(expected, [], {
+      "notifications.meta": "zmierzone",
+      "removed.column": "migracja wycofana",
+    });
+    expect(report.resolved).toEqual(["notifications.meta", "removed.column"]);
+    expect(columnDriftFailed(report)).toBe(true);
+    expect(renderColumnDriftReport(report)).toContain("do usunięcia");
+  });
+
+  it("KONTROLA DODATNIA: komplet kolumn i pusty rejestr przechodzą", () => {
+    expect(columnDriftFailed(compareColumnDrift(expected, [], {}))).toBe(false);
+  });
+
+  it("sonda niewykonana ani pusty kontrakt nie są zielone", () => {
+    const report = inconclusiveColumnDrift(
+      expected,
+      "Na bazie nie ma RPC `missing_schema_columns`",
+    );
+    expect(columnDriftFailed(report)).toBe(true);
+    expect(renderColumnDriftReport(report)).toContain("Sonda kolumn nie wykonana");
+    expect(columnDriftFailed(compareColumnDrift([], [], {}))).toBe(true);
+  });
+
+  it("każdy wpis KNOWN_COLUMN_DRIFT to kolumna, której migracje naprawdę oczekują", () => {
+    // Literówka we wpisie byłaby zgodą na brak kolumny, której nikt nie sonduje.
+    const files = loadMigrationFiles();
+    const keys = new Set(
+      expectedColumns(files, extractExpectedContract(files).tables).map(dbColumnKey),
+    );
+    for (const key of Object.keys(KNOWN_COLUMN_DRIFT)) expect(keys.has(key), key).toBe(true);
+    for (const reason of Object.values(KNOWN_COLUMN_DRIFT))
+      expect(reason.length).toBeGreaterThan(40);
   });
 });

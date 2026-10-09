@@ -470,7 +470,7 @@ describe("trasa /podcasts - pusto kontra nie dojechało", () => {
 });
 
 describe("trasa /podcasts - baza bez kolumn migracji 20260725090500", () => {
-  // INCYDENT 2026-10-09: produkcja nie miała ŻADNEJ z 20 kolumn metadanych
+  // INCYDENT 2026-10-09: produkcja nie miała ŻADNEJ z 19 kolumn metadanych
   // Apple (migracja nigdy się nie wykonała), a lista najnowszych prosiła
   // o pełne PODCAST_FIELDS z `explicit` i `episode_type`. PostgREST odrzucał
   // zapytanie (400, 42703) przy każdym żądaniu, więc katalog był trwale

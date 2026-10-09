@@ -1,11 +1,19 @@
 // Read-only catalog verification: never execute domain RPCs to test their existence.
-import { probeSchemaObjects } from "../src/lib/ci/deploymentProbe";
+import { probeSchemaColumns, probeSchemaObjects } from "../src/lib/ci/deploymentProbe";
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import {
+  KNOWN_COLUMN_DRIFT,
+  columnDriftFailed,
+  compareColumnDrift,
   contractFailed,
+  dbColumnKey,
+  expectedColumns,
   extractExpectedContract,
+  inconclusiveColumnDrift,
+  renderColumnDriftReport,
   renderContractReport,
+  type ColumnDriftReport,
   type ContractReport,
 } from "../src/lib/ci/dbContract";
 import { MIGRATIONS_DIR, stripSqlComments } from "./lib/sqlMigrations";
@@ -45,24 +53,57 @@ async function main(): Promise<void> {
     throw new Error("Missing deployment database configuration");
   }
 
-  const contract = extractExpectedContract(loadMigrations());
+  const migrations = loadMigrations();
+  const contract = extractExpectedContract(migrations);
   const all = [...contract.tables, ...contract.views, ...contract.functions].filter(
     (o) => !SUPERSEDED.has(o.name),
   );
   const missing = await probeSchemaObjects(all, { url, key });
   const report: ContractReport = { checked: all.length, missing, inconclusive: [] };
-  const markdown = renderContractReport(report);
+
+  // Kolumny tabel, których brakuje w całości, zgłasza już kontrakt obiektowy -
+  // drugi raport o tym samym byłby szumem.
+  const missingTables = new Set(missing.filter((o) => o.kind === "table").map((o) => o.name));
+  const columns = expectedColumns(migrations, contract.tables).filter(
+    (c) => !missingTables.has(c.table),
+  );
+  // Sonda kolumn stoi na RPC z 20261009110000. Gdy kontrakt obiektowy właśnie
+  // wykazał jego brak, werdykt o kolumnach jest NIEMOŻLIWY - nie zielony.
+  const columnReport: ColumnDriftReport = missing.some(
+    (o) => o.kind === "function" && o.name === "missing_schema_columns",
+  )
+    ? inconclusiveColumnDrift(
+        columns,
+        "Na bazie nie ma RPC `missing_schema_columns` (migracja 20261009110000) - zastosuj ją i uruchom bramkę ponownie.",
+      )
+    : compareColumnDrift(
+        columns,
+        await probeSchemaColumns(columns, { url, key }),
+        KNOWN_COLUMN_DRIFT,
+      );
+
+  const markdown = `${renderContractReport(report)}\n\n${renderColumnDriftReport(columnReport)}`;
   console.log(markdown);
 
+  const objectsFailed = contractFailed(report);
+  const columnsFailed = columnDriftFailed(columnReport);
   mkdirSync("reports", { recursive: true });
   writeFileSync(
     "reports/db-contract.json",
     `${JSON.stringify(
       {
-        status: contractFailed(report) ? "failed" : "passed",
+        status: objectsFailed || columnsFailed ? "failed" : "passed",
         checked: report.checked,
         missing: report.missing.map((o) => ({ kind: o.kind, name: o.name, file: o.file })),
         inconclusive: report.inconclusive.map((o) => ({ kind: o.kind, name: o.name })),
+        columns: {
+          status: columnsFailed ? "failed" : "passed",
+          checked: columnReport.checked,
+          missing: columnReport.missing.map((c) => ({ column: dbColumnKey(c), file: c.file })),
+          known: columnReport.known.map(dbColumnKey),
+          resolved: columnReport.resolved,
+          inconclusive: columnReport.inconclusive,
+        },
       },
       null,
       2,
@@ -72,11 +113,20 @@ async function main(): Promise<void> {
   const summary = process.env["GITHUB_STEP_SUMMARY"];
   if (summary) writeFileSync(summary, `${markdown}\n`, { flag: "a" });
 
-  if (contractFailed(report)) {
+  if (objectsFailed)
     console.error(`✗ Brakuje ${report.missing.length} obiektów w bazie po wdrożeniu.`);
-    process.exit(1);
+  if (columnsFailed) {
+    console.error(
+      `✗ Kontrakt kolumn: ${columnReport.missing.length} nowych braków, ` +
+        `${columnReport.resolved.length} martwych wpisów rejestru` +
+        (columnReport.inconclusive === null ? "." : " - sonda nie wykonana."),
+    );
   }
-  console.log(`✓ Kontrakt bazy spełniony (${report.checked} obiektów).`);
+  if (objectsFailed || columnsFailed) process.exit(1);
+  console.log(
+    `✓ Kontrakt bazy spełniony (${report.checked} obiektów, ${columnReport.checked} kolumn; ` +
+      `znany dryf: ${columnReport.known.length}).`,
+  );
 }
 
 void main().catch((error: unknown) => {

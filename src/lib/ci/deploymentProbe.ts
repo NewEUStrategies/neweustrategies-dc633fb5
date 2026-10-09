@@ -1,4 +1,4 @@
-import type { DbObject } from "./dbContract";
+import type { DbColumn, DbObject } from "./dbContract";
 
 type ProbeConfig = { url: string; key: string };
 const BATCH = 40;
@@ -6,7 +6,7 @@ const BATCH = 40;
 /** Bounded, read-only requests. Never follow a redirect carrying credentials. */
 export async function readDeploymentRpc(
   config: ProbeConfig,
-  name: "missing_schema_objects" | "missing_migration_versions",
+  name: "missing_schema_objects" | "missing_schema_columns" | "missing_migration_versions",
   args: Record<string, string>,
   request: typeof fetch = fetch,
   timeoutMs = 10_000,
@@ -53,6 +53,42 @@ export async function probeSchemaObjects(
       if (!object || seen.has(key)) throw new Error("Schema probe: unexpected or duplicate object");
       seen.add(key);
       missing.push(object);
+    }
+  }
+  return missing;
+}
+
+/**
+ * Kolumny, których baza nie ma - przez `missing_schema_columns` (wyłącznie
+ * katalog, zwraca podzbiór pytania). Odpowiedź spoza pytania albo z
+ * duplikatem to błąd sondy, nie werdykt o schemacie.
+ */
+export async function probeSchemaColumns(
+  columns: readonly DbColumn[],
+  config: ProbeConfig,
+  request: typeof fetch = fetch,
+): Promise<DbColumn[]> {
+  const missing: DbColumn[] = [];
+  for (let i = 0; i < columns.length; i += BATCH) {
+    const batch = columns.slice(i, i + BATCH);
+    const parsed = await readDeploymentRpc(
+      config,
+      "missing_schema_columns",
+      {
+        _columns: JSON.stringify(batch.map(({ table, column }) => ({ table, column }))),
+      },
+      request,
+    );
+    if (!Array.isArray(parsed)) throw new Error("Column probe: expected an array");
+    const requested = new Map(batch.map((c) => [`${c.table}.${c.column}`, c]));
+    const seen = new Set<string>();
+    for (const item of parsed) {
+      if (!item || typeof item !== "object") throw new Error("Column probe: invalid column");
+      const key = `${item.table}.${item.column}`;
+      const column = requested.get(key);
+      if (!column || seen.has(key)) throw new Error("Column probe: unexpected or duplicate column");
+      seen.add(key);
+      missing.push(column);
     }
   }
   return missing;
