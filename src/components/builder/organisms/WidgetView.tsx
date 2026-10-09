@@ -11,7 +11,6 @@ import { lcpCandidateAttr } from "@/lib/builder/aboveFold";
 // Heavy, non-critical widgets are code-split via lazyWidgets so they never
 // weigh down the shared Header/Footer bundle on pages that don't render them.
 // SSR streaming still renders them server-side, so the HTML is unchanged.
-import { parseCustomFields } from "@/lib/builder/formFieldConfig";
 import {
   JoinUsForm,
   InterestsCustomizer,
@@ -274,7 +273,6 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
       const imageFit = rawFit === "contain" ? "contain" : rawFit === "cover" ? "cover" : undefined;
 
       const isOn = (k: string) => getStr(c, k) === "1";
-      const customFields = parseCustomFields(c.customFields);
       return wrap(
         <JoinUsForm
           variant={variant}
@@ -335,7 +333,10 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
           buttonSize={getNum(c, "buttonSize", 0) || undefined}
           consentSize={getNum(c, "consentSize", 0) || undefined}
           iconSize={getNum(c, "iconSize", 0) || undefined}
-          customFields={customFields}
+          // Surowa treść - parsuje ją leniwy chunk formularza (P3.9). Dyspozytor
+          // jest na `/`, więc nie importuje modułów formularzy: `formFieldConfig`
+          // ciągnął Radix Select, kompozytor i wzmianki (~64 KB transferu).
+          customFieldsSource={c.customFields}
           source={`widget:${node.id}`}
         />,
       );
