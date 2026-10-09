@@ -9555,7 +9555,13 @@ button,
   --wt-dfs: var(--wt-dfs-m);
 }
 /* `fs` - rozmiar ogólny (bez osobnego rozmiaru opisu): wszystkie teksty i
-   placeholdery. Tytuły bierze `tfs`, który instancja `fs` zawsze niesie. */
+   placeholdery. Tytuły bierze `tfs`, który instancja `fs` zawsze niesie.
+
+   ZWOLNIENIE OBEJMUJE POTOMKÓW: `:not([data-typography-exempt] *)` przy
+   gałęziach elementów (`fs`, `tfs`, `dfs`) omija całe poddrzewo oznaczonego
+   elementu - wykres (`figure.neh-chart`) i jego dymek mają w widgecie ten sam
+   krój i rozmiar co w bloku CMS, bez znacznika na każdym `span` i `dd`.
+   Generator (`lib/builder/typographyCss.ts`) emituje te same selektory. */
 [data-wt~="fs"][data-w-id][data-w-id],
 [data-wt~="fs"][data-w-id][data-w-id]
   :is(
@@ -9586,12 +9592,14 @@ button,
     h5,
     h6
   ):not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt]):not(
-    .post-list-numbered-index
-  ):not(.rl-num),
+    [data-typography-exempt] *
+  ):not(.post-list-numbered-index):not(.rl-num),
 [data-wt~="fs"][data-w-id][data-w-id] .prose,
 [data-wt~="fs"][data-w-id][data-w-id]
   .prose
-  *:not(.cms-post-title):not(.cms-post-excerpt):not(.post-list-numbered-index):not(.rl-num),
+  *:not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt] *):not(
+    .post-list-numbered-index
+  ):not(.rl-num),
 [data-wt~="fs"][data-w-id][data-w-id] input::placeholder,
 [data-wt~="fs"][data-w-id][data-w-id] textarea::placeholder {
   font-size: var(--wt-fs) !important;
@@ -9603,7 +9611,9 @@ button,
 [data-wt~="tfs"][data-w-id][data-w-id] [data-typography-role="title"],
 [data-wt~="tfs"][data-w-id][data-w-id][data-typography-role="title"],
 [data-wt~="tfs"][data-w-id][data-w-id]
-  :is(h1, h2, h3, h4, h5, h6):not(.post-list-numbered-index):not(.rl-num) {
+  :is(h1, h2, h3, h4, h5, h6):not([data-typography-exempt] *):not(.post-list-numbered-index):not(
+    .rl-num
+  ) {
   font-size: var(--wt-tfs) !important;
 }
 /* `dfs` - opisy. */
@@ -9615,8 +9625,8 @@ button,
 [data-wt~="dfs"][data-w-id][data-w-id]
   :is(p, li, dd, blockquote, figcaption, small):not(.cms-post-title):not(
     [data-typography-exempt]
-  ):not(.post-list-numbered-index):not(.rl-num),
-[data-wt~="dfs"][data-w-id][data-w-id] .prose p {
+  ):not([data-typography-exempt] *):not(.post-list-numbered-index):not(.rl-num),
+[data-wt~="dfs"][data-w-id][data-w-id] .prose p:not([data-typography-exempt] *) {
   font-size: var(--wt-dfs) !important;
 }
 /* `g` - odstęp tytuł-opis; wartość niesie `--cms-title-description-gap`
