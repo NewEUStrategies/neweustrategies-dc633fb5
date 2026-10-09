@@ -7,7 +7,6 @@ import { Menu, Moon, Search, Sun, X } from "lucide-react";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { cn } from "@/lib/utils";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
-import { HeaderChromeContext } from "@/lib/builder/headerChromeContext";
 import { renderedMediaUrl } from "@/lib/cropSizes";
 import { ChromeDataGate } from "@/lib/ssr/chromeWarmup";
 import type { BuilderDocument } from "@/lib/builder/types";
@@ -340,10 +339,7 @@ const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = fal
           {/* `chrome`: kolumny nagłówka dostają `min-height` z tego samego
               szacunku, którym `HeaderSkeleton` rezerwuje miejsce - pusta
               granica Suspense leniwego widgetu nie zapada wtedy paska. */}
-          {/* Logo eager od `lg` (P3.2a, LP-6): `headerChromeContext.ts`. */}
-          <HeaderChromeContext.Provider value>
-            <BuilderRenderer doc={cfg.builder_data} lang={lang} chrome />
-          </HeaderChromeContext.Provider>
+          <BuilderRenderer doc={cfg.builder_data} lang={lang} chrome />
         </HydrationIsland>
       </div>
 

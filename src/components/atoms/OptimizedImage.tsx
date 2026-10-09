@@ -14,13 +14,6 @@ type OptimizedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "loading" |
   width?: number;
   height?: number;
   priority?: boolean;
-  /**
-   * `loading="eager"` BEZ `fetchpriority="high"` (P3.2a, LP-6): obraz potrzebny w
-   * pierwszej klatce, który nie jest kandydatem LCP (logo nagłówka chrome). Wysoki
-   * priorytet zostaje wyłącznie dla kandydata (`priority`, budżet
-   * `imgFetchpriorityHigh`).
-   */
-  eager?: boolean;
   aspectRatio?: number;
   fadeIn?: boolean;
   /** Optional hover effect (wraps img in overflow-hidden container). */
@@ -57,7 +50,6 @@ export function OptimizedImage({
   width,
   height,
   priority = false,
-  eager = false,
   aspectRatio,
   fadeIn = true,
   hoverEffect = "none",
@@ -138,15 +130,11 @@ export function OptimizedImage({
       src={finalSrc}
       srcSet={srcSet || undefined}
       // `sizes` bez `srcset` nic nie robi (P3.2a) - same bajty w HTML-u.
-      sizes={
-        srcSet
-          ? `${!priority && !eager && autoSizes ? "auto, " : ""}${sizes ?? "100vw"}`
-          : undefined
-      }
+      sizes={srcSet ? `${!priority && autoSizes ? "auto, " : ""}${sizes ?? "100vw"}` : undefined}
       alt={alt}
       width={width}
       height={height}
-      loading={priority || eager ? "eager" : "lazy"}
+      loading={priority ? "eager" : "lazy"}
       // async także dla priority: sync potrafi blokować główny wątek na czas
       // dekodowania hero-coveru; eager + fetchPriority=high w pełni ustawiają
       // priorytet sieciowy, a async pozwala malować resztę strony równolegle.

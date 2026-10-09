@@ -2,7 +2,7 @@
 // PostsSliderWidget wyjechał do ./PostsSliderWidget.tsx (leniwy chunk przez
 // rejestr lazyWidgets) - ImageWidget zostaje eager, bo renderuje logo w chrome
 // i obrazy-kandydatów LCP nad zgięciem.
-import { useContext, type CSSProperties, type ReactElement, type SyntheticEvent } from "react";
+import { type CSSProperties, type SyntheticEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode } from "@/lib/builder/types";
 import { safeImageUrl } from "@/lib/sanitizePure";
@@ -12,7 +12,6 @@ import { lcpCandidateAttr, type LcpImage } from "@/lib/builder/aboveFold";
 import { altMarksLogo } from "@/lib/builder/logoAlt";
 import { imageDimensionPx, imageWidgetSizes } from "@/lib/builder/widgetImageSizes";
 import { useBuilderImageSlot } from "@/lib/builder/imageSlotContext";
-import { HeaderChromeContext } from "@/lib/builder/headerChromeContext";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ResizableImageWrap } from "./resizeWrappers";
@@ -34,24 +33,6 @@ type WidgetImageStyle = CSSProperties & { "--img-h"?: string };
 
 /** Zachowawczy limit szerokości logo, gdy panel nie ustawił żadnego rozmiaru. */
 const LOGO_FALLBACK_MAX_PX = 200;
-
-/** Poprawny GIF 1x1 - źródło `<picture>` logo poniżej `lg`: zero żądań sieciowych. */
-const BLANK_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-
-/**
- * Logo nagłówka chrome eager tylko od `lg` (P3.2a, LP-6). Nagłówek desktopowy ma
- * poniżej `lg` (1024 px) `display: none`, ale obraz eager i tak by się pobrał -
- * `<source>` z pustym GIF-em `data:` zabiera telefonowi to żądanie. W zakresie
- * `<picture>` React nie emituje też automatycznego preloadu, więc `<head>` i
- * licznik preloadów obrazów zostają bez zmian. `contents` (klasa już w arkuszu
- * publicznym) nie tworzy pudełka: układ i selektory logo są te same.
- */
-const desktopOnlyPicture = (img: ReactElement) => (
-  <picture className="contents">
-    <source media="(max-width: 1023px)" srcSet={BLANK_GIF} />
-    {img}
-  </picture>
-);
 
 function useSiteLogo(variant: SiteLogoVariant = "main"): { light: string; dark: string } {
   const { data } = useQuery(siteSettingsQueryOptions);
@@ -94,7 +75,6 @@ export function ImageWidget({
   const rawSrc = safeImageUrl(getStr(c, "src"));
   const rawSrcDark = safeImageUrl(getStr(c, "srcDark"));
   const sizes = imageWidgetSizes(c, useBuilderImageSlot());
-  const inHeaderChrome = useContext(HeaderChromeContext);
   const alt = getStr(c, `alt_${lang}`) || getStr(c, "alt_pl");
   const caption = getStr(c, `caption_${lang}`) || getStr(c, "caption_pl");
   const variant = getStr(c, "variant") || "default";
@@ -129,10 +109,6 @@ export function ImageWidget({
     (!!siteLogo.light && (rawSrc === siteLogo.light || rawSrcDark === siteLogo.light)) ||
     (!!siteLogo.dark && (rawSrc === siteLogo.dark || rawSrcDark === siteLogo.dark));
   const isLogo = wantsSiteLogo || srcMatchesSiteLogo;
-  // Logo w desktopowym nagłówku chrome: eager bez wysokiego priorytetu (P3.2a).
-  // Deterministyczne (nie zależy od motywu) - brak rozjazdu hydratacji.
-  const eagerLogo = inHeaderChrome && isLogo;
-  const logoFrame = (img: ReactElement) => (eagerLogo ? desktopOnlyPicture(img) : img);
 
   const variantCls = isLogo
     ? "rounded"
@@ -206,26 +182,20 @@ export function ImageWidget({
     if (fallback && img.src !== fallback) img.src = fallback;
   };
   const fgImgStyle: WidgetImageStyle = ratioCss ? { ...imgStyle, objectFit: fit } : imgStyle;
-  // Para light/dark: eager dostaje WYŁĄCZNIE wariant jasny (decyzja orkiestratora,
-  // PLAN-FALI-3 §3a) - ciemny jest w jasnym motywie schowany CSS-em, a eager
-  // pobierałby go zawsze. Ciemny zostaje leniwy i poza `<picture>`.
   const imgEl = hasBoth ? (
     <>
-      {logoFrame(
-        <OptimizedImage
-          src={lightSrc}
-          alt={alt}
-          responsive
-          sizes={sizes}
-          autoSizes={isFramed}
-          eager={eagerLogo}
-          className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-light`}
-          style={fgImgStyle}
-          onError={applyLogoFallback}
-          hoverEffect={hoverEffect}
-          fadeIn={!isLogo}
-        />,
-      )}
+      <OptimizedImage
+        src={lightSrc}
+        alt={alt}
+        responsive
+        sizes={sizes}
+        autoSizes={isFramed}
+        className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-light`}
+        style={fgImgStyle}
+        onError={applyLogoFallback}
+        hoverEffect={hoverEffect}
+        fadeIn={!isLogo}
+      />
       <OptimizedImage
         src={darkSrc}
         alt={alt}
@@ -240,23 +210,22 @@ export function ImageWidget({
       />
     </>
   ) : (
-    logoFrame(
-      <OptimizedImage
-        src={theme === "dark" ? darkSrc : lightSrc}
-        alt={alt}
-        responsive
-        sizes={sizes}
-        autoSizes={isFramed}
-        priority={lcp !== false}
-        eager={eagerLogo}
-        data-lcp-candidate={lcpCandidateAttr(lcp)}
-        className={isFramed ? `${imgCls} widget-media-fg` : imgCls}
-        style={isFramed ? fgImgStyle : imgStyle}
-        onError={applyLogoFallback}
-        hoverEffect={hoverEffect}
-        fadeIn={!isLogo}
-      />,
-    )
+    // Jedna gałąź pojedynczego obrazu (kadr i bez kadru różnią się tylko klasą i
+    // stylem) - mniej bajtów w chunku wejściowym, znacznik 1:1 jak dawne dwie.
+    <OptimizedImage
+      src={theme === "dark" ? darkSrc : lightSrc}
+      alt={alt}
+      responsive
+      sizes={sizes}
+      autoSizes={isFramed}
+      priority={lcp !== false}
+      data-lcp-candidate={lcpCandidateAttr(lcp)}
+      className={isFramed ? `${imgCls} widget-media-fg` : imgCls}
+      style={isFramed ? fgImgStyle : imgStyle}
+      onError={applyLogoFallback}
+      hoverEffect={hoverEffect}
+      fadeIn={!isLogo}
+    />
   );
   const framedImgEl = isFramed ? (
     <span

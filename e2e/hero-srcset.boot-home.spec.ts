@@ -16,9 +16,6 @@ import { HERO_SRCSET_SAMPLE } from "../src/lib/builder/__tests__/heroSrcsetSampl
 //    stronie (`MOBILE_COLUMN_GUTTER_PX`, cztery warstwy po 8 px z CSS). Obraz
 //    kandydata LCP przy 412 px ma stać w `left: 32`, `width: 348` - zmiana CSS bez
 //    zmiany stałej robi ten test czerwonym (zamiast testu tekstu arkusza).
-// 3. LOGO NAGŁÓWKA EAGER OD `lg` (artefakt, `/`): logo desktopowego nagłówka chrome
-//    jest w `<picture>` - na desktopie eager i pobrane (bez `fetchpriority=high`),
-//    na telefonie wybrane źródło to pusty GIF `data:` (zero żądań za niewidoczne logo).
 //
 // NAZWA PLIKU. Konfiguracja artefaktu bierze wyłącznie `boot-(artifact|timing|home)`
 // (`testMatch`), więc spec jedzie razem z `boot-home` na tym samym serwerze.
@@ -109,50 +106,5 @@ test.describe("artefakt `/` na telefonie 412 x 823 (P3.2a)", () => {
     expect(rect).not.toBeNull();
     expect(rect!.left).toBeCloseTo(32, 0);
     expect(rect!.width).toBeCloseTo(412 - 2 * 32, 0);
-  });
-
-  test("logo nagłówka desktopowego: źródło `data:` - bez żądania na telefonie", async ({
-    page,
-  }) => {
-    await serveFixtureImages(page);
-    await page.setExtraHTTPHeaders({ "accept-language": "pl" });
-    await page.goto("/");
-    const logo = page.locator("header[data-site-header] picture > img").first();
-    await expect(logo).toHaveAttribute("loading", "eager");
-    await expect
-      .poll(() => logo.evaluate((img: HTMLImageElement) => img.currentSrc))
-      .toMatch(/^data:image\/gif;base64,/);
-  });
-});
-
-test.describe("artefakt `/` na desktopie 1350 x 940 (P3.2a)", () => {
-  test.use({ viewport: { width: 1350, height: 940 } });
-
-  test("logo nagłówka eager, bez `fetchpriority=high`, pobrane przy parsowaniu", async ({
-    page,
-    request,
-  }) => {
-    // HTML serwera: `<picture class="contents">` z pustym źródłem poniżej `lg`.
-    const html = await (
-      await request.get("/", { headers: { accept: "text/html", "accept-language": "pl" } })
-    ).text();
-    const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
-    expect(header).toMatch(
-      /<picture class="contents"><source media="\(max-width: 1023px\)" srcSet="data:image\/gif;base64,/,
-    );
-
-    await serveFixtureImages(page);
-    await page.setExtraHTTPHeaders({ "accept-language": "pl" });
-    await page.goto("/");
-    const logo = page.locator("header[data-site-header] picture > img").first();
-    await expect(logo).toHaveAttribute("loading", "eager");
-    expect(await logo.getAttribute("fetchpriority")).not.toBe("high");
-    await expect
-      .poll(() =>
-        logo.evaluate(
-          (img: HTMLImageElement) => img.complete && img.naturalWidth > 0 && img.currentSrc,
-        ),
-      )
-      .toMatch(/^https:\/\/fixture\.invalid\//);
   });
 });

@@ -89,9 +89,9 @@ describe("documentWeight: metryki srcset P3.2a", () => {
     expect(weigh(avatar)).toMatchObject({ max: 0, absolute: 0 });
   });
 
-  it("źródło `<picture>` z GIF-em `data:` (logo nagłówka) nie jest kandydatem `w`", () => {
+  it("adres `data:` w `srcset` (przecinek w base64) nie rozcina się na kandydatów `w`", () => {
     const html = page(
-      `<picture class="contents"><source media="(max-width: 1023px)" srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"><img src="/media/logo.svg" alt=""></picture>`,
+      `<picture><source media="(max-width: 1023px)" srcset="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"><img src="/media/logo.svg" alt=""></picture>`,
     );
     expect(weigh(html)).toMatchObject({ max: 0, absolute: 0 });
   });
