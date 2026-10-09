@@ -100,7 +100,13 @@ import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 import { sourceLine } from "./chartFacts";
-import { ACCENT_EDGE_PX, kindSeriesPaint, type KindPaint } from "./kindPaint";
+import {
+  ACCENT_EDGE_PX,
+  ACCENT_INK,
+  EDGE_STROKE_PX,
+  kindSeriesPaint,
+  type KindPaint,
+} from "./kindPaint";
 
 /**
  * SUFIT SZEROKOŚCI PUDŁA w pikselach - jedyna proporcja, o której decyduje
@@ -520,7 +526,17 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
             // poniżej progu linii (3,0:1) i mediana - najważniejsza liczba na
             // rysunku - stawałaby się domysłem. Na wnętrzu bladym odwrotnie:
             // najmocniejszym dostępnym tuszem jest token krawędzi.
-            const medianInk = barStyle === "solid" ? "var(--card)" : edgeInk;
+            //
+            // WYJĄTEK: PUDŁO W AKCENCIE. Biel płyty ma na akcencie 2,25:1, czyli
+            // pod paletą ról (pudło pełne) mediana grupy wyróżnionej - tej,
+            // o której jest mowa - spadała pod próg. Tam kreska idzie tuszem
+            // na akcencie (`ACCENT_INK`, ~8:1 w obu motywach).
+            const medianInk =
+              barStyle !== "solid"
+                ? edgeInk
+                : paint.accentEdge !== null
+                  ? ACCENT_INK
+                  : "var(--card)";
             return (
               <g key={b.index}>
                 {/* WĄS: jedna pionowa kreska od dolnej do górnej obserwacji
@@ -535,7 +551,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                     stroke={edgeInk}
                     className="neh-fade"
                     data-role="whisker"
-                    style={{ strokeWidth: "var(--chart-bar-edge, 1.5px)" }}
+                    style={{ strokeWidth: `${EDGE_STROKE_PX}px` }}
                   />
                 )}
                 {/* POPRZECZKI na końcach wąsów - stoją na OBSERWACJACH, nie na
@@ -552,7 +568,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                     className="neh-fade"
                     data-role="cap"
                     data-end="high"
-                    style={{ strokeWidth: "var(--chart-bar-edge, 1.5px)" }}
+                    style={{ strokeWidth: `${EDGE_STROKE_PX}px` }}
                   />
                 )}
                 {wLow !== null && (
@@ -565,7 +581,7 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                     className="neh-fade"
                     data-role="cap"
                     data-end="low"
-                    style={{ strokeWidth: "var(--chart-bar-edge, 1.5px)" }}
+                    style={{ strokeWidth: `${EDGE_STROKE_PX}px` }}
                   />
                 )}
                 {/* PUDŁO od q1 do q3. BEZ ZAOKRĄGLENIA NAROŻNIKÓW, i to jest
@@ -631,7 +647,12 @@ export function BoxplotChart({ config, lang, ariaLabel: nazwaZadana }: BoxplotCh
                     cy={value(p.value)}
                     r={DOT_R}
                     fill={p.severity === "far" ? paint.color : "var(--card)"}
-                    stroke={p.severity === "far" ? "var(--card)" : paint.color}
+                    // Kropka PEŁNA w akcencie dostaje drugi nośnik w miejscu
+                    // obwódki płyty (ta sama grubość - geometria bez zmian),
+                    // tak jak plamka roju.
+                    stroke={
+                      p.severity === "far" ? (paint.accentEdge ?? "var(--card)") : paint.color
+                    }
                     strokeWidth={1.6}
                     className="neh-dot neh-fade"
                     data-role="outlier"

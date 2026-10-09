@@ -50,12 +50,26 @@
   width: 100%;
   /* TYPOGRAFIA WIDGETU BUILDERA NIE PRZESTAWIA WYKRESU. Reguły „Theme
      Design" omijają potomków `[data-typography-exempt]` (rama i dymek go
-     niosą), ale generator stawia też krój, światło, transformację i styl na
-     SAMEJ ramce widgetu - a te własności się dziedziczą. Wartości domyślne
-     zadeklarowane tutaj przecinają to dziedziczenie, więc wykres w widgecie
-     wygląda jak ten sam wykres w bloku. */
+     niosą), ale generator stawia też krój, światło, interlinię,
+     transformację i styl na SAMEJ ramce widgetu - a te własności się
+     dziedziczą. Wartości zadeklarowane tutaj przecinają to dziedziczenie,
+     więc wykres w widgecie wygląda jak ten sam wykres w bloku.
+
+     INTERLINIA JEST JAWNA (1,5), a nie odziedziczona: bez niej legenda,
+     tabela klucza i przypisy brały interlinię akapitu wpisu w bloku CMS
+     i interlinię „Theme Design" w widgecie - ta sama legenda miała w obu
+     miejscach inną wysokość. Elementy z własną interlinią (dymek, okna,
+     podpis) ustawiają ją same.
+
+     PODKREŚLENIA ustawionego na ramce widgetu nie da się tu zdjąć:
+     dekoracja tekstu przodka maluje się na potomkach w przepływie bez
+     względu na ich `text-decoration`. Omija ją sam rysunek (SVG jest
+     elementem zastępowanym) i dymek (pozycjonowany absolutnie); tytuł,
+     legenda i podpis dostają podkreślenie ramki. To jest świadome
+     ograniczenie - zdjęcie go wymagałoby wyjęcia ramy z przepływu. */
   font-style: normal;
   letter-spacing: normal;
+  line-height: 1.5;
   text-transform: none;
   text-align: start;
 }
@@ -241,14 +255,18 @@
 .neh-chart .neh-bar {
   transform-box: fill-box;
 }
-/* GRUBOŚĆ OBWÓDKI SŁUPKA z tokena, nie z atrybutu prezentacyjnego: `var()`
-   w atrybutach SVG nie jest wspierane wszędzie, a nierozwiązana grubość to
-   obwódka domyślna 1 px, czyli bez korekty irradiacji. Obwódka nie jest
-   dekoracją, tylko funkcją - wypełnienie o niskim kontraście albo rozmyte
-   gradientem nie daje ostrej pozycji końca słupka, a solidna krawędź ją
-   przywraca. To z niej odczytuje się wartość. */
+/* GRUBOŚĆ OBWÓDKI SŁUPKA z arkusza, nie z atrybutu prezentacyjnego - atrybut
+   przegrywa z każdą regułą arkusza, także z regułą roli niżej. Obwódka nie jest dekoracją, tylko funkcją -
+   wypełnienie o niskim kontraście albo rozmyte gradientem nie daje ostrej
+   pozycji końca słupka, a solidna krawędź ją przywraca. To z niej odczytuje
+   się wartość.
+
+   JEDNA GRUBOŚĆ W OBU MOTYWACH (`EDGE_STROKE_PX` w `kindPaint.ts`), nie
+   token `--chart-bar-edge` (1,5 px jasny, 1,25 px ciemny): przełączenie
+   motywu przesuwałoby krawędź odczytu, a w motywie zmieniają się wyłącznie
+   kolory. 1,5 px to dwa wsunięcia kształtu (`BAR_EDGE_INSET`). */
 .neh-chart .neh-bar[data-edged="true"] {
-  stroke-width: var(--chart-bar-edge, 1.5px);
+  stroke-width: 1.5px;
   stroke-linejoin: round;
 }
 /* WSPÓLNY JĘZYK WYKRESÓW SŁUPKOWYCH: PEŁNE WYPEŁNIENIE w kolorze serii,

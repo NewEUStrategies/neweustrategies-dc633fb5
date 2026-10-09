@@ -109,7 +109,7 @@ import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
 import { sourceLine } from "./chartFacts";
-import { kindSeriesPaint } from "./kindPaint";
+import { ACCENT_EDGE_PX, kindSeriesPaint } from "./kindPaint";
 import "@/lib/i18n-charts";
 import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 
@@ -1083,6 +1083,26 @@ export function PercentStackedChart({
                   const czynny = activeBar === bar.index && activeSeg === seg.seriesIndex;
                   const p = farba(seg.seriesIndex, seg.colorSlot);
                   const gradient = styl === "gradient" && gradientSlots.length > 0;
+                  // KRAWĘDŹ SEGMENTU ZAMAWIA SIĘ W ARKUSZU (`--neh-bar-edge`),
+                  // bo reguła roli `segment` nadpisuje atrybut prezentacyjny
+                  // - sam atrybut nie dawał na ekranie ani prześwitu, ani
+                  // obwódki. Segment w AKCENCIE dostaje drugi nośnik (1 px
+                  // `--chart-accent-audit-graphic`, ta sama grubość w obu
+                  // motywach), który zarazem oddziela go od sąsiadów; pozostałe
+                  // pełne segmenty - prześwit w kolorze płyty. Segment wąski
+                  // i wariant z obwódką bez zmian: bez krawędzi z arkusza.
+                  const krawedz: Record<string, string> =
+                    p.accentEdge !== null
+                      ? {
+                          "--neh-bar-edge": p.accentEdge,
+                          "--neh-bar-edge-w": `${ACCENT_EDGE_PX}px`,
+                        }
+                      : waski || obwodka
+                        ? {}
+                        : {
+                            "--neh-bar-edge": "var(--card)",
+                            "--neh-bar-edge-w": `${SEGMENT_GAP_PX}px`,
+                          };
                   return (
                     <g key={seg.seriesIndex}>
                       <path
@@ -1100,8 +1120,18 @@ export function PercentStackedChart({
                         // się i na granicy powstaje fałszywy trzeci kolor.
                         // Segment wąski go nie dostaje, bo linia zjadłaby go
                         // w całości.
-                        stroke={gradient ? p.color : waski ? undefined : "var(--card)"}
-                        strokeWidth={obwodka ? undefined : waski ? 0 : SEGMENT_GAP_PX}
+                        stroke={
+                          gradient ? p.color : (p.accentEdge ?? (waski ? undefined : "var(--card)"))
+                        }
+                        strokeWidth={
+                          obwodka
+                            ? undefined
+                            : p.accentEdge !== null
+                              ? ACCENT_EDGE_PX
+                              : waski
+                                ? 0
+                                : SEGMENT_GAP_PX
+                        }
                         // Kaskada idzie PO SŁUPKACH, nie po segmentach:
                         // wchodzące kolumny czyta się jako rysunek, który się
                         // buduje, a wchodzące segmenty - jako rozsypany stos.
@@ -1111,6 +1141,7 @@ export function PercentStackedChart({
                           ["--neh-unified-edge" as string]: p.edge,
                           ["--neh-bar-hover" as string]: p.hover,
                           ["--neh-bar-token" as string]: p.color,
+                          ...krawedz,
                         }}
                       />
                     </g>

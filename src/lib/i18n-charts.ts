@@ -1072,7 +1072,7 @@ const pl = {
           elements:
             "Wykres pokazuje rozkład obserwacji na osi wartości. Histogram liczy obserwacje w przedziałach, pudełko obejmuje połowę środkową (od pierwszego do trzeciego kwartyla) z kreską mediany, a kropki roju to pojedyncze obserwacje. Pod każdą grupą stoi liczba obserwacji n.",
           colorsFocus:
-            "Rozkład jest w kolorze akcentu (pomarańcz) z cienką ciemniejszą obwódką. Przy kilku grupach w akcencie jest grupa wyróżniona, a pozostałe są w odcieniach neutralnych.",
+            "Rozkład jest w kolorze akcentu (pomarańcz); w jasnym motywie obrysowuje go cienka ciemniejsza linia. Przy kilku grupach w akcencie jest grupa wyróżniona, a pozostałe są w odcieniach neutralnych.",
           colorsCategorical:
             "Każda grupa ma własny kolor z palety; kolor identyfikuje grupę, a nie wartość.",
           interactions:
@@ -1082,7 +1082,7 @@ const pl = {
           elements:
             "Wykres pokazuje udział części w całości. W tarczy kąt i pole wycinka odpowiadają udziałowi, wycinki idą malejąco od godziny dwunastej, a drobne kategorie łączą się w wycinek „Pozostałe”. W słupkach 100% każda kolumna to całość, a segment - udział serii.",
           colorsFocus:
-            "Wyróżniona część jest w akcencie (pomarańcz) z cienką ciemniejszą obwódką, pozostałe są w odcieniach neutralnych od ciemnego do jasnego. Części oddziela wąska przerwa w kolorze tła.",
+            "Wyróżniona część jest w akcencie (pomarańcz) - w jasnym motywie obrysowuje ją cienka ciemniejsza linia - a pozostałe są w odcieniach neutralnych od ciemnego do jasnego. Części oddziela wąska przerwa w kolorze tła.",
           colorsCategorical:
             "Każda część ma własny kolor z palety. Części oddziela wąska przerwa w kolorze tła.",
           interactions:
@@ -1977,7 +1977,7 @@ const en = {
           elements:
             "The chart shows how observations are distributed along the value axis. A histogram counts observations in intervals, a box spans the middle half (first to third quartile) with a median line, and the dots of a beeswarm are single observations. The number of observations n stands under each group.",
           colorsFocus:
-            "The distribution is in the accent colour (orange) with a thin darker outline. With several groups the highlighted group is in the accent colour and the others are in neutral shades.",
+            "The distribution is in the accent colour (orange); in the light theme a thin darker line outlines it. With several groups the highlighted group is in the accent colour and the others are in neutral shades.",
           colorsCategorical:
             "Each group has its own palette colour; colour identifies the group, not the value.",
           interactions:
@@ -1987,7 +1987,7 @@ const en = {
           elements:
             "The chart shows how parts make up a whole. In a pie the angle and area of a slice match its share, slices run in descending order from twelve o’clock, and small categories are merged into an “Other” slice. In 100% bars each column is the whole and each segment is a series share.",
           colorsFocus:
-            "The highlighted part is in the accent colour (orange) with a thin darker outline; the others are in neutral shades from dark to light. A narrow gap in the background colour separates the parts.",
+            "The highlighted part is in the accent colour (orange) - in the light theme a thin darker line outlines it - and the others are in neutral shades from dark to light. A narrow gap in the background colour separates the parts.",
           colorsCategorical:
             "Each part has its own palette colour. A narrow gap in the background colour separates the parts.",
           interactions:
