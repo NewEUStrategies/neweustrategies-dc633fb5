@@ -317,6 +317,47 @@ describe("content-visibility ogona sekcji od indeksu 2 (P3.3)", () => {
       window.sessionStorage.setItem(scrollRestorationStorageKey, "{nie-json");
       expect(uruchomStraznika()).toBe(false);
     });
+
+    // Fragment tekstowy (`/#:~:text=…`): Chromium wycina dyrektywę z adresu dokumentu
+    // (`location.hash` pusty), zostaje ona w nazwie wpisu nawigacji tego dokumentu.
+    const wpisNawigacji = (...nazwy: string[]) =>
+      vi
+        .spyOn(performance, "getEntriesByType")
+        .mockImplementation((typ) =>
+          typ === "navigation"
+            ? nazwy.map((name) => ({ name, entryType: typ }) as PerformanceEntry)
+            : [],
+        );
+
+    it("wejście z fragmentem tekstowym (`/#:~:text=…`, `location.hash` pusty): cv wyłączone", () => {
+      window.history.replaceState(null, "", "/");
+      wpisNawigacji(`${location.origin}/#:~:text=Zapisz%20si%C4%99%20do%20newslettera`);
+      expect(location.hash).toBe("");
+      expect(uruchomStraznika()).toBe(true);
+    });
+
+    it("fragment tekstowy przy uszkodzonym wpisie w `sessionStorage`: cv wyłączone (osobne sprawdzenie)", () => {
+      window.history.replaceState({ __TSR_key: "k-1" }, "", "/");
+      window.sessionStorage.setItem(scrollRestorationStorageKey, "{nie-json");
+      wpisNawigacji(`${location.origin}/strona#:~:text=cel`);
+      expect(uruchomStraznika()).toBe(true);
+    });
+
+    it("`:~:` poza fragmentem (zapytanie) albo zwykły wpis nawigacji: cv zostaje", () => {
+      wpisNawigacji(`${location.origin}/szukaj?q=:~:text=cel`);
+      expect(uruchomStraznika()).toBe(false);
+    });
+
+    it("brak wpisu nawigacji nie rzuca i nie blokuje przywrócenia przewinięcia", () => {
+      wpisNawigacji();
+      expect(uruchomStraznika()).toBe(false);
+      window.history.replaceState({ __TSR_key: "k-1" }, "", "/");
+      window.sessionStorage.setItem(
+        scrollRestorationStorageKey,
+        JSON.stringify({ "k-1": { window: { scrollX: 0, scrollY: 2400 } } }),
+      );
+      expect(uruchomStraznika()).toBe(true);
+    });
   });
 
   // KOTWICA PO WCZYTANIU (BuilderRenderer.tsx): pierwsza nawigacja do fragmentu, którego cel

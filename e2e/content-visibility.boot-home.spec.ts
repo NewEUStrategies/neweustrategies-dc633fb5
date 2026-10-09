@@ -23,7 +23,8 @@ import { expect, test, type Page } from "@playwright/test";
 //     w pominiętej sekcji nad celem i wzrost tej sekcji spychał cel ~1000 px w dół (porażka
 //     CI na `4d1e2791`: `top` 1239,875). Przy wejściu z fragmentem w adresie strażnik bloku
 //     cv (`html[data-cv-off]`) zdejmuje cv przed parsowaniem sekcji i strona zachowuje się
-//     jak bez P3.3.
+//     jak bez P3.3 - także dla fragmentu tekstowego (`/#:~:text=…`, linki z wyszukiwarki,
+//     „Kopiuj link do wyróżnienia"), którego Chromium nie pokazuje w `location.hash`.
 //  4. Przeładowanie w połowie strony (przywrócenie przewinięcia TanStacka z
 //     `sessionStorage`): strażnik zdejmuje cv i pozycja wraca jak na bazie; powrót „wstecz"
 //     w SPA renderuje stronę po stronie klienta - bez cv, więc router liczy na prawdziwym
@@ -79,11 +80,25 @@ interface TargetTrack {
   samples: TargetSample[];
 }
 
+/** Klatka od początku wczytania (wejście z fragmentem tekstowym). */
+interface EntrySample {
+  t: number;
+  y: number;
+  /** Góra i dół celu w widoku; `null`, dopóki strona stoi na górze. */
+  top: number | null;
+  bottom: number | null;
+  hb: number;
+  /** W dokumencie jest już opakowanie z cv (parser doszedł do sekcji). */
+  cv: boolean;
+  cvOff: boolean;
+}
+
 declare global {
   interface Window {
     __nesAppReady?: boolean;
     __cvShifts?: ShiftEntry[];
     __cvTrack?: { start: (id: string) => void; rendered: () => boolean; stop: () => TargetTrack };
+    __cvEntryTrack?: EntrySample[];
   }
 }
 
@@ -467,6 +482,47 @@ async function anchorLink(page: Page, id: string): Promise<void> {
   }, id);
 }
 
+/**
+ * Położenie celu po każdej klatce OD POCZĄTKU wczytania (skrypt startowy, przed parsowaniem
+ * HTML-u): do fragmentu tekstowego przeglądarka przewija sama, w trakcie wczytania, bez
+ * zdarzenia, które test mógłby zobaczyć. Cel (`id`, a gdyby wyspa przerenderowała go po
+ * stronie klienta - ten sam znacznik z tym samym tekstem) jest czytany dopiero wtedy, gdy
+ * strona jest przewinięta: wcześniejszy odczyt geometrii w pominiętej sekcji wymusiłby
+ * ułożenie jej poddrzewa.
+ */
+async function trackFromStart(
+  page: Page,
+  target: { id: string; tag: string; text: string },
+): Promise<void> {
+  await page.addInitScript(({ id, tag, text }) => {
+    const samples: EntrySample[] = [];
+    window.__cvEntryTrack = samples;
+    const round = (value: number) => Math.round(value * 10) / 10;
+    const find = () =>
+      document.getElementById(id) ??
+      [...document.getElementsByTagName(tag)].find((el) => el.textContent?.trim() === text);
+    const sample = () => {
+      const y = scrollY;
+      const rect = y > 0 ? find()?.getBoundingClientRect() : undefined;
+      const header = document.querySelector("[data-site-header]")?.getBoundingClientRect();
+      samples.push({
+        t: Math.round(performance.now()),
+        y: Math.round(y),
+        top: rect ? round(rect.top) : null,
+        bottom: rect ? round(rect.bottom) : null,
+        hb: round(Math.max(0, header?.bottom ?? 0)),
+        cv: !!document.querySelector("main [data-cv]"),
+        cvOff: !!document.documentElement?.hasAttribute("data-cv-off"),
+      });
+    };
+    const frame = () => {
+      setTimeout(sample, 0);
+      if (samples.length < 6_000) requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }, target);
+}
+
 for (const { name, viewport } of VIEWPORTS) {
   test.describe(`content-visibility sekcji, ${name} ${viewport.width}x${viewport.height} (P3.3)`, () => {
     // Lokalizacja przeglądarki = język strony: powrót do `/` w SPA negocjuje język po stronie
@@ -526,7 +582,10 @@ for (const { name, viewport } of VIEWPORTS) {
     // stronie z cv włączonym: pierwsza nawigacja do fragmentu w obszarze cv jest tą, o którą
     // chodzi (strażnik wyłącza cv raz, na resztę życia dokumentu).
     const cpuRate = viewport.width < 768 ? PHONE_CPU_THROTTLE : 1;
-    const ANCHOR_TIMEOUT = cpuRate > 1 ? 120_000 : 60_000;
+    // Wstecz/dalej na telefonie trwa lokalnie 40-47 s (pięć nawigacji, każda z renderem
+    // routera pod x6); runner CI jest wolniejszy, x6 mnoży jego CPU, a trace przy porażce
+    // dokłada snapshotter przy każdej akcji - stąd zapas ponad dwukrotny.
+    const ANCHOR_TIMEOUT = cpuRate > 1 ? 240_000 : 60_000;
     const settlePolls = cpuRate > 1 ? 150 : 60;
 
     async function openForAnchor(page: Page): Promise<AnchorTargets> {
@@ -662,6 +721,66 @@ for (const { name, viewport } of VIEWPORTS) {
       expect(entered.cvOff).toBe(true);
       expect(entered.sectionCv).toBe("visible");
       expectLanded(entered, viewport.height);
+    });
+
+    // Fragment tekstowy (`/#:~:text=…`): Chromium wycina dyrektywę z adresu dokumentu, więc
+    // `location.hash` jest pusty, a przewinięcie do tekstu (wyśrodkowanego) przeglądarka robi
+    // sama przy wczytaniu. Liczone na pasach z szacunku, a potem rozepchnięte odsłanianiem
+    // sekcji nad celem lądowało ekran za nisko (na 470e2a52: `top` ~1490 na telefonie 823 px)
+    // albo przepadało. Strażnik czyta dyrektywę z nazwy wpisu nawigacji.
+    test(`kotwica przy wejściu z fragmentem tekstowym \`#:~:text=\` (CPU x${cpuRate}): strażnik zdejmuje cv przed parsowaniem sekcji, cel w widoku w każdej klatce`, async ({
+      page,
+      context,
+    }) => {
+      test.setTimeout(ANCHOR_TIMEOUT);
+      await openHome(page);
+      const { far } = await anchorTargets(page);
+      const target = await page.evaluate((id) => {
+        const el = document.getElementById(id)!;
+        return { id, tag: el.tagName, text: (el.textContent ?? "").trim() };
+      }, far);
+      expect(target.text.length).toBeGreaterThan(3);
+      await page.close();
+
+      const deep = await context.newPage();
+      await throttleCpu(deep, cpuRate);
+      await trackFromStart(deep, target);
+      // Dyrektywa tekstu: `-`, `,` i `&` są w niej składnią, więc idą zakodowane.
+      const directive = encodeURIComponent(target.text).replaceAll("-", "%2D");
+      await openHome(deep, `/#:~:text=${directive}`);
+      expect(await deep.evaluate(() => location.hash)).toBe("");
+      // Przewinięcie do tekstu przychodzi przy wczytaniu; potem odsłanianie sekcji i nagłówek.
+      await expect
+        .poll(
+          () => deep.evaluate(() => (window.__cvEntryTrack ?? []).some((s) => s.top !== null)),
+          { timeout: 30_000 },
+        )
+        .toBe(true);
+      await settle(deep, settlePolls);
+      await deep.waitForTimeout(cpuRate > 1 ? 4_000 : 2_000);
+      await settle(deep, settlePolls);
+
+      const track = await deep.evaluate(() => structuredClone(window.__cvEntryTrack ?? []));
+      const entered = await deep.evaluate(where, far);
+      test.info().annotations.push({
+        type: "text-fragment",
+        description: JSON.stringify({ entered, frames: track.length, last: track.at(-1) }),
+      });
+      // W każdej klatce, w której strona stoi przewinięta, cel jest w widoku pod nagłówkiem.
+      // Klatki na samej górze strony pomija: TanStack przy pierwszym renderze po hydratacji
+      // bez `#` przewija na górę (`scrollTo(0, 0)`) i bywa, że po przewinięciu do tekstu -
+      // tak samo bez cv (pozycja poza P3.3).
+      const scrolled = track.filter((s) => s.top !== null);
+      expect(Math.max(...scrolled.map((s) => s.y))).toBeGreaterThan(viewport.height / 2);
+      const off = scrolled.filter((s) => s.top! < s.hb - 1 || s.bottom! > viewport.height);
+      expect(
+        off.slice(0, 6),
+        `cel poza widokiem w ${off.length} z ${scrolled.length} klatek po przewinięciu do tekstu (${JSON.stringify(entered)})`,
+      ).toEqual([]);
+      // Wyłącznik stoi, zanim parser doda pierwsze opakowanie z cv: żadna klatka nie ma cv.
+      expect(track.filter((s) => s.cv && !s.cvOff).slice(0, 3)).toEqual([]);
+      expect(entered.cvOff).toBe(true);
+      expect(entered.sectionCv).toBe("visible");
     });
 
     test("przeładowanie w połowie strony: strażnik zdejmuje cv, przywrócenie trafia w ten sam punkt", async ({

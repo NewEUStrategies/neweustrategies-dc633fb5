@@ -572,8 +572,17 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
 // (`CV_GUARD_SCRIPT`, inline przed sekcjami): gdy czeka przywrócenie okna albo
 // adres ma fragment, ustawia `html[data-cv-off]`, a reguła z `CV_CSS` zdejmuje
 // cv ze wszystkich opakowań, zanim parser do nich dojdzie - strona zachowuje
-// się wtedy dokładnie jak bez P3.3. Pierwsze wejście (i przebieg Lighthouse'a)
-// nie ma ani wpisu przywrócenia, ani fragmentu.
+// się wtedy dokładnie jak bez P3.3. Fragment tekstowy (`/#:~:text=…`: linki
+// z wyszukiwarki, „Kopiuj link do wyróżnienia" w Chrome) też: Chromium wycina
+// dyrektywę fragmentu z adresu dokumentu (`location.hash` jest wtedy pusty),
+// ale zostaje ona w nazwie wpisu nawigacji
+// (`performance.getEntriesByType("navigation")[0].name`, dostępnej już przy
+// parsowaniu). Bez tego przewinięcie do tekstu liczyło się na pasach
+// z szacunku, a odsłonięcie sekcji nad celem spychało go o ekran w dół (albo
+// pozycja przepadała). Osobny `try`: zepsuty albo zablokowany
+// `sessionStorage` nie wyłącza tego sprawdzenia, a brak wpisu nawigacji - wpisu
+// przywrócenia. Pierwsze wejście (i przebieg Lighthouse'a) nie ma ani wpisu
+// przywrócenia, ani fragmentu.
 //
 // KOTWICA PO WCZYTANIU (nawigacja do fragmentu w tym samym dokumencie: link
 // `#id`, `location.hash`, wstecz/dalej między fragmentami). Przeglądarka
@@ -826,7 +835,8 @@ const CV_CSS =
  *    WEJŚCIU wyżej). Czyta to samo co skrypt przywracania TanStacka: wpis okna
  *    w `sessionStorage["tsr-scroll-restoration-v1_3"]` (`storageKey` z
  *    `@tanstack/router-core` - zgodność pilnuje test) pod kluczem
- *    `history.state.__TSR_key`, oraz fragment adresu.
+ *    `history.state.__TSR_key`, oraz fragment adresu - także tekstowy (`:~:`
+ *    po `#` w nazwie wpisu nawigacji; Chromium nie pokazuje go w `location`).
  * 2. Nawigacja do fragmentu po wczytaniu (KOTWICA PO WCZYTANIU wyżej): `f`
  *    zamienia fragment na element w obszarze cv (`compareDocumentPosition`
  *    z pierwszym opakowaniem: bit FOLLOWING = 4 obejmuje też jego potomków)
@@ -847,6 +857,7 @@ const CV_GUARD_SCRIPT =
   "e.scrollIntoView()})}try{var k=(history.state||{}).__TSR_key,w=k&&(JSON.parse(" +
   'sessionStorage.getItem("tsr-scroll-restoration-v1_3")||"{}")[k]||{}).window;' +
   "if(location.hash.length>1||w&&w.scrollY>0)o(h)}catch(x){}" +
+  'try{/#.*:~:/.test(performance.getEntriesByType("navigation")[0].name)&&o(h)}catch(x){}' +
   'addEventListener("click",function(v){try{var a=v.target.closest("a[href],area[href]");' +
   'a&&!(v.ctrlKey||v.metaKey||v.shiftKey||v.altKey)&&(!a.target||a.target=="_self")&&' +
   'a.href.split("#")[0]==location.href.split("#")[0]&&o(f(a.hash))}catch(x){}},!0);' +
