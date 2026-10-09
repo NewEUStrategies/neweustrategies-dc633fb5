@@ -24,7 +24,7 @@ import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
 // leniwie z tamtego rejestru, więc import całego rejestru zamykał cykl (w
 // testach podmieniających rejestr fabryka `vi.mock` czekała na samą siebie).
 import { SliderRender } from "./lazySliderRender";
-import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
+import { sliderPostsQueryOptions, sliderShowsExcerpt } from "@/lib/builder/sliderPostsQuery";
 import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/sliderAuthorsQuery";
 
 /** Czy redakcja w ogóle ustawiła to pole. Puste/`null` traktujemy jak brak,
@@ -57,7 +57,8 @@ export function PostsSliderWidget({
   const overlayOpacity = asNumInRange(c.overlayOpacity, 0.45, 0, 1);
   // Sekcja "Wyświetlanie" panelu: te ustawienia muszą dojechać do SliderRender,
   // inaczej przełączniki w edytorze są martwe (renderer domyślnie pokazuje wszystko).
-  const showExcerpt = asBool(c.showExcerpt, true);
+  // Ten sam przełącznik co klucz zapytania (P3.7b, T2: wiersze bez zajawki, gdy wyłączona).
+  const showExcerpt = sliderShowsExcerpt(c);
   const showCover = asBool(c.showCover, true);
   const showTitle = asBool(c.showTitle, true);
   // Prezentacja autora rozstrzygana wspólnym rezolwerem (`authorDisplay`),

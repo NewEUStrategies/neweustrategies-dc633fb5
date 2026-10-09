@@ -6,7 +6,9 @@
 // after hydration (which used to push the whole page down ~40px).
 // Trzeci odbiorca: `HeaderSkeleton` czyta ten sam wpis (`peekHeaderTickerPosts`),
 // żeby nie rezerwować pasa, który pasek i tak zwinie do zera.
-import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions, type QueryClient } from "@tanstack/react-query";
+import { currentLang } from "@/lib/i18n/localeRuntime";
+import type { AppLang } from "@/lib/i18n/localePath";
 import {
   getTrendingPosts,
   getTickerPosts,
@@ -74,46 +76,72 @@ export function resolveTickerSource(
 
 /**
  * Wpis paska w cache - wyłącznie pola, które pasek RENDERUJE (`TrendingTicker`:
- * tytuł w obu językach, adres, autor stylu `glassLive`; `slug` jako zapas
- * adresu). Okładka, data, `parent_page_id` i licznik wyświetleń wracają z
- * server fn, ale pasek ich nie czyta.
+ * tytuł w języku klucza, adres, autor stylu `glassLive`; `slug` jako zapas
+ * adresu, tylko gdy adresu brak). Okładka, data, `parent_page_id` i licznik
+ * wyświetleń wracają z server fn, ale pasek ich nie czyta.
  */
 export type HeaderTickerPost = Pick<
   TrendingPost,
-  "id" | "slug" | "title_pl" | "title_en" | "href" | "author_display_name" | "author_avatar_url"
->;
+  "id" | "author_display_name" | "author_avatar_url"
+> &
+  Partial<Pick<TrendingPost, "slug" | "href" | "title_pl" | "title_en">>;
 
 /**
  * DIETA STANU ODWODNIONEGO (P2.5, HW-3b): projekcja wpisów paska na pola
  * renderowane. Pasek jedzie w stanie `$tsr` KAŻDEGO dokumentu z chrome, a
  * okładka (pełny URL storage), data, `parent_page_id` i `views_count` nie mają
- * w nim odbiorcy. Projekcja w `queryFn`, więc SSR, hydratacja i refetch mają
- * ten sam kształt.
+ * w nim odbiorcy.
  *
- * Oba tytuły ZOSTAJĄ: klucz paska nie zawiera języka (loader korzenia i
- * `TrendingTicker` składają go bez `lang`), więc miękka zmiana języka
- * przełącza tytuł z tego samego wpisu, bez refetchu i bez zapadania paska.
- * Zrzut na jeden język wymaga najpierw `lang` w kluczu i
- * `placeholderData: keepPreviousData` (inaczej pasek zapada się przy zmianie
- * języka - komentarz w loaderze korzenia przy rozgrzewce paska). To jest
- * przekazanie do właściciela `__root.tsx` (fala 2: P2.1): rozgrzewka w
- * loaderze korzenia musi złożyć klucz z językiem ŻĄDANIA, bo `currentLang()`
- * po stronie serwera nie jest bezpiecznym źródłem - inaczej klucz SSR i
- * klienta rozjedzie się i pasek zrobi refetch po hydratacji.
+ * TYLKO SERWER (runda poprawek 9 P3.7b, budżet domknięcia bootu): projekcja stoi
+ * w `queryFn` za bramką `import.meta.env.SSR`, więc jej kod nie trafia do chunku
+ * wejściowego, a jej odbiorcą jest wyłącznie stan odwodniony. Refetch klienta
+ * (miękka zmiana języka, koniec świeżości) trzyma pełny wiersz z server fn -
+ * pasek liczy z niego ten sam tytuł i adres (`itemTitle`, `itemHref`), więc
+ * znacznik jest ten sam.
+ *
+ * JEDEN JĘZYK (fala 3, P3.7b, T4b - przekazanie z P2.5). Klucz paska niesie
+ * język (`headerTickerQueryOptions(cfg, lang)`), więc wpis niesie tytuł
+ * WYŁĄCZNIE w języku klucza: łańcuch `itemTitle` paska
+ * (`<lang> || <drugi> || ""`) wpieczony w pole `title_<lang>`, pole drugiego
+ * języka zdjęte. Pasek liczy z wiersza zrzutowanego ten sam tytuł co z pełnego.
+ * Miękka zmiana języka trzyma poprzedni wpis jako `placeholderData`
+ * (`keepPreviousData`), aż przyjdzie nowy - pasek się nie zapada.
+ *
+ * `slug` jest zapasem adresu (`href ?? /post/<slug>`, `itemHref`), więc jedzie
+ * WYŁĄCZNIE przy wierszu bez `href` (T4a).
  */
-export function projectHeaderTickerPosts(rows: readonly TrendingPost[]): HeaderTickerPost[] {
-  return rows.map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    title_pl: row.title_pl,
-    title_en: row.title_en,
-    href: row.href,
-    author_display_name: row.author_display_name,
-    author_avatar_url: row.author_avatar_url,
-  }));
+export function projectHeaderTickerPosts(
+  rows: readonly TrendingPost[],
+  lang: AppLang,
+): HeaderTickerPost[] {
+  return rows.map((row) => {
+    const title =
+      lang === "en" ? row.title_en || row.title_pl || "" : row.title_pl || row.title_en || "";
+    return {
+      id: row.id,
+      ...(row.href == null && { slug: row.slug }),
+      ...(lang === "en" ? { title_en: title } : { title_pl: title }),
+      href: row.href,
+      author_display_name: row.author_display_name,
+      author_avatar_url: row.author_avatar_url,
+    };
+  });
 }
 
-export function headerTickerQueryOptions(cfg: TickerConfig) {
+/**
+ * Opcje zapytania paska. JĘZYK W KLUCZU (P3.7b, T4b): domyślnie `currentLang()`,
+ * czyli język ŻĄDANIA na serwerze (`localeRuntime.ts`: z adresu żądania, dla
+ * stron bez prefiksu językowego z ciasteczka żądania) i żywy język klienta
+ * w przeglądarce, który przy starcie wyprowadza się z tego samego adresu i tego
+ * samego ciasteczka. Rozgrzewka w loaderze korzenia (`__root.tsx`) i
+ * `peekHeaderTickerPosts` wołają bez `lang`, a `TrendingTicker` podaje język
+ * renderu jawnie - na serwerze to ten sam język (klon i18n żądania z
+ * `currentLang()`), więc klucz SSR i klucz hydratacji są identyczne.
+ *
+ * (Sprostowanie komentarza z P2.5: `currentLang()` po stronie serwera JEST
+ * bezpiecznym źródłem - liczy się per żądanie, nie z modułowego stanu.)
+ */
+export function headerTickerQueryOptions(cfg: TickerConfig, lang: AppLang = currentLang()) {
   const source = resolveTickerSource(cfg);
   const days = cfg.days ?? 7;
   const limit = cfg.limit ?? 8;
@@ -140,16 +168,25 @@ export function headerTickerQueryOptions(cfg: TickerConfig) {
     return getTickerPosts({ data: { source, limit, pinnedPostId } });
   };
   return queryOptions<HeaderTickerPost[]>({
+    // Język PO źródle: etykieta zapytania w logu dokumentu (`queryLabel`, dwa
+    // wiodące napisy) zostaje `header_ticker.<źródło>`.
     queryKey: [
       "header_ticker",
       source,
+      lang,
       days,
       limit,
       pinnedPostId ?? null,
       selectedIds.join(","),
       mixedFill,
     ] as const,
-    queryFn: async () => projectHeaderTickerPosts(await fetchRows()),
+    queryFn: async () => {
+      const rows = await fetchRows();
+      return import.meta.env.SSR ? projectHeaderTickerPosts(rows, lang) : rows;
+    },
+    // Miękka zmiana języka: nowy klucz pokazuje poprzednie wpisy, aż przyjdą
+    // nowe - pasek nie zwija się do rezerwy wysokości (CLS 0).
+    placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
   });

@@ -45,6 +45,8 @@ const h = vi.hoisted(() => ({
   order: [] as string[],
   /** Routery, z którymi wstrzyknięto zestaw bootu (P2.1). */
   bootRouters: [] as unknown[],
+  /** Strumienie, które dostał strażnik strumienia zapytań (P3.7b: kompaktowanie ZA nim). */
+  guardInputs: [] as unknown[],
 }));
 
 vi.mock("@tanstack/router-core/isServer", () => ({
@@ -71,6 +73,19 @@ vi.mock("@tanstack/react-router-ssr-query", () => ({
     }
   },
 }));
+
+// Strażnik strumienia: PRAWDZIWY, tylko z zapisem wejścia - kompaktowa koperta
+// (P3.7b, T1) ma iść ZA nim, więc strażnik musi dostać surowy strumień integracji.
+vi.mock("@/lib/ssr/queryStreamGuard", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ssr/queryStreamGuard")>();
+  return {
+    ...actual,
+    guardQueryStream: (...args: Parameters<typeof actual.guardQueryStream>) => {
+      h.guardInputs.push(args[0]);
+      return actual.guardQueryStream(...args);
+    },
+  };
+});
 
 // Zamiatanie: atrapa CZĄSTKOWA, bo mierzymy KOLEJNOŚĆ, nie implementację.
 vi.mock("@/lib/ssr/postRenderSweep", () => ({
@@ -256,12 +271,60 @@ describe("getRouter - gałąź SERWERA", () => {
     h.server = false;
   });
 
-  it("payload BEZ queryStream przechodzi nietknięty", async () => {
+  it("payload BEZ queryStream i bez zapytań przechodzi bez zmian treści", async () => {
     h.server = true;
     const payload = { dehydratedQueryClient: { queries: [] } };
     h.dehydrateImpl = async () => payload;
     expect(await getRouter().options.dehydrate!()).toEqual(payload);
     h.server = false;
+  });
+
+  // KOMPAKTOWA KOPERTA (P3.7b, T1; `lib/ssr/dehydratedQueryEnvelope.ts`): bariera
+  // i każda porcja strumienia bez `queryHash` i bez stałego ogona stanu. Strumień
+  // kompaktujemy ZA strażnikiem - strażnik dostaje surowy strumień integracji.
+  it("kompaktuje barierę i każdą porcję strumienia, ZA strażnikiem", async () => {
+    const { dehydrate, QueryClient } = await import("@tanstack/react-query");
+    h.server = true;
+    h.guardInputs = [];
+    const barrier = new QueryClient();
+    barrier.setQueryData(["site_settings_public", "all"], { seo: {} });
+    const streamed = new QueryClient();
+    streamed.setQueryData(["builder-post-list", { lang: "pl" }], [{ id: "p" }]);
+    const chunk = dehydrate(streamed);
+    const stream = new ReadableStream({
+      start: (c) => {
+        c.enqueue(chunk);
+        c.close();
+      },
+    });
+    const barrierState = dehydrate(barrier);
+    h.dehydrateImpl = async () => ({ dehydratedQueryClient: barrierState, queryStream: stream });
+    try {
+      const out = (await getRouter().options.dehydrate!()) as {
+        dehydratedQueryClient: { queries: Array<Record<string, unknown>> };
+        queryStream: ReadableStream<{ queries: Array<Record<string, unknown>> }>;
+      };
+      expect(h.guardInputs).toEqual([stream]);
+      expect(out.dehydratedQueryClient.queries).toHaveLength(1);
+      expect(out.dehydratedQueryClient.queries[0]).not.toHaveProperty("queryHash");
+      expect(out.dehydratedQueryClient.queries[0].state).toEqual({
+        data: { seo: {} },
+        dataUpdatedAt: barrierState.queries[0].state.dataUpdatedAt,
+      });
+      const reader = out.queryStream.getReader();
+      const first = await reader.read();
+      expect(first.value?.queries[0]).not.toHaveProperty("queryHash");
+      expect(first.value?.queries[0].state).not.toHaveProperty("status");
+      expect((await reader.read()).done).toBe(true);
+      // Oryginały integracji nietknięte (ich hashe siedzą w `sentQueries`).
+      expect(barrierState.queries[0].queryHash).toBe('["site_settings_public","all"]');
+      expect(chunk.queries[0].state.status).toBe("success");
+    } finally {
+      h.server = false;
+      h.dehydrateImpl = undefined;
+      barrier.clear();
+      streamed.clear();
+    }
   });
 });
 
@@ -273,6 +336,47 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
     expect(typeof r.options.hydrate).toBe("function");
     expect(r.options.hydrate).not.toBe(h.hydrateImpl);
     expect(r.serverSsrLifecycle).toBeUndefined();
+  });
+
+  it("rozwija kompaktową kopertę (bariera i porcje strumienia) PRZED hydratacją integracji", async () => {
+    const { dehydrate, hashKey, QueryClient } = await import("@tanstack/react-query");
+    const { compactDehydratedState } = await import("@/lib/ssr/dehydratedQueryEnvelope");
+    const seen: Array<{ dehydratedQueryClient: unknown; chunks: unknown[] }> = [];
+    h.server = false;
+    h.hydrateImpl = async (d) => {
+      const payload = d as { dehydratedQueryClient: unknown; queryStream: ReadableStream };
+      const chunks: unknown[] = [];
+      const reader = payload.queryStream.getReader();
+      for (let r = await reader.read(); !r.done; r = await reader.read()) chunks.push(r.value);
+      seen.push({ dehydratedQueryClient: payload.dehydratedQueryClient, chunks });
+    };
+    const source = new QueryClient();
+    source.setQueryData(["home-mode"], "static_page");
+    const full = dehydrate(source);
+    const queryStream = new ReadableStream({
+      start: (c) => {
+        c.enqueue(compactDehydratedState(full));
+        c.close();
+      },
+    });
+    try {
+      await getRouter().options.hydrate!({
+        dehydratedQueryClient: compactDehydratedState(full),
+        queryStream,
+      } as never);
+      expect(seen).toHaveLength(1);
+      // Integracja widzi PEŁNĄ kopertę: `queryHash` z klucza i pełny stan. Pustej
+      // listy mutacji klient nie odtwarza - `hydrate` query-core czyta
+      // `mutations || []`.
+      const { mutations, ...withoutMutations } = full;
+      expect(mutations).toEqual([]);
+      expect(seen[0].dehydratedQueryClient).toEqual(withoutMutations);
+      expect(seen[0].chunks).toEqual([withoutMutations]);
+      expect(full.queries[0].queryHash).toBe(hashKey(["home-mode"]));
+    } finally {
+      h.hydrateImpl = undefined;
+      source.clear();
+    }
   });
 
   it("BUDŻET jest importowanym kontraktem, nie powtórzonym literałem", () => {

@@ -37,7 +37,9 @@
     "",
     "P3.2b (fala 3, 2026-10-09) - NOWA METRYKA `fontPreloadCount` (unikalne preloadowane fonty z `<head>` i nagłówka `Link` łącznie; definicja: komentarz pola w documentWeight.ts). Decyzja właściciela 2026-10-08: jedynym fontem w ścieżce krytycznej jest Red Hat Display (jeden plik latin + polskie litery, ten sam dla PL i EN), a zasady pilnuje bramka CI, bez blokowania krojów dodawanych w CMS (te nie mają preloadu). Baza fali (d5bd11fb) preloadowała na PL dwa pliki (latin + latin-ext) - po P3.2b jeden; wartość wynika z kodu (`rootDocumentLinks`/`rootLinkHeaderValues` wskazują ten sam plik, test `src/lib/ci/__tests__/fontGlyphCoverage.test.ts` liczy ją `analyzeDocument` na wyjściu tych funkcji), więc próg = 1 bez zapasu. Pozostałe progi bez zmian (P3.2b zdejmuje wpis `Link` i duplikat preloadu fontu: `linkHeaderEntries` 5 -> 4, `preloadDuplicates` 3 -> 2 - ratchet po pomiarze artefaktu robi orkiestrator).",
     "",
-    "P3.2a (fala 3, 2026-10-09) - DWIE NOWE METRYKI BAJTÓW OBRAZÓW W HTML-U (definicje: komentarze pól w documentWeight.ts). `srcsetCandidatesMax` <= 5: największa liczba kandydatów `w` w jednym `srcset`/`imagesrcset` (dokument i `Link`); domyślna drabina okładek ma od P3.2a 5 szerokości [480, 640, 768, 1280, 1920] zamiast 9 (decyzja właściciela 2026-10-08), więc próg = rozmiar drabiny. `absoluteCanonicalMediaInRenderedSrcset` = 0: kandydaci `w` z absolutnym adresem `https://neweuropeanstrategies.com/media/...` (render do HTML-u używa ścieżki względnej, P4.2; og:image, JSON-LD i stan zostają absolutne, bo nie są `srcset`). Zdjęcia osób na dawnej drabinie (awatar autora w bloku kontekstu wpisu, prelegenci - 9 szerokości, adresy absolutne, decyzja właściciela) liczą się jak każdy `srcset`: na `/` ich nie ma, a wyjątek po liście szerokości ukryłby powrót dawnej drabiny domyślnej (te same szerokości); `--html` na stronie wpisu z blokiem autora pokaże je świadomie (9 / 9). Fixture `/` nie ma ani jednego `srcset` (obrazy `fixture.invalid` są nietransformowalne), więc `measured` = 0 dla obu; dowodem na prawdziwym HTML-u jest `--html` na HIT produkcji (przed P3.2a: 9 i kilkaset). UWAGA dla `--ratchet`: liczniki ratchetuje się do pomiaru, więc `srcsetCandidatesMax` spadłby na fixture do 0 - próg ma zostać 5 (rozmiar drabiny), dopóki fixture nie ma `srcset`."
+    "P3.2a (fala 3, 2026-10-09) - DWIE NOWE METRYKI BAJTÓW OBRAZÓW W HTML-U (definicje: komentarze pól w documentWeight.ts). `srcsetCandidatesMax` <= 5: największa liczba kandydatów `w` w jednym `srcset`/`imagesrcset` (dokument i `Link`); domyślna drabina okładek ma od P3.2a 5 szerokości [480, 640, 768, 1280, 1920] zamiast 9 (decyzja właściciela 2026-10-08), więc próg = rozmiar drabiny. `absoluteCanonicalMediaInRenderedSrcset` = 0: kandydaci `w` z absolutnym adresem `https://neweuropeanstrategies.com/media/...` (render do HTML-u używa ścieżki względnej, P4.2; og:image, JSON-LD i stan zostają absolutne, bo nie są `srcset`). Zdjęcia osób na dawnej drabinie (awatar autora w bloku kontekstu wpisu, prelegenci - 9 szerokości, adresy absolutne, decyzja właściciela) liczą się jak każdy `srcset`: na `/` ich nie ma, a wyjątek po liście szerokości ukryłby powrót dawnej drabiny domyślnej (te same szerokości); `--html` na stronie wpisu z blokiem autora pokaże je świadomie (9 / 9). Fixture `/` nie ma ani jednego `srcset` (obrazy `fixture.invalid` są nietransformowalne), więc `measured` = 0 dla obu; dowodem na prawdziwym HTML-u jest `--html` na HIT produkcji (przed P3.2a: 9 i kilkaset). UWAGA dla `--ratchet`: liczniki ratchetuje się do pomiaru, więc `srcsetCandidatesMax` spadłby na fixture do 0 - próg ma zostać 5 (rozmiar drabiny), dopóki fixture nie ma `srcset`.",
+    "",
+    "P3.7b (fala 3, 2026-10-09) - DWIE NOWE METRYKI STANU (definicje: komentarze pól w documentWeight.ts). `streamedStateBytes`: inline `<script>` wykonywalne poza barierą `$tsr`, których treść odwołuje się do `$R[\"tsr\"]` (porcje strumienia zapytań `.next(...)`/`.return(...)`) - luka z diagnozy `faza3/diagnoza/waga-dokumentu.md` §2.2: `dehydratedStateBytes` liczy wyłącznie barierę. `dehydratedQueryHashCount`: wystąpienia `queryHash:` w barierze i strumieniu; kompaktowa koperta zapytań (`src/lib/ssr/dehydratedQueryEnvelope.ts`, T1) wysyła hash wyłącznie, gdy różni się od `hashKey(queryKey)`, więc próg = 0 bez zapasu (licznik deterministyczny). Pomiar bazy partii 4 (64dddffe, artefakt `base-w3g`, 3 próbki HIT, bajtowo identyczne): `streamedStateBytes` 10 351 B, `dehydratedQueryHashCount` 21. Próg `streamedStateBytes` TYMCZASOWO = ceil(10 351 x 1,02) = 10 559 (nie gorzej niż baza); zaciśnięcie do pomiaru artefaktu P3.7b (szac. ok. 6,9 KB: T1 bez `queryHash` i stałego ogona stanu, T2 bez zajawek w porcjach post-listy) robi orkiestrator ratchetem w commicie scalenia, razem z ratchetem progów bajtowych HTML-u, głowy i bariery. Istniejące progi bez zmian."
   ],
   "path": "/",
   "measuredAt": "2026-10-03",
@@ -92,6 +94,16 @@
       "max": 66486,
       "measured": 65182,
       "target": 30720
+    },
+    "streamedStateBytes": {
+      "max": 10559,
+      "measured": 10351,
+      "target": 6144
+    },
+    "dehydratedQueryHashCount": {
+      "max": 0,
+      "measured": 21,
+      "target": 0
     },
     "modulepreloadCount": {
       "max": 0,

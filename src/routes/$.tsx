@@ -84,7 +84,8 @@ import {
   SITE_NAME,
 } from "@/lib/seo/meta";
 import { builderContentHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
-import { isServerRender, usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import { isServerRender, usePreloadLcpImages } from "@/lib/builder/aboveFold";
+import { rememberHeroPreloads, useHeroPreloads } from "@/lib/builder/heroPreloadStore";
 import { citationMetaTags } from "@/lib/seo/citations";
 import type { CitationAuthor } from "@/lib/citations/format";
 import { CitationBox } from "@/components/post/CitationBox";
@@ -104,7 +105,7 @@ import {
   type SeoFieldsRow,
 } from "@/lib/seo/fields";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
-import { effectiveTitleSuffix, parseSeoSettings, type SeoSettings } from "@/lib/seo/settings";
+import { effectiveTitleSuffix, parseSeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { activeLang } from "@/lib/seo/head";
@@ -261,7 +262,6 @@ interface DegradedDocument {
   degraded: true;
   seoSettings: null;
   coverPreload: null;
-  heroPreloads?: undefined;
 }
 
 /**
@@ -271,17 +271,14 @@ interface DegradedDocument {
  * tym samym, który TypeScript dopisywał tu sam przy inferencji z literału.
  */
 type ResolvedDocument = ResolvedContent & {
-  seoSettings: SeoSettings;
+  /**
+   * Surowe `seo` z danych zapytania `site_settings_public` - TA SAMA referencja,
+   * która jedzie w stanie zapytań, więc seroval emituje w `$tsr` odwołanie
+   * zamiast drugiej kopii (P3.7b, T5). Parsuje `head()` (`parseSeoSettings`).
+   */
+  seoSettings: unknown;
   /** Okładka WPISU - emitowana przez `head()` (strony: zawsze null). */
   coverPreload: CoverPreload | null;
-  /**
-   * Obrazy kandydatów LCP dokumentu buildera STRONY (P1.4, `lcpCandidates`) -
-   * emitowane przez `preload()` z react-dom w komponencie trasy, nie przez
-   * `head()`: wspólny klucz zasobu z automatycznym preloadem `<img>` daje
-   * dokładnie jeden preload na kandydata. Wpisy i nawigacja SPA (loader na
-   * kliencie): zawsze pusta lista - liczy wyłącznie serwer.
-   */
-  heroPreloads: LcpImagePreload[];
   degraded?: undefined;
 };
 
@@ -664,7 +661,7 @@ export const Route = createFileRoute("/$")({
     // JEDYNE miejsce, w którym ta trasa ogłasza politykę cache'u czystego
     // renderu - po CAŁEJ pracy, która może zdegradować.
     setCacheControlHeader(resilientCacheControl(secondaryDegraded || settingsDegraded));
-    const seoSettings = parseSeoSettings(settingsMap["seo"]);
+    const seoSettings: unknown = settingsMap["seo"];
     // Posts: attach the LCP cover preload so head() can emit it. The layout
     // settings were just warmed above, so this reads from cache (no extra
     // round-trip) and falls back to defaults if that prefetch was rejected.
@@ -678,7 +675,9 @@ export const Route = createFileRoute("/$")({
     // (`isServerRender()` wycina `heroImage.ts` i `lcpCandidate.ts` z bundla
     // klienta - PROVE P1.4, `check:bundle`); nawigacja SPA dostaje pustą listę,
     // bo render czysto kliencki nie ma też kandydata ani preloadu
-    // (lib/builder/aboveFold.tsx).
+    // (lib/builder/aboveFold.tsx). Obrazy kandydatów LCP strony (P1.4) idą do
+    // magazynu żądania (`lib/builder/heroPreloadStore.ts`), nie do danych
+    // loadera - klient ich nie czyta, a jechały w `$tsr` (P3.7b, T6).
     const coverPreload =
       data.kind === "post"
         ? buildCoverPreload(
@@ -701,9 +700,10 @@ export const Route = createFileRoute("/$")({
     // na HIT/STALE (droga do 103 Early Hints na Cloudflare).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     if (isServerRender()) {
+      rememberHeroPreloads(context.queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     }
-    return { ...data, seoSettings, coverPreload, heroPreloads };
+    return { ...data, seoSettings, coverPreload };
   },
   head: (ctx) => {
     // ŁADUNEK CZYTANY PRZEZ DEKLARACJĘ, NIE PRZEZ INFERENCJĘ ROUTERA - jedyne
@@ -737,7 +737,7 @@ export const Route = createFileRoute("/$")({
     const url = rawOrigin ? absoluteUrl(publicFacingOrigin(rawOrigin), rawPath) : rawUrl;
     const lang = activeLang(rawUrl);
     const isPost = loaderData.kind === "post";
-    const seoSettings = loaderData.seoSettings ?? parseSeoSettings(null);
+    const seoSettings = parseSeoSettings(loaderData.seoSettings ?? null);
     const seoRow = it as SeoFieldsRow;
 
     // Derived values first, then the per-entity SEO overrides on top - the
@@ -940,12 +940,13 @@ function PublicPage() {
 }
 
 function PublicPageFromLoader() {
-  const { kind, heroPreloads } = Route.useLoaderData();
+  const { kind } = Route.useLoaderData();
   // Obraz kandydata LCP strony z buildera (P1.4): `preload()` w renderze
   // trasy = jedyny preload tego obrazu w preambule SSR (klucz wspólny
   // z automatycznym preloadem `<img>`). Wpisy i render zdegradowany: brak.
   // Loader liczy kandydata dla gościa i tylko na serwerze; hook działa tylko w SSR.
-  usePreloadLcpImages(heroPreloads);
+  // Lista z magazynu żądania, nie z danych loadera (P3.7b, T6).
+  usePreloadLcpImages(useHeroPreloads());
   // BRAMKA DEGRADACJI STOI PRZED `useSuspenseQuery`, i to jest wymóg, nie
   // porządek: loader zdegradowany USUNĄŁ wpis treści z cache'u, więc
   // `useSuspenseQuery` zawiesiłby się tu na nowym pobraniu - na serwerze

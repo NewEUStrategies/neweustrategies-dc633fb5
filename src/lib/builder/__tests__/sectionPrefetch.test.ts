@@ -333,6 +333,23 @@ describe("widgetQueryOptionsList", () => {
     expect(opts.queryKey[0]).toBe("builder-post-list");
   });
 
+  // P3.7b, T2: powierzchnia w kluczu. Karuzela dzieli klucz z post-listą, ale
+  // renderuje zajawkę w każdym wariancie - rejestr prefetchu (SSR) i bramka SWR
+  // muszą liczyć klucz DOKŁADNIE tak, jak widok (`PostListView`, `carousel`).
+  it("post-list i carousel: klucz rejestru = klucz widoku z właściwą powierzchnią", async () => {
+    const { postListQueryOptions } = await import("@/lib/builder/postListQuery");
+    const content = { variant: "ranked", limit: 5 };
+    const list = makeWidget("post-list", { content } as Partial<WidgetNode>);
+    const carousel = makeWidget("carousel", { content } as Partial<WidgetNode>);
+    const listKey = postListQueryOptions(content, "pl", "list").queryKey;
+    const carouselKey = postListQueryOptions(content, "pl", "carousel").queryKey;
+    expect(listKey).not.toEqual(carouselKey);
+    expect(widgetQueryOptionsList(list, "pl")[0].queryKey).toEqual(listKey);
+    expect(widgetQueryOptionsList(carousel, "pl")[0].queryKey).toEqual(carouselKey);
+    expect(widgetCacheTargets(list, "pl")[0].key).toEqual(listKey);
+    expect(widgetCacheTargets(carousel, "pl")[0].key).toEqual(carouselKey);
+  });
+
   it("maps a slider to one ref per UNIQUE post id plus a fallback-images query", () => {
     const slider = makeWidget("slider", {
       content: { items: [{ postId: "p1" }, { postId: "p2" }, { postId: "p1" }] },

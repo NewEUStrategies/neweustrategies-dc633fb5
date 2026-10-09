@@ -157,7 +157,7 @@ describe("builderHeroPreload", () => {
   it("karuzela: każdy wariant maluje karty siatki - preload liczy sizes siatki", () => {
     const qc = new QueryClient();
     const content: WidgetContent = { variant: "classic" };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "carousel").queryKey, [postListRow(COVER)]);
     const preload = builderHeroPreload(
       docWith([sectionWith([widget("carousel", content)])]),
       qc,
@@ -219,7 +219,7 @@ describe("builderHeroPreload", () => {
   it("post-lista: okładka pierwszego wiersza z cache, sizes wariantu siatki", () => {
     const qc = new QueryClient();
     const content: WidgetContent = {};
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
     const preload = builderHeroPreload(
       docWith([sectionWith([widget("post-list", content)])]),
       qc,
@@ -232,7 +232,7 @@ describe("builderHeroPreload", () => {
   it("post-lista w wariancie miniaturowym (list): null - miniatury nie są LCP", () => {
     const qc = new QueryClient();
     const content: WidgetContent = { variant: "list" };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
     const doc = docWith([sectionWith([widget("post-list", content)])]);
     expect(builderHeroPreload(doc, qc, "pl")).toBeNull();
   });
@@ -311,7 +311,9 @@ describe("builderHeroPreloads - delegacja do kandydatów LCP", () => {
   it("strona główna: preload wskazuje hero (kandydat), a nie pierwszą w DOM kartę listy", () => {
     const qc = new QueryClient();
     const list: WidgetContent = { variant: "card" };
-    qc.setQueryData(postListQueryOptions(list, "pl").queryKey, [postListRow(`${COVER}?karta=1`)]);
+    qc.setQueryData(postListQueryOptions(list, "pl", "list").queryKey, [
+      postListRow(`${COVER}?karta=1`),
+    ]);
     const sliderContent: WidgetContent = { source: "posts" };
     qc.setQueryData(sliderPostsQueryOptions(sliderContent, "pl").queryKey, [sliderRow(COVER)]);
     const doc = docWith([
@@ -608,7 +610,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
   it("wyłączony cover (showCover: „0”) daje null", () => {
     const qc = new QueryClient();
     const content: WidgetContent = { showCover: "0" };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
     const doc = docWith([sectionWith([widget("post-list", content)])]);
     expect(builderHeroPreload(doc, qc, "pl")).toBeNull();
   });
@@ -616,7 +618,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
   it("rozgrzany cache z ZEROM wierszy daje null - pusta lista nic nie maluje", () => {
     const qc = new QueryClient();
     const content: WidgetContent = {};
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, []);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, []);
     const doc = docWith([sectionWith([widget("post-list", content)])]);
     expect(builderHeroPreload(doc, qc, "pl")).toBeNull();
   });
@@ -627,7 +629,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
     // który przy pierwszym malowaniu jest poza kadrem.
     const qc = new QueryClient();
     const content: WidgetContent = {};
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [
       { ...postListRow(COVER), cover_image_url: null },
       postListRow(`${COVER}?drugi=1`),
     ]);
@@ -639,7 +641,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
     const qc = new QueryClient();
     const override = "https://p.supabase.co/storage/v1/object/public/covers/nadpisana.jpg";
     const content: WidgetContent = { thumbnailOverrides: { "post-1": override } };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
     const preload = builderHeroPreload(
       docWith([sectionWith([widget("post-list", content)])]),
       qc,
@@ -658,7 +660,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
     ] as const) {
       const qc = new QueryClient();
       const content: WidgetContent = { variant };
-      qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+      qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
       const preload = builderHeroPreload(
         docWith([sectionWith([widget("post-list", content)])]),
         qc,
@@ -671,7 +673,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
   it("wariant spoza katalogu wariantów wiodących daje null", () => {
     const qc = new QueryClient();
     const content: WidgetContent = { variant: "wariant-z-kosmosu" };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
     const doc = docWith([sectionWith([widget("post-list", content)])]);
     expect(builderHeroPreload(doc, qc, "pl")).toBeNull();
   });
@@ -681,7 +683,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
     // karuzeli to nadal siatka - i taki musi być preload.
     const qc = new QueryClient();
     const content: WidgetContent = { variant: "list" };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "carousel").queryKey, [postListRow(COVER)]);
     const preload = builderHeroPreload(
       docWith([sectionWith([widget("carousel", content)])]),
       qc,

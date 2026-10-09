@@ -75,13 +75,21 @@ interface SpeculationRuleSet {
  */
 const PROSE_LINK_SELECTOR = ".single-post-content a";
 
+/**
+ * JEDEN WZORZEC NA PREFIKS (P3.7b, X1) zamiast czterech (`/p`, `/p/*`, `/en/p`,
+ * `/en/p/*`): grupy URLPattern `{en/}?` (stały tekst, opcjonalny) i `{/*}?`
+ * (prefiks `/` z wildcardem, opcjonalny). Pasują `/admin`, `/admin/`,
+ * `/admin/x/y`, `/en/admin` i `/en/admin/x`; nie pasują `/administrator` ani
+ * `/en/adminx` - dokładnie jak dawne cztery wzorce. Reguły jadą w `<head>`
+ * KAŻDEGO dokumentu dwa razy (prefetch i prerender): -1,1 KB HTML-u.
+ *
+ * Wzorzec MUSI zaczynać się od `/`: napis zaczynający się od `{` parser
+ * konstruktora URLPattern czyta jako względny wobec katalogu bazowego, a nie
+ * jako ścieżkę absolutną. `.` i `_` (`/.well-known`, `/_`) nie są w składni
+ * wzorca znakami specjalnymi.
+ */
 function denyPatterns(): string[] {
-  return PUBLIC_DOCUMENT_DENY_PREFIXES.flatMap((prefix) => [
-    prefix,
-    `${prefix}/*`,
-    `/en${prefix}`,
-    `/en${prefix}/*`,
-  ]);
+  return PUBLIC_DOCUMENT_DENY_PREFIXES.map((prefix) => `/{en/}?${prefix.slice(1)}{/*}?`);
 }
 
 /** Warunki wspólne obu zestawom: ta sama witryna, te same wykluczenia. */

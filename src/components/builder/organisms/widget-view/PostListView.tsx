@@ -22,6 +22,7 @@ import {
   type PostRow,
 } from "@/lib/builder/postListQuery";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
+import { postListExcerptToggle, postListRendersExcerpt } from "@/lib/builder/postListExcerpt";
 import { SponsoredBadge } from "@/components/post/SponsoredBadge";
 import type { SponsoredDisclosureInput } from "@/lib/content/sponsored";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
@@ -137,7 +138,9 @@ export function PostListView({
   // Global display toggles - apply to every variant.
   const showCover = getStr(c, "showCover") !== "0";
   const showTitleGlobal = getStr(c, "showTitle") !== "0";
-  const showExcerptGlobal = getStr(c, "showExcerpt") !== "0";
+  // Zajawka: JEDNO źródło z kluczem zapytania (P3.7b, T2) - wiersze widgetu, który
+  // zajawki nie rysuje, przychodzą bez `excerpt_*` (`postListRendersExcerpt`).
+  const showExcerptGlobal = postListExcerptToggle(c);
 
   const titleWeight = getStr(c, "titleWeight");
   const excerptWeight = getStr(c, "excerptWeight");
@@ -187,7 +190,9 @@ export function PostListView({
   // the dehydrated rows instead of refetching under a divergent key (no skeleton
   // flash). When uniqueOnPage the query over-fetches (see postListInput) so the
   // client de-dup below can still fill the grid.
-  const { data, isPending, isFetching } = useQuery(postListQueryOptions(c, lang));
+  const { data, isPending, isFetching } = useQuery(
+    postListQueryOptions(c, lang, carousel ? "carousel" : "list"),
+  );
 
   // uniqueOnPage de-dup is a CLIENT-ONLY display refinement, never part of the
   // query key. `excludeIds` starts empty - so the server render and the first
@@ -453,7 +458,8 @@ export function PostListView({
       const v = getStr(c, "indexVAlign") || "top";
       return v === "middle" || v === "bottom" ? v : "top";
     })();
-    const showExcerpt = getBool(c, "showExcerpt", true);
+    // `numbered` na liście: przełącznik w sensie `getBool` (predykat klucza, P3.7b).
+    const showExcerpt = postListRendersExcerpt(c, "list");
     // Fall back to global Theme Design tokens when widget colors are empty.
     const lightColor = idxColor || "var(--td-li-light, rgb(35,31,32))";
     const darkColor = idxColorDark || "var(--td-li-dark, rgb(250,147,70))";

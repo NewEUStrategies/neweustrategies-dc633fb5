@@ -8,8 +8,9 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { WidgetContent } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
-import { asNum, asStr } from "@/lib/content-model/contentValue";
+import { asBool, asNum, asStr } from "@/lib/content-model/contentValue";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
+import { withoutExcerpts } from "@/lib/builder/postListExcerpt";
 import { edgeTtlCache } from "@/lib/ssrCache";
 import {
   postsConstrainedByTaxonomy,
@@ -58,6 +59,21 @@ export interface SliderPostsInput {
    *  Bez niego PL i EN dzielily jeden wpis cache: przelaczenie jezyka
    *  zwracalo liste posortowana po drugim jezyku. */
   lang: Lang;
+  /** Czy slider RENDERUJE zajawkę (P3.7b, T2; `sliderShowsExcerpt`). W kluczu, bo
+   *  stan odwodniony slidera bez zajawki jedzie bez `excerpt_*` (ścinanie na
+   *  serwerze); poza kluczem cache brzegowego. */
+  withExcerpt: boolean;
+}
+
+/** Wejście pobrania wierszy: bez `withExcerpt` (jeden wpis `edgeTtlCache` dla obu przełączników). */
+type SliderPostsFetchInput = Omit<SliderPostsInput, "withExcerpt">;
+
+/**
+ * Czy slider wpisów renderuje zajawkę - DOKŁADNIE przełącznik widoku
+ * (`PostsSliderWidget`: `asBool(c.showExcerpt, true)`), który czyta stąd.
+ */
+export function sliderShowsExcerpt(c: WidgetContent): boolean {
+  return asBool(c.showExcerpt, true);
 }
 
 /** The display limit a posts-mode slider renders. */
@@ -78,6 +94,7 @@ export function sliderPostsInput(c: WidgetContent, lang: Lang): SliderPostsInput
     excludeIds: csv(c, "excludeIds"),
     orderBy: getStr(c, "orderBy") || "newest",
     lang,
+    withExcerpt: sliderShowsExcerpt(c),
   };
 }
 
@@ -116,7 +133,7 @@ export function sliderUsesPostsSource(c: WidgetContent): boolean {
 const SLIDER_POST_COLUMNS =
   "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id";
 
-async function fetchSliderPosts(input: SliderPostsInput): Promise<SliderPostRow[]> {
+async function fetchSliderPosts(input: SliderPostsFetchInput): Promise<SliderPostRow[]> {
   const { limit, categorySlugs, tagSlugs, excludeIds, orderBy, lang } = input;
   // Zawężenie kategorią i tagiem robi BAZA (osadzenia `!inner()` po
   // identyfikatorach terminów) - wcześniej stał tu odczyt całej tabeli
@@ -174,6 +191,7 @@ export function localizeSliderPostRows(
 
 export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
   const input = sliderPostsInput(c, lang);
+  const { withExcerpt, ...fetchInput } = input;
   return queryOptions({
     // Korzeń klucza z WIDGET_QUERY_ROOTS - ten sam literał, z którego wyprowadzony
     // jest zbiór inwalidacji live, więc rozjazd nazw jest niewyrażalny.
@@ -182,16 +200,22 @@ export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
     // posortowany po EN (i odwrotnie) do końca okna świeżości. Od P2.5 język
     // klucza decyduje też o KSZTAŁCIE wiersza (`localizeSliderPostRows`).
     queryKey: [WIDGET_QUERY_ROOTS.sliderPosts, input] as const,
-    queryFn: async () =>
-      localizeSliderPostRows(
+    queryFn: async () => {
+      const rows = localizeSliderPostRows(
         // Per-isolate TTL: hero-slider strony głównej to do 3 zapytań w 2 falach na
         // render. Klucz cache pochodzi z całego inputu (zawiera już `lang`); w
         // cache brzegowym leży pełny wiersz, projekcja idzie po nim.
-        await edgeTtlCache(`builder:slider-posts:${JSON.stringify(input)}`, 60_000, () =>
-          fetchSliderPosts(input),
+        await edgeTtlCache(`builder:slider-posts:${JSON.stringify(fetchInput)}`, 60_000, () =>
+          fetchSliderPosts(fetchInput),
         ),
         input.lang,
-      ),
+      );
+      // Slider z wyłączoną zajawką (P3.7b, T2): stan odwodniony bez `excerpt_*`,
+      // ścinany WYŁĄCZNIE na serwerze (`postListExcerpt.ts`). Widok buduje wtedy
+      // pusty podtytuł bez względu na treść wiersza, więc pełny wiersz po refetchu
+      // klienta daje ten sam znacznik.
+      return import.meta.env.SSR && !withExcerpt ? withoutExcerpts(rows) : rows;
+    },
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,
   });

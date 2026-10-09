@@ -234,6 +234,7 @@ import { adPlacementsQueryOptions } from "@/lib/ads/queries";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { splatToSegments } from "@/lib/routing/publicSegments";
 import { routeSsrDeadline } from "@/lib/ssr/routeSsrDeadline";
+import { heroPreloadsFor } from "@/lib/builder/heroPreloadStore";
 import { Route } from "@/routes/$";
 
 /**
@@ -402,7 +403,9 @@ interface WynikLoadera {
   kind?: unknown;
   degraded?: unknown;
   coverPreload?: { href?: unknown; imageSrcSet?: unknown; imageSizes?: unknown } | null;
-  heroPreloads?: Array<{ href?: unknown; imageSrcSet?: unknown; imageSizes?: unknown }>;
+  /** P3.7b, T6: lista NIE jedzie w danych loadera (magazyn żądania, `heroPreloadsFor`). */
+  heroPreloads?: unknown;
+  seoSettings?: unknown;
 }
 
 /**
@@ -925,7 +928,7 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
   });
 
   it("STRONA nie idzie ścieżką okładki wpisu - jej hero mieszka w dokumencie buildera", async () => {
-    const { wynik } = await runLoader("o-nas", {
+    const { wynik, queryClient } = await runLoader("o-nas", {
       kind: "page",
       item: postItem({ cover_image_url: COVER_URL }),
       crumbs: [],
@@ -937,7 +940,7 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
     // (`builderContentHeroPreloads` -> `heroPreloads`, emitowane przez
     // `preload()` w komponencie trasy), nie okładka wiersza. Tu dokumentu brak.
     expect(jakoWynik(wynik).coverPreload).toBeNull();
-    expect(jakoWynik(wynik).heroPreloads).toEqual([]);
+    expect(heroPreloadsFor(queryClient)).toEqual([]);
   });
 
   /** Dokument z jednym obrazem w sekcji 0 - kandydat LCP strony (P1.4). */
@@ -969,11 +972,14 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
   const naglowkiObrazu = () => h.linkHeaders.filter((v) => v.includes('as="image"'));
 
   it("STRONA z obrazem w sekcji 0 (silnik buildera): jeden deskryptor kandydata i nagłówek `Link` z imagesizes", async () => {
-    const { wynik } = await runLoader("o-nas", {
+    const { wynik, queryClient } = await runLoader("o-nas", {
       ...stronaZDokumentem(dokumentZHero),
       item: postItem({ editor: "builder", builder_data: dokumentZHero, cover_image_url: null }),
     });
-    const { heroPreloads, coverPreload } = jakoWynik(wynik);
+    const { coverPreload } = jakoWynik(wynik);
+    // P3.7b, T6: deskryptor w magazynie żądania, NIE w danych loadera (`$tsr`).
+    expect(jakoWynik(wynik)).not.toHaveProperty("heroPreloads");
+    const heroPreloads = heroPreloadsFor(queryClient);
     expect(coverPreload).toBeNull();
     expect(heroPreloads).toHaveLength(1);
     expect(heroPreloads?.[0]?.href).toBe(HERO_URL);
@@ -989,18 +995,38 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
     // `ContentRenderer` maluje wtedy HTML (`resolveContentEngine`), więc preload
     // obrazu z nieużywanego dokumentu buildera byłby pobraniem z High czegoś,
     // czego nikt nie zobaczy.
-    const { wynik } = await runLoader("o-nas", {
+    const { queryClient } = await runLoader("o-nas", {
       ...stronaZDokumentem(dokumentZHero),
       item: postItem({ editor: "richtext", builder_data: dokumentZHero, cover_image_url: null }),
     });
-    expect(jakoWynik(wynik).heroPreloads).toEqual([]);
+    expect(heroPreloadsFor(queryClient)).toEqual([]);
     expect(naglowkiObrazu()).toEqual([]);
   });
 
   it("WPIS nie liczy kandydatów buildera - jego obrazem LCP jest okładka z `head()`", async () => {
-    const { wynik } = await runLoader("analizy/atom", resolvedPost());
-    expect(jakoWynik(wynik).heroPreloads).toEqual([]);
+    const { wynik, queryClient } = await runLoader("analizy/atom", resolvedPost());
+    expect(heroPreloadsFor(queryClient)).toEqual([]);
+    expect(jakoWynik(wynik)).not.toHaveProperty("heroPreloads");
     expect(jakoWynik(wynik).coverPreload?.href).toBe(COVER_URL);
+  });
+
+  it("T5 (P3.7b): `seoSettings` to surowe `seo` z cache ustawień - ta sama referencja, `head()` je parsuje", async () => {
+    // Ta sama referencja co w stanie zapytań = seroval emituje w `$tsr`
+    // odwołanie `$R[n]`, a nie drugą kopię ustawień SEO.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const seo = { twitter_site: "@nes_test" };
+    queryClient.setQueryData(siteSettingsQueryOptions.queryKey, { seo });
+    queryClient.setQueryData(
+      resolvedContentQueryOptions(splatToSegments("analizy/atom")).queryKey,
+      resolvedPost(),
+    );
+    const wynik = await loader()({ params: { _splat: "analizy/atom" }, context: { queryClient } });
+    expect(jakoWynik(wynik).seoSettings).toBe(seo);
+    const head = routeHead(Route, {
+      loaderData: wynik as never,
+      params: { _splat: "analizy/atom" },
+    });
+    expect(JSON.stringify(head.meta)).toContain("@nes_test");
   });
 });
 

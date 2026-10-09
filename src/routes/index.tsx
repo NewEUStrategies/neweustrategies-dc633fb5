@@ -43,6 +43,7 @@ import {
 } from "@/lib/seo/meta";
 import { builderHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
 import { isServerRender, usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import { rememberHeroPreloads, useHeroPreloads } from "@/lib/builder/heroPreloadStore";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import {
@@ -185,6 +186,10 @@ export const Route = createFileRoute("/")({
     // `check:bundle`; w `bun run dev` serwer rozpoznaje brak `document`);
     // nawigacja SPA dostaje pustą listę, bo render czysto kliencki nie ma też
     // kandydata ani preloadu (lib/builder/aboveFold.tsx).
+    //
+    // POZA ŁADUNKIEM ROUTERA (P3.7b, T6): lista nie wraca w danych loadera
+    // (klient jej nie czyta, a jechała w `$tsr`), tylko trafia do magazynu
+    // żądania (`lib/builder/heroPreloadStore.ts`), z którego czyta komponent.
     let coverPreload: ImagePreloadInput | null = null;
     let heroPreloads: LcpImagePreload[] = [];
     // Dane widgetów nad zgięciem nie zdążyły przed końcem loadera (P3.6b,
@@ -284,7 +289,12 @@ export const Route = createFileRoute("/")({
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
     // bulk site_settings query is already warmed by the root loader. Purely
     // decorative structured data - never let it fail the whole homepage.
-    const seoSettings = parseSeoSettings(settingsRes.data["seo"]);
+    //
+    // TA SAMA REFERENCJA (P3.7b, T5): surowe `seo` z danych zapytania
+    // `site_settings_public` (ten sam obiekt, który jedzie w stanie zapytań),
+    // więc seroval emituje w `$tsr` odwołanie `$R[n]` zamiast drugiej kopii.
+    // Parsowanie (`parseSeoSettings`) przeniesione do `head()` - wynik ten sam.
+    const seoSettings: unknown = settingsRes.data["seo"];
 
     // ISR-like edge caching, set LAST so a degraded render is never shared-
     // cached: the homepage SSR is the anonymous shell, so a clean render is safe
@@ -320,6 +330,7 @@ export const Route = createFileRoute("/")({
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     if (isServerRender()) {
+      rememberHeroPreloads(queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     }
     // An unknown mode also means an unknown SEO document. Do not advertise
@@ -330,7 +341,6 @@ export const Route = createFileRoute("/")({
       homePage: contentDegraded ? null : homePage,
       page: deps.page,
       coverPreload,
-      heroPreloads,
       degraded,
     };
   },
@@ -390,7 +400,7 @@ export const Route = createFileRoute("/")({
     // Entity layer (GEO/AEO): Organization + WebSite with SearchAction. Per
     // Google's guidance these live on the homepage only - one strong entity
     // signal that knowledge graphs and AI assistants resolve the brand to.
-    const seoSettings = loaderData?.seoSettings ?? parseSeoSettings(null);
+    const seoSettings = parseSeoSettings(loaderData?.seoSettings ?? null);
     const organization = organizationJsonLd({
       origin,
       lang,
@@ -433,7 +443,8 @@ function Index() {
   // preambuły SSR jako jedyny `<link rel=preload as=image fetchpriority=high>`
   // dla tego obrazu (ten sam klucz co automatyczny preload `<img>`). Loader
   // liczy kandydata dla gościa i tylko na serwerze; hook działa tylko w SSR.
-  usePreloadLcpImages(Route.useLoaderData({ select: (data) => data.heroPreloads }));
+  // Lista z magazynu żądania, nie z danych loadera (P3.7b, T6).
+  usePreloadLcpImages(useHeroPreloads());
   const homePage = pageQuery.data;
   const homeMode = modeQuery.data;
   // Query state, not a latched loader flag: a successful browser refetch must

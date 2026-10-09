@@ -290,6 +290,20 @@ export interface DocumentWeight {
   readonly inlineExecutableScriptBytes: number;
   /** `<script id="$tsr-stream-barrier">` - dehydratowany stan routera/loaderów. */
   readonly dehydratedStateBytes: number;
+  /**
+   * Strumieniowane skrypty stanu (P3.7b): inline `<script>` wykonywalne poza barierą,
+   * których treść odwołuje się do `$R["tsr"]` - porcje strumienia zapytań
+   * (`$R[n].next(...)`, `.return(...)`) i inne dostrumieniowane dane routera. Bariera
+   * (`dehydratedStateBytes`) ich nie widzi, a parsują się i ewaluują tak samo
+   * (diagnoza `faza3/diagnoza/waga-dokumentu.md` §2.2: ok. 10 KB na fixture `/`).
+   */
+  readonly streamedStateBytes: number;
+  /**
+   * Wystąpienia `queryHash:` w barierze i strumieniu (P3.7b, T1). Kompaktowa koperta
+   * zapytań (`src/lib/ssr/dehydratedQueryEnvelope.ts`) wysyła hash wyłącznie, gdy
+   * różni się od `hashKey(queryKey)`, więc w aplikacji bez `queryKeyHashFn` - zero.
+   */
+  readonly dehydratedQueryHashCount: number;
   readonly moduleScriptCount: number;
   /** Unikalne `modulepreload` z `<head>`/body i nagłówka `Link` łącznie. */
   readonly modulepreloadCount: number;
@@ -518,11 +532,24 @@ function widthCandidateSets(html: string, links: readonly LinkEntry[]): string[]
   });
 }
 
+/** Skrypt strumieniowanego stanu routera (definicja: `DocumentWeight.streamedStateBytes`). */
+function isStreamedStateScript(block: Block): boolean {
+  return (
+    block.attrs["id"] !== "$tsr-stream-barrier" &&
+    !DATA_SCRIPT_TYPES.test(block.attrs["type"] ?? "") &&
+    block.content.includes('$R["tsr"]')
+  );
+}
+
+const QUERY_HASH_KEY = /["']?\bqueryHash["']?\s*:/g;
+
 export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
   const { html } = input;
   const headMatch = /<head\b[^>]*>([\s\S]*?)<\/head>/i.exec(html);
   const scripts = blocks(html, "script");
   const inline = scripts.filter((s) => !s.attrs["src"]);
+  const barrier = inline.filter((b) => b.attrs["id"] === "$tsr-stream-barrier");
+  const streamed = inline.filter(isStreamedStateScript);
   const styles = blocks(html, "style");
   const links = [...linkEntries(html), ...parseLinkHeader(input.linkHeader)];
   const preloads = links.filter(isPreload);
@@ -666,9 +693,12 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     inlineExecutableScriptBytes: inline
       .filter((b) => !DATA_SCRIPT_TYPES.test(b.attrs["type"] ?? ""))
       .reduce((s, b) => s + byteLength(b.content), 0),
-    dehydratedStateBytes: inline
-      .filter((b) => b.attrs["id"] === "$tsr-stream-barrier")
-      .reduce((s, b) => s + byteLength(b.content), 0),
+    dehydratedStateBytes: barrier.reduce((s, b) => s + byteLength(b.content), 0),
+    streamedStateBytes: streamed.reduce((s, b) => s + byteLength(b.content), 0),
+    dehydratedQueryHashCount: [...barrier, ...streamed].reduce(
+      (s, b) => s + (b.content.match(QUERY_HASH_KEY) ?? []).length,
+      0,
+    ),
     moduleScriptCount: moduleScripts.length,
     modulepreloadCount: new Set(modulepreloads.map((l) => l.href)).size,
     modulepreloadInHead: modulepreloads.filter((l) => l.source !== "header").length,
@@ -734,6 +764,9 @@ export const GATED_METRICS = [
   "inlineScriptBytes",
   "inlineExecutableScriptBytes",
   "dehydratedStateBytes",
+  // P3.7b - strumieniowany stan i koperta zapytań (definicje: komentarze pól wyżej).
+  "streamedStateBytes",
+  "dehydratedQueryHashCount",
   "modulepreloadCount",
   "linkHeaderEntries",
   "preloadDuplicates",
