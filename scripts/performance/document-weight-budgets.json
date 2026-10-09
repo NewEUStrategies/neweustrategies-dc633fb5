@@ -33,7 +33,9 @@
     "  * NOWE: `bootEntryMissing` <= 0 (dokument bez żadnej drogi do JS-a - ani skryptu wejścia, ani zestawu z wejściem - nigdy się nie hydratuje); `bootBurstCount` <= 26 i `bootBurstGzipBytes` <= 574 673 - seria bootu (domknięcie wejścia + zestaw + preloady dokumentu), czyli ta sama pula JS co dotąd `preloadedJs*`, PRZENIESIONA za LCP; progi przeniesione 1:1 z `preloadedJsCount`/`preloadedJsGzipBytes`, więc objętość JS nie dostaje luzu (zmierzone 26 / 574 362 B).",
     "  * `headRawBytes` 26 625 -> 29 345 (+2 720 = DOKŁADNIE przyrost wobec bazy, 26 125 -> 28 845 B; zapas 500 B jak dotąd): loader bootu +2 681 B (z węzłem `<script data-nes-boot>`), zestaw `#nes-boot-set` +1 039 B (26 URL-i; wstrzyknięcie wychodzi przy pierwszej granicy strumienia, czyli w `<head>`), sonda bootu +200 B (watchdog od startu bootu, krok 4), minus 17 linków `modulepreload` -1 200 B. Odrzucone: loader poza `<head>` (musi uzbroić obserwator LCP i zapasy przed pierwszym malowaniem), krótszy loader bez zapasów (interakcja, błąd obrazu, `load` + 500 ms, limit DCL + 3 s - bez nich boot zależałby od jednego wpisu LCP) albo bez `STORED_SESSION_EXPR` (zalogowani czekaliby na LCP), zestaw w ciele (miejsce wstrzyknięcia wyznacza bufor routera, nie kod aplikacji). Pozostałe metryki bez zmiany progu: `htmlRawBytes` +1 855 B, `inlineScriptBytes` +3 034 B, `inlineExecutableScriptBytes` +2 054 B, `dehydratedStateBytes` -793 B (manifest bez URL-i w `$tsr`), `bootClosureGzipBytes` +137 B (sonda) - wszystkie w dotychczasowych progach.",
     "",
-    "P3.7a (fala 3, 2026-10-08) - NOWA METRYKA `inlineCssCommentBytes` (bajty komentarzy `/* */` w inline `<style>`; definicja: komentarz pola w documentWeight.ts). Statyczne literały CSS (`TICKER_CSS`, `SHARED_STYLES` slidera, most `globalColorsToCss`, `SEARCH_WIDGET_CSS`) minifikuje w buildzie `scripts/lib/staticCssPlugin.ts`, więc komentarz w dokumencie znaczy, że wtyczka nie zadziałała albo doszedł nowy nieminifikowany arkusz. Dokument fixture bazy (7c924ae5 i P3.3, 5 348 B): slider 2 130 + most marki 1 511 + pasek trendów 1 190 + `data-content-area` 517 B. Po P3.7a zostaje WYŁĄCZNIE szablon `src/components/ContentAreaStyle.tsx` (krok S1g wyłączony z P3.7a, bo plik należy do P3.8): 517 B, treść stała (szablon, nie dane), więc próg = ta wartość bez zapasu 2%. Cel 0 po minifikacji `ContentAreaStyle` (S1g). Pozostałe progi bez zmian - ratchet po pomiarze artefaktu robi orkiestrator."
+    "P3.7a (fala 3, 2026-10-08) - NOWA METRYKA `inlineCssCommentBytes` (bajty komentarzy `/* */` w inline `<style>`; definicja: komentarz pola w documentWeight.ts). Statyczne literały CSS (`TICKER_CSS`, `SHARED_STYLES` slidera, most `globalColorsToCss`, `SEARCH_WIDGET_CSS`) minifikuje w buildzie `scripts/lib/staticCssPlugin.ts`, więc komentarz w dokumencie znaczy, że wtyczka nie zadziałała albo doszedł nowy nieminifikowany arkusz. Dokument fixture bazy (7c924ae5 i P3.3, 5 348 B): slider 2 130 + most marki 1 511 + pasek trendów 1 190 + `data-content-area` 517 B. Po P3.7a zostaje WYŁĄCZNIE szablon `src/components/ContentAreaStyle.tsx` (krok S1g wyłączony z P3.7a, bo plik należy do P3.8): 517 B, treść stała (szablon, nie dane), więc próg = ta wartość bez zapasu 2%. Cel 0 po minifikacji `ContentAreaStyle` (S1g). Pozostałe progi bez zmian - ratchet po pomiarze artefaktu robi orkiestrator.",
+    "",
+    "P3.2b (fala 3, 2026-10-09) - NOWA METRYKA `fontPreloadCount` (unikalne preloadowane fonty z `<head>` i nagłówka `Link` łącznie; definicja: komentarz pola w documentWeight.ts). Decyzja właściciela 2026-10-08: jedynym fontem w ścieżce krytycznej jest Red Hat Display (jeden plik latin + polskie litery, ten sam dla PL i EN), a zasady pilnuje bramka CI, bez blokowania krojów dodawanych w CMS (te nie mają preloadu). Baza fali (d5bd11fb) preloadowała na PL dwa pliki (latin + latin-ext) - po P3.2b jeden; wartość wynika z kodu (`rootDocumentLinks`/`rootLinkHeaderValues` wskazują ten sam plik, test `src/lib/ci/__tests__/fontGlyphCoverage.test.ts` liczy ją `analyzeDocument` na wyjściu tych funkcji), więc próg = 1 bez zapasu. Pozostałe progi bez zmian (P3.2b zdejmuje wpis `Link` i duplikat preloadu fontu: `linkHeaderEntries` 5 -> 4, `preloadDuplicates` 3 -> 2 - ratchet po pomiarze artefaktu robi orkiestrator)."
   ],
   "path": "/",
   "measuredAt": "2026-10-03",
@@ -68,6 +70,11 @@
       "max": 517,
       "measured": 517,
       "target": 0
+    },
+    "fontPreloadCount": {
+      "max": 1,
+      "measured": 1,
+      "target": 1
     },
     "inlineScriptBytes": {
       "max": 98103,
