@@ -6,8 +6,13 @@
 // Miał 0% pokrycia, a jego dwie ścieżki mają PRZECIWNE koszty pomyłki:
 //   * za mało reloadów -> biały ekran po każdym deployu;
 //   * za dużo reloadów -> PĘTLA przeładowań, czyli strona nie do użycia.
-// Strażnik w `sessionStorage` jest tu jedyną rzeczą, która oddziela jedno od
-// drugiego - i to jego przede wszystkim sprawdzają asercje niżej.
+// Strażnik przeładowania jest tu jedyną rzeczą, która oddziela jedno od
+// drugiego - i to jego przede wszystkim sprawdzają asercje niżej. Ma warstwy:
+// `sessionStorage`, a gdy magazyn jest zablokowany albo pełny, `?_v=` w adresie
+// (bieżącym i tym, pod którym załadowano dokument). Pętlę widać dopiero na
+// DWÓCH dokumentach, więc testy strażnika symulują przeładowanie: świeży import
+// modułu (pamięć modułu znika), adres z `location.replace` i to, co przeżywa
+// nawigację w tej samej karcie (`sessionStorage`, jeśli działa).
 //
 // USTALENIE, KTÓRE ZMIENIA ZAKRES TESTU. Zadanie opisywało ten plik jako
 // „czystą funkcję: ta sama wersja daje ten sam odcisk, zmiana zasobu zmienia
@@ -21,7 +26,22 @@
 // w środowisku jsdom; jej rolę opisuje komentarz w kodzie.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { handleChunkLoadFailure, startCacheBusting, type SoftRefreshable } from "../cacheBusting";
+import type { SoftRefreshable } from "../cacheBusting";
+
+type CacheBustingModule = typeof import("../cacheBusting");
+
+let startCacheBusting: CacheBustingModule["startCacheBusting"];
+let handleChunkLoadFailure: CacheBustingModule["handleChunkLoadFailure"];
+
+/**
+ * Świeża instancja modułu = nowy dokument. Moduł pamięta reload wydany
+ * w bieżącym dokumencie, więc każdy test (i każde symulowane przeładowanie)
+ * dostaje własną instancję.
+ */
+async function loadModule(): Promise<void> {
+  vi.resetModules();
+  ({ startCacheBusting, handleChunkLoadFailure } = await import("../cacheBusting"));
+}
 
 /** Router w kształcie, którego ten moduł faktycznie używa - bez rzutowań. */
 function fakeRouter() {
@@ -37,27 +57,68 @@ const START_URL = "https://przyklad.test/analizy";
 let replace: ReturnType<typeof vi.fn>;
 let stop: () => void;
 let originalLocation: PropertyDescriptor | undefined;
+let originalStorage: PropertyDescriptor | undefined;
+
+function setLocation(href: string): void {
+  Object.defineProperty(window, "location", { configurable: true, value: { href, replace } });
+}
+
+/**
+ * Nowy dokument pod adresem `href`: bieżący adres i wpis nawigacji
+ * (Performance API), czyli adres, pod którym przeglądarka go załadowała.
+ */
+function openDocument(href: string): void {
+  setLocation(href);
+  vi.spyOn(performance, "getEntriesByType").mockImplementation((type) =>
+    type === "navigation" ? [{ name: href } as PerformanceEntry] : [],
+  );
+}
+
+/** Chrome/Firefox/Safari przy zablokowanych cookies: sam dostęp do magazynu rzuca. */
+function blockStorage(): void {
+  Object.defineProperty(window, "sessionStorage", {
+    configurable: true,
+    get() {
+      throw new DOMException("The operation is insecure.", "SecurityError");
+    },
+  });
+}
+
+/**
+ * Pełna quota albo prywatne Safari <= 10: odczyt działa (pusto), zapis rzuca.
+ * Atrapa całego magazynu, bo happy-dom przypina metody do instancji przy
+ * pierwszym użyciu i szpieg na `Storage.prototype` bywa wtedy omijany.
+ */
+function fullStorage() {
+  const setItem = vi.fn<(key: string, value: string) => void>(() => {
+    throw new DOMException("Quota exceeded", "QuotaExceededError");
+  });
+  Object.defineProperty(window, "sessionStorage", {
+    configurable: true,
+    value: { getItem: () => null, setItem },
+  });
+  return setItem;
+}
 
 /** Adresy, na które moduł kazał przeładować stronę. */
 function reloadedTo(): string[] {
   return replace.mock.calls.map((call) => String(call[0]));
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.useFakeTimers();
   // Data bazowa ustalona: strażnik reloadu porównuje znaczniki czasu, więc
   // `Date.now()` musi być sterowalny, a nie „teraz".
   vi.setSystemTime(new Date("2026-08-21T10:00:00.000Z"));
   replace = vi.fn();
   originalLocation = Object.getOwnPropertyDescriptor(window, "location");
-  Object.defineProperty(window, "location", {
-    configurable: true,
-    value: { href: START_URL, replace },
-  });
+  originalStorage = Object.getOwnPropertyDescriptor(window, "sessionStorage");
+  openDocument(START_URL);
   sessionStorage.clear();
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   stop = () => undefined;
+  await loadModule();
 });
 
 afterEach(() => {
@@ -65,6 +126,7 @@ afterEach(() => {
   // drugi test w pliku dostawałby no-op zamiast działającego modułu.
   stop();
   if (originalLocation) Object.defineProperty(window, "location", originalLocation);
+  if (originalStorage) Object.defineProperty(window, "sessionStorage", originalStorage);
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -160,11 +222,9 @@ describe("chunk-load error -> twardy reload", () => {
   });
 
   it("zablokowany `sessionStorage` nie blokuje odzyskania strony", () => {
-    // Tryb prywatny odbiera magazyn; wtedy lepiej przeładować bez strażnika
-    // niż zostawić czytelnika z białym ekranem.
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
-      throw new Error("odmowa dostępu");
-    });
+    // Tryb prywatny odbiera magazyn, a pierwszy odzysk po deployu i tak musi
+    // się odbyć - strażnik niesie wtedy `_v` w adresie (testy niżej).
+    blockStorage();
     stop = startCacheBusting(fakeRouter());
     window.dispatchEvent(new ErrorEvent("error", { error: new Error("ChunkLoadError") }));
     expect(reloadedTo()).toHaveLength(1);
@@ -175,6 +235,147 @@ describe("chunk-load error -> twardy reload", () => {
     stop = startCacheBusting(fakeRouter());
     window.dispatchEvent(new ErrorEvent("error", { error: new Error("ChunkLoadError") }));
     expect(reloadedTo()).toHaveLength(1);
+  });
+});
+
+// Pętla przeładowań: trwale niedostępny chunk (adblock, CSP, proxy) wraca po
+// każdym reloadzie. Strażnik w `sessionStorage` nie zadziała, gdy magazyn jest
+// zablokowany (zablokowane cookies, WebView bez DOM storage) albo pełny
+// (odczyt działa, zapis rzuca). Wtedy decyzję musi unieść znacznik, który
+// przeżywa `location.replace` bez magazynu: `?_v=` w adresie.
+describe("strażnik bez magazynu: przeładowanie najwyżej raz na okienko", () => {
+  const CHUNK_ERROR = new TypeError("Failed to fetch dynamically imported module: /assets/x.js");
+  const KEY = "__lov_cb_reload";
+
+  /**
+   * Przeładowanie: przeglądarka otwiera `href` w NOWYM dokumencie po `afterMs`.
+   * Pamięć modułu znika (świeży import), zostaje adres i `sessionStorage`,
+   * jeśli działa.
+   */
+  async function reloadInto(href: string, afterMs = 3_000): Promise<void> {
+    stop();
+    stop = () => undefined;
+    vi.advanceTimersByTime(afterMs);
+    openDocument(href);
+    await loadModule();
+  }
+
+  /** Adres ostatniego `location.replace`. */
+  function lastReload(): string {
+    return reloadedTo()[reloadedTo().length - 1];
+  }
+
+  it("magazyn zablokowany: ten sam błąd po przeładowaniu już nie przeładowuje", async () => {
+    blockStorage();
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+
+    await reloadInto(lastReload());
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+  });
+
+  it("odczyt działa, zapis rzuca QuotaExceededError: strażnik i tak działa", async () => {
+    const setItem = fullStorage();
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+    expect(setItem).toHaveBeenCalled();
+
+    await reloadInto(lastReload());
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+  });
+
+  it("po okienku 15 s kolejny błąd znów przeładowuje - raz na okienko, nie w pętli", async () => {
+    // Kolejny deploy to nowa sytuacja: wygasły znacznik nie może blokować
+    // odzysku na resztę wizyty, choć `_v` zostaje w adresie.
+    blockStorage();
+    handleChunkLoadFailure(CHUNK_ERROR);
+    await reloadInto(lastReload(), 3_000);
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+
+    vi.advanceTimersByTime(12_001);
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(2);
+
+    await reloadInto(lastReload());
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(2);
+  });
+
+  it("para `error` + `unhandledrejection` w jednym dokumencie daje jedno `location.replace`", () => {
+    blockStorage();
+    stop = startCacheBusting(fakeRouter());
+    window.dispatchEvent(new ErrorEvent("error", { error: CHUNK_ERROR }));
+    const rejection = new Event("unhandledrejection");
+    Object.defineProperty(rejection, "reason", { value: CHUNK_ERROR });
+    window.dispatchEvent(rejection);
+    expect(reloadedTo()).toHaveLength(1);
+  });
+
+  it("adres zmieniony w nowym dokumencie bez `_v` (replaceState) - decyduje adres załadowania", async () => {
+    // AutoLoadNextPost, ClubHub czy /scanner?t przepisują pasek adresu
+    // natywnym `history.replaceState` jeszcze przed błędem.
+    blockStorage();
+    handleChunkLoadFailure(CHUNK_ERROR);
+    await reloadInto(lastReload());
+    setLocation(START_URL);
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+  });
+
+  it("bez wpisu nawigacji w Performance API (Safari < 15) decyduje bieżący adres", async () => {
+    blockStorage();
+    handleChunkLoadFailure(CHUNK_ERROR);
+    await reloadInto(lastReload());
+    vi.spyOn(performance, "getEntriesByType").mockReturnValue([]);
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+  });
+
+  const NOW = Date.parse("2026-08-21T10:00:00.000Z");
+  it.each([
+    { nazwa: "stary (sprzed minuty, zakładka)", v: (NOW - 60_000).toString(36) },
+    { nazwa: "z przyszłości (cudzy zegar)", v: (NOW + 1_000).toString(36) },
+    { nazwa: "śmieciowy", v: "nie-znacznik" },
+    // `parseInt` przeczytałby świeży czas z przedrostka - liczy się tylko
+    // dokładnie format, który zapisuje reload.
+    { nazwa: "świeży czas z doklejonym ogonem", v: `${(NOW - 1_000).toString(36)}-x` },
+    { nazwa: "pusty", v: "" },
+  ])("$nazwa `_v` nie wstrzymuje odzysku i zostaje zastąpiony świeżym", async ({ v }) => {
+    blockStorage();
+    openDocument(`${START_URL}?_v=${encodeURIComponent(v)}`);
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+    expect(new URL(lastReload()).searchParams.get("_v")).toBe(NOW.toString(36));
+
+    // Dopiero świeży znacznik z tego reloadu zatrzymuje następny.
+    await reloadInto(lastReload());
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+  });
+
+  it("znacznik w magazynie z przyszłości (cofnięty zegar) nie blokuje odzysku", () => {
+    sessionStorage.setItem(KEY, String(NOW + 60_000));
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+  });
+
+  it("działający magazyn: decyduje dotychczasowy strażnik (ten sam klucz, format i TTL)", async () => {
+    // Bez `_v` w adresie zostaje wyłącznie `sessionStorage` - ścieżka sprzed
+    // zmiany.
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+    expect(sessionStorage.getItem(KEY)).toBe(String(NOW));
+
+    await reloadInto(START_URL, 14_000);
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(1);
+
+    vi.advanceTimersByTime(1_001);
+    handleChunkLoadFailure(CHUNK_ERROR);
+    expect(reloadedTo()).toHaveLength(2);
   });
 });
 
