@@ -27,6 +27,7 @@ import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
 import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
 import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim";
 import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin";
+import { staticCssPlugin } from "./scripts/lib/staticCssPlugin";
 import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";
 
 // Identyfikator buildu dla kluczy L2 (P3.6a): segment kluczy dokumentów i migawek danych w
@@ -74,6 +75,8 @@ export default defineConfig({
       officeParserTrimPlugin(),
       // Parytet z vite.config.ts: manifest bez preloadów i skryptu wejścia (P2.1).
       bootAfterLcpPlugin(),
+      // Parytet z vite.config.ts: zminifikowane statyczne literały CSS (P3.7a).
+      staticCssPlugin(),
     ],
 
     // P3.6a: identyfikator buildu kluczy L2 (patrz `NES_BUILD_ID` wyżej).

@@ -890,7 +890,7 @@ function TickerPaletteStyle({ vid, palette }: { vid: string; palette: TickerColo
  * `prefers-reduced-motion` (z `!important`, ten sam selektor z atrybutem) -
  * zwykła reguła `.tt-skin--live .tt-chip-icon::before` już by nie wygrała.
  */
-const TICKER_CSS = `
+const TICKER_CSS = /* @nes-static-css */ `
         .cms-trending, .cms-trending *,
         .tt-glass, .tt-glass * {
           font-family: var(--font-display, "Red Hat Display", system-ui, sans-serif);

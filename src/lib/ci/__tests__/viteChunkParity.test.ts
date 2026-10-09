@@ -100,6 +100,20 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     }
   });
 
+  it("oba presety minifikują statyczne literały CSS TĄ SAMĄ wtyczką (P3.7a)", () => {
+    // Smoke bez `staticCssPlugin` niósłby literały z komentarzami i wcięciami, czyli bramka
+    // wagi dokumentu (`inlineCssCommentBytes`) i boot-test mierzyłyby inny dokument i inny
+    // chunk wejściowy niż produkcja.
+    const helperImport = 'import { staticCssPlugin } from "./scripts/lib/staticCssPlugin";';
+    for (const [file, source] of [
+      ["vite.config.ts", main],
+      ["vite.smoke.config.ts", smoke],
+    ] as const) {
+      expect(source, file).toContain(helperImport);
+      expect(source, file).toMatch(/plugins: \[[^\]]*staticCssPlugin\(\)/);
+    }
+  });
+
   it("oba presety wstrzykują TEN SAM identyfikator buildu kluczy L2 (P3.6a)", () => {
     // Klucze L2 dokumentów i migawek danych niosą segment buildu ze stałej `define`. Smoke bez
     // niej budowałby serwer bez identyfikatora (L2 wyłączone w buildzie produkcyjnym), a inny

@@ -98,6 +98,35 @@ function blocks(html: string, tag: "script" | "style"): Block[] {
 }
 
 const byteLength = (s: string) => Buffer.byteLength(s, "utf8");
+
+/**
+ * Bajty komentarzy `/* ... *\/` w tekście CSS (z ogranicznikami). Napisy `"..."`/`'...'`
+ * i ucieczki są pomijane, więc `content: "/*"` nie otwiera komentarza. Niedomknięty
+ * komentarz liczy się do końca tekstu (przeglądarka też go tak czyta).
+ */
+export function cssCommentBytes(css: string): number {
+  let total = 0;
+  let i = 0;
+  while (i < css.length) {
+    const c = css[i];
+    if (c === "\\") {
+      i += 2;
+    } else if (c === '"' || c === "'") {
+      let j = i + 1;
+      while (j < css.length && css[j] !== c && css[j] !== "\n") j += css[j] === "\\" ? 2 : 1;
+      i = j + 1;
+    } else if (c === "/" && css[i + 1] === "*") {
+      const end = css.indexOf("*/", i + 2);
+      const stop = end < 0 ? css.length : end + 2;
+      total += byteLength(css.slice(i, stop));
+      i = stop;
+    } else {
+      i++;
+    }
+  }
+  return total;
+}
+
 const DATA_SCRIPT_TYPES = /^(application\/(ld\+)?json|speculationrules|importmap)$/i;
 
 /** Sufiks ścieżki `/assets/x.js` -> nazwa pliku w `.output/public/assets`. */
@@ -247,6 +276,14 @@ export interface DocumentWeight {
   readonly inlineStyleCount: number;
   readonly inlineStyleBytes: number;
   readonly inlineStyleLargestBytes: number;
+  /**
+   * Bajty komentarzy CSS w inline `<style>` (P3.7a). Statyczne literały CSS (`TICKER_CSS`,
+   * `SHARED_STYLES` slidera, most `globalColorsToCss`, `SEARCH_WIDGET_CSS`) minifikuje
+   * w buildzie `scripts/lib/staticCssPlugin.ts`; komentarz w dokumencie znaczy, że wtyczka
+   * nie zadziałała (znacznik zniknął, inna wtyczka `pre` przepisała plik) albo że doszedł
+   * nowy nieminifikowany arkusz. Martwe bajty parsowane w każdym dokumencie.
+   */
+  readonly inlineCssCommentBytes: number;
   readonly inlineScriptCount: number;
   readonly inlineScriptBytes: number;
   /** Inline skrypty wykonywalne (bez JSON-LD, speculationrules, importmap). */
@@ -572,6 +609,7 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     inlineStyleCount: styles.length,
     inlineStyleBytes: styles.reduce((s, b) => s + byteLength(b.content), 0),
     inlineStyleLargestBytes: Math.max(0, ...styles.map((b) => byteLength(b.content))),
+    inlineCssCommentBytes: styles.reduce((s, b) => s + cssCommentBytes(b.content), 0),
     inlineScriptCount: inline.length,
     inlineScriptBytes: inline.reduce((s, b) => s + byteLength(b.content), 0),
     inlineExecutableScriptBytes: inline
@@ -632,6 +670,8 @@ export const GATED_METRICS = [
   "headRawBytes",
   "inlineStyleCount",
   "inlineStyleBytes",
+  // P3.7a - komentarze w inline `<style>` (definicja: komentarz pola wyżej).
+  "inlineCssCommentBytes",
   "inlineScriptBytes",
   "inlineExecutableScriptBytes",
   "dehydratedStateBytes",
