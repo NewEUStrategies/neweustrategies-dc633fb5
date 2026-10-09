@@ -402,17 +402,28 @@ describe("video", () => {
       const iframe = container.querySelector("iframe") as HTMLIFrameElement;
       const { sent, reply } = stubYouTubeFrame(iframe);
       act(() => __openMotionGateForTests());
-      // Odtwarzacz ładuje się długo: strona woła dalej (jedno wołanie od razu + co 250 ms).
+      // Ramka nie odpowiada (zablokowana albo ładuje się długo): jedna runda wołania
+      // ma limit ~10 s (40 wołań co 250 ms), potem strona przestaje budzić wątek główny.
       act(() => {
         vi.advanceTimersByTime(30_000);
       });
-      expect(sent()).toHaveLength(121);
+      expect(sent()).toHaveLength(40);
+      // Ramka załadowana później: jej `load` zaczyna świeżą rundę.
+      act(() => {
+        iframe.dispatchEvent(new Event("load"));
+      });
+      expect(sent()).toHaveLength(41);
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(sent()).toHaveLength(43);
       reply({ event: "onReady" });
       expect(sent().at(-1)).toBe("playVideo");
       act(() => {
         vi.advanceTimersByTime(5_000);
+        iframe.dispatchEvent(new Event("load"));
       });
-      expect(sent()).toHaveLength(122);
+      expect(sent()).toHaveLength(44);
 
       // Odmontowanie przed odpowiedzią: żadnego wołania ani polecenia później.
       cleanup();

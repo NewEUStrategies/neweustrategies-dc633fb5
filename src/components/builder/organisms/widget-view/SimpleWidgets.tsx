@@ -166,6 +166,13 @@ function WidgetVideo({
 const YOUTUBE_ORIGIN = "https://www.youtube.com";
 /** Krok uzgadniania z odtwarzaczem YouTube (jak `iframe_api`: co 250 ms). */
 const YOUTUBE_HANDSHAKE_MS = 250;
+/**
+ * Limit jednej rundy uzgadniania (~10 s). Ramka zablokowana (rozszerzenie, CSP,
+ * brak sieci) nigdy nie odpowie - bez limitu strona budziłaby wątek główny
+ * 4 razy na sekundę do końca życia karty. Ramka, która załaduje się później,
+ * dostaje świeżą rundę z jej zdarzenia `load`.
+ */
+const YOUTUBE_HANDSHAKE_MAX_ATTEMPTS = 40;
 
 /**
  * Osadzenie YouTube. Autoplay NIE idzie parametrem `autoplay=1` (odtwarzacz
@@ -179,9 +186,10 @@ const YOUTUBE_HANDSHAKE_MS = 250;
  * ramce nasłuchuje, przepada bez śladu - przy wczesnym otwarciu bramki
  * autoplay po cichu by nie nastąpił. Dlatego strona, tak jak `iframe_api`,
  * woła `{"event":"listening"}` co 250 ms do pierwszej odpowiedzi odtwarzacza
- * (ramka ładująca się długo też ją w końcu da), a `playVideo` wysyła dopiero
- * po `onReady` z originu YouTube i z TEJ ramki - odtwarzacz podłączony już
- * po swoim załadowaniu też odpowiada `onReady`.
+ * (najwyżej ~10 s na rundę; ramka ładująca się dłużej dostaje nową rundę z
+ * własnego zdarzenia `load`), a `playVideo` wysyła dopiero po `onReady` z
+ * originu YouTube i z TEJ ramki - odtwarzacz podłączony już po swoim
+ * załadowaniu też odpowiada `onReady`.
  */
 function YouTubeEmbed({
   videoId,
@@ -201,21 +209,42 @@ function YouTubeEmbed({
     if (!autoplay || !motion || !frame) return;
     const send = (message: object) =>
       frame.contentWindow?.postMessage(JSON.stringify(message), YOUTUBE_ORIGIN);
-    const listen = () => send({ event: "listening" });
-    const timer = window.setInterval(listen, YOUTUBE_HANDSHAKE_MS);
+    let timer: number | undefined;
+    let attempts = 0;
+    const stop = () => {
+      window.clearInterval(timer);
+      timer = undefined;
+    };
+    const listen = () => {
+      send({ event: "listening" });
+      attempts += 1;
+      if (attempts >= YOUTUBE_HANDSHAKE_MAX_ATTEMPTS) stop();
+    };
+    // Jedna ograniczona runda wołania; `load` ramki zaczyna nową (późne załadowanie).
+    const round = () => {
+      stop();
+      attempts = 0;
+      listen();
+      if (timer === undefined && attempts < YOUTUBE_HANDSHAKE_MAX_ATTEMPTS) {
+        timer = window.setInterval(listen, YOUTUBE_HANDSHAKE_MS);
+      }
+    };
     const onMessage = (event: MessageEvent) => {
       if (event.source !== frame.contentWindow || event.origin !== YOUTUBE_ORIGIN) return;
-      window.clearInterval(timer);
+      stop();
+      frame.removeEventListener("load", round);
       if (String(event.data).includes('"event":"onReady"')) {
         window.removeEventListener("message", onMessage);
         send({ event: "command", func: "playVideo", args: [] });
       }
     };
     window.addEventListener("message", onMessage);
-    listen();
+    frame.addEventListener("load", round);
+    round();
     return () => {
-      window.clearInterval(timer);
+      stop();
       window.removeEventListener("message", onMessage);
+      frame.removeEventListener("load", round);
     };
   }, [autoplay, motion]);
   const params = new URLSearchParams();
