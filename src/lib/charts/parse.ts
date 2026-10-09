@@ -20,6 +20,9 @@ import {
   type MapRegion,
 } from "./types";
 import { slotForSeries } from "@/lib/charts/palette";
+import { isChartPalette } from "./seriesStyle";
+import { isMetricDirection, type ChartBand, type ChartTarget } from "./status";
+import { isProvenance, isReliability, MAX_CHART_SOURCES, type ChartSource } from "./sources";
 
 export const CHART_HEIGHT_MIN = 160;
 export const CHART_HEIGHT_MAX = 640;
@@ -122,7 +125,76 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     notesSurprising: String(data.notesSurprising ?? ""),
     notesHidden: String(data.notesHidden ?? ""),
     metric: parseChartMetric(data.metric),
+    // Brak klucza = paleta ze specyfikacji (akcent + neutralne). Paletę
+    // kategorialną autor wybiera jawnie - wtedy wracają kolory slotów.
+    palette: isChartPalette(data.palette) ? data.palette : "focus",
+    band: parseChartBand(data.band),
+    target: parseChartTarget(data.target),
+    direction: isMetricDirection(data.direction) ? data.direction : null,
+    provenance: isProvenance(data.provenance) ? data.provenance : null,
+    demo: data.demo === true,
+    sources: parseChartSources(data.sources),
+    caption: String(data.caption ?? ""),
   };
+}
+
+/**
+ * Pasmo optimum. Odwrócone krawędzie są zamieniane miejscami (autor wpisał
+ * „4" i „2" - chodziło mu o przedział 2-4), a pasmo bez obu krawędzi
+ * liczbowych nie istnieje. Źródło jest tylko WSKAZANIEM; czy pasmo wolno
+ * narysować, rozstrzyga `effectiveBand` z listą źródeł w ręku.
+ */
+export function parseChartBand(raw: Json | undefined): ChartBand | null {
+  const o = asRecord(raw);
+  const a = num(o.min);
+  const b = num(o.max);
+  if (a === null || b === null) return null;
+  const sourceId = String(o.sourceId ?? "").trim();
+  return {
+    min: Math.min(a, b),
+    max: Math.max(a, b),
+    sourceId: sourceId === "" ? null : sourceId,
+    demo: o.demo === true,
+  };
+}
+
+/** Linia celu: `{ value }` z bloku CMS albo sama liczba / napis liczbowy z widgetu. */
+export function parseChartTarget(raw: Json | undefined): ChartTarget | null {
+  const value = num(typeof raw === "number" || typeof raw === "string" ? raw : asRecord(raw).value);
+  return value === null ? null : { value };
+}
+
+/**
+ * Źródła wykresu. Wpis bez tytułu i bez adresu nie identyfikuje niczego,
+ * więc odpada; identyfikator jest uzupełniany pozycją, gdy autor go nie
+ * nadał - pasmo musi mieć na co wskazać. Duplikaty identyfikatora dostają
+ * przyrostek, inaczej przypis wskazywałby dwa różne źródła naraz.
+ */
+export function parseChartSources(raw: Json | undefined): ChartSource[] {
+  if (!Array.isArray(raw)) return [];
+  const out: ChartSource[] = [];
+  const seen = new Set<string>();
+  for (const item of raw.slice(0, MAX_CHART_SOURCES)) {
+    const o = asRecord(item);
+    const title = String(o.title ?? "").trim();
+    const url = String(o.url ?? "").trim();
+    if (title === "" && url === "") continue;
+    let id = String(o.id ?? "").trim() || `s${out.length + 1}`;
+    while (seen.has(id)) id = `${id}-${out.length + 1}`;
+    seen.add(id);
+    out.push({
+      id,
+      author: String(o.author ?? "").trim(),
+      title,
+      container: String(o.container ?? "").trim(),
+      publisher: String(o.publisher ?? "").trim(),
+      published: String(o.published ?? "").trim(),
+      accessed: String(o.accessed ?? "").trim(),
+      url,
+      reliability: isReliability(o.reliability) ? o.reliability : null,
+    });
+  }
+  return out;
 }
 
 /**

@@ -175,6 +175,13 @@ const GATED_PREFIXES = [
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,
 // skróty, jednostki).
 const IDENTICAL_ALLOWLIST: readonly string[] = [
+  // System wykresów: „Status", „demo" i „optimum" to te same słowa w obu
+  // językach (etykieta wiersza tooltipa, znaczek danych demonstracyjnych,
+  // nazwa pasma i strefy skali przedziału).
+  "charts.tip.status",
+  "charts.panel.demo",
+  "charts.band.labelDemo",
+  "charts.kpi.optimum",
   // Nazwy własne poziomów członkostwa i ról - tłumaczenie byłoby błędem.
   "adminPermissions.caps.presidents_circle",
   "adminPermissions.roles.super_admin.name",

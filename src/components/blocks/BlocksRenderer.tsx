@@ -48,6 +48,12 @@ interface Props {
 export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) {
   const { t } = useTranslation();
   const articleRef = useRef<HTMLElement | null>(null);
+  // Język opisu źródeł wykresów („Dostęp" / „Accessed") - czytany z refu, bo
+  // przygotowanie dokumentu zależy od TREŚCI, nie od właściwości prezentacji:
+  // dokument ma jeden język, a zmiana `lang` przy tym samym dokumencie nie może
+  // powtarzać parsowania i numeracji przypisów.
+  const langRef = useRef(lang);
+  langRef.current = lang;
   // Validation and footnotes depend on document content, not language/context
   // rerenders. This cache belongs to this renderer, never to another request.
   const { contentBlocks, fn, fnHtml, hasBlocks, inlineEntities } = useMemo(() => {
@@ -63,7 +69,7 @@ export function BlocksRenderer({ doc, lang = "pl", postId, tenantHost }: Props) 
     // a rejestr ma własną walidację (`normalizeInlineEntityRegistry`), więc
     // jeden wadliwy blok nie odbiera encji blokom poprawnym.
     const registry = readInlineEntities(doc);
-    precomputeFootnotes(contentBlocks, fn, fnHtml, registry);
+    precomputeFootnotes(contentBlocks, fn, fnHtml, registry, langRef.current);
     const inlineEntities = referencedInlineEntities(contentBlocks, registry);
     return { contentBlocks, fn, fnHtml, hasBlocks: safe.blocks.length > 0, inlineEntities };
   }, [doc]);

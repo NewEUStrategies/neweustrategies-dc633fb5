@@ -85,10 +85,48 @@ export function clampBarRadius(
 ): number {
   const inset = opts.inset ?? BAR_EDGE_INSET;
   const alongLimit = opts.bordered === false ? along / 2 : along - 2 * inset;
-  return Math.max(0, Math.min(CHART_RADIUS, across / 2, alongLimit));
+  return Math.max(0, Math.min(BAR_RADIUS, across / 2, alongLimit));
 }
-/** Rozmiar etykiet osi. Na nim stoi heurystyka szerokości i marginesy SSR. */
-export const FONT_AXIS = 11;
+
+/**
+ * Promień zaokrąglenia KOŃCA DANYCH słupka - 4 px, mniej niż karta (6 px).
+ * Słupek ma maksymalnie 22 px szerokości; przy promieniu karty jego szczyt
+ * byłby w połowie łukiem i koniec wartości przestawałby być ostry.
+ */
+export const BAR_RADIUS = 4;
+
+/**
+ * Szerokość kontenera, poniżej której wykres przechodzi w układ zwarty:
+ * mniejsze fonty, legenda zamiast etykiet na końcu linii, węższa kolumna
+ * etykiet w słupkach poziomych, mniejszy prawy margines.
+ */
+export const COMPACT_WIDTH = 600;
+
+export function isCompact(width: number): boolean {
+  return width < COMPACT_WIDTH;
+}
+
+/** Rozmiar etykiet osi: 11,5 px, w układzie zwartym 10,5 px. */
+export const FONT_AXIS = 11.5;
+export const FONT_AXIS_COMPACT = 10.5;
+
+export function axisFontSize(width: number): number {
+  return isCompact(width) ? FONT_AXIS_COMPACT : FONT_AXIS;
+}
+
+/** Tekst wykresu (etykiety pasma, celu, prognozy): 12 px, zwarty 11 px. */
+export const FONT_CHART = 12;
+export const FONT_CHART_COMPACT = 11;
+
+export function chartFontSize(width: number): number {
+  return isCompact(width) ? FONT_CHART_COMPACT : FONT_CHART;
+}
+
+/** Etykiety wartości nad słupkiem i etykieta pasma: 11 px. */
+export const FONT_VALUE = 11;
+
+/** Nazwa serii przy końcu linii: 11,5 px, pogrubiona. */
+export const FONT_END_LABEL = 11.5;
 
 /**
  * Docelowa liczba podziałek osi wartości.
@@ -105,7 +143,32 @@ export function valueTickTarget(height: number, horizontal: boolean): number {
 }
 
 /** Maksymalna szerokość słupka - szerszy przestaje być słupkiem, staje się polem. */
-export const BAR_MAX = 24;
+export const BAR_MAX = 22;
+
+/** Maksymalna szerokość słupka SKUMULOWANEGO - stos niesie kilka wartości. */
+export const BAR_MAX_STACKED = 34;
+
+/** Część pasma kategorii zajęta przez grupę słupków (odstęp kategorii 20%). */
+export const BAR_GROUP_FILL = 0.8;
+
+/** Odstęp między słupkami serii w grupie - jako ułamek szerokości słupka. */
+export const BAR_SERIES_GAP = 0.25;
+
+/**
+ * Szerokość słupka i odstęp między słupkami grupy dla pasma kategorii.
+ * `count` to liczba słupków obok siebie (1 przy stosie i mostku).
+ */
+export function barLayout(
+  band: number,
+  count: number,
+  stacked: boolean,
+): { width: number; gap: number } {
+  const k = Math.max(1, count);
+  const group = band * BAR_GROUP_FILL;
+  const fit = group / (k + (k - 1) * BAR_SERIES_GAP);
+  const width = Math.max(1, Math.min(stacked ? BAR_MAX_STACKED : BAR_MAX, fit));
+  return { width, gap: k > 1 ? width * BAR_SERIES_GAP : 0 };
+}
 
 /** Prześwit w kolorze powierzchni między stykającymi się znacznikami. */
 export const BAR_GAP = 2;
@@ -168,12 +231,40 @@ export function snapToGrid(value: number): number {
 /** Stały margines pod obszarem kreślenia na poziome etykiety kategorii. */
 export const PAD_BOTTOM = 24;
 
-/** Stały margines nad obszarem kreślenia; 24 gdy trzeba miejsca na etykiety. */
-export const PAD_TOP = 12;
-export const PAD_TOP_WITH_LABELS = 24;
+/**
+ * Margines nad obszarem kreślenia: 30 px. Mieści nazwę osi (jednostkę) nad
+ * osią wartości oraz etykiety wartości nad najwyższym słupkiem.
+ */
+export const PAD_TOP = 30;
+export const PAD_TOP_WITH_LABELS = 30;
 
-/** Stały margines boczny; lewy rośnie z etykietami osi. */
+/** Margines boczny między etykietami a obszarem kreślenia. */
 export const PAD_SIDE = 12;
+
+/** Lewy margines od krawędzi karty do etykiet osi wartości. */
+export const PAD_LEFT_EDGE = 6;
+
+/** Prawy margines obszaru kreślenia: 24 px, w układzie zwartym 14 px. */
+export const PAD_RIGHT = 24;
+export const PAD_RIGHT_COMPACT = 14;
+
+export function padRightFor(width: number): number {
+  return isCompact(width) ? PAD_RIGHT_COMPACT : PAD_RIGHT;
+}
+
+/**
+ * Zapas nad najwyższym punktem, pasmem albo celem - 4% rozpiętości, zanim
+ * maksimum osi zostanie zaokrąglone do „ładnej" wartości. Bez zapasu punkt
+ * na maksimum dotyka krawędzi rysunku i jego obwódka jest przycinana.
+ */
+export const VALUE_HEADROOM = 0.04;
+
+/** Powyżej tylu punktów na osi wykres dostaje przewijanie, przybliżanie i suwak. */
+export const ZOOM_MIN_POINTS = 30;
+
+/** Wysokość suwaka zakresu i odstęp od obszaru kreślenia. */
+export const SLIDER_HEIGHT = 18;
+export const SLIDER_GAP = 10;
 
 /**
  * Podłogi obszaru kreślenia. Poniżej nich rysunek przestaje być rysunkiem,
@@ -195,17 +286,18 @@ export const PAD_LEFT_CATEGORY_MIN = 48;
 /** Górna granica marginesu na etykiety kategorii przy słupkach poziomych. */
 export const CATEGORY_LABEL_MAX_WIDTH = 180;
 
+/** Ta sama granica w układzie zwartym - kolumna etykiet nie zjada wykresu. */
+export const CATEGORY_LABEL_MAX_WIDTH_COMPACT = 112;
+
 /** Po tylu znakach etykieta kategorii słupka poziomego jest ucinana - Z TOOLTIPEM. */
 export const CATEGORY_LABEL_MAX_CHARS = 24;
 
 /**
- * Powyżej tylu punktów kropki obserwacji przestają być rysowane dla samej
- * wygody czytania: przy łamanej wierzchołki i tak SĄ danymi (widać je jako
- * zmiany kierunku), więc kropka jest tam ozdobą, a gęsty szereg zlewa się
- * w pasek. Ten próg NIE dotyczy linii wygładzonej - tam kropki są warunkiem
- * uczciwości i decyduje `shouldShowDots`.
+ * Powyżej tylu punktów punkty obserwacji są CHOWANE i pojawiają się tylko pod
+ * kursorem (na aktywnej kategorii). Gęsty szereg z punktem na każdym pomiarze
+ * zlewa się w koralik, a kształt linii przestaje być czytelny.
  */
-export const DOTS_MAX_POINTS = 24;
+export const DOTS_MAX_POINTS = 20;
 
 /**
  * Minimalny odstęp między punktami, przy którym kropki jeszcze się nie
@@ -237,64 +329,62 @@ export function effectiveSmoothing(
 }
 
 /**
- * Czy pokazać punkty obserwacji. Wygładzenie je WYMUSZA (warunek uczciwości);
- * przy łamanej pokazujemy je do progu gęstości.
+ * Czy pokazać punkty obserwacji na stałe. Powyżej progu pokazuje je wyłącznie
+ * wskazanie kursorem - samotny pomiar między lukami rysuje się zawsze, bo
+ * jest jedynym nośnikiem swojej wartości (patrz `CartesianChart`).
  */
-export function shouldShowDots(pointCount: number, smoothing: number): boolean {
-  return smoothing > 0 || pointCount <= DOTS_MAX_POINTS;
+export function shouldShowDots(pointCount: number): boolean {
+  return pointCount <= DOTS_MAX_POINTS;
 }
 
 /**
- * Budżet kaskady animacji: łącznie nie więcej niż tyle, choćby słupków było
- * czterdzieści. Przy czterdziestu słupkach 40 ms na element dałoby 1,6 s -
- * czytelnik czekałby na wykres dłużej niż na stronę.
+ * Animacja wejścia: 400 ms z krzywą cubicOut, aktualizacja danych 300 ms.
+ * Kopia arkusza (`charts.css`) dla bramki - komponent podaje zmienne CSS.
  */
-export const CASCADE_TOTAL_MAX_MS = 500;
-export const CASCADE_STEP_DEFAULT_MS = 40;
-export const CASCADE_STEP_MIN_MS = 8;
+export const ENTRY_MS = 400;
+export const UPDATE_MS = 300;
+export const ENTRY_EASE = "cubic-bezier(0.33, 1, 0.68, 1)";
 
 /**
- * Krok kaskady dla tej liczby znaczników, w milisekundach.
- *
- * DWA WARUNKI, KTÓRE POWYŻEJ ~63 ZNACZNIKÓW SIĘ WYKLUCZAJĄ: krok nie może
- * zejść poniżej podłogi (poniżej 8 ms kaskady nie widać, więc opóźnienie jest
- * tylko opóźnieniem), a całość nie może przekroczyć budżetu. Wygrywa BUDŻET:
- * przy takiej liczbie znaczników kaskada zostaje WYŁĄCZONA (krok 0, wszystko
- * wchodzi razem), bo kaskada, której nie da się zobaczyć, jest samym
- * czekaniem. Zwracamy 0, a nie podłogę, bo 0 jest jedyną odpowiedzią, która
- * nie kłamie o tym, co użytkownik zobaczy.
+ * Krok kaskady wejścia - ZAWSZE zero. Specyfikacja zakazuje efektów wejścia
+ * elementów jeden po drugim: wykres wchodzi jako całość, bo kaskada każe
+ * czytelnikowi czekać na ostatni słupek, zanim porówna pierwszy z nim.
+ * Funkcja zostaje, żeby rendery nie musiały znać tej reguły.
  */
 export function cascadeStepMs(count: number): number {
-  if (count <= 1) return CASCADE_STEP_DEFAULT_MS;
-  const fair = Math.floor(CASCADE_TOTAL_MAX_MS / (count - 1));
-  if (fair < CASCADE_STEP_MIN_MS) return 0;
-  return Math.min(CASCADE_STEP_DEFAULT_MS, fair);
+  void count;
+  return 0;
 }
 
 /**
  * Wartości tokenów delikatności, per motyw - KOPIA arkusza, trzymana wyłącznie
  * dla bramki zgodności. Komponent ich NIE czyta: podaje `var(--chart-*)`
- * i pozwala kaskadzie wybrać motyw. Gdyby czytał, korekta irradiacji
- * wymagałaby gałęzi w JS i przestałaby działać w druku.
+ * i pozwala kaskadzie wybrać wartość.
  */
 export const DELICACY_TOKENS = {
   light: {
     stroke: "2px",
-    dot: "2.8px",
-    dotRing: "1.6px",
+    dot: "3.5px",
+    dotRing: "1.5px",
     labelWeight: "500",
     labelWeightStrong: "600",
     labelWeightTotal: "700",
   },
+  // TE SAME WARTOŚCI: geometria i typografia wykresu nie zależą od motywu.
+  // Arkusz ciemny ich nie redefiniuje, więc dziedziczą z jasnego.
   dark: {
-    stroke: "1.75px",
-    dot: "2.6px",
-    dotRing: "1.4px",
-    labelWeight: "450",
-    labelWeightStrong: "550",
-    labelWeightTotal: "650",
+    stroke: "2px",
+    dot: "3.5px",
+    dotRing: "1.5px",
+    labelWeight: "500",
+    labelWeightStrong: "600",
+    labelWeightTotal: "700",
   },
 } as const;
+
+/** Promień punktu obserwacji w px (średnica 7 px) i grubość jego obwódki. */
+export const DOT_RADIUS = 3.5;
+export const DOT_RING = 1.5;
 
 /** Płyty, wobec których geometria i paleta są mierzone - reeksport dla bramki. */
 export { CHART_PLATE };

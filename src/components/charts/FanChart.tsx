@@ -719,7 +719,7 @@ export function FanChart({ config, lang, onSelect, ariaLabel: nazwaZadana }: Fan
   // tam nie ma pomiarów, i jest to nośnik mocniejszy od kreskowania, bo działa
   // w druku i w skali szarości. Model nie zostawia tu miejsca na pomyłkę:
   // `isObservation` jest `false` w całej prognozie bez wyjątku.
-  const pokazPunkty = shouldShowDots(honesty.observationCount, 0);
+  const pokazPunkty = shouldShowDots(honesty.observationCount);
 
   const tooltipRows: TooltipRow[] = czynny
     ? [
@@ -897,7 +897,7 @@ export function FanChart({ config, lang, onSelect, ariaLabel: nazwaZadana }: Fan
               y={value(tick) + 3.5}
               textAnchor="end"
               fontSize={FONT_AXIS}
-              fill="var(--muted-foreground)"
+              fill="var(--chart-ink3)"
               className="tabular-nums"
             >
               {formatAxisTick(tick, lang)}
@@ -1012,7 +1012,7 @@ export function FanChart({ config, lang, onSelect, ariaLabel: nazwaZadana }: Fan
                 x={granicaX + SEPARATOR_LABEL_GAP}
                 y={PAD_TOP + 11}
                 fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
+                fill="var(--chart-ink3)"
               >
                 {t("forecast.label")}
               </text>
@@ -1040,7 +1040,7 @@ export function FanChart({ config, lang, onSelect, ariaLabel: nazwaZadana }: Fan
                 y={PAD_TOP + innerH + 16}
                 textAnchor="middle"
                 fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
+                fill="var(--chart-ink3)"
               >
                 {s.label}
               </text>

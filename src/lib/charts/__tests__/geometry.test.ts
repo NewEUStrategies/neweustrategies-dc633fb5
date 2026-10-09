@@ -9,25 +9,40 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  BAR_GAP,
   BAR_MAX,
-  CASCADE_STEP_DEFAULT_MS,
-  CASCADE_STEP_MIN_MS,
-  CASCADE_TOTAL_MAX_MS,
+  BAR_MAX_STACKED,
+  BAR_RADIUS,
+  BAR_SERIES_GAP,
   CHART_RADIUS,
+  COMPACT_WIDTH,
   DELICACY_TOKENS,
+  DOT_RADIUS,
+  DOT_RING,
   DOTS_MAX_POINTS,
+  ENTRY_EASE,
+  ENTRY_MS,
   FONT_AXIS,
+  FONT_AXIS_COMPACT,
   MIN_DOT_SPACING,
   PAD_BOTTOM,
+  PAD_LEFT_EDGE,
   PAD_LEFT_MIN,
+  PAD_RIGHT,
+  PAD_RIGHT_COMPACT,
   PAD_SIDE,
   PAD_TOP,
   PAD_TOP_WITH_LABELS,
+  SLIDER_HEIGHT,
   SPACING,
+  UPDATE_MS,
+  ZOOM_MIN_POINTS,
+  axisFontSize,
+  barLayout,
   cascadeStepMs,
+  clampBarRadius,
   clampRadius,
   effectiveSmoothing,
+  padRightFor,
   shouldShowDots,
   snapSpacing,
   snapToGrid,
@@ -73,7 +88,9 @@ describe("geometry - tokeny delikatności zgadzają się z arkuszem", () => {
   ];
 
   it("grubość kreski, kropka, obwódka i TRZY stopnie wagi są identyczne", () => {
-    for (const [name, block, expected] of cases) {
+    // Blok ciemny ich nie redefiniuje (patrz test niżej), więc porównujemy
+    // arkusz jasny - z niego oba motywy dziedziczą.
+    for (const [name, block, expected] of cases.slice(0, 1)) {
       expect(token(block, "--chart-stroke"), `${name} kreska`).toBe(expected.stroke);
       expect(token(block, "--chart-dot"), `${name} kropka`).toBe(expected.dot);
       expect(token(block, "--chart-dot-ring"), `${name} obwódka`).toBe(expected.dotRing);
@@ -100,43 +117,47 @@ describe("geometry - tokeny delikatności zgadzają się z arkuszem", () => {
     }
   });
 
-  it("KOREKTA IRRADIACJI istnieje: na ciemnym wszystko jest cieńsze", () => {
-    // Jasny obiekt na ciemnym tle wydaje się większy niż ciemny na jasnym
-    // o tych samych wymiarach. Bez tej korekty wykres na ciemnym wygląda
-    // o klasę ciężej niż ten sam wykres na jasnym - i to jest jedyny powód,
-    // dla którego te cztery tokeny w ogóle różnią się między motywami.
-    const px = (v: string): number => Number.parseFloat(v);
-    expect(px(DELICACY_TOKENS.dark.stroke)).toBeLessThan(px(DELICACY_TOKENS.light.stroke));
-    expect(px(DELICACY_TOKENS.dark.dot)).toBeLessThan(px(DELICACY_TOKENS.light.dot));
-    expect(px(DELICACY_TOKENS.dark.dotRing)).toBeLessThan(px(DELICACY_TOKENS.light.dotRing));
-    expect(Number(DELICACY_TOKENS.dark.labelWeight)).toBeLessThan(
-      Number(DELICACY_TOKENS.light.labelWeight),
-    );
+  it("GEOMETRIA NIE ZALEŻY OD MOTYWU - przełączenie zmienia kolory, nie układ", () => {
+    // Specyfikacja systemu wykresów: wykres wygląda i zachowuje się tak samo
+    // w obu motywach, a zasada repozytorium mówi, że typografia, wymiary
+    // i grubości są wspólne. Arkusz ciemny ich NIE redefiniuje.
+    expect(DELICACY_TOKENS.dark).toEqual(DELICACY_TOKENS.light);
+    for (const name of [
+      "--chart-stroke",
+      "--chart-dot",
+      "--chart-dot-ring",
+      "--chart-label-weight",
+      "--chart-label-weight-strong",
+      "--chart-label-weight-total",
+    ]) {
+      expect(DARK_BLOCK, name).not.toMatch(new RegExp(`\\s${name}:`));
+    }
   });
 
-  it("ŻADNE RUSZTOWANIE NIE JEST KRESKOWANE - ani token, ani reguła", () => {
-    // ZMIANA REGUŁY, nie poprawka. Wcześniej prowadnica jechała kreskowaniem
-    // 2 4 z tokena `--chart-guide-dash`; token zniknął, bo zniknęła reguła.
-    // Trzy powody, wszystkie praktyczne: kreskowana obwódka czyta się
-    // w konwencji interfejsu jako zaznaczenie do przeniesienia albo stan
-    // nieukończony; kreska 1 px na współrzędnej niecałkowitej aliasuje i przy
-    // innym DPR zamienia się w nierówny szereg plamek; a samo kreskowanie
-    // wprowadza rytm konkurujący z rytmem danych - przy siedmiu i więcej
-    // obserwacjach oko zaczyna czytać kreski jako trzeci szereg.
+  it("punkt ma 7 px średnicy i obwódkę 1,5 px - w JS i w arkuszu", () => {
+    expect(DOT_RADIUS * 2).toBe(7);
+    expect(DOT_RING).toBe(1.5);
+    expect(token(LIGHT_BLOCK, "--chart-dot")).toBe(`${DOT_RADIUS}px`);
+    expect(token(LIGHT_BLOCK, "--chart-dot-ring")).toBe(`${DOT_RING}px`);
+    expect(token(LIGHT_BLOCK, "--chart-stroke")).toBe("2px");
+  });
+
+  it("RUSZTOWANIE JEST CIĄGŁE, a przerywane są tylko odniesienia i trzecia seria", () => {
+    // Siatka, osie, separator prognozy i łączniki mostka są ciągłe - to tło.
+    // Przerywane są wyłącznie elementy, które czytelnik ma ODRÓŻNIĆ od danych:
+    // prowadnica pod kursorem (4 4), linia celu (5 4) i trzecia oraz dalsze
+    // serie (6 4), gdzie przerywanie jest drugim nośnikiem różnicy obok koloru.
     expect(css).not.toContain("--chart-guide-dash");
-    expect(() => token(LIGHT_BLOCK, "--chart-guide-dash")).toThrow();
-
-    // Prowadnica, separator strefy prognozy i łączniki mostka - wszystkie
-    // przez tę jedną klasę - są jawnie CIĄGŁE.
-    const crosshair = css.slice(css.indexOf(".neh-chart .neh-crosshair {"));
-    const rule = crosshair.slice(0, crosshair.indexOf("}"));
-    expect(rule).toContain("stroke-dasharray: none");
-
-    // Kreskowanie serii ZOSTAJE, bo nie jest rusztowaniem: to drugi nośnik
-    // różnicy dla slotów poza zestawem bezpiecznym dla daltonizmu. Jedyna
-    // dozwolona nieciągłość obok niego to tekstura strefy prognozy - a to nie
-    // jest linia, tylko wypełnienie obszaru.
-    expect(token(LIGHT_BLOCK, "--chart-series-dash")).toBe("7 4");
+    const rule = (selector: string): string => {
+      const from = css.slice(css.indexOf(selector));
+      return from.slice(0, from.indexOf("}"));
+    };
+    expect(rule(".neh-chart .neh-crosshair {")).toContain("stroke-dasharray: 4 4");
+    expect(rule(".neh-chart .neh-crosshair {")).toContain("var(--chart-ink3)");
+    expect(rule(".neh-chart .neh-target-line {")).toContain("stroke-dasharray: 5 4");
+    expect(rule(".neh-chart .neh-connector {")).not.toContain("dasharray");
+    expect(rule(".neh-chart .neh-forecast-divider {")).not.toContain("dasharray");
+    expect(token(LIGHT_BLOCK, "--chart-series-dash")).toBe("6 4");
   });
 
   it("cień jest DWUWARSTWOWY na jasnym i NIE ISTNIEJE na ciemnym", () => {
@@ -150,14 +171,35 @@ describe("geometry - tokeny delikatności zgadzają się z arkuszem", () => {
 });
 
 describe("geometry - skala odstępów", () => {
-  it("wszystkie stałe layoutu leżą na skali 4 px", () => {
-    // Jedna zmiana najbardziej podnosząca wrażenie precyzji: oko wyłapuje
-    // 13 px obok 12 px szybciej niż jakąkolwiek różnicę koloru.
-    for (const value of [PAD_TOP, PAD_TOP_WITH_LABELS, PAD_BOTTOM, PAD_SIDE, PAD_LEFT_MIN]) {
+  it("marginesy i wymiary są z SPECYFIKACJI, a odstępy layoutu na skali 4 px", () => {
+    // Siatka wykresu: lewy 6, prawy 24 (14 w układzie zwartym), górny 30.
+    expect(PAD_LEFT_EDGE).toBe(6);
+    expect(PAD_RIGHT).toBe(24);
+    expect(PAD_RIGHT_COMPACT).toBe(14);
+    expect(PAD_TOP).toBe(30);
+    expect(PAD_TOP_WITH_LABELS).toBe(30);
+    for (const value of [PAD_BOTTOM, PAD_SIDE, PAD_LEFT_MIN]) {
       expect(SPACING as readonly number[], `${value}`).toContain(value);
     }
-    expect(SPACING as readonly number[]).toContain(BAR_MAX);
-    expect(SPACING as readonly number[]).toContain(BAR_GAP * 2);
+    expect(padRightFor(COMPACT_WIDTH - 1)).toBe(PAD_RIGHT_COMPACT);
+    expect(padRightFor(COMPACT_WIDTH)).toBe(PAD_RIGHT);
+  });
+
+  it("słupek: najwyżej 22 px (34 px w stosie), odstęp serii 25%, koniec danych 4 px", () => {
+    expect(BAR_MAX).toBe(22);
+    expect(BAR_MAX_STACKED).toBe(34);
+    expect(BAR_SERIES_GAP).toBe(0.25);
+    expect(BAR_RADIUS).toBe(4);
+    // Szerokie pasmo: sufit; wąskie: grupa wypełnia 80% pasma.
+    expect(barLayout(200, 1, false).width).toBe(BAR_MAX);
+    expect(barLayout(200, 1, true).width).toBe(BAR_MAX_STACKED);
+    const trzy = barLayout(40, 3, false);
+    expect(trzy.gap).toBeCloseTo(trzy.width * BAR_SERIES_GAP);
+    expect(3 * trzy.width + 2 * trzy.gap).toBeCloseTo(40 * 0.8);
+    // Promień przycięty do połowy długości przy słupku bez obwódki - niski
+    // słupek nie staje się kopułką.
+    expect(clampBarRadius(20, 4, { bordered: false, inset: 0 })).toBe(2);
+    expect(clampBarRadius(20, 100, { bordered: false, inset: 0 })).toBe(BAR_RADIUS);
   });
 
   it("snapSpacing wchodzi na szczebel w GÓRĘ i nie przekracza ostatniego", () => {
@@ -200,37 +242,38 @@ describe("geometry - warunek uczciwości wygładzenia", () => {
     expect(effectiveSmoothing(40, 5, 50, SMOOTHING_MIN_POINTS)).toBe(1);
   });
 
-  it("kropki są OBOWIĄZKOWE przy wygładzeniu i opcjonalne przy łamanej", () => {
-    expect(shouldShowDots(200, 0.55)).toBe(true);
-    expect(shouldShowDots(DOTS_MAX_POINTS, 0)).toBe(true);
-    expect(shouldShowDots(DOTS_MAX_POINTS + 1, 0)).toBe(false);
+  it("punkty na stałe do 20 punktów, powyżej tylko pod kursorem", () => {
+    expect(DOTS_MAX_POINTS).toBe(20);
+    expect(shouldShowDots(DOTS_MAX_POINTS)).toBe(true);
+    expect(shouldShowDots(DOTS_MAX_POINTS + 1)).toBe(false);
   });
 });
 
-describe("geometry - kaskada animacji", () => {
-  it("kaskada NIGDY nie przekracza budżetu na całość", () => {
-    // Przy czterdziestu słupkach 40 ms na element dałoby 1,6 s - czytelnik
-    // czekałby na wykres dłużej niż na stronę.
-    for (const count of [2, 5, 12, 25, 40, 60, 200]) {
-      const total = cascadeStepMs(count) * (count - 1);
-      expect(total, `${count} znaczników`).toBeLessThanOrEqual(CASCADE_TOTAL_MAX_MS);
-    }
+describe("geometry - animacja", () => {
+  it("wejście 400 ms z krzywą cubicOut, aktualizacja 300 ms - w JS i w arkuszu", () => {
+    expect(ENTRY_MS).toBe(400);
+    expect(UPDATE_MS).toBe(300);
+    expect(css).toContain(`--neh-anim-ms: ${ENTRY_MS}ms`);
+    expect(css).toContain(`--neh-state-ms: ${UPDATE_MS}ms`);
+    expect(css).toContain(`--neh-anim-ease: ${ENTRY_EASE}`);
   });
 
-  it("przy garstce znaczników krok zostaje na wartości domyślnej", () => {
-    expect(cascadeStepMs(1)).toBe(CASCADE_STEP_DEFAULT_MS);
-    expect(cascadeStepMs(2)).toBe(CASCADE_STEP_DEFAULT_MS);
+  it("BEZ wejścia elementów jeden po drugim - krok kaskady zawsze zero", () => {
+    for (const count of [1, 2, 5, 40, 1000]) expect(cascadeStepMs(count)).toBe(0);
+    expect(css).toContain("--neh-step: 0ms");
   });
 
-  it("krok nie schodzi poniżej podłogi - poniżej niej kaskada jest WYŁĄCZANA", () => {
-    // Podłoga i budżet wykluczają się powyżej ~63 znaczników. Wygrywa budżet:
-    // kaskada, której nie da się zobaczyć (krok pod 8 ms), jest samym
-    // czekaniem, więc znaczniki wchodzą razem. Zero jest jedyną odpowiedzią,
-    // która nie kłamie o tym, co użytkownik zobaczy.
-    const graniczne = Math.floor(CASCADE_TOTAL_MAX_MS / CASCADE_STEP_MIN_MS) + 1;
-    expect(cascadeStepMs(graniczne)).toBe(CASCADE_STEP_MIN_MS);
-    expect(cascadeStepMs(graniczne + 1)).toBe(0);
-    expect(cascadeStepMs(1000)).toBe(0);
+  it("tooltip pojawia się od razu", () => {
+    expect(css).toContain("--neh-tip-ms: 0ms");
+    const rule = css.slice(css.indexOf(".neh-tooltip {"));
+    expect(rule.slice(0, rule.indexOf("}"))).not.toContain("animation");
+  });
+});
+
+describe("geometry - zakres osi", () => {
+  it("suwak i przybliżanie wchodzą powyżej 30 punktów, suwak ma 18 px", () => {
+    expect(ZOOM_MIN_POINTS).toBe(30);
+    expect(SLIDER_HEIGHT).toBe(18);
   });
 });
 
@@ -244,8 +287,11 @@ describe("geometry - podziałki osi wartości", () => {
     expect(valueTickTarget(1, false)).toBeGreaterThanOrEqual(3);
   });
 
-  it("rozmiar etykiet osi jest jedną liczbą dla całego silnika", () => {
-    expect(FONT_AXIS).toBe(11);
+  it("etykiety osi: 11,5 px, a w panelu węższym niż 600 px - 10,5 px", () => {
+    expect(FONT_AXIS).toBe(11.5);
+    expect(FONT_AXIS_COMPACT).toBe(10.5);
+    expect(axisFontSize(COMPACT_WIDTH)).toBe(FONT_AXIS);
+    expect(axisFontSize(COMPACT_WIDTH - 1)).toBe(FONT_AXIS_COMPACT);
   });
 });
 
@@ -304,41 +350,24 @@ describe("arkusz druku - wykres na papierze pokazuje DANE, nie stan wejścia", (
     expect(PRINT_BLOCK).toContain("[data-chart-table-toggle]");
   });
 
-  it("w druku słupki i łuki wracają do wariantu SOLIDNEGO", () => {
-    // Wariant blady stoi na tym, że wnętrze ma do płyty 1,20-1,28:1, a granicę
-    // niesie obwódka. Na papierze 1,2:1 nie ma czym się odbić od bieli, więc
-    // zostaje sam kontur 1,5 px - kształt zdefiniowany cienką linią czyta się
-    // przy kilku słupkach jak rysunek techniczny, nie jak dane.
-    //
-    // Podstawienie idzie WŁASNOŚCIAMI z elementu (`--neh-bar-token`,
-    // `--neh-arc-token`), więc jedna reguła obsługuje wszystkie dziewięć
-    // slotów bez znajomości numeru - i wariant zostaje ustawieniem autora,
-    // a nie czymś, co druk zmienia w danych.
-    expect(PRINT_BLOCK).toContain('.neh-bar[data-style="pale"]');
-    expect(PRINT_BLOCK).toContain("fill: var(--neh-bar-token)");
+  it("w druku łuki tarczy wracają do wariantu SOLIDNEGO, a słupki są pełne zawsze", () => {
+    // Wariant blady łuku stoi na kontraście wnętrza 1,20-1,28:1 do płyty, który
+    // na papierze znika. Słupki są pełne także na ekranie, więc nie potrzebują
+    // reguły druku - i nie mogą jej mieć, bo nadpisałaby czerwień ujemnej
+    // wartości kolorem serii.
     expect(PRINT_BLOCK).toContain("fill: var(--neh-arc-token)");
-    // Liczba w łuku przechodzi na TUSZ SLOTU, bo leży teraz na nasyconym
-    // kolorze: tusz semantyczny ma na granacie 2,25:1, a ink slotu 8,07:1.
+    expect(PRINT_BLOCK).toContain('.neh-slice[data-active="true"]');
+    expect(PRINT_BLOCK).not.toContain('.neh-bar[data-style="pale"]');
     expect(PRINT_BLOCK).toContain(".neh-arc-label");
     expect(PRINT_BLOCK).toContain("fill: var(--neh-arc-ink)");
   });
 
-  it("druk nadpisuje TAKŻE stan aktywny - inaczej przegrywa specyficzność", () => {
-    // REGRESJA z przeglądu. Media query NIE dodaje specyficzności, więc
-    // o wyniku decyduje sam selektor: `.neh-bar[data-style="pale"]
-    // [data-active="true"]` z bloku ekranowego jest bardziej specyficzny niż
-    // `.neh-bar[data-style="pale"]` w bloku druku i wygrywał. Wydruk zrobiony
-    // przy podświetlonym elemencie (fokus klawiaturą, potem Ctrl+P) wychodził
-    // z bladym wypełnieniem hover i obwódką w tokenie - czyli dokładnie tym,
-    // co blok druku ma zastąpić.
-    expect(PRINT_BLOCK).toContain('.neh-bar[data-style="pale"][data-active="true"]');
-    expect(PRINT_BLOCK).toContain('.neh-bar[data-style="gradient"][data-active="true"]');
-    expect(PRINT_BLOCK).toContain('.neh-slice[data-active="true"]');
-    // I to nadal PO regułach ekranowych, bo tylko kolejność w pliku rozstrzyga
-    // między selektorami o równej specyficzności.
-    const screenActive = css.indexOf('.neh-chart .neh-bar[data-style="pale"][data-active="true"]');
-    expect(screenActive).toBeGreaterThan(0);
-    expect(screenActive).toBeLessThan(PRINT_START);
+  it("słupek nie zmienia wypełnienia pod kursorem - nic, co niesie wartość", () => {
+    expect(css).not.toContain('.neh-bar[data-style="pale"][data-active="true"]');
+    const unified = css.slice(css.indexOf('[data-role="waterfall-step"]'));
+    expect(unified.slice(0, unified.indexOf("}"))).toContain(
+      "fill: var(--neh-bar-fill, var(--neh-bar-token))",
+    );
   });
 
   it("strefa prognozy zamienia płaski tint na KRESKOWANIE - i tylko w druku", () => {

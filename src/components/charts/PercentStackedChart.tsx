@@ -961,7 +961,7 @@ export function PercentStackedChart({
               y={finite(value(tick), padTop) + 3.5}
               textAnchor="end"
               fontSize={FONT_AXIS}
-              fill="var(--muted-foreground)"
+              fill="var(--chart-ink3)"
               className="tabular-nums"
             >
               {formatPercent(tick / PERCENT_STACKED_WHOLE_PP, lang)}
@@ -1185,7 +1185,7 @@ export function PercentStackedChart({
                 y={y}
                 textAnchor={obrocona ? "end" : "middle"}
                 fontSize={FONT_AXIS}
-                fill="var(--muted-foreground)"
+                fill="var(--chart-ink3)"
                 transform={obrocona ? `rotate(${plan.rotation} ${c} ${y})` : undefined}
               >
                 {linie

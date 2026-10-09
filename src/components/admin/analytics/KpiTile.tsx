@@ -1,5 +1,9 @@
 /**
- * BI KPI tile: label + big value + delta chip vs previous period + sparkline.
+ * BI KPI tile: label + big value + delta chip vs previous period + sparkline
+ * (+ opcjonalna skala przedziału), według systemu wykresów 2026-10:
+ * zmiana jako ▲ ▼ ■ i procent w kolorze zależnym od KIERUNKU wskaźnika
+ * (wzrost kosztu jest zły, więc ▲ przy koszcie ma kolor ujemny), iskra
+ * 2 px w akcencie z kropką ostatniego punktu i pasmem optimum w tle.
  *
  * ISKRA JEST GLIFEM, NIE WYKRESEM, i dlatego nie idzie przez `<Chart>`.
  * Rysunek o wysokości czterdziestu pikseli nie ma osi, podziałek, legendy,
@@ -12,10 +16,15 @@
  * palety. Iskra rysowana własną matematyką i własnym kolorem rozjechałaby się
  * z wykresem, który opisuje ten sam szereg.
  */
-import { useMemo } from "react";
 import { Card } from "@/components/ui/card";
-import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
-import { pathFromPoints } from "@/lib/charts/smooth";
+import { Sparkline } from "@/components/charts/Sparkline";
+import { RangeScale } from "@/components/charts/RangeScale";
+import { changeTone, changeToneColor } from "@/lib/charts/status";
+import type { ChartLang } from "@/lib/charts/format";
+import { safeSourceUrl, type ChartSource } from "@/lib/charts/sources";
+import { ROLE } from "@/lib/charts/roles";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-charts";
 
 export interface KpiTileProps {
   label: string;
@@ -34,6 +43,18 @@ export interface KpiTileProps {
   deltaSuffix?: string;
   /** Force delta rendering to be absolute rather than percentage. */
   absoluteDelta?: boolean;
+  /**
+   * Pasmo optimum (przedział oceny ZE ŹRÓDŁEM) w jednostkach `current` - tło
+   * iskry i skala przedziału pod nią.
+   */
+  band?: { min: number; max: number } | null;
+  /** Pokaż skalę przedziału; bez pasma pokazuje „brak benchmarku". */
+  showScale?: boolean;
+  /** Jednostka do podpowiedzi skali („ms", „%"). */
+  unit?: string;
+  lang?: ChartLang;
+  /** Źródło przedziału - bez niego pasmo nie powinno być podane. */
+  bandSource?: ChartSource | null;
 }
 
 function formatDelta(
@@ -63,51 +84,25 @@ export function KpiTile({
   icon,
   deltaSuffix,
   absoluteDelta,
+  band = null,
+  showScale = false,
+  unit = "",
+  lang = "pl",
+  bandSource = null,
 }: KpiTileProps) {
+  const { t } = useTranslation("translation", { keyPrefix: "charts" });
+  const sourceUrl = bandSource ? safeSourceUrl(bandSource.url) : null;
   const hasDelta =
     typeof current === "number" &&
     typeof previous === "number" &&
     Number.isFinite(current) &&
     Number.isFinite(previous);
   const dir = hasDelta ? Math.sign(current - previous) : 0;
-  const good = higherIsBetter ? dir > 0 : dir < 0;
-  const neutral = dir === 0;
-  const deltaColor = neutral
-    ? "text-muted-foreground"
-    : good
-      ? "text-emerald-600"
-      : "text-destructive";
   // Strzałka koduje KIERUNEK (znak delty), kolor koduje OCENĘ. Rozdzielenie
   // kanałów jest konieczne przy `higherIsBetter: false` (pozycja w SERP-ach,
-  // CLS, LCP): tam wzrost jest zły, ale nadal jest wzrostem, a strzałka stoi
-  // bezpośrednio przy liczbie ze znakiem - „+42,9%" ze strzałką w dół mówiłoby
-  // dwie sprzeczne rzeczy naraz.
-  const DeltaIcon = neutral ? Minus : dir > 0 ? ArrowUpRight : ArrowDownRight;
-
-  /**
-   * Ścieżka iskry w układzie 100x40.
-   *
-   * Skala pionowa jest ROZPIĘTA NA ZAKRESIE SZEREGU, nie od zera - iskra
-   * pokazuje kształt, a nie poziom, i zero domknięte na szeregu wokół dużej
-   * liczby spłaszczyłoby ją do prostej. Ucięcie osi jest tu więc poprawne
-   * i nie wymaga oznaczenia, bo iskra nie ma osi, z której dałoby się cokolwiek
-   * odczytać - liczbę czytelnik ma obok, w kafelku.
-   */
-  const spark = useMemo<string | null>(() => {
-    if (!series || series.length < 2) return null;
-    const skonczone = series.filter((v) => Number.isFinite(v));
-    if (skonczone.length < 2) return null;
-    const min = Math.min(...skonczone);
-    const max = Math.max(...skonczone);
-    const rozpietosc = max - min;
-    const punkty = series.map((v, i): [number, number] => {
-      const x = (i / Math.max(1, series.length - 1)) * 100;
-      // Szereg płaski dzieliłby przez zero - wtedy linia idzie środkiem.
-      const y = rozpietosc === 0 ? 20 : 36 - ((v - min) / rozpietosc) * 32;
-      return [x, Number.isFinite(y) ? y : 20];
-    });
-    return pathFromPoints(punkty);
-  }, [series]);
+  // CLS, LCP): tam wzrost jest zły, ale nadal jest wzrostem.
+  const tone = changeTone(dir === 0 ? 0 : dir, higherIsBetter ? "higher" : "lower");
+  const arrow = dir === 0 ? "■" : dir > 0 ? "▲" : "▼";
 
   return (
     <Card className="p-3 relative overflow-hidden">
@@ -132,40 +127,47 @@ export function KpiTile({
         </div>
         {hasDelta ? (
           <div
-            className={
-              "inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-muted/60 " +
-              deltaColor
-            }
+            className="inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-md bg-muted/60 tabular-nums"
+            style={{ color: changeToneColor(tone) }}
+            data-tone={tone}
           >
-            <DeltaIcon className="w-3 h-3" />
-            {formatDelta(current, previous, Boolean(absoluteDelta), deltaSuffix)}
+            <span aria-hidden data-arrow={arrow}>
+              {arrow}
+            </span>
+            <span data-role="delta-value">
+              {formatDelta(current, previous, Boolean(absoluteDelta), deltaSuffix)}
+            </span>
           </div>
         ) : null}
       </div>
-      {spark === null ? null : (
-        <div className="mt-2 -mx-1">
-          {/* `aria-hidden`, bo iskra nie niesie ani jednej liczby, której nie
-              ma już w kafelku - ogłoszona przez czytnik ekranu byłaby drugim
-              głosem o tym samym. */}
-          <svg
-            viewBox="0 0 100 40"
-            height={40}
-            className="block w-full"
-            aria-hidden="true"
-            data-role="sparkline"
-          >
-            <path
-              d={spark}
-              fill="none"
-              stroke="var(--chart-1)"
-              strokeWidth={1.5}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
+      {series && series.length >= 2 ? (
+        <div className="mt-2">
+          <Sparkline values={series} band={band} />
         </div>
-      )}
+      ) : null}
+      {showScale ? (
+        <RangeScale
+          value={typeof current === "number" && Number.isFinite(current) ? current : null}
+          band={band}
+          direction={higherIsBetter ? "higher" : "lower"}
+          unit={unit}
+          lang={lang}
+        />
+      ) : null}
+      {showScale && band && bandSource ? (
+        <p className="mt-1.5 mb-0 text-[11px] leading-snug" style={{ color: ROLE.ink3 }}>
+          {t("kpi.bandSource", { lng: lang })}:{" "}
+          {sourceUrl ? (
+            <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="underline">
+              {bandSource.title}
+            </a>
+          ) : (
+            bandSource.title
+          )}
+          {bandSource.container ? `, ${bandSource.container}` : ""}
+          {bandSource.reliability ? ` (${bandSource.reliability})` : ""}
+        </p>
+      ) : null}
     </Card>
   );
 }

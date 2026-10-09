@@ -1124,9 +1124,30 @@ export const renderVideoHero: BlockRenderer = ({ block, cls }) => {
   );
 };
 
-export const renderChart: BlockRenderer = ({ block, cls, lang }) => (
-  <ChartBlockView data={block.data} lang={lang} cls={cls} />
+export const renderChart: BlockRenderer = ({ block, cls, lang, fnHtml }) => (
+  <ChartBlockView
+    data={block.data}
+    lang={lang}
+    cls={cls}
+    footnotes={chartFootnotes(block.id, fnHtml)}
+  />
 );
+
+/**
+ * Numery przypisów źródeł wykresu nadane przez pre-pass artykułu
+ * (`precomputeFootnotes`). Pusta mapa = blok poza artykułem albo bez źródeł,
+ * a wtedy wykres numeruje źródła sam.
+ */
+function chartFootnotes(blockId: string, fnHtml: ReadonlyMap<string, string>): Map<string, number> {
+  const prefix = `${blockId}:source:`;
+  const out = new Map<string, number>();
+  for (const [key, value] of fnHtml) {
+    if (!key.startsWith(prefix)) continue;
+    const n = Number(value);
+    if (Number.isInteger(n)) out.set(key.slice(prefix.length), n);
+  }
+  return out;
+}
 
 export const renderDataMap: BlockRenderer = ({ block, cls, lang }) => (
   <DataMapBlockView data={block.data} lang={lang} cls={cls} />

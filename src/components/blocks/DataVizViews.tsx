@@ -11,11 +11,20 @@ interface ChartBlockViewProps {
   data: Record<string, Json>;
   lang?: Lang;
   cls?: string;
+  /** Numery przypisów źródeł nadane przez artykuł (patrz `precomputeFootnotes`). */
+  footnotes?: ReadonlyMap<string, number>;
 }
 
-export function ChartBlockView({ data, lang = "pl", cls }: ChartBlockViewProps) {
+export function ChartBlockView({ data, lang = "pl", cls, footnotes }: ChartBlockViewProps) {
   const config = parseChartConfig(data);
-  return <Chart config={config} lang={lang} className={cls} />;
+  return (
+    <Chart
+      config={config}
+      lang={lang}
+      className={cls}
+      footnoteNumbers={footnotes && footnotes.size > 0 ? footnotes : undefined}
+    />
+  );
 }
 
 export function DataMapBlockView({ data, lang = "pl", cls }: ChartBlockViewProps) {

@@ -1,49 +1,58 @@
-// Rama wykresu: karta w stylistyce platformy, nagłówek z opcjonalnym
-// tooltipem objaśniającym wskaźnik, legenda, przełączany widok tabeli danych
-// (kanał dostępności - tooltip NIGDY nie jest jedyną drogą do wartości)
-// i PODPIS UCZCIWOŚCIOWY.
+// PANEL WYKRESU - rama wokół rysunku (specyfikacja 2026-10).
 //
-// PODPIS UCZCIWOŚCIOWY jest tu najważniejszą nowością i nie jest ozdobą.
-// Wykres łatwiej kłamie niż tabela, bo działa szybciej niż świadoma kontrola,
-// więc rama wymusza cztery rzeczy, których autor sam nie napisze:
-//   * jednostkę i liczbę obserwacji `n` - wykres na trzech i na trzystu
-//     obserwacjach wygląda tak samo, a znaczy co innego;
-//   * źródło ORAZ datę danych (nie datę publikacji wpisu);
-//   * ostrzeżenie, gdy oś wartości nie zaczyna się od zera - ucięta skala
-//     zawyża wygląd różnic, więc ucięcie musi być NAZWANE, a nie tylko
-//     widoczne dla kogoś, kto czyta podziałki;
-//   * trzy zdania: co pokazuje, co jest zaskakujące, CZEGO NIE POKAZUJE.
-//     Ostatnie odróżnia wykres analityczny od ilustracji.
+// UKŁAD:
+//   * nagłówek: TYTUŁ (co widać albo wniosek), znaczek „demo" przy danych
+//     demonstracyjnych, PODTYTUŁ z jednostką, źródłem i literą pochodzenia
+//     („%. Źródło: Twoje dane (D)") oraz numerami przypisów;
+//   * przyciski po prawej: „i" (jak czytać wykres), „⤢" (powiększenie
+//     w szerokim oknie), PNG (podwójna rozdzielczość, tło motywu), SVG
+//     (wektor z tłem i fontem);
+//   * legenda w prawym górnym rogu, pod wykresem przy wielu seriach albo
+//     w wąskim panelu; pozycja legendy ukrywa i pokazuje serię;
+//   * ramka „Jak czytać" OBOK wykresu (pod nim w wąskim panelu): co pokazuje,
+//     co zaskakuje, czego nie pokazuje;
+//   * opcjonalny podpis pod wykresem, ostrzeżenia uczciwości, tabela danych.
 //
-// Legenda pisze nazwy serii WARIANTEM TEKSTOWYM slotu, nie kolorem linii:
-// próg kontrastu dla tekstu to 4,5:1, dla linii 3,0:1, więc ochra jako linia
-// jest w porządku, a jako napis nie. To najczęstszy błąd w wykresach -
-// wygląda spójnie i nie przechodzi audytu dostępności.
+// PODPIS UCZCIWOŚCIOWY zostaje: liczba obserwacji `n`, data danych,
+// ostrzeżenie o uciętej osi i o udziałach, które się nie domykają - wykres
+// łatwiej kłamie niż tabela, więc rama mówi to, czego autor sam nie napisze.
+// Tabela danych zostaje kanałem dostępności: tooltip nigdy nie jest jedyną
+// drogą do wartości.
 //
-// Czysto prezentacyjna, SSR-safe.
-import { useId, useState, type ReactNode } from "react";
+// Legenda pisze nazwy serii WARIANTEM TEKSTOWYM koloru (próg 4,5:1), nie
+// kolorem linii (3,0:1).
+import { Fragment, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Table2, TriangleAlert } from "lucide-react";
 import type { ChartLang } from "@/lib/charts/format";
 import type { ChartMetric } from "@/lib/charts/types";
+import type { ChartPalette } from "@/lib/charts/seriesStyle";
+import {
+  chicagoBibliography,
+  safeSourceUrl,
+  type ChartSource,
+  type Provenance,
+  type Reliability,
+} from "@/lib/charts/sources";
+import { nazwaPliku, pobierzPlik, svgDoPliku, svgDoPng } from "@/lib/charts/exportImage";
 import { MetricTooltip } from "./MetricTooltip";
+import { ChartDialog } from "./ChartDialog";
 import "@/lib/i18n-charts";
 
 export interface LegendItem {
-  /** Klucz Reacta - slot albo nazwa semantyczna; nazwa serii bywa pusta. */
+  /** Klucz Reacta i uchwyt przełącznika - slot, rola albo pozycja serii. */
   key: string;
   name: string;
-  /** Token koloru ZNACZNIKA (próg 3,0:1). */
+  /** Kolor ZNACZNIKA (próg 3,0:1). */
   color: string;
-  /**
-   * Token koloru NAPISU (próg 4,5:1). Osobne pole, bo to nie ten sam kolor:
-   * ochra jako próbka jest w porządku, jako napis nie przechodzi audytu.
-   */
+  /** Kolor NAPISU (próg 4,5:1) - osobne pole, bo to nie ten sam kolor. */
   textColor: string;
-  /** Kształt klucza odzwierciedla znacznik: linia dla line/area, kwadrat dla reszty. */
+  /** Kształt klucza: linia dla line/area, prostokąt dla reszty. */
   shape: "line" | "rect";
-  /** Kreskowanie - drugi nośnik różnicy dla slotów poza zestawem bezpiecznym. */
+  /** Linia przerywana - drugi nośnik różnicy obok koloru. */
   dashed?: boolean;
+  /** Pozycja przełącza widoczność serii na rysunku. */
+  toggleable?: boolean;
 }
 
 export interface ChartCaption {
@@ -53,19 +62,26 @@ export interface ChartCaption {
   sampleSize: number | null;
   /** Oś wartości nie zaczyna się od zera - ucięcie MUSI być nazwane. */
   zeroBaselineBroken: boolean;
-  /**
-   * Suma ZAOKRĄGLONYCH udziałów tarczy, gdy nie domyka 100% - już
-   * sformatowana, np. "99,8%". `null` znaczy "nie ma czego zgłaszać": inny
-   * rodzaj wykresu albo suma w tolerancji zaokrągleń.
-   *
-   * Tu, a nie pod tabelą danych, bo to nie jest przypis do tabeli: to
-   * ostrzeżenie o tym, że STRUKTURA POKAZANA NA RYSUNKU się nie domyka,
-   * i musi stać obok rysunku, tak samo jak ostrzeżenie o uciętej osi.
-   */
+  /** Suma ZAOKRĄGLONYCH udziałów tarczy, gdy nie domyka 100%; null = w porządku. */
   shareSumMismatch: string | null;
   notesShows: string;
   notesSurprising: string;
   notesHidden: string;
+  /** Opcjonalny podpis pod wykresem. */
+  caption?: string;
+}
+
+/** Fakty o wykresie, z których rama składa podtytuł, przypisy i „Jak czytać". */
+export interface ChartPanelMeta {
+  palette: ChartPalette;
+  demo: boolean;
+  provenance: Provenance | null;
+  sources: readonly ChartSource[];
+  /** Numeracja przypisów strony (artykuł); brak = numeracja w obrębie wykresu. */
+  footnoteNumbers?: ReadonlyMap<string, number>;
+  hasBand: boolean;
+  hasTarget: boolean;
+  zoomable: boolean;
 }
 
 interface ChartFrameProps {
@@ -74,7 +90,7 @@ interface ChartFrameProps {
   lang: ChartLang;
   /** Wyjaśnienie wskaźnika przy tytule; null = wykres go nie potrzebuje. */
   metric: ChartMetric | null;
-  /** Legenda - renderowana ZAWSZE przy >=2 seriach (patrz reguły dataviz). */
+  /** Legenda - renderowana przy >=2 pozycjach. */
   legend: LegendItem[];
   showLegend: boolean;
   caption: ChartCaption;
@@ -82,6 +98,50 @@ interface ChartFrameProps {
   table: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Klucze pozycji legendy, których seria jest ukryta. */
+  hiddenLegend?: ReadonlySet<string>;
+  onToggleLegend?: (key: string) => void;
+  /** Serie nazywają etykiety przy końcu linii - legenda zbędna. */
+  legendSuppressed?: boolean;
+  meta?: ChartPanelMeta;
+  /** Rysunek w powiększeniu, w podanej wysokości. */
+  renderExpanded?: (height: number) => ReactNode;
+  /**
+   * `panel` - pełna karta z przyciskami; `embedded` - bez karty i przycisków,
+   * bo osadzenie (karta pulpitu) ma własny nagłówek i własny eksport.
+   */
+  variant?: "panel" | "embedded";
+  /** Okna dorzucane przez rysunek (definicja klikniętego punktu). */
+  dialogs?: ReactNode;
+}
+
+const RELIABILITY_KEYS: Record<Reliability, string> = {
+  A: "reliability.A",
+  B: "reliability.B",
+  C: "reliability.C",
+};
+
+const PROVENANCE_KEYS: Record<Provenance, string> = {
+  D: "provenance.D",
+  W: "provenance.W",
+  B: "provenance.B",
+  E: "provenance.E",
+  "?": "provenance.unknown",
+};
+
+/** Usuwa wiodące „Źródło:" z podpisu autora - podtytuł dokleja je sam. */
+function bareSource(raw: string): string {
+  return raw.replace(/^\s*(źródło|zrodlo|source|sources|źródła)\s*:\s*/i, "").trim();
+}
+
+/** Próbka legendy 12 x 4 px; przerywana dla serii linii przerywanej. */
+function swatchStyle(item: LegendItem): CSSProperties {
+  if (item.dashed) {
+    return {
+      background: `repeating-linear-gradient(90deg, ${item.color} 0 4px, transparent 4px 6px)`,
+    };
+  }
+  return { background: item.color };
 }
 
 export function ChartFrame({
@@ -95,20 +155,63 @@ export function ChartFrame({
   table,
   children,
   className,
+  hiddenLegend,
+  onToggleLegend,
+  legendSuppressed = false,
+  meta,
+  renderExpanded,
+  variant = "panel",
+  dialogs,
 }: ChartFrameProps) {
   const [tableOpen, setTableOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [expandedHeight, setExpandedHeight] = useState<number | null>(null);
+  const [footnote, setFootnote] = useState<{ source: ChartSource; n: number } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [exportError, setExportError] = useState(false);
+  const figureRef = useRef<HTMLElement>(null);
+  const plotRef = useRef<HTMLDivElement>(null);
+  const expandedRef = useRef<HTMLDivElement>(null);
   // Prefiks przez `keyPrefix` haka - tylko taki widzi bramka rozjazdu
-  // kod<->słownik; klucz sklejony template literalem wypada z kontroli
-  // parytetu PL/EN.
+  // kod<->słownik.
   const { t: scoped } = useTranslation("translation", { keyPrefix: "charts" });
   const t = (key: string, values?: Record<string, string | number>): string =>
     scoped(key, { lng: lang, ...values });
   const tableId = useId();
+  const titleId = useId();
+  const panel = variant === "panel";
   // Legenda przy jednej serii to szum - tytuł nazywa jedyny kolor.
-  const legendVisible = showLegend && legend.length >= 2;
+  const legendVisible = showLegend && legend.length >= 2 && !legendSuppressed;
+  const legendPosition = legend.length > 4 ? "bottom" : "top";
+
+  const sources = meta?.sources ?? [];
+  const footnoteNumber = (source: ChartSource, index: number): number =>
+    meta?.footnoteNumbers?.get(source.id) ?? index + 1;
+
+  // PODTYTUŁ: jednostka, źródło i litera pochodzenia - „%. Źródło: Twoje dane (D)".
+  const unit = caption.unit.trim();
+  const provenance = meta?.provenance ?? null;
+  const namedSource = bareSource(caption.source);
+  const sourceName =
+    meta?.demo === true
+      ? t("panel.demoData")
+      : namedSource !== ""
+        ? namedSource
+        : provenance !== null
+          ? t(PROVENANCE_KEYS[provenance])
+          : "";
+  const sourcePart =
+    sourceName !== ""
+      ? `${t("panel.source", { source: sourceName })}${provenance !== null ? ` (${provenance})` : ""}`
+      : "";
+  const subtitle = [unit ? `${unit}.` : "", sourcePart].filter(Boolean).join(" ");
+  const showHead = Boolean(
+    title || description || metric || (panel && (subtitle || sources.length)),
+  );
 
   const facts = [
-    caption.unit ? t("caption.unit", { unit: caption.unit.trim() }) : "",
+    // Jednostka i źródło są w podtytule; w osadzeniu bez nagłówka zostają tu.
+    !showHead && caption.unit ? t("caption.unit", { unit: caption.unit.trim() }) : "",
     caption.sampleSize !== null ? t("caption.sampleSize", { count: caption.sampleSize }) : "",
     caption.sourceDate ? t("caption.sourceDate", { date: caption.sourceDate }) : "",
   ].filter(Boolean);
@@ -119,54 +222,255 @@ export function ChartFrame({
     [t("notes.hidden"), caption.notesHidden],
   ].filter((row): row is [string, string] => Boolean(row[1]));
 
+  /** Eksport rysunku z kontenera - tło płyty OBECNEGO motywu, font strony. */
+  const exportFrom = async (container: HTMLElement | null, type: "png" | "svg"): Promise<void> => {
+    const svg = container?.querySelector<SVGSVGElement>(".neh-canvas svg") ?? null;
+    const figure = figureRef.current;
+    if (svg === null || figure === null) return;
+    setExportError(false);
+    try {
+      const styl = getComputedStyle(figure);
+      const background =
+        styl.getPropertyValue("--card").trim() || styl.backgroundColor || "#ffffff";
+      const fontFamily = getComputedStyle(svg).fontFamily || styl.fontFamily;
+      const name = nazwaPliku(title, lang === "en" ? "chart" : "wykres");
+      if (type === "svg") {
+        pobierzPlik(`${name}.svg`, svgDoPliku(svg, { background, fontFamily }));
+        return;
+      }
+      // KLUCZ DOKLEJONY DO PNG - z próbek legendy, które czytelnik widzi
+      // (pozycje ukryte pomijamy, bo nie ma ich na rysunku).
+      const klucz = [...figure.querySelectorAll(".neh-legend > li")].flatMap((li) => {
+        if (li.querySelector('[aria-pressed="false"]')) return [];
+        const probka = li.querySelector(".neh-legend-swatch");
+        const nazwa = probka?.nextElementSibling ?? null;
+        if (probka === null || nazwa === null) return [];
+        const tekst = getComputedStyle(nazwa).color;
+        const tlo = getComputedStyle(probka).backgroundColor;
+        return [
+          {
+            label: nazwa.textContent ?? "",
+            color: tlo === "" || tlo === "rgba(0, 0, 0, 0)" ? tekst : tlo,
+            textColor: tekst,
+          },
+        ];
+      });
+      pobierzPlik(`${name}.png`, await svgDoPng(svg, { background, scale: 2, klucz }));
+    } catch {
+      setExportError(true);
+    }
+  };
+
+  const openExpanded = (): void => {
+    const vh = typeof window !== "undefined" ? window.innerHeight : 900;
+    setExpandedHeight(Math.round(Math.min(vh * 0.6, 560)));
+  };
+
+  const copyLink = async (url: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const legendList = legendVisible ? (
+    <ul
+      className="neh-legend"
+      data-position={legendPosition}
+      role="list"
+      aria-label={t("legend.label")}
+    >
+      {legend.map((item) => {
+        const swatch = (
+          <>
+            <span aria-hidden className="neh-legend-swatch" style={swatchStyle(item)} />
+            <span style={{ color: item.textColor }}>{item.name}</span>
+          </>
+        );
+        return (
+          <li key={item.key}>
+            {item.toggleable && onToggleLegend ? (
+              <button
+                type="button"
+                className="neh-legend-item"
+                aria-pressed={!hiddenLegend?.has(item.key)}
+                title={t("legend.toggle", { name: item.name })}
+                onClick={() => onToggleLegend(item.key)}
+              >
+                {swatch}
+              </button>
+            ) : (
+              <span className="neh-legend-item" style={{ cursor: "default" }}>
+                {swatch}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  ) : null;
+
+  const readBox =
+    notes.length > 0 ? (
+      <aside className="neh-read" aria-label={t("panel.howToReadShort")}>
+        <div className="neh-read-title">{t("panel.howToReadShort")}</div>
+        <dl className="m-0">
+          {notes.map(([label, value]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </aside>
+    ) : null;
+
+  const sourceList =
+    sources.length > 0 ? (
+      <ol className="m-0 list-none p-0">
+        {sources.map((source, i) => (
+          <li key={source.id} className="mb-1.5">
+            <span className="mr-1 font-semibold tabular-nums">[{footnoteNumber(source, i)}]</span>
+            {chicagoBibliography(source, lang).map((part, pi) =>
+              part.italic ? (
+                <em key={pi}>{part.text}</em>
+              ) : part.quoted ? (
+                <q key={pi}>{part.text}</q>
+              ) : (
+                <Fragment key={pi}>{part.text}</Fragment>
+              ),
+            )}
+          </li>
+        ))}
+      </ol>
+    ) : (
+      <p>{t("panel.noSources")}</p>
+    );
+
   return (
     <figure
+      ref={figureRef}
+      aria-labelledby={title ? titleId : undefined}
       className={[
-        "neh-chart not-prose my-6 border border-border bg-card p-4 md:p-6",
+        "neh-chart not-prose",
+        panel ? "my-6 border bg-card p-4" : "my-0",
         className ?? "",
       ]
         .filter(Boolean)
         .join(" ")}
+      style={
+        panel
+          ? { borderColor: "var(--chart-grid)", borderRadius: "var(--chart-radius)" }
+          : { boxShadow: "none" }
+      }
     >
-      {(title || description || metric) && (
-        <figcaption className="mb-4">
-          {title && (
-            <div className="font-display text-lg font-semibold leading-snug text-foreground">
-              {title}
+      {showHead && (
+        <figcaption className="neh-panel-head">
+          <div className="min-w-0 flex-1">
+            {title && (
+              <div id={titleId} className="neh-panel-title">
+                {title}
+                {meta?.demo && <span className="neh-badge">{t("panel.demo")}</span>}
+              </div>
+            )}
+            {(subtitle || sources.length > 0) && (
+              <p className="neh-panel-sub m-0">
+                {subtitle}
+                {sources.map((source, i) => {
+                  const n = footnoteNumber(source, i);
+                  return (
+                    <button
+                      key={source.id}
+                      type="button"
+                      className="neh-fn"
+                      aria-label={t("footnote.marker", { n })}
+                      onClick={() => {
+                        setCopied(false);
+                        setFootnote({ source, n });
+                      }}
+                    >
+                      {n}
+                    </button>
+                  );
+                })}
+              </p>
+            )}
+            {metric && (
+              <div className="neh-panel-sub">
+                <MetricTooltip metric={metric} lang={lang} />
+              </div>
+            )}
+            {description && <p className="neh-panel-sub m-0">{description}</p>}
+          </div>
+          {panel && (
+            <div className="neh-tools">
+              <button
+                type="button"
+                className="neh-btn"
+                aria-label={t("panel.info")}
+                title={t("panel.howToRead")}
+                onClick={() => setHelpOpen(true)}
+              >
+                <span aria-hidden className="font-serif italic">
+                  i
+                </span>
+              </button>
+              {renderExpanded && (
+                <button
+                  type="button"
+                  className="neh-btn"
+                  aria-label={t("panel.expand")}
+                  title={t("panel.expand")}
+                  onClick={openExpanded}
+                >
+                  <span aria-hidden>⤢</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="neh-btn"
+                aria-label={t("panel.exportPng")}
+                title={t("panel.exportPng")}
+                onClick={() => void exportFrom(plotRef.current, "png")}
+              >
+                {t("panel.png")}
+              </button>
+              <button
+                type="button"
+                className="neh-btn"
+                aria-label={t("panel.exportSvg")}
+                title={t("panel.exportSvg")}
+                onClick={() => void exportFrom(plotRef.current, "svg")}
+              >
+                {t("panel.svg")}
+              </button>
             </div>
           )}
-          {metric && (
-            <div className="mt-1 text-sm text-muted-foreground">
-              <MetricTooltip metric={metric} lang={lang} />
-            </div>
-          )}
-          {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
         </figcaption>
       )}
 
-      {legendVisible && (
-        <ul className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5" role="list">
-          {legend.map((item) => (
-            <li key={item.key} className="flex items-center gap-1.5">
-              <span
-                aria-hidden
-                className={
-                  item.shape === "line" ? "h-[3px] w-4 rounded-full" : "h-2.5 w-2.5 rounded-[3px]"
-                }
-                style={{ background: item.color }}
-              />
-              <span className="text-xs" style={{ color: item.textColor }}>
-                {item.name}
-              </span>
-            </li>
-          ))}
-        </ul>
+      <div className="neh-panel-body" data-has-read={readBox ? "true" : undefined}>
+        <div className="neh-plot-stack">
+          {legendPosition === "top" && legendList}
+          <div ref={plotRef} className="neh-chart-body min-w-0">
+            {children}
+          </div>
+          {legendPosition === "bottom" && legendList}
+        </div>
+        {readBox}
+      </div>
+
+      {caption.caption && <p className="neh-caption">{caption.caption}</p>}
+
+      {exportError && (
+        <p role="status" className="mt-2 text-xs" style={{ color: "var(--chart-negative-text)" }}>
+          {t("panel.exportFailed")}
+        </p>
       )}
 
-      {children}
-
-      {/* Ostrzeżenie o uciętej osi. Ikona PLUS tekst, bo sama ikona nie mówi,
-          co jest ucięte, a sam tekst ginie w podpisie. */}
+      {/* Ostrzeżenie o uciętej osi - ikona PLUS tekst. */}
       {caption.zeroBaselineBroken && (
         <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -177,9 +481,6 @@ export function ChartFrame({
         </p>
       )}
 
-      {/* Suma kontrolna udziałów. Ta sama forma co ostrzeżenie o uciętej osi -
-          ikona PLUS tekst - bo to ten sam gatunek komunikatu: rysunek pokazuje
-          coś, czego liczby nie potwierdzają. */}
       {caption.shareSumMismatch !== null && (
         <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -189,7 +490,7 @@ export function ChartFrame({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0 text-xs text-muted-foreground">
-          {caption.source && <p className="m-0">{caption.source}</p>}
+          {!showHead && caption.source && <p className="m-0">{caption.source}</p>}
           {facts.length > 0 && <p className="m-0 tabular-nums">{facts.join(" · ")}</p>}
         </div>
         <button
@@ -210,54 +511,164 @@ export function ChartFrame({
         {table}
       </div>
 
-      {/* Trzy zdania. Kolejność jest stała, żeby czytelnik wiedział, gdzie
-          szukać zastrzeżenia - a zastrzeżenie jest tym, co odróżnia wykres
-          analityczny od ilustracji. */}
-      {notes.length > 0 && (
-        <dl className="mt-4 grid gap-2 border-t border-border pt-3 text-xs">
-          {notes.map(([label, value]) => (
-            <div
-              key={label}
-              className="grid gap-0.5 sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)] sm:gap-3"
-            >
-              <dt className="font-semibold uppercase tracking-wide text-muted-foreground">
-                {label}
-              </dt>
-              <dd className="m-0 text-foreground">{value}</dd>
-            </div>
-          ))}
-        </dl>
+      {/* ===== Okna ===== */}
+      {panel && (
+        <ChartDialog
+          open={helpOpen}
+          onClose={() => setHelpOpen(false)}
+          title={t("panel.howToRead")}
+          closeLabel={t("panel.close")}
+        >
+          <h3>{t("read.elements")}</h3>
+          <p>{t("read.elementsText")}</p>
+          <h3>{t("read.colors")}</h3>
+          <p>
+            {meta?.palette === "categorical" ? t("read.colorsCategorical") : t("read.colorsFocus")}
+          </p>
+          {(meta?.hasBand || meta?.hasTarget) && (
+            <>
+              <h3>{t("read.band")}</h3>
+              <p>{t("read.bandText")}</p>
+            </>
+          )}
+          <h3>{t("read.interactions")}</h3>
+          <p>{t("read.interactionsText")}</p>
+          {meta?.zoomable && <p>{t("read.zoomText")}</p>}
+          <h3>{t("read.export")}</h3>
+          <p>{t("read.exportText")}</p>
+          <h3>{t("read.sources")}</h3>
+          {sourceList}
+        </ChartDialog>
       )}
+
+      {panel && renderExpanded && (
+        <ChartDialog
+          open={expandedHeight !== null}
+          onClose={() => setExpandedHeight(null)}
+          title={title || t("panel.expand")}
+          closeLabel={t("panel.close")}
+          size="wide"
+        >
+          <div className="neh-panel-body" data-has-read={readBox ? "true" : undefined}>
+            <div ref={expandedRef} className="min-w-0">
+              {expandedHeight !== null && renderExpanded(expandedHeight)}
+            </div>
+            {readBox}
+          </div>
+          <div className="neh-dialog-actions">
+            <button
+              type="button"
+              className="neh-btn"
+              onClick={() => void exportFrom(expandedRef.current, "png")}
+            >
+              {t("panel.exportPng")}
+            </button>
+            <button
+              type="button"
+              className="neh-btn"
+              onClick={() => void exportFrom(expandedRef.current, "svg")}
+            >
+              {t("panel.exportSvg")}
+            </button>
+          </div>
+        </ChartDialog>
+      )}
+
+      <ChartDialog
+        open={footnote !== null}
+        onClose={() => setFootnote(null)}
+        title={footnote ? t("footnote.title", { n: footnote.n }) : ""}
+        closeLabel={t("panel.close")}
+      >
+        {footnote && (
+          <FootnoteBody
+            source={footnote.source}
+            lang={lang}
+            t={t}
+            copied={copied}
+            onCopy={(url) => void copyLink(url)}
+          />
+        )}
+      </ChartDialog>
+
+      {dialogs}
     </figure>
+  );
+}
+
+function FootnoteBody({
+  source,
+  lang,
+  t,
+  copied,
+  onCopy,
+}: {
+  source: ChartSource;
+  lang: ChartLang;
+  t: (key: string, values?: Record<string, string | number>) => string;
+  copied: boolean;
+  onCopy: (url: string) => void;
+}) {
+  const url = safeSourceUrl(source.url);
+  return (
+    <>
+      <p>
+        {chicagoBibliography(source, lang).map((part, i) =>
+          part.italic ? (
+            <em key={i}>{part.text}</em>
+          ) : part.quoted ? (
+            <q key={i}>{part.text}</q>
+          ) : (
+            <Fragment key={i}>{part.text}</Fragment>
+          ),
+        )}
+      </p>
+      <dl className="neh-dialog-grid">
+        {source.reliability !== null && (
+          <>
+            <dt>{t("reliability.label")}</dt>
+            <dd>{t(RELIABILITY_KEYS[source.reliability])}</dd>
+          </>
+        )}
+        {source.published && (
+          <>
+            <dt>{t("footnote.published")}</dt>
+            <dd>{source.published}</dd>
+          </>
+        )}
+        {source.accessed && (
+          <>
+            <dt>{t("footnote.accessed")}</dt>
+            <dd>{source.accessed}</dd>
+          </>
+        )}
+      </dl>
+      {url !== null && (
+        <div className="neh-dialog-actions">
+          <a className="neh-btn" href={url} target="_blank" rel="noopener noreferrer">
+            {t("footnote.open")}
+          </a>
+          <button type="button" className="neh-btn" onClick={() => onCopy(url)}>
+            {copied ? t("footnote.copied") : t("footnote.copy")}
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
 /**
  * JEDEN KOMUNIKAT POD TABELĄ DANYCH: defekt danych albo obserwacja o rysunku.
- *
- * `key` jest jednocześnie identyfikatorem Reacta i UCHWYTEM ZAPYTANIA
- * (`data-note`), po którym testy sprawdzają, że rysunek naprawdę powiedział
- * to, co miał powiedzieć - dlatego jest ścieżką słownika (`reading.tooFew`,
- * `honesty.checksumFailed`), a nie numerem porządkowym.
+ * `key` jest identyfikatorem Reacta i UCHWYTEM ZAPYTANIA (`data-note`).
  */
 export interface ChartNote {
   key: string;
   text: string;
-  /**
-   * `true` = defekt DANYCH (czerwień tekstowa), `false` = obserwacja
-   * o rysunku (ink recesywny). Rozróżnienie jest w kolorze, bo lista, na
-   * której wszystko krzyczy, uczy ignorowania całej listy.
-   */
+  /** `true` = defekt DANYCH (czerwień tekstowa), `false` = obserwacja o rysunku. */
   defect: boolean;
 }
 
-/**
- * Lista komunikatów pod tabelą danych. WYDZIELONA Z PIĘCIU RENDERÓW, w których
- * stała bajt w bajt ta sama: histogram był piątym i przy przepisywaniu jej po
- * raz piąty wyszło, że jedyne, co je różniło, to fakt, że histogram jej nie
- * miał wcale (przez to nie pokazywał ANI JEDNEGO komunikatu uczciwości, choć
- * model liczy siedem flag, a słownik ma dla nich treści w obu językach).
- */
+/** Lista komunikatów pod tabelą danych - wspólna dla rodzajów statystycznych. */
 export function ChartNotes({ notes }: { notes: readonly ChartNote[] }) {
   if (notes.length === 0) return null;
   return (

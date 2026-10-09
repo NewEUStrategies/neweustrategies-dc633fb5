@@ -53,6 +53,7 @@ const pl = {
   },
   blocksUi: {
     footnotesTitle: "Przypisy",
+    chartLoadFailed: "Biblioteka wykresów nie załadowała się. Sprawdź połączenie.",
     footnotesBack: "Wróć do tekstu",
     pros: "Plusy",
     cons: "Minusy",
@@ -143,6 +144,7 @@ const en: typeof pl = {
   },
   blocksUi: {
     footnotesTitle: "Footnotes",
+    chartLoadFailed: "The chart library failed to load. Check your connection.",
     footnotesBack: "Back to text",
     pros: "Pros",
     cons: "Cons",

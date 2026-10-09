@@ -328,3 +328,31 @@ export function stackSeries(
     }),
   );
 }
+
+/**
+ * Domena osi wartości poszerzona o ODNIESIENIA (pasmo optimum, linia celu,
+ * pasmo prognozy) i o zapas nad maksimum.
+ *
+ * Wspólna dla rysunku i dla orzeczenia „oś nie zaczyna się od zera"
+ * (`honesty.ts`): gdyby każde z nich poszerzało domenę po swojemu, podpis
+ * ostrzegałby o uciętej osi pod wykresem, na którym pasmo sięga zera.
+ *
+ * Zapas idzie WYŁĄCZNIE nad dodatnie maksimum: przy serii w całości ujemnej
+ * górą domeny jest zero, czyli linia bazowa, i zapas nad nią byłby pustym
+ * pasem bez danych.
+ */
+export function extendDomain(
+  base: SeriesExtent,
+  extras: readonly (SeriesExtent | null)[],
+  headroom = 0,
+): SeriesExtent {
+  let { min, max } = base;
+  for (const extra of extras) {
+    if (extra === null) continue;
+    min = Math.min(min, extra.min);
+    max = Math.max(max, extra.max);
+  }
+  const span = max - min;
+  if (headroom > 0 && span > 0 && max > 0) max += span * headroom;
+  return { min, max };
+}

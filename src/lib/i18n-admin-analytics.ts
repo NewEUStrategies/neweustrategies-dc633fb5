@@ -78,6 +78,7 @@ const pl = {
     },
     chartCard: {
       exportPng: "Eksport PNG",
+      exportSvg: "Eksport SVG",
       exportCsv: "Eksport CSV",
       fullscreen: "Pełny ekran",
       exitFullscreen: "Zamknij pełny ekran",
@@ -953,6 +954,7 @@ const en = {
     },
     chartCard: {
       exportPng: "Export PNG",
+      exportSvg: "Export SVG",
       exportCsv: "Export CSV",
       fullscreen: "Full screen",
       exitFullscreen: "Exit full screen",

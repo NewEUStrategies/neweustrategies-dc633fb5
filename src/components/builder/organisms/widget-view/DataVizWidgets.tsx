@@ -13,9 +13,14 @@ import {
   CHART_HEIGHT_MIN,
   defaultChartConfig,
   parseBarStyle,
+  parseChartBand,
   parseChartKind,
+  parseChartSources,
+  parseChartTarget,
   parseMapRegion,
 } from "@/lib/charts/parse";
+import { isMetricDirection } from "@/lib/charts/status";
+import { isProvenance } from "@/lib/charts/sources";
 import { parseChartData, parseMapData } from "@/lib/charts/csv";
 import { Chart } from "@/components/charts/Chart";
 import { ChoroplethMap } from "@/components/charts/ChoroplethMap";
@@ -57,8 +62,49 @@ export function ChartWidgetView({ node, lang }: WidgetProps) {
     showValues: getStr(c, "showValues") === "on",
     animate: getStr(c, "animate") !== "off",
     source: i18nStr(c, "source", lang),
+    caption: i18nStr(c, "caption", lang),
+    ...chartReferenceFields(c),
   };
   return <Chart config={config} lang={lang} className="my-0" />;
+}
+
+/**
+ * Paleta, kierunek, pochodzenie, pasmo optimum ze swoim źródłem i cel - pola
+ * płaskie widgetu złożone w kształt konfiguracji. Pasmo dostaje źródło
+ * `band` wyłącznie wtedy, gdy autor podał tytuł albo adres źródła; bez niego
+ * silnik pokaże „brak benchmarku", a nie przedział bez przypisu.
+ */
+function chartReferenceFields(
+  c: WidgetNode["content"],
+): Pick<ChartConfig, "palette" | "direction" | "provenance" | "band" | "target" | "sources"> {
+  const direction = getStr(c, "direction");
+  const provenance = getStr(c, "provenance");
+  const sources = parseChartSources([
+    {
+      id: "band",
+      author: getStr(c, "bandSourceAuthor"),
+      title: getStr(c, "bandSourceTitle"),
+      container: getStr(c, "bandSourceContainer"),
+      publisher: getStr(c, "bandSourcePublisher"),
+      published: getStr(c, "bandSourcePublished"),
+      accessed: getStr(c, "bandSourceAccessed"),
+      url: getStr(c, "bandSourceUrl"),
+      reliability: getStr(c, "bandSourceReliability"),
+    },
+  ]);
+  const band = parseChartBand({
+    min: getStr(c, "bandMin"),
+    max: getStr(c, "bandMax"),
+    sourceId: sources.length > 0 ? "band" : "",
+  });
+  return {
+    palette: getStr(c, "palette") === "categorical" ? "categorical" : "focus",
+    direction: isMetricDirection(direction) ? direction : null,
+    provenance: isProvenance(provenance) ? provenance : null,
+    band,
+    target: parseChartTarget(getStr(c, "target")),
+    sources,
+  };
 }
 
 export function DataMapWidgetView({ node, lang }: WidgetProps) {

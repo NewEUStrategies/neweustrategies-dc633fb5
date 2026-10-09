@@ -65,8 +65,19 @@ function chip(): HTMLElement | null {
   return document.querySelector("[class*='rounded-md'][class*='bg-muted/60']");
 }
 
-function klasaIkony(): string {
-  return chip()?.querySelector("svg")?.getAttribute("class") ?? "";
+/** Strzałka zmiany: ▲ wzrost, ▼ spadek, ■ bez zmian (specyfikacja wykresów). */
+function strzalka(): string {
+  return chip()?.querySelector("[data-arrow]")?.getAttribute("data-arrow") ?? "";
+}
+
+/** Ocena zmiany niesiona kolorem: good / bad / neutral. */
+function ton(): string {
+  return chip()?.getAttribute("data-tone") ?? "";
+}
+
+/** Sama liczba zmiany - bez strzałki, która jest osobnym nośnikiem kierunku. */
+function liczba(): string {
+  return chip()?.querySelector("[data-role='delta-value']")?.textContent ?? "";
 }
 
 afterEach(cleanup);
@@ -129,8 +140,8 @@ describe("KpiTile - delta procentowa", () => {
 
     const c = chip() as HTMLElement;
     expect(within(c).getByText("+20.0%")).toBeTruthy();
-    expect(c.className).toContain("text-emerald-600");
-    expect(klasaIkony()).toContain("up-right");
+    expect(ton()).toBe("good");
+    expect(strzalka()).toBe("▲");
   });
 
   it("spadek NIE dokłada plusa i maluje się kolorem ostrzegawczym", () => {
@@ -138,8 +149,8 @@ describe("KpiTile - delta procentowa", () => {
 
     const c = chip() as HTMLElement;
     expect(within(c).getByText("-20.0%")).toBeTruthy();
-    expect(c.className).toContain("text-destructive");
-    expect(klasaIkony()).toContain("down-right");
+    expect(ton()).toBe("bad");
+    expect(strzalka()).toBe("▼");
   });
 
   it("brak zmiany to STAN NEUTRALNY: kreska, kolor stonowany, zero bez znaku", () => {
@@ -147,9 +158,8 @@ describe("KpiTile - delta procentowa", () => {
 
     const c = chip() as HTMLElement;
     expect(within(c).getByText("0.0%")).toBeTruthy();
-    expect(c.className).toContain("text-muted-foreground");
-    expect(c.className).not.toContain("emerald");
-    expect(klasaIkony()).toContain("minus");
+    expect(ton()).toBe("neutral");
+    expect(strzalka()).toBe("■");
   });
 
   it("procent liczy się od WARTOŚCI BEZWZGLĘDNEJ poprzedniego okresu", () => {
@@ -191,19 +201,19 @@ describe("KpiTile - metryka, w której MNIEJ znaczy lepiej", () => {
     // Pozycja w SERP-ach, CLS, LCP: mniejsza liczba to lepszy wynik.
     kafelek({ current: 4.2, previous: 6.0, higherIsBetter: false });
 
-    expect((chip() as HTMLElement).className).toContain("text-emerald-600");
+    expect(ton()).toBe("good");
   });
 
   it("wzrost jest czerwony, gdy `higherIsBetter` jest wyłączone", () => {
     kafelek({ current: 6.0, previous: 4.2, higherIsBetter: false });
 
-    expect((chip() as HTMLElement).className).toContain("text-destructive");
+    expect(ton()).toBe("bad");
   });
 
   it("brak zmiany zostaje neutralny niezależnie od kierunku „lepszego”", () => {
     kafelek({ current: 4.2, previous: 4.2, higherIsBetter: false });
 
-    expect((chip() as HTMLElement).className).toContain("text-muted-foreground");
+    expect(ton()).toBe("neutral");
   });
 
   it("strzałka idzie za ZNAKIEM liczby, nie za oceną, przy „mniej znaczy lepiej”", () => {
@@ -220,7 +230,7 @@ describe("KpiTile - metryka, w której MNIEJ znaczy lepiej", () => {
 
     const c = chip() as HTMLElement;
     expect(c.textContent).toContain("+42.9%");
-    expect(klasaIkony()).toContain("up-right");
+    expect(strzalka()).toBe("▲");
   });
 });
 
@@ -249,7 +259,7 @@ describe("KpiTile - delta bezwzględna i format liczby", () => {
     // Zwykła spacja łamałaby liczbę na końcu wiersza; `pl-PL` daje U+00A0.
     kafelek({ current: 1_250_000, previous: 15_433, absoluteDelta: true });
 
-    const tekst = (chip() as HTMLElement).textContent ?? "";
+    const tekst = liczba();
     expect(tekst).toBe(`+1${NBSP}234${NBSP}567`);
   });
 
@@ -258,13 +268,13 @@ describe("KpiTile - delta bezwzględna i format liczby", () => {
     // Asercja pilnuje, żeby nikt nie „poprawił" tego ręcznym grupowaniem.
     kafelek({ current: 1000, previous: 0, absoluteDelta: true });
 
-    expect((chip() as HTMLElement).textContent).toBe("+1000");
+    expect(liczba()).toBe("+1000");
   });
 
   it("ułamek jest przycięty do DWÓCH miejsc, z przecinkiem dziesiętnym", () => {
     kafelek({ current: 12_345.6789, previous: 0, absoluteDelta: true });
 
-    expect((chip() as HTMLElement).textContent).toBe(`+12${NBSP}345,68`);
+    expect(liczba()).toBe(`+12${NBSP}345,68`);
   });
 
   it("zerowa różnica bezwzględna jest bez znaku i neutralna", () => {
@@ -272,7 +282,7 @@ describe("KpiTile - delta bezwzględna i format liczby", () => {
 
     const c = chip() as HTMLElement;
     expect(within(c).getByText("0pp")).toBeTruthy();
-    expect(c.className).toContain("text-muted-foreground");
+    expect(ton()).toBe("neutral");
   });
 
   it("tryb bezwzględny dzieli przez zero BEZ nieskończoności", () => {
@@ -280,7 +290,7 @@ describe("KpiTile - delta bezwzględna i format liczby", () => {
     // od zera procent nie ma sensu, a różnica ma.
     kafelek({ current: 9, previous: 0, absoluteDelta: true });
 
-    const tekst = (chip() as HTMLElement).textContent ?? "";
+    const tekst = liczba();
     expect(tekst).toBe("+9");
     expect(tekst).not.toContain("∞");
   });
@@ -375,11 +385,13 @@ describe("KpiTile - izolacja warsztatów i dostępność", () => {
     // WCAG 1.4.1: kolor nie może być jedynym nośnikiem informacji. Znak przy
     // liczbie działa też dla osoby, która nie rozróżnia czerwieni i zieleni.
     const { unmount } = kafelek({ current: 120, previous: 100 });
-    expect((chip() as HTMLElement).textContent?.startsWith("+")).toBe(true);
+    expect(liczba().startsWith("+")).toBe(true);
+    expect(strzalka()).toBe("▲");
     unmount();
 
     kafelek({ current: 80, previous: 100 });
-    expect((chip() as HTMLElement).textContent?.startsWith("-")).toBe(true);
+    expect(liczba().startsWith("-")).toBe(true);
+    expect(strzalka()).toBe("▼");
   });
 
   // ETYKIETA I WARTOŚĆ SĄ POWIĄZANE PROGRAMOWO - to cała treść informacyjna

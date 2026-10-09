@@ -92,3 +92,30 @@ const BEZ_WSKAZANIA: Partial<Record<ChartKind, string>> = {
 export function oddajeWskazanie(kind: ChartKind): boolean {
   return !(kind in BEZ_WSKAZANIA);
 }
+
+/**
+ * Wskazany PUNKT - kategoria i seria naraz. Inaczej niż `ChartSelection`,
+ * które przy wielu seriach nie rozstrzyga serii (strefa trafienia obejmuje
+ * cały pas kategorii), ten kształt powstaje wtedy, gdy rysunek WIE, którą
+ * serię czytelnik wskazał: kursor stoi na linii albo na słupku. Otwiera okno
+ * z definicją wskaźnika, klikniętą wartością i statusem względem przedziału.
+ */
+export interface ChartPointDetail {
+  categoryIndex: number;
+  category: string;
+  /** Indeks serii w konfiguracji (nie wśród widocznych). */
+  seriesIndex: number;
+  seriesName: string;
+  value: number | null;
+  /** Wartość w poprzednim punkcie osi - do zmiany procentowej. */
+  previous: number | null;
+}
+
+export type ChartPointHandler = (point: ChartPointDetail) => void;
+
+/**
+ * Jak rysunek nazywa serie: legendą nad wykresem albo etykietami przy końcu
+ * linii. Rozstrzyga rysunek, bo tylko on zna swoją szerokość - a rama ukrywa
+ * legendę, gdy etykiety już nazywają serie.
+ */
+export type LegendMode = "legend" | "labels";

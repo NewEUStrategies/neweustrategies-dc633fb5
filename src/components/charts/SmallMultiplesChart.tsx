@@ -456,7 +456,7 @@ export function SmallMultiplesChart({
     // dwanaście pomiarów leży co 10 px, czyli kropka o promieniu 2,8 px ma
     // jeszcze prześwit; przy dwudziestu czterech nie ma go już wcale.
     const odstep = categoryCount > 1 ? plotW / (categoryCount - 1) : plotW;
-    const pokazKropki = shouldShowDots(categoryCount, 0) && odstep >= MIN_DOT_SPACING;
+    const pokazKropki = shouldShowDots(categoryCount) && odstep >= MIN_DOT_SPACING;
 
     const boxes: PanelBox[] = model.panels.map((panel) => {
       const x = finite(padLeft + gridW * panel.x, padLeft);
@@ -1151,7 +1151,7 @@ export function SmallMultiplesChart({
             y={PAD_TOP_WITH_LABELS - LABEL_GAP_PX}
             textAnchor="start"
             fontSize={FONT_AXIS}
-            fill="var(--muted-foreground)"
+            fill="var(--chart-ink3)"
             data-role="axis-value"
           >
             {indeks ? t("smallMultiples.axis.index") : t("smallMultiples.axis.value")}
@@ -1161,7 +1161,7 @@ export function SmallMultiplesChart({
             y={PAD_TOP_WITH_LABELS - LABEL_GAP_PX}
             textAnchor="end"
             fontSize={FONT_AXIS}
-            fill="var(--muted-foreground)"
+            fill="var(--chart-ink3)"
             data-role="axis-category"
           >
             {t("smallMultiples.axis.category")}
@@ -1394,7 +1394,7 @@ export function SmallMultiplesChart({
                     y={box.y + box.h / 2 + TICK_NUDGE}
                     textAnchor="middle"
                     fontSize={FONT_AXIS}
-                    fill="var(--muted-foreground)"
+                    fill="var(--chart-ink3)"
                     data-role="panel-missing"
                   >
                     {BRAK_WARTOSCI}
@@ -1416,7 +1416,7 @@ export function SmallMultiplesChart({
                         y={pikselWartosci(tick, box) + TICK_NUDGE}
                         textAnchor="end"
                         fontSize={FONT_AXIS}
-                        fill="var(--muted-foreground)"
+                        fill="var(--chart-ink3)"
                         className="tabular-nums"
                         data-role="value-tick"
                       >
@@ -1438,7 +1438,7 @@ export function SmallMultiplesChart({
                       y={box.y + FONT_AXIS}
                       textAnchor="start"
                       fontSize={FONT_AXIS}
-                      fill="var(--muted-foreground)"
+                      fill="var(--chart-ink3)"
                       className="tabular-nums"
                     >
                       {formatAxisTick(panel.domain.max, lang)}
@@ -1448,7 +1448,7 @@ export function SmallMultiplesChart({
                       y={box.y + box.h - 2}
                       textAnchor="start"
                       fontSize={FONT_AXIS}
-                      fill="var(--muted-foreground)"
+                      fill="var(--chart-ink3)"
                       className="tabular-nums"
                     >
                       {formatAxisTick(panel.domain.min, lang)}
@@ -1480,7 +1480,7 @@ export function SmallMultiplesChart({
                               : "middle"
                         }
                         fontSize={FONT_AXIS}
-                        fill="var(--muted-foreground)"
+                        fill="var(--chart-ink3)"
                         data-role="category-tick"
                       >
                         {skrot(label, box.w / 2)}
