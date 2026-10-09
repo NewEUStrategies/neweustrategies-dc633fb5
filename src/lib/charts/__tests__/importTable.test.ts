@@ -18,6 +18,7 @@ import {
   normaliseCountryName,
   numberStyle,
   parseDelimitedText,
+  parseImportedCell,
   parseImportedNumber,
   readImportedNumber,
   sniffDelimiter,
@@ -459,6 +460,35 @@ describe("import - waluta, minus, flagi i braki danych", () => {
     // Bez spacji to nie flaga, a wielka litera to nie flaga Eurostatu.
     expect(readImportedNumber("12p").status).toBe("invalid");
     expect(readImportedNumber("12 P").status).toBe("invalid");
+  });
+
+  it("parseImportedCell oddaje liczbę RAZEM z literami zdjętej flagi", () => {
+    // Flaga schodzi PRZED usunięciem odstępów - inaczej „1 234,5 p" stałoby
+    // się „1234,5p" i przepadło jako komórka nieliczbowa.
+    expect(parseImportedCell("1 234,5 p", "pl")).toEqual({ value: 1234.5, flag: "p" });
+    expect(parseImportedCell("1\u00a0234,5\u00a0bep", "pl")).toEqual({
+      value: 1234.5,
+      flag: "bep",
+    });
+    expect(parseImportedCell("12.5 e")).toEqual({ value: 12.5, flag: "e" });
+    expect(parseImportedCell("12,5")).toEqual({ value: 12.5, flag: null });
+    // Jawny brak z flagą: wartości nie ma, flaga zostaje („c" - poufne).
+    expect(parseImportedCell(": c")).toEqual({ value: null, flag: "c" });
+    // Napis, który liczbą nie jest, nie ma też flagi.
+    expect(parseImportedCell("Polska b")).toEqual({ value: null, flag: null });
+    expect(parseImportedCell("")).toEqual({ value: null, flag: null });
+    // Waluta złożona z liter flag zostaje walutą.
+    expect(parseImportedCell("5 usd")).toEqual({ value: 5, flag: null });
+  });
+
+  it("parseImportedNumber to wartość z parseImportedCell w każdej konwencji", () => {
+    for (const raw of ["1 234,5 p", "1,234", "1.234", "45%", ": c", "abc", "(12)"]) {
+      for (const locale of [undefined, "pl", "en"] as const) {
+        expect(parseImportedNumber(raw, locale), `${raw} / ${locale}`).toBe(
+          parseImportedCell(raw, locale).value,
+        );
+      }
+    }
   });
 
   it("odróżnia pustą komórkę od napisu, który liczbą nie jest", () => {

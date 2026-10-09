@@ -16,17 +16,26 @@
 // SUROWA WARTOŚĆ TYLKO DLA LICZB. W komórce z DATĄ `x:num` to numer dnia
 // Excela (45306 zamiast 15.01.2024) - na osi kategorii byłaby to katastrofa.
 // Dlatego surowa wartość wygrywa wyłącznie wtedy, gdy format komórki nie jest
-// datą ANI czasem, a tekst wyświetlany wygląda na liczbę. Etykiety, daty
-// i wszystko inne zostają tekstem, który redaktor widzi w arkuszu.
+// datą ANI czasem, a tekst wyświetlany JEST liczbą według tej samej reguły,
+// którą czyta się komórkę pliku (`importNumber.parseImportedCell`, w
+// którejkolwiek konwencji). Etykiety, daty, braki danych („:") i wszystko
+// inne zostają tekstem, który redaktor widzi w arkuszu; puste `x:num`
+// (Excel tak oznacza komórkę, której tekst JEST wartością) - też.
 //
 // PROCENT jak w pliku: „12,5%" z surową wartością 0,125 daje 12,5 - ta sama
-// reguła co w procesie arkuszy i w `parseImportedNumber` (procent nie dzieli
-// przez sto, jednostka jest osobnym polem).
+// reguła co w procesie arkuszy (`isPercentFormat`, wartość · 100,
+// `toPrecision(15)`) i w `parseImportedCell` (procent nie dzieli przez sto,
+// jednostka jest osobnym polem). Procentem jest komórka, której format jest
+// procentowy, albo - gdy żaden format nie mówi o procencie - której tekst
+// kończy się znakiem „%". Format z „%" wyłącznie jako LITERAŁEM (`0" %"`,
+// `0\%`) procentem nie jest, tak jak w pliku.
 //
 // JEDNA KOMÓRKA TO NIE TABELA. Wklejenie pojedynczej wartości (jeden wiersz
 // bez tabulatora, tabela 1×1) daje `null` - wołający oddaje wtedy zdarzenie
 // zwykłemu polu tekstowemu, które wklei napis po swojemu.
 import type { ClipboardEvent as ReactClipboardEvent } from "react";
+import { isPercentFormat } from "@/lib/files/spreadsheetProtocol";
+import { isImportedNumber } from "./importNumber";
 
 /** Obie postaci schowka; brak albo pusty napis znaczy „tej postaci nie ma". */
 export interface ClipboardPayload {
@@ -148,12 +157,22 @@ function jsonAtrybutu(el: Element, name: string): Record<string, unknown> | null
   }
 }
 
-/**
- * Rodzaj formatu komórki w którymkolwiek dialekcie: „date" (data albo czas),
- * „number" (format jest i datą nie jest) albo `null` - formatu brak (komórka
- * w formacie ogólnym albo HTML spoza arkusza).
- */
-function formatKomorki(el: Element, klasy: ReadonlyMap<string, string>): "date" | "number" | null {
+/** Format komórki w którymkolwiek dialekcie. */
+interface FormatKomorki {
+  /**
+   * „date" (data albo czas), „number" (format jest i datą nie jest) albo
+   * `null` - formatu brak (komórka w formacie ogólnym albo HTML spoza arkusza).
+   */
+  rodzaj: "date" | "number" | null;
+  /**
+   * Czy format mówi o procencie: `true` - format procentowy, `false` - „%"
+   * jest w formacie wyłącznie literałem, `null` - żaden format o procencie
+   * nie mówi (rozstrzyga wtedy tekst wyświetlany).
+   */
+  procent: boolean | null;
+}
+
+function formatKomorki(el: Element, klasy: ReadonlyMap<string, string>): FormatKomorki {
   const kody: string[] = [];
   const inline = msoFormat(el.getAttribute("style") ?? "");
   if (inline !== null) kody.push(inline);
@@ -163,16 +182,23 @@ function formatKomorki(el: Element, klasy: ReadonlyMap<string, string>): "date" 
   }
   // Arkusze Google: {"1": typ, "2": wzorzec}; typy 5-7 to data, czas, data z czasem.
   const sheets = jsonAtrybutu(el, "data-sheets-numberformat");
+  let dataArkuszy = false;
   if (sheets !== null) {
-    if (sheets["1"] === 5 || sheets["1"] === 6 || sheets["1"] === 7) return "date";
+    dataArkuszy = sheets["1"] === 5 || sheets["1"] === 6 || sheets["1"] === 7;
     const wzorzec = sheets["2"];
     kody.push(typeof wzorzec === "string" ? wzorzec : "General");
   }
   // LibreOffice: sdnum="1045;1045;DD.MM.YYYY" - trzecia część to kod formatu.
   const sdnum = el.getAttribute("sdnum");
   if (sdnum !== null) kody.push(sdnum.split(";").slice(2).join(";") || "General");
-  if (kody.length === 0) return null;
-  return kody.some(isDateFormatCode) ? "date" : "number";
+  const procentowe = kody.filter((k) => isPercentFormat(k));
+  const zZnakiem = kody.filter((k) => k.includes("%"));
+  const procent = procentowe.length > 0 ? true : zZnakiem.length > 0 ? false : null;
+  if (kody.length === 0) return { rodzaj: null, procent: null };
+  return {
+    rodzaj: dataArkuszy || kody.some(isDateFormatCode) ? "date" : "number",
+    procent,
+  };
 }
 
 /** Surowa wartość liczbowa komórki: `x:num`, `data-sheets-value["3"]`, `sdval`. */
@@ -187,25 +213,6 @@ function surowaLiczba(el: Element): number | null {
   if (libre !== null && libre.trim() !== "") kandydaci.push(Number(libre));
   for (const k of kandydaci) if (typeof k === "number" && Number.isFinite(k)) return k;
   return null;
-}
-
-const WALUTA = "zł|pln|eur|€|\\$|usd|£|gbp|chf";
-const WALUTA_NA_POCZATKU = new RegExp(`^[+-]?(?:${WALUTA})`, "i");
-const WALUTA_NA_KONCU = new RegExp(`(?:${WALUTA})$`, "i");
-
-/**
- * Czy tekst wyświetlany wygląda na liczbę: cyfry z rozdzielaczami, znak,
- * waluta, procent, nawias księgowy.
- */
-function wygladaNaLiczbe(display: string): boolean {
-  const s = display
-    .replace(/[\s\u00a0\u202f\u2009]/g, "")
-    .replace(/[\u2212\u2013]/g, "-")
-    .replace(/^\((.*)\)$/, "$1")
-    .replace(/%$/, "")
-    .replace(WALUTA_NA_POCZATKU, "")
-    .replace(WALUTA_NA_KONCU, "");
-  return /^[+-]?(?:\d[\d.,'\u2019]*)?\d(?:[eE][+-]?\d+)?$/.test(s);
 }
 
 /**
@@ -247,18 +254,21 @@ function tekstKomorki(el: Element): string {
 
 /**
  * Wartość komórki HTML jako napis dla importu. Surowa liczba wygrywa tylko
- * wtedy, gdy format komórki nie jest datą, a tekst wyświetlany wygląda na
- * liczbę; komórka BEZ formatu, której tekst wygląda na datę z samych cyfr,
- * zostaje tekstem.
+ * wtedy, gdy format komórki nie jest datą, a tekst wyświetlany JEST liczbą
+ * (`isImportedNumber` - ta sama reguła co komórka pliku); komórka BEZ
+ * formatu, której tekst wygląda na datę z samych cyfr, zostaje tekstem.
+ * Procent (format procentowy albo, bez rozstrzygającego formatu, „%" na końcu
+ * tekstu) to surowa wartość · 100 bez ogona binarnego.
  */
 function wartoscKomorki(el: Element, klasy: ReadonlyMap<string, string>): string {
   const display = tekstKomorki(el);
   const format = formatKomorki(el, klasy);
-  if (format === "date") return display;
+  if (format.rodzaj === "date") return display;
   const raw = surowaLiczba(el);
-  if (raw === null || !wygladaNaLiczbe(display)) return display;
-  if (format === null && wygladaNaDate(display)) return display;
-  return canonicalNumber(/%\s*$/.test(display) ? bezOgona(raw * 100) : raw);
+  if (raw === null || !isImportedNumber(display)) return display;
+  if (format.rodzaj === null && wygladaNaDate(display)) return display;
+  const procent = format.procent ?? /%\s*$/.test(display);
+  return canonicalNumber(procent ? bezOgona(raw * 100) : raw);
 }
 
 function spanOf(el: Element, attr: "colspan" | "rowspan"): number {

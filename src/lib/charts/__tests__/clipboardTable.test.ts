@@ -237,6 +237,43 @@ describe("schowek - HTML ogólnie", () => {
     expect(readClipboardTable({ html })?.rows).toEqual([["15.01.2024", "3.5"]]);
   });
 
+  // REGUŁA SUROWEJ WARTOŚCI I PROCENTU - ta sama co w pliku (`isPercentFormat`,
+  // `parseImportedCell`), żeby wklejenie i import dawały tę samą liczbę.
+  it("surowa wartość tylko wtedy, gdy tekst wyświetlany JEST liczbą", () => {
+    const html =
+      "<table><tr>" +
+      // Liczba tylko w konwencji angielskiej - i tak liczba, więc surowa.
+      '<td x:num="1234567">1,234,567</td>' +
+      // Zapis księgowy z walutą.
+      '<td x:num="-12.5">(12,50 zł)</td>' +
+      // Jawny brak danych z liczbą pod spodem: zostaje tekstem („:").
+      '<td x:num="0">:</td>' +
+      // Etykieta z liczbą pod spodem (formuła tekstowa): zostaje tekstem.
+      '<td x:num="3">trzy</td>' +
+      // Puste `x:num`: tekst wyświetlany JEST wartością.
+      "<td x:num>12,5</td>" +
+      "</tr></table>";
+    expect(readClipboardTable({ html })?.rows).toEqual([["1234567", "-12.5", ":", "trzy", "12,5"]]);
+  });
+
+  it("procent po formacie: nazwany „Percent”, „%” w formacie, literał „%” bez mnożenia", () => {
+    const html =
+      '<style>.p{mso-number-format:Percent;} .lit{mso-number-format:"0\\0022 %\\0022";}' +
+      ' .esc{mso-number-format:"0\\\\%";}</style><table><tr>' +
+      // Wbudowany „0%" Excela w schowku to nazwa formatu.
+      '<td class=p x:num="0.25">25%</td>' +
+      // Format procentowy z wzorca Arkuszy Google, tekst bez znaku „%".
+      '<td data-sheets-value=\'{"1":3,"3":0.07}\' data-sheets-numberformat=\'{"1":3,"2":"0%"}\'>7</td>' +
+      // „%" jako literał formatu: wartość 5 wyświetlana jako „5 %" - bez mnożenia,
+      // tak jak komórka z tym formatem w pliku (`isPercentFormat`).
+      '<td class=lit x:num="5">5 %</td>' +
+      '<td class=esc x:num="6">6%</td>' +
+      // Bez formatu rozstrzyga tekst: „%" na końcu to procent.
+      '<td x:num="0.125">12,5%</td>' +
+      "</tr></table>";
+    expect(readClipboardTable({ html })?.rows).toEqual([["25", "7", "5", "6", "12.5"]]);
+  });
+
   it("HTML bez tabeli oddaje głos tekstowi", () => {
     const table = readClipboardTable({ html: "<p>akapit</p>", text: "a\tb\n1\t2" });
     expect(table?.source).toBe("tsv");

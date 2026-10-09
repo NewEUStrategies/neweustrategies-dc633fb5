@@ -122,6 +122,31 @@ describe("chart import through the same worker", () => {
     expect(FakeWorker.latest.terminate).toHaveBeenCalledOnce();
     expect(vi.getTimerCount()).toBe(0);
   });
+  it("switches the chart-import mode on only when the caller asks for it", async () => {
+    const buffer = new ArrayBuffer(8);
+    const promise = readSpreadsheetRowsInWorker(buffer, { chartImport: true });
+    expect(FakeWorker.latest.postMessage).toHaveBeenCalledWith({
+      op: "rows",
+      buffer,
+      chartImport: true,
+    });
+    FakeWorker.latest.onmessage?.({ data: { ok: true, result: { sheets: [], sheetsDropped: 0 } } });
+    await promise;
+    const plain = readSpreadsheetRowsInWorker(buffer, { chartImport: false });
+    expect(FakeWorker.latest.postMessage).toHaveBeenCalledWith({ op: "rows", buffer });
+    FakeWorker.latest.onmessage?.({ data: { ok: true, result: { sheets: [], sheetsDropped: 0 } } });
+    await plain;
+  });
+  it("stops a chart import when the caller aborts", async () => {
+    const controller = new AbortController();
+    const promise = readSpreadsheetRowsInWorker(new ArrayBuffer(8), {
+      chartImport: true,
+      signal: controller.signal,
+    });
+    controller.abort();
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+    expect(FakeWorker.latest.terminate).toHaveBeenCalledOnce();
+  });
   it("gives a large import more time than an untrusted preview", async () => {
     const promise = readSpreadsheetRowsInWorker(new ArrayBuffer(8));
     let settled = false;

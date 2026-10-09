@@ -20,15 +20,23 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as XLSX from "xlsx";
 
-const h = vi.hoisted(() => ({ calls: 0, refuse: false }));
+const h = vi.hoisted(() => ({
+  calls: 0,
+  refuse: false,
+  options: [] as ({ chartImport?: boolean } | undefined)[],
+}));
 
 vi.mock("@/lib/files/spreadsheetWorker", async () => {
   const core = await import("@/lib/files/spreadsheetCore");
   return {
-    readSpreadsheetRowsInWorker: async (buffer: ArrayBuffer) => {
+    readSpreadsheetRowsInWorker: async (
+      buffer: ArrayBuffer,
+      options?: { chartImport?: boolean },
+    ) => {
       h.calls += 1;
+      h.options.push(options);
       if (h.refuse) throw new Error("spreadsheet:read-failed");
-      return core.readSpreadsheetRows(buffer);
+      return core.readSpreadsheetRows(buffer, { chartImport: options?.chartImport });
     },
   };
 });
@@ -38,7 +46,9 @@ import {
   decodeTextBytes,
   parseImportedNumber,
   readWorkbook,
+  tableToChartData,
 } from "@/lib/charts/importTable";
+import { readClipboardTable } from "@/lib/charts/clipboardTable";
 import { IMPORT_MAX_ROWS, IMPORT_MAX_SHEETS } from "@/lib/files/spreadsheetProtocol";
 
 function skoroszyt(arkusze: Record<string, unknown[][]>): File {
@@ -53,6 +63,7 @@ function skoroszyt(arkusze: Record<string, unknown[][]>): File {
 beforeEach(() => {
   h.calls = 0;
   h.refuse = false;
+  h.options = [];
 });
 
 describe("plik tekstowy", () => {
@@ -96,6 +107,9 @@ describe("skoroszyt przez proces arkuszy", () => {
     );
 
     expect(h.calls).toBe(1);
+    // Tryb importu wykresu włącza WYŁĄCZNIE ta droga - proces bez niego czyta
+    // jak przed jego wprowadzeniem (podgląd w klubie, eksport leadów).
+    expect(h.options).toEqual([{ chartImport: true }]);
     expect(book.sheets).toEqual([
       {
         name: "Dane",
@@ -232,6 +246,51 @@ describe("plik i schowek dają tę samą liczbę", () => {
       ["Okres", "Udział"],
       ["2024-01", "12,5%"],
     ]);
+  });
+
+  // „25%" i „7%": plik (komórka 0,25 / 0,07 w formacie procentowym) i schowek
+  // (Excel z `x:num`, Arkusze Google z `data-sheets-value`, LibreOffice
+  // z `sdval`) dają 25 i 7 - a nie 0,25 z pliku ani 7,000000000000001
+  // (0,07 · 100 w liczbach zmiennoprzecinkowych) z któregokolwiek.
+  it("„25%” i „7%” dają 25 i 7 z pliku i z każdego schowka", async () => {
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ["Kraj", "Udział"],
+      ["PL", 0.25],
+      ["DE", 0.07],
+    ]);
+    sheet.B2.z = "0%";
+    sheet.B3.z = "0%";
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, sheet, "Dane");
+    for (const bookType of ["xlsx", "xls", "ods"] as const) {
+      const bytes = XLSX.write(wb, { type: "array", bookType }) as ArrayBuffer;
+      const book = await readWorkbook(new File([bytes], `dane.${bookType}`));
+      const z = tableToChartData(book.sheets[0]?.rows ?? []);
+      expect(z.series[0]?.values, bookType).toEqual([25, 7]);
+    }
+
+    const excel =
+      "<style>.xl65{mso-number-format:Percent;}</style><table>" +
+      "<tr><td>Kraj</td><td>Udział</td></tr>" +
+      '<tr><td>PL</td><td class=xl65 x:num="0.25">25%</td></tr>' +
+      '<tr><td>DE</td><td class=xl65 x:num="7.0000000000000007E-2">7%</td></tr></table>';
+    const sheets =
+      "<table><tr><td>Kraj</td><td>Udział</td></tr>" +
+      '<tr><td>PL</td><td data-sheets-value=\'{"1":3,"3":0.25}\' data-sheets-numberformat=\'{"1":3,"2":"0%"}\'>25%</td></tr>' +
+      '<tr><td>DE</td><td data-sheets-value=\'{"1":3,"3":0.07}\' data-sheets-numberformat=\'{"1":3,"2":"0%"}\'>7%</td></tr></table>';
+    const libre =
+      "<table><tr><td>Kraj</td><td>Udział</td></tr>" +
+      '<tr><td>PL</td><td sdval="0.25" sdnum="1045;0;0%">25%</td></tr>' +
+      '<tr><td>DE</td><td sdval="0.07" sdnum="1045;0;0%">7%</td></tr></table>';
+    for (const [name, html] of Object.entries({ excel, sheets, libre })) {
+      const table = readClipboardTable({ html, text: "Kraj\tUdział\nPL\t25%\nDE\t7%" });
+      expect(table?.source, name).toBe("html");
+      const z = tableToChartData(table?.rows ?? []);
+      expect(z.series[0]?.values, name).toEqual([25, 7]);
+    }
+    // Tekst bez HTML-a: „7%" to 7 wprost z napisu (procent nie dzieli przez sto).
+    const text = readClipboardTable({ text: "Kraj\tUdział\nPL\t25%\nDE\t7%" });
+    expect(tableToChartData(text?.rows ?? []).series[0]?.values).toEqual([25, 7]);
   });
 
   it("liczba z trzema miejscami po kropce wychodzi w zapisie, którego nie da się wziąć za tysiące", async () => {
