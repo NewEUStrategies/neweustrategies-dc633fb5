@@ -441,7 +441,7 @@ const MULTI_CARD_GAP_PX = 16;
 // użytkownik z ograniczonym ruchem widział przenikanie slajdów (skala i tak
 // stoi na 1). Reguła zachowuje to zachowanie co do deklaracji - zamiana
 // inline → arkusz nie zmienia niczego, co widać.
-const SHARED_STYLES = `
+const SHARED_STYLES = /* @nes-static-css */ `
 .eh-slider[data-variant="multi-card"] { container-type: inline-size; }
 .eh-multi-track { --eh-visible-columns: var(--eh-columns, 3); }
 @container (max-width: 1024px) {

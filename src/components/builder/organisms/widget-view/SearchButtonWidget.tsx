@@ -203,7 +203,7 @@ function VoiceSearchBridge({
 //    intentionally lock compact metadata and operators.
 //  - Klasyczny floating label: unosi się na górną krawędź inputa.
 //  - Cieńsze obramowanie w spoczynku, brak drop shadowa na focus.
-const SEARCH_WIDGET_CSS = `
+const SEARCH_WIDGET_CSS = /* @nes-static-css */ `
 [data-search-overflow]:not([data-reading-row]) {
   overflow: visible !important;
 }

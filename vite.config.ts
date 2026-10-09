@@ -17,6 +17,7 @@ import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
 import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
 import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim";
 import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin";
+import { staticCssPlugin } from "./scripts/lib/staticCssPlugin";
 import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";
 import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces";
 
@@ -125,6 +126,9 @@ export default defineConfig({
       // BOOT_MANIFEST serwera). Tylko build, tylko środowisko `ssr`; ta sama wtyczka
       // w vite.smoke.config.ts (parytet: viteChunkParity.test.ts).
       bootAfterLcpPlugin(),
+      // P3.7a: minifikacja oznaczonych statycznych literałów CSS (tylko build, oba
+      // środowiska, surowy TS); ta sama wtyczka w vite.smoke.config.ts.
+      staticCssPlugin(),
     ],
 
     // P3.6a: identyfikator buildu kluczy L2 (patrz `NES_BUILD_ID` wyżej).
