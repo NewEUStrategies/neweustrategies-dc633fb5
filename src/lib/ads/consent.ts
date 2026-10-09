@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { onSupabaseClientCreated } from "@/integrations/supabase/sessionHint";
 import {
   clampCategoriesForGpc,
   isGpcClampedCategory,
@@ -653,17 +654,31 @@ export function useConsent() {
     const sync = () => setState(readLocal());
     window.addEventListener(EVENT, sync);
     window.addEventListener("storage", sync);
-    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED") {
-        void hydrateConsentFromProfileOnce().then((r) => {
-          if (r) setState(r);
-        });
-      }
+    // BEZ TWORZENIA KLIENTA SUPABASE W COMMICIE HYDRATACJI (P3.1 B, TP-5).
+    // Dotknięcie `supabase.auth` tworzyło klienta (GoTrue, BroadcastChannel,
+    // timer auto-odświeżania) w zadaniu commitu `useEffectiveConsent()` z
+    // `__root.tsx` - także u gościa, który sesji nie ma. Nasłuch podpinamy
+    // dopiero, gdy klienta utworzy KTOKOLWIEK (wzorzec `useAuth.tsx`):
+    // słuchacz biegnie po utworzeniu i przed pierwszym zdarzeniem SDK, więc
+    // `SIGNED_IN` i `INITIAL_SESSION` nie przepadają. Zalogowany ma klienta z
+    // `AuthProvider`, więc subskrypcja powstaje od razu, jak dotąd. Import
+    // rejestru wprost z `sessionHint` (jak `useAuth.tsx`) - reeksport z
+    // `client.ts` jest ten sam.
+    let sub: { subscription: { unsubscribe(): void } } | null = null;
+    const stopWaitingForClient = onSupabaseClientCreated(() => {
+      ({ data: sub } = supabase.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED") {
+          void hydrateConsentFromProfileOnce().then((r) => {
+            if (r) setState(r);
+          });
+        }
+      }));
     });
     return () => {
       window.removeEventListener(EVENT, sync);
       window.removeEventListener("storage", sync);
-      sub.subscription.unsubscribe();
+      stopWaitingForClient();
+      sub?.subscription.unsubscribe();
     };
   }, []);
 

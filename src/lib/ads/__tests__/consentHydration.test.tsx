@@ -99,6 +99,10 @@ import {
   useMarketingConsent,
   type ConsentState,
 } from "@/lib/ads/consent";
+import {
+  __resetSupabaseClientRegistryForTests,
+  markSupabaseClientCreated,
+} from "@/integrations/supabase/sessionHint";
 
 const STORAGE_KEY = "consent:v2";
 const COOKIE_NAME = "nes_cookie_consent";
@@ -166,6 +170,11 @@ beforeEach(() => {
   sb.rpcCalls = 0;
   sb.updates = [];
   sb.authListeners = [];
+  // Klient Supabase ISTNIEJE (jak u zalogowanego - tworzy go `AuthProvider`):
+  // `useConsent` podpina nasłuch sesji od razu (P3.1 B). Gościa bez klienta
+  // sprawdza `consentAuthDeferred.test.tsx`.
+  __resetSupabaseClientRegistryForTests();
+  markSupabaseClientCreated();
   bridge.sync.mockReset().mockResolvedValue(undefined);
   bridge.backfill.mockReset().mockResolvedValue(undefined);
   bridge.gpc.mockReset().mockResolvedValue(undefined);
@@ -174,6 +183,7 @@ beforeEach(() => {
 
 afterEach(() => {
   clearCookies();
+  __resetSupabaseClientRegistryForTests();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   window.history.replaceState({}, "", "/");

@@ -45,6 +45,7 @@ import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { useLang } from "@/lib/i18n/useLang";
 import { resolveHeaderMode, type ContentKind } from "@/lib/layout/headerMode";
 import { HydrationIsland, type IslandTrigger } from "@/lib/performance/hydrationIsland";
+import { onInteractionOrQuiet } from "@/lib/performance/interactionOrQuiet";
 import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
 
 type ThemeLogoCfg = {
@@ -630,8 +631,7 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   // Dlatego nie publikujemy nic w trakcie ruchu: ResizeObserver tylko odracza
   // pomiar, a wartość trafia na :root dopiero gdy wysokość ustabilizuje się na
   // SETTLE_MS. Dla kotwic to bez znaczenia (liczy się stan spoczynkowy), a
-  // animacja dostaje wolne klatki. Pierwszy pomiar leci od razu, żeby wartość
-  // była gotowa zanim ktokolwiek kliknie link do kotwicy.
+  // animacja dostaje wolne klatki.
   //
   // BEZ ZAPISU, KTÓRY NICZEGO NIE ZMIENIA (F2, P1.2). `styles.css` niesie
   // domyślną wartość per breakpoint, równą zmierzonej wysokości nagłówka.
@@ -639,22 +639,49 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   // < 2 px znaczy, że kotwice już widzą właściwą wysokość, a zapis kosztowałby
   // przeliczenie stylu całego dokumentu w oknie TBT (~800-900 elementów,
   // zadanie K13; werdykt H5: koszt daje sam zapis stylu <html> przy starcie).
+  //
+  // LENIWA PIERWSZA PUBLIKACJA (P3.1 A, klasa PB5). Na desktopie arkusz nie ma
+  // wartości domyślnej (wysokość zależy od treści CMS i szerokości), więc zapis
+  // przy montażu był pewny - i kosztował przeliczenie stylu całego dokumentu w
+  // klatce po `vendor-react` (913 el. na desktop4x, 1128-1212 el. na
+  // produkcji). Montaż NIE publikuje więc niczego (także `0px` poza trybem
+  // sticky-shrink). Pierwszy zapis robi `publishNow`, przy tym, co przyjdzie
+  // pierwsze:
+  //  - zatrzask „pierwsza interakcja albo cisza" (`onInteractionOrQuiet`) -
+  //    callback biegnie z kolejki po końcu gestu i po klatce, więc nie wchodzi
+  //    do INP tej interakcji;
+  //  - SYNCHRONICZNIE, w nasłuchu capture na `document`, przed domyślną akcją:
+  //    klik w kotwicę tego samego dokumentu i `Tab` (przewinięcie do fokusu
+  //    czyta `scroll-padding-top`). Zatrzask otwiera się dopiero po geście, a
+  //    bez tego pierwszy klik w kotwicę chowałby cel ~160 px pod paskiem
+  //    (fallback 96 px wobec 259 px nagłówka przy 1350 px). To ten sam moment
+  //    co strażnik `content-visibility` (P3.3), więc lądowanie zostaje trafne;
+  //  - SYNCHRONICZNIE w `navigate` z Navigation API przy nawigacji do
+  //    fragmentu (`hashChange`): `location.hash = …`, wstecz/dalej między
+  //    fragmentami. Zdarzenie biegnie przed przewinięciem do celu; bez API
+  //    (starsze przeglądarki) zostaje klik, Tab i zatrzask.
+  // Jedno przeliczenie płaci więc tylko taki pierwszy gest przed ciszą, a nie
+  // boot każdej wizyty. Przed publikacją ResizeObserver nic nie planuje -
+  // zmiana wysokości nie ma jeszcze odbiorcy. Wejście z `#kotwica` w adresie
+  // przewija się natywnie przed hydratacją, jak dotąd.
   // `measure()` i `document.fonts.ready` zostają nietknięte (reguła Layout).
   useEffect(() => {
     const root = document.documentElement;
-    if (!stickyShrink) {
-      root.style.setProperty("--sticky-header-h", "0px");
-      return () => root.style.removeProperty("--sticky-header-h");
-    }
     const el = headerRef.current;
-    if (!el) return;
+    if (stickyShrink && !el) return;
     const SETTLE_MS = 140;
     let frame = 0;
     let settle = 0;
     // Ostatnia wartość OPUBLIKOWANA inline; -1 = brak zapisu (obowiązuje CSS).
     let last = -1;
+    // Pierwsza publikacja już zaszła - od niej RO publikuje zmiany wysokości.
+    let armed = false;
     const apply = () => {
       frame = 0;
+      if (!stickyShrink || !el) {
+        root.style.setProperty("--sticky-header-h", "0px");
+        return;
+      }
       const height = Math.round(el.getBoundingClientRect().height);
       if (height <= 0) return;
       // Odczyt po `getBoundingClientRect` - styl jest już policzony, więc
@@ -669,16 +696,55 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
       frame = window.requestAnimationFrame(apply);
     };
     const scheduleAfterSettle = () => {
+      if (!armed) return;
       window.clearTimeout(settle);
       settle = window.setTimeout(schedule, SETTLE_MS);
     };
-    apply();
-    const ro = new ResizeObserver(scheduleAfterSettle);
-    ro.observe(el);
+    // Kotwica w tym samym dokumencie: niepusty fragment, reszta adresu jak
+    // `location` (to samo kryterium co strażnik `content-visibility`).
+    const onClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      // `a[href]` łapie też `<a>` z SVG (bez `hash`) - takie pomijamy.
+      const link = target.closest("a[href],area[href]");
+      if (!(link instanceof HTMLAnchorElement || link instanceof HTMLAreaElement)) return;
+      if (link.hash.length < 2) return;
+      if (link.href.split("#")[0] === window.location.href.split("#")[0]) publishNow();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Tab") publishNow();
+    };
+    const onNavigate = (event: Event) => {
+      if (Reflect.get(event, "hashChange") === true) publishNow();
+    };
+    // Navigation API bez typów z `lib.dom` (nie każda wersja TS je ma).
+    const navigation: unknown = Reflect.get(window, "navigation");
+    const navigationTarget = navigation instanceof EventTarget ? navigation : null;
+    const unlisten = () => {
+      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      navigationTarget?.removeEventListener("navigate", onNavigate);
+    };
+    let stopWaiting = (): void => {};
+    function publishNow(): void {
+      if (armed) return;
+      armed = true;
+      stopWaiting();
+      unlisten();
+      apply();
+    }
+    stopWaiting = onInteractionOrQuiet(publishNow);
+    document.addEventListener("click", onClick, { capture: true, passive: true });
+    document.addEventListener("keydown", onKeyDown, { capture: true, passive: true });
+    navigationTarget?.addEventListener("navigate", onNavigate);
+    const ro = el && stickyShrink ? new ResizeObserver(scheduleAfterSettle) : null;
+    if (ro && el) ro.observe(el);
     return () => {
+      stopWaiting();
+      unlisten();
       if (frame) window.cancelAnimationFrame(frame);
       window.clearTimeout(settle);
-      ro.disconnect();
+      ro?.disconnect();
       root.style.removeProperty("--sticky-header-h");
     };
   }, [stickyShrink]);
