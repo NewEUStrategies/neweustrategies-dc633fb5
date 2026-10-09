@@ -134,6 +134,18 @@ export function hatchTransform(vbWidth: number, drawWidth: number): string {
  */
 export const MAP_NODATA_SWATCH = `repeating-linear-gradient(${MAP_HATCH.angle}deg, var(--chart-map-nodata-hatch) 0 ${MAP_HATCH.linePx}px, var(--chart-map-nodata) ${MAP_HATCH.linePx}px ${MAP_HATCH.swatchSpacingPx}px)`;
 
+/**
+ * Próbka „brak danych" w KLUCZU PNG. Płótno eksportu maluje próbkę jednym
+ * kolorem, więc wzoru tam nie ma - stoi ŚREDNI TON kreskowania (linie
+ * zajmują `linePx / spacingPx` powierzchni), czyli to, co oko widzi na
+ * mapie z odległości. Sam kolor linii (średnio szary) czytał się w pliku
+ * jak środkowa klasa, a samo tło (prawie płyta) znikało. Napis klucza mówi
+ * dodatkowo słowami, że te kraje są kreskowane.
+ */
+export const MAP_NODATA_KEY = `color-mix(in srgb, var(--chart-map-nodata-hatch) ${Math.round(
+  (MAP_HATCH.linePx / MAP_HATCH.spacingPx) * 100,
+)}%, var(--chart-map-nodata))`;
+
 /** Hexy kreskowania dla atrybutów awaryjnych wzoru SVG. */
 export function nodataHex(theme: ChartThemeName): { fill: string; hatch: string } {
   return { fill: MAP_NEUTRALS[theme].nodata, hatch: MAP_NEUTRALS[theme].nodataHatch };
@@ -179,6 +191,15 @@ export const MAP_SCHEME_KEYS: Record<MapScheme, string> = {
 export const MAP_METHOD_KEYS: Record<MapMethod, string> = {
   quantile: "methods.quantile",
   equal: "methods.equal",
+};
+
+/**
+ * Zdanie o interakcjach w „Jak czytać" - per rodzaj skali, bo tooltip skali
+ * ciągłej nie ma faktu „Przedział" i pomoc nie może go obiecywać.
+ */
+export const MAP_INTERACTION_KEYS: Record<MapScale["kind"], string> = {
+  classed: "read.interactionsClassed",
+  continuous: "read.interactionsContinuous",
 };
 
 /**
