@@ -1080,6 +1080,42 @@ it("/llms.txt wiąże treści PL/EN z właściwymi adresami i sekcjami tenanta",
     "[Analizy / Analyses](https://neweuropeanstrategies.com/category/analizy)",
   );
   expect(body).toContain("Komentarze ekspertów.");
+  // Sekcje główne (zgłoszenie 2026-10-09): ta sama kolejność co JSON-LD strony
+  // głównej, PRZED kategoriami, bez „Kontaktu".
+  const key = body.indexOf("## Najważniejsze sekcje / Key sections");
+  const categoriesAt = body.indexOf("## Sekcje / Sections");
+  expect(key).toBeGreaterThan(-1);
+  expect(key).toBeLessThan(categoriesAt);
+  const order = [
+    "- [Analizy / Analyses](https://neweuropeanstrategies.com/analizy)",
+    "- [Wywiady / Interviews](https://neweuropeanstrategies.com/category/wywiady)",
+    "- [Wydarzenia / Events](https://neweuropeanstrategies.com/wydarzenia)",
+    "- [Policy papers](https://neweuropeanstrategies.com/category/policy-papers)",
+    "- [O nas / About us](https://neweuropeanstrategies.com/o-nas)",
+  ].map((line) => body.indexOf(line, key));
+  expect(order.every((at) => at > key && at < categoriesAt)).toBe(true);
+  expect(order).toEqual([...order].sort((a, b) => a - b));
+  expect(body.slice(key, categoriesAt)).not.toContain("/kontakt");
+});
+
+it("/llms.txt na domenie INNEGO tenanta nie ogłasza sekcji głównych marki", async () => {
+  state.settings = { llms_txt_enabled: true };
+  state.posts = [feedPost()];
+  state.host = "tenant2.example";
+  const { Route } = await import("../llms[.]txt");
+  const res = await routeServerHandlers(Route).GET!({});
+  expect(res.status).toBe(200);
+  expect(await res.text()).not.toContain("## Najważniejsze sekcje");
+});
+
+it("/llms.txt zdegradowany (bez tenanta) zostaje bez sekcji głównych", async () => {
+  state.settings = { llms_txt_enabled: true };
+  state.tenantId = null;
+  state.degradeSafe = true;
+  const { Route } = await import("../llms[.]txt");
+  const res = await routeServerHandlers(Route).GET!({});
+  expect(res.status).toBe(200);
+  expect(await res.text()).not.toContain("## Najważniejsze sekcje");
 });
 
 // ---------------------------------------------------------------------------

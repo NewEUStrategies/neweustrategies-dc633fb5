@@ -43,6 +43,12 @@ export interface LlmsTxtInput {
   origin: string;
   descriptionPl: string;
   descriptionEn: string;
+  /**
+   * Sekcje główne w zaplanowanej kolejności (`lib/seo/primaryNavigation.ts`) -
+   * ta sama lista, którą strona główna deklaruje jako nawigację w JSON-LD.
+   * Stoi PRZED kategoriami, bo to ona mówi modelowi, czym serwis jest.
+   */
+  primarySections?: readonly LlmsTxtSection[];
   sections: readonly LlmsTxtSection[];
   latestPl: readonly LlmsTxtArticle[];
   latestEn: readonly LlmsTxtArticle[];
@@ -141,6 +147,14 @@ export function buildLlmsTxt(input: LlmsTxtInput): string {
     "Języki / Languages: polski (domyślny, bez prefiksu URL), English (prefiks /en).",
     "",
   ];
+
+  if (input.primarySections?.length) {
+    lines.push("## Najważniejsze sekcje / Key sections", "");
+    for (const section of input.primarySections) {
+      lines.push(`- [${section.name}](${section.url})`);
+    }
+    lines.push("");
+  }
 
   if (input.sections.length) {
     lines.push("## Sekcje / Sections", "");

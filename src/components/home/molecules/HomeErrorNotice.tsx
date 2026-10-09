@@ -9,12 +9,39 @@
 // i bywa wyciekiem) - trafia do konsoli po stronie wywołującej granicy.
 import { errorCopy } from "@/lib/errorCopy";
 
-export function HomeErrorNotice({ onRetry }: { onRetry: () => void }) {
+export interface HomeErrorNoticeProps {
+  onRetry: () => void;
+  /**
+   * Nazwa serwisu - jedyny `h1` tej powierzchni (patrz `homeSrHeadingText`).
+   *
+   * Komunikat awarii NIE jest nagłówkiem z tego samego powodu co komunikat
+   * wczytywania (`HomeLoadingNotice`, zgłoszenie 2026-10-09): `errorComponent`
+   * zastępuje całą trasę, więc `h1` z treścią „Nie udało się załadować
+   * strony" byłby najwidoczniejszym tekstem adresu "/" - a Google wybiera tytuł
+   * wyniku także z nagłówków. `data-nosnippet` chroni wyłącznie fragment
+   * wyniku, nie tytuł.
+   */
+  brand: string;
+}
+
+export function HomeErrorNotice({ onRetry, brand }: HomeErrorNoticeProps) {
   const copy = errorCopy();
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    // `data-nosnippet`: tekst awarii nie może trafić do fragmentu wyniku na
+    // nazwę marki. Celowo BEZ `noindex` (por. `useErrorNoindex`) - wypadnięcie
+    // adresu "/" z indeksu po jednym nieudanym renderze kosztowałoby więcej
+    // niż chwilowo gorszy wynik.
+    <div
+      data-nosnippet
+      className="flex min-h-screen items-center justify-center bg-background px-4"
+    >
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">{copy.errorTitle}</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
+          {brand}
+        </h1>
+        <p role="alert" className="mt-4 text-xl font-semibold tracking-tight text-foreground">
+          {copy.errorTitle}
+        </p>
         <p className="mt-2 text-sm text-muted-foreground">{copy.errorBody}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button

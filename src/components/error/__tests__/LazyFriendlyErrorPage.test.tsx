@@ -107,6 +107,10 @@ describe("LazyFriendlyErrorPage - przeglądarka", () => {
     const alert = await screen.findByRole("alert");
     const copy = errorCopy();
     expect(alert.textContent).toContain(copy.errorTitle);
+    // Chunk, który nie dojechał, to stan CHWILOWY: tekst awarii nie trafia do
+    // fragmentu wyniku, ale adres NIE dostaje noindex (reguła w FriendlyErrorPage).
+    expect(alert.hasAttribute("data-nosnippet")).toBe(true);
+    expect(document.head.querySelector("meta[data-nes-error-noindex]")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: copy.tryAgain }));
     expect(reload).toHaveBeenCalledTimes(1);
     quiet.mockRestore();

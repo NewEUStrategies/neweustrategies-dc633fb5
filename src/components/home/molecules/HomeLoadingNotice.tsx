@@ -1,13 +1,26 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorCopy } from "@/lib/errorCopy";
 
-/** Query-free SSR fallback. Composition of UI atoms, with no router/data logic. */
+/**
+ * Query-free SSR fallback. Composition of UI atoms, with no router/data logic.
+ *
+ * KOMUNIKAT NIE JEST NAGŁÓWKIEM. Do 2026-10 tytuł stał w `<h2>`, a jedyny `h1`
+ * strony głównej jest `sr-only` - przy dokumencie zdegradowanym „Loading the
+ * homepage" był więc jedynym WIDOCZNYM nagłówkiem strony i Google wziął go za
+ * tytuł wyniku na nazwę marki (zamiast `<title>` „New European Strategies").
+ * Stan przejściowy ogłasza `role="status"`, a `data-nosnippet` zabrania
+ * wyszukiwarce cytowania go we fragmencie wyniku.
+ */
 export function HomeLoadingNotice({ onRetry }: { onRetry?: () => void }) {
   const copy = errorCopy();
   return (
-    <section data-home-loading className="mx-auto w-full max-w-[1200px] px-4 py-10 lg:px-8">
+    <section
+      data-home-loading
+      data-nosnippet
+      className="mx-auto w-full max-w-[1200px] px-4 py-10 lg:px-8"
+    >
       <div role="status" className="max-w-xl">
-        <h2 className="text-xl font-semibold text-foreground">{copy.homeLoading.title}</h2>
+        <p className="text-xl font-semibold text-foreground">{copy.homeLoading.title}</p>
         <p className="mt-2 text-sm text-muted-foreground">{copy.homeLoading.body}</p>
       </div>
       {onRetry && (

@@ -19,6 +19,7 @@
 // zapisu (`store`) i flagę `coldEntry` (żądanie weszło, zanim import entry się
 // rozstrzygnął).
 import { isBotUserAgent } from "./botFilter";
+import { isSearchCrawlerUserAgent } from "./searchCrawler";
 
 export interface SsrDbTiming {
   /** Liczba round-tripów HTTP do PostgREST/RPC w trakcie renderu. */
@@ -174,13 +175,20 @@ export function sanitizeRay(value: string | null | undefined): string | null {
  * (nigdy sam napis). `lighthouse` osobno, bo to on (PSI, Lighthouse CI) jest
  * celem planu i bo dostaje wariant dokumentu dla automatów (render `allReady`,
  * nie strumień) - MISS z tej klasy zasiewa cache wariantem bota.
+ *
+ * `crawler` osobno (2026-10-09): crawler indeksujący wyszukiwarki ma na
+ * stronie głównej WŁASNY termin treści (`HOME_CRAWLER_CONTENT_BUDGET_MS`)
+ * i własny status przy braku treści (503, `lib/http/crawlerUnavailable.ts`).
+ * Wymieszany w `bot` z podglądami linków i monitorami nie dałby się zmierzyć -
+ * ani odsetek degradacji, ani koszt dłuższego terminu w `streamMs`.
  */
-export type UaClass = "browser" | "bot" | "lighthouse";
+export type UaClass = "browser" | "bot" | "crawler" | "lighthouse";
 
 const LIGHTHOUSE_UA_RE = /lighthouse|pagespeed/i;
 
 export function classifyUserAgent(userAgent: string | null | undefined): UaClass {
   if (LIGHTHOUSE_UA_RE.test(userAgent ?? "")) return "lighthouse";
+  if (isSearchCrawlerUserAgent(userAgent)) return "crawler";
   // Ta sama lista co filtr beaconów: brak nagłówka też jest automatem.
   return isBotUserAgent(userAgent) ? "bot" : "browser";
 }

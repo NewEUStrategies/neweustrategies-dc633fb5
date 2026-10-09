@@ -44,9 +44,13 @@ function ReservedSpace({ variant }: { variant: Variant }) {
 /** Ostatnia linia obrony: chunk ekranu błędu nie dojechał. */
 function ChunkLoadFallback({ variant }: { variant: Variant }) {
   const copy = errorCopy();
+  // Bez `noindex`: ta karta znaczy, że chunk nie dojechał - stan chwilowy
+  // z definicji (reguła w `FriendlyErrorPage`). Tekst awarii nie trafia za to
+  // do fragmentu wyniku (`data-nosnippet`).
   return (
     <div
       role="alert"
+      data-nosnippet
       className={
         variant === "compact"
           ? "rounded-[6px] border border-border bg-card p-6 text-card-foreground"

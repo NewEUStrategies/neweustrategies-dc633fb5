@@ -33,7 +33,7 @@
 //     indeksowania. Ten plik dowodzi tylko, ŻE ten nagłówek nie wpływa na
 //     `getRequestUrl`/`getOrigin`; nie ma tu ANI JEDNEGO żądania sieciowego.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getOrigin, getRequestUrl } from "@/lib/seo/request";
+import { getOrigin, getRequestUrl, isSearchCrawlerRequest } from "@/lib/seo/request";
 
 /** Minimalny kształt żądania, jaki czyta moduł: adres + nagłówki. */
 interface StubRequest {
@@ -238,5 +238,33 @@ describe("getRequestUrl / getOrigin - gałąź klienta (window.location)", () =>
     const mod = await loadClientBranch();
     expect(mod.getRequestUrl()).toBe("");
     expect(mod.getOrigin()).toBe("");
+  });
+});
+
+// Crawler indeksujący dostaje na stronie głównej dłuższy termin treści i 503
+// zamiast dokumentu bez treści (zgłoszenie 2026-10-09). Detekcja MUSI być
+// fail-closed: brak kontekstu żądania to zwykły czytelnik, nie wyjątek w loaderze.
+describe("isSearchCrawlerRequest - gałąź serwerowa", () => {
+  it("UA Googlebota -> true", () => {
+    givenRequest("https://x.test/", {
+      host: "neweuropeanstrategies.com",
+      "user-agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    });
+    expect(isSearchCrawlerRequest()).toBe(true);
+  });
+
+  it("przeglądarka albo brak nagłówka UA -> false", () => {
+    givenRequest("https://x.test/", {
+      "user-agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+    });
+    expect(isSearchCrawlerRequest()).toBe(false);
+    givenRequest("https://x.test/");
+    expect(isSearchCrawlerRequest()).toBe(false);
+  });
+
+  it("`getRequest()` rzuca -> false, bez wyjątku", () => {
+    state.throwing = true;
+    expect(isSearchCrawlerRequest()).toBe(false);
   });
 });

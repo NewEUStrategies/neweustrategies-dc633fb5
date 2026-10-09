@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { errorCopy, classifyError, type ErrorKind } from "@/lib/errorCopy";
 import { reportPlatformError } from "@/lib/platform-error-reporting";
+import { useErrorNoindex } from "@/lib/seo/useErrorNoindex";
 
 export interface FriendlyErrorPageProps {
   /** The raw error from TanStack Router / server function / fetch. */
@@ -68,6 +69,21 @@ const CODE_LABEL: Record<Exclude<ErrorKind, "generic">, string> = {
   degraded: "200",
 };
 
+/** Status HTTP niesiony przez błąd (`status` albo `statusCode`), jeśli jest liczbą. */
+function errorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const e = error as { status?: unknown; statusCode?: unknown };
+  if (typeof e.status === "number") return e.status;
+  return typeof e.statusCode === "number" ? e.statusCode : undefined;
+}
+
+/** Czy błąd jest TRWAŁĄ cechą adresu (patrz `useErrorNoindex` w komponencie). */
+function isPersistentFailure(kind: ErrorKind, error: unknown): boolean {
+  if (kind === "unauthorized" || kind === "sessionExpired") return true;
+  const status = errorStatus(error);
+  return status === 404 || status === 410;
+}
+
 export function FriendlyErrorPage({
   error,
   reset,
@@ -83,6 +99,16 @@ export function FriendlyErrorPage({
   const Icon = ICONS[kind];
   const code = kind === "generic" ? copy.genericCode : CODE_LABEL[kind];
   const lang = currentLang();
+  // `noindex` WYŁĄCZNIE dla stanów TRWAŁYCH adresu: brak strony (404/410)
+  // i wymagane logowanie. Tak brzmi zalecenie Google dla aplikacji JS - noindex
+  // dla „soft 404" - i tylko tam działa na korzyść serwisu. Błąd sieci,
+  // nieudany import chunku czy przekroczony czas to stan CHWILOWY: renderer
+  // Googlebota trafia na niego na adresie, który istnieje i dla którego serwer
+  // oddał 200 z treścią, więc noindex usuwałby z indeksu poprawną stronę - także
+  // sekcje, które mają zostać sitelinkami. Tam zostaje `data-nosnippet` niżej.
+  // Wariant kompaktowy siedzi wewnątrz poprawnej strony i nie wyłącza
+  // indeksowania całego dokumentu nigdy.
+  useErrorNoindex(variant === "page" && isPersistentFailure(kind, error));
 
   useEffect(() => {
     // Degradacja nie jest awarią klienta: serwer zalogował ją już przy zasiewie
@@ -191,7 +217,10 @@ export function FriendlyErrorPage({
 
   if (variant === "compact") {
     return (
-      <div className="relative overflow-hidden rounded-[6px] border border-border bg-card p-6 text-card-foreground shadow-sm">
+      <div
+        data-nosnippet
+        className="relative overflow-hidden rounded-[6px] border border-border bg-card p-6 text-card-foreground shadow-sm"
+      >
         <div
           className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-brand/10 blur-3xl"
           aria-hidden="true"
@@ -225,7 +254,10 @@ export function FriendlyErrorPage({
   }
 
   return (
-    <div className="relative flex min-h-[calc(100vh-4rem)] flex-col justify-center overflow-hidden bg-background px-4 py-12">
+    <div
+      data-nosnippet
+      className="relative flex min-h-[calc(100vh-4rem)] flex-col justify-center overflow-hidden bg-background px-4 py-12"
+    >
       {/* Tło: delikatna siatka + poświata marki. Dekoracja, nie treść. */}
       <div
         aria-hidden="true"

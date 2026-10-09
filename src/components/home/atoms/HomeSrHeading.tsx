@@ -48,9 +48,28 @@ export interface HomeSrHeadingProps {
   title: string;
   /** Dokument kanwy strony głównej (`null` w trybie listy wpisów i przy pustce). */
   doc: BuilderDocument | null;
+  /**
+   * Nagłówek WIDOCZNY zamiast `sr-only` - wyłącznie wtedy, gdy treść strony
+   * głównej nie dojechała (zasiew awaryjny, `HomeLoadingNotice`). Kanwy wtedy
+   * nie ma, więc nie ma też hero, z którym pasek tytułu by się kłócił, a nazwa
+   * marki musi być najwidoczniejszym tekstem dokumentu: inaczej wyszukiwarka
+   * bierze za tytuł wyniku komunikat o wczytywaniu (zgłoszenie 2026-10-09,
+   * „Loading the homepage" w wyniku na nazwę marki).
+   */
+  visible?: boolean;
 }
 
-export function HomeSrHeading({ title, doc }: HomeSrHeadingProps) {
+export function HomeSrHeading({ title, doc, visible = false }: HomeSrHeadingProps) {
   if (builderDocHasTopHeading(doc)) return null;
-  return <h1 className="sr-only">{title}</h1>;
+  return (
+    <h1
+      className={
+        visible
+          ? "mx-auto w-full max-w-[1200px] px-4 pt-10 font-display text-3xl font-semibold tracking-tight text-foreground lg:px-8"
+          : "sr-only"
+      }
+    >
+      {title}
+    </h1>
+  );
 }

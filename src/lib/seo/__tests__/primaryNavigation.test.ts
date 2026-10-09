@@ -1,0 +1,42 @@
+// Kolejność sekcji głównych (`lib/seo/primaryNavigation.ts`) - zgłoszenie
+// 2026-10-09: w wyniku na nazwę marki Google pokazywał „O nas", „Kontakt"
+// i ekran błędu sieci zamiast sekcji redakcyjnych. Lista jest WYBOREM
+// z `FOOTER_LINKS`, więc test pilnuje, że wybór nie gubi się po drodze
+// (literówka w adresie = sekcja po cichu znika z JSON-LD i llms.txt).
+import { describe, expect, it } from "vitest";
+import { FOOTER_LINKS } from "@/lib/seo/footerNavigation";
+import { PRIMARY_SECTION_HREFS, primarySiteSections } from "@/lib/seo/primaryNavigation";
+
+describe("primarySiteSections", () => {
+  it("każdy adres z listy istnieje w mapie stopki - etykiety mają jedno źródło", () => {
+    for (const href of PRIMARY_SECTION_HREFS) {
+      expect(
+        FOOTER_LINKS.some((link) => link.href === href),
+        href,
+      ).toBe(true);
+    }
+    expect(primarySiteSections()).toHaveLength(PRIMARY_SECTION_HREFS.length);
+  });
+
+  it("zachowuje zaplanowaną kolejność: analizy, wywiady, wydarzenia, ...", () => {
+    expect(primarySiteSections().map((link) => link.label.pl)).toEqual([
+      "Analizy",
+      "Wywiady",
+      "Wydarzenia",
+      "Policy papers",
+      "O nas",
+    ]);
+  });
+
+  it("nie deklaruje „Kontaktu”, dokumentów prawnych ani zdegradowanego /podcasts", () => {
+    const hrefs = primarySiteSections().map((link) => link.href);
+    expect(hrefs).not.toContain("/kontakt");
+    // /podcasts wraca, gdy przestanie zwracać kartę błędu (pomiar 2026-10-09).
+    expect(hrefs).not.toContain("/podcasts");
+    expect(primarySiteSections().some((link) => link.group === "legal")).toBe(false);
+  });
+
+  it("nie ma duplikatów adresów", () => {
+    expect(new Set(PRIMARY_SECTION_HREFS).size).toBe(PRIMARY_SECTION_HREFS.length);
+  });
+});

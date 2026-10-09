@@ -1,5 +1,7 @@
-// Kanoniczna mapa linków stopki wykorzystywana zarówno przez JSON-LD
-// (SiteNavigationElement) jak i panel analityczny footer clicks w admin.
+// Kanoniczna mapa linków stopki wykorzystywana przez stopkę, panel
+// analityczny footer clicks w admin oraz - jako źródło etykiet - przez listę
+// sekcji głównych (`lib/seo/primaryNavigation.ts`), którą strona główna
+// deklaruje w JSON-LD (SiteNavigationElement).
 // Grupowanie odzwierciedla mega-stopkę: Editorial, Topics, Community,
 // Institute + Legal. Etykiety PL/EN muszą pozostać spójne z widocznym UI,
 // żeby raporty w GA4/dashboardzie były czytelne bez slug-matchingu.

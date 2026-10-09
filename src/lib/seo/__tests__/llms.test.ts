@@ -53,6 +53,44 @@ describe("buildLlmsTxt", () => {
   });
 });
 
+describe("llms.txt - sekcje główne", () => {
+  const base = {
+    siteName: "NES",
+    origin: "https://nes.example",
+    descriptionPl: "Opis",
+    descriptionEn: "Description",
+    sections: [{ name: "Geopolityka", url: "https://nes.example/category/geo" }],
+    latestPl: [],
+    latestEn: [],
+    resources: [],
+    usage: { aiInputAllowed: true, trainingAllowed: true },
+  } satisfies LlmsTxtInput;
+
+  it("publikuje sekcje główne w podanej kolejności, PRZED kategoriami", () => {
+    const txt = buildLlmsTxt({
+      ...base,
+      primarySections: [
+        { name: "Analizy / Analyses", url: "https://nes.example/analizy" },
+        { name: "Wywiady / Interviews", url: "https://nes.example/category/wywiady" },
+        { name: "Wydarzenia / Events", url: "https://nes.example/wydarzenia" },
+      ],
+    });
+    const key = txt.indexOf("## Najważniejsze sekcje / Key sections");
+    expect(key).toBeGreaterThan(-1);
+    expect(key).toBeLessThan(txt.indexOf("## Sekcje / Sections"));
+    const analizy = txt.indexOf("- [Analizy / Analyses](https://nes.example/analizy)");
+    const wywiady = txt.indexOf("- [Wywiady / Interviews](https://nes.example/category/wywiady)");
+    const wydarzenia = txt.indexOf("- [Wydarzenia / Events](https://nes.example/wydarzenia)");
+    expect(analizy).toBeGreaterThan(key);
+    expect(wywiady).toBeGreaterThan(analizy);
+    expect(wydarzenia).toBeGreaterThan(wywiady);
+  });
+
+  it("bez sekcji głównych nie emituje pustego nagłówka", () => {
+    expect(buildLlmsTxt(base)).not.toContain("## Najważniejsze sekcje");
+  });
+});
+
 describe("llms.txt - zasoby maszynowe trackera", () => {
   const txt = buildLlmsTxt({
     siteName: "NES",

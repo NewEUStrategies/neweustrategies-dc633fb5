@@ -200,6 +200,30 @@ export const readDocumentDegradations = createIsomorphicFn()
   .client((): string[] => []);
 
 /**
+ * Żądania, dla których loader stwierdził, że CRAWLER INDEKSUJĄCY dostałby
+ * dokument bez treści (strona główna po terminie treści - patrz
+ * `lib/http/crawlerUnavailable.ts`). Ten sam kanał per `Request` co intencja
+ * cache'owa wyżej: loader znaczy, a najgłębsze middleware w `start.ts` zamienia
+ * odpowiedź na 503 - status ustawiony z loadera przez h3 przegrałby ze
+ * statusem routera (`router.stores.statusCode`).
+ */
+const crawlerUnavailableRequests = new WeakSet<Request>();
+
+export const markCrawlerUnavailable = createIsomorphicFn()
+  .server((request?: Request) => {
+    const scoped = scopedRequest(request);
+    if (scoped) crawlerUnavailableRequests.add(scoped);
+  })
+  .client(() => {});
+
+export const readCrawlerUnavailable = createIsomorphicFn()
+  .server((request?: Request): boolean => {
+    const scoped = scopedRequest(request);
+    return scoped ? crawlerUnavailableRequests.has(scoped) : false;
+  })
+  .client((): boolean => false);
+
+/**
  * Akumulator wartości nagłówka `Link` per ŻĄDANIE. Loadery tras (root + trasa
  * potomna) biegną równolegle, więc naiwny odczyt-scal-zapis na samym nagłówku
  * gubiłby jeden z wpisów. Każde dołożenie odkłada wartość do zbioru w WeakMap

@@ -5,6 +5,7 @@
 // keeps the server-only getRequest import out of the client bundle.
 import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
+import { isSearchCrawlerUserAgent } from "@/lib/http/searchCrawler";
 
 export const getRequestUrl = createIsomorphicFn()
   .server((): string => {
@@ -33,3 +34,17 @@ export const getOrigin = createIsomorphicFn()
     }
   })
   .client((): string => (typeof window !== "undefined" ? window.location.origin : ""));
+
+/**
+ * Czy bieżące żądanie SSR pochodzi od crawlera indeksującego wyszukiwarki
+ * (`lib/http/searchCrawler.ts`). Na kliencie i poza zasięgiem żądania - `false`.
+ */
+export const isSearchCrawlerRequest = createIsomorphicFn()
+  .server((): boolean => {
+    try {
+      return isSearchCrawlerUserAgent(getRequest().headers.get("user-agent"));
+    } catch {
+      return false;
+    }
+  })
+  .client((): boolean => false);

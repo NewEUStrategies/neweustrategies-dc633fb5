@@ -32,6 +32,13 @@ it.each([
     const serverElement = container.firstElementChild;
     expect(container.textContent).toContain(title);
     expect(container.querySelector('[role="status"]')).not.toBeNull();
+    // Komunikat nie jest nagłówkiem i nie trafia do fragmentu wyniku - jako
+    // `<h2>` był jedynym widocznym nagłówkiem dokumentu i Google wziął go za
+    // tytuł strony głównej (zgłoszenie 2026-10-09).
+    expect(container.querySelector("h1, h2, h3, h4, h5, h6")).toBeNull();
+    expect(container.querySelector("[data-home-loading]")?.hasAttribute("data-nosnippet")).toBe(
+      true,
+    );
     expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
     await act(async () => {
       if (!container) throw new Error("missing fixture container");

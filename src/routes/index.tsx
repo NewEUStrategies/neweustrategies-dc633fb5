@@ -1,7 +1,7 @@
 import { widgetPreloadHeaders } from "@/lib/seo/widgetPreloads";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { isServer } from "@tanstack/router-core/isServer";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { Suspense, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -30,7 +30,7 @@ import {
   type BlogArchiveResult,
 } from "@/lib/queries/public";
 import { parsePageSearch } from "@/lib/routing/pageSearch";
-import { getRequestUrl } from "@/lib/seo/request";
+import { getRequestUrl, isSearchCrawlerRequest } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import {
   buildContentHead,
@@ -52,7 +52,8 @@ import {
   siteNavigationJsonLd,
   webSiteJsonLd,
 } from "@/lib/seo/jsonld";
-import { FOOTER_LINKS, labelFor } from "@/lib/seo/footerNavigation";
+import { labelFor } from "@/lib/seo/footerNavigation";
+import { primarySiteSections } from "@/lib/seo/primaryNavigation";
 import {
   resolveRobotsMeta,
   resolveSeoText,
@@ -62,8 +63,10 @@ import {
 import { metaDescription } from "@/lib/routing/publicSegments";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
+import { currentLang } from "@/lib/i18n/localeRuntime";
 import {
   appendLinkHeader,
+  markCrawlerUnavailable,
   registerDocumentCompletenessCheck,
   setCacheControlHeader,
 } from "@/lib/http/responseHeaders";
@@ -91,11 +94,18 @@ import {
 // zgłoszenie błędu do konsoli i unieważnienie danych routera przy ponowieniu.
 function HomeErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
+  // Nazwa serwisu z TEGO SAMEGO źródła co `h1` i `<title>` strony głównej
+  // (`homeSrHeadingText`). Odczyt z cache, nie zapytanie: granica błędu nie
+  // może zależeć od danych, które właśnie mogły zawieść - brak ustawień daje
+  // stałą marki.
+  const settings = useQueryClient().getQueryData<SettingsMap>(siteSettingsQueryOptions.queryKey);
+  const lang = currentLang() === "en" ? "en" : "pl";
   useEffect(() => {
     console.error(error);
   }, [error]);
   return (
     <HomeErrorNotice
+      brand={homeSrHeadingText(settings ?? {}, lang)}
       onRetry={() => {
         router.invalidate();
         reset();
@@ -138,7 +148,10 @@ export const Route = createFileRoute("/")({
     // `HOME_CONTENT_BUDGET_MS` na tym samym zegarze żądania; ustawienia, widgety
     // nad zgięciem i chrome zostają przy wspólnym terminie. W trybie „najnowsze
     // wpisy" treścią jest archiwum (niżej), więc ono też czeka do tego terminu.
-    const contentDeadlineAt = isServer ? homeContentDeadline(queryClient) : undefined;
+    // Crawler indeksujący dostaje dłuższy termin treści: dokument bez treści
+    // jest dla niego stroną główną (`HOME_CRAWLER_CONTENT_BUDGET_MS`).
+    const crawler = isServer && isSearchCrawlerRequest();
+    const contentDeadlineAt = isServer ? homeContentDeadline(queryClient, crawler) : undefined;
     const emptySettings: SettingsMap = Object.freeze({});
     // Root and home execute concurrently, but all serial phases within home
     // share ONE deadline. Settings start alongside the page/mode, never as a
@@ -160,6 +173,10 @@ export const Route = createFileRoute("/")({
     const homePage = homePageRes.data;
     const homeMode = homeModeRes.data;
     const contentDegraded = homePageRes.degraded || homeModeRes.degraded;
+    // Treść nie zdążyła nawet w terminie crawlera: zamiast 200 z komunikatem,
+    // który wyszukiwarka zaindeksowałaby jako stronę główną, crawler dostaje
+    // 503 + `Retry-After` (lib/http/crawlerUnavailable.ts). Czytelnik - 200.
+    if (crawler && contentDegraded) markCrawlerUnavailable();
     let degraded = contentDegraded || settingsRes.degraded;
 
     // "Najnowsze wpisy" jako strona główna: SSR ładuje DOKŁADNIE żądaną stronę
@@ -211,6 +228,8 @@ export const Route = createFileRoute("/")({
         { deadlineAt: contentDeadlineAt, label: "home.archive" },
       );
       degraded ||= listRes.degraded;
+      // W tym trybie archiwum JEST treścią strony - ta sama reguła 503.
+      if (crawler && listRes.degraded) markCrawlerUnavailable();
       // Pierwsza karta siatki jest priority (PaginatedPostGrid) - preload jej
       // okładki z IDENTYCZNĄ parą srcSet/sizes co PostListCard.
       const list = queryClient.getQueryData<BlogArchiveResult>(listOptions.queryKey);
@@ -407,7 +426,11 @@ export const Route = createFileRoute("/")({
       sameAs: seoSettings.organization_same_as,
       logoUrl: seoSettings.publisher_logo_url.trim() || `${origin}/og-default.jpg`,
     });
-    const footerNavItems = FOOTER_LINKS.map((l) => ({
+    // Nawigacja deklarowana na stronie głównej to WYBRANE sekcje główne
+    // w zaplanowanej kolejności (Analizy, Wywiady, Wydarzenia, ...), a nie
+    // cała mapa stopki z dokumentami prawnymi i „Kontaktem" - uzasadnienie
+    // w `lib/seo/primaryNavigation.ts`.
+    const primaryNavItems = primarySiteSections().map((l) => ({
       name: labelFor(l, lang),
       href: l.href,
     }));
@@ -418,7 +441,7 @@ export const Route = createFileRoute("/")({
         { type: "application/ld+json", children: safeJsonLd(webSiteJsonLd(origin, lang)) },
         {
           type: "application/ld+json",
-          children: safeJsonLd(siteNavigationJsonLd(origin, footerNavItems, lang)),
+          children: safeJsonLd(siteNavigationJsonLd(origin, primaryNavItems, lang, "primary")),
         },
       ],
     };
@@ -489,7 +512,11 @@ function Index() {
             powierzchni (kanwa, lista wpisów, pustka, zasiew awaryjny) i przy
             KAŻDYM stanie ustawień; ustępuje wyłącznie dokumentowi buildera,
             który sam niesie nagłówek poziomu 1 - szczegóły w `HomeSrHeading`. */}
-        <HomeSrHeading title={homeSrHeadingText(settingsQuery.data, lang)} doc={doc} />
+        <HomeSrHeading
+          title={homeSrHeadingText(settingsQuery.data, lang)}
+          doc={doc}
+          visible={contentUnavailable}
+        />
         {contentUnavailable ? (
           <HomeLoadingNotice
             onRetry={() => {

@@ -44,7 +44,7 @@
 // * UWIERZYTELNIENIA - `e2e/seo.spec.ts` dowodzi, że niezalogowany nie zobaczy
 //   `/admin/seo`. Tutaj nie ma ani jednej asercji o przekierowaniu.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { renderRoute, routeMeta } from "@/test/routeHarness";
 import { DEFAULT_SEO_SETTINGS } from "@/lib/seo/settings";
@@ -54,6 +54,9 @@ import { Route as SocialRoute } from "@/routes/admin.seo.social";
 import { Route as HomepageRoute } from "@/routes/admin.seo.homepage";
 import { Route as DashboardRoute } from "@/routes/admin.seo.index";
 import { SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
+import { MACHINE_SURFACES } from "@/lib/seo/machineSurfaces";
+import { primarySiteSections } from "@/lib/seo/primaryNavigation";
+import { localizedPath } from "@/lib/i18n/localePath";
 
 const h = vi.hoisted(() => ({
   /** Ustawienia oddawane przez `useSettings` (undefined = ładowanie). */
@@ -765,6 +768,65 @@ describe("/admin/seo/ - kokpit", () => {
     expect(screen.getAllByText("adminSeoHub.finding.ogImageBuiltIn")).toHaveLength(1);
   });
 
+  it("sekcja plików pokazuje KAŻDY wpis rejestru powierzchni maszynowych", async () => {
+    // Do 2026-10 kokpit wymieniał na sztywno trzy pliki z dziesięciu - lista
+    // z rejestru nie może się już rozjechać z tym, co serwis publikuje.
+    await mount();
+    expect(screen.getByText("adminSeoHub.sectionFiles")).toBeTruthy();
+    for (const surface of MACHINE_SURFACES) {
+      expect(screen.getByText(surface.path)).toBeTruthy();
+    }
+    // Feedy lokalizowane mają osobny link do wariantu EN.
+    const localized = MACHINE_SURFACES.filter((surface) => surface.localized).length;
+    expect(screen.getAllByText("adminSeoHub.fileOpenEn")).toHaveLength(localized);
+  });
+
+  it("sekcje główne są w zaplanowanej kolejności, bez „Kontaktu”", async () => {
+    await mount();
+    const list = screen.getByText("adminSeoHub.sectionPrimaryNav").parentElement;
+    const items = within(list as HTMLElement).getAllByRole("listitem");
+    expect(items.map((item) => item.getAttribute("data-section-href"))).toEqual(
+      primarySiteSections().map((link) => link.href),
+    );
+    expect(items.map((item) => item.textContent)).not.toContain(expect.stringContaining("Kontakt"));
+  });
+
+  it("linki plików i sekcji prowadzą na PUBLICZNY origin tenanta (PL i EN)", async () => {
+    // Względny `/sitemap.xml` otwarty z panelu na innym hoście pokazałby
+    // pliki cudzego serwisu - ta sama reguła co karta fundamentów.
+    h.tenantDomain = "analizy.example.org";
+    await mount();
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("link")
+          .some((a) => a.getAttribute("href") === "https://analizy.example.org/robots.txt"),
+      ).toBe(true),
+    );
+    const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href"));
+    for (const surface of MACHINE_SURFACES) {
+      expect(hrefs, surface.path).toContain(`https://analizy.example.org${surface.path}`);
+      if (surface.localized) {
+        expect(hrefs, surface.path).toContain(
+          `https://analizy.example.org${localizedPath(surface.path, "en")}`,
+        );
+      }
+    }
+    for (const section of primarySiteSections()) {
+      expect(hrefs).toContain(`https://analizy.example.org${section.href}`);
+    }
+  });
+
+  it("tenant NIEDOMYŚLNY bez domeny: komunikat zamiast linków do plików marki", async () => {
+    h.tenantIsDefault = false;
+    await mount();
+    await waitFor(() =>
+      expect(document.querySelector("[data-seo-files-origin='none']")).not.toBeNull(),
+    );
+    const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href") ?? "");
+    expect(hrefs.some((href) => href.endsWith("/robots.txt"))).toBe(false);
+  });
+
   it("na domyślnych ustawieniach marki wynik NIE jest pełny", async () => {
     // Wbudowane tytuły zaczynają się od nazwy marki, karta jest wbudowana,
     // a `sameAs` puste - kokpit nie ma prawa pokazać tu zieleni.
@@ -809,9 +871,17 @@ describe("/admin/seo/ - kokpit", () => {
     await mount();
     const links = screen.getAllByRole("link");
     const byHref = (href: string) => links.find((a) => a.getAttribute("href") === href);
-    expect(byHref("/robots.txt")?.getAttribute("target")).toBe("_blank");
-    expect(byHref("/sitemap.xml")?.getAttribute("target")).toBe("_blank");
-    expect(byHref("/llms.txt")?.getAttribute("target")).toBe("_blank");
+    // Pliki idą na publiczny origin tenanta (absolutny adres), więc dopasowanie
+    // po ścieżce na końcu adresu.
+    const byFile = (path: string) =>
+      links.find(
+        (a) =>
+          /^https?:\/\//.test(a.getAttribute("href") ?? "") &&
+          a.getAttribute("href")?.endsWith(path),
+      );
+    expect(byFile("/robots.txt")?.getAttribute("target")).toBe("_blank");
+    expect(byFile("/sitemap.xml")?.getAttribute("target")).toBe("_blank");
+    expect(byFile("/llms.txt")?.getAttribute("target")).toBe("_blank");
     expect(byHref("/admin/settings/seo")?.getAttribute("target")).toBeNull();
     expect(byHref("/admin/redirects")?.getAttribute("target")).toBeNull();
   });

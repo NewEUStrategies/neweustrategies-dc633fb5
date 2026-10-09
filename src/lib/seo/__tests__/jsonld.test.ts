@@ -167,6 +167,16 @@ describe("siteNavigationJsonLd", () => {
   });
 
   it.each([
+    { lang: "pl" as const, expected: "Główne sekcje serwisu" },
+    { lang: "en" as const, expected: "Main site sections" },
+  ])("lista sekcji głównych ma własny węzeł i nazwę ($lang)", ({ lang, expected }) => {
+    const ld = siteNavigationJsonLd(ORIGIN, nav, lang, "primary") as NavGraph;
+    expect(ld["@id"]).toBe(`${ORIGIN}/#primary-navigation`);
+    expect(ld.name).toBe(expected);
+    expect(ld.itemListElement.map((i) => i.position)).toEqual([1, 2, 3]);
+  });
+
+  it.each([
     { name: "ścieżka z ukośnikiem dostaje origin", href: "/analizy", url: `${ORIGIN}/analizy` },
     {
       name: "ścieżka BEZ ukośnika dostaje origin i ukośnik",

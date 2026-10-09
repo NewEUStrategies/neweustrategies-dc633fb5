@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import {
   HOME_CHROME_LATE_BUDGET_MS,
   HOME_CONTENT_BUDGET_MS,
+  HOME_CRAWLER_CONTENT_BUDGET_MS,
   HOME_SSR_BUDGET_MS,
   HOME_THEME_BUDGET_MS,
   HOME_ABOVE_FOLD_BUDGET_MS,
@@ -11,6 +12,7 @@ import {
   homeSsrDeadline,
   remainingHomeBudget,
 } from "../homeSsrBudget";
+import { SSR_QUERY_TIMEOUT_MS } from "../queryTimeout";
 
 afterEach(() => vi.useRealTimers());
 
@@ -61,4 +63,22 @@ it("gives the content critical path its own deadline on the shared request clock
   expect(HOME_CHROME_LATE_BUDGET_MS).toBeLessThanOrEqual(1_500);
   // Inne żądanie = inny zegar.
   expect(homeContentDeadline(new QueryClient())).toBe(start + 400 + HOME_CONTENT_BUDGET_MS);
+});
+
+// Zgłoszenie 2026-10-09: crawler indeksujący dostaje dłuższy termin treści
+// (dokument bez treści JEST dla niego stroną główną), ale na tym samym zegarze
+// żądania i nadal z twardym sufitem - wspólny termin chrome'u się nie zmienia.
+it("gives an indexing crawler a longer, still bounded content deadline", () => {
+  vi.useFakeTimers();
+  const qc = new QueryClient();
+  const start = Date.now();
+  const shared = homeSsrDeadline(qc);
+  expect(homeContentDeadline(qc, true)).toBe(start + HOME_CRAWLER_CONTENT_BUDGET_MS);
+  expect(homeContentDeadline(qc, false)).toBe(start + HOME_CONTENT_BUDGET_MS);
+  expect(homeSsrDeadline(qc)).toBe(shared);
+  expect(HOME_CRAWLER_CONTENT_BUDGET_MS).toBeGreaterThan(HOME_CONTENT_BUDGET_MS);
+  // Doktryna budżetów (`resilientLoad.ts`): loader degraduje się SAM, zanim
+  // strażnik zapytań anuluje je z `revert: true` - inaczej o każdym wolnym
+  // renderze crawlera decydowałby strażnik, a nie ten termin.
+  expect(HOME_CRAWLER_CONTENT_BUDGET_MS).toBeLessThan(SSR_QUERY_TIMEOUT_MS);
 });

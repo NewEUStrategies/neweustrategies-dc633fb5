@@ -424,3 +424,52 @@ describe("FriendlyErrorPage - prefiks językowy", () => {
     expect(screen.getByText(copy.contactLink)).toHaveAttribute("href", "/en/kontakt");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Indeksowanie (zgłoszenie 2026-10-09: sitelink „Problem z połączeniem").
+// `noindex` WYŁĄCZNIE dla stanów trwałych adresu (404/410, wymagane
+// logowanie). Błąd chwilowy na istniejącym adresie nie może wyrzucić z indeksu
+// poprawnej strony, a karta kompaktowa nie wyłącza indeksowania gospodarza.
+// ---------------------------------------------------------------------------
+describe("FriendlyErrorPage - indeksowanie", () => {
+  const injected = () =>
+    document.head.querySelectorAll("meta[name='robots'][data-nes-error-noindex]");
+
+  afterEach(() => {
+    for (const meta of injected()) meta.remove();
+  });
+
+  it.each([
+    ["404", { status: 404, message: "not found" }],
+    ["410", { status: 410 }],
+    ["401 (unauthorized)", UNAUTHORIZED],
+    ["302 (sessionExpired)", SESSION_EXPIRED],
+  ])("pełnoekranowy stan TRWAŁY %s dopisuje noindex i zdejmuje go po odmontowaniu", (_, error) => {
+    const view = render(<FriendlyErrorPage error={error} />);
+    expect(injected()).toHaveLength(1);
+    view.unmount();
+    expect(injected()).toHaveLength(0);
+  });
+
+  it.each([
+    ["sieć / chunk", NETWORK],
+    ["błąd ogólny (500)", GENERIC],
+    ["degradacja (200 z treścią)", DEGRADED_ERROR],
+  ])("stan CHWILOWY (%s) NIE dopisuje noindex", (_, error) => {
+    render(<FriendlyErrorPage error={error} />);
+    expect(injected()).toHaveLength(0);
+  });
+
+  it("karta kompaktowa nie wyłącza indeksowania strony-gospodarza nawet przy 404", () => {
+    render(<FriendlyErrorPage error={{ status: 404 }} variant="compact" />);
+    expect(injected()).toHaveLength(0);
+  });
+
+  it.each(["page", "compact"] as const)(
+    "tekst awarii (%s) nie trafia do fragmentu wyniku: data-nosnippet",
+    (variant) => {
+      const view = render(<FriendlyErrorPage error={NETWORK} variant={variant} />);
+      expect(view.container.firstElementChild?.hasAttribute("data-nosnippet")).toBe(true);
+    },
+  );
+});

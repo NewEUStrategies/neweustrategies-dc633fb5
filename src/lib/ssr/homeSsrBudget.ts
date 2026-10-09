@@ -32,6 +32,20 @@ export const HOME_ABOVE_FOLD_BUDGET_MS = 500;
 export const HOME_CONTENT_BUDGET_MS = 1_200;
 
 /**
+ * Budżet TREŚCI strony głównej dla crawlera indeksującego wyszukiwarki
+ * (`lib/http/searchCrawler.ts`; zgłoszenie 2026-10-09).
+ *
+ * Dla czytelnika lepszy jest szybki dokument z komunikatem i dociągnięciem
+ * treści w przeglądarce. Dla wyszukiwarki ten sam dokument JEST stroną
+ * główną: zaindeksowała komunikat „Loading the homepage" jako tytuł wyniku na
+ * nazwę marki, a 4 z 10 żądań z UA Googlebota dostawało w pomiarze z tego dnia
+ * dokument bez treści. Crawler nie mierzy LCP i i tak czeka na `allReady`, więc
+ * dłuższy, nadal twardy termin kupuje kompletny dokument kosztem kilku sekund
+ * TTFB wyłącznie dla automatu. Lighthouse/PSI zostają przy `HOME_CONTENT_BUDGET_MS`.
+ */
+export const HOME_CRAWLER_CONTENT_BUDGET_MS = 4_000;
+
+/**
  * Budżet bramki chrome'u strony głównej, gdy wspólny termin dokumentu minął,
  * zanim nagłówek dostał dane (P3.6b, R2c). Liczony od pierwszego odczytu
  * bramki w renderze. Zamiast natychmiastowego renderu na fallbackach (pasek
@@ -48,12 +62,14 @@ export function homeSsrDeadline(queryClient: QueryClient): number {
 }
 
 /**
- * Termin ścieżki krytycznej treści (`HOME_CONTENT_BUDGET_MS`) na tym samym
- * zegarze co `homeSsrDeadline`: start żądania + budżet treści. Pierwszy
- * wołający zegara (loader korzenia albo trasy) wyznacza start dla obu.
+ * Termin ścieżki krytycznej treści (`HOME_CONTENT_BUDGET_MS`, dla crawlera
+ * indeksującego `HOME_CRAWLER_CONTENT_BUDGET_MS`) na tym samym zegarze co
+ * `homeSsrDeadline`: start żądania + budżet treści. Pierwszy wołający zegara
+ * (loader korzenia albo trasy) wyznacza start dla obu.
  */
-export function homeContentDeadline(queryClient: QueryClient): number {
-  return homeSsrDeadline(queryClient) - HOME_SSR_BUDGET_MS + HOME_CONTENT_BUDGET_MS;
+export function homeContentDeadline(queryClient: QueryClient, crawler = false): number {
+  const budget = crawler ? HOME_CRAWLER_CONTENT_BUDGET_MS : HOME_CONTENT_BUDGET_MS;
+  return homeSsrDeadline(queryClient) - HOME_SSR_BUDGET_MS + budget;
 }
 
 export function remainingHomeBudget(deadlineAt: number, phaseLimitMs: number): number {
