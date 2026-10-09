@@ -136,7 +136,7 @@ describe("adapter L2 edgeTtlCache: adresowanie migawki", () => {
   it("klucz niesie host, klucz logiczny i wersje - inne wartości nie trafiają w wpis", async () => {
     await edgeTtlL2Adapter.write("a.example", "k", { at: Date.now(), value: "v" }, TTL, MAX_AGE);
     const url = [...entries.keys()].find((u) => u.includes("edge"));
-    expect(url).toContain(encodeURIComponent("edge:v0.0:a.example::k"));
+    expect(url).toContain(encodeURIComponent("edge:dev:v0.0:a.example::k"));
     await expect(edgeTtlL2Adapter.read("b.example", "k", TTL, MAX_AGE)).resolves.toBeNull();
     await expect(edgeTtlL2Adapter.read("a.example", "k2", TTL, MAX_AGE)).resolves.toBeNull();
     await expect(edgeTtlL2Adapter.read("no-host", "k", TTL, MAX_AGE)).resolves.toBeNull();
@@ -175,8 +175,10 @@ describe("adapter L2 edgeTtlCache: sprzężenie z wersją L2 dokumentów", () =>
     // bez zmian, segment hosta podbity.
     const forA = [...entries.keys()].filter((u) => u.includes(encodeURIComponent("a.example::k")));
     expect(forA).toHaveLength(2);
-    expect(forA.some((u) => u.includes(encodeURIComponent("edge:v0.0:a.example::k")))).toBe(true);
-    expect(forA.some((u) => !u.includes(encodeURIComponent("edge:v0.0:")))).toBe(true);
+    expect(forA.some((u) => u.includes(encodeURIComponent("edge:dev:v0.0:a.example::k")))).toBe(
+      true,
+    );
+    expect(forA.some((u) => !u.includes(encodeURIComponent("edge:dev:v0.0:")))).toBe(true);
   });
 
   it("bump wersji globalnej odcina migawki WSZYSTKICH hostów", async () => {
@@ -196,6 +198,72 @@ describe("adapter L2 edgeTtlCache: sprzężenie z wersją L2 dokumentów", () =>
     ]);
     const versionReads = match.mock.calls.filter(([r]) => r.url.includes("/__nes/version/"));
     expect(versionReads).toHaveLength(2);
+  });
+});
+
+describe("adapter L2 edgeTtlCache: build w kluczu migawki (P3.6a, MAJOR-1 recenzji)", () => {
+  // Okno serve-stale kluczy chrome to doba, a nieświeża migawka jest podawana od ręki. Bez
+  // segmentu buildu wartość w kształcie POPRZEDNIEGO deployu zasilałaby render nowego kodu.
+  // Stała `__NES_BUILD_ID__` (define Vite) jest tu zmienną globalną - patrz
+  // documentCacheL2BuildId.test.ts; odczyt tylko za bramką SSR.
+  beforeEach(() => {
+    vi.stubEnv("SSR", true);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** Deploy = nowa stała buildu i świeży izolat nad TYM SAMYM magazynem kolonii. */
+  function deploy(buildId: string | undefined): void {
+    vi.stubGlobal("__NES_BUILD_ID__", buildId);
+    setColoCacheForTests({ match, put });
+    resetEdgeTtlL2ForTests();
+    clearEdgeTtlCache();
+  }
+
+  it("klucz niesie segment buildu przed wersjami", async () => {
+    deploy("tmgi4x2k1");
+    await edgeTtlL2Adapter.write("a.example", "k", { at: Date.now(), value: "v" }, TTL, MAX_AGE);
+    const url = [...entries.keys()].find((u) => u.includes("edge"));
+    expect(url).toContain(encodeURIComponent("edge:tmgi4x2k1:v0.0:a.example::k"));
+  });
+
+  it("migawka poprzedniego deployu jest nieosiągalna dla nowego buildu", async () => {
+    deploy("build-a");
+    setEdgeTtlL2Adapter(edgeTtlL2Adapter);
+    await edgeTtlCache("site_settings_public:all", TTL, async () => ({ shape: "stary" }));
+    await settleBackground();
+    // Ten sam build po rotacji izolatu: migawka kolonii wraca bez bazy.
+    deploy("build-a");
+    const sameBuild = vi.fn(async () => ({ shape: "z bazy" }));
+    await expect(edgeTtlCache("site_settings_public:all", TTL, sameBuild)).resolves.toEqual({
+      shape: "stary",
+    });
+    expect(sameBuild).not.toHaveBeenCalled();
+
+    // Nowy deploy: stary kształt NIE zasila renderu - wartość idzie z bazy.
+    deploy("build-b");
+    const nextBuild = vi.fn(async () => ({ shape: "nowy" }));
+    await expect(edgeTtlCache("site_settings_public:all", TTL, nextBuild)).resolves.toEqual({
+      shape: "nowy",
+    });
+    expect(nextBuild).toHaveBeenCalledTimes(1);
+    await settleBackground();
+    await expect(
+      edgeTtlL2Adapter.read("a.example", "site_settings_public:all", TTL, MAX_AGE),
+    ).resolves.toMatchObject({ value: { shape: "nowy" } });
+  });
+
+  it("build produkcyjny bez stałej wyłącza warstwę: ani odczytu, ani zapisu", async () => {
+    vi.stubEnv("PROD", true);
+    deploy(undefined);
+    expect(edgeTtlL2Adapter.enabled()).toBe(false);
+    await expect(
+      edgeTtlL2Adapter.write("a.example", "k", { at: Date.now(), value: "v" }, TTL, MAX_AGE),
+    ).resolves.toBeUndefined();
+    await expect(edgeTtlL2Adapter.read("a.example", "k", TTL, MAX_AGE)).resolves.toBeNull();
+    expect(put).not.toHaveBeenCalled();
   });
 });
 

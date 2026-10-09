@@ -1,6 +1,6 @@
 // Read-only widget renderers (no inline editing). Returns null when the
 // widget type isn't handled here - caller falls through to the main switch.
-import { type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
@@ -96,6 +96,11 @@ import { AuthorByline } from "@/components/molecules/AuthorByline";
 import { resolveAuthorDisplay, widgetAuthorDisplayDefaults } from "@/lib/builder/authorDisplay";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 import { siteYear } from "@/lib/i18n/format";
+import {
+  firstFrameVideoSrc,
+  useGatedVideoAutoplay,
+  useMotionGate,
+} from "@/lib/performance/motionGate";
 export { ResizableBox } from "./resizeWrappers";
 
 // Render-prop most do globalnych linków social (site_settings → opcje motywu).
@@ -107,6 +112,161 @@ function WithGlobalSocials({
   render: (links: GlobalSocialLinks) => ReactElement;
 }): ReactElement {
   return render(useGlobalSocialLinks());
+}
+
+// BRAMKA RUCHU (P3.5, `lib/performance/motionGate`). Ruch w pętli i autoplay
+// wideo z HTML-a z serwera ruszają dopiero po pierwszej interakcji albo w
+// punkcie ciszy strony - inaczej każda klatka ruchu w kadrze odsuwa Speed
+// Index. Renderery żyją w switchu, więc hook dostaje mikro-komponenty.
+
+/** Ikona z animacją w pętli (`spin`/`pulse`/`bounce`): pauza do otwarcia bramki. */
+function LoopingIcon({ className, children }: { className: string; children: ReactNode }) {
+  useMotionGate();
+  return (
+    <span className={className} data-motion-loop="">
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Wideo widgetu (plik). Z autoplay: bez atrybutu `autoplay` w HTML-u,
+ * wyciszone `play()` po otwarciu bramki (`useGatedVideoAutoplay`), a do tego
+ * czasu namalowana pierwsza klatka także na iOS (`firstFrameVideoSrc`).
+ */
+function WidgetVideo({
+  src,
+  autoplay,
+  controls,
+  loop,
+  style,
+}: {
+  src: string;
+  autoplay: boolean;
+  controls: boolean;
+  loop: boolean;
+  style: CSSProperties;
+}) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  useGatedVideoAutoplay(ref, autoplay, src);
+  return (
+    <video
+      ref={ref}
+      src={autoplay ? firstFrameVideoSrc(src) : src}
+      controls={controls}
+      muted={autoplay}
+      loop={loop}
+      playsInline
+      className="w-full rounded"
+      style={style}
+    />
+  );
+}
+
+const YOUTUBE_ORIGIN = "https://www.youtube.com";
+/** Krok uzgadniania z odtwarzaczem YouTube (jak `iframe_api`: co 250 ms). */
+const YOUTUBE_HANDSHAKE_MS = 250;
+/**
+ * Limit jednej rundy uzgadniania (~10 s). Ramka zablokowana (rozszerzenie, CSP,
+ * brak sieci) nigdy nie odpowie - bez limitu strona budziłaby wątek główny
+ * 4 razy na sekundę do końca życia karty. Ramka, która załaduje się później,
+ * dostaje świeżą rundę z jej zdarzenia `load`.
+ */
+const YOUTUBE_HANDSHAKE_MAX_ATTEMPTS = 40;
+
+/**
+ * Osadzenie YouTube. Autoplay NIE idzie parametrem `autoplay=1` (odtwarzacz
+ * ruszałby przy pierwszym malowaniu): adres ma `enablejsapi=1` i `mute=1` od
+ * początku, a po otwarciu bramki strona każe odtwarzaczowi grać
+ * (`postMessage`). Zmiana adresu po otwarciu przeładowałaby ramkę - i
+ * zrestartowała film, który czytelnik sam włączył wewnątrz ramki (kliknięcie
+ * w ramkę innego originu nie dociera do bramki).
+ *
+ * UZGODNIENIE (protokół `iframe_api`). Polecenie wysłane, zanim odtwarzacz w
+ * ramce nasłuchuje, przepada bez śladu - przy wczesnym otwarciu bramki
+ * autoplay po cichu by nie nastąpił. Dlatego strona, tak jak `iframe_api`,
+ * woła `{"event":"listening"}` co 250 ms do pierwszej odpowiedzi odtwarzacza
+ * (najwyżej ~10 s na rundę; ramka ładująca się dłużej dostaje nową rundę z
+ * własnego zdarzenia `load`), a `playVideo` wysyła dopiero po `onReady` z
+ * originu YouTube i z TEJ ramki - odtwarzacz podłączony już po swoim
+ * załadowaniu też odpowiada `onReady`.
+ */
+function YouTubeEmbed({
+  videoId,
+  autoplay,
+  loop,
+  controls,
+}: {
+  videoId: string;
+  autoplay: boolean;
+  loop: boolean;
+  controls: boolean;
+}) {
+  const ref = useRef<HTMLIFrameElement | null>(null);
+  const motion = useMotionGate(autoplay);
+  useEffect(() => {
+    const frame = ref.current;
+    if (!autoplay || !motion || !frame) return;
+    const send = (message: object) =>
+      frame.contentWindow?.postMessage(JSON.stringify(message), YOUTUBE_ORIGIN);
+    let timer: number | undefined;
+    let attempts = 0;
+    const stop = () => {
+      window.clearInterval(timer);
+      timer = undefined;
+    };
+    const listen = () => {
+      send({ event: "listening" });
+      attempts += 1;
+      if (attempts >= YOUTUBE_HANDSHAKE_MAX_ATTEMPTS) stop();
+    };
+    // Jedna ograniczona runda wołania; `load` ramki zaczyna nową (późne załadowanie).
+    const round = () => {
+      stop();
+      attempts = 0;
+      listen();
+      if (timer === undefined && attempts < YOUTUBE_HANDSHAKE_MAX_ATTEMPTS) {
+        timer = window.setInterval(listen, YOUTUBE_HANDSHAKE_MS);
+      }
+    };
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== frame.contentWindow || event.origin !== YOUTUBE_ORIGIN) return;
+      stop();
+      frame.removeEventListener("load", round);
+      if (String(event.data).includes('"event":"onReady"')) {
+        window.removeEventListener("message", onMessage);
+        send({ event: "command", func: "playVideo", args: [] });
+      }
+    };
+    window.addEventListener("message", onMessage);
+    frame.addEventListener("load", round);
+    round();
+    return () => {
+      stop();
+      window.removeEventListener("message", onMessage);
+      frame.removeEventListener("load", round);
+    };
+  }, [autoplay, motion]);
+  const params = new URLSearchParams();
+  if (autoplay) {
+    params.set("mute", "1");
+    params.set("enablejsapi", "1");
+  }
+  if (loop) {
+    params.set("loop", "1");
+    params.set("playlist", videoId);
+  }
+  if (!controls) params.set("controls", "0");
+  const q = params.toString();
+  return (
+    <iframe
+      ref={ref}
+      src={`${YOUTUBE_ORIGIN}/embed/${videoId}${q ? `?${q}` : ""}`}
+      title="video"
+      className="w-full h-full rounded"
+      allowFullScreen
+    />
+  );
 }
 
 // Wraps AnimatedHeadingRender with dynamic-token resolution. Runs on every
@@ -894,8 +1054,12 @@ export function renderSimpleWidget(
               : variant === "outlined"
                 ? "inline-flex items-center justify-center rounded-lg border border-border p-3"
                 : "inline-flex";
-      return (
-        <span key={`${name}-${size}-${variant}`} className={`${wrapperCls} ${spinCls}`.trim()}>
+      return spinCls ? (
+        <LoopingIcon key={`${name}-${size}-${variant}`} className={`${wrapperCls} ${spinCls}`}>
+          <DynamicIcon name={name} size={size} />
+        </LoopingIcon>
+      ) : (
+        <span key={`${name}-${size}-${variant}`} className={wrapperCls}>
           <DynamicIcon name={name} size={size} />
         </span>
       );
@@ -934,24 +1098,13 @@ export function renderSimpleWidget(
         );
       const ytMatch = url.match(/(?:youtube\.com\/.*v=|youtu\.be\/)([\w-]+)/);
       if (ytMatch) {
-        const params = new URLSearchParams();
-        if (autoplay) {
-          params.set("autoplay", "1");
-          params.set("mute", "1");
-        }
-        if (loop) {
-          params.set("loop", "1");
-          params.set("playlist", ytMatch[1]);
-        }
-        if (!controls) params.set("controls", "0");
-        const q = params.toString();
         return (
           <div style={ratioStyle}>
-            <iframe
-              src={`https://www.youtube.com/embed/${ytMatch[1]}${q ? `?${q}` : ""}`}
-              title="video"
-              className="w-full h-full rounded"
-              allowFullScreen
+            <YouTubeEmbed
+              videoId={ytMatch[1]}
+              autoplay={autoplay}
+              loop={loop}
+              controls={controls}
             />
           </div>
         );
@@ -967,14 +1120,11 @@ export function renderSimpleWidget(
           </div>
         );
       return (
-        <video
+        <WidgetVideo
           src={safe}
+          autoplay={autoplay}
           controls={controls}
-          autoPlay={autoplay}
-          muted={autoplay}
           loop={loop}
-          playsInline
-          className="w-full rounded"
           style={ratioStyle}
         />
       );

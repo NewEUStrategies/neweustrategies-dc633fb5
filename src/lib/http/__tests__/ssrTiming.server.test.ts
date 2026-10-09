@@ -513,6 +513,90 @@ describe("buildDocumentLogLine", () => {
     });
     expect(line.path).toHaveLength(2048);
   });
+
+  // R7(b, c) diagnozy `faza3/diagnoza/cache-dokumentu.md` (P3.6a): wynik samotestu L2 izolatu
+  // i etap degradacji w linii dokumentu - bez nich brak `layer: "L2"` nie odróżnia martwego
+  // magazynu od braku wpisu, a `degraded: true` nie mówi, gdzie polityka odmówiła zapisu.
+  it("niesie `l2Verified` (oba wyniki samotestu) i pomija je, gdy samotest trwa", () => {
+    const base = {
+      path: "/a",
+      status: 200,
+      cacheStatus: "HIT",
+      serverTiming: null,
+      serverInitMs: 0,
+      appMs: 1,
+    };
+    expect(buildDocumentLogLine({ ...base, l2Verified: true }).l2Verified).toBe(true);
+    expect(buildDocumentLogLine({ ...base, l2Verified: false }).l2Verified).toBe(false);
+    expect(buildDocumentLogLine({ ...base, l2Verified: null })).not.toHaveProperty("l2Verified");
+    expect(buildDocumentLogLine(base)).not.toHaveProperty("l2Verified");
+  });
+
+  it("`degradedAt` tylko przy `degraded: true` i tylko ze słownika etapów", () => {
+    const base = {
+      path: "/a",
+      status: 200,
+      cacheStatus: "MISS",
+      serverTiming: null,
+      serverInitMs: 0,
+      appMs: 1,
+    };
+    for (const stage of ["loader", "handler", "stream"] as const) {
+      expect(buildDocumentLogLine({ ...base, degraded: true, degradedAt: stage })).toMatchObject({
+        degraded: true,
+        degradedAt: stage,
+      });
+    }
+    // Czysty MISS nie ma etapu, nawet gdy wołający go poda.
+    expect(
+      buildDocumentLogLine({ ...base, degraded: false, degradedAt: "loader" }),
+    ).not.toHaveProperty("degradedAt");
+    expect(
+      buildDocumentLogLine({
+        ...base,
+        degraded: true,
+        degradedAt: "router" as unknown as "loader",
+      }),
+    ).not.toHaveProperty("degradedAt");
+  });
+
+  // R7c (fala 3, P3.6b): KTÓRE dane zdegradowały render.
+  it("`degradedBy` tylko przy `degraded: true`, z zamkniętego alfabetu, bez duplikatów, z sufitem", () => {
+    const base = {
+      path: "/",
+      status: 200,
+      cacheStatus: "MISS",
+      serverTiming: null,
+      serverInitMs: 0,
+      appMs: 1,
+    };
+    expect(
+      buildDocumentLogLine({
+        ...base,
+        degraded: true,
+        degradedBy: ["home.page", "dropped:builder-post-list", "home.page"],
+      }).degradedBy,
+    ).toEqual(["home.page", "dropped:builder-post-list"]);
+    // Czysty MISS nie niesie przyczyn, nawet gdy wołający je poda.
+    expect(
+      buildDocumentLogLine({ ...base, degraded: false, degradedBy: ["home.page"] }),
+    ).not.toHaveProperty("degradedBy");
+    // Napis spoza alfabetu (spacje, cudzysłów, JSON) odpada; pusta lista = brak klucza.
+    expect(
+      buildDocumentLogLine({
+        ...base,
+        degraded: true,
+        degradedBy: ['["public","home-page"]', "zły napis", ""],
+      }),
+    ).not.toHaveProperty("degradedBy");
+    const many = Array.from({ length: 20 }, (_, index) => `seed:k${index}`);
+    expect(buildDocumentLogLine({ ...base, degraded: true, degradedBy: many }).degradedBy).toEqual(
+      many.slice(0, 8),
+    );
+    expect(buildDocumentLogLine({ ...base, degraded: true, degradedBy: null })).not.toHaveProperty(
+      "degradedBy",
+    );
+  });
 });
 
 // OBSERWOWALNOŚĆ CACHE'U DOKUMENTÓW I TTFB (plan PSI 85/95, P0.4 = SC-1).

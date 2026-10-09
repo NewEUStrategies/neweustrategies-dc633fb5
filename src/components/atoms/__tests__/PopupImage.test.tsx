@@ -15,8 +15,9 @@ describe("popup media delivery", () => {
     );
     const img = container.querySelector("img")!;
     expect(img.getAttribute("src")).toBe("/media/tenant/photo.jpg");
+    // Najmniejszy kandydat domyślnej drabiny to 480w (P3.2a, drabina 5 szerokości).
     expect(img.getAttribute("srcset")).toContain(
-      "/media/tenant/photo.jpg?width=320&resize=contain&quality=76 320w",
+      "/media/tenant/photo.jpg?width=480&resize=contain&quality=76 480w",
     );
     expect(img.getAttribute("sizes")).toBe("300px");
     expect(img.getAttribute("loading")).toBe("eager");
@@ -47,7 +48,7 @@ describe("popup media delivery", () => {
     fireEvent.error(view.container.querySelector("img")!);
     view.rerender(<PopupImage src="/media/replacement.jpg" sizes="300px" alt="" />);
     expect(view.container.querySelector("img")?.getAttribute("srcset")).toContain(
-      "replacement.jpg?width=320",
+      "replacement.jpg?width=480",
     );
   });
 

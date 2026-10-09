@@ -2,10 +2,44 @@
 //
 // L1 (mapa w pamięci izolatu, `documentCache.server.ts`) jest błyskawiczne,
 // ale znika z każdą rotacją izolatu i nie jest współdzielone między izolatami
-// tej samej kolonii. `caches.default` jest dostępne w każdym Workerze bez
-// bindingów i współdzielone w obrębie kolonii (per-colo) - wpis rozgrzany
-// przez jeden izolat serwuje wszystkie pozostałe, a hit-rate przestaje być
-// loterią rotacji izolatów.
+// tej samej kolonii. Cache API jest współdzielone w obrębie kolonii (per-colo)
+// - wpis rozgrzany przez jeden izolat serwuje wszystkie pozostałe, a hit-rate
+// przestaje być loterią rotacji izolatów.
+//
+// NAZWANY CACHE, NIE `caches.default` (fala 3, P3.6a / diagnoza
+// `faza3/diagnoza/cache-dokumentu.md` R1). Hosting uruchamia aplikację tak, że
+// `caches.default` nic nie przechowuje: w produkcji nie było ani jednego
+// `nes-layer;desc="L2"`, choć kolonia miała świeże wpisy, a zimne izolaty
+// zawsze płaciły odczyt katalogu tenantów z bazy (migawki też nie wracały).
+// Dokumentacja Cloudflare dla Workers for Platforms w trybie untrusted mówi
+// wprost: „`caches.default` is disabled", ale „each Worker has an isolated
+// cache, when using the Cache API" - czyli `caches.open(...)` działa per
+// skrypt, wspólnie dla jego izolatów w kolonii. Dlatego `getColoCache()`
+// zwraca FASADĘ nad `caches.open(L2_CACHE_NAME)`: nazwany cache otwiera się
+// leniwie, raz na izolat, a `match`/`put`/`delete` czekają na otwarcie. Do
+// `caches.default` fasada wraca dopiero wtedy, gdy nazwanego cache'u nie da się
+// otworzyć. WSZYSTKIE operacje L2 (dokumenty, wersje, purge, migawki
+// `bootstrapCache`/`ssrCacheL2`, cache mediów) idą przez tę jedną fasadę, więc
+// purge działa na tym samym magazynie, z którego się czyta.
+//
+// SAMOTEST. Obecność obiektu nie dowodzi, że magazyn działa (tak właśnie
+// `l2Stats().enabled` meldowało „włączone" przy martwej warstwie). Raz na
+// izolat, pod `runAfterResponse`, fasada zapisuje wpis z losowym nonce i
+// czyta go z powrotem. Wynik trafia do `l2Stats().verified`, do jednej linii
+// logu `{"kind":"l2",...}` i do metryki Server-Timing `nes-l2` dokumentów.
+// Nieudany samotest WYŁĄCZA L2 w tym izolacie (`getColoCache()` -> null):
+// zachowanie jak dotąd, bez płacenia za martwe odczyty na każdym MISS-ie.
+// Do rozstrzygnięcia samotestu fasada działa optymistycznie - pierwsze żądanie
+// zimnego izolatu to dokładnie to, które ma skorzystać z wpisu kolonii.
+//
+// IDENTYFIKATOR BUILDU W KLUCZU. Dotąd L1 znikało z każdym deployem (nowe
+// izolaty startują puste), więc stary HTML nie przeżywał wdrożenia. Działające
+// L2 z oknem STALE do doby podawałoby HTML wskazujący chunki poprzedniego
+// deployu, a migawki danych (`ssrCacheL2.server.ts`) - wartości w kształcie
+// starego kodu. Klucze dokumentów i migawek mają więc segment buildu: stałą
+// `__NES_BUILD_ID__` z `define` Vite (`l2BuildId()`), policzoną raz przy
+// ładowaniu konfiguracji. Poza buildem (vitest) segment to stały napis `dev`;
+// build produkcyjny bez stałej nie używa L2 dokumentów ani migawek wcale.
 //
 // Unieważnianie bez iterowania kluczy (Cache API nie ma listowania):
 // KLUCZ WERSJONOWANY. Adres wpisu dokumentu zawiera dwa segmenty wersji -
@@ -18,14 +52,22 @@
 // Zakres spójności (świadomy, opisany też w OCENA_SSR): bump wersji jest
 // per-colo, jak sam cache. Kolonia, która nie obsłużyła publikacji, odświeży
 // wpis najpóźniej po oknie świeżości (fresh <= 3 min - ten sam sufit co L1),
-// czyli dokładnie tak, jak dotąd doganiały ją inne IZOLATY. Zmiana jest
-// ściśle nie-gorsza: świeżość bez zmian, hit-rate rośnie z per-isolate do
-// per-colo.
+// czyli dokładnie tak, jak dotąd doganiały ją inne IZOLATY. Z działającym L2
+// purge przestaje być per izolat i staje się per kolonia; pozostałe kolonie
+// doganiają w oknie świeżości. Dla AKTUALIZACJI treści zmiana jest ściśle
+// nie-gorsza: świeżość bez zmian, hit-rate rośnie z per-isolate do per-colo.
+// ZDJĘCIE albo PRZEKIEROWANIE ścieżki: pierwsze trafienie STALE w kolonii bez
+// purge podaje jeszcze stary dokument i odpala odświeżenie w tle; gdy to kończy
+// się ostatecznym 404/410/3xx, `documentCache.server.ts` usuwa wpis z L1 tego
+// izolatu i z L2 kolonii (`l2Delete`), więc kolejni czytelnicy dostają już
+// odpowiedź renderu. Bez tej zasady wpis byłby podawany jako STALE do końca
+// okna swr (do doby) w każdej kolonii, która nie obsłużyła publikacji.
 //
-// Poza Workers (`caches.default` niedostępne - vite dev, vitest, Node preview)
-// każda funkcja degraduje do no-op, a testom pozwala wstrzyknąć własny
-// magazyn przez `setColoCacheForTests`.
+// Poza Workers (brak `caches` - vite dev na Node, vitest, Node preview) każda
+// funkcja degraduje do no-op, a testom pozwala wstrzyknąć własny magazyn przez
+// `setColoCacheForTests`.
 import type { NesCacheStatus } from "@/lib/http/documentCache";
+import { runAfterResponse } from "@/lib/http/waitUntil.server";
 
 /**
  * Minimalny kontrakt Cache API używany przez L2. `match`/`put` są konieczne;
@@ -52,11 +94,28 @@ export interface L2DocumentEntry {
   swrMs: number;
 }
 
+/** Magazyn, nad którym pracuje L2 w tym izolacie. */
+export type L2Store = "named" | "default";
+
+/**
+ * Stan samotestu dla metryki Server-Timing `nes-l2`: `pending` - samotest
+ * jeszcze trwa, `named`/`default` - magazyn przeszedł samotest, `off` - nie
+ * przeszedł i L2 jest w tym izolacie wyłączone.
+ */
+export type L2SelfTestLabel = "pending" | L2Store | "off";
+
+/**
+ * Nazwa cache'u w Cache API. Zmiana nazwy to świadomy reset całej L2 we
+ * wszystkich koloniach (nowa przestrzeń kluczy, stara wygasa TTL-em).
+ */
+const L2_CACHE_NAME = "nes-edge-v1";
+
 // Syntetyczny origin kluczy: nigdy nie koliduje z realnymi żądaniami, a
 // Cache API wymaga poprawnego URL-a http(s) jako klucza.
 const KEY_ORIGIN = "https://nes-edge-cache.internal";
 const VERSION_PATH = "/__nes/version";
 const DOC_PATH = "/__nes/doc";
+const SELF_TEST_PATH = "/__nes/selftest";
 /** TTL wpisów wersji: długie (wersja żyje do następnego bumpa). */
 const VERSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 /** Wersja "0" = host/global nigdy nie bumpowany (brak wpisu wersji). */
@@ -67,6 +126,27 @@ const VERSION_ZERO = "0";
  * był widoczny niemal natychmiast.
  */
 const VERSION_MEMO_TTL_MS = 2_000;
+/** Wpis samotestu wygasa sam - nie ma czego sprzątać. */
+const SELF_TEST_TTL_SECONDS = 60;
+/**
+ * Jedno ponowienie odczytu samotestu po krótkiej przerwie: fałszywe „nie
+ * działa" wyłączyłoby L2 na całe życie izolatu, a ponowienie kosztuje jeden
+ * odczyt pod `waitUntil`, nigdy czas czytelnika.
+ */
+const SELF_TEST_RETRY_MS = 100;
+/** Segment buildu poza buildem (vitest): stały napis, nigdy zegar. */
+const DEV_BUILD_ID = "dev";
+const BUILD_ID_MAX_LENGTH = 64;
+
+/**
+ * Identyfikator buildu wstrzykiwany przez `define` Vite (`vite.config.ts`
+ * i `vite.smoke.config.ts`, ten sam blok - parytet pilnuje
+ * `viteChunkParity.test.ts`): `LOVABLE_BUILD_ID` albo znacznik czasu policzony
+ * RAZ przy ładowaniu konfiguracji. Deklaracja w module, nie globalna: stałą
+ * czyta wyłącznie `l2BuildId()`, a programy TS skryptów nie muszą jej znać.
+ * Poza buildem identyfikator nie istnieje - stąd odczyt przez `typeof`.
+ */
+declare const __NES_BUILD_ID__: string | undefined;
 
 // Nagłówki metadanych wpisu dokumentu (prefiks x-nes-l2-*).
 const H_STORED_AT = "x-nes-l2-stored-at";
@@ -79,6 +159,33 @@ const H_LINK = "x-nes-l2-link";
 
 let injectedCache: ColoCache | null | undefined;
 
+/** `globalThis.caches` widziane duck-typingiem (workerd, atrapy w testach). */
+interface RuntimeCaches {
+  readonly default?: unknown;
+  readonly open?: unknown;
+}
+
+/**
+ * Stan L2 izolatu dla jednego obiektu `globalThis.caches`. Inny obiekt (test
+ * podmienił globalny) = nowy stan, jak w świeżym izolacie.
+ */
+interface RuntimeState {
+  readonly source: RuntimeCaches;
+  /** Fasada nazwanego cache'u albo `caches.default` (runtime bez `open`). */
+  cache: ColoCache | null;
+  /** Czy obowiązuje samotest (tylko fasada nazwanego cache'u). */
+  readonly selfTest: boolean;
+  /** Magazyn faktycznie użyty; null = jeszcze nie otwarty albo niedostępny. */
+  store: L2Store | null;
+  /** Otwarty magazyn fasady; undefined = jeszcze nie otwierany. */
+  opened: ColoCache | null | undefined;
+  /** Wynik samotestu; null = trwa albo nie dotyczy. */
+  verified: boolean | null;
+  selfTestScheduled: boolean;
+}
+
+let runtime: RuntimeState | null = null;
+
 interface VersionMemoEntry {
   at: number;
   value: string;
@@ -88,26 +195,226 @@ const versionMemo = new Map<string, VersionMemoEntry>();
 
 const stats = { hits: 0, stale: 0, stores: 0, bumps: 0, deletes: 0 };
 
-/** Dostępny magazyn per-colo albo null (poza Workers). */
-export function getColoCache(): ColoCache | null {
-  if (injectedCache !== undefined) return injectedCache;
-  const caches = (globalThis as { caches?: { default?: unknown } }).caches;
-  const candidate = caches?.default as ColoCache | undefined;
-  if (candidate && typeof candidate.match === "function" && typeof candidate.put === "function") {
-    return candidate;
+function readRuntimeCaches(): RuntimeCaches | null {
+  try {
+    const caches = (globalThis as { caches?: unknown }).caches;
+    return typeof caches === "object" && caches !== null ? (caches as RuntimeCaches) : null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
-/** Hak testowy: wstrzyknij magazyn (null = symuluj brak Cache API). */
+function asColoCache(candidate: unknown): ColoCache | null {
+  const cache = candidate as Partial<ColoCache> | null | undefined;
+  return cache && typeof cache.match === "function" && typeof cache.put === "function"
+    ? (cache as ColoCache)
+    : null;
+}
+
+/** `caches.default` albo null - sam odczyt pola bywa w runtime'ach hostingu zablokowany. */
+function readDefaultCache(source: RuntimeCaches): ColoCache | null {
+  try {
+    return asColoCache(source.default);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Otwarcie magazynu fasady: nazwany cache, a gdy go nie ma - `caches.default`.
+ *
+ * Memoizowany jest WYŁĄCZNIE wynik, nie obietnica: obietnica I/O utworzona
+ * w kontekście jednego żądania nie może być oczekiwana z innego (workerd
+ * potrafi ją wtedy zawiesić). Równoległe pierwsze żądania otwierają więc
+ * cache każde w swoim kontekście, a pierwszy wynik wygrywa. Sam obiekt `Cache`
+ * nie jest związany z żądaniem (jak `caches.default`), więc jego ponowne użycie
+ * jest bezpieczne.
+ */
+async function openStore(state: RuntimeState): Promise<ColoCache | null> {
+  if (state.opened !== undefined) return state.opened;
+  let cache: ColoCache | null = null;
+  let store: L2Store | null = null;
+  try {
+    const storage = state.source as { open(name: string): Promise<unknown> };
+    cache = asColoCache(await storage.open(L2_CACHE_NAME));
+    if (cache) store = "named";
+  } catch {
+    cache = null;
+  }
+  if (!cache) {
+    cache = readDefaultCache(state.source);
+    store = cache ? "default" : null;
+  }
+  if (state.opened === undefined) {
+    state.opened = cache;
+    state.store = store;
+  }
+  return state.opened;
+}
+
+/** Fasada z synchronicznym kontraktem `getColoCache()` nad leniwie otwieranym magazynem. */
+function namedCacheFacade(state: RuntimeState): ColoCache {
+  return {
+    async match(request) {
+      const cache = await openStore(state);
+      return cache ? cache.match(request) : undefined;
+    },
+    async put(request, response) {
+      const cache = await openStore(state);
+      if (cache) await cache.put(request, response);
+    },
+    async delete(request) {
+      const cache = await openStore(state);
+      return cache && typeof cache.delete === "function" ? cache.delete(request) : false;
+    },
+  };
+}
+
+function resolveRuntime(source: RuntimeCaches): RuntimeState {
+  if (typeof source.open === "function") {
+    const state: RuntimeState = {
+      source,
+      cache: null,
+      selfTest: true,
+      store: null,
+      opened: undefined,
+      verified: null,
+      selfTestScheduled: false,
+    };
+    state.cache = namedCacheFacade(state);
+    return state;
+  }
+  // Runtime bez `caches.open` (atrapy, polyfille): `caches.default` wprost,
+  // bez fasady i bez samotestu - zachowanie sprzed nazwanego cache'u.
+  const cache = readDefaultCache(source);
+  return {
+    source,
+    cache,
+    selfTest: false,
+    store: cache ? "default" : null,
+    opened: cache,
+    verified: null,
+    selfTestScheduled: false,
+  };
+}
+
+function runtimeState(): RuntimeState | null {
+  const source = readRuntimeCaches();
+  if (!source) return null;
+  if (runtime?.source !== source) runtime = resolveRuntime(source);
+  return runtime;
+}
+
+function selfTestNonce(): string {
+  try {
+    return globalThis.crypto.randomUUID();
+  } catch {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
+async function selfTestHit(cache: ColoCache, request: Request, nonce: string): Promise<boolean> {
+  const hit = await cache.match(request);
+  return hit ? (await hit.text()) === nonce : false;
+}
+
+/**
+ * Samotest magazynu: zapis wpisu z nonce i odczyt. Biegnie raz na izolat pod
+ * `runAfterResponse` (nonce losowany w kontekście żądania - w zasięgu modułu
+ * workerd losowania zabrania). Nigdy nie rzuca.
+ */
+async function runSelfTest(state: RuntimeState, cache: ColoCache): Promise<void> {
+  const startedAt = Date.now();
+  let ok = false;
+  try {
+    const nonce = selfTestNonce();
+    const request = new Request(`${KEY_ORIGIN}${SELF_TEST_PATH}/${nonce}`);
+    await cache.put(
+      request,
+      new Response(nonce, {
+        headers: {
+          "content-type": "text/plain; charset=utf-8",
+          "cache-control": `public, max-age=${SELF_TEST_TTL_SECONDS}`,
+        },
+      }),
+    );
+    ok = await selfTestHit(cache, request, nonce);
+    if (!ok) {
+      await new Promise((resolve) => setTimeout(resolve, SELF_TEST_RETRY_MS));
+      ok = await selfTestHit(cache, request, nonce);
+    }
+  } catch {
+    ok = false;
+  }
+  state.verified = ok;
+  try {
+    // Jedna linia na izolat (Workers Logs): czy L2 w ogóle działa i na którym
+    // magazynie. Bez niej „brak L2" w liniach dokumentów nie odróżnia martwego
+    // magazynu od braku wpisu.
+    console.log(
+      JSON.stringify({ kind: "l2", verified: ok, store: state.store, ms: Date.now() - startedAt }),
+    );
+  } catch {
+    /* telemetria nie może zerwać pracy w tle */
+  }
+}
+
+/** Dostępny magazyn per-colo albo null (poza Workers albo po nieudanym samoteście). */
+export function getColoCache(): ColoCache | null {
+  if (injectedCache !== undefined) return injectedCache;
+  const state = runtimeState();
+  if (!state?.cache || state.verified === false) return null;
+  if (state.selfTest && !state.selfTestScheduled) {
+    state.selfTestScheduled = true;
+    runAfterResponse(runSelfTest(state, state.cache));
+  }
+  return state.cache;
+}
+
+/**
+ * Hak testowy: wstrzyknij magazyn (null = symuluj brak Cache API). Każde
+ * wywołanie zeruje też stan izolatu L2 (fasada, samotest, memo wersji,
+ * liczniki) - `setColoCacheForTests(undefined)` to „rotacja izolatu" dla L2.
+ */
 export function setColoCacheForTests(cache: ColoCache | null | undefined): void {
   injectedCache = cache;
+  runtime = null;
   versionMemo.clear();
   stats.hits = 0;
   stats.stale = 0;
   stats.stores = 0;
   stats.bumps = 0;
   stats.deletes = 0;
+}
+
+/**
+ * Segment buildu w kluczach L2 (dokumenty tutaj, migawki danych
+ * w `ssrCacheL2.server.ts`): stała `__NES_BUILD_ID__` przycięta do
+ * `[A-Za-z0-9_-]` (trafia do ścieżki klucza Cache API). Odczyt wyłącznie za
+ * bramką SSR: w bundlu klienta gałąź znika, więc stała - inna przy każdym
+ * buildzie - nie zmienia hashy chunków klienta, nawet gdyby ten moduł kiedyś
+ * trafił do jego grafu. Bez stałej: `dev` poza buildem produkcyjnym (vitest),
+ * a w buildzie produkcyjnym null - lepiej nie mieć L2 dokumentów i migawek niż
+ * podawać HTML albo dane poprzedniego deployu.
+ *
+ * Stała zastępuje odczyt `BOOT_MANIFEST.entry` (P3.6a, runda 10): dynamiczny
+ * import mapy bootu robił z jej zaślepki nowy punkt wejścia i przenosił chunk
+ * manifestu Start do `_ssr/`, czego nie widzą bramki artefaktu. Stała nie
+ * dotyka grafu modułów, a obejmuje też deploy zmieniający wyłącznie serwer.
+ */
+export function l2BuildId(): string | null {
+  let raw = "";
+  let production = false;
+  try {
+    production = Boolean(import.meta.env.PROD);
+    if (import.meta.env.SSR && typeof __NES_BUILD_ID__ === "string") raw = __NES_BUILD_ID__;
+  } catch {
+    // W buildzie oba odczyty są literałami. Bez podstawienia `import.meta.env`
+    // bywa w runtime nieczytelne (vitest bez globalnego `process`) - jak brak stałej.
+  }
+  const token = raw.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, BUILD_ID_MAX_LENGTH);
+  if (token) return token;
+  return production ? null : DEV_BUILD_ID;
 }
 
 function versionRequest(scope: string): Request {
@@ -159,17 +466,25 @@ export async function bumpL2Version(host: string | null): Promise<void> {
 }
 
 /**
- * Adres wpisu dokumentu pod bieżącymi wersjami (global + host). Klucz planu
- * (`host::pathname?query`) jest już tenant-scoped - tu tylko koduje się do
- * ścieżki URL, a segmenty wersji unieważniają całość bez iterowania.
+ * Adres wpisu dokumentu pod bieżącym buildem i wersjami (global + host).
+ * Klucz planu (`host::pathname?query`) jest już tenant-scoped - tu tylko koduje
+ * się do ścieżki URL, segment buildu odcina dokumenty innych deployów,
+ * a segmenty wersji unieważniają całość bez iterowania. Null = build bez
+ * identyfikatora (L2 dokumentów wyłączone).
  */
-async function documentRequest(cache: ColoCache, host: string | null, planKey: string) {
+async function documentRequest(
+  cache: ColoCache,
+  host: string | null,
+  planKey: string,
+): Promise<Request | null> {
+  const build = l2BuildId();
+  if (build === null) return null;
   const [globalVersion, hostVersion] = await Promise.all([
     readVersion(cache, "__global"),
     readVersion(cache, host ?? "no-host"),
   ]);
   return new Request(
-    `${KEY_ORIGIN}${DOC_PATH}/${globalVersion}/${hostVersion}/${encodeURIComponent(planKey)}`,
+    `${KEY_ORIGIN}${DOC_PATH}/${build}/${globalVersion}/${hostVersion}/${encodeURIComponent(planKey)}`,
   );
 }
 
@@ -182,6 +497,7 @@ export async function l2Match(
   if (!cache) return null;
   try {
     const request = await documentRequest(cache, host, planKey);
+    if (!request) return null;
     const hit = await cache.match(request);
     if (!hit) return null;
     const storedAt = Number(hit.headers.get(H_STORED_AT));
@@ -220,6 +536,7 @@ export async function l2Put(
   if (!cache) return;
   try {
     const request = await documentRequest(cache, host, planKey);
+    if (!request) return;
     const ttlSeconds = Math.max(1, Math.ceil((entry.freshMs + entry.swrMs) / 1000));
     // Kopia bufora: wpis L1 i odpowiedź klienta współdzielą oryginał; L2
     // dostaje własny, żeby transfer/konsumpcja przez runtime niczego nie psuła.
@@ -248,8 +565,8 @@ export async function l2Put(
 /**
  * Usunięcie JEDNEGO wpisu dokumentu z L2 (purge selektywny per ścieżka -
  * publikacja wpisu nie musi już bumpować wersji całego hosta, czyli chłodzić
- * całej kolonii). Adres liczony pod BIEŻĄCYMI wersjami: wpisy spod starszych
- * wersji są i tak nieosiągalne. Cache API nie listuje kluczy, więc warianty
+ * całej kolonii). Adres liczony pod BIEŻĄCYM buildem i wersjami: wpisy spod
+ * starszych są i tak nieosiągalne. Cache API nie listuje kluczy, więc warianty
  * z query (`?page=N`) NIE są tu usuwane - dogania je okno świeżości (<= 3 min),
  * dokładnie tak jak inne kolonie. Zwraca, czy coś realnie usunięto; poza
  * Workers i na runtime bez `delete` degraduje do no-op (false).
@@ -259,6 +576,7 @@ export async function l2Delete(host: string | null, planKey: string): Promise<bo
   if (!cache || typeof cache.delete !== "function") return false;
   try {
     const request = await documentRequest(cache, host, planKey);
+    if (!request) return false;
     const removed = await cache.delete(request);
     if (removed) stats.deletes += 1;
     return removed;
@@ -270,7 +588,14 @@ export async function l2Delete(host: string | null, planKey: string): Promise<bo
 
 /** Liczniki diagnostyczne L2 do karty /admin/performance. */
 export function l2Stats(): {
+  /** L2 ma magazyn i nie oblało samotestu (samotest w toku = optymistycznie włączone). */
   enabled: boolean;
+  /** Wynik samotestu izolatu; null = trwa albo nie dotyczy (atrapa, runtime bez `caches.open`). */
+  verified: boolean | null;
+  /** Magazyn izolatu: nazwany cache albo `caches.default`; null = nieznany/brak. */
+  store: L2Store | null;
+  /** Segment buildu w kluczach L2; null = build produkcyjny bez identyfikatora. */
+  build: string | null;
   hits: number;
   stale: number;
   stores: number;
@@ -278,7 +603,40 @@ export function l2Stats(): {
   /** Wpisy usunięte purge'em selektywnym (`l2Delete`). */
   deletes: number;
 } {
-  return { enabled: getColoCache() !== null, ...stats };
+  const enabled = getColoCache() !== null;
+  const state = injectedCache === undefined ? runtime : null;
+  return {
+    enabled,
+    verified: state?.verified ?? null,
+    store: state?.store ?? null,
+    build: l2BuildId(),
+    ...stats,
+  };
+}
+
+/**
+ * Stan samotestu tego izolatu dla metryki Server-Timing `nes-l2` dokumentów
+ * (sonda produkcyjna: jedno `curl` mówi, czy L2 izolatu działa). Null = samotest
+ * nie dotyczy (atrapa w testach, runtime bez `caches.open`, poza Workers) -
+ * wtedy metryki nie ma, a nagłówek jest bajt w bajt dawnym napisem.
+ */
+export function l2SelfTestLabel(): L2SelfTestLabel | null {
+  if (injectedCache !== undefined) return null;
+  const state = runtimeState();
+  if (!state?.selfTest) return null;
+  if (state.verified === null) return "pending";
+  return state.verified && state.store ? state.store : "off";
+}
+
+/**
+ * Wynik samotestu L2 tego izolatu dla linii logu dokumentu (`l2Verified`,
+ * R7b): true/false po rozstrzygnięciu, null - samotest trwa albo nie dotyczy.
+ * Sam odczyt stanu: niczego nie otwiera i nie planuje samotestu.
+ */
+export function l2SelfTestVerified(): boolean | null {
+  const label = l2SelfTestLabel();
+  if (label === null || label === "pending") return null;
+  return label !== "off";
 }
 
 /** Doliczanie trafień L2 (wołane z warstwy wykonawczej L1). */

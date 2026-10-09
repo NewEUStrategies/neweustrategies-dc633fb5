@@ -192,9 +192,9 @@ vi.mock("@tanstack/react-router", async (o) => {
 // siedzą w `__root.tsx` w JEDNEJ granicy z fallbackiem `null`. Gdy KTÓRAKOLWIEK
 // z nich jeszcze się dociąga, React pokazuje fallback CAŁEJ granicy - czyli
 // panel podglądu zgód, już zamontowany, znika z DOM-u na czas ładowania
-// SĄSIADA. Bramki czasowe (`consentReady` ~32 ms, `overlaysReady` ~32 ms po
-// degradacji `whenIdle` w happy-dom) dosypują sąsiadów PO pierwszym
-// rozstrzygnięciu, więc na wolniejszym runnerze asercja trafiała w okno,
+// SĄSIADA. Bramki (`consentReady` ~32 ms, `overlaysReady` przy otwarciu
+// zatrzasku interakcji/ciszy - od P3.8 otwieranym w tym pliku jawnie)
+// dosypują sąsiadów PO pierwszym rozstrzygnięciu, więc na wolniejszym runnerze asercja trafiała w okno,
 // w którym granica była z powrotem na fallbacku. Marker po drugiej stronie
 // KAŻDEGO leniwego importu zamyka to okno bez dotykania bramek, które są tu
 // przedmiotem dowodu (fabryki `lazy()` nadal się wykonują).
@@ -284,6 +284,9 @@ vi.mock("@/integrations/supabase/client", async () => {
 });
 
 const { Route } = await import("@/routes/__root");
+const { __openInteractionOrQuietForTests, __resetInteractionOrQuietForTests } =
+  await import("@/lib/performance/interactionOrQuiet");
+const { __resetQuiescenceForTests } = await import("@/lib/performance/whenQuiescent");
 
 describe("RootShell", () => {
   it("renderuje <html lang>, <head> i <body> - pełny dokument, nie fragment", () => {
@@ -572,7 +575,11 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
    * pytanie „czy panelu nie ma" cokolwiek znaczy.
    */
   async function overlayBoundarySettled(): Promise<void> {
-    const { screen } = await import("@testing-library/react");
+    const { act, screen } = await import("@testing-library/react");
+    // Od P3.8 `overlaysReady` = zatrzask „pierwsza interakcja ALBO punkt ciszy".
+    // Test otwiera go sam - prawdziwy detektor ciszy w happy-dom zapada po
+    // kilku sekundach i robiłby z tej zapory wyścig z limitem `findBy*`.
+    act(() => __openInteractionOrQuietForTests());
     await screen.findByTestId("newsletter-popup");
   }
 
@@ -593,6 +600,10 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
   }
 
   beforeEach(() => {
+    // Świeży detektor ciszy na test: punkt ciszy osiągnięty w poprzednim
+    // przypadku jest zatrzaskiem modułu i otworzyłby zatrzask nakładek od razu.
+    __resetQuiescenceForTests();
+    __resetInteractionOrQuietForTests();
     Object.defineProperty(window, "top", { configurable: true, value: window });
     h.search = {};
     h.player = { track: null, status: "idle" };
@@ -606,6 +617,21 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
     cleanup();
     Reflect.deleteProperty(window, "top");
     vi.clearAllMocks();
+    __resetInteractionOrQuietForTests();
+  });
+
+  it("nakładki marketingowe NIE montują się przed zatrzaskiem interakcji/ciszy (P3.8)", async () => {
+    const { screen } = await import("@testing-library/react");
+    await mountRoot();
+    // Toaster ma własną bramkę (`afterPageLoad`) - jego obecność dowodzi, że
+    // granica `Suspense` nakładek pokazuje treść, a nie fallback.
+    await screen.findByTestId("toaster");
+
+    expect(screen.queryByTestId("newsletter-popup")).toBeNull();
+    expect(screen.queryByTestId("popup-host")).toBeNull();
+
+    await overlayBoundarySettled();
+    expect(screen.getByTestId("popup-host")).toBeTruthy();
   });
 
   it("deferred overlays become ready without rerendering the page outlet", async () => {

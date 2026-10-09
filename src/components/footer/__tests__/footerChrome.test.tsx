@@ -67,7 +67,7 @@ describe("CopyrightBar", () => {
     // Wymóg operatora płatności: regulamin i polityka prywatności muszą być
     // osiągalne z każdej strony, także gdy redakcja opróżni stopkę w builderze.
     render(<CopyrightBar chrome={chrome()} lang="pl" />);
-    const nav = screen.getByRole("navigation", { name: "Informacje prawne" });
+    const nav = screen.getByRole("navigation", { name: realT("pl")("footer.legal_nav") });
     const hrefy = within(nav)
       .getAllByRole("link")
       .map((a) => a.getAttribute("href"));
@@ -77,7 +77,8 @@ describe("CopyrightBar", () => {
 
   it("nazwy linków prawnych idą za językiem", () => {
     render(<CopyrightBar chrome={chrome()} lang="en" />);
-    const nav = screen.getByRole("navigation", { name: "Legal" });
+    // Nazwa nawigacji idzie ze słownika w języku paska, nie z napisu w kodzie.
+    const nav = screen.getByRole("navigation", { name: realT("en")("footer.legal_nav") });
     expect(within(nav).getByRole("link", { name: "Terms & conditions" })).toBeTruthy();
   });
 

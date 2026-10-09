@@ -32,9 +32,12 @@ import { DOC_GUARD_MAX_MS, guardDocumentResponse } from "./lib/http/documentStre
 import { fetchWithFrameworkPreloads } from "./lib/http/frameworkPreloads.server";
 import {
   applyDeferredDocumentStore,
+  isRevalidationRequest,
   revalidationHeader,
   setDocumentRevalidator,
 } from "./lib/http/documentCache.server";
+import { l2SelfTestVerified } from "./lib/http/documentCacheL2.server";
+import { readDocumentDegradations } from "./lib/http/responseHeaders";
 import { NES_CACHE_HEADER, documentStorePolicy } from "./lib/http/documentCache";
 import { runAfterResponse } from "./lib/http/waitUntil.server";
 import { LANG_COOKIE } from "./lib/i18n/langCookie";
@@ -44,8 +47,10 @@ import {
   observeBodyEnd,
   resolveRequestColo,
   type BodyEndOutcome,
+  type DegradationStage,
   type DocumentStoreOutcome,
   type IsolateSample,
+  type LateDegradationStage,
 } from "./lib/http/ssrTiming";
 import type { Register } from "@tanstack/react-router";
 import type { RequestHandler } from "@tanstack/react-start/server";
@@ -149,16 +154,34 @@ async function normalizeCatastrophicSsrResponse(
 // remains cacheable between routes instead of being copied into each document.
 
 /**
+ * User-agent KAŻDEGO odświeżenia w tle: stały, przeglądarkowy (fala 3, P3.6a,
+ * R6 diagnozy `faza3/diagnoza/cache-dokumentu.md`). Klucz cache'u dokumentów
+ * nie rozróżnia UA, a router renderuje automatom (isbot) INNY wariant: czeka na
+ * `allReady` i oddaje dokument buforowany zamiast strumienia. Kopia UA żądania
+ * wyzwalającego sprawiała, że o wariancie wpisu na całe okno świeżości
+ * decydował przypadek - STALE albo zdegradowany MISS z Lighthouse'a/PSI zasiewał
+ * wpis wariantem bota dla wszystkich czytelników, a przebiegi PSI raz mierzyły
+ * jeden wariant, raz drugi. Stały UA przeglądarki daje zawsze wariant
+ * strumieniowy - ten sam, który mierzy harness (`--warm-ua browser`, ten sam
+ * napis co `WARM_USER_AGENT` w `scripts/performance/artifactServer.ts`).
+ * Żądanie syntetyczne nie opuszcza izolatu, więc napis nie trafia do sieci.
+ */
+const REVALIDATION_USER_AGENT =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
+
+/**
  * Nagłówki syntetycznego żądania odświeżenia. Świadomie WĄSKA lista:
  *   - `host` / `x-forwarded-host` / `x-forwarded-proto` - bez nich render
  *     trafiłby w innego tenanta (klucz cache jest prefiksowany hostem),
  *   - `accept` / `accept-language` - odtwarzają negocjację języka, żeby
  *     odświeżenie nie skończyło się redirectem zamiast dokumentem,
- *   - ciasteczko JĘZYKA (i tylko ono) - z tego samego powodu.
+ *   - ciasteczko JĘZYKA (i tylko ono) - z tego samego powodu,
+ *   - `user-agent` NIE jest kopiowany: zawsze `REVALIDATION_USER_AGENT`,
+ *   - znacznik rewalidacji (`marker`: nazwa i nonce izolatu).
  * `authorization` i ciasteczka sesji `sb-*` są WYKLUCZONE z definicji:
  * dokument w cache'u jest anonimową skorupą i taki musi pozostać.
  */
-function revalidationHeaders(request: Request): Headers {
+function revalidationHeaders(request: Request, marker: readonly [string, string]): Headers {
   const headers = new Headers();
   for (const name of [
     "host",
@@ -166,18 +189,17 @@ function revalidationHeaders(request: Request): Headers {
     "x-forwarded-proto",
     "accept",
     "accept-language",
-    "user-agent",
   ]) {
     const value = request.headers.get(name);
     if (value) headers.set(name, value);
   }
+  headers.set("user-agent", REVALIDATION_USER_AGENT);
   const lang = (request.headers.get("cookie") ?? "")
     .split(";")
     .map((part) => part.trim())
     .find((part) => part.startsWith(`${LANG_COOKIE}=`));
   if (lang) headers.set("cookie", lang);
-  const [markerName, markerValue] = revalidationHeader();
-  headers.set(markerName, markerValue);
+  headers.set(marker[0], marker[1]);
   return headers;
 }
 
@@ -215,9 +237,14 @@ const DOC_LOG_FUSE_MS = DOC_GUARD_MAX_MS + 2_000;
  * syntetycznym żądaniu: własny cykl życia renderu, tożsamość body nienaruszona.
  */
 async function revalidateDocument(request: Request): Promise<boolean> {
+  // Nonce znacznika losuje się w zakresie żądania (`documentCache.server.ts`).
+  // Bez losowości odświeżenia nie ma: syntetyczne żądanie bez znacznika byłoby
+  // zwykłą wizytą i podałoby własny wpis STALE - render na nic.
+  const marker = revalidationHeader();
+  if (!marker) return false;
   const synthetic = new Request(request.url, {
     method: "GET",
-    headers: revalidationHeaders(request),
+    headers: revalidationHeaders(request, marker),
     redirect: "manual",
   });
   const startedAt = Date.now();
@@ -246,7 +273,10 @@ async function revalidateDocument(request: Request): Promise<boolean> {
   // `revalidation`.
   let logged = false;
   let fuse: ReturnType<typeof setTimeout> | undefined;
-  const logOnce = (storeOutcome?: DocumentStoreOutcome): void => {
+  const logOnce = (
+    storeOutcome?: DocumentStoreOutcome,
+    lateDegradation?: LateDegradationStage,
+  ): void => {
     if (logged) return;
     logged = true;
     if (fuse !== undefined) clearTimeout(fuse);
@@ -256,6 +286,7 @@ async function revalidateDocument(request: Request): Promise<boolean> {
       colo: requestColo(request),
       cfRay: request.headers.get("cf-ray"),
       storeOutcome,
+      lateDegradation,
     });
   };
 
@@ -277,8 +308,12 @@ async function revalidateDocument(request: Request): Promise<boolean> {
   await finalized.arrayBuffer().catch(() => undefined);
 
   // Brak rejestracji zapisu = render nie dał dokumentu nadającego się do
-  // cache'owania (redirect, 404, `no-store`). Wpis zostaje STALE i kolejne
-  // żądanie spróbuje ponownie - nigdy nie nadpisujemy go czymś gorszym.
+  // cache'owania. Ostateczne 404/410/3xx (treść zdjęta albo przeniesiona)
+  // middleware cache'u już USUNĄŁ z L1 i z L2 kolonii (`evictGoneDocument`
+  // w documentCache.server.ts) - kolejny czytelnik zapłaci render i dostanie
+  // tę samą odpowiedź, zamiast starego dokumentu do końca okna swr. Pozostałe
+  // przypadki (`no-store`/zdegradowany 200, 5xx) zostawiają wpis STALE:
+  // kolejne żądanie spróbuje ponownie, nigdy nie nadpisujemy go czymś gorszym.
   if (!pending) return false;
   try {
     return await pending;
@@ -326,6 +361,8 @@ interface TrackedStore {
   readonly work: Promise<boolean> | null;
   /** Decyzja magazynu; undefined = brak zapisu albo decyzja jeszcze nie zapadła. */
   readonly outcome: DocumentStoreOutcome | undefined;
+  /** Przy `outcome: "degraded"`: etap, na którym zapadła degradacja (R7c). */
+  readonly lateDegradation: LateDegradationStage | undefined;
   /** Rozstrzyga się z decyzją magazynu (od razu, gdy zapisu nie ma). */
   readonly decided: Promise<void>;
 }
@@ -336,6 +373,7 @@ function applyTrackedDocumentStore(response: Response): {
 } {
   let work: Promise<boolean> | null = null;
   let outcome: DocumentStoreOutcome | undefined;
+  let lateDegradation: LateDegradationStage | undefined;
   let markDecided: () => void = () => {};
   const decided = new Promise<void>((resolve) => {
     markDecided = resolve;
@@ -345,8 +383,9 @@ function applyTrackedDocumentStore(response: Response): {
     (pending) => {
       work = pending;
     },
-    (result) => {
+    (result, stage) => {
       outcome = result;
+      lateDegradation = stage;
       markDecided();
     },
   );
@@ -356,6 +395,9 @@ function applyTrackedDocumentStore(response: Response): {
     },
     get outcome() {
       return outcome;
+    },
+    get lateDegradation() {
+      return lateDegradation;
     },
     decided,
   };
@@ -427,6 +469,21 @@ interface DocumentLogTiming {
   streamEnd?: BodyEndOutcome;
   /** Decyzja odroczonego zapisu, jeśli zapadła przed linią. */
   storeOutcome?: DocumentStoreOutcome;
+  /** Etap degradacji zgłoszony z decyzją `degraded` (`handler`/`stream`). */
+  lateDegradation?: LateDegradationStage;
+}
+
+/**
+ * Etap degradacji do linii logu (R7c): `handler`/`stream` z decyzji magazynu,
+ * a degradacja widoczna wyłącznie w nagłówkach to `loader` - ta sama
+ * definicja co `degradedAt` w pierścieniu decyzji documentCache.server.ts.
+ */
+function degradationStage(
+  degraded: boolean | undefined,
+  timing: DocumentLogTiming,
+): DegradationStage | undefined {
+  if (degraded !== true) return undefined;
+  return timing.storeOutcome === "degraded" ? timing.lateDegradation : "loader";
 }
 
 /**
@@ -439,7 +496,7 @@ interface DocumentLogTiming {
 function logDocument(request: Request, response: Response, timing: DocumentLogTiming): void {
   if (!response.headers.get("content-type")?.includes("text/html")) return;
   try {
-    const [markerName, markerValue] = revalidationHeader();
+    const degraded = degradedMiss(response, timing.storeOutcome);
     console.log(
       JSON.stringify(
         buildDocumentLogLine({
@@ -449,14 +506,20 @@ function logDocument(request: Request, response: Response, timing: DocumentLogTi
           serverTiming: response.headers.get("server-timing"),
           serverInitMs: timing.serverInitMs,
           appMs: timing.appMs,
-          revalidation: request.headers.get(markerName) === markerValue,
+          revalidation: isRevalidationRequest(request),
           streamMs: timing.streamMs,
           streamEnd: timing.streamEnd,
           colo: timing.colo,
           isolate: timing.isolate,
           userAgent: request.headers.get("user-agent"),
           cfRay: timing.cfRay !== undefined ? timing.cfRay : request.headers.get("cf-ray"),
-          degraded: degradedMiss(response, timing.storeOutcome),
+          degraded,
+          degradedAt: degradationStage(degraded, timing),
+          // R7c (P3.6b): KTÓRE dane zdegradowały render - etykiety odnotowane
+          // w zasięgu tego żądania (odporne loadery, chrome, predykat
+          // kompletności). Rewalidacja w tle ma własne, syntetyczne żądanie.
+          degradedBy: degraded ? readDocumentDegradations(request) : undefined,
+          l2Verified: l2SelfTestVerified(),
           storeOutcome: timing.storeOutcome,
         }),
       ),
@@ -520,6 +583,7 @@ export default {
             streamMs: endedAt - startedAt,
             streamEnd: outcome,
             storeOutcome: store.outcome,
+            lateDegradation: store.lateDegradation,
           });
           lineWritten();
         };

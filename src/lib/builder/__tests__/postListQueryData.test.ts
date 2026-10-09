@@ -60,6 +60,7 @@ vi.mock("@/integrations/supabase/client", async () => {
 import { fail, ok } from "@/test/supabase";
 import type { WidgetContent } from "@/lib/builder/types";
 import { postListQueryOptions, type Lang, type PostRow } from "@/lib/builder/postListQuery";
+import { sliderPostsQueryOptions, type SliderPostRow } from "@/lib/builder/sliderPostsQuery";
 
 function db(): SupabaseFromStub {
   if (sb.from === null) throw new Error("test: atrapa `from` nie zostala utworzona");
@@ -73,7 +74,7 @@ function rpc(): SupabaseRpcStub {
 
 /** Uruchamia `queryFn` opcji tak, jak zrobilby to react-query. */
 function runQueryFn(content: WidgetContent, lang: Lang = "pl"): Promise<PostRow[]> {
-  const options = postListQueryOptions(content, lang);
+  const options = postListQueryOptions(content, lang, "list");
   return (options.queryFn as () => Promise<PostRow[]>)();
 }
 
@@ -751,5 +752,55 @@ describe("cache TTL w srodowisku przegladarki", () => {
     await runQueryFn({ orderBy: "random" });
 
     expect(db().chainsFor("posts")).toHaveLength(2);
+  });
+});
+
+// ZAJAWKI TYLKO TAM, GDZIE WIDGET JE RENDERUJE (P3.7b, T2) - bramka „tylko
+// serwer" (runda poprawek 9: kod ścinania poza chunkiem wejściowym). Ten sam
+// klucz (`withExcerpt: false`) na serwerze daje wiersze bez `excerpt_*` (stan
+// odwodniony), a na kliencie pełne wiersze (refetch). Znacznik jest w obu
+// przypadkach ten sam - kontrakt w `localizedPostRowsParity.test.tsx`.
+describe("zajawki: ścinanie wyłącznie na serwerze (P3.7b, T2)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const ranked: WidgetContent = { variant: "ranked", orderBy: "published_at" };
+
+  it("serwer: widget bez zajawki dostaje wiersze bez `excerpt_*`", async () => {
+    vi.stubEnv("SSR", true);
+    setPosts([postRow("a", { excerpt_pl: "Zajawka" })]);
+    const [row] = await runQueryFn(ranked);
+    expect(row).not.toHaveProperty("excerpt_pl");
+    expect(row).not.toHaveProperty("excerpt_en");
+    expect(row?.title_pl).toBe("Tytul a");
+  });
+
+  it("serwer: widget, który zajawkę rysuje, zachowuje `excerpt_<lang>`", async () => {
+    vi.stubEnv("SSR", true);
+    setPosts([postRow("a", { excerpt_pl: "Zajawka" })]);
+    const [row] = await runQueryFn({ variant: "card", orderBy: "published_at" });
+    expect(row?.excerpt_pl).toBe("Zajawka");
+  });
+
+  it("klient: ten sam klucz zostawia wiersz pełny", async () => {
+    vi.stubEnv("SSR", false);
+    setPosts([postRow("a", { excerpt_pl: "Zajawka" })]);
+    const [row] = await runQueryFn(ranked);
+    expect(row?.excerpt_pl).toBe("Zajawka");
+  });
+
+  it("slider z wyłączoną zajawką: serwer ścina, klient nie", async () => {
+    const c: WidgetContent = { source: "posts", showExcerpt: false, limit: 2 };
+    const run = () =>
+      (sliderPostsQueryOptions(c, "pl").queryFn as () => Promise<SliderPostRow[]>)();
+    setPosts([postRow("a", { excerpt_pl: "Zajawka" })]);
+    vi.stubEnv("SSR", true);
+    const [server] = await run();
+    expect(server).not.toHaveProperty("excerpt_pl");
+    expect(server?.title_pl).toBe("Tytul a");
+    vi.stubEnv("SSR", false);
+    const [browser] = await run();
+    expect(browser?.excerpt_pl).toBe("Zajawka");
   });
 });

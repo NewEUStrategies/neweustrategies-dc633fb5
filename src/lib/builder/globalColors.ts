@@ -868,8 +868,31 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
 
   // Widget bridge: map global colors to widget elements with specificity 0
   // (via :where()), so any explicit per-widget color always wins.
-  parts.push(
-    `
+  parts.push(GLOBAL_COLORS_BRIDGE_CSS);
+
+  return parts.join("");
+}
+
+// MOST WIDGETÓW dla `globalColorsToCss` (komentarz przy wywołaniu wyżej).
+//
+// STAŁA MODUŁU, NIE NAPIS SKŁADANY W FUNKCJI (P3.7a, fala 3). Literał jest
+// statyczny - identyczny dla każdej strony i każdego najemcy - więc wyrażenie
+// regularne na ~19 KB napisu biegnie raz przy ewaluacji modułu, a nie przy
+// każdym wywołaniu `globalColorsToCss` (SSR na żądanie, podglądy edytora).
+// Komentarz przed backtickiem to znacznik wtyczki builda
+// `scripts/lib/staticCssPlugin.ts`: w buildzie literał przychodzi już bez
+// komentarzy i wcięć (ten sam wynik w bundlu klienta i SSR), a w dev i testach
+// zostaje źródłowy, więc wynik `replace/trim` jest tam taki jak przed P3.7a
+// (bez reguł paska bocznego - akapit niżej).
+//
+// BEZ REGUŁ `[data-sidebar]` (P3.7a, S3). Pasek boczny renderują wyłącznie
+// komponenty `src/components/admin/*` pod trasą `/admin`, która ładuje
+// `src/admin-styles.css` - reguły stoją na końcu tego arkusza (te same
+// selektory, deklaracje i kolejność), a strony publiczne nie niosą już ok.
+// 3,6 KB martwego CSS-u w każdym dokumencie. Zmienne `--gc-sidebar-*` dalej
+// emituje `globalColorsToCss` (`:root,.light` / `.dark`), więc kolory paska
+// z panelu działają bez zmian.
+const GLOBAL_COLORS_BRIDGE_CSS = /* @nes-static-css */ `
     :where(.rl-wrap .rl-num){color:var(--gc-highlight, currentColor);}
     :where(.rl-wrap .rl-cat){color:var(--gc-highlight, currentColor);}
     :where(.rl-wrap .rl-title:hover){color:var(--gc-highlight, currentColor);}
@@ -906,20 +929,6 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
       :where(header a, header button){color:var(--gc-header-icon, inherit);font-family:var(--gc-header-icon-font, inherit);font-size:var(--gc-header-icon-size, inherit);font-weight:var(--gc-header-icon-weight, inherit);font-style:var(--gc-header-icon-style, inherit);text-decoration:var(--gc-header-icon-decoration, inherit);}
       :where(header a:hover, header button:hover, header a:hover svg, header button:hover svg){color:var(--gc-header-icon-hover, var(--gc-header-icon, inherit));}
     }
-    aside[data-sidebar="sidebar"], [data-sidebar="sidebar"]{background-color:var(--gc-sidebar-bg, var(--sidebar-background)) !important;color:var(--gc-sidebar-text, var(--sidebar-foreground)) !important;border-color:var(--gc-sidebar-border, var(--sidebar-border)) !important;}
-    [data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]{color:var(--gc-sidebar-text, inherit);}
-    @layer utilities { :where([data-sidebar="sidebar"] a, [data-sidebar="sidebar"] button, [data-sidebar="menu-button"]){font-family:var(--gc-sidebar-text-font, inherit);font-size:var(--gc-sidebar-text-size, inherit);font-weight:var(--gc-sidebar-text-weight, inherit);font-style:var(--gc-sidebar-text-style, inherit);text-decoration:var(--gc-sidebar-text-decoration, inherit);} }
-    [data-sidebar="sidebar"] svg{color:var(--gc-sidebar-icon, var(--gc-sidebar-text, currentColor));}
-    [data-sidebar="menu-button"]:hover, [data-sidebar="sidebar"] a:hover:not([data-active="true"]):not([data-sidebar-brand]), [data-sidebar="sidebar"] button:hover:not([data-sidebar-brand]):not([data-sidebar-toggle]){background:var(--gc-sidebar-btn-hover-bg) !important;color:var(--gc-sidebar-btn-hover-text, var(--gc-sidebar-text)) !important;}
-    [data-sidebar="menu-button"]:not([data-active="true"]):hover svg, [data-sidebar="sidebar"] a:hover:not([data-active="true"]):not([data-sidebar-brand]) svg, [data-sidebar="sidebar"] button:hover:not([data-sidebar-brand]):not([data-sidebar-toggle]):not([data-active="true"]) svg{color:var(--gc-sidebar-icon-hover, var(--gc-sidebar-btn-hover-text, var(--gc-sidebar-icon, currentColor))) !important;}
-    [data-sidebar="sidebar"] a[data-sidebar-brand], [data-sidebar="sidebar"] a[data-sidebar-brand]:hover, [data-sidebar="sidebar"] button[data-sidebar-toggle], [data-sidebar="sidebar"] button[data-sidebar-toggle]:hover{background:transparent !important;}
-    [data-sidebar="menu-button"][data-active="true"], [data-sidebar="menu-button"].active, [data-sidebar="sidebar"] .active{background:var(--gc-sidebar-btn-bg) !important;color:var(--gc-sidebar-btn-text, var(--gc-sidebar-text)) !important;}
-    [data-sidebar="menu-button"][data-active="true"] svg, [data-sidebar="sidebar"] .active svg{color:var(--gc-sidebar-icon-active, var(--gc-sidebar-btn-text, currentColor)) !important;}
-    [data-sidebar="separator"]{background:var(--gc-sidebar-border, var(--sidebar-border, transparent));}
-    [data-sidebar="group-label"]{color:var(--gc-sidebar-title, inherit) !important;}
-    @layer utilities { :where([data-sidebar="group-label"]){font-family:var(--gc-sidebar-title-font, inherit);font-size:var(--gc-sidebar-title-size, inherit);font-weight:var(--gc-sidebar-title-weight, inherit);font-style:var(--gc-sidebar-title-style, inherit);text-decoration:var(--gc-sidebar-title-decoration, inherit);} }
-    [data-sidebar="group-subtitle"], [data-sidebar="menu-sub-label"]{color:var(--gc-sidebar-subtitle, inherit) !important;}
-    @layer utilities { :where([data-sidebar="group-subtitle"], [data-sidebar="menu-sub-label"]){font-family:var(--gc-sidebar-subtitle-font, inherit);font-size:var(--gc-sidebar-subtitle-size, inherit);font-weight:var(--gc-sidebar-subtitle-weight, inherit);font-style:var(--gc-sidebar-subtitle-style, inherit);text-decoration:var(--gc-sidebar-subtitle-decoration, inherit);} }
     /* "Dark accent" intentionally NOT applied to article prose - titles,
        paragraphs and list items inside posts must keep the regular
        foreground color. Only true hyperlinks (<a href>) get the accent,
@@ -979,8 +988,6 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where(body:hover){background:var(--gc-body-bg-hover, var(--gc-body-bg, transparent));}
     :where([data-single-post]:hover){background:var(--gc-body-bg-single-hover, var(--gc-body-bg-single, var(--gc-body-bg, transparent)));}
     :where([data-dark-accent]:hover){background:var(--gc-dark-accent-hover, var(--gc-dark-accent, transparent));}
-    :where([data-sidebar="sidebar"]:hover){background-color:var(--gc-sidebar-bg-hover, var(--gc-sidebar-bg, var(--sidebar-background))) !important;border-color:var(--gc-sidebar-border-hover, var(--gc-sidebar-border, var(--sidebar-border))) !important;}
-    :where([data-sidebar="sidebar"]:hover){color:var(--gc-sidebar-text-hover, var(--gc-sidebar-text, var(--sidebar-foreground))) !important;}
     :where(.bookmark-icon:hover){color:var(--gc-bookmark-hover-hover, var(--gc-bookmark-hover, currentColor));}
     :where(sup.fn-ref, sup.fn-ref a){color:var(--gc-fn-ref, inherit);font-family:var(--gc-fn-ref-font, inherit);font-size:var(--gc-fn-ref-size, inherit);font-weight:var(--gc-fn-ref-weight, inherit);font-style:var(--gc-fn-ref-style, inherit);text-decoration:var(--gc-fn-ref-decoration, none);}
     :where([data-footnotes-title]){color:var(--gc-fn-list-title, inherit);font-family:var(--gc-fn-list-title-font, inherit);font-size:var(--gc-fn-list-title-size, inherit);font-weight:var(--gc-fn-list-title-weight, inherit);font-style:var(--gc-fn-list-title-style, inherit);text-decoration:var(--gc-fn-list-title-decoration, inherit);}
@@ -989,9 +996,5 @@ export function globalColorsToCss(value: GlobalColorsValue): string {
     :where([data-footnote-backlink]){color:var(--gc-fn-backlink, inherit);}
     :where([data-footnote-tooltip]){background:var(--gc-fn-tooltip-bg, inherit);color:var(--gc-fn-tooltip-text, inherit);font-family:var(--gc-fn-tooltip-text-font, inherit);font-size:var(--gc-fn-tooltip-text-size, inherit);font-weight:var(--gc-fn-tooltip-text-weight, inherit);font-style:var(--gc-fn-tooltip-text-style, inherit);text-decoration:var(--gc-fn-tooltip-text-decoration, inherit);}
   `
-      .replace(/\s+/g, " ")
-      .trim(),
-  );
-
-  return parts.join("");
-}
+  .replace(/\s+/g, " ")
+  .trim();

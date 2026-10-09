@@ -196,6 +196,24 @@ describe("globalColorsToCss - struktura wyjścia", () => {
     expect(out).toContain(":where(");
     expect(out).toContain("@layer utilities");
   });
+
+  it("nie niesie reguł paska bocznego panelu - stoją w admin-styles.css (P3.7a)", () => {
+    // Pasek renderuje wyłącznie panel; reguły w moście jechały w każdym dokumencie
+    // publicznym. Zmienne `--gc-sidebar-*` zostają - czyta je arkusz panelu.
+    const out = globalColorsToCss({ "sidebar-text": { light: "#222222", dark: "#dddddd" } });
+    expect(out).not.toContain("data-sidebar");
+    expect(out).toContain("--gc-sidebar-text: #222222;");
+    expect(out.slice(out.indexOf(".dark{"))).toContain("--gc-sidebar-text: #dddddd;");
+  });
+
+  it("most jest stały: ten sam ogon dla różnych wartości użytkownika", () => {
+    // Most nie zależy od danych (stała modułu minifikowana w buildzie) - różnią się
+    // wyłącznie bloki zmiennych `:root,.light` i `.dark`.
+    const tail = (css: string) => css.slice(css.indexOf(":where("));
+    expect(tail(globalColorsToCss({}))).toBe(
+      tail(globalColorsToCss({ highlight: { light: "#ff0000", dark: "#00ff00" } })),
+    );
+  });
 });
 
 describe("globalColorsToCss - wartości użytkownika", () => {

@@ -48,8 +48,11 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 // bez sieci (sandbox bez wyjścia do Supabase, maszyna dewelopera offline).
 //   NES_ARTIFACT_FIXTURE=1 - zawsze fixture; =0 - zawsze środowisko procesu;
 //   brak zmiennej - fixture tylko wtedy, gdy środowisko NIE ma ani
-//   SUPABASE_URL, ani VITE_SUPABASE_URL. CI ustawia obie (sekret albo
-//   placeholder), więc krok CI biegnie bez zmian.
+//   SUPABASE_URL, ani VITE_SUPABASE_URL. Krok CI ustawia NES_ARTIFACT_FIXTURE=1
+//   (fala 3, P3.5): bez danych strona główna renderuje się w wariancie
+//   zdegradowanym (bez sekcji i hero), a spec bramki ruchu potrzebuje hero.
+//   Fixture nadpisuje też VITE_SUPABASE_*: CSP `connect-src` serwera liczy się
+//   z nich w runtime, więc placeholder z CI blokowałby zapytania do fixture.
 //   NES_ARTIFACT_ROOT - katalog z `.output/` (domyślnie bieżący), np. baza
 //   fali zbudowana w innym worktree.
 // Zastąpiony jest wyłącznie `fetch` procesu serwera; żaden warunek ani trasa
@@ -67,6 +70,8 @@ const FIXTURE_ENV: Record<string, string> = ARTIFACT_FIXTURE
   ? {
       SUPABASE_URL: "http://127.0.0.1:4199",
       SUPABASE_PUBLISHABLE_KEY: "performance-fixture",
+      VITE_SUPABASE_URL: "http://127.0.0.1:4199",
+      VITE_SUPABASE_PUBLISHABLE_KEY: "performance-fixture",
       SUPABASE_SERVICE_ROLE_KEY: "performance-fixture-admin",
       NES_PERFORMANCE_CASE: "artifact-boot",
     }

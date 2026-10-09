@@ -12,8 +12,14 @@
 //      NIEZALEŻNIE (zjazd myszą nie wznawia rotacji, gdy ognisko jest w środku),
 //      brak rotacji przy `prefers-reduced-motion` i przy jednej karcie.
 //   5. TRYB KONTROLOWANY: `activeIndex` + `onActiveChange`, przycięcie indeksu.
+//   6. BRAMKA RUCHU (P3.5): rotacja stoi do pierwszej interakcji albo punktu
+//      ciszy (tu atrapa), pierwszy obrót pełny interwał po otwarciu bramki.
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Punkt ciszy bramki ruchu tylko na żądanie testu.
+vi.mock("@/lib/performance/whenQuiescent", () => ({ onQuiescent: () => () => {} }));
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import {
   CircularCarousel,
   getItemPosition,
@@ -55,6 +61,7 @@ function mockReducedMotion(matches: boolean) {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  __resetMotionGateForTests();
 });
 
 describe("getItemPosition", () => {
@@ -319,6 +326,22 @@ describe("CircularCarousel - tryb kontrolowany", () => {
 describe("CircularCarousel - auto-play", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    __openMotionGateForTests();
+  });
+
+  it("przed otwarciem bramki ruchu stoi 30 s; pierwszy obrót pełny interwał po otwarciu", () => {
+    __resetMotionGateForTests();
+    render(<CircularCarousel items={items(3)} labels={LABELS} autoPlayInterval={2000} />);
+    // Krokami po sekundzie: skok 30 s mógłby wrócić na pierwszą kartę po pełnych obrotach.
+    for (let second = 0; second < 30; second += 1) {
+      act(() => vi.advanceTimersByTime(1000));
+      expect(aktywna().getAttribute("aria-label")).toBe("Karta 1");
+    }
+    act(() => __openMotionGateForTests());
+    act(() => vi.advanceTimersByTime(1999));
+    expect(aktywna().getAttribute("aria-label")).toBe("Karta 1");
+    act(() => vi.advanceTimersByTime(1));
+    expect(aktywna().getAttribute("aria-label")).toBe("Karta 2");
   });
 
   it("przesuwa kartę co interwał, nie częściej niż co sekundę", () => {

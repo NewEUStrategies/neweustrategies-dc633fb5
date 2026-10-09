@@ -178,7 +178,9 @@ describe("useSaveCarouselDefaults", () => {
       intervalMs: 8000,
     });
     expect(spy).toHaveBeenCalledWith({ queryKey: ["site_settings_public", "all"] });
-    expect(h.toastSuccess).toHaveBeenCalled();
+    // Przez leniwy most, nie sonnera wprost - moduł bywa wklejany do wejścia.
+    expect(h.notifySuccess).toHaveBeenCalledWith("Zapisano domyślne ustawienia karuzeli");
+    expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 
   it("błąd zapisu daje komunikat i nie podmienia cache", async () => {
@@ -188,7 +190,8 @@ describe("useSaveCarouselDefaults", () => {
       await result.current.mutateAsync(CAROUSEL_DEFAULTS).catch(() => undefined);
     });
 
-    expect(h.toastFail).toHaveBeenCalledWith("brak uprawnień");
+    expect(h.notifyError).toHaveBeenCalledWith("brak uprawnień");
+    expect(h.toastFail).not.toHaveBeenCalled();
     expect(queryClient.getQueryData(["site_settings", "carousel_defaults"])).toBeUndefined();
   });
 });

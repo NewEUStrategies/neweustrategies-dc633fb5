@@ -6,8 +6,10 @@
 // Architektura dwupoziomowa:
 //   - L1: mapa w pamięci izolatu (mikrosekundy, znika z rotacją izolatu);
 //   - L2: Cloudflare Cache API per-colo (`documentCacheL2.server.ts`) -
-//     współdzielone między izolatami kolonii, unieważniane kluczem
-//     wersjonowanym przy purge; poza Workers L2 degraduje do no-op.
+//     nazwany cache współdzielony między izolatami kolonii, sprawdzany
+//     samotestem raz na izolat, unieważniany kluczem wersjonowanym przy purge
+//     (klucz niesie też identyfikator buildu); poza Workers L2 degraduje do
+//     no-op.
 //
 // Właściwości:
 //   - HIT: odpowiedź prosto z L1 (zero SSR, zero odczytów bazy); L1 miss
@@ -28,19 +30,27 @@
 //     koperty SSR i framework ubijał serwerowy cykl życia renderu w trakcie
 //     streamowania (incydent ~61 s, opis przy `decorateMissAndDeferStore`);
 //     kopia zbiera się pod `ctx.waitUntil`, więc domknięcie żądania jej nie
-//     ucina;
+//     ucina. O zapisie decyduje KONIEC strumienia (fala 3, P3.6b): dyrektywa
+//     trasy po ewentualnym zawężeniu (z niej też świeżość wpisu) i predykat
+//     kompletności zarejestrowany przez loader - dokument, którego sekcje
+//     dostrumieniowały się po terminie loadera, jest zapisywany, a dokument
+//     z zasiewem awaryjnym, błędem albo zgubioną sekcją nie;
 //   - budżet bajtów z approx-LRU (Map w kolejności wstawień, odświeżanej przy
 //     trafieniu) - ten sam wzorzec co `edgeTtlCache`, ale liczony w bajtach;
 //   - klucz prefiksowany hostem tenanta ("by construction", multi-tenant safe);
 //   - Server-Timing: status cache + `ssr;dur` (czas renderu) + `db;dur`
-//     (koszt round-tripów planu anon, patrz `ssrTiming.server.ts`) + na końcu
-//     `nes-layer` - poziom, który podał dokument (L1 / L2 / render);
+//     (koszt round-tripów planu anon, patrz `ssrTiming.server.ts`) +
+//     `nes-layer` - poziom, który podał dokument (L1 / L2 / render) - i, gdy
+//     izolat ma samotest L2, na końcu `nes-l2` ze stanem samotestu;
 //   - kill-switch środowiskowy: NES_EDGE_CACHE=off.
 //
 // Spójność publikacji: purge czyści L1 bieżącego izolatu i podbija wersję L2
 // (cała kolonia natychmiast), a pozostałe kolonie doganiają w oknie świeżości
 // (maks. DOCUMENT_CACHE_MAX_FRESH_MS = 3 min) - ściśle nie gorzej niż dawny
-// per-isolate purge, zwykle dużo lepiej.
+// per-isolate purge, zwykle dużo lepiej. Zdjęcie albo przekierowanie ścieżki
+// dogania przez odświeżenie: ostateczne 404/410/3xx rewalidacji USUWA wpis
+// z L1 i z L2 kolonii (`evictGoneDocument`), zamiast zostawiać go STALE do
+// końca okna swr.
 import { createMiddleware } from "@tanstack/react-start";
 
 import {
@@ -55,7 +65,12 @@ import {
   planDocumentCache,
   type NesCacheStatus,
 } from "@/lib/http/documentCache";
-import { readRouteCacheDirective } from "@/lib/http/responseHeaders";
+import { narrowestCacheControl } from "@/lib/http/cachePolicy";
+import {
+  noteDocumentDegradation,
+  readDocumentCompleteness,
+  readRouteCacheDirective,
+} from "@/lib/http/responseHeaders";
 import { currentTenantHost, trustedPublicHost } from "@/lib/http/requestHost";
 import { getMiddlewareResponse, withMiddlewareResponse } from "@/lib/http/middlewareResult";
 import {
@@ -63,14 +78,18 @@ import {
   l2Delete,
   l2Match,
   l2Put,
+  l2SelfTestLabel,
   l2Stats,
   recordL2Serve,
   type L2DocumentEntry,
+  type L2Store,
 } from "@/lib/http/documentCacheL2.server";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import {
   buildServerTimingValue,
+  type DegradationStage,
   type DocumentStoreOutcome,
+  type LateDegradationStage,
   type NesCacheLayer,
   type SsrDbTiming,
   type SsrPhaseTiming,
@@ -140,6 +159,17 @@ export interface DocumentCacheL2Snapshot {
    * je zawsze.
    */
   deletes?: number;
+  /**
+   * Wynik samotestu L2 izolatu (zapis + odczyt wpisu z nonce); null = trwa
+   * albo nie dotyczy. `enabled` bez samotestu mówiło tylko, że obiekt Cache
+   * API istnieje - także przy martwej warstwie. Opcjonalne W TYPIE z tego
+   * samego powodu co `deletes`.
+   */
+  verified?: boolean | null;
+  /** Magazyn L2 izolatu: nazwany cache albo `caches.default`. */
+  store?: L2Store | null;
+  /** Segment buildu w kluczach dokumentów L2. */
+  build?: string | null;
 }
 
 export interface DocumentCacheSnapshot {
@@ -174,6 +204,12 @@ export interface DocumentCacheSnapshot {
    * `getDocumentCacheSnapshot()` wypełnia je zawsze.
    */
   degradedRevalidations?: number;
+  /**
+   * Wpisy usunięte, bo odświeżenie zastało ostateczne 404/410/3xx (zdjęcie
+   * albo przekierowanie treści) - patrz `evictGoneDocument`. Opcjonalne
+   * W TYPIE z tego samego powodu co `degradedRevalidations`.
+   */
+  goneEvictions?: number;
   startedAt: string;
   /** Warstwa per-colo (Cache API); `enabled: false` poza Workers. */
   l2: DocumentCacheL2Snapshot;
@@ -206,6 +242,22 @@ export interface DocumentCacheDecision {
    * MISS czysty albo rewalidacja.
    */
   degradedRevalidation?: "scheduled" | "throttled";
+  /**
+   * Etap, na którym polityka zapisu odrzuciła MISS (R7c): `loader` - nagłówki
+   * odpowiedzi już w middleware (`no-store` z loadera), `handler` - dyrektywa
+   * zawężona na granicy handlera, `stream` - zawężona dopiero W TRAKCIE
+   * strumieniowania. Dwa ostatnie etapy zapadają PO zapisaniu decyzji, więc
+   * pole (razem z `degradedRevalidation`) jest dopisywane do tego samego wpisu
+   * pierścienia - wcześniej taki MISS wyglądał w pierścieniu jak czysty.
+   * KTÓRE dane zdegradowały render, mówi pole `degradedBy` linii logu
+   * dokumentu (P3.6b). Etap `stream` daje też predykat kompletności.
+   */
+  degradedAt?: DegradationStage;
+  /**
+   * Odświeżenie istniejącego wpisu zastało ostateczne 404/410/3xx i usunęło
+   * wpis z L1 i L2 (`evictGoneDocument`). Brak pola = nic nie usunięto.
+   */
+  evicted?: true;
 }
 
 const store = new Map<string, DocumentCacheEntry>();
@@ -226,23 +278,61 @@ const stats = {
   revalidationFailures: 0,
   /** Z `revalidations`: zaplanowane po zdegradowanym MISS-ie. */
   degradedRevalidations: 0,
+  /** Wpisy usunięte po ostatecznym 404/410/3xx odświeżenia. */
+  goneEvictions: 0,
   startedAt: new Date().toISOString(),
 };
 
 /**
- * Nonce znacznika rewalidacji, losowany RAZ na izolat. Rewalidacja biegnie
+ * Nonce znacznika rewalidacji: losowany RAZ na izolat, LENIWIE, przy pierwszym
+ * użyciu w zakresie żądania (`revalidationNonce`). Rewalidacja biegnie
  * w procesie (ten sam izolat woła ten sam handler), więc wartość nigdy nie
  * opuszcza pamięci workera - żądanie z zewnątrz nie ma jak jej odgadnąć,
- * a bez trafienia w nonce nagłówek jest ignorowany. `crypto.randomUUID` jest
- * dostępne w workerd i w Node >= 19; fallback jest tylko higieną.
+ * a bez trafienia w nonce nagłówek jest ignorowany.
+ *
+ * DLACZEGO NIE W ZASIĘGU MODUŁU (P3.6a, runda 10, bezpieczeństwo). Ten moduł
+ * jest statycznie w grafie wejścia Workera, więc wyrażenie w zasięgu modułu
+ * liczy się w zakresie globalnym workerd. Tam losowanie jest zabronione
+ * (`crypto.randomUUID()` rzuca), a zegar stoi na 0 - dawny fallback
+ * `nes-${Date.now().toString(36)}` dawał na produkcji przewidywalne `nes-0`
+ * (ten sam mechanizm daje `rt-0` w `/api/public/version`). Każde żądanie
+ * z zewnątrz z `x-nes-revalidate: nes-0` było traktowane jak odświeżenie
+ * z izolatu: omijało L1 i L2, wymuszało pełny render (CPU i zapytania do bazy),
+ * a jego wynik - wyrenderowany z nagłówkami atakującego, np. wariant bota -
+ * nadpisywał wpis L1 i L2 kolonii. Teraz losowanie jest w zakresie żądania
+ * i NIE MA przewidywalnego fallbacku: bez losowości rewalidacja w tle jest
+ * wyłączona, a nagłówek ignorowany. undefined = jeszcze nie wylosowany.
  */
-const REVALIDATE_NONCE: string = (() => {
+let revalidateNonce: string | undefined;
+
+/** Losowa wartość nonce'a albo null, gdy runtime nie daje losowości w tym zakresie. */
+function drawRevalidationNonce(): string | null {
   try {
-    return globalThis.crypto.randomUUID();
+    const crypto = globalThis.crypto;
+    if (typeof crypto?.randomUUID === "function") return crypto.randomUUID();
+    if (typeof crypto?.getRandomValues === "function") {
+      const bytes = crypto.getRandomValues(new Uint8Array(16));
+      return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    }
   } catch {
-    return `nes-${Date.now().toString(36)}`;
+    /* zakres globalny workerd: losowanie zabronione - bez nonce'a */
   }
-})();
+  return null;
+}
+
+/**
+ * Nonce izolatu, losowany przy pierwszym wywołaniu (zawsze z zakresu żądania:
+ * planowanie odświeżenia, driver w `src/server.ts`). Nieudane losowanie NIE
+ * jest zapamiętywane - kolejne żądanie spróbuje znowu.
+ */
+function revalidationNonce(): string | null {
+  if (revalidateNonce === undefined) {
+    const drawn = drawRevalidationNonce();
+    if (!drawn) return null;
+    revalidateNonce = drawn;
+  }
+  return revalidateNonce;
+}
 
 /**
  * Driver pełnego przebiegu potoku dla ODŚWIEŻENIA wpisu w tle. Rejestrowany
@@ -274,14 +364,26 @@ export function setDocumentRevalidator(revalidator: DocumentRevalidator | null):
   documentRevalidator = revalidator;
 }
 
-/** Żądanie jest odświeżeniem w tle wystawionym przez ten izolat? */
-function isRevalidationRequest(request: Request): boolean {
-  return request.headers.get(NES_REVALIDATE_HEADER) === REVALIDATE_NONCE;
+/**
+ * Żądanie jest odświeżeniem w tle wystawionym przez ten izolat? Porównanie
+ * WYŁĄCZNIE z już wylosowanym nonce'em: dopóki izolat żadnego nie wylosował,
+ * nie wystawił też żadnego odświeżenia, więc każdy znacznik jest obcy (także
+ * pusty i `nes-0`). Samo sprawdzenie niczego nie losuje.
+ */
+export function isRevalidationRequest(request: Pick<Request, "headers">): boolean {
+  const nonce = revalidateNonce;
+  if (!nonce) return false;
+  return request.headers.get(NES_REVALIDATE_HEADER) === nonce;
 }
 
-/** Nagłówek znacznika do doklejenia do syntetycznego żądania rewalidacji. */
-export function revalidationHeader(): [string, string] {
-  return [NES_REVALIDATE_HEADER, REVALIDATE_NONCE];
+/**
+ * Nagłówek znacznika do doklejenia do syntetycznego żądania rewalidacji.
+ * Null = runtime nie dał losowości: rewalidacja w tle jest wtedy wyłączona
+ * (driver nie renderuje, wpis zostaje STALE do końca okna swr).
+ */
+export function revalidationHeader(): [string, string] | null {
+  const nonce = revalidationNonce();
+  return nonce ? [NES_REVALIDATE_HEADER, nonce] : null;
 }
 
 /**
@@ -292,10 +394,15 @@ export function revalidationHeader(): [string, string] {
  * Porażka jest bezpieczna z konstrukcji: wpis zostaje STALE, więc kolejne
  * żądanie po prostu spróbuje ponownie, a gdy wypadnie z okna SWR - zapłaci
  * zwykły MISS. Nic tu nie może zerwać ścieżki czytelnika.
+ *
+ * Nonce znacznika losuje się TUTAJ, w zakresie żądania czytelnika, zanim
+ * driver wystawi syntetyczne żądanie. Bez losowości nie ma odświeżenia:
+ * syntetyczne żądanie bez znacznika byłoby zwykłą wizytą (podałoby własny
+ * wpis STALE), a przewidywalnego znacznika nie wolno wystawić.
  */
 function scheduleRevalidation(request: Request, key: string): boolean {
   const revalidator = documentRevalidator;
-  if (!revalidator || revalidating.has(key)) return false;
+  if (!revalidator || revalidating.has(key) || !revalidationNonce()) return false;
   revalidating.add(key);
   stats.revalidations += 1;
   runAfterResponse(
@@ -433,6 +540,54 @@ function touchEntry(key: string, entry: DocumentCacheEntry): void {
 }
 
 /**
+ * Ostateczna odpowiedź „tej treści już tu nie ma": 404/410 albo
+ * przekierowanie (3xx z `Location`, bez 304) - P3.6a, MAJOR-2 recenzji.
+ *
+ * Niezdegradowana z konstrukcji tras: 404 należy się WYŁĄCZNIE czystemu
+ * odczytowi (`routes/$.tsx`, `lib/ssr/notFoundIfClean.ts`, audyt CWV F07/W8),
+ * a degradacja daje 200 z `private, no-store`, nigdy 404. Przekierowania trasy
+ * zapadają na danych (zmiana sluga, rodzica, taksonomia), nie na nagłówkach
+ * odświeżenia: negocjacja języka i reguły przekierowań działają w middleware
+ * PRZED cache'em dokumentów, więc ich odpowiedzi tu nie docierają. 5xx
+ * i 200 `no-store` ostateczne nie są - wpis zostaje STALE.
+ */
+function isFinalGoneResponse(response: Response): boolean {
+  const { status } = response;
+  if (status === 404 || status === 410) return true;
+  return status >= 300 && status < 400 && status !== 304 && response.headers.has("location");
+}
+
+/**
+ * Usunięcie wpisu, którego odświeżenie zastało ostateczne 404/410/3xx: L1
+ * tego izolatu od ręki, L2 kolonii pod `runAfterResponse` (`l2Delete` pod
+ * bieżącym buildem i wersjami). Bez tego zdjęty albo przeniesiony dokument
+ * byłby podawany jako STALE do końca okna swr (do doby) w każdej kolonii,
+ * która nie obsłużyła purge'a. Inne izolaty kolonii, które trzymają wpis we
+ * własnym L1, podadzą go jeszcze raz jako STALE i usuną przy swoim odświeżeniu.
+ */
+function evictGoneDocument(host: string | null, key: string): void {
+  const entry = store.get(key);
+  if (entry) {
+    store.delete(key);
+    totalBytes -= entry.bytes;
+  }
+  stats.goneEvictions += 1;
+  runAfterResponse(l2Delete(host, key));
+}
+
+/**
+ * Stan samotestu L2 izolatu jako ostatnia metryka Server-Timing dokumentu
+ * (`nes-l2;desc="named"|"default"|"pending"|"off"`, R7b) - sonda produkcyjna:
+ * jedno `curl` mówi, czy L2 izolatu, który odpowiedział, w ogóle działa.
+ * Bez samotestu (atrapa w testach, runtime bez `caches.open`, poza Workers)
+ * wartość jest bajt w bajt dawnym napisem.
+ */
+function withL2SelfTest(serverTiming: string): string {
+  const label = l2SelfTestLabel();
+  return label ? `${serverTiming}, nes-l2;desc="${label}"` : serverTiming;
+}
+
+/**
  * Odtworzenie wpisu z magazynu. `layer` mówi, SKĄD wpis przyszedł w TYM
  * żądaniu: z pamięci izolatu (`L1`) czy z kolonii (`L2`, świeży izolat).
  * Wpis L2 zasiewa L1, więc kolejne trafienie tego samego izolatu jest już L1 -
@@ -461,13 +616,8 @@ function replay(
     "cache-control": entry.cacheControl,
     [NES_CACHE_HEADER]: status,
     [NES_CACHE_AGE_HEADER]: String(Math.max(0, Math.round((now - entry.storedAt) / 1000))),
-    "server-timing": buildServerTimingValue(
-      status,
-      undefined,
-      undefined,
-      now - entry.storedAt,
-      phases,
-      layer,
+    "server-timing": withL2SelfTest(
+      buildServerTimingValue(status, undefined, undefined, now - entry.storedAt, phases, layer),
     ),
   });
   if (entry.contentLanguage) headers.set("content-language", entry.contentLanguage);
@@ -513,13 +663,15 @@ function withCacheStatus(
   // a czytelnik bez drivera rewalidacji zapłacił render synchronicznie.
   headers.set(
     "server-timing",
-    buildServerTimingValue(
-      status,
-      timing?.renderMs,
-      timing?.db,
-      undefined,
-      timing?.phases,
-      "render",
+    withL2SelfTest(
+      buildServerTimingValue(
+        status,
+        timing?.renderMs,
+        timing?.db,
+        undefined,
+        timing?.phases,
+        "render",
+      ),
     ),
   );
   return new Response(response.body, {
@@ -586,6 +738,8 @@ interface DeferredDocumentStore {
   storedAt: number;
   freshMs: number;
   swrMs: number;
+  /** Wpis pierścienia tego MISS-a - degradacja odkryta później dopisuje się do niego. */
+  decision: DocumentCacheDecision;
 }
 
 const deferredStores = new WeakMap<ReadableStream<Uint8Array>, DeferredDocumentStore>();
@@ -606,6 +760,11 @@ const deferredStores = new WeakMap<ReadableStream<Uint8Array>, DeferredDocumentS
  * do twardego limitu 60 s i ubija strumień błędem - stąd ~61 s na KAŻDYM
  * renderze dokumentu. Tee wykonuje się teraz w src/server.ts, poza zasięgiem
  * porównania tożsamości (`applyDeferredDocumentStore`).
+ *
+ * `refreshesEntry`: render odświeża ISTNIEJĄCY wpis (odświeżenie w tle albo
+ * synchroniczny render po STALE bez drivera). Wtedy ostateczne 404/410/3xx
+ * usuwa wpis (`evictGoneDocument`). Zwykły MISS niczego nie usuwa - wpisu
+ * nie było, a 404 skanerów nie może kosztować operacji na Cache API.
  */
 function decorateMissAndDeferStore(
   request: Request,
@@ -615,7 +774,10 @@ function decorateMissAndDeferStore(
   response: Response,
   now: number,
   timing?: RenderTiming,
+  refreshesEntry = false,
 ): Response {
+  const evicted = refreshesEntry && isFinalGoneResponse(response);
+  if (evicted) evictGoneDocument(host, key);
   const contentType = response.headers.get("content-type");
   const policy = documentStorePolicy(
     response.status,
@@ -625,18 +787,22 @@ function decorateMissAndDeferStore(
   // Pełny (200) dokument HTML, którego polityka NIE wpuszcza do magazynu, to
   // zdegradowany render (`no-store` z loadera): czytelnik dostał go już
   // z pełnym kosztem, a bez odświeżenia w tle następny zapłaci to samo.
-  const degradedRevalidation =
-    !policy.store && response.status === 200 && contentType?.includes("text/html")
-      ? scheduleDegradedRevalidation(request, key, now)
-      : undefined;
-  recordDecision({
+  const degraded =
+    !policy.store && response.status === 200 && contentType?.includes("text/html") === true;
+  const degradedRevalidation = degraded
+    ? scheduleDegradedRevalidation(request, key, now)
+    : undefined;
+  const decision: DocumentCacheDecision = {
     at: new Date(now).toISOString(),
     path,
     status: "MISS",
     ...(timing?.renderMs === undefined ? {} : { renderMs: timing.renderMs }),
     cacheControl: response.headers.get("cache-control") ?? undefined,
     ...(degradedRevalidation ? { degradedRevalidation } : {}),
-  });
+    ...(degraded ? { degradedAt: "loader" as const } : {}),
+    ...(evicted ? { evicted: true as const } : {}),
+  };
+  recordDecision(decision);
   if (policy.store && response.body) {
     deferredStores.set(response.body, {
       request,
@@ -649,9 +815,22 @@ function decorateMissAndDeferStore(
       storedAt: now,
       freshMs: policy.freshMs,
       swrMs: policy.swrMs,
+      decision,
     });
   }
   return withCacheStatus(response, "MISS", timing);
+}
+
+/**
+ * Degradacja odkryta PO decyzji middleware (granica handlera albo strumień):
+ * odświeżenie w tle jak w `decorateMissAndDeferStore` (ten sam limit prób per
+ * klucz) i dopisanie etapu do wpisu pierścienia tego MISS-a (R7c) - karta
+ * /admin/performance nie pokazuje go już jako czystego.
+ */
+function markLateDegradation(record: DeferredDocumentStore, stage: LateDegradationStage): void {
+  const degradedRevalidation = scheduleDegradedRevalidation(record.request, record.key, Date.now());
+  record.decision.degradedAt = stage;
+  if (degradedRevalidation) record.decision.degradedRevalidation = degradedRevalidation;
 }
 
 /**
@@ -682,18 +861,21 @@ export function applyDeferredDocumentStore(
    * podać jako HIT (kontrakt z harnessem pomiaru: `rewarmDocument`
    * + `logCursor` w scripts/performance/artifactServer.ts). Niewołane, gdy
    * odpowiedź nie była zarejestrowana do zapisu. Wyjątek z telemetrii jest
-   * połykany - nie może zmienić decyzji ani zerwać zapisu.
+   * połykany - nie może zmienić decyzji ani zerwać zapisu. Przy `degraded`
+   * drugi argument mówi, NA KTÓRYM etapie zapadła degradacja (`handler` albo
+   * `stream`; R7c w linii logu dokumentu).
    */
-  onOutcome?: (outcome: DocumentStoreOutcome) => void,
+  onOutcome?: (outcome: DocumentStoreOutcome, degradedAt?: LateDegradationStage) => void,
 ): Response {
   if (!response.body) return response;
   const record = deferredStores.get(response.body);
   if (!record) return response;
   deferredStores.delete(response.body);
 
-  const decide = (outcome: DocumentStoreOutcome): void => {
+  const decide = (outcome: DocumentStoreOutcome, degradedAt?: LateDegradationStage): void => {
     try {
-      onOutcome?.(outcome);
+      if (degradedAt) onOutcome?.(outcome, degradedAt);
+      else onOutcome?.(outcome);
     } catch {
       /* telemetria nie może zmienić losu zapisu */
     }
@@ -717,8 +899,8 @@ export function applyDeferredDocumentStore(
     // Degradacja, która dotarła do odpowiedzi dopiero na granicy handlera:
     // ten MISS też nie zasieje magazynu, więc dostaje to samo odświeżenie w tle
     // co gałąź w `decorateMissAndDeferStore` (ten sam limit prób per klucz).
-    scheduleDegradedRevalidation(record.request, record.key, Date.now());
-    decide("degraded");
+    markLateDegradation(record, "handler");
+    decide("degraded", "handler");
     const headers = new Headers(response.headers);
     headers.set("cache-control", "private, no-store");
     return new Response(response.body, {
@@ -761,20 +943,44 @@ export function applyDeferredDocumentStore(
       // Degradacja odkryta W TRAKCIE strumieniowania (np. chrome, którego
       // `warm()` padło po flushu shella) - dokument poszedł do czytelnika, ale
       // nie wchodzi do cache'a. Tło ma szansę oddać czysty; limit prób jak wyżej.
-      scheduleDegradedRevalidation(record.request, record.key, Date.now());
-      decide("degraded");
+      markLateDegradation(record, "stream");
+      decide("degraded", "stream");
       return false;
     }
+    // WERDYKT KOMPLETNOŚCI NA KOŃCU STRUMIENIA (fala 3, P3.6b, R2b). Loader
+    // trasy rejestruje predykat (`registerDocumentCompletenessCheck`), bo jego
+    // własny werdykt zapadał ~600 ms po starcie i nie widział sekcji
+    // dostrumieniowanych później: odrzucał dokumenty kompletne (klasa B2
+    // diagnozy). Tu dokument jest już CAŁY. `false` = degradacja etapu
+    // `stream` z tym samym odświeżeniem w tle co wyżej, a etykiety odstępstw
+    // idą do linii logu (`degradedBy`). Trasa bez predykatu = kompletna.
+    const completeness = readDocumentCompleteness(record.request);
+    if (!completeness.complete) {
+      for (const reason of completeness.reasons) noteDocumentDegradation(reason, record.request);
+      markLateDegradation(record, "stream");
+      decide("degraded", "stream");
+      return false;
+    }
+    // ŚWIEŻOŚĆ Z DYREKTYWY KOŃCOWEJ (P3.6b, R2b): rekord niesie politykę
+    // z chwili rejestracji w middleware, a trasa mogła ją W TRAKCIE
+    // strumieniowania zawęzić (np. chrome dostrumieniowany po flushu: 30 s
+    // zamiast 900 s). Wpis dostaje świeżość i nagłówek z węższej z obu - inaczej
+    // dokument „krótki" żyłby w magazynie pełne 3 min świeżości i dobę STALE.
+    const directive = readRouteCacheDirective(record.request);
+    const cacheControl = directive
+      ? narrowestCacheControl(record.cacheControl, directive)
+      : record.cacheControl;
+    const finalPolicy = documentStorePolicy(response.status, record.contentType, cacheControl);
     const entry: DocumentCacheEntry = {
       body,
       bytes: body.byteLength,
       contentType: record.contentType,
-      cacheControl: record.cacheControl,
+      cacheControl,
       contentLanguage: record.contentLanguage,
       link,
       storedAt: record.storedAt,
-      freshMs: record.freshMs,
-      swrMs: record.swrMs,
+      freshMs: Math.min(record.freshMs, finalPolicy.freshMs),
+      swrMs: Math.min(record.swrMs, finalPolicy.swrMs),
     };
     // Decyzja zgłaszana PRZED `setEntry`: od `setEntry` wpis jest HIT-em
     // (patrz `onOutcome` wyżej).
@@ -872,7 +1078,8 @@ export async function handleDocumentRequest<T>(
 
   // Odświeżenie w tle wystawione przez ten izolat: pomija serwowanie z cache'a
   // (inaczej odczytałoby własny nieświeży wpis i nic by nie odświeżyło) i idzie
-  // prosto do renderu, którego wynik zapisze `decorateMissAndDeferStore`.
+  // prosto do renderu, którego wynik zapisze `decorateMissAndDeferStore` -
+  // albo, gdy render da ostateczne 404/410/3xx, usunie wpis z L1 i L2.
   // Żadnej kolejnej rewalidacji stąd nie planujemy - rekurencja jest wykluczona.
   const revalidation = isRevalidationRequest(request);
 
@@ -906,7 +1113,16 @@ export async function handleDocumentRequest<T>(
         if (rendered) {
           return withMiddlewareResponse(
             result,
-            decorateMissAndDeferStore(request, host, plan.key, path, rendered, Date.now(), timing),
+            decorateMissAndDeferStore(
+              request,
+              host,
+              plan.key,
+              path,
+              rendered,
+              Date.now(),
+              timing,
+              true,
+            ),
           );
         }
         return result;
@@ -957,7 +1173,16 @@ export async function handleDocumentRequest<T>(
         if (rendered) {
           return withMiddlewareResponse(
             result,
-            decorateMissAndDeferStore(request, host, plan.key, path, rendered, Date.now(), timing),
+            decorateMissAndDeferStore(
+              request,
+              host,
+              plan.key,
+              path,
+              rendered,
+              Date.now(),
+              timing,
+              true,
+            ),
           );
         }
         return result;
@@ -983,7 +1208,16 @@ export async function handleDocumentRequest<T>(
   if (rendered) {
     return withMiddlewareResponse(
       result,
-      decorateMissAndDeferStore(request, host, plan.key, path, rendered, Date.now(), timing),
+      decorateMissAndDeferStore(
+        request,
+        host,
+        plan.key,
+        path,
+        rendered,
+        Date.now(),
+        timing,
+        revalidation,
+      ),
     );
   }
   return result;
@@ -1116,6 +1350,7 @@ export function getDocumentCacheSnapshot(): DocumentCacheSnapshot {
     revalidations: stats.revalidations,
     revalidationFailures: stats.revalidationFailures,
     degradedRevalidations: stats.degradedRevalidations,
+    goneEvictions: stats.goneEvictions,
     startedAt: stats.startedAt,
     l2: l2Stats(),
     recent: [...recentDecisions],
@@ -1201,6 +1436,7 @@ export function resetDocumentCacheForTests(): void {
   stats.revalidations = 0;
   stats.revalidationFailures = 0;
   stats.degradedRevalidations = 0;
+  stats.goneEvictions = 0;
   stats.startedAt = new Date().toISOString();
   recentDecisions.length = 0;
   degradedAttempts.clear();

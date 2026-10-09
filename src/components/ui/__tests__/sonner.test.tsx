@@ -1,5 +1,8 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
+// Nazwa regionu toastów pochodzi ze słownika - prawdziwy tłumacz, bez
+// ostrzeżenia `NO_I18NEXT_INSTANCE` z `useTranslation`.
+import "@/test/i18nReal";
 import { Toaster } from "../sonner";
 
 afterEach(() => {

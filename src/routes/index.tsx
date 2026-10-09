@@ -43,6 +43,7 @@ import {
 } from "@/lib/seo/meta";
 import { builderHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
 import { isServerRender, usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import { rememberHeroPreloads, useHeroPreloads } from "@/lib/builder/heroPreloadStore";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import {
@@ -61,11 +62,21 @@ import {
 import { metaDescription } from "@/lib/routing/publicSegments";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
-import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import {
+  appendLinkHeader,
+  registerDocumentCompletenessCheck,
+  setCacheControlHeader,
+} from "@/lib/http/responseHeaders";
+import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
+import {
+  loadResilient,
+  resilientCacheControl,
+  trackSsrQueryCompleteness,
+} from "@/lib/ssr/resilientLoad";
 import {
   HOME_ABOVE_FOLD_BUDGET_MS,
   hasSsrQueryData,
+  homeContentDeadline,
   homeSsrDeadline,
   remainingHomeBudget,
 } from "@/lib/ssr/homeSsrBudget";
@@ -120,17 +131,25 @@ export const Route = createFileRoute("/")({
     // a clean render.
     const queryClient = context.queryClient;
     const deadlineAt = isServer ? homeSsrDeadline(queryClient) : undefined;
+    // ŚCIEŻKA KRYTYCZNA TREŚCI z własnym terminem (P3.6b, R3a): trzy szeregowe
+    // round-tripy strony i trybu nie mieszczą się z kolonii dalekiej od bazy
+    // we wspólnych 600 ms, a ich fallback to dokument „typu A" (komunikat
+    // zamiast treści, bez hero, `no-store`). Treść czeka do
+    // `HOME_CONTENT_BUDGET_MS` na tym samym zegarze żądania; ustawienia, widgety
+    // nad zgięciem i chrome zostają przy wspólnym terminie. W trybie „najnowsze
+    // wpisy" treścią jest archiwum (niżej), więc ono też czeka do tego terminu.
+    const contentDeadlineAt = isServer ? homeContentDeadline(queryClient) : undefined;
     const emptySettings: SettingsMap = Object.freeze({});
     // Root and home execute concurrently, but all serial phases within home
     // share ONE deadline. Settings start alongside the page/mode, never as a
     // new unbounded SEO request at the end of the loader.
     const [homePageRes, homeModeRes, settingsRes] = await Promise.all([
       loadResilient(queryClient, homePageQueryOptions(), null, {
-        deadlineAt,
+        deadlineAt: contentDeadlineAt,
         label: "home.page",
       }),
       loadResilient(queryClient, homepageModeQueryOptions(), "", {
-        deadlineAt,
+        deadlineAt: contentDeadlineAt,
         label: "home.mode",
       }),
       loadResilient(queryClient, siteSettingsQueryOptions, emptySettings, {
@@ -167,17 +186,29 @@ export const Route = createFileRoute("/")({
     // `check:bundle`; w `bun run dev` serwer rozpoznaje brak `document`);
     // nawigacja SPA dostaje pustą listę, bo render czysto kliencki nie ma też
     // kandydata ani preloadu (lib/builder/aboveFold.tsx).
+    //
+    // POZA ŁADUNKIEM ROUTERA (P3.7b, T6): lista nie wraca w danych loadera
+    // (klient jej nie czyta, a jechała w `$tsr`), tylko trafia do magazynu
+    // żądania (`lib/builder/heroPreloadStore.ts`), z którego czyta komponent.
     let coverPreload: ImagePreloadInput | null = null;
     let heroPreloads: LcpImagePreload[] = [];
+    // Dane widgetów nad zgięciem nie zdążyły przed końcem loadera (P3.6b,
+    // R2a). To NIE jest już degradacja: `ServerSectionGate` dostrumieniowuje
+    // te sekcje z prawdziwym HTML-em, a o zapisie decyduje predykat
+    // kompletności na końcu strumienia (niżej).
+    let aboveFoldLate = false;
 
     if (!contentDegraded && homeMode === "latest_posts") {
       const pageSize = resolvePostsPerPage(settingsRes.data);
       const listOptions = blogArchiveQueryOptions({ page: deps.page, pageSize });
+      // Archiwum jest w tym trybie TREŚCIĄ strony (P3.6b, R3a): termin treści,
+      // nie wspólne 600 ms - inaczej lista spóźniona o kilkaset ms dawała pustą
+      // siatkę i dokument `no-store`, choć stronę i tryb chroni już ten termin.
       const listRes = await loadResilient(
         queryClient,
         listOptions,
         { posts: [], total: 0, page: deps.page, pageSize } satisfies BlogArchiveResult,
-        { deadlineAt, label: "home.archive" },
+        { deadlineAt: contentDeadlineAt, label: "home.archive" },
       );
       degraded ||= listRes.degraded;
       // Pierwsza karta siatki jest priority (PaginatedPostGrid) - preload jej
@@ -239,7 +270,7 @@ export const Route = createFileRoute("/")({
         } else {
           const budgetMs = remainingHomeBudget(deadlineAt, HOME_ABOVE_FOLD_BUDGET_MS);
           if (budgetMs > 0) await prefetchAboveFoldQueries(queryClient, doc, lang, { budgetMs });
-          degraded ||= doc.sections
+          aboveFoldLate = doc.sections
             .slice(0, ABOVE_FOLD_SECTION_COUNT)
             .some((section) =>
               sectionQueryOptionsList(section, lang).some(
@@ -258,7 +289,12 @@ export const Route = createFileRoute("/")({
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
     // bulk site_settings query is already warmed by the root loader. Purely
     // decorative structured data - never let it fail the whole homepage.
-    const seoSettings = parseSeoSettings(settingsRes.data["seo"]);
+    //
+    // TA SAMA REFERENCJA (P3.7b, T5): surowe `seo` z danych zapytania
+    // `site_settings_public` (ten sam obiekt, który jedzie w stanie zapytań),
+    // więc seroval emituje w `$tsr` odwołanie `$R[n]` zamiast drugiej kopii.
+    // Parsowanie (`parseSeoSettings`) przeniesione do `head()` - wynik ten sam.
+    const seoSettings: unknown = settingsRes.data["seo"];
 
     // ISR-like edge caching, set LAST so a degraded render is never shared-
     // cached: the homepage SSR is the anonymous shell, so a clean render is safe
@@ -266,13 +302,35 @@ export const Route = createFileRoute("/")({
     // lives in the URL path (PL at "/", EN at "/en"), so each variant is its own
     // cache entry - no cookie-driven personalization, no poisoning. A degraded
     // render opts out entirely (private, no-store) so the blip is never served
-    // to the next visitor.
-    setCacheControlHeader(resilientCacheControl(degraded));
+    // to the next visitor - w tym ZAWSZE dokument „typu A" (zasiew strony albo
+    // trybu), niezależnie od predykatu niżej.
+    //
+    // Spóźnione dane nad zgięciem (P3.6b) dają dokument KOMPLETNY, ale nie
+    // kanoniczny: hero dostrumieniował się po flushu (szkielet sekcji w powłoce
+    // i podmiana skryptem), a preload obrazu LCP i nagłówek `Link` liczone
+    // w loaderze go nie znają. Ta sama klasa co chrome dostrumieniowany po
+    // flushu, więc ta sama odpowiedź: krótka świeżość wspólna - pierwszy
+    // czytelnik zasiewa L1/L2, a odświeżenie przy pierwszym STALE podmienia wpis
+    // na render czysty.
+    setCacheControlHeader(
+      degraded
+        ? resilientCacheControl(true)
+        : aboveFoldLate
+          ? chromeDegradedCacheControl()
+          : resilientCacheControl(false),
+    );
+    // WERDYKT ZAPISU NA KOŃCU STRUMIENIA (P3.6b, R2a-b): nagłówek wyżej mówi,
+    // co wiadomo w chwili loadera, a predykat - czy na końcu strumienia każde
+    // dane tego dokumentu przyszły prawdziwe (bez zasiewów awaryjnych, błędów
+    // i sekcji, którym minął budżet bramki). Uzbrajany TUTAJ, na końcu
+    // loadera: opis w `trackSsrQueryCompleteness` (lib/ssr/resilientLoad.ts).
+    if (isServer) registerDocumentCompletenessCheck(trackSsrQueryCompleteness(queryClient));
     // Ten sam preload także jako nagłówek HTTP `Link`: przeglądarka startuje
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
     if (isServerRender()) {
+      rememberHeroPreloads(queryClient, heroPreloads);
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     }
     // An unknown mode also means an unknown SEO document. Do not advertise
@@ -283,7 +341,6 @@ export const Route = createFileRoute("/")({
       homePage: contentDegraded ? null : homePage,
       page: deps.page,
       coverPreload,
-      heroPreloads,
       degraded,
     };
   },
@@ -343,7 +400,7 @@ export const Route = createFileRoute("/")({
     // Entity layer (GEO/AEO): Organization + WebSite with SearchAction. Per
     // Google's guidance these live on the homepage only - one strong entity
     // signal that knowledge graphs and AI assistants resolve the brand to.
-    const seoSettings = loaderData?.seoSettings ?? parseSeoSettings(null);
+    const seoSettings = parseSeoSettings(loaderData?.seoSettings ?? null);
     const organization = organizationJsonLd({
       origin,
       lang,
@@ -386,7 +443,8 @@ function Index() {
   // preambuły SSR jako jedyny `<link rel=preload as=image fetchpriority=high>`
   // dla tego obrazu (ten sam klucz co automatyczny preload `<img>`). Loader
   // liczy kandydata dla gościa i tylko na serwerze; hook działa tylko w SSR.
-  usePreloadLcpImages(Route.useLoaderData({ select: (data) => data.heroPreloads }));
+  // Lista z magazynu żądania, nie z danych loadera (P3.7b, T6).
+  usePreloadLcpImages(useHeroPreloads());
   const homePage = pageQuery.data;
   const homeMode = modeQuery.data;
   // Query state, not a latched loader flag: a successful browser refetch must

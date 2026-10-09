@@ -1,56 +1,37 @@
-// Pure, framework-free <head> preload builder for the self-hosted Red Hat
-// Display variable font. Kept side-effect free (no asset imports, no DOM) so it
-// is fully unit-testable; the fingerprinted woff2 URLs are injected by the
-// caller (the root route, which imports them via Vite `?url`).
-import type { Lang } from "@/lib/seo/meta";
+// Czysty, niezależny od frameworka budowniczy preloadu jedynego fontu ścieżki
+// krytycznej (Red Hat Display z własnego serwera). Bez efektów ubocznych (bez
+// importu assetów, bez DOM-u), więc w pełni testowalny jednostkowo; URL z
+// odciskiem Vite wstrzykuje wywołujący (trasa korzenia importuje go przez `?url`).
+//
+// JEDEN PLIK DLA PL I EN (P3.2b, fala 3; decyzja właściciela 2026-10-08:
+// jedynym fontem w ścieżce krytycznej jest Red Hat Display). Plik
+// `red-hat-display-latin-pl.woff2` niesie latin + 18 polskich liter. Dawniej PL
+// preloadował dwa pliki (latin + latin-ext, 44 732 B w dwóch żądaniach) za 18
+// liter z latin-ext; teraz jedno żądanie ~24 KB dla obu języków. Latin-ext
+// zostaje w `styles.css` jako twarz BEZ preloadu dla innych diakrytyków.
+// Zasadę pilnują bramki: `fontPreloadCount` w `check:document-weight`
+// i `e2e/single-font.boot-home.spec.ts` (jedno żądanie woff2 z buildu).
 
-export interface FontPreloadUrls {
-  /** Base Latin subset (U+0000-00FF, ...) - required by every language. */
-  latin: string;
-  /** Latin-ext subset (U+0100-02BA, ...) - carries the Polish diacritics
-   *  (a-ogonek, c-acute, e-ogonek, l-stroke, n-acute, s-acute, z-acute,
-   *  z-dot). Only Polish renders need it. */
-  latinExt: string;
+/** Deskryptor `<link>` w kształcie, w jakim przyjmuje go `head().links` routera. */
+export type FontPreloadLink = Record<string, string>;
+
+/**
+ * Deskryptor `<link rel="preload" as="font">` jedynego fontu ścieżki krytycznej.
+ *
+ * `crossOrigin` jest obowiązkowe nawet dla fontu z tego samego originu: żądanie
+ * wywołane przez CSS jest zawsze anonimowe-CORS, więc preload bez niego nie
+ * zostałby użyty ponownie i przeglądarka pobrałaby font drugi raz.
+ */
+export function fontPreloadLinks(href: string): FontPreloadLink[] {
+  return [{ rel: "preload", as: "font", type: "font/woff2", href, crossOrigin: "anonymous" }];
 }
 
 /**
- * Preload <link> descriptors for the critical font subsets.
- *
- * The Latin subset backs both PL and EN, so it is always preloaded; Latin-ext
- * (Polish diacritics) is preloaded only for Polish, so an English render pulls
- * exactly one font file instead of two. `crossOrigin` is mandatory even for a
- * same-origin font or the browser double-fetches it (the CSS-triggered request
- * is always anonymous-CORS, so the preload must match to be reused).
- *
- * Returned as `Array<Record<string, string>>` to match the descriptor shape the
- * other SEO builders emit for TanStack `head().links`.
+ * Ten sam preload jako wartość nagłówka HTTP `Link` (RFC 8288). Emitowany obok
+ * `<link>` w dokumencie: przeglądarka startuje pobieranie z nagłówków odpowiedzi
+ * (przed pierwszym bajtem HTML), a Cloudflare może powtórzyć go jako 103 Early
+ * Hints. `crossorigin` jest obowiązkowe z tego samego powodu co wyżej.
  */
-export function fontPreloadLinks(lang: Lang, urls: FontPreloadUrls): Array<Record<string, string>> {
-  const preload = (href: string): Record<string, string> => ({
-    rel: "preload",
-    as: "font",
-    type: "font/woff2",
-    href,
-    crossOrigin: "anonymous",
-  });
-
-  const links = [preload(urls.latin)];
-  if (lang === "pl") links.push(preload(urls.latinExt));
-  return links;
-}
-
-/**
- * Te same preloady fontów jako wartości nagłówka HTTP `Link` (RFC 8288).
- * Emitowane obok `<link>` w dokumencie: przeglądarka startuje pobieranie
- * z nagłówków odpowiedzi (przed pierwszym bajtem HTML), a Cloudflare może
- * powtórzyć je jako 103 Early Hints. `crossorigin` jest obowiązkowe tak samo
- * jak w wariancie znacznikowym - bez niego przeglądarka pobrałaby font drugi
- * raz (żądanie z CSS jest zawsze anonimowe-CORS). Czysta funkcja.
- */
-export function fontPreloadLinkHeaderValues(lang: Lang, urls: FontPreloadUrls): string[] {
-  const value = (href: string) =>
-    `<${href}>; rel="preload"; as="font"; type="font/woff2"; crossorigin`;
-  const values = [value(urls.latin)];
-  if (lang === "pl") values.push(value(urls.latinExt));
-  return values;
+export function fontPreloadLinkHeaderValues(href: string): string[] {
+  return [`<${href}>; rel="preload"; as="font"; type="font/woff2"; crossorigin`];
 }

@@ -96,7 +96,12 @@ vi.mock("@/lib/chat/minimizedChats", () => ({
   MINIMIZED_VISIBLE_LIMIT: 2,
   MOBILE_MINIMIZED_VISIBLE_LIMIT: 3,
   useMinimizedChats: () => ({ minimized: h.minimized, requested: null }),
-  minimizedChatsStore: { restore: vi.fn(), remove: vi.fn(), clearRequest: vi.fn() },
+  minimizedChatsStore: {
+    getSnapshot: () => ({ minimized: h.minimized, requested: null }),
+    restore: vi.fn(),
+    remove: vi.fn(),
+    clearRequest: vi.fn(),
+  },
 }));
 
 // Żywe liczniki mają własne testy; tutaj liczy się tylko to, że nie sięgają
@@ -108,6 +113,16 @@ vi.mock("@/lib/chat/useConversations", () => ({
   usePeerProfiles: () => ({ data: undefined }),
 }));
 vi.mock("@/components/chat/chatWindowChunk", () => ({ prefetchChatWindow: () => {} }));
+// Toasty nowych wiadomości (kanał realtime, preferencje powiadomień) dowodzi
+// osobny plik `WorkspaceDock.incomingToasts.test.tsx` - tutaj pasek nie sięga
+// po sieć.
+vi.mock("@/lib/chat/useIncomingChatToasts", () => ({
+  useIncomingChatToasts: () => {},
+  dismissIncomingChatToast: () => {},
+}));
+vi.mock("@/lib/notifications/preferencesQuery", () => ({
+  useNotificationPreferences: () => ({ data: undefined, isError: false }),
+}));
 
 vi.mock("@/components/mobile/bottomBar/LiveTabBadge", () => ({
   LiveTabBadge: () => null,
@@ -115,6 +130,7 @@ vi.mock("@/components/mobile/bottomBar/LiveTabBadge", () => ({
 
 import { WorkspaceDock } from "../WorkspaceDock";
 import { openChatWindow } from "@/lib/chat/chatDockBus";
+import { minimizedChatsStore } from "@/lib/chat/minimizedChats";
 
 function renderDock() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -181,6 +197,7 @@ afterEach(() => {
   delete document.documentElement.dataset.mbb;
   delete document.documentElement.dataset.mbbOwner;
   document.documentElement.style.removeProperty("--mbb-space");
+  document.documentElement.style.removeProperty("--wd-panel-space");
 });
 
 describe("bramka gościa", () => {
@@ -260,6 +277,27 @@ describe("otwieranie i zamykanie paneli", () => {
     });
     const drawer = await screen.findByTestId("panel-chat");
     expect(drawer.getAttribute("data-conversation")).toBe("conv-a");
+  });
+
+  it("magistrala przywraca ZMINIMALIZOWANĄ rozmowę przez magazyn sesji, inne zostawia", async () => {
+    // „Otwórz" w toaście albo „Napisz" dla rozmowy, która wisi pigułką na
+    // pasku: bez przywrócenia pigułka zostawała obok otwartej rozmowy.
+    h.minimized = [{ id: "conv-min", name: "Zofia Testowa", avatarUrl: null }];
+    vi.mocked(minimizedChatsStore.restore).mockClear();
+    renderDock();
+
+    await act(async () => {
+      openChatWindow({ conversationId: "conv-other" });
+    });
+    expect(minimizedChatsStore.restore).not.toHaveBeenCalled();
+
+    await act(async () => {
+      openChatWindow({ conversationId: "conv-min" });
+    });
+    expect(minimizedChatsStore.restore).toHaveBeenCalledExactlyOnceWith("conv-min");
+    expect((await screen.findByTestId("panel-chat")).getAttribute("data-conversation")).toBe(
+      "conv-min",
+    );
   });
 });
 
@@ -429,6 +467,55 @@ describe("rezerwacja dolnej krawędzi", () => {
     view.unmount();
     expect(document.documentElement.dataset.mbb).toBeUndefined();
     expect(document.documentElement.style.getPropertyValue("--mbb-space")).toBe("");
+  });
+});
+
+describe("toasty nad otwartym panelem narzędzia", () => {
+  // Region toastów (`ui/sonner.tsx`) dodaje `--wd-panel-space` do rezerwacji
+  // paska. Bez tej publikacji toast stawał na dole otwartego panelu i przez
+  // 6 s zasłaniał jego pole wpisywania (dodawanie zadania, notatki).
+  const MEASURED_PANEL_HEIGHT = 420;
+  const panelSpace = () => document.documentElement.style.getPropertyValue("--wd-panel-space");
+
+  beforeEach(() => {
+    Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get() {
+        const node = this as HTMLElement;
+        if (node.hasAttribute("data-workspace-dock")) return MEASURED_BAR_HEIGHT;
+        return node.id === "workspace-dock-panel" ? MEASURED_PANEL_HEIGHT : 0;
+      },
+    });
+  });
+
+  it("otwarty panel publikuje swoją wysokość, a zamknięcie ją zdejmuje", async () => {
+    renderDock();
+    expect(panelSpace()).toBe("");
+
+    fireEvent.click(tab("todos"));
+    expect(await screen.findByTestId("panel-todos")).toBeTruthy();
+    await waitFor(() => expect(panelSpace()).toBe(`${MEASURED_PANEL_HEIGHT}px`));
+
+    fireEvent.click(tab("todos"));
+    await waitFor(() => expect(panelSpace()).toBe(""));
+  });
+
+  it("skrzynka czatu (lewa krawędź) nie przesuwa toastów", async () => {
+    renderDock();
+    await act(async () => {
+      openChatWindow({ conversationId: "conv-a" });
+    });
+    expect(await screen.findByTestId("panel-chat")).toBeTruthy();
+    expect(panelSpace()).toBe("");
+  });
+
+  it("zejście paska z otwartym panelem nie zostawia przesunięcia", async () => {
+    const view = renderDock();
+    fireEvent.click(tab("notes"));
+    await waitFor(() => expect(panelSpace()).toBe(`${MEASURED_PANEL_HEIGHT}px`));
+
+    view.unmount();
+    expect(panelSpace()).toBe("");
   });
 });
 

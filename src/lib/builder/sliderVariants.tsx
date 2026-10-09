@@ -6,11 +6,13 @@ import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 
 import { useQuery } from "@tanstack/react-query";
 import { AngleChevron } from "./sectionLabelVariants";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
-import { buildImageSrcSet, buildTransformedImageUrl } from "@/lib/cropSizes";
+import { buildImageSrcSet, buildTransformedImageUrl, renderedMediaUrl } from "@/lib/cropSizes";
 import { SLIDER_FULL_BLEED_SIZES, sliderImageSizes } from "./sliderSizes";
 import { useResolvedPostRefs } from "./contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
 import { CAROUSEL_DEFAULTS, useCarouselDefaults } from "@/lib/theme/carouselDefaults";
+import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import { AppLink, toClientHref } from "@/components/atoms/AppLink";
 import { useRouter } from "@tanstack/react-router";
 import {
@@ -381,7 +383,9 @@ function ResilientSliderImage({
   return (
     <img
       ref={imgRef}
-      src={shouldLoad ? displaySrc : undefined}
+      // Atrybut względny obok względnego `srcSet` (P3.2a/P4.2); stan (`displaySrc`,
+      // `originalSrc`, `onBrokenSource`) zostaje absolutny.
+      src={shouldLoad ? (srcSet ? renderedMediaUrl(displaySrc) : displaySrc) : undefined}
       srcSet={srcSet || undefined}
       sizes={srcSet ? `${priority ? "" : "auto, "}${sizes}` : undefined}
       alt=""
@@ -439,7 +443,7 @@ const MULTI_CARD_GAP_PX = 16;
 // użytkownik z ograniczonym ruchem widział przenikanie slajdów (skala i tak
 // stoi na 1). Reguła zachowuje to zachowanie co do deklaracji - zamiana
 // inline → arkusz nie zmienia niczego, co widać.
-const SHARED_STYLES = `
+const SHARED_STYLES = /* @nes-static-css */ `
 .eh-slider[data-variant="multi-card"] { container-type: inline-size; }
 .eh-multi-track { --eh-visible-columns: var(--eh-columns, 3); }
 @container (max-width: 1024px) {
@@ -982,8 +986,15 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
   // Pauza autoplay pod kursorem (globalny default z możliwością nadpisania);
   // dotyczy tylko automatu - ręczna nawigacja działa zawsze.
   const [hovered, setHovered] = useState(false);
+  // BRAMKA RUCHU (P3.5): automat startuje dopiero po pierwszej interakcji
+  // albo w punkcie ciszy strony, więc pierwszy przeskok = otwarcie + PEŁNY
+  // interwał. Hero strony głównej przeskakiwał ~4,5 s po montażu, w środku
+  // śladu Lighthouse'a (Speed Index). `prefers-reduced-motion`: bez automatu
+  // (czytane w efekcie, nie w renderze); ręczna nawigacja działa zawsze.
+  const autoplayWanted = !preview && autoplay && items.length > 1;
+  const motion = useMotionGate(autoplayWanted);
   useEffect(() => {
-    if (preview || !autoplay || items.length < 2) return;
+    if (!autoplayWanted || !motion || prefersReducedMotion()) return;
     if (pauseOnHover && hovered) return;
     const t = window.setInterval(
       () =>
@@ -997,7 +1008,7 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
       intervalMs,
     );
     return () => window.clearInterval(t);
-  }, [autoplay, intervalMs, items.length, preview, stepCount, pauseOnHover, hovered, loopSlides]);
+  }, [autoplayWanted, motion, intervalMs, stepCount, pauseOnHover, hovered, loopSlides]);
 
   const dragRef = useRef<{ startX: number; lastX: number; pointerId: number; active: boolean }>({
     startX: 0,

@@ -17,6 +17,7 @@ import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
 import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
 import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim";
 import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin";
+import { staticCssPlugin } from "./scripts/lib/staticCssPlugin";
 import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";
 import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces";
 
@@ -27,6 +28,17 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url));
 // wyłącznie VITE_*, więc dokładamy je do process.env - tylko po stronie serwera,
 // nigdy do envDefine/bundla klienta.
 Object.assign(process.env, loadEnv(process.env.NODE_ENV ?? "development", rootDir, ""));
+
+// Identyfikator buildu dla kluczy L2 (P3.6a): segment kluczy dokumentów i migawek danych w
+// Cache API kolonii (`l2BuildId()` w src/lib/http/documentCacheL2.server.ts), więc HTML i dane
+// poprzedniego deployu nie przeżywają wdrożenia. `LOVABLE_BUILD_ID`, a bez niego znacznik czasu
+// policzony RAZ przy ładowaniu konfiguracji - wspólny dla klienta i serwera jednego `vite build`,
+// inny w każdym buildzie. Przycięty do [A-Za-z0-9_-], bo trafia do ścieżki klucza. Czyta go
+// wyłącznie kod serwera (za bramką SSR), więc hashe chunków klienta się nie zmieniają. Ten sam
+// blok w obu presetach (parytet: src/lib/ci/__tests__/viteChunkParity.test.ts).
+const NES_BUILD_ID = (process.env.LOVABLE_BUILD_ID || `t${Date.now().toString(36)}`)
+  .replace(/[^A-Za-z0-9_-]/g, "_")
+  .slice(0, 64);
 
 // Minifikacja artefaktu WORKERA (2026-07-24). Chunki serwera składa NITRO
 // własnym rollupem, więc vite-owe `build.minify` ich nie dotyka - bez tej
@@ -114,7 +126,13 @@ export default defineConfig({
       // BOOT_MANIFEST serwera). Tylko build, tylko środowisko `ssr`; ta sama wtyczka
       // w vite.smoke.config.ts (parytet: viteChunkParity.test.ts).
       bootAfterLcpPlugin(),
+      // P3.7a: minifikacja oznaczonych statycznych literałów CSS (tylko build, oba
+      // środowiska, surowy TS); ta sama wtyczka w vite.smoke.config.ts.
+      staticCssPlugin(),
     ],
+
+    // P3.6a: identyfikator buildu kluczy L2 (patrz `NES_BUILD_ID` wyżej).
+    define: { __NES_BUILD_ID__: JSON.stringify(NES_BUILD_ID) },
 
     // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły
     // `entities/lib/decode.js`, więc każdy zagnieżdżony nowszy egzemplarz
@@ -314,6 +332,18 @@ export default defineConfig({
           // Przywraca minifikację bundla przeglądarki (patrz komentarz przy
           // top-level `minify: false`, które jest dla SSR/workera).
           minify: "esbuild",
+          // Listwa prawna stopki (`legal-links`, leniwy chunk wyspy stopki) BEZ
+          // preloadu zależności: importuje wyłącznie `vendor-react`,
+          // `vendor-tanstack` i `vendor-i18n`, które leżą w domknięciu bootu,
+          // więc ich preload przy `import()` listwy niczego nie przyspiesza, a jego
+          // lista (`__vite__mapDeps`) kosztowała bajty w chunku wejściowym
+          // (zmierzone na artefakcie). Dotyczy WYŁĄCZNIE tego chunku; każdy inny
+          // `import()` dostaje swoje zależności bez zmian. Obie konfiguracje
+          // identycznie (`viteChunkParity.test.ts`).
+          modulePreload: {
+            resolveDependencies: (file: string, deps: string[]) =>
+              /(?:^|\/)legal-links-[\w-]+\.js$/.test(file) ? [] : deps,
+          },
           rollupOptions: {
             output: {
               // Bez hoistowania importów tranzytywnych: nagłówki chunków
@@ -344,6 +374,14 @@ export default defineConfig({
                 if (id.endsWith("/src/components/clubs/atoms/ClubThreadKindIcon.tsx")) {
                   return "club-thread-kind-icon";
                 }
+                // Listwa prawna stopki (`LegalLinks`, ~1 KB) jest leniwym chunkiem
+                // wyspy stopki, a serwer renderuje ją statycznie. Bez nazwy łączenie
+                // małych chunków wkleiło ją do chunku wejściowego (zmierzone na
+                // artefakcie: kod listwy w `index-*`), bo wejście jest zawsze już
+                // załadowane, gdy pada jej `import()`. Moduł importuje wyłącznie
+                // z nazwanych chunków vendorowych (React, router, i18next), więc
+                // nazwany chunk nie wciąga do siebie niczego z wejścia.
+                if (id.endsWith("/src/components/footer/LegalLinks.tsx")) return "legal-links";
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
                 // WEJŚCIOWEGO do nazwanego chunku. Gdy `manualChunks` przypisze
@@ -461,7 +499,7 @@ export default defineConfig({
                   return "vendor-i18n";
                 }
                 // Biblioteki bez zależności (zod / tailwind-merge / dompurify)
-                // i sonner (zależny wyłącznie od react) - własne chunki
+                // i biblioteka sonner (zależna wyłącznie od react) - własne chunki
                 // vendorowe zamiast zapadania się w chunk wejściowy. Dla zod i
                 // tailwind-merge (nadal statycznie osiągalne z entry) nie
                 // zmniejsza to bajtów pierwszej wizyty, ale zdejmuje ~230 kB
@@ -471,9 +509,12 @@ export default defineConfig({
                 // i lib/notify.ts) - nazwany chunk stabilizuje ich adres,
                 // a bramka check-entry-purity pilnuje, żeby nie wróciły.
                 // Domknięcie zależności (incydent 2026-07-20): zod,
-                // tailwind-merge i dompurify nie importują niczego; sonner
-                // importuje wyłącznie react/react-dom (vendor-react, krawędź
-                // jednokierunkowa).
+                // tailwind-merge i dompurify nie importują niczego; biblioteka
+                // sonner importuje wyłącznie react/react-dom (vendor-react,
+                // krawędź jednokierunkowa). Opakowanie `ui/sonner.tsx` w tym
+                // samym chunku dokłada krawędź do `vendor-i18n` (etykieta
+                // regionu toastów) - też jednokierunkową, bo vendor-i18n nie
+                // importuje sonnera.
                 // Tylko zod TOP-LEVEL: @tanstack/react-start wozi ZAGNIEŻDŻONĄ
                 // kopię zod 4 (node_modules/@tanstack/.../node_modules/zod) -
                 // mieszanie dwóch wersji w jednym cache-stabilnym chunku

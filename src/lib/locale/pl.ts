@@ -78,6 +78,7 @@ export const pl = {
   },
   footer: {
     back_to_top: "Wróć na górę",
+    legal_nav: "Informacje prawne",
   },
   archive: {
     empty: "Brak opublikowanych wpisów.",

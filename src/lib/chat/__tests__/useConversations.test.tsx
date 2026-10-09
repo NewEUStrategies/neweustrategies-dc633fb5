@@ -38,7 +38,6 @@ const h = vi.hoisted(() => ({
   rpc: vi.fn(),
   unsubscribe: vi.fn(),
   subscriptions: [] as Array<{ table: string; filter?: string; handler: TableHandler }>,
-  invalidateMuteCache: vi.fn(),
   openExpertRequestDialog: vi.fn(),
 }));
 
@@ -71,10 +70,6 @@ vi.mock("@/lib/realtime/tableChannelHub", () => ({
     h.subscriptions.push({ ...opts, handler });
     return h.unsubscribe;
   },
-}));
-
-vi.mock("../useIncomingChatToasts", () => ({
-  invalidateMuteCache: h.invalidateMuteCache,
 }));
 
 vi.mock("../expertRequestDialogBus", () => ({
@@ -147,7 +142,6 @@ beforeEach(() => {
   h.auth.tenantId = CHAT_IDS.tenant;
   h.rpc.mockReset();
   h.unsubscribe.mockReset();
-  h.invalidateMuteCache.mockReset();
   h.openExpertRequestDialog.mockReset();
   h.subscriptions.length = 0;
   db().reset();
@@ -642,7 +636,10 @@ describe("ustawienia rozmowy - kontrakt RPC", () => {
     });
   });
 
-  it("wyciszenie unieważnia cache toastów NATYCHMIAST, nie po 60 s TTL", async () => {
+  // Toasty nowych wiadomości czytają `muted_until` z ładunku zdarzenia
+  // własnego wiersza uczestnika (`useIncomingChatToasts`), więc mutacja
+  // wyciszenia nie ma już czego unieważniać - wystarczy zapis przez RPC.
+  it("wyciszenie zapisuje się przez RPC `chat_set_muted` (-1 = na zawsze)", async () => {
     h.rpc.mockImplementation(() => ok(null));
     const client = makeClient();
     const { result } = renderHook(() => useSetConversationMuted(), { wrapper: wrapperFor(client) });
@@ -654,10 +651,9 @@ describe("ustawienia rozmowy - kontrakt RPC", () => {
       p_conversation_id: CHAT_IDS.conversation,
       p_seconds: -1,
     });
-    expect(h.invalidateMuteCache).toHaveBeenCalledWith(CHAT_IDS.conversation);
   });
 
-  it("nieudane wyciszenie NIE czyści cache toastów", async () => {
+  it("nieudane wyciszenie zgłasza błąd mutacji", async () => {
     h.rpc.mockImplementation(() => rpcFail("denied"));
     const client = makeClient();
     const { result } = renderHook(() => useSetConversationMuted(), { wrapper: wrapperFor(client) });
@@ -666,7 +662,6 @@ describe("ustawienia rozmowy - kontrakt RPC", () => {
       result.current.mutate({ conversationId: CHAT_IDS.conversation, seconds: 3600 });
     });
     await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(h.invalidateMuteCache).not.toHaveBeenCalled();
   });
 
   it("czyszczenie historii unieważnia TAKŻE cache wiadomości tej rozmowy", async () => {

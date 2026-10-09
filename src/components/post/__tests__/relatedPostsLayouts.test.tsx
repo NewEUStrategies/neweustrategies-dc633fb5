@@ -17,6 +17,10 @@
 //   3. SUWAK PRZEWIJAŁ STRONĘ. `scrollIntoView` przewija wszystkie przodki,
 //      także okno: przy montażu i przy KAŻDYM takcie autoodtwarzania strona
 //      skakała do sekcji rekomendacji, choć czytelnik był wyżej, w tekście.
+//
+// Bramka ruchu (P3.5): autoodtwarzanie suwaka rusza dopiero po pierwszej
+// interakcji albo w punkcie ciszy, a przy `prefers-reduced-motion` wcale.
+// Przypadki automatu otwierają bramkę przed renderem.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -63,6 +67,7 @@ vi.mock("@/lib/relatedClickBeacon", () => ({
 }));
 
 import { RelatedPosts } from "@/components/post/RelatedPosts";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
 import { RELATED_POSTS_DEFAULTS } from "@/lib/relatedPosts";
 
 const SOURCE = "wpis-zrodlowy";
@@ -311,10 +316,13 @@ describe("suwak", () => {
     // planista powiadomień react-query i oczekiwanie `findBy*`.
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     h.posts.mockResolvedValue([related("r1"), related("r2"), related("r3")]);
+    __openMotionGateForTests();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    __resetMotionGateForTests();
+    vi.unstubAllGlobals();
   });
 
   function aktywna(): string | null {
@@ -384,6 +392,57 @@ describe("suwak", () => {
     drugi.unmount();
 
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("bramka ruchu zamknięta: automat stoi; po otwarciu pierwszy krok po pełnym interwale", async () => {
+    __resetMotionGateForTests();
+    h.config.mockResolvedValue(
+      config({ layout: "slider", slider_autoplay: true, slider_interval_ms: 3000 }),
+    );
+    renderRelated(<RelatedPosts postId={SOURCE} lang="pl" />);
+    await screen.findByRole("region");
+    // Krokami po sekundzie: skok 30 s mógłby wrócić na pierwszy slajd po pełnych obrotach.
+    for (let second = 0; second < 30; second += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(aktywna()).toBe("Slide 1");
+    }
+    expect(vi.getTimerCount()).toBe(0);
+
+    act(() => __openMotionGateForTests());
+    act(() => {
+      vi.advanceTimersByTime(2999);
+    });
+    expect(aktywna()).toBe("Slide 1");
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(aktywna()).toBe("Slide 2");
+  });
+
+  it("prefers-reduced-motion: bez autoodtwarzania także po otwarciu bramki", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: query.includes("prefers-reduced-motion"),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList,
+    );
+    h.config.mockResolvedValue(config({ layout: "slider", slider_autoplay: true }));
+    renderRelated(<RelatedPosts postId={SOURCE} lang="pl" />);
+    await screen.findByRole("region");
+    expect(vi.getTimerCount()).toBe(0);
+    // Krokami po sekundzie: skok 30 s mógłby wrócić na pierwszy slajd po pełnych obrotach.
+    for (let second = 0; second < 30; second += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(aktywna()).toBe("Slide 1");
+    }
   });
 
   it("pojedyncza rekomendacja nie dostaje kropek nawigacji", async () => {

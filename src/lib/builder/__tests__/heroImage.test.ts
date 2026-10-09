@@ -12,6 +12,7 @@ import {
 import { lcpCandidateIds as lcpCandidateIdsFor } from "@/lib/builder/lcpCandidate";
 import { GUEST_ACCESS_CONTEXT, evaluateAccess } from "@/lib/builder/accessControl";
 import { imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
+import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
@@ -156,7 +157,7 @@ describe("builderHeroPreload", () => {
   it("karuzela: każdy wariant maluje karty siatki - preload liczy sizes siatki", () => {
     const qc = new QueryClient();
     const content: WidgetContent = { variant: "classic" };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "carousel").queryKey, [postListRow(COVER)]);
     const preload = builderHeroPreload(
       docWith([sectionWith([widget("carousel", content)])]),
       qc,
@@ -218,7 +219,7 @@ describe("builderHeroPreload", () => {
   it("post-lista: okładka pierwszego wiersza z cache, sizes wariantu siatki", () => {
     const qc = new QueryClient();
     const content: WidgetContent = {};
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
     const preload = builderHeroPreload(
       docWith([sectionWith([widget("post-list", content)])]),
       qc,
@@ -231,7 +232,7 @@ describe("builderHeroPreload", () => {
   it("post-lista w wariancie miniaturowym (list): null - miniatury nie są LCP", () => {
     const qc = new QueryClient();
     const content: WidgetContent = { variant: "list" };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
     const doc = docWith([sectionWith([widget("post-list", content)])]);
     expect(builderHeroPreload(doc, qc, "pl")).toBeNull();
   });
@@ -310,7 +311,9 @@ describe("builderHeroPreloads - delegacja do kandydatów LCP", () => {
   it("strona główna: preload wskazuje hero (kandydat), a nie pierwszą w DOM kartę listy", () => {
     const qc = new QueryClient();
     const list: WidgetContent = { variant: "card" };
-    qc.setQueryData(postListQueryOptions(list, "pl").queryKey, [postListRow(`${COVER}?karta=1`)]);
+    qc.setQueryData(postListQueryOptions(list, "pl", "list").queryKey, [
+      postListRow(`${COVER}?karta=1`),
+    ]);
     const sliderContent: WidgetContent = { source: "posts" };
     qc.setQueryData(sliderPostsQueryOptions(sliderContent, "pl").queryKey, [sliderRow(COVER)]);
     const doc = docWith([
@@ -607,7 +610,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
   it("wyłączony cover (showCover: „0”) daje null", () => {
     const qc = new QueryClient();
     const content: WidgetContent = { showCover: "0" };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
     const doc = docWith([sectionWith([widget("post-list", content)])]);
     expect(builderHeroPreload(doc, qc, "pl")).toBeNull();
   });
@@ -615,7 +618,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
   it("rozgrzany cache z ZEROM wierszy daje null - pusta lista nic nie maluje", () => {
     const qc = new QueryClient();
     const content: WidgetContent = {};
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, []);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, []);
     const doc = docWith([sectionWith([widget("post-list", content)])]);
     expect(builderHeroPreload(doc, qc, "pl")).toBeNull();
   });
@@ -626,7 +629,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
     // który przy pierwszym malowaniu jest poza kadrem.
     const qc = new QueryClient();
     const content: WidgetContent = {};
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [
       { ...postListRow(COVER), cover_image_url: null },
       postListRow(`${COVER}?drugi=1`),
     ]);
@@ -638,7 +641,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
     const qc = new QueryClient();
     const override = "https://p.supabase.co/storage/v1/object/public/covers/nadpisana.jpg";
     const content: WidgetContent = { thumbnailOverrides: { "post-1": override } };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
     const preload = builderHeroPreload(
       docWith([sectionWith([widget("post-list", content)])]),
       qc,
@@ -657,7 +660,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
     ] as const) {
       const qc = new QueryClient();
       const content: WidgetContent = { variant };
-      qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+      qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
       const preload = builderHeroPreload(
         docWith([sectionWith([widget("post-list", content)])]),
         qc,
@@ -670,7 +673,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
   it("wariant spoza katalogu wariantów wiodących daje null", () => {
     const qc = new QueryClient();
     const content: WidgetContent = { variant: "wariant-z-kosmosu" };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "list").queryKey, [postListRow(COVER)]);
     const doc = docWith([sectionWith([widget("post-list", content)])]);
     expect(builderHeroPreload(doc, qc, "pl")).toBeNull();
   });
@@ -680,7 +683,7 @@ describe("builderHeroPreload - post-lista: warianty i odmowy", () => {
     // karuzeli to nadal siatka - i taki musi być preload.
     const qc = new QueryClient();
     const content: WidgetContent = { variant: "list" };
-    qc.setQueryData(postListQueryOptions(content, "pl").queryKey, [postListRow(COVER)]);
+    qc.setQueryData(postListQueryOptions(content, "pl", "carousel").queryKey, [postListRow(COVER)]);
     const preload = builderHeroPreload(
       docWith([sectionWith([widget("carousel", content)])]),
       qc,
@@ -902,6 +905,42 @@ describe("builderContentHeroPreloads - silnik treści strony (recenzja m7)", () 
     expect(builderContentHeroPreloads({ editor: "builder", builderDoc: null }, qc, "pl")).toEqual(
       [],
     );
+  });
+});
+
+describe("builderHeroPreload - adresy względne kanonicznego `/media/` (P3.2a/P4.2)", () => {
+  const BRANDED = `${PUBLIC_MEDIA_ORIGIN}/media/okladka.jpg`;
+
+  it("kanoniczny adres markowy: `href` i każdy kandydat `imageSrcSet` względne", () => {
+    const preload = builderHeroPreload(
+      docWith([sectionWith([widget("image", { src: BRANDED, alt_pl: "Okładka" })])]),
+      new QueryClient(),
+      "pl",
+    );
+    expect(preload?.href).toBe("/media/okladka.jpg");
+    const candidates = (preload?.imageSrcSet ?? "").split(", ");
+    expect(candidates).toHaveLength(5);
+    for (const candidate of candidates)
+      expect(candidate.startsWith("/media/okladka.jpg?")).toBe(true);
+    expect(lcpPreloadLinkHeaderValue(preload!)).toMatch(/^<\/media\/okladka\.jpg>;/);
+  });
+
+  it("host techniczny magazynu i adres nietransformowalny zostają bez zmian", () => {
+    const qc = new QueryClient();
+    const storage = builderHeroPreload(
+      docWith([sectionWith([widget("image", { src: COVER, alt_pl: "Okładka" })])]),
+      qc,
+      "pl",
+    );
+    expect(storage?.href).toBe(COVER);
+    // SVG bez srcSet: kluczem zasobu jest `href` = `src` obrazu - absolutny jak `<img>`.
+    const svg = `${PUBLIC_MEDIA_ORIGIN}/media/wykres.svg`;
+    const vector = builderHeroPreload(
+      docWith([sectionWith([widget("image", { src: svg, alt_pl: "Wykres" })])]),
+      qc,
+      "pl",
+    );
+    expect(vector).toMatchObject({ href: svg, imageSrcSet: "" });
   });
 });
 

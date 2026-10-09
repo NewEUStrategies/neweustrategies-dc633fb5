@@ -167,7 +167,10 @@ jobs:
         if: github.event.schedule != '25 5 * * *'
         continue-on-error: true
         env:
-          WARM_BASE_URL: ${{ vars.APP_BASE_URL }}
+          # Domyślnie produkcja: rozgrzewka to anonimowe GET-y dokumentów, więc nie
+          # potrzebuje sekretu ani konfiguracji (wcześniej bez zmiennej krok był no-opem).
+          # Job i tak biegnie z harmonogramu tylko w repo właściciela (warunek wyżej).
+          WARM_BASE_URL: ${{ vars.APP_BASE_URL || 'https://neweuropeanstrategies.com' }}
           # 2 ticki co 2 min: krok mieści się w budżecie joba (timeout 8 min
           # po ticku doręczeń ~4 min), a STALE i tak serwuje natychmiast -
           # celem warmera jest wyłącznie eliminacja pełnych MISS-ów.

@@ -36,7 +36,8 @@ import { QueryClient } from "@tanstack/react-query";
 import { createBackgroundScope } from "@/lib/backgroundScope";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GA4_MEASUREMENT_ID } from "@/lib/analytics/ga4Client";
-import { homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
+import { HOME_CHROME_LATE_BUDGET_MS, homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
+import { trackSsrQueryCompleteness } from "@/lib/ssr/resilientLoad";
 import { stripLangPrefix } from "@/lib/i18n/localePath";
 
 const h = vi.hoisted(() => ({
@@ -62,6 +63,8 @@ const h = vi.hoisted(() => ({
   brand: [] as unknown[],
   ads: [] as string[],
   adsHang: false,
+  /** Reklama czeka na tę obietnicę (emisja wolniejsza od menu i tickera). */
+  adsGate: null as Promise<void> | null,
   /** `syncI18nToRequest` odrzuca - awaria warstwy językowej żądania. */
   i18nSyncFails: false,
   /** Fabryka opcji menu rzuca - rozgrzewka menu odrzuca JESZCZE przed falą 1. */
@@ -74,6 +77,25 @@ const h = vi.hoisted(() => ({
   widgetHints: [] as string[],
   /** Montaże atrapy banera zgód (P1.3): props `takeover` z każdego renderu. */
   bannerMounts: [] as unknown[],
+  /** Pobrania tabeli rozmiarów czcionek (P3.8 #1) i jej zawieszenie. */
+  fontScaleFetches: 0,
+  fontScaleHangs: false,
+  /** Rozgrzewki sygnału „brak aktywnych popupów" (P3.8 #4a). */
+  popupWarms: 0,
+  /**
+   * Odpowiedź projekcji obecności popupów (`builder_popups:presence`). `null` =
+   * uproszczona atrapa rozgrzewki; wartość = PRAWDZIWE `warmNoActivePopups`
+   * z tą odpowiedzią „backendu".
+   */
+  popupsPresence: null as boolean | null,
+  /**
+   * Wiersz `site_design_tokens` istnieje: tokeny i kolory przychodzą jak
+   * z prawdziwego `queryFn` (nigdy `null`). Domyślnie atrapa oddaje `null`,
+   * czyli fala 1 kończy się zasiewem - na tym stoją testy zasiewów.
+   */
+  themeRow: false,
+  /** Sesja zespołu redakcji (`useAuth().isStaff`). */
+  staff: false,
 }));
 
 vi.mock("@/lib/i18n/localeRuntime", async (o) => ({
@@ -167,12 +189,67 @@ vi.mock("@/lib/useSiteSetting", async (o) => ({
 }));
 vi.mock("@/lib/builder/designTokens", async (o) => ({
   ...(await o<typeof import("@/lib/builder/designTokens")>()),
-  designTokensQueryOptions: { queryKey: ["design-tokens"], queryFn: async () => null },
+  designTokensQueryOptions: {
+    queryKey: ["design-tokens"],
+    queryFn: async () => (h.themeRow ? { colors: [], fonts: {}, scale: {} } : null),
+  },
 }));
 vi.mock("@/hooks/useGlobalColors", async (o) => ({
   ...(await o<typeof import("@/hooks/useGlobalColors")>()),
-  globalColorsQueryOptions: { queryKey: ["global-colors"], queryFn: async () => null },
+  globalColorsQueryOptions: {
+    queryKey: ["global-colors"],
+    queryFn: async () => (h.themeRow ? {} : null),
+  },
 }));
+// Tabela rozmiarów czcionek (P3.8 #1): ten sam wiersz co tokeny, osobny klucz.
+vi.mock("@/hooks/useFontScale", async (o) => ({
+  ...(await o<typeof import("@/hooks/useFontScale")>()),
+  fontScaleQueryOptions: {
+    queryKey: ["font-scale"],
+    queryFn: () => {
+      h.fontScaleFetches += 1;
+      return h.fontScaleHangs ? new Promise(() => {}) : Promise.resolve({ h1: 40 });
+    },
+  },
+}));
+// Sygnał „brak aktywnych popupów" (P3.8 #4a): atrapa zapisuje to, co prawdziwa
+// projekcja przy pustym wyniku - pustą listę pod kluczem `useActivePopups`.
+// Z `h.popupsPresence` biegnie PRAWDZIWA funkcja P3.8 (ten sam zapis, który
+// widzi predykat kompletności P3.6b), a atrapą jest tylko odpowiedź projekcji
+// obecności (`edgeTtlCache` niżej).
+vi.mock("@/lib/builder/popups", async (o) => {
+  const actual = await o<typeof import("@/lib/builder/popups")>();
+  return {
+    ...actual,
+    warmNoActivePopups: async (qcArg: QueryClient) => {
+      h.popupWarms += 1;
+      if (h.popupsPresence !== null) return actual.warmNoActivePopups(qcArg);
+      qcArg.setQueryData(["builder-popups-active"], []);
+    },
+  };
+});
+// „Backend" projekcji obecności popupów: pozostałe klucze idą prawdziwym
+// `edgeTtlCache`.
+vi.mock("@/lib/ssrCache", async (o) => {
+  const actual = await o<typeof import("@/lib/ssrCache")>();
+  return {
+    ...actual,
+    edgeTtlCache: ((key, ttlMs, fetcher, opts) =>
+      key === "builder_popups:presence" && h.popupsPresence !== null
+        ? Promise.resolve(h.popupsPresence)
+        : actual.edgeTtlCache(key, ttlMs, fetcher, opts)) as typeof actual.edgeTtlCache,
+  };
+});
+vi.mock("@/hooks/useAuth", async (o) => {
+  const actual = await o<typeof import("@/hooks/useAuth")>();
+  return {
+    ...actual,
+    useAuth: () => {
+      const real = actual.useAuth();
+      return h.staff ? { ...real, isStaff: true } : real;
+    },
+  };
+});
 vi.mock("@/lib/menus/queries", () => ({
   menuWithItemsQueryOptions: (key: string) => {
     if (h.menusThrow) throw new Error("modul menu padl");
@@ -213,7 +290,9 @@ vi.mock("@/lib/ads/queries", async (o) => ({
     queryFn: () =>
       h.adsHang
         ? new Promise(() => {})
-        : Promise.resolve((h.ads.push(`${position}:${pageType}`), [])),
+        : h.adsGate
+          ? h.adsGate.then(() => (h.ads.push(`${position}:${pageType}`), []))
+          : Promise.resolve((h.ads.push(`${position}:${pageType}`), [])),
   }),
 }));
 vi.mock("@/lib/views/headerTickerQuery", async (o) => ({
@@ -304,6 +383,7 @@ beforeEach(() => {
   h.menus = [];
   h.ads = [];
   h.adsHang = false;
+  h.adsGate = null;
   h.social = [];
   h.brand = [];
   h.canonicalCalls = 0;
@@ -319,6 +399,12 @@ beforeEach(() => {
   h.tickerThrows = false;
   h.dictionaryChunk = null;
   h.widgetHints = [];
+  h.fontScaleFetches = 0;
+  h.fontScaleHangs = false;
+  h.popupWarms = 0;
+  h.popupsPresence = null;
+  h.themeRow = false;
+  h.staff = false;
 });
 
 describe("__root loader", () => {
@@ -431,12 +517,50 @@ describe("__root loader", () => {
 
   it("zasiewa PRZETERMINOWANE domyślne, gdy fala 1 nic nie dowiozła", async () => {
     h.settingsHangs = true;
+    h.fontScaleHangs = true;
     await runLoader(qc);
     const st = qc.getQueryState(["site-settings"]);
     expect(qc.getQueryData(["site-settings"])).toEqual({});
     expect(st?.dataUpdatedAt).toBe(0);
     expect(qc.getQueryState(["design-tokens"])?.dataUpdatedAt).toBe(0);
     expect(qc.getQueryState(["global-colors"])?.dataUpdatedAt).toBe(0);
+    // P3.8 #1: tabela rozmiarów BEZ zasiewu - brak wpisu daje w SSR i w
+    // hydratacji ten sam pusty arkusz, a klient pobiera go przy montażu tak samo
+    // jak zasiew z `updatedAt: 0`; zasiew dokładałby tylko wpis do stanu SSR.
+    expect(qc.getQueryData(["font-scale"])).toBeUndefined();
+    await qc.cancelQueries();
+  });
+
+  // ── TABELA ROZMIARÓW CZCIONEK W FALI 1 (P3.8 #1) ──────────────────────────
+  //
+  // Bez rozgrzewki wpisu `site_font_scale` nie było w stanie SSR: serwer
+  // renderował `:root` z pustą tabelą, a klient pobierał wiersz
+  // `site_design_tokens` zaraz po hydratacji (GET + preflight na każdej trasie).
+  it("fala 1 grzeje tabelę rozmiarów czcionek - wpis jedzie w stanie SSR", async () => {
+    await runLoader(qc, "/blog");
+    expect(h.fontScaleFetches).toBe(1);
+    expect(qc.getQueryData(["font-scale"])).toEqual({ h1: 40 });
+    expect(qc.getQueryState(["font-scale"])?.dataUpdatedAt).toBeGreaterThan(0);
+  });
+
+  it("strona główna anuluje zawieszoną tabelę rozmiarów jak tokeny - bez wpisu w stanie SSR", async () => {
+    h.server = true;
+    h.fontScaleHangs = true;
+    const cancel = vi.spyOn(qc, "cancelQueries");
+    await runLoader(qc, "/");
+    expect(cancel).toHaveBeenCalledWith({ queryKey: ["font-scale"], exact: true });
+    // Anulowane zapytanie bez danych nie przechodzi `shouldDehydrateQuery`
+    // (status `success`), więc dokument go nie niesie, a klient pobiera tabelę
+    // przy montażu - jak przy każdej porażce fali 1.
+    expect(qc.getQueryData(["font-scale"])).toBeUndefined();
+    expect(qc.getQueryState(["font-scale"])?.status).not.toBe("success");
+    expect(h.cacheControl).toContain("private, no-store");
+    cancel.mockRestore();
+  });
+
+  it("prawdziwa tabela rozmiarów zostaje w cache'u tak, jak przyszła z bazy", async () => {
+    await runLoader(qc);
+    expect(qc.getQueryData(["font-scale"])).toEqual({ h1: 40 });
   });
 
   // ── ZASIEW UKŁADU TREŚCI - bez rozgrzewki sieciowej, ale MUSI BYĆ ─────────
@@ -461,6 +585,32 @@ describe("__root loader", () => {
     const state = qc.getQueryState(["post-layout-settings"]);
     expect(state, "bez zasiewu SSR i klient rozchodzą się na tym kluczu").toBeTruthy();
     expect(state?.dataUpdatedAt).toBe(0);
+  });
+
+  // P3.6b: ten zasiew jest na LIŚCIE CELOWYCH ZASIEWÓW predykatu kompletności
+  // dokumentu - inaczej każdy dokument liczyłby się jako niekompletny i nigdy
+  // nie trafiał do NES Edge Cache z przebiegu czytelnika. Deklaracja jest
+  // wyłącznie serwerowa (`import.meta.env.SSR`, stała Vite): w przeglądarce
+  // `QueryClient` żyje całą sesję i predykatu nie ma, więc kod nie jedzie
+  // w bootcie klienta.
+  it("zasiew układu treści jest CELOWY dla predykatu kompletności tylko w SSR", async () => {
+    const reasonsAfterLoader = async (client: QueryClient) => {
+      await runLoader(client, "/cookies");
+      return trackSsrQueryCompleteness(client)().reasons;
+    };
+    vi.stubEnv("SSR", true);
+    try {
+      expect(await reasonsAfterLoader(qc)).not.toContain("seed:post-layout-settings");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    // Kontrola: bez deklaracji ten sam zasiew byłby zgubionymi danymi.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    try {
+      expect(await reasonsAfterLoader(client)).toContain("seed:post-layout-settings");
+    } finally {
+      client.clear();
+    }
   });
 
   it("zasiew układu treści NIE nadpisuje wartości, którą ktoś już rozgrzał", async () => {
@@ -834,24 +984,152 @@ describe("root chrome gate uses real query freshness", () => {
       qc.clear();
     }
   });
-  it("does not delay a home shell after the shared deadline expires", async () => {
+  // P3.6b (R2c): do fali 3 wyczerpany termin strony głównej dawał `failed` od
+  // ręki - nagłówek renderował się na fallbackach (pasek „Na czasie" doskakiwał
+  // po hydratacji), a dokument szedł `no-store` (klasa B1 diagnozy). Teraz
+  // granica nagłówka czeka NAJWYŻEJ `HOME_CHROME_LATE_BUDGET_MS`; gdy dane
+  // i tak nie przyjdą, zachowanie jest dawne: fallbacki i `no-store`.
+  it("an expired home shell waits only the chrome late budget, then renders on fallbacks", async () => {
     h.server = true;
     h.menusHang = true;
     try {
+      // `warmLate` jest bramkowane `import.meta.env.SSR` (stała Vite - domknięcie
+      // znika z bootu klienta), a pod vitestem ta stała jest fałszem. Decyzja
+      // zapada w loaderze, więc atrapa obejmuje tylko jego przebieg.
+      vi.stubEnv("SSR", true);
       await runLoader(qc);
+      vi.unstubAllEnvs();
       const now = Date.now();
       const clock = vi.spyOn(Date, "now").mockReturnValue(now + 10_000);
       try {
-        expect(() => readChromeWarmup(qc)).not.toThrow();
+        let suspended: unknown;
+        try {
+          readChromeWarmup(qc);
+        } catch (value) {
+          suspended = value;
+        }
+        expect(suspended).toBeInstanceOf(Promise);
+        expect(h.cacheControl.at(-1)).toBe(chromeDegradedCacheControl());
+        await suspended;
         expect(h.cacheControl.at(-1)).toBe("private, no-store");
+        expect(() => readChromeWarmup(qc)).not.toThrow();
       } finally {
         clock.mockRestore();
       }
     } finally {
+      vi.unstubAllEnvs();
       h.menusHang = false;
       qc.clear();
     }
+  }, 10_000);
+  // P3.6b (recenzja rundy 9 m3, rundy poprawek 1 M1): dogrzanie po terminie to
+  // TA SAMA lista pracy co `warm` (ticker, menu, baner, widgety nagłówka
+  // i stopki), tylko z budżetem bramki zamiast wyczerpanego terminu dokumentu.
+  // Granica nagłówka czeka na całą tę pracę, baner też: praca startuje po
+  // `dehydrate()`, więc baner puszczony w tle dostrumieniowałby się PO HTML-u
+  // nagłówka (`AdZone` w SSR bez danych = `null`) - niezgodność hydratacji
+  // i skok ~90 px (F26) w dokumencie, który trafia do NES Edge Cache.
+  const homeBannerKey = ["ad_placements", "header_banner", "home", null];
+  async function loadExpiredHomeWithChromeDocs() {
+    h.server = true;
+    h.settings = {
+      header: { builder_data: { sections: [{ id: "s" }] } },
+      footer: { builder_data: { sections: [{ id: "f" }] } },
+    };
+    // Ustawienia są już w cache'u - konfiguracja nagłówka nie zależy od fali 1.
+    qc.setQueryData(["site-settings"], h.settings);
+    // Zegar żądania wygasł, zanim korzeń doszedł do fali chrome: `warm` nie ma
+    // budżetu i niczego nie grzeje.
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() - 10_000);
+    homeSsrDeadline(qc);
+    clock.mockRestore();
+    vi.stubEnv("SSR", true);
+    await runLoader(qc);
+    vi.unstubAllEnvs();
+    expect(h.ticker).toEqual([]);
+    expect(h.prefetch).toEqual([]);
+  }
+  function suspendChromeGate(): Promise<unknown> {
+    let suspended: unknown;
+    try {
+      readChromeWarmup(qc);
+    } catch (value) {
+      suspended = value;
+    }
+    expect(suspended).toBeInstanceOf(Promise);
+    return suspended as Promise<unknown>;
+  }
+  it("an expired home shell late-warms the shared chrome work list and holds the header for a banner within budget", async () => {
+    let releaseBanner!: () => void;
+    h.adsGate = new Promise<void>((resolve) => {
+      releaseBanner = resolve;
+    });
+    try {
+      await loadExpiredHomeWithChromeDocs();
+      const headersBefore = h.cacheControl.length;
+      const gate = suspendChromeGate();
+      let released = false;
+      let bannerAtRelease: unknown;
+      void gate.then(() => {
+        released = true;
+        bannerAtRelease = qc.getQueryState(homeBannerKey);
+      });
+      // Menu, ticker i widgety nagłówka i stopki są już gotowe...
+      await vi.waitFor(() => expect(h.ticker).toEqual(["warm"]));
+      await vi.waitFor(() => expect(h.prefetch).toHaveLength(2));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      // ...ale baner jeszcze leci: nagłówek NIE puszcza.
+      expect(released).toBe(false);
+      releaseBanner();
+      await vi.waitFor(() => expect(released).toBe(true), { timeout: 500 });
+      // Baner dojechał w budżecie bramki: jest w cache'u w chwili zwolnienia
+      // granicy, więc renderuje się w HTML-u nagłówka, a nie strumieniem po nim.
+      expect(bannerAtRelease).toMatchObject({ status: "success", fetchStatus: "idle", data: [] });
+      expect(h.ads).toEqual(["header_banner:home"]);
+      for (const { budget } of h.prefetch) {
+        expect(budget).toBeGreaterThan(0);
+        expect(budget).toBeLessThanOrEqual(HOME_CHROME_LATE_BUDGET_MS);
+      }
+      // Krótka świeżość wspólna (`chrome`), bez zaostrzenia do `no-store`.
+      expect(h.cacheControl.slice(headersBefore)).toEqual([chromeDegradedCacheControl()]);
+      expect(() => readChromeWarmup(qc)).not.toThrow();
+    } finally {
+      vi.unstubAllEnvs();
+      await qc.cancelQueries();
+      qc.clear();
+    }
   });
+  it("a hanging banner holds the expired home header no longer than the chrome late budget", async () => {
+    h.adsHang = true;
+    try {
+      await loadExpiredHomeWithChromeDocs();
+      const headersBefore = h.cacheControl.length;
+      const readAt = Date.now();
+      const gate = suspendChromeGate();
+      let releasedAt = 0;
+      void gate.then(() => {
+        releasedAt = Date.now();
+      });
+      await vi.waitFor(() => expect(releasedAt).toBeGreaterThan(0), {
+        timeout: HOME_CHROME_LATE_BUDGET_MS + 2_000,
+        interval: 20,
+      });
+      // Granica czekała na baner do końca budżetu bramki (nie puściła przy
+      // gotowym menu i tickerze) i ani chwili dłużej, niż pozwala `withBudget`
+      // korzenia. Pomiar zegarem ściennym: dolna granica z luzem na zaokrąglenia.
+      expect(releasedAt - readAt).toBeGreaterThanOrEqual(HOME_CHROME_LATE_BUDGET_MS - 50);
+      expect(h.ticker).toEqual(["warm"]);
+      expect(qc.getQueryState(homeBannerKey)?.status).toBe("pending");
+      // Powłoka gotowa: nagłówek z menu i tickerem, bez banera. Dekoracja nie
+      // zaostrza polityki do `failed`.
+      expect(h.cacheControl.slice(headersBefore)).toEqual([chromeDegradedCacheControl()]);
+      expect(() => readChromeWarmup(qc)).not.toThrow();
+    } finally {
+      vi.unstubAllEnvs();
+      await qc.cancelQueries();
+      qc.clear();
+    }
+  }, 10_000);
   it("registers configured header and footer widget queries for freshness checking", async () => {
     const doc = {
       version: 1,
@@ -875,6 +1153,78 @@ describe("root chrome gate uses real query freshness", () => {
     expect(() => readChromeWarmup(qc)).not.toThrow();
     expect(qc.getQueryData(["menu-with-items", "main"])).toEqual([]);
     expect(h.prefetch).toHaveLength(2);
+  });
+
+  // ── SYGNAŁ „BRAK AKTYWNYCH POPUPÓW" (P3.8 #4a) ───────────────────────────
+  it("SSR z chrome'em grzeje sygnał „brak aktywnych popupów” w fali chrome", async () => {
+    h.server = true;
+    await runLoader(qc, "/blog");
+    expect(h.popupWarms).toBe(1);
+    expect(qc.getQueryData(["builder-popups-active"])).toEqual([]);
+  });
+
+  it("nawigacja klienta NIE grzeje sygnału popupów - bramka czyta go tylko z SSR", async () => {
+    h.server = false;
+    await runLoader(qc, "/blog");
+    await vi.dynamicImportSettled();
+    expect(h.popupWarms).toBe(0);
+  });
+
+  it("dokument bez chrome'u NIE grzeje sygnału popupów (host montuje się jak dotąd)", async () => {
+    h.server = true;
+    h.chrome = false;
+    await runLoader(qc, "/blog");
+    await vi.dynamicImportSettled();
+    expect(h.popupWarms).toBe(0);
+    expect(qc.getQueryData(["builder-popups-active"])).toBeUndefined();
+  });
+
+  // ── P3.6b × P3.8: ZAPISY SSR KORZENIA A PREDYKAT KOMPLETNOŚCI ─────────────
+  //
+  // Predykat strony głównej (P3.6b, `trackSsrQueryCompleteness`) liczy KAŻDY
+  // wpis z `updatedAt: 0` jako zgubione dane, poza celowymi zasiewami
+  // i dekoracjami. Korzeń po P3.8 zapisuje w SSR dwie nowe rzeczy: tabelę
+  // rozmiarów czcionek z fali 1 i sygnał „brak aktywnych popupów" (`[]`
+  // z `updatedAt: 0`) z fali chrome - na KAŻDEJ trasie z chrome'em, także `/`.
+  // Gdyby predykat nie znał sygnału, strona główna u najemcy bez popupów nie
+  // trafiałaby do NES Edge Cache ani z przebiegu czytelnika, ani z odświeżenia
+  // w tle. Tu: prawdziwy loader korzenia na `/`, prawdziwe `warmNoActivePopups`
+  // (atrapą jest tylko odpowiedź projekcji obecności) i prawdziwy predykat,
+  // zamrożony sprzątaniem integracji router<->query. Uzbrojenie PRZED
+  // korzeniem jest ostrzejsze niż w produkcji (koniec loadera `/`): śledzi
+  // każde pobranie korzenia.
+  it("strona główna: zapisy SSR korzenia z P3.8 nie odbierają kompletnemu dokumentowi zapisu", async () => {
+    h.server = true;
+    h.themeRow = true;
+    h.popupsPresence = false;
+    h.settings = { header: { builder_data: { sections: [{ id: "s" }] } } };
+    const verdict = trackSsrQueryCompleteness(qc);
+    vi.stubEnv("SSR", true);
+    try {
+      await runLoader(qc, "/");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    // Fala chrome strony głównej biegnie w tle - loader `/` na nią nie czeka
+    // (import dynamiczny modułu popupów: luz na obciążony CI).
+    await vi.waitFor(() => expect(qc.getQueryData(["builder-popups-active"])).toEqual([]), {
+      timeout: 5_000,
+    });
+    // Przesłanki: sygnał to zasiew `updatedAt: 0` (nie dane hosta), tabela
+    // rozmiarów to prawdziwe dane z fali 1, układ treści - celowy zasiew korzenia.
+    expect(h.popupWarms).toBe(1);
+    expect(qc.getQueryState(["builder-popups-active"])).toMatchObject({
+      status: "success",
+      dataUpdatedAt: 0,
+    });
+    expect(qc.getQueryState(["font-scale"])?.status).toBe("success");
+    expect(qc.getQueryState(["font-scale"])?.dataUpdatedAt).toBeGreaterThan(0);
+    expect(qc.getQueryState(["post-layout-settings"])?.dataUpdatedAt).toBe(0);
+    expect(h.cacheControl).not.toContain("private, no-store");
+    // Sprzątanie integracji po zamknięciu strumienia zamraża werdykt.
+    await qc.cancelQueries();
+    qc.clear();
+    expect(verdict()).toEqual({ complete: true, reasons: [] });
   });
 });
 
@@ -1302,6 +1652,12 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
     const some = new QueryClient();
     some.setQueryData(["builder-popups-active"], [{ id: "p1" }]);
     expect(probe(some)).toBe(false);
+    // Zespół redakcji montuje host zawsze (P3.8): popup aktywowany w panelu da
+    // się obejrzeć od razu, mimo zamrożonego sygnału z dokumentu.
+    h.staff = true;
+    const staff = new QueryClient();
+    staff.setQueryData(["builder-popups-active"], []);
+    expect(probe(staff)).toBe(false);
   });
 
   it("siatka cache-bustingu: chunk-load error sprzed ciszy przeładowuje raz, inny błąd - nic", async () => {

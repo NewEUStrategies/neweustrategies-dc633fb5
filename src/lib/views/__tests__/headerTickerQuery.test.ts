@@ -16,13 +16,16 @@
 // KLUCZ, a nie tylko dane - inaczej pasek po wygaśnięciu serwuje z cache
 // wpis, który miał zniknąć.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, keepPreviousData } from "@tanstack/react-query";
+import { langForPath } from "@/lib/i18n/localeRuntime";
+import { LANG_COOKIE, readLangCookieClient, readLangCookieFromHeader } from "@/lib/i18n/langCookie";
 
 interface TickerPost {
   id: string;
   slug: string;
   title_pl: string;
   title_en: string;
+  href?: string | null;
 }
 
 const h = vi.hoisted(() => ({
@@ -37,9 +40,11 @@ vi.mock("@/lib/views/postViews.functions", () => ({
 
 import {
   headerTickerQueryOptions,
+  projectHeaderTickerPosts,
   resolveTickerSource,
   type TickerConfig,
 } from "../headerTickerQuery";
+import type { TrendingPost } from "@/lib/views/postViews.functions";
 
 const NOW = Date.parse("2026-09-01T12:00:00.000Z");
 const YESTERDAY = "2026-08-31T12:00:00.000Z";
@@ -49,6 +54,11 @@ const SEL = ["a1111111-1111-4111-8111-111111111111", "b2222222-2222-4222-8222-22
 
 function post(id: string): TickerPost {
   return { id, slug: id, title_pl: `Wpis ${id}`, title_en: `Post ${id}` };
+}
+
+/** Wpis paska po projekcji PL (P3.7b, T4): tytuł języka klucza, `slug` tylko bez `href`. */
+function projectedPl(id: string) {
+  return { id, slug: id, title_pl: `Wpis ${id}` };
 }
 
 function client(): QueryClient {
@@ -74,6 +84,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 describe("resolveTickerSource - które źródło naprawdę zagra", () => {
@@ -136,9 +147,10 @@ describe("headerTickerQueryOptions - klucz wspólny dla SSR i klienta", () => {
       selectedPostIds: SEL,
       mixedFill: "latest",
     };
-    expect(headerTickerQueryOptions(cfg).queryKey).toEqual([
+    expect(headerTickerQueryOptions(cfg, "pl").queryKey).toEqual([
       "header_ticker",
       "mixed",
+      "pl",
       14,
       5,
       PINNED,
@@ -150,9 +162,10 @@ describe("headerTickerQueryOptions - klucz wspólny dla SSR i klienta", () => {
   it("brakujące pokrętła dostają domyślne 7 dni / 8 wpisów JUŻ W KLUCZU", () => {
     // Domyślne wartości muszą wejść do klucza, a nie dopiero do zapytania -
     // inaczej `{}` i `{ days: 7 }` byłyby dwoma wpisami cache na te same dane.
-    expect(headerTickerQueryOptions({}).queryKey).toEqual([
+    expect(headerTickerQueryOptions({}, "pl").queryKey).toEqual([
       "header_ticker",
       "trending",
+      "pl",
       7,
       8,
       null,
@@ -184,7 +197,7 @@ describe("headerTickerQueryOptions - klucz wspólny dla SSR i klienta", () => {
   it("wybrane wpisy w kluczu: bez pustych, przycięte do trzech, w kolejności z panelu", () => {
     const four = [SEL[1], "", SEL[0], "c3333333-3333-4333-8333-333333333333", "d4"];
     const key = headerTickerQueryOptions({ source: "selected", selectedPostIds: four }).queryKey;
-    expect(key[5]).toBe([SEL[1], SEL[0], "c3333333-3333-4333-8333-333333333333"].join(","));
+    expect(key[6]).toBe([SEL[1], SEL[0], "c3333333-3333-4333-8333-333333333333"].join(","));
   });
 
   it("kolejność wyboru JEST istotna - odwrócona lista to inny klucz", () => {
@@ -205,10 +218,12 @@ describe("headerTickerQueryOptions - klucz wspólny dla SSR i klienta", () => {
     expect(expired[1]).toBe("latest");
     // Identyfikator zostaje w kluczu, choć źródło już go nie użyje - dzięki
     // temu zdjęcie przypinki w panelu też unieważnia wpis.
-    expect(expired[4]).toBe(PINNED);
+    expect(expired[5]).toBe(PINNED);
   });
 
   it("loader SSR i klient budują ten sam klucz, więc druga strona NIE strzela do serwera", async () => {
+    // Loader biegnie na serwerze: wpis w cache to projekcja (stan odwodniony).
+    vi.stubEnv("SSR", true);
     const qc = client();
     const cfgSsr: TickerConfig = { source: "trending", days: 3, limit: 6 };
     const cfgClient: TickerConfig = { source: "trending", days: 3, limit: 6 };
@@ -217,7 +232,7 @@ describe("headerTickerQueryOptions - klucz wspólny dla SSR i klienta", () => {
     const fromCache = await qc.fetchQuery(headerTickerQueryOptions(cfgClient));
 
     expect(h.trending).toHaveBeenCalledTimes(1);
-    expect(fromCache).toEqual([post("t1")]);
+    expect(fromCache).toEqual([projectedPl("t1")]);
   });
 
   it("okno świeżości i czas życia w cache przeżywają hydrację (5 min / 30 min)", () => {
@@ -327,12 +342,13 @@ describe("headerTickerQueryOptions - gałęzie pobrania", () => {
   });
 
   it("`latest` bez przypinki pobiera najnowsze wpisy", async () => {
+    vi.stubEnv("SSR", true);
     const rows = await client().fetchQuery(headerTickerQueryOptions({ source: "latest" }));
 
     expect(h.ticker).toHaveBeenCalledWith({
       data: { source: "latest", limit: 8, pinnedPostId: undefined },
     });
-    expect(rows).toEqual([post("k1")]);
+    expect(rows).toEqual([projectedPl("k1")]);
   });
 
   it("awaria server function nie jest zamieniana na pusty pasek - błąd idzie w górę", async () => {
@@ -342,5 +358,120 @@ describe("headerTickerQueryOptions - gałęzie pobrania", () => {
     await expect(
       client().fetchQuery(headerTickerQueryOptions({ source: "latest" })),
     ).rejects.toThrow("trending_posts failed");
+  });
+});
+
+// JĘZYK W KLUCZU I JEDEN TYTUŁ W PRZESYŁCE (P3.7b, T4a/T4b - przekazanie z P2.5).
+describe("headerTickerQueryOptions - język w kluczu (P3.7b, T4)", () => {
+  function row(id: string, patch: Partial<TrendingPost> = {}): TrendingPost {
+    return {
+      id,
+      slug: `wpis-${id}`,
+      title_pl: `Wpis ${id}`,
+      title_en: `Post ${id}`,
+      cover_image_url: "https://cdn.test/okladka.jpg",
+      published_at: "2026-09-01T10:00:00Z",
+      parent_page_id: "strona",
+      views_count: 12,
+      href: `/analizy/wpis-${id}`,
+      author_display_name: "Autor",
+      author_avatar_url: null,
+      ...patch,
+    };
+  }
+
+  it("PL i EN to dwa wpisy cache; domyślny język = `currentLang()` (tu: brak żądania -> pl)", () => {
+    const pl = headerTickerQueryOptions({}, "pl").queryKey;
+    const en = headerTickerQueryOptions({}, "en").queryKey;
+    expect(pl).not.toEqual(en);
+    expect(headerTickerQueryOptions({}).queryKey).toEqual(pl);
+    // Etykieta w logu dokumentu (dwa wiodące napisy) zostaje `header_ticker.<źródło>`.
+    expect(pl.slice(0, 3)).toEqual(["header_ticker", "trending", "pl"]);
+  });
+
+  it("projekcja: tytuł w języku klucza z łańcuchem `itemTitle`, pole drugiego języka zdjęte", () => {
+    const rows = [
+      row("a"),
+      row("b", { title_pl: "" }),
+      row("c", { title_en: "" }),
+      row("d", { title_pl: "", title_en: "" }),
+    ];
+    const pl = projectHeaderTickerPosts(rows, "pl");
+    expect(pl.map((r) => r.title_pl)).toEqual(["Wpis a", "Post b", "Wpis c", ""]);
+    const en = projectHeaderTickerPosts(rows, "en");
+    expect(en.map((r) => r.title_en)).toEqual(["Post a", "Post b", "Wpis c", ""]);
+    for (const r of pl) expect(r).not.toHaveProperty("title_en");
+    for (const r of en) expect(r).not.toHaveProperty("title_pl");
+  });
+
+  it("T4a: `slug` jedzie WYŁĄCZNIE przy wierszu bez `href` (zapas adresu paska)", () => {
+    const [withHref, withoutHref] = projectHeaderTickerPosts(
+      [row("a"), row("b", { href: null as unknown as string })],
+      "pl",
+    );
+    expect(withHref).not.toHaveProperty("slug");
+    expect(withHref.href).toBe("/analizy/wpis-a");
+    expect(withoutHref.slug).toBe("wpis-b");
+    expect(Object.keys(withHref).sort()).toEqual([
+      "author_avatar_url",
+      "author_display_name",
+      "href",
+      "id",
+      "title_pl",
+    ]);
+  });
+
+  it("queryFn na SERWERZE rzutuje na język KLUCZA", async () => {
+    vi.stubEnv("SSR", true);
+    h.trending.mockResolvedValue([row("t1")]);
+    const rows = await client().fetchQuery(headerTickerQueryOptions({}, "en"));
+    expect(rows).toEqual([
+      {
+        id: "t1",
+        title_en: "Post t1",
+        href: "/analizy/wpis-t1",
+        author_display_name: "Autor",
+        author_avatar_url: null,
+      },
+    ]);
+  });
+
+  // Runda poprawek 9 (budżet domknięcia bootu): projekcja stoi za bramką
+  // `import.meta.env.SSR`, więc jej kod nie trafia do chunku wejściowego. Klient
+  // trzyma pełny wiersz - pasek liczy z niego ten sam tytuł (`itemTitle`) i adres
+  // (`itemHref`), co z wiersza zrzutowanego (test miękkiej zmiany języka w
+  // `TrendingTicker.langSwitch.test.tsx` renderuje z pełnych wierszy).
+  it("queryFn na KLIENCIE oddaje pełny wiersz z server fn (projekcja tylko na serwerze)", async () => {
+    vi.stubEnv("SSR", false);
+    h.trending.mockResolvedValue([row("t1")]);
+    const rows = await client().fetchQuery(headerTickerQueryOptions({}, "en"));
+    expect(rows).toEqual([row("t1")]);
+  });
+
+  it("miękka zmiana języka: poprzedni wpis jest `placeholderData`, pasek się nie zapada", () => {
+    expect(headerTickerQueryOptions({}, "en").placeholderData).toBe(keepPreviousData);
+  });
+
+  // KRYTYKA L4: klucz SSR (język z adresu żądania, dla stron bez prefiksu z
+  // ciasteczka żądania) i klucz klienta (żywy język wyprowadzony przy starcie
+  // z `location` i `document.cookie`) są równe także dla strony BEZ prefiksu
+  // językowego z ciasteczkiem `en` - oba używają jednej reguły `langForPath`.
+  it("parytet klucza SSR/klient: strona bez prefiksu z ciasteczkiem `en`", () => {
+    const cookie = `${LANG_COOKIE}=en`;
+    document.cookie = cookie;
+    try {
+      for (const path of ["/profile", "/login", "/", "/en/analizy"]) {
+        const server = langForPath(path, () => readLangCookieFromHeader(cookie));
+        const browser = langForPath(path, readLangCookieClient);
+        expect(browser, path).toBe(server);
+        expect(headerTickerQueryOptions({}, browser).queryKey).toEqual(
+          headerTickerQueryOptions({}, server).queryKey,
+        );
+      }
+      expect(langForPath("/profile", () => readLangCookieFromHeader(cookie))).toBe("en");
+      expect(langForPath("/", () => readLangCookieFromHeader(cookie))).toBe("pl");
+    } finally {
+      document.cookie = `${LANG_COOKIE}=; max-age=0`;
+    }
   });
 });

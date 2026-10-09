@@ -7,7 +7,7 @@
 // country) can be turned on per-instance; firstName/lastName are passed to
 // the server function natively, the rest ride along in the `meta` map that
 // newsletter_subscribers persists verbatim.
-import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { Check, UserPlus } from "lucide-react";
@@ -25,6 +25,7 @@ import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { cn } from "@/lib/utils";
 import {
   CustomFieldsRenderer,
+  parseCustomFields,
   validateCustomFields,
   type CustomFieldDef,
 } from "@/lib/builder/formFieldConfig";
@@ -129,6 +130,10 @@ export interface JoinUsFormProps {
   /** Extra CMS-defined fields ("hybrid" mode). Values are forwarded to CRM
    *  under `aliases.custom.<id>` via the crm_upsert_from_form(_custom) RPC. */
   customFields?: CustomFieldDef[];
+  /** Surowa wartość `content.customFields` widgetu; parsowana tu, w leniwym
+   *  chunku formularza, żeby dyspozytor `WidgetView` nie ciągnął
+   *  `formFieldConfig` (P3.9). `customFields` ma pierwszeństwo. */
+  customFieldsSource?: unknown;
 
   // Font-size overrides (px). undefined = fallback to Tailwind defaults.
   titleSize?: number;
@@ -211,6 +216,7 @@ export function JoinUsForm({
   companyPlaceholder,
   countryPlaceholder,
   customFields,
+  customFieldsSource,
   titleSize,
   descriptionSize,
   perkSize,
@@ -227,18 +233,31 @@ export function JoinUsForm({
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
   // Projekcja formularza inline (P2.5): ten sam klucz grzeje SSR (`prefetch.ts`).
   const { data: nl } = useNewsletterInlineSettings();
-  const interestGroups = useInterestGroups(lang, interestSlugs);
-  const fieldLabels = useNewsletterFieldLabelsFrom(nl?.field_labels, lang);
-  const catalog = interestGroups.catalog;
   const my = useMyInterests();
-  const subscribe = useServerFn(subscribeToNewsletter);
-  const fetchPrefill = useServerFn(getJoinUsPrefill);
-  const linkAndBackfill = useServerFn(linkJoinUsAndBackfill);
-  const saveConsent = useServerFn(setMyConsent);
   // Non-null only inside the CMS builder canvas (BuilderModeProvider). In the
   // builder the widget must NEVER unmount to null — otherwise disabling the
   // newsletter in settings makes it silently vanish from the canvas.
   const inBuilder = useBuilderMode() !== null;
+  // Katalog przy montażu tylko tam, gdzie jest potrzebny od razu (P3.8):
+  // chipsy, wymagany wybór (walidacja wysyłki), zapisane tematy (pigułki)
+  // i kanwa buildera. Droplista bez wymagań czeka na zatrzask interakcji/ciszy,
+  // a formularz bez listy tematów nie pobiera katalogu wcale.
+  const hasSavedInterests = !!my.data && my.data.categoryIds.length + my.data.tagIds.length > 0;
+  const interestGroups = useInterestGroups(
+    lang,
+    interestSlugs,
+    !showInterests
+      ? "off"
+      : interestsDisplay === "chips" || requireInterests || hasSavedInterests || inBuilder
+        ? "mount"
+        : "latch",
+  );
+  const fieldLabels = useNewsletterFieldLabelsFrom(nl?.field_labels, lang);
+  const catalog = interestGroups.catalog;
+  const subscribe = useServerFn(subscribeToNewsletter);
+  const fetchPrefill = useServerFn(getJoinUsPrefill);
+  const linkAndBackfill = useServerFn(linkJoinUsAndBackfill);
+  const saveConsent = useServerFn(setMyConsent);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -255,7 +274,10 @@ export function JoinUsForm({
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [state, setState] = useState<"idle" | "loading" | "ok" | "err">("idle");
   const [errMsg, setErrMsg] = useState<string | null>(null);
-  const cfList = customFields ?? [];
+  const cfList = useMemo(
+    () => customFields ?? parseCustomFields(customFieldsSource),
+    [customFields, customFieldsSource],
+  );
   const setCustom = (id: string, v: string) => setCustomValues((prev) => ({ ...prev, [id]: v }));
 
   // Zgoda marketingowa (RODO) - checkbox wymagany do wysyłki. Stan trzymamy

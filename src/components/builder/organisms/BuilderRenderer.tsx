@@ -21,6 +21,8 @@ import {
   type ReactNode,
 } from "react";
 import type {
+  AdvancedSettings,
+  BackgroundSettings,
   BuilderDocument,
   SectionNode,
   ColumnNode,
@@ -58,11 +60,15 @@ import { SectionTabsBar } from "@/components/builder/molecules/SectionTabsBar";
 import { evaluateAccess, useAccessContext } from "@/lib/builder/accessControl";
 import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
-import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate";
+import {
+  estimateChromeColumnHeight,
+  estimateSectionHeight,
+} from "@/lib/builder/sectionHeightEstimate";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { useCurrentPostCtx } from "@/lib/content-model/postContext";
 import { HydrationIsland, islandChunksFor } from "@/lib/performance/hydrationIsland";
+import { firstFrameVideoSrc, useGatedVideoAutoplay } from "@/lib/performance/motionGate";
 import {
   createViewportDeviceSource,
   useRendererDevice,
@@ -347,8 +353,13 @@ export function BuilderRenderer({
             isAccessible: (rule) => evaluateAccess(rule, access),
           })
         : readServerLcpCandidates(lcpRootId),
+    // Plan `content-visibility` z HTML-u serwera (P3.3) - tylko hydratacja;
+    // serwer liczy go w `SectionsList`, render czysto kliencki nie ma go wcale.
+    // `isServerRender()` pierwsze - zwija się w buildzie klienta (KTO LICZY niżej).
+    cv: isServerRender() || !isLcpOwner ? null : readServerCvPlan(lcpRootId),
   }));
-  const lcpIds = isLcpOwner && ownedLcp.docKey === lcpDocKey ? ownedLcp.ids : null;
+  const ownsDoc = isLcpOwner && ownedLcp.docKey === lcpDocKey;
+  const lcpIds = ownsDoc ? ownedLcp.ids : null;
   // Właściciel bez nośnika (render czysto kliencki, nowy dokument): bez
   // kandydata, ale pierwsza malowana sekcja ładuje obrazy eager (M1).
   const lcpEagerFirst = isLcpOwner && !lcpIds;
@@ -413,6 +424,8 @@ export function BuilderRenderer({
               stream={stream}
               editorPreview={editorPreview}
               lcpEagerFirst={lcpEagerFirst}
+              lcpIds={lcpIds}
+              serverCvPlan={ownsDoc ? ownedLcp.cv : null}
             />
           </LcpCandidatesProvider>
         </div>
@@ -498,6 +511,381 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
 // się na `memo` wyspy (bailout) przed odwodnioną granicą, a uwodniona wyspa
 // dostaje nową klasę we własnym przejściu.
 
+// ── CONTENT-VISIBILITY SEKCJI (P3.3) ──────────────────────────────────────
+//
+// PO CO. Pierwsza klatka dokumentu to jedno zadanie Style + Layout całej
+// strony (produkcja: 138-174 ms obs., Layout na 660 obiektach,
+// `faza3/diagnoza/waga-dokumentu.md` §7), a sekcje spod zgięcia to około
+// połowy elementów. Sekcje od TRZECIEJ w dokumencie (indeks >= 2) dostają
+// opakowanie z inline `content-visibility: auto` + `contain-intrinsic-size:
+// auto <szacunek>px`: przeglądarka pomija styl, układ i malowanie sekcji poza
+// ~1,5 ekranu od widoku (Chromium), a w ich miejscu stawia pas o wysokości
+// z szacunku (`estimateSectionHeight` - ta sama liczba, którą rezerwuje
+// szkielet strumienia). `auto` zapamiętuje prawdziwą wysokość po pierwszym
+// renderze, więc powrót przewijaniem w górę niczego nie przesuwa.
+//
+// DLACZEGO OPAKOWANIE I DLACZEGO TYLKO „OGON" DOKUMENTU (zmierzone w Chromium
+// 141, e2e `e2e/content-visibility.boot-home.spec.ts`). Element z cv, który
+// przy PIERWSZYM układzie leży w widoku, Chromium układa najpierw jako pas
+// z szacunku, a dopiero potem z treścią. Przesunięcie, które to wywołuje,
+// `layout-shift` liczy wyłącznie elementom BEZ cv (rodzeństwo z cv się nie
+// liczy): sekcja z szacunkiem 468 px i treścią 24 px tuż nad zgięciem
+// desktopu przesuwała szkielet strumieniowanej sekcji pod nią o 0,0094.
+// Dlatego:
+//  - cv siedzi na opakowaniu WOKÓŁ granicy strumienia sekcji, więc także jej
+//    szkielet (fallback) jest w środku elementu z cv;
+//  - cv dostaje tylko ciągły ogon sekcji kwalifikujących się do końca listy
+//    (`planServerCv`) - w rendererze za elementem z cv stoi wyłącznie element
+//    z cv;
+//  - ogon musi mieć łącznie co najmniej `CV_MIN_RUN_PX` szacunku: to, co stoi
+//    ZA rendererem (przypisy, reszta strony), leży wtedy pod zgięciem w obu
+//    przebiegach układu (stopka ma własne `.cv-auto`).
+// Sekcje w widoku i tak malują się w pierwszej klatce z treścią.
+//
+// KTO LICZY. Plan (indeks sekcji -> px) liczy WYŁĄCZNIE SERWER
+// (`isServerRender()`, gałąź znika z bundla klienta jak `lcpCandidateIds` -
+// budżet domknięcia bootu nie ma zapasu) i zapisuje go w opakowaniach
+// (`data-cv`, `data-cv-i`). Hydratacja odczytuje plan z opakowań serwera
+// w inicjalizatorze stanu renderera (`readServerCvPlan`, obok nośnika
+// kandydatów LCP) - opakowania leżą poza granicami Suspense, więc są w DOM-ie
+// od pierwszego bajtu powłoki. Ten sam bajt na serwerze i w kliencie.
+// `isServerRender()` stoi zawsze NA POCZĄTKU warunku: Rollup zwija tylko
+// wyrażenie, którego lewa strona jest znana (`isServer` = fałsz w buildzie
+// przeglądarki); za nieznanym operandem (`!isLcpOwner || isServerRender()`)
+// wywołanie zostaje w bundlu razem z funkcją i importem `isServer`.
+//
+// GDZIE. Tylko renderer treści z HTML-em serwera (`lcpIds` różne od `null`:
+// SSR i hydratacja renderera-właściciela) - te same warunki co wyspy sekcji:
+// bez kanwy, podglądu, treści wpisu (spis treści `FloatingShareBar` i skrypty
+// `.article-body` czytają geometrię nagłówków) i dokumentu ze spisem treści
+// (AGENTS.md: aktywność spisu z geometrii nagłówków; pominięta sekcja ma
+// geometrię pasa zastępczego). Render czysto kliencki (nawigacja SPA, powrót
+// „wstecz", sekcja odsłonięta po hydratacji) NIE dostaje cv: router przywraca
+// wtedy `scrollY` zapisane na prawdziwym układzie, a nowy węzeł z cv
+// malowałby się przez klatkę jako pas z szacunku.
+//
+// PRZYWRÓCENIE PRZEWINIĘCIA I KOTWICA PRZY WEJŚCIU. Dokument z serwera bywa
+// otwierany w połowie: przeładowanie albo powrót bez bfcache (skrypt TanStacka
+// na końcu `<main>` przywraca `scrollY` z `sessionStorage`) i adres z `#id`
+// (ten sam skrypt i przeglądarka przewijają do celu). Pozycja liczona na pasach
+// z szacunku trafiałaby wtedy obok celu, więc blok cv renderera ma strażnika
+// (`CV_GUARD_SCRIPT`, inline przed sekcjami): gdy czeka przywrócenie okna albo
+// adres ma fragment, ustawia `html[data-cv-off]`, a reguła z `CV_CSS` zdejmuje
+// cv ze wszystkich opakowań, zanim parser do nich dojdzie - strona zachowuje
+// się wtedy dokładnie jak bez P3.3. Fragment tekstowy (`/#:~:text=…`: linki
+// z wyszukiwarki, „Kopiuj link do wyróżnienia" w Chrome) też: Chromium wycina
+// dyrektywę fragmentu z adresu dokumentu (`location.hash` jest wtedy pusty),
+// ale zostaje ona w nazwie wpisu nawigacji
+// (`performance.getEntriesByType("navigation")[0].name`, dostępnej już przy
+// parsowaniu). Bez tego przewinięcie do tekstu liczyło się na pasach
+// z szacunku, a odsłonięcie sekcji nad celem spychało go o ekran w dół (albo
+// pozycja przepadała). Osobny `try`: zepsuty albo zablokowany
+// `sessionStorage` nie wyłącza tego sprawdzenia, a brak wpisu nawigacji - wpisu
+// przywrócenia. Pierwsze wejście (i przebieg Lighthouse'a) nie ma ani wpisu
+// przywrócenia, ani fragmentu.
+//
+// KOTWICA PO WCZYTANIU (nawigacja do fragmentu w tym samym dokumencie: link
+// `#id`, `location.hash`, wstecz/dalej między fragmentami). Przeglądarka
+// przewija do celu na układzie z chwili skoku: sekcje z cv nad celem stoją
+// wtedy na pasach z szacunku (na telefonie 1,3-3x za niskich) i dorysowują się
+// dopiero kilka klatek później. Zakotwiczenie przewijania Chromium nie zawsze
+// to wyrówna: kotwica bywa wybrana W pominiętej sekcji nad celem (jej poddrzewo
+// ułożył już ktoś, kto czytał w nim geometrię - pomiar widgetu, snapshotter
+// trace'u Playwrighta w CI), a wtedy wzrost tej sekcji pod kotwicą spycha cel
+// o setki pikseli w dół (CI fali 3: cel 1240 px pod górą widoku telefonu);
+// Safari zakotwiczenia nie ma wcale. Dlatego strażnik nasłuchuje też nawigacji
+// do fragmentu i przy PIERWSZEJ, której cel leży w obszarze cv (w opakowaniu
+// albo za pierwszym z nich - cele nad ogonem, np. link „przejdź do treści",
+// nic nie kosztują), ustawia ten sam wyłącznik `html[data-cv-off]`, ZANIM
+// przeglądarka policzy przewinięcie:
+//  - `click` w fazie przechwytywania na oknie (przed każdym handlerem strony
+//    i routera): link albo obszar mapy z `href` do fragmentu tego samego
+//    dokumentu, bez modyfikatora i bez `target` innego niż `_self`;
+//  - `popstate`: przychodzi synchronicznie w nawigacji do fragmentu
+//    (`location.hash`, pasek adresu) i przy wstecz/dalej. Chromium wysyła je
+//    PRZED przewinięciem (zmierzone), WebKit PO nim, na pasach
+//    (`FrameLoader::loadInSameDocument`). Strażnik czyta więc położenie celu
+//    jeszcze na pasach: cel już w widoku znaczy, że przeglądarka przewinęła
+//    (WebKit). Wtedy po wyłączeniu cv przewija cel (`scrollIntoView`) na
+//    prawdziwym układzie w najbliższej klatce (`requestAnimationFrame` - przed
+//    jej malowaniem, ale PO nasłuchu `popstate` routera: TanStack zapamiętuje
+//    w nim pozycję wpisu, z którego się wychodzi, a przewinięcie przed tym
+//    zapisem psułoby powrót „wstecz" do miejsca czytania). W Chromium
+//    przeglądarka umieściła już cel w tym samym miejscu. Cel poza widokiem
+//    (Chromium, wstecz/dalej): tylko wyłączenie, przewinięcie zostaje
+//    przeglądarce albo routerowi;
+//  - `hashchange` jako siatka (silnik bez `popstate` przy fragmencie): gdy cv
+//    jest jeszcze włączone - to samo.
+// Strażnik przewija tylko w klatce zaraz po nawigacji, która wyłączyła cv,
+// więc nie walczy z przewijaniem, które użytkownik zaczyna po skoku. Raz
+// wyłączone cv zostaje wyłączone do końca życia dokumentu. Koszt: jednorazowe
+// odsłonięcie sekcji w zadaniu tej nawigacji, więc INP tego jednego kliku
+// wraca do poziomu sprzed P3.3; zysk przy wczytaniu i przy zwykłym
+// przewijaniu zostaje. `<Link hash>` i `router.navigate({ hash })` na tej
+// samej stronie w ogóle nie przewijają (`defaultHashScrollIntoView: false`
+// w `src/router.tsx`), a klik w taki link i tak wyłącza cv w fazie
+// przechwytywania.
+//
+// WYŁĄCZENIA SEKCJI (`serverSectionCv`). `content-visibility: auto` włącza na
+// stałe zawieranie układu, stylu i malowania opakowania: staje się ono blokiem
+// zawierającym dla potomków `position: fixed`, przycina malowanie do swojego
+// pudełka i nie przepuszcza marginesów. Sekcja dostaje cv tylko wtedy, gdy:
+//  - KAŻDY jej widget ma typ z `CV_SAFE_WIDGET_TYPES` (drzewo bez `fixed`/
+//    `sticky` poza portalem i bez treści wylewającej się poza sekcję -
+//    wyszukiwarka, menu, odtwarzacz z dokowaniem, przeglądarka relacji itd.
+//    zostają poza listą; nowy typ widgetu domyślnie NIE dostaje cv), nie jest
+//    globalny (`globalId`: treść z innego rekordu) i nie jest kandydatem LCP;
+//  - sama sekcja nie ma klasy autora, cienia, rozciągnięcia na 100vw ani
+//    pionowych marginesów (rzeczy, które wychodzą poza pudełko opakowania albo
+//    zlewają się z sąsiadem);
+//  - ani sekcja, ani jej kolumny/sekcje wewnętrzne/widgety nie mają klasy ani
+//    CSS autora z `fixed`/`sticky` i tła/nakładki z `attachment: fixed`;
+//  - nikt w sekcji nie ma autorskiej kotwicy (`advanced.htmlId`): cel linku
+//    z menu (`/#kontakt`) zostaje zwykłą sekcją z dokładną geometrią, także
+//    dla nasłuchów, które czytają położenie celów kotwic.
+// Druk: Chromium drukuje pominięte sekcje (sprawdzone na `page.pdf()`), a dla
+// pozostałych silników `CV_CSS` ma regułę `@media print` - styl inline nie ma
+// zapytań o media.
+//
+// BLOK CV W HTML-U. `<style>` (`CV_CSS`) i `<script>` (`CV_GUARD_SCRIPT`) stoją
+// w jednym ukrytym `<div>` z `dangerouslySetInnerHTML`, którego treść renderuje
+// tylko serwer; klient renderuje ten sam węzeł z pustym `__html`
+// i `suppressHydrationWarning` - React przy hydratacji nie dotyka `innerHTML`
+// (produkcja; w DEV ten znacznik wyłącza porównanie), a `CvBlock` jest `memo`
+// bez propsów, więc żaden późniejszy commit go nie przepisuje. Stałe nie
+// wchodzą do bundla klienta (wzór: gniazdo powłoki zgód w `__root.tsx`).
+
+/** Pierwszy indeks sekcji W DOKUMENCIE z `content-visibility` (P3.3). */
+const CV_FIRST_SECTION_INDEX = 2;
+
+/**
+ * Najmniejsza łączna rezerwa ogona z cv (px): dwa wysokie ekrany desktopu
+ * (~1300 px). Krótszy ogon mógłby w całości zmieścić się nad zgięciem razem
+ * z tym, co stoi za rendererem (DLACZEGO OPAKOWANIE... wyżej).
+ */
+const CV_MIN_RUN_PX = 2600;
+
+/**
+ * Typy widgetów bezpieczne dla `content-visibility: auto` na sekcji: ich drzewo
+ * nie renderuje potomków `position: fixed`/`sticky` poza portalem (lightboksy,
+ * listy rozwijane i okna idą portalem do `body`) i nie wylewa się poza sekcję
+ * celowo. Lista dozwolonych, nie zakazanych: typ spoza listy (także nowy)
+ * zostawia sekcję bez cv - tracimy wtedy tylko oszczędność, nie układ.
+ */
+const CV_SAFE_WIDGET_TYPES: ReadonlySet<string> = /* @__PURE__ */ new Set([
+  "heading",
+  "text",
+  "image",
+  "button",
+  "divider",
+  "spacer",
+  "counter",
+  "icon",
+  "rich-text",
+  "post-list",
+  "carousel",
+  "progress-carousel",
+  "circular-carousel",
+  "categories",
+  "tags",
+  "newsletter",
+  "cta",
+  "join-us",
+  "accordion",
+  "timeline",
+  "logo-cloud",
+  "testimonial",
+  "slider",
+  "section-label",
+  "animated-heading",
+  "text-rotate",
+  "tailored-must-reads",
+  "news-ticker",
+  "trending-now",
+  "hot-topic-bar",
+  "rated-list",
+  "dark-featured-card",
+  "cover-overlay-card",
+  "promo-card",
+  "event-list",
+  "event-countdown",
+  "event-countdown-card",
+]);
+
+const FIXED_OR_STICKY = /\b(?:fixed|sticky)\b/;
+
+/** Ustawienia węzła wykluczające sekcję z cv: kotwica autora albo `fixed`/`sticky` w klasie/CSS. */
+function cvBlockedBy(advanced: AdvancedSettings | undefined): boolean {
+  return (
+    !!advanced &&
+    (!!advanced.htmlId?.trim() ||
+      FIXED_OR_STICKY.test(advanced.cssClass ?? "") ||
+      FIXED_OR_STICKY.test(advanced.customCss ?? ""))
+  );
+}
+
+const fixedAttachment = (...layers: Array<BackgroundSettings | undefined>): boolean =>
+  layers.some((layer) => layer?.attachment === "fixed");
+
+function cvSafeColumn(column: ColumnNode | undefined, lcpIds: readonly string[]): boolean {
+  if (!column) return true;
+  if (cvBlockedBy(column.advanced)) return false;
+  return (Array.isArray(column.children) ? column.children : []).every(
+    (w) =>
+      !w ||
+      (CV_SAFE_WIDGET_TYPES.has(w.type) &&
+        !w.globalId &&
+        !lcpIds.includes(w.id) &&
+        !cvBlockedBy(w.advanced)),
+  );
+}
+
+/**
+ * TYLKO SERWER: rezerwa `contain-intrinsic-size` sekcji (px) albo `undefined`,
+ * gdy sekcja nie może dostać `content-visibility` (WYŁĄCZENIA SEKCJI wyżej).
+ * Węzły czytane defensywnie - dokument z bazy (jsonb) nie zawsze trzyma się
+ * typu.
+ */
+function serverSectionCv(section: SectionNode, lcpIds: readonly string[]): number | undefined {
+  const layout = section.layout;
+  if (
+    cvBlockedBy(section.advanced) ||
+    !!section.advanced?.cssClass?.trim() ||
+    layout?.stretch ||
+    !!layout?.marginTop ||
+    !!layout?.marginBottom ||
+    !!section.border?.boxShadow ||
+    !!section.borderHover?.boxShadow ||
+    fixedAttachment(
+      section.background,
+      section.backgroundHover,
+      section.overlay,
+      section.overlayHover,
+    )
+  ) {
+    return undefined;
+  }
+  for (const child of Array.isArray(section.children) ? section.children : []) {
+    if (!child) continue;
+    if (child.kind === "inner-section") {
+      if (cvBlockedBy(child.advanced) || fixedAttachment(child.background)) return undefined;
+      const columns = Array.isArray(child.columns) ? child.columns : [];
+      if (!columns.every((column) => cvSafeColumn(column, lcpIds))) return undefined;
+    } else if (!cvSafeColumn(child, lcpIds)) {
+      return undefined;
+    }
+  }
+  return estimateSectionHeight(section);
+}
+
+/** Plan cv: indeks sekcji W DOKUMENCIE -> rezerwa (px). */
+type CvPlan = ReadonlyMap<number, number>;
+
+/**
+ * TYLKO SERWER: plan cv malowanych sekcji - ciągły ogon kwalifikujących się
+ * sekcji od indeksu `CV_FIRST_SECTION_INDEX`, liczony od końca listy do
+ * pierwszej sekcji bez cv, o łącznej rezerwie >= `CV_MIN_RUN_PX`; inaczej
+ * `null` (DLACZEGO OPAKOWANIE... wyżej).
+ */
+function planServerCv(
+  visible: ReadonlyArray<{ s: SectionNode; docIndex: number }>,
+  lcpIds: readonly string[],
+): CvPlan | null {
+  const plan = new Map<number, number>();
+  let total = 0;
+  for (let i = visible.length - 1; i >= 0; i -= 1) {
+    const { s, docIndex } = visible[i];
+    const px = docIndex >= CV_FIRST_SECTION_INDEX ? serverSectionCv(s, lcpIds) : undefined;
+    if (px === undefined) break;
+    plan.set(docIndex, px);
+    total += px;
+  }
+  return total >= CV_MIN_RUN_PX ? plan : null;
+}
+
+/**
+ * Hydratacja: plan cv z opakowań, które serwer wyrenderował bezpośrednio
+ * w korzeniu renderera o tym `useId()` (`data-lcp-root`; wartość bez cudzysłowu
+ * i ukośnika), albo `null` (renderer bez cv, render czysto kliencki -
+ * identyfikatory klienta mają inny kształt niż serwerowe).
+ */
+function readServerCvPlan(rootId: string): CvPlan | null {
+  const plan = new Map<number, number>();
+  for (const el of document.querySelectorAll<HTMLElement>(
+    `[data-lcp-root="${rootId}"] > [data-cv]`,
+  )) {
+    plan.set(+el.dataset.cvI!, +el.dataset.cv!);
+  }
+  return plan.size ? plan : null;
+}
+
+/**
+ * Reguły bloku cv: druk bez pominiętych sekcji także poza Chromium (styl inline
+ * nie ma `@media`) i wyłącznik strażnika `html[data-cv-off]`. `!important`
+ * arkusza wygrywa ze zwykłą deklaracją inline.
+ */
+const CV_CSS =
+  "@media print{[data-cv]{content-visibility:visible!important}}" +
+  "[data-cv-off] [data-cv]{content-visibility:visible!important}";
+
+/**
+ * Strażnik cv (ES5, jedno IIFE bez zmiennych globalnych).
+ *
+ * 1. Wejście w połowie strony (PRZYWRÓCENIE PRZEWINIĘCIA I KOTWICA PRZY
+ *    WEJŚCIU wyżej). Czyta to samo co skrypt przywracania TanStacka: wpis okna
+ *    w `sessionStorage["tsr-scroll-restoration-v1_3"]` (`storageKey` z
+ *    `@tanstack/router-core` - zgodność pilnuje test) pod kluczem
+ *    `history.state.__TSR_key`, oraz fragment adresu - także tekstowy (`:~:`
+ *    po `#` w nazwie wpisu nawigacji; Chromium nie pokazuje go w `location`).
+ * 2. Nawigacja do fragmentu po wczytaniu (KOTWICA PO WCZYTANIU wyżej): `f`
+ *    zamienia fragment na element w obszarze cv (`compareDocumentPosition`
+ *    z pierwszym opakowaniem: bit FOLLOWING = 4 obejmuje też jego potomków)
+ *    albo `null`; `o` ustawia wyłącznik raz i mówi, czy to zrobił; `g`
+ *    (`popstate`, `hashchange`) czyta położenie celu jeszcze przy cv i przewija
+ *    go w najbliższej klatce tylko wtedy, gdy samo wyłączyło cv, a przeglądarka
+ *    już przewinęła (cel w widoku).
+ *
+ * Atrybut na `<html>` (`suppressHydrationWarning` w `__root.tsx`, jak skrypty
+ * zgód). Literał - bramka `check:dangerous-html`.
+ */
+const CV_GUARD_SCRIPT =
+  '(function(d,h,c){function o(e){if(!e||h.hasAttribute(c))return 0;h.setAttribute(c,"");' +
+  "return 1}function f(s){try{var i=s.slice(1),e=i&&(d.getElementById(i)||d.getElementById(" +
+  'decodeURIComponent(i))),w=d.querySelector("[data-cv]");return e&&w&&w.compareDocumentPosition(' +
+  "e)&4?e:null}catch(x){return null}}function g(){var e=f(location.hash),t=e&&!h.hasAttribute(c)" +
+  "&&e.getBoundingClientRect().top;o(e)&&t>=0&&t<innerHeight&&requestAnimationFrame(function(){" +
+  "e.scrollIntoView()})}try{var k=(history.state||{}).__TSR_key,w=k&&(JSON.parse(" +
+  'sessionStorage.getItem("tsr-scroll-restoration-v1_3")||"{}")[k]||{}).window;' +
+  "if(location.hash.length>1||w&&w.scrollY>0)o(h)}catch(x){}" +
+  'try{/#.*:~:/.test(performance.getEntriesByType("navigation")[0].name)&&o(h)}catch(x){}' +
+  'addEventListener("click",function(v){try{var a=v.target.closest("a[href],area[href]");' +
+  'a&&!(v.ctrlKey||v.metaKey||v.shiftKey||v.altKey)&&(!a.target||a.target=="_self")&&' +
+  'a.href.split("#")[0]==location.href.split("#")[0]&&o(f(a.hash))}catch(x){}},!0);' +
+  'addEventListener("popstate",g);addEventListener("hashchange",g)})(document,' +
+  'document.documentElement,"data-cv-off")';
+
+/**
+ * Treść bloku cv (serwer): reguły i strażnik w jednym ukrytym węźle - `<style>`
+ * działa niezależnie od `display`, a skrypt wstawiony parserem wykonuje się
+ * przy parsowaniu.
+ */
+const CV_BLOCK_HTML = `<style>${CV_CSS}</style><script>${CV_GUARD_SCRIPT}</script>`;
+
+/**
+ * Blok cv renderera (BLOK CV W HTML-U). `memo` bez propsów: po montażu (także
+ * hydratacji) nie renderuje się ponownie, więc React nigdy nie porównuje ani nie
+ * przepisuje pustego `__html` klienta - treść serwera zostaje w DOM-ie.
+ */
+const CvBlock = memo(function CvBlock() {
+  return (
+    <div
+      hidden
+      suppressHydrationWarning
+      dangerouslySetInnerHTML={{ __html: isServerRender() ? CV_BLOCK_HTML : "" }}
+    />
+  );
+});
+
 /**
  * Treść sekcji-wyspy. Wszystkie propsy są niezależne od urządzenia i stałe
  * między renderami listy (obiekt sekcji z dokumentu, język, źródło renderera,
@@ -533,6 +921,8 @@ const SectionsList = memo(function SectionsList({
   stream,
   editorPreview,
   lcpEagerFirst,
+  lcpIds,
+  serverCvPlan,
 }: {
   sections: SectionNode[];
   lang: "pl" | "en";
@@ -543,6 +933,10 @@ const SectionsList = memo(function SectionsList({
   editorPreview: boolean;
   /** Render czysto kliencki właściciela: pierwsza malowana sekcja ładuje obrazy eager (`LcpImage`). */
   lcpEagerFirst: boolean;
+  /** Kandydaci LCP z nośnika serwera; `null` = brak nośnika. Czyta tylko serwer (plan cv, P3.3). */
+  lcpIds: readonly string[] | null;
+  /** Plan cv odczytany z HTML-u serwera przy hydratacji (P3.3); `null` poza nią. */
+  serverCvPlan: CvPlan | null;
 }) {
   const accessCtx = useAccessContext();
   const builderMode = useBuilderMode();
@@ -567,8 +961,18 @@ const SectionsList = memo(function SectionsList({
       ? [{ s, docIndex }]
       : [],
   );
+  // `content-visibility` (P3.3): warunki wysp + HTML serwera (nośnik kandydatów
+  // LCP). Plan liczy serwer; hydratacja bierze go z opakowań serwera tego
+  // samego dokumentu - są tylko tam, gdzie serwer miał wyspy i nośnik, więc
+  // klient nie sprawdza warunków drugi raz (krótsza ścieżka w bundlu bootu).
+  const cvPlan = isServerRender()
+    ? islands && lcpIds
+      ? planServerCv(visible, lcpIds)
+      : null
+    : serverCvPlan;
   return (
     <>
+      {cvPlan && <CvBlock />}
       {visible.map(({ s, docIndex }, index) => {
         const abTag = s.advanced?.abTest;
         // Priorytet obrazów NIE wynika już z indeksu sekcji: kandydatów LCP
@@ -579,8 +983,9 @@ const SectionsList = memo(function SectionsList({
         // drzewo jest identyczne w SSR i przy hydratacji.
         const eager = lcpEagerFirst && index === 0;
         const island = islands && docIndex >= 1 ? sectionIslandInfo(s) : null;
+        let entry: ReactNode;
         if (island?.eligible) {
-          return (
+          entry = (
             <StreamingSection key={s.id} section={s} lang={lang} device={device} enabled={stream}>
               <HydrationIsland
                 id={`sec-${s.id}`}
@@ -597,24 +1002,40 @@ const SectionsList = memo(function SectionsList({
               </HydrationIsland>
             </StreamingSection>
           );
+        } else {
+          const rendered = (
+            <RenderErrorBoundary label={`section:${s.id}`}>
+              <LcpEagerSection eager={eager}>
+                <RenderSection section={s} lang={lang} device={device} />
+              </LcpEagerSection>
+            </RenderErrorBoundary>
+          );
+          entry = (
+            <StreamingSection key={s.id} section={s} lang={lang} device={device} enabled={stream}>
+              {abTag && !editorPreview && assignments ? (
+                <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
+                  {rendered}
+                </ExperimentSection>
+              ) : (
+                rendered
+              )}
+            </StreamingSection>
+          );
         }
-        const rendered = (
-          <RenderErrorBoundary label={`section:${s.id}`}>
-            <LcpEagerSection eager={eager}>
-              <RenderSection section={s} lang={lang} device={device} />
-            </LcpEagerSection>
-          </RenderErrorBoundary>
-        );
-        return (
-          <StreamingSection key={s.id} section={s} lang={lang} device={device} enabled={stream}>
-            {abTag && !editorPreview && assignments ? (
-              <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
-                {rendered}
-              </ExperimentSection>
-            ) : (
-              rendered
-            )}
-          </StreamingSection>
+        // Opakowanie cv (P3.3) poza granicą strumienia: szkielet sekcji też jest
+        // w środku, a opakowanie leży w powłoce HTML-u (odczyt planu przy hydratacji).
+        const cvPx = cvPlan?.get(docIndex);
+        return cvPx ? (
+          <div
+            key={s.id}
+            data-cv={cvPx}
+            data-cv-i={docIndex}
+            style={{ contentVisibility: "auto", containIntrinsicSize: `auto ${cvPx}px` }}
+          >
+            {entry}
+          </div>
+        ) : (
+          entry
         );
       })}
     </>
@@ -658,38 +1079,26 @@ function ExperimentSection({
 }
 
 /**
- * Decorative section background video. Keeps autoplay semantics (no visual
- * change), but preloads only metadata and pauses playback whenever the section
- * leaves the viewport - offscreen background videos were silently burning
- * bandwidth, decode time and battery on long builder pages.
+ * Decorative section background video. Preloads only metadata and pauses
+ * playback whenever the section leaves the viewport - offscreen background
+ * videos were silently burning bandwidth, decode time and battery on long
+ * builder pages.
+ *
+ * BRAMKA RUCHU (P3.5, `useGatedVideoAutoplay`): HTML z serwera nie ma atrybutu
+ * `autoplay`, więc wideo nie rusza przy pierwszym malowaniu (w środku śladu
+ * Lighthouse'a). Odtwarzanie zaczyna się po pierwszej interakcji albo w
+ * punkcie ciszy strony - nadal tylko wtedy, gdy sekcja jest przy viewporcie.
+ * Do tego czasu stoi pierwsza klatka, także na iOS (`firstFrameVideoSrc`:
+ * sekcja nie ma plakatu, a bez fragmentu `#t=` tło byłoby puste).
  */
 function SectionBackgroundVideo({ src }: { src: string }) {
   const ref = useRef<HTMLVideoElement | null>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            void el.play().catch(() => undefined);
-          } else {
-            el.pause();
-          }
-        }
-      },
-      { rootMargin: "200px 0px" },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
+  useGatedVideoAutoplay(ref, true, src, true);
 
   return (
     <video
       ref={ref}
-      src={src}
-      autoPlay
+      src={firstFrameVideoSrc(src)}
       muted
       loop
       playsInline

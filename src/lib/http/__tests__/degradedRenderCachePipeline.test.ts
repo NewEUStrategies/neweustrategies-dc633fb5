@@ -33,6 +33,7 @@ import {
   applyDeferredDocumentStore,
   getDocumentCacheSnapshot,
   handleDocumentRequest,
+  probeDocumentCache,
   resetDocumentCacheForTests,
 } from "../documentCache.server";
 import { liveCacheControl, planDefaultCacheControl } from "../defaultCacheControl";
@@ -291,5 +292,55 @@ describe("degradacja WYŁĄCZNIE chrome'u: krótka świeżość wspólna zamiast
     await settle();
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(storedEntries()).toBe(0);
+  });
+});
+
+// ŚWIEŻOŚĆ Z DYREKTYWY KOŃCOWEJ (fala 3, P3.6b, R2b). Rekord odroczonego zapisu
+// powstaje w middleware, gdy znana jest tylko polityka z chwili powrotu
+// handlera. Dyrektywa zawężona PÓŹNIEJ - w trakcie strumieniowania, np. przez
+// chrome dostrumieniowany po flushu - ma rządzić świeżością wpisu: inaczej
+// dokument „krótki" żyłby w magazynie pełne 3 min i dobę STALE.
+describe("świeżość wpisu z dyrektywy na końcu strumienia (P3.6b)", () => {
+  it("dyrektywa zawężona W TRAKCIE strumieniowania skraca świeżość zapisanego wpisu", async () => {
+    const handler = requestHandler(async (request: Request) => {
+      const routed = await handleDocumentRequest(request, () => {
+        setCacheControlHeader(resilientCacheControl(false));
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("<html><body>powłoka"));
+            // Ten sam zasięg żądania co loader (AsyncLocalStorage przechodzi
+            // przez timer) - jak bramka chrome'u dostrumieniowana po flushu.
+            setTimeout(() => {
+              setCacheControlHeader(chromeDegradedCacheControl());
+              controller.enqueue(
+                new TextEncoder().encode("<header>nagłówek</header></body></html>"),
+              );
+              controller.close();
+            }, 5);
+          },
+        });
+        return defaultCacheControlLayer(
+          request,
+          new Response(body, { status: 200, headers: { [HTML]: HTML_VALUE } }),
+        );
+      });
+      return routed as Response;
+    });
+    const response = applyDeferredDocumentStore(
+      await handler(
+        new Request("https://tenant-a.eu/analiza", {
+          headers: { "x-forwarded-host": "tenant-a.eu" },
+        }),
+        {},
+      ),
+    );
+    // Nagłówki wyszły przed zawężeniem - czytelnik widzi politykę z flushu.
+    expect(response.headers.get("cache-control")).toBe(contentCacheControl());
+    await response.text();
+    await settle();
+    expect(storedEntries()).toBe(1);
+    const probe = await probeDocumentCache("/analiza", "tenant-a.eu");
+    expect(probe.cacheControl).toBe(chromeDegradedCacheControl());
+    expect(probe.freshForS).toBeLessThanOrEqual(30);
   });
 });

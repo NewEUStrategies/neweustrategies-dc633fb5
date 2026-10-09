@@ -42,7 +42,18 @@ describe("klucz zapytania slidera postow", () => {
       excludeIds: [],
       orderBy: "newest",
       lang: "en",
+      // P3.7b, T2: przełącznik zajawki widoku (`asBool(c.showExcerpt, true)`) w kluczu.
+      withExcerpt: true,
     });
+  });
+
+  it("zajawka w kluczu: slider z wyłączoną zajawką ma własny wpis cache (P3.7b, T2)", () => {
+    expect(sliderPostsInput({ showExcerpt: false }, "pl").withExcerpt).toBe(false);
+    expect(sliderPostsInput({ showExcerpt: "0" }, "pl").withExcerpt).toBe(false);
+    expect(sliderPostsInput({ showExcerpt: "1" }, "pl").withExcerpt).toBe(true);
+    expect(sliderPostsQueryOptions({ ...byTitle, showExcerpt: false }, "pl").queryKey).not.toEqual(
+      sliderPostsQueryOptions(byTitle, "pl").queryKey,
+    );
   });
 
   it("nie niesie martwego filtra `categoryId`", () => {

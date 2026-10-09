@@ -18,6 +18,7 @@ import {
 } from "@/lib/content-model/postContext";
 import { AppLink } from "@/components/atoms/AppLink";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { LEGACY_AVATAR_RESPONSIVE_WIDTHS } from "@/lib/cropSizes";
 import { ProfileCard, type ProfileCardStyle } from "@/components/ui/profile-card";
 
 import { formatDate } from "@/lib/i18n/format";
@@ -205,6 +206,8 @@ export function AuthorBioView({
         alt={author.name}
         className={`${avatarShape} object-cover w-full h-full ${isSplit ? "shadow-sm" : "ring-2 ring-border"}`}
         responsive
+        // Awatar bez zmian (decyzja właściciela 2026-10-08): dawna drabina i adres absolutny.
+        responsiveWidths={LEGACY_AVATAR_RESPONSIVE_WIDTHS}
         sizes={isSplit ? "220px" : "96px"}
       />
     ) : (

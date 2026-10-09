@@ -397,6 +397,82 @@ describe("NewsletterPopup: reguła wyzwalacza decyduje, kiedy czytelnik zostaje 
 });
 
 // ---------------------------------------------------------------------------
+// KOTWICA OPÓŹNIENIA (P3.8). Korzeń montuje popup dopiero przy pierwszej
+// interakcji albo w punkcie ciszy, więc pierwsze uzbrojenie w dokumencie liczy
+// `popup_delay_seconds` od STARTU NAWIGACJI (`performance.now()`, który
+// fałszywy zegar startuje od zera, minus `activationStart` dokumentu
+// prerenderowanego), a nie od montażu.
+// ---------------------------------------------------------------------------
+
+describe("NewsletterPopup: opóźnienie liczone od startu nawigacji (P3.8)", () => {
+  it("montaż 10 s po starcie nawigacji skraca 15 s do pozostałych 5 s", async () => {
+    vi.advanceTimersByTime(10_000);
+    await mount({ popup_delay_seconds: 15 });
+
+    await advance(4_500);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await advance(600);
+    await act(() => vi.dynamicImportSettled());
+    expect(dialog()).toBeInTheDocument();
+  });
+
+  it("opóźnienie krótsze niż czas do montażu: popup nie miga - podłoga 1 s od uzbrojenia", async () => {
+    vi.advanceTimersByTime(30_000);
+    await mount({ popup_delay_seconds: 15 });
+
+    await advance(900);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await advance(100);
+    await act(() => vi.dynamicImportSettled());
+    expect(dialog()).toBeInTheDocument();
+  });
+
+  it("dokument prerenderowany (Speculation Rules): kotwica liczy od aktywacji, nie od startu prerenderu", async () => {
+    // Prerender trwał 9 s, czytelnik wszedł (aktywacja), popup montuje się
+    // sekundę później - 10 s od startu dokumentu.
+    vi.advanceTimersByTime(10_000);
+    const entries = vi
+      .spyOn(performance, "getEntriesByType")
+      .mockReturnValue([
+        { entryType: "navigation", activationStart: 9_000 } as unknown as PerformanceEntry,
+      ]);
+    try {
+      await mount({ popup_delay_seconds: 15 });
+
+      // Od startu dokumentu zostałoby 5 s; od aktywacji zostaje 14 s.
+      await advance(6_000);
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      await advance(8_500);
+      await act(() => vi.dynamicImportSettled());
+      expect(dialog()).toBeInTheDocument();
+    } finally {
+      entries.mockRestore();
+    }
+  });
+
+  it("kolejne uzbrojenie (nawigacja SPA) liczy pełne opóźnienie od siebie", async () => {
+    vi.advanceTimersByTime(10_000);
+    const view = await mount({ popup_delay_seconds: 15 });
+    await advance(2_000);
+
+    h.pathname = "/artykul/inny";
+    view.remount();
+    await flush();
+    // Kotwica dotyczyła pierwszego uzbrojenia (popup za 3 s); po nawigacji
+    // liczy się od nowa - pełne 15 s.
+    await advance(5_000);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await advance(10_000);
+    await act(() => vi.dynamicImportSettled());
+    expect(dialog()).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // ZAMYKANIE I PAMIĘĆ ZAMKNIĘCIA
 // ---------------------------------------------------------------------------
 

@@ -71,6 +71,16 @@ vi.mock("@/lib/chat/minimizedChats", () => ({
   minimizedChatsStore: { restore: () => {}, remove: () => {}, clearRequest: () => {} },
 }));
 vi.mock("@/components/mobile/bottomBar/LiveTabBadge", () => ({ LiveTabBadge: () => null }));
+// Kanał toastów otwiera się w efekcie, więc nie zmienia HTML-a serwera ani
+// hydratacji; montaż dowodzi `WorkspaceDock.incomingToasts.test.tsx`.
+// Preferencje powiadomień to zapytanie, którego serwer nie wykonuje.
+vi.mock("@/lib/chat/useIncomingChatToasts", () => ({
+  useIncomingChatToasts: () => {},
+  dismissIncomingChatToast: () => {},
+}));
+vi.mock("@/lib/notifications/preferencesQuery", () => ({
+  useNotificationPreferences: () => ({ data: undefined, isError: false }),
+}));
 
 import { WorkspaceDock } from "../WorkspaceDock";
 

@@ -17,6 +17,7 @@ import { ArrowRight } from "@/lib/lucide-shim";
 import { PopupImage } from "@/components/atoms/PopupImage";
 import { popupGallerySizes } from "@/lib/newsletter/popupImages";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import {
   contrastRatio,
   galleryBackground,
@@ -122,7 +123,10 @@ export function SignupShowcase({
   const reducedMotion = usePrefersReducedMotion(autoRotate);
   const tiles = useMemo(() => images.slice(0, 4), [images]);
   const count = tiles.length;
-  const rotating = autoRotate && !reducedMotion && !hovered && !focused;
+  // Bramka ruchu (P3.5): rotacja kafli rusza po pierwszej interakcji albo w
+  // punkcie ciszy strony (popup pokazuje się zwykle już po niej).
+  const motion = useMotionGate(autoRotate && count > 1);
+  const rotating = autoRotate && motion && !reducedMotion && !hovered && !focused;
 
   useEffect(() => {
     if (!rotating || count < 2) return;

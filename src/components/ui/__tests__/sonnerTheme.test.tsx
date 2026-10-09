@@ -6,12 +6,15 @@
 // automatyczne wykrywanie czytałoby styl całego dokumentu. Region powiadomień
 // jest ogłaszany czytnikowi i osiągalny skrótem Alt+T.
 //
-// Montowanie bez wymuszania odczytu stylów pilnuje `sonner.test.tsx`; ten plik
-// go nie dubluje. `matchMedia` podmieniam wyłącznie w testach motywu `system`
+// Montowanie bez wymuszania odczytu stylów pilnuje `sonner.test.tsx`, a
+// położenie listy i nazwę regionu w języku interfejsu `sonnerPlacement.test.tsx`;
+// ten plik ich nie dubluje. Prawdziwy tłumacz (`@/test/i18nReal`), bo nazwa
+// regionu pochodzi ze słownika. `matchMedia` podmieniam wyłącznie w testach motywu `system`
 // (happy-dom nie zna preferencji systemu) i przywracam w `afterEach`.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { toast } from "sonner";
+import "@/test/i18nReal";
 import { Toaster } from "../sonner";
 
 afterEach(() => {
@@ -55,7 +58,7 @@ async function showToast() {
 describe("Toaster - motyw", () => {
   it("ogłasza region powiadomień czytnikowi ekranu uprzejmie, bez przerywania", () => {
     render(<Toaster />);
-    const region = screen.getByRole("region", { name: /Notifications/ });
+    const region = screen.getByRole("region", { name: /^Powiadomienia/ });
     expect(region).toHaveAttribute("aria-live", "polite");
     expect(region).toHaveAttribute("aria-atomic", "false");
   });

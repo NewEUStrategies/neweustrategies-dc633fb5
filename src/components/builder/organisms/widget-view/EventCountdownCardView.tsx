@@ -13,6 +13,7 @@ import { CalendarDays, Clock, Users, MapPin, ArrowRight } from "@/lib/lucide-shi
 import { eventByIdQueryOptions, eventRsvpCountsQueryOptions } from "@/lib/builder/eventsQuery";
 import { countdownParts, isStartingSoon, pad2, parseCountdownTarget } from "@/lib/events/countdown";
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
+import { MOTION_IDLE_TICK_MS, useMotionGate } from "@/lib/performance/motionGate";
 import { getBool, getNum, getStr, type Lang } from "./frame";
 import { asOneOf } from "@/lib/content-model/contentValue";
 import { formatEventDateTime } from "@/lib/events/timezone";
@@ -113,12 +114,21 @@ export function EventCountdownCardView({ c, lang }: { c: WidgetContent; lang: La
   // "Teraz" startuje dopiero po montazu - SSR i pierwszy render klienta sa
   // identyczne (placeholdery), wiec hydratacja nigdy sie nie rozjezdza.
   const [nowMs, setNowMs] = useState<number | null>(null);
+  const counting = targetMs !== null && showCountdown;
   useEffect(() => {
-    if (targetMs === null || !showCountdown) return;
+    if (!counting) return;
     setNowMs(Date.now());
-    const interval = window.setInterval(() => setNowMs(Date.now()), showSeconds ? 1000 : 30_000);
+  }, [counting, targetMs]);
+  // Bramka ruchu (P3.5): do pierwszej interakcji albo punktu ciszy zegar tyka
+  // co minutę (cyfra sekund stoi), potem co sekundę. Samo otwarcie niczego
+  // nie przelicza - pierwszy takt sekundnika przychodzi pełną sekundę później.
+  const motion = useMotionGate(counting);
+  const tickMs = !motion ? MOTION_IDLE_TICK_MS : showSeconds ? 1000 : 30_000;
+  useEffect(() => {
+    if (!counting) return;
+    const interval = window.setInterval(() => setNowMs(Date.now()), tickMs);
     return () => window.clearInterval(interval);
-  }, [targetMs, showSeconds, showCountdown]);
+  }, [counting, tickMs]);
 
   if (targetMs === null) {
     if (inBuilder) {

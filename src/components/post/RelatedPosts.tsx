@@ -20,6 +20,8 @@ import { isGpcCurrentlyHonored } from "@/lib/ads/consent";
 import { formatDate } from "@/lib/i18n/format";
 import { trackRelatedClick } from "@/lib/relatedClickBeacon";
 import { accentFor } from "./relatedVisuals";
+import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import { ArrowUpRight, Clock, Sparkles } from "lucide-react";
 
 export interface RelatedPostsProps {
@@ -327,9 +329,14 @@ function RelatedList({ posts, cfg, lang, sourcePostId }: ViewProps) {
 function RelatedSlider({ posts, cfg, lang, sourcePostId }: ViewProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [idx, setIdx] = useState(0);
+  // Bramka ruchu (P3.5): automat rusza dopiero po pierwszej interakcji albo w
+  // punkcie ciszy strony (pierwszy krok = otwarcie + pełny interwał), a przy
+  // `prefers-reduced-motion` wcale - przewijanie toru zostaje ręczne.
+  const autoplayWanted = cfg.slider_autoplay && posts.length > 1;
+  const motion = useMotionGate(autoplayWanted);
 
   useEffect(() => {
-    if (!cfg.slider_autoplay) return;
+    if (!autoplayWanted || !motion || prefersReducedMotion()) return;
     const t = window.setInterval(
       () => {
         setIdx((i) => (i + 1) % posts.length);
@@ -337,7 +344,7 @@ function RelatedSlider({ posts, cfg, lang, sourcePostId }: ViewProps) {
       Math.max(2000, cfg.slider_interval_ms),
     );
     return () => window.clearInterval(t);
-  }, [cfg.slider_autoplay, cfg.slider_interval_ms, posts.length]);
+  }, [autoplayWanted, motion, cfg.slider_interval_ms, posts.length]);
 
   // Przewijamy SAM tor, poziomo. `scrollIntoView` przewija wszystkie przodki,
   // także okno: przy montażu i przy każdym takcie autoodtwarzania strona

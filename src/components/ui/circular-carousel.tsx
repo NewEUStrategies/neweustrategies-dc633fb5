@@ -20,6 +20,7 @@ import {
 import { ChevronLeft, ChevronRight } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 
 export interface CircularCarouselItem {
   id: string;
@@ -158,7 +159,10 @@ export function CircularCarousel({
   const next = useCallback(() => goTo(activeIndex + 1), [activeIndex, goTo]);
   const prev = useCallback(() => goTo(activeIndex - 1), [activeIndex, goTo]);
 
-  const rotating = autoPlay && !reducedMotion && !hovered && !focused && total > 1;
+  // Bramka ruchu (P3.5): rotacja rusza dopiero po pierwszej interakcji albo w
+  // punkcie ciszy strony - pierwszy obrót = otwarcie + pełny interwał.
+  const motion = useMotionGate(autoPlay && total > 1);
+  const rotating = autoPlay && motion && !reducedMotion && !hovered && !focused && total > 1;
 
   useEffect(() => {
     if (!rotating) return;

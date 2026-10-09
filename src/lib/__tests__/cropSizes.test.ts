@@ -34,6 +34,8 @@ import {
   SMALL_VARIANT_MAX_WIDTH,
   qualityForWidth,
   RESPONSIVE_WIDTHS,
+  LEGACY_AVATAR_RESPONSIVE_WIDTHS,
+  renderedMediaUrl,
   type CropSize,
 } from "@/lib/cropSizes";
 import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
@@ -240,12 +242,90 @@ describe("RESPONSIVE_WIDTHS", () => {
     }
   });
 
-  it("kończy się na 2400, NIE na 2560 - inaczej deskryptor kłamie", () => {
+  it("drabina 5 szerokości (P3.2a, HW-4, decyzja właściciela 2026-10-08)", () => {
+    // ZMIANA OCZEKIWANIA (P3.2a): dawniej 9 szerokości [320 ... 2400]. Każdy
+    // kandydat to ~120 B w HTML-u (img, preload, `Link`), a pośrednie warianty
+    // dawały podwójne pobrania tej samej okładki na desktopie.
+    expect([...RESPONSIVE_WIDTHS]).toEqual([480, 640, 768, 1280, 1920]);
+  });
+
+  it("żaden kandydat nie przekracza 2500 px - inaczej deskryptor kłamie", () => {
     // Supabase przycina szerokość transformacji do 2500 px, więc kandydat
     // „2560w" dostawał realnie 2500 px pod etykietą 2560 i na ekranach 2560+
     // przeglądarka wybierała wariant mniejszy niż deklarowany.
-    expect(RESPONSIVE_WIDTHS.at(-1)).toBe(2400);
     expect(RESPONSIVE_WIDTHS.every((w) => w <= 2500)).toBe(true);
+  });
+
+  it("dawna drabina zostaje WYŁĄCZNIE dla zdjęć osób (awatary bez zmian)", () => {
+    expect([...LEGACY_AVATAR_RESPONSIVE_WIDTHS]).toEqual([
+      320, 480, 640, 768, 1024, 1280, 1536, 1920, 2400,
+    ]);
+  });
+});
+
+describe("renderedMediaUrl (P3.2a/P4.2: adresy względne tylko w renderze)", () => {
+  it("kanoniczny `/media/...` -> ścieżka z zapytaniem i fragmentem", () => {
+    expect(renderedMediaUrl(BRANDED)).toBe("/media/cover.jpg");
+    expect(renderedMediaUrl(`${PUBLIC_MEDIA_ORIGIN}/media/a/b.jpg?width=640&quality=76#x`)).toBe(
+      "/media/a/b.jpg?width=640&quality=76#x",
+    );
+  });
+
+  it.each([
+    ["inny origin z katalogiem /media/", EXT_MEDIA],
+    ["origin najemcy", "https://najemca.example/media/cover.jpg"],
+    ["host techniczny magazynu", OBJ],
+    ["ścieżka już względna", "/media/cover.jpg"],
+    ["kanoniczny poza /media/", `${PUBLIC_MEDIA_ORIGIN}/assets/logo.svg`],
+    ["segment `..` wychodzący z /media/", `${PUBLIC_MEDIA_ORIGIN}/media/../admin/x.jpg`],
+    ["origin z innym portem", `${PUBLIC_MEDIA_ORIGIN}:8443/media/cover.jpg`],
+    ["dane logowania przed hostem", `https://u@${new URL(PUBLIC_MEDIA_ORIGIN).host}/media/x.jpg`],
+    ["data:", "data:image/gif;base64,R0lGODlhAQABAAAAACw="],
+    ["pusty", ""],
+    ["śmieci", "nie-adres"],
+  ])("%s: bez zmian", (_label, url) => {
+    expect(renderedMediaUrl(url)).toBe(url);
+  });
+});
+
+describe("buildImageSrcSet: adresy względne tylko na domyślnej drabinie", () => {
+  it("kanoniczny adres markowy: 5 kandydatów, każdy względny `/media/`", () => {
+    const parts = buildImageSrcSet(BRANDED).split(", ");
+    expect(parts.map((part) => part.split(" ")[1])).toEqual([
+      "480w",
+      "640w",
+      "768w",
+      "1280w",
+      "1920w",
+    ]);
+    for (const part of parts) expect(part.startsWith("/media/cover.jpg?width=")).toBe(true);
+    expect(parts[1]).toBe("/media/cover.jpg?width=640&resize=contain&quality=76 640w");
+  });
+
+  it("host techniczny magazynu zostaje absolutny", () => {
+    for (const part of buildImageSrcSet(OBJ).split(", ")) {
+      expect(part.startsWith("https://proj.supabase.co/storage/v1/render/image/public/")).toBe(
+        true,
+      );
+    }
+  });
+
+  it("własna drabina (miniatury, treść, mega menu) zostaje absolutna", () => {
+    for (const part of buildImageSrcSet(BRANDED, [128, 256, 384]).split(", ")) {
+      expect(part.startsWith(`${PUBLIC_MEDIA_ORIGIN}/media/cover.jpg?width=`)).toBe(true);
+    }
+  });
+
+  it("STRAŻNIK WŁAŚCICIELA: dawna drabina awatara daje dawny `srcset` bajt w bajt", () => {
+    // Literał z bazy fali (64dddffe, `buildImageSrcSet(BRANDED)` sprzed P3.2a).
+    const q = (w: number) => (w <= 640 ? 76 : 80);
+    const before = [320, 480, 640, 768, 1024, 1280, 1536, 1920, 2400]
+      .map(
+        (w) =>
+          `https://neweuropeanstrategies.com/media/cover.jpg?width=${w}&resize=contain&quality=${q(w)} ${w}w`,
+      )
+      .join(", ");
+    expect(buildImageSrcSet(BRANDED, LEGACY_AVATAR_RESPONSIVE_WIDTHS)).toBe(before);
   });
 });
 
@@ -318,6 +398,20 @@ describe("buildAvatarSrc", () => {
 });
 
 describe("buildAvatarSrcSet", () => {
+  it("STRAŻNIK WŁAŚCICIELA (P3.2a): awatar z adresu kanonicznego - dawne ciągi bajt w bajt", () => {
+    // Decyzja właściciela 2026-10-08: awatary bez zmian (ani szerokości, ani
+    // adresu absolutnego). Literały z bazy fali 64dddffe.
+    const base = "https://neweuropeanstrategies.com/media/cover.jpg";
+    expect(buildAvatarSrc(BRANDED, 48)).toBe(`${base}?width=96&height=96&resize=cover&quality=88`);
+    expect(buildAvatarSrcSet(BRANDED, 48)).toBe(
+      [
+        `${base}?width=48&height=48&resize=cover&quality=88 1x`,
+        `${base}?width=96&height=96&resize=cover&quality=88 2x`,
+        `${base}?width=144&height=144&resize=cover&quality=88 3x`,
+      ].join(", "),
+    );
+  });
+
   it("emituje warianty 1x/2x/3x z deskryptorem gęstości", () => {
     const parts = buildAvatarSrcSet(OBJ, 48).split(", ");
     expect(parts).toHaveLength(3);

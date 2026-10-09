@@ -3,6 +3,7 @@
 import * as React from "react";
 import { AppLink } from "@/components/atoms/AppLink";
 import { autoInvertColor } from "@/lib/builder/autoInvertColor";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import type { WidgetNode } from "@/lib/builder/types";
 
 export type SectionLabelVariant =
@@ -1128,20 +1129,7 @@ export function SectionLabelRender({
           }}
         >
           <span className="inline-flex items-center min-w-0" style={{ gap: gapXPx }}>
-            <span
-              aria-hidden
-              className="relative shrink-0 inline-flex items-center justify-center"
-              style={{ width: dot * 2, height: dot * 2 }}
-            >
-              <span
-                className="absolute inset-0 rounded-full nes-ticker-halo"
-                style={{ background: `color-mix(in oklab, ${accent} 35%, transparent)` }}
-              />
-              <span
-                className="relative rounded-full nes-ticker-dot"
-                style={{ width: dot, height: dot, background: accent }}
-              />
-            </span>
+            <TickerStripPulse accent={accent} dot={dot} />
             <span
               data-title-root
               className={`${isSm ? "text-[9px]" : "text-[11px] sm:text-xs"} font-bold uppercase tracking-[0.2em] min-w-0 truncate`}
@@ -1328,6 +1316,35 @@ export function SectionLabelRender({
       );
     }
   }
+}
+
+/**
+ * Pulsująca kropka „na żywo" wariantu Ticker Strip (21). Puls i halo to
+ * nieskończone animacje z arkusza (`.nes-ticker-dot`/`.nes-ticker-halo`)
+ * obecne w HTML z SSR, więc stoją (`data-motion-loop`) do otwarcia bramki
+ * ruchu (P3.5: pierwsza interakcja albo punkt ciszy); hook uzbraja bramkę
+ * także na stronie bez innych konsumentów.
+ */
+function TickerStripPulse({ accent, dot }: { accent: string; dot: number }) {
+  useMotionGate();
+  return (
+    <span
+      aria-hidden
+      className="relative shrink-0 inline-flex items-center justify-center"
+      style={{ width: dot * 2, height: dot * 2 }}
+    >
+      <span
+        data-motion-loop=""
+        className="absolute inset-0 rounded-full nes-ticker-halo"
+        style={{ background: `color-mix(in oklab, ${accent} 35%, transparent)` }}
+      />
+      <span
+        data-motion-loop=""
+        className="relative rounded-full nes-ticker-dot"
+        style={{ width: dot, height: dot, background: accent }}
+      />
+    </span>
+  );
 }
 
 function Corners({ accent, sm }: { accent: string; sm: boolean }) {

@@ -48,8 +48,8 @@ describe("sortowanie post-listy", () => {
   });
 
   it("created_at zmienia klucz zapytania (inny wynik = inny wpis cache)", () => {
-    const byPublished = postListQueryOptions({ orderBy: "published_at" }, "pl").queryKey;
-    const byCreated = postListQueryOptions({ orderBy: "created_at" }, "pl").queryKey;
+    const byPublished = postListQueryOptions({ orderBy: "published_at" }, "pl", "list").queryKey;
+    const byCreated = postListQueryOptions({ orderBy: "created_at" }, "pl", "list").queryKey;
     expect(byCreated[0]).toBe(WIDGET_QUERY_ROOTS.postList);
     expect(byCreated).not.toEqual(byPublished);
   });

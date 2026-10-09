@@ -2,15 +2,23 @@
 // środkowym sterowanym hoverem, klikiem lub autoplayem. Testujemy tryby
 // wyzwalania (hover vs click), pauzę autoplayu na hover kontenera, pozycje
 // z linkiem (kotwica zamiast przycisku), animacje (rotate/pulse), kolory
-// niestandardowe i fallbacki etykiet (#N).
-import { describe, it, expect, vi, afterEach } from "vitest";
+// niestandardowe i fallbacki etykiet (#N). Bramka ruchu (P3.5): autoplay i
+// nieskończone animacje koła ruszają po pierwszej interakcji albo w punkcie
+// ciszy (tu atrapa); `prefers-reduced-motion` wyłącza autoplay.
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
 import { InteractiveCircleWidget } from "../InteractiveCircleWidget";
 import type { Json, WidgetNode, WidgetContent } from "@/lib/builder/types";
+import { __openMotionGateForTests, __resetMotionGateForTests } from "@/lib/performance/motionGate";
+
+// Punkt ciszy bramki ruchu tylko na żądanie testu.
+vi.mock("@/lib/performance/whenQuiescent", () => ({ onQuiescent: () => () => {} }));
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+  __resetMotionGateForTests();
 });
 
 let nextId = 0;
@@ -84,6 +92,51 @@ describe("InteractiveCircleWidget - wyzwalanie pozycji", () => {
 });
 
 describe("InteractiveCircleWidget - autoplay", () => {
+  beforeEach(() => __openMotionGateForTests());
+
+  it("bramka ruchu zamknięta: 30 s bez przeskoku; po otwarciu przeskok po pełnym interwale", () => {
+    __resetMotionGateForTests();
+    vi.useFakeTimers();
+    renderCircle({ items, autoplay: "on", intervalMs: 2000 });
+    // Krokami po sekundzie: skok 30 s mógłby wrócić na pierwszą pozycję po pełnych obrotach.
+    for (let second = 0; second < 30; second += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByText("Sektor energii")).toBeInTheDocument();
+    }
+    act(() => __openMotionGateForTests());
+    act(() => {
+      vi.advanceTimersByTime(1999);
+    });
+    expect(screen.getByText("Sektor energii")).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.getByText("Wymiana handlowa")).toBeInTheDocument();
+  });
+
+  it("prefers-reduced-motion: autoplay nie rusza także po otwarciu bramki", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: query.includes("prefers-reduced-motion"),
+          media: query,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+        }) as unknown as MediaQueryList,
+    );
+    vi.useFakeTimers();
+    renderCircle({ items, autoplay: "on", intervalMs: 2000 });
+    for (let second = 0; second < 10; second += 1) {
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByText("Sektor energii")).toBeInTheDocument();
+    }
+  });
+
   it("advances the active item on the interval and pauses while hovered", () => {
     vi.useFakeTimers();
     const { container } = renderCircle({

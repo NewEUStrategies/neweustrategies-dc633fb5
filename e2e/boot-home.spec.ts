@@ -10,6 +10,12 @@ import { expect, test } from "@playwright/test";
 // a w HTML-u nie ma ani `<link rel=modulepreload>`, ani `<script type=module src>`.
 // Domyślny UA Playwrighta (`HeadlessChrome`) jest botem dla `isbot`, więc ten plik mierzy też
 // ścieżkę `allReady`, którą PSI dostaje na MISS.
+//
+// KOLEJNOŚĆ W `<head>` I SERIA PRZED WEJŚCIEM (P3.4). Loader nie ma już `MutationObserver`
+// na całym dokumencie, więc zestaw zastaje przy starcie tylko wtedy, gdy węzeł `#nes-boot-set` stoi
+// PRZED `script[data-nes-boot]` (inaczej czyta go dopiero przy DOMContentLoaded). Na prawdziwym
+// artefakcie sprawdzamy tę kolejność i to, że każdy moduł serii był zażądany PRZED wstawieniem
+// wejścia (żaden moduł nie ewaluuje się przed całą serią - reguła CLS werdyktu boot-js C3).
 
 interface BootSet {
   m: "lcp" | "now";
@@ -54,6 +60,11 @@ for (const [path, lang] of [
       expect(
         set.u.filter((url) => new RegExp(`^/assets/${lang}-[\\w-]+\\.js$`).test(url)),
       ).toHaveLength(1);
+      // Węzeł zestawu przed loaderem: loader czyta zestaw przy starcie, nie dopiero przy DCL.
+      const setAt = html.indexOf('id="nes-boot-set"');
+      const loaderAt = html.indexOf("<script data-nes-boot");
+      expect(setAt).toBeGreaterThan(-1);
+      expect(loaderAt).toBeGreaterThan(setAt);
       // Nic nie startuje JS-a przed loaderem: ani znaczniki dokumentu, ani nagłówek `Link`.
       expect(html).not.toMatch(/<link\b[^>]*rel=["']?modulepreload/i);
       expect(html).not.toMatch(/<script\b[^>]*type=["']module["'][^>]*\bsrc=/i);
@@ -91,6 +102,22 @@ for (const [path, lang] of [
       ).toBe(true);
       await expect(page.locator("#nes-boot-set")).toHaveCount(0);
       await expect(page.locator(`script[type="module"][src="${set.e}"]`)).toHaveCount(1);
+      // Każdy moduł serii zażądany (`modulepreload` w DOM) przed wstawieniem wejścia.
+      const lateModules = await page.evaluate(
+        ({ entry, urls }) => {
+          // `window.document`: w tym teście `document` to odpowiedź żądania bez JS-a.
+          const doc = window.document;
+          const script = doc.querySelector(`script[type="module"][src="${entry}"]`);
+          const links = [...doc.querySelectorAll<HTMLLinkElement>('link[rel="modulepreload"]')];
+          return urls.filter((url) => {
+            const href = new URL(url, window.location.href).href;
+            const link = links.find((candidate) => candidate.href === href);
+            return !link || !script || !(link.compareDocumentPosition(script) & 4);
+          });
+        },
+        { entry: set.e, urls: set.u },
+      );
+      expect(lateModules).toEqual([]);
       await expect(page.locator('link[rel="stylesheet"][href*="admin-styles"]')).toHaveCount(0);
       const notice = page.locator("[data-home-loading]");
       if (await notice.count()) {

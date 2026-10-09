@@ -91,6 +91,8 @@ const h = vi.hoisted(() => ({
   submissions: [] as Array<Record<string, unknown>>,
   result: { ok: true, status: "pending" } as Record<string, unknown>,
   throwOnSubmit: null as string | null,
+  /** Tryb pobrania katalogu tematów, z którym formularz woła `useInterestGroups` (P3.8). */
+  catalogLoads: [] as unknown[],
 }));
 
 vi.mock("react-i18next", () => ({
@@ -179,7 +181,10 @@ vi.mock("@/components/newsletter/NewsletterSubscribedPanel", () => ({
 }));
 
 vi.mock("@/components/interests/TopicsDroplist", () => ({
-  useInterestGroups: () => ({ catalog: null, allItems: h.items, groups: [] }),
+  useInterestGroups: (_lang: unknown, _slugs: unknown, load: unknown) => {
+    h.catalogLoads.push(load);
+    return { catalog: null, allItems: h.items, groups: [] };
+  },
   TopicsDroplist: ({ lang, allItems, picked, onToggle, onClear }: TopicsStubProps) => (
     <div data-testid="topics" data-lang={lang} data-picked={Array.from(picked).join(",")}>
       {allItems.map((it) => (
@@ -286,6 +291,7 @@ beforeEach(() => {
   h.submissions.length = 0;
   h.result = { ok: true, status: "pending" };
   h.throwOnSubmit = null;
+  h.catalogLoads = [];
 });
 
 afterEach(() => {
@@ -639,6 +645,23 @@ describe("NewsletterForm - wybór tematów", () => {
     renderForm({ widgetConfig: { showFirstName: true, showInterests: false } });
 
     expect(screen.queryByTestId("topics")).toBeNull();
+  });
+
+  // P3.8 #6: katalog (GET `categories` + `tags`) nie należy do okna bootu.
+  it("katalog tematów pobiera się przy zatrzasku interakcji/ciszy, nie przy montażu", () => {
+    renderForm({ widgetConfig: { showFirstName: true } });
+    expect(new Set(h.catalogLoads)).toEqual(new Set(["latch"]));
+  });
+
+  it("bez listy tematów formularz nie pobiera katalogu wcale", () => {
+    renderForm({ widgetConfig: { showFirstName: true, showInterests: false } });
+    expect(new Set(h.catalogLoads)).toEqual(new Set(["off"]));
+  });
+
+  it("w kanwie buildera katalog pobiera się przy montażu - podgląd bez czekania", () => {
+    h.builderMode = "edit";
+    renderForm({ widgetConfig: { showFirstName: true } });
+    expect(new Set(h.catalogLoads)).toEqual(new Set(["mount"]));
   });
 });
 

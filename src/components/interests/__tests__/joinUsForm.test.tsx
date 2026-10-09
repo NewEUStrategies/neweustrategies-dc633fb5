@@ -33,7 +33,7 @@
 // - POLA WŁASNYCH: `CustomFieldsRenderer` i `validateCustomFields` mają testy
 //   przy konfiguracji pól; tutaj sprawdzamy tylko, że formularz respektuje wynik.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
@@ -72,6 +72,8 @@ const h = vi.hoisted(() => ({
   savedInterests: [] as { categoryIds: string[]; tagIds: string[] }[],
   /** Język interfejsu - decyduje o komunikatach składanych w kodzie. */
   language: "pl",
+  /** Tabele odpytane przez `supabase.from` - dowód, KIEDY idzie katalog (P3.8). */
+  fromCalls: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client", () => {
@@ -96,7 +98,10 @@ vi.mock("@/integrations/supabase/client", () => {
   const channel = { on: () => channel, subscribe: () => channel };
   return {
     supabase: {
-      from: (table: string) => makeChain(table),
+      from: (table: string) => {
+        h.fromCalls.push(table);
+        return makeChain(table);
+      },
       channel: () => channel,
       removeChannel: () => Promise.resolve("ok"),
     },
@@ -172,7 +177,18 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.language),
 );
 
+// Punkt ciszy to czas przeglądarki - zatrzask interakcji/ciszy otwiera tu
+// wyłącznie test (`__openInteractionOrQuietForTests`).
+vi.mock("@/lib/performance/whenQuiescent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/performance/whenQuiescent")>()),
+  onQuiescent: () => () => {},
+}));
+
 import { JoinUsForm } from "@/components/interests/JoinUsForm";
+import {
+  __openInteractionOrQuietForTests,
+  __resetInteractionOrQuietForTests,
+} from "@/lib/performance/interactionOrQuiet";
 
 function mount(props: Partial<React.ComponentProps<typeof JoinUsForm>> = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -225,9 +241,60 @@ beforeEach(() => {
   h.consentCalls = 0;
   h.savedInterests = [];
   h.language = "pl";
+  h.fromCalls = [];
+  __resetInteractionOrQuietForTests();
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  __resetInteractionOrQuietForTests();
+});
+
+// ---------------------------------------------------------------------------
+// KATALOG POZA OKNEM BOOTU (P3.8, poprawka #6). Katalog to dwa GET-y
+// (`categories`, `tags`) z preflightami. Droplista bez wymagań pobiera go przy
+// zatrzasku „pierwsza interakcja ALBO punkt ciszy", a nie przy montażu wyspy
+// sekcji; tam, gdzie jest potrzebny od razu (chipsy, wymagany wybór), bez zmian.
+// ---------------------------------------------------------------------------
+describe("katalog zainteresowań poza oknem bootu (P3.8)", () => {
+  const catalogCalls = () => h.fromCalls.filter((t) => t === "categories" || t === "tags");
+  const droplistTrigger = () => document.querySelector("button[aria-haspopup='listbox']");
+
+  beforeEach(() => {
+    h.categories = [
+      { id: "c1", slug: "afryka", name_pl: "Afryka", name_en: null, parent_id: null },
+    ];
+  });
+
+  it("droplista bez wymagań NIE pobiera katalogu przed zatrzaskiem; zatrzask go pobiera", async () => {
+    mount({ showInterests: true });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(catalogCalls()).toEqual([]);
+    expect(droplistTrigger()).toBeNull();
+
+    act(() => __openInteractionOrQuietForTests());
+
+    await waitFor(() => expect(droplistTrigger()).not.toBeNull());
+    expect(catalogCalls().sort()).toEqual(["categories", "tags"]);
+  });
+
+  it("formularz BEZ listy tematów nie pobiera katalogu wcale", async () => {
+    mount({ showInterests: false });
+    act(() => __openInteractionOrQuietForTests());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(catalogCalls()).toEqual([]);
+  });
+
+  it("wymagany wybór pobiera katalog przy montażu - walidacja wysyłki bez zmian", async () => {
+    mount({ showInterests: true, requireInterests: true });
+    await waitFor(() => expect(droplistTrigger()).not.toBeNull());
+    expect(catalogCalls()).toContain("categories");
+  });
+});
 
 describe("widoczność widgetu", () => {
   it("wyłączony newsletter ukrywa widget na stronie publicznej", () => {
@@ -910,6 +977,65 @@ describe("warianty prezentacji i nadpisania z buildera", () => {
     fillMinimum();
     submit();
     await waitFor(() => expect(lastPayload()?.meta).toMatchObject({ country: "Polska" }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POLA WŁASNE Z SUROWEJ TREŚCI WIDGETU (P3.9). Dyspozytor `WidgetView` jest
+// na `/` i nie może importować modułu pól (`formFieldConfig` ciągnął Radix
+// Select, kompozytor i wzmianki), więc podaje SUROWĄ wartość
+// `content.customFields`, a parsuje ją formularz w swoim leniwym chunku.
+// Format treści to `stringArray` - każda linia to jeden obiekt JSON.
+// ---------------------------------------------------------------------------
+describe("pola własne z surowej treści widgetu (P3.9)", () => {
+  const memberNo = JSON.stringify({
+    id: "cf1",
+    type: "text",
+    labelPl: "Nr członkowski",
+    labelEn: "Member no",
+  });
+
+  it("linia `stringArray` renderuje pole, a jego wartość jedzie do payloadu", async () => {
+    mount({ customFieldsSource: [memberNo] });
+    fireEvent.change(screen.getByLabelText("Nr członkowski", { exact: false }), {
+      target: { value: "12345" },
+    });
+    fillMinimum();
+    submit();
+    await waitFor(() => expect(lastPayload()?.custom).toMatchObject({ cf1: "12345" }));
+  });
+
+  it("wymagalność z surowej treści blokuje wysyłkę jak dla pól sparsowanych", async () => {
+    mount({ customFieldsSource: [JSON.stringify({ id: "cf1", type: "text", required: true })] });
+    fillMinimum();
+    submit();
+    await waitFor(() => expect(screen.getByText(/Uzupełnij wymagane pola: cf1/)).toBeTruthy());
+    expect(h.subscribePayloads).toEqual([]);
+  });
+
+  it("`customFields` ma pierwszeństwo przed `customFieldsSource`", () => {
+    mount({
+      customFields: [{ id: "cf2", labelPl: "Pole z propsa", type: "text" as const }],
+      customFieldsSource: [memberNo],
+    });
+    expect(screen.getByLabelText("Pole z propsa", { exact: false })).toBeTruthy();
+    expect(screen.queryByLabelText("Nr członkowski", { exact: false })).toBeNull();
+  });
+
+  it("wadliwa linia jest pomijana, poprawne pola zostają", () => {
+    mount({
+      customFieldsSource: ["{to nie jest JSON", JSON.stringify({ id: "bez-typu" }), memberNo],
+    });
+    expect(screen.getByLabelText("Nr członkowski", { exact: false })).toBeTruthy();
+    expect(screen.queryByLabelText("bez-typu", { exact: false })).toBeNull();
+  });
+
+  it("brak treści i pusta treść nie dodają żadnego pola", () => {
+    const empty = mount({ customFieldsSource: undefined });
+    const baseline = empty.container.querySelectorAll("input").length;
+    empty.unmount();
+    const blank = mount({ customFieldsSource: "" });
+    expect(blank.container.querySelectorAll("input").length).toBe(baseline);
   });
 });
 

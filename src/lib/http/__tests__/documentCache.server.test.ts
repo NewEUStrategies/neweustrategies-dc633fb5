@@ -108,7 +108,7 @@ async function settle(): Promise<void> {
  * applyDeferredDocumentStore) i rozwiązuje się dopiero po zapisie wpisu.
  */
 function backgroundRevalidator(render: () => Response | Promise<Response>) {
-  const [marker, nonce] = revalidationHeader();
+  const [marker, nonce] = revalidationHeader()!;
   return vi.fn(async (request: Request): Promise<boolean> => {
     const headers = new Headers({ [marker]: nonce });
     const forwardedHost = request.headers.get("x-forwarded-host");
@@ -485,7 +485,7 @@ describe("stale-while-revalidate za odpowiedzią", () => {
 
   it("żądanie odświeżające pomija cache i zapisuje świeży dokument", async () => {
     await seedStaleEntry("/program", "<html>stary</html>");
-    const [marker, nonce] = revalidationHeader();
+    const [marker, nonce] = revalidationHeader()!;
 
     const render = vi.fn(async () => htmlResponse("<html>nowy</html>"));
     const result = await handleDocumentRequest(

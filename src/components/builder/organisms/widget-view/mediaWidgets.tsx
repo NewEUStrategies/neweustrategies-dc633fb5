@@ -209,22 +209,9 @@ export function ImageWidget({
         fadeIn={!isLogo}
       />
     </>
-  ) : isFramed ? (
-    <OptimizedImage
-      src={theme === "dark" ? darkSrc : lightSrc}
-      alt={alt}
-      responsive
-      sizes={sizes}
-      autoSizes={isFramed}
-      priority={lcp !== false}
-      data-lcp-candidate={lcpCandidateAttr(lcp)}
-      className={`${imgCls} widget-media-fg`}
-      style={fgImgStyle}
-      onError={applyLogoFallback}
-      hoverEffect={hoverEffect}
-      fadeIn={!isLogo}
-    />
   ) : (
+    // Jedna gałąź pojedynczego obrazu (kadr i bez kadru różnią się tylko klasą i
+    // stylem) - mniej bajtów w chunku wejściowym, znacznik 1:1 jak dawne dwie.
     <OptimizedImage
       src={theme === "dark" ? darkSrc : lightSrc}
       alt={alt}
@@ -233,8 +220,8 @@ export function ImageWidget({
       autoSizes={isFramed}
       priority={lcp !== false}
       data-lcp-candidate={lcpCandidateAttr(lcp)}
-      className={imgCls}
-      style={imgStyle}
+      className={isFramed ? `${imgCls} widget-media-fg` : imgCls}
+      style={isFramed ? fgImgStyle : imgStyle}
       onError={applyLogoFallback}
       hoverEffect={hoverEffect}
       fadeIn={!isLogo}

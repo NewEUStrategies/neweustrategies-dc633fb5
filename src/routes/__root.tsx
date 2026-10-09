@@ -33,10 +33,11 @@ import { I18nextProvider } from "react-i18next";
 import appCss from "../styles.css?url";
 // Fingerprinted by Vite to the SAME emitted file the @font-face in styles.css
 // references, so the preload is reused (not a second download). See styles.css.
-import redHatDisplayLatin from "../assets/fonts/red-hat-display-latin.woff2?url";
-import redHatDisplayLatinExt from "../assets/fonts/red-hat-display-latin-ext.woff2?url";
+// Jedyny font ścieżki krytycznej, ten sam dla PL i EN (P3.2b): latin + polskie
+// litery; latin-ext zostaje w styles.css jako twarz bez preloadu.
+import redHatDisplay from "../assets/fonts/red-hat-display-latin-pl.woff2?url";
 import { appendLinkHeader, setCacheControlHeader } from "../lib/http/responseHeaders";
-import { resilientCacheControl } from "../lib/ssr/resilientLoad";
+import { markDeliberateSeed, resilientCacheControl } from "../lib/ssr/resilientLoad";
 import { chromeDegradedCacheControl } from "../lib/http/cachePolicy";
 import {
   HOME_THEME_BUDGET_MS,
@@ -113,6 +114,8 @@ import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
+import { fontScaleQueryOptions } from "../hooks/useFontScale";
+import { useInteractionOrQuiet } from "../lib/performance/interactionOrQuiet";
 // Lekki moduł z pustym domyślnym - nie `globalColors.ts` (44 kB katalogu
 // slotów), który od 2026-10 dociera do przeglądarki wyłącznie leniwie.
 import { EMPTY_GLOBAL_COLORS } from "../lib/builder/globalColorsValue";
@@ -174,9 +177,10 @@ const ConsentPreviewPanel = lazy(() =>
 // całą bibliotekę sonner (~63 kB źródeł) w chunku wejściowym. Moduły ścieżki
 // bootowania wołają toasty przez leniwy most lib/notify.ts (kolejka FIFO do
 // czasu załadowania chunku), więc semantyka wywołań nie zmienia się.
-// Świadomy kompromis: toast wystrzelony między hydratacją a montażem chunku
-// przepada (sonner nie odtwarza historii subskrybentom) - realny nadawca
-// (mutacje operatora) nie kończy się przed hydratacją.
+// Toast wystrzelony przed montażem chunku nie przepada: sonner 2.x odtwarza
+// nowemu subskrybentowi wszystkie AKTYWNE toasty (`Observer.subscribe` ->
+// `getActiveToasts()`). Nie wraca tylko toast zdjęty (`toast.dismiss`)
+// przed montażem.
 const Toaster = lazy(() => import("../components/ui/sonner").then((m) => ({ default: m.Toaster })));
 
 // ── ŻYWA SYNCHRONIZACJA (realtime) - WYŁĄCZNIE DLA ZALOGOWANYCH ───────────
@@ -226,9 +230,8 @@ function AuthenticatedLiveSync() {
 }
 
 /**
- * Ile czekamy z montażem nakładek „na później" (newsletter, popupy buildera,
- * Toaster). Te same 3 000 ms, co heartbeat niżej: nic z tego nie ma prawa
- * konkurować z LCP ani z pierwszą interakcją.
+ * Ile czekamy z montażem Toastera „na później". Te same 3 000 ms, co heartbeat
+ * niżej: nic z tego nie ma prawa konkurować z LCP ani z pierwszą interakcją.
  */
 const OVERLAY_IDLE_TIMEOUT_MS = 3_000;
 
@@ -261,23 +264,25 @@ const OVERLAY_IDLE_TIMEOUT_MS = 3_000;
  * `marketing: true` nie dostanie slotu przed pierwszym zgłoszeniem stanu zgody
  * (od P1.3 zgłasza go korzeń zaraz po hydratacji, potem baner). Drugiej
  * warstwy tutaj świadomie NIE dokładamy: montaż `NewsletterPopup` i
- * `PopupHost` to samo pobranie chunku i uzbrojenie wyzwalaczy (nic nie widać),
- * więc wiązanie go ze zgodami przesunęłoby tę pracę z okna bezczynności w
- * gorszy moment, a nakładka spoza tego drzewa (pasek reklamowy w stopce) i tak
- * omijałaby bramkę z `__root`. Czas montażu nakładek jest celowo BEZ ZMIAN
- * (P1.3, TP-4 „tylko części niewidoczne"): od niego liczą się wyzwalacze
- * `delay`/`immediate`, więc późniejszy montaż byłby widocznie późniejszym
- * popupem.
+ * `PopupHost` to samo pobranie chunku, zapytania o ustawienia i uzbrojenie
+ * wyzwalaczy (nic nie widać), a nakładka spoza tego drzewa (pasek reklamowy
+ * w stopce) i tak omijałaby bramkę z `__root`.
+ *
+ * MOMENT MONTAŻU (P3.8, zmiana świadoma). Do P3.8 nakładki montowały się po
+ * `load` i bezczynności (`afterPageLoad`, limit 3 s), czyli 1-2,5 s po `load`:
+ * dwa chunki, dwa GET-y Supabase i dwa preflighty w oknie, w którym Lighthouse
+ * czeka na ciszę sieci i CPU. Od P3.8 montaż czeka na wspólny zatrzask
+ * „pierwsza interakcja ALBO punkt ciszy" (`interactionOrQuiet.ts`). Dawny
+ * argument „późniejszy montaż to widocznie późniejszy popup" zamyka kotwica
+ * wyzwalaczy: opóźnienia `delay`/`immediate` przy pierwszym uzbrojeniu
+ * w dokumencie liczą się od STARTU NAWIGACJI, nie od montażu
+ * (`NewsletterPopup`, `PopupHost`), więc popup z opóźnieniem dłuższym niż
+ * czas do zatrzasku pokazuje się tak jak dotąd. Zmienia się jedno: popup
+ * `immediate` (dotąd ~400 ms po montażu, czyli tuż po `load`) pojawia się
+ * nie wcześniej niż przy pierwszej interakcji albo w punkcie ciszy.
  */
 function useOverlayGates(): { overlaysReady: boolean } {
-  const [overlaysReady, setOverlaysReady] = useState(false);
-
-  useEffect(() => {
-    const cancel = afterPageLoad(() => setOverlaysReady(true), OVERLAY_IDLE_TIMEOUT_MS);
-    return cancel;
-  }, []);
-
-  return { overlaysReady };
+  return { overlaysReady: useInteractionOrQuiet() };
 }
 
 // ── POWŁOKA I BANER ZGÓD (P1.3) ───────────────────────────────────────────
@@ -468,23 +473,29 @@ export const ConsentSurface = memo(function ConsentSurface() {
 });
 
 /**
- * `PopupHost` nie montuje się tylko wtedy, gdy ISTNIEJĄCE dane SSR jednoznacznie
- * mówią „brak aktywnych popupów" (P1.3, TP-4): odwodniony wpis zapytania
- * `useActivePopups` z pustą listą. Bez nowego zapisu dehydratacji
- * (`check:ssr-budgets`) - dziś żaden loader tego klucza nie grzeje, więc host
- * montuje się jak dotąd; bramka zadziała sama, gdy wpis pojawi się w stanie SSR.
+ * `PopupHost` nie montuje się tylko wtedy, gdy dane SSR jednoznacznie mówią
+ * „brak aktywnych popupów" (P1.3, TP-4): odwodniony wpis zapytania
+ * `useActivePopups` z pustą listą. Od P3.8 wpis grzeje fala chrome korzenia
+ * (`warmNoActivePopups` w `lib/builder/popups.ts`: projekcja obecności, zapis
+ * WYŁĄCZNIE pustej listy), więc u najemcy bez aktywnych popupów host - jego
+ * chunk, GET `builder_popups` i preflight - nie powstaje wcale. Brak wpisu
+ * (porażka, budżet, trasa bez chrome'u) = host montuje się jak dotąd.
  * UWAGA: wartość jest ZAMROŻONA na całą wizytę (odczyt raz, w pierwszym
  * renderze) - popup aktywowany w trakcie tej samej sesji nie zamontuje hosta
- * do następnego wejścia. Kto zacznie grzać ten klucz w SSR, musi to przyjąć
- * albo zamienić odczyt na subskrypcję zapytania.
+ * do następnego wejścia, a anonimowy czytelnik zobaczy nowo aktywowany popup
+ * dopiero z dokumentem i projekcją młodszymi niż aktywacja (minuty: świeżość
+ * dokumentu na brzegu + TTL izolatu). Kompromis przyjęty w P3.8 - ale NIE dla
+ * redakcji: zespół (`isStaff`) montuje host zawsze, więc popup aktywowany
+ * w panelu da się od razu obejrzeć na stronie, jak przed P3.8.
  */
 export function useNoActivePopupsFromSsr(): boolean {
   const queryClient = useQueryClient();
+  const { isStaff } = useAuth();
   const [empty] = useState(() => {
     const data = queryClient.getQueryData([WIDGET_QUERY_ROOTS.popupsActive]);
     return Array.isArray(data) && data.length === 0;
   });
-  return empty;
+  return empty && !isStaff;
 }
 
 /**
@@ -492,8 +503,9 @@ export function useNoActivePopupsFromSsr(): boolean {
  *
  * DWA NIEZALEŻNE WYZWALACZE, oba potrzebne:
  *   1. `onFirstToast` z `lib/notify.ts` - NATYCHMIAST, gdy toast pada wcześniej
- *      niż bezczynność. Bez tego toast ze ścieżki bootowania przepadłby
- *      (sonner nie odtwarza historii nowym subskrybentom);
+ *      niż bezczynność. Bez tego toast ze ścieżki bootowania czekałby na
+ *      montaż po bezczynności (sonner 2.x odtwarza nowemu subskrybentowi
+ *      aktywne toasty, więc by nie przepadł, ale pokazałby się do 3 s później);
  *   2. `afterPageLoad(…, 3000)` - bezwarunkowo, bo most `lib/notify.ts` widzi
  *      WYŁĄCZNIE swoich wołających, a `import { toast } from "sonner"` wprost
  *      robi w tym repozytorium kilkaset modułów (m.in. akcje przy wpisie).
@@ -562,11 +574,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
  * URL-e zasobów krytycznych rozwiązane przez bundler (`?url`). Jeden obiekt dla
  * `<head>` i dla nagłówka HTTP `Link` - gdyby były dwa, mogłyby się rozjechać.
  */
-const ROOT_ASSETS: RootAssets = {
-  appCss,
-  fontLatin: redHatDisplayLatin,
-  fontLatinExt: redHatDisplayLatinExt,
-};
+const ROOT_ASSETS: RootAssets = { appCss, font: redHatDisplay };
 
 // Identyfikator pomiaru GA4 dla tagu w SSR: zmienna konektora Google Analytics
 // (build-time) WYŁĄCZNIE gdy ma kształt identyfikatora pomiaru - klucz API
@@ -671,7 +679,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       // połączenia do hosta obrazów, autodiscovery feedów) żyje w
       // `lib/seo/rootHead.ts` RAZEM z wartościami nagłówka HTTP `Link` niżej -
       // oba opisują ten sam plan pobierania i muszą mówić to samo.
-      links: rootDocumentLinks(lang, getOrigin(), ROOT_ASSETS),
+      links: rootDocumentLinks(getOrigin(), ROOT_ASSETS),
       // Speculation Rules API: natywny prefetch (hover) publicznych nawigacji;
       // powierzchnie zalogowane i transakcyjne wykluczone (wspólna lista z NES
       // Edge Cache). Prerender świadomie pominięty - AppLink przechwytuje
@@ -723,10 +731,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // przeglądarka startuje pobieranie CSS i fontów z nagłówków odpowiedzi,
     // zanim sparsuje pierwszy bajt HTML, a NES Edge Cache utrwala nagłówek na
     // HIT/STALE - to fundament pod 103 Early Hints na Cloudflare. Zestaw jest
-    // per-język (latin-ext tylko dla PL), a dokumenty są keyowane ścieżką
-    // z prefiksem języka, więc wpis cache nigdy nie niesie cudzych hintów.
+    // ten sam dla PL i EN (jeden font, P3.2b); jedyny wpis zależny od języka
+    // to chunk słownika niżej, a dokumenty są keyowane ścieżką z prefiksem
+    // języka, więc wpis cache nigdy nie niesie cudzych hintów.
     const renderLang = currentLang();
-    for (const value of rootLinkHeaderValues(renderLang, ROOT_ASSETS)) {
+    for (const value of rootLinkHeaderValues(ROOT_ASSETS)) {
       appendLinkHeader(value);
     }
     // Chunk rdzenia SŁOWNIKA aktywnego języka - WYŁĄCZNIE nagłówkiem, nigdy
@@ -803,9 +812,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // serwerowego i klienckiego renderu - a zasiew przesądza, że pierwszy render
     // klienta czyta dokładnie to, co wypisał serwer, zamiast przechodzić przez
     // `data === undefined`. (2) WARTOŚCI NAJEMCY. Zasiew jest
-    // PRZETERMINOWANY (`updatedAt: 0`), więc klient dociąga wiersz z bazy
-    // natychmiast po hydratacji; bez wpisu zapytanie i tak by wystartowało, ale
-    // cache korzenia nie niósłby żadnej informacji o tym kluczu do dehydracji.
+    // PRZETERMINOWANY (`updatedAt: 0`), więc klient dociąga wiersz z bazy - od
+    // P3.8 nie przy hydratacji, tylko przy pierwszej interakcji albo w punkcie
+    // ciszy (`components/ContentAreaStyle.tsx`); bez wpisu zapytanie i tak by
+    // wystartowało, ale cache korzenia nie niósłby żadnej informacji o tym
+    // kluczu do dehydracji.
     //
     // Zasiew niżej kosztuje ZERO round-tripów i jest PRZYWRÓCENIEM stanu
     // z `main` (tam ten sam `defaultPostLayoutSettings()` był zasiewany
@@ -821,6 +832,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // nadpisania `--background`/`--foreground`/`--primary`/`--card` i mostek
     // klas widgetów - czyli funduje repaint motywu po hydratacji na każdej
     // stronie. Zmierzone: 3 równoległe podżądania -> 2.
+    //
+    // `fontScale` (P3.8) - ten sam wiersz i ten sam lot co dwa wyżej, więc
+    // też za zero podżądań. Bez niego wpisu `site_font_scale` nie było w stanie
+    // SSR: serwer renderował `:root` z pustą tabelą rozmiarów, a klient pobierał
+    // wiersz zaraz po hydratacji (GET + preflight na KAŻDEJ trasie) - przy
+    // niepustej tabeli z późnym przepisaniem arkusza i zmianą rozmiarów liter.
+    // Ten klucz celowo NIE MA zasiewu niżej: `DesignTokensStyle` i tak czyta
+    // brak danych jako `EMPTY_FONT_SCALE` (ten sam arkusz w SSR i hydratacji),
+    // a klient bez wpisu pobiera go przy montażu dokładnie tak, jak zasiew
+    // z `updatedAt: 0` - zasiew dokładałby tylko wpis do stanu SSR i bajty do
+    // chunku wejściowego.
     // TERMIN FALI 1 - trzy rozłączne kontrakty: strona główna (wspólny deadline
     // renderu docięty `HOME_THEME_BUDGET_MS`), dokument bez serwerowego renderu
     // (uzasadnienie i wartość: `lib/routing/clientOnlyDocument.ts`), reszta
@@ -845,6 +867,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         context.queryClient.ensureQueryData(siteSettingsQueryOptions),
         context.queryClient.ensureQueryData(designTokensQueryOptions),
         context.queryClient.ensureQueryData(globalColorsQueryOptions),
+        context.queryClient.ensureQueryData(fontScaleQueryOptions),
       ]),
       ROOT_WARM_BUDGET_MS,
       themeDeadline,
@@ -856,6 +879,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         siteSettingsQueryOptions.queryKey,
         designTokensQueryOptions.queryKey,
         globalColorsQueryOptions.queryKey,
+        fontScaleQueryOptions.queryKey,
       ]) {
         if (!hasSsrQueryData(context.queryClient, queryKey)) {
           setCacheControlHeader(resilientCacheControl(true));
@@ -901,13 +925,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     // `ContentAreaStyle` radzi sobie dziś bez niego (emituje blok z tej samej
     // stałej), więc zasiew nie ratuje już pierwszego malowania - trzyma PARYTET
     // SSR/KLIENT na jednej wartości. `{ updatedAt: 0 }` znaczy, że klient i tak
-    // dociągnie wartości najemcy natychmiast po hydratacji - domyślne są tu
-    // pierwszym malowaniem, nie ostatnim słowem.
+    // dociągnie wartości najemcy (P3.8: przy pierwszej interakcji albo w punkcie
+    // ciszy, nie w hydratacji) - domyślne są tu pierwszym malowaniem, nie
+    // ostatnim słowem.
     const postLayoutKey = postLayoutSettingsQueryOptions().queryKey;
     if (!context.queryClient.getQueryData(postLayoutKey)) {
       context.queryClient.setQueryData(postLayoutKey, defaultPostLayoutSettings(), {
         updatedAt: 0,
       });
+      // LISTA CELOWYCH ZASIEWÓW (P3.6b): predykat kompletności dokumentu
+      // (`trackSsrQueryCompleteness`) liczy każdy zasiew z `updatedAt: 0` jako
+      // zgubione dane - poza zadeklarowanymi tutaj. Ten zasiew nie jest
+      // fallbackiem awarii, tylko parytetem SSR/klienta (uzasadnienie wyżej).
+      // `import.meta.env.SSR`, nie `isServer`: Vite podmienia go na stałą, więc
+      // wywołanie znika z bootu klienta (`isServer` z router-core nie zwija się).
+      if (import.meta.env.SSR) markDeliberateSeed(context.queryClient, postLayoutKey);
     }
     const settings = context.queryClient.getQueryData<Readonly<Record<string, unknown>>>(
       siteSettingsQueryOptions.queryKey,
@@ -991,7 +1023,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           chromeQueryKeys.push(headerTickerQueryOptions(trending).queryKey);
         }
         const tickerWarm = () =>
-          chromeBudget > 0 && headerVisible && trending.enabled !== false
+          headerVisible && trending.enabled !== false
             ? context.queryClient.ensureQueryData(headerTickerQueryOptions(trending))
             : Promise.resolve();
         // Nawigacja i pozostałe data-bound widgety CHROME (header + footer to
@@ -1020,7 +1052,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // w stanie `pending` w dehydratowanym `$_TSR.router` - inaczej klient
         // po hydratacji czekałby w nieskończoność na strumień, który nie wróci
         // (poniżej strażnik, który taki stan resetuje).
-        const chromeWarm: Array<() => Promise<unknown>> = [tickerWarm, warmMenus];
+        //
+        // Praca fali chrome to fabryki z BUDŻETEM w ms (P3.6b): `warm` niżej
+        // podaje `chromeBudget`, dogrzanie strony głównej po terminie
+        // (`warmLate`) - własny budżet bramki. Jedna lista dla obu dróg, więc
+        // praca dopisana tutaj grzeje się także po terminie.
+        const chromeWarm: Array<(budgetMs: number) => Promise<unknown>> = [tickerWarm, warmMenus];
         // Reklama jest DEKORACJĄ i dlatego jej klucz NIE trafia do
         // `chromeQueryKeys`. Tamta lista rozstrzyga, czy dokument wolno utrwalić
         // na brzegu: nierozgrzany slot znaczyłby „dokument niekompletny" i
@@ -1031,6 +1068,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         if (headerAds) {
           chromeWarm.push(() => context.queryClient.ensureQueryData(headerAds));
         }
+        // SYGNAŁ „BRAK AKTYWNYCH POPUPÓW" (P3.8) - też dekoracja, więc też poza
+        // `chromeQueryKeys`. Pusta lista w stanie SSR wyłącza montaż `PopupHost`
+        // na całą wizytę (`useNoActivePopupsFromSsr`): bez chunku, GET-u
+        // i preflightu po boocie. Wyłącznie serwer (bramka czyta stan raz,
+        // w renderze hydratacji) i import dynamiczny - moduł popupów nie wchodzi
+        // do zamknięcia bootu. Porażka albo spóźnienie = brak wpisu = host
+        // montuje się jak dotąd.
+        if (isServer) chromeWarm.push(() => warmNoActivePopupsOnServer(context.queryClient));
         // NAGŁÓWEK I STOPKA JEDNĄ PĘTLĄ, nie dwoma kopiami tego samego bloku.
         // Oba są pełnoprawnymi dokumentami buildera i dostają DOKŁADNIE tę samą
         // obsługę (klucze sekcji do listy świeżości + jedna rozgrzewka w budżecie
@@ -1049,10 +1094,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
               sectionQueryOptionsList(section, lang).map((options) => options.queryKey),
             ),
           );
-          if (chromeBudget > 0)
-            chromeWarm.push(() =>
-              prefetchCachedRouteQueries(context.queryClient, doc, lang, chromeBudget),
-            );
+          chromeWarm.push((budgetMs) =>
+            prefetchCachedRouteQueries(context.queryClient, doc, lang, budgetMs),
+          );
         }
         const initialChromeWarmup = registerChromeWarmup(context.queryClient, {
           ready: () => chromeQueryKeys.every((key) => hasSsrQueryData(context.queryClient, key)),
@@ -1068,10 +1112,26 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             setCacheControlHeader(
               kind === "failed" ? resilientCacheControl(true) : chromeDegradedCacheControl(),
             ),
+          // STRONA GŁÓWNA PO TERMINIE (P3.6b, R2c): `warm` niżej jest związane
+          // wspólnym terminem dokumentu (`chromeBudget`, `homeDeadline`), więc po
+          // jego minięciu niczego już nie dogrzewa i bramka oznaczała `failed`
+          // (pasek „Na czasie" doskakiwał po hydratacji, dokument szedł
+          // `no-store`). Ta sama lista `chromeWarm` z budżetem bramki
+          // (`HOME_CHROME_LATE_BUDGET_MS`, lib/ssr/chromeWarmup.tsx); reklama
+          // jak w `warm`, bo `HeaderSkeleton` rezerwuje jej wysokość z tego
+          // wpisu. Granica nagłówka czeka na całą tę pracę (najwyżej budżet
+          // bramki): baner dostrumieniowany PO nagłówku rozjechałby hydratację.
+          // Bramka `import.meta.env.SSR` (stała Vite), nie `isServer`: tylko ona
+          // wycina to domknięcie z chunku wejściowego klienta (+298 B bootu).
+          warmLate:
+            import.meta.env.SSR && homeDeadline !== undefined
+              ? (budgetMs: number) =>
+                  withBudget(Promise.allSettled(chromeWarm.map((work) => work(budgetMs))), budgetMs)
+              : undefined,
           warm: async () => {
             if (chromeBudget <= 0) return;
             await withBudget(
-              Promise.allSettled(chromeWarm.map((work) => work())),
+              Promise.allSettled(chromeWarm.map((work) => work(chromeBudget))),
               CHROME_WARM_BUDGET_MS,
               homeDeadline,
             );
@@ -1121,6 +1181,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
+
+// Sygnał „brak aktywnych popupów" (P3.8) grzeje wyłącznie serwer: kompilator
+// Start wycina gałąź `.server()` z bundla przeglądarki razem z dynamicznym
+// importem modułu popupów (ta sama doktryna co skrypt zgód niżej).
+const warmNoActivePopupsOnServer = createIsomorphicFn()
+  .server((queryClient: QueryClient): Promise<void> =>
+    import("../lib/builder/popups").then((popups) => popups.warmNoActivePopups(queryClient)),
+  )
+  .client((): Promise<void> => Promise.resolve());
 
 // Tekst skryptu zgód w bundlu przeglądarki byłby martwym ciężarem (~1 KB
 // gzip): skrypt wykonał się z HTML-a, zanim wystartował jakikolwiek moduł.

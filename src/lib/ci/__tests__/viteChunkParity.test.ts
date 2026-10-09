@@ -100,6 +100,63 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     }
   });
 
+  it("oba presety minifikują statyczne literały CSS TĄ SAMĄ wtyczką (P3.7a)", () => {
+    // Smoke bez `staticCssPlugin` niósłby literały z komentarzami i wcięciami, czyli bramka
+    // wagi dokumentu (`inlineCssCommentBytes`) i boot-test mierzyłyby inny dokument i inny
+    // chunk wejściowy niż produkcja.
+    const helperImport = 'import { staticCssPlugin } from "./scripts/lib/staticCssPlugin";';
+    for (const [file, source] of [
+      ["vite.config.ts", main],
+      ["vite.smoke.config.ts", smoke],
+    ] as const) {
+      expect(source, file).toContain(helperImport);
+      expect(source, file).toMatch(/plugins: \[[^\]]*staticCssPlugin\(\)/);
+    }
+  });
+
+  it("oba presety wstrzykują TEN SAM identyfikator buildu kluczy L2 (P3.6a)", () => {
+    // Klucze L2 dokumentów i migawek danych niosą segment buildu ze stałej `define`. Smoke bez
+    // niej budowałby serwer bez identyfikatora (L2 wyłączone w buildzie produkcyjnym), a inny
+    // sposób liczenia dawałby inną przestrzeń kluczy niż produkcja.
+    const buildIdBlock = (source: string, file: string): string => {
+      const start = source.indexOf("const NES_BUILD_ID = ");
+      expect(start, `${file}: brak NES_BUILD_ID`).toBeGreaterThan(-1);
+      return source.slice(start, source.indexOf(";", start) + 1);
+    };
+    expect(buildIdBlock(smoke, "vite.smoke.config.ts")).toBe(buildIdBlock(main, "vite.config.ts"));
+    const define = "define: { __NES_BUILD_ID__: JSON.stringify(NES_BUILD_ID) },";
+    expect(main).toContain(define);
+    expect(smoke).toContain(define);
+  });
+
+  it("oba presety zdejmują preload zależności WYŁĄCZNIE chunkowi listwy prawnej", () => {
+    // `modulePreload.resolveDependencies` steruje listą `__vite__mapDeps` każdego
+    // `import()` w bundlu klienta. Smoke z inną regułą mierzyłby inne wejście niż
+    // produkcja, a zbyt szeroki wzorzec zdjąłby preload innym leniwym chunkom.
+    const preloadBlock = (source: string, file: string): string => {
+      const start = source.indexOf("modulePreload: {");
+      expect(start, `${file}: brak modulePreload`).toBeGreaterThan(-1);
+      const end = source.indexOf("\n          },\n", start);
+      expect(end, `${file}: nie znaleziono końca modulePreload`).toBeGreaterThan(start);
+      return source.slice(start, end);
+    };
+    const block = preloadBlock(main, "vite.config.ts");
+    expect(preloadBlock(smoke, "vite.smoke.config.ts")).toBe(block);
+    const literal = block.match(/^\s*\/(.+)\/\.test\(file\) \? \[\] : deps,$/m)?.[1];
+    expect(literal, "reguła: <wzorzec>.test(file) ? [] : deps").toBeDefined();
+    const isLegalLinksChunk = new RegExp(literal ?? "(?!)");
+    expect(isLegalLinksChunk.test("assets/legal-links-Cqw847lN.js")).toBe(true);
+    for (const other of [
+      "assets/index-Cicti5oJ.js",
+      "assets/vendor-react-Bx1.js",
+      "assets/footer-legal-links-Ab_1.js",
+      "assets/LegalLinksPanel-Ab_1.js",
+      "assets/legal-links-Cqw847lN.css",
+    ]) {
+      expect(isLegalLinksChunk.test(other), other).toBe(false);
+    }
+  });
+
   it("reguła vendorowa pomija moduł WEJŚCIOWY (pułapka zapadania się chunku)", () => {
     // Bez tej linii `manualChunks` może przypisać entry do nazwanego chunku,
     // a wtedy Rollup wciąga cały ten chunk z powrotem do entry - bez ostrzeżenia.

@@ -237,6 +237,29 @@ describe("useInterestCatalog", () => {
     await waitFor(() => expect(result.current.data).toEqual({ categories: [], tags: [] }));
   });
 
+  // P3.8 #6: formularze newslettera wstrzymują katalog do zatrzasku
+  // interakcji/ciszy - `enabled: false` wstrzymuje POBRANIE, nie odczyt.
+  it("`enabled = false` nie pobiera katalogu, ale czyta wpis już obecny w cache'u", async () => {
+    h.categories = [
+      { id: "c1", slug: "afryka", name_pl: "Afryka", name_en: null, parent_id: null },
+    ];
+    const { queryClient, wrapper } = harness();
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useInterestCatalog("pl", enabled),
+      { wrapper, initialProps: { enabled: false } },
+    );
+    await Promise.resolve();
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(result.current.data).toBeUndefined();
+
+    queryClient.setQueryData(["interests-catalog", "pl"], { categories: [], tags: [] });
+    await waitFor(() => expect(result.current.data).toEqual({ categories: [], tags: [] }));
+
+    queryClient.removeQueries({ queryKey: ["interests-catalog"] });
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.data?.categories[0]?.label).toBe("Afryka"));
+  });
+
   it.each(["categories", "tags"])(
     "zmiana w tabeli %s unieważnia katalog - panel dodał temat, widget go widzi",
     async (table) => {

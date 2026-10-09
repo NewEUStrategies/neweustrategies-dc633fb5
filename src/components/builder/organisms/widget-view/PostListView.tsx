@@ -11,6 +11,7 @@ import { getBool, getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
 import { lcpCandidateAttr, type LcpImage } from "@/lib/builder/aboveFold";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { readThumbnailOverrides } from "@/lib/builder/thumbnailOverrides";
@@ -21,6 +22,7 @@ import {
   type PostRow,
 } from "@/lib/builder/postListQuery";
 import { resolveAuthorDisplay } from "@/lib/builder/authorDisplay";
+import { postListExcerptToggle, postListRendersExcerpt } from "@/lib/builder/postListExcerpt";
 import { SponsoredBadge } from "@/components/post/SponsoredBadge";
 import type { SponsoredDisclosureInput } from "@/lib/content/sponsored";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
@@ -136,7 +138,9 @@ export function PostListView({
   // Global display toggles - apply to every variant.
   const showCover = getStr(c, "showCover") !== "0";
   const showTitleGlobal = getStr(c, "showTitle") !== "0";
-  const showExcerptGlobal = getStr(c, "showExcerpt") !== "0";
+  // Zajawka: JEDNO źródło z kluczem zapytania (P3.7b, T2) - wiersze widgetu, który
+  // zajawki nie rysuje, przychodzą bez `excerpt_*` (`postListRendersExcerpt`).
+  const showExcerptGlobal = postListExcerptToggle(c);
 
   const titleWeight = getStr(c, "titleWeight");
   const excerptWeight = getStr(c, "excerptWeight");
@@ -186,7 +190,9 @@ export function PostListView({
   // the dehydrated rows instead of refetching under a divergent key (no skeleton
   // flash). When uniqueOnPage the query over-fetches (see postListInput) so the
   // client de-dup below can still fill the grid.
-  const { data, isPending, isFetching } = useQuery(postListQueryOptions(c, lang));
+  const { data, isPending, isFetching } = useQuery(
+    postListQueryOptions(c, lang, carousel ? "carousel" : "list"),
+  );
 
   // uniqueOnPage de-dup is a CLIENT-ONLY display refinement, never part of the
   // query key. `excludeIds` starts empty - so the server render and the first
@@ -452,7 +458,8 @@ export function PostListView({
       const v = getStr(c, "indexVAlign") || "top";
       return v === "middle" || v === "bottom" ? v : "top";
     })();
-    const showExcerpt = getBool(c, "showExcerpt", true);
+    // `numbered` na liście: przełącznik w sensie `getBool` (predykat klucza, P3.7b).
+    const showExcerpt = postListRendersExcerpt(c, "list");
     // Fall back to global Theme Design tokens when widget colors are empty.
     const lightColor = idxColor || "var(--td-li-light, rgb(35,31,32))";
     const darkColor = idxColorDark || "var(--td-li-dark, rgb(250,147,70))";
@@ -744,7 +751,11 @@ function PostListCarousel({
   const [interacting, setInteracting] = useState(false);
   const slides = Array.isArray(children) ? children.length : children ? 1 : 0;
   const controllable = autoplay && slides > 1;
-  const running = controllable && !reducedMotion && !userPaused && !interacting;
+  // Bramka ruchu (P3.5): automat rusza dopiero po pierwszej interakcji albo w
+  // punkcie ciszy strony (pierwszy krok = otwarcie + pełny interwał). Do tego
+  // czasu tor raportuje `data-autoplay="paused"` - tak samo w HTML z SSR.
+  const motion = useMotionGate(controllable);
+  const running = controllable && motion && !reducedMotion && !userPaused && !interacting;
 
   // Przewijamy do KRAWEDZI kolejnego slajdu (a nie o stala liczbe pikseli),
   // dzieki czemu snap nie zostawia karty przycietej w polowie. Na koncu toru

@@ -260,11 +260,28 @@ describe("PromoCardView - kadr zdjęcia", () => {
   });
 
   it("maksymalna szerokość ogranicza kartę i steruje atrybutem sizes okładki", () => {
+    // `sizes` ma sens (i trafia do HTML-u) tylko obok `srcset`, a ten powstaje wyłącznie
+    // dla obrazów z przekształcalnego magazynu mediów (P3.2a) - stąd adres magazynu.
+    renderCard(
+      {
+        ...base,
+        maxWidth: 640,
+        image: "https://p.supabase.co/storage/v1/object/public/promo/card.jpg",
+      },
+      "pl",
+    );
+    expect(card().style.maxWidth).toBe("640px");
+    const img = card().querySelector("img");
+    expect(img?.getAttribute("srcset")).toBeTruthy();
+    expect(img?.getAttribute("sizes")).toMatch(/\(max-width: 640px\) 100vw, 640px$/);
+  });
+
+  it("obraz spoza magazynu mediów: bez srcset nie ma też sizes", () => {
     renderCard({ ...base, maxWidth: 640 }, "pl");
     expect(card().style.maxWidth).toBe("640px");
-    expect(card().querySelector("img")?.getAttribute("sizes")).toBe(
-      "(max-width: 640px) 100vw, 640px",
-    );
+    const img = card().querySelector("img");
+    expect(img?.getAttribute("srcset")).toBeNull();
+    expect(img?.getAttribute("sizes")).toBeNull();
   });
 
   it("zero = pełna szerokość kolumny (bez limitu w stylu)", () => {

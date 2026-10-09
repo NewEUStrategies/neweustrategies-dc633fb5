@@ -1,4 +1,4 @@
-// LOADER BOOTU (P2.1) - kontrakt skryptu, który jest STRINGIEM, a nie modułem.
+// LOADER BOOTU (P2.1, P3.4) - kontrakt skryptu, który jest STRINGIEM, a nie modułem.
 //
 // Skrypt stoi w `<head>` jako klasyczny inline i decyduje, KIEDY aplikacja w ogóle wystartuje:
 // za wcześnie = JS w grafie LCP Lanterna (cały zysk P2.1 znika), nigdy = statyczny SSR bez
@@ -8,10 +8,12 @@
 // kolejnych przypadków.
 //
 // Przedmiot dowodu (bootLoaderScript.ts, nagłówek): wyzwalacze `now`/`lcp` i zapasy, reguły
-// (i)/(ii) przyjęcia wpisu LCP, leniwy odczyt `#nes-boot-set` (także po skrypcie), usunięcie węzła
-// przed wstawieniem wejścia, wejście NIGDY przed końcem parsowania dokumentu (poprawka po Prove:
-// moduł wstawiony skryptem jest `async`, a `hydrate()` bez ogona dokumentu rzuca), idempotencja,
-// watchdog sondy i doktryna skryptu inline.
+// (i)/(ii) przyjęcia wpisu LCP, leniwy odczyt `#nes-boot-set` (po skrypcie - przy DCL, bez
+// obserwatora mutacji), usunięcie węzła przed wstawieniem wejścia, wejście NIGDY przed końcem
+// parsowania dokumentu (poprawka po Prove: moduł wstawiony skryptem jest `async`, a `hydrate()` bez
+// ogona dokumentu rzuca), idempotencja, watchdog sondy i doktryna skryptu inline. P3.4: pole
+// kandydata bez geometrii w handlerze DCL (K4i - pomiar w zadaniu po pierwszej klatce), seria
+// jednym zadaniem z wejściem za każdym `modulepreload` (grupy zmierzone i wycofane).
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -26,6 +28,8 @@ import {
 
 const ENTRY = "/assets/index-AbCdEf12.js";
 const LCP_SET = { m: "lcp", e: ENTRY, u: [ENTRY, "/assets/vendor-react-x.js", "/assets/pl-y.js"] };
+/** rAF atrapy (16 ms) + `setTimeout(0)` zaplanowany w nim - zadanie po pierwszej klatce. */
+const FRAME_MS = 17;
 
 interface FakeEntry {
   element?: Element | null;
@@ -65,6 +69,8 @@ interface Harness {
   modules(): string[];
   why(): string | undefined;
   arm: ReturnType<typeof vi.fn>;
+  /** Konstruktor `MutationObserver` widziany przez skrypt (P3.4: nie może go użyć). */
+  mutationObserver: ReturnType<typeof vi.fn>;
 }
 
 function bootSetNode(doc: Document, set: unknown = LCP_SET): Element {
@@ -80,11 +86,21 @@ function candidate(doc: Document, rect = { left: 0, top: 0, right: 400, bottom: 
   img.setAttribute("data-lcp-candidate", "");
   img.setAttribute("src", "https://media.test/hero.avif");
   Object.defineProperty(img, "currentSrc", { value: "https://media.test/hero.avif" });
+  // Atrapa z licznikiem: odczyt geometrii w przeglądarce wymusza Style+Layout (K4i).
   Object.defineProperty(img, "getBoundingClientRect", {
-    value: () => ({ ...rect, width: rect.right - rect.left, height: rect.bottom - rect.top }),
+    value: vi.fn(() => ({
+      ...rect,
+      width: rect.right - rect.left,
+      height: rect.bottom - rect.top,
+    })),
   });
   doc.body.appendChild(img);
   return img;
+}
+
+/** Licznik odczytów geometrii elementu z atrapą `getBoundingClientRect`. */
+function rectReads(element: Element): number {
+  return vi.mocked(element.getBoundingClientRect).mock.calls.length;
 }
 
 /**
@@ -117,13 +133,14 @@ function runLoader(
   Reflect.set(win, "__nesBootArm", arm);
   options.before?.(doc, win);
   const raf = (callback: () => void) => setTimeout(callback, 16);
+  const mutationObserver = vi.fn();
   new Function(
     "window",
     "document",
     "requestAnimationFrame",
     "MutationObserver",
     BOOT_LOADER_SCRIPT,
-  )(win, doc, raf, win.MutationObserver);
+  )(win, doc, raf, mutationObserver);
   return {
     win,
     doc,
@@ -144,6 +161,7 @@ function runLoader(
       ),
     why: () => Reflect.get(win, "__nesBootWhy") as string | undefined,
     arm,
+    mutationObserver,
   };
 }
 
@@ -214,16 +232,20 @@ describe("BOOT_LOADER_SCRIPT - tryb `now`", () => {
     expect(none.why()).toBe("now");
   });
 
-  it("zestaw PO skrypcie (bufor routera za loaderem) - boot w chwili pojawienia się węzła", async () => {
-    vi.useRealTimers();
+  it("zestaw PO skrypcie (bufor routera za loaderem) - odczyt przy DCL, bez obserwatora mutacji", () => {
     const h = runLoader();
     expect(h.preloads()).toEqual([]);
     h.doc.head.appendChild(bootSetNode(h.doc, { ...LCP_SET, m: "now" }));
-    await vi.waitFor(() => expect(h.preloads()).toEqual(LCP_SET.u));
-    expect(h.doc.getElementById(BOOT_SET_ELEMENT_ID)).toBeNull();
-    expect(h.modules()).toEqual([]);
+    vi.advanceTimersByTime(1_000);
+    // P3.4: bez `MutationObserver(subtree)` na całym dokumencie w trakcie parsowania - węzeł
+    // zestawu, który przyszedł po skrypcie, czyta handler DOMContentLoaded.
+    expect(h.preloads()).toEqual([]);
+    expect(h.mutationObserver).not.toHaveBeenCalled();
     h.dcl();
+    expect(h.preloads()).toEqual(LCP_SET.u);
+    expect(h.doc.getElementById(BOOT_SET_ELEMENT_ID)).toBeNull();
     expect(h.modules()).toEqual([ENTRY]);
+    expect(h.why()).toBe("now");
   });
 
   it("brak zestawu przy DOMContentLoaded (dev: `<Scripts>` startuje sam) - nic nie wstawia", () => {
@@ -304,7 +326,7 @@ describe("BOOT_LOADER_SCRIPT - tryb `lcp`", () => {
     expect(h.why()).toBe("cap");
   });
 
-  it("(ii) wpis NIE mniejszy od widocznego pola kandydata (zmierzonego przy DCL) jest przyjęty", () => {
+  it("(ii) wpis NIE mniejszy od widocznego pola kandydata (zmierzonego po klatce) jest przyjęty", () => {
     const h = lcpPage();
     const shell = h.doc.createElement("div");
     h.doc.body.appendChild(shell);
@@ -317,7 +339,7 @@ describe("BOOT_LOADER_SCRIPT - tryb `lcp`", () => {
     expect(h.why()).toBe("lcp");
   });
 
-  it("(ii) duży wpis sprzed DCL zostaje oceniony w DCL, gdy znane jest pole kandydata", () => {
+  it("(ii) duży wpis sprzed DCL zostaje oceniony po pierwszej klatce, gdy znane jest pole kandydata", () => {
     const h = lcpPage();
     const block = h.doc.createElement("section");
     h.doc.body.appendChild(block);
@@ -325,7 +347,9 @@ describe("BOOT_LOADER_SCRIPT - tryb `lcp`", () => {
     vi.advanceTimersByTime(1_000);
     expect(h.modules()).toEqual([]);
     h.dcl();
-    vi.advanceTimersByTime(BOOT_AFTER_LCP_DELAY_MS);
+    vi.advanceTimersByTime(FRAME_MS + BOOT_AFTER_LCP_DELAY_MS - 1);
+    expect(h.modules()).toEqual([]);
+    vi.advanceTimersByTime(1);
     expect(h.why()).toBe("lcp");
   });
 
@@ -343,21 +367,23 @@ describe("BOOT_LOADER_SCRIPT - tryb `lcp`", () => {
     h.doc.body.appendChild(text);
     h.dcl();
     FakeObserver.last?.emit({ element: text, size: 50_676 });
-    vi.advanceTimersByTime(BOOT_AFTER_LCP_DELAY_MS);
+    vi.advanceTimersByTime(FRAME_MS + BOOT_AFTER_LCP_DELAY_MS);
     expect(h.why()).toBe("lcp");
   });
 
-  it("brak WIDOCZNEGO kandydata przy DCL - rAF + setTimeout(0)", () => {
+  it("kandydat poza oknem - `nocand` rozstrzygany po pierwszej klatce (rAF + setTimeout(0))", () => {
+    let img: Element | null = null;
     const h = runLoader({
       before: (doc) => {
         doc.head.appendChild(bootSetNode(doc));
-        candidate(doc, { left: 0, top: 2000, right: 400, bottom: 2200 });
+        img = candidate(doc, { left: 0, top: 2000, right: 400, bottom: 2200 });
       },
     });
     h.dcl();
     expect(h.modules()).toEqual([]);
+    expect(rectReads(img as unknown as Element)).toBe(0);
     // rAF (16 ms w atrapie), potem `setTimeout(0)` zaplanowany w jego wywołaniu.
-    vi.advanceTimersByTime(17);
+    vi.advanceTimersByTime(FRAME_MS);
     expect(h.modules()).toEqual([ENTRY]);
     expect(h.why()).toBe("nocand");
   });
@@ -365,7 +391,7 @@ describe("BOOT_LOADER_SCRIPT - tryb `lcp`", () => {
   it("błąd obrazu kandydata - rAF + setTimeout(0), nie czekanie do limitu", () => {
     const h = lcpPage();
     h.img.dispatchEvent(new h.win.Event("error") as unknown as Event);
-    vi.advanceTimersByTime(17);
+    vi.advanceTimersByTime(FRAME_MS);
     expect(h.why()).toBe("nocand");
   });
 
@@ -503,6 +529,136 @@ describe("BOOT_LOADER_SCRIPT - wejście nigdy przed końcem parsowania", () => {
     vi.advanceTimersByTime(BOOT_AFTER_LCP_DELAY_MS);
     expect(h.modules()).toEqual([ENTRY]);
     expect(h.why()).toBe("lcp");
+  });
+});
+
+// POLE KANDYDATA BEZ WYMUSZONEGO UKŁADU (P3.4, K4i). `getBoundingClientRect` w handlerze
+// DOMContentLoaded wymuszał pełny Style+Layout dokumentu w zadaniu DCL (księga bazy W3 desktop4x:
+// `Script:(dokument)` 98 ms obs., Style+Layout 71 ms). Pole (ii) i `nocand` dla kandydata poza
+// oknem rozstrzyga zadanie po pierwszej klatce (rAF + `setTimeout(0)`), kiedy układ jest czysty.
+describe("BOOT_LOADER_SCRIPT - pole kandydata bez wymuszonego układu (K4i)", () => {
+  it("handler DOMContentLoaded nie czyta geometrii; pole liczy zadanie PO pierwszej klatce", () => {
+    let img: Element | null = null;
+    const h = runLoader({
+      before: (doc) => {
+        doc.head.appendChild(bootSetNode(doc));
+        img = candidate(doc);
+      },
+    });
+    const hero = img as unknown as Element;
+    h.dcl();
+    expect(rectReads(hero)).toBe(0);
+    // Wywołanie rAF to jeszcze PRZED stylem i układem klatki - tu też bez odczytu.
+    vi.advanceTimersByTime(FRAME_MS - 1);
+    expect(rectReads(hero)).toBe(0);
+    vi.advanceTimersByTime(1);
+    expect(rectReads(hero)).toBe(1);
+    // Pomiar jednorazowy: kolejne wpisy LCP i zapasy nie mierzą ponownie.
+    FakeObserver.last?.emit({ element: h.doc.body, size: 10 });
+    vi.advanceTimersByTime(BOOT_HARD_CAP_MS);
+    expect(rectReads(hero)).toBe(1);
+    expect(h.why()).toBe("cap");
+  });
+
+  it("dokument bez kandydata: `nocand` po klatce bez żadnego odczytu geometrii", () => {
+    let other: Element | null = null;
+    const h = runLoader({
+      before: (doc) => {
+        doc.head.appendChild(bootSetNode(doc));
+        // Zwykły obraz (bez `data-lcp-candidate`) z licznikiem - loader nie może go mierzyć.
+        other = candidate(doc);
+        other.removeAttribute("data-lcp-candidate");
+      },
+    });
+    h.dcl();
+    expect(h.modules()).toEqual([]);
+    vi.advanceTimersByTime(FRAME_MS);
+    expect(h.why()).toBe("nocand");
+    expect(h.modules()).toEqual([ENTRY]);
+    expect(rectReads(other as unknown as Element)).toBe(0);
+  });
+
+  it("boot przed pomiarem (interakcja po DCL): zadanie po klatce nie dotyka geometrii", () => {
+    let img: Element | null = null;
+    const h = runLoader({
+      before: (doc) => {
+        doc.head.appendChild(bootSetNode(doc));
+        img = candidate(doc);
+      },
+    });
+    h.dcl();
+    h.win.dispatchEvent(new h.win.Event("pointerdown"));
+    expect(h.why()).toBe("input");
+    vi.advanceTimersByTime(BOOT_HARD_CAP_MS);
+    expect(rectReads(img as unknown as Element)).toBe(0);
+    expect(h.modules()).toEqual([ENTRY]);
+  });
+
+  it("wpis kandydata (reguła (i)) nie czeka na pomiar pola", () => {
+    let img: Element | null = null;
+    const h = runLoader({
+      before: (doc) => {
+        doc.head.appendChild(bootSetNode(doc));
+        img = candidate(doc);
+      },
+    });
+    h.dcl();
+    FakeObserver.last?.emit({ element: img, size: 1 });
+    vi.advanceTimersByTime(BOOT_AFTER_LCP_DELAY_MS);
+    expect(h.why()).toBe("lcp");
+    expect(h.modules()).toEqual([ENTRY]);
+  });
+});
+
+// SERIA JEDNYM ZADANIEM (P3.4). Wariant z grupami `modulepreload` w osobnych zadaniach nie
+// podzielił `ScriptCatchup` (księga Prove) i został wycofany. Reguła CLS z werdyktu boot-js C3:
+// cała seria jest zażądana w zadaniu wyzwalacza, a wejście stoi w `<head>` za KAŻDYM jej
+// `modulepreload` - żaden moduł nie ewaluuje się przed zażądaniem wszystkich.
+describe("BOOT_LOADER_SCRIPT - seria jednym zadaniem, wejście za całą serią", () => {
+  /** Wejście stoi w `<head>` za każdym `modulepreload` serii. */
+  function entryAfterAllPreloads(doc: Document): boolean {
+    const entry = doc.head.querySelector('script[type="module"]');
+    if (!entry) return false;
+    return [...doc.head.querySelectorAll('link[rel="modulepreload"]')].every(
+      (link) => (link.compareDocumentPosition(entry) & 4) !== 0,
+    );
+  }
+
+  function page(): Harness & { img: Element } {
+    let img: Element | null = null;
+    const h = runLoader({
+      before: (doc) => {
+        doc.head.appendChild(bootSetNode(doc));
+        img = candidate(doc);
+      },
+    });
+    return { ...h, img: img as unknown as Element };
+  }
+
+  it("wyzwalacz po DCL: cała seria i wejście w tym samym zadaniu wyzwalacza", () => {
+    const h = page();
+    h.dcl();
+    vi.advanceTimersByTime(FRAME_MS);
+    FakeObserver.last?.emit({ element: h.img, size: 90_000 });
+    vi.advanceTimersByTime(BOOT_AFTER_LCP_DELAY_MS - 1);
+    expect(h.preloads()).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(h.why()).toBe("lcp");
+    expect(h.preloads()).toEqual(LCP_SET.u);
+    expect(h.modules()).toEqual([ENTRY]);
+    expect(entryAfterAllPreloads(h.doc)).toBe(true);
+    expect(h.arm).toHaveBeenCalledTimes(1);
+  });
+
+  it("wyzwalacz przed DCL: cała seria od razu, wejście przy DCL za każdym `modulepreload`", () => {
+    const h = page();
+    h.win.dispatchEvent(new h.win.Event("keydown"));
+    expect(h.why()).toBe("input");
+    expect(h.preloads()).toEqual(LCP_SET.u);
+    expect(h.modules()).toEqual([]);
+    h.dcl();
+    expect(h.modules()).toEqual([ENTRY]);
+    expect(entryAfterAllPreloads(h.doc)).toBe(true);
   });
 });
 

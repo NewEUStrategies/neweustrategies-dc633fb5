@@ -212,6 +212,9 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run test:e2e:artifact
         env:
+          # Dane z fixture (scripts/performance/replayFetch.mjs) zamiast placeholdera:
+          # strona główna z hero i sekcjami, jak w pomiarze (playwright.artifact.config.ts).
+          NES_ARTIFACT_FIXTURE: "1"
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}

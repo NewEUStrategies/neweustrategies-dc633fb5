@@ -46,6 +46,7 @@ import "./world-map.css";
 // ekranu i wyszukiwarka dostają treść, nie tylko grafikę.
 import { useId, useMemo, useState, type CSSProperties } from "react";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useMotionGate } from "@/lib/performance/motionGate";
 import { safeUrl, safeImageUrl } from "@/lib/sanitize";
 import {
   ARC_STAGGER_S,
@@ -139,6 +140,25 @@ export function WorldMap({
   const [hovered, setHovered] = useState<string | null>(null);
   const reducedMotion = usePrefersReducedMotion();
   const animated = animate && !reducedMotion;
+  // BRAMKA RUCHU (P3.5). Pętla łuków, iskier i pulsu znaczników to
+  // nieskończone animacje obecne w HTML z SSR, więc te elementy noszą
+  // `data-motion-loop` (pauza w pierwszej klatce do pierwszej interakcji albo
+  // punktu ciszy strony; hook uzbraja bramkę). Pojedyncze rysowanie bez pętli
+  // (`loop={false}`) jest skończone i rusza od razu, jak dotąd - poza pulsem
+  // znaczników, który jest nieskończony w obu trybach.
+  //
+  // PIERWSZA KLATKA PĘTLI = WSZYSTKIE ŁUKI NARYSOWANE. Klatka 0% pętli to łuk
+  // PRZED rysowaniem (`stroke-dashoffset: 1`), więc pauza w niej zostawiała
+  // mapę bez tras (same kropki i znaczniki) aż do otwarcia bramki - 5-20 s
+  // albo do pierwszego dotyku. Dlatego pętla startuje od SSR z ujemnym
+  // opóźnieniem `loopPhaseS` (wspólnym dla łuków i iskier, więc harmonogram
+  // zostaje zgodny): środek okna między dorysowaniem ostatniego łuku a
+  // `resetPct`, w którym każdy łuk stoi pełny, a każda iskra jest wygaszona
+  // (`opacity: 0`). Pauza trzyma tę klatkę, a po otwarciu pętla biegnie dalej
+  // od niej (wygaszenie i rysowanie od nowa) - bez skoku. Opóźnienie nie
+  // zależy od stanu bramki, więc HTML i hydratacja są zgodne.
+  useMotionGate(animated);
+  const loopAttr = loop ? "" : undefined;
 
   const arcs = useMemo(() => resolveArcs(dots), [dots]);
   const view = useMemo(
@@ -159,6 +179,9 @@ export function WorldMap({
     () => arcTiming(arcs.length, animationDuration),
     [arcs.length, animationDuration],
   );
+  // Ostatni łuk jest gotowy w `drawS - ARC_STAGGER_S`, a `resetPct` wypada w
+  // `drawS` - środek tego okna leży daleko od zaokrągleń procentów klatek.
+  const loopDelay = `${(-(timing.drawS - ARC_STAGGER_S / 2)).toFixed(3)}s`;
 
   // Jedna reguła @keyframes na łuk - dokładnie te ułamki cyklu, które
   // pierwowzór podawał framer-motion jako `times`.
@@ -259,7 +282,7 @@ export function WorldMap({
             ? {
                 animationName: `nes-wm-${uid}-${i}`,
                 animationDuration: `${loop ? timing.cycleS : animationDuration}s`,
-                animationDelay: loop ? "0s" : `${i * ARC_STAGGER_S}s`,
+                animationDelay: loop ? loopDelay : `${i * ARC_STAGGER_S}s`,
                 animationIterationCount: loop ? "infinite" : 1,
                 animationTimingFunction: loop ? "linear" : "cubic-bezier(0.22, 0.61, 0.36, 1)",
                 animationFillMode: "forwards",
@@ -277,6 +300,7 @@ export function WorldMap({
                 strokeLinecap="round"
                 pathLength={1}
                 className="nes-world-map__arc nes-world-map__arc--glow"
+                data-motion-loop={arcAnimation ? loopAttr : undefined}
                 style={arcAnimation}
               />
               <path
@@ -287,6 +311,7 @@ export function WorldMap({
                 strokeLinecap="round"
                 pathLength={1}
                 className="nes-world-map__arc"
+                data-motion-loop={arcAnimation ? loopAttr : undefined}
                 style={arcAnimation}
               />
               {/* Iskra: krótki odcinek biegnący wzdłuż trasy - to ona daje
@@ -300,10 +325,11 @@ export function WorldMap({
                   strokeLinecap="round"
                   pathLength={1}
                   className="nes-world-map__spark"
+                  data-motion-loop={loopAttr}
                   style={{
                     animationName: `nes-wms-${uid}-${i}`,
                     animationDuration: `${loop ? timing.cycleS : animationDuration}s`,
-                    animationDelay: loop ? "0s" : `${i * ARC_STAGGER_S}s`,
+                    animationDelay: loop ? loopDelay : `${i * ARC_STAGGER_S}s`,
                     animationIterationCount: loop ? "infinite" : 1,
                     animationTimingFunction: "linear",
                     animationFillMode: "forwards",
@@ -339,6 +365,7 @@ export function WorldMap({
                   stroke={markerColor}
                   strokeWidth={0.7 * k}
                   className="nes-world-map__pulse"
+                  data-motion-loop=""
                 />
               )}
               {/* Rdzeń jest PEŁNY, a odcina go od łuku pierścień w kolorze tła

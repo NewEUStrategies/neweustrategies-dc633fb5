@@ -46,7 +46,9 @@ describe("post-list query key is snapshot-independent", () => {
     // postListQueryOptions takes no snapshot argument anymore, so two calls with
     // the same content yield the same key - what lets the server prefetch and
     // the client render share one cache entry.
-    expect(postListQueryOptions(c, "pl").queryKey).toEqual(postListQueryOptions(c, "pl").queryKey);
+    expect(postListQueryOptions(c, "pl", "list").queryKey).toEqual(
+      postListQueryOptions(c, "pl", "list").queryKey,
+    );
   });
 });
 

@@ -78,6 +78,7 @@ export const en = {
   },
   footer: {
     back_to_top: "Back to top",
+    legal_nav: "Legal information",
   },
   archive: {
     empty: "No published posts yet.",

@@ -98,6 +98,35 @@ function blocks(html: string, tag: "script" | "style"): Block[] {
 }
 
 const byteLength = (s: string) => Buffer.byteLength(s, "utf8");
+
+/**
+ * Bajty komentarzy `/* ... *\/` w tekście CSS (z ogranicznikami). Napisy `"..."`/`'...'`
+ * i ucieczki są pomijane, więc `content: "/*"` nie otwiera komentarza. Niedomknięty
+ * komentarz liczy się do końca tekstu (przeglądarka też go tak czyta).
+ */
+export function cssCommentBytes(css: string): number {
+  let total = 0;
+  let i = 0;
+  while (i < css.length) {
+    const c = css[i];
+    if (c === "\\") {
+      i += 2;
+    } else if (c === '"' || c === "'") {
+      let j = i + 1;
+      while (j < css.length && css[j] !== c && css[j] !== "\n") j += css[j] === "\\" ? 2 : 1;
+      i = j + 1;
+    } else if (c === "/" && css[i + 1] === "*") {
+      const end = css.indexOf("*/", i + 2);
+      const stop = end < 0 ? css.length : end + 2;
+      total += byteLength(css.slice(i, stop));
+      i = stop;
+    } else {
+      i++;
+    }
+  }
+  return total;
+}
+
 const DATA_SCRIPT_TYPES = /^(application\/(ld\+)?json|speculationrules|importmap)$/i;
 
 /** Sufiks ścieżki `/assets/x.js` -> nazwa pliku w `.output/public/assets`. */
@@ -247,12 +276,34 @@ export interface DocumentWeight {
   readonly inlineStyleCount: number;
   readonly inlineStyleBytes: number;
   readonly inlineStyleLargestBytes: number;
+  /**
+   * Bajty komentarzy CSS w inline `<style>` (P3.7a). Statyczne literały CSS (`TICKER_CSS`,
+   * `SHARED_STYLES` slidera, most `globalColorsToCss`, `SEARCH_WIDGET_CSS`) minifikuje
+   * w buildzie `scripts/lib/staticCssPlugin.ts`; komentarz w dokumencie znaczy, że wtyczka
+   * nie zadziałała (znacznik zniknął, inna wtyczka `pre` przepisała plik) albo że doszedł
+   * nowy nieminifikowany arkusz. Martwe bajty parsowane w każdym dokumencie.
+   */
+  readonly inlineCssCommentBytes: number;
   readonly inlineScriptCount: number;
   readonly inlineScriptBytes: number;
   /** Inline skrypty wykonywalne (bez JSON-LD, speculationrules, importmap). */
   readonly inlineExecutableScriptBytes: number;
   /** `<script id="$tsr-stream-barrier">` - dehydratowany stan routera/loaderów. */
   readonly dehydratedStateBytes: number;
+  /**
+   * Strumieniowane skrypty stanu (P3.7b): inline `<script>` wykonywalne poza barierą,
+   * których treść odwołuje się do `$R["tsr"]` - porcje strumienia zapytań
+   * (`$R[n].next(...)`, `.return(...)`) i inne dostrumieniowane dane routera. Bariera
+   * (`dehydratedStateBytes`) ich nie widzi, a parsują się i ewaluują tak samo
+   * (diagnoza `faza3/diagnoza/waga-dokumentu.md` §2.2: ok. 10 KB na fixture `/`).
+   */
+  readonly streamedStateBytes: number;
+  /**
+   * Wystąpienia `queryHash:` w barierze i strumieniu (P3.7b, T1). Kompaktowa koperta
+   * zapytań (`src/lib/ssr/dehydratedQueryEnvelope.ts`) wysyła hash wyłącznie, gdy
+   * różni się od `hashKey(queryKey)`, więc w aplikacji bez `queryKeyHashFn` - zero.
+   */
+  readonly dehydratedQueryHashCount: number;
   readonly moduleScriptCount: number;
   /** Unikalne `modulepreload` z `<head>`/body i nagłówka `Link` łącznie. */
   readonly modulepreloadCount: number;
@@ -270,6 +321,14 @@ export interface DocumentWeight {
   readonly documentPreloadDuplicates: number;
   readonly duplicates: readonly DuplicateEntry[];
   readonly imagePreloadCount: number;
+  /**
+   * Unikalne preloadowane fonty (`preload as=font` z `<head>`/body i nagłówka
+   * `Link` łącznie; ten sam plik w obu zestawach liczy się raz - jak
+   * `modulepreloadCount`). Zasada „jeden font w ścieżce krytycznej” (P3.2b,
+   * decyzja właściciela 2026-10-08: jedynym jest Red Hat Display latin + PL):
+   * drugi preloadowany font to żądanie przed LCP. Kroje dodane w CMS
+   * (`designTokens.ts`, `@font-face` bez preloadu) tej liczby nie zmieniają.
+   */
   readonly fontPreloadCount: number;
   readonly imgCount: number;
   readonly imgFetchpriorityHigh: number;
@@ -356,6 +415,25 @@ export interface DocumentWeight {
    * P2.1: w trybie `lcp` pula JS jest pusta (seria bootu rusza po wpisie LCP).
    */
   readonly preLcpTransferBytes: number;
+  // ── BAJTY OBRAZÓW W HTML-U (P3.2a: HW-4 + P4.2) ─────────────────────────
+  /**
+   * Największa liczba kandydatów z deskryptorem `w` w jednym `srcset` (`<img>`,
+   * `<source>`) albo `imagesrcset` (preload w dokumencie i nagłówku `Link`).
+   * Domyślna drabina okładek ma 5 szerokości (`RESPONSIVE_WIDTHS`); więcej znaczy
+   * powrót długiej drabiny w HTML-u. Awatary (`1x/2x/3x`) nie mają deskryptora
+   * `w`. Zdjęcia osób na dawnej drabinie (awatar autora w bloku kontekstu wpisu,
+   * prelegenci - decyzja właściciela 2026-10-08: 9 szerokości, adresy absolutne)
+   * liczą się jak każdy `srcset`: na `/` ich nie ma, a wyjątek po liście
+   * szerokości ukryłby powrót dawnej drabiny DOMYŚLNEJ (te same szerokości).
+   */
+  readonly srcsetCandidatesMax: number;
+  /**
+   * Kandydaci `w` (te same źródła co wyżej) z adresem ABSOLUTNYM kanonicznego
+   * originu mediów (`https://neweuropeanstrategies.com/media/...`). Render do
+   * HTML-u używa ścieżki względnej (`renderedMediaUrl`, P4.2), więc każdy taki
+   * kandydat to zbędne ~33 B i znak, że emiter ominął `buildImageSrcSet`.
+   */
+  readonly absoluteCanonicalMediaInRenderedSrcset: number;
 }
 
 export interface AnalyzeInput {
@@ -431,11 +509,47 @@ function siteHeaderRanges(html: string): Array<[number, number]> {
   return out;
 }
 
+/**
+ * Origin kanoniczny mediów (domyślny `PUBLIC_MEDIA_ORIGIN`, `src/lib/media/publicUrl.ts`
+ * - moduł czyta `import.meta.env`, więc skrypt node go nie importuje).
+ */
+export const CANONICAL_MEDIA_ORIGIN = "https://neweuropeanstrategies.com";
+
+/** Kandydaci `w` każdego `srcset` (`<img>`, `<source>`) i `imagesrcset` (preloady). */
+function widthCandidateSets(html: string, links: readonly LinkEntry[]): string[][] {
+  const sets = [
+    ...[...html.matchAll(/<(?:img|source)\b[^>]*>/gi)].map((m) => parseAttributes(m[0])["srcset"]),
+    ...links.map((l) => l.imagesrcset),
+  ];
+  return sets.flatMap((set) => {
+    // Kandydaci rozdzieleni przecinkiem ZE SPACJĄ - przecinek w `data:...;base64,`
+    // nie rozcina adresu.
+    const candidates = (set ?? "")
+      .split(/,\s+/)
+      .map((c) => c.trim())
+      .filter((c) => /\s\d+w$/.test(c));
+    return candidates.length ? [candidates] : [];
+  });
+}
+
+/** Skrypt strumieniowanego stanu routera (definicja: `DocumentWeight.streamedStateBytes`). */
+function isStreamedStateScript(block: Block): boolean {
+  return (
+    block.attrs["id"] !== "$tsr-stream-barrier" &&
+    !DATA_SCRIPT_TYPES.test(block.attrs["type"] ?? "") &&
+    block.content.includes('$R["tsr"]')
+  );
+}
+
+const QUERY_HASH_KEY = /["']?\bqueryHash["']?\s*:/g;
+
 export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
   const { html } = input;
   const headMatch = /<head\b[^>]*>([\s\S]*?)<\/head>/i.exec(html);
   const scripts = blocks(html, "script");
   const inline = scripts.filter((s) => !s.attrs["src"]);
+  const barrier = inline.filter((b) => b.attrs["id"] === "$tsr-stream-barrier");
+  const streamed = inline.filter(isStreamedStateScript);
   const styles = blocks(html, "style");
   const links = [...linkEntries(html), ...parseLinkHeader(input.linkHeader)];
   const preloads = links.filter(isPreload);
@@ -482,6 +596,7 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     if (l.rel === "preload" && l.as === "image" && candidateKeys.has(linkImageKey(l))) return false;
     return true;
   }).length;
+  const srcsetSets = widthCandidateSets(html, links);
   const bodyStart = html.search(/<body\b/i);
   const body = bodyStart >= 0 ? html.slice(bodyStart) : html;
 
@@ -572,14 +687,18 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     inlineStyleCount: styles.length,
     inlineStyleBytes: styles.reduce((s, b) => s + byteLength(b.content), 0),
     inlineStyleLargestBytes: Math.max(0, ...styles.map((b) => byteLength(b.content))),
+    inlineCssCommentBytes: styles.reduce((s, b) => s + cssCommentBytes(b.content), 0),
     inlineScriptCount: inline.length,
     inlineScriptBytes: inline.reduce((s, b) => s + byteLength(b.content), 0),
     inlineExecutableScriptBytes: inline
       .filter((b) => !DATA_SCRIPT_TYPES.test(b.attrs["type"] ?? ""))
       .reduce((s, b) => s + byteLength(b.content), 0),
-    dehydratedStateBytes: inline
-      .filter((b) => b.attrs["id"] === "$tsr-stream-barrier")
-      .reduce((s, b) => s + byteLength(b.content), 0),
+    dehydratedStateBytes: barrier.reduce((s, b) => s + byteLength(b.content), 0),
+    streamedStateBytes: streamed.reduce((s, b) => s + byteLength(b.content), 0),
+    dehydratedQueryHashCount: [...barrier, ...streamed].reduce(
+      (s, b) => s + (b.content.match(QUERY_HASH_KEY) ?? []).length,
+      0,
+    ),
     moduleScriptCount: moduleScripts.length,
     modulepreloadCount: new Set(modulepreloads.map((l) => l.href)).size,
     modulepreloadInHead: modulepreloads.filter((l) => l.source !== "header").length,
@@ -592,7 +711,9 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     ),
     duplicates,
     imagePreloadCount: preloads.filter((l) => l.as === "image").length,
-    fontPreloadCount: preloads.filter((l) => l.as === "font").length,
+    fontPreloadCount: new Set(
+      preloads.filter((l) => l.as === "font").map((l) => anyAssetName(l.href) ?? l.href),
+    ).size,
     imgCount: imgs.length,
     imgFetchpriorityHigh: imgs.filter((a) => (a["fetchpriority"] ?? "").toLowerCase() === "high")
       .length,
@@ -622,6 +743,10 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     lcpImageBytes,
     preLcpTransferBytes:
       htmlGzipBytes + cssSum.gzipBytes + preloadedSum.gzipBytes + fontPreloadBytes + lcpImageBytes,
+    srcsetCandidatesMax: Math.max(0, ...srcsetSets.map((set) => set.length)),
+    absoluteCanonicalMediaInRenderedSrcset: srcsetSets
+      .flat()
+      .filter((c) => c.startsWith(`${CANONICAL_MEDIA_ORIGIN}/media/`)).length,
   };
 }
 
@@ -632,9 +757,16 @@ export const GATED_METRICS = [
   "headRawBytes",
   "inlineStyleCount",
   "inlineStyleBytes",
+  // P3.7a - komentarze w inline `<style>` (definicja: komentarz pola wyżej).
+  "inlineCssCommentBytes",
+  // P3.2b - jeden font w ścieżce krytycznej (definicja: komentarz pola wyżej).
+  "fontPreloadCount",
   "inlineScriptBytes",
   "inlineExecutableScriptBytes",
   "dehydratedStateBytes",
+  // P3.7b - strumieniowany stan i koperta zapytań (definicje: komentarze pól wyżej).
+  "streamedStateBytes",
+  "dehydratedQueryHashCount",
   "modulepreloadCount",
   "linkHeaderEntries",
   "preloadDuplicates",
@@ -653,6 +785,9 @@ export const GATED_METRICS = [
   "imagePreloadNonCandidate",
   "linkHeaderDisallowed",
   "preLcpTransferBytes",
+  // P3.2a - bajty obrazów w HTML-u (definicje: komentarze pól wyżej).
+  "srcsetCandidatesMax",
+  "absoluteCanonicalMediaInRenderedSrcset",
   // P2.1 - zestaw bootu (definicje: komentarze pól wyżej).
   "bootEntryMissing",
   "bootBurstCount",
