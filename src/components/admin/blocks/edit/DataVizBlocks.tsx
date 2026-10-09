@@ -7,7 +7,15 @@
 // odniesień wspólne dla obu bloków (źródła, pochodzenie liczb, podpis, data
 // danych, `n`, trzy zdania) w `dataVizShared.tsx`. Ten plik re-eksportuje
 // `DataMapBlock`, więc dyspozytor i testy importują oba edytory stąd.
-import { useMemo } from "react";
+//
+// ARKUSZ DANYCH (PR2) to wspólna siatka `ChartDataGrid` z
+// `src/components/admin/charts` - ta sama, którą ma arkusz widgetu buildera:
+// komórki ze szkicem liczby, klawiatura arkusza, wklejenie zakresu z Excela,
+// Arkuszy Google albo LibreOffice od komórki kotwicy, menu wiersza i kolumny,
+// kolory serii z próbnikiem i seria wyróżniona. Ten edytor tylko przekłada
+// jej stan na treść bloku (`readBlockGrid` / `blockGridChanges`) - JEDNYM
+// zapisem, więc jedno działanie w arkuszu to jeden krok cofania.
+import { useMemo, useRef } from "react";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
 import "@/lib/i18n-admin-blocks";
 import type { Block, Json } from "@/lib/blocks/types";
@@ -17,21 +25,10 @@ import type { Block, Json } from "@/lib/blocks/types";
 // audytowalnym miejscu, a bramka `check:unknown-casts` pilnuje, żeby nie
 // rozsypał się po komponentach.
 import { toJson } from "@/lib/content-model/json";
-import { Plus, Trash2 } from "lucide-react";
 import { AdminSelect } from "../AdminSelect";
-import {
-  CHART_HEIGHT_MAX,
-  CHART_HEIGHT_MIN,
-  MAX_CATEGORIES,
-  parseChartConfig,
-} from "@/lib/charts/parse";
-import {
-  CATEGORICAL_SAFE_SERIES,
-  MAX_COLOR_SLOT,
-  MAX_SERIES,
-  PIE_MAX_SLICES,
-  type ChartKind,
-} from "@/lib/charts/types";
+import { useBlockEditorLang } from "../BlockEditorContext";
+import { CHART_HEIGHT_MAX, CHART_HEIGHT_MIN, parseChartConfig } from "@/lib/charts/parse";
+import { CATEGORICAL_SAFE_SERIES, PIE_MAX_SLICES, type ChartKind } from "@/lib/charts/types";
 import { pieModel } from "@/components/charts/pieModel";
 import {
   isForecastMissingBand,
@@ -39,14 +36,10 @@ import {
   seriesOverSafePalette,
   PIE_CLOSE_SHARES_PP,
 } from "@/lib/charts/honesty";
-import { CHART_SLOTS, slotForSeries, SLOTS_CLASHING_WITH_SIGN } from "@/lib/charts/palette";
+import { SLOTS_CLASHING_WITH_SIGN } from "@/lib/charts/palette";
 import { chartFormAdvice } from "@/lib/charts/formAdvice";
-import {
-  CHART_PALETTES,
-  FOCUS_SERIES_MAX,
-  isChartPalette,
-  type ChartPalette,
-} from "@/lib/charts/seriesStyle";
+import { KIND_CAPS } from "@/lib/charts/kindCaps";
+import { CHART_PALETTES, isChartPalette, type ChartPalette } from "@/lib/charts/seriesStyle";
 import {
   effectiveBand,
   isMetricDirection,
@@ -60,10 +53,16 @@ import "@/lib/i18n-charts-editor";
 import { Chart } from "@/components/charts/Chart";
 import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
 import { tableToChartData } from "@/lib/charts/importTable";
+import { ChartDataGrid, type ChartDataGridHandle } from "@/components/admin/charts/ChartDataGrid";
+import {
+  blockGridChanges,
+  gridReplace,
+  readBlockGrid,
+} from "@/components/admin/charts/chartGridState";
+import { useBlockTablePaste } from "@/components/admin/charts/blockTablePaste";
 import {
   asRecord,
   CaptionField,
-  cellCls,
   DecimalInput,
   DemoCheckbox,
   FieldGroup,
@@ -147,44 +146,6 @@ const DIRECTION_LABEL_KEYS: Record<MetricDirection, string> = {
 
 // ===== Chart =====
 
-interface SeriesDraft {
-  name: string;
-  values: (number | null)[];
-  colorSlot: number;
-}
-
-function readSeries(raw: Json | undefined, rows: number): SeriesDraft[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.slice(0, MAX_SERIES).map((item, si) => {
-    const o = (item ?? {}) as Record<string, Json>;
-    const values = Array.isArray(o.values) ? o.values : [];
-    return {
-      name: String(o.name ?? ""),
-      values: Array.from({ length: rows }, (_, i) => {
-        const v = values[i];
-        if (typeof v === "number" && Number.isFinite(v)) return v;
-        if (typeof v === "string" && v.trim() !== "") {
-          const n = Number(v.replace(",", "."));
-          return Number.isFinite(n) ? n : null;
-        }
-        return null;
-      }),
-      colorSlot:
-        typeof o.colorSlot === "number" && o.colorSlot >= 1 && o.colorSlot <= MAX_COLOR_SLOT
-          ? Math.round(o.colorSlot)
-          : slotForSeries(si),
-    };
-  });
-}
-
-function seriesToJson(series: SeriesDraft[]): Json[] {
-  return series.map((s) => ({
-    name: s.name,
-    values: s.values.map((v) => (v === null ? null : v)),
-    colorSlot: s.colorSlot,
-  }));
-}
-
 // ---- Odniesienia: pasmo optimum, cel, źródła ----
 
 interface BandDraft {
@@ -219,10 +180,11 @@ function bandToJson(band: BandDraft): Json | undefined {
 
 export function ChartBlock({ block, onChange }: Props) {
   const bt = useBlocksI18n();
-  const categories = (Array.isArray(block.data.categories) ? block.data.categories : []).map((c) =>
-    String(c ?? ""),
-  );
-  const series = readSeries(block.data.series, categories.length);
+  // Stan arkusza (dane, kolory serii, oba wskaźniki akcentu) czyta jeden
+  // adapter - ta sama koercja wartości co dotąd, a wskaźnik spoza zakresu
+  // pokazuje się tak, jak narysuje go parser.
+  const grid = useMemo(() => readBlockGrid(block.data), [block.data]);
+  const categories = grid.model.categories;
   const kind = String(block.data.variant ?? block.data.kind ?? "bar");
   const previewConfig = useMemo(() => parseChartConfig(block.data), [block.data]);
   // `keyPrefix` haka, nie sklejanie szablonem - inaczej bramka rozjazdu
@@ -233,6 +195,22 @@ export function ChartBlock({ block, onChange }: Props) {
   // sformatowana innym językiem dawałaby angielskie zdanie z polskim
   // przecinkiem dziesiętnym.
   const lang: ChartLang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  // Język DOKUMENTU (karta PL/EN edytora wpisu), nie panelu: wpis polski
+  // edytowany w angielskim panelu ma podgląd z polskim zapisem liczb i serie
+  // dokładane w arkuszu jako „Seria C", a nie „Series C".
+  const docLang = useBlockEditorLang();
+  const gridRef = useRef<ChartDataGridHandle>(null);
+
+  // TABELA WKLEJONA NA KANWIE przy zaznaczonym bloku trafia tutaj, a nie do
+  // nowego bloku tabeli pod wykresem - i przechodzi przez ten sam podgląd
+  // układu co wklejka całej tabeli w siatkę.
+  useBlockTablePaste(block.id, (table) =>
+    gridRef.current?.openTablePreview(
+      table.rows,
+      table.truncated ? [{ code: "pasteTruncated" }] : [],
+      "paste",
+    ),
+  );
 
   const patch = (data: Record<string, Json>) =>
     onChange({ ...block, data: { ...block.data, ...data } });
@@ -300,7 +278,7 @@ export function ChartBlock({ block, onChange }: Props) {
   // configu, który idzie do podglądu, więc autor widzi ostrzeżenie obok
   // wykresu, którego ono dotyczy.
   const overSafePalette = seriesOverSafePalette(previewConfig, CATEGORICAL_SAFE_SERIES);
-  const usedSlots = series.map((s) => s.colorSlot);
+  const usedSlots = grid.model.series.map((s) => s.colorSlot);
   const isPie = kind === "pie" || kind === "donut";
   const isWaterfall = kind === "waterfall";
   const sliceOverflow = isPie ? Math.max(0, categories.length - PIE_MAX_SLICES) : 0;
@@ -334,29 +312,22 @@ export function ChartBlock({ block, onChange }: Props) {
   // OCHRA WOBEC AKCENTU NIE JEST TU OSTRZEŻENIEM, i to jest decyzja, nie
   // przeoczenie. Kolizja ochry z pomarańczowym akcentem marki (przy
   // deuteranopii dystans 1,6, czyli praktycznie ten sam kolor) jest FAKTEM
-  // PALETY i pilnuje jej bramka `__tests__/palette.test.ts`. Autor nie ma
-  // jednak żadnego pola, którym wprowadza akcent do wykresu: w silniku
-  // `--chart-accent` występuje wyłącznie jako obwódka fokusu, czyli stan
-  // przelotny i sterowany klawiaturą, nigdy jako kolor danych. Ostrzeżenie
-  // odpalało się więc zawsze, gdy użyto slotu 2 - a slot 2 jest domyślnym
-  // kolorem DRUGIEJ SERII, czyli komunikat wisiał nad niemal każdym wykresem
-  // o dwóch seriach. Ostrzeżenie, które widać zawsze, uczy ignorowania
-  // wszystkich ostrzeżeń, w tym tych o realnej kolizji znaku (`signClash`).
+  // PALETY i pilnuje jej bramka `__tests__/palette.test.ts`. Od PR2 próbnik
+  // koloru serii w ogóle nie oferuje rodziny pomarańczu i żółci
+  // (`PICKER_SLOTS`), więc nowa seria nie dostanie ochry z ręki autora,
+  // a slot zapisany wcześniej widać w próbniku jako „spoza palety wyboru".
+  // Ostrzeżenie, które widać zawsze, uczy ignorowania wszystkich ostrzeżeń,
+  // w tym tych o realnej kolizji znaku (`signClash`).
 
-  const setCategories = (next: string[], nextSeries?: SeriesDraft[]) =>
-    patch({
-      categories: next,
-      series: seriesToJson(nextSeries ?? series),
-    });
-
-  const setSeries = (next: SeriesDraft[]) => patch({ series: seriesToJson(next) });
+  // Wybór palety stoi przy arkuszu, bo to on zmienia próbki serii - ale tylko
+  // dla rodzajów, w których paleta coś zmienia na rysunku (`KIND_CAPS`).
+  const paletteMatters = KIND_CAPS[previewConfig.kind].palette;
 
   return (
     <Shell label={bt.editor("chart", "shellLabel")}>
-      {/* Podgląd na żywo - dokładnie ten sam silnik, co strona publiczna. */}
-      <div className="pointer-events-none">
-        <Chart config={{ ...previewConfig, animate: false }} lang="pl" className="my-0" />
-      </div>
+      {/* Podgląd na żywo - dokładnie ten sam silnik, co strona publiczna,
+          w języku dokumentu i z działającym najechaniem (tooltip, legenda). */}
+      <Chart config={{ ...previewConfig, animate: false }} lang={docLang} className="my-0" />
 
       {overSafePalette > 0 && (
         <Warning text={ct("editor.tooManySeries", { max: CATEGORICAL_SAFE_SERIES })} />
@@ -412,203 +383,48 @@ export function ChartBlock({ block, onChange }: Props) {
 
       {/* IMPORT Z PLIKU stoi NAD arkuszem, bo go NADPISUJE w całości.
           Pod spodem wyglądałby na „dopisz do tego, co jest" - a wczytanie
-          pliku wymienia kategorie i serie, nie dokłada ich. */}
+          pliku wymienia kategorie i serie, nie dokłada ich. Przed zapisem
+          pokazuje podgląd układu (nagłówek, obrót, format liczb), a kolory
+          i wyróżnienie idą za nazwą serii (`gridReplace`). */}
       <DataImportControl
         hint={bt.editor("dataImport", "hintChart")}
-        onRows={(rows) => {
-          const dane = tableToChartData(rows);
-          patch({
-            categories: dane.categories,
-            series: seriesToJson(
-              dane.series.map((s) => ({
-                name: s.name,
-                values: [...s.values],
-                colorSlot: s.colorSlot,
-              })),
-            ),
-          });
+        preview="chart"
+        onRows={(rows, layout) => {
+          const dane = tableToChartData(
+            rows,
+            layout === undefined
+              ? undefined
+              : { header: layout.header, transpose: layout.transpose, locale: layout.locale },
+          );
+          write(blockGridChanges(gridReplace(grid, dane)));
           return dane.problems;
         }}
       />
 
-      {/* Arkusz danych: wiersz = kategoria, kolumny = serie. */}
-      <div className="overflow-x-auto">
-        <table className="w-full border-separate border-spacing-1">
-          <thead>
-            <tr>
-              <th className="text-left text-[10px] uppercase tracking-wide text-muted-foreground px-1">
-                {bt.editor("chart", "category")}
-              </th>
-              {series.map((s, si) => (
-                <th key={si} className="min-w-[96px] px-0">
-                  <div className="flex items-center gap-1">
-                    {/* WYBÓR KOLORU SERII, nie sama próbka. Paleta ma
-                        `MAX_COLOR_SLOT` odcieni i bez tej kontrolki autor
-                        dosięgałby wyłącznie tych, które silnik przydzieli sam.
-                        Próbka zostaje - jest tłem kontrolki - więc autor widzi
-                        kolor, zanim otworzy listę. Nazwy slotów mówią, co się
-                        wybiera; przy odcieniach rozdzielnych dla daltonizmu
-                        lista mówi to wprost, bo to jedyna informacja, której
-                        nie da się odczytać z samego koloru. */}
-                    <label className="relative h-4 w-4 shrink-0">
-                      <span
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0 rounded-[3px] border border-border"
-                        style={{ background: `var(--chart-${s.colorSlot})` }}
-                      />
-                      <select
-                        className="absolute inset-0 cursor-pointer opacity-0"
-                        aria-label={bt.editor("chart", "seriesColor", {
-                          name: s.name || String(si + 1),
-                        })}
-                        value={s.colorSlot}
-                        onChange={(e) => {
-                          const slot = Number(e.target.value);
-                          setSeries(
-                            series.map((x, i) => (i === si ? { ...x, colorSlot: slot } : x)),
-                          );
-                        }}
-                      >
-                        {CHART_SLOTS.map((slot) => (
-                          <option key={slot.slot} value={slot.slot}>
-                            {bt.editor(
-                              "chart",
-                              slot.cvdSafe ? "seriesColorSafe" : "seriesColorPlain",
-                              { key: slot.key },
-                            )}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <input
-                      className={cellCls}
-                      value={s.name}
-                      placeholder={bt.editor("chart", "series", { n: si + 1 })}
-                      onChange={(e) => {
-                        const next = series.map((x, i) =>
-                          i === si ? { ...x, name: e.target.value } : x,
-                        );
-                        setSeries(next);
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="text-muted-foreground hover:text-destructive"
-                      aria-label={bt.editor("chart", "removeSeries", { name: s.name || si + 1 })}
-                      onClick={() => setSeries(series.filter((_, i) => i !== si))}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </th>
-              ))}
-              <th className="w-8">
-                {series.length < MAX_SERIES && (
-                  <button
-                    type="button"
-                    className="inline-flex items-center justify-center w-7 h-7 rounded border border-border hover:border-foreground/50"
-                    aria-label={bt.editor("chart", "addSeries")}
-                    onClick={() =>
-                      setSeries([
-                        ...series,
-                        {
-                          name: "",
-                          values: categories.map(() => null),
-                          colorSlot: slotForSeries(series.length),
-                        },
-                      ])
-                    }
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map((cat, ci) => (
-              <tr key={ci}>
-                <td>
-                  <input
-                    className={cellCls}
-                    value={cat}
-                    placeholder={bt.editor("chart", "categoryN", { n: ci + 1 })}
-                    onChange={(e) =>
-                      setCategories(categories.map((c, i) => (i === ci ? e.target.value : c)))
-                    }
-                  />
-                </td>
-                {series.map((s, si) => (
-                  <td key={si}>
-                    <input
-                      className={cellCls}
-                      inputMode="decimal"
-                      value={s.values[ci] === null ? "" : String(s.values[ci])}
-                      placeholder="-"
-                      onChange={(e) => {
-                        const raw = e.target.value.trim().replace(",", ".");
-                        const v = raw === "" ? null : Number(raw);
-                        const next = series.map((x, i) =>
-                          i === si
-                            ? {
-                                ...x,
-                                values: x.values.map((old, vi) =>
-                                  vi === ci ? (v === null || !Number.isFinite(v) ? null : v) : old,
-                                ),
-                              }
-                            : x,
-                        );
-                        setSeries(next);
-                      }}
-                    />
-                  </td>
-                ))}
-                <td>
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-destructive"
-                    aria-label={bt.editor("chart", "removeCategory", { name: cat || ci + 1 })}
-                    onClick={() =>
-                      setCategories(
-                        categories.filter((_, i) => i !== ci),
-                        series.map((s) => ({
-                          ...s,
-                          values: s.values.filter((_, i) => i !== ci),
-                        })),
-                      )
-                    }
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {/* PALETA RÓL NIE CZYTA SLOTU SERII (do `FOCUS_SERIES_MAX` serii) -
-          wybór koloru zostaje, bo działa po przełączeniu na paletę
-          kategorialną, ale bez tego zdania autor zmieniałby kolor
-          i nie widział żadnej zmiany w podglądzie. */}
-      {palette === "focus" && series.length > 0 && (
-        <p className="text-[10px] text-muted-foreground">
-          {bt.editor("chart", "paletteFocusHint", { from: FOCUS_SERIES_MAX + 1 })}
-        </p>
-      )}
-      {categories.length < MAX_CATEGORIES && (
-        <button
-          type="button"
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1.5 rounded border border-border hover:border-foreground/50"
-          onClick={() =>
-            setCategories(
-              [...categories, ""],
-              series.map((s) => ({ ...s, values: [...s.values, null] })),
-            )
-          }
+      {paletteMatters && (
+        <AdminSelect
+          className={inputCls}
+          value={palette}
+          onChange={(e) => patch({ palette: e.target.value })}
+          aria-label={bt.editor("chart", "palette")}
         >
-          <Plus className="w-3.5 h-3.5" /> {bt.editor("chart", "addCategory")}
-        </button>
+          {CHART_PALETTES.map((p) => (
+            <option key={p} value={p}>
+              {bt.editor("chart", PALETTE_LABEL_KEYS[p])}
+            </option>
+          ))}
+        </AdminSelect>
       )}
+
+      {/* Arkusz danych: wiersz = kategoria, kolumny = serie. */}
+      <ChartDataGrid
+        ref={gridRef}
+        value={grid}
+        onChange={(next) => write(blockGridChanges(next))}
+        kind={previewConfig.kind}
+        palette={palette}
+        docLang={docLang}
+      />
 
       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -683,24 +499,13 @@ export function ChartBlock({ block, onChange }: Props) {
       </FieldGroup>
 
       {/* ---- SYSTEM WYKRESÓW / ODNIESIENIA (specyfikacja 2026-10) ----
-          Paleta, kierunek wskaźnika, pochodzenie liczb, cel, pasmo optimum
-          i jego źródło. Pasmo jest TWIERDZENIEM („norma to 2-4%"), więc
-          bez źródła z listy niżej albo flagi demo silnik go nie narysuje -
-          ostrzeżenie mówi to autorowi tutaj, a nie dopiero czytelnikowi. */}
+          Kierunek wskaźnika, pochodzenie liczb, cel, pasmo optimum i jego
+          źródło (paleta stoi przy arkuszu, bo zmienia próbki serii). Pasmo
+          jest TWIERDZENIEM („norma to 2-4%"), więc bez źródła z listy niżej
+          albo flagi demo silnik go nie narysuje - ostrzeżenie mówi to
+          autorowi tutaj, a nie dopiero czytelnikowi. */}
       <FieldGroup label={bt.editor("chart", "referenceLabel")}>
         <div className="grid grid-cols-2 gap-2">
-          <AdminSelect
-            className={inputCls}
-            value={palette}
-            onChange={(e) => patch({ palette: e.target.value })}
-            aria-label={bt.editor("chart", "palette")}
-          >
-            {CHART_PALETTES.map((p) => (
-              <option key={p} value={p}>
-                {bt.editor("chart", PALETTE_LABEL_KEYS[p])}
-              </option>
-            ))}
-          </AdminSelect>
           <AdminSelect
             className={inputCls}
             value={direction}

@@ -1,9 +1,23 @@
 // Molecule: spreadsheet-style editor for chart data with live preview.
-// Renders an Excel-like grid (categories x series) and the actual <Chart/> engine
-// side-by-side, keeping edits in local state and serialising back to the
-// widget's CSV textarea format ("; Series A; Series B\nRow; 12; 8") only on save.
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Sheet as SheetIcon, Undo2, Check, Loader2 } from "lucide-react";
+// Renders the shared chart data grid (categories x series, the same one the
+// CMS chart block uses) and the actual <Chart/> engine side-by-side, keeping
+// edits in local state and syncing them back to the widget content.
+//
+// ZAPIS (PR2). Siatka trzyma dane, kolory serii i wskaźniki akcentu razem
+// (`ChartGridValue`), a do widgetu wracają one JEDNĄ łatką
+// (`setContentPatch`: `data` średnikami, pozycyjne `seriesColors`,
+// `accentSeries`, `accentCategory`) - jedno działanie autora to jeden krok
+// historii buildera, a przesunięcie albo usunięcie serii nie odrywa koloru
+// ani wyróżnienia od serii, do której należały. Działanie na strukturze
+// (wstawienie, przesunięcie, kolor, akcent, wklejenie, import, zatwierdzona
+// liczba) idzie od razu; pisanie nazwy serii albo etykiety - po 150 ms,
+// żeby historia nie dostawała kroku na każdą literę.
+//
+// PODGLĄD czyta ten sam adapter co widget na stronie (`widgetChartConfig`),
+// więc pokazuje dokładnie wykres, który zobaczy czytelnik - jedynym
+// świadomym wyjątkiem jest wyłączona animacja wejścia.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Sheet as SheetIcon, Undo2, Check, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,22 +27,23 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Chart } from "@/components/charts/Chart";
-import type { ChartConfig, ChartKind } from "@/lib/charts/types";
+import type { ChartConfig } from "@/lib/charts/types";
 import { MAX_SERIES } from "@/lib/charts/types";
-import {
-  CHART_HEIGHT_DEFAULT,
-  CHART_HEIGHT_MAX,
-  CHART_HEIGHT_MIN,
-  MAX_CATEGORIES,
-  defaultChartConfig,
-  parseChartKind,
-} from "@/lib/charts/parse";
-import { parseChartData } from "@/lib/charts/csv";
+import { MAX_CATEGORIES, parseChartKind } from "@/lib/charts/parse";
+import { widgetChartConfig } from "@/lib/charts/widgetConfig";
+import { isChartPalette } from "@/lib/charts/seriesStyle";
 import { needsTextCellFix, safeTextCell, tableToChartData } from "@/lib/charts/importTable";
 import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
-import { asBool, asNumInRange } from "@/lib/content-model/contentValue";
+import { ChartDataGrid } from "@/components/admin/charts/ChartDataGrid";
+import {
+  gridReplace,
+  readWidgetGrid,
+  widgetContentSignature,
+  widgetGridPatch,
+  widgetGridSignature,
+  type ChartGridValue,
+} from "@/components/admin/charts/chartGridState";
 import type { Json } from "@/lib/builder/types";
 import type { ContentPatch } from "@/lib/builder/schemas";
 
@@ -41,7 +56,7 @@ interface Props {
   /**
    * Pełna treść widgetu - podgląd MUSI renderować się tymi samymi
    * ustawieniami co kanwa (legenda, siatka, etykiety wartości, skumulowanie,
-   * wysokość). Bez tego arkusz pokazywał inny wykres niż strona.
+   * wysokość, paleta). Bez tego arkusz pokazywał inny wykres niż strona.
    */
   content?: Record<string, unknown>;
   lang: "pl" | "en";
@@ -52,12 +67,8 @@ interface Props {
    */
   setContent?: (key: string, value: Json) => void;
   setContentPatch?: (patch: ContentPatch) => void;
-}
-
-interface Grid {
-  seriesNames: string[];
-  categories: string[];
-  cells: string[][]; // cells[row][seriesIdx]
+  /** Klucz pola danych w treści widgetu (schemat wykresu: `data`). */
+  dataKey?: string;
 }
 
 const L = {
@@ -65,15 +76,9 @@ const L = {
     open: "Otwórz arkusz",
     title: "Arkusz danych wykresu",
     subtitle: "Edytuj komórki jak w Excelu - wykres po prawej odświeża się w czasie rzeczywistym.",
-    addRow: "Dodaj wiersz",
-    addSeries: "Dodaj serię",
-    removeRow: "Usuń wiersz",
-    removeSeries: "Usuń serię",
     reset: "Przywróć",
     cancel: "Zamknij",
     save: "Zapisz i zamknij",
-    categoryCol: "Kategoria",
-    empty: "Brak danych - dodaj wiersz aby zacząć.",
     preview: "Podgląd wykresu",
     limit: (n: number) => `Limit: ${n}`,
     statusIdle: "Zsynchronizowano",
@@ -83,15 +88,9 @@ const L = {
     open: "Open spreadsheet",
     title: "Chart data spreadsheet",
     subtitle: "Edit cells like a spreadsheet - the chart on the right updates in real time.",
-    addRow: "Add row",
-    addSeries: "Add series",
-    removeRow: "Remove row",
-    removeSeries: "Remove series",
     reset: "Reset",
     cancel: "Close",
     save: "Save & close",
-    categoryCol: "Category",
-    empty: "No data - add a row to get started.",
     preview: "Chart preview",
     limit: (n: number) => `Limit: ${n}`,
     statusIdle: "In sync",
@@ -99,33 +98,39 @@ const L = {
   },
 } as const;
 
-/** Convert the widget CSV string into a mutable string grid (values stay as-typed). */
-function csvToGrid(text: string): Grid {
-  const lines = text.split(/\r?\n/).map((l) => l.replace(/\r$/, ""));
-  const nonEmpty = lines.filter((l) => l.trim() !== "");
-  if (nonEmpty.length === 0) {
-    return { seriesNames: ["Seria A"], categories: ["2024"], cells: [[""]] };
-  }
-  const split = (line: string) => line.split(";").map((c) => c.trim());
-  const header = split(nonEmpty[0]);
-  const seriesNames = header.slice(1, MAX_SERIES + 1);
-  if (seriesNames.length === 0) seriesNames.push("Seria A");
+const SYNC_DEBOUNCE_MS = 150;
 
-  const rows = nonEmpty.slice(1, MAX_CATEGORIES + 1).map(split);
-  const categories = rows.map((r) => r[0] ?? "");
-  const cells = rows.map((r) => seriesNames.map((_, si) => (r[si + 1] ?? "").toString()));
-  if (categories.length === 0) {
-    categories.push("2024");
-    cells.push(seriesNames.map(() => ""));
-  }
-  return { seriesNames, categories, cells };
+/**
+ * Etykieta wpisywana w siatce - bez średnika i złamania wiersza, których
+ * format średnikowy nie uniesie. Bez przycinania spacji: autor jest w trakcie
+ * pisania, a spacja na końcu to zwykle początek następnego słowa.
+ */
+function bezSrednika(raw: string): string {
+  return raw.replace(/;/g, ",").replace(/[\n\r]+/g, " ");
 }
 
-/** Serialize the grid back into the widget CSV format. */
-function gridToCsv(g: Grid): string {
-  const header = ["", ...g.seriesNames].join("; ");
-  const rows = g.categories.map((cat, ri) => [cat, ...g.cells[ri]].join("; "));
-  return [header, ...rows].join("\n");
+/**
+ * Zmiana WYŁĄCZNIE nazw serii albo etykiet kategorii - jedyna, którą arkusz
+ * odkłada (debounce). Wszystko inne zmienia wykres skokowo i idzie od razu.
+ */
+function tylkoEtykiety(prev: ChartGridValue, next: ChartGridValue): boolean {
+  const a = prev.model;
+  const b = next.model;
+  return (
+    prev.accentSeries === next.accentSeries &&
+    prev.accentCategory === next.accentCategory &&
+    a.categories.length === b.categories.length &&
+    a.series.length === b.series.length &&
+    a.series.every((s, i) => {
+      const n = b.series[i];
+      return (
+        n !== undefined &&
+        n.colorSlot === s.colorSlot &&
+        n.values.length === s.values.length &&
+        n.values.every((v, r) => v === s.values[r])
+      );
+    })
+  );
 }
 
 export function ChartDataSpreadsheetDialog({
@@ -136,23 +141,38 @@ export function ChartDataSpreadsheetDialog({
   title,
   content,
   lang,
+  setContent,
+  setContentPatch,
+  dataKey = "data",
 }: Props) {
   const t = L[lang];
+  const c = useMemo(() => content ?? {}, [content]);
   const [open, setOpen] = useState(false);
-  const [grid, setGrid] = useState<Grid>(() => csvToGrid(value));
-  const initialRef = useRef<string>(value);
-  const lastSyncedRef = useRef<string>(value);
+  const [grid, setGrid] = useState<ChartGridValue>(() => readWidgetGrid(value, c, lang));
+  const gridRef = useRef(grid);
+  gridRef.current = grid;
+  // Stan z chwili OTWARCIA - punkt „Przywróć". Echo własnej synchronizacji
+  // go nie przesuwa (do PR2 przesuwało, więc po pierwszej zsynchronizowanej
+  // edycji „Przywróć" nie robił praktycznie nic).
+  const initialRef = useRef<ChartGridValue>(grid);
+  // Podpis stanu ostatnio wysłanego (albo wczytanego) - rozpoznaje echo.
+  const lastSyncedRef = useRef<string>(widgetGridSignature(grid));
   const [syncing, setSyncing] = useState(false);
+
+  // Najświeższe wejście dla efektu rehydracji - efekt zależy tylko od
+  // podpisu, a czyta resztę z referencji.
+  const incoming = widgetContentSignature(value, c);
+  const wejscie = useRef({ value, c, lang });
+  wejscie.current = { value, c, lang };
 
   // Rehydrate when the dialog opens so external edits are not shadowed.
   //
-  // ECHO WŁASNEJ SYNCHRONIZACJI NIE NADPISUJE ARKUSZA. Rodzic dostaje CSV
-  // z debounce'u i oddaje go jako `value`; jeśli autor zdążył w tym czasie
-  // wpisać kolejną komórkę, ponowne `csvToGrid(value)` cofało arkusz do
-  // stanu sprzed tej edycji i wpis ginął bez śladu (wyścig widoczny pod
-  // obciążeniem - test „zmiana nazwy kategorii i serii trafia do CSV"). Echo
-  // tylko przesuwa punkt „przywróć"; arkusz przebudowuje otwarcie dialogu
-  // albo wartość zmieniona Z ZEWNĄTRZ (inna niż ostatnio wysłana).
+  // ECHO WŁASNEJ SYNCHRONIZACJI NIE NADPISUJE ARKUSZA. Rodzic dostaje łatkę
+  // i oddaje ją jako treść; jeśli autor zdążył w tym czasie wpisać kolejną
+  // komórkę, ponowne wczytanie cofałoby arkusz do stanu sprzed tej edycji
+  // i wpis ginął bez śladu. Arkusz przebudowuje więc otwarcie dialogu albo
+  // treść zmieniona Z ZEWNĄTRZ (podpis inny niż ostatnio wysłany) - na
+  // przykład cofnięcie w historii buildera.
   const wasOpenRef = useRef(false);
   useEffect(() => {
     if (!open) {
@@ -161,167 +181,110 @@ export function ChartDataSpreadsheetDialog({
     }
     const justOpened = !wasOpenRef.current;
     wasOpenRef.current = true;
-    if (!justOpened && value === lastSyncedRef.current) {
-      initialRef.current = value;
+    if (!justOpened && incoming === lastSyncedRef.current) return;
+    const w = wejscie.current;
+    const next = readWidgetGrid(w.value, w.c, w.lang);
+    setGrid(next);
+    if (justOpened) initialRef.current = next;
+    lastSyncedRef.current = widgetGridSignature(next);
+    setSyncing(false);
+  }, [open, incoming]);
+
+  // Kanały zapisu z NAJŚWIEŻSZEGO renderu. Rodzic podaje nowe funkcje przy
+  // każdym renderze; gdyby zapis od nich zależał, każde echo restartowałoby
+  // odłożoną synchronizację.
+  const kanaly = useRef({ onChange, setContent, setContentPatch, dataKey });
+  kanaly.current = { onChange, setContent, setContentPatch, dataKey };
+
+  /** Zapis stanu do treści widgetu - jedna łatka, jeden krok historii. */
+  const zapisz = useCallback((g: ChartGridValue) => {
+    const sig = widgetGridSignature(g);
+    if (sig === lastSyncedRef.current) return;
+    lastSyncedRef.current = sig;
+    const k = kanaly.current;
+    const patch = widgetGridPatch(g, k.dataKey);
+    if (k.setContentPatch) {
+      k.setContentPatch(patch);
       return;
     }
-    setGrid(csvToGrid(value));
-    initialRef.current = value;
-    lastSyncedRef.current = value;
-    setSyncing(false);
-  }, [open, value]);
+    // Wołający bez historii (testy, edytory niestandardowe): dane przez
+    // `onChange`, reszta kluczy przez `setContent`, jeśli jest.
+    k.onChange(String(patch[k.dataKey] ?? ""));
+    if (k.setContent) {
+      for (const key of ["seriesColors", "accentSeries", "accentCategory"] as const) {
+        const v = patch[key] ?? null;
+        if ((wejscie.current.c[key] ?? null) !== v) k.setContent(key, v);
+      }
+    }
+  }, []);
 
-  const chartKind: ChartKind = parseChartKind(kind);
-
-  const previewConfig: ChartConfig = useMemo(() => {
-    const csv = gridToCsv(grid);
-    const parsed = parseChartData(csv);
-    // Ustawienia wyglądu czytamy z treści widgetu (te same klucze co
-    // ChartWidgetView) - podgląd ma pokazywać wykres, który autor faktycznie
-    // publikuje, a nie sztywny wariant demonstracyjny.
-    const c = content ?? {};
-    return {
-      // Baza z domyślnymi ustawieniami uczciwości (wygładzanie, prognoza,
-      // podpis) - podgląd musi pokazywać wykres, który autor publikuje.
-      ...defaultChartConfig(),
-      kind: chartKind,
-      title: title ?? "",
-      description: "",
-      categories: parsed.categories,
-      series: parsed.series,
-      stacked: asBool(c.stacked, false),
-      unit: unit ?? "",
-      height: asNumInRange(c.height, CHART_HEIGHT_DEFAULT, CHART_HEIGHT_MIN, CHART_HEIGHT_MAX),
-      showLegend: asBool(c.showLegend, true),
-      showGrid: asBool(c.showGrid, true),
-      showValues: asBool(c.showValues, false),
-      // Paleta zmienia KOLORY serii, więc podgląd bez niej pokazywałby inny
-      // wykres niż kanwa. Ta sama reguła co w `ChartWidgetView`: wszystko
-      // poza jawnym `categorical` to paleta ról.
-      palette: c.palette === "categorical" ? "categorical" : "focus",
-      // Animacja wejścia jest wyłączona TYLKO w podglądzie arkusza: wykres
-      // przeskakuje tu przy każdym naciśnięciu klawisza, a odpalanie animacji
-      // na każdą zmianę komórki byłoby migotaniem, nie podglądem.
-      animate: false,
-      source: "",
-    };
-  }, [grid, chartKind, title, unit, content]);
-
-  // Wykres kołowy rysuje WYŁĄCZNIE pierwszą serię (jedna tarcza = jeden
-  // podział całości). Bez tego ostrzeżenia kolejne kolumny znikały po cichu.
-
-  // Live sync: propaguj CSV do parenta natychmiast po edycji, żeby wpisy
-  // trafiały do widget-config bez czekania na przycisk "Zapisz". Krótki
-  // debounce (150 ms) chroni przed cascadą re-renderów przy szybkim pisaniu;
-  // status "Synchronizacja…" znika po zakończeniu propagacji.
+  // Live sync: odłożony zapis zmian samych etykiet (patrz `tylkoEtykiety`).
+  // Status „Synchronizacja…" znika po zakończeniu propagacji.
   useEffect(() => {
     if (!open) return;
-    const nextCsv = gridToCsv(grid);
-    // Nic do wysłania - także gdy arkusz wrócił do stanu ostatnio wysłanego
-    // w oknie debounce (przywróć, ponowne otwarcie). Bez zgaszenia tu status
-    // „Synchronizacja…" zostawał na zawsze: timer poprzedniego przebiegu jest
-    // już skasowany, więc nikt inny go nie wyłączy.
-    if (nextCsv === lastSyncedRef.current) {
+    if (widgetGridSignature(grid) === lastSyncedRef.current) {
       setSyncing(false);
       return;
     }
     setSyncing(true);
     const handle = setTimeout(() => {
-      lastSyncedRef.current = nextCsv;
-      onChange(nextCsv);
+      zapisz(gridRef.current);
       setSyncing(false);
-    }, 150);
+    }, SYNC_DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [grid, open, onChange]);
+  }, [grid, open, zapisz]);
 
-  const setCell = (row: number, col: number, v: string) => {
-    setGrid((g) => {
-      const cells = g.cells.map((r) => r.slice());
-      cells[row][col] = v;
-      return { ...g, cells };
-    });
+  const onGridChange = (next: ChartGridValue) => {
+    const debounce = tylkoEtykiety(gridRef.current, next);
+    gridRef.current = next;
+    setGrid(next);
+    if (!debounce) zapisz(next);
   };
 
-  const setCategory = (row: number, v: string) => {
-    setGrid((g) => {
-      const categories = g.categories.slice();
-      categories[row] = v;
-      return { ...g, categories };
-    });
-  };
-
-  const setSeriesName = (col: number, v: string) => {
-    setGrid((g) => {
-      const seriesNames = g.seriesNames.slice();
-      seriesNames[col] = v;
-      return { ...g, seriesNames };
-    });
-  };
-
-  const addRow = () => {
-    setGrid((g) => {
-      if (g.categories.length >= MAX_CATEGORIES) return g;
-      return {
-        ...g,
-        categories: [...g.categories, ""],
-        cells: [...g.cells, g.seriesNames.map(() => "")],
-      };
-    });
-  };
-
-  const removeRow = (row: number) => {
-    setGrid((g) => {
-      if (g.categories.length <= 1) return g;
-      return {
-        ...g,
-        categories: g.categories.filter((_, i) => i !== row),
-        cells: g.cells.filter((_, i) => i !== row),
-      };
-    });
-  };
-
-  const addSeries = () => {
-    setGrid((g) => {
-      if (g.seriesNames.length >= MAX_SERIES) return g;
-      const nextName = `Seria ${String.fromCharCode(65 + g.seriesNames.length)}`;
-      return {
-        ...g,
-        seriesNames: [...g.seriesNames, nextName],
-        cells: g.cells.map((r) => [...r, ""]),
-      };
-    });
-  };
-
-  const removeSeries = (col: number) => {
-    setGrid((g) => {
-      if (g.seriesNames.length <= 1) return g;
-      return {
-        ...g,
-        seriesNames: g.seriesNames.filter((_, i) => i !== col),
-        cells: g.cells.map((r) => r.filter((_, i) => i !== col)),
-      };
-    });
-  };
-
-  const resetToInitial = () => setGrid(csvToGrid(initialRef.current));
-
-  const save = () => {
-    // Flush pending debounce od razu, żeby zamknięcie nigdy nie odrzuciło
-    // ostatniej edycji (edge case: user klika Zapisz w oknie debounce).
-    const nextCsv = gridToCsv(grid);
-    if (nextCsv !== lastSyncedRef.current) {
-      lastSyncedRef.current = nextCsv;
-      onChange(nextCsv);
-    }
+  /** Ctrl+Z w siatce: odłożony zapis idzie PRZED cofnięciem historii buildera. */
+  const flushNow = () => {
+    zapisz(gridRef.current);
     setSyncing(false);
-    setOpen(false);
   };
 
-  const canAddRow = grid.categories.length < MAX_CATEGORIES;
-  const canAddSeries = grid.seriesNames.length < MAX_SERIES;
+  const chartKind = parseChartKind(
+    typeof kind === "string" ? kind : typeof c.kind === "string" ? c.kind : undefined,
+  );
+
+  // Podgląd liczony WYŁĄCZNIE przy otwartym arkuszu: składa się z całej treści
+  // widgetu (`{...c}`), a panel z zamkniętym dialogiem nie może czytać treści
+  // hurtem - bramka zgodności ustawień liczy odczyty panelu klucz po kluczu.
+  const previewConfig: ChartConfig | null = useMemo(() => {
+    if (!open) return null;
+    // Ten sam adapter co widget na stronie - treść widgetu z danymi, kolorami
+    // i akcentem z siatki (siatka wyprzedza zapis o debounce).
+    const merged: Record<string, unknown> = {
+      ...c,
+      ...(kind !== undefined ? { kind } : {}),
+      ...(unit !== undefined ? { unit } : {}),
+      ...(title !== undefined ? { [`title_${lang}`]: title } : {}),
+      ...widgetGridPatch(grid, "data"),
+    };
+    // Animacja wejścia jest wyłączona TYLKO w podglądzie arkusza: wykres
+    // przeskakuje tu przy każdej zmianie, a odpalanie animacji na każdą
+    // komórkę byłoby migotaniem, nie podglądem.
+    return { ...widgetChartConfig(merged, lang), animate: false };
+  }, [open, grid, c, kind, unit, title, lang]);
+
+  const resetToInitial = () => onGridChange(initialRef.current);
+
+  // Zamknięcie W KAŻDY sposób (Zapisz, Zamknij, Escape, klik poza oknem)
+  // wysyła odłożony zapis od razu, żeby nigdy nie odrzuciło ostatniej edycji
+  // (edge case: user zamyka w oknie debounce).
+  const zmienOtwarcie = (next: boolean) => {
+    if (!next) flushNow();
+    setOpen(next);
+  };
+
+  const save = () => zmienOtwarcie(false);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={zmienOtwarcie}>
       <DialogTrigger asChild>
         <Button
           type="button"
@@ -363,66 +326,53 @@ export function ChartDataSpreadsheetDialog({
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-0 max-h-[70vh]">
           {/* Spreadsheet pane */}
           <div className="border-r overflow-auto p-4 space-y-3">
-            {/* IMPORT WYMIENIA CAŁĄ SIATKĘ, więc siedzi nad nią, a nie obok
-                „Dodaj wiersz". Ten dialog synchronizuje się z widgetem NA
-                ŻYWO (debounce 150 ms), więc import trafia do treści od razu -
-                drogą powrotną jest „Przywróć", który wraca do stanu z chwili
-                otwarcia arkusza. */}
+            {/* IMPORT WYMIENIA CAŁĄ SIATKĘ, więc siedzi nad nią. Przed
+                zapisem pokazuje podgląd układu (nagłówek, obrót, format
+                liczb); po „Zastosuj" dane trafiają do widgetu od razu -
+                drogą powrotną jest Ctrl+Z albo „Przywróć". */}
             <DataImportControl
-              onRows={(rows) => {
-                const dane = tableToChartData(rows);
-                // ETYKIETY MUSZĄ PRZEŻYĆ FORMAT ŚREDNIKOWY. Siatka wraca do
-                // widgetu przez `gridToCsv`, a ten format nie ma cytowania:
-                // kategoria „Kraków; Polska" rozpadłaby się na dwie kolumny
-                // i przesunęła wszystkie wartości w wierszu. Podmiana zmienia
-                // etykietę, więc jest policzona i zgłoszona, a nie cicha.
+              preview="chart"
+              onRows={(rows, layout) => {
+                const dane = tableToChartData(
+                  rows,
+                  layout === undefined
+                    ? undefined
+                    : { header: layout.header, transpose: layout.transpose, locale: layout.locale },
+                );
+                // ETYKIETY MUSZĄ PRZEŻYĆ FORMAT ŚREDNIKOWY. Kategoria
+                // „Kraków; Polska" rozpadłaby się na dwie kolumny i przesunęła
+                // wszystkie wartości w wierszu. Podmiana zmienia etykietę,
+                // więc jest policzona i zgłoszona, a nie cicha.
                 const poprawione = [...dane.series.map((s) => s.name), ...dane.categories].filter(
                   needsTextCellFix,
                 ).length;
-
-                // Plik jednokolumnowy nie ma serii. Siatka bez ani jednej
-                // kolumny wartości jest nieedytowalna - nie ma gdzie kliknąć,
-                // żeby liczby wpisać - więc zostaje jedna pusta seria.
-                const nazwy =
-                  dane.series.length > 0
-                    ? dane.series.map((s) => safeTextCell(s.name))
-                    : ["Seria A"];
-                setGrid({
-                  seriesNames: nazwy,
-                  categories: dane.categories.map(safeTextCell),
-                  cells: dane.categories.map((_, ri) =>
-                    nazwy.map((_n, si) => {
-                      const v = dane.series[si]?.values[ri];
-                      return v === null || v === undefined ? "" : String(v);
-                    }),
-                  ),
-                });
+                onGridChange(
+                  gridReplace(gridRef.current, {
+                    categories: dane.categories.map(safeTextCell),
+                    series: dane.series.map((s) => ({ ...s, name: safeTextCell(s.name) })),
+                  }),
+                );
                 return poprawione > 0
                   ? [...dane.problems, { code: "labelsAdjusted" as const, count: poprawione }]
                   : dane.problems;
               }}
             />
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-[6px] gap-1.5 text-xs"
-                onClick={addRow}
-                disabled={!canAddRow}
-              >
-                <Plus className="w-3.5 h-3.5" /> {t.addRow}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 rounded-[6px] gap-1.5 text-xs"
-                onClick={addSeries}
-                disabled={!canAddSeries}
-              >
-                <Plus className="w-3.5 h-3.5" /> {t.addSeries}
-              </Button>
+
+            <ChartDataGrid
+              value={grid}
+              onChange={onGridChange}
+              kind={chartKind}
+              palette={isChartPalette(c.palette) ? c.palette : "focus"}
+              docLang={lang}
+              lang={lang}
+              sanitizeLabel={bezSrednika}
+              onFlush={flushNow}
+            />
+
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] text-muted-foreground/70">
+                {t.limit(MAX_CATEGORIES)} · {t.limit(MAX_SERIES)}
+              </p>
               <Button
                 type="button"
                 variant="ghost"
@@ -433,96 +383,6 @@ export function ChartDataSpreadsheetDialog({
                 <Undo2 className="w-3.5 h-3.5" /> {t.reset}
               </Button>
             </div>
-
-            <div className="rounded-[6px] border overflow-auto">
-              <table className="w-full border-collapse text-xs">
-                <thead className="bg-muted/50 sticky top-0 z-10">
-                  <tr>
-                    <th className="w-10 border-b border-r p-1 text-[10px] font-medium text-muted-foreground">
-                      #
-                    </th>
-                    <th className="border-b border-r p-1 text-left font-medium text-muted-foreground min-w-[120px]">
-                      {t.categoryCol}
-                    </th>
-                    {grid.seriesNames.map((name, si) => (
-                      <th
-                        key={si}
-                        className="border-b border-r p-1 min-w-[110px] font-medium text-muted-foreground"
-                      >
-                        <div className="flex items-center gap-1">
-                          <Input
-                            value={name}
-                            onChange={(e) => setSeriesName(si, e.target.value)}
-                            className="h-7 text-xs rounded-[4px]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeSeries(si)}
-                            aria-label={t.removeSeries}
-                            className="p-1 text-muted-foreground hover:text-destructive disabled:opacity-30"
-                            disabled={grid.seriesNames.length <= 1}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {grid.categories.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={grid.seriesNames.length + 2}
-                        className="p-6 text-center text-muted-foreground"
-                      >
-                        {t.empty}
-                      </td>
-                    </tr>
-                  )}
-                  {grid.categories.map((cat, ri) => (
-                    <tr key={ri} className="hover:bg-muted/30">
-                      <td className="border-b border-r p-1 text-center text-[10px] text-muted-foreground">
-                        <div className="flex items-center justify-center gap-0.5">
-                          <span>{ri + 1}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeRow(ri)}
-                            aria-label={t.removeRow}
-                            className="p-0.5 text-muted-foreground hover:text-destructive disabled:opacity-30"
-                            disabled={grid.categories.length <= 1}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="border-b border-r p-0.5">
-                        <Input
-                          value={cat}
-                          onChange={(e) => setCategory(ri, e.target.value)}
-                          className="h-7 text-xs rounded-[4px] border-transparent focus:border-input"
-                        />
-                      </td>
-                      {grid.seriesNames.map((_, si) => (
-                        <td key={si} className="border-b border-r p-0.5">
-                          <Input
-                            value={grid.cells[ri]?.[si] ?? ""}
-                            onChange={(e) => setCell(ri, si, e.target.value)}
-                            inputMode="decimal"
-                            className="h-7 text-xs rounded-[4px] border-transparent focus:border-input text-right font-mono"
-                            placeholder="—"
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <p className="text-[10px] text-muted-foreground/70">
-              {t.limit(MAX_CATEGORIES)} · {t.limit(MAX_SERIES)}
-            </p>
           </div>
 
           {/* Live preview pane */}
@@ -531,7 +391,9 @@ export function ChartDataSpreadsheetDialog({
               {t.preview}
             </div>
             <div className="rounded-[6px] border bg-background p-3">
-              <Chart config={previewConfig} lang={lang} className="my-0" />
+              {previewConfig !== null && (
+                <Chart config={previewConfig} lang={lang} className="my-0" />
+              )}
             </div>
           </div>
         </div>
@@ -542,7 +404,7 @@ export function ChartDataSpreadsheetDialog({
             variant="ghost"
             size="sm"
             className="h-8 rounded-[6px] text-xs"
-            onClick={() => setOpen(false)}
+            onClick={() => zmienOtwarcie(false)}
           >
             {t.cancel}
           </Button>

@@ -557,8 +557,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Paleta kolorów": "Color palette",
   "akcent + neutralne (domyślna)": "accent + neutrals (default)",
   "kategorialna (kolor serii z palety)": "categorical (series color from the palette)",
-  "Akcent + neutralne: pierwsza seria w akcencie, pozostałe jako tło porównania. Kategorialna: każda seria we własnym kolorze - dla serii równorzędnych.":
-    "Accent + neutrals: the first series in the accent, the rest as the comparison background. Categorical: every series in its own color - for series of equal weight.",
+  "Akcent + neutralne: seria wyróżniona w akcencie, pozostałe jako tło porównania. Kategorialna: każda seria we własnym kolorze - dla serii równorzędnych.":
+    "Accent + neutrals: the highlighted series in the accent, the rest as the comparison background. Categorical: every series in its own color - for series of equal weight.",
   "Kierunek wskaźnika": "Metric direction",
   "wyżej znaczy lepiej": "higher is better",
   "niżej znaczy lepiej": "lower is better",
@@ -600,15 +600,14 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "System wykresów / uczciwość": "Chart system / honesty",
   "System wykresów / prognoza": "Chart system / forecast",
   "Kolory serii": "Series colors",
-  "np. 3;4;8": "e.g. 3;4;8",
-  "Numery kolorów palety po średniku, w kolejności serii; puste miejsce = kolor domyślny serii. Kolory własne działają w palecie kategorialnej.":
-    "Palette color numbers separated by semicolons, in series order; an empty position = the series' default color. Custom colors apply in the categorical palette.",
+  "Próbka pokazuje kolor, którym seria jest narysowana. Kolor wybierasz z próbek palety.":
+    "The swatch shows the color the series is drawn in. Pick a color from the palette swatches.",
   "Seria wyróżniona": "Highlighted series",
-  "Seria w akcencie marki; pozostałe są tłem porównania. Puste = pierwsza seria.":
-    "The series in the brand accent; the rest are the comparison background. Empty = the first series.",
+  "Seria w akcencie marki; pozostałe są tłem porównania. Domyślnie pierwsza seria.":
+    "The series in the brand accent; the rest are the comparison background. The first series by default.",
   "Wycinek wyróżniony": "Highlighted slice",
-  "Wycinek w akcencie marki - nigdy nie trafia do „Pozostałe”. Puste = największy wycinek.":
-    "The slice in the brand accent - never folded into “Other”. Empty = the largest slice.",
+  "Wycinek w akcencie marki - nigdy nie trafia do „Pozostałe”. Domyślnie największy wycinek.":
+    "The slice in the brand accent - never folded into “Other”. The largest slice by default.",
   "Dane demonstracyjne (odznaka „demo”)": "Demo data (“demo” badge)",
   "Data danych": "Data as of",
   "np. 2026-06-30": "e.g. 2026-06-30",
@@ -1106,8 +1105,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   // ------------------------------------------------------ data-format hints
   "Na wykresie kołowym wartość pojawia się pod udziałem procentowym, w wycinkach od 8% wzwyż.":
     "On a pie chart the value is placed under the percentage share, in slices of 8% and above.",
-  'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony).':
-    'The spreadsheet opens in a popup with a live chart preview. Text format: first row "; Series name; Series name", then "Category; value; value" (";" separator, decimal comma allowed).',
+  'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony). Zakres wklejony z Excela albo Arkuszy Google zamienia się na ten format.':
+    'The spreadsheet opens in a popup with a live chart preview. Text format: first row "; Series name; Series name", then "Category; value; value" (";" separator, decimal comma allowed). A range pasted from Excel or Google Sheets is converted to this format.',
   'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).':
     'One country per row: "CODE; value" (ISO-2 code, e.g. PL; 12.5).',
   'Jeden wiersz na wydarzenie: "Data; Tytuł|Title; Opis|Description; slot(1-8, opc.)". Separator ";", tłumaczenie po "|".':

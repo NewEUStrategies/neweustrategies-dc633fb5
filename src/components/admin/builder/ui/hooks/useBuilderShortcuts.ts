@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { Selection } from "../organisms/builder";
+import { flushChartGridAt } from "@/components/admin/charts/gridKeyboard";
 
 interface Params {
   selection: Selection;
@@ -61,13 +62,20 @@ export function useBuilderShortcuts(p: Params) {
       if (!k) return;
 
       // Undo/redo/save always work, even inside property inputs.
+      //
+      // Arkusz danych wykresu odkłada zapis pisanej etykiety o kilkadziesiąt
+      // milisekund; Ctrl+Z wciśnięty w tym oknie cofnąłby zmianę SPRZED niej,
+      // a odłożony zapis wróciłby zaraz potem. Dlatego przed cofnięciem
+      // (i ponowieniem) siatka, w której stoi fokus, wysyła zapis od razu.
       if (mod && k === "z" && !e.shiftKey) {
         e.preventDefault();
+        flushChartGridAt(e.target);
         undo();
         return;
       }
       if (mod && (k === "y" || (e.shiftKey && k === "z"))) {
         e.preventDefault();
+        flushChartGridAt(e.target);
         redo();
         return;
       }

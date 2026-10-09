@@ -58,7 +58,7 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     type: "chartData",
     label: "Dane",
     rows: 6,
-    hint: 'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony).',
+    hint: 'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony). Zakres wklejony z Excela albo Arkuszy Google zamienia się na ten format.',
   },
   { key: "unit", type: "text", label: "Jednostka (np. %, mld EUR)" },
   {
@@ -127,7 +127,7 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     group: CHART_REFERENCE_GROUP,
     options: CHART_PALETTE_OPTIONS,
     default: "focus",
-    hint: "Akcent + neutralne: pierwsza seria w akcencie, pozostałe jako tło porównania. Kategorialna: każda seria we własnym kolorze - dla serii równorzędnych.",
+    hint: "Akcent + neutralne: seria wyróżniona w akcencie, pozostałe jako tło porównania. Kategorialna: każda seria we własnym kolorze - dla serii równorzędnych.",
   },
   {
     key: "direction",
@@ -237,8 +237,7 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     type: "chartSeriesColors",
     label: "Kolory serii",
     group: CHART_COLORS_GROUP,
-    placeholder: "np. 3;4;8",
-    hint: "Numery kolorów palety po średniku, w kolejności serii; puste miejsce = kolor domyślny serii. Kolory własne działają w palecie kategorialnej.",
+    hint: "Próbka pokazuje kolor, którym seria jest narysowana. Kolor wybierasz z próbek palety.",
     visibleWhen: (c) => chartColorsBySeries(c.kind),
   },
   {
@@ -246,7 +245,7 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     type: "chartAccent",
     label: "Seria wyróżniona",
     group: CHART_COLORS_GROUP,
-    hint: "Seria w akcencie marki; pozostałe są tłem porównania. Puste = pierwsza seria.",
+    hint: "Seria w akcencie marki; pozostałe są tłem porównania. Domyślnie pierwsza seria.",
     // W palecie kategorialnej każda seria ma własny kolor, więc nie ma czego
     // wyróżniać akcentem.
     visibleWhen: (c) => chartColorsBySeries(c.kind) && c.palette !== "categorical",
@@ -256,7 +255,7 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     type: "chartAccent",
     label: "Wycinek wyróżniony",
     group: CHART_COLORS_GROUP,
-    hint: "Wycinek w akcencie marki - nigdy nie trafia do „Pozostałe”. Puste = największy wycinek.",
+    hint: "Wycinek w akcencie marki - nigdy nie trafia do „Pozostałe”. Domyślnie największy wycinek.",
     visibleWhen: (c) => chartColorsByCategory(c.kind),
   },
   // ---- System wykresów / uczciwość (PR2) ----

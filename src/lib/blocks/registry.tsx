@@ -3,6 +3,7 @@
 
 import type { Block, BlockType } from "./types";
 import { newBlockId } from "./types";
+import { slotForSeries } from "@/lib/charts/palette";
 import {
   Type,
   Heading1 as HeadingIcon,
@@ -1427,9 +1428,13 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
         description: "",
         unit: "",
         categories: ["2021", "2022", "2023", "2024"],
+        // Sloty z sekwencji przypisania (`slotForSeries`), nie numery 1 i 2:
+        // slot 2 to pomarańcz marki, więc po przełączeniu na paletę
+        // kategorialną druga seria nowego wykresu udawała akcent. Paleta ról
+        // (domyślna) slotu pierwszych serii nie czyta - wygląd się nie zmienia.
         series: [
-          { name: "Seria A", values: [12, 19, 14, 24], colorSlot: 1 },
-          { name: "Seria B", values: [8, 11, 13, 17], colorSlot: 2 },
+          { name: "Seria A", values: [12, 19, 14, 24], colorSlot: slotForSeries(0) },
+          { name: "Seria B", values: [8, 11, 13, 17], colorSlot: slotForSeries(1) },
         ],
         stacked: false,
         height: 320,

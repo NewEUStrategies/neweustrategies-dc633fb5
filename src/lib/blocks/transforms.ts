@@ -1,10 +1,19 @@
 // Transformacje bloków „Przekształć w …" (zachowanie WordPress Gutenberg):
 // akapit ↔ nagłówek ↔ lista ↔ cytat ↔ kod itd. z zachowaniem treści.
 // Czysty moduł (bez DOM) - transformacja to funkcja Block -> Block[].
+//
+// TABELA -> WYKRES (PR2). Zakres z Excela wklejony na kanwę bez zaznaczonego
+// wykresu staje się blokiem tabeli; „Przekształć w wykres" robi z niego
+// wykres tą samą drogą co import pliku (`tableToChartData`: rozpoznanie
+// nagłówka, orientacji i konwencji liczb). Tabela -> mapa danych świadomie
+// NIE istnieje: mapa rozwiązuje nazwy krajów skorowidzem zasobu geometrii,
+// który dociąga się asynchronicznie, a transformacja jest synchroniczna.
 
 import type { Block, BlockType, Json } from "./types";
 import { newBlockId } from "./types";
 import { escapeInlineText } from "./inlineHtml";
+import { BLOCK_SPECS } from "./registry";
+import { tableToChartData } from "@/lib/charts/importTable";
 
 /** Rodzina tekstowa - tylko między tymi typami oferujemy przekształcenia. */
 const TEXT_FAMILY: readonly BlockType[] = [
@@ -83,9 +92,46 @@ const textLines = (block: Block): string[] =>
     .map((l) => l.trim())
     .filter(Boolean);
 
+/** Komórki bloku tabeli jako napisy (blok trzyma tekst komórek, nie HTML). */
+function tableRows(block: Block): string[][] {
+  const raw = Array.isArray(block.data.rows) ? block.data.rows : [];
+  return raw.map((row) =>
+    Array.isArray(row)
+      ? row.map((cell) =>
+          typeof cell === "string" ? cell : typeof cell === "number" ? String(cell) : "",
+        )
+      : [],
+  );
+}
+
+/**
+ * Tabela -> wykres. Ustawienia wykresu to DOMYŚLNE z rejestru (jedno źródło
+ * z blokiem wstawianym z menu), dane - z tabeli. Flaga nagłówka tabeli jest
+ * rozstrzygnięciem autora; bez niej nagłówek rozpoznaje `analyseTable`.
+ */
+function tableToChart(block: Block): Block {
+  const dane = tableToChartData(tableRows(block), {
+    header: block.data.header === true ? true : undefined,
+  });
+  const base = BLOCK_SPECS.chart.create();
+  return {
+    ...base,
+    data: {
+      ...base.data,
+      categories: dane.categories,
+      series: dane.series.map((s) => ({
+        name: s.name,
+        values: s.values.map((v) => (v === null || v === undefined ? null : v)),
+        colorSlot: s.colorSlot,
+      })),
+    },
+  };
+}
+
 /** Buduje blok docelowy z treści źródła. `null` = transformacja nieobsługiwana. */
 export function transformBlock(block: Block, to: BlockType): Block[] | null {
   if (block.type === to) return null;
+  if (block.type === "table") return to === "chart" ? [tableToChart(block)] : null;
   const text = sourceText(block);
   const inline = sourceInlineHtml(block);
 
@@ -179,6 +225,7 @@ export function transformBlock(block: Block, to: BlockType): Block[] | null {
 
 /** Lista typów, na które da się przekształcić dany blok (menu „Przekształć w"). */
 export function getTransformTargets(block: Block): BlockType[] {
+  if (block.type === "table") return ["chart"];
   if (!TEXT_FAMILY.includes(block.type)) return [];
   return TEXT_FAMILY.filter((t) => t !== block.type);
 }
