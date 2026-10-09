@@ -980,6 +980,65 @@ describe("warianty prezentacji i nadpisania z buildera", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// POLA WŁASNE Z SUROWEJ TREŚCI WIDGETU (P3.9). Dyspozytor `WidgetView` jest
+// na `/` i nie może importować modułu pól (`formFieldConfig` ciągnął Radix
+// Select, kompozytor i wzmianki), więc podaje SUROWĄ wartość
+// `content.customFields`, a parsuje ją formularz w swoim leniwym chunku.
+// Format treści to `stringArray` - każda linia to jeden obiekt JSON.
+// ---------------------------------------------------------------------------
+describe("pola własne z surowej treści widgetu (P3.9)", () => {
+  const memberNo = JSON.stringify({
+    id: "cf1",
+    type: "text",
+    labelPl: "Nr członkowski",
+    labelEn: "Member no",
+  });
+
+  it("linia `stringArray` renderuje pole, a jego wartość jedzie do payloadu", async () => {
+    mount({ customFieldsSource: [memberNo] });
+    fireEvent.change(screen.getByLabelText("Nr członkowski", { exact: false }), {
+      target: { value: "12345" },
+    });
+    fillMinimum();
+    submit();
+    await waitFor(() => expect(lastPayload()?.custom).toMatchObject({ cf1: "12345" }));
+  });
+
+  it("wymagalność z surowej treści blokuje wysyłkę jak dla pól sparsowanych", async () => {
+    mount({ customFieldsSource: [JSON.stringify({ id: "cf1", type: "text", required: true })] });
+    fillMinimum();
+    submit();
+    await waitFor(() => expect(screen.getByText(/Uzupełnij wymagane pola: cf1/)).toBeTruthy());
+    expect(h.subscribePayloads).toEqual([]);
+  });
+
+  it("`customFields` ma pierwszeństwo przed `customFieldsSource`", () => {
+    mount({
+      customFields: [{ id: "cf2", labelPl: "Pole z propsa", type: "text" as const }],
+      customFieldsSource: [memberNo],
+    });
+    expect(screen.getByLabelText("Pole z propsa", { exact: false })).toBeTruthy();
+    expect(screen.queryByLabelText("Nr członkowski", { exact: false })).toBeNull();
+  });
+
+  it("wadliwa linia jest pomijana, poprawne pola zostają", () => {
+    mount({
+      customFieldsSource: ["{to nie jest JSON", JSON.stringify({ id: "bez-typu" }), memberNo],
+    });
+    expect(screen.getByLabelText("Nr członkowski", { exact: false })).toBeTruthy();
+    expect(screen.queryByLabelText("bez-typu", { exact: false })).toBeNull();
+  });
+
+  it("brak treści i pusta treść nie dodają żadnego pola", () => {
+    const empty = mount({ customFieldsSource: undefined });
+    const baseline = empty.container.querySelectorAll("input").length;
+    empty.unmount();
+    const blank = mount({ customFieldsSource: "" });
+    expect(blank.container.querySelectorAll("input").length).toBe(baseline);
+  });
+});
+
 describe("język angielski", () => {
   it("komunikaty walidacji i zgoda jadą po angielsku", async () => {
     // Atrapa i18n zwraca klucze, ale KOMUNIKATY ZŁOŻONE w kodzie („Please fill
