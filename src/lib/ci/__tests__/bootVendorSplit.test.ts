@@ -216,7 +216,9 @@ describe("lucideBootIds: osiągalność po NAZWACH, nie po krawędziach barrela"
   it("moduł wklejany do wejścia przy łączeniu małych chunków seeduje swoje ikony", () => {
     // Atom importowany tylko przez trasę leniwą: statycznie NIE jest bootowy,
     // ale Rollup wkleja go do `index-*`, więc jego ikona musi być w `-boot`.
-    const merged = `/repo${ENTRY_MERGED_LUCIDE_IMPORTERS[0]}`;
+    const suffix = "/src/components/clubs/atoms/ClubHubAccessBadge.tsx";
+    expect(ENTRY_MERGED_LUCIDE_IMPORTERS).toContain(suffix);
+    const merged = `/repo${suffix}`;
     const m = meta(
       graph({
         [LAZY]: { importedIds: [DIALOG, merged], code: 'import "./merged";' },

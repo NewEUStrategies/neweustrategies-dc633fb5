@@ -240,14 +240,19 @@ function resolveExportedNames(
  *
  * - `ClubHubAccessBadge` (~0,5 KB): wspólny atom nagłówka huba klubów i
  *   katalogu elementów w panelu. Jego ikony `KeyRound` i `MailCheck` ciągnęły
- *   `vendor-lucide` (~128 KB surowo, ~17 KB gzip) do bootu każdej strony.
- *   Nazwany chunk atomu nie wystarczał: Rollup dokłada do nazwanego chunku
- *   nienazwane zależności (`cn`, `cva`, `clsx`, `Badge`), z których wejście
- *   też korzysta, a ich wydzielenie przetasowało ~100 chunków współdzielonych
- *   (+8 KB gzip łącznie, zmierzone na buildzie).
+ *   `vendor-lucide` (~63 KB po minifikacji, ~18 KB gzip) do bootu każdej
+ *   strony. Nazwany chunk atomu nie wystarczał: Rollup dokłada do nazwanego
+ *   chunku nienazwane zależności (`cn`, `cva`, `clsx`, `Badge`), z których
+ *   wejście też korzysta, a ich wydzielenie przetasowało ~100 chunków
+ *   współdzielonych (+8 KB gzip łącznie, zmierzone na buildzie).
+ * - `ListHydrationNotice` (~1 KB): komunikat list profilu (zakładki,
+ *   obserwowani), też w `index-*`. Jego `RotateCcw` jest dziś bootowy tylko
+ *   dlatego, że importuje go również `lucide-shim` - wpis zamyka ten sam dług,
+ *   zanim zmiana shimu go otworzy.
  */
 export const ENTRY_MERGED_LUCIDE_IMPORTERS: readonly string[] = [
   "/src/components/clubs/atoms/ClubHubAccessBadge.tsx",
+  "/src/components/profile/atoms/ListHydrationNotice.tsx",
 ];
 
 /**
