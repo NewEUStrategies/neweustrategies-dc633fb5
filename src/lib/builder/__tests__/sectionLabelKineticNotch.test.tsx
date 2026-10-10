@@ -147,6 +147,10 @@ describe("Kinetic Signal Notch", () => {
       expect(bar.className).not.toMatch(/(?:^|\s)w-(3|5|6)\b/);
     }
     expect(widthPx(baseToken(bars[0]?.className ?? ""))).toBe(16);
+    // "chodzilo i o szerokosc domyslna - po rozsunieciu szerokosci niech beda
+    // rozne" - w spoczynku identyczne, w hoverze trzy rozne szerokosci.
+    const grows = bars.map((bar) => growToken(bar.className));
+    expect(new Set(grows).size).toBe(3);
     // "niech mniej sie rozsuwa" - zaden pasek nie przyrasta o wiecej niz 5 px,
     // a caly wiersz zyskuje najwyzej 12 px (bylo 24 px).
     const deltas = growDeltas(bars);
