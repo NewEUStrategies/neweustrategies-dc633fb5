@@ -233,85 +233,63 @@ describe("sliderVariants - krawędź modułu wobec sliderOptions", () => {
 });
 
 // ------------------------------------------------------------------
-// Katalog kształtów strzałek
+// Ujednolicone strzałki - wspólny AngleChevron, jedna geometria
 // ------------------------------------------------------------------
 
-describe("SliderRender - katalog kształtów strzałek nawigacji", () => {
+describe("SliderRender - ujednolicone strzałki nawigacji", () => {
   it.each(NAV_ARROW_VARIANT_VALUES)(
-    "rysuje kształt %s jako pojedynczy inline SVG w obu przyciskach",
+    "rysuje wspólny kąt dla wariantu %s w obu przyciskach",
     (arrowVariant) => {
       const { container } = renderSlider({ navArrowVariant: arrowVariant });
       const prev = prevButton(container);
       const next = nextButton(container);
       expect(prev).not.toBeNull();
       expect(next).not.toBeNull();
-
-      const prevPaths = prev?.querySelectorAll("path") ?? [];
-      expect(prevPaths).toHaveLength(1);
-      expect(prevPaths[0].getAttribute("d")).toBe(ARROW_PATHS[arrowVariant]);
-      expect(next?.querySelector("path")?.getAttribute("d")).toBe(ARROW_PATHS[arrowVariant]);
+      // Ten sam znak po obu stronach: lewy kąt (cofnięty ramion od krawędzi).
+      expect(prev?.querySelector("svg polyline")?.getAttribute("points")).toBe(
+        "8.2 1.8 2.4 5 8.2 8.2",
+      );
+      // Prawy kąt - lustrzana geometria, nie transformacja.
+      expect(next?.querySelector("svg polyline")?.getAttribute("points")).toBe(
+        "2.4 1.8 8.2 5 2.4 8.2",
+      );
+      // Oba przyciski niosą wspólną klasę traktowania (subtelny, ghostowy).
+      expect(prev?.className).toContain("eh-slider-arrow");
+      expect(next?.className).toContain("eh-slider-arrow");
     },
   );
 
-  it("odbija strzałkę wsteczną lustrzanie, zamiast rysować drugą geometrię", () => {
-    // Ta sama ścieżka w obie strony = brak szansy na rozjazd kształtów; kierunek
-    // robi wyłącznie transformacja CSS.
-    const { container } = renderSlider({ navArrowVariant: "arrow" });
-    expect(prevButton(container)?.querySelector("svg")?.style.transform).toBe("scaleX(-1)");
-    expect(nextButton(container)?.querySelector("svg")?.style.transform).toBe("none");
-  });
-
-  it("daje każdemu kształtowi z katalogu inną geometrię", () => {
-    // Bramka na „dodałem wariant do katalogu i zapomniałem o gałęzi w switchu":
-    // taki wariant cicho dostaje kształt domyślny i wygląda jak chevron.
+  it("daje każdemu wariantowi kształtu identyczną geometrię kąta", () => {
+    // Bramka na „wariant z katalogu narysował coś innego": wszystkie warianty
+    // muszą prowadzić do tego samego znaku, bo strzałki są ujednolicone.
     const drawn = NAV_ARROW_VARIANT_VALUES.map((arrowVariant) => {
       const { container, unmount } = renderSlider({ navArrowVariant: arrowVariant });
-      const d = prevButton(container)?.querySelector("path")?.getAttribute("d") ?? "";
+      const points =
+        prevButton(container)?.querySelector("svg polyline")?.getAttribute("points") ?? "";
       unmount();
-      return d;
+      return points;
     });
-    expect(new Set(drawn).size).toBe(NAV_ARROW_VARIANT_VALUES.length);
+    expect(new Set(drawn).size).toBe(1);
   });
 
-  it("pogrubia chevron-bold do co najmniej 3, gdy panel prosi o cieńszą kreskę", () => {
-    const { container } = renderSlider({ navArrowVariant: "chevron-bold", navArrowStroke: 1 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("3");
-  });
-
-  it("honoruje grubszą kreskę chevron-bold, gdy panel prosi o więcej niż 3", () => {
+  it("trzyma kreskę kąta cienką (hairline) niezależnie od ustawienia panelu", () => {
     const { container } = renderSlider({ navArrowVariant: "chevron-bold", navArrowStroke: 4 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("4");
+    const polyline = prevButton(container)?.querySelector("svg polyline");
+    expect(polyline?.getAttribute("stroke-width")).toBe("0.85");
+    expect(polyline?.getAttribute("vector-effect")).toBe("non-scaling-stroke");
   });
 
-  it("ścieńcza angle o pół punktu wobec ustawienia panelu", () => {
-    const { container } = renderSlider({ navArrowVariant: "angle", navArrowStroke: 2 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("1.5");
-  });
-
-  it("nie pozwala angle zejść poniżej 1, nawet przy najcieńszym ustawieniu", () => {
-    const { container } = renderSlider({ navArrowVariant: "angle", navArrowStroke: 0.5 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("1");
-  });
-
-  it("rysuje caret jako trójkąt wypełniony, niezależnie od grubości kreski z panelu", () => {
-    const { container } = renderSlider({ navArrowVariant: "caret", navArrowStroke: 4 });
-    const path = prevButton(container)?.querySelector("path");
-    expect(path?.getAttribute("fill")).toBe("currentColor");
-    expect(path?.getAttribute("stroke-width")).toBe("0.5");
-  });
-
-  it("rysuje kształty kreskowe bez wypełnienia, żeby kolor tła nie zalał ikony", () => {
-    const { container } = renderSlider({ navArrowVariant: "double-chevron" });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("fill")).toBe("none");
-  });
-
-  it("wraca do chevronu, gdy zapis dokumentu niesie kształt spoza katalogu", () => {
-    const { container } = renderSlider({
-      navArrowVariant: "spirala" as unknown as NavArrowVariant,
-    });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("d")).toBe(
-      ARROW_PATHS.chevron,
-    );
+  it("grubość kreski z panelu nie zmienia geometrii ujednoliconego kąta", () => {
+    for (const stroke of [0.1, 9]) {
+      const { container, unmount } = renderSlider({ navArrowStroke: stroke });
+      expect(prevButton(container)?.querySelector("svg polyline")?.getAttribute("points")).toBe(
+        "8.2 1.8 2.4 5 8.2 8.2",
+      );
+      expect(prevButton(container)?.querySelector("svg polyline")?.getAttribute("stroke-width")).toBe(
+        "0.85",
+      );
+      unmount();
+    }
   });
 });
 
