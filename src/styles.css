@@ -9657,24 +9657,27 @@ button,
   margin-top: var(--cms-title-description-gap) !important;
 }
 
-/* One geometry for media arrows and pagination, independent of CMS button presets. */
+/* One geometry for media arrows and pagination, independent of CMS button presets.
+   Subtelny wariant: bez widocznej ramki i wypełnienia - sam kąt, ghostowy dotyk. */
 .eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow {
   width: 34px !important;
   height: 34px !important;
   min-width: 34px !important;
   min-height: 34px !important;
   padding: 0 !important;
-  border: 1px solid var(--slider-arrow-border) !important;
+  border: 1px solid transparent !important;
   border-radius: 5px !important;
-  background: var(--slider-arrow-fill) !important;
+  background: transparent !important;
   color: var(--slider-arrow-ink) !important;
   box-shadow: none !important;
+  opacity: 0.72;
   font-size: 14px !important;
-  backdrop-filter: blur(6px);
-  transition: background 180ms ease, border-color 180ms ease;
+  backdrop-filter: none;
+  transition: opacity 180ms ease, background 180ms ease;
 }
 .eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow:hover {
   background: var(--slider-arrow-hover) !important;
+  opacity: 1;
 }
 .eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow svg {
   width: 11px !important;
