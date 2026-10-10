@@ -1297,10 +1297,10 @@ export function SectionLabelRender({
               className="inline-flex shrink-0 flex-col"
               style={{ gap: isSm ? "3px" : "5px" }}
             >
-              {bars.map((bar) => (
+              {bars.map((bar, barIndex) => (
                 <span
                   key={bar}
-                  className={`nes-kinetic-bar shrink-0 rounded-full ${barW} ${barGrow}`}
+                  className={`nes-kinetic-bar shrink-0 rounded-full ${barW} ${barGrows[barIndex] ?? barW}`}
                   style={{
                     height: barH,
                     minHeight: barH,
