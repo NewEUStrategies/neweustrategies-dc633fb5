@@ -14,6 +14,13 @@
 //     ostatniego wiersza (puste dane wykresu to pusty wykres), a dodawanie
 //     zatrzymuje się na limitach `MAX_CATEGORIES` / `MAX_SERIES`.
 //
+// Od PR2 siatka jest wspólna z blokiem CMS (`ChartDataGrid`): komórka liczby
+// trzyma SZKIC i zatwierdza go przy opuszczeniu pola (blur), Enterze albo
+// Tabie - dlatego testy zmiany liczby kończą się `blur`. Zatwierdzona liczba
+// i każda zmiana struktury idą do widgetu OD RAZU; odkładane (debounce) jest
+// tylko pisanie nazw serii i etykiet kategorii. Usuwanie i przestawianie
+// wierszy oraz serii jest w menu wiersza i kolumny.
+//
 // `Chart` jest atrapą wypisującą otrzymaną konfigurację - silnik wykresów ma
 // własne testy, a tutaj sprawdzamy WEJŚCIE, które arkusz mu podaje.
 import { describe, it, expect, vi } from "vitest";
@@ -70,6 +77,18 @@ const numberCells = (): HTMLInputElement[] =>
 /** Pola nazw kategorii i serii - wszystkie pozostałe pola tekstowe siatki. */
 const textCells = (): HTMLInputElement[] =>
   Array.from(document.querySelectorAll<HTMLInputElement>("table input:not(.text-right)"));
+
+/** Zmiana liczby w komórce i jej zatwierdzenie (opuszczenie pola). */
+const wpisz = (cell: HTMLInputElement, value: string) => {
+  fireEvent.change(cell, { target: { value } });
+  fireEvent.blur(cell);
+};
+
+/** Pozycja menu wiersza albo kolumny siatki. */
+const menu = (trigger: string, item: string) => {
+  fireEvent.click(screen.getByRole("button", { name: trigger }));
+  return screen.getByRole("menuitem", { name: item });
+};
 
 const config = (): Record<string, unknown> =>
   JSON.parse(screen.getByTestId("podglad").getAttribute("data-config") ?? "{}");
@@ -151,14 +170,36 @@ describe("ChartDataSpreadsheetDialog - wczytanie CSV", () => {
 });
 
 describe("ChartDataSpreadsheetDialog - edycja i zapis", () => {
-  it("zmiana komórki propaguje CSV po debounce", async () => {
+  it("zatwierdzona liczba trafia do CSV od razu", () => {
+    const { onChange } = renderDialog();
+    openSheet();
+    wpisz(numberCells()[0], "99");
+    expect(onChange).toHaveBeenLastCalledWith("; Eksport; Import\n2023; 99; 5\n2024; 12; 8");
+    expect(screen.getByRole("status").textContent).toContain("Zsynchronizowano");
+  });
+
+  it("niezatwierdzony szkic liczby nie trafia do treści", () => {
     const { onChange } = renderDialog();
     openSheet();
     fireEvent.change(numberCells()[0], { target: { value: "99" } });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("liczba z przecinkiem dziesiętnym trafia do CSV z kropką", () => {
+    const { onChange } = renderDialog();
+    openSheet();
+    wpisz(numberCells()[0], "1 234,5");
+    expect(onChange).toHaveBeenLastCalledWith("; Eksport; Import\n2023; 1234.5; 5\n2024; 12; 8");
+  });
+
+  it("nazwa serii propaguje CSV po debounce", async () => {
+    const { onChange } = renderDialog();
+    openSheet();
+    fireEvent.change(textCells()[0], { target: { value: "Wywóz" } });
     // Status „synchronizacja” pojawia się natychmiast, zapis po debounce.
     expect(screen.getByRole("status").textContent).toContain("Synchronizacja");
     await waitFor(() =>
-      expect(onChange).toHaveBeenCalledWith("; Eksport; Import\n2023; 99; 5\n2024; 12; 8"),
+      expect(onChange).toHaveBeenCalledWith("; Wywóz; Import\n2023; 10; 5\n2024; 12; 8"),
     );
     await waitFor(() =>
       expect(screen.getByRole("status").textContent).toContain("Zsynchronizowano"),
@@ -230,11 +271,19 @@ describe("ChartDataSpreadsheetDialog - edycja i zapis", () => {
   it("zapisz i zamknij zapisuje ostatnią edycję bez czekania na debounce", () => {
     const { onChange } = renderDialog();
     openSheet();
-    fireEvent.change(numberCells()[0], { target: { value: "42" } });
+    fireEvent.change(textCells()[2], { target: { value: "2022" } });
     fireEvent.click(screen.getByRole("button", { name: "Zapisz i zamknij" }));
     // Klik w „Zapisz” w oknie debounce nie może zgubić wpisu.
-    expect(onChange).toHaveBeenLastCalledWith("; Eksport; Import\n2023; 42; 5\n2024; 12; 8");
+    expect(onChange).toHaveBeenLastCalledWith("; Eksport; Import\n2022; 10; 5\n2024; 12; 8");
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("zamknij też zapisuje edycję odłożoną w oknie debounce", () => {
+    const { onChange } = renderDialog();
+    openSheet();
+    fireEvent.change(textCells()[2], { target: { value: "2022" } });
+    fireEvent.click(screen.getByRole("button", { name: "Zamknij" }));
+    expect(onChange).toHaveBeenLastCalledWith("; Eksport; Import\n2022; 10; 5\n2024; 12; 8");
   });
 
   it("zapisz bez zmian nie wywołuje zapisu", () => {
@@ -245,43 +294,27 @@ describe("ChartDataSpreadsheetDialog - edycja i zapis", () => {
   });
 
   it("przywrócenie cofa edycję jeszcze niezsynchronizowaną", () => {
-    renderDialog();
-    openSheet();
-    fireEvent.change(numberCells()[0], { target: { value: "1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Przywróć" }));
-    expect(numberCells().map((i) => i.value)).toEqual(["10", "5", "12", "8"]);
-  });
-
-  // BŁĄD PRODUKCYJNY (udokumentowany, nienaprawiony w tym etapie).
-  // „Przywróć” czyta `initialRef`, a ten jest NADPISYWANY przez efekt
-  // rehydracji `[open, value]` - a `value` zmienia się przy każdej
-  // synchronizacji na żywo (debounce 150 ms). Skutek: po pierwszej
-  // zsynchronizowanej edycji „Przywróć” cofa do stanu SPRZED chwili, nie do
-  // stanu z otwarcia arkusza - czyli praktycznie nie robi nic. Poprawka to
-  // rehydracja wyłącznie na ZMIANĘ `open` (albo pominięcie wartości, którą
-  // arkusz sam wysłał). Zmiany produkcyjnej w etapie testowym nie robię.
-  it.fails("przywrócenie wraca do stanu z OTWARCIA arkusza", async () => {
     const { onChange } = renderDialog();
     openSheet();
-    fireEvent.change(numberCells()[0], { target: { value: "1" } });
-    await waitFor(() => expect(onChange).toHaveBeenCalled());
-    // Echo od rodzica musi już być w DOM (status wraca do „Zsynchronizowano"
-    // w tym samym renderze) - inaczej klik trafia w okno wyścigu.
+    fireEvent.change(textCells()[0], { target: { value: "Wywóz" } });
+    fireEvent.click(screen.getByRole("button", { name: "Przywróć" }));
+    expect(textCells()[0]).toHaveValue("Eksport");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  // Do PR2 BŁĄD PRODUKCYJNY (był tu jako `it.fails`): echo synchronizacji
+  // przesuwało punkt „Przywróć", więc po pierwszej zsynchronizowanej edycji
+  // przycisk nie cofał praktycznie niczego. Punkt ustawia teraz wyłącznie
+  // otwarcie arkusza, a echo własnego zapisu go nie rusza.
+  it("przywrócenie wraca do stanu z OTWARCIA arkusza", async () => {
+    const { onChange } = renderDialog();
+    openSheet();
+    wpisz(numberCells()[0], "1");
+    expect(onChange).toHaveBeenCalled();
     await screen.findByText("Zsynchronizowano");
     fireEvent.click(screen.getByRole("button", { name: "Przywróć" }));
     expect(numberCells().map((i) => i.value)).toEqual(["10", "5", "12", "8"]);
-  });
-
-  it("po synchronizacji przywrócenie nie cofa już edycji - stan faktyczny", async () => {
-    const { onChange } = renderDialog();
-    openSheet();
-    fireEvent.change(numberCells()[0], { target: { value: "1" } });
-    await waitFor(() => expect(onChange).toHaveBeenCalled());
-    // Echo od rodzica musi już być w DOM (status wraca do „Zsynchronizowano"
-    // w tym samym renderze) - inaczej klik trafia w okno wyścigu.
-    await screen.findByText("Zsynchronizowano");
-    fireEvent.click(screen.getByRole("button", { name: "Przywróć" }));
-    expect(numberCells().map((i) => i.value)).toEqual(["1", "5", "12", "8"]);
+    expect(onChange).toHaveBeenLastCalledWith(CSV);
   });
 });
 
@@ -289,7 +322,7 @@ describe("ChartDataSpreadsheetDialog - struktura siatki", () => {
   it("dodaje wiersz z pustymi komórkami dla każdej serii", () => {
     renderDialog();
     openSheet();
-    fireEvent.click(screen.getByRole("button", { name: "Dodaj wiersz" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dodaj kategorię" }));
     expect(document.querySelectorAll("tbody tr")).toHaveLength(3);
     expect(
       numberCells()
@@ -309,7 +342,7 @@ describe("ChartDataSpreadsheetDialog - struktura siatki", () => {
   it("usuwa wskazany wiersz", () => {
     renderDialog();
     openSheet();
-    fireEvent.click(screen.getAllByLabelText("Usuń wiersz")[0]);
+    fireEvent.click(menu("Działania na kategorii 2023", "Usuń kategorię"));
     expect(document.querySelectorAll("tbody tr")).toHaveLength(1);
     expect(numberCells().map((i) => i.value)).toEqual(["12", "8"]);
   });
@@ -317,17 +350,18 @@ describe("ChartDataSpreadsheetDialog - struktura siatki", () => {
   it("usuwa wskazaną serię wraz z jej kolumną", () => {
     renderDialog();
     openSheet();
-    fireEvent.click(screen.getAllByLabelText("Usuń serię")[0]);
+    fireEvent.click(menu("Działania na serii Eksport", "Usuń serię"));
     expect(numberCells().map((i) => i.value)).toEqual(["5", "8"]);
   });
 
   it("nie pozwala usunąć ostatniego wiersza ani ostatniej serii", () => {
     renderDialog("; A\n2024; 1");
     openSheet();
-    // Wykres bez serii i bez kategorii to pusty wykres - przyciski są
+    // Wykres bez serii i bez kategorii to pusty wykres - pozycje menu są
     // wyłączone, a nie „miękko ignorowane”.
-    expect(screen.getByLabelText("Usuń wiersz")).toBeDisabled();
-    expect(screen.getByLabelText("Usuń serię")).toBeDisabled();
+    expect(menu("Działania na kategorii 2024", "Usuń kategorię")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Działania na kategorii 2024" }));
+    expect(menu("Działania na serii A", "Usuń serię")).toBeDisabled();
   });
 
   it("dodawanie zatrzymuje się na limicie serii", () => {
@@ -341,7 +375,7 @@ describe("ChartDataSpreadsheetDialog - struktura siatki", () => {
     const rows = Array.from({ length: MAX_CATEGORIES }, (_, i) => `R${i}; 1`);
     renderDialog("; A\n" + rows.join("\n"));
     openSheet();
-    expect(screen.getByRole("button", { name: "Dodaj wiersz" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Dodaj kategorię" })).toBeDisabled();
   });
 
   it("stopka podaje oba limity", () => {
@@ -378,8 +412,10 @@ describe("ChartDataSpreadsheetDialog - podgląd", () => {
   });
 
   it("podgląd czyta ustawienia wyglądu z treści widgetu", () => {
+    // Zapis widgetu to przełączniki "on"/"off" - podgląd czyta je tym samym
+    // adapterem (`widgetChartConfig`), co widget na stronie.
     renderDialog(CSV, {
-      content: { stacked: true, showLegend: false, showGrid: false, showValues: true, height: 480 },
+      content: { stacked: "on", showLegend: "off", showGrid: "off", showValues: "on", height: 480 },
     });
     openSheet();
     const c = config();
@@ -422,7 +458,7 @@ describe("ChartDataSpreadsheetDialog - podgląd", () => {
   it("podgląd odświeża się po edycji komórki", () => {
     renderDialog();
     openSheet();
-    fireEvent.change(numberCells()[0], { target: { value: "77" } });
+    wpisz(numberCells()[0], "77");
     const series = config().series as Array<{ values: number[] }>;
     expect(series[0].values[0]).toBe(77);
   });
@@ -439,7 +475,7 @@ describe("ChartDataSpreadsheetDialog - język interfejsu", () => {
     renderDialog(CSV, {}, "en");
     fireEvent.click(screen.getByRole("button", { name: "Open spreadsheet" }));
     expect(screen.getByText("Chart data spreadsheet")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Add row" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add category" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save & close" })).toBeInTheDocument();
     expect(screen.getByRole("status").textContent).toContain("In sync");
   });

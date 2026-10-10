@@ -25,6 +25,7 @@ import { EditorLangSwitch } from "@/components/admin/atoms/EditorLangSwitch";
 import { mirrorInlineEntities } from "@/lib/blocks/inlineEntities/registry";
 import { InlineEntitiesProvider } from "./inlineEntities/InlineEntitiesProvider";
 import { InlineEntitiesManagerButton } from "./inlineEntities/InlineEntitiesManagerButton";
+import { CHART_GRID_ATTR } from "@/components/admin/charts/gridKeyboard";
 
 type BlocksLang = "pl" | "en";
 const OTHER_LANG: Readonly<Record<BlocksLang, BlocksLang>> = { pl: "en", en: "pl" };
@@ -85,7 +86,14 @@ export function PostBlockEditor({ value, onChange, documentPane, canvasWrap, pre
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
       const target = e.target as HTMLElement | null;
-      const inEditable = !!target?.closest('[contenteditable="true"], input, textarea');
+      // Komórki arkusza danych wykresu są polami `<input>`, ale ich zmiany idą
+      // do treści bloku od razu (wpis zatwierdzony, wklejony zakres, wstawiony
+      // wiersz) - więc Ctrl+Z w siatce cofa w HISTORII BLOKU, a nie natywnie
+      // w polu, które swojej historii zmian w treści nie zna. Niezatwierdzony
+      // szkic liczby cofa sama komórka i zdarzenie tu nie dochodzi.
+      const inChartGrid = !!target?.closest(`[${CHART_GRID_ATTR}]`);
+      const inEditable =
+        !inChartGrid && !!target?.closest('[contenteditable="true"], input, textarea');
 
       // Alt+Arrow to reorder the active block (works even inside editable text).
       if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && activeId) {

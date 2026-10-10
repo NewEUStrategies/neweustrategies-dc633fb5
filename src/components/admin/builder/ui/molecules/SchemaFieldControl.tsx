@@ -26,6 +26,7 @@ import { MapDataField } from "./MapDataField";
 // wielokluczowy (`setContentPatch`) i potrzebuje hooków (patrz `MapDataField`).
 import { ChartSeriesColorsField } from "@/components/admin/charts/ChartSeriesColorsField";
 import { ChartAccentField } from "@/components/admin/charts/ChartAccentField";
+import { ChartDataTextarea } from "@/components/admin/charts/ChartDataTextarea";
 import { MapSchemeField } from "@/components/admin/charts/MapSchemeField";
 // Region pola danych mapy idzie tym samym parserem, co render - porównanie
 // z dwoma literałami podawało skorowidzowi nazw Europę dla każdego regionu
@@ -231,10 +232,11 @@ export function SchemaFieldControl({ field, lang, content, setContent, setConten
       return (
         <PropField label={label} hint={hint}>
           <div className="space-y-2">
-            <Textarea
+            {/* Zakres wklejony z arkusza zamienia się na format średnikowy. */}
+            <ChartDataTextarea
               rows={field.rows ?? 6}
               value={asString(read(field.key))}
-              onChange={(e) => setContent(field.key, e.target.value)}
+              onChange={(v) => setContent(field.key, v)}
               className="text-xs font-mono"
               placeholder={t("builder.schemaField.chartDataPlaceholder")}
             />
