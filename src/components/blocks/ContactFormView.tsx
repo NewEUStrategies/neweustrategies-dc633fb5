@@ -494,7 +494,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
         <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
           {showFirstName && (
-            <Field
+            <Field lang={lang}
               label={L.firstName}
               required={requireFirstName}
               error={errors.firstName}
@@ -511,7 +511,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showLastName && (
-            <Field
+            <Field lang={lang}
               label={L.lastName}
               required={requireLastName}
               error={errors.lastName}
@@ -528,7 +528,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showEmail && (
-            <Field
+            <Field lang={lang}
               label={L.email}
               required={requireEmail}
               error={errors.email}
@@ -547,7 +547,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           )}
 
           {showPhone && (
-            <Field
+            <Field lang={lang}
               label={L.phone}
               required={requirePhone}
               error={errors.phone}
@@ -565,7 +565,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showCompany && (
-            <Field
+            <Field lang={lang}
               label={L.company}
               required={requireCompany}
               error={errors.company}
@@ -582,7 +582,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showSubject && (
-            <Field
+            <Field lang={lang}
               label={L.subject}
               required={requireSubject}
               error={errors.subject}
@@ -598,7 +598,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showMessage && (
-            <Field
+            <Field lang={lang}
               label={L.message}
               required={requireMessage}
               error={errors.message}
@@ -634,7 +634,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             }
             if (f.type === "select") {
               return (
-                <Field key={f.id} label={label} required={f.required} error={err} className={span}>
+                <Field lang={lang} key={f.id} label={label} required={f.required} error={err} className={span}>
                   <select
                     name={name}
                     required={f.required}
@@ -656,7 +656,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             }
             if (f.type === "textarea") {
               return (
-                <Field key={f.id} label={label} required={f.required} error={err} className={span}>
+                <Field lang={lang} key={f.id} label={label} required={f.required} error={err} className={span}>
                   <textarea
                     name={name}
                     rows={5}
@@ -670,7 +670,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
               );
             }
             return (
-              <Field key={f.id} label={label} required={f.required} error={err} className={span}>
+              <Field lang={lang} key={f.id} label={label} required={f.required} error={err} className={span}>
                 <input
                   name={name}
                   type={f.type}
@@ -732,11 +732,13 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 }
 
 function Field({
+  lang,
   label,
   error,
   className,
   children,
 }: {
+  lang: Lang;
   label: string;
   required?: boolean;
   error?: string;
@@ -745,7 +747,6 @@ function Field({
 }) {
   const counterId = useId();
   const [count, setCount] = useState(0);
-  const [counterLang, setCounterLang] = useState<Lang>("pl");
   let limit: number | undefined;
   // Floating-label: wstrzykuje klasę `.input` do dziecka
   // (<input>/<textarea>/<select>), dzięki czemu label unosi się na obramowaniu.
@@ -783,7 +784,6 @@ function Field({
       const control = event.target;
       if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
         setCount(control.value.length);
-        setCounterLang(control.closest("[lang]")?.getAttribute("lang") === "en" ? "en" : "pl");
       }
     }}>
       <div
@@ -797,7 +797,7 @@ function Field({
           {showError ? error : label}
         </label>
       </div>
-      {limit && <CharacterCounter id={counterId} count={count} limit={limit} lang={counterLang} />}
+      {limit && <CharacterCounter id={counterId} count={count} limit={limit} lang={lang} />}
     </div>
   );
 }
