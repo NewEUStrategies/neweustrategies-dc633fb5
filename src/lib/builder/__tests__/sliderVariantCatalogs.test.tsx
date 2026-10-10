@@ -366,24 +366,27 @@ describe("SliderRender - katalog stylów i pozycji nawigacji", () => {
     expect(prev?.style.getPropertyValue("--nav-arrow")).toBe("#f5c518");
   });
 
-  it("skaluje ikonę do 42% przycisku dla dużych przycisków", () => {
-    const { container } = renderSlider({ navSizePx: 96 });
-    expect(prevButton(container)?.querySelector("svg")?.style.width).toBe("40px");
+  it("ikona śledzie em przycisku z arkusza wspólnego, niezależnie od rozmiaru przycisku", () => {
+    // Rozmiar ikony żyje we wspólnym arkuszu `.eh-slider-arrow svg` (11x10 px)
+    // i w `AngleChevron` (calc(0.85em - 1px)); nie skaluje się z rozmiarem
+    // przycisku z panelu - geometria strzałek jest ujednolicona.
+    for (const size of [28, 52, 96]) {
+      const { container, unmount } = renderSlider({ navSizePx: size });
+      const svg = prevButton(container)?.querySelector("svg");
+      expect(svg?.style.width).toBe("calc(0.85em - 1px)");
+      expect(svg?.getAttribute("viewBox")).toBe("0 0 11 10");
+      unmount();
+    }
   });
 
-  it("nie schodzi z ikoną poniżej 14 px przy najmniejszym przycisku", () => {
-    const { container } = renderSlider({ navSizePx: 28 });
-    expect(prevButton(container)?.querySelector("svg")?.style.width).toBe("14px");
-  });
-
-  it("zawęża grubość kreski strzałki do dolnej granicy 0.5", () => {
-    const { container } = renderSlider({ navArrowStroke: 0.1 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("0.5");
-  });
-
-  it("zawęża grubość kreski strzałki do górnej granicy 4", () => {
-    const { container } = renderSlider({ navArrowStroke: 9 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("4");
+  it("trzyma kreskę ikony na 0.85 niezależnie od ustawienia grubości panelu", () => {
+    for (const stroke of [0.1, 2.25, 9]) {
+      const { container, unmount } = renderSlider({ navArrowStroke: stroke });
+      expect(
+        prevButton(container)?.querySelector("svg polyline")?.getAttribute("stroke-width"),
+      ).toBe("0.85");
+      unmount();
+    }
   });
 });
 
