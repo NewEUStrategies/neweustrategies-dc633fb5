@@ -1304,8 +1304,14 @@ export function SectionLabelRender({
               {bars.map((bar) => (
                 <span
                   key={bar.id}
-                  className={`nes-kinetic-bar rounded-full ${barW} ${bar.grow}`}
-                  style={{ height: barH, background: accent, transitionDelay: bar.delay }}
+                  className={`nes-kinetic-bar shrink-0 rounded-full ${barW} ${bar.grow}`}
+                  style={{
+                    height: barH,
+                    minHeight: barH,
+                    maxHeight: barH,
+                    background: accent,
+                    transitionDelay: bar.delay,
+                  }}
                 />
               ))}
             </span>
