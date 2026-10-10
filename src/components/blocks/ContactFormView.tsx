@@ -30,6 +30,8 @@ import { safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import { floatingPlaceholder } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trackFormConversion } from "@/lib/analytics/conversions";
+import { CONTACT_FIELD_LIMITS } from "@/lib/forms/contactLimits";
+import { CharacterCounter } from "@/components/forms/CharacterCounter";
 
 type Lang = "pl" | "en";
 type Cfg = Record<string, unknown>;
@@ -67,6 +69,7 @@ const T = {
     invalidEmail: "Niepoprawny adres e-mail",
     sending: "Wysyłanie...",
     error: "Wystąpił błąd. Spróbuj ponownie.",
+    tooLong: "Przekroczono limit znaków",
   },
   en: {
     firstName: "First name",
@@ -82,6 +85,7 @@ const T = {
     invalidEmail: "Invalid email address",
     sending: "Sending...",
     error: "Something went wrong. Please try again.",
+    tooLong: "Character limit exceeded",
   },
 } as const;
 
@@ -345,7 +349,11 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     if (requiredMap.subject && !payload.subject) errs.subject = t.required;
     if (requiredMap.message && !payload.message) errs.message = t.required;
     if (requireConsent && !payload.consent) errs.consent = t.required;
-    Object.assign(errs, validateCustom(customFields, payload.custom, t.required));
+    for (const [key, limit] of Object.entries(CONTACT_FIELD_LIMITS)) {
+      const value = payload[key as keyof typeof payload];
+      if (typeof value === "string" && value.length > limit) errs[key] = `${t.tooLong}: ${limit}`;
+    }
+    Object.assign(errs, validateCustom(customFields, payload.custom, t.required, t.tooLong));
 
     setErrors(errs);
     if (Object.keys(errs).length) return;
@@ -656,7 +664,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                     aria-required={f.required || undefined}
                     className="cf-input resize-y"
                     placeholder={placeholder}
-                    maxLength={f.maxLength ?? 4000}
+                    maxLength={Math.min(f.maxLength ?? CONTACT_FIELD_LIMITS.custom, CONTACT_FIELD_LIMITS.custom)}
                   />
                 </Field>
               );
@@ -670,7 +678,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                   aria-required={f.required || undefined}
                   className="cf-input"
                   placeholder={placeholder}
-                  maxLength={f.maxLength ?? 500}
+                  maxLength={Math.min(f.maxLength ?? CONTACT_FIELD_LIMITS.custom, CONTACT_FIELD_LIMITS.custom)}
                 />
               </Field>
             );
@@ -735,6 +743,10 @@ function Field({
   className?: string;
   children: ReactNode;
 }) {
+  const counterId = useId();
+  const [count, setCount] = useState(0);
+  const [counterLang, setCounterLang] = useState<Lang>("pl");
+  let limit: number | undefined;
   // Floating-label: wstrzykuje klasę `.input` do dziecka
   // (<input>/<textarea>/<select>), dzięki czemu label unosi się na obramowaniu.
   // Placeholder USTAWIONY przez edytora leci dalej bez zmian - CSS
@@ -745,11 +757,19 @@ function Field({
   // Semantyczne tokeny -> działa w light+dark, i18n przez callsite.
   let injected: ReactNode = children;
   if (isValidElement(children)) {
-    const el = children as ReactElement<{ className?: string; placeholder?: string }>;
+    const el = children as ReactElement<{ className?: string; placeholder?: string; name?: string; maxLength?: number; "aria-describedby"?: string }>;
+    if (el.type === "input" || el.type === "textarea") {
+      const key = el.props.name;
+      const standardLimit = key && Object.prototype.hasOwnProperty.call(CONTACT_FIELD_LIMITS, key)
+        ? CONTACT_FIELD_LIMITS[key as keyof typeof CONTACT_FIELD_LIMITS]
+        : CONTACT_FIELD_LIMITS.custom;
+      limit = Math.min(el.props.maxLength ?? standardLimit, standardLimit);
+    }
     const merged = ["input", el.props.className].filter(Boolean).join(" ");
     injected = cloneElement(el, {
       className: merged,
       placeholder: floatingPlaceholder(el.props.placeholder),
+      ...(limit ? { maxLength: limit, "aria-describedby": counterId } : {}),
     });
   }
   // Komunikat walidacji nie jest osobnym wierszem - wchodzi w miejsce etykiety
@@ -759,7 +779,13 @@ function Field({
   const [focused, setFocused] = useState(false);
   const showError = Boolean(error) && !focused;
   return (
-    <div className={className}>
+    <div className={className} onInputCapture={(event) => {
+      const control = event.target;
+      if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+        setCount(control.value.length);
+        setCounterLang(control.closest("[lang]")?.getAttribute("lang") === "en" ? "en" : "pl");
+      }
+    }}>
       <div
         className="input-group"
         data-invalid={error ? "true" : undefined}
@@ -771,6 +797,7 @@ function Field({
           {showError ? error : label}
         </label>
       </div>
+      {limit && <CharacterCounter id={counterId} count={count} limit={limit} lang={counterLang} />}
     </div>
   );
 }
