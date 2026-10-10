@@ -144,10 +144,6 @@ const pl = {
         oceania: "Oceania",
         unit: "Jednostka (np. %, mln)",
         title: "Tytuł mapy",
-        selectCountry: "- wybierz kraj -",
-        value: "Wartość",
-        addCountry: "Dodaj kraj",
-        removeRow: "Usuń wiersz {{name}}",
         source: "Źródło danych",
       },
       dataImport: {
@@ -155,8 +151,6 @@ const pl = {
         areaTitle: "Dane z pliku",
         hintChart:
           "xlsx, xls, ods, csv, tsv i inne arkusze - pierwszy wiersz to nazwy serii, pierwsza kolumna to kategorie",
-        hintMap:
-          "xlsx, xls, ods, csv, tsv i inne arkusze - pierwsza kolumna to kraj (kod ISO-2, ISO-3 albo nazwa), druga to wartość",
         chooseSheet: "Skoroszyt ma kilka arkuszy - wybierz jeden:",
         sheetRows: "{{count}} wierszy",
         ok: "Wczytano dane z pliku.",
@@ -1083,10 +1077,6 @@ const en: typeof pl = {
         oceania: "Oceania",
         unit: "Unit (e.g. %, M)",
         title: "Map title",
-        selectCountry: "- select a country -",
-        value: "Value",
-        addCountry: "Add country",
-        removeRow: "Delete row {{name}}",
         source: "Data source",
       },
       dataImport: {
@@ -1094,8 +1084,6 @@ const en: typeof pl = {
         areaTitle: "Data from a file",
         hintChart:
           "xlsx, xls, ods, csv, tsv and other spreadsheets - first row holds series names, first column holds categories",
-        hintMap:
-          "xlsx, xls, ods, csv, tsv and other spreadsheets - first column is the country (ISO-2 code, ISO-3 code or name), second is the value",
         chooseSheet: "The workbook has several sheets - pick one:",
         sheetRows: "{{count}} rows",
         ok: "Data loaded from the file.",

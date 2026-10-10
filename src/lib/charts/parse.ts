@@ -38,6 +38,19 @@ function asRecord(raw: Json | undefined): Record<string, Json> {
   return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
 }
 
+/**
+ * Pole tekstowe konfiguracji. Napis zostaje napisem, liczba (np. jednostka
+ * zapisana jako 2026) - jej zapisem dziesiętnym; obiekt, tablica albo
+ * `true` to śmieć z uszkodzonej albo obcej treści i daje pusty napis.
+ * Wcześniej `String(...)` wypisywał czytelnikowi „[object Object]" pod
+ * wykresem i mapą.
+ */
+function text(raw: Json | undefined): string {
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "number" && Number.isFinite(raw)) return String(raw);
+  return "";
+}
+
 function num(raw: Json | undefined): number | null {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
   if (typeof raw === "string" && raw.trim() !== "") {
@@ -96,12 +109,12 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
   const series = parseChartSeries(data.series, categories.length);
   return {
     kind: parseChartKind(kindSource),
-    title: String(data.title ?? ""),
-    description: String(data.description ?? ""),
+    title: text(data.title),
+    description: text(data.description),
     categories,
     series,
     stacked: data.stacked === true,
-    unit: String(data.unit ?? ""),
+    unit: text(data.unit),
     height: Math.max(
       CHART_HEIGHT_MIN,
       Math.min(CHART_HEIGHT_MAX, heightRaw ?? CHART_HEIGHT_DEFAULT),
@@ -110,7 +123,7 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     showGrid: data.showGrid !== false,
     showValues: data.showValues === true,
     animate: data.animate !== false,
-    source: String(data.source ?? ""),
+    source: text(data.source),
     // Wygładzanie: brak klucza znaczy DOMYŚLNE 0,55, a nie zero. Wszystkie
     // wykresy zapisane przed wprowadzeniem tego pola dostają więc kształt
     // z nowej specyfikacji bez migracji danych - a autor, który świadomie
@@ -125,10 +138,10 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     // traktujemy je jak brak - inaczej podpis twierdziłby "n = 0" o wykresie,
     // który coś rysuje.
     sampleSize: positiveIntOrNull(num(data.sampleSize)),
-    sourceDate: String(data.sourceDate ?? ""),
-    notesShows: String(data.notesShows ?? ""),
-    notesSurprising: String(data.notesSurprising ?? ""),
-    notesHidden: String(data.notesHidden ?? ""),
+    sourceDate: text(data.sourceDate),
+    notesShows: text(data.notesShows),
+    notesSurprising: text(data.notesSurprising),
+    notesHidden: text(data.notesHidden),
     metric: parseChartMetric(data.metric),
     // Brak klucza = paleta ze specyfikacji (akcent + neutralne). Paletę
     // kategorialną autor wybiera jawnie - wtedy wracają kolory slotów.
@@ -141,7 +154,7 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     provenance: isProvenance(data.provenance) ? data.provenance : null,
     demo: data.demo === true,
     sources: parseChartSources(data.sources),
-    caption: String(data.caption ?? ""),
+    caption: text(data.caption),
   };
 }
 
@@ -373,13 +386,13 @@ export function parseMapClasses(raw: Json | undefined): number {
 export function parseDataMapConfig(data: Record<string, Json>): DataMapConfig {
   return {
     region: parseMapRegion(data.region),
-    title: String(data.title ?? ""),
-    description: String(data.description ?? ""),
-    unit: String(data.unit ?? ""),
+    title: text(data.title),
+    description: text(data.description),
+    unit: text(data.unit),
     values: parseMapValues(data.values),
     showLegend: data.showLegend !== false,
     animate: data.animate !== false,
-    source: String(data.source ?? ""),
+    source: text(data.source),
     // Brak klucza = ramp sprzed wprowadzenia wyboru (te same kotwice co
     // `--chart-seq-min/max`), nieznany zapis z przyszłej wersji edytora też.
     scheme: isMapScheme(data.scheme) ? data.scheme : "blue",
@@ -389,13 +402,13 @@ export function parseDataMapConfig(data: Record<string, Json>): DataMapConfig {
     provenance: isProvenance(data.provenance) ? data.provenance : null,
     demo: data.demo === true,
     sources: parseChartSources(data.sources),
-    caption: String(data.caption ?? ""),
-    sourceDate: String(data.sourceDate ?? ""),
+    caption: text(data.caption),
+    sourceDate: text(data.sourceDate),
     // Ta sama reguła co przy wykresie: zero obserwacji nie jest podpisem.
     sampleSize: positiveIntOrNull(num(data.sampleSize)),
-    notesShows: String(data.notesShows ?? ""),
-    notesSurprising: String(data.notesSurprising ?? ""),
-    notesHidden: String(data.notesHidden ?? ""),
+    notesShows: text(data.notesShows),
+    notesSurprising: text(data.notesSurprising),
+    notesHidden: text(data.notesHidden),
   };
 }
 

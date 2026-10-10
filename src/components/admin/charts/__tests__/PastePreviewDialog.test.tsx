@@ -135,7 +135,7 @@ describe("podgląd tabeli mapy - kolumna wartości", () => {
     expect(onApply.mock.calls[0][0].valueColumn).toBe(2);
   });
 
-  it("tryb mapy nie oferuje obrotu", () => {
+  it("tryb mapy nie oferuje obrotu serii wykresu (obrót mapy ma własną etykietę)", () => {
     zamontuj(TABELA, { mode: "map", countryIndex: index });
     expect(screen.queryByRole("checkbox", { name: /Serie w wierszach/ })).toBeNull();
   });

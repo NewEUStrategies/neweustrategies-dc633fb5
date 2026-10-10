@@ -50,6 +50,18 @@
 
 - [x] Ujednolicić jasne wnętrze i ciemniejszy obrys wszystkich słupków oraz wykresów kołowych.
 - [x] Usunąć widoczną ramkę całego wykresu po kliknięciu, zachowując dostępny fokus klawiatury.
+- [x] Słupki i wycinki wykresów kołowych pełne według specyfikacji 2026-10 - zastępuje jasne wnętrze z obrysem (decyzja właściciela, PR #488 i #489); akcent ma drugi nośnik w postaci obrysu.
+
+## Wykresy i mapy danych w blokach i widgetach
+
+- [x] Wszystkie 17 rodzajów wykresu i mapa danych rysowane tak samo w bloku CMS i w widgecie buildera, z paletą ról jako domyślną.
+- [x] Wklejanie danych z Excela, Google Sheets, LibreOffice i Numbers do arkusza wykresu i mapy, z podglądem przed zastąpieniem tabeli.
+- [x] Import plików arkuszy (xlsx, xlsm, xlsb, xltx, xltm, xls, ods, fods, csv, tsv, txt, html, htm) z listą problemów odczytu.
+- [x] Mapa danych według specyfikacji: schematy barw, klasy, legenda, kreskowanie braku danych, tooltip, eksport PNG/SVG, przypisy.
+- [x] Wybór koloru serii i serii wyróżnionej; wybór schematu barw mapy z próbkami rampy.
+- [ ] Kolor własny pojedynczego wycinka wykresu kołowego.
+- [ ] Przekształcenie tabeli w mapę danych.
+- [ ] Widgety „feature" (sankey, porównanie, matryca ryzyka, sieć, oś czasu, wskaźnik) i pozostałe mapy według specyfikacji wykresów.
 
 ## Archiwum GGM 2021
 
