@@ -280,6 +280,22 @@ describe("SliderRender - ujednolicone strzałki nawigacji", () => {
     );
   });
 
+  it("trzyma kąt otwarty, a nie ostry szpic", () => {
+    // Subtelność: wierzchołek znaku ma być rozwarty (~77°). Geometria
+    // „8.2 1.8 2.4 5 8.2 8.2" dawała ostry szpic ~58° i wyglądała agresywnie.
+    const { container } = renderSlider();
+    const points =
+      prevButton(container)?.querySelector("svg polyline")?.getAttribute("points") ?? "";
+    const [tipAX, tipAY, apexX, apexY, tipBX, tipBY] = points.trim().split(/\s+/).map(Number);
+    const v1 = { x: tipAX - apexX, y: tipAY - apexY };
+    const v2 = { x: tipBX - apexX, y: tipBY - apexY };
+    const cos =
+      (v1.x * v2.x + v1.y * v2.y) / (Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y));
+    const angle = (Math.acos(cos) * 180) / Math.PI;
+    expect(angle).toBeGreaterThan(70);
+    expect(angle).toBeLessThan(95);
+  });
+
   it("grubość kreski z panelu nie zmienia geometrii ujednoliconego kąta", () => {
     for (const stroke of [0.1, 9]) {
       const { container, unmount } = renderSlider({ navArrowStroke: stroke });
