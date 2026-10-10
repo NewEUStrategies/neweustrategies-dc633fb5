@@ -1,5 +1,10 @@
 # Roadmap
 
+## Nowoczesna nawigacja slidera
+
+- [x] Odświeżyć zaznaczone strzałki i wskaźniki: subtelny obrys, aktywna kapsułka marki, płynne przejścia bez zmiany układu.
+- [x] Zweryfikować przełączanie materiałów testami zakresowymi.
+
 ## Pełne wiadomości i limity formularzy
 
 - [x] Usunąć obcinanie treści w CRM i zachować pełne wiadomości przy zbieraniu.
