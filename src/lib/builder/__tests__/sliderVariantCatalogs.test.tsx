@@ -1177,9 +1177,9 @@ describe("SliderRender - dieta znaczników obrazów i kart (P2.6)", () => {
   );
 });
 
-describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6, css:C9)", () => {
+describe("SliderRender - kreski paginacji tylko przez transform i opacity (P2.6, css:C9)", () => {
   it.each(DOT_VARIANTS)(
-    "w wariancie %s każda kropka ma stałe pudełko 10 px i przejście wyłącznie transform/opacity",
+    "w wariancie %s każda kreska ma stałe pudełko w-10 h-1 i przejście wyłącznie transform/opacity",
     (variant, extra) => {
       const { container } = renderSlider({ variant, ...extra });
       const dots = dotsOf(container);
@@ -1188,13 +1188,13 @@ describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6,
         expect(tokens(dot)).toEqual(
           expect.arrayContaining([
             "rounded-full",
-            "w-2.5",
-            "h-2.5",
+            "w-10",
+            "h-1",
             "transition-[transform,opacity]",
           ]),
         );
         // Animowane właściwości układu i koloru znikają razem z transition-all.
-        for (const banned of ["transition-all", "w-2", "h-2"]) {
+        for (const banned of ["transition-all", "w-2", "h-2", "w-2.5", "h-2.5"]) {
           expect(tokens(dot)).not.toContain(banned);
         }
         expect(dot.className).not.toMatch(/\bbg-(foreground|white)\/\d+/);
@@ -1203,7 +1203,7 @@ describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6,
   );
 
   it.each(DOT_VARIANTS)(
-    "w wariancie %s aktywna kropka jest pełna, a nieaktywne pomniejszone scale(.8) i przygaszone",
+    "w wariancie %s aktywna kreska jest pełna i wydłużona, a nieaktywne skrócone scaleX(.4) i przygaszone",
     (variant, extra) => {
       const { container } = renderSlider({ variant, ...extra });
       const buttons = [...container.querySelectorAll('button[aria-label^="Slajd "]')];
@@ -1211,27 +1211,23 @@ describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6,
       expect(active).toHaveLength(1);
       for (const button of buttons) {
         const dot = button.querySelector<HTMLElement>("span[aria-hidden]")!;
-        const dimmed = tokens(dot).filter((t) => /^opacity-\d+$/.test(t));
         if (button === active[0]) {
-          expect(tokens(dot)).not.toContain("[transform:scale(.8)]");
-          expect(dimmed).toEqual([]);
+          expect(tokens(dot)).toContain("[transform:scaleX(1)]");
+          expect(tokens(dot)).toContain("opacity-100");
         } else {
-          expect(tokens(dot)).toContain("[transform:scale(.8)]");
-          expect(dimmed).toHaveLength(1);
+          expect(tokens(dot)).toContain("[transform:scaleX(.4)]");
+          expect(tokens(dot)).toContain("opacity-35");
+          expect(tokens(dot)).toContain("group-hover:opacity-60");
         }
       }
     },
   );
 
-  it("zachowuje dawne krycie kropek: /25 → opacity-25 (hover 50) na tle, /50 → opacity-50 (hover 80) na obrazie", () => {
+  it("zachowuje kontekstowy kolor kresek: bg-foreground na powierzchni, bg-white na obrazie", () => {
     const hero = dotsOf(renderSlider({ variant: "editorial-hero" }).container);
-    expect(tokens(hero[1])).toEqual(
-      expect.arrayContaining(["bg-foreground", "opacity-25", "group-hover:opacity-50"]),
-    );
+    expect(tokens(hero[1])).toEqual(expect.arrayContaining(["bg-foreground", "opacity-35"]));
     const cinema = dotsOf(renderSlider({ variant: "cinematic-overlay" }).container);
-    expect(tokens(cinema[1])).toEqual(
-      expect.arrayContaining(["bg-white", "opacity-50", "group-hover:opacity-80"]),
-    );
+    expect(tokens(cinema[1])).toEqual(expect.arrayContaining(["bg-white", "opacity-35"]));
   });
 });
 
