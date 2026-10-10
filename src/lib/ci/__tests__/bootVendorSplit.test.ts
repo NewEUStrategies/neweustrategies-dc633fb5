@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bootModuleIds,
+  ENTRY_MERGED_LUCIDE_IMPORTERS,
   isBootLucideModule,
   isBootModule,
   lucideBootIds,
@@ -210,6 +211,36 @@ describe("lucideBootIds: osiągalność po NAZWACH, nie po krawędziach barrela"
   it("gdy entry nie dotyka lucide, nic nie jest bootowe", () => {
     const m = meta(graph({ [SHIM]: { importedIds: [REACT], code: "export const X = 1;" } }));
     expect(lucideBootIds(m).size).toBe(0);
+  });
+
+  it("moduł wklejany do wejścia przy łączeniu małych chunków seeduje swoje ikony", () => {
+    // Atom importowany tylko przez trasę leniwą: statycznie NIE jest bootowy,
+    // ale Rollup wkleja go do `index-*`, więc jego ikona musi być w `-boot`.
+    const merged = `/repo${ENTRY_MERGED_LUCIDE_IMPORTERS[0]}`;
+    const m = meta(
+      graph({
+        [LAZY]: { importedIds: [DIALOG, merged], code: 'import "./merged";' },
+        [merged]: {
+          importedIds: [BARREL, REACT],
+          code: 'import { Trash2, Check } from "lucide-react";',
+        },
+      }),
+    );
+    expect(isBootModule(merged, m), "osiągalność statyczna bez zmian").toBe(false);
+    const boot = lucideBootIds(m);
+    for (const id of [TRASH, CHECK, CHEVRON, CREATE_ICON]) expect(boot.has(id), id).toBe(true);
+    expect(boot.has(BARREL)).toBe(false);
+  });
+
+  it("ta sama ikona z modułu spoza listy zostaje poza bootem", () => {
+    const other = "/repo/src/components/clubs/atoms/OtherBadge.tsx";
+    const m = meta(
+      graph({
+        [LAZY]: { importedIds: [DIALOG, other], code: 'import "./other";' },
+        [other]: { importedIds: [BARREL], code: 'import { Trash2 } from "lucide-react";' },
+      }),
+    );
+    expect(isBootLucideModule(TRASH, m)).toBe(false);
   });
 });
 

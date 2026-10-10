@@ -2067,6 +2067,38 @@ const CLIENT_DIR =
 // zaokrąglenia: overall 4831,9 -> 4832 -> 4833; public css 83,2 -> 84 -> 85.
 // ZASADA Z WPISU V OBOWIĄZUJE: pierwszy log runnera na main po scaleniu jest
 // podstawą korekty w dół.
+//
+// KOREKTA PRZED SCALENIEM (2026-10-10, ten sam PR): OVERALL 4833 -> 4837.
+// Po pomiarze wyżej weszły poprawki z przeglądu końcowego (23 usterki),
+// z przeglądu Codex i parsera pól panelu, każda z testem, który przed nią
+// oblewał, oraz zdjęcie `vendor-lucide` ze ścieżki startowej. Krok bramki
+// nie działa na PR-ach, więc przekroczenia nie pokazało CI gałęzi. Pomiar
+// trzech drzew na tym samym hoście:
+//   bf37469a (pomiar wpisu):       overall 4832,0  public 2833,8  admin 1998,2
+//                                  boot 503,2 (11 chunków)
+//   84c7bd59 (po przeglądach):     overall 4836,6  public 2835,0  boot 503,3
+//   + boot bez `vendor-lucide`:    overall 4836,0  public 2834,5  admin 2001,5
+//                                  boot 484,9 (10 chunków)  chunk 259,0
+// Przyrost +4,0 (public +0,7, admin +3,3), per chunk:
+//   +2,8  panel buildera (`EmptyContainerPickerBox`): stan arkusza danych
+//         (`chartGridState` - operacja jako jeden krok cofania, kolejność
+//         i wyróżnienie serii), próbki koloru faktycznie rysowanego w danym
+//         rodzaju (`chartColorSlots`), wybór skali mapy ze środkiem, import
+//         i schowek (HTML z rozpoznaniem kodowania, etykiety, limity)
+//   +0,2  DataVizViews (czytelnik, leniwy): środek skali rozbieżnej jako
+//         granica klasy, jeden kierunek kreskowania
+//   +0,1  Chart: obrys wycinka tylko przy jawnie wybranym akcencie
+//   reszta: drobne moduły i różnice hashy w importach
+// Cięcia brak z wyboru: każda pozycja to naprawiona usterka.
+//
+// BOOT -18,3 KB: `ClubHubAccessBadge` (atom klubów spoza tego PR) łączenie
+// małych chunków wklejało do `index-*`, a jego ikony ciągnęły cały
+// `vendor-lucide` do bootu każdej strony (`check:entry-purity`, dług z bazy
+// 940ef8b1). Mechanizm i lista: `ENTRY_MERGED_LUCIDE_IMPORTERS`
+// w `scripts/lib/bootVendorSplit.ts`. Floor `boot` (579) zostaje - korektę
+// w dół robi pierwszy log runnera na main (zasada z wpisu V).
+//
+// FORMUŁA: overall 4836,0 -> 4836 -> 4837.
 
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
@@ -2192,7 +2224,9 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 4786 -> 4833 (wpis 2026-10-10 XXVI): edytory danych wykresu
   // i mapy (admin +37,3) i kartogram według specyfikacji, decyzją
   // zamawiającego po cięciach. Host 4831,9 przy bazie 4782,8 -> 4832 -> +1.
-  overall: 4833,
+  // Korekta 4833 -> 4837 (ten sam wpis): poprawki z przeglądów PR #489
+  // (panel buildera +2,8, czytelnik +0,3). Host 4836,0 -> 4836 -> +1.
+  overall: 4837,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
