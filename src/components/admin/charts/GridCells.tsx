@@ -51,6 +51,16 @@ interface CommonCellProps {
 
 interface NumberCellProps extends CommonCellProps {
   value: number | null;
+  /**
+   * NAPIS ZAPISANY w treści, którego czytnik mapy nie odczytał jako liczby
+   * („12%", „1.234,5" w polu widgetu, napis w `data.values` bloku). Komórka
+   * pokazuje go jako szkic z `aria-invalid` i zdaniem - a nie pustą lukę,
+   * którą najbliższy zapis po cichu by utrwalił. Zatwierdzenie ZMIENIONEGO
+   * szkicu (także pustego: luka) oddaje liczbę i zdejmuje napis; nietknięty
+   * szkic nie jest zatwierdzany, więc samo przejście Tabem niczego nie
+   * normalizuje. Brak = zachowanie jak dotąd.
+   */
+  storedText?: string;
   /** Konwencja wyświetlania liczby (język dokumentu). */
   lang: "pl" | "en";
   /** Zdanie dla wpisu, który liczbą nie jest. */
@@ -60,6 +70,7 @@ interface NumberCellProps extends CommonCellProps {
 
 export function NumberCell({
   value,
+  storedText,
   lang,
   invalidText,
   onCommit,
@@ -72,9 +83,12 @@ export function NumberCell({
   className,
 }: NumberCellProps) {
   const shown = formatCellNumber(value, lang);
-  const [draft, setDraft] = useState(shown);
+  // Szkic wyjściowy: zapisany napis spoza liczb, a bez niego - liczba.
+  const base = storedText ?? shown;
+  const [draft, setDraft] = useState(base);
   const [seen, setSeen] = useState(value);
-  const [invalid, setInvalid] = useState(false);
+  const [seenStored, setSeenStored] = useState(storedText);
+  const [invalid, setInvalid] = useState(storedText !== undefined);
   const messageId = useId();
   // Napis ostatnio zatwierdzony. Enter zatwierdza i przenosi fokus, a utrata
   // fokusu zatwierdza drugi raz - jeszcze ze starą wartością w domknięciu,
@@ -84,17 +98,25 @@ export function NumberCell({
   // Wartość zmieniona Z ZEWNĄTRZ (cofnięcie, wklejenie zakresu, import)
   // wymienia szkic - chyba że szkic już mówi to samo (wpisane „12,5" po
   // zatwierdzeniu zostaje „12,5", a nie przeskakuje na zapis kanoniczny).
-  if (seen !== value) {
+  if (seen !== value || seenStored !== storedText) {
     setSeen(value);
-    const r = readCellDraft(draft);
-    if (!r.ok || r.value !== value) {
-      setDraft(shown);
-      setInvalid(false);
+    setSeenStored(storedText);
+    if (storedText !== undefined) {
+      setDraft(storedText);
+      setInvalid(true);
+    } else {
+      const r = readCellDraft(draft);
+      if (!r.ok || r.value !== value) {
+        setDraft(shown);
+        setInvalid(false);
+      }
     }
   }
 
   const commitText = (text: string) => {
     if (committed.current === text) return;
+    // Nietknięty zapisany napis: nic do zatwierdzenia, uwaga zostaje.
+    if (storedText !== undefined && text === storedText) return;
     const r = readCellDraft(text);
     if (!r.ok) {
       setInvalid(true);
@@ -102,10 +124,11 @@ export function NumberCell({
     }
     setInvalid(false);
     committed.current = text;
-    if (r.value !== value) onCommit(r.value);
+    if (r.value !== value || storedText !== undefined) onCommit(r.value);
   };
 
   const dirty = (() => {
+    if (storedText !== undefined) return draft !== storedText;
     const r = readCellDraft(draft);
     return !r.ok || r.value !== value;
   })();
@@ -137,8 +160,8 @@ export function NumberCell({
               e.preventDefault();
               e.stopPropagation();
               committed.current = null;
-              setDraft(shown);
-              setInvalid(false);
+              setDraft(base);
+              setInvalid(storedText !== undefined);
             }
             return;
           }

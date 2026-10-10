@@ -4,6 +4,7 @@
 import type { Block, BlockType } from "./types";
 import { newBlockId } from "./types";
 import { slotForSeries } from "@/lib/charts/palette";
+import { MAP_CLASSES_NEW } from "@/lib/charts/types";
 import {
   Type,
   Heading1 as HeadingIcon,
@@ -1471,6 +1472,12 @@ export const BLOCK_SPECS: Record<BlockType, BlockSpec> = {
         showLegend: true,
         animate: true,
         source: "",
+        // NOWA mapa startuje od klas (kwantyle, 5 klas) w niebieskim rampie.
+        // Parser przy braku kluczy daje skalę ciągłą, więc mapy opublikowane
+        // przed wyborem skali zachowują wygląd - patrz `MAP_CLASSES_NEW`.
+        scheme: "blue",
+        classes: MAP_CLASSES_NEW,
+        method: "quantile",
       },
     }),
   },

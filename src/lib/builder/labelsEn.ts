@@ -1107,8 +1107,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
     "On a pie chart the value is placed under the percentage share, in slices of 8% and above.",
   'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony). Zakres wklejony z Excela albo Arkuszy Google zamienia się na ten format.':
     'The spreadsheet opens in a popup with a live chart preview. Text format: first row "; Series name; Series name", then "Category; value; value" (";" separator, decimal comma allowed). A range pasted from Excel or Google Sheets is converted to this format.',
-  'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).':
-    'One country per row: "CODE; value" (ISO-2 code, e.g. PL; 12.5).',
+  'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5). Zakres wklejony z Excela albo Arkuszy Google zamienia się na ten format, a „Edytuj w arkuszu" pokazuje nazwy krajów i uwagi do wierszy.':
+    'One country per row: "CODE; value" (ISO-2 code, e.g. PL; 12.5). A range pasted from Excel or Google Sheets is converted to this format, and "Edit as a sheet" shows country names and notes on rows.',
   'Jeden wiersz na wydarzenie: "Data; Tytuł|Title; Opis|Description; slot(1-8, opc.)". Separator ";", tłumaczenie po "|".':
     'One row per event: "Date; Tytuł|Title; Opis|Description; slot (1-8, optional)". Separator ";", translation after "|".',
   'Jeden wiersz na przepływ: "Źródło|Source; Cel|Target; wartość". Wartości > 0.':
