@@ -1184,10 +1184,16 @@ export function SectionLabelRender({
       // liczony jest w JS, wiec nie ma dla niego klasy); sama akcja stylowana
       // jest przez `.nes-kinetic-action` w styles.css.
       const barH = isSm ? 2 : 3;
-      // Wspólna szerokość i brak opóźnień utrzymują trzy identyczne kreski
-      // w każdej klatce animacji, nie tylko w spoczynku.
+      // Kreski w spoczynku sa identyczne: ta sama szerokosc (16 px / 10 px) i
+      // ta sama wysokosc. Po rozsunieciu (hover) szerokosci sa juz rozne -
+      // najdluzszy pasek przyrasta o 5 px (do 21 px), srodkowy zostaje w
+      // srodku tej skali, a najkrotszy o 2 px, wiec caly wiersz zyskuje 10 px.
+      // Wysokosc przyrostu nie zmienia sie nigdy, a krzywa w styles.css nie
+      // wyskokuje poza szerokosc docelowa.
       const barW = isSm ? "w-2.5" : "w-4";
-      const barGrow = isSm ? "group-hover:w-3" : "group-hover:w-[19px]";
+      const barGrows: ReadonlyArray<string> = isSm
+        ? ["group-hover:w-[12px]", "group-hover:w-[13px]", "group-hover:w-[11px]"]
+        : ["group-hover:w-[19px]", "group-hover:w-[21px]", "group-hover:w-[18px]"];
       const bars = ["lead", "mid", "tail"] as const;
       // Ciasny tracking tytulu (litery blisko siebie), z-delikatnym otwarciem na hoverze.
       const titleCls = isSm
