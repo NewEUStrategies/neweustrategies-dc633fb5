@@ -17,7 +17,7 @@
 // Ten moduł jest CZYSTY (bez I/O, bez frameworka), więc kontrakt limitów i
 // nazewnictwa shardów da się przetestować jednostkowo.
 
-import { SITEMAP_STYLESHEET_PI } from "./sitemapStylesheet";
+import { sitemapProlog, type SitemapRenderOptions } from "./sitemapStylesheet";
 
 /**
  * Adresów na jeden shard. Połowa twardego limitu protokołu (50 000): jeden wpis
@@ -103,6 +103,24 @@ export function parseSitemapShard(raw: string): { section: SitemapSection; shard
   return { section, shard };
 }
 
+/** Ścieżki plików mapy poza shardami sekcji: indeks i Google News. */
+const TOP_LEVEL_SITEMAP_PATHS: ReadonlySet<string> = new Set(["/sitemap.xml", "/news-sitemap.xml"]);
+
+/**
+ * Czy ścieżka jest JEDNYM Z PLIKÓW MAPY tego serwisu: indeks, news-sitemapa
+ * albo kanoniczny shard sekcji (`/sitemaps/posts.xml`, `/sitemaps/posts-2.xml`).
+ *
+ * Bramka przesyłania mapy do Google (`submitGscSitemap`): konektor Search
+ * Console jest jeden na wdrożenie, więc bez tej listy panel mógłby zgłosić
+ * Google'owi jako „mapę" dowolny adres z domeny.
+ */
+export function isPublicSitemapPath(pathname: string): boolean {
+  if (TOP_LEVEL_SITEMAP_PATHS.has(pathname)) return true;
+  const prefix = "/sitemaps/";
+  if (!pathname.startsWith(prefix)) return false;
+  return parseSitemapShard(pathname.slice(prefix.length)) !== null;
+}
+
 /** Wycinek adresów należący do shardu (1-indeksowany). */
 export function shardSlice<T>(
   urls: readonly T[],
@@ -130,7 +148,10 @@ function xmlEscape(value: string): string {
 }
 
 /** Dokument <sitemapindex> zgodny z sitemaps.org 0.9. */
-export function buildSitemapIndexXml(entries: readonly SitemapIndexEntry[]): string {
+export function buildSitemapIndexXml(
+  entries: readonly SitemapIndexEntry[],
+  options: SitemapRenderOptions = {},
+): string {
   const blocks = entries.map((entry) =>
     [
       "  <sitemap>",
@@ -142,8 +163,7 @@ export function buildSitemapIndexXml(entries: readonly SitemapIndexEntry[]): str
       .join("\n"),
   );
   return [
-    `<?xml version="1.0" encoding="UTF-8"?>`,
-    SITEMAP_STYLESHEET_PI,
+    ...sitemapProlog(options),
     `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`,
     ...blocks,
     `</sitemapindex>`,

@@ -139,7 +139,7 @@ export const Route = createFileRoute("/sitemap.xml")({
         // wyłącznie czas życia odpowiedzi.
         const degraded =
           !tenantId || !hasContentShard || failedSections.length > 0 || newsSettingsFailed;
-        return new Response(buildSitemapIndexXml(entries), {
+        return new Response(buildSitemapIndexXml(entries, { generatedAt: Date.now() }), {
           headers: sitemapCacheHeaders(degraded),
         });
       },

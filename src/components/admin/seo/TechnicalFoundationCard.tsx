@@ -427,7 +427,18 @@ export function TechnicalFoundationCard() {
               {isFetching ? t("adminSeoHub.sitemapChecking") : t("adminSeoHub.sitemapRecheck")}
             </button>
           </div>
-          <p className="text-xs text-muted-foreground">{t("adminSeoHub.sitemapFilesIntro")}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("adminSeoHub.sitemapFilesIntro")}{" "}
+            {/* Stan tych samych plików w Google i ponowne przesłanie mieszkają
+                w zakładce Search Console - kokpit jest tylko do czytania. */}
+            <a
+              href="/admin/seo/search-console"
+              data-seo-sitemap-google
+              className="font-medium text-brand hover:underline"
+            >
+              {t("adminSeoHub.sitemapGoogleLink")} &rarr;
+            </a>
+          </p>
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full min-w-[640px] text-sm">
               <thead>

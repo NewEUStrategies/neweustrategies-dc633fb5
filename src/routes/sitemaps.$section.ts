@@ -62,7 +62,9 @@ export const Route = createFileRoute("/sitemaps/$section")({
 
         // Szkielet `core` bez tenanta to odpowiedź zdegradowana - krótki TTL
         // bez `stale-while-revalidate` (patrz `sitemapCacheHeaders`).
-        return new Response(buildUrlsetXml(slice), { headers: sitemapCacheHeaders(!tenantId) });
+        return new Response(buildUrlsetXml(slice, { generatedAt: Date.now() }), {
+          headers: sitemapCacheHeaders(!tenantId),
+        });
       },
     },
   },

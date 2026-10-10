@@ -59,7 +59,7 @@ td.url small{display:block;color:var(--muted);word-break:break-all}
 td.date,td.meta{white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
 .lang{display:inline-block;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;border:1px solid var(--line);border-radius:4px;padding:3px 5px;margin:0 4px 4px 0}
 footer{margin-top:24px;color:var(--muted);font-size:13px;max-width:72ch}
-@media (max-width:640px){h1{font-size:23px}.hide-sm{display:none}}
+@media (max-width:640px){h1{font-size:23px}.hide-sm{display:none}th,td{padding:8px 10px}td.url{min-width:0}.stats div{min-width:0;flex:1 1 140px}}
 `;
 
 // Filtr wierszy: bez `<` i `&` (patrz nagłówek pliku).
@@ -82,6 +82,7 @@ const XSL = `<?xml version="1.0" encoding="UTF-8"?>
   <xsl:variable name="isIndex" select="boolean(/s:sitemapindex)"/>
   <xsl:variable name="newsCount" select="count(/s:urlset/s:url[news:news])"/>
   <xsl:variable name="total" select="count(/s:sitemapindex/s:sitemap | /s:urlset/s:url)"/>
+  <xsl:variable name="generated" select="normalize-space(substring-after(/comment()[contains(., 'generated:')][1], 'generated:'))"/>
 
   <xsl:template match="/">
     <html lang="pl">
@@ -110,8 +111,14 @@ const XSL = `<?xml version="1.0" encoding="UTF-8"?>
               <dt><xsl:call-template name="countLabel"/></dt>
               <dd><xsl:value-of select="$total"/></dd>
             </div>
+            <xsl:if test="$generated">
+              <div>
+                <dt>Wygenerowano</dt>
+                <dd><xsl:call-template name="date"><xsl:with-param name="v" select="$generated"/></xsl:call-template></dd>
+              </div>
+            </xsl:if>
             <div>
-              <dt>Ostatnia zmiana</dt>
+              <dt>Najnowsza zmiana treści</dt>
               <dd><xsl:call-template name="newest"/></dd>
             </div>
           </dl>

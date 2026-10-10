@@ -211,3 +211,156 @@ export const inspectGscUrl = createServerFn({ method: "POST" })
       throw e;
     }
   });
+
+// ---------- Sitemaps ----------
+//
+// MAPY W GOOGLE. Panel pokazywał stan map wyłącznie z NASZEJ strony (karta
+// fundamentów: plik odpowiada i przechodzi walidację), a o tym, co widzi
+// Google, redakcja dowiadywała się z Search Console - z opóźnieniem i bez
+// możliwości reakcji z panelu. Raport GSC trzymał błędy `news-sitemap.xml`
+// (4.10) i `sitemaps/core.xml` (23.09) jeszcze długo po naprawie, bo Google
+// po prostu nie pobrał plików ponownie. Dwie funkcje niżej to ten brakujący
+// kanał: stan każdej mapy w Google (`sitemaps.list`, także pliki z indeksu)
+// i ponowne zgłoszenie mapy (`sitemaps.submit`) - to samo, co przycisk
+// „Prześlij" w Search Console. Stary „ping" (`google.com/ping?sitemap=`)
+// Google wyłączył w 2023 r.; API jest jedyną drogą programową.
+
+/** Jeden wpis typu treści w mapie (`contents[]`), liczby już jako liczby. */
+export interface GscSitemapContent {
+  type: string;
+  submitted: number;
+}
+
+/** Stan mapy w Google - znormalizowany wpis `sitemaps.list`. */
+export interface GscSitemap {
+  path: string;
+  lastSubmitted: string | null;
+  lastDownloaded: string | null;
+  isPending: boolean;
+  isSitemapsIndex: boolean;
+  errors: number;
+  warnings: number;
+  contents: GscSitemapContent[];
+  /** Pliki wskazane przez indeks (wyłącznie dla `isSitemapsIndex`). */
+  children: GscSitemap[];
+}
+
+/** Wpis `sitemaps.list` tak, jak go oddaje API (liczby int64 jako napisy). */
+interface RawGscSitemap {
+  path?: string;
+  lastSubmitted?: string;
+  lastDownloaded?: string;
+  isPending?: boolean;
+  isSitemapsIndex?: boolean;
+  errors?: string | number;
+  warnings?: string | number;
+  contents?: Array<{ type?: string; submitted?: string | number }>;
+}
+
+function gscCount(value: string | number | undefined): number {
+  const n = typeof value === "number" ? value : Number(value ?? 0);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+function normalizeGscSitemap(raw: RawGscSitemap): GscSitemap {
+  return {
+    path: raw.path ?? "",
+    lastSubmitted: raw.lastSubmitted ?? null,
+    lastDownloaded: raw.lastDownloaded ?? null,
+    isPending: raw.isPending === true,
+    isSitemapsIndex: raw.isSitemapsIndex === true,
+    errors: gscCount(raw.errors),
+    warnings: gscCount(raw.warnings),
+    contents: (raw.contents ?? []).map((c) => ({
+      type: c.type ?? "",
+      submitted: gscCount(c.submitted),
+    })),
+    children: [],
+  };
+}
+
+/** Ile indeksów rozwijamy na pliki - zgłoszonych map serwis ma kilka, nie setki. */
+const GSC_SITEMAP_INDEXES_EXPANDED = 5;
+
+const sitemapsInput = z.object({ siteUrl: z.string().min(1) });
+
+export const listGscSitemaps = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((i: unknown) => sitemapsInput.parse(i))
+  .handler(async ({ data, context }): Promise<{ sitemaps: GscSitemap[]; configured: boolean }> => {
+    const ctx: GatewayCtx = context;
+    // Bramka roli - zakresu danych pilnuje `assertSiteUrlBelongsToTenant` niżej.
+    await requireAnalyticsAdmin(ctx);
+    const { assertSiteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
+    await assertSiteUrlBelongsToTenant(data.siteUrl, await callerTenantId(ctx));
+    const base = `/webmasters/v3/sites/${encodeURIComponent(data.siteUrl)}/sitemaps`;
+    try {
+      const res = await gwFetch<{ sitemap?: RawGscSitemap[] }>(base);
+      const sitemaps = (res.sitemap ?? []).map(normalizeGscSitemap);
+      // Pliki z indeksu: `sitemaps.list?sitemapIndex=` - ten sam podział, który
+      // Search Console pokazuje pod „Odczytane mapy witryn".
+      await Promise.all(
+        sitemaps
+          .filter((s) => s.isSitemapsIndex && s.path)
+          .slice(0, GSC_SITEMAP_INDEXES_EXPANDED)
+          .map(async (index) => {
+            const children = await gwFetch<{ sitemap?: RawGscSitemap[] }>(
+              `${base}?sitemapIndex=${encodeURIComponent(index.path)}`,
+            );
+            index.children = (children.sitemap ?? []).map(normalizeGscSitemap);
+          }),
+      );
+      return { sitemaps, configured: true };
+    } catch (e) {
+      // Ta sama granica co w pozostałych funkcjach modułu.
+      if (isGscNotConfigured(e)) return { sitemaps: [], configured: false };
+      throw e;
+    }
+  });
+
+const submitInput = z.object({
+  siteUrl: z.string().min(1),
+  feedpath: z.string().url(),
+});
+
+/** Wynik zgłoszenia mapy - stan, który panel umie opisać, zamiast surowego wyjątku. */
+export type GscSubmitResult =
+  { ok: true } | { ok: false; reason: "notConfigured" | "permission" | "notFound" };
+
+export const submitGscSitemap = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((i: unknown) => submitInput.parse(i))
+  .handler(async ({ data, context }): Promise<GscSubmitResult> => {
+    const ctx: GatewayCtx = context;
+    // AKCJA, nie odczyt: zgłoszenie idzie kontem konektora wspólnym dla całego
+    // wdrożenia, więc bramka roli i oba związania z najemcą stoją PRZED siecią.
+    await requireAnalyticsAdmin(ctx);
+    const { assertSiteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
+    const tenantId = await callerTenantId(ctx);
+    await assertSiteUrlBelongsToTenant(data.siteUrl, tenantId);
+    await assertSiteUrlBelongsToTenant(data.feedpath, tenantId);
+    // Tylko NASZE pliki mapy - nie dowolny adres z domeny podany w ładunku.
+    // Zapytanie i fragment też odpadają: `sitemap.xml?x=` to dla Google
+    // osobny, nieistniejący plik mapy.
+    const { isPublicSitemapPath } = await import("@/lib/seo/sitemapIndex");
+    const feed = new URL(data.feedpath);
+    if (feed.search || feed.hash || !isPublicSitemapPath(feed.pathname)) {
+      throw new Error("Forbidden: not a sitemap of this site");
+    }
+    const path =
+      `/webmasters/v3/sites/${encodeURIComponent(data.siteUrl)}` +
+      `/sitemaps/${encodeURIComponent(data.feedpath)}`;
+    try {
+      await gwFetch<unknown>(path, { method: "PUT" });
+      return { ok: true };
+    } catch (e) {
+      if (isGscNotConfigured(e)) return { ok: false, reason: "notConfigured" };
+      const message = e instanceof Error ? e.message : String(e);
+      // 403 = konto konektora nie ma w tej właściwości uprawnienia „Pełne"
+      // albo zgoda OAuth objęła wyłącznie odczyt (`webmasters.readonly`).
+      // To stan do opisania redakcji, nie awaria.
+      if (/^GSC 403\b/.test(message)) return { ok: false, reason: "permission" };
+      if (/^GSC 404\b/.test(message)) return { ok: false, reason: "notFound" };
+      throw e;
+    }
+  });

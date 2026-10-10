@@ -20,3 +20,36 @@ export const SITEMAP_STYLESHEET_PATH = "/sitemap.xsl";
 
 /** Instrukcja przetwarzania - drugi wiersz każdego pliku mapy. */
 export const SITEMAP_STYLESHEET_PI = `<?xml-stylesheet type="text/xsl" href="${SITEMAP_STYLESHEET_PATH}"?>`;
+
+/** Znacznik komentarza z chwilą wygenerowania pliku (czyta go arkusz XSL). */
+export const SITEMAP_GENERATED_MARKER = "generated:";
+
+/**
+ * Komentarz z chwilą wygenerowania pliku - trzeci wiersz mapy.
+ *
+ * PO CO. Mapy są generowane NA ŻYWO przy każdym pobraniu, ale z samego pliku
+ * nie dało się tego zobaczyć: daty `lastmod` są (i muszą być) datami zmiany
+ * TREŚCI, więc przy treści sprzed tygodnia mapa wyglądała na „starą".
+ * Komentarz mówi wprost, kiedy plik powstał; arkusz XSL pokazuje to jako
+ * „Wygenerowano". Roboty komentarze pomijają, a `lastmod` zostaje prawdziwy -
+ * Google ignoruje `lastmod`, który zawsze wskazuje „dzisiaj".
+ */
+export function sitemapGeneratedComment(generatedAt: number): string {
+  const iso = new Date(generatedAt).toISOString().replace(/\.\d{3}Z$/, "Z");
+  return `<!-- ${SITEMAP_GENERATED_MARKER} ${iso} -->`;
+}
+
+/** Opcje wspólne dla generatorów plików mapy. */
+export interface SitemapRenderOptions {
+  /** Chwila wygenerowania (ms) - trasa podaje `Date.now()`; testy pomijają. */
+  generatedAt?: number;
+}
+
+/** Prolog pliku mapy: deklaracja XML, arkusz wyglądu i (opcjonalnie) chwila wygenerowania. */
+export function sitemapProlog(options: SitemapRenderOptions = {}): string[] {
+  const lines = [`<?xml version="1.0" encoding="UTF-8"?>`, SITEMAP_STYLESHEET_PI];
+  if (options.generatedAt !== undefined && Number.isFinite(options.generatedAt)) {
+    lines.push(sitemapGeneratedComment(options.generatedAt));
+  }
+  return lines;
+}
