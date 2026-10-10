@@ -88,7 +88,6 @@ import {
   NAV_POSITIONS,
   SLIDER_VARIANT_VALUES,
   SliderRender,
-  type NavArrowVariant,
   type NavBgStyle,
   type NavPosition,
   type SliderConfig,
