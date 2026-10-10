@@ -22,6 +22,16 @@
 // inne zostają tekstem, który redaktor widzi w arkuszu; puste `x:num`
 // (Excel tak oznacza komórkę, której tekst JEST wartością) - też.
 //
+// TEKST, KTÓRY SAM NIESIE LICZBĘ, ZOSTAJE. Schowek nie wie, która komórka
+// bloku będzie etykietą (kategoria, nazwa serii), a która wartością. Tekst
+// bez rozdzielacza dziesiętnego i tysięcy („5%", „001", „1 234 zł") czyta się
+// w każdej konwencji tak samo; gdy daje dokładnie liczbę surową, zostaje -
+// jako wartość daje tę samą liczbę, a jako etykieta nie traci „%" ani zer
+// wiodących. Tekst z przecinkiem albo kropką („1,23" nad 1,234, „1,234") albo
+// zaokrąglony („13%" nad 0,125) ustępuje surowej wartości w zapisie
+// kanonicznym - także w etykiecie: bez pozycji w bloku nie da się odróżnić
+// etykiety od wartości, a wartość nie może być zgadywana.
+//
 // PROCENT jak w pliku: „12,5%" z surową wartością 0,125 daje 12,5 - ta sama
 // reguła co w procesie arkuszy (`isPercentFormat`, wartość · 100,
 // `toPrecision(15)`) i w `parseImportedCell` (procent nie dzieli przez sto,
@@ -35,7 +45,7 @@
 // zwykłemu polu tekstowemu, które wklei napis po swojemu.
 import type { ClipboardEvent as ReactClipboardEvent } from "react";
 import { isPercentFormat } from "@/lib/files/spreadsheetProtocol";
-import { isImportedNumber } from "./importNumber";
+import { isImportedNumber, readImportedNumber } from "./importNumber";
 
 /** Obie postaci schowka; brak albo pusty napis znaczy „tej postaci nie ma". */
 export interface ClipboardPayload {
@@ -50,7 +60,10 @@ export interface ClipboardTable {
   source: "html" | "tsv" | "text";
   /** Liczba komórek prostokąta (wiersze × kolumny). */
   cells: number;
-  /** Czy schowek przekroczył `CLIPBOARD_MAX_CHARS` i wczytano tylko początek tekstu. */
+  /**
+   * Czy wczytano tylko początek: schowek przekroczył `CLIPBOARD_MAX_CHARS`
+   * albo tabela - `MAX_GRID_CELLS`.
+   */
   truncated: boolean;
 }
 
@@ -63,9 +76,20 @@ export interface ClipboardTable {
  */
 export const CLIPBOARD_MAX_CHARS = 2_000_000;
 
-/** Górny limit `colspan`/`rowspan` jednej komórki i komórek całej siatki HTML. */
+/** Górny limit `colspan`/`rowspan` jednej komórki. */
 const MAX_SPAN = 256;
-const MAX_GRID_CELLS = 500_000;
+
+/**
+ * Górny limit komórek tabeli - zadeklarowanych w HTML-u ORAZ prostokąta po
+ * dociągnięciu wierszy do najszerszego (HTML i tekst). `CLIPBOARD_MAX_CHARS`
+ * nie ogranicza prostokąta: tysiące pustych linii pod jedną linią z tysiącami
+ * tabulatorów to kilkanaście kilobajtów tekstu i dziesiątki milionów komórek.
+ * Ponad limit zostaje początek tabeli, a obcięcie jest zgłaszane (`truncated`).
+ */
+export const MAX_GRID_CELLS = 500_000;
+
+/** Najdłuższy kod formatu liczby w Excelu; dłuższy nie jest formatem i nie idzie do wzorców. */
+const MAX_FORMAT_CHARS = 255;
 
 /**
  * Liczba -> zapis kanoniczny: kropka dziesiętna, bez grupowania, bez ogona
@@ -130,14 +154,26 @@ function msoFormat(declarations: string): string | null {
   return bezUcieczekCss(unquoted);
 }
 
-/** Klasa -> format liczby z arkuszy stylów, które Excel wkłada do schowka. */
+/**
+ * Klasa -> format liczby z arkuszy stylów, które Excel wkłada do schowka.
+ *
+ * Reguła po regule, cięciem na „}" - liniowo. Wzorzec globalny
+ * „\.klasa\s*\{[^}]*\}" przy regułach bez domknięcia („.a{" sto tysięcy razy)
+ * od KAŻDEJ kropki czytał arkusz do końca: sekundy na jedno wklejenie.
+ * Klasa to ostatni selektor przed klamrą, tak jak we wzorcu.
+ */
 function formatyKlas(doc: Document): Map<string, string> {
   const out = new Map<string, string>();
   for (const style of Array.from(doc.querySelectorAll("style"))) {
-    const css = style.textContent ?? "";
-    for (const m of css.matchAll(/\.([A-Za-z0-9_-]+)\s*\{([^}]*)\}/g)) {
-      const format = msoFormat(m[2]);
-      if (format !== null) out.set(m[1], format);
+    const reguly = (style.textContent ?? "").split("}");
+    // Ostatni kawałek nie ma domknięcia - nie jest regułą.
+    for (const regula of reguly.slice(0, -1)) {
+      const klamra = regula.lastIndexOf("{");
+      if (klamra === -1) continue;
+      const klasa = /\.([A-Za-z0-9_-]+)\s*$/.exec(regula.slice(0, klamra));
+      if (klasa === null) continue;
+      const format = msoFormat(regula.slice(klamra + 1));
+      if (format !== null) out.set(klasa[1], format);
     }
   }
   return out;
@@ -191,12 +227,15 @@ function formatKomorki(el: Element, klasy: ReadonlyMap<string, string>): FormatK
   // LibreOffice: sdnum="1045;1045;DD.MM.YYYY" - trzecia część to kod formatu.
   const sdnum = el.getAttribute("sdnum");
   if (sdnum !== null) kody.push(sdnum.split(";").slice(2).join(";") || "General");
-  const procentowe = kody.filter((k) => isPercentFormat(k));
-  const zZnakiem = kody.filter((k) => k.includes("%"));
+  // Kod dłuższy niż pozwala Excel formatem nie jest - i nie idzie do wzorców
+  // literałów („\[[^\]]*\]" na tysiącach „[" to kwadrat długości).
+  const prawdziwe = kody.filter((k) => k.length <= MAX_FORMAT_CHARS);
+  const procentowe = prawdziwe.filter((k) => isPercentFormat(k));
+  const zZnakiem = prawdziwe.filter((k) => k.includes("%"));
   const procent = procentowe.length > 0 ? true : zZnakiem.length > 0 ? false : null;
-  if (kody.length === 0) return { rodzaj: null, procent: null };
+  if (prawdziwe.length === 0) return { rodzaj: null, procent: null };
   return {
-    rodzaj: dataArkuszy || kody.some(isDateFormatCode) ? "date" : "number",
+    rodzaj: dataArkuszy || prawdziwe.some(isDateFormatCode) ? "date" : "number",
     procent,
   };
 }
@@ -258,7 +297,8 @@ function tekstKomorki(el: Element): string {
  * (`isImportedNumber` - ta sama reguła co komórka pliku); komórka BEZ
  * formatu, której tekst wygląda na datę z samych cyfr, zostaje tekstem.
  * Procent (format procentowy albo, bez rozstrzygającego formatu, „%" na końcu
- * tekstu) to surowa wartość · 100 bez ogona binarnego.
+ * tekstu) to surowa wartość · 100 bez ogona binarnego. Tekst, który sam niesie
+ * dokładnie tę liczbę (`tekstWystarcza`), zostaje tekstem.
  */
 function wartoscKomorki(el: Element, klasy: ReadonlyMap<string, string>): string {
   const display = tekstKomorki(el);
@@ -268,7 +308,20 @@ function wartoscKomorki(el: Element, klasy: ReadonlyMap<string, string>): string
   if (raw === null || !isImportedNumber(display)) return display;
   if (format.rodzaj === null && wygladaNaDate(display)) return display;
   const procent = format.procent ?? /%\s*$/.test(display);
-  return canonicalNumber(procent ? bezOgona(raw * 100) : raw);
+  const value = procent ? bezOgona(raw * 100) : raw;
+  return tekstWystarcza(display, value) ? display : canonicalNumber(value);
+}
+
+/**
+ * Czy tekst wyświetlany SAM niesie liczbę: nie ma przecinka ani kropki (więc
+ * konwencja nie ma czego rozstrzygać), nie ma flagi i daje dokładnie `value`.
+ * „5%" nad 0,05, „001" nad 1 i „1 234 zł" nad 1234 - tak; „13%" nad 0,125
+ * (zaokrąglenie) i „1,234" (konwencja) - nie.
+ */
+function tekstWystarcza(display: string, value: number): boolean {
+  if (/[.,]/.test(display)) return false;
+  const reading = readImportedNumber(display);
+  return reading.value === value && !reading.flagged;
 }
 
 function spanOf(el: Element, attr: "colspan" | "rowspan"): number {
@@ -427,14 +480,50 @@ function tabelaTekstowa(text: string): string[][] {
 // Wejście
 // ---------------------------------------------------------------------------
 
-/** Prostokąt bez pustych wierszy i kolumn na końcu. */
-function przytnij(rows: readonly (readonly string[])[]): string[][] {
-  let height = rows.length;
-  while (height > 0 && rows[height - 1].every((c) => c.trim() === "")) height -= 1;
-  const kept = rows.slice(0, height);
-  let width = kept.reduce((w, r) => Math.max(w, r.length), 0);
-  while (width > 0 && kept.every((r) => (r[width - 1] ?? "").trim() === "")) width -= 1;
-  return kept.map((r) => Array.from({ length: width }, (_, i) => r[i] ?? ""));
+/**
+ * Prostokąt bez pustych wierszy i kolumn na końcu, w limicie
+ * `MAX_GRID_CELLS`. Szerokość to ostatnia niepusta komórka któregokolwiek
+ * wiersza, liczona JEDNYM przejściem - zdejmowanie pustej kolumny z końca po
+ * kolumnie, z przejściem przez wszystkie wiersze za każdym razem, było
+ * kwadratem. Prostokąt ponad limit traci najpierw kolumny ponad limit,
+ * potem wiersze z dołu (`cut`), ZANIM cokolwiek zostanie dociągnięte.
+ */
+function przytnij(rows: readonly (readonly string[])[]): { rows: string[][]; cut: boolean } {
+  const pusta = (c: string | undefined) => c === undefined || c.trim() === "";
+  const wysokosc = (h: number) => {
+    let out = Math.min(h, rows.length);
+    while (out > 0 && rows[out - 1].every((c) => pusta(c))) out -= 1;
+    return out;
+  };
+  const szerokosc = (h: number) => {
+    let w = 0;
+    for (let r = 0; r < h; r += 1) {
+      const row = rows[r];
+      for (let i = row.length - 1; i >= w; i -= 1) {
+        if (!pusta(row[i])) {
+          w = i + 1;
+          break;
+        }
+      }
+    }
+    return w;
+  };
+  let height = wysokosc(rows.length);
+  let width = szerokosc(height);
+  let cut = false;
+  if (width > MAX_GRID_CELLS) {
+    width = MAX_GRID_CELLS;
+    cut = true;
+  }
+  if (height * width > MAX_GRID_CELLS) {
+    height = wysokosc(Math.floor(MAX_GRID_CELLS / width));
+    width = Math.min(width, szerokosc(height));
+    cut = true;
+  }
+  return {
+    rows: rows.slice(0, height).map((r) => Array.from({ length: width }, (_, i) => r[i] ?? "")),
+    cut,
+  };
 }
 
 function wynik(
@@ -442,10 +531,10 @@ function wynik(
   source: ClipboardTable["source"],
   truncated: boolean,
 ): ClipboardTable | null {
-  const table = przytnij(rows);
+  const { rows: table, cut } = przytnij(rows);
   const width = table[0]?.length ?? 0;
   const cells = table.length * width;
-  return cells < 2 ? null : { rows: table, source, cells, truncated };
+  return cells < 2 ? null : { rows: table, source, cells, truncated: truncated || cut };
 }
 
 /** Tekst ponad limit: ucięty na ostatniej granicy wiersza przed limitem. */

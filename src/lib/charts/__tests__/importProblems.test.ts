@@ -21,6 +21,7 @@ const PROBKI: Record<ImportProblem["code"], ImportProblem> = {
   rowsSkipped: { code: "rowsSkipped", count: 2 },
   unknownCountries: { code: "unknownCountries", labels: ["Atlantyda", "Wakanda"] },
   duplicateCountries: { code: "duplicateCountries", labels: ["PL"] },
+  countriesReplaced: { code: "countriesReplaced", labels: ["DE"] },
   labelsAdjusted: { code: "labelsAdjusted", count: 5 },
   headerAssumed: { code: "headerAssumed" },
   columnsIgnored: { code: "columnsIgnored", labels: ["2019", "2020"] },

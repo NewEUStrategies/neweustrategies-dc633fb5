@@ -47,11 +47,26 @@ const MISSING = new Set([":", ".."]);
 const GROUPED_COMMA = /^[+-]?[1-9]\d{0,2}(?:,\d{3})+$/;
 const GROUPED_DOT = /^[+-]?[1-9]\d{0,2}(?:\.\d{3})+$/;
 
-const NUMBER = /^[+-]?\d*\.?\d+(?:[eE][+-]?\d+)?$/;
+/**
+ * Zapis kropkowy bez grupowania. BEZ dwuznacznego „\d*\.?\d+": tamta postać
+ * przy długim ciągu cyfr zakończonym literą próbowała każdego podziału cyfr
+ * między dwa kwantyfikatory - 40 000 cyfr i „x" to 2,5 s na JEDNĄ komórkę.
+ * Ten sam język, ale cyfry przed kropką należą do jednego kwantyfikatora.
+ */
+const NUMBER = /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+/**
+ * Napis dłuższy niż to nie jest liczbą, bez czytania go regułą. Najdłuższa
+ * prawdziwa komórka liczbowa („-1 234 567 890 123,45 zł p", wykładnik
+ * „1.7976931348623157E+308") ma kilkadziesiąt znaków; limit chroni wątek
+ * strony przed komórką z setkami tysięcy znaków, którą schowek (do
+ * `CLIPBOARD_MAX_CHARS`) i plik przepuszczają.
+ */
+const MAX_NUMBER_CHARS = 64;
 
 interface Oczyszczona {
   s: string;
-  status: "pending" | "empty" | "missing";
+  status: "pending" | "empty" | "missing" | "invalid";
   /** Zdjęta flaga statystyczna („p", „bep") albo `null`. */
   flag: string | null;
 }
@@ -67,6 +82,7 @@ interface Oczyszczona {
 function oczysc(raw: string): Oczyszczona {
   let s = raw.trim();
   if (s === "") return { s, status: "empty", flag: null };
+  if (s.length > MAX_NUMBER_CHARS) return { s, status: "invalid", flag: null };
   let flag: string | null = null;
   const m = FLAGS.exec(s);
   if (m && !CURRENCY_ONLY.test(m[2])) {
@@ -149,6 +165,7 @@ function odczyt(
   const c = oczysc(raw);
   if (c.status === "empty") return { status: "empty", value: null, flag: null };
   if (c.status === "missing") return { status: "missing", value: null, flag: c.flag };
+  if (c.status === "invalid") return { status: "invalid", value: null, flag: null };
   const s = rozdzielacze(c.s, locale ?? "legacy");
   const v = s !== null && NUMBER.test(s) ? Number(s) : Number.NaN;
   return Number.isFinite(v)

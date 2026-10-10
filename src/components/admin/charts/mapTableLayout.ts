@@ -15,6 +15,7 @@
 import {
   analyseTable,
   isPeriodLabel,
+  labelNamesCountry,
   readImportedNumber,
   rectangularTable,
   resolveCountryLabel,
@@ -153,7 +154,7 @@ function toNaglowek(
 ): boolean {
   const pierwszy = projected[0];
   if (pierwszy === undefined || !analyseTable(projected).headerRow) return false;
-  if (resolveCountryLabel(pierwszy[0] ?? "", index) !== null) return false;
+  if (labelNamesCountry(pierwszy[0] ?? "", index)) return false;
   return (
     !liczba(pierwszy[valueColumn] ?? "") ||
     pierwszy.slice(1).every((c) => c.trim() === "" || isPeriodLabel(c) || !liczba(c))

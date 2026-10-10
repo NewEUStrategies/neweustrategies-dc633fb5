@@ -489,7 +489,10 @@ describe("siatka mapy - wklejenie", () => {
       { id: "PL", value: 1 },
       { id: "DE", value: 5 },
     ]);
-    expect(problems).toContainEqual({ code: "duplicateCountries", labels: ["Niemcy", "DE"] });
+    // Powtórzenie w bloku i kraj przeniesiony z innego wiersza to dwa zdania:
+    // w bloku zostaje pierwsze wystąpienie, poza nim - wklejone.
+    expect(problems).toContainEqual({ code: "duplicateCountries", labels: ["Niemcy"] });
+    expect(problems).toContainEqual({ code: "countriesReplaced", labels: ["DE"] });
     // Zakres wskazuje wiersz po usunięciu starego DE.
     expect(range).toEqual({ fromRow: 1, toRow: 1 });
   });

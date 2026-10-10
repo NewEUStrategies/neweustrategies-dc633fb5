@@ -29,6 +29,7 @@ import {
   columnLetter,
   detectNumberLocale,
   isPeriodLabel,
+  labelNamesCountry,
   numberStyle,
   readImportedNumber,
   resolveCountryLabel,
@@ -466,10 +467,12 @@ export interface MapPasteResult {
  * - Pierwszy wiersz bloku, który wygląda na nagłówek („Kraj | Wartość",
  *   „Kraj | 2019 | 2020"), jest pomijany.
  * - Kolumny za kolumną wartości są zgłaszane (`columnsIgnored`).
- * - Kraj wklejony drugi raz w tym samym bloku: wygrywa pierwsze wystąpienie.
- *   Kraj, który był już w INNYM wierszu siatki, zostaje tam usunięty -
- *   wklejenie mówi wprost, gdzie ma stać - i jest to zgłaszane
- *   (`duplicateCountries`).
+ * - Kraj wklejony drugi raz w tym samym bloku: wygrywa pierwsze wystąpienie
+ *   (`duplicateCountries`). Kraj, który był już w INNYM wierszu siatki,
+ *   zostaje tam usunięty - wklejenie mówi wprost, gdzie ma stać - i jest to
+ *   zgłaszane OSOBNO (`countriesReplaced`): tu wygrywa wklejony wiersz, choć
+ *   stary mógł stać wyżej, więc zdanie o pierwszym wystąpieniu byłoby
+ *   nieprawdą.
  */
 export function applyMapPasteAt(
   current: readonly MapGridRow[],
@@ -492,7 +495,7 @@ export function applyMapPasteAt(
   const naglowek =
     pasted.length > 1 &&
     (countryCol === 0
-      ? resolveCountryLabel(first[0] ?? "", index) === null &&
+      ? !labelNamesCountry(first[0] ?? "", index) &&
         (first[0] ?? "").trim() !== "" &&
         (readImportedNumber(valueOf(first), "pl").value === null ||
           first.slice(1).every((c) => c.trim() === "" || isPeriodLabel(c)))
@@ -514,6 +517,7 @@ export function applyMapPasteAt(
   const rows: MapGridRow[] = current.map((r) => ({ ...r }));
   const unknown: string[] = [];
   const duplicate: string[] = [];
+  const zastapione: string[] = [];
   const aliased: string[] = [];
   const wklejone = new Map<string, number>();
   const zapisane = new Set<MapGridRow>();
@@ -565,13 +569,14 @@ export function applyMapPasteAt(
   for (let r = rows.length - 1; r >= 0; r -= 1) {
     const owner = wklejone.get(rows[r].id);
     if (owner === undefined || owner === r) continue;
-    duplicate.push(rows[r].id);
+    zastapione.unshift(rows[r].id);
     rows.splice(r, 1);
   }
   const indeksy = rows.flatMap((row, i) => (zapisane.has(row) ? [i] : []));
 
   if (unknown.length > 0) problems.push({ code: "unknownCountries", labels: unknown });
   if (duplicate.length > 0) problems.push({ code: "duplicateCountries", labels: duplicate });
+  if (zastapione.length > 0) problems.push({ code: "countriesReplaced", labels: zastapione });
   if (dropped > 0) problems.push({ code: "categoriesTruncated", dropped });
   if (aliased.length > 0) problems.push({ code: "aliasesApplied", labels: aliased });
   if (ignored.length > 0) problems.push({ code: "columnsIgnored", labels: ignored });

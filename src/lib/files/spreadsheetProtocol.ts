@@ -27,7 +27,10 @@ export const SPREADSHEET_MAX_BYTES = 20 * 1024 * 1024;
  * i dla rdzenia procesu. Każdy format ma w `spreadsheetCore.test.ts` próbkę
  * zapisaną przez SheetJS i przeczytaną z powrotem RAZEM Z POLSKIMI ZNAKAMI;
  * formatu bez takiej próbki tu nie ma. Pliki tekstowe (csv, tsv, txt) czyta
- * strona własnym parserem - patrz `importTable.ts`.
+ * strona własnym parserem - patrz `importTable.ts`. Strony HTML (html, htm)
+ * są na liście dla `accept`, ale import wykresu też czyta je na stronie:
+ * proces bierze ich bajty za UTF-8 („Strona sieci Web" polskiego Excela jest
+ * w Windows-1250) i nie zna większości encji.
  *
  * Czego tu NIE MA i dlaczego:
  *   - `slk` (SYLK) i `dif` - wydanie ESM SheetJS 0.20.3, które ładuje proces,

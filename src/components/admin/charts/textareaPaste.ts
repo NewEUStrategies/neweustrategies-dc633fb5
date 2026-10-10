@@ -17,6 +17,7 @@
 import { readClipboardTable, type ClipboardPayload } from "@/lib/charts/clipboardTable";
 import {
   mapValuesToText,
+  needsTextCellFix,
   tableToChartData,
   type CountryIndex,
   type ImportProblem,
@@ -37,15 +38,28 @@ function tabela(payload: ClipboardPayload) {
   return table;
 }
 
-/** Schowek -> tekst pola danych WYKRESU albo `null` (zwykłe wklejenie). */
+/**
+ * Schowek -> tekst pola danych WYKRESU albo `null` (zwykłe wklejenie).
+ *
+ * Etykieta ze średnikiem albo złamaniem wiersza („A;B", komórka z Alt+Enter)
+ * wychodzi z `widgetGridCsv` zmieniona (`safeTextCell`) - i to jest
+ * zgłaszane (`labelsAdjusted`), tak jak przy imporcie pliku do arkusza.
+ */
 export function clipboardToChartText(payload: ClipboardPayload): TextareaPasteResult | null {
   const table = tabela(payload);
   if (table === null) return null;
   const dane = tableToChartData(table.rows, {});
   if (dane.series.length === 0) return null;
+  const poprawione = [...dane.categories, ...dane.series.map((s) => s.name)].filter(
+    needsTextCellFix,
+  ).length;
   return {
     text: widgetGridCsv({ categories: dane.categories, series: dane.series }),
-    problems: [...(table.truncated ? [{ code: "pasteTruncated" as const }] : []), ...dane.problems],
+    problems: [
+      ...(table.truncated ? [{ code: "pasteTruncated" as const }] : []),
+      ...dane.problems,
+      ...(poprawione > 0 ? [{ code: "labelsAdjusted" as const, count: poprawione }] : []),
+    ],
   };
 }
 

@@ -34,6 +34,7 @@ export const IMPORT_PROBLEM_KEYS: Readonly<Record<ImportProblemCode, string>> = 
   rowsSkipped: "blocks.editors.dataImport.pRowsSkipped",
   unknownCountries: "blocks.editors.dataImport.pUnknownCountries",
   duplicateCountries: "blocks.editors.dataImport.pDuplicateCountries",
+  countriesReplaced: "blocks.editors.dataImport.pCountriesReplaced",
   labelsAdjusted: "blocks.editors.dataImport.pLabelsAdjusted",
   headerAssumed: "blocks.editors.dataImport.pHeaderAssumed",
   columnsIgnored: "blocks.editors.dataImport.pColumnsIgnored",
@@ -72,6 +73,7 @@ export function importProblemText(p: ImportProblem, t: ImportProblemTranslate): 
       return t(key, { count: p.count });
     case "unknownCountries":
     case "duplicateCountries":
+    case "countriesReplaced":
     case "columnsIgnored":
     case "aliasesApplied":
       return t(key, { labels: p.labels.join(", ") });
