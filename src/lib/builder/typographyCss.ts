@@ -102,7 +102,14 @@ function buildWidgetTypographyRules(
   // ...i całe ich PODDRZEWO (forma przodka): wykres (`figure.neh-chart`) i jego
   // dymek niosą znacznik raz, na korzeniu, a reguła nie może dosięgnąć
   // `span`/`dd` w środku. Te same selektory stoją w szablonie `styles.css`.
-  const notExemptAncestor = ":not([data-typography-exempt] *)";
+  //
+  // W `:where()`, czyli BEZ SPECYFICZNOŚCI. Samo `:not([data-typography-exempt] *)`
+  // waży (0,1,0) i podbijało każdą gałąź elementów - a reguły, które celowo
+  // biją typografię widgetu specyficznością (np. rozmiary „Dołącz do nas",
+  // `joinUsSizeCss.ts`, (0,9,0) przeciw (0,8,1) gałęzi ogólnej), przegrywałyby
+  // nagle z regułą, która dotąd była od nich słabsza. Zwolnienie zawęża
+  // dopasowanie, wagi kaskady nie zmienia.
+  const notExemptAncestor = ":where(:not([data-typography-exempt] *))";
   // Group only fixed HTML tag names with identical specificity. The widget
   // scope and every exclusion remain outside :is(), so authored selectors
   // cannot invalidate the group or change its cascade weight. In particular
