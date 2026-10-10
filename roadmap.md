@@ -2,6 +2,7 @@
 
 ## Nowoczesna nawigacja slidera
 
+- [x] Dopasować wskaźniki do stylu popupu rejestracji: kreski 40/16 px, stała wysokość 4 px i neutralny kolor w obu motywach; testy sterowania sliderem przechodzą.
 - [x] Odświeżyć zaznaczone strzałki i wskaźniki: subtelny obrys, aktywna kapsułka marki, płynne przejścia bez zmiany układu.
 - [x] Zweryfikować przełączanie materiałów testami zakresowymi.
 
