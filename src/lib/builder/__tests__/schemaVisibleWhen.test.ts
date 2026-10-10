@@ -248,11 +248,14 @@ const CASES: ReadonlyArray<VisibilityCase> = [
     // przypis pasma bez jednej z nich bylby ustawieniem bez skutku. Krawedzie
     // sa napisami (`getStr`) - liczba zapisana z zewnatrz nie otwiera pol, bo
     // renderer tez jej nie widzi. Zero jest krawedzia, nie brakiem.
-    why: "przypis pasma optimum tylko przy obu krawedziach pasma",
+    // Pasmo rysuje tylko rodzaj z `KIND_CAPS.band` - przy tarczy czy indeksie
+    // przypis pasma bylby opisem rysunku, ktorego nie ma.
+    why: "przypis pasma optimum tylko przy obu krawedziach pasma i rodzaju, ktory pasmo rysuje",
     visible: [
       { bandMin: "2", bandMax: "4" },
       { bandMin: "0", bandMax: "0" },
       { bandMin: "2,5", bandMax: "4,5", kind: "line" },
+      { bandMin: "2", bandMax: "4", kind: "waterfall" },
     ],
     hidden: [
       {},
@@ -261,7 +264,113 @@ const CASES: ReadonlyArray<VisibilityCase> = [
       { bandMin: " ", bandMax: "4" },
       { bandMin: "2", bandMax: "" },
       { bandMin: 2, bandMax: 4 },
+      { bandMin: "2", bandMax: "4", kind: "pie" },
+      { bandMin: "2", bandMax: "4", kind: "index-base" },
     ],
+  },
+  {
+    widget: "chart",
+    keys: ["bandMin", "bandMax"],
+    // `KIND_CAPS.band`: pasmo rysuje rysownik kartezjanski (z mostkiem). Brak
+    // `kind` to slupki, wiec swiezy widget pokazuje krawedzie pasma.
+    why: "krawedzie pasma optimum tylko przy rodzaju, ktory pasmo rysuje",
+    visible: [{}, { kind: "bar" }, { kind: "line" }, { kind: "waterfall" }, { kind: "?" }],
+    hidden: [{ kind: "pie" }, { kind: "histogram" }, { kind: "fan" }, { kind: "index-base" }],
+  },
+  {
+    widget: "chart",
+    keys: ["target"],
+    why: "linia celu tylko przy rodzaju, ktory ja rysuje (KIND_CAPS.target)",
+    visible: [{}, { kind: "bar-horizontal" }, { kind: "area" }, { kind: "waterfall" }],
+    hidden: [{ kind: "donut" }, { kind: "scatter" }, { kind: "fan" }, { kind: "small-multiples" }],
+  },
+  {
+    widget: "chart",
+    keys: ["palette"],
+    // Mostek, mapa ciepla i tornado koduja kolorem znak albo wartosc, wiec
+    // wybor palety nie zmienia tam rysunku (`KIND_CAPS.palette`).
+    why: "paleta tylko tam, gdzie jej wybor zmienia rysunek",
+    visible: [{}, { kind: "line" }, { kind: "pie" }, { kind: "index-base" }],
+    hidden: [{ kind: "waterfall" }, { kind: "heatmap" }, { kind: "tornado" }],
+  },
+  {
+    widget: "chart",
+    keys: ["seriesColors"],
+    // Kolor ma seria albo panel (`KIND_CAPS.colorTarget`). Brak `kind` to
+    // slupki, wiec swiezy widget pokazuje kolory serii.
+    why: "kolory serii tylko tam, gdzie kolor ma seria albo panel",
+    visible: [
+      {},
+      { kind: "line" },
+      { kind: "scatter" },
+      { kind: "small-multiples" },
+      { kind: "?" },
+    ],
+    hidden: [{ kind: "pie" }, { kind: "donut" }, { kind: "heatmap" }, { kind: "histogram" }],
+  },
+  {
+    widget: "chart",
+    keys: ["accentSeries"],
+    // Ranga serii wyroznionej steruje tez ksztaltem (linia ciagla, znacznik
+    // kola), wiec wybor jest w obu paletach - ale tylko tam, gdzie rodzaj
+    // stosuje palete (KIND_CAPS.palette) i kolor ma seria.
+    why: "seria wyrozniona w obu paletach, gdy kolor ma seria i rodzaj rysuje range",
+    visible: [
+      {},
+      { palette: "focus" },
+      { palette: "categorical" },
+      { kind: "line", palette: "categorical" },
+      // Punktowy rysuje chmure serii w akcencie (paleta rol od W3).
+      { kind: "scatter" },
+    ],
+    // Male panele maluja kazdy panel jedna farba - serii wyroznionej nie czytaja.
+    hidden: [
+      { kind: "pie" },
+      { kind: "tornado" },
+      { kind: "heatmap" },
+      { kind: "small-multiples" },
+    ],
+  },
+  {
+    widget: "chart",
+    keys: ["accentCategory"],
+    why: "wycinek w akcencie tylko na tarczy (kolor ma kategoria)",
+    visible: [{ kind: "pie" }, { kind: "donut", palette: "categorical" }],
+    hidden: [{}, { kind: "bar" }, { kind: "line" }],
+  },
+  {
+    widget: "chart",
+    keys: ["forecastFrom"],
+    // Indeks bazy 100 jest w rodzinie kartezjanskiej, ale granicy prognozy
+    // nie czyta (`indexBase.ts`) - pole byloby tam bez skutku.
+    why: "granica prognozy tylko tam, gdzie czyta ja rysownik (kartezjanski i wachlarz)",
+    visible: [{}, { kind: "line" }, { kind: "waterfall" }, { kind: "fan" }],
+    hidden: [{ kind: "pie" }, { kind: "scatter" }, { kind: "heatmap" }, { kind: "index-base" }],
+  },
+  {
+    widget: "chart",
+    keys: ["forecastBandPct"],
+    why: "pasmo niepewnosci rysuja tylko linia, pole i wachlarz",
+    visible: [{ kind: "line" }, { kind: "area" }, { kind: "fan" }],
+    hidden: [{}, { kind: "bar" }, { kind: "pie" }],
+  },
+
+  // ---- mapa danych ----
+  {
+    widget: "data-map",
+    keys: ["method"],
+    // Brak klucza i "0" to skala ciagla (parser `parseMapClasses`), ktora
+    // metody podzialu nie uzywa.
+    why: "metoda podzialu tylko przy klasach",
+    visible: [{ classes: "5" }, { classes: "3" }, { classes: 7 }],
+    hidden: [{}, { classes: "0" }, { classes: "" }, { classes: "abc" }, { classes: 0 }],
+  },
+  {
+    widget: "data-map",
+    keys: ["midpoint"],
+    why: "srodek skali tylko w schemacie rozbieznym",
+    visible: [{ scheme: "diverging" }],
+    hidden: [{}, { scheme: "blue" }, { scheme: "accent" }, { scheme: "Diverging" }],
   },
 
   // ---- mapa swiata ----

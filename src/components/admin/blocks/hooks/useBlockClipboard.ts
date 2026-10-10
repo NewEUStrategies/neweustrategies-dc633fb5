@@ -12,6 +12,13 @@
 //
 // Zdarzenia w polach tekstowych zostawiamy edytorom inline (TipTap ma własną
 // obsługę wklejania) - hook działa tylko dla zaznaczenia blokowego.
+//
+// TABELA PRZY ZAZNACZONYM WYKRESIE ALBO MAPIE (PR2). Zakres z Excela, Arkuszy
+// Google albo LibreOffice wklejony, gdy aktywny jest JEDEN blok `chart` albo
+// `data-map`, nie staje się nowym blokiem tabeli pod nim: hook ogłasza go
+// edytorowi tego bloku (`dispatchBlockTablePaste`), który otwiera podgląd
+// układu i zastępuje dane wykresu. Gdy edytor tabeli nie przyjmie (nie jest
+// zamontowany, nie umie), wklejka idzie dawną drogą - jako blok tabeli.
 
 import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,6 +34,11 @@ import { looksLikeRichPaste, parseWordHtml } from "@/lib/blocks/wordPaste";
 import { isTextEntryBlockType, requestBlockFocus } from "@/lib/blocks/focus";
 import { isEditableTarget } from "@/lib/blocks/selectionDom";
 import { canvasOwnsEvent, useCanvasStack, type CanvasRef } from "./canvasStack";
+import { readClipboardTable } from "@/lib/charts/clipboardTable";
+import {
+  TABLE_PASTE_BLOCK_TYPES,
+  dispatchBlockTablePaste,
+} from "@/components/admin/charts/blockTablePaste";
 
 export interface UseBlockClipboardArgs {
   /** Root kanwy (element z `data-block-canvas`). */
@@ -69,6 +81,19 @@ export function useBlockClipboard(args: UseBlockClipboardArgs): void {
     }
     const aid = activeIdRef.current;
     return aid ? arr.filter((b) => b.id === aid) : [];
+  }, [docRef, activeIdRef, selectedIdsRef]);
+
+  /**
+   * Blok, któremu wklejona tabela może zastąpić dane: JEDEN aktywny blok
+   * wykresu albo mapy, bez zaznaczenia wielokrotnego (wtedy wklejka podmienia
+   * zaznaczone bloki, jak dotąd).
+   */
+  const tablePasteTarget = useCallback((): string | null => {
+    if (selectedIdsRef.current.length > 0) return null;
+    const aid = activeIdRef.current;
+    if (!aid) return null;
+    const active = docRef.current.blocks.find((b) => b.id === aid);
+    return active && TABLE_PASTE_BLOCK_TYPES.includes(active.type) ? active.id : null;
   }, [docRef, activeIdRef, selectedIdsRef]);
 
   /** Wkleja bloki: zamienia zaznaczenie wielokrotne albo wstawia po aktywnym. */
@@ -135,6 +160,14 @@ export function useBlockClipboard(args: UseBlockClipboardArgs): void {
       const plain = dt.getData("text/plain");
       let incoming = parseBlocksFromClipboard(html, plain);
       if (!incoming) {
+        const target = tablePasteTarget();
+        if (target) {
+          const table = readClipboardTable({ html, text: plain });
+          if (table && dispatchBlockTablePaste(target, table)) {
+            e.preventDefault();
+            return;
+          }
+        }
         const files = Array.from(dt.files ?? []).filter(isImageFile);
         if (files.length) {
           e.preventDefault();
@@ -159,5 +192,15 @@ export function useBlockClipboard(args: UseBlockClipboardArgs): void {
       document.removeEventListener("cut", onCopyOrCut);
       document.removeEventListener("paste", onPaste);
     };
-  }, [rootRef, docRef, clipboardSelection, pasteBlocks, onChange, onSelect, clearSelection, t]);
+  }, [
+    rootRef,
+    docRef,
+    clipboardSelection,
+    pasteBlocks,
+    tablePasteTarget,
+    onChange,
+    onSelect,
+    clearSelection,
+    t,
+  ]);
 }

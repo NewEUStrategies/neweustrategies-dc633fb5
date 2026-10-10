@@ -81,6 +81,8 @@ import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
+import { sourceLine } from "./chartFacts";
+import { ACCENT_EDGE_PX, kindSinglePaint } from "./kindPaint";
 import "@/lib/i18n-charts";
 
 /**
@@ -192,6 +194,12 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
   });
   const edged = barStyleHasEdge(barStyle);
   const cascade = cascadeStepMs(bins.length);
+  // FARBA JEDNEGO ROZKŁADU: pod paletą ról akcent (rysunek mówi o jednej
+  // wielkości, więc to ona jest wyróżniona), pod kategorialną - slot serii.
+  const paint = useMemo(
+    () => kindSinglePaint({ palette: config.palette }, model.colorSlot),
+    [config.palette, model.colorSlot],
+  );
 
   // Etykiety krawędzi: bierzemy co `krok`, ale pierwsza i ostatnia zawsze.
   const edgeStep = useMemo(() => {
@@ -335,6 +343,7 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
           name: axisLabel,
           value: formatChartValue(czynne.count, lang, ""),
           colorSlot: model.colorSlot,
+          color: paint.color,
           emphasised: true,
         },
         {
@@ -386,6 +395,7 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{
           height,
@@ -458,12 +468,12 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
                 width={szerokosc}
                 height={h}
                 rx={radius}
-                fill={
-                  barStyle === "solid"
-                    ? `var(--chart-${model.colorSlot})`
-                    : `var(--chart-${model.colorSlot}-inner)`
-                }
-                stroke={edged ? `var(--chart-${model.colorSlot}-edge)` : undefined}
+                // PEŁNE WYPEŁNIENIE: arkusz i tak maluje przedział tokenem
+                // (`[data-role="bin"]`), a atrybut jest zapasem bez arkusza -
+                // ma więc mówić to samo. Obwódka tylko jako drugi nośnik
+                // akcentu.
+                fill={paint.color}
+                stroke={paint.accentEdge ?? undefined}
                 className="neh-bar"
                 // UCHWYT ZAPYTANIA rodzaju: słupek histogramu jest SŁUPKIEM
                 // PRZEDZIAŁU, nie kategorii, i testy muszą umieć odróżnić go
@@ -472,10 +482,16 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
                 data-active={active === i ? "true" : undefined}
                 style={{
                   ["--neh-i" as string]: i,
-                  ["--neh-unified-inner" as string]: `var(--chart-${model.colorSlot}-inner)`,
-                  ["--neh-unified-edge" as string]: `var(--chart-${model.colorSlot}-edge)`,
-                  ["--neh-bar-hover" as string]: `var(--chart-${model.colorSlot}-active, var(--chart-${model.colorSlot}-hover))`,
-                  ["--neh-bar-token" as string]: `var(--chart-${model.colorSlot})`,
+                  ["--neh-unified-inner" as string]: paint.inner,
+                  ["--neh-unified-edge" as string]: paint.edge,
+                  ["--neh-bar-hover" as string]: paint.hover,
+                  ["--neh-bar-token" as string]: paint.color,
+                  ...(paint.accentEdge !== null
+                    ? {
+                        ["--neh-bar-edge" as string]: paint.accentEdge,
+                        ["--neh-bar-edge-w" as string]: `${ACCENT_EDGE_PX}px`,
+                      }
+                    : {}),
                 }}
               />
             );
@@ -539,6 +555,7 @@ export function HistogramChart({ config, lang, ariaLabel: nazwaZadana }: Histogr
           containerWidth={width}
           title={czynne?.label ?? ""}
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
 

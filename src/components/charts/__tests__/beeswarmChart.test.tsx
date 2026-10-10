@@ -210,15 +210,28 @@ describe("BeeswarmChart - pozycja z danych, przesunięcie z modelu", () => {
 });
 
 describe("BeeswarmChart - kolor i płyta", () => {
-  it("wypełnienie niesie kolor grupy, obwódka jest w kolorze PŁYTY", () => {
+  it("wypełnienie niesie kolor grupy, obwódka jest w kolorze PŁYTY (paleta kategorialna)", () => {
     // Obwódka w kolorze płyty rozdziela stykające się punkty BEZ wprowadzania
     // drugiego koloru; obwódka w kolorze serii (jak przy kropce na linii)
     // zlewałaby sąsiadów w jedną plamę, a wypełnienie płytą odebrałoby chmurze
     // kolor grupy.
-    const { container } = render(<BeeswarmChart config={cfg(baza(REMISY))} lang="pl" />);
+    const { container } = render(
+      <BeeswarmChart config={cfg({ ...baza(REMISY), palette: "categorical" })} lang="pl" />,
+    );
     for (const k of kropki(container)) {
       expect(k.getAttribute("fill")).toMatch(/^var\(--chart-\d+\)$/);
       expect(k.getAttribute("stroke")).toBe("var(--card)");
+    }
+  });
+
+  it("paleta ról: rój w AKCENCIE, a obwódka w miejscu płyty jest drugim nośnikiem akcentu", () => {
+    // Akcent ma na bieli 2,25:1, więc kropka w akcencie dostaje obwódkę
+    // `--chart-accent-audit-graphic` - tej samej grubości co obwódka płyty,
+    // więc geometria roju się nie zmienia.
+    const { container } = render(<BeeswarmChart config={cfg(baza(REMISY))} lang="pl" />);
+    for (const k of kropki(container)) {
+      expect(k.getAttribute("fill")).toBe("var(--chart-accent)");
+      expect(k.getAttribute("stroke")).toBe("var(--chart-accent-audit-graphic)");
     }
   });
 

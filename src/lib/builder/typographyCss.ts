@@ -99,6 +99,17 @@ function buildWidgetTypographyRules(
   // Without this guard a generated `[data-w-id]... span { ... !important }`
   // rule overrides their intentional compact type, even when it is scoped.
   const notExempt = ":not([data-typography-exempt])";
+  // ...i całe ich PODDRZEWO (forma przodka): wykres (`figure.neh-chart`) i jego
+  // dymek niosą znacznik raz, na korzeniu, a reguła nie może dosięgnąć
+  // `span`/`dd` w środku. Te same selektory stoją w szablonie `styles.css`.
+  //
+  // W `:where()`, czyli BEZ SPECYFICZNOŚCI. Samo `:not([data-typography-exempt] *)`
+  // waży (0,1,0) i podbijało każdą gałąź elementów - a reguły, które celowo
+  // biją typografię widgetu specyficznością (np. rozmiary „Dołącz do nas",
+  // `joinUsSizeCss.ts`, (0,9,0) przeciw (0,8,1) gałęzi ogólnej), przegrywałyby
+  // nagle z regułą, która dotąd była od nich słabsza. Zwolnienie zawęża
+  // dopasowanie, wagi kaskady nie zmienia.
+  const notExemptAncestor = ":where(:not([data-typography-exempt] *))";
   // Group only fixed HTML tag names with identical specificity. The widget
   // scope and every exclusion remain outside :is(), so authored selectors
   // cannot invalidate the group or change its cascade weight. In particular
@@ -109,7 +120,7 @@ function buildWidgetTypographyRules(
     `${sel}[data-title-root]`,
     `${sel} [data-typography-role="title"]`,
     `${sel}[data-typography-role="title"]`,
-    `${sel} :is(h1,h2,h3,h4,h5,h6)${notCounters}`,
+    `${sel} :is(h1,h2,h3,h4,h5,h6)${notExemptAncestor}${notCounters}`,
   ];
   const descriptionTargets = [
     `${sel} .cms-post-excerpt`,
@@ -117,8 +128,8 @@ function buildWidgetTypographyRules(
     `${sel}[data-description-root]`,
     `${sel} [data-typography-role="description"]`,
     `${sel}[data-typography-role="description"]`,
-    `${sel} :is(p,li,dd,blockquote,figcaption,small):not(.cms-post-title)${notExempt}${notCounters}`,
-    `${sel} .prose p`,
+    `${sel} :is(p,li,dd,blockquote,figcaption,small):not(.cms-post-title)${notExempt}${notExemptAncestor}${notCounters}`,
+    `${sel} .prose p${notExemptAncestor}`,
   ];
   const genericTextTags = [
     "p",
@@ -150,9 +161,9 @@ function buildWidgetTypographyRules(
   ];
   const genericTextTargets = [
     sel,
-    `${sel} :is(${genericTextTags.join(",")}):not(.cms-post-title):not(.cms-post-excerpt)${notExempt}${notCounters}`,
+    `${sel} :is(${genericTextTags.join(",")}):not(.cms-post-title):not(.cms-post-excerpt)${notExempt}${notExemptAncestor}${notCounters}`,
     `${sel} .prose`,
-    `${sel} .prose *:not(.cms-post-title):not(.cms-post-excerpt)${notCounters}`,
+    `${sel} .prose *:not(.cms-post-title):not(.cms-post-excerpt)${notExemptAncestor}${notCounters}`,
   ];
   const allText = [...genericTextTargets, ...titleTargets, ...descriptionTargets].join(", ");
   const genericNoPost = genericTextTargets.join(", ");

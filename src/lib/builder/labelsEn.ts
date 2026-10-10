@@ -311,6 +311,36 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   Azja: "Asia",
   "Ameryka Północna": "North America",
   "Ameryka Południowa": "South America",
+  // data-map widget (PR2)
+  "Podpis pod mapą": "Caption under the map",
+  "Mapa / skala barw": "Map / color scale",
+  "Schemat barw": "Color scheme",
+  // Nazwy schematów i metod są KANONICZNE - te same co w nakładkach
+  // `mapEditor.*` i `chartsMap.*` (autor wybiera nazwę z legendy czytelnika).
+  niebieski: "Blue",
+  łupkowy: "Slate",
+  "pomarańczowy (akcent)": "Orange (accent)",
+  "rozbieżny (spadek - wzrost)": "Diverging (decrease - increase)",
+  "Rozbieżny - dla wskaźnika z punktem odniesienia (spadek - wzrost wokół środka skali).":
+    "Diverging - for an indicator with a reference point (decrease - increase around the middle of the scale).",
+  "Liczba klas": "Number of classes",
+  "skala ciągła": "Continuous scale",
+  "3 klasy": "3 classes",
+  "4 klasy": "4 classes",
+  "5 klas": "5 classes",
+  "6 klas": "6 classes",
+  "7 klas": "7 classes",
+  "Klasy łatwiej porównać z legendą; skala ciągła pokazuje każdą różnicę.":
+    "Classes are easier to match against the legend; a continuous scale shows every difference.",
+  "Metoda podziału": "Classification method",
+  "kwantyle (równe liczebności)": "Quantiles (equal counts)",
+  "równe przedziały": "Equal intervals",
+  "Kwantyle: podobna liczba krajów w każdej klasie. Równe przedziały: klasy jak podziałka, ale kraj odstający zostawia klasy puste.":
+    "Quantiles: a similar number of countries in each class. Equal intervals: classes read like a ruler, but an outlying country leaves classes empty.",
+  "Środek skali": "Scale midpoint",
+  "np. 0": "e.g. 0",
+  "Wartość w neutralnym środku skali rozbieżnej (np. średnia UE). Puste = 0.":
+    "The value at the neutral middle of the diverging scale (e.g. the EU average). Empty = 0.",
 
   // --------------------------------------------------------------- structure
   "Tag (SEO)": "Tag (SEO)",
@@ -527,8 +557,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Paleta kolorów": "Color palette",
   "akcent + neutralne (domyślna)": "accent + neutrals (default)",
   "kategorialna (kolor serii z palety)": "categorical (series color from the palette)",
-  "Akcent + neutralne: pierwsza seria w akcencie, pozostałe jako tło porównania. Kategorialna: każda seria we własnym kolorze - dla serii równorzędnych.":
-    "Accent + neutrals: the first series in the accent, the rest as the comparison background. Categorical: every series in its own color - for series of equal weight.",
+  "Akcent + neutralne: seria wyróżniona w akcencie, pozostałe jako tło porównania. Kategorialna: każda seria we własnym kolorze - dla serii równorzędnych.":
+    "Accent + neutrals: the highlighted series in the accent, the rest as the comparison background. Categorical: every series in its own color - for series of equal weight.",
   "Kierunek wskaźnika": "Metric direction",
   "wyżej znaczy lepiej": "higher is better",
   "niżej znaczy lepiej": "lower is better",
@@ -565,6 +595,30 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "A - źródło pierwotne": "A - primary source",
   "B - źródło wtórne, rzetelne": "B - reliable secondary source",
   "C - omówienie": "C - commentary",
+  // chart widget (PR2)
+  "System wykresów / kolory": "Chart system / colors",
+  "System wykresów / uczciwość": "Chart system / honesty",
+  "System wykresów / prognoza": "Chart system / forecast",
+  "Kolory serii": "Series colors",
+  "Próbka pokazuje kolor, którym seria jest narysowana. Kolor wybierasz z próbek palety.":
+    "The swatch shows the color the series is drawn in. Pick a color from the palette swatches.",
+  "Seria wyróżniona": "Highlighted series",
+  "Seria w akcencie marki; pozostałe są tłem porównania. W palecie kategorialnej seria zachowuje swój kolor, a wyróżnia ją linia ciągła i znacznik koła. Domyślnie pierwsza seria.":
+    "The series in the brand accent; the rest are the comparison background. In the categorical palette the series keeps its color and stands out with a solid line and a circle marker. The first series by default.",
+  "Wycinek wyróżniony": "Highlighted slice",
+  "Wycinek w akcencie marki (w palecie kategorialnej - z obrysem); nigdy nie trafia do „Pozostałe”. Domyślnie największy wycinek.":
+    "The slice in the brand accent (outlined in the categorical palette); never folded into “Other”. Defaults to the largest slice.",
+  "Dane demonstracyjne (odznaka „demo”)": "Demo data (“demo” badge)",
+  "Data danych": "Data as of",
+  "np. 2026-06-30": "e.g. 2026-06-30",
+  "n - liczba obserwacji": "n - number of observations",
+  "Co pokazuje": "What it shows",
+  "Co jest zaskakujące": "What is surprising",
+  "Czego NIE pokazuje": "What it does NOT show",
+  "Prognoza od kategorii numer": "Forecast from category number",
+  "Puste = cały szereg jest historią. Numer 2 znaczy: prognoza od drugiej kategorii.":
+    "Empty = the whole series is history. Number 2 means: forecast from the second category.",
+  "Pasmo niepewności ±%": "Uncertainty band ±%",
   "Wyniki na żywo": "Live results",
   "Liczba wpisów": "Number of posts",
   "Liczba odcinków": "Number of episodes",
@@ -1051,10 +1105,10 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   // ------------------------------------------------------ data-format hints
   "Na wykresie kołowym wartość pojawia się pod udziałem procentowym, w wycinkach od 8% wzwyż.":
     "On a pie chart the value is placed under the percentage share, in slices of 8% and above.",
-  'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony).':
-    'The spreadsheet opens in a popup with a live chart preview. Text format: first row "; Series name; Series name", then "Category; value; value" (";" separator, decimal comma allowed).',
-  'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).':
-    'One country per row: "CODE; value" (ISO-2 code, e.g. PL; 12.5).',
+  'Arkusz otwiera się w popupie z podglądem wykresu. Format tekstowy: pierwszy wiersz "; Nazwa serii; Nazwa serii", kolejne "Kategoria; wartość; wartość" (separator ";", przecinek dziesiętny dozwolony). Zakres wklejony z Excela albo Arkuszy Google zamienia się na ten format.':
+    'The spreadsheet opens in a popup with a live chart preview. Text format: first row "; Series name; Series name", then "Category; value; value" (";" separator, decimal comma allowed). A range pasted from Excel or Google Sheets is converted to this format.',
+  'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5). Zakres wklejony z Excela albo Arkuszy Google zamienia się na ten format, a „Edytuj w arkuszu" pokazuje nazwy krajów i uwagi do wierszy.':
+    'One country per row: "CODE; value" (ISO-2 code, e.g. PL; 12.5). A range pasted from Excel or Google Sheets is converted to this format, and "Edit as a sheet" shows country names and notes on rows.',
   'Jeden wiersz na wydarzenie: "Data; Tytuł|Title; Opis|Description; slot(1-8, opc.)". Separator ";", tłumaczenie po "|".':
     'One row per event: "Date; Tytuł|Title; Opis|Description; slot (1-8, optional)". Separator ";", translation after "|".',
   'Jeden wiersz na przepływ: "Źródło|Source; Cel|Target; wartość". Wartości > 0.':

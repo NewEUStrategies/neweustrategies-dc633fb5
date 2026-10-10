@@ -86,8 +86,12 @@ const ChartBlockViewLazy = lazy(() =>
 ) as ComponentType<ComponentProps<typeof ChartBlockViewImpl>>;
 export const ChartBlockView = withSuspense(ChartBlockViewLazy);
 
+// Mapa jedzie tym samym chunkiem co wykres, więc ta sama awaria (zerwane
+// łącze, stary deploy bez chunka) daje ten sam komunikat zamiast dziury.
 const DataMapBlockViewLazy = lazy(() =>
-  import("../DataVizViews").then((m) => ({ default: m.DataMapBlockView })),
+  import("../DataVizViews")
+    .then((m) => ({ default: m.DataMapBlockView }))
+    .catch(() => ({ default: ChartLoadFailed })),
 ) as ComponentType<ComponentProps<typeof DataMapBlockViewImpl>>;
 export const DataMapBlockView = withSuspense(DataMapBlockViewLazy);
 

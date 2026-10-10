@@ -143,6 +143,8 @@ import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
 import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
+import { sourceLine } from "./chartFacts";
+import { cloudPaints, type KindPaint } from "./kindPaint";
 
 /**
  * Zapas na tytuł osi Y w marginesie lewym, w pikselach.
@@ -626,6 +628,15 @@ export function ScatterChart({
   const czynny: Marker | null = active === null ? null : (markers[active] ?? null);
   const czynnaChmura = czynny === null ? null : (model.clouds[czynny.cloud] ?? null);
 
+  // FARBA CHMURY z rangi (`cloudPaints` - ta sama funkcja maluje próbki
+  // legendy ramy). Klucz to pozycja chmury, ta sama, którą niosą znaczniki.
+  // Bez `useMemo`: stoi za wczesnym wyjściem, a policzenie kilku chmur jest
+  // tańsze niż przenoszenie haka nad nie.
+  const paints: readonly KindPaint[] = cloudPaints(
+    { palette: config.palette, accentSeries: config.accentSeries },
+    model.clouds,
+  );
+
   // NAZWY OBU ZMIENNYCH. `xName` model zna tylko wtedy, gdy oś X jest serią
   // albo gdy podał ją autor; inaczej zostaje neutralna nazwa ze słownika.
   // Oś Y bierze nazwę chmury, gdy jest jedna - wtedy jest to nazwa serii
@@ -650,6 +661,7 @@ export function ScatterChart({
           name: yLabel,
           value: liczba(czynny.point.y, config.unit),
           colorSlot: czynny.point.colorSlot,
+          color: paints[czynny.cloud]?.color,
           emphasised: true,
         },
         {
@@ -819,6 +831,7 @@ export function ScatterChart({
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{
           height,
@@ -976,7 +989,7 @@ export function ScatterChart({
               x2={tr.x2}
               y1={tr.y1}
               y2={tr.y2}
-              stroke={`var(--chart-${tr.colorSlot}-edge)`}
+              stroke={paints[tr.cloud]?.edge ?? `var(--chart-${tr.colorSlot}-edge)`}
               className="neh-fade"
               data-role="trend"
               data-cloud={tr.cloud}
@@ -1037,9 +1050,11 @@ export function ScatterChart({
                 cy={m.cy}
                 r={SCATTER_MARKER_R + (czynnyTen ? MARKER_HOVER_GROWTH : 0)}
                 fill={
-                  m.point.overplotted ? `var(--chart-${m.point.colorSlot}-inner)` : "var(--card)"
+                  m.point.overplotted
+                    ? (paints[m.cloud]?.inner ?? `var(--chart-${m.point.colorSlot}-inner)`)
+                    : "var(--card)"
                 }
-                stroke={`var(--chart-${m.point.colorSlot})`}
+                stroke={paints[m.cloud]?.color ?? `var(--chart-${m.point.colorSlot})`}
                 strokeWidth={SCATTER_MARKER_STROKE}
                 className="neh-fade"
                 data-role="cloud-point"
@@ -1125,6 +1140,7 @@ export function ScatterChart({
           // markerem jest ich więcej niż jedna.
           note={czynny !== null && czynny.point.overplotted ? t("scatter.table.overplotted") : ""}
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
 

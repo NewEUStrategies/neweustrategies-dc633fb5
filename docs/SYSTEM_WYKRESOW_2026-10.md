@@ -68,8 +68,62 @@ Panel (`ChartFrame.tsx`): `figure` z `aria-labelledby`, tytuł 15,5/650, znaczek
 
 `KpiTile` (pulpity) używa wspólnych atomów `Sparkline` (akcent 2 px, kropka ostatniego punktu, pasmo 14%) i `RangeScale` (strefy, znacznik 4 x 20 px, podpowiedzi słowne, stan „brak benchmarku"). Zmiana: ▲ ▼ ■, kolor z kierunku wskaźnika.
 
+## 11. Wykresy w blokach CMS i widgetach buildera (PR #489)
+
+Blok CMS („Gutenberg") i widget buildera („Elementor") rysują ten sam silnik i - od tego PR - z tej samej konfiguracji. Widget trzyma ustawienia płasko (pola `*_pl`/`*_en`, przełączniki „on"/„off", dane jako tekst ze średnikami), a adapter `src/lib/charts/widgetConfig.ts` przekłada je na Json w kształcie bloku i przepuszcza przez ten sam parser (`parseChartConfig`, `parseDataMapConfig`). Test `chartBlockWidgetParity.test.tsx` renderuje każdy z 17 rodzajów obiema drogami i porównuje znacznik figury (różni się wyłącznie margines: blok `my-6`, widget `my-0`).
+
+- Paleta ról jest domyślna w każdym rodzaju, którego kolor nie koduje wartości ani znaku (`KIND_CAPS.palette`; mapa ciepła, tornado i mostek zostają przy kolorze znaczącym). Warianty dla rodzajów spoza rysownika kartezjańskiego są mieszankami jednego koloru roli (`color-mix` z płytą: wnętrze 18%, najechanie 85%, pasmo 12%), bez nowych tokenów.
+- Wycinki tarczy i pierścienia są pełne (decyzja właściciela), z przerwą tej samej szerokości w obu motywach. Wycinek wyróżniony (`accentCategory`, domyślnie największy) nigdy nie trafia do „Pozostałe"; paleta kategorialna tarczy bierze sloty z `SLOT_SEQUENCE`, nigdy pomarańczu marki dla wycinka, który nie jest akcentem.
+- Akcent (#FA9346, 2,25:1 na bieli) ma wszędzie drugi nośnik: obrys 1 px w `--chart-accent-audit-graphic` (wycinek, słupki histogramu, pudełko i punkty odstające boxplota, punkty roju, segment stosu 100%), a mediana na pudełku w akcencie ma tusz ~8:1.
+- Eksport PNG i SVG działa we wszystkich rodzajach i na mapie. Plik SVG ma kolory wyłącznie w zapisie `#rrggbb`/`rgba()` (`exportColor.ts` rozwiązuje `oklch()`, `color-mix()` i `var()`), klucz serii albo wycinków pod rysunkiem i kolejność `paint-order` obwódek napisów. Kod eksportu ładuje się dopiero po kliknięciu.
+- Okno „Jak czytać" ma teksty dla rodziny rysunku (kartezjańska, rozkład, część całości, zależność, wrażliwość, panele, mapa - `readHelp.ts`), a każdy tooltip - linię źródła.
+- Typografia motywu buildera (Theme Design) nie przestylowuje wykresu: `figure.neh-chart` i tooltip niosą `data-typography-exempt`, a gałęzie szablonu typografii mają zwolnienie w formie przodka `:where(:not([data-typography-exempt] *))` - bez wagi w kaskadzie, więc pozostałe widgety zachowują specyficzność sprzed zmiany.
+
+## 12. Mapa danych (kartogram)
+
+| Ustawienie      | Wartości                                                               | Domyślnie                                   |
+| --------------- | ---------------------------------------------------------------------- | ------------------------------------------- |
+| schemat barw    | niebieski, łupkowy, pomarańczowy (akcent), rozbieżny (spadek - wzrost) | niebieski                                   |
+| liczba klas     | skala ciągła albo 3-7 klas                                             | nowa mapa: 5; mapa bez klucza: skala ciągła |
+| metoda podziału | kwantyle (równe liczebności), równe przedziały                         | kwantyle                                    |
+| środek skali    | liczba (tylko schemat rozbieżny)                                       | 0                                           |
+
+- W schemacie rozbieżnym z kwantylami środek skali jest zawsze granicą klasy: kwantyle i liczba klas liczą się osobno po każdej stronie środka (proporcjonalnie do liczby krajów, co najmniej jedna klasa na stronę), więc żadna klasa nie łączy spadku ze wzrostem. Równe przedziały są symetryczne wokół środka; przy nieparzystej liczbie klas klasa środkowa obejmuje środek i ma kolor neutralny („blisko środka" po obu stronach - konwencja schematów rozbieżnych Brewer), a jej granice podaje legenda. Kto chce rozdzielić spadek i wzrost już przy samym środku, wybiera parzystą liczbę klas albo kwantyle.
+- Opublikowana mapa bez nowych kluczy wygląda dokładnie jak przed PR: niebieska skala ciągła z tym samym mieszaniem `0,15 + 0,85 t` (50 porównań w `mapPublishedLook.test.tsx`).
+- Rampy nie mają turkusu ani fioletu (czytałyby się jak „dodatni" i „powyżej przedziału" palety ról) ani bursztynu; bramka `palette.test.ts` liczy dla klas 3-7 odstęp jasności sąsiednich klas, kontrast końca rampy z płytą i odróżnialność od „brak danych", w motywie jasnym, ciemnym i druku.
+- Legenda klasowa (przedziały w jednostce, nazwa metody), gradient skali ciągłej, punkt środkowy skali rozbieżnej i kreskowana próbka „brak danych". Kraj bez wartości jest kreskowany (odstęp >= 4 px także przy szerokości 320 px), a tooltip mówi „brak danych".
+- Tooltip mapy: wartość, pozycja w rankingu, przedział klasy i źródło; obrys najechania i fokusu w dwóch tonach ma >= 3:1 wobec każdej klasy (bramka `mapOutlineContrast.test.ts`); dotyk otwiera tooltip stuknięciem.
+- Kody spoza regionu nie zmieniają skali barw - nota pod mapą je wymienia, tabela danych zostaje pełna. Pusta mapa zachowuje panel. Źródła mapy mają przypisy w sekwencji artykułu, tak jak wykresy.
+
+## 13. Wprowadzanie danych
+
+**Arkusz danych** (`src/components/admin/charts/`: wspólne prymitywy siatki, `ChartDataGrid`, `MapDataGrid`) jest ten sam w bloku CMS i w dialogu widgetu. Komórka liczbowa trzyma szkic i zatwierdza go przy wyjściu, Enter, Tab albo wklejeniu przez `parseImportedCell` - wpis, który nie jest liczbą, dostaje `aria-invalid` i zdanie po polsku albo angielsku, a nie cichą lukę. Enter / Shift+Enter, Tab / Shift+Tab i strzałki na krawędzi tekstu przechodzą między komórkami; Ctrl+Z i Ctrl+Shift+Z w arkuszu cofają w historii bloku albo buildera.
+
+**Wklejanie** z Excela, Google Sheets, LibreOffice i Numbers czyta HTML schowka i tekst z tabulatorami. Gdy arkusz podaje surową wartość komórki (`x:num`, `data-sheets-value`, `sdval`), liczba pochodzi z niej, a nie z wyświetlanego napisu; procent („25%" albo format komórki z „%") daje 25. Zakres wklejony do komórki trafia w to miejsce jako jedna zmiana (jeden krok cofania). Zastąpienie całej tabeli (pusty arkusz, lewy górny róg z nagłówkiem, plik, wklejenie na kanwę z zaznaczonym blokiem) otwiera podgląd: nagłówek, obrót wierszy i kolumn, format liczb (auto / polski / angielski), a dla mapy - kolumna krajów i kolumna wartości.
+
+**Mapa**: kraj wpisuje się kodem ISO-2, ISO-3 albo nazwą po polsku lub angielsku („Czechy", „Czech Republic", „UK" -> CZ, CZ, GB). Wiersz pokazuje status słowem i ikoną: kraj nierozpoznany, powtórzony, spoza regionu, bez wartości. Arkusz mapy ma limit 300 wierszy.
+
+**Import pliku**: xlsx, xlsm, xlsb, xltx, xltm, xls, ods, fods, csv, tsv, txt, html, htm (bez SYLK i DIF). Pliki czyta proces roboczy arkuszy; limity: 10 arkuszy, 2000 wierszy, 256 kolumn. Problemy skoroszytu, arkusza i wierszy (obcięcie, komórki nieliczbowe, nierozpoznane kraje, flagi Eurostatu, kodowanie windows-1250) pojawiają się jedną listą tymi samymi zdaniami (`importProblems.ts`).
+
+**Pole tekstowe** danych w panelu buildera zamienia wklejoną tabelę na format średnikowy z kropką dziesiętną; w mapie wklejone kraje dołączają do istniejących, chyba że pole jest puste albo całe zaznaczone. Tabela CMS przekształca się w wykres (`Przekształć w` - `Wykres`); tabela bez liczb zostaje nietknięta, a kanwa mówi dlaczego.
+
+## 14. Dobór kolorów
+
+- Paleta ról (domyślna): seria wyróżniona w akcencie, pozostałe jako tło porównania. Wybór „Seria wyróżniona" jest w arkuszu, w menu kolumny i w panelu buildera; w palecie kategorialnej seria wyróżniona zachowuje swój kolor, a wyróżnia się rysunkiem (linia ciągła, znacznik).
+- Paleta kategorialna: wybór koloru serii oferuje tylko sloty z kontrastem >= 3:1 na płycie w obu motywach i z odcieniem OKLCh poza 30-110° - czyli bez pomarańczy, bursztynu i żółci (lista wyliczana, bramka `chartColorSlots.test.ts`). Próbka pokazuje kolor faktycznie rysowany.
+- Mapa: wybór schematu jest grupą przycisków radiowych z prawdziwymi próbkami rampy i nazwą (nigdy sam kolor), z liczbą klas, metodą, środkiem skali rozbieżnej i podglądem legendy liczonej na bieżących danych.
+
+Progi kontrastu grafiki 3:1 pochodzą z kryterium 1.4.11 WCAG 2.2[^wcag]; kwantyle i równe przedziały jako metody klasyfikacji kartogramu oraz zasada, że rampa sekwencyjna zmienia jasność, a rozbieżna ma neutralny środek - z praktyki kartograficznej Brewer[^brewer].
+
+[^wcag]: World Wide Web Consortium, „Web Content Accessibility Guidelines (WCAG) 2.2", W3C Recommendation, 5 października 2023, kryterium 1.4.11 „Non-text Contrast", [https://www.w3.org/TR/WCAG22/#non-text-contrast](https://www.w3.org/TR/WCAG22/#non-text-contrast).
+
+[^brewer]: Cynthia A. Brewer, _Designing Better Maps: A Guide for GIS Users_, wyd. 2 (Redlands: Esri Press, 2016); Cynthia A. Brewer i Mark Harrower, „ColorBrewer 2.0", Pennsylvania State University, [https://colorbrewer2.org/](https://colorbrewer2.org/).
+
 ## Czego jeszcze nie ma
 
 - Rodzaje z sekcji 4, których silnik nie miał: lejek, mapa ciepła STATUSÓW, dumbbell, bullet, odchylenia od normy, kombi z dwiema osiami, slope, radar, treemap, Pareto, kalendarz, kohorty, sankey w silniku. Każdy wymaga modelu, tabeli danych, wpisu w czterech powierzchniach autorskich i bramki `chartKinds.test.ts`.
 - Bibliografia zbiorcza na stronach buildera (dziś: numeracja w obrębie wykresu i lista źródeł w oknie „Jak czytać").
 - Galeria wykresów z danymi demonstracyjnymi.
+- Odłożone w PR #489: kolor własny dla pojedynczej kategorii (wycinka) - jest tylko wycinek wyróżniony; przekształcenie tabeli w mapę danych (skorowidz krajów jest asynchroniczny, a przekształcenie bloku synchroniczne); przełączanie serii legendą poza rodzajami kartezjańskimi; nawigacja klawiaturą po sąsiednich krajach mapy i znaczniki mikropaństw; widgety „feature" (sankey, porównanie, matryca ryzyka, sieć, oś czasu, wskaźnik) i pozostałe mapy (mapa świata, korytarz, tracker stanowisk, panel geograficzny) - osobny PR.
+- Menu „Przekształć w" liczy cele po typie bloku, więc „Wykres" widać także przy tabeli samego tekstu (kanwa odmawia z komunikatem).
+- Podkreślenie ustawione na całym widgecie buildera dziedziczy się w tytule, legendzie i podpisie wykresu - `text-decoration` propaguje się w CSS na potomków i nie da się go zdjąć z wnętrza.

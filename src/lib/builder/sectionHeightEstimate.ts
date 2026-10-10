@@ -97,8 +97,10 @@ export const WIDGET_HEIGHT_ESTIMATE_PX: Partial<Record<WidgetType, number>> = {
   gallery: 360,
   video: 360,
   map: 360,
-  chart: 360,
-  "data-map": 420,
+  // Wykres i mapa danych liczą się z TREŚCI (`estimateDataVizHeight`);
+  // wpisy tutaj to wartości dla treści, z której nic nie da się odczytać.
+  chart: 320 + 190,
+  "data-map": 190 + 619,
   "world-map": 480,
   button: 48,
   divider: 24,
@@ -130,6 +132,79 @@ const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
 
 /**
+ * Rama panelu wykresu i mapy (px): tytuł, podtytuł ze źródłem, przyciski,
+ * legenda, podpis i dopełnienie karty - wszystko poza samym rysunkiem.
+ *
+ * KALIBRACJA (PR2): znacznik SSR widoku widgetu (`ChartWidgetView`,
+ * `DataMapWidgetView`) z arkuszem produkcyjnym (`bun run build`,
+ * `styles-*.css`) w Chromium przy szerokościach 360, 560, 760 i 1110 px, oba
+ * motywy (wynik identyczny - geometria nie zależy od motywu): wykres domyślny
+ * 507 px = 320 rysunku + 187 ramy, mapa Europy 803-844 px, świata 504-545 px
+ * = 720 x aspekt + 183-224 ramy (węższa kolumna łamie tytuł i legendę).
+ * Wpisane liczby są zaokrąglone w górę.
+ */
+export const DATAVIZ_FRAME_PX = 190;
+/** Trzy zdania pod wykresem - każde wypełnione to linia (albo dwie w wąskiej kolumnie). */
+export const DATAVIZ_NOTE_PX = 60;
+
+// KOPIE LICZB SILNIKA WYKRESÓW, NIE IMPORTY. Ten moduł leży na ścieżce
+// startowej (`HeaderSkeleton`, `sectionStreaming`), a rollup dzieli kod po
+// MODUŁACH: import jednej stałej z `parse.ts` albo `geoAspect.ts` wciągnąłby
+// cały moduł (używany przez chunk wykresu) do chunka ładowanego przy starcie.
+// Zgodność z oryginałami pilnuje `sectionHeightEstimate.test.ts`.
+/** = `CHART_HEIGHT_DEFAULT` (`src/lib/charts/parse.ts`). */
+export const DATAVIZ_CHART_HEIGHT_DEFAULT = 320;
+/** = `initial` z `useContainerWidth` - szerokość rysunku SSR. */
+export const DATAVIZ_SSR_WIDTH_PX = 720;
+/** = `REGION_ASPECT_FALLBACK` (`src/lib/charts/geoAspect.ts`); klucz spoza listy = Europa. */
+export const DATAVIZ_REGION_ASPECT: Readonly<Record<string, number>> = {
+  europe: 825 / 960,
+  world: 427 / 960,
+  africa: 876 / 960,
+  asia: 925 / 960,
+  "north-america": 814 / 960,
+  "south-america": 1143 / 960,
+  oceania: 609 / 960,
+};
+
+function filledNotes(content: Record<string, unknown>): number {
+  return ["notesShows", "notesSurprising", "notesHidden"].filter((base) =>
+    ["pl", "en"].some((lang) => {
+      const v = content[`${base}_${lang}`];
+      return typeof v === "string" && v.trim() !== "";
+    }),
+  ).length;
+}
+
+/**
+ * Wykres: rysunek ma wysokość z ustawienia `height` (ta sama klamra co
+ * parser, 160-640 px). Mapa: rysunek SSR ma szerokość `DATAVIZ_SSR_WIDTH_PX`
+ * i wysokość z aspektu regionu - Ameryka Południowa jest portretowa i jej
+ * mapa jest ponad dwa razy wyższa niż mapa świata.
+ */
+export function estimateDataVizHeight(node: WidgetNode): number | undefined {
+  const content = (node.content ?? {}) as Record<string, unknown>;
+  const notes = filledNotes(content) * DATAVIZ_NOTE_PX;
+  if (node.type === "chart") {
+    const raw = content.height;
+    const canvas =
+      typeof raw === "number" && Number.isFinite(raw)
+        ? clamp(Math.round(raw), 160, 640)
+        : DATAVIZ_CHART_HEIGHT_DEFAULT;
+    return canvas + DATAVIZ_FRAME_PX + notes;
+  }
+  if (node.type === "data-map") {
+    const region = typeof content.region === "string" ? content.region : "";
+    const aspect = Object.hasOwn(DATAVIZ_REGION_ASPECT, region)
+      ? DATAVIZ_REGION_ASPECT[region]
+      : DATAVIZ_REGION_ASPECT.europe;
+    const canvas = Math.round(DATAVIZ_SSR_WIDTH_PX * aspect);
+    return canvas + DATAVIZ_FRAME_PX + notes;
+  }
+  return undefined;
+}
+
+/**
  * Wysokość jednego widgetu. Wysokość podana przez autora (ramka widgetu z
  * `getWidgetFrameStyle`) zawsze bije tabelę - to jedyne miejsce, w którym
  * znamy prawdę zamiast ją zgadywać.
@@ -139,7 +214,9 @@ export function estimateWidgetHeight(node: WidgetNode, device: Device = "desktop
   const frame = getWidgetFrameStyle(node, device);
   const authored = pxOf(frame.height) ?? pxOf(frame.minHeight);
   if (authored !== undefined) return authored;
-  return WIDGET_HEIGHT_ESTIMATE_PX[node.type] ?? DEFAULT_WIDGET_HEIGHT_PX;
+  return (
+    estimateDataVizHeight(node) ?? WIDGET_HEIGHT_ESTIMATE_PX[node.type] ?? DEFAULT_WIDGET_HEIGHT_PX
+  );
 }
 
 /** Kolumna układa widgety pionowo, więc wysokości się SUMUJĄ (plus odstępy). */

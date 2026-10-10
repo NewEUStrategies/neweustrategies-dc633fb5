@@ -350,16 +350,18 @@ describe("arkusz druku - wykres na papierze pokazuje DANE, nie stan wejścia", (
     expect(PRINT_BLOCK).toContain("[data-chart-table-toggle]");
   });
 
-  it("w druku łuki tarczy wracają do wariantu SOLIDNEGO, a słupki są pełne zawsze", () => {
-    // Wariant blady łuku stoi na kontraście wnętrza 1,20-1,28:1 do płyty, który
-    // na papierze znika. Słupki są pełne także na ekranie, więc nie potrzebują
+  it("łuki tarczy są PEŁNE już na ekranie - druk zdejmuje tylko wskazanie, a słupki są pełne zawsze", () => {
+    // Wycinki są pełne od PR2 (decyzja właściciela), więc druk nie ma już czego
+    // przełączać z wariantu bladego: zdejmuje wyłącznie stan wskazania, którego
+    // na papierze nie ma. Słupki są pełne także na ekranie, więc nie potrzebują
     // reguły druku - i nie mogą jej mieć, bo nadpisałaby czerwień ujemnej
     // wartości kolorem serii.
     expect(PRINT_BLOCK).toContain("fill: var(--neh-arc-token)");
     expect(PRINT_BLOCK).toContain('.neh-slice[data-active="true"]');
     expect(PRINT_BLOCK).not.toContain('.neh-bar[data-style="pale"]');
-    expect(PRINT_BLOCK).toContain(".neh-arc-label");
-    expect(PRINT_BLOCK).toContain("fill: var(--neh-arc-ink)");
+    // Liczba w łuku ma tusz dobrany do pełnego wypełnienia już na ekranie,
+    // więc druk go nie podmienia.
+    expect(PRINT_BLOCK).not.toContain("fill: var(--neh-arc-ink)");
   });
 
   it("słupek nie zmienia wypełnienia pod kursorem - nic, co niesie wartość", () => {

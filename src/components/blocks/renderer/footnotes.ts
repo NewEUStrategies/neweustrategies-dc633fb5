@@ -136,12 +136,14 @@ export function precomputeFootnotes(
           if (v !== null) out.set(`${b.id}:cell:${ri}:${ci}`, v);
         });
       });
-    } else if (b.type === "chart") {
-      // ŹRÓDŁA WYKRESU (pasmo optimum, punkty odniesienia) dostają numery
-      // z TEJ SAMEJ sekwencji co przypisy tekstu i trafiają do tej samej
-      // sekcji na dole wpisu - czytelnik ma jedną bibliografię strony, a nie
-      // osobną listę pod każdym wykresem. Numer jedzie do bloku kluczem
-      // `${id}:source:${sourceId}`.
+    } else if (b.type === "chart" || b.type === "data-map") {
+      // ŹRÓDŁA WYKRESU I MAPY DANYCH (pasmo optimum, punkty odniesienia,
+      // źródła wartości kartogramu) dostają numery z TEJ SAMEJ sekwencji co
+      // przypisy tekstu i trafiają do tej samej sekcji na dole wpisu -
+      // czytelnik ma jedną bibliografię strony, a nie osobną listę pod każdym
+      // rysunkiem. Numer jedzie do bloku kluczem `${id}:source:${sourceId}`
+      // (ten sam klucz dla obu typów: `renderChart` i `renderDataMap` czytają
+      // go jedną funkcją).
       for (const source of parseChartSources(b.data.sources)) {
         const id = fn.counter++;
         fn.notes.push({ id, html: chicagoBibliographyHtml(source, lang) });

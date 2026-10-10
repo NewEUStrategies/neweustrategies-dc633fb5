@@ -1134,9 +1134,9 @@ export const renderChart: BlockRenderer = ({ block, cls, lang, fnHtml }) => (
 );
 
 /**
- * Numery przypisów źródeł wykresu nadane przez pre-pass artykułu
- * (`precomputeFootnotes`). Pusta mapa = blok poza artykułem albo bez źródeł,
- * a wtedy wykres numeruje źródła sam.
+ * Numery przypisów źródeł wykresu i mapy danych nadane przez pre-pass
+ * artykułu (`precomputeFootnotes`). Pusta mapa = blok poza artykułem albo bez
+ * źródeł, a wtedy rysunek numeruje źródła sam.
  */
 function chartFootnotes(blockId: string, fnHtml: ReadonlyMap<string, string>): Map<string, number> {
   const prefix = `${blockId}:source:`;
@@ -1149,6 +1149,11 @@ function chartFootnotes(blockId: string, fnHtml: ReadonlyMap<string, string>): M
   return out;
 }
 
-export const renderDataMap: BlockRenderer = ({ block, cls, lang }) => (
-  <DataMapBlockView data={block.data} lang={lang} cls={cls} />
+export const renderDataMap: BlockRenderer = ({ block, cls, lang, fnHtml }) => (
+  <DataMapBlockView
+    data={block.data}
+    lang={lang}
+    cls={cls}
+    footnotes={chartFootnotes(block.id, fnHtml)}
+  />
 );

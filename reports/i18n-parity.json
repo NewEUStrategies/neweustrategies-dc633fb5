@@ -50,7 +50,10 @@
     "adminEventOffers",
     "eventFollowUp",
     "adminEventFollowUp",
-    "eventHead"
+    "eventHead",
+    "chartsMap",
+    "mapEditor",
+    "chartEditor"
   ],
   "missing": [],
   "missingEn": [],
@@ -226,6 +229,7 @@
     "builder.widgetLibrary.catMedia",
     "builder.widgetLibrary.sub.audio",
     "builder.widgetLibrary.sub.marketing",
+    "chartEditor.grid.cell",
     "club.calendar.kind.briefing",
     "club.docs.kind.brief",
     "club.docs.kind.policy_brief",
@@ -251,6 +255,6 @@
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 555
+    "untranslated": 556
   }
 }

@@ -107,6 +107,8 @@ import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
+import { sourceLine } from "./chartFacts";
+import { ACCENT_EDGE_PX, kindSinglePaint } from "./kindPaint";
 import "@/lib/i18n-charts";
 import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 
@@ -1073,6 +1075,10 @@ export function SmallMultiplesChart({
         name: t(SUMMARY_KEYS[col]),
         value: zapisKolumny(czynny.panel, col),
         colorSlot: col === "n" ? czynny.panel.colorSlot : null,
+        color:
+          col === "n"
+            ? kindSinglePaint({ palette: config.palette }, czynny.panel.colorSlot).color
+            : undefined,
         emphasised: col === "n",
       }))
     : [];
@@ -1125,6 +1131,7 @@ export function SmallMultiplesChart({
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{
           height,
@@ -1170,6 +1177,10 @@ export function SmallMultiplesChart({
           {boxes.map((box) => {
             const { panel } = box;
             const slot = panel.colorSlot;
+            // FARBA PANELU: tożsamość niesie NAGŁÓWEK panelu, nie kolor, więc
+            // pod paletą ról każdy panel jest w akcencie (jedna wielkość
+            // w wielu podmiotach); pod kategorialną - slot panelu, jak dotąd.
+            const farba = kindSinglePaint({ palette: config.palette }, slot);
             const ostatniWKolumnie = panel.position + model.grid.columns >= model.panelCount;
             const pierwszaKolumna = panel.column === 0;
             return (
@@ -1271,7 +1282,7 @@ export function SmallMultiplesChart({
                   <path
                     key={`a${i}`}
                     d={d}
-                    fill={`var(--chart-${slot}-inner)`}
+                    fill={farba.inner}
                     stroke="none"
                     className="neh-fade"
                     data-role="panel-area"
@@ -1291,7 +1302,11 @@ export function SmallMultiplesChart({
                     // wnoszą: słupki węższe niż 24 px, SMALL MULTIPLES, gęste
                     // panele". Blade wnętrze o kontraście 1,2:1 w słupku
                     // szerokości 8 px jest niewidoczne.
-                    fill={`var(--chart-${slot})`}
+                    fill={farba.color}
+                    // Drugi nośnik akcentu - obwódka 1 px, ta sama w obu
+                    // motywach.
+                    stroke={farba.accentEdge ?? undefined}
+                    strokeWidth={farba.accentEdge !== null ? ACCENT_EDGE_PX : undefined}
                     className="neh-bar"
                     data-role="panel-bar"
                     data-category={b.category}
@@ -1303,7 +1318,7 @@ export function SmallMultiplesChart({
                   <path
                     d={box.line}
                     fill="none"
-                    stroke={`var(--chart-${slot})`}
+                    stroke={farba.color}
                     strokeWidth={2}
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -1323,7 +1338,7 @@ export function SmallMultiplesChart({
                     // wypełnienie płytą znika w tle karty, więc widać sam
                     // pierścień, a on czyta się jako "tu jest pomiar".
                     fill="var(--card)"
-                    stroke={`var(--chart-${slot})`}
+                    stroke={farba.color}
                     strokeWidth={DOT_RING_PX}
                     className="neh-dot neh-fade"
                     data-role="panel-point"
@@ -1361,7 +1376,7 @@ export function SmallMultiplesChart({
                         : "end"
                     }
                     fontSize={FONT_AXIS}
-                    fill={`var(--chart-${slot}t)`}
+                    fill={farba.textColor}
                     className="neh-fade neh-value-label tabular-nums"
                     data-role="panel-value"
                   >
@@ -1529,6 +1544,7 @@ export function SmallMultiplesChart({
           containerWidth={width}
           title={czynny?.panel.label ?? ""}
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
 

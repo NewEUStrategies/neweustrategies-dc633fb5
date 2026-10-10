@@ -8,30 +8,29 @@
 // i zaniża udział. To ta sama reguła co przy podstawie słupka, tylko
 // zastosowana dwa razy.
 //
-// ROZDZIELA JE PRZERWA KĄTOWA 2,5 px, nie obrys w kolorze płyty. Obrys
-// zajmował miejsce, które należy się obwódce serii: bez przerwy obwódki dwóch
-// sąsiednich łuków stykają się i dają fałszywy trzeci kolor na granicy.
-// Przerwa niesie też granicę w skali szarości, gdzie same odcienie nie
-// wystarczają.
+// ROZDZIELA JE PRZERWA KĄTOWA 2,5 px (`ARC_GAP_PX`), w kolorze płyty, bo
+// przez przerwę widać kartę (`var(--card)`, także w eksporcie, który kładzie
+// pod rysunek tło płyty). To jest GEOMETRIA, nie obrys: ta sama w obu
+// motywach - obrys brałby grubość z tokena, który w ciemnym motywie jest
+// cieńszy (`--chart-bar-edge`), czyli przełączenie motywu przesuwałoby
+// granice wycinków. Przerwa niesie też granicę w skali szarości, gdzie same
+// odcienie nie wystarczają.
 //
-// Wypełnienie w wariancie bladym, jak słupek: blade wnętrze plus mocna
-// obwódka. Tożsamość jest tu trudniejsza niż w słupkach - w słupku każdy
-// element ma własną etykietę na osi, a w pierścieniu łuki stykają się i nie ma
-// osi, do której można je przypiąć. Obwódka 1,5 px na pierścieniu grubym 38 px
-// to około 4% powierzchni łuku, czyli za mało, żeby z odległości nieść kolor.
-// Dlatego wariant blady wymaga TRZECH rzeczy jednocześnie: wartości wpisanej
-// w łuk tam, gdzie kąt na to pozwala, TABELI KLUCZA obok pierścienia
-// i kolejności malejącej od godziny dwunastej.
+// WYPEŁNIENIE PEŁNE (decyzja właściciela, PR2), jak słupek: kolor wycinka bez
+// bladego wnętrza. Paleta ról (domyślna) maluje wycinek wyróżniony akcentem,
+// a pozostałe stopniami neutralnymi; paleta kategorialna - slotami
+// `SLOT_SEQUENCE` (patrz `pieModel`). Akcent ma na bieli 2,25:1, więc wycinek
+// w akcencie dostaje DRUGI NOŚNIK: obwódkę 1 px w `--chart-accent-audit-
+// graphic`, tej samej grubości w obu motywach.
 //
 // TABELA POD WYKRESEM, NIE LEGENDA Z PRÓBKAMI. Legenda podaje wyłącznie parę
 // kolor-nazwa, więc czytelnik musi wykonać trzy skoki wzroku (łuk, próbka,
 // nazwa) i wciąż nie dostaje liczby. Tabela stawia w jednym wierszu próbkę,
 // nazwę, udział i wartość bezwzględną, w tej samej kolejności co łuki - czyli
-// odczyt jednej kategorii jest jednym skokiem. Próbka w tabeli powtarza PARĘ
-// wnętrze plus obwódka, dokładnie tę, którą ma łuk: sam kolor obwódki nie
-// wskazywałby wycinka, bo na łuku niesie go blade wnętrze o innej jasności.
+// odczyt jednej kategorii jest jednym skokiem. Próbka w tabeli ma kolor łuku
+// i jego obwódkę.
 //
-// Interakcja: hover/focus zmienia POWIERZCHNIĘ (wypełnienie i obwódkę),
+// Interakcja: hover/focus zmienia POWIERZCHNIĘ (wypełnienie),
 // a NIGDY nie wysuwa łuku na zewnątrz - przesunięcie promieniowe zmienia
 // długość łuku przy zewnętrznej krawędzi i zawyża udział, czyli robi dokładnie
 // to, czego zabrania zasada o niezmiennym kodowaniu.
@@ -44,10 +43,67 @@ import { ARC_GAP_PX, ARC_LABEL_PAD } from "@/lib/charts/geometry";
 import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
+import { ROLE } from "@/lib/charts/roles";
 import { ChartTooltip } from "./ChartTooltip";
-import { pieModel } from "./pieModel";
+import { sourceLine } from "./chartFacts";
+import { FOCUS_MIX } from "./kindPaint";
+import { pieModel, type PieSlice } from "./pieModel";
 import { isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 import "@/lib/i18n-charts";
+
+/**
+ * Obwódka wycinka: drugi nośnik akcentu na wycinku wyróżnionym, a na
+ * pozostałych - brak. Kolor przez token, grubość przez arkusz (jedna w obu
+ * motywach).
+ *
+ * W palecie kategorialnej wycinek wyróżniony zachowuje kolor swojego slotu,
+ * więc bez obrysu wybór „Wycinek wyróżniony" nie zmieniałby rysunku wcale
+ * (o ile nic nie trafia do „Pozostałe"). Nośnikiem jest wtedy obrys tuszem
+ * głównym - niezależny od koloru i czytelny w obu motywach.
+ */
+function sliceEdge(slice: PieSlice, chosen: boolean): string {
+  if (!slice.accent) return "none";
+  if (slice.color === ROLE.acc) return ROLE.accFocus;
+  return chosen ? ROLE.ink : "none";
+}
+
+/**
+ * Wycinek wyróżniony w palecie kategorialnej - grubszy obrys z arkusza.
+ * Tylko przy JAWNYM wyborze autora (`accentCategory`): domyślny „największy
+ * wycinek" nie jest decyzją, a obrys na nim zmieniałby opublikowane tarcze.
+ */
+function sliceOutlined(slice: PieSlice, chosen: boolean): boolean {
+  return chosen && slice.accent && slice.color !== ROLE.acc;
+}
+
+/**
+ * Tusz liczby wpisanej w łuk. Paleta kategorialna: tusz SLOTU, dobrany
+ * kontrastem do nasyconego wypełnienia (>= 4,5:1). Paleta ról: stopnie
+ * neutralne idą od łupka głównego do łupka drugiego i w okolicy 70-80%
+ * rampy ani tusz płyty, ani tusz główny nie mają 4,5:1 (lepszy z nich
+ * ~4,2:1, w obu motywach), więc żaden pojedynczy tusz nie przechodzi progu na
+ * całej rampie - liczba idzie tuszem głównym z OBWÓDKĄ w kolorze płyty
+ * (`data-halo`), czyli kontrast liczy się między literą a jej obwódką, nie
+ * między literą a wycinkiem.
+ */
+function sliceInk(slice: PieSlice): { fill: string; halo: boolean } {
+  return slice.color === `var(--chart-${slice.colorSlot})`
+    ? { fill: `var(--chart-ink-${slice.colorSlot})`, halo: false }
+    : { fill: ROLE.ink, halo: true };
+}
+
+/**
+ * Kolejność malowania liczby w łuku z obwódką płyty - także ATRYBUTEM
+ * PREZENTACYJNYM, nie tylko z arkusza (tak jak w mapie cieplnej). Kolor
+ * i grubość obwódki (3 px, ta sama w obu motywach) niesie arkusz, a eksport
+ * wkleja je ze stylu obliczonego; `paint-order` w atrybucie jest asekuracją
+ * na wypadek, gdyby przeglądarka nie oddała go w stylu obliczonym - bez niego
+ * plik wraca do kolejności domyślnej (obwódka NA literze) i cyfry giną pod
+ * plamą w kolorze płyty.
+ */
+function haloProps(halo: boolean) {
+  return halo ? { "data-halo": "true", paintOrder: "stroke" } : {};
+}
 
 interface PieChartProps {
   config: ChartConfig;
@@ -121,6 +177,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
   // useMemo dla stałej tożsamości tablicy wycinków - hover renderuje przy
   // każdym ruchu wskaźnika, a config w tych renderach jest ten sam.
   const { slices, total } = useMemo(() => pieModel(config, lang), [config, lang]);
+  const wybranyWycinek = config.accentCategory !== null;
 
   if (slices.length === 0) return null;
 
@@ -170,6 +227,9 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
       <div ref={rootRef} className="flex min-w-0 flex-col items-center gap-4">
         <div
           ref={widthRef}
+          // CEL EKSPORTU ramy (`[data-chart-canvas] svg`). Bez niego przyciski
+          // PNG i SVG nad tarczą nie miały czego zapisać.
+          data-chart-canvas
           className="relative w-full min-w-0 select-none"
           style={{ height, borderRadius: "var(--chart-radius)" }}
           // group (nie img): wycinki w środku są fokusowalne - rola img
@@ -220,21 +280,22 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
                   <path
                     key={i}
                     d={slicePath(cx, cy, rOuter, rInner, s.startAngle + inset, s.endAngle - inset)}
-                    // Blade wnętrze plus mocna obwódka - ten sam wariant, co
-                    // słupek. Grubość obwódki niesie arkusz (`--chart-bar-edge`,
-                    // 1,5 px na jasnym i 1,25 px na ciemnym), bo `var()`
+                    // Wypełnienie PEŁNE w kolorze wycinka (`pieModel`). Grubość
+                    // obwódki niesie arkusz - jedna w obu motywach - bo `var()`
                     // w atrybutach prezentacyjnych SVG nie jest wspierane
                     // wszędzie.
-                    fill={`var(--chart-${s.colorSlot}-inner)`}
-                    stroke={`var(--chart-${s.colorSlot}-edge)`}
+                    fill={s.color}
+                    stroke={sliceEdge(s, wybranyWycinek)}
                     // MITER, nie round: oba końce łuku są granicami między
                     // kategoriami, a zaokrąglenie któregokolwiek przesuwa
                     // granicę i zaniża udział.
                     strokeLinejoin="miter"
                     data-active={active === i ? "true" : undefined}
+                    data-accent={s.accent ? "true" : undefined}
+                    data-accent-outline={sliceOutlined(s, wybranyWycinek) ? "true" : undefined}
                     style={{
-                      ["--neh-arc-hover" as string]: `var(--chart-${s.colorSlot}-active, var(--chart-${s.colorSlot}-hover))`,
-                      ["--neh-arc-token" as string]: `var(--chart-${s.colorSlot})`,
+                      ["--neh-arc-hover" as string]: `color-mix(in oklab, ${s.color} ${FOCUS_MIX.hover}%, var(--card))`,
+                      ["--neh-arc-token" as string]: s.color,
                     }}
                     tabIndex={0}
                     role="img"
@@ -291,29 +352,18 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
                 const rLabel = donut ? rMid : rOuter * 0.66;
                 const [lx, ly] = polar(cx, cy, rLabel, mid);
                 const dy = config.showValues ? -2 : 4;
+                // Liczba leży na PEŁNYM wypełnieniu, więc tusz idzie
+                // z wycinka (`sliceInk`), nie z tekstu strony.
+                const ink = sliceInk(s);
                 return (
-                  <g
-                    key={`t${i}`}
-                    pointerEvents="none"
-                    // TUSZ SLOTU PODANY, ale NIE UŻYTY NA EKRANIE. Na bladym
-                    // wnętrzu (1,20-1,28:1 do płyty) obowiązuje tusz
-                    // semantyczny: `--chart-ink-N` jest dobrany kontrastem do
-                    // NASYCONEGO wypełnienia i na bladym bywa bielą na jasnym.
-                    // Ale w DRUKU łuk wraca do wariantu solidnego, i wtedy ten
-                    // sam napis leży na nasyconym kolorze: tusz semantyczny ma
-                    // na granacie 2,25:1, a ink slotu 8,07:1. Arkusz przełącza
-                    // to w `@media print`, więc obie wartości muszą być
-                    // dostępne na elemencie.
-                    style={{
-                      ["--neh-arc-ink" as string]: `var(--chart-ink-${s.colorSlot})`,
-                    }}
-                  >
+                  <g key={`t${i}`} pointerEvents="none">
                     <text
                       x={lx}
                       y={ly + dy}
                       textAnchor="middle"
                       fontSize={12}
-                      fill="var(--foreground)"
+                      fill={ink.fill}
+                      {...haloProps(ink.halo)}
                       className="neh-arc-label neh-value-label tabular-nums"
                     >
                       {label}
@@ -324,7 +374,8 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
                         y={ly + 11}
                         textAnchor="middle"
                         fontSize={11}
-                        fill="var(--foreground)"
+                        fill={ink.fill}
+                        {...haloProps(ink.halo)}
                         className="neh-arc-label neh-pie-value tabular-nums"
                       >
                         {formatChartValue(s.value, lang, config.unit)}
@@ -376,16 +427,21 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
                     {
                       name: formatPercent(activeSlice.share, lang),
                       colorSlot: activeSlice.colorSlot,
+                      // Próbka w kolorze ŁUKU - pod paletą ról wycinek nie ma
+                      // koloru pod numerem slotu.
+                      color: activeSlice.color,
                       value: formatChartValue(activeSlice.value, lang, config.unit),
                     },
                   ]
                 : []
             }
+            source={sourceLine(t, config)}
           />
         </div>
 
         <PieKeyTable
           slices={slices}
+          chosen={wybranyWycinek}
           lang={lang}
           unit={config.unit}
           active={active}
@@ -424,8 +480,11 @@ function PieKeyTable({
   onActivate,
   label,
   labels,
+  chosen,
 }: {
   slices: ReturnType<typeof pieModel>["slices"];
+  /** Wycinek wyróżniony wybrany jawnie (`accentCategory`) - patrz `sliceEdge`. */
+  chosen: boolean;
   lang: ChartLang;
   unit: string;
   active: number | null;
@@ -438,7 +497,7 @@ function PieKeyTable({
       <caption className="sr-only">{label}</caption>
       {/* KOLUMNY O STAŁEJ SZEROKOŚCI, i to nie jest kwestia gustu. Wskazany
           wiersz jest oznaczony WAGĄ FONTU (tak jak wiersz serii we wspólnym
-          tooltipie), a nie tłem: tło leżałoby wprost pod bladą próbką koloru
+          tooltipie), a nie tłem: tło leżałoby wprost pod próbką koloru
           i przez kontrast jednoczesny zmieniałoby jej wygląd, czyli
           podświetlenie fałszowałoby klucz. Ale przy szerokościach liczonych
           z treści pogrubienie jednego wiersza rozpycha kolumnę i cała tabela
@@ -475,7 +534,7 @@ function PieKeyTable({
       <tbody>
         {slices.map((s, i) => (
           <tr
-            key={`${s.colorSlot}-${s.label}`}
+            key={`${s.index ?? "rest"}-${s.label}`}
             data-active={active === i ? "true" : undefined}
             onPointerEnter={() => onActivate(i)}
             onPointerLeave={(e) => {
@@ -484,15 +543,17 @@ function PieKeyTable({
           >
             <th scope="row" className="py-1 pr-3 text-left font-medium">
               <span className="flex items-center gap-1.5">
-                {/* PARA wnętrze plus obwódka, dokładnie jak na łuku. Sama
-                    obwódka nie wskazywałaby wycinka: na łuku kolor niesie
-                    blade wnętrze, a obwódka jest jego krawędzią. */}
+                {/* PRÓBKA = ŁUK: to samo pełne wypełnienie i ta sama obwódka
+                    drugiego nośnika na wycinku wyróżnionym. Ramka 1 px stoi
+                    na KAŻDEJ próbce (w kolorze wycinka, gdy obwódki nie ma),
+                    więc wymiary próbek nie zależą od wyboru akcentu. */}
                 <span
                   aria-hidden
                   className="h-2.5 w-2.5 shrink-0 rounded-[2px] border"
+                  data-accent={s.accent ? "true" : undefined}
                   style={{
-                    background: `var(--chart-${s.colorSlot}-inner)`,
-                    borderColor: `var(--chart-${s.colorSlot}-edge)`,
+                    background: s.color,
+                    borderColor: sliceEdge(s, chosen) === "none" ? s.color : sliceEdge(s, chosen),
                   }}
                 />
                 <span className="min-w-0 truncate">{s.label}</span>

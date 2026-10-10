@@ -24,6 +24,7 @@
 import { Fragment, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Table2, TriangleAlert } from "lucide-react";
+import type { KindCaps } from "@/lib/charts/kindCaps";
 import type { ChartLang } from "@/lib/charts/format";
 import type { ChartMetric } from "@/lib/charts/types";
 import type { ChartPalette } from "@/lib/charts/seriesStyle";
@@ -34,9 +35,14 @@ import {
   type Provenance,
   type Reliability,
 } from "@/lib/charts/sources";
-import { nazwaPliku, pobierzPlik, svgDoPliku, svgDoPng } from "@/lib/charts/exportImage";
+// Eksport (klonowanie rysunku, normalizacja kolorów, płótno PNG) ładuje się
+// DOPIERO po kliknięciu PNG/SVG - czytelnik, który nie eksportuje, nie płaci
+// za niego w chunku ramy. Tu zostaje wyłącznie typ wpisu klucza.
+import type { WpisKlucza } from "@/lib/charts/exportImage";
+import { cn } from "@/lib/utils";
 import { MetricTooltip } from "./MetricTooltip";
 import { ChartDialog } from "./ChartDialog";
+import { READ_GENERIC_KEYS, READ_HELP_KEYS } from "./readHelp";
 import "@/lib/i18n-charts";
 
 export interface LegendItem {
@@ -71,9 +77,44 @@ export interface ChartCaption {
   caption?: string;
 }
 
+/**
+ * Rodzina rysunku - rozstrzyga o tekstach „Jak czytać". Rodziny wykresów idą
+ * wprost z `KindCaps["family"]` (`src/lib/charts/kindCaps.ts`), plus `map`
+ * dla kartogramu, który nie jest rodzajem wykresu.
+ */
+export type ChartFamily = KindCaps["family"] | "map";
+
+/** Wpis klucza dołączanego do eksportu (PNG i SVG) - nazwa i kolor próbki. */
+export interface ChartExportKeyItem {
+  label: string;
+  /** Kolor próbki; wyrażenie CSS z tokenami jest rozwiązywane przed rysowaniem. */
+  color: string;
+  /**
+   * Kreskowanie próbki (linie `color` co `spacingPx`, grubość `linePx`) na tle
+   * koloru próbki - pozycja „brak danych" kartogramu ma w pliku ten sam wzór
+   * co na mapie, a nie płaski kolor udający klasę.
+   */
+  hatch?: { color: string; spacingPx: number; linePx: number };
+}
+
 /** Fakty o wykresie, z których rama składa podtytuł, przypisy i „Jak czytać". */
 export interface ChartPanelMeta {
-  palette: ChartPalette;
+  /** Paleta rysunku; brak = rysunek bez wyboru palety (np. kartogram). */
+  palette?: ChartPalette;
+  /** Rodzina rysunku dla tekstów „Jak czytać"; brak = teksty ogólne. */
+  family?: ChartFamily;
+  /**
+   * Teksty „Jak czytać" GOTOWE (już przetłumaczone) - nadpisują zdania
+   * słownika `charts.read.*` w oknie pomocy. Kartogram podaje tu własne
+   * zdania (`chartsMap.*`), bo nie ma osi ani serii.
+   */
+  help?: { elements: string; colours: string; interactions: string };
+  /**
+   * Klucz do eksportu (PNG i SVG) podany przez rysunek. Brak = klucz zebrany
+   * z legendy ramy (`.neh-legend`). Rysunek bez legendy serii (mapa, tarcza
+   * z kluczem w tabeli) podaje go tutaj, żeby plik nie był bezimienny.
+   */
+  exportKey?: () => ChartExportKeyItem[];
   demo: boolean;
   provenance: Provenance | null;
   sources: readonly ChartSource[];
@@ -111,6 +152,13 @@ interface ChartFrameProps {
    * bo osadzenie (karta pulpitu) ma własny nagłówek i własny eksport.
    */
   variant?: "panel" | "embedded";
+  /**
+   * `false` - nagłówek bez przycisków PNG/SVG i „Jak czytać" bez akapitu
+   * o eksporcie: rama nie ma rysunku do zapisania (pusty zestaw mapy),
+   * a przycisk, który zawsze kończy się komunikatem o błędzie, wygląda na
+   * zepsutą stronę. Domyślnie `true`.
+   */
+  exportable?: boolean;
   /** Okna dorzucane przez rysunek (definicja klikniętego punktu). */
   dialogs?: ReactNode;
 }
@@ -144,6 +192,40 @@ function swatchStyle(item: LegendItem): CSSProperties {
   return { background: item.color };
 }
 
+/**
+ * Klucz eksportu podany przez rysunek, z kolorami ROZWIĄZANYMI w ramie.
+ * Płótno PNG nie zna `var(--chart-*)` ani `color-mix()`, więc kolor próbki
+ * przechodzi przez styl obliczony elementu-sondy wewnątrz figury (tam, gdzie
+ * obowiązują tokeny motywu), a napis bierze kolor tekstu figury.
+ */
+function kluczRysunku(figure: HTMLElement, items: readonly ChartExportKeyItem[]): WpisKlucza[] {
+  const sonda = document.createElement("span");
+  sonda.hidden = true;
+  figure.appendChild(sonda);
+  try {
+    const textColor = getComputedStyle(figure).color;
+    const rozwiaz = (kolor: string): string => {
+      sonda.style.color = "";
+      sonda.style.color = kolor;
+      return getComputedStyle(sonda).color || kolor;
+    };
+    return items.map((item) => {
+      const color = rozwiaz(item.color);
+      const wpis: WpisKlucza = { label: item.label, color, textColor: textColor || color };
+      if (item.hatch) {
+        wpis.kreskowanie = {
+          linia: rozwiaz(item.hatch.color),
+          odstep: item.hatch.spacingPx,
+          grubosc: item.hatch.linePx,
+        };
+      }
+      return wpis;
+    });
+  } finally {
+    sonda.remove();
+  }
+}
+
 export function ChartFrame({
   title,
   description,
@@ -161,6 +243,7 @@ export function ChartFrame({
   meta,
   renderExpanded,
   variant = "panel",
+  exportable = true,
   dialogs,
 }: ChartFrameProps) {
   const [tableOpen, setTableOpen] = useState(false);
@@ -180,6 +263,7 @@ export function ChartFrame({
   const tableId = useId();
   const titleId = useId();
   const panel = variant === "panel";
+  const readKeys = meta?.family !== undefined ? READ_HELP_KEYS[meta.family] : READ_GENERIC_KEYS;
   // Legenda przy jednej serii to szum - tytuł nazywa jedyny kolor.
   const legendVisible = showLegend && legend.length >= 2 && !legendSuppressed;
   const legendPosition = legend.length > 4 ? "bottom" : "top";
@@ -222,39 +306,61 @@ export function ChartFrame({
     [t("notes.hidden"), caption.notesHidden],
   ].filter((row): row is [string, string] => Boolean(row[1]));
 
-  /** Eksport rysunku z kontenera - tło płyty OBECNEGO motywu, font strony. */
+  /**
+   * Eksport rysunku z kontenera - tło płyty OBECNEGO motywu, font strony.
+   *
+   * CEL EKSPORTU: `<svg>` w elemencie oznaczonym `data-chart-canvas`; klasa
+   * `.neh-canvas` zostaje aliasem dla rysunków sprzed tego znacznika. Brak
+   * rysunku to BŁĄD WIDOCZNY dla czytelnika, nie ciche nic: przycisk, który
+   * po kliknięciu nie robi niczego, wygląda na zepsutą stronę.
+   */
   const exportFrom = async (container: HTMLElement | null, type: "png" | "svg"): Promise<void> => {
-    const svg = container?.querySelector<SVGSVGElement>(".neh-canvas svg") ?? null;
+    const svg =
+      container?.querySelector<SVGSVGElement>("[data-chart-canvas] svg") ??
+      container?.querySelector<SVGSVGElement>(".neh-canvas svg") ??
+      null;
     const figure = figureRef.current;
-    if (svg === null || figure === null) return;
+    if (svg === null || figure === null) {
+      setExportError(true);
+      return;
+    }
     setExportError(false);
     try {
+      // Nieudane doładowanie chunka eksportu kończy się tym samym widocznym
+      // błędem co nieudany zapis (`catch` niżej), a nie cichym niczym.
+      const { nazwaPliku, pobierzPlik, svgDoPliku, svgDoPng } =
+        await import("@/lib/charts/exportImage");
       const styl = getComputedStyle(figure);
       const background =
         styl.getPropertyValue("--card").trim() || styl.backgroundColor || "#ffffff";
       const fontFamily = getComputedStyle(svg).fontFamily || styl.fontFamily;
       const name = nazwaPliku(title, lang === "en" ? "chart" : "wykres");
+      // KLUCZ DOKLEJONY DO PLIKU (PNG i SVG) - podany przez rysunek albo
+      // z próbek legendy, które czytelnik widzi (pozycje ukryte pomijamy, bo
+      // nie ma ich na rysunku). SVG dostaje ten sam klucz co PNG: tarcza pod
+      // paletą ról ma stopnie szarości, których bez klucza nie da się nazwać.
+      const exportKey = meta?.exportKey;
+      const klucz = exportKey
+        ? kluczRysunku(figure, exportKey())
+        : [...figure.querySelectorAll(".neh-legend > li")].flatMap((li) => {
+            if (li.querySelector('[aria-pressed="false"]')) return [];
+            const probka = li.querySelector(".neh-legend-swatch");
+            const nazwa = probka?.nextElementSibling ?? null;
+            if (probka === null || nazwa === null) return [];
+            const tekst = getComputedStyle(nazwa).color;
+            const tlo = getComputedStyle(probka).backgroundColor;
+            return [
+              {
+                label: nazwa.textContent ?? "",
+                color: tlo === "" || tlo === "rgba(0, 0, 0, 0)" ? tekst : tlo,
+                textColor: tekst,
+              },
+            ];
+          });
       if (type === "svg") {
-        pobierzPlik(`${name}.svg`, svgDoPliku(svg, { background, fontFamily }));
+        pobierzPlik(`${name}.svg`, svgDoPliku(svg, { background, fontFamily, klucz }));
         return;
       }
-      // KLUCZ DOKLEJONY DO PNG - z próbek legendy, które czytelnik widzi
-      // (pozycje ukryte pomijamy, bo nie ma ich na rysunku).
-      const klucz = [...figure.querySelectorAll(".neh-legend > li")].flatMap((li) => {
-        if (li.querySelector('[aria-pressed="false"]')) return [];
-        const probka = li.querySelector(".neh-legend-swatch");
-        const nazwa = probka?.nextElementSibling ?? null;
-        if (probka === null || nazwa === null) return [];
-        const tekst = getComputedStyle(nazwa).color;
-        const tlo = getComputedStyle(probka).backgroundColor;
-        return [
-          {
-            label: nazwa.textContent ?? "",
-            color: tlo === "" || tlo === "rgba(0, 0, 0, 0)" ? tekst : tlo,
-            textColor: tekst,
-          },
-        ];
-      });
       pobierzPlik(`${name}.png`, await svgDoPng(svg, { background, scale: 2, klucz }));
     } catch {
       setExportError(true);
@@ -353,13 +459,15 @@ export function ChartFrame({
     <figure
       ref={figureRef}
       aria-labelledby={title ? titleId : undefined}
-      className={[
-        "neh-chart not-prose",
-        panel ? "my-6 border bg-card p-4" : "my-0",
-        className ?? "",
-      ]
-        .filter(Boolean)
-        .join(" ")}
+      // `cn` (tailwind-merge), nie sklejanie: klasa wołającego WYGRYWA z domyślną
+      // - podgląd w edytorze podaje `my-0` i bez scalenia dostawał oba marginesy,
+      // a o wyniku decydowała kolejność reguł w arkuszu, nie intencja.
+      className={cn("neh-chart not-prose", panel ? "my-6 border bg-card p-4" : "my-0", className)}
+      // TYPOGRAFIA „THEME DESIGN" WIDGETU BUILDERA NIE SIĘGA DO WYKRESU.
+      // Szablon (`styles.css`) i generator (`typographyCss.ts`) omijają
+      // element oznaczony i WSZYSTKICH jego potomków - legenda, podtytuł,
+      // tabela, okna i dymek mają w widgecie ten sam krój i rozmiar co w bloku.
+      data-typography-exempt=""
       style={
         panel
           ? { borderColor: "var(--chart-grid)", borderRadius: "var(--chart-radius)" }
@@ -428,24 +536,28 @@ export function ChartFrame({
                   <span aria-hidden>⤢</span>
                 </button>
               )}
-              <button
-                type="button"
-                className="neh-btn"
-                aria-label={t("panel.exportPng")}
-                title={t("panel.exportPng")}
-                onClick={() => void exportFrom(plotRef.current, "png")}
-              >
-                {t("panel.png")}
-              </button>
-              <button
-                type="button"
-                className="neh-btn"
-                aria-label={t("panel.exportSvg")}
-                title={t("panel.exportSvg")}
-                onClick={() => void exportFrom(plotRef.current, "svg")}
-              >
-                {t("panel.svg")}
-              </button>
+              {exportable && (
+                <>
+                  <button
+                    type="button"
+                    className="neh-btn"
+                    aria-label={t("panel.exportPng")}
+                    title={t("panel.exportPng")}
+                    onClick={() => void exportFrom(plotRef.current, "png")}
+                  >
+                    {t("panel.png")}
+                  </button>
+                  <button
+                    type="button"
+                    className="neh-btn"
+                    aria-label={t("panel.exportSvg")}
+                    title={t("panel.exportSvg")}
+                    onClick={() => void exportFrom(plotRef.current, "svg")}
+                  >
+                    {t("panel.svg")}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </figcaption>
@@ -519,11 +631,17 @@ export function ChartFrame({
           title={t("panel.howToRead")}
           closeLabel={t("panel.close")}
         >
+          {/* `meta.help` - zdania GOTOWE od rysunku (np. kartogram) - mają
+              pierwszeństwo przed zdaniami słownika dla rodziny rysunku
+              (`READ_HELP_KEYS`), a te przed zdaniami ogólnymi. */}
           <h3>{t("read.elements")}</h3>
-          <p>{t("read.elementsText")}</p>
+          <p>{meta?.help?.elements ?? t(readKeys.elements)}</p>
           <h3>{t("read.colors")}</h3>
           <p>
-            {meta?.palette === "categorical" ? t("read.colorsCategorical") : t("read.colorsFocus")}
+            {meta?.help?.colours ??
+              t(
+                meta?.palette === "categorical" ? readKeys.colorsCategorical : readKeys.colorsFocus,
+              )}
           </p>
           {(meta?.hasBand || meta?.hasTarget) && (
             <>
@@ -532,10 +650,14 @@ export function ChartFrame({
             </>
           )}
           <h3>{t("read.interactions")}</h3>
-          <p>{t("read.interactionsText")}</p>
+          <p>{meta?.help?.interactions ?? t(readKeys.interactions)}</p>
           {meta?.zoomable && <p>{t("read.zoomText")}</p>}
-          <h3>{t("read.export")}</h3>
-          <p>{t("read.exportText")}</p>
+          {exportable && (
+            <>
+              <h3>{t("read.export")}</h3>
+              <p>{t("read.exportText")}</p>
+            </>
+          )}
           <h3>{t("read.sources")}</h3>
           {sourceList}
         </ChartDialog>

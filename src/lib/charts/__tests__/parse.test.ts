@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { MAX_SERIES } from "@/lib/charts/types";
+import type { Json } from "@/lib/blocks/types";
+import {
+  MAP_CLASSES_MAX,
+  MAP_CLASSES_MIN,
+  MAP_METHODS,
+  MAP_SCHEMES,
+  MAX_SERIES,
+} from "@/lib/charts/types";
 import {
   CHART_HEIGHT_MAX,
   CHART_HEIGHT_MIN,
+  defaultChartConfig,
+  defaultDataMapConfig,
   parseChartConfig,
   parseDataMapConfig,
+  parseMapClasses,
   parseMapValues,
 } from "../parse";
 
@@ -73,6 +83,139 @@ describe("parseMapValues / parseDataMapConfig", () => {
     expect(parseDataMapConfig({}).region).toBe("europe");
     expect(parseDataMapConfig({ region: "world" }).region).toBe("world");
     expect(parseDataMapConfig({ region: "mars" }).region).toBe("europe");
+  });
+});
+
+describe("parseChartConfig - seria i kategoria wyróżniona", () => {
+  const base = {
+    categories: ["a", "b", "c"],
+    series: [
+      { name: "A", values: [1, 2, 3] },
+      { name: "B", values: [3, 2, 1] },
+      { name: "C", values: [2, 2, 2] },
+    ],
+  };
+
+  it("brak klucza = pierwsza seria i wycinek największy - wygląd sprzed pola", () => {
+    const cfg = parseChartConfig(base);
+    expect(cfg.accentSeries).toBe(0);
+    expect(cfg.accentCategory).toBeNull();
+    expect(defaultChartConfig().accentSeries).toBe(0);
+    expect(defaultChartConfig().accentCategory).toBeNull();
+  });
+
+  it("indeks w zakresie przechodzi, także jako napis i liczba niecałkowita", () => {
+    expect(parseChartConfig({ ...base, accentSeries: 2 }).accentSeries).toBe(2);
+    expect(parseChartConfig({ ...base, accentSeries: "1" }).accentSeries).toBe(1);
+    expect(parseChartConfig({ ...base, accentSeries: 1.4 }).accentSeries).toBe(1);
+    expect(parseChartConfig({ ...base, accentCategory: 2 }).accentCategory).toBe(2);
+    expect(parseChartConfig({ ...base, accentCategory: "0" }).accentCategory).toBe(0);
+  });
+
+  it("seria spoza listy wraca do ZERA, nie do ostatniej serii", () => {
+    // Autor usunął kolumnę, na którą wskazywał akcent - akcent nie może
+    // przeskoczyć na serię przypadkową.
+    for (const raw of [3, 99, -1, "x", null, Number.NaN]) {
+      expect(parseChartConfig({ ...base, accentSeries: raw }).accentSeries, String(raw)).toBe(0);
+    }
+    expect(parseChartConfig({ categories: [], series: [], accentSeries: 0 }).accentSeries).toBe(0);
+  });
+
+  it("kategoria spoza listy i pusty napis dają null, a nie pierwszą kategorię", () => {
+    for (const raw of [3, -1, "", "x", null]) {
+      expect(
+        parseChartConfig({ ...base, accentCategory: raw }).accentCategory,
+        String(raw),
+      ).toBeNull();
+    }
+  });
+});
+
+describe("parseDataMapConfig - schemat, klasy i podpis", () => {
+  it("brak kluczy = skala ciągła na rampie blue - opublikowane mapy bez zmian", () => {
+    const cfg = parseDataMapConfig({});
+    expect(cfg.scheme).toBe("blue");
+    expect(cfg.classes).toBe(0);
+    expect(cfg.method).toBe("quantile");
+    expect(cfg.midpoint).toBeNull();
+    expect(cfg.provenance).toBeNull();
+    expect(cfg.demo).toBe(false);
+    expect(cfg.sources).toEqual([]);
+    expect(cfg.caption).toBe("");
+    expect(cfg.sourceDate).toBe("");
+    expect(cfg.sampleSize).toBeNull();
+    expect(cfg.notesShows).toBe("");
+    expect(cfg.notesSurprising).toBe("");
+    expect(cfg.notesHidden).toBe("");
+    expect(defaultDataMapConfig()).toEqual(cfg);
+  });
+
+  it("każdy schemat i każda metoda z listy przechodzi, nieznany zapis wraca do domyślnego", () => {
+    for (const scheme of MAP_SCHEMES) expect(parseDataMapConfig({ scheme }).scheme).toBe(scheme);
+    for (const method of MAP_METHODS) expect(parseDataMapConfig({ method }).method).toBe(method);
+    expect(parseDataMapConfig({ scheme: "amber" }).scheme).toBe("blue");
+    expect(parseDataMapConfig({ scheme: 3 }).scheme).toBe("blue");
+    expect(parseDataMapConfig({ method: "jenks" }).method).toBe("quantile");
+  });
+
+  it("klasy: 0 albo 3..7 - liczba dodatnia jest dociskana, zero i ujemna to skala ciągła", () => {
+    const cases: Array<[Json, number]> = [
+      [0, 0],
+      [-4, 0],
+      ["", 0],
+      ["abc", 0],
+      [null, 0],
+      [1, MAP_CLASSES_MIN],
+      [2, MAP_CLASSES_MIN],
+      [3, 3],
+      [5, 5],
+      ["4", 4],
+      [4.6, 5],
+      [7, MAP_CLASSES_MAX],
+      [12, MAP_CLASSES_MAX],
+    ];
+    for (const [raw, expected] of cases) {
+      expect(parseDataMapConfig({ classes: raw }).classes, JSON.stringify(raw)).toBe(expected);
+      expect(parseMapClasses(raw)).toBe(expected);
+    }
+  });
+
+  it("punkt środkowy, pochodzenie, demo, źródła i podpis", () => {
+    const cfg = parseDataMapConfig({
+      midpoint: "1,5",
+      provenance: "E",
+      demo: true,
+      sources: [{ title: "Eurostat" }, { title: "" }],
+      caption: "Podpis",
+      sourceDate: "2026-01",
+      sampleSize: "27",
+      notesShows: "a",
+      notesSurprising: "b",
+      notesHidden: "c",
+    });
+    expect(cfg.midpoint).toBe(1.5);
+    expect(cfg.provenance).toBe("E");
+    expect(cfg.demo).toBe(true);
+    expect(cfg.sources.map((s) => s.title)).toEqual(["Eurostat"]);
+    expect(cfg.caption).toBe("Podpis");
+    expect(cfg.sourceDate).toBe("2026-01");
+    expect(cfg.sampleSize).toBe(27);
+    expect([cfg.notesShows, cfg.notesSurprising, cfg.notesHidden]).toEqual(["a", "b", "c"]);
+  });
+
+  it("zapis z bazy w złym typie degraduje do domyślnych, a nie rzuca", () => {
+    const cfg = parseDataMapConfig({
+      midpoint: "x",
+      provenance: "Z",
+      demo: "on",
+      sources: "Eurostat",
+      sampleSize: 0,
+    });
+    expect(cfg.midpoint).toBeNull();
+    expect(cfg.provenance).toBeNull();
+    expect(cfg.demo).toBe(false);
+    expect(cfg.sources).toEqual([]);
+    expect(cfg.sampleSize).toBeNull();
   });
 });
 

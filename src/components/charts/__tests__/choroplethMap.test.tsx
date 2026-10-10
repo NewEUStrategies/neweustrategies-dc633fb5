@@ -24,9 +24,13 @@
 //     dostawała najmniej widoczny kolor.
 //
 // Do tego pilnujemy porządku malowania (kraje bez danych PRZED krajami z
-// danymi, żeby obrys aktywnego nie chował się pod sąsiadem), fokusowalności
-// wyłącznie krajów Z DANYMI, obu języków na każdym napisie i izolacji między
-// przestrzeniami roboczymi.
+// danymi), fokusowalności wyłącznie krajów Z DANYMI, obu języków na każdym
+// napisie i izolacji między przestrzeniami roboczymi.
+//
+// Reguły dołożone w PR2 (klasy, schematy, kreskowanie „brak danych", obrys
+// dwutonowy, dotyk, meta panelu, eksport) mają własne pliki:
+// `choroplethMapSpec.test.tsx`, `mapLegend.test.tsx`,
+// `mapPublishedLook.test.tsx` i bramkę `mapOutlineContrast.test.ts`.
 //
 // SKĄD BIORĘ LICZBY. `useContainerWidth` czyta `clientWidth`, w happy-dom
 // zerowe, więc szerokość zostaje na starcie 720 px. Wysokość liczy aspekt
@@ -181,22 +185,30 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("ChoroplethMap - pusty zestaw", () => {
-  it("mapa BEZ danych daje notę, a nie pustą kartę z legendą", async () => {
+  // Pusty zestaw ZOSTAJE PANELEM (rama, tytuł, źródło), a w miejscu rysunku
+  // stoi komunikat - goła notka zmieniała wysokość widgetu i gubiła tytuł.
+  // Legendy i rysunku nie ma, bo nie ma czego kodować.
+  const komunikat = (root: HTMLElement): string =>
+    root.querySelector(".neh-map-empty [role='status']")?.textContent ?? "";
+
+  it("mapa BEZ danych zostaje panelem z komunikatem, bez rysunku i legendy", async () => {
     const { container } = await mapa(
       { region: "europe", title: "Pusta", values: [] },
       { awaitSvg: false },
     );
     expect(container.querySelector("svg.block")).toBeNull();
-    expect(container.querySelector("figure")).toBeNull();
-    expect(container.textContent).toBe("Brak danych mapy.");
+    expect(container.querySelector("figure")).not.toBeNull();
+    expect(container.querySelector("figcaption")?.textContent).toContain("Pusta");
+    expect(komunikat(container)).toBe("Brak danych mapy.");
+    expect(container.querySelector(".neh-map-legend")).toBeNull();
   });
 
-  it("nota o braku danych jest przetłumaczona", async () => {
+  it("komunikat o braku danych jest przetłumaczony", async () => {
     const { container } = await mapa(
       { region: "europe", values: [] },
       { lang: "en", awaitSvg: false },
     );
-    expect(container.textContent).toBe("No map data.");
+    expect(komunikat(container)).toBe("No map data.");
   });
 
   it("wpisy z nieprawidłowym kodem kraju są odsiewane przy parsowaniu", async () => {
@@ -212,7 +224,7 @@ describe("ChoroplethMap - pusty zestaw", () => {
       },
       { awaitSvg: false },
     );
-    expect(container.textContent).toBe("Brak danych mapy.");
+    expect(komunikat(container)).toBe("Brak danych mapy.");
   });
 });
 
@@ -384,9 +396,11 @@ describe("ChoroplethMap - ramp sekwencyjny", () => {
     expect(napisy).toEqual(["42 mld"]);
   });
 
-  it("region spoza geometrii wpływa na domenę rampy, ale nie znika z tabeli", async () => {
+  it("region spoza geometrii NIE wpływa na domenę rampy, ale nie znika z tabeli", async () => {
     // Zasób nie ma kształtu dla "XX" (np. nowszy słownik danych niż mapa),
     // więc na obrazku go nie ma - ale to wciąż dana i musi być w tabeli.
+    // Domena idzie z krajów NARYSOWANYCH (PR2): niewidoczna wartość nie
+    // rozciąga skali, a pod mapą stoi nota z jej kodem.
     const { container } = await mapa({
       region: "europe",
       values: [
@@ -407,7 +421,9 @@ describe("ChoroplethMap - ramp sekwencyjny", () => {
 describe("ChoroplethMap - kraje bez danych", () => {
   it("tło mapy NIE jest fokusowalne i nie udaje danych", async () => {
     // Kraj bez danych w porządku tabulacji byłby pustym przystankiem, a dla
-    // czytnika obietnicą treści, której nie ma.
+    // czytnika obietnicą treści, której nie ma. Nazwę i „brak danych" mówi
+    // tooltip (PR2) - natywny `<title>` zniknął, bo przeglądarka pokazywała
+    // go drugim dymkiem obok naszego.
     const { container } = await mapa(EUROPA);
     expect(countryPaths(container)).toHaveLength(4);
     const tlo = bgPaths(container);
@@ -415,13 +431,14 @@ describe("ChoroplethMap - kraje bez danych", () => {
     for (const p of tlo) {
       expect(p.hasAttribute("role")).toBe(false);
       expect(p.hasAttribute("aria-label")).toBe(false);
-      expect(p.querySelector("title")?.textContent).toMatch(/po polsku$/);
+      expect(p.querySelector("title")).toBeNull();
     }
   });
 
-  it("nazwa tła idzie w języku strony", async () => {
+  it("nazwa tła idzie w języku strony (tooltip „no data”)", async () => {
     const { container } = await mapa(EUROPA, { lang: "en" });
-    expect(bgPaths(container)[0].querySelector("title")?.textContent).toBe("FR in English");
+    fireEvent.pointerMove(bgPaths(container)[0], { clientX: 10, clientY: 10 });
+    expect(tip(container)?.textContent).toBe("FR in EnglishValueno data");
   });
 
   it("tło maluje się PRZED krajami z danymi - obrys aktywnego nie chowa się pod sąsiadem", async () => {
@@ -430,24 +447,36 @@ describe("ChoroplethMap - kraje bez danych", () => {
     expect(kolejnosc).toEqual([false, false, true, true]);
   });
 
-  it("tło bierze --secondary, bo --muted w ciemnym motywie JEST kolorem karty", async () => {
-    // Powód wyboru tokenu jest w komentarzu komponentu - tu jest jego dowód
-    // z `src/styles.css`: w bloku `.dark` --muted == --card, więc kraje bez
-    // danych zniknęłyby całkowicie. Fill jedzie w `style`, nie w atrybucie,
-    // bo var() w atrybutach prezentacyjnych SVG nie jest wspierany wszędzie.
+  it("tło jest KRESKOWANE wzorem na tokenach --chart-map-nodata*, nie płaskim kolorem", async () => {
+    // PR2: kolor „brak danych" stoi blisko płyty (w ciemnym motywie
+    // --chart-map-nodata to 1,07:1 do karty), więc różnicę niesie
+    // KRESKOWANIE - wzór SVG, którego tło i linie idą z tokenów obu motywów.
+    // Tokeny muszą istnieć w obu blokach arkusza, a linie nie mogą mieć
+    // koloru karty.
     const css = ["src/styles.css", "src/components/charts/charts.css"]
       .map((path) => readFileSync(path, "utf8"))
       .join("\n");
+    const light = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
     const dark = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
-    const token = (name: string): string =>
-      dark.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim() ?? "";
-    expect(token("--muted")).toBe(token("--card"));
-    expect(token("--secondary")).not.toBe(token("--card"));
+    const token = (block: string, name: string): string =>
+      block.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim() ?? "";
+    for (const block of [light, dark]) {
+      expect(token(block, "--chart-map-nodata")).toMatch(/^#[0-9a-f]{6}$/);
+      expect(token(block, "--chart-map-nodata-hatch")).toMatch(/^#[0-9a-f]{6}$/);
+      expect(token(block, "--chart-map-nodata-hatch")).not.toBe(token(block, "--card"));
+    }
 
     const { container } = await mapa(EUROPA);
     const [tlo] = bgPaths(container);
-    expect(tlo.getAttribute("style")).toBe("fill: var(--secondary);");
-    expect(tlo.getAttribute("fill")).toBeNull();
+    const ref = /^url\(#([\w-]+)\)$/.exec(tlo.getAttribute("fill") ?? "");
+    expect(ref).not.toBeNull();
+    const wzor = container.querySelector(`pattern#${ref?.[1] ?? "brak"}`);
+    expect(wzor).not.toBeNull();
+    const style = [...(wzor?.querySelectorAll("rect") ?? [])].map((r) => r.getAttribute("style"));
+    expect(style).toEqual([
+      "fill: var(--chart-map-nodata);",
+      "fill: var(--chart-map-nodata-hatch);",
+    ]);
     expect(tlo.getAttribute("fill-rule")).toBe("evenodd");
   });
 });
@@ -513,7 +542,7 @@ describe("ChoroplethMap - tabela jako równorzędna droga do danych", () => {
     h.geo = ASSET_BEZ_NAZW;
     const { container } = await mapa(EUROPA, { lang: "en" });
     fireEvent.pointerMove(dataPaths(container)[0], { clientX: 40, clientY: 40 });
-    expect(tip(container)?.textContent).toBe("PolskaValue10");
+    expect(tip(container)?.textContent).toBe("PolskaValue10Rank2 of 2");
   });
 
   it("ETYKIETA ARIA kraju ma ten sam fallback nazwy co tabela - żaden region nie zostaje bez nazwy", async () => {
@@ -566,11 +595,13 @@ describe("ChoroplethMap - tabela jako równorzędna droga do danych", () => {
 });
 
 describe("ChoroplethMap - tooltip", () => {
-  it("wskazanie kraju pokazuje nazwę, jednostkę i wartość", async () => {
+  it("wskazanie kraju pokazuje nazwę, wartość z jednostką i pozycję", async () => {
+    // Wiersz nazywa się „Wartość" także przy jednostce: dawniej nazwą była
+    // sama jednostka i dymek czytał się „mld EUR / 10 mld EUR".
     const { container } = await mapa({ ...EUROPA, unit: " mld EUR" });
     expect(tip(container)).toBeNull();
     fireEvent.pointerMove(dataPaths(container)[0], { clientX: 120, clientY: 60 });
-    expect(tip(container)?.textContent).toBe("PL po polskumld EUR10 mld EUR");
+    expect(tip(container)?.textContent).toBe("PL po polskuWartość10 mld EURPozycja2. z 2");
     // Wizualny duplikat - dla czytnika schowany, dane niesie aria-label i tabela.
     expect(tip(container)?.getAttribute("aria-hidden")).toBe("true");
     expect(tip(container)?.getAttribute("style")).toContain("translate3d(120px, 60px, 0)");
@@ -579,12 +610,12 @@ describe("ChoroplethMap - tooltip", () => {
   it("bez jednostki wiersz tooltipa dostaje etykietę 'Wartość' / 'Value'", async () => {
     const pl = await mapa(EUROPA);
     fireEvent.pointerMove(dataPaths(pl.container)[0], { clientX: 10, clientY: 10 });
-    expect(tip(pl.container)?.textContent).toBe("PL po polskuWartość10");
+    expect(tip(pl.container)?.textContent).toBe("PL po polskuWartość10Pozycja2. z 2");
     pl.unmount();
 
     const en = await mapa(EUROPA, { lang: "en" });
     fireEvent.pointerMove(dataPaths(en.container)[0], { clientX: 10, clientY: 10 });
-    expect(tip(en.container)?.textContent).toBe("PL in EnglishValue10");
+    expect(tip(en.container)?.textContent).toBe("PL in EnglishValue10Rank2 of 2");
   });
 
   it("tooltip przy prawej krawędzi odbija się w lewo zamiast wyjeżdżać z karty", async () => {
@@ -642,7 +673,7 @@ describe("ChoroplethMap - tooltip", () => {
     // Geometria podstawiona ręcznie - patrz nagłówek pliku. Skala = 720/960.
     stubGeometry(pl, { x: 100, y: 200, width: 60, height: 40 });
     fireEvent.focus(pl);
-    expect(tip(container)?.textContent).toBe("PL po polsku%10 %");
+    expect(tip(container)?.textContent).toBe("PL po polskuWartość10 %Pozycja2. z 2");
     // (100 + 30) * 0,75 = 97,5 -> 98; (200 + 20) * 0,75 = 165.
     expect(tip(container)?.getAttribute("style")).toContain("translate3d(98px, 165px, 0)");
     fireEvent.blur(pl);
@@ -683,7 +714,11 @@ describe("ChoroplethMap - legenda sekwencyjna", () => {
     expect(gradient?.textContent).toBe("");
   });
 
-  it("granice legendy są liczone Z DANYCH, nie z krajów widocznych na mapie", async () => {
+  it("granice legendy są liczone z krajów NARYSOWANYCH, a kod spoza mapy nazywa nota", async () => {
+    // PR2 (kontrakt W4): domena z identyfikatorów obecnych w zasobie. Wartość
+    // "XX" nie ma kształtu, więc nie może rozciągać skali o liczbę, której
+    // czytelnik nigdzie na rysunku nie zobaczy - zostaje w tabeli, a nota
+    // pod mapą mówi, który kod wypadł.
     const { container } = await mapa({
       region: "europe",
       values: [
@@ -696,7 +731,10 @@ describe("ChoroplethMap - legenda sekwencyjna", () => {
       [...(legendBox(container)?.querySelectorAll("span.tabular-nums") ?? [])].map(
         (s) => s.textContent,
       ),
-    ).toEqual(["3", "90"]);
+    ).toEqual(["10", "90"]);
+    expect(container.querySelector("[data-note='outside']")?.textContent).toBe(
+      "Poza mapą tego regionu (tylko w tabeli): XX",
+    );
   });
 
   it("granice legendy są formatowane per język", async () => {

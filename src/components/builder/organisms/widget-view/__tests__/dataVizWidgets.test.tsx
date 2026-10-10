@@ -85,6 +85,33 @@ describe("ChartWidgetView", () => {
       unmount();
     }
   });
+
+  it("seria wyróżniona z treści widgetu dostaje akcent - pozostałe zachowują kolejność ról", () => {
+    // Ta sama droga co blok CMS: `accentSeries` przechodzi przez parser
+    // i rysownik maluje po RANDZE, nie po pozycji w arkuszu.
+    const linia = { ...content, kind: "line", accentSeries: 1 };
+    const { container } = withClient(<ChartWidgetView node={node("chart", linia)} lang="pl" />);
+    const kreski = [...container.querySelectorAll("path.neh-line")].map((l) =>
+      l.getAttribute("stroke"),
+    );
+    expect(kreski).toEqual(["var(--chart-s-main)", "var(--chart-accent)"]);
+  });
+
+  it("kolory serii z treści widgetu malują serie w palecie kategorialnej", () => {
+    const kat = { ...content, kind: "line", palette: "categorical", seriesColors: "14;20" };
+    const { container } = withClient(<ChartWidgetView node={node("chart", kat)} lang="pl" />);
+    const kreski = [...container.querySelectorAll("path.neh-line")].map((l) =>
+      l.getAttribute("stroke"),
+    );
+    expect(kreski).toEqual(["var(--chart-14)", "var(--chart-20)"]);
+  });
+
+  it("dane demonstracyjne z treści widgetu dostają znaczek „demo” przy tytule", () => {
+    const { container } = withClient(
+      <ChartWidgetView node={node("chart", { ...content, demo: "on" })} lang="pl" />,
+    );
+    expect(container.querySelector(".neh-badge")?.textContent).toBe("demo");
+  });
 });
 
 describe("DataMapWidgetView", () => {

@@ -17,18 +17,8 @@ const pl = {
         shellLabel: "Wykres",
         unit: "Jednostka (np. %, mld EUR)",
         title: "Tytuł wykresu",
-        category: "Kategoria",
-        series: "Seria {{n}}",
-        addSeries: "Dodaj serię",
-        removeSeries: "Usuń serię {{name}}",
-        // Wybór koloru serii. Nazwa slotu, nie numer: "śliwka" mówi
-        // czytelnikowi listy, co wybiera, a "4" nie mówi nic.
-        seriesColor: "Kolor serii {{name}}",
-        seriesColorSafe: "{{key}} - rozdzielny dla daltonizmu",
-        seriesColorPlain: "{{key}}",
-        categoryN: "Kategoria {{n}}",
-        addCategory: "Dodaj kategorię",
-        removeCategory: "Usuń kategorię {{name}}",
+        // Siatka danych, kolory serii i akcent mają własną nakładkę
+        // (`chartEditor.*` w `i18n-chart-data-editor.ts`).
         stacked: "Skumulowany (stacked)",
         grid: "Siatka",
         showValues: "Etykiety wartości",
@@ -88,8 +78,6 @@ const pl = {
           focus: "Akcent + neutralne (domyślna)",
           categorical: "Kategorialna (kolor wybrany przy serii)",
         },
-        paletteFocusHint:
-          "Kolory daje paleta ról: pierwsza seria w akcencie, kolejne w odcieniach neutralnych. Kolor wybrany przy serii obowiązuje w palecie kategorialnej, a w tej - dopiero od serii nr {{from}}.",
         direction: "Kierunek wskaźnika",
         directions: {
           none: "Kierunek: brak",
@@ -156,19 +144,13 @@ const pl = {
         oceania: "Oceania",
         unit: "Jednostka (np. %, mln)",
         title: "Tytuł mapy",
-        selectCountry: "- wybierz kraj -",
-        value: "Wartość",
-        addCountry: "Dodaj kraj",
-        removeRow: "Usuń wiersz {{name}}",
         source: "Źródło danych",
       },
       dataImport: {
         button: "Importuj z pliku",
         areaTitle: "Dane z pliku",
         hintChart:
-          "xlsx, csv, tsv, ods - pierwszy wiersz to nazwy serii, pierwsza kolumna to kategorie",
-        hintMap:
-          "xlsx, csv, tsv, ods - pierwsza kolumna to kraj (kod ISO-2 albo nazwa), druga to wartość",
+          "xlsx, xls, ods, csv, tsv i inne arkusze - pierwszy wiersz to nazwy serii, pierwsza kolumna to kategorie",
         chooseSheet: "Skoroszyt ma kilka arkuszy - wybierz jeden:",
         sheetRows: "{{count}} wierszy",
         ok: "Wczytano dane z pliku.",
@@ -182,8 +164,27 @@ const pl = {
         pRowsSkipped: "Pominięto {{count}} wierszy bez kraju albo bez wartości.",
         pUnknownCountries: "Nierozpoznane kraje: {{labels}}.",
         pDuplicateCountries: "Kraje powtórzone (zostało pierwsze wystąpienie): {{labels}}.",
+        pCountriesReplaced:
+          "Kraje były już w innych wierszach - tam je usunięto, obowiązuje wartość wklejona: {{labels}}.",
         pLabelsAdjusted:
           "{{count}} etykiet zawierało średnik albo złamanie wiersza - zamienione, bo ten format ich nie uniesie.",
+        pHeaderAssumed:
+          "Nie rozpoznano wiersza nagłówka - pierwszy wiersz wczytano jako dane, a serie ponumerowano.",
+        pColumnsIgnored: "Pominięto kolumny z liczbami: {{labels}} - mapa pokazuje jedną kolumnę.",
+        pAliasesApplied: "Kraje rozpoznane po nazwie zastępczej albo kodzie: {{labels}}.",
+        pDataFlags:
+          "{{count}} wartości miało flagi statystyczne (np. p, e) - flagi usunięto, liczby zostały.",
+        pEncodingFallback:
+          "Plik nie był zapisany w UTF-8 - odczytano go jako Windows-1250. Sprawdź polskie znaki w etykietach.",
+        pLocaleAmbiguous:
+          "{{count}} liczb ma jeden rozdzielacz, a po nim trzy cyfry (np. 1,234) - odczytano go jako znak dziesiętny. Jeśli to rozdzielacz tysięcy, wybierz format liczb.",
+        pCellsTruncatedRows: "Arkusz przekracza limit odczytu - pominięto {{count}} wierszy.",
+        pCellsTruncatedColumns: "Arkusz przekracza limit odczytu - pominięto {{count}} kolumn.",
+        pCellsTruncatedBoth:
+          "Arkusz przekracza limit odczytu - pominięto {{rows}} wierszy i {{columns}} kolumn.",
+        pSheetsTruncated:
+          "Skoroszyt ma więcej arkuszy niż limit - pominięto {{count}} ostatnich arkuszy.",
+        pPasteTruncated: "Wklejone dane przekraczają limit - wczytano tylko ich początek.",
       },
       conversionBlocks: {
         sectionTitle: "Tytuł sekcji (opcjonalnie)",
@@ -968,16 +969,6 @@ const en: typeof pl = {
         shellLabel: "Chart",
         unit: "Unit (e.g. %, EUR bn)",
         title: "Chart title",
-        category: "Category",
-        series: "Series {{n}}",
-        addSeries: "Add series",
-        removeSeries: "Delete series {{name}}",
-        seriesColor: "Colour of series {{name}}",
-        seriesColorSafe: "{{key}} - colour-blind separable",
-        seriesColorPlain: "{{key}}",
-        categoryN: "Category {{n}}",
-        addCategory: "Add category",
-        removeCategory: "Delete category {{name}}",
         stacked: "Stacked",
         grid: "Grid",
         showValues: "Value labels",
@@ -1010,8 +1001,6 @@ const en: typeof pl = {
           focus: "Accent + neutrals (default)",
           categorical: "Categorical (colour picked per series)",
         },
-        paletteFocusHint:
-          "Colours come from the role palette: the first series in the accent, the rest in neutral shades. The colour picked per series applies in the categorical palette, and in this one only from series no. {{from}}.",
         direction: "Metric direction",
         directions: {
           none: "Direction: none",
@@ -1090,19 +1079,13 @@ const en: typeof pl = {
         oceania: "Oceania",
         unit: "Unit (e.g. %, M)",
         title: "Map title",
-        selectCountry: "- select a country -",
-        value: "Value",
-        addCountry: "Add country",
-        removeRow: "Delete row {{name}}",
         source: "Data source",
       },
       dataImport: {
         button: "Import from file",
         areaTitle: "Data from a file",
         hintChart:
-          "xlsx, csv, tsv, ods - first row holds series names, first column holds categories",
-        hintMap:
-          "xlsx, csv, tsv, ods - first column is the country (ISO-2 code or name), second is the value",
+          "xlsx, xls, ods, csv, tsv and other spreadsheets - first row holds series names, first column holds categories",
         chooseSheet: "The workbook has several sheets - pick one:",
         sheetRows: "{{count}} rows",
         ok: "Data loaded from the file.",
@@ -1116,8 +1099,29 @@ const en: typeof pl = {
         pRowsSkipped: "{{count}} rows without a country or without a value were skipped.",
         pUnknownCountries: "Unrecognised countries: {{labels}}.",
         pDuplicateCountries: "Duplicate countries (the first occurrence was kept): {{labels}}.",
+        pCountriesReplaced:
+          "Countries already in other rows were removed there - the pasted value applies: {{labels}}.",
         pLabelsAdjusted:
           "{{count}} labels contained a semicolon or line break - replaced, because this format cannot carry them.",
+        pHeaderAssumed:
+          "No header row was recognised - the first row was read as data and the series were numbered.",
+        pColumnsIgnored:
+          "Columns with numbers were ignored: {{labels}} - the map shows one column.",
+        pAliasesApplied: "Countries recognised by an alternative name or code: {{labels}}.",
+        pDataFlags:
+          "{{count}} values carried statistical flags (e.g. p, e) - the flags were removed and the numbers kept.",
+        pEncodingFallback:
+          "The file was not saved in UTF-8 - it was read as Windows-1250. Check accented characters in the labels.",
+        pLocaleAmbiguous:
+          "{{count}} numbers have a single separator followed by three digits (e.g. 1,234) - it was read as the decimal mark. If it separates thousands, choose the number format.",
+        pCellsTruncatedRows: "The sheet exceeds the read limit - {{count}} rows were dropped.",
+        pCellsTruncatedColumns:
+          "The sheet exceeds the read limit - {{count}} columns were dropped.",
+        pCellsTruncatedBoth:
+          "The sheet exceeds the read limit - {{rows}} rows and {{columns}} columns were dropped.",
+        pSheetsTruncated:
+          "The workbook has more sheets than the limit - the last {{count}} sheets were dropped.",
+        pPasteTruncated: "The pasted data exceeds the limit - only its beginning was read.",
       },
       conversionBlocks: {
         sectionTitle: "Section title (optional)",

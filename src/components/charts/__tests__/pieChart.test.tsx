@@ -51,6 +51,8 @@ import { parseChartConfig } from "@/lib/charts/parse";
 import type { ChartConfig } from "@/lib/charts/types";
 import { MAX_SERIES, PIE_MAX_SLICES } from "@/lib/charts/types";
 import { ARC_GAP_PX } from "@/lib/charts/geometry";
+import { SLOT_SEQUENCE } from "@/lib/charts/palette";
+import { ACCENT_EDGE_PX } from "../kindPaint";
 import { axeViolations, summarize } from "@/test/axe";
 import { PieChart } from "../PieChart";
 import { Chart } from "../Chart";
@@ -188,13 +190,30 @@ describe("PieChart - filtr danych i mianownik udziału", () => {
         lang="pl"
       />,
     );
-    // Wypełnienie to BLADE WNĘTRZE slotu, obwódka to jego mocna krawędź -
-    // wariant blady, ten sam co w słupkach. Sam token serii (`--chart-1`)
-    // nie pojawia się już jako `fill`: nasycona płaszczyzna pod etykietą była
-    // najciemniejszym elementem wykresu i przeciągała na siebie uwagę, którą
-    // ma nieść linia danych.
-    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(["var(--chart-1-inner)"]);
-    expect(slices(container).map((s) => s.getAttribute("stroke"))).toEqual(["var(--chart-1-edge)"]);
+    // WYPEŁNIENIE PEŁNE (PR2, decyzja właściciela). Paleta ról (domyślna)
+    // maluje jedyny wycinek akcentem - jest największy, więc wyróżniony - i daje
+    // mu drugi nośnik: obwódkę `--chart-accent-audit-graphic`.
+    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(["var(--chart-accent)"]);
+    expect(slices(container).map((s) => s.getAttribute("stroke"))).toEqual([
+      "var(--chart-accent-audit-graphic)",
+    ]);
+    // Paleta kategorialna: slot z POZYCJI wycinka w `SLOT_SEQUENCE` (pierwsza
+    // pozycja to slot 3), pełny, bez obwódki.
+    const kat = render(
+      <PieChart
+        config={cfg({
+          kind: "pie",
+          palette: "categorical",
+          categories: ["a", "b", "c"],
+          series: [{ name: "S", values: [0, null, 5] }],
+        })}
+        lang="pl"
+      />,
+    );
+    expect(slices(kat.container).map((s) => s.getAttribute("fill"))).toEqual([
+      `var(--chart-${SLOT_SEQUENCE[0]})`,
+    ]);
+    expect(slices(kat.container).map((s) => s.getAttribute("stroke"))).toEqual(["none"]);
   });
 
   it("wiodące luki NIE zwijają tarczy, a wycinki idą MALEJĄCO od godziny 12", () => {
@@ -229,15 +248,13 @@ describe("PieChart - filtr danych i mianownik udziału", () => {
       "f: 20 (20%)",
       "e: 10 (10%)",
     ]);
-    // Slot idzie z POZYCJI po sortowaniu, więc największy wycinek dostaje
-    // slot 1 - czyli kolor o najwyższym kontraście do płyty trafia na
-    // wielkość, która i tak jest najlepiej widoczna. To zamierzone: paleta
-    // ma identyfikować, a nie hierarchizować.
+    // Paleta ról: największy wycinek w akcencie, dalej stopnie neutralne od
+    // łupka głównego do łupka drugiego - w kolejności rysowania.
     expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual([
-      "var(--chart-1-inner)",
-      "var(--chart-2-inner)",
-      "var(--chart-3-inner)",
-      "var(--chart-4-inner)",
+      "var(--chart-accent)",
+      "var(--chart-s-main)",
+      "color-mix(in oklab, var(--chart-s-alt) 50%, var(--chart-s-main))",
+      "var(--chart-s-alt)",
     ]);
   });
 
@@ -445,21 +462,37 @@ describe("PieChart - etykiety wewnątrz wycinków", () => {
     expect(promien).toBeLessThan(R_OUTER);
   });
 
-  it("etykieta w bladym wnętrzu idzie TUSZEM, nie inkiem slotu", () => {
-    // ODWRÓCENIE WCZEŚNIEJSZEJ REGUŁY, i to świadome.
+  it("etykieta na PEŁNYM wypełnieniu: tusz slotu (kategorialna) albo tusz z obwódką płyty (role)", () => {
+    // Wycinek jest pełny (PR2), więc etykieta leży na nasyconym kolorze.
     //
-    // Dopóki wycinek był wypełniony NASYCONYM tokenem serii, etykieta musiała
-    // brać `--chart-ink-N` z tego samego slotu: ink jest dobrany kontrastem do
-    // tego konkretnego wypełnienia i na granacie wychodzi biały, a na ochrze
-    // ciemny. Po przejściu na wariant blady wypełnienie ma do płyty
-    // 1,20-1,28:1, czyli jest niemal białe - a biały ink slotu granatowego
-    // dawał na nim około 1,2:1, czyli napis nieczytelny.
-    //
-    // Blade wnętrze jest tak jasne, że NIE POTRZEBUJE własnego tuszu: ciemny
-    // tusz semantyczny ma na nim 12,6-14,9:1 w motywie jasnym i tyle samo po
-    // odwróceniu w ciemnym. Jeden token na wszystkie sloty jest tu więc
-    // i prostszy, i bezpieczniejszy - a wyjątek "tekst w tokenach slotu"
-    // znika razem z powodem, dla którego istniał.
+    // PALETA KATEGORIALNA: `--chart-ink-N` z TEGO SAMEGO slotu - ink jest
+    // dobrany kontrastem do tego konkretnego wypełnienia (biały na granacie,
+    // ciemny na ochrze). Rozjazd numeru dałby czarny tekst na granacie.
+    const kat = render(
+      <PieChart
+        config={cfg({
+          kind: "pie",
+          palette: "categorical",
+          categories: ["a", "b", "c", "d", "e"],
+          series: [{ name: "S", values: [1, 1, 1, 1, 1] }],
+        })}
+        lang="pl"
+      />,
+    );
+    const sloty = SLOT_SEQUENCE.slice(0, 5);
+    expect(slices(kat.container).map((s) => s.getAttribute("fill"))).toEqual(
+      sloty.map((n) => `var(--chart-${n})`),
+    );
+    expect(all(kat.container, SEL.label).map((t) => t.getAttribute("fill"))).toEqual(
+      sloty.map((n) => `var(--chart-ink-${n})`),
+    );
+    expect(all(kat.container, SEL.label).some((t) => t.hasAttribute("data-halo"))).toBe(false);
+    kat.unmount();
+
+    // PALETA RÓL: na stopniach neutralnych z okolic 70-80% rampy ani tusz
+    // płyty, ani tusz główny nie mają 4,5:1, więc żaden pojedynczy tusz nie
+    // przechodzi progu na całej rampie w obu motywach - liczba idzie tuszem
+    // głównym z obwódką płyty (`data-halo`).
     const { container } = render(
       <PieChart
         config={cfg({
@@ -470,19 +503,11 @@ describe("PieChart - etykiety wewnątrz wycinków", () => {
         lang="pl"
       />,
     );
-    const fills = slices(container).map((s) => s.getAttribute("fill"));
-    const inks = all(container, SEL.label).map((t) => t.getAttribute("fill"));
-    expect(fills).toEqual([1, 2, 3, 4, 5].map((n) => `var(--chart-${n}-inner)`));
-    expect(inks).toEqual(Array.from({ length: 5 }, () => "var(--foreground)"));
-    // Ink slotu jest PODANY na elemencie, ale nie użyty jako `fill`: arkusz
-    // przełącza na niego dopiero w druku, gdzie łuk wraca do wariantu
-    // solidnego i ten sam napis leży na nasyconym kolorze (tusz semantyczny
-    // ma na granacie 2,25:1, a ink slotu 8,07:1). Warunek jest więc taki:
-    // ink jest dostępny, ale ŻADEN `fill` na niego nie wskazuje.
-    const grupy = [...container.querySelectorAll("g[style*='--neh-arc-ink']")];
-    expect(grupy).toHaveLength(5);
-    expect(grupy[0].getAttribute("style")).toContain("--chart-ink-1");
-    expect(container.innerHTML).not.toContain('fill="var(--chart-ink-');
+    const etykiety = all(container, SEL.label);
+    expect(etykiety.map((t) => t.getAttribute("fill"))).toEqual(
+      Array.from({ length: 5 }, () => "var(--chart-ink)"),
+    );
+    expect(etykiety.every((t) => t.getAttribute("data-halo") === "true")).toBe(true);
   });
 
   it("przełącznik 'Etykiety wartości' dokłada DRUGĄ linię z wartością i podnosi udział", () => {
@@ -596,10 +621,15 @@ describe("PieChart - paleta i nadmiar kategorii", () => {
     // ŻADNA LICZBA NIE GINIE: ogon zwija się w jeden wycinek zbiorczy, jego
     // wartość wchodzi do mianownika, a pełne wartości KAŻDEJ kategorii niesie
     // tabela danych, która jest zawsze pod wykresem.
-    const { container } = render(<PieChart config={cfg(dziesiec)} lang="pl" />);
-    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(
-      Array.from({ length: PIE_MAX_SLICES }, (_, i) => `var(--chart-${i + 1}-inner)`),
+    const { container } = render(
+      <PieChart config={cfg({ ...dziesiec, palette: "categorical" })} lang="pl" />,
     );
+    // Paleta kategorialna: sloty z `SLOT_SEQUENCE`, nigdy slot 2 (pomarańcz
+    // marki) dla wycinka, który niczym się nie wyróżnia.
+    expect(slices(container).map((s) => s.getAttribute("fill"))).toEqual(
+      SLOT_SEQUENCE.slice(0, PIE_MAX_SLICES).map((n) => `var(--chart-${n})`),
+    );
+    expect(container.innerHTML).not.toContain('fill="var(--chart-2)"');
     const etykiety = slices(container).map((s) => s.getAttribute("aria-label"));
     expect(etykiety).toHaveLength(PIE_MAX_SLICES);
     // Mianownik obejmuje CAŁY zestaw (100), a nie pięć narysowanych pozycji:
@@ -631,9 +661,11 @@ describe("PieChart - paleta i nadmiar kategorii", () => {
       "K1: 10 (67%)",
       "K10: 5 (33%)",
     ]);
+    // Paleta ról: większy w akcencie, mniejszy w łupku głównym (jedyny
+    // stopień neutralny).
     expect(slices(jedna.container).map((s) => s.getAttribute("fill"))).toEqual([
-      "var(--chart-1-inner)",
-      "var(--chart-2-inner)",
+      "var(--chart-accent)",
+      "var(--chart-s-main)",
     ]);
   });
 
@@ -708,10 +740,10 @@ describe("PieChart - tooltip i fokus", () => {
     // czyta jako "większy udział". Podświetlenie nie może zmieniać kodowania:
     // wskazanie mówi "to jest ten wycinek", a nie "ten wycinek jest większy".
     //
-    // W zamian zmienia się POWIERZCHNIA: wypełnienie idzie o krok w stronę
-    // nasycenia, obwódka na czysty token serii (obie podstawienia przez
-    // własności `--neh-arc-*`, bo jedna reguła arkusza obsługuje wszystkie
-    // sloty), a grubość obwódki i ścieżka zostają bez zmian.
+    // W zamian zmienia się POWIERZCHNIA: pełne wypełnienie idzie na 85%
+    // koloru na płycie (podstawienie przez własność `--neh-arc-hover`, bo
+    // jedna reguła arkusza obsługuje wszystkie wycinki), a ścieżka zostaje bez
+    // zmian.
     const { container } = render(<PieChart config={cfg({ kind: "pie", ...CWIARTKI })} lang="pl" />);
     const spoczynek = d(slices(container)[0]);
     fireEvent.focus(slices(container)[0]);
@@ -721,8 +753,10 @@ describe("PieChart - tooltip i fokus", () => {
     // Podstawienia stanu stoją na elemencie, więc arkusz ma czym podmienić
     // wypełnienie i obwódkę bez znajomości numeru slotu.
     const styl = slices(container)[0].getAttribute("style") ?? "";
-    expect(styl).toContain("--neh-arc-hover: var(--chart-1-active, var(--chart-1-hover))");
-    expect(styl).toContain("--neh-arc-token: var(--chart-1)");
+    expect(styl).toContain(
+      "--neh-arc-hover: color-mix(in oklab, var(--chart-accent) 85%, var(--card))",
+    );
+    expect(styl).toContain("--neh-arc-token: var(--chart-accent)");
     // POZOSTAŁE WYCINKI NIE GASNĄ. Przygaszanie tła podświetlenia zmienia
     // wygląd danych, których czytelnik nie wskazał, a przy tarczy odbiera mu
     // jedyne odniesienie, względem którego może ocenić wskazany udział.
@@ -948,12 +982,12 @@ describe("PieChart w ramie Chart - alternatywa tekstowa, legenda, axe", () => {
     const pierwszy = container.querySelectorAll("table.neh-pie-key tbody tr")[0];
     expect(pierwszy.firstElementChild?.tagName).toBe("TH");
     expect(pierwszy.firstElementChild?.getAttribute("scope")).toBe("row");
-    // Próbka niesie PARĘ wnętrze plus obwódka, dokładnie jak łuk. Sama obwódka
-    // nie wskazywałaby wycinka: na łuku kolor niesie blade wnętrze.
+    // Próbka = łuk: to samo pełne wypełnienie i - na wycinku wyróżnionym -
+    // ta sama obwódka drugiego nośnika akcentu.
     const probka = pierwszy.querySelector("span[aria-hidden]");
     const styl = probka?.getAttribute("style") ?? "";
-    expect(styl).toContain("var(--chart-1-inner)");
-    expect(styl).toContain("var(--chart-1-edge)");
+    expect(styl).toContain("background: var(--chart-accent)");
+    expect(styl).toContain("border-color: var(--chart-accent-audit-graphic)");
     expect(probka?.textContent).toBe("");
     // Legendy z próbkami na tarczy NIE MA - dwa klucze do jednej grafiki
     // byłyby dwoma miejscami, w których kolejność wycinków może się rozjechać.
@@ -1196,56 +1230,41 @@ describe("PieChart - kontrast palety w OBU motywach", () => {
     }
   });
 
-  it("granicę wycinka niesie OBWÓDKA SERII i przerwa, a nie obrys w kolorze karty", () => {
-    // ODWRÓCENIE WCZEŚNIEJSZEJ REGUŁY. Obrys 2 px w kolorze karty rozdzielał
-    // sąsiednie łuki, ale zajmował miejsce, które w wariancie bladym należy
-    // się OBWÓDCE SERII - a obwódka jest tu jedynym nośnikiem tożsamości
-    // koloru, bo blade wnętrze go nie niesie (1,20-1,28:1 do płyty). Do tego
-    // obrys w kolorze płyty znikał razem z całą granicą wszędzie, gdzie płyta
-    // nie jest tym, co pod spodem: w druku, w eksporcie na przezroczystość,
-    // na karcie o innym tle.
+  it("granicę wycinka niesie PRZERWA, a obwódkę ma tylko wycinek w akcencie (drugi nośnik)", () => {
+    // Wycinki są PEŁNE (PR2), więc granicę między nimi niesie geometryczna
+    // przerwa 2,5 px - widać przez nią płytę - i działa ona także w skali
+    // szarości. Obrys w kolorze karty byłby drugą, zbędną granicą.
     //
-    // Granicę niosą teraz DWA nośniki naraz: obwódka w mocnym tokenie serii
-    // (jej grubość podaje arkusz tokenem `--chart-bar-edge`, bo `var()`
-    // w atrybutach prezentacyjnych SVG nie jest wspierane wszędzie)
-    // i geometryczna przerwa 2,5 px, która działa również w skali szarości.
+    // Obwódkę ma wyłącznie wycinek w akcencie: akcent ma na bieli 2,25:1,
+    // więc jego kształt niesie obwódka `--chart-accent-audit-graphic`.
+    // Grubość podaje arkusz, jedna w obu motywach.
     const { container } = render(<PieChart config={cfg({ kind: "pie", ...CWIARTKI })} lang="pl" />);
-    slices(container).forEach((s, i) => {
-      expect(s.getAttribute("stroke")).toBe(`var(--chart-${i + 1}-edge)`);
-      expect(s.getAttribute("fill")).toBe(`var(--chart-${i + 1}-inner)`);
-      // Grubość NIE stoi w atrybucie - niesie ją arkusz, więc w motywie
-      // ciemnym może zejść do 1,25 px bez gałęzi motywu w JS.
-      expect(s.getAttribute("stroke-width")).toBeNull();
-    });
-    // Kolor karty nie pojawia się już w grafice tarczy.
-    expect(container.innerHTML).not.toContain("var(--card)");
+    const [akcent, ...reszta] = slices(container);
+    expect(akcent.getAttribute("fill")).toBe("var(--chart-accent)");
+    expect(akcent.getAttribute("stroke")).toBe("var(--chart-accent-audit-graphic)");
+    expect(akcent.getAttribute("data-accent")).toBe("true");
+    for (const s of reszta) {
+      expect(s.getAttribute("stroke")).toBe("none");
+      expect(s.getAttribute("data-accent")).toBeNull();
+    }
+    for (const s of slices(container)) expect(s.getAttribute("stroke-width")).toBeNull();
+    // Kolor karty nie jest obrysem tarczy.
+    expect(container.innerHTML).not.toContain('stroke="var(--card)"');
   });
 
-  it("grubość obwódki wycinka niesie ARKUSZ, i realnie ją tam podaje", () => {
-    // REGRESJA z przeglądu. Wycinek dostawał kolor obwódki, ale ani atrybutu
-    // `stroke-width`, ani reguły w arkuszu - jedyny selektor z tokenem
-    // `--chart-bar-edge` celował w `.neh-bar[data-edged="true"]`. Łuk jechał
-    // więc domyślną grubością SVG (1 px) w obu motywach, a obwódka jest
-    // w wariancie bladym JEDYNYM nośnikiem koloru serii, bo wnętrze ma do
-    // płyty 1,20-1,28:1.
+  it("grubość obwódki wycinka niesie ARKUSZ - JEDNA w obu motywach", () => {
+    // Geometria jasnego i ciemnego motywu ma być identyczna (AGENTS.md:
+    // zmieniają się wyłącznie kolory). Token `--chart-bar-edge` ma w motywach
+    // RÓŻNE grubości (korekta irradiacji słupka), więc łuk go nie czyta -
+    // przełączenie motywu przesuwałoby granicę wycinka.
     //
     // Test czyta ARKUSZ, nie DOM: happy-dom nie ma silnika stylów, więc
     // renderowany wycinek nie powie, jaką grubość dostanie w przeglądarce.
     const regula = css.slice(css.indexOf(".neh-chart .neh-slice {"));
-    const blok = regula.slice(0, regula.indexOf("}"));
-    expect(blok).toContain("stroke-width: var(--chart-bar-edge");
-    // Token jest zdefiniowany w obu motywach i w ciemnym jest CIEŃSZY:
-    // jasna linia na ciemnym tle optycznie grubieje. Czytamy go osobnym
-    // odczytem, bo `token` wyżej przyjmuje wyłącznie hexy.
-    const px = (block: string): number => {
-      const m = block.match(/--chart-bar-edge:\s*([\d.]+)px/);
-      if (!m) throw new Error("brak tokenu --chart-bar-edge");
-      return Number.parseFloat(m[1]);
-    };
-    const jasny = px(LIGHT);
-    const ciemny = px(DARK);
-    expect(jasny).toBeGreaterThan(ciemny);
-    expect(ciemny).toBeGreaterThan(1);
+    // Deklaracje bez komentarzy - komentarz reguły wolno, by tłumaczył token.
+    const blok = regula.slice(0, regula.indexOf("}")).replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(blok).toContain(`stroke-width: ${ACCENT_EDGE_PX}px`);
+    expect(blok).not.toContain("--chart-bar-edge");
   });
 
   it("przełączenie motywu NIE zmienia DOM - kolory jadą tokenami, zero zapieczonego hexa", () => {

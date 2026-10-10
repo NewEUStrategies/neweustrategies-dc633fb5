@@ -8,7 +8,11 @@ import { SMOOTHING_DEFAULT } from "./smooth";
 import {
   CHART_KINDS,
   isChartKind,
+  isMapMethod,
   isMapRegion,
+  isMapScheme,
+  MAP_CLASSES_MAX,
+  MAP_CLASSES_MIN,
   MAX_COLOR_SLOT,
   MAX_SERIES,
   type ChartConfig,
@@ -34,10 +38,31 @@ function asRecord(raw: Json | undefined): Record<string, Json> {
   return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
 }
 
+/**
+ * Pole tekstowe konfiguracji. Napis zostaje napisem, liczba (np. jednostka
+ * zapisana jako 2026) - jej zapisem dziesiętnym; obiekt, tablica albo
+ * `true` to śmieć z uszkodzonej albo obcej treści i daje pusty napis.
+ * Wcześniej `String(...)` wypisywał czytelnikowi „[object Object]" pod
+ * wykresem i mapą.
+ */
+function text(raw: Json | undefined): string {
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "number" && Number.isFinite(raw)) return String(raw);
+  return "";
+}
+
 function num(raw: Json | undefined): number | null {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
   if (typeof raw === "string" && raw.trim() !== "") {
-    const v = Number(raw.replace(",", "."));
+    // Pola tekstowe panelu (cel, pasmo, środek skali mapy) przyjmują zapis
+    // z arkusza: spacja (także twarda i wąska) grupuje tysiące, a minus bywa
+    // znakiem U+2212. Bez tego „1 234,5" i „−3" cicho stawały się brakiem.
+    const v = Number(
+      raw
+        .replace(/[\s\u00a0\u202f]/g, "")
+        .replace("\u2212", "-")
+        .replace(",", "."),
+    );
     return Number.isFinite(v) ? v : null;
   }
   return null;
@@ -89,14 +114,15 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
   // gdy toolbar zapisze prawdziwy rodzaj, nadal wygrywa; gdy w polu siedzi
   // cokolwiek innego, decyduje `kind`, czyli jawny wybór autora.
   const kindSource = isChartKind(data.variant) ? data.variant : data.kind;
+  const series = parseChartSeries(data.series, categories.length);
   return {
     kind: parseChartKind(kindSource),
-    title: String(data.title ?? ""),
-    description: String(data.description ?? ""),
+    title: text(data.title),
+    description: text(data.description),
     categories,
-    series: parseChartSeries(data.series, categories.length),
+    series,
     stacked: data.stacked === true,
-    unit: String(data.unit ?? ""),
+    unit: text(data.unit),
     height: Math.max(
       CHART_HEIGHT_MIN,
       Math.min(CHART_HEIGHT_MAX, heightRaw ?? CHART_HEIGHT_DEFAULT),
@@ -105,7 +131,7 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     showGrid: data.showGrid !== false,
     showValues: data.showValues === true,
     animate: data.animate !== false,
-    source: String(data.source ?? ""),
+    source: text(data.source),
     // Wygładzanie: brak klucza znaczy DOMYŚLNE 0,55, a nie zero. Wszystkie
     // wykresy zapisane przed wprowadzeniem tego pola dostają więc kształt
     // z nowej specyfikacji bez migracji danych - a autor, który świadomie
@@ -120,22 +146,49 @@ export function parseChartConfig(data: Record<string, Json>): ChartConfig {
     // traktujemy je jak brak - inaczej podpis twierdziłby "n = 0" o wykresie,
     // który coś rysuje.
     sampleSize: positiveIntOrNull(num(data.sampleSize)),
-    sourceDate: String(data.sourceDate ?? ""),
-    notesShows: String(data.notesShows ?? ""),
-    notesSurprising: String(data.notesSurprising ?? ""),
-    notesHidden: String(data.notesHidden ?? ""),
+    sourceDate: text(data.sourceDate),
+    notesShows: text(data.notesShows),
+    notesSurprising: text(data.notesSurprising),
+    notesHidden: text(data.notesHidden),
     metric: parseChartMetric(data.metric),
     // Brak klucza = paleta ze specyfikacji (akcent + neutralne). Paletę
     // kategorialną autor wybiera jawnie - wtedy wracają kolory slotów.
     palette: isChartPalette(data.palette) ? data.palette : "focus",
+    accentSeries: parseAccentSeries(data.accentSeries, series.length),
+    accentCategory: parseAccentCategory(data.accentCategory, categories.length),
     band: parseChartBand(data.band),
     target: parseChartTarget(data.target),
     direction: isMetricDirection(data.direction) ? data.direction : null,
     provenance: isProvenance(data.provenance) ? data.provenance : null,
     demo: data.demo === true,
     sources: parseChartSources(data.sources),
-    caption: String(data.caption ?? ""),
+    caption: text(data.caption),
   };
+}
+
+/**
+ * Seria wyróżniona. Indeks spoza listy serii wraca do ZERA, a nie do
+ * ostatniej serii: zapis wskazujący serię, której już nie ma (autor usunął
+ * kolumnę), nie może przenieść akcentu na serię przypadkową - zero jest
+ * zachowaniem sprzed wprowadzenia pola, więc jest jedynym neutralnym wyborem.
+ */
+export function parseAccentSeries(raw: Json | undefined, seriesCount: number): number {
+  const value = num(raw);
+  if (value === null) return 0;
+  const index = Math.round(value);
+  return index >= 0 && index < seriesCount ? index : 0;
+}
+
+/**
+ * Wyróżniona kategoria tarczy. Brak, pusty napis albo indeks spoza listy
+ * kategorii dają null - wtedy akcent dostaje wycinek największy, co jest
+ * regułą rysunku, a nie wyborem, który trzeba by zapamiętać.
+ */
+export function parseAccentCategory(raw: Json | undefined, categoriesCount: number): number | null {
+  const value = num(raw);
+  if (value === null) return null;
+  const index = Math.round(value);
+  return index >= 0 && index < categoriesCount ? index : null;
 }
 
 /**
@@ -324,17 +377,56 @@ export function parseMapRegion(raw: Json | undefined): MapRegion {
   return isMapRegion(value) ? value : "europe";
 }
 
+/**
+ * Liczba klas mapy. Brak klucza, zero i liczba ujemna dają 0, czyli skalę
+ * CIĄGŁĄ - to jest wygląd każdej mapy opublikowanej przed wprowadzeniem klas,
+ * więc brak zapisu nie może jej przemalować. Liczba dodatnia jest dociskana
+ * do 3..7: autor, który wpisał „2", prosił o klasy, a nie o skalę ciągłą.
+ */
+export function parseMapClasses(raw: Json | undefined): number {
+  const value = num(raw);
+  if (value === null) return 0;
+  const rounded = Math.round(value);
+  if (rounded <= 0) return 0;
+  return Math.max(MAP_CLASSES_MIN, Math.min(MAP_CLASSES_MAX, rounded));
+}
+
 export function parseDataMapConfig(data: Record<string, Json>): DataMapConfig {
   return {
     region: parseMapRegion(data.region),
-    title: String(data.title ?? ""),
-    description: String(data.description ?? ""),
-    unit: String(data.unit ?? ""),
+    title: text(data.title),
+    description: text(data.description),
+    unit: text(data.unit),
     values: parseMapValues(data.values),
     showLegend: data.showLegend !== false,
     animate: data.animate !== false,
-    source: String(data.source ?? ""),
+    source: text(data.source),
+    // Brak klucza = ramp sprzed wprowadzenia wyboru (te same kotwice co
+    // `--chart-seq-min/max`), nieznany zapis z przyszłej wersji edytora też.
+    scheme: isMapScheme(data.scheme) ? data.scheme : "blue",
+    classes: parseMapClasses(data.classes),
+    method: isMapMethod(data.method) ? data.method : "quantile",
+    midpoint: num(data.midpoint),
+    provenance: isProvenance(data.provenance) ? data.provenance : null,
+    demo: data.demo === true,
+    sources: parseChartSources(data.sources),
+    caption: text(data.caption),
+    sourceDate: text(data.sourceDate),
+    // Ta sama reguła co przy wykresie: zero obserwacji nie jest podpisem.
+    sampleSize: positiveIntOrNull(num(data.sampleSize)),
+    notesShows: text(data.notesShows),
+    notesSurprising: text(data.notesSurprising),
+    notesHidden: text(data.notesHidden),
   };
+}
+
+/**
+ * Pełny config mapy o wartościach domyślnych - odpowiednik
+ * `defaultChartConfig` dla paneli, które budują mapę W KODZIE (pulpit
+ * geograficzny). Funkcja, nie stała: config trzyma tablice.
+ */
+export function defaultDataMapConfig(): DataMapConfig {
+  return parseDataMapConfig({});
 }
 
 /**

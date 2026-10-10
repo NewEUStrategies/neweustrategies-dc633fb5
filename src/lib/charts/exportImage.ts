@@ -16,6 +16,16 @@
 // KOLEJNOŚĆ MA ZNACZENIE: klonujemy, potem czytamy styl z ORYGINAŁU (klon nie
 // jest w drzewie, więc `getComputedStyle` nie ma dla niego czego policzyć)
 // i zapisujemy w klonie.
+//
+// KOLOR W PLIKU JEST PRZENOŚNY: każdy atrybut koloru wychodzi jako `#rrggbb`
+// albo `rgba()` (`exportColor.ts`). Przeglądarka oddaje styl obliczony
+// w zapisie, który sama rozumie (`oklab(...)`, `color(srgb ...)`), a plik
+// otwierają też programy, które tych zapisów nie znają - i malują wtedy
+// wypełnienie domyślne, czyli czerń.
+import { normalizujKolor, type OdczytZmiennej } from "./exportColor";
+import { estimateLabelWidth } from "./measureText";
+
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 /**
  * Własności, które niosą wygląd znacznika.
@@ -23,6 +33,13 @@
  * `stroke-dasharray` jest tu, choć rusztowanie jest ciągłe: kreskowanie zostało
  * w JEDNYM miejscu - w teksturze strefy prognozy - i pominięcie go zabierałoby
  * eksportowi jeden z trzech nośników odróżnienia prognozy od pomiaru.
+ *
+ * `paint-order` jest tu, bo bez niego OBWÓDKA NAPISU ZAKRYWA NAPIS. Liczba
+ * z obwódką płyty (tarcza pod paletą ról) dostaje z arkusza `paint-order:
+ * stroke` - obwódka pod literą. Po zdjęciu klas i `style` plik wracał do
+ * kolejności domyślnej (najpierw wypełnienie, obwódka na wierzchu), więc
+ * 3 px w kolorze płyty przykrywało cyfry 11-12 px: w eksporcie zamiast
+ * udziałów były białe plamy.
  */
 const FARBA = [
   "fill",
@@ -33,6 +50,7 @@ const FARBA = [
   "stroke-linecap",
   "stroke-linejoin",
   "stroke-dasharray",
+  "paint-order",
   "opacity",
   "font-family",
   "font-size",
@@ -60,6 +78,16 @@ const FARBA = [
  */
 const FARBA_STOPNIA = ["stop-color", "stop-opacity"] as const;
 
+/** Atrybuty niosące KOLOR - te przechodzą przez `normalizujKolor`. */
+const KOLOR = ["fill", "stroke", "stop-color", "flood-color", "lighting-color", "color"] as const;
+
+/**
+ * Atrybuty farby, w których po wklejeniu został jeszcze zapis z odwołaniem do
+ * arkusza (`var(`) albo funkcją koloru - poza stroną nic nie znaczą, więc
+ * znikają, zamiast zostać w pliku jako zapis, którego nikt nie odczyta.
+ */
+const ZAPIS_ARKUSZA = /var\(|color-mix\(|color\(|oklab\(|oklch\(/i;
+
 /** Czy napis jest wartością, której nie ma sensu wklejać. */
 function pusta(value: string): boolean {
   return value === "" || value === "auto" || value === "normal";
@@ -80,8 +108,10 @@ export function svgZWklejonaFarba(zrodlo: SVGSVGElement): SVGSVGElement {
   for (let i = 0; i < oryginaly.length && i < kopie.length; i++) {
     const el = oryginaly[i];
     const kopia = kopie[i];
+    let zmienna: OdczytZmiennej | undefined;
     if (widok !== null) {
       const styl = widok.getComputedStyle(el);
+      zmienna = (nazwa) => styl.getPropertyValue(nazwa);
       const nazwy = el.tagName.toLowerCase() === "stop" ? [...FARBA, ...FARBA_STOPNIA] : [...FARBA];
       for (const nazwa of nazwy) {
         const value = styl.getPropertyValue(nazwa).trim();
@@ -93,6 +123,21 @@ export function svgZWklejonaFarba(zrodlo: SVGSVGElement): SVGSVGElement {
         kopia.setAttribute(nazwa, value);
       }
     }
+    // KOLOR NA ZAPIS PRZENOŚNY. Wartość z atrybutu (wklejona albo zastana)
+    // idzie przez `normalizujKolor`; `var()` rozwiązuje się zmiennymi
+    // obliczonego stylu ORYGINAŁU. Kolor nierozwiązywalny znika - atrybut
+    // z `var()` i tak nie znaczyłby w pliku nic.
+    for (const nazwa of KOLOR) {
+      const wartosc = kopia.getAttribute(nazwa);
+      if (wartosc === null) continue;
+      const kolor = normalizujKolor(wartosc, zmienna);
+      if (kolor === null) kopia.removeAttribute(nazwa);
+      else kopia.setAttribute(nazwa, kolor);
+    }
+    for (const nazwa of [...FARBA, ...FARBA_STOPNIA]) {
+      const wartosc = kopia.getAttribute(nazwa);
+      if (wartosc !== null && ZAPIS_ARKUSZA.test(wartosc)) kopia.removeAttribute(nazwa);
+    }
     kopia.removeAttribute("class");
     kopia.removeAttribute("style");
   }
@@ -101,36 +146,131 @@ export function svgZWklejonaFarba(zrodlo: SVGSVGElement): SVGSVGElement {
 }
 
 /**
- * Rysunek jako samodzielny plik SVG - Z TŁEM I FONTEM.
+ * Rysunek jako samodzielny plik SVG - Z TŁEM, FONTEM I KLUCZEM.
  *
  * Tło jest prostokątem pod rysunkiem, nie stylem: SVG bez tła wklejony do
  * dokumentu o innym kolorze pokazuje tusz motywu na obcej płycie (jasne
  * etykiety ciemnego motywu na białej stronie znikają). Rodzina fontu idzie
  * atrybutem na korzeniu, bo każdy `<text>` ją dziedziczy, a arkusza strony
  * w pliku już nie ma.
+ *
+ * `klucz` - ten sam pasek nazw co pod PNG (patrz `WpisKlucza`), tu jako
+ * znaczniki SVG, bo plik SVG nie ma płótna, na którym można by go domalować.
+ * Bez niego pierścień pod paletą ról wychodził z pliku z bezimiennymi
+ * stopniami szarości wszędzie tam, gdzie łuk był za krótki na liczbę.
  */
 export function svgDoPliku(
   zrodlo: SVGSVGElement,
-  opcje: { background?: string; fontFamily?: string } = {},
+  opcje: { background?: string; fontFamily?: string; klucz?: readonly WpisKlucza[] } = {},
 ): Blob {
   const klon = svgZWklejonaFarba(zrodlo);
   const doc = zrodlo.ownerDocument;
   const szer = Math.max(1, Math.round(zrodlo.getBoundingClientRect().width || 720));
   const wys = Math.max(1, Math.round(zrodlo.getBoundingClientRect().height || 320));
   if (!klon.getAttribute("viewBox")) klon.setAttribute("viewBox", `0 0 ${szer} ${wys}`);
-  if (opcje.fontFamily) klon.setAttribute("font-family", opcje.fontFamily);
-  if (opcje.background) {
-    const tlo = doc.createElementNS("http://www.w3.org/2000/svg", "rect");
+  const klucz = opcje.klucz ?? [];
+  const wiersze =
+    klucz.length === 0
+      ? []
+      : rozlozKlucz(klucz, Math.max(1, szer - 2 * KLUCZ.marginesX), (napis) =>
+          estimateLabelWidth(napis, KLUCZ.font),
+        );
+  const korzen = wiersze.length === 0 ? klon : svgZKluczem(doc, klon, szer, wys, wiersze);
+  if (opcje.fontFamily) korzen.setAttribute("font-family", opcje.fontFamily);
+  // Tło też w zapisie przenośnym - płyta motywu jasnego to `oklch(1 0 0)`.
+  const background = opcje.background ? (normalizujKolor(opcje.background) ?? "#ffffff") : null;
+  if (background !== null) {
+    const tlo = doc.createElementNS(SVG_NS, "rect");
     tlo.setAttribute("x", "0");
     tlo.setAttribute("y", "0");
     tlo.setAttribute("width", "100%");
     tlo.setAttribute("height", "100%");
-    tlo.setAttribute("fill", opcje.background);
-    klon.insertBefore(tlo, klon.firstChild);
+    tlo.setAttribute("fill", background);
+    korzen.insertBefore(tlo, korzen.firstChild);
   }
-  return new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${klon.outerHTML}`], {
+  return new Blob([`<?xml version="1.0" encoding="UTF-8"?>\n${korzen.outerHTML}`], {
     type: "image/svg+xml;charset=utf-8",
   });
+}
+
+/**
+ * Rysunek z kluczem pod spodem - nowy korzeń pliku.
+ *
+ * RYSUNEK ZOSTAJE NIETKNIĘTY: wchodzi jako zagnieżdżony `<svg>` z własnym
+ * `viewBox`, a klucz stoi pod nim w korzeniu wyższym o pasek. Dopisanie klucza
+ * do samego rysunku wymagałoby przeliczenia na jednostki jego `viewBox`,
+ * które nie muszą być pikselami.
+ *
+ * Szerokość napisu z heurystyki (`estimateLabelWidth`), nie z pomiaru: program
+ * otwierający plik może nie mieć fontu strony, a zapas heurystyki chroni przed
+ * nachodzeniem wpisów na siebie.
+ */
+function svgZKluczem(
+  doc: Document,
+  rysunek: SVGSVGElement,
+  szer: number,
+  wys: number,
+  wiersze: readonly (readonly WpisKlucza[])[],
+): SVGSVGElement {
+  const wysCala = wys + wiersze.length * KLUCZ.wysWiersza + 2 * KLUCZ.marginesY;
+  const korzen = doc.createElementNS(SVG_NS, "svg") as SVGSVGElement;
+  korzen.setAttribute("xmlns", SVG_NS);
+  korzen.setAttribute("width", String(szer));
+  korzen.setAttribute("height", String(wysCala));
+  korzen.setAttribute("viewBox", `0 0 ${szer} ${wysCala}`);
+  rysunek.removeAttribute("xmlns");
+  rysunek.setAttribute("x", "0");
+  rysunek.setAttribute("y", "0");
+  rysunek.setAttribute("width", String(szer));
+  rysunek.setAttribute("height", String(wys));
+  korzen.appendChild(rysunek);
+
+  const grupa = doc.createElementNS(SVG_NS, "g");
+  grupa.setAttribute("data-export-key", "");
+  grupa.setAttribute("font-size", String(KLUCZ.font));
+  let y = wys + KLUCZ.marginesY + KLUCZ.wysWiersza / 2;
+  for (const wiersz of wiersze) {
+    let x = KLUCZ.marginesX;
+    for (const wpis of wiersz) {
+      // Kolor wpisu jest już obliczony w ramie (`rgb(...)`); tu tylko zapis
+      // przenośny. Kolor nierozwiązywalny bierze tusz napisu - próbka bez
+      // wypełnienia byłaby w pliku czarnym kwadratem.
+      const tusz = normalizujKolor(wpis.textColor) ?? "#000000";
+      const probka = doc.createElementNS(SVG_NS, "rect");
+      probka.setAttribute("x", String(x));
+      probka.setAttribute("y", String(y - KLUCZ.probka / 2));
+      probka.setAttribute("width", String(KLUCZ.probka));
+      probka.setAttribute("height", String(KLUCZ.probka));
+      probka.setAttribute("fill", normalizujKolor(wpis.color) ?? tusz);
+      grupa.appendChild(probka);
+      if (wpis.kreskowanie) {
+        const k = wpis.kreskowanie;
+        const kreski = doc.createElementNS(SVG_NS, "path");
+        kreski.setAttribute(
+          "d",
+          odcinkiKreskowania(x, y - KLUCZ.probka / 2, KLUCZ.probka, k.odstep)
+            .map(([x1, y1, x2, y2]) => `M${zaokr(x1)} ${zaokr(y1)}L${zaokr(x2)} ${zaokr(y2)}`)
+            .join(""),
+        );
+        kreski.setAttribute("stroke", normalizujKolor(k.linia) ?? tusz);
+        kreski.setAttribute("stroke-width", String(k.grubosc));
+        kreski.setAttribute("fill", "none");
+        grupa.appendChild(kreski);
+      }
+      x += KLUCZ.probka + KLUCZ.odstepProbki;
+      const napis = doc.createElementNS(SVG_NS, "text");
+      napis.setAttribute("x", String(x));
+      napis.setAttribute("y", String(y));
+      napis.setAttribute("dominant-baseline", "central");
+      napis.setAttribute("fill", tusz);
+      napis.textContent = wpis.label;
+      grupa.appendChild(napis);
+      x += estimateLabelWidth(wpis.label, KLUCZ.font) + KLUCZ.odstepWpisow;
+    }
+    y += KLUCZ.wysWiersza;
+  }
+  korzen.appendChild(grupa);
+  return korzen;
 }
 
 /**
@@ -182,6 +322,42 @@ export interface WpisKlucza {
   color: string;
   /** Kolor NAPISU. Osobny, bo próbka i napis mają różne progi kontrastu. */
   textColor: string;
+  /**
+   * Kreskowanie próbki - linie `linia` co `odstep` px CSS (grubość `grubosc`)
+   * na tle `color`. Kartogram znaczy tak kraje bez danych; płaski kolor
+   * w pliku czytałby się jak jeszcze jedna klasa skali.
+   */
+  kreskowanie?: { linia: string; odstep: number; grubosc: number };
+}
+
+/**
+ * Odcinki kreskowania kwadratu `bok` x `bok` o lewym górnym rogu (x, y):
+ * linie „\" (kierunek (1, 1), jak wzór na mapie i próbka legendy) co `odstep`
+ * px MIERZONYCH PROSTOPADLE, przycięte do kwadratu analitycznie - bez
+ * `clipPath` w SVG i bez ścieżki przycięcia na płótnie, więc PNG i SVG
+ * rysują dokładnie te same odcinki.
+ */
+export function odcinkiKreskowania(
+  x: number,
+  y: number,
+  bok: number,
+  odstep: number,
+): [number, number, number, number][] {
+  const krok = Math.max(0.5, odstep) * Math.SQRT2;
+  const odcinki: [number, number, number, number][] = [];
+  // Linia y' = x' + c przecina kwadrat dla c w (-bok, bok).
+  for (let c = -bok + krok / 2; c < bok; c += krok) {
+    const od = Math.max(0, -c);
+    const doX = Math.min(bok, bok - c);
+    if (doX - od <= 0) continue;
+    odcinki.push([x + od, y + od + c, x + doX, y + doX + c]);
+  }
+  return odcinki;
+}
+
+/** Współrzędna do zapisu w pliku - dwa miejsca po przecinku wystarczą. */
+function zaokr(v: number): number {
+  return Math.round(v * 100) / 100;
 }
 
 /** Geometria paska klucza w pikselach CSS, przed przemnożeniem przez `scale`. */
@@ -195,18 +371,21 @@ const KLUCZ = {
   font: 12,
 } as const;
 
-/** Rozkład wpisów klucza na wiersze - zachłannie, z zawijaniem do szerokości. */
+/**
+ * Rozkład wpisów klucza na wiersze - zachłannie, z zawijaniem do szerokości.
+ * `mierz` podaje szerokość napisu w px CSS: pomiar płótnem dla PNG,
+ * heurystyka dla SVG.
+ */
 function rozlozKlucz(
-  ctx: CanvasRenderingContext2D,
   klucz: readonly WpisKlucza[],
   dostepna: number,
+  mierz: (napis: string) => number,
 ): WpisKlucza[][] {
   const wiersze: WpisKlucza[][] = [];
   let biezacy: WpisKlucza[] = [];
   let x = 0;
   for (const wpis of klucz) {
-    const szer =
-      KLUCZ.probka + KLUCZ.odstepProbki + ctx.measureText(wpis.label).width + KLUCZ.odstepWpisow;
+    const szer = KLUCZ.probka + KLUCZ.odstepProbki + mierz(wpis.label) + KLUCZ.odstepWpisow;
     // Pierwszy wpis wiersza wchodzi ZAWSZE, choćby sam nie mieścił się
     // w szerokości: wiersz pusty nie pokazałby go wcale, a przycięty napis
     // wciąż niesie początek nazwy.
@@ -270,12 +449,18 @@ export async function svgDoPng(
     // więc czcionkę ustawiamy dwa razy - raz do pomiaru, raz do rysowania.
     ctx.font = czcionka;
     const wiersze =
-      klucz.length === 0 ? [] : rozlozKlucz(ctx, klucz, Math.max(1, szer - 2 * KLUCZ.marginesX));
+      klucz.length === 0
+        ? []
+        : rozlozKlucz(
+            klucz,
+            Math.max(1, szer - 2 * KLUCZ.marginesX),
+            (napis) => ctx.measureText(napis).width,
+          );
     const wysKlucza =
       wiersze.length === 0 ? 0 : wiersze.length * KLUCZ.wysWiersza + 2 * KLUCZ.marginesY;
 
     canvas.height = (wys + wysKlucza) * scale;
-    ctx.fillStyle = background;
+    ctx.fillStyle = normalizujKolor(background) ?? background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(obraz, 0, 0, szer * scale, wys * scale);
 
@@ -290,6 +475,24 @@ export async function svgDoPng(
         for (const wpis of wiersz) {
           ctx.fillStyle = wpis.color;
           ctx.fillRect(x, y - KLUCZ.probka / 2, KLUCZ.probka, KLUCZ.probka);
+          if (wpis.kreskowanie) {
+            const k = wpis.kreskowanie;
+            ctx.save();
+            ctx.strokeStyle = k.linia;
+            ctx.lineWidth = k.grubosc;
+            ctx.beginPath();
+            for (const [x1, y1, x2, y2] of odcinkiKreskowania(
+              x,
+              y - KLUCZ.probka / 2,
+              KLUCZ.probka,
+              k.odstep,
+            )) {
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+            }
+            ctx.stroke();
+            ctx.restore();
+          }
           x += KLUCZ.probka + KLUCZ.odstepProbki;
           ctx.fillStyle = wpis.textColor;
           ctx.fillText(wpis.label, x, y);

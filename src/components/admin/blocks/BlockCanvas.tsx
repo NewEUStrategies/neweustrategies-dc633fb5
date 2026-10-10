@@ -38,7 +38,9 @@ import { htmlTextLength, innerInlineHtml, mergeInlineIntoHtml } from "@/lib/bloc
 import { escapeInlineText } from "@/lib/blocks/inlineHtml";
 import { isEditableTarget } from "@/lib/blocks/selectionDom";
 import type { SelectionDirection } from "@/lib/blocks/crossSelection";
-import { getTransformTargets, transformBlock } from "@/lib/blocks/transforms";
+import { toast } from "sonner";
+import { getTransformTargets, tableToChartProblems, transformBlock } from "@/lib/blocks/transforms";
+import { importProblemText } from "@/lib/charts/importProblems";
 import { useBlockClipboard } from "./hooks/useBlockClipboard";
 import { useCrossBlockSelection } from "./hooks/useCrossBlockSelection";
 import { BlockSelectionAnnouncer } from "./atoms/BlockSelectionAnnouncer";
@@ -511,7 +513,24 @@ export function BlockCanvas({
                   transforms={transformOptionsFor(b)}
                   onTransform={(type) => {
                     const replacement = transformBlock(b, type as BlockType);
-                    if (replacement) replaceWith(b.id, replacement);
+                    // Tabela -> wykres jest jedynym przekształceniem, które może
+                    // odmówić z powodu TREŚCI (tabela bez liczb) i które coś
+                    // traci po drodze (limity, komórki nieliczbowe). Menu liczy
+                    // cele po typie bloku, więc pozycji nie da się ukryć dla
+                    // jednej tabeli - odmowa i uwagi idą komunikatem.
+                    const tabelaWykres = b.type === "table" && type === "chart";
+                    if (!replacement) {
+                      if (tabelaWykres) toast.error(t("blocks.transform.tableNoNumbers"));
+                      return;
+                    }
+                    replaceWith(b.id, replacement);
+                    if (!tabelaWykres) return;
+                    const uwagi = tableToChartProblems(b).map((p) => importProblemText(p, t));
+                    if (uwagi.length > 0) {
+                      toast.message(t("blocks.transform.chartProblems"), {
+                        description: uwagi.join(" "),
+                      });
+                    }
                   }}
                 >
                   <BlockWithToolbar

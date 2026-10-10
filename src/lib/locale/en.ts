@@ -1435,6 +1435,8 @@ export const en = {
     },
     transform: {
       menuLabel: "Transform to",
+      tableNoNumbers: "The table has no numbers, so no chart was created. The table is unchanged.",
+      chartProblems: "The chart was created from the table. Notes on reading the data:",
     },
     inserter: {
       browseAll: "Browse all",

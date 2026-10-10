@@ -170,6 +170,13 @@ const GATED_PREFIXES = [
   "eventFollowUp",
   "adminEventFollowUp",
   "eventHead",
+  // WYKRESY I MAPY DANYCH (PR2): mapa dla czytelnika, edytor mapy i arkusz
+  // danych wykresu. Trzy nakładki zasiane z góry, zanim tory wniosą klucze
+  // kontrolek - bramka od pierwszego dnia, bo surowy klucz w legendzie mapy
+  // czyta odbiorca opublikowanej analizy.
+  "chartsMap",
+  "mapEditor",
+  "chartEditor",
 ] as const;
 
 // Klucze, dla których identyczny tekst PL i EN jest poprawny (nazwy własne,

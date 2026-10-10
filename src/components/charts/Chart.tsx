@@ -27,8 +27,10 @@ import {
 } from "./ChartFrame";
 import { PointDialog } from "./PointDialog";
 import { slotsNeedingPattern } from "@/lib/charts/palette";
-import { seriesPaint } from "@/lib/charts/seriesStyle";
+import { seriesPaint, seriesRank } from "@/lib/charts/seriesStyle";
+import { KIND_CAPS } from "@/lib/charts/kindCaps";
 import { effectiveBand } from "@/lib/charts/status";
+import { cloudPaints, kindSeriesPaint } from "./kindPaint";
 import { ZOOM_MIN_POINTS } from "@/lib/charts/geometry";
 import { CartesianChart } from "./CartesianChart";
 import { PieChart } from "./PieChart";
@@ -125,10 +127,17 @@ import type {
 } from "@/lib/charts/selection";
 
 /**
- * Rodzaje rysowane przez `CartesianChart` - jedyne, które znają paletę ról,
- * ukrywanie serii z legendy i etykiety przy końcu linii.
+ * Rodzaje rysowane przez `CartesianChart` - jedyne, które ukrywają serie
+ * z legendy (`KIND_CAPS.legendToggle`) i otwierają okno punktu.
  */
 const KARTEZJANSKIE_Z_SERIAMI = new Set<ChartKind>(["line", "area", "bar", "bar-horizontal"]);
+
+/**
+ * Rodzaje, których rysunek sam nazywa serie ETYKIETAMI PRZY KOŃCU LINII
+ * (2-4 serie) i mówi o tym ramie (`onLegendMode`) - legenda ramy byłaby
+ * wtedy drugim kluczem do tych samych linii.
+ */
+const ETYKIETY_KONCOWE = new Set<ChartKind>([...KARTEZJANSKIE_Z_SERIAMI, "index-base"]);
 
 interface ChartProps {
   config: ChartConfig;
@@ -208,7 +217,17 @@ export function Chart({
   // NISKA i WYSOKA parametru, nie serie, a legenda serii wypisałaby tu
   // nazwy dwóch serii wejściowych, których czytelnik na rysunku nie widzi
   // jako osobnych obiektów.
-  const wlasnyKluczRysunku = jedenRozklad || config.kind === "heatmap" || config.kind === "tornado";
+  //
+  // WACHLARZ i MAŁE PANELE też. Wachlarz rysuje JEDNĄ wielkość (linia
+  // centralna z pasmami), więc legenda serii wypisywała kolumny krawędzi jako
+  // osobne serie, których na rysunku nie ma. Panele nazywa NAGŁÓWEK panelu -
+  // legenda z próbkami obiecywała kolory, których rysunek nie używa.
+  const wlasnyKluczRysunku =
+    jedenRozklad ||
+    config.kind === "heatmap" ||
+    config.kind === "tornado" ||
+    config.kind === "fan" ||
+    config.kind === "small-multiples";
 
   const legend: LegendItem[] = useMemo(() => {
     if (isWaterfall) {
@@ -261,16 +280,18 @@ export function Chart({
     }
     // TARCZA NIE MA LEGENDY Z PRÓBKAMI, i to jest zmiana wobec wcześniejszej
     // wersji. Klucz tarczy niesie teraz TABELA obok pierścienia
-    // (`PieKeyTable` w `PieChart`): ta sama próbka - para blade wnętrze plus
-    // mocna obwódka - ale w jednym wierszu z nazwą, udziałem i wartością
-    // bezwzględną. Legenda podawała wyłącznie parę kolor-nazwa, więc czytelnik
+    // (`PieKeyTable` w `PieChart`): ta sama próbka co łuk (pełny kolor
+    // wycinka, z obwódką drugiego nośnika na wyróżnionym), ale w jednym
+    // wierszu z nazwą, udziałem i wartością bezwzględną. Legenda podawała
+    // wyłącznie parę kolor-nazwa, więc czytelnik
     // wykonywał trzy skoki wzroku (łuk, próbka, nazwa) i wciąż nie dostawał
     // liczby; dwa klucze do tej samej grafiki byłyby przy tym dwoma miejscami,
     // w których ta sama kolejność wycinków może się rozjechać.
     //
     // Przełącznik „Legenda” zostaje w edytorze i nadal działa dla wykresów
     // kartezjańskich i mostka; na tarczy tabela klucza jest WYMAGANYM nośnikiem
-    // tożsamości w wariancie bladym, a nie ozdobą do wyłączenia.
+    // tożsamości (łuki nie mają osi, do której można je przypiąć), a nie
+    // ozdobą do wyłączenia.
     if (isPie) return [];
     // HISTOGRAM NIE MA LEGENDY, i to nie jest oszczędność. Czyta JEDNĄ serię,
     // więc klucz z jedną próbką powtarzałby tytuł wykresu, a przy dwóch
@@ -284,7 +305,12 @@ export function Chart({
       // legenda nie może pokazać innego koloru niż linia.
       const patterned = slotsNeedingPattern(config.series.map((s) => s.colorSlot));
       return config.series.map((s, index) => {
-        const paint = seriesPaint(s.colorSlot, index, config.palette, patterned);
+        const paint = seriesPaint(
+          s.colorSlot,
+          seriesRank(index, config.accentSeries),
+          config.palette,
+          patterned,
+        );
         return {
           key: `series-${index}`,
           name: s.name,
@@ -296,14 +322,61 @@ export function Chart({
         };
       });
     }
-    return config.series.map((s) => ({
-      key: `slot-${s.colorSlot}-${s.name}`,
-      name: s.name,
-      color: `var(--chart-${s.colorSlot})`,
-      textColor: `var(--chart-${s.colorSlot}t)`,
-      shape,
-      dashed: false,
-    }));
+    // POZOSTAŁE RODZAJE Z SERIAMI: próbka idzie z TEJ SAMEJ farby, którą
+    // maluje rysunek (`kindPaint`), i tylko dla tego, co rysunek naprawdę
+    // pokazuje - chmury (bez kolumny osi X), serie z indeksem, segmenty
+    // stosu. Pozycje nie przełączają serii (`KIND_CAPS.legendToggle`).
+    if (config.kind === "scatter") {
+      const clouds = scatterModelFromConfig(config).clouds;
+      const paints = cloudPaints(config, clouds);
+      return clouds.map((c, ci) => ({
+        key: `cloud-${c.seriesIndex}`,
+        name: c.name,
+        color: paints[ci].color,
+        textColor: paints[ci].textColor,
+        shape: "rect" as const,
+        dashed: false,
+      }));
+    }
+    if (config.kind === "index-base") {
+      const drawn = indexBaseModelFromConfig(config).series.filter((s) => s.indexable);
+      const patterned = slotsNeedingPattern(drawn.map((s) => s.colorSlot));
+      return drawn.map((s) => {
+        const paint = kindSeriesPaint(config, s.colorSlot, s.index, patterned);
+        return {
+          key: `series-${s.index}`,
+          name: s.name,
+          color: paint.color,
+          textColor: paint.textColor,
+          shape: "line" as const,
+          dashed: paint.dashed,
+        };
+      });
+    }
+    if (config.kind === "percent-stacked") {
+      return percentStackedModelFromConfig(config).series.map((s) => {
+        const paint = kindSeriesPaint(config, s.colorSlot, s.seriesIndex);
+        return {
+          key: `series-${s.seriesIndex}`,
+          name: s.name,
+          color: paint.color,
+          textColor: paint.textColor,
+          shape: "rect" as const,
+          dashed: false,
+        };
+      });
+    }
+    return config.series.map((s, index) => {
+      const paint = kindSeriesPaint(config, s.colorSlot, index);
+      return {
+        key: `series-${index}`,
+        name: s.name,
+        color: paint.color,
+        textColor: paint.textColor,
+        shape,
+        dashed: false,
+      };
+    });
   }, [config, wlasnyKluczRysunku, isPie, isWaterfall, zSeriami, t]);
 
   const shareSumMismatch: string | null = useMemo(() => {
@@ -341,20 +414,37 @@ export function Chart({
     caption: config.caption,
   };
 
+  const caps = KIND_CAPS[config.kind];
   const meta: ChartPanelMeta = {
     palette: config.palette,
+    // Rodzina rysunku wybiera zdania „Jak czytać" (elementy, kolory,
+    // interakcje) - tekst o osiach i legendzie przełączanej nie pasuje do
+    // tarczy, mapy ciepła ani paneli.
+    family: caps.family,
     demo: config.demo,
     provenance: config.provenance,
     sources: config.sources,
     footnoteNumbers,
+    // Pasmo i cel tylko tam, gdzie rysunek je RYSUJE (`KIND_CAPS`) - inaczej
+    // okno pomocy objaśniałoby linie, których czytelnik nie widzi.
     hasBand:
+      caps.band &&
       effectiveBand(
         config.band,
         config.sources.map((s) => s.id),
       ) !== null,
-    hasTarget: config.target !== null,
+    hasTarget: caps.target && config.target !== null,
     zoomable:
       zSeriami && config.kind !== "bar-horizontal" && config.categories.length > ZOOM_MIN_POINTS,
+    // TARCZA NIE MA LEGENDY RAMY (klucz niesie tabela obok pierścienia), więc
+    // klucz eksportu PNG podaje rysunek: nazwa z udziałem i kolor wycinka.
+    exportKey: isPie
+      ? () =>
+          pieModel(config, lang).slices.map((s) => ({
+            label: `${s.label} ${formatPercent(s.share, lang)}`,
+            color: s.color,
+          }))
+      : undefined,
   };
 
   if (!hasData) {
@@ -400,7 +490,7 @@ export function Chart({
       className={className}
       hiddenLegend={hiddenKeys}
       onToggleLegend={zSeriami ? toggle : undefined}
-      legendSuppressed={zSeriami && legendMode === "labels"}
+      legendSuppressed={ETYKIETY_KONCOWE.has(config.kind) && legendMode === "labels"}
       meta={meta}
       variant={variant}
       renderExpanded={(height) => (

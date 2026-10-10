@@ -176,6 +176,17 @@ describe("korzenie nakładek mają czytelnika", () => {
       [],
     );
   });
+
+  it("lista zasiewów jest szczelna: zasiew, który dostał czytelnika, schodzi z listy", () => {
+    // Zwolnienie, które przeżyło swój powód, wyłącza bramkę dla korzenia na
+    // stałe: gdyby kolejna zmiana zabrała mu wszystkich czytelników, martwy
+    // słownik przeszedłby na zielono.
+    const masked = sources.map(({ text }) => maskComments(text)).join("\n");
+    const stale = [...F1_F5_SEED_ROOTS].filter((root) =>
+      new RegExp(`["'\`]${root}(?=["'\`.])`).test(masked),
+    );
+    expect(stale, "zasiew ma już czytelnika - zdejmij go z listy zwolnień").toEqual([]);
+  });
 });
 
 describe("`uploadArea` - wspólna kopia obszaru wgrywania", () => {

@@ -116,6 +116,8 @@ import { useContainerWidth } from "@/hooks/useContainerWidth";
 import { useTapAwayDismiss } from "@/hooks/useTapAwayDismiss";
 import { useRevealOnScroll, revealClassName } from "@/hooks/useRevealOnScroll";
 import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
+import { sourceLine } from "./chartFacts";
+import { kindSeriesPaint, type KindPaint } from "./kindPaint";
 import "@/lib/i18n-charts";
 
 /**
@@ -415,6 +417,24 @@ export function BeeswarmChart({ config, lang, ariaLabel: nazwaZadana }: Beeswarm
 
   const czynny: BeeDot | null = active === null ? null : (dots[active] ?? null);
 
+  // FARBA ROJU z rangi serii (`accentSeries`): pod paletą ról rój wyróżniony
+  // w akcencie, pozostałe w neutralnych; pod kategorialną - slot serii.
+  // Klucz to indeks roju, czyli pozycja serii w arkuszu.
+  const paints = useMemo(() => {
+    const out = new Map<number, KindPaint>();
+    for (const s of model.swarms) {
+      out.set(
+        s.index,
+        kindSeriesPaint(
+          { palette: config.palette, accentSeries: config.accentSeries },
+          s.colorSlot,
+          s.index,
+        ),
+      );
+    }
+    return out;
+  }, [model, config.palette, config.accentSeries]);
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
     if (dots.length === 0) return;
     if (e.key === "Escape") {
@@ -501,6 +521,7 @@ export function BeeswarmChart({ config, lang, ariaLabel: nazwaZadana }: Beeswarm
           name: t("beeswarm.table.value"),
           value: formatChartValue(czynny.value, lang, config.unit),
           colorSlot: czynny.colorSlot,
+          color: paints.get(czynny.swarm)?.color,
           emphasised: true,
         },
         ...(czynny.label
@@ -608,6 +629,7 @@ export function BeeswarmChart({ config, lang, ariaLabel: nazwaZadana }: Beeswarm
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{ height, borderRadius: "var(--chart-radius)" }}
         tabIndex={0}
@@ -741,8 +763,12 @@ export function BeeswarmChart({ config, lang, ariaLabel: nazwaZadana }: Beeswarm
               cx={d.cx}
               cy={d.cy}
               r={active === d.i ? radius + HOVER_R_PX : radius}
-              fill={`var(--chart-${d.colorSlot})`}
-              stroke="var(--card)"
+              fill={paints.get(d.swarm)?.color ?? `var(--chart-${d.colorSlot})`}
+              // Obwódka płyty rozdziela stykające się kropki; kropka
+              // w akcencie dostaje w tym samym miejscu obwódkę drugiego
+              // nośnika (ta sama grubość - geometria bez zmian), która
+              // rozdziela sąsiadów równie dobrze.
+              stroke={paints.get(d.swarm)?.accentEdge ?? "var(--card)"}
               data-swarm={d.swarm}
               data-active={active === d.i ? "true" : undefined}
               // Grubość obwódki przez `style`, nie atrybutem prezentacyjnym:
@@ -781,6 +807,7 @@ export function BeeswarmChart({ config, lang, ariaLabel: nazwaZadana }: Beeswarm
           containerWidth={width}
           title=""
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
     </div>

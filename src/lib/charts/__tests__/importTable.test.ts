@@ -16,8 +16,11 @@ import {
   isImportableName,
   mapValuesToText,
   normaliseCountryName,
+  numberStyle,
   parseDelimitedText,
+  parseImportedCell,
   parseImportedNumber,
+  readImportedNumber,
   sniffDelimiter,
   tableToChartData,
   tableToMapValues,
@@ -403,5 +406,177 @@ describe("import - etykiety bezpieczne dla formatu średnikowego", () => {
     const wynik = parseChartData(tekst);
     expect(wynik.categories).toEqual([kategoria]);
     expect(wynik.series[0].values).toEqual([20]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LICZBY Z ARKUSZY I STATYSTYKI PUBLICZNEJ (2026-10)
+//
+// Tekst wyświetlany przez arkusz niesie walutę, minus typograficzny, flagi
+// Eurostatu i oznaczenia braku danych. Każdy z tych zapisów wychodził jako
+// „komórka nieliczbowa" - czyli luka na wykresie z liczbą, którą redaktor
+// widział w arkuszu.
+// ---------------------------------------------------------------------------
+
+describe("import - waluta, minus, flagi i braki danych", () => {
+  it("minus typograficzny i półpauza jako minus są minusem", () => {
+    expect(parseImportedNumber("\u22125")).toBe(-5);
+    expect(parseImportedNumber("\u20133,5")).toBe(-3.5);
+  });
+
+  it("zdejmuje walutę z początku i z końca, ze znakiem włącznie", () => {
+    expect(parseImportedNumber("1 234,50 zł")).toBe(1234.5);
+    expect(parseImportedNumber("$1,234.50")).toBe(1234.5);
+    expect(parseImportedNumber("€ 12")).toBe(12);
+    expect(parseImportedNumber("12 EUR")).toBe(12);
+    expect(parseImportedNumber("PLN 7,5")).toBe(7.5);
+    expect(parseImportedNumber("£5")).toBe(5);
+    expect(parseImportedNumber("CHF 12.50")).toBe(12.5);
+    expect(parseImportedNumber("-$5")).toBe(-5);
+    // „usd" składa się z liter flag Eurostatu - i dalej jest walutą, nie flagą.
+    expect(readImportedNumber("5 usd")).toEqual({ value: 5, status: "number", flagged: false });
+  });
+
+  it("procent dalej NIE dzieli przez sto (reguła udokumentowana)", () => {
+    expect(parseImportedNumber("45%")).toBe(45);
+    expect(parseImportedNumber("12,5 %")).toBe(12.5);
+  });
+
+  it("grupowanie apostrofem (Szwajcaria)", () => {
+    expect(parseImportedNumber("1'234.5")).toBe(1234.5);
+    expect(parseImportedNumber("1\u2019234")).toBe(1234);
+  });
+
+  it("dwukropek i dwie kropki to jawny brak danych - luka, nie błąd", () => {
+    expect(readImportedNumber(":")).toEqual({ value: null, status: "missing", flagged: false });
+    expect(readImportedNumber("..")).toEqual({ value: null, status: "missing", flagged: false });
+    expect(readImportedNumber(": c")).toEqual({ value: null, status: "missing", flagged: true });
+  });
+
+  it("zdejmuje flagi Eurostatu po spacji i to odnotowuje", () => {
+    expect(readImportedNumber("12.5 p")).toEqual({ value: 12.5, status: "number", flagged: true });
+    expect(readImportedNumber("7 bep")).toEqual({ value: 7, status: "number", flagged: true });
+    expect(readImportedNumber("12,5 e")).toEqual({ value: 12.5, status: "number", flagged: true });
+    // Bez spacji to nie flaga, a wielka litera to nie flaga Eurostatu.
+    expect(readImportedNumber("12p").status).toBe("invalid");
+    expect(readImportedNumber("12 P").status).toBe("invalid");
+  });
+
+  it("parseImportedCell oddaje liczbę RAZEM z literami zdjętej flagi", () => {
+    // Flaga schodzi PRZED usunięciem odstępów - inaczej „1 234,5 p" stałoby
+    // się „1234,5p" i przepadło jako komórka nieliczbowa.
+    expect(parseImportedCell("1 234,5 p", "pl")).toEqual({ value: 1234.5, flag: "p" });
+    expect(parseImportedCell("1\u00a0234,5\u00a0bep", "pl")).toEqual({
+      value: 1234.5,
+      flag: "bep",
+    });
+    expect(parseImportedCell("12.5 e")).toEqual({ value: 12.5, flag: "e" });
+    expect(parseImportedCell("12,5")).toEqual({ value: 12.5, flag: null });
+    // Jawny brak z flagą: wartości nie ma, flaga zostaje („c" - poufne).
+    expect(parseImportedCell(": c")).toEqual({ value: null, flag: "c" });
+    // Napis, który liczbą nie jest, nie ma też flagi.
+    expect(parseImportedCell("Polska b")).toEqual({ value: null, flag: null });
+    expect(parseImportedCell("")).toEqual({ value: null, flag: null });
+    // Waluta złożona z liter flag zostaje walutą.
+    expect(parseImportedCell("5 usd")).toEqual({ value: 5, flag: null });
+  });
+
+  it("parseImportedNumber to wartość z parseImportedCell w każdej konwencji", () => {
+    for (const raw of ["1 234,5 p", "1,234", "1.234", "45%", ": c", "abc", "(12)"]) {
+      for (const locale of [undefined, "pl", "en"] as const) {
+        expect(parseImportedNumber(raw, locale), `${raw} / ${locale}`).toBe(
+          parseImportedCell(raw, locale).value,
+        );
+      }
+    }
+  });
+
+  it("odróżnia pustą komórkę od napisu, który liczbą nie jest", () => {
+    expect(readImportedNumber("  ").status).toBe("empty");
+    expect(readImportedNumber("b.d.").status).toBe("invalid");
+    expect(readImportedNumber("#N/A").status).toBe("invalid");
+  });
+});
+
+describe("import - konwencja liczb", () => {
+  it("bez konwencji: reguła zastana - jeden rozdzielacz jest dziesiętny", () => {
+    expect(parseImportedNumber("1,234")).toBe(1.234);
+    expect(parseImportedNumber("1.234")).toBe(1.234);
+    expect(parseImportedNumber("12,345,678")).toBeNull();
+    expect(parseImportedNumber("1.234.567")).toBeNull();
+  });
+
+  it("pl: przecinek dziesiętny, kropki grupujące po trzy to tysiące", () => {
+    expect(parseImportedNumber("1,234", "pl")).toBe(1.234);
+    expect(parseImportedNumber("1.234", "pl")).toBe(1234);
+    expect(parseImportedNumber("1.234.567", "pl")).toBe(1234567);
+    expect(parseImportedNumber("3.5", "pl")).toBe(3.5);
+    expect(parseImportedNumber("0.123", "pl")).toBe(0.123);
+    expect(parseImportedNumber("1,2,3", "pl")).toBeNull();
+  });
+
+  it("en: kropka dziesiętna, przecinki grupujące po trzy to tysiące", () => {
+    expect(parseImportedNumber("1,234", "en")).toBe(1234);
+    expect(parseImportedNumber("12,345,678", "en")).toBe(12345678);
+    expect(parseImportedNumber("1.234", "en")).toBe(1.234);
+    expect(parseImportedNumber("12,5", "en")).toBe(12.5);
+    expect(parseImportedNumber("0,123", "en")).toBe(0.123);
+  });
+
+  it("oba rozdzielacze rozstrzygają się same w każdej konwencji", () => {
+    for (const locale of [undefined, "pl", "en"] as const) {
+      expect(parseImportedNumber("1.234,5", locale)).toBe(1234.5);
+      expect(parseImportedNumber("1,234.5", locale)).toBe(1234.5);
+    }
+  });
+
+  it("świadectwo konwencji w komórce", () => {
+    expect(numberStyle("12,5")).toBe("pl");
+    expect(numberStyle("1.234,5")).toBe("pl");
+    expect(numberStyle("1.234.567")).toBe("pl");
+    expect(numberStyle("0,123")).toBe("pl");
+    expect(numberStyle("3.5")).toBe("en");
+    expect(numberStyle("1,234.5")).toBe("en");
+    expect(numberStyle("12,345,678")).toBe("en");
+    expect(numberStyle("1,234")).toBe("ambiguous");
+    expect(numberStyle("-12.345")).toBe("ambiguous");
+    for (const bez of ["12", "", "Polska", "15.01.2024", "2024-01", "1,2,3"]) {
+      expect(numberStyle(bez), bez).toBeNull();
+    }
+  });
+});
+
+describe("import - separator po zgodności liczby pól", () => {
+  it("TSV ze schowka z polskimi przecinkami NIE jest brane za CSV", () => {
+    // Regresja: suma przecinków (4) biła sumę tabulatorów (3), więc liczby
+    // były rozcinane na pół, a tabela traciła wszystkie serie bez słowa.
+    const text = "\tWartość\nKraków, Małopolska\t1,5\nWrocław, Dolny Śląsk\t2,5";
+    expect(sniffDelimiter(text)).toBe("\t");
+    expect(parseDelimitedText(text)).toEqual([
+      ["", "Wartość"],
+      ["Kraków, Małopolska", "1,5"],
+      ["Wrocław, Dolny Śląsk", "2,5"],
+    ]);
+  });
+
+  it("jedna kolumna polskich ułamków zostaje jedną kolumną", () => {
+    expect(parseDelimitedText("Wartość\n1,5\n2,5")).toEqual([["Wartość"], ["1,5"], ["2,5"]]);
+  });
+
+  it("przypis pod tabelą średnikową nie przestawia separatora na przecinek", () => {
+    const text = "Kraj;Wartość\nPL;1,5\nDE;2,5\nŹródło: Eurostat, 2024, tabela 3";
+    expect(sniffDelimiter(text)).toBe(";");
+  });
+
+  it("wiersz tytułu nad tabelą CSV nie psuje rozpoznania przecinka", () => {
+    expect(sniffDelimiter("Tabela 1\nCountry,Value\nPL,1.5\nDE,2.5")).toBe(",");
+  });
+
+  it("remis zgodności rozstrzyga kolejność: tabulator, średnik, przecinek", () => {
+    expect(sniffDelimiter("A,B\tC,D\n1,5\t2,5")).toBe("\t");
+  });
+
+  it("tabulator w każdym wierszu bije przecinek, którego brak w nagłówku", () => {
+    expect(sniffDelimiter("Kraj\tWartość\nPL\t1,5\nDE\t2,5")).toBe("\t");
   });
 });

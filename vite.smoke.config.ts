@@ -262,7 +262,9 @@ export default defineConfig({
                 // + runtime (createLucideIcon/Icon); `vendor-lucide` = reszta,
                 // ładowana dopiero z leniwymi trasami. Domknięcie: ikony
                 // niebootowe importują runtime z `-boot`, nigdy odwrotnie; poza
-                // tym oba chunki importują wyłącznie React.
+                // tym oba chunki importują wyłącznie React. Do bootowych należą
+                // też ikony modułów, które łączenie małych chunków wkleja do
+                // `index-*` (`ENTRY_MERGED_LUCIDE_IMPORTERS`, ten sam plik).
                 if (id.includes("/node_modules/lucide-react/")) {
                   return isBootLucideModule(id, meta) ? "vendor-lucide-boot" : "vendor-lucide";
                 }

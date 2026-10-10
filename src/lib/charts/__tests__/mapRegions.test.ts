@@ -8,9 +8,9 @@
 //   2. `GEO_ASSET_URL` (tamże) - adres zasobu geometrii per region;
 //   3. `REGION_ASPECT_FALLBACK` w `geoAspect.ts` - aspekt migotki przed
 //      wczytaniem zasobu;
-//   4. edytor bloku CMS - `DataMapBlock` w `DataVizBlocks.tsx`;
+//   4. edytor bloku CMS - `DataMapBlock` w `DataMapBlock.tsx`;
 //   5. schemat widgetu buildera - `data-map` i `feature-corridor-map`
-//      w `schemas.ts`;
+//      w `WIDGET_SCHEMAS` (opcje z `dataVizSchemas/shared.ts`);
 //   6. słownik PL i EN - `blocks.editors.dataMap.*` w `i18n-admin-blocks.ts`.
 //
 // Punkty 2 i 3 są typowane `Record<MapRegion, ...>`, więc pilnuje ich
@@ -34,7 +34,7 @@ import { REGION_ASPECT_FALLBACK, aspectFromViewBox, mapAspect } from "@/lib/char
 import { parseDataMapConfig, parseMapRegion } from "@/lib/charts/parse";
 import { WIDGET_SCHEMAS } from "@/lib/builder/schemas";
 
-const dataViz = readFileSync("src/components/admin/blocks/edit/DataVizBlocks.tsx", "utf8");
+const dataMap = readFileSync("src/components/admin/blocks/edit/DataMapBlock.tsx", "utf8");
 const slownik = readFileSync("src/lib/i18n-admin-blocks.ts", "utf8");
 
 /** Widgety buildera, których pole `region` mówi o TEJ liście regionów. */
@@ -146,7 +146,7 @@ describe("regiony mapy - obecność w KAŻDEJ powierzchni autorskiej", () => {
     // listy, a nie zgodność dwóch. Wcześniej stały tu dwa wpisane ręcznie
     // `<option value="europe">`, przez co region dodany do źródła był z
     // edytora nieosiągalny.
-    const blok = dataViz.slice(dataViz.indexOf("export function DataMapBlock"));
+    const blok = dataMap.slice(dataMap.indexOf("export function DataMapBlock"));
     expect(blok, "edytor mapy nie wyprowadza regionów z MAP_REGIONS").toContain("MAP_REGIONS.map");
     expect(blok, "edytor mapy liczy klucz słownika sam, zamiast wołać mapRegionLabelKey").toContain(
       "mapRegionLabelKey",

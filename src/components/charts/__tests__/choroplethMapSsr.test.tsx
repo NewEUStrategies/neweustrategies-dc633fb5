@@ -3,17 +3,17 @@
 // MAPA-CHOROPLETA NA ŚCIEŻCE SERWEROWEJ.
 //
 // PO CO OSOBNY PLIK ZE ŚRODOWISKIEM `node`. `ChoroplethMap` liczy awaryjny
-// hex rampy przez `seqHexPair()`, a ta funkcja zaczyna się od strażnika
-// `typeof document === "undefined"`. W happy-dom ta gałąź jest NIEOSIĄGALNA -
-// dokument istnieje zawsze - więc w pliku obok stała jako jedyna niepokryta
-// i wyglądała na dług, którym nie jest.
+// hex rampy z motywu czytanego przez `themeOf()`, a ta funkcja zaczyna się od
+// strażnika `typeof document === "undefined"`. W happy-dom ta gałąź jest
+// NIEOSIĄGALNA - dokument istnieje zawsze - więc tylko ten plik dowodzi, że
+// render bez dokumentu przechodzi.
 //
-// CO SIĘ STANIE BEZ NIEJ. Wywołanie `seqHexPair()` NIE siedzi w gałęzi
-// klienckiej: leci w ciele renderu, zaraz za wczesnym wyjściem dla pustego
-// zestawu, czyli TAKŻE na serwerze. Sięgnięcie po `document.documentElement`
-// bez okna to ReferenceError w RENDERZE - a mapa jest blokiem treści
-// redakcyjnej, więc padłby cały artykuł: HTTP 500 zamiast strony, i to na
-// ścieżce, którą odwiedza crawler. Nie „mapa bez koloru".
+// CO SIĘ STANIE BEZ NIEJ. Dziś `themeOf()` woła wyłącznie gałąź rysująca SVG,
+// która na serwerze nie startuje (geometria dociąga się po hydracji) - ale
+// wystarczy przenieść wywołanie wyżej, do ciała renderu, i sięgnięcie po
+// `document.documentElement` bez okna staje się ReferenceError w RENDERZE.
+// Mapa jest blokiem treści redakcyjnej, więc padłby cały artykuł: HTTP 500
+// zamiast strony, i to na ścieżce, którą odwiedza crawler.
 //
 // Jasna para hexów jest na serwerze jedyną poprawną odpowiedzią: motyw
 // mieszka w klasie na <html>, którą ustawia skrypt przedhydracyjny, więc
@@ -86,11 +86,13 @@ describe("ChoroplethMap - render serwerowy", () => {
     expect(html).toContain("linear-gradient");
   });
 
-  it("pusty zestaw na serwerze daje NOTĘ, a nie pustą kartę", () => {
-    // Wczesne wyjście stoi PRZED `seqHexPair()`, więc ta ścieżka nie dotyka
-    // motywu w ogóle - i też musi przeżyć render bez dokumentu.
+  it("pusty zestaw na serwerze daje PANEL z tytułem i komunikatem, bez migotki", () => {
+    // Pusty zestaw zostaje ramą (PR2) - tytuł i komunikat są w markupie
+    // z serwera, a migotki nie ma, bo nie ma czego dociągać.
     const html = ssr({ region: "europe", title: "Pusta", values: [] });
 
+    expect(html).toContain("Pusta");
+    expect(html).toContain("<figure");
     expect(html).toContain("Brak danych mapy.");
     expect(html).not.toContain("skeleton-shimmer");
   });

@@ -27,7 +27,8 @@ describe("svgZWklejonaFarba", () => {
         }) as unknown as CSSStyleDeclaration,
     );
     const klon = svgZWklejonaFarba(svg);
-    expect(klon.querySelector("rect")?.getAttribute("fill")).toBe("rgb(198, 137, 53)");
+    // Zapis przenośny (`#rrggbb`) - patrz `exportColor.ts`.
+    expect(klon.querySelector("rect")?.getAttribute("fill")).toBe("#c68935");
     vi.restoreAllMocks();
   });
 
@@ -64,7 +65,7 @@ describe("svgZWklejonaFarba", () => {
         }) as unknown as CSSStyleDeclaration,
     );
     const stop = svgZWklejonaFarba(svg).querySelector("stop");
-    expect(stop?.getAttribute("stop-color")).toBe("rgb(198, 137, 53)");
+    expect(stop?.getAttribute("stop-color")).toBe("#c68935");
     expect(stop?.getAttribute("stop-opacity")).toBe("0.07");
     vi.restoreAllMocks();
   });

@@ -4,8 +4,9 @@ import {
   type SpreadsheetOp,
   type SpreadsheetRequest,
   type SpreadsheetResponse,
+  type SpreadsheetBook,
   type SpreadsheetResults,
-  type SpreadsheetRows,
+  type SpreadsheetRowsOptions,
   type WritableCell,
 } from "./spreadsheetProtocol";
 
@@ -71,12 +72,21 @@ export function runSpreadsheetWorker(
   return callSpreadsheetWorker({ op: "preview", buffer }, signal);
 }
 
-/** Import danych wykresu i mapy: surowe komórki wszystkich arkuszy. */
+/**
+ * Surowe komórki arkuszy. Tryb importu wykresu (procent · 100, błąd jako
+ * tekst, HTML bez zgadywania typów, limity z liczbami pominiętych) włącza
+ * WYŁĄCZNIE `chartImport: true` - patrz `SpreadsheetRowsOptions`; bez niego
+ * proces czyta tak jak przed wprowadzeniem trybu.
+ */
 export function readSpreadsheetRowsInWorker(
   buffer: ArrayBuffer,
-  signal?: AbortSignal,
-): Promise<SpreadsheetRows[]> {
-  return callSpreadsheetWorker({ op: "rows", buffer }, signal);
+  options: SpreadsheetRowsOptions & { signal?: AbortSignal } = {},
+): Promise<SpreadsheetBook> {
+  const request: SpreadsheetRequest & { op: "rows" } =
+    options.chartImport === true
+      ? { op: "rows", buffer, chartImport: true }
+      : { op: "rows", buffer };
+  return callSpreadsheetWorker(request, options.signal);
 }
 
 /** Eksport: jeden arkusz z wierszy do bajtów pliku `.xlsx`. */

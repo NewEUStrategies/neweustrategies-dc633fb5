@@ -1193,7 +1193,11 @@ export function SectionLabelRender({
       const bars: ReadonlyArray<{ id: string; grow: string; delay: string }> = [
         { id: "lead", grow: isSm ? "group-hover:w-3" : "group-hover:w-[19px]", delay: "0ms" },
         { id: "mid", grow: isSm ? "group-hover:w-[13px]" : "group-hover:w-[21px]", delay: "75ms" },
-        { id: "tail", grow: isSm ? "group-hover:w-[11px]" : "group-hover:w-[18px]", delay: "150ms" },
+        {
+          id: "tail",
+          grow: isSm ? "group-hover:w-[11px]" : "group-hover:w-[18px]",
+          delay: "150ms",
+        },
       ];
       // Ciasny tracking tytulu (litery blisko siebie), z-delikatnym otwarciem na hoverze.
       const titleCls = isSm

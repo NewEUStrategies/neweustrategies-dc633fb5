@@ -2018,6 +2018,93 @@ const CLIENT_DIR =
 // ZASADA Z WPISU V OBOWIĄZUJE: krok bramki nie działa na PR-ach, więc pierwszy
 // log runnera na main po scaleniu jest podstawą korekty w dół.
 
+// 2026-10-10 XXVI  WYKRESY I MAPY DANYCH W BLOKACH I WIDGETACH (PR #489).
+//             Floory OVERALL 4786 -> 4833 (korekta niżej: 4837) i PUBLIC CSS
+//             83 -> 85, DECYZJĄ ZAMAWIAJĄCEGO („najpierw cięcia, potem
+//             próg"), z pomiarem obu drzew. PUBLIC, CHUNK, CSS i BOOT nie
+//             ruszone - mieszczą się.
+//
+// POMIAR (ten sam host, `bun run build` + ta bramka):
+//   baza 940ef8b1 (main po #488):   overall 4782,8  public 2822,1  css 97,0
+//                                   public css 82,8  boot 503,4  chunk 259,2
+//   gałąź po cięciach niżej:        overall 4831,9  public 2833,9  css 97,5
+//                                   public css 83,2  boot 503,2  chunk 259,0
+//   gałąź scalona z main 86ccb3ed:  identycznie (main po #488 zmienił tylko
+//                                   `bun.lock`)
+//
+// SKŁAD PRZYROSTU: admin-only +37,3, public +11,8 (suma = overall +49,1).
+// Per chunk (gzip, różnica drzew):
+//   +43,1 / -11,2  panel buildera (`EmptyContainerPickerBox`) / edytor bloków
+//         (`PostBlockEditor`) - współdzielone moduły edytorów przeszły między
+//         nimi; netto admin to wspólna siatka danych wykresu i mapy, podgląd
+//         wklejenia z obrotem i kolumną krajów, import z listą problemów,
+//         wybór koloru serii i serii wyróżnionej, wybór skali barw mapy
+//         z podglądem legendy, dialog arkusza mapy, nakładki `chartEditor.*`
+//         i `mapEditor.*`
+//   +5,1  DataVizViews (czytelnik, chunk leniwy - tylko strony z wykresem albo
+//         mapą): kartogram według specyfikacji - legenda klas, kreskowanie
+//         braku danych, tooltip z faktami, obrys dwutonowy, dotyk, przypisy,
+//         nakładka `chartsMap.*`
+//   +1,6  ChartFrame po cięciu (z +6,6): teksty „Jak czytać" per rodzina,
+//         klucz w pliku SVG, prop `exportable`
+//   +1,2  Chart - paleta ról we wszystkich rodzajach, pełne wycinki, akcent
+//   reszta public: adapter `widgetConfig` i przetasowanie małych modułów
+//   +0,4  public css - tokeny ramp map (jasny, ciemny, druk), `map.css`,
+//         zwolnienie typografii w formie przodka
+// `spreadsheet.worker` jest w obu drzewach (+0,5 za regułę procentu i
+// `cellNF`); boot bez zmian - nic z PR nie weszło na ścieżkę startową
+// (szacunek wysokości sekcji trzyma KOPIE liczb silnika właśnie po to).
+//
+// CO WYCIĘTO, ZANIM PRÓG RUSZYŁ:
+//   * eksport PNG/SVG (`exportImage`, `exportColor`) ładowany dynamicznie po
+//     kliknięciu, nie w chunku ramy: public -2,5 KB;
+//   * martwe klucze dawnych edytorów (`blocks.editors.chart.*` - 11,
+//     `blocks.editors.dataMap.*` - 4, `dataImport.hintMap`);
+//   * podział chunków edytora NIE obniża OVERALL (to suma wszystkich chunków),
+//     więc nie był cięciem; cięcie funkcji (podgląd wklejenia, wybór skali
+//     z podglądem) zabrałoby to, o co zamawiający prosił.
+//
+// FORMUŁA JAK W XIX-XXV: pomiar hosta w górę do pełnego KB, +1 na granicę
+// zaokrąglenia: overall 4831,9 -> 4832 -> 4833; public css 83,2 -> 84 -> 85.
+// ZASADA Z WPISU V OBOWIĄZUJE: pierwszy log runnera na main po scaleniu jest
+// podstawą korekty w dół.
+//
+// KOREKTA PRZED SCALENIEM (2026-10-10, ten sam PR): OVERALL 4833 -> 4837.
+// Po pomiarze wyżej weszły poprawki z przeglądu końcowego (23 usterki),
+// z przeglądu Codex i parsera pól panelu, każda z testem, który przed nią
+// oblewał, oraz zdjęcie `vendor-lucide` ze ścieżki startowej. Krok bramki
+// nie działa na PR-ach, więc przekroczenia nie pokazało CI gałęzi. Pomiar
+// trzech drzew na tym samym hoście (buildy deterministyczne):
+//   bf37469a (commit wpisu):       overall 4832,0  public 2833,8  admin 1998,2
+//                                  boot 503,2 (11 chunków); wyżej podane 4831,9
+//   84c7bd59 (po przeglądach):     overall 4836,6  public 2835,0  admin 2001,6
+//   + boot bez `vendor-lucide`:    overall 4836,0  public 2834,5  admin 2001,5
+//                                  boot 484,9 (10 chunków)  chunk 259,0
+// Poprawki z przeglądów: +4,6 (public +1,2, admin +3,4). Per chunk
+// (`Bun.gzipSync`, bf37469a -> stan końcowy):
+//   +2,9  panel buildera (`EmptyContainerPickerBox`): stan arkusza danych
+//         (`chartGridState` - operacja jako jeden krok cofania, kolejność
+//         i wyróżnienie serii), próbki koloru faktycznie rysowanego w danym
+//         rodzaju (`chartColorSlots`), wybór skali mapy ze środkiem, import
+//         i schowek (HTML z rozpoznaniem kodowania, etykiety, limity)
+//   +0,2  DataVizViews (czytelnik, leniwy): środek skali rozbieżnej jako
+//         granica klasy, jeden kierunek kreskowania
+//   +0,8  szum gzip w ~800 chunkach o niezmienionych bajtach (hashe nazw
+//         plików w importach), z tego +0,5 publicznych
+// Zdjęcie `vendor-lucide` z bootu: -0,6 łącznie (przesunęły się tylko dwie
+// ikony; ~30 chunków ma krótsze listy zależności). Cięcia brak z wyboru:
+// przyrost kodu to naprawione usterki, reszta to szum.
+//
+// BOOT -18,4 KB (503,2 -> 484,9): `ClubHubAccessBadge` (atom klubów spoza
+// tego PR) łączenie małych chunków wklejało do `index-*`, a jego ikony
+// ciągnęły cały `vendor-lucide` (18,5 KB gzip) do bootu każdej strony
+// (`check:entry-purity`, dług z bazy 940ef8b1). Mechanizm i lista:
+// `ENTRY_MERGED_LUCIDE_IMPORTERS` w `scripts/lib/bootVendorSplit.ts`. Floor
+// `boot` (579) zostaje - korektę w dół robi pierwszy log runnera na main
+// (zasada z wpisu V).
+//
+// FORMUŁA: overall 4836,0 -> 4836 -> 4837.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
@@ -2139,7 +2226,13 @@ const FROZEN_BUDGET_KB = {
   // 4765,45 + delta hosta +4,63 = 4770,08 -> 4771 -> +1.
   // Ratchet 4772 -> 4786 (wpis 2026-10-09 XXV): system wykresów 2026-10,
   // decyzją zamawiającego. Host 4784,1 przy bazie 4759,7 -> 4785 -> +1.
-  overall: 4786,
+  // Ratchet 4786 -> 4833 (wpis 2026-10-10 XXVI): edytory danych wykresu
+  // i mapy (admin +37,3) i kartogram według specyfikacji, decyzją
+  // zamawiającego po cięciach. Host 4831,9 przy bazie 4782,8 -> 4832 -> +1.
+  // Korekta 4833 -> 4837 (ten sam wpis): poprawki z przeglądów PR #489
+  // +4,6 (panel buildera +2,9), boot bez `vendor-lucide` -0,6.
+  // Host 4836,0 -> 4836 -> +1.
+  overall: 4837,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
@@ -2293,7 +2386,10 @@ const FROZEN_BUDGET_KB = {
   // czyli przez sufit 80 o 1,4 KB. Tokeny wykresu są w arkuszu WSPÓLNYM, bo
   // silnik rysuje i na trasach publicznych, więc tego kosztu nie da się
   // przenieść do arkusza panelu. Zapas po podniesieniu: 1,6 KB (1,9%).
-  publicCss: 83,
+  // 2026-10-10: publicCss 83 -> 85 (wpis XXVI), decyzją zamawiającego.
+  // +0,4 KB: tokeny ramp map w trzech motywach, `map.css`, zwolnienie
+  // typografii wykresu; baza 82,8, gałąź 83,2 -> 84 -> +1.
+  publicCss: 85,
   // gzip STATYCZNEGO DOMKNIĘCIA ŚCIEŻKI BOOTOWANIA: chunki wstrzykiwane przez
   // SSR jako `<script type="module">` plus wszystko, co z nich osiągalne
   // KRAWĘDZIĄ STATYCZNĄ (`import()` krawędzią inicjalizacyjną nie jest). Ten sam

@@ -1458,6 +1458,9 @@ export const pl = {
     },
     transform: {
       menuLabel: "Przekształć w",
+      // Tabela -> wykres: odmowa i uwagi odczytu (te same zdania co przy imporcie).
+      tableNoNumbers: "Tabela nie ma liczb, więc wykres nie powstał. Tabela została bez zmian.",
+      chartProblems: "Wykres powstał z tabeli. Uwagi do odczytu danych:",
     },
     inserter: {
       browseAll: "Przeglądaj wszystko",

@@ -38,6 +38,15 @@
 // react-slot + react-compose-refs, a `index-*.js` nie może już importować
 // `vendor-radix-*` ani `vendor-lucide-*` innych niż `-boot`.
 //
+// WKLEJANIE DO WEJŚCIA (incydent 2026-10-10): domknięcie statyczne nie widzi
+// łączenia małych chunków (`experimentalMinChunkSize`), które Rollup robi PO
+// `manualChunks`. Mały moduł współdzielony przez dwie leniwe trasy trafia
+// wtedy do `index-*`, a jego importy lucide stają się importami wejścia. Gdy
+// klasyfikacja uznała te ikony za niebootowe, wejście importuje cały
+// `vendor-lucide`. Takie moduły wymienia `ENTRY_MERGED_LUCIDE_IMPORTERS`:
+// ich nazwane importy lucide liczą się jako bootowe. Dotyczy to wyłącznie
+// lucide (chunki nazwane), więc graf chunków automatycznych się nie zmienia.
+//
 // Współdzielony przez vite.config.ts i vite.smoke.config.ts (parytet podziału
 // pilnuje src/lib/ci/__tests__/viteChunkParity.test.ts).
 import { posix } from "node:path";
@@ -222,14 +231,44 @@ function resolveExportedNames(
 }
 
 /**
+ * Moduły aplikacji (sufiksy id), które łączenie małych chunków wkleja do chunku
+ * wejściowego, choć statycznie nie są z niego osiągalne (patrz nagłówek).
+ * Lista jest pomiarem, nie przewidywaniem. Wpis, który przestał się wklejać,
+ * kosztuje tylko kilkaset bajtów ikon w `vendor-lucide-boot`. Nowy przypadek
+ * wykrywa bramka `check:entry-purity` (`vendor-lucide` w domknięciu bootu),
+ * a skład wejścia pokazuje `report:chunk-inventory index`.
+ *
+ * - `ClubHubAccessBadge` (~0,5 KB): wspólny atom nagłówka huba klubów i
+ *   katalogu elementów w panelu. Jego ikony `KeyRound` i `MailCheck` ciągnęły
+ *   `vendor-lucide` (~63 KB po minifikacji, ~18 KB gzip) do bootu każdej
+ *   strony. Nazwany chunk atomu nie wystarczał: Rollup dokłada do nazwanego
+ *   chunku nienazwane zależności (`cn`, `cva`, `clsx`, `Badge`), z których
+ *   wejście też korzysta, a ich wydzielenie przetasowało ~100 chunków
+ *   współdzielonych (+8 KB gzip łącznie, zmierzone na buildzie).
+ * - `ListHydrationNotice` (~1 KB): komunikat list profilu (zakładki,
+ *   obserwowani), też w `index-*`. Jego `RotateCcw` jest dziś bootowy tylko
+ *   dlatego, że importuje go również `lucide-shim` - wpis zamyka ten sam dług,
+ *   zanim zmiana shimu go otworzy.
+ */
+export const ENTRY_MERGED_LUCIDE_IMPORTERS: readonly string[] = [
+  "/src/components/clubs/atoms/ClubHubAccessBadge.tsx",
+  "/src/components/profile/atoms/ListHydrationNotice.tsx",
+];
+
+/**
  * Moduły lucide-react potrzebne przy boocie: ikony importowane PO NAZWIE przez
- * bootowe moduły aplikacji + ich domknięcie wewnątrz pakietu.
+ * bootowe moduły aplikacji (oraz moduły wklejane do wejścia) + ich domknięcie
+ * wewnątrz pakietu.
  */
 export function lucideBootIds(meta: BootGraphMeta): ReadonlySet<string> {
   const cached = lucideCache.get(meta);
   if (cached) return cached;
+  const importers = new Set(bootModuleIds(meta));
+  for (const id of meta.getModuleIds()) {
+    if (ENTRY_MERGED_LUCIDE_IMPORTERS.some((suffix) => id.endsWith(suffix))) importers.add(id);
+  }
   const seeds = new Set<string>();
-  for (const importer of bootModuleIds(meta)) {
+  for (const importer of importers) {
     if (isLucideModule(importer)) continue;
     const info = meta.getModuleInfo(importer);
     if (!info) continue;

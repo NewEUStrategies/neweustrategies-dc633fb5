@@ -174,14 +174,19 @@ export function useBuilderOperations({ history, doc, selection, setSelection, de
   const duplicateWidget = (wid: string) =>
     update((d) => ops.duplicateWidget(d, wid), { label: t("builder.ops.duplicatedWidget") });
   // Property edits coalesce per widget/section/column so a run of keystrokes
-  // in the same field becomes a single undo step.
-  const updateWidget = (wid: string, mut: (w: WidgetNode) => void) =>
+  // in the same field becomes a single undo step. `coalesce: false` (łatka
+  // wielu kluczy z arkusza danych) zapisuje WŁASNY krok - działanie arkusza
+  // nie może wpaść w krok poprzedniej edycji widgetu.
+  const updateWidget = (wid: string, mut: (w: WidgetNode) => void, opts?: { coalesce?: boolean }) =>
     update(
       (d) => {
         const f = ops.findWidget(d, wid);
         if (f) mut(f.widget);
       },
-      { label: t("builder.ops.editWidget"), coalesceKey: `w:${wid}` },
+      {
+        label: t("builder.ops.editWidget"),
+        coalesceKey: opts?.coalesce === false ? undefined : `w:${wid}`,
+      },
     );
   const updateSection = (sid: string, mut: (s: SectionNode) => void) =>
     update(

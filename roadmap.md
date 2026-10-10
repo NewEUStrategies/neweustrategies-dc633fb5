@@ -50,6 +50,18 @@
 
 - [x] Ujednolicić jasne wnętrze i ciemniejszy obrys wszystkich słupków oraz wykresów kołowych.
 - [x] Usunąć widoczną ramkę całego wykresu po kliknięciu, zachowując dostępny fokus klawiatury.
+- [x] Słupki i wycinki wykresów kołowych pełne według specyfikacji 2026-10 - zastępuje jasne wnętrze z obrysem (decyzja właściciela, PR #488 i #489); akcent ma drugi nośnik w postaci obrysu.
+
+## Wykresy i mapy danych w blokach i widgetach
+
+- [x] Wszystkie 17 rodzajów wykresu i mapa danych rysowane tak samo w bloku CMS i w widgecie buildera, z paletą ról jako domyślną.
+- [x] Wklejanie danych z Excela, Google Sheets, LibreOffice i Numbers do arkusza wykresu i mapy, z podglądem przed zastąpieniem tabeli.
+- [x] Import plików arkuszy (xlsx, xlsm, xlsb, xltx, xltm, xls, ods, fods, csv, tsv, txt, html, htm) z listą problemów odczytu.
+- [x] Mapa danych według specyfikacji: schematy barw, klasy, legenda, kreskowanie braku danych, tooltip, eksport PNG/SVG, przypisy.
+- [x] Wybór koloru serii i serii wyróżnionej; wybór schematu barw mapy z próbkami rampy.
+- [ ] Kolor własny pojedynczego wycinka wykresu kołowego.
+- [ ] Przekształcenie tabeli w mapę danych.
+- [ ] Widgety „feature" (sankey, porównanie, matryca ryzyka, sieć, oś czasu, wskaźnik) i pozostałe mapy według specyfikacji wykresów.
 
 ## Archiwum GGM 2021
 
@@ -83,8 +95,8 @@
 - [x] Znak „>" to subtelny ptaszek: kreska ma 0,85 px (0,7 px w wezkiej kolumnie), nie jest pogrubiona i jest tak samo cienka jak litery oraz wyraźnie cieńsza od trzech kresek sygnału.
 - [x] Ptaszek zmniejszony o 1 px (wysokosc `calc(1em - 1px)`, szerokosc `calc(1.1em - 1px)`) i wyrownany do liter „wiecej": gora strzalki 0,25 px pod gora x-height, dol dokladnie na linii bazowej (pomiar zrzutu 4x w podgladzie).
 - [x] Kinetic Signal Notch bez obszaru bezpiecznego z gory: shell ma tylko dolny padding (`pb-2`, w pigulce `pb-1`), wiec akcja zaczyna sie dokladnie na gornym brzegu widgetu (pomiar w podgladzie: paddingTop 0 px, odstep akcji od gory 0).
- - [x] Chevrony po jednej i drugiej stronie akcji: lustrzana para "< oraz >" (czyste katy bez ogonkow) otacza „wiecej"; hover rozpycha znaki na zewnatrz, glif tekstowy (›/⟶) zostaje tylko po prawej, a ustawienie "none" zdejmuje oba. Testy 19/19, paczka buildera 2144 zielone.
- - [x] Rozsuniecie kresek kinetic = subtelne: przyrost 3/5/2 px (wezska kolumna 2/3/1), najdluzszy pasek 19 px; krzywa `cubic-bezier(0.22,0.61,0.36,1)` bez wyskoku (wczesniej y=1.56 wypychalo szerokosc poza cel). Pomiar w podgladzie: spoczynek 15 px, hover 19/21/18 px, brak poziomego przelania; testy 24/24.
+- [x] Chevrony po jednej i drugiej stronie akcji: lustrzana para "< oraz >" (czyste katy bez ogonkow) otacza „wiecej"; hover rozpycha znaki na zewnatrz, glif tekstowy (›/⟶) zostaje tylko po prawej, a ustawienie "none" zdejmuje oba. Testy 19/19, paczka buildera 2144 zielone.
+- [x] Rozsuniecie kresek kinetic = subtelne: przyrost 3/5/2 px (wezska kolumna 2/3/1), najdluzszy pasek 19 px; krzywa `cubic-bezier(0.22,0.61,0.36,1)` bez wyskoku (wczesniej y=1.56 wypychalo szerokosc poza cel). Pomiar w podgladzie: spoczynek 15 px, hover 19/21/18 px, brak poziomego przelania; testy 24/24.
 
 ## Firmowy kolor akcentu
 

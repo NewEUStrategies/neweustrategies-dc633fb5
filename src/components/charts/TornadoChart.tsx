@@ -131,6 +131,8 @@ import { ChartTooltip, type TooltipRow } from "./ChartTooltip";
 import "@/lib/i18n-charts";
 import { categorySelection, isSelectKey, type ChartSelectHandler } from "@/lib/charts/selection";
 import { ChartNotes, type ChartNote } from "./ChartFrame";
+import { sourceLine } from "./chartFacts";
+import { EDGE_STROKE_PX } from "./kindPaint";
 
 /**
  * Rozdzielnik zakresu. Półpauza, nie myślnik: para liczb to zakres, a nie
@@ -627,6 +629,7 @@ export function TornadoChart({
     <div ref={revealRef} className={revealClassName(revealState)}>
       <div
         ref={widthRef}
+        data-chart-canvas
         className="neh-canvas relative w-full select-none"
         style={{
           height,
@@ -838,7 +841,7 @@ export function TornadoChart({
                 {/* KONIEC BLIŻSZY BAZY przy parze jednostronnej. Kreska
                     w poprzek słupka, nie drugi słupek - patrz nagłówek pliku.
                     Grubość jak obwódka, bo to jest granica odczytu, a nie
-                    powierzchnia. */}
+                    powierzchnia - i ta sama w obu motywach. */}
                 {lane.near !== null && (
                   <line
                     x1={lane.near.x}
@@ -855,7 +858,7 @@ export function TornadoChart({
                     className="neh-fade"
                     data-role="near-end"
                     data-side={lane.near.side}
-                    style={{ strokeWidth: "var(--chart-bar-edge, 1.5px)" }}
+                    style={{ strokeWidth: `${EDGE_STROKE_PX}px` }}
                   >
                     <title>{`${t(SIDE_KEYS[lane.near.side])}: ${num(lane.near.value)}`}</title>
                   </line>
@@ -966,6 +969,7 @@ export function TornadoChart({
           title={activeLane?.row.label ?? ""}
           note={tooltipNote}
           rows={tooltipRows}
+          source={sourceLine(t, config)}
         />
       </div>
 

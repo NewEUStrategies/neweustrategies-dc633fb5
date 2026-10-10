@@ -17,6 +17,7 @@
 /* Keep chart rules beside the shared palette in one compressed response.
    Splitting their repeated print tokens into another asset increases total CSS. */
 @import "./components/charts/charts.css";
+@import "./components/charts/map.css";
 
 /* UnreadBadge: neutralizuje `font-size: 14px !important` z reguł
    `[data-w-id] span:not(...)` widgetów Theme Design, aby licznik
@@ -1064,6 +1065,27 @@ body {
   --chart-seq-min: #e0eaf2;
   --chart-seq-max: #00375f;
 
+  /* Rampy mapy do wyboru przez autora (kopia dla bramki: MAP_RAMPS
+     w palette.ts). `blue` = rampa sekwencyjna wyżej co do hexa, więc mapy
+     bez zapisanego schematu nie zmieniają koloru. Koniec maksymalny każdej
+     rampy >= 3:1 na płycie (blue / accent / slate: 12,27 / 5,19 / 8,75),
+     koniec minimalny przy jasności OKLCh 0,93. `accent` to wyłącznie rodzina
+     pomarańczu marki, a bursztynu i żółci nie ma w żadnej rampie. Turkusu
+     i fioletu nie ma: czytałyby się jak --chart-positive i --chart-warn. */
+  --chart-map-blue-min: #e0eaf2;
+  --chart-map-blue-max: #00375f;
+  --chart-map-accent-min: #ffe1cf;
+  --chart-map-accent-max: #ab5517;
+  --chart-map-slate-min: #e3e8f0;
+  --chart-map-slate-max: #3e4c5e;
+  /* Środek rampy rozbieżnej (końce: --chart-negative / --chart-positive). */
+  --chart-map-div-mid: #ebe8e5;
+  /* Brak danych: jaśniej od pierwszej klasy KAŻDEJ rampy (>= 1,17:1), więc
+     nie zrówna się luminancją z żadną klasą; kształt niesie kreskowanie
+     (2,13:1 do wypełnienia, 2,22:1 do płyty). */
+  --chart-map-nodata: #fbfaf9;
+  --chart-map-nodata-hatch: #b3ada7;
+
   /* ---- Delikatność: osiem parametrów, każdy z warunkiem zmiany ----
      JEDEN promień 6 px na wszystkim (karty, panele, tooltipy, słupki,
      strefa prognozy) - żaden element nie ma własnej wartości. 6 px to punkt,
@@ -1602,6 +1624,21 @@ body {
      wartość zostaje najwidoczniejsza (min/max 7,58:1, max na płycie 9,85:1). */
   --chart-seq-min: #1e2935;
   --chart-seq-max: #8fbef0;
+
+  /* Rampy mapy - kotwica przestawiona jak wyżej: ciemny -> jasny, koniec
+     maksymalny >= 3:1 na płycie #0f0f0f (blue / accent / slate: 9,85 /
+     8,51 / 9,30), koniec minimalny przy jasności OKLCh 0,28. */
+  --chart-map-blue-min: #1e2935;
+  --chart-map-blue-max: #8fbef0;
+  --chart-map-accent-min: #3a2212;
+  --chart-map-accent-max: #fa9346;
+  --chart-map-slate-min: #22272e;
+  --chart-map-slate-max: #a9b6c6;
+  --chart-map-div-mid: #2a2928;
+  /* Brak danych: CIEMNIEJ od pierwszej klasy każdej rampy (>= 1,21:1);
+     kreskowanie 2,11:1 do wypełnienia. */
+  --chart-map-nodata: #161514;
+  --chart-map-nodata-hatch: #4f4b47;
 
   /* GEOMETRIA I TYPOGRAFIA NIE ZALEŻĄ OD MOTYWU. Grubość linii, rozmiar
      punktu i wagi pisma dziedziczą z bloku jasnego - przełączenie motywu
@@ -9518,7 +9555,23 @@ button,
   --wt-dfs: var(--wt-dfs-m);
 }
 /* `fs` - rozmiar ogólny (bez osobnego rozmiaru opisu): wszystkie teksty i
-   placeholdery. Tytuły bierze `tfs`, który instancja `fs` zawsze niesie. */
+   placeholdery. Tytuły bierze `tfs`, który instancja `fs` zawsze niesie.
+
+   ZWOLNIENIE OBEJMUJE POTOMKÓW: `:where(:not([data-typography-exempt] *))` przy
+   gałęziach elementów (`fs`, `tfs`, `dfs`) omija całe poddrzewo oznaczonego
+   elementu - wykres (`figure.neh-chart`) i jego dymek mają w widgecie ten sam
+   krój i rozmiar co w bloku CMS, bez znacznika na każdym `span` i `dd`.
+   Generator (`lib/builder/typographyCss.ts`) emituje te same selektory.
+
+   `:where()` zeruje wagę zwolnienia: gałąź ma tę samą specyficzność co przed
+   formą przodka, więc reguły, które biją szablon specyficznością (Kinetic
+   Signal Notch, rozmiary „Dołącz do nas"), wygrywają jak dotąd.
+
+   Poza wykresem forma przodka zmienia JEDEN węzeł: licznik polubień karty
+   trasy (`travel-route-card`, `span` w zwolnionym przycisku) bierze teraz
+   rozmiar pigułki zamiast rozmiaru widgetu - jak sam przycisk. Pozostałe
+   zwolnione węzły (wyszukiwarki, plakietka, bylina, akcja etykiety sekcji)
+   są liśćmi albo mają znacznik na każdym potomku. */
 [data-wt~="fs"][data-w-id][data-w-id],
 [data-wt~="fs"][data-w-id][data-w-id]
   :is(
@@ -9548,13 +9601,15 @@ button,
     h4,
     h5,
     h6
-  ):not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt]):not(
-    .post-list-numbered-index
-  ):not(.rl-num),
+  ):not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt]):where(
+    :not([data-typography-exempt] *)
+  ):not(.post-list-numbered-index):not(.rl-num),
 [data-wt~="fs"][data-w-id][data-w-id] .prose,
 [data-wt~="fs"][data-w-id][data-w-id]
   .prose
-  *:not(.cms-post-title):not(.cms-post-excerpt):not(.post-list-numbered-index):not(.rl-num),
+  *:not(.cms-post-title):not(.cms-post-excerpt):where(:not([data-typography-exempt] *)):not(
+    .post-list-numbered-index
+  ):not(.rl-num),
 [data-wt~="fs"][data-w-id][data-w-id] input::placeholder,
 [data-wt~="fs"][data-w-id][data-w-id] textarea::placeholder {
   font-size: var(--wt-fs) !important;
@@ -9566,7 +9621,9 @@ button,
 [data-wt~="tfs"][data-w-id][data-w-id] [data-typography-role="title"],
 [data-wt~="tfs"][data-w-id][data-w-id][data-typography-role="title"],
 [data-wt~="tfs"][data-w-id][data-w-id]
-  :is(h1, h2, h3, h4, h5, h6):not(.post-list-numbered-index):not(.rl-num) {
+  :is(h1, h2, h3, h4, h5, h6):where(:not([data-typography-exempt] *)):not(
+    .post-list-numbered-index
+  ):not(.rl-num) {
   font-size: var(--wt-tfs) !important;
 }
 /* `dfs` - opisy. */
@@ -9578,8 +9635,8 @@ button,
 [data-wt~="dfs"][data-w-id][data-w-id]
   :is(p, li, dd, blockquote, figcaption, small):not(.cms-post-title):not(
     [data-typography-exempt]
-  ):not(.post-list-numbered-index):not(.rl-num),
-[data-wt~="dfs"][data-w-id][data-w-id] .prose p {
+  ):where(:not([data-typography-exempt] *)):not(.post-list-numbered-index):not(.rl-num),
+[data-wt~="dfs"][data-w-id][data-w-id] .prose p:where(:not([data-typography-exempt] *)) {
   font-size: var(--wt-dfs) !important;
 }
 /* `g` - odstęp tytuł-opis; wartość niesie `--cms-title-description-gap`
