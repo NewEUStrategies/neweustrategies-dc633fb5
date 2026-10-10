@@ -494,7 +494,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
         <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
           {showFirstName && (
-            <Field lang={lang}
+            <Field
+              lang={lang}
               label={L.firstName}
               required={requireFirstName}
               error={errors.firstName}
@@ -511,7 +512,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showLastName && (
-            <Field lang={lang}
+            <Field
+              lang={lang}
               label={L.lastName}
               required={requireLastName}
               error={errors.lastName}
@@ -528,7 +530,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showEmail && (
-            <Field lang={lang}
+            <Field
+              lang={lang}
               label={L.email}
               required={requireEmail}
               error={errors.email}
@@ -547,7 +550,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           )}
 
           {showPhone && (
-            <Field lang={lang}
+            <Field
+              lang={lang}
               label={L.phone}
               required={requirePhone}
               error={errors.phone}
@@ -565,7 +569,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showCompany && (
-            <Field lang={lang}
+            <Field
+              lang={lang}
               label={L.company}
               required={requireCompany}
               error={errors.company}
@@ -582,7 +587,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showSubject && (
-            <Field lang={lang}
+            <Field
+              lang={lang}
               label={L.subject}
               required={requireSubject}
               error={errors.subject}
@@ -598,7 +604,8 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showMessage && (
-            <Field lang={lang}
+            <Field
+              lang={lang}
               label={L.message}
               required={requireMessage}
               error={errors.message}
@@ -634,7 +641,14 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             }
             if (f.type === "select") {
               return (
-                <Field lang={lang} key={f.id} label={label} required={f.required} error={err} className={span}>
+                <Field
+                  lang={lang}
+                  key={f.id}
+                  label={label}
+                  required={f.required}
+                  error={err}
+                  className={span}
+                >
                   <select
                     name={name}
                     required={f.required}
@@ -656,7 +670,14 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             }
             if (f.type === "textarea") {
               return (
-                <Field lang={lang} key={f.id} label={label} required={f.required} error={err} className={span}>
+                <Field
+                  lang={lang}
+                  key={f.id}
+                  label={label}
+                  required={f.required}
+                  error={err}
+                  className={span}
+                >
                   <textarea
                     name={name}
                     rows={5}
@@ -664,13 +685,23 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                     aria-required={f.required || undefined}
                     className="cf-input resize-y"
                     placeholder={placeholder}
-                    maxLength={Math.min(f.maxLength ?? CONTACT_FIELD_LIMITS.custom, CONTACT_FIELD_LIMITS.custom)}
+                    maxLength={Math.min(
+                      f.maxLength ?? CONTACT_FIELD_LIMITS.custom,
+                      CONTACT_FIELD_LIMITS.custom,
+                    )}
                   />
                 </Field>
               );
             }
             return (
-              <Field lang={lang} key={f.id} label={label} required={f.required} error={err} className={span}>
+              <Field
+                lang={lang}
+                key={f.id}
+                label={label}
+                required={f.required}
+                error={err}
+                className={span}
+              >
                 <input
                   name={name}
                   type={f.type}
@@ -678,7 +709,10 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                   aria-required={f.required || undefined}
                   className="cf-input"
                   placeholder={placeholder}
-                  maxLength={Math.min(f.maxLength ?? CONTACT_FIELD_LIMITS.custom, CONTACT_FIELD_LIMITS.custom)}
+                  maxLength={Math.min(
+                    f.maxLength ?? CONTACT_FIELD_LIMITS.custom,
+                    CONTACT_FIELD_LIMITS.custom,
+                  )}
                 />
               </Field>
             );
@@ -758,12 +792,19 @@ function Field({
   // Semantyczne tokeny -> działa w light+dark, i18n przez callsite.
   let injected: ReactNode = children;
   if (isValidElement(children)) {
-    const el = children as ReactElement<{ className?: string; placeholder?: string; name?: string; maxLength?: number; "aria-describedby"?: string }>;
+    const el = children as ReactElement<{
+      className?: string;
+      placeholder?: string;
+      name?: string;
+      maxLength?: number;
+      "aria-describedby"?: string;
+    }>;
     if (el.type === "input" || el.type === "textarea") {
       const key = el.props.name;
-      const standardLimit = key && Object.prototype.hasOwnProperty.call(CONTACT_FIELD_LIMITS, key)
-        ? CONTACT_FIELD_LIMITS[key as keyof typeof CONTACT_FIELD_LIMITS]
-        : CONTACT_FIELD_LIMITS.custom;
+      const standardLimit =
+        key && Object.prototype.hasOwnProperty.call(CONTACT_FIELD_LIMITS, key)
+          ? CONTACT_FIELD_LIMITS[key as keyof typeof CONTACT_FIELD_LIMITS]
+          : CONTACT_FIELD_LIMITS.custom;
       limit = Math.min(el.props.maxLength ?? standardLimit, standardLimit);
     }
     const merged = ["input", el.props.className].filter(Boolean).join(" ");
@@ -780,12 +821,15 @@ function Field({
   const [focused, setFocused] = useState(false);
   const showError = Boolean(error) && !focused;
   return (
-    <div className={className} onInputCapture={(event) => {
-      const control = event.target;
-      if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
-        setCount(control.value.length);
-      }
-    }}>
+    <div
+      className={className}
+      onInputCapture={(event) => {
+        const control = event.target;
+        if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+          setCount(control.value.length);
+        }
+      }}
+    >
       <div
         className="input-group"
         data-invalid={error ? "true" : undefined}

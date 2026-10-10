@@ -20,7 +20,9 @@
 //   * reguły Google: adres bezwzględny http(s) na hoście pliku, limit 50 000
 //     adresów i 50 MB, duplikaty;
 //   * Google News: komplet `news:publication` (`news:name`, `news:language`),
-//     `news:publication_date`, `news:title`, limit 1000 wpisów, świeżość 48 h.
+//     `news:publication_date`, `news:title`, limit 1000 wpisów, świeżość 48 h
+//     metadanych (adres bez `news:news` - kotwica w dzień bez publikacji -
+//     jest poprawny).
 //
 // Komunikat „brak tagu" niesie RODZICA, ZNACZNIK i NUMER WIERSZA - w tym samym
 // kształcie, w jakim podaje go Search Console („Tag nadrzędny: urlset, Tag:
@@ -92,8 +94,13 @@ export type SitemapIssueCode =
   | "newsTooMany"
   /** Kod języka spoza ISO 639. */
   | "newsLanguage"
-  /** Najnowszy artykuł starszy niż 48 h - News go nie pokaże. */
-  | "newsStale";
+  /**
+   * Metadane `news:news` przy artykule starszym niż 48 h - Google każe je po
+   * dwóch dniach zdjąć (albo usunąć adres).
+   */
+  | "newsStale"
+  /** Mapa News bez artykułu z okna 48 h - niesie kotwicę bez metadanych. */
+  | "newsAnchor";
 
 export interface SitemapIssue {
   code: SitemapIssueCode;
@@ -709,15 +716,10 @@ export function validateSitemapDocument(input: SitemapProbeInput): SitemapFileRe
           const at = Date.parse(published);
           if (!Number.isNaN(at)) newestPublication = Math.max(newestPublication, at);
         }
-      } else if (declaresNews) {
-        log.add({
-          code: "missingTag",
-          severity: "error",
-          tag: "news:news",
-          parent: "url",
-          line: url.endLine,
-        });
       }
+      // `<url>` BEZ `news:news` w mapie News jest poprawny: to druga droga,
+      // którą Google podaje dla artykułów starszych niż dwa dni („remove the
+      // <news:news> metadata... from the older URLs").
     }
     report.kind = declaresNews || report.newsEntries > 0 ? "news" : "urlset";
     if (report.kind === "news") {
@@ -729,7 +731,10 @@ export function validateSitemapDocument(input: SitemapProbeInput): SitemapFileRe
         });
       }
       if (Number.isFinite(newestPublication) && ctx.now - newestPublication > NEWS_FRESHNESS_MS) {
-        log.add({ code: "newsStale", severity: "info", value: ctx.newest.value ?? "" });
+        log.add({ code: "newsStale", severity: "warning", value: ctx.newest.value ?? "" });
+      }
+      if (report.newsEntries === 0 && report.entries > 0) {
+        log.add({ code: "newsAnchor", severity: "info", value: ctx.newest.value ?? "" });
       }
     }
   }

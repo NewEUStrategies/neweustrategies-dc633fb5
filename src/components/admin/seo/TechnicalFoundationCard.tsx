@@ -85,6 +85,52 @@ const OPEN_PATH: Record<string, string> = {
 const ISSUES_SHOWN = 5;
 
 /**
+ * Ile czekamy na JEDEN plik (nagłówki i całe ciało), zanim uznamy go za „brak
+ * odpowiedzi". Bez terminu plik, który przyjmie połączenie i nigdy nie
+ * skończy odpowiedzi, wstrzymywał całą kartę - także wyniki plików, które
+ * odpowiedziały - czyli kokpit nie umiał pokazać dokładnie tej awarii, dla
+ * której powstała tabela plików (przegląd PR #491).
+ */
+const PROBE_TIMEOUT_MS = 15_000;
+const PROBE_TIMED_OUT = Symbol("probe-timed-out");
+
+interface ProbeResponse {
+  status: number;
+  text: string;
+  contentType: string | null;
+}
+
+/** Jedno pobranie pod terminem; po terminie żądanie jest przerywane. */
+async function fetchWithin(
+  target: string,
+  ms: number,
+): Promise<ProbeResponse | typeof PROBE_TIMED_OUT> {
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<typeof PROBE_TIMED_OUT>((resolve) => {
+    timer = setTimeout(() => {
+      controller?.abort();
+      resolve(PROBE_TIMED_OUT);
+    }, ms);
+  });
+  const work = (async (): Promise<ProbeResponse> => {
+    const res = await fetch(target, { headers: { Accept: "*/*" }, signal: controller?.signal });
+    return {
+      status: res.status,
+      text: await res.text(),
+      contentType: res.headers?.get?.("content-type") ?? null,
+    };
+  })();
+  // Odrzucenie po terminie (przerwane żądanie) nie może zostać nieobsłużone.
+  work.catch(() => undefined);
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * `null` = pliku nie da się odczytać Z TEGO HOSTA (cross-origin odrzucony,
  * a same-origin należy do innego serwisu) - to nie jest awaria pliku.
  * `limit` przycina ciało: plikom tekstowym wystarcza kilka kilobajtów, plik
@@ -99,12 +145,14 @@ async function probe(
   const targets = sameSiteFallback ? [`${origin}${path}`, path] : [`${origin}${path}`];
   for (const target of targets) {
     try {
-      const res = await fetch(target, { headers: { Accept: "*/*" } });
-      const text = await res.text();
+      const res = await fetchWithin(target, PROBE_TIMEOUT_MS);
+      // Plik, który nie odpowiedział w terminie, nie odpowie też pod drugim
+      // adresem tego samego serwisu - to nie odmowa CORS, tylko awaria.
+      if (res === PROBE_TIMED_OUT) break;
       return {
         status: res.status,
-        body: Number.isFinite(limit) ? text.slice(0, limit) : text,
-        contentType: res.headers?.get?.("content-type") ?? null,
+        body: Number.isFinite(limit) ? res.text.slice(0, limit) : res.text,
+        contentType: res.contentType,
       };
     } catch {
       // Błąd sieci na originie publicznym - próbujemy same-origin (o ile to ten

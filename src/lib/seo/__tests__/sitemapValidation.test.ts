@@ -243,14 +243,17 @@ describe("validateSitemapDocument - Google News", () => {
     expect(wrong.issues.map((issue) => issue.code)).toEqual(["newsLanguage"]);
   });
 
-  it("<url> bez news:news w mapie z przestrzenią news to błąd", () => {
+  it("<url> bez news:news w mapie News jest poprawny - kotwica (informacja)", () => {
+    // Google: artykuł starszy niż dwa dni - usuń adres ALBO zdejmij mu
+    // `<news:news>`. Adres bez metadanych nie jest błędem.
     const report = validate(newsDoc(`<url><loc>${ORIGIN}/a</loc></url>`));
-    expect(report.issues[0]).toEqual(
-      expect.objectContaining({ code: "missingTag", tag: "news:news", parent: "url" }),
-    );
+    expect(report.state).toBe("ok");
+    expect(report.issues).toEqual([
+      expect.objectContaining({ code: "newsAnchor", severity: "info" }),
+    ]);
   });
 
-  it("artykuł starszy niż 48 h to informacja (kotwica), nie błąd", () => {
+  it("metadane News przy artykule starszym niż 48 h to ostrzeżenie", () => {
     const report = validate(
       newsDoc(
         block(
@@ -259,9 +262,9 @@ describe("validateSitemapDocument - Google News", () => {
         ),
       ),
     );
-    expect(report.state).toBe("ok");
+    expect(report.state).toBe("warn");
     expect(report.issues).toEqual([
-      expect.objectContaining({ code: "newsStale", severity: "info" }),
+      expect.objectContaining({ code: "newsStale", severity: "warning" }),
     ]);
   });
 });
@@ -318,15 +321,16 @@ describe("kontrakt generator ↔ walidator: nasze pliki przechodzą bez błędu"
     expect(report.newsEntries).toBe(3);
   });
 
-  it("news-sitemap w dzień bez publikacji niesie kotwicę i NIE jest pustym urlset", () => {
+  it("news-sitemap w dzień bez publikacji niesie kotwicę bez metadanych i NIE jest pustym urlset", () => {
     const plan = planNewsSitemap([article(72, "pl"), article(72, "en"), article(120, "pl")], NOW);
     expect(plan.mode).toBe("anchor");
-    const report = validate(renderNewsSitemapXml("NES", plan.entries), {
+    const report = validate(renderNewsSitemapXml("NES", plan), {
       url: `${ORIGIN}/news-sitemap.xml`,
     });
     expect(report.state).toBe("ok");
-    expect(report.issues.map((issue) => issue.code)).toEqual(["newsStale"]);
-    expect(report.newsEntries).toBe(2);
+    expect(report.issues.map((issue) => issue.code)).toEqual(["newsAnchor"]);
+    expect(report.entries).toBe(2);
+    expect(report.newsEntries).toBe(0);
   });
 });
 

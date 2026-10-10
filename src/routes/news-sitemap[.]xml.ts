@@ -6,9 +6,10 @@
 //
 // NAPRAWA 2026-10-10: dzień bez publikacji NIE daje już pustego <urlset>
 // (Search Console: „Brak tagu XML: url, wiersz 3"). Plan z `planNewsSitemap`
-// niesie wtedy najnowszy artykuł jako kotwicę, a tenant bez żadnego artykułu
-// dostaje 404 - pliku nie ma i indeks go nie ogłasza. Uzasadnienie:
-// `lib/seo/newsSitemap.ts`.
+// niesie wtedy najnowszy artykuł jako kotwicę - zwykły adres bez metadanych
+// News - a tenant bez żadnego artykułu dostaje 404: pliku nie ma i indeks go
+// nie ogłasza. Odczyt wpisów ma budżet czasu: zawieszona baza to 503 +
+// Retry-After, nie wiszące żądanie. Uzasadnienie: `lib/seo/newsSitemap.ts`.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
@@ -17,8 +18,15 @@ import { planNewsSitemap, renderNewsSitemapXml } from "@/lib/seo/newsSitemap";
 import { FEED_CACHE_CONTROL_EMPTY, feedCacheControl } from "@/lib/seo/feedCache";
 import { effectiveNewsPublicationName, parseSeoSettings } from "@/lib/seo/settings";
 import { fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
-import { loadNewsSitemapEntries } from "@/lib/server/newsSitemapEntries.server";
-import { SITEMAP_ROBOTS_HEADER } from "@/lib/server/sitemapRequest.server";
+import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
+import {
+  NEWS_SITEMAP_READ_BUDGET_MS,
+  loadNewsSitemapEntries,
+} from "@/lib/server/newsSitemapEntries.server";
+import {
+  SITEMAP_ROBOTS_HEADER,
+  sitemapUnavailableResponse,
+} from "@/lib/server/sitemapRequest.server";
 import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
 async function requestContext(): Promise<{ origin: string; host: string }> {
@@ -54,7 +62,15 @@ export const Route = createFileRoute("/news-sitemap.xml")({
           return new Response("News sitemap disabled", { status: 404 });
         }
 
-        const entries = tenantId ? await loadNewsSitemapEntries(tenantId, origin) : [];
+        let entries: Awaited<ReturnType<typeof loadNewsSitemapEntries>> = [];
+        if (tenantId) {
+          const settled = await settleWithinBudget(
+            loadNewsSitemapEntries(tenantId, origin),
+            NEWS_SITEMAP_READ_BUDGET_MS,
+          );
+          if (settled === BUDGET_LAPSED) return sitemapUnavailableResponse();
+          entries = settled;
+        }
         const plan = planNewsSitemap(entries, Date.now());
 
         // Brak JAKIEGOKOLWIEK artykułu (tenant bez treści, host podglądu bez
@@ -74,7 +90,7 @@ export const Route = createFileRoute("/news-sitemap.xml")({
           });
         }
 
-        const xml = renderNewsSitemapXml(effectiveNewsPublicationName(settings), plan.entries);
+        const xml = renderNewsSitemapXml(effectiveNewsPublicationName(settings), plan);
         // NAPRAWA 2026-09-02: pusta news-sitemapa dostawała ten sam TTL co
         // pełna, mimo że ŚWIEŻOŚĆ jest jej całym sensem. Google News czyta ten
         // plik po to, żeby zobaczyć wpisy z ostatnich 48 h; pusty dokument

@@ -7,10 +7,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { withCommandIdempotency, type RpcClient } from "@/lib/http/idempotency";
 import { DEFAULT_SCORING_WEIGHTS } from "@/lib/crm/scoring";
 import { csvDocument } from "@/lib/crm/csv";
-import {
-  CONSENT_LOG_TIMELINE_SELECT,
-  type ConsentLogTimelineRow,
-} from "@/lib/crm/consentLog";
+import { CONSENT_LOG_TIMELINE_SELECT, type ConsentLogTimelineRow } from "@/lib/crm/consentLog";
 import {
   leadTimelineEventFromAudit,
   type LeadTimelineAuditRow,

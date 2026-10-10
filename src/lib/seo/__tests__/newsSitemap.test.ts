@@ -51,7 +51,7 @@ describe("buildNewsSitemapXml", () => {
   // nie jest poprawny względem sitemap.xsd i Search Console raportował go jako
   // „Brak tagu XML: url (wiersz 3)". Dzień bez publikacji niesie teraz
   // najnowszy artykuł jako kotwicę.
-  it("on a quiet news day keeps the newest article as an anchor - never an empty urlset", () => {
+  it("on a quiet news day keeps the newest article as a plain URL anchor - never an empty urlset", () => {
     const xml = buildNewsSitemapXml({
       publicationName: "NES",
       entries: [entry(100), entry(72, { language: "en", url: "https://nes.example/en/x" })],
@@ -59,6 +59,10 @@ describe("buildNewsSitemapXml", () => {
     });
     expect(xml).toContain("<url>");
     expect(xml).toContain("<loc>https://nes.example/en/x</loc>");
+    expect(xml).toContain("<lastmod>2026-06-29T12:00:00Z</lastmod>");
+    // Google: po dwóch dniach zdejmij `<news:news>` albo usuń adres - kotwica
+    // nie niesie metadanych News (przegląd PR #491).
+    expect(xml).not.toContain("<news:news>");
     expect(xml).not.toContain("wpis-100");
   });
 

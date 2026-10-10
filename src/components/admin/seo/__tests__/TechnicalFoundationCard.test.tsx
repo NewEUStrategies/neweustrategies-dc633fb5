@@ -93,10 +93,12 @@ const FOUNDATION_PATHS = ["/sitemap.xml", "/robots.txt", "/llms.txt", "/"];
  * mapa tenanta musi nieść adresy tenanta.
  */
 function healthy(site: string): Record<string, string> {
+  // Artykuł z metadanymi News musi być z okna 48 h - starszy jest ostrzeżeniem.
+  const published = new Date(Date.now() - 3_600_000).toISOString().replace(/\.\d{3}Z$/, "Z");
   return {
     "/sitemap.xml": `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex ${NS}>\n  <sitemap><loc>${site}/sitemaps/core.xml</loc></sitemap>\n  <sitemap><loc>${site}/news-sitemap.xml</loc><lastmod>2026-10-07T08:00:00Z</lastmod></sitemap>\n</sitemapindex>`,
     "/sitemaps/core.xml": `<?xml version="1.0" encoding="UTF-8"?>\n<urlset ${NS}>\n  <url><loc>${site}/</loc></url>\n  <url><loc>${site}/blog</loc><lastmod>2026-10-01</lastmod></url>\n</urlset>`,
-    "/news-sitemap.xml": `<?xml version="1.0" encoding="UTF-8"?>\n<urlset ${NS} ${NEWS_NS}>\n  <url><loc>${site}/analizy/a</loc><news:news><news:publication><news:name>NES</news:name><news:language>pl</news:language></news:publication><news:publication_date>2026-10-07T08:00:00Z</news:publication_date><news:title>A</news:title></news:news></url>\n</urlset>`,
+    "/news-sitemap.xml": `<?xml version="1.0" encoding="UTF-8"?>\n<urlset ${NS} ${NEWS_NS}>\n  <url><loc>${site}/analizy/a</loc><news:news><news:publication><news:name>NES</news:name><news:language>pl</news:language></news:publication><news:publication_date>${published}</news:publication_date><news:title>A</news:title></news:news></url>\n</urlset>`,
     "/robots.txt": `User-agent: *\nSitemap: ${site}/sitemap.xml`,
     "/llms.txt": "# llms.txt",
     "/": '<!doctype html><html lang="pl"><head></head><body></body></html>',
@@ -520,6 +522,34 @@ describe("TechnicalFoundationCard - pliki mapy strony (2026-10-10)", () => {
     fireEvent.click(document.querySelector<HTMLElement>("[data-seo-sitemap-recheck]")!);
     await waitFor(() => expect(fileRow("/news-sitemap.xml").getAttribute("data-state")).toBe("ok"));
     expect(before).toBeGreaterThan(0);
+  });
+
+  it("plik, który nigdy nie kończy odpowiedzi, po terminie jest błędem - reszta tabeli zostaje", async () => {
+    // Przegląd PR #491: bez terminu jeden zawieszony plik wstrzymywał całą
+    // kartę, także wyniki plików, które odpowiedziały.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      stubFetch();
+      const healthyFetch = globalThis.fetch;
+      vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
+        pathOf(String(input)) === "/sitemaps/core.xml"
+          ? new Promise<Response>(() => undefined)
+          : healthyFetch(input, init),
+      );
+      renderWithQueryClient(<TechnicalFoundationCard />);
+      await vi.advanceTimersByTimeAsync(20_000);
+      await waitFor(() =>
+        expect(document.querySelector("[data-seo-sitemap-files]")).not.toBeNull(),
+      );
+      const core = fileRow("/sitemaps/core.xml");
+      expect(core.getAttribute("data-state")).toBe("fail");
+      expect(core.querySelector('[data-seo-sitemap-issue="http"]')?.textContent).toBe(
+        "adminSeoHub.sitemapIssue_network(parent=,tag=,value=0)",
+      );
+      expect(fileRow("/news-sitemap.xml").getAttribute("data-state")).toBe("ok");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("indeks nieczytelny z tego hosta (tenant oglądany z marki): brak tabeli plików", async () => {

@@ -16,12 +16,14 @@
 // Plan ma teraz trzy stany:
 //   * `fresh`  - artykuły z okna 48 h (jak dotąd, do 1000);
 //   * `anchor` - okno puste, więc plik niesie NAJNOWSZY artykuł (wszystkie
-//                jego wersje językowe) jako kotwicę. Dokument zostaje poprawny
-//                względem schematu, a Google News po prostu nie pokaże
-//                artykułu starszego niż dwa dni - wytyczna pozwala usuwać
-//                starsze wpisy („You can remove articles... after two days"),
-//                nie każe zostawiać pustego pliku. Kotwica znika sama przy
-//                pierwszej nowej publikacji;
+//                jego wersje językowe) jako zwykły adres - `<loc>` + `<lastmod>`,
+//                BEZ metadanych `<news:news>`. To dokładnie druga z dwóch dróg,
+//                które Google podaje dla artykułów starszych niż dwa dni
+//                („remove the <news:news> metadata in your sitemap from the
+//                older URLs"): dokument zostaje poprawny względem schematu,
+//                a News nie dostaje artykułu spoza okna. Kotwica znika sama
+//                przy pierwszej nowej publikacji (poprawka z przeglądu PR #491:
+//                pierwsza wersja zostawiała kotwicy metadane News);
 //   * `empty`  - tenant nie ma ŻADNEGO opublikowanego artykułu: pliku nie ma
 //                (trasa oddaje 404), a indeks sitemapy go nie ogłasza.
 import { xmlEscape } from "@/lib/seo/rss";
@@ -115,25 +117,40 @@ export function planNewsSitemap(
   return { mode: "anchor", entries: anchor, lastmod: newsPublicationDate(anchor[0].publishedAt) };
 }
 
-/** Dokument news-sitemapy z gotowej listy wpisów (co najmniej jednego). */
-export function renderNewsSitemapXml(
-  publicationName: string,
-  entries: readonly NewsSitemapEntry[],
-): string {
-  const urls = entries.map((entry) =>
-    [
-      "  <url>",
-      `    <loc>${xmlEscape(entry.url)}</loc>`,
-      "    <news:news>",
-      "      <news:publication>",
-      `        <news:name>${xmlEscape(publicationName)}</news:name>`,
-      `        <news:language>${xmlEscape(entry.language)}</news:language>`,
-      "      </news:publication>",
-      `      <news:publication_date>${xmlEscape(newsPublicationDate(entry.publishedAt))}</news:publication_date>`,
-      `      <news:title>${xmlEscape(entry.title)}</news:title>`,
-      "    </news:news>",
-      "  </url>",
-    ].join("\n"),
+/** Wpis z metadanymi Google News (artykuł z okna 48 h). */
+function newsUrlBlock(publicationName: string, entry: NewsSitemapEntry): string {
+  return [
+    "  <url>",
+    `    <loc>${xmlEscape(entry.url)}</loc>`,
+    "    <news:news>",
+    "      <news:publication>",
+    `        <news:name>${xmlEscape(publicationName)}</news:name>`,
+    `        <news:language>${xmlEscape(entry.language)}</news:language>`,
+    "      </news:publication>",
+    `      <news:publication_date>${xmlEscape(newsPublicationDate(entry.publishedAt))}</news:publication_date>`,
+    `      <news:title>${xmlEscape(entry.title)}</news:title>`,
+    "    </news:news>",
+    "  </url>",
+  ].join("\n");
+}
+
+/** Kotwica: zwykły adres bez metadanych News (artykuł starszy niż 48 h). */
+function anchorUrlBlock(entry: NewsSitemapEntry): string {
+  return [
+    "  <url>",
+    `    <loc>${xmlEscape(entry.url)}</loc>`,
+    `    <lastmod>${xmlEscape(newsPublicationDate(entry.publishedAt))}</lastmod>`,
+    "  </url>",
+  ].join("\n");
+}
+
+/**
+ * Dokument news-sitemapy z planu (co najmniej jeden wpis). Wpisy `fresh` niosą
+ * `<news:news>`, kotwica (`anchor`) - wyłącznie `<loc>` i `<lastmod>`.
+ */
+export function renderNewsSitemapXml(publicationName: string, plan: NewsSitemapPlan): string {
+  const urls = plan.entries.map((entry) =>
+    plan.mode === "fresh" ? newsUrlBlock(publicationName, entry) : anchorUrlBlock(entry),
   );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
@@ -151,5 +168,5 @@ export function renderNewsSitemapXml(
 export function buildNewsSitemapXml(input: NewsSitemapInput): string | null {
   const plan = planNewsSitemap(input.entries, input.now ?? Date.now());
   if (plan.entries.length === 0) return null;
-  return renderNewsSitemapXml(input.publicationName, plan.entries);
+  return renderNewsSitemapXml(input.publicationName, plan);
 }

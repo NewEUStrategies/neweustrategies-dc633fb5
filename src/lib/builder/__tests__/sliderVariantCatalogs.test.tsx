@@ -193,7 +193,6 @@ function withImageLoadState(
 const withLoadedImages = (run: () => void) =>
   withImageLoadState({ complete: true, naturalWidth: 1200 }, run);
 
-
 afterEach(cleanup);
 
 // ------------------------------------------------------------------
@@ -289,8 +288,7 @@ describe("SliderRender - ujednolicone strzałki nawigacji", () => {
     const [tipAX, tipAY, apexX, apexY, tipBX, tipBY] = points.trim().split(/\s+/).map(Number);
     const v1 = { x: tipAX - apexX, y: tipAY - apexY };
     const v2 = { x: tipBX - apexX, y: tipBY - apexY };
-    const cos =
-      (v1.x * v2.x + v1.y * v2.y) / (Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y));
+    const cos = (v1.x * v2.x + v1.y * v2.y) / (Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y));
     const angle = (Math.acos(cos) * 180) / Math.PI;
     expect(angle).toBeGreaterThan(70);
     expect(angle).toBeLessThan(95);
@@ -302,7 +300,9 @@ describe("SliderRender - ujednolicone strzałki nawigacji", () => {
       expect(prevButton(container)?.querySelector("svg polyline")?.getAttribute("points")).toBe(
         "7.5 1.8 3.5 5 7.5 8.2",
       );
-      expect(prevButton(container)?.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.85");
+      expect(prevButton(container)?.querySelector("svg")?.getAttribute("stroke-width")).toBe(
+        "0.85",
+      );
       unmount();
     }
   });
@@ -397,7 +397,9 @@ describe("SliderRender - katalog stylów i pozycji nawigacji", () => {
   it("trzyma kreskę ikony na 0.85 niezależnie od ustawienia grubości panelu", () => {
     for (const stroke of [0.1, 2.25, 9]) {
       const { container, unmount } = renderSlider({ navArrowStroke: stroke });
-      expect(prevButton(container)?.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.85");
+      expect(prevButton(container)?.querySelector("svg")?.getAttribute("stroke-width")).toBe(
+        "0.85",
+      );
       unmount();
     }
   });
@@ -1199,12 +1201,7 @@ describe("SliderRender - kreski paginacji tylko przez transform i opacity (P2.6,
       expect(dots).toHaveLength(ITEMS.length);
       for (const dot of dots) {
         expect(tokens(dot)).toEqual(
-          expect.arrayContaining([
-            "rounded-full",
-            "w-10",
-            "h-1",
-            "transition-[transform,opacity]",
-          ]),
+          expect.arrayContaining(["rounded-full", "w-10", "h-1", "transition-[transform,opacity]"]),
         );
         // Animowane właściwości układu i koloru znikają razem z transition-all.
         for (const banned of ["transition-all", "w-2", "h-2", "w-2.5", "h-2.5"]) {

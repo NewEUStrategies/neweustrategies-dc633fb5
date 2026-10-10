@@ -9507,6 +9507,41 @@ button,
   }
 }
 
+/* One geometry for media arrows and pagination, independent of CMS button presets.
+   Subtelny wariant: bez widocznej ramki i wypełnienia - sam kąt, ghostowy dotyk. */
+.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+  padding: 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  color: var(--slider-arrow-ink) !important;
+  box-shadow: none !important;
+  opacity: 0.72;
+  font-size: 14px !important;
+  backdrop-filter: none;
+  transition:
+    opacity 180ms ease,
+    background 180ms ease;
+}
+.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow:hover {
+  background: var(--slider-arrow-hover) !important;
+  opacity: 1;
+}
+.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow svg {
+  width: 11px !important;
+  height: 10px !important;
+  color: inherit !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow {
+    transition: none;
+  }
+}
+
 /* ============================================================
    SZABLON TYPOGRAFII WIDGETU (HW-2; Wydajność PSI 85/95, fala 2, P2.4)
    ------------------------------------------------------------
@@ -9655,35 +9690,4 @@ button,
 [data-wt~="g"][data-w-id][data-w-id] [data-typography-gap-target],
 [data-wt~="g"][data-w-id][data-w-id] a + .cms-post-excerpt {
   margin-top: var(--cms-title-description-gap) !important;
-}
-
-/* One geometry for media arrows and pagination, independent of CMS button presets.
-   Subtelny wariant: bez widocznej ramki i wypełnienia - sam kąt, ghostowy dotyk. */
-.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow {
-  width: 34px !important;
-  height: 34px !important;
-  min-width: 34px !important;
-  min-height: 34px !important;
-  padding: 0 !important;
-  border: 1px solid transparent !important;
-  border-radius: 5px !important;
-  background: transparent !important;
-  color: var(--slider-arrow-ink) !important;
-  box-shadow: none !important;
-  opacity: 0.72;
-  font-size: 14px !important;
-  backdrop-filter: none;
-  transition: opacity 180ms ease, background 180ms ease;
-}
-.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow:hover {
-  background: var(--slider-arrow-hover) !important;
-  opacity: 1;
-}
-.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow svg {
-  width: 11px !important;
-  height: 10px !important;
-  color: inherit !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  .eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow { transition: none; }
 }

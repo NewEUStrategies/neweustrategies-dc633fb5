@@ -16,6 +16,14 @@ import { fetchPublishedPosts } from "./publishedContent.server";
 /** 200 najnowszych wpisów z zapasem pokrywa każde 48-godzinne okno publikacji. */
 const NEWS_SITEMAP_POST_LIMIT = 200;
 
+/**
+ * Budżet czasu odczytu wpisów (ściana zegara). `fetchPublishedPosts` łapie
+ * BŁĄD (`resilient`), ale nie POWOLNOŚĆ - zawieszone połączenie czeka, a z nim
+ * trasa pliku i indeks sitemapy (przegląd PR #491). Ta sama wartość co
+ * budżet sekcji mapy.
+ */
+export const NEWS_SITEMAP_READ_BUDGET_MS = 6_000;
+
 export async function loadNewsSitemapEntries(
   tenantId: string,
   origin: string,

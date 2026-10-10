@@ -120,7 +120,9 @@ const pl = {
     sitemapIssue_newsTooMany: "Artykułów: {{value}} - limit Google News to 1000.",
     sitemapIssue_newsLanguage: "Kod języka spoza ISO 639: {{value}}.",
     sitemapIssue_newsStale:
-      "Brak artykułów z ostatnich 48 h - plik niesie najnowszy artykuł ({{value}}) jako kotwicę. Google News pokaże nowe wpisy po publikacji.",
+      "Metadane Google News przy artykule starszym niż 48 h ({{value}}) - Google zaleca je wtedy zdjąć.",
+    sitemapIssue_newsAnchor:
+      "Brak artykułów z ostatnich 48 h - plik niesie najnowszy adres ({{value}}) bez metadanych News, zgodnie z wytycznymi Google. Nowe wpisy pojawią się po publikacji.",
     foundationRobotsSitemaps: "Deklaracje mapy strony w pliku: {{value}}.",
     foundationRobotsNoSitemap: "Plik nie wskazuje mapy strony (brak wpisu Sitemap:).",
     foundationLlmsPresent: "Przewodnik dla asystentów AI jest opublikowany.",
@@ -357,7 +359,9 @@ const en: typeof pl = {
     sitemapIssue_newsTooMany: "Articles: {{value}} - the Google News limit is 1,000.",
     sitemapIssue_newsLanguage: "Language code outside ISO 639: {{value}}.",
     sitemapIssue_newsStale:
-      "No articles from the last 48 h - the file carries the newest article ({{value}}) as an anchor. Google News will show new items once they are published.",
+      "Google News metadata on an article older than 48 h ({{value}}) - Google recommends removing it.",
+    sitemapIssue_newsAnchor:
+      "No articles from the last 48 h - the file carries the newest URL ({{value}}) without News metadata, as Google recommends. New items will appear once published.",
     foundationRobotsSitemaps: "Sitemap declarations in the file: {{value}}.",
     foundationRobotsNoSitemap: "The file does not point to a sitemap (no Sitemap: entry).",
     foundationLlmsPresent: "The AI assistant guide is published.",

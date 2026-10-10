@@ -378,6 +378,7 @@ vi.mock("@/lib/server/sitemapEntries.server", () => ({
         : { entries: failOrEmpty(state.sectionsFailure, state.sectionEntries), failed: false },
     ),
   coreSitemapEntries: (origin: string) => [{ loc: `${origin}/` }],
+  SITEMAP_SECTION_BUDGET_MS: 6_000,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -940,7 +941,7 @@ describe("nagłówki odpowiedzi ZDEGRADOWANEJ (pusty zbiór)", () => {
     );
   });
 
-  it("news-sitemap w dzień bez publikacji niesie KOTWICĘ - 200, wpis, TTL zdegradowany - 2026-10-10", async () => {
+  it("news-sitemap w dzień bez publikacji niesie KOTWICĘ bez metadanych News - 200, TTL zdegradowany - 2026-10-10", async () => {
     // Ostatni artykuł sprzed trzech dni: okno 48 h jest puste. Dawniej plik
     // wychodził jako pusty <urlset> (błąd GSC „Brak tagu XML: url"); teraz
     // niesie najnowszy artykuł, a TTL jest krótki, bo to stan „czekam na
@@ -953,7 +954,10 @@ describe("nagłówki odpowiedzi ZDEGRADOWANEJ (pusty zbiór)", () => {
     expect(res.status).toBe(200);
     const body = await assertNeverTruncated(res, "xml");
     expect(body).toContain("<url>");
-    expect(body).toContain("<news:publication_date>2026-01-31T08:00:00Z</news:publication_date>");
+    // Kotwica to zwykły adres - BEZ metadanych News (Google: po dwóch dniach
+    // zdejmij `<news:news>` albo usuń adres; przegląd PR #491).
+    expect(body).toContain("<lastmod>2026-01-31T08:00:00Z</lastmod>");
+    expect(body).not.toContain("<news:news>");
     expect(res.headers.get("cache-control")).toBe(EMPTY_FEED_CACHE);
     expect(res.headers.get("x-robots-tag")).toBe("noindex");
   });
@@ -2616,6 +2620,7 @@ describe("macierz: szczelność indeksu sitemapy w trybie degradacji", () => {
       },
       collectSitemapSection: () => Promise.resolve([]),
       coreSitemapEntries: (origin: string) => [{ loc: `${origin}/` }],
+      SITEMAP_SECTION_BUDGET_MS: 6_000,
     }));
     vi.resetModules();
     state.tenantId = null;
