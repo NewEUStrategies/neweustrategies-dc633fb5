@@ -2,6 +2,7 @@
 
 ## Nowoczesna nawigacja slidera
 
+- [ ] Dopasować wskaźniki do stylu popupu rejestracji i sprawdzić działanie.
 - [x] Odświeżyć zaznaczone strzałki i wskaźniki: subtelny obrys, aktywna kapsułka marki, płynne przejścia bez zmiany układu.
 - [x] Zweryfikować przełączanie materiałów testami zakresowymi.
 
