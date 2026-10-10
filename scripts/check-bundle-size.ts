@@ -2019,9 +2019,10 @@ const CLIENT_DIR =
 // log runnera na main po scaleniu jest podstawą korekty w dół.
 
 // 2026-10-10 XXVI  WYKRESY I MAPY DANYCH W BLOKACH I WIDGETACH (PR #489).
-//             Floory OVERALL 4786 -> 4833 i PUBLIC CSS 83 -> 85, DECYZJĄ
-//             ZAMAWIAJĄCEGO („najpierw cięcia, potem próg"), z pomiarem obu
-//             drzew. PUBLIC, CHUNK, CSS i BOOT nie ruszone - mieszczą się.
+//             Floory OVERALL 4786 -> 4833 (korekta niżej: 4837) i PUBLIC CSS
+//             83 -> 85, DECYZJĄ ZAMAWIAJĄCEGO („najpierw cięcia, potem
+//             próg"), z pomiarem obu drzew. PUBLIC, CHUNK, CSS i BOOT nie
+//             ruszone - mieszczą się.
 //
 // POMIAR (ten sam host, `bun run build` + ta bramka):
 //   baza 940ef8b1 (main po #488):   overall 4782,8  public 2822,1  css 97,0
@@ -2073,30 +2074,34 @@ const CLIENT_DIR =
 // z przeglądu Codex i parsera pól panelu, każda z testem, który przed nią
 // oblewał, oraz zdjęcie `vendor-lucide` ze ścieżki startowej. Krok bramki
 // nie działa na PR-ach, więc przekroczenia nie pokazało CI gałęzi. Pomiar
-// trzech drzew na tym samym hoście:
-//   bf37469a (pomiar wpisu):       overall 4832,0  public 2833,8  admin 1998,2
-//                                  boot 503,2 (11 chunków)
-//   84c7bd59 (po przeglądach):     overall 4836,6  public 2835,0  boot 503,3
+// trzech drzew na tym samym hoście (buildy deterministyczne):
+//   bf37469a (commit wpisu):       overall 4832,0  public 2833,8  admin 1998,2
+//                                  boot 503,2 (11 chunków); wyżej podane 4831,9
+//   84c7bd59 (po przeglądach):     overall 4836,6  public 2835,0  admin 2001,6
 //   + boot bez `vendor-lucide`:    overall 4836,0  public 2834,5  admin 2001,5
 //                                  boot 484,9 (10 chunków)  chunk 259,0
-// Przyrost +4,0 (public +0,7, admin +3,3), per chunk:
-//   +2,8  panel buildera (`EmptyContainerPickerBox`): stan arkusza danych
+// Poprawki z przeglądów: +4,6 (public +1,2, admin +3,4). Per chunk
+// (`Bun.gzipSync`, bf37469a -> stan końcowy):
+//   +2,9  panel buildera (`EmptyContainerPickerBox`): stan arkusza danych
 //         (`chartGridState` - operacja jako jeden krok cofania, kolejność
 //         i wyróżnienie serii), próbki koloru faktycznie rysowanego w danym
 //         rodzaju (`chartColorSlots`), wybór skali mapy ze środkiem, import
 //         i schowek (HTML z rozpoznaniem kodowania, etykiety, limity)
 //   +0,2  DataVizViews (czytelnik, leniwy): środek skali rozbieżnej jako
 //         granica klasy, jeden kierunek kreskowania
-//   +0,1  Chart: obrys wycinka tylko przy jawnie wybranym akcencie
-//   reszta: drobne moduły i różnice hashy w importach
-// Cięcia brak z wyboru: każda pozycja to naprawiona usterka.
+//   +0,8  szum gzip w ~800 chunkach o niezmienionych bajtach (hashe nazw
+//         plików w importach), z tego +0,5 publicznych
+// Zdjęcie `vendor-lucide` z bootu: -0,6 łącznie (przesunęły się tylko dwie
+// ikony; ~30 chunków ma krótsze listy zależności). Cięcia brak z wyboru:
+// przyrost kodu to naprawione usterki, reszta to szum.
 //
-// BOOT -18,3 KB: `ClubHubAccessBadge` (atom klubów spoza tego PR) łączenie
-// małych chunków wklejało do `index-*`, a jego ikony ciągnęły cały
-// `vendor-lucide` do bootu każdej strony (`check:entry-purity`, dług z bazy
-// 940ef8b1). Mechanizm i lista: `ENTRY_MERGED_LUCIDE_IMPORTERS`
-// w `scripts/lib/bootVendorSplit.ts`. Floor `boot` (579) zostaje - korektę
-// w dół robi pierwszy log runnera na main (zasada z wpisu V).
+// BOOT -18,4 KB (503,2 -> 484,9): `ClubHubAccessBadge` (atom klubów spoza
+// tego PR) łączenie małych chunków wklejało do `index-*`, a jego ikony
+// ciągnęły cały `vendor-lucide` (18,5 KB gzip) do bootu każdej strony
+// (`check:entry-purity`, dług z bazy 940ef8b1). Mechanizm i lista:
+// `ENTRY_MERGED_LUCIDE_IMPORTERS` w `scripts/lib/bootVendorSplit.ts`. Floor
+// `boot` (579) zostaje - korektę w dół robi pierwszy log runnera na main
+// (zasada z wpisu V).
 //
 // FORMUŁA: overall 4836,0 -> 4836 -> 4837.
 
@@ -2225,7 +2230,8 @@ const FROZEN_BUDGET_KB = {
   // i mapy (admin +37,3) i kartogram według specyfikacji, decyzją
   // zamawiającego po cięciach. Host 4831,9 przy bazie 4782,8 -> 4832 -> +1.
   // Korekta 4833 -> 4837 (ten sam wpis): poprawki z przeglądów PR #489
-  // (panel buildera +2,8, czytelnik +0,3). Host 4836,0 -> 4836 -> +1.
+  // +4,6 (panel buildera +2,9), boot bez `vendor-lucide` -0,6.
+  // Host 4836,0 -> 4836 -> +1.
   overall: 4837,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
