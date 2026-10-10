@@ -19,6 +19,8 @@ import {
   type SitemapIndexEntry,
 } from "@/lib/seo/sitemapIndex";
 import { expandSitemapUrls, newestLastmod } from "@/lib/seo/sitemapXml";
+import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
+import { planNewsSitemap } from "@/lib/seo/newsSitemap";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import {
   loadRedirectIndex,
@@ -32,6 +34,43 @@ import {
 // wejściem dla testu kontraktu w -sitemap.xml.test.ts.
 export { xmlEscape, alternateLinks } from "@/lib/seo/sitemapXml";
 
+/**
+ * Pozycja news-sitemapy w indeksie (albo `null`, gdy pliku nie ma). Nigdy nie
+ * rzuca: awaria odczytu ustawień albo wpisów i przekroczony budżet czasu dają
+ * `failed` - indeks wychodzi wtedy bez tej pozycji, z TTL zdegradowanym.
+ *
+ * Budżet z przeglądu PR #491: `fetchPublishedPosts` łapie błąd (`resilient`),
+ * ale nie powolność - zawieszone połączenie wstrzymałoby cały indeks, czyli
+ * odkrywanie WSZYSTKICH zdrowych shardów.
+ */
+async function readNewsIndexEntry(
+  tenantId: string,
+  origin: string,
+  budgetMs: number,
+): Promise<{ entry: SitemapIndexEntry | null; failed: boolean }> {
+  const work = (async (): Promise<SitemapIndexEntry | null> => {
+    const { fetchSeoSettingsValue } = await import("@/lib/server/publishedContent.server");
+    const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
+    if (!settings.news_sitemap_enabled) return null;
+    const { loadNewsSitemapEntries } = await import("@/lib/server/newsSitemapEntries.server");
+    const plan = planNewsSitemap(await loadNewsSitemapEntries(tenantId, origin), Date.now());
+    return plan.mode === "empty"
+      ? null
+      : { loc: `${origin}/news-sitemap.xml`, lastmod: plan.lastmod };
+  })();
+  try {
+    const settled = await settleWithinBudget(work, budgetMs);
+    if (settled === BUDGET_LAPSED) {
+      console.warn(`[seo] sitemap index news entry timed out after ${budgetMs}ms`);
+      return { entry: null, failed: true };
+    }
+    return { entry: settled, failed: false };
+  } catch (e) {
+    console.warn("[seo] sitemap index news settings unavailable:", e);
+    return { entry: null, failed: true };
+  }
+}
+
 export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
@@ -41,7 +80,13 @@ export const Route = createFileRoute("/sitemap.xml")({
         if (blocked) return new Response("Unknown host", { status: 404 });
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { collectAllSitemapSections } = await import("@/lib/server/sitemapEntries.server");
+        const { collectAllSitemapSections, SITEMAP_SECTION_BUDGET_MS } =
+          await import("@/lib/server/sitemapEntries.server");
+        // Wpis news-sitemapy liczony RÓWNOLEGLE z sekcjami - pod tym samym
+        // budżetem czasu, więc indeks czeka najwyżej jeden budżet, nie dwa.
+        const newsEntry = tenantId
+          ? readNewsIndexEntry(tenantId, origin, SITEMAP_SECTION_BUDGET_MS)
+          : Promise.resolve({ entry: null, failed: false });
         const [{ sections, failedSections }, redirectIndex] = await Promise.all([
           collectAllSitemapSections(supabaseAdmin, tenantId, origin),
           loadRedirectIndex(tenantId),
@@ -71,19 +116,17 @@ export const Route = createFileRoute("/sitemap.xml")({
         // miejscem; robots.txt ogłasza go dodatkowo. Awaria odczytu ustawień
         // zabiera indeksowi wpis news-sitemap, więc indeks jest wtedy
         // NIEPEŁNY - tak samo jak przy awarii sekcji.
-        let newsSettingsFailed = false;
-        if (tenantId) {
-          try {
-            const { fetchSeoSettingsValue } = await import("@/lib/server/publishedContent.server");
-            const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
-            if (settings.news_sitemap_enabled) {
-              entries.push({ loc: `${origin}/news-sitemap.xml` });
-            }
-          } catch (e) {
-            console.warn("[seo] sitemap index news settings unavailable:", e);
-            newsSettingsFailed = true;
-          }
-        }
+        //
+        // NAPRAWA 2026-10-10: wpis szedł do indeksu na samą flagę
+        // `news_sitemap_enabled`, bez sprawdzenia, czy plik ma co pokazać -
+        // i tak Search Console dostawał z indeksu pusty <urlset> („Brak tagu
+        // XML: url"). Indeks liczy teraz plan tym samym odczytem i tą samą
+        // funkcją co trasa pliku (`loadNewsSitemapEntries` + `planNewsSitemap`)
+        // i ogłasza plik WYŁĄCZNIE wtedy, gdy ten ma choć jeden wpis - z
+        // `lastmod` równym dacie najnowszej publikacji.
+        const news = await newsEntry;
+        if (news.entry) entries.push(news.entry);
+        const newsSettingsFailed = news.failed;
 
         // Indeks zdegradowany nie może dostać `stale-while-revalidate` - patrz
         // `sitemapCacheHeaders`. Zdegradowany = bez tenanta, bez żadnego

@@ -9,39 +9,68 @@ import {
   checkHtmlLang,
   checkLlms,
   checkRobots,
-  checkSitemap,
+  checkSitemapFiles,
   worstFoundationState,
 } from "../technicalFoundation";
+import { validateSitemapDocument } from "../sitemapValidation";
 
-describe("checkSitemap", () => {
-  it("uznaje <sitemapindex> za poprawną mapę i liczy shardy", () => {
-    const check = checkSitemap({
-      status: 200,
-      body: "<sitemapindex><sitemap><loc>a</loc></sitemap><sitemap><loc>b</loc></sitemap></sitemapindex>",
-    });
-    expect(check.state).toBe("ok");
-    expect(check.detailKey).toBe("foundationSitemapIndex");
-    expect(check.detailValue).toBe(2);
-  });
+// NAPRAWA 2026-10-10: reguła mapy strony ocenia KAŻDY plik (indeks + pliki
+// sekcji), nie liczbę `<sitemap>` w indeksie. Poprzednia wersja raportowała
+// „OK - 6 plików sekcji", gdy Search Console miał błędy w dwóch z nich.
+describe("checkSitemapFiles", () => {
+  const ORIGIN = "https://neweuropeanstrategies.com";
+  const NS = 'xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"';
+  const file = (url: string, body: string, status = 200) =>
+    validateSitemapDocument({ url, status, body, now: Date.parse("2026-10-10T12:00:00Z") });
+  const index = file(
+    `${ORIGIN}/sitemap.xml`,
+    `<sitemapindex ${NS}><sitemap><loc>${ORIGIN}/sitemaps/core.xml</loc></sitemap><sitemap><loc>${ORIGIN}/news-sitemap.xml</loc></sitemap></sitemapindex>`,
+  );
+  const core = file(
+    `${ORIGIN}/sitemaps/core.xml`,
+    `<urlset ${NS}><url><loc>${ORIGIN}/</loc></url><url><loc>${ORIGIN}/blog</loc></url></urlset>`,
+  );
 
-  it("liczy adresy w płaskim <urlset>", () => {
-    const check = checkSitemap({
-      status: 200,
-      body: "<urlset><url><loc>a</loc></url></urlset>",
-    });
-    expect(check.state).toBe("ok");
-    expect(check.detailValue).toBe(1);
-  });
-
-  it("pusta mapa to ostrzeżenie, nie sukces", () => {
-    expect(checkSitemap({ status: 200, body: "<urlset></urlset>" }).state).toBe("warn");
-  });
-
-  it("odpowiedź inna niż XML mapy to błąd", () => {
-    expect(checkSitemap({ status: 200, body: "<html></html>" }).detailKey).toBe(
-      "foundationSitemapMalformed",
+  it("indeks i każdy plik poprawne -> OK z liczbą plików i adresów", () => {
+    const news = file(
+      `${ORIGIN}/news-sitemap.xml`,
+      `<urlset ${NS}><url><loc>${ORIGIN}/a</loc></url></urlset>`,
     );
-    expect(checkSitemap({ status: 404, body: "" }).state).toBe("fail");
+    const check = checkSitemapFiles([index, core, news]);
+    expect(check.state).toBe("ok");
+    expect(check.detailKey).toBe("foundationSitemapIndexValid");
+    expect(check.detailParams).toEqual({ files: 2, urls: 3 });
+  });
+
+  it("jeden pusty plik sekcji (pusty urlset jak news-sitemap) -> błąd CAŁEJ mapy", () => {
+    const emptyNews = file(
+      `${ORIGIN}/news-sitemap.xml`,
+      `<urlset ${NS} xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">\n</urlset>`,
+    );
+    const check = checkSitemapFiles([index, core, emptyNews]);
+    expect(check.state).toBe("fail");
+    expect(check.detailKey).toBe("foundationSitemapFilesFailed");
+    expect(check.detailParams).toEqual({ failed: 1, total: 3 });
+  });
+
+  it("plik sekcji bez odpowiedzi (status 0) też jest błędem mapy", () => {
+    const check = checkSitemapFiles([index, file(`${ORIGIN}/sitemaps/core.xml`, "", 0)]);
+    expect(check.state).toBe("fail");
+  });
+
+  it("płaski <urlset> zamiast indeksu jest poprawny", () => {
+    const check = checkSitemapFiles([core]);
+    expect(check.state).toBe("ok");
+    expect(check.detailKey).toBe("foundationSitemapUrlsetValid");
+    expect(check.detailParams).toEqual({ urls: 2 });
+  });
+
+  it("indeks niedostępny -> błąd HTTP; brak raportów -> brak danych", () => {
+    const check = checkSitemapFiles([file(`${ORIGIN}/sitemap.xml`, "", 404)]);
+    expect(check).toEqual(
+      expect.objectContaining({ state: "fail", detailKey: "foundationHttp", detailValue: 404 }),
+    );
+    expect(checkSitemapFiles([]).state).toBe("unknown");
   });
 });
 

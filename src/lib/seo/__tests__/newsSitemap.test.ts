@@ -3,6 +3,7 @@ import {
   buildNewsSitemapXml,
   freshNewsEntries,
   NEWS_SITEMAP_WINDOW_MS,
+  planNewsSitemap,
   type NewsSitemapEntry,
 } from "@/lib/seo/newsSitemap";
 
@@ -45,10 +46,70 @@ describe("buildNewsSitemapXml", () => {
     expect(xml).toContain("EN &amp; co");
     expect(xml).toContain("<loc>https://nes.example/en/blog/x</loc>");
   });
-  it("produces a valid empty urlset on a quiet news day", () => {
-    const xml = buildNewsSitemapXml({ publicationName: "NES", entries: [entry(100)], now: NOW });
-    expect(xml).toContain("<urlset");
-    expect(xml).not.toContain("<url>");
+  // NAPRAWA 2026-10-10. Stał tu test „produces a valid empty urlset on a quiet
+  // news day" - przypinał DEFEKT jako zamierzone zachowanie. Pusty <urlset>
+  // nie jest poprawny względem sitemap.xsd i Search Console raportował go jako
+  // „Brak tagu XML: url (wiersz 3)". Dzień bez publikacji niesie teraz
+  // najnowszy artykuł jako kotwicę.
+  it("on a quiet news day keeps the newest article as a plain URL anchor - never an empty urlset", () => {
+    const xml = buildNewsSitemapXml({
+      publicationName: "NES",
+      entries: [entry(100), entry(72, { language: "en", url: "https://nes.example/en/x" })],
+      now: NOW,
+    });
+    expect(xml).toContain("<url>");
+    expect(xml).toContain("<loc>https://nes.example/en/x</loc>");
+    expect(xml).toContain("<lastmod>2026-06-29T12:00:00Z</lastmod>");
+    // Google: po dwóch dniach zdejmij `<news:news>` albo usuń adres - kotwica
+    // nie niesie metadanych News (przegląd PR #491).
+    expect(xml).not.toContain("<news:news>");
+    expect(xml).not.toContain("wpis-100");
+  });
+
+  it("returns null when there is no published article at all", () => {
+    expect(buildNewsSitemapXml({ publicationName: "NES", entries: [], now: NOW })).toBeNull();
+  });
+
+  it("normalises the publication date to W3C Datetime in UTC", () => {
+    const xml = buildNewsSitemapXml({
+      publicationName: "NES",
+      entries: [entry(1, { publishedAt: "2026-07-02T13:00:00+02:00" })],
+      now: NOW,
+    });
+    expect(xml).toContain("<news:publication_date>2026-07-02T11:00:00Z</news:publication_date>");
+  });
+});
+
+describe("planNewsSitemap", () => {
+  it("fresh: the 48h window, lastmod = newest publication", () => {
+    const plan = planNewsSitemap([entry(30), entry(2), entry(60)], NOW);
+    expect(plan.mode).toBe("fresh");
+    expect(plan.entries.map((e) => e.title)).toEqual(["Wpis 2h", "Wpis 30h"]);
+    expect(plan.lastmod).toBe("2026-07-02T10:00:00Z");
+  });
+
+  it("anchor: every language version of the newest past article, nothing older", () => {
+    const pl = entry(72);
+    const en = entry(72, { language: "en", url: "https://nes.example/en/blog/wpis-72" });
+    const plan = planNewsSitemap([entry(200), en, pl, entry(96)], NOW);
+    expect(plan.mode).toBe("anchor");
+    expect(plan.entries).toEqual([en, pl]);
+    expect(plan.lastmod).toBe("2026-06-29T12:00:00Z");
+  });
+
+  it("anchor never reveals a scheduled (future) article", () => {
+    const scheduled = entry(0, { publishedAt: new Date(NOW + 3_600_000).toISOString() });
+    const plan = planNewsSitemap([scheduled, entry(80)], NOW);
+    expect(plan.entries.map((e) => e.title)).toEqual(["Wpis 80h"]);
+  });
+
+  it("empty: no published article in the past", () => {
+    const scheduled = entry(0, { publishedAt: new Date(NOW + 3_600_000).toISOString() });
+    expect(planNewsSitemap([scheduled, entry(0, { publishedAt: "nope" })], NOW)).toEqual({
+      mode: "empty",
+      entries: [],
+      lastmod: null,
+    });
   });
 });
 
@@ -97,8 +158,9 @@ describe("buildNewsSitemapXml - zegar systemowy", () => {
         },
       ],
     });
-    // Google News odrzuca kanał z datą publikacji w przyszłości - lepiej pusty
-    // urlset niż wpis, który psuje walidację całego pliku.
-    expect(xml).not.toContain("<url>");
+    // Google News odrzuca kanał z datą publikacji w przyszłości, a zaplanowany
+    // wpis nie może wyjść przed czasem. Bez żadnej publikacji z przeszłości
+    // dokumentu nie ma (null -> trasa 404), bo pusty urlset to błąd schematu.
+    expect(xml).toBeNull();
   });
 });

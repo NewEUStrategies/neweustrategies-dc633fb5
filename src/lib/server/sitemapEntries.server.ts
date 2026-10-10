@@ -15,12 +15,34 @@ import type { Database } from "@/integrations/supabase/types";
 import type { SitemapSection } from "@/lib/seo/sitemapIndex";
 import type { SitemapEntry } from "@/lib/seo/sitemapXml";
 
+import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
 import { readPublishedPagePaths as buildPagePaths } from "./publishedPagePaths.server";
 import { readPagedRows } from "./pagedRows.server";
 
 type DbClient = SupabaseClient<Database>;
 
 export type { SitemapEntry };
+
+/**
+ * Budżet czasu odczytu JEDNEJ sekcji (ściana zegara, nie CPU).
+ *
+ * PRZYCZYNA. Odczyty sekcji nie miały terminu: `try/catch` broni przed
+ * BŁĘDEM, nie przed POWOLNOŚCIĄ - zawieszone połączenie PostgREST nie rzuca,
+ * tylko czeka. Crawler czekał razem z nim, aż zrywał połączenie, a Search
+ * Console zapisywał to jako „Ogólny błąd HTTP" (tak wyglądał raport
+ * `sitemaps/core.xml`). Z budżetem odpowiedź ma górną granicę: sekcja, która
+ * nie zdążyła, jest AWARIĄ (shard -> 503 + Retry-After, indeks -> TTL
+ * zdegradowany), a nie wiszącym żądaniem. Spóźniony odczyt biegnie dalej
+ * i jest pochłaniany przez `settleWithinBudget`.
+ */
+export const SITEMAP_SECTION_BUDGET_MS = 6_000;
+
+/** Wynik odczytu sekcji: adresy + czy odczyt się NIE powiódł (awaria ≠ pustka). */
+export interface SitemapSectionResult {
+  entries: SitemapEntry[];
+  /** `true` = odczyt rzucił albo nie zmieścił się w budżecie - `entries` jest wtedy puste. */
+  failed: boolean;
+}
 
 /** YYYY-MM-DD z pierwszej niepustej daty (albo undefined). */
 function day(...candidates: Array<string | null | undefined>): string | undefined {
@@ -80,18 +102,29 @@ type SectionCollector = (ctx: {
   admin: DbClient;
   tenantId: string;
   origin: string;
-  pagePaths: () => Promise<{ paths: Map<string, string>; noindex: Set<string> }>;
+  pagePaths: () => Promise<PagePaths>;
 }) => Promise<SitemapEntry[]>;
+
+type PagePaths = Awaited<ReturnType<typeof buildPagePaths>>;
 
 const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
   async pages({ origin, pagePaths }) {
-    const { paths, noindex } = await pagePaths();
+    const { paths, noindex, updatedAt } = await pagePaths();
     const out: SitemapEntry[] = [];
     for (const [id, path] of paths) {
       // Strony oznaczone noindex są wykluczone - sitemapa nie może reklamować
       // adresów, które meta robots każe crawlerowi pominąć.
       if (noindex.has(id)) continue;
-      out.push({ loc: `${origin}/${path}`, changefreq: "weekly", priority: "0.6" });
+      // `lastmod` stron: bez niego plik sekcji `pages` i jego pozycja
+      // w indeksie nie miały ŻADNEJ daty, więc crawler nie odróżniał strony
+      // zmienionej wczoraj od nietkniętej od roku.
+      const lastmod = day(updatedAt.get(id));
+      out.push({
+        loc: `${origin}/${path}`,
+        ...(lastmod ? { lastmod } : {}),
+        changefreq: "weekly",
+        priority: "0.6",
+      });
     }
     return out;
   },
@@ -394,14 +427,60 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
 };
 
 function pagePathsOnce(admin: DbClient, tenantId: string) {
-  let cached: Promise<{ paths: Map<string, string>; noindex: Set<string> }> | null = null;
+  let cached: Promise<PagePaths> | null = null;
   return () => (cached ??= buildPagePaths(admin, tenantId));
+}
+
+/** Kolektor sekcji pod budżetem czasu - awaria i przekroczenie terminu dają `failed`. */
+async function runCollector(
+  section: Exclude<SitemapSection, "core">,
+  ctx: Parameters<SectionCollector>[0],
+): Promise<SitemapSectionResult> {
+  // Błąd łapiemy PRZED budżetem: `settleWithinBudget` opakowuje odrzucenie
+  // nie-`Error` (np. `PostgrestError` z RPC) w `new Error("[object Object]")`,
+  // a log awarii sekcji ma nieść ORYGINALNY komunikat bazy.
+  const work = (async () => COLLECTORS[section](ctx))().then(
+    (entries) => ({ ok: true as const, entries }),
+    (error: unknown) => ({ ok: false as const, error }),
+  );
+  const settled = await settleWithinBudget(work, SITEMAP_SECTION_BUDGET_MS);
+  if (settled === BUDGET_LAPSED) {
+    console.warn(
+      `[seo] sitemap section "${section}" read timed out after ${SITEMAP_SECTION_BUDGET_MS}ms`,
+    );
+    return { entries: [], failed: true };
+  }
+  if (!settled.ok) {
+    console.warn(`[seo] sitemap section "${section}" read failed:`, settled.error);
+    return { entries: [], failed: true };
+  }
+  return { entries: settled.entries, failed: false };
+}
+
+/**
+ * Odczyt JEDNEJ sekcji z rozróżnieniem awarii od pustki - wejście trasy
+ * shardu. Sekcja "core" nie czyta bazy, więc nigdy nie jest awarią.
+ */
+export async function collectSitemapSectionResult(
+  admin: DbClient,
+  tenantId: string,
+  origin: string,
+  section: SitemapSection,
+): Promise<SitemapSectionResult> {
+  if (section === "core") return { entries: coreSitemapEntries(origin), failed: false };
+  return runCollector(section, {
+    admin,
+    tenantId,
+    origin,
+    pagePaths: pagePathsOnce(admin, tenantId),
+  });
 }
 
 /**
  * Adresy JEDNEJ sekcji. Powierzchnie crawlerskie DEGRADUJĄ, nigdy nie zwracają
  * 500: awaria odczytu to pusta sekcja (dla "core" - same statyczne huby), nie
- * zatruty crawl.
+ * zatruty crawl. Kto musi odróżnić awarię od pustki (trasa shardu), woła
+ * `collectSitemapSectionResult`.
  */
 export async function collectSitemapSection(
   admin: DbClient,
@@ -409,18 +488,7 @@ export async function collectSitemapSection(
   origin: string,
   section: SitemapSection,
 ): Promise<SitemapEntry[]> {
-  if (section === "core") return coreSitemapEntries(origin);
-  try {
-    return await COLLECTORS[section]({
-      admin,
-      tenantId,
-      origin,
-      pagePaths: pagePathsOnce(admin, tenantId),
-    });
-  } catch (e) {
-    console.warn(`[seo] sitemap section "${section}" read failed:`, e);
-    return [];
-  }
+  return (await collectSitemapSectionResult(admin, tenantId, origin, section)).entries;
 }
 
 /** Wynik zbierania wszystkich sekcji dla indeksu mapy. */
@@ -460,18 +528,10 @@ export async function collectAllSitemapSections(
   const pagePaths = pagePathsOnce(admin, tenantId);
   const names = Object.keys(COLLECTORS) as Array<Exclude<SitemapSection, "core">>;
   const results = await Promise.all(
-    names.map(async (section) => {
-      try {
-        return {
-          section,
-          entries: await COLLECTORS[section]({ admin, tenantId, origin, pagePaths }),
-          failed: false,
-        };
-      } catch (e) {
-        console.warn(`[seo] sitemap section "${section}" read failed:`, e);
-        return { section, entries: [] as SitemapEntry[], failed: true };
-      }
-    }),
+    names.map(async (section) => ({
+      section,
+      ...(await runCollector(section, { admin, tenantId, origin, pagePaths })),
+    })),
   );
   const failedSections: SitemapSection[] = [];
   for (const { section, entries, failed } of results) {

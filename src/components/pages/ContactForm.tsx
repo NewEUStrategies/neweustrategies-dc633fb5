@@ -134,39 +134,51 @@ export function ContactForm({ lang }: Props) {
       <form onSubmit={onSubmit} className="space-y-3" noValidate>
         <div className="grid sm:grid-cols-2 gap-3">
           <div>
-          <FloatingInput
-            id={nameId}
-            maxLength={CONTACT_FIELD_LIMITS.name}
-            label={t.name}
-            required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
-          <CharacterCounter count={form.name.length} limit={CONTACT_FIELD_LIMITS.name} lang={lang} />
+            <FloatingInput
+              id={nameId}
+              maxLength={CONTACT_FIELD_LIMITS.name}
+              label={t.name}
+              required
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+            <CharacterCounter
+              count={form.name.length}
+              limit={CONTACT_FIELD_LIMITS.name}
+              lang={lang}
+            />
           </div>
           <div>
-          <FloatingInput
-            id={emailId}
-            maxLength={CONTACT_FIELD_LIMITS.email}
-            label={t.email}
-            required
-            type="email"
-            autoComplete="email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-          />
-          <CharacterCounter count={form.email.length} limit={CONTACT_FIELD_LIMITS.email} lang={lang} />
+            <FloatingInput
+              id={emailId}
+              maxLength={CONTACT_FIELD_LIMITS.email}
+              label={t.email}
+              required
+              type="email"
+              autoComplete="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
+            <CharacterCounter
+              count={form.email.length}
+              limit={CONTACT_FIELD_LIMITS.email}
+              lang={lang}
+            />
           </div>
         </div>
         <div>
-        <FloatingInput
-          id={subjectId}
-          maxLength={CONTACT_FIELD_LIMITS.subject}
-          label={t.subject}
-          value={form.subject}
-          onChange={(e) => setForm({ ...form, subject: e.target.value })}
-        />
-        <CharacterCounter count={form.subject.length} limit={CONTACT_FIELD_LIMITS.subject} lang={lang} />
+          <FloatingInput
+            id={subjectId}
+            maxLength={CONTACT_FIELD_LIMITS.subject}
+            label={t.subject}
+            value={form.subject}
+            onChange={(e) => setForm({ ...form, subject: e.target.value })}
+          />
+          <CharacterCounter
+            count={form.subject.length}
+            limit={CONTACT_FIELD_LIMITS.subject}
+            lang={lang}
+          />
         </div>
         <MessageComposerField
           id={messageId}

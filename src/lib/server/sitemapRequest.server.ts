@@ -53,9 +53,18 @@ export async function loadRedirectIndex(tenantId: string | null): Promise<Redire
   }
 }
 
+/**
+ * Plik mapy strony nie jest stroną do wyszukania - `noindex` trzyma sam XML
+ * poza wynikami wyszukiwania (Google czyta i przetwarza sitemapę z tym
+ * nagłówkiem normalnie; dotyczy wyłącznie indeksowania pliku jako dokumentu).
+ * Wspólne dla indeksu, shardów i news-sitemapy.
+ */
+export const SITEMAP_ROBOTS_HEADER = { "X-Robots-Tag": "noindex" } as const;
+
 /** Nagłówki wspólne dla indeksu i shardów. */
 export const SITEMAP_CACHE_HEADERS = {
   "Content-Type": "application/xml; charset=utf-8",
+  ...SITEMAP_ROBOTS_HEADER,
   // Zawsze rewaliduj u klienta; CDN trzyma świeżą kopię przez 60s, stare
   // zwracane jako fallback do 30 min - dzięki temu zmiany SEO (nowy wpis,
   // seo_noindex, redirect) propagują się bez ręcznego odświeżania cache.
@@ -80,6 +89,7 @@ export const SITEMAP_CACHE_HEADERS = {
  */
 export const SITEMAP_DEGRADED_CACHE_HEADERS = {
   "Content-Type": "application/xml; charset=utf-8",
+  ...SITEMAP_ROBOTS_HEADER,
   "Cache-Control": FEED_CACHE_CONTROL_EMPTY,
 } as const;
 
@@ -88,6 +98,33 @@ export function sitemapCacheHeaders(
   degraded: boolean,
 ): typeof SITEMAP_CACHE_HEADERS | typeof SITEMAP_DEGRADED_CACHE_HEADERS {
   return degraded ? SITEMAP_DEGRADED_CACHE_HEADERS : SITEMAP_CACHE_HEADERS;
+}
+
+/** Po ilu sekundach crawler ma ponowić pobranie shardu po awarii odczytu. */
+export const SITEMAP_RETRY_AFTER_SECONDS = 120;
+
+/**
+ * Odpowiedź shardu, którego odczytu NIE DAŁO SIĘ wykonać (baza rzuciła albo
+ * nie zmieściła się w budżecie czasu) - 503 + `Retry-After`, nigdy 404.
+ *
+ * PRZYCZYNA. Kolektor sekcji zamieniał awarię w `[]`, a trasa shardu pustą
+ * listę w 404 „Unknown sitemap". Dla Search Console 404 znaczy „pliku nie ma":
+ * raport pokazywał błąd pobrania, a adresy shardu traciły źródło odkrycia
+ * z powodu chwilowej czkawki bazy. 503 jest jedynym statusem, który mówi
+ * crawlerowi „wróć za chwilę" - Google ponawia pobranie i zostawia ostatnią
+ * dobrą wersję pliku. `no-store`, żeby brzeg nie utrwalił awarii nawet na
+ * minutę.
+ */
+export function sitemapUnavailableResponse(): Response {
+  return new Response("Sitemap temporarily unavailable", {
+    status: 503,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Retry-After": String(SITEMAP_RETRY_AFTER_SECONDS),
+      ...SITEMAP_ROBOTS_HEADER,
+    },
+  });
 }
 
 /**

@@ -161,7 +161,10 @@ export const Route = createFileRoute("/admin/crm/$id")({
   head: () => ({
     meta: [
       { title: "Kontakt CRM - New European Strategies" },
-      { name: "description", content: "Pełna historia wiadomości i aktywności kontaktu New European Strategies." },
+      {
+        name: "description",
+        content: "Pełna historia wiadomości i aktywności kontaktu New European Strategies.",
+      },
       { property: "og:title", content: "Kontakt CRM - New European Strategies" },
       { property: "og:description", content: "Historia wiadomości i aktywności kontaktu." },
       { property: "og:type", content: "website" },
@@ -639,7 +642,7 @@ function AdminCrmDetailPage() {
                           <span>{new Date(m.created_at).toLocaleString()}</span>
                         </div>
                         {m.subject && <div className="mt-1 font-medium">{m.subject}</div>}
-                         <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-muted-foreground">
+                        <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-muted-foreground">
                           {m.message}
                         </p>
                       </li>

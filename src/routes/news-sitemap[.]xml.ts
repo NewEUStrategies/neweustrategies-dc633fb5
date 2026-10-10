@@ -3,15 +3,30 @@
 // enforced in the pure builder); each language version is its own entry with a
 // matching <news:language>. Advertised from robots.txt next to the main
 // sitemap. Short cache: freshness is the whole point of this surface.
+//
+// NAPRAWA 2026-10-10: dzień bez publikacji NIE daje już pustego <urlset>
+// (Search Console: „Brak tagu XML: url, wiersz 3"). Plan z `planNewsSitemap`
+// niesie wtedy najnowszy artykuł jako kotwicę - zwykły adres bez metadanych
+// News - a tenant bez żadnego artykułu dostaje 404: pliku nie ma i indeks go
+// nie ogłasza. Odczyt wpisów ma budżet czasu: zawieszona baza to 503 +
+// Retry-After, nie wiszące żądanie. Uzasadnienie: `lib/seo/newsSitemap.ts`.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { crawlerPublishOrigin } from "@/lib/http/host";
-import { localizedPath } from "@/lib/i18n/localePath";
-import { buildNewsSitemapXml, type NewsSitemapEntry } from "@/lib/seo/newsSitemap";
-import { feedCacheControl } from "@/lib/seo/feedCache";
+import { planNewsSitemap, renderNewsSitemapXml } from "@/lib/seo/newsSitemap";
+import { FEED_CACHE_CONTROL_EMPTY, feedCacheControl } from "@/lib/seo/feedCache";
 import { effectiveNewsPublicationName, parseSeoSettings } from "@/lib/seo/settings";
-import { fetchPublishedPosts, fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
+import { fetchSeoSettingsValue } from "@/lib/server/publishedContent.server";
+import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
+import {
+  NEWS_SITEMAP_READ_BUDGET_MS,
+  loadNewsSitemapEntries,
+} from "@/lib/server/newsSitemapEntries.server";
+import {
+  SITEMAP_ROBOTS_HEADER,
+  sitemapUnavailableResponse,
+} from "@/lib/server/sitemapRequest.server";
 import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
 async function requestContext(): Promise<{ origin: string; host: string }> {
@@ -47,42 +62,43 @@ export const Route = createFileRoute("/news-sitemap.xml")({
           return new Response("News sitemap disabled", { status: 404 });
         }
 
-        // 200 recent posts comfortably covers any 48h publishing window.
-        const posts = tenantId ? await fetchPublishedPosts(tenantId, 200) : [];
-        const entries: NewsSitemapEntry[] = [];
-        for (const post of posts) {
-          if (!post.published_at) continue;
-          if (post.title_pl) {
-            entries.push({
-              url: `${origin}${localizedPath(post.path, "pl")}`,
-              title: post.title_pl,
-              publishedAt: post.published_at,
-              language: "pl",
-            });
-          }
-          if (post.title_en) {
-            entries.push({
-              url: `${origin}${localizedPath(post.path, "en")}`,
-              title: post.title_en,
-              publishedAt: post.published_at,
-              language: "en",
-            });
-          }
+        let entries: Awaited<ReturnType<typeof loadNewsSitemapEntries>> = [];
+        if (tenantId) {
+          const settled = await settleWithinBudget(
+            loadNewsSitemapEntries(tenantId, origin),
+            NEWS_SITEMAP_READ_BUDGET_MS,
+          );
+          if (settled === BUDGET_LAPSED) return sitemapUnavailableResponse();
+          entries = settled;
+        }
+        const plan = planNewsSitemap(entries, Date.now());
+
+        // Brak JAKIEGOKOLWIEK artykułu (tenant bez treści, host podglądu bez
+        // tenanta, czytnik `resilient` po awarii bazy): dokumentu, który
+        // przeszedłby walidację schematu, nie da się zbudować - pusty
+        // <urlset> to właśnie błąd „Brak tagu XML: url". 404 z krótkim TTL
+        // odpowiedzi zdegradowanej: indeks w tym stanie pliku nie ogłasza,
+        // a po pierwszej publikacji (albo powrocie bazy) plik wraca w minutę.
+        if (plan.mode === "empty") {
+          return new Response("No news articles", {
+            status: 404,
+            headers: {
+              "Content-Type": "text/plain; charset=utf-8",
+              "Cache-Control": FEED_CACHE_CONTROL_EMPTY,
+              ...SITEMAP_ROBOTS_HEADER,
+            },
+          });
         }
 
-        const xml = buildNewsSitemapXml({
-          publicationName: effectiveNewsPublicationName(settings),
-          entries,
-        });
+        const xml = renderNewsSitemapXml(effectiveNewsPublicationName(settings), plan);
         // NAPRAWA 2026-09-02: pusta news-sitemapa dostawała ten sam TTL co
         // pełna, mimo że ŚWIEŻOŚĆ jest jej całym sensem. Google News czyta ten
         // plik po to, żeby zobaczyć wpisy z ostatnich 48 h; pusty dokument
         // zapamiętany na `s-maxage=300` plus `stale-while-revalidate=600`
         // wypada z okna nowości, a materiał opublikowany w czasie awarii nigdy
-        // do News nie trafia. Defekt był przypięty jako `it.fails`
-        // w `routes/__tests__/feedRoutesDegradation.test.ts`; przypięcie
-        // przestało być uzasadnione w chwili, gdy powstał `lib/seo/feedCache.ts` -
-        // naprawa to podanie liczby wpisów do gotowego kontraktu.
+        // do News nie trafia. Ten sam kontrakt obejmuje od 2026-10-10 plik
+        // z samą KOTWICĄ (okno 48 h puste): to stan „czekam na publikację",
+        // więc nowy artykuł musi pojawić się w minutę, nie po SWR.
         return new Response(xml, {
           headers: {
             "Content-Type": "application/xml; charset=utf-8",
@@ -90,9 +106,10 @@ export const Route = createFileRoute("/news-sitemap.xml")({
             // pół godziny) - świadomy wyjątek, taki sam jak dla relacji na
             // żywo, więc idzie jako `whenFull`.
             "Cache-Control": feedCacheControl(
-              entries.length,
+              plan.mode === "fresh" ? plan.entries.length : 0,
               "public, max-age=120, s-maxage=300, stale-while-revalidate=600",
             ),
+            ...SITEMAP_ROBOTS_HEADER,
           },
         });
       },

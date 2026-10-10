@@ -34,7 +34,19 @@ test.describe("SEO surfaces", () => {
       const body = await res.text();
       // news-sitemap ma wlasny format (news:), pozostale shardy to <urlset>.
       expect(body, `${path} zawartosc`).toMatch(/<urlset/);
+      // Pusty <urlset> to blad schematu - Search Console: "Brak tagu XML: url".
+      // Indeks nie moze oglaszac pliku bez ani jednego adresu.
+      expect(body, `${path} nie moze byc pustym urlset`).toMatch(/<url>/);
+      expect(res.headers()["x-robots-tag"] ?? "", `${path} X-Robots-Tag`).toContain("noindex");
     }
+  });
+
+  test("news-sitemap.xml is never an empty urlset", async ({ request }) => {
+    // 404 = brak artykulow albo News wylaczony w ustawieniach; 200 = co najmniej
+    // jeden <url> (w dzien bez publikacji: najnowszy artykul jako kotwica).
+    const res = await request.get("/news-sitemap.xml");
+    expect([200, 404]).toContain(res.status());
+    if (res.status() === 200) expect(await res.text()).toMatch(/<url>/);
   });
 
   test("an unknown sitemap shard is a 404, not an empty urlset", async ({ request }) => {

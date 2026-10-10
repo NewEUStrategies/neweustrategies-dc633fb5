@@ -10,6 +10,14 @@
 // MODUŁ JEST CZYSTY - żadnego `fetch`, żadnego DOM. Sieć robi komponent
 // (`TechnicalFoundationCard`), a reguły stoją tutaj, żeby dały się przetestować
 // bez przeglądarki i bez sieci.
+//
+// NAPRAWA 2026-10-10 - MAPA STRONY OCENIANA PO KAŻDYM PLIKU, NIE PO INDEKSIE.
+// Reguła liczyła `<sitemap>` w samym indeksie i raportowała „OK - 6 plików
+// sekcji", podczas gdy Search Console pokazywał błędy dwóch z nich (pusty
+// `news-sitemap.xml`, niepobieralny `sitemaps/core.xml`). Wiersz mapy strony
+// jest teraz wynikiem walidacji indeksu ORAZ każdego pliku, na który indeks
+// wskazuje (`sitemapValidation.ts`) - zielony tylko wtedy, gdy każdy przechodzi.
+import type { SitemapFileReport } from "./sitemapValidation";
 
 /** Wynik jednego sprawdzenia fundamentu. */
 export type FoundationState = "ok" | "warn" | "fail" | "unknown";
@@ -19,6 +27,8 @@ export interface FoundationProbe {
   status: number;
   /** Treść odpowiedzi, przycięta do pierwszych kilku kilobajtów. */
   body: string;
+  /** Nagłówek `Content-Type` (null = nieznany). */
+  contentType?: string | null;
 }
 
 export interface FoundationCheck {
@@ -27,35 +37,64 @@ export interface FoundationCheck {
   /** Klucz opisu szczegółu, uzupełniany o `detailValue`. */
   detailKey: string;
   detailValue?: string | number;
+  /** Dodatkowe parametry opisu (np. liczba plików i plików z błędami). */
+  detailParams?: Record<string, string | number>;
 }
 
 /** Ile bajtów odpowiedzi wystarcza na rozstrzygnięcie każdej reguły niżej. */
 export const FOUNDATION_BODY_LIMIT = 8192;
 
 /**
- * Mapa strony. `<sitemapindex>` i `<urlset>` są OBA poprawne - serwis wystawia
- * indeks wskazujący shardy sekcji, więc reguła nie może wymagać `<urlset>`.
+ * Mapa strony - wynik walidacji `/sitemap.xml` (pierwszy raport) i każdego
+ * pliku, na który wskazuje indeks (kolejne raporty). `<sitemapindex>`
+ * i pojedynczy `<urlset>` są OBA poprawne - serwis wystawia indeks wskazujący
+ * shardy sekcji, więc reguła nie może wymagać `<urlset>`.
+ *
+ * Stan to NAJGORSZY plik: jeden plik z błędem to błąd całej mapy, bo Search
+ * Console raportuje go dokładnie tak samo („Mapa witryny zawiera błędy").
  */
-export function checkSitemap(probe: FoundationProbe): FoundationCheck {
-  if (probe.status !== 200) {
-    return { id: "sitemap", state: "fail", detailKey: "foundationHttp", detailValue: probe.status };
+export function checkSitemapFiles(files: readonly SitemapFileReport[]): FoundationCheck {
+  const [root, ...children] = files;
+  if (!root) return { id: "sitemap", state: "unknown", detailKey: "foundationSitemapNoData" };
+  if (root.status !== 200) {
+    return { id: "sitemap", state: "fail", detailKey: "foundationHttp", detailValue: root.status };
   }
-  const isIndex = probe.body.includes("<sitemapindex");
-  const isUrlset = probe.body.includes("<urlset");
-  if (!isIndex && !isUrlset) {
-    return { id: "sitemap", state: "fail", detailKey: "foundationSitemapMalformed" };
+  const total = files.length;
+  const failed = files.filter((file) => file.state === "fail").length;
+  const warned = files.filter((file) => file.state === "warn").length;
+  // Adresy Google News to te same artykuły, które są już w pliku wpisów -
+  // liczone osobno, dublowałyby się w podsumowaniu.
+  const urlFiles = root.kind === "index" ? children.filter((file) => file.kind !== "news") : [root];
+  const urls = urlFiles.reduce((sum, file) => sum + file.entries, 0);
+  if (failed > 0) {
+    return {
+      id: "sitemap",
+      state: "fail",
+      detailKey: "foundationSitemapFilesFailed",
+      detailParams: { failed, total },
+    };
   }
-  const count = isIndex
-    ? (probe.body.match(/<sitemap>/g) ?? []).length
-    : (probe.body.match(/<url>/g) ?? []).length;
-  if (count === 0) {
-    return { id: "sitemap", state: "warn", detailKey: "foundationSitemapEmpty" };
+  if (warned > 0) {
+    return {
+      id: "sitemap",
+      state: "warn",
+      detailKey: "foundationSitemapFilesWarned",
+      detailParams: { warned, total },
+    };
+  }
+  if (root.kind === "index") {
+    return {
+      id: "sitemap",
+      state: "ok",
+      detailKey: "foundationSitemapIndexValid",
+      detailParams: { files: children.length, urls },
+    };
   }
   return {
     id: "sitemap",
     state: "ok",
-    detailKey: isIndex ? "foundationSitemapIndex" : "foundationSitemapUrlset",
-    detailValue: count,
+    detailKey: "foundationSitemapUrlsetValid",
+    detailParams: { urls },
   };
 }
 

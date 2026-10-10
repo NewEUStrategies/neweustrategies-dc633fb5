@@ -42,9 +42,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { SITEMAP_SECTIONS } from "@/lib/seo/sitemapIndex";
 import {
+  SITEMAP_SECTION_BUDGET_MS,
   collectAllSitemapSections,
   collectSitemapSection,
   coreSitemapEntries,
+  collectSitemapSectionResult,
   type SitemapEntry,
 } from "../sitemapEntries.server";
 
@@ -175,13 +177,19 @@ function odpowiedzHttp(odpowiedz: Odpowiedz, params = new URLSearchParams()): Re
 interface StronaPlan {
   sciezka: string | null;
   noindex?: boolean;
+  /** `pages.updated_at` - źródło `lastmod` sekcji `pages`. */
+  zmiana?: string;
 }
 
 /** Plan dla `pages` + `page_full_paths` (mapa ścieżek buduje się z obu). */
 function planStron(strony: Record<string, StronaPlan>): Plan {
   return {
     pages: {
-      wiersze: Object.entries(strony).map(([id, s]) => ({ id, seo_noindex: s.noindex === true })),
+      wiersze: Object.entries(strony).map(([id, s]) => ({
+        id,
+        seo_noindex: s.noindex === true,
+        updated_at: s.zmiana ?? null,
+      })),
     },
     "rpc/page_full_paths": (zadanie) => {
       return {
@@ -316,7 +324,7 @@ describe("sekcja pages - adresy stron z drzewa", () => {
     const params = db.dla("pages")[0].params;
     expect(params.get("status")).toBe("eq.published");
     expect(params.get("deleted_at")).toBe("is.null");
-    expect(params.get("select")).toBe("id,seo_noindex");
+    expect(params.get("select")).toBe("id,seo_noindex,updated_at");
   });
 
   it("brak stron to pusta sekcja - i ani jednego ostrzeżenia w logu", async () => {
@@ -903,5 +911,96 @@ describe("shared parent-path boundary", () => {
     });
     expect(await collectSitemapSection(empty.admin, TENANT, ORIGIN, "pages")).toEqual([]);
     expect(ostrzezenia).not.toHaveBeenCalled();
+  });
+});
+
+// NAPRAWA 2026-10-10 - AWARIA ≠ PUSTKA, a odczyt ma termin.
+//
+// Trasa shardu zamieniała pustą listę w 404 „Unknown sitemap" - także wtedy,
+// gdy lista była pusta, bo odczyt RZUCIŁ albo zawisł. Search Console czytał to
+// jako „pliku nie ma" albo, przy zawieszonym połączeniu, jako „Ogólny błąd
+// HTTP". `collectSitemapSectionResult` oddaje teraz flagę `failed` (trasa robi z niej
+// 503 + Retry-After), a każdy kolektor ma budżet czasu.
+describe("collectSitemapSectionResult - awaria odróżniona od pustki", () => {
+  it("core: statyczne huby, zero zapytań, nigdy awaria", async () => {
+    const db = atrapaAdmina({});
+    const read = await collectSitemapSectionResult(db.admin, TENANT, ORIGIN, "core");
+    expect(read.failed).toBe(false);
+    expect(locs(read.entries)).toEqual(HUBY_CORE);
+    expect(db.zadania).toEqual([]);
+  });
+
+  it("odmowa bazy: failed=true i ORYGINALNY błąd w logu (nie „[object Object]”)", async () => {
+    const db = atrapaAdmina({
+      ...planStron({ "p-1": { sciezka: "analizy" } }),
+      "rpc/page_full_paths": { odmowa: { message: "path denied", code: "42501" } },
+    });
+    expect(await collectSitemapSectionResult(db.admin, TENANT, ORIGIN, "pages")).toEqual({
+      entries: [],
+      failed: true,
+    });
+    expect(ostrzezenia).toHaveBeenCalledWith(
+      '[seo] sitemap section "pages" read failed:',
+      expect.objectContaining({ message: "path denied", code: "42501" }),
+    );
+  });
+
+  it("sekcja legalnie pusta to NIE awaria", async () => {
+    const db = atrapaAdmina({ pages: { wiersze: [] } });
+    expect(await collectSitemapSectionResult(db.admin, TENANT, ORIGIN, "pages")).toEqual({
+      entries: [],
+      failed: false,
+    });
+  });
+
+  it("odczyt, który nie mieści się w budżecie, jest awarią - nie wiszącym żądaniem", async () => {
+    // Zawieszone połączenie PostgREST nie rzuca, tylko czeka - dokładnie ten
+    // stan, którego `try/catch` nie łapał.
+    const chain: Record<string, unknown> = {};
+    for (const method of ["select", "eq", "neq", "is", "in", "order"]) chain[method] = () => chain;
+    chain.range = () => new Promise(() => undefined);
+    const hanging = {
+      from: () => chain,
+      rpc: () => new Promise(() => undefined),
+    } as unknown as SupabaseClient<Database>;
+
+    const pending = collectSitemapSectionResult(hanging, TENANT, ORIGIN, "posts");
+    await vi.advanceTimersByTimeAsync(SITEMAP_SECTION_BUDGET_MS);
+    await expect(pending).resolves.toEqual({ entries: [], failed: true });
+    expect(ostrzezenia).toHaveBeenCalledWith(
+      `[seo] sitemap section "posts" read timed out after ${SITEMAP_SECTION_BUDGET_MS}ms`,
+    );
+  });
+
+  it("collectAllSitemapSections: sekcja po terminie trafia do failedSections", async () => {
+    const chain: Record<string, unknown> = {};
+    for (const method of ["select", "eq", "neq", "is", "in", "order"]) chain[method] = () => chain;
+    chain.range = () => new Promise(() => undefined);
+    const hanging = {
+      from: () => chain,
+      rpc: () => new Promise(() => undefined),
+    } as unknown as SupabaseClient<Database>;
+
+    const pending = collectAllSitemapSections(hanging, TENANT, ORIGIN);
+    await vi.advanceTimersByTimeAsync(SITEMAP_SECTION_BUDGET_MS);
+    const { sections, failedSections } = await pending;
+    expect([...failedSections].sort()).toEqual(
+      SITEMAP_SECTIONS.filter((section) => section !== "core").sort(),
+    );
+    expect(locs(sections.get("core") ?? [])).toEqual(HUBY_CORE);
+  });
+});
+
+describe("sekcja pages - lastmod z updated_at", () => {
+  it("strona dostaje datę ostatniej zmiany (sam dzień), strona bez daty - bez lastmod", async () => {
+    const db = atrapaAdmina(
+      planStron({
+        "p-1": { sciezka: "analizy", zmiana: "2026-08-19T14:30:00+00:00" },
+        "p-2": { sciezka: "o-nas" },
+      }),
+    );
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(wpisO(wpisy, `${ORIGIN}/analizy`)?.lastmod).toBe("2026-08-19");
+    expect(wpisO(wpisy, `${ORIGIN}/o-nas`)).not.toHaveProperty("lastmod");
   });
 });

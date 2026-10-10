@@ -225,6 +225,11 @@ const state = vi.hoisted(() => ({
   /** Wpisy sekcji sitemapy zwracane, gdy kolektor nie zawodzi. */
   sectionEntries: [] as Array<{ loc: string; lastmod?: string }>,
   /**
+   * Awaria REALNA odczytu sekcji, taka jak dociera do trasy shardu:
+   * `collectSitemapSectionResult` łapie błąd/termin i oddaje `failed: true`.
+   */
+  sectionReadFailed: false,
+  /**
    * Wszystkie sekcje indeksu sitemapy. DOMYŚLNIE PUSTA MAPA - jak przy
    * tenancie bez treści albo kolektorach, które złapały awarię i oddały `[]`.
    */
@@ -366,7 +371,14 @@ vi.mock("@/lib/server/sitemapEntries.server", () => ({
     ),
   collectSitemapSection: () =>
     Promise.resolve(failOrEmpty(state.sectionsFailure, state.sectionEntries)),
+  collectSitemapSectionResult: () =>
+    Promise.resolve(
+      state.sectionReadFailed
+        ? { entries: [], failed: true }
+        : { entries: failOrEmpty(state.sectionsFailure, state.sectionEntries), failed: false },
+    ),
   coreSitemapEntries: (origin: string) => [{ loc: `${origin}/` }],
+  SITEMAP_SECTION_BUDGET_MS: 6_000,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -560,6 +572,7 @@ const HEALTHY = {
   categories: [] as NonNullable<TaxonomyStub>[],
   sectionsFailure: null,
   sectionEntries: [] as Array<{ loc: string; lastmod?: string }>,
+  sectionReadFailed: false,
   allSections: new Map<string, Array<{ loc: string; lastmod?: string }>>(),
   failedSections: [] as string[],
   settingsFailure: null,
@@ -750,17 +763,48 @@ describe("awaria warstwy danych - żadna trasa nie emituje uciętego dokumentu",
   );
 
   it.each(["throw", "pgError"] as const)(
-    "/sitemaps/core.xml przy awarii kolektora (%s) nie emituje uciętego shardu",
+    "/sitemaps/posts.xml przy awarii kolektora (%s) nie emituje uciętego shardu",
     async (mode) => {
       state.sectionsFailure = mode;
       const { Route } = await import("../sitemaps.$section");
       const handler = routeServerHandlers(Route).GET;
       await expectRejectsWithInjectedFailure(
-        () => handler!({ params: { section: "core.xml" } }),
+        () => handler!({ params: { section: "posts.xml" } }),
         mode,
       );
     },
   );
+
+  it.each(["throw", "pgError"] as const)(
+    "/sitemaps/core.xml NIE czyta bazy - awaria kolektora (%s) nie dotyka szkieletu - 2026-10-10",
+    async (mode) => {
+      // HISTORIA. Do 2026-10-10 stał tu test „core.xml przy awarii kolektora
+      // nie emituje uciętego shardu" - trasa wołała kolektor także dla `core`,
+      // czyli statycznej listy hubów, która bazy nie potrzebuje. Search Console
+      // raportował dla `sitemaps/core.xml` „Ogólny błąd HTTP": plik, który
+      // crawler musi dostać ZAWSZE, czekał na warstwę danych. Teraz `core`
+      // powstaje bez kolektora i bez klienta Supabase.
+      state.sectionsFailure = mode;
+      const { Route } = await import("../sitemaps.$section");
+      const res = await routeServerHandlers(Route).GET!({ params: { section: "core.xml" } });
+      expect(res.status).toBe(200);
+      await assertNeverTruncated(res, "xml");
+    },
+  );
+
+  it("awaria odczytu sekcji (failed) -> 503 + Retry-After + no-store, NIE 404 - 2026-10-10", async () => {
+    // KONSEKWENCJA, której ten test pilnuje. Kolektor zamieniał awarię w `[]`,
+    // a trasa pustą listę w 404 „Unknown sitemap" - dla Search Console „pliku
+    // nie ma", czyli błąd w raporcie i adresy bez źródła odkrycia z powodu
+    // chwilowej czkawki bazy. 503 mówi crawlerowi „wróć za chwilę".
+    state.sectionReadFailed = true;
+    const { Route } = await import("../sitemaps.$section");
+    const res = await routeServerHandlers(Route).GET!({ params: { section: "posts.xml" } });
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe("120");
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("x-robots-tag")).toBe("noindex");
+  });
 
   it("awaria indeksu przekierowań NIE wywraca sitemapy - degraduje do braku kanonizacji", async () => {
     // To jedyna warstwa, którą trasy sitemapy owijają w `try` (patrz
@@ -848,15 +892,19 @@ describe("nagłówki odpowiedzi ZDEGRADOWANEJ (pusty zbiór)", () => {
     );
   });
 
-  it("/news-sitemap.xml oddaje poprawny, pusty dokument z typem XML", async () => {
+  it("/news-sitemap.xml bez żadnego artykułu to 404, NIE pusty <urlset> - NAPRAWIONE 2026-10-10", async () => {
+    // HISTORIA. Stał tu test „oddaje poprawny, pusty dokument z typem XML".
+    // Dokument był domknięty, ale NIE był poprawny: sitemap.xsd wymaga
+    // w `urlset` co najmniej jednego `url`, a Search Console raportował go jako
+    // „Brak tagu XML: url (tag nadrzędny: urlset, wiersz 3)". Bez artykułu
+    // pliku nie ma - 404 z krótkim TTL, a indeks go wtedy nie ogłasza.
     const { Route } = await import("../news-sitemap[.]xml");
     const res = await routeServerHandlers(Route).GET!({});
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toBe("application/xml; charset=utf-8");
-    expect(xmlIsWellFormed(await res.text())).toBe(true);
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("No news articles");
   });
 
-  it("pusta news-sitemap NIE dostaje TTL pełnej - NAPRAWIONE 2026-09-02", async () => {
+  it("news-sitemap bez artykułów NIE dostaje TTL pełnej - NAPRAWIONE 2026-09-02", async () => {
     // HISTORIA. Stał tu `it.fails` z opisem konsekwencji: Google News czyta
     // ten plik po to, żeby zobaczyć wpisy z ostatnich 48 h, a pusty dokument
     // zapamiętany na `s-maxage=300` plus `stale-while-revalidate=600` wypada
@@ -891,6 +939,27 @@ describe("nagłówki odpowiedzi ZDEGRADOWANEJ (pusty zbiór)", () => {
     expect(res.headers.get("cache-control")).toBe(
       "public, max-age=120, s-maxage=300, stale-while-revalidate=600",
     );
+  });
+
+  it("news-sitemap w dzień bez publikacji niesie KOTWICĘ bez metadanych News - 200, TTL zdegradowany - 2026-10-10", async () => {
+    // Ostatni artykuł sprzed trzech dni: okno 48 h jest puste. Dawniej plik
+    // wychodził jako pusty <urlset> (błąd GSC „Brak tagu XML: url"); teraz
+    // niesie najnowszy artykuł, a TTL jest krótki, bo to stan „czekam na
+    // publikację" - nowy wpis ma się pojawić w minutę.
+    state.tenantId = "t-1";
+    state.degradeSafe = false;
+    state.posts = [feedPost({ published_at: "2026-01-31T08:00:00Z" })];
+    const { Route } = await import("../news-sitemap[.]xml");
+    const res = await routeServerHandlers(Route).GET!({});
+    expect(res.status).toBe(200);
+    const body = await assertNeverTruncated(res, "xml");
+    expect(body).toContain("<url>");
+    // Kotwica to zwykły adres - BEZ metadanych News (Google: po dwóch dniach
+    // zdejmij `<news:news>` albo usuń adres; przegląd PR #491).
+    expect(body).toContain("<lastmod>2026-01-31T08:00:00Z</lastmod>");
+    expect(body).not.toContain("<news:news>");
+    expect(res.headers.get("cache-control")).toBe(EMPTY_FEED_CACHE);
+    expect(res.headers.get("x-robots-tag")).toBe("noindex");
   });
 
   it("/sitemap.xml oddaje domknięty indeks, gdy nie ma żadnej sekcji do ogłoszenia", async () => {
@@ -2136,6 +2205,12 @@ interface HostSurfaceRow {
   leakMarker: string | null;
   /** TTL pełny tej powierzchni - wyjątki od `FULL_FEED_CACHE` są nazwane. */
   fullCache: string;
+  /**
+   * Powierzchnia, dla której PUSTY dokument byłby niepoprawny względem
+   * schematu (news-sitemap: `urlset` wymaga co najmniej jednego `url`). Pustka
+   * to wtedy 404 z TTL odpowiedzi zdegradowanej, nie 200 z pustym dokumentem.
+   */
+  emptyIsAbsent?: { body: string };
 }
 
 const LLMS_FULL_CACHE =
@@ -2187,6 +2262,8 @@ const HOST_SURFACE_MATRIX: readonly HostSurfaceRow[] = [
     table: "posts",
     leakMarker: "Pierwsza analiza",
     fullCache: "public, max-age=120, s-maxage=300, stale-while-revalidate=600",
+    // 2026-10-10: pusty <urlset> to błąd GSC „Brak tagu XML: url".
+    emptyIsAbsent: { body: "No news articles" },
   },
   {
     path: "/llms.txt",
@@ -2360,8 +2437,14 @@ describe.each(HOST_SURFACE_MATRIX)("macierz: $path (adresowana hostem)", (row) =
   it("tenant, ale czytnik zdegradował do pustki -> 200, domknięty, TTL ZDEGRADOWANY", async () => {
     row.empty();
     const res = await get();
-    expect(res.status).toBe(200);
     const cc = res.headers.get("cache-control");
+    if (row.emptyIsAbsent) {
+      expect(res.status, "pusty dokument byłby niepoprawny - pliku nie ma").toBe(404);
+      expect(await res.text()).toBe(row.emptyIsAbsent.body);
+      expect(cc, "brak pliku nie może dostać TTL pełnego ani SWR").toBe(EMPTY_FEED_CACHE);
+      return;
+    }
+    expect(res.status).toBe(200);
     await assertNeverTruncated(res, row.kind);
     expect(cc, "pustka nie może dostać TTL pełnego ani SWR").toBe(EMPTY_FEED_CACHE);
   });
@@ -2371,6 +2454,14 @@ describe.each(HOST_SURFACE_MATRIX)("macierz: $path (adresowana hostem)", (row) =
     state.tenantId = null;
     state.degradeSafe = true;
     const res = await get();
+    if (row.emptyIsAbsent) {
+      // Bez tenanta nie ma artykułów, więc nie ma poprawnego dokumentu - ale
+      // to wciąż degradacja (404 z krótkim TTL), nie fail-closed „Unknown host".
+      expect(res.status).toBe(404);
+      expect(await res.text(), "degradacja to NIE fail-closed").toBe(row.emptyIsAbsent.body);
+      expect(res.headers.get("cache-control")).toBe(EMPTY_FEED_CACHE);
+      return;
+    }
     expect(res.status, "degradacja to NIE fail-closed").toBe(200);
     const cc = res.headers.get("cache-control");
     const body = await assertNeverTruncated(res, row.kind);
@@ -2485,11 +2576,34 @@ describe("indeks sitemapy - CZĘŚCIOWA awaria sekcji dostaje TTL zdegradowany",
     expect(body).toContain(`<loc>${ORIGIN}/sitemaps/posts.xml</loc>`);
   });
 
-  it("kontrola dodatnia: ustawienia doszły -> wpis news-sitemap i TTL pełny", async () => {
+  it("kontrola dodatnia: ustawienia doszły i jest artykuł -> wpis news-sitemap z lastmod, TTL pełny", async () => {
     state.allSections = healthySections();
+    state.posts = [feedPost({ published_at: "2026-02-03T08:00:00Z" })];
     const { res, body } = await index();
-    expect(body).toContain(`<loc>${ORIGIN}/news-sitemap.xml</loc>`);
+    expect(body).toContain(
+      `<loc>${ORIGIN}/news-sitemap.xml</loc>\n    <lastmod>2026-02-03T08:00:00Z</lastmod>`,
+    );
     expect(res.headers.get("cache-control")).toBe(SITEMAP_FULL_CACHE);
+  });
+
+  it("news-sitemap bez żadnego artykułu NIE jest ogłaszana w indeksie - NAPRAWIONE 2026-10-10", async () => {
+    // KONSEKWENCJA. Indeks ogłaszał plik na samą flagę `news_sitemap_enabled`,
+    // a plik wychodził pustym <urlset> - Search Console pobierał go Z INDEKSU
+    // i raportował „Brak tagu XML: url". Indeks liczy teraz ten sam plan co
+    // trasa pliku i nie ogłasza pliku, którego nie ma.
+    state.allSections = healthySections();
+    state.posts = [];
+    const { res, body } = await index();
+    expect(body).not.toContain("news-sitemap.xml");
+    expect(res.headers.get("cache-control")).toBe(SITEMAP_FULL_CACHE);
+  });
+
+  it("news-sitemap z samą kotwicą (okno 48 h puste) zostaje w indeksie", async () => {
+    state.allSections = healthySections();
+    state.posts = [feedPost({ published_at: "2026-01-20T08:00:00Z" })];
+    const { body } = await index();
+    expect(body).toContain(`<loc>${ORIGIN}/news-sitemap.xml</loc>`);
+    expect(body).toContain("<lastmod>2026-01-20T08:00:00Z</lastmod>");
   });
 });
 
@@ -2506,6 +2620,7 @@ describe("macierz: szczelność indeksu sitemapy w trybie degradacji", () => {
       },
       collectSitemapSection: () => Promise.resolve([]),
       coreSitemapEntries: (origin: string) => [{ loc: `${origin}/` }],
+      SITEMAP_SECTION_BUDGET_MS: 6_000,
     }));
     vi.resetModules();
     state.tenantId = null;
