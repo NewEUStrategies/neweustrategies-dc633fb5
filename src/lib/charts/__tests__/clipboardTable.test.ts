@@ -18,7 +18,7 @@ import {
   isDateFormatCode,
   readClipboardTable,
 } from "@/lib/charts/clipboardTable";
-import { tableToChartData } from "@/lib/charts/importTable";
+import { parseImportedNumber, tableToChartData } from "@/lib/charts/importTable";
 
 /** Excel 365 (Windows, lokalizacja polska): nagłówek z przestrzeniami nazw, style klas, fragment. */
 const EXCEL_HTML = `<html xmlns:v="urn:schemas-microsoft-com:vml"
@@ -271,7 +271,11 @@ describe("schowek - HTML ogólnie", () => {
       // Bez formatu rozstrzyga tekst: „%" na końcu to procent.
       '<td x:num="0.125">12,5%</td>' +
       "</tr></table>";
-    expect(readClipboardTable({ html })?.rows).toEqual([["25", "7", "5", "6", "12.5"]]);
+    // Tekst bez rozdzielacza, który sam niesie liczbę („25%"), zostaje tekstem;
+    // liczba z niego jest ta sama co z surowej wartości.
+    const rows = readClipboardTable({ html })?.rows ?? [];
+    expect(rows).toEqual([["25%", "7", "5 %", "6%", "12.5"]]);
+    expect(rows[0].map((c) => parseImportedNumber(c))).toEqual([25, 7, 5, 6, 12.5]);
   });
 
   it("HTML bez tabeli oddaje głos tekstowi", () => {

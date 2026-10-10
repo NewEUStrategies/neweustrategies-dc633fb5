@@ -164,6 +164,8 @@ const pl = {
         pRowsSkipped: "Pominięto {{count}} wierszy bez kraju albo bez wartości.",
         pUnknownCountries: "Nierozpoznane kraje: {{labels}}.",
         pDuplicateCountries: "Kraje powtórzone (zostało pierwsze wystąpienie): {{labels}}.",
+        pCountriesReplaced:
+          "Kraje były już w innych wierszach - tam je usunięto, obowiązuje wartość wklejona: {{labels}}.",
         pLabelsAdjusted:
           "{{count}} etykiet zawierało średnik albo złamanie wiersza - zamienione, bo ten format ich nie uniesie.",
         pHeaderAssumed:
@@ -1097,6 +1099,8 @@ const en: typeof pl = {
         pRowsSkipped: "{{count}} rows without a country or without a value were skipped.",
         pUnknownCountries: "Unrecognised countries: {{labels}}.",
         pDuplicateCountries: "Duplicate countries (the first occurrence was kept): {{labels}}.",
+        pCountriesReplaced:
+          "Countries already in other rows were removed there - the pasted value applies: {{labels}}.",
         pLabelsAdjusted:
           "{{count}} labels contained a semicolon or line break - replaced, because this format cannot carry them.",
         pHeaderAssumed:

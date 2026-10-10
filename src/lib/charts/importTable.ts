@@ -1,5 +1,5 @@
 // Import danych wykresu i mapy Z PLIKU: arkusze (xlsx, xls, ods i pokrewne)
-// oraz tekst rozdzielany (csv / tsv / txt).
+// oraz tekst rozdzielany (csv / tsv / txt) i strony HTML (html / htm).
 //
 // DLACZEGO OSOBNY MODUŁ, A NIE ROZBUDOWA `csv.ts`. Tamten plik parsuje JEDEN
 // format - textarea widgetu, pisaną ręcznie, zawsze średnikiem i zawsze w
@@ -33,14 +33,18 @@ import { MAX_SERIES, type ChartSeries, type MapDatum } from "./types";
 import { MAX_CATEGORIES } from "./parse";
 import { SLOT_SEQUENCE, slotForSeries } from "@/lib/charts/palette";
 import { readSpreadsheetRowsInWorker } from "@/lib/files/spreadsheetWorker";
-import { SPREADSHEET_IMPORT_EXTENSIONS } from "@/lib/files/spreadsheetProtocol";
+import {
+  IMPORT_MAX_COLUMNS,
+  IMPORT_MAX_ROWS,
+  SPREADSHEET_IMPORT_EXTENSIONS,
+} from "@/lib/files/spreadsheetProtocol";
 import {
   CODE_ALIASES,
   countryAliasKey,
   normaliseCountryName,
   resolveCountryAlias,
 } from "./countryAliases";
-import { canonicalNumber } from "./clipboardTable";
+import { CLIPBOARD_MAX_CHARS, canonicalNumber, readClipboardTable } from "./clipboardTable";
 import {
   numberStyle,
   readImportedNumber,
@@ -92,6 +96,8 @@ export type ImportProblem =
   | { code: "rowsSkipped"; count: number }
   | { code: "unknownCountries"; labels: readonly string[] }
   | { code: "duplicateCountries"; labels: readonly string[] }
+  /** Siatka mapy: kraj wklejony w nowe miejsce zniknął ze starego wiersza (wygrywa wklejony). */
+  | { code: "countriesReplaced"; labels: readonly string[] }
   | { code: "labelsAdjusted"; count: number }
   /** Rozpoznanie nie znalazło wiersza nagłówka: pierwszy wiersz to dane, serie mają numery. */
   | { code: "headerAssumed" }
@@ -151,6 +157,14 @@ export function isImportableName(name: string): boolean {
 
 function isTextExtension(ext: string): boolean {
   return (TEXT_IMPORT_EXTENSIONS as readonly string[]).includes(ext);
+}
+
+/**
+ * Strony HTML: na liście skoroszytów (atrybut `accept`), ale czyta je strona -
+ * proces arkuszy bierze bajty za UTF-8 i zna tylko kilka encji nazwanych.
+ */
+function isHtmlExtension(ext: string): boolean {
+  return ext === "html" || ext === "htm";
 }
 
 // ---------------------------------------------------------------------------
@@ -397,19 +411,8 @@ function utf16BezBom(bytes: Uint8Array): "utf-16le" | "utf-16be" | null {
   return null;
 }
 
-/**
- * Bajty pliku tekstowego -> tekst.
- *
- * `file.text()` zakładało UTF-8, a polski Excel zapisuje „CSV (rozdzielany
- * przecinkami)" w Windows-1250, „Tekst Unicode" zaś w UTF-16LE. Oba kończyły
- * się znakami zastępczymi w etykietach - i rozpoznawanie krajów po polskiej
- * nazwie („Węgry") przestawało działać, bez słowa.
- *
- * Kolejność: BOM (UTF-8, UTF-16LE, UTF-16BE), UTF-16 rozpoznany po zerach,
- * ŚCISŁY UTF-8 (`fatal`), a dopiero gdy ten odmówi - Windows-1250, zgłaszany
- * jako kodowanie zastępcze.
- */
-export function decodeTextBytes(bytes: Uint8Array): DecodedText {
+/** Tekst z BOM (UTF-8, UTF-16LE, UTF-16BE) albo `null`, gdy BOM-u nie ma. */
+function zBom(bytes: Uint8Array): DecodedText | null {
   if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
     return {
       text: new TextDecoder("utf-8").decode(bytes.subarray(3)),
@@ -431,9 +434,11 @@ export function decodeTextBytes(bytes: Uint8Array): DecodedText {
       fallback: false,
     };
   }
-  const utf16 = utf16BezBom(bytes);
-  if (utf16 !== null)
-    return { text: new TextDecoder(utf16).decode(bytes), encoding: utf16, fallback: false };
+  return null;
+}
+
+/** ŚCISŁY UTF-8 (`fatal`), a gdy ten odmówi - Windows-1250 jako kodowanie zastępcze. */
+function utf8AlboZastepcze(bytes: Uint8Array): DecodedText {
   try {
     return {
       text: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
@@ -451,6 +456,66 @@ export function decodeTextBytes(bytes: Uint8Array): DecodedText {
       return { text: new TextDecoder("utf-8").decode(bytes), encoding: "utf-8", fallback: false };
     }
   }
+}
+
+/**
+ * Bajty pliku tekstowego -> tekst.
+ *
+ * `file.text()` zakładało UTF-8, a polski Excel zapisuje „CSV (rozdzielany
+ * przecinkami)" w Windows-1250, „Tekst Unicode" zaś w UTF-16LE. Oba kończyły
+ * się znakami zastępczymi w etykietach - i rozpoznawanie krajów po polskiej
+ * nazwie („Węgry") przestawało działać, bez słowa.
+ *
+ * Kolejność: BOM (UTF-8, UTF-16LE, UTF-16BE), UTF-16 rozpoznany po zerach,
+ * ŚCISŁY UTF-8 (`fatal`), a dopiero gdy ten odmówi - Windows-1250, zgłaszany
+ * jako kodowanie zastępcze.
+ */
+export function decodeTextBytes(bytes: Uint8Array): DecodedText {
+  const bom = zBom(bytes);
+  if (bom !== null) return bom;
+  const utf16 = utf16BezBom(bytes);
+  if (utf16 !== null)
+    return { text: new TextDecoder(utf16).decode(bytes), encoding: utf16, fallback: false };
+  return utf8AlboZastepcze(bytes);
+}
+
+/**
+ * Kodowanie zadeklarowane na początku strony HTML - `<meta charset=...>` albo
+ * `<meta http-equiv=Content-Type content="text/html; charset=...">` - w nazwie
+ * kanonicznej `TextDecoder`. `null`, gdy deklaracji nie ma, nazwy nikt nie
+ * zna albo deklaruje UTF-16 (bez BOM-u to fałsz - przeglądarka też go wtedy
+ * nie słucha).
+ */
+function kodowanieStrony(bytes: Uint8Array): string | null {
+  const head = new TextDecoder("utf-8").decode(bytes.subarray(0, 4096));
+  const m = /<meta\b[^>]*?charset\s*=\s*["']?\s*([A-Za-z0-9_:.-]+)/i.exec(head);
+  if (m === null) return null;
+  try {
+    const encoding = new TextDecoder(m[1]).encoding;
+    return encoding === "utf-16le" || encoding === "utf-16be" ? null : encoding;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Bajty strony HTML -> tekst. Polski Excel zapisuje „Stronę sieci Web"
+ * w Windows-1250 i mówi o tym w `<meta>`; proces arkuszy czytał te bajty jako
+ * UTF-8, więc „Wartość" wracało jako „Warto��" - bez żadnego zgłoszenia.
+ *
+ * Kolejność: BOM, kodowanie zadeklarowane w `<meta>` (deklaracja to nie
+ * zgadywanie, więc bez zgłoszenia), ŚCISŁY UTF-8, a gdy ten odmówi -
+ * Windows-1250 jako kodowanie zastępcze (`fallback`, do zgłoszenia).
+ */
+export function decodeHtmlBytes(bytes: Uint8Array): { text: string; fallback: boolean } {
+  const bom = zBom(bytes);
+  if (bom !== null) return { text: bom.text, fallback: false };
+  const declared = kodowanieStrony(bytes);
+  if (declared !== null && declared !== "utf-8") {
+    return { text: new TextDecoder(declared).decode(bytes), fallback: false };
+  }
+  const { text, fallback } = utf8AlboZastepcze(bytes);
+  return { text, fallback };
 }
 
 // ---------------------------------------------------------------------------
@@ -502,16 +567,27 @@ export function rectangularTable(rows: readonly (readonly string[])[]): string[]
  * `decodeTextBytes`; tekst UTF-16 z tabulatorami to „Tekst Unicode" Excela,
  * więc dzieli się go tabulatorem bez zgadywania.
  *
+ * Strony HTML (html/htm) też czyta strona: bajty dekoduje `decodeHtmlBytes`
+ * (BOM, `<meta charset>`, UTF-8, Windows-1250), a tabelę - `readClipboardTable`,
+ * ta sama reguła co HTML ze schowka (`arkuszHtml`).
+ *
  * Skoroszyt czyta proces arkuszy W TRYBIE IMPORTU WYKRESU (`chartImport` -
- * włączany tylko stąd: procent · 100 jak ze schowka, błąd jako tekst, HTML bez
- * zgadywania typów) i w limitach `IMPORT_MAX_*`; to, co obcięły, wraca jako
- * `cellsTruncated` przy arkuszu i `sheetsTruncated` przy pliku.
+ * włączany tylko stąd: procent · 100 jak ze schowka, błąd jako tekst) i w
+ * limitach `IMPORT_MAX_*`; to, co obcięły, wraca jako `cellsTruncated` przy
+ * arkuszu i `sheetsTruncated` przy pliku.
  */
 export async function readWorkbook(file: File): Promise<ImportedWorkbook> {
   if (file.size > IMPORT_MAX_BYTES) {
     throw new Error(`file too large: ${file.size} > ${IMPORT_MAX_BYTES}`);
   }
   const ext = fileExtension(file.name);
+  if (isHtmlExtension(ext)) {
+    const decoded = decodeHtmlBytes(new Uint8Array(await file.arrayBuffer()));
+    return {
+      sheets: [arkuszHtml(file.name, decoded.text)],
+      problems: decoded.fallback ? [{ code: "encodingFallback", encoding: "windows-1250" }] : [],
+    };
+  }
   if (isTextExtension(ext)) {
     const decoded = decodeTextBytes(new Uint8Array(await file.arrayBuffer()));
     const utf16Tsv = decoded.encoding !== "utf-8" && decoded.encoding !== "windows-1250";
@@ -537,6 +613,48 @@ export async function readWorkbook(file: File): Promise<ImportedWorkbook> {
   const problems: ImportProblem[] =
     book.sheetsDropped > 0 ? [{ code: "sheetsTruncated", dropped: book.sheetsDropped }] : [];
   return { sheets, problems };
+}
+
+/**
+ * Strona HTML -> jeden arkusz. Tabelę czyta `readClipboardTable`, więc plik
+ * i wklejenie dają te same komórki: encje („&#321;", „&oacute;") rozwiązuje
+ * parser przeglądarki, a surowa wartość (`x:num`) i procent działają jak przy
+ * wklejeniu. Limity `IMPORT_MAX_ROWS` i `IMPORT_MAX_COLUMNS` jak w procesie
+ * arkuszy, z liczbą pominiętych.
+ *
+ * Strona dłuższa niż `CLIPBOARD_MAX_CHARS` (tysiące wierszy, więcej niż limit
+ * odczytu) jest czytana do ostatniego pełnego wiersza przed limitem; wiersze
+ * dalej są policzone, nie czytane. Tabela ponad limit komórek parsera
+ * (`MAX_GRID_CELLS` - setki tysięcy komórek ze scaleń albo z dociągnięcia
+ * wierszy do najszerszego) to błąd odczytu: nie da się powiedzieć, ile
+ * pominięto, a pominięcie bez liczby byłoby ciche.
+ */
+function arkuszHtml(name: string, html: string): ImportedSheet {
+  let source = html;
+  let zaLimitem = 0;
+  if (source.length > CLIPBOARD_MAX_CHARS) {
+    const koniec = source.slice(0, CLIPBOARD_MAX_CHARS).toLowerCase().lastIndexOf("</tr>");
+    const ciecie = koniec === -1 ? CLIPBOARD_MAX_CHARS : koniec + "</tr>".length;
+    zaLimitem = (source.slice(ciecie).match(/<tr[\s>]/gi) ?? []).length;
+    source = source.slice(0, ciecie);
+  }
+  const table = readClipboardTable({ html: source });
+  if (table?.truncated) throw new Error("html table exceeds the cell limit");
+  const all = rectangularTable(table?.rows ?? []);
+  const width = all[0]?.length ?? 0;
+  const rows = rectangularTable(
+    all.slice(0, IMPORT_MAX_ROWS).map((r) => r.slice(0, IMPORT_MAX_COLUMNS)),
+  );
+  const rowsDropped = Math.max(0, all.length - IMPORT_MAX_ROWS) + zaLimitem;
+  const columnsDropped = Math.max(0, width - IMPORT_MAX_COLUMNS);
+  return {
+    name,
+    rows,
+    problems:
+      rowsDropped > 0 || columnsDropped > 0
+        ? [{ code: "cellsTruncated", rows: rowsDropped, columns: columnsDropped }]
+        : [],
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -567,9 +685,15 @@ function rodzajKomorki(cell: string): RodzajKomorki {
  * Etykieta okresu: rok (1800-2199), kwartał, miesiąc, półrocze albo tydzień
  * w zapisach Eurostatu, GUS i arkuszy („2024Q1", „2024-K1", „Q1 2024",
  * „2024M01", „2024-01", „01.2024", „15.01.2024").
+ *
+ * Najdłuższa z tych postaci ma kilkanaście znaków. Dłuższy napis okresem nie
+ * jest i nie idzie do wzorców: odstępy wokół rozdzielacza („\s*[-_/ .]?\s*")
+ * dzielą długi ciąg spacji na wszystkie sposoby naraz - 20 000 spacji to
+ * sekunda na komórkę.
  */
 export function isPeriodLabel(raw: string): boolean {
   const s = raw.trim();
+  if (s.length > 32) return false;
   return (
     /^(?:1[89]|2[01])\d{2}$/.test(s) ||
     /^\d{4}\s*[-_/ .]?\s*(?:Q|K|M|H|S|W|T)\s*\d{1,2}$/i.test(s) ||
@@ -978,7 +1102,7 @@ export function tableToMapValues(
   const toNaglowek =
     opts?.header ??
     (rows.length > 0 &&
-      krajZEtykiety(pierwszy[0] ?? "", idx) === null &&
+      !labelNamesCountry(pierwszy[0] ?? "", idx) &&
       (czytaj(pierwszy[valueCol] ?? "").value === null ||
         pierwszy.slice(1).every((c) => isPeriodLabel(c) || czytaj(c).value === null)));
   const body = toNaglowek ? rows.slice(1) : rows;
@@ -1041,6 +1165,27 @@ export function resolveCountryLabel(
   return krajZEtykiety(label, index !== undefined && index.ids.size > 0 ? index : undefined);
 }
 
+/**
+ * Nazwy kolumny krajów, które przypadkiem są kodem kraju: „geo" (wymiar
+ * Eurostatu i pakietu `eurostat` w R - a zarazem ISO-3 Gruzji) oraz „id"
+ * (pole danych mapy - a zarazem ISO-2 Indonezji na mapie świata).
+ */
+const NAGLOWKI_KOLUMNY_KRAJOW = new Set(["geo", "id"]);
+
+/**
+ * Czy pierwsza komórka wiersza WSKAZUJE KRAJ w rozpoznaniu nagłówka - wiersz
+ * z krajem nigdy nie jest nagłówkiem. Nazwa kolumny krajów, która jest też
+ * kodem kraju, kraju tu nie wskazuje: nagłówek „geo | 2019 | 2020" wchodził
+ * jako Gruzja z wartością 2019, a prawdziwy wiersz Gruzji szedł do
+ * powtórzonych. W wierszach danych ta sama etykieta dalej jest krajem, a
+ * wiersz „GEO | 3,5" z liczbą pozostaje danymi (nagłówek wymaga też braku
+ * liczby albo samych okresów).
+ */
+export function labelNamesCountry(label: string, index?: CountryIndex): boolean {
+  if (NAGLOWKI_KOLUMNY_KRAJOW.has(label.trim().toLowerCase())) return false;
+  return resolveCountryLabel(label, index) !== null;
+}
+
 // ---------------------------------------------------------------------------
 // Serializacja do textarei widgetu buildera
 // ---------------------------------------------------------------------------
@@ -1055,7 +1200,9 @@ export function resolveCountryLabel(
  * parser - rozbijała jeden wiersz na dwa.
  *
  * Zamiana średnika na przecinek zmienia etykietę, więc NIE JEST cicha:
- * `tableToChartData` liczy takie podmiany i zgłasza je w `problems`.
+ * wołający, który zapisuje ten format z tabeli (import pliku w arkuszu
+ * widgetu, wklejenie do pola danych - `textareaPaste.ts`), liczy podmiany
+ * `needsTextCellFix` i zgłasza je jako `labelsAdjusted`.
  */
 export function safeTextCell(raw: string): string {
   return raw

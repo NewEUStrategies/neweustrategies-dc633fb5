@@ -38,7 +38,8 @@ export function formatCellNumber(value: number | null, lang: "pl" | "en"): strin
  * dokładnie taki, jaki ta sama komórka dałaby w zakresie: surowa liczba
  * (`x:num` Excela, `data-sheets-value` Arkuszy Google, `sdval` LibreOffice)
  * zamiast tekstu wyświetlanego, procent · 100, data jako tekst. `null`, gdy
- * schowek nie niesie tabeli HTML - wtedy komórka wkleja `text/plain`.
+ * schowek nie niesie komórki arkusza (tabeli HTML albo komórki Arkuszy
+ * Google) - wtedy komórka wkleja `text/plain`.
  *
  * PO CO. Bez tego „1,234" z angielskiego Excela wklejone w jedną komórkę
  * dawało 1,234 (tekst wyświetlany, reguła zastana), a ta sama komórka
@@ -50,16 +51,38 @@ export function formatCellNumber(value: number | null, lang: "pl" | "en"): strin
  * PRZED komórką arkusza robi z niej tabelę 1×2, której drugą komórkę czyta ta
  * sama funkcja, co każdy zakres - z formatem klasy, surową wartością i regułą
  * procentu - więc odczyt nie jest tu powielany.
+ *
+ * ARKUSZE GOOGLE NIE WKŁADAJĄ TABELI. Jedna komórka z Arkuszy to sam element
+ * z `data-sheets-value` („<span data-sheets-root="1" ...>1,234</span>"), bez
+ * `<table>` - Excel i LibreOffice dają tabelę 1×1. Taki element staje się
+ * komórką tabeli ze WSZYSTKIMI swoimi atrybutami (wartość, format), więc
+ * czyta go ta sama reguła.
  */
 export function singleSheetCell(p: ClipboardPayload): string | null {
   const html = p.html ?? "";
-  if (html === "" || html.length > CLIPBOARD_MAX_CHARS || !/<table[\s>]/i.test(html)) return null;
+  if (html === "" || html.length > CLIPBOARD_MAX_CHARS) return null;
+  if (!/<table[\s>]/i.test(html) && !html.includes("data-sheets-value")) return null;
   if (typeof DOMParser === "undefined") return null;
   const doc = new DOMParser().parseFromString(html, "text/html");
-  const cell = doc.querySelector("table td, table th");
+  const cell = doc.querySelector("table td, table th") ?? komorkaArkuszy(doc);
   if (cell === null || cell.parentNode === null) return null;
   cell.parentNode.insertBefore(doc.createElement("td"), cell);
   const table = readClipboardTable({ html: doc.documentElement.outerHTML });
   if (table === null || table.rows.length !== 1 || table.rows[0].length !== 2) return null;
   return table.rows[0][1];
+}
+
+/** Jedna komórka Arkuszy Google bez tabeli -> komórka `<td>` w tabeli 1×1 w miejscu elementu. */
+function komorkaArkuszy(doc: Document): Element | null {
+  const root = doc.querySelector("[data-sheets-value]");
+  if (root === null || root.parentNode === null) return null;
+  const td = doc.createElement("td");
+  for (const attr of Array.from(root.attributes)) td.setAttribute(attr.name, attr.value);
+  while (root.firstChild !== null) td.appendChild(root.firstChild);
+  const tr = doc.createElement("tr");
+  const table = doc.createElement("table");
+  tr.appendChild(td);
+  table.appendChild(tr);
+  root.parentNode.replaceChild(table, root);
+  return td;
 }

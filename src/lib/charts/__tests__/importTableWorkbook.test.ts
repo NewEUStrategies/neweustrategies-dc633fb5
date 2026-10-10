@@ -237,11 +237,11 @@ describe("plik i schowek dają tę samą liczbę", () => {
     );
   });
 
-  it("plik HTML idzie przez proces i NIE przetypowuje okresu ani procentu", async () => {
+  it("plik HTML czyta strona (nie proces) i NIE przetypowuje okresu ani procentu", async () => {
     const html =
       "<table><tr><td>Okres</td><td>Udział</td></tr><tr><td>2024-01</td><td>12,5%</td></tr></table>";
     const book = await readWorkbook(new File([html], "dane.html"));
-    expect(h.calls).toBe(1);
+    expect(h.calls).toBe(0);
     expect(book.sheets[0]?.rows).toEqual([
       ["Okres", "Udział"],
       ["2024-01", "12,5%"],
