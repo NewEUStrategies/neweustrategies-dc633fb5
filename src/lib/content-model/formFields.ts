@@ -6,6 +6,8 @@
 // - customFieldsToPayload(): flatten form data for a set of custom fields
 //   into a { [id]: string } map (values trimmed, empty removed)
 
+import { CONTACT_FIELD_LIMITS } from "@/lib/forms/contactLimits";
+
 export type Lang = "pl" | "en";
 
 export type CustomFieldType = "text" | "email" | "tel" | "url" | "textarea" | "select" | "checkbox";
@@ -125,7 +127,7 @@ export function parseCustomFields(raw: unknown): CustomField[] {
       options: parseOptions(obj.options),
       maxLength:
         typeof obj.maxLength === "number" && Number.isFinite(obj.maxLength)
-          ? Math.min(4000, Math.max(1, Math.floor(obj.maxLength)))
+          ? Math.min(CONTACT_FIELD_LIMITS.custom, Math.max(1, Math.floor(obj.maxLength)))
           : undefined,
     });
     seen.add(id);
@@ -154,7 +156,7 @@ export function pickPlaceholder(field: CustomField, lang: Lang): string {
 
 /**
  * Extract submitted values for a list of custom fields from a FormData.
- * Returns { [id]: string } - trimmed, empty removed, capped at 500 chars.
+ * Returns full values; validation rejects oversize input instead of losing it.
  */
 export function collectCustomValues(
   fields: readonly CustomField[],
@@ -171,7 +173,7 @@ export function collectCustomValues(
       val = typeof raw === "string" ? raw.trim() : "";
     }
     if (!val) continue;
-    out[f.id] = val.slice(0, 500);
+    out[f.id] = val;
   }
   return out;
 }
@@ -184,11 +186,13 @@ export function validateCustom(
   fields: readonly CustomField[],
   values: Record<string, string>,
   errorText: string,
+  lengthErrorText = errorText,
 ): Record<string, string> {
   const errs: Record<string, string> = {};
   for (const f of fields) {
-    if (!f.required) continue;
-    if (!values[f.id]) errs[f.id] = errorText;
+    if (f.required && !values[f.id]) errs[f.id] = errorText;
+    const limit = Math.min(f.maxLength ?? CONTACT_FIELD_LIMITS.custom, CONTACT_FIELD_LIMITS.custom);
+    if ((values[f.id]?.length ?? 0) > limit) errs[f.id] = lengthErrorText;
   }
   return errs;
 }

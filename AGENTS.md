@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Share contact field ceilings between client/server validation and counters; retain complete submitted text in CRM responses and reject oversized custom values rather than slicing them, because visible limits must match stored data.
+
 - Run the application typecheck with `tsgo --noEmit`, because the equivalent TypeScript check must finish within the preview gate timeout.
 
 - Call Supabase with literal RPC/table names and keep each client grant equal to what the TypeScript callers use (server-only RPCs executable by `service_role` alone, private columns outside public column constants such as `PUBLIC_AD_SLOT_COLUMNS`, identity like tenant/company/user derived from the session, never from a request payload), because the generated TS↔SQL pgTAP contract (`bun run generate:ts-sql-contract`) checks every call against the real schema in CI.

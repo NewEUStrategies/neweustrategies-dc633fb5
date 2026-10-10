@@ -9,7 +9,6 @@ import { DEFAULT_SCORING_WEIGHTS } from "@/lib/crm/scoring";
 import { csvDocument } from "@/lib/crm/csv";
 import {
   CONSENT_LOG_TIMELINE_SELECT,
-  consentExcerpt,
   type ConsentLogTimelineRow,
 } from "@/lib/crm/consentLog";
 import {
@@ -715,7 +714,7 @@ async function buildLeadTimeline(
       type: "submit",
       at: m.created_at,
       title: m.form_name ?? m.form_type ?? "contact form",
-      detail: (m.subject ? `${m.subject} - ` : "") + m.message.slice(0, 280),
+      detail: (m.subject ? `${m.subject}\n\n` : "") + m.message,
       meta: { lang: m.lang, page_url: m.page_url ?? null },
     });
   for (const s of subs) {
@@ -743,7 +742,7 @@ async function buildLeadTimeline(
       type: "consent",
       at: c.created_at,
       title: `${c.consent_key}: ${c.given ? "granted" : "revoked"}`,
-      detail: consentExcerpt(c.consent_text),
+      detail: c.consent_text,
       meta: { form: c.form_name, version: c.consent_version, given: c.given },
     });
   for (const n of notes)

@@ -7,6 +7,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { z } from "zod";
+import { CONTACT_FIELD_LIMITS, contactTextSchema } from "@/lib/forms/contactLimits";
 
 // Celowo `recruitmentShared`, nie `recruitmentLayer`: ten moduł importuje
 // pięć publicznych powierzchni formularzy, więc pełna warstwa (parsowanie
@@ -31,15 +32,11 @@ const ConsentEntry = z.object({
   lang: z.string().trim().max(8).optional(),
 });
 
-const ContactInput = z.object({
-  name: z.string().trim().min(1).max(200),
-  firstName: z.string().trim().max(100).optional(),
-  lastName: z.string().trim().max(100).optional(),
-  email: z.string().trim().email().max(320),
-  phone: z.string().trim().max(40).optional(),
-  company: z.string().trim().max(200).optional(),
-  subject: z.string().trim().max(300).optional(),
-  message: z.string().trim().min(1).max(8000),
+const ContactInput = contactTextSchema.extend({
+  firstName: z.string().trim().max(CONTACT_FIELD_LIMITS.firstName).optional(),
+  lastName: z.string().trim().max(CONTACT_FIELD_LIMITS.lastName).optional(),
+  phone: z.string().trim().max(CONTACT_FIELD_LIMITS.phone).optional(),
+  company: z.string().trim().max(CONTACT_FIELD_LIMITS.company).optional(),
   consent: z.boolean(),
   newsletterOptIn: z.boolean().optional(),
   lang: z.enum(["pl", "en"]),
@@ -55,7 +52,7 @@ const ContactInput = z.object({
   requiredFields: z.array(z.string().trim().max(64)).max(20).optional(),
   // Widget-defined "custom" hybrid fields → forwarded to CRM under
   // aliases.custom.<id> via crm_upsert_from_form(_custom).
-  custom: z.record(z.string().max(64), z.string().max(500)).optional(),
+  custom: z.record(z.string().max(64), z.string().max(CONTACT_FIELD_LIMITS.custom)).optional(),
 });
 
 type ContactPayload = z.infer<typeof ContactInput>;
