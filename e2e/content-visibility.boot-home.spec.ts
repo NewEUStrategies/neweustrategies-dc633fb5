@@ -26,7 +26,8 @@ import { expect, test, type Page } from "@playwright/test";
 //     jak bez P3.3 - także dla fragmentu tekstowego (`/#:~:text=…`, linki z wyszukiwarki,
 //     „Kopiuj link do wyróżnienia"), którego Chromium nie pokazuje w `location.hash`.
 //  4. Przeładowanie w połowie strony (przywrócenie przewinięcia TanStacka z
-//     `sessionStorage`): strażnik zdejmuje cv i pozycja wraca jak na bazie; powrót „wstecz"
+//     `sessionStorage`): strażnik zdejmuje cv i pozycja wraca co do piksela (trzymanie
+//     przywróconej pozycji, `lib/routing/restoredScrollHold.ts`); powrót „wstecz"
 //     w SPA renderuje stronę po stronie klienta - bez cv, więc router liczy na prawdziwym
 //     układzie.
 //  5. Druk: reguła `@media print` zdejmuje cv (Chromium i tak drukuje pominięte sekcje).
@@ -805,18 +806,24 @@ for (const { name, viewport } of VIEWPORTS) {
       const before = await page.evaluate(at, null);
       expect(before.y).toBeGreaterThan(1_000);
 
-      // Skrypt TanStacka zapisuje pozycję przy `pagehide` i przywraca ją na końcu `<main>`.
+      // TanStack zapisuje pozycję przy `pagehide` i przywraca ją na końcu `<main>` oraz
+      // w `onRendered`; od `onRendered` trzyma ją `lib/routing/restoredScrollHold.ts`.
       await page.reload();
       await expect.poll(() => page.evaluate(() => window.__nesAppReady === true)).toBe(true);
       await page.waitForTimeout(1_000);
       const after = await page.evaluate(at, before.id);
       expect(after.cvOff).toBe(true);
-      // Baza fali bez P3.3: desktop co do piksela, telefon 26 px (nagłówek zmienia stan po
-      // przywróceniu). Pasy z szacunku bez strażnika dawały setki pikseli.
+      // Co do piksela. Bez trzymania przywróconej pozycji lądowanie wypadało 15-43 px za
+      // wysoko (porażka CI 43 px), a przy przywróceniu przyciętym do końca jeszcze
+      // niepełnego dokumentu 193 px: po `onRendered` nagłówek zwija się (desktop -27 px
+      // nad widokiem), a React odsłania sekcje ze szkieletów, i zakotwiczenie przewijania
+      // obniżało `scrollY` o te zmiany. Tak samo na bazie fali bez P3.3 (d22cf7d6: 26-27 px
+      // na desktopie), więc to nie był skutek cv. Pasy z szacunku bez strażnika dawały
+      // setki pikseli.
       expect(
         Math.abs(after.top - before.top),
         JSON.stringify({ before, after }),
-      ).toBeLessThanOrEqual(40);
+      ).toBeLessThanOrEqual(2);
     });
 
     test("powrót „wstecz” po nawigacji SPA: strona główna renderuje się po stronie klienta, bez cv", async ({

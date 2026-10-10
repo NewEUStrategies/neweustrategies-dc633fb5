@@ -23,6 +23,7 @@ import {
 import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
 import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
 import { injectBootSet, type BootRouterLike } from "./lib/boot/bootSet.server";
+import { holdRestoredScroll } from "./lib/routing/restoredScrollHold";
 import {
   isInteractionOrQuietOpen,
   onInteractionOrQuiet,
@@ -343,6 +344,13 @@ export const getRouter = () => {
       prewarmRouteChunks();
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     };
+
+    // Przywrócona pozycja okna (przeładowanie, wstecz/dalej) trzymana, dopóki
+    // układ pod nią się nie ustali - zwijanie nagłówka i odsłanianie sekcji po
+    // `onRendered` przesuwały ją zakotwiczeniem przewijania. Zapis po
+    // `createRouter`: nasłuch przywracania routera biegnie przed tym.
+    // Zobacz lib/routing/restoredScrollHold.
+    holdRestoredScroll(router);
   }
 
   return router;
