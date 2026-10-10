@@ -69,7 +69,6 @@ vi.mock("@/integrations/supabase/client", () => {
 });
 
 import {
-  NAV_ARROW_VARIANT_VALUES,
   NAV_BG_STYLES,
   NAV_POSITIONS,
   SliderRender,
