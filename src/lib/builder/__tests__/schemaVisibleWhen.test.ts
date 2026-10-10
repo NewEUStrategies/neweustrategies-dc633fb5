@@ -290,8 +290,10 @@ const CASES: ReadonlyArray<VisibilityCase> = [
       { palette: "focus" },
       { palette: "categorical" },
       { kind: "line", palette: "categorical" },
+      // Punktowy rysuje chmure serii w akcencie (paleta rol od W3).
+      { kind: "scatter" },
     ],
-    hidden: [{ kind: "pie" }, { kind: "tornado" }, { kind: "scatter" }],
+    hidden: [{ kind: "pie" }, { kind: "tornado" }, { kind: "heatmap" }],
   },
   {
     widget: "chart",

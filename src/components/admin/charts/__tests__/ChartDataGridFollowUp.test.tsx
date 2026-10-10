@@ -202,9 +202,14 @@ describe("seria wyróżniona w obu paletach", () => {
     expect(stan().accentSeries).toBe(0);
   });
 
-  it("rodzaj, który palety nie stosuje (punktowy), nie pokazuje wyboru", () => {
-    zamontuj({ kind: "scatter" });
+  it("rodzaj, który palety nie stosuje (mapa ciepła - kolor koduje wartość), nie pokazuje wyboru", () => {
+    zamontuj({ kind: "heatmap" });
     expect(screen.queryByRole("combobox", { name: "Seria wyróżniona" })).toBeNull();
+  });
+
+  it("punktowy stosuje paletę ról (chmura serii w akcencie), więc pokazuje wybór", () => {
+    zamontuj({ kind: "scatter" });
+    expect(screen.getByRole("combobox", { name: "Seria wyróżniona" })).toBeInTheDocument();
   });
 
   it("zdanie o palecie ról mówi o tle porównania, nie o odcieniach neutralnych", () => {
