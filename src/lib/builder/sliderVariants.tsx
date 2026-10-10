@@ -42,6 +42,7 @@ import type { WidgetTypography } from "./types";
 import type { LcpImage } from "./aboveFold";
 import { resolveAuthorDisplay, type AuthorDisplay } from "./authorDisplay";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
+import { Button } from "@/components/ui/button";
 
 // Katalogi i zbiory wartości mieszkają w `sliderOptions` (moduł bez runtime'u
 // Reacta), żeby miejsca wywołania mogły zawężać treść widgetu bez wciągania
@@ -727,7 +728,7 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
  * Geometria poza kropką bez zmian: kropka siedzi wyśrodkowana w przycisku
  * `h-8 w-8 shrink-0`, więc rozmiar jej pudełka nie wpływa na układ.
  */
-const DOT_BASE = "rounded-full w-2.5 h-2.5 transition-[transform,opacity]";
+const DOT_BASE = "rounded-full w-2.5 h-2.5 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none";
 
 interface DotsNavProps {
   lang: "pl" | "en";
@@ -741,43 +742,52 @@ interface DotsNavProps {
 function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = false }: DotsNavProps) {
   if (count <= 1) return null;
   return (
-    <div className={`flex items-center justify-center gap-3 ${compact ? "mt-2" : "mt-3"}`}>
+    <div className={`flex min-w-0 items-center justify-center gap-2 ${compact ? "mt-2" : "mt-3"}`}>
       {onPrev && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           type="button"
           aria-label={lang === "en" ? "Previous slide" : "Poprzedni slajd"}
+          title={lang === "en" ? "Previous slide" : "Poprzedni slajd"}
           onClick={onPrev}
-          className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition"
+          className="shrink-0 rounded-lg border border-border/60 text-muted-foreground hover:border-foreground/30 hover:bg-muted/60 hover:text-foreground motion-reduce:transition-none"
         >
           <AngleChevron side="left" isSm={false} />
-        </button>
+        </Button>
       )}
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 flex-wrap items-center justify-center gap-0">
         {Array.from({ length: count }).map((_, i) => (
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             key={i}
             type="button"
             aria-label={`${lang === "en" ? "Slide" : "Slajd"} ${i + 1}`}
+            title={`${lang === "en" ? "Slide" : "Slajd"} ${i + 1}`}
             aria-current={i === active ? "true" : undefined}
             onClick={() => onSelect(i)}
-            className="group inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="group h-8 w-8 shrink-0 rounded-lg p-0 hover:bg-transparent"
           >
             <span
               aria-hidden="true"
-              className={`${DOT_BASE} ${i === active ? "bg-foreground" : "bg-foreground opacity-25 [transform:scale(.8)] group-hover:opacity-50"}`}
+              className={`${DOT_BASE} ${i === active ? "bg-brand [transform:scale(2.4,.5)]" : "bg-foreground opacity-25 [transform:scale(.5)] group-hover:opacity-50"}`}
             />
-          </button>
+          </Button>
         ))}
       </div>
       {onNext && (
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           type="button"
           aria-label={lang === "en" ? "Next slide" : "Następny slajd"}
+          title={lang === "en" ? "Next slide" : "Następny slajd"}
           onClick={onNext}
-          className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition"
+          className="shrink-0 rounded-lg border border-border/60 text-muted-foreground hover:border-foreground/30 hover:bg-muted/60 hover:text-foreground motion-reduce:transition-none"
         >
           <AngleChevron side="right" isSm={false} />
-        </button>
+        </Button>
       )}
     </div>
   );
