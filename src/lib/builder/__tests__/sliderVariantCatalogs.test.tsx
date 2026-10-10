@@ -194,17 +194,6 @@ function withImageLoadState(
 const withLoadedImages = (run: () => void) =>
   withImageLoadState({ complete: true, naturalWidth: 1200 }, run);
 
-/** Geometria każdego kształtu strzałki - jedno źródło prawdy dla asercji. */
-const ARROW_PATHS: Record<NavArrowVariant, string> = {
-  chevron: "M9 6l6 6-6 6",
-  "chevron-bold": "M9 5l7 7-7 7",
-  arrow: "M5 12h14M13 6l6 6-6 6",
-  "arrow-long": "M3 12h17M14 6l6 6-6 6",
-  caret: "M9 5l8 7-8 7z",
-  angle: "M10 5l7 7-7 7",
-  "double-chevron": "M6 6l6 6-6 6M12 6l6 6-6 6",
-  "arrow-tail": "M4 12h15M13 6l6 6-6 6M5 9l3 3-3 3",
-};
 
 afterEach(cleanup);
 
