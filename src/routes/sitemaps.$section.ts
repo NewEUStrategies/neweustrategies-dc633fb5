@@ -14,6 +14,7 @@ import {
   sameOriginHostsFor,
   sitemapCacheHeaders,
   sitemapRequestContext,
+  sitemapUnavailableResponse,
 } from "@/lib/server/sitemapRequest.server";
 
 export const Route = createFileRoute("/sitemaps/$section")({
@@ -29,14 +30,27 @@ export const Route = createFileRoute("/sitemaps/$section")({
         const { tenantId, blocked } = await resolveSitemapTenant(host);
         if (blocked) return new Response("Unknown host", { status: 404 });
 
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { collectSitemapSection, coreSitemapEntries } =
+        // Sekcja `core` to statyczne huby: nie czyta bazy, więc nie czeka na
+        // klienta Supabase ani na kolektory - zostaje jej wyłącznie
+        // (budżetowany) indeks przekierowań. To jest plik, który crawler musi
+        // dostać ZAWSZE, także przy niedostępnej bazie.
+        const { collectSitemapSectionResult, coreSitemapEntries } =
           await import("@/lib/server/sitemapEntries.server");
-        const entries = tenantId
-          ? await collectSitemapSection(supabaseAdmin, tenantId, origin, parsed.section)
-          : parsed.section === "core"
-            ? coreSitemapEntries(origin)
-            : [];
+        let entries = parsed.section === "core" ? coreSitemapEntries(origin) : [];
+        if (tenantId && parsed.section !== "core") {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const read = await collectSitemapSectionResult(
+            supabaseAdmin,
+            tenantId,
+            origin,
+            parsed.section,
+          );
+          // Awaria odczytu (błąd albo przekroczony budżet) to NIE pusta sekcja:
+          // 404 kazałoby Search Console uznać plik za usunięty. 503 +
+          // Retry-After = „wróć za chwilę" - patrz `sitemapUnavailableResponse`.
+          if (read.failed) return sitemapUnavailableResponse();
+          entries = read.entries;
+        }
 
         const redirectIndex = await loadRedirectIndex(tenantId);
         const urls = expandSitemapUrls(origin, entries, redirectIndex, sameOriginHostsFor(host));

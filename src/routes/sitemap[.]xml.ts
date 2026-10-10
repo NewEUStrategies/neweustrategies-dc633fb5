@@ -19,6 +19,7 @@ import {
   type SitemapIndexEntry,
 } from "@/lib/seo/sitemapIndex";
 import { expandSitemapUrls, newestLastmod } from "@/lib/seo/sitemapXml";
+import { planNewsSitemap } from "@/lib/seo/newsSitemap";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import {
   loadRedirectIndex,
@@ -71,13 +72,29 @@ export const Route = createFileRoute("/sitemap.xml")({
         // miejscem; robots.txt ogłasza go dodatkowo. Awaria odczytu ustawień
         // zabiera indeksowi wpis news-sitemap, więc indeks jest wtedy
         // NIEPEŁNY - tak samo jak przy awarii sekcji.
+        //
+        // NAPRAWA 2026-10-10: wpis szedł do indeksu na samą flagę
+        // `news_sitemap_enabled`, bez sprawdzenia, czy plik ma co pokazać -
+        // i tak Search Console dostawał z indeksu pusty <urlset> („Brak tagu
+        // XML: url"). Indeks liczy teraz plan tym samym odczytem i tą samą
+        // funkcją co trasa pliku (`loadNewsSitemapEntries` + `planNewsSitemap`)
+        // i ogłasza plik WYŁĄCZNIE wtedy, gdy ten ma choć jeden wpis - z
+        // `lastmod` równym dacie najnowszej publikacji.
         let newsSettingsFailed = false;
         if (tenantId) {
           try {
             const { fetchSeoSettingsValue } = await import("@/lib/server/publishedContent.server");
             const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
             if (settings.news_sitemap_enabled) {
-              entries.push({ loc: `${origin}/news-sitemap.xml` });
+              const { loadNewsSitemapEntries } =
+                await import("@/lib/server/newsSitemapEntries.server");
+              const plan = planNewsSitemap(
+                await loadNewsSitemapEntries(tenantId, origin),
+                Date.now(),
+              );
+              if (plan.mode !== "empty") {
+                entries.push({ loc: `${origin}/news-sitemap.xml`, lastmod: plan.lastmod });
+              }
             }
           } catch (e) {
             console.warn("[seo] sitemap index news settings unavailable:", e);

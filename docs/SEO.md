@@ -45,7 +45,7 @@ thin layers that never re-implement logic:
 | `/sitemaps/<section>.xml`      | One `<urlset>` per section (`core`, `pages`, `posts`, `taxonomy`, `podcasts`, `programs`, `stories`, `tracker`, `events`, `qa`, `experts`); overflow shards are `-2`, `-3`, ... |
 | `/sitemap-index.xml`           | 301 alias of `/sitemap.xml` (conventional name used by audit tools)                                                                                                             |
 | `/sitemap`, `/en/sitemap`      | HTML site map: page tree (`buildPageTree`), categories, latest posts                                                                                                            |
-| `/news-sitemap.xml`            | Google News: last 48h only, per-language entries                                                                                                                                |
+| `/news-sitemap.xml`            | Google News: last 48h, per-language entries; on a day without articles the newest article stays as an anchor; 404 (and absent from the index) when there is no article at all   |
 | `/rss.xml`, `/en/rss.xml`      | Language-addressed feeds (excerpt-only - paywall-safe); `/feed` 301s for WP readers                                                                                             |
 | `/category/<slug>/rss.xml` etc | Per-taxonomy feeds (category / tag / program), same contract as `/rss.xml`                                                                                                      |
 | `/podcast/rss.xml`             | Network podcast feed (RSS 2.0 + iTunes); `/podcasts/<show>/rss.xml` per program                                                                                                 |
@@ -70,6 +70,26 @@ Two invariants make sharding safe:
   never advertises a shard that renders empty. An out-of-range shard answers 404
   rather than an empty `<urlset>` (an empty file reads as a publishing failure in
   Search Console).
+
+Since 2026-10-10 the same rules cover every file the index lists:
+
+- **No empty `<urlset>`, ever.** `sitemap.xsd` requires at least one `<url>`;
+  Search Console reports an empty file as "Missing XML tag: url (line 3)". The
+  news sitemap plan (`planNewsSitemap`) is `fresh` (48h window), `anchor` (window
+  empty → the newest article, all its language versions) or `empty` (no article
+  → 404). The index computes the same plan (`loadNewsSitemapEntries`) and lists
+  `/news-sitemap.xml` only when it has an entry, with `<lastmod>` = newest
+  publication.
+- **Failure is not emptiness.** Every section read runs under
+  `SITEMAP_SECTION_BUDGET_MS`; a shard whose read throws or times out answers
+  `503` + `Retry-After` + `no-store` (`sitemapUnavailableResponse`), never 404.
+  `core` reads no database at all, so it always answers.
+- **`X-Robots-Tag: noindex`** on the index, shards and news sitemap.
+- **Validated like Search Console.** `lib/seo/sitemapValidation.ts` checks
+  well-formedness, root/namespace, required tags (with GSC-style parent/tag/line),
+  URL host, W3C dates, limits and Google News tags. The SEO cockpit
+  (`TechnicalFoundationCard`, "Sitemap files") runs it live on the index and on
+  every listed file; a contract test runs it on the output of every generator.
 
 ### robots.txt is a route, and `public/` must never shadow it
 

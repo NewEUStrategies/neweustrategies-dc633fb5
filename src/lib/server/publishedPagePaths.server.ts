@@ -5,12 +5,13 @@ import { readPagedRows } from "./pagedRows.server";
 /** Published parent paths shared by sitemap and feed readers. Tenant scope is
  * enforced before the batched RPC; noindex parents may still contain public
  * posts, so their paths remain available separately from the noindex set.
+ * `updatedAt` feeds the `<lastmod>` of the sitemap `pages` section.
  */
 export async function readPublishedPagePaths(admin: SupabaseClient<Database>, tenantId: string) {
   const { data: pages } = await readPagedRows((from, to) =>
     admin
       .from("pages")
-      .select("id, seo_noindex", { count: "exact" })
+      .select("id, seo_noindex, updated_at", { count: "exact" })
       .eq("tenant_id", tenantId)
       .eq("status", "published")
       .is("deleted_at", null)
@@ -18,6 +19,8 @@ export async function readPublishedPagePaths(admin: SupabaseClient<Database>, te
       .range(from, to),
   );
   const noindex = new Set(pages.filter((page) => page.seo_noindex).map((page) => page.id));
+  const updatedAt = new Map<string, string>();
+  for (const page of pages) if (page.updated_at) updatedAt.set(page.id, page.updated_at);
   const paths = new Map<string, string>();
   for (let offset = 0; offset < pages.length; offset += 500) {
     const ids = pages.slice(offset, offset + 500).map((page) => page.id);
@@ -30,5 +33,5 @@ export async function readPublishedPagePaths(admin: SupabaseClient<Database>, te
       }
     }
   }
-  return { paths, noindex };
+  return { paths, noindex, updatedAt };
 }

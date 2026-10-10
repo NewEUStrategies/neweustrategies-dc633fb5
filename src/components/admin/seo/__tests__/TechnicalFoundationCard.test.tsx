@@ -30,8 +30,14 @@
 //     Teraz spadek działa tylko dla hosta tego samego serwisu; poza nim wiersze
 //     są „brak danych", a „Pobierz" znika. Do tego: padnięty odczyt domeny nie
 //     uruchamia sond, a tenant bez domeny dostaje komunikat zamiast sond.
+//  6. KAŻDY PLIK MAPY STRONY (2026-10-10). Karta liczyła `<sitemap>` w samym
+//     indeksie i raportowała „OK - 6 plików sekcji", gdy Search Console miał
+//     błędy w dwóch z nich (pusty `news-sitemap.xml`, niepobieralny
+//     `sitemaps/core.xml`). Teraz pobiera indeks i każdy plik z indeksu,
+//     waliduje je i pokazuje w tabeli „Pliki mapy strony" - a wiersz mapy
+//     w tabeli fundamentów jest zielony tylko wtedy, gdy przechodzi KAŻDY plik.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { CANONICAL_SITE_ORIGIN } from "@/lib/http/host";
 import { TechnicalFoundationCard } from "@/components/admin/seo/TechnicalFoundationCard";
@@ -75,27 +81,57 @@ vi.mock("@/integrations/supabase/client", () => ({
 /** Origin tenanta z własną domeną - przedmiot sekcji „origin per-tenant". */
 const TENANT_ORIGIN = "https://analizy.example.org";
 
-/** Ciała czterech sond w stanie „serwis zdrowy". */
-const HEALTHY: Record<string, string> = {
-  "/sitemap.xml": "<sitemapindex><sitemap>a</sitemap><sitemap>b</sitemap></sitemapindex>",
-  "/robots.txt": `User-agent: *\nSitemap: ${CANONICAL_SITE_ORIGIN}/sitemap.xml`,
-  "/llms.txt": "# llms.txt",
-  "/": '<!doctype html><html lang="pl"><head></head><body></body></html>',
-};
+const NS = 'xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"';
+const NEWS_NS = 'xmlns:news="http://www.google.com/schemas/sitemap-news/0.9"';
 
-/** Ścieżka adresu sondy - karta pyta raz na originie publicznym, raz same-origin. */
-function pathOf(target: string): string {
+/** Cztery sondy fundamentów - w tej kolejności karta je wysyła. */
+const FOUNDATION_PATHS = ["/sitemap.xml", "/robots.txt", "/llms.txt", "/"];
+
+/**
+ * Ciała plików w stanie „serwis zdrowy". Adresy w mapach leżą na originie
+ * serwisu, który je podaje - walidator odrzuca adres z obcego hosta, więc
+ * mapa tenanta musi nieść adresy tenanta.
+ */
+function healthy(site: string): Record<string, string> {
+  return {
+    "/sitemap.xml": `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex ${NS}>\n  <sitemap><loc>${site}/sitemaps/core.xml</loc></sitemap>\n  <sitemap><loc>${site}/news-sitemap.xml</loc><lastmod>2026-10-07T08:00:00Z</lastmod></sitemap>\n</sitemapindex>`,
+    "/sitemaps/core.xml": `<?xml version="1.0" encoding="UTF-8"?>\n<urlset ${NS}>\n  <url><loc>${site}/</loc></url>\n  <url><loc>${site}/blog</loc><lastmod>2026-10-01</lastmod></url>\n</urlset>`,
+    "/news-sitemap.xml": `<?xml version="1.0" encoding="UTF-8"?>\n<urlset ${NS} ${NEWS_NS}>\n  <url><loc>${site}/analizy/a</loc><news:news><news:publication><news:name>NES</news:name><news:language>pl</news:language></news:publication><news:publication_date>2026-10-07T08:00:00Z</news:publication_date><news:title>A</news:title></news:news></url>\n</urlset>`,
+    "/robots.txt": `User-agent: *\nSitemap: ${site}/sitemap.xml`,
+    "/llms.txt": "# llms.txt",
+    "/": '<!doctype html><html lang="pl"><head></head><body></body></html>',
+  };
+}
+
+/** Pusta news-sitemapa - bajt w bajt dokument z produkcji 2026-10-10. */
+const EMPTY_NEWS = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset ${NS} ${NEWS_NS}>\n</urlset>`;
+
+/** Origin i ścieżka adresu sondy - karta pyta raz na originie publicznym, raz same-origin. */
+function split(target: string): { origin: string | null; path: string } {
   for (const origin of [CANONICAL_SITE_ORIGIN, TENANT_ORIGIN]) {
-    if (target.startsWith(origin)) return target.slice(origin.length);
+    if (target.startsWith(origin)) return { origin, path: target.slice(origin.length) };
   }
-  return target;
+  return { origin: null, path: target };
+}
+
+function pathOf(target: string): string {
+  return split(target).path;
 }
 
 /**
  * Atrapa `fetch` z listą adresów, na których ma ODMÓWIĆ (rzucić jak
- * przeglądarka przy braku CORS). Pozostałe oddają ciało ze `HEALTHY`.
+ * przeglądarka przy braku CORS). Pozostałe oddają ciało ze `healthy()`
+ * (z podmianami z `bodies`). Odczyt same-origin oddaje pliki serwisu `site`.
  */
-function stubFetch(options: { rejectAbsolute?: boolean } = {}): string[] {
+function stubFetch(
+  options: {
+    rejectAbsolute?: boolean;
+    site?: string;
+    bodies?: Record<string, string>;
+    status?: Record<string, number>;
+    reject?: string[];
+  } = {},
+): string[] {
   const asked: string[] = [];
   vi.stubGlobal("fetch", (input: RequestInfo | URL) => {
     const target = String(input);
@@ -103,10 +139,32 @@ function stubFetch(options: { rejectAbsolute?: boolean } = {}): string[] {
     if (options.rejectAbsolute && target.startsWith("https://")) {
       return Promise.reject(new TypeError("Failed to fetch"));
     }
-    const body = HEALTHY[pathOf(target)] ?? "";
-    return Promise.resolve({ status: 200, text: () => Promise.resolve(body) } as Response);
+    const { origin, path } = split(target);
+    if (options.reject?.includes(path)) return Promise.reject(new TypeError("Failed to fetch"));
+    const site = origin ?? options.site ?? CANONICAL_SITE_ORIGIN;
+    const body = options.bodies?.[path] ?? healthy(site)[path] ?? "";
+    const isXml = path.endsWith(".xml");
+    return Promise.resolve({
+      status: options.status?.[path] ?? 200,
+      headers: new Headers({
+        "content-type": isXml ? "application/xml; charset=utf-8" : "text/plain; charset=utf-8",
+      }),
+      text: () => Promise.resolve(body),
+    } as Response);
   });
   return asked;
+}
+
+/** Sondy czterech fundamentów (bez plików sekcji mapy), w kolejności wysłania. */
+function foundationAsked(asked: readonly string[]): string[] {
+  return asked.filter((target) => FOUNDATION_PATHS.includes(pathOf(target)));
+}
+
+/** Tabela fundamentów (bez tabeli plików mapy). */
+function foundationTable(): HTMLElement {
+  const table = document.querySelector<HTMLElement>("[data-seo-foundation]");
+  if (!table) throw new Error("brak tabeli fundamentów");
+  return table;
 }
 
 afterEach(() => {
@@ -127,9 +185,9 @@ function stubBrowserHost(host: string) {
   } as Location);
 }
 
-/** `href` każdego linku „Otwórz", w kolejności wierszy (bez linków „Pobierz"). */
+/** `href` każdego linku „Otwórz" tabeli fundamentów, w kolejności wierszy (bez „Pobierz"). */
 function openHrefs(): string[] {
-  return screen
+  return within(foundationTable())
     .getAllByRole("link")
     .filter((link) => !link.hasAttribute("download"))
     .map((link) => link.getAttribute("href"))
@@ -161,13 +219,18 @@ describe("TechnicalFoundationCard - sondy odpowiadają", () => {
       "adminSeoHub.foundation_htmlLang",
     ]);
 
-    // Stan liczony z CIAŁA, nie z samego kodu HTTP: indeks mapy ma dwa shardy,
-    // a `<html lang="pl">` niesie konkretny język. Gdyby `probe()` gubił treść,
-    // obie te wartości byłyby nie do policzenia.
-    expect(screen.getByText("adminSeoHub.foundationSitemapIndex(value=2)")).toBeTruthy();
+    // Stan liczony z CIAŁA, nie z samego kodu HTTP: indeks mapy wskazuje dwa
+    // pliki (dwa adresy w mapie, artykuł News się nie dubluje), a
+    // `<html lang="pl">` niesie konkretny język.
+    // Gdyby `probe()` gubił treść, obie te wartości byłyby nie do policzenia.
+    expect(
+      screen.getByText("adminSeoHub.foundationSitemapIndexValid(files=2,urls=2,value=)"),
+    ).toBeTruthy();
     expect(screen.getByText("adminSeoHub.foundationLangPresent(value=pl)")).toBeTruthy();
     // Wszystkie cztery na zielono -> podsumowanie sekcji.
-    expect(screen.getAllByText("adminSeoHub.foundationState_ok")).toHaveLength(4);
+    expect(within(foundationTable()).getAllByText("adminSeoHub.foundationState_ok")).toHaveLength(
+      4,
+    );
     expect(screen.getByText("adminSeoHub.foundationAllGood")).toBeTruthy();
   });
 
@@ -190,7 +253,7 @@ describe("TechnicalFoundationCard - sondy odpowiadają", () => {
     stubFetch({});
     renderWithQueryClient(<TechnicalFoundationCard />);
     await waitFor(() => expect(document.querySelector("[data-seo-foundation]")).not.toBeNull());
-    const downloads = [...document.querySelectorAll("a[download]")].map((a) => [
+    const downloads = [...foundationTable().querySelectorAll("a[download]")].map((a) => [
       a.getAttribute("href"),
       a.getAttribute("download"),
     ]);
@@ -209,14 +272,17 @@ describe("TechnicalFoundationCard - sondy odpowiadają", () => {
 
     await renderCard();
 
-    expect(asked.filter((target) => target.startsWith(CANONICAL_SITE_ORIGIN))).toHaveLength(4);
-    expect(asked.filter((target) => !target.startsWith("https://"))).toEqual([
-      "/sitemap.xml",
-      "/robots.txt",
-      "/llms.txt",
-      "/",
-    ]);
-    expect(screen.getAllByText("adminSeoHub.foundationState_ok")).toHaveLength(4);
+    const absolute = foundationAsked(asked).filter((t) => t.startsWith(CANONICAL_SITE_ORIGIN));
+    expect(absolute).toHaveLength(4);
+    expect(foundationAsked(asked).filter((target) => !target.startsWith("https://"))).toEqual(
+      FOUNDATION_PATHS,
+    );
+    // Pliki sekcji z indeksu idą tą samą drogą: odmowa cross-origin -> same-origin.
+    expect(asked).toContain("/sitemaps/core.xml");
+    expect(asked).toContain("/news-sitemap.xml");
+    expect(within(foundationTable()).getAllByText("adminSeoHub.foundationState_ok")).toHaveLength(
+      4,
+    );
   });
 });
 
@@ -230,12 +296,15 @@ describe("TechnicalFoundationCard - origin per-tenant", () => {
     // Sondy czekają na domenę z bazy: ani jednego pytania o pliki marki, także
     // „na chwilę", zanim domena dojedzie - inaczej karta mignęłaby stanem
     // cudzego serwisu (i zostawiła go w cache na minutę świeżości).
-    expect(asked).toEqual([
+    expect(foundationAsked(asked)).toEqual([
       `${TENANT_ORIGIN}/sitemap.xml`,
       `${TENANT_ORIGIN}/robots.txt`,
       `${TENANT_ORIGIN}/llms.txt`,
       `${TENANT_ORIGIN}/`,
     ]);
+    // Pliki sekcji z indeksu tenanta - też na JEGO originie.
+    expect(asked.every((target) => target.startsWith(TENANT_ORIGIN))).toBe(true);
+    expect(asked).toContain(`${TENANT_ORIGIN}/sitemaps/core.xml`);
   });
 
   it("tenant z własną domeną: linki „Otwórz” prowadzą na JEGO pliki", async () => {
@@ -286,20 +355,19 @@ describe("TechnicalFoundationCard - origin per-tenant", () => {
   it("tenant na WŁASNEJ domenie bez CORS: spadek na same-origin działa i „Pobierz” wraca", async () => {
     stubBrowserHost("analizy.example.org");
     h.tenantDomain = "analizy.example.org";
-    const asked = stubFetch({ rejectAbsolute: true });
+    const asked = stubFetch({ rejectAbsolute: true, site: TENANT_ORIGIN });
 
     await renderCard();
 
-    expect(asked.filter((target) => !target.startsWith("https://"))).toEqual([
-      "/sitemap.xml",
-      "/robots.txt",
-      "/llms.txt",
-      "/",
-    ]);
-    expect(screen.getAllByText("adminSeoHub.foundationState_ok")).toHaveLength(4);
+    expect(foundationAsked(asked).filter((target) => !target.startsWith("https://"))).toEqual(
+      FOUNDATION_PATHS,
+    );
+    expect(within(foundationTable()).getAllByText("adminSeoHub.foundationState_ok")).toHaveLength(
+      4,
+    );
     expect(document.querySelector("[data-seo-foundation-cross-host]")).toBeNull();
     expect(
-      [...document.querySelectorAll("a[download]")].map((a) => a.getAttribute("href")),
+      [...foundationTable().querySelectorAll("a[download]")].map((a) => a.getAttribute("href")),
     ).toEqual(["/sitemap.xml", "/robots.txt", "/llms.txt"]);
   });
 
@@ -350,5 +418,114 @@ describe("TechnicalFoundationCard - origin nierozstrzygnięty albo nieistniejąc
     expect(screen.getByText("adminSeoHub.noPublicDomain")).toBeTruthy();
     expect(asked).toEqual([]);
     expect(screen.queryAllByRole("link")).toHaveLength(0);
+  });
+});
+
+describe("TechnicalFoundationCard - pliki mapy strony (2026-10-10)", () => {
+  async function renderFiles(): Promise<HTMLElement> {
+    renderWithQueryClient(<TechnicalFoundationCard />);
+    await waitFor(() => expect(document.querySelector("[data-seo-sitemap-files]")).not.toBeNull());
+    return document.querySelector<HTMLElement>("[data-seo-sitemap-files]")!;
+  }
+
+  function fileRow(path: string): HTMLElement {
+    const row = document.querySelector<HTMLElement>(`[data-seo-sitemap-file="${path}"]`);
+    if (!row) throw new Error(`brak wiersza pliku ${path}`);
+    return row;
+  }
+
+  it("indeks i KAŻDY plik z indeksu dostają wiersz ze stanem, zawartością i linkami", async () => {
+    stubFetch();
+    await renderFiles();
+
+    const rows = [...document.querySelectorAll("[data-seo-sitemap-file]")];
+    expect(rows.map((row) => row.getAttribute("data-seo-sitemap-file"))).toEqual([
+      "/sitemap.xml",
+      "/sitemaps/core.xml",
+      "/news-sitemap.xml",
+    ]);
+    expect(rows.map((row) => row.getAttribute("data-state"))).toEqual(["ok", "ok", "ok"]);
+    expect(
+      within(fileRow("/sitemaps/core.xml")).getByText("adminSeoHub.sitemapKind_urlset"),
+    ).toBeTruthy();
+    expect(
+      within(fileRow("/sitemaps/core.xml")).getByText("adminSeoHub.sitemapEntries_urlset(n=2)"),
+    ).toBeTruthy();
+    expect(
+      within(fileRow("/sitemaps/core.xml")).getByText(
+        "adminSeoHub.sitemapLastmod(value=2026-10-01)",
+      ),
+    ).toBeTruthy();
+    expect(
+      within(fileRow("/news-sitemap.xml")).getByText("adminSeoHub.sitemapKind_news"),
+    ).toBeTruthy();
+    // „Otwórz" na originie publicznym, „Pobierz" same-origin z nazwą pliku.
+    const core = fileRow("/sitemaps/core.xml");
+    expect(
+      within(core)
+        .getAllByRole("link")
+        .map((link) => [link.getAttribute("href"), link.getAttribute("download")]),
+    ).toEqual([
+      [`${CANONICAL_SITE_ORIGIN}/sitemaps/core.xml`, null],
+      ["/sitemaps/core.xml", "core.xml"],
+    ]);
+  });
+
+  it("pusty news-sitemap (jak w GSC): wiersz pliku z błędem „brak tagu url, wiersz 3”, mapa NIE jest zielona", async () => {
+    stubFetch({ bodies: { "/news-sitemap.xml": EMPTY_NEWS } });
+    await renderFiles();
+
+    expect(fileRow("/news-sitemap.xml").getAttribute("data-state")).toBe("fail");
+    expect(
+      within(fileRow("/news-sitemap.xml")).getByText(
+        "adminSeoHub.sitemapIssue_missingTag(parent=urlset,tag=url,value=) · adminSeoHub.sitemapIssueLine(n=3)",
+      ),
+    ).toBeTruthy();
+    // Dawny defekt: indeks zdrowy -> wiersz mapy „OK". Teraz wiersz mapy to
+    // najgorszy plik, a podsumowanie „wszystko dobrze" znika.
+    expect(
+      within(foundationTable()).getByText(
+        "adminSeoHub.foundationSitemapFilesFailed(failed=1,total=3,value=)",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("adminSeoHub.foundationAllGood")).toBeNull();
+  });
+
+  it("plik sekcji bez odpowiedzi: komunikat „Ogólny błąd HTTP” zamiast fałszywego OK", async () => {
+    stubFetch({ reject: ["/sitemaps/core.xml"] });
+    await renderFiles();
+
+    const core = fileRow("/sitemaps/core.xml");
+    expect(core.getAttribute("data-state")).toBe("fail");
+    expect(core.querySelector('[data-seo-sitemap-issue="http"]')?.textContent).toBe(
+      "adminSeoHub.sitemapIssue_network(parent=,tag=,value=0)",
+    );
+  });
+
+  it("5xx pliku sekcji to błąd HTTP z kodem", async () => {
+    stubFetch({ status: { "/sitemaps/core.xml": 503 } });
+    await renderFiles();
+    expect(
+      fileRow("/sitemaps/core.xml").querySelector('[data-seo-sitemap-issue="http"]')?.textContent,
+    ).toBe("adminSeoHub.sitemapIssue_http(parent=,tag=,value=503)");
+  });
+
+  it("„Sprawdź ponownie” pobiera pliki jeszcze raz (np. po naprawie)", async () => {
+    const asked = stubFetch({ bodies: { "/news-sitemap.xml": EMPTY_NEWS } });
+    await renderFiles();
+    expect(fileRow("/news-sitemap.xml").getAttribute("data-state")).toBe("fail");
+    const before = asked.length;
+
+    stubFetch();
+    fireEvent.click(document.querySelector<HTMLElement>("[data-seo-sitemap-recheck]")!);
+    await waitFor(() => expect(fileRow("/news-sitemap.xml").getAttribute("data-state")).toBe("ok"));
+    expect(before).toBeGreaterThan(0);
+  });
+
+  it("indeks nieczytelny z tego hosta (tenant oglądany z marki): brak tabeli plików", async () => {
+    h.tenantDomain = "analizy.example.org";
+    stubFetch({ rejectAbsolute: true });
+    await renderCard();
+    expect(document.querySelector("[data-seo-sitemap-files]")).toBeNull();
   });
 });
