@@ -14,7 +14,11 @@
 //   * format liczb - automatyczny albo wymuszony (polski / angielski), bo
 //     „1,234" bez kontekstu jest tysiącem albo ułamkiem;
 //   * kolumna wartości - tylko w trybie MAPY: tabela „kraj | 2019 | 2020"
-//     daje mapę z jednej, wybranej kolumny.
+//     daje mapę z jednej, wybranej kolumny;
+//   * w trybie MAPY także kolumna krajów i obrót („Rok | PL | DE" ma kraje
+//     w nagłówku) - położenia początkowe rozpoznaje `initialMapTableLayout`
+//     (`mapTableLayout.ts`), a wynik liczy `mapTableValues`, którą po
+//     „Zastosuj" woła też edytor mapy.
 // Wynik liczą te same funkcje, które zastosuje edytor (`tableToChartData`,
 // `tableToMapValues`), więc podgląd nie może pokazać czegoś innego niż zapis.
 // Problemy - odczytu (plik, schowek) i układu - stoją razem pod wynikiem.
@@ -36,12 +40,21 @@ import {
   columnLetter,
   rectangularTable,
   tableToChartData,
-  tableToMapValues,
   type CountryIndex,
   type ImportProblem,
   type NumberLocaleChoice,
 } from "@/lib/charts/importTable";
+import "@/lib/i18n-map-editor";
 import { ImportProblemList } from "./ImportProblemList";
+import {
+  countryColumnOf,
+  firstValueColumn,
+  initialMapTableLayout,
+  mapLayoutForTranspose,
+  mapTableValues,
+  orientedMapTable,
+  type MapTableLayout,
+} from "./mapTableLayout";
 import {
   PREVIEW_ROWS,
   PREVIEW_SERIES,
@@ -68,6 +81,12 @@ const TITLE_KEYS: Record<TablePreviewSource, string> = {
 const DESCRIPTION_KEYS: Record<TablePreviewMode, string> = {
   chart: "chartEditor.preview.descriptionChart",
   map: "chartEditor.preview.descriptionMap",
+};
+
+/** Obrót mówi o seriach na wykresie, a o krajach na mapie. */
+const TRANSPOSE_KEYS: Record<TablePreviewMode, string> = {
+  chart: "chartEditor.preview.transpose",
+  map: "mapEditor.preview.transpose",
 };
 
 /** Liczba w podglądzie - zapis kanoniczny, ten sam, który trafi do treści. */
@@ -102,16 +121,28 @@ export function PastePreviewDialog({
   onCancel,
 }: Props) {
   const t = useChartEditorT(lang);
-  const [layout, setLayout] = useState<TableLayout>(() => initialTableLayout(rows));
+  // Mapa rozpoznaje dodatkowo kolumnę krajów i orientację (`MapTableLayout`).
+  const poczatkowy = (r: readonly (readonly string[])[]): MapTableLayout =>
+    mode === "map" ? initialMapTableLayout(r, countryIndex) : initialTableLayout(r);
+  const [layout, setLayout] = useState<MapTableLayout>(() => poczatkowy(rows));
   // Nowa tabela (kolejne wklejenie, inny plik) - przełączniki wracają do
   // rozpoznania, zamiast nieść ustawienia poprzedniej tabeli.
   const [seen, setSeen] = useState(rows);
   if (seen !== rows) {
     setSeen(rows);
-    setLayout(initialTableLayout(rows));
+    setLayout(poczatkowy(rows));
   }
 
-  const width = useMemo(() => rectangularTable(rows)[0]?.length ?? 0, [rows]);
+  // Tabela w orientacji podglądu (mapa: po obrocie) - z niej kolumny i ich nagłówki.
+  const tabela = useMemo(
+    () => (mode === "map" ? orientedMapTable(rows, layout.transpose) : rectangularTable(rows)),
+    [mode, rows, layout.transpose],
+  );
+  const width = tabela[0]?.length ?? 0;
+  const krajKolumna = countryColumnOf(layout);
+  const kolumnyWartosci = Array.from({ length: width }, (_, c) => c).filter(
+    (c) => c !== krajKolumna,
+  );
 
   const chart = useMemo(
     () =>
@@ -125,14 +156,7 @@ export function PastePreviewDialog({
     [mode, rows, layout],
   );
   const map = useMemo(
-    () =>
-      mode === "map"
-        ? tableToMapValues(rows, countryIndex, {
-            valueColumn: layout.valueColumn,
-            header: layout.header,
-            locale: layout.locale,
-          })
-        : null,
+    () => (mode === "map" ? mapTableValues(rows, countryIndex, layout) : null),
     [mode, rows, layout, countryIndex],
   );
 
@@ -144,7 +168,7 @@ export function PastePreviewDialog({
   const total = chart !== null ? chart.categories.length : (map?.values.length ?? 0);
 
   const naglowekKolumny = (c: number): string => {
-    const tekst = layout.header ? (rectangularTable(rows)[0]?.[c] ?? "").trim() : "";
+    const tekst = layout.header ? (tabela[0]?.[c] ?? "").trim() : "";
     return tekst !== "" ? `${columnLetter(c)} - ${tekst}` : columnLetter(c);
   };
 
@@ -170,16 +194,22 @@ export function PastePreviewDialog({
             />
             {t("chartEditor.preview.header")}
           </label>
-          {mode === "chart" && (
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={layout.transpose}
-                onChange={(e) => setLayout((l) => ({ ...l, transpose: e.target.checked }))}
-              />
-              {t("chartEditor.preview.transpose")}
-            </label>
-          )}
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={layout.transpose}
+              onChange={(e) => {
+                const transpose = e.target.checked;
+                // Mapa: obrócona tabela ma inne kolumny - kraj i wartość od nowa.
+                setLayout((l) =>
+                  mode === "map"
+                    ? mapLayoutForTranspose(rows, l, transpose, countryIndex)
+                    : { ...l, transpose },
+                );
+              }}
+            />
+            {t(TRANSPOSE_KEYS[mode])}
+          </label>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">{t("chartEditor.preview.locale")}</span>
             <AdminSelect
@@ -198,7 +228,35 @@ export function PastePreviewDialog({
               ))}
             </AdminSelect>
           </div>
-          {mode === "map" && width > 2 && (
+          {mode === "map" && width > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">{t("mapEditor.preview.countryColumn")}</span>
+              <AdminSelect
+                className="h-8 w-48 text-xs"
+                value={String(krajKolumna)}
+                aria-label={t("mapEditor.preview.countryColumn")}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (!Number.isInteger(n) || n < 0 || n >= width) return;
+                  // Kolumna wartości nie może być kolumną krajów - wtedy
+                  // przechodzi na pierwszą kolumnę z liczbami obok.
+                  setLayout((l) => ({
+                    ...l,
+                    countryColumn: n,
+                    valueColumn:
+                      l.valueColumn === n ? firstValueColumn(tabela, n, l.header) : l.valueColumn,
+                  }));
+                }}
+              >
+                {Array.from({ length: width }, (_, c) => c).map((c) => (
+                  <option key={c} value={String(c)}>
+                    {naglowekKolumny(c)}
+                  </option>
+                ))}
+              </AdminSelect>
+            </div>
+          )}
+          {mode === "map" && kolumnyWartosci.length > 1 && (
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">{t("chartEditor.preview.valueColumn")}</span>
               <AdminSelect
@@ -207,10 +265,10 @@ export function PastePreviewDialog({
                 aria-label={t("chartEditor.preview.valueColumn")}
                 onChange={(e) => {
                   const n = Number(e.target.value);
-                  if (Number.isInteger(n) && n >= 1) setLayout((l) => ({ ...l, valueColumn: n }));
+                  if (kolumnyWartosci.includes(n)) setLayout((l) => ({ ...l, valueColumn: n }));
                 }}
               >
-                {Array.from({ length: width - 1 }, (_, i) => i + 1).map((c) => (
+                {kolumnyWartosci.map((c) => (
                   <option key={c} value={String(c)}>
                     {naglowekKolumny(c)}
                   </option>
