@@ -767,11 +767,11 @@ function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = fals
             title={`${lang === "en" ? "Slide" : "Slajd"} ${i + 1}`}
             aria-current={i === active ? "true" : undefined}
             onClick={() => onSelect(i)}
-            className="group h-8 w-8 shrink-0 rounded-lg p-0 hover:bg-transparent"
+            className="group h-8 w-12 shrink-0 rounded-lg p-0 hover:bg-transparent"
           >
             <span
               aria-hidden="true"
-              className={`${DOT_BASE} ${i === active ? "bg-brand [transform:scale(2.4,.5)]" : "bg-foreground opacity-25 [transform:scale(.5)] group-hover:opacity-50"}`}
+              className={`h-1 w-10 rounded-full bg-foreground transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none ${i === active ? "opacity-100 [transform:scaleX(1)]" : "opacity-35 [transform:scaleX(.4)] group-hover:opacity-60"}`}
             />
           </Button>
         ))}
