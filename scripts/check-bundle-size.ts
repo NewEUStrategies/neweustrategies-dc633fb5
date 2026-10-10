@@ -2105,6 +2105,42 @@ const CLIENT_DIR =
 //
 // FORMUŁA: overall 4836,0 -> 4836 -> 4837.
 
+// 2026-10-10 XXVII  PLIKI MAPY STRONY W KOKPICIE SEO (PR #491).
+//             Floor OVERALL 4837 -> 4849, DECYZJĄ ZAMAWIAJĄCEGO („wdróż pliki
+//             do admin panel", zgłoszenie z raportem Search Console). PUBLIC,
+//             CHUNK, CSS i BOOT nie ruszone - PR nie dotyka ani jednego
+//             chunku osiągalnego z publicznego URL-a.
+//
+// BAZA BYŁA JUŻ CZERWONA. Pomiar na tym samym hoście (`bun run build` + ta
+// bramka), dwa drzewa:
+//   baza 15af507a (main po #490 i commitach edytora):  overall 4841,6
+//                                                      admin   2000,0
+//   gałąź d00bc893:                                    overall 4847,3
+//                                                      admin   2006,1
+// Baza przekraczała próg o 4,6 KB (dryf main po korekcie z XXVI, poza tym
+// PR) - zero delta i tak dałoby czerwoną bramkę.
+//
+// SKŁAD PRZYROSTU PR: wyłącznie admin, +5,7 (`Bun.gzipSync` per chunk: +6,1).
+//   +4,6  admin.seo.index: walidator plików mapy (`lib/seo/sitemapValidation`
+//         - parser XML bez DOM, reguły schematu sitemaps.org i Google News,
+//         numery wierszy jak w GSC) + tabela „Pliki mapy strony" w karcie
+//         fundamentów (pobranie indeksu i każdego pliku, stan, wynik
+//         walidacji, Otwórz / Pobierz, ponowne sprawdzenie)
+//   +1,6  admin.seo: słownik PL/EN tabeli i komunikatów walidacji (nakładka
+//         `adminSeoHub.*`)
+// Serwerowa część PR (news-sitemap, shardy, indeks) nie trafia do klienta.
+//
+// CO WYCIĘTO: cztery martwe klucze dawnej reguły mapy
+// (`foundationSitemapIndex|Urlset|Empty|Malformed`). Walidatora nie da się
+// przenieść na serwer bez utraty sensu: karta ocenia PRAWDZIWĄ odpowiedź HTTP
+// pliku publicznego (status, typ treści, ciało), a nie dokument złożony
+// drugi raz po stronie serwera. Leniwy import nie obniża OVERALL (suma
+// wszystkich chunków).
+//
+// FORMUŁA JAK W XIX-XXVI: overall 4847,3 -> 4848 -> 4849. ZASADA Z WPISU V
+// OBOWIĄZUJE: pierwszy log runnera na main po scaleniu jest podstawą korekty
+// w dół.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
@@ -2232,7 +2268,10 @@ const FROZEN_BUDGET_KB = {
   // Korekta 4833 -> 4837 (ten sam wpis): poprawki z przeglądów PR #489
   // +4,6 (panel buildera +2,9), boot bez `vendor-lucide` -0,6.
   // Host 4836,0 -> 4836 -> +1.
-  overall: 4837,
+  // Ratchet 4837 -> 4849 (wpis 2026-10-10 XXVII): pliki mapy strony
+  // w kokpicie SEO (admin +5,7), decyzją zamawiającego; baza 15af507a stała
+  // już na 4841,6. Host 4847,3 -> 4848 -> +1.
+  overall: 4849,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
