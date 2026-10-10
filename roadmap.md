@@ -6,6 +6,7 @@
 - [x] Dopasować wskaźniki do stylu popupu rejestracji: kreski 40/16 px, stała wysokość 4 px i neutralny kolor w obu motywach; testy sterowania sliderem przechodzą.
 - [x] Odświeżyć zaznaczone strzałki i wskaźniki: subtelny obrys, aktywna kapsułka marki, płynne przejścia bez zmiany układu.
 - [x] Zweryfikować przełączanie materiałów testami zakresowymi.
+- [x] Kąty < > są łagodniejsze: wierzchołek rozwarty do ok. 77° (wcześniej ostry szpic ok. 58°), kreska hairline 0,85 px bez zmian; ta sama geometria przy zdjęciach i przy wskaźnikach w obu motywach, zmierzona w podglądzie i pilnowana testem kąta (2217 testów buildera zielonych).
 
 ## Pełne wiadomości i limity formularzy
 
