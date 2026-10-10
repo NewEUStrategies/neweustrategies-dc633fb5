@@ -140,7 +140,15 @@ export const Route = createFileRoute("/admin/crm/")({
         ? search.view
         : undefined,
   }),
-  head: () => ({ meta: [{ title: "CRM | Admin" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [
+    { title: "Kontakty CRM - New European Strategies" },
+    { name: "description", content: "Kontakty i historia formularzy New European Strategies." },
+    { property: "og:title", content: "Kontakty CRM - New European Strategies" },
+    { property: "og:description", content: "Kontakty i historia formularzy." },
+    { property: "og:type", content: "website" },
+    { name: "twitter:card", content: "summary" },
+    { name: "robots", content: "noindex" },
+  ] }),
   component: AdminCrmPage,
 });
 
@@ -1420,8 +1428,8 @@ function LeadDrawer({
                             {new Date(m.created_at).toLocaleString()}
                           </span>
                         </div>
-                        <p className="mt-1 whitespace-pre-wrap text-[12px]">
-                          {m.message.slice(0, 400)}
+                        <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-[12px]">
+                          {m.message}
                         </p>
                       </div>
                     ))}

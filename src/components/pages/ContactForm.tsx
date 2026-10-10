@@ -19,6 +19,8 @@ import { MessageComposerField } from "@/components/forms/MessageComposerField";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import { CONTACT_FIELD_LIMITS, contactTextSchema } from "@/lib/forms/contactLimits";
+import { CharacterCounter } from "@/components/forms/CharacterCounter";
 
 interface Props {
   lang: "pl" | "en";
@@ -39,6 +41,7 @@ const L = {
     consentRequired: "Zaznacz zgodę na przetwarzanie danych, aby wysłać wiadomość.",
     ok: "Wiadomość została wysłana.",
     error: "Nie udało się wysłać wiadomości. Spróbuj ponownie.",
+    limits: "Sprawdź długość pól i poprawność adresu e-mail.",
   },
   en: {
     title: "Get in touch",
@@ -54,6 +57,7 @@ const L = {
     consentRequired: "Please tick the data processing consent to send your message.",
     ok: "Your message has been sent.",
     error: "Could not send the message. Please try again.",
+    limits: "Check field lengths and the email address.",
   },
 } as const;
 
@@ -87,6 +91,10 @@ export function ContactForm({ lang }: Props) {
     }
     if (!EMAIL_RE.test(email)) {
       toast.error(t.invalidEmail);
+      return;
+    }
+    if (!contactTextSchema.safeParse({ name, email, subject: form.subject, message }).success) {
+      toast.error(t.limits);
       return;
     }
     if (!consent) {
@@ -125,15 +133,21 @@ export function ContactForm({ lang }: Props) {
       <h2 className="font-display text-2xl mb-4">{t.title}</h2>
       <form onSubmit={onSubmit} className="space-y-3" noValidate>
         <div className="grid sm:grid-cols-2 gap-3">
+          <div>
           <FloatingInput
             id={nameId}
+            maxLength={CONTACT_FIELD_LIMITS.name}
             label={t.name}
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
+          <CharacterCounter count={form.name.length} limit={CONTACT_FIELD_LIMITS.name} lang={lang} />
+          </div>
+          <div>
           <FloatingInput
             id={emailId}
+            maxLength={CONTACT_FIELD_LIMITS.email}
             label={t.email}
             required
             type="email"
@@ -141,18 +155,25 @@ export function ContactForm({ lang }: Props) {
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
+          <CharacterCounter count={form.email.length} limit={CONTACT_FIELD_LIMITS.email} lang={lang} />
+          </div>
         </div>
+        <div>
         <FloatingInput
           id={subjectId}
+          maxLength={CONTACT_FIELD_LIMITS.subject}
           label={t.subject}
           value={form.subject}
           onChange={(e) => setForm({ ...form, subject: e.target.value })}
         />
+        <CharacterCounter count={form.subject.length} limit={CONTACT_FIELD_LIMITS.subject} lang={lang} />
+        </div>
         <MessageComposerField
           id={messageId}
           label={t.msg}
           required
           rows={5}
+          maxLength={CONTACT_FIELD_LIMITS.message}
           value={form.message}
           onChange={(next) => setForm({ ...form, message: next })}
           lang={lang}

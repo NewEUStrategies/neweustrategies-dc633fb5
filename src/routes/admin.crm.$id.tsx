@@ -159,7 +159,15 @@ const stageLabel = (s: Stage, lang: "pl" | "en") => {
 
 export const Route = createFileRoute("/admin/crm/$id")({
   head: () => ({
-    meta: [{ title: "CRM: kontakt | Admin" }, { name: "robots", content: "noindex" }],
+    meta: [
+      { title: "Kontakt CRM - New European Strategies" },
+      { name: "description", content: "Pełna historia wiadomości i aktywności kontaktu New European Strategies." },
+      { property: "og:title", content: "Kontakt CRM - New European Strategies" },
+      { property: "og:description", content: "Historia wiadomości i aktywności kontaktu." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
+    ],
   }),
   component: AdminCrmDetailPage,
 });
@@ -321,7 +329,7 @@ function AdminCrmDetailPage() {
       </div>
 
       {/* 3-column layout */}
-      <div className="grid gap-3 lg:grid-cols-[280px_1fr_320px]">
+      <div className="grid gap-3 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)_320px]">
         {/* Left rail */}
         <aside className="space-y-3">
           <section className="rounded-md border bg-card">
@@ -334,10 +342,10 @@ function AdminCrmDetailPage() {
                 fallbackClassName="text-[15px] text-primary bg-primary/10"
               />
               <div className="min-w-0">
-                <div className="truncate text-[14px] font-semibold leading-tight">
+                <div className="break-words text-[14px] font-semibold leading-tight">
                   {displayName}
                 </div>
-                <div className="truncate text-[11px] text-muted-foreground">
+                <div className="break-words text-[11px] text-muted-foreground">
                   {lead.position ?? t("Brak stanowiska", "No position")}
                 </div>
               </div>
@@ -596,7 +604,7 @@ function AdminCrmDetailPage() {
                   <ul className="space-y-2">
                     {(detail.data?.notes ?? []).slice(0, 5).map((n) => (
                       <li key={n.id} className="rounded border p-2">
-                        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] text-muted-foreground">
                           <span>{new Date(n.created_at).toLocaleString()}</span>
                           <button
                             type="button"
@@ -631,7 +639,7 @@ function AdminCrmDetailPage() {
                           <span>{new Date(m.created_at).toLocaleString()}</span>
                         </div>
                         {m.subject && <div className="mt-1 font-medium">{m.subject}</div>}
-                        <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-muted-foreground">
+                         <p className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-muted-foreground">
                           {m.message}
                         </p>
                       </li>
@@ -655,8 +663,8 @@ function AdminCrmDetailPage() {
                     <li key={e.id} className="flex gap-2 rounded border p-2">
                       <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-primary/60" />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[12px] font-medium">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="break-words text-[12px] font-medium">
                             {e.type === "event"
                               ? eventActivitySummary(e.meta, lang, e.title)
                               : e.title || e.type}
@@ -666,7 +674,7 @@ function AdminCrmDetailPage() {
                           </span>
                         </div>
                         {e.detail && (
-                          <p className="mt-0.5 whitespace-pre-wrap text-[11px] text-muted-foreground">
+                          <p className="mt-0.5 whitespace-pre-wrap [overflow-wrap:anywhere] text-[11px] text-muted-foreground">
                             {e.detail}
                           </p>
                         )}
@@ -728,7 +736,7 @@ function AdminCrmDetailPage() {
                 className="flex items-center justify-between rounded border p-2 hover:bg-muted/50"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-[12px] font-medium">{lead.company ?? "-"}</div>
+                  <div className="break-words text-[12px] font-medium">{lead.company ?? "-"}</div>
                   <div className="text-[10px] text-muted-foreground">
                     {t("Otwórz kartę firmy", "Open company")}
                   </div>
@@ -804,7 +812,7 @@ function InfoRow({
   return (
     <div className="flex items-center gap-2 text-[12px]">
       <span className="text-muted-foreground">{icon}</span>
-      <span className="min-w-0 flex-1 truncate">{value}</span>
+      <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{value}</span>
       {onCopy && (
         <button
           type="button"
