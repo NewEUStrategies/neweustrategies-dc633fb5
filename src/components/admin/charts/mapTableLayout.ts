@@ -14,6 +14,7 @@
 // Moduł czysty (bez Reacta): testy czytają go wprost.
 import {
   analyseTable,
+  isPeriodLabel,
   readImportedNumber,
   rectangularTable,
   resolveCountryLabel,
@@ -132,25 +133,57 @@ function skorowidz(index?: CountryIndex): CountryIndex | undefined {
 }
 
 /**
+ * Czy pierwszy wiersz tabeli JUŻ przestawionej (kolumna krajów na początku)
+ * jest nagłówkiem. Rozpoznanie wykresu (`analyseTable`) nie wie nic
+ * o krajach: „PL | Polska | 5" ma tekst za narożnikiem, więc wyglądało mu na
+ * nagłówek, a „PL | 5 | p" (flaga Eurostatu) - tak samo. Wymuszony nagłówek
+ * przechodził potem do `tableToMapValues` i pierwszy kraj znikał BEZ UWAGI.
+ * Dlatego trzy sygnały naraz - ta sama koniunkcja co w `tableToMapValues`:
+ *   * `analyseTable` widzi nagłówek,
+ *   * komórka kraju NIE wskazuje kraju (wiersz z krajem nigdy nie jest
+ *     nagłówkiem),
+ *   * komórka wartości nie jest liczbą - albo cały wiersz to okresy („Kraj |
+ *     2019 | 2020"). Wiersz z liczbą jest danymi: „JP | 5" na mapie Europy
+ *     ma wyjść jako nieznany kraj, a nie zniknąć jako nagłówek.
+ */
+function toNaglowek(
+  projected: readonly (readonly string[])[],
+  valueColumn: number,
+  index?: CountryIndex,
+): boolean {
+  const pierwszy = projected[0];
+  if (pierwszy === undefined || !analyseTable(projected).headerRow) return false;
+  if (resolveCountryLabel(pierwszy[0] ?? "", index) !== null) return false;
+  return (
+    !liczba(pierwszy[valueColumn] ?? "") ||
+    pierwszy.slice(1).every((c) => c.trim() === "" || isPeriodLabel(c) || !liczba(c))
+  );
+}
+
+/**
  * Nagłówek, kolumna krajów i kolumna wartości dla tabeli JEDNEJ orientacji.
- * Nagłówek rozpoznaje `analyseTable` na tabeli JUŻ przestawionej (kolumna
+ * Nagłówek rozpoznaje `toNaglowek` na tabeli JUŻ przestawionej (kolumna
  * krajów na początku) - „Lp. | Kraj | Wartość" ma wtedy tekst nad liczbami
- * i jest nagłówkiem, a „PL | 12" nie jest.
+ * i jest nagłówkiem, a „PL | 12" ani „PL | Polska | 12" nie są.
  */
 function ukladOrientacji(
   rows: readonly (readonly string[])[],
   transpose: boolean,
   col: number,
+  index?: CountryIndex,
 ): Pick<MapTableLayout, "header" | "transpose" | "countryColumn" | "valueColumn"> {
   const table = orientedMapTable(rows, transpose);
-  const projected = table.map((r) => [r[col] ?? "", ...r.filter((_, i) => i !== col)]);
-  const header = analyseTable(projected).headerRow;
-  return {
-    header,
-    transpose,
-    countryColumn: col,
-    valueColumn: firstValueColumn(table, col, header),
-  };
+  const layout = { transpose, countryColumn: col };
+  // Kolumna wartości liczona bez nagłówka służy tylko pytaniu „czy w niej
+  // stoi liczba" - wiersz nagłówka i tak nie ma liczb poza okresami.
+  const wstepna = projectMapTable(rows, {
+    ...layout,
+    header: false,
+    locale: "auto",
+    valueColumn: firstValueColumn(table, col, false),
+  });
+  const header = toNaglowek(wstepna.rows, wstepna.valueColumn, index);
+  return { header, ...layout, valueColumn: firstValueColumn(table, col, header) };
 }
 
 /**
@@ -174,7 +207,7 @@ export function initialMapTableLayout(
   const transpose = obrot.hits > prosto.hits;
   return {
     locale: "auto",
-    ...ukladOrientacji(rows, transpose, transpose ? obrot.col : prosto.col),
+    ...ukladOrientacji(rows, transpose, transpose ? obrot.col : prosto.col, idx),
   };
 }
 
@@ -189,8 +222,9 @@ export function mapLayoutForTranspose(
   transpose: boolean,
   index?: CountryIndex,
 ): MapTableLayout {
-  const best = najlepszaKolumna(orientedMapTable(rows, transpose), skorowidz(index));
-  return { ...layout, ...ukladOrientacji(rows, transpose, best.col) };
+  const idx = skorowidz(index);
+  const best = najlepszaKolumna(orientedMapTable(rows, transpose), idx);
+  return { ...layout, ...ukladOrientacji(rows, transpose, best.col, idx) };
 }
 
 /**
