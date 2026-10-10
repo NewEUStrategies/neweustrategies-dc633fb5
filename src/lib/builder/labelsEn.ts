@@ -606,8 +606,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Seria w akcencie marki; pozostałe są tłem porównania. W palecie kategorialnej seria zachowuje swój kolor, a wyróżnia ją linia ciągła i znacznik koła. Domyślnie pierwsza seria.":
     "The series in the brand accent; the rest are the comparison background. In the categorical palette the series keeps its color and stands out with a solid line and a circle marker. The first series by default.",
   "Wycinek wyróżniony": "Highlighted slice",
-  "Wycinek w akcencie marki - nigdy nie trafia do „Pozostałe”. Domyślnie największy wycinek.":
-    "The slice in the brand accent - never folded into “Other”. The largest slice by default.",
+  "Wycinek w akcencie marki (w palecie kategorialnej - z obrysem); nigdy nie trafia do „Pozostałe”. Domyślnie największy wycinek.":
+    "The slice in the brand accent (outlined in the categorical palette); never folded into “Other”. Defaults to the largest slice.",
   "Dane demonstracyjne (odznaka „demo”)": "Demo data (“demo” badge)",
   "Data danych": "Data as of",
   "np. 2026-06-30": "e.g. 2026-06-30",

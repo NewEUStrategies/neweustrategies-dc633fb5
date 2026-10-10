@@ -374,6 +374,12 @@
     fill var(--neh-hover-ms) ease-out,
     stroke var(--neh-hover-ms) ease-out;
 }
+/* Wycinek wyróżniony w palecie kategorialnej: obrys tuszem głównym (kolor
+   wypełnienia zostaje kolorem slotu). 2 px w obu motywach - 1 px tuszu na
+   nasyconym slocie ginął w krawędzi łuku. */
+.neh-chart .neh-slice[data-accent-outline="true"] {
+  stroke-width: 2px;
+}
 .neh-chart .neh-slice[data-active="true"] {
   fill: var(--neh-arc-hover);
 }

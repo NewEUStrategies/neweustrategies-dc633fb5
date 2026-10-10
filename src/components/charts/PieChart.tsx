@@ -55,9 +55,25 @@ import "@/lib/i18n-charts";
  * Obwódka wycinka: drugi nośnik akcentu na wycinku wyróżnionym, a na
  * pozostałych - brak. Kolor przez token, grubość przez arkusz (jedna w obu
  * motywach).
+ *
+ * W palecie kategorialnej wycinek wyróżniony zachowuje kolor swojego slotu,
+ * więc bez obrysu wybór „Wycinek wyróżniony" nie zmieniałby rysunku wcale
+ * (o ile nic nie trafia do „Pozostałe"). Nośnikiem jest wtedy obrys tuszem
+ * głównym - niezależny od koloru i czytelny w obu motywach.
  */
-function sliceEdge(slice: PieSlice): string {
-  return slice.accent && slice.color === ROLE.acc ? ROLE.accFocus : "none";
+function sliceEdge(slice: PieSlice, chosen: boolean): string {
+  if (!slice.accent) return "none";
+  if (slice.color === ROLE.acc) return ROLE.accFocus;
+  return chosen ? ROLE.ink : "none";
+}
+
+/**
+ * Wycinek wyróżniony w palecie kategorialnej - grubszy obrys z arkusza.
+ * Tylko przy JAWNYM wyborze autora (`accentCategory`): domyślny „największy
+ * wycinek" nie jest decyzją, a obrys na nim zmieniałby opublikowane tarcze.
+ */
+function sliceOutlined(slice: PieSlice, chosen: boolean): boolean {
+  return chosen && slice.accent && slice.color !== ROLE.acc;
 }
 
 /**
@@ -161,6 +177,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
   // useMemo dla stałej tożsamości tablicy wycinków - hover renderuje przy
   // każdym ruchu wskaźnika, a config w tych renderach jest ten sam.
   const { slices, total } = useMemo(() => pieModel(config, lang), [config, lang]);
+  const wybranyWycinek = config.accentCategory !== null;
 
   if (slices.length === 0) return null;
 
@@ -268,13 +285,14 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
                     // w atrybutach prezentacyjnych SVG nie jest wspierane
                     // wszędzie.
                     fill={s.color}
-                    stroke={sliceEdge(s)}
+                    stroke={sliceEdge(s, wybranyWycinek)}
                     // MITER, nie round: oba końce łuku są granicami między
                     // kategoriami, a zaokrąglenie któregokolwiek przesuwa
                     // granicę i zaniża udział.
                     strokeLinejoin="miter"
                     data-active={active === i ? "true" : undefined}
                     data-accent={s.accent ? "true" : undefined}
+                    data-accent-outline={sliceOutlined(s, wybranyWycinek) ? "true" : undefined}
                     style={{
                       ["--neh-arc-hover" as string]: `color-mix(in oklab, ${s.color} ${FOCUS_MIX.hover}%, var(--card))`,
                       ["--neh-arc-token" as string]: s.color,
@@ -423,6 +441,7 @@ export function PieChart({ config, lang, onSelect, ariaLabel }: PieChartProps) {
 
         <PieKeyTable
           slices={slices}
+          chosen={wybranyWycinek}
           lang={lang}
           unit={config.unit}
           active={active}
@@ -461,8 +480,11 @@ function PieKeyTable({
   onActivate,
   label,
   labels,
+  chosen,
 }: {
   slices: ReturnType<typeof pieModel>["slices"];
+  /** Wycinek wyróżniony wybrany jawnie (`accentCategory`) - patrz `sliceEdge`. */
+  chosen: boolean;
   lang: ChartLang;
   unit: string;
   active: number | null;
@@ -531,7 +553,7 @@ function PieKeyTable({
                   data-accent={s.accent ? "true" : undefined}
                   style={{
                     background: s.color,
-                    borderColor: sliceEdge(s) === "none" ? s.color : sliceEdge(s),
+                    borderColor: sliceEdge(s, chosen) === "none" ? s.color : sliceEdge(s, chosen),
                   }}
                 />
                 <span className="min-w-0 truncate">{s.label}</span>

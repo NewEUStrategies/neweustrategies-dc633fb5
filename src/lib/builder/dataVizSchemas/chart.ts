@@ -278,7 +278,7 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     type: "chartAccent",
     label: "Wycinek wyróżniony",
     group: CHART_COLORS_GROUP,
-    hint: "Wycinek w akcencie marki - nigdy nie trafia do „Pozostałe”. Domyślnie największy wycinek.",
+    hint: "Wycinek w akcencie marki (w palecie kategorialnej - z obrysem); nigdy nie trafia do „Pozostałe”. Domyślnie największy wycinek.",
     visibleWhen: (c) => chartColorsByCategory(c.kind),
   },
   // ---- System wykresów / uczciwość (PR2) ----

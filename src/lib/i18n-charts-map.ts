@@ -73,7 +73,7 @@ const pl = {
       coloursSequential:
         "Schemat: {{scheme}}. Im wyraźniej kolor odcina się od tła, tym wyższa wartość.",
       coloursDiverging:
-        "Schemat: {{scheme}}. Kolor neutralny to punkt środkowy ({{midpoint}}); jeden odcień oznacza wartości poniżej niego, drugi - powyżej. Im mocniejszy kolor, tym dalej od środka.",
+        "Schemat: {{scheme}}. Kolor neutralny oznacza punkt środkowy ({{midpoint}}) i wartości blisko niego; jeden odcień oznacza wartości poniżej, drugi - powyżej. Im mocniejszy kolor, tym dalej od środka.",
       scaleClassed:
         "Liczba klas: {{n}}, podział: {{method}}. Kraje w jednej klasie mają ten sam kolor, a granice klas podaje legenda.",
       // `{{method}}` to kanoniczna nazwa `methods.continuous` - jedno źródło.
@@ -131,7 +131,7 @@ const en: typeof pl = {
       coloursSequential:
         "Scheme: {{scheme}}. The more a colour stands out from the background, the higher the value.",
       coloursDiverging:
-        "Scheme: {{scheme}}. The neutral colour is the midpoint ({{midpoint}}); one hue marks values below it, the other values above it. The stronger the colour, the further from the midpoint.",
+        "Scheme: {{scheme}}. The neutral colour marks the midpoint ({{midpoint}}) and values close to it; one hue marks values below it, the other values above it. The stronger the colour, the further from the midpoint.",
       scaleClassed:
         "Number of classes: {{n}}, method: {{method}}. Countries in one class share one colour, and the legend gives the class boundaries.",
       scaleContinuous:

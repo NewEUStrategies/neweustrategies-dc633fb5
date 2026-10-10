@@ -71,9 +71,10 @@ export interface ChartGridValue {
    * w treści bloku; widget trzyma numer od jednego i przelicza go adapter.
    * To wskaźnik kategorii jak `accentCategory`, więc idzie za kategorią przy
    * każdej operacji na wierszach. Brak pola = treść granicy nie ma (zapis jej
-   * nie dopisuje i nie kasuje).
+   * nie dopisuje i nie kasuje). `null` = operacja granicę UNIEWAŻNIŁA (obrót:
+   * kategorie stają się dawnymi seriami) - zapis usuwa wtedy klucz z treści.
    */
-  forecastFrom?: number;
+  forecastFrom?: number | null;
 }
 
 /** Klucz komórki w `ChartGridValue.raw`. */
@@ -110,7 +111,7 @@ function przeniesNapisy(
 const bezZmian = (i: number) => i;
 
 /** Pola dodatkowe stanu (napisy, granica prognozy) - dopisywane tylko wtedy, gdy są. */
-function dodatki(raw: ChartGridValue["raw"], forecastFrom: number | undefined) {
+function dodatki(raw: ChartGridValue["raw"], forecastFrom: number | null | undefined) {
   return {
     ...(raw !== undefined ? { raw } : {}),
     ...(forecastFrom !== undefined ? { forecastFrom } : {}),
@@ -173,8 +174,10 @@ function z(v: ChartGridValue, model: GridModel, accents?: Partial<ChartGridValue
 }
 
 /** Granica prognozy po operacji na wierszach - `undefined` (brak granicy) zostaje brakiem. */
-function granica(v: ChartGridValue, nowy: (index: number) => number): number | undefined {
-  return v.forecastFrom === undefined ? undefined : nowy(v.forecastFrom);
+function granica(v: ChartGridValue, nowy: (index: number) => number): number | null | undefined {
+  return v.forecastFrom === undefined || v.forecastFrom === null
+    ? v.forecastFrom
+    : nowy(v.forecastFrom);
 }
 
 // ---------------------------------------------------------------------------
@@ -358,6 +361,10 @@ export function gridTranspose(v: ChartGridValue): ChartGridValue {
     accentSeries: v.accentCategory ?? 0,
     accentCategory: v.accentSeries > 0 ? v.accentSeries : null,
     raw,
+    // Granica prognozy wskazywała KATEGORIĘ, a po obrocie kategoriami są
+    // dawne serie - ten sam indeks oznaczałby prognozą przypadkową kolumnę.
+    // Granica znika (autor ustawi ją na nowo), zamiast cicho wędrować.
+    forecastFrom: v.forecastFrom === undefined ? undefined : null,
   });
 }
 
@@ -554,7 +561,11 @@ export function blockGridChanges(v: ChartGridValue): Record<string, Json | undef
     })),
     accentSeries: v.accentSeries > 0 ? v.accentSeries : undefined,
     accentCategory: v.accentCategory === null ? undefined : v.accentCategory,
-    ...(v.forecastFrom !== undefined ? { forecastFrom: v.forecastFrom } : {}),
+    ...(v.forecastFrom === null
+      ? { forecastFrom: undefined }
+      : v.forecastFrom !== undefined
+        ? { forecastFrom: v.forecastFrom }
+        : {}),
   };
 }
 
@@ -691,7 +702,11 @@ export function widgetGridPatch(
     seriesColors: colors === "" ? undefined : colors,
     accentSeries: v.accentSeries > 0 ? v.accentSeries : undefined,
     accentCategory: v.accentCategory === null ? undefined : v.accentCategory,
-    ...(v.forecastFrom !== undefined ? { forecastFrom: v.forecastFrom + 1 } : {}),
+    ...(v.forecastFrom === null
+      ? { forecastFrom: undefined }
+      : v.forecastFrom !== undefined
+        ? { forecastFrom: v.forecastFrom + 1 }
+        : {}),
   };
 }
 
