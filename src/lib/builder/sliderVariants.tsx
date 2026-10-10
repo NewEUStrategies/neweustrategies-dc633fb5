@@ -180,7 +180,7 @@ function resolveNavStyle(cfg: SliderConfig): NavStyleResolved {
 /** Inline SVG arrow renderer. Same viewBox 24x24, rendered stable regardless
  *  of icon-font fallback / lucide async load. Direction flips via CSS
  *  transform so the geometry stays identical between prev & next. */
-function NavArrowGlyph({
+export function NavArrowGlyph({
   variant,
   direction,
   sizePx,
@@ -654,7 +654,6 @@ interface NavArrowsProps {
   nav: NavStyleResolved;
 }
 function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps) {
-  const iconPx = Math.max(14, Math.round(nav.sizePx * 0.42));
   const cssVars: CSSProperties = {
     ["--nav-bg" as string]: nav.bgColor,
     ["--nav-arrow" as string]: nav.arrowColor,
