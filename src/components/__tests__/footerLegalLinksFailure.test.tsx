@@ -213,12 +213,27 @@ describe("Footer - awaria chunku listwy prawnej (recenzja 2, B1)", () => {
     );
     expect(observer).toBeDefined();
     await act(async () => observer?.emit());
-    for (let i = 0; i < 4; i += 1) await frame();
+    // Klatki do wyjścia wyspy ze stanu `pending`, nie stała ich liczba:
+    // odrzucenie importu przechodzi przez runner modułów Vitesta, więc pod
+    // obciążeniem shardu CI trwa dłużej niż kilka klatek (przebieg
+    // 38035498046: `pending` po 4). Czekanie kończy też błąd w korzeniu i
+    // zdjęta wyspa - werdykt wydają asercje niżej; błąd rzucony z `act` w
+    // `frame()` przerywa test od razu (`vi.waitFor` ponowiłby próbę i go
+    // połknął). Limit poniżej `testTimeout` (20 s): wyspa, która się nie
+    // uwodni, kończy test asercją stanu, nie przekroczeniem czasu.
+    const island = () => host.querySelector('[data-island-id="site-footer"]');
+    const deadline = performance.now() + 10_000;
+    while (
+      uncaught.length === 0 &&
+      island()?.getAttribute("data-island-state") === "pending" &&
+      performance.now() < deadline
+    ) {
+      await frame();
+    }
 
     // Nic nie doszło do korzenia (bez granicy: globalny ekran błędu strony).
     expect(uncaught).toEqual([]);
-    const island = host.querySelector('[data-island-id="site-footer"]');
-    expect(island?.getAttribute("data-island-state")).toBe("hydrated");
+    expect(island()?.getAttribute("data-island-state")).toBe("hydrated");
     // Strona przeżyła: stopka i dokument buildera to te same węzły serwera.
     expect(host.querySelector("footer[data-site-footer]")).not.toBeNull();
     expect(host.querySelector('[data-probe="footer-section"]')).toBe(serverSection);
