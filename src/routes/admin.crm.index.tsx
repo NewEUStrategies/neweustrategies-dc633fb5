@@ -1618,7 +1618,7 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
                 <CrmEventActivityLink meta={e.meta} label={L.detail.tlOpenEvent} />
               )}
               {e.detail && (
-                <p className="mt-1 text-[12px] text-muted-foreground whitespace-pre-wrap leading-snug">
+                <p className="mt-1 text-[12px] text-muted-foreground whitespace-pre-wrap [overflow-wrap:anywhere] leading-snug">
                   {e.detail}
                 </p>
               )}
