@@ -8,18 +8,22 @@
 //
 // Tu schowek z TABELĄ (HTML z arkusza albo tekst z tabulatorami) jest
 // przekładany na format pola: średniki, kropka dziesiętna, etykiety bez
-// średnika. Wklejenie zastępuje treść pola w całości - tabela to cały zestaw
-// danych, a doklejona w środek tekstu rozbiłaby nagłówek. Zwykły tekst (także
+// średnika. W polu WYKRESU wklejenie zastępuje treść w całości - tabela to
+// cały zestaw danych, a doklejona w środek tekstu rozbiłaby nagłówek. Pole
+// MAPY dostaje także same wartości (`values`) i dokłada kraje do swoich
+// wierszy (`MapDataField`) - wiersz mapy to jeden kraj, więc jeden wiersz
+// skopiowany z arkusza nie może skasować reszty. Zwykły tekst (także
 // skopiowany gotowy format średnikowy) wkleja się po staremu.
 import { readClipboardTable, type ClipboardPayload } from "@/lib/charts/clipboardTable";
 import {
   mapValuesToText,
   tableToChartData,
-  tableToMapValues,
   type CountryIndex,
   type ImportProblem,
 } from "@/lib/charts/importTable";
+import type { MapDatum } from "@/lib/charts/types";
 import { widgetGridCsv } from "./chartGridState";
+import { initialMapTableLayout, mapTableValues } from "./mapTableLayout";
 
 export interface TextareaPasteResult {
   text: string;
@@ -45,20 +49,33 @@ export function clipboardToChartText(payload: ClipboardPayload): TextareaPasteRe
   };
 }
 
+/** Wynik wklejenia do pola MAPY: tekst plus same wartości (pole dokłada je do swoich wierszy). */
+export interface MapTextareaPasteResult extends TextareaPasteResult {
+  values: MapDatum[];
+}
+
 /**
  * Schowek -> tekst pola danych MAPY („ISO2; wartość" na wiersz) albo `null`.
  * Skorowidz krajów regionu rozwiązuje nazwy („Polska", „POL") - bez niego
  * przechodzą wyłącznie kody ISO-2.
+ *
+ * UKŁAD TABELI rozpoznaje `initialMapTableLayout` - to samo, co ustawia
+ * podgląd siatki i importu: kolumna krajów nie musi być pierwsza („Lp. |
+ * Kraj | Wartość"), tabela bywa obrócona („Rok | PL | DE"), a wiersz
+ * z krajem nigdy nie jest nagłówkiem. Wartości liczy `mapTableValues`, więc
+ * textarea i siatka czytają tę samą tabelę tak samo. `values` puste =
+ * nic nie rozpoznano; wtedy o polu decyduje wołający (nie musi go czyścić).
  */
 export function clipboardToMapText(
   payload: ClipboardPayload,
   index?: CountryIndex,
-): TextareaPasteResult | null {
+): MapTextareaPasteResult | null {
   const table = tabela(payload);
   if (table === null) return null;
-  const dane = tableToMapValues(table.rows, index, {});
+  const dane = mapTableValues(table.rows, index, initialMapTableLayout(table.rows, index));
   return {
     text: mapValuesToText(dane.values),
+    values: dane.values,
     problems: [...(table.truncated ? [{ code: "pasteTruncated" as const }] : []), ...dane.problems],
   };
 }
