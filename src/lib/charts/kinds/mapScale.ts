@@ -177,6 +177,48 @@ function innerBreaks(candidates: readonly number[], lo: number, hi: number): num
   return out;
 }
 
+/** Liczba różnych wartości w tablicy posortowanej. */
+function distinctSorted(sorted: readonly number[]): number {
+  let n = 0;
+  for (let i = 0; i < sorted.length; i += 1) if (i === 0 || sorted[i] !== sorted[i - 1]) n += 1;
+  return n;
+}
+
+/** Granice wewnętrzne `k` klas kwantylowych w przedziale (lo, hi). */
+function quantileBreaks(sorted: readonly number[], k: number, lo: number, hi: number): number[] {
+  return innerBreaks(
+    Array.from({ length: k - 1 }, (_, i) => quantileSorted(sorted, (i + 1) / k)),
+    lo,
+    hi,
+  );
+}
+
+/**
+ * Kwantyle w schemacie rozbieżnym, gdy środek leży WEWNĄTRZ domeny: środek
+ * jest granicą klas, a kwantyle liczą się osobno po każdej stronie. Kwantyle
+ * z całej domeny środka nie znają - klasa obejmowała wtedy wartości po obu
+ * jego stronach i malowała spadek odcieniem wzrostu (albo odwrotnie).
+ *
+ * Klasy dzielą się między strony proporcjonalnie do liczby krajów, co
+ * najmniej jedna na stronę. Strona nie udźwignie więcej klas, niż ma różnych
+ * wartości (reszta byłaby pusta), więc nadmiar przechodzi na drugą stronę -
+ * zamówiona liczba klas zostaje, dopóki dane na to pozwalają. Wartość równa
+ * środkowi należy do klasy wyższej, tak jak każda wartość na granicy.
+ */
+function divergingQuantileBreaks(sorted: readonly number[], k: number, mid: number): number[] {
+  const below = sorted.filter((v) => v < mid);
+  const above = sorted.filter((v) => v >= mid);
+  let kBelow = Math.round((k * below.length) / sorted.length);
+  kBelow = Math.min(kBelow, distinctSorted(below));
+  kBelow = Math.max(kBelow, k - distinctSorted(above));
+  kBelow = Math.max(1, Math.min(k - 1, kBelow));
+  return [
+    ...quantileBreaks(below, kBelow, sorted[0], mid),
+    mid,
+    ...quantileBreaks(above, k - kBelow, mid, sorted[sorted.length - 1]),
+  ];
+}
+
 /** Liczba klas po dociśnięciu; 0 = skala ciągła. */
 function effectiveClasses(classes: number): number {
   if (!Number.isFinite(classes) || classes <= 0) return 0;
@@ -259,12 +301,12 @@ export function mapScale(
       lo,
       hi,
     );
+  } else if (mid !== null && lo < mid && mid < hi) {
+    // Kwantyle rozbieżne: środek jest granicą, żadna klasa przez niego nie
+    // przechodzi (patrz `divergingQuantileBreaks`).
+    breaks = divergingQuantileBreaks(sorted, k, mid);
   } else {
-    breaks = innerBreaks(
-      Array.from({ length: k - 1 }, (_, i) => quantileSorted(sorted, (i + 1) / k)),
-      lo,
-      hi,
-    );
+    breaks = quantileBreaks(sorted, k, lo, hi);
   }
 
   // Zdegenerowana domena (jedna wartość albo wszystkie równe) daje jedną

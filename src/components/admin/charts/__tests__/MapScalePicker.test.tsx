@@ -131,6 +131,70 @@ describe("klasy, metoda, środek skali", () => {
   });
 });
 
+// ŚRODEK SKALI - wpis, który nie jest liczbą, nie może cicho zamienić się
+// w 0. Pusty środek znaczy 0, a 0 to prawdziwy środek: mapa przemalowałaby
+// się wokół niego, a pole dalej pokazywałoby wpis autora. Pole czyta liczby
+// regułą komórki arkusza (minus typograficzny, spacja tysięcy z Excela),
+// a wpis nie do odczytania zostawia zapisany środek i dostaje `aria-invalid`
+// ze zdaniem - jak komórka siatki danych.
+describe("środek skali - wpis spoza liczb", () => {
+  const pole = (): HTMLInputElement =>
+    screen.getByRole("textbox", { name: /Środek skali/ }) as HTMLInputElement;
+
+  it.each([
+    ["37\u00a0600", 37600],
+    ["1 234,5", 1234.5],
+    ["\u22122", -2],
+    ["2,5", 2.5],
+  ])("„%s” czyta się jak w arkuszu: %d", (wpis, liczba) => {
+    const { onChange } = zamontuj({ scheme: "diverging" });
+    fireEvent.change(pole(), { target: { value: wpis } });
+    expect(onChange).toHaveBeenCalledWith({ midpoint: liczba });
+  });
+
+  it("wpis nie do odczytania nie zapisuje braku - środek zostaje, pole mówi, co jest nie tak", () => {
+    const { onChange } = zamontuj({ scheme: "diverging", midpoint: 5 });
+    fireEvent.change(pole(), { target: { value: "pięć" } });
+    fireEvent.blur(pole());
+    expect(onChange).not.toHaveBeenCalled();
+    expect(pole().value).toBe("pięć");
+    expect(pole()).toHaveAttribute("aria-invalid", "true");
+    const opis = document.getElementById(pole().getAttribute("aria-describedby") ?? "");
+    expect(opis?.textContent).toBe(
+      "To nie jest liczba - mapa zostaje przy poprzednim środku skali. Popraw wpis albo wyczyść pole (puste = 0).",
+    );
+  });
+
+  it("poprawka zdejmuje uwagę i zapisuje liczbę", () => {
+    const { onChange } = zamontuj({ scheme: "diverging", midpoint: 5 });
+    fireEvent.change(pole(), { target: { value: "x" } });
+    fireEvent.blur(pole());
+    fireEvent.change(pole(), { target: { value: "7" } });
+    expect(onChange).toHaveBeenCalledWith({ midpoint: 7 });
+    expect(pole()).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("puste pole to świadome 0 (brak klucza), bez uwagi", () => {
+    const { onChange } = zamontuj({ scheme: "diverging", midpoint: 5 });
+    fireEvent.change(pole(), { target: { value: "" } });
+    fireEvent.blur(pole());
+    expect(onChange).toHaveBeenCalledWith({ midpoint: null });
+    expect(pole()).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("panel angielski: zdanie po angielsku", () => {
+    zamontuj({ scheme: "diverging", midpoint: 5 }, { lang: "en" });
+    const pl = screen.getByRole("textbox", { name: /Scale midpoint/ });
+    fireEvent.change(pl, { target: { value: "five" } });
+    fireEvent.blur(pl);
+    expect(
+      screen.getByText(
+        "This is not a number - the map keeps the previous midpoint. Correct the entry or clear the field (empty = 0).",
+      ),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("mini-legenda na aktualnych danych", () => {
   it("pięć klas kwantylowych z przedziałami w jednostce", () => {
     const { container } = zamontuj();

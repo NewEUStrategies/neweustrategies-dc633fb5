@@ -81,7 +81,9 @@ export function MapDataField({
   setContent,
   setContentPatch,
 }: Props) {
-  const t = useChartEditorT(lang);
+  // Napisy pola (podpowiedź importu, problemy wklejki) - językiem panelu,
+  // jak problemy importu z pliku; język płótna dostaje tylko arkusz mapy.
+  const t = useChartEditorT();
   const geo = useQuery(geoAssetQueryOptions(region));
   const countries = Array.isArray(geo.data?.countries) ? geo.data.countries : undefined;
   // Skorowidz regionu, a do jego wczytania - światowy (`mapCountryLookup`).
@@ -118,7 +120,7 @@ export function MapDataField({
         className="text-xs font-mono"
         placeholder={placeholder}
       />
-      <ImportProblemList problems={problems} lang={lang} />
+      <ImportProblemList problems={problems} />
       <DataImportControl
         hint={t("mapEditor.import.hint")}
         preview="map"

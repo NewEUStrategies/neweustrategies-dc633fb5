@@ -6,8 +6,9 @@
 // klucz schematu - liczba klas, metoda i środek skali są osobnymi polami
 // schematu panelu, a legenda tylko je czyta. Przypadki zaślepki zostały
 // zastąpione razem z nią (zapowiedź w jej nagłówku).
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import i18n from "@/lib/i18n";
 import "@/lib/i18n-map-editor";
 import type { Json } from "@/lib/builder/types";
 import type { SchemaField } from "@/lib/builder/schemas";
@@ -76,15 +77,44 @@ describe("mapScheme - grupa radiowa schematów", () => {
     expect(screen.getAllByRole("radio")).toHaveLength(2);
   });
 
-  it("panel angielski: nazwy kanoniczne po angielsku", () => {
-    renderField({ scheme: "diverging" }, POLE, "en");
-    expect(screen.getByRole("radio", { name: /Diverging \(decrease - increase\)/ })).toBeChecked();
-  });
-
   it("liczba klas i środek skali NIE są tu kontrolkami - to osobne pola schematu", () => {
     renderField({ scheme: "diverging", classes: "5" });
     expect(screen.queryByRole("combobox", { name: "Liczba klas" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: /Środek skali/ })).toBeNull();
+  });
+});
+
+// JĘZYK NAPISÓW POLA to język PANELU (interfejsu admina), a nie płótna:
+// pola obok („Liczba klas", „Metoda podziału") mówią językiem panelu, więc
+// nazwy schematów w języku płótna mieszały dwa języki w jednej grupie.
+// Język płótna zostaje dla liczb mini-legendy - to legenda czytelnika.
+describe("mapScheme - napisy w języku panelu, liczby legendy w języku płótna", () => {
+  afterEach(async () => {
+    cleanup();
+    await i18n.changeLanguage("pl");
+  });
+
+  it("panel angielski, płótno polskie: nazwy schematów po angielsku", async () => {
+    await i18n.changeLanguage("en");
+    renderField({ scheme: "diverging" }, POLE, "pl");
+    expect(screen.getByRole("radio", { name: /Diverging \(decrease - increase\)/ })).toBeChecked();
+    expect(screen.queryByText("rozbieżny (spadek - wzrost)")).toBeNull();
+    expect(screen.getByText("Legend preview")).toBeInTheDocument();
+  });
+
+  it("panel polski, płótno angielskie: nazwy po polsku, liczby legendy po angielsku", async () => {
+    const { container } = renderField(
+      { scheme: "blue", classes: "3", method: "equal", data: "PL; 1,5\nDE; 2\nFR; 4,5" },
+      POLE,
+      "en",
+    );
+    expect(screen.getByRole("radio", { name: /niebieski/ })).toBeChecked();
+    expect(screen.getByText("Podgląd legendy")).toBeInTheDocument();
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector("[data-map-legend-preview] [data-map-class]")?.textContent,
+      ).toMatch(/1\.5/),
+    );
   });
 });
 

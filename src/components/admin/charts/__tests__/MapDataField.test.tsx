@@ -31,6 +31,8 @@ vi.mock("@/components/ui/select", async () => {
 
 interface Opcje {
   value?: string;
+  /** Język PŁÓTNA (treści widgetu); domyślnie polski. */
+  lang?: "pl" | "en";
 }
 
 /** Zasób Europy w pamięci podręcznej od startu - skorowidz krajów jest od razu. */
@@ -59,7 +61,7 @@ function zamontuj(opts: Opcje = {}) {
         }}
         region="europe"
         content={content}
-        lang="pl"
+        lang={opts.lang ?? "pl"}
         setContent={() => undefined}
         setContentPatch={(p) => {
           setContentPatch(p);
@@ -218,5 +220,19 @@ describe("„Edytuj w arkuszu” - siatka mapy z podglądem", () => {
         }) as HTMLInputElement
       ).value,
     ).toBe("FR");
+  });
+});
+
+// Napisy POLA (podpowiedź importu, problemy wklejki) mówią językiem panelu
+// admina, jak problemy importu z pliku (`DataImportControl`) i pozostałe pola
+// panelu. Język płótna należy do arkusza mapy (okno), nie do pola.
+describe("język pola - panel admina, nie płótno", () => {
+  it("płótno angielskie, panel polski: podpowiedź i problemy wklejki po polsku", () => {
+    const { container } = zamontuj({ lang: "en" });
+    expect(screen.getByText(/xlsx, xls, ods, csv, tsv i inne arkusze/)).toBeInTheDocument();
+    const pole = container.querySelector("textarea");
+    if (pole === null) throw new Error("brak pola");
+    wklej(pole, { text: "Kraj\tWartość\nPolska\t12,5\nNarnia\t3" });
+    expect(screen.getByText("Nierozpoznane kraje: Narnia.")).toBeInTheDocument();
   });
 });

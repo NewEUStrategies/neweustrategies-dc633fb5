@@ -97,7 +97,11 @@ export const MAP_HATCH = {
   spacingPx: 5,
   /** Grubość linii (px CSS). */
   linePx: 1,
-  /** Kąt linii. */
+  /**
+   * Kąt kreskowania w konwencji CSS `linear-gradient`: 45deg to linie „\"
+   * (z lewej góry w prawy dół). Ten sam kierunek ma wzór na mapie
+   * (`hatchTransform`) i odcinki klucza eksportu (`odcinkiKreskowania`).
+   */
   angle: 45,
   /**
    * Odstęp w PRÓBCE legendy i tooltipa (px CSS). Próbka ma 10 px, więc
@@ -121,10 +125,15 @@ export function viewBoxWidth(viewBox: string): number {
  * `patternTransform` kreskowania: obrót i skala `viewBox / szerokość` -
  * jednostka wzoru staje się pikselem CSS. Szerokość zerowa (przed pomiarem)
  * nie może dać nieskończonej skali, więc wtedy skala jest jednostkowa.
+ *
+ * KĄT Z MINUSEM, i to nie jest pomyłka. Linia wzoru jest pionowa, a `rotate()`
+ * w SVG obraca zgodnie z ruchem wskazówek zegara (oś y w dół): `rotate(45)`
+ * kładzie ją jako „/", czyli lustro próbki legendy i klucza eksportu.
+ * `rotate(-45)` daje „\" - ten sam kierunek co `MAP_HATCH.angle` w CSS.
  */
 export function hatchTransform(vbWidth: number, drawWidth: number): string {
   const k = vbWidth > 0 && drawWidth > 0 ? vbWidth / drawWidth : 1;
-  return `rotate(${MAP_HATCH.angle}) scale(${Number(k.toFixed(4))})`;
+  return `rotate(${-MAP_HATCH.angle}) scale(${Number(k.toFixed(4))})`;
 }
 
 /**

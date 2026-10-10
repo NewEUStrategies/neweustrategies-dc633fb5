@@ -417,3 +417,96 @@ describe("mapScale - stopOf: kotwice hex dla wypełnienia awaryjnego i eksportu"
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// KWANTYLE ROZBIEŻNE - środek skali jest granicą klas.
+//
+// Kwantyle liczone z całej domeny nie znają środka skali: klasa potrafiła
+// objąć wartości po obu jego stronach, a kolor brała ze strony, po której
+// leżał jej środek. Kraj ze spadkiem (-1) malował się wtedy odcieniem
+// wzrostu razem z próbką legendy. Klasa nie może przechodzić przez środek,
+// a znak koloru nie może przeczyć znakowi odchylenia.
+// ---------------------------------------------------------------------------
+
+/** Powtarzalne liczby pseudolosowe (LCG) - test ma ten sam wynik przy każdym biegu. */
+function losowe(seed: number, n: number, lo: number, hi: number): number[] {
+  let s = seed;
+  return Array.from({ length: n }, () => {
+    s = (s * 1664525 + 1013904223) % 4294967296;
+    return Math.round((lo + (s / 4294967296) * (hi - lo)) * 100) / 100;
+  });
+}
+
+describe("mapScale - kwantyle rozbieżne: środek skali jest granicą klas", () => {
+  it("spadek nie dostaje koloru wzrostu (przypadek z przeglądu)", () => {
+    const s = mapScale([-1, 9, 10, 11, 12], "diverging", 3, "quantile", 0);
+    expect(divergingOf(s.colorOf(-1))).toBeLessThan(0);
+    expect(divergingOf(s.classes[0].color)).toBeLessThan(0);
+    expect(s.classes.some((c) => c.from === 0)).toBe(true);
+    for (const v of [9, 10, 11, 12]) expect(divergingOf(s.colorOf(v))).toBeGreaterThan(0);
+  });
+
+  it("wzrost nie dostaje koloru spadku", () => {
+    const s = mapScale([-5, 1, 2, 3, 4, 5, 6, 7, 8, 20], "diverging", 5, "quantile", 0);
+    expect(divergingOf(s.colorOf(1))).toBeGreaterThan(0);
+    expect(divergingOf(s.colorOf(-5))).toBeLessThan(0);
+  });
+
+  it("stopy wzrostu z jednym krajem lekko pod zerem", () => {
+    const values = [-0.3, 0.2, 0.7, 0.9, 1.1, 1.3, 2.0, 2.5, 3.2, 4.1];
+    const s = mapScale(values, "diverging", 5, "quantile", 0);
+    expect(divergingOf(s.colorOf(-0.3))).toBeLessThan(0);
+    expect(s.classes).toHaveLength(5);
+  });
+
+  it("losowe dane: żadna klasa nie przechodzi przez środek, znak koloru zgodny ze znakiem odchylenia", () => {
+    for (let seed = 1; seed <= 40; seed += 1) {
+      const values = losowe(seed, 8 + (seed % 23), -20, 35);
+      const mid = [0, 5, -3.5][seed % 3];
+      const lo = Math.min(...values);
+      const hi = Math.max(...values);
+      for (let k = MAP_CLASSES_MIN; k <= MAP_CLASSES_MAX; k += 1) {
+        const s = mapScale(values, "diverging", k, "quantile", mid);
+        const opis = `seed ${seed} k=${k} mid=${mid}`;
+        if (lo < mid && mid < hi) {
+          expect(
+            s.classes.some((c) => c.from === mid),
+            opis,
+          ).toBe(true);
+          for (const c of s.classes) expect(c.from < mid && mid < c.to, opis).toBe(false);
+        }
+        for (const v of values) {
+          const znak = Math.sign(divergingOf(s.colorOf(v))) * Math.sign(v - mid);
+          expect(znak, `${opis} v=${v}`).not.toBe(-1);
+        }
+      }
+    }
+  });
+
+  it("zamówiona liczba klas zostaje, gdy po obu stronach jest dość różnych wartości", () => {
+    const values = [-9, -7, -6, -4, -2, -1, 1, 2, 3, 5, 6, 8, 9, 11];
+    for (let k = MAP_CLASSES_MIN; k <= MAP_CLASSES_MAX; k += 1) {
+      const s = mapScale(values, "diverging", k, "quantile", 0);
+      expect(s.classes, `k=${k}`).toHaveLength(k);
+      // Każda klasa ma kraj - podział nie zostawia pustych przedziałów.
+      expect(new Set(values.map((v) => s.classIndexOf(v))).size, `k=${k}`).toBe(k);
+    }
+  });
+
+  it("strona z jedną wartością dostaje jedną klasę, reszta idzie na drugą stronę", () => {
+    const values = [-1, 2, 3, 4, 5, 6, 7, 8, 9];
+    const s = mapScale(values, "diverging", 5, "quantile", 0);
+    expect(s.classes).toHaveLength(5);
+    expect(s.classes.filter((c) => c.to <= 0)).toHaveLength(1);
+    expect(s.classIndexOf(-1)).toBe(0);
+  });
+
+  it("środek poza domeną: kwantyle bez zmian (granica środka nie jest potrzebna)", () => {
+    const values = [2, 3, 5, 8, 13, 21];
+    const rozbiezna = mapScale(values, "diverging", 3, "quantile", 0);
+    const sekwencyjna = mapScale(values, "blue", 3, "quantile", null);
+    expect(rozbiezna.classes.map((c) => [c.from, c.to])).toEqual(
+      sekwencyjna.classes.map((c) => [c.from, c.to]),
+    );
+  });
+});
