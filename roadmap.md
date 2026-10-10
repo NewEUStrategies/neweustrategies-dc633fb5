@@ -2,8 +2,8 @@
 
 ## Pełne wiadomości i limity formularzy
 
-- [ ] Usunąć obcinanie treści w CRM i zachować pełne wiadomości przy zbieraniu.
-- [ ] Pokazać liczniki i rzeczywiste limity w formularzach PL/EN, zweryfikować testami.
+- [x] Usunąć obcinanie treści w CRM i zachować pełne wiadomości przy zbieraniu.
+- [x] Pokazać liczniki i rzeczywiste limity w formularzach PL/EN, zweryfikować testami.
 
 ## Kafelki typów treści w klubie
 
