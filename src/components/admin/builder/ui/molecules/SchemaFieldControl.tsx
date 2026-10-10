@@ -253,7 +253,6 @@ export function SchemaFieldControl({ field, lang, content, setContent, setConten
               lang={lang}
               setContent={setContent}
               setContentPatch={patchContent}
-              dataKey={field.key}
             />
           </div>
         </PropField>
