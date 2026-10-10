@@ -27,6 +27,7 @@
 //   * `empty`  - tenant nie ma ŻADNEGO opublikowanego artykułu: pliku nie ma
 //                (trasa oddaje 404), a indeks sitemapy go nie ogłasza.
 import { xmlEscape } from "@/lib/seo/rss";
+import { SITEMAP_STYLESHEET_PI } from "@/lib/seo/sitemapStylesheet";
 
 export const NEWS_SITEMAP_WINDOW_MS = 48 * 60 * 60 * 1000;
 const NEWS_SITEMAP_MAX_ENTRIES = 1000;
@@ -154,6 +155,7 @@ export function renderNewsSitemapXml(publicationName: string, plan: NewsSitemapP
   );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
+    SITEMAP_STYLESHEET_PI,
     `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">`,
     ...urls,
     `</urlset>`,

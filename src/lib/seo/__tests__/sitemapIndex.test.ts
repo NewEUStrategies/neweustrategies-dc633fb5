@@ -224,12 +224,16 @@ describe("buildSitemapIndexXml - wejścia niepełne", () => {
     expect(xml).toContain("<lastmod>2026-08-01</lastmod>");
   });
 
-  it("pusta lista wpisów daje poprawny, pusty indeks (a nie połamany XML)", () => {
-    // Świeża instalacja bez treści nadal MUSI odpowiedzieć dokumentem, który
-    // walidator sitemaps.org przyjmie - inaczej GSC zgłasza błąd pobierania.
+  it("pusta lista wpisów daje domknięty indeks (a nie połamany XML)", () => {
+    // Generator nie może wyemitować uciętego dokumentu nawet bez wpisów. Trasa
+    // indeksu i tak zawsze ogłasza statyczny shard `core` - pusty
+    // `<sitemapindex>` (niepoprawny wobec schematu, GSC: „Brak tagu XML:
+    // sitemap") nie wychodzi do crawlera. Drugi wiersz to arkusz wyglądu
+    // dla przeglądarki (`lib/seo/sitemapStylesheet.ts`).
     const xml = buildSitemapIndexXml([]);
     expect(xml).toBe(
       '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>\n' +
         '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
         "</sitemapindex>",
     );

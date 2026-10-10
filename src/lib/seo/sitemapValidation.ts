@@ -357,6 +357,23 @@ function parseXml(source: string): ParseResult {
   return { root, error: null, undeclared };
 }
 
+/**
+ * Czy dokument jest poprawnym XML-em (domknięte znaczniki, encje, jeden
+ * korzeń, zadeklarowane prefiksy). Ten sam parser, którym walidator czyta
+ * pliki mapy - używany też przez test arkusza XSL.
+ */
+export function checkXmlWellFormed(
+  source: string,
+): { ok: true } | { ok: false; message: string; line: number } {
+  const parsed = parseXml(source);
+  if (parsed.error) return { ok: false, ...parsed.error };
+  const undeclared = parsed.undeclared[0];
+  if (undeclared) {
+    return { ok: false, message: `undeclared prefix ${undeclared.prefix}`, line: undeclared.line };
+  }
+  return { ok: true };
+}
+
 // ---------------------------------------------------------------------------
 // Reguły
 // ---------------------------------------------------------------------------

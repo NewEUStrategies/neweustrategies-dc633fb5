@@ -2369,6 +2369,9 @@ const HOST_SURFACE_EXEMPT: Readonly<Record<string, string>> = {
   "/sitemap-index.xml":
     "alias 301 na /sitemap.xml - nie czyta tenanta ani danych (blok „alias indeksu” wyżej)",
   "/sitemap": "strona HTML renderowana przez SSR komponentu, nie handler powierzchni crawlera",
+  "/sitemap.xsl":
+    "statyczny arkusz wyglądu map (XSLT) - nie czyta tenanta ani danych, nie ma czego degradować " +
+    "(kontrakt: `routes/__tests__/sitemapStylesheetRoute.test.ts`)",
   "/robots.txt":
     "własny kontrakt: fail-closed to `Disallow: /`, nie 404, a niepewność katalogu to " +
     "`volatile` bez cache - `lib/server/__tests__/robotsRequest.test.ts`; tutaj tylko " +

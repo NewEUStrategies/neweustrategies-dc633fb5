@@ -17,6 +17,8 @@
 // Ten moduł jest CZYSTY (bez I/O, bez frameworka), więc kontrakt limitów i
 // nazewnictwa shardów da się przetestować jednostkowo.
 
+import { SITEMAP_STYLESHEET_PI } from "./sitemapStylesheet";
+
 /**
  * Adresów na jeden shard. Połowa twardego limitu protokołu (50 000): jeden wpis
  * <url> z klastrem hreflang to ~400 B, więc 25 000 daje ~10 MB - z zapasem pod
@@ -141,6 +143,7 @@ export function buildSitemapIndexXml(entries: readonly SitemapIndexEntry[]): str
   );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
+    SITEMAP_STYLESHEET_PI,
     `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`,
     ...blocks,
     `</sitemapindex>`,

@@ -10,6 +10,7 @@ import {
 } from "@/lib/i18n/localePath";
 import type { RedirectIndex } from "@/lib/seo/redirects";
 import { sitemapLanguageUrls } from "@/lib/seo/sitemapUrls";
+import { SITEMAP_STYLESHEET_PI } from "@/lib/seo/sitemapStylesheet";
 
 // Jeden escaper dla wszystkich powierzchni XML (RSS i sitemapy) - dwie kopie
 // tej samej funkcji rozjeżdżały się przy każdej zmianie.
@@ -135,6 +136,7 @@ export function newestLastmod(blocks: readonly SitemapUrlBlock[]): string | null
 export function buildUrlsetXml(blocks: readonly SitemapUrlBlock[]): string {
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
+    SITEMAP_STYLESHEET_PI,
     `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">`,
     ...blocks.map(renderUrlBlock),
     `</urlset>`,
