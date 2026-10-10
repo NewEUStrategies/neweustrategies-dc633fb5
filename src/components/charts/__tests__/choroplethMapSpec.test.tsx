@@ -78,6 +78,8 @@ vi.mock("@/lib/charts/exportImage", async (importOriginal) => ({
 }));
 
 const { ChoroplethMap } = await import("../ChoroplethMap");
+const { MAP_NODATA_SWATCH } = await import("../mapPaint");
+const { odcinkiKreskowania } = await import("@/lib/charts/exportImage");
 
 /** Kraje atrapy; kształt zależy od pozycji, więc ścieżkę znajdziemy po `d`. */
 const KRAJE = ["PL", "DE", "FR", "CZ", "SK"] as const;
@@ -497,5 +499,42 @@ describe("pusty zestaw, domena i motyw", () => {
     const norm = (html: string): string =>
       html.replace(/neh-map-hatch-[\w-]+/g, "neh-map-hatch").replace(/_r_[0-9a-z]+_/g, "_r_");
     expect(norm(zdejmijHex(ciemna.container.innerHTML))).toBe(norm(htmlJasna));
+  });
+});
+
+// KIERUNEK KRESKOWANIA - jeden na mapie, w próbce legendy i tooltipa oraz
+// w kluczu eksportu. Każda z trzech dróg ma inną konwencję kąta: `rotate()`
+// w SVG obraca zgodnie z ruchem wskazówek zegara przy osi y w dół, kąt
+// `linear-gradient` w CSS wskazuje kierunek gradientu (pasy leżą w poprzek
+// niego), a klucz eksportu rysuje odcinki wprost. Ta sama liczba 45 dawała
+// więc „/" na mapie i „\" w kluczu, który ją objaśnia. Test liczy kierunek
+// na ekranie z tego, co każda droga naprawdę rysuje.
+describe("kreskowanie „brak danych” - jeden kierunek wszędzie", () => {
+  /** Kierunek odcinka na ekranie (oś y w dół): „\" albo „/". */
+  const kierunek = (dx: number, dy: number): string => (dx * dy > 0 ? "\\" : "/");
+
+  it("wzór mapy, próbka legendy i klucz eksportu biegną „\\”", async () => {
+    const { container } = await mapa(KLASY);
+    const wzor = container.querySelector("svg.block pattern") as SVGPatternElement;
+    const kat = Number(
+      /rotate\((-?[\d.]+)\)/.exec(wzor.getAttribute("patternTransform") ?? "")?.[1],
+    );
+    // Linia wzoru to prostokąt - dłuższy bok wyznacza jej kierunek przed obrotem.
+    const linia = wzor.querySelectorAll("rect")[1];
+    const pionowa = Number(linia.getAttribute("height")) > Number(linia.getAttribute("width"));
+    const [x, y] = pionowa ? [0, 1] : [1, 0];
+    const a = (kat * Math.PI) / 180;
+    const naMapie = kierunek(x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a));
+
+    // Gradient CSS pod kątem θ biegnie w stronę (sin θ, -cos θ), pasy - w poprzek.
+    const theta =
+      (Number(/repeating-linear-gradient\((-?[\d.]+)deg/.exec(MAP_NODATA_SWATCH)?.[1]) * Math.PI) /
+      180;
+    const wProbce = kierunek(Math.cos(theta), Math.sin(theta));
+
+    const [x1, y1, x2, y2] = odcinkiKreskowania(0, 0, 10, 3)[0];
+    const wKluczu = kierunek(x2 - x1, y2 - y1);
+
+    expect({ naMapie, wProbce, wKluczu }).toEqual({ naMapie: "\\", wProbce: "\\", wKluczu: "\\" });
   });
 });

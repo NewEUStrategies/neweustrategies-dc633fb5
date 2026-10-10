@@ -332,7 +332,7 @@ export interface WpisKlucza {
 
 /**
  * Odcinki kreskowania kwadratu `bok` x `bok` o lewym górnym rogu (x, y):
- * linie „\" (kierunek (1, 1), jak `rotate(45)` wzoru na mapie) co `odstep`
+ * linie „\" (kierunek (1, 1), jak wzór na mapie i próbka legendy) co `odstep`
  * px MIERZONYCH PROSTOPADLE, przycięte do kwadratu analitycznie - bez
  * `clipPath` w SVG i bez ścieżki przycięcia na płótnie, więc PNG i SVG
  * rysują dokładnie te same odcinki.

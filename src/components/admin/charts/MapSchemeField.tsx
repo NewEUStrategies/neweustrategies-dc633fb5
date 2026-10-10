@@ -14,6 +14,10 @@
 //
 // Etykieta pola stoi RAZ: rysuje ją `PropField`, a grupa radiowa bierze z niej
 // nazwę dostępną (`labelledBy`), zamiast pokazywać własny drugi napis.
+//
+// JĘZYK: napisy wyboru (nazwy schematów, „Podgląd legendy") idą językiem
+// PANELU, jak etykiety i opcje pól obok - język płótna dostaje tylko
+// mini-legenda (`docLang`), bo to legenda czytelnika z liczbami treści.
 import { useId, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import "@/lib/i18n-map-editor";
@@ -81,8 +85,9 @@ export function MapSchemeField({ field, content, lang, setContent }: SchemaField
         values={values}
         showNoData={showNoData}
         unit={cfg.unit}
+        // Język płótna tylko dla liczb mini-legendy; napisy wyboru mówią
+        // językiem panelu, jak pola obok (`bl`).
         docLang={lang}
-        lang={lang}
         schemes={schemes}
         labelledBy={labelId}
         showHint={false}

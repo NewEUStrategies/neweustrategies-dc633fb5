@@ -22,11 +22,11 @@
 //
 // Komponent nie wie nic o zapisie: oddaje zmianę jako łatkę
 // (`onChange(patch)`), a wołający zapisuje ją JEDNYM zapisem.
-import { useId, useMemo, type CSSProperties } from "react";
+import { useId, useMemo, useState, type CSSProperties } from "react";
 import { Check } from "lucide-react";
 import "@/lib/i18n-map-editor";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
-import { DecimalInput } from "@/components/admin/blocks/edit/dataVizShared";
+import { inputCls } from "@/components/admin/blocks/edit/dataVizShared";
 import { MapLegend } from "@/components/charts/MapLegend";
 import { mapPaintOf } from "@/components/charts/mapPaint";
 import { mapScale } from "@/lib/charts/kinds/mapScale";
@@ -40,6 +40,7 @@ import {
 } from "@/lib/charts/types";
 import { cn } from "@/lib/utils";
 import { useChartEditorT, type EditorLang } from "./chartEditorI18n";
+import { formatCellNumber, readCellDraft } from "./gridCellValue";
 
 /** Ustawienia skali mapy - te same pola co w `DataMapConfig`. */
 export interface MapScaleValue {
@@ -105,6 +106,77 @@ const SWATCHES: Record<MapScheme, string[]> = {
 /** Farba próbki przez własność niestandardową (`.neh-map-swatch` w `map.css`), jak w legendzie. */
 function swatchStyle(color: string): CSSProperties {
   return { ["--neh-map-swatch" as string]: color } as CSSProperties;
+}
+
+/**
+ * Pole środka skali - szkic tekstu czytany regułą komórki arkusza
+ * (`readCellDraft`): minus typograficzny, spacja tysięcy z Excela i przecinek
+ * dziesiętny dają liczbę, tak jak w siatce danych mapy.
+ *
+ * WPIS SPOZA LICZB NIE ZAPISUJE BRAKU. Brak środka znaczy 0, a 0 to prawdziwy
+ * środek: mapa przemalowałaby się wokół niego, a pole dalej pokazywałoby wpis
+ * autora. Zapisany środek zostaje, a pole po wyjściu z niego dostaje
+ * `aria-invalid` i zdanie - jak komórka siatki. Uwaga czeka na wyjście, bo
+ * w trakcie pisania „-2" albo „2,5" przechodzą przez „-" i „2,".
+ */
+function MidpointInput({
+  value,
+  docLang,
+  label,
+  invalidText,
+  onCommit,
+}: {
+  value: number | null;
+  docLang: "pl" | "en";
+  label: string;
+  invalidText: string;
+  onCommit: (next: number | null) => void;
+}) {
+  const shown = formatCellNumber(value, docLang);
+  const [draft, setDraft] = useState(shown);
+  const [seen, setSeen] = useState(value);
+  const [invalid, setInvalid] = useState(false);
+  const messageId = useId();
+  // Wartość zmieniona z zewnątrz (cofnięcie) wymienia szkic, chyba że szkic
+  // już mówi to samo.
+  if (seen !== value) {
+    setSeen(value);
+    const r = readCellDraft(draft);
+    if (!r.ok || r.value !== value) {
+      setDraft(shown);
+      setInvalid(false);
+    }
+  }
+  return (
+    <>
+      <input
+        className={cn(inputCls, "aria-[invalid=true]:border-destructive")}
+        inputMode="decimal"
+        value={draft}
+        placeholder={label}
+        aria-label={label}
+        aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? messageId : undefined}
+        onChange={(e) => {
+          const text = e.target.value;
+          setDraft(text);
+          setInvalid(false);
+          const r = readCellDraft(text);
+          if (r.ok && r.value !== value) onCommit(r.value);
+        }}
+        onBlur={() => setInvalid(!readCellDraft(draft).ok)}
+      />
+      {invalid && (
+        <p
+          id={messageId}
+          className="text-[10px] leading-tight"
+          style={{ color: "var(--chart-negative-text)" }}
+        >
+          {invalidText}
+        </p>
+      )}
+    </>
+  );
 }
 
 interface Props {
@@ -265,9 +337,11 @@ export function MapScalePicker({
 
       {all && diverging && (
         <div className="space-y-1">
-          <DecimalInput
+          <MidpointInput
             value={value.midpoint}
-            placeholder={t("mapEditor.scale.midpoint")}
+            docLang={docLang}
+            label={t("mapEditor.scale.midpoint")}
+            invalidText={t("mapEditor.scale.midpointInvalid")}
             onCommit={(midpoint) => onChange({ midpoint })}
           />
           <p className="text-[10px] text-muted-foreground">{t("mapEditor.scale.midpointHint")}</p>

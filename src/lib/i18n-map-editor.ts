@@ -92,6 +92,9 @@ const pl = {
       midpoint: "Środek skali (puste = 0)",
       midpointHint:
         "Wartość w neutralnym środku skali rozbieżnej, np. średnia UE albo zero zmiany. Przecinek dziesiętny jest dozwolony.",
+      // Wpis środka, który nie jest liczbą - zapisany środek zostaje.
+      midpointInvalid:
+        "To nie jest liczba - mapa zostaje przy poprzednim środku skali. Popraw wpis albo wyczyść pole (puste = 0).",
       divergingHint:
         "Rozbieżny - dla wskaźnika z punktem odniesienia: spadek i wzrost wokół środka skali.",
       legend: "Podgląd legendy",
@@ -194,6 +197,8 @@ const en: typeof pl = {
       midpoint: "Scale midpoint (empty = 0)",
       midpointHint:
         "The value at the neutral middle of the diverging scale, e.g. the EU average or zero change. A decimal comma is accepted.",
+      midpointInvalid:
+        "This is not a number - the map keeps the previous midpoint. Correct the entry or clear the field (empty = 0).",
       divergingHint:
         "Diverging - for an indicator with a reference point: decrease and increase around the middle of the scale.",
       legend: "Legend preview",

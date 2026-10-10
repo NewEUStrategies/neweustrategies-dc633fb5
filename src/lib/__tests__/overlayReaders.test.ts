@@ -58,17 +58,6 @@ const F1_F5_SEED_ROOTS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Korzenie nakładek-zasiewów PR2 (wykresy i mapy danych w blokach i widgetach).
- * Integrator zakłada je z góry z kanonicznymi nazwami schematów barw i metod
- * podziału, żeby równoległe tory (render mapy, edytor wykresu, edytor mapy)
- * nie konfliktowały na wspólnych plikach słownika. Czytelników wnoszą tory:
- * `chartsMap` - `ChoroplethMap.tsx` i legenda mapy, `chartEditor` - arkusz
- * danych wykresu, `mapEditor` - edytor mapy. Wpis zdejmuje się, gdy korzeń
- * dostanie czytelnika (lista jest jednokierunkowa, jak zasiewy F1-F5).
- */
-const PR2_SEED_ROOTS: ReadonlySet<string> = new Set(["chartsMap", "chartEditor", "mapEditor"]);
-
-/**
  * Tytuły tras F1-F5 zasiane w `i18n-event-head` (punkt 5 kontraktu
  * w `participantOverlays.test.ts`): trasa przekazania biletu (tor B),
  * weryfikacji certyfikatu i „Po wydarzeniu" (tor C) jeszcze nie istnieją.
@@ -176,17 +165,27 @@ describe("korzenie nakładek mają czytelnika", () => {
     expect(sources.length).toBeGreaterThan(1000);
   });
 
-  it("żadna nakładka nie rejestruje korzenia, którego nikt nie czyta (poza zasiewami F1-F5 i PR2)", () => {
+  it("żadna nakładka nie rejestruje korzenia, którego nikt nie czyta (poza zasiewami F1-F5)", () => {
     const masked = sources.map(({ text }) => maskComments(text)).join("\n");
     const unread = [...rootOwner.entries()]
       .filter(([root]) => !F1_F5_SEED_ROOTS.has(root))
-      .filter(([root]) => !PR2_SEED_ROOTS.has(root))
       .filter(([root]) => !new RegExp(`["'\`]${root}(?=["'\`.])`).test(masked))
       .map(([root, file]) => `${root} (${file})`);
 
     expect(unread, "martwy słownik - usuń nakładkę albo podepnij ekran, który ją czyta").toEqual(
       [],
     );
+  });
+
+  it("lista zasiewów jest szczelna: zasiew, który dostał czytelnika, schodzi z listy", () => {
+    // Zwolnienie, które przeżyło swój powód, wyłącza bramkę dla korzenia na
+    // stałe: gdyby kolejna zmiana zabrała mu wszystkich czytelników, martwy
+    // słownik przeszedłby na zielono.
+    const masked = sources.map(({ text }) => maskComments(text)).join("\n");
+    const stale = [...F1_F5_SEED_ROOTS].filter((root) =>
+      new RegExp(`["'\`]${root}(?=["'\`.])`).test(masked),
+    );
+    expect(stale, "zasiew ma już czytelnika - zdejmij go z listy zwolnień").toEqual([]);
   });
 });
 
