@@ -239,6 +239,11 @@ export function SchemaFieldControl({ field, lang, content, setContent, setConten
               onChange={(v) => setContent(field.key, v)}
               className="text-xs font-mono"
               placeholder={t("builder.schemaField.chartDataPlaceholder")}
+              // Wklejona tabela: kolory i akcent za nazwą serii, jedną łatką.
+              content={content}
+              onPatch={patchContent}
+              dataKey={field.key}
+              lang={lang}
             />
             <ChartDataSpreadsheetDialog
               value={asString(read(field.key))}

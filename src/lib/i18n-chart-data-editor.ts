@@ -85,6 +85,9 @@ const pl = {
       limitSeries: "Osiągnięto limit serii: {{max}}.",
       limitCategories: "Osiągnięto limit kategorii: {{max}}.",
       invalidNumber: "To nie jest liczba - popraw wpis albo wyczyść komórkę.",
+      // Napis zapisany w treści, którego parser wykresu nie odczyta („12%").
+      invalidStored:
+        "Wykres nie odczyta tej zapisanej wartości jako liczby - popraw wpis albo wyczyść komórkę.",
       pasteHint:
         "Zakres z Excela, Arkuszy Google albo LibreOffice wklejasz w dowolną komórkę - trafia od niej w prawo i w dół. Cała tabela wklejona w pierwszą komórkę otwiera podgląd. Ctrl+Z cofa zmianę.",
       pasted: "Wklejono dane z arkusza.",
@@ -195,6 +198,8 @@ const en: typeof pl = {
       limitSeries: "Series limit reached: {{max}}.",
       limitCategories: "Category limit reached: {{max}}.",
       invalidNumber: "This is not a number - correct the entry or clear the cell.",
+      invalidStored:
+        "The chart cannot read this saved value as a number - correct the entry or clear the cell.",
       pasteHint:
         "Paste a range from Excel, Google Sheets or LibreOffice into any cell - it fills from that cell to the right and down. A whole table pasted into the first cell opens a preview. Ctrl+Z undoes the change.",
       pasted: "Data pasted from the spreadsheet.",

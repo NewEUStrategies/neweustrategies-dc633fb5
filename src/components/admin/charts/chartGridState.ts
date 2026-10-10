@@ -21,6 +21,7 @@ import type { Json } from "@/lib/blocks/types";
 import { MAX_COLOR_SLOT, MAX_SERIES, type ChartSeries } from "@/lib/charts/types";
 import { slotForSeries } from "@/lib/charts/palette";
 import { parseChartData } from "@/lib/charts/csv";
+import { MAX_CATEGORIES } from "@/lib/charts/parse";
 import {
   GRID_LIMITS,
   applyPasteAt,
@@ -55,6 +56,65 @@ export interface ChartGridValue {
   accentSeries: number;
   /** Indeks wyróżnionej kategorii (wycinka); `null` = największy wycinek. */
   accentCategory: number | null;
+  /**
+   * NAPISY ZAPISANE, KTÓRYCH PARSER WYKRESU NIE ODCZYTA („12%", „−3", „7 p"
+   * w polu widgetu, napis w `values` bloku) - klucz `komorka(wiersz, seria)`.
+   * Wartość takiej komórki to luka, bo tak rysuje ją czytelnik strony; napis
+   * jedzie obok niej, żeby zapis INNEJ komórki oddał go bez zmian (do
+   * przeglądu końcowego PR2 przepisywał go pustką) i żeby komórka mogła go
+   * pokazać z uwagą. Zatwierdzenie tej komórki albo wklejenie na nią napis
+   * zdejmuje. Brak pola = brak takich komórek.
+   */
+  raw?: Readonly<Record<string, string>>;
+  /**
+   * Granica prognozy: indeks PIERWSZEJ kategorii prognozowanej (od zera), jak
+   * w treści bloku; widget trzyma numer od jednego i przelicza go adapter.
+   * To wskaźnik kategorii jak `accentCategory`, więc idzie za kategorią przy
+   * każdej operacji na wierszach. Brak pola = treść granicy nie ma (zapis jej
+   * nie dopisuje i nie kasuje).
+   */
+  forecastFrom?: number;
+}
+
+/** Klucz komórki w `ChartGridValue.raw`. */
+function komorka(row: number, col: number): string {
+  return `${row}:${col}`;
+}
+
+/** Nieodczytany napis zapisany w komórce (`ChartGridValue.raw`) albo `undefined`. */
+export function gridStoredText(v: ChartGridValue, row: number, col: number): string | undefined {
+  return v.raw?.[komorka(row, col)];
+}
+
+/**
+ * Napisy po operacji, która przestawia wiersze albo serie: `wiersz(stary)`
+ * i `seria(stara)` oddają nowy indeks, `null` - komórka znika. Brak napisów
+ * zostaje brakiem pola.
+ */
+function przeniesNapisy(
+  raw: ChartGridValue["raw"],
+  wiersz: (row: number) => number | null,
+  seria: (col: number) => number | null,
+): ChartGridValue["raw"] {
+  if (raw === undefined) return undefined;
+  const out: Record<string, string> = {};
+  for (const [klucz, napis] of Object.entries(raw)) {
+    const [r, c] = klucz.split(":").map(Number);
+    const nr = wiersz(r);
+    const nc = seria(c);
+    if (nr !== null && nc !== null) out[komorka(nr, nc)] = napis;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+const bezZmian = (i: number) => i;
+
+/** Pola dodatkowe stanu (napisy, granica prognozy) - dopisywane tylko wtedy, gdy są. */
+function dodatki(raw: ChartGridValue["raw"], forecastFrom: number | undefined) {
+  return {
+    ...(raw !== undefined ? { raw } : {}),
+    ...(forecastFrom !== undefined ? { forecastFrom } : {}),
+  };
 }
 
 export type EditorDocLang = "pl" | "en";
@@ -92,6 +152,10 @@ function wskazniki(model: GridModel, accentSeries: unknown, accentCategory: unkn
   };
 }
 
+/**
+ * Nowy stan po operacji. `accents` może podać nowe wskaźniki, nowe napisy
+ * (`raw`) i nową granicę prognozy; czego nie poda, to przechodzi bez zmian.
+ */
 function z(v: ChartGridValue, model: GridModel, accents?: Partial<ChartGridValue>): ChartGridValue {
   if (model === v.model && accents === undefined) return v;
   return {
@@ -101,7 +165,16 @@ function z(v: ChartGridValue, model: GridModel, accents?: Partial<ChartGridValue
       accents?.accentSeries ?? v.accentSeries,
       accents && "accentCategory" in accents ? (accents.accentCategory ?? null) : v.accentCategory,
     ),
+    ...dodatki(
+      accents && "raw" in accents ? accents.raw : v.raw,
+      accents && "forecastFrom" in accents ? accents.forecastFrom : v.forecastFrom,
+    ),
   };
+}
+
+/** Granica prognozy po operacji na wierszach - `undefined` (brak granicy) zostaje brakiem. */
+function granica(v: ChartGridValue, nowy: (index: number) => number): number | undefined {
+  return v.forecastFrom === undefined ? undefined : nowy(v.forecastFrom);
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +189,10 @@ export function gridSetValue(
 ): ChartGridValue {
   const s = v.model.series[col];
   if (s === undefined || row < 0 || row >= v.model.categories.length) return v;
-  if ((s.values[row] ?? null) === value) return v;
+  // Zatwierdzenie komórki z nieodczytanym napisem zdejmuje napis - także
+  // wtedy, gdy wynik to dalej luka (autor wyczyścił komórkę świadomie).
+  const napis = gridStoredText(v, row, col);
+  if ((s.values[row] ?? null) === value && napis === undefined) return v;
   const series = v.model.series.map((x, i) =>
     i === col
       ? {
@@ -125,7 +201,22 @@ export function gridSetValue(
         }
       : x,
   );
-  return { ...v, model: { categories: v.model.categories, series } };
+  return z(
+    v,
+    { categories: v.model.categories, series },
+    { raw: napis === undefined ? v.raw : bezNapisow(v, [[row, col]]) },
+  );
+}
+
+/** Napisy bez podanych komórek; pusty zbiór to brak pola. */
+function bezNapisow(
+  v: ChartGridValue,
+  cells: Iterable<readonly [number, number]>,
+): ChartGridValue["raw"] {
+  if (v.raw === undefined) return undefined;
+  const out: Record<string, string> = { ...v.raw };
+  for (const [r, c] of cells) delete out[komorka(r, c)];
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 export function gridSetCategory(v: ChartGridValue, row: number, label: string): ChartGridValue {
@@ -159,24 +250,35 @@ export function gridSetAccentCategory(v: ChartGridValue, row: number | null): Ch
 }
 
 // ---------------------------------------------------------------------------
-// Struktura - każda operacja przelicza oba wskaźniki tym samym ruchem
+// Struktura - każda operacja przelicza wskaźniki (akcenty, granica prognozy)
+// i nieodczytane napisy tym samym ruchem
 // ---------------------------------------------------------------------------
 
 export function gridInsertCategory(v: ChartGridValue, at: number): ChartGridValue {
   const model = insertCategory(v.model, at);
   if (model === v.model) return v;
   const i = Math.min(Math.max(0, at), v.model.categories.length);
+  const wiersz = (r: number) => indexAfterInsert(r, i);
   return z(v, model, {
-    accentCategory: v.accentCategory === null ? null : indexAfterInsert(v.accentCategory, i),
+    accentCategory: v.accentCategory === null ? null : wiersz(v.accentCategory),
+    raw: przeniesNapisy(v.raw, wiersz, bezZmian),
+    forecastFrom: granica(v, wiersz),
   });
 }
 
+/**
+ * Usunięcie kategorii. Granica prognozy nad usuniętym wierszem cofa się
+ * o jeden; usunięta PIERWSZA kategoria prognozy zostawia granicę na miejscu,
+ * więc prognoza zaczyna się od następnej, a nie znika bez słowa.
+ */
 export function gridRemoveCategory(v: ChartGridValue, row: number): ChartGridValue {
   if (v.model.categories.length <= GRID_MIN.categories) return v;
   const model = removeCategory(v.model, row);
   if (model === v.model) return v;
   return z(v, model, {
     accentCategory: v.accentCategory === null ? null : indexAfterRemove(v.accentCategory, row),
+    raw: przeniesNapisy(v.raw, (r) => indexAfterRemove(r, row), bezZmian),
+    forecastFrom: granica(v, (f) => (f > row ? f - 1 : f)),
   });
 }
 
@@ -187,9 +289,11 @@ export function gridMoveCategory(
 ): ChartGridValue {
   const model = moveCategory(v.model, row, dir);
   if (model === v.model) return v;
+  const wiersz = (r: number) => indexAfterMove(r, row, row + dir);
   return z(v, model, {
-    accentCategory:
-      v.accentCategory === null ? null : indexAfterMove(v.accentCategory, row, row + dir),
+    accentCategory: v.accentCategory === null ? null : wiersz(v.accentCategory),
+    raw: przeniesNapisy(v.raw, wiersz, bezZmian),
+    forecastFrom: granica(v, wiersz),
   });
 }
 
@@ -197,7 +301,10 @@ export function gridInsertSeries(v: ChartGridValue, at: number, name: string): C
   const model = insertSeries(v.model, at, { name });
   if (model === v.model) return v;
   const i = Math.min(Math.max(0, at), v.model.series.length);
-  return z(v, model, { accentSeries: indexAfterInsert(v.accentSeries, i) });
+  return z(v, model, {
+    accentSeries: indexAfterInsert(v.accentSeries, i),
+    raw: przeniesNapisy(v.raw, bezZmian, (c) => indexAfterInsert(c, i)),
+  });
 }
 
 /**
@@ -209,13 +316,19 @@ export function gridRemoveSeries(v: ChartGridValue, col: number): ChartGridValue
   if (v.model.series.length <= GRID_MIN.series) return v;
   const model = removeSeries(v.model, col);
   if (model === v.model) return v;
-  return z(v, model, { accentSeries: indexAfterRemove(v.accentSeries, col) ?? 0 });
+  return z(v, model, {
+    accentSeries: indexAfterRemove(v.accentSeries, col) ?? 0,
+    raw: przeniesNapisy(v.raw, bezZmian, (c) => indexAfterRemove(c, col)),
+  });
 }
 
 export function gridMoveSeries(v: ChartGridValue, col: number, dir: MoveDirection): ChartGridValue {
   const moved = moveSeries(v.model, col, dir, v.accentSeries);
   if (moved.model === v.model) return v;
-  return z(v, moved.model, { accentSeries: moved.accentSeries });
+  return z(v, moved.model, {
+    accentSeries: moved.accentSeries,
+    raw: przeniesNapisy(v.raw, bezZmian, (c) => indexAfterMove(c, col, col + dir)),
+  });
 }
 
 export function gridCanTranspose(v: ChartGridValue): boolean {
@@ -227,28 +340,44 @@ export function gridCanTranspose(v: ChartGridValue): boolean {
  * się rolami - wyróżniona kategoria (wycinek) zostaje serią wyróżnioną,
  * a JAWNIE wybrana seria wyróżniona - wyróżnioną kategorią. Domyślny akcent
  * (pierwsza seria) nie jest wyborem, więc nie wyróżnia niczego po obrocie.
+ * Nieodczytany napis zamienia współrzędne razem ze swoją komórką.
  */
 export function gridTranspose(v: ChartGridValue): ChartGridValue {
   const model = transpose(v.model);
   if (model === v.model) return v;
+  const raw =
+    v.raw === undefined
+      ? undefined
+      : Object.fromEntries(
+          Object.entries(v.raw).map(([klucz, napis]) => {
+            const [r, c] = klucz.split(":").map(Number);
+            return [komorka(c, r), napis];
+          }),
+        );
   return z(v, model, {
     accentSeries: v.accentCategory ?? 0,
     accentCategory: v.accentSeries > 0 ? v.accentSeries : null,
+    raw,
   });
 }
 
+/** Sortowanie wierszy: wskaźniki kategorii i napisy idą za swoim wierszem (`order[nowy] = stary`). */
 export function gridSort(v: ChartGridValue, col: number, dir: SortDirection): ChartGridValue {
   const { model, order } = sortByColumn(v.model, col, dir);
   if (model === v.model) return v;
+  const wiersz = (r: number) => order.indexOf(r);
   return z(v, model, {
-    accentCategory: v.accentCategory === null ? null : order.indexOf(v.accentCategory),
+    accentCategory: v.accentCategory === null ? null : wiersz(v.accentCategory),
+    raw: przeniesNapisy(v.raw, wiersz, bezZmian),
+    forecastFrom: granica(v, wiersz),
   });
 }
 
 /**
  * Wklejenie zakresu od komórki kotwicy (`applyPasteAt`). Wklejenie niczego
  * nie usuwa ani nie przestawia - serie i kategorie najwyżej DOCHODZĄ na
- * końcu - więc wskaźniki zostają, jakie były.
+ * końcu - więc wskaźniki zostają, jakie były. Komórki pod zakresem dostają
+ * wartość z wklejki, więc ich nieodczytane napisy znikają.
  */
 export function gridPaste(
   v: ChartGridValue,
@@ -261,8 +390,16 @@ export function gridPaste(
     locale,
     seriesName: (i) => defaultSeriesName(i, lang),
   });
-  if (result.range === null) return { value: v, problems: result.problems };
-  return { value: z(v, result.model), problems: result.problems };
+  const zakres = result.range;
+  if (zakres === null) return { value: v, problems: result.problems };
+  const przykryte: [number, number][] = [];
+  for (let r = Math.max(0, zakres.fromRow); r <= zakres.toRow; r += 1) {
+    for (let c = Math.max(0, zakres.fromCol); c <= zakres.toCol; c += 1) przykryte.push([r, c]);
+  }
+  return {
+    value: z(v, result.model, { raw: bezNapisow(v, przykryte) }),
+    problems: result.problems,
+  };
 }
 
 /**
@@ -280,7 +417,8 @@ export function gridPaste(
 export function gridIsBlank(v: ChartGridValue): boolean {
   const { categories, series } = v.model;
   const bezLiczb = series.every((s) => s.values.every((x) => x === null || x === undefined));
-  if (!bezLiczb) return false;
+  // Nieodczytany napis zapisany w komórce też jest treścią autora.
+  if (!bezLiczb || v.raw !== undefined) return false;
   const kategorieDomyslne = categories.every((label, i) => {
     const s = label.trim();
     return (
@@ -304,7 +442,8 @@ export function gridIsBlank(v: ChartGridValue): boolean {
  * nazwą serii (`mergeSeriesColors`), a akcent - za NAZWĄ wyróżnionej serii
  * i ETYKIETĄ wyróżnionej kategorii: poprawiony plik z tą samą serią w innej
  * kolumnie nie gubi wyboru autora. Seria, której w nowej tabeli nie ma,
- * oddaje akcent pierwszej.
+ * oddaje akcent pierwszej. Nieodczytane napisy starej tabeli znikają razem
+ * z nią; granica prognozy zostaje, jak była.
  */
 export function gridReplace(
   v: ChartGridValue,
@@ -330,7 +469,7 @@ export function gridReplace(
     categories: [...next.categories],
     series: series.map((s) => ({ ...s, values: [...s.values] })),
   };
-  return z(v, model, { accentSeries, accentCategory: kat === -1 ? null : kat });
+  return z(v, model, { accentSeries, accentCategory: kat === -1 ? null : kat, raw: undefined });
 }
 
 // ---------------------------------------------------------------------------
@@ -356,13 +495,15 @@ function slotZapisany(raw: Json | undefined, position: number): number {
  * Stan arkusza z treści bloku. Wartość spoza liczb (stara wersja edytora,
  * ręczna edycja JSON-a) jest czytana tą samą koercją co parser wykresu,
  * a wskaźnik akcentu spoza zakresu - tak, jak go narysuje parser (seria 0,
- * największy wycinek).
+ * największy wycinek). Napis, którego ta koercja nie odczyta, zostaje obok
+ * luki (`raw`), żeby zapis innej komórki oddał go bez zmian.
  */
 export function readBlockGrid(data: Readonly<Record<string, Json>>): ChartGridValue {
   const categories = (Array.isArray(data.categories) ? data.categories : []).map((c) =>
     typeof c === "string" ? c : typeof c === "number" ? String(c) : "",
   );
   const rawSeries = Array.isArray(data.series) ? data.series : [];
+  const napisy: Record<string, string> = {};
   const series: ChartSeries[] = rawSeries.slice(0, MAX_SERIES).map((item, si) => {
     const o =
       item !== null && typeof item === "object" && !Array.isArray(item)
@@ -371,29 +512,49 @@ export function readBlockGrid(data: Readonly<Record<string, Json>>): ChartGridVa
     const values = Array.isArray(o.values) ? o.values : [];
     return {
       name: typeof o.name === "string" ? o.name : typeof o.name === "number" ? String(o.name) : "",
-      values: categories.map((_, i) => wartoscBloku(values[i])),
+      values: categories.map((_, i) => {
+        const v = wartoscBloku(values[i]);
+        const zapis = values[i];
+        if (v === null && typeof zapis === "string" && zapis.trim() !== "") {
+          napisy[komorka(i, si)] = zapis;
+        }
+        return v;
+      }),
       colorSlot: slotZapisany(o.colorSlot, si),
     };
   });
   const model: GridModel = { categories, series };
-  return { model, ...wskazniki(model, data.accentSeries, data.accentCategory) };
+  const granicaBloku =
+    typeof data.forecastFrom === "number" && Number.isFinite(data.forecastFrom)
+      ? Math.round(data.forecastFrom)
+      : undefined;
+  return {
+    model,
+    ...wskazniki(model, data.accentSeries, data.accentCategory),
+    ...dodatki(Object.keys(napisy).length > 0 ? napisy : undefined, granicaBloku),
+  };
 }
 
 /**
  * Zmiany treści bloku dla `write` (`undefined` USUWA klucz): dane, kolory
  * w seriach i wskaźniki. Wskaźnik domyślny (pierwsza seria, największy
- * wycinek) znika z treści, zamiast udawać jawny wybór.
+ * wycinek) znika z treści, zamiast udawać jawny wybór. Nieodczytany napis
+ * wraca w miejsce luki bez zmian, a granica prognozy - tylko wtedy, gdy
+ * treść ją miała (zapis nie dopisuje klucza, którego autor nie ustawił).
  */
 export function blockGridChanges(v: ChartGridValue): Record<string, Json | undefined> {
   return {
     categories: [...v.model.categories],
-    series: v.model.series.map((s) => ({
+    series: v.model.series.map((s, si) => ({
       name: s.name,
-      values: s.values.map((x) => (x === null || x === undefined ? null : x)),
+      values: s.values.map((x, ri) =>
+        x === null || x === undefined ? (gridStoredText(v, ri, si) ?? null) : x,
+      ),
       colorSlot: s.colorSlot,
     })),
     accentSeries: v.accentSeries > 0 ? v.accentSeries : undefined,
     accentCategory: v.accentCategory === null ? undefined : v.accentCategory,
+    ...(v.forecastFrom !== undefined ? { forecastFrom: v.forecastFrom } : {}),
   };
 }
 
@@ -411,6 +572,42 @@ export function parseSeriesColors(raw: unknown): (number | null)[] {
     const n = Number(cell.trim());
     return cell.trim() !== "" && Number.isInteger(n) && n >= 1 && n <= MAX_COLOR_SLOT ? n : null;
   });
+}
+
+/**
+ * Numer kategorii granicy prognozy w treści widgetu (od jednego, liczba albo
+ * napis liczbowy z polskim przecinkiem - jak w adapterze `widgetChartConfig`)
+ * albo `null`, gdy granicy nie ma albo nie jest liczbą.
+ */
+function numerGranicy(raw: unknown): number | null {
+  const n =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string" && raw.trim() !== ""
+        ? Number(raw.replace(",", "."))
+        : Number.NaN;
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+/**
+ * Nieodczytane napisy tekstu średnikowego. Podział na wiersze i komórki jest
+ * KOPIĄ podziału z `parseChartData` (`csv.ts` zostaje nietknięty): ta sama
+ * komórka, którą parser oddał jako lukę, tu oddaje swój napis.
+ */
+function napisyCsv(csv: string, series: readonly ChartSeries[]): ChartGridValue["raw"] {
+  const lines = csv
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l !== "");
+  const out: Record<string, string> = {};
+  lines.slice(1, MAX_CATEGORIES + 1).forEach((line, ri) => {
+    const cells = line.split(";").map((c) => c.trim());
+    series.forEach((s, si) => {
+      const cell = cells[si + 1] ?? "";
+      if (cell !== "" && (s.values[ri] ?? null) === null) out[komorka(ri, si)] = cell;
+    });
+  });
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /**
@@ -436,7 +633,12 @@ export function readWidgetGrid(
       values: categories.map((_, i) => s.values[i] ?? null),
     })),
   };
-  return { model, ...wskazniki(model, content.accentSeries, content.accentCategory) };
+  const numer = numerGranicy(content.forecastFrom);
+  return {
+    model,
+    ...wskazniki(model, content.accentSeries, content.accentCategory),
+    ...dodatki(napisyCsv(csv, parsed.series), numer === null ? undefined : numer - 1),
+  };
 }
 
 /** Liczba do tekstu średnikowego: kropka dziesiętna, bez grupowania. */
@@ -444,11 +646,21 @@ function liczbaCsv(v: number | null | undefined): string {
   return v === null || v === undefined || !Number.isFinite(v) ? "" : String(v);
 }
 
-/** Dane arkusza -> tekst textarei widgetu („; A; B" + „Kategoria; 1; 2"). */
-export function widgetGridCsv(model: GridModel): string {
+/**
+ * Dane arkusza -> tekst textarei widgetu („; A; B" + „Kategoria; 1; 2").
+ * Luka z nieodczytanym napisem (`raw`) oddaje ten napis - przyszedł z tego
+ * samego formatu, więc średnika ani złamania wiersza w nim nie ma.
+ */
+export function widgetGridCsv(model: GridModel, raw?: ChartGridValue["raw"]): string {
   const header = ["", ...model.series.map((s) => safeTextCell(s.name))].join("; ");
   const rows = model.categories.map((cat, ri) =>
-    [safeTextCell(cat), ...model.series.map((s) => liczbaCsv(s.values[ri]))].join("; "),
+    [
+      safeTextCell(cat),
+      ...model.series.map((s, si) => {
+        const v = s.values[ri];
+        return v === null || v === undefined ? (raw?.[komorka(ri, si)] ?? "") : liczbaCsv(v);
+      }),
+    ].join("; "),
   );
   return [header, ...rows].join("\n");
 }
@@ -464,17 +676,22 @@ export function widgetSeriesColors(series: readonly { colorSlot: number }[]): st
   return cells.join(";");
 }
 
-/** Łatka treści widgetu - JEDEN zapis dla danych, kolorów i obu wskaźników. */
+/**
+ * Łatka treści widgetu - JEDEN zapis dla danych, kolorów, obu wskaźników
+ * i granicy prognozy (numer od jednego; tylko gdy treść ją miała - klucz
+ * `undefined` w łatce USUWAŁBY pole ustawione w panelu).
+ */
 export function widgetGridPatch(
   v: ChartGridValue,
   dataKey: string,
 ): Record<string, string | number | undefined> {
   const colors = widgetSeriesColors(v.model.series);
   return {
-    [dataKey]: widgetGridCsv(v.model),
+    [dataKey]: widgetGridCsv(v.model, v.raw),
     seriesColors: colors === "" ? undefined : colors,
     accentSeries: v.accentSeries > 0 ? v.accentSeries : undefined,
     accentCategory: v.accentCategory === null ? undefined : v.accentCategory,
+    ...(v.forecastFrom !== undefined ? { forecastFrom: v.forecastFrom + 1 } : {}),
   };
 }
 
@@ -489,7 +706,13 @@ export function widgetContentSignature(
 ): string {
   const sc = typeof content.seriesColors === "string" ? content.seriesColors : "";
   const num = (raw: unknown) => (typeof raw === "number" && Number.isFinite(raw) ? raw : null);
-  return JSON.stringify([csv, sc, num(content.accentSeries), num(content.accentCategory)]);
+  return JSON.stringify([
+    csv,
+    sc,
+    num(content.accentSeries),
+    num(content.accentCategory),
+    numerGranicy(content.forecastFrom),
+  ]);
 }
 
 /** Podpis stanu, który łatka `widgetGridPatch` zapisze. */
@@ -500,5 +723,6 @@ export function widgetGridSignature(v: ChartGridValue): string {
     patch.seriesColors ?? "",
     patch.accentSeries ?? null,
     patch.accentCategory ?? null,
+    numerGranicy(patch.forecastFrom),
   ]);
 }

@@ -293,7 +293,13 @@ const CASES: ReadonlyArray<VisibilityCase> = [
       // Punktowy rysuje chmure serii w akcencie (paleta rol od W3).
       { kind: "scatter" },
     ],
-    hidden: [{ kind: "pie" }, { kind: "tornado" }, { kind: "heatmap" }],
+    // Male panele maluja kazdy panel jedna farba - serii wyroznionej nie czytaja.
+    hidden: [
+      { kind: "pie" },
+      { kind: "tornado" },
+      { kind: "heatmap" },
+      { kind: "small-multiples" },
+    ],
   },
   {
     widget: "chart",

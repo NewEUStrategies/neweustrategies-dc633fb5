@@ -590,12 +590,16 @@ function MapDataGridInner(
       <p aria-live="polite" className="sr-only">
         {ogloszenie}
       </p>
-      {wynikAktualny !== null && (
-        <div aria-live="polite" className="space-y-1">
-          <p className="text-[11px] text-muted-foreground">{t("mapEditor.grid.pasted")}</p>
-          <ImportProblemList problems={wynikAktualny.problems} lang={lang} />
-        </div>
-      )}
+      {/* Region zamontowany od początku - czytnik ekranu ogłasza zmianę
+          treści regionu, który już jest, a nie region wstawiony z tekstem. */}
+      <div aria-live="polite" className="space-y-1">
+        {wynikAktualny !== null && (
+          <>
+            <p className="text-[11px] text-muted-foreground">{t("mapEditor.grid.pasted")}</p>
+            <ImportProblemList problems={wynikAktualny.problems} lang={lang} />
+          </>
+        )}
+      </div>
 
       <PastePreviewDialog
         open={podglad !== null}

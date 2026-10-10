@@ -135,7 +135,11 @@ interface Props {
   device: Device;
   mode?: Mode;
   onModeChange?: (m: Mode) => void;
-  onChange: (mut: (w: WidgetNode) => void) => void;
+  /**
+   * Zapis zmiany widgetu. `coalesce: false` prosi o WŁASNY krok historii
+   * (bez zwijania z poprzednią edycją tego widgetu) - patrz `setContentPatch`.
+   */
+  onChange: (mut: (w: WidgetNode) => void, opts?: { coalesce?: boolean }) => void;
 }
 
 export function WidgetProperties({
@@ -159,7 +163,14 @@ export function WidgetProperties({
   // buildera (`updateWidget` -> jeden `history.set`). Edytory wykresu i mapy
   // zmieniają dane razem z kolorami i akcentem serii - kolejne `setContent`
   // zostawiałyby po cofnięciu dokument w stanie pośrednim.
-  const setContentPatch = (patch: ContentPatch) => onChange(contentPatchMutation(patch));
+  //
+  // WŁASNY KROK, NIE ZWIJANY. Edycje widgetu zwijają się kluczem `w:<id>`
+  // (seria naciśnięć w polu to jeden krok), ale łatka to DZIAŁANIE arkusza
+  // (zatwierdzona komórka, wklejony zakres, wstawiony wiersz): zwinięta
+  // z poprzednią, sprawiała, że Ctrl+Z w arkuszu cofał naraz wszystkie
+  // edycje arkusza i jeszcze wcześniejszą zmianę tytułu.
+  const setContentPatch = (patch: ContentPatch) =>
+    onChange(contentPatchMutation(patch), { coalesce: false });
   const setOptionalNumberContent = (k: string, v: number | null) =>
     onChange((w) => {
       const content = { ...(w.content ?? {}) } as Record<string, Json>;

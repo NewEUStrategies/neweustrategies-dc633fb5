@@ -107,6 +107,12 @@ interface Props {
   lang?: EditorLang;
   onApply: (layout: TableLayout) => void;
   onCancel: () => void;
+  /**
+   * Fokus po zamknięciu, gdy kontrolka, która okno otworzyła, zniknęła
+   * z drzewa (przycisk arkusza w imporcie skoroszytu) - przekazywane do
+   * `DialogContent`. Bez niego fokus wraca do otwierającego, jak dotąd.
+   */
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 export function PastePreviewDialog({
@@ -119,6 +125,7 @@ export function PastePreviewDialog({
   lang,
   onApply,
   onCancel,
+  onCloseAutoFocus,
 }: Props) {
   const t = useChartEditorT(lang);
   // Mapa rozpoznaje dodatkowo kolumnę krajów i orientację (`MapTableLayout`).
@@ -179,7 +186,7 @@ export function PastePreviewDialog({
         if (!next) onCancel();
       }}
     >
-      <DialogContent className="max-w-2xl w-[95vw] gap-3">
+      <DialogContent className="max-w-2xl w-[95vw] gap-3" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle className="text-base">{t(TITLE_KEYS[source])}</DialogTitle>
           <DialogDescription className="text-xs">{t(DESCRIPTION_KEYS[mode])}</DialogDescription>

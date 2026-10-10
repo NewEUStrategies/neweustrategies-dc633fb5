@@ -6,12 +6,18 @@
 // Wybór domyślny (pierwsza seria, największy wycinek) zapisuje `null`, czyli
 // „brak wyboru", a nie jawne zero: arkusz danych zapisuje go tak samo, więc
 // obie drogi dają ten sam stan treści.
+//
+// Na liście serii stoją tylko serie, które rysunek maluje
+// (`drawnSeriesSwatches`): kolumna osi X wykresu punktowego chmurą nie jest,
+// więc jej „wyróżnienie" niczego by nie wyróżniło.
 import { PropField } from "@/components/admin/builder/ui/atoms/PropField";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import type { SchemaFieldEditorProps } from "@/lib/builder/schemas";
 import { useBuilderLabel } from "@/lib/builder/labelsEn";
 import { parseChartData } from "@/lib/charts/csv";
+import { parseChartKind } from "@/lib/charts/parse";
 import { accentIndex } from "./chartGridState";
+import { drawnSeriesSwatches } from "./chartColorSlots";
 import { useChartEditorT } from "./chartEditorI18n";
 
 /** Klucz danych widgetu wykresu (schemat: pole `chartData` o kluczu `data`). */
@@ -26,8 +32,19 @@ export function ChartAccentField({ field, content, setContent }: SchemaFieldEdit
   const kategoria = field.key === "accentCategory";
   const { categories, series } = parseChartData(napis(content[DATA_KEY]));
   const pozycje = kategoria ? categories : series.map((s) => s.name);
+  const probki = kategoria
+    ? null
+    : drawnSeriesSwatches(parseChartKind(napis(content.kind)), { categories, series }, 0, "focus");
+  const opcje = pozycje.map((_, i) => i).filter((i) => probki === null || probki[i] !== null);
   const biezacy = accentIndex(content[field.key], pozycje.length);
-  const wartosc = biezacy === null ? (kategoria ? "" : "0") : String(biezacy);
+  const wartosc =
+    biezacy === null
+      ? kategoria
+        ? ""
+        : String(opcje[0] ?? 0)
+      : opcje.includes(biezacy)
+        ? String(biezacy)
+        : String(opcje[0] ?? biezacy);
   const nazwa = (i: number) =>
     pozycje[i] ||
     t(kategoria ? "chartEditor.grid.categoryN" : "chartEditor.grid.seriesN", { n: i + 1 });
@@ -49,7 +66,7 @@ export function ChartAccentField({ field, content, setContent }: SchemaFieldEdit
           }}
         >
           {kategoria && <option value="">{t("chartEditor.accent.categoryAuto")}</option>}
-          {pozycje.map((_, i) => (
+          {opcje.map((i) => (
             <option key={i} value={String(i)}>
               {nazwa(i)}
             </option>

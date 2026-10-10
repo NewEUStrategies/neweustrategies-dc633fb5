@@ -37,7 +37,11 @@ import {
   type ChartPalette,
 } from "@/lib/charts/seriesStyle";
 import { KIND_CAPS } from "@/lib/charts/kindCaps";
-import type { ChartKind } from "@/lib/charts/types";
+import { defaultChartConfig } from "@/lib/charts/parse";
+import { scatterModelFromConfig } from "@/lib/charts/kinds/scatter";
+import { smallMultiplesModelFromConfig } from "@/lib/charts/kinds/smallMultiples";
+import type { ChartConfig, ChartKind, ChartSeries } from "@/lib/charts/types";
+import { cloudPaints, kindSinglePaint } from "@/components/charts/kindPaint";
 import type { ChartEditorT } from "./chartEditorI18n";
 
 /** Pasmo odcieni pomarańczu, bursztynu i żółci - poza próbnikiem. */
@@ -160,6 +164,8 @@ export interface SeriesSwatch {
  * Próbki serii w kolejności arkusza. Kolor liczy `seriesPaint` z RANGĄ
  * (`seriesRank`), czyli dokładnie tak, jak rysownik - próbka przy serii
  * wyróżnionej jest więc akcentem, nawet gdy w treści seria ma inny slot.
+ * To droga rodzajów, które malują serię po jej pozycji (`CartesianChart`,
+ * `kindSeriesPaint`); rodzaje z własną drogą liczy `drawnSeriesSwatches`.
  */
 export function seriesSwatches(
   series: readonly { colorSlot: number }[],
@@ -174,4 +180,90 @@ export function seriesSwatches(
       role: palette === "focus" && rank < FOCUS_SERIES_MAX ? rank : null,
     };
   });
+}
+
+/** Próbka serii NA RYSUNKU danego rodzaju. */
+export interface DrawnSwatch extends SeriesSwatch {
+  /** Czy slot wybrany przy serii zmienia rysunek - tylko wtedy przy próbce stoi próbnik. */
+  pickable: boolean;
+}
+
+/** Kolory ról palety `focus` w kolejności rang - z tej samej funkcji, która maluje serie. */
+const KOLORY_ROL: readonly string[] = FOCUS_ROLE_KEYS.map(
+  (_, rank) => seriesPaint(1, rank, "focus").color,
+);
+
+/** Ranga roli, którą kolor jest (pod paletą ról), albo `null` - kolor slotu. */
+function rolaKoloru(color: string, palette: ChartPalette): number | null {
+  if (palette !== "focus") return null;
+  const rank = KOLORY_ROL.indexOf(color);
+  return rank === -1 ? null : rank;
+}
+
+/**
+ * Czy rodzaj rysuje SERIĘ WYRÓŻNIONĄ (`accentSeries`) - tylko wtedy edytor
+ * pokazuje jej wybór. Kolor musi należeć do serii, a rodzaj stosować paletę;
+ * małe panele (`colorTarget: "panels"`) malują każdy panel jedną farbą
+ * (`kindSinglePaint`) i serii wyróżnionej nie czytają wcale.
+ */
+export function seriesAccentDrawn(kind: ChartKind): boolean {
+  return KIND_CAPS[kind].colorTarget === "series" && KIND_CAPS[kind].palette;
+}
+
+/**
+ * Próbki serii DOKŁADNIE TAKIE, JAK RYSUJE JE RODZAJ - z tej samej funkcji
+ * farby, której używa rysownik (kontrakt PR2, „Colour picker behaviour" (a)):
+ *   * wykres punktowy: `cloudPaints` nad chmurami modelu - kolumna osi X
+ *     (tryb `series`) chmurą nie jest, więc nie ma próbki (`null`), a akcent
+ *     i role idą po chmurach, nie po kolumnach arkusza;
+ *   * małe panele: `kindSinglePaint` ze slotem panelu z modelu - jedna farba
+ *     na panel, bez ról i bez próbnika (slot serii panelu nie zmienia);
+ *   * pozostałe rodzaje z kolorem serii: `seriesPaint` z rangą
+ *     (`seriesSwatches`), tak jak `CartesianChart` i `kindSeriesPaint`.
+ * `null` w miejscu wyniku: rodzaj nie koloruje serii (`colorsBySeries`).
+ * Do przeglądu końcowego PR2 edytor liczył wszystko trzecią drogą, więc przy
+ * panelach i chmurach próbki, etykiety ról i wybór serii wyróżnionej mówiły
+ * co innego niż rysunek.
+ */
+export function drawnSeriesSwatches(
+  kind: ChartKind,
+  data: { categories: readonly string[]; series: readonly ChartSeries[] },
+  accentSeries: number,
+  palette: ChartPalette,
+): (DrawnSwatch | null)[] | null {
+  if (!colorsBySeries(kind)) return null;
+  const eff = effectivePalette(kind, palette);
+  const config: ChartConfig = {
+    ...defaultChartConfig(),
+    kind,
+    categories: [...data.categories],
+    series: data.series.map((s) => ({ ...s, values: [...s.values] })),
+    palette: eff,
+    accentSeries,
+  };
+  if (KIND_CAPS[kind].colorTarget === "panels") {
+    const slotPanelu = new Map(
+      smallMultiplesModelFromConfig(config).panels.map((p) => [p.index, p.colorSlot]),
+    );
+    return data.series.map((_, i) => {
+      const slot = slotPanelu.get(i);
+      if (slot === undefined) return null;
+      return { color: kindSinglePaint({ palette: eff }, slot).color, role: null, pickable: false };
+    });
+  }
+  if (kind === "scatter") {
+    const clouds = scatterModelFromConfig(config).clouds;
+    const paints = cloudPaints(config, clouds);
+    const out: (DrawnSwatch | null)[] = data.series.map(() => null);
+    clouds.forEach((c, ci) => {
+      const color = paints[ci].color;
+      const role = rolaKoloru(color, eff);
+      out[c.seriesIndex] = { color, role, pickable: role === null };
+    });
+    return out;
+  }
+  return seriesSwatches(data.series, accentSeries, eff).map((s) => ({
+    ...s,
+    pickable: s.role === null,
+  }));
 }

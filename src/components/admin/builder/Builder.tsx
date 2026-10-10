@@ -517,7 +517,7 @@ export function Builder({
                         device={device}
                         mode={mode}
                         onModeChange={setMode}
-                        onChange={(mut) => updateWidget(selectedWidget.id, mut)}
+                        onChange={(mut, opts) => updateWidget(selectedWidget.id, mut, opts)}
                       />
                     )}
                     {selectedSection && (
