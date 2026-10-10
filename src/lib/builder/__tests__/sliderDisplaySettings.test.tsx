@@ -69,7 +69,6 @@ vi.mock("@/integrations/supabase/client", () => {
 });
 
 import {
-  NAV_ARROW_VARIANT_VALUES,
   NAV_BG_STYLES,
   NAV_POSITIONS,
   SliderRender,
@@ -788,37 +787,6 @@ describe("slider - koercja ustawień strzałek bocznych", () => {
   const nextOf = (root: HTMLElement): HTMLElement | null =>
     root.querySelector<HTMLElement>("button.eh-next");
 
-  it.each(NAV_ARROW_VARIANT_VALUES)("rysuje kształt strzałki %s jako inline SVG", (variant) => {
-    const { container } = renderNav({ navArrowVariant: variant });
-    // Kształt musi powstać w DOM, a nie w foncie ikon: strzałka slidera nie
-    // może zniknąć, gdy asynchroniczny pakiet ikon nie zdąży się załadować.
-    const paths = prevOf(container)?.querySelectorAll("svg path") ?? [];
-    expect(paths).toHaveLength(1);
-    expect(paths[0].getAttribute("d")).toBeTruthy();
-  });
-
-  it("każdej wartości z katalogu strzałek odpowiada INNY kształt", () => {
-    // Katalog wystawia osiem pozycji w panelu; dwie o tym samym rysunku
-    // znaczyłyby, że wybór z listy niczego nie zmienia.
-    const shapes = new Set<string>();
-    for (const variant of NAV_ARROW_VARIANT_VALUES) {
-      const { container } = renderNav({ navArrowVariant: variant });
-      shapes.add(prevOf(container)?.querySelector("svg path")?.getAttribute("d") ?? "");
-      cleanup();
-    }
-    expect(shapes.size).toBe(NAV_ARROW_VARIANT_VALUES.length);
-  });
-
-  it("wraca do chevronu, gdy zapisany kształt jest spoza katalogu", () => {
-    const { container } = renderNav({
-      navArrowVariant: "swoosh" as unknown as (typeof NAV_ARROW_VARIANT_VALUES)[number],
-    });
-    const { container: domyslny } = renderNav({ navArrowVariant: "chevron" });
-    expect(prevOf(container)?.querySelector("svg path")?.getAttribute("d")).toBe(
-      prevOf(domyslny)?.querySelector("svg path")?.getAttribute("d"),
-    );
-  });
-
   it.each(NAV_BG_STYLES)("nadaje obu przyciskom klasę modyfikatora eh-nav-%s", (navBgStyle) => {
     const { container } = renderNav({ navBgStyle });
     expect(prevOf(container)?.className).toContain(`eh-nav-${navBgStyle}`);
@@ -832,45 +800,12 @@ describe("slider - koercja ustawień strzałek bocznych", () => {
   });
 
   it.each([
-    [5, "28px", "14px"],
-    [500, "96px", "40px"],
-    ["64", "64px", "27px"],
-  ])("zawęża rozmiar przycisku %s do %s i skaluje ikonę do %s", (navSizePx, size, icon) => {
-    const { container } = renderNav({ navSizePx: navSizePx as SliderConfig["navSizePx"] });
-    const button = prevOf(container);
-    expect(button?.style.getPropertyValue("--nav-size")).toBe(size);
-    // Ikona to 42% przycisku, ale nigdy mniej niż 14 px - przy najmniejszym
-    // dozwolonym przycisku strzałka nadal musi być widoczna.
-    expect(button?.querySelector<SVGElement>("svg")?.style.width).toBe(icon);
-  });
-
-  it.each([
     [999, "9999px"],
     [-20, "0px"],
     [12, "12px"],
   ])("przekłada zapisany promień przycisku %s na %s", (navRoundedPx, radius) => {
     const { container } = renderNav({ navRoundedPx });
     expect(prevOf(container)?.style.getPropertyValue("--nav-radius")).toBe(radius);
-  });
-
-  it.each([
-    [0.1, "0.5"],
-    [9, "4"],
-    ["3", "3"],
-  ])("zawęża grubość kreski %s do %s", (navArrowStroke, stroke) => {
-    const { container } = renderNav({
-      navArrowStroke: navArrowStroke as SliderConfig["navArrowStroke"],
-    });
-    expect(prevOf(container)?.querySelector("svg path")?.getAttribute("stroke-width")).toBe(stroke);
-  });
-
-  it("pogrubia chevron-bold do co najmniej 3, a angle cieniuje o pół punktu", () => {
-    const { container: bold } = renderNav({ navArrowVariant: "chevron-bold", navArrowStroke: 1 });
-    expect(bold.querySelector("button.eh-prev svg path")?.getAttribute("stroke-width")).toBe("3");
-    const { container: angle } = renderNav({ navArrowVariant: "angle", navArrowStroke: 3 });
-    expect(angle.querySelector("button.eh-prev svg path")?.getAttribute("stroke-width")).toBe(
-      "2.5",
-    );
   });
 
   it("przenosi zapisane kolory chromu do zmiennych CSS przycisku", () => {

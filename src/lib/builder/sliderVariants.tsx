@@ -177,108 +177,6 @@ function resolveNavStyle(cfg: SliderConfig): NavStyleResolved {
   };
 }
 
-/** Inline SVG arrow renderer. Same viewBox 24x24, rendered stable regardless
- *  of icon-font fallback / lucide async load. Direction flips via CSS
- *  transform so the geometry stays identical between prev & next. */
-function NavArrowGlyph({
-  variant,
-  direction,
-  sizePx,
-  color,
-  stroke,
-}: {
-  variant: NavArrowVariant;
-  direction: "left" | "right";
-  sizePx: number;
-  color: string;
-  stroke: number;
-}) {
-  const flip = direction === "left" ? "scaleX(-1)" : "none";
-  const common = {
-    width: sizePx,
-    height: sizePx,
-    display: "block",
-    transform: flip,
-    color,
-  } as CSSProperties;
-  const strokeProps = {
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: stroke,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-  };
-  switch (variant) {
-    case "chevron":
-      return (
-        <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path d="M9 6l6 6-6 6" {...strokeProps} />
-        </svg>
-      );
-    case "chevron-bold":
-      return (
-        <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path d="M9 5l7 7-7 7" {...strokeProps} strokeWidth={Math.max(stroke, 3)} />
-        </svg>
-      );
-    case "arrow":
-      return (
-        <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path d="M5 12h14M13 6l6 6-6 6" {...strokeProps} />
-        </svg>
-      );
-    case "arrow-long":
-      return (
-        <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path d="M3 12h17M14 6l6 6-6 6" {...strokeProps} />
-        </svg>
-      );
-    case "caret":
-      return (
-        <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path
-            d="M9 5l8 7-8 7z"
-            fill="currentColor"
-            stroke="currentColor"
-            strokeWidth={0.5}
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    case "angle":
-      return (
-        <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path
-            d="M10 5l7 7-7 7"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={Math.max(1, stroke - 0.5)}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    case "double-chevron":
-      return (
-        <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path d="M6 6l6 6-6 6M12 6l6 6-6 6" {...strokeProps} />
-        </svg>
-      );
-    case "arrow-tail":
-      return (
-        <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path d="M4 12h15M13 6l6 6-6 6M5 9l3 3-3 3" {...strokeProps} />
-        </svg>
-      );
-    default:
-      return (
-        <svg viewBox="0 0 24 24" style={common} aria-hidden>
-          <path d="M9 6l6 6-6 6" {...strokeProps} />
-        </svg>
-      );
-  }
-}
-
 const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
   none: "0px",
   sm: "4px",
@@ -654,17 +552,19 @@ interface NavArrowsProps {
   nav: NavStyleResolved;
 }
 function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps) {
-  const iconPx = Math.max(14, Math.round(nav.sizePx * 0.42));
   const cssVars: CSSProperties = {
     ["--nav-bg" as string]: nav.bgColor,
     ["--nav-arrow" as string]: nav.arrowColor,
     ["--nav-size" as string]: `${nav.sizePx}px`,
     ["--nav-radius" as string]: nav.radiusCss,
   };
-  const cls = `eh-side-nav eh-nav-${nav.bgStyle}`;
+  const cls = `eh-side-nav eh-nav-${nav.bgStyle} eh-slider-arrow`;
   return (
     <>
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
+        data-typography-exempt
         type="button"
         aria-label={prevLabel}
         data-pos={nav.position}
@@ -676,15 +576,12 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
         className={`${cls} eh-prev`}
         style={cssVars}
       >
-        <NavArrowGlyph
-          variant={nav.arrowVariant}
-          direction="left"
-          sizePx={iconPx}
-          color={nav.arrowColor}
-          stroke={nav.arrowStroke}
-        />
-      </button>
-      <button
+        <AngleChevron side="left" isSm={false} />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        data-typography-exempt
         type="button"
         aria-label={nextLabel}
         data-pos={nav.position}
@@ -696,14 +593,8 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
         className={`${cls} eh-next`}
         style={cssVars}
       >
-        <NavArrowGlyph
-          variant={nav.arrowVariant}
-          direction="right"
-          sizePx={iconPx}
-          color={nav.arrowColor}
-          stroke={nav.arrowStroke}
-        />
-      </button>
+        <AngleChevron side="right" isSm={false} />
+      </Button>
     </>
   );
 }
@@ -751,7 +642,8 @@ function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = fals
           aria-label={lang === "en" ? "Previous slide" : "Poprzedni slajd"}
           title={lang === "en" ? "Previous slide" : "Poprzedni slajd"}
           onClick={onPrev}
-          className="shrink-0 rounded-lg border border-border/60 text-muted-foreground hover:border-foreground/30 hover:bg-muted/60 hover:text-foreground motion-reduce:transition-none"
+          data-typography-exempt
+          className="eh-slider-arrow shrink-0 motion-reduce:transition-none"
         >
           <AngleChevron side="left" isSm={false} />
         </Button>
@@ -784,7 +676,8 @@ function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = fals
           aria-label={lang === "en" ? "Next slide" : "Następny slajd"}
           title={lang === "en" ? "Next slide" : "Następny slajd"}
           onClick={onNext}
-          className="shrink-0 rounded-lg border border-border/60 text-muted-foreground hover:border-foreground/30 hover:bg-muted/60 hover:text-foreground motion-reduce:transition-none"
+          data-typography-exempt
+          className="eh-slider-arrow shrink-0 motion-reduce:transition-none"
         >
           <AngleChevron side="right" isSm={false} />
         </Button>

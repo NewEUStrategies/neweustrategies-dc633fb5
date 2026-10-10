@@ -530,6 +530,10 @@ body {
   --secondary-foreground: oklch(0.18 0 0);
   --muted: oklch(0.95 0.006 80);
   --muted-foreground: oklch(0.5 0 0);
+  --slider-arrow-ink: var(--foreground);
+  --slider-arrow-fill: color-mix(in oklab, var(--foreground) 6%, transparent);
+  --slider-arrow-border: color-mix(in oklab, var(--foreground) 18%, transparent);
+  --slider-arrow-hover: color-mix(in oklab, var(--foreground) 12%, transparent);
   --accent: oklch(0.92 0 0);
   --accent-foreground: oklch(0.18 0 0);
   --destructive: oklch(0.6 0.22 25);
@@ -1177,6 +1181,9 @@ body {
   --secondary-foreground: #ede9e7;
   --muted: #0f0f0f;
   --muted-foreground: oklch(0.7 0 0);
+  --slider-arrow-fill: color-mix(in oklab, var(--foreground) 22%, transparent);
+  --slider-arrow-border: color-mix(in oklab, var(--foreground) 35%, transparent);
+  --slider-arrow-hover: color-mix(in oklab, var(--foreground) 32%, transparent);
   --accent: #1f1f1f;
   --accent-foreground: #ede9e7;
   --destructive: oklch(0.65 0.22 25);
@@ -9648,4 +9655,32 @@ button,
 [data-wt~="g"][data-w-id][data-w-id] [data-typography-gap-target],
 [data-wt~="g"][data-w-id][data-w-id] a + .cms-post-excerpt {
   margin-top: var(--cms-title-description-gap) !important;
+}
+
+/* One geometry for media arrows and pagination, independent of CMS button presets. */
+.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+  padding: 0 !important;
+  border: 1px solid var(--slider-arrow-border) !important;
+  border-radius: 5px !important;
+  background: var(--slider-arrow-fill) !important;
+  color: var(--slider-arrow-ink) !important;
+  box-shadow: none !important;
+  font-size: 14px !important;
+  backdrop-filter: blur(6px);
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow:hover {
+  background: var(--slider-arrow-hover) !important;
+}
+.eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow svg {
+  width: 11px !important;
+  height: 10px !important;
+  color: inherit !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .eh-slider .eh-slider-arrow.eh-slider-arrow.eh-slider-arrow { transition: none; }
 }
