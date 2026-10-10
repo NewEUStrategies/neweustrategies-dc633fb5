@@ -244,13 +244,13 @@ describe("SliderRender - ujednolicone strzałki nawigacji", () => {
       const next = nextButton(container);
       expect(prev).not.toBeNull();
       expect(next).not.toBeNull();
-      // Ten sam znak po obu stronach: lewy kąt (cofnięty ramion od krawędzi).
+      // Ten sam znak po obu stronach: lewy kąt o otwartym wierzchołku.
       expect(prev?.querySelector("svg polyline")?.getAttribute("points")).toBe(
-        "8.2 1.8 2.4 5 8.2 8.2",
+        "7.5 1.8 3.5 5 7.5 8.2",
       );
       // Prawy kąt - lustrzana geometria, nie transformacja.
       expect(next?.querySelector("svg polyline")?.getAttribute("points")).toBe(
-        "2.4 1.8 8.2 5 2.4 8.2",
+        "3.5 1.8 7.5 5 3.5 8.2",
       );
       // Oba przyciski niosą wspólną klasę traktowania (subtelny, ghostowy).
       expect(prev?.className).toContain("eh-slider-arrow");
@@ -284,7 +284,7 @@ describe("SliderRender - ujednolicone strzałki nawigacji", () => {
     for (const stroke of [0.1, 9]) {
       const { container, unmount } = renderSlider({ navArrowStroke: stroke });
       expect(prevButton(container)?.querySelector("svg polyline")?.getAttribute("points")).toBe(
-        "8.2 1.8 2.4 5 8.2 8.2",
+        "7.5 1.8 3.5 5 7.5 8.2",
       );
       expect(prevButton(container)?.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.85");
       unmount();
