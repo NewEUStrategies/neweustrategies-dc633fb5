@@ -274,9 +274,11 @@ describe("SliderRender - ujednolicone strzałki nawigacji", () => {
 
   it("trzyma kreskę kąta cienką (hairline) niezależnie od ustawienia panelu", () => {
     const { container } = renderSlider({ navArrowVariant: "chevron-bold", navArrowStroke: 4 });
-    const polyline = prevButton(container)?.querySelector("svg polyline");
-    expect(polyline?.getAttribute("stroke-width")).toBe("0.85");
-    expect(polyline?.getAttribute("vector-effect")).toBe("non-scaling-stroke");
+    const svg = prevButton(container)?.querySelector("svg");
+    expect(svg?.getAttribute("stroke-width")).toBe("0.85");
+    expect(svg?.querySelector("polyline")?.getAttribute("vector-effect")).toBe(
+      "non-scaling-stroke",
+    );
   });
 
   it("grubość kreski z panelu nie zmienia geometrii ujednoliconego kąta", () => {
@@ -285,9 +287,7 @@ describe("SliderRender - ujednolicone strzałki nawigacji", () => {
       expect(prevButton(container)?.querySelector("svg polyline")?.getAttribute("points")).toBe(
         "8.2 1.8 2.4 5 8.2 8.2",
       );
-      expect(prevButton(container)?.querySelector("svg polyline")?.getAttribute("stroke-width")).toBe(
-        "0.85",
-      );
+      expect(prevButton(container)?.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.85");
       unmount();
     }
   });
