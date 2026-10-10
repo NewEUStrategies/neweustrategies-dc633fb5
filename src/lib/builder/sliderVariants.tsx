@@ -661,10 +661,13 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
     ["--nav-size" as string]: `${nav.sizePx}px`,
     ["--nav-radius" as string]: nav.radiusCss,
   };
-  const cls = `eh-side-nav eh-nav-${nav.bgStyle}`;
+  const cls = `eh-side-nav eh-nav-${nav.bgStyle} eh-slider-arrow`;
   return (
     <>
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
+        data-typography-exempt
         type="button"
         aria-label={prevLabel}
         data-pos={nav.position}
@@ -676,15 +679,12 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
         className={`${cls} eh-prev`}
         style={cssVars}
       >
-        <NavArrowGlyph
-          variant={nav.arrowVariant}
-          direction="left"
-          sizePx={iconPx}
-          color={nav.arrowColor}
-          stroke={nav.arrowStroke}
-        />
-      </button>
-      <button
+        <AngleChevron side="left" isSm={false} />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        data-typography-exempt
         type="button"
         aria-label={nextLabel}
         data-pos={nav.position}
@@ -696,14 +696,8 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
         className={`${cls} eh-next`}
         style={cssVars}
       >
-        <NavArrowGlyph
-          variant={nav.arrowVariant}
-          direction="right"
-          sizePx={iconPx}
-          color={nav.arrowColor}
-          stroke={nav.arrowStroke}
-        />
-      </button>
+        <AngleChevron side="right" isSm={false} />
+      </Button>
     </>
   );
 }
@@ -751,7 +745,8 @@ function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = fals
           aria-label={lang === "en" ? "Previous slide" : "Poprzedni slajd"}
           title={lang === "en" ? "Previous slide" : "Poprzedni slajd"}
           onClick={onPrev}
-          className="shrink-0 rounded-lg border border-border/60 text-muted-foreground hover:border-foreground/30 hover:bg-muted/60 hover:text-foreground motion-reduce:transition-none"
+          data-typography-exempt
+          className="eh-slider-arrow shrink-0 motion-reduce:transition-none"
         >
           <AngleChevron side="left" isSm={false} />
         </Button>
@@ -784,7 +779,8 @@ function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = fals
           aria-label={lang === "en" ? "Next slide" : "Następny slajd"}
           title={lang === "en" ? "Next slide" : "Następny slajd"}
           onClick={onNext}
-          className="shrink-0 rounded-lg border border-border/60 text-muted-foreground hover:border-foreground/30 hover:bg-muted/60 hover:text-foreground motion-reduce:transition-none"
+          data-typography-exempt
+          className="eh-slider-arrow shrink-0 motion-reduce:transition-none"
         >
           <AngleChevron side="right" isSm={false} />
         </Button>

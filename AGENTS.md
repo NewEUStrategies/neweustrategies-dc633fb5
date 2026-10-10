@@ -1,5 +1,6 @@
 # Architecture rules
 
+- Use the shared `eh-slider-arrow` treatment and `AngleChevron` for CMS media and pagination arrows, isolated from per-widget button presets, so every slider renders the same controls.
 - Share contact field ceilings between client/server validation and counters; retain complete submitted text in CRM responses and reject oversized custom values rather than slicing them, because visible limits must match stored data.
 
 - Run the application typecheck with `tsgo --noEmit`, because the equivalent TypeScript check must finish within the preview gate timeout.
