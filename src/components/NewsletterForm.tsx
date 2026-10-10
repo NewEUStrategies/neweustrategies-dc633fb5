@@ -664,7 +664,7 @@ function CustomFieldRender({
           aria-required={field.required || undefined}
           className={`${inputCls} resize-y`}
           placeholder={placeholder}
-          maxLength={field.maxLength ?? 4000}
+          maxLength={field.maxLength ?? 500}
         />
       </FieldWrap>
     );

@@ -374,7 +374,7 @@ function CustomAuthFields({
               name={name}
               label={label}
               required={field.required}
-              maxLength={field.maxLength ?? 4000}
+              maxLength={field.maxLength ?? 500}
               error={error ?? null}
             />
           );
