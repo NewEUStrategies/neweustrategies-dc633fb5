@@ -28,7 +28,9 @@ export const DATA_MAP_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     type: "mapData",
     label: "Dane per kraj",
     rows: 6,
-    hint: 'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5).',
+    // Pole danych (`MapDataField`): textarea, wklejenie arkusza, import
+    // z podglądem i arkusz mapy z nazwami krajów i podglądem.
+    hint: 'Jeden kraj na wiersz: "KOD; wartość" (kod ISO-2, np. PL; 12,5). Zakres wklejony z Excela albo Arkuszy Google zamienia się na ten format, a „Edytuj w arkuszu" pokazuje nazwy krajów i uwagi do wierszy.',
   },
   { key: "unit", type: "text", label: "Jednostka (np. %, mln)" },
   {
