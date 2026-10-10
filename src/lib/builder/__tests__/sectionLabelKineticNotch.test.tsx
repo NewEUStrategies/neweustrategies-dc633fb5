@@ -170,6 +170,9 @@ describe("Kinetic Signal Notch", () => {
       expect(bar.className).toContain("w-2.5");
     }
     expect(widthPx(baseToken(bars[0]?.className ?? ""))).toBe(10);
+    // W pigułce też: spoczynek identyczny, hover rozne szerokosci.
+    const grows = bars.map((bar) => growToken(bar.className));
+    expect(new Set(grows).size).toBe(3);
     // Ta sama proporcja co w szerokim widżecie: przyrost rzędu 1-3 px na pasek.
     const deltas = growDeltas(bars);
     expect(Math.min(...deltas)).toBeGreaterThanOrEqual(1);
