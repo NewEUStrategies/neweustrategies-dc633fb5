@@ -1,7 +1,9 @@
 // Pole tekstowe danych wykresu w panelu widgetu - zwykła textarea, która
 // wklejony ARKUSZ przekłada na format średnikowy (`clipboardToChartText`).
 // Pisanie i wklejanie zwykłego tekstu działają jak dotąd; problemy wklejki
-// (obcięcie, komórki nieliczbowe, zgadnięty nagłówek) stoją pod polem.
+// (obcięcie, komórki nieliczbowe, zgadnięty nagłówek) stoją pod polem tak
+// długo, jak pole trzyma tekst z tej wklejki - następna edycja albo Ctrl+Z
+// w historii buildera zdejmują opis danych, których już nie ma.
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { clipboardPayloadOf } from "@/lib/charts/clipboardTable";
@@ -18,7 +20,11 @@ interface Props {
 }
 
 export function ChartDataTextarea({ value, onChange, rows, placeholder, className }: Props) {
-  const [problems, setProblems] = useState<readonly ImportProblem[]>([]);
+  const [wklejka, setWklejka] = useState<{
+    text: string;
+    problems: readonly ImportProblem[];
+  } | null>(null);
+  const problems = wklejka !== null && wklejka.text === value ? wklejka.problems : [];
   return (
     <div className="space-y-1.5">
       <Textarea
@@ -32,7 +38,7 @@ export function ChartDataTextarea({ value, onChange, rows, placeholder, classNam
           if (wynik === null) return;
           e.preventDefault();
           onChange(wynik.text);
-          setProblems(wynik.problems);
+          setWklejka(wynik);
         }}
       />
       <ImportProblemList problems={problems} />

@@ -15,6 +15,7 @@ import {
   CHART_PROVENANCE_OPTIONS,
   CHART_REFERENCE_GROUP,
   CHART_RELIABILITY_OPTIONS,
+  capsOfKind,
   chartColorsByCategory,
   chartColorsBySeries,
   chartHasForecast,
@@ -245,10 +246,13 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     type: "chartAccent",
     label: "Seria wyróżniona",
     group: CHART_COLORS_GROUP,
-    hint: "Seria w akcencie marki; pozostałe są tłem porównania. Domyślnie pierwsza seria.",
-    // W palecie kategorialnej każda seria ma własny kolor, więc nie ma czego
-    // wyróżniać akcentem.
-    visibleWhen: (c) => chartColorsBySeries(c.kind) && c.palette !== "categorical",
+    hint: "Seria w akcencie marki; pozostałe są tłem porównania. W palecie kategorialnej seria zachowuje swój kolor, a wyróżnia ją linia ciągła i znacznik koła. Domyślnie pierwsza seria.",
+    // W OBU PALETACH. Ranga serii wyróżnionej steruje też kształtem (linia
+    // ciągła, znacznik koła; przerywanie i kreskowanie dalszych serii), więc
+    // pole ukryte pod paletą kategorialną zostawiało zapisany wybór, który
+    // nadal zmieniał rysunek, bez kontrolki do jego cofnięcia. Rodzaj, który
+    // palety nie stosuje (`KIND_CAPS.palette` = false), rangi nie rysuje.
+    visibleWhen: (c) => chartColorsBySeries(c.kind) && capsOfKind(c.kind).palette,
   },
   {
     key: "accentCategory",

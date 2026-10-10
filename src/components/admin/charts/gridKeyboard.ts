@@ -33,11 +33,36 @@ export function gridCellAttrs(row: number, col: number): Record<string, number> 
   return { "data-grid-row": row, "data-grid-col": col };
 }
 
-/** Opróżnia odłożony zapis siatki, w której leży `target` (o ile w jakiejś leży). */
-export function flushChartGridAt(target: EventTarget | null): void {
-  if (!(target instanceof Element)) return;
+/** Szczegół zdarzenia opróżnienia: siatka zaznacza, że odłożony zapis naprawdę poszedł. */
+export interface GridFlushDetail {
+  flushed: boolean;
+}
+
+/**
+ * Opróżnia odłożony zapis siatki, w której leży `target` (o ile w jakiejś
+ * leży). Zwraca `true`, gdy siatka coś WYSŁAŁA - wołający wie wtedy, że
+ * historia dostała nowy krok, którego jego domknięcie z tego renderu jeszcze
+ * nie widzi (skróty buildera: `canUndo`, etykieta cofnięcia).
+ */
+export function flushChartGridAt(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
   const root = target.closest(`[${CHART_GRID_ATTR}]`);
-  root?.dispatchEvent(new Event(GRID_FLUSH_EVENT));
+  if (root === null) return false;
+  const detail: GridFlushDetail = { flushed: false };
+  root.dispatchEvent(new CustomEvent<GridFlushDetail>(GRID_FLUSH_EVENT, { detail }));
+  return detail.flushed;
+}
+
+/**
+ * Zatwierdza szkic komórki, w której stoi fokus - o ile stoi w siatce.
+ * Komórka liczby zatwierdza szkic przy utracie fokusu, a okno zamknięte
+ * Escape'em zdejmuje pole z dokumentu BEZ utraty fokusu: wpisana i jeszcze
+ * niezatwierdzona liczba ginęła bez śladu. Zamykający woła to przed
+ * opróżnieniem odłożonego zapisu.
+ */
+export function commitFocusedGridCell(doc: Document = document): void {
+  const el = doc.activeElement;
+  if (el instanceof HTMLElement && el.closest(`[${CHART_GRID_ATTR}]`) !== null) el.blur();
 }
 
 function komorka(root: Element, row: number, col: number): HTMLInputElement | null {
@@ -63,6 +88,37 @@ function naKoncu(input: HTMLInputElement): boolean {
 export function focusGridCell(input: HTMLInputElement): void {
   input.focus();
   input.select();
+}
+
+/**
+ * Fokus na komórce (row, col), a gdy jej już nie ma (usunięty wiersz albo
+ * kolumna) - na NAJBLIŻSZEJ, która została: najpierw ten sam wiersz, potem
+ * sąsiedni. Menu wiersza i kolumny oddaje tędy fokus siatce; bez tego po
+ * „Usuń kategorię" fokus spadał na `body` i autor z klawiatury tracił
+ * miejsce w arkuszu.
+ */
+export function focusNearestGridCell(root: Element, row: number, col: number): boolean {
+  const exact = komorka(root, row, col);
+  if (exact !== null) {
+    focusGridCell(exact);
+    return true;
+  }
+  let best: HTMLInputElement | null = null;
+  let dist = Number.POSITIVE_INFINITY;
+  for (const input of wszystkie(root)) {
+    const r = Number(input.dataset.gridRow);
+    const c = Number(input.dataset.gridCol);
+    if (!Number.isFinite(r) || !Number.isFinite(c)) continue;
+    // Odległość w wierszach waży więcej niż w kolumnach.
+    const d = Math.abs(r - row) * 1000 + Math.abs(c - col);
+    if (d < dist) {
+      dist = d;
+      best = input;
+    }
+  }
+  if (best === null) return false;
+  focusGridCell(best);
+  return true;
 }
 
 /** Czy klawisz otwiera menu wiersza albo kolumny (klawisz menu, Shift+F10). */

@@ -281,9 +281,17 @@ const CASES: ReadonlyArray<VisibilityCase> = [
   {
     widget: "chart",
     keys: ["accentSeries"],
-    why: "seria w akcencie tylko w palecie rol i tylko gdy kolor ma seria",
-    visible: [{}, { palette: "focus" }, { kind: "line", palette: "focus" }],
-    hidden: [{ palette: "categorical" }, { kind: "pie" }, { kind: "tornado" }],
+    // Ranga serii wyroznionej steruje tez ksztaltem (linia ciagla, znacznik
+    // kola), wiec wybor jest w obu paletach - ale tylko tam, gdzie rodzaj
+    // stosuje palete (KIND_CAPS.palette) i kolor ma seria.
+    why: "seria wyrozniona w obu paletach, gdy kolor ma seria i rodzaj rysuje range",
+    visible: [
+      {},
+      { palette: "focus" },
+      { palette: "categorical" },
+      { kind: "line", palette: "categorical" },
+    ],
+    hidden: [{ kind: "pie" }, { kind: "tornado" }, { kind: "scatter" }],
   },
   {
     widget: "chart",

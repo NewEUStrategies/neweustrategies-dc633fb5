@@ -33,6 +33,13 @@ interface Props {
   /** Zawartość przycisku; domyślnie trzy kropki. */
   trigger?: ReactNode;
   triggerClassName?: string;
+  /**
+   * Fokus po zamknięciu menu. Bez tego Popover oddaje go przyciskowi menu
+   * (`tabIndex={-1}`, poza Tabem), a po usunięciu wiersza albo kolumny -
+   * przyciskowi, którego już nie ma, więc fokus spadał na `body`. Siatka
+   * podaje tu powrót do komórki, z której menu otwarto.
+   */
+  onCloseFocus?: () => void;
 }
 
 function pozycje(root: HTMLElement): HTMLButtonElement[] {
@@ -53,7 +60,15 @@ function strzalki(e: KeyboardEvent<HTMLDivElement>): void {
   next.focus();
 }
 
-export function GridMenu({ label, items, open, onOpenChange, trigger, triggerClassName }: Props) {
+export function GridMenu({
+  label,
+  items,
+  open,
+  onOpenChange,
+  trigger,
+  triggerClassName,
+  onCloseFocus,
+}: Props) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
@@ -82,6 +97,11 @@ export function GridMenu({ label, items, open, onOpenChange, trigger, triggerCla
           e.preventDefault();
           const root = e.currentTarget as HTMLElement | null;
           if (root) pozycje(root)[0]?.focus();
+        }}
+        onCloseAutoFocus={(e) => {
+          if (onCloseFocus === undefined) return;
+          e.preventDefault();
+          onCloseFocus();
         }}
       >
         {items.map((item) => (

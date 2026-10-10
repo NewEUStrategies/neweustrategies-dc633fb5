@@ -17,13 +17,16 @@
 //
 // WKLEJENIE (kontrakt PR2, „DataGrid behaviour" 3): zakres w środku siatki
 // trafia od komórki kotwicy jednym zapisem, a problemy (obcięcie do limitów,
-// komórki nieliczbowe, flagi) stoją pod siatką. Cała tabela wklejona w pustą
-// siatkę albo w jej pierwszą komórkę - gdy rozpoznanie widzi nagłówek -
+// komórki nieliczbowe, flagi) stoją pod siatką - dopóki dane są tymi, które
+// wklejenie dało (następna edycja albo Ctrl+Z zdejmuje komunikat). Cała
+// tabela wklejona w PUSTĄ siatkę (`gridIsBlank`: bez liczb i bez etykiet
+// autora) albo w jej pierwszą komórkę - gdy rozpoznanie widzi nagłówek -
 // otwiera podgląd z przełącznikami układu, bo zastępuje WSZYSTKO.
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { ArrowLeftRight, Plus } from "lucide-react";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { MAX_SERIES, type ChartKind } from "@/lib/charts/types";
+import { KIND_CAPS } from "@/lib/charts/kindCaps";
 import { MAX_CATEGORIES } from "@/lib/charts/parse";
 import type { ChartPalette } from "@/lib/charts/seriesStyle";
 import type { ClipboardTable } from "@/lib/charts/clipboardTable";
@@ -35,6 +38,7 @@ import {
   gridCanTranspose,
   gridInsertCategory,
   gridInsertSeries,
+  gridIsBlank,
   gridMoveCategory,
   gridMoveSeries,
   gridPaste,
@@ -50,6 +54,7 @@ import {
   gridSort,
   gridTranspose,
   GRID_MIN,
+  widgetGridSignature,
   type ChartGridValue,
   type EditorDocLang,
 } from "./chartGridState";
@@ -65,7 +70,12 @@ import { GridMenu, type GridMenuItem } from "./GridMenu";
 import { ImportProblemList } from "./ImportProblemList";
 import { PastePreviewDialog } from "./PastePreviewDialog";
 import type { TableLayout, TablePreviewSource } from "./tableLayout";
-import { CHART_GRID_ATTR, GRID_FLUSH_EVENT } from "./gridKeyboard";
+import {
+  CHART_GRID_ATTR,
+  GRID_FLUSH_EVENT,
+  focusNearestGridCell,
+  type GridFlushDetail,
+} from "./gridKeyboard";
 import { useChartEditorT, type EditorLang } from "./chartEditorI18n";
 
 /** Sterowanie siatką z zewnątrz - wklejenie na kanwie i import pliku otwierają ten sam podgląd. */
@@ -89,8 +99,12 @@ interface Props {
   lang?: EditorLang;
   /** Filtr etykiet (arkusz widgetu: format średnikowy nie uniesie średnika). */
   sanitizeLabel?: (raw: string) => string;
-  /** Opróżnienie odłożonego zapisu tuż przed cofnięciem (`GRID_FLUSH_EVENT`). */
-  onFlush?: () => void;
+  /**
+   * Opróżnienie odłożonego zapisu tuż przed cofnięciem (`GRID_FLUSH_EVENT`);
+   * `true` = zapis naprawdę poszedł (skróty buildera cofają wtedy po
+   * przerysowaniu, żeby historia widziała ten krok).
+   */
+  onFlush?: () => boolean | void;
   className?: string;
 }
 
@@ -100,13 +114,20 @@ interface Podglad {
   source: TablePreviewSource;
 }
 
+/** Wynik wklejenia pod siatką - z podpisem danych, które wklejenie dało. */
+interface WynikWklejenia {
+  problems: readonly ImportProblem[];
+  /**
+   * Podpis stanu po wklejeniu (`widgetGridSignature`: dane, kolory, akcent).
+   * Komunikat stoi, dopóki siatka go ma: następna edycja albo Ctrl+Z, które
+   * wklejenie cofnęło, zdejmują zdanie opisujące dane, których już nie ma.
+   * Podpis, nie tożsamość obiektu - edytor bloku odtwarza stan z treści.
+   */
+  sig: string;
+}
+
 /** Stała pustka dla zamkniętego podglądu - nowa tablica w każdym renderze zerowałaby jego układ. */
 const BEZ_WIERSZY: readonly (readonly string[])[] = [];
-
-/** Siatka bez ani jednej liczby - wklejka tabeli z etykietami ją ZASTĘPUJE, a nie wypełnia. */
-function bezLiczb(v: ChartGridValue): boolean {
-  return v.model.series.every((s) => s.values.every((x) => x === null || x === undefined));
-}
 
 function ChartDataGridInner(
   { value, onChange, kind, palette, docLang, lang, sanitizeLabel, onFlush, className }: Props,
@@ -117,13 +138,22 @@ function ChartDataGridInner(
   const [menu, setMenu] = useState<string | null>(null);
   const [kolor, setKolor] = useState<number | null>(null);
   const [podglad, setPodglad] = useState<Podglad | null>(null);
-  const [wynik, setWynik] = useState<{ problems: readonly ImportProblem[] } | null>(null);
+  const [wynik, setWynik] = useState<WynikWklejenia | null>(null);
+  // Komórka, z której otwarto menu wiersza albo kolumny - tam wraca fokus.
+  const menuOrigin = useRef<GridAnchor | null>(null);
 
   const { categories, series } = value.model;
   const eff = effectivePalette(kind, palette);
   const probkiSerii = colorsBySeries(kind) ? seriesSwatches(series, value.accentSeries, eff) : null;
-  const akcentSerii = colorsBySeries(kind) && eff === "focus";
+  // SERIA WYRÓŻNIONA W OBU PALETACH. Ranga z `accentSeries` steruje nie tylko
+  // kolorem roli, ale też kształtem (linia ciągła, znacznik koła, pełne pole
+  // serii głównej; przerywanie i kreskowanie dalszych) - w palecie
+  // kategorialnej również. Wybór ukryty pod paletą kategorialną zostawiał
+  // zapisaną serię wyróżnioną bez kontrolki, którą dałoby się to cofnąć.
+  // Rodzaj bez palety (`KIND_CAPS.palette` = false) rangi nie rysuje.
+  const akcentSerii = colorsBySeries(kind) && KIND_CAPS[kind].palette;
   const akcentKategorii = colorsByCategory(kind);
+  const wynikAktualny = wynik !== null && wynik.sig === widgetGridSignature(value) ? wynik : null;
 
   // Opróżnienie odłożonego zapisu: skróty buildera wysyłają zdarzenie NA
   // korzeń siatki przed Ctrl+Z. Wołający ze stanu lokalnego (arkusz widgetu)
@@ -133,7 +163,10 @@ function ChartDataGridInner(
   useEffect(() => {
     const el = rootRef.current;
     if (el === null) return;
-    const h = () => flushRef.current?.();
+    const h = (e: Event) => {
+      const wyslano = flushRef.current?.() === true;
+      if (wyslano && e instanceof CustomEvent) (e.detail as GridFlushDetail).flushed = true;
+    };
     el.addEventListener(GRID_FLUSH_EVENT, h);
     return () => el.removeEventListener(GRID_FLUSH_EVENT, h);
   }, []);
@@ -150,20 +183,45 @@ function ChartDataGridInner(
     if (next !== value) onChange(next);
   };
 
+  /** Menu otwarte z komórki (klawisz menu, Shift+F10) albo przyciskiem przy niej. */
+  const otworzMenu = (id: string, origin: GridAnchor) => {
+    menuOrigin.current = origin;
+    setMenu(id);
+  };
+
+  /**
+   * Fokus po zamknięciu menu wraca do komórki, z której je otwarto (po
+   * usunięciu - do najbliższej, która została). Gdy fokus przejęło już coś
+   * innego (próbnik koloru otwarty z menu), zostaje tam.
+   */
+  const wrocDoKomorki = () => {
+    const root = rootRef.current;
+    const origin = menuOrigin.current;
+    if (root === null || origin === null) return;
+    const aktywny = root.ownerDocument.activeElement;
+    if (aktywny !== null && aktywny !== root.ownerDocument.body && aktywny.isConnected) return;
+    focusNearestGridCell(root, origin.row, origin.col);
+  };
+
+  /** Działanie menu, po którym fokus ma stanąć w innym wierszu albo kolumnie niż komórka startowa. */
+  const potem = (origin: Partial<GridAnchor>) => {
+    if (menuOrigin.current !== null) menuOrigin.current = { ...menuOrigin.current, ...origin };
+  };
+
   const wklej = (table: ClipboardTable, anchor: GridAnchor) => {
     const readProblems: ImportProblem[] = table.truncated ? [{ code: "pasteTruncated" }] : [];
     const szerokosc = table.rows[0]?.length ?? 0;
     const pierwszaKomorka = anchor.row <= 0 && anchor.col <= 0;
     const calaTabela =
       szerokosc >= 2 &&
-      (bezLiczb(value) || (pierwszaKomorka && analyseTable(table.rows).headerRow));
+      (gridIsBlank(value) || (pierwszaKomorka && analyseTable(table.rows).headerRow));
     if (calaTabela) {
       otworzPodglad(table.rows, readProblems, "paste");
       return;
     }
     const { value: next, problems } = gridPaste(value, table.rows, anchor, docLang);
     zmien(next);
-    setWynik({ problems: [...readProblems, ...problems] });
+    setWynik({ problems: [...readProblems, ...problems], sig: widgetGridSignature(next) });
   };
 
   const zastosujPodglad = (layout: TableLayout) => {
@@ -173,8 +231,9 @@ function ChartDataGridInner(
       transpose: layout.transpose,
       locale: layout.locale,
     });
-    zmien(gridReplace(value, dane));
-    setWynik({ problems: [...podglad.problems, ...dane.problems] });
+    const next = gridReplace(value, dane);
+    zmien(next);
+    setWynik({ problems: [...podglad.problems, ...dane.problems], sig: widgetGridSignature(next) });
     setPodglad(null);
   };
 
@@ -197,19 +256,28 @@ function ChartDataGridInner(
       id: "insertBelow",
       label: t("chartEditor.menu.insertBelow"),
       unavailable: pelneKategorie,
-      onSelect: () => zmien(gridInsertCategory(value, ci + 1)),
+      onSelect: () => {
+        potem({ row: ci + 1 });
+        zmien(gridInsertCategory(value, ci + 1));
+      },
     },
     {
       id: "moveUp",
       label: t("chartEditor.menu.moveUp"),
       unavailable: ci === 0,
-      onSelect: () => zmien(gridMoveCategory(value, ci, -1)),
+      onSelect: () => {
+        potem({ row: ci - 1 });
+        zmien(gridMoveCategory(value, ci, -1));
+      },
     },
     {
       id: "moveDown",
       label: t("chartEditor.menu.moveDown"),
       unavailable: ci === categories.length - 1,
-      onSelect: () => zmien(gridMoveCategory(value, ci, 1)),
+      onSelect: () => {
+        potem({ row: ci + 1 });
+        zmien(gridMoveCategory(value, ci, 1));
+      },
     },
     ...(akcentKategorii
       ? [
@@ -241,20 +309,28 @@ function ChartDataGridInner(
       id: "insertAfter",
       label: t("chartEditor.menu.insertAfter"),
       unavailable: pelneSerie,
-      onSelect: () =>
-        zmien(gridInsertSeries(value, si + 1, defaultSeriesName(series.length, docLang))),
+      onSelect: () => {
+        potem({ col: si + 1 });
+        zmien(gridInsertSeries(value, si + 1, defaultSeriesName(series.length, docLang)));
+      },
     },
     {
       id: "moveLeft",
       label: t("chartEditor.menu.moveLeft"),
       unavailable: si === 0,
-      onSelect: () => zmien(gridMoveSeries(value, si, -1)),
+      onSelect: () => {
+        potem({ col: si - 1 });
+        zmien(gridMoveSeries(value, si, -1));
+      },
     },
     {
       id: "moveRight",
       label: t("chartEditor.menu.moveRight"),
       unavailable: si === series.length - 1,
-      onSelect: () => zmien(gridMoveSeries(value, si, 1)),
+      onSelect: () => {
+        potem({ col: si + 1 });
+        zmien(gridMoveSeries(value, si, 1));
+      },
     },
     {
       id: "sortAsc",
@@ -413,13 +489,16 @@ function ChartDataGridInner(
                         sanitize={sanitizeLabel}
                         onChange={(name) => zmien(gridSetSeriesName(value, si, name))}
                         onTablePaste={wklej}
-                        onOpenMenu={() => setMenu(`s${si}`)}
+                        onOpenMenu={() => otworzMenu(`s${si}`, { row: -1, col: si })}
                       />
                       <GridMenu
                         label={t("chartEditor.grid.menuSeries", { name: nazwaSerii(si) })}
                         items={menuSerii(si)}
                         open={menu === `s${si}`}
-                        onOpenChange={(o) => setMenu(o ? `s${si}` : null)}
+                        onOpenChange={(o) =>
+                          o ? otworzMenu(`s${si}`, { row: -1, col: si }) : setMenu(null)
+                        }
+                        onCloseFocus={wrocDoKomorki}
                       />
                     </div>
                     {probka !== undefined && probka.role !== null && (
@@ -442,7 +521,10 @@ function ChartDataGridInner(
                       label={t("chartEditor.grid.menuCategory", { name: nazwaKategorii(ci) })}
                       items={menuKategorii(ci)}
                       open={menu === `c${ci}`}
-                      onOpenChange={(o) => setMenu(o ? `c${ci}` : null)}
+                      onOpenChange={(o) =>
+                        o ? otworzMenu(`c${ci}`, { row: ci, col: -1 }) : setMenu(null)
+                      }
+                      onCloseFocus={wrocDoKomorki}
                     />
                   </div>
                 </td>
@@ -456,7 +538,7 @@ function ChartDataGridInner(
                     sanitize={sanitizeLabel}
                     onChange={(label) => zmien(gridSetCategory(value, ci, label))}
                     onTablePaste={wklej}
-                    onOpenMenu={() => setMenu(`c${ci}`)}
+                    onOpenMenu={() => otworzMenu(`c${ci}`, { row: ci, col: -1 })}
                   />
                 </td>
                 {series.map((s, si) => (
@@ -473,7 +555,7 @@ function ChartDataGridInner(
                       invalidText={t("chartEditor.grid.invalidNumber")}
                       onCommit={(v) => zmien(gridSetValue(value, ci, si, v))}
                       onTablePaste={wklej}
-                      onOpenMenu={() => setMenu(`c${ci}`)}
+                      onOpenMenu={() => otworzMenu(`c${ci}`, { row: ci, col: si })}
                     />
                   </td>
                 ))}
@@ -498,11 +580,16 @@ function ChartDataGridInner(
           {t("chartEditor.colors.focusRoles")} {t("chartEditor.colors.customHint")}.
         </p>
       )}
+      {akcentSerii && eff !== "focus" && series.length > 1 && (
+        <p className="text-[10px] text-muted-foreground">
+          {t("chartEditor.accent.categoricalHint")}
+        </p>
+      )}
       <p className="text-[10px] text-muted-foreground">{t("chartEditor.grid.pasteHint")}</p>
-      {wynik !== null && (
+      {wynikAktualny !== null && (
         <div aria-live="polite" className="space-y-1">
           <p className="text-[11px] text-muted-foreground">{t("chartEditor.grid.pasted")}</p>
-          <ImportProblemList problems={wynik.problems} lang={lang} />
+          <ImportProblemList problems={wynikAktualny.problems} lang={lang} />
         </div>
       )}
 

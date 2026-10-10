@@ -23,13 +23,19 @@ const pl = {
       // Tarcza i pierścień: kolor ma kategoria, więc wyróżnia się wycinek.
       categoryLabel: "Wycinek wyróżniony",
       categoryAuto: "Największy wycinek (domyślnie)",
+      // Paleta kategorialna: seria wyróżniona zachowuje swój kolor, ale ranga
+      // nadal decyduje o kształcie (linia ciągła, znacznik koła).
+      categoricalHint:
+        "W palecie kategorialnej seria wyróżniona zachowuje swój kolor - wyróżnia ją rysunek: linia ciągła i znacznik koła, bez kreskowania.",
     },
     colors: {
       // Paleta ról nie czyta koloru wybranego przy serii - mówi to autorowi
       // zdanie pod wyborem, zamiast kazać mu szukać zmiany w podglądzie.
       customHint: "Kolory własne działają w palecie kategorialnej",
+      // Rangi 3 i 4 palety ról to kolory sygnałowe (turkus, fiolet), nie
+      // neutralne - zdanie mówi o roli, a nie o odcieniu.
       focusRoles:
-        "Kolory daje paleta ról: seria wyróżniona w akcencie, pozostałe w odcieniach neutralnych.",
+        "Kolory daje paleta ról: seria wyróżniona w akcencie, pozostałe jako tło porównania.",
       pickerLabel: "Kolor serii {{name}}",
       pickerTitle: "Kolor serii",
       recommended: "Rozdzielne dla daltonizmu",
@@ -136,11 +142,13 @@ const en: typeof pl = {
       label: "Highlighted series",
       categoryLabel: "Highlighted slice",
       categoryAuto: "Largest slice (default)",
+      categoricalHint:
+        "In the categorical palette the highlighted series keeps its colour - its drawing sets it apart: a solid line and a circle marker, no hatching.",
     },
     colors: {
       customHint: "Custom colours apply in the categorical palette",
       focusRoles:
-        "Colours come from the role palette: the highlighted series in the accent, the others in neutral tones.",
+        "Colours come from the role palette: the highlighted series in the accent, the others as the comparison background.",
       pickerLabel: "Colour of series {{name}}",
       pickerTitle: "Series colour",
       recommended: "Colour-blind separable",

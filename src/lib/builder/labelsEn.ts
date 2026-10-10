@@ -603,8 +603,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Próbka pokazuje kolor, którym seria jest narysowana. Kolor wybierasz z próbek palety.":
     "The swatch shows the color the series is drawn in. Pick a color from the palette swatches.",
   "Seria wyróżniona": "Highlighted series",
-  "Seria w akcencie marki; pozostałe są tłem porównania. Domyślnie pierwsza seria.":
-    "The series in the brand accent; the rest are the comparison background. The first series by default.",
+  "Seria w akcencie marki; pozostałe są tłem porównania. W palecie kategorialnej seria zachowuje swój kolor, a wyróżnia ją linia ciągła i znacznik koła. Domyślnie pierwsza seria.":
+    "The series in the brand accent; the rest are the comparison background. In the categorical palette the series keeps its color and stands out with a solid line and a circle marker. The first series by default.",
   "Wycinek wyróżniony": "Highlighted slice",
   "Wycinek w akcencie marki - nigdy nie trafia do „Pozostałe”. Domyślnie największy wycinek.":
     "The slice in the brand accent - never folded into “Other”. The largest slice by default.",

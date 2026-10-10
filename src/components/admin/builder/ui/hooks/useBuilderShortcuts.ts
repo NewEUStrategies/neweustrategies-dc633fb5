@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { flushSync } from "react-dom";
 import type { Selection } from "../organisms/builder";
 import { flushChartGridAt } from "@/components/admin/charts/gridKeyboard";
 
@@ -51,6 +52,11 @@ export function useBuilderShortcuts(p: Params) {
     onClearMulti,
   } = p;
   const multiSize = multiSelection?.size ?? 0;
+  // Cofnięcie i ponowienie z NAJŚWIEŻSZEGO renderu - po opróżnieniu arkusza
+  // wykresu (niżej) domknięcie z chwili wciśnięcia klawisza nie widzi kroku,
+  // który właśnie wszedł do historii.
+  const latest = useRef({ undo, redo });
+  latest.current = { undo, redo };
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -67,16 +73,28 @@ export function useBuilderShortcuts(p: Params) {
       // milisekund; Ctrl+Z wciśnięty w tym oknie cofnąłby zmianę SPRZED niej,
       // a odłożony zapis wróciłby zaraz potem. Dlatego przed cofnięciem
       // (i ponowieniem) siatka, w której stoi fokus, wysyła zapis od razu.
+      //
+      // Zapis wysłany TERAZ trafia do historii przez stan Reacta, więc
+      // `undo` z tego renderu go nie widzi: przy pierwszej edycji `canUndo`
+      // było jeszcze fałszem (Ctrl+Z tylko zapisywał etykietę), a etykieta
+      // komunikatu należała do kroku wcześniejszego. `flushSync` przerysowuje
+      // builder od razu, a cofnięcie bierze funkcję z tego nowego renderu.
+      const poOproznieniu = (run: () => void, pick: () => () => void) => {
+        let wyslano = false;
+        flushSync(() => {
+          wyslano = flushChartGridAt(e.target);
+        });
+        if (wyslano) pick()();
+        else run();
+      };
       if (mod && k === "z" && !e.shiftKey) {
         e.preventDefault();
-        flushChartGridAt(e.target);
-        undo();
+        poOproznieniu(undo, () => latest.current.undo);
         return;
       }
       if (mod && (k === "y" || (e.shiftKey && k === "z"))) {
         e.preventDefault();
-        flushChartGridAt(e.target);
-        redo();
+        poOproznieniu(redo, () => latest.current.redo);
         return;
       }
       if (mod && k === "s" && onSave) {

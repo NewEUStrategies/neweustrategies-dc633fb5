@@ -266,6 +266,40 @@ export function gridPaste(
 }
 
 /**
+ * Czy siatka jest PUSTA - bez żadnej liczby i bez etykiety, którą wpisał
+ * autor. Tylko taką siatkę wklejka całej tabeli ZASTĘPUJE (podgląd układu)
+ * zamiast wypełniać od komórki kotwicy (kontrakt PR2, „DataGrid behaviour" 3).
+ *
+ * Do tej poprawki pustą była siatka „bez liczb", a to obejmowało też siatkę,
+ * w której autor wpisał lata i nazwy serii, żeby wkleić pod nie same liczby:
+ * wklejka w pierwszą komórkę wartości otwierała podgląd zastępujący wszystko,
+ * a „Zastosuj" wymieniał wpisane etykiety na pierwszą kolumnę liczb. Etykieta
+ * wstawiona przez sam arkusz (rok startowy widgetu, „Seria A" / „Series A",
+ * numer porządkowy z dołożonego wiersza) wyborem autora nie jest.
+ */
+export function gridIsBlank(v: ChartGridValue): boolean {
+  const { categories, series } = v.model;
+  const bezLiczb = series.every((s) => s.values.every((x) => x === null || x === undefined));
+  if (!bezLiczb) return false;
+  const kategorieDomyslne = categories.every((label, i) => {
+    const s = label.trim();
+    return (
+      s === "" || s === String(i + 1) || (categories.length === 1 && s === WIDGET_START_CATEGORY)
+    );
+  });
+  const nazwyDomyslne = series.every((x, i) => {
+    const s = x.name.trim();
+    return (
+      s === "" ||
+      s === String(i + 1) ||
+      s === defaultSeriesName(i, "pl") ||
+      s === defaultSeriesName(i, "en")
+    );
+  });
+  return kategorieDomyslne && nazwyDomyslne;
+}
+
+/**
  * Zastąpienie całej tabeli (plik, wklejka całej tabeli). Kolory idą za
  * nazwą serii (`mergeSeriesColors`), a akcent - za NAZWĄ wyróżnionej serii
  * i ETYKIETĄ wyróżnionej kategorii: poprawiony plik z tą samą serią w innej

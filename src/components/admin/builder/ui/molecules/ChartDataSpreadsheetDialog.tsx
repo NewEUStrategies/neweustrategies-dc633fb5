@@ -36,6 +36,7 @@ import { isChartPalette } from "@/lib/charts/seriesStyle";
 import { needsTextCellFix, safeTextCell, tableToChartData } from "@/lib/charts/importTable";
 import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
 import { ChartDataGrid } from "@/components/admin/charts/ChartDataGrid";
+import { commitFocusedGridCell } from "@/components/admin/charts/gridKeyboard";
 import {
   gridReplace,
   readWidgetGrid,
@@ -67,7 +68,7 @@ interface Props {
    */
   setContent?: (key: string, value: Json) => void;
   setContentPatch?: (patch: ContentPatch) => void;
-  /** Klucz pola danych w treści widgetu (schemat wykresu: `data`). */
+  /** Klucz pola danych w treści widgetu; domyślnie `data` (schemat wykresu). */
   dataKey?: string;
 }
 
@@ -196,16 +197,19 @@ export function ChartDataSpreadsheetDialog({
   const kanaly = useRef({ onChange, setContent, setContentPatch, dataKey });
   kanaly.current = { onChange, setContent, setContentPatch, dataKey };
 
-  /** Zapis stanu do treści widgetu - jedna łatka, jeden krok historii. */
-  const zapisz = useCallback((g: ChartGridValue) => {
+  /**
+   * Zapis stanu do treści widgetu - jedna łatka, jeden krok historii.
+   * `true`, gdy coś naprawdę poszło (stan inny niż ostatnio wysłany).
+   */
+  const zapisz = useCallback((g: ChartGridValue): boolean => {
     const sig = widgetGridSignature(g);
-    if (sig === lastSyncedRef.current) return;
+    if (sig === lastSyncedRef.current) return false;
     lastSyncedRef.current = sig;
     const k = kanaly.current;
     const patch = widgetGridPatch(g, k.dataKey);
     if (k.setContentPatch) {
       k.setContentPatch(patch);
-      return;
+      return true;
     }
     // Wołający bez historii (testy, edytory niestandardowe): dane przez
     // `onChange`, reszta kluczy przez `setContent`, jeśli jest.
@@ -216,6 +220,7 @@ export function ChartDataSpreadsheetDialog({
         if ((wejscie.current.c[key] ?? null) !== v) k.setContent(key, v);
       }
     }
+    return true;
   }, []);
 
   // Live sync: odłożony zapis zmian samych etykiet (patrz `tylkoEtykiety`).
@@ -241,10 +246,14 @@ export function ChartDataSpreadsheetDialog({
     if (!debounce) zapisz(next);
   };
 
-  /** Ctrl+Z w siatce: odłożony zapis idzie PRZED cofnięciem historii buildera. */
-  const flushNow = () => {
-    zapisz(gridRef.current);
+  /**
+   * Ctrl+Z w siatce: odłożony zapis idzie PRZED cofnięciem historii buildera.
+   * `true` mówi skrótom buildera, że historia dostała właśnie nowy krok.
+   */
+  const flushNow = (): boolean => {
+    const wyslano = zapisz(gridRef.current);
     setSyncing(false);
+    return wyslano;
   };
 
   const chartKind = parseChartKind(
@@ -276,8 +285,17 @@ export function ChartDataSpreadsheetDialog({
   // Zamknięcie W KAŻDY sposób (Zapisz, Zamknij, Escape, klik poza oknem)
   // wysyła odłożony zapis od razu, żeby nigdy nie odrzuciło ostatniej edycji
   // (edge case: user zamyka w oknie debounce).
+  //
+  // NAJPIERW SZKIC KOMÓRKI. Komórka liczby zatwierdza wpis przy utracie
+  // fokusu, a Escape zamyka okno z fokusem wciąż w polu - pole znikało po
+  // animacji wyjścia bez utraty fokusu i wpisana liczba przepadała. Zdjęcie
+  // fokusu zatwierdza szkic (zapis idzie od razu, bo liczba zmienia wykres),
+  // a dopiero potem leci odłożony zapis etykiet.
   const zmienOtwarcie = (next: boolean) => {
-    if (!next) flushNow();
+    if (!next) {
+      commitFocusedGridCell();
+      flushNow();
+    }
     setOpen(next);
   };
 

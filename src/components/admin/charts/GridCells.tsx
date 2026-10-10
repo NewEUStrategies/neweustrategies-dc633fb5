@@ -6,9 +6,13 @@
 // komórkę, więc ułamka ani liczby ujemnej nie dało się wpisać inaczej niż
 // wklejeniem. Komórka trzyma więc NAPIS i zatwierdza go dopiero przy
 // opuszczeniu (blur), Enterze, Tabie albo wklejeniu - przez
-// `parseImportedCell`, czyli tą samą regułą co import pliku i schowek:
-// „1 234,5", „12,5%", „−3" i „7 p" (flaga Eurostatu) dają tę samą liczbę
-// bez względu na drogę.
+// `parseImportedCell`, czyli tą samą regułą co komórka pliku: „1 234,5",
+// „12,5%", „−3" i „7 p" (flaga Eurostatu) dają tę samą liczbę wpisane ręcznie
+// i wczytane z pliku. Komórka SKOPIOWANA Z ARKUSZA (tabela HTML w schowku)
+// idzie drogą zakresu - surową wartością (`singleSheetCell`) - więc „1,234"
+// z angielskiego Excela daje 1234 i w jednej komórce, i w zakresie. Napis
+// wpisany albo wklejony jako zwykły tekst nie ma surowej wartości: „1,234"
+// to wtedy ułamek, jak w zakresie tekstowym bez rozstrzygającej komórki.
 //
 // WPIS, KTÓRY LICZBĄ NIE JEST, NIE ZAMIENIA SIĘ W LUKĘ. Do PR2 „abc" dawało
 // po cichu `null` - wykres tracił punkt, a redaktor nie wiedział, dlaczego.
@@ -19,7 +23,8 @@
 // WKLEJENIE ZAKRESU (schowek z więcej niż jedną komórką) nie trafia do pola:
 // komórka oddaje tabelę siatce razem ze swoimi współrzędnymi (kotwica),
 // a siatka zapisuje ją jednym `onChange`. Pojedyncza wartość wkleja się
-// w pole i od razu zatwierdza.
+// w pole i od razu zatwierdza; komórka z arkusza zastępuje cały wpis, jak
+// w arkuszu.
 import { useId, useRef, useState } from "react";
 import {
   clipboardPayloadOf,
@@ -29,7 +34,7 @@ import {
 import type { GridAnchor } from "@/lib/charts/gridModel";
 import { cn } from "@/lib/utils";
 import { gridCellAttrs, handleGridKey, isMenuKey } from "./gridKeyboard";
-import { formatCellNumber, gridCellCls, readCellDraft } from "./gridCellValue";
+import { formatCellNumber, gridCellCls, readCellDraft, singleSheetCell } from "./gridCellValue";
 
 interface CommonCellProps {
   row: number;
@@ -145,10 +150,23 @@ export function NumberCell({
           handleGridKey(e, () => commitText(draft));
         }}
         onPaste={(e) => {
-          const table = readClipboardTable(clipboardPayloadOf(e));
+          const payload = clipboardPayloadOf(e);
+          const table = readClipboardTable(payload);
           if (table !== null) {
             e.preventDefault();
             onTablePaste(table, { row, col });
+            return;
+          }
+          // Jedna komórka z arkusza: wartość odczytana tak jak w zakresie,
+          // pokazana w konwencji dokumentu, zastępuje cały wpis.
+          const zArkusza = singleSheetCell(payload);
+          if (zArkusza !== null) {
+            e.preventDefault();
+            const r = readCellDraft(zArkusza);
+            const next = r.ok && r.value !== null ? formatCellNumber(r.value, lang) : zArkusza;
+            committed.current = null;
+            setDraft(next);
+            commitText(next);
             return;
           }
           const text = e.clipboardData?.getData("text/plain") ?? "";

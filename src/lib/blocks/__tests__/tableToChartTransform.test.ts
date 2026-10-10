@@ -58,6 +58,19 @@ describe("tabela -> wykres", () => {
     expect(config.series.map((s) => s.name)).toEqual(["PL"]);
   });
 
+  it("tabela bez ani jednej liczby nie staje się pustym wykresem - zostaje tabelą", () => {
+    expect(
+      transformBlock(
+        tabela([
+          ["Kraj", "Stolica"],
+          ["Polska", "Warszawa"],
+          ["Czechy", "Praga"],
+        ]),
+        "chart",
+      ),
+    ).toBeNull();
+  });
+
   it("wykres z tabeli dostaje ustawienia domyślne bloku wykresu", () => {
     const out = transformBlock(
       tabela([

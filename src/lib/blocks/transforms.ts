@@ -108,11 +108,22 @@ function tableRows(block: Block): string[][] {
  * Tabela -> wykres. Ustawienia wykresu to DOMYŚLNE z rejestru (jedno źródło
  * z blokiem wstawianym z menu), dane - z tabeli. Flaga nagłówka tabeli jest
  * rozstrzygnięciem autora; bez niej nagłówek rozpoznaje `analyseTable`.
+ *
+ * TABELA BEZ LICZB NIE STAJE SIĘ WYKRESEM (`null`). Do tej poprawki tabela
+ * samego tekstu zamieniała się w pusty wykres, a jej komórki ginęły bez
+ * słowa; teraz tabela zostaje nietknięta. Menu „Przekształć w" liczy cele
+ * po TYPIE bloku (pamięć podręczna kanwy), więc pozycji nie da się tu ukryć
+ * dla jednej tabeli - komunikat o odmowie i o problemach odczytu (obcięcie
+ * do limitów, komórki nieliczbowe) należy do kanwy (`BlockCanvas`).
  */
-function tableToChart(block: Block): Block {
+function tableToChart(block: Block): Block | null {
   const dane = tableToChartData(tableRows(block), {
     header: block.data.header === true ? true : undefined,
   });
+  const maLiczbe = dane.series.some((s) =>
+    s.values.some((v) => typeof v === "number" && Number.isFinite(v)),
+  );
+  if (!maLiczbe) return null;
   const base = BLOCK_SPECS.chart.create();
   return {
     ...base,
@@ -131,7 +142,10 @@ function tableToChart(block: Block): Block {
 /** Buduje blok docelowy z treści źródła. `null` = transformacja nieobsługiwana. */
 export function transformBlock(block: Block, to: BlockType): Block[] | null {
   if (block.type === to) return null;
-  if (block.type === "table") return to === "chart" ? [tableToChart(block)] : null;
+  if (block.type === "table") {
+    const chart = to === "chart" ? tableToChart(block) : null;
+    return chart === null ? null : [chart];
+  }
   const text = sourceText(block);
   const inline = sourceInlineHtml(block);
 
