@@ -88,6 +88,7 @@ Blok CMS („Gutenberg") i widget buildera („Elementor") rysują ten sam silni
 | metoda podziału | kwantyle (równe liczebności), równe przedziały                         | kwantyle                                    |
 | środek skali    | liczba (tylko schemat rozbieżny)                                       | 0                                           |
 
+- W schemacie rozbieżnym środek skali jest zawsze granicą klasy: kwantyle i liczba klas liczą się osobno po każdej stronie środka (proporcjonalnie do liczby krajów, co najmniej jedna klasa na stronę), więc żadna klasa nie łączy spadku ze wzrostem.
 - Opublikowana mapa bez nowych kluczy wygląda dokładnie jak przed PR: niebieska skala ciągła z tym samym mieszaniem `0,15 + 0,85 t` (50 porównań w `mapPublishedLook.test.tsx`).
 - Rampy nie mają turkusu ani fioletu (czytałyby się jak „dodatni" i „powyżej przedziału" palety ról) ani bursztynu; bramka `palette.test.ts` liczy dla klas 3-7 odstęp jasności sąsiednich klas, kontrast końca rampy z płytą i odróżnialność od „brak danych", w motywie jasnym, ciemnym i druku.
 - Legenda klasowa (przedziały w jednostce, nazwa metody), gradient skali ciągłej, punkt środkowy skali rozbieżnej i kreskowana próbka „brak danych". Kraj bez wartości jest kreskowany (odstęp >= 4 px także przy szerokości 320 px), a tooltip mówi „brak danych".

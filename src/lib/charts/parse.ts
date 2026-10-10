@@ -54,7 +54,15 @@ function text(raw: Json | undefined): string {
 function num(raw: Json | undefined): number | null {
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
   if (typeof raw === "string" && raw.trim() !== "") {
-    const v = Number(raw.replace(",", "."));
+    // Pola tekstowe panelu (cel, pasmo, środek skali mapy) przyjmują zapis
+    // z arkusza: spacja (także twarda i wąska) grupuje tysiące, a minus bywa
+    // znakiem U+2212. Bez tego „1 234,5" i „−3" cicho stawały się brakiem.
+    const v = Number(
+      raw
+        .replace(/[\s\u00a0\u202f]/g, "")
+        .replace("\u2212", "-")
+        .replace(",", "."),
+    );
     return Number.isFinite(v) ? v : null;
   }
   return null;

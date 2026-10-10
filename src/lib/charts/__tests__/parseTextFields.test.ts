@@ -37,3 +37,14 @@ describe("pola tekstowe parsera", () => {
     expect(parseDataMapConfig({ sourceDate: 2025 }).sourceDate).toBe("2025");
   });
 });
+
+describe("liczby z pól tekstowych panelu", () => {
+  it("spacje grupujące tysiące (zwykła, twarda, wąska) i minus U+2212 są czytane", () => {
+    expect(parseDataMapConfig({ midpoint: "1 234,5" }).midpoint).toBe(1234.5);
+    expect(parseDataMapConfig({ midpoint: "1\u00a0234" }).midpoint).toBe(1234);
+    expect(parseDataMapConfig({ midpoint: "2\u202f500" }).midpoint).toBe(2500);
+    expect(parseDataMapConfig({ midpoint: "\u22123,5" }).midpoint).toBe(-3.5);
+    expect(parseDataMapConfig({ midpoint: "abc" }).midpoint).toBeNull();
+    expect(parseDataMapConfig({ midpoint: "" }).midpoint).toBeNull();
+  });
+});
