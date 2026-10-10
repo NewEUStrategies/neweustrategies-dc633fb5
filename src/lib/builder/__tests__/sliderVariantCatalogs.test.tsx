@@ -382,9 +382,7 @@ describe("SliderRender - katalog stylów i pozycji nawigacji", () => {
   it("trzyma kreskę ikony na 0.85 niezależnie od ustawienia grubości panelu", () => {
     for (const stroke of [0.1, 2.25, 9]) {
       const { container, unmount } = renderSlider({ navArrowStroke: stroke });
-      expect(
-        prevButton(container)?.querySelector("svg polyline")?.getAttribute("stroke-width"),
-      ).toBe("0.85");
+      expect(prevButton(container)?.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.85");
       unmount();
     }
   });
