@@ -48,7 +48,7 @@ import {
   mapCountryLookup,
   readWidgetMapRows,
   widgetMapText,
-  type MapGridRow,
+  type MapEditorRow,
 } from "./mapGridState";
 import { useChartEditorT } from "./chartEditorI18n";
 
@@ -78,9 +78,9 @@ export function MapDataDialog({
 }: Props) {
   const t = useChartEditorT(lang);
   const [open, setOpen] = useState(false);
-  const [rows, setRows] = useState<readonly MapGridRow[]>(() => readWidgetMapRows(value));
+  const [rows, setRows] = useState<readonly MapEditorRow[]>(() => readWidgetMapRows(value));
   // Stan z chwili OTWARCIA - punkt „Przywróć".
-  const initialRef = useRef<readonly MapGridRow[]>(rows);
+  const initialRef = useRef<readonly MapEditorRow[]>(rows);
   // Tekst ostatnio wysłany (albo wczytany) - rozpoznaje echo własnego zapisu.
   const lastSyncedRef = useRef<string>(value);
 
@@ -113,7 +113,7 @@ export function MapDataDialog({
   kanaly.current = { onChange, setContentPatch, dataKey };
 
   /** Zapis wierszy do treści widgetu - jedna łatka, jeden krok historii. */
-  const zapisz = (next: readonly MapGridRow[]) => {
+  const zapisz = (next: readonly MapEditorRow[]) => {
     const text = widgetMapText(next);
     if (text === lastSyncedRef.current) return;
     lastSyncedRef.current = text;
@@ -122,7 +122,7 @@ export function MapDataDialog({
     else k.onChange(text);
   };
 
-  const onGridChange = (next: readonly MapGridRow[]) => {
+  const onGridChange = (next: readonly MapEditorRow[]) => {
     setRows(next);
     zapisz(next);
   };

@@ -129,6 +129,13 @@ interface Props {
   schemes?: readonly MapScheme[];
   /** Nazwa dostępna grupy schematów; domyślnie „Schemat barw". */
   label?: string;
+  /**
+   * Identyfikator WIDOCZNEJ etykiety, którą wołający już pokazuje nad
+   * wyborem (pole panelu buildera ma własną `<Label>`). Grupa bierze z niej
+   * nazwę dostępną i nie rysuje drugiego napisu - dawniej „Schemat barw"
+   * stało w panelu dwa razy.
+   */
+  labelledBy?: string;
   /** Podpowiedź o schemacie rozbieżnym (builder ma ją w podpowiedzi pola). */
   showHint?: boolean;
   className?: string;
@@ -145,6 +152,7 @@ export function MapScalePicker({
   lang,
   schemes = MAP_SCHEMES,
   label,
+  labelledBy,
   showHint = true,
   className,
 }: Props) {
@@ -166,12 +174,14 @@ export function MapScalePicker({
   return (
     <div className={cn("space-y-2", className)}>
       <div className="space-y-1">
-        <span id={groupLabelId} className="block text-[11px] font-medium text-muted-foreground">
-          {label ?? t("mapEditor.scale.scheme")}
-        </span>
+        {labelledBy === undefined && (
+          <span id={groupLabelId} className="block text-[11px] font-medium text-muted-foreground">
+            {label ?? t("mapEditor.scale.scheme")}
+          </span>
+        )}
         <div
           role="radiogroup"
-          aria-labelledby={groupLabelId}
+          aria-labelledby={labelledBy ?? groupLabelId}
           className="grid grid-cols-1 gap-1.5 sm:grid-cols-2"
         >
           {schemes.map((s) => {

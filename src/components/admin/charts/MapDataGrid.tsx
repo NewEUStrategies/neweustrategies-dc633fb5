@@ -6,7 +6,7 @@
 // która gubiła literówki bez słowa. Ta siatka składa wspólne klocki edytora
 // wykresu (`NumberCell`, klawiatura `gridKeyboard`, `GridMenu`,
 // `PastePreviewDialog`, `ImportProblemList`) nad listą wierszy
-// `MapGridRow` i oddaje KAŻDĄ zmianę jednym `onChange` - jedno działanie
+// `MapEditorRow` i oddaje KAŻDĄ zmianę jednym `onChange` - jedno działanie
 // autora to jeden krok cofania w historii bloku albo buildera.
 //
 // WIERSZ = KRAJ. Komórka kodu przyjmuje kod ISO-2 ALBO nazwę (polską,
@@ -20,7 +20,10 @@
 //
 // PUSTA WARTOŚĆ TO BRAK DANYCH: kraj bez liczby mapa kreskuje. Wpis, który
 // liczbą nie jest, NIE zamienia się w lukę - `NumberCell` zostawia go
-// z `aria-invalid` i zdaniem, a treść trzyma poprzednią liczbę.
+// z `aria-invalid` i zdaniem, a treść trzyma poprzednią liczbę. Tak samo
+// napis, który JUŻ stoi w treści, a czytnik mapy go nie odczyta („12%"):
+// komórka pokazuje go z uwagą (`storedText`), a zapis innych wierszy oddaje
+// go bez zmian (`MapEditorRow.raw`), aż autor go poprawi albo wyczyści.
 //
 // WKLEJENIE (kontrakt PR2, „DataGrid behaviour" 3): zakres w środku siatki
 // trafia od komórki kotwicy jednym zapisem (`applyMapPasteAt`), a problemy
@@ -48,13 +51,8 @@ import {
   readClipboardTable,
   type ClipboardTable,
 } from "@/lib/charts/clipboardTable";
-import {
-  applyMapPasteAt,
-  MAP_GRID_MAX_ROWS,
-  type GridAnchor,
-  type MapGridRow,
-} from "@/lib/charts/gridModel";
-import { analyseTable, type ImportProblem } from "@/lib/charts/importTable";
+import { applyMapPasteAt, MAP_GRID_MAX_ROWS, type GridAnchor } from "@/lib/charts/gridModel";
+import type { ImportProblem } from "@/lib/charts/importTable";
 import { cn } from "@/lib/utils";
 import { NumberCell } from "./GridCells";
 import { GridMenu, type GridMenuItem } from "./GridMenu";
@@ -72,7 +70,7 @@ import {
   type GridFlushDetail,
 } from "./gridKeyboard";
 import { useChartEditorT, type EditorLang } from "./chartEditorI18n";
-import { mapTableValues } from "./mapTableLayout";
+import { initialMapTableLayout, mapTableValues } from "./mapTableLayout";
 import {
   countryNameOf,
   EMPTY_MAP_ROW,
@@ -86,6 +84,7 @@ import {
   mapSetCell,
   resolveCountryEntry,
   type MapCountry,
+  type MapEditorRow,
   type MapRowStatus,
   type MapRowStatusKind,
 } from "./mapGridState";
@@ -100,8 +99,8 @@ export interface MapDataGridHandle {
 }
 
 interface Props {
-  rows: readonly MapGridRow[];
-  onChange: (next: readonly MapGridRow[]) => void;
+  rows: readonly MapEditorRow[];
+  onChange: (next: readonly MapEditorRow[]) => void;
   /**
    * Kraje zasobu geometrii WYBRANEGO REGIONU (nazwy PL/EN i skorowidz);
    * `undefined`, dopóki zasób się wczytuje - nazwy idą wtedy z `Intl`,
@@ -128,7 +127,9 @@ const STATUS_KEYS: Record<UwagaKind, string> = {
   unknown: "mapEditor.status.unknown",
   duplicate: "mapEditor.status.duplicate",
   outside: "mapEditor.status.outside",
+  outsideNoValue: "mapEditor.status.outsideNoValue",
   noValue: "mapEditor.status.noValue",
+  invalidValue: "mapEditor.status.invalidValue",
   noCountry: "mapEditor.status.noCountry",
 };
 
@@ -140,6 +141,10 @@ const STATUS_WEIGHT: Record<UwagaKind, "warn" | "info"> = {
   unknown: "warn",
   duplicate: "warn",
   noCountry: "warn",
+  // Kraj spoza regionu bez wartości nie trafi ani na rysunek, ani do noty.
+  outsideNoValue: "warn",
+  // Napis, którego mapa nie odczyta - kraj wyjdzie jak brak danych.
+  invalidValue: "warn",
   outside: "info",
   noValue: "info",
 };
@@ -168,7 +173,7 @@ interface WynikWklejenia {
 const BEZ_WIERSZY: readonly (readonly string[])[] = [];
 
 /** Wiersz-zachęta pustej siatki - stała, żeby uwagi nie liczyły się w każdym renderze. */
-const ZACHETA: readonly MapGridRow[] = [EMPTY_MAP_ROW];
+const ZACHETA: readonly MapEditorRow[] = [EMPTY_MAP_ROW];
 
 function uwagaKind(s: MapRowStatus): UwagaKind | null {
   return s.kind === "ok" || s.kind === "empty" ? null : s.kind;
@@ -322,7 +327,7 @@ function MapDataGridInner(
   useImperativeHandle(ref, () => ({ openTablePreview: otworzPodglad }), []);
 
   /** Zapis tylko wtedy, gdy dane naprawdę się zmieniły - inaczej pusty krok historii. */
-  const zmien = (next: readonly MapGridRow[]) => {
+  const zmien = (next: readonly MapEditorRow[]) => {
     if (mapRowsSignature(next) !== podpis) onChange(next);
   };
 
@@ -333,7 +338,7 @@ function MapDataGridInner(
   };
 
   /** Zapowiedź uwagi wiersza po zatwierdzeniu - czytnik ekranu słyszy ją bez szukania. */
-  const oglosUwage = (next: readonly MapGridRow[], index: number) => {
+  const oglosUwage = (next: readonly MapEditorRow[], index: number) => {
     const s = mapRowStatuses(next, lookup.ids)[index];
     const tekst = s === undefined ? "" : tekstUwagi(s);
     setOgloszenie(
@@ -341,7 +346,7 @@ function MapDataGridInner(
     );
   };
 
-  const zapiszKomorke = (index: number, patch: Partial<MapGridRow>) => {
+  const zapiszKomorke = (index: number, patch: Partial<Pick<MapEditorRow, "id" | "value">>) => {
     const next = mapSetCell(widoczne, index, patch);
     zmien(next);
     oglosUwage(next, index);
@@ -378,9 +383,13 @@ function MapDataGridInner(
     const readProblems: ImportProblem[] = table.truncated ? [{ code: "pasteTruncated" }] : [];
     const szerokosc = table.rows.reduce((w, r) => Math.max(w, r.length), 0);
     const pierwszaKomorka = anchor.row <= 0 && anchor.col <= 0;
+    // Nagłówek rozpoznaje reguła MAPY (wiersz z krajem nigdy nie jest
+    // nagłówkiem): „IT | 59 | p" wklejone w pierwszą komórkę to jeden wiersz
+    // danych od kotwicy, a nie tabela, która w podglądzie zastąpi siatkę.
     const calaTabela =
       szerokosc >= 2 &&
-      (mapGridIsBlank(rows) || (pierwszaKomorka && analyseTable(table.rows).headerRow));
+      (mapGridIsBlank(rows) ||
+        (pierwszaKomorka && initialMapTableLayout(table.rows, lookup.index).header));
     if (calaTabela) {
       otworzPodglad(table.rows, readProblems, "paste");
       return;
@@ -527,9 +536,14 @@ function MapDataGridInner(
                       row={i}
                       col={1}
                       value={r.value}
+                      storedText={r.value === null ? r.raw : undefined}
                       lang={docLang}
                       label={t("mapEditor.grid.cell", { country: nazwaWiersza(i) })}
-                      invalidText={t("mapEditor.grid.invalidNumber")}
+                      invalidText={t(
+                        r.value === null && r.raw !== undefined
+                          ? "mapEditor.grid.invalidStored"
+                          : "mapEditor.grid.invalidNumber",
+                      )}
                       placeholder={t("mapEditor.grid.valuePlaceholder")}
                       onCommit={(value) => zapiszKomorke(i, { value })}
                       onTablePaste={wklej}

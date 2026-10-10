@@ -50,6 +50,9 @@ const pl = {
       limitRows: "Osiągnięto limit wierszy: {{max}}.",
       invalidNumber:
         "To nie jest liczba - popraw wpis albo wyczyść komórkę (pusta komórka to brak danych).",
+      // Napis zapisany w treści, którego czytnik mapy nie odczyta („12%").
+      invalidStored:
+        "Mapa nie odczyta tej zapisanej wartości jako liczby - popraw wpis albo wyczyść komórkę (pusta komórka to brak danych).",
       pasteHint:
         "Zakres z Excela, Arkuszy Google albo LibreOffice wklejasz w dowolną komórkę - trafia od niej w dół. Cała tabela wklejona w pustą siatkę albo w pierwszą komórkę otwiera podgląd. W kolumnie kodu możesz wpisać nazwę kraju (np. Czechy, Czech Republic, UK) - zamieni się na kod ISO-2. Ctrl+Z cofa zmianę.",
       pasted: "Wklejono dane z arkusza.",
@@ -60,7 +63,11 @@ const pl = {
       unknown: "Nieznany kod albo nazwa kraju - wiersz nie trafi na mapę.",
       duplicate: "Kraj powtórzony - mapa pokaże wartość z wiersza {{row}}.",
       outside: "Poza wybranym regionem - kraj trafi do noty pod mapą, nie na rysunek.",
+      outsideNoValue:
+        "Poza wybranym regionem i bez wartości - kraju nie będzie ani na rysunku, ani w nocie pod mapą.",
       noValue: "Brak wartości - kraj będzie kreskowany jako brak danych.",
+      invalidValue:
+        "Zapisana wartość nie jest liczbą, którą mapa odczyta - kraj będzie kreskowany jako brak danych, dopóki jej nie poprawisz.",
       noCountry: "Wpisz kod albo nazwę kraju - wartość bez kraju nie trafi na mapę.",
     },
     menu: {
@@ -146,6 +153,8 @@ const en: typeof pl = {
       limitRows: "Row limit reached: {{max}}.",
       invalidNumber:
         "This is not a number - correct the entry or clear the cell (an empty cell means no data).",
+      invalidStored:
+        "The map cannot read this saved value as a number - correct the entry or clear the cell (an empty cell means no data).",
       pasteHint:
         "Paste a range from Excel, Google Sheets or LibreOffice into any cell - it fills from that cell down. A whole table pasted into an empty sheet or into the first cell opens a preview. You can type a country name in the code column (e.g. Czechy, Czech Republic, UK) - it becomes the ISO-2 code. Ctrl+Z undoes the change.",
       pasted: "Data pasted from the spreadsheet.",
@@ -156,7 +165,11 @@ const en: typeof pl = {
       duplicate: "Repeated country - the map shows the value from row {{row}}.",
       outside:
         "Outside the selected region - the country goes to the note under the map, not to the drawing.",
+      outsideNoValue:
+        "Outside the selected region and without a value - the country appears neither on the drawing nor in the note under the map.",
       noValue: "No value - the country will be hatched as no data.",
+      invalidValue:
+        "The saved value is not a number the map can read - the country will be hatched as no data until you correct it.",
       noCountry: "Enter a country code or name - a value without a country will not reach the map.",
     },
     menu: {

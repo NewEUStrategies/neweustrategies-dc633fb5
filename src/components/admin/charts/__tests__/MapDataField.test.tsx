@@ -102,7 +102,9 @@ describe("textarea - wklejony arkusz zamienia się na „ISO2; wartość”", ()
     if (pole === null) throw new Error("brak pola");
     const ev = wklej(pole, { text: "Kraj\tWartość\nPolska\t12,5\nCzechy\t7\nNarnia\t3" });
     expect(ev.defaultPrevented).toBe(true);
-    expect(onChange).toHaveBeenLastCalledWith("PL; 12.5\nCZ; 7");
+    // Pole nie jest puste: kraje DOCHODZĄ do wierszy (PL poprawione, DE
+    // zostaje, CZ dopisane) - szczegóły w `MapDataFieldPasteMerge.test.tsx`.
+    expect(onChange).toHaveBeenLastCalledWith("PL; 12.5\nDE; 30\nCZ; 7");
     expect(screen.getByText("Nierozpoznane kraje: Narnia.")).toBeInTheDocument();
   });
 

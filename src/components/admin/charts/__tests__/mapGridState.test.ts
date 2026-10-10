@@ -59,10 +59,12 @@ describe("blok CMS - wiersze takie, jakie są w treści", () => {
 
   it("pozycja w złym typie daje pusty wiersz, nie „[object Object]”", () => {
     const rows = readBlockMapRows([7, null, { id: { a: 1 }, value: "abc" }, "PL"]);
+    // Napis „abc" w wartości zostaje jako `raw` - nie ginie jako luka
+    // (szczegóły w `mapGridStateReview.test.ts`).
     expect(rows).toEqual([
       { id: "", value: null },
       { id: "", value: null },
-      { id: "", value: null },
+      { id: "", value: null, raw: "abc" },
       { id: "", value: null },
     ]);
     expect(readBlockMapRows("wartości")).toEqual([]);

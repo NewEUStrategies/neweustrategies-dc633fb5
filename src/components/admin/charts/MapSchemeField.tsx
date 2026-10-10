@@ -11,7 +11,10 @@
 // Odczyt idzie przez adapter widgetu (`widgetMapConfig`) na WYBRANYCH
 // kluczach - pusta albo nieznana wartość daje to, co narysuje mapa
 // (niebieski, skala ciągła), a panel nie czyta treści hurtem.
-import { useMemo } from "react";
+//
+// Etykieta pola stoi RAZ: rysuje ją `PropField`, a grupa radiowa bierze z niej
+// nazwę dostępną (`labelledBy`), zamiast pokazywać własny drugi napis.
+import { useId, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import "@/lib/i18n-map-editor";
 import { PropField } from "@/components/admin/builder/ui/atoms/PropField";
@@ -26,6 +29,7 @@ import { drawnMapValues } from "./mapGridState";
 export function MapSchemeField({ field, content, lang, setContent }: SchemaFieldEditorProps) {
   const bl = useBuilderLabel();
   const label = bl(field.label) ?? field.label;
+  const labelId = useId();
 
   // Klucze czytane POJEDYNCZO - te, które mini-legenda naprawdę potrzebuje.
   const region = content.region;
@@ -62,7 +66,7 @@ export function MapSchemeField({ field, content, lang, setContent }: SchemaField
   const schemes: readonly MapScheme[] = offered.length > 0 ? offered : MAP_SCHEMES;
 
   return (
-    <PropField label={label} hint={bl(field.hint)}>
+    <PropField label={<span id={labelId}>{label}</span>} hint={bl(field.hint)}>
       <MapScalePicker
         parts="scheme"
         value={{
@@ -80,7 +84,7 @@ export function MapSchemeField({ field, content, lang, setContent }: SchemaField
         docLang={lang}
         lang={lang}
         schemes={schemes}
-        label={label}
+        labelledBy={labelId}
         showHint={false}
       />
     </PropField>

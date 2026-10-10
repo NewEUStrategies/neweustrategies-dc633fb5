@@ -17,9 +17,18 @@
 // a zakres z Excela przychodzi tabulatorami: „PL<TAB>12,5" nie pasowało do
 // kodu i wiersz ginął bez słowa. Tabela ze schowka (HTML arkusza albo tekst
 // z tabulatorami) zamienia się teraz na ten format - kod ISO-2, średnik,
-// kropka dziesiętna - przez `clipboardToMapText`, a problemy (nieznane kraje,
-// pominięte kolumny) stoją pod polem, dopóki pole trzyma tekst z tej wklejki.
-// Zwykły tekst wkleja się po staremu.
+// kropka dziesiętna - przez `clipboardToMapText`, z tym samym rozpoznaniem
+// układu co podgląd siatki („Lp. | Kraj | Wartość", tabela obrócona, „kod |
+// nazwa | wartość"). Problemy (nieznane kraje, pominięte kolumny) stoją pod
+// polem, dopóki pole trzyma tekst z tej wklejki. Zwykły tekst wkleja się po
+// staremu.
+//
+// WKLEJENIE NIE KASUJE POLA. Tabela zastępuje treść tylko wtedy, gdy pole
+// jest puste albo zaznaczone w całości. W każdym innym razie kraje wklejone
+// DOCHODZĄ do wierszy pola (`mergeWidgetMapText`): jeden wiersz skopiowany
+// z arkusza dopisuje albo poprawia jeden kraj, a reszta zostaje. Gdy z tabeli
+// nie wyszedł żaden kraj, pole zostaje takie, jakie było, a pod nim stoją
+// problemy - dawniej taka wklejka zostawiała pole puste.
 //
 // Import i arkusz zapisują pole jednym zapisem; arkusz (`MapDataDialog`)
 // pokazuje nazwy krajów, uwagi wierszy i podgląd mapy.
@@ -30,7 +39,7 @@ import { DataImportControl } from "@/components/admin/blocks/DataImportControl";
 import { ImportProblemList } from "@/components/admin/charts/ImportProblemList";
 import { MapDataDialog } from "@/components/admin/charts/MapDataDialog";
 import { mapTableValues } from "@/components/admin/charts/mapTableLayout";
-import { mapCountryLookup } from "@/components/admin/charts/mapGridState";
+import { mapCountryLookup, mergeWidgetMapText } from "@/components/admin/charts/mapGridState";
 import { clipboardToMapText } from "@/components/admin/charts/textareaPaste";
 import { useChartEditorT } from "@/components/admin/charts/chartEditorI18n";
 import { geoAssetQueryOptions } from "@/lib/charts/geoQuery";
@@ -93,8 +102,18 @@ export function MapDataField({
           const wynik = clipboardToMapText(clipboardPayloadOf(e), index);
           if (wynik === null) return;
           e.preventDefault();
-          onChange(wynik.text);
-          setWklejka(wynik);
+          const pole = e.currentTarget;
+          const calePole =
+            value.trim() === "" ||
+            (pole.selectionStart === 0 && pole.selectionEnd === pole.value.length);
+          const text =
+            wynik.values.length === 0
+              ? value
+              : calePole
+                ? wynik.text
+                : mergeWidgetMapText(value, wynik.values);
+          if (text !== value) onChange(text);
+          setWklejka({ text, problems: wynik.problems });
         }}
         className="text-xs font-mono"
         placeholder={placeholder}
