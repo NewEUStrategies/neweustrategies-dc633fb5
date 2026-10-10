@@ -14,6 +14,7 @@ import { newBlockId } from "./types";
 import { escapeInlineText } from "./inlineHtml";
 import { BLOCK_SPECS } from "./registry";
 import { tableToChartData } from "@/lib/charts/importTable";
+import type { ImportProblem } from "@/lib/charts/importTable";
 
 /** Rodzina tekstowa - tylko między tymi typami oferujemy przekształcenia. */
 const TEXT_FAMILY: readonly BlockType[] = [
@@ -116,10 +117,23 @@ function tableRows(block: Block): string[][] {
  * dla jednej tabeli - komunikat o odmowie i o problemach odczytu (obcięcie
  * do limitów, komórki nieliczbowe) należy do kanwy (`BlockCanvas`).
  */
-function tableToChart(block: Block): Block | null {
-  const dane = tableToChartData(tableRows(block), {
+function tableChartData(block: Block): ReturnType<typeof tableToChartData> {
+  return tableToChartData(tableRows(block), {
     header: block.data.header === true ? true : undefined,
   });
+}
+
+/**
+ * Uwagi odczytu tabeli przy przekształceniu w wykres (obcięcie do limitów,
+ * komórki nieliczbowe, nagłówek przyjęty) - kanwa pokazuje je po udanym
+ * przekształceniu, tymi samymi zdaniami co import pliku.
+ */
+export function tableToChartProblems(block: Block): ImportProblem[] {
+  return block.type === "table" ? tableChartData(block).problems : [];
+}
+
+function tableToChart(block: Block): Block | null {
+  const dane = tableChartData(block);
   const maLiczbe = dane.series.some((s) =>
     s.values.some((v) => typeof v === "number" && Number.isFinite(v)),
   );

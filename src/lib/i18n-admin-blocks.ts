@@ -17,18 +17,8 @@ const pl = {
         shellLabel: "Wykres",
         unit: "Jednostka (np. %, mld EUR)",
         title: "Tytuł wykresu",
-        category: "Kategoria",
-        series: "Seria {{n}}",
-        addSeries: "Dodaj serię",
-        removeSeries: "Usuń serię {{name}}",
-        // Wybór koloru serii. Nazwa slotu, nie numer: "śliwka" mówi
-        // czytelnikowi listy, co wybiera, a "4" nie mówi nic.
-        seriesColor: "Kolor serii {{name}}",
-        seriesColorSafe: "{{key}} - rozdzielny dla daltonizmu",
-        seriesColorPlain: "{{key}}",
-        categoryN: "Kategoria {{n}}",
-        addCategory: "Dodaj kategorię",
-        removeCategory: "Usuń kategorię {{name}}",
+        // Siatka danych, kolory serii i akcent mają własną nakładkę
+        // (`chartEditor.*` w `i18n-chart-data-editor.ts`).
         stacked: "Skumulowany (stacked)",
         grid: "Siatka",
         showValues: "Etykiety wartości",
@@ -88,8 +78,6 @@ const pl = {
           focus: "Akcent + neutralne (domyślna)",
           categorical: "Kategorialna (kolor wybrany przy serii)",
         },
-        paletteFocusHint:
-          "Kolory daje paleta ról: pierwsza seria w akcencie, kolejne w odcieniach neutralnych. Kolor wybrany przy serii obowiązuje w palecie kategorialnej, a w tej - dopiero od serii nr {{from}}.",
         direction: "Kierunek wskaźnika",
         directions: {
           none: "Kierunek: brak",
@@ -985,16 +973,6 @@ const en: typeof pl = {
         shellLabel: "Chart",
         unit: "Unit (e.g. %, EUR bn)",
         title: "Chart title",
-        category: "Category",
-        series: "Series {{n}}",
-        addSeries: "Add series",
-        removeSeries: "Delete series {{name}}",
-        seriesColor: "Colour of series {{name}}",
-        seriesColorSafe: "{{key}} - colour-blind separable",
-        seriesColorPlain: "{{key}}",
-        categoryN: "Category {{n}}",
-        addCategory: "Add category",
-        removeCategory: "Delete category {{name}}",
         stacked: "Stacked",
         grid: "Grid",
         showValues: "Value labels",
@@ -1027,8 +1005,6 @@ const en: typeof pl = {
           focus: "Accent + neutrals (default)",
           categorical: "Categorical (colour picked per series)",
         },
-        paletteFocusHint:
-          "Colours come from the role palette: the first series in the accent, the rest in neutral shades. The colour picked per series applies in the categorical palette, and in this one only from series no. {{from}}.",
         direction: "Metric direction",
         directions: {
           none: "Direction: none",
