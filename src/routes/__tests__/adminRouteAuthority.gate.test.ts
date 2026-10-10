@@ -811,7 +811,10 @@ describe("panel SEO - autorytet dostępu", () => {
       expect(start, `brak funkcji ${action.serverFn}`).toBeGreaterThan(-1);
       const body = server.slice(start, server.indexOf("\nexport ", start + 1) >>> 0 || undefined);
       expect(body).toContain("await requireAnalyticsAdmin(ctx)");
-      expect(body).toContain("assertSiteUrlBelongsToTenant(data.feedpath");
+      // Zapis wiąże OBA adresy ściśle - bez gałęzi „nie wiem" wariantu do odczytu.
+      expect(body).toContain("assertSiteUrlClaimedByTenant(data.siteUrl");
+      expect(body).toContain("assertSiteUrlClaimedByTenant(data.feedpath");
+      expect(body).not.toContain("assertSiteUrlBelongsToTenant(");
     }
   });
 

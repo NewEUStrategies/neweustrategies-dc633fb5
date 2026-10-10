@@ -980,6 +980,44 @@ describe("listGscSitemaps", () => {
     ]);
   });
 
+  it("błąd rozwinięcia jednego indeksu zostawia listę map i pozostałe indeksy", async () => {
+    // Przegląd PR #492: odrzucenie jednego `?sitemapIndex=` wyrzucało całą,
+    // udaną listę i karta pokazywała wyłącznie błąd odczytu.
+    const stary = `https://${DOMENA_A}/sitemap_index.xml`;
+    const core = `https://${DOMENA_A}/sitemaps/core.xml`;
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.includes(`sitemapIndex=${encodeURIComponent(stary)}`)) {
+        return Promise.resolve(odpowiedz(404, "Sitemap not found"));
+      }
+      const body = url.includes("sitemapIndex=")
+        ? { sitemap: [{ path: core }] }
+        : {
+            sitemap: [
+              { path: stary, isSitemapsIndex: true },
+              { path: INDEKS, isSitemapsIndex: true },
+              { path: `https://${DOMENA_A}/news-sitemap.xml`, errors: "1" },
+            ],
+          };
+      return Promise.resolve(odpowiedz(200, JSON.stringify(body)));
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const wynik = await mapy();
+
+    expect(wynik.configured).toBe(true);
+    expect(wynik.sitemaps.map((s) => s.path)).toEqual([
+      stary,
+      INDEKS,
+      `https://${DOMENA_A}/news-sitemap.xml`,
+    ]);
+    expect(wynik.sitemaps[0].children).toEqual([]);
+    expect(wynik.sitemaps[1].children.map((c) => c.path)).toEqual([core]);
+    // Ślad błędu bez materiału uwierzytelniającego.
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(GSC_KEY);
+    warn.mockRestore();
+  });
+
   it("zwykłej mapy NIE rozwija - jedno wywołanie bramki", async () => {
     json({ sitemap: [{ path: `https://${DOMENA_A}/news-sitemap.xml` }] });
 
@@ -1087,6 +1125,42 @@ describe("submitGscSitemap", () => {
       expect(blad.message, adres).toBe("Forbidden: not a sitemap of this site");
     }
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ZAPIS nie korzysta z gałęzi „nie wiem” - pusty katalog domen to odmowa", async () => {
+    // Przegląd PR #492: odczyt przepuszcza instalację bez katalogu, ale zgłoszenie
+    // zmienia stan właściwości wspólnym kontem konektora - bez dowodu
+    // własności admin zgłaszałby mapy dowolnej właściwości.
+    katalog.rows = [];
+    invalidateTenantDirectoryCache();
+
+    const blad = await przechwycBlad(zglos(ZGLOSZENIE));
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ZAPIS: najemca BEZ własnej domeny nie zgłosi mapy cudzej właściwości", async () => {
+    katalog.rows = [tenantRow(TENANT_A, "a", null, true), tenantRow(TENANT_B, "b", DOMENA_B)];
+    invalidateTenantDirectoryCache();
+
+    const blad = await przechwycBlad(
+      zglos({ siteUrl: WITRYNA_B, feedpath: `https://${DOMENA_B}/sitemap.xml` }),
+    );
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ZAPIS rozumie alias www/apex domeny najemcy", async () => {
+    zawsze(() => odpowiedz(204, ""));
+
+    await expect(
+      zglos({
+        siteUrl: `https://www.${DOMENA_A}/`,
+        feedpath: `https://www.${DOMENA_A}/sitemap.xml`,
+      }),
+    ).resolves.toEqual({ ok: true });
   });
 
   it("walidator odrzuca adres, który nie jest URL-em", () => {

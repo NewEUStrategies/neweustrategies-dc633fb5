@@ -74,7 +74,7 @@ export function GscSitemapsCard({ siteUrl }: { siteUrl: string }) {
   const { t, i18n } = useTranslation();
   const { isAdmin } = useAuth();
   const tenantId = useCurrentTenantId();
-  const { origin } = useTenantPublicOriginState();
+  const { origin, status: originStatus } = useTenantPublicOriginState();
   const queryClient = useQueryClient();
   const listFn = useServerFn(listGscSitemaps);
   const submitFn = useServerFn(submitGscSitemap);
@@ -112,7 +112,11 @@ export function GscSitemapsCard({ siteUrl }: { siteUrl: string }) {
     });
   };
 
-  const indexUrl = origin ? `${origin}/sitemap.xml` : null;
+  // Adres indeksu WYŁĄCZNIE z ustalonej domeny najemcy: w trakcie odczytu (albo
+  // po błędzie) hook oddaje origin tymczasowy z hosta przeglądarki, a na
+  // wspólnym hoście marki/podglądu byłby to adres cudzego serwisu (przegląd
+  // PR #492).
+  const indexUrl = originStatus === "resolved" && origin ? `${origin}/sitemap.xml` : null;
   const sitemaps = sitemapsQuery.data?.sitemaps ?? [];
   const indexKnown = sitemaps.some((s) => indexUrl !== null && s.path === indexUrl);
   const pendingPath = submit.isPending ? submit.variables : null;

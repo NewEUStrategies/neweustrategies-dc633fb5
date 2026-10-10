@@ -299,15 +299,25 @@ export const listGscSitemaps = createServerFn({ method: "POST" })
       const sitemaps = (res.sitemap ?? []).map(normalizeGscSitemap);
       // Pliki z indeksu: `sitemaps.list?sitemapIndex=` - ten sam podział, który
       // Search Console pokazuje pod „Odczytane mapy witryn".
+      // Rozwinięcie jest DODATKIEM: błąd jednego indeksu (np. 404 dla indeksu
+      // usuniętego z serwisu albo chwilowe 5xx) zostawia mu pustą listę plików,
+      // zamiast wyrzucać udaną listę map i gasić całą kartę (przegląd PR #492).
       await Promise.all(
         sitemaps
           .filter((s) => s.isSitemapsIndex && s.path)
           .slice(0, GSC_SITEMAP_INDEXES_EXPANDED)
           .map(async (index) => {
-            const children = await gwFetch<{ sitemap?: RawGscSitemap[] }>(
-              `${base}?sitemapIndex=${encodeURIComponent(index.path)}`,
-            );
-            index.children = (children.sitemap ?? []).map(normalizeGscSitemap);
+            try {
+              const children = await gwFetch<{ sitemap?: RawGscSitemap[] }>(
+                `${base}?sitemapIndex=${encodeURIComponent(index.path)}`,
+              );
+              index.children = (children.sitemap ?? []).map(normalizeGscSitemap);
+            } catch (e) {
+              console.warn(
+                "[gsc] sitemap index expansion failed",
+                e instanceof Error ? e.message : String(e),
+              );
+            }
           }),
       );
       return { sitemaps, configured: true };
@@ -334,11 +344,14 @@ export const submitGscSitemap = createServerFn({ method: "POST" })
     const ctx: GatewayCtx = context;
     // AKCJA, nie odczyt: zgłoszenie idzie kontem konektora wspólnym dla całego
     // wdrożenia, więc bramka roli i oba związania z najemcą stoją PRZED siecią.
+    // Związanie jest ŚCISŁE (`assertSiteUrlClaimedByTenant`): bez domeny zajętej
+    // przez najemcę w katalogu nie ma dowodu, że właściwość jest jego - odczyt
+    // może wtedy przepuścić, zapis nie.
     await requireAnalyticsAdmin(ctx);
-    const { assertSiteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
+    const { assertSiteUrlClaimedByTenant } = await import("@/lib/server/tenant.server");
     const tenantId = await callerTenantId(ctx);
-    await assertSiteUrlBelongsToTenant(data.siteUrl, tenantId);
-    await assertSiteUrlBelongsToTenant(data.feedpath, tenantId);
+    await assertSiteUrlClaimedByTenant(data.siteUrl, tenantId);
+    await assertSiteUrlClaimedByTenant(data.feedpath, tenantId);
     // Tylko NASZE pliki mapy - nie dowolny adres z domeny podany w ładunku.
     // Zapytanie i fragment też odpadają: `sitemap.xml?x=` to dla Google
     // osobny, nieistniejący plik mapy.

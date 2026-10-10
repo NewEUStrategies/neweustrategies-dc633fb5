@@ -45,6 +45,7 @@ const h = vi.hoisted(() => ({
   isAdmin: true,
   tenantId: "tenant-a" as string | null,
   origin: "https://example.com" as string | null,
+  originStatus: "resolved" as "resolved" | "pending" | "failed",
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -64,7 +65,7 @@ vi.mock("@/lib/analytics/gsc.functions", async () => {
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ isAdmin: h.isAdmin }) }));
 vi.mock("@/lib/tenant", () => ({ useCurrentTenantId: () => h.tenantId }));
 vi.mock("@/lib/seo/useTenantPublicOrigin", () => ({
-  useTenantPublicOriginState: () => ({ origin: h.origin }),
+  useTenantPublicOriginState: () => ({ origin: h.origin, status: h.originStatus }),
 }));
 
 vi.mock("sonner", async () => {
@@ -152,6 +153,7 @@ beforeEach(() => {
   h.isAdmin = true;
   h.tenantId = "tenant-a";
   h.origin = ORIGIN;
+  h.originStatus = "resolved";
   listMock().mockReset();
   submitMock().mockReset();
   given([]);
@@ -250,6 +252,21 @@ describe("GscSitemapsCard - akcja tylko dla admina", () => {
     expect(screen.queryByText("adminSeoHub.gscSubmitIndex")).toBeNull();
     expect(screen.queryByText("adminSeoHub.gscResubmit")).toBeNull();
   });
+
+  it.each(["pending", "failed"] as const)(
+    "domena najemcy w stanie „%s”: brak przycisku indeksu (origin tymczasowy z hosta)",
+    async (status) => {
+      // Przegląd PR #492: w trakcie odczytu hook oddaje origin z hosta
+      // przeglądarki - na wspólnym hoście byłby to adres cudzego serwisu.
+      h.originStatus = status;
+      given([sitemap("/news-sitemap.xml")]);
+      await renderCard();
+      await screen.findByText("/news-sitemap.xml");
+
+      expect(screen.queryByText("adminSeoHub.gscSubmitIndex")).toBeNull();
+      expect(document.querySelector("[data-gsc-index-missing]")).toBeNull();
+    },
+  );
 
   it("bez publicznej domeny najemcy nie ma czego zgłosić jako indeksu", async () => {
     h.origin = null;
