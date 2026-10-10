@@ -35,13 +35,10 @@ import {
   type Provenance,
   type Reliability,
 } from "@/lib/charts/sources";
-import {
-  nazwaPliku,
-  pobierzPlik,
-  svgDoPliku,
-  svgDoPng,
-  type WpisKlucza,
-} from "@/lib/charts/exportImage";
+// Eksport (klonowanie rysunku, normalizacja kolorów, płótno PNG) ładuje się
+// DOPIERO po kliknięciu PNG/SVG - czytelnik, który nie eksportuje, nie płaci
+// za niego w chunku ramy. Tu zostaje wyłącznie typ wpisu klucza.
+import type { WpisKlucza } from "@/lib/charts/exportImage";
 import { cn } from "@/lib/utils";
 import { MetricTooltip } from "./MetricTooltip";
 import { ChartDialog } from "./ChartDialog";
@@ -329,6 +326,10 @@ export function ChartFrame({
     }
     setExportError(false);
     try {
+      // Nieudane doładowanie chunka eksportu kończy się tym samym widocznym
+      // błędem co nieudany zapis (`catch` niżej), a nie cichym niczym.
+      const { nazwaPliku, pobierzPlik, svgDoPliku, svgDoPng } =
+        await import("@/lib/charts/exportImage");
       const styl = getComputedStyle(figure);
       const background =
         styl.getPropertyValue("--card").trim() || styl.backgroundColor || "#ffffff";

@@ -9,7 +9,7 @@
 // Ta bramka renderuje PRAWDZIWĄ tarczę i przepuszcza ją przez prawdziwe
 // `svgZWklejonaFarba`; podmieniona jest tylko funkcja zapisu pliku.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { Json } from "@/lib/content-model/json";
 import { parseChartConfig } from "@/lib/charts/parse";
 import { svgZWklejonaFarba, type WpisKlucza } from "@/lib/charts/exportImage";
@@ -87,10 +87,11 @@ describe("liczba w łuku z obwódką płyty", () => {
 });
 
 describe("klucz tarczy w pliku SVG", () => {
-  it("SVG dostaje ten sam klucz co PNG - wycinki z udziałem", () => {
+  it("SVG dostaje ten sam klucz co PNG - wycinki z udziałem", async () => {
     tarcza("donut");
     fireEvent.click(screen.getByRole("button", { name: "Zapisz wykres jako SVG" }));
-    expect(eksport.svgDoPliku).toHaveBeenCalledTimes(1);
+    // Moduł eksportu doładowuje się po kliknięciu (dynamiczny import).
+    await waitFor(() => expect(eksport.svgDoPliku).toHaveBeenCalledTimes(1));
     const klucz = eksport.svgDoPliku.mock.calls[0][1]?.klucz ?? [];
     expect(klucz.length).toBeGreaterThan(1);
     expect(klucz[0].label).toMatch(/^Niemcy \d/);

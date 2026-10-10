@@ -90,7 +90,8 @@ describe("eksport rysunku - każdy rodzaj", () => {
       expect(cel, `${kind}: brak [data-chart-canvas] svg`).not.toBeNull();
 
       fireEvent.click(screen.getByRole("button", { name: "Zapisz wykres jako SVG" }));
-      expect(eksport.svgDoPliku).toHaveBeenCalledTimes(1);
+      // Moduł eksportu doładowuje się po kliknięciu (dynamiczny import).
+      await waitFor(() => expect(eksport.svgDoPliku).toHaveBeenCalledTimes(1));
       const svg = eksport.svgDoPliku.mock.calls[0][0];
       expect(svg).toBe(cel);
       expect(svg.tagName.toLowerCase()).toBe("svg");
@@ -130,7 +131,7 @@ describe("eksport rysunku - rama kartogramu", () => {
     notesHidden: "",
   };
 
-  it("rama z rodziną `map` eksportuje `[data-chart-canvas] svg` - cel, który stawia kartogram", () => {
+  it("rama z rodziną `map` eksportuje `[data-chart-canvas] svg` - cel, który stawia kartogram", async () => {
     // Kartogram (`ChoroplethMap`, tor W4) owija swój rysunek znacznikiem
     // `data-chart-canvas`; ta bramka pilnuje drugiej strony umowy - że rama
     // z rodziną mapy ten cel znajduje i oddaje go eksportowi.
@@ -162,7 +163,8 @@ describe("eksport rysunku - rama kartogramu", () => {
       </ChartFrame>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Zapisz wykres jako SVG" }));
-    expect(eksport.svgDoPliku).toHaveBeenCalledTimes(1);
+    // Moduł eksportu doładowuje się po kliknięciu (dynamiczny import).
+    await waitFor(() => expect(eksport.svgDoPliku).toHaveBeenCalledTimes(1));
     expect(eksport.svgDoPliku.mock.calls[0][0].id).toBe("mapa");
     expect(screen.queryByText(EXPORT_FAILED)).toBeNull();
   });
