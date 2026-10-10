@@ -321,7 +321,11 @@ export function ChartBlock({ block, onChange }: Props) {
 
   // Wybór palety stoi przy arkuszu, bo to on zmienia próbki serii - ale tylko
   // dla rodzajów, w których paleta coś zmienia na rysunku (`KIND_CAPS`).
-  const paletteMatters = KIND_CAPS[previewConfig.kind].palette;
+  // Tak samo cel i pasmo optimum: forma pokazuje je tylko rodzajom, które je
+  // rysują. Ukrycie nie kasuje zapisu - wartość zostaje w treści bloku
+  // i wraca w formie przy rodzaju, który ją rysuje.
+  const caps = KIND_CAPS[previewConfig.kind];
+  const paletteMatters = caps.palette;
 
   return (
     <Shell label={bt.editor("chart", "shellLabel")}>
@@ -503,7 +507,9 @@ export function ChartBlock({ block, onChange }: Props) {
           źródło (paleta stoi przy arkuszu, bo zmienia próbki serii). Pasmo
           jest TWIERDZENIEM („norma to 2-4%"), więc bez źródła z listy niżej
           albo flagi demo silnik go nie narysuje - ostrzeżenie mówi to
-          autorowi tutaj, a nie dopiero czytelnikowi. */}
+          autorowi tutaj, a nie dopiero czytelnikowi. Cel i pasmo stoją tylko
+          przy rodzajach, które je rysują (`KIND_CAPS`); źródła zostają przy
+          każdym, bo niosą też przypisy podpisu. */}
       <FieldGroup label={bt.editor("chart", "referenceLabel")}>
         <div className="grid grid-cols-2 gap-2">
           <AdminSelect
@@ -525,56 +531,62 @@ export function ChartBlock({ block, onChange }: Props) {
         <CaptionField data={block.data} write={write} />
         {/* Cel: `{ value }` albo BRAK klucza - pusty obiekt celu nie jest
             stanem, który parser umie odróżnić od „cel = nic". */}
-        <DecimalInput
-          value={target}
-          placeholder={bt.editor("chart", "target")}
-          onCommit={(v) => write({ target: v === null ? undefined : { value: v } })}
-        />
-        <div className="grid grid-cols-2 gap-2">
+        {caps.target && (
           <DecimalInput
-            value={band.min}
-            placeholder={bt.editor("chart", "bandMin")}
-            onCommit={(v) => patchBand({ min: v })}
+            value={target}
+            placeholder={bt.editor("chart", "target")}
+            onCommit={(v) => write({ target: v === null ? undefined : { value: v } })}
           />
-          <DecimalInput
-            value={band.max}
-            placeholder={bt.editor("chart", "bandMax")}
-            onCommit={(v) => patchBand({ max: v })}
-          />
-        </div>
-        <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-          <AdminSelect
-            className={inputCls}
-            value={band.sourceId}
-            onChange={(e) => patchBand({ sourceId: e.target.value })}
-            aria-label={bt.editor("chart", "bandSource")}
-          >
-            <option value="">{bt.editor("chart", "bandSourceNone")}</option>
-            {previewConfig.sources.map((s) => (
-              <option key={s.id} value={s.id}>
-                {[s.author, s.title || s.url].filter(Boolean).join(" - ")}
-              </option>
-            ))}
-            {/* Identyfikator wskazujący w próżnię ZOSTAJE na liście (jak kod
-                kraju spoza zasobu w edytorze mapy) - inaczej lista pokazałaby
-                „bez źródła", a zapis przy pierwszej zmianie zgubiłby wskazanie
-                bez słowa. */}
-            {bandSourceDangling && (
-              <option value={band.sourceId}>
-                {bt.editor("chart", "bandSourceMissing", { id: band.sourceId })}
-              </option>
-            )}
-          </AdminSelect>
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={band.demo}
-              onChange={(e) => patchBand({ demo: e.target.checked })}
-            />
-            {bt.editor("chart", "bandDemo")}
-          </label>
-        </div>
-        {bandWithoutSource && <Warning text={bt.editor("chart", "bandWithoutSource")} />}
+        )}
+        {caps.band && (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <DecimalInput
+                value={band.min}
+                placeholder={bt.editor("chart", "bandMin")}
+                onCommit={(v) => patchBand({ min: v })}
+              />
+              <DecimalInput
+                value={band.max}
+                placeholder={bt.editor("chart", "bandMax")}
+                onCommit={(v) => patchBand({ max: v })}
+              />
+            </div>
+            <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+              <AdminSelect
+                className={inputCls}
+                value={band.sourceId}
+                onChange={(e) => patchBand({ sourceId: e.target.value })}
+                aria-label={bt.editor("chart", "bandSource")}
+              >
+                <option value="">{bt.editor("chart", "bandSourceNone")}</option>
+                {previewConfig.sources.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {[s.author, s.title || s.url].filter(Boolean).join(" - ")}
+                  </option>
+                ))}
+                {/* Identyfikator wskazujący w próżnię ZOSTAJE na liście (jak kod
+                    kraju spoza zasobu w edytorze mapy) - inaczej lista pokazałaby
+                    „bez źródła", a zapis przy pierwszej zmianie zgubiłby wskazanie
+                    bez słowa. */}
+                {bandSourceDangling && (
+                  <option value={band.sourceId}>
+                    {bt.editor("chart", "bandSourceMissing", { id: band.sourceId })}
+                  </option>
+                )}
+              </AdminSelect>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={band.demo}
+                  onChange={(e) => patchBand({ demo: e.target.checked })}
+                />
+                {bt.editor("chart", "bandDemo")}
+              </label>
+            </div>
+            {bandWithoutSource && <Warning text={bt.editor("chart", "bandWithoutSource")} />}
+          </>
+        )}
 
         {/* ŹRÓDŁA - przypisy w stylu chicagowskim. Pola w kolejności opisu
             bibliograficznego, żeby autor wypełniał je tak, jak się je czyta.

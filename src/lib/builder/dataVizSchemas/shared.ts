@@ -169,8 +169,15 @@ export const chartColorsByCategory = (kind: unknown): boolean =>
  * Prognoza: granicę historii rysuje rysownik kartezjański i wachlarz; pasmo
  * niepewności tylko linia, pole i wachlarz (`CartesianChart`: `bandPct` przy
  * `isLine`, `fanChart.ts`: droga z `forecastBandPct`).
+ *
+ * Indeks bazy 100 jest w rodzinie kartezjańskiej, ale `forecastFrom` nie
+ * czyta ani jego rysunek, ani tabela (`indexBase.ts`: okres bazowy jest
+ * jawnym wyborem autora, nie granicą prognozy) - pole byłoby tam kontrolką
+ * bez skutku. Bramka `chartSchemaKindCaps.test.tsx` trzyma zbiór rodzajów
+ * i dowodzi renderem, że indeks granicy nie rysuje.
  */
-export const chartHasForecast = (kind: unknown): boolean => capsOfKind(kind).family === "cartesian";
+export const chartHasForecast = (kind: unknown): boolean =>
+  capsOfKind(kind).family === "cartesian" && kind !== "index-base";
 
 export const chartHasForecastBand = (kind: unknown): boolean =>
   kind === "line" || kind === "area" || kind === "fan";

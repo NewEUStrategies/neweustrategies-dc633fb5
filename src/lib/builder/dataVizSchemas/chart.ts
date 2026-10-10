@@ -23,6 +23,17 @@ import {
   hasChartBandEdges,
 } from "./shared";
 
+// POLA ODNIESIEŃ TYLKO TAM, GDZIE RODZAJ JE RYSUJE (`KIND_CAPS`), dokładnie
+// jak w edytorze bloku CMS. Ukrycie pola nie kasuje zapisu: wartość zostaje
+// w treści i wraca w panelu przy rodzaju, który ją rysuje. Predykaty wołają
+// `capsOfKind(c.kind)` wprost, bo bramka zgodności ustawień rozpoznaje klucz
+// widoczności po źródle predykatu.
+const drawsTarget = (c: Record<string, unknown>): boolean => capsOfKind(c.kind).target;
+const drawsBand = (c: Record<string, unknown>): boolean => capsOfKind(c.kind).band;
+/** Przypis pasma: rodzaj rysuje pasmo, a pasmo ma obie krawędzie. */
+const showsBandSource = (c: Record<string, unknown>): boolean =>
+  capsOfKind(c.kind).band && hasChartBandEdges(c);
+
 export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
   {
     key: "kind",
@@ -129,6 +140,9 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     options: CHART_PALETTE_OPTIONS,
     default: "focus",
     hint: "Akcent + neutralne: seria wyróżniona w akcencie, pozostałe jako tło porównania. Kategorialna: każda seria we własnym kolorze - dla serii równorzędnych.",
+    // Mostek, mapa ciepła i tornado kodują kolorem znak albo wartość
+    // (`KIND_CAPS.palette` = false) - wybór palety nie zmienia tam rysunku.
+    visibleWhen: (c) => capsOfKind(c.kind).palette,
   },
   {
     key: "direction",
@@ -153,12 +167,14 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     group: CHART_REFERENCE_GROUP,
     placeholder: "np. 25",
     hint: "Puste = bez linii celu. Wartość rysuje się przerywaną linią „cel X”.",
+    visibleWhen: drawsTarget,
   },
   {
     key: "bandMin",
     type: "text",
     label: "Pasmo optimum - od",
     group: CHART_REFERENCE_GROUP,
+    visibleWhen: drawsBand,
   },
   {
     key: "bandMax",
@@ -166,6 +182,7 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     label: "Pasmo optimum - do",
     group: CHART_REFERENCE_GROUP,
     hint: "Pasmo rysuje się tylko ze źródłem (tytuł albo adres niżej). Bez źródła wykres pokaże „brak benchmarku”.",
+    visibleWhen: drawsBand,
   },
   {
     key: "bandSourceAuthor",
@@ -173,14 +190,14 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     label: "Autor lub instytucja",
     group: CHART_REFERENCE_GROUP,
     placeholder: "np. Eurostat",
-    visibleWhen: hasChartBandEdges,
+    visibleWhen: showsBandSource,
   },
   {
     key: "bandSourceTitle",
     type: "text",
     label: "Tytuł źródła",
     group: CHART_REFERENCE_GROUP,
-    visibleWhen: hasChartBandEdges,
+    visibleWhen: showsBandSource,
   },
   {
     key: "bandSourceContainer",
@@ -188,28 +205,28 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     label: "Całość (czasopismo, serwis, seria)",
     group: CHART_REFERENCE_GROUP,
     hint: "Puste = dzieło samodzielne (raport, książka) - tytuł idzie kursywą.",
-    visibleWhen: hasChartBandEdges,
+    visibleWhen: showsBandSource,
   },
   {
     key: "bandSourcePublisher",
     type: "text",
     label: "Wydawca",
     group: CHART_REFERENCE_GROUP,
-    visibleWhen: hasChartBandEdges,
+    visibleWhen: showsBandSource,
   },
   {
     key: "bandSourcePublished",
     type: "text",
     label: "Data publikacji",
     group: CHART_REFERENCE_GROUP,
-    visibleWhen: hasChartBandEdges,
+    visibleWhen: showsBandSource,
   },
   {
     key: "bandSourceAccessed",
     type: "text",
     label: "Data dostępu",
     group: CHART_REFERENCE_GROUP,
-    visibleWhen: hasChartBandEdges,
+    visibleWhen: showsBandSource,
   },
   {
     // `text`, nie `url`: pole `url` podpowiada STRONY SERWISU i bibliotekę
@@ -219,7 +236,7 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     label: "Adres źródła (URL)",
     group: CHART_REFERENCE_GROUP,
     placeholder: "https://",
-    visibleWhen: hasChartBandEdges,
+    visibleWhen: showsBandSource,
   },
   {
     key: "bandSourceReliability",
@@ -227,7 +244,7 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     label: "Wiarygodność źródła",
     group: CHART_REFERENCE_GROUP,
     options: CHART_RELIABILITY_OPTIONS,
-    visibleWhen: hasChartBandEdges,
+    visibleWhen: showsBandSource,
   },
   // ---- System wykresów / kolory (PR2) ----
   // Klucze czyta adapter `widgetChartConfig` (`src/lib/charts/widgetConfig.ts`).
