@@ -88,7 +88,6 @@ import {
   NAV_POSITIONS,
   SLIDER_VARIANT_VALUES,
   SliderRender,
-  type NavArrowVariant,
   type NavBgStyle,
   type NavPosition,
   type SliderConfig,
@@ -194,17 +193,6 @@ function withImageLoadState(
 const withLoadedImages = (run: () => void) =>
   withImageLoadState({ complete: true, naturalWidth: 1200 }, run);
 
-/** Geometria każdego kształtu strzałki - jedno źródło prawdy dla asercji. */
-const ARROW_PATHS: Record<NavArrowVariant, string> = {
-  chevron: "M9 6l6 6-6 6",
-  "chevron-bold": "M9 5l7 7-7 7",
-  arrow: "M5 12h14M13 6l6 6-6 6",
-  "arrow-long": "M3 12h17M14 6l6 6-6 6",
-  caret: "M9 5l8 7-8 7z",
-  angle: "M10 5l7 7-7 7",
-  "double-chevron": "M6 6l6 6-6 6M12 6l6 6-6 6",
-  "arrow-tail": "M4 12h15M13 6l6 6-6 6M5 9l3 3-3 3",
-};
 
 afterEach(cleanup);
 
@@ -244,85 +232,63 @@ describe("sliderVariants - krawędź modułu wobec sliderOptions", () => {
 });
 
 // ------------------------------------------------------------------
-// Katalog kształtów strzałek
+// Ujednolicone strzałki - wspólny AngleChevron, jedna geometria
 // ------------------------------------------------------------------
 
-describe("SliderRender - katalog kształtów strzałek nawigacji", () => {
+describe("SliderRender - ujednolicone strzałki nawigacji", () => {
   it.each(NAV_ARROW_VARIANT_VALUES)(
-    "rysuje kształt %s jako pojedynczy inline SVG w obu przyciskach",
+    "rysuje wspólny kąt dla wariantu %s w obu przyciskach",
     (arrowVariant) => {
       const { container } = renderSlider({ navArrowVariant: arrowVariant });
       const prev = prevButton(container);
       const next = nextButton(container);
       expect(prev).not.toBeNull();
       expect(next).not.toBeNull();
-
-      const prevPaths = prev?.querySelectorAll("path") ?? [];
-      expect(prevPaths).toHaveLength(1);
-      expect(prevPaths[0].getAttribute("d")).toBe(ARROW_PATHS[arrowVariant]);
-      expect(next?.querySelector("path")?.getAttribute("d")).toBe(ARROW_PATHS[arrowVariant]);
+      // Ten sam znak po obu stronach: lewy kąt (cofnięty ramion od krawędzi).
+      expect(prev?.querySelector("svg polyline")?.getAttribute("points")).toBe(
+        "8.2 1.8 2.4 5 8.2 8.2",
+      );
+      // Prawy kąt - lustrzana geometria, nie transformacja.
+      expect(next?.querySelector("svg polyline")?.getAttribute("points")).toBe(
+        "2.4 1.8 8.2 5 2.4 8.2",
+      );
+      // Oba przyciski niosą wspólną klasę traktowania (subtelny, ghostowy).
+      expect(prev?.className).toContain("eh-slider-arrow");
+      expect(next?.className).toContain("eh-slider-arrow");
     },
   );
 
-  it("odbija strzałkę wsteczną lustrzanie, zamiast rysować drugą geometrię", () => {
-    // Ta sama ścieżka w obie strony = brak szansy na rozjazd kształtów; kierunek
-    // robi wyłącznie transformacja CSS.
-    const { container } = renderSlider({ navArrowVariant: "arrow" });
-    expect(prevButton(container)?.querySelector("svg")?.style.transform).toBe("scaleX(-1)");
-    expect(nextButton(container)?.querySelector("svg")?.style.transform).toBe("none");
-  });
-
-  it("daje każdemu kształtowi z katalogu inną geometrię", () => {
-    // Bramka na „dodałem wariant do katalogu i zapomniałem o gałęzi w switchu":
-    // taki wariant cicho dostaje kształt domyślny i wygląda jak chevron.
+  it("daje każdemu wariantowi kształtu identyczną geometrię kąta", () => {
+    // Bramka na „wariant z katalogu narysował coś innego": wszystkie warianty
+    // muszą prowadzić do tego samego znaku, bo strzałki są ujednolicone.
     const drawn = NAV_ARROW_VARIANT_VALUES.map((arrowVariant) => {
       const { container, unmount } = renderSlider({ navArrowVariant: arrowVariant });
-      const d = prevButton(container)?.querySelector("path")?.getAttribute("d") ?? "";
+      const points =
+        prevButton(container)?.querySelector("svg polyline")?.getAttribute("points") ?? "";
       unmount();
-      return d;
+      return points;
     });
-    expect(new Set(drawn).size).toBe(NAV_ARROW_VARIANT_VALUES.length);
+    expect(new Set(drawn).size).toBe(1);
   });
 
-  it("pogrubia chevron-bold do co najmniej 3, gdy panel prosi o cieńszą kreskę", () => {
-    const { container } = renderSlider({ navArrowVariant: "chevron-bold", navArrowStroke: 1 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("3");
-  });
-
-  it("honoruje grubszą kreskę chevron-bold, gdy panel prosi o więcej niż 3", () => {
+  it("trzyma kreskę kąta cienką (hairline) niezależnie od ustawienia panelu", () => {
     const { container } = renderSlider({ navArrowVariant: "chevron-bold", navArrowStroke: 4 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("4");
-  });
-
-  it("ścieńcza angle o pół punktu wobec ustawienia panelu", () => {
-    const { container } = renderSlider({ navArrowVariant: "angle", navArrowStroke: 2 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("1.5");
-  });
-
-  it("nie pozwala angle zejść poniżej 1, nawet przy najcieńszym ustawieniu", () => {
-    const { container } = renderSlider({ navArrowVariant: "angle", navArrowStroke: 0.5 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("1");
-  });
-
-  it("rysuje caret jako trójkąt wypełniony, niezależnie od grubości kreski z panelu", () => {
-    const { container } = renderSlider({ navArrowVariant: "caret", navArrowStroke: 4 });
-    const path = prevButton(container)?.querySelector("path");
-    expect(path?.getAttribute("fill")).toBe("currentColor");
-    expect(path?.getAttribute("stroke-width")).toBe("0.5");
-  });
-
-  it("rysuje kształty kreskowe bez wypełnienia, żeby kolor tła nie zalał ikony", () => {
-    const { container } = renderSlider({ navArrowVariant: "double-chevron" });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("fill")).toBe("none");
-  });
-
-  it("wraca do chevronu, gdy zapis dokumentu niesie kształt spoza katalogu", () => {
-    const { container } = renderSlider({
-      navArrowVariant: "spirala" as unknown as NavArrowVariant,
-    });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("d")).toBe(
-      ARROW_PATHS.chevron,
+    const svg = prevButton(container)?.querySelector("svg");
+    expect(svg?.getAttribute("stroke-width")).toBe("0.85");
+    expect(svg?.querySelector("polyline")?.getAttribute("vector-effect")).toBe(
+      "non-scaling-stroke",
     );
+  });
+
+  it("grubość kreski z panelu nie zmienia geometrii ujednoliconego kąta", () => {
+    for (const stroke of [0.1, 9]) {
+      const { container, unmount } = renderSlider({ navArrowStroke: stroke });
+      expect(prevButton(container)?.querySelector("svg polyline")?.getAttribute("points")).toBe(
+        "8.2 1.8 2.4 5 8.2 8.2",
+      );
+      expect(prevButton(container)?.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.85");
+      unmount();
+    }
   });
 });
 
@@ -399,24 +365,25 @@ describe("SliderRender - katalog stylów i pozycji nawigacji", () => {
     expect(prev?.style.getPropertyValue("--nav-arrow")).toBe("#f5c518");
   });
 
-  it("skaluje ikonę do 42% przycisku dla dużych przycisków", () => {
-    const { container } = renderSlider({ navSizePx: 96 });
-    expect(prevButton(container)?.querySelector("svg")?.style.width).toBe("40px");
+  it("ikona śledzie em przycisku z arkusza wspólnego, niezależnie od rozmiaru przycisku", () => {
+    // Rozmiar ikony żyje we wspólnym arkuszu `.eh-slider-arrow svg` (11x10 px)
+    // i w `AngleChevron` (calc(0.85em - 1px)); nie skaluje się z rozmiarem
+    // przycisku z panelu - geometria strzałek jest ujednolicona.
+    for (const size of [28, 52, 96]) {
+      const { container, unmount } = renderSlider({ navSizePx: size });
+      const svg = prevButton(container)?.querySelector("svg");
+      expect(svg?.style.width).toBe("calc(0.85em - 1px)");
+      expect(svg?.getAttribute("viewBox")).toBe("0 0 11 10");
+      unmount();
+    }
   });
 
-  it("nie schodzi z ikoną poniżej 14 px przy najmniejszym przycisku", () => {
-    const { container } = renderSlider({ navSizePx: 28 });
-    expect(prevButton(container)?.querySelector("svg")?.style.width).toBe("14px");
-  });
-
-  it("zawęża grubość kreski strzałki do dolnej granicy 0.5", () => {
-    const { container } = renderSlider({ navArrowStroke: 0.1 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("0.5");
-  });
-
-  it("zawęża grubość kreski strzałki do górnej granicy 4", () => {
-    const { container } = renderSlider({ navArrowStroke: 9 });
-    expect(prevButton(container)?.querySelector("path")?.getAttribute("stroke-width")).toBe("4");
+  it("trzyma kreskę ikony na 0.85 niezależnie od ustawienia grubości panelu", () => {
+    for (const stroke of [0.1, 2.25, 9]) {
+      const { container, unmount } = renderSlider({ navArrowStroke: stroke });
+      expect(prevButton(container)?.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.85");
+      unmount();
+    }
   });
 });
 
@@ -1207,9 +1174,9 @@ describe("SliderRender - dieta znaczników obrazów i kart (P2.6)", () => {
   );
 });
 
-describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6, css:C9)", () => {
+describe("SliderRender - kreski paginacji tylko przez transform i opacity (P2.6, css:C9)", () => {
   it.each(DOT_VARIANTS)(
-    "w wariancie %s każda kropka ma stałe pudełko 10 px i przejście wyłącznie transform/opacity",
+    "w wariancie %s każda kreska ma stałe pudełko w-10 h-1 i przejście wyłącznie transform/opacity",
     (variant, extra) => {
       const { container } = renderSlider({ variant, ...extra });
       const dots = dotsOf(container);
@@ -1218,13 +1185,13 @@ describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6,
         expect(tokens(dot)).toEqual(
           expect.arrayContaining([
             "rounded-full",
-            "w-2.5",
-            "h-2.5",
+            "w-10",
+            "h-1",
             "transition-[transform,opacity]",
           ]),
         );
         // Animowane właściwości układu i koloru znikają razem z transition-all.
-        for (const banned of ["transition-all", "w-2", "h-2"]) {
+        for (const banned of ["transition-all", "w-2", "h-2", "w-2.5", "h-2.5"]) {
           expect(tokens(dot)).not.toContain(banned);
         }
         expect(dot.className).not.toMatch(/\bbg-(foreground|white)\/\d+/);
@@ -1233,7 +1200,7 @@ describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6,
   );
 
   it.each(DOT_VARIANTS)(
-    "w wariancie %s aktywna kropka jest pełna, a nieaktywne pomniejszone scale(.8) i przygaszone",
+    "w wariancie %s aktywna kreska jest pełna i wydłużona, a nieaktywne skrócone scaleX(.4) i przygaszone",
     (variant, extra) => {
       const { container } = renderSlider({ variant, ...extra });
       const buttons = [...container.querySelectorAll('button[aria-label^="Slajd "]')];
@@ -1241,27 +1208,23 @@ describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6,
       expect(active).toHaveLength(1);
       for (const button of buttons) {
         const dot = button.querySelector<HTMLElement>("span[aria-hidden]")!;
-        const dimmed = tokens(dot).filter((t) => /^opacity-\d+$/.test(t));
         if (button === active[0]) {
-          expect(tokens(dot)).not.toContain("[transform:scale(.8)]");
-          expect(dimmed).toEqual([]);
+          expect(tokens(dot)).toContain("[transform:scaleX(1)]");
+          expect(tokens(dot)).toContain("opacity-100");
         } else {
-          expect(tokens(dot)).toContain("[transform:scale(.8)]");
-          expect(dimmed).toHaveLength(1);
+          expect(tokens(dot)).toContain("[transform:scaleX(.4)]");
+          expect(tokens(dot)).toContain("opacity-35");
+          expect(tokens(dot)).toContain("group-hover:opacity-60");
         }
       }
     },
   );
 
-  it("zachowuje dawne krycie kropek: /25 → opacity-25 (hover 50) na tle, /50 → opacity-50 (hover 80) na obrazie", () => {
+  it("zachowuje kontekstowy kolor kresek: bg-foreground na powierzchni, bg-white na obrazie", () => {
     const hero = dotsOf(renderSlider({ variant: "editorial-hero" }).container);
-    expect(tokens(hero[1])).toEqual(
-      expect.arrayContaining(["bg-foreground", "opacity-25", "group-hover:opacity-50"]),
-    );
+    expect(tokens(hero[1])).toEqual(expect.arrayContaining(["bg-foreground", "opacity-35"]));
     const cinema = dotsOf(renderSlider({ variant: "cinematic-overlay" }).container);
-    expect(tokens(cinema[1])).toEqual(
-      expect.arrayContaining(["bg-white", "opacity-50", "group-hover:opacity-80"]),
-    );
+    expect(tokens(cinema[1])).toEqual(expect.arrayContaining(["bg-white", "opacity-35"]));
   });
 });
 

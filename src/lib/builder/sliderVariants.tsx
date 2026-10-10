@@ -619,7 +619,6 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
  * Geometria poza kropką bez zmian: kropka siedzi wyśrodkowana w przycisku
  * `h-8 w-8 shrink-0`, więc rozmiar jej pudełka nie wpływa na układ.
  */
-const DOT_BASE = "rounded-full w-2.5 h-2.5 transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none";
 
 interface DotsNavProps {
   lang: "pl" | "en";
@@ -1631,7 +1630,9 @@ function CinematicOverlayVariant(p: VariantProps) {
               >
                 <span
                   aria-hidden="true"
-                  className={`${DOT_BASE} ${i === p.safeIdx ? "bg-white" : "bg-white opacity-50 [transform:scale(.8)] group-hover:opacity-80"}`}
+                  // Wskaźnik ujednolicony z DotsNav: krótkie przygaszone kreski
+                  // i dłuższa aktywna; kolor biały, bo leży na obrazie.
+                  className={`h-1 w-10 rounded-full bg-white transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none ${i === p.safeIdx ? "opacity-100 [transform:scaleX(1)]" : "opacity-35 [transform:scaleX(.4)] group-hover:opacity-60"}`}
                 />
               </button>
             ))}
