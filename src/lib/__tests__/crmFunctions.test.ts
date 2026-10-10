@@ -454,6 +454,30 @@ describe("kronika kontaktu (timeline)", () => {
     expect(events.filter((e) => e.id.startsWith("sub-doi:"))).toHaveLength(1);
   });
 
+  it("zachowuje całą wiadomość formularza w osi czasu i eksporcie", async () => {
+    timelineSources();
+    const message = "Pełna treść\n" + "x".repeat(7900) + "\nKONIEC";
+    lead.setResponse("contact_messages", () => ok([{
+      id: "long", form_type: "contact_form", subject: "Temat", message,
+      created_at: "2026-08-01T10:00:00.000Z", lang: "pl", page_url: "/kontakt",
+    }]));
+    const result = await callServerFn(crm.getCrmLeadTimeline, { data: { id: LEAD_ID }, context: context() });
+    const { events } = parsed(result) as { events: Array<{ type: string; detail: string }> };
+    expect(events.find((event) => event.type === "submit")?.detail).toBe(`Temat\n\n${message}`);
+  });
+
+  it("zachowuje pełną treść zgody", async () => {
+    timelineSources();
+    const consent = "Zgoda " + "x".repeat(600) + " KONIEC";
+    lead.setResponse("crm_consent_log", () => ok([{
+      id: "long-consent", consent_key: "rodo", given: true, consent_text: consent,
+      created_at: "2026-08-03T10:00:00.000Z",
+    }]));
+    const result = await callServerFn(crm.getCrmLeadTimeline, { data: { id: LEAD_ID }, context: context() });
+    const { events } = parsed(result) as { events: Array<{ type: string; detail: string }> };
+    expect(events.find((event) => event.type === "consent")?.detail).toBe(consent);
+  });
+
   it("zdarzenie audytu bez „webhook” w nazwie to zmiana etapu", async () => {
     timelineSources();
     lead.setResponse("audit_log", () =>

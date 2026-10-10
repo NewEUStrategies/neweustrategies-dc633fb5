@@ -1,5 +1,10 @@
 # Roadmap
 
+## Pełne wiadomości i limity formularzy
+
+- [x] Usunąć obcinanie treści w CRM i zachować pełne wiadomości przy zbieraniu.
+- [x] Pokazać liczniki i rzeczywiste limity w formularzach PL/EN, zweryfikować testami.
+
 ## Kafelki typów treści w klubie
 
 - [x] Umieścić kafelki typów treści pod Ludzie i nad Praca w lewym panelu klubu.

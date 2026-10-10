@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";
 import { FormSelect, type FormSelectOption } from "@/components/atoms/FormSelect";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
+import { CharacterCounter } from "@/components/forms/CharacterCounter";
 import {
   CAREER_DEPARTMENTS,
   CAREER_SENIORITIES,
@@ -569,11 +570,7 @@ export function CareersApplyForm({
                   onChange={(e) => setField("message", e.target.value)}
                   onBlur={() => blurField("message")}
                 />
-                <p className="pl-1 text-[11px] text-muted-foreground" aria-live="polite">
-                  {t("careers.form.charsLeft", {
-                    count: Math.max(0, MESSAGE_MAX - form.message.trim().length),
-                  })}
-                </p>
+                <CharacterCounter count={form.message.length} limit={MESSAGE_MAX} lang={lang} />
                 <label
                   htmlFor={consentId}
                   className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted-foreground"

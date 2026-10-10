@@ -30,6 +30,8 @@ import { safeImageUrl, hardenStyleCss } from "@/lib/sanitize";
 import { floatingPlaceholder } from "@/components/ui/floating-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { trackFormConversion } from "@/lib/analytics/conversions";
+import { CONTACT_FIELD_LIMITS } from "@/lib/forms/contactLimits";
+import { CharacterCounter } from "@/components/forms/CharacterCounter";
 
 type Lang = "pl" | "en";
 type Cfg = Record<string, unknown>;
@@ -67,6 +69,7 @@ const T = {
     invalidEmail: "Niepoprawny adres e-mail",
     sending: "Wysyłanie...",
     error: "Wystąpił błąd. Spróbuj ponownie.",
+    tooLong: "Przekroczono limit znaków",
   },
   en: {
     firstName: "First name",
@@ -82,6 +85,7 @@ const T = {
     invalidEmail: "Invalid email address",
     sending: "Sending...",
     error: "Something went wrong. Please try again.",
+    tooLong: "Character limit exceeded",
   },
 } as const;
 
@@ -345,7 +349,11 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
     if (requiredMap.subject && !payload.subject) errs.subject = t.required;
     if (requiredMap.message && !payload.message) errs.message = t.required;
     if (requireConsent && !payload.consent) errs.consent = t.required;
-    Object.assign(errs, validateCustom(customFields, payload.custom, t.required));
+    for (const [key, limit] of Object.entries(CONTACT_FIELD_LIMITS)) {
+      const value = payload[key as keyof typeof payload];
+      if (typeof value === "string" && value.length > limit) errs[key] = `${t.tooLong}: ${limit}`;
+    }
+    Object.assign(errs, validateCustom(customFields, payload.custom, t.required, t.tooLong));
 
     setErrors(errs);
     if (Object.keys(errs).length) return;
@@ -486,7 +494,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 
         <div className={`grid grid-cols-1 ${gridCols} gap-3`}>
           {showFirstName && (
-            <Field
+            <Field lang={lang}
               label={L.firstName}
               required={requireFirstName}
               error={errors.firstName}
@@ -503,7 +511,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showLastName && (
-            <Field
+            <Field lang={lang}
               label={L.lastName}
               required={requireLastName}
               error={errors.lastName}
@@ -520,7 +528,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showEmail && (
-            <Field
+            <Field lang={lang}
               label={L.email}
               required={requireEmail}
               error={errors.email}
@@ -539,7 +547,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
           )}
 
           {showPhone && (
-            <Field
+            <Field lang={lang}
               label={L.phone}
               required={requirePhone}
               error={errors.phone}
@@ -557,7 +565,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showCompany && (
-            <Field
+            <Field lang={lang}
               label={L.company}
               required={requireCompany}
               error={errors.company}
@@ -574,7 +582,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showSubject && (
-            <Field
+            <Field lang={lang}
               label={L.subject}
               required={requireSubject}
               error={errors.subject}
@@ -590,7 +598,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             </Field>
           )}
           {showMessage && (
-            <Field
+            <Field lang={lang}
               label={L.message}
               required={requireMessage}
               error={errors.message}
@@ -626,7 +634,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             }
             if (f.type === "select") {
               return (
-                <Field key={f.id} label={label} required={f.required} error={err} className={span}>
+                <Field lang={lang} key={f.id} label={label} required={f.required} error={err} className={span}>
                   <select
                     name={name}
                     required={f.required}
@@ -648,7 +656,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
             }
             if (f.type === "textarea") {
               return (
-                <Field key={f.id} label={label} required={f.required} error={err} className={span}>
+                <Field lang={lang} key={f.id} label={label} required={f.required} error={err} className={span}>
                   <textarea
                     name={name}
                     rows={5}
@@ -656,13 +664,13 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                     aria-required={f.required || undefined}
                     className="cf-input resize-y"
                     placeholder={placeholder}
-                    maxLength={f.maxLength ?? 4000}
+                    maxLength={Math.min(f.maxLength ?? CONTACT_FIELD_LIMITS.custom, CONTACT_FIELD_LIMITS.custom)}
                   />
                 </Field>
               );
             }
             return (
-              <Field key={f.id} label={label} required={f.required} error={err} className={span}>
+              <Field lang={lang} key={f.id} label={label} required={f.required} error={err} className={span}>
                 <input
                   name={name}
                   type={f.type}
@@ -670,7 +678,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                   aria-required={f.required || undefined}
                   className="cf-input"
                   placeholder={placeholder}
-                  maxLength={f.maxLength ?? 500}
+                  maxLength={Math.min(f.maxLength ?? CONTACT_FIELD_LIMITS.custom, CONTACT_FIELD_LIMITS.custom)}
                 />
               </Field>
             );
@@ -724,17 +732,22 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
 }
 
 function Field({
+  lang,
   label,
   error,
   className,
   children,
 }: {
+  lang: Lang;
   label: string;
   required?: boolean;
   error?: string;
   className?: string;
   children: ReactNode;
 }) {
+  const counterId = useId();
+  const [count, setCount] = useState(0);
+  let limit: number | undefined;
   // Floating-label: wstrzykuje klasę `.input` do dziecka
   // (<input>/<textarea>/<select>), dzięki czemu label unosi się na obramowaniu.
   // Placeholder USTAWIONY przez edytora leci dalej bez zmian - CSS
@@ -745,11 +758,19 @@ function Field({
   // Semantyczne tokeny -> działa w light+dark, i18n przez callsite.
   let injected: ReactNode = children;
   if (isValidElement(children)) {
-    const el = children as ReactElement<{ className?: string; placeholder?: string }>;
+    const el = children as ReactElement<{ className?: string; placeholder?: string; name?: string; maxLength?: number; "aria-describedby"?: string }>;
+    if (el.type === "input" || el.type === "textarea") {
+      const key = el.props.name;
+      const standardLimit = key && Object.prototype.hasOwnProperty.call(CONTACT_FIELD_LIMITS, key)
+        ? CONTACT_FIELD_LIMITS[key as keyof typeof CONTACT_FIELD_LIMITS]
+        : CONTACT_FIELD_LIMITS.custom;
+      limit = Math.min(el.props.maxLength ?? standardLimit, standardLimit);
+    }
     const merged = ["input", el.props.className].filter(Boolean).join(" ");
     injected = cloneElement(el, {
       className: merged,
       placeholder: floatingPlaceholder(el.props.placeholder),
+      ...(limit ? { maxLength: limit, "aria-describedby": counterId } : {}),
     });
   }
   // Komunikat walidacji nie jest osobnym wierszem - wchodzi w miejsce etykiety
@@ -759,7 +780,12 @@ function Field({
   const [focused, setFocused] = useState(false);
   const showError = Boolean(error) && !focused;
   return (
-    <div className={className}>
+    <div className={className} onInputCapture={(event) => {
+      const control = event.target;
+      if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+        setCount(control.value.length);
+      }
+    }}>
       <div
         className="input-group"
         data-invalid={error ? "true" : undefined}
@@ -771,6 +797,7 @@ function Field({
           {showError ? error : label}
         </label>
       </div>
+      {limit && <CharacterCounter id={counterId} count={count} limit={limit} lang={lang} />}
     </div>
   );
 }
