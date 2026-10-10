@@ -1184,21 +1184,11 @@ export function SectionLabelRender({
       // liczony jest w JS, wiec nie ma dla niego klasy); sama akcja stylowana
       // jest przez `.nes-kinetic-action` w styles.css.
       const barH = isSm ? 2 : 3;
-      // Kreski sa identyczne: ta sama grubosc i dlugosc. Baza jest waska
-      // (16 px / 10 px), a rozsuniecie w hoverze jest subtelne - najdluzszy
-      // pasek przyrasta o 5 px (do 21 px), srodkowy zostaje w srodku tej skali,
-      // a najkrotszy o 2 px, wiec caly wiersz zyskuje 10 px, a nie 24 px.
-      // Opoznienia daja efekt fali.
+      // Wspólna szerokość i brak opóźnień utrzymują trzy identyczne kreski
+      // w każdej klatce animacji, nie tylko w spoczynku.
       const barW = isSm ? "w-2.5" : "w-4";
-      const bars: ReadonlyArray<{ id: string; grow: string; delay: string }> = [
-        { id: "lead", grow: isSm ? "group-hover:w-3" : "group-hover:w-[19px]", delay: "0ms" },
-        { id: "mid", grow: isSm ? "group-hover:w-[13px]" : "group-hover:w-[21px]", delay: "75ms" },
-        {
-          id: "tail",
-          grow: isSm ? "group-hover:w-[11px]" : "group-hover:w-[18px]",
-          delay: "150ms",
-        },
-      ];
+      const barGrow = isSm ? "group-hover:w-3" : "group-hover:w-[19px]";
+      const bars = ["lead", "mid", "tail"] as const;
       // Ciasny tracking tytulu (litery blisko siebie), z-delikatnym otwarciem na hoverze.
       const titleCls = isSm
         ? "text-[8px] font-black uppercase tracking-[0.05em]"
@@ -1303,14 +1293,14 @@ export function SectionLabelRender({
             >
               {bars.map((bar) => (
                 <span
-                  key={bar.id}
-                  className={`nes-kinetic-bar shrink-0 rounded-full ${barW} ${bar.grow}`}
+                  key={bar}
+                  className={`nes-kinetic-bar shrink-0 rounded-full ${barW} ${barGrow}`}
                   style={{
                     height: barH,
                     minHeight: barH,
                     maxHeight: barH,
                     background: accent,
-                    transitionDelay: bar.delay,
+                    transitionDelay: "0ms",
                   }}
                 />
               ))}
