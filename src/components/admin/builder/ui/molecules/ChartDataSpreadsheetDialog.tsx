@@ -120,6 +120,9 @@ function tylkoEtykiety(prev: ChartGridValue, next: ChartGridValue): boolean {
   return (
     prev.accentSeries === next.accentSeries &&
     prev.accentCategory === next.accentCategory &&
+    // Wyczyszczona komórka z nieodczytanym napisem zostawia lukę jak była,
+    // ale zdejmuje napis - to zmiana danych, nie etykiety.
+    prev.raw === next.raw &&
     a.categories.length === b.categories.length &&
     a.series.length === b.series.length &&
     a.series.every((s, i) => {
@@ -215,8 +218,10 @@ export function ChartDataSpreadsheetDialog({
     // `onChange`, reszta kluczy przez `setContent`, jeśli jest.
     k.onChange(String(patch[k.dataKey] ?? ""));
     if (k.setContent) {
-      for (const key of ["seriesColors", "accentSeries", "accentCategory"] as const) {
-        const v = patch[key] ?? null;
+      // Pozostałe klucze łatki (kolory, akcenty, granica prognozy).
+      for (const [key, raw] of Object.entries(patch)) {
+        if (key === k.dataKey) continue;
+        const v = raw ?? null;
         if ((wejscie.current.c[key] ?? null) !== v) k.setContent(key, v);
       }
     }

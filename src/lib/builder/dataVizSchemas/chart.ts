@@ -251,8 +251,10 @@ export const CHART_WIDGET_SCHEMA: ReadonlyArray<SchemaField> = [
     // ciągła, znacznik koła; przerywanie i kreskowanie dalszych serii), więc
     // pole ukryte pod paletą kategorialną zostawiało zapisany wybór, który
     // nadal zmieniał rysunek, bez kontrolki do jego cofnięcia. Rodzaj, który
-    // palety nie stosuje (`KIND_CAPS.palette` = false), rangi nie rysuje.
-    visibleWhen: (c) => chartColorsBySeries(c.kind) && capsOfKind(c.kind).palette,
+    // palety nie stosuje (`KIND_CAPS.palette` = false), rangi nie rysuje -
+    // tak samo małe panele (`colorTarget: "panels"`): każdy panel ma jedną
+    // farbę, a serii wyróżnionej rysunek nie czyta.
+    visibleWhen: (c) => capsOfKind(c.kind).colorTarget === "series" && capsOfKind(c.kind).palette,
   },
   {
     key: "accentCategory",

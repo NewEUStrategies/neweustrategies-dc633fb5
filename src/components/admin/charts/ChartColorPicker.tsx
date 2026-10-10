@@ -14,6 +14,12 @@
 //       w obu motywach, odcień poza pasmem pomarańczu i żółci).
 // Próbki rysują tokeny `var(--chart-N)`, więc przełączenie motywu przemalowuje
 // je bez renderu, a geometria jest ta sama w obu motywach.
+//
+// KLAWIATURA. Próbki są ogłaszane jako przyciski opcji w grupie, więc działają
+// jak grupa: jeden przystanek Tabu na grupę i strzałki po próbkach (`Grupa`).
+// Do przeglądu końcowego PR2 strzałki nie robiły nic, a Tab szedł po
+// wszystkich czternastu próbkach po kolei.
+import { useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { slotAt } from "@/lib/charts/palette";
@@ -71,6 +77,24 @@ interface PickerProps {
   triggerTabIndex?: number;
 }
 
+/** Klawisz -> przesunięcie fokusu w grupie (`"start"`/`"end"` - skrajne próbki). */
+const RUCH: Readonly<Record<string, -1 | 1 | "start" | "end">> = {
+  ArrowRight: 1,
+  ArrowDown: 1,
+  ArrowLeft: -1,
+  ArrowUp: -1,
+  Home: "start",
+  End: "end",
+};
+
+/**
+ * Grupa próbek - wzorzec grupy radiowej ARIA: JEDEN przystanek Tabu na grupę
+ * (próbka wybrana, a w grupie bez wyboru - pierwsza; potem ta, na której
+ * stał fokus), strzałki, Home i End chodzą po próbkach z zawinięciem.
+ * Strzałka przenosi fokus, ale NIE wybiera: wybór zamyka próbnik i zapisuje
+ * krok historii, więc przeglądanie kolorów strzałkami zamykałoby okno przy
+ * pierwszym naciśnięciu. Wybiera Enter, spacja albo klik.
+ */
 function Grupa({
   title,
   slots,
@@ -84,24 +108,44 @@ function Grupa({
   onPick: (slot: number) => void;
   t: ChartEditorT;
 }) {
+  const przyciski = useRef<(HTMLButtonElement | null)[]>([]);
+  const [fokus, setFokus] = useState<number | null>(null);
   if (slots.length === 0) return null;
+  const indeksWyboru = slots.indexOf(current);
+  const przystanek = fokus ?? (indeksWyboru === -1 ? 0 : indeksWyboru);
+  const przesun = (od: number, ruch: -1 | 1 | "start" | "end") => {
+    const n = slots.length;
+    const cel = ruch === "start" ? 0 : ruch === "end" ? n - 1 : (od + ruch + n) % n;
+    przyciski.current[cel]?.focus();
+  };
   return (
     <div className="space-y-1">
       <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
         {title}
       </div>
       <div role="radiogroup" aria-label={title} className="grid grid-cols-7 gap-1">
-        {slots.map((n) => {
+        {slots.map((n, i) => {
           const nazwa = slotLabel(n, t);
           const wybrany = n === current;
           return (
             <button
               key={n}
+              ref={(el) => {
+                przyciski.current[i] = el;
+              }}
               type="button"
               role="radio"
               aria-checked={wybrany}
               aria-label={nazwa}
               title={nazwa}
+              tabIndex={i === przystanek ? 0 : -1}
+              onFocus={() => setFokus(i)}
+              onKeyDown={(e) => {
+                const ruch = RUCH[e.key];
+                if (ruch === undefined) return;
+                e.preventDefault();
+                przesun(i, ruch);
+              }}
               data-slot={n}
               className={cn(
                 "relative inline-flex h-7 w-7 items-center justify-center rounded border border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",

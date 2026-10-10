@@ -20,13 +20,17 @@
 // komórki nieliczbowe, flagi) stoją pod siatką - dopóki dane są tymi, które
 // wklejenie dało (następna edycja albo Ctrl+Z zdejmuje komunikat). Cała
 // tabela wklejona w PUSTĄ siatkę (`gridIsBlank`: bez liczb i bez etykiet
-// autora) albo w jej pierwszą komórkę - gdy rozpoznanie widzi nagłówek -
-// otwiera podgląd z przełącznikami układu, bo zastępuje WSZYSTKO.
+// autora) albo w jej RÓG - pierwszą etykietę kategorii - gdy rozpoznanie
+// widzi nagłówek, otwiera podgląd z przełącznikami układu, bo zastępuje
+// WSZYSTKO. Nazwa pierwszej serii i pierwsza wartość rogiem nie są: wiersz
+// nazw wklejony w nazwę serii 1 szedł do podglądu zastąpienia całej tabeli,
+// a ta sama wklejka w nazwę serii 2 - od kotwicy. Komunikat o wyniku stoi
+// w regionie `aria-live` zamontowanym od początku - region wstawiony razem
+// z tekstem czytniki ekranu zwykle przemilczają.
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { ArrowLeftRight, Plus } from "lucide-react";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { MAX_SERIES, type ChartKind } from "@/lib/charts/types";
-import { KIND_CAPS } from "@/lib/charts/kindCaps";
 import { MAX_CATEGORIES } from "@/lib/charts/parse";
 import type { ChartPalette } from "@/lib/charts/seriesStyle";
 import type { ClipboardTable } from "@/lib/charts/clipboardTable";
@@ -52,6 +56,7 @@ import {
   gridSetSeriesName,
   gridSetValue,
   gridSort,
+  gridStoredText,
   gridTranspose,
   GRID_MIN,
   widgetGridSignature,
@@ -60,9 +65,9 @@ import {
 } from "./chartGridState";
 import {
   colorsByCategory,
-  colorsBySeries,
+  drawnSeriesSwatches,
   effectivePalette,
-  seriesSwatches,
+  seriesAccentDrawn,
 } from "./chartColorSlots";
 import { ChartColorPicker, ColorSwatch, SeriesRoleChip } from "./ChartColorPicker";
 import { NumberCell, TextCell } from "./GridCells";
@@ -144,14 +149,21 @@ function ChartDataGridInner(
 
   const { categories, series } = value.model;
   const eff = effectivePalette(kind, palette);
-  const probkiSerii = colorsBySeries(kind) ? seriesSwatches(series, value.accentSeries, eff) : null;
+  // Próbki z TEJ SAMEJ farby co rysunek rodzaju (`drawnSeriesSwatches`):
+  // `null` w miejscu serii = rysunek jej nie maluje (kolumna osi X chmury).
+  const probkiSerii = drawnSeriesSwatches(kind, value.model, value.accentSeries, palette);
   // SERIA WYRÓŻNIONA W OBU PALETACH. Ranga z `accentSeries` steruje nie tylko
   // kolorem roli, ale też kształtem (linia ciągła, znacznik koła, pełne pole
   // serii głównej; przerywanie i kreskowanie dalszych) - w palecie
   // kategorialnej również. Wybór ukryty pod paletą kategorialną zostawiał
   // zapisaną serię wyróżnioną bez kontrolki, którą dałoby się to cofnąć.
-  // Rodzaj bez palety (`KIND_CAPS.palette` = false) rangi nie rysuje.
-  const akcentSerii = colorsBySeries(kind) && KIND_CAPS[kind].palette;
+  // Rodzaj, który rangi nie rysuje (bez palety, małe panele), wyboru nie ma,
+  // a seria bez farby na rysunku nie stoi na liście.
+  const akcentSerii = seriesAccentDrawn(kind);
+  const wyroznialne = series.map((_, i) => i).filter((i) => probkiSerii?.[i] != null);
+  const akcentWidoczny = wyroznialne.includes(value.accentSeries)
+    ? value.accentSeries
+    : (wyroznialne[0] ?? value.accentSeries);
   const akcentKategorii = colorsByCategory(kind);
   const wynikAktualny = wynik !== null && wynik.sig === widgetGridSignature(value) ? wynik : null;
 
@@ -211,10 +223,10 @@ function ChartDataGridInner(
   const wklej = (table: ClipboardTable, anchor: GridAnchor) => {
     const readProblems: ImportProblem[] = table.truncated ? [{ code: "pasteTruncated" }] : [];
     const szerokosc = table.rows[0]?.length ?? 0;
-    const pierwszaKomorka = anchor.row <= 0 && anchor.col <= 0;
+    // Róg tabeli: pierwsza etykieta kategorii (róg -1/-1 to nagłówek, nie pole).
+    const rog = anchor.row === 0 && anchor.col === -1;
     const calaTabela =
-      szerokosc >= 2 &&
-      (gridIsBlank(value) || (pierwszaKomorka && analyseTable(table.rows).headerRow));
+      szerokosc >= 2 && (gridIsBlank(value) || (rog && analyseTable(table.rows).headerRow));
     if (calaTabela) {
       otworzPodglad(table.rows, readProblems, "paste");
       return;
@@ -342,17 +354,17 @@ function ChartDataGridInner(
       label: t("chartEditor.menu.sortDesc"),
       onSelect: () => zmien(gridSort(value, si, "desc")),
     },
-    ...(akcentSerii
+    ...(akcentSerii && wyroznialne.includes(si)
       ? [
           {
             id: "accentSeries",
             label: t("chartEditor.menu.accentSeries"),
-            unavailable: value.accentSeries === si,
+            unavailable: akcentWidoczny === si,
             onSelect: () => zmien(gridSetAccentSeries(value, si)),
           },
         ]
       : []),
-    ...(probkiSerii !== null && probkiSerii[si]?.role === null
+    ...(probkiSerii?.[si]?.pickable === true
       ? [
           {
             id: "color",
@@ -405,16 +417,16 @@ function ChartDataGridInner(
         >
           <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden /> {t("chartEditor.grid.transpose")}
         </button>
-        {akcentSerii && series.length > 1 && (
+        {akcentSerii && wyroznialne.length > 1 && (
           <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
             {t("chartEditor.accent.label")}
             <AdminSelect
               className="h-8 w-44 text-xs"
-              value={String(value.accentSeries)}
+              value={String(akcentWidoczny)}
               aria-label={t("chartEditor.accent.label")}
               onChange={(e) => zmien(gridSetAccentSeries(value, Number(e.target.value)))}
             >
-              {series.map((_, i) => (
+              {wyroznialne.map((i) => (
                 <option key={i} value={String(i)}>
                   {nazwaSerii(i)}
                 </option>
@@ -461,12 +473,12 @@ function ChartDataGridInner(
                 {t("chartEditor.grid.corner")}
               </th>
               {series.map((s, si) => {
-                const probka = probkiSerii?.[si];
+                const probka = probkiSerii?.[si] ?? undefined;
                 return (
                   <th key={si} className="min-w-[128px] px-0 align-top font-normal">
                     <div className="flex items-center gap-1">
                       {probka !== undefined &&
-                        (probka.role !== null ? (
+                        (!probka.pickable ? (
                           <ColorSwatch color={probka.color} />
                         ) : (
                           <ChartColorPicker
@@ -547,12 +559,17 @@ function ChartDataGridInner(
                       row={ci}
                       col={si}
                       value={s.values[ci] ?? null}
+                      storedText={gridStoredText(value, ci, si)}
                       lang={docLang}
                       label={t("chartEditor.grid.cell", {
                         category: nazwaKategorii(ci),
                         series: nazwaSerii(si),
                       })}
-                      invalidText={t("chartEditor.grid.invalidNumber")}
+                      invalidText={t(
+                        gridStoredText(value, ci, si) !== undefined
+                          ? "chartEditor.grid.invalidStored"
+                          : "chartEditor.grid.invalidNumber",
+                      )}
                       onCommit={(v) => zmien(gridSetValue(value, ci, si, v))}
                       onTablePaste={wklej}
                       onOpenMenu={() => otworzMenu(`c${ci}`, { row: ci, col: si })}
@@ -575,23 +592,25 @@ function ChartDataGridInner(
           {t("chartEditor.grid.limitSeries", { max: MAX_SERIES })}
         </p>
       )}
-      {probkiSerii !== null && eff === "focus" && (
+      {probkiSerii?.some((p) => p !== null && p.role !== null) === true && (
         <p className="text-[10px] text-muted-foreground">
           {t("chartEditor.colors.focusRoles")} {t("chartEditor.colors.customHint")}.
         </p>
       )}
-      {akcentSerii && eff !== "focus" && series.length > 1 && (
+      {akcentSerii && eff !== "focus" && wyroznialne.length > 1 && (
         <p className="text-[10px] text-muted-foreground">
           {t("chartEditor.accent.categoricalHint")}
         </p>
       )}
       <p className="text-[10px] text-muted-foreground">{t("chartEditor.grid.pasteHint")}</p>
-      {wynikAktualny !== null && (
-        <div aria-live="polite" className="space-y-1">
-          <p className="text-[11px] text-muted-foreground">{t("chartEditor.grid.pasted")}</p>
-          <ImportProblemList problems={wynikAktualny.problems} lang={lang} />
-        </div>
-      )}
+      <div aria-live="polite" className="space-y-1">
+        {wynikAktualny !== null && (
+          <>
+            <p className="text-[11px] text-muted-foreground">{t("chartEditor.grid.pasted")}</p>
+            <ImportProblemList problems={wynikAktualny.problems} lang={lang} />
+          </>
+        )}
+      </div>
 
       <PastePreviewDialog
         open={podglad !== null}

@@ -24,7 +24,7 @@
 // z tym polem kontrolka najpierw pokazuje `PastePreviewDialog` (nagłówek,
 // obrót, format liczb, kolumna wartości mapy), a `onRows` dostaje wiersze
 // RAZEM z wybranym układem dopiero po „Zastosuj". Bez pola - jak dotąd.
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { AlertTriangle, Check, File as FileIcon, Rows, Upload } from "@/lib/lucide-shim";
 import { UploadArea } from "@/components/ui/upload-area";
 import { useBlocksI18n } from "@/lib/blocks/i18n";
@@ -79,6 +79,21 @@ export function DataImportControl({ onRows, hint, className, preview, countryInd
   const tr = (key: string, opts?: Record<string, unknown>) => bt.editor("dataImport", key, opts);
   const [stan, setStan] = useState<Stan>({ faza: "idle" });
   const statusId = useId();
+  // FOKUS PO PODGLĄDZIE ARKUSZA WYBRANEGO Z LISTY. Przycisk arkusza otwiera
+  // podgląd i w tym samym renderze znika (lista ustępuje podglądowi), więc
+  // okno nie ma dokąd oddać fokusu i ten spadał na `<body>`. Wtedy fokus
+  // wraca do przycisku importu - kontrolki, od której autor zaczął.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const zListyArkuszy = useRef(false);
+  const powrotFokusu = (event: Event) => {
+    if (!zListyArkuszy.current) return;
+    zListyArkuszy.current = false;
+    // Pierwszy przycisk obszaru wgrywania to jego CTA („Importuj z pliku").
+    const cta = rootRef.current?.querySelector<HTMLButtonElement>("button:not([disabled])");
+    if (!cta) return;
+    event.preventDefault();
+    cta.focus();
+  };
 
   // PROBLEMY ODCZYTU (cały plik: kodowanie zastępcze, arkusze ponad limit;
   // arkusz: obcięte wiersze i kolumny) idą RAZEM z problemami danych, które
@@ -125,7 +140,7 @@ export function DataImportControl({ onRows, hint, className, preview, countryInd
   };
 
   return (
-    <div className={className}>
+    <div ref={rootRef} className={className}>
       <UploadArea
         size="sm"
         // Tytuł obszaru NAZYWA POLE, CTA nazywa czynność. Ten sam napis w obu
@@ -162,7 +177,10 @@ export function DataImportControl({ onRows, hint, className, preview, countryInd
                   key={s.name}
                   type="button"
                   className="rounded border border-border bg-background px-2 py-1 text-[11px] hover:bg-muted"
-                  onClick={() => zastosuj(s, stan.problems)}
+                  onClick={() => {
+                    zListyArkuszy.current = preview !== undefined;
+                    zastosuj(s, stan.problems);
+                  }}
                 >
                   {s.name}
                   <span className="text-muted-foreground">
@@ -209,6 +227,7 @@ export function DataImportControl({ onRows, hint, className, preview, countryInd
             });
           }}
           onCancel={() => setStan({ faza: "idle" })}
+          onCloseAutoFocus={powrotFokusu}
         />
       )}
     </div>
