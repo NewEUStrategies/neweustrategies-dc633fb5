@@ -244,13 +244,13 @@ describe("SliderRender - ujednolicone strzałki nawigacji", () => {
       const next = nextButton(container);
       expect(prev).not.toBeNull();
       expect(next).not.toBeNull();
-      // Ten sam znak po obu stronach: lewy kąt (cofnięty ramion od krawędzi).
+      // Ten sam znak po obu stronach: lewy kąt o otwartym wierzchołku.
       expect(prev?.querySelector("svg polyline")?.getAttribute("points")).toBe(
-        "8.2 1.8 2.4 5 8.2 8.2",
+        "7.5 1.8 3.5 5 7.5 8.2",
       );
       // Prawy kąt - lustrzana geometria, nie transformacja.
       expect(next?.querySelector("svg polyline")?.getAttribute("points")).toBe(
-        "2.4 1.8 8.2 5 2.4 8.2",
+        "3.5 1.8 7.5 5 3.5 8.2",
       );
       // Oba przyciski niosą wspólną klasę traktowania (subtelny, ghostowy).
       expect(prev?.className).toContain("eh-slider-arrow");
@@ -280,11 +280,27 @@ describe("SliderRender - ujednolicone strzałki nawigacji", () => {
     );
   });
 
+  it("trzyma kąt otwarty, a nie ostry szpic", () => {
+    // Subtelność: wierzchołek znaku ma być rozwarty (~77°). Geometria
+    // „8.2 1.8 2.4 5 8.2 8.2" dawała ostry szpic ~58° i wyglądała agresywnie.
+    const { container } = renderSlider();
+    const points =
+      prevButton(container)?.querySelector("svg polyline")?.getAttribute("points") ?? "";
+    const [tipAX, tipAY, apexX, apexY, tipBX, tipBY] = points.trim().split(/\s+/).map(Number);
+    const v1 = { x: tipAX - apexX, y: tipAY - apexY };
+    const v2 = { x: tipBX - apexX, y: tipBY - apexY };
+    const cos =
+      (v1.x * v2.x + v1.y * v2.y) / (Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y));
+    const angle = (Math.acos(cos) * 180) / Math.PI;
+    expect(angle).toBeGreaterThan(70);
+    expect(angle).toBeLessThan(95);
+  });
+
   it("grubość kreski z panelu nie zmienia geometrii ujednoliconego kąta", () => {
     for (const stroke of [0.1, 9]) {
       const { container, unmount } = renderSlider({ navArrowStroke: stroke });
       expect(prevButton(container)?.querySelector("svg polyline")?.getAttribute("points")).toBe(
-        "8.2 1.8 2.4 5 8.2 8.2",
+        "7.5 1.8 3.5 5 7.5 8.2",
       );
       expect(prevButton(container)?.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.85");
       unmount();

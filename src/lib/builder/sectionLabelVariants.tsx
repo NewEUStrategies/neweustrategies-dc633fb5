@@ -158,9 +158,10 @@ export function AngleChevron({
       style={{ width: "calc(0.85em - 1px)", height: "calc(0.75em - 1px)" }}
       className={className}
     >
-      {/* Ramiona cofnięte od krawędzi pola, żeby znak nigdy się nie uciął. */}
+      {/* Ramiona cofnięte od krawędzi pola, żeby znak nigdy się nie uciął.
+          Kąt celowo otwarty (~77°), a nie ostry szpic - tak jest subtelniejszy. */}
       <polyline
-        points={side === "left" ? "8.2 1.8 2.4 5 8.2 8.2" : "2.4 1.8 8.2 5 2.4 8.2"}
+        points={side === "left" ? "7.5 1.8 3.5 5 7.5 8.2" : "3.5 1.8 7.5 5 3.5 8.2"}
         vectorEffect="non-scaling-stroke"
       />
     </svg>
