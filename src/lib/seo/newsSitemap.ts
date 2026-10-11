@@ -27,6 +27,7 @@
 //   * `empty`  - tenant nie ma ŻADNEGO opublikowanego artykułu: pliku nie ma
 //                (trasa oddaje 404), a indeks sitemapy go nie ogłasza.
 import { xmlEscape } from "@/lib/seo/rss";
+import { sitemapProlog, type SitemapRenderOptions } from "@/lib/seo/sitemapStylesheet";
 
 export const NEWS_SITEMAP_WINDOW_MS = 48 * 60 * 60 * 1000;
 const NEWS_SITEMAP_MAX_ENTRIES = 1000;
@@ -37,6 +38,12 @@ export interface NewsSitemapEntry {
   title: string;
   /** ISO publication date. */
   publishedAt: string;
+  /**
+   * ISO date of the last edit (`posts.updated_at`). `<lastmod>` kotwicy i
+   * pozycji news-sitemapy w indeksie to data ZMIANY dokumentu, nie publikacji -
+   * artykuł opublikowany w 2023 i poprawiony wczoraj zmienił się wczoraj.
+   */
+  updatedAt?: string | null;
   /** ISO 639-1 language of THIS entry. */
   language: string;
 }
@@ -55,8 +62,8 @@ export interface NewsSitemapPlan {
   /** Wpisy, które trafią do dokumentu (pusta lista tylko dla `empty`). */
   entries: NewsSitemapEntry[];
   /**
-   * Data publikacji najnowszego wpisu (W3C Datetime) - `lastmod` pozycji
-   * news-sitemap w indeksie. `null` dla `empty`.
+   * Najnowsza data zmiany wpisów pliku (edycja albo publikacja, W3C Datetime) -
+   * `lastmod` pozycji news-sitemap w indeksie. `null` dla `empty`.
    */
   lastmod: string | null;
 }
@@ -74,6 +81,24 @@ export function newsPublicationDate(publishedAt: string): string {
   const time = new Date(publishedAt).getTime();
   if (Number.isNaN(time)) return publishedAt;
   return new Date(time).toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+/** Data ostatniej zmiany wpisu: późniejsza z edycji i publikacji. */
+function modifiedAt(entry: NewsSitemapEntry): string {
+  const updated = entry.updatedAt ? new Date(entry.updatedAt).getTime() : Number.NaN;
+  return !Number.isNaN(updated) && updated > publishedTime(entry)
+    ? (entry.updatedAt as string)
+    : entry.publishedAt;
+}
+
+/** Najnowsza data zmiany w zbiorze wpisów (W3C Datetime) - `lastmod` w indeksie. */
+function newestModification(entries: readonly NewsSitemapEntry[]): string {
+  let newest = entries[0] ? modifiedAt(entries[0]) : "";
+  for (const entry of entries) {
+    const candidate = modifiedAt(entry);
+    if (new Date(candidate).getTime() > new Date(newest).getTime()) newest = candidate;
+  }
+  return newsPublicationDate(newest);
 }
 
 /** Entries inside Google's 48h window, newest first, capped at 1000. */
@@ -100,7 +125,7 @@ export function planNewsSitemap(
 ): NewsSitemapPlan {
   const fresh = freshNewsEntries(entries, now);
   if (fresh.length > 0) {
-    return { mode: "fresh", entries: fresh, lastmod: newsPublicationDate(fresh[0].publishedAt) };
+    return { mode: "fresh", entries: fresh, lastmod: newestModification(fresh) };
   }
   // Kotwica: najnowsza publikacja z przeszłości (wpis z przyszłością to
   // zaplanowana publikacja - nie wolno jej ujawnić przed czasem) razem ze
@@ -114,7 +139,7 @@ export function planNewsSitemap(
   const anchor = entries
     .filter((entry) => publishedTime(entry) === newest)
     .slice(0, NEWS_SITEMAP_MAX_ENTRIES);
-  return { mode: "anchor", entries: anchor, lastmod: newsPublicationDate(anchor[0].publishedAt) };
+  return { mode: "anchor", entries: anchor, lastmod: newestModification(anchor) };
 }
 
 /** Wpis z metadanymi Google News (artykuł z okna 48 h). */
@@ -139,7 +164,7 @@ function anchorUrlBlock(entry: NewsSitemapEntry): string {
   return [
     "  <url>",
     `    <loc>${xmlEscape(entry.url)}</loc>`,
-    `    <lastmod>${xmlEscape(newsPublicationDate(entry.publishedAt))}</lastmod>`,
+    `    <lastmod>${xmlEscape(newsPublicationDate(modifiedAt(entry)))}</lastmod>`,
     "  </url>",
   ].join("\n");
 }
@@ -148,12 +173,16 @@ function anchorUrlBlock(entry: NewsSitemapEntry): string {
  * Dokument news-sitemapy z planu (co najmniej jeden wpis). Wpisy `fresh` niosą
  * `<news:news>`, kotwica (`anchor`) - wyłącznie `<loc>` i `<lastmod>`.
  */
-export function renderNewsSitemapXml(publicationName: string, plan: NewsSitemapPlan): string {
+export function renderNewsSitemapXml(
+  publicationName: string,
+  plan: NewsSitemapPlan,
+  options: SitemapRenderOptions = {},
+): string {
   const urls = plan.entries.map((entry) =>
     plan.mode === "fresh" ? newsUrlBlock(publicationName, entry) : anchorUrlBlock(entry),
   );
   return [
-    `<?xml version="1.0" encoding="UTF-8"?>`,
+    ...sitemapProlog(options),
     `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">`,
     ...urls,
     `</urlset>`,

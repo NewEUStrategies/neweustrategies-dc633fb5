@@ -2,6 +2,7 @@
 // Paywall-safe by design: items carry the excerpt, never the full body, so the
 // feed can be public without leaking gated content. Framework-free and fully
 // unit-testable; the server route only assembles the input and sets headers.
+import { decodeHtmlEntities } from "@/lib/seo/headingValidation";
 
 export function xmlEscape(value: string): string {
   return value
@@ -11,13 +12,67 @@ export function xmlEscape(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** Strip HTML tags and collapse whitespace (feed descriptions are plain text). */
+/**
+ * Końcowy znacznik skrócenia zajawki z WordPressa: „[…]", „[...]", „(…)" -
+ * także kilka po sobie. Stosowany PO zwinięciu białych znaków, więc między
+ * znacznikami stoi najwyżej jedna spacja (brak kosztownego nawrotu).
+ */
+const TRAILING_TRUNCATION_MARKER = /(?: ?[[(](?:…|\.{2,})[\])])+ ?$/;
+
+/**
+ * Znaki spoza produkcji `Char` XML 1.0 (sterujące C0 poza tab/LF/CR oraz
+ * U+FFFE/U+FFFF). Przegląd 2026-10: od kiedy `plainText` dekoduje encje,
+ * zajawka z `&#1;` albo `&#xFFFF;` (wklejka z Worda, import) przestała być
+ * dosłownym tekstem `&amp;#1;` i stawała się SUROWYM znakiem sterującym
+ * w `<description>` - a jeden taki znak czyni cały kanał źle uformowanym
+ * XML-em, który czytnik odrzuca w całości. `xmlEscape` ich nie rusza (to nie
+ * są znaki składni), więc wycinamy je tu, razem z surowymi z bazy.
+ */
+// eslint-disable-next-line no-control-regex -- celowo: znaki niedozwolone w XML 1.0
+const XML_INVALID_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g;
+
+/**
+ * Tekst jawny do opisów feedów i llms.txt: bez znaczników, z ZDEKODOWANYMI
+ * encjami, bez końcowego znacznika skrócenia, z jedną spacją między słowami.
+ *
+ * NAPRAWA 2026-10 (audyt powierzchni maszynowych na produkcji): funkcja
+ * zdejmowała tagi, ale encji nie dekodowała, a zajawki 18 wpisów z importu
+ * WordPressa niosą je dosłownie. `xmlEscape` zamieniał potem `&` na `&amp;`,
+ * więc czytnik RSS pokazywał „&hellip;" i „&#8222;cytat&#8221;", a llms.txt -
+ * który w ogóle nie czyścił zajawek - podawał modelom znacznik „[&hellip;]"
+ * jako część streszczenia. Kolejność jest istotna: encje dekodujemy PO
+ * zdjęciu tagów (`&lt;b&gt;` zostaje tekstem „<b>", nie staje się znacznikiem)
+ * i PRZED `xmlEscape` wołającego, więc `&amp;` w bazie daje w XML-u jedno
+ * `&amp;`, a nie `&amp;amp;`. Dekoder jest wspólny z walidatorem nagłówków
+ * (jednoprzebiegowy, bez podwójnego dekodowania, mapa zamiast obiektu).
+ */
 export function plainText(value: string | null | undefined, maxLen = 500): string {
-  const clean = (value ?? "")
-    .replace(/<[^>]+>/g, " ")
+  const collapsed = decodeHtmlEntities((value ?? "").replace(/<[^>]+>/g, " "))
+    .replace(XML_INVALID_CHARS, " ")
     .replace(/\s+/g, " ")
     .trim();
+  // Znacznik skrócenia szukamy WYŁĄCZNIE w ogonie (przegląd 2026-10): wzorzec
+  // z powtórzeniem `(...)+ ?$` na całym tekście nawracał kwadratowo przy
+  // każdym renderze kanału, a WordPress dokleja najwyżej kilka znaczników.
+  const cut = Math.max(0, collapsed.length - TRUNCATION_MARKER_TAIL);
+  const clean = (
+    collapsed.slice(0, cut) + collapsed.slice(cut).replace(TRAILING_TRUNCATION_MARKER, "")
+  ).trimEnd();
   return clean.length > maxLen ? `${clean.slice(0, maxLen - 1).trimEnd()}…` : clean;
+}
+
+/** Ile końcowych znaków przeszukujemy pod kątem znaczników „[…]" (kilka po sobie). */
+const TRUNCATION_MARKER_TAIL = 64;
+
+/**
+ * Tekst jawny jako treść HTML pola, które czytnik RENDERUJE (`<description>`
+ * RSS 2.0). Przegląd 2026-10: od kiedy `plainText` dekoduje encje, znacznik
+ * zapisany w bazie jako `&lt;img onerror=…&gt;` wychodził po jednym `xmlEscape`
+ * jako `&lt;img …&gt;`, a czytnik po rozpakowaniu XML-a dostawał żywy tag.
+ * Escapowanie HTML przed `xmlEscape` sprawia, że czytnik pokazuje go jako tekst.
+ */
+export function htmlEscapeText(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 /** RFC 822 date (RSS 2.0 requires this exact format). */
@@ -81,7 +136,9 @@ export function buildRssXml(input: RssChannelInput): string {
     const pub = rfc822Date(item.publishedAt);
     if (pub) lines.push(`      <pubDate>${pub}</pubDate>`);
     const description = plainText(item.description);
-    if (description) lines.push(`      <description>${xmlEscape(description)}</description>`);
+    if (description) {
+      lines.push(`      <description>${xmlEscape(htmlEscapeText(description))}</description>`);
+    }
     if (item.authorName?.trim()) {
       lines.push(`      <dc:creator>${xmlEscape(item.authorName.trim())}</dc:creator>`);
     }

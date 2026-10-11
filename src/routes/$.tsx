@@ -182,17 +182,24 @@ import { prefetchAboveFoldQueries } from "@/lib/builder/prefetch";
 import { prefetchBlockQueries } from "@/lib/queries/blocks";
 import { postLayoutSettingsQueryOptions } from "@/hooks/usePostLayoutSettings";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
-import { contentCacheControl } from "@/lib/http/cachePolicy";
+import { cacheControlHeader, contentCacheControl } from "@/lib/http/cachePolicy";
 import { splatToSegments, metaDescription } from "@/lib/routing/publicSegments";
 import { resolveLegacyPostPath } from "@/lib/routing/legacyPostPath";
 import {
+  homepageCandidate,
   legacyLookupSlug,
   needsTaxonomyLookup,
+  planHomepageDuplicate,
   planPublicPath,
+  readingSettingsFrom,
+  resolveHomepageDuplicate,
   resolveMissingContent,
   resolveTaxonomyFallback,
+  type FeedRedirect,
+  type HomepageRivalCheck,
   type TaxonomyRedirect,
 } from "@/lib/routing/resolvePublicPath";
+import type { HomepageCandidatePage } from "@/lib/seo/homepagePage";
 
 import { withBudget } from "@/lib/asyncBudget";
 import { resilientCacheControl } from "@/lib/ssr/resilientLoad";
@@ -222,6 +229,18 @@ const SECONDARY_PREFETCH_BUDGET_MS = 1_500;
 const PRIMARY_CONTENT_BUDGET_MS = 1_500;
 // Non-2xx / redirect responses must never be CDN-cached as the content itself.
 const NO_STORE = contentCacheControl({ preview: true });
+/**
+ * WYJĄTEK OD `NO_STORE`: 301 ze starego kanału WordPressa wynika z SAMEGO
+ * adresu (zero zapytań, żadna publikacja go nie zmieni), a czytniki RSS
+ * odpytują te adresy co kilkanaście minut - każde odpytanie płaciłoby pełny
+ * render SSR loaderów korzenia. Ten sam horyzont co 301 z `/feed`
+ * (`routes/feed.ts`: doba).
+ */
+const LEGACY_FEED_REDIRECT = cacheControlHeader({
+  cacheable: true,
+  browserMaxAge: 86_400,
+  sharedMaxAge: 86_400,
+});
 
 // Kształt preloadu okładki JEST kontraktem `ImagePreloadInput` z warstwy SEO -
 // nazwa zostaje (czyta ją deklaracja `ContentDocument`), ale pola opcjonalne
@@ -320,9 +339,83 @@ function taxonomyRedirect(decision: TaxonomyRedirect): never {
       to: "/category/$slug",
       params: { slug: decision.slug },
       replace: decision.replace,
+      statusCode: decision.statusCode,
     });
   }
-  throw redirect({ to: "/tag/$slug", params: { slug: decision.slug }, replace: decision.replace });
+  throw redirect({
+    to: "/tag/$slug",
+    params: { slug: decision.slug },
+    replace: decision.replace,
+    statusCode: decision.statusCode,
+  });
+}
+
+/**
+ * Deskryptor kanału -> `redirect()` routera (jawne gałęzie z tego samego
+ * powodu, co wyżej). `reloadDocument`, bo cel to trasa z SAMYM handlerem
+ * serwerowym (XML): nawigacja SPA, gdyby ktoś trafił tu linkiem wewnętrznym,
+ * wyrenderowałaby pustą trasę zamiast pobrać kanał. W SSR to po prostu 301
+ * z nagłówkiem `Location`.
+ */
+function feedRedirect(decision: FeedRedirect): never {
+  if (decision.scope === "category") {
+    throw redirect({
+      to: "/category/$slug/rss.xml",
+      params: { slug: decision.slug },
+      statusCode: decision.statusCode,
+      reloadDocument: true,
+    });
+  }
+  if (decision.scope === "tag") {
+    throw redirect({
+      to: "/tag/$slug/rss.xml",
+      params: { slug: decision.slug },
+      statusCode: decision.statusCode,
+      reloadDocument: true,
+    });
+  }
+  throw redirect({ to: "/rss.xml", statusCode: decision.statusCode, reloadDocument: true });
+}
+
+/**
+ * Opublikowane strony, które według ustawień czytania mogłyby wyprzedzić
+ * rozwiązaną stronę w wyborze strony głównej (`HomepageRivalCheck`). Te same
+ * filtry co `homePageQueryOptions` (`status = published`, `deleted_at IS
+ * NULL`; slugi - tylko najwyższy poziom), więc wynik jest tą samą listą, którą
+ * widzi trasa `/`. `null` przy błędzie: brak pewności to brak przekierowania,
+ * nigdy 301 „na wszelki wypadek" (strona zniknęłaby spod własnego adresu).
+ *
+ * Woła się WYŁĄCZNIE przy niespójnych ustawieniach (np. `homepage_page_id`
+ * i slug wskazują różne strony) - spójna konfiguracja rozstrzyga się bez I/O.
+ */
+async function fetchHomepageRivals(
+  check: HomepageRivalCheck,
+): Promise<HomepageCandidatePage[] | null> {
+  try {
+    const [byId, bySlug] = await Promise.all([
+      check.id
+        ? supabase
+            .from("pages")
+            .select("id, slug, parent_id")
+            .eq("id", check.id)
+            .eq("status", "published")
+            .is("deleted_at", null)
+        : null,
+      check.rootSlugs.length > 0
+        ? supabase
+            .from("pages")
+            .select("id, slug, parent_id")
+            .in("slug", [...check.rootSlugs])
+            .is("parent_id", null)
+            .eq("status", "published")
+            .is("deleted_at", null)
+        : null,
+    ]);
+    if (byId?.error || bySlug?.error) return null;
+    return [...(byId?.data ?? []), ...(bySlug?.data ?? [])];
+  } catch {
+    return null;
+  }
 }
 
 export const Route = createFileRoute("/$")({
@@ -341,6 +434,10 @@ export const Route = createFileRoute("/$")({
     if (plan.kind === "not-found") {
       setCacheControlHeader(NO_STORE);
       throw notFound();
+    }
+    if (plan.kind === "feed-redirect") {
+      setCacheControlHeader(LEGACY_FEED_REDIRECT);
+      throw feedRedirect(plan);
     }
     if (plan.kind === "taxonomy-redirect") {
       setCacheControlHeader(NO_STORE);
@@ -431,6 +528,58 @@ export const Route = createFileRoute("/$")({
         });
       }
       throw notFound();
+    }
+
+    // Ustawienia serwisu: `head()` potrzebuje z nich sufiksu tytułu i logo
+    // wydawcy (niżej), a kontrola strony głównej - ustawień czytania. JEDNA
+    // obietnica na loader: korzeń grzeje to samo zapytanie, więc drugi odczyt
+    // to trafienie w cache, a nie drugi round-trip.
+    let settingsWarm: Promise<unknown> | undefined;
+    const awaitSettings = async (): Promise<void> => {
+      settingsWarm ??= context.queryClient
+        .ensureQueryData(siteSettingsQueryOptions)
+        .catch(() => undefined);
+      if (deadlineAt === undefined) await settingsWarm;
+      else await withBudget(settingsWarm, PRIMARY_CONTENT_BUDGET_MS, deadlineAt);
+    };
+
+    // STRONA GŁÓWNA POD WŁASNYM SLUGIEM (audyt 2026-10). Strona wskazana
+    // w ustawieniach czytania (produkcja: `main`) jest renderowana pod `/`, ale
+    // `resolve_path` znajduje ją też pod `/main` i `/en/main` - HTTP 200
+    // z własnym kanonicznym adresem, czyli druga kopia strony głównej w indeksie.
+    // 301 na `/` (rewrite `output` routera dokłada `/en`), z zachowaniem query
+    // stringu (`search: true` - parametry kampanii nie mogą zginąć po drodze).
+    //
+    // 301, a nie sam `canonical` w `head()`: kanoniczny adres jest dla Google
+    // tylko wskazówką, a czytelnik i linki dalej rozjeżdżałyby się na dwa
+    // adresy. Przekierowanie dotyczy WYŁĄCZNIE tej jednej ścieżki: wpisy pod nią
+    // (`/main/<wpis>`, `kind === "post"`) i strony potomne mają inne id i nie
+    // wchodzą do tej gałęzi. Tryb `latest_posts` nie ma strony głównej, więc
+    // `configuredHomepagePageId` oddaje `null` i nic się nie zmienia.
+    //
+    // Mapa ustawień musi być PRAWDZIWA (`hasSsrQueryData`): zasiew po awarii
+    // jest pusty, a pusta mapa czytałaby się jak „ustawień nie zapisano"
+    // i przekierowała stronę `home` w serwisie, który pokazuje pod `/` wpisy.
+    // Brak pewności to zwykły render, nigdy 301. Bez `no-store` przeglądarka
+    // zapamiętałaby 301 na stałe - a redakcja może jutro wskazać inną stronę.
+    if (data.kind === "page") {
+      await awaitSettings();
+      if (hasSsrQueryData(context.queryClient, siteSettingsQueryOptions.queryKey)) {
+        const reading = readingSettingsFrom(
+          context.queryClient.getQueryData(siteSettingsQueryOptions.queryKey),
+        );
+        const current = homepageCandidate(segments, data.item);
+        const homepagePlan = planHomepageDuplicate(reading, current);
+        let homepageDecision = homepagePlan.kind === "homepage-redirect" ? homepagePlan : null;
+        if (homepagePlan.kind === "check-rivals") {
+          const rivals = await fetchHomepageRivals(homepagePlan);
+          homepageDecision = rivals ? resolveHomepageDuplicate(reading, current, rivals) : null;
+        }
+        if (homepageDecision) {
+          setCacheControlHeader(NO_STORE);
+          throw redirect({ to: "/", search: true, statusCode: homepageDecision.statusCode });
+        }
+      }
     }
 
     // ISR-like edge caching: the public SSR is the anonymous shell (gated bodies
@@ -624,12 +773,9 @@ export const Route = createFileRoute("/$")({
       secondary.results === null || secondary.results.some(armDegraded) || directArmCold;
     // Site-wide SEO settings for head() (title suffix, twitter:site, publisher
     // logo). The root loader warms the same bulk query, so this resolves from
-    // cache; head() is synchronous and cannot fetch on its own.
-    const settingsWarm = context.queryClient
-      .ensureQueryData(siteSettingsQueryOptions)
-      .catch(() => undefined);
-    if (deadlineAt === undefined) await settingsWarm;
-    else await withBudget(settingsWarm, PRIMARY_CONTENT_BUDGET_MS, deadlineAt);
+    // cache; head() is synchronous and cannot fetch on its own. Strony czekały
+    // na tę obietnicę już przy kontroli strony głównej - tu to no-op.
+    await awaitSettings();
     const emptySettings: Record<string, unknown> = Object.freeze({});
     const settingsMap =
       context.queryClient.getQueryData<Record<string, unknown>>(

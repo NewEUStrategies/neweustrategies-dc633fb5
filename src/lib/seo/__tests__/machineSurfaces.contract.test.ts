@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { localizedPath } from "@/lib/i18n/localePath";
-import { buildLlmsTxt } from "@/lib/seo/llms";
+import { buildLlmsTxt, LLMS_TXT_USAGE_TERMS_LABEL } from "@/lib/seo/llms";
 import {
   MACHINE_SURFACES,
   PER_ITEM_FEED_ROUTE_FILES,
@@ -110,25 +110,62 @@ describe("llms.txt content contract", () => {
     expect(txt.startsWith("# New European Strategies\n")).toBe(true);
     expect(txt).toContain("> Think-tank.");
     expect(txt).toContain("## Zasoby maszynowe / Machine-readable resources");
-    expect(txt).toContain("## Warunki wykorzystania i cytowania / Usage and citation terms");
+    // Warunki to zdania, nie lista odnośników - od 2026-10 stoją w treści
+    // swobodnej NAD pierwszym `##` (llmstxt.org rezerwuje `##` na listy).
+    expect(txt).toContain(LLMS_TXT_USAGE_TERMS_LABEL);
+    expect(txt.indexOf(LLMS_TXT_USAGE_TERMS_LABEL)).toBeLessThan(txt.indexOf("\n## "));
     // Warunek wskazania źródła musi stać w pliku rozkazująco - to jedyny zapis,
     // który model widzi razem z treścią, którą właśnie zaciąga.
     expect(txt).toContain("MUSI wskazać");
     expect(txt).toContain("MUST name");
   });
 
-  it("emits every resource as a markdown bullet with a label", () => {
+  it("emits every resource as a markdown link with the label as its title", () => {
+    // 2026-10: `- Etykieta: https://...` nie jest pozycją listy plików
+    // llmstxt.org - parser referencyjny odrzucał przez to cały dokument.
     for (const resource of llmsTxtResourceLines(ORIGIN, localizedPath)) {
-      expect(txt).toContain(`- ${resource.label}: ${resource.url}`);
+      expect(txt).toContain(`- [${resource.label}](${resource.url})\n`);
     }
   });
 
   it("never advertises robots.txt or llms.txt itself as a resource", () => {
     // llms.txt opisuje ZASOBY, nie sam siebie; robots.txt nie jest zasobem
     // treściowym dla modelu (jest polityką dla crawlera).
-    const resourceBlock = txt.split("## Zasoby maszynowe")[1] ?? "";
-    const citationSplit = resourceBlock.split("## Warunki wykorzystania")[0] ?? "";
-    expect(citationSplit).not.toContain("/llms.txt");
-    expect(citationSplit).not.toContain("/robots.txt");
+    const resourceBlock = (txt.split("## Zasoby maszynowe")[1] ?? "").split(/^## /m)[0] ?? "";
+    expect(resourceBlock).not.toContain("/llms.txt");
+    expect(resourceBlock).not.toContain("/robots.txt");
+  });
+});
+
+describe("przełączniki redakcji w rejestrze - llms.txt nie ogłasza 404", () => {
+  // Każdy kanał RSS odpowiada 404 przy wyłączonym `rss_enabled`, news-sitemapa
+  // przy `news_sitemap_enabled: false`. Trasa llms.txt odcina je filtrem po
+  // polu `setting` - wpis bez tego pola byłby ogłaszany także wtedy.
+  it("każdy kanał RSS z rejestru niesie `rss_enabled`, news-sitemapa `news_sitemap_enabled`", () => {
+    for (const surface of MACHINE_SURFACES) {
+      if (/rss/i.test(surface.routeFile)) {
+        expect(surface.setting, surface.path).toBe("rss_enabled");
+      } else if (surface.path === "/news-sitemap.xml") {
+        expect(surface.setting).toBe("news_sitemap_enabled");
+      } else {
+        expect(surface.setting, surface.path).toBeUndefined();
+      }
+    }
+  });
+
+  it("filtr `include` odcina warianty per język i adresy wspólne", () => {
+    const lines = llmsTxtResourceLines(
+      ORIGIN,
+      localizedPath,
+      (surface, lang) =>
+        surface.setting !== "news_sitemap_enabled" &&
+        !(surface.path === "/live/rss.xml" && lang === "en"),
+    );
+    const urls = lines.map((l) => l.url);
+    expect(urls).not.toContain(`${ORIGIN}/news-sitemap.xml`);
+    expect(urls).not.toContain(`${ORIGIN}/en/live/rss.xml`);
+    expect(urls).toContain(`${ORIGIN}/live/rss.xml`);
+    expect(urls).toContain(`${ORIGIN}/sitemap.xml`);
+    expect(lines).toHaveLength(llmsTxtResourceLines(ORIGIN, localizedPath).length - 2);
   });
 });

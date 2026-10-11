@@ -731,6 +731,23 @@ const SEO_READ_ONLY_ROUTES = [
 ];
 
 /**
+ * AKCJE ZEWNĘTRZNE rodziny SEO - nie zapis bazy, tylko wywołanie Google przez
+ * wspólny konektor Search Console (2026-10-10: „Prześlij mapę do Google").
+ * Trasa zostaje „tylko do odczytu" WOBEC BAZY (lista wyżej), a akcja mieszka
+ * w komponencie karty. Autorytet: `requireAnalyticsAdmin` w funkcji
+ * serwerowej; komponent MUSI sam czytać `isAdmin`, inaczej oferuje redaktorowi
+ * przycisk, który serwer odrzuci - ta sama klasa defektu, co niżej.
+ */
+const SEO_EXTERNAL_ACTIONS = [
+  {
+    route: "admin.seo.search-console.tsx",
+    component: "src/components/admin/seo/GscSitemapsCard.tsx",
+    serverFnFile: "src/lib/analytics/gsc.functions.ts",
+    serverFn: "submitGscSitemap",
+  },
+] as const;
+
+/**
  * Ekrany rodziny SEO, które ZAPISUJĄ `site_settings`. RLS wymaga tu roli
  * `admin`, a layout `/admin` przepuszcza także `editor` i `author` - więc
  * każdy z nich MUSI sam sprawdzić rolę, inaczej oferuje akcję, którą baza
@@ -777,6 +794,28 @@ describe("panel SEO - autorytet dostępu", () => {
       ),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it("akcje zewnętrzne SEO (przesłanie mapy do Google) sprawdzają rolę `admin` w UI i na serwerze", () => {
+    for (const action of SEO_EXTERNAL_ACTIONS) {
+      const route = read(`${ROUTES_DIR}/${action.route}`);
+      const component = read(action.component);
+      // Trasa naprawdę renderuje komponent z akcją - inaczej wpis tu byłby martwy.
+      expect(route, `${action.route} nie renderuje karty z akcją`).toMatch(/<GscSitemapsCard\b/);
+      // UI: przycisk tylko dla admina.
+      expect(component, `${action.component} musi czytać isAdmin`).toMatch(/\bisAdmin\b/);
+      expect(component).toMatch(/isAdmin\s*&&/);
+      // Serwer: bramka roli w handlerze funkcji wykonującej akcję.
+      const server = read(action.serverFnFile);
+      const start = server.indexOf(`export const ${action.serverFn}`);
+      expect(start, `brak funkcji ${action.serverFn}`).toBeGreaterThan(-1);
+      const body = server.slice(start, server.indexOf("\nexport ", start + 1) >>> 0 || undefined);
+      expect(body).toContain("await requireAnalyticsAdmin(ctx)");
+      // Zapis wiąże OBA adresy ściśle - bez gałęzi „nie wiem" wariantu do odczytu.
+      expect(body).toContain("assertSiteUrlClaimedByTenant(data.siteUrl");
+      expect(body).toContain("assertSiteUrlClaimedByTenant(data.feedpath");
+      expect(body).not.toContain("assertSiteUrlBelongsToTenant(");
+    }
   });
 
   it("zakładki SEO, które ZAPISUJĄ, sprawdzają rolę `admin` same z siebie", () => {

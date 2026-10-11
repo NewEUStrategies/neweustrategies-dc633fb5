@@ -5,6 +5,7 @@ import { gpcMiddleware } from "@/lib/consent/gpc.server";
 import { isLocalizablePath, localizedPath, normalizeLang } from "@/lib/i18n/localePath";
 import { langCookieHeaderValue, resolveHomepageLang } from "@/lib/i18n/langNegotiation";
 import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
+import { wordpressFeedLocation } from "@/lib/routing/resolvePublicPath";
 import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
 import { isPreviewHost } from "@/lib/http/host";
 import { tenantAssertionMiddleware } from "@/lib/http/tenantAssertionCookie.server";
@@ -340,7 +341,22 @@ async function recordEdgeRoutingPhase(request: Request, durationMs: number): Pro
  * obejmuje.
  */
 const redirectMiddleware = createMiddleware().server(async ({ request, next }) => {
-  if (isInternalPlatformPath(new URL(request.url).pathname)) return next();
+  const { pathname } = new URL(request.url);
+  if (isInternalPlatformPath(pathname)) return next();
+  // Stare kanały WordPressa (`/category/<slug>/feed/`, `/tag/<slug>/feed/`,
+  // `/feed/rss2/`) -> JEDEN 301 na kanał RSS, zanim router znormalizuje
+  // końcowy ukośnik odpowiedzią 307 (przegląd 2026-10: było 307 -> 301).
+  // Decyzja czysta (`wordpressFeedLocation`), więc stoi przed odczytem reguł
+  // z bazy; cache jak w `feed.ts`.
+  if (request.method === "GET" || request.method === "HEAD") {
+    const feedLocation = wordpressFeedLocation(pathname);
+    if (feedLocation) {
+      return new Response(null, {
+        status: 301,
+        headers: { Location: feedLocation, "Cache-Control": "public, max-age=86400" },
+      });
+    }
+  }
   try {
     // ZEGAR NA CAŁYM ODCINKU ROUTINGU KRAWĘDZIOWEGO (`edge-routing`).
     //

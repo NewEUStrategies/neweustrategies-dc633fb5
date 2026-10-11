@@ -3,6 +3,7 @@ import {
   SITEMAP_SECTIONS,
   SITEMAP_URLS_PER_SHARD,
   buildSitemapIndexXml,
+  isPublicSitemapPath,
   isSitemapSection,
   parseSitemapShard,
   shardCountFor,
@@ -224,15 +225,48 @@ describe("buildSitemapIndexXml - wejścia niepełne", () => {
     expect(xml).toContain("<lastmod>2026-08-01</lastmod>");
   });
 
-  it("pusta lista wpisów daje poprawny, pusty indeks (a nie połamany XML)", () => {
-    // Świeża instalacja bez treści nadal MUSI odpowiedzieć dokumentem, który
-    // walidator sitemaps.org przyjmie - inaczej GSC zgłasza błąd pobierania.
+  it("pusta lista wpisów daje domknięty indeks (a nie połamany XML)", () => {
+    // Generator nie może wyemitować uciętego dokumentu nawet bez wpisów. Trasa
+    // indeksu i tak zawsze ogłasza statyczny shard `core` - pusty
+    // `<sitemapindex>` (niepoprawny wobec schematu, GSC: „Brak tagu XML:
+    // sitemap") nie wychodzi do crawlera. Drugi wiersz to arkusz wyglądu
+    // dla przeglądarki (`lib/seo/sitemapStylesheet.ts`).
     const xml = buildSitemapIndexXml([]);
     expect(xml).toBe(
       '<?xml version="1.0" encoding="UTF-8"?>\n' +
+        '<?xml-stylesheet type="text/xsl" href="/sitemap.xsl"?>\n' +
         '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
         "</sitemapindex>",
     );
     expect(xml).not.toContain("<sitemap>");
+  });
+});
+
+describe("isPublicSitemapPath - lista plików, które panel może zgłosić Google", () => {
+  it("przyjmuje indeks, news-sitemapę i kanoniczne shardy każdej sekcji", () => {
+    expect(isPublicSitemapPath("/sitemap.xml")).toBe(true);
+    expect(isPublicSitemapPath("/news-sitemap.xml")).toBe(true);
+    for (const section of SITEMAP_SECTIONS) {
+      expect(isPublicSitemapPath(sitemapShardPath(section, 1))).toBe(true);
+      expect(isPublicSitemapPath(sitemapShardPath(section, 4))).toBe(true);
+    }
+  });
+
+  it("odrzuca strony, kanały, nieznane sekcje i niekanoniczne shardy", () => {
+    for (const path of [
+      "/",
+      "/artykul",
+      "/rss.xml",
+      "/sitemap.xsl",
+      "/sitemaps/",
+      "/sitemaps/wpisy.xml",
+      "/sitemaps/posts-1.xml",
+      "/sitemaps/posts-02.xml",
+      "/sitemaps/posts",
+      "/en/sitemap.xml",
+      "/sitemap.xml/",
+    ]) {
+      expect(isPublicSitemapPath(path), path).toBe(false);
+    }
   });
 });

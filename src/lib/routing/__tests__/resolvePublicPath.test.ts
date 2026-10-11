@@ -21,14 +21,26 @@
 //     `src/routes/__tests__/publicResolverRoute.test.tsx` - render, nie tabela.
 import { describe, expect, it } from "vitest";
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { configuredHomepagePageId, type HomepageCandidatePage } from "@/lib/seo/homepagePage";
+
 import {
+  FEED_ROUTE,
+  homepageCandidate,
   legacyLookupSlug,
   needsTaxonomyLookup,
+  planHomepageDuplicate,
   planPublicPath,
+  readingSettingsFrom,
+  resolveHomepageDuplicate,
   resolveMissingContent,
   resolveTaxonomyFallback,
   segmentsToPath,
   TAXONOMY_ROUTE,
+  wordpressFeedLocation,
+  type FeedRedirect,
   type MissingContentDecision,
   type PublicPathPlan,
 } from "../resolvePublicPath";
@@ -128,6 +140,7 @@ describe("planPublicPath - co wynika z samego adresu", () => {
         taxonomy: "category",
         slug: "afryka",
         replace: true,
+        statusCode: 301,
         reason: "legacy-hierarchical-taxonomy",
       },
     },
@@ -139,6 +152,7 @@ describe("planPublicPath - co wynika z samego adresu", () => {
         taxonomy: "tag",
         slug: "bar",
         replace: true,
+        statusCode: 301,
         reason: "legacy-hierarchical-taxonomy",
       },
     },
@@ -150,6 +164,7 @@ describe("planPublicPath - co wynika z samego adresu", () => {
         taxonomy: "category",
         slug: "afryka",
         replace: true,
+        statusCode: 301,
         reason: "legacy-hierarchical-taxonomy",
       },
     },
@@ -183,6 +198,7 @@ describe("planPublicPath - co wynika z samego adresu", () => {
         taxonomy: "category",
         slug: "afryka",
         replace: true,
+        statusCode: 301,
         reason: "legacy-hierarchical-taxonomy",
       },
     },
@@ -197,6 +213,184 @@ describe("planPublicPath - co wynika z samego adresu", () => {
     // leci na trasę, która nie istnieje - i użytkownik dostaje 404 zamiast
     // archiwum.
     expect(TAXONOMY_ROUTE).toEqual({ category: "/category/$slug", tag: "/tag/$slug" });
+  });
+});
+
+describe("planPublicPath - stare kanały WordPressa (audyt 2026-10)", () => {
+  // Do 2026-10 `/category/<slug>/feed/` szło regułą hierarchiczną: OSTATNI
+  // segment (`feed`) był brany za slug, więc czytnik subskrybujący kanał
+  // kategorii z czasów WordPressa lądował na `/category/feed` - czyli na 404.
+  const site: FeedRedirect = {
+    kind: "feed-redirect",
+    scope: "site",
+    statusCode: 301,
+    reason: "legacy-wordpress-feed",
+  };
+  const kanalKategorii = (slug: string): FeedRedirect => ({
+    kind: "feed-redirect",
+    scope: "category",
+    slug,
+    statusCode: 301,
+    reason: "legacy-wordpress-feed",
+  });
+  const kanalTagu = (slug: string): FeedRedirect => ({
+    kind: "feed-redirect",
+    scope: "tag",
+    slug,
+    statusCode: 301,
+    reason: "legacy-wordpress-feed",
+  });
+
+  const cases: ReadonlyArray<{ nazwa: string; splat: string; oczekiwane: PublicPathPlan }> = [
+    {
+      nazwa:
+        "kanał kategorii `/category/<slug>/feed/` -> kanał tej kategorii, nie `/category/feed`",
+      splat: "category/afryka/feed/",
+      oczekiwane: kanalKategorii("afryka"),
+    },
+    {
+      nazwa: "kanał kategorii w formacie rss2",
+      splat: "category/afryka/feed/rss2",
+      oczekiwane: kanalKategorii("afryka"),
+    },
+    {
+      nazwa: "kanał kategorii w formacie atom - jedyny kanał aplikacji to RSS 2.0",
+      splat: "category/afryka/feed/atom/",
+      oczekiwane: kanalKategorii("afryka"),
+    },
+    {
+      nazwa: "kanał podkategorii z hierarchicznego adresu bierze slug sprzed sufiksu",
+      splat: "category/region/afryka/feed",
+      oczekiwane: kanalKategorii("afryka"),
+    },
+    {
+      nazwa: "kanał tagu `/tag/<slug>/feed/`",
+      splat: "tag/nato/feed/",
+      oczekiwane: kanalTagu("nato"),
+    },
+    {
+      nazwa: "kanał tagu w formacie rss",
+      splat: "tag/nato/feed/rss",
+      oczekiwane: kanalTagu("nato"),
+    },
+    {
+      nazwa: "kanał serwisu `/feed/rss2` (trasa `feed.ts` łapie tylko goły `/feed`)",
+      splat: "feed/rss2",
+      oczekiwane: site,
+    },
+    {
+      nazwa: "kanał serwisu `/feed/atom/`",
+      splat: "feed/atom/",
+      oczekiwane: site,
+    },
+    {
+      nazwa: "kanał serwisu `/feed/rdf`",
+      splat: "feed/rdf",
+      oczekiwane: site,
+    },
+    {
+      nazwa: "goły `/feed`, gdyby ominął trasę statyczną, to też kanał serwisu",
+      splat: "feed",
+      oczekiwane: site,
+    },
+    // ── `feed` JAKO FORMAT (`feed/feed`) - recenzja 2026-10 ─────────────
+    // Pierwsza wersja brała zawsze krótszy sufiks, więc `feed/feed` zjadało
+    // tylko ostatni segment, a drugi `feed` stawał się slugiem.
+    {
+      nazwa: "kanał serwisu `/feed/feed/` (format `feed`), nie zwykła rezolucja",
+      splat: "feed/feed/",
+      oczekiwane: site,
+    },
+    {
+      nazwa: "kanał kategorii `/category/<slug>/feed/feed` bierze slug sprzed `feed/feed`",
+      splat: "category/afryka/feed/feed",
+      oczekiwane: kanalKategorii("afryka"),
+    },
+    {
+      nazwa: "kanał podkategorii `/category/region/afryka/feed/feed/`",
+      splat: "category/region/afryka/feed/feed/",
+      oczekiwane: kanalKategorii("afryka"),
+    },
+    {
+      nazwa: "`/category/feed/feed` to kanał kategorii `feed` - jak w regułach WordPressa",
+      // Przed `feed/feed` nie zostaje slug, więc ostatni `feed` jest goły
+      // sufiksem, a slugiem - środkowy `feed`.
+      splat: "category/feed/feed",
+      oczekiwane: kanalKategorii("feed"),
+    },
+    {
+      nazwa: "kanał tagu o slugu `feed` w formacie atom",
+      splat: "tag/feed/feed/atom",
+      oczekiwane: kanalTagu("feed"),
+    },
+    // ── TO, CO KANAŁEM NIE JEST ─────────────────────────────────────────
+    {
+      nazwa: "`/category/feed` to archiwum o slugu `feed`, nie kanał - jak dotąd",
+      splat: "category/feed",
+      oczekiwane: {
+        kind: "taxonomy-redirect",
+        taxonomy: "category",
+        slug: "feed",
+        replace: true,
+        statusCode: 301,
+        reason: "legacy-hierarchical-taxonomy",
+      },
+    },
+    {
+      nazwa: "goły format bez `feed/` NIE jest kanałem - `atom` to tu prawdziwy temat",
+      // WordPress czytał `/category/energetyka/atom` jako kanał Atom kategorii
+      // `energetyka`. Tu to hierarchiczny adres podkategorii `atom`
+      // (energetyka jądrowa) i ma dalej prowadzić do jej archiwum.
+      splat: "category/energetyka/atom",
+      oczekiwane: {
+        kind: "taxonomy-redirect",
+        taxonomy: "category",
+        slug: "atom",
+        replace: true,
+        statusCode: 301,
+        reason: "legacy-hierarchical-taxonomy",
+      },
+    },
+    {
+      nazwa: "nieznany format po `feed/` zostaje regule hierarchicznej",
+      splat: "category/afryka/feed/json",
+      oczekiwane: {
+        kind: "taxonomy-redirect",
+        taxonomy: "category",
+        slug: "json",
+        replace: true,
+        statusCode: 301,
+        reason: "legacy-hierarchical-taxonomy",
+      },
+    },
+    {
+      nazwa: "`/<wpis>/feed/` (kanał komentarzy WordPressa) idzie do zwykłej rezolucji",
+      splat: "analizy/slug-wpisu/feed",
+      oczekiwane: { kind: "lookup", segments: ["analizy", "slug-wpisu", "feed"] },
+    },
+    {
+      nazwa: "segment `feed` w środku ścieżki nie jest sufiksem kanału",
+      splat: "feed/analizy/atom",
+      oczekiwane: { kind: "lookup", segments: ["feed", "analizy", "atom"] },
+    },
+  ];
+
+  it.each(cases)("$nazwa", ({ splat, oczekiwane }) => {
+    expect(planPublicPath(splat)).toEqual(oczekiwane);
+  });
+
+  it("trasy kanałów istnieją w drzewie tras", () => {
+    // Redirect na wzorzec, którego nie ma w `routeTree.gen.ts`, kończyłby się
+    // 404 - czyli dokładnie tym, co ta reguła naprawia.
+    expect(FEED_ROUTE).toEqual({
+      site: "/rss.xml",
+      category: "/category/$slug/rss.xml",
+      tag: "/tag/$slug/rss.xml",
+    });
+    const routeTree = readFileSync(resolve(__dirname, "../../../routeTree.gen.ts"), "utf8");
+    for (const path of Object.values(FEED_ROUTE)) {
+      expect(routeTree).toContain(`'${path}': typeof`);
+    }
   });
 });
 
@@ -246,6 +440,7 @@ describe("resolveMissingContent - decyzja, gdy treści nie ma", () => {
         taxonomy: "category",
         slug: "afryka",
         replace: true,
+        statusCode: 301,
         reason: "bare-slug-is-taxonomy",
       },
     },
@@ -257,6 +452,7 @@ describe("resolveMissingContent - decyzja, gdy treści nie ma", () => {
         taxonomy: "tag",
         slug: "atom",
         replace: true,
+        statusCode: 301,
         reason: "bare-slug-is-taxonomy",
       },
     },
@@ -268,6 +464,7 @@ describe("resolveMissingContent - decyzja, gdy treści nie ma", () => {
         taxonomy: "category",
         slug: "energia",
         replace: true,
+        statusCode: 301,
         reason: "bare-slug-is-taxonomy",
       },
     },
@@ -279,6 +476,7 @@ describe("resolveMissingContent - decyzja, gdy treści nie ma", () => {
         taxonomy: "category",
         slug: "afryka",
         replace: true,
+        statusCode: 301,
         reason: "bare-slug-is-taxonomy",
       },
     },
@@ -395,5 +593,213 @@ describe("resolveTaxonomyFallback - połowa decyzji, którą loader liczy pierws
     // przestałaby opisywać zachowanie produkcyjne.
     const wejscie = { segments: ["afryka"], categorySlug: "afryka", tagSlug: null };
     expect(resolveTaxonomyFallback(wejscie)).toEqual(resolveMissingContent(wejscie));
+  });
+});
+
+describe("strona główna pod własnym slugiem (audyt 2026-10)", () => {
+  // Produkcja: `{ homepage_mode: "static_page", homepage_page_slug: "main" }`.
+  // Strona `main` jest renderowana pod `/`, a `resolve_path` znajdował ją też
+  // pod `/main` i `/en/main` - HTTP 200 z własnym kanonicznym adresem.
+  const MAIN = "11111111-1111-4111-8111-111111111111";
+  const HOME = "22222222-2222-4222-8222-222222222222";
+  const OTHER = "33333333-3333-4333-8333-333333333333";
+  const produkcja = { homepage_mode: "static_page", homepage_page_slug: "main" };
+  const main = homepageCandidate(["main"], { id: MAIN, slug: "main" });
+  const redirect = {
+    kind: "homepage-redirect",
+    statusCode: 301,
+    reason: "configured-homepage-page",
+  } as const;
+
+  describe("homepageCandidate - rodzic z kształtu adresu", () => {
+    it("strona z adresu jednosegmentowego jest stroną najwyższego poziomu", () => {
+      expect(main).toEqual({ id: MAIN, slug: "main", parent_id: null });
+    });
+
+    it("strona z dłuższego adresu ma rodzica, nawet o tym samym slugu", () => {
+      // `/o-nas/main` NIE jest stroną główną skonfigurowaną slugiem `main`:
+      // reguła slugowa dotyczy wyłącznie stron najwyższego poziomu.
+      const child = homepageCandidate(["o-nas", "main"], { id: OTHER, slug: "main" });
+      expect(child.parent_id).not.toBeNull();
+      expect(planHomepageDuplicate(produkcja, child)).toEqual({ kind: "not-homepage" });
+    });
+  });
+
+  describe("readingSettingsFrom - ustawienia czytania z mapy serwisu", () => {
+    it("czyta trzy pola ustawień czytania", () => {
+      expect(readingSettingsFrom({ reading: { ...produkcja, posts_per_page: 10 } })).toEqual({
+        homepage_mode: "static_page",
+        homepage_page_id: undefined,
+        homepage_page_slug: "main",
+      });
+    });
+
+    it.each([
+      { nazwa: "brak mapy", mapa: undefined },
+      { nazwa: "mapa bez wpisu `reading`", mapa: { seo: {} } },
+      { nazwa: "uszkodzony wpis `reading`", mapa: { reading: "static_page" } },
+    ])("$nazwa daje `{}` - rezolucję historyczną, jak `fetchReadingSettings`", ({ mapa }) => {
+      expect(readingSettingsFrom(mapa)).toEqual({});
+    });
+  });
+
+  describe("planHomepageDuplicate - decyzja bez I/O", () => {
+    it("produkcja: `/main` dostaje 301 na `/` BEZ zapytania o inne strony", () => {
+      // Strona `home` miałaby niższy priorytet niż slug z ustawień, więc jej
+      // istnienie niczego nie zmienia - zapytanie byłoby kosztem bez zysku.
+      expect(planHomepageDuplicate(produkcja, main)).toEqual(redirect);
+    });
+
+    it("inna strona najwyższego poziomu NIE jest przekierowywana", () => {
+      const onas = homepageCandidate(["o-nas"], { id: OTHER, slug: "o-nas" });
+      expect(planHomepageDuplicate(produkcja, onas)).toEqual({ kind: "not-homepage" });
+    });
+
+    it("tryb `latest_posts` nie ma strony głównej - nic nie jest przekierowywane", () => {
+      const reading = { homepage_mode: "latest_posts", homepage_page_slug: "main" };
+      expect(planHomepageDuplicate(reading, main)).toEqual({ kind: "not-homepage" });
+      const home = homepageCandidate(["home"], { id: HOME, slug: "home" });
+      expect(planHomepageDuplicate(reading, home)).toEqual({ kind: "not-homepage" });
+    });
+
+    it("strona wskazana przez `homepage_page_id` dostaje 301 bez zapytań - także strona potomna", () => {
+      const reading = { homepage_mode: "static_page", homepage_page_id: OTHER };
+      const child = homepageCandidate(["sekcja", "start"], { id: OTHER, slug: "start" });
+      expect(planHomepageDuplicate(reading, child)).toEqual(redirect);
+    });
+
+    it("bez ustawień czytania strona `home` jest stroną główną (fallback historyczny)", () => {
+      const home = homepageCandidate(["home"], { id: HOME, slug: "home" });
+      expect(planHomepageDuplicate({}, home)).toEqual(redirect);
+      expect(planHomepageDuplicate({}, main)).toEqual({ kind: "not-homepage" });
+    });
+
+    it("slug z białymi znakami NIE wskazuje `main` - `/` też go nie przycina", () => {
+      // Zapytanie `/` podaje slug do `.eq()` dosłownie i spada na `home`, więc
+      // `/main` zostaje zwykłą stroną; 301 kierowałby na inną treść.
+      const reading = { homepage_mode: "static_page", homepage_page_slug: "  main " };
+      expect(planHomepageDuplicate(reading, main)).toEqual({ kind: "not-homepage" });
+    });
+
+    it("niespójne ustawienia (id i slug na różne strony) każą zapytać o stronę z id", () => {
+      // Jeśli strona z `homepage_page_id` jest opublikowana, to ONA jest pod
+      // `/`, a `/main` musi zostać zwykłą stroną - nie wolno jej przekierować.
+      const reading = { ...produkcja, homepage_page_id: OTHER };
+      expect(planHomepageDuplicate(reading, main)).toEqual({
+        kind: "check-rivals",
+        id: OTHER,
+        rootSlugs: [],
+      });
+    });
+
+    it("strona `home` przy ustawieniach wskazujących inną stronę pyta o tamtą", () => {
+      const home = homepageCandidate(["home"], { id: HOME, slug: "home" });
+      expect(planHomepageDuplicate(produkcja, home)).toEqual({
+        kind: "check-rivals",
+        id: null,
+        rootSlugs: ["main"],
+      });
+    });
+  });
+
+  describe("resolveHomepageDuplicate - decyzja po zapytaniu o rywali", () => {
+    const reading = { ...produkcja, homepage_page_id: OTHER };
+
+    it("rywal z id opublikowany: `/main` zostaje zwykłą stroną", () => {
+      const rival: HomepageCandidatePage = { id: OTHER, slug: "start", parent_id: null };
+      expect(resolveHomepageDuplicate(reading, main, [rival])).toBeNull();
+    });
+
+    it("rywala brak (nieopublikowany albo usunięty): `/main` dostaje 301", () => {
+      expect(resolveHomepageDuplicate(reading, main, [])).toEqual(redirect);
+    });
+
+    it("strona `home` przegrywa z opublikowaną stroną ze slugu ustawień", () => {
+      const home = homepageCandidate(["home"], { id: HOME, slug: "home" });
+      expect(resolveHomepageDuplicate(produkcja, home, [main])).toBeNull();
+      expect(resolveHomepageDuplicate(produkcja, home, [])).toEqual(redirect);
+    });
+  });
+
+  it("decyzja jest ZAWSZE zgodna z `configuredHomepagePageId` na pełnej liście stron", () => {
+    // Kolejność priorytetów żyje w jednym miejscu (helper - lustro
+    // `homePageQueryOptions`). Ten przegląd sprawdza, że plan + rywale nie
+    // wymyślają własnej: dla każdej kombinacji ustawień i opublikowanych stron
+    // przekierowanie pada DOKŁADNIE wtedy, gdy helper wybiera tę stronę.
+    const strony: HomepageCandidatePage[] = [
+      { id: MAIN, slug: "main", parent_id: null },
+      { id: HOME, slug: "home", parent_id: null },
+      { id: OTHER, slug: "start", parent_id: MAIN },
+    ];
+    const ustawienia = [
+      {},
+      produkcja,
+      { homepage_mode: "latest_posts" },
+      { homepage_mode: "static_page" },
+      { homepage_mode: "static_page", homepage_page_id: OTHER },
+      { homepage_mode: "static_page", homepage_page_id: OTHER, homepage_page_slug: "main" },
+      { homepage_mode: "static_page", homepage_page_id: "nie-ma", homepage_page_slug: "home" },
+      { homepage_mode: "", homepage_page_slug: "main" },
+    ];
+    // Każdy podzbiór opublikowanych stron (2^3).
+    const podzbiory = [0, 1, 2, 3, 4, 5, 6, 7].map((mask) =>
+      strony.filter((_, index) => (mask >> index) & 1),
+    );
+    for (const reading of ustawienia) {
+      for (const opublikowane of podzbiory) {
+        const oczekiwanaGlowna = configuredHomepagePageId(reading, opublikowane);
+        for (const current of opublikowane) {
+          const plan = planHomepageDuplicate(reading, current);
+          let decyzja = plan.kind === "homepage-redirect" ? plan : null;
+          if (plan.kind === "check-rivals") {
+            // Atrapa zapytania z loadera: opublikowane strony pasujące do refów.
+            const rywale = opublikowane.filter(
+              (page) =>
+                page.id === plan.id ||
+                (page.parent_id === null && plan.rootSlugs.includes(page.slug)),
+            );
+            decyzja = resolveHomepageDuplicate(reading, current, rywale);
+          }
+          expect(
+            decyzja !== null,
+            `${JSON.stringify(reading)} / ${current.slug} / [${opublikowane.map((p) => p.slug)}]`,
+          ).toBe(oczekiwanaGlowna === current.id);
+        }
+      }
+    }
+  });
+});
+
+describe("wordpressFeedLocation - jeden 301 przed routerem (bez 307 za ukośnik)", () => {
+  it.each([
+    ["/category/geopolityka/feed/", "/category/geopolityka/rss.xml"],
+    ["/category/geopolityka/feed", "/category/geopolityka/rss.xml"],
+    ["/category/region/afryka/feed/rss2/", "/category/afryka/rss.xml"],
+    ["/tag/nato/feed/atom", "/tag/nato/rss.xml"],
+    ["/feed/rss2/", "/rss.xml"],
+    ["/en/category/geopolityka/feed/", "/en/category/geopolityka/rss.xml"],
+    ["/en/feed/atom/", "/en/rss.xml"],
+  ])("%s -> %s", (path, target) => {
+    expect(wordpressFeedLocation(path)).toBe(target);
+  });
+
+  it.each([
+    "/category/feed",
+    "/category/feed/",
+    "/analizy/wpis/feed/",
+    "/category/energetyka/atom",
+    "/blog",
+    "/feedback",
+    "/category/geopolityka",
+  ])("%s nie jest kanałem do przekierowania", (path) => {
+    expect(wordpressFeedLocation(path)).toBeNull();
+  });
+
+  it("slug jest kodowany od nowa - bez wstrzyknięcia separatora do adresu docelowego", () => {
+    expect(wordpressFeedLocation("/category/%C5%BCycie/feed/")).toBe(
+      "/category/%C5%BCycie/rss.xml",
+    );
+    expect(wordpressFeedLocation("/category/a%5Cb/feed/")).toBeNull();
+    expect(wordpressFeedLocation("/category/%E0%A4%A/feed/")).toBeNull();
   });
 });

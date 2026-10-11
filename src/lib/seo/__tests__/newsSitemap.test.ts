@@ -4,6 +4,7 @@ import {
   freshNewsEntries,
   NEWS_SITEMAP_WINDOW_MS,
   planNewsSitemap,
+  renderNewsSitemapXml,
   type NewsSitemapEntry,
 } from "@/lib/seo/newsSitemap";
 
@@ -162,5 +163,55 @@ describe("buildNewsSitemapXml - zegar systemowy", () => {
     // wpis nie może wyjść przed czasem. Bez żadnej publikacji z przeszłości
     // dokumentu nie ma (null -> trasa 404), bo pusty urlset to błąd schematu.
     expect(xml).toBeNull();
+  });
+});
+
+// DATA ZMIANY, NIE PUBLIKACJI. `lastmod` kotwicy i pozycji news-sitemapy
+// w indeksie to chwila ostatniej zmiany dokumentu: artykuł opublikowany dawno
+// i poprawiony wczoraj zmienił się wczoraj. Data publikacji w `news:news`
+// zostaje datą publikacji.
+describe("planNewsSitemap / renderNewsSitemapXml - data zmiany", () => {
+  const hoursAgo = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
+
+  it("kotwica: `lastmod` wpisu i planu to edycja, gdy jest późniejsza niż publikacja", () => {
+    const anchor = entry(400, { updatedAt: hoursAgo(5) });
+    const plan = planNewsSitemap([anchor], NOW);
+
+    expect(plan.mode).toBe("anchor");
+    expect(plan.lastmod).toBe("2026-07-02T07:00:00Z");
+    expect(renderNewsSitemapXml("NES", plan)).toContain("<lastmod>2026-07-02T07:00:00Z</lastmod>");
+  });
+
+  it("edycja WCZEŚNIEJSZA niż publikacja (import) nie cofa daty", () => {
+    const anchor = entry(100, { updatedAt: hoursAgo(500) });
+    const plan = planNewsSitemap([anchor], NOW);
+
+    expect(plan.lastmod).toBe("2026-06-28T08:00:00Z");
+  });
+
+  it("brak albo nieczytelna data edycji to data publikacji", () => {
+    for (const updatedAt of [null, undefined, "nope"]) {
+      const plan = planNewsSitemap([entry(100, { updatedAt })], NOW);
+      expect(plan.lastmod, String(updatedAt)).toBe("2026-06-28T08:00:00Z");
+    }
+  });
+
+  it("świeży plik: `lastmod` planu to najnowsza zmiana, nie najnowsza publikacja", () => {
+    const edited = entry(30, { updatedAt: hoursAgo(1) });
+    const plan = planNewsSitemap([edited, entry(2)], NOW);
+
+    expect(plan.mode).toBe("fresh");
+    expect(plan.lastmod).toBe("2026-07-02T11:00:00Z");
+    const xml = renderNewsSitemapXml("NES", plan);
+    // `news:publication_date` dalej niesie datę PUBLIKACJI.
+    expect(xml).toContain("<news:publication_date>2026-07-01T06:00:00Z</news:publication_date>");
+  });
+
+  it("kotwicę wybiera publikacja - świeża edycja starszego artykułu jej nie przejmuje", () => {
+    const newest = entry(72);
+    const olderEdited = entry(300, { updatedAt: hoursAgo(1) });
+    const plan = planNewsSitemap([olderEdited, newest], NOW);
+
+    expect(plan.entries).toEqual([newest]);
   });
 });

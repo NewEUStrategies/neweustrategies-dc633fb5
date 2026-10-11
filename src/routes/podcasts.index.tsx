@@ -32,6 +32,7 @@ import {
 } from "@/lib/podcast/types";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -168,8 +169,11 @@ function PodcastsIndex() {
             <p className="text-sm text-muted-foreground">{t("podcastNetwork.subtitle")}</p>
           </div>
         </div>
+        {/* Kanał w JĘZYKU STRONY - jak `feedAlternateLink` w `head()`. Do
+            2026-10 przycisk na `/en/podcasts` prowadził do kanału polskiego,
+            choć autodiscovery ogłaszało angielski. */}
         <a
-          href="/podcast/rss.xml"
+          href={localizedPath("/podcast/rss.xml", lang)}
           className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full border border-border hover:bg-muted"
         >
           <Rss className="w-4 h-4" />

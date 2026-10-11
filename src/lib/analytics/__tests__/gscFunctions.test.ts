@@ -86,7 +86,8 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 
-const { inspectGscUrl, listGscSites, queryGscAnalytics } = await import("../gsc.functions");
+const { inspectGscUrl, listGscSitemaps, listGscSites, queryGscAnalytics, submitGscSitemap } =
+  await import("../gsc.functions");
 type GscSite = Awaited<ReturnType<typeof listGscSites>>["sites"][number];
 
 const BRAMKA = "https://connector-gateway.lovable.dev/google_search_console";
@@ -848,5 +849,352 @@ describe("gałąź „nie wiem” - instalacje bez katalogu domen", () => {
     const blad = await przechwycBlad(pytaj({ ...ZAPYTANIE, siteUrl: WITRYNA_B }));
 
     expect(blad.message).toBe("Forbidden: site not owned by tenant");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MAPY WITRYN W GOOGLE. `listGscSitemaps` to odczyt, ale `submitGscSitemap`
+// to AKCJA wykonywana kontem konektora wspólnym dla wdrożenia - stąd te same
+// dwie granice co wyżej (rola, związanie z najemcą) i trzecia, własna:
+// zgłosić wolno wyłącznie plik mapy TEGO serwisu, nie dowolny adres z domeny.
+type MapyWynik = Awaited<ReturnType<typeof listGscSitemaps>>;
+type ZgloszenieWynik = Awaited<ReturnType<typeof submitGscSitemap>>;
+
+function mapy(data: unknown = { siteUrl: WITRYNA }, n: Najemca = ADMIN()) {
+  return callServerFn<MapyWynik>(listGscSitemaps, { data, context: n.ctx });
+}
+
+function zglos(data: unknown, n: Najemca = ADMIN()) {
+  return callServerFn<ZgloszenieWynik>(submitGscSitemap, { data, context: n.ctx });
+}
+
+const INDEKS = `https://${DOMENA_A}/sitemap.xml`;
+const ZGLOSZENIE = { siteUrl: WITRYNA, feedpath: INDEKS };
+
+/** Atrapa bramki z odpowiedzią zależną od adresu (lista map vs pliki indeksu). */
+function wedlugAdresu(odpowiedzi: (url: string) => unknown): void {
+  fetchMock.mockImplementation((input) =>
+    Promise.resolve(odpowiedz(200, JSON.stringify(odpowiedzi(String(input))))),
+  );
+}
+
+describe("listGscSitemaps", () => {
+  it("redaktor nie odczyta stanu map, a odmowa pada PRZED siecią", async () => {
+    const blad = await przechwycBlad(mapy({ siteUrl: WITRYNA }, najemca(TENANT_A, REDAKTOR_A)));
+
+    expect(blad.message).toBe("Forbidden: admin role required");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("cudza właściwość jest odrzucana PRZED siecią", async () => {
+    const blad = await przechwycBlad(mapy({ siteUrl: WITRYNA_B }));
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("pyta `sitemaps.list` pod zakodowaną ścieżką właściwości", async () => {
+    json({ sitemap: [] });
+
+    await mapy();
+
+    expect(zadanie().url).toBe(
+      `${BRAMKA}/webmasters/v3/sites/${encodeURIComponent(WITRYNA)}/sitemaps`,
+    );
+    expect(zadanie().init.method).toBeUndefined();
+  });
+
+  it("normalizuje liczby int64 podane przez API jako napisy", async () => {
+    json({
+      sitemap: [
+        {
+          path: `https://${DOMENA_A}/news-sitemap.xml`,
+          lastSubmitted: "2026-10-04T10:00:00.000Z",
+          lastDownloaded: "2026-10-04T10:05:00.000Z",
+          isPending: false,
+          isSitemapsIndex: false,
+          errors: "1",
+          warnings: "0",
+          contents: [{ type: "web", submitted: "47" }],
+        },
+      ],
+    });
+
+    await expect(mapy()).resolves.toEqual({
+      configured: true,
+      sitemaps: [
+        {
+          path: `https://${DOMENA_A}/news-sitemap.xml`,
+          lastSubmitted: "2026-10-04T10:00:00.000Z",
+          lastDownloaded: "2026-10-04T10:05:00.000Z",
+          isPending: false,
+          isSitemapsIndex: false,
+          errors: 1,
+          warnings: 0,
+          contents: [{ type: "web", submitted: 47 }],
+          children: [],
+        },
+      ],
+    });
+  });
+
+  it("wpis bez pól daje bezpieczne domyślne, a śmieciowe liczby to zero", async () => {
+    json({ sitemap: [{ path: INDEKS, errors: "abc", warnings: -3 }] });
+
+    const wynik = await mapy();
+
+    expect(wynik.sitemaps[0]).toEqual({
+      path: INDEKS,
+      lastSubmitted: null,
+      lastDownloaded: null,
+      isPending: false,
+      isSitemapsIndex: false,
+      errors: 0,
+      warnings: 0,
+      contents: [],
+      children: [],
+    });
+  });
+
+  it("rozwija indeks na pliki przez `sitemaps.list?sitemapIndex=`", async () => {
+    const core = `https://${DOMENA_A}/sitemaps/core.xml`;
+    wedlugAdresu((url) =>
+      url.includes("sitemapIndex=")
+        ? { sitemap: [{ path: core, errors: "1", contents: [{ type: "web", submitted: "47" }] }] }
+        : { sitemap: [{ path: INDEKS, isSitemapsIndex: true }] },
+    );
+
+    const wynik = await mapy();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(zadanie(1).url).toBe(
+      `${BRAMKA}/webmasters/v3/sites/${encodeURIComponent(WITRYNA)}/sitemaps` +
+        `?sitemapIndex=${encodeURIComponent(INDEKS)}`,
+    );
+    expect(wynik.sitemaps[0].children).toEqual([
+      expect.objectContaining({
+        path: core,
+        errors: 1,
+        contents: [{ type: "web", submitted: 47 }],
+      }),
+    ]);
+  });
+
+  it("błąd rozwinięcia jednego indeksu zostawia listę map i pozostałe indeksy", async () => {
+    // Przegląd PR #492: odrzucenie jednego `?sitemapIndex=` wyrzucało całą,
+    // udaną listę i karta pokazywała wyłącznie błąd odczytu.
+    const stary = `https://${DOMENA_A}/sitemap_index.xml`;
+    const core = `https://${DOMENA_A}/sitemaps/core.xml`;
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.includes(`sitemapIndex=${encodeURIComponent(stary)}`)) {
+        return Promise.resolve(odpowiedz(404, "Sitemap not found"));
+      }
+      const body = url.includes("sitemapIndex=")
+        ? { sitemap: [{ path: core }] }
+        : {
+            sitemap: [
+              { path: stary, isSitemapsIndex: true },
+              { path: INDEKS, isSitemapsIndex: true },
+              { path: `https://${DOMENA_A}/news-sitemap.xml`, errors: "1" },
+            ],
+          };
+      return Promise.resolve(odpowiedz(200, JSON.stringify(body)));
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const wynik = await mapy();
+
+    expect(wynik.configured).toBe(true);
+    expect(wynik.sitemaps.map((s) => s.path)).toEqual([
+      stary,
+      INDEKS,
+      `https://${DOMENA_A}/news-sitemap.xml`,
+    ]);
+    expect(wynik.sitemaps[0].children).toEqual([]);
+    expect(wynik.sitemaps[1].children.map((c) => c.path)).toEqual([core]);
+    // Ślad błędu bez materiału uwierzytelniającego.
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(GSC_KEY);
+    warn.mockRestore();
+  });
+
+  it("zwykłej mapy NIE rozwija - jedno wywołanie bramki", async () => {
+    json({ sitemap: [{ path: `https://${DOMENA_A}/news-sitemap.xml` }] });
+
+    await mapy();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("odpowiedź bez `sitemap` (świeża właściwość) to pusta lista", async () => {
+    json({});
+
+    await expect(mapy()).resolves.toEqual({ sitemaps: [], configured: true });
+  });
+
+  it("brak konektora to stan nieskonfigurowany, bez sieci i bez sentinela", async () => {
+    vi.stubEnv("LOVABLE_API_KEY", undefined);
+
+    await expect(mapy()).resolves.toEqual({ sitemaps: [], configured: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("błąd bramki idzie dalej bez kluczy w komunikacie", async () => {
+    zawsze(() => odpowiedz(500, "upstream down"));
+
+    const blad = await przechwycBlad(mapy());
+
+    expect(blad.message).toBe("GSC 500: upstream down");
+    expect(blad.message).not.toContain(LOVABLE_KEY);
+    expect(blad.message).not.toContain(GSC_KEY);
+  });
+});
+
+describe("submitGscSitemap", () => {
+  it("zgłasza mapę metodą PUT pod zakodowaną ścieżką `sitemaps/{feedpath}`", async () => {
+    zawsze(() => odpowiedz(204, ""));
+
+    await expect(zglos(ZGLOSZENIE)).resolves.toEqual({ ok: true });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(zadanie().url).toBe(
+      `${BRAMKA}/webmasters/v3/sites/${encodeURIComponent(WITRYNA)}` +
+        `/sitemaps/${encodeURIComponent(INDEKS)}`,
+    );
+    expect(zadanie().init.method).toBe("PUT");
+    expect(naglowki()).toEqual({
+      Authorization: `Bearer ${LOVABLE_KEY}`,
+      "X-Connection-Api-Key": GSC_KEY,
+      "Content-Type": "application/json",
+    });
+  });
+
+  it("przyjmuje news-sitemapę i kanoniczne shardy sekcji", async () => {
+    zawsze(() => odpowiedz(204, ""));
+
+    for (const sciezka of ["/news-sitemap.xml", "/sitemaps/core.xml", "/sitemaps/posts-2.xml"]) {
+      await expect(
+        zglos({ siteUrl: WITRYNA, feedpath: `https://${DOMENA_A}${sciezka}` }),
+      ).resolves.toEqual({ ok: true });
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("redaktor nie zgłosi mapy, a odmowa pada PRZED siecią", async () => {
+    const blad = await przechwycBlad(zglos(ZGLOSZENIE, najemca(TENANT_A, REDAKTOR_A)));
+
+    expect(blad.message).toBe("Forbidden: admin role required");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("admin OBCEGO najemcy nie zgłosi mapy przez klienta tego najemcy", async () => {
+    const blad = await przechwycBlad(zglos(ZGLOSZENIE, najemca(TENANT_A, ADMIN_B)));
+
+    expect(blad.message).toBe("Forbidden: admin role required");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("cudza właściwość jest odrzucana PRZED siecią", async () => {
+    const blad = await przechwycBlad(
+      zglos({ siteUrl: WITRYNA_B, feedpath: `https://${DOMENA_B}/sitemap.xml` }),
+    );
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("plik mapy z CUDZEJ domeny przy własnej właściwości też jest odrzucany", async () => {
+    const blad = await przechwycBlad(
+      zglos({ siteUrl: WITRYNA, feedpath: `https://${DOMENA_B}/sitemap.xml` }),
+    );
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("zgłosić wolno tylko plik mapy serwisu - nie dowolny adres z domeny", async () => {
+    for (const adres of [
+      `https://${DOMENA_A}/artykul`,
+      `https://${DOMENA_A}/rss.xml`,
+      `https://${DOMENA_A}/sitemaps/nieznana.xml`,
+      `https://${DOMENA_A}/sitemaps/posts-1.xml`,
+      `https://${DOMENA_A}/sitemap.xml?x=1`,
+      `https://${DOMENA_A}/sitemap.xml#top`,
+    ]) {
+      const blad = await przechwycBlad(zglos({ siteUrl: WITRYNA, feedpath: adres }));
+      expect(blad.message, adres).toBe("Forbidden: not a sitemap of this site");
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ZAPIS nie korzysta z gałęzi „nie wiem” - pusty katalog domen to odmowa", async () => {
+    // Przegląd PR #492: odczyt przepuszcza instalację bez katalogu, ale zgłoszenie
+    // zmienia stan właściwości wspólnym kontem konektora - bez dowodu
+    // własności admin zgłaszałby mapy dowolnej właściwości.
+    katalog.rows = [];
+    invalidateTenantDirectoryCache();
+
+    const blad = await przechwycBlad(zglos(ZGLOSZENIE));
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ZAPIS: najemca BEZ własnej domeny nie zgłosi mapy cudzej właściwości", async () => {
+    katalog.rows = [tenantRow(TENANT_A, "a", null, true), tenantRow(TENANT_B, "b", DOMENA_B)];
+    invalidateTenantDirectoryCache();
+
+    const blad = await przechwycBlad(
+      zglos({ siteUrl: WITRYNA_B, feedpath: `https://${DOMENA_B}/sitemap.xml` }),
+    );
+
+    expect(blad.message).toBe("Forbidden: site not owned by tenant");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("ZAPIS rozumie alias www/apex domeny najemcy", async () => {
+    zawsze(() => odpowiedz(204, ""));
+
+    await expect(
+      zglos({
+        siteUrl: `https://www.${DOMENA_A}/`,
+        feedpath: `https://www.${DOMENA_A}/sitemap.xml`,
+      }),
+    ).resolves.toEqual({ ok: true });
+  });
+
+  it("walidator odrzuca adres, który nie jest URL-em", () => {
+    expect(() =>
+      validateServerFnInput(submitGscSitemap, { siteUrl: WITRYNA, feedpath: "/sitemap.xml" }),
+    ).toThrow();
+  });
+
+  it("403 od Google to stan „brak uprawnień”, nie awaria", async () => {
+    zawsze(() => odpowiedz(403, "User does not have sufficient permission"));
+
+    await expect(zglos(ZGLOSZENIE)).resolves.toEqual({ ok: false, reason: "permission" });
+  });
+
+  it("404 od Google to stan „nie znaleziono właściwości”", async () => {
+    zawsze(() => odpowiedz(404, "Not found"));
+
+    await expect(zglos(ZGLOSZENIE)).resolves.toEqual({ ok: false, reason: "notFound" });
+  });
+
+  it("brak konektora to stan nieskonfigurowany, bez sieci", async () => {
+    vi.stubEnv("GOOGLE_SEARCH_CONSOLE_API_KEY", undefined);
+
+    await expect(zglos(ZGLOSZENIE)).resolves.toEqual({ ok: false, reason: "notConfigured" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("inny błąd bramki idzie dalej bez kluczy w komunikacie", async () => {
+    zawsze(() => odpowiedz(500, "boom"));
+
+    const blad = await przechwycBlad(zglos(ZGLOSZENIE));
+
+    expect(blad.message).toBe("GSC 500: boom");
+    expect(blad.message).not.toContain(LOVABLE_KEY);
+    expect(blad.message).not.toContain(GSC_KEY);
   });
 });

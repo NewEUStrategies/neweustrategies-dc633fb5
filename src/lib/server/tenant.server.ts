@@ -494,3 +494,24 @@ export async function assertSiteUrlBelongsToTenant(
     throw new Error("Forbidden: site not owned by tenant");
   }
 }
+
+/**
+ * Wariant ŚCISŁY dla AKCJI wykonywanych kontem konektora (zgłoszenie mapy do
+ * Google): adres musi należeć do domeny ZAJĘTEJ przez tego najemcę w katalogu.
+ *
+ * Gałąź „nie wiem" z `siteUrlBelongsToTenant` jest tu wyłączona celowo. Dla
+ * odczytu jej koszt to co najwyżej podgląd cudzych liczb na instalacji bez
+ * katalogu; dla zapisu byłaby to zmiana stanu CUDZEJ właściwości: admin
+ * najemcy bez domeny (albo przy niedostępnym katalogu) zgłaszałby mapy
+ * dowolnej właściwości obsługiwanej przez wspólny konektor (przegląd PR #492).
+ * Pusty albo nieosiągalny katalog i najemca bez domeny = odmowa.
+ */
+export async function assertSiteUrlClaimedByTenant(
+  siteUrl: string,
+  tenantId: string,
+): Promise<void> {
+  const directory = await getTenantDirectory();
+  if (matchDomain(directory, gscSiteHost(siteUrl))?.id !== tenantId) {
+    throw new Error("Forbidden: site not owned by tenant");
+  }
+}

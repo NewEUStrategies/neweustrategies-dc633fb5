@@ -192,15 +192,23 @@ export const Route = createFileRoute("/tag/$slug")({
     };
     // Autodiscovery feedu tematycznego - czytniki RSS i agregatory widzą
     // kanal kategorii/tagu bez znajomosci konwencji URL.
+    //
+    // Tylko dla archiwum z wpisami - ta sama zasada co w `category.$slug.tsx`
+    // (audyt 2026-10): pusty tag ogłaszałby kanał pusty na zawsze, a render
+    // zdegradowany (`total: 0`) nie wie, czy kanał ma treść.
     const feedLinks = [
       ...head.links,
       ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
-      {
-        rel: "alternate",
-        type: "application/rss+xml",
-        title: `${name} - RSS`,
-        href: `${originAbs}${localizedPath(`/tag/${params.slug}/rss.xml`, lang)}`,
-      },
+      ...(total > 0
+        ? [
+            {
+              rel: "alternate",
+              type: "application/rss+xml",
+              title: `${name} - RSS`,
+              href: `${originAbs}${localizedPath(`/tag/${params.slug}/rss.xml`, lang)}`,
+            },
+          ]
+        : []),
     ];
     return {
       ...head,

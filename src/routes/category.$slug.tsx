@@ -259,15 +259,27 @@ export const Route = createFileRoute("/category/$slug")({
     };
     // Autodiscovery feedu tematycznego - czytniki RSS i agregatory widzą
     // kanal kategorii/tagu bez znajomosci konwencji URL.
+    //
+    // TYLKO DLA ARCHIWUM Z WPISAMI (audyt 2026-10). Wpisy z importu
+    // WordPressa nie mają wierszy w `post_categories`, więc wszystkie archiwa
+    // kategorii są puste - a każde ogłaszało kanał, który czytnik subskrybował
+    // jako pusty na zawsze. `total` to liczba wpisów CAŁEGO archiwum (nie
+    // strony), więc kanał wraca sam, gdy w kategorii pojawi się pierwszy wpis.
+    // Render zdegradowany niesie `total: 0` - nie wiemy, czy kanał ma treść,
+    // więc też go nie ogłaszamy.
     const feedLinks = [
       ...head.links,
       ...(loaderData?.coverPreload ? [imagePreloadLink(loaderData.coverPreload)] : []),
-      {
-        rel: "alternate",
-        type: "application/rss+xml",
-        title: `${name} - RSS`,
-        href: `${originAbs}${localizedPath(`/category/${params.slug}/rss.xml`, lang)}`,
-      },
+      ...(total > 0
+        ? [
+            {
+              rel: "alternate",
+              type: "application/rss+xml",
+              title: `${name} - RSS`,
+              href: `${originAbs}${localizedPath(`/category/${params.slug}/rss.xml`, lang)}`,
+            },
+          ]
+        : []),
     ];
     return {
       ...head,

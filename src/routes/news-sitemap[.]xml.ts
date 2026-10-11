@@ -90,7 +90,9 @@ export const Route = createFileRoute("/news-sitemap.xml")({
           });
         }
 
-        const xml = renderNewsSitemapXml(effectiveNewsPublicationName(settings), plan);
+        const xml = renderNewsSitemapXml(effectiveNewsPublicationName(settings), plan, {
+          generatedAt: Date.now(),
+        });
         // NAPRAWA 2026-09-02: pusta news-sitemapa dostawała ten sam TTL co
         // pełna, mimo że ŚWIEŻOŚĆ jest jej całym sensem. Google News czyta ten
         // plik po to, żeby zobaczyć wpisy z ostatnich 48 h; pusty dokument

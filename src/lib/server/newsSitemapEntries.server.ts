@@ -37,6 +37,7 @@ export async function loadNewsSitemapEntries(
         url: `${origin}${localizedPath(post.path, "pl")}`,
         title: post.title_pl,
         publishedAt: post.published_at,
+        updatedAt: post.updated_at,
         language: "pl",
       });
     }
@@ -45,6 +46,7 @@ export async function loadNewsSitemapEntries(
         url: `${origin}${localizedPath(post.path, "en")}`,
         title: post.title_en,
         publishedAt: post.published_at,
+        updatedAt: post.updated_at,
         language: "en",
       });
     }

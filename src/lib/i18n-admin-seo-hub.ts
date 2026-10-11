@@ -123,6 +123,38 @@ const pl = {
       "Metadane Google News przy artykule starszym niż 48 h ({{value}}) - Google zaleca je wtedy zdjąć.",
     sitemapIssue_newsAnchor:
       "Brak artykułów z ostatnich 48 h - plik niesie najnowszy adres ({{value}}) bez metadanych News, zgodnie z wytycznymi Google. Nowe wpisy pojawią się po publikacji.",
+    sitemapGoogleLink: "Stan w Google i przesyłanie map",
+    // --- Mapy witryn w Google (zakładka Search Console) ---
+    gscSitemapsTitle: "Mapy witryn w Google",
+    gscSitemapsIntro:
+      "Co Google zrobił z mapami strony: kiedy ostatnio je pobrał, czy znalazł błędy i ile adresów odczytał. Po naprawie mapy prześlij ją ponownie - Google pobierze ją od nowa i odświeży raport.",
+    gscSubmitIndex: "Prześlij mapę do Google",
+    gscResubmit: "Prześlij ponownie",
+    gscSubmitting: "Przesyłanie…",
+    gscSubmitted:
+      "Przesłano do Google: {{value}}. Google pobierze plik w ciągu kilku minut do kilku godzin.",
+    gscSubmit_notConfigured: "Konektor Search Console nie jest podłączony.",
+    gscSubmit_permission:
+      "Konto konektora nie może przesyłać map tej właściwości. W Search Console (Ustawienia → Użytkownicy i uprawnienia) nadaj mu uprawnienie „Pełne” i połącz konektor ponownie z dostępem do zapisu. Do tego czasu prześlij mapę ręcznie: Mapy witryn → sitemap.xml → Prześlij ponownie.",
+    gscSubmit_notFound:
+      "Google nie zna tej właściwości albo pliku - sprawdź, czy właściwość jest zweryfikowana.",
+    gscOpenReport: "Otwórz raport w Search Console",
+    gscSitemapsLoadFailed: "Nie udało się odczytać stanu map z Google.",
+    gscIndexMissing:
+      "Indeks {{value}} nie jest przesłany do tej właściwości - prześlij go, żeby Google czytał wszystkie pliki mapy.",
+    gscColSitemap: "Mapa",
+    gscColRead: "Odczyt Google",
+    gscColState: "Stan",
+    gscColUrls: "Adresy",
+    gscIndexLabel: "Indeks map",
+    gscState_ok: "Sukces",
+    gscState_errors: "Błędy: {{n}}",
+    gscState_warnings: "Ostrzeżenia: {{n}}",
+    gscState_pending: "Czeka na pobranie",
+    gscState_never: "Nie pobrano",
+    gscNoSitemaps: "Google nie ma jeszcze żadnej mapy tej właściwości.",
+    gscSubmitNote:
+      "Stan pochodzi z Search Console i odświeża się dopiero po kolejnym pobraniu pliku przez Google - świeżo naprawiona mapa może jeszcze pokazywać stary błąd.",
     foundationRobotsSitemaps: "Deklaracje mapy strony w pliku: {{value}}.",
     foundationRobotsNoSitemap: "Plik nie wskazuje mapy strony (brak wpisu Sitemap:).",
     foundationLlmsPresent: "Przewodnik dla asystentów AI jest opublikowany.",
@@ -362,6 +394,38 @@ const en: typeof pl = {
       "Google News metadata on an article older than 48 h ({{value}}) - Google recommends removing it.",
     sitemapIssue_newsAnchor:
       "No articles from the last 48 h - the file carries the newest URL ({{value}}) without News metadata, as Google recommends. New items will appear once published.",
+    sitemapGoogleLink: "Status in Google and sitemap submission",
+    // --- Sitemaps in Google (Search Console tab) ---
+    gscSitemapsTitle: "Sitemaps in Google",
+    gscSitemapsIntro:
+      "What Google did with the sitemaps: when it last fetched them, whether it found errors and how many URLs it read. After fixing a sitemap, submit it again - Google fetches it anew and refreshes the report.",
+    gscSubmitIndex: "Submit sitemap to Google",
+    gscResubmit: "Resubmit",
+    gscSubmitting: "Submitting…",
+    gscSubmitted:
+      "Submitted to Google: {{value}}. Google fetches the file within minutes to a few hours.",
+    gscSubmit_notConfigured: "The Search Console connector is not connected.",
+    gscSubmit_permission:
+      "The connector account cannot submit sitemaps for this property. In Search Console (Settings → Users and permissions) give it “Full” permission and reconnect the connector with write access. Until then submit the sitemap manually: Sitemaps → sitemap.xml → Resubmit.",
+    gscSubmit_notFound:
+      "Google does not know this property or file - check that the property is verified.",
+    gscOpenReport: "Open the report in Search Console",
+    gscSitemapsLoadFailed: "Could not read the sitemap status from Google.",
+    gscIndexMissing:
+      "The index {{value}} is not submitted to this property - submit it so Google reads every sitemap file.",
+    gscColSitemap: "Sitemap",
+    gscColRead: "Google read",
+    gscColState: "Status",
+    gscColUrls: "URLs",
+    gscIndexLabel: "Sitemap index",
+    gscState_ok: "Success",
+    gscState_errors: "Errors: {{n}}",
+    gscState_warnings: "Warnings: {{n}}",
+    gscState_pending: "Waiting to be fetched",
+    gscState_never: "Not fetched",
+    gscNoSitemaps: "Google has no sitemap for this property yet.",
+    gscSubmitNote:
+      "The status comes from Search Console and refreshes only after Google fetches the file again - a freshly fixed sitemap may still show the old error.",
     foundationRobotsSitemaps: "Sitemap declarations in the file: {{value}}.",
     foundationRobotsNoSitemap: "The file does not point to a sitemap (no Sitemap: entry).",
     foundationLlmsPresent: "The AI assistant guide is published.",

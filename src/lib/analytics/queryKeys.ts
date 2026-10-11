@@ -105,6 +105,15 @@ export function analyticsGscSitesKey(tenantId: string): readonly unknown[] {
 }
 
 /**
+ * Stan map witryn właściwości w Google (`listGscSitemaps`). Właściwość
+ * w kluczu: dwie właściwości tego samego najemcy (domenowa i prefiksowa) mają
+ * osobne listy map.
+ */
+export function analyticsGscSitemapsKey(tenantId: string, siteUrl: string): readonly unknown[] {
+  return [...analyticsTenantKey(tenantId), "gsc", "sitemaps", siteUrl];
+}
+
+/**
  * Wymiar raportu GSC - lustro `z.enum` wejścia `queryGscAnalytics`
  * (`@/lib/analytics/gsc.functions`). Nowy wymiar po stronie serwera bez wpisu
  * tutaj nie przejdzie przez `tsc` u wołającego.

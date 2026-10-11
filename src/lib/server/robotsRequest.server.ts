@@ -22,12 +22,15 @@ import {
   type CrawlHostClass,
 } from "@/lib/http/host";
 import { trustedPublicHost } from "@/lib/http/requestHost";
+import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
+import { planNewsSitemap } from "@/lib/seo/newsSitemap";
 import { buildRobotsTxt, type RobotsGroup, type RobotsUsagePolicy } from "@/lib/seo/robots";
 import {
   DEFAULT_SEO_SETTINGS,
   aiCrawlerGroups,
   parseSeoSettings,
   robotsUsagePolicy,
+  type SeoSettings,
 } from "@/lib/seo/settings";
 
 /** Polityka crawlowania jednego tenanta: mapy, grupy botów, warunki cytowania. */
@@ -35,12 +38,75 @@ interface CrawlPolicy {
   readonly sitemapPaths: string[];
   readonly groups: RobotsGroup[];
   readonly usage: RobotsUsagePolicy;
+  /** Decyzja o news-sitemapie nie zapadła (awaria / budżet) - nie cache'ować. */
+  readonly volatile: boolean;
 }
 
 /** Indeks sitemapy - ogłaszany zawsze, gdy host wolno indeksować. */
 const SITEMAP_INDEX_PATH = "/sitemap.xml";
-/** Google News - tylko gdy redakcja go włączy (inaczej trasa odpowiada 404). */
+/** Google News - tylko gdy plik istnieje (patrz `newsSitemapAnnouncement`). */
 const NEWS_SITEMAP_PATH = "/news-sitemap.xml";
+
+export interface NewsSitemapAnnouncement {
+  /** Czy /news-sitemap.xml wolno ogłosić (plik odpowie 200 z co najmniej jednym wpisem). */
+  readonly announced: boolean;
+  /** Odczyt wpisów rzucił albo przekroczył budżet - decyzja jest zdegradowana. */
+  readonly failed: boolean;
+}
+
+/**
+ * JEDNA decyzja „czy ogłosić /news-sitemap.xml" dla robots.txt i llms.txt -
+ * ta sama, którą indeks sitemapy (`readNewsIndexEntry` w `sitemap[.]xml.ts`)
+ * i trasa pliku liczą od 2026-10-10: przełącznik redakcji, potem
+ * `loadNewsSitemapEntries` + `planNewsSitemap` i ogłoszenie tylko wtedy, gdy
+ * plan nie jest `empty`.
+ *
+ * 2026-10 audyt powierzchni maszynowych: robots.txt ogłaszał plik na samą
+ * flagę `news_sitemap_enabled`, a llms.txt bezwarunkowo, podczas gdy indeks
+ * już sprawdzał, czy plik ma co pokazać. Tenant bez żadnego artykułu dostawał
+ * więc z robots.txt i llms.txt adres, który odpowiada 404 „No news articles"
+ * (Search Console raportuje to jako błąd pliku sitemap). Odczyt jest tym
+ * samym wpisem `edgeTtlCache` co indeks i trasa pliku (`fetchPublishedPosts`
+ * z limitem 200), więc trzeci odbiorca nie kosztuje zapytania.
+ *
+ * Budżet `NEWS_SITEMAP_READ_BUDGET_MS` z tego samego powodu co w indeksie:
+ * `resilient` łapie błąd, nie powolność. Przekroczony budżet, awaria importu
+ * i PUSTY plan (od którego awarii odczytu nie da się odróżnić) dają
+ * `announced: false` z `failed: true` - wołający nie utrwala wtedy odpowiedzi
+ * (robots.txt: `volatile`, llms.txt: TTL zdegradowany). Nigdy nie rzuca.
+ */
+export async function newsSitemapAnnouncement(
+  tenantId: string,
+  origin: string,
+  settings: SeoSettings,
+): Promise<NewsSitemapAnnouncement> {
+  if (!settings.news_sitemap_enabled) return { announced: false, failed: false };
+  try {
+    const { NEWS_SITEMAP_READ_BUDGET_MS, loadNewsSitemapEntries } =
+      await import("@/lib/server/newsSitemapEntries.server");
+    const settled = await settleWithinBudget(
+      loadNewsSitemapEntries(tenantId, origin),
+      NEWS_SITEMAP_READ_BUDGET_MS,
+    );
+    if (settled === BUDGET_LAPSED) {
+      console.warn(
+        `[seo] news sitemap announcement timed out after ${NEWS_SITEMAP_READ_BUDGET_MS}ms`,
+      );
+      return { announced: false, failed: true };
+    }
+    const announced = planNewsSitemap(settled, Date.now()).mode !== "empty";
+    // PUSTY PLAN PRZY WŁĄCZONEJ FLADZE NIE JEST PEWNIKIEM (przegląd 2026-10).
+    // `fetchPublishedPosts` jest `resilient`: awaria bazy wraca jako `[]`, nie
+    // jako wyjątek, więc „brak artykułów" i „odczyt padł" wyglądają tu tak
+    // samo. Brak pewności = `failed`: robots.txt nie trafia do cache brzegu
+    // bez linii news-sitemapy na pół godziny po chwilowej awarii. Koszt dla
+    // najemcy, który naprawdę nie ma artykułów: robots.txt bez cache.
+    return { announced, failed: !announced };
+  } catch (e) {
+    console.warn("[seo] news sitemap announcement unavailable:", e);
+    return { announced: false, failed: true };
+  }
+}
 
 export interface RobotsPlan {
   /** Treść pliku. */
@@ -49,7 +115,10 @@ export interface RobotsPlan {
   readonly hostClass: CrawlHostClass;
   /** Czy host wolno indeksować - równocześnie wartość `X-Robots-Tag`. */
   readonly indexable: boolean;
-  /** Klasyfikacja niepewna (katalog domen nieosiągalny) - nie cache'ować. */
+  /**
+   * Odpowiedź niepewna - nie cache'ować: klasyfikacja hosta (katalog domen
+   * nieosiągalny) albo decyzja o news-sitemapie (odczyt wpisów padł/za długo).
+   */
   readonly volatile: boolean;
 }
 
@@ -58,28 +127,40 @@ export interface RobotsPlan {
  * robots.txt: crawler musi dostać poprawny plik (indeks sitemapy + domyślna,
  * otwarta polityka AI), a nie 500 albo zakaz indeksowania.
  */
-async function tenantCrawlPolicy(tenantId: string): Promise<CrawlPolicy> {
-  const paths = [SITEMAP_INDEX_PATH];
+async function tenantSeoSettings(tenantId: string): Promise<SeoSettings | null> {
   try {
     const { fetchSeoSettingsValue } = await import("@/lib/server/publishedContent.server");
-    const settings = parseSeoSettings(await fetchSeoSettingsValue(tenantId));
-    if (settings.news_sitemap_enabled) paths.push(NEWS_SITEMAP_PATH);
-    return {
-      sitemapPaths: paths,
-      groups: aiCrawlerGroups(settings),
-      usage: robotsUsagePolicy(settings),
-    };
+    return parseSeoSettings(await fetchSeoSettingsValue(tenantId));
   } catch (e) {
     console.warn("[seo] robots.txt settings unavailable:", e);
+    return null;
+  }
+}
+
+async function tenantCrawlPolicy(tenantId: string, origin: string): Promise<CrawlPolicy> {
+  const paths = [SITEMAP_INDEX_PATH];
+  const settings = await tenantSeoSettings(tenantId);
+  if (!settings) {
     // Degradacja NIE ZDEJMUJE warunku cytowania: awaria bazy nie jest zgodą na
     // nieoznaczone przejęcie treści, więc plik nadal go stawia (na domyślnych
-    // ustawieniach polityki AI).
+    // ustawieniach polityki AI). News-sitemapy nie ogłaszamy - bez ustawień
+    // nie wiadomo, czy redakcja jej nie wyłączyła.
     return {
       sitemapPaths: paths,
       groups: aiCrawlerGroups(DEFAULT_SEO_SETTINGS),
       usage: robotsUsagePolicy(DEFAULT_SEO_SETTINGS),
+      volatile: false,
     };
   }
+  // Ta sama decyzja co indeks sitemapy i llms.txt - patrz `newsSitemapAnnouncement`.
+  const news = await newsSitemapAnnouncement(tenantId, origin, settings);
+  if (news.announced) paths.push(NEWS_SITEMAP_PATH);
+  return {
+    sitemapPaths: paths,
+    groups: aiCrawlerGroups(settings),
+    usage: robotsUsagePolicy(settings),
+    volatile: news.failed,
+  };
 }
 
 /**
@@ -148,30 +229,37 @@ async function sitemapsAreServed(host: string, tenantId: string | null): Promise
 export async function planRobotsTxt(request: Request): Promise<RobotsPlan> {
   const proto = request.headers.get("x-forwarded-proto") ?? "https";
   const host = (await trustedPublicHost(request)) ?? "";
-  const { hostClass, tenantId, volatile } = await classifyRequestHost(host);
+  const classified = await classifyRequestHost(host);
+  const { hostClass, tenantId } = classified;
+  let volatile = classified.volatile;
   const indexable = crawlHostIsIndexable(hostClass);
+  const origin = crawlHostOrigin(hostClass, host, proto);
 
   let sitemapPaths: readonly string[] = [];
   let groups: readonly RobotsGroup[] = [];
   let usage: RobotsUsagePolicy | undefined;
   if (indexable) {
     const policy: CrawlPolicy = tenantId
-      ? await tenantCrawlPolicy(tenantId)
+      ? await tenantCrawlPolicy(tenantId, origin)
       : {
           sitemapPaths: [SITEMAP_INDEX_PATH],
           groups: aiCrawlerGroups(DEFAULT_SEO_SETTINGS),
           usage: robotsUsagePolicy(DEFAULT_SEO_SETTINGS),
+          volatile: false,
         };
     // Polityka crawlerów AI obowiązuje niezależnie od tego, czy mapa jest
     // serwowalna - to dwie różne decyzje redakcji.
     groups = policy.groups;
     usage = policy.usage;
     sitemapPaths = (await sitemapsAreServed(host, tenantId)) ? policy.sitemapPaths : [];
+    // Plik bez news-sitemapy z powodu awarii odczytu (nie decyzji redakcji ani
+    // braku artykułów) nie może utrwalić się na brzegu na pół godziny.
+    volatile ||= policy.volatile;
   }
 
   const body = buildRobotsTxt({
     mode: indexable ? "canonical" : hostClass === "unknown" ? "unknown" : "legacy",
-    origin: crawlHostOrigin(hostClass, host, proto),
+    origin,
     sitemapPaths,
     groups,
     usage,

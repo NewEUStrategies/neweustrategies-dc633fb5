@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
 import { analyticsGscReportKey, analyticsGscSitesKey } from "@/lib/analytics/queryKeys";
+import { GscSitemapsCard } from "@/components/admin/seo/GscSitemapsCard";
 import { useCurrentTenantId } from "@/lib/tenant";
 import {
   Select,
@@ -232,6 +233,10 @@ function SearchConsolePanel() {
 
       {effectiveSite && (
         <>
+          {/* Mapy witryn w Google: stan każdego pliku i ponowne przesłanie
+              (akcja tylko dla admina - uzasadnienie w komponencie). */}
+          <GscSitemapsCard siteUrl={effectiveSite} />
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard
               icon={MousePointerClick}

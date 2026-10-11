@@ -292,6 +292,14 @@ vi.mock("@/components/admin/seo/RobotsTxtPreview", () => ({
   },
 }));
 
+// Karta „Mapy witryn w Google" ma własne testy (`GscSitemapsCard.test.tsx`)
+// i własne server fn - tu jest markerem przekazanej właściwości.
+vi.mock("@/components/admin/seo/GscSitemapsCard", () => ({
+  GscSitemapsCard: ({ siteUrl }: { siteUrl: string }) => (
+    <div data-testid="gsc-sitemaps-card" data-site-url={siteUrl} />
+  ),
+}));
+
 vi.mock("@/components/admin/settings/LinkedSource", () => ({
   // `preview` przychodzi PROPEM, nie jako children - atrapa musi go
   // wyrenderować, inaczej podgląd źródła znika z drzewa i test „puste pole
@@ -773,6 +781,18 @@ describe("/admin/seo/search-console", () => {
     await waitFor(() =>
       expect(screen.getByText("GSC: brak uprawnień do właściwości")).toBeTruthy(),
     );
+  });
+
+  it("karta map witryn dostaje WYBRANĄ właściwość, a bez właściwości jej nie ma", async () => {
+    await mount();
+    const card = await screen.findByTestId("gsc-sitemaps-card");
+    expect(card.getAttribute("data-site-url")).toBe("https://neweuropeanstrategies.com/");
+
+    cleanup();
+    h.gscSites = { configured: true, sites: [] };
+    await mount();
+    await waitFor(() => expect(screen.getByText("admin.gsc.noSites")).toBeTruthy());
+    expect(screen.queryByTestId("gsc-sitemaps-card")).toBeNull();
   });
 
   it("domyślny zakres to 28 dni, a koniec cofnięty o 2 dni (opóźnienie danych GSC)", async () => {

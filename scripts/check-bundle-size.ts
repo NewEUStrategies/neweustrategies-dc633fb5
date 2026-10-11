@@ -2141,6 +2141,48 @@ const CLIENT_DIR =
 // OBOWIĄZUJE: pierwszy log runnera na main po scaleniu jest podstawą korekty
 // w dół.
 
+// 2026-10-11 XXVIII  MAPY W GOOGLE Z PANELU + NAPRAWA DOKUMENTÓW Z AUDYTU (PR #492).
+//             Floor OVERALL 4849 -> 4855, DECYZJĄ ZAMAWIAJĄCEGO („utworzyć
+//             i wdrożyć do admin panel w odpowiednie miejsca i wysłać do
+//             google", „wszystkie inne dokumenty tak samo - jeśli są
+//             niedziałające"). PUBLIC, CHUNK, CSS i BOOT nie ruszone - mieszczą
+//             się w progach (public 2843,7 <= 2877, boot 487,1 <= 579).
+//
+// POMIAR NA TYM SAMYM HOŚCIE (`bun run build` + ta bramka), dwa drzewa:
+//   baza 6506148d (main po #491):  overall 4847,5   public 2841,2   admin 2006,2
+//   gałąź (ten wpis):              overall 4853,4   public 2843,7   admin 2009,7
+// Runner był na head 67d10de1 ZIELONY przy hoście 4851,0 - runner mierzy tu
+// o co najmniej 2 KB mniej niż host, więc floor z hosta ma zapas na runnerze.
+//
+// SKŁAD PRZYROSTU PR, +5,9 (`Bun.gzipSync` per chunk):
+//   admin +3,5 - karta „Mapy witryn w Google" (Search Console):
+//     +1,25 admin.seo.search-console: stan każdego pliku mapy w Google, pliki
+//           z indeksu, „Prześlij mapę do Google" / „Prześlij ponownie" (admin)
+//     +1,1  admin.seo: słownik PL/EN karty (nakładka `adminSeoHub.*`)
+//     +0,7  useTenantPublicOrigin: hook wydzielony do własnego chunku przy
+//           drugim konsumencie (wcześniej wtopiony w trasę)
+//     +0,4  gsc.functions: zaślepki klienta dwóch funkcji serwerowych
+//     -0,55 przetasowanie chunków panelu SEO (serp / socialNetworks / SerpPreview)
+//   public +2,5 - dokumenty z audytu na produkcji:
+//     +1,7  index (entry): `resolvePublicPath` - 301 z `/main` (strona główna
+//           z ustawień czytania, wspólny `configuredHomepagePageId`) i 301
+//           starych kanałów WordPressa; trasa `$.tsx` jest w grafie wejścia
+//     +0,4  sitemap (netto po podziale na `keys`): mapa HTML bez sierot,
+//           duplikatów, `/main` i tras z `noindex`, sekcja dokumentów prawnych,
+//           reguły przekierowań najemcy z serwera (`getSiteMapRedirects`)
+//     +0,1  przetasowanie (eventVideoHeader / sponsors)
+// Serwerowa część PR (shardy XML, llms.txt, robots.txt, kanały RSS, arkusz
+// XSL, przesyłanie mapy) nie trafia do klienta.
+//
+// CO WYCIĘTO / CZEGO NIE DA SIĘ PRZENIEŚĆ. Decyzji 301 z `/main` nie da się
+// zostawić samemu serwerowi: loader `$.tsx` biegnie też przy nawigacji SPA,
+// a link wewnętrzny na `/main` musi trafić na `/` bez drugiej kopii strony.
+// Leniwy import nie obniża OVERALL (suma wszystkich chunków).
+//
+// FORMUŁA JAK W XIX-XXVII: overall 4853,4 -> 4854 -> 4855. ZASADA Z WPISU V
+// OBOWIĄZUJE: pierwszy log runnera na main po scaleniu jest podstawą korekty
+// w dół.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
@@ -2271,7 +2313,10 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 4837 -> 4849 (wpis 2026-10-10 XXVII): pliki mapy strony
   // w kokpicie SEO (admin +5,7), decyzją zamawiającego; baza 15af507a stała
   // już na 4841,6. Host 4847,3 -> 4848 -> +1.
-  overall: 4849,
+  // Ratchet 4849 -> 4855 (wpis 2026-10-11 XXVIII): mapy w Google z panelu
+  // (admin +3,5) i dokumenty naprawione po audycie produkcji (public +2,5),
+  // decyzją zamawiającego. Baza 6506148d 4847,5; host 4853,4 -> 4854 -> +1.
+  overall: 4855,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
