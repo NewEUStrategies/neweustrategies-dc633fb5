@@ -9698,3 +9698,10 @@ button,
 [data-wt~="g"][data-w-id][data-w-id] a + .cms-post-excerpt {
   margin-top: var(--cms-title-description-gap) !important;
 }
+
+/* Shared pen-drawn civic horizon: only ink changes with the theme. */
+.archive-civic-horizon { --archive-horizon-ink: oklch(0.48 0.008 80 / 0.28); pointer-events: none; }
+.dark .archive-civic-horizon { --archive-horizon-ink: oklch(0.78 0.008 80 / 0.24); }
+.archive-civic-horizon-fade { position: absolute; inset: 8% 2% 4% 32%; mask-image: linear-gradient(to right, transparent, black 28%); }
+.archive-civic-horizon-lines { position: absolute; inset: 0; background: var(--archive-horizon-ink); mask-size: contain; mask-repeat: no-repeat; mask-position: right bottom; }
+@media (max-width: 640px) { .archive-civic-horizon-fade { left: 18%; mask-image: linear-gradient(to right, transparent, black 55%); } }

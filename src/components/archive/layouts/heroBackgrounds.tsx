@@ -1,6 +1,7 @@
 // Hero background variants for archive layouts. Pure CSS/SVG, token-driven.
 import type { HeroBgStyle } from "@/lib/archive-layout-settings";
 import { heroImageBackground } from "@/lib/archive/heroImage";
+import civicHorizon from "@/assets/archive/civic-horizon.png";
 
 export function HeroBackground({
   style,
@@ -17,13 +18,11 @@ export function HeroBackground({
   switch (style) {
     case "gradient":
       return (
-        <div
-          className={base}
-          style={{
-            background:
-              "linear-gradient(135deg, color-mix(in oklab, var(--brand) 18%, transparent), color-mix(in oklab, var(--brand) 3%, transparent) 60%, transparent)",
-          }}
-        />
+        <div aria-hidden data-civic-horizon="" className={`${base} archive-civic-horizon bg-background`}>
+          <div className="archive-civic-horizon-fade">
+            <div className="archive-civic-horizon-lines" style={{ maskImage: `url("${civicHorizon}")`, WebkitMaskImage: `url("${civicHorizon}")` }} />
+          </div>
+        </div>
       );
     case "solid":
       return <div className={`${base} bg-muted/30`} />;

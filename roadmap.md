@@ -1,5 +1,10 @@
 # Roadmap
 
+## Banery archiwów - Wspólny horyzont
+
+- [x] Dopracować rysunek i wdrożyć tło domyślnych banerów.
+- [ ] Zweryfikować czytelność i geometrię obu motywów.
+
 ## Kompaktowy nagłówek Kinetic
 
 - [x] Usunąć rozciąganie liter przy najechaniu i ustawić dolny odstęp na 2 px w obu skalach i motywach.
