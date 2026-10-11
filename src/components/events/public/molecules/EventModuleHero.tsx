@@ -1,7 +1,5 @@
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
-// Molekuła: NAGŁÓWEK ZAKŁADKI MODUŁOWEJ (wariant „centrowana, lekka elewacja")
-// - okruszki + karta z gradientowym paskiem, kaflą ikony nad tytułem, nazwą
-// wydarzenia w pigułce i miękkim cieniem.
+// Molekuła: kompaktowy nagłówek zakładki, bez dekoracyjnej karty i elewacji.
 //
 // JEDEN NAGŁÓWEK, NIE DWA. Wspólny dla strony publicznej
 // (`EventModulePage`) i podglądu studia (`EventPreviewCanvas`): druga kopia
@@ -10,10 +8,6 @@ import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 // Dane pod nagłówkiem (program, prelegenci, uczestnicy) zostają po stronie
 // wywołania - ten plik nie zna źródeł danych.
 //
-// KAFEL MA W KLASIE `bg-card`, a globalna reguła `:where(main svg, …
-// [class*="card"] svg)` nadpisuje dziedziczony kolor ikony na
-// `var(--gc-icon)`. `:where` ma zerową specyficzność, więc klasa `text-primary`
-// na SAMYM SVG wygrywa - kolor ikony idzie więc jawnie, nie przez dziedziczenie.
 import type { ComponentType, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -112,36 +106,23 @@ export function EventModuleHero({
       )}
       <header
         data-event-module-hero={module}
-        className="relative mb-10 overflow-hidden rounded-[24px] border border-border bg-card shadow-[0_32px_64px_-24px_rgba(45,35,20,0.12)] sm:rounded-[40px]"
+        className="relative mb-6 border-b border-border/50 bg-background"
       >
-        <div aria-hidden="true" className="absolute inset-x-0 top-0 flex h-1">
-          <div className="h-full w-1/3 bg-gradient-to-r from-transparent to-primary" />
-          <div className="h-full flex-1 bg-primary" />
-          <div className="h-full w-1/3 bg-gradient-to-l from-transparent to-primary" />
-        </div>
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-0 h-32 w-3/4 -translate-x-1/2 rounded-full bg-primary/5 blur-[80px]"
-        />
-        <div className="relative flex flex-col items-center px-6 pb-10 pt-12 text-center sm:px-10 sm:pt-14">
-          <span className="relative mb-6 grid size-16 shrink-0 place-items-center rounded-[24px] border border-border bg-card text-primary shadow-sm sm:size-20">
-            <span
-              aria-hidden="true"
-              className="absolute inset-0 -z-10 scale-110 rounded-full bg-primary/15 blur-2xl"
-            />
-            <Icon className="size-8 text-primary sm:size-9" aria-hidden="true" />
+        <div className="flex flex-col items-center px-4 pb-6 pt-4 text-center sm:px-6">
+          <span className="mb-3 grid size-8 shrink-0 place-items-center">
+            <Icon className="size-6 text-primary/70" aria-hidden="true" />
           </span>
-          <p className="mb-4 inline-flex max-w-full items-center rounded-full border border-border bg-muted/50 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.25em] text-primary">
-            <span className="line-clamp-2 [overflow-wrap:anywhere]">
+          <p className="mb-2 max-w-full text-xs font-medium text-muted-foreground">
+            <span className="[overflow-wrap:anywhere]">
               {eventTitle || t("eventFront.header.moduleEyebrow")}
             </span>
           </p>
           {hasDocument ? (
-            <div className="event-module-hero-doc mx-auto max-w-2xl text-center [&_h1]:font-extrabold [&_h1]:leading-[1.1] [&_h1]:tracking-tight [&_h1]:text-foreground [&_h1]:text-3xl sm:[&_h1]:text-5xl [&_p:last-child]:mb-0 [&_p]:mx-auto [&_p]:mt-4 [&_p]:max-w-xl [&_p]:text-lg [&_p]:leading-relaxed [&_p]:text-muted-foreground sm:[&_p]:text-xl">
+            <div className="event-module-hero-doc mx-auto w-full min-w-0 max-w-2xl text-center [overflow-wrap:anywhere] [&_h1]:font-semibold [&_h1]:leading-snug [&_h1]:tracking-normal [&_h1]:text-foreground [&_h1]:text-2xl [&_p:last-child]:mb-0 [&_p]:mx-auto [&_p]:mt-2 [&_p]:max-w-xl [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-muted-foreground">
               {children}
             </div>
           ) : (
-            <h1 className="text-3xl font-extrabold leading-[1.1] tracking-tight text-foreground sm:text-5xl">
+            <h1 className="max-w-full text-2xl font-semibold leading-snug tracking-normal text-foreground [overflow-wrap:anywhere]">
               {moduleLabel}
             </h1>
           )}
