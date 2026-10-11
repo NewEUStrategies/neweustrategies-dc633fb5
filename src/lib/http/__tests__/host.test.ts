@@ -8,6 +8,7 @@ import {
   isNonCanonicalPublicHost,
   isPreviewHost,
   normalizeHost,
+  wwwCanonicalRedirectLocation,
   wwwToggledHost,
 } from "@/lib/http/host";
 
@@ -39,6 +40,22 @@ describe("wwwToggledHost", () => {
   it("maps apex to www and back", () => {
     expect(wwwToggledHost("example.com")).toBe("www.example.com");
     expect(wwwToggledHost("www.example.com")).toBe("example.com");
+  });
+});
+
+describe("wwwCanonicalRedirectLocation", () => {
+  it("sends the brand www alias to the apex origin with path and query", () => {
+    expect(wwwCanonicalRedirectLocation("https://www.neweuropeanstrategies.com/a/b?x=1")).toBe(
+      `${CANONICAL_SITE_ORIGIN}/a/b?x=1`,
+    );
+    expect(wwwCanonicalRedirectLocation("http://WWW.NewEuropeanStrategies.com:8080/")).toBe(
+      `${CANONICAL_SITE_ORIGIN}/`,
+    );
+  });
+  it("never redirects the apex itself or foreign www hosts", () => {
+    expect(wwwCanonicalRedirectLocation("https://neweuropeanstrategies.com/a")).toBeNull();
+    expect(wwwCanonicalRedirectLocation("https://www.tenant-example.org/a")).toBeNull();
+    expect(wwwCanonicalRedirectLocation("not a url")).toBeNull();
   });
 });
 

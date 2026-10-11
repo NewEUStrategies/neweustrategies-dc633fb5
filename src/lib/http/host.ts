@@ -168,6 +168,31 @@ export function isCanonicalSiteHost(rawHost: string | null | undefined): boolean
 }
 
 /**
+ * Cel STAŁEGO (301) przekierowania z aliasu `www.` marki na apex albo `null`.
+ *
+ * `www.neweuropeanstrategies.com` jest hostem marki (te same treści, ten sam
+ * tenant), ale nie jest originem kanonicznym. Audyt 2026-10 znalazł, że alias
+ * www odpowiadał przekierowaniem tymczasowym (302) z warstwy hostingu - a 302
+ * nie przenosi sygnałów rankingowych i każe wyszukiwarce trzymać w indeksie
+ * oba hosty. Aplikacja rozstrzyga to sama, zanim żądanie dotknie routera:
+ * ścieżka i query zostają, zmienia się wyłącznie origin.
+ */
+export function wwwCanonicalRedirectLocation(requestUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(requestUrl);
+  } catch {
+    return null;
+  }
+  const host = normalizeHost(url.host);
+  if (!host || !host.startsWith("www.")) return null;
+  if (!CANONICAL_SITE_HOSTS.has(host)) return null;
+  const canonical = new URL(CANONICAL_SITE_ORIGIN);
+  if (host === canonical.host) return null;
+  return `${CANONICAL_SITE_ORIGIN}${url.pathname}${url.search}`;
+}
+
+/**
  * Hosty edytora/podglądu, których NIE kanonizujemy ani nie blokujemy: lokalny
  * dev i podgląd w edytorze (iframe). `EDITOR_HOST_SUFFIXES` nazywa domeny
  * edytora danego wdrożenia; prefiks `id-preview--` zostaje, bo identyfikuje

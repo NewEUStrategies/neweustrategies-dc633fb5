@@ -7,7 +7,7 @@ import { langCookieHeaderValue, resolveHomepageLang } from "@/lib/i18n/langNegot
 import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
 import { wordpressFeedLocation } from "@/lib/routing/resolvePublicPath";
 import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
-import { isPreviewHost } from "@/lib/http/host";
+import { isPreviewHost, wwwCanonicalRedirectLocation } from "@/lib/http/host";
 import { tenantAssertionMiddleware } from "@/lib/http/tenantAssertionCookie.server";
 import { planDefaultCacheControl } from "@/lib/http/defaultCacheControl";
 import { readCrawlerUnavailable, readRouteCacheDirective } from "@/lib/http/responseHeaders";
@@ -81,6 +81,24 @@ function isHttpsRequest(request: Request, url: URL): boolean {
     url.protocol.replace(":", "");
   return proto === "https";
 }
+
+/**
+ * Alias `www.` marki -> apex jednym STAŁYM 301 (`wwwCanonicalRedirectLocation`).
+ * Stoi tuż pod nagłówkami bezpieczeństwa, przed jakimkolwiek odczytem z bazy i
+ * przed negocjacją języka: inaczej `www/` dostawał najpierw 302 na `/en`, a
+ * dopiero potem zmianę hosta - dwa skoki, z czego pierwszy tymczasowy. Tylko
+ * GET/HEAD: POST (serverFn z otwartej karty www) po 301 zamieniłby się w GET.
+ */
+const wwwCanonicalHostMiddleware = createMiddleware().server(async ({ request, next }) => {
+  const method = request.method.toUpperCase();
+  if (method !== "GET" && method !== "HEAD") return next();
+  const location = wwwCanonicalRedirectLocation(request.url);
+  if (!location) return next();
+  return new Response(null, {
+    status: 301,
+    headers: { Location: location, "Cache-Control": "public, max-age=86400" },
+  });
+});
 
 // Legacy `?lang=` deep links predate URL-path i18n. Redirect them to the
 // canonical, path-prefixed URL so link equity consolidates on one URL per
@@ -542,6 +560,8 @@ export const startInstance = createStart(() => ({
   // Middleware order matters:
   //   1. securityHeaders wraps everything so even 301/302/410 responses carry
   //      HSTS on https.
+  //   1a. wwwCanonicalHostMiddleware: alias www marki -> apex jednym 301,
+  //      zanim cokolwiek przeczyta bazę albo zaproponuje 302 językowe.
   //   2. seo404Middleware sits above the router so it observes the final
   //      response after the redirect matcher had its chance (matched requests
   //      never reach the router, so a redirected path is not double-counted
@@ -582,6 +602,8 @@ export const startInstance = createStart(() => ({
     // Response/statusCode są przepuszczane - redirecty i notFound działają dalej.
     errorMiddleware,
     securityHeadersMiddleware,
+    // www -> apex (301) przed wszystkim, co czyta bazę albo negocjuje język.
+    wwwCanonicalHostMiddleware,
     // CSRF: chroni endpointy serverFn (RPC same-origin) przed cross-site
     // wywołaniami. Zawężone do handlerType === 'serverFn' - klasyczne
     // dokumenty (SSR) i publiczne API pod /api/public/* (webhooki, cron)

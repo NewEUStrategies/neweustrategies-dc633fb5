@@ -107,6 +107,17 @@ and indexing can never disagree:
 | `editor`   | `localhost`, editor previews  | `Disallow: /`                                    | `noindex, nofollow` |
 | `unknown`  | an unclaimed domain           | `Disallow: /` (fail-closed)                      | `noindex, nofollow` |
 
+**www → apex.** `www.neweuropeanstrategies.com` serves the same tenant but is
+not the canonical origin: `wwwCanonicalHostMiddleware` (`src/start.ts`, right
+under the security headers) answers every GET/HEAD on it with ONE permanent
+`301` to `https://neweuropeanstrategies.com` + the same path and query
+(`wwwCanonicalRedirectLocation` in `lib/http/host.ts`). Until 2026-10-11 the
+alias was redirected by the hosting layer with a temporary `302` (and the bare
+`/` could first answer the language `302`), which keeps both hosts in the
+index. If a `302` is still observed after a deploy, the redirect is configured
+in front of the worker (domain settings of the hosting provider / CDN redirect
+rule) and has to be switched to `301` or removed there.
+
 Only an exact `tenants.domain` match (or its www/apex alias) counts as `tenant` -
 the default-tenant fallback of `resolveCrawlerTenantForHost` must never open
 indexing on a foreign domain. When the tenant directory is unreachable the
