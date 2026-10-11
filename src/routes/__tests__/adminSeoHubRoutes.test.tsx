@@ -702,6 +702,35 @@ describe("/admin/seo/homepage - strona główna", () => {
     );
   });
 
+  it("audyt i opis w podglądzie liczą się z tego, co NAPRAWDĘ poda `/`", async () => {
+    // `/` bierze opis z zajawki strony głównej, gdy pole SEO strony jest
+    // puste - podgląd i audyt pokazywały dotąd opis serwisu, którego Google
+    // nigdy nie zobaczy, a ostrzeżenie o „samej marce" zostawało przy języku,
+    // w którym strona ma własny tytuł.
+    h.reading = { homepage_mode: "static_page", homepage_page_id: "p-1", homepage_page_slug: "" };
+    h.staticHomepage = {
+      id: "p-1",
+      slug: "strona-glowna",
+      seo_title_pl: "Własny tytuł strony",
+      seo_title_en: null,
+      seo_description_pl: null,
+      seo_description_en: null,
+      excerpt_pl: "Zajawka strony głównej z panelu stron.",
+      excerpt_en: null,
+    };
+    const { findAllByText } = await mount();
+    expect(await findAllByText("adminSeoHub.staticHomepageDescriptionNotice")).toHaveLength(2);
+    await waitFor(() =>
+      expect(h.serps.slice(-2).map((s) => s.description)).toEqual([
+        "Zajawka strony głównej z panelu stron.",
+        "Zajawka strony głównej z panelu stron.",
+      ]),
+    );
+    expect(
+      screen.getAllByText(`adminSeoHub.finding.titleIsBrandOnly(brand=${SITE_NAME})`),
+    ).toHaveLength(1);
+  });
+
   it("BEZ roli `admin` zapis jest wyłączony, a klik nic nie wysyła", async () => {
     h.isAdmin = false;
     await mount();
@@ -875,6 +904,37 @@ describe("/admin/seo/ - kokpit", () => {
     await mount();
     expect(screen.getByTestId("score-pill").getAttribute("data-score")).toBe("100");
     expect(screen.getByText("adminSeoHub.allGood")).toBeTruthy();
+  });
+
+  it("ocena marki liczy tytuł, który poda `/` - nadpisanie statycznej strony głównej", async () => {
+    // Komplet ustawień serwisu daje 100, ale `/` poda tytuł strony głównej
+    // z /admin/pages. Kokpit oceniał dotąd tytuł, którego Google nie zobaczy.
+    h.seoSettings = {
+      ...DEFAULT_SEO_SETTINGS,
+      site_name: SITE_NAME,
+      site_title_pl: `Bezpieczeństwo Europy - ${SITE_NAME}`,
+      site_title_en: `European security - ${SITE_NAME}`,
+      site_description_pl:
+        "Niezależny think-tank o bezpieczeństwie Europy i geopolityce: analizy, raporty, wywiady i policy papers na temat gry mocarstw.",
+      site_description_en:
+        "An independent think-tank on European security and geopolitics: analyses, reports, interviews and policy papers on great-power rivalry.",
+      default_og_image_url: "https://cdn.example/og.jpg",
+      default_og_image_alt: "Karta marki",
+      organization_same_as: ["https://www.linkedin.com/company/nes"],
+      publisher_logo_url: "https://cdn.example/logo.png",
+      twitter_site: "@nes",
+    };
+    h.reading = { homepage_mode: "static_page", homepage_page_id: "p-1", homepage_page_slug: "" };
+    h.staticHomepage = {
+      id: "p-1",
+      slug: "strona-glowna",
+      seo_title_pl: SITE_NAME,
+      seo_title_en: null,
+    };
+    const { findByText } = await mount();
+    await findByText(`adminSeoHub.finding.titleIsBrandOnly(brand=${SITE_NAME})`);
+    expect(Number(screen.getByTestId("score-pill").getAttribute("data-score"))).toBeLessThan(100);
+    expect(screen.queryByText("adminSeoHub.allGood")).toBeNull();
   });
 
   it("kafelki treści liczą się z TEGO SAMEGO modułu, co tabela", async () => {

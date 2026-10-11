@@ -127,30 +127,24 @@ function SeoHomepageTab() {
   const effectiveSiteName = draft.site_name.trim() || SITE_NAME;
   const resolveTitle = (lang: Lang): string => effectiveSiteTitle(draft, lang);
   const resolveDescription = (lang: Lang): string => effectiveSiteDescription(draft, lang);
-  // Tytuł, który NAPRAWDĘ dostanie `/`: własny tytuł SEO statycznej strony
-  // głównej wygrywa z tytułem serwisu (ta sama reguła co `head()` trasy `/`).
-  // Opis zostaje przy polach tego ekranu - odczyt strony niesie wyłącznie
-  // nadpisanie tytułu.
-  const servedTitle = (lang: Lang): string =>
-    resolveHomepageSeoText(
-      staticHomepageRow
-        ? {
-            seo_title_pl: staticHomepageRow.seo_title_pl,
-            seo_title_en: staticHomepageRow.seo_title_en,
-          }
-        : null,
-      lang,
-      { title: resolveTitle(lang), description: resolveDescription(lang) },
-    ).title;
+  // Tytuł i opis, które NAPRAWDĘ dostanie `/`: pola SEO i zajawka statycznej
+  // strony głównej wygrywają z polami tego ekranu - ta sama reguła co `head()`
+  // trasy `/`. Podgląd i audyt liczą z TEGO, nie z samych pól serwisu.
+  const served = (lang: Lang) =>
+    resolveHomepageSeoText(staticHomepageRow, lang, {
+      title: resolveTitle(lang),
+      description: resolveDescription(lang),
+    });
 
   // Audyt liczony OSOBNO dla każdego języka, z tych samych wartości, które
-  // trafiają do podglądu obok. Karta społecznościowa i sygnały encji są
-  // wspólne dla obu języków - różnią się tylko tytuł i opis.
+  // trafiają do podglądu obok (czyli do `<head>` trasy `/`). Karta
+  // społecznościowa i sygnały encji są wspólne dla obu języków - różnią się
+  // tylko tytuł i opis.
   const findingsFor = (lang: Lang): BrandFinding[] =>
     auditBrandSeo({
       siteName: effectiveSiteName,
-      title: resolveTitle(lang),
-      description: resolveDescription(lang),
+      title: served(lang).title,
+      description: served(lang).description,
       ogImageUrl: draft.default_og_image_url.trim() || SITE_DEFAULT_OG_IMAGE,
       ogImageIsBuiltIn: !draft.default_og_image_url.trim(),
       ogImageAlt: draft.default_og_image_alt,
@@ -262,15 +256,28 @@ function SeoHomepageTab() {
               staticHomepageRow && hasSeoTitleOverride(staticHomepageRow, lang)
                 ? staticHomepageRow
                 : null;
+            // Opis z samej strony (pole SEO albo zajawka) też wygrywa z polem
+            // opisu na tym ekranie - bez notatki redakcja edytowałaby martwe pole.
+            const describing =
+              staticHomepageRow && served(lang).description !== resolveDescription(lang)
+                ? staticHomepageRow
+                : null;
             return (
               <div key={lang} className="space-y-2">
                 <h3 className="text-xs font-medium text-muted-foreground">{t(headingKey)}</h3>
-                {overriding && (
+                {(overriding || describing) && (
                   <div className="rounded-lg border border-brand/40 bg-card p-3">
-                    <p className="text-xs text-brand">{t("adminSeoHub.staticHomepageNotice")}</p>
+                    {overriding && (
+                      <p className="text-xs text-brand">{t("adminSeoHub.staticHomepageNotice")}</p>
+                    )}
+                    {describing && (
+                      <p className="text-xs text-brand">
+                        {t("adminSeoHub.staticHomepageDescriptionNotice")}
+                      </p>
+                    )}
                     <Link
                       to="/admin/pages/$slug"
-                      params={{ slug: overriding.slug }}
+                      params={{ slug: (overriding ?? describing)!.slug }}
                       className="mt-1 inline-block text-xs text-brand hover:underline"
                     >
                       {t("adminSeoHub.staticHomepageOpen")}
@@ -280,8 +287,8 @@ function SeoHomepageTab() {
                 {/* path="" - strona główna siedzi pod samym originem, więc
                     w linii adresu nie ma ani jednego okruszka. */}
                 <SerpPreview
-                  title={servedTitle(lang)}
-                  description={resolveDescription(lang)}
+                  title={served(lang).title}
+                  description={served(lang).description}
                   siteName={effectiveSiteName}
                   host={previewHost}
                   path={lang === "en" ? "en" : ""}

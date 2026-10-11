@@ -139,8 +139,9 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
     if (!activeSite) return null;
     const base = normalizeSiteBase(activeSite);
     const cleanPath = path.replace(/^\//, "");
-    const prefix = lang === "en" ? "en/" : "";
-    return `${base}${prefix}${cleanPath}`;
+    // Segmenty bez pustych: strona główna EN to `…/en`, nie `…/en/` - adres
+    // z ukośnikiem nie jest kanonicznym i Search Console ocenia go osobno.
+    return `${base}${[lang === "en" ? "en" : "", cleanPath].filter(Boolean).join("/")}`;
   }, [activeSite, path, lang]);
 
   const [running, setRunning] = useState(false);

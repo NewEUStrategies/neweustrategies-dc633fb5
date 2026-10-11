@@ -349,6 +349,28 @@ describe("edytor strony - kanoniczny slug", () => {
     expect(h.navigations).toHaveLength(0);
   });
 
+  it("zmiana sluga odświeża odczyt strony głównej, a zmiana samego tytułu - nie", async () => {
+    // Strona główna bywa wskazana slugiem z ustawień - zapisany nowy slug
+    // może zmienić, KTÓRA strona jest stroną główną (panel SEO, podgląd).
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+    const homepageInvalidations = () =>
+      spy.mock.calls.filter(
+        ([filters]) =>
+          (filters as { queryKey?: unknown[] })?.queryKey?.[0] === "admin-seo-static-homepage",
+      );
+    await setup();
+    fireEvent.change(titleField("PL"), { target: { value: "Zmiana" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.updates).toHaveLength(1));
+    expect(homepageInvalidations()).toHaveLength(0);
+
+    h.updateResult = { slug: "o-nas-2", updatedAt: "2026-08-03T10:00:00.000Z" };
+    fireEvent.change(titleField("PL"), { target: { value: "Druga zmiana" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.updates).toHaveLength(2));
+    await waitFor(() => expect(homepageInvalidations()).toHaveLength(1));
+  });
+
   it("slug jest NORMALIZOWANY w trakcie pisania i domykany po wyjściu z pola", async () => {
     // Adres z wielkimi literami i spacjami nie odpowiada żadnej stronie.
     await setup();

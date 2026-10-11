@@ -266,6 +266,18 @@ function EditPage() {
       // on collision). Navigate only to the persisted slug so the address bar
       // and the loaded record always match what is really in the database.
       const canonical = result?.slug ?? snapshot.slug;
+      // Zapis, który zmienia status, slug albo rodzica, może zmienić to, KTÓRA
+      // strona jest stroną główną (`useStaticHomepage` czyta zapisane wiersze).
+      // Bez odświeżenia panel SEO trzymałby stary tryb do wyjścia z edytora.
+      const previous = qc.getQueryData<PageForm>(["page-by-slug", tenantId, routeSlug]);
+      if (
+        previous &&
+        (previous.status !== snapshot.status ||
+          previous.slug !== canonical ||
+          previous.parent_id !== snapshot.parent_id)
+      ) {
+        void qc.invalidateQueries({ queryKey: ["admin-seo-static-homepage"] });
+      }
       qc.setQueryData<PageForm>(["page-by-slug", tenantId, routeSlug], {
         ...persistedSnapshot,
         slug: canonical,

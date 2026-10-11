@@ -27,12 +27,19 @@ export const DEFAULT_HOMEPAGE_READING: HomepageReading = {
   homepage_page_slug: "",
 };
 
-/** Strona CMS-a pełniąca rolę strony głównej - tylko to, co przesądza o SEO. */
+/**
+ * Strona CMS-a pełniąca rolę strony głównej - dokładnie to, z czego `head()`
+ * trasy `/` składa tytuł i opis (`resolveHomepageSeoText`).
+ */
 export interface StaticHomepageRow {
   id: string;
   slug: string;
   seo_title_pl: string | null;
   seo_title_en: string | null;
+  seo_description_pl?: string | null;
+  seo_description_en?: string | null;
+  excerpt_pl?: string | null;
+  excerpt_en?: string | null;
 }
 
 export function useStaticHomepage(tenantId: string | null | undefined) {
@@ -61,7 +68,9 @@ export function useStaticHomepage(tenantId: string | null | undefined) {
       const published = () =>
         supabase
           .from("pages")
-          .select("id, slug, seo_title_pl, seo_title_en")
+          .select(
+            "id, slug, seo_title_pl, seo_title_en, seo_description_pl, seo_description_en, excerpt_pl, excerpt_en",
+          )
           .eq("tenant_id", tenantId)
           .is("deleted_at", null)
           .eq("status", "published");

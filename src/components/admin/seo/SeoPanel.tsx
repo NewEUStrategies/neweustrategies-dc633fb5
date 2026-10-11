@@ -35,6 +35,7 @@ import {
 import {
   DEFAULT_SEO_SETTINGS,
   effectiveSiteDescription,
+  effectiveSiteName,
   effectiveSiteTitle,
   effectiveTitleSuffix,
   SEO_SETTINGS_KEY,
@@ -385,6 +386,8 @@ export function SeoPanel(props: SeoPanelProps) {
           host={previewHost}
           path={lang === "en" ? `en/${previewPath}` : previewPath}
           noindex={value.seo_noindex}
+          // Strona główna: linia nazwy serwisu jak na `/` i w /admin/seo/homepage.
+          siteName={isHomepage ? effectiveSiteName(seoSettings) : undefined}
         />
         {/* Rzeczywisty adres tej treści plus wyjścia do Google, Facebooka
             i LinkedIna - każde w nowym oknie. */}
