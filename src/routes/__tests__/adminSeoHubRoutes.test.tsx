@@ -682,6 +682,26 @@ describe("/admin/seo/homepage - strona główna", () => {
     expect(await findAllByText("adminSeoHub.staticHomepageNotice")).toHaveLength(1);
   });
 
+  it("podgląd Google pokazuje tytuł, który NAPRAWDĘ poda `/` - nadpisanie strony wygrywa", async () => {
+    // Notatka „tytuł strony wygrywa" stała dotąd nad podglądem z tytułem
+    // serwisu - dwie sprzeczne informacje na jednym ekranie.
+    h.reading = { homepage_mode: "static_page", homepage_page_id: "p-1", homepage_page_slug: "" };
+    h.staticHomepage = {
+      id: "p-1",
+      slug: "strona-glowna",
+      seo_title_pl: "Własny tytuł strony",
+      seo_title_en: null,
+    };
+    const { findAllByText } = await mount();
+    await findAllByText("adminSeoHub.staticHomepageNotice");
+    await waitFor(() =>
+      expect(h.serps.slice(-2).map((s) => s.title)).toEqual([
+        "Własny tytuł strony",
+        SITE_DEFAULT_TITLE.en,
+      ]),
+    );
+  });
+
   it("BEZ roli `admin` zapis jest wyłączony, a klik nic nie wysyła", async () => {
     h.isAdmin = false;
     await mount();

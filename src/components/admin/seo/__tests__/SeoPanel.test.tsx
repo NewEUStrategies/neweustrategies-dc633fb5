@@ -218,6 +218,7 @@ interface PanelOverrides {
   contentHtml?: { pl: string | null; en: string | null };
   contentBlocks?: unknown;
   onIssuesChange?: (issues: SeoIssue[]) => void;
+  homepage?: boolean;
 }
 
 function panel(o: PanelOverrides) {
@@ -235,6 +236,7 @@ function panel(o: PanelOverrides) {
       contentHtml={o.contentHtml}
       contentBlocks={o.contentBlocks}
       onIssuesChange={o.onIssuesChange}
+      homepage={o.homepage}
     />
   );
 }
@@ -398,6 +400,24 @@ describe("SeoPanel - ścieżka podglądu", () => {
     await waitFor(() => expect(inspectionPath()).toBe("blog/moj-wpis"));
     expect(h.rpc).toHaveBeenCalledTimes(1);
     expect(h.rpc).toHaveBeenCalledWith("page_full_path", { _page_id: "page-7" });
+  });
+
+  it("STRONA GŁÓWNA: adres `/` (nie `/main`), tytuł serwisu bez sufiksu, podpowiedź strony głównej", async () => {
+    // `/main` odpowiada 301 na `/`, a `/` podaje tytuł serwisu - podgląd ma
+    // pokazać dokładnie to, nie „Strona główna - <sufiks>".
+    h.pageFullPath = null;
+    renderPanel({
+      entity: { kind: "page", id: "page-home" },
+      slug: "main",
+      pathSourcePageId: null,
+      fallbackTitle: { pl: "Strona główna", en: "Home" },
+      fallbackDescription: { pl: null, en: null },
+      homepage: true,
+    });
+    await waitFor(() => expect(inspectionPath()).toBe(""));
+    expect(screen.queryByText(/Strona główna -/)).toBeNull();
+    expect(screen.getByText(/admin\.seo\.titleHintHomepage/)).toBeTruthy();
+    expect(screen.getByText("admin.seo.descriptionHintHomepage")).toBeTruthy();
   });
 
   it("strona: ścieżka RODZICA z RPC + BIEŻĄCY slug z formularza", async () => {

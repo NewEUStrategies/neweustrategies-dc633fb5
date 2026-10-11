@@ -923,6 +923,10 @@ export const pl = {
         "Nagłówek wyniku w Google i nazwa karty przeglądarki. Puste pole = tytuł treści z dopiskiem „{{suffix}}”. Własny tytuł zastępuje go w całości, bez dopisku.",
       titleHintNoSuffix:
         "Nagłówek wyniku w Google i nazwa karty przeglądarki. Puste pole = tytuł treści.",
+      titleHintHomepage:
+        "Ta strona jest stroną główną (/). Puste pole = tytuł serwisu „{{title}}” (SEO → Strona główna). Własny tytuł zastępuje go w całości, bez dopisku.",
+      descriptionHintHomepage:
+        "Opis strony głównej w Google i przy udostępnianiu. Puste pole = zajawka strony, a bez niej opis serwisu (SEO → Strona główna).",
       descriptionLabel: "Opis meta (description)",
       descriptionHint:
         "Tekst pod tytułem w Google i opis karty w mediach społecznościowych. Puste pole = zajawka skrócona do szerokości wyniku Google (ok. 150 znaków).",

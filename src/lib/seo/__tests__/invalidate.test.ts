@@ -55,6 +55,7 @@ describe("invalidateSeoCaches", () => {
       ["admin-seo-pages", "tenant-1"],
       ["admin-seo-404"],
       ["admin-redirects"],
+      ["admin-seo-static-homepage", "tenant-1", "static_page", "p-1", ""],
     ];
     for (const key of adminKeys) seed(qc, key);
 

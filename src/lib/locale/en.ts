@@ -911,6 +911,10 @@ export const en = {
         "Headline of the Google result and the browser tab name. Empty = the content title followed by “{{suffix}}”. A custom title replaces it entirely, without the suffix.",
       titleHintNoSuffix:
         "Headline of the Google result and the browser tab name. Empty = the content title.",
+      titleHintHomepage:
+        "This page is the homepage (/). Empty = the site title “{{title}}” (SEO → Homepage). A custom title replaces it entirely, without a suffix.",
+      descriptionHintHomepage:
+        "The homepage description in Google and when shared. Empty = the page excerpt, and without it the site description (SEO → Homepage).",
       descriptionLabel: "Meta description",
       descriptionHint:
         "Text under the title in Google and the description of social cards. Empty = the excerpt shortened to the width of a Google result (about 150 characters).",

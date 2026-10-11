@@ -34,6 +34,7 @@ const h = vi.hoisted(() => ({
   navigations: [] as Record<string, unknown>[],
   confirmAnswer: true,
   seoIssues: [] as { severity: string }[],
+  staticHomepage: null as Record<string, unknown> | null,
   blocking: false,
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
@@ -90,15 +91,21 @@ vi.mock("@/components/admin/builder/Builder", () => ({
     </button>
   ),
 }));
+vi.mock("@/lib/seo/useStaticHomepage", () => ({
+  useStaticHomepage: () => ({ staticHomepage: { data: h.staticHomepage } }),
+}));
 vi.mock("@/components/admin/seo/SeoPanel", () => ({
   SeoPanel: ({
     onIssuesChange,
     onChange,
+    homepage,
   }: {
     onIssuesChange: (i: unknown[]) => void;
     onChange: (patch: Record<string, unknown>) => void;
+    homepage?: boolean;
   }) => (
     <>
+      <span data-testid="seo-homepage">{String(homepage === true)}</span>
       <button type="button" onClick={() => onIssuesChange(h.seoIssues)}>
         zgłoś uwagi SEO
       </button>
@@ -221,6 +228,7 @@ const lastUpdate = () =>
   h.updates.at(-1) as { fields: Record<string, unknown>; baseUpdatedAt?: string };
 
 beforeEach(() => {
+  h.staticHomepage = null;
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   h.routeSlug = "o-nas";
   h.rpcCalls.length = 0;
@@ -500,6 +508,16 @@ describe("edytor strony - usuwanie i nawigacja", () => {
 
     expect(podglad).toHaveAttribute("href", "/kontakt");
     expect(podglad).toHaveAttribute("target", "_blank");
+    expect(screen.getByTestId("seo-homepage").textContent).toBe("false");
+  });
+
+  it("STRONA GŁÓWNA: podgląd prowadzi pod `/`, a panel SEO dostaje tryb strony głównej", async () => {
+    // Jej własny slug (`/main`) to 301 na `/`; panel ma pokazać to, co poda `/`.
+    const row = pageRow({ slug: "main" });
+    h.staticHomepage = { id: row.id, slug: "main", seo_title_pl: null, seo_title_en: null };
+    await setup(row);
+    expect(screen.getByRole("link", { name: /podgląd|preview/i })).toHaveAttribute("href", "/");
+    expect(screen.getByTestId("seo-homepage").textContent).toBe("true");
   });
 });
 

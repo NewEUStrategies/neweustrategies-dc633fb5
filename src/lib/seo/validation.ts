@@ -21,6 +21,7 @@
 import { serpDescriptionMetric, serpTitleMetric, type SerpMetric } from "@/lib/seo/serp";
 import { metaDescription } from "@/lib/routing/publicSegments";
 import { applyTitleSuffix } from "@/lib/seo/fields";
+import { resolveHomepageSeoText } from "@/lib/seo/homepageSeo";
 import type { SeoPanelValue } from "@/components/admin/seo/SeoPanel";
 
 type SeoIssueSeverity = "error" | "warning";
@@ -60,6 +61,16 @@ interface ValidateInput {
    * Brak/null = zachowanie bez sufiksu.
    */
   titleSuffix?: string | null;
+  /**
+   * Treść jest STRONĄ GŁÓWNĄ (`/`): mierzymy to, co poda `head()` trasy `/`
+   * (`resolveHomepageSeoText`) - własny tytuł dosłownie, bez niego tytuł
+   * SERWISU (nie tytuł treści i nie slug), bez sufiksu; opis z pola SEO,
+   * zajawki albo opisu serwisu. Wartości serwisu per język podaje panel.
+   */
+  homepage?: {
+    title: { pl: string; en: string };
+    description: { pl: string; en: string };
+  } | null;
 }
 
 function resolveTitle(
@@ -120,9 +131,39 @@ export function validateSeoPanel(input: ValidateInput): SeoIssue[] {
     titleCharLimit,
     descriptionCharLimit,
     titleSuffix,
+    homepage,
   } = input;
   const issues: SeoIssue[] = [];
   for (const lang of ["pl", "en"] as const) {
+    if (homepage) {
+      const served = resolveHomepageSeoText(
+        { ...value, excerpt_pl: fallbackDescription.pl, excerpt_en: fallbackDescription.en },
+        lang,
+        { title: homepage.title[lang], description: homepage.description[lang] },
+      );
+      const descriptionIsOverride = Boolean(
+        (lang === "en" ? value.seo_description_en : value.seo_description_pl)?.trim(),
+      );
+      const ht = makeIssue(
+        lang,
+        "title",
+        served.title,
+        served.titleIsOverride,
+        titleCharLimit,
+        serpTitleMetric(served.title),
+      );
+      if (ht) issues.push(ht);
+      const hd = makeIssue(
+        lang,
+        "description",
+        served.description,
+        descriptionIsOverride,
+        descriptionCharLimit,
+        serpDescriptionMetric(served.description),
+      );
+      if (hd) issues.push(hd);
+      continue;
+    }
     const { title, isOverride } = resolveTitle(lang, value, fallbackTitle, slug);
     // Opis wyprowadzony bierze tytuł BEZ sufiksu - tak samo jak panel i head().
     const { description, isOverride: descriptionIsOverride } = resolveDescription(

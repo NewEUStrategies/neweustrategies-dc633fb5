@@ -24,8 +24,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, SaveBar } from "@/components/admin/settings/fields";
@@ -37,17 +35,15 @@ import { useTenantPublicOrigin } from "@/lib/seo/useTenantPublicOrigin";
 import { displayHost } from "@/lib/seo/socialNetworks";
 import { ensureI18n } from "@/lib/i18n-admin-seo-hub";
 import { auditBrandSeo, type BrandFinding } from "@/lib/seo/brandAudit";
-// Jedna definicja tego, czym jest tryb strony głównej - ta sama funkcja, której
-// używa publiczna rezolucja (`homePageQueryOptions`). Własna kopia warunku
-// rozjechałaby się z nią przy pierwszej zmianie.
-import { normalizeHomepageMode } from "@/lib/queries/public";
 import {
   DEFAULT_SEO_SETTINGS,
+  effectiveSiteDescription,
+  effectiveSiteTitle,
   SEO_SETTINGS_KEY,
-  siteDescriptionOverride,
-  siteTitleOverride,
   type SeoSettings,
 } from "@/lib/seo/settings";
+import { resolveHomepageSeoText } from "@/lib/seo/homepageSeo";
+import { useStaticHomepage, type StaticHomepageRow } from "@/lib/seo/useStaticHomepage";
 import {
   SITE_DEFAULT_DESCRIPTION,
   SITE_DEFAULT_OG_IMAGE,
@@ -80,29 +76,6 @@ const HOMEPAGE_LANGS: readonly HomepageLangColumn[] = [
   { lang: "en", headingKey: "adminSeoHub.previewEn" },
 ];
 
-/** Ustawienia czytania w zakresie, w jakim decydują o stronie głównej. */
-type HomepageReading = {
-  homepage_mode: string;
-  homepage_page_id: string;
-  homepage_page_slug: string;
-};
-
-const READING_SETTINGS_KEY = "reading";
-
-const DEFAULT_HOMEPAGE_READING: HomepageReading = {
-  homepage_mode: "",
-  homepage_page_id: "",
-  homepage_page_slug: "",
-};
-
-/** Strona CMS-a pełniąca rolę strony głównej - tylko to, co przesądza o SEO. */
-interface StaticHomepageRow {
-  id: string;
-  slug: string;
-  seo_title_pl: string | null;
-  seo_title_en: string | null;
-}
-
 /** Czy ta strona ma WŁASNE nadpisanie tytułu SEO dla danego języka. */
 function hasSeoTitleOverride(row: StaticHomepageRow, lang: Lang): boolean {
   const override = lang === "en" ? row.seo_title_en : row.seo_title_pl;
@@ -129,69 +102,17 @@ function SeoHomepageTab() {
   const previewHost =
     publicOrigin === null ? t("adminSeoHub.noPublicDomainHost") : displayHost(publicOrigin);
 
-  // Ustawienia czytania odczytujemy WYŁĄCZNIE po to, by wiedzieć, czy stroną
-  // główną nie jest strona z CMS-a (patrz zapytanie niżej). Ten ekran ich nie
-  // zapisuje - od tego jest /admin/settings/reading.
-  const { query: readingQuery } = useSettings<HomepageReading>(
-    READING_SETTINGS_KEY,
-    DEFAULT_HOMEPAGE_READING,
-  );
-  const reading = readingQuery.data;
-  const homepageMode = normalizeHomepageMode(reading?.homepage_mode);
-  const homepagePageId = reading?.homepage_page_id ?? "";
-  const homepagePageSlug = reading?.homepage_page_slug ?? "";
-
   /**
    * SZCZEROŚĆ EKRANU: statyczna strona główna NADPISUJE te pola.
    *
    * Gdy `homepage_mode` to "static_page" (albo jest nieustawiony, a istnieje
    * opublikowana strona najwyższego poziomu o slugu "home"), to TA STRONA jest
    * stroną główną, a jej własne `seo_title_*` wygrywa w `head()` trasy `/`
-   * (`resolveSeoText`, src/routes/index.tsx). Bez tego zapytania redakcja
+   * (`resolveHomepageSeoText`, src/routes/index.tsx). Bez tego odczytu redakcja
    * poprawia tytuł tutaj, nie widzi żadnej zmiany w Google i słusznie uznaje,
-   * że panel jest zepsuty. Kolejność prób jest ta sama, co w
-   * `homePageQueryOptions` (src/lib/queries/public.ts): id -> slug -> "home".
+   * że panel jest zepsuty. Ten sam hook czyta edytor strony w /admin/pages.
    */
-  const staticHomepage = useQuery({
-    queryKey: [
-      "admin-seo-static-homepage",
-      tenantId,
-      homepageMode,
-      homepagePageId,
-      homepagePageSlug,
-    ],
-    enabled: !!tenantId && !!reading && homepageMode !== "latest_posts",
-    queryFn: async (): Promise<StaticHomepageRow | null> => {
-      const published = () =>
-        supabase
-          .from("pages")
-          .select("id, slug, seo_title_pl, seo_title_en")
-          .eq("tenant_id", tenantId)
-          .is("deleted_at", null)
-          .eq("status", "published");
-      if (homepageMode === "static_page") {
-        if (homepagePageId) {
-          const { data, error } = await published().eq("id", homepagePageId).maybeSingle();
-          if (error) throw error;
-          if (data) return data;
-        }
-        if (homepagePageSlug) {
-          const { data, error } = await published()
-            .eq("slug", homepagePageSlug)
-            .is("parent_id", null)
-            .maybeSingle();
-          if (error) throw error;
-          if (data) return data;
-        }
-      }
-      const { data, error } = await published()
-        .eq("slug", "home")
-        .is("parent_id", null)
-        .maybeSingle();
-      if (error) throw error;
-      return data ?? null;
-    },
-  });
+  const { staticHomepage } = useStaticHomepage(tenantId);
   const staticHomepageRow = staticHomepage.data ?? null;
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
@@ -204,10 +125,23 @@ function SeoHomepageTab() {
   // i spadają na stałe marki, gdy pole jest puste. Podgląd musi liczyć to samo
   // z tych samych wartości - inaczej pokazuje coś, czego crawler nie zobaczy.
   const effectiveSiteName = draft.site_name.trim() || SITE_NAME;
-  const resolveTitle = (lang: Lang): string =>
-    siteTitleOverride(draft, lang) || SITE_DEFAULT_TITLE[lang];
-  const resolveDescription = (lang: Lang): string =>
-    siteDescriptionOverride(draft, lang) || SITE_DEFAULT_DESCRIPTION[lang];
+  const resolveTitle = (lang: Lang): string => effectiveSiteTitle(draft, lang);
+  const resolveDescription = (lang: Lang): string => effectiveSiteDescription(draft, lang);
+  // Tytuł, który NAPRAWDĘ dostanie `/`: własny tytuł SEO statycznej strony
+  // głównej wygrywa z tytułem serwisu (ta sama reguła co `head()` trasy `/`).
+  // Opis zostaje przy polach tego ekranu - odczyt strony niesie wyłącznie
+  // nadpisanie tytułu.
+  const servedTitle = (lang: Lang): string =>
+    resolveHomepageSeoText(
+      staticHomepageRow
+        ? {
+            seo_title_pl: staticHomepageRow.seo_title_pl,
+            seo_title_en: staticHomepageRow.seo_title_en,
+          }
+        : null,
+      lang,
+      { title: resolveTitle(lang), description: resolveDescription(lang) },
+    ).title;
 
   // Audyt liczony OSOBNO dla każdego języka, z tych samych wartości, które
   // trafiają do podglądu obok. Karta społecznościowa i sygnały encji są
@@ -346,7 +280,7 @@ function SeoHomepageTab() {
                 {/* path="" - strona główna siedzi pod samym originem, więc
                     w linii adresu nie ma ani jednego okruszka. */}
                 <SerpPreview
-                  title={resolveTitle(lang)}
+                  title={servedTitle(lang)}
                   description={resolveDescription(lang)}
                   siteName={effectiveSiteName}
                   host={previewHost}

@@ -54,6 +54,7 @@ import { ImageSlot } from "@/components/admin/ImageSlot";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { Textarea } from "@/components/ui/textarea";
 import { CONTENT_EXCERPT_MAX_CHARS } from "@/lib/seo/limits";
+import { useStaticHomepage } from "@/lib/seo/useStaticHomepage";
 import { toast } from "sonner";
 import {
   invalidateWidgetCaches,
@@ -115,6 +116,10 @@ function EditPage() {
   // Publiczny adres obsługiwany przez trasę React (rejestr CODE_PAGES).
   const codeRoute = codePage(routeSlug);
   const tenantId = useRequiredTenant();
+  // Czy edytowana strona jest stroną główną (`/`) - wtedy panel SEO pokazuje
+  // to, co poda trasa `/` (tytuł serwisu, bez sufiksu, adres `/`). Liczone na
+  // ZAPISANYM wierszu, tak jak widzi go trasa publiczna.
+  const { staticHomepage } = useStaticHomepage(tenantId);
   const { t, i18n } = useTranslation();
   const lang = i18n.language.startsWith("en") ? "en" : "pl";
   const navigate = useNavigate();
@@ -146,6 +151,7 @@ function EditPage() {
   });
 
   const id = page?.id;
+  const isHomepage = !!id && staticHomepage.data?.id === id;
 
   const history = useHistory<PageForm | null>(null);
   const form = history.state;
@@ -519,7 +525,8 @@ function EditPage() {
     form.slug ||
     t("admin.list.untitled")
   ).toString();
-  const previewHref = `/${form.slug}`;
+  // Strona główna odpowiada pod `/` - jej własny slug (`/main`) to 301.
+  const previewHref = isHomepage ? "/" : `/${form.slug}`;
 
   return (
     <div className="space-y-6">
@@ -717,6 +724,7 @@ function EditPage() {
                 entity={{ kind: "page", id }}
                 slug={form.slug}
                 pathSourcePageId={form.parent_id}
+                homepage={isHomepage}
                 fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
                 fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
                 coverImageUrl={form.cover_image_url}

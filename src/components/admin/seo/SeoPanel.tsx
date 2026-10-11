@@ -34,6 +34,8 @@ import {
 } from "@/lib/seo/headingValidation";
 import {
   DEFAULT_SEO_SETTINGS,
+  effectiveSiteDescription,
+  effectiveSiteTitle,
   effectiveTitleSuffix,
   SEO_SETTINGS_KEY,
   SeoSettingsSchema,
@@ -82,6 +84,13 @@ interface SeoPanelProps {
   contentBlocks?: unknown;
   /** Emits the current validation snapshot so save handlers can preflight. */
   onIssuesChange?: (issues: SeoIssue[]) => void;
+  /**
+   * Treść jest STRONĄ GŁÓWNĄ (`/`). Panel pokazuje wtedy to, co poda `head()`
+   * trasy `/` (`resolveHomepageSeoText`): adres `/`, tytuł serwisu zamiast
+   * tytułu treści, bez sufiksu marki. Bez tego edytor strony głównej widział
+   * „Strona główna - <sufiks>" pod adresem `/main`, którego `/` nie podaje.
+   */
+  homepage?: boolean;
 }
 
 const TITLE_MAX = SEO_TITLE_MAX_CHARS;
@@ -168,7 +177,16 @@ export function SeoPanel(props: SeoPanelProps) {
   );
   // Sufiks marki doklejany do tytułu WYPROWADZONEGO - walidator i pole tytułu
   // mierzą tekst z sufiksem, bo taki trafia do Google (head(), podgląd SERP).
-  const titleSuffix = effectiveTitleSuffix(seoSettings);
+  const isHomepage = props.homepage === true;
+  // Strona główna: `head()` trasy `/` nie dokleja sufiksu - ani do nadpisania,
+  // ani do tytułu serwisu.
+  const titleSuffix = isHomepage ? null : effectiveTitleSuffix(seoSettings);
+  // Tytuł i opis SERWISU (fallback strony głównej) - z bloba ustawień, nie
+  // z `siteTitle()`, którego pamięć w przeglądarce jest pusta.
+  const brandTitlePl = effectiveSiteTitle(seoSettings, "pl");
+  const brandTitleEn = effectiveSiteTitle(seoSettings, "en");
+  const brandDescPl = effectiveSiteDescription(seoSettings, "pl");
+  const brandDescEn = effectiveSiteDescription(seoSettings, "en");
 
   const fallbackTitlePl = props.fallbackTitle.pl;
   const fallbackTitleEn = props.fallbackTitle.en;
@@ -194,8 +212,19 @@ export function SeoPanel(props: SeoPanelProps) {
         titleCharLimit: TITLE_MAX,
         descriptionCharLimit: DESCRIPTION_MAX,
         titleSuffix,
+        homepage: isHomepage
+          ? {
+              title: { pl: brandTitlePl, en: brandTitleEn },
+              description: { pl: brandDescPl, en: brandDescEn },
+            }
+          : null,
       }),
     [
+      isHomepage,
+      brandTitlePl,
+      brandTitleEn,
+      brandDescPl,
+      brandDescEn,
       seoTitlePl,
       seoTitleEn,
       seoDescPl,
@@ -263,12 +292,16 @@ export function SeoPanel(props: SeoPanelProps) {
       return typeof data === "string" ? data : null;
     },
   });
+  // Strona główna siedzi pod samym originem (`/`, `/en`) - jej własny slug
+  // (`/main`) to tylko przekierowanie 301 i tego adresu Google nie indeksuje.
   const previewPath =
-    entity.kind === "post"
-      ? `${basePath ?? "…"}/${slug}`
-      : basePath && pathSourcePageId
-        ? `${basePath}/${slug}`
-        : slug;
+    entity.kind === "page" && isHomepage
+      ? ""
+      : entity.kind === "post"
+        ? `${basePath ?? "…"}/${slug}`
+        : basePath && pathSourcePageId
+          ? `${basePath}/${slug}`
+          : slug;
 
   const seoRow: SeoFieldsRow = value;
   const socialImage = resolveSocialImage(seoRow, props.coverImageUrl);
@@ -289,9 +322,13 @@ export function SeoPanel(props: SeoPanelProps) {
   const generateCard = async () => {
     const title =
       (tab === "en" ? value.seo_title_en : value.seo_title_pl)?.trim() ||
-      (tab === "en"
-        ? props.fallbackTitle.en || props.fallbackTitle.pl
-        : props.fallbackTitle.pl || props.fallbackTitle.en);
+      (isHomepage
+        ? tab === "en"
+          ? brandTitleEn
+          : brandTitlePl
+        : tab === "en"
+          ? props.fallbackTitle.en || props.fallbackTitle.pl
+          : props.fallbackTitle.pl || props.fallbackTitle.en);
     if (!title) {
       toast.error(t("admin.seo.og.needTitle"));
       return;
@@ -313,16 +350,22 @@ export function SeoPanel(props: SeoPanelProps) {
   };
 
   const langSection = (lang: "pl" | "en") => {
-    const fallbackTitle =
-      (lang === "en"
-        ? props.fallbackTitle.en || props.fallbackTitle.pl
-        : props.fallbackTitle.pl || props.fallbackTitle.en) || slug;
-    const fallbackDescription = metaDescription(
+    const brandTitle = lang === "en" ? brandTitleEn : brandTitlePl;
+    const brandDescription = lang === "en" ? brandDescEn : brandDescPl;
+    const excerpt =
       lang === "en"
         ? props.fallbackDescription.en || props.fallbackDescription.pl
-        : props.fallbackDescription.pl || props.fallbackDescription.en,
-      fallbackTitle,
-    );
+        : props.fallbackDescription.pl || props.fallbackDescription.en;
+    // Strona główna: fallbackiem tytułu jest TYTUŁ SERWISU, a opisu - zajawka,
+    // potem opis serwisu (ta sama reguła co `head()` trasy `/`).
+    const fallbackTitle = isHomepage
+      ? brandTitle
+      : (lang === "en"
+          ? props.fallbackTitle.en || props.fallbackTitle.pl
+          : props.fallbackTitle.pl || props.fallbackTitle.en) || slug;
+    const fallbackDescription = isHomepage
+      ? metaDescription(excerpt, "") || brandDescription
+      : metaDescription(excerpt, fallbackTitle);
     const titleKey = lang === "en" ? "seo_title_en" : "seo_title_pl";
     const descKey = lang === "en" ? "seo_description_en" : "seo_description_pl";
     const titleOverride = (lang === "en" ? value.seo_title_en : value.seo_title_pl)?.trim() || null;
@@ -349,9 +392,11 @@ export function SeoPanel(props: SeoPanelProps) {
         <SeoTextField
           label={t("admin.seo.titleLabel")}
           hint={
-            titleSuffix
-              ? t("admin.seo.titleHint", { suffix: titleSuffix.trim() })
-              : t("admin.seo.titleHintNoSuffix")
+            isHomepage
+              ? t("admin.seo.titleHintHomepage", { title: brandTitle })
+              : titleSuffix
+                ? t("admin.seo.titleHint", { suffix: titleSuffix.trim() })
+                : t("admin.seo.titleHintNoSuffix")
           }
           kind="title"
           value={lang === "en" ? value.seo_title_en : value.seo_title_pl}
@@ -362,7 +407,9 @@ export function SeoPanel(props: SeoPanelProps) {
         />
         <SeoTextField
           label={t("admin.seo.descriptionLabel")}
-          hint={t("admin.seo.descriptionHint")}
+          hint={
+            isHomepage ? t("admin.seo.descriptionHintHomepage") : t("admin.seo.descriptionHint")
+          }
           kind="description"
           value={lang === "en" ? value.seo_description_en : value.seo_description_pl}
           fallback={fallbackDescription}

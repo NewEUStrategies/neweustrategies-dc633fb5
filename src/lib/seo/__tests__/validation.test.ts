@@ -389,3 +389,48 @@ describe("validateSeoPanel - opis: piksele vs znaki", () => {
     expect(hasBlockingSeoIssues(issues)).toBe(true);
   });
 });
+
+describe("validateSeoPanel - STRONA GŁÓWNA mierzy to, co poda `/`", () => {
+  const homepage = {
+    title: { pl: "New European Strategies", en: "New European Strategies" },
+    description: { pl: "Opis serwisu.", en: "Site description." },
+  };
+
+  it("bez nadpisania mierzy tytuł SERWISU bez sufiksu - nie „tytuł treści - sufiks”", () => {
+    // Długi tytuł treści + sufiks dałby ostrzeżenie, którego `/` nie dotyczy.
+    const issues = run({
+      fallbackTitle: {
+        pl: "Strona główna serwisu z bardzo długim tytułem roboczym w panelu",
+        en: "",
+      },
+      titleSuffix: "New European Strategies",
+      homepage,
+    });
+    expect(issues.filter((i) => i.kind === "title")).toEqual([]);
+  });
+
+  it("własny tytuł ponad limit znaków blokuje zapis jak zawsze", () => {
+    const issues = run({
+      value: { ...emptyValue, seo_title_pl: "x".repeat(20) },
+      titleCharLimit: 10,
+      homepage,
+    });
+    expect(issueFor(issues, "pl", "title")).toMatchObject({
+      severity: "error",
+      source: "override",
+      chars: 20,
+    });
+  });
+
+  it("opis bez zajawki to opis serwisu, nie tytuł strony", () => {
+    const issues = run({
+      fallbackDescription: { pl: null, en: null },
+      descriptionCharLimit: 5,
+      homepage,
+    });
+    expect(issueFor(issues, "pl", "description")).toMatchObject({
+      source: "derived",
+      chars: [..."Opis serwisu."].length,
+    });
+  });
+});
