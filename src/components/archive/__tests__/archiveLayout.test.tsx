@@ -1347,11 +1347,12 @@ describe("sześć wariantów archiwum", () => {
     expect(screen.getAllByRole("link")).toHaveLength(6);
   });
 
-  it("wariant ciemny osadza nagłówek w odwróconym motywie", () => {
+  it("wariant ciemny buduje tło z tokenów motywu (bg-background, bez wymuszonej klasy dark)", () => {
     const { container } = renderWithQuery(
       <variants.LayoutDark {...bodyProps({ posts: posts(1), total: 1 })} />,
     );
-    expect(container.querySelector(".dark")).not.toBeNull();
+    expect(container.querySelector(".dark")).toBeNull();
+    expect(container.querySelector(".bg-background.text-foreground")).not.toBeNull();
   });
 
   it("wariant bento przykleja nagłówek z boku listy", () => {
