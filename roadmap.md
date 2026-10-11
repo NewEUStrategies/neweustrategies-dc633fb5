@@ -1,5 +1,10 @@
 # Roadmap
 
+## Banery archiwów
+
+- [ ] Zastąpić domyślne tło baneru obrazem nawiązującym do misji i wizji NES, z wersjami light/dark bez zmiany geometrii.
+- [ ] Sprawdzić czytelność, zachowanie własnych zdjęć i wygląd w obu motywach.
+
 ## Kompaktowy nagłówek Kinetic
 
 - [x] Usunąć rozciąganie liter przy najechaniu i ustawić dolny odstęp na 2 px w obu skalach i motywach.
