@@ -21,14 +21,19 @@
 // 4. odmowa i pustka mają OSOBNE zdania - „nikogo tu nie ma" po wpisaniu frazy
 //    byłoby nieprawdą o wydarzeniu,
 // 5. niepełna kartoteka (bez stanowiska, bez firmy, bez profilu) nie zostawia
-//    pustych wierszy ani odnośników donikąd,
+//    pustych wierszy ani odnośników donikąd - ani na karcie, ani w oknie,
 // 6. odmowa zapisu widoczności wraca ZDANIEM, a nie cichym powrotem
 //    przełącznika - człowiek musi wiedzieć, że nadal jest widoczny.
+//
+// FAKTY Z OKNA SPRAWDZAMY W OKNIE. Biogram, intencje, sieci, panele i strona
+// firmy wyjechały z karty do okna profilu (`directory/`) - asercja, która
+// kiedyś czytała kartę, otwiera teraz okno i czyta je.
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { buildEventDirectory } from "@/lib/events/eventDirectory";
 import type { AttendeeDirectory, AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { SpeakerSessionEntry } from "@/lib/events/participantTicketsApi";
 
@@ -71,7 +76,10 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => authState }));
 
 // Trasa profilu członka (`/people/$slug`) jest cudzą powierzchnią - w teście
 // komponentu wystarczy, że odnośnik powstaje z właściwą trasą i slugiem.
+// `useRouter` bez routera to `null`: `AppLink` w oknie profilu rysuje wtedy
+// zwykłe `<a href>` bez przechwytywania nawigacji.
 vi.mock("@tanstack/react-router", () => ({
+  useRouter: () => null,
   Link: ({
     to,
     params,
@@ -97,6 +105,39 @@ vi.mock("@/lib/events/publicEventApi", async () => {
     ...actual,
     fetchEventAttendees: (input: AttendeesInput) => fetchAttendees(input),
     setEventAttendeeVisibility: (input: { slug: string; listed: boolean }) => setVisibility(input),
+    // Źródła wzbogacające okno (program, partnerzy) budzi pierwszy klik w kartę -
+    // w teście są puste, bo okno uczestnika stoi na wierszu listy.
+    fetchEventAgenda: () => Promise.resolve([]),
+    fetchEventSponsors: () => Promise.resolve([]),
+  };
+});
+
+// Identyfikator wydarzenia dla katalogu okien - bez sieci; `null` wyłącza też
+// zapytanie o prelegentów (czeka na identyfikator).
+vi.mock("@/lib/community/publicQueries", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/community/publicQueries")>(
+    "@/lib/community/publicQueries",
+  );
+  return {
+    ...actual,
+    publicEventBySlugQueryOptions: (slug: string) => ({
+      queryKey: ["public-event", slug],
+      queryFn: () => Promise.resolve(null),
+    }),
+  };
+});
+
+// Okno osoby bez stanowiska albo firmy dopytuje profil członka - tu bez sieci.
+vi.mock("@/lib/profile/memberProfile", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/profile/memberProfile")>(
+    "@/lib/profile/memberProfile",
+  );
+  return {
+    ...actual,
+    memberProfileQueryOptions: (slug: string, userId: string | null) => ({
+      queryKey: ["member-profile", slug, userId],
+      queryFn: () => Promise.resolve(null),
+    }),
   };
 });
 
@@ -109,6 +150,8 @@ vi.mock("@/lib/events/participantTicketsApi", async () => {
 
 const { EventAttendeesList, EventAttendeesGridView } =
   await import("@/components/events/public/organisms/EventAttendeesList");
+const { EventDirectoryProvider } =
+  await import("@/components/events/public/directory/EventDirectoryContext");
 const i18n = (await import("@/lib/i18n")).default;
 
 function entry(
@@ -173,6 +216,18 @@ function renderGrid(entries: AttendeeEntry[]) {
 /** Siatka osób - jedyna lista z tą etykietą; karty mają własne listy w środku. */
 function grid(): HTMLElement {
   return screen.getByRole("list", { name: "eventFront.attendees.listLabel" });
+}
+
+/** Klik w kartę osoby i okno profilu, które otwiera (dialog dojeżdża leniwie). */
+async function openPerson(name: string): Promise<HTMLElement> {
+  fireEvent.click(screen.getByRole("button", { name: new RegExp(name) }));
+  return screen.findByRole("dialog");
+}
+
+/** Zamyka okno i czeka, aż zniknie z drzewa. */
+async function closeDialog(okno: HTMLElement): Promise<void> {
+  fireEvent.click(within(okno).getByRole("button", { name: "eventFront.directory.close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 }
 
 beforeEach(() => {
@@ -244,11 +299,19 @@ describe("EventAttendeesList - kto trafia na listę", () => {
     renderList();
 
     await screen.findByText("Marta Kowalik");
-    const links = within(grid()).getAllByRole("link");
-    expect(links).toHaveLength(1);
+    // Siatka nie ma odnośników wcale - pełny profil stoi w oknie.
+    expect(within(grid()).queryAllByRole("link")).toHaveLength(0);
+
+    const oknoMarty = await openPerson("Marta Kowalik");
+    expect(within(oknoMarty).queryByRole("link")).not.toBeInTheDocument();
+    await closeDialog(oknoMarty);
+
     // Jedyny odnośnik prowadzi na profil członka - `event_attendees` oddaje tylko
     // osoby z `profiles.discoverable`, więc `get_member_profile` ma co pokazać.
-    expect(links[0]).toHaveAttribute("href", '/people/$slug:{"slug":"igor-wisniewski"}');
+    const oknoIgora = await openPerson("Igor Wiśniewski");
+    const links = within(oknoIgora).getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/people/igor-wisniewski");
   });
 });
 
@@ -472,14 +535,19 @@ describe("EventAttendeesList - odmowy, pustka i niepełna kartoteka", () => {
     // Wiersz niepełny NADAL JEST WIERSZEM: osoba, której organizator nie wpisał
     // stanowiska, ma zostać na liście - to jej uczestnik tu szuka.
     expect(grid().children).toHaveLength(1);
-    // Pusta linia podpisu w siatce czyta się jak uszkodzone dane, a nie jak
-    // brak danych - dlatego nagłówków „szukam"/„oferuję" ma NIE BYĆ.
-    expect(screen.queryByText("eventMe.fields.seeking")).not.toBeInTheDocument();
-    expect(screen.queryByText("eventMe.fields.offering")).not.toBeInTheDocument();
-    // ...ani odnośnika, który nie ma dokąd prowadzić (brak profilu i brak
-    // strony firmy), ani kafelka loga, którego nie ma z czego zrobić.
+    // ...bez odnośnika, który nie ma dokąd prowadzić (brak profilu i brak
+    // strony firmy), bez przycisku firmy, której nie ma, i bez kafelka loga,
+    // którego nie ma z czego zrobić.
     expect(within(grid()).queryAllByRole("link")).toHaveLength(0);
+    expect(within(grid()).getAllByRole("button")).toHaveLength(1);
     expect(view.container.querySelector("img")).toBeNull();
+
+    // Pusta linia podpisu czyta się jak uszkodzone dane, a nie jak brak
+    // danych - dlatego nagłówków „szukam"/„oferuję" ma NIE BYĆ także w oknie.
+    const okno = await openPerson("Marta Kowalik");
+    expect(within(okno).queryByText("eventMe.fields.seeking")).not.toBeInTheDocument();
+    expect(within(okno).queryByText("eventMe.fields.offering")).not.toBeInTheDocument();
+    expect(within(okno).queryByText("eventFront.directory.about")).not.toBeInTheDocument();
   });
 
   it("pełna kartoteka pokazuje stanowisko, branżę i intencje w języku interfejsu", async () => {
@@ -504,19 +572,38 @@ describe("EventAttendeesList - odmowy, pustka i niepełna kartoteka", () => {
     );
     renderList();
 
+    // Karta: stanowisko i firma - po nich człowieka poznaje się na sali.
     expect(await screen.findByText("Dyrektorka ds. regulacji")).toBeInTheDocument();
-    expect(screen.getByText("Energetyka")).toBeInTheDocument();
-    expect(screen.getByText("Prawo klimatyczne")).toBeInTheDocument();
-    // Język interfejsu to „pl", więc wychodzi biografia polska, nie angielska.
-    expect(screen.getByText("Zajmuje sie regulacjami rynku energii.")).toBeInTheDocument();
-    expect(screen.queryByText("Works on energy market regulation.")).not.toBeInTheDocument();
-    expect(screen.getByText("eventMe.fields.seeking")).toBeInTheDocument();
+    expect(screen.getByText("Alfa Consulting")).toBeInTheDocument();
+    // Biogram i intencje NIE rozpychają karty - są w oknie.
+    expect(screen.queryByText("Zajmuje sie regulacjami rynku energii.")).not.toBeInTheDocument();
 
-    // Strona firmy otwiera się w nowej karcie i NIE wychodzi z serwisu
-    // z nagłówkiem odsyłającym - to jest odnośnik na cudzy host.
-    const site = screen.getByRole("link", { name: "Alfa Consulting" });
+    const okno = await openPerson("Marta Kowalik");
+    expect(within(okno).getByText("Energetyka · Prawo klimatyczne")).toBeInTheDocument();
+    // Język interfejsu to „pl", więc wychodzi biografia polska, nie angielska.
+    expect(within(okno).getByText("Zajmuje sie regulacjami rynku energii.")).toBeInTheDocument();
+    expect(within(okno).queryByText("Works on energy market regulation.")).not.toBeInTheDocument();
+    expect(within(okno).getByText("eventMe.fields.seeking")).toBeInTheDocument();
+    expect(within(okno).getByText("Partnerzy do projektu wodorowego")).toBeInTheDocument();
+
+    // Z okna osoby do okna jej firmy - strona firmy otwiera się w nowej karcie
+    // i NIE wychodzi z serwisu z nagłówkiem odsyłającym - to jest odnośnik na
+    // cudzy host.
+    fireEvent.click(within(okno).getByRole("button", { name: /Alfa Consulting/ }));
+    expect(
+      await within(okno).findByRole("heading", { name: "Alfa Consulting" }),
+    ).toBeInTheDocument();
+    const site = within(okno).getByRole("link", { name: /example\.org/ });
+    expect(site).toHaveAttribute("href", "https://example.org/alfa");
     expect(site).toHaveAttribute("target", "_blank");
-    expect(site).toHaveAttribute("rel", "noreferrer noopener");
+    // `nofollow` dochodzi w oknie: adres firmy wpisał uczestnik, a odnośnik
+    // z treści użytkownika nie przekazuje rangi (ta sama reguła, co strona
+    // partnera w oknie instytucji).
+    expect(site.getAttribute("rel")?.split(" ").sort()).toEqual([
+      "nofollow",
+      "noopener",
+      "noreferrer",
+    ]);
   });
 
   it("prelegent na liście mówi, w którym panelu go szukać", async () => {
@@ -544,19 +631,30 @@ describe("EventAttendeesList - odmowy, pustka i niepełna kartoteka", () => {
     );
     renderList();
 
+    // Karta mówi, ŻE występuje (i ile razy) - siatka nie rośnie do wysokości
+    // najbardziej zajętej osoby.
+    expect(
+      await screen.findByText(
+        /eventFront\.directory\.kind\.speaker · eventFront\.directory\.sessionsCount:\{"count":1\}/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Panel o wodorze")).not.toBeInTheDocument();
+
     // Sama plakietka „prelegent" nie układa nikomu planu dnia - dopiero tytuł
-    // panelu zamienia kartę w decyzję.
-    expect(await screen.findByText("Panel o wodorze")).toBeInTheDocument();
-    expect(screen.getByText("eventFront.attendees.speakerSessions")).toBeInTheDocument();
+    // panelu zamienia kartę w decyzję, więc okno go pokazuje.
+    const okno = await openPerson("Marta Kowalik");
+    expect(within(okno).getByText("Panel o wodorze")).toBeInTheDocument();
+    expect(within(okno).getByText("eventFront.directory.atThisEvent")).toBeInTheDocument();
   });
 });
 
 describe("EventAttendeesList - karta osoby i powierzchnie obok listy", () => {
-  it("odnośniki na karcie nie porywają kliku, który należy do powierzchni nad listą", async () => {
-    // Karta stoi w siatce, którą powłoka wydarzenia może opakować własnym
-    // klikiem (podgląd, panel boczny). Bez zatrzymania propagacji klik w
-    // „LinkedIn" albo w pasek akcji uruchamiałby JESZCZE tamto - dwie akcje
-    // z jednego palca, w tym otwarcie cudzego adresu.
+  it("klik w kartę otwiera okno osoby, a klik w firmę - okno instytucji", async () => {
+    // Odnośniki wychodzące (strona firmy, LinkedIn) i pasek akcji („dodaj do
+    // znajomych") wyjechały z karty do okna - karta ma dwa przyciski: całą
+    // powierzchnię (osoba) i nazwę firmy NAD nią (instytucja). Klik w firmę
+    // nie może otworzyć osoby: dwie akcje z jednego palca to ta sama wada,
+    // przed którą chroniło kiedyś zatrzymanie propagacji.
     fetchAttendees.mockResolvedValue(
       directory({
         rows: [
@@ -571,44 +669,31 @@ describe("EventAttendeesList - karta osoby i powierzchnie obok listy", () => {
         ],
       }),
     );
-    const klikPowloki = vi.fn();
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-    const view = render(
-      <QueryClientProvider client={client}>
-        <div onClick={klikPowloki}>
-          <EventAttendeesList slug="kongres" />
-        </div>
-      </QueryClientProvider>,
-    );
+    const view = renderList();
     await screen.findByText("Marta Kowalik");
 
-    // Test NIE WYCHODZI DO SIECI: kliknięty odnośnik na cudzy host jest
-    // realnym adresem, a happy-dom wykonałby jego domyślną akcję.
-    const bezNawigacji = (event: Event) => event.preventDefault();
-    document.addEventListener("click", bezNawigacji, true);
+    // Karta nie ma odnośników na cudze hosty - nic tu nie otworzy cudzego adresu.
+    expect(within(grid()).queryAllByRole("link")).toHaveLength(0);
 
-    fireEvent.click(screen.getByRole("link", { name: "Alfa Consulting" }));
-    fireEvent.click(screen.getByRole("link", { name: "eventMe.social.linkedin" }));
-    // Pasek akcji („dodaj do znajomych", „umów spotkanie") jest ostatnim
-    // blokiem karty i też nie może przepuszczać kliku wyżej.
-    const karta = screen.getByText("Marta Kowalik").closest("div.rounded-md");
-    expect(karta).not.toBeNull();
-    fireEvent.click((karta as HTMLElement).lastElementChild as HTMLElement);
+    fireEvent.click(screen.getByRole("button", { name: /Alfa Consulting/ }));
+    const okno = await screen.findByRole("dialog");
+    expect(within(okno).getByRole("heading", { name: "Alfa Consulting" })).toBeInTheDocument();
+    expect(within(okno).queryByRole("heading", { name: "Marta Kowalik" })).not.toBeInTheDocument();
+    await closeDialog(okno);
 
-    expect(klikPowloki).not.toHaveBeenCalled();
+    // Sieci osoby są w oknie osoby - z nazwą sieci, nie samą ikoną.
+    const oknoOsoby = await openPerson("Marta Kowalik");
+    expect(within(oknoOsoby).getByRole("heading", { name: "Marta Kowalik" })).toBeInTheDocument();
+    expect(
+      within(oknoOsoby).getByRole("link", { name: "eventMe.social.linkedin" }),
+    ).toHaveAttribute("href", "https://example.org/in/marta-kowalik");
 
-    // Kontrola próby: zwykły klik w kartę DOCHODZI wyżej - inaczej ten test
-    // przechodziłby także wtedy, gdyby nikt nigdzie nie klikał.
-    fireEvent.click(screen.getByText("Marta Kowalik"));
-    expect(klikPowloki).toHaveBeenCalledTimes(1);
-
-    document.removeEventListener("click", bezNawigacji, true);
-
-    // Logo firmy jest ozdobą wiersza, a nie treścią - czytnik ekranu ma je minąć.
+    // Logo firmy na karcie jest ozdobą wiersza, a nie treścią - czytnik ekranu
+    // ma je minąć (nazwa firmy stoi obok tekstem).
     const logo = view.container.querySelector("img");
     expect(logo).not.toBeNull();
     expect(logo).toHaveAttribute("alt", "");
-    expect(logo).toHaveAttribute("aria-hidden", "true");
+    expect(logo?.closest('[aria-hidden="true"]')).not.toBeNull();
   });
 
   it("język interfejsu wybiera kolumnę biografii, intencji i tytułu panelu", async () => {
@@ -647,11 +732,13 @@ describe("EventAttendeesList - karta osoby i powierzchnie obok listy", () => {
       ]),
     );
     renderList();
+    await screen.findByText("Marta Kowalik");
 
-    expect(await screen.findByText("Works on energy market regulation.")).toBeInTheDocument();
-    expect(screen.getByText("Partners for a hydrogen project")).toBeInTheDocument();
-    expect(screen.getByText("Regulatory advice")).toBeInTheDocument();
-    expect(screen.getByText("Hydrogen panel")).toBeInTheDocument();
+    const okno = await openPerson("Marta Kowalik");
+    expect(within(okno).getByText("Works on energy market regulation.")).toBeInTheDocument();
+    expect(within(okno).getByText("Partners for a hydrogen project")).toBeInTheDocument();
+    expect(within(okno).getByText("Regulatory advice")).toBeInTheDocument();
+    expect(within(okno).getByText("Hydrogen panel")).toBeInTheDocument();
     expect(screen.queryByText("Panel o wodorze")).not.toBeInTheDocument();
   });
 
@@ -674,9 +761,11 @@ describe("EventAttendeesList - karta osoby i powierzchnie obok listy", () => {
       ]),
     );
     renderList();
+    await screen.findByText("Marta Kowalik");
 
-    // Pusty wiersz pod nagłówkiem „występuje w" czyta się jak awaria strony.
-    expect(await screen.findByText("ses-bez-tytulu")).toBeInTheDocument();
+    // Pusty wiersz pod nagłówkiem „na tym wydarzeniu" czyta się jak awaria strony.
+    const okno = await openPerson("Marta Kowalik");
+    expect(within(okno).getByText("ses-bez-tytulu")).toBeInTheDocument();
   });
 
   it("bez własnego nagłówka lista nie wskazuje na nieistniejący węzeł", async () => {
@@ -749,8 +838,60 @@ describe("EventAttendeesList - karta osoby i powierzchnie obok listy", () => {
     // Plakietka grupy to przepustka, czyli FAKT o osobie - podgląd studia ma
     // pokazać redaktorowi tę samą kartę, co uczestnikowi, a nie jej zarys.
     expect(screen.getByText("Uczestnicy")).toBeInTheDocument();
-    // Bez mapy wystąpień sekcja paneli po prostu nie powstaje: pusty nagłówek
-    // „występuje w" czytałby się jak utracone dane o prelegencie.
-    expect(screen.queryByText("eventFront.attendees.speakerSessions")).not.toBeInTheDocument();
+    // Bez mapy wystąpień wzmianka o panelach po prostu nie powstaje: „prelegent
+    // · 0 sesji" czytałoby się jak utracone dane o prelegencie.
+    expect(screen.queryByText(/eventFront\.directory\.kind\.speaker/)).not.toBeInTheDocument();
+  });
+
+  it("siatka bez dostawcy okien jest samym tekstem - żadnego przycisku donikąd", () => {
+    // Widok siatki NIE stawia dostawcy sam (robi to lista publiczna albo
+    // podgląd studia nad nim). Bez niego przycisk, który niczego nie otwiera,
+    // byłby atrapą - a obietnica „Zobacz profil" kłamstwem.
+    renderGrid([
+      entry({
+        registrationId: "reg-1",
+        name: "Marta Kowalik",
+        jobTitle: "Analityczka",
+        company: "Alfa Consulting",
+      }),
+    ]);
+
+    expect(screen.getByText("Marta Kowalik")).toBeInTheDocument();
+    expect(screen.getByText("Analityczka")).toBeInTheDocument();
+    expect(screen.getByText("Alfa Consulting")).toBeInTheDocument();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.queryByText("eventFront.directory.viewProfile")).not.toBeInTheDocument();
+  });
+
+  it("siatka pod dostawcą z zewnątrz (podgląd studia) otwiera to samo okno", async () => {
+    // Podgląd studia składa katalog z RPC panelu i stawia dostawcę z
+    // `live={false}` nad tym widokiem - karta ma wtedy działać tak samo, a
+    // odnośnik pełnego profilu ma być tekstem (klik wyprowadziłby ze studia).
+    const entries = [
+      entry({
+        registrationId: "reg-1",
+        name: "Marta Kowalik",
+        jobTitle: "Analityczka",
+        profileSlug: "marta-kowalik",
+      }),
+    ];
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    render(
+      <QueryClientProvider client={client}>
+        <EventDirectoryProvider
+          directory={buildEventDirectory({ attendees: entries }, "pl")}
+          slug={null}
+          eventId={null}
+          live={false}
+        >
+          <EventAttendeesGridView entries={entries} lang="pl" />
+        </EventDirectoryProvider>
+      </QueryClientProvider>,
+    );
+
+    const okno = await openPerson("Marta Kowalik");
+    expect(within(okno).getByRole("heading", { name: "Marta Kowalik" })).toBeInTheDocument();
+    expect(within(okno).getByText("eventFront.directory.fullProfile")).toBeInTheDocument();
+    expect(within(okno).queryByRole("link")).not.toBeInTheDocument();
   });
 });

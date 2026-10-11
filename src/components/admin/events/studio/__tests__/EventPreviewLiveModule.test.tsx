@@ -29,21 +29,25 @@
 //      zanim lista dojedzie, a RPC potrafi pasc - zdanie „dodaj ich na
 //      tablicy" pada TYLKO po odpowiedzi; wczesniej szkielet, po awarii zdanie
 //      o awarii (oba z organizmu strony publicznej).
+//   7. OKNO PROFILU TRACI FAKTY INNYCH MODULOW ALBO WYPROWADZA ZE STUDIA.
+//      Dostawca okien stoi nad KAZDYM modulem z katalogiem ze WSZYSTKICH
+//      faktow podgladu (prelegent z siatki ma swoje sesje z programu),
+//      a odnosniki wychodzace sa tekstem (`live={false}`).
 //
 // CZEGO SWIADOMIE NIE DUBLUJE. (1) Mapowan `previewLiveData` (RPC -> ksztalt
 // powierzchni publicznej) - maja wlasny plik testowy. (2) Wygladu kart
 // produkcyjnych - `AgendaSessionCard`, `EventSpeakersGridView`,
-// `EventAttendeesGridView` i `EventSponsorsSectionView` maja swoje testy i stoja
+// `EventAttendeesGridView` i `EventPartnersTabView` maja swoje testy i stoja
 // tu atrapami, ktore ZAPISUJA otrzymane wlasciwosci. Przedmiotem dowodu jest ROZDZIELNIK: ktory
 // modul dostaje ktore fakty i z jakimi ograniczeniami.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { axeViolations, summarize } from "@/test/axe";
 import { DZIEN, GODZINA, freezeClock, relativeIso } from "@/test/time";
 import type { AgendaSession } from "@/lib/events/agendaSurface";
 import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
-import type { ComponentProps } from "react";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
@@ -59,9 +63,6 @@ const h = vi.hoisted(() => ({
   /** Poziomy partnerow i napis plakietki przekazane widokowi sekcji. */
   partnerzy: [] as { ilu: number; draftLabel: string | undefined }[],
   lang: "pl",
-  dialog: null as ComponentProps<
-    typeof import("@/components/events/SpeakerProfileDialog").SpeakerProfileDialog
-  > | null,
 }));
 
 vi.mock("react-i18next", async () =>
@@ -76,40 +77,33 @@ vi.mock("@/components/events/public/molecules/AgendaSessionCard", () => ({
   },
 }));
 
-vi.mock("@/components/events/public/organisms/EventSpeakersGrid", () => ({
-  EventSpeakersGridView: (props: {
-    speakers: readonly PublicSpeakerRow[];
-    lang: string;
-    onSelect: (speaker: PublicSpeakerRow) => void;
-  }) => {
-    h.prelegenci.push({ ilu: props.speakers.length, lang: props.lang });
-    return (
-      <div data-testid="prelegenci">
-        {props.speakers.map((speaker) => (
-          <button key={speaker.speaker_profile_id} onClick={() => props.onSelect(speaker)}>
-            {speaker.speaker_profile_id}
-          </button>
-        ))}
-      </div>
-    );
-  },
-}));
-
-vi.mock("@/components/events/SpeakerProfileDialog", () => ({
-  SpeakerProfileDialog: (
-    props: ComponentProps<
-      typeof import("@/components/events/SpeakerProfileDialog").SpeakerProfileDialog
-    >,
-  ) => {
-    h.dialog = props;
-    return (
-      <div role="dialog" aria-label="Podgląd profilu">
-        <button onClick={() => props.onOpenChange(false)}>Zamknij profil</button>
-        <button onClick={() => props.onOpenChange(true)}>Pozostaw otwarty</button>
-      </div>
-    );
-  },
-}));
+// Atrapa siatki otwiera okno PRAWDZIWYM dostawca z podgladu - przedmiotem
+// dowodu jest to, ze dostawca stoi nad modulem i zna fakty innych modulow.
+vi.mock("@/components/events/public/organisms/EventSpeakersGrid", async () => {
+  const { useEventDirectory } =
+    await import("@/components/events/public/directory/EventDirectoryContext");
+  return {
+    EventSpeakersGridView: function SiatkaAtrapa(props: {
+      speakers: readonly PublicSpeakerRow[];
+      lang: string;
+    }) {
+      const directory = useEventDirectory();
+      h.prelegenci.push({ ilu: props.speakers.length, lang: props.lang });
+      return (
+        <div data-testid="prelegenci">
+          {props.speakers.map((speaker) => (
+            <button
+              key={speaker.speaker_profile_id}
+              onClick={() => directory?.openPerson(speaker.speaker_profile_id ?? "")}
+            >
+              {speaker.speaker_profile_id}
+            </button>
+          ))}
+        </div>
+      );
+    },
+  };
+});
 
 vi.mock("@/components/events/public/organisms/EventAttendeesList", () => ({
   EventAttendeesGridView: (props: { entries: readonly AttendeeEntry[]; lang: string }) => {
@@ -123,10 +117,10 @@ vi.mock("@/components/events/public/organisms/EventSponsorsSection", () => ({
   EventSponsorsSectionError: (props: { message: string }) => (
     <p data-testid="partnerzy-awaria">{props.message}</p>
   ),
-  EventSponsorsSectionView: (props: {
-    tiers: readonly PublicSponsorTier[];
-    draftLabel?: string;
-  }) => {
+}));
+
+vi.mock("@/components/events/public/organisms/EventPartnersTab", () => ({
+  EventPartnersTabView: (props: { tiers: readonly PublicSponsorTier[]; draftLabel?: string }) => {
     h.partnerzy.push({ ilu: props.tiers.length, draftLabel: props.draftLabel });
     return <div data-testid="partnerzy" />;
   },
@@ -253,9 +247,14 @@ function poziom(tierId: string): PublicSponsorTier {
   };
 }
 
+// Studio ma zawsze `QueryClient` (nakladka czyta RPC panelu); okno profilu
+// wola `useQuery` takze wtedy, gdy zapytanie spi - stad dostawca w teście.
 function modul(module: string, dane: Partial<typeof EMPTY_PREVIEW_LIVE_DATA> = {}) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <EventPreviewLiveModule module={module} data={{ ...EMPTY_PREVIEW_LIVE_DATA, ...dane }} />,
+    <QueryClientProvider client={client}>
+      <EventPreviewLiveModule module={module} data={{ ...EMPTY_PREVIEW_LIVE_DATA, ...dane }} />
+    </QueryClientProvider>,
   );
 }
 
@@ -266,7 +265,6 @@ afterEach(() => {
   h.uczestnicy = [];
   h.partnerzy = [];
   h.lang = "pl";
-  h.dialog = null;
 });
 
 describe("EventPreviewLiveModule - program", () => {
@@ -376,39 +374,45 @@ describe("EventPreviewLiveModule - prelegenci i uczestnicy", () => {
     expect(h.prelegenci.at(-1)).toEqual({ ilu: 2, lang: "pl" });
   });
 
-  it.each([false, true])(
-    "przekazuje pełne fakty do profilu i pozwala go zamknąć (puste pola: %s)",
-    (empty) => {
-      h.lang = "en";
-      const row: PublicSpeakerRow = {
-        ...prelegent("p-1"),
-        display_name: empty ? null : "Anna Kowalska",
-        job_title: empty ? null : "Analityczka",
-        avatar_url: empty ? null : "https://example.org/photo.jpg",
-        bio_en: "Speaker biography",
-      };
-      modul("speakers", { speakers: [row] });
-      expect(screen.queryByRole("dialog")).toBeNull();
-      fireEvent.click(screen.getByRole("button", { name: "p-1" }));
-      expect(screen.getByRole("dialog", { name: "Podgląd profilu" })).toBeInTheDocument();
-      expect(h.dialog).toMatchObject({
-        row,
-        userId: "",
-        lang: "en",
-        open: true,
-        fallback: {
-          name: empty ? "" : "Anna Kowalska",
-          role: empty ? "" : "Analityczka",
-          photo: empty ? undefined : "https://example.org/photo.jpg",
-        },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Pozostaw otwarty" }));
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Zamknij profil" }));
-      expect(screen.queryByRole("dialog")).toBeNull();
-      expect(screen.getByTestId("prelegenci")).toBeInTheDocument();
-    },
-  );
+  it("okno profilu z siatki zna SESJE z programu i nie wyprowadza ze studia", async () => {
+    const row: PublicSpeakerRow = {
+      ...prelegent("p-1"),
+      user_id: "u-anna",
+      display_name: "Anna Kowalska",
+      slug: "anna-kowalska",
+    };
+    modul("speakers", {
+      speakers: [row],
+      sessions: [
+        sesja({
+          id: "s-panel",
+          titlePl: "Panel otwarcia",
+          speakers: [
+            {
+              userId: "u-anna",
+              slug: null,
+              displayName: "Anna Kowalska",
+              avatarUrl: null,
+              headlinePl: null,
+              headlineEn: null,
+              role: "moderator",
+              sortOrder: 0,
+            },
+          ],
+        }),
+      ],
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "p-1" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent("Anna Kowalska");
+    // Sesja przyszla z PROGRAMU, nie z wiersza prelegenta - katalog jest jeden.
+    expect(dialog).toHaveTextContent("Panel otwarcia");
+    // `live={false}`: pelny profil jest napisem, nie odnosnikiem ze studia.
+    expect(dialog.querySelector('a[href="/author/anna-kowalska"]')).toBeNull();
+    expect(dialog).toHaveTextContent("eventFront.directory.fullProfile");
+  });
 
   it("BEZ UCZESTNIKOW zdanie, Z UCZESTNIKAMI produkcyjny katalog", () => {
     const puste = modul("participants");

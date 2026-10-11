@@ -4,21 +4,21 @@
 // biała karta z wierszami: logotyp, nazwa, zakładka po prawej. Wiersze rozdziela
 // sam odstęp (sprawdzone na pikselach: między nimi jest czysta biel).
 //
-// RYSUJE TO `EventSponsorsSection`, TEN SAM, KTÓRY STOI W SEKCJI „PARTNERZY”
-// NA PRZEGLĄDZIE. To jest świadome: poziom partnerstwa rządzi rozmiarem
-// logotypu i kolejnością na KAŻDEJ powierzchni, na której partner się pojawia,
-// bo to treść umowy, a nie ozdoba. Drugi widok listy partnerów rozjechałby się
-// z pierwszym przy pierwszej zmianie poziomów.
+// RYSUJE TO `EventSponsorsSection` z `placement="partners_tab"`, a ten oddaje
+// zakładkę `EventPartnersTab`: ścianę logotypów poziomami. Sekcja „Partnerzy"
+// na przeglądzie zostaje przy dawnym rysunku (`EventSponsorsSectionView`) -
+// zakładka i przegląd czytają tę samą migawkę, więc poziom partnerstwa nadal
+// rządzi kolejnością i rozmiarem logotypu na obu powierzchniach.
 //
-// PROFIL POJEDYNCZEGO WYSTAWCY (zrzut 41) TO DRUGA FALA i tej trasy jeszcze nie
-// ma. Dlatego wiersz partnera NIE UDAJE, że gdzieś prowadzi: klikalny jest
-// wyłącznie ten, który ma cel odnośnika (`PublicSponsor.href`: strona firmy
-// z migawki albo adres przekierowania wg `link_mode` organizatora), i wychodzi
-// wtedy na zewnątrz. Reszta jest zwykłym tekstem - kursor łapki nad
-// elementem, który nic nie robi, jest gorszy od braku odnośnika.
+// KAFEL OTWIERA OKNO INSTYTUCJI, NIE STRONĘ FIRMY. Okno (`directory/`) pokazuje
+// opis, kraj, stoisko, osoby z tej instytucji na wydarzeniu i wspierane sesje;
+// odnośnik na zewnątrz stoi w oknie i prowadzi tam, dokąd organizator ustawił
+// logotyp (`PublicSponsor.href` wg `link_mode`) - partner z celem „brak" nie
+// dostaje odnośnika także w oknie.
 //
-// RAPORT SPONSORA ODRÓŻNIA TĘ ZAKŁADKĘ OD SEKCJI NA PRZEGLĄDZIE: kafle liczą
-// się tu pod miejscem `partners_tab`, a nie `partners_section`.
+// RAPORT SPONSORA ODRÓŻNIA TĘ ZAKŁADKĘ OD SEKCJI NA PRZEGLĄDZIE: wyświetlenia
+// kafli i klik w stronę partnera w oknie liczą się tu pod miejscem
+// `partners_tab`, a nie `partners_section`.
 import { createFileRoute, useParams } from "@tanstack/react-router";
 
 import { EventModulePage } from "@/components/events/public/molecules/EventModulePage";
@@ -35,7 +35,12 @@ export const Route = createFileRoute("/events/$slug/partners")({
   },
   head: ({ params, loaderData }) => {
     const url = getRequestUrl() || `/events/${params.slug}/partners`;
-    return buildEventTabHead({ tab: "partners", url, lang: activeLang(url), event: loaderData?.headEvent ?? null });
+    return buildEventTabHead({
+      tab: "partners",
+      url,
+      lang: activeLang(url),
+      event: loaderData?.headEvent ?? null,
+    });
   },
   component: EventPartnersTab,
 });

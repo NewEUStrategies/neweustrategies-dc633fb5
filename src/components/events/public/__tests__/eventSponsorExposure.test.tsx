@@ -319,11 +319,30 @@ describe("pas partnerów i sekcja „Partnerzy”", () => {
     vi.useRealTimers();
     FakeObserver.instances = [];
 
+    // Zakładka: wyjście na stronę partnera stoi w oknie instytucji. Samo
+    // otwarcie okna NIE jest klikiem w raporcie - liczy się dopiero odnośnik.
+    h.rpc?.setData("event_agenda", []);
     const tab = trackerDeps();
     withClient(tracked(<EventSponsorsSection slug="kongres" placement="partners_tab" />, tab.deps));
     await screen.findAllByText("Beta");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "eventFront.directory.openCompany(name=Nordwind Analytics)",
+      }),
+    );
+    const dialog = await screen.findByRole("dialog", {}, { timeout: 5000 });
+    expect(tab.items()).toEqual([]);
+    const link = within(dialog).getByRole("link");
+    expect(link.getAttribute("href")).toBe("https://nordwind.example");
+    fireEvent.click(link);
+    expect(tab.items()).toEqual([{ sponsor_id: SP_A, placement: "partners_tab", kind: "click" }]);
+    // Okno nie dokłada obserwatora - jedno wyświetlenie na kafel, nie na kafel i okno.
+    expect(FakeObserver.instances).toHaveLength(2);
     seeEverything();
-    expect(new Set(tab.items().map((item) => item.placement))).toEqual(new Set(["partners_tab"]));
+    expect(bySponsor(tab.items().slice(1))).toEqual([
+      { sponsor_id: SP_A, placement: "partners_tab", kind: "view" },
+      { sponsor_id: SP_B, placement: "partners_tab", kind: "view" },
+    ]);
   });
 
   it("bez zgody marketingowej nic nie wychodzi - ani klik, ani wyświetlenie", async () => {

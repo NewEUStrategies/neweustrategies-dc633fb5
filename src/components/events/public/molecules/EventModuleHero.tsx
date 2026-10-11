@@ -1,5 +1,6 @@
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
-// Molekuła: kompaktowy nagłówek zakładki, bez dekoracyjnej karty i elewacji.
+// Molekuła: nagłówek zakładki modułowej (Uczestnicy, Prelegenci, Partnerzy,
+// Agenda, Dyskusje) - redakcyjny nagłówek bez karty, poświaty i kafla ikony.
 //
 // JEDEN NAGŁÓWEK, NIE DWA. Wspólny dla strony publicznej
 // (`EventModulePage`) i podglądu studia (`EventPreviewCanvas`): druga kopia
@@ -7,6 +8,37 @@ import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 // jak podgląd rysował dawniej wąską kolumnę, gdy strona dostała szeroką.
 // Dane pod nagłówkiem (program, prelegenci, uczestnicy) zostają po stronie
 // wywołania - ten plik nie zna źródeł danych.
+//
+// DWA RYSUNKI W JEDNYM PLIKU - I TO JEST DECYZJA WŁAŚCICIELA. Zakładki
+// modułowe dostały nagłówek redakcyjny (nadtytuł z wydarzeniem, duży tytuł,
+// zdanie wstępu, włosowa linia z odcinkiem w kolorze akcji), a „Mój profil"
+// (`module="me"`) i strona główna (`EventOverviewTitle`) zostają przy wspólnej
+// geometrii `EventSectionHeading` - właściciel uznał je za gotowe i zakazał
+// zmian. Gałąź `me` rysuje dokładnie to, co rysowała: oba miejsca, które ją
+// montują (`events.$slug.me.tsx`, profil w `EventPreviewCanvas`), podają
+// `hasDocument={false}`, więc zostaje sam zapasowy `h1` - dawna gałąź
+// dokumentu była martwa, a jej kilkanaście wariantów `[&_p]:…` kosztowało
+// arkusz bez jednego narysowanego piksela.
+//
+// KARTA, GRADIENT I KAFEL IKONY ZNIKNĘŁY CELOWO. Poprzedni nagłówek był kartą
+// z gradientowym paskiem, poświatą i ikoną w kaflu - wszystkie trzy mówiły
+// „dekoracja", a nie „wydarzenie". Hierarchię niosą teraz typografia
+// i jedna linia: nadtytuł wersalikami z rozstrzałem, tytuł krojem nagłówków,
+// wstęp w kolumnie czytania (~62 znaki).
+//
+// TYPOGRAFIA DOKUMENTU CMS IDZIE PRZEZ `!important` W `src/styles.css`. Widget
+// nagłówka buildera pisze rozmiar w stylu INLINE (`--td-pt-size`), arkusz ma
+// niewarstwowe reguły `[data-cms-content] h1` i mobilne `!important`, a renderer
+// publiczny mierzy kontener i po hydratacji przełącza się na układ mobilny.
+// Reguły dla `.event-module-hero-doc` stoją w jednym bloku arkusza (nie jako
+// kilkanaście wariantów `[&_h1]:!…` - budżet CSS, patrz komentarz bloku).
+// Tytuł zapasowy (dokument pusty) dostaje TE SAME miary, więc podmiana
+// zapasowego `h1` na dokument po hydratacji nie zmienia wysokości tytułu.
+//
+// RUCH TYLKO PO INTERAKCJI. Odcinek linii „rysuje się", a tytuł podnosi o kilka
+// pikseli dopiero przy przejściu między zakładkami - reguły w `src/styles.css`
+// działają pod `:root[data-motion="on"]` (bramka ruchu, `motionGate.ts`), więc
+// zimne wejście na stronę maluje nagłówek od razu, bez wpływu na Speed Index.
 //
 import type { ComponentType, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -30,7 +62,9 @@ import { cn } from "@/lib/utils";
 ensureEventFrontI18n();
 
 type EventHeadingModule = EventModule | "me";
-const MODULE_ICONS: Partial<Record<EventHeadingModule, ComponentType<{ className?: string }>>> = {
+const MODULE_ICONS: Partial<
+  Record<EventHeadingModule, ComponentType<{ className?: string; strokeWidth?: number }>>
+> = {
   me: User,
   participants: Users,
   speakers: Mic,
@@ -39,8 +73,18 @@ const MODULE_ICONS: Partial<Record<EventHeadingModule, ComponentType<{ className
   discussions: MessagesSquare,
 };
 
+const ACCENT_STYLE = { backgroundColor: "var(--primary)" } as const;
+
 /** Okruszki: ostatni bez `href` = pozycja bieżąca (jak w `Breadcrumbs`). */
 export type EventModuleCrumb = BreadcrumbItem;
+
+/**
+ * Miary tytułu - te same, które `src/styles.css` nadaje `h1` dokumentu CMS
+ * w nagłówku (blok „ZAKŁADKI MODUŁOWE WYDARZENIA"), żeby podmiana zapasowego
+ * `h1` na dokument po hydratacji nie przesuwała strony.
+ */
+const TITLE_CLASS =
+  "font-display text-[2rem] font-semibold leading-[1.08] tracking-[-0.02em] text-foreground sm:text-4xl";
 
 export function EventModuleHero({
   module,
@@ -51,13 +95,13 @@ export function EventModuleHero({
   hasDocument,
   children,
 }: {
-  /** Który z pięciu modułów rysuje zakładka - dobiera ikonę kafla. */
+  /** Który z pięciu modułów rysuje zakładka - dobiera ikonę nadtytułu. */
   module: EventHeadingModule;
-  /** Nazwa wydarzenia w pigułce; pusta -> zapasowy napis ze słownika. */
+  /** Nazwa wydarzenia w nadtytule; pusta -> zapasowy napis ze słownika. */
   eventTitle: string;
   /** Tytuł zakładki (z bazy) - awaryjny `h1`, gdy dokument CMS-a jest pusty. */
   moduleLabel: string;
-  /** Okruszki nad kartą: dom -> Wydarzenia -> wydarzenie -> zakładka. */
+  /** Okruszki nad nagłówkiem: dom -> Wydarzenia -> wydarzenie -> zakładka. */
   crumbs: EventModuleCrumb[];
   /**
    * FAŁSZ = okruszki BEZ linków (podgląd studia). Klik wyprowadzałby
@@ -108,25 +152,56 @@ export function EventModuleHero({
           </ol>
         </nav>
       )}
-      <header
-        data-event-module-hero={module}
-        className="relative mb-6 border-b border-border/50 bg-background"
-      >
-        <EventSectionHeading
-          icon={<Icon className="size-6 text-primary/70" aria-hidden="true" />}
-          eyebrow={eventTitle || t("eventFront.header.moduleEyebrow")}
+      {module === "me" ? (
+        <header
+          data-event-module-hero={module}
+          className="relative mb-6 border-b border-border/50 bg-background"
         >
-          {hasDocument ? (
-            <div className="event-module-hero-doc mx-auto w-full min-w-0 max-w-2xl text-center [overflow-wrap:anywhere] [&_h1]:font-semibold [&_h1]:leading-snug [&_h1]:tracking-normal [&_h1]:text-foreground [&_h1]:text-2xl [&_p:last-child]:mb-0 [&_p]:mx-auto [&_p]:mt-2 [&_p]:max-w-xl [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-muted-foreground">
-              {children}
-            </div>
-          ) : (
+          <EventSectionHeading
+            icon={<Icon className="size-6 text-primary/70" aria-hidden="true" />}
+            eyebrow={eventTitle || t("eventFront.header.moduleEyebrow")}
+          >
             <h1 className="max-w-full text-2xl font-semibold leading-snug tracking-normal text-foreground [overflow-wrap:anywhere]">
               {moduleLabel}
             </h1>
-          )}
-        </EventSectionHeading>
-      </header>
+          </EventSectionHeading>
+        </header>
+      ) : (
+        <header
+          data-event-module-hero={module}
+          className="relative mb-10 border-b border-border/70 pb-8 pt-2 sm:pb-10"
+        >
+          {/* Nadtytuł: ikona modułu włosową kreską i nazwa wydarzenia. `div`,
+              nie `p`: globalne `:where(main p:hover)` przemalowuje akapity
+              na kolor tekstu przy najechaniu, a nadtytuł ma stać spokojnie. */}
+          <div className="flex min-w-0 items-center gap-2.5 text-[11px] font-semibold uppercase leading-4 tracking-[0.16em] text-muted-foreground">
+            <Icon className="size-4 shrink-0 text-primary" strokeWidth={1.5} aria-hidden="true" />
+            <span className="min-w-0 truncate">
+              {eventTitle || t("eventFront.header.moduleEyebrow")}
+            </span>
+          </div>
+          <div className="event-module-hero-title mt-4">
+            {hasDocument ? (
+              <div className="event-module-hero-doc w-full min-w-0 max-w-3xl text-left [overflow-wrap:anywhere]">
+                {children}
+              </div>
+            ) : (
+              <h1 className={cn(TITLE_CLASS, "max-w-3xl [overflow-wrap:anywhere]")}>
+                {moduleLabel}
+              </h1>
+            )}
+          </div>
+          {/* Odcinek linii w kolorze akcji wydarzenia - jedyny akcent nagłówka.
+              Kolor stylem, nie klasą `bg-primary`: globalna, niewarstwowa
+              reguła `:where(.bg-primary)` podmienia tło na kolor przycisków
+              serwisu (`--gc-btn-bg`) i gubiłaby kolor akcji wydarzenia. */}
+          <span
+            aria-hidden="true"
+            className="event-module-hero-accent absolute -bottom-px left-0 h-px w-16"
+            style={ACCENT_STYLE}
+          />
+        </header>
+      )}
     </>
   );
 }

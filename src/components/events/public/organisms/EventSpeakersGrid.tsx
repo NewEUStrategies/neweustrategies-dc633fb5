@@ -1,13 +1,19 @@
-// Organizm: siatka prelegentów wydarzenia - do trzech kart w wierszu na
-// szerokim ekranie, każda w układzie nagłówka profilu z nagrania właściciela
-// (`TelegramHeader`): wyśrodkowane zdjęcie z rogami 6 px, pod nim imię i nazwisko
-// oraz podpis „rola • organizacja”.
+// Organizm: siatka prelegentów wydarzenia - portretowe karty
+// (`SpeakerProfileCard`) po dwie w wierszu na telefonie, po cztery na szerokim
+// ekranie i po pięć na bardzo szerokim, żeby portret nie urósł do plakatu.
 //
-// KARTA ROZWIJA SIĘ KLIKNIĘCIEM W ZDJĘCIE. Rysunek i ruch karty mieszkają
-// w `SpeakerProfileCard`: koło rośnie do pełnego kadru na całą szerokość
-// karty, podpis ląduje na gradiencie, a pod zdjęciem otwierają się ścieżki
-// prelegenta. Profil (dialog) otwiera PRZYCISK karty, a nie cała karta - klik
-// w zdjęcie jest zarezerwowany dla rozwinięcia.
+// OKNA PROFILU MIESZKAJĄ W SIATCE, NIE W TRASIE. Podany `slug` owija listę
+// w `EventDirectoryProvider`: klik w kartę otwiera okno osoby, klik
+// w instytucję - okno instytucji, oba z katalogu wydarzenia
+// (`usePublicEventDirectory`). Trasa nie składa już dialogu sama - bramka
+// parytetu podglądu (`eventPreviewPublicParity`) zabrania trasom nowych
+// importów z `components/events/public`, a podgląd studia dostawia własnego
+// dostawcę wokół `EventSpeakersGridView`, więc rysunek zostaje jeden.
+//
+// WIERSZE JUŻ SĄ - KATALOG ICH NIE POBIERA DRUGI RAZ. Siatka podaje swoje
+// wiersze jako `own.speakers`, więc hook wyłącza własne zapytanie
+// o prelegentów, a program i partnerzy (sesje osoby, opis instytucji) śpią do
+// pierwszego sygnału zamiaru - najechania albo fokusu na karcie.
 //
 // SIATKA NIE RYSUJE NAGŁÓWKA - I NIE RYSUJE GO `EventPageSections`. Ta lista
 // NIE JEST jego sekcją: `OWNED` w `EventPageSections.tsx` wymienia program,
@@ -40,10 +46,10 @@
 // firmy zostawiłby inaczej puste miejsce w karcie - w siatce czterech kolumn
 // taka pusta linia czyta się jak uszkodzone dane, a nie jak brak danych.
 //
-// UCIĘTY NAPIS ZOSTAWIA `title`. Wzorzec ucina „Szkoła Główna Handlowa…”
-// wielokropkiem i dla układu jest to właściwe, ale ucięta nazwa organizacji bez
-// możliwości odczytu to strata informacji - dlatego pełna wartość zostaje
-// w atrybucie tytułu.
+// PEŁNA WARTOŚĆ, BEZ WIELOKROPKA. Stanowisko i instytucja łamią się na kilka
+// linii zamiast ucinać się do „Szkoła Główna Handlowa…” - ucięta nazwa
+// organizacji to strata informacji, a w kolumnie portretowej karty dłuższy
+// podpis nie rozbija rytmu siatki (wyznacza go kadr 4:5 nad nim).
 //
 // GOŚĆ WIDZI TO SAMO, CO ZALOGOWANY. Siatka nie pyta o sesję ani o uprawnienia;
 // o tym, czy sekcja jest w ogóle otwarta, decyduje `enabled` przekazany z zamka
@@ -56,6 +62,7 @@
 // drugiej odwrotnie. `is_expert` rysuje teraz wspólny `SpeakerExpertBadge`
 // (jeden rysunek faktu, nie dwie kopie), a parytetu pilnuje bramka
 // `src/components/events/__tests__/eventSpeakerFactParity.gate.test.tsx`.
+import { useCallback, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -64,38 +71,44 @@ import { uiLang } from "@/lib/i18n/format";
 import { speakersQueryOptions, type PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { speakerRowKey } from "@/lib/builder/speakerRow";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
+import { usePublicEventDirectory } from "@/lib/events/usePublicEventDirectory";
+import { EventDirectoryProvider } from "@/components/events/public/directory/EventDirectoryContext";
 import { SpeakerProfileCard } from "@/components/events/public/molecules/SpeakerProfileCard";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
 
-// Trzy kolumny to docelowy układ wzorca, ale karta ma pod zdjęciem trzy linie
-// tekstu - przy dwóch kolumnach na telefonie każda z nich ma jeszcze szerokość
-// na cokolwiek poza wielokropkiem.
-const GRID_CLASS =
-  "grid grid-cols-1 gap-x-10 gap-y-4 sm:grid-cols-2 sm:gap-x-12 lg:grid-cols-3 lg:gap-x-16";
-// Karta zastepcza ma TEN SAM obrys, co ZWINIETA karta prelegenta
-// (`SpeakerProfileCard`: zdjecie, imie i nazwisko, podpis), wiec wysokosc
-// sekcji nie skacze w chwili, gdy przyjda dane.
-const CARD_CLASS =
-  "flex min-h-52 w-full items-start gap-5 border-b border-border px-2 py-8 sm:gap-6";
+// Dwie kolumny już na telefonie: portret 4:5 w połowie szerokości ekranu wciąż
+// czyta się jak twarz, a jedna kolumna dawała przewijanie przez pełnoekranowe
+// zdjęcia. Odstęp pionowy większy niż poziomy - podpis należy do portretu nad
+// nim, nie do sąsiada obok (`gap-y-6` + `pb-4` karty: klasy, które arkusz już
+// ma - budżet CSS). Cztery kolumny to sufit: przy szerszej treści portret
+// rośnie, ale siatka nie zamienia się w ścianę miniatur.
+const GRID_CLASS = "grid grid-cols-2 gap-x-5 gap-y-6 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-4";
 
-// Osiem kart zastępczych: tyle, ile wchodzi w dwa wiersze docelowego układu,
-// więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.
+/** Pierwszy wiersz najszerszego układu - portrety bez `loading="lazy"`. */
+const PRIORITY_CARDS = 4;
+
+// Osiem kart zastępczych - dwa wiersze docelowego układu. Każda ma TEN SAM
+// obrys, co karta: kadr 4:5 i paski w pudełkach linii nazwiska, stanowiska
+// i instytucji, więc wysokość sekcji nie skacze w chwili, gdy przyjdą dane.
 const SKELETON_SLOTS = [0, 1, 2, 3, 4, 5, 6, 7];
 
 export function EventSpeakersGrid({
   eventId,
+  slug,
   limit = 100,
   enabled = true,
   onSelect,
 }: {
   eventId: string;
+  /** Slug wydarzenia - podany włącza okna profilu (osoba, instytucja). */
+  slug?: string;
   /** Górny limit wierszy z RPC (zaciskany po stronie zapytania do 1..200). */
   limit?: number;
   /** `false` = sekcja zamknięta albo nieaktywna zakładka: nie pytamy bazy. */
   enabled?: boolean;
-  /** Podana funkcja zamienia kartę w przycisk (np. otwarcie profilu). */
+  /** Bez `slug`: podana funkcja zamienia kartę w przycisk wołającego. */
   onSelect?: (speaker: PublicSpeakerRow) => void;
 }) {
   const { t, i18n } = useTranslation();
@@ -109,16 +122,11 @@ export function EventSpeakersGrid({
     return (
       <div className={GRID_CLASS} aria-busy="true" aria-label={t("eventFront.speakers.loading")}>
         {SKELETON_SLOTS.map((slot) => (
-          <div key={slot} className={CARD_CLASS}>
-            <Skeleton className="aspect-square w-28 shrink-0 rounded-[6px] sm:w-32" />
-            {/* Paski maja TE SAME pudelka linii, co napisy karty (ten sam
-                krój i interlinia, twarda spacja w srodku), wiec wysokosc
-                szkieletu zgadza sie z karta z definicji, a nie z rachunku. */}
-            <span className="min-w-0 flex-1 space-y-4 pt-1">
-              <Skeleton aria-hidden="true" className="h-7 w-4/5" />
-              <Skeleton aria-hidden="true" className="h-4 w-2/3" />
-              <Skeleton aria-hidden="true" className="h-4 w-full" />
-            </span>
+          <div key={slot}>
+            <Skeleton className="aspect-[4/5] w-full rounded-[6px]" />
+            <Skeleton aria-hidden="true" className="mt-4 h-6 w-4/5" />
+            <Skeleton aria-hidden="true" className="mt-2 h-4 w-3/5" />
+            <Skeleton aria-hidden="true" className="mt-3 h-6 w-1/2" />
           </div>
         ))}
       </div>
@@ -136,15 +144,61 @@ export function EventSpeakersGrid({
   const speakers = speakersQuery.data ?? [];
   if (speakers.length === 0) return null;
 
-  return <EventSpeakersGridView speakers={speakers} lang={lang} onSelect={onSelect} />;
+  const view = <EventSpeakersGridView speakers={speakers} lang={lang} onSelect={onSelect} />;
+  if (slug === undefined) return view;
+  return (
+    <SpeakersDirectory slug={slug} lang={lang} speakers={speakers}>
+      {view}
+    </SpeakersDirectory>
+  );
 }
 
 /**
- * SAM RYSUNEK siatki - bez zapytania.
+ * Dostawca okien profilu dla zakładki publicznej - osobny komponent, bo hook
+ * katalogu pyta o migawkę wydarzenia po `slug`, a siatka bez `slug` (bramki,
+ * widoki bez okien) nie może wołać go wcale.
+ */
+function SpeakersDirectory({
+  slug,
+  lang,
+  speakers,
+  children,
+}: {
+  slug: string;
+  lang: "pl" | "en";
+  speakers: readonly PublicSpeakerRow[];
+  children: ReactNode;
+}) {
+  const [enrich, setEnrich] = useState(false);
+  // Stała referencja: dostawca trzyma `prime` w `useCallback` po `onActivate`,
+  // a nowa funkcja co render przerysowywałaby każdą kartę siatki.
+  const activate = useCallback(() => setEnrich(true), []);
+  const { directory, eventId } = usePublicEventDirectory({
+    slug,
+    lang,
+    enrich,
+    own: { speakers },
+  });
+  return (
+    <EventDirectoryProvider
+      directory={directory}
+      slug={slug}
+      eventId={eventId}
+      onActivate={activate}
+    >
+      {children}
+    </EventDirectoryProvider>
+  );
+}
+
+/**
+ * SAM RYSUNEK siatki - bez zapytania i bez dostawcy okien.
  *
  * PO CO OSOBNO: podglad studia ma wiersze prelegentow z RPC panelu (publiczna
  * projekcja odmawia szkicowi), a mimo to musi rysowac TE SAME karty, co strona.
- * Bez tego eksportu w repozytorium stanelaby druga siatka prelegentow.
+ * Bez tego eksportu w repozytorium stanelaby druga siatka prelegentow. Okna
+ * profilu daje dostawca z zewnatrz (`EventDirectoryProvider`) - pod nim karty
+ * otwieraja katalog, a `onSelect` zostaje dla widokow bez dostawcy.
  */
 export function EventSpeakersGridView({
   speakers,
@@ -157,9 +211,14 @@ export function EventSpeakersGridView({
 }) {
   return (
     <ul className={GRID_CLASS}>
-      {speakers.map((speaker) => (
-        <li key={speakerRowKey(speaker)} className="flex">
-          <SpeakerProfileCard speaker={speaker} lang={lang} onSelect={onSelect} />
+      {speakers.map((speaker, index) => (
+        <li key={speakerRowKey(speaker)} className="min-w-0">
+          <SpeakerProfileCard
+            speaker={speaker}
+            lang={lang}
+            onSelect={onSelect}
+            priority={index < PRIORITY_CARDS}
+          />
         </li>
       ))}
     </ul>

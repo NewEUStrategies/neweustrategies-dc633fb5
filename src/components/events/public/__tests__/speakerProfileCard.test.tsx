@@ -19,6 +19,9 @@ vi.mock("@/components/atoms/AppLink", () => ({
 
 const { SpeakerProfileCard } =
   await import("@/components/events/public/molecules/SpeakerProfileCard");
+const { EventDirectoryProvider } =
+  await import("@/components/events/public/directory/EventDirectoryContext");
+const { buildEventDirectory } = await import("@/lib/events/eventDirectory");
 
 const PHOTO = "https://proj.supabase.co/storage/v1/object/public/avatars/anna.jpg";
 const OPEN = "eventFront.speakers.card.openProfile(lng=pl,name=Anna Kowalska)";
@@ -50,6 +53,16 @@ function speaker(overrides: Partial<PublicSpeakerRow> = {}): PublicSpeakerRow {
 
 afterEach(() => vi.clearAllMocks());
 
+/** Karta pod dostawcą okien - tak, jak rysuje ją zakładka publiczna. */
+function renderInDirectory(row: PublicSpeakerRow) {
+  const directory = buildEventDirectory({ speakers: [row] }, "pl");
+  return render(
+    <EventDirectoryProvider directory={directory} slug="szczyt" eventId="e1" live={false}>
+      <SpeakerProfileCard speaker={row} lang="pl" />
+    </EventDirectoryProvider>,
+  );
+}
+
 describe("SpeakerProfileCard - redakcyjny katalog", () => {
   it("firma to kopia lacznego podpisu - rozdziela stanowisko i instytucje", () => {
     // Realny przypadek danych GGM 2021: pole firmy powtorzylo stanowisko.
@@ -66,9 +79,21 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     );
 
     expect(screen.getByText("eventFront.speakers.card.positionLabel(lng=pl)")).toBeTruthy();
-    expect(screen.getByText("Prezes Zarządu").getAttribute("title")).toBe("Prezes Zarządu");
+    expect(screen.getByText("Prezes Zarządu")).toBeTruthy();
     expect(screen.getByText("eventFront.speakers.card.organizationLabel(lng=pl)")).toBeTruthy();
-    expect(screen.getByText("IPN").getAttribute("title")).toBe("IPN");
+    expect(screen.getByText("IPN")).toBeTruthy();
+  });
+
+  it("etykiety stanowiska i instytucji zostają dla czytnika ekranu, nie na oko", () => {
+    render(<SpeakerProfileCard speaker={speaker()} lang="pl" />);
+    const position = screen.getByText("eventFront.speakers.card.positionLabel(lng=pl)");
+    const organization = screen.getByText("eventFront.speakers.card.organizationLabel(lng=pl)");
+    // Para etykieta -> wartość jest listą definicji: czytnik czyta „Stanowisko:
+    // Prezes", a wzrok widzi samą hierarchię kroju.
+    expect(position.tagName).toBe("DT");
+    expect(position.className).toContain("sr-only");
+    expect(position.nextElementSibling?.textContent).toBe("Prezes");
+    expect(organization.className).toContain("sr-only");
   });
 
   it("pokazuje portret, nazwisko i osobno opisane stanowisko oraz instytucję", () => {
@@ -76,13 +101,16 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
 
     expect(screen.getByText("Anna Kowalska")).toBeTruthy();
     expect(screen.getByText("eventFront.speakers.card.positionLabel(lng=pl)")).toBeTruthy();
-    expect(screen.getByText("Prezes").getAttribute("title")).toBe("Prezes");
+    expect(screen.getByText("Prezes")).toBeTruthy();
     expect(screen.getByText("eventFront.speakers.card.organizationLabel(lng=pl)")).toBeTruthy();
-    expect(screen.getByText("NASK").getAttribute("title")).toBe("NASK");
+    expect(screen.getByText("NASK")).toBeTruthy();
 
+    // Kadr PIONOWY 4:5 - transformacja i pudło karty mają tę samą proporcję,
+    // więc `object-cover` nie przycina twarzy drugi raz.
     const image = document.querySelector("img") as HTMLImageElement;
     expect(image.getAttribute("src")).toContain("width=480");
-    expect(image.getAttribute("src")).toContain("height=480");
+    expect(image.getAttribute("src")).toContain("height=600");
+    expect(image.parentElement?.className).toContain("aspect-[4/5]");
     expect(image.className).not.toContain("grayscale");
     expect(image.className).toContain("brightness-95");
   });
@@ -135,9 +163,23 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     const onSelect = vi.fn();
     render(<SpeakerProfileCard speaker={row} lang="pl" onSelect={onSelect} />);
 
-    fireEvent.click(screen.getByRole("button", { name: OPEN }));
+    const button = screen.getByRole("button", { name: OPEN });
+    // Rozciągnięty przycisk: jego `::after` przykrywa CAŁĄ kartę (portret też),
+    // a karta-kontener jest punktem odniesienia nakładki.
+    expect(button.className).toContain("after:inset-0");
+    expect(button.closest("article")?.className).toContain("relative");
+    fireEvent.click(button);
     expect(onSelect).toHaveBeenCalledOnce();
     expect(onSelect).toHaveBeenCalledWith(row);
+  });
+
+  it("karta, której nie da się kliknąć, nie drga pod kursorem", () => {
+    // Ruch portretu przy najechaniu obiecuje okno - grupa hover stoi wyłącznie
+    // na karcie interaktywnej.
+    const { container, rerender } = render(<SpeakerProfileCard speaker={speaker()} lang="pl" />);
+    expect(container.querySelector("article")?.className).not.toContain("group/speaker");
+    rerender(<SpeakerProfileCard speaker={speaker()} lang="pl" onSelect={vi.fn()} />);
+    expect(container.querySelector("article")?.className).toContain("group/speaker");
   });
 
   it("nie udaje interakcji dla osoby bez konta i dodatkowych danych", () => {
@@ -196,7 +238,7 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     expect(screen.getByText("eventFront.speakers.card.positionLabel(lng=pl)")).toBeTruthy();
     expect(screen.getByText("Prezes")).toBeTruthy();
     expect(screen.getByText("eventFront.speakers.card.organizationLabel(lng=pl)")).toBeTruthy();
-    expect(screen.getByText("WiseEuropa").getAttribute("title")).toBe("WiseEuropa");
+    expect(screen.getByText("WiseEuropa")).toBeTruthy();
   });
 
   it("zachowuje ścieżki dla czytnika ekranu bez widocznych etykiet na karcie", () => {
@@ -244,11 +286,66 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
   });
 
+  it("bez dostawcy okien instytucja jest tekstem, a nie martwym przyciskiem", () => {
+    render(
+      <SpeakerProfileCard speaker={speaker({ bio_pl: "Biogram" })} lang="pl" onSelect={vi.fn()} />,
+    );
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: OPEN })).toBeTruthy();
+  });
+
   it("odrzuca niebezpieczny adres", () => {
     const { container } = render(
       <SpeakerProfileCard speaker={speaker({ card_cta_url: "javascript:alert(1)" })} lang="pl" />,
     );
     expect(screen.queryByRole("link")).toBeNull();
     expect(container.innerHTML).not.toContain("javascript:");
+  });
+});
+
+describe("SpeakerProfileCard - pod dostawcą okien profilu", () => {
+  it("cała karta otwiera okno osoby, a nazwa przycisku niesie nazwisko", () => {
+    renderInDirectory(speaker());
+    const person = screen.getByRole("button", { name: OPEN });
+    expect(person.getAttribute("aria-haspopup")).toBe("dialog");
+    expect(person.className).toContain("after:inset-0");
+  });
+
+  it("instytucja to OSOBNY przycisk nad nakładką, bez nazwiska w nazwie", () => {
+    renderInDirectory(speaker());
+    const company = screen.getByRole("button", {
+      name: "eventFront.directory.openCompany(lng=pl,name=NASK)",
+    });
+    expect(company.getAttribute("aria-haspopup")).toBe("dialog");
+    // Nad rozciągniętą nakładką osoby - inaczej klik w firmę otwierałby osobę.
+    expect(company.className).toContain("z-10");
+    // Bramka bez konta szuka przycisku osoby po NAZWISKU - nazwa firmy nie
+    // może go nieść, bo dałaby dwa trafienia.
+    expect(screen.getAllByRole("button", { name: /Anna Kowalska/ })).toHaveLength(1);
+    // Nigdy przycisk w przycisku.
+    expect(company.closest("button")).toBe(company);
+    expect(company.parentElement?.closest("button")).toBeNull();
+  });
+
+  it("osoba bez konta i bez faktów ponad kartę: bez przycisku osoby, instytucja zostaje", () => {
+    renderInDirectory(speaker({ user_id: "", person_id: "p1", speaker_profile_id: "sp1" }));
+    expect(screen.queryByRole("button", { name: /Anna Kowalska/ })).toBeNull();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "eventFront.directory.openCompany(lng=pl,name=NASK)" }),
+    ).toBeTruthy();
+    expect(document.querySelector("article")?.className).not.toContain("group/speaker");
+  });
+
+  it("dostawca wygrywa z `onSelect` - jedno okno na zakładkę, nie dwa", () => {
+    const onSelect = vi.fn();
+    const row = speaker();
+    const directory = buildEventDirectory({ speakers: [row] }, "pl");
+    render(
+      <EventDirectoryProvider directory={directory} slug="szczyt" eventId="e1" live={false}>
+        <SpeakerProfileCard speaker={row} lang="pl" onSelect={onSelect} />
+      </EventDirectoryProvider>,
+    );
+    expect(screen.getByRole("button", { name: OPEN }).getAttribute("aria-haspopup")).toBe("dialog");
   });
 });

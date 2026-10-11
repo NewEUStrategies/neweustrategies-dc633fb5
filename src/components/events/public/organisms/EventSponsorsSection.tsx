@@ -32,6 +32,11 @@
 // wywołującego (`draftLabel`): słownik panelu nie trafia do paczki strony
 // publicznej, a strona, która napisu nie podaje, rysuje się bajt w bajt tak
 // samo jak przed rozdzieleniem.
+//
+// ZAKŁADKA „PARTNERZY" MA WŁASNY RYSUNEK (`EventPartnersTab`): ścianę
+// logotypów z oknem instytucji po kliknięciu. Zapytanie, wczytywanie i awaria
+// zostają tutaj, wspólne z przeglądem - rozgałęzia się dopiero rysunek
+// gotowej listy, więc sekcja na stronie głównej nie zmienia ani znacznika.
 import { useRef } from "react";
 import { ExternalLink } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -50,6 +55,7 @@ import { useSponsorClickHandlers, useSponsorImpression } from "@/lib/events/spon
 import { usePublicEventSponsors } from "@/lib/events/usePublicEvent";
 import { publicEventErrorMessage } from "@/lib/events/publicEventErrors";
 import { SponsorLogo } from "@/components/events/public/atoms/SponsorLogo";
+import { EventPartnersTab } from "@/components/events/public/organisms/EventPartnersTab";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 ensureEventFrontI18n();
@@ -82,6 +88,9 @@ export function EventSponsorsSection({
   }
 
   // Po odsianiu wczytywania i błędu zostaje sukces - `data` jest już listą.
+  if (placement === "partners_tab") {
+    return <EventPartnersTab slug={slug} tiers={sponsorsQuery.data} />;
+  }
   return <EventSponsorsSectionView tiers={sponsorsQuery.data} placement={placement} />;
 }
 

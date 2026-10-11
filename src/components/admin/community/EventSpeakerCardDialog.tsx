@@ -229,9 +229,11 @@ export function EventSpeakerCardDialog({
               // Znacznik podgladu builderu: `AppLink` nie nawiguje w jego
               // wnetrzu. Klik w przycisk karty wyprowadzilby z panelu i
               // przepadlby niezapisany szkic.
+              // Ramka z odstępem: karta ma pionowy portret na całą szerokość,
+              // więc bez wcięcia zdjęcie dotykałoby włosowych linii ramki.
               <div
                 data-builder-renderer="widget-props-preview"
-                className="border-l border-t border-border"
+                className="rounded-[6px] border border-border p-3"
               >
                 <SpeakerProfileCard
                   key={speaker.speaker_profile_id}

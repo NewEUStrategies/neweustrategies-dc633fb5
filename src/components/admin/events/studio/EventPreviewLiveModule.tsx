@@ -7,23 +7,35 @@
 //
 // CZEGO TU NIE MA. WLASNEGO UKLADU. Karty rysuja komponenty produkcyjne:
 // `AgendaSessionCard`, `EventSpeakersGridView`, `EventAttendeesGridView`,
-// `EventSponsorsSectionView` - te same, ktorych uzywaja `EventAgendaSection`,
-// `EventSpeakersGrid`, `EventAttendeesList` i `EventSponsorsSection`. Ten plik
-// wnosi wylacznie ZRODLO DANYCH (RPC panelu zamiast projekcji publicznej)
-// i martwe przyciski zapisu: organizator ma zobaczyc program, a nie zapisac
-// sie na sesje z ekranu panelu.
-import { useState } from "react";
+// `EventPartnersTabView` - te same, ktorych uzywaja `EventAgendaSection`,
+// `EventSpeakersGrid`, `EventAttendeesList` i zakladka „Partnerzy" w
+// `EventSponsorsSection`. Ten plik wnosi wylacznie ZRODLO DANYCH (RPC panelu
+// zamiast projekcji publicznej) i martwe przyciski zapisu: organizator ma
+// zobaczyc program, a nie zapisac sie na sesje z ekranu panelu.
+//
+// OKNA PROFILU (OSOBA, INSTYTUCJA) DZIALAJA TAKZE TUTAJ. Strona publiczna
+// stawia dostawce okien w organizmach zakladek; podglad stawia go sam, nad
+// widokami, z katalogiem zlozonym z tych samych faktow RPC panelu
+// (`buildEventDirectory`) - jedno okno dla wszystkich modulow, wiec klik
+// w prelegenta pokazuje tez jego sesje, a firma - swoich ludzi. `live={false}`:
+// odnosniki wychodzace (pelny profil, strona firmy, agenda) sa tekstem, bo klik
+// wyprowadzilby redaktora ze studia i zgubil niezapisany szkic.
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { EventAgendaBoardView } from "@/components/events/public/organisms/EventAgendaBoardView";
+import {
+  EventAgendaBoardView,
+  type AgendaRevealRequest,
+} from "@/components/events/public/organisms/EventAgendaBoardView";
 import { EventSpeakersGridView } from "@/components/events/public/organisms/EventSpeakersGrid";
-import { SpeakerProfileDialog } from "@/components/events/SpeakerProfileDialog";
 import { EventAttendeesGridView } from "@/components/events/public/organisms/EventAttendeesList";
 import {
   EventSponsorsSectionError,
   EventSponsorsSectionPending,
-  EventSponsorsSectionView,
 } from "@/components/events/public/organisms/EventSponsorsSection";
+import { EventPartnersTabView } from "@/components/events/public/organisms/EventPartnersTab";
+import { EventDirectoryProvider } from "@/components/events/public/directory/EventDirectoryContext";
+import { buildEventDirectory } from "@/lib/events/eventDirectory";
 import { type AgendaSession } from "@/lib/events/agendaSurface";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
@@ -31,7 +43,6 @@ import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
 import { PREVIEW_SPONSORS_READY, type PreviewSponsorsStatus } from "@/lib/events/sponsorsPreview";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { uiLang } from "@/lib/i18n/format";
-import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { mediaRenderUrl } from "@/lib/media/publicUrl";
 // Slownik panelu wprost, a nie „przy okazji" kanwy: ten plik sam czyta klucze
 // `adminEvents.studio.preview.*` (puste zdania, plakietka partnera).
@@ -144,14 +155,27 @@ function PreviewTracks({ tracks }: { tracks: readonly PreviewTrackChip[] }) {
  * widok, ktorego uzywa `EventAgendaSection` - podglad wnosi tylko dane szkicu
  * i MARTWY zapis (`signedIn={false}`, brak uchwytow).
  */
-function PreviewAgenda({ sessions }: { sessions: readonly AgendaSession[] }) {
+function PreviewAgenda({
+  sessions,
+  revealRequest,
+}: {
+  sessions: readonly AgendaSession[];
+  revealRequest: AgendaRevealRequest | null;
+}) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
 
   if (sessions.length === 0)
     return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptyAgenda")} />;
 
-  return <EventAgendaBoardView sessions={sessions} lang={lang} signedIn={false} />;
+  return (
+    <EventAgendaBoardView
+      sessions={sessions}
+      lang={lang}
+      signedIn={false}
+      revealRequest={revealRequest}
+    />
+  );
 }
 
 /**
@@ -179,51 +203,66 @@ export function EventPreviewLiveModule({
   ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  const [selectedSpeaker, setSelectedSpeaker] = useState<PublicSpeakerRow | null>(null);
+  // Katalog ze WSZYSTKICH faktow podgladu, nie tylko z tych biezacego modulu:
+  // okno prelegenta otwarte z siatki pokazuje jego sesje z programu, a okno
+  // firmy - jej prelegentow i uczestnikow. Zalezy od tablic, nie od `data`:
+  // nakladka sklada nowy obiekt faktow przy kazdym renderze.
+  const { sessions, speakers, attendees, sponsorTiers } = data;
+  const noTierLabel = t("eventFront.sponsors.noTier");
+  const directory = useMemo(
+    () => buildEventDirectory({ sessions, speakers, attendees, sponsorTiers, noTierLabel }, lang),
+    [sessions, speakers, attendees, sponsorTiers, noTierLabel, lang],
+  );
 
+  // Program: wiersz sesji w oknie profilu odsłania blok tej sesji na tablicy
+  // (dzień, zdjęte filtry, przewinięcie) - tak jak na stronie publicznej.
+  // Na innych modułach tablicy nie ma, więc wiersze zostają tekstem.
+  const [reveal, setReveal] = useState<AgendaRevealRequest | null>(null);
+  const onSessionSelect =
+    module === "agenda"
+      ? (sessionId: string) =>
+          setReveal((current) => ({ sessionId, nonce: (current?.nonce ?? 0) + 1 }))
+      : undefined;
+
+  const content = previewModuleContent(module, data, t, reveal);
+  if (content === null) return null;
+  return (
+    <EventDirectoryProvider
+      directory={directory}
+      slug={null}
+      eventId={null}
+      live={false}
+      onSessionSelect={onSessionSelect}
+    >
+      {content}
+    </EventDirectoryProvider>
+  );
+}
+
+function previewModuleContent(
+  module: string,
+  data: EventPreviewLiveData,
+  t: (key: string) => string,
+  reveal: AgendaRevealRequest | null,
+) {
   if (module === "agenda")
     return (
       <div className="space-y-6">
         <PreviewTracks tracks={data.tracks} />
-        <PreviewAgenda sessions={data.sessions} />
+        <PreviewAgenda sessions={data.sessions} revealRequest={reveal} />
       </div>
     );
 
   if (module === "speakers") {
     if (data.speakers.length === 0)
       return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptySpeakers")} />;
-    return (
-      <>
-        <EventSpeakersGridView speakers={data.speakers} lang={lang} onSelect={setSelectedSpeaker} />
-        {selectedSpeaker !== null ? (
-          <SpeakerProfileDialog
-            userId={selectedSpeaker.user_id}
-            row={selectedSpeaker}
-            lang={lang}
-            open
-            onOpenChange={(open) => {
-              if (!open) setSelectedSpeaker(null);
-            }}
-            fallback={{
-              name: selectedSpeaker.display_name ?? "",
-              role: pickLocalized(
-                selectedSpeaker,
-                "headline",
-                lang,
-                selectedSpeaker.job_title ?? "",
-              ),
-              photo: selectedSpeaker.avatar_url ?? undefined,
-            }}
-          />
-        ) : null}
-      </>
-    );
+    return <PreviewSpeakers speakers={data.speakers} />;
   }
 
   if (module === "participants") {
     if (data.attendees.length === 0)
       return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptyAttendees")} />;
-    return <EventAttendeesGridView entries={data.attendees} lang={lang} />;
+    return <PreviewAttendees entries={data.attendees} />;
   }
 
   if (module === "partners") {
@@ -233,7 +272,7 @@ export function EventPreviewLiveModule({
     if (data.sponsorTiers.length === 0)
       return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptyPartners")} />;
     return (
-      <EventSponsorsSectionView
+      <EventPartnersTabView
         tiers={data.sponsorTiers}
         draftLabel={t("adminEvents.studio.preview.sponsorDraftBadge")}
       />
@@ -241,4 +280,16 @@ export function EventPreviewLiveModule({
   }
 
   return null;
+}
+
+/** Siatka prelegentow - klik otwiera okno z dostawcy nad modulem. */
+function PreviewSpeakers({ speakers }: { speakers: readonly PublicSpeakerRow[] }) {
+  const { i18n } = useTranslation();
+  return <EventSpeakersGridView speakers={speakers} lang={uiLang(i18n.language)} />;
+}
+
+/** Katalog uczestnikow - klik otwiera okno z dostawcy nad modulem. */
+function PreviewAttendees({ entries }: { entries: readonly AttendeeEntry[] }) {
+  const { i18n } = useTranslation();
+  return <EventAttendeesGridView entries={entries} lang={uiLang(i18n.language)} />;
 }
