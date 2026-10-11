@@ -133,6 +133,7 @@ function seoIssue(severity: SeoIssue["severity"], lang: SeoIssue["lang"] = "pl")
     lang,
     kind: "title",
     severity,
+    source: "override",
     chars: 70,
     charLimit: 60,
     px: 600,

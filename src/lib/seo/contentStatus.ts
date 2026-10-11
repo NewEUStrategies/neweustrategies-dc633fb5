@@ -152,10 +152,10 @@ export function summarizeSeoStatuses(statuses: readonly SeoContentStatus[]): Seo
 /** Wiersz do wykrywania duplikatów - klucz jednoznaczny w obrębie raportu. */
 export interface DescriptionDuplicateInput {
   key: string;
-  excerpt_pl: string | null;
-  excerpt_en: string | null;
-  seo_description_pl: string | null;
-  seo_description_en: string | null;
+  excerpt_pl: string | null | undefined;
+  excerpt_en: string | null | undefined;
+  seo_description_pl: string | null | undefined;
+  seo_description_en: string | null | undefined;
 }
 
 /** Krótsze opisy („Czytaj więcej", „Wkrótce") nie świadczą o skopiowaniu. */

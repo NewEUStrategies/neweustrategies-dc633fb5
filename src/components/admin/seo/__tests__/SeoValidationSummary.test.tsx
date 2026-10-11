@@ -84,6 +84,7 @@ function meta(over: Partial<SeoIssue> = {}): SeoIssue {
     lang: "pl",
     kind: "title",
     severity: "error",
+    source: "override",
     chars: 70,
     charLimit: 60,
     px: 640,
