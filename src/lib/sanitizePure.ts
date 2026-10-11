@@ -49,6 +49,20 @@ const HTML_ENTITY_MAP: Record<string, string> = {
  *
  * SSR-safe (no DOMParser / document access).
  */
+/**
+ * Kod spoza Unicode (`&#9999999;`), NUL i surogaty dają U+FFFD - jak w parserze
+ * HTML. `String.fromCodePoint` rzuca dla nich RangeError, a `htmlToPlainText`
+ * renderuje bio ekspertów i opisy w blokach: jedna taka encja wywracała całą
+ * stronę (przegląd 2026-10). Lokalna kopia reguły z `lib/text/cleanExcerpt`,
+ * bo ten moduł nie może niczego importować (nagłówek wyżej).
+ */
+function safeCodePoint(cp: number): string {
+  if (!Number.isFinite(cp) || cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) {
+    return "\ufffd";
+  }
+  return String.fromCodePoint(cp);
+}
+
 export function htmlToPlainText(input: string | null | undefined): string {
   if (!input) return "";
   // If the string has no tag / entity markers, short-circuit.
@@ -66,10 +80,8 @@ export function htmlToPlainText(input: string | null | undefined): string {
   // Strip any remaining tags.
   out = out.replace(/<[^>]+>/g, "");
   // Decode entities.
-  out = out.replace(/&#(\d+);/g, (_, n: string) => String.fromCodePoint(Number(n)));
-  out = out.replace(/&#x([0-9a-f]+);/gi, (_, n: string) =>
-    String.fromCodePoint(Number.parseInt(n, 16)),
-  );
+  out = out.replace(/&#(\d+);/g, (_, n: string) => safeCodePoint(Number(n)));
+  out = out.replace(/&#x([0-9a-f]+);/gi, (_, n: string) => safeCodePoint(Number.parseInt(n, 16)));
   out = out.replace(/&([a-z]+);/gi, (m, name: string) => {
     const v = HTML_ENTITY_MAP[name.toLowerCase()];
     return v ?? m;
