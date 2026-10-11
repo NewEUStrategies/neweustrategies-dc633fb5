@@ -9706,3 +9706,29 @@ button,
 .archive-civic-horizon-fade { position: absolute; inset: 8% 2% 4% 32%; mask-image: linear-gradient(to right, transparent, black 28%); }
 .archive-civic-horizon-lines { position: absolute; inset: 0; background: var(--archive-horizon-ink); mask-size: contain; mask-repeat: no-repeat; mask-position: right bottom; }
 @media (max-width: 640px) { .archive-civic-horizon-fade { left: 18%; mask-image: linear-gradient(to right, transparent, black 55%); } }
+
+/* Light theme: the banner keeps the platform's dark panel (same values as the
+   dark theme tokens), so the pen-drawn skyline reads as one dark strip; the
+   header text above it inverts to the dark-theme inks. Dark mode is untouched
+   (bg-background stays). Scoped to `:has([data-civic-horizon])` so every other
+   hero style (solid, image, mesh, pattern, minimal) keeps light inks. */
+.light [data-civic-horizon] { background-color: #141414; }
+.light header:has([data-civic-horizon]) {
+  --archive-horizon-fg: #ede9e7;
+  --archive-horizon-muted: oklch(0.7 0 0);
+  color: var(--archive-horizon-fg);
+}
+.light header:has([data-civic-horizon]) h1,
+.light header:has([data-civic-horizon]) .text-foreground { color: var(--archive-horizon-fg); }
+.light header:has([data-civic-horizon]) .text-muted-foreground,
+.light header:has([data-civic-horizon]) .text-muted-foreground\/60 { color: var(--archive-horizon-muted); }
+.light header:has([data-civic-horizon]) nav > ol {
+  background-color: color-mix(in oklab, #0f0f0f 60%, transparent);
+  border-color: oklch(1 0 0 / 8%);
+}
+/* `:where(main p, article p, main li, article li)` z globalColors ustawia
+   wprost `color: var(--gc-body-text)`, więc dziedziczenie z nagłówka nie
+   dochodzi do okruszków - napisujemy je jawnie. */
+.light header:has([data-civic-horizon]) nav :is(li, a, svg) {
+  color: var(--archive-horizon-muted);
+}
