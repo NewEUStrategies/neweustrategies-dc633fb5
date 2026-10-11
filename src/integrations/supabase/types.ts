@@ -23409,6 +23409,9 @@ export type Database = {
           company_id: string
         }[]
       }
+      _menu_items_prune_dead: { Args: { _item_ids: string[] }; Returns: number }
+      _menu_items_repair_category_links: { Args: never; Returns: number }
+      _pages_unpublish_test_content: { Args: never; Returns: number }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
       _redeem_b2b_coupon: {
         Args: {
