@@ -227,7 +227,9 @@ export function routeSearchValidator(route: AnyRoute): RouteSearchValidator {
 export async function routeMeta(route: AnyRoute): Promise<RouteMetaEntry[]> {
   const head = route.options.head;
   if (typeof head !== "function") return [];
-  const result = await head({} as Parameters<typeof head>[0]);
+  // Router zawsze podaje `params` (trasy z parametrem w ścieżce czytają je
+  // w `head()`); pusty obiekt odpowiada wejściu bez znanych parametrów.
+  const result = await head({ params: {} } as Parameters<typeof head>[0]);
   return (result?.meta ?? []) as RouteMetaEntry[];
 }
 
