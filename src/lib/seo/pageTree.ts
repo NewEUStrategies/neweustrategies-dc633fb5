@@ -2,6 +2,7 @@
 // flat `pages` rows (id/parent_id) into an ordered tree with canonical paths,
 // mirroring the URL rule used everywhere else (path = parent path + slug).
 // Framework-free and unit-tested; the route only feeds it query rows.
+import { isTestContentSlug } from "./testContent";
 
 export interface PageTreeRow {
   id: string;
@@ -44,7 +45,13 @@ function sortSiblings(nodes: PageTreeNode[]): void {
  */
 export function buildPageTree(rows: readonly PageTreeRow[]): PageTreeNode[] {
   const nodes = new Map<string, PageTreeNode>();
-  for (const row of rows) nodes.set(row.id, { ...row, path: `/${row.slug}`, children: [] });
+  for (const row of rows) {
+    // Strona TESTOWA (`test-*`/`e2e-*`) nie trafia do mapy; jej poddrzewo
+    // wypada tą samą drogą co pod nieopublikowanym rodzicem (2026-10 audyt:
+    // `/test-e2e-zakup`) - reguła w `lib/seo/testContent.ts`.
+    if (isTestContentSlug(row.slug)) continue;
+    nodes.set(row.id, { ...row, path: `/${row.slug}`, children: [] });
+  }
 
   const roots: PageTreeNode[] = [];
   for (const node of nodes.values()) {

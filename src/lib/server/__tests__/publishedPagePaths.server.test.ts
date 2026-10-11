@@ -195,6 +195,40 @@ describe("readPublishedPagePaths - ścieżki kontra lista stron", () => {
     expect(wywolaniaRpc).toEqual([["p-zespol", "p-main"]]);
   });
 
+  it("strona TESTOWA i jej poddrzewo nie dostają ścieżki, prawdziwe słowa zostają", async () => {
+    // 2026-10 audyt: opublikowane `/test-e2e-zakup` i `/test/...` w pages.xml.
+    // Ścieżka strony to slugi przodków, więc dziecko `test` wypada razem z nim,
+    // a wpisy pod nimi tracą adres w sekcji `posts`, feedach i llms.txt.
+    const strony: WierszStrony[] = [
+      {
+        id: "p-zakup",
+        slug: "test-e2e-zakup",
+        parent_id: null,
+        seo_noindex: false,
+        updated_at: null,
+      },
+      { id: "p-test", slug: "test", parent_id: null, seo_noindex: false, updated_at: null },
+      { id: "p-pod", slug: "podstrona", parent_id: "p-test", seo_noindex: false, updated_at: null },
+      {
+        id: "p-testament",
+        slug: "testament",
+        parent_id: null,
+        seo_noindex: false,
+        updated_at: null,
+      },
+    ];
+    const { admin } = atrapa(strony, {
+      "p-zakup": "test-e2e-zakup",
+      "p-test": "test",
+      "p-pod": "test/podstrona",
+      "p-testament": "testament",
+    });
+    const { paths, pages } = await readPublishedPagePaths(admin, "t-nes");
+    expect(Object.fromEntries(paths)).toEqual({ "p-testament": "testament" });
+    // Lista stron (wejście strony głównej) zostaje pełna - wycinamy wyłącznie adresy.
+    expect(pages).toHaveLength(4);
+  });
+
   it("`pages` niesie WSZYSTKIE opublikowane strony - wejście rozstrzygnięcia strony głównej", async () => {
     // Zapytanie `/` wybiera stronę po id spośród opublikowanych, bez łańcucha
     // przodków - lista nie może więc być przycięta do osiągalnych.

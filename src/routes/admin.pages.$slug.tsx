@@ -248,7 +248,14 @@ function EditPage() {
       const persistedSnapshot: PageForm = {
         ...snapshot,
         updated_at: result?.updatedAt ?? snapshot.updated_at,
+        ...(result?.noindexForced ? { seo_noindex: true } : {}),
       };
+      // Strona testowa (`test-*`/`e2e-*`) publiczna wyłącznie z noindex - serwer
+      // ustawił flagę sam; przełącznik w panelu SEO ma pokazać stan z bazy.
+      if (result?.noindexForced) {
+        toast.info(t("admin.seo.testNoindexForced"), { id: "test-page-noindex" });
+        setForm((f) => (f ? { ...f, seo_noindex: true } : f));
+      }
       // The server returns the canonical slug (uniqueSlug may have suffixed it
       // on collision). Navigate only to the persisted slug so the address bar
       // and the loaded record always match what is really in the database.

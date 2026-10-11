@@ -1096,9 +1096,7 @@ describe("metadane stron statycznych: skąd bierze się tytuł i robots dla /pri
 
   it("tytuł SEO z samych spacji to BRAK nadpisania, nie pusty `<title>`", () => {
     const domyslne = { title: "Marka", description: "Opis marki" };
-    expect(pickStaticSeo(wierszSeo({ seo_title_pl: "   " }), "pl", domyslne).title).toBe(
-      "Cennik",
-    );
+    expect(pickStaticSeo(wierszSeo({ seo_title_pl: "   " }), "pl", domyslne).title).toBe("Cennik");
   });
 
   it("język wybiera kolumnę, a nie wariant tekstu", () => {

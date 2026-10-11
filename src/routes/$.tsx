@@ -106,6 +106,7 @@ import {
 } from "@/lib/seo/fields";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { effectiveTitleSuffix, parseSeoSettings } from "@/lib/seo/settings";
+import { isTestContentTrail } from "@/lib/seo/testContent";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { activeLang } from "@/lib/seo/head";
@@ -888,8 +889,10 @@ export const Route = createFileRoute("/$")({
 
     // Derived values first, then the per-entity SEO overrides on top - the
     // exact chain the admin SERP preview simulates.
+    // Ostatnia deska: slug - tak samo jak podgląd SERP i walidator panelu
+    // (dawniej "Strona", po polsku także na stronach EN).
     const fallbackTitle =
-      (lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en) || "Strona";
+      (lang === "en" ? it.title_en || it.title_pl : it.title_pl || it.title_en) || it.slug;
     const excerpt =
       "excerpt_pl" in it
         ? lang === "en"
@@ -921,7 +924,12 @@ export const Route = createFileRoute("/$")({
       publishedAt: it.published_at,
       modifiedAt: it.updated_at,
       tags,
-      robots: resolveRobotsMeta(seoRow),
+      // Treść TESTOWA (slug strony albo sekcji `test-*`/`e2e-*`) nigdy nie jest
+      // indeksowalna, nawet bez flagi `seo_noindex` (2026-10 audyt:
+      // `/test-e2e-zakup` w indeksie) - `lib/seo/testContent.ts`.
+      robots: isTestContentTrail(isPost ? "post" : "page", it.slug, loaderData.crumbs ?? [])
+        ? "noindex, nofollow"
+        : resolveRobotsMeta(seoRow),
       canonicalOverride: seoCanonicalOverride(seoRow),
       imageWidth: imageIsCard ? 1200 : undefined,
       imageHeight: imageIsCard ? 630 : undefined,

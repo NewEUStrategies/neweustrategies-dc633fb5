@@ -808,3 +808,160 @@ describe("higiena atrap", () => {
     expect(supabaseAdmin.from).toBe(admin.from);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Strony TESTOWE (2026-10 audyt SEO: `/test-e2e-zakup` opublikowane
+// i indeksowalne). Reguła to NIEZMIENNIK, nie odmowa: zapis kończący się stanem
+// publicznym wymusza `seo_noindex = true` i mówi o tym znacznikiem
+// (`lib/content/testPages.ts`).
+// ---------------------------------------------------------------------------
+
+describe("updatePage - strona testowa publiczna tylko z noindex", () => {
+  function scene(existing: Partial<PageRow>, paths?: Array<string | null>) {
+    const client = contentClient();
+    admin.setResponse("pages", ok(pageRow(existing)));
+    client.db.setResponse("pages", entityTable());
+    client.db.setResponse("content_revisions", revisionsTable());
+    client.db.setResponse("redirects", ok(null));
+    if (paths) {
+      const queue = [...paths];
+      client.setRpc("page_full_path", () => ok(queue.length > 1 ? queue.shift() : queue[0]));
+    }
+    return client;
+  }
+
+  const call = (client: ContentClient, fields: Record<string, unknown>) =>
+    run("updatePage", { id: PAGE_ID, fields }, client);
+
+  it("publikacja strony `test-*` zapisuje seo_noindex = true i zwraca znacznik", async () => {
+    const client = scene({ slug: "test-e2e-zakup" });
+    await expect(call(client, { status: "published" })).resolves.toMatchObject({
+      ok: true,
+      noindexForced: true,
+    });
+    expect(savedPatch(client.db)).toMatchObject({ status: "published", seo_noindex: true });
+  });
+
+  it("ponowny zapis opublikowanej strony testowej z odznaczonym noindex przywraca flagę", async () => {
+    const client = scene({ slug: "e2e-kongres", status: "published", published_at: BASE_TS });
+    await call(client, { title_pl: "A", seo_noindex: false });
+    expect(savedPatch(client.db)).toMatchObject({ seo_noindex: true });
+  });
+
+  it("zmiana slugu na testowy przy publikacji też wymusza noindex", async () => {
+    const client = scene({ slug: "o-nas" });
+    await call(client, { slug: "test", status: "published" });
+    expect(savedPatch(client.db)).toMatchObject({ slug: "test", seo_noindex: true });
+  });
+
+  it("strona pod przodkiem `test`: rodzic czytany jednym RPC tylko przy publikacji", async () => {
+    const client = scene({ slug: "agenda", parent_id: PARENT_PAGE_ID }, ["test/sekcja"]);
+    await expect(call(client, { status: "published" })).resolves.toMatchObject({
+      noindexForced: true,
+    });
+    expect(client.rpcCalls.filter((c) => c.fn === "page_full_path")).toEqual([
+      { fn: "page_full_path", args: { _page_id: PARENT_PAGE_ID } },
+    ]);
+  });
+
+  it("przeniesienie pod rodzica testowego czyta ścieżkę NOWEGO rodzica", async () => {
+    const client = scene({ slug: "agenda", status: "published", published_at: BASE_TS }, [
+      "o-nas/agenda",
+      "test",
+      "test/agenda",
+    ]);
+    await call(client, { parent_id: OTHER_PARENT_ID });
+    expect(savedPatch(client.db)).toMatchObject({ seo_noindex: true });
+    expect(
+      client.rpcCalls.filter((c) => c.fn === "page_full_path").map((c) => c.args),
+    ).toContainEqual({ _page_id: OTHER_PARENT_ID });
+  });
+
+  it("autozapis opublikowanej strony bez zmiany miejsca NIE płaci za odczyt przodków", async () => {
+    const client = scene({
+      slug: "agenda",
+      parent_id: PARENT_PAGE_ID,
+      status: "published",
+      published_at: BASE_TS,
+    });
+    const result = await call(client, { title_pl: "A" });
+    expect(result).not.toHaveProperty("noindexForced");
+    expect(client.rpcCalls.filter((c) => c.fn === "page_full_path")).toHaveLength(0);
+    expect(savedPatch(client.db)).not.toHaveProperty("seo_noindex");
+  });
+
+  it("szkic strony testowej, strona już noindex i zwykła strona - bez wymuszenia", async () => {
+    const szkic = scene({ slug: "test" });
+    await expect(call(szkic, { title_pl: "A" })).resolves.not.toHaveProperty("noindexForced");
+    expect(savedPatch(szkic.db)).not.toHaveProperty("seo_noindex");
+
+    const juz = scene({ slug: "test", seo_noindex: true });
+    await expect(call(juz, { status: "published" })).resolves.not.toHaveProperty("noindexForced");
+
+    const zwykla = scene({ slug: "testament" });
+    await expect(call(zwykla, { status: "published" })).resolves.not.toHaveProperty(
+      "noindexForced",
+    );
+    expect(savedPatch(zwykla.db)).not.toHaveProperty("seo_noindex");
+  });
+});
+
+describe("bulkUpdatePages - strony testowe dostają noindex PRZED publikacją", () => {
+  const IDS = [PAGE_ID, OTHER_POST_ID];
+
+  function scene(paths: SupabaseResult, noindexed: SupabaseResult = ok([{ id: PAGE_ID }])) {
+    const client = contentClient();
+    client.db.setResponse(
+      "pages",
+      entityTable({
+        bulkPlain: noindexed,
+        bulkStamped: ok([{ id: PAGE_ID }]),
+        bulkKept: ok([{ id: OTHER_POST_ID }]),
+      }),
+    );
+    client.setRpc("page_full_paths", paths);
+    return client;
+  }
+
+  it("ścieżka (slug własny albo przodka) rozstrzyga; flaga idzie przed zmianą statusu", async () => {
+    const client = scene(
+      ok([
+        { page_id: PAGE_ID, full_path: "test/agenda" },
+        { page_id: OTHER_POST_ID, full_path: "o-nas" },
+      ]),
+    );
+    await expect(
+      run("bulkUpdatePages", { ids: IDS, status: "published" }, client),
+    ).resolves.toEqual({ ok: true, count: 2, requested: 2, noindexForced: 1 });
+    const updates = client.db.chainsFor("pages").filter((c) => c.has("update"));
+    expect(updates[0]?.argsOf("update")).toEqual([{ seo_noindex: true }]);
+    expect(updates[0]?.argsOf("in")).toEqual(["id", [PAGE_ID]]);
+    expect(updates[0]?.argsOf("eq")).toEqual(["seo_noindex", false]);
+    expect(
+      updates.slice(1).every((c) => !("seo_noindex" in (c.argsOf("update")?.[0] as object))),
+    ).toBe(true);
+    expect(auditParams()).toMatchObject({ metadata: { noindexForced: [PAGE_ID] } });
+  });
+
+  it("bez stron testowych nie ma dodatkowego UPDATE-u ani znacznika", async () => {
+    const client = scene(ok([{ page_id: PAGE_ID, full_path: "o-nas" }]));
+    await expect(
+      run("bulkUpdatePages", { ids: IDS, status: "published" }, client),
+    ).resolves.toEqual({ ok: true, count: 2, requested: 2 });
+    expect(client.db.chainsFor("pages").filter((c) => c.has("update"))).toHaveLength(2);
+  });
+
+  it("zmiana na szkic nie sprawdza stron testowych; awaria kontroli nie blokuje publikacji", async () => {
+    const szkic = scene(ok([{ page_id: PAGE_ID, full_path: "test" }]));
+    await run("bulkUpdatePages", { ids: IDS, status: "draft" }, szkic);
+    expect(szkic.rpcCalls.filter((c) => c.fn === "page_full_paths")).toHaveLength(0);
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const awaria = scene(fail("rpc down"));
+    await expect(
+      run("bulkUpdatePages", { ids: IDS, status: "published" }, awaria),
+    ).resolves.toEqual({ ok: true, count: 2, requested: 2 });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});

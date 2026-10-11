@@ -43,6 +43,8 @@ export function expandMenuWithItems(menu: MenuWithItemsWire | null): MenuWithIte
       icon: row.icon ?? "",
       mega_enabled: row.mega_enabled ?? false,
       mega_config: row.mega_config ?? DEFAULT_MEGA_CONFIG,
+      // Flaga martwego linku jedzie tylko jako `true` - jej brak to link żywy.
+      ...(row.ref_broken ? { ref_broken: true } : {}),
     })),
   };
 }

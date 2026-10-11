@@ -929,6 +929,8 @@ export const pl = {
       advanced: "Zaawansowane: adres kanoniczny i indeksowanie",
       canonicalLabel: "Canonical URL (nadpisanie)",
       canonicalHint: "Tylko dla treści przedrukowanych - wskazuje oryginalne źródło.",
+      testNoindexForced:
+        "To strona testowa (slug test-… lub e2e-…): opublikowana zostaje wyłącznie z noindex - poza mapą strony i wynikami Google.",
       canonicalInvalid:
         "Wpisz pełny adres zaczynający się od https:// - do tego czasu zmiana nie jest zapisywana.",
       noindexLabel: "Ukryj przed wyszukiwarkami (noindex)",

@@ -51,6 +51,11 @@ export interface MenuClientItem extends MenuTreeItem {
   icon: string;
   mega_enabled: boolean;
   mega_config: MegaConfig;
+  /**
+   * Martwy link wg ostatniego odczytu serwera (`MenuItemRow.ref_broken`).
+   * Tylko do ostrzeżenia w panelu - `toSavePayload` go nie wysyła.
+   */
+  ref_broken?: boolean;
 }
 
 export interface MenuTreeNode<T extends MenuTreeItem = MenuClientItem> {

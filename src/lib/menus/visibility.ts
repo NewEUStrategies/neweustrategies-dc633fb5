@@ -32,13 +32,23 @@ export function isVisibleForViewer(
  * Filtr płaskiej listy pozycji. Dzieci ukrytej pozycji też znikają - inaczej
  * podpięta pod nią gałąź wróciłaby na najwyższy poziom nawigacji
  * (`buildPublicMenuTree` promuje sieroty).
+ *
+ * Ukryta jest też pozycja z MARTWYM linkiem (`ref_broken`, `refResolution.ts`):
+ * strona zdjęta z publikacji albo skasowana kategoria nie może zostawić
+ * w nagłówku każdej strony linku na 404 (2026-10 audyt: `/category/ekonomia`).
+ * Panel widzi takie pozycje z ostrzeżeniem - ten filtr działa tylko na froncie.
  */
 export function filterMenuItemsForViewer<
-  T extends { id: string; parent_id: string | null; visibility?: MenuItemVisibility | null },
+  T extends {
+    id: string;
+    parent_id: string | null;
+    visibility?: MenuItemVisibility | null;
+    ref_broken?: boolean;
+  },
 >(items: readonly T[], isAuthenticated: boolean): T[] {
   const hidden = new Set<string>();
   for (const it of items) {
-    if (!isVisibleForViewer(it, isAuthenticated)) hidden.add(it.id);
+    if (it.ref_broken || !isVisibleForViewer(it, isAuthenticated)) hidden.add(it.id);
   }
   // Kaskada w dół: lista jest posortowana po pozycji, więc dziecko może
   // wyprzedzić rodzica - powtarzamy przebieg aż zbiór przestanie rosnąć.

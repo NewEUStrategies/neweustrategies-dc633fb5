@@ -707,7 +707,9 @@ describe("head() trasy `/$` - wpis", () => {
   it("tolerates a sparse legacy payload without inventing citations or breadcrumbs", () => {
     const data = { kind: "post", item: postItem({ title_pl: "", title_en: "" }), tags: null };
     const result = routeHead(Route, { loaderData: data, params: {} });
-    expect(result.meta?.find((m) => m.name === "citation_title")?.content).toBe("Strona");
+    // Bez tytułu w obu językach ostatnią deską jest slug - jak w podglądzie SERP
+    // (dawniej polskie „Strona", także na stronach EN).
+    expect(result.meta?.find((m) => m.name === "citation_title")?.content).toBe("atom");
     expect(result.meta?.filter((m) => m.name === "citation_author")).toEqual([]);
     expect(jsonLdOTypie(result, "NewsArticle").articleSection).toBeUndefined();
   });
@@ -716,6 +718,20 @@ describe("head() trasy `/$` - wpis", () => {
     const result = head({ kind: "page", item, crumbs: [] });
     expect(result.meta?.find((m) => m.property === "og:type")?.content).toBe("website");
     expect(result.meta?.filter((m) => m.name === "citation_title")).toEqual([]);
+  });
+  it("treść TESTOWA (strona `test-*` albo sekcja `test`) dostaje noindex bez flagi seo_noindex", () => {
+    // 2026-10 audyt: `/test-e2e-zakup` opublikowane i indeksowalne.
+    const robots = (result: RouteHeadResult) =>
+      result.meta?.find((m) => m.name === "robots")?.content;
+    const { excerpt_pl: _pl, excerpt_en: _en, ...strona } = postItem({ slug: "test-e2e-zakup" });
+    expect(robots(head({ kind: "page", item: strona, crumbs: [] }))).toBe("noindex, nofollow");
+    const wPodsekcji = { ...strona, slug: "agenda" };
+    expect(
+      robots(head({ kind: "page", item: wPodsekcji, crumbs: [{ slug: "test", depth: 1 }] })),
+    ).toBe("noindex, nofollow");
+    // Wpis o „teście rakietowym" w zwykłej sekcji to treść, nie test.
+    const wpis = { ...resolvedPost(), item: postItem({ slug: "test-rakietowy" }) };
+    expect(robots(head(wpis))).toMatch(/^index, follow/);
   });
   /** Ładunek loadera dla wpisu: treść + deskryptor preloadu, tak jak go oddaje loader. */
   function ladunekWpisu(): Record<string, unknown> {

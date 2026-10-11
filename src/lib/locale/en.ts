@@ -917,6 +917,8 @@ export const en = {
       advanced: "Advanced: canonical address and indexing",
       canonicalLabel: "Canonical URL (override)",
       canonicalHint: "Only for republished content - points at the original source.",
+      testNoindexForced:
+        "This is a test page (slug test-… or e2e-…): it can only be public with noindex - outside the sitemap and Google results.",
       canonicalInvalid:
         "Enter a full address starting with https:// - until then the change is not saved.",
       noindexLabel: "Hide from search engines (noindex)",
