@@ -116,7 +116,7 @@ export function useAutosave<T>({
     // nothing to save - hence `let` + `done` instead of a TDZ `const`, and no
     // registration of an already settled chain (it would answer every later
     // drain() without saving anything).
-    let run: Promise<void> | undefined;
+    let run: Promise<void> | undefined = undefined;
     let done = false;
     run = (async () => {
       try {
