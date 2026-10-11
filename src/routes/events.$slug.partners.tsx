@@ -24,7 +24,19 @@ import { createFileRoute, useParams } from "@tanstack/react-router";
 import { EventModulePage } from "@/components/events/public/molecules/EventModulePage";
 import { EventSponsorsSection } from "@/components/events/public/organisms/EventSponsorsSection";
 
+import { buildEventTabHead } from "@/lib/events/eventTabHead";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+
 export const Route = createFileRoute("/events/$slug/partners")({
+  loader: async ({ parentMatchPromise }) => {
+    const parent = await parentMatchPromise;
+    return { headEvent: parent.loaderData?.headEvent ?? null };
+  },
+  head: ({ params, loaderData }) => {
+    const url = getRequestUrl() || `/events/${params.slug}/partners`;
+    return buildEventTabHead({ tab: "partners", url, lang: activeLang(url), event: loaderData?.headEvent ?? null });
+  },
   component: EventPartnersTab,
 });
 

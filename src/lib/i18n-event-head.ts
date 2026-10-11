@@ -28,6 +28,14 @@ import i18n from "./i18n";
 
 export const eventHeadPl = {
   eventHead: {
+    overviewTitle: "{{event}}",
+    overviewDescription: "Strona główna wydarzenia {{event}}: informacje, program i zapisy.",
+    participantsTitle: "Uczestnicy - {{event}}",
+    participantsDescription: "Uczestnicy wydarzenia {{event}}.",
+    partnersTitle: "Partnerzy - {{event}}",
+    partnersDescription: "Partnerzy wydarzenia {{event}}.",
+    discussionsTitle: "Dyskusje - {{event}}",
+    discussionsDescription: "Dyskusje wokół wydarzenia {{event}}.",
     agendaTitle: "Program - {{event}}",
     agendaDescription: "Program wydarzenia {{event}}: dni, ścieżki, debaty i sesje z obsadą.",
     speakersTitle: "Prelegenci i moderatorzy - {{event}}",
@@ -48,6 +56,14 @@ export const eventHeadPl = {
 
 export const eventHeadEn = {
   eventHead: {
+    overviewTitle: "{{event}}",
+    overviewDescription: "The {{event}} home page: information, programme and registration.",
+    participantsTitle: "Participants - {{event}}",
+    participantsDescription: "Participants of {{event}}.",
+    partnersTitle: "Partners - {{event}}",
+    partnersDescription: "Partners of {{event}}.",
+    discussionsTitle: "Discussions - {{event}}",
+    discussionsDescription: "Discussions around {{event}}.",
     agendaTitle: "Programme - {{event}}",
     agendaDescription:
       "The {{event}} programme: days, tracks, debates and sessions with their line-up.",

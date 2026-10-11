@@ -23,6 +23,11 @@
 // wydarzenia - trasa nie dostaje loadera (S38).
 import { createFileRoute } from "@tanstack/react-router";
 
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { publicEventBySlugQueryOptions } from "@/lib/community/publicQueries";
+import { EventModuleHero } from "@/components/events/public/molecules/EventModuleHero";
+import { EventPortalContent, EVENT_PORTAL_CONTENT_WIDE_CLASS } from "@/components/events/public/atoms/EventPortalContent";
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-event-head";
 import { activeLang } from "@/lib/seo/head";
@@ -36,6 +41,11 @@ export const Route = createFileRoute("/events/$slug/me")({
   head: () => ({
     meta: [
       { title: i18n.getFixedT(activeLang())("eventHead.meTitle") },
+      { name: "description", content: i18n.getFixedT(activeLang())("eventHead.meTitle") },
+      { property: "og:title", content: i18n.getFixedT(activeLang())("eventHead.meTitle") },
+      { property: "og:description", content: i18n.getFixedT(activeLang())("eventHead.meTitle") },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -46,8 +56,16 @@ function EventMeRoute() {
   const { slug } = Route.useParams();
   const { tab } = Route.useSearch();
   const navigate = Route.useNavigate();
+  const { t, i18n: translation } = useTranslation();
+  const eventQuery = useQuery(publicEventBySlugQueryOptions(slug));
+  const event = eventQuery.data;
+  const title = event ? (translation.language.startsWith("en") ? event.title_en || event.title_pl : event.title_pl || event.title_en) : "";
+  const label = t("eventMe.tab");
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6">
+    <EventPortalContent className={EVENT_PORTAL_CONTENT_WIDE_CLASS}>
+      <EventModuleHero module="me" eventTitle={title} moduleLabel={label}
+        crumbs={[{ label: t("eventFront.header.breadcrumbEvents"), href: "/events" }, ...(title ? [{ label: title, href: `/events/${slug}` }] : []), { label }]}
+        hasDocument={false}>{null}</EventModuleHero>
       <EventMePanel
         slug={slug}
         tab={tab}
@@ -55,6 +73,6 @@ function EventMeRoute() {
           void navigate({ search: { tab: next }, replace: true, resetScroll: false });
         }}
       />
-    </div>
+    </EventPortalContent>
   );
 }

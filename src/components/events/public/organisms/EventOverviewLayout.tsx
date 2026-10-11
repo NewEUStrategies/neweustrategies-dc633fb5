@@ -47,6 +47,9 @@ import type { ReactNode } from "react";
 
 import { EVENT_PORTAL_CONTENT_CLASS } from "@/components/events/public/atoms/EventPortalContent";
 
+import { EventSectionHeading } from "@/components/events/public/atoms/EventSectionHeading";
+import { LayoutGrid } from "@/lib/lucide-shim";
+
 export function EventOverviewLayout({
   main,
   left,
@@ -87,18 +90,17 @@ export function EventOverviewTitle({
   typeLabel?: ReactNode;
 }) {
   return (
-    <header className="mx-auto mt-7 max-w-3xl text-center">
-      {typeLabel ? (
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{typeLabel}</p>
-      ) : null}
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+    <header data-event-module-hero="overview" className="relative mb-6 border-b border-border/50 bg-background">
+      <EventSectionHeading icon={<LayoutGrid className="size-6 text-primary/70" aria-hidden="true" />} eyebrow={typeLabel}>
+      <h1 className="max-w-full text-2xl font-semibold leading-snug tracking-normal text-foreground [overflow-wrap:anywhere]">
         {title}
       </h1>
       {subtitle ? (
-        <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+        <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
           {subtitle}
         </p>
       ) : null}
+      </EventSectionHeading>
     </header>
   );
 }

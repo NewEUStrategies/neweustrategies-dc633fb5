@@ -1,5 +1,10 @@
 # Roadmap
 
+## Subtelne nagłówki wszystkich stron wydarzenia
+
+- [x] Ujednolicić Stronę główną, Uczestników, Prelegentów, Partnerów, Agendę, Dyskusje i Mój profil.
+- [x] Sprawdzić strony w obu motywach oraz testy wydarzeń: siedem stron HTTP 200, bez cienia, identyczna geometria light/dark; 82 testy przechodzą.
+
 ## Banery archiwów - Wspólny horyzont
 
 - [x] Dopracować rysunek i wdrożyć tło domyślnych banerów.
