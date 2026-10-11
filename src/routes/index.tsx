@@ -371,7 +371,8 @@ export const Route = createFileRoute("/")({
     // sync with the root <head> fallback), but a static home page built in the
     // CMS builder is a first-class SEO citizen: its own SEO overrides, excerpt
     // (meta description), social image, canonical and noindex win when set.
-    // No brand suffix here - the defaults already carry the brand. W trybie
+    // No brand suffix here - the defaults already carry the brand, and an
+    // explicit SEO title renders verbatim (Yoast semantics). W trybie
     // "najnowsze wpisy" homePage jest z konstrukcji null (patrz
     // homePageQueryOptions), więc metadane spadają na czyste defaulty marki -
     // SEO ukrytej strony statycznej nie przecieka do listy wpisów.
@@ -394,11 +395,15 @@ export const Route = createFileRoute("/")({
       url,
       lang,
       type: "website",
-      // The homepage always represents the publication itself. Keep its
-      // document, Open Graph and Twitter title equal to the configured brand
-      // name instead of allowing a CMS page override to rename the site in
-      // browser tabs and search results.
-      title: siteTitle(lang, url),
+      // Tytuł SEO strony głównej z /admin/pages (`seo_title_<lang>`) WYGRYWA;
+      // bez niego - tytuł serwisu (`siteTitle`: /admin/seo/homepage albo stała
+      // marki). Do 2026-10-11 stało tu na sztywno `siteTitle(...)`, choć
+      // `resolveSeoText` już wybrał nadpisanie: pole w panelu stron i notatka
+      // w /admin/seo/homepage („tytuł strony wygrywa") obiecywały skutek,
+      // którego `<title>` nie miał. Tytuł WYPROWADZONY strony (np. „Strona
+      // główna") celowo NIE zastępuje marki - `resolveSeoText` dostaje tytuł
+      // serwisu jako fallback, nie `title_<lang>` strony.
+      title: seo.title,
       description: seo.description,
       image,
       // Strony wyników >1 (tryb "najnowsze wpisy") są noindex,follow - crawler
