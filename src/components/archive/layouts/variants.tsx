@@ -143,7 +143,7 @@ export function LayoutHero(props: ArchiveLayoutProps) {
 export function LayoutDark(props: ArchiveLayoutProps) {
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="dark bg-neutral-950 text-neutral-100">
+      <div className="bg-background text-foreground">
         <ArchiveHeader
           kind={props.kind}
           taxonomyId={props.taxonomy.id}
