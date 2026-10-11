@@ -263,12 +263,49 @@ const NAMED_ENTITIES: ReadonlyMap<string, string> = new Map([
 // class terminated by `;`, which none of the classes contains - no backtracking.
 const ENTITY_RE = /&(?:#[xX]([0-9a-fA-F]+)|#([0-9]+)|([a-zA-Z][a-zA-Z0-9]*));/g;
 
+/**
+ * `&#128;`-`&#159;` jak w parserze HTML: znaki Windows-1252, nie kody sterujące
+ * C1. Treść z WordPressa niesie `&#150;` / `&#133;` / `&#146;` - bez tej tabeli
+ * kanały i llms.txt (wspólny `plainText`) pokazywały w ich miejscu niewidoczny
+ * znak zamiast „–", „…" i „’" (przegląd 2026-10). Kody bez odpowiednika
+ * (0x81, 0x8D, 0x8F, 0x90, 0x9D) zostają bez zmian, jak w specyfikacji.
+ */
+const WINDOWS_1252: ReadonlyMap<number, number> = new Map([
+  [0x80, 0x20ac],
+  [0x82, 0x201a],
+  [0x83, 0x0192],
+  [0x84, 0x201e],
+  [0x85, 0x2026],
+  [0x86, 0x2020],
+  [0x87, 0x2021],
+  [0x88, 0x02c6],
+  [0x89, 0x2030],
+  [0x8a, 0x0160],
+  [0x8b, 0x2039],
+  [0x8c, 0x0152],
+  [0x8e, 0x017d],
+  [0x91, 0x2018],
+  [0x92, 0x2019],
+  [0x93, 0x201c],
+  [0x94, 0x201d],
+  [0x95, 0x2022],
+  [0x96, 0x2013],
+  [0x97, 0x2014],
+  [0x98, 0x02dc],
+  [0x99, 0x2122],
+  [0x9a, 0x0161],
+  [0x9b, 0x203a],
+  [0x9c, 0x0153],
+  [0x9e, 0x017e],
+  [0x9f, 0x0178],
+]);
+
 /** Out-of-range, NUL and surrogate code points become U+FFFD, as in the HTML parser (and never throw). */
 function codePoint(cp: number): string {
   if (!Number.isFinite(cp) || cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) {
     return "\ufffd";
   }
-  return String.fromCodePoint(cp);
+  return String.fromCodePoint(WINDOWS_1252.get(cp) ?? cp);
 }
 
 /** Decode named / decimal / hex HTML entities exactly once. */

@@ -1,18 +1,41 @@
 // Public HTML site map (/sitemap, /en/sitemap) - the human- and AI-readable
-// counterpart of sitemap.xml: every published page (hierarchy preserved),
-// category and the latest posts on one flat-crawlable page. Good for visitors
-// (orientation), for crawl depth (every URL reachable within two clicks) and
-// for answer engines mapping the site's structure (GEO).
+// counterpart of sitemap.xml: every reachable published page (hierarchy
+// preserved), the static code routes, categories and the latest posts on one
+// flat-crawlable page - each URL once and at its final address (no 301 hops).
+// Good for visitors (orientation), for crawl depth (every URL reachable within
+// two clicks) and for answer engines mapping the site's structure (GEO).
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   blogListQueryOptions,
   publicCategoriesQueryOptions,
   publicPagesTreeQueryOptions,
   type BlogListItem,
+  type PublicSiteMapCategory,
 } from "@/lib/queries/public";
-import { buildPageTree, type PageTreeNode, type PageTreeRow } from "@/lib/seo/pageTree";
+import {
+  planSiteMap,
+  postCanonicalPath,
+  type PageTreeNode,
+  type PageTreeRow,
+} from "@/lib/seo/pageTree";
+import { configuredHomepagePageId, type HomepageReadingSettings } from "@/lib/seo/homepagePage";
+import { NOINDEX_CODE_ROUTE_PATHS } from "@/lib/seo/noindexCodeRoutes";
+import { getSiteMapRedirects, type SiteMapRedirects } from "@/lib/seo/siteMapRedirects.functions";
+import { siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
+import {
+  AI_TRANSPARENCY_META,
+  CLUBS_META,
+  COMMUNICATIONS_META,
+  DATA_PROCESSING_META,
+  EVENTS_META,
+  MODERATION_META,
+  PRIVACY_GOVERNANCE_META,
+  RODO_META,
+  STATUTE_META,
+  SUBSCRIPTIONS_META,
+} from "@/lib/legal/meta";
 import { buildContentHead } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -29,7 +52,7 @@ const SITEMAP_SSR_BUDGET_MS = 2_000;
 // więc `useSuspenseQuery` w komponencie widzi stan `success` i renderuje bez
 // zawieszenia, a przeglądarka i tak refetchuje je zaraz po hydratacji.
 const NO_PAGES: PageTreeRow[] = [];
-const NO_CATEGORIES: Array<{ slug: string; name_pl: string; name_en: string }> = [];
+const NO_CATEGORIES: PublicSiteMapCategory[] = [];
 const NO_POSTS: { posts: BlogListItem[] } = { posts: [] };
 
 export const COPY = {
@@ -42,6 +65,7 @@ export const COPY = {
     home: "Strona główna",
     blog: "Blog",
     community: "Społeczność",
+    legal: "Dokumenty i zasady",
     degraded: "Nie udało się załadować pełnej mapy strony",
   },
   en: {
@@ -53,9 +77,21 @@ export const COPY = {
     home: "Home",
     blog: "Blog",
     community: "Community",
+    legal: "Policies and documents",
     degraded: "Couldn't load the full site map",
   },
 } as const;
+
+// Huby treści - trasy kodowe sekcji „Strony", prawdziwe niezależnie od bazy.
+// Programy i Web Stories dołączyły w 2026-10 (audyt mapy HTML): sekcja `core`
+// mapy XML ogłaszała je od dawna, a mapa dla ludzi i modeli nie miała do nich
+// ani jednego linku.
+const HUB_LINKS = [
+  { href: "/", pl: COPY.pl.home, en: COPY.en.home },
+  { href: "/blog", pl: COPY.pl.blog, en: COPY.en.blog },
+  { href: "/programs", pl: "Programy badawcze", en: "Research programs" },
+  { href: "/web-stories", pl: "Web Stories", en: "Web Stories" },
+] as const;
 
 // Publiczne powierzchnie modułu społeczności - statyczne trasy z własnym SEO.
 const COMMUNITY_LINKS = [
@@ -69,6 +105,57 @@ const COMMUNITY_LINKS = [
   { href: "/podcasts", pl: "Podcasty", en: "Podcasts" },
   { href: "/live", pl: "Relacje na żywo", en: "Live blogs" },
 ] as const;
+
+// Dokumenty prawne będące trasami REACT (pakiet zgodności 2026-09) - ten sam
+// zbiór, który ogłasza sekcja `core` mapy XML. Nie są wierszami `pages`, więc
+// drzewo stron ich nie widzi. Tytuły z lekkiego `lib/legal/meta.ts` (bez pełnej
+// treści dokumentów), czyli dokładnie te, które stoją w `<title>` każdej z tras.
+const LEGAL_LINKS = [
+  { href: "/rodo", meta: RODO_META },
+  { href: "/zarzadzanie-polityka-prywatnosci", meta: PRIVACY_GOVERNANCE_META },
+  { href: "/polityka-przetwarzania-danych", meta: DATA_PROCESSING_META },
+  { href: "/komunikacja-i-marketing", meta: COMMUNICATIONS_META },
+  { href: "/regulamin-klubow-dyskusyjnych", meta: CLUBS_META },
+  { href: "/moderacja-komentarzy", meta: MODERATION_META },
+  { href: "/regulamin-wydarzen-i-biletow", meta: EVENTS_META },
+  { href: "/regulamin-subskrypcji-i-zakupow", meta: SUBSCRIPTIONS_META },
+  { href: "/przejrzystosc-ai", meta: AI_TRANSPARENCY_META },
+  { href: "/statut", meta: STATUTE_META },
+] as const;
+
+/** Każdy adres trasy kodowej linkowany przez mapę - w kolejności renderu. */
+const STATIC_HREFS: readonly string[] = [
+  ...HUB_LINKS.map((link) => link.href),
+  ...COMMUNITY_LINKS.map((link) => link.href),
+  ...LEGAL_LINKS.map((link) => link.href),
+];
+
+// TRASY KODOWE PRZEKIEROWANE NA STRONY CMS. Middleware przekierowań
+// przechwytuje część tych adresów, zanim dojdzie do routera (na produkcji
+// `/events` -> 301 `/wydarzenia`, `/statut` -> 301 `/o-nas`), więc mapa
+// linkowałaby je przez przekierowanie obok samej strony docelowej. Reguły są
+// PER NAJEMCA i edytowalne w panelu - czytamy je z serwera
+// (`getSiteMapRedirects`, ten sam indeks co middleware) zamiast trzymać kopię
+// w kodzie (przegląd 2026-10). `planSiteMap` stosuje regułę tylko wtedy, gdy
+// strona docelowa jest opublikowana; awaria odczytu = `{}`, czyli linki tras
+// zostają (lepiej link przez 301 niż zniknięcie działającej strony).
+const NO_REDIRECTS: SiteMapRedirects = {};
+
+const siteMapRedirectsQueryOptions = () =>
+  queryOptions({
+    queryKey: ["public", "sitemap-redirects"] as const,
+    queryFn: (): Promise<SiteMapRedirects> =>
+      getSiteMapRedirects({ data: { paths: [...STATIC_HREFS] } }),
+    staleTime: 5 * 60_000,
+  });
+
+/** `site_settings["reading"]` z rozgrzanej przez root mapy ustawień; brak = `{}`. */
+function readingSettingsOf(settings: SettingsMap | undefined): HomepageReadingSettings {
+  const reading = settings?.["reading"];
+  return typeof reading === "object" && reading !== null
+    ? (reading as HomepageReadingSettings)
+    : {};
+}
 
 export const Route = createFileRoute("/sitemap")({
   loader: async ({ context }) => {
@@ -104,7 +191,7 @@ export const Route = createFileRoute("/sitemap")({
     // martwym kodem. Trzy zapytania dzielą JEDEN termin, bo biegną równolegle -
     // sekwencyjne `await` sumowałoby budżety i samo stałoby się źródłem TTFB.
     const deadlineAt = Date.now() + SITEMAP_SSR_BUDGET_MS;
-    const [pages, categories, posts] = await Promise.all([
+    const [pages, categories, posts, redirects] = await Promise.all([
       loadResilient(queryClient, publicPagesTreeQueryOptions(), NO_PAGES, {
         deadlineAt,
         label: "sitemap.pages",
@@ -117,8 +204,15 @@ export const Route = createFileRoute("/sitemap")({
         deadlineAt,
         label: "sitemap.posts",
       }),
+      loadResilient(queryClient, siteMapRedirectsQueryOptions(), NO_REDIRECTS, {
+        deadlineAt,
+        label: "sitemap.redirects",
+      }),
     ]);
-    const degraded = anyDegraded(pages, categories, posts);
+    // Reguły przekierowań wchodzą do sygnału degradacji (krótki TTL), ale nie
+    // dostają własnej sekcji ani komunikatu: fallback `{}` tylko zostawia
+    // linki tras, niczego nie chowa.
+    const degraded = anyDegraded(pages, categories, posts, redirects);
     setCacheControlHeader(resilientCacheControl(degraded));
     // FLAGI JADĄ DO KOMPONENTU tym samym kontraktem co `/experts` i `/glossary`:
     // pusta mapa z awarii ma dać się odróżnić od pustej mapy z redakcji. Bez
@@ -153,6 +247,8 @@ export const Route = createFileRoute("/sitemap")({
   component: SiteMapPage,
 });
 
+const LINK_CLASS = "text-sm hover:text-brand hover:underline";
+
 function PageTreeList({ nodes, lang }: { nodes: PageTreeNode[]; lang: "pl" | "en" }) {
   if (!nodes.length) return null;
   return (
@@ -161,11 +257,7 @@ function PageTreeList({ nodes, lang }: { nodes: PageTreeNode[]; lang: "pl" | "en
         <li key={node.id}>
           {/* The universal splat route serves arbitrary page paths; the router
               output rewrite localizes the href ("/en/..." for EN) for free. */}
-          <Link
-            to="/$"
-            params={{ _splat: node.path.replace(/^\//, "") }}
-            className="text-sm hover:text-brand hover:underline"
-          >
+          <Link to="/$" params={{ _splat: node.path.replace(/^\//, "") }} className={LINK_CLASS}>
             {(lang === "en" ? node.title_en || node.title_pl : node.title_pl || node.title_en) ||
               node.slug}
           </Link>
@@ -177,6 +269,44 @@ function PageTreeList({ nodes, lang }: { nodes: PageTreeNode[]; lang: "pl" | "en
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Link wpisu na jego KANONICZNY adres (ścieżka strony-rodzica + slug).
+ *
+ * Do 2026-10 każdy wpis linkował `/post/<slug>` - alias, który odpowiada
+ * 301 na adres kanoniczny (`routes/post.$slug.tsx`). Mapa, z której crawler
+ * czerpie strukturę serwisu, kierowała go więc przez przekierowanie na każdym
+ * z artykułów. Alias zostaje WYŁĄCZNIE jako zapas, gdy rodzica nie ma
+ * w drzewie (noindex, nieopublikowany, poza oknem zapytania) - wtedy to on
+ * rozwiąże adres po stronie serwera.
+ */
+function PostLink({
+  path,
+  slug,
+  children,
+}: {
+  path: string | null;
+  slug: string;
+  children: string;
+}) {
+  if (path) {
+    return (
+      // Trasa uniwersalna + przepisanie wyjścia routera = prefiks `/en` za darmo.
+      <Link
+        to="/$"
+        params={{ _splat: path.replace(/^\//, "") }}
+        className={`${LINK_CLASS} min-w-0`}
+      >
+        {children}
+      </Link>
+    );
+  }
+  return (
+    <Link to="/post/$slug" params={{ slug }} className={`${LINK_CLASS} min-w-0`}>
+      {children}
+    </Link>
   );
 }
 
@@ -192,6 +322,9 @@ function SiteMapPage() {
   // dopasowanie i trasa wypada z rozgrzanych na „loader tych kluczy nie grzeje".
   const { data: pageRows } = useSuspenseQuery(publicPagesTreeQueryOptions());
   const { data: categories } = useSuspenseQuery(publicCategoriesQueryOptions());
+  // Organizacja ma profil niezależny od wpisów; archiwum kategorii bez wpisów
+  // to strona „Brak opublikowanych wpisów." - mapa jej nie linkuje.
+  const listedCategories = categories.filter((c) => c.kind === "organization" || c.has_posts);
   const { data: blog } = useSuspenseQuery(blogListQueryOptions());
 
   // BRAMKI WIDOKU LICZONE ZE STANU ZAPYTAŃ, NIE Z ŁADUNKU LOADERA (recenzja
@@ -226,9 +359,25 @@ function SiteMapPage() {
     postsState.retry();
   };
 
-  // The "home" root page is served at "/" - the explicit home link above the
-  // tree covers it, so drop the duplicate node.
-  const tree = buildPageTree(pageRows.filter((r) => !(r.parent_id === null && r.slug === "home")));
+  // STRONA GŁÓWNA Z USTAWIEŃ CZYTANIA, NIE ZE SLUGU. Do 2026-10 filtr miał
+  // wpisany na sztywno slug `home`, a produkcja serwuje pod `/` stronę `main`
+  // - mapa pokazywała więc drugą „Stronę główną" pod `/main` (duplikat `/`
+  // z własnym kanonicznym adresem). Ustawienia czytamy z mapy `site_settings`,
+  // którą loader `__root.tsx` grzeje (albo zasiewa pustą) na każdej trasie,
+  // więc to zero dodatkowych zapytań; brak mapy = `{}`, czyli rezolucja
+  // historyczna (strona `home`), dokładnie jak w zapytaniu strony głównej.
+  const { data: settings } = useQuery(siteSettingsQueryOptions);
+  const { data: redirects } = useQuery(siteMapRedirectsQueryOptions());
+  const plan = planSiteMap(pageRows, {
+    homepageId: configuredHomepagePageId(readingSettingsOf(settings), pageRows),
+    staticHrefs: STATIC_HREFS,
+    legacyRedirects: redirects ?? NO_REDIRECTS,
+    noindexPaths: NOINDEX_CODE_ROUTE_PATHS,
+  });
+  const { tree } = plan;
+  const hubLinks = HUB_LINKS.filter((link) => plan.staticHrefs.has(link.href));
+  const communityLinks = COMMUNITY_LINKS.filter((link) => plan.staticHrefs.has(link.href));
+  const legalLinks = LEGAL_LINKS.filter((link) => plan.staticHrefs.has(link.href));
 
   return (
     <div className="flex flex-col bg-background text-foreground" data-page-template="sitemap">
@@ -246,26 +395,24 @@ function SiteMapPage() {
         )}
 
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-3">
-          {/* Sekcja STRON zostaje zawsze, także przy degradacji: „Strona główna"
-              i „Blog" to trasy statyczne, prawdziwe niezależnie od backendu,
-              a `PageTreeList` przy pustym drzewie nie renderuje NIC - żadna pustka
-              nie udaje tu więc danych. Ukrycie tej sekcji zabrałoby crawlerowi dwa
-              linki, które właśnie po to tu stoją. */}
+          {/* Sekcja STRON zostaje zawsze, także przy degradacji: huby („Strona
+              główna", „Blog", programy, Web Stories) to trasy statyczne,
+              prawdziwe niezależnie od backendu, a `PageTreeList` przy pustym
+              drzewie nie renderuje NIC - żadna pustka nie udaje tu więc danych.
+              Ukrycie tej sekcji zabrałoby crawlerowi linki, które właśnie po to
+              tu stoją. */}
           <section aria-labelledby="sitemap-pages">
             <h2 id="sitemap-pages" className="font-display text-xl font-semibold mb-3">
               {copy.pages}
             </h2>
             <ul className="space-y-1.5 mb-1.5">
-              <li>
-                <Link to="/" className="text-sm hover:text-brand hover:underline">
-                  {copy.home}
-                </Link>
-              </li>
-              <li>
-                <Link to="/blog" className="text-sm hover:text-brand hover:underline">
-                  {copy.blog}
-                </Link>
-              </li>
+              {hubLinks.map((link) => (
+                <li key={link.href}>
+                  <Link to={link.href} className={LINK_CLASS}>
+                    {lang === "en" ? link.en : link.pl}
+                  </Link>
+                </li>
+              ))}
             </ul>
             <PageTreeList nodes={tree} lang={lang} />
           </section>
@@ -275,10 +422,27 @@ function SiteMapPage() {
               {copy.community}
             </h2>
             <ul className="space-y-1.5">
-              {COMMUNITY_LINKS.map((link) => (
+              {communityLinks.map((link) => (
                 <li key={link.href}>
-                  <Link to={link.href} className="text-sm hover:text-brand hover:underline">
+                  <Link to={link.href} className={LINK_CLASS}>
                     {lang === "en" ? link.en : link.pl}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {/* Trasy kodowe, prawdziwe niezależnie od backendu - jak sekcja
+              społeczności zostaje także przy degradacji. */}
+          <section aria-labelledby="sitemap-legal">
+            <h2 id="sitemap-legal" className="font-display text-xl font-semibold mb-3">
+              {copy.legal}
+            </h2>
+            <ul className="space-y-1.5">
+              {legalLinks.map((link) => (
+                <li key={link.href}>
+                  <Link to={link.href} className={LINK_CLASS}>
+                    {link.meta[lang].title}
                   </Link>
                 </li>
               ))}
@@ -294,10 +458,10 @@ function SiteMapPage() {
                 {copy.categories}
               </h2>
               <ul className="space-y-1.5">
-                {categories.map((c) => (
+                {listedCategories.map((c) => (
                   <li key={c.slug}>
                     <Link
-                      to="/category/$slug"
+                      to={c.kind === "organization" ? "/organization/$slug" : "/category/$slug"}
                       params={{ slug: c.slug }}
                       className="text-sm hover:text-brand hover:underline"
                     >
@@ -305,7 +469,7 @@ function SiteMapPage() {
                     </Link>
                   </li>
                 ))}
-                {!categories.length && <li className="text-sm text-muted-foreground">-</li>}
+                {!listedCategories.length && <li className="text-sm text-muted-foreground">-</li>}
               </ul>
             </section>
           )}
@@ -320,15 +484,11 @@ function SiteMapPage() {
               <ul className="space-y-1.5">
                 {blog.posts.map((post) => (
                   <li key={post.id} className="flex items-baseline gap-2">
-                    <Link
-                      to="/post/$slug"
-                      params={{ slug: post.slug }}
-                      className="text-sm hover:text-brand hover:underline min-w-0"
-                    >
+                    <PostLink path={postCanonicalPath(plan.paths, post)} slug={post.slug}>
                       {(lang === "en"
                         ? post.title_en || post.title_pl
                         : post.title_pl || post.title_en) || post.slug}
-                    </Link>
+                    </PostLink>
                     {post.published_at && (
                       <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
                         {post.published_at.slice(0, 10)}

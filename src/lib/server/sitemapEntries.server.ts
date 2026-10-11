@@ -16,6 +16,8 @@ import type { SitemapSection } from "@/lib/seo/sitemapIndex";
 import type { SitemapEntry } from "@/lib/seo/sitemapXml";
 
 import { BUDGET_LAPSED, settleWithinBudget } from "@/lib/asyncBudget";
+import { configuredHomepagePageId, type HomepageReadingSettings } from "@/lib/seo/homepagePage";
+import { isNoindexCodeRoutePath } from "@/lib/seo/noindexCodeRoutes";
 import { readPublishedPagePaths as buildPagePaths } from "./publishedPagePaths.server";
 import { readPagedRows } from "./pagedRows.server";
 
@@ -51,6 +53,71 @@ function day(...candidates: Array<string | null | undefined>): string | undefine
     if (value) return value;
   }
   return undefined;
+}
+
+/**
+ * Termin odczytu ustawień czytania w sekcji `pages` - połowa budżetu sekcji,
+ * żeby zawieszony odczyt kończył się awarią sekcji (503 + `Retry-After`)
+ * szybko, a nie dopiero na terminie całego shardu.
+ */
+const READING_SETTINGS_BUDGET_MS = SITEMAP_SECTION_BUDGET_MS / 2;
+
+/**
+ * Ustawienia czytania najemcy (`site_settings["reading"]`) w zakresie, którego
+ * potrzebuje `configuredHomepagePageId`. Odczyt jak w `tts.server.ts`
+ * (service role, jawny `tenant_id`). Wartość w niespodziewanym kształcie to
+ * `{}` (reguła zastana), ale AWARIA, odmowa i przekroczenie terminu RZUCAJĄ.
+ *
+ * PO CO RZUCAĆ (przegląd 2026-10). Reguła zastana szuka strony `home`, której
+ * produkcja nie ma - przy awarii odczytu `/main` i `/en/main` (dziś 301 na
+ * `/`) wracały do `pages.xml`, a shard szedł z pełnym TTL jak zdrowy. Awaria
+ * sekcji daje 503 z `Retry-After`: Google zostawia ostatnią dobrą wersję
+ * pliku i wraca za chwilę, zamiast dostać adresy z przekierowaniem.
+ */
+async function readHomepageReading(
+  admin: DbClient,
+  tenantId: string,
+): Promise<HomepageReadingSettings> {
+  // Błąd łapany PRZED budżetem - z tego samego powodu co w `runCollector`
+  // (log ma nieść oryginalny `PostgrestError`, nie „[object Object]").
+  const work = (async (): Promise<HomepageReadingSettings> => {
+    const { data, error } = await admin
+      .from("site_settings")
+      .select("value")
+      .eq("tenant_id", tenantId)
+      .eq("key", "reading")
+      .maybeSingle();
+    if (error) throw error;
+    const value = data?.value;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
+    return {
+      homepage_mode: value.homepage_mode,
+      homepage_page_id: value.homepage_page_id,
+      homepage_page_slug: value.homepage_page_slug,
+    };
+  })().then(
+    (reading) => ({ ok: true as const, reading }),
+    (error: unknown) => ({ ok: false as const, error }),
+  );
+  const settled = await settleWithinBudget(work, READING_SETTINGS_BUDGET_MS);
+  if (settled === BUDGET_LAPSED) {
+    throw new Error(`sitemap reading settings timed out after ${READING_SETTINGS_BUDGET_MS}ms`);
+  }
+  if (!settled.ok) throw settled.error;
+  return settled.reading;
+}
+
+/** Termin taksonomii z najnowszą datą wpisu (`undefined` = wpisy bez dat). */
+type TermActivity = Map<string, string | undefined>;
+
+function noteActivity(activity: TermActivity, termId: string, date: string | undefined): void {
+  const previous = activity.get(termId);
+  if (
+    !activity.has(termId) ||
+    (date !== undefined && (previous === undefined || date > previous))
+  ) {
+    activity.set(termId, date);
+  }
 }
 
 /**
@@ -108,13 +175,27 @@ type SectionCollector = (ctx: {
 type PagePaths = Awaited<ReturnType<typeof buildPagePaths>>;
 
 const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
-  async pages({ origin, pagePaths }) {
-    const { paths, noindex, updatedAt } = await pagePaths();
+  async pages({ admin, tenantId, origin, pagePaths }) {
+    const [{ paths, noindex, updatedAt, pages }, reading] = await Promise.all([
+      pagePaths(),
+      readHomepageReading(admin, tenantId),
+    ]);
+    // STRONA GŁÓWNA NIE MA DRUGIEGO ADRESU (2026-10 audyt GSC). Strona wskazana
+    // w ustawieniach czytania (na produkcji `main`) jest serwowana pod `/`,
+    // który stoi już w sekcji `core` - a ta sekcja wypisywała ją DRUGI raz jako
+    // `/main` i `/en/main`, czyli duplikat strony głównej z własnym canonicalem.
+    // Wpisy pod tą stroną zostają w sekcji `posts` ze swoimi adresami.
+    const homepageId = configuredHomepagePageId(reading, pages);
     const out: SitemapEntry[] = [];
     for (const [id, path] of paths) {
+      if (id === homepageId) continue;
       // Strony oznaczone noindex są wykluczone - sitemapa nie może reklamować
       // adresów, które meta robots każe crawlerowi pominąć.
       if (noindex.has(id)) continue;
+      // Ta sama zasada dla strony PRZESŁONIĘTEJ trasą kodową z `noindex`
+      // (`/login`, `/club`): pod jej adresem renderuje się trasa, nie strona,
+      // a GSC raportował ją jako „Przesłany URL oznaczony tagiem noindex".
+      if (isNoindexCodeRoutePath(path)) continue;
       // `lastmod` stron: bez niego plik sekcji `pages` i jego pozycja
       // w indeksie nie miały ŻADNEJ daty, więc crawler nie odróżniał strony
       // zmienionej wczoraj od nietkniętej od roku.
@@ -150,6 +231,9 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         updated_at: string | null;
         published_at: string | null;
       };
+      // Rodzic bez ścieżki = strona nieosiągalna publicznie (szkic, kosz albo
+      // nieopublikowany przodek) - `resolve_path` nie złoży tego adresu, więc
+      // wpis wypada razem z nią, zamiast wyjechać do mapy jako 404.
       const path = paths.get(p.parent_page_id);
       if (!path) continue;
       out.push({
@@ -164,12 +248,21 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
 
   // Archiwa kategorii i tagów są samodzielnie indeksowalne i mają własne
   // zlokalizowane metadane, breadcrumbs i schema CollectionPage.
+  //
+  // PUSTE ARCHIWUM NIE IDZIE DO MAPY (2026-10 audyt GSC). Sekcja wypisywała
+  // każdy term najemcy, a 18 wpisów z importu WordPressa nie ma ani jednego
+  // wiersza w `post_categories` - więc wszystkie 39 archiwów kategorii (i ich
+  // feedy) renderowały „Brak opublikowanych wpisów.". Dla Google to soft 404
+  // / thin content wysłany na własne życzenie. Archiwum kategorii i tagu jedzie
+  // do mapy dopiero wtedy, gdy ma choć jeden wpis opublikowany, nieusunięty
+  // i z `seo_noindex = false`; `lastmod` to data najnowszego z nich (archiwum
+  // zmienia się, gdy zmienia się jego lista, a nie gdy powstał term).
   async taxonomy({ admin, tenantId, origin }) {
-    const [{ data: categories }, { data: tags }] = await Promise.all([
+    const [{ data: categories }, { data: tags }, { data: posts }] = await Promise.all([
       readPagedRows((from, to) =>
         admin
           .from("categories")
-          .select("slug, kind, created_at", { count: "exact" })
+          .select("id, slug, kind, created_at", { count: "exact" })
           .eq("tenant_id", tenantId)
           .order("id", { ascending: true })
           .range(from, to),
@@ -177,35 +270,77 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
       readPagedRows((from, to) =>
         admin
           .from("tags")
-          .select("slug, created_at", { count: "exact" })
+          .select("id, slug, created_at", { count: "exact" })
           .eq("tenant_id", tenantId)
           .order("id", { ascending: true })
           .range(from, to),
       ),
+      // Tabele łączące nie mają `tenant_id`, więc zakres stawia tabela `posts`
+      // (jawny filtr najemcy), a powiązania przychodzą osadzone przy wpisie -
+      // jeden stronicowany odczyt zamiast dwóch tabel łączących bez filtra.
+      readPagedRows((from, to) =>
+        admin
+          .from("posts")
+          .select("id, updated_at, published_at, post_categories(category_id), post_tags(tag_id)", {
+            count: "exact",
+          })
+          .eq("tenant_id", tenantId)
+          .eq("status", "published")
+          .is("deleted_at", null)
+          .eq("seo_noindex", false)
+          .order("id", { ascending: true })
+          .range(from, to),
+      ),
     ]);
+    const categoryActivity: TermActivity = new Map();
+    const tagActivity: TermActivity = new Map();
+    for (const row of posts) {
+      const post = row as {
+        updated_at: string | null;
+        published_at: string | null;
+        post_categories: Array<{ category_id: string }> | null;
+        post_tags: Array<{ tag_id: string }> | null;
+      };
+      const date = day(post.updated_at, post.published_at);
+      for (const link of post.post_categories ?? []) {
+        noteActivity(categoryActivity, link.category_id, date);
+      }
+      for (const link of post.post_tags ?? []) noteActivity(tagActivity, link.tag_id, date);
+    }
     const out: SitemapEntry[] = [];
     for (const row of categories) {
-      const category = row as { slug: string; kind: string | null; created_at: string | null };
+      const category = row as {
+        id: string;
+        slug: string;
+        kind: string | null;
+        created_at: string | null;
+      };
       // ORGANIZACJA NIE JEST ARCHIWUM. Term `kind = 'organization'` ma własną,
       // kanoniczną stronę profilu; `/category/<slug>` dalej działa, ale wskazuje
       // ją znacznikiem `canonical`. Sitemapa reklamująca oba adresy kazałaby
       // crawlerowi pobrać stronę tylko po to, żeby dowiedzieć się, że kanoniczny
       // jest inny - czyli wypalałaby budżet indeksowania na duplikat.
+      //
+      // Profil organizacji zostaje w mapie także bez wpisów - to strona bytu
+      // (opis, logo), a nie lista wpisów, więc pusta lista nie robi z niej
+      // pustej strony.
       const isOrganization = category.kind === "organization";
+      if (!isOrganization && !categoryActivity.has(category.id)) continue;
       out.push({
         loc: isOrganization
           ? `${origin}/organization/${category.slug}`
           : `${origin}/category/${category.slug}`,
-        lastmod: day(category.created_at),
+        lastmod: categoryActivity.get(category.id) ?? day(category.created_at),
         changefreq: "weekly",
         priority: "0.6",
       });
     }
     for (const row of tags) {
-      const tag = row as { slug: string; created_at: string | null };
+      const tag = row as { id: string; slug: string; created_at: string | null };
+      if (!tagActivity.has(tag.id)) continue;
       out.push({
         loc: `${origin}/tag/${tag.slug}`,
-        lastmod: day(tag.created_at),
+        lastmod: tagActivity.get(tag.id) ?? day(tag.created_at),
         changefreq: "weekly",
         priority: "0.5",
       });
@@ -388,11 +523,19 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
     );
     if (expertIds.length === 0) return [];
 
+    // OBA ODCZYTY Z JAWNYM NAJEMCĄ (2026-10 audyt sitemapy). Same `user_id`
+    // z odznak najemcy to za mało: `author_profiles` jest per (user_id,
+    // tenant_id), więc profil publiczny u INNEGO najemcy wpuszczał tu autora,
+    // którego profil u tego najemcy jest ukryty; a `/author/<slug>` czyta
+    // `profiles` pod RLS-em `tenant_id = public_tenant_id()` - profil spoza
+    // najemcy hosta to w mapie 404. Bramka `serviceRoleTenantScope` tego pliku
+    // nie skanuje (klient przychodzi parametrem), więc filtr stoi tu jawnie.
     const [{ data: expertProfiles }, { data: publicAps }] = await Promise.all([
       readPagedRows((from, to) =>
         admin
           .from("profiles")
           .select("id, slug, updated_at", { count: "exact" })
+          .eq("tenant_id", tenantId)
           .in("id", expertIds)
           .order("id", { ascending: true })
           .range(from, to),
@@ -401,6 +544,7 @@ const COLLECTORS: Record<Exclude<SitemapSection, "core">, SectionCollector> = {
         admin
           .from("author_profiles")
           .select("user_id, is_public", { count: "exact" })
+          .eq("tenant_id", tenantId)
           .in("user_id", expertIds)
           .order("id", { ascending: true })
           .range(from, to),

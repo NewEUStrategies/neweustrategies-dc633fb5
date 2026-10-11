@@ -23,12 +23,22 @@ const NAMED_ENTITIES: Record<string, string> = {
   bdquo: "\u201e",
 };
 
+/**
+ * Kod spoza Unicode (`&#9999999;`), NUL i surogaty dają U+FFFD - jak w parserze
+ * HTML. `String.fromCodePoint` rzuca dla nich RangeError, a jedna taka zajawka
+ * wywracała render całej strony wpisu (przegląd 2026-10).
+ */
+function safeCodePoint(cp: number): string {
+  if (!Number.isFinite(cp) || cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) {
+    return "\ufffd";
+  }
+  return String.fromCodePoint(cp);
+}
+
 export function decodeHtmlEntities(input: string): string {
   return input
-    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex: string) =>
-      String.fromCodePoint(Number.parseInt(hex, 16)),
-    )
-    .replace(/&#(\d+);/g, (_m, dec: string) => String.fromCodePoint(Number.parseInt(dec, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex: string) => safeCodePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_m, dec: string) => safeCodePoint(Number.parseInt(dec, 10)))
     .replace(/&([a-zA-Z]+);/g, (m, name: string) => NAMED_ENTITIES[name] ?? m);
 }
 

@@ -23,7 +23,7 @@
 // sensownym domyślnym (e-mail właściciela), raportuje `podcastFeedReadiness`
 // (osobny moduł, bo woła go PANEL) - /admin/podcasts pokazuje je redakcji
 // ZANIM zgłosi kanał do Apple.
-import { xmlEscape, plainText, rfc822Date } from "./rss";
+import { xmlEscape, plainText, rfc822Date, htmlEscapeText } from "./rss";
 import {
   DEFAULT_APPLE_CATEGORY,
   DEFAULT_APPLE_SUBCATEGORY,
@@ -167,7 +167,9 @@ export function buildPodcastRssXml(input: PodcastRssChannelInput): string {
     if (pub) lines.push(`      <pubDate>${pub}</pubDate>`);
     const description = plainText(item.description);
     if (description) {
-      lines.push(`      <description>${xmlEscape(description)}</description>`);
+      // `<description>` czytniki renderują jako HTML - tekst jawny idzie przez
+      // `htmlEscapeText`; `<itunes:summary>` Apple czyta jako tekst.
+      lines.push(`      <description>${xmlEscape(htmlEscapeText(description))}</description>`);
       lines.push(`      <itunes:summary>${xmlEscape(description)}</itunes:summary>`);
     }
     // RSS wymaga length: dla plików z biblioteki mediów znamy prawdziwy rozmiar

@@ -145,6 +145,28 @@ describe("registered request middleware", () => {
     expect(next).not.toHaveBeenCalled();
     expect(res.headers.get("location")).toBe(status === 410 ? null : "/destination");
   });
+  it.each([
+    ["/category/geopolityka/feed/", "/category/geopolityka/rss.xml"],
+    ["/en/tag/nato/feed/rss2/", "/en/tag/nato/rss.xml"],
+    ["/feed/atom/", "/rss.xml"],
+  ])(
+    "answers the old WordPress feed %s with ONE 301 before the router (no 307 for the slash)",
+    async (path, target) => {
+      const next = vi.fn();
+      const res = response(await run(5, request(path), next));
+      expect(res.status).toBe(301);
+      expect(res.headers.get("location")).toBe(target);
+      expect(res.headers.get("cache-control")).toBe("public, max-age=86400");
+      expect(next).not.toHaveBeenCalled();
+      // Decyzja czysta - bez odczytu reguł z bazy.
+      expect(h.redirect).not.toHaveBeenCalled();
+    },
+  );
+  it("leaves non-GET feed-like requests and ordinary paths to the rest of the chain", async () => {
+    const res = response(await run(5, request("/category/geopolityka/feed/", {}, "POST")));
+    expect(res.status).toBe(200);
+    expect(response(await run(5, request("/category/feed/"))).status).toBe(200);
+  });
   it("continues rendering when the redirect database is unavailable", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     h.redirect.mockRejectedValue(new Error("offline"));

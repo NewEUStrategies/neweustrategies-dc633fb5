@@ -667,17 +667,40 @@ export const publicPagesTreeQueryOptions = () =>
   });
 
 // Public category list (site map + navigation surfaces).
+/** Kategoria w mapie HTML (/sitemap) - z rodzajem terminu i informacją o treści. */
+export interface PublicSiteMapCategory {
+  slug: string;
+  name_pl: string;
+  name_en: string;
+  /** `organization` ma kanoniczny profil `/organization/<slug>`, nie archiwum. */
+  kind: string | null;
+  /** Czy archiwum ma choć jeden widoczny (opublikowany) wpis. */
+  has_posts: boolean;
+}
+
+// Mapa HTML linkowała WSZYSTKIE archiwa kategorii (audyt 2026-10: 44 linki,
+// każdy na „Brak opublikowanych wpisów.", bo wpisy z importu WordPressa nie
+// mają `post_categories`) i organizacje pod `/category/<slug>`, którego
+// kanoniczny adres to profil. Osadzenie `posts!inner` liczy wyłącznie wpisy
+// widoczne dla czytelnika (RLS `posts`), więc archiwum z samymi szkicami jest
+// puste - tak jak jego strona. Ta sama zasada co sekcja `taxonomy` mapy XML.
 export const publicCategoriesQueryOptions = () =>
   queryOptions({
     queryKey: ["public", "categories"] as const,
-    queryFn: async (): Promise<Array<{ slug: string; name_pl: string; name_en: string }>> =>
+    queryFn: async (): Promise<PublicSiteMapCategory[]> =>
       edgeTtlCache("public:categories", 5 * 60_000, async () => {
         const { data, error } = await supabase
           .from("categories")
-          .select("slug, name_pl, name_en")
+          .select("slug, name_pl, name_en, kind, post_categories(posts!inner(id))")
           .order("name_pl");
         if (error) throw error;
-        return data ?? [];
+        return (data ?? []).map((row) => ({
+          slug: row.slug,
+          name_pl: row.name_pl,
+          name_en: row.name_en,
+          kind: row.kind ?? null,
+          has_posts: Array.isArray(row.post_categories) && row.post_categories.length > 0,
+        }));
       }),
     staleTime: 5 * 60_000,
   });

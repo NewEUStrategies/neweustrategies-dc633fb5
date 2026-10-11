@@ -31,6 +31,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { queryOptions } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { PageTreeRow } from "@/lib/seo/pageTree";
 
 // Stan atrap MUSI mieszkać w `vi.hoisted`: fabryki `vi.mock` są wynoszone nad
 // cały plik, więc zwykła stała modułowa byłaby w chwili ich wywołania jeszcze
@@ -58,14 +59,32 @@ const h = vi.hoisted(() => ({
       parent_id: null,
       menu_order: 1,
     },
-  ],
-  categoryRows: [{ slug: "analizy", name_pl: "Analizy", name_en: "Analyses" }],
+  ] as PageTreeRow[],
+  /** Wynik `getSiteMapRedirects` (reguły przekierowań najemcy). */
+  redirects: { "/events": "/wydarzenia", "/statut": "/o-nas" } as Record<string, string>,
+  categoryRows: [
+    { slug: "analizy", name_pl: "Analizy", name_en: "Analyses", kind: null, has_posts: true },
+    { slug: "historia", name_pl: "Historia", name_en: "History", kind: null, has_posts: false },
+    { slug: "nato", name_pl: "NATO", name_en: "NATO", kind: "organization", has_posts: false },
+  ] as Array<{
+    slug: string;
+    name_pl: string;
+    name_en: string;
+    kind: string | null;
+    has_posts: boolean;
+  }>,
   blogResult: {
     posts: [
       { id: "b1", slug: "wpis", title_pl: "Wpis", title_en: "Post", published_at: "2026-09-01" },
     ],
-  },
+  } as { posts: Array<Record<string, unknown>> },
+  /** Mapa `site_settings` - w produkcji grzeje ją (albo zasiewa pustą) loader korzenia. */
+  settings: {} as Record<string, unknown>,
 }));
+
+// Domyślne ładunki - bloki, które podmieniają dane, przywracają je w `afterEach`.
+const DEFAULT_PAGE_ROWS = h.pageRows;
+const DEFAULT_BLOG_RESULT = h.blogResult;
 
 vi.mock("@/lib/http/responseHeaders", async (o) => ({
   ...(await o<typeof import("@/lib/http/responseHeaders")>()),
@@ -87,7 +106,7 @@ function keyOf(name: string) {
  * `hanging` to osobny tryb od `failing`: odrzucenie broni się `catch`-em,
  * a ZWIS nie - i to zwis, nie błąd, trzymał tę trasę ponad 90 s.
  */
-function stubOptions(name: string, payload: unknown) {
+function stubOptions(name: string, payload: () => unknown) {
   return () =>
     queryOptions({
       queryKey: keyOf(name),
@@ -97,7 +116,9 @@ function stubOptions(name: string, payload: unknown) {
           return Promise.reject(new Error(`${name} temporarily unreachable`));
         }
         if (h.failing.has(name)) return Promise.reject(new Error(`${name} unreachable`));
-        return Promise.resolve(payload);
+        // Ładunek czytany LENIWIE: bloki niżej podmieniają `h.pageRows`
+        // i `h.blogResult` per test, a fabryka `vi.mock` biegnie raz.
+        return Promise.resolve(payload());
       },
       retry: false,
     });
@@ -110,23 +131,57 @@ vi.mock("@/lib/seo/request", () => ({
   getOrigin: () => "https://nes.example.org",
 }));
 
+// Reguły przekierowań najemcy (serwer: `getSiteMapRedirects`) - domyślnie
+// te, które produkcja ma dla `nes` (migracja 20260801152304).
+vi.mock("@/lib/seo/siteMapRedirects.functions", () => ({
+  getSiteMapRedirects: () => {
+    if (h.failing.has("redirects")) return Promise.reject(new Error("redirects unreachable"));
+    return Promise.resolve(h.redirects);
+  },
+}));
+
 vi.mock("@/lib/queries/public", async (o) => ({
   ...(await o<typeof import("@/lib/queries/public")>()),
-  publicPagesTreeQueryOptions: stubOptions("pages-tree", h.pageRows),
-  publicCategoriesQueryOptions: stubOptions("categories", h.categoryRows),
-  blogListQueryOptions: stubOptions("blog-list", h.blogResult),
+  publicPagesTreeQueryOptions: stubOptions("pages-tree", () => h.pageRows),
+  publicCategoriesQueryOptions: stubOptions("categories", () => h.categoryRows),
+  blogListQueryOptions: stubOptions("blog-list", () => h.blogResult),
 }));
+
+// Mapa ustawień: PRAWDZIWY klucz (ten sam, który grzeje `__root.tsx`), ale bez
+// sieci - komponent czyta z niej `reading`, żeby wiedzieć, która strona CMS
+// jest stroną główną.
+vi.mock("@/lib/useSiteSetting", async (o) => {
+  const actual = await o<typeof import("@/lib/useSiteSetting")>();
+  return {
+    ...actual,
+    siteSettingsQueryOptions: {
+      ...actual.siteSettingsQueryOptions,
+      queryFn: () => Promise.resolve(h.settings),
+    },
+  };
+});
 
 import "@/test/i18nReal";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { renderRoute } from "@/test/routeHarness";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { COPY, Route } from "@/routes/sitemap";
 
 const PATH = "/sitemap";
 
+/**
+ * Klient z mapą `site_settings` już w cache'u - tak, jak zostawia go loader
+ * `__root.tsx` (rozgrzana mapa albo pusty zasiew) ZANIM wyrenderuje się trasa.
+ */
+function warmClient(settings: Record<string, unknown> = h.settings): QueryClient {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queryClient.setQueryData(siteSettingsQueryOptions.queryKey, settings);
+  return queryClient;
+}
+
 /** Zamontowanie trasy w routerze pamięciowym - loader biegnie tak jak w produkcji. */
-async function mount() {
-  return renderRoute({ route: Route, path: PATH, initialEntry: PATH });
+async function mount(queryClient: QueryClient = warmClient()) {
+  return renderRoute({ route: Route, path: PATH, initialEntry: PATH, queryClient });
 }
 
 type Loader = (args: {
@@ -170,6 +225,10 @@ beforeEach(() => {
   h.failing = new Set<string>();
   h.failingOnce = new Set<string>();
   h.hanging = new Set<string>();
+  h.pageRows = DEFAULT_PAGE_ROWS;
+  h.blogResult = DEFAULT_BLOG_RESULT;
+  h.settings = {};
+  h.redirects = { "/events": "/wydarzenia", "/statut": "/o-nas" };
   // `loadResilient` loguje każdą degradację - w teście to szum, nie sygnał.
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
@@ -368,5 +427,190 @@ describe("render `/sitemap` - degradacja leczy się sama", () => {
     expect(await screen.findByText(COPY.pl.categories)).toBeInTheDocument();
     expect(screen.getByText("Analizy")).toBeInTheDocument();
     expect(screen.queryByText(NOTICE)).toBeNull();
+  });
+});
+
+// MAPA HTML NA DANYCH W KSZTAŁCIE PRODUKCJI (audyt 2026-10-10). Każdy z
+// przypadków niżej był na żywej `/sitemap` błędem, nie hipotezą:
+//   * pięć stron `test-*` pod NIEopublikowanym rodzicem linkowanych pod
+//     wymyślonym `/test-agenda` (10 linków na 404, PL+EN),
+//   * strona główna `main` (ustawienia czytania) jako druga „Strona główna"
+//     pod `/main`, bo filtr znał wyłącznie slug `home`,
+//   * każdy z najnowszych artykułów przez alias `/post/<slug>` (301),
+//   * `/blog`, `/contribute` i „Wydarzenia" (`/events` -> 301 `/wydarzenia`)
+//     dwa razy.
+describe("render `/sitemap` - jeden działający adres na wpis", () => {
+  const row = (r: Partial<PageTreeRow> & Pick<PageTreeRow, "id" | "slug">): PageTreeRow => ({
+    title_pl: r.slug,
+    title_en: r.slug,
+    parent_id: null,
+    menu_order: 0,
+    ...r,
+  });
+  const PRODUCTION_ROWS: PageTreeRow[] = [
+    row({ id: "main", slug: "main", title_pl: "Strona główna" }),
+    row({ id: "blog", slug: "blog", title_pl: "Blog" }),
+    row({ id: "contribute", slug: "contribute", title_pl: "Zgłoś artykuł" }),
+    row({ id: "wydarzenia", slug: "wydarzenia", title_pl: "Wydarzenia" }),
+    row({ id: "o-nas", slug: "o-nas", title_pl: "O nas" }),
+    row({ id: "gra", slug: "gra-mocarstw-2021", title_pl: "Gra Mocarstw" }),
+    row({ id: "gra-agenda", slug: "gra-agenda", title_pl: "Agenda Gry", parent_id: "gra" }),
+    row({ id: "orphan", slug: "test-agenda", title_pl: "Agenda", parent_id: "a4d270b1" }),
+  ];
+  const post = (id: string, slug: string, title: string, parent: string) => ({
+    id,
+    slug,
+    title_pl: title,
+    title_en: title,
+    published_at: "2026-09-01",
+    parent_page_id: parent,
+  });
+
+  function hrefs(): string[] {
+    return screen.getAllByRole("link").map((a) => a.getAttribute("href") ?? "");
+  }
+
+  beforeEach(() => {
+    h.pageRows = PRODUCTION_ROWS;
+    h.blogResult = {
+      posts: [
+        post("b1", "droga-obalenia", "Droga obalenia", "blog"),
+        post("b2", "pod-glowna", "Pod stroną główną", "main"),
+        post("b3", "bez-rodzica", "Bez rodzica", "nieopublikowana"),
+      ],
+    };
+    h.settings = { reading: { homepage_mode: "static_page", homepage_page_slug: "main" } };
+  });
+
+  it("sieroty nie dostają wymyślonego adresu - ani `/test-agenda`, ani żadnego", async () => {
+    await mount();
+    expect(hrefs()).not.toContain("/test-agenda");
+    expect(screen.queryByRole("link", { name: "Agenda" })).toBeNull();
+    // Kontrola dodatnia: dziecko OPUBLIKOWANEGO rodzica zostaje z pełną ścieżką.
+    expect(screen.getByRole("link", { name: "Agenda Gry" })).toHaveAttribute(
+      "href",
+      "/gra-mocarstw-2021/gra-agenda",
+    );
+  });
+
+  it("strona główna z ustawień czytania (`main`) nie wraca jako `/main`", async () => {
+    await mount();
+    expect(hrefs()).not.toContain("/main");
+    const home = screen.getAllByRole("link", { name: COPY.pl.home });
+    expect(home.map((a) => a.getAttribute("href"))).toEqual(["/"]);
+  });
+
+  it("brak ustawień czytania = `{}`: rezolucja historyczna, strona `home` znika", async () => {
+    // Loader korzenia przy awarii zasiewa PUSTĄ mapę - nie wolno wtedy rzucić
+    // ani schować strony `main`, która nie jest wtedy stroną główną.
+    h.pageRows = [...PRODUCTION_ROWS, row({ id: "home", slug: "home", title_pl: "Home CMS" })];
+    await mount(warmClient({}));
+    expect(hrefs()).not.toContain("/home");
+    expect(screen.queryByRole("link", { name: "Home CMS" })).toBeNull();
+    // Bez ustawień `main` jest zwykłą stroną - zostaje pod własnym adresem obok `/`.
+    expect(hrefs()).toEqual(expect.arrayContaining(["/", "/main"]));
+  });
+
+  it("artykuły linkują adres KANONICZNY (rodzic + slug), alias tylko bez rodzica", async () => {
+    await mount();
+    expect(screen.getByRole("link", { name: "Droga obalenia" })).toHaveAttribute(
+      "href",
+      "/blog/droga-obalenia",
+    );
+    // Rodzicem jest UKRYTA w drzewie strona główna - lookup obejmuje pełne drzewo.
+    expect(screen.getByRole("link", { name: "Pod stroną główną" })).toHaveAttribute(
+      "href",
+      "/main/pod-glowna",
+    );
+    expect(screen.getByRole("link", { name: "Bez rodzica" })).toHaveAttribute(
+      "href",
+      "/post/bez-rodzica",
+    );
+  });
+
+  it("żaden adres nie występuje dwa razy; `/events` (301) ustępuje `/wydarzenia`", async () => {
+    await mount();
+    const all = hrefs();
+    const dupes = all.filter((href, i) => all.indexOf(href) !== i);
+    expect(dupes).toEqual([]);
+    expect(all).not.toContain("/events");
+    expect(all).toContain("/wydarzenia");
+    // Trasa kodowa przesłania stronę CMS o tym samym slugu - zostaje link trasy.
+    expect(screen.getByRole("link", { name: "Zostań kontrybutorem" })).toHaveAttribute(
+      "href",
+      "/contribute",
+    );
+    expect(screen.queryByRole("link", { name: "Zgłoś artykuł" })).toBeNull();
+    // `/statut` przekierowuje na opublikowaną `/o-nas` - mapa nie linkuje 301.
+    expect(all).not.toContain("/statut");
+  });
+
+  it("reguły przekierowań są PER NAJEMCA: bez reguły link trasy zostaje mimo opublikowanej strony", async () => {
+    // Przegląd 2026-10: kopia reguł w kodzie chowała `/events` każdemu
+    // najemcy z opublikowaną `/wydarzenia`, także temu bez przekierowania.
+    h.redirects = {};
+    await mount();
+    const all = hrefs();
+    expect(all).toContain("/events");
+    expect(all).toContain("/wydarzenia");
+  });
+
+  it("awaria odczytu reguł zostawia linki tras (nie chowa działających stron)", async () => {
+    h.failing.add("redirects");
+    await mount();
+    expect(hrefs()).toContain("/events");
+  });
+
+  it("kategorie: puste archiwum znika, organizacja linkuje swój profil", async () => {
+    // Audyt 2026-10: 44 linki na archiwa „Brak opublikowanych wpisów."
+    // i organizacje pod niekanonicznym `/category/<slug>`.
+    await mount();
+    const all = hrefs();
+    expect(all).toContain("/category/analizy");
+    expect(all).not.toContain("/category/historia");
+    expect(all).toContain("/organization/nato");
+    expect(all).not.toContain("/category/nato");
+  });
+
+  it("strony CMS pod trasą kodową z `noindex` (`/login`, `/club`) nie są linkowane", async () => {
+    h.pageRows = [
+      ...h.pageRows,
+      {
+        id: "p-login",
+        slug: "login",
+        title_pl: "Logowanie",
+        title_en: "Login",
+        parent_id: null,
+        menu_order: 90,
+      },
+      {
+        id: "p-club",
+        slug: "club",
+        title_pl: "Klub",
+        title_en: "Club",
+        parent_id: null,
+        menu_order: 91,
+      },
+    ];
+    await mount();
+    const all = hrefs();
+    expect(all).not.toContain("/login");
+    expect(all).not.toContain("/club");
+  });
+
+  it("mapa nie linkuje ŻADNEGO adresu z listy tras z `noindex` (także linków tras, np. `/people`)", async () => {
+    const { NOINDEX_CODE_ROUTE_PATHS } = await import("@/lib/seo/noindexCodeRoutes");
+    await mount();
+    const linked = hrefs().filter((href) => NOINDEX_CODE_ROUTE_PATHS.has(href));
+    expect(linked).toEqual([]);
+  });
+
+  it("trasy kodowe z sekcji `core` mapy XML: huby i dokumenty prawne", async () => {
+    await mount();
+    const all = hrefs();
+    for (const href of ["/programs", "/web-stories", "/rodo", "/przejrzystosc-ai"]) {
+      expect(all).toContain(href);
+    }
+    expect(screen.getByRole("heading", { level: 2, name: COPY.pl.legal })).toBeInTheDocument();
   });
 });

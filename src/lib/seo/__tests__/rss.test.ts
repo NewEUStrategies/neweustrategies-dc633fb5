@@ -267,3 +267,143 @@ describe("plainText / rfc822Date - wartości brzegowe", () => {
     expect(rfc822Date(value)).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Encje i znacznik skrócenia z WordPressa (2026-10 audyt powierzchni
+// maszynowych). `plainText` zdejmował tagi, ale encji nie dekodował, a 18
+// zajawek z importu niesie je dosłownie - `xmlEscape` robił z nich potem
+// `&amp;hellip;`, więc czytnik pokazywał „&hellip;" i „&#8222;". Ten sam
+// sanitarny tekst czyści zajawki w llms.txt (llms.test.ts).
+// ---------------------------------------------------------------------------
+describe("plainText - encje i znacznik skrócenia", () => {
+  it("usuwa końcowy znacznik WordPressa [&hellip;]", () => {
+    expect(plainText("Autor od dawna zastanawiał się nad przyszłością Polski [&hellip;]")).toBe(
+      "Autor od dawna zastanawiał się nad przyszłością Polski",
+    );
+  });
+
+  it.each([
+    { label: "[...]", value: "Tekst [...]" },
+    { label: "[…]", value: "Tekst […]" },
+    { label: "[&#8230;]", value: "Tekst [&#8230;]" },
+    { label: "(...)", value: "Tekst (...)" },
+    { label: "kilka po sobie", value: "Tekst [&hellip;] [...]" },
+    { label: "w znaczniku akapitu", value: "<p>Tekst [&hellip;]</p>\n" },
+  ])("usuwa końcowy znacznik skrócenia: $label", ({ value }) => {
+    expect(plainText(value)).toBe("Tekst");
+  });
+
+  it("zostawia nawiasy kwadratowe w środku tekstu (przypisy, cytaty)", () => {
+    expect(plainText("handlu[1]I. Wallerstein, Analiza [&hellip;] dalej")).toBe(
+      "handlu[1]I. Wallerstein, Analiza […] dalej",
+    );
+  });
+
+  it("dekoduje encje liczbowe: &#8222;cytat&#8221; -> „cytat”", () => {
+    expect(plainText("&#8222;cytat&#8221;")).toBe("„cytat”");
+    expect(plainText("&#x201E;hex&#x201D;")).toBe("„hex”");
+  });
+
+  it("dekoduje encje nazwane, a nieznane zostawia dosłownie", () => {
+    expect(plainText("a&nbsp;b &ndash; c &hellip; &bogus;")).toBe("a b – c … &bogus;");
+  });
+
+  it("dekoduje PO zdjęciu tagów: zakodowany znacznik zostaje tekstem", () => {
+    expect(plainText("<p>&lt;b&gt;pogrubienie&lt;/b&gt;</p>")).toBe("<b>pogrubienie</b>");
+  });
+
+  it("nie dekoduje podwójnie - &amp;hellip; to dosłowne „&hellip;”", () => {
+    expect(plainText("&amp;hellip;")).toBe("&hellip;");
+  });
+
+  it("limit długości liczy znaki PO dekodowaniu, nie bajty encji", () => {
+    expect(plainText("&#8222;".repeat(20), 10)).toHaveLength(10);
+  });
+
+  // Przegląd 2026-10: dekodowanie zamieniało `&#1;` (dotąd dosłowny tekst
+  // `&amp;#1;`) w SUROWY znak sterujący - niedozwolony w XML 1.0, więc jeden
+  // taki wpis łamał cały kanał.
+  it.each([
+    { label: "encja C0 dziesiętna", value: "a&#1;b" },
+    { label: "encja C0 szesnastkowa", value: "a&#x1F;b" },
+    { label: "encja U+FFFF", value: "a&#xFFFF;b" },
+    { label: "encja U+FFFE", value: "a&#65534;b" },
+    { label: "surowy znak sterujący z bazy", value: "a\u0008b" },
+  ])("wycina znak niedozwolony w XML 1.0: $label", ({ value }) => {
+    expect(plainText(value)).toBe("a b");
+  });
+
+  it("tab, LF i CR (dozwolone w XML) dalej zwijają się do spacji", () => {
+    expect(plainText("a&#9;b&#10;c&#13;d")).toBe("a b c d");
+  });
+});
+
+describe("buildRssXml - opis zawsze jest poprawnym XML-em 1.0", () => {
+  it("encja znaku sterującego w zajawce nie wnosi surowego znaku do kanału", () => {
+    const xml = buildRssXml({
+      title: "NES",
+      description: "Analizy",
+      siteUrl: "https://nes.example",
+      feedUrl: "https://nes.example/rss.xml",
+      language: "pl",
+      items: [
+        {
+          url: "https://nes.example/a",
+          title: "A",
+          description: "<p>Wklejka&#1; z&#x8; Worda&#xFFFF;</p>",
+          publishedAt: null,
+        },
+      ],
+    });
+    expect(xml).toContain("<description>Wklejka z Worda</description>");
+    // eslint-disable-next-line no-control-regex -- celowo: produkcja `Char` XML 1.0
+    expect(xml).not.toMatch(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/);
+  });
+});
+
+describe("buildRssXml - opis bez podwójnego escapowania", () => {
+  const xml = buildRssXml({
+    title: "NES",
+    description: "Analizy",
+    siteUrl: "https://nes.example",
+    feedUrl: "https://nes.example/rss.xml",
+    language: "pl",
+    items: [
+      {
+        url: "https://nes.example/a",
+        title: "A",
+        description: "<p>R&amp;D &#8222;cytat&#8221; &lt;tag&gt; [&hellip;]</p>",
+        publishedAt: null,
+      },
+    ],
+  });
+
+  it("czytnik po rozpakowaniu XML-a dostaje HTML, który POKAZUJE tekst - bez encji i bez żywych tagów", () => {
+    // `<description>` RSS 2.0 to HTML zakodowany w XML-u. Encje z bazy są
+    // dekodowane raz (bez „&hellip;" i „&#8222;" na ekranie czytnika), a tekst
+    // jawny jest escapowany jako HTML, więc `&lt;tag&gt;` z bazy nie staje się
+    // znacznikiem (przegląd 2026-10).
+    expect(xml).toContain("<description>R&amp;amp;D „cytat” &amp;lt;tag&amp;gt;</description>");
+    const html = /<description>([^<]*)<\/description>\s*<\/item>/.exec(xml)?.[1] ?? "";
+    // Rozpakowanie XML-a jednym przebiegiem - tak jak parser czytnika.
+    const xmlEntities: Record<string, string> = { amp: "&", lt: "<", gt: ">" };
+    const readerHtml = html.replace(/&(amp|lt|gt);/g, (_m, name: string) => xmlEntities[name]);
+    expect(readerHtml).toBe("R&amp;D „cytat” &lt;tag&gt;");
+    expect(readerHtml).not.toContain("<tag>");
+    expect(xml).not.toContain("&amp;#");
+    expect(xml).not.toContain("hellip");
+  });
+});
+
+describe("plainText - znacznik skrócenia tylko w ogonie (bez nawrotu kwadratowego)", () => {
+  it("zdejmuje kilka znaczników po sobie na końcu, a w środku tekstu je zostawia", () => {
+    expect(plainText("Tekst [&hellip;] dalej [...] (…)")).toBe("Tekst […] dalej");
+  });
+
+  it("długi tekst z setkami znaczników w środku przetwarza się w czasie liniowym", () => {
+    const value = `${"słowo [...] ".repeat(20_000)}koniec`;
+    const start = performance.now();
+    expect(plainText(value, 100_000_000).endsWith("koniec")).toBe(true);
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+});

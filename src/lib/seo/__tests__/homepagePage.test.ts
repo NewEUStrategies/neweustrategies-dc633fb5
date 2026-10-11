@@ -66,6 +66,15 @@ describe("configuredHomepagePageId - lustro rozstrzygania strony `/`", () => {
     expect(configuredHomepagePageId({}, [page("p-o-nas", "o-nas")])).toBeNull();
   });
 
+  it("wartości NIE są przycinane - tak jak w `.eq()` zapytania strony `/`", () => {
+    expect(
+      configuredHomepagePageId(
+        { homepage_mode: "static_page", homepage_page_slug: " main " },
+        PAGES,
+      ),
+    ).toBe("p-home");
+  });
+
   it("puste i nienapisowe wartości ustawień są pomijane", () => {
     expect(
       configuredHomepagePageId(

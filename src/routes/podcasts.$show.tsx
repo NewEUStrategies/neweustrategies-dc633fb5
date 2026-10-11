@@ -22,6 +22,7 @@ import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/res
 import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 import { buildAvatarSrc } from "@/lib/cropSizes";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { localizedPath } from "@/lib/i18n/localePath";
 import { ensureI18n as ensurePodcastsI18n } from "@/lib/i18n-podcasts";
 import { appendLinkHeader, setCacheControlHeader } from "@/lib/http/responseHeaders";
 import {
@@ -327,8 +328,11 @@ function ShowPage() {
                 {l.label}
               </a>
             ))}
+            {/* Kanał w JĘZYKU STRONY - jak `feedAlternateLink` w `head()`. Do
+                2026-10 przycisk na `/en/podcasts/<slug>` prowadził do kanału
+                polskiego, choć autodiscovery ogłaszało angielski. */}
             <a
-              href={`/podcasts/${show.slug}/rss.xml`}
+              href={localizedPath(`/podcasts/${show.slug}/rss.xml`, lang)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border hover:bg-muted"
             >
               <Rss className="w-3.5 h-3.5" />

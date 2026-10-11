@@ -23,11 +23,16 @@
 // SupabaseClient` w takim teście oznacza, że atrapa może się bezkarnie rozjechać
 // z klientem. Sieci nie ma: `fetch` nigdy nie wychodzi z procesu.
 //
+// ZAKRES NAJEMCY JEST TUTAJ, NIE W BRAMCE (korekta 2026-10). Ten nagłówek
+// twierdził, że filtr `.eq("tenant_id", …)` każdego zapytania pilnuje bramka
+// statyczna `serviceRoleTenantScope.gate.test.ts`. Nie pilnuje: jej skan szuka
+// `supabaseAdmin`, a kolektory dostają klienta PARAMETREM - sama bramka pisze
+// wprost, że ten plik nie trafia do jej rejestru. Jedynym dowodem zakresu jest
+// więc przegląd WSZYSTKICH zapytań jednego pełnego odczytu
+// (`collectAllSitemapSections` niżej) - tak wyszły na jaw odczyty `profiles`
+// i `author_profiles` sekcji `experts` bez filtra najemcy.
+//
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
-//   * ZAKRESU NAJEMCY (czy każde zapytanie ma `.eq("tenant_id", …)`) pilnuje
-//     bramka statyczna `serviceRoleTenantScope.gate.test.ts` - tu nie ma ani
-//     jednego testu „czy jest filtr tenanta", choć filtr widać w asercjach
-//     zapytań jako tło;
 //   * PODZIAŁU NA SHARDY, nazw plików i limitu 25 000 adresów dowodzi
 //     `src/lib/seo/__tests__/sitemapIndex.test.ts`; RENDERU `<urlset>`,
 //     escapowania i klastra hreflang - `sitemapXml.test.ts`. Ten plik kończy się
@@ -40,7 +45,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { SITEMAP_SECTIONS } from "@/lib/seo/sitemapIndex";
+import { SITEMAP_SECTIONS, shardCountFor } from "@/lib/seo/sitemapIndex";
 import {
   SITEMAP_SECTION_BUDGET_MS,
   collectAllSitemapSections,
@@ -75,7 +80,12 @@ interface Odmowa {
 }
 
 type Odpowiedz = { wiersze: unknown } | { odmowa: Odmowa };
-type PlanTabeli = Odpowiedz | ((zadanie: ZapisaneZadanie) => Odpowiedz);
+/**
+ * Połączenie, które nigdy nie odpowiada - zawieszony PostgREST, który nie
+ * rzuca, tylko czeka (stan, przed którym bronią budżety czasu).
+ */
+const ZAWIESZONE = "zawieszone" as const;
+type PlanTabeli = Odpowiedz | typeof ZAWIESZONE | ((zadanie: ZapisaneZadanie) => Odpowiedz);
 type Plan = Record<string, PlanTabeli>;
 
 /** Tabele odpytane bez zaplanowanej odpowiedzi - `afterEach` robi z tego błąd. */
@@ -138,6 +148,7 @@ function atrapaAdmina(plan: Plan): AtrapaAdmina {
           brakiPlanu.push(zadanie.tabela);
           return Promise.resolve(odpowiedzHttp({ wiersze: [] }));
         }
+        if (wpis === ZAWIESZONE) return new Promise<Response>(() => undefined);
         return Promise.resolve(
           odpowiedzHttp(typeof wpis === "function" ? wpis(zadanie) : wpis, url.searchParams),
         );
@@ -179,14 +190,32 @@ interface StronaPlan {
   noindex?: boolean;
   /** `pages.updated_at` - źródło `lastmod` sekcji `pages`. */
   zmiana?: string;
+  /**
+   * `pages.parent_id`. Brak = strona najwyższego poziomu. Rodzic SPOZA planu
+   * to przodek, którego odczyt stron nie zwrócił - szkic, kosz albo obcy
+   * najemca, czyli dokładnie stan stron `test-*` na produkcji.
+   */
+  rodzic?: string;
+  /** `pages.slug` - domyślnie ostatni segment ścieżki. */
+  slug?: string;
 }
 
-/** Plan dla `pages` + `page_full_paths` (mapa ścieżek buduje się z obu). */
-function planStron(strony: Record<string, StronaPlan>): Plan {
+/**
+ * Plan dla `pages` + `page_full_paths` (mapa ścieżek buduje się z obu) oraz
+ * `site_settings` (sekcja `pages` czyta ustawienia czytania, żeby nie wypisać
+ * strony głównej drugi raz). Atrapa RPC oddaje ścieżkę BEZ względu na status
+ * przodków - tak jak prawdziwa funkcja, której ta luka dotyczyła.
+ */
+function planStron(
+  strony: Record<string, StronaPlan>,
+  czytanie: PlanTabeli = { wiersze: [] },
+): Plan {
   return {
     pages: {
       wiersze: Object.entries(strony).map(([id, s]) => ({
         id,
+        slug: s.slug ?? s.sciezka?.split("/").at(-1) ?? id,
+        parent_id: s.rodzic ?? null,
         seo_noindex: s.noindex === true,
         updated_at: s.zmiana ?? null,
       })),
@@ -199,7 +228,13 @@ function planStron(strony: Record<string, StronaPlan>): Plan {
         })),
       };
     },
+    site_settings: czytanie,
   };
+}
+
+/** Wiersz `site_settings["reading"]` w kształcie odpowiedzi PostgREST. */
+function czytanie(wartosc: unknown): PlanTabeli {
+  return { wiersze: [{ value: wartosc }] };
 }
 
 const locs = (wpisy: readonly SitemapEntry[]): string[] => wpisy.map((w) => w.loc);
@@ -296,7 +331,10 @@ describe("sekcja core - huby serwisu bez udziału bazy", () => {
 describe("sekcja pages - adresy stron z drzewa", () => {
   it("adresuje stronę pełną ścieżką drzewa, nie samym slugiem", async () => {
     const db = atrapaAdmina(
-      planStron({ "p-1": { sciezka: "analizy" }, "p-2": { sciezka: "analizy/prawo" } }),
+      planStron({
+        "p-1": { sciezka: "analizy" },
+        "p-2": { sciezka: "analizy/prawo", rodzic: "p-1" },
+      }),
     );
     const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
     expect(locs(wpisy).sort()).toEqual([`${ORIGIN}/analizy`, `${ORIGIN}/analizy/prawo`]);
@@ -318,17 +356,35 @@ describe("sekcja pages - adresy stron z drzewa", () => {
     expect(locs(wpisy)).toEqual([`${ORIGIN}/wewnetrzne/akt-o-uslugach`]);
   });
 
+  it("strona przesłonięta trasą kodową z `noindex` nie trafia do mapy (audyt GSC 2026-10)", async () => {
+    // Produkcja: strony CMS `login` i `club` są opublikowane bez seo_noindex,
+    // ale pod ich adresem renderuje się trasa logowania i katalog klubów -
+    // obie z `noindex`. GSC: „Przesłany URL oznaczony tagiem noindex".
+    const db = atrapaAdmina(
+      planStron({
+        "p-login": { sciezka: "login" },
+        "p-club": { sciezka: "club" },
+        "p-kontakt": { sciezka: "kontakt" },
+        "p-pomoc": { sciezka: "kontakt/login", rodzic: "p-kontakt" },
+      }),
+    );
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    // Ta sama nazwa GŁĘBIEJ w drzewie to zwykła strona - liczy się cały adres.
+    expect(locs(wpisy).sort()).toEqual([`${ORIGIN}/kontakt`, `${ORIGIN}/kontakt/login`]);
+  });
+
   it("czyta wyłącznie strony opublikowane i nieusunięte", async () => {
     const db = atrapaAdmina(planStron({ "p-1": { sciezka: "analizy" } }));
     await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
     const params = db.dla("pages")[0].params;
     expect(params.get("status")).toBe("eq.published");
     expect(params.get("deleted_at")).toBe("is.null");
-    expect(params.get("select")).toBe("id,seo_noindex,updated_at");
+    // `slug` i `parent_id`: łańcuch przodków i rozstrzygnięcie strony głównej.
+    expect(params.get("select")).toBe("id,slug,parent_id,seo_noindex,updated_at");
   });
 
   it("brak stron to pusta sekcja - i ani jednego ostrzeżenia w logu", async () => {
-    const db = atrapaAdmina({ pages: { wiersze: [] } });
+    const db = atrapaAdmina({ pages: { wiersze: [] }, site_settings: { wiersze: [] } });
     expect(await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages")).toEqual([]);
     expect(db.dla("rpc/page_full_path")).toEqual([]);
     expect(ostrzezenia).not.toHaveBeenCalled();
@@ -346,6 +402,204 @@ describe("sekcja pages - adresy stron z drzewa", () => {
     );
     const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
     expect(locs(wpisy)).toEqual([`${ORIGIN}/analizy`]);
+  });
+});
+
+// NAPRAWA 2026-10 (audyt GSC) - ADRES TYLKO PRZEZ OPUBLIKOWANYCH PRZODKÓW.
+//
+// `sitemaps/pages.xml` wypisywał 10 adresów `/test/test-*` (PL+EN), które
+// kończyły się 404: pięć opublikowanych stron wisiało pod NIEopublikowanym
+// rodzicem, a `page_full_paths` składa ścieżkę po `parent_id` bez względu na
+// status przodków. Publiczny `resolve_path` schodzi od korzenia i wymaga
+// opublikowanej, nieusuniętej strony na KAŻDYM poziomie.
+describe("sekcja pages - strona osiągalna tylko przez opublikowanych przodków", () => {
+  /** Stan produkcji: rodzic `a4d270b1...` nie wrócił z odczytu opublikowanych. */
+  const DZIECI_SZKICU = {
+    "p-o-nas": { sciezka: "o-nas" },
+    "p-agenda": { sciezka: "test/test-agenda", rodzic: "p-test-szkic" },
+    "p-prelegenci": { sciezka: "test/test-prelegenci", rodzic: "p-test-szkic" },
+  } satisfies Record<string, StronaPlan>;
+
+  it("dziecko nieopublikowanego rodzica nie dostaje adresu (to byłoby 404)", async () => {
+    const db = atrapaAdmina(planStron(DZIECI_SZKICU));
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(locs(wpisy)).toEqual([`${ORIGIN}/o-nas`]);
+    expect(locs(wpisy).join(" ")).not.toContain("/test/");
+  });
+
+  it("RPC ścieżek dostaje WYŁĄCZNIE strony osiągalne", async () => {
+    const db = atrapaAdmina(planStron(DZIECI_SZKICU));
+    await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(db.dla("rpc/page_full_paths").map((z) => pageIdsZCiala(z.body))).toEqual([["p-o-nas"]]);
+  });
+
+  it("brak osiągalnych stron nie woła RPC wcale", async () => {
+    const db = atrapaAdmina(
+      planStron({ "p-agenda": { sciezka: "test/test-agenda", rodzic: "p-test-szkic" } }),
+    );
+    expect(await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages")).toEqual([]);
+    expect(db.dla("rpc/page_full_paths")).toEqual([]);
+  });
+
+  it("wnuk opublikowanego dziecka pod szkicem też wypada - liczy się CAŁY łańcuch", async () => {
+    const db = atrapaAdmina(
+      planStron({
+        "p-sekcja": { sciezka: "szkic/sekcja", rodzic: "p-szkic" },
+        "p-wnuk": { sciezka: "szkic/sekcja/wnuk", rodzic: "p-sekcja" },
+        "p-zdrowa": { sciezka: "analizy" },
+        "p-zdrowe-dziecko": { sciezka: "analizy/prawo", rodzic: "p-zdrowa" },
+        "p-zdrowy-wnuk": { sciezka: "analizy/prawo/ai-act", rodzic: "p-zdrowe-dziecko" },
+      }),
+    );
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(locs(wpisy).sort()).toEqual([
+      `${ORIGIN}/analizy`,
+      `${ORIGIN}/analizy/prawo`,
+      `${ORIGIN}/analizy/prawo/ai-act`,
+    ]);
+  });
+
+  it("wpis pod stroną bez opublikowanego łańcucha wypada z sekcji posts", async () => {
+    // Ten sam adres `resolve_path` też odrzuca: wpis szuka rodzica po ścieżce
+    // stron, a ta urywa się na szkicu.
+    const db = atrapaAdmina({
+      ...planStron(DZIECI_SZKICU),
+      posts: {
+        wiersze: [
+          wierszWpisu({ slug: "zostaje", parent_page_id: "p-o-nas" }),
+          wierszWpisu({ slug: "sierota-szkicu", parent_page_id: "p-agenda" }),
+        ],
+      },
+    });
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "posts");
+    expect(locs(wpisy)).toEqual([`${ORIGIN}/o-nas/zostaje`]);
+  });
+
+  it("cykl w parent_id nie zawiesza odczytu i nie daje adresu", async () => {
+    // Baza nie blokuje cyklu (FK sprawdza istnienie rodzica, nie acykliczność).
+    const db = atrapaAdmina(
+      planStron({
+        "p-a": { sciezka: "a", rodzic: "p-b" },
+        "p-b": { sciezka: "b", rodzic: "p-a" },
+        "p-sam": { sciezka: "sam", rodzic: "p-sam" },
+        "p-pod-cyklem": { sciezka: "a/b/pod", rodzic: "p-a" },
+        "p-zdrowa": { sciezka: "zdrowa" },
+      }),
+    );
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(locs(wpisy)).toEqual([`${ORIGIN}/zdrowa`]);
+  });
+
+  it("łańcuch dłuższy niż 50 poziomów wypada - RPC ucięłoby mu ścieżkę", async () => {
+    // `page_full_paths` rekurencją `c.depth < 50` składa najwyżej 50 segmentów;
+    // głębsza strona dostałaby ścieżkę bez górnych segmentów, czyli 404.
+    const strony: Record<string, StronaPlan> = {};
+    for (let poziom = 1; poziom <= 52; poziom += 1) {
+      strony[`p-${poziom}`] = {
+        sciezka: `s${poziom}`,
+        ...(poziom > 1 ? { rodzic: `p-${poziom - 1}` } : {}),
+      };
+    }
+    const db = atrapaAdmina(planStron(strony));
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    const glebokosci = locs(wpisy).map((loc) => Number(loc.slice(`${ORIGIN}/s`.length)));
+    expect(glebokosci.sort((a, b) => a - b)).toEqual(Array.from({ length: 50 }, (_, i) => i + 1));
+  });
+});
+
+// NAPRAWA 2026-10 (audyt GSC) - STRONA GŁÓWNA TYLKO POD `/`.
+//
+// Ustawienia czytania produkcji: `{ homepage_mode: "static_page",
+// homepage_page_slug: "main" }`. Strona `main` jest serwowana pod `/` (sekcja
+// `core`), a sekcja `pages` wypisywała ją drugi raz jako `/main` i `/en/main`
+// - duplikat strony głównej z własnym canonicalem.
+describe("sekcja pages - strona główna nie dostaje drugiego adresu", () => {
+  const STRONY = {
+    "p-main": { sciezka: "main" },
+    "p-home": { sciezka: "home" },
+    "p-o-nas": { sciezka: "o-nas" },
+    "p-pod-main": { sciezka: "main/zespol", rodzic: "p-main" },
+  } satisfies Record<string, StronaPlan>;
+  const PRODUKCJA = { homepage_mode: "static_page", homepage_page_slug: "main" };
+
+  it("strona wskazana slugiem w ustawieniach czytania wypada z sekcji", async () => {
+    const db = atrapaAdmina(planStron(STRONY, czytanie(PRODUKCJA)));
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(locs(wpisy).sort()).toEqual([
+      `${ORIGIN}/home`,
+      `${ORIGIN}/main/zespol`,
+      `${ORIGIN}/o-nas`,
+    ]);
+  });
+
+  it("strona wskazana po id wypada, także gdy nie jest najwyższego poziomu", async () => {
+    const db = atrapaAdmina(
+      planStron(STRONY, czytanie({ homepage_mode: "static_page", homepage_page_id: "p-pod-main" })),
+    );
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(locs(wpisy)).not.toContain(`${ORIGIN}/main/zespol`);
+    expect(locs(wpisy)).toContain(`${ORIGIN}/main`);
+  });
+
+  it("bez ustawień obowiązuje reguła zastana: wypada strona `home`", async () => {
+    const db = atrapaAdmina(planStron(STRONY));
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(locs(wpisy)).not.toContain(`${ORIGIN}/home`);
+    expect(locs(wpisy)).toContain(`${ORIGIN}/main`);
+  });
+
+  it("tryb najnowszych wpisów: żadna strona nie jest stroną główną", async () => {
+    const db = atrapaAdmina(planStron(STRONY, czytanie({ homepage_mode: "latest_posts" })));
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    expect(locs(wpisy)).toHaveLength(4);
+  });
+
+  it("wpisy pod stroną główną zachowują własne adresy w sekcji posts", async () => {
+    const db = atrapaAdmina({
+      ...planStron(STRONY, czytanie(PRODUKCJA)),
+      posts: { wiersze: [wierszWpisu({ slug: "komunikat", parent_page_id: "p-main" })] },
+    });
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "posts");
+    expect(locs(wpisy)).toEqual([`${ORIGIN}/main/komunikat`]);
+  });
+
+  it("czyta ustawienia czytania WŁASNEGO najemcy, kluczem `reading`", async () => {
+    const db = atrapaAdmina(planStron(STRONY, czytanie(PRODUKCJA)));
+    await collectSitemapSection(db.admin, TENANT, ORIGIN, "pages");
+    const [zadanie] = db.dla("site_settings");
+    expect(zadanie.params.get("tenant_id")).toBe(`eq.${TENANT}`);
+    expect(zadanie.params.get("key")).toBe("eq.reading");
+    expect(zadanie.params.get("select")).toBe("value");
+  });
+
+  it("odmowa odczytu ustawień to AWARIA sekcji (503), a nie `/main` w pliku jak zdrowy", async () => {
+    // Przegląd 2026-10: reguła zastana (`home`) przy produkcyjnej stronie
+    // `main` wypisywała `/main` (301 na `/`) i shard szedł z pełnym TTL.
+    const db = atrapaAdmina(
+      planStron(STRONY, { odmowa: { message: "permission denied", code: "42501" } }),
+    );
+    const odczyt = await collectSitemapSectionResult(db.admin, TENANT, ORIGIN, "pages");
+    expect(odczyt.failed).toBe(true);
+    expect(odczyt.entries).toEqual([]);
+  });
+
+  it("zawieszony odczyt ustawień kończy sekcję awarią już po połowie budżetu", async () => {
+    const db = atrapaAdmina(planStron(STRONY, ZAWIESZONE));
+    const odczyt = collectSitemapSectionResult(db.admin, TENANT, ORIGIN, "pages");
+    await vi.advanceTimersByTimeAsync(SITEMAP_SECTION_BUDGET_MS / 2);
+    const wynik = await odczyt;
+    expect(wynik.failed).toBe(true);
+    expect(wynik.entries).toEqual([]);
+  });
+
+  it("ustawienia w niespodziewanym kształcie dają regułę zastaną, nie wyjątek", async () => {
+    for (const wartosc of ["static_page", ["main"], null]) {
+      const db = atrapaAdmina(planStron(STRONY, czytanie(wartosc)));
+      const odczyt = await collectSitemapSectionResult(db.admin, TENANT, ORIGIN, "pages");
+      expect(odczyt.failed).toBe(false);
+      expect(locs(odczyt.entries)).not.toContain(`${ORIGIN}/home`);
+    }
+    expect(ostrzezenia).not.toHaveBeenCalled();
   });
 });
 
@@ -434,21 +688,60 @@ describe("sekcja posts - adres wpisu i jego lastmod", () => {
   });
 });
 
+/** Wpis widziany przez kolektor `taxonomy`: daty + osadzone powiązania. */
+function wpisTaksonomii(
+  kategorie: readonly string[],
+  tagi: readonly string[],
+  daty: { updated_at?: string | null; published_at?: string | null } = {},
+) {
+  return {
+    id: `post-${kategorie.join("-")}-${tagi.join("-")}`,
+    updated_at: daty.updated_at ?? null,
+    published_at: daty.published_at ?? null,
+    post_categories: kategorie.map((category_id) => ({ category_id })),
+    post_tags: tagi.map((tag_id) => ({ tag_id })),
+  };
+}
+
+/** Czy zapytanie o `posts` to odczyt powiązań taksonomii (a nie sekcja `posts`). */
+const toOdczytTaksonomii = (zadanie: ZapisaneZadanie): boolean =>
+  (zadanie.params.get("select") ?? "").includes("post_categories(");
+
+/**
+ * Tabela `posts` czytana przez DWA kolektory: `posts` (adresy wpisów)
+ * i `taxonomy` (które archiwa mają treść). Plan rozdziela je po liście
+ * `select`, żeby każdy kolektor dostał wiersze w swoim kształcie.
+ */
+function planWpisow(plan: { wpisy?: Odpowiedz; taksonomia?: Odpowiedz }): PlanTabeli {
+  return (zadanie) =>
+    toOdczytTaksonomii(zadanie)
+      ? (plan.taksonomia ?? { wiersze: [] })
+      : (plan.wpisy ?? { wiersze: [] });
+}
+
 describe("sekcja taxonomy - archiwa kategorii i tagów", () => {
-  it("daje kategoriom i tagom osobne prefiksy, priorytety i lastmod", async () => {
+  it("daje kategoriom i tagom osobne prefiksy, priorytety i lastmod z najnowszego wpisu", async () => {
     const db = atrapaAdmina({
-      categories: { wiersze: [{ slug: "prawo", created_at: "2026-01-05T10:00:00.000Z" }] },
-      tags: { wiersze: [{ slug: "ai-act", created_at: null }] },
+      categories: {
+        wiersze: [{ id: "k-prawo", slug: "prawo", created_at: "2026-01-05T10:00:00.000Z" }],
+      },
+      tags: { wiersze: [{ id: "t-ai", slug: "ai-act", created_at: null }] },
+      posts: {
+        wiersze: [
+          wpisTaksonomii(["k-prawo"], ["t-ai"], { updated_at: "2026-08-19T08:30:00.000Z" }),
+          wpisTaksonomii(["k-prawo"], [], { published_at: "2026-09-02T06:00:00.000Z" }),
+        ],
+      },
     });
     const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy");
     expect(wpisy).toEqual([
       {
         loc: `${ORIGIN}/category/prawo`,
-        lastmod: "2026-01-05",
+        lastmod: "2026-09-02",
         changefreq: "weekly",
         priority: "0.6",
       },
-      { loc: `${ORIGIN}/tag/ai-act`, lastmod: undefined, changefreq: "weekly", priority: "0.5" },
+      { loc: `${ORIGIN}/tag/ai-act`, lastmod: "2026-08-19", changefreq: "weekly", priority: "0.5" },
     ]);
   });
 
@@ -460,11 +753,12 @@ describe("sekcja taxonomy - archiwa kategorii i tagów", () => {
     const db = atrapaAdmina({
       categories: {
         wiersze: [
-          { slug: "nato", kind: "organization", created_at: "2026-02-02T10:00:00.000Z" },
-          { slug: "prawo", kind: "category", created_at: null },
+          { id: "k-nato", slug: "nato", kind: "organization", created_at: "2026-02-02T10:00Z" },
+          { id: "k-prawo", slug: "prawo", kind: "category", created_at: null },
         ],
       },
       tags: { wiersze: [] },
+      posts: { wiersze: [wpisTaksonomii(["k-prawo"], [])] },
     });
     const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy");
     expect(wpisy.map((w) => w.loc)).toEqual([
@@ -475,17 +769,159 @@ describe("sekcja taxonomy - archiwa kategorii i tagów", () => {
 
   it("term bez rodzaju zostaje archiwum kategorii - brak danej nie tworzy profilu", async () => {
     const db = atrapaAdmina({
-      categories: { wiersze: [{ slug: "prawo", kind: null, created_at: null }] },
+      categories: { wiersze: [{ id: "k-prawo", slug: "prawo", kind: null, created_at: null }] },
       tags: { wiersze: [] },
+      posts: { wiersze: [wpisTaksonomii(["k-prawo"], [])] },
     });
     const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy");
     expect(wpisy.map((w) => w.loc)).toEqual([`${ORIGIN}/category/prawo`]);
   });
 
   it("brak taksonomii to pusta sekcja, nie błąd", async () => {
-    const db = atrapaAdmina({ categories: { wiersze: [] }, tags: { wiersze: [] } });
+    const db = atrapaAdmina({
+      categories: { wiersze: [] },
+      tags: { wiersze: [] },
+      posts: { wiersze: [] },
+    });
     expect(await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy")).toEqual([]);
     expect(ostrzezenia).not.toHaveBeenCalled();
+  });
+});
+
+// NAPRAWA 2026-10 (audyt GSC) - PUSTE ARCHIWUM TO SOFT 404.
+//
+// `sitemaps/taxonomy.xml` wypisywał 39 archiwów kategorii, a 18 opublikowanych
+// wpisów (import WordPressa) nie ma ani jednego wiersza w `post_categories` -
+// każde archiwum i jego feed pokazywały „Brak opublikowanych wpisów.".
+describe("sekcja taxonomy - tylko archiwa z treścią", () => {
+  it("kategorie i tagi bez wpisów nie trafiają do mapy (stan produkcji)", async () => {
+    const kategorie = Array.from({ length: 39 }, (_, i) => ({
+      id: `k-${i}`,
+      slug: `kategoria-${i}`,
+      kind: "category",
+      created_at: "2026-05-01T00:00:00Z",
+    }));
+    const db = atrapaAdmina({
+      categories: { wiersze: kategorie },
+      tags: { wiersze: [{ id: "t-1", slug: "pusty-tag", created_at: null }] },
+      // 18 wpisów, zero powiązań - osadzone listy wracają puste.
+      posts: { wiersze: Array.from({ length: 18 }, () => wpisTaksonomii([], [])) },
+    });
+    const odczyt = await collectSitemapSectionResult(db.admin, TENANT, ORIGIN, "taxonomy");
+    expect(odczyt).toEqual({ entries: [], failed: false });
+  });
+
+  it("profil organizacji zostaje bez wpisów - to strona bytu, nie lista", async () => {
+    const db = atrapaAdmina({
+      categories: {
+        wiersze: [
+          { id: "k-nato", slug: "nato", kind: "organization", created_at: "2026-02-02T10:00Z" },
+          { id: "k-ue", slug: "ue", kind: "organization", created_at: "2026-02-03T10:00Z" },
+        ],
+      },
+      tags: { wiersze: [] },
+      posts: {
+        wiersze: [wpisTaksonomii(["k-ue"], [], { updated_at: "2026-09-30T12:00:00Z" })],
+      },
+    });
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy");
+    // Bez wpisów: data utworzenia termu; z wpisami: data najnowszego wpisu.
+    expect(wpisy.map((w) => [w.loc, w.lastmod])).toEqual([
+      [`${ORIGIN}/organization/nato`, "2026-02-02"],
+      [`${ORIGIN}/organization/ue`, "2026-09-30"],
+    ]);
+  });
+
+  it("wpisy bez dat nadal czynią archiwum niepustym - lastmod spada na datę termu", async () => {
+    const db = atrapaAdmina({
+      categories: { wiersze: [{ id: "k-1", slug: "prawo", created_at: "2026-01-05T10:00Z" }] },
+      tags: { wiersze: [{ id: "t-1", slug: "ai-act", created_at: null }] },
+      posts: { wiersze: [wpisTaksonomii(["k-1"], ["t-1"])] },
+    });
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy");
+    expect(wpisy.map((w) => [w.loc, w.lastmod])).toEqual([
+      [`${ORIGIN}/category/prawo`, "2026-01-05"],
+      [`${ORIGIN}/tag/ai-act`, undefined],
+    ]);
+  });
+
+  it("liczą się wyłącznie wpisy opublikowane, nieusunięte i indeksowalne najemcy", async () => {
+    const db = atrapaAdmina({
+      categories: { wiersze: [] },
+      tags: { wiersze: [] },
+      posts: { wiersze: [] },
+    });
+    await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy");
+    const [zadanie] = db.dla("posts");
+    expect(zadanie.params.get("tenant_id")).toBe(`eq.${TENANT}`);
+    expect(zadanie.params.get("status")).toBe("eq.published");
+    expect(zadanie.params.get("deleted_at")).toBe("is.null");
+    expect(zadanie.params.get("seo_noindex")).toBe("eq.false");
+    // Powiązania OSADZONE przy wpisie: tabele łączące nie mają `tenant_id`,
+    // więc zakres stawia filtr na `posts`. Literówka w nazwie osadzenia nie
+    // jest błędem kompilacji - stąd asercja na dosłownym napisie.
+    expect(zadanie.params.get("select")).toBe(
+      "id,updated_at,published_at,post_categories(category_id),post_tags(tag_id)",
+    );
+    expect(zadanie.params.has("offset")).toBe(true);
+    for (const tabela of ["categories", "tags"]) {
+      expect(db.dla(tabela)[0].params.get("select")).toContain("id,slug");
+    }
+  });
+
+  it("odczyt powiązań stronicuje ponad pułap PostgREST - term z 1203. wpisu nie ginie", async () => {
+    const wiersze = Array.from({ length: 1203 }, (_, i) =>
+      wpisTaksonomii(i === 1202 ? ["k-ostatnia"] : [], []),
+    );
+    const db = atrapaAdmina({
+      categories: { wiersze: [{ id: "k-ostatnia", slug: "ostatnia", created_at: null }] },
+      tags: { wiersze: [] },
+      posts: { wiersze },
+    });
+    const wpisy = await collectSitemapSection(db.admin, TENANT, ORIGIN, "taxonomy");
+    expect(locs(wpisy)).toEqual([`${ORIGIN}/category/ostatnia`]);
+    expect(db.dla("posts")).toHaveLength(3);
+  });
+
+  it("odmowa odczytu powiązań to AWARIA sekcji, a nie pusta mapa", async () => {
+    // Pusta sekcja z awarii wyglądałaby jak „żadne archiwum nie ma treści"
+    // i indeks po cichu przestałby ogłaszać shard - stąd `failed`.
+    const db = atrapaAdmina({
+      categories: { wiersze: [{ id: "k-1", slug: "prawo", created_at: null }] },
+      tags: { wiersze: [] },
+      posts: { odmowa: { message: "permission denied for table posts", code: "42501" } },
+    });
+    expect(await collectSitemapSectionResult(db.admin, TENANT, ORIGIN, "taxonomy")).toEqual({
+      entries: [],
+      failed: true,
+    });
+  });
+
+  it("indeks nie ogłasza shardu taksonomii, gdy żadne archiwum nie ma treści", async () => {
+    // Indeks liczy shardy z TEJ mapy (`shardCountFor(urls.length)`), więc pusta
+    // sekcja daje zero plików `taxonomy-*.xml` - a nie pusty <urlset>.
+    const db = atrapaAdmina({
+      ...planStron({ "p-1": { sciezka: "analizy" } }),
+      posts: planWpisow({
+        wpisy: { wiersze: [wierszWpisu()] },
+        taksonomia: { wiersze: [wpisTaksonomii([], [])] },
+      }),
+      categories: { wiersze: [{ id: "k-1", slug: "prawo", created_at: null }] },
+      tags: { wiersze: [{ id: "t-1", slug: "ai-act", created_at: null }] },
+      podcast_shows: { wiersze: [] },
+      podcasts: { wiersze: [] },
+      research_programs: { wiersze: [] },
+      web_stories: { wiersze: [] },
+      eu_policy_items: { wiersze: [] },
+      events: { wiersze: [] },
+      qa_sessions: { wiersze: [] },
+      profile_badges: { wiersze: [] },
+    });
+    const { sections, failedSections } = await collectAllSitemapSections(db.admin, TENANT, ORIGIN);
+    expect(sections.get("taxonomy")).toEqual([]);
+    expect(failedSections).toEqual([]);
+    expect(shardCountFor(sections.get("taxonomy")?.length ?? 0)).toBe(0);
+    expect(shardCountFor(sections.get("posts")?.length ?? 0)).toBe(1);
   });
 });
 
@@ -691,6 +1127,7 @@ describe("degradacja odczytu - pustka kontra awaria", () => {
     for (const tabela of [
       "pages",
       "rpc/page_full_paths",
+      "site_settings",
       "posts",
       "categories",
       "tags",
@@ -739,8 +1176,11 @@ describe("degradacja odczytu - pustka kontra awaria", () => {
 describe("collectAllSitemapSections - mapa dla indeksu", () => {
   const pelnyPlan = (): Plan => ({
     ...planStron({ "p-1": { sciezka: "analizy" } }),
-    posts: { wiersze: [wierszWpisu()] },
-    categories: { wiersze: [{ slug: "prawo", created_at: null }] },
+    posts: planWpisow({
+      wpisy: { wiersze: [wierszWpisu()] },
+      taksonomia: { wiersze: [wpisTaksonomii(["k-prawo"], [])] },
+    }),
+    categories: { wiersze: [{ id: "k-prawo", slug: "prawo", created_at: null }] },
     tags: { wiersze: [] },
     podcast_shows: { wiersze: [] },
     podcasts: { wiersze: [] },
@@ -783,6 +1223,51 @@ describe("collectAllSitemapSections - mapa dla indeksu", () => {
     expect(failedSections).toEqual([]);
   });
 
+  it("KAŻDE zapytanie pełnego odczytu niesie filtr najemcy - poza RPC ścieżek", async () => {
+    // Odczyt service-role omija RLS, więc brak filtra to treść (albo adres)
+    // obcego najemcy w mapie tego hosta. Odznaka eksperta jest tu po to, żeby
+    // sekcja `experts` doszła do `profiles` i `author_profiles`.
+    const db = atrapaAdmina({
+      ...pelnyPlan(),
+      profile_badges: { wiersze: [{ user_id: "u-1" }] },
+      profiles: { wiersze: [] },
+      author_profiles: { wiersze: [] },
+    });
+    const { failedSections } = await collectAllSitemapSections(db.admin, TENANT, ORIGIN);
+    expect(failedSections).toEqual([]);
+    // `page_full_paths` dostaje WYŁĄCZNIE id stron z odczytu `pages`
+    // filtrowanego po najemcy, a granicę rekurencji stawia SQL funkcji
+    // (`p.tenant_id = c.tenant_id`, pilnowane przez bramkę migracji).
+    const bezFiltra = db.zadania
+      .filter((z) => z.tabela !== "rpc/page_full_paths")
+      .filter((z) => z.params.get("tenant_id") !== `eq.${TENANT}`)
+      .map((z) => z.tabela);
+    expect(bezFiltra).toEqual([]);
+    // Kanarek zasięgu: przegląd widzi każdą tabelę rejestru - także odczyty
+    // dopisane w 2026-10 (`site_settings`, drugi odczyt `posts` w `taxonomy`).
+    expect([...new Set(db.zadania.map((z) => z.tabela))].sort()).toEqual(
+      [
+        "author_profiles",
+        "categories",
+        "eu_policy_items",
+        "events",
+        "pages",
+        "podcast_shows",
+        "podcasts",
+        "posts",
+        "profile_badges",
+        "profiles",
+        "qa_sessions",
+        "research_programs",
+        "rpc/page_full_paths",
+        "site_settings",
+        "tags",
+        "web_stories",
+      ].sort(),
+    );
+    expect(db.dla("posts")).toHaveLength(2);
+  });
+
   it("mapa ścieżek stron powstaje RAZ na całe wywołanie, nie raz na sekcję", async () => {
     const db = atrapaAdmina(pelnyPlan());
     await collectAllSitemapSections(db.admin, TENANT, ORIGIN);
@@ -791,7 +1276,13 @@ describe("collectAllSitemapSections - mapa dla indeksu", () => {
   });
 
   it("awaria jednej sekcji nie zabiera adresów pozostałym", async () => {
-    const db = atrapaAdmina({ ...pelnyPlan(), posts: { wiersze: { slug: "nie-tablica" } } });
+    const db = atrapaAdmina({
+      ...pelnyPlan(),
+      posts: planWpisow({
+        wpisy: { wiersze: { slug: "nie-tablica" } },
+        taksonomia: { wiersze: [wpisTaksonomii(["k-prawo"], [])] },
+      }),
+    });
     const { sections: mapa, failedSections } = await collectAllSitemapSections(
       db.admin,
       TENANT,
@@ -946,7 +1437,7 @@ describe("collectSitemapSectionResult - awaria odróżniona od pustki", () => {
   });
 
   it("sekcja legalnie pusta to NIE awaria", async () => {
-    const db = atrapaAdmina({ pages: { wiersze: [] } });
+    const db = atrapaAdmina({ pages: { wiersze: [] }, site_settings: { wiersze: [] } });
     expect(await collectSitemapSectionResult(db.admin, TENANT, ORIGIN, "pages")).toEqual({
       entries: [],
       failed: false,

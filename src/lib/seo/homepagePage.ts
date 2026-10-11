@@ -34,8 +34,11 @@ export interface HomepageCandidatePage {
 /** Slug strony głównej używany, gdy ustawienia niczego nie wskazują. */
 export const LEGACY_HOMEPAGE_SLUG = "home";
 
+// Bez `trim()`: zapytanie `/` przekazuje wartości do `.eq()` dosłownie, więc
+// „ main " nie trafia tam w stronę `main`. Przycięcie tutaj dałoby 301 z `/main`
+// przy `/` renderującym stronę `home` (przegląd 2026-10).
 function nonEmptyString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+  return typeof value === "string" && value !== "" ? value : null;
 }
 
 /**

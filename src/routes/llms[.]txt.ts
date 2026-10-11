@@ -10,17 +10,35 @@ import { classifyCrawlHost, crawlerPublishOrigin, isPreviewHost } from "@/lib/ht
 import { localizedPath } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION } from "@/lib/seo/meta";
 import { feedCacheControl, LLMS_TXT_CACHE_CONTROL_FULL } from "@/lib/seo/feedCache";
-import { buildLlmsTxt, type LlmsTxtArticle } from "@/lib/seo/llms";
-import { llmsTxtResourceLines } from "@/lib/seo/machineSurfaces";
-import { primarySiteSections } from "@/lib/seo/primaryNavigation";
-import { parseSeoSettings, robotsUsagePolicy, siteDescriptionOverride } from "@/lib/seo/settings";
 import {
+  buildLlmsTxt,
+  llmsTxtTaxonomy,
+  resolvePrimarySectionHref,
+  type LlmsTxtArticle,
+} from "@/lib/seo/llms";
+import { llmsTxtResourceLines, type MachineSurfaceFilter } from "@/lib/seo/machineSurfaces";
+import { primarySiteSections } from "@/lib/seo/primaryNavigation";
+import {
+  parseSeoSettings,
+  robotsUsagePolicy,
+  siteDescriptionOverride,
+  type SeoSettings,
+} from "@/lib/seo/settings";
+import {
+  fetchLiveCoverageEntries,
   fetchPublicCategories,
+  fetchPublishedPodcasts,
   fetchPublishedPosts,
   fetchSeoSettingsValue,
+  fetchTrackerFeedSources,
   type PublishedCategoryRow,
+  type PublishedPodcastRow,
   type PublishedPostRow,
 } from "@/lib/server/publishedContent.server";
+import {
+  newsSitemapAnnouncement,
+  type NewsSitemapAnnouncement,
+} from "@/lib/server/robotsRequest.server";
 import { crawlerDegradeIsSafe, resolveCrawlerTenantIdForHost } from "@/lib/server/tenant.server";
 
 // Adres publikowany w llms.txt liczy WSPÓLNA reguła crawlerowa
@@ -56,6 +74,62 @@ function degradedGuideIsUnambiguous(host: string): boolean {
   return isPreviewHost(host) || classifyCrawlHost({ host }) === "brand";
 }
 
+/** Wariant kanału: `<ścieżka>|<język>` - klucz zbioru pustych kanałów. */
+function feedVariant(path: string, lang: "pl" | "en" | null): string {
+  return `${path}|${lang ?? ""}`;
+}
+
+/**
+ * Sekcja główna sieci podcastów. Przegląd 2026-10: bez ani jednego
+ * opublikowanego odcinka strona renderuje „Brak opublikowanych odcinków.",
+ * a przewodnik dalej kierował tam modele jako na „najważniejszą sekcję" -
+ * ta sama klasa co puste archiwum `/category/wywiady`. Programy bez odcinków
+ * nie ratują strony: każda karta prowadzi do „0 odcinków".
+ */
+const PODCASTS_INDEX_HREF = "/podcasts";
+
+/**
+ * Warianty kanałów tematycznych, które w tej chwili nie mają ANI JEDNEJ pozycji.
+ *
+ * 2026-10 audyt: przewodnik ogłaszał modelom kanał podcastu, trackera
+ * i relacji na żywo także wtedy, gdy redakcja nie ma ani odcinka, ani
+ * dossier, ani wpisu relacji - poprawny, ale pusty dokument, czyli adres
+ * bez wartości dla asystenta. Pustość liczymy TYMI SAMYMI odczytami i z TYMI
+ * SAMYMI argumentami co trasy kanałów (wspólny klucz `edgeTtlCache`), więc
+ * przewodnik nie dokłada zapytań ponad ruch samych kanałów:
+ *   * podcast - odcinki z `audio_url` (bez audio odcinek nie jest pozycją);
+ *   * tracker - opublikowane dossier (każde jest pozycją kanału);
+ *   * relacje - wpisy w danym języku (kanał EN to wpisy `lang = 'en'`).
+ * Kanał główny (/rss.xml) zostaje zawsze: jego pustka to ślad awarii odczytu
+ * wpisów, a ta i tak daje przewodnikowi TTL zdegradowany.
+ *
+ * Odcinki przychodzą jako obietnica wspólna z decyzją o sekcji głównej
+ * `/podcasts` - jeden odczyt na dwie decyzje.
+ */
+async function emptyFeedVariants(
+  tenantId: string,
+  settings: SeoSettings,
+  podcastsRead: Promise<PublishedPodcastRow[]>,
+): Promise<Set<string>> {
+  const [podcasts, tracker, live] = await Promise.all([
+    podcastsRead,
+    fetchTrackerFeedSources(tenantId, settings.rss_item_count),
+    fetchLiveCoverageEntries(tenantId, settings.rss_item_count * 2),
+  ]);
+  const empty = new Set<string>();
+  const mark = (path: string, hasItems: (lang: "pl" | "en") => boolean) => {
+    for (const lang of ["pl", "en"] as const) {
+      if (!hasItems(lang)) empty.add(feedVariant(path, lang));
+    }
+  };
+  mark("/podcast/rss.xml", () => podcasts.some((episode) => !!episode.audio_url));
+  mark("/tracker/rss.xml", () => tracker.items.length > 0);
+  mark("/live/rss.xml", (lang) =>
+    live.some((entry) => (lang === "en" ? entry.lang === "en" : entry.lang !== "en")),
+  );
+  return empty;
+}
+
 export const Route = createFileRoute("/llms.txt")({
   server: {
     handlers: {
@@ -88,12 +162,31 @@ export const Route = createFileRoute("/llms.txt")({
           return new Response("llms.txt disabled", { status: 404 });
         }
 
-        const [posts, categories]: [PublishedPostRow[], PublishedCategoryRow[]] = tenantId
+        // Wszystkie odczyty RÓWNOLEGLE, każdy z własną degradacją (`resilient`
+        // w czytnikach, budżet i `failed` w decyzji o news-sitemapie), więc
+        // przewodnik czeka najwyżej na najwolniejszy z nich.
+        const podcastsRead: Promise<PublishedPodcastRow[]> = tenantId
+          ? fetchPublishedPodcasts(tenantId)
+          : Promise.resolve([]);
+        const [posts, categories, news, podcasts, emptyFeeds]: [
+          PublishedPostRow[],
+          PublishedCategoryRow[],
+          NewsSitemapAnnouncement,
+          PublishedPodcastRow[],
+          Set<string> | null,
+        ] = tenantId
           ? await Promise.all([
               fetchPublishedPosts(tenantId, LATEST_COUNT * 2),
               fetchPublicCategories(tenantId),
+              newsSitemapAnnouncement(tenantId, origin, settings),
+              podcastsRead,
+              // Przy `rss_enabled: false` kanały i tak wypadają (404) - bez odczytów.
+              settings.rss_enabled ? emptyFeedVariants(tenantId, settings, podcastsRead) : null,
             ])
-          : [[], []];
+          : // Bez tenanta news-sitemapa odpowiada 404 („No news articles"), więc
+            // jej nie ogłaszamy; kanały RSS oddają wtedy poprawny pusty
+            // dokument i zostają w statycznym przewodniku jak dotąd.
+            [[], [], { announced: false, failed: false }, [], null];
 
         const toArticle = (lang: "pl" | "en") =>
           posts
@@ -102,9 +195,25 @@ export const Route = createFileRoute("/llms.txt")({
             .map((p): LlmsTxtArticle => ({
               title: lang === "en" ? p.title_en : p.title_pl,
               url: `${origin}${localizedPath(p.path, lang)}`,
+              // Surowa zajawka - builder czyści ją tym samym `plainText` co RSS
+              // (encje, znacznik „[…]" z WordPressa), dokładnie raz.
               description: lang === "en" ? p.excerpt_en : p.excerpt_pl,
               publishedAt: p.published_at,
             }));
+
+        // Zasoby maszynowe ogłaszane WYŁĄCZNIE wtedy, gdy trasa odpowie 200
+        // z treścią: news-sitemapa - ta sama decyzja co robots.txt i indeks
+        // sitemapy; kanały RSS - nie przy wyłączonym `rss_enabled` (każdy
+        // kanał to wtedy 404) i nie wtedy, gdy kanał tematyczny jest pusty.
+        const announce: MachineSurfaceFilter = (surface, lang) => {
+          if (surface.setting === "news_sitemap_enabled") return news.announced;
+          if (surface.setting === "rss_enabled" && !settings.rss_enabled) return false;
+          return !emptyFeeds?.has(feedVariant(surface.path, lang));
+        };
+        const taxonomy = llmsTxtTaxonomy(origin, categories);
+        // Awaria odczytu odcinków (`resilient` -> `[]`) też zdejmuje sekcję -
+        // pominięcie, a nie odesłanie modelu na pustą stronę.
+        const emptyTargets = new Set(podcasts.length === 0 ? [PODCASTS_INDEX_HREF] : []);
 
         const latestPl = toArticle("pl");
         const latestEn = toArticle("en");
@@ -127,26 +236,33 @@ export const Route = createFileRoute("/llms.txt")({
           // może ogłaszać cudzych sekcji, a przewodnik zdegradowany (bez
           // tenanta) jest z założenia „bez sekcji i artykułów". Lista jest
           // statyczna, więc nie wchodzi do oceny degradacji niżej.
+          // Sekcja główna prowadząca na PUSTE archiwum kategorii albo na sieć
+          // podcastów bez odcinka wypada (na produkcji „Wywiady", „Policy
+          // papers" i „Podcast" - patrz `resolvePrimarySectionHref`),
+          // a duplikaty z listą kategorii usuwa builder.
           primarySections:
             tenantId && classifyCrawlHost({ host }) === "brand"
-              ? primarySiteSections().map((l) => ({
-                  name: l.label.pl === l.label.en ? l.label.pl : `${l.label.pl} / ${l.label.en}`,
-                  url: `${origin}${l.href}`,
-                }))
+              ? primarySiteSections().flatMap((l) => {
+                  const href = resolvePrimarySectionHref(l.href, categories, emptyTargets);
+                  if (!href) return [];
+                  return [
+                    {
+                      name:
+                        l.label.pl === l.label.en ? l.label.pl : `${l.label.pl} / ${l.label.en}`,
+                      url: `${origin}${href}`,
+                    },
+                  ];
+                })
               : [],
-          sections: categories.map((c) => ({
-            name:
-              c.name_pl && c.name_en && c.name_pl !== c.name_en
-                ? `${c.name_pl} / ${c.name_en}`
-                : c.name_pl || c.name_en,
-            url: `${origin}/category/${c.slug}`,
-            description: c.description_pl || c.description_en,
-          })),
+          // Archiwa tylko z wpisami, organizacje pod `/organization/<slug>` -
+          // ta sama reguła co sekcja `taxonomy` mapy strony.
+          sections: taxonomy.sections,
+          organizations: taxonomy.organizations,
           latestPl,
           latestEn,
           // Jedno źródło prawdy o powierzchniach maszynowych - dopisanie feedu
           // bez ogłoszenia go tutaj nie przechodzi testu kontraktu.
-          resources: llmsTxtResourceLines(origin, localizedPath),
+          resources: llmsTxtResourceLines(origin, localizedPath, announce),
           // Bez tenanta trasa nie zna ustawień redakcji (ani `llms_txt_enabled`,
           // ani polityki AI) - `settings` to wtedy wartości domyślne, a nie
           // decyzja redakcji. Awaria bazy nie jest zgodą: przewodnik
@@ -159,12 +275,18 @@ export const Route = createFileRoute("/llms.txt")({
         // `resilient`, redakcja bez treści) i dostaje TTL kanału pustego - bez
         // `stale-while-revalidate`, żeby brzeg nie podawał zapamiętanej pustki
         // przez pół godziny po powrocie bazy. Patrz `feedCache.ts`.
+        // „Sekcje" liczymy po WIERSZACH czytnika, nie po wypisanych archiwach:
+        // tenant, którego wszystkie archiwa są puste (produkcja 2026-10), ma
+        // zdrowy odczyt i nie może dostać na stałe TTL awaryjnego. Tak samo
+        // zdegradowany jest przewodnik, w którym decyzja o news-sitemapie nie
+        // zapadła (odczyt padł albo przekroczył budżet) - brak tej pozycji
+        // jest wtedy śladem awarii, nie stanem redakcji.
         const articleCount = latestPl.length + latestEn.length;
         return new Response(body, {
           headers: {
             "Content-Type": "text/plain; charset=utf-8",
             "Cache-Control": feedCacheControl(
-              Math.min(articleCount, categories.length),
+              news.failed ? 0 : Math.min(articleCount, categories.length),
               LLMS_TXT_CACHE_CONTROL_FULL,
             ),
           },

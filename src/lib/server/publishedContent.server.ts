@@ -1,4 +1,5 @@
 import { readPublishedPagePaths } from "./publishedPagePaths.server";
+import { readPagedRows } from "./pagedRows.server";
 // Shared server-side reader for published content used by the crawler-facing
 // surfaces (sitemap, RSS feeds, Google News sitemap, llms.txt). One
 // implementation of the "post URL = parent page path + slug" rule and one
@@ -51,10 +52,17 @@ export interface PublishedPostRow {
 
 export interface PublishedCategoryRow {
   slug: string;
+  /** `organization` = profil organizacji (`/organization/<slug>`), inaczej archiwum. */
+  kind: string;
   name_pl: string;
   name_en: string;
   description_pl: string | null;
   description_en: string | null;
+  /**
+   * Opublikowane, nieusunięte wpisy z `seo_noindex = false` przypięte do
+   * kategorii - archiwum z zerem renderuje „Brak opublikowanych wpisów.".
+   */
+  published_post_count: number;
 }
 
 /** Full paths of all published pages of a tenant, keyed by page id. */
@@ -107,18 +115,58 @@ export async function fetchPublishedPosts(
   );
 }
 
-/** Categories for the llms.txt section list (tenant-scoped). */
+/**
+ * Categories for the llms.txt section list (tenant-scoped), z rodzajem termu
+ * i liczbą wpisów, które archiwum faktycznie pokaże.
+ *
+ * 2026-10 audyt powierzchni maszynowych: llms.txt wypisywał każdy term jako
+ * „Sekcję", choć 18 wpisów z importu WordPressa nie ma wiersza
+ * w `post_categories` (wszystkie archiwa puste), a organizacje szły pod
+ * niekanonicznym `/category/<slug>`. Czytnik podaje więc `kind` i licznik,
+ * a regułę (archiwum tylko z wpisem, organizacja pod własnym adresem) stosuje
+ * `llmsTxtTaxonomy` - lustro sekcji `taxonomy` mapy strony.
+ *
+ * Licznik liczony jak w mapie strony: tabela łącząca nie ma `tenant_id`, więc
+ * zakres stawia `posts` (jawny filtr najemcy), a powiązania przychodzą
+ * osadzone przy wpisie - stronicowany odczyt, bez zapytania do tabeli łączącej
+ * bez filtra. Oba odczyty pod JEDNYM `resilient`: awaria którejkolwiek połowy
+ * daje `[]` (przewodnik bez sekcji, TTL zdegradowany), a nie listę kategorii
+ * z zerowymi licznikami, która wyglądałaby jak „wszystkie archiwa puste".
+ */
 export async function fetchPublicCategories(tenantId: string): Promise<PublishedCategoryRow[]> {
   return edgeTtlCache(`seo:categories:${tenantId}`, CACHE_TTL_MS, () =>
     resilient("categories", [], async () => {
       const supabaseAdmin = await getSupabaseAdmin();
-      const { data, error: dataError } = await supabaseAdmin
-        .from("categories")
-        .select("slug, name_pl, name_en, description_pl, description_en")
-        .eq("tenant_id", tenantId)
-        .order("name_pl");
+      const [{ data, error: dataError }, { data: posts }] = await Promise.all([
+        supabaseAdmin
+          .from("categories")
+          .select("id, slug, kind, name_pl, name_en, description_pl, description_en")
+          .eq("tenant_id", tenantId)
+          .order("name_pl"),
+        readPagedRows((from, to) =>
+          supabaseAdmin
+            .from("posts")
+            .select("id, post_categories(category_id)", { count: "exact" })
+            .eq("tenant_id", tenantId)
+            .eq("status", "published")
+            .is("deleted_at", null)
+            .eq("seo_noindex", false)
+            .order("id", { ascending: true })
+            .range(from, to),
+        ),
+      ]);
       if (dataError) throw dataError;
-      return data ?? [];
+      const counts = new Map<string, number>();
+      for (const row of posts) {
+        const post = row as { post_categories: Array<{ category_id: string }> | null };
+        for (const link of post.post_categories ?? []) {
+          counts.set(link.category_id, (counts.get(link.category_id) ?? 0) + 1);
+        }
+      }
+      return (data ?? []).map(({ id, ...category }) => ({
+        ...category,
+        published_post_count: counts.get(id) ?? 0,
+      }));
     }),
   );
 }

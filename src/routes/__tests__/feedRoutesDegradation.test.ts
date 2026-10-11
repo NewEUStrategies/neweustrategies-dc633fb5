@@ -63,6 +63,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { routeServerHandlers } from "@/test/routeHarness";
 import { pgError } from "@/test/supabaseChain";
+import { LLMS_TXT_USAGE_TERMS_LABEL } from "@/lib/seo/llms";
 
 // ---------------------------------------------------------------------------
 // Atrapy warstwy serwerowej. Stan przez `vi.hoisted()`, bo fabryki `vi.mock`
@@ -185,6 +186,21 @@ type TaxonomyStub = {
   description_en: string | null;
 } | null;
 
+/**
+ * Kategoria w kształcie, w jakim czyta ją llms.txt (`fetchPublicCategories`):
+ * od 2026-10 z rodzajem termu i licznikiem opublikowanych wpisów - przewodnik
+ * wypisuje archiwum tylko z treścią, a organizację pod `/organization/<slug>`.
+ */
+interface CategoryRowStub {
+  slug: string;
+  kind: string;
+  name_pl: string;
+  name_en: string;
+  description_pl: string | null;
+  description_en: string | null;
+  published_post_count: number;
+}
+
 interface FeedPostStub {
   slug: string;
   path: string;
@@ -217,9 +233,15 @@ const state = vi.hoisted(() => ({
    * PEŁNEGO (kontrola dodatnia nagłówka cache), ustawia to pole sam.
    */
   posts: [] as FeedPostStub[],
+  /**
+   * Awaria WYŁĄCZNIE odczytu wpisów news-sitemapy (limit 200 -
+   * `loadNewsSitemapEntries`), przy zdrowym odczycie najnowszych wpisów
+   * przewodnika. Jedyny sposób, by decyzja o news-sitemapie padła osobno.
+   */
+  newsReadFailure: null as "throw" | null,
   /** Sposób awarii czytnika kategorii (llms.txt). */
   categoriesFailure: null as "throw" | null,
-  categories: [] as NonNullable<TaxonomyStub>[],
+  categories: [] as CategoryRowStub[],
   /** Sposób awarii kolektora sekcji sitemapy. */
   sectionsFailure: null as "throw" | "pgError" | null,
   /** Wpisy sekcji sitemapy zwracane, gdy kolektor nie zawodzi. */
@@ -335,7 +357,10 @@ vi.mock("@/lib/server/publishedContent.server", () => ({
     state.settingsFailure
       ? Promise.reject(new Error("ustawienia niedostępne"))
       : Promise.resolve(state.settings),
-  fetchPublishedPosts: () => Promise.resolve(failOrEmpty(state.postsFailure, state.posts)),
+  fetchPublishedPosts: (_tenantId: string, limit?: number) =>
+    limit === 200 && state.newsReadFailure
+      ? Promise.reject(new Error("odczyt wpisów news-sitemapy niedostępny"))
+      : Promise.resolve(failOrEmpty(state.postsFailure, state.posts)),
   fetchPublicCategories: () =>
     Promise.resolve(failOrEmpty(state.categoriesFailure, state.categories)),
   fetchPublishedPostsByTaxonomy: () =>
@@ -568,8 +593,9 @@ const HEALTHY = {
   settings: null as unknown,
   postsFailure: null,
   posts: [] as FeedPostStub[],
+  newsReadFailure: null,
   categoriesFailure: null,
-  categories: [] as NonNullable<TaxonomyStub>[],
+  categories: [] as CategoryRowStub[],
   sectionsFailure: null,
   sectionEntries: [] as Array<{ loc: string; lastmod?: string }>,
   sectionReadFailed: false,
@@ -1026,10 +1052,12 @@ describe("nagłówki odpowiedzi ZDEGRADOWANEJ (pusty zbiór)", () => {
     state.categories = [
       {
         slug: "analizy",
+        kind: "category",
         name_pl: "Analizy",
         name_en: "Analyses",
         description_pl: null,
         description_en: null,
+        published_post_count: 1,
       },
     ];
     const { Route } = await import("../llms[.]txt");
@@ -1039,7 +1067,10 @@ describe("nagłówki odpowiedzi ZDEGRADOWANEJ (pusty zbiór)", () => {
     const body = await assertNeverTruncated(res, "text");
     expect(body.startsWith("# New European Strategies\n")).toBe(true);
     expect(body).toContain("## Zasoby maszynowe / Machine-readable resources");
-    expect(body).toContain("## Warunki wykorzystania i cytowania / Usage and citation terms");
+    expect(body).toContain(LLMS_TXT_USAGE_TERMS_LABEL);
+    // Bez tenanta news-sitemapa odpowiada 404 („No news articles") - przewodnik
+    // jej nie ogłasza (ta sama decyzja co robots.txt i indeks sitemapy).
+    expect(body).not.toContain("/news-sitemap.xml");
     // Bez tenanta trasa NIE woła czytników - atrapa MA dane, a przewodnik ich
     // nie pokazuje. Gdyby kiedyś zawołała, TU by to wyszło, zamiast wyjść jako
     // treść jednego obszaru roboczego na cudzej domenie.
@@ -1121,10 +1152,41 @@ it("/llms.txt wiąże treści PL/EN z właściwymi adresami i sekcjami tenanta",
   state.categories = [
     {
       slug: "analizy",
+      kind: "category",
       name_pl: "Analizy",
       name_en: "Analyses",
       description_pl: "Komentarze ekspertów.",
       description_en: "Expert commentary.",
+      published_post_count: 2,
+    },
+    {
+      slug: "wywiady",
+      kind: "category",
+      name_pl: "Wywiady",
+      name_en: "Interviews",
+      description_pl: null,
+      description_en: null,
+      published_post_count: 1,
+    },
+    // Produkcja 2026-10: archiwum bez ani jednego wpisu (import WordPressa
+    // bez `post_categories`) - ani sekcja główna, ani pozycja „Sekcji".
+    {
+      slug: "policy-papers",
+      kind: "category",
+      name_pl: "Policy Papers",
+      name_en: "Policy Papers",
+      description_pl: "Analizy strategiczne.",
+      description_en: null,
+      published_post_count: 0,
+    },
+    {
+      slug: "nato",
+      kind: "organization",
+      name_pl: "NATO",
+      name_en: "NATO",
+      description_pl: null,
+      description_en: null,
+      published_post_count: 0,
     },
   ];
   const { Route } = await import("../llms[.]txt");
@@ -1159,13 +1221,57 @@ it("/llms.txt wiąże treści PL/EN z właściwymi adresami i sekcjami tenanta",
     "- [Analizy / Analyses](https://neweuropeanstrategies.com/analizy)",
     "- [Wywiady / Interviews](https://neweuropeanstrategies.com/category/wywiady)",
     "- [Wydarzenia / Events](https://neweuropeanstrategies.com/wydarzenia)",
-    "- [Policy papers](https://neweuropeanstrategies.com/category/policy-papers)",
     "- [Podcast](https://neweuropeanstrategies.com/podcasts)",
     "- [O nas / About us](https://neweuropeanstrategies.com/o-nas)",
   ].map((line) => body.indexOf(line, key));
   expect(order.every((at) => at > key && at < categoriesAt)).toBe(true);
   expect(order).toEqual([...order].sort((a, b) => a - b));
   expect(body.slice(key, categoriesAt)).not.toContain("/kontakt");
+  // 2026-10 audyt: sekcja główna prowadząca na PUSTE archiwum wypada, a puste
+  // archiwum nie trafia też do „Sekcji".
+  expect(body).not.toContain("/category/policy-papers");
+  // Jeden adres = jedna pozycja: „Wywiady" są sekcją główną, więc nie wracają
+  // w liście kategorii.
+  expect(body.match(/\(https:\/\/neweuropeanstrategies\.com\/category\/wywiady\)/g)).toHaveLength(
+    1,
+  );
+  // Organizacja pod adresem kanonicznym, nie pod `/category/<slug>`.
+  expect(body).toContain("## Organizacje / Organizations");
+  expect(body).toContain("- [NATO](https://neweuropeanstrategies.com/organization/nato)");
+  expect(body).not.toContain("/category/nato");
+});
+
+// Przegląd 2026-10: produkcyjne /podcasts renderuje „Brak opublikowanych
+// odcinków.", a pierwsza wersja poprawki zdejmowała tylko puste archiwa
+// `/category/`. Decyzja nie może zależeć od `rss_enabled` - sekcja główna to
+// strona, nie kanał.
+describe("/llms.txt - sekcja główna „Podcast” tylko z opublikowanym odcinkiem", () => {
+  const PODCASTS_LINE = "- [Podcast](https://neweuropeanstrategies.com/podcasts)";
+
+  it.each([true, false])("bez odcinka sekcja wypada (rss_enabled=%s)", async (rssEnabled) => {
+    state.settings = { llms_txt_enabled: true, rss_enabled: rssEnabled };
+    state.posts = [feedPost()];
+    state.podcasts = [];
+    const { Route } = await import("../llms[.]txt");
+    const body = await (await routeServerHandlers(Route).GET!({})).text();
+    expect(body).toContain("## Najważniejsze sekcje / Key sections");
+    expect(body).toContain("- [Analizy / Analyses](https://neweuropeanstrategies.com/analizy)");
+    expect(body).not.toContain("(https://neweuropeanstrategies.com/podcasts)");
+  });
+
+  it.each([true, false])(
+    "kontrola dodatnia: z odcinkiem sekcja zostaje (rss_enabled=%s)",
+    async (rssEnabled) => {
+      state.settings = { llms_txt_enabled: true, rss_enabled: rssEnabled };
+      state.posts = [feedPost()];
+      // Odcinek bez audio nie jest pozycją KANAŁU, ale stronę /podcasts zapełnia.
+      state.podcasts = [podcastRow({ audio_url: "" })];
+      const { Route } = await import("../llms[.]txt");
+      const body = await (await routeServerHandlers(Route).GET!({})).text();
+      expect(body).toContain(PODCASTS_LINE);
+      expect(body).not.toContain("/podcast/rss.xml");
+    },
+  );
 });
 
 it("/llms.txt na domenie INNEGO tenanta nie ogłasza sekcji głównych marki", async () => {
@@ -2219,12 +2325,14 @@ const SITEMAP_FULL_CACHE =
   "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate";
 
 /** Kategoria z treścią - wspólna dla wierszy, które czytają sekcje. */
-const CATEGORY_ROW = {
+const CATEGORY_ROW: CategoryRowStub = {
   slug: "analizy",
+  kind: "category",
   name_pl: "Analizy",
   name_en: "Analyses",
   description_pl: "Komentarze ekspertów.",
   description_en: "Expert commentary.",
+  published_post_count: 2,
 };
 
 const HOST_SURFACE_MATRIX: readonly HostSurfaceRow[] = [
@@ -2760,7 +2868,7 @@ describe("llms.txt - degradacja tylko tam, gdzie przewodnik jest jednoznaczny", 
     expect(body).not.toContain("DOZWOLONE");
     expect(body).not.toContain("PERMITTED");
     expect(body).not.toContain("Redakcja Innego Tenanta");
-    expect(body).toContain("## Warunki wykorzystania i cytowania / Usage and citation terms");
+    expect(body).toContain(LLMS_TXT_USAGE_TERMS_LABEL);
     expect(body).toContain("Ten dokument nie udziela zgody na wykorzystanie treści");
     expect(body).toContain("This document grants no permission to reuse content");
     expect(body).toContain(
@@ -2922,5 +3030,130 @@ describe("llms.txt i robots.txt - jedna polityka AI na jednym hoście", () => {
     expect(body).toContain("PERMITTED on one condition");
     expect(body).toContain("Training models on this content is permitted");
     expect(body).toContain("Cite the canonical article URLs");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// llms.txt ogłasza WYŁĄCZNIE zasoby, które w tej chwili odpowiadają treścią
+// (2026-10 audyt powierzchni maszynowych na produkcji):
+//   * news-sitemapa - ta sama decyzja co robots.txt i indeks sitemapy
+//     (`newsSitemapAnnouncement`: przełącznik + `planNewsSitemap` != empty);
+//     wcześniej robots.txt ogłaszał ją na samą flagę, a llms.txt zawsze,
+//     choć tenant bez artykułu dostaje z pliku 404 „No news articles";
+//   * kanały RSS - nie przy `rss_enabled: false` (każdy kanał to wtedy 404);
+//   * kanały tematyczne (podcast, tracker, relacje) - nie wtedy, gdy są puste.
+// ---------------------------------------------------------------------------
+describe("llms.txt i robots.txt - jedna decyzja o news-sitemapie", () => {
+  async function bothBodies(): Promise<{ llms: Response; robots: string }> {
+    const llms = await surfaceGet("../llms[.]txt");
+    const robots = await (await surfaceGet("../robots[.]txt")).text();
+    return { llms, robots };
+  }
+
+  it("tenant bez żadnego artykułu: ani robots.txt, ani llms.txt nie ogłaszają pliku 404", async () => {
+    state.posts = [];
+    const news = await surfaceGet("../news-sitemap[.]xml");
+    expect(news.status, "plik w tym stanie nie istnieje").toBe(404);
+    const { llms, robots } = await bothBodies();
+    expect(robots).not.toContain("news-sitemap.xml");
+    expect(await llms.text()).not.toContain("news-sitemap.xml");
+  });
+
+  it("jest artykuł: obie powierzchnie ogłaszają plik, który odpowiada 200", async () => {
+    state.posts = [feedPost({ published_at: "2026-02-03T08:00:00Z" })];
+    expect((await surfaceGet("../news-sitemap[.]xml")).status).toBe(200);
+    const { llms, robots } = await bothBodies();
+    expect(robots).toContain("Sitemap: https://neweuropeanstrategies.com/news-sitemap.xml");
+    expect(await llms.text()).toContain(
+      "- [Google News sitemap](https://neweuropeanstrategies.com/news-sitemap.xml)",
+    );
+  });
+
+  it("redakcja wyłączyła news-sitemapę: żadna z powierzchni jej nie ogłasza", async () => {
+    state.settings = { news_sitemap_enabled: false };
+    state.posts = [feedPost({ published_at: "2026-02-03T08:00:00Z" })];
+    const { llms, robots } = await bothBodies();
+    expect(robots).not.toContain("news-sitemap.xml");
+    expect(await llms.text()).not.toContain("news-sitemap.xml");
+  });
+
+  it("awaria odczytu wpisów news-sitemapy: bez pozycji i z TTL zdegradowanym (nie utrwala braku)", async () => {
+    state.posts = [feedPost()];
+    state.categories = [CATEGORY_ROW];
+    state.newsReadFailure = "throw";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const res = await surfaceGet("../llms[.]txt");
+    const body = await res.text();
+    expect(body).not.toContain("news-sitemap.xml");
+    // Przewodnik ma artykuły i sekcje - TTL zdegradowany bierze się WYŁĄCZNIE
+    // z niezapadłej decyzji o news-sitemapie.
+    expect(body).toContain("Pierwsza analiza");
+    expect(body).toContain("## Sekcje / Sections");
+    expect(res.headers.get("cache-control")).toBe(EMPTY_FEED_CACHE);
+    warn.mockRestore();
+  });
+});
+
+describe("llms.txt - kanały RSS ogłaszane tylko wtedy, gdy odpowiadają treścią", () => {
+  function resources(body: string): string {
+    return body.slice(body.indexOf("## Zasoby maszynowe"));
+  }
+
+  it("`rss_enabled: false` -> żaden kanał RSS (każdy jest wtedy 404), mapy zostają", async () => {
+    state.settings = { rss_enabled: false };
+    state.posts = [feedPost()];
+    expect((await surfaceGet("../rss[.]xml")).status).toBe(404);
+    const block = resources(await (await surfaceGet("../llms[.]txt")).text());
+    expect(block).not.toContain("rss.xml");
+    expect(block).toContain("https://neweuropeanstrategies.com/sitemap.xml");
+  });
+
+  it("puste kanały tematyczne wypadają, kanał główny zostaje", async () => {
+    state.posts = [feedPost()];
+    state.podcasts = [];
+    state.trackerSources = { items: [], updates: [] };
+    state.liveEntries = [];
+    const block = resources(await (await surfaceGet("../llms[.]txt")).text());
+    expect(block).not.toContain("/podcast/rss.xml");
+    expect(block).not.toContain("/tracker/rss.xml");
+    expect(block).not.toContain("/live/rss.xml");
+    expect(block).toContain("https://neweuropeanstrategies.com/rss.xml");
+    expect(block).toContain("https://neweuropeanstrategies.com/en/rss.xml");
+  });
+
+  it("odcinek bez audio nie jest pozycją kanału podcastu", async () => {
+    state.podcasts = [podcastRow({ audio_url: "" })];
+    const block = resources(await (await surfaceGet("../llms[.]txt")).text());
+    expect(block).not.toContain("/podcast/rss.xml");
+  });
+
+  it("relacja tylko po polsku: kanał PL zostaje, kanał EN (pusty) wypada", async () => {
+    state.liveEntries = [liveEntry({ lang: "pl" })];
+    const block = resources(await (await surfaceGet("../llms[.]txt")).text());
+    expect(block).toContain("https://neweuropeanstrategies.com/live/rss.xml");
+    expect(block).not.toContain("https://neweuropeanstrategies.com/en/live/rss.xml");
+  });
+
+  it("kontrola dodatnia: kanały z treścią są ogłaszane w obu językach", async () => {
+    state.liveEntries = [liveEntry({ lang: "pl" }), liveEntry({ id: "entry-2", lang: "en" })];
+    const block = resources(await (await surfaceGet("../llms[.]txt")).text());
+    for (const path of ["/podcast/rss.xml", "/tracker/rss.xml", "/live/rss.xml"]) {
+      expect(block).toContain(`https://neweuropeanstrategies.com${path}`);
+      expect(block).toContain(`https://neweuropeanstrategies.com/en${path}`);
+    }
+  });
+});
+
+describe("llms.txt - zajawki z importu WordPressa jako tekst jawny", () => {
+  it("bez encji i bez znacznika „[&hellip;]” - jak w opisach RSS", async () => {
+    state.posts = [
+      feedPost({
+        excerpt_pl: "z książki &#8222;Geopolityka Rosji&#8221; o przyszłości Polski [&hellip;]",
+      }),
+    ];
+    const body = await (await surfaceGet("../llms[.]txt")).text();
+    expect(body).toContain(": z książki „Geopolityka Rosji” o przyszłości Polski (2026-01-10)");
+    expect(body).not.toContain("&hellip;");
+    expect(body).not.toContain("&#8222;");
   });
 });

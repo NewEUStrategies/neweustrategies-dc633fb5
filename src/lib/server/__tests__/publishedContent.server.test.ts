@@ -453,34 +453,123 @@ describe("feed główny - co i w jakiej kolejności wyjeżdża do RSS-a", () => 
 });
 
 describe("kategorie do llms.txt", () => {
-  it("zwraca kategorie posortowane po nazwie polskiej", async () => {
+  // 2026-10 audyt powierzchni maszynowych: llms.txt wypisywał każdy term jako
+  // „Sekcję", choć wszystkie archiwa były puste (18 wpisów z importu
+  // WordPressa bez wiersza w `post_categories`), a organizacje szły pod
+  // niekanonicznym `/category/<slug>`. Czytnik podaje więc rodzaj termu
+  // i licznik wpisów, które archiwum naprawdę pokaże - regułę stosuje
+  // `llmsTxtTaxonomy` (llms.test.ts).
+  function wierszKategorii(id: string, slug: string, nadpisania: Record<string, unknown> = {}) {
+    return {
+      id,
+      slug,
+      kind: "category",
+      name_pl: slug,
+      name_en: slug,
+      description_pl: null,
+      description_en: null,
+      ...nadpisania,
+    };
+  }
+
+  it("zwraca kategorie posortowane po nazwie polskiej, z rodzajem i licznikiem wpisów", async () => {
     db.setResponse(
       "categories",
       ok([
-        {
-          slug: "prawo",
+        wierszKategorii("kat-prawo", "prawo", {
           name_pl: "Prawo",
           name_en: "Law",
           description_pl: "Opis",
-          description_en: null,
-        },
+        }),
+        wierszKategorii("kat-nato", "nato", { kind: "organization" }),
+        wierszKategorii("kat-pusta", "pusta"),
       ]),
     );
+    db.setResponse("posts", {
+      ...ok([
+        { id: "post-1", post_categories: [{ category_id: "kat-prawo" }] },
+        {
+          id: "post-2",
+          post_categories: [{ category_id: "kat-prawo" }, { category_id: "kat-nato" }],
+        },
+        { id: "post-3", post_categories: null },
+      ]),
+      count: 3,
+    });
     const kategorie = await fetchPublicCategories(TENANT);
     expect(kategorie).toEqual([
       {
         slug: "prawo",
+        kind: "category",
         name_pl: "Prawo",
         name_en: "Law",
         description_pl: "Opis",
         description_en: null,
+        published_post_count: 2,
+      },
+      {
+        slug: "nato",
+        kind: "organization",
+        name_pl: "nato",
+        name_en: "nato",
+        description_pl: null,
+        description_en: null,
+        published_post_count: 1,
+      },
+      {
+        slug: "pusta",
+        kind: "category",
+        name_pl: "pusta",
+        name_en: "pusta",
+        description_pl: null,
+        description_en: null,
+        published_post_count: 0,
       },
     ]);
     expect(ogniwa(lancuch("categories"), "order")).toEqual([["name_pl"]]);
+    expect(String(lancuch("categories").argsOf("select")?.[0])).toContain("kind");
+  });
+
+  it("licznik bierze wyłącznie wpisy opublikowane, nieusunięte i indeksowalne najemcy", async () => {
+    // Te same warunki, co archiwum i sekcja `taxonomy` mapy strony - inaczej
+    // przewodnik ogłosiłby archiwum, które pokaże „Brak opublikowanych wpisów.".
+    db.setResponse("categories", ok([wierszKategorii("kat-prawo", "prawo")]));
+    db.setResponse("posts", { ...ok([]), count: 0 });
+    await fetchPublicCategories(TENANT);
+    const wpisy = lancuch("posts");
+    expect(ogniwa(wpisy, "eq")).toEqual([
+      ["tenant_id", TENANT],
+      ["status", "published"],
+      ["seo_noindex", false],
+    ]);
+    expect(ogniwa(wpisy, "is")).toEqual([["deleted_at", null]]);
+    expect(String(wpisy.argsOf("select")?.[0])).toContain("post_categories(category_id)");
+    // Stronicowanie wymaga stabilnego, unikalnego porządku.
+    expect(ogniwa(wpisy, "order")).toEqual([["id", { ascending: true }]]);
+    // Tabela łącząca nie ma `tenant_id` - nie jest odpytywana bez filtra.
+    expect(db.chainsFor("post_categories")).toEqual([]);
+  });
+
+  it("liczy wpisy z KOLEJNYCH stron - kategoria z drugiej strony nie wypada", async () => {
+    db.setResponse("categories", ok([wierszKategorii("kat-druga", "druga")]));
+    db.setResponse("posts", (l) => {
+      const od = Number(l.argsOf("range")?.[0] ?? 0);
+      return od === 0
+        ? {
+            ...ok(Array.from({ length: 500 }, (_, i) => ({ id: `p-${i}`, post_categories: [] }))),
+            count: 501,
+          }
+        : { ...ok([{ id: "p-500", post_categories: [{ category_id: "kat-druga" }] }]), count: 501 };
+    });
+    expect(await fetchPublicCategories(TENANT)).toMatchObject([
+      { slug: "druga", published_post_count: 1 },
+    ]);
+    expect(db.chainsFor("posts")).toHaveLength(2);
   });
 
   it("brak kategorii to pusta lista, nie null", async () => {
     db.setResponse("categories", ok(null));
+    db.setResponse("posts", { ...ok([]), count: 0 });
     expect(await fetchPublicCategories(TENANT)).toEqual([]);
     expect(ostrzezenia).not.toHaveBeenCalled();
   });
@@ -943,6 +1032,7 @@ describe("relacja na żywo - jednostką kanału jest WPIS, nie post", () => {
 describe("cache brzegowy czytnika - z czego zbudowany jest klucz", () => {
   it("drugie żądanie tej samej listy w oknie 60 s nie budzi bazy", async () => {
     db.setResponse("categories", ok([{ slug: "prawo", name_pl: "Prawo" }]));
+    db.setResponse("posts", { ...ok([]), count: 0 });
     const pierwsze = await fetchPublicCategories(TENANT);
     vi.advanceTimersByTime(59_000);
     const drugie = await fetchPublicCategories(TENANT);
@@ -954,8 +1044,13 @@ describe("cache brzegowy czytnika - z czego zbudowany jest klucz", () => {
     db.setResponse("categories", (l) =>
       ok([{ slug: l.calls.some((c) => c.args.includes(INNY_NAJEMCA)) ? "obcy" : "prawo" }]),
     );
-    expect(await fetchPublicCategories(TENANT)).toEqual([{ slug: "prawo" }]);
-    expect(await fetchPublicCategories(INNY_NAJEMCA)).toEqual([{ slug: "obcy" }]);
+    db.setResponse("posts", { ...ok([]), count: 0 });
+    expect(await fetchPublicCategories(TENANT)).toEqual([
+      { slug: "prawo", published_post_count: 0 },
+    ]);
+    expect(await fetchPublicCategories(INNY_NAJEMCA)).toEqual([
+      { slug: "obcy", published_post_count: 0 },
+    ]);
     expect(db.chainsFor("categories")).toHaveLength(2);
   });
 
@@ -981,19 +1076,26 @@ describe("cache brzegowy czytnika - z czego zbudowany jest klucz", () => {
     // Tutaj sprawdzamy, że czytnik naprawdę w tym uczestniczy - czyli że po
     // minucie baza jest odpytana PONOWNIE, a nie że wynik zamarł na godziny.
     db.setResponse("categories", ok([{ slug: "stare" }]));
-    expect(await fetchPublicCategories(TENANT)).toEqual([{ slug: "stare" }]);
+    db.setResponse("posts", { ...ok([]), count: 0 });
+    expect(await fetchPublicCategories(TENANT)).toEqual([
+      { slug: "stare", published_post_count: 0 },
+    ]);
 
     vi.advanceTimersByTime(60_001);
     db.setResponse("categories", ok([{ slug: "nowe" }]));
     // Wartość nieświeża wraca NATYCHMIAST - jeszcze przed jakimkolwiek
     // domknięciem mikrozadań, czyli zanim odświeżenie w tle dotknie bazy.
-    expect(await fetchPublicCategories(TENANT)).toEqual([{ slug: "stare" }]);
+    expect(await fetchPublicCategories(TENANT)).toEqual([
+      { slug: "stare", published_post_count: 0 },
+    ]);
 
     await vi.advanceTimersByTimeAsync(1);
     // Odświeżenie w tle naprawdę poszło do bazy (drugi łańcuch) i to ono, a nie
     // kolejne żądanie, zapłaciło za round-trip.
     expect(db.chainsFor("categories")).toHaveLength(2);
-    expect(await fetchPublicCategories(TENANT)).toEqual([{ slug: "nowe" }]);
+    expect(await fetchPublicCategories(TENANT)).toEqual([
+      { slug: "nowe", published_post_count: 0 },
+    ]);
     expect(db.chainsFor("categories")).toHaveLength(2);
   });
 
@@ -1030,7 +1132,9 @@ describe("cache brzegowy czytnika - z czego zbudowany jest klucz", () => {
 function odpowiedziTowarzyszace(): void {
   zaplanujStrony();
   const puste: SupabaseResult = ok([]);
-  db.setResponse("posts", ok([wierszWpisu()]));
+  // `count` jak z PostgREST przy `count: "exact"` - stronicowany licznik
+  // kategorii (`readPagedRows`) kończy po nim odczyt.
+  db.setResponse("posts", { ...ok([wierszWpisu()]), count: 1 });
   db.setResponse("tags", ok({ id: "tag-1" }));
   db.setResponse("post_tags", ok([{ post_id: "post-1" }]));
   db.setResponse("categories", ok({ id: "kat-1" }));
@@ -1070,6 +1174,16 @@ const PRZYPADKI_AWARII: readonly PrzypadekAwarii[] = [
   {
     czytnik: "kategorie llms.txt",
     tabela: "categories",
+    etykieta: "categories",
+    oczekiwane: [],
+    wywolaj: () => fetchPublicCategories(TENANT),
+  },
+  {
+    // Awaria POŁOWY czytnika (licznik wpisów) degraduje całość: lista
+    // kategorii z zerowymi licznikami wyglądałaby jak „wszystkie archiwa
+    // puste" i przewodnik zgubiłby sekcje z pełnym TTL.
+    czytnik: "licznik wpisów kategorii llms.txt",
+    tabela: "posts",
     etykieta: "categories",
     oczekiwane: [],
     wywolaj: () => fetchPublicCategories(TENANT),

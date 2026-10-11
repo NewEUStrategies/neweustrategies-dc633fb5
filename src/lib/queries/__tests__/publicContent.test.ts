@@ -730,6 +730,51 @@ describe("publiczna lista kategorii", () => {
     expect(h.cache).toEqual([{ key: "public:categories", ttl: 5 * 60_000 }]);
   });
 
+  it("mapa HTML dostaje rodzaj terminu i informację, czy archiwum ma widoczne wpisy", async () => {
+    baza().setResponse(
+      "categories",
+      ok([
+        {
+          slug: "geopolityka",
+          name_pl: "Geopolityka",
+          name_en: "Geopolitics",
+          kind: null,
+          post_categories: [{ posts: { id: "w-1" } }],
+        },
+        {
+          slug: "historia",
+          name_pl: "Historia",
+          name_en: "History",
+          kind: null,
+          post_categories: [],
+        },
+        {
+          slug: "nato",
+          name_pl: "NATO",
+          name_en: "NATO",
+          kind: "organization",
+          post_categories: null,
+        },
+      ]),
+    );
+    await expect(klient().fetchQuery(publicCategoriesQueryOptions())).resolves.toEqual([
+      {
+        slug: "geopolityka",
+        name_pl: "Geopolityka",
+        name_en: "Geopolitics",
+        kind: null,
+        has_posts: true,
+      },
+      { slug: "historia", name_pl: "Historia", name_en: "History", kind: null, has_posts: false },
+      { slug: "nato", name_pl: "NATO", name_en: "NATO", kind: "organization", has_posts: false },
+    ]);
+    // Wpisy liczone przez `posts!inner` - RLS `posts` odcina szkice, więc
+    // archiwum z samymi szkicami jest puste, tak jak jego strona.
+    expect(ogniwa(lancuch("categories"), "select")).toEqual([
+      ["slug, name_pl, name_en, kind, post_categories(posts!inner(id))"],
+    ]);
+  });
+
   it("PUSTO: brak kategorii to pusta lista", async () => {
     baza().setResponse("categories", ok(null));
     await expect(klient().fetchQuery(publicCategoriesQueryOptions())).resolves.toEqual([]);

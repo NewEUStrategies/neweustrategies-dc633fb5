@@ -1496,3 +1496,16 @@ describe("validateHeadings - wejście blokowe", () => {
     expect(rodzaje(uwagi)).toEqual(["missing_h1"]);
   });
 });
+
+describe("decodeHtmlEntities - &#128;-&#159; jak w parserze HTML (Windows-1252)", () => {
+  it("myślnik, wielokropek i apostrof z WordPressa dekodują się do znaków, nie do C1", () => {
+    expect(decodeHtmlEntities("a&#150;b&#133;c&#146;d")).toBe("a\u2013b\u2026c\u2019d");
+    expect(decodeHtmlEntities("&#x80;&#x9F;")).toBe("\u20ac\u0178");
+  });
+
+  it("kody bez odpowiednika w Windows-1252 zostają bez zmian", () => {
+    expect(decodeHtmlEntities("&#129;&#141;&#143;&#144;&#157;")).toBe(
+      "\u0081\u008d\u008f\u0090\u009d",
+    );
+  });
+});
