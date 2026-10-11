@@ -3,7 +3,7 @@
 ## Banery archiwów - Wspólny horyzont
 
 - [x] Dopracować rysunek i wdrożyć tło domyślnych banerów.
-- [ ] Zweryfikować czytelność i geometrię obu motywów.
+- [x] Zweryfikować czytelność i identyczną geometrię obu motywów; 71 testów archiwów przechodzi.
 
 ## Kompaktowy nagłówek Kinetic
 
