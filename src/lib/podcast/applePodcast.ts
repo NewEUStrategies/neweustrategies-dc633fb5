@@ -25,6 +25,7 @@
 // Deterministyczna, bez importów Reacta, bez dostępu do bazy: kolejność braków
 // jest kolejnością deklaracji sprawdzeń, więc test może ją asertować.
 import { APPLE_CATEGORY_NAMES } from "@/lib/seo/applePodcastCategories";
+import { APPLE_IMAGE_MAX_PX, APPLE_IMAGE_MIN_PX } from "@/lib/podcast/artworkRules";
 import type { PodcastFeedReadiness } from "@/lib/seo/podcastFeedReadiness";
 
 /** `blocking` = Apple odrzuci kanał albo wpis trafi nie tam, gdzie miał. */
@@ -98,9 +99,8 @@ const KEY_ROOT = "adminPodcasts.settings.apple";
 const blockingKey = (code: string): string => `${KEY_ROOT}.blocking.${code}`;
 const warningKey = (code: string): string => `${KEY_ROOT}.warnings.${code}`;
 
-/** Apple wymaga kwadratu od 1400x1400 do 3000x3000 px. */
-export const APPLE_IMAGE_MIN_PX = 1400;
-export const APPLE_IMAGE_MAX_PX = 3000;
+/** Apple wymaga kwadratu od 1400x1400 do 3000x3000 px (źródło: `artworkRules`). */
+export { APPLE_IMAGE_MAX_PX, APPLE_IMAGE_MIN_PX } from "@/lib/podcast/artworkRules";
 
 const trimmed = (v: string | null | undefined): string | null => {
   const s = (v ?? "").trim();
@@ -254,6 +254,8 @@ const LEGACY_BLOCKING_FIELD: Readonly<Record<string, ApplePodcastGapField>> = {
   description: "description",
   language: "language",
   image: "imageUrl",
+  imageSquare: "imageUrl",
+  imageSize: "imageUrl",
   ownerEmail: "ownerEmail",
   episodes: "episodes",
 };

@@ -7,6 +7,7 @@
 //
 // Braki, które Apple traktuje jako blokujące, wychodziły dotąd dopiero w ich
 // walidatorze - po zgłoszeniu i bez wskazania, czego brakuje.
+import { checkPodcastArtworkDimensions } from "@/lib/podcast/artworkRules";
 
 /**
  * Podsumowanie odcinków potrzebne do oceny gotowości kanału - panel liczy je z
@@ -35,6 +36,13 @@ export interface PodcastFeedReadinessInput {
   description: string;
   language: string;
   imageUrl?: string | null;
+  /**
+   * Zmierzone wymiary okładki (panel ładuje obraz i podaje `naturalWidth` /
+   * `naturalHeight`). `null`/brak = jeszcze nie zmierzono - wtedy oceniamy
+   * wyłącznie obecność adresu.
+   */
+  imageWidth?: number | null;
+  imageHeight?: number | null;
   author?: string | null;
   ownerName?: string | null;
   ownerEmail?: string | null;
@@ -66,9 +74,16 @@ export function podcastFeedReadiness(input: PodcastFeedReadinessInput): PodcastF
   if (!input.title.trim()) blocking.push("title");
   if (!input.description.trim()) blocking.push("description");
   if (!input.language.trim()) blocking.push("language");
-  // Okładka: Apple wymaga kwadratu 1400..3000 px JPEG/PNG. Rozmiaru nie
-  // sprawdzimy po URL-u, ale brak adresu jest sprawdzalny i blokujący.
-  if (!input.imageUrl?.trim()) blocking.push("image");
+  // Okładka: Apple wymaga kwadratu 1400..3000 px JPEG/PNG. Sam adres nie mówi
+  // nic o wymiarach, więc panel podaje zmierzone - niekwadratowa albo spoza
+  // widełek okładka jest tak samo blokująca jak jej brak.
+  if (!input.imageUrl?.trim()) {
+    blocking.push("image");
+  } else if (input.imageWidth != null && input.imageHeight != null) {
+    const dims = checkPodcastArtworkDimensions(input.imageWidth, input.imageHeight);
+    if (dims.state === "notSquare") blocking.push("imageSquare");
+    else if (dims.state !== "ok") blocking.push("imageSize");
+  }
   // Bez e-maila właściciela Apple nie ma gdzie wysłać kodu weryfikacyjnego.
   if (!input.ownerEmail?.trim()) blocking.push("ownerEmail");
   if (input.episodes.total === 0) blocking.push("episodes");

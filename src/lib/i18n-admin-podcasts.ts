@@ -71,9 +71,24 @@ export const adminPodcastsPl = {
       fieldDescription: "Opis",
       cover: "Okładka",
       coverPlaceholder: "https://… lub wgraj obraz",
-      uploadCoverTitle: "Wgraj / wybierz okładkę",
       order: "Kolejność",
       pickCover: "Wybierz lub wgraj okładkę programu",
+      coverHint:
+        "Okładka programu trafia do jego kanału RSS (Apple, Spotify) - musi być kwadratem 1400-3000 px.",
+    },
+    // Pole okładki z pomiarem wymiarów (kanał sieciowy i program).
+    artwork: {
+      pick: "Wybierz z biblioteki",
+      measuring: "Sprawdzam wymiary…",
+      loadError: "Nie udało się wczytać obrazu spod tego adresu.",
+      ok: "{{width}}×{{height}} px - kwadrat, spełnia wymagania Apple.",
+      notSquare: "{{width}}×{{height}} px - to nie jest kwadrat (wymagane 1:1).",
+      tooSmall: "{{width}}×{{height}} px - za mała (minimum 1400×1400 px).",
+      tooLarge: "{{width}}×{{height}} px - za duża (maksimum 3000×3000 px).",
+      croppedInFeed:
+        "Kanał RSS poda kwadratowy wycinek 1400×1400 ze środka obrazu - wgraj kwadratową okładkę, żeby kontrolować kadr.",
+      format: "Apple przyjmuje wyłącznie JPEG lub PNG - ten plik ma inny format.",
+      previewAlt: "Podgląd okładki",
     },
     settings: {
       loading: "Ładowanie ustawień…",
@@ -107,7 +122,7 @@ export const adminPodcastsPl = {
         showType: "Typ kanału",
         showTypeEpisodic: "Odcinkowy (najnowszy pierwszy)",
         showTypeSerial: "Serialowy (od pierwszego odcinka)",
-        image: "Okładka kanału (URL)",
+        image: "Okładka kanału",
         imageHint: "Kwadrat 1400x1400 do 3000x3000 px, JPEG lub PNG. Wymagana przez Apple.",
         copyright: "Prawa autorskie",
         readinessTitle: "Gotowość kanału",
@@ -292,9 +307,23 @@ export const adminPodcastsEn = {
       fieldDescription: "Description",
       cover: "Cover",
       coverPlaceholder: "https://… or upload an image",
-      uploadCoverTitle: "Upload / pick a cover",
       order: "Order",
       pickCover: "Pick or upload a show cover",
+      coverHint:
+        "The show cover goes into its RSS feed (Apple, Spotify) - it must be a 1400-3000 px square.",
+    },
+    artwork: {
+      pick: "Pick from library",
+      measuring: "Checking dimensions…",
+      loadError: "The image at this address could not be loaded.",
+      ok: "{{width}}×{{height}} px - square, meets Apple's requirements.",
+      notSquare: "{{width}}×{{height}} px - not a square (1:1 required).",
+      tooSmall: "{{width}}×{{height}} px - too small (minimum 1400×1400 px).",
+      tooLarge: "{{width}}×{{height}} px - too large (maximum 3000×3000 px).",
+      croppedInFeed:
+        "The RSS feed will serve a 1400×1400 crop from the centre of the image - upload a square cover to control the framing.",
+      format: "Apple accepts JPEG or PNG only - this file has a different format.",
+      previewAlt: "Cover preview",
     },
     settings: {
       loading: "Loading settings…",
@@ -328,7 +357,7 @@ export const adminPodcastsEn = {
         showType: "Show type",
         showTypeEpisodic: "Episodic (newest first)",
         showTypeSerial: "Serial (from episode one)",
-        image: "Channel artwork (URL)",
+        image: "Channel artwork",
         imageHint: "Square 1400x1400 to 3000x3000 px, JPEG or PNG. Required by Apple.",
         copyright: "Copyright",
         readinessTitle: "Feed readiness",

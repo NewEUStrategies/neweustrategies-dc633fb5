@@ -158,6 +158,16 @@ every page, the podcast feed on `/podcasts`, `/podcasts/<show>` and
 Apple Podcasts or an aggregator finds a channel without knowing our URL
 convention.
 
+**Podcast artwork is always square.** `<itunes:image>` (channel and items)
+goes through `podcastFeedArtworkUrl` (`lib/podcast/artwork.ts`): media-library
+images are served as a 1400x1400 `cover` crop in the original format
+(`format=origin`, forwarded by `/media/$`), external URLs pass unchanged. The
+feeds no longer fall back to `og-default.jpg` (a 1024x640 banner): no
+configured artwork → the first episode cover → no tag, and the readiness card
+blocks submission. The admin artwork fields (`PodcastArtworkField`) measure the
+image and block non-square or out-of-range artwork with the same rule
+(`lib/podcast/artworkRules.ts`).
+
 Podcast items carry a **language-neutral `<guid isPermaLink="false">`** (the
 un-prefixed episode URL). The PL and EN channels are two feeds of the same show;
 a localized guid gave the same episode two identities, so an aggregator that

@@ -319,8 +319,10 @@ describe("okladka i adresy platform", () => {
   it("wybor okladki z biblioteki wpisuje adres do payloadu", async () => {
     mount([SHOW]);
     fireEvent.click(await screen.findByText("Raport Baltycki"));
-    await waitFor(() => expect(screen.getByTestId("media-pick")).toBeTruthy());
-    fireEvent.click(screen.getByTestId("media-pick"));
+    // Biblioteka montuje się dopiero po kliknięciu (pole okładki z pomiarem).
+    await waitFor(() => expect(screen.getByTitle("adminPodcasts.artwork.pick")).toBeTruthy());
+    fireEvent.click(screen.getByTitle("adminPodcasts.artwork.pick"));
+    fireEvent.click(await screen.findByTestId("media-pick"));
     fireEvent.click(screen.getByText("common.save"));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminToast.saved"));
     const [[payload]] = callsOf("podcast_shows", "update");

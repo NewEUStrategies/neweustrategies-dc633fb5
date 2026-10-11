@@ -628,7 +628,8 @@ describe("trasa /podcasts/$show - nagłówek dokumentu", () => {
       "@type": "PodcastSeries",
       name: "Europa o energii",
       description: "Cykl o polityce energetycznej Unii.",
-      webFeed: `/podcasts/${SLUG}/rss.xml`,
+      // Absolutny - schema.org oczekuje URL-a, względny walidator odrzuca.
+      webFeed: expect.stringMatching(new RegExp(`^https://[^/]+/podcasts/${SLUG}/rss\\.xml$`)),
     });
   });
 

@@ -197,6 +197,8 @@ export const Route = createFileRoute("/podcast/$slug")({
       ...(excerpt ? { description: excerpt } : {}),
       ...(p.episode_number != null ? { episodeNumber: p.episode_number } : {}),
       ...(p.published_at ? { datePublished: p.published_at } : {}),
+      // Okładka odcinka - bez niej wynik w Google nie ma miniatury podcastu.
+      ...(p.cover_image_url ? { image: p.cover_image_url } : {}),
       associatedMedia: {
         "@type": "MediaObject",
         contentUrl: p.audio_url,

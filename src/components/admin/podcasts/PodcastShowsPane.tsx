@@ -26,8 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Mic, Plus, Save, Trash2 } from "@/lib/lucide-shim";
-import { Upload } from "lucide-react";
-import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
+import { PodcastArtworkField } from "@/components/admin/podcasts/PodcastArtworkField";
 import { PodcastStatusBadge } from "@/components/admin/podcasts/PodcastStatusBadge";
 import { useAuth } from "@/hooks/useAuth";
 import type { PodcastShow, PodcastStatus } from "@/lib/podcast/types";
@@ -190,7 +189,6 @@ function ShowEditor({
   ensureAdminPodcastsI18n();
   const { t } = useTranslation();
   const [d, setD] = useState<PodcastShow>(s);
-  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const upd = (patch: Partial<PodcastShow>) => setD((prev) => ({ ...prev, ...patch }));
 
   return (
@@ -266,24 +264,15 @@ function ShowEditor({
       </Tabs>
 
       <div className="grid sm:grid-cols-2 gap-3">
-        <div>
-          <Label>{t("adminPodcasts.showEditor.cover")}</Label>
-          <div className="flex gap-2">
-            <Input
-              value={d.cover_image_url ?? ""}
-              onChange={(e) => upd({ cover_image_url: e.target.value || null })}
-              placeholder={t("adminPodcasts.showEditor.coverPlaceholder")}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setCoverPickerOpen(true)}
-              title={t("adminPodcasts.showEditor.uploadCoverTitle")}
-            >
-              <Upload className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
+        <PodcastArtworkField
+          id="show-cover"
+          label={t("adminPodcasts.showEditor.cover")}
+          hint={t("adminPodcasts.showEditor.coverHint")}
+          value={d.cover_image_url ?? ""}
+          onChange={(url) => upd({ cover_image_url: url || null })}
+          pickerTitle={t("adminPodcasts.showEditor.pickCover")}
+          placeholder={t("adminPodcasts.showEditor.coverPlaceholder")}
+        />
         <div>
           <Label>{t("adminPodcasts.showEditor.order")}</Label>
           <Input
@@ -307,14 +296,6 @@ function ShowEditor({
           </div>
         ))}
       </div>
-
-      <MediaPickerDialog
-        open={coverPickerOpen}
-        onOpenChange={setCoverPickerOpen}
-        onPick={(url) => upd({ cover_image_url: url })}
-        accept="image"
-        title={t("adminPodcasts.showEditor.pickCover")}
-      />
     </section>
   );
 }
