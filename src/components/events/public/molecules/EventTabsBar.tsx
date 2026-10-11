@@ -13,9 +13,18 @@
 // w podglądzie) rozstrzyga wołający, bo to jest różnica ZAMIERZONA, nie rozjazd.
 //
 // WZORZEC: docs/zrzuty/swapcard-2026-08-23/38-preview-event-home-desktop.png
-// (i identycznie 39, 40). Zawijanie zamiast przewijania: sześć krótkich napisów
-// mieści się na telefonie w dwóch rzędach, a poziomy pasek przewijany chowałby
-// ostatnią zakładkę poza ekranem bez żadnego znaku, że tam jest.
+// (i identycznie 39, 40). Na komputerze (`md:`) pozycje zawijają się w jeden
+// wyśrodkowany rząd.
+//
+// NA TELEFONIE JEDEN RZĄD PRZEWIJANY - I TO ODWRACA DAWNE ZAWIJANIE. Pasek jest
+// przyklejony pod nagłówkiem serwisu (`EventPortalShell`, decyzja właściciela:
+// zakładki mają być widoczne CAŁY CZAS), a dwa rzędy przyklejone na stałe
+// zjadały ~100 px z ekranu telefonu. Dawny argument przeciw przewijaniu
+// („ostatnia zakładka znika bez znaku") gasi `justify-center-safe`: krótki
+// pasek stoi na środku, a dłuższy zaczyna się od krawędzi i ucina ostatnią
+// pozycję w pół napisu - widać, że jest dalej. Bieżąca zakładka jest
+// przewijana na środek (`activeKey`), więc czytelnik nie szuka miejsca,
+// w którym jest.
 //
 // ── TU DOJEŻDŻA SLOT „KOLOR NAWIGACJI”, I TO JEST POPRAWKA DEFEKTU ──────────
 // CO BYŁO ZEPSUTE. `--event-nav` był jedyną zmienną brandingu BEZ ani jednego
@@ -41,7 +50,7 @@
 // przezroczyste, napis wyciszony z `--muted-foreground`, bieżący z
 // `--foreground`). Generator wypuszcza `--event-nav*` wyłącznie razem, więc nie
 // ma stanu „kolorowy napis na przezroczystym pasku”.
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 // ── DLACZEGO W KLASIE BAZOWEJ NIE MA KOLORU NAPISU, I TO JEST POPRAWKA DEFEKTU ─
 //
@@ -77,7 +86,7 @@ import type { ReactNode } from "react";
 // wyborem, bo napis w podglądzie nie jest `Link`-iem i `inactiveProps` nie ma.
 /** Klasa pozycji paska - wspólna dla odnośnika strony i napisu w podglądzie. */
 export const EVENT_TAB_CLASS =
-  "inline-block whitespace-nowrap rounded-[6px] px-1 py-4 text-sm transition-colors hover:text-[color:var(--event-nav-fg,var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "inline-block whitespace-nowrap rounded-[6px] px-1 py-4 text-sm transition-colors hover:text-[color:var(--event-nav-fg,var(--foreground))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 
 // Kolor pozycji NIEBIEŻĄCEJ - mieszanka koloru napisu z tłem paska, policzona
 // w generatorze CSS (`lib/events/eventBrandingCss`), z odwrotem do
@@ -99,13 +108,35 @@ export const EVENT_TAB_ACTIVE_CLASS =
 
 export function EventTabsBar({
   label,
+  activeKey,
   children,
 }: {
   /** Etykieta dostępności - napis, nie klucz: molekuła nie zna słownika. */
   label: string;
+  /**
+   * Zmienia się przy przejściu między zakładkami (ścieżka strony). Pasek
+   * przewijany na telefonie przesuwa wtedy bieżącą pozycję
+   * (`aria-current="page"` z `Link` routera) na środek. Podgląd studia go nie
+   * podaje - jego napisy nie są odnośnikami.
+   */
+  activeKey?: string;
   /** Pozycje paska jako `<li>` - patrz nagłówek pliku. */
   children: ReactNode;
 }) {
+  const listRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    const list = listRef.current;
+    // Pasek, który się mieści (komputer, krótkie menu), nie ma czego przewijać.
+    if (list === null || list.scrollWidth <= list.clientWidth) return;
+    const active = list.querySelector('[aria-current="page"]');
+    if (active === null) return;
+    // Prostokąty, nie `offsetLeft`: przodkiem pozycjonowanym jest przyklejona
+    // ramka powłoki, nie lista, więc przesunięcia liczyłyby się od złej krawędzi.
+    const listBox = list.getBoundingClientRect();
+    const activeBox = active.getBoundingClientRect();
+    list.scrollLeft += activeBox.left + activeBox.width / 2 - (listBox.left + listBox.width / 2);
+  }, [activeKey]);
+
   return (
     // Tło na `<nav>`, a nie na `<ul>`: pasek nawigacji wydarzenia idzie przez
     // całą szerokość okna, a wyśrodkowana kolumna `max-w-5xl` jest tylko miarą
@@ -115,7 +146,10 @@ export function EventTabsBar({
       aria-label={label}
       className="border-b border-border bg-[color:var(--event-nav,transparent)]"
     >
-      <ul className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-6 px-4">
+      <ul
+        ref={listRef}
+        className="tabs-scroller mx-auto flex max-w-5xl items-center justify-center-safe gap-x-6 px-4 md:flex-wrap md:overflow-visible"
+      >
         {children}
       </ul>
     </nav>

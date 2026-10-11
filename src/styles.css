@@ -9616,8 +9616,8 @@ button,
   gap: 0 !important;
 }
 [data-event-module-hero] .event-module-hero-doc :is([data-col-id], [data-w-id]) {
-  align-items: flex-start !important;
-  text-align: left !important;
+  align-items: center !important;
+  text-align: center !important;
 }
 [data-event-module-hero] .event-module-hero-doc [data-builder-renderer] [data-w-id] h1 {
   margin: 0 !important;
@@ -9626,7 +9626,7 @@ button,
   color: var(--foreground) !important;
 }
 [data-event-module-hero] .event-module-hero-doc [data-builder-renderer] [data-w-id] p {
-  margin: 1rem 0 0 !important;
+  margin: 1rem auto 0 !important;
   max-width: 62ch !important;
   font-size: 15px !important;
   line-height: 1.75rem !important;
@@ -9659,10 +9659,46 @@ button,
     --tw-exit-scale: 0.98;
   }
 }
+/* PASEK ZAKŁADEK PRZYKLEJONY (`EventPortalShell` ze `stickyTabs`): zakładki
+   widoczne cały czas, tuż pod nagłówkiem serwisu. `--sticky-header-h`
+   publikuje nagłówek (`Header.tsx`, po ustaniu zwijania); nagłówek
+   NIEprzyklejony albo ukryty publikuje 0 dopiero po pierwszym geście, a do
+   tego czasu na telefonie obowiązuje domyślne 123 px z arkusza - dlatego te
+   dwa przypadki zerujemy tutaj, wprost ze znaczników powłoki strony.
+   `--event-chrome-h` = nagłówek + pasek (rząd `py-4` z napisem `text-sm`
+   = 3,25rem, plus obramowanie): od niego odsuwają się kotwice i inne
+   przyklejone elementy zakładek (kolumna filtrów agendy, pasek zapisu
+   profilu). Matowe tło zamiast przezroczystego - przyklejony pasek jedzie nad
+   treścią; kolor wydarzenia (`--event-nav`) maluje `<nav>` w środku. */
+[data-event-tabs="sticky"] {
+  --event-chrome-h: calc(var(--sticky-header-h, 0px) + 3.25rem + 1px);
+}
+header[data-site-header]:not(.sticky) ~ main [data-event-tabs="sticky"],
+[data-chrome-header="hidden"] [data-event-tabs="sticky"] {
+  --sticky-header-h: 0px;
+}
+[data-event-tabs="sticky"] [id] {
+  scroll-margin-top: calc(var(--event-chrome-h) + 15px);
+}
+.event-tabs-sticky {
+  position: sticky;
+  top: var(--sticky-header-h, 0px);
+  z-index: 30;
+  background-color: color-mix(in oklab, var(--background) 92%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+}
+/* Telefon: pasek przewijany w poziomie (`EventTabsBar`) gaśnie na krawędziach
+   w strefie paddingu listy - w spoczynku nie dotyka żadnego napisu, po
+   przewinięciu mówi „jest dalej" z obu stron. */
+@media (max-width: 47.99rem) {
+  .event-tabs-sticky ul {
+    mask-image: linear-gradient(90deg, transparent, #000 1rem, #000 calc(100% - 1rem), transparent);
+  }
+}
 /* Odcinek linii nagłówka „rysuje się" dopiero po pierwszej interakcji
    (bramka ruchu `data-motion="on"`) - zimne wejście maluje go od razu. */
 :root[data-motion="on"] .event-module-hero-accent {
-  transform-origin: left;
   animation: event-hero-accent 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes event-hero-accent {

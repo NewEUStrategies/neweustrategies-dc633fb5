@@ -70,6 +70,22 @@
 // tekstem) zostaje po stronie redaktora ŚWIADOMIE: od tej zmiany podgląd studia
 // rysuje ten sam obraz w tym samym miejscu, więc redaktor widzi skutek przed
 // publikacją - a to jest dokładnie ta pętla, której brakowało przy kolorze tła.
+//
+// ── PASEK ZAKŁADEK JEST PRZYKLEJONY (`stickyTabs`) - DECYZJA WŁAŚCICIELA ──────
+// Zakładki (strona główna, prelegenci, agenda, profil…) mają być widoczne
+// CAŁY CZAS, także w połowie długiej listy uczestników. Przykleja się RAMKA
+// slotu, nie sam `<nav>`: `position: sticky` trzyma element w granicach
+// rodzica, a rodzicem paska jest ta ramka - dokładnie tak wysoka jak pasek,
+// więc przyklejony `<nav>` nie miałby gdzie jechać. Ramką jest dziecko TEJ
+// powłoki, która obejmuje całą treść zakładki.
+//
+// Geometria (pod nagłówkiem serwisu, `--sticky-header-h`) i matowe tło żyją
+// w `src/styles.css` (blok „ZAKŁADKI MODUŁOWE WYDARZENIA"): tam też jest
+// `--event-chrome-h` - wysokość nagłówka z paskiem, od której odsuwają się
+// kotwice i inne przyklejone elementy zakładek.
+//
+// TYLKO STRONA PUBLICZNA. Kanwa podglądu jest skalowana `transform`-em i żyje
+// w panelu, gdzie `--sticky-header-h` opisuje nagłówek, którego tam nie ma.
 import type { CSSProperties, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -81,6 +97,7 @@ export function EventPortalShell({
   backSlot,
   titleSlot,
   tabsSlot,
+  stickyTabs = false,
   className,
   style,
   children,
@@ -93,6 +110,8 @@ export function EventPortalShell({
   titleSlot: ReactNode;
   /** Pasek zakładek (`EventTabsNav` na stronie, `EventTabsBar` w podglądzie). */
   tabsSlot: ReactNode;
+  /** Prawda = pasek zakładek przyklejony pod nagłówkiem serwisu (strona publiczna). */
+  stickyTabs?: boolean;
   /** Dodatkowe klasy opakowania - patrz nagłówek (kanwa podglądu). */
   className?: string;
   /** Styl opakowania - szerokość wirtualna kanwy podglądu. */
@@ -108,6 +127,7 @@ export function EventPortalShell({
         className,
       )}
       data-testid="event-portal-shell"
+      data-event-tabs={stickyTabs ? "sticky" : undefined}
     >
       <EventBrandingStyle branding={branding} />
 
@@ -122,7 +142,7 @@ export function EventPortalShell({
         <p className="mt-4">{titleSlot}</p>
       </div>
 
-      <div className="mt-4">{tabsSlot}</div>
+      <div className={cn("mt-4", stickyTabs && "event-tabs-sticky")}>{tabsSlot}</div>
 
       {children}
     </div>

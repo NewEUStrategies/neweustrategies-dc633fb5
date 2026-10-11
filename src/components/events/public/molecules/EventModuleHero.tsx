@@ -26,6 +26,11 @@ import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 // i jedna linia: nadtytuł wersalikami z rozstrzałem, tytuł krojem nagłówków,
 // wstęp w kolumnie czytania (~62 znaki).
 //
+// WYŚRODKOWANY, JAK PASEK ZAKŁADEK - I TO TEŻ JEST DECYZJA WŁAŚCICIELA. Pasek
+// nad nagłówkiem stoi na środku kolumny, więc nadtytuł, tytuł, wstęp i odcinek
+// linii stoją na tej samej osi; nagłówek przyklejony do lewej krawędzi pod
+// wyśrodkowanym paskiem czytał się jak dwa niezależne układy.
+//
 // TYPOGRAFIA DOKUMENTU CMS IDZIE PRZEZ `!important` W `src/styles.css`. Widget
 // nagłówka buildera pisze rozmiar w stylu INLINE (`--td-pt-size`), arkusz ma
 // niewarstwowe reguły `[data-cms-content] h1` i mobilne `!important`, a renderer
@@ -174,7 +179,7 @@ export function EventModuleHero({
           {/* Nadtytuł: ikona modułu włosową kreską i nazwa wydarzenia. `div`,
               nie `p`: globalne `:where(main p:hover)` przemalowuje akapity
               na kolor tekstu przy najechaniu, a nadtytuł ma stać spokojnie. */}
-          <div className="flex min-w-0 items-center gap-2.5 text-[11px] font-semibold uppercase leading-4 tracking-[0.16em] text-muted-foreground">
+          <div className="flex min-w-0 items-center justify-center gap-2.5 text-[11px] font-semibold uppercase leading-4 tracking-[0.16em] text-muted-foreground">
             <Icon className="size-4 shrink-0 text-primary" strokeWidth={1.5} aria-hidden="true" />
             <span className="min-w-0 truncate">
               {eventTitle || t("eventFront.header.moduleEyebrow")}
@@ -182,11 +187,16 @@ export function EventModuleHero({
           </div>
           <div className="event-module-hero-title mt-4">
             {hasDocument ? (
-              <div className="event-module-hero-doc w-full min-w-0 max-w-3xl text-left [overflow-wrap:anywhere]">
+              <div className="event-module-hero-doc mx-auto w-full min-w-0 max-w-3xl text-center [overflow-wrap:anywhere]">
                 {children}
               </div>
             ) : (
-              <h1 className={cn(TITLE_CLASS, "max-w-3xl [overflow-wrap:anywhere]")}>
+              <h1
+                className={cn(
+                  TITLE_CLASS,
+                  "mx-auto max-w-3xl text-center [overflow-wrap:anywhere]",
+                )}
+              >
                 {moduleLabel}
               </h1>
             )}
@@ -197,7 +207,7 @@ export function EventModuleHero({
               serwisu (`--gc-btn-bg`) i gubiłaby kolor akcji wydarzenia. */}
           <span
             aria-hidden="true"
-            className="event-module-hero-accent absolute -bottom-px left-0 h-px w-16"
+            className="event-module-hero-accent absolute inset-x-0 -bottom-px mx-auto h-px w-16"
             style={ACCENT_STYLE}
           />
         </header>

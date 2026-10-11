@@ -246,9 +246,11 @@ export function EventAgendaBoardView({
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] xl:gap-12">
+      {/* Kolumna filtrów jedzie pod przyklejonym paskiem zakładek
+          (`--event-chrome-h`, styles.css); poza powłoką wydarzenia - dawne 6rem. */}
       <aside
         aria-label={t("eventFront.agenda.sidebarLabel")}
-        className="space-y-5 lg:sticky lg:top-24 lg:self-start"
+        className="space-y-5 lg:sticky lg:top-[calc(var(--event-chrome-h,4.5rem)+1.5rem)] lg:self-start"
       >
         <div className="border-b border-border pb-5">
           <label className="relative block">
