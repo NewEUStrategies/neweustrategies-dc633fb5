@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { slugifyTaxonomy, normalizeSlugInput } from "@/lib/content/taxonomySlug";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -53,6 +53,7 @@ import { PostSettingsMetabox } from "@/components/admin/PostSettingsMetabox";
 import { ImageSlot } from "@/components/admin/ImageSlot";
 import { SeoPanel } from "@/components/admin/seo/SeoPanel";
 import { Textarea } from "@/components/ui/textarea";
+import { CONTENT_EXCERPT_MAX_CHARS } from "@/lib/seo/limits";
 import { toast } from "sonner";
 import {
   invalidateWidgetCaches,
@@ -648,11 +649,10 @@ function EditPage() {
           <div className="lg:col-span-2 space-y-5">
             <div className="bg-card border border-border rounded-lg p-5 space-y-5">
               <div>
-                <h2 className="text-lg font-display font-semibold mb-1">Szczegóły strony</h2>
-                <p className="text-xs text-muted-foreground">
-                  Uzupełnij tytuł strony w obu językach. Po zapisaniu przejdź do kroku „Treść”, by
-                  edytować zawartość.
-                </p>
+                <h2 className="text-lg font-display font-semibold mb-1">
+                  {t("admin.seo.pageDetails.title")}
+                </h2>
+                <p className="text-xs text-muted-foreground">{t("admin.seo.pageDetails.intro")}</p>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <FloatingInput
@@ -669,18 +669,27 @@ function EditPage() {
                 />
               </div>
 
-              <SeoDescriptionField
-                lang="pl"
-                value={form.excerpt_pl ?? ""}
-                onChange={(v) => set("excerpt_pl", v || null)}
-                titleFallback={form.title_pl}
-              />
-              <SeoDescriptionField
-                lang="en"
-                value={form.excerpt_en ?? ""}
-                onChange={(v) => set("excerpt_en", v || null)}
-                titleFallback={form.title_en}
-              />
+              {/* Zajawka (excerpt), NIE opis meta: dawniej to pole nazywało się
+                  „Opis strony · meta description" i stało nad drugim polem
+                  „Opis meta" w panelu SEO - dwa pola o tej samej nazwie, z
+                  innymi limitami i sprzecznymi werdyktami. */}
+              <div className="space-y-3">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <PageExcerptField
+                    lang="pl"
+                    value={form.excerpt_pl ?? ""}
+                    onChange={(v) => set("excerpt_pl", v.trim() ? v : null)}
+                    titleFallback={form.title_pl}
+                  />
+                  <PageExcerptField
+                    lang="en"
+                    value={form.excerpt_en ?? ""}
+                    onChange={(v) => set("excerpt_en", v.trim() ? v : null)}
+                    titleFallback={form.title_en}
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground">{t("admin.seo.excerpt.unique")}</p>
+              </div>
 
               <SeoPanel
                 value={{
@@ -700,7 +709,7 @@ function EditPage() {
                 }
                 entity={{ kind: "page", id }}
                 slug={form.slug}
-                pathSourcePageId={id}
+                pathSourcePageId={form.parent_id}
                 fallbackTitle={{ pl: form.title_pl, en: form.title_en }}
                 fallbackDescription={{ pl: form.excerpt_pl, en: form.excerpt_en }}
                 coverImageUrl={form.cover_image_url}
@@ -728,7 +737,7 @@ function EditPage() {
                   onClick={() => setStep("content")}
                   disabled={!form.title_pl.trim() && !form.title_en.trim()}
                 >
-                  Przejdź do edycji treści <ArrowRight className="w-4 h-4 ml-2" />
+                  {t("admin.seo.pageDetails.goToContent")} <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>
             </div>
@@ -779,10 +788,13 @@ function PageBuilderPane({
 }
 
 /**
- * Pole "Opis strony" (meta description) z licznikiem znaków, wskaźnikiem
- * jakości i rekomendacjami SEO. Używane jako og:description i meta description.
+ * Zajawka strony (`excerpt_pl/en`): streszczenie na listy, karty i RSS - i opis
+ * meta ZASTĘPCZY, gdy panel SEO nie ma własnego. Limit jest limitem zapisu
+ * (`CONTENT_EXCERPT_MAX_CHARS`, ten sam co w schemacie serwera) i pole go nie
+ * przekracza (`maxLength`), zamiast po cichu obcinać wklejony tekst. O tym, czy
+ * Google utnie opis, mówi panel SEO (budżet pikselowy), nie to pole.
  */
-function SeoDescriptionField({
+function PageExcerptField({
   lang,
   value,
   onChange,
@@ -793,133 +805,35 @@ function SeoDescriptionField({
   onChange: (v: string) => void;
   titleFallback: string;
 }) {
-  const len = value.length;
-  const MIN = 70;
-  const SWEET_MIN = 120;
-  const SWEET_MAX = 160;
-  const MAX = 200;
-  const HARD = 1000;
-
-  let tone: "empty" | "short" | "good" | "long" | "tooLong";
-  if (len === 0) tone = "empty";
-  else if (len < MIN) tone = "short";
-  else if (len <= SWEET_MAX) tone = "good";
-  else if (len <= MAX) tone = "long";
-  else tone = "tooLong";
-
-  const toneColor = {
-    empty: "text-muted-foreground",
-    short: "text-brand-ink dark:text-brand",
-    good: "text-emerald-600 dark:text-emerald-400",
-    long: "text-brand-ink dark:text-brand",
-    tooLong: "text-destructive",
-  }[tone];
-
-  const toneLabel = {
-    pl: {
-      empty: "Brak opisu",
-      short: "Za krótki",
-      good: "Optymalna długość",
-      long: "Trochę za długi",
-      tooLong: "Zdecydowanie za długi",
-    },
-    en: {
-      empty: "No description",
-      short: "Too short",
-      good: "Optimal length",
-      long: "A bit long",
-      tooLong: "Too long",
-    },
-  }[lang][tone];
-
-  const langLabel = lang === "pl" ? "Polski" : "English";
-  const placeholder =
-    lang === "pl"
-      ? `Krótki opis strony „${titleFallback || "..."}". Pojawi się w wynikach Google i jako og:description.`
-      : `Short description of "${titleFallback || "..."}". Shown in Google results and as og:description.`;
-
+  const { t } = useTranslation();
+  const fieldId = useId();
+  const hintId = `${fieldId}-hint`;
   return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between gap-2 flex-wrap">
-        <Label className="flex items-center gap-2">
-          {lang === "pl" ? "Opis strony" : "Page description"}
-          <span className="text-[10px] text-muted-foreground font-normal">
-            ({langLabel} · meta description / og:description)
-          </span>
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <Label htmlFor={fieldId}>
+          {t("admin.seo.excerpt.label", { lang: lang.toUpperCase() })}
         </Label>
-        <span className={`text-[11px] font-medium ${toneColor}`}>
-          {len} / {SWEET_MAX} · {toneLabel}
+        <span className="text-[11px] text-muted-foreground tabular-nums">
+          {t("admin.seo.excerpt.counter", {
+            count: value.length,
+            max: CONTENT_EXCERPT_MAX_CHARS,
+          })}
         </span>
       </div>
       <Textarea
+        id={fieldId}
         value={value}
-        onChange={(e) => onChange(e.target.value.slice(0, HARD))}
-        placeholder={placeholder}
+        maxLength={CONTENT_EXCERPT_MAX_CHARS}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={t("admin.seo.excerpt.placeholder", { title: titleFallback || "…" })}
+        aria-describedby={hintId}
         rows={3}
         className="resize-y"
       />
-      {/* Pasek długości - wizualizuje przedział "słodki punkt" 120–160 znaków */}
-      <div className="relative h-1.5 bg-muted rounded-full overflow-hidden">
-        <div
-          className="absolute top-0 bottom-0 bg-emerald-500/30"
-          style={{
-            left: `${(SWEET_MIN / MAX) * 100}%`,
-            width: `${((SWEET_MAX - SWEET_MIN) / MAX) * 100}%`,
-          }}
-        />
-        <div
-          className={`absolute top-0 bottom-0 left-0 transition-all ${
-            tone === "good"
-              ? "bg-emerald-500"
-              : tone === "tooLong"
-                ? "bg-destructive"
-                : tone === "empty"
-                  ? "bg-transparent"
-                  : "bg-brand"
-          }`}
-          style={{ width: `${Math.min(100, (len / MAX) * 100)}%` }}
-        />
-      </div>
-      <ul className="text-[11px] text-muted-foreground space-y-0.5 pl-4 list-disc">
-        {lang === "pl" ? (
-          <>
-            <li>
-              <strong>Długość:</strong> 120–160 znaków (Google ucina dłuższe opisy w SERP).
-            </li>
-            <li>
-              <strong>Słowo kluczowe:</strong> umieść najważniejsze słowo na początku zdania.
-            </li>
-            <li>
-              <strong>Wartość:</strong> opisz konkretną korzyść lub czego użytkownik się dowie.
-            </li>
-            <li>
-              <strong>Akcja:</strong> dodaj zachętę (np. „Zobacz", „Sprawdź", „Dowiedz się").
-            </li>
-            <li>
-              <strong>Unikalność:</strong> każda strona powinna mieć inny opis - nie powielaj.
-            </li>
-          </>
-        ) : (
-          <>
-            <li>
-              <strong>Length:</strong> 120–160 chars (Google truncates longer snippets in SERPs).
-            </li>
-            <li>
-              <strong>Keyword:</strong> place the primary keyword near the beginning.
-            </li>
-            <li>
-              <strong>Value:</strong> describe a concrete benefit or what the user will learn.
-            </li>
-            <li>
-              <strong>Action:</strong> include a call-to-action (e.g. "Discover", "Learn", "See").
-            </li>
-            <li>
-              <strong>Uniqueness:</strong> every page should have a unique description - don't
-              duplicate.
-            </li>
-          </>
-        )}
-      </ul>
+      <p id={hintId} className="text-[11px] text-muted-foreground">
+        {t("admin.seo.excerpt.hint")}
+      </p>
     </div>
   );
 }

@@ -189,6 +189,8 @@ interface ResolveCase {
   lang: "pl" | "en";
   over: Partial<ValidateInput>;
   chars: number;
+  /** Własny wpis (blokuje zapis) czy wartość wyliczona (tylko ostrzega). */
+  source: "override" | "derived";
 }
 
 describe("validateSeoPanel - który TYTUŁ jest faktycznie sprawdzany", () => {
@@ -200,6 +202,7 @@ describe("validateSeoPanel - który TYTUŁ jest faktycznie sprawdzany", () => {
       lang: "en",
       over: { value: { ...emptyValue, seo_title_en: narrow(31) } },
       chars: 31,
+      source: "override",
     },
     {
       name: "nadpisanie z samych spacji jest traktowane jak brak (trim)",
@@ -209,24 +212,28 @@ describe("validateSeoPanel - który TYTUŁ jest faktycznie sprawdzany", () => {
         fallbackTitle: { pl: "Tytuł PL", en: narrow(32) },
       },
       chars: 32,
+      source: "derived",
     },
     {
       name: "EN bez tłumaczenia spada na tytuł PL",
       lang: "en",
       over: { fallbackTitle: { pl: narrow(33), en: "" } },
       chars: 33,
+      source: "derived",
     },
     {
       name: "PL bez tytułu spada na tytuł EN",
       lang: "pl",
       over: { fallbackTitle: { pl: "", en: narrow(34) } },
       chars: 34,
+      source: "derived",
     },
     {
       name: "brak jakiegokolwiek tytułu spada na slug (ostatni fallback)",
       lang: "pl",
       over: { fallbackTitle: { pl: "", en: "" }, slug: narrow(35) },
       chars: 35,
+      source: "derived",
     },
     {
       name: "nadpisanie PL wygrywa nawet przy pustych fallbackach i pustym slugu",
@@ -237,15 +244,19 @@ describe("validateSeoPanel - który TYTUŁ jest faktycznie sprawdzany", () => {
         slug: "",
       },
       chars: 36,
+      source: "override",
     },
   ];
 
-  it.each(cases)("$name", ({ lang, over, chars }) => {
+  it.each(cases)("$name", ({ lang, over, chars, source }) => {
     const issues = run({ ...over, titleCharLimit: 10 });
+    // Limit znaków BLOKUJE tylko własny wpis - tytuł wyliczony (pole puste)
+    // nie ma czego skrócić w panelu, więc daje ostrzeżenie z podpowiedzią.
     expect(issueFor(issues, lang, "title")).toMatchObject({
       chars,
       charLimit: 10,
-      severity: "error",
+      severity: source === "override" ? "error" : "warning",
+      source,
     });
   });
 });
@@ -257,6 +268,7 @@ describe("validateSeoPanel - który OPIS jest faktycznie sprawdzany", () => {
       lang: "en",
       over: { value: { ...emptyValue, seo_description_en: narrow(41) } },
       chars: 41,
+      source: "override",
     },
     {
       name: "nadpisanie z samych spacji jest traktowane jak brak (trim)",
@@ -266,24 +278,28 @@ describe("validateSeoPanel - który OPIS jest faktycznie sprawdzany", () => {
         fallbackDescription: { pl: "Opis PL", en: narrow(42) },
       },
       chars: 42,
+      source: "derived",
     },
     {
       name: "null w opisie EN spada na opis PL",
       lang: "en",
       over: { fallbackDescription: { pl: narrow(43), en: null } },
       chars: 43,
+      source: "derived",
     },
     {
       name: "pusty łańcuch w opisie EN też spada na opis PL",
       lang: "en",
       over: { fallbackDescription: { pl: narrow(44), en: "" } },
       chars: 44,
+      source: "derived",
     },
     {
       name: "PL bez opisu spada na opis EN",
       lang: "pl",
       over: { fallbackDescription: { pl: null, en: narrow(45) } },
       chars: 45,
+      source: "derived",
     },
     {
       name: "brak obu opisów spada na TYTUŁ strony (metaDescription)",
@@ -293,21 +309,23 @@ describe("validateSeoPanel - który OPIS jest faktycznie sprawdzany", () => {
         fallbackTitle: { pl: narrow(46), en: "Title EN" },
       },
       chars: 46,
+      source: "derived",
     },
   ];
 
-  it.each(cases)("$name", ({ lang, over, chars }) => {
+  it.each(cases)("$name", ({ lang, over, chars, source }) => {
     const issues = run({ ...over, descriptionCharLimit: 12 });
     expect(issueFor(issues, lang, "description")).toMatchObject({
       chars,
       charLimit: 12,
-      severity: "error",
+      severity: source === "override" ? "error" : "warning",
+      source,
     });
   });
 
-  it("opis Z FALLBACKU nigdy nie przebije limitu panelu, bo metaDescription ucina go do 160", () => {
-    // FAKT PRZYPIĘTY: metaDescription() (publicSegments.ts:25) obcina wyliczony
-    // opis do 160 znaków, a panel dopuszcza 320. Wniosek dla redakcji: BŁĄD
+  it("opis Z FALLBACKU nigdy nie przebije limitu panelu, bo metaDescription mieści go w ~960 px", () => {
+    // FAKT PRZYPIĘTY: metaDescription() (publicSegments.ts) dopasowuje
+    // wyliczony opis do budżetu pikselowego Google, a panel dopuszcza 320 znaków. Wniosek dla redakcji: BŁĄD
     // limitu opisu może wywołać tylko ręczne nadpisanie, nigdy opis wzięty
     // z treści wpisu - i dlatego banner "za długi opis" zawsze wskazuje pole
     // edytowalne.

@@ -400,14 +400,17 @@ describe("SeoPanel - ścieżka podglądu", () => {
     expect(h.rpc).toHaveBeenCalledWith("page_full_path", { _page_id: "page-7" });
   });
 
-  it("strona: własna ścieżka z RPC, bez doklejania sluga", async () => {
-    h.pageFullPath = "o-nas/zespol";
+  it("strona: ścieżka RODZICA z RPC + BIEŻĄCY slug z formularza", async () => {
+    // Dawniej strona podawała własne id, a RPC oddawało ZAPISANĄ ścieżkę - po
+    // zmianie sluga podgląd i inspekcja URL pokazywały stary adres.
+    h.pageFullPath = "o-nas";
     renderPanel({
       entity: { kind: "page", id: "page-1" },
-      slug: "zespol",
-      pathSourcePageId: "page-1",
+      slug: "nowy-zespol",
+      pathSourcePageId: "page-parent",
     });
-    await waitFor(() => expect(inspectionPath()).toBe("o-nas/zespol"));
+    await waitFor(() => expect(inspectionPath()).toBe("o-nas/nowy-zespol"));
+    expect(h.rpc).toHaveBeenCalledWith("page_full_path", { _page_id: "page-parent" });
   });
 
   it("strona bez rozwiązanej ścieżki spada na własny slug", async () => {

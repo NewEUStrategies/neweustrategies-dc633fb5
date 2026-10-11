@@ -376,6 +376,9 @@ export const adminExtrasPl = {
       autoDerivedHint:
         "Brak konfiguracji kolumn - front automatycznie buduje mega menu z dzieci tej pozycji (poniżej podgląd 1:1).",
       autoFromTree: "auto z drzewa",
+      brokenLink: "Martwy link",
+      brokenLinkHint:
+        "Wskazana strona, wpis, kategoria lub tag nie istnieje albo nie jest opublikowany. Pozycja jest ukryta w menu serwisu - popraw adres albo ją usuń.",
       cssClass: "Klasa CSS",
       dragHint: "Przeciągnij elementy, aby zmienić kolejność i hierarchię (max 3 poziomy).",
       empty: "Brak wyników",
@@ -669,7 +672,7 @@ export const adminExtrasPl = {
     saveError: "Nie udało się zapisać.",
     seo: {
       field: {
-        errorMax: "Osiągnięto twardy limit {{max}} znaków - skróć wpis.",
+        errorMax: "Osiągnięto twardy limit {{max}} znaków - skróć tekst w tym polu.",
         warnPixel: "Za długi dla Google - zostanie ucięty w wynikach wyszukiwania.",
       },
       gsc: {
@@ -711,6 +714,10 @@ export const adminExtrasPl = {
       },
       validation: {
         blockToast: "Zapis wstrzymany: pola SEO przekraczają twardy limit znaków.",
+        derivedTitleHint:
+          "(tytuł automatyczny z tytułu treści - wpisz krótszy tytuł SEO, żeby Google go nie uciął)",
+        derivedDescriptionHint:
+          "(opis automatyczny z zajawki - wpisz własny opis meta, żeby kontrolować treść)",
         duplicateHeading: "Powtórzony nagłówek{{pos}}{{snip}} - użyj unikalnych tytułów sekcji.",
         // `count` (liczba pustych nagłówków) wybiera formę, `pos` wskazuje
         // PIERWSZY pusty - redakcja dostaje adres uwagi, nie samą diagnozę.
@@ -1264,6 +1271,9 @@ export const adminExtrasEn = {
       autoDerivedHint:
         "No column configuration - the front end automatically builds the mega menu from this item's children (1:1 preview below).",
       autoFromTree: "auto from tree",
+      brokenLink: "Broken link",
+      brokenLinkHint:
+        "The linked page, post, category or tag does not exist or is not published. The item is hidden from the site menu - fix the URL or remove it.",
       cssClass: "CSS class",
       dragHint: "Drag items to change the order and hierarchy (max 3 levels).",
       empty: "No results",
@@ -1544,7 +1554,7 @@ export const adminExtrasEn = {
     saveError: "Could not save.",
     seo: {
       field: {
-        errorMax: "Reached hard limit of {{max}} characters - shorten the post.",
+        errorMax: "Reached the hard limit of {{max}} characters - shorten the text in this field.",
         warnPixel: "Too long for Google - will be truncated in search results.",
       },
       gsc: {
@@ -1585,6 +1595,10 @@ export const adminExtrasEn = {
       },
       validation: {
         blockToast: "Save paused: SEO fields exceed the hard character limit.",
+        derivedTitleHint:
+          "(automatic title taken from the content title - enter a shorter SEO title so Google does not cut it)",
+        derivedDescriptionHint:
+          "(automatic description taken from the excerpt - enter your own meta description to control it)",
         duplicateHeading: "Repeated heading{{pos}}{{snip}} - use unique section titles.",
         emptyHeading_one: "Empty heading in content{{pos}} - delete or fill it in.",
         emptyHeading_other:

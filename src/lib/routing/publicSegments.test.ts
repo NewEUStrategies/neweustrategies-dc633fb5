@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { splatToSegments, metaDescription } from "./publicSegments";
+import { SERP_DESCRIPTION_LIMIT_PX, estimateTextWidthPx } from "@/lib/seo/serp";
 
 describe("splatToSegments", () => {
   it("splits a multi-segment path", () => {
@@ -33,11 +34,23 @@ describe("metaDescription", () => {
     expect(metaDescription("  <div> spaced </div>  ", "fallback")).toBe("spaced");
   });
 
-  it("caps the result at 160 characters", () => {
-    const long = "x".repeat(500);
-    const out = metaDescription(long, "fallback");
-    expect(out).toHaveLength(160);
-    expect(out).toBe("x".repeat(160));
+  it("fits Google's pixel budget, cutting at a word boundary with an ellipsis", () => {
+    const words = "Analiza bezpieczeństwa wschodniej flanki NATO ".repeat(10).trim();
+    const out = metaDescription(words, "fallback");
+    expect(out.endsWith("…")).toBe(true);
+    expect(estimateTextWidthPx(out, 14)).toBeLessThanOrEqual(SERP_DESCRIPTION_LIMIT_PX);
+    // Ucięte na granicy słowa - przed wielokropkiem stoi całe słowo z tekstu.
+    expect(words.split(" ")).toContain(out.slice(0, -1).split(" ").at(-1));
+  });
+
+  it("leaves a description that already fits untouched", () => {
+    expect(metaDescription("Krótka zajawka.", "fallback")).toBe("Krótka zajawka.");
+  });
+
+  it("hard-cuts a single word longer than the budget", () => {
+    const out = metaDescription("x".repeat(500), "fallback");
+    expect(out.endsWith("…")).toBe(true);
+    expect(estimateTextWidthPx(out, 14)).toBeLessThanOrEqual(SERP_DESCRIPTION_LIMIT_PX);
   });
 
   it("falls back when the raw value is null or undefined", () => {

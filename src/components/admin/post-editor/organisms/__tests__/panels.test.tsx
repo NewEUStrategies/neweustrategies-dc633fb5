@@ -143,7 +143,6 @@ type Api = Record<string, unknown> & {
   save: ReturnType<typeof vi.fn>;
   del: ReturnType<typeof vi.fn>;
   discardToSaved: ReturnType<typeof vi.fn>;
-  setSeoIssues: ReturnType<typeof vi.fn>;
   onRevisionRestored: ReturnType<typeof vi.fn>;
   setSelectedCats: ReturnType<typeof vi.fn>;
   setSelectedTags: ReturnType<typeof vi.fn>;
@@ -734,7 +733,7 @@ describe("PostDetailsPanel - callbacki przeglądu ogólnego", () => {
     expect(props("SeoPanel").ogKicker).toBeNull();
   });
 
-  it("problemy SEO wracają do formularza tą samą drogą", () => {
+  it("panel SEO NIE jest źródłem uwag - liczy je formularz, niezależnie od zakładki", () => {
     const formApi = api();
     render(
       <PostDetailsPanel
@@ -750,7 +749,10 @@ describe("PostDetailsPanel - callbacki przeglądu ogólnego", () => {
         onGoToContent={vi.fn()}
       />,
     );
-    expect(props("SeoPanel").onIssuesChange).toBe((formApi as unknown as Api).setSeoIssues);
+    // Dawniej panel oddawał uwagi przez `onIssuesChange`; zamontowany tylko w
+    // zakładce SEO zostawiał resztę edytora z pustą albo zamrożoną listą.
+    expect(props("SeoPanel").onIssuesChange).toBeUndefined();
+    expect(formApi).not.toHaveProperty("setSeoIssues");
   });
 });
 

@@ -1081,10 +1081,24 @@ describe("metadane stron statycznych: skąd bierze się tytuł i robots dla /pri
     );
     // Bez nadpisania zostaje tytuł strony z panelu.
     expect(pickStaticSeo(wierszSeo(), "pl", domyslne).title).toBe("Cennik");
-    // Puste pola po obu stronach - default wołającego.
+    // Wartości WYPROWADZONE mają fallback międzyjęzykowy (jak `fields.ts`):
+    // brak tytułu PL -> tytuł EN, zanim sięgniemy po default wołającego.
+    expect(pickStaticSeo(wierszSeo({ title_pl: "" }), "pl", domyslne).title).toBe("Pricing");
+    // Puste pola w OBU językach - default wołającego.
     expect(
-      pickStaticSeo(wierszSeo({ title_pl: "", excerpt_pl: "" }), "pl", domyslne),
+      pickStaticSeo(
+        wierszSeo({ title_pl: "", title_en: "", excerpt_pl: "", excerpt_en: "" }),
+        "pl",
+        domyslne,
+      ),
     ).toMatchObject({ title: "Marka", description: "Opis marki" });
+  });
+
+  it("tytuł SEO z samych spacji to BRAK nadpisania, nie pusty `<title>`", () => {
+    const domyslne = { title: "Marka", description: "Opis marki" };
+    expect(pickStaticSeo(wierszSeo({ seo_title_pl: "   " }), "pl", domyslne).title).toBe(
+      "Cennik",
+    );
   });
 
   it("język wybiera kolumnę, a nie wariant tekstu", () => {

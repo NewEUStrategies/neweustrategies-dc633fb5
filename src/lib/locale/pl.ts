@@ -894,10 +894,43 @@ export const pl = {
     seo: {
       panelTitle: "SEO i podgląd w Google",
       panelHint: "Puste pola = wartości domyślne z tytułu i zajawki",
+      intro:
+        "Ustal, jak ta treść wygląda w Google i przy udostępnianiu. Wszystkie pola są opcjonalne - puste pole oznacza tekst automatyczny, widoczny w nim jako podpowiedź.",
+      excerpt: {
+        label: "Zajawka · {{lang}}",
+        hint: "Krótkie streszczenie: pokazuje się na listach, w kartach i w RSS. Gdy w panelu SEO poniżej nie ma własnego opisu meta, Google dostaje tę zajawkę - skróconą do szerokości wyniku.",
+        placeholder: "W 1-2 zdaniach: o czym jest „{{title}}” i co czytelnik tu znajdzie.",
+        unique:
+          "Każda treść potrzebuje własnej zajawki - skopiowana z innego artykułu daje w Google dwa identyczne opisy.",
+        counter: "{{count}} / {{max}} znaków",
+      },
+      pageDetails: {
+        title: "Szczegóły strony",
+        intro:
+          "Uzupełnij tytuł i zajawkę w obu językach, a w panelu SEO sprawdź wygląd w Google. Po zapisaniu przejdź do kroku „Treść”.",
+        goToContent: "Przejdź do edycji treści",
+      },
+      sourceAuto: "Automatyczny",
+      sourceCustom: "Własny",
+      sectionGoogle: "Wynik w Google",
+      langStatus: {
+        ok: "bez uwag",
+        warning: "ostrzeżenia",
+        error: "błędy blokujące zapis",
+      },
       titleLabel: "Tytuł SEO",
+      titleHint:
+        "Nagłówek wyniku w Google i nazwa karty przeglądarki. Puste pole = tytuł treści z dopiskiem „{{suffix}}”. Własny tytuł zastępuje go w całości, bez dopisku.",
+      titleHintNoSuffix:
+        "Nagłówek wyniku w Google i nazwa karty przeglądarki. Puste pole = tytuł treści.",
       descriptionLabel: "Opis meta (description)",
+      descriptionHint:
+        "Tekst pod tytułem w Google i opis karty w mediach społecznościowych. Puste pole = zajawka skrócona do szerokości wyniku Google (ok. 150 znaków).",
+      advanced: "Zaawansowane: adres kanoniczny i indeksowanie",
       canonicalLabel: "Canonical URL (nadpisanie)",
       canonicalHint: "Tylko dla treści przedrukowanych - wskazuje oryginalne źródło.",
+      canonicalInvalid:
+        "Wpisz pełny adres zaczynający się od https:// - do tego czasu zmiana nie jest zapisywana.",
       noindexLabel: "Ukryj przed wyszukiwarkami (noindex)",
       noindexHint: "Usuwa też adres z sitemap, RSS i news-sitemap.",
       live: {
@@ -926,6 +959,11 @@ export const pl = {
         empty: "Brak obrazka - użyty będzie domyślny",
         overrideLabel: "Własny obrazek OG (nadpisanie)",
         overrideHint: "Ma pierwszeństwo przed okładką i wygenerowaną kartą. Zalecane 1200x630.",
+        chain:
+          "Kolejność: własny obrazek → okładka → wygenerowana karta → domyślny obrazek serwisu.",
+        cardShadowed:
+          "Wygenerowana karta czeka w rezerwie - okładka ma pierwszeństwo. Możesz użyć karty jako własnego obrazka.",
+        useCard: "Użyj karty jako obrazka udostępniania",
       },
     },
     seoSettings: {
@@ -981,6 +1019,11 @@ export const pl = {
       searchPlaceholder: "Szukaj po tytule lub slugu…",
       tileTotal: "Treści",
       tileMissingDesc: "Brak opisu",
+      tileDuplicateDesc: "Powielony opis",
+      duplicateBadge_one: "opis jak w {{count}} innej treści",
+      duplicateBadge_few: "opis jak w {{count}} innych treściach",
+      duplicateBadge_many: "opis jak w {{count}} innych treściach",
+      duplicateBadge_other: "opis jak w {{count}} innych treściach",
       tileDefaultImage: "Domyślny obrazek OG",
       tileNoindex: "Noindex",
       tileOverrides: "Z nadpisaniami SEO",
@@ -994,7 +1037,7 @@ export const pl = {
       colImage: "Obrazek OG",
       colScore: "Kompletność",
       scoreHint:
-        "Kompletność: opisy PL i EN po 25 pkt, obrazek OG inny niż domyślny 20 pkt, tytuł SEO 15 pkt, indeksowalność 15 pkt.",
+        "Kompletność: opisy PL i EN po 25 pkt, obrazek OG inny niż domyślny 20 pkt, tytuły PL i EN mieszczące się w wyniku Google 15 pkt, indeksowalność 15 pkt. „Powielony opis” = ten sam opis lub zajawka co w innej treści.",
     },
     settingsNav: {
       title: "Ustawienia",
@@ -1082,6 +1125,8 @@ export const pl = {
       trashedOne: "Przeniesiono do kosza",
       restoredOne: "Przywrócono",
       purgedOne: "Usunięto trwale",
+      testNoindexForced:
+        "Strony testowe (slug test-… / e2e-…): {{count}} - opublikowane z noindex, poza mapą strony i indeksem.",
     },
     published: "opublikowanych",
     drafts: "szkiców",

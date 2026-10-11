@@ -6,7 +6,10 @@
 // Pure and framework-free, shared by the SERP preview and unit tests.
 
 /** Approximate advance widths (px) for Arial at 20px (SERP title size). */
-const TITLE_FONT_PX = 20;
+export const SERP_TITLE_FONT_PX = 20;
+const TITLE_FONT_PX = SERP_TITLE_FONT_PX;
+/** Description snippet font size (Arial 14px). */
+export const SERP_DESCRIPTION_FONT_PX = 14;
 /** Google cuts desktop titles at ~600px and descriptions at ~960px. */
 export const SERP_TITLE_LIMIT_PX = 600;
 export const SERP_DESCRIPTION_LIMIT_PX = 960;
@@ -85,7 +88,7 @@ export function serpTitleMetric(text: string): SerpMetric {
 
 /** Metrics for a SERP description candidate (14px font). */
 export function serpDescriptionMetric(text: string): SerpMetric {
-  const px = estimateTextWidthPx(text.trim(), 14);
+  const px = estimateTextWidthPx(text.trim(), SERP_DESCRIPTION_FONT_PX);
   return {
     px,
     limitPx: SERP_DESCRIPTION_LIMIT_PX,

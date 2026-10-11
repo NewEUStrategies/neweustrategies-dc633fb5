@@ -516,8 +516,9 @@ describe("/admin/seo/content - przegląd treści", () => {
     expect(document.querySelector("[data-seo-coverage]")?.getAttribute("data-seo-coverage")).toBe(
       "truncated",
     );
-    // Każdy z pięciu kafelków niesie dopisek - wszystkie liczą się z tej samej listy.
-    expect(document.querySelectorAll("[data-seo-partial]")).toHaveLength(5);
+    // Każdy z sześciu kafelków (od 2026-10-11 także „Powielony opis") niesie
+    // dopisek - wszystkie liczą się z tej samej listy.
+    expect(document.querySelectorAll("[data-seo-partial]")).toHaveLength(6);
   });
 
   it("lista KOMPLETNA (liczność == pobrane) nie dostaje żadnej flagi", async () => {
@@ -672,6 +673,29 @@ describe("/admin/seo/content - przegląd treści", () => {
     fireEvent.click(screen.getByText(tileKey));
     await waitFor(() => expect(screen.getAllByTestId("score-pill")).toHaveLength(1));
     expect(screen.getByText("/x")).toBeTruthy();
+  });
+
+  it("kafelek „Powielony opis” zawęża listę do treści z tą samą zajawką", async () => {
+    // Zajawka skopiowana z innego artykułu (audyt 2026-10) - dwa wiersze z tym
+    // samym opisem dostają plakietkę i wypełniają filtr; trzeci zostaje poza nim.
+    const copied = "Analiza wpływu sankcji na eksport technologii podwójnego zastosowania.";
+    h.posts = [
+      contentRow({ id: "a", slug: "a", excerpt_pl: copied, excerpt_en: null }),
+      contentRow({ id: "b", slug: "b", excerpt_pl: copied, excerpt_en: null }),
+      contentRow({
+        id: "c",
+        slug: "c",
+        excerpt_pl: "Inna, własna zajawka tego wpisu o energetyce.",
+        excerpt_en: null,
+      }),
+    ];
+    h.pages = [];
+    await mount();
+    await waitFor(() => expect(screen.getAllByTestId("score-pill")).toHaveLength(3));
+    expect(screen.getAllByText("admin.seoOverview.duplicateBadge(count=1)")).toHaveLength(2);
+    fireEvent.click(screen.getByText("admin.seoOverview.tileDuplicateDesc"));
+    await waitFor(() => expect(screen.getAllByTestId("score-pill")).toHaveLength(2));
+    expect(screen.queryByText("/c")).toBeNull();
   });
 
   it("wiersz `noindex` dostaje plakietkę, a zwykły kreskę", async () => {

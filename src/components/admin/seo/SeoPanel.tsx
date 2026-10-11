@@ -43,6 +43,7 @@ import { generateAndUploadOgCard } from "@/lib/seo/ogCardCanvas";
 import { UrlInspectionWidget } from "@/components/admin/seo/UrlInspectionWidget";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTenantPublicOrigin } from "@/lib/seo/useTenantPublicOrigin";
+import { SEO_DESCRIPTION_MAX_CHARS, SEO_TITLE_MAX_CHARS } from "@/lib/seo/limits";
 import { displayHost } from "@/lib/seo/socialNetworks";
 
 export interface SeoPanelValue {
@@ -61,7 +62,12 @@ interface SeoPanelProps {
   onChange: (patch: Partial<SeoPanelValue>) => void;
   entity: { kind: "post" | "page"; id: string };
   slug: string;
-  /** Post: parent page id (URL = parent path + slug). Page: its own id. */
+  /**
+   * Strona nadrzędna (post: strona bloga, strona: rodzic w drzewie) - adres w
+   * podglądzie = jej ścieżka + BIEŻĄCY slug z formularza. Dla strony szło tu
+   * kiedyś jej własne id, a RPC oddawało ZAPISANĄ ścieżkę: po zmianie sluga
+   * podgląd SERP, linki i inspekcja URL pokazywały stary adres.
+   */
   pathSourcePageId: string | null;
   /** Derived titles per language (the content titles). */
   fallbackTitle: { pl: string; en: string };
@@ -78,8 +84,32 @@ interface SeoPanelProps {
   onIssuesChange?: (issues: SeoIssue[]) => void;
 }
 
-const TITLE_MAX = 160;
-const DESCRIPTION_MAX = 320;
+const TITLE_MAX = SEO_TITLE_MAX_CHARS;
+const DESCRIPTION_MAX = SEO_DESCRIPTION_MAX_CHARS;
+
+/** Canonical: pełny adres http(s) albo nic - tak samo jak `seoCanonicalOverride`. */
+function isValidCanonical(raw: string): boolean {
+  if (!/^https?:\/\//i.test(raw)) return false;
+  try {
+    return Boolean(new URL(raw).host);
+  } catch {
+    return false;
+  }
+}
+
+type LangStatus = "ok" | "warning" | "error";
+
+function langStatus(issues: readonly SeoIssue[], lang: "pl" | "en"): LangStatus {
+  const own = issues.filter((i) => i.lang === lang);
+  if (own.some((i) => i.severity === "error")) return "error";
+  return own.length > 0 ? "warning" : "ok";
+}
+
+const LANG_STATUS_DOT: Record<LangStatus, string> = {
+  ok: "bg-emerald-500",
+  warning: "bg-amber-500",
+  error: "bg-destructive",
+};
 // Both post and page layouts render the primary title as <h1> outside the
 // block editor: body H1s are duplicates (not "missing"), and the hierarchy
 // check starts from that layout H1.
@@ -106,6 +136,23 @@ export function SeoPanel(props: SeoPanelProps) {
   const [tab, setTab] = useState<"pl" | "en">(i18n.language === "en" ? "en" : "pl");
   const [generating, setGenerating] = useState(false);
   const noindexId = useId();
+  const canonicalId = useId();
+  const langStatusId = useId();
+  // Canonical: pole trzyma SUROWY wpis, do formularza idzie wyłącznie pełny
+  // adres albo `null`. Wcześniej każdy znak leciał do formularza, a serwer
+  // wymaga `z.string().url()` - niedokończony adres wywracał autozapis CAŁEGO
+  // formularza, bez słowa przy polu.
+  const savedCanonical = value.seo_canonical_url ?? "";
+  const [canonicalDraft, setCanonicalDraft] = useState(savedCanonical);
+  useEffect(() => {
+    // Zmiana z zewnątrz (przełączenie wpisu, cofnięcie) - pole idzie za nią.
+    setCanonicalDraft((draft) => (draft.trim() === savedCanonical ? draft : savedCanonical));
+  }, [savedCanonical]);
+  const canonicalTrimmed = canonicalDraft.trim();
+  const canonicalInvalid = canonicalTrimmed !== "" && !isValidCanonical(canonicalTrimmed);
+  const [advancedOpen, setAdvancedOpen] = useState(
+    () => Boolean(value.seo_canonical_url) || value.seo_noindex,
+  );
   // Host in the SERP preview = the host this tenant's links resolve to (same
   // rule as /admin/seo/homepage and the machine surfaces). Without it a tenant
   // on its own domain saw the brand host above its own post. A tenant with no
@@ -216,7 +263,12 @@ export function SeoPanel(props: SeoPanelProps) {
       return typeof data === "string" ? data : null;
     },
   });
-  const previewPath = entity.kind === "post" ? `${basePath ?? "…"}/${slug}` : (basePath ?? slug);
+  const previewPath =
+    entity.kind === "post"
+      ? `${basePath ?? "…"}/${slug}`
+      : basePath && pathSourcePageId
+        ? `${basePath}/${slug}`
+        : slug;
 
   const seoRow: SeoFieldsRow = value;
   const socialImage = resolveSocialImage(seoRow, props.coverImageUrl);
@@ -227,6 +279,12 @@ export function SeoPanel(props: SeoPanelProps) {
       : value.og_image_generated_url
         ? t("admin.seo.og.sourceCard")
         : t("admin.seo.og.sourceDefault");
+  // Karta wygenerowana, ale przykryta okładką: „Generuj" dawało toast sukcesu,
+  // a podgląd i og:image się nie zmieniały - bez słowa wyjaśnienia.
+  const cardShadowed =
+    Boolean(value.og_image_generated_url) &&
+    !value.seo_og_image_url &&
+    Boolean(props.coverImageUrl);
 
   const generateCard = async () => {
     const title =
@@ -275,6 +333,9 @@ export function SeoPanel(props: SeoPanelProps) {
       fallbackDescription;
     return (
       <div className="space-y-4">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t("admin.seo.sectionGoogle")}
+        </h4>
         <SerpPreview
           title={documentTitle}
           description={resolvedDescription}
@@ -287,6 +348,11 @@ export function SeoPanel(props: SeoPanelProps) {
         <LivePreviewLinks path={lang === "en" ? `en/${previewPath}` : previewPath} />
         <SeoTextField
           label={t("admin.seo.titleLabel")}
+          hint={
+            titleSuffix
+              ? t("admin.seo.titleHint", { suffix: titleSuffix.trim() })
+              : t("admin.seo.titleHintNoSuffix")
+          }
           kind="title"
           value={lang === "en" ? value.seo_title_en : value.seo_title_pl}
           fallback={fallbackTitle}
@@ -296,6 +362,7 @@ export function SeoPanel(props: SeoPanelProps) {
         />
         <SeoTextField
           label={t("admin.seo.descriptionLabel")}
+          hint={t("admin.seo.descriptionHint")}
           kind="description"
           value={lang === "en" ? value.seo_description_en : value.seo_description_pl}
           fallback={fallbackDescription}
@@ -306,14 +373,26 @@ export function SeoPanel(props: SeoPanelProps) {
     );
   };
 
+  // Kropka stanu przy zakładce języka. Tekst dla czytników idzie jako OPIS
+  // (`aria-describedby`), nie treść - nazwa zakładki zostaje „PL"/„EN".
+  const langTab = (lang: "pl" | "en") => {
+    const status = langStatus(issues, lang);
+    return (
+      <TabsTrigger value={lang} className="gap-1.5" aria-describedby={`${langStatusId}-${lang}`}>
+        {lang.toUpperCase()}
+        <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${LANG_STATUS_DOT[status]}`} />
+      </TabsTrigger>
+    );
+  };
+
   return (
     <div className="rounded-lg border border-border p-4 space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="space-y-1">
         <h3 className="text-sm font-semibold inline-flex items-center gap-2">
           <Search className="w-4 h-4" />
           {t("admin.seo.panelTitle")}
         </h3>
-        <span className="text-[10px] text-muted-foreground">{t("admin.seo.panelHint")}</span>
+        <p className="text-xs text-muted-foreground">{t("admin.seo.intro")}</p>
       </div>
 
       <SeoValidationSummary
@@ -322,10 +401,15 @@ export function SeoPanel(props: SeoPanelProps) {
         uncheckedHeadingLangs={uncheckedHeadingLangs}
       />
 
+      {(["pl", "en"] as const).map((lang) => (
+        <span key={lang} id={`${langStatusId}-${lang}`} hidden>
+          {t(`admin.seo.langStatus.${langStatus(issues, lang)}`)}
+        </span>
+      ))}
       <Tabs value={tab} onValueChange={(v) => setTab(v === "en" ? "en" : "pl")}>
-        <TabsList className="grid w-full max-w-[200px] grid-cols-2">
-          <TabsTrigger value="pl">PL</TabsTrigger>
-          <TabsTrigger value="en">EN</TabsTrigger>
+        <TabsList className="grid w-full max-w-[220px] grid-cols-2">
+          {langTab("pl")}
+          {langTab("en")}
         </TabsList>
         <TabsContent value="pl" className="mt-4">
           {langSection("pl")}
@@ -335,42 +419,12 @@ export function SeoPanel(props: SeoPanelProps) {
         </TabsContent>
       </Tabs>
 
-      <div className="grid md:grid-cols-2 gap-4 pt-2 border-t border-border">
-        <div>
-          <Label>{t("admin.seo.canonicalLabel")}</Label>
-          <Input
-            value={value.seo_canonical_url ?? ""}
-            placeholder="https://…"
-            onChange={(e) => onChange({ seo_canonical_url: e.target.value.trim() || null })}
-          />
-          <p className="text-[10px] text-muted-foreground mt-1">{t("admin.seo.canonicalHint")}</p>
-        </div>
-        <div className="flex items-start justify-between gap-3 rounded-md border border-border p-3">
-          <div>
-            {/* Nazwa przełącznika = widoczna etykieta (`aria-labelledby`),
-                opis = podpowiedź; `htmlFor` dodatkowo czyni etykietę klikalną. */}
-            <Label id={`${noindexId}-label`} htmlFor={noindexId}>
-              {t("admin.seo.noindexLabel")}
-            </Label>
-            <p id={`${noindexId}-hint`} className="text-[10px] text-muted-foreground mt-1">
-              {t("admin.seo.noindexHint")}
-            </p>
-          </div>
-          <Switch
-            id={noindexId}
-            aria-labelledby={`${noindexId}-label`}
-            aria-describedby={`${noindexId}-hint`}
-            checked={value.seo_noindex}
-            onCheckedChange={(checked) => onChange({ seo_noindex: checked })}
-          />
-        </div>
-      </div>
-
       <div className="pt-2 border-t border-border space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h4 className="text-sm font-semibold">{t("admin.seo.og.title")}</h4>
           <span className="text-[10px] text-muted-foreground">{socialImageSource}</span>
         </div>
+        <p className="text-[11px] text-muted-foreground">{t("admin.seo.og.chain")}</p>
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <div className="aspect-[1200/630] rounded-md border border-border bg-muted/40 overflow-hidden grid place-items-center">
@@ -396,6 +450,21 @@ export function SeoPanel(props: SeoPanelProps) {
               )}
               {t("admin.seo.og.generate")}
             </Button>
+            {cardShadowed && (
+              <div className="space-y-1.5 rounded-md border border-border bg-muted/30 p-2">
+                <p className="text-[11px] text-muted-foreground">
+                  {t("admin.seo.og.cardShadowed")}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onChange({ seo_og_image_url: value.og_image_generated_url })}
+                >
+                  {t("admin.seo.og.useCard")}
+                </Button>
+              </div>
+            )}
           </div>
           <ImageSlot
             label={t("admin.seo.og.overrideLabel")}
@@ -406,6 +475,69 @@ export function SeoPanel(props: SeoPanelProps) {
           />
         </div>
       </div>
+
+      <details
+        className="group rounded-md border border-border"
+        open={advancedOpen}
+        onToggle={(e) => setAdvancedOpen(e.currentTarget.open)}
+      >
+        <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold">
+          {t("admin.seo.advanced")}
+        </summary>
+        <div className="grid md:grid-cols-2 gap-4 border-t border-border p-3">
+          <div>
+            <Label htmlFor={canonicalId}>{t("admin.seo.canonicalLabel")}</Label>
+            <Input
+              id={canonicalId}
+              value={canonicalDraft}
+              placeholder="https://…"
+              inputMode="url"
+              aria-invalid={canonicalInvalid || undefined}
+              aria-describedby={`${canonicalId}-hint`}
+              className={
+                canonicalInvalid
+                  ? "border-destructive/70 focus-visible:ring-destructive/40"
+                  : undefined
+              }
+              onChange={(e) => {
+                const next = e.target.value;
+                setCanonicalDraft(next);
+                const trimmed = next.trim();
+                if (!trimmed) onChange({ seo_canonical_url: null });
+                else if (isValidCanonical(trimmed)) onChange({ seo_canonical_url: trimmed });
+              }}
+            />
+            <p id={`${canonicalId}-hint`} className="text-[10px] text-muted-foreground mt-1">
+              {canonicalInvalid ? (
+                <span role="alert" className="text-destructive">
+                  {t("admin.seo.canonicalInvalid")}
+                </span>
+              ) : (
+                t("admin.seo.canonicalHint")
+              )}
+            </p>
+          </div>
+          <div className="flex items-start justify-between gap-3 rounded-md border border-border p-3">
+            <div>
+              {/* Nazwa przełącznika = widoczna etykieta (`aria-labelledby`),
+                  opis = podpowiedź; `htmlFor` dodatkowo czyni etykietę klikalną. */}
+              <Label id={`${noindexId}-label`} htmlFor={noindexId}>
+                {t("admin.seo.noindexLabel")}
+              </Label>
+              <p id={`${noindexId}-hint`} className="text-[10px] text-muted-foreground mt-1">
+                {t("admin.seo.noindexHint")}
+              </p>
+            </div>
+            <Switch
+              id={noindexId}
+              aria-labelledby={`${noindexId}-label`}
+              aria-describedby={`${noindexId}-hint`}
+              checked={value.seo_noindex}
+              onCheckedChange={(checked) => onChange({ seo_noindex: checked })}
+            />
+          </div>
+        </div>
+      </details>
 
       <div className="pt-2 border-t border-border">
         <UrlInspectionWidget path={previewPath} lang={tab} />

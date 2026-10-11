@@ -36,7 +36,15 @@ import {
   emitWidgetCacheInvalidate,
 } from "@/lib/builder/widgetCacheInvalidation";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
-import { type SeoIssue } from "@/lib/seo/validation";
+import { validateSeoPanel, type SeoIssue } from "@/lib/seo/validation";
+import { SEO_DESCRIPTION_MAX_CHARS, SEO_TITLE_MAX_CHARS } from "@/lib/seo/limits";
+import {
+  DEFAULT_SEO_SETTINGS,
+  effectiveTitleSuffix,
+  SEO_SETTINGS_KEY,
+  SeoSettingsSchema,
+} from "@/lib/seo/settings";
+import { useSiteSetting } from "@/lib/useSiteSetting";
 import {
   buildPostPatch,
   isScheduledInPast,
@@ -100,7 +108,58 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   const [taxonomyLoadedFor, setTaxonomyLoadedFor] =
     useState<Record<TaxonomyKey, string | null>>(NO_TAXONOMY_LOADED);
   const [busy, setBusy] = useState(false);
-  const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
+  // Uwagi SEO liczone TU, z formularza - nie w panelu SEO. Panel montuje się
+  // tylko w zakładce SEO, więc dotąd przy innej zakładce przegląd pokazywał
+  // „SEO OK" bez żadnej walidacji, bramka „Zapisz" przepuszczała treść, a po
+  // wyjściu z zakładki uwagi zamarzały, choć tytuł i zajawka dalej się zmieniały.
+  const seoSettings = useSiteSetting(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS, SeoSettingsSchema);
+  const titleSuffix = effectiveTitleSuffix(seoSettings);
+  const hasForm = form !== null;
+  const seoTitlePl = form?.seo_title_pl ?? null;
+  const seoTitleEn = form?.seo_title_en ?? null;
+  const seoDescPl = form?.seo_description_pl ?? null;
+  const seoDescEn = form?.seo_description_en ?? null;
+  const titlePl = form?.title_pl ?? "";
+  const titleEn = form?.title_en ?? "";
+  const excerptPl = form?.excerpt_pl ?? null;
+  const excerptEn = form?.excerpt_en ?? null;
+  const formSlug = form?.slug ?? "";
+  const seoIssues = useMemo<SeoIssue[]>(
+    () =>
+      hasForm
+        ? validateSeoPanel({
+            value: {
+              seo_title_pl: seoTitlePl,
+              seo_title_en: seoTitleEn,
+              seo_description_pl: seoDescPl,
+              seo_description_en: seoDescEn,
+              seo_canonical_url: null,
+              seo_noindex: false,
+              seo_og_image_url: null,
+              og_image_generated_url: null,
+            },
+            fallbackTitle: { pl: titlePl, en: titleEn },
+            fallbackDescription: { pl: excerptPl, en: excerptEn },
+            slug: formSlug,
+            titleCharLimit: SEO_TITLE_MAX_CHARS,
+            descriptionCharLimit: SEO_DESCRIPTION_MAX_CHARS,
+            titleSuffix,
+          })
+        : [],
+    [
+      hasForm,
+      seoTitlePl,
+      seoTitleEn,
+      seoDescPl,
+      seoDescEn,
+      titlePl,
+      titleEn,
+      excerptPl,
+      excerptEn,
+      formSlug,
+      titleSuffix,
+    ],
+  );
   // Baza optimistic-locka: updated_at ostatnio załadowanego/zapisanego wiersza.
   // Aktualizowana z odpowiedzi serwera po każdym zapisie, by kolejny zapis nie
   // zgłaszał fałszywego konfliktu.
@@ -474,7 +533,6 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
     canPublish,
     busy,
     seoIssues,
-    setSeoIssues,
     selectedCats,
     setSelectedCats,
     selectedTags,

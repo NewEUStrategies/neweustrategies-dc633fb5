@@ -36,6 +36,7 @@ import {
 import { Check, File, Newspaper, X } from "@/lib/lucide-shim";
 import { ensureI18n } from "@/lib/i18n-admin-seo-hub";
 import {
+  findDuplicateDescriptions,
   seoContentStatus,
   summarizeSeoStatuses,
   type SeoContentStatus,
@@ -58,7 +59,13 @@ interface OverviewRow {
 }
 
 type KindFilter = "all" | "post" | "page";
-type SeoFilter = "all" | "missing_description" | "default_image" | "noindex" | "overrides";
+type SeoFilter =
+  | "all"
+  | "missing_description"
+  | "duplicate_description"
+  | "default_image"
+  | "noindex"
+  | "overrides";
 
 function DescriptionMark({ source }: { source: SeoContentStatus["description"]["pl"] }) {
   if (source === "missing") return <X className="w-3.5 h-3.5 text-destructive inline" />;
@@ -113,6 +120,21 @@ function SeoContentOverview() {
     return [...(pages?.rows ?? []).map(assess("page")), ...(posts?.rows ?? []).map(assess("post"))];
   }, [posts, pages]);
 
+  // Ten sam opis w kilku treściach (np. zajawka skopiowana z innego artykułu).
+  const duplicates = useMemo(
+    () =>
+      findDuplicateDescriptions(
+        rows.map(({ kind, row }) => ({
+          key: `${kind}-${row.id}`,
+          excerpt_pl: row.excerpt_pl,
+          excerpt_en: row.excerpt_en,
+          seo_description_pl: row.seo_description_pl,
+          seo_description_en: row.seo_description_en,
+        })),
+      ),
+    [rows],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter(({ kind, row, status }) => {
@@ -120,6 +142,8 @@ function SeoContentOverview() {
       if (seoFilter === "missing_description") {
         if (status.description.pl !== "missing" && status.description.en !== "missing")
           return false;
+      } else if (seoFilter === "duplicate_description") {
+        if (!duplicates.has(`${kind}-${row.id}`)) return false;
       } else if (seoFilter === "default_image") {
         if (status.socialImage !== "default") return false;
       } else if (seoFilter === "noindex") {
@@ -141,7 +165,7 @@ function SeoContentOverview() {
         row.slug.toLowerCase().includes(q)
       );
     });
-  }, [rows, search, kindFilter, seoFilter]);
+  }, [rows, search, kindFilter, seoFilter, duplicates]);
 
   const summary = useMemo(() => summarizeSeoStatuses(rows.map((r) => r.status)), [rows]);
 
@@ -158,6 +182,13 @@ function SeoContentOverview() {
       value: summary.missingDescription,
       tone: summary.missingDescription ? "text-destructive" : "text-emerald-500",
       filter: "missing_description" as const,
+    },
+    {
+      key: "duplicate",
+      label: t("admin.seoOverview.tileDuplicateDesc"),
+      value: duplicates.size,
+      tone: duplicates.size ? "text-destructive" : "text-emerald-500",
+      filter: "duplicate_description" as const,
     },
     {
       key: "image",
@@ -275,6 +306,13 @@ function SeoContentOverview() {
                     {row.title_pl || row.title_en || row.slug}
                   </Link>
                   <span className="text-[10px] text-muted-foreground font-mono">/{row.slug}</span>
+                  {duplicates.has(`${kind}-${row.id}`) && (
+                    <span className="ml-2 text-[10px] font-medium text-destructive border border-destructive/40 rounded-full px-2 py-0.5">
+                      {t("admin.seoOverview.duplicateBadge", {
+                        count: duplicates.get(`${kind}-${row.id}`)?.length ?? 1,
+                      })}
+                    </span>
+                  )}
                 </td>
                 <td className="p-2 text-muted-foreground">
                   <span className="inline-flex items-center gap-1">

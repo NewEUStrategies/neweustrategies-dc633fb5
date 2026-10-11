@@ -78,29 +78,54 @@ export function usePostEditorData(routeSlug: string) {
       ).data ?? [],
   });
 
+  // Relacje wpisu: błąd odczytu RZUCA zamiast oddawać `[]`. Pusta lista
+  // wyglądała jak „wczytane, brak przypisań" - formularz wysyłał ją przy
+  // zapisie, a `updatePost` kasował wtedy wszystkie kategorie/tagi wpisu.
+  // Rzucone zapytanie zostawia `data` puste, więc relacja nie jest wysyłana.
   const { data: postCats } = useQuery({
     queryKey: ["post-cats", id],
     enabled: !!id,
-    queryFn: async () =>
-      (await supabase.from("post_categories").select("category_id").eq("post_id", id)).data ?? [],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("post_categories")
+        .select("category_id")
+        .eq("post_id", id);
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: postTags } = useQuery({
     queryKey: ["post-tags", id],
     enabled: !!id,
-    queryFn: async () =>
-      (await supabase.from("post_tags").select("tag_id").eq("post_id", id)).data ?? [],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("post_tags").select("tag_id").eq("post_id", id);
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: postPrograms } = useQuery({
     queryKey: ["post-programs", id],
     enabled: !!id,
-    queryFn: async () =>
-      (await supabase.from("post_programs").select("program_id").eq("post_id", id)).data ?? [],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("post_programs")
+        .select("program_id")
+        .eq("post_id", id);
+      if (error) throw error;
+      return data ?? [];
+    },
   });
   const { data: postRegions } = useQuery({
     queryKey: ["post-regions", id],
     enabled: !!id,
-    queryFn: async () =>
-      (await supabase.from("post_regions").select("region_id").eq("post_id", id)).data ?? [],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("post_regions")
+        .select("region_id")
+        .eq("post_id", id);
+      if (error) throw error;
+      return data ?? [];
+    },
   });
 
   return {

@@ -3,6 +3,7 @@
 // and a 0-100 score, so the overview table, the summary tiles and the filters
 // all agree. Framework-free and unit-tested.
 import type { SeoFieldsRow } from "@/lib/seo/fields";
+import { serpTitleMetric } from "@/lib/seo/serp";
 
 export interface SeoStatusInput extends SeoFieldsRow {
   title_pl: string;
@@ -22,7 +23,12 @@ export interface SeoContentStatus {
   socialImage: SocialImageSource;
   noindex: boolean;
   canonicalOverride: boolean;
-  /** 0-100 completeness (descriptions 2x25, image 20, title override 15, indexable 15). */
+  /**
+   * Tytuły PL i EN, które naprawdę trafią do Google (nadpisanie albo tytuł
+   * treści), mieszczą się w budżecie ~600 px.
+   */
+  titleFits: boolean;
+  /** 0-100 completeness (descriptions 2x25, image 20, titles fit 15, indexable 15). */
   score: number;
   grade: SeoGrade;
 }
@@ -68,12 +74,28 @@ export function seoContentStatus(row: SeoStatusInput): SeoContentStatus {
         : "default";
   const titleOverride = { pl: has(row.seo_title_pl), en: has(row.seo_title_en) };
   const noindex = !!row.seo_noindex;
+  // Punkty za TYTUŁ, który Google pokaże w całości - nie za samo nadpisanie.
+  // Dawne „+15 za dowolny tytuł SEO" pchało redakcję do nadpisywania, a
+  // nadpisanie po cichu zdejmuje sufiks marki (`applyTitleSuffix`).
+  const servedTitle = (lang: "pl" | "en"): string => {
+    const other = lang === "pl" ? "en" : "pl";
+    return (
+      row[`seo_title_${lang}`]?.trim() ||
+      row[`title_${lang}`]?.trim() ||
+      row[`title_${other}`]?.trim() ||
+      ""
+    );
+  };
+  const titleFits = (["pl", "en"] as const).every((lang) => {
+    const title = servedTitle(lang);
+    return title !== "" && serpTitleMetric(title).grade !== "long";
+  });
 
   let score = 0;
   if (description.pl !== "missing") score += 25;
   if (description.en !== "missing") score += 25;
   if (socialImage !== "default") score += 20;
-  if (titleOverride.pl || titleOverride.en) score += 15;
+  if (titleFits) score += 15;
   if (!noindex) score += 15;
 
   return {
@@ -82,6 +104,7 @@ export function seoContentStatus(row: SeoStatusInput): SeoContentStatus {
     socialImage,
     noindex,
     canonicalOverride: has(row.seo_canonical_url),
+    titleFits,
     score,
     grade: seoGrade(score),
   };
@@ -120,4 +143,69 @@ export function summarizeSeoStatuses(statuses: readonly SeoContentStatus[]): Seo
     }
   }
   return summary;
+}
+
+// ---------------------------------------------------------------------------
+// Powielone opisy
+// ---------------------------------------------------------------------------
+
+/** Wiersz do wykrywania duplikatów - klucz jednoznaczny w obrębie raportu. */
+export interface DescriptionDuplicateInput {
+  key: string;
+  excerpt_pl: string | null;
+  excerpt_en: string | null;
+  seo_description_pl: string | null;
+  seo_description_en: string | null;
+}
+
+/** Krótsze opisy („Czytaj więcej", „Wkrótce") nie świadczą o skopiowaniu. */
+const DUPLICATE_MIN_CHARS = 40;
+
+function normalizeDescription(raw: string | null | undefined): string | null {
+  const clean = (raw ?? "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+  return clean.length >= DUPLICATE_MIN_CHARS ? clean : null;
+}
+
+/**
+ * Treści, których opis (nadpisanie SEO, a bez niego zajawka - w TYM SAMYM
+ * języku) jest identyczny z opisem innej treści. Wynik: klucz wiersza -> klucze
+ * pozostałych wierszy z tym samym opisem.
+ *
+ * Po co: zajawka skopiowana z innego artykułu (import WordPressa dopasowany po
+ * slugu, duplikat wpisu, autozapis z poprzednio otwartego wpisu) daje w Google
+ * dwa identyczne snippety - i nic w panelu tego nie pokazywało.
+ */
+export function findDuplicateDescriptions(
+  rows: readonly DescriptionDuplicateInput[],
+): Map<string, string[]> {
+  const byText = new Map<string, Set<string>>();
+  for (const row of rows) {
+    for (const lang of ["pl", "en"] as const) {
+      const text = normalizeDescription(
+        row[`seo_description_${lang}`]?.trim()
+          ? row[`seo_description_${lang}`]
+          : row[`excerpt_${lang}`],
+      );
+      if (!text) continue;
+      const bucket = `${lang}\u0000${text}`;
+      const keys = byText.get(bucket) ?? new Set<string>();
+      keys.add(row.key);
+      byText.set(bucket, keys);
+    }
+  }
+  const out = new Map<string, string[]>();
+  for (const keys of byText.values()) {
+    if (keys.size < 2) continue;
+    for (const key of keys) {
+      const others = new Set(out.get(key) ?? []);
+      for (const other of keys) if (other !== key) others.add(other);
+      out.set(key, [...others]);
+    }
+  }
+  return out;
 }

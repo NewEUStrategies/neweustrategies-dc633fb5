@@ -547,8 +547,21 @@ describe("SeoTextField - kształt kontrolki i kontrakt onChange", () => {
 
   it("etykieta jest powiązana z polem i niesie licznik", () => {
     mount({ label: "Tytuł SEO", value: "Tytuł" });
-    // Nazwa dostępna pola = etykieta + licznik, więc czytnik ogłasza limit.
-    expect(screen.getByLabelText(`Tytuł SEO5/${TITLE_MAX}`)).toBe(field());
+    // Nazwa dostępna pola = etykieta + źródło wartości + licznik, więc czytnik
+    // ogłasza i limit, i to, czy do Google idzie własny wpis.
+    expect(screen.getByLabelText(`Tytuł SEOadmin.seo.sourceCustom5/${TITLE_MAX}`)).toBe(field());
+  });
+
+  it("puste pole jest oznaczone jako AUTOMATYCZNE, wypełnione jako WŁASNE", () => {
+    mount({ label: "Tytuł SEO", value: null });
+    expect(screen.getByText("admin.seo.sourceAuto")).toBeTruthy();
+    expect(screen.queryByText("admin.seo.sourceCustom")).toBeNull();
+  });
+
+  it("same odstępy oddają null - to brak nadpisania, nie pusty tytuł", () => {
+    const { onChange } = mount({ value: "Stary tytuł" });
+    fireEvent.change(field(), { target: { value: "   " } });
+    expect(onChange).toHaveBeenLastCalledWith(null);
   });
 
   it("wpisanie tekstu oddaje NAPIS, a wyczyszczenie pola oddaje null", () => {

@@ -203,10 +203,39 @@ head() consumes them regardless of how the body renders. The static homepage
 `src/routes/index.tsx` head(); pages additionally feed their excerpts (the
 pages editor's "meta description" field) into the emitted description.
 
+**Editor fields (2026-10-11).** Limits live in ONE module, `lib/seo/limits.ts`
+(SEO title 160, meta description 320, excerpt 1000 characters) and are read by
+the panel counters, the validator, the overview tile and the page excerpt
+field. What Google shows is governed by the pixel budget in `serp.ts`, so:
+
+- derived descriptions (`metaDescription`) are fitted to ~960 px at a word
+  boundary with an ellipsis instead of a hard `slice(0, 160)` that produced a
+  "will be truncated" warning on almost every post;
+- validation separates the editor's own text (`source: "override"`, the hard
+  character cap blocks saving) from derived text (`source: "derived"`, only a
+  warning with a hint to type a shorter override);
+- the post editor computes issues in `usePostEditorForm` from the form itself,
+  not from the mounted SEO tab, so the overview chip and the save gate are
+  always current;
+- every SEO field says whether Google gets the editor's text or the automatic
+  one ("Własny" / "Automatyczny"), carries a one-line hint, whitespace-only
+  input is stored as `null`; canonical/noindex sit in a collapsed "Advanced"
+  section and an incomplete canonical URL is flagged inline and never sent to
+  the server (it used to break autosave of the whole form);
+- the page editor's former "Opis strony · meta description" field is the
+  excerpt ("Zajawka") - one meta-description field per language, in the panel;
+- the SERP/URL preview of a page is its parent path + the CURRENT slug.
+
 **Content overview** - `/admin/seo` lists every post and page (tenant-scoped)
 with per-language description sources, social-image source, overrides, noindex
 and a transparent 0-100 completeness score (pure rules in
-`src/lib/seo/contentStatus.ts`); the summary tiles double as filters.
+`src/lib/seo/contentStatus.ts`); the summary tiles double as filters. The title
+points go to titles that fit a Google result (PL and EN), not to the mere
+presence of an override (which silently drops the brand suffix). The
+"Duplicate description" tile (`findDuplicateDescriptions`) lists items whose
+effective description - override, otherwise the same-language excerpt - is
+identical to another item's: the signature of an excerpt copied from another
+article.
 
 ## Redirect manager
 

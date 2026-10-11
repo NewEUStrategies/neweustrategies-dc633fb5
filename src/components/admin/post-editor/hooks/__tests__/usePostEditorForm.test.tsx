@@ -33,7 +33,6 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EDIT_CONFLICT_CODE } from "@/lib/content/saveConflict";
 import { DISCLOSURE_ERROR_PREFIX } from "@/lib/content/sponsored";
-import type { SeoIssue } from "@/lib/seo/validation";
 import type { PostForm } from "../../types";
 
 const h = vi.hoisted(() => ({
@@ -120,8 +119,13 @@ vi.mock("@/lib/seo/invalidate", () => ({
 }));
 
 vi.mock("@/lib/i18n-admin-post-panes", () => ({}));
+// Ustawienia SEO (sufiks tytułu) - domyślne, bez bazy.
+vi.mock("@/lib/useSiteSetting", () => ({
+  useSiteSetting: <T,>(_key: string, defaults: T) => defaults,
+}));
 
 import { usePostEditorForm } from "../usePostEditorForm";
+import { SEO_TITLE_MAX_CHARS } from "@/lib/seo/limits";
 import type { PostEditorData } from "../usePostEditorData";
 
 const TENANT = "tenant-1";
@@ -260,17 +264,13 @@ function press(
   return event;
 }
 
-function seoIssue(severity: SeoIssue["severity"]): SeoIssue {
-  return {
-    lang: "pl",
-    kind: "title",
-    severity,
-    chars: 90,
-    charLimit: 60,
-    px: 700,
-    pxLimit: 580,
-  };
-}
+/**
+ * Pola formularza, które walidator SEO (liczony w hooku) zamienia w uwagę:
+ * błąd = własny tytuł SEO ponad twardy limit znaków, ostrzeżenie = własny opis
+ * mieszczący się w limicie znaków, ale szerszy niż budżet pikselowy Google.
+ */
+const SEO_ERROR_TITLE = "x".repeat(SEO_TITLE_MAX_CHARS + 1);
+const SEO_WIDE_DESCRIPTION = "Wwwww ".repeat(40).trim();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -577,7 +577,7 @@ describe("zapis jawny (save)", () => {
   it("REGRESJA: twarda bramka SEO nie dopuszcza zapisu i mówi o tym redaktorowi", async () => {
     const { result } = mount();
     act(() => result.current.set("title_pl", "Zmiana"));
-    act(() => result.current.setSeoIssues([seoIssue("error")]));
+    act(() => result.current.set("seo_title_pl", SEO_ERROR_TITLE));
 
     await act(async () => {
       await result.current.save();
@@ -593,7 +593,10 @@ describe("zapis jawny (save)", () => {
   it("ostrzeżenia SEO tylko ostrzegają - zapis idzie dalej", async () => {
     const { result } = mount();
     act(() => result.current.set("title_pl", "Zmiana"));
-    act(() => result.current.setSeoIssues([seoIssue("warning"), seoIssue("warning")]));
+    act(() => {
+      result.current.set("seo_description_pl", SEO_WIDE_DESCRIPTION);
+      result.current.set("seo_description_en", SEO_WIDE_DESCRIPTION);
+    });
 
     await act(async () => {
       await result.current.save();
@@ -719,7 +722,7 @@ describe("zapis ze zmianą statusu (applyStatus)", () => {
 
   it("REGRESJA: twarda bramka SEO NIE blokuje publikacji (asymetria wobec save)", async () => {
     const { result } = mount({ postCats: [{ category_id: "c-1" }] });
-    act(() => result.current.setSeoIssues([seoIssue("error")]));
+    act(() => result.current.set("seo_title_pl", SEO_ERROR_TITLE));
 
     await act(async () => {
       await result.current.applyStatus("published");

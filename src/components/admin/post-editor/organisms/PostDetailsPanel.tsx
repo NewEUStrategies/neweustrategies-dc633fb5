@@ -155,7 +155,6 @@ export function PostDetailsPanel({
                 }
                 contentHtml={{ pl: form.content_pl, en: form.content_en }}
                 contentBlocks={form.blocks_data}
-                onIssuesChange={formApi.setSeoIssues}
               />
               <InternalLinkSuggestions
                 postId={data.id === "new" ? null : data.id}
