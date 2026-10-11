@@ -9726,3 +9726,9 @@ button,
   background-color: color-mix(in oklab, #0f0f0f 60%, transparent);
   border-color: oklch(1 0 0 / 8%);
 }
+/* `:where(main p, article p, main li, article li)` z globalColors ustawia
+   wprost `color: var(--gc-body-text)`, więc dziedziczenie z nagłówka nie
+   dochodzi do okruszków - napisujemy je jawnie. */
+.light header:has([data-civic-horizon]) nav :is(li, a, svg) {
+  color: var(--archive-horizon-muted);
+}
