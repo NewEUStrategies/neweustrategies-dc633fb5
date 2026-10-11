@@ -174,6 +174,16 @@ export function resolveLocalizedBlocks(
   return { blocks: empty(), source: "none" };
 }
 
+export interface MergeLocalizedOptions {
+  /**
+   * Wywołujący POTWIERDZIŁ, że wiersz to ten sam wpis WordPressa (zgodna
+   * tożsamość `wp_id` + `wp_site` zapisana przy poprzednim imporcie). Bez tego
+   * dopasowanie jest tylko po slugu - a slug potrafi wskazać CUDZY artykuł
+   * (np. `-2` z numeracji WordPressa trafia w `-2` nadany przez nasz import).
+   */
+  sameWpPost?: boolean;
+}
+
 /**
  * Scal jednojęzyczny import z tym, co już jest w bazie. `current === null`
  * (nowy wpis) daje czysty payload z pustą drugą wersją - bez gałęzi u wywołującego.
@@ -181,6 +191,7 @@ export function resolveLocalizedBlocks(
 export function mergeLocalizedImport(
   incoming: LocalizedImport,
   current: ExistingLocalized | null | undefined,
+  options: MergeLocalizedOptions = {},
 ): MergedLocalized {
   const isPl = incoming.language === "pl";
   const counterpart = COUNTERPART_LANG[incoming.language];
@@ -196,12 +207,21 @@ export function mergeLocalizedImport(
   const excerpt = incoming.excerpt?.trim() ? incoming.excerpt : null;
   const currentPl = current?.title_pl ?? "";
   const currentEn = current?.title_en ?? "";
+  // DEFEKT PRODUKCYJNY: pusta zapowiedź z WordPressa zostawiała zapowiedź
+  // wiersza dopasowanego po slugu. Gdy slug wskazał inny artykuł, wpis dostawał
+  // nowy tytuł i treść, ale CUDZĄ zajawkę. Zapowiedź importowanego języka
+  // przeżywa pusty import wyłącznie wtedy, gdy wiersz to na pewno ten sam wpis.
+  // Druga wersja językowa zostaje nietknięta jak tytuł i bloki - import jej nie
+  // przywiózł, więc nie miesza w niej treści dwóch artykułów.
+  const keepImportedExcerpt = options.sameWpPost === true;
+  const fallbackPl = keepImportedExcerpt ? (current?.excerpt_pl ?? null) : null;
+  const fallbackEn = keepImportedExcerpt ? (current?.excerpt_en ?? null) : null;
 
   return {
     title_pl: isPl ? title || currentPl : currentPl,
     title_en: isPl ? currentEn : title || currentEn,
-    excerpt_pl: isPl ? (excerpt ?? current?.excerpt_pl ?? null) : (current?.excerpt_pl ?? null),
-    excerpt_en: isPl ? (current?.excerpt_en ?? null) : (excerpt ?? current?.excerpt_en ?? null),
+    excerpt_pl: isPl ? (excerpt ?? fallbackPl) : (current?.excerpt_pl ?? null),
+    excerpt_en: isPl ? (current?.excerpt_en ?? null) : (excerpt ?? fallbackEn),
     blocks: isPl ? { pl: incoming.doc, en: keptDoc } : { pl: keptDoc, en: incoming.doc },
     counterpart,
     counterpartPreserved: keptTitle.trim() !== "" || keptExcerpt !== null || hasBlocks(keptDoc),

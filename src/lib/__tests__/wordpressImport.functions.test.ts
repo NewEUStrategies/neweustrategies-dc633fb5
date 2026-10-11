@@ -120,8 +120,18 @@ const JOB_INPUT = {
   import_media: false,
 };
 
+/** Odczyt istniejącego wpisu po tożsamości WP (`contains` na `custom_meta`). */
+const isIdentityLookup = (chain: RecordedChain): boolean => chain.has("contains");
+/** Sonda kolizji `ensureUniqueSlug` - lista z `limit`, bez filtra tożsamości. */
+const isSlugProbe = (chain: RecordedChain): boolean => chain.has("limit") && !chain.has("contains");
+
 /** Domyślne odpowiedzi tabel dla szczęśliwej ścieżki `runWpImportJob`. */
-function planHappyPath(opts: { existingPost?: Record<string, unknown> | null } = {}): void {
+function planHappyPath(
+  opts: {
+    existingPost?: Record<string, unknown> | null;
+    identityMatch?: Record<string, unknown> | null;
+  } = {},
+): void {
   db.setResponse("wp_import_jobs", (chain) => {
     if (chain.has("update")) return ok(null);
     const fields = String(chain.argsOf("select")?.[0] ?? "");
@@ -134,8 +144,10 @@ function planHappyPath(opts: { existingPost?: Record<string, unknown> | null } =
   db.setResponse("posts", (chain) => {
     if (chain.has("insert")) return ok({ id: "post-new", slug: "moj-wpis" });
     if (chain.has("update")) return ok(null);
+    // Najpierw tożsamość WP (lista), potem slug (pojedynczy wiersz).
+    if (isIdentityLookup(chain)) return ok(opts.identityMatch ? [opts.identityMatch] : []);
     // `ensureUniqueSlug` czyta listą (bez `.maybeSingle()`), odczyt istniejącego
-    // wpisu - pojedynczym wierszem. Rozróżniamy po ogniwie `limit`.
+    // wpisu po slugu - pojedynczym wierszem. Rozróżniamy po ogniwie `limit`.
     if (chain.has("limit")) return ok([]);
     return ok(opts.existingPost ?? null);
   });
@@ -999,11 +1011,15 @@ describe("runWpImportJob - slug", () => {
     expect(insertedSlug()).toBe("wp-555");
   });
 
-  it("KOLIZJA sluga daje wariant z sufiksem -2", async () => {
+  it("KOLIZJA sluga daje wariant z identyfikatorem WordPressa, nie z numerem", async () => {
+    // `-2`, `-3` to numeracja WordPressa: nasz `moj-wpis-2` trafiał przy
+    // kolejnym imporcie w JEGO `moj-wpis-2` i dopasowanie po slugu brało
+    // cudzy artykuł (zajawka innego wpisu - defekt produkcyjny).
     let probes = 0;
     db.setResponse("posts", (chain) => {
-      if (chain.has("insert")) return ok({ id: "p1", slug: "moj-wpis-2" });
-      if (chain.has("limit")) {
+      if (chain.has("insert")) return ok({ id: "p1", slug: "moj-wpis-wp101" });
+      if (isIdentityLookup(chain)) return ok([]);
+      if (isSlugProbe(chain)) {
         probes += 1;
         return probes === 1 ? ok([{ id: "kolizja" }]) : ok([]);
       }
@@ -1011,14 +1027,15 @@ describe("runWpImportJob - slug", () => {
     });
     fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
     await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
-    expect(insertedSlug()).toBe("moj-wpis-2");
+    expect(insertedSlug()).toBe("moj-wpis-wp101");
   });
 
-  it("KOLIZJA WIELOKROTNA idzie dalej po numerach", async () => {
+  it("KOLIZJA WIELOKROTNA idzie dalej po numerach ZA identyfikatorem WordPressa", async () => {
     let probes = 0;
     db.setResponse("posts", (chain) => {
       if (chain.has("insert")) return ok({ id: "p1", slug: "x" });
-      if (chain.has("limit")) {
+      if (isIdentityLookup(chain)) return ok([]);
+      if (isSlugProbe(chain)) {
         probes += 1;
         return probes <= 3 ? ok([{ id: "kolizja" }]) : ok([]);
       }
@@ -1026,14 +1043,34 @@ describe("runWpImportJob - slug", () => {
     });
     fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
     await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
-    // Trzy kolizje: base, base-2, base-3 zajęte -> wolne jest base-4.
-    expect(insertedSlug()).toBe("moj-wpis-4");
+    // Trzy kolizje: base, base-wp101, base-wp101-2 zajęte -> wolne jest base-wp101-3.
+    expect(insertedSlug()).toBe("moj-wpis-wp101-3");
+  });
+
+  it("sufiks WordPressa mieści się w limicie 120 znaków sluga", async () => {
+    let probes = 0;
+    db.setResponse("posts", (chain) => {
+      if (chain.has("insert")) return ok({ id: "p1", slug: "x" });
+      if (isIdentityLookup(chain)) return ok([]);
+      if (isSlugProbe(chain)) {
+        probes += 1;
+        return probes === 1 ? ok([{ id: "kolizja" }]) : ok([]);
+      }
+      return ok(null);
+    });
+    fetchMock().mockResolvedValue(
+      jsonResponse({ found: 1, posts: [wpPost({ slug: "a".repeat(200) })] }),
+    );
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    expect(insertedSlug()).toMatch(/^a+-wp101$/);
+    expect(insertedSlug().length).toBeLessThanOrEqual(120);
   });
 
   it("po wyczerpaniu prób dokleja znacznik czasu, zamiast nadpisać cudzy wpis", async () => {
     db.setResponse("posts", (chain) => {
       if (chain.has("insert")) return ok({ id: "p1", slug: "x" });
-      if (chain.has("limit")) return ok([{ id: "zawsze-kolizja" }]);
+      if (isIdentityLookup(chain)) return ok([]);
+      if (isSlugProbe(chain)) return ok([{ id: "zawsze-kolizja" }]);
       return ok(null);
     });
     fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
@@ -1043,7 +1080,8 @@ describe("runWpImportJob - slug", () => {
 
   it("BŁĄD sprawdzania kolizji liczy się jako failed (nie ryzykujemy nadpisania)", async () => {
     db.setResponse("posts", (chain) => {
-      if (chain.has("limit")) return fail("select denied");
+      if (isIdentityLookup(chain)) return ok([]);
+      if (isSlugProbe(chain)) return fail("select denied");
       return ok(null);
     });
     fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
@@ -1054,7 +1092,7 @@ describe("runWpImportJob - slug", () => {
   it("zapytanie o kolizję filtruje po najemcy i slugu", async () => {
     fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
     await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
-    const probe = db.chainsFor("posts").find((c) => c.has("limit")) as RecordedChain;
+    const probe = db.chainsFor("posts").find(isSlugProbe) as RecordedChain;
     const eqArgs = probe.calls.filter((c) => c.method === "eq").map((c) => c.args);
     expect(eqArgs).toEqual([
       ["tenant_id", TENANT],
@@ -1066,6 +1104,8 @@ describe("runWpImportJob - slug", () => {
 describe("runWpImportJob - wpis istniejący", () => {
   const existing = {
     id: "post-existing",
+    slug: "moj-wpis",
+    custom_meta: {},
     cover_image_url: null,
     editor: "builder",
     title_pl: "Stary PL",
@@ -1234,6 +1274,502 @@ describe("runWpImportJob - wpis istniejący", () => {
     fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost({ status: "draft" })] }));
     await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID, sync_existing: true } });
     expect(db.chainsFor("redirects")).toHaveLength(0);
+  });
+});
+
+/** Wszystkie komunikaty logu zadania, w kolejności zapisów. */
+function logMessages(): string[] {
+  const patches = db
+    .chainsFor("wp_import_jobs")
+    .filter((c) => c.has("update"))
+    .map((c) => c.argsOf("update")?.[0] as { log?: Array<{ msg: string }> });
+  // Logger zapisuje CAŁY bufor przy każdym wpisie - ostatni zapis ma komplet.
+  const last = patches.filter((p) => p.log).at(-1);
+  return last?.log?.map((e) => e.msg) ?? [];
+}
+
+const postPatch = (): Record<string, unknown> | undefined =>
+  db
+    .chainsFor("posts")
+    .find((c) => c.has("update"))
+    ?.argsOf("update")?.[0] as Record<string, unknown> | undefined;
+
+const postInsert = (): Record<string, unknown> | undefined =>
+  db
+    .chainsFor("posts")
+    .find((c) => c.has("insert"))
+    ?.argsOf("insert")?.[0] as Record<string, unknown> | undefined;
+
+// DEFEKT PRODUKCYJNY: zajawka wpisu była kopią zajawki INNEGO artykułu.
+// Dopasowanie szło wyłącznie po slugu (surowym, bez filtra kosza), a sufiks
+// kolizji `-2` naszego importu trafiał w `-2` WordPressa. Tożsamość wpisu WP
+// (`wp_id` + `wp_site` w `custom_meta`) rozstrzyga teraz, czy wiersz to ten sam wpis.
+describe("runWpImportJob - tożsamość wpisu WordPressa", () => {
+  const IDENTITY = { wp_id: "101", wp_site: "blog.test" };
+  const row = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: "post-existing",
+    slug: "moj-wpis",
+    custom_meta: {},
+    cover_image_url: null,
+    editor: "builder",
+    title_pl: "Stary tytuł",
+    title_en: "",
+    excerpt_pl: "Stara zajawka",
+    excerpt_en: null,
+    blocks_data: null,
+    builder_data: null,
+    ...over,
+  });
+
+  beforeEach(() => {
+    h.rpc.mockResolvedValue({ data: "blog" });
+  });
+
+  it("nowy wpis zapisuje tożsamość WP w custom_meta jako TEKST (walidator edytora)", async () => {
+    planHappyPath();
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    expect(postInsert()?.custom_meta).toEqual(IDENTITY);
+  });
+
+  it("host witryny jest normalizowany (wielkość liter, www.)", async () => {
+    planHappyPath();
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
+    await runWpImportJob({ data: { ...JOB_INPUT, site: "WWW.Blog.Test", jobId: JOB_ID } });
+    expect(postInsert()?.custom_meta).toEqual(IDENTITY);
+  });
+
+  it("szuka najpierw po tożsamości, w granicach najemcy i z pominięciem kosza", async () => {
+    planHappyPath();
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    const lookup = db.chainsFor("posts").find(isIdentityLookup) as RecordedChain;
+    const filters = lookup.calls
+      .filter((c) => ["eq", "is", "contains"].includes(c.method))
+      .map((c) => [c.method, ...c.args]);
+    expect(filters).toEqual([
+      ["eq", "tenant_id", TENANT],
+      ["is", "deleted_at", null],
+      ["contains", "custom_meta", IDENTITY],
+    ]);
+  });
+
+  it("odczyt po slugu porównuje slug PO slugify i pomija kosz", async () => {
+    planHappyPath();
+    fetchMock().mockResolvedValue(
+      jsonResponse({ found: 1, posts: [wpPost({ slug: "Moj Wpis" })] }),
+    );
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    const bySlug = db
+      .chainsFor("posts")
+      .find((c) => c.has("maybeSingle") && !c.has("insert")) as RecordedChain;
+    const filters = bySlug.calls
+      .filter((c) => ["eq", "is"].includes(c.method))
+      .map((c) => [c.method, ...c.args]);
+    expect(filters).toEqual([
+      ["eq", "tenant_id", TENANT],
+      ["eq", "slug", "moj-wpis"],
+      ["is", "deleted_at", null],
+    ]);
+  });
+
+  it("wiersz z TĄ SAMĄ tożsamością jest aktualizowany, nawet gdy slug się różni", async () => {
+    planHappyPath({
+      identityMatch: row({ slug: "zmieniony-adres", custom_meta: { ...IDENTITY } }),
+    });
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
+    const res = await runWpImportJob({
+      data: { ...JOB_INPUT, jobId: JOB_ID, sync_existing: true },
+    });
+    expect(res).toMatchObject({ updated_count: 1, imported: 0 });
+    // Slug dopasowania nie był już potrzebny.
+    expect(db.chainsFor("posts").some((c) => c.has("maybeSingle"))).toBe(false);
+    expect(logMessages()).toContain("Updated: zmieniony-adres");
+    const redirect = db.lastChain("redirects")?.argsOf("upsert")?.[0] as { target_path: string };
+    expect(redirect.target_path).toBe("/blog/zmieniony-adres");
+  });
+
+  it("POTWIERDZONY wpis zachowuje swoją zajawkę przy pustej zapowiedzi z WP", async () => {
+    planHappyPath({ identityMatch: row({ custom_meta: { ...IDENTITY } }) });
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost({ excerpt: "" })] }));
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID, sync_existing: true } });
+    expect(postPatch()?.excerpt_pl).toBe("Stara zajawka");
+  });
+
+  it("BEZ sync wpis o tej samej tożsamości jest pomijany jako już zaimportowany", async () => {
+    planHappyPath({ identityMatch: row({ custom_meta: { ...IDENTITY } }) });
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
+    const res = await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    expect(res).toMatchObject({ skipped: 1, imported: 0 });
+    expect(logMessages()).toContain("Skipped (already imported): moj-wpis");
+  });
+
+  it("KOLIZJA: slug zajęty przez INNY wpis WP nie jest aktualizowany ani nie oddaje zajawki", async () => {
+    // Lokator `moj-wpis-2` to inny artykuł WordPressa (#55). Import #101 o tym
+    // samym slugu z pustą zapowiedzią nie może ani nadpisać #55, ani wziąć
+    // jego zajawki - wchodzi jako nowy wpis z własnym, deterministycznym slugiem.
+    let probes = 0;
+    db.setResponse("wp_import_jobs", (chain) => {
+      if (chain.has("update")) return ok(null);
+      const fields = String(chain.argsOf("select")?.[0] ?? "");
+      if (fields.includes("log")) return ok({ log: [] });
+      if (fields === "status") return ok({ status: "running" });
+      return ok({ id: JOB_ID, status: "running", tenant_id: TENANT });
+    });
+    db.setResponse("profiles", ok({ tenant_id: TENANT }));
+    db.setResponse("pages", ok({ id: PAGE_ID }));
+    db.setResponse("redirects", ok(null));
+    db.setResponse("posts", (chain) => {
+      if (chain.has("insert")) return ok({ id: "post-new", slug: "moj-wpis-2-wp101" });
+      if (chain.has("update")) return ok(null);
+      if (isIdentityLookup(chain)) return ok([]);
+      if (isSlugProbe(chain)) {
+        probes += 1;
+        return probes === 1 ? ok([{ id: "post-55" }]) : ok([]);
+      }
+      return ok(
+        row({
+          id: "post-55",
+          slug: "moj-wpis-2",
+          excerpt_pl: "Zajawka INNEGO artykułu",
+          custom_meta: { wp_id: "55", wp_site: "blog.test" },
+        }),
+      );
+    });
+    fetchMock().mockResolvedValue(
+      jsonResponse({
+        found: 1,
+        posts: [wpPost({ slug: "moj-wpis-2", title: "Nowy artykuł", excerpt: "" })],
+      }),
+    );
+
+    const res = await runWpImportJob({
+      data: { ...JOB_INPUT, jobId: JOB_ID, sync_existing: true },
+    });
+
+    expect(res).toMatchObject({ imported: 1, updated_count: 0, failed: 0 });
+    expect(postPatch()).toBeUndefined();
+    const inserted = postInsert();
+    expect(inserted?.slug).toBe("moj-wpis-2-wp101");
+    expect(inserted?.title_pl).toBe("Nowy artykuł");
+    expect(inserted?.excerpt_pl).toBeNull();
+    expect(inserted?.custom_meta).toEqual(IDENTITY);
+    expect(
+      logMessages().some((m) => m.includes("belongs to another WordPress post (blog.test #55)")),
+    ).toBe(true);
+  });
+
+  it("wiersz BEZ tożsamości dopasowany po slugu nie oddaje swojej zajawki pustej zapowiedzi", async () => {
+    // Wpis sprzed zapisywania tożsamości - dopasowanie po slugu to tylko
+    // domysł, więc pusta zapowiedź z WP daje null, nie zajawkę lokatora.
+    planHappyPath({
+      existingPost: row({ excerpt_pl: "Zajawka INNEGO artykułu", custom_meta: { podcast: "x" } }),
+    });
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost({ excerpt: "" })] }));
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID, sync_existing: true } });
+    const patch = postPatch();
+    expect(patch?.excerpt_pl).toBeNull();
+    // Tożsamość zostaje dopisana, cudze klucze custom_meta redakcji zostają.
+    expect(patch?.custom_meta).toEqual({ podcast: "x", ...IDENTITY });
+  });
+
+  it("wiersz BEZ tożsamości dostaje zajawkę z WP, gdy WordPress ją ma", async () => {
+    planHappyPath({ existingPost: row() });
+    fetchMock().mockResolvedValue(
+      jsonResponse({ found: 1, posts: [wpPost({ excerpt: "<p>Nowa zajawka</p>" })] }),
+    );
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID, sync_existing: true } });
+    expect(postPatch()?.excerpt_pl).toBe("Nowa zajawka");
+  });
+
+  it("BŁĄD odczytu po tożsamości liczy się jako failed, zamiast wstawić duplikat", async () => {
+    planHappyPath();
+    db.setResponse("posts", (chain) => {
+      if (isIdentityLookup(chain)) return fail("lookup denied");
+      if (chain.has("insert")) return ok({ id: "post-new", slug: "moj-wpis" });
+      if (chain.has("limit")) return ok([]);
+      return ok(null);
+    });
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
+    const res = await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    expect(res).toMatchObject({ failed: 1, imported: 0 });
+    expect(postInsert()).toBeUndefined();
+  });
+
+  it("BŁĄD odczytu po slugu też liczy się jako failed", async () => {
+    planHappyPath();
+    db.setResponse("posts", (chain) => {
+      if (isIdentityLookup(chain)) return ok([]);
+      if (chain.has("maybeSingle")) return fail("slug lookup denied");
+      if (chain.has("insert")) return ok({ id: "post-new", slug: "moj-wpis" });
+      return ok([]);
+    });
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost()] }));
+    const res = await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    expect(res).toMatchObject({ failed: 1, imported: 0 });
+  });
+});
+
+// DEFEKT PRODUKCYJNY: wpisy z WordPressa nie miały ŻADNYCH kategorii - import
+// nie prosił API o pole `categories` i nie pisał do `post_categories`.
+describe("runWpImportJob - kategorie", () => {
+  const CATS = {
+    Polityka: { ID: 5, name: "Polityka", slug: "polityka", parent: 0 },
+    Uncategorized: { ID: 1, name: "Uncategorized", slug: "uncategorized", parent: 0 },
+  };
+
+  /** Kategorie istniejące w bazie najemcy (slug -> id); reszta jest zakładana. */
+  function planCategories(existing: Record<string, string> = {}): void {
+    let seq = 0;
+    db.setResponse("categories", (chain) => {
+      if (chain.has("upsert")) {
+        const rows = chain.argsOf("upsert")?.[0] as Array<{ slug: string }>;
+        return ok(rows.map((r) => ({ id: `cat-new-${(seq += 1)}`, slug: r.slug })));
+      }
+      const slugs = (chain.calls.find((c) => c.method === "in")?.args[1] ?? []) as string[];
+      return ok(slugs.filter((s) => s in existing).map((s) => ({ id: existing[s], slug: s })));
+    });
+    db.setResponse("post_categories", ok(null));
+  }
+
+  const linkUpserts = (): RecordedChain[] =>
+    db.chainsFor("post_categories").filter((c) => c.has("upsert"));
+
+  beforeEach(() => {
+    planHappyPath();
+    h.rpc.mockResolvedValue({ data: "blog" });
+  });
+
+  it("prosi WordPress.com o pole categories", async () => {
+    fetchMock().mockResolvedValue(jsonResponse({ found: 0, posts: [] }));
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    const url = new URL(String(fetchMock().mock.calls[0][0]));
+    expect(url.searchParams.get("fields")?.split(",")).toContain("categories");
+  });
+
+  it("nowy wpis dostaje istniejącą kategorię najemcy, bez kategorii domyślnej WP", async () => {
+    planCategories({ polityka: "cat-pol" });
+    fetchMock().mockResolvedValue(
+      jsonResponse({ found: 1, posts: [wpPost({ categories: CATS })] }),
+    );
+    const res = await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+
+    expect(res).toMatchObject({ imported: 1, failed: 0 });
+    const lookup = db.chainsFor("categories")[0];
+    expect(lookup.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["tenant_id", TENANT],
+    ]);
+    // Bez filtra `kind` - unikat (tenant_id, slug) obejmuje każdy wymiar.
+    expect(lookup.argsOf("in")).toEqual(["slug", ["polityka"]]);
+    expect(db.chainsFor("categories").some((c) => c.has("upsert"))).toBe(false);
+
+    const [link] = linkUpserts();
+    expect(link.argsOf("upsert")).toEqual([
+      [{ post_id: "post-new", category_id: "cat-pol" }],
+      { onConflict: "post_id,category_id", ignoreDuplicates: true },
+    ]);
+    expect(logMessages().at(-1)).toContain("category_links=1");
+  });
+
+  it("brakującą kategorię zakłada w najemcy sesji, z nazwą bez encji HTML", async () => {
+    planCategories();
+    fetchMock().mockResolvedValue(
+      jsonResponse({
+        found: 1,
+        posts: [
+          wpPost({
+            categories: {
+              "Polityka & prawo": { ID: 7, name: "Polityka &amp; prawo", slug: "polityka-prawo" },
+              Życie: { ID: 8, name: "&#379;ycie", slug: "%c5%bcycie" },
+            },
+          }),
+        ],
+      }),
+    );
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+
+    const insert = db.chainsFor("categories").find((c) => c.has("upsert")) as RecordedChain;
+    expect(insert.argsOf("upsert")).toEqual([
+      [
+        {
+          tenant_id: TENANT,
+          slug: "polityka-prawo",
+          name_pl: "Polityka & prawo",
+          name_en: "Polityka & prawo",
+          kind: "category",
+        },
+        { tenant_id: TENANT, slug: "zycie", name_pl: "Życie", name_en: "Życie", kind: "category" },
+      ],
+      { onConflict: "tenant_id,slug", ignoreDuplicates: true },
+    ]);
+    const rows = linkUpserts()[0].argsOf("upsert")?.[0] as Array<{ category_id: string }>;
+    expect(rows.map((r) => r.category_id)).toEqual(["cat-new-1", "cat-new-2"]);
+    expect(logMessages().at(-1)).toContain("categories_created=2");
+  });
+
+  it.each([
+    ["uncategorized", "Uncategorized"],
+    ["bez-kategorii", "Bez kategorii"],
+  ])(
+    "kategoria domyślna WordPressa (%s) nie jest ani zakładana, ani podpinana",
+    async (slug, name) => {
+      planCategories();
+      fetchMock().mockResolvedValue(
+        jsonResponse({
+          found: 1,
+          posts: [wpPost({ categories: { [name]: { ID: 1, name, slug } } })],
+        }),
+      );
+      const res = await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+      expect(res.imported).toBe(1);
+      expect(db.chainsFor("categories")).toHaveLength(0);
+      expect(db.chainsFor("post_categories")).toHaveLength(0);
+    },
+  );
+
+  it("pusta lista kategorii (`[]` z PHP) nie odpytuje bazy", async () => {
+    planCategories();
+    fetchMock().mockResolvedValue(jsonResponse({ found: 1, posts: [wpPost({ categories: [] })] }));
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    expect(db.chainsFor("categories")).toHaveLength(0);
+  });
+
+  it("SYNC dopisuje brakujące powiązania i NIGDY nie zdejmuje kategorii redakcji", async () => {
+    planHappyPath({
+      existingPost: {
+        id: "post-existing",
+        slug: "moj-wpis",
+        custom_meta: {},
+        cover_image_url: null,
+        editor: "builder",
+        title_pl: "Stary",
+        title_en: "",
+        excerpt_pl: null,
+        excerpt_en: null,
+        blocks_data: null,
+        builder_data: null,
+      },
+    });
+    planCategories({ polityka: "cat-pol" });
+    fetchMock().mockResolvedValue(
+      jsonResponse({ found: 1, posts: [wpPost({ categories: CATS })] }),
+    );
+    const res = await runWpImportJob({
+      data: { ...JOB_INPUT, jobId: JOB_ID, sync_existing: true },
+    });
+
+    expect(res).toMatchObject({ updated_count: 1, failed: 0 });
+    expect(db.chainsFor("post_categories").some((c) => c.has("delete"))).toBe(false);
+    expect(linkUpserts()[0].argsOf("upsert")).toEqual([
+      [{ post_id: "post-existing", category_id: "cat-pol" }],
+      { onConflict: "post_id,category_id", ignoreDuplicates: true },
+    ]);
+  });
+
+  it("wpis POMINIĘTY (bez sync) nie dostaje kategorii ani nie zakłada nowych", async () => {
+    planHappyPath({ existingPost: { id: "post-existing", slug: "moj-wpis", custom_meta: {} } });
+    planCategories();
+    fetchMock().mockResolvedValue(
+      jsonResponse({ found: 1, posts: [wpPost({ categories: CATS })] }),
+    );
+    const res = await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    expect(res.skipped).toBe(1);
+    expect(db.chainsFor("categories")).toHaveLength(0);
+    expect(db.chainsFor("post_categories")).toHaveLength(0);
+  });
+
+  it("pamięta kategorie przez cały bieg - drugi wpis nie odpytuje bazy ponownie", async () => {
+    planCategories({ polityka: "cat-pol" });
+    db.setResponse("posts", (chain) => {
+      if (chain.has("insert")) {
+        const r = chain.argsOf("insert")?.[0] as { slug: string };
+        return ok({ id: `post-${r.slug}`, slug: r.slug });
+      }
+      if (chain.has("limit")) return ok([]);
+      return ok(null);
+    });
+    fetchMock().mockResolvedValue(
+      jsonResponse({
+        found: 2,
+        posts: [
+          wpPost({ ID: 1, slug: "a", categories: CATS }),
+          wpPost({ ID: 2, slug: "b", categories: CATS }),
+        ],
+      }),
+    );
+    const res = await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    expect(res.imported).toBe(2);
+    expect(db.chainsFor("categories")).toHaveLength(1);
+    expect(linkUpserts().map((c) => (c.argsOf("upsert")?.[0] as unknown[])[0])).toEqual([
+      { post_id: "post-a", category_id: "cat-pol" },
+      { post_id: "post-b", category_id: "cat-pol" },
+    ]);
+  });
+
+  it("odmowa założenia kategorii (np. rola autora) nie wywraca wpisu i trafia do logu RAZ", async () => {
+    db.setResponse("categories", (chain) =>
+      chain.has("upsert") ? fail("new row violates row-level security policy") : ok([]),
+    );
+    db.setResponse("post_categories", ok(null));
+    db.setResponse("posts", (chain) => {
+      if (chain.has("insert")) {
+        const r = chain.argsOf("insert")?.[0] as { slug: string };
+        return ok({ id: `post-${r.slug}`, slug: r.slug });
+      }
+      if (chain.has("limit")) return ok([]);
+      return ok(null);
+    });
+    fetchMock().mockResolvedValue(
+      jsonResponse({
+        found: 2,
+        posts: [
+          wpPost({ ID: 1, slug: "a", categories: CATS }),
+          wpPost({ ID: 2, slug: "b", categories: CATS }),
+        ],
+      }),
+    );
+    const res = await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+
+    expect(res).toMatchObject({ imported: 2, failed: 0 });
+    expect(db.chainsFor("categories").filter((c) => c.has("upsert"))).toHaveLength(1);
+    expect(db.chainsFor("post_categories")).toHaveLength(0);
+    const messages = logMessages();
+    expect(messages.filter((m) => m.includes("Categories not created (polityka)")).length).toBe(1);
+    expect(messages.at(-1)).toContain("category_errors=1");
+  });
+
+  it("błąd podpięcia kategorii jest raportowany, a wpis liczy się jako zaimportowany", async () => {
+    planCategories({ polityka: "cat-pol" });
+    db.setResponse("post_categories", fail("permission denied for table post_categories"));
+    fetchMock().mockResolvedValue(
+      jsonResponse({ found: 1, posts: [wpPost({ categories: CATS })] }),
+    );
+    const res = await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+
+    expect(res).toMatchObject({ imported: 1, failed: 0 });
+    const messages = logMessages();
+    expect(
+      messages.some((m) =>
+        m.includes("Categories not linked: permission denied for table post_categories"),
+      ),
+    ).toBe(true);
+    expect(messages.at(-1)).toContain("category_errors=1");
+  });
+
+  it("kategoria założona równolegle (konflikt sluga) jest dociągana ponownym odczytem", async () => {
+    let lookups = 0;
+    db.setResponse("categories", (chain) => {
+      if (chain.has("upsert")) return ok([]); // ON CONFLICT DO NOTHING - nic nie wróciło
+      lookups += 1;
+      return lookups === 1 ? ok([]) : ok([{ id: "cat-race", slug: "polityka" }]);
+    });
+    db.setResponse("post_categories", ok(null));
+    fetchMock().mockResolvedValue(
+      jsonResponse({ found: 1, posts: [wpPost({ categories: CATS })] }),
+    );
+    await runWpImportJob({ data: { ...JOB_INPUT, jobId: JOB_ID } });
+    const rows = linkUpserts()[0].argsOf("upsert")?.[0] as Array<{ category_id: string }>;
+    expect(rows).toEqual([{ post_id: "post-new", category_id: "cat-race" }]);
   });
 });
 

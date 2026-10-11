@@ -13,11 +13,18 @@
 //   client calls runWpImportJob (long-running, no need to await result)
 //   client polls getWpImportJob during processing to render progress + log
 //
-// Sync mode (`sync_existing = true`) updates posts whose slug already exists
-// instead of skipping them. Media import (`import_media = true`) downloads
-// the featured image and every same-host <img> referenced in content,
-// uploads to the `media` bucket and rewrites URLs in the imported HTML
-// before parsing.
+// Sync mode (`sync_existing = true`) updates posts that were already imported
+// instead of skipping them. "Already imported" is decided by the WordPress
+// identity stored in `posts.custom_meta` (`wp_id` + `wp_site`); a slug match
+// only counts for rows that carry no identity or the same one. Media import
+// (`import_media = true`) downloads the featured image and every same-host
+// <img> referenced in content, uploads to the `media` bucket and rewrites URLs
+// in the imported HTML before parsing.
+//
+// CATEGORIES: WordPress categories are mapped to the session tenant's
+// `categories` (created when missing, WordPress' "Uncategorized" skipped) and
+// linked through `post_categories`. Sync only ADDS missing links - categories
+// chosen by editors after the import are never removed.
 //
 // LANGUAGE CONTRACT: a job carries exactly ONE language (`data.language`). The
 // imported side wins, the OTHER side is preserved verbatim - title, excerpt and
@@ -35,6 +42,7 @@ import { parseGutenberg } from "@/lib/blocks/gutenberg";
 import {
   mergeLocalizedImport,
   serializeLocalizedBlocks,
+  type ExistingLocalized,
   type LocalizedImport,
 } from "@/lib/wp-import/localizedMerge";
 import { recordAudit } from "./server/audit.server";
@@ -174,28 +182,149 @@ async function resolveBlogPage(
   return created.id as string;
 }
 
+/**
+ * Wolny slug dla NOWEGO wpisu z WordPressa. Sufiks kolizji niesie identyfikator
+ * WordPressa (`-wp<ID>`), a nie kolejny numer: `-2`, `-3` to własna numeracja
+ * WordPressa, więc nasz `moj-wpis-2` (drugi lokator `moj-wpis`) trafiał potem
+ * w JEGO `moj-wpis-2` - i import dopasowywał po slugu cudzy artykuł. Sufiks
+ * jest deterministyczny: ten sam wpis WP przy kolejnym biegu celuje w ten sam adres.
+ */
 async function ensureUniqueSlug(
   supabase: SupabaseClient,
   tenantId: string,
   desired: string,
-  excludePostId?: string,
+  wpId: number,
 ): Promise<string> {
   const base = slugify(desired) || `wp-${Date.now().toString(36)}`;
+  const tag = `-wp${wpId}`;
+  const stem = base.slice(0, 120 - tag.length - 3).replace(/-+$/, "") || "wp";
   let candidate = base;
   for (let i = 0; i < 50; i += 1) {
-    let q = supabase
+    const { data, error } = await supabase
       .from("posts")
       .select("id")
       .eq("tenant_id", tenantId)
       .eq("slug", candidate)
       .limit(1);
-    if (excludePostId) q = q.neq("id", excludePostId);
-    const { data, error } = await q;
     if (error) throw new Error(error.message);
     if (!data || data.length === 0) return candidate;
-    candidate = `${base}-${i + 2}`;
+    candidate = i === 0 ? `${stem}${tag}` : `${stem}${tag}-${i + 1}`;
   }
   return `${base}-${Date.now().toString(36)}`;
+}
+
+// ---------- tożsamość wpisu WordPressa ----------
+
+/**
+ * Tożsamość wpisu WP zapisywana w `posts.custom_meta` (jsonb klucz -> STRING:
+ * walidator `updatePost` przyjmuje wyłącznie wartości tekstowe do 200 znaków,
+ * więc liczba zablokowałaby zapis wpisu w edytorze). To ona, a nie slug,
+ * rozstrzyga przy kolejnym imporcie, czy wiersz jest „tym samym wpisem".
+ */
+type WpIdentity = {
+  wp_id: string;
+  wp_site: string;
+};
+
+function wpIdentityFor(siteHost: string, wpId: number): WpIdentity {
+  return {
+    wp_id: String(wpId),
+    wp_site: siteHost
+      .trim()
+      .toLowerCase()
+      .replace(/^www\./, "")
+      .slice(0, 200),
+  };
+}
+
+/** Tożsamość zapisana w wierszu; `null`, gdy wiersz nie pochodzi z importu z tożsamością. */
+function readWpIdentity(meta: unknown): { wp_id: string; wp_site: string | null } | null {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return null;
+  const rec = meta as Record<string, unknown>;
+  if (typeof rec.wp_id !== "string" || !rec.wp_id) return null;
+  return { wp_id: rec.wp_id, wp_site: typeof rec.wp_site === "string" ? rec.wp_site : null };
+}
+
+/** `custom_meta` z dopisaną tożsamością - pozostałe klucze redakcji zostają. */
+function withWpIdentity(meta: unknown, identity: WpIdentity): Record<string, string> {
+  const base =
+    meta && typeof meta === "object" && !Array.isArray(meta)
+      ? (meta as Record<string, string>)
+      : {};
+  return { ...base, ...identity };
+}
+
+/** Istniejący wiersz w kształcie, jaki import czyta przed scaleniem. */
+type ExistingWpRow = ExistingLocalized & {
+  id: string;
+  slug: string;
+  cover_image_url: string | null;
+  custom_meta: unknown;
+};
+
+interface ExistingWpLookup {
+  row: ExistingWpRow | null;
+  /** Wiersz ma zapisaną TĘ SAMĄ tożsamość WP - zgodność potwierdzona, nie zgadywana. */
+  sameWpPost: boolean;
+  /** Slug zajęty przez INNY wpis WordPressa (opis do logu); wtedy `row` jest null. */
+  slugOwner: string | null;
+}
+
+/**
+ * Czy ten wpis WP już jest w bazie? Najpierw tożsamość z `custom_meta`
+ * (odporna na zmianę sluga po obu stronach), dopiero potem slug - i to tylko
+ * wtedy, gdy wiersz NIE nosi tożsamości innego wpisu WP. Wiersze z koszem
+ * (`deleted_at`) nie są „tym samym wpisem": nowy import nie wskrzesza ani nie
+ * nadpisuje treści, którą redakcja usunęła.
+ *
+ * Wiersz bez tożsamości (import sprzed jej zapisywania albo wpis pisany ręcznie)
+ * dopasowany po slugu zostaje uznany za ten sam wpis, ale `sameWpPost = false`:
+ * scalenie nie zostawia wtedy jego zajawki przy pustej zapowiedzi z WordPressa.
+ */
+async function findExistingWpPost(
+  supabase: SupabaseClient,
+  tenantId: string,
+  identity: WpIdentity,
+  slug: string,
+): Promise<ExistingWpLookup> {
+  // Czytamy TAKŻE kolumny drugiego języka - import wchodzi zawsze
+  // jednojęzycznie, a payload budowany „jakby drugiej wersji nie było" kasował
+  // ją przy sync_existing (patrz lib/wp-import/localizedMerge).
+  const { data: byIdentity, error: identityErr } = await supabase
+    .from("posts")
+    .select(
+      "id, slug, custom_meta, cover_image_url, editor, title_pl, title_en, excerpt_pl, excerpt_en, blocks_data, builder_data",
+    )
+    .eq("tenant_id", tenantId)
+    .is("deleted_at", null)
+    .contains("custom_meta", identity)
+    // Duplikat wpisu kopiuje custom_meta - wygrywa oryginał, nie kopia.
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (identityErr) throw new Error(identityErr.message);
+  const sameIdentityRow = (byIdentity as ExistingWpRow[] | null)?.[0];
+  if (sameIdentityRow) return { row: sameIdentityRow, sameWpPost: true, slugOwner: null };
+
+  const { data: bySlug, error: slugErr } = await supabase
+    .from("posts")
+    .select(
+      "id, slug, custom_meta, cover_image_url, editor, title_pl, title_en, excerpt_pl, excerpt_en, blocks_data, builder_data",
+    )
+    .eq("tenant_id", tenantId)
+    .eq("slug", slug)
+    .is("deleted_at", null)
+    .maybeSingle();
+  // Błąd odczytu NIE jest „brakiem wpisu" - wstawienie obok istniejącego dałoby duplikat.
+  if (slugErr) throw new Error(slugErr.message);
+  const row = bySlug as ExistingWpRow | null;
+  if (!row) return { row: null, sameWpPost: false, slugOwner: null };
+
+  const stored = readWpIdentity(row.custom_meta);
+  if (!stored) return { row, sameWpPost: false, slugOwner: null };
+  if (stored.wp_id === identity.wp_id && stored.wp_site === identity.wp_site) {
+    return { row, sameWpPost: true, slugOwner: null };
+  }
+  return { row: null, sameWpPost: false, slugOwner: `${stored.wp_site ?? "?"} #${stored.wp_id}` };
 }
 
 // ---------- WP.com response shapes ----------
@@ -211,6 +340,14 @@ interface WpSitesResponse {
   sites: WpSite[];
 }
 
+/** Termin taksonomii WP.com (kategoria) - pola, z których korzysta import. */
+interface WpTerm {
+  ID?: number;
+  name?: string;
+  slug?: string;
+  parent?: number;
+}
+
 interface WpPost {
   ID: number;
   slug: string;
@@ -222,6 +359,9 @@ interface WpPost {
   modified: string;
   URL: string;
   featured_image: string | null;
+  // REST v1.1 zwraca kategorie jako OBIEKT kluczowany nazwą
+  // (`{ "Polityka": { ID, name, slug, ... } }`), a pusty zbiór bywa `[]`.
+  categories?: Record<string, WpTerm> | WpTerm[] | null;
 }
 interface WpPostsResponse {
   found: number;
@@ -252,6 +392,162 @@ function mapStatus(wp: string): "draft" | "published" | "archived" {
   if (wp === "publish") return "published";
   if (wp === "trash") return "archived";
   return "draft";
+}
+
+// ---------- kategorie ----------
+
+// Domyślna kategoria WordPressa („Uncategorized" / „Bez kategorii") to brak
+// decyzji redakcji, nie temat - przeniesiona tworzyłaby śmieciową kategorię.
+const WP_DEFAULT_CATEGORY_SLUGS: ReadonlySet<string> = new Set(["uncategorized", "bez-kategorii"]);
+
+function safeDecodeURIComponent(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+function safeFromCodePoint(code: number): string {
+  try {
+    return String.fromCodePoint(code);
+  } catch {
+    return "";
+  }
+}
+
+/** Nazwa terminu z WP.com przychodzi z encjami HTML (`Polityka &amp; prawo`). */
+function decodeTermName(s: string): string {
+  return stripTags(s)
+    .replace(/&#(\d+);/g, (_m, dec: string) => safeFromCodePoint(Number(dec)))
+    .replace(/&#x([0-9a-f]+);/gi, (_m, hex: string) => safeFromCodePoint(parseInt(hex, 16)))
+    .trim();
+}
+
+interface WpCategoryRef {
+  slug: string;
+  name: string;
+}
+
+/**
+ * Kategorie wpisu WP w postaci lokalnej: slug po zdekodowaniu (`%c5%bc...`)
+ * i tym samym `slugify`, którego używa reszta importu; bez kategorii domyślnej
+ * i bez duplikatów (dwa terminy mogą się znormalizować do jednego sluga).
+ */
+function wpCategoryRefs(wp: WpPost): WpCategoryRef[] {
+  const terms: unknown[] =
+    wp.categories && typeof wp.categories === "object" ? Object.values(wp.categories) : [];
+  const out = new Map<string, string>();
+  for (const raw of terms) {
+    if (!raw || typeof raw !== "object") continue;
+    const term = raw as WpTerm;
+    const name = decodeTermName(typeof term.name === "string" ? term.name : "");
+    const slug =
+      slugify(safeDecodeURIComponent(typeof term.slug === "string" ? term.slug : "")) ||
+      slugify(name);
+    if (!slug || WP_DEFAULT_CATEGORY_SLUGS.has(slug) || out.has(slug)) continue;
+    out.set(slug, (name || slug).slice(0, 200));
+  }
+  return [...out].map(([slug, name]) => ({ slug, name }));
+}
+
+interface CategoryResolution {
+  ids: string[];
+  created: number;
+  errors: string[];
+}
+
+/**
+ * Mapowanie kategorii WP na lokalne `categories.id` najemcy z SESJI, z pamięcią
+ * na cały bieg zadania: import 500 wpisów z dziesięcioma kategoriami robi kilka
+ * zapytań, a nie 500 × 10. Na wpis co najwyżej jeden odczyt (`in("slug", ...)`)
+ * i jeden zapis - wyłącznie dla slugów, których bieg jeszcze nie widział.
+ *
+ * Szukamy po (tenant_id, slug) BEZ filtra `kind`: unikalny indeks obejmuje
+ * wszystkie wymiary taksonomii, więc istniejący region czy temat o tym slugu
+ * i tak zablokowałby założenie duplikatu.
+ *
+ * Klient użytkownika, nie service_role: zakładanie kategorii to prawo
+ * admina/redaktora (RLS). Autor importuje wpisy, ale brakujących kategorii nie
+ * założy - wtedy podpinamy istniejące, a resztę raportujemy w logu zadania.
+ */
+function createCategoryResolver(supabase: SupabaseClient, tenantId: string) {
+  const known = new Map<string, string>(); // slug -> categories.id
+  // Kategorie, których nie udało się założyć - błąd raportujemy raz, zamiast
+  // ponawiać (i logować) go przy każdym kolejnym wpisie.
+  const unavailable = new Set<string>();
+
+  const lookup = async (slugs: string[]): Promise<string | null> => {
+    const { data, error } = await supabase
+      .from("categories")
+      .select("id, slug")
+      .eq("tenant_id", tenantId)
+      .in("slug", slugs);
+    if (error) return error.message;
+    for (const row of (data ?? []) as Array<{ id: string; slug: string }>) {
+      known.set(row.slug, row.id);
+    }
+    return null;
+  };
+
+  return async function resolve(refs: WpCategoryRef[]): Promise<CategoryResolution> {
+    const errors: string[] = [];
+    let created = 0;
+    const pending = refs.filter((r) => !known.has(r.slug) && !unavailable.has(r.slug));
+    if (pending.length > 0) {
+      const lookupErr = await lookup(pending.map((r) => r.slug));
+      if (lookupErr) {
+        // Przejściowy błąd odczytu nie blokuje kategorii na resztę biegu.
+        errors.push(`lookup failed: ${lookupErr}`);
+      } else {
+        const missing = pending.filter((r) => !known.has(r.slug));
+        if (missing.length > 0) {
+          // ignoreDuplicates: kategoria założona równolegle (unikat tenant_id+slug)
+          // nie wywraca całej paczki - dociągamy ją ponownym odczytem niżej.
+          const { data: inserted, error: insErr } = await supabase
+            .from("categories")
+            .upsert(
+              missing.map((r) => ({
+                tenant_id: tenantId,
+                slug: r.slug,
+                name_pl: r.name,
+                name_en: r.name,
+                kind: "category",
+              })),
+              { onConflict: "tenant_id,slug", ignoreDuplicates: true },
+            )
+            .select("id, slug");
+          if (insErr) {
+            for (const r of missing) unavailable.add(r.slug);
+            errors.push(
+              `not created (${missing.map((r) => r.slug).join(", ")}): ${insErr.message}`,
+            );
+          } else {
+            for (const row of (inserted ?? []) as Array<{ id: string; slug: string }>) {
+              known.set(row.slug, row.id);
+              created += 1;
+            }
+            const raced = missing.filter((r) => !known.has(r.slug));
+            if (raced.length > 0) {
+              const raceErr = await lookup(raced.map((r) => r.slug));
+              const still = raced.filter((r) => !known.has(r.slug));
+              for (const r of still) unavailable.add(r.slug);
+              if (still.length > 0) {
+                errors.push(
+                  `not created (${still.map((r) => r.slug).join(", ")}): ${raceErr ?? "not visible after insert"}`,
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+    const ids = refs.flatMap((r) => {
+      const id = known.get(r.slug);
+      return id ? [id] : [];
+    });
+    return { ids, created, errors };
+  };
 }
 
 // ---------- media import ----------
@@ -628,6 +924,11 @@ export const runWpImportJob = createServerFn({ method: "POST" })
       // Ile wpisów zachowało wersję w drugim języku - raportowane w podsumowaniu,
       // żeby „nie zgubiliśmy EN" było widoczne, a nie domniemane.
       let preserved_counterparts = 0;
+      // Kategorie: nowo założone, podpięcia do wpisów i błędy (wpis wchodzi
+      // mimo błędu kategorii - ale podsumowanie nie może udawać, że ich nie było).
+      let categories_created = 0;
+      let category_links = 0;
+      let category_errors = 0;
 
       const site = encodeURIComponent(data.site);
       const qs = new URLSearchParams({
@@ -635,7 +936,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
         offset: String(data.offset),
         status: data.status,
         type: data.type,
-        fields: "ID,slug,title,excerpt,content,date,modified,URL,featured_image,status",
+        fields: "ID,slug,title,excerpt,content,date,modified,URL,featured_image,status,categories",
       });
       await logger.push("info", `Fetching posts from ${data.site}…`);
       const res = await wpFetch<WpPostsResponse>(`/rest/v1.1/sites/${site}/posts?${qs.toString()}`);
@@ -659,6 +960,40 @@ export const runWpImportJob = createServerFn({ method: "POST" })
       const importer = data.import_media
         ? createMediaImporter({ tenantId, userId, siteHost })
         : null;
+      const resolveCategories = createCategoryResolver(supabase, tenantId);
+
+      /**
+       * Podpina kategorie WP do wpisu. Wyłącznie DOPISUJE brakujące powiązania
+       * (ON CONFLICT DO NOTHING) - przy synchronizacji nigdy nie zdejmuje
+       * kategorii, które redakcja nadała już po imporcie. Błąd nie przewraca
+       * wpisu (treść jest już zapisana), ale trafia do logu i podsumowania.
+       */
+      const linkWpCategories = async (wp: WpPost, postId: string): Promise<void> => {
+        const refs = wpCategoryRefs(wp);
+        if (refs.length === 0) return;
+        try {
+          const resolved = await resolveCategories(refs);
+          categories_created += resolved.created;
+          for (const msg of resolved.errors) {
+            category_errors += 1;
+            await logger.push("warn", `Categories ${msg}`, wp.ID);
+          }
+          if (resolved.ids.length === 0) return;
+          const { error } = await supabase.from("post_categories").upsert(
+            resolved.ids.map((category_id) => ({ post_id: postId, category_id })),
+            { onConflict: "post_id,category_id", ignoreDuplicates: true },
+          );
+          if (error) throw new Error(error.message);
+          category_links += resolved.ids.length;
+        } catch (e) {
+          category_errors += 1;
+          await logger.push(
+            "error",
+            `Categories not linked: ${e instanceof Error ? e.message : "unknown error"}`,
+            wp.ID,
+          );
+        }
+      };
 
       for (const wp of filtered) {
         // Cooperative cancellation: re-check status each iteration.
@@ -682,7 +1017,12 @@ export const runWpImportJob = createServerFn({ method: "POST" })
         }
 
         try {
-          const desiredSlug = wp.slug || slugify(stripTags(wp.title)) || `wp-${wp.ID}`;
+          // Slug w tej samej postaci, w jakiej trafia do bazy: porównanie SUROWEGO
+          // sluga WP z zapisanym po `slugify` nie trafiało w wiersze, które
+          // `slugify` zmienił, i każdy kolejny bieg dokładał duplikat.
+          const desiredSlug =
+            slugify(wp.slug || "") || slugify(stripTags(wp.title)) || `wp-${wp.ID}`;
+          const identity = wpIdentityFor(siteHost, wp.ID);
 
           // Inline media (optional) - rewrite first so we can pick a cover from content if needed.
           let html = wp.content || "";
@@ -723,25 +1063,31 @@ export const runWpImportJob = createServerFn({ method: "POST" })
 
           const status = mapStatus(wp.status);
 
-          // Existing post? Czytamy TAKŻE kolumny drugiego języka - import wchodzi
-          // zawsze jednojęzycznie, a payload budowany „jakby drugiej wersji nie
-          // było" kasował ją przy sync_existing (patrz lib/wp-import/localizedMerge).
-          const { data: existing } = await supabase
-            .from("posts")
-            .select(
-              "id, cover_image_url, editor, title_pl, title_en, excerpt_pl, excerpt_en, blocks_data, builder_data",
-            )
-            .eq("tenant_id", tenantId)
-            .eq("slug", desiredSlug)
-            .maybeSingle();
+          const lookup = await findExistingWpPost(supabase, tenantId, identity, desiredSlug);
+          const existing = lookup.row;
+          if (lookup.slugOwner) {
+            await logger.push(
+              "info",
+              `Slug ${desiredSlug} belongs to another WordPress post (${lookup.slugOwner}) - importing as a new post`,
+              wp.ID,
+            );
+          }
 
-          if (existing?.id && !data.sync_existing) {
+          if (existing && !data.sync_existing) {
             skipped += 1;
-            await logger.push("info", `Skipped (slug exists): ${desiredSlug}`, wp.ID);
-          } else if (existing?.id && data.sync_existing) {
-            const prevCover = (existing.cover_image_url as string | null) ?? null;
-            // Język importowany wygrywa, przeciwny zostaje nietknięty.
-            const merged = mergeLocalizedImport(incoming, existing);
+            await logger.push(
+              "info",
+              `Skipped (${lookup.sameWpPost ? "already imported" : "slug exists"}): ${existing.slug}`,
+              wp.ID,
+            );
+          } else if (existing && data.sync_existing) {
+            const existingSlug = existing.slug;
+            const prevCover = existing.cover_image_url ?? null;
+            // Język importowany wygrywa, przeciwny zostaje nietknięty. Zajawka
+            // wiersza przeżywa pustą zapowiedź z WP tylko przy potwierdzonej tożsamości.
+            const merged = mergeLocalizedImport(incoming, existing, {
+              sameWpPost: lookup.sameWpPost,
+            });
             const { blocks_data, builder_data } = serializeLocalizedBlocks(merged.blocks);
             const { error: upErr } = await supabase
               .from("posts")
@@ -756,6 +1102,9 @@ export const runWpImportJob = createServerFn({ method: "POST" })
                 title_en: merged.title_en,
                 excerpt_pl: merged.excerpt_pl,
                 excerpt_en: merged.excerpt_en,
+                // Wiersz dopasowany po slugu dostaje tożsamość teraz - kolejny
+                // bieg rozpozna go już bez zgadywania.
+                custom_meta: withWpIdentity(existing.custom_meta, identity),
               })
               .eq("id", existing.id)
               .eq("tenant_id", tenantId);
@@ -765,14 +1114,14 @@ export const runWpImportJob = createServerFn({ method: "POST" })
               preserved_counterparts += 1;
               await logger.push(
                 "info",
-                `Kept existing ${merged.counterpart.toUpperCase()} version from ${merged.counterpartSource}: ${desiredSlug}`,
+                `Kept existing ${merged.counterpart.toUpperCase()} version from ${merged.counterpartSource}: ${existingSlug}`,
                 wp.ID,
               );
             }
             if (prevCover !== coverUrl) {
               await logger.push(
                 "info",
-                coverUrl ? `Cover updated: ${desiredSlug}` : `Cover cleared: ${desiredSlug}`,
+                coverUrl ? `Cover updated: ${existingSlug}` : `Cover cleared: ${existingSlug}`,
                 wp.ID,
               );
             }
@@ -782,11 +1131,12 @@ export const runWpImportJob = createServerFn({ method: "POST" })
                 userId,
                 tenantId,
                 wp.URL,
-                `/${parentPath}/${desiredSlug}`,
+                `/${parentPath}/${existingSlug}`,
               );
               if (made) redirects_created += 1;
             }
-            await logger.push("info", `Updated: ${desiredSlug}`, wp.ID);
+            await logger.push("info", `Updated: ${existingSlug}`, wp.ID);
+            await linkWpCategories(wp, existing.id);
             await recordAudit(supabase, {
               tenantId,
               action: "post.update",
@@ -802,7 +1152,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
               },
             });
           } else {
-            const slug = await ensureUniqueSlug(supabase, tenantId, desiredSlug);
+            const slug = await ensureUniqueSlug(supabase, tenantId, desiredSlug, wp.ID);
             // Nowy wpis - brak wersji do ocalenia, ale ta sama ścieżka budowania
             // payloadu (jedno miejsce, w którym powstaje para blocks/builder).
             const fresh = mergeLocalizedImport(incoming, null);
@@ -824,6 +1174,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
                 title_en: fresh.title_en,
                 excerpt_pl: fresh.excerpt_pl,
                 excerpt_en: fresh.excerpt_en,
+                custom_meta: withWpIdentity(null, identity),
               })
               .select("id, slug")
               .single();
@@ -840,6 +1191,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
               if (made) redirects_created += 1;
             }
             await logger.push("info", `Imported: ${inserted.slug as string}`, wp.ID);
+            await linkWpCategories(wp, inserted.id as string);
             await recordAudit(supabase, {
               tenantId,
               action: "post.create",
@@ -870,7 +1222,7 @@ export const runWpImportJob = createServerFn({ method: "POST" })
       });
       await logger.push(
         "info",
-        `Done. imported=${imported}, updated=${updated_count}, skipped=${skipped}, failed=${failed}, media=${importer?.count ?? 0}, redirects=${redirects_created}, kept_other_language=${preserved_counterparts}`,
+        `Done. imported=${imported}, updated=${updated_count}, skipped=${skipped}, failed=${failed}, media=${importer?.count ?? 0}, redirects=${redirects_created}, kept_other_language=${preserved_counterparts}, categories_created=${categories_created}, category_links=${category_links}, category_errors=${category_errors}`,
       );
 
       return {

@@ -43,6 +43,12 @@ import { ensureI18n as ensureAdminPostPanesI18n } from "@/lib/i18n-admin-post-pa
 
 export const Route = createFileRoute("/admin/posts/$slug")({
   component: EditPost,
+  // Inny wpis = świeży edytor. Bez tego przejście z wpisu A na B (link,
+  // historia przeglądarki) zostawiało stan A w hookach i organizmach:
+  // zaznaczenia taksonomii, bazę autozapisu, lokalne stany kart. Zmiana sluga
+  // tego samego wpisu też przemontowuje edytor - wczytuje się wtedy z bazy
+  // zapisany właśnie stan (historia cofania zaczyna się od nowa).
+  remountDeps: ({ params }) => params.slug,
   // Lista admina przekazuje `?lang=pl|en` - edytor otwiera się w tej wersji
   // językowej, spójnie z filtrem językowym listy.
   validateSearch: (search: Record<string, unknown>): { lang?: PostLang } =>
