@@ -125,6 +125,25 @@ describe("collectMenuRefs", () => {
 });
 
 describe("resolveMenuRefs", () => {
+  it("typ spoza listy (dane zanonimizowane, import) zostaje BEZ ZMIAN i nie wywraca odczytu", async () => {
+    // Fixture pomiarowy (`e2e/fixtures/first-visit.json`) niesie
+    // `item_type: "Treść przykładowa"` z UUID w `ref_id`: dawny warunek
+    // `!== "custom"` wpuszczał taki wiersz do `ids[item_type]` (undefined),
+    // a wyjątek kasował CAŁE menu.
+    const { db, rpcCalls, sb } = client();
+    const items = [
+      item({
+        id: "anon",
+        item_type: "Treść przykładowa" as MenuItemRow["item_type"],
+        ref_id: CAT_EKONOMIA,
+        href: "/",
+      }),
+    ];
+    expect(await resolveMenuRefs(items, sb)).toEqual(items);
+    expect(db.chains).toHaveLength(0);
+    expect(rpcCalls).toHaveLength(0);
+  });
+
   it("menu z samymi zwykłymi linkami nie płaci ani jednego zapytania", async () => {
     const { db, rpcCalls, sb } = client();
     const items = [item({ id: "blog", href: "/blog" }), item({ id: "o-nas", href: "/o-nas" })];

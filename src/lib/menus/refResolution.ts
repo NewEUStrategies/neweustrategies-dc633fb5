@@ -88,6 +88,15 @@ export function categorySlugFromHref(href: string | null | undefined): string | 
   return slug.toLowerCase();
 }
 
+/**
+ * Typy rozstrzygane po referencji - lista ZAMKNIĘTA. Wiersz spoza niej (wartość
+ * spoza enumu z importu, danych zanonimizowanych albo przyszłej wersji
+ * schematu) zostaje przy zapisanym `href`: dawne `item_type !== "custom"`
+ * wpuszczało go do `ids[item.item_type]` (undefined) i wyjątek wywracał odczyt
+ * CAŁEGO menu.
+ */
+const REF_KINDS: ReadonlySet<string> = new Set<MenuRefKind>(["page", "post", "category", "tag"]);
+
 function hasRef(item: Pick<MenuItemRow, "item_type" | "ref_id">): item is Pick<
   MenuItemRow,
   "item_type" | "ref_id"
@@ -96,7 +105,7 @@ function hasRef(item: Pick<MenuItemRow, "item_type" | "ref_id">): item is Pick<
   ref_id: string;
 } {
   return (
-    item.item_type !== "custom" && typeof item.ref_id === "string" && UUID_RE.test(item.ref_id)
+    REF_KINDS.has(item.item_type) && typeof item.ref_id === "string" && UUID_RE.test(item.ref_id)
   );
 }
 
