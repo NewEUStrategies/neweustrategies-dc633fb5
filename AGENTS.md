@@ -3,7 +3,7 @@
 - Share one skyline mask and theme ink for archive banners to preserve geometry.
 
 - Share `eh-slider-arrow` and `AngleChevron` across sliders, isolated from widget presets, for consistent controls.
-- Share event module headings between public pages and studio preview for visual parity.
+- Share event heading geometry across overview, modules and personal profile, including studio preview, for visual parity.
 - Share contact field ceilings between client/server validation and counters; retain complete submitted text in CRM responses and reject oversized custom values rather than slicing them, because visible limits must match stored data.
 
 - Run the application typecheck with `tsgo --noEmit`, because the equivalent TypeScript check must finish within the preview gate timeout.

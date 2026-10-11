@@ -21,13 +21,17 @@ import {
   Mic,
   Users,
   LayoutGrid,
+  User,
 } from "@/lib/lucide-shim";
 import type { EventModule } from "@/lib/events/eventModules";
+import { EventSectionHeading } from "@/components/events/public/atoms/EventSectionHeading";
 import { cn } from "@/lib/utils";
 
 ensureEventFrontI18n();
 
-const MODULE_ICONS: Partial<Record<EventModule, ComponentType<{ className?: string }>>> = {
+type EventHeadingModule = EventModule | "me";
+const MODULE_ICONS: Partial<Record<EventHeadingModule, ComponentType<{ className?: string }>>> = {
+  me: User,
   participants: Users,
   speakers: Mic,
   partners: Handshake,
@@ -48,7 +52,7 @@ export function EventModuleHero({
   children,
 }: {
   /** Który z pięciu modułów rysuje zakładka - dobiera ikonę kafla. */
-  module: EventModule;
+  module: EventHeadingModule;
   /** Nazwa wydarzenia w pigułce; pusta -> zapasowy napis ze słownika. */
   eventTitle: string;
   /** Tytuł zakładki (z bazy) - awaryjny `h1`, gdy dokument CMS-a jest pusty. */
@@ -108,15 +112,10 @@ export function EventModuleHero({
         data-event-module-hero={module}
         className="relative mb-6 border-b border-border/50 bg-background"
       >
-        <div className="flex flex-col items-center px-4 pb-6 pt-4 text-center sm:px-6">
-          <span className="mb-3 grid size-8 shrink-0 place-items-center">
-            <Icon className="size-6 text-primary/70" aria-hidden="true" />
-          </span>
-          <p className="mb-2 max-w-full text-xs font-medium text-muted-foreground">
-            <span className="[overflow-wrap:anywhere]">
-              {eventTitle || t("eventFront.header.moduleEyebrow")}
-            </span>
-          </p>
+        <EventSectionHeading
+          icon={<Icon className="size-6 text-primary/70" aria-hidden="true" />}
+          eyebrow={eventTitle || t("eventFront.header.moduleEyebrow")}
+        >
           {hasDocument ? (
             <div className="event-module-hero-doc mx-auto w-full min-w-0 max-w-2xl text-center [overflow-wrap:anywhere] [&_h1]:font-semibold [&_h1]:leading-snug [&_h1]:tracking-normal [&_h1]:text-foreground [&_h1]:text-2xl [&_p:last-child]:mb-0 [&_p]:mx-auto [&_p]:mt-2 [&_p]:max-w-xl [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-muted-foreground">
               {children}
@@ -126,7 +125,7 @@ export function EventModuleHero({
               {moduleLabel}
             </h1>
           )}
-        </div>
+        </EventSectionHeading>
       </header>
     </>
   );
