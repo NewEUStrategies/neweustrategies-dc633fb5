@@ -41,6 +41,11 @@ export const Route = createFileRoute("/events/$slug/me")({
   head: () => ({
     meta: [
       { title: i18n.getFixedT(activeLang())("eventHead.meTitle") },
+      { name: "description", content: i18n.getFixedT(activeLang())("eventHead.meTitle") },
+      { property: "og:title", content: i18n.getFixedT(activeLang())("eventHead.meTitle") },
+      { property: "og:description", content: i18n.getFixedT(activeLang())("eventHead.meTitle") },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

@@ -96,7 +96,18 @@ import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 type RsvpStatus = "going" | "interested" | "cancelled" | "waitlist";
 
+import { buildEventTabHead } from "@/lib/events/eventTabHead";
+import { activeLang } from "@/lib/seo/head";
+
 export const Route = createFileRoute("/events/$slug/")({
+  loader: async ({ parentMatchPromise }) => {
+    const parent = await parentMatchPromise;
+    return { headEvent: parent.loaderData?.headEvent ?? null };
+  },
+  head: ({ params, loaderData }) => {
+    const url = getRequestUrl() || `/events/${params.slug}`;
+    return buildEventTabHead({ tab: "overview", url, lang: activeLang(url), event: loaderData?.headEvent ?? null });
+  },
   component: EventOverview,
 });
 

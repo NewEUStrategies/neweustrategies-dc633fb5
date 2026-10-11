@@ -14,7 +14,19 @@ import { createFileRoute, useParams } from "@tanstack/react-router";
 import { EventModulePage } from "@/components/events/public/molecules/EventModulePage";
 import { EventDiscussionsList } from "@/components/events/public/organisms/EventDiscussionsList";
 
+import { buildEventTabHead } from "@/lib/events/eventTabHead";
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
+
 export const Route = createFileRoute("/events/$slug/discussions")({
+  loader: async ({ parentMatchPromise }) => {
+    const parent = await parentMatchPromise;
+    return { headEvent: parent.loaderData?.headEvent ?? null };
+  },
+  head: ({ params, loaderData }) => {
+    const url = getRequestUrl() || `/events/${params.slug}/discussions`;
+    return buildEventTabHead({ tab: "discussions", url, lang: activeLang(url), event: loaderData?.headEvent ?? null });
+  },
   component: EventDiscussionsTab,
 });
 
