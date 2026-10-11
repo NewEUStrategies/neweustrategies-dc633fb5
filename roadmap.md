@@ -2,8 +2,8 @@
 
 ## Subtelne nagłówki wszystkich stron wydarzenia
 
-- [ ] Ujednolicić Stronę główną, Uczestników, Prelegentów, Partnerów, Agendę, Dyskusje i Mój profil.
-- [ ] Sprawdzić strony w obu motywach oraz testy wydarzeń.
+- [x] Ujednolicić Stronę główną, Uczestników, Prelegentów, Partnerów, Agendę, Dyskusje i Mój profil.
+- [x] Sprawdzić strony w obu motywach oraz testy wydarzeń: siedem stron HTTP 200, bez cienia, identyczna geometria light/dark; 82 testy przechodzą.
 
 ## Banery archiwów - Wspólny horyzont
 
