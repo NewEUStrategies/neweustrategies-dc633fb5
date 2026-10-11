@@ -598,6 +598,22 @@ describe("UrlInspectionWidget - składanie adresu inspekcji", () => {
       expected: "https://example.com/en/analizy/example",
     },
     {
+      // Strona główna EN: kanoniczny adres to `/en` - z ukośnikiem Search
+      // Console sprawdzałby inny URL niż ten w hreflang/canonical.
+      nazwa: "strona główna EN to /en, bez końcowego ukośnika",
+      siteUrl: "https://example.com",
+      path: "",
+      lang: "en" as const,
+      expected: "https://example.com/en",
+    },
+    {
+      nazwa: "strona główna PL to sam origin właściwości",
+      siteUrl: "https://example.com",
+      path: "",
+      lang: "pl" as const,
+      expected: "https://example.com/",
+    },
+    {
       nazwa: "sc-domain + wiodący slash + prefiks en/",
       siteUrl: "sc-domain:example.com",
       path: "/analizy/example",

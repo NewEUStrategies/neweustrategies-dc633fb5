@@ -146,7 +146,7 @@ const pl = {
       publishedRow: "Opublikowano",
       scheduledRow: "Zaplanowane",
       coverSet: "ustawiony",
-      indexingRow: "Indexowanie",
+      indexingRow: "Indeksowanie",
       enFilled: "uzupełnione",
       enFromExcerpt: "z zajawki",
       seoErrorsAbbr: "{{n}} błąd.",

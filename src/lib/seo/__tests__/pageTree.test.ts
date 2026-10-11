@@ -57,6 +57,18 @@ describe("buildPageTree", () => {
     expect(countPageTreeNodes(tree)).toBe(1);
   });
 
+  it("strona TESTOWA (test-*/e2e-*) wypada z mapy razem z poddrzewem", () => {
+    // 2026-10 audyt: `/test-e2e-zakup` linkowane jak zwykła strona.
+    const tree = buildPageTree([
+      row({ id: "zakup", slug: "test-e2e-zakup" }),
+      row({ id: "test", slug: "test" }),
+      row({ id: "pod", slug: "podstrona", parent_id: "test" }),
+      row({ id: "e2e", slug: "e2e-kongres" }),
+      row({ id: "testament", slug: "testament" }),
+    ]);
+    expect(tree.map((n) => n.path)).toEqual(["/testament"]);
+  });
+
   it("a parent_id cycle never reaches a root, so it is dropped without looping", () => {
     const tree = buildPageTree([
       row({ id: "a", slug: "a", parent_id: "b" }),

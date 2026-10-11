@@ -672,3 +672,120 @@ describe("setPostAuthors", () => {
     ).rejects.toThrow("authors insert denied");
   });
 });
+
+// ---------------------------------------------------------------------------
+// upsertCategory - zmiana slugu (2026-10 audyt SEO: `/category/ekonomia` w menu
+// głównym dawało 404). Stary adres archiwum dostaje 301 jak strony i wpisy;
+// pozycje menu przepisuje wyzwalacz `categories_sync_menu_items` w bazie
+// (pgTAP `menu_category_links_test_pages_test.sql`), więc aplikacja NIE pisze
+// do `menu_items`.
+// ---------------------------------------------------------------------------
+
+describe("upsertCategory - zmiana slugu zostawia 301", () => {
+  const FIELDS = { name_pl: "Gospodarka", name_en: "Economy" };
+
+  function scene(before: { slug: string; kind: string } | null) {
+    const client = contentClient();
+    client.db.setResponse("categories", (chain: RecordedChain): SupabaseResult => {
+      if (chain.has("limit")) return ok([]);
+      if (chain.has("maybeSingle")) return ok(before);
+      if (chain.has("update")) return ok(null);
+      return ok([]);
+    });
+    client.db.setResponse("redirects", ok(null));
+    return client;
+  }
+
+  function upserted(client: ContentClient): unknown[] {
+    return client.db
+      .chainsFor("redirects")
+      .filter((c) => c.has("upsert"))
+      .flatMap((c) => (c.argsOf("upsert")?.[0] as unknown[]) ?? []);
+  }
+
+  it("zmiana slugu: 301 /category/<stary> -> /category/<nowy>, slug poprzedni w audycie", async () => {
+    const client = scene({ slug: "ekonomia", kind: "category" });
+    await expect(
+      run("upsertCategory", { id: CATEGORY_ID, fields: { ...FIELDS, slug: "gospodarka" } }, client),
+    ).resolves.toEqual({ id: CATEGORY_ID, slug: "gospodarka" });
+    expect(upserted(client)).toEqual([
+      expect.objectContaining({
+        tenant_id: TENANT,
+        status_code: 301,
+        source: "slug_change",
+        created_by: USER,
+        source_path: "/category/ekonomia",
+        target_path: "/category/gospodarka",
+      }),
+    ]);
+    const before = client.db.chainsFor("categories").find((c) => c.has("maybeSingle"));
+    expect(before?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["id", CATEGORY_ID],
+      ["tenant_id", TENANT],
+    ]);
+    expect(auditParams()).toMatchObject({
+      action: "category.update",
+      metadata: { slug: "gospodarka", previousSlug: "ekonomia" },
+    });
+    expect(client.db.chainsFor("menu_items")).toHaveLength(0);
+  });
+
+  it("organizacja: przekierowany jest też stary adres profilu /organization/<slug>", async () => {
+    const client = scene({ slug: "stara-fundacja", kind: "organization" });
+    await run(
+      "upsertCategory",
+      { id: CATEGORY_ID, fields: { ...FIELDS, slug: "fundacja", kind: "organization" } },
+      client,
+    );
+    expect(upserted(client)).toEqual([
+      expect.objectContaining({
+        source_path: "/category/stara-fundacja",
+        target_path: "/category/fundacja",
+      }),
+      expect.objectContaining({
+        source_path: "/organization/stara-fundacja",
+        target_path: "/organization/fundacja",
+      }),
+    ]);
+  });
+
+  it("ten sam slug, nowa kategoria i nieczytelny stan sprzed zapisu - bez reguły", async () => {
+    const tenSam = scene({ slug: "gospodarka", kind: "category" });
+    await run(
+      "upsertCategory",
+      { id: CATEGORY_ID, fields: { ...FIELDS, slug: "gospodarka" } },
+      tenSam,
+    );
+    expect(tenSam.db.chainsFor("redirects")).toHaveLength(0);
+    expect(auditParams().metadata).toEqual({ slug: "gospodarka" });
+
+    const nowa = scene(null);
+    nowa.db.setResponse("categories", (chain: RecordedChain): SupabaseResult =>
+      chain.has("insert") ? ok({ id: CATEGORY_ID }) : ok([]),
+    );
+    await run("upsertCategory", { fields: { ...FIELDS, slug: "gospodarka" } }, nowa);
+    expect(nowa.db.chainsFor("categories").some((c) => c.has("maybeSingle"))).toBe(false);
+    expect(nowa.db.chainsFor("redirects")).toHaveLength(0);
+
+    const brak = scene(null);
+    await run(
+      "upsertCategory",
+      { id: CATEGORY_ID, fields: { ...FIELDS, slug: "gospodarka" } },
+      brak,
+    );
+    expect(brak.db.chainsFor("redirects")).toHaveLength(0);
+  });
+
+  it("BŁĄD zapisu przekierowania NIE psuje zapisu kategorii", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const client = scene({ slug: "ekonomia", kind: "category" });
+    client.db.setResponse("redirects", (chain: RecordedChain) =>
+      chain.has("upsert") ? fail("redirects denied") : ok(null),
+    );
+    await expect(
+      run("upsertCategory", { id: CATEGORY_ID, fields: { ...FIELDS, slug: "gospodarka" } }, client),
+    ).resolves.toEqual({ id: CATEGORY_ID, slug: "gospodarka" });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});

@@ -36,7 +36,15 @@ import {
   emitWidgetCacheInvalidate,
 } from "@/lib/builder/widgetCacheInvalidation";
 import { invalidateSeoCaches } from "@/lib/seo/invalidate";
-import { type SeoIssue } from "@/lib/seo/validation";
+import { validateSeoPanel, type SeoIssue } from "@/lib/seo/validation";
+import { SEO_DESCRIPTION_MAX_CHARS, SEO_TITLE_MAX_CHARS } from "@/lib/seo/limits";
+import {
+  DEFAULT_SEO_SETTINGS,
+  effectiveTitleSuffix,
+  SEO_SETTINGS_KEY,
+  SeoSettingsSchema,
+} from "@/lib/seo/settings";
+import { useSiteSetting } from "@/lib/useSiteSetting";
 import {
   buildPostPatch,
   isScheduledInPast,
@@ -47,6 +55,27 @@ import {
 } from "../lib/postPatch";
 import type { PostForm } from "../types";
 import type { PostEditorData } from "./usePostEditorData";
+
+type TaxonomyKey = "cats" | "tags" | "programs" | "regions";
+
+/**
+ * Zaznaczenia taksonomii w zapisie. `undefined` = relacja nie jest jeszcze
+ * wczytana dla TEGO wpisu - `updatePost` traktuje brak pola jako „nie ruszaj",
+ * a pustą listę jako „zdejmij wszystko".
+ */
+export interface TaxonomySelection {
+  cats: string[] | undefined;
+  tags: string[] | undefined;
+  programs: string[] | undefined;
+  regions: string[] | undefined;
+}
+
+const NO_TAXONOMY_LOADED: Readonly<Record<TaxonomyKey, string | null>> = {
+  cats: null,
+  tags: null,
+  programs: null,
+  regions: null,
+};
 
 export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   const { t } = useTranslation();
@@ -73,8 +102,64 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedPrograms, setSelectedPrograms] = useState<string[]>([]);
   const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
+  // Dla którego wpisu dana taksonomia została wczytana z bazy. Zaznaczenia
+  // startują jako `[]` - wysłane przed wczytaniem relacji (autozapis, zmiana
+  // statusu) KASOWAŁY kategorie wpisu albo wpisywały mu kategorie poprzedniego.
+  const [taxonomyLoadedFor, setTaxonomyLoadedFor] =
+    useState<Record<TaxonomyKey, string | null>>(NO_TAXONOMY_LOADED);
   const [busy, setBusy] = useState(false);
-  const [seoIssues, setSeoIssues] = useState<SeoIssue[]>([]);
+  // Uwagi SEO liczone TU, z formularza - nie w panelu SEO. Panel montuje się
+  // tylko w zakładce SEO, więc dotąd przy innej zakładce przegląd pokazywał
+  // „SEO OK" bez żadnej walidacji, bramka „Zapisz" przepuszczała treść, a po
+  // wyjściu z zakładki uwagi zamarzały, choć tytuł i zajawka dalej się zmieniały.
+  const seoSettings = useSiteSetting(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS, SeoSettingsSchema);
+  const titleSuffix = effectiveTitleSuffix(seoSettings);
+  const hasForm = form !== null;
+  const seoTitlePl = form?.seo_title_pl ?? null;
+  const seoTitleEn = form?.seo_title_en ?? null;
+  const seoDescPl = form?.seo_description_pl ?? null;
+  const seoDescEn = form?.seo_description_en ?? null;
+  const titlePl = form?.title_pl ?? "";
+  const titleEn = form?.title_en ?? "";
+  const excerptPl = form?.excerpt_pl ?? null;
+  const excerptEn = form?.excerpt_en ?? null;
+  const formSlug = form?.slug ?? "";
+  const seoIssues = useMemo<SeoIssue[]>(
+    () =>
+      hasForm
+        ? validateSeoPanel({
+            value: {
+              seo_title_pl: seoTitlePl,
+              seo_title_en: seoTitleEn,
+              seo_description_pl: seoDescPl,
+              seo_description_en: seoDescEn,
+              seo_canonical_url: null,
+              seo_noindex: false,
+              seo_og_image_url: null,
+              og_image_generated_url: null,
+            },
+            fallbackTitle: { pl: titlePl, en: titleEn },
+            fallbackDescription: { pl: excerptPl, en: excerptEn },
+            slug: formSlug,
+            titleCharLimit: SEO_TITLE_MAX_CHARS,
+            descriptionCharLimit: SEO_DESCRIPTION_MAX_CHARS,
+            titleSuffix,
+          })
+        : [],
+    [
+      hasForm,
+      seoTitlePl,
+      seoTitleEn,
+      seoDescPl,
+      seoDescEn,
+      titlePl,
+      titleEn,
+      excerptPl,
+      excerptEn,
+      formSlug,
+      titleSuffix,
+    ],
+  );
   // Baza optimistic-locka: updated_at ostatnio załadowanego/zapisanego wiersza.
   // Aktualizowana z odpowiedzi serwera po każdym zapisie, by kolejny zapis nie
   // zgłaszał fałszywego konfliktu.
@@ -91,20 +176,58 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
     loadedPostIdRef.current = post.id;
     history.reset(post);
     baseUpdatedAtRef.current = post.updated_at ?? null;
+    // Zaznaczenia należą do wpisu, nie do edytora: przy przejściu na inny wpis
+    // bez przemontowania zostawały zaznaczenia POPRZEDNIEGO, a pierwszy zapis
+    // wpisywał je nowemu. Efekty niżej (zadeklarowane PO tym) wczytają relacje
+    // nowego wpisu, gdy tylko przyjdą.
+    setSelectedCats([]);
+    setSelectedTags([]);
+    setSelectedPrograms([]);
+    setSelectedRegions([]);
+    setTaxonomyLoadedFor(NO_TAXONOMY_LOADED);
   }, [post, history.reset]);
 
   useEffect(() => {
-    if (data.postCats) setSelectedCats(data.postCats.map((c) => c.category_id));
-  }, [data.postCats]);
+    if (!data.postCats || !id) return;
+    setSelectedCats(data.postCats.map((c) => c.category_id));
+    setTaxonomyLoadedFor((s) => ({ ...s, cats: id }));
+  }, [data.postCats, id]);
   useEffect(() => {
-    if (data.postTags) setSelectedTags(data.postTags.map((c) => c.tag_id));
-  }, [data.postTags]);
+    if (!data.postTags || !id) return;
+    setSelectedTags(data.postTags.map((c) => c.tag_id));
+    setTaxonomyLoadedFor((s) => ({ ...s, tags: id }));
+  }, [data.postTags, id]);
   useEffect(() => {
-    if (data.postPrograms) setSelectedPrograms(data.postPrograms.map((p) => p.program_id));
-  }, [data.postPrograms]);
+    if (!data.postPrograms || !id) return;
+    setSelectedPrograms(data.postPrograms.map((p) => p.program_id));
+    setTaxonomyLoadedFor((s) => ({ ...s, programs: id }));
+  }, [data.postPrograms, id]);
   useEffect(() => {
-    if (data.postRegions) setSelectedRegions(data.postRegions.map((r) => r.region_id));
-  }, [data.postRegions]);
+    if (!data.postRegions || !id) return;
+    setSelectedRegions(data.postRegions.map((r) => r.region_id));
+    setTaxonomyLoadedFor((s) => ({ ...s, regions: id }));
+  }, [data.postRegions, id]);
+
+  // Migawka taksonomii WPISU Z FORMULARZA: tylko relacje wczytane dla tego
+  // samego wpisu; pozostałe jadą jako `undefined` (serwer ich nie dotyka).
+  const formPostId = form?.id ?? null;
+  const taxonomy = useMemo<TaxonomySelection>(() => {
+    const pick = (key: TaxonomyKey, ids: string[]): string[] | undefined =>
+      formPostId !== null && taxonomyLoadedFor[key] === formPostId ? ids : undefined;
+    return {
+      cats: pick("cats", selectedCats),
+      tags: pick("tags", selectedTags),
+      programs: pick("programs", selectedPrograms),
+      regions: pick("regions", selectedRegions),
+    };
+  }, [
+    formPostId,
+    taxonomyLoadedFor,
+    selectedCats,
+    selectedTags,
+    selectedPrograms,
+    selectedRegions,
+  ]);
 
   // Keyboard shortcuts: Ctrl/Cmd+Z = undo, Shift+Ctrl/Cmd+Z (or Ctrl+Y) = redo
   useEffect(() => {
@@ -166,7 +289,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   );
 
   const saveFn = useCallback(
-    async (input: PostForm | null) => {
+    async (input: PostForm | null, relations: TaxonomySelection) => {
       if (!input) return;
       const persistedBlocks = await persistPastedImages(input.blocks_data);
       const persistedBuilder = await persistPastedImages(input.builder_data);
@@ -175,12 +298,14 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
       const snapshot: PostForm = applyPersistedImages(input, persistedBlocks, persistedBuilder);
       const result = await update$({
         data: {
-          id,
+          // Wpis Z MIGAWKI, nie z bieżącego renderu: w chwili przejścia na inny
+          // wpis `id` trasy już wskazuje nowy, a formularz jeszcze stary.
+          id: snapshot.id || id,
           fields: buildPostPatch(snapshot),
-          categories: selectedCats,
-          tags: selectedTags,
-          programs: selectedPrograms,
-          regions: selectedRegions,
+          categories: relations.cats,
+          tags: relations.tags,
+          programs: relations.programs,
+          regions: relations.regions,
           // Optimistic-lock: updated_at, który klient ostatnio widział.
           baseUpdatedAt: baseUpdatedAtRef.current ?? undefined,
         },
@@ -237,40 +362,19 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
         navigate({ to: "/admin/posts/$slug", params: { slug: canonicalSlug }, replace: true });
       }
     },
-    [
-      id,
-      update$,
-      persistPastedImages,
-      selectedCats,
-      selectedTags,
-      selectedPrograms,
-      selectedRegions,
-      qc,
-      navigate,
-      routeSlug,
-      tenantId,
-      router,
-      setSlug,
-      t,
-    ],
+    [id, update$, persistPastedImages, qc, navigate, routeSlug, tenantId, router, setSlug, t],
   );
 
   // Track tuple [form, cats, tags] for autosave so taxonomies persist too.
-  const autoValue = useMemo(
-    () => ({
-      form,
-      cats: selectedCats,
-      tags: selectedTags,
-      programs: selectedPrograms,
-      regions: selectedRegions,
-    }),
-    [form, selectedCats, selectedTags, selectedPrograms, selectedRegions],
-  );
+  const autoValue = useMemo(() => ({ form, ...taxonomy }), [form, taxonomy]);
   const autosave = useAutosave({
     value: autoValue,
     enabled: !!form,
+    // Nowy wpis w formularzu = nowa baza autozapisu: zaległy zapis poprzedniego
+    // wpisu przepada, a jego migawka nie staje się `lastSaved` (cel „odrzuć").
+    resetKey: formPostId,
     save: async (v) => {
-      await saveFn(v.form);
+      await saveFn(v.form, v);
     },
   });
   // Tab close / route change with unsaved edits -> confirmation prompt.
@@ -327,11 +431,16 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
   // newer already-saved work).
   const discardToSaved = () => {
     const saved = autosave.lastSaved;
+    // Migawka innego wpisu nigdy nie wraca do formularza (bezpiecznik obok
+    // `resetKey` autozapisu).
+    if (saved.form && form && saved.form.id !== form.id) return;
     if (saved.form) history.reset(saved.form);
-    setSelectedCats(saved.cats);
-    setSelectedTags(saved.tags);
-    setSelectedPrograms(saved.programs);
-    setSelectedRegions(saved.regions);
+    // Taksonomia niewczytana w chwili zapisu nie ma czego przywracać - `[]`
+    // w jej miejscu zdjęłoby wszystkie przypisania przy następnym zapisie.
+    if (saved.cats) setSelectedCats(saved.cats);
+    if (saved.tags) setSelectedTags(saved.tags);
+    if (saved.programs) setSelectedPrograms(saved.programs);
+    if (saved.regions) setSelectedRegions(saved.regions);
   };
 
   const del = async () => {
@@ -399,7 +508,7 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
     history.set(() => next);
     setBusy(true);
     try {
-      await saveFn(next);
+      await saveFn(next, taxonomy);
       toast.success(t("admin.saved"));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -424,7 +533,6 @@ export function usePostEditorForm(routeSlug: string, data: PostEditorData) {
     canPublish,
     busy,
     seoIssues,
-    setSeoIssues,
     selectedCats,
     setSelectedCats,
     selectedTags,

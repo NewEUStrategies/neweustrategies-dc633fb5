@@ -33,6 +33,8 @@ import { serpDescriptionMetric, serpTitleMetric } from "@/lib/seo/serp";
 
 interface SeoTextFieldProps {
   label: string;
+  /** Jedno zdanie: gdzie ten tekst się pojawia i co dzieje się przy pustym polu. */
+  hint?: string;
   kind: "title" | "description";
   value: string | null;
   /** Derived fallback shown as placeholder and measured when value is empty. */
@@ -52,6 +54,7 @@ interface SeoTextFieldProps {
 
 export function SeoTextField({
   label,
+  hint,
   kind,
   value,
   fallback,
@@ -63,6 +66,7 @@ export function SeoTextField({
   const id = useId();
   const errorId = `${id}-err`;
   const warnId = `${id}-warn`;
+  const hintId = `${id}-hint`;
   const raw = value ?? "";
   const ownValue = raw.trim();
   const effective = ownValue || (measuredFallback ?? fallback);
@@ -81,8 +85,13 @@ export function SeoTextField({
   const showPixelWarning = overPixelBudget && !overHardLimit;
   // Czerwien tylko dla bledu albo dla WLASNEGO wpisu ponad budzetem.
   const destructiveTone = isInvalid || (overPixelBudget && ownValue.length > 0);
-  const handle = (next: string) => onChange(next.length ? next : null);
-  const describedBy = overHardLimit ? errorId : showPixelWarning ? warnId : undefined;
+  // Same odstępy to „puste pole", nie nadpisanie: inaczej `"  "` trafiało do
+  // bazy jako tytuł SEO i strona kodowa renderowała pusty `<title>`.
+  const handle = (next: string) => onChange(next.trim().length ? next : null);
+  const describedBy =
+    [hint ? hintId : null, overHardLimit ? errorId : showPixelWarning ? warnId : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   const commonProps = {
     id,
@@ -96,10 +105,27 @@ export function SeoTextField({
 
   return (
     <div>
-      <Label htmlFor={id} className="flex items-center justify-between">
-        <span>{label}</span>
+      <Label htmlFor={id} className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-2">
+          {label}
+          {/* Czy do Google idzie wpis redakcji, czy tekst wyliczony z treści -
+              bez tego puste pole z podpowiedzią wyglądało jak brak wartości. */}
+          <span
+            className={cn(
+              "rounded px-1.5 py-0.5 text-[10px] font-medium",
+              ownValue ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+            )}
+          >
+            {ownValue ? t("admin.seo.sourceCustom") : t("admin.seo.sourceAuto")}
+          </span>
+        </span>
         <CharCounter length={raw.length} max={maxLength} />
       </Label>
+      {hint && (
+        <p id={hintId} className="mb-1.5 text-[11px] text-muted-foreground">
+          {hint}
+        </p>
+      )}
       {kind === "title" ? (
         <Input {...commonProps} onChange={(e) => handle(e.target.value)} />
       ) : (

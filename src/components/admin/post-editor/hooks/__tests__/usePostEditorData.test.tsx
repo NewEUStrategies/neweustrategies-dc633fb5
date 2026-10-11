@@ -212,6 +212,20 @@ describe("relacje wpisu", () => {
     expect(result.current.postRegions).toEqual([{ region_id: "r-1" }]);
   });
 
+  it("REGRESJA: błąd odczytu relacji NIE udaje pustej listy", async () => {
+    // `[]` z nieudanego odczytu formularz brał za „wczytane, bez przypisań" i
+    // wysyłał przy zapisie - `updatePost` kasował wtedy wszystkie kategorie.
+    stub.setResponse(
+      "post_categories",
+      fail("permission denied for table post_categories", "42501"),
+    );
+    const { result } = mountData();
+
+    await waitFor(() => expect(result.current.postRegions).toBeTruthy());
+    expect(result.current.postCats).toBeUndefined();
+    expect(result.current.postTags).toEqual([{ tag_id: "t-1" }]);
+  });
+
   it("brak relacji daje puste listy zaznaczeń", async () => {
     for (const table of ["post_categories", "post_tags", "post_programs", "post_regions"]) {
       stub.setResponse(table, ok(null));

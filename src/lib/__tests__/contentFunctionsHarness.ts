@@ -258,6 +258,8 @@ export function contentClient(opts: ContentClientOptions = {}): ContentClient {
   const rpc = new Map<string, RpcResponder>();
   rpc.set("can_publish_content", () => ok(canPublish));
   rpc.set("page_full_path", () => ok(null));
+  // Kontrola stron testowych przed hurtową publikacją (`noindexTestPages`).
+  rpc.set("page_full_paths", () => ok([]));
 
   return {
     db,

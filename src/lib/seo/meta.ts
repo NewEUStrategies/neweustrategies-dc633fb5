@@ -49,7 +49,9 @@ export function defaultSocialImage(origin: string): string {
 /**
  * Brand-default page title per language. Single source of truth shared by the
  * global <head> fallback (buildRootHead) and the homepage's own head(), so the
- * front page and any route without its own head() stay byte-identical.
+ * front page (unless its static CMS page sets its own `seo_title_<lang>`,
+ * rendered verbatim - `resolveHomepageSeoText`) and any route without its own
+ * head() stay byte-identical.
  */
 export const SITE_DEFAULT_TITLE: Record<Lang, string> = {
   pl: "New European Strategies",

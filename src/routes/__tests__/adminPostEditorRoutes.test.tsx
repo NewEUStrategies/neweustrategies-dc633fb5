@@ -390,6 +390,18 @@ describe("/admin/posts/$slug - korzeń kompozycji edytora", () => {
     expect(props("content").layoutCard).toBeDefined();
     expect(props("content").currentFormat).toBe("standard");
   });
+
+  it("REGRESJA: inny slug w adresie przemontowuje edytor (stan wpisu nie przecieka)", () => {
+    // Bez `remountDeps` przejście z wpisu A na B zostawiało w hookach stan A:
+    // zaznaczenia taksonomii, bazę autozapisu i lokalne stany kart.
+    const remountDeps = EditPostRoute.options.remountDeps as (opts: {
+      params: { slug: string };
+    }) => unknown;
+    expect(remountDeps({ params: { slug: "wpis-a" } })).toBe("wpis-a");
+    expect(remountDeps({ params: { slug: "wpis-a" } })).not.toBe(
+      remountDeps({ params: { slug: "wpis-b" } }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

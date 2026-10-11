@@ -4,7 +4,7 @@
 // the server routes (robots.txt, feeds, news sitemap), so every consumer
 // agrees on shape and fallbacks.
 import { z } from "zod";
-import { SITE_NAME } from "@/lib/seo/meta";
+import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
 import {
   ROBOTS_DEFAULT_DISALLOW,
   type RobotsGroup,
@@ -149,6 +149,21 @@ export function siteTitleOverride(settings: SeoSettings, lang: "pl" | "en"): str
 /** Redakcyjny opis serwisu dla języka ("" = użyj fallbacku marki). */
 export function siteDescriptionOverride(settings: SeoSettings, lang: "pl" | "en"): string {
   return (lang === "en" ? settings.site_description_en : settings.site_description_pl).trim();
+}
+
+/**
+ * Efektywny tytuł serwisu z bloba ustawień: nadpisanie redakcji albo stała
+ * marki - ta sama wartość, którą serwer czyta przez `siteTitle()` (root loader
+ * zapamiętuje dokładnie te pola). W PRZEGLĄDARCE czytamy ją stąd, nie przez
+ * `siteTitle()`: pamięć per host jest tam pusta i oddałaby samą stałą.
+ */
+export function effectiveSiteTitle(settings: SeoSettings, lang: "pl" | "en"): string {
+  return siteTitleOverride(settings, lang) || SITE_DEFAULT_TITLE[lang];
+}
+
+/** Efektywny opis serwisu - patrz `effectiveSiteTitle`. */
+export function effectiveSiteDescription(settings: SeoSettings, lang: "pl" | "en"): string {
+  return siteDescriptionOverride(settings, lang) || SITE_DEFAULT_DESCRIPTION[lang];
 }
 
 /** Effective <title> suffix (null = disabled). */

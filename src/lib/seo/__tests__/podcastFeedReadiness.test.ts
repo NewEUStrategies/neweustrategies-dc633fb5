@@ -24,6 +24,21 @@ const KOMPLETNY: PodcastFeedReadinessInput = {
   episodes: { total: 4, withoutByteLength: 0, withoutDuration: 0 },
 };
 
+describe("podcastFeedReadiness - wymiary okładki", () => {
+  it("kwadrat w widełkach Apple przechodzi, a brak pomiaru ocenia tylko adres", () => {
+    expect(podcastFeedReadiness({ ...KOMPLETNY, imageWidth: 3000, imageHeight: 3000 }).ready).toBe(
+      true,
+    );
+    expect(podcastFeedReadiness({ ...KOMPLETNY, imageWidth: null, imageHeight: null }).ready).toBe(
+      true,
+    );
+  });
+  it("brak adresu wygrywa z wymiarami - jeden kod, nie dwa", () => {
+    const r = podcastFeedReadiness({ ...KOMPLETNY, imageUrl: "", imageWidth: 10, imageHeight: 20 });
+    expect(r.blocking).toEqual(["image"]);
+  });
+});
+
 describe("podcastFeedReadiness - kanał gotowy", () => {
   it("w pełni wypełniony kanał nie ma ani blokad, ani ostrzeżeń", () => {
     expect(podcastFeedReadiness(KOMPLETNY)).toEqual({
@@ -69,6 +84,12 @@ describe("podcastFeedReadiness - reguły blokujące", () => {
       { episodes: { total: 0, withoutByteLength: 0, withoutDuration: 0 } },
       "episodes",
     ],
+    // Zmierzone wymiary okładki (2026-10-11): baner OG 1024x640 dawał zielone
+    // „gotowe", bo sprawdzana była tylko obecność adresu.
+    ["okładka 1024x640", { imageWidth: 1024, imageHeight: 640 }, "imageSquare"],
+    ["okładka 3000x2999", { imageWidth: 3000, imageHeight: 2999 }, "imageSquare"],
+    ["okładka 600x600", { imageWidth: 600, imageHeight: 600 }, "imageSize"],
+    ["okładka 4000x4000", { imageWidth: 4000, imageHeight: 4000 }, "imageSize"],
   ])("%s blokuje zgłoszenie kodem '%s' i niczym więcej", (_opis, brak, kod) => {
     const r = podcastFeedReadiness({ ...KOMPLETNY, ...brak });
     expect(r.ready).toBe(false);

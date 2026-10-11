@@ -19,6 +19,7 @@ import { Database, History, ListChecks } from "lucide-react";
 import { InfoHint } from "@/components/admin/post-editor/atoms";
 import "@/lib/i18n-admin-zero-click";
 import type { SeoIssue } from "@/lib/seo/validation";
+import { SEO_DESCRIPTION_MAX_CHARS, SEO_TITLE_MAX_CHARS } from "@/lib/seo/limits";
 import type { LayoutOverrides, PostFormat } from "@/lib/postLayouts";
 import type { TocOverride } from "@/lib/toc/settings";
 
@@ -437,8 +438,25 @@ export function PostGeneralOverview({
           }
           tone={blockingSeo > 0 ? "warn" : "default"}
         >
-          <Row label="Meta title (PL)" value={`${(seoTitlePl ?? "").length} / 60`} />
-          <Row label="Meta desc. (PL)" value={`${(seoDescriptionPl ?? "").length} / 160`} />
+          {/* Własny wpis czy tekst automatyczny + limit z `@/lib/seo/limits` -
+              dawne „/ 60" i „/ 160" przeczyły limitom panelu (160 / 320), a
+              puste pole pokazywało „0", choć do Google szedł fallback. */}
+          <Row
+            label={`${t("admin.seo.titleLabel")} (PL)`}
+            value={
+              seoTitlePl?.trim()
+                ? `${t("admin.seo.sourceCustom")} · ${seoTitlePl.length} / ${SEO_TITLE_MAX_CHARS}`
+                : t("admin.seo.sourceAuto")
+            }
+          />
+          <Row
+            label={`${t("admin.seo.descriptionLabel")} (PL)`}
+            value={
+              seoDescriptionPl?.trim()
+                ? `${t("admin.seo.sourceCustom")} · ${seoDescriptionPl.length} / ${SEO_DESCRIPTION_MAX_CHARS}`
+                : t("admin.seo.sourceAuto")
+            }
+          />
           <Row
             label={t("adminPostPanes.general.indexingRow")}
             value={seoNoindex ? "noindex" : "index, follow"}

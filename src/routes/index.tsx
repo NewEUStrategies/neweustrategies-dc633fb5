@@ -54,13 +54,8 @@ import {
 } from "@/lib/seo/jsonld";
 import { labelFor } from "@/lib/seo/footerNavigation";
 import { primarySiteSections } from "@/lib/seo/primaryNavigation";
-import {
-  resolveRobotsMeta,
-  resolveSeoText,
-  resolveSocialImage,
-  seoCanonicalOverride,
-} from "@/lib/seo/fields";
-import { metaDescription } from "@/lib/routing/publicSegments";
+import { resolveRobotsMeta, resolveSocialImage, seoCanonicalOverride } from "@/lib/seo/fields";
+import { resolveHomepageSeoText } from "@/lib/seo/homepageSeo";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { siteSettingsQueryOptions, type SettingsMap } from "@/lib/useSiteSetting";
 import { currentLang } from "@/lib/i18n/localeRuntime";
@@ -94,8 +89,9 @@ import {
 // zgłoszenie błędu do konsoli i unieważnienie danych routera przy ponowieniu.
 function HomeErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
-  // Nazwa serwisu z TEGO SAMEGO źródła co `h1` i `<title>` strony głównej
-  // (`homeSrHeadingText`). Odczyt z cache, nie zapytanie: granica błędu nie
+  // Nazwa serwisu z TEGO SAMEGO źródła co `h1` i DOMYŚLNY `<title>` strony
+  // głównej (`homeSrHeadingText`; własny tytuł SEO strony zmienia tylko
+  // `<title>`, nie nazwę serwisu). Odczyt z cache, nie zapytanie: granica błędu nie
   // może zależeć od danych, które właśnie mogły zawieść - brak ustawień daje
   // stałą marki.
   const settings = useQueryClient().getQueryData<SettingsMap>(siteSettingsQueryOptions.queryKey);
@@ -371,34 +367,33 @@ export const Route = createFileRoute("/")({
     // sync with the root <head> fallback), but a static home page built in the
     // CMS builder is a first-class SEO citizen: its own SEO overrides, excerpt
     // (meta description), social image, canonical and noindex win when set.
-    // No brand suffix here - the defaults already carry the brand. W trybie
+    // No brand suffix here - the defaults already carry the brand, and an
+    // explicit SEO title renders verbatim (Yoast semantics). W trybie
     // "najnowsze wpisy" homePage jest z konstrukcji null (patrz
     // homePageQueryOptions), więc metadane spadają na czyste defaulty marki -
     // SEO ukrytej strony statycznej nie przecieka do listy wpisów.
     const homePage = loaderData?.homePage ?? null;
     const page = loaderData?.page ?? 1;
-    const fallbackDescription =
-      (homePage &&
-        metaDescription(
-          lang === "en"
-            ? homePage.excerpt_en || homePage.excerpt_pl
-            : homePage.excerpt_pl || homePage.excerpt_en,
-          "",
-        )) ||
-      siteDescription(lang, url);
-    const seo = homePage
-      ? resolveSeoText(homePage, lang, siteTitle(lang, url), fallbackDescription)
-      : { title: siteTitle(lang, url), description: fallbackDescription };
+    // Tytuł i opis: wspólna reguła z podglądami panelu (`homepageSeo.ts`) -
+    // własny tytuł SEO strony dosłownie, bez niego tytuł serwisu; opis z pola
+    // SEO, zajawki strony albo opisu serwisu.
+    const seo = resolveHomepageSeoText(homePage, lang, {
+      title: siteTitle(lang, url),
+      description: siteDescription(lang, url),
+    });
     const image = homePage ? resolveSocialImage(homePage, homePage.cover_image_url) : null;
     const builtHead = buildContentHead({
       url,
       lang,
       type: "website",
-      // The homepage always represents the publication itself. Keep its
-      // document, Open Graph and Twitter title equal to the configured brand
-      // name instead of allowing a CMS page override to rename the site in
-      // browser tabs and search results.
-      title: siteTitle(lang, url),
+      // Tytuł SEO strony głównej z /admin/pages (`seo_title_<lang>`) WYGRYWA;
+      // bez niego - tytuł serwisu (`siteTitle`: /admin/seo/homepage albo stała
+      // marki). Do 2026-10-11 stało tu na sztywno `siteTitle(...)`, choć
+      // nadpisanie było już wybrane: pole w panelu stron i notatka
+      // w /admin/seo/homepage („tytuł strony wygrywa") obiecywały skutek,
+      // którego `<title>` nie miał. Tytuł WYPROWADZONY strony (np. „Strona
+      // główna") celowo NIE zastępuje marki (`resolveHomepageSeoText`).
+      title: seo.title,
       description: seo.description,
       image,
       // Strony wyników >1 (tryb "najnowsze wpisy") są noindex,follow - crawler

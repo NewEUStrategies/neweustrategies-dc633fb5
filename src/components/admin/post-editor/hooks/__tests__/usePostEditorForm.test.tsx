@@ -25,11 +25,14 @@
 //      starszą treścią.
 //   7. CIĘŻKIE INWALIDACJE przy odmontowaniu, LEKKIE przy autozapisie. Odwrotny
 //      układ powodował „auto-refresh" edytora w trakcie pisania.
+//   8. TAKSONOMIE NALEŻĄ DO WPISU. Zapis wysyła kategorie/tagi/programy/regiony
+//      dopiero, gdy relacja jest wczytana dla TEGO wpisu (`undefined` = serwer
+//      ich nie rusza). Pusta lista wysłana przed wczytaniem kasowała kategorie,
+//      a zaznaczenia poprzedniego wpisu trafiały do następnego.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EDIT_CONFLICT_CODE } from "@/lib/content/saveConflict";
 import { DISCLOSURE_ERROR_PREFIX } from "@/lib/content/sponsored";
-import type { SeoIssue } from "@/lib/seo/validation";
 import type { PostForm } from "../../types";
 
 const h = vi.hoisted(() => ({
@@ -116,8 +119,13 @@ vi.mock("@/lib/seo/invalidate", () => ({
 }));
 
 vi.mock("@/lib/i18n-admin-post-panes", () => ({}));
+// Ustawienia SEO (sufiks tytułu) - domyślne, bez bazy.
+vi.mock("@/lib/useSiteSetting", () => ({
+  useSiteSetting: <T,>(_key: string, defaults: T) => defaults,
+}));
 
 import { usePostEditorForm } from "../usePostEditorForm";
+import { SEO_TITLE_MAX_CHARS } from "@/lib/seo/limits";
 import type { PostEditorData } from "../usePostEditorData";
 
 const TENANT = "tenant-1";
@@ -227,10 +235,10 @@ function mount(over: Partial<PostEditorData> = {}, routeSlug = ROUTE_SLUG) {
 function lastPayload(): {
   id: string;
   fields: Record<string, unknown>;
-  categories: string[];
-  tags: string[];
-  programs: string[];
-  regions: string[];
+  categories?: string[];
+  tags?: string[];
+  programs?: string[];
+  regions?: string[];
   baseUpdatedAt?: string;
 } {
   const call = h.updatePost.mock.calls.at(-1);
@@ -256,17 +264,13 @@ function press(
   return event;
 }
 
-function seoIssue(severity: SeoIssue["severity"]): SeoIssue {
-  return {
-    lang: "pl",
-    kind: "title",
-    severity,
-    chars: 90,
-    charLimit: 60,
-    px: 700,
-    pxLimit: 580,
-  };
-}
+/**
+ * Pola formularza, które walidator SEO (liczony w hooku) zamienia w uwagę:
+ * błąd = własny tytuł SEO ponad twardy limit znaków, ostrzeżenie = własny opis
+ * mieszczący się w limicie znaków, ale szerszy niż budżet pikselowy Google.
+ */
+const SEO_ERROR_TITLE = "x".repeat(SEO_TITLE_MAX_CHARS + 1);
+const SEO_WIDE_DESCRIPTION = "Wwwww ".repeat(40).trim();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -573,7 +577,7 @@ describe("zapis jawny (save)", () => {
   it("REGRESJA: twarda bramka SEO nie dopuszcza zapisu i mówi o tym redaktorowi", async () => {
     const { result } = mount();
     act(() => result.current.set("title_pl", "Zmiana"));
-    act(() => result.current.setSeoIssues([seoIssue("error")]));
+    act(() => result.current.set("seo_title_pl", SEO_ERROR_TITLE));
 
     await act(async () => {
       await result.current.save();
@@ -589,7 +593,10 @@ describe("zapis jawny (save)", () => {
   it("ostrzeżenia SEO tylko ostrzegają - zapis idzie dalej", async () => {
     const { result } = mount();
     act(() => result.current.set("title_pl", "Zmiana"));
-    act(() => result.current.setSeoIssues([seoIssue("warning"), seoIssue("warning")]));
+    act(() => {
+      result.current.set("seo_description_pl", SEO_WIDE_DESCRIPTION);
+      result.current.set("seo_description_en", SEO_WIDE_DESCRIPTION);
+    });
 
     await act(async () => {
       await result.current.save();
@@ -715,7 +722,7 @@ describe("zapis ze zmianą statusu (applyStatus)", () => {
 
   it("REGRESJA: twarda bramka SEO NIE blokuje publikacji (asymetria wobec save)", async () => {
     const { result } = mount({ postCats: [{ category_id: "c-1" }] });
-    act(() => result.current.setSeoIssues([seoIssue("error")]));
+    act(() => result.current.set("seo_title_pl", SEO_ERROR_TITLE));
 
     await act(async () => {
       await result.current.applyStatus("published");
@@ -933,6 +940,136 @@ describe("odrzucenie zmian (discardToSaved)", () => {
     });
     expect(h.updatePost).toHaveBeenCalledTimes(2);
     expect(lastPayload().fields.title_pl).toBe("Wersja zapisana");
+  });
+});
+
+describe("taksonomie należą do wpisu", () => {
+  const SECOND = {
+    post: postForm({
+      id: "post-2",
+      slug: "drugi-wpis",
+      title_pl: "Drugi wpis",
+      updated_at: "2026-08-05T08:00:00.000Z",
+    }),
+    id: "post-2",
+  };
+
+  it("REGRESJA: zapis PRZED wczytaniem relacji nie wysyła pustych taksonomii", async () => {
+    // `selectedCats` startuje jako `[]`. Wysłane przed wczytaniem `post-cats`
+    // zdejmowało wpisowi WSZYSTKIE kategorie (serwer czyta `[]` jako „usuń").
+    const { result } = mount();
+    act(() => result.current.set("title_pl", "Zmiana przed wczytaniem relacji"));
+    await act(async () => {
+      await result.current.save();
+    });
+
+    const payload = lastPayload();
+    expect(payload.categories).toBeUndefined();
+    expect(payload.tags).toBeUndefined();
+    expect(payload.programs).toBeUndefined();
+    expect(payload.regions).toBeUndefined();
+  });
+
+  it("wysyła WYŁĄCZNIE relacje już wczytane dla wpisu", async () => {
+    const { result } = mount({ postCats: [{ category_id: "c-1" }], postRegions: [] });
+    act(() => result.current.set("title_pl", "Zmiana"));
+    await act(async () => {
+      await result.current.save();
+    });
+
+    const payload = lastPayload();
+    expect(payload.categories).toEqual(["c-1"]);
+    // Wczytana PUSTA relacja to decyzja, nie brak danych - jedzie jako `[]`.
+    expect(payload.regions).toEqual([]);
+    expect(payload.tags).toBeUndefined();
+    expect(payload.programs).toBeUndefined();
+  });
+
+  it("zmiana statusu przed wczytaniem relacji też ich nie kasuje", async () => {
+    const { result } = mount();
+    await act(async () => {
+      await result.current.applyStatus("pending_review");
+    });
+    expect(lastPayload().fields.status).toBe("pending_review");
+    expect(lastPayload().categories).toBeUndefined();
+  });
+
+  it("REGRESJA: przejście na INNY wpis czyści zaznaczenia poprzedniego", async () => {
+    const { result, rerender } = mount({ postCats: [{ category_id: "c-z-pierwszego" }] });
+    expect(result.current.selectedCats).toEqual(["c-z-pierwszego"]);
+
+    // Relacje drugiego wpisu jeszcze się wczytują (nowy klucz zapytania).
+    rerender({ data: makeData(SECOND), routeSlug: "drugi-wpis" });
+    expect(result.current.selectedCats).toEqual([]);
+
+    act(() => result.current.set("title_pl", "Zmiana w drugim wpisie"));
+    await act(async () => {
+      await result.current.save();
+    });
+    const payload = lastPayload();
+    expect(payload.id).toBe("post-2");
+    // Zaznaczenia pierwszego wpisu NIE trafiają do drugiego.
+    expect(payload.categories).toBeUndefined();
+
+    rerender({
+      data: makeData({ ...SECOND, postCats: [{ category_id: "c-z-drugiego" }] }),
+      routeSlug: "drugi-wpis",
+    });
+    expect(result.current.selectedCats).toEqual(["c-z-drugiego"]);
+    act(() => result.current.set("title_pl", "Kolejna zmiana"));
+    await act(async () => {
+      await result.current.save();
+    });
+    expect(lastPayload().categories).toEqual(["c-z-drugiego"]);
+  });
+
+  it("zaległy autozapis poprzedniego wpisu nie trafia ani do niego, ani do nowego", async () => {
+    vi.useFakeTimers();
+    const { result, rerender } = mount();
+    act(() => result.current.set("title_pl", "Niezapisana zmiana pierwszego"));
+
+    rerender({ data: makeData(SECOND), routeSlug: "drugi-wpis" });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    // Strażnik nawigacji pytał o porzucenie zmian - po zgodzie nie ma już
+    // czego zapisywać, a nowy wpis nie dostaje „zapisu z powietrza".
+    expect(h.updatePost).not.toHaveBeenCalled();
+    expect(result.current.autosave.isDirty).toBe(false);
+  });
+
+  it("REGRESJA: „odrzuć zmiany” po przejściu nie przywraca POPRZEDNIEGO wpisu", async () => {
+    const { result, rerender } = mount();
+    act(() => result.current.set("title_pl", "Zapisane w pierwszym"));
+    await act(async () => {
+      await result.current.save();
+    });
+
+    rerender({ data: makeData(SECOND), routeSlug: "drugi-wpis" });
+    act(() => result.current.set("title_pl", "Porzucone w drugim"));
+    act(() => result.current.discardToSaved());
+
+    expect(result.current.form?.id).toBe("post-2");
+    expect(result.current.form?.title_pl).toBe("Drugi wpis");
+  });
+
+  it("odrzucenie nie zeruje taksonomii, która w chwili zapisu nie była wczytana", async () => {
+    const { result, rerender } = mount();
+    act(() => result.current.set("title_pl", "Zapis bez relacji"));
+    await act(async () => {
+      await result.current.save();
+    });
+
+    rerender({
+      data: makeData({ postCats: [{ category_id: "c-1" }] }),
+      routeSlug: ROUTE_SLUG,
+    });
+    act(() => result.current.discardToSaved());
+
+    // Migawka nie znała kategorii (`undefined`) - podstawienie `[]` zdjęłoby
+    // przy następnym zapisie wszystkie przypisania wpisu.
+    expect(result.current.selectedCats).toEqual(["c-1"]);
   });
 });
 

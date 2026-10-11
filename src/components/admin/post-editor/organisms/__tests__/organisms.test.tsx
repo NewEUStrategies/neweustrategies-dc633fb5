@@ -439,6 +439,49 @@ describe("PostTranslateCard - źródło tłumaczenia zależy od SILNIKA edytora"
     const updater = historySet.set.mock.calls[0][0] as (p: unknown) => unknown;
     expect(updater(null)).toBeNull();
   });
+
+  const TRANSLATION = {
+    title_en: "Translated title",
+    excerpt_en: "Translated excerpt",
+    takeaways_en: [],
+    seo_title_en: null,
+    seo_description_en: null,
+    content_en: null,
+    blocks_en: null,
+  };
+
+  it("REGRESJA: wynik, który wrócił po przejściu na INNY wpis, jest porzucany", () => {
+    // Tłumaczenie trwa kilka sekund. Domknięcie z chwili kliknięcia trafiało
+    // do formularza, który w międzyczasie pokazywał już inny wpis.
+    const first = api({ form: postForm({ id: "post-a" }) });
+    const { rerender } = render(<PostTranslateCard formApi={first} />);
+    const onTranslated = props("TranslateCard").onTranslated as (r: unknown) => void;
+
+    const second = api({ form: postForm({ id: "post-b" }) });
+    rerender(<PostTranslateCard formApi={second} />);
+    onTranslated(TRANSLATION);
+
+    for (const formApi of [first, second]) {
+      const historySet = (formApi as unknown as Api).history as {
+        set: ReturnType<typeof vi.fn>;
+      };
+      expect(historySet.set).not.toHaveBeenCalled();
+    }
+  });
+
+  it("aktualizator nie nadpisuje stanu INNEGO wpisu (karta przemontowana w trakcie)", () => {
+    const formApi = api({ form: postForm({ id: "post-a" }) });
+    render(<PostTranslateCard formApi={formApi} />);
+    (props("TranslateCard").onTranslated as (r: unknown) => void)(TRANSLATION);
+
+    const historySet = (formApi as unknown as Api).history as { set: ReturnType<typeof vi.fn> };
+    const updater = historySet.set.mock.calls[0][0] as (p: unknown) => unknown;
+    const other = postForm({ id: "post-b", title_en: "B title" });
+    expect(updater(other)).toBe(other);
+    expect((updater(postForm({ id: "post-a" })) as { title_en: string }).title_en).toBe(
+      "Translated title",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

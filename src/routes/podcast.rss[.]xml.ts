@@ -40,18 +40,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
-import {
-  SITE_DEFAULT_DESCRIPTION,
-  SITE_DEFAULT_OG_IMAGE,
-  SITE_DEFAULT_TITLE,
-  SITE_NAME,
-} from "@/lib/seo/meta";
+import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
 import {
   buildPodcastRssXml,
   type PodcastEpisodeType,
   type PodcastRssItem,
 } from "@/lib/seo/podcastRss";
 import { resolvePodcastChannelMeta } from "@/lib/seo/podcastChannelMeta";
+import { podcastFeedArtworkUrl } from "@/lib/podcast/artwork";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import { rssResponseHeaders } from "@/lib/seo/feedCache";
 import {
@@ -136,7 +132,7 @@ export const Route = createFileRoute("/podcast/rss.xml")({
           durationSeconds: e.duration_seconds,
           season: e.season,
           episodeNumber: e.episode_number,
-          imageUrl: e.cover_image_url,
+          imageUrl: podcastFeedArtworkUrl(e.cover_image_url),
           explicit: e.explicit,
           episodeType: episodeType(e.episode_type),
         }));
@@ -149,7 +145,10 @@ export const Route = createFileRoute("/podcast/rss.xml")({
           channel: channelMeta,
           fallback: {
             author: SITE_NAME,
-            imageUrl: `${origin}${SITE_DEFAULT_OG_IMAGE}`,
+            // BEZ banera OG (1024x640): okładka podcastu musi być kwadratem.
+            // Brak skonfigurowanej okładki -> builder bierze okładkę odcinka,
+            // a panel gotowości blokuje zgłoszenie do Apple.
+            imageUrl: null,
             copyright: `© ${new Date().getFullYear()} ${SITE_NAME}`,
           },
         });
@@ -161,7 +160,7 @@ export const Route = createFileRoute("/podcast/rss.xml")({
           feedUrl: `${origin}${localizedPath("/podcast/rss.xml", lang)}`,
           language: lang,
           copyright: meta.copyright,
-          imageUrl: meta.imageUrl,
+          imageUrl: podcastFeedArtworkUrl(meta.imageUrl),
           author: meta.author,
           ownerName: meta.ownerName,
           ownerEmail: meta.ownerEmail,

@@ -55,10 +55,20 @@ export function SeoValidationSummary({
             px: issue.px,
             pxLimit: issue.pxLimit,
           });
+    // Tekst wyliczony automatycznie (puste pole w panelu): sama liczba pikseli
+    // nie mówi, CO poprawić - podpowiadamy, że wystarczy wpisać własną wersję.
+    const derivedHint =
+      issue.source === "derived"
+        ? ` ${t(
+            issue.kind === "title"
+              ? "admin.seo.validation.derivedTitleHint"
+              : "admin.seo.validation.derivedDescriptionHint",
+          )}`
+        : "";
     all.push({
       key: `m-${issue.lang}-${issue.kind}-${issue.severity}`,
       severity: issue.severity,
-      text: `${LANG_LABEL[issue.lang]} - ${fieldLabel}: ${text}`,
+      text: `${LANG_LABEL[issue.lang]} - ${fieldLabel}: ${text}${derivedHint}`,
     });
   }
 

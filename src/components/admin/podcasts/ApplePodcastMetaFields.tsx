@@ -25,6 +25,10 @@ import {
   appleSubcategories,
 } from "@/lib/seo/applePodcastCategories";
 import type { PodcastShowType } from "@/lib/podcast/types";
+import {
+  PodcastArtworkField,
+  type PodcastArtworkSize,
+} from "@/components/admin/podcasts/PodcastArtworkField";
 
 const NO_SUBCATEGORY = "__none__";
 
@@ -43,6 +47,8 @@ export interface ApplePodcastMetaValue {
 interface Props {
   value: ApplePodcastMetaValue;
   onChange: (patch: Partial<ApplePodcastMetaValue>) => void;
+  /** Zmierzone wymiary okładki - rodzic podaje je karcie gotowości kanału. */
+  onImageMeasured?: (size: PodcastArtworkSize | null) => void;
 }
 
 function Field({
@@ -65,7 +71,11 @@ function Field({
   );
 }
 
-export function ApplePodcastMetaFields({ value, onChange }: Props): React.ReactElement {
+export function ApplePodcastMetaFields({
+  value,
+  onChange,
+  onImageMeasured,
+}: Props): React.ReactElement {
   const { t } = useTranslation();
   const category = APPLE_CATEGORY_NAMES.includes(value.category)
     ? value.category
@@ -155,18 +165,14 @@ export function ApplePodcastMetaFields({ value, onChange }: Props): React.ReactE
         </Field>
       </div>
 
-      <Field
-        htmlFor="itunes-image"
+      <PodcastArtworkField
+        id="itunes-image"
         label={t("adminPodcasts.settings.apple.image")}
         hint={t("adminPodcasts.settings.apple.imageHint")}
-      >
-        <Input
-          id="itunes-image"
-          value={value.imageUrl}
-          onChange={(e) => onChange({ imageUrl: e.target.value })}
-          placeholder="https://…/cover-3000x3000.jpg"
-        />
-      </Field>
+        value={value.imageUrl}
+        onChange={(imageUrl) => onChange({ imageUrl })}
+        onMeasured={onImageMeasured}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field htmlFor="itunes-type" label={t("adminPodcasts.settings.apple.showType")}>

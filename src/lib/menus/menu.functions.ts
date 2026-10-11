@@ -14,6 +14,7 @@ import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { normalizeMenuVisibility } from "./visibility";
+import { resolveMenuRefs, type MenuRefClient } from "./refResolution";
 import {
   DEFAULT_MEGA_CONFIG,
   parseMegaConfig,
@@ -73,7 +74,10 @@ export interface MenuSummary {
  * z wartością domyślną, więc produkcja nie zmienia zachowania, a test podaje
  * własną atrapę łańcucha PostgREST.
  */
-export type MenuReadClient = Pick<ReturnType<typeof serverPublicClient>, "from">;
+// `rpc` dla rozstrzygania pozycji po referencji (`page_full_paths`,
+// `refResolution.ts`); typ wspólny z tamtym modułem, żeby kompilator nie
+// porównywał strukturalnie dwóch zapisów tego samego klienta.
+export type MenuReadClient = MenuRefClient;
 
 export async function listMenuSummaries(
   supabase: MenuReadClient = serverPublicClient(),
@@ -190,6 +194,9 @@ export function compactMenuWithItems(menu: MenuWithItems | null): MenuWithItemsW
       if (row.icon !== "") out.icon = row.icon;
       if (row.mega_enabled) out.mega_enabled = true;
       if (topLevel || !isDefaultMegaConfig(row.mega_config)) out.mega_config = row.mega_config;
+      // Martwy link (`refResolution.ts`): flaga tylko wtedy, gdy jest prawdą -
+      // żywe pozycje, czyli prawie wszystkie, nie płacą za nią ani bajtu.
+      if (row.ref_broken) out.ref_broken = true;
       return out;
     }),
   };
@@ -271,7 +278,13 @@ export async function fetchMenuWithItems(
     mega_enabled: Boolean(row.mega_enabled),
     mega_config: parseMegaConfig(row.mega_config),
   }));
-  return { id: menu.id, key: menu.key, name: menu.name, items: normalized };
+  // Pozycje stron, wpisów i taksonomii dostają BIEŻĄCY adres wskazanego
+  // wiersza, a martwe - flagę `ref_broken` (2026-10 audyt: `/category/ekonomia`
+  // w menu głównym odpowiadało 404). Wynik ląduje w tej samej migawce
+  // `edgeTtlCache`, więc koszt płaci wyłącznie chybienie. Edytor czyta tę samą
+  // server fn, więc „Zapisz" utrwala już bieżące adresy.
+  const resolved = await resolveMenuRefs(normalized, supabase);
+  return { id: menu.id, key: menu.key, name: menu.name, items: resolved };
 }
 
 /**

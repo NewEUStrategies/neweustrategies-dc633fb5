@@ -82,6 +82,7 @@ describe("mergeLocalizedImport - przypadki brzegowe", () => {
     const merged = mergeLocalizedImport(
       { language: "pl", title: "   ", excerpt: "", doc: doc("nowe-pl") },
       bilingualRow,
+      { sameWpPost: true },
     );
 
     expect(merged.title_pl).toBe("Strategia UE");
@@ -97,6 +98,15 @@ describe("mergeLocalizedImport - przypadki brzegowe", () => {
     expect(merged.excerpt_pl).toBeNull();
   });
 
+  it("pusta zapowiedź importu EN zostawia zapowiedź EN TYLKO dla potwierdzonego wpisu", () => {
+    const empty = { language: "en" as const, title: "New title", excerpt: "", doc: doc("new-en") };
+
+    expect(mergeLocalizedImport(empty, bilingualRow, { sameWpPost: true }).excerpt_en).toBe(
+      "EN excerpt",
+    );
+    expect(mergeLocalizedImport(empty, bilingualRow).excerpt_en).toBeNull();
+  });
+
   it("wiersz z samym PL nie zgłasza fałszywego 'ocalono EN'", () => {
     const merged = mergeLocalizedImport({ ...plImport, doc: doc("nowe-pl") }, {
       title_pl: "Strategia UE",
@@ -107,6 +117,56 @@ describe("mergeLocalizedImport - przypadki brzegowe", () => {
     } satisfies ExistingLocalized);
 
     expect(merged.counterpartPreserved).toBe(false);
+  });
+});
+
+// DEFEKT PRODUKCYJNY: zajawka wpisu była kopią zajawki INNEGO artykułu. Import
+// dopasował wiersz po slugu (`-2` WordPressa trafił w `-2` nadany przez nasz
+// import), nadpisał tytuł i treść, a przy pustej zapowiedzi z WordPressa
+// zostawił zapowiedź poprzedniego lokatora sluga.
+describe("mergeLocalizedImport - kolizja sluga z innym artykułem", () => {
+  const otherArticle: ExistingLocalized = {
+    ...bilingualRow,
+    title_pl: "Zupełnie inny artykuł",
+    excerpt_pl: "Zajawka INNEGO artykułu",
+  };
+  const emptyExcerptImport = {
+    language: "pl" as const,
+    title: "Nowy artykuł",
+    excerpt: "",
+    doc: doc("nowa-treść"),
+  };
+
+  it("BEZ potwierdzenia tożsamości pusta zapowiedź daje null, nie cudzą zajawkę", () => {
+    const merged = mergeLocalizedImport(emptyExcerptImport, otherArticle);
+
+    expect(merged.title_pl).toBe("Nowy artykuł");
+    expect(merged.excerpt_pl).toBeNull();
+  });
+
+  it("jawne sameWpPost=false zachowuje się jak brak potwierdzenia", () => {
+    const merged = mergeLocalizedImport(emptyExcerptImport, otherArticle, { sameWpPost: false });
+
+    expect(merged.excerpt_pl).toBeNull();
+  });
+
+  it("zapowiedź z WordPressa wygrywa niezależnie od potwierdzenia", () => {
+    const withExcerpt = { ...emptyExcerptImport, excerpt: "Zajawka z WordPressa" };
+
+    expect(mergeLocalizedImport(withExcerpt, otherArticle).excerpt_pl).toBe("Zajawka z WordPressa");
+    expect(mergeLocalizedImport(withExcerpt, otherArticle, { sameWpPost: true }).excerpt_pl).toBe(
+      "Zajawka z WordPressa",
+    );
+  });
+
+  it("druga wersja językowa zostaje nietknięta także bez potwierdzenia", () => {
+    // Import jej nie przywiózł - kasowanie zapowiedzi EN przy zachowanym
+    // tytule i blokach EN zostawiłoby wersję EN okaleczoną, a nie „czystą".
+    const merged = mergeLocalizedImport(emptyExcerptImport, otherArticle);
+
+    expect(merged.title_en).toBe("EU strategy");
+    expect(merged.excerpt_en).toBe("EN excerpt");
+    expect(merged.blocks.en).toEqual(doc("ręczne-en"));
   });
 });
 

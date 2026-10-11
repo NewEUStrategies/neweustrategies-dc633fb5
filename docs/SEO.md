@@ -107,6 +107,17 @@ and indexing can never disagree:
 | `editor`   | `localhost`, editor previews  | `Disallow: /`                                    | `noindex, nofollow` |
 | `unknown`  | an unclaimed domain           | `Disallow: /` (fail-closed)                      | `noindex, nofollow` |
 
+**www → apex.** `www.neweuropeanstrategies.com` serves the same tenant but is
+not the canonical origin: `wwwCanonicalHostMiddleware` (`src/start.ts`, right
+under the security headers) answers every GET/HEAD on it with ONE permanent
+`301` to `https://neweuropeanstrategies.com` + the same path and query
+(`wwwCanonicalRedirectLocation` in `lib/http/host.ts`). Until 2026-10-11 the
+alias was redirected by the hosting layer with a temporary `302` (and the bare
+`/` could first answer the language `302`), which keeps both hosts in the
+index. If a `302` is still observed after a deploy, the redirect is configured
+in front of the worker (domain settings of the hosting provider / CDN redirect
+rule) and has to be switched to `301` or removed there.
+
 Only an exact `tenants.domain` match (or its www/apex alias) counts as `tenant` -
 the default-tenant fallback of `resolveCrawlerTenantForHost` must never open
 indexing on a foreign domain. When the tenant directory is unreachable the
@@ -147,6 +158,16 @@ every page, the podcast feed on `/podcasts`, `/podcasts/<show>` and
 Apple Podcasts or an aggregator finds a channel without knowing our URL
 convention.
 
+**Podcast artwork is always square.** `<itunes:image>` (channel and items)
+goes through `podcastFeedArtworkUrl` (`lib/podcast/artwork.ts`): media-library
+images are served as a 1400x1400 `cover` crop in the original format
+(`format=origin`, forwarded by `/media/$`), external URLs pass unchanged. The
+feeds no longer fall back to `og-default.jpg` (a 1024x640 banner): no
+configured artwork → the first episode cover → no tag, and the readiness card
+blocks submission. The admin artwork fields (`PodcastArtworkField`) measure the
+image and block non-square or out-of-range artwork with the same rule
+(`lib/podcast/artworkRules.ts`).
+
 Podcast items carry a **language-neutral `<guid isPermaLink="false">`** (the
 un-prefixed episode URL). The PL and EN channels are two feeds of the same show;
 a localized guid gave the same episode two identities, so an aggregator that
@@ -182,10 +203,39 @@ head() consumes them regardless of how the body renders. The static homepage
 `src/routes/index.tsx` head(); pages additionally feed their excerpts (the
 pages editor's "meta description" field) into the emitted description.
 
+**Editor fields (2026-10-11).** Limits live in ONE module, `lib/seo/limits.ts`
+(SEO title 160, meta description 320, excerpt 1000 characters) and are read by
+the panel counters, the validator, the overview tile and the page excerpt
+field. What Google shows is governed by the pixel budget in `serp.ts`, so:
+
+- derived descriptions (`metaDescription`) are fitted to ~960 px at a word
+  boundary with an ellipsis instead of a hard `slice(0, 160)` that produced a
+  "will be truncated" warning on almost every post;
+- validation separates the editor's own text (`source: "override"`, the hard
+  character cap blocks saving) from derived text (`source: "derived"`, only a
+  warning with a hint to type a shorter override);
+- the post editor computes issues in `usePostEditorForm` from the form itself,
+  not from the mounted SEO tab, so the overview chip and the save gate are
+  always current;
+- every SEO field says whether Google gets the editor's text or the automatic
+  one ("Własny" / "Automatyczny"), carries a one-line hint, whitespace-only
+  input is stored as `null`; canonical/noindex sit in a collapsed "Advanced"
+  section and an incomplete canonical URL is flagged inline and never sent to
+  the server (it used to break autosave of the whole form);
+- the page editor's former "Opis strony · meta description" field is the
+  excerpt ("Zajawka") - one meta-description field per language, in the panel;
+- the SERP/URL preview of a page is its parent path + the CURRENT slug.
+
 **Content overview** - `/admin/seo` lists every post and page (tenant-scoped)
 with per-language description sources, social-image source, overrides, noindex
 and a transparent 0-100 completeness score (pure rules in
-`src/lib/seo/contentStatus.ts`); the summary tiles double as filters.
+`src/lib/seo/contentStatus.ts`); the summary tiles double as filters. The title
+points go to titles that fit a Google result (PL and EN), not to the mere
+presence of an override (which silently drops the brand suffix). The
+"Duplicate description" tile (`findDuplicateDescriptions`) lists items whose
+effective description - override, otherwise the same-language excerpt - is
+identical to another item's: the signature of an excerpt copied from another
+article.
 
 ## Redirect manager
 

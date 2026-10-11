@@ -10,6 +10,7 @@ import { edgeTtlCache } from "@/lib/ssrCache";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 import { postsNarrowedToTaxonomy } from "@/lib/queries/taxonomyPivot";
 import { parsePageSearch } from "@/lib/routing/pageSearch";
+import { isTestContentSlug } from "@/lib/seo/testContent";
 
 const TTL = 2 * 60_000;
 /** TTL per-isolate archiwów: publikacje widoczne w minutę, jak reszta SSR. */
@@ -714,15 +715,22 @@ export const searchAutosuggestQueryOptions = (q: string, limit: number = 8) =>
         _limit: limit,
       });
       if (dataError) throw dataError;
-      return (data ?? []).map((r) => ({
-        kind: r.kind as AutosuggestItem["kind"],
-        id: (r.id as string | null) ?? null,
-        slug: (r.slug as string | null) ?? null,
-        label_pl: (r.label_pl as string | null) ?? "",
-        label_en: (r.label_en as string | null) ?? "",
-        parentPageId: (r.parent_page_id as string | null) ?? null,
-        score: Number(r.score ?? 0),
-      }));
+      return (
+        (data ?? [])
+          // Strona TESTOWA (`test-*`/`e2e-*`) nie jest podpowiedzią: RPC zwraca
+          // każdą opublikowaną stronę, a ta nie ma być znajdowana ani
+          // indeksowana (2026-10 audyt) - `lib/seo/testContent.ts`.
+          .filter((r) => !(r.kind === "page" && isTestContentSlug(r.slug as string | null)))
+          .map((r) => ({
+            kind: r.kind as AutosuggestItem["kind"],
+            id: (r.id as string | null) ?? null,
+            slug: (r.slug as string | null) ?? null,
+            label_pl: (r.label_pl as string | null) ?? "",
+            label_en: (r.label_en as string | null) ?? "",
+            parentPageId: (r.parent_page_id as string | null) ?? null,
+            score: Number(r.score ?? 0),
+          }))
+      );
     },
   });
 

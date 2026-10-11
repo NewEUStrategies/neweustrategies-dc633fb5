@@ -28,6 +28,7 @@ import {
 } from "./content/revisions";
 import { KEY_TAKEAWAYS_MAX_ITEMS, KEY_TAKEAWAYS_MAX_ITEM_LENGTH } from "./keyTakeaways/limits";
 import { MAX_POST_AUTHORS, splitAuthors } from "./content/postAuthors";
+import { noindexTestPages, testPageForcesNoindex } from "./content/testPages";
 
 // ---------- shared helpers ----------
 
@@ -952,6 +953,13 @@ export const deletePost = createServerFn({ method: "POST" })
  *
  * Autorem kopii zostaje duplikujący (jak w WordPressie); współautorzy 1:1.
  */
+/** `custom_meta` bez tożsamości importu WordPressa (`wp_id`, `wp_site`). */
+function withoutWpIdentity(meta: Json | null): Json | null {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return meta;
+  const { wp_id: _wpId, wp_site: _wpSite, ...rest } = meta as Record<string, Json | undefined>;
+  return rest as Json;
+}
+
 export const duplicatePost = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .validator((i: unknown) => z.object({ id: UUID }).parse(i))
@@ -1009,7 +1017,9 @@ export const duplicatePost = createServerFn({ method: "POST" })
           takeaways_variant: src.takeaways_variant,
           toc_override: src.toc_override,
           related_override: src.related_override,
-          custom_meta: src.custom_meta,
+          // Kopia NIE jest tym samym wpisem WordPressa: bez zdjęcia `wp_id`/
+          // `wp_site` kolejny import mógłby dopasować oryginał do kopii.
+          custom_meta: withoutWpIdentity(src.custom_meta),
           seo_title_pl: src.seo_title_pl,
           seo_title_en: src.seo_title_en,
           seo_description_pl: src.seo_description_pl,
@@ -1394,6 +1404,18 @@ export const updatePage = createServerFn({ method: "POST" })
       const willMove = (slugChanged || parentChanged) && existing.status === "published";
       const oldPath = willMove ? await pageFullPath(supabase, data.id) : null;
 
+      // Strona TESTOWA (slug `test-*`/`e2e-*` własny albo przodka) publiczna
+      // tylko z noindex - 2026-10 audyt: `/test-e2e-zakup` w pages.xml.
+      // Niezmiennik, nie odmowa: patrz `lib/content/testPages.ts`.
+      const noindexForced = await testPageForcesNoindex(supabase, {
+        status: nextStatus,
+        seoNoindex: updates.seo_noindex ?? existing.seo_noindex,
+        slug: updates.slug ?? existing.slug,
+        parentId: updates.parent_id !== undefined ? updates.parent_id : existing.parent_id,
+        checkAncestors: statusChanges || parentChanged,
+      });
+      if (noindexForced) updates.seo_noindex = true;
+
       // Snapshot the pre-update page into content_revisions (same throttle/force
       // rules as posts). Pages previously had NO revision history despite the
       // builder holding the heaviest documents - a single bad save was
@@ -1450,7 +1472,12 @@ export const updatePage = createServerFn({ method: "POST" })
       // Kanoniczny slug wraca do klienta: uniqueSlug mógł dopisać sufiks
       // (kolizja), a edytor musi nawigować na slug faktycznie zapisany,
       // nie na ten wpisany w formularzu.
-      return { ok: true as const, slug: updates.slug ?? existing.slug, updatedAt: savedUpdatedAt };
+      return {
+        ok: true as const,
+        slug: updates.slug ?? existing.slug,
+        updatedAt: savedUpdatedAt,
+        ...(noindexForced ? { noindexForced: true as const } : {}),
+      };
     });
   });
 
@@ -1565,6 +1592,10 @@ export const bulkUpdatePages = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     return guard("page.bulkUpdate", userId, 20, async () => {
       const tenantId = await resolveTenant(supabase, userId);
+      // Strony testowe dostają noindex PRZED publikacją, żeby ani chwili nie
+      // były publiczne i indeksowalne (`lib/content/testPages.ts`).
+      const goesPublic = data.status === "published" || data.status === "scheduled";
+      const noindexed = goesPublic ? await noindexTestPages(supabase, data.ids) : [];
       const affected = await applyBulkStatus(supabase, "pages", data.ids, data.status);
       if (affected.length) {
         await audit(
@@ -1573,10 +1604,18 @@ export const bulkUpdatePages = createServerFn({ method: "POST" })
           data.status === "published" ? "page.publish" : "page.update",
           "page",
           null,
-          { ids: affected, status: data.status, requested: data.ids.length },
+          {
+            ids: affected,
+            status: data.status,
+            requested: data.ids.length,
+            ...(noindexed.length ? { noindexForced: noindexed } : {}),
+          },
         );
       }
-      return bulkResult(affected, data.ids);
+      return {
+        ...bulkResult(affected, data.ids),
+        ...(noindexed.length ? { noindexForced: noindexed.length } : {}),
+      };
     });
   });
 
@@ -1673,9 +1712,38 @@ export const upsertCategory = createServerFn({ method: "POST" })
       const payload = { ...data.fields, slug, tenant_id: tenantId };
 
       if (data.id) {
+        // Slug PRZED zapisem: zmiana adresu archiwum zostawia 301, tak jak przy
+        // stronach i wpisach (2026-10 audyt: `/category/ekonomia` w menu dawało
+        // 404). Pozycje menu przepisuje wyzwalacz `categories_sync_menu_items`
+        // w tej samej transakcji co UPDATE (migracja 20261011090000).
+        const { data: before } = await supabase
+          .from("categories")
+          .select("slug, kind")
+          .eq("id", data.id)
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
         const { error } = await supabase.from("categories").update(payload).eq("id", data.id);
         if (error) throw new Error(error.message);
-        await audit(supabase, tenantId, "category.update", "category", data.id, { slug });
+        const previousSlug = typeof before?.slug === "string" ? before.slug : null;
+        const slugChanged = previousSlug !== null && previousSlug !== slug;
+        if (slugChanged) {
+          await captureAutoRedirect(supabase, userId, tenantId, {
+            oldPath: `/category/${previousSlug}`,
+            newPath: `/category/${slug}`,
+          });
+          // Organizacja ma kanoniczny profil pod własnym prefiksem - stary
+          // adres profilu też musi prowadzić dalej.
+          if (before?.kind === "organization" || data.fields.kind === "organization") {
+            await captureAutoRedirect(supabase, userId, tenantId, {
+              oldPath: `/organization/${previousSlug}`,
+              newPath: `/organization/${slug}`,
+            });
+          }
+        }
+        await audit(supabase, tenantId, "category.update", "category", data.id, {
+          slug,
+          ...(slugChanged ? { previousSlug } : {}),
+        });
         return { id: data.id, slug };
       }
       const { data: row, error } = await supabase
@@ -1720,6 +1788,10 @@ export const deleteCategory = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const tenantId = await resolveTenant(supabase, userId);
+    // Pozycje menu wskazujące kategorię (po `ref_id` albo adresie
+    // `/category/<slug>`) usuwa - albo, gdy mają dzieci, zamienia w nagłówek bez
+    // linku - wyzwalacz `categories_sync_menu_items` w tej samej transakcji,
+    // wyłącznie w menu najemcy kategorii (migracja 20261011090000).
     const { error } = await supabase.from("categories").delete().eq("id", data.id);
     if (error) throw new Error(error.message);
     await audit(supabase, tenantId, "category.delete", "category", data.id);

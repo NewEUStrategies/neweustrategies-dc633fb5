@@ -392,6 +392,20 @@ describe("duplicatePost", () => {
     expect(meta?.argsOf("is")).toEqual(["deleted_at", null]);
   });
 
+  it("kopia NIE dziedziczy tożsamości importu WordPressa (wp_id / wp_site)", async () => {
+    // Kopia z `wp_id` oryginału byłaby dla kolejnego importu „tym samym wpisem"
+    // - import mógłby nadpisać kopię zamiast oryginału.
+    const client = scene({
+      src: postRow({
+        slug: "zrodlo",
+        custom_meta: { wp_id: "101", wp_site: "blog.example.org", zrodlo: "druk" },
+      }),
+    });
+    await run("duplicatePost", { id: POST_ID }, client);
+    const inserted = insertedPayload(client.db, "posts") as { custom_meta?: unknown } | undefined;
+    expect(inserted?.custom_meta).toEqual({ zrodlo: "druk" });
+  });
+
   it("brak metadanych = brak kopii", async () => {
     const client = scene({ meta: ok(null) });
     await expect(run("duplicatePost", { id: POST_ID }, client)).rejects.toThrow("Post not found");

@@ -324,6 +324,10 @@ function PagesList() {
       const ids = [...selected];
       const res = await bulkUpd$({ data: { ids, status } });
       toastBulkResult(t, res, "admin.bulkResult.updated");
+      // Strona testowa publikuje się wyłącznie z noindex (lib/content/testPages.ts).
+      if (res.noindexForced) {
+        toast.info(t("admin.bulkResult.testNoindexForced", { count: res.noindexForced }));
+      }
       clear();
       invalidate();
     } catch (e) {

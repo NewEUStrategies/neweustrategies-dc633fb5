@@ -5,26 +5,36 @@
 // editor save handlers (manual "Zapisz" preflight toast).
 //
 // Two severities:
-//   - "error"   -> the hard character cap enforced by the input (maxLength).
-//                  Should never actually fire (the input clamps), but we keep
-//                  it defensively so a paste-then-strip edge case still
-//                  surfaces cleanly.
+//   - "error"   -> the hard character cap enforced by the input (maxLength)
+//                  on the editor's OWN override. Should never actually fire
+//                  (the input clamps), but we keep it defensively so a
+//                  paste-then-strip edge case still surfaces cleanly.
 //   - "warning" -> the value is longer than Google's rendered pixel budget
 //                  (title 600px / description 960px). Google will simply
 //                  truncate the snippet, so we warn without blocking.
+//
+// Wartość WYPROWADZONA (pusty `seo_*`, tytuł treści) nigdy nie blokuje zapisu:
+// tytuł treści może mieć do 300 znaków, a pole „Tytuł SEO" było puste z
+// licznikiem 0/160 - redakcja dostawała „Zapis wstrzymany" bez pola, które
+// mogłaby poprawić. Taki nadmiar to ostrzeżenie z `source: "derived"`, a
+// podsumowanie podpowiada, że wystarczy wpisać krótszy tytuł SEO.
 import { serpDescriptionMetric, serpTitleMetric, type SerpMetric } from "@/lib/seo/serp";
 import { metaDescription } from "@/lib/routing/publicSegments";
 import { applyTitleSuffix } from "@/lib/seo/fields";
+import { resolveHomepageSeoText } from "@/lib/seo/homepageSeo";
 import type { SeoPanelValue } from "@/components/admin/seo/SeoPanel";
 
 type SeoIssueSeverity = "error" | "warning";
 type SeoIssueLang = "pl" | "en";
 type SeoIssueKind = "title" | "description";
+/** Skąd pochodzi oceniany tekst: własny wpis w panelu czy wartość wyliczona. */
+type SeoIssueSource = "override" | "derived";
 
 export interface SeoIssue {
   lang: SeoIssueLang;
   kind: SeoIssueKind;
   severity: SeoIssueSeverity;
+  source: SeoIssueSource;
   /** Character length of the effective (custom or fallback) value. */
   chars: number;
   /** Character cap for the field (maxLength on the input). */
@@ -51,6 +61,16 @@ interface ValidateInput {
    * Brak/null = zachowanie bez sufiksu.
    */
   titleSuffix?: string | null;
+  /**
+   * Treść jest STRONĄ GŁÓWNĄ (`/`): mierzymy to, co poda `head()` trasy `/`
+   * (`resolveHomepageSeoText`) - własny tytuł dosłownie, bez niego tytuł
+   * SERWISU (nie tytuł treści i nie slug), bez sufiksu; opis z pola SEO,
+   * zajawki albo opisu serwisu. Wartości serwisu per język podaje panel.
+   */
+  homepage?: {
+    title: { pl: string; en: string };
+    description: { pl: string; en: string };
+  } | null;
 }
 
 function resolveTitle(
@@ -70,17 +90,18 @@ function resolveDescription(
   value: SeoPanelValue,
   fallback: { pl: string | null; en: string | null },
   title: string,
-): string {
+): { description: string; isOverride: boolean } {
   const override = (lang === "en" ? value.seo_description_en : value.seo_description_pl)?.trim();
-  if (override) return override;
+  if (override) return { description: override, isOverride: true };
   const derived = lang === "en" ? fallback.en || fallback.pl : fallback.pl || fallback.en;
-  return metaDescription(derived, title);
+  return { description: metaDescription(derived, title), isOverride: false };
 }
 
 function makeIssue(
   lang: SeoIssueLang,
   kind: SeoIssueKind,
   text: string,
+  isOverride: boolean,
   charLimit: number,
   metric: SerpMetric,
 ): SeoIssue | null {
@@ -91,7 +112,8 @@ function makeIssue(
   return {
     lang,
     kind,
-    severity: overChars ? "error" : "warning",
+    severity: overChars && isOverride ? "error" : "warning",
+    source: isOverride ? "override" : "derived",
     chars,
     charLimit,
     px: metric.px,
@@ -109,22 +131,58 @@ export function validateSeoPanel(input: ValidateInput): SeoIssue[] {
     titleCharLimit,
     descriptionCharLimit,
     titleSuffix,
+    homepage,
   } = input;
   const issues: SeoIssue[] = [];
   for (const lang of ["pl", "en"] as const) {
+    if (homepage) {
+      const served = resolveHomepageSeoText(
+        { ...value, excerpt_pl: fallbackDescription.pl, excerpt_en: fallbackDescription.en },
+        lang,
+        { title: homepage.title[lang], description: homepage.description[lang] },
+      );
+      const descriptionIsOverride = Boolean(
+        (lang === "en" ? value.seo_description_en : value.seo_description_pl)?.trim(),
+      );
+      const ht = makeIssue(
+        lang,
+        "title",
+        served.title,
+        served.titleIsOverride,
+        titleCharLimit,
+        serpTitleMetric(served.title),
+      );
+      if (ht) issues.push(ht);
+      const hd = makeIssue(
+        lang,
+        "description",
+        served.description,
+        descriptionIsOverride,
+        descriptionCharLimit,
+        serpDescriptionMetric(served.description),
+      );
+      if (hd) issues.push(hd);
+      continue;
+    }
     const { title, isOverride } = resolveTitle(lang, value, fallbackTitle, slug);
     // Opis wyprowadzony bierze tytuł BEZ sufiksu - tak samo jak panel i head().
-    const description = resolveDescription(lang, value, fallbackDescription, title);
+    const { description, isOverride: descriptionIsOverride } = resolveDescription(
+      lang,
+      value,
+      fallbackDescription,
+      title,
+    );
     // Mierzony jest tytuł, który naprawdę trafia do Google. `applyTitleSuffix`
     // nie dokleja sufiksu powyżej 120 znaków, a limit pola (160) jest wyższy,
     // więc sufiks nie może zamienić ostrzeżenia w błąd blokujący zapis.
     const served = applyTitleSuffix(title, titleSuffix, isOverride);
-    const t = makeIssue(lang, "title", served, titleCharLimit, serpTitleMetric(served));
+    const t = makeIssue(lang, "title", served, isOverride, titleCharLimit, serpTitleMetric(served));
     if (t) issues.push(t);
     const d = makeIssue(
       lang,
       "description",
       description,
+      descriptionIsOverride,
       descriptionCharLimit,
       serpDescriptionMetric(description),
     );

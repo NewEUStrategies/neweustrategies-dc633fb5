@@ -5,6 +5,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { metaDescription } from "@/lib/routing/publicSegments";
 
 /**
  * Metadane stron statycznych zmieniają się z częstością edycji w /admin/pages,
@@ -81,13 +82,30 @@ export function pickStaticSeo(
       image: null,
     };
   }
-  const seoTitle = lang === "en" ? row.seo_title_en : row.seo_title_pl;
-  const baseTitle = lang === "en" ? row.title_en : row.title_pl;
-  const seoDesc = lang === "en" ? row.seo_description_en : row.seo_description_pl;
-  const baseDesc = lang === "en" ? row.excerpt_en : row.excerpt_pl;
+  // Każdy kandydat jest przycinany PRZED wyborem: nadpisanie z samych spacji
+  // było „prawdziwe", wygrywało i po `trim()` dawało pusty `<title>`.
+  const pick = (...candidates: Array<string | null | undefined>): string | null => {
+    for (const c of candidates) {
+      const v = c?.trim();
+      if (v) return v;
+    }
+    return null;
+  };
+  const other = lang === "en" ? "pl" : "en";
+  const seoTitle = pick(row[`seo_title_${lang}`]);
+  // Wartości WYPROWADZONE zachowują fallback międzyjęzykowy (jak `fields.ts`),
+  // nadpisania SEO - nie.
+  const baseTitle = pick(row[`title_${lang}`], row[`title_${other}`]);
+  const seoDesc = pick(row[`seo_description_${lang}`]);
+  const baseDesc = pick(row[`excerpt_${lang}`], row[`excerpt_${other}`]);
   return {
-    title: (seoTitle || baseTitle || fallback.title).trim(),
-    description: (seoDesc || baseDesc || fallback.description).trim(),
+    title: seoTitle ?? baseTitle ?? fallback.title.trim(),
+    // Zajawka idzie tą samą drogą co na stronach treści: bez HTML, przycięta
+    // do budżetu pikselowego wyniku Google (dawniej surowe 1000 znaków).
+    description:
+      seoDesc ??
+      (baseDesc ? metaDescription(baseDesc, fallback.description) : null) ??
+      fallback.description.trim(),
     canonical: row.seo_canonical_url?.trim() || null,
     noindex: !!row.seo_noindex,
     image: row.seo_og_image_url?.trim() || row.og_image_generated_url?.trim() || null,

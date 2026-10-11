@@ -22,6 +22,7 @@ import {
   type ApplePodcastMetaValue,
 } from "@/components/admin/podcasts/ApplePodcastMetaFields";
 import { PodcastFeedReadinessCard } from "@/components/admin/podcasts/PodcastFeedReadinessCard";
+import type { PodcastArtworkSize } from "@/components/admin/podcasts/PodcastArtworkField";
 import { useAuth } from "@/hooks/useAuth";
 import type { PodcastSettings } from "@/lib/podcast/types";
 import { appleMetaToSettingsPatch, mergePodcastSettings } from "@/lib/podcast/shape";
@@ -54,6 +55,9 @@ export function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
   // Podsumowanie opublikowanych odcinków: pusty kanał jest dla Apple blokujący,
   // a enclosure bez rzeczywistego rozmiaru pliku - zgłaszany jako problem.
   const { data: episodeSummary } = useAdminPodcastFeedEpisodes();
+  // Wymiary okładki mierzy pole okładki; bez nich karta oceniała tylko obecność
+  // adresu i baner 16:9 dostawał zielone „gotowe".
+  const [imageSize, setImageSize] = useState<PodcastArtworkSize | null>(null);
 
   // Ta sama funkcja, która liczy braki dla feedu - panel pokazuje je, zanim
   // redakcja zgłosi kanał do Apple.
@@ -65,6 +69,8 @@ export function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
         language: "pl",
         copyright: merged.itunes_copyright ?? "",
         imageUrl: merged.itunes_image_url ?? "",
+        imageWidth: imageSize?.width ?? null,
+        imageHeight: imageSize?.height ?? null,
         author: merged.itunes_author ?? "",
         ownerName: merged.itunes_owner_name ?? "",
         ownerEmail: merged.itunes_owner_email ?? "",
@@ -73,6 +79,7 @@ export function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
     [
       merged.itunes_copyright,
       merged.itunes_image_url,
+      imageSize,
       merged.itunes_author,
       merged.itunes_owner_name,
       merged.itunes_owner_email,
@@ -191,6 +198,7 @@ export function PodcastSettingsPane({ onClose }: { onClose: () => void }) {
               copyright: merged.itunes_copyright ?? "",
             }}
             onChange={applyApple}
+            onImageMeasured={setImageSize}
           />
         </div>
 

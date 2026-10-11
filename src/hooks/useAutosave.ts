@@ -11,6 +11,13 @@
 // the form clean or toast "Saved" for a save that did not actually persist -
 // that lie caused silent, total data loss on the page builder, which has no
 // other persistence path (no autosave, no revisions).
+//
+// `resetKey` names WHOSE value is being autosaved (e.g. the post id). When it
+// changes, the current value becomes the new clean baseline: nothing is saved,
+// a pending timer is dropped and a save still in flight for the previous key
+// can no longer mark itself as `lastSaved`. Without it an editor that switched
+// to another record without remounting kept the previous record's snapshot -
+// "discard" restored record A into record B.
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type AutosaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
@@ -21,6 +28,12 @@ export interface UseAutosaveOpts<T> {
   delayMs?: number;
   enabled?: boolean;
   equals?: (a: T, b: T) => boolean;
+  /**
+   * Identity of the record behind `value`. A change re-baselines autosave on
+   * the value of the same render (no save, clean state). Compared with
+   * `Object.is`; leave undefined for a single-record consumer.
+   */
+  resetKey?: unknown;
 }
 
 export interface UseAutosaveResult<T> {
@@ -47,6 +60,7 @@ export function useAutosave<T>({
   delayMs = 1500,
   enabled = true,
   equals = Object.is,
+  resetKey,
 }: UseAutosaveOpts<T>): UseAutosaveResult<T> {
   const [status, setStatus] = useState<AutosaveStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +86,13 @@ export function useAutosave<T>({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstRunRef = useRef(true);
   const drainingRef = useRef<Promise<void> | null>(null);
+  // Key the current baseline belongs to, and a generation bumped on every
+  // re-baseline: a save started for an older generation never touches the
+  // state of the new one (no `lastSaved`, no status, no follow-up saves).
+  const baselineKeyRef = useRef<unknown>(resetKey);
+  const resetKeyRef = useRef<unknown>(resetKey);
+  resetKeyRef.current = resetKey;
+  const generationRef = useRef(0);
 
   const markSaved = useCallback((snapshot: T) => {
     lastSavedRef.current = snapshot;
@@ -85,34 +106,68 @@ export function useAutosave<T>({
   // save throws, so flush() can propagate the failure to its caller.
   const drain = useCallback((): Promise<void> => {
     if (drainingRef.current) return drainingRef.current;
-    const run = (async () => {
+    const generation = generationRef.current;
+    // Also stale once a render carries a key that is not baselined yet: its
+    // value belongs to the next record and is about to become the baseline.
+    const current = () =>
+      generationRef.current === generation &&
+      Object.is(resetKeyRef.current, baselineKeyRef.current);
+    // `run` is read in `finally`, which executes SYNCHRONOUSLY when there is
+    // nothing to save - hence `let` + `done` instead of a TDZ `const`, and no
+    // registration of an already settled chain (it would answer every later
+    // drain() without saving anything).
+    let run: Promise<void> | undefined = undefined;
+    let done = false;
+    run = (async () => {
       try {
-        while (!equalsRef.current(valueRef.current, lastSavedRef.current)) {
+        while (current() && !equalsRef.current(valueRef.current, lastSavedRef.current)) {
           const snapshot = valueRef.current;
           setStatus("saving");
           await saveRef.current(snapshot);
+          // Re-baselined meanwhile: this snapshot belongs to the previous
+          // record and must not become the new record's `lastSaved`.
+          if (!current()) return;
           markSaved(snapshot);
         }
+        if (!current()) return;
         setError(null);
         setStatus("saved");
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-        setStatus("error");
+        if (current()) {
+          setError(e instanceof Error ? e.message : String(e));
+          setStatus("error");
+        }
         throw e;
       } finally {
-        drainingRef.current = null;
+        done = true;
+        if (drainingRef.current === run) drainingRef.current = null;
       }
     })();
-    drainingRef.current = run;
+    if (!done) drainingRef.current = run;
     return run;
   }, [markSaved]);
 
   useEffect(() => {
     if (!enabled) return;
-    if (firstRunRef.current) {
+    if (firstRunRef.current || !Object.is(resetKey, baselineKeyRef.current)) {
+      const rebase = !firstRunRef.current;
       firstRunRef.current = false;
+      baselineKeyRef.current = resetKey;
       lastSavedRef.current = value;
       setLastSaved(value);
+      if (rebase) {
+        // New record: drop the previous record's pending save and detach a
+        // save still in flight (its chain checks the generation and stops).
+        generationRef.current += 1;
+        drainingRef.current = null;
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = null;
+        }
+        setStatus("idle");
+        setError(null);
+        setLastSavedAt(null);
+      }
       return;
     }
     if (equalsRef.current(value, lastSavedRef.current)) return;
@@ -129,7 +184,7 @@ export function useAutosave<T>({
         // navigation guard keeps protecting it and the next edit retries.
       });
     }, delayMs);
-  }, [value, enabled, delayMs, drain]);
+  }, [value, enabled, delayMs, drain, resetKey]);
 
   // Clear any pending timer on unmount - the unsaved-changes guard (not a
   // fire-and-forget async save) is responsible for the closing-tab case.
@@ -152,12 +207,20 @@ export function useAutosave<T>({
     // drain was finishing must still be saved before flush resolves. Each drain
     // persists the latest snapshot, so this converges as soon as edits stop; a
     // failing save throws out of `drain`, rejecting flush.
-    while (!equalsRef.current(valueRef.current, lastSavedRef.current)) {
+    const generation = generationRef.current;
+    while (
+      generationRef.current === generation &&
+      Object.is(resetKeyRef.current, baselineKeyRef.current) &&
+      !equalsRef.current(valueRef.current, lastSavedRef.current)
+    ) {
       await drain();
     }
   }, [drain]);
 
-  const isDirty = enabled && !equals(value, lastSavedRef.current);
+  // A render whose key has not been baselined yet is clean by definition - the
+  // effect above is about to make its value the baseline.
+  const isDirty =
+    enabled && Object.is(resetKey, baselineKeyRef.current) && !equals(value, lastSavedRef.current);
 
   return { status, error, flush, lastSavedAt, lastSaved, isDirty };
 }

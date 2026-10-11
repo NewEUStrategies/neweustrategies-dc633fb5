@@ -70,18 +70,16 @@ import { labelFor } from "@/lib/seo/footerNavigation";
 import { localizedPath } from "@/lib/i18n/localePath";
 import {
   DEFAULT_SEO_SETTINGS,
+  effectiveSiteDescription,
+  effectiveSiteTitle,
+  effectiveTitleSuffix,
+  parseSeoSettings,
   SEO_SETTINGS_KEY,
-  siteDescriptionOverride,
-  siteTitleOverride,
   type SeoSettings,
 } from "@/lib/seo/settings";
-import {
-  SITE_DEFAULT_DESCRIPTION,
-  SITE_DEFAULT_OG_IMAGE,
-  SITE_DEFAULT_TITLE,
-  SITE_NAME,
-  type Lang,
-} from "@/lib/seo/meta";
+import { SITE_DEFAULT_OG_IMAGE, SITE_NAME, type Lang } from "@/lib/seo/meta";
+import { resolveHomepageSeoText } from "@/lib/seo/homepageSeo";
+import { useStaticHomepage } from "@/lib/seo/useStaticHomepage";
 
 export const Route = createFileRoute("/admin/seo/")({
   component: SeoDashboard,
@@ -132,6 +130,12 @@ function SeoDashboard() {
   // Czytamy ustawienia, ale NIGDY nie wołamy `save` - patrz nagłówek pliku.
   const { query } = useSettings<SeoSettings>(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS);
   const settings = query.data;
+  // Statyczna strona główna - jej pola SEO i zajawka wygrywają w `<head>` `/`.
+  const { staticHomepage } = useStaticHomepage(tenantId);
+  const staticHomepageRow = staticHomepage.data ?? null;
+  // Sufiks marki jak w head() - ocena „tytuł mieści się w Google" mierzy tytuł
+  // wyprowadzony razem z nim (`seoContentStatus`).
+  const titleSuffix = effectiveTitleSuffix(parseSeoSettings(settings ?? null));
   // Linki do plików i sekcji idą na PUBLICZNY origin tenanta, nie na host
   // panelu - ta sama reguła co w `TechnicalFoundationCard`: względny
   // `/sitemap.xml` otwarty z panelu na innym hoście pokazałby pliki CUDZEGO
@@ -156,8 +160,11 @@ function SeoDashboard() {
   };
 
   const statuses = useMemo(
-    () => [...(pages?.rows ?? []), ...(posts?.rows ?? [])].map((row) => seoContentStatus(row)),
-    [posts, pages],
+    () =>
+      [...(pages?.rows ?? []), ...(posts?.rows ?? [])].map((row) =>
+        seoContentStatus(row, { titleSuffix }),
+      ),
+    [posts, pages, titleSuffix],
   );
   const contentSummary = useMemo(() => summarizeSeoStatuses(statuses), [statuses]);
   const contentDone = useMemo(() => statuses.filter(isContentComplete).length, [statuses]);
@@ -174,11 +181,18 @@ function SeoDashboard() {
    */
   const findings = useMemo<BrandFinding[]>(() => {
     if (!settings) return [];
-    const forLang = (lang: Lang): BrandFinding[] =>
-      auditBrandSeo({
+    const forLang = (lang: Lang): BrandFinding[] => {
+      // Tytuł i opis, które NAPRAWDĘ poda `/` - nadpisania statycznej strony
+      // głównej wygrywają (ta sama reguła i ten sam odczyt co zakładka
+      // „Strona główna", więc licznik zgadza się z jej listą).
+      const served = resolveHomepageSeoText(staticHomepageRow, lang, {
+        title: effectiveSiteTitle(settings, lang),
+        description: effectiveSiteDescription(settings, lang),
+      });
+      return auditBrandSeo({
         siteName: settings.site_name.trim() || SITE_NAME,
-        title: siteTitleOverride(settings, lang) || SITE_DEFAULT_TITLE[lang],
-        description: siteDescriptionOverride(settings, lang) || SITE_DEFAULT_DESCRIPTION[lang],
+        title: served.title,
+        description: served.description,
         ogImageUrl: settings.default_og_image_url.trim() || SITE_DEFAULT_OG_IMAGE,
         ogImageIsBuiltIn: !settings.default_og_image_url.trim(),
         ogImageAlt: settings.default_og_image_alt,
@@ -187,12 +201,13 @@ function SeoDashboard() {
         twitterSite: settings.twitter_site,
         noindex: false,
       });
+    };
     const merged = new Map<string, BrandFinding>();
     for (const finding of [...forLang("pl"), ...forLang("en")]) {
       if (!merged.has(finding.id)) merged.set(finding.id, finding);
     }
     return [...merged.values()];
-  }, [settings]);
+  }, [settings, staticHomepageRow]);
 
   if (!settings) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
 

@@ -222,6 +222,8 @@ const pl = {
     staticHomepageNotice:
       "Stroną główną jest strona z CMS-a i to JEJ własny tytuł SEO wygrywa z polem powyżej. Zmiana tutaj nie będzie widoczna, dopóki nadpisanie na tamtej stronie istnieje.",
     staticHomepageOpen: "Otwórz stronę główną w edytorze",
+    staticHomepageDescriptionNotice:
+      "Opis strony głównej pochodzi z tamtej strony (pole opisu SEO albo zajawka) i wygrywa z polem opisu powyżej.",
 
     // --- Karty społecznościowe ---
     socialIntro:
@@ -492,6 +494,8 @@ const en: typeof pl = {
     staticHomepageNotice:
       "The homepage is a CMS page and ITS own SEO title wins over the field above. A change here stays invisible for as long as that page-level override exists.",
     staticHomepageOpen: "Open the homepage in the editor",
+    staticHomepageDescriptionNotice:
+      "The homepage description comes from that page (its SEO description or excerpt) and wins over the description field above.",
 
     socialIntro:
       "The image and copy people see when they paste your link into Facebook, LinkedIn, X, Slack or WhatsApp. Each network truncates the title differently - the previews below show by how much.",

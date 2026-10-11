@@ -156,19 +156,21 @@ export const Route = createFileRoute("/podcasts/$show")({
       description,
       image: s.cover_image_url,
     });
+    // Autodiscovery: kanał programu (główny) + kanał sieciowy jako drugi wybór.
+    // `webFeed` w JSON-LD widzą wyszukiwarki, ale nie czytniki RSS ani Apple -
+    // te szukają wyłącznie <link rel="alternate">.
+    const origin = splitUrl(url).origin || SITE_CANONICAL_ORIGIN;
     // JSON-LD PodcastSeries: pozwala wyszukiwarkom rozpoznać program jako serię.
+    // `webFeed` absolutny - schema.org oczekuje URL-a, a względny adres
+    // walidator danych strukturalnych odrzuca jako nieprawidłowy.
     const jsonLd = {
       "@context": "https://schema.org",
       "@type": "PodcastSeries",
       name: title,
       ...(rawDesc ? { description: rawDesc } : {}),
       ...(s.cover_image_url ? { image: s.cover_image_url } : {}),
-      webFeed: `/podcasts/${s.slug}/rss.xml`,
+      webFeed: `${origin}/podcasts/${s.slug}/rss.xml`,
     };
-    // Autodiscovery: kanał programu (główny) + kanał sieciowy jako drugi wybór.
-    // `webFeed` w JSON-LD widzą wyszukiwarki, ale nie czytniki RSS ani Apple -
-    // te szukają wyłącznie <link rel="alternate">.
-    const origin = splitUrl(url).origin || SITE_CANONICAL_ORIGIN;
     return {
       ...base,
       links: [

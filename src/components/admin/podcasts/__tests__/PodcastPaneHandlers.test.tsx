@@ -245,7 +245,7 @@ describe("edytor programu: pola, do których nie dochodził żaden test", () => 
   it("przycisk wgrania okładki OTWIERA bibliotekę mediów, a wybór wraca do pola", async () => {
     mountShows();
     await openEditor();
-    fireEvent.click(screen.getByTitle("adminPodcasts.showEditor.uploadCoverTitle"));
+    fireEvent.click(screen.getByTitle("adminPodcasts.artwork.pick"));
     fireEvent.click(await screen.findByTestId("picker-open-image"));
     expect(await screen.findByDisplayValue("https://cdn.example.org/wybrana.jpg")).toBeTruthy();
   });

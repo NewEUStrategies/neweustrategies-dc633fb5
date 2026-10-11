@@ -11,7 +11,8 @@ const NOT_MODIFIED_HEADERS = ["etag", "last-modified"] as const;
 
 // Nagłówki żądania, które muszą dojść do magazynu:
 // - `Accept` - transformacja Supabase wybiera WebP WYŁĄCZNIE na jego podstawie
-//   (parametr `format` zna tylko wartość `origin`). Bez przekazania markowa
+//   (parametr `format` zna tylko wartość `origin` i przekazujemy go dalej, gdy
+//   wariant musi zostać w formacie oryginału). Bez przekazania `Accept` markowa
 //   ścieżka /media/* zawsze oddawałaby format oryginału.
 // - `If-None-Match` / `If-Modified-Since` - pozwalają magazynowi odpowiedzieć
 //   304 zamiast całego ciała po wygaśnięciu `max-age` w cache przeglądarki.
@@ -59,6 +60,9 @@ function imageTransform(url: URL): URLSearchParams | null {
   if (Number.isFinite(quality) && quality >= 20 && quality <= 100) {
     params.set("quality", String(Math.round(quality)));
   }
+  // `format=origin` wyłącza negocjację WebP po `Accept` - potrzebne tam, gdzie
+  // odbiorca czyta wyłącznie JPEG/PNG (okładka podcastu w `<itunes:image>`).
+  if (url.searchParams.get("format") === "origin") params.set("format", "origin");
   return params;
 }
 

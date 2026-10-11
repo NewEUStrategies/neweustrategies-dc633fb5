@@ -489,7 +489,9 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     expect(view.container.querySelector("[data-footnotes-list]")).toBeNull();
   });
 
-  it("strona główna zachowuje tytuł marki, ale respektuje opis, canonical i robots strony", async () => {
+  it("strona główna respektuje WŁASNY tytuł SEO, opis, canonical i robots strony", async () => {
+    // Tytuł SEO ustawiony w /admin/pages trafia do <title>, og:title
+    // i twitter:title dosłownie (bez sufiksu) - do 2026-10-11 był ignorowany.
     h.homePage = homePageData({
       seo_title_pl: "Własny tytuł redakcji",
       seo_description_pl: "Własny opis redakcji",
@@ -497,13 +499,31 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
       seo_noindex: true,
     });
     const view = await mountHome();
-    expect(metaTitle(view.meta())).toBe("New European Strategies");
-    expect(metaByProperty(view.meta(), "og:title")).toBe("New European Strategies");
+    expect(metaTitle(view.meta())).toBe("Własny tytuł redakcji");
+    expect(metaByProperty(view.meta(), "og:title")).toBe("Własny tytuł redakcji");
+    expect(metaByName(view.meta(), "twitter:title")).toBe("Własny tytuł redakcji");
     expect(metaByName(view.meta(), "description")).toBe("Własny opis redakcji");
     expect(linkByRel(view.links(), "canonical")).toBe(
       "https://neweuropeanstrategies.com/kanoniczny",
     );
     expect(metaByName(view.meta(), "robots")).toBe("noindex, nofollow");
+  });
+
+  it("bez tytułu SEO zostaje tytuł SERWISU - tytuł treści strony nie przemianowuje marki", async () => {
+    // `title_pl` strony („Strona główna") to nazwa wiersza w panelu, nie tytuł
+    // serwisu: bez jawnego nadpisania <title> zostaje przy marce.
+    h.homePage = homePageData({ title_pl: "Strona główna", seo_title_pl: "   " });
+    const view = await mountHome();
+    expect(metaTitle(view.meta())).toBe("New European Strategies");
+    expect(metaByProperty(view.meta(), "og:title")).toBe("New European Strategies");
+  });
+
+  it("nadpisanie tytułu nie przechodzi między językami - EN bez własnego zostaje przy marce", async () => {
+    h.homePage = homePageData({ seo_title_pl: "Tylko po polsku" });
+    h.lang = "en";
+    h.requestUrl = "https://neweuropeanstrategies.com/en";
+    const view = await mountHome();
+    expect(metaTitle(view.meta())).toBe("New European Strategies");
   });
 
   it("bez własnych nadpisań opis bierze ZAJAWKĘ strony, nie zdanie marki", async () => {

@@ -882,10 +882,49 @@ export const en = {
     seo: {
       panelTitle: "SEO and Google preview",
       panelHint: "Empty fields = defaults derived from the title and excerpt",
+      intro:
+        "Decide how this content looks in Google and when shared. Every field is optional - an empty field means automatic text, shown in it as a placeholder.",
+      excerpt: {
+        label: "Excerpt · {{lang}}",
+        hint: "A short summary shown in lists, cards and RSS. When the SEO panel below has no custom meta description, Google gets this excerpt - shortened to the width of a result.",
+        placeholder: "In 1-2 sentences: what “{{title}}” is about and what the reader will find.",
+        unique:
+          "Every piece of content needs its own excerpt - one copied from another article gives Google two identical descriptions.",
+        counter: "{{count}} / {{max}} characters",
+      },
+      pageDetails: {
+        title: "Page details",
+        intro:
+          "Fill in the title and excerpt in both languages and check the Google preview in the SEO panel. After saving, continue to the “Content” step.",
+        goToContent: "Continue to content editing",
+      },
+      sourceAuto: "Automatic",
+      sourceCustom: "Custom",
+      sectionGoogle: "Google result",
+      langStatus: {
+        ok: "no issues",
+        warning: "warnings",
+        error: "errors blocking save",
+      },
       titleLabel: "SEO title",
+      titleHint:
+        "Headline of the Google result and the browser tab name. Empty = the content title followed by “{{suffix}}”. A custom title replaces it entirely, without the suffix.",
+      titleHintNoSuffix:
+        "Headline of the Google result and the browser tab name. Empty = the content title.",
+      titleHintHomepage:
+        "This page is the homepage (/). Empty = the site title “{{title}}” (SEO → Homepage). A custom title replaces it entirely, without a suffix.",
+      descriptionHintHomepage:
+        "The homepage description in Google and when shared. Empty = the page excerpt, and without it the site description (SEO → Homepage).",
       descriptionLabel: "Meta description",
+      descriptionHint:
+        "Text under the title in Google and the description of social cards. Empty = the excerpt shortened to the width of a Google result (about 150 characters).",
+      advanced: "Advanced: canonical address and indexing",
       canonicalLabel: "Canonical URL (override)",
       canonicalHint: "Only for republished content - points at the original source.",
+      testNoindexForced:
+        "This is a test page (slug test-… or e2e-…): it can only be public with noindex - outside the sitemap and Google results.",
+      canonicalInvalid:
+        "Enter a full address starting with https:// - until then the change is not saved.",
       noindexLabel: "Hide from search engines (noindex)",
       noindexHint: "Also removes the URL from the sitemap, RSS and news sitemap.",
       live: {
@@ -915,6 +954,10 @@ export const en = {
         overrideLabel: "Custom OG image (override)",
         overrideHint:
           "Takes precedence over the cover and the generated card. 1200x630 recommended.",
+        chain: "Order: custom image → cover → generated card → site default image.",
+        cardShadowed:
+          "The generated card is on standby - the cover takes precedence. You can use the card as the custom image.",
+        useCard: "Use the card as the share image",
       },
     },
     seoSettings: {
@@ -970,6 +1013,9 @@ export const en = {
       searchPlaceholder: "Search by title or slug…",
       tileTotal: "Items",
       tileMissingDesc: "Missing description",
+      tileDuplicateDesc: "Duplicate description",
+      duplicateBadge_one: "same description as {{count}} other item",
+      duplicateBadge_other: "same description as {{count}} other items",
       tileDefaultImage: "Default OG image",
       tileNoindex: "Noindex",
       tileOverrides: "With SEO overrides",
@@ -983,7 +1029,7 @@ export const en = {
       colImage: "OG image",
       colScore: "Completeness",
       scoreHint:
-        "Completeness: PL and EN descriptions 25 pts each, non-default OG image 20 pts, SEO title 15 pts, indexability 15 pts.",
+        "Completeness: PL and EN descriptions 25 pts each, non-default OG image 20 pts, PL and EN titles that fit a Google result 15 pts, indexability 15 pts. “Duplicate description” = the same description or excerpt as another item.",
     },
     settingsNav: {
       title: "Settings",
@@ -1071,6 +1117,8 @@ export const en = {
       trashedOne: "Moved to trash",
       restoredOne: "Restored",
       purgedOne: "Permanently deleted",
+      testNoindexForced:
+        "Test pages (slug test-… / e2e-…): {{count}} - published with noindex, kept out of the sitemap and the index.",
     },
     published: "published",
     drafts: "drafts",

@@ -46,8 +46,9 @@ afterEach(() => {
 describe("registered request middleware", () => {
   it("retains auth attacher and the registered request chain", () => {
     expect(options.functionMiddleware).toHaveLength(1);
-    // 11 = crawlerUnavailable (2026-10-09): najgłębiej, pod defaultCacheControl.
-    expect(middleware).toHaveLength(12);
+    // 12 = crawlerUnavailable (2026-10-09): najgłębiej, pod defaultCacheControl;
+    // 2 = www -> apex (2026-10-11), tuż pod nagłówkami bezpieczeństwa.
+    expect(middleware).toHaveLength(13);
   });
   it.each([new Response(null, { status: 401 }), { statusCode: 404 }, { status: 403 }])(
     "preserves intentional HTTP short circuits: %s",
@@ -81,10 +82,10 @@ describe("registered request middleware", () => {
     expect(secured.response.body).toBe(envelope.response.body);
     expect(secured.response.headers.get("x-content-type-options")).toBe("nosniff");
   });
-  // Indeksy łańcucha (audyt F14, 2026-09-20): 4 = homepageLang, 5 = redirect,
-  // 6 = legacyLangQuery. Negocjacja języka strony głównej stoi PRZED matcherem
+  // Indeksy łańcucha (audyt F14, 2026-09-20; +1 od www -> apex 2026-10-11):
+  // 5 = homepageLang, 6 = redirect, 7 = legacyLangQuery. Negocjacja języka strony głównej stoi PRZED matcherem
   // przekierowań, bo jest czysta, a matcher kosztuje dwa odczyty bazy.
-  it.each([1, 3, 4, 6, 10])("passes a non-response result through middleware %s", async (index) => {
+  it.each([1, 4, 5, 7, 11])("passes a non-response result through middleware %s", async (index) => {
     const token = { handled: true };
     const req = request("/", { accept: "text/html", "accept-language": "pl" });
     expect(await run(index, req, async () => token)).toBe(token);
@@ -92,14 +93,14 @@ describe("registered request middleware", () => {
   it("negotiates the homepage language BEFORE the redirect matcher touches the database", async () => {
     const next = vi.fn();
     const res = response(
-      await run(4, request("/", { accept: "text/html", "accept-language": "en" }), next),
+      await run(5, request("/", { accept: "text/html", "accept-language": "en" }), next),
     );
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/en");
     expect(next).not.toHaveBeenCalled();
     expect(h.redirect).not.toHaveBeenCalled();
     // Kolejne ogniwo to matcher przekierowań - dopiero ono woła bazę.
-    await run(5, request("/", { accept: "text/html", "accept-language": "en" }));
+    await run(6, request("/", { accept: "text/html", "accept-language": "en" }));
     expect(h.redirect).toHaveBeenCalledOnce();
   });
   it("leaves an explicit `?lang=` on the homepage to the legacy query middleware", async () => {
@@ -107,23 +108,23 @@ describe("registered request middleware", () => {
     // właśnie poprosił o `/?lang=en` - a 301 z ogniwa 6 dostałby Set-Cookie.
     const next = vi.fn(async () => document());
     const res = response(
-      await run(4, request("/?lang=en", { accept: "text/html", "accept-language": "pl" }), next),
+      await run(5, request("/?lang=en", { accept: "text/html", "accept-language": "pl" }), next),
     );
     expect(next).toHaveBeenCalledOnce();
     expect(res.headers.get("set-cookie")).toBeNull();
-    const canonical = response(await run(6, request("/?lang=en")));
+    const canonical = response(await run(7, request("/?lang=en")));
     expect(canonical.status).toBe(301);
     expect(canonical.headers.get("location")).toBe("/en");
   });
   it("does not wait for 404 telemetry", async () => {
     h.log404.mockReturnValue(new Promise(() => {}));
     const res = document();
-    expect(await run(3, request(), async () => res)).toBe(res);
+    expect(await run(4, request(), async () => res)).toBe(res);
     expect(h.background).toHaveBeenCalledWith(expect.any(Promise));
   });
   it("consumes failed telemetry without an unhandled rejection", async () => {
     h.log404.mockRejectedValue(new Error("offline"));
-    await run(3, request());
+    await run(4, request());
     await expect(h.background.mock.calls[0][0]).resolves.toBeUndefined();
   });
   it.each(["/platform/email/send", "/lovable/email/send", "/email/unsubscribe"])(
@@ -140,7 +141,7 @@ describe("registered request middleware", () => {
   it.each([301, 302, 307, 308, 410])("applies a configured %s redirect", async (status) => {
     h.redirect.mockResolvedValue({ status, target: "/destination" });
     const next = vi.fn();
-    const res = response(await run(5, request(), next));
+    const res = response(await run(6, request(), next));
     expect(res.status).toBe(status);
     expect(next).not.toHaveBeenCalled();
     expect(res.headers.get("location")).toBe(status === 410 ? null : "/destination");
@@ -153,7 +154,7 @@ describe("registered request middleware", () => {
     "answers the old WordPress feed %s with ONE 301 before the router (no 307 for the slash)",
     async (path, target) => {
       const next = vi.fn();
-      const res = response(await run(5, request(path), next));
+      const res = response(await run(6, request(path), next));
       expect(res.status).toBe(301);
       expect(res.headers.get("location")).toBe(target);
       expect(res.headers.get("cache-control")).toBe("public, max-age=86400");
@@ -163,20 +164,20 @@ describe("registered request middleware", () => {
     },
   );
   it("leaves non-GET feed-like requests and ordinary paths to the rest of the chain", async () => {
-    const res = response(await run(5, request("/category/geopolityka/feed/", {}, "POST")));
+    const res = response(await run(6, request("/category/geopolityka/feed/", {}, "POST")));
     expect(res.status).toBe(200);
-    expect(response(await run(5, request("/category/feed/"))).status).toBe(200);
+    expect(response(await run(6, request("/category/feed/"))).status).toBe(200);
   });
   it("continues rendering when the redirect database is unavailable", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     h.redirect.mockRejectedValue(new Error("offline"));
-    expect(response(await run(5, request())).status).toBe(200);
+    expect(response(await run(6, request())).status).toBe(200);
   });
   it.each(["/admin?lang=en", "/admin/posts?lang=en", "/blog?lang=de", "/blog"])(
     "preserves app/unsupported query state: %s",
     async (path) => {
       const next = vi.fn(async () => document());
-      await run(6, request(path), next);
+      await run(7, request(path), next);
       expect(next).toHaveBeenCalledOnce();
     },
   );
@@ -184,7 +185,7 @@ describe("registered request middleware", () => {
     ["/blog?lang=en&page=2", "/en/blog?page=2"],
     ["/en/blog?lang=pl", "/blog"],
   ])("canonicalizes %s without losing search", async (path, location) => {
-    const res = response(await run(6, request(path)));
+    const res = response(await run(7, request(path)));
     expect(res.status).toBe(301);
     expect(res.headers.get("location")).toBe(location);
   });
@@ -192,7 +193,7 @@ describe("registered request middleware", () => {
     "stores language for a non-localizable app path (%s)",
     async (proto) => {
       const res = response(
-        await run(6, request("/profile?lang=en&tab=about", { "x-forwarded-proto": proto })),
+        await run(7, request("/profile?lang=en&tab=about", { "x-forwarded-proto": proto })),
       );
       expect(res.status).toBe(302);
       expect(res.headers.get("location")).toBe("/profile?tab=about");
@@ -205,7 +206,7 @@ describe("registered request middleware", () => {
       ["https://example.org", true],
       ["http://example.org", false],
     ] as const) {
-      const res = response(await run(6, new Request(`${origin}/profile?lang=en`)));
+      const res = response(await run(7, new Request(`${origin}/profile?lang=en`)));
       expect(res.headers.get("set-cookie")!.endsWith("; Secure")).toBe(secure);
     }
   });
@@ -232,14 +233,14 @@ describe("registered request middleware", () => {
         const expected = `nes_lang=${lang}; Path=/; Max-Age=31536000; SameSite=Lax${secure ? "; Secure" : ""}`;
         const homepage = response(
           await run(
-            4,
+            5,
             new Request(`${origin}/`, {
               headers: { ...forwarded, accept: "text/html", "accept-language": lang },
             }),
           ),
         );
         const legacy = response(
-          await run(6, new Request(`${origin}/profile?lang=${lang}`, { headers: forwarded })),
+          await run(7, new Request(`${origin}/profile?lang=${lang}`, { headers: forwarded })),
         );
         expect(homepage.headers.getSetCookie()).toEqual([expected]);
         expect(legacy.headers.getSetCookie()).toEqual([expected]);
@@ -257,12 +258,12 @@ describe("registered request middleware", () => {
     // Accept-Language EN: bez bramki każdy z tych przypadków dostałby 302 na /en.
     const headers: Record<string, string> = { "accept-language": "en" };
     if (accept) headers.accept = accept;
-    expect(await run(4, request(path, headers, method), next)).toBe(original);
+    expect(await run(5, request(path, headers, method), next)).toBe(original);
     expect(next).toHaveBeenCalledOnce();
   });
   it("negotiates EN with an uncacheable redirect preserving search", async () => {
     const res = response(
-      await run(4, request("/?utm_source=mail", { accept: "text/html", "accept-language": "en" })),
+      await run(5, request("/?utm_source=mail", { accept: "text/html", "accept-language": "en" })),
     );
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/en?utm_source=mail");
@@ -274,7 +275,7 @@ describe("registered request middleware", () => {
     original.headers.append("set-cookie", "other=1");
     const res = response(
       await run(
-        4,
+        5,
         request("/", { accept: "text/html", "accept-language": "pl" }),
         async () => original,
       ),
@@ -288,7 +289,7 @@ describe("registered request middleware", () => {
     async (lang) => {
       const res = response(
         await run(
-          4,
+          5,
           request("/", {
             accept: "text/html",
             cookie: `nes_lang=${lang}`,
@@ -305,7 +306,7 @@ describe("registered request middleware", () => {
     // Set-Cookie, ani `Vary: Accept-Language` (rozbijałoby wpis cache "/").
     const original = document();
     const res = await run(
-      4,
+      5,
       request("/", { accept: "text/html", cookie: "nes_lang=pl", "accept-language": "en" }),
       async () => original,
     );
@@ -317,7 +318,7 @@ describe("registered request middleware", () => {
       const next = vi.fn();
       const res = response(
         await run(
-          4,
+          5,
           request("/?utm_source=mail&page=2", {
             accept: "text/html",
             cookie,
@@ -337,14 +338,14 @@ describe("registered request middleware", () => {
   });
   it("negotiates HEAD like GET", async () => {
     const res = response(
-      await run(4, request("/", { accept: "text/html", "accept-language": "de" }, "HEAD")),
+      await run(5, request("/", { accept: "text/html", "accept-language": "de" }, "HEAD")),
     );
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/en");
   });
   it("returns the downstream result untouched when nothing is known about the visitor", async () => {
     const original = document();
-    const res = await run(4, request("/", { accept: "text/html" }), async () => original);
+    const res = await run(5, request("/", { accept: "text/html" }), async () => original);
     expect(res).toBe(original);
     expect(original.headers.get("set-cookie")).toBeNull();
   });
@@ -356,7 +357,7 @@ describe("registered request middleware", () => {
     });
     const envelope = { response: original, serverSsrCleanup: "stream", dispose: vi.fn() };
     const out = (await run(
-      4,
+      5,
       request("/", { accept: "text/html", "accept-language": "pl-PL,pl;q=0.9" }),
       async () => envelope,
     )) as typeof envelope;
@@ -381,7 +382,7 @@ describe("registered request middleware", () => {
     async (url, proto, secure) => {
       const headers: Record<string, string> = { accept: "text/html", "accept-language": "de" };
       if (proto) headers["x-forwarded-proto"] = proto;
-      const res = response(await run(4, new Request(url, { headers })));
+      const res = response(await run(5, new Request(url, { headers })));
       expect(res.status).toBe(302);
       const cookie = res.headers.get("set-cookie")!;
       expect(cookie).toMatch(/^nes_lang=en; Path=\/; Max-Age=31536000; SameSite=Lax/);
@@ -398,7 +399,7 @@ describe("registered request middleware", () => {
       cookie: "nes_lang=%E0%A4%A",
       "accept-language": "en",
     });
-    const res = response(await run(0, req, async () => run(4, req)));
+    const res = response(await run(0, req, async () => run(5, req)));
     expect(error).not.toHaveBeenCalled();
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("/en");
@@ -406,14 +407,14 @@ describe("registered request middleware", () => {
     expect(res.headers.get("set-cookie")).toMatch(/^nes_lang=en;/);
     // Nazwa zapasowa wciąż decyduje, gdy nowa jest zepsuta.
     const legacy = request("/", { accept: "text/html", cookie: "nes_lang=%; lovable_lang=en" });
-    const fromLegacy = response(await run(0, legacy, async () => run(4, legacy)));
+    const fromLegacy = response(await run(0, legacy, async () => run(5, legacy)));
     expect(fromLegacy.status).toBe(302);
     expect(fromLegacy.headers.get("set-cookie")).toBeNull();
   });
   it("turns the loader's out-of-band no-store into an actual Response header", async () => {
     const handler = requestHandler(async (req) =>
       response(
-        await run(10, req, async () => {
+        await run(11, req, async () => {
           setCacheControlHeader("private, no-store");
           return document();
         }),
@@ -425,12 +426,12 @@ describe("registered request middleware", () => {
   it("preserves explicit policies and does not put cache headers on APIs", async () => {
     const res = document();
     res.headers.set("cache-control", "no-store");
-    expect(await run(10, request(), async () => res)).toBe(res);
+    expect(await run(11, request(), async () => res)).toBe(res);
     const api = Response.json({ ok: true });
-    expect(await run(10, request("/api/health"), async () => api)).toBe(api);
+    expect(await run(11, request("/api/health"), async () => api)).toBe(api);
   });
   it("gives an anonymous document its default policy", async () => {
-    const res = response(await run(10, request()));
+    const res = response(await run(11, request()));
     expect(res.headers.get("cache-control")).toContain("s-maxage=900");
   });
 });
@@ -442,7 +443,7 @@ describe("crawler bez treści strony głównej (ogniwo 11)", () => {
   it("żądanie oznaczone przez loader dostaje 503 z Retry-After i no-store", async () => {
     const handler = requestHandler(async (req) =>
       response(
-        await run(11, req, async () => {
+        await run(12, req, async () => {
           markCrawlerUnavailable();
           return document();
         }),
@@ -456,7 +457,7 @@ describe("crawler bez treści strony głównej (ogniwo 11)", () => {
   });
 
   it("żądanie NIEoznaczone przechodzi bez zmian (czytelnik dostaje 200)", async () => {
-    const handler = requestHandler(async (req) => response(await run(11, req)));
+    const handler = requestHandler(async (req) => response(await run(12, req)));
     const res = await handler(request("/"), {});
     expect(res.status).toBe(200);
     expect(res.headers.get("retry-after")).toBeNull();
@@ -464,7 +465,7 @@ describe("crawler bez treści strony głównej (ogniwo 11)", () => {
 
   it("wynik bez Response (envelope innego typu) przechodzi bez zmian", async () => {
     const token = { handled: true };
-    expect(await run(11, request("/"), async () => token)).toBe(token);
+    expect(await run(12, request("/"), async () => token)).toBe(token);
   });
 });
 
@@ -521,5 +522,31 @@ describe("security headers across deployment modes", () => {
     expect(out.headers.get("x-frame-options")).toBeNull();
     expect(out.headers.get("strict-transport-security")).toBeNull();
     expect(out.headers.get("content-security-policy")).toContain("'unsafe-eval'");
+  });
+});
+
+describe("www -> apex canonical host", () => {
+  it("answers a permanent 301 to the apex, keeping path and query", async () => {
+    const next = vi.fn(async () => document());
+    const res = response(
+      await run(2, new Request("https://www.neweuropeanstrategies.com/analizy/x?utm=1"), next),
+    );
+    expect(res.status).toBe(301);
+    expect(res.headers.get("location")).toBe("https://neweuropeanstrategies.com/analizy/x?utm=1");
+    expect(next).not.toHaveBeenCalled();
+  });
+  it("redirects HEAD as well, but lets non-GET methods through", async () => {
+    const head = new Request("https://www.neweuropeanstrategies.com/", { method: "HEAD" });
+    expect(response(await run(2, head)).status).toBe(301);
+    const post = new Request("https://www.neweuropeanstrategies.com/_serverFn/x", {
+      method: "POST",
+    });
+    expect(response(await run(2, post)).status).toBe(200);
+  });
+  it("is a no-op on the apex and on other hosts", async () => {
+    expect(response(await run(2, new Request("https://neweuropeanstrategies.com/"))).status).toBe(
+      200,
+    );
+    expect(response(await run(2, new Request("https://www.example.org/"))).status).toBe(200);
   });
 });

@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronRight,
   GripVertical,
@@ -122,6 +123,7 @@ export function MenuManager({ menuKey }: Props) {
       icon: it.icon ?? "",
       mega_enabled: it.mega_enabled,
       mega_config: it.mega_config,
+      ref_broken: it.ref_broken === true,
     }));
     setItems(mapped);
   }, [menuQuery.data]);
@@ -152,7 +154,11 @@ export function MenuManager({ menuKey }: Props) {
   // czysty reduktor z `lib/menus/tree.ts` - hierarchia, limit poziomów,
   // ochrona przed cyklem i renumeracja rzędu mają tam własne asercje.
   const updateItem = (local_id: string, patch: Partial<ClientItem>) => {
-    setItems((curr) => [...updateMenuItemById(curr ?? [], local_id, patch)]);
+    // Poprawiony adres zdejmuje ostrzeżenie o martwym linku: flagę liczy odczyt
+    // serwera (`refResolution.ts`), więc nową ocenę przynosi zapis i ponowne
+    // wczytanie menu - do tego czasu redaktor widzi własną poprawkę.
+    const next = "href" in patch || "ref_id" in patch ? { ...patch, ref_broken: false } : patch;
+    setItems((curr) => [...updateMenuItemById(curr ?? [], local_id, next)]);
   };
 
   const removeItem = (local_id: string) => {
@@ -488,6 +494,17 @@ function MenuNode({
               </span>
             ) : null}
             <span className="ml-auto flex items-center gap-1 shrink-0">
+              {item.ref_broken ? (
+                // Martwy link: front tej pozycji (z poddrzewem) nie renderuje.
+                <span
+                  className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-destructive/10 text-destructive"
+                  title={t("admin.menu.brokenLinkHint")}
+                >
+                  <AlertTriangle size={10} aria-hidden />
+                  {t("admin.menu.brokenLink")}
+                  <span className="sr-only">: {t("admin.menu.brokenLinkHint")}</span>
+                </span>
+              ) : null}
               <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/80 px-1.5 py-0.5 rounded bg-muted/60">
                 {typeLabel}
               </span>

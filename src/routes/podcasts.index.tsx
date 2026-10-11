@@ -203,12 +203,16 @@ function PodcastsIndex() {
                       params={{ show: s.slug }}
                       className="group flex flex-col rounded-xl border border-border overflow-hidden hover:shadow-md transition-shadow bg-card"
                     >
-                      <div className="aspect-video bg-muted relative overflow-hidden">
+                      {/* Kwadrat jak sama okładka podcastu (1:1 w katalogach
+                          Apple/Spotify) - kadr 16:9 ucinał górę i dół okładki,
+                          a redakcję zachęcał do wgrywania banerów, które potem
+                          lądowały w `<itunes:image>`. */}
+                      <div className="aspect-square bg-muted relative overflow-hidden">
                         {s.cover_image_url ? (
                           // Responsywny srcSet zamiast pełnowymiarowego
                           // oryginału na każdej karcie; pierwszy rząd siatki
                           // (kandydaci LCP na górze strony) jest eager+high,
-                          // reszta lazy. Rodzic rezerwuje układ (aspect-video),
+                          // reszta lazy. Rodzic rezerwuje układ (aspect-square),
                           // więc bez width/height nie ma CLS.
                           <OptimizedImage
                             src={s.cover_image_url}

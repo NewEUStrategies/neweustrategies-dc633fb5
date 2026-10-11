@@ -32,6 +32,9 @@ export interface RouterLike {
  *                             head() czyta title_suffix itd.
  * - ["admin-seo-posts"] / ["admin-seo-pages"] - dashboard /admin/seo.
  * - ["admin-seo-404"] / ["admin-redirects"]   - ekran przekierowań i log 404.
+ * - ["admin-seo-static-homepage"] - która strona jest stroną główną i jej tytuł
+ *                             SEO (/admin/seo/homepage, edytor strony).
+ *                             Zapis strony zmienia jedno i drugie.
  *
  * Test regresyjny (src/lib/seo/__tests__/invalidate.test.ts) seeduje cache
  * prawdziwymi kluczami z src/lib/queries i pilnuje, ze kazdy z nich faktycznie
@@ -46,6 +49,7 @@ const SEO_QUERY_KEY_PREFIXES: readonly (readonly string[])[] = [
   ["admin-seo-pages"],
   ["admin-seo-404"],
   ["admin-redirects"],
+  ["admin-seo-static-homepage"],
 ];
 
 export function invalidateSeoCaches(qc: QueryClient, router?: RouterLike | null): void {

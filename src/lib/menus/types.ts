@@ -83,6 +83,14 @@ export interface MenuItemRow {
   icon: string;
   mega_enabled: boolean;
   mega_config: MegaConfig;
+  /**
+   * Martwy link: wskazany wiersz (strona, wpis, kategoria, tag) nie istnieje
+   * albo nie jest publiczny, ewentualnie własny link `/category/<slug>`
+   * prowadzi do kategorii, której w najemcy nie ma. Pole LICZONE przy odczycie
+   * (`refResolution.ts`), nie kolumna: publiczne menu takiej pozycji nie
+   * renderuje, panel pokazuje przy niej ostrzeżenie. Brak pola = link żywy.
+   */
+  ref_broken?: boolean;
 }
 
 export interface MenuWithItems {

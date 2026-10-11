@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { HomepageCandidatePage } from "@/lib/seo/homepagePage";
+import { isTestContentPath } from "@/lib/seo/testContent";
 import { readPagedRows } from "./pagedRows.server";
 
 /**
@@ -116,6 +117,11 @@ export async function readPublishedPagePaths(admin: SupabaseClient<Database>, te
     if (error) throw error;
     for (const row of data ?? []) {
       if (allowed.has(row.page_id) && typeof row.full_path === "string" && row.full_path.trim()) {
+        // Treść TESTOWA (slug strony albo przodka `test-*`/`e2e-*`) nie ma
+        // publicznej ścieżki dla powierzchni maszynowych: wypada z
+        // `pages.xml`, a wpisy pod nią - z sekcji `posts`, feedów i llms.txt
+        // (2026-10 audyt: `/test-e2e-zakup` w mapie) - `lib/seo/testContent.ts`.
+        if (isTestContentPath(row.full_path)) continue;
         paths.set(row.page_id, row.full_path);
       }
     }
