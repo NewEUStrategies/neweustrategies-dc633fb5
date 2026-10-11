@@ -8229,6 +8229,13 @@ html[data-mbb="on"] [data-site-shell] {
   column-gap: 14px;
 }
 
+/* Staly odstep liter takze przy hoverze i ustawieniach Theme Design. */
+[data-w-id][data-w-id][data-w-id] .nes-kinetic-row [data-title-root],
+[data-w-id][data-w-id][data-w-id]:hover .nes-kinetic-row [data-title-root] {
+  letter-spacing: 0 !important;
+  transition-property: color !important;
+}
+
 /* Akcja wisi NAD wierszem sygnalu, wiec scisk przy wezkich widgetach
    adresuje ja bezposrednio, a nie przez .nes-kinetic-row.
 
@@ -8252,7 +8259,7 @@ html[data-mbb="on"] [data-site-shell] {
 
   .nes-kinetic-row [data-title-root] {
     font-size: 10px !important;
-    letter-spacing: 0.05em !important;
+    letter-spacing: 0 !important;
   }
 
   [data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action,

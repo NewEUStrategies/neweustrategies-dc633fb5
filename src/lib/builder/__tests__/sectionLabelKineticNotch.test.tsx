@@ -190,8 +190,7 @@ describe("Kinetic Signal Notch", () => {
     expect(row?.className).not.toContain("flex-wrap");
     expect(row?.className).not.toContain("grid-cols");
     expect(title?.className).toContain("whitespace-nowrap");
-    // Ciasny tracking tytułu - litery blisko siebie.
-    expect(title?.className).toContain("tracking-[0.08em]");
+    expect(title?.className).toContain("tracking-normal");
     // Akcja wisi NAD wierszem sygnału, nie w nim.
     expect(row?.contains(action ?? null)).toBe(false);
     expect(row?.previousElementSibling?.contains(action ?? null)).toBe(true);
@@ -300,7 +299,7 @@ describe("Kinetic Signal Notch", () => {
     long.unmount();
   });
 
-  it("linia pod rzędem słucha showRule, a jej oddech słucha gapY", () => {
+  it("linia pod rzędem słucha showRule, z kompaktowym oddechem", () => {
     const withRule = renderVariant({ showRule: true });
     expect(withRule.container.querySelector(".border-b")).not.toBeNull();
     withRule.unmount();
@@ -311,7 +310,7 @@ describe("Kinetic Signal Notch", () => {
 
     const airy = renderVariant({ showRule: true, gapY: "20px" });
     const row = airy.container.querySelector<HTMLElement>(".border-b");
-    expect(row?.style.paddingBottom).toBe("20px");
+    expect(row?.style.paddingBottom).toBe("2px");
     airy.unmount();
   });
 
@@ -363,11 +362,11 @@ describe("Kinetic Signal Notch", () => {
     const shell = container.querySelector<HTMLElement>(".nes-kinetic-shell");
     const cls = shell?.className ?? "";
     // Górny padding jest zerowy (widget zaczyna się od akcji), dolny zostaje.
-    expect(cls).toContain("pb-2");
+    expect(cls).toContain("pb-0");
     expect(cls).not.toMatch(/(^|\s)(pt|py)-/);
     const { container: smBox } = renderVariant({ size: "sm" });
     const smCls = smBox.querySelector<HTMLElement>(".nes-kinetic-shell")?.className ?? "";
-    expect(smCls).toContain("pb-1");
+    expect(smCls).toContain("pb-0");
     expect(smCls).not.toMatch(/(^|\s)(pt|py)-/);
   });
 

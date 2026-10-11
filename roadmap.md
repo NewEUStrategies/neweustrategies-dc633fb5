@@ -1,5 +1,9 @@
 # Roadmap
 
+## Kompaktowy nagłówek Kinetic
+
+- [x] Usunąć rozciąganie liter przy najechaniu i ustawić dolny odstęp na 2 px w obu skalach i motywach.
+
 ## Nowoczesna nawigacja slidera
 
 - [x] Ujednolicić strzałki przy zdjęciach i wskaźnikach według pierwszego zrzutu; 12 przycisków ma identyczne parametry w obu motywach, przełączanie działa, testy zakresowe przechodzą.
