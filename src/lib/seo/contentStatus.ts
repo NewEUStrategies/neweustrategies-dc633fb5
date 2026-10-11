@@ -2,7 +2,7 @@
 // One transparent rule set turns a content row into per-language field states
 // and a 0-100 score, so the overview table, the summary tiles and the filters
 // all agree. Framework-free and unit-tested.
-import type { SeoFieldsRow } from "@/lib/seo/fields";
+import { applyTitleSuffix, type SeoFieldsRow } from "@/lib/seo/fields";
 import { serpTitleMetric } from "@/lib/seo/serp";
 
 export interface SeoStatusInput extends SeoFieldsRow {
@@ -60,7 +60,17 @@ function descriptionSource(
 }
 
 /** Assess one post/page row. */
-export function seoContentStatus(row: SeoStatusInput): SeoContentStatus {
+export function seoContentStatus(
+  row: SeoStatusInput,
+  options: {
+    /**
+     * Sufiks marki z ustawień SEO (`effectiveTitleSuffix`). Head() dokleja go
+     * do tytułu WYPROWADZONEGO, więc ocena „mieści się w Google" musi mierzyć
+     * tytuł razem z nim - tak jak walidator panelu.
+     */
+    titleSuffix?: string | null;
+  } = {},
+): SeoContentStatus {
   const description = {
     pl: descriptionSource(row.seo_description_pl, row.excerpt_pl),
     en: descriptionSource(row.seo_description_en, row.excerpt_en),
@@ -79,12 +89,10 @@ export function seoContentStatus(row: SeoStatusInput): SeoContentStatus {
   // nadpisanie po cichu zdejmuje sufiks marki (`applyTitleSuffix`).
   const servedTitle = (lang: "pl" | "en"): string => {
     const other = lang === "pl" ? "en" : "pl";
-    return (
-      row[`seo_title_${lang}`]?.trim() ||
-      row[`title_${lang}`]?.trim() ||
-      row[`title_${other}`]?.trim() ||
-      ""
-    );
+    const override = row[`seo_title_${lang}`]?.trim();
+    if (override) return override;
+    const derived = row[`title_${lang}`]?.trim() || row[`title_${other}`]?.trim() || "";
+    return derived ? applyTitleSuffix(derived, options.titleSuffix, false) : "";
   };
   const titleFits = (["pl", "en"] as const).every((lang) => {
     const title = servedTitle(lang);

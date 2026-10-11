@@ -70,6 +70,8 @@ import { labelFor } from "@/lib/seo/footerNavigation";
 import { localizedPath } from "@/lib/i18n/localePath";
 import {
   DEFAULT_SEO_SETTINGS,
+  effectiveTitleSuffix,
+  parseSeoSettings,
   SEO_SETTINGS_KEY,
   siteDescriptionOverride,
   siteTitleOverride,
@@ -132,6 +134,9 @@ function SeoDashboard() {
   // Czytamy ustawienia, ale NIGDY nie wołamy `save` - patrz nagłówek pliku.
   const { query } = useSettings<SeoSettings>(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS);
   const settings = query.data;
+  // Sufiks marki jak w head() - ocena „tytuł mieści się w Google" mierzy tytuł
+  // wyprowadzony razem z nim (`seoContentStatus`).
+  const titleSuffix = effectiveTitleSuffix(parseSeoSettings(settings ?? null));
   // Linki do plików i sekcji idą na PUBLICZNY origin tenanta, nie na host
   // panelu - ta sama reguła co w `TechnicalFoundationCard`: względny
   // `/sitemap.xml` otwarty z panelu na innym hoście pokazałby pliki CUDZEGO
@@ -156,8 +161,11 @@ function SeoDashboard() {
   };
 
   const statuses = useMemo(
-    () => [...(pages?.rows ?? []), ...(posts?.rows ?? [])].map((row) => seoContentStatus(row)),
-    [posts, pages],
+    () =>
+      [...(pages?.rows ?? []), ...(posts?.rows ?? [])].map((row) =>
+        seoContentStatus(row, { titleSuffix }),
+      ),
+    [posts, pages, titleSuffix],
   );
   const contentSummary = useMemo(() => summarizeSeoStatuses(statuses), [statuses]);
   const contentDone = useMemo(() => statuses.filter(isContentComplete).length, [statuses]);

@@ -60,6 +60,18 @@ describe("PodcastArtworkField", () => {
     expect(onMeasured).toHaveBeenLastCalledWith({ width: 1024, height: 640 });
   });
 
+  it("a wide LIBRARY image is a warning, not an error - the feed serves a 1400 square crop", async () => {
+    const url = "https://db.example.supabase.co/storage/v1/object/public/media/baner.jpg";
+    sizes.set(`/media/baner.jpg`, [3000, 2000]);
+    sizes.set(url, [3000, 2000]);
+    const { onMeasured } = mount(url);
+    await act(async () => {});
+    const status = screen.getByRole("status").textContent ?? "";
+    expect(status).toContain("adminPodcasts.artwork.croppedInFeed");
+    expect(status).not.toContain("adminPodcasts.artwork.notSquare");
+    expect(onMeasured).toHaveBeenLastCalledWith({ width: 1400, height: 1400 });
+  });
+
   it("accepts a 3000x3000 square", async () => {
     sizes.set("https://cdn.example.org/kwadrat.png", [3000, 3000]);
     mount("https://cdn.example.org/kwadrat.png");

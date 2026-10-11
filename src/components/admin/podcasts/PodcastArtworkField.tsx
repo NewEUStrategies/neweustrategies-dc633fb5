@@ -13,9 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
-import { isSupabaseStorageUrl } from "@/lib/cropSizes";
 import { mediaRenderUrl } from "@/lib/media/publicUrl";
 import { checkPodcastArtworkDimensions } from "@/lib/podcast/artworkRules";
+import { servedFeedArtworkSize } from "@/lib/podcast/artwork";
 
 export interface PodcastArtworkSize {
   width: number;
@@ -74,7 +74,11 @@ interface Props {
   hint?: string;
   value: string;
   onChange: (url: string) => void;
-  /** Zmierzone wymiary (albo `null`, gdy brak obrazu / błąd / pomiar trwa). */
+  /**
+   * Wymiary okładki, którą NAPRAWDĘ poda feed (`servedFeedArtworkSize`: obraz
+   * z biblioteki po kadrze 1400x1400) - albo `null`, gdy brak obrazu / błąd /
+   * pomiar trwa. Ocenia je karta gotowości kanału.
+   */
   onMeasured?: (size: PodcastArtworkSize | null) => void;
   pickerTitle?: string;
   placeholder?: string;
@@ -97,22 +101,29 @@ export function PodcastArtworkField({
 
   const onMeasuredRef = React.useRef(onMeasured);
   onMeasuredRef.current = onMeasured;
-  const measuredWidth = measurement.status === "ready" ? measurement.width : null;
-  const measuredHeight = measurement.status === "ready" ? measurement.height : null;
+  const trimmed = value.trim();
+  const measured =
+    measurement.status === "ready"
+      ? { width: measurement.width, height: measurement.height }
+      : null;
+  // Ocena dotyczy okładki, którą poda FEED - obraz z biblioteki po kadrze
+  // 1400x1400, a nie oryginału (baner 3000x2000 daje poprawny kwadrat).
+  const served = servedFeedArtworkSize(trimmed, measured);
+  const servedWidth = served?.width ?? null;
+  const servedHeight = served?.height ?? null;
   React.useEffect(() => {
     onMeasuredRef.current?.(
-      measuredWidth != null && measuredHeight != null
-        ? { width: measuredWidth, height: measuredHeight }
+      servedWidth != null && servedHeight != null
+        ? { width: servedWidth, height: servedHeight }
         : null,
     );
-  }, [measuredWidth, measuredHeight]);
+  }, [servedWidth, servedHeight]);
 
-  const trimmed = value.trim();
-  const check =
-    measurement.status === "ready"
-      ? checkPodcastArtworkDimensions(measurement.width, measurement.height)
-      : null;
-  const fromLibrary = trimmed !== "" && isSupabaseStorageUrl(trimmed);
+  const check = served ? checkPodcastArtworkDimensions(served.width, served.height) : null;
+  // Poprawny kwadrat z NIEkwadratowego oryginału: przejdzie, ale kadr wybiera
+  // transformacja (środek obrazu), nie redakcja - ostrzeżenie, nie błąd.
+  const croppedInFeed =
+    check?.state === "ok" && measured !== null && measured.width !== measured.height;
 
   return (
     <div className="grid gap-1.5">
@@ -154,7 +165,12 @@ export function PodcastArtworkField({
             {measurement.status === "error" && (
               <span className="text-destructive">{t("adminPodcasts.artwork.loadError")}</span>
             )}
-            {check && (
+            {check && measured && croppedInFeed && (
+              <span className="text-amber-700 dark:text-amber-400">
+                {t("adminPodcasts.artwork.croppedInFeed", measured)}
+              </span>
+            )}
+            {check && measured && !croppedInFeed && (
               <span
                 className={
                   check.state === "ok"
@@ -162,15 +178,7 @@ export function PodcastArtworkField({
                     : "text-destructive"
                 }
               >
-                {t(`adminPodcasts.artwork.${check.state}`, {
-                  width: check.width,
-                  height: check.height,
-                })}
-              </span>
-            )}
-            {check?.state === "notSquare" && fromLibrary && (
-              <span className="text-muted-foreground">
-                {t("adminPodcasts.artwork.croppedInFeed")}
+                {t(`adminPodcasts.artwork.${check.state}`, measured)}
               </span>
             )}
             {trimmed && !hasAppleFormat(trimmed) && (

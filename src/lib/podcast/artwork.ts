@@ -22,14 +22,41 @@ export const PODCAST_FEED_ARTWORK_SIDE = APPLE_IMAGE_MIN_PX;
 
 const RENDER_MARKER = "/storage/v1/render/image/public/";
 
+/**
+ * Czy feed poda ten adres przez kwadratową transformację (obraz z biblioteki
+ * mediów). SVG nie jest dopuszczalną okładką i nie przechodzi transformacji;
+ * adres już przetworzony ma własne parametry, których nie nadpisujemy po omacku.
+ */
+export function isFeedArtworkSquared(raw: string | null | undefined): boolean {
+  const src = raw?.trim();
+  if (!src) return false;
+  if (/\.svg(?:[?#]|$)/i.test(src) || src.includes(RENDER_MARKER)) return false;
+  return isSupabaseStorageUrl(src);
+}
+
+/**
+ * Wymiary okładki, którą feed NAPRAWDĘ poda - to je ocenia karta gotowości.
+ * Obraz z biblioteki idzie przez kadr `cover` 1400x1400, więc niekwadratowy
+ * oryginał o krótszym boku >= 1400 px daje poprawną okładkę. Transformacja nie
+ * powiększa obrazu: krótszy bok poniżej 1400 px zostaje za mały i tak go
+ * zgłaszamy. Adres spoza biblioteki idzie do feedu bez zmian - liczy się
+ * oryginał.
+ */
+export function servedFeedArtworkSize(
+  raw: string | null | undefined,
+  measured: { width: number; height: number } | null,
+): { width: number; height: number } | null {
+  if (!measured) return null;
+  if (!isFeedArtworkSquared(raw)) return measured;
+  const side = Math.min(measured.width, measured.height, PODCAST_FEED_ARTWORK_SIDE);
+  return { width: side, height: side };
+}
+
 /** Absolutny adres kwadratowej okładki do `<itunes:image>` albo `null`. */
 export function podcastFeedArtworkUrl(raw: string | null | undefined): string | null {
   const src = raw?.trim();
   if (!src) return null;
-  // SVG nie jest dopuszczalną okładką i nie przechodzi transformacji; adres już
-  // przetworzony ma własne parametry, których nie nadpisujemy po omacku.
-  if (/\.svg(?:[?#]|$)/i.test(src) || src.includes(RENDER_MARKER)) return src;
-  if (!isSupabaseStorageUrl(src)) return src;
+  if (!isFeedArtworkSquared(src)) return src;
   const transformed = buildTransformedImageUrl(src, {
     width: PODCAST_FEED_ARTWORK_SIDE,
     height: PODCAST_FEED_ARTWORK_SIDE,

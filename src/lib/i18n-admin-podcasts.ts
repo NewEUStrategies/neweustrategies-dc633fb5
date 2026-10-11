@@ -86,7 +86,7 @@ export const adminPodcastsPl = {
       tooSmall: "{{width}}×{{height}} px - za mała (minimum 1400×1400 px).",
       tooLarge: "{{width}}×{{height}} px - za duża (maksimum 3000×3000 px).",
       croppedInFeed:
-        "Kanał RSS poda kwadratowy wycinek 1400×1400 ze środka obrazu - wgraj kwadratową okładkę, żeby kontrolować kadr.",
+        "{{width}}×{{height}} px - to nie kwadrat, ale kanał RSS poda wycinek 1400×1400 ze środka obrazu. Wgraj kwadratową okładkę, żeby samodzielnie wybrać kadr.",
       format: "Apple przyjmuje wyłącznie JPEG lub PNG - ten plik ma inny format.",
       previewAlt: "Podgląd okładki",
     },
@@ -321,7 +321,7 @@ export const adminPodcastsEn = {
       tooSmall: "{{width}}×{{height}} px - too small (minimum 1400×1400 px).",
       tooLarge: "{{width}}×{{height}} px - too large (maximum 3000×3000 px).",
       croppedInFeed:
-        "The RSS feed will serve a 1400×1400 crop from the centre of the image - upload a square cover to control the framing.",
+        "{{width}}×{{height}} px - not a square, but the RSS feed will serve a 1400×1400 crop from the centre of the image. Upload a square cover to choose the framing yourself.",
       format: "Apple accepts JPEG or PNG only - this file has a different format.",
       previewAlt: "Cover preview",
     },

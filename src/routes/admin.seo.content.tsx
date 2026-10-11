@@ -18,6 +18,14 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useRequiredTenant } from "@/hooks/useAuth";
+import { useSettings } from "@/lib/admin/useSettings";
+import {
+  DEFAULT_SEO_SETTINGS,
+  effectiveTitleSuffix,
+  parseSeoSettings,
+  SEO_SETTINGS_KEY,
+  type SeoSettings,
+} from "@/lib/seo/settings";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -90,6 +98,13 @@ function SeoContentOverview() {
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [seoFilter, setSeoFilter] = useState<SeoFilter>("all");
 
+  // Sufiks marki jak w head() - ocena „tytuł mieści się w Google" mierzy tytuł
+  // wyprowadzony razem z nim (`seoContentStatus`).
+  const { query: seoSettingsQuery } = useSettings<SeoSettings>(
+    SEO_SETTINGS_KEY,
+    DEFAULT_SEO_SETTINGS,
+  );
+  const titleSuffix = effectiveTitleSuffix(parseSeoSettings(seoSettingsQuery.data ?? null));
   const postsQuery = useQuery(seoContentQueryOptions("posts", tenantId));
   const pagesQuery = useQuery(seoContentQueryOptions("pages", tenantId));
   const posts = postsQuery.data;
@@ -115,10 +130,10 @@ function SeoContentOverview() {
       (row: SeoContentRow): OverviewRow => ({
         kind,
         row,
-        status: seoContentStatus(row),
+        status: seoContentStatus(row, { titleSuffix }),
       });
     return [...(pages?.rows ?? []).map(assess("page")), ...(posts?.rows ?? []).map(assess("post"))];
-  }, [posts, pages]);
+  }, [posts, pages, titleSuffix]);
 
   // Ten sam opis w kilku treściach (np. zajawka skopiowana z innego artykułu).
   const duplicates = useMemo(

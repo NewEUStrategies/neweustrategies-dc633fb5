@@ -89,6 +89,24 @@ describe("seoContentStatus", () => {
       seo_title_pl: "Krótki tytuł SEO",
     });
     expect(fixedByOverride.titleFits).toBe(true);
+    // Sufiks marki doklejany do tytułu WYPROWADZONEGO (jak head()) wlicza się
+    // do pomiaru; nadpisanie idzie bez sufiksu.
+    const nearlyFull = "Bezpieczeństwo flanki wschodniej NATO"; // ~400 px, z sufiksem ~680 px
+    expect(seoContentStatus({ ...base, title_pl: nearlyFull, title_en: "Short" }).titleFits).toBe(
+      true,
+    );
+    expect(
+      seoContentStatus(
+        { ...base, title_pl: nearlyFull, title_en: "Short" },
+        { titleSuffix: "New European Strategies" },
+      ).titleFits,
+    ).toBe(false);
+    expect(
+      seoContentStatus(
+        { ...base, title_pl: nearlyFull, seo_title_pl: nearlyFull, title_en: "Short" },
+        { titleSuffix: "New European Strategies" },
+      ).titleFits,
+    ).toBe(true);
     // EN bez tłumaczenia mierzy tytuł PL - tak jak head().
     expect(seoContentStatus({ ...base, title_en: "", title_pl: tooLong }).titleFits).toBe(false);
   });
