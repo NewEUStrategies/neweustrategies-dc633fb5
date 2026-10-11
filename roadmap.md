@@ -4,6 +4,7 @@
 
 - [x] Dopracować rysunek i wdrożyć tło domyślnych banerów.
 - [x] Zweryfikować czytelność i identyczną geometrię obu motywów; 71 testów archiwów przechodzi.
+- [x] Light mode: kontury ciemnoszare #44403C na jasnym tle platformy (bez ciemnoszarego pasa); dark mode bez zmian (#FDB078).
 
 ## Kompaktowy nagłówek Kinetic
 
