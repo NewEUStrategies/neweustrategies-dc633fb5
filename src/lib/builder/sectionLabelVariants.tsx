@@ -1196,10 +1196,10 @@ export function SectionLabelRender({
         ? ["group-hover:w-[12px]", "group-hover:w-[13px]", "group-hover:w-[11px]"]
         : ["group-hover:w-[19px]", "group-hover:w-[21px]", "group-hover:w-[18px]"];
       const bars = ["lead", "mid", "tail"] as const;
-      // Ciasny tracking tytulu (litery blisko siebie), z-delikatnym otwarciem na hoverze.
+      // Hover przesuwa caly tytul wraz z sygnalem, nigdy nie rozciaga liter.
       const titleCls = isSm
-        ? "text-[8px] font-black uppercase tracking-[0.05em]"
-        : "font-display text-[12px] font-black uppercase tracking-[0.08em] transition-[letter-spacing] duration-300 motion-reduce:transition-none group-hover:tracking-[0.12em]";
+        ? "text-[8px] font-black uppercase tracking-normal"
+        : "font-display text-[12px] font-black uppercase tracking-normal";
       // Akcja: mala, minuskulowa, w stonowanej szaro-pastelowej szarosci
       // (kolor bazowy z `.nes-kinetic-action` w styles.css).
       // Rozmiar akcji zabezpieczony w CSS (Theme Design force rozmiar opisu) -
@@ -1258,7 +1258,7 @@ export function SectionLabelRender({
 
       // „Usuń obszar bezpieczny z góry": akcja ma zaczynać się dokładnie na górnym
       // brzegu widgetu, więc górny padding jest zerowy - zostaje tylko oddech na dole.
-      const kineticPad = isSm ? "pb-1" : "pb-2";
+      const kineticPad = "pb-0";
 
       return (
         <div className={`${wrapperBase} nes-kinetic-shell group w-full min-w-0 ${kineticPad}`}>
@@ -1291,7 +1291,7 @@ export function SectionLabelRender({
           ) : null}
           <div
             className={`nes-kinetic-row flex w-full min-w-0 items-center ${showRule ? "border-b border-border" : ""}`}
-            style={{ gap: gapXPx, paddingBottom: gapY || (isSm ? "4px" : "10px") }}
+            style={{ gap: gapXPx, paddingBottom: "2px" }}
           >
             <span
               aria-hidden
