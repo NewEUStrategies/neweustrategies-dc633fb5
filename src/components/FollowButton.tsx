@@ -52,7 +52,7 @@ export function FollowButton({
       aria-pressed={following}
       disabled={toggle.isPending}
       className={[
-        "inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
+        "group inline-flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium transition-all duration-200 active:scale-[0.98]",
         following
           ? "bg-brand/10 text-brand border border-brand/40 hover:bg-brand/15 hover:border-brand/60"
           : "bg-brand text-brand-foreground border border-transparent hover:bg-brand/90 hover:shadow-sm",
@@ -61,7 +61,7 @@ export function FollowButton({
       {following ? (
         <Check className="w-4 h-4 text-current" />
       ) : (
-        <Plus className="w-4 h-4 text-current" />
+        <Plus className="w-4 h-4 text-current transition-transform duration-200 group-hover:rotate-90" />
       )}
       {following ? t("Obserwujesz", "Following") : t("Obserwuj", "Follow")}
     </button>
