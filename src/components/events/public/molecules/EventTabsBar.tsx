@@ -127,7 +127,7 @@ export const EVENT_TAB_INACTIVE_CLASS =
 // jasnej płycie 2,25:1, czyli za mało jak na znak, który niesie informację
 // „tu jestem”; w ciemnym `#FA9346` (10,64:1).
 //
-// NA PASKU Z KOLorem WYDARZENIA KRESKA BIERZE TUSZ POLICZONY Z TŁA.
+// NA PASKU Z KOLOREM WYDARZENIA KRESKA BIERZE TUSZ POLICZONY Z TŁA.
 // `var(--event-nav-fg, var(--brand-ink))`: gdy organizator ustawił kolor
 // nawigacji, kreska dostaje czerń albo biel z luminancji tego tła (markowy
 // pomarańcz na pomarańczowym pasku zniknąłby), a gdy go nie ustawił - akcent
