@@ -26,9 +26,23 @@ import { FIXED_NOW_ISO, freezeClock } from "@/test/time";
 const PLAN_ID = "aaaaaaaa-2222-4000-8000-0000000000aa";
 const RETURN_URL = "https://kasa.example.org/checkout/sukces";
 
+/**
+ * Cena katalogowa w PEŁNYM kształcie (kwota, waluta, cykl): kasa porównuje ją
+ * z kwotą zamówienia przed sesją (audyt SUB-05), więc atrapa musi ją nieść.
+ */
+const PLUS_MONTHLY = {
+  id: "price_1",
+  lookup_key: "plus_monthly",
+  type: "recurring",
+  billing_scheme: "per_unit",
+  unit_amount: 4900,
+  currency: "pln",
+  recurring: { interval: "month", interval_count: 1 },
+};
+
 const h = vi.hoisted(() => ({
   sessions: [] as Record<string, unknown>[],
-  prices: [{ id: "price_1", lookup_key: "plus_monthly", type: "recurring" }] as unknown[],
+  prices: [] as unknown[],
 }));
 
 vi.mock("@tanstack/react-start", async () =>
@@ -65,6 +79,8 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
       return {
         ...base,
         prices: { list: () => Promise.resolve({ data: h.prices }) },
+        // Historia subskrypcji klienta (strażnik drugiej subskrypcji, SUB-13).
+        subscriptions: { ...base.subscriptions, list: () => Promise.resolve({ data: [] }) },
         customers: {
           search: () => Promise.resolve({ data: [] }),
           list: () => Promise.resolve({ data: [] }),
@@ -127,16 +143,29 @@ const consentKeys = (metadata: Record<string, string> | undefined) =>
 
 beforeEach(() => {
   h.sessions.length = 0;
-  h.prices = [{ id: "price_1", lookup_key: "plus_monthly", type: "recurring" }];
+  h.prices = [PLUS_MONTHLY];
   vi.stubEnv("BILLING_RETURN_HOSTS", "kasa.example.org");
   vi.stubEnv("LOVABLE_API_KEY", "klucz-testowy-bramki");
   vi.stubEnv("STRIPE_SANDBOX_API_KEY", "klucz-testowy-piaskownicy");
 
   chain = supabaseFromStub();
+  // Pozycję katalogu i ilość wyprowadza serwer z planu (`tier_key`, `interval`).
   chain.setResponse(
     "access_plans",
-    ok({ id: PLAN_ID, price_cents: 4900, currency: "PLN", active: true, trial_days: 0 }),
+    ok({
+      id: PLAN_ID,
+      price_cents: 4900,
+      currency: "PLN",
+      active: true,
+      trial_days: 0,
+      tier_key: "member",
+      interval: "month",
+      volume_threshold_seats: null,
+      volume_price_cents: null,
+    }),
   );
+  // Kupujący bez historii subskrypcji planu (lustro `subscriptions` pod RLS).
+  chain.setResponse("subscriptions", ok([]));
   chain.setResponse("payment_orders", ok({ id: "order-1", tenant_id: "tenant-alfa" }));
   chain.setResponse(
     "checkout_settings",
@@ -205,9 +234,34 @@ describe("createPlanCheckoutSession - zgoda na newsletter (SUB-15)", () => {
   });
 
   it("cena jednorazowa: zgoda nie jedzie do operatora (nie ma skutku zakupu, który by ją zapisał)", async () => {
-    h.prices = [{ id: "price_1", lookup_key: "plus_monthly", type: "one_time" }];
+    // Pozycja jednorazowa katalogu (Decision Lab) - cena `one_time` pod
+    // kluczem cyklicznym jest od SUB-05 rozjazdem cennika i kasa ją odrzuca.
+    chain.setResponse(
+      "access_plans",
+      ok({
+        id: PLAN_ID,
+        price_cents: 1600000,
+        currency: "PLN",
+        active: true,
+        trial_days: 0,
+        tier_key: "decision_lab",
+        interval: "one_time",
+        volume_threshold_seats: null,
+        volume_price_cents: null,
+      }),
+    );
+    h.prices = [
+      {
+        ...PLUS_MONTHLY,
+        lookup_key: "decision_lab_seat",
+        type: "one_time",
+        recurring: null,
+        unit_amount: 1600000,
+      },
+    ];
 
     await planCall({
+      priceId: "decision_lab_seat",
       newsletterConsent: { version: PREMIUM_NEWSLETTER_CONSENT_VERSION, lang: "pl" },
     });
 
