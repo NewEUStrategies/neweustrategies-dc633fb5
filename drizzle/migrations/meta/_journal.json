@@ -1058,6 +1058,13 @@
       "when": 1791811680661,
       "tag": "0150_event_speaker_detail_safe_projection",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1791835631237,
+      "tag": "0151_author_profiles_public_drop_contact_email",
+      "breakpoints": true
     }
   ]
 }
