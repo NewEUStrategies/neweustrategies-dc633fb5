@@ -1,18 +1,36 @@
-// Złożenie faktury PDF dla konkretnego dokumentu rozliczeniowego.
+// Złożenie potwierdzenia płatności (PDF) dla konkretnego dokumentu rozliczeniowego.
 //
 // Operator (Stripe jako Merchant of Record) wystawia własny dokument, ale nie
 // zawsze: paragon zamiast faktury, dokument gotowy dopiero po chwili, link
 // czasowy po wygaśnięciu. Panel faktur musi mimo to wydać plik - dlatego
-// składamy własny PDF z danych, które i tak mamy w bazie: dokumentu
-// rozliczeniowego, danych nabywcy (billing_profiles / CRM) i danych wystawcy.
+// składamy własny PDF z danych, które i tak mamy w bazie.
+//
+// CO TO JEST, A CZYM NIE JEST (audyt INV-07). Plik to KOPIA z panelu członka -
+// potwierdzenie płatności, nie faktura VAT organizatora (te wystawia moduł
+// faktur wydarzeń). Dlatego:
+//  * tytuł brzmi „Potwierdzenie płatności", a wiersz stanu bierze się ze
+//    stanu DOKUMENTU (`billing_documents.status`) - zwrot to „Płatność
+//    zwrócona", nie „Zapłacono";
+//  * nabywca, sprzedawca i płaszczyzna rozliczeń pochodzą z MIGAWKI dokumentu
+//    (`billingDocumentSnapshot.server`), nie z dzisiejszego profilu - zmiana
+//    danych w profilu albo „Pobierz z CRM" nie przepisuje starych plików;
+//  * nota o podatku zależy od płaszczyzny: adnotacja o operatorze (MoR) tylko
+//    tam, gdzie podatek faktycznie rozlicza operator.
+// Wszystko, co trafia na stronę, pochodzi z wiersza dokumentu i jego migawki,
+// więc ten sam dokument daje zawsze te same bajty.
 //
 // Moduł jest server-only (klient service_role).
+import {
+  freezeBillingDocumentSnapshot,
+  snapshotFromRow,
+} from "@/lib/billing/billingDocumentSnapshot.server";
+import { isBillingDocumentStatus } from "@/lib/billing/billingDocumentStatus";
+import type { CheckoutBillingPlane } from "@/lib/billing/checkoutSettings";
 import {
   pdfToBase64,
   renderInvoicePdf,
   type InvoiceData,
   type InvoiceLabels,
-  type InvoiceParty,
 } from "@/lib/billing/invoicePdf";
 
 export type InvoicePdfError = "not_found" | "forbidden";
@@ -29,7 +47,7 @@ export type InvoiceLocale = "pl" | "en";
 
 const LABELS: Record<InvoiceLocale, InvoiceLabels> = {
   pl: {
-    title: "Faktura / dokument sprzedaży",
+    title: "Potwierdzenie płatności",
     number: "Numer",
     issuedAt: "Data wystawienia",
     seller: "Sprzedawca",
@@ -38,11 +56,16 @@ const LABELS: Record<InvoiceLocale, InvoiceLabels> = {
     description: "Opis",
     quantity: "Ilość",
     amount: "Kwota brutto",
-    total: "Razem do zapłaty",
-    paid: "Zapłacono - dokument nie wymaga podpisu.",
+    total: "Razem",
+    status: {
+      paid: "Zapłacono - dokument nie wymaga podpisu.",
+      open: "Oczekuje na płatność - dokument nie potwierdza zapłaty.",
+      void: "Dokument unieważniony - płatność nie została pobrana.",
+      refunded: "Płatność zwrócona.",
+    },
   },
   en: {
-    title: "Invoice / sales document",
+    title: "Payment confirmation",
     number: "Number",
     issuedAt: "Issue date",
     seller: "Seller",
@@ -51,24 +74,40 @@ const LABELS: Record<InvoiceLocale, InvoiceLabels> = {
     description: "Description",
     quantity: "Qty",
     amount: "Gross amount",
-    total: "Total due",
-    paid: "Paid - this document needs no signature.",
+    total: "Total",
+    status: {
+      paid: "Paid - this document needs no signature.",
+      open: "Awaiting payment - this document does not confirm payment.",
+      void: "Document voided - no payment was collected.",
+      refunded: "Payment refunded.",
+    },
   },
 };
 
-const NOTE: Record<InvoiceLocale, string> = {
-  pl: "Podatek rozlicza operator płatności (Merchant of Record). Kopia dokumentu z panelu członka.",
-  en: "Tax is settled by the payment provider (Merchant of Record). Member panel copy of the document.",
+/**
+ * Nota pod tabelą: kto rozlicza podatek w płaszczyźnie z migawki dokumentu
+ * (`checkoutBillingPlane`). W `merchant` podatek liczy sprzedawca i on
+ * wystawia fakturę - adnotacja o operatorze byłaby tam nieprawdą. Obie wersje
+ * mieszczą się w jednym wierszu generatora (110 znaków).
+ */
+const NOTE: Record<InvoiceLocale, Record<CheckoutBillingPlane, string>> = {
+  pl: {
+    managed:
+      "Podatek rozlicza operator płatności (Merchant of Record). Potwierdzenie z panelu członka, nie faktura VAT.",
+    merchant:
+      "Podatek rozlicza sprzedawca, który wystawia fakturę. Potwierdzenie z panelu członka, nie faktura VAT.",
+  },
+  en: {
+    managed:
+      "Tax is settled by the payment provider (Merchant of Record). Member panel confirmation, not a VAT invoice.",
+    merchant:
+      "Tax is settled by the seller, who issues the invoice. Member panel confirmation, not a VAT invoice.",
+  },
 };
 
-const DEFAULT_SELLER: InvoiceParty = {
-  name: "New European Strategies",
-  addressLine1: null,
-  postalCode: null,
-  city: null,
-  country: null,
-  taxId: null,
-  email: null,
+const FILE_STEM: Record<InvoiceLocale, string> = {
+  pl: "potwierdzenie-platnosci",
+  en: "payment-confirmation",
 };
 
 type DescriptionKey = "subscription" | "ticket" | "donation" | "content" | "default";
@@ -94,9 +133,6 @@ async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin;
 }
-
-const str = (value: unknown): string | null =>
-  typeof value === "string" && value.trim() ? value.trim() : null;
 
 /**
  * Błąd odczytu przerywa składanie pliku. Kopia bez NIP-u wystawcy czy firmy
@@ -131,49 +167,7 @@ function descriptionKey(order: { kind: string; metadata: unknown } | null): Desc
   }
 }
 
-/** Dane wystawcy: site_settings.invoice_issuer nadpisuje wartości domyślne. */
-async function loadSeller(tenantId: string): Promise<InvoiceParty> {
-  const supabase = await admin();
-  const { data, error } = await supabase
-    .from("site_settings")
-    .select("value")
-    .eq("tenant_id", tenantId)
-    .eq("key", "invoice_issuer")
-    .maybeSingle();
-  failOnReadError("site_settings", error);
-  // Wartości domyślne tylko dla BRAKU wpisu - błąd odczytu rzucił wyżej.
-  const raw = (data?.value ?? {}) as Record<string, unknown>;
-  return {
-    name: str(raw.name) ?? DEFAULT_SELLER.name,
-    taxId: str(raw.tax_id),
-    addressLine1: str(raw.address_line1),
-    addressLine2: str(raw.address_line2),
-    postalCode: str(raw.postal_code),
-    city: str(raw.city),
-    country: str(raw.country),
-    email: str(raw.email),
-  };
-}
-
-function buyerFromProfile(
-  row: Record<string, unknown> | null,
-  fallbackEmail: string | null,
-): InvoiceParty {
-  if (!row) return { name: fallbackEmail ?? "-", email: fallbackEmail };
-  const company = str(row.company);
-  const person = str(row.full_name);
-  return {
-    name: (row.is_company ? company : person) ?? company ?? person ?? fallbackEmail ?? "-",
-    taxId: str(row.tax_id),
-    addressLine1: str(row.address_line1),
-    addressLine2: str(row.address_line2),
-    postalCode: str(row.postal_code),
-    city: str(row.city),
-    country: str(row.country_code),
-    email: str(row.email) ?? fallbackEmail,
-  };
-}
-
+/** Data kalendarzowa ze znacznika z bazy (parsowanie, nie zegar - wynik stały). */
 function isoDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value.slice(0, 10) : date.toISOString().slice(0, 10);
@@ -193,7 +187,7 @@ export async function buildInvoicePdf(input: {
   const { data: doc, error: docError } = await supabase
     .from("billing_documents")
     .select(
-      "id, user_id, tenant_id, number, kind, amount_cents, currency, issued_at, pdf_url, hosted_url, provider_document_id",
+      "id, user_id, tenant_id, number, kind, status, amount_cents, currency, issued_at, pdf_url, hosted_url, provider_document_id, buyer_snapshot, seller_snapshot, billing_plane",
     )
     .eq("id", input.documentId)
     .maybeSingle();
@@ -201,23 +195,15 @@ export async function buildInvoicePdf(input: {
   failOnReadError("billing_documents", docError);
   if (!doc) return { ok: false, error: "not_found" };
   if (doc.user_id !== input.userId) return { ok: false, error: "forbidden" };
+  // CHECK kolumny dopuszcza wyłącznie znane stany - inny to uszkodzony wiersz,
+  // a nie powód, by wydrukować na nim cokolwiek o płatności.
+  if (!isBillingDocumentStatus(doc.status)) {
+    throw new Error(`invoice pdf: unknown document status "${doc.status}"`);
+  }
 
-  const [billingRead, profileRead, seller] = await Promise.all([
-    supabase
-      .from("billing_profiles")
-      .select(
-        "full_name, company, tax_id, email, address_line1, address_line2, city, postal_code, country_code, is_company",
-      )
-      .eq("user_id", input.userId)
-      .eq("tenant_id", doc.tenant_id)
-      .maybeSingle(),
-    supabase.from("profiles").select("email").eq("id", input.userId).maybeSingle(),
-    loadSeller(doc.tenant_id),
-  ]);
-  failOnReadError("billing_profiles", billingRead.error);
-  failOnReadError("profiles", profileRead.error);
-  const billing = billingRead.data;
-  const profile = profileRead.data;
+  // Dokument bez migawki (sprzed migracji albo zapisany przy awarii odczytu)
+  // dostaje ją TERAZ i na zawsze - od tej chwili drukuje się tak samo.
+  const snapshot = snapshotFromRow(doc) ?? (await freezeBillingDocumentSnapshot(doc));
 
   // Błąd odczytu zamówienia ŚWIADOMIE nie przerywa: zamówienie dobiera tylko
   // opis pozycji, a `provider_intent_id` nie jest unikalny - wyjątek zrobiłby
@@ -237,17 +223,18 @@ export async function buildInvoicePdf(input: {
     number,
     issuedAt: isoDate(doc.issued_at),
     currency: doc.currency,
-    seller,
-    buyer: buyerFromProfile(billing as Record<string, unknown> | null, str(profile?.email)),
+    seller: snapshot.seller,
+    buyer: snapshot.buyer,
     lines: [{ description, quantity: 1, amountCents: doc.amount_cents }],
+    status: doc.status,
     labels: LABELS[input.locale],
-    note: NOTE[input.locale],
+    note: NOTE[input.locale][snapshot.plane],
   };
 
   return {
     ok: true,
     result: {
-      fileName: `${input.locale === "pl" ? "faktura" : "invoice"}-${number.replace(/[^a-zA-Z0-9_-]+/g, "-")}.pdf`,
+      fileName: `${FILE_STEM[input.locale]}-${number.replace(/[^a-zA-Z0-9_-]+/g, "-")}.pdf`,
       base64: pdfToBase64(renderInvoicePdf(data)),
       number,
       providerUrl: doc.pdf_url ?? doc.hosted_url ?? null,

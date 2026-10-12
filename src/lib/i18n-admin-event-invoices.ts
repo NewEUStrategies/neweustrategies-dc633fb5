@@ -84,6 +84,14 @@ export const adminEventInvoicesPl = {
       paidVia: { card: "karta", transfer: "przelew / poza systemem" },
       priceList: "kwota z cennika - sprawdź w szkicu",
       priceListNet: "cena netto z cennika + VAT wg domyślnej stawki - sprawdź stawkę w szkicu",
+      booked: "kwota zaksięgowanej wpłaty",
+      bookPayment: "Zaksięguj wpłatę",
+      bookPaymentEdit: "Popraw zaksięgowaną wpłatę",
+      bookPaymentAmount: "Kwota, która wpłynęła ({{currency}})",
+      bookPaymentHint:
+        "Faktura za opłacony przelewem zapis dokumentuje faktyczną wpłatę, nie cennik - bez zaksięgowania baza jej nie wystawi.",
+      bookPaymentSave: "Zaksięguj",
+      bookPaymentCancel: "Anuluj",
       buyerMismatch:
         "Zaznaczone zamówienia mają prośby o fakturę od różnych nabywców - wystaw osobne faktury.",
       requested: "Prośba nabywcy",
@@ -124,6 +132,8 @@ export const adminEventInvoicesPl = {
       cancelTitle: "Anulować dokument?",
       cancelDraftBody: "Szkic zniknie z listy, a zamówienia wrócą do zafakturowania.",
       cancelReasonLabel: "Powód anulowania (trafi do historii dokumentu)",
+      cancelIssuedBody:
+        "Anulować można tylko dokument, którego nabywca jeszcze nie dostał (mail, pobranie z profilu) i który nie trafił do KSeF. Po doręczeniu zmianę dokumentuje korekta.",
       cancelConfirm: "Anuluj dokument",
       keep: "Zostaw",
       actionsFor: "Akcje dokumentu {{number}}",
@@ -182,7 +192,35 @@ export const adminEventInvoicesPl = {
       totals: { net: "Netto", vat: "VAT", gross: "Brutto" },
       vatSummary: "Podsumowanie VAT",
       sourcesMismatch:
-        "Suma pozycji ({{lines}}) różni się od kwoty zamówień ({{sources}}). Sprawdź pozycje przed wystawieniem.",
+        "Suma pozycji ({{lines}}) różni się od kwoty zamówień ({{sources}}). Faktury za opłacone zamówienia nie da się wystawić na inną kwotę niż wpłaty - popraw pozycje.",
+      tax: {
+        section: "Podatek",
+        npBasis: "Podstawa prawna „np”",
+        npBasisHint:
+          "Przepis, na podstawie którego usługa nie podlega VAT w Polsce, np. „art. 28b ustawy o VAT”. Puste = z ustawień faktur.",
+        npBasisFromSettings: "Puste = z ustawień faktur: „{{basis}}”.",
+        reverseCharge: "Odwrotne obciążenie",
+        reverseChargeAuto: "Automatycznie (np + firma spoza Polski)",
+        reverseChargeYes: "Tak - adnotacja „odwrotne obciążenie”",
+        reverseChargeNo: "Nie",
+        reverseChargeOn:
+          "Dokument dostanie adnotację „odwrotne obciążenie”. Wymaga firmy spoza Polski i wyłącznie pozycji „np”.",
+        reverseChargeOff: "Bez adnotacji „odwrotne obciążenie”.",
+        viesVerify: "Sprawdź w VIES",
+        viesChecking: "Sprawdzanie…",
+        viesNone:
+          "Numer VAT UE nabywcy nie był sprawdzony w VIES. Wystawienie z odwrotnym obciążeniem wymaga ważnej weryfikacji z ostatnich 30 dni.",
+        viesStatusValid: "VIES: {{subject}} - ważny ({{at}}, nr konsultacji {{request}}).",
+        viesStatusInvalid: "VIES: {{subject}} - niezarejestrowany w VIES ({{at}}).",
+        viesValid: "VIES potwierdził numer VAT UE nabywcy.",
+        viesInvalid: "VIES: numer VAT UE nabywcy nie jest aktywny.",
+      },
+      fx: {
+        pending:
+          "Dokument w {{currency}}: przy wystawieniu system pobierze z NBP średni kurs (tabela A) z ostatniego dnia roboczego do {{date}} włącznie i wydrukuje VAT w złotych.",
+        loaded:
+          "Dokument w {{currency}}: kurs średni NBP (tabela A) z ostatniego dnia roboczego do {{date}} włącznie jest już pobrany - VAT w złotych trafi na dokument.",
+      },
       save: "Zapisz szkic",
       saving: "Zapisywanie…",
       issue: "Zapisz i wystaw",
@@ -198,6 +236,7 @@ export const adminEventInvoicesPl = {
         noLines: "Dokument potrzebuje co najmniej jednej pozycji.",
         noteTooLong: "Uwagi mogą mieć najwyżej 1000 znaków.",
         reasonRequired: "Podaj przyczynę korekty.",
+        npBasisTooLong: "Podstawa prawna „np” może mieć najwyżej 300 znaków.",
         fix: "Popraw zaznaczone pola.",
       },
     },
@@ -220,7 +259,16 @@ export const adminEventInvoicesPl = {
       title: "Stan KSeF dokumentu {{number}}",
       hint: "Wysyłkę do KSeF wykonujesz poza systemem; tu zapisujesz jej stan i numer nadany przez KSeF.",
       status: "Stan",
+      terminal:
+        "To stan końcowy - dokumentu przyjętego w KSeF nie da się cofnąć; zmiany tylko korektą.",
       number: "Numer KSeF",
+      numberHint:
+        "Format: NIP sprzedawcy-RRRRMMDD-12 znaków (0-9, A-F)-2 znaki, np. 7011278375-20261012-0A1B2C3D4E5F-7A.",
+      numberFormat: "To nie jest numer KSeF - sprawdź format: NIP-RRRRMMDD-XXXXXXXXXXXX-XX.",
+      numberLocked: "Numer nadany przez KSeF jest zapisany na stałe.",
+      note: "Notatka do historii (opcjonalnie)",
+      noteHint: "Np. „wysłano z programu księgowego”, numer UPO albo powód odrzucenia.",
+      history: "Historia stanu KSeF",
       save: "Zapisz",
       cancel: "Anuluj",
     },
@@ -251,6 +299,9 @@ export const adminEventInvoicesPl = {
       vatExemptBasis: "Podstawa zwolnienia z VAT",
       vatExemptBasisHint:
         "Wymagana, gdy którakolwiek pozycja ma stawkę „zw” (np. art. 43 ust. 1 pkt 29 ustawy o VAT).",
+      vatNpBasis: "Podstawa prawna stawki „np”",
+      vatNpBasisHint:
+        "Drukowana na fakturze z pozycją „np” (nie podlega VAT w Polsce), np. „art. 28b ustawy o VAT” dla usługi online dla firmy z zagranicy - wtedy faktura dostaje też adnotację „odwrotne obciążenie”.",
       footerNote: "Stopka dokumentu",
       defaultLocale: "Domyślny język dokumentów",
       enabledSection: "Fakturowanie",
@@ -272,12 +323,14 @@ export const adminEventInvoicesPl = {
         seriesDistinct: "Prefiksy faktur, proform i korekt muszą się różnić.",
         paymentDays: "Termin płatności to 0-120 dni.",
         exemptBasis: "Podaj podstawę zwolnienia dla stawki „zw”.",
+        npBasis: "Podaj podstawę prawną dla stawki „np”.",
         confirm: "Potwierdź, że organizator jest sprzedawcą biletów.",
         tooLong: "To pole jest za długie.",
       },
     },
     toasts: {
       draftCreated: "Szkic utworzony.",
+      paymentBooked: "Wpłata zaksięgowana.",
       saved: "Szkic zapisany.",
       issued: "Wystawiono dokument {{number}}.",
       cancelled: "Dokument anulowany.",
@@ -357,7 +410,8 @@ export const adminEventInvoicesPl = {
       ksefNotApplicable: "KSeF dotyczy wystawionej faktury albo korekty.",
       invalidKsefStatus: "Nieznany stan KSeF.",
       ksefNumberRequired: "Przyjęty dokument wymaga numeru KSeF.",
-      invalidKsefNumber: "Numer KSeF może mieć najwyżej 64 znaki.",
+      invalidKsefNumber:
+        "To nie jest numer KSeF tego sprzedawcy: format NIP-RRRRMMDD-XXXXXXXXXXXX-XX, NIP sprzedawcy i data przyjęcia nie późniejsza niż jutro.",
       sourceChanged:
         "Zamówienie zmieniło się od utworzenia szkicu (np. zapłacono kartą albo zwrócono część kwoty) - anuluj szkic i utwórz go ponownie.",
       buyerMismatch:
@@ -370,6 +424,36 @@ export const adminEventInvoicesPl = {
         "Korekta nie zgadza się z aktualnym stanem faktury (po wcześniejszych korektach) - anuluj szkic i utwórz korektę ponownie.",
       correctionUseFull: "Ta korekta zeruje całą fakturę - wybierz korektę pełną.",
       correctionNotLatest: "Anulować można tylko ostatnio wystawioną korektę tej faktury.",
+      invalidTransition:
+        "Tej zmiany stanu KSeF nie da się zapisać - stan idzie tylko do przodu, a dokument przyjęty w KSeF zostaje przyjęty.",
+      ksefNumberImmutable: "Numer KSeF dokumentu jest już zapisany i nie może się zmienić.",
+      ksefNumberTaken: "Ten numer KSeF ma już inny dokument organizatora.",
+      ksefNumberRequiresAccepted: "Numer KSeF zapisuje się razem ze stanem „Przyjęta”.",
+      correctionAwaitsKsef:
+        "Faktura korygowana czeka na numer KSeF - wystaw korektę, gdy KSeF ją przyjmie (korekta wskazuje ten numer).",
+      deliveredLocked:
+        "Nabywca dostał już ten dokument (mail albo pobranie z profilu) - anulować go nie można, wystaw korektę.",
+      fxRateRequired:
+        "Brak kursu NBP potrzebnego do faktury w walucie obcej, a nie udało się go pobrać. Spróbuj ponownie za chwilę.",
+      vatNpBasisRequired:
+        "Pozycja „np” wymaga podstawy prawnej (np. art. 28b ustawy o VAT) - podaj ją w szkicu albo w ustawieniach wystawcy.",
+      invalidNpBasis: "Podstawa prawna może mieć najwyżej 300 znaków.",
+      reverseChargeInvalid:
+        "Odwrotne obciążenie dotyczy wyłącznie pozycji „np” dla firmy spoza Polski.",
+      viesVerificationRequired:
+        "Przed wystawieniem z odwrotnym obciążeniem zweryfikuj numer VAT UE nabywcy w VIES.",
+      viesNotApplicable: "VIES sprawdza numer VAT nabywcy-firmy z kraju UE.",
+      viesSubjectChanged: "Dane nabywcy zmieniły się w trakcie sprawdzania - zweryfikuj ponownie.",
+      viesUnavailable:
+        "VIES jest teraz niedostępny (system kraju nabywcy nie odpowiada). Spróbuj później.",
+      paymentAmountUnbooked:
+        "Zamówienie opłacone poza kasą nie ma zaksięgowanej kwoty wpłaty - zaksięguj ją przed wystawieniem faktury.",
+      amountMismatch:
+        "Suma pozycji różni się od wpłat za zamówienia - faktura dokumentuje wpłatę. Popraw pozycje albo zaksięgowaną kwotę.",
+      paymentIsCard:
+        "Kwotę płatności kartą podaje operator płatności - nie księguje się jej ręcznie.",
+      registrationNotPaid:
+        "Najpierw oznacz zgłoszenie jako opłacone, potem zaksięguj kwotę wpłaty.",
     },
   },
 } as const;
@@ -443,6 +527,14 @@ export const adminEventInvoicesEn = {
       paidVia: { card: "card", transfer: "transfer / offline" },
       priceList: "price-list amount - check the draft",
       priceListNet: "net list price + VAT at the default rate - check the rate in the draft",
+      booked: "booked payment amount",
+      bookPayment: "Book the payment",
+      bookPaymentEdit: "Correct the booked payment",
+      bookPaymentAmount: "Amount received ({{currency}})",
+      bookPaymentHint:
+        "An invoice for a registration paid by transfer documents the actual payment, not the price list - without booking it the database will not issue it.",
+      bookPaymentSave: "Book",
+      bookPaymentCancel: "Cancel",
       buyerMismatch:
         "The selected orders carry invoice requests from different buyers - issue separate invoices.",
       requested: "Buyer request",
@@ -483,6 +575,8 @@ export const adminEventInvoicesEn = {
       cancelTitle: "Cancel the document?",
       cancelDraftBody: "The draft leaves the list and its orders return to invoicing.",
       cancelReasonLabel: "Cancellation reason (kept in the document history)",
+      cancelIssuedBody:
+        "Only a document the buyer has not received yet (email, download from the profile) and that has not gone to KSeF can be cancelled. After delivery, a credit note documents the change.",
       cancelConfirm: "Cancel document",
       keep: "Keep",
       actionsFor: "Actions for document {{number}}",
@@ -538,7 +632,35 @@ export const adminEventInvoicesEn = {
       totals: { net: "Net", vat: "VAT", gross: "Gross" },
       vatSummary: "VAT summary",
       sourcesMismatch:
-        "The line total ({{lines}}) differs from the order amount ({{sources}}). Check the lines before issuing.",
+        "The line total ({{lines}}) differs from the order amount ({{sources}}). An invoice for paid orders cannot be issued for an amount other than the payments - fix the lines.",
+      tax: {
+        section: "Tax",
+        npBasis: "Legal basis for “np”",
+        npBasisHint:
+          "The provision under which the service is outside the scope of Polish VAT, e.g. “art. 28b of the VAT Act”. Empty = from the invoice settings.",
+        npBasisFromSettings: "Empty = from the invoice settings: “{{basis}}”.",
+        reverseCharge: "Reverse charge",
+        reverseChargeAuto: "Automatic (np + company outside Poland)",
+        reverseChargeYes: "Yes - “reverse charge” annotation",
+        reverseChargeNo: "No",
+        reverseChargeOn:
+          "The document carries the “reverse charge” annotation. It needs a company outside Poland and only “np” lines.",
+        reverseChargeOff: "No “reverse charge” annotation.",
+        viesVerify: "Check in VIES",
+        viesChecking: "Checking…",
+        viesNone:
+          "The buyer's EU VAT number has not been checked in VIES. Issuing with reverse charge needs a valid check from the last 30 days.",
+        viesStatusValid: "VIES: {{subject}} - valid ({{at}}, consultation no. {{request}}).",
+        viesStatusInvalid: "VIES: {{subject}} - not registered in VIES ({{at}}).",
+        viesValid: "VIES confirmed the buyer's EU VAT number.",
+        viesInvalid: "VIES: the buyer's EU VAT number is not active.",
+      },
+      fx: {
+        pending:
+          "Document in {{currency}}: on issue the system fetches the NBP average rate (table A) from the last business day up to and including {{date}} and prints the VAT in PLN.",
+        loaded:
+          "Document in {{currency}}: the NBP average rate (table A) from the last business day up to and including {{date}} is loaded - the VAT in PLN goes on the document.",
+      },
       save: "Save draft",
       saving: "Saving…",
       issue: "Save and issue",
@@ -554,6 +676,7 @@ export const adminEventInvoicesEn = {
         noLines: "A document needs at least one line.",
         noteTooLong: "Notes can have at most 1000 characters.",
         reasonRequired: "Enter the reason for the correction.",
+        npBasisTooLong: "The legal basis for “np” can have at most 300 characters.",
         fix: "Fix the highlighted fields.",
       },
     },
@@ -577,7 +700,16 @@ export const adminEventInvoicesEn = {
       title: "KSeF status of document {{number}}",
       hint: "You submit to KSeF outside the system; here you record the status and the number assigned by KSeF.",
       status: "Status",
+      terminal:
+        "This is a final status - a document accepted by KSeF cannot be rolled back; changes only by a credit note.",
       number: "KSeF number",
+      numberHint:
+        "Format: seller NIP-YYYYMMDD-12 characters (0-9, A-F)-2 characters, e.g. 7011278375-20261012-0A1B2C3D4E5F-7A.",
+      numberFormat: "This is not a KSeF number - check the format: NIP-YYYYMMDD-XXXXXXXXXXXX-XX.",
+      numberLocked: "The number assigned by KSeF is stored permanently.",
+      note: "Note for the history (optional)",
+      noteHint: "E.g. “sent from the accounting software”, the UPO number or the rejection reason.",
+      history: "KSeF status history",
       save: "Save",
       cancel: "Cancel",
     },
@@ -608,6 +740,9 @@ export const adminEventInvoicesEn = {
       vatExemptBasis: "Legal basis of the VAT exemption",
       vatExemptBasisHint:
         "Required when any line uses the “zw” rate (e.g. art. 43(1)(29) of the Polish VAT Act).",
+      vatNpBasis: "Legal basis of the “np” rate",
+      vatNpBasisHint:
+        "Printed on an invoice with an “np” line (outside the scope of Polish VAT), e.g. “art. 28b of the VAT Act” for an online service to a foreign company - the invoice then also carries the “reverse charge” annotation.",
       footerNote: "Document footer",
       defaultLocale: "Default document language",
       enabledSection: "Invoicing",
@@ -629,12 +764,14 @@ export const adminEventInvoicesEn = {
         seriesDistinct: "Invoice, pro forma and credit note prefixes must differ.",
         paymentDays: "The payment term is 0-120 days.",
         exemptBasis: "Enter the exemption basis for the “zw” rate.",
+        npBasis: "Enter the legal basis for the “np” rate.",
         confirm: "Confirm that the organizer is the seller of the tickets.",
         tooLong: "This field is too long.",
       },
     },
     toasts: {
       draftCreated: "Draft created.",
+      paymentBooked: "Payment booked.",
       saved: "Draft saved.",
       issued: "Document {{number}} issued.",
       cancelled: "Document cancelled.",
@@ -712,7 +849,8 @@ export const adminEventInvoicesEn = {
       ksefNotApplicable: "KSeF applies to an issued invoice or credit note.",
       invalidKsefStatus: "Unknown KSeF status.",
       ksefNumberRequired: "An accepted document needs the KSeF number.",
-      invalidKsefNumber: "The KSeF number can have at most 64 characters.",
+      invalidKsefNumber:
+        "This is not a KSeF number of this seller: format NIP-YYYYMMDD-XXXXXXXXXXXX-XX, the seller's NIP and an acceptance date no later than tomorrow.",
       sourceChanged:
         "An order changed after the draft was made (e.g. it was paid by card or partly refunded) - cancel the draft and create it again.",
       buyerMismatch:
@@ -726,6 +864,35 @@ export const adminEventInvoicesEn = {
       correctionUseFull: "This credit note reverses the whole invoice - choose a full credit note.",
       correctionNotLatest:
         "Only the most recently issued credit note of this invoice can be cancelled.",
+      invalidTransition:
+        "This KSeF status change cannot be saved - the status only moves forward and a document accepted by KSeF stays accepted.",
+      ksefNumberImmutable: "The KSeF number of this document is already stored and cannot change.",
+      ksefNumberTaken: "Another document of the organizer already has this KSeF number.",
+      ksefNumberRequiresAccepted: "The KSeF number is saved together with the “Accepted” status.",
+      correctionAwaitsKsef:
+        "The corrected invoice is waiting for its KSeF number - issue the credit note once KSeF accepts it (the credit note refers to that number).",
+      deliveredLocked:
+        "The buyer has already received this document (e-mail or download from the profile) - it cannot be cancelled, issue a credit note.",
+      fxRateRequired:
+        "The NBP exchange rate needed for a foreign-currency invoice is missing and could not be fetched. Try again in a moment.",
+      vatNpBasisRequired:
+        "An “np” line needs a legal basis (e.g. art. 28b of the Polish VAT Act) - enter it in the draft or in the issuer settings.",
+      invalidNpBasis: "The legal basis can have at most 300 characters.",
+      reverseChargeInvalid:
+        "Reverse charge applies only to “np” lines for a company outside Poland.",
+      viesVerificationRequired:
+        "Verify the buyer's EU VAT number in VIES before issuing with reverse charge.",
+      viesNotApplicable: "VIES checks the VAT number of a company buyer from an EU country.",
+      viesSubjectChanged: "The buyer details changed during the check - verify again.",
+      viesUnavailable:
+        "VIES is unavailable right now (the buyer country's system does not respond). Try later.",
+      paymentAmountUnbooked:
+        "An order paid outside the checkout has no booked payment amount - book it before issuing the invoice.",
+      amountMismatch:
+        "The lines differ from the payments of the orders - the invoice documents the payment. Fix the lines or the booked amount.",
+      paymentIsCard:
+        "The card payment amount comes from the payment operator - it is not booked by hand.",
+      registrationNotPaid: "Mark the registration as paid first, then book the payment amount.",
     },
   },
 } as const;

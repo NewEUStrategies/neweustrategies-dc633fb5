@@ -10,19 +10,24 @@
 -- Weryfikuje:
 --   1. kształt schematu: user_purchases.user_id jest nullowalny i MA FK
 --      ON DELETE SET NULL (brak FK był tu przyczyną źródłową);
---   2. retention_until jest stemplowane przy INSERT (art. 74 ust. 2 uor);
+--   2. retention_until jest stemplowane przy INSERT regułą retencji
+--      podatkowej: 31.12 roku obrotowego + 6 (INV-13, 20261012121000 -
+--      przedawnienie z art. 70 § 1 i art. 86 § 1 Ordynacji podatkowej,
+--      obejmuje 5 lat z art. 74 ust. 2 uor); reguła liczy rok w strefie
+--      siedziby i daje TĘ SAMĄ datę dla płatności ze stycznia i z grudnia;
 --   3. anonimizacja zachowuje dowód z pieniędzmi, a usuwa darmowy grant;
 --   4. pseudonim jest WSPÓLNY dla obu tabel (uzgodnienie ksiąg bez danych osobowych);
 --   5. CHECK kształtu blokuje wiersz „zanonimizowany, ale z user_id";
 --   6. trigger BEFORE DELETE ON auth.users domyka ścieżki poza aplikacją -
 --      po `DELETE FROM auth.users` NIE ZOSTAJE surowy identyfikator;
---   7. purge usuwa dowód po terminie i respektuje retention_hold;
+--   7. purge usuwa dowód po terminie i respektuje retention_hold, a stempel
+--      nieaktualny (krótszy niż reguła) nie wystarcza do usunięcia;
 --   8. funkcje retencji są niedostępne dla rol klienckich.
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(16);
+SELECT plan(21);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -87,12 +92,41 @@ VALUES
    '99999999-0000-0000-0000-000000000003', 12900, 'PLN', 'refunded', 'cs_test_refunded',
    '2026-03-15 10:00:00+01');
 
+-- ── Reguła retencji (INV-13: decyzja doradcy podatkowego zapisana w teście) ─
+-- Rok obrotowy + 6: VAT za grudzień R ma termin płatności 25.01 R+1, CIT roczny
+-- za R - koniec marca R+1; przedawnienie (art. 70 § 1 OP) mija 31.12 R+6.
+-- Zmiana tej reguły = zmiana stałej w `accounting_retention_until` i
+-- `ACCOUNTING_RETENTION_YEARS_AFTER_FISCAL_YEAR` (TS) RAZEM z tymi datami.
+SELECT is(
+  public.accounting_retention_until('2026-01-15 10:00:00+01'),
+  '2032-12-31'::date,
+  'platnosc ze stycznia 2026 -> 31.12.2032 (rok obrotowy + 6)'
+);
+
+SELECT is(
+  public.accounting_retention_until('2026-12-15 10:00:00+01'),
+  '2032-12-31'::date,
+  'platnosc z grudnia 2026 (VAT do 25.01.2027) -> 31.12.2032, przed przedawnieniem nic nie znika'
+);
+
+SELECT is(
+  public.accounting_retention_until('2026-12-31 22:30:00+00'),
+  '2032-12-31'::date,
+  '31.12, 23:30 czasu warszawskiego to jeszcze rok obrotowy 2026'
+);
+
+SELECT is(
+  public.accounting_retention_until('2026-12-31 23:30:00+00'),
+  '2033-12-31'::date,
+  '01.01, 00:30 czasu warszawskiego (23:30 UTC) to juz rok obrotowy 2027'
+);
+
 -- ── Stempel retencji ───────────────────────────────────────────────────────
 SELECT is(
   (SELECT retention_until FROM public.user_purchases
     WHERE id = '11111111-0000-0000-0000-0000000000a1'),
-  '2031-12-31'::date,
-  'retention_until = 31.12 piatego roku po roku zakupu (art. 74 ust. 2 uor)'
+  '2032-12-31'::date,
+  'retention_until = 31.12 szostego roku po roku zakupu (przedawnienie podatkowe)'
 );
 
 -- ── Anonimizacja ───────────────────────────────────────────────────────────
@@ -195,13 +229,29 @@ UPDATE public.user_purchases
 SELECT is(
   (SELECT retention_until FROM public.user_purchases
     WHERE id = '22222222-0000-0000-0000-0000000000b1'),
-  '2020-12-31'::date,
+  '2021-12-31'::date,
   'trigger przeliczyl retention_until po zmianie daty transakcji'
 );
 
+-- Stempel nieaktualny: wiersz z kopii sprzed 20261012121000 odtworzony z
+-- wyłączonymi triggerami niesie stary, krótszy termin. Purge nie może mu
+-- wierzyć - reguła z daty zakupu (2026 -> 2032) wygrywa.
+ALTER TABLE public.user_purchases DISABLE TRIGGER user_purchases_stamp_retention;
+UPDATE public.user_purchases
+   SET retention_until = '2020-12-31'
+ WHERE id = '11111111-0000-0000-0000-0000000000a3';
+ALTER TABLE public.user_purchases ENABLE TRIGGER user_purchases_stamp_retention;
+
 SELECT is(
   public.purge_expired_user_purchases(), 1,
-  'purge usuwa TYLKO dowod po terminie i bez hold (a1 ma hold, a3 termin w przyszlosci)'
+  'purge usuwa TYLKO dowod po terminie i bez hold (a1 ma hold, a3 termin wg reguly w przyszlosci)'
+);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.user_purchases
+    WHERE id = '11111111-0000-0000-0000-0000000000a3'),
+  1,
+  'nieaktualny (krotszy) stempel nie wystarcza do usuniecia dowodu przed przedawnieniem'
 );
 
 SELECT is(

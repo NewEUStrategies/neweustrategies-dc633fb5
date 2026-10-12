@@ -127,17 +127,25 @@ describe("notifyIssuedInvoices", () => {
       d: { data: { ...PAYLOAD, invoice_id: "d" }, error: null },
       e: { data: { ...PAYLOAD, invoice_id: "e" }, error: null },
     };
-    const rpc = vi.fn<Rpc>(async (_name, args) => responses[args.p_id]);
+    const rpc = vi.fn<Rpc>(async (name, args) =>
+      name === "admin_event_invoice_mark_notified"
+        ? { data: "2026-09-20T10:00:00Z", error: null }
+        : responses[args.p_id],
+    );
     sendTxEmail
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({ ok: true, skipped: "duplicate" })
       .mockResolvedValueOnce({ ok: false, error: "smtp" });
     const result = await notifyIssuedInvoices(client(rpc), ["a", "b", "c", "d", "e"]);
     expect(result).toEqual({ sent: 1, skipped: 2, failed: 2 });
-    expect(rpc).toHaveBeenCalledTimes(5);
-    expect(rpc.mock.calls.every(([name]) => name === "admin_event_invoice_notify_payload")).toBe(
-      true,
+    const payloads = rpc.mock.calls.filter(
+      ([name]) => name === "admin_event_invoice_notify_payload",
     );
+    expect(payloads.map(([, args]) => args.p_id)).toEqual(["a", "b", "c", "d", "e"]);
+    // INV-08: doreczony = wyslany albo rozpoznany duplikat juz wyslanego maila;
+    // bez konta, blad RPC i nieudana wysylka stempla nie dostaja.
+    const stamped = rpc.mock.calls.filter(([name]) => name === "admin_event_invoice_mark_notified");
+    expect(stamped.map(([, args]) => args.p_id)).toEqual(["a", "d"]);
     expect(sendTxEmail).toHaveBeenCalledTimes(3);
     expect(sendTxEmail.mock.calls[0]?.[0]).toMatchObject({
       type: "event_invoice_issued",
@@ -151,6 +159,17 @@ describe("notifyIssuedInvoices", () => {
     expect(sendTxEmail.mock.calls[1]?.[0]).toMatchObject({
       idempotencyKey: "event-invoice:d:issued",
     });
+  });
+
+  it("mail zatrzymany przez liste wypisanych niczego nie doreczyl - bez stempla", async () => {
+    const rpc = vi.fn<Rpc>(async () => ({ data: { ...PAYLOAD, invoice_id: "s" }, error: null }));
+    sendTxEmail.mockResolvedValueOnce({ ok: false, skipped: "suppressed" });
+    await expect(notifyIssuedInvoices(client(rpc), ["s"])).resolves.toEqual({
+      sent: 0,
+      skipped: 0,
+      failed: 1,
+    });
+    expect(rpc.mock.calls.map(([name]) => name)).toEqual(["admin_event_invoice_notify_payload"]);
   });
 
   it("pusta lista = nic", async () => {

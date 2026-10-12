@@ -517,6 +517,9 @@ async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): 
     capturedAmountCents: Number.isFinite(capturedCents) ? capturedCents : null,
     currency: str("currencyCode") ?? totals?.currencyCode ?? null,
     environment: env,
+    // Tylko zwrot, który nie doszedł (`refund.failed`) - kod trafia do
+    // dziennika zwrotów i alarmu, patrz `escalateFailedRefund`.
+    failureReason: str("failureReason"),
   });
 }
 

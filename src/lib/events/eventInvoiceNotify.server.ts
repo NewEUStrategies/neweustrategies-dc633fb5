@@ -13,6 +13,12 @@
 //
 // KLUCZ IDEMPOTENCJI `event-invoice:<id>:issued` - dwa klikniecia i ponowna
 // proba po awarii wysylaja jeden mail.
+//
+// DORECZENIE WRACA DO BAZY (INV-08). Mail wyslany (albo rozpoznany duplikat
+// juz wyslanego) stempluje dokument `admin_event_invoice_mark_notified` - od
+// tej chwili faktury nie da sie anulowac, zostaje korekta. Mail zatrzymany
+// przez liste wypisanych (`suppressed`) niczego nie doreczyl i stempla nie
+// dostaje.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, Json } from "@/integrations/supabase/types";
@@ -90,6 +96,17 @@ export async function notifyIssuedInvoices(
     if (!sent.ok) result.failed += 1;
     else if (sent.skipped === undefined) result.sent += 1;
     else result.skipped += 1;
+    if (sent.ok && (sent.skipped === undefined || sent.skipped === "duplicate")) {
+      const { error: markError } = await supabase.rpc("admin_event_invoice_mark_notified", {
+        p_id: id,
+      });
+      if (markError) {
+        console.error("[eventInvoiceNotify] delivery stamp failed", {
+          id,
+          error: markError.message,
+        });
+      }
+    }
   }
   return result;
 }

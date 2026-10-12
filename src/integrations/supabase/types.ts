@@ -1032,6 +1032,8 @@ export type Database = {
       billing_documents: {
         Row: {
           amount_cents: number
+          billing_plane: string | null
+          buyer_snapshot: Json | null
           created_at: string
           currency: string
           hosted_url: string | null
@@ -1043,6 +1045,7 @@ export type Database = {
           pdf_url: string | null
           provider: string
           provider_document_id: string
+          seller_snapshot: Json | null
           status: string
           subscription_id: string | null
           tenant_id: string
@@ -1051,6 +1054,8 @@ export type Database = {
         }
         Insert: {
           amount_cents?: number
+          billing_plane?: string | null
+          buyer_snapshot?: Json | null
           created_at?: string
           currency?: string
           hosted_url?: string | null
@@ -1062,6 +1067,7 @@ export type Database = {
           pdf_url?: string | null
           provider?: string
           provider_document_id: string
+          seller_snapshot?: Json | null
           status?: string
           subscription_id?: string | null
           tenant_id: string
@@ -1070,6 +1076,8 @@ export type Database = {
         }
         Update: {
           amount_cents?: number
+          billing_plane?: string | null
+          buyer_snapshot?: Json | null
           created_at?: string
           currency?: string
           hosted_url?: string | null
@@ -1081,6 +1089,7 @@ export type Database = {
           pdf_url?: string | null
           provider?: string
           provider_document_id?: string
+          seller_snapshot?: Json | null
           status?: string
           subscription_id?: string | null
           tenant_id?: string
@@ -7760,6 +7769,60 @@ export type Database = {
           },
         ]
       }
+      event_invoice_ksef_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          from_number: string | null
+          from_status: string | null
+          id: string
+          invoice_id: string
+          note: string
+          tenant_id: string
+          to_number: string | null
+          to_status: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          from_number?: string | null
+          from_status?: string | null
+          id?: string
+          invoice_id: string
+          note?: string
+          tenant_id: string
+          to_number?: string | null
+          to_status: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          from_number?: string | null
+          from_status?: string | null
+          id?: string
+          invoice_id?: string
+          note?: string
+          tenant_id?: string
+          to_number?: string | null
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_invoice_ksef_events_invoice_fk"
+            columns: ["tenant_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "event_invoices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_ksef_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_invoice_lines: {
         Row: {
           corrects_line_id: string | null
@@ -7980,6 +8043,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           vat_exempt_basis: string
+          vat_np_basis: string
         }
         Insert: {
           confirmed_at?: string | null
@@ -8007,6 +8071,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           vat_exempt_basis?: string
+          vat_np_basis?: string
         }
         Update: {
           confirmed_at?: string | null
@@ -8034,6 +8099,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           vat_exempt_basis?: string
+          vat_np_basis?: string
         }
         Relationships: [
           {
@@ -8137,13 +8203,19 @@ export type Database = {
           buyer_address: string
           buyer_city: string
           buyer_country: string
+          buyer_downloaded_at: string | null
           buyer_email: string
           buyer_is_company: boolean
           buyer_name: string
+          buyer_notified_at: string | null
           buyer_person_id: string | null
           buyer_postal_code: string
           buyer_tax_id: string
           buyer_user_id: string | null
+          buyer_vies_checked_at: string | null
+          buyer_vies_request_id: string | null
+          buyer_vies_subject: string | null
+          buyer_vies_valid: boolean | null
           cancel_reason: string
           cancelled_at: string | null
           cancelled_by: string | null
@@ -8159,6 +8231,9 @@ export type Database = {
           event_slug: string
           event_title_en: string
           event_title_pl: string
+          fx_effective_date: string | null
+          fx_rate: number | null
+          fx_table_no: string | null
           gross_cents: number
           id: string
           issue_date: string | null
@@ -8171,6 +8246,7 @@ export type Database = {
           locale: string
           net_cents: number
           note: string
+          np_basis: string
           number: string | null
           paid_at: string | null
           payment_method: string
@@ -8178,6 +8254,7 @@ export type Database = {
           po_number: string
           recipient_address: string
           recipient_name: string
+          reverse_charge: boolean | null
           sale_date: string | null
           seller: Json | null
           seq: number | null
@@ -8188,18 +8265,26 @@ export type Database = {
           updated_at: string
           vat_cents: number
           vat_exempt_basis: string
+          vat_pln_cents: number | null
+          vat_summary: Json | null
         }
         Insert: {
           buyer_address?: string
           buyer_city?: string
           buyer_country?: string
+          buyer_downloaded_at?: string | null
           buyer_email?: string
           buyer_is_company?: boolean
           buyer_name?: string
+          buyer_notified_at?: string | null
           buyer_person_id?: string | null
           buyer_postal_code?: string
           buyer_tax_id?: string
           buyer_user_id?: string | null
+          buyer_vies_checked_at?: string | null
+          buyer_vies_request_id?: string | null
+          buyer_vies_subject?: string | null
+          buyer_vies_valid?: boolean | null
           cancel_reason?: string
           cancelled_at?: string | null
           cancelled_by?: string | null
@@ -8215,6 +8300,9 @@ export type Database = {
           event_slug?: string
           event_title_en?: string
           event_title_pl?: string
+          fx_effective_date?: string | null
+          fx_rate?: number | null
+          fx_table_no?: string | null
           gross_cents?: number
           id?: string
           issue_date?: string | null
@@ -8227,6 +8315,7 @@ export type Database = {
           locale?: string
           net_cents?: number
           note?: string
+          np_basis?: string
           number?: string | null
           paid_at?: string | null
           payment_method?: string
@@ -8234,6 +8323,7 @@ export type Database = {
           po_number?: string
           recipient_address?: string
           recipient_name?: string
+          reverse_charge?: boolean | null
           sale_date?: string | null
           seller?: Json | null
           seq?: number | null
@@ -8244,18 +8334,26 @@ export type Database = {
           updated_at?: string
           vat_cents?: number
           vat_exempt_basis?: string
+          vat_pln_cents?: number | null
+          vat_summary?: Json | null
         }
         Update: {
           buyer_address?: string
           buyer_city?: string
           buyer_country?: string
+          buyer_downloaded_at?: string | null
           buyer_email?: string
           buyer_is_company?: boolean
           buyer_name?: string
+          buyer_notified_at?: string | null
           buyer_person_id?: string | null
           buyer_postal_code?: string
           buyer_tax_id?: string
           buyer_user_id?: string | null
+          buyer_vies_checked_at?: string | null
+          buyer_vies_request_id?: string | null
+          buyer_vies_subject?: string | null
+          buyer_vies_valid?: boolean | null
           cancel_reason?: string
           cancelled_at?: string | null
           cancelled_by?: string | null
@@ -8271,6 +8369,9 @@ export type Database = {
           event_slug?: string
           event_title_en?: string
           event_title_pl?: string
+          fx_effective_date?: string | null
+          fx_rate?: number | null
+          fx_table_no?: string | null
           gross_cents?: number
           id?: string
           issue_date?: string | null
@@ -8283,6 +8384,7 @@ export type Database = {
           locale?: string
           net_cents?: number
           note?: string
+          np_basis?: string
           number?: string | null
           paid_at?: string | null
           payment_method?: string
@@ -8290,6 +8392,7 @@ export type Database = {
           po_number?: string
           recipient_address?: string
           recipient_name?: string
+          reverse_charge?: boolean | null
           sale_date?: string | null
           seller?: Json | null
           seq?: number | null
@@ -8300,6 +8403,8 @@ export type Database = {
           updated_at?: string
           vat_cents?: number
           vat_exempt_basis?: string
+          vat_pln_cents?: number | null
+          vat_summary?: Json | null
         }
         Relationships: [
           {
@@ -10012,6 +10117,7 @@ export type Database = {
           claim_token: string | null
           claimed_at: string | null
           created_at: string
+          escalated_at: string | null
           event_id: string
           id: string
           last_error: string | null
@@ -10019,6 +10125,7 @@ export type Database = {
           payment_order_id: string
           provider_refund_id: string | null
           registration_id: string
+          review_reason: string | null
           state: string
           tenant_id: string
           updated_at: string
@@ -10028,6 +10135,7 @@ export type Database = {
           claim_token?: string | null
           claimed_at?: string | null
           created_at?: string
+          escalated_at?: string | null
           event_id: string
           id?: string
           last_error?: string | null
@@ -10035,6 +10143,7 @@ export type Database = {
           payment_order_id: string
           provider_refund_id?: string | null
           registration_id: string
+          review_reason?: string | null
           state?: string
           tenant_id: string
           updated_at?: string
@@ -10044,6 +10153,7 @@ export type Database = {
           claim_token?: string | null
           claimed_at?: string | null
           created_at?: string
+          escalated_at?: string | null
           event_id?: string
           id?: string
           last_error?: string | null
@@ -10051,6 +10161,7 @@ export type Database = {
           payment_order_id?: string
           provider_refund_id?: string | null
           registration_id?: string
+          review_reason?: string | null
           state?: string
           tenant_id?: string
           updated_at?: string
@@ -10100,6 +10211,10 @@ export type Database = {
           manage_token_hash: string | null
           notify_email: boolean
           notify_sms: boolean
+          paid_amount_cents: number | null
+          paid_amount_currency: string | null
+          paid_amount_recorded_at: string | null
+          paid_amount_recorded_by: string | null
           paid_at: string | null
           payment_order_id: string | null
           payment_status: string
@@ -10147,6 +10262,10 @@ export type Database = {
           manage_token_hash?: string | null
           notify_email?: boolean
           notify_sms?: boolean
+          paid_amount_cents?: number | null
+          paid_amount_currency?: string | null
+          paid_amount_recorded_at?: string | null
+          paid_amount_recorded_by?: string | null
           paid_at?: string | null
           payment_order_id?: string | null
           payment_status?: string
@@ -10194,6 +10313,10 @@ export type Database = {
           manage_token_hash?: string | null
           notify_email?: boolean
           notify_sms?: boolean
+          paid_amount_cents?: number | null
+          paid_amount_currency?: string | null
+          paid_amount_recorded_at?: string | null
+          paid_amount_recorded_by?: string | null
           paid_at?: string | null
           payment_order_id?: string | null
           payment_status?: string
@@ -14981,6 +15104,33 @@ export type Database = {
         }
         Relationships: []
       }
+      nbp_exchange_rates: {
+        Row: {
+          currency: string
+          effective_date: string
+          fetched_at: string
+          mid: number
+          rate_date: string
+          table_no: string
+        }
+        Insert: {
+          currency: string
+          effective_date: string
+          fetched_at?: string
+          mid: number
+          rate_date: string
+          table_no: string
+        }
+        Update: {
+          currency?: string
+          effective_date?: string
+          fetched_at?: string
+          mid?: number
+          rate_date?: string
+          table_no?: string
+        }
+        Relationships: []
+      }
       newsletter_campaign_events: {
         Row: {
           campaign_id: string
@@ -16083,6 +16233,7 @@ export type Database = {
         Row: {
           amount_cents: number
           anonymized_at: string | null
+          billing_plane: string | null
           created_at: string
           currency: string
           entity_id: string | null
@@ -16092,6 +16243,7 @@ export type Database = {
           invoice_url: string | null
           kind: Database["public"]["Enums"]["order_kind"]
           metadata: Json
+          operator_invoice: boolean | null
           paid_at: string | null
           plan_id: string | null
           provider: string
@@ -16114,6 +16266,7 @@ export type Database = {
         Insert: {
           amount_cents?: number
           anonymized_at?: string | null
+          billing_plane?: string | null
           created_at?: string
           currency?: string
           entity_id?: string | null
@@ -16123,6 +16276,7 @@ export type Database = {
           invoice_url?: string | null
           kind: Database["public"]["Enums"]["order_kind"]
           metadata?: Json
+          operator_invoice?: boolean | null
           paid_at?: string | null
           plan_id?: string | null
           provider?: string
@@ -16145,6 +16299,7 @@ export type Database = {
         Update: {
           amount_cents?: number
           anonymized_at?: string | null
+          billing_plane?: string | null
           created_at?: string
           currency?: string
           entity_id?: string | null
@@ -16154,6 +16309,7 @@ export type Database = {
           invoice_url?: string | null
           kind?: Database["public"]["Enums"]["order_kind"]
           metadata?: Json
+          operator_invoice?: boolean | null
           paid_at?: string | null
           plan_id?: string | null
           provider?: string
@@ -22865,6 +23021,16 @@ export type Database = {
       }
       _event_invoice_tax_key: { Args: { p_raw: string }; Returns: string }
       _event_invoice_vat_percent: { Args: { p_rate: string }; Returns: number }
+      _event_invoice_vies_record: {
+        Args: {
+          p_invoice: string
+          p_request_id: string
+          p_subject: string
+          p_tenant: string
+          p_valid: boolean
+        }
+        Returns: Json
+      }
       _event_issue_ticket_codes: {
         Args: { p_registration_id: string }
         Returns: Json
@@ -23073,6 +23239,12 @@ export type Database = {
         Args: { p_lapsed_order?: string; p_registration_id: string }
         Returns: string
       }
+      _event_refund_attempt_budget: { Args: never; Returns: number }
+      _event_refund_job_escalate: {
+        Args: { p_error?: string; p_job_id: string; p_reason: string }
+        Returns: boolean
+      }
+      _event_refund_unconfirmed_days: { Args: never; Returns: number }
       _event_registration_actor: {
         Args: {
           _manage_token: string
@@ -23092,6 +23264,14 @@ export type Database = {
           p_ticket_type_id: string
         }
         Returns: string
+      }
+      _event_registration_refund_failed: {
+        Args: {
+          p_environment: string
+          p_provider_refund_id: string
+          p_reason: string
+        }
+        Returns: boolean
       }
       _event_registration_refunds_claim: {
         Args: { p_limit?: number }
@@ -24803,6 +24983,10 @@ export type Database = {
         Args: { p_id: string }
         Returns: string
       }
+      admin_event_invoice_fx_needs: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_invoice_get: { Args: { p_id: string }; Returns: Json }
       admin_event_invoice_issue: { Args: { p_id: string }; Returns: Json }
       admin_event_invoice_issue_pending: {
@@ -24811,6 +24995,10 @@ export type Database = {
       }
       admin_event_invoice_ksef_update: {
         Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_invoice_mark_notified: {
+        Args: { p_id: string }
         Returns: string
       }
       admin_event_invoice_notify_payload: {
@@ -24824,6 +25012,10 @@ export type Database = {
       admin_event_invoice_settings_get: { Args: never; Returns: Json }
       admin_event_invoice_settings_save: {
         Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_invoice_vies_subject: {
+        Args: { p_id: string }
         Returns: Json
       }
       admin_event_invoices_list: {
@@ -25220,6 +25412,10 @@ export type Database = {
         Returns: number
       }
       admin_event_registration_notify_payload: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_registration_record_payment: {
         Args: { p_payload: Json }
         Returns: Json
       }

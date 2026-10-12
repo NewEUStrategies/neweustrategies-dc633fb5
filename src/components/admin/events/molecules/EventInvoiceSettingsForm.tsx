@@ -188,6 +188,10 @@ function SettingsEditor({ settings }: { settings: EventInvoiceSettings }) {
             hint: t("adminEventInvoices.settings.vatExemptBasisHint"),
             maxLength: 300,
           })}
+          {text("vatNpBasis", "adminEventInvoices.settings.vatNpBasis", {
+            hint: t("adminEventInvoices.settings.vatNpBasisHint"),
+            maxLength: 300,
+          })}
           {text("footerNote", "adminEventInvoices.settings.footerNote", {
             rows: 2,
             maxLength: 500,

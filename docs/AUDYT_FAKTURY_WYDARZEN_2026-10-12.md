@@ -1,0 +1,83 @@
+# Audyt faktur i rozliczeń - naprawy z 2026-10-12
+
+Dokument opisuje, co zmieniono po audycie rozliczeń (ustalenia INV-02 - INV-20),
+gdzie leży dowód i co nadal wymaga decyzji człowieka. Reguły biznesowe żyją
+w bazie (funkcje `SECURITY DEFINER` i triggery), więc głównym dowodem są
+harnessy na prawdziwym PostgreSQL, a nie lektura kodu.
+
+## Kolejność wdrożenia
+
+Migracje **przed** kodem - kod czyta nowe kolumny i woła nowe RPC.
+
+| Migracja                                                   | Zakres                                                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `20261012095900_tenant_admin_alerts.sql`                   | `_tenant_admins_alert` - dzwonek dla administratorów najemcy (wspólny kanał alarmów rozliczeń).        |
+| `20261012100000_event_invoice_compliance.sql` + części 2-7 | Faktury wydarzeń: INV-02, 05, 06, 08, 09, 12, 14, 15, 16, 17 (siedem części < 45 KiB, limit Lovable).  |
+| `20261012110000_billing_documents_snapshot.sql`            | INV-07: migawka nabywcy, sprzedawcy i płaszczyzny rozliczeń na `billing_documents`, zapis jednokrotny. |
+| `20261012120000_event_refund_jobs_escalation.sql`          | INV-19c: eskalacja zadań zwrotu do `needs_review` z alarmem, obsługa `refund.failed`.                  |
+| `20261012121000_accounting_retention_tax_limitation.sql`   | INV-13: retencja dowodów księgowych do końca roku obrotowego + 6.                                      |
+
+Po wdrożeniu migracji: subskrypcja webhooka Stripe musi obejmować
+`refund.failed` (opcjonalnie `refund.updated`, `charge.refund.updated`) -
+endpoint jest konfigurowany poza repozytorium.
+
+## Ustalenia i naprawy
+
+| Ustalenie | Było                                                                                           | Jest                                                                                                                                                                                                                                                                                                                              | Dowód                                                                                                                                       |
+| --------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| INV-02    | Stan KSeF dawał się cofnąć (`accepted` -> `pending`), numer nadpisać, fakturę potem anulować.  | Graf przejść jednokierunkowy (`_event_invoice_ksef_transition_ok`, ten sam w RPC i w triggerze - także `service_role` go nie obejdzie), numer niezmienny po nadaniu, dziennik append-only `event_invoice_ksef_events`. Panel oferuje tylko osiągalne stany i pokazuje historię.                                                   | harness 27b sekcja C (`accepted -> pending` = `invalid_transition`), `eventInvoicesDbEnumParity.test.ts`, `EventInvoiceKsefDialog.test.tsx` |
+| INV-17    | Numer KSeF bez formatu i unikalności; korekta bez numeru KSeF faktury korygowanej.             | Format `NIP-RRRRMMDD-HEX12-HEX2` z NIP-em sprzedawcy i wiarygodną datą, unikalność w najemcy, korekta faktury czekającej na KSeF odrzucana (`correction_awaits_ksef`), PDF korekty drukuje numer KSeF faktury korygowanej.                                                                                                        | harness 27b sekcja C, `eventInvoicePdf.test.ts`                                                                                             |
+| INV-06    | Faktura w EUR bez kursu NBP i bez VAT w PLN.                                                   | Kurs średni tabeli A z ostatniego dnia roboczego przed dniem obowiązku podatkowego (`nbp_exchange_rates`, pisze wyłącznie serwer po pobraniu z api.nbp.pl). Bez kursu wystawienie odmawia (`fx_rate_required`), panel pobiera kurs i ponawia raz. Na dokumencie: kurs, tabela, data i VAT w PLN; korekta dziedziczy kurs faktury. | harness 27b sekcja E, `eventInvoiceFx.server.test.ts`, `eventInvoicesApi.test.ts`, `eventInvoiceMath.test.ts` (`amountInPln`)               |
+| INV-08    | Anulowanie faktury, którą nabywca już dostał.                                                  | Stemple doręczenia (`buyer_notified_at` po mailu, `buyer_downloaded_at` po pobraniu z profilu) - po nich tylko korekta (`delivered_locked`).                                                                                                                                                                                      | harness 27b sekcja D, `eventInvoiceNotify.server.test.ts`                                                                                   |
+| INV-09    | Każda zmiana ustawień kasy blokowała fakturowanie starszych zamówień kartą.                    | Płaszczyzna rozliczeń stemplowana na `payment_orders` przy założeniu zamówienia (trigger), niezmienna.                                                                                                                                                                                                                            | harness 27b sekcja A                                                                                                                        |
+| INV-12    | Stawka „np” bez podstawy prawnej i bez adnotacji „odwrotne obciążenie”; NIP UE tylko formatem. | Podstawa „np” wymagana (ustawienia wystawcy albo szkic), adnotacja „odwrotne obciążenie” (automatycznie: „np” + firma spoza PL; jawna decyzja na szkicu), dla nabywcy z UE ważna weryfikacja VIES z ostatnich 30 dni z numerem konsultacji (zapytanie z NIP-em sprzedawcy). Zmiana nabywcy kasuje weryfikację.                    | harness 27b sekcja F, `eventInvoiceVies.server.test.ts`, `EventInvoiceDraftDialog.test.tsx`                                                 |
+| INV-14    | Faktura za przelew z kwotą z cennika.                                                          | Wpłata poza kasą księgowana na zapisie (`admin_event_registration_record_payment`, akcja „Zaksięguj wpłatę” w panelu); bez niej odmowa (`payment_amount_unbooked`), rozjazd pozycji z wpłatami - odmowa (`amount_mismatch`). Proforma -> faktura bierze pozycje z faktycznych wpłat.                                              | harness 27b sekcja G, `EventInvoiceCandidatesList.test.tsx`                                                                                 |
+| INV-15    | Termin prośby o fakturę liczony od daty wydarzenia.                                            | Od późniejszej z dat: zapłaty albo wykonania usługi (art. 106b ust. 3), w strefie Europe/Warsaw.                                                                                                                                                                                                                                  | harness 27b sekcja H                                                                                                                        |
+| INV-16    | VAT jako suma VAT pozycji.                                                                     | Metoda brutto (art. 106e ust. 7 i 8): VAT od sumy wartości brutto w stawce, podsumowanie zamrożone na dokumencie (`vat_summary`), korekta jako różnica stanu. PDF: cena i wartość brutto w pozycjach, netto/VAT/brutto w podsumowaniu stawek.                                                                                     | harness 27b sekcja B, `eventInvoiceMath.test.ts` (te same wektory), `eventInvoicePdf.test.ts`                                               |
+| INV-05    | Zwrot po wystawionej fakturze bez korekty i bez sygnału.                                       | Trigger na zwrocie (zamówienie, zapis, pakiet) zakłada szkic korekty (pełnej albo częściowej) albo - gdy automat nie może - alarm o korekcie ręcznej; zawsze dzwonek dla administratorów najemcy.                                                                                                                                 | harness 27b sekcja I                                                                                                                        |
+| INV-04    | `billing_documents` odrzucał zakup jednorazowy na CHECK-u stanu.                               | Stan tłumaczy `billingDocumentStatus` (jedyny moduł znający zbiór CHECK-a); awaria zapisu to alarm, nie cisza.                                                                                                                                                                                                                    | `billingDocumentsDbCheck.test.ts`, `billingDocuments.server.test.ts`                                                                        |
+| INV-07    | Kopia PDF członka czytała nabywcę i sprzedawcę na żywo, nota MoR na sztywno.                   | Migawka nabywcy, sprzedawcy i płaszczyzny zapisana raz (trigger write-once), tytuł „Potwierdzenie płatności”, nota MoR tylko w płaszczyźnie `managed`, stan z dokumentu.                                                                                                                                                          | `invoiceDocument.server.test.ts`, `supabase/tests/billing_documents_snapshot_test.sql`                                                      |
+| INV-10    | „Pobierz/Zapisz w CRM” dopasowywał firmę po nazwie - odczyt i nadpisanie cudzego rekordu.      | Odczyt tylko firmy powiązanej albo o zgodnym NIP-ie; zapis wyłącznie uzupełnia puste pola (warunkowy UPDATE), firma o innym NIP-ie to inny podmiot.                                                                                                                                                                               | `invoiceCrm.server.test.ts`                                                                                                                 |
+| INV-13    | Retencja dowodów do końca roku + 5.                                                            | Do końca roku obrotowego + 6 (przedawnienie zobowiązań podatkowych); purge sprawdza regułę także od daty transakcji. Polityka prywatności i nota przy usuwaniu konta mówią to samo.                                                                                                                                               | `supabase/tests/accounting_retention_test.sql`, `accountingRetentionRule.test.ts`                                                           |
+| INV-19a   | Raport audytu sumował PLN i EUR.                                                               | Sumy osobno dla każdej waluty.                                                                                                                                                                                                                                                                                                    | `auditReport.server.test.ts`, `adminBillingAuditRoute.test.tsx`                                                                             |
+| INV-19b   | Znaki spoza Latin-1 drukowane jako „?”.                                                        | Wspólne kodowanie glifów `pdfText` (Helvetica + `/Differences`) w obu generatorach PDF.                                                                                                                                                                                                                                           | `pdfText.test.ts` (niezależny dekoder `src/test/billing/pdfTextDecoder.ts`)                                                                 |
+| INV-19c   | Zadania zwrotu bez eskalacji po wyczerpaniu prób.                                              | Dziesiąta porażka, `refund.failed` albo brak potwierdzenia przez 7 dni -> `needs_review` z powodem i alarmem dla administratorów najemcy.                                                                                                                                                                                         | harness 24b                                                                                                                                 |
+| INV-20    | Dokumentacja zaniżała ryzyko KSeF i opisywała „trwałe linki” w `billing_documents`.            | `AUDYT_WYDARZENIA_2026-09-29.md` - KSeF jako P1, `WDROZENIE_RODO_RETENCJA_ZAMOWIEN_2026-08-03.md` - opis rejestru zgodny z kodem.                                                                                                                                                                                                 | ten dokument                                                                                                                                |
+
+## Wymaga decyzji człowieka
+
+1. **Doradca podatkowy (INV-13).** Retencja „rok obrotowy + 6” to konserwatywne
+   odczytanie art. 70 § 1 Ordynacji podatkowej. Do potwierdzenia: liczba lat,
+   rok obrotowy = kalendarzowy, i czy korekta albo zwrot w późniejszym roku
+   przesuwa kotwicę (dziś kotwicą jest `paid_at`, przypadki szczególne obsługuje
+   `retention_hold`).
+2. **Stawka „np” i odwrotne obciążenie (INV-12).** System wymaga podstawy
+   prawnej i weryfikacji VIES, ale nie rozstrzyga, czy dana usługa podlega
+   art. 28b czy art. 28g (wstęp na wydarzenie odbywające się w Polsce jest co do
+   zasady opodatkowany w Polsce także dla firm z UE). Wybór stawki należy do
+   wystawcy.
+3. **Webhook Stripe (INV-19c).** Subskrypcja `refund.failed` na endpoincie;
+   bez niej nieudany zwrot wyłapie dopiero 7-dniowy alarm i panel uzgodnień.
+4. **KSeF.** Wysyłka nadal ręczna (poza systemem). Adapter wysyłki z odbiorem
+   UPO to osobny projekt - priorytet P1 w audycie wydarzeń.
+5. **CRM (INV-10).** Członek może powiązać się z dowolną firmą z katalogu
+   (wybór firmy w profilu) i potem odczytać jej NIP, e-mail i telefon; czy
+   powiązanie wymaga weryfikacji - decyzja produktowa.
+6. **Nieudany zwrot a przychód.** `refund.failed` nie cofa
+   `payment_orders.status = 'refunded'`, więc raporty przychodu w tym rzadkim
+   przypadku są zaniżone do czasu ręcznej korekty.
+
+## Znane czerwone bramki niezwiązane z tą zmianą
+
+Na czystym `HEAD` sprzed zmian (sprawdzone w osobnym worktree) nie przechodzą
+te same testy co po zmianie: 14 testów w 7 plikach (pola dat w
+`EventAudienceGrantsPanel`, `EventTicketDialog`, `EventTicketPhasesEditor`,
+`SponsorReportShareDialog`, `EventPreviewCanvas`, `EventCodesPanel` oraz 4 testy
+`adminBillingAuditRoute`) i dwa pliki profilu (`ProfileExtraSections` - atrapa
+`react-i18next` bez `initReactI18next` przy imporcie `i18n-datetime-picker`,
+`MediaMentionsSection` - wartość pola daty). `check:rpc-contract` zgłasza
+`event_speaker_detail`, zdefiniowane tylko w migracji Drizzle 0150, a
+`check:module-singletons` - duplikat w `bun.lock`. Przyczyny leżą poza tą
+zmianą (trasa `admin.billing-audit` zmieniła się tylko w kafelkach sum - te
+same 4 testy padają na wersji sprzed zmiany: tytuł z `adminPageHead`, przełącznik
+`AdminSelect` i limit czasu panelu zdrowia).
