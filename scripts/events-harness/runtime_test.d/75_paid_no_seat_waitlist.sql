@@ -287,16 +287,26 @@ END $$;
 DO $$
 DECLARE v jsonb; v_ns public.event_registrations;
 BEGIN
-  -- Przyjete przed wplata (organizator) - bez kontroli miejsc, kod powstaje,
-  -- slad decyzji organizatora zostaje. Zamowienie wskazuje PELNY bilet q1:
-  -- przyjete zgloszenie NIE zmienia biletu (inaczej CHECK puli wywrocilby ksiegowanie).
+  -- Zamowienie wskazuje INNY (pelny) bilet niz zgloszenie: od 20261012090100
+  -- (TIX-01) to odmowa `ticket_mismatch` ze zwrotem w kolejce - kasa nigdy nie
+  -- sklada takiego zamowienia, a zgloszenie zostaje nietkniete.
   v := public.payments_apply_event_ticket_outcome(
     pg_temp.os_order('ok_a', 15, 'f5200000-0000-0000-0000-000000000001'), 'paid');
-  PERFORM pg_temp.assert(v->>'registration_status' = 'approved'
-    AND (SELECT qr_token_hash IS NOT NULL AND decision_source = 'organizer'
+  PERFORM pg_temp.assert(v->>'reason' = 'ticket_mismatch' AND (v->>'refused')::boolean
+    AND (v->>'refund_queued')::boolean
+    AND (SELECT status = 'approved' AND payment_status = 'unpaid' AND qr_token_hash IS NULL
                 AND ticket_type_id = 'f5200000-0000-0000-0000-000000000006'
          FROM pg_temp.osr('ok_a')),
-    '75/bez zmian: przyjete zostaje przyjete, z kodem, na SWOIM bilecie mimo innego w zamowieniu');
+    '75/bez zmian: zamowienie na INNY bilet - odmowa, zgloszenie przyjete nietkniete, zwrot w kolejce');
+  -- Przyjete przed wplata (organizator) - bez kontroli miejsc, kod powstaje,
+  -- slad decyzji organizatora zostaje.
+  v := public.payments_apply_event_ticket_outcome(pg_temp.os_order('ok_a', 41), 'paid');
+  PERFORM pg_temp.assert(v->>'registration_status' = 'approved'
+    AND (SELECT qr_token_hash IS NOT NULL AND decision_source = 'organizer'
+                AND payment_status = 'paid'
+                AND ticket_type_id = 'f5200000-0000-0000-0000-000000000006'
+         FROM pg_temp.osr('ok_a')),
+    '75/bez zmian: przyjete zostaje przyjete, z kodem, na SWOIM bilecie');
   -- Nieobecny: status i kod zostaja.
   UPDATE public.event_registrations SET qr_token_hash = encode(digest('ns', 'sha256'), 'hex'),
     qr_issued_at = now() WHERE id = (pg_temp.osr('ns')).id;
@@ -309,8 +319,13 @@ BEGIN
   v := public.payments_apply_event_ticket_outcome(pg_temp.os_order('cx', 17), 'paid');
   PERFORM pg_temp.assert(v->>'registration_status' = 'cancelled'
     AND (SELECT qr_token_hash IS NULL AND cancelled_at IS NOT NULL AND payment_status = 'paid'
-         FROM pg_temp.osr('cx')),
-    '75/bez zmian: odwolane zostaje odwolane, bez kodu - wplata do zwrotu');
+         FROM pg_temp.osr('cx'))
+    -- TIX-05: „do zwrotu" znaczy zadanie zwrotu w kolejce, nie sam status.
+    AND (v->>'refund_queued')::boolean
+    AND EXISTS (SELECT 1 FROM public.event_registration_refund_jobs j
+                WHERE j.payment_order_id = 'f5600000-0000-0000-0000-000000000017'
+                  AND j.registration_id = (pg_temp.osr('cx')).id),
+    '75/bez zmian: odwolane zostaje odwolane, bez kodu - wplata w kolejce zwrotow');
 END $$;
 
 -- ---------------------------------------------------------------------------
@@ -319,11 +334,16 @@ END $$;
 DO $$
 DECLARE v jsonb;
 BEGIN
+  -- Do 20261012090100 zamowienie na INNY bilet przenosilo czekajace zgloszenie
+  -- na bilet z zamowienia - taniej sciezki nikt nie musial nawet wyceniac.
+  -- Teraz (TIX-01) to odmowa ze zwrotem; zgloszenie zostaje przy swoim bilecie.
   v := public.payments_apply_event_ticket_outcome(
     pg_temp.os_order('x_q', 18, 'f5200000-0000-0000-0000-000000000006'), 'paid');
-  PERFORM pg_temp.assert(v->>'registration_status' = 'approved'
-    AND (pg_temp.osr('x_q')).ticket_type_id = 'f5200000-0000-0000-0000-000000000006',
-    '75/bilet: miejsce liczone wg biletu z zamowienia (bez puli) - przyjete mimo pelnej puli q1');
+  PERFORM pg_temp.assert(v->>'reason' = 'ticket_mismatch' AND (v->>'refused')::boolean
+    AND (SELECT status = 'pending' AND payment_status = 'unpaid'
+                AND ticket_type_id = 'f5200000-0000-0000-0000-000000000001'
+         FROM pg_temp.osr('x_q')),
+    '75/bilet: zamowienie na inny bilet niz zgloszenie - odmowa, zgloszenie przy SWOIM bilecie');
 END $$;
 
 -- ---------------------------------------------------------------------------

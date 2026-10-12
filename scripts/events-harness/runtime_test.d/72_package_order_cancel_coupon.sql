@@ -112,6 +112,11 @@ VALUES
    '72e00000-0000-0000-0000-0000000000a1', '72700000-0000-0000-0000-0000000000a1',
    'firmowy_2', 'Pakiet firmowy 2', 'Corporate 2', 'company', 2, 100000, 'PLN', NULL);
 
+-- Ten plik sprawdza oddawanie uzycia kodu, nie limit otwartych zamowien
+-- (20261012090000, TIX-07) - kupujacy sklada tu wiele zamowien.
+UPDATE public.event_ticket_packages SET max_open_orders_per_buyer = NULL
+WHERE id = '72900000-0000-0000-0000-0000000000a2';
+
 -- Kazdy kod ma JEDNA role w pliku, zeby liczniki nie mieszaly sie miedzy
 -- sekcjami. Wszystkie kwotowe -50 zl na to samo wydarzenie.
 INSERT INTO public.b2b_coupons

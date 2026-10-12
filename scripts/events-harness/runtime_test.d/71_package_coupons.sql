@@ -129,6 +129,12 @@ VALUES
    '71e00000-0000-0000-0000-0000000000a1', '71700000-0000-0000-0000-0000000000a7',
    'za_duzy', 'Pakiet za duzy', 'Too big', 'company', 5, 200000, 'PLN', NULL, 0);
 
+-- Ten plik sprawdza KODY, nie limit otwartych zamowien (20261012090000, TIX-07):
+-- jeden kupujacy sklada tu kilkanascie zamowien na to samo wydarzenie.
+UPDATE public.event_ticket_packages SET max_open_orders_per_buyer = NULL
+WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
+  AND event_id = '71e00000-0000-0000-0000-0000000000a1';
+
 INSERT INTO public.b2b_coupons
   (id, tenant_id, code, discount_kind, discount_percent, discount_cents, currency,
    event_ids, ticket_type_ids, max_redemptions, max_redemptions_per_user,
@@ -181,9 +187,11 @@ VALUES
   ('71c00000-0000-0000-0000-00000000000c', '11111111-1111-1111-1111-111111111111',
    'PAK-PRZYSZLY', 'fixed', 5000, 'PLN', ARRAY['71e00000-0000-0000-0000-0000000000a1']::uuid[],
    ARRAY[]::uuid[], ARRAY[]::uuid[], true, now() + interval '1 day', NULL),
+  -- Koniec waznosci SEKUNDE temu. Granica jest domknieta (20261012090000,
+  -- TIX-13b): kod z `valid_until = now()` jeszcze dziala - jak w kasie biletu.
   ('71c00000-0000-0000-0000-00000000000d', '11111111-1111-1111-1111-111111111111',
    'PAK-PRZETERM', 'fixed', 5000, 'PLN', ARRAY['71e00000-0000-0000-0000-0000000000a1']::uuid[],
-   ARRAY[]::uuid[], ARRAY[]::uuid[], true, NULL, now()),
+   ARRAY[]::uuid[], ARRAY[]::uuid[], true, NULL, now() - interval '1 second'),
   ('71c00000-0000-0000-0000-00000000000e', '11111111-1111-1111-1111-111111111111',
    'PAK-INNE-WYD', 'fixed', 5000, 'PLN', ARRAY['71e00000-0000-0000-0000-0000000000ff']::uuid[],
    ARRAY[]::uuid[], ARRAY[]::uuid[], true, NULL, NULL),
@@ -466,7 +474,9 @@ BEGIN
   ELSIF NEW.coupon_id = '71c00000-0000-0000-0000-000000000012' THEN
     UPDATE public.b2b_coupons SET active = false WHERE id = NEW.coupon_id;
   ELSIF NEW.coupon_id = '71c00000-0000-0000-0000-000000000013' THEN
-    UPDATE public.b2b_coupons SET valid_until = now() WHERE id = NEW.coupon_id;
+    -- Sekunde przed `now()`: granica okna jest domknieta (TIX-13b), a `now()`
+    -- stoi w miejscu przez cala transakcje.
+    UPDATE public.b2b_coupons SET valid_until = now() - interval '1 second' WHERE id = NEW.coupon_id;
   ELSIF NEW.coupon_id = '71c00000-0000-0000-0000-000000000014' THEN
     UPDATE public.b2b_coupons SET valid_from = now() + interval '1 day'
     WHERE id = NEW.coupon_id;
