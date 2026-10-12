@@ -25663,6 +25663,8 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: {
           avatar_url: string
+          bio_en: string
+          bio_pl: string
           card_cta_color: string
           card_cta_label_en: string
           card_cta_label_pl: string
@@ -25677,10 +25679,16 @@ export type Database = {
           is_legacy: boolean
           is_public: boolean
           job_title: string
+          languages: string[]
           person_id: string
+          rating: number
+          reviews_count: number
           sessions: Json
           sort_order: number
           speaker_profile_id: string
+          talks_count: number
+          topics_en: string[]
+          topics_pl: string[]
           tracks: Json
           user_id: string
         }[]
