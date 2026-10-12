@@ -174,7 +174,7 @@ export function EventTicketPurchase({
       // Kod 100%: zamówienie za zero rozliczył już serwer - bez operatora
       // i bez symulatora płatności.
       if (res.mode === "free") {
-        void navigate({ to: "/checkout/success", search: { order: res.orderId } });
+        void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: undefined } });
         return;
       }
       void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });

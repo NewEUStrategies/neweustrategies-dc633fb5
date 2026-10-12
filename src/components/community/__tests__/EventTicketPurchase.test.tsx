@@ -441,7 +441,7 @@ describe("adres kasy pochodzi z odpowiedzi serwera", () => {
     await waitFor(() =>
       expect(h.navigate).toHaveBeenCalledWith({
         to: "/checkout/success",
-        search: { order: EVENT_IDS.order },
+        search: { order: EVENT_IDS.order, mock: undefined },
       }),
     );
     expect(screen.queryByTestId("checkout-dialog")).toBeNull();
