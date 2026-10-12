@@ -37,7 +37,22 @@
 // KONTROLKA POCHODZI Z REGUŁY, NIE Z `if`-ów. `agendaSignupControl` decyduje,
 // czy przycisk jest, co na nim pisze i jak wygląda - ten sam rachunek obsługuje
 // „moją agendę", więc obie powierzchnie nie mogą się rozjechać.
-import { useId, useRef, useState } from "react";
+//
+// OSOBA I PARTNER OTWIERAJĄ OKNO - TYLKO NA ZAKŁADCE „AGENDA". Pod dostawcą
+// okien (`EventDirectoryProvider`) wiersz prelegenta otwiera jego profil
+// (biogram, instytucja, wszystkie jego sesje), a znaczek partnera - okno
+// instytucji. Przycisk obejmuje nazwisko, a jego `::after` rozciąga się na cały
+// wiersz (wzorzec „rozciągniętego przycisku"): rola, organizacja i ścieżki
+// zostają zwykłym tekstem, więc czytnik ekranu dalej je czyta, a w przycisku nie
+// ma zagnieżdżonych elementów interaktywnych. Bez dostawcy (strona główna)
+// wyzwalacz jest zwykłym tekstem o tym samym wyglądzie - bez kursora i bez
+// reakcji na najechanie, bo przycisk, który niczego nie otwiera, byłby atrapą.
+//
+// KARTA JEST `memo`. Wpisanie litery w wyszukiwarkę albo zapis na JEDNĄ sesję
+// przerysowywały wcześniej każdy blok dnia (kilkanaście formatowań `Intl` na
+// blok). Rodzic podaje stabilne uchwyty i `pending` jako wartość logiczną, więc
+// blok rysuje się ponownie tylko wtedy, gdy zmieniło się coś, co w nim widać.
+import { memo, useId, useRef, useState } from "react";
 import { ChevronDown, Clock, DoorOpen, Landmark, Loader2, Radio, Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -63,6 +78,12 @@ import {
 } from "@/lib/events/agendaSurface";
 import { hasNamedSpeakerTrack, type SpeakerTrack } from "@/lib/events/speakerCard";
 import { SessionStateBadge } from "@/components/events/public/atoms/SessionStateBadge";
+import {
+  DirectoryCompanyTrigger,
+  DirectoryPersonTrigger,
+  useEventDirectory,
+} from "@/components/events/public/directory/EventDirectoryContext";
+import { directoryOrgKey } from "@/lib/events/eventDirectory";
 import { SpeakerAvatar } from "@/components/events/SpeakerAvatar";
 import { SpeakerTrackChips } from "@/components/events/SpeakerTrackChips";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
@@ -94,17 +115,34 @@ function sponsorRoleKey(role: string | null): string | null {
   return null;
 }
 
+/**
+ * Reakcja na najechanie - wyłącznie pod dostawcą okien. Zdjęcie przybliża się
+ * o 3 % krzywą „ease-out-expo" (ten sam ruch, co portrety na zakładce
+ * prelegentów), nazwisko dostaje cienkie podkreślenie w przygaszonym kolorze
+ * akcji (marka tylko tam, gdzie coś można kliknąć); nic nie skacze ani nie
+ * zmienia koloru tła, a `prefers-reduced-motion` zostawia samą linię.
+ * Wyłącznie klasy, które arkusz już ma - budżet CSS nie ma zapasu.
+ */
+const AVATAR_HOVER_CLASS =
+  "transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03] motion-reduce:transition-none";
+const NAME_HOVER_CLASS = "underline-offset-4 decoration-primary/40 group-hover:underline";
+/** Rozciągnięty przycisk: `::after` liczony od najbliższego `relative` (wiersz, znaczek). */
+const STRETCHED_CLASS = "rounded-[4px] after:absolute after:inset-0";
+
 function AgendaSpeakerRow({
   speaker,
   lang,
   tracks,
   showTracks,
+  interactive,
 }: {
   speaker: AgendaSpeaker;
   lang: UiLang;
   tracks: readonly SpeakerTrack[];
   /** Ścieżki stają przy nazwisku dopiero po rozwinięciu szczegółów sesji. */
   showTracks: boolean;
+  /** Pod dostawcą okien wiersz otwiera profil osoby. */
+  interactive: boolean;
 }) {
   const { t } = useTranslation();
   const headline = pickLocalized(
@@ -113,13 +151,30 @@ function AgendaSpeakerRow({
     lang,
   );
   return (
-    <li className="flex min-w-0 items-start gap-2.5">
-      <SpeakerAvatar name={speaker.displayName} photoUrl={speaker.avatarUrl} size="md" />
+    <li className={cn("flex min-w-0 items-start gap-2.5", interactive && "group relative")}>
+      <SpeakerAvatar
+        name={speaker.displayName}
+        photoUrl={speaker.avatarUrl}
+        size="md"
+        className={interactive ? AVATAR_HOVER_CLASS : undefined}
+      />
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="truncate text-sm font-semibold leading-tight text-foreground">
+          {/* Klucz osoby to SUROWY identyfikator z obsady (konto albo kartoteka
+              osoby bez konta) - katalog rozwiązuje go przez aliasy także wtedy,
+              gdy wiersz listy prelegentów nadał tej osobie inny klucz. */}
+          <DirectoryPersonTrigger
+            personKey={speaker.userId}
+            label={t("eventFront.directory.openPerson", { name: speaker.displayName })}
+            // Rozciągnięty przycisk przykrywa `title` uciętej organizacji niżej.
+            title={headline === "" ? speaker.displayName : `${speaker.displayName} · ${headline}`}
+            className={cn(
+              "truncate text-sm font-semibold leading-tight text-foreground",
+              interactive && cn(STRETCHED_CLASS, NAME_HOVER_CLASS),
+            )}
+          >
             {speaker.displayName}
-          </span>
+          </DirectoryPersonTrigger>
           <span className="rounded-[4px] border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
             {t(speakerRoleLabelKey(speaker.role))}
           </span>
@@ -160,17 +215,30 @@ function AgendaSponsorBadge({
   logoUrl,
   roleLabel,
   placement,
+  interactive,
 }: {
   sponsorId: string;
   name: string;
   logoUrl: string | null;
   roleLabel: string;
   placement: "agenda_session" | "agenda_track";
+  /** Pod dostawcą okien znaczek otwiera okno instytucji. */
+  interactive: boolean;
 }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement | null>(null);
+  // Pomiar wyświetlenia zostaje na OBUDOWIE: otwarcie okna nie jest kliknięciem
+  // w partnera (agenda przyjmuje w raporcie wyłącznie `view`), a obudowa jest
+  // tym, co uczestnik widzi - także wtedy, gdy przycisku nie ma.
   useSponsorImpression(ref, { sponsorId, placement });
   return (
-    <div ref={ref} className="rounded-[6px] border border-border bg-muted/30 p-3">
+    <div
+      ref={ref}
+      className={cn(
+        "rounded-[6px] border border-border bg-muted/30 p-3",
+        interactive && "group relative transition-colors duration-300 hover:border-foreground/25",
+      )}
+    >
       <p className="text-[10px] font-semibold uppercase text-muted-foreground">{roleLabel}</p>
       <div className="mt-2 flex items-center gap-2">
         {logoUrl !== null && (
@@ -181,13 +249,29 @@ function AgendaSponsorBadge({
             className="h-8 w-12 rounded-[4px] object-contain"
           />
         )}
-        <p className="min-w-0 truncate text-sm font-semibold text-foreground" title={name}>
-          {name}
-        </p>
+        <DirectoryCompanyTrigger
+          orgKey={directoryOrgKey(name)}
+          name={name}
+          logoUrl={logoUrl}
+          label={t("eventFront.directory.openCompany", { name })}
+          title={name}
+          className={cn(
+            "min-w-0 truncate text-sm font-semibold text-foreground",
+            interactive && cn(STRETCHED_CLASS, NAME_HOVER_CLASS),
+          )}
+        >
+          {/* Ucięta nazwa zostaje w `title` - wąska kolumna znaczka tnie długie
+              nazwy instytucji wielokropkiem. Pod dostawcą okien niesie ją sam
+              przycisk (podpowiedź dziecka spod warstwy przycisku nie wyskoczy). */}
+          <span title={name}>{name}</span>
+        </DirectoryCompanyTrigger>
       </div>
     </div>
   );
 }
+
+/** Wspólna pusta lista - osoba bez ścieżek nie dostaje nowej tablicy na render. */
+const NO_TRACKS: readonly SpeakerTrack[] = [];
 
 /** Ścieżka samej sesji - gdy program nie podał indeksu całej agendy. */
 function ownTrack(session: AgendaSession): SpeakerTrack[] {
@@ -204,7 +288,7 @@ function ownTrack(session: AgendaSession): SpeakerTrack[] {
   ];
 }
 
-export function AgendaSessionCard({
+export const AgendaSessionCard = memo(function AgendaSessionCard({
   session,
   pending,
   signedIn,
@@ -225,6 +309,7 @@ export function AgendaSessionCard({
 }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
+  const interactive = useEventDirectory() !== null;
   const [open, setOpen] = useState(false);
   // `useId` jest stabilny między serwerem a klientem, więc wskazanie regionu
   // opisu nie rozjeżdża hydratacji.
@@ -249,14 +334,18 @@ export function AgendaSessionCard({
           lang,
         );
 
+  // Godziny formatujemy RAZ: ta sama godzina stoi w kolumnie akcentu i w
+  // przedziale pod tytułem, a każde wywołanie to osobne formatowanie `Intl`.
+  const startTime = formatEventTime(session.startsAt, session.timezone, lang);
+  const endTime = formatEventTime(session.endsAt, session.timezone, lang);
   const endsSameDay =
     eventDayKey(session.startsAt, session.timezone) ===
     eventDayKey(session.endsAt, session.timezone);
   const timeRange = t("eventFront.agenda.timeRange", {
     date: formatEventDate(session.startsAt, session.timezone, lang),
-    start: formatEventTime(session.startsAt, session.timezone, lang),
+    start: startTime,
     end: endsSameDay
-      ? formatEventTime(session.endsAt, session.timezone, lang)
+      ? endTime
       : formatEventDateTime(session.endsAt, session.timezone, lang, {
           dateStyle: "medium",
           timeStyle: "short",
@@ -267,19 +356,23 @@ export function AgendaSessionCard({
   const control = agendaSignupControl(session);
   const seatsLeft = agendaSeatsLeft(session);
   const cancelled = session.status === "cancelled";
-  const speakers = session.speakers.filter((speaker) => speaker.displayName !== "");
   // Z indeksem programu prawdą jest indeks: osoba, której w nim nie ma,
   // występuje wyłącznie w sesjach odwołanych albo bez ścieżki - i ścieżki nie
-  // dostaje. Własna ścieżka sesji to zapas TYLKO dla karty bez indeksu.
-  const speakerTracksFor = (userId: string): readonly SpeakerTrack[] =>
-    speakerTracks === undefined ? ownTrack(session) : (speakerTracks.get(userId) ?? []);
+  // dostaje. Własna ścieżka sesji to zapas TYLKO dla karty bez indeksu -
+  // liczona raz na blok, a ścieżki każdej osoby raz na wiersz (wcześniej
+  // dwukrotnie: dla przełącznika i dla wiersza).
+  const fallbackTracks = speakerTracks === undefined ? ownTrack(session) : null;
+  const speakerRows = session.speakers
+    .filter((speaker) => speaker.displayName !== "")
+    .map((speaker) => ({
+      speaker,
+      tracks: fallbackTracks ?? speakerTracks?.get(speaker.userId) ?? NO_TRACKS,
+    }));
   // Obsada jest widoczna zawsze - rozwinięcie dokłada przy nazwiskach tylko
   // ŚCIEŻKI. „Pokaż szczegóły" ma więc co pokazać, gdy sesja ma opis albo
   // choć jeden prelegent ma nazwaną ścieżkę; inaczej przycisk przełączałby
   // stan bez żadnej zmiany na ekranie (program bez ścieżek, sesja plenarna).
-  const speakersWithTracks = speakers.some((speaker) =>
-    hasNamedSpeakerTrack(speakerTracksFor(speaker.userId), lang),
-  );
+  const speakersWithTracks = speakerRows.some((row) => hasNamedSpeakerTrack(row.tracks, lang));
   const hasDetails = description !== "" || speakersWithTracks;
   const detailsControls = [
     description !== "" ? detailsId : "",
@@ -305,17 +398,19 @@ export function AgendaSessionCard({
           className="space-y-1 border-l-[3px] pl-3"
           style={{ borderLeftColor: accent ?? "transparent" }}
         >
+          {/* Cyfry o stałej szerokości: godziny kolejnych bloków stoją w jednej
+              kolumnie, a „11:10" nie jest węższe od „10:00". */}
           <time
             dateTime={session.startsAt}
-            className="block font-display text-xl font-semibold text-foreground"
+            className="block font-display text-xl font-semibold tabular-nums text-foreground"
           >
-            {formatEventTime(session.startsAt, session.timezone, lang)}
+            {startTime}
           </time>
           <time
             dateTime={session.endsAt}
-            className="block text-xs font-medium text-muted-foreground"
+            className="block text-xs font-medium tabular-nums text-muted-foreground"
           >
-            {formatEventTime(session.endsAt, session.timezone, lang)}
+            {endTime}
           </time>
           {trackName !== "" && (
             <p className="pt-2 text-xs font-semibold uppercase text-muted-foreground">
@@ -327,7 +422,14 @@ export function AgendaSessionCard({
         <div className="min-w-0 space-y-4">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_12rem]">
             <div className="min-w-0 space-y-2">
-              <h3 className="font-display text-xl font-semibold leading-snug text-foreground md:text-2xl">
+              {/* Nagłówek przyjmuje fokus (programowo, poza kolejnością Tab)
+                  tylko pod dostawcą okien: klik w sesję w oknie profilu
+                  odsłania ten blok i przenosi tu fokus, żeby czytnik ogłosił
+                  tytuł, a Tab szedł dalej od tej sesji. */}
+              <h3
+                tabIndex={interactive ? -1 : undefined}
+                className="font-display text-xl font-semibold leading-snug text-foreground outline-none md:text-2xl"
+              >
                 {title}
               </h3>
 
@@ -356,13 +458,14 @@ export function AgendaSessionCard({
                   sponsorRole === null ? t("eventFront.agenda.sponsorLabel") : t(sponsorRole)
                 }
                 placement={session.sponsor ? "agenda_session" : "agenda_track"}
+                interactive={interactive}
               />
             )}
           </div>
 
           <div
             className={cn(
-              speakers.length > 0 &&
+              speakerRows.length > 0 &&
                 "grid gap-x-8 gap-y-4 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]",
             )}
           >
@@ -451,7 +554,7 @@ export function AgendaSessionCard({
               </div>
             </div>
 
-            {speakers.length > 0 && (
+            {speakerRows.length > 0 && (
               // DWIE KOLUMNY TYLKO WTEDY, GDY LISTA STOI POD PRZYCISKAMI. Od
               // `lg` lista siedzi obok kolumny stanu (15 rem) w tresci ograniczonej
               // do `max-w-5xl`, wiec ma ~290 px - dwie kolumny po ~140 px ucinaly
@@ -462,13 +565,14 @@ export function AgendaSessionCard({
                 aria-label={t("eventFront.agenda.speakersLabel")}
                 className="grid min-w-0 grid-cols-1 content-start gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-1"
               >
-                {speakers.map((speaker) => (
+                {speakerRows.map(({ speaker, tracks }) => (
                   <AgendaSpeakerRow
                     key={speaker.userId}
                     speaker={speaker}
                     lang={lang}
-                    tracks={speakerTracksFor(speaker.userId)}
+                    tracks={tracks}
                     showTracks={open}
+                    interactive={interactive}
                   />
                 ))}
               </ul>
@@ -488,4 +592,4 @@ export function AgendaSessionCard({
       </div>
     </article>
   );
-}
+});

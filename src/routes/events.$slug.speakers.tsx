@@ -1,35 +1,26 @@
 // Zakładka PRELEGENCI wydarzenia: `/events/$slug/speakers`.
 //
-// WZORZEC: docs/zrzuty/swapcard-2026-08-23/39-preview-speakers-grid.png -
-// siatka kart po cztery w wierszu, kwadratowe zdjęcie, pod nim wyśrodkowane
-// nazwisko, rola i organizacja. Rysuje ją `EventSpeakersGrid`.
+// WZORZEC: portretowy katalog prelegentów (kadr 4:5, pod nim nazwisko,
+// stanowisko i instytucja). Rysuje go `EventSpeakersGrid`.
 //
-// KLIK W KARTĘ OTWIERA DIALOG, NIE OSOBNĄ STRONĘ - decyzja właściciela. Dialog
-// nie powstaje tutaj drugi raz: `SpeakerProfileDialog` istnieje i jest tym
-// samym, który otwiera sekcja prelegentów na przeglądzie i widget `speakers`.
-// Drugi dialog profilu znaczyłby dwa rysunki jednego profilu i dwie chwile,
-// w których się rozjeżdżają.
+// KLIK W KARTĘ OTWIERA OKNO, NIE OSOBNĄ STRONĘ - decyzja właściciela. Okno nie
+// powstaje tutaj: `slug` przekazany siatce włącza w niej okna katalogu
+// wydarzenia (osoba -> jej instytucja -> inne osoby z tej instytucji), te same,
+// co na zakładkach Uczestnicy, Partnerzy, Agenda i Dyskusje. Trasa trzymała
+// wcześniej własny stan dialogu - drugi rysunek profilu, który nie znał sesji
+// osoby z programu ani okna instytucji.
 //
 // SIATKA CHCE `eventId`, A TRASA MA `slug`. Identyfikator bierzemy z tej samej
 // migawki wydarzenia, co powłoka (`publicEventBySlugQueryOptions`), więc to nie
 // jest drugie zapytanie - react-query oddaje wynik z cache, rozgrzany przez
 // loader powłoki jeszcze przed renderem SSR.
-import { useState } from "react";
 import { createFileRoute, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
 
 import { publicEventBySlugQueryOptions } from "@/lib/community/publicQueries";
-import { uiLang } from "@/lib/i18n/format";
 import { EVENT_PORTAL_CONTENT_WIDE_CLASS } from "@/components/events/public/atoms/EventPortalContent";
 import { EventModulePage } from "@/components/events/public/molecules/EventModulePage";
 import { EventSpeakersGrid } from "@/components/events/public/organisms/EventSpeakersGrid";
-import {
-  SpeakerProfileDialog,
-  type SpeakerDialogFallback,
-} from "@/components/events/SpeakerProfileDialog";
-import { pickLocalized } from "@/lib/i18n/pickLocalized";
-import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { buildEventTabHead } from "@/lib/events/eventTabHead";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -57,28 +48,11 @@ export const Route = createFileRoute("/events/$slug/speakers")({
 
 function EventSpeakersTab() {
   const { slug } = useParams({ from: "/events/$slug/speakers" });
-  const { i18n } = useTranslation();
-  const lang = uiLang(i18n.language);
   // TA SAMA FABRYKA, CO W POWŁOCE - jedno źródło klucza. Loader powłoki grzeje
   // ten klucz, więc `eventId` jest znany już w SSR (wcześniej siatka dostawała
   // pusty string i jej własne zapytanie było na serwerze trwale wyłączone).
   const eventQ = useQuery(publicEventBySlugQueryOptions(slug));
   const eventId = eventQ.data?.id ?? "";
-
-  // Dane awaryjne dialogu bierzemy z wiersza, w który uczestnik kliknął -
-  // dzięki temu okno ma nazwisko i zdjęcie od pierwszej klatki, jeszcze zanim
-  // dojedzie pełny profil.
-  //
-  // CAŁY WIERSZ, NIE TYLKO `userId`. Dla prelegenta BEZ KONTA `user_id` jest
-  // pusty, więc dialog nie ma czym zapytać bazy - jego biogram, tematy, języki
-  // i statystyki przyszły W TYM WIERSZU z `event_speakers_public` i tylko tędy
-  // mogą wejść do okna. Osoba z kontem dostaje jedno i drugie: wiersz od razu,
-  // dociągnięty profil chwilę później (pierwszeństwo rozstrzyga dialog).
-  const [selected, setSelected] = useState<{
-    userId: string;
-    row: PublicSpeakerRow;
-    fallback: SpeakerDialogFallback;
-  } | null>(null);
 
   return (
     <EventModulePage
@@ -86,36 +60,7 @@ function EventSpeakersTab() {
       module="speakers"
       contentClassName={EVENT_PORTAL_CONTENT_WIDE_CLASS}
     >
-      <EventSpeakersGrid
-        eventId={eventId}
-        onSelect={(speaker) =>
-          setSelected({
-            userId: speaker.user_id,
-            row: speaker,
-            fallback: {
-              name: speaker.display_name ?? "",
-              // Ta sama kolejność, co w karcie siatki: `headline` w języku
-              // interfejsu, a w jego braku stanowisko z profilu - inaczej ta
-              // sama osoba byłaby „Prezesem” na karcie i bez roli w oknie.
-              role: pickLocalized(speaker, "headline", lang, speaker.job_title ?? ""),
-              photo: speaker.avatar_url ?? undefined,
-            },
-          })
-        }
-      />
-      {selected !== null && (
-        <SpeakerProfileDialog
-          userId={selected.userId}
-          row={selected.row}
-          eventId={eventId}
-          lang={lang}
-          open
-          onOpenChange={(open) => {
-            if (!open) setSelected(null);
-          }}
-          fallback={selected.fallback}
-        />
-      )}
+      <EventSpeakersGrid eventId={eventId} slug={slug} />
     </EventModulePage>
   );
 }

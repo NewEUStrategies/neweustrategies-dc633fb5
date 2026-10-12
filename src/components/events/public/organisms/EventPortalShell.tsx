@@ -70,17 +70,110 @@
 // tekstem) zostaje po stronie redaktora ŚWIADOMIE: od tej zmiany podgląd studia
 // rysuje ten sam obraz w tym samym miejscu, więc redaktor widzi skutek przed
 // publikacją - a to jest dokładnie ta pętla, której brakowało przy kolorze tła.
-import type { CSSProperties, ReactNode } from "react";
+//
+// ── PASEK ZAKŁADEK JEST PRZYKLEJONY (`stickyTabs`) - DECYZJA WŁAŚCICIELA ──────
+// Zakładki (strona główna, prelegenci, agenda, profil…) mają być widoczne
+// CAŁY CZAS, także w połowie długiej listy uczestników. Przykleja się RAMKA
+// slotu, nie sam `<nav>`: `position: sticky` trzyma element w granicach
+// rodzica, a rodzicem paska jest ta ramka - dokładnie tak wysoka jak pasek,
+// więc przyklejony `<nav>` nie miałby gdzie jechać. Ramką jest dziecko TEJ
+// powłoki, która obejmuje całą treść zakładki.
+//
+// GDZIE STAJE PASEK - Z POMIARU NAGŁÓWKA, NIE ZE ZMIENNEJ GLOBALNEJ.
+// `--sticky-header-h` publikuje nagłówek leniwie (pierwszy gest albo cisza,
+// potem dopiero po ustaniu zwijania), a na komputerze arkusz nie ma dla niej
+// wartości domyślnej - pasek stawał pod nagłówkiem (z-40), a przy zwijaniu
+// zostawiał na ~0,6 s szczelinę wysokości paska „na czasie". Hook niżej
+// czyta wysokość nagłówka przy każdej jej zmianie (ResizeObserver, także
+// klatka po klatce w trakcie zwijania) i pisze ją WYŁĄCZNIE w styl ramki
+// paska - zapis nie dotyka `:root` ani reszty drzewa, więc nie przelicza
+// stylów strony. Kopia dla elementów odsuwanych od paska (`--event-header-h`
+// na powłoce: kolumna filtrów agendy, pasek języka profilu) idzie dopiero po
+// ustaniu zmian, z tego samego powodu, dla którego nagłówek czeka z
+// `--sticky-header-h`. Fokus klawiatury odsuwa się od paska przez
+// `html[data-event-tabs-active]` (wzorzec `ReadingHeader`). Matowe tło
+// i wartości zapasowe sprzed hydratacji: `src/styles.css`, blok
+// „ZAKŁADKI MODUŁOWE WYDARZENIA".
+//
+// TYLKO STRONA PUBLICZNA. Kanwa podglądu jest skalowana `transform`-em i żyje
+// w panelu, gdzie `--sticky-header-h` opisuje nagłówek, którego tam nie ma.
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { eventBrandingScopeProps } from "@/lib/events/eventBrandingCss";
 import { EventBrandingStyle } from "@/components/events/public/atoms/EventBrandingStyle";
+
+/** Ile cisza po ostatniej zmianie wysokości nagłówka, zanim kopia trafi na powłokę. */
+const HEADER_SETTLE_MS = 160;
+
+function useStickyTabs(enabled: boolean) {
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const barRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const root = document.documentElement;
+    root.setAttribute("data-event-tabs-active", "");
+    const shell = shellRef.current;
+    const bar = barRef.current;
+    const header = document.querySelector<HTMLElement>("header[data-site-header]");
+    let observer: ResizeObserver | null = null;
+    let settle = 0;
+    if (shell !== null && bar !== null && header !== null) {
+      // Kopia na powłoce dziedziczy się w całe drzewo zakładki, więc każdy
+      // zapis to przeliczenie stylów strony: piszemy tylko zmianę, a w trakcie
+      // ruchu nagłówka co najwyżej raz.
+      let writtenPx = -1;
+      let restMaxPx = 0;
+      let grown = false;
+      const write = (px: number) => {
+        if (px === writtenPx) return;
+        writtenPx = px;
+        shell.style.setProperty("--event-header-h", `${px}px`);
+      };
+      const sync = () => {
+        // Nagłówek nieprzyklejony odjeżdża ze stroną; ukryty ma wysokość 0.
+        const pinned = getComputedStyle(header).position === "sticky";
+        const px = pinned ? header.getBoundingClientRect().height : 0;
+        bar.style.top = `${px}px`;
+        window.clearTimeout(settle);
+        settle = window.setTimeout(() => {
+          grown = false;
+          restMaxPx = Math.max(restMaxPx, px);
+          write(px);
+        }, HEADER_SETTLE_MS);
+        // Nagłówek ROŚNIE (powrót na górę strony): pasek jedzie w dół razem
+        // z nim, więc elementy odsunięte od starej wysokości (pasek języka
+        // profilu, kolumna filtrów agendy) wjechałyby pod niego. Kopia idzie
+        // od razu i od razu docelowa - największa zmierzona wysokość
+        // spoczynkowa - czyli przez chwilę szczelina zamiast przykrycia.
+        if (!grown && writtenPx >= 0 && px > writtenPx) {
+          grown = true;
+          write(Math.max(px, restMaxPx));
+        }
+      };
+      sync();
+      if (typeof ResizeObserver !== "undefined") {
+        observer = new ResizeObserver(sync);
+        observer.observe(header);
+      }
+    }
+    return () => {
+      root.removeAttribute("data-event-tabs-active");
+      observer?.disconnect();
+      window.clearTimeout(settle);
+      bar?.style.removeProperty("top");
+      shell?.style.removeProperty("--event-header-h");
+    };
+  }, [enabled]);
+  return { shellRef, barRef };
+}
 
 export function EventPortalShell({
   branding,
   backSlot,
   titleSlot,
   tabsSlot,
+  stickyTabs = false,
   className,
   style,
   children,
@@ -93,14 +186,18 @@ export function EventPortalShell({
   titleSlot: ReactNode;
   /** Pasek zakładek (`EventTabsNav` na stronie, `EventTabsBar` w podglądzie). */
   tabsSlot: ReactNode;
+  /** Prawda = pasek zakładek przyklejony pod nagłówkiem serwisu (strona publiczna). */
+  stickyTabs?: boolean;
   /** Dodatkowe klasy opakowania - patrz nagłówek (kanwa podglądu). */
   className?: string;
   /** Styl opakowania - szerokość wirtualna kanwy podglądu. */
   style?: CSSProperties;
   children?: ReactNode;
 }) {
+  const { shellRef, barRef } = useStickyTabs(stickyTabs);
   return (
     <div
+      ref={shellRef}
       {...eventBrandingScopeProps}
       style={style}
       className={cn(
@@ -108,6 +205,7 @@ export function EventPortalShell({
         className,
       )}
       data-testid="event-portal-shell"
+      data-event-tabs={stickyTabs ? "sticky" : undefined}
     >
       <EventBrandingStyle branding={branding} />
 
@@ -122,7 +220,9 @@ export function EventPortalShell({
         <p className="mt-4">{titleSlot}</p>
       </div>
 
-      <div className="mt-4">{tabsSlot}</div>
+      <div ref={barRef} className={cn("mt-4", stickyTabs && "event-tabs-sticky")}>
+        {tabsSlot}
+      </div>
 
       {children}
     </div>

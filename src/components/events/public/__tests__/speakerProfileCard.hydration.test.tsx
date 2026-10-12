@@ -9,6 +9,9 @@ import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 
 const { SpeakerProfileCard } =
   await import("@/components/events/public/molecules/SpeakerProfileCard");
+const { EventDirectoryProvider } =
+  await import("@/components/events/public/directory/EventDirectoryContext");
+const { buildEventDirectory } = await import("@/lib/events/eventDirectory");
 
 const PHOTO = "https://proj.supabase.co/storage/v1/object/public/avatars/anna.jpg";
 
@@ -77,6 +80,17 @@ describe("SpeakerProfileCard - SSR i hydratacja", () => {
       speaker={speaker({ avatar_url: null, card_photo_url: null })}
       lang="pl"
     />,
+    // Zakładka publiczna: przyciski okien (osoba, instytucja) z dostawcy -
+    // kontekst jest ten sam na serwerze i w przeglądarce, więc HTML też.
+    <EventDirectoryProvider
+      key="directory"
+      directory={buildEventDirectory({ speakers: [speaker()] }, "pl")}
+      slug="szczyt"
+      eventId="e1"
+      live={false}
+    >
+      <SpeakerProfileCard speaker={speaker()} lang="pl" />
+    </EventDirectoryProvider>,
   ]) {
     it("zachowuje identyczny HTML po hydratacji", async () => {
       const result = await hydrate(view);
@@ -98,7 +112,7 @@ describe("SpeakerProfileCard - SSR i hydratacja", () => {
     try {
       expect(result.serverHtml).toContain("Anna Kowalska");
       expect(result.serverHtml).toContain("width=480");
-      expect(result.serverHtml).toContain("height=480");
+      expect(result.serverHtml).toContain("height=600");
       expect(measure).not.toHaveBeenCalled();
     } finally {
       await act(async () => result.root.unmount());

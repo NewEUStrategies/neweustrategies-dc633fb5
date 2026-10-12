@@ -14,9 +14,11 @@
 // 4. przełącznik wysyła DOKŁADNIE stan docelowy (`true`/`false`), bo RPC
 //    przyjmuje `listed`, a nie „przełącz”,
 // 5. wyłączona widoczność profilu ZABIERA przełącznik i mówi, gdzie ją włączyć
-//    - cichy przełącznik bez efektu byłby gorszy od jego braku.
+//    - cichy przełącznik bez efektu byłby gorszy od jego braku,
+// 6. karta otwiera OKNO profilu osoby, a nazwa firmy - okno instytucji z osobami
+//    z tej firmy; nazwy przycisków niosą nazwisko i nazwę firmy.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type { AttendeeDirectory } from "@/lib/events/publicEventApi";
@@ -42,7 +44,10 @@ vi.mock("@/hooks/useAuth", () => ({ useAuth: () => authState }));
 
 // Trasa profilu członka (`/people/$slug`) jest cudzą powierzchnią - w teście
 // komponentu wystarczy, że odnośnik powstaje z właściwą trasą i slugiem.
+// `useRouter` bez routera to `null`: `AppLink` w oknie profilu rysuje wtedy
+// zwykłe `<a href>` bez przechwytywania nawigacji.
 vi.mock("@tanstack/react-router", () => ({
+  useRouter: () => null,
   Link: ({
     to,
     params,
@@ -67,11 +72,55 @@ vi.mock("@/lib/events/publicEventApi", async () => {
     ...actual,
     fetchEventAttendees: () => fetchAttendees(),
     setEventAttendeeVisibility: (input: { slug: string; listed: boolean }) => setVisibility(input),
+    // Źródła wzbogacające okno (program, partnerzy) budzi pierwszy klik w kartę -
+    // w teście są puste, bo okno uczestnika stoi na wierszu listy.
+    fetchEventAgenda: () => Promise.resolve([]),
+    fetchEventSponsors: () => Promise.resolve([]),
+  };
+});
+
+// Identyfikator wydarzenia dla katalogu okien - bez sieci; `null` wyłącza też
+// zapytanie o prelegentów (czeka na identyfikator).
+vi.mock("@/lib/community/publicQueries", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/community/publicQueries")>(
+    "@/lib/community/publicQueries",
+  );
+  return {
+    ...actual,
+    publicEventBySlugQueryOptions: (slug: string) => ({
+      queryKey: ["public-event", slug],
+      queryFn: () => Promise.resolve(null),
+    }),
   };
 });
 
 const { EventAttendeesList } =
   await import("@/components/events/public/organisms/EventAttendeesList");
+
+type Row = AttendeeDirectory["rows"][number];
+
+function row(over: Partial<Row> & { registrationId: string; name: string }): Row {
+  return {
+    userId: null,
+    jobTitle: null,
+    company: null,
+    avatarUrl: null,
+    profileSlug: null,
+    companyLogoUrl: null,
+    companyWebsite: null,
+    industry: null,
+    specialization: null,
+    seekingPl: null,
+    seekingEn: null,
+    offeringPl: null,
+    offeringEn: null,
+    bioPl: null,
+    bioEn: null,
+    socialLinks: {},
+    groups: [],
+    ...over,
+  };
+}
 
 function directory(over: Partial<AttendeeDirectory> = {}): AttendeeDirectory {
   return {
@@ -155,13 +204,17 @@ describe("EventAttendeesList", () => {
 
     expect(await screen.findByText("Anna Adamska")).toBeInTheDocument();
     expect(screen.getByText("Dyrektorka")).toBeInTheDocument();
+    expect(screen.getByText("Uczestnicy")).toBeInTheDocument();
+    // Karta jest WIZYTÓWKĄ: odnośnik do profilu stoi w oknie, a nie na karcie -
+    // na karcie byłby drugim celem kliku obok przycisku, którym jest cała karta.
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Anna Adamska/ }));
+    const okno = await screen.findByRole("dialog");
     // Uczestnik to CZŁONEK, nie z definicji autor: profil każdej osoby stoi pod
     // `/people/<slug>`, a `/author` jest tylko dla roli/zaproszenia autora
     // (nie-autora odsyła 301 na `/people`, autora `/people` sam linkuje do huba).
-    expect(screen.getByRole("link")).toHaveAttribute(
-      "href",
-      '/people/$slug:{"slug":"anna-adamska"}',
-    );
+    expect(within(okno).getByRole("link")).toHaveAttribute("href", "/people/anna-adamska");
   });
 
   it("Chatham House zabiera siatkę osób i wyszukiwarkę, a zostawia liczbę i grupy", async () => {
@@ -206,5 +259,75 @@ describe("EventAttendeesList", () => {
     // Dwie grupy w odpowiedzi, jedna z zerem - filtry nie pokazują ani jednej,
     // bo po odrzuceniu pustej zostaje jedna, a jedna grupa to nie wybór.
     expect(screen.queryByText("eventFront.attendees.allGroups")).not.toBeInTheDocument();
+  });
+});
+
+describe("EventAttendeesList - okna profilu osoby i instytucji", () => {
+  it("klik w kartę otwiera okno z nazwiskiem, stanowiskiem, firmą i pełnym profilem", async () => {
+    renderList();
+    await screen.findByText("Anna Adamska");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: 'eventFront.directory.openPerson:{"name":"Anna Adamska"}',
+      }),
+    );
+    const okno = await screen.findByRole("dialog");
+
+    expect(within(okno).getByRole("heading", { name: "Anna Adamska" })).toBeInTheDocument();
+    expect(within(okno).getByText("Dyrektorka")).toBeInTheDocument();
+    // Firma w oknie osoby jest przejściem do okna instytucji, nie martwym tekstem.
+    expect(
+      within(okno).getByRole("button", {
+        name: 'eventFront.directory.openCompany:{"name":"Alfa"}',
+      }),
+    ).toBeInTheDocument();
+    const profil = within(okno).getByRole("link", { name: /eventFront\.directory\.fullProfile/ });
+    expect(profil).toHaveAttribute("href", "/people/anna-adamska");
+  });
+
+  it("nazwa firmy otwiera okno instytucji z osobami z tej firmy - i tylko z niej", async () => {
+    fetchAttendees.mockResolvedValue(
+      directory({
+        totalCount: 3,
+        rows: [
+          row({ registrationId: "r1", name: "Anna Adamska", company: "Alfa" }),
+          row({ registrationId: "r2", name: "Bartosz Bielecki", company: "ALFA" }),
+          row({ registrationId: "r3", name: "Celina Czarnecka", company: "Beta" }),
+        ],
+      }),
+    );
+    renderList();
+    await screen.findByText("Anna Adamska");
+
+    // Dwie karty z tą samą firmą (wielkość liter nie odróżnia instytucji) -
+    // klik w pierwszą z nich.
+    const firmy = screen.getAllByRole("button", { name: /eventFront\.directory\.openCompany/ });
+    expect(firmy).toHaveLength(3);
+    fireEvent.click(firmy[0]);
+    const okno = await screen.findByRole("dialog");
+
+    expect(within(okno).getByRole("heading", { name: "Alfa" })).toBeInTheDocument();
+    // Klik w firmę NIE otwiera okna osoby z tej samej karty - przycisk firmy
+    // leży nad przyciskiem karty, a nie w nim.
+    expect(within(okno).queryByRole("heading", { name: "Anna Adamska" })).not.toBeInTheDocument();
+    expect(within(okno).getByRole("button", { name: /Anna Adamska/ })).toBeInTheDocument();
+    expect(within(okno).getByRole("button", { name: /Bartosz Bielecki/ })).toBeInTheDocument();
+    expect(within(okno).queryByText("Celina Czarnecka")).not.toBeInTheDocument();
+  });
+
+  it("nazwy przycisków karty niosą nazwisko i nazwę firmy", async () => {
+    renderList();
+    await screen.findByText("Anna Adamska");
+
+    // Dwadzieścia cztery „Otwórz profil" na stronie to dla czytnika ekranu lista
+    // nierozróżnialnych pozycji.
+    const osoba = screen.getByRole("button", { name: /Anna Adamska/ });
+    expect(osoba).toHaveAttribute("aria-haspopup", "dialog");
+    const firma = screen.getByRole("button", { name: /Alfa/ });
+    expect(firma).toHaveAttribute("aria-haspopup", "dialog");
+    expect(firma).not.toBe(osoba);
+    // Firma nie siedzi w przycisku osoby - zagnieżdżone przyciski to błąd HTML.
+    expect(osoba.contains(firma)).toBe(false);
   });
 });

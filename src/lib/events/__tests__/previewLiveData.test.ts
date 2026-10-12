@@ -1107,6 +1107,16 @@ describe("attendeeEntriesFromRegistrationRows - kto wchodzi do katalogu", () => 
   });
 });
 
+describe("attendeeEntriesFromRegistrationRows - konto osoby", () => {
+  // Katalog okien podglądu skleja zgłoszenie z wierszem prelegenta PO KONCIE -
+  // bez niego prelegent-uczestnik stałby w oknie firmy dwa razy.
+  it("niesie konto osoby jako userId, a brak konta jako null", () => {
+    expect(oneAttendee({ person_user_id: "user-7" }).userId).toBe("user-7");
+    expect(oneAttendee({ person_user_id: null }).userId).toBeNull();
+    expect(oneAttendee({ person_user_id: "" }).userId).toBeNull();
+  });
+});
+
 describe("attendeeEntriesFromRegistrationRows - nazwisko decyduje o wpisie", () => {
   it("sklada imie i nazwisko jedna spacja", () => {
     expect(oneAttendee({ first_name: "Anna", last_name: "Kowalska" }).name).toBe("Anna Kowalska");

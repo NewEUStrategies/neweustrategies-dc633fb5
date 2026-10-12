@@ -9549,6 +9549,185 @@ button,
   }
 }
 
+/* Shared pen-drawn civic horizon: only ink changes with the theme.
+   Dark: warm terracotta #FDB078 on the platform's dark background.
+   Light: dark-gray pencil ink #44403C on the platform's light background. */
+.archive-civic-horizon {
+  --archive-horizon-ink: #44403c;
+  pointer-events: none;
+}
+.dark .archive-civic-horizon {
+  --archive-horizon-ink: #fdb078;
+}
+.light .archive-civic-horizon {
+  --archive-horizon-ink: #44403c;
+}
+.archive-civic-horizon-fade {
+  position: absolute;
+  inset: 8% 2% 4% 32%;
+  mask-image: linear-gradient(to right, transparent, black 28%);
+}
+.archive-civic-horizon-lines {
+  position: absolute;
+  inset: 0;
+  background: var(--archive-horizon-ink);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: right bottom;
+}
+@media (max-width: 640px) {
+  .archive-civic-horizon-fade {
+    left: 18%;
+    mask-image: linear-gradient(to right, transparent, black 55%);
+  }
+}
+
+/* ============================================================
+   ZAKŁADKI MODUŁOWE WYDARZENIA - nagłówek i okno profilu
+   (EventModuleHero, directory/EventDirectoryDialog).
+   ------------------------------------------------------------
+   TYLKO TO, CZEGO NIE DA SIĘ ZŁOŻYĆ Z KLAS JUŻ OBECNYCH W ARKUSZU. Budżet
+   arkuszy (`check:bundle`, css ≤ 98 KB gzip) nie ma zapasu, a warianty
+   narzędzi (`[&_h1]:!…`, `sm:data-[state=open]:…`) niosą każdy własny, długi
+   selektor - te same deklaracje zapisane tutaj kosztują ułamek. Ruch sekcji
+   okna i stany najechania idą klasami `tw-animate-css`/Tailwinda, które
+   arkusz już ma (zero nowych reguł).
+
+   NAGŁÓWEK: dokument CMS-a w nagłówku zakładki. Widget pisze rozmiar w stylu
+   INLINE, arkusz ma niewarstwowe `!important` układu mobilnego
+   (`[data-builder-renderer][data-device="mobile"] …`, 0,3,0) i szablon
+   typografii widgetu (0,3,1, wstrzykiwany PÓŹNIEJ niż ten arkusz). Kontenery
+   to KAŻDY `div` między sekcją a treścią widgetu (także bezatrybutowa ramka,
+   której układ mobilny dokłada 8 px) - 0,4,1; tytuł i wstęp (0,4,1) biją
+   szablon widgetu. Miary = `TITLE_CLASS` w EventModuleHero.
+
+   OKNO: arkusz od dołu na telefonie (klasy narzędzi na samym węźle), kolumna
+   czytania na komputerze (tutaj - niewarstwowa reguła bije warstwowe klasy
+   bez względu na specyficzność). Wejście i wyjście to `animate-in`/
+   `animate-out` z `tw-animate-css` - tu ustawiamy tylko ich zmienne
+   (przesunięcie, skala, krzywa): telefon wsuwa arkusz, komputer podnosi okno
+   o 8 px. */
+[data-event-module-hero]
+  .event-module-hero-doc
+  :is([data-sec-id], [data-sec-id] div:not([data-w-id], [data-w-id] *)) {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
+  gap: 0 !important;
+}
+[data-event-module-hero] .event-module-hero-doc :is([data-col-id], [data-w-id]) {
+  align-items: center !important;
+  text-align: center !important;
+}
+[data-event-module-hero] .event-module-hero-doc [data-builder-renderer] [data-w-id] h1 {
+  margin: 0 !important;
+  font: 600 2rem/1.08 var(--font-display) !important;
+  letter-spacing: -0.02em !important;
+  color: var(--foreground) !important;
+}
+[data-event-module-hero] .event-module-hero-doc [data-builder-renderer] [data-w-id] p {
+  margin: 1rem auto 0 !important;
+  max-width: 62ch !important;
+  font-size: 15px !important;
+  line-height: 1.75rem !important;
+  color: var(--muted-foreground) !important;
+}
+.edd-content {
+  /* `dvh`, nie `vh`: w Safari na iOS `vh` to duży widok (pasek narzędzi
+     schowany), więc arkusz przypięty do dołu wystawałby górą - z uchwytem
+     i przyciskiem zamknięcia - ponad widoczny ekran. */
+  max-height: 92dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+  --tw-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --tw-enter-translate-y: 100%;
+  --tw-exit-translate-y: 100%;
+}
+@media (min-width: 40rem) {
+  [data-event-module-hero] .event-module-hero-doc [data-builder-renderer] [data-w-id] h1 {
+    font-size: 2.25rem !important;
+  }
+  [data-event-module-hero] .event-module-hero-doc [data-builder-renderer] [data-w-id] p {
+    font-size: 1rem !important;
+  }
+  .edd-content {
+    inset: 0;
+    margin: auto;
+    width: min(40rem, calc(100vw - 3rem));
+    height: fit-content;
+    max-height: min(86dvh, 52rem);
+    border-width: 1px;
+    border-radius: 10px;
+    --tw-enter-translate-y: 8px;
+    --tw-exit-translate-y: 4px;
+    --tw-enter-scale: 0.98;
+    --tw-exit-scale: 0.98;
+  }
+}
+/* PASEK ZAKŁADEK PRZYKLEJONY (`EventPortalShell` ze `stickyTabs`): zakładki
+   widoczne cały czas, tuż pod nagłówkiem serwisu. Pozycję pisze hook powłoki
+   z pomiaru nagłówka (styl ramki paska, klatka po klatce); te reguły to
+   wartości sprzed hydratacji i kopie dla elementów odsuwanych od paska.
+   `--sticky-header-h` publikuje nagłówek (`Header.tsx`); nagłówek
+   NIEprzyklejony albo ukryty publikuje 0 dopiero po pierwszym geście, a do
+   tego czasu na telefonie obowiązuje domyślne 123 px z arkusza - dlatego te
+   dwa przypadki zerujemy tutaj, wprost ze znaczników powłoki strony.
+   `--event-chrome-h` = nagłówek + pasek (jeden rząd `py-4` z napisem
+   `text-sm` = 3,25rem, plus obramowanie): od niego odsuwają się kolumna
+   filtrów agendy i pasek języka profilu. Fokus klawiatury odsuwa się od
+   paska przez `scroll-padding-top` korzenia (`data-event-tabs-active` stawia
+   powłoka, jak `ReadingHeader` swoją flagę). Matowe tło zamiast
+   przezroczystego - przyklejony pasek jedzie nad treścią; kolor wydarzenia
+   (`--event-nav`) maluje `<nav>` w środku. */
+[data-event-tabs="sticky"] {
+  --event-chrome-h: calc(var(--event-header-h, var(--sticky-header-h, 0px)) + 3.25rem + 1px);
+}
+header[data-site-header]:not(.sticky) ~ main [data-event-tabs="sticky"],
+[data-chrome-header="hidden"] [data-event-tabs="sticky"] {
+  --sticky-header-h: 0px;
+}
+html[data-event-tabs-active] {
+  scroll-padding-top: calc(
+    max(var(--sticky-header-h, 96px), var(--reading-header-h, 0px)) + 3.25rem + 16px
+  );
+}
+.event-tabs-sticky {
+  position: sticky;
+  top: var(--sticky-header-h, 0px);
+  z-index: 30;
+  background-color: color-mix(in oklab, var(--background) 92%, transparent);
+  /* Samo rozmycie: `saturate` przebarwiało jednolite tło strony pod paskiem
+     i zostawiało widoczny pas także wtedy, gdy pasek stoi w miejscu. */
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+/* Pasek jest jednym rzędem na każdej szerokości (`EventTabsBar`); gdy się
+   nie mieści, gaśnie na krawędziach w strefie paddingu listy - w spoczynku
+   nie dotyka żadnego napisu, po przewinięciu mówi „jest dalej" z obu stron. */
+.event-tabs-sticky ul {
+  mask-image: linear-gradient(90deg, transparent, #000 1rem, #000 calc(100% - 1rem), transparent);
+  /* Pozycja dociągnięta (snap) albo przewinięta do fokusu staje POZA pasem
+     wygaszenia - inaczej obrys fokusu pierwszej zakładki gasłby do połowy. */
+  scroll-padding-inline: 1rem;
+}
+/* Odcinek linii nagłówka „rysuje się" tylko w nagłówku zamontowanym PO
+   otwarciu bramki ruchu (przejście między zakładkami) - zimne wejście maluje
+   go od razu, a otwarcie bramki nad gotowym nagłówkiem go nie powtarza
+   (`EventModuleHero`). */
+.event-module-hero-accent--enter {
+  animation: event-hero-accent 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes event-hero-accent {
+  from {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .edd-content,
+  .event-module-hero-accent--enter {
+    animation: none !important;
+  }
+}
+
 /* ============================================================
    SZABLON TYPOGRAFII WIDGETU (HW-2; Wydajność PSI 85/95, fala 2, P2.4)
    ------------------------------------------------------------
@@ -9698,13 +9877,3 @@ button,
 [data-wt~="g"][data-w-id][data-w-id] a + .cms-post-excerpt {
   margin-top: var(--cms-title-description-gap) !important;
 }
-
-/* Shared pen-drawn civic horizon: only ink changes with the theme.
-   Dark: warm terracotta #FDB078 on the platform's dark background.
-   Light: dark-gray pencil ink #44403C on the platform's light background. */
-.archive-civic-horizon { --archive-horizon-ink: #44403C; pointer-events: none; }
-.dark .archive-civic-horizon { --archive-horizon-ink: #FDB078; }
-.light .archive-civic-horizon { --archive-horizon-ink: #44403C; }
-.archive-civic-horizon-fade { position: absolute; inset: 8% 2% 4% 32%; mask-image: linear-gradient(to right, transparent, black 28%); }
-.archive-civic-horizon-lines { position: absolute; inset: 0; background: var(--archive-horizon-ink); mask-size: contain; mask-repeat: no-repeat; mask-position: right bottom; }
-@media (max-width: 640px) { .archive-civic-horizon-fade { left: 18%; mask-image: linear-gradient(to right, transparent, black 55%); } }

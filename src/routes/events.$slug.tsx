@@ -459,6 +459,7 @@ function EventShellBody() {
         </Link>
       }
       tabsSlot={<EventTabsNav slug={slug} />}
+      stickyTabs
     >
       {/* POMIAR EKSPOZYCJI SPONSORÓW (raport dla sponsora) obejmuje WYŁĄCZNIE
           publiczne zakładki wydarzenia. Podgląd w studiu rysuje te same

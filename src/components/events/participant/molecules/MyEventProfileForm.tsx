@@ -526,8 +526,10 @@ export function MyEventProfileForm({ slug, profile, account, loading }: Props) {
 
       {/* PRZELACZNIK JEZYKA TRESCI - dotyczy calego formularza (opis, czego szukam,
           co oferuje). Nie zmienia jezyka interfejsu, tylko edytowana wersje wpisu.
-          Sticky, zeby byl widoczny takze przy dlugim opisie. */}
-      <div className="sticky top-2 z-10 mt-3 flex items-center justify-center gap-2 rounded-[6px] border border-border bg-background/95 px-3 py-2 backdrop-blur sm:justify-start">
+          Sticky, zeby byl widoczny takze przy dlugim opisie - POD przyklejonym
+          paskiem zakladek wydarzenia (`--event-chrome-h`, styles.css), bo
+          inaczej chowalby sie za nim; poza powloka wydarzenia zostaje 0,5rem. */}
+      <div className="sticky top-[calc(var(--event-chrome-h,0px)+0.5rem)] z-10 mt-3 flex items-center justify-center gap-2 rounded-[6px] border border-border bg-background/95 px-3 py-2 backdrop-blur sm:justify-start">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           {t("eventMe.contentLang.label")}
         </span>

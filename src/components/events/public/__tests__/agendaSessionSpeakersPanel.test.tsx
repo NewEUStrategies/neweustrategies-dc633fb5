@@ -40,6 +40,9 @@ const { EventAgendaBoardView } =
   await import("@/components/events/public/organisms/EventAgendaBoardView");
 const { browserTimeZone } = await import("@/lib/events/timezone");
 const { mediaRenderUrl } = await import("@/lib/media/publicUrl");
+const { EventDirectoryProvider } =
+  await import("@/components/events/public/directory/EventDirectoryContext");
+const { buildEventDirectory } = await import("@/lib/events/eventDirectory");
 
 const SPEAKERS_LABEL = "eventFront.agenda.speakersLabel";
 const TRACKS_LABEL = "eventFront.agenda.speakerTracksLabel:";
@@ -586,6 +589,70 @@ describe("AgendaSessionCard - reszta bloku po przebudowie", () => {
   });
 });
 
+describe("AgendaSessionCard - okna profilu", () => {
+  const value = session({
+    speakers: [speaker({ userId: "u1", headlinePl: "Glowna ekonomistka, PwC" })],
+    sponsor: { id: "sp1", name: "Orlen", logoUrl: "logos/orlen.png", role: "partner" },
+  });
+
+  it("bez dostawcy (przeglad wydarzenia) wiersz i znaczek sa tekstem, bez reakcji na najechanie", () => {
+    renderCard(value);
+    expect(screen.queryByRole("button", { name: /eventFront\.directory/ })).toBeNull();
+    const row = speakerRow("Anna Zablocka");
+    expect(row).not.toHaveClass("group");
+    expect(within(row).getByText("AZ")).not.toHaveClass("group-hover:scale-[1.03]");
+    expect(screen.getByRole("heading", { name: "Sesja otwarcia" })).not.toHaveAttribute("tabindex");
+  });
+
+  it("pod dostawca okien przyciski niosa nazwisko i nazwe firmy, a rola i organizacja zostaja tekstem", () => {
+    render(
+      <EventDirectoryProvider
+        directory={buildEventDirectory({ sessions: [value] }, "pl")}
+        slug={null}
+        eventId={null}
+        live={false}
+      >
+        <AgendaSessionCard
+          session={value}
+          pending={false}
+          signedIn
+          onSignup={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </EventDirectoryProvider>,
+    );
+
+    const person = screen.getByRole("button", {
+      name: "eventFront.directory.openPerson(name=Anna Zablocka)",
+    });
+    expect(person).toHaveAttribute("aria-haspopup", "dialog");
+    expect(person).toHaveTextContent(/^Anna Zablocka$/);
+    // Rozciagniety przycisk: caly wiersz klika, ale organizacja i rola nie
+    // chowaja sie w nazwie przycisku - czytnik dalej je czyta.
+    const row = person.closest("li") as HTMLElement;
+    expect(row).toHaveClass("group", "relative");
+    expect(person).not.toContainElement(within(row).getByTitle("Glowna ekonomistka, PwC"));
+    expect(person).not.toContainElement(
+      within(row).getByText("eventFront.agenda.speakerRole.speaker"),
+    );
+
+    const company = screen.getByRole("button", {
+      name: "eventFront.directory.openCompany(name=Orlen)",
+    });
+    expect(company).toHaveAttribute("aria-haspopup", "dialog");
+    expect(within(company).getByTitle("Orlen")).toHaveTextContent("Orlen");
+    // Logo partnera nadal jest pierwszym obrazem bloku.
+    expect(document.querySelector("article img")?.getAttribute("src")).toBe(
+      mediaRenderUrl("logos/orlen.png"),
+    );
+    // Tytul przyjmuje fokus programowo (odslanianie z okna), poza kolejnoscia Tab.
+    expect(screen.getByRole("heading", { name: "Sesja otwarcia" })).toHaveAttribute(
+      "tabindex",
+      "-1",
+    );
+  });
+});
+
 describe("EventAgendaBoardView - sciezki prelegenta z calego programu", () => {
   const shared = speaker({ userId: "u1", displayName: "Anna Zablocka" });
 
@@ -692,6 +759,173 @@ describe("EventAgendaBoardView - filtry, harmonogram i akcje", () => {
     expect(screen.queryByText("Dzien pierwszy")).toBeNull();
   });
 
+  it("klawiatura zakladek dni: strzalki z zawinieciem, Home/End, jeden przystanek Tab", () => {
+    render(
+      <EventAgendaBoardView
+        sessions={["01", "02", "03"].map((day, index) =>
+          session({
+            id: `d${index + 1}`,
+            titlePl: `Dzien ${index + 1}`,
+            startsAt: `2026-09-${day}T08:00:00Z`,
+            endsAt: `2026-09-${day}T09:00:00Z`,
+          }),
+        )}
+        lang="pl"
+        signedIn
+      />,
+    );
+    const selected = () =>
+      screen.getAllByRole("tab").findIndex((tab) => tab.getAttribute("aria-selected") === "true");
+    const tabs = screen.getAllByRole("tab");
+    // Ruchomy `tabIndex`: tylko aktywna zakladka jest w kolejnosci Tab.
+    expect(tabs.map((tab) => tab.tabIndex)).toEqual([0, -1, -1]);
+    // Zakladka wskazuje panel, a panel jest opisany zakladka aktywnego dnia.
+    const panel = screen.getByRole("tabpanel");
+    expect(tabs.every((tab) => tab.getAttribute("aria-controls") === panel.id)).toBe(true);
+    expect(panel.getAttribute("aria-labelledby")).toBe(tabs[0].id);
+    expect(within(panel).getByText("Dzien 1")).toBeInTheDocument();
+
+    act(() => tabs[0].focus());
+    fireEvent.keyDown(tabs[0], { key: "ArrowRight" });
+    expect(selected()).toBe(1);
+    expect(document.activeElement).toBe(screen.getAllByRole("tab")[1]);
+    expect(screen.getByText("Dzien 2")).toBeInTheDocument();
+    expect(screen.getAllByRole("tab").map((tab) => tab.tabIndex)).toEqual([-1, 0, -1]);
+    expect(screen.getByRole("tabpanel").getAttribute("aria-labelledby")).toBe(
+      screen.getAllByRole("tab")[1].id,
+    );
+
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "End" });
+    expect(selected()).toBe(2);
+    expect(document.activeElement).toBe(screen.getAllByRole("tab")[2]);
+
+    // Zawiniecie: w prawo z ostatniego dnia wraca na pierwszy, w lewo z pierwszego - na ostatni.
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowRight" });
+    expect(selected()).toBe(0);
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowLeft" });
+    expect(selected()).toBe(2);
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Home" });
+    expect(selected()).toBe(0);
+    expect(document.activeElement).toBe(screen.getAllByRole("tab")[0]);
+    expect(screen.getByText("Dzien 1")).toBeInTheDocument();
+
+    // Inne klawisze nie ruszaja wyboru.
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "ArrowDown" });
+    expect(selected()).toBe(0);
+  });
+
+  it("filtr nurtu mowi czytnikowi, ktory przycisk jest wcisniety, a liczba sesji to cyfra", () => {
+    render(
+      <EventAgendaBoardView
+        sessions={[
+          session({ id: "a", titlePl: "Panel energetyczny", track: ENERGY }),
+          session({
+            id: "b",
+            titlePl: "Panel pracy",
+            startsAt: "2026-09-01T10:00:00Z",
+            endsAt: "2026-09-01T11:00:00Z",
+            track: WORK,
+          }),
+        ]}
+        lang="pl"
+        signedIn
+      />,
+    );
+    const all = screen.getByRole("button", { name: "eventFront.agenda.allTracks" });
+    const work = screen.getByRole("button", { name: /Praca/ });
+    expect(all).toHaveAttribute("aria-pressed", "true");
+    expect(work).toHaveAttribute("aria-pressed", "false");
+    expect(within(work).getByText("1")).toHaveClass("tabular-nums");
+
+    fireEvent.click(work);
+    expect(all).toHaveAttribute("aria-pressed", "false");
+    expect(work).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("tablica zamontowana na nowo nie powtarza prosby obsluzonej przed odmontowaniem", () => {
+    // Podglad studia montuje tablice od nowa po powrocie do modulu „Agenda", a
+    // prosba zostaje w stanie rodzica - powtorka skakalaby do starej sesji,
+    // zdejmowala filtry i zabierala fokus.
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
+    const sessions = [
+      session({ id: "a", titlePl: "Panel otwarcia" }),
+      session({
+        id: "b",
+        titlePl: "Panel drugiego dnia",
+        startsAt: "2026-09-02T08:00:00Z",
+        endsAt: "2026-09-02T09:00:00Z",
+      }),
+    ];
+    render(
+      <EventAgendaBoardView
+        sessions={sessions}
+        lang="pl"
+        signedIn
+        revealRequest={{ sessionId: "b", nonce: 1 }}
+      />,
+    );
+    expect(screen.getAllByRole("tab")[0]).toHaveAttribute("aria-selected", "true");
+    expect(scroll).not.toHaveBeenCalled();
+  });
+
+  it("prosba z zewnatrz odslania sesje raz na licznik: dzien, zdjete filtry, przewiniecie", () => {
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
+    const sessions = [
+      session({ id: "a", titlePl: "Panel otwarcia" }),
+      session({
+        id: "b",
+        titlePl: "Panel drugiego dnia",
+        startsAt: "2026-09-02T08:00:00Z",
+        endsAt: "2026-09-02T09:00:00Z",
+      }),
+    ];
+    const view = render(<EventAgendaBoardView sessions={sessions} lang="pl" signedIn />);
+    const field = screen.getByPlaceholderText("eventFront.agenda.search");
+    fireEvent.change(field, { target: { value: "nic takiego" } });
+
+    view.rerender(
+      <EventAgendaBoardView
+        sessions={sessions}
+        lang="pl"
+        signedIn
+        revealRequest={{ sessionId: "b", nonce: 1 }}
+      />,
+    );
+    expect(field).toHaveValue("");
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
+    const target = document.getElementById("event-session-b");
+    expect(target).not.toBeNull();
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.contexts[0]).toBe(target);
+    // Bez dostawcy okien tytul nie przyjmuje fokusu - nic go tu nie przenosi.
+    expect(document.activeElement).toBe(document.body);
+
+    // Ta sama prosba (ten sam licznik) po zmianie dnia niczego nie powtarza.
+    fireEvent.click(screen.getAllByRole("tab")[0]);
+    view.rerender(
+      <EventAgendaBoardView
+        sessions={sessions}
+        lang="pl"
+        signedIn
+        revealRequest={{ sessionId: "b", nonce: 1 }}
+      />,
+    );
+    expect(screen.getAllByRole("tab")[0]).toHaveAttribute("aria-selected", "true");
+    expect(scroll).toHaveBeenCalledTimes(1);
+
+    // Nowy licznik = nowa prosba, takze o te sama sesje.
+    view.rerender(
+      <EventAgendaBoardView
+        sessions={sessions}
+        lang="pl"
+        signedIn
+        revealRequest={{ sessionId: "b", nonce: 2 }}
+      />,
+    );
+    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
+    expect(scroll).toHaveBeenCalledTimes(2);
+  });
+
   it("pusty wynik mowi, ktory filtr oproznil liste", () => {
     render(
       <EventAgendaBoardView
@@ -765,7 +999,42 @@ describe("EventAgendaBoardView - filtry, harmonogram i akcje", () => {
     expect(target).not.toBeNull();
     expect(scroll).toHaveBeenCalledTimes(1);
     expect(scroll.mock.contexts[0]).toBe(target);
-    expect(scroll).toHaveBeenCalledWith({ block: "start" });
+    // Płynnie, bo środowisko testu nie prosi o ograniczenie ruchu.
+    expect(scroll).toHaveBeenCalledWith({ block: "start", behavior: "smooth" });
+  });
+
+  it("ograniczenie ruchu w systemie: przewiniecie skacze od razu, bez plynnego przejazdu", () => {
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({ matches: query === "(prefers-reduced-motion: reduce)" }) as MediaQueryList,
+    );
+    try {
+      render(
+        <EventAgendaBoardView
+          sessions={[
+            session({ id: "a", titlePl: "Panel otwarcia" }),
+            session({
+              id: "b",
+              titlePl: "Moja sesja",
+              startsAt: "2026-09-02T08:00:00Z",
+              endsAt: "2026-09-02T09:00:00Z",
+              mySignupStatus: "registered",
+              accessState: "signed_up",
+            }),
+          ]}
+          lang="pl"
+          signedIn
+        />,
+      );
+      const card = screen.getByText("eventFront.agenda.myScheduleTitle").closest("section");
+      fireEvent.click(within(card as HTMLElement).getByText("Moja sesja"));
+      expect(scroll).toHaveBeenCalledTimes(1);
+      expect(scroll).toHaveBeenCalledWith({ block: "start", behavior: "auto" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("przegladarka bez scrollIntoView nie wywraca odslaniania sesji", () => {

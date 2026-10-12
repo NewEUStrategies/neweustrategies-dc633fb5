@@ -39,7 +39,7 @@
 // wchodzi dopiero wtedy, gdy z bazy nie przyszło nic - i tylko dla pozycji
 // modułowej, bo tylko dla niej wiemy, o którą z pięciu chodzi.
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 
 import { useAuth } from "@/hooks/useAuth";
 import { uiLang } from "@/lib/i18n/format";
@@ -67,6 +67,10 @@ export function EventTabsNav({ slug, enabled = true }: { slug: string; enabled?:
   const { session } = useAuth();
   const menuQuery = useEventMenu(slug, enabled);
   const items = menuQuery.data ?? [];
+  // Klucz bieżącej zakładki dla paska przewijanego na telefonie - patrz
+  // `EventTabsBar` (`activeKey`). Sama ścieżka: zmiana zapytania nie zmienia
+  // zakładki, więc nie przewija paska pod palcem czytelnika.
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
 
   // Wydarzenie bez ANI JEDNEJ podstrony nie dostaje paska z jedną pozycją:
   // „Strona główna” sama w sobie nie jest nawigacją, tylko ozdobną kreską nad
@@ -78,7 +82,7 @@ export function EventTabsNav({ slug, enabled = true }: { slug: string; enabled?:
     // Listwę (znacznik, wyśrodkowanie, klasy pozycji) rysuje `EventTabsBar` -
     // ten sam komponent, którym pasek rysuje podgląd studia. Tutaj zostaje
     // ŹRÓDŁO pozycji: `event_menu` i odnośniki routera.
-    <EventTabsBar label={t("eventFront.header.tabsLabel")}>
+    <EventTabsBar label={t("eventFront.header.tabsLabel")} activeKey={pathname}>
       <li>
         {/* `exact`: bez tego „Strona główna” zostawałaby aktywna na każdej
               zakładce, bo `/events/<slug>` jest przedrostkiem ich wszystkich. */}

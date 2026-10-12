@@ -5,6 +5,9 @@
 // „moja agenda” już w nim są i jadą przez `event_agenda` / `event_session_signup`.
 // Drugi widok programu znaczyłby dwa miejsca, w których trzeba pamiętać
 // o unieważnieniu cache po zapisie na sesję.
+//
+// `profiles` włącza okna profilu (prelegent, partner) - tylko tutaj; przegląd
+// rysuje ten sam organizm bez okien.
 import { createFileRoute, useParams } from "@tanstack/react-router";
 
 import { EventModulePage } from "@/components/events/public/molecules/EventModulePage";
@@ -38,7 +41,7 @@ function EventAgendaTab() {
   const { slug } = useParams({ from: "/events/$slug/agenda" });
   return (
     <EventModulePage slug={slug} module="agenda">
-      <EventAgendaSection slug={slug} />
+      <EventAgendaSection slug={slug} profiles />
     </EventModulePage>
   );
 }

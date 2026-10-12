@@ -339,8 +339,9 @@ describe("EventSpeakerCardDialog - sciezki i podglad", () => {
     renderDialog(entry({ card_photo_url: "https://cdn.example.com/karta.jpg" }));
     const photo = previewCard().querySelector("img");
     expect(photo).not.toBeNull();
+    // Kadr karty jest pionowy 4:5 (`SpeakerProfileCard`) - pelny portret, nie miniatura.
     expect(photo).toHaveAttribute("width", "480");
-    expect(photo).toHaveAttribute("height", "480");
+    expect(photo).toHaveAttribute("height", "600");
     expect(photo?.getAttribute("src")).toContain("karta.jpg");
     expect(within(previewCard()).queryByRole("button")).toBeNull();
     fireEvent.click(photo!);

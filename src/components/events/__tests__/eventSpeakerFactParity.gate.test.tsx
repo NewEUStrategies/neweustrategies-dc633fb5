@@ -246,6 +246,8 @@ const COVERED_SURFACES: readonly Surface[] = [
  * się w listę wymówek, a nieużywany wpis czerwieni test tak samo jak brakujący.
  */
 const CONSUMER_EXCEPTIONS: Record<string, string> = {
+  "src/lib/events/usePublicEventDirectory.ts":
+    "KATALOG OKIEN PROFILU, nie lista prelegentów: hook składa wiersze z programem, partnerami i uczestnikami w jeden indeks (`buildEventDirectory`) i nie rysuje ani jednego węzła. Okno osoby, które z niego czyta, nie jest kartą listy - zamiast nazw ścieżek pokazuje pełne sesje osoby z godzinami, a nazwisko, stanowisko, instytucja i plakietka eksperta idą tą samą regułą co karta (`splitSpeakerRoleInstitution`, `SpeakerExpertBadge`)",
   "src/lib/builder/prefetch.ts":
     "REJESTR PREFETCHU SSR, nie renderer: składa `queryOptions` dla strumienia widgetów i nie rysuje ani jednego węzła, więc nie ma czym skłamać o osobie",
   "src/components/builder/organisms/widget-view/SpeakersWidget.tsx":

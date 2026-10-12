@@ -247,14 +247,17 @@
     "club.topic.transport",
     "club.workspace.schedule.statusLabel",
     "eventFront.agenda.speakerRole.moderator",
+    "eventFront.directory.networking",
+    "eventFront.directory.partnersCount_one",
     "eventFront.practical.hashtagLabel",
     "eventFront.speakers.card.actionFor",
     "eventFront.sponsors.roles.partner",
-    "eventFront.sponsors.roles.sponsor"
+    "eventFront.sponsors.roles.sponsor",
+    "eventHead.overviewTitle"
   ],
   "repoWide": {
     "missingEn": 0,
     "missingPl": 0,
-    "untranslated": 557
+    "untranslated": 560
   }
 }
