@@ -1,74 +1,34 @@
-import { useId } from "react";
-import type { ComponentProps } from "react";
-import { useTranslation } from "react-i18next";
-import { PlatformSelect } from "@/components/ui/platform-select";
-import { cn } from "@/lib/utils";
-import "@/lib/i18n-datetime-picker";
+// TimeInput - wspólny atom godziny: natywny <input type="time">.
+//
+// Wartość to lokalny łańcuch "HH:mm" ("HH:mm:ss" przy step < 60), a pusty
+// łańcuch oznacza brak godziny - atom nigdy nie wymyśla północy. `min`,
+// `max`, `step` i `required` korzystają z natywnej walidacji, wyłączone pole
+// nie trafia do FormData, `onChange` dostaje prawdziwe ChangeEvent, a
+// etykieta wskazuje dokładnie to jedno pole. Geometria pochodzi ze wspólnej
+// osi `.platform-field` i jest identyczna w obu motywach.
 
-type TimeInputProps = Omit<ComponentProps<"input">, "type" | "value" | "onChange" | "ref"> & {
+import * as React from "react";
+import { cn } from "@/lib/utils";
+
+type TimeInputProps = Omit<React.ComponentPropsWithoutRef<"input">, "type"> & {
   type?: "time";
-  value?: string;
-  onChange?: (event: { target: { value: string } }) => void;
 };
 
-export function TimeInput({
-  value = "",
-  onChange,
-  id,
-  name,
-  disabled,
-  min,
-  max,
-  className,
-  required,
-  "aria-label": label,
-  "aria-describedby": description,
-}: TimeInputProps) {
-  const { t } = useTranslation();
-  const generatedId = useId();
-  const [hour = "00", minute = "00"] = value.split(":");
-  const allowed = (next: string) => (!min || next >= String(min)) && (!max || next <= String(max));
-  const commit = (next: string) => {
-    if (allowed(next)) onChange?.({ target: { value: next } });
-  };
+export const TimeInput = React.forwardRef<HTMLInputElement, TimeInputProps>(function TimeInput(
+  { className, type: _type, ...props },
+  ref,
+) {
   return (
-    <div
-      className={cn("flex min-w-0 items-center gap-1", className)}
-      role="group"
-      aria-label={label}
-    >
-      <PlatformSelect
-        id={id ?? generatedId}
-        value={hour}
-        disabled={disabled}
-        required={required}
-        aria-label={label ?? t("dateTimePicker.hour")}
-        aria-describedby={description}
-        onChange={(event) => commit(`${event.target.value}:${minute}`)}
-        className="min-w-0 flex-1"
-      >
-        {Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0")).map((item) => (
-          <option key={item} value={item} disabled={!allowed(`${item}:${minute}`)}>
-            {item}
-          </option>
-        ))}
-      </PlatformSelect>
-      <span aria-hidden="true">:</span>
-      <PlatformSelect
-        value={minute}
-        disabled={disabled}
-        required={required}
-        aria-label={t("dateTimePicker.minute")}
-        onChange={(event) => commit(`${hour}:${event.target.value}`)}
-        className="min-w-0 flex-1"
-      >
-        {Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0")).map((item) => (
-          <option key={item} value={item} disabled={!allowed(`${hour}:${item}`)}>
-            {item}
-          </option>
-        ))}
-      </PlatformSelect>
-      {name && <input type="hidden" name={name} value={value} disabled={disabled} />}
-    </div>
+    <input
+      ref={ref}
+      type="time"
+      data-slot="platform-time"
+      className={cn(
+        "platform-field w-full min-w-0 border border-input bg-background text-foreground tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive",
+        className,
+      )}
+      {...props}
+    />
   );
-}
+});
+TimeInput.displayName = "TimeInput";
