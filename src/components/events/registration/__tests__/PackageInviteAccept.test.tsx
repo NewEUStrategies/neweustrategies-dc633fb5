@@ -45,6 +45,7 @@ import type {
 } from "@/lib/events/packageInviteApi";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
+import { realT } from "@/test/i18nReal";
 
 const h = vi.hoisted(() => ({
   przyjmij: vi.fn<(input: PackageInviteAcceptInput) => Promise<PackageInviteAcceptResult>>(),
@@ -81,6 +82,7 @@ function wynik(over: Partial<PackageInviteAcceptResult> = {}): PackageInviteAcce
     registrationId: "11111111-1111-4111-8111-111111111111",
     eventId: "22222222-2222-4222-8222-222222222222",
     status: "approved",
+    awaitingPayment: false,
     qrToken: "Qr9d_Xy1-Zw3zEr8TyU2iOp6AsDf5gHk",
     manageToken: "Mg7d_Xy4-Vw2zEr1TyU9iOp3AsDf8gHl",
     ...over,
@@ -366,6 +368,36 @@ describe("PackageInviteAccept - potwierdzenie", () => {
     expect(await screen.findByText("eventRegistration.invite.successTitle")).toBeTruthy();
     expect(screen.queryByText("eventRegistration.invite.qrTitle")).toBeNull();
     expect(screen.queryByText("eventRegistration.result.manageTokenTitle")).toBeNull();
+  });
+});
+
+describe("PackageInviteAccept - pakiet jeszcze nieopłacony (TIX-07)", () => {
+  it("miejsce czekające na płatność NIE mówi „miejsce jest Twoje” ani „zatwierdzone”", async () => {
+    h.przyjmij.mockResolvedValue(
+      wynik({ status: "pending", awaitingPayment: true, qrToken: null }),
+    );
+    renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
+    wypelnij();
+    wyslij();
+
+    expect(await screen.findByText("eventRegistration.invite.awaitingTitle")).toBeTruthy();
+    expect(screen.getByText("eventRegistration.invite.awaitingBody")).toBeTruthy();
+    expect(screen.queryByText("eventRegistration.invite.successTitle")).toBeNull();
+    expect(screen.queryByText("eventRegistration.invite.successBody")).toBeNull();
+    expect(screen.queryByText("eventRegistration.invite.qrTitle")).toBeNull();
+    // Klucz samoobsługi zostaje - delegat bez konta potrzebuje go od razu.
+    expect(screen.getByText("eventRegistration.result.manageTokenTitle")).toBeTruthy();
+  });
+
+  it("oba języki mają zdania stanu oczekiwania", () => {
+    for (const lang of ["pl", "en"] as const) {
+      for (const key of [
+        "eventRegistration.invite.awaitingTitle",
+        "eventRegistration.invite.awaitingBody",
+      ]) {
+        expect(realT(lang)(key)).not.toBe(key);
+      }
+    }
   });
 });
 

@@ -17,7 +17,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, CheckCircle2, Loader2, Ticket } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock, Loader2, Ticket } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -76,13 +76,30 @@ export function PackageInviteAccept({ token }: { token: string | null }) {
 
   if (accept.isSuccess) {
     const result = accept.data;
+    // Pakiet jeszcze nieopłacony: miejsce czeka na płatność firmy - ekran nie
+    // może mówić „miejsce jest Twoje, zgłoszenie zatwierdzone".
+    const awaiting = result.awaitingPayment;
     return (
       <section className="space-y-4" aria-live="polite">
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
-          <CheckCircle2 className="h-5 w-5 text-primary" aria-hidden="true" />
-          {t("eventRegistration.invite.successTitle")}
+          {awaiting ? (
+            <Clock className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          ) : (
+            <CheckCircle2 className="h-5 w-5 text-primary" aria-hidden="true" />
+          )}
+          {t(
+            awaiting
+              ? "eventRegistration.invite.awaitingTitle"
+              : "eventRegistration.invite.successTitle",
+          )}
         </h1>
-        <p className="text-sm text-muted-foreground">{t("eventRegistration.invite.successBody")}</p>
+        <p className="text-sm text-muted-foreground">
+          {t(
+            awaiting
+              ? "eventRegistration.invite.awaitingBody"
+              : "eventRegistration.invite.successBody",
+          )}
+        </p>
 
         {result.qrToken !== null && (
           <div className="space-y-1 rounded-[6px] border border-primary/40 bg-primary/5 p-4">

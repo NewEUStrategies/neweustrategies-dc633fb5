@@ -63,6 +63,10 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
 // wywołania `*_for_user` do TEJ SAMEJ tabeli odpowiedzi co klient kupującego.
 const couponAdmin = vi.hoisted(() => ({
   forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+  policy: null as null | {
+    stacks_with_promotions: boolean | null;
+    max_total_discount_percent: number | null;
+  },
 }));
 
 vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
@@ -70,14 +74,18 @@ vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
   resolveTenantIdForHost: async () => "tenant-alfa",
 }));
 
-vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: {
-    rpc: (fn: string, args: Record<string, unknown>) =>
-      couponAdmin.forward !== null && fn.endsWith("_for_user")
-        ? couponAdmin.forward(fn, args)
-        : Promise.resolve({ data: true, error: null }),
-  },
-}));
+vi.mock("@/integrations/supabase/client.server", async () => {
+  const { couponPolicyAdminFrom } = await import("@/test/billing/fixtures");
+  return {
+    supabaseAdmin: {
+      rpc: (fn: string, args: Record<string, unknown>) =>
+        couponAdmin.forward !== null && fn.endsWith("_for_user")
+          ? couponAdmin.forward(fn, args)
+          : Promise.resolve({ data: true, error: null }),
+      from: couponPolicyAdminFrom(() => couponAdmin.policy),
+    },
+  };
+});
 
 vi.mock("@/lib/stripe.server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/stripe.server")>();
@@ -119,11 +127,34 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
   };
 });
 
+// Bilet za zero (kod 100%) kasa rozlicza bez operatora - ścieżką webhooka,
+// którą dowodzi `oneTimeFulfilment.server.test.ts`. Tu liczy się, ŻE kasa ją
+// woła i z jakim zamówieniem.
+const free = vi.hoisted(() => ({
+  settled: [] as string[],
+  result: { outcome: "order", seated: true } as
+    { outcome: "order" | "oversold_refunded" | "skipped"; seated: boolean } | Error,
+}));
+vi.mock("@/lib/billing/oneTimeFulfilment.server", () => ({
+  settleFreeTicketOrder: async (orderId: string) => {
+    free.settled.push(orderId);
+    if (free.result instanceof Error) throw free.result;
+    return free.result;
+  },
+}));
+
 const { callServerFn } = await import("@/test/serverFn");
 const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions");
 
 type CheckoutResult =
   | { ok: true; mode: "stripe"; clientSecret: string; orderId: string }
+  | {
+      ok: true;
+      mode: "free";
+      url: string;
+      orderId: string;
+      settlement: "seated" | "sold_out" | "awaiting" | "processing";
+    }
   | { ok: false; mode: string; error: string; orderId?: string };
 
 interface SessionParams {
@@ -275,6 +306,9 @@ beforeEach(() => {
   rpcCalls = [];
   rpcResponses = new Map();
   couponAdmin.forward = (fn, args) => client().rpc(fn, args);
+  couponAdmin.policy = null;
+  free.settled.length = 0;
+  free.result = { outcome: "order", seated: true };
 
   vi.stubEnv("BILLING_RETURN_HOSTS", "kasa.example.org");
   vi.stubEnv("LOVABLE_API_KEY", "klucz-testowy-bramki");
@@ -383,6 +417,59 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
     });
   });
 
+  it("kod BEZ kumulacji przy early bird: odmowa `coupon_not_combinable`, bez zamówienia (TIX-13a)", async () => {
+    rpcResponses.set(
+      "event_ticket_checkout_quote_for_user",
+      ok(quote({ amount_cents: 8000, list_price_cents: 10000, phase: { source: "early_bird" } })),
+    );
+    couponAdmin.policy = { stacks_with_promotions: false, max_total_discount_percent: null };
+
+    const result = await call({ coupon_code: "MINUS20" });
+
+    expect(result).toEqual({ ok: false, mode: "coupon", error: "coupon_not_combinable" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
+  });
+
+  it("kod BEZ kumulacji w cenie regularnej działa normalnie", async () => {
+    couponAdmin.policy = { stacks_with_promotions: false, max_total_discount_percent: null };
+
+    await call({ coupon_code: "MINUS20" });
+
+    expect(orderInsert().amount_cents).toBe(24000);
+  });
+
+  it("limit łącznego rabatu 30%: early bird 60 zł zostawia kodowi 30 zł z 60 zł", async () => {
+    // Cena regularna 3 × 100 zł = 300 zł, limit 30% = 90 zł; early bird zdjął
+    // już 60 zł, więc kod -20 zł/miejsce (60 zł) schodzi do 30 zł.
+    rpcResponses.set(
+      "event_ticket_checkout_quote_for_user",
+      ok(quote({ amount_cents: 8000, list_price_cents: 10000, phase: { source: "early_bird" } })),
+    );
+    couponAdmin.policy = { stacks_with_promotions: true, max_total_discount_percent: 30 };
+
+    await call({ coupon_code: "MINUS20" });
+
+    expect(orderInsert().amount_cents).toBe(21000);
+    expect(metadata()).toMatchObject({ coupon_discount_cents: 3000, original_amount_cents: 24000 });
+    // Przycięty rabat nie schodzi „po równo z każdego miejsca".
+    expect(metadata()).not.toHaveProperty("coupon_discount_per_seat_cents");
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({ _applied_cents: 3000 });
+  });
+
+  it("limit wyczerpany przez promocję: odmowa `coupon_not_combinable`", async () => {
+    rpcResponses.set(
+      "event_ticket_checkout_quote_for_user",
+      ok(quote({ amount_cents: 8000, list_price_cents: 10000, phase: { source: "early_bird" } })),
+    );
+    couponAdmin.policy = { stacks_with_promotions: true, max_total_discount_percent: 20 };
+
+    const result = await call({ coupon_code: "MINUS20" });
+
+    expect(result).toEqual({ ok: false, mode: "coupon", error: "coupon_not_combinable" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
   it("kod procentowy 10% na 3 × 100 zł: 270 zł, bez kwoty na miejsce w metadanych", async () => {
     rpcResponses.set("validate_event_ticket_coupon_for_user", percentCode(10));
 
@@ -400,14 +487,93 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
     });
   });
 
-  it("kod 150 zł przy cenie miejsca 100 zł schodzi najwyżej do ceny: 0 zł to odmowa, bez zamówienia", async () => {
+  it("kod 150 zł przy cenie miejsca 100 zł schodzi najwyżej do ceny: 0 zł to bilet bez płatności", async () => {
+    // TIX-13a: kod pokrywający całość nie jest odmową „kwota za niska" -
+    // zamówienie za zero idzie bez operatora, z rezerwacją użycia kodu.
     rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(15000));
 
     const result = await call({ coupon_code: "WIELKI" });
 
+    expect(result).toMatchObject({
+      ok: true,
+      mode: "free",
+      orderId: "order-grupa",
+      settlement: "seated",
+    });
+    expect(
+      result.ok && result.mode === "free" && new URL(result.url).searchParams.get("order"),
+    ).toBe("order-grupa");
+    expect(orderInsert()).toMatchObject({ amount_cents: 0, provider: "coupon" });
+    expect(metadata()).toMatchObject({
+      coupon_id: COUPON_ID,
+      coupon_discount_cents: 30000,
+      original_amount_cents: 30000,
+      quantity: 3,
+    });
+    expect(rpcArgs("redeem_b2b_coupon_for_user")).toMatchObject({ _applied_cents: 30000 });
+    expect(free.settled).toEqual(["order-grupa"]);
+    // Żadnej sesji ani kuponu u operatora.
+    expect(h.calls.map((c) => c.method)).not.toContain("checkout.sessions.create");
+    expect(stripeCoupons()).toEqual([]);
+  });
+
+  it.each([
+    [
+      "ostatnie miejsce zajęte - kod wrócił",
+      { outcome: "oversold_refunded", seated: false },
+      "sold_out",
+    ],
+    ["zgłoszenie czeka na decyzję albo w kolejce", { outcome: "order", seated: false }, "awaiting"],
+  ] as const)("bilet za zero: %s - kasa mówi prawdę (`%s`)", async (_label, settled, expected) => {
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(15000));
+    free.result = settled;
+
+    expect(await call({ coupon_code: "WIELKI" })).toMatchObject({
+      ok: true,
+      mode: "free",
+      settlement: expected,
+    });
+  });
+
+  it("bilet za zero: rozliczenie urwane - `processing`, dokończy tick zadań, nie błąd płatności", async () => {
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(15000));
+    free.result = new Error("one-time: ticket outcome failed");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await call({ coupon_code: "WIELKI" })).toMatchObject({
+      ok: true,
+      mode: "free",
+      settlement: "processing",
+    });
+    expect(free.settled).toEqual(["order-grupa"]);
+    logged.mockRestore();
+  });
+
+  it("bilet za zero: strażnik odrzucił świeże zamówienie - jawna odmowa, bez obietnicy maila", async () => {
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(15000));
+    free.result = { outcome: "skipped", seated: false };
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await call({ coupon_code: "WIELKI" })).toEqual({
+      ok: false,
+      mode: "free",
+      error: "free_ticket_not_settled",
+      orderId: "order-grupa",
+    });
+    logged.mockRestore();
+  });
+
+  it("kwota DODATNIA poniżej minimum operatora zostaje odmową, bez zamówienia", async () => {
+    // 300 zł − 299,80 zł = 0,20 zł: operator nie przyjmie takiej transakcji.
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(29980));
+    rpcResponses.set("event_registration_group_seats", ok(1));
+    rpcResponses.set("event_ticket_checkout_quote_for_user", ok(quote({ amount_cents: 30000 })));
+
+    const result = await call({ coupon_code: "PRAWIE" });
+
     expect(result).toEqual({ ok: false, mode: "coupon", error: "final_amount_too_low" });
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
-    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
+    expect(free.settled).toEqual([]);
   });
 
   it("odmowa kodu przez bazę wraca z POWODEM bazy i nie zakłada zamówienia", async () => {
@@ -579,19 +745,6 @@ describe("createCheckoutOrder - benefit planu tylko na miejscu członka", () => 
   });
 });
 
-/** Kurs NBP to jedyne wyjście na zewnątrz konwersji - zaślepione na `fetch`. */
-function stubNbpRate(mid: number): void {
-  vi.stubGlobal("fetch", () =>
-    Promise.resolve({
-      ok: true,
-      status: 200,
-      // Data notowania z dzisiejszego zegara - literał daty zestarzałby się.
-      json: () =>
-        Promise.resolve({ rates: [{ mid, effectiveDate: new Date().toISOString().slice(0, 10) }] }),
-    }),
-  );
-}
-
 describe("createCheckoutOrder - benefit planu w pozycji Stripe i w walucie zamówienia", () => {
   it("benefit bez kuponu Stripe (awaria operatora): jedna linia za całość, nie „3 × średnia”", async () => {
     // 50 + 2 × 100 = 250 zł dzieli się przez 3 miejsca bez reszty? Nie - ale
@@ -614,48 +767,16 @@ describe("createCheckoutOrder - benefit planu w pozycji Stripe i w walucie zamó
     logged.mockRestore();
   });
 
-  it("waluta prezentacji EUR: ceny miejsc i rabat na miejsce w walucie ZAMÓWIENIA", async () => {
-    stubNbpRate(4);
+  it("waluta prezentacji przy bilecie: odmowa przed wyceną (TIX-12)", async () => {
+    // Cena biletu, faza sprzedaży i benefit planu istnieją tylko w walucie
+    // cennika - przeliczenie samej kwoty dawało fikcyjną cenę przekreśloną.
     rpcResponses.set("my_ticket_allowance", ok({ granted: 0, used: 0, discount_pct: 50 }));
 
-    await call({ coupon_code: "MINUS20", display_currency: "EUR" });
-
-    expect(orderInsert()).toMatchObject({ currency: "EUR" });
-    const perSeat = Number(metadata().coupon_discount_per_seat_cents);
-    expect(metadata()).toMatchObject({
-      plan_benefit: "discount",
-      // 50 zł i 100 zł po kursie 4 - osobno, bez proporcji.
-      lead_unit_cents: 1250,
-      guest_unit_cents: 2500,
-    });
-    // Rabat na miejsce z PRZELICZONEGO rabatu (60 zł -> 15 EUR, 3 miejsca).
-    expect(perSeat).toBe(Math.floor(Number(metadata().coupon_discount_cents) / 3));
-    expect(perSeat).toBe(500);
-  });
-
-  it("waluta prezentacji EUR bez benefitu i z kodem procentowym: nic do przeliczenia na miejscu", async () => {
-    stubNbpRate(4);
-    rpcResponses.set("validate_event_ticket_coupon_for_user", percentCode(10));
-
-    await call({ coupon_code: "PROC10", display_currency: "EUR" });
-
-    expect(orderInsert()).toMatchObject({ currency: "EUR" });
-    expect(metadata()).not.toHaveProperty("plan_benefit");
-    expect(metadata()).not.toHaveProperty("coupon_discount_per_seat_cents");
-  });
-
-  it("waluta prezentacji równa walucie ceny: metadane miejsc bez zmian", async () => {
-    stubNbpRate(4);
-    rpcResponses.set("my_ticket_allowance", ok({ granted: 0, used: 0, discount_pct: 50 }));
-
-    await call({ coupon_code: "MINUS20", display_currency: "PLN" });
-
-    expect(orderInsert()).toMatchObject({ currency: "PLN" });
-    expect(metadata()).toMatchObject({
-      lead_unit_cents: 5000,
-      guest_unit_cents: 10000,
-      coupon_discount_per_seat_cents: 2000,
-    });
+    await expect(call({ coupon_code: "MINUS20", display_currency: "EUR" })).rejects.toThrow(
+      "display_currency_unsupported",
+    );
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(rpcCalls).toEqual([]);
   });
 });
 

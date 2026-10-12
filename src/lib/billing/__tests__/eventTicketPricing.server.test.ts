@@ -43,6 +43,10 @@ vi.mock("@/lib/events/ticketAllowance.server", async () => {
 // wywołania `*_for_user` do TEJ SAMEJ tabeli odpowiedzi co klient kupującego.
 const couponAdmin = vi.hoisted(() => ({
   forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+  policy: null as null | {
+    stacks_with_promotions: boolean | null;
+    max_total_discount_percent: number | null;
+  },
 }));
 
 vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
@@ -50,15 +54,19 @@ vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
   resolveTenantIdForHost: async () => "tenant-alfa",
 }));
 
-vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: {
-    rpc: (fn: string, args: Record<string, unknown>) => {
-      if (couponAdmin.forward === null)
-        throw new Error("test: brak przekierowania roli serwisowej");
-      return couponAdmin.forward(fn, args);
+vi.mock("@/integrations/supabase/client.server", async () => {
+  const { couponPolicyAdminFrom } = await import("@/test/billing/fixtures");
+  return {
+    supabaseAdmin: {
+      rpc: (fn: string, args: Record<string, unknown>) => {
+        if (couponAdmin.forward === null)
+          throw new Error("test: brak przekierowania roli serwisowej");
+        return couponAdmin.forward(fn, args);
+      },
+      from: couponPolicyAdminFrom(() => couponAdmin.policy),
     },
-  },
-}));
+  };
+});
 
 const {
   applyEventTicketCoupon,
@@ -401,6 +409,7 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
       discountCents: 0,
       totalCents: 10000,
       couponError: null,
+      freeWithCode: false,
       // Bilet z podatkiem DOLICZANYM - ekran dopisuje „+ podatek" do sumy.
       taxMode: "exclusive",
       planRedemption: false,

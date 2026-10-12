@@ -482,3 +482,28 @@ export function stripeStub(): StripeStub {
     },
   };
 }
+
+/** Reguły kumulacji kodu (`b2b_coupons`, TIX-13a) w kształcie wiersza bazy. */
+export interface CouponPolicyRow {
+  stacks_with_promotions: boolean | null;
+  max_total_discount_percent: number | null;
+}
+
+/**
+ * Atrapa `supabaseAdmin.from` dla odczytu reguł kumulacji kodu
+ * (`loadCouponStackingPolicy`). `null` = kod bez reguł (łączy się z promocjami,
+ * bez limitu), czyli zachowanie sprzed kolumn.
+ */
+export function couponPolicyAdminFrom(read: () => CouponPolicyRow | null = () => null) {
+  return (table: string) => {
+    if (table !== "b2b_coupons") {
+      throw new Error(`test: nieoczekiwana tabela roli serwisowej: ${table}`);
+    }
+    const query = {
+      select: () => query,
+      eq: () => query,
+      maybeSingle: () => Promise.resolve({ data: read(), error: null }),
+    };
+    return query;
+  };
+}
