@@ -73,6 +73,7 @@ export function makeRegistrationManageView(
     amountCents: 12000,
     currency: "PLN",
     ownedByCaller: false,
+    partnerConsent: false,
     ...overrides,
   };
 }

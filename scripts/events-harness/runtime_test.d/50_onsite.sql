@@ -143,6 +143,19 @@ VALUES
    'approved', 'rsvp', encode(extensions.digest('qr-piotr-000000000001', 'sha256'), 'hex'), now())
 ON CONFLICT (id) DO NOTHING;
 
+-- ZGODA PARTNERSKA JEST PER ZGLOSZENIE (OPS-01, 20261012090000 i 20261012100100).
+-- Czytelnicy pytaja `_event_partner_consent_at()`, czyli o stempel ZGLOSZENIA
+-- na to wydarzenie; stemple osob wyzej sa juz tylko historyczne. Te same
+-- zgody odtwarzamy wiec na zgloszeniach (Zofia i Wanda ze zgoda, Wanda
+-- wycofa ja nizej globalnie) - inaczej scenografia nie mialaby ani jednej
+-- zgody na TO wydarzenie.
+UPDATE public.event_registrations r
+   SET consent_partner_sharing_at = p.consent_partner_sharing_at
+  FROM public.event_people p
+ WHERE p.tenant_id = r.tenant_id
+   AND p.id = r.person_id
+   AND r.event_id = '50e00000-0000-0000-0000-0000000000a1';
+
 -- Poswiadczenia urzadzen: sprawne, uniewaznione, wygasle, zapauzowane oraz dwa
 -- stoiskowe (kazde z INNYM sponsorem).
 INSERT INTO public.event_scanner_devices

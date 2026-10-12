@@ -1,14 +1,23 @@
 // EKSPORT LEADÓW WYSTAWCY - kolumny i budowa pliku.
 //
 // KOLUMNA ZGODY IDZIE ZAWSZE. Sponsor dostaje też wiersze bez zgody (rozlicza
-// się z liczby skanów przy stoisku), ale w takich wierszach kontakt jest pusty,
-// a kolumna „zgoda" mówi wprost dlaczego. Ukrycie takiego wiersza dawałoby
-// sponsorowi wrażenie, że skan się nie zapisał, i wywoływało ponowny skan.
+// się z liczby skanów przy stoisku), ale w takich wierszach NIE MA NICZEGO, co
+// identyfikuje osobę: imię, nazwisko, firma, stanowisko, e-mail i telefon są
+// puste, a kolumna „zgoda" mówi wprost dlaczego. Ukrycie takiego wiersza
+// dawałoby sponsorowi wrażenie, że skan się nie zapisał, i wywoływało ponowny
+// skan. Zgoda to zgoda na przekazanie danych partnerom TEGO wydarzenia
+// (`_event_partner_consent_at`) - zgoda z innego wydarzenia jej nie zastępuje.
 //
-// PUSTY KONTAKT ZERUJE TEN MODUŁ, NIE TYLKO SQL. RPC też redaguje kontakt, ale
+// Zostają: sponsor, zgoda i jej stempel, ocena, NOTATKA, liczniki i urządzenie.
+// Notatkę wpisała obsługa stoiska na własnym urządzeniu - sponsor widzi ją też
+// na liście stoiska i w linku raportu, więc plik oddaje mu jego własny zapis,
+// a nie dane z kartoteki organizatora (ta sama decyzja w SQL, migracja
+// `20261012100100`).
+//
+// TOŻSAMOŚĆ ZERUJE TEN MODUŁ, NIE TYLKO SQL. RPC też redaguje te pola, ale
 // to jest OSTATNIA bramka przed dyskiem sponsora: regresja po stronie zapytania
 // (nowa kolumna w SELECT, zmieniony warunek, wiersz z innego źródła) wynosi
-// adres z budynku nieodwracalnie. Dlatego reguła stoi po obu stronach.
+// dane osoby z budynku nieodwracalnie. Dlatego reguła stoi po obu stronach.
 //
 // CSV Z BOM. Excel bez BOM czyta UTF-8 jako stronę kodową systemu i rozsypuje
 // polskie znaki w nazwiskach - a to jest plik czytany poza systemem.
@@ -72,11 +81,12 @@ export function leadExportColumns(lang: string): readonly string[] {
 }
 
 /**
- * Zeruje treść komórki kontaktowej, zachowując jej postać: `null` z RPC zostaje
- * `null`, żeby plik wyglądał tak samo jak wiersz, który przyszedł już pusty.
+ * Komórka danych osoby w wierszu BEZ zgody: każda treść staje się `null` -
+ * tak samo jak z RPC. Komórka, która przyszła już pusta (`null` albo `""`),
+ * zostaje w tej postaci: redakcja niczego nie dopisuje.
  */
-function redactedContact(value: string | null): string | null {
-  return value === null ? null : "";
+function redactedIdentity(value: string | null): string | null {
+  return value === "" ? "" : null;
 }
 
 /** Jeden wiersz eksportu w kolejności kolumn. */
@@ -86,16 +96,19 @@ export function leadExportCells(
 ): ReadonlyArray<string | number | null> {
   const yes = lang === "en" ? "yes" : "tak";
   const no = lang === "en" ? "no" : "nie";
-  // Zgoda rozstrzyga o kontakcie PRZED zapisem do pliku - patrz nagłówek modułu.
+  // Zgoda rozstrzyga o danych osoby PRZED zapisem do pliku - patrz nagłówek
+  // modułu. Brak flagi (`null`, starsza odpowiedź) to brak zgody.
   const consented = row.consent === true;
+  const identity = (value: string | null): string | null =>
+    consented ? value : redactedIdentity(value);
   return [
     row.sponsor_name,
-    row.first_name,
-    row.last_name,
-    row.company,
-    row.job_title,
-    consented ? row.email : redactedContact(row.email),
-    consented ? row.phone : redactedContact(row.phone),
+    identity(row.first_name),
+    identity(row.last_name),
+    identity(row.company),
+    identity(row.job_title),
+    identity(row.email),
+    identity(row.phone),
     consented ? yes : no,
     row.consent_snapshot_at,
     row.interest_rating,

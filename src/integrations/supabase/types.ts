@@ -23048,6 +23048,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _event_partner_consent_at: {
+        Args: { p_event_id: string; p_person_id: string; p_tenant: string }
+        Returns: string
+      }
+      _event_partner_consent_carry_withdrawal: {
+        Args: { p_person_id: string; p_tenant: string }
+        Returns: number
+      }
       _event_person_crm_sync: {
         Args: {
           p_audit_action?: string
@@ -25229,6 +25237,10 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      admin_event_registration_partner_consent_withdraw: {
+        Args: { p_registration_id: string }
+        Returns: Json
+      }
       admin_event_registration_upsert: {
         Args: { p_payload: Json }
         Returns: string
@@ -25267,6 +25279,7 @@ export type Database = {
           consent_data_processing_at: string
           consent_marketing_at: string
           consent_partner_sharing_at: string
+          consent_partner_withdrawn_at: string
           consent_withdrawn_at: string
           created_at: string
           decided_at: string
@@ -29477,6 +29490,10 @@ export type Database = {
         Returns: Json
       }
       event_registration_notify_payload: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      event_registration_partner_consent_withdraw: {
         Args: { p_payload: Json }
         Returns: Json
       }

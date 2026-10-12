@@ -48,6 +48,12 @@ export const REGISTRATION_CSV_COLUMNS = [
   // Miejsce na sali (plan sali, `admin_event_seat_lookup`) - na koncu, zeby
   // arkusze budowane na starszym ukladzie kolumn nie przesunely sie.
   "seat",
+  // Wycofanie zgody partnerskiej TEGO zgloszenia (samoobsluga albo panel,
+  // migracja `20261012100300`) - z tego samego powodu za `seat`. Razem
+  // z `consent_partner_sharing_at` (od `20261012100200` to stempel zgloszenia,
+  // nie osoby) daje dowod nadania i wycofania; `consent_withdrawn_at` zostaje
+  // globalnym wycofaniem zgod osoby.
+  "consent_partner_withdrawn_at",
 ] as const;
 
 /**
@@ -104,6 +110,7 @@ export function registrationsToCsv(
       row.consent_partner_sharing_at,
       row.consent_withdrawn_at,
       seats.get(row.id) ?? "",
+      row.consent_partner_withdrawn_at,
     ]),
   );
 }

@@ -98,6 +98,9 @@ const h = vi.hoisted(() => ({
   resendResult: { sent: 1, attempted: 1, skippedSuppressed: 0 } as
     { sent: number; attempted: number; skippedSuppressed: number } | Error,
   resendPending: false,
+  /** Wycofanie zgody partnerskiej z panelu: wywołania i wynik (czy było co wycofać albo odmowa). */
+  partnerCalls: [] as string[],
+  partnerResult: true as boolean | Error,
   notifyHang: false,
   /** Kolejne strony eksportu - `shift()` przy każdym wywołaniu. */
   exportPages: [] as { rows: unknown[]; total: number }[],
@@ -105,6 +108,7 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastWarning: vi.fn(),
+  toastInfo: vi.fn(),
   /** Odczyt miejsc na sali dla WIDOCZNYCH wierszy (hook planu sali). */
   seatLookups: [] as unknown[] | undefined,
   seatLookupCalls: [] as { eventId: string; ids: readonly string[] }[],
@@ -128,7 +132,12 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
 vi.mock("sonner", () => ({
-  toast: { success: h.toastSuccess, error: h.toastError, warning: h.toastWarning },
+  toast: {
+    success: h.toastSuccess,
+    error: h.toastError,
+    warning: h.toastWarning,
+    info: h.toastInfo,
+  },
 }));
 // Słownik odmów bazy ma własny plik testowy; tutaj potrzebny jest wyłącznie
 // dowód, że odmowa DOCHODZI do organizatora zdaniem, a nie kodem `23514`.
@@ -368,6 +377,17 @@ vi.mock("@/lib/events/useEventRegistrations", () => ({
     },
     isPending: h.resendPending,
   }),
+  useWithdrawPartnerConsent: () => ({
+    mutate: (
+      registrationId: string,
+      wynik: { onSuccess?: (withdrawn: boolean) => void; onError?: (error: unknown) => void },
+    ) => {
+      h.partnerCalls.push(registrationId);
+      if (h.partnerResult instanceof Error) wynik.onError?.(h.partnerResult);
+      else wynik.onSuccess?.(h.partnerResult);
+    },
+    isPending: false,
+  }),
 }));
 
 import { RegistrationsListPanel } from "@/components/admin/events/organisms/RegistrationsListPanel";
@@ -541,11 +561,14 @@ beforeEach(() => {
   h.resendCalls = [];
   h.resendResult = { sent: 1, attempted: 1, skippedSuppressed: 0 };
   h.resendPending = false;
+  h.partnerCalls = [];
+  h.partnerResult = true;
   h.exportPages = [];
   h.exportError = null;
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
   h.toastWarning.mockClear();
+  h.toastInfo.mockClear();
   h.seatLookups = [];
   h.seatLookupCalls = [];
   h.exportSeats = [];
@@ -963,6 +986,61 @@ describe("co niesie wiersz zgłoszenia", () => {
     expect(screen.getByText(`${B}.consents.requiredMissing(count=2)`)).toBeTruthy();
     expect(screen.getByText(`${B}.consents.withdrawn`)).toBeTruthy();
     expect(within(wiersze()[1] as HTMLElement).queryByText(/consents\./)).toBeNull();
+  });
+
+  // ZGODA PARTNERSKA Z TEGO ZGŁOSZENIA (OPS-01). Plakietka i przycisk wycofania
+  // stoją tylko przy skutecznej zgodzie: nadanie późniejsze niż wycofanie
+  // w zgłoszeniu i niż globalne wycofanie zgód osoby.
+  it("skuteczna zgoda partnerska ma plakietkę i przycisk wycofania, wycofana - nie", () => {
+    h.rows = [
+      registrationRow({ id: "a", consent_partner_sharing_at: "2026-08-01T10:00:00.000Z" }),
+      registrationRow({
+        id: "b",
+        consent_partner_sharing_at: "2026-08-01T10:00:00.000Z",
+        consent_partner_withdrawn_at: "2026-08-02T10:00:00.000Z",
+      }),
+      registrationRow({
+        id: "c",
+        consent_partner_sharing_at: "2026-08-01T10:00:00.000Z",
+        consent_withdrawn_at: "2026-08-03T10:00:00.000Z",
+      }),
+    ];
+    panel();
+
+    const [a, b, c] = wiersze() as HTMLElement[];
+    expect(within(a).getByText(`${B}.consents.partnerSharing`)).toBeTruthy();
+    expect(
+      within(a).getByRole("button", {
+        name: "adminEventRegistration.actions.withdrawPartnerConsent",
+      }),
+    ).toBeTruthy();
+    for (const wiersz of [b, c]) {
+      expect(within(wiersz).queryByText(`${B}.consents.partnerSharing`)).toBeNull();
+      expect(
+        within(wiersz).queryByRole("button", {
+          name: "adminEventRegistration.actions.withdrawPartnerConsent",
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it("wycofanie zgody partnerskiej wysyła identyfikator zgłoszenia i potwierdza wynik", () => {
+    h.rows = [registrationRow({ id: "a", consent_partner_sharing_at: "2026-08-01T10:00:00.000Z" })];
+    panel();
+
+    fireEvent.click(przycisk("adminEventRegistration.actions.withdrawPartnerConsent"));
+    expect(h.partnerCalls).toEqual(["a"]);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.consents.partnerWithdrawn`);
+
+    // Nic do wycofania (np. uczestnik zdążył sam) to informacja, nie sukces.
+    h.partnerResult = false;
+    fireEvent.click(przycisk("adminEventRegistration.actions.withdrawPartnerConsent"));
+    expect(h.toastInfo).toHaveBeenCalledWith(`${B}.consents.partnerNothingToWithdraw`);
+
+    // Odmowa bazy dochodzi zdaniem, a nie ciszą.
+    h.partnerResult = new Error("forbidden: admin role required");
+    fireEvent.click(przycisk("adminEventRegistration.actions.withdrawPartnerConsent"));
+    expect(h.toastError).toHaveBeenCalledWith("odmowa:forbidden: admin role required");
   });
 
   it("uzasadnienie decyzji pokazuje się tylko wtedy, gdy ktoś je napisał", () => {
@@ -1507,7 +1585,11 @@ describe("miejsce na sali w liście i w eksporcie", () => {
     vi.unstubAllGlobals();
   });
 
-  /** Komórki kolumny `seat` (ostatniej) - po wierszu na zgłoszenie. */
+  /**
+   * Komórki kolumny `seat` - po wierszu na zgłoszenie. Kolumnę szukamy po
+   * NAGŁÓWKU: od OPS-01 za `seat` stoi jeszcze `consent_partner_withdrawn_at`
+   * (dopisywanie na końcu), więc „ostatnia kolumna" przestała nią być.
+   */
   function kolumnaMiejsca(): string[] {
     const plik = h.csvParts.at(-1) ?? "";
     const wiersze: string[][] = [[]];
@@ -1532,7 +1614,8 @@ describe("miejsce na sali w liście i w eksporcie", () => {
       } else pole += znak;
     }
     wiersze.at(-1)?.push(pole);
-    return wiersze.map((wiersz) => wiersz.at(-1) ?? "");
+    const kolumna = (wiersze[0] ?? []).indexOf("seat");
+    return wiersze.map((wiersz) => wiersz[kolumna] ?? "");
   }
 
   it("pyta o miejsca WIDOCZNYCH wierszy i pokazuje plakietkę tylko przy posadzonych", () => {
