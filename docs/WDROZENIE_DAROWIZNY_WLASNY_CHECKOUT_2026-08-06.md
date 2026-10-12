@@ -329,6 +329,15 @@ oraz testy jednostkowe `donationsLedger.server`, `donationRecurring`,
   `duplicate:<stary>` (ślad zostaje), kotwica przejmuje klucz faktury. Pary
   niejednoznaczne zostają nietknięte - do ręcznego przeglądu zapytaniem
   o subskrypcje z więcej niż jednym wierszem w pierwszych 7 dniach.
+- Korekta obejmuje też ślady **uzgodnienia w panelu sprzed poprawki**:
+  `syncDonationsFromStripe` domykał kotwicę subskrypcji z
+  `session.payment_intent`, które w trybie subskrypcji jest `null`, więc
+  kotwica zostawała `paid` z PUSTĄ intencją - taka kotwica też jest stroną
+  „sesji" pary. Trójka kotwica + `renewal:in_...` + `renewal:cs_...`
+  (ponowione `invoice.paid` i ponowiona sesja) kończy się jednym opłaconym
+  wierszem: `renewal:cs_X` przy zaksięgowanej kotwicy `cs_X` jest duplikatem
+  z definicji (ten sam identyfikator sesji operatora), więc drugi przebieg
+  funkcji kasuje go bez okna czasowego.
 
 ### 8.2 Zwrot trafia w darowiznę (SUB-09)
 
@@ -343,11 +352,35 @@ oraz testy jednostkowe `donationsLedger.server`, `donationRecurring`,
   `refunded_amount_cents` rośnie (narastająco, zaciśnięte do kwoty), statystyki
   publiczne liczą kwotę netto. Pełny zwrot i spór -> `refunded`; wygrany spór
   przywraca wpłatę zamkniętą sporem (nie pełny zwrot).
+- **Spór na prawdziwych statusach Stripe** (`Dispute.status`, przekazywany
+  surowo przez normalizację): `needs_response` / `under_review` (środki
+  pobrane) zamykają wpłatę i alarmują zespół najemcy; zapytania banku
+  (`warning_*`) i `prevented` niczego nie zmieniają; `charge.dispute.closed`
+  z `won` przywraca wpłatę zamkniętą sporem, z `lost` domyka ją (gdyby
+  otwarcie nie dotarło) bez fałszywego alertu „otwarto spór". Ta sama reguła
+  dotyczy zamówień. **Konfiguracja operatora:** punkt odbioru webhooków musi
+  subskrybować `charge.dispute.closed` (obok `charge.dispute.created`) -
+  uzgodnienie w panelu pokazuje zgubione zamknięcia sporu jako naprawialne.
+  Eskalacja zapytania do formalnego sporu bez nowego `charge.dispute.created`
+  zostaje wychwycona dopiero przy zamknięciu (`lost`).
+- **Zwrot raty, zanim jej faktura się zaksięgowała** (np. `invoice.paid` padło
+  i czeka na ponowienie): `charge.refunded` nie zostaje już „przetworzony" bez
+  skutku. Gdy most intencja -> faktura wskazuje fakturę subskrypcji, której
+  księga nie zna, a subskrypcja jest NASZĄ darowizną (wiersz tej subskrypcji
+  albo kotwica z `metadata.donationId`), korekta rzuca błąd i operator ją
+  ponawia; po zaksięgowaniu raty ponowienie trafia w nią zwykłą regułą zwrotu.
+  Oczekującej kotwicy celowo nie oznaczamy jako zwróconej - księgowanie
+  dopisałoby wtedy świeży opłacony wiersz `renewal:in_...`. Gdy rata nigdy się
+  nie zaksięguje (brak kotwicy), zdarzenie zostaje w dzienniku jako `failed`
+  po wyczerpaniu ponowień - do ręcznego przeglądu.
 - **Status wspierającego:** trigger `tg_donations_grant_supporter` przy
   przejściu `paid -> *` przelicza przydział z POZOSTAŁYCH opłaconych wpłat
   (ta sama reguła +12 miesięcy), może go wyłącznie skrócić, a odbiera, gdy
   żadna wpłata go nie uzasadnia. `paid -> paid` (ponowiony zapis) nie
-  przedłuża już przydziału o kolejny rok.
+  przedłuża już przydziału o kolejny rok. Przeliczenie liczy TE SAME wiersze,
+  które przydział nadają - bez filtra środowiska: zawężenie do środowiska
+  zmienianego wiersza sprawiało, że korekta testowej pary (`sandbox`)
+  skracała albo odbierała status uzasadniony wpłatami `live`.
 
 ### 8.3 Środowisko i najemca (SUB-10) oraz zamknięcie konta (SUB-11)
 
@@ -384,4 +417,6 @@ konta (np. `customer.subscription.deleted` z anulowania), zapisują się
 w całości i znikają z retencją po 30 dniach; przydziały „supporter" nadane
 w przeszłości wpłatami testowymi na produkcji nie są cofane automatycznie
 (do przeglądu: `membership_grants.source_donation_id` wskazujący wiersz
-`environment = 'sandbox'`).
+`environment = 'sandbox'`). Z tego samego powodu przeliczenie przydziału po
+zwrocie lub korekcie liczy wiersze obu środowisk - inaczej skracałoby status
+darczyńców z mieszanymi danymi historycznymi.

@@ -139,3 +139,32 @@ artykuł" po migracji `20260806170000_share_full_article_click_budget.sql`:
   już udostępnionych;
 - rejestr `post_gift_redemptions` jest niewidoczny dla anona i zwykłego konta
   (tożsamość odbiorcy nie wraca do nadawcy).
+
+## Współbieżność meteringu (dwie sesje, `dblink`)
+
+`metering_concurrency_test.sql` - dowód kryterium SUB-17 „równoległe żądania
+nie przekraczają limitu" na DWÓCH prawdziwych sesjach serwera. Asercje
+`pg_locks` w `metering_visitor_identity_test.sql` przechodzą bez względu na to,
+gdzie w ciele stoi `pg_advisory_xact_lock` (blokada transakcyjna jest trzymana
+do COMMIT), więc przesunięcie jej za `count(*)` wracało do wyścigu przy
+zielonym CI. Tu:
+
+- sesja A konsumuje slot i trzyma transakcję, sesja B (inny byt) **musi
+  zawisnąć** na blokadzie doradczej (`pg_stat_activity.wait_event = 'advisory'`),
+  a po COMMIT A - odmówić; zatwierdzony stan ma dokładnie limit wierszy;
+- osobno blokada podmiotu (ten sam gość) i blokada adresu (dwóch gości przy
+  suficie 5 x limit; odmowa B z `requires_registration`).
+
+Scenografia jest **zatwierdzana** trzecią sesją (`dblink` w autocommit), bo
+druga sesja nie widzi otwartej transakcji pgTAP - na dedykowanym najemcy
+`a7000000-...-0000000000aa`, sprzątanym na początku i na końcu pliku (także po
+błędzie). Połączenie: gniazdo unix jako bieżąca rola (lokalny harness,
+superuser), potem TCP z hasłem lokalnej bazy Supabase (`postgres`/`postgres`) na
+adres sesji testowej - nie-superuser musi w `dblink` użyć hasła. Bez
+rozszerzenia albo drogi połączenia plik zgłasza 9 x `SKIP` z powodem (nie
+fałszywie zielony dowód); asercja strukturalna „obie blokady przed pierwszym
+zliczeniem" w `metering_visitor_identity_test.sql` biegnie zawsze. Lokalnie:
+
+```bash
+PGTAP_DIR=/tmp/nespgtap PGTAP_PORT=5434 bash scripts/pgtap-local/run.sh all metering_
+```

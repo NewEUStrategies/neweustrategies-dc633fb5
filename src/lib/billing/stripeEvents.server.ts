@@ -300,7 +300,8 @@ function mapAdjustment(
   }
 
   if (action === "chargeback") {
-    // `charge.dispute.created` - obiekt to Dispute.
+    // `charge.dispute.created` / `charge.dispute.closed` - obiekt to Dispute,
+    // `status` zostaje surowy (`needs_response`, `won`, ...).
     return {
       id: idOf(object.id) ?? "",
       transactionId: idOf(object.payment_intent) ?? idOf(object.charge),
@@ -396,6 +397,13 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
 
     case "charge.dispute.created":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "chargeback") };
+
+    // Rozstrzygnięcie sporu: bez tego zdarzenia wygrana (`won`) nie miała
+    // żadnej drogi do przywrócenia dostępu ani wpłaty. Status `Dispute`
+    // (`won` / `lost` / `warning_closed`) jedzie surowy - skutek wybiera
+    // `refunds.server` (`STRIPE_DISPUTE_*`), jak przy otwarciu sporu.
+    case "charge.dispute.closed":
+      return { eventType: "adjustment.updated", data: mapAdjustment(object, "chargeback") };
 
     case "credit_note.created":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "credit") };

@@ -115,6 +115,60 @@ describe("meterPaywallVariant", () => {
     ).toBe("exhausted");
   });
 
+  it("gość zatrzymany SUFITEM ADRESU (used < limit) dostaje drogę przez konto, nie goły paywall", () => {
+    // Przegląd adwersaryjny, poz. 29: limit gościa 3, za NAT-em biura adres
+    // wyczerpał sufit 15 różnych artykułów - nowy gość (0 z 3) jest odbity.
+    const anonQuota = { ...on, anon_monthly_limit: 3 };
+    const ipCeiling = state({
+      granted: false,
+      used: 0,
+      monthlyLimit: 3,
+      remaining: 0,
+      requiresRegistration: true,
+    });
+    expect(
+      meterPaywallVariant({
+        isLoggedIn: false,
+        settings: anonQuota,
+        applies: true,
+        state: ipCeiling,
+      }),
+    ).toBe("register");
+    // Ściana rejestracji serwera bez tożsamości gościa (brak sekretu cookie).
+    const wall = state({
+      granted: false,
+      used: 0,
+      monthlyLimit: 0,
+      remaining: 0,
+      requiresRegistration: true,
+    });
+    expect(
+      meterPaywallVariant({ isLoggedIn: false, settings: anonQuota, applies: true, state: wall }),
+    ).toBe("register");
+    // Konto nie obiecuje niczego, gdy limit kont = 0.
+    expect(
+      meterPaywallVariant({
+        isLoggedIn: false,
+        settings: { ...anonQuota, member_monthly_limit: 0 },
+        applies: true,
+        state: ipCeiling,
+      }),
+    ).toBe(null);
+  });
+
+  it("wyczerpany WŁASNY limit gościa zostaje wariantem exhausted (bez flagi rejestracji)", () => {
+    const anonQuota = { ...on, anon_monthly_limit: 3 };
+    const exhausted = state({ granted: false, used: 3, monthlyLimit: 3, remaining: 0 });
+    expect(
+      meterPaywallVariant({
+        isLoggedIn: false,
+        settings: anonQuota,
+        applies: true,
+        state: exhausted,
+      }),
+    ).toBe("exhausted");
+  });
+
   it("stan granted lub niewykorzystany limit nie nadpisuje komunikatu", () => {
     const granted = state({ granted: true, used: 1, monthlyLimit: 3 });
     expect(
@@ -197,6 +251,51 @@ describe("latestMeterNumbers", () => {
       used: 3,
       monthlyLimit: 1,
       remaining: 0,
+    });
+  });
+});
+
+describe("latestMeterNumbers - sufit adresu gościa (przegląd adwersaryjny, poz. 29)", () => {
+  const quota = (partial: Partial<MeterQuota>): MeterQuota => ({
+    enabled: true,
+    monthlyLimit: 5,
+    used: 1,
+    remaining: 4,
+    requiresRegistration: false,
+    showCounter: true,
+    ...partial,
+  });
+
+  it("licznik nie obiecuje więcej, niż wpuści sufit adresu (remaining serwera)", () => {
+    // Własny limit zostawia 4, adres - 0: następny RÓŻNY artykuł odbije sufit.
+    const entity = state({ granted: true, used: 1, monthlyLimit: 5, remaining: 4 });
+    expect(latestMeterNumbers(entity, quota({ used: 1, remaining: 0 }))).toEqual({
+      used: 1,
+      monthlyLimit: 5,
+      remaining: 0,
+    });
+    expect(latestMeterNumbers(entity, quota({ used: 2, remaining: 1 }))).toEqual({
+      used: 2,
+      monthlyLimit: 5,
+      remaining: 1,
+    });
+  });
+
+  it("świeższy werdykt konsumpcji (większe used) niesie liczbę serwera także wtedy, gdy quota jest starsza", () => {
+    const entity = state({ granted: true, used: 2, monthlyLimit: 5, remaining: 0 });
+    expect(latestMeterNumbers(entity, quota({ used: 1, remaining: 4 }))).toEqual({
+      used: 2,
+      monthlyLimit: 5,
+      remaining: 0,
+    });
+  });
+
+  it("liczba serwera nigdy nie podnosi licznika ponad własny limit", () => {
+    const entity = state({ granted: true, used: 1, monthlyLimit: 5, remaining: 4 });
+    expect(latestMeterNumbers(entity, quota({ used: 3, remaining: 9 }))).toEqual({
+      used: 3,
+      monthlyLimit: 5,
+      remaining: 2,
     });
   });
 });

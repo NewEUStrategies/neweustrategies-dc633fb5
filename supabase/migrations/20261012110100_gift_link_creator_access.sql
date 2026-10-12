@@ -32,14 +32,37 @@
 --      wyda: brak dostepu tworcy = can_gift=false, requires_subscription=true
 --      (ta sama faza UI co przy eligibility='subscribers').
 --
+--   4. DANE ZASTANE - `gift_links_revoke_without_creator_access()` (wolana raz
+--      nizej): link wydany przed ta poprawka przez konto BEZ dostepu do
+--      darowanej tresci byl dalej wazny dla KAZDEGO odbiorcy - w tym dla
+--      samego tworcy po wylogowaniu (anon z nowym `_visitor_id` z localStorage
+--      wpadal w sciezke odbiorcy i zuzywal slot). Zmiany 1-3 zamykaja wylacznie
+--      galaz wlasciciela, wiec bez tego kroku luka trwalaby do konca TTL
+--      linku - a przy link_ttl_days=0 i max_redemptions_per_link=0 na zawsze.
+--      Krok cofa (revoked_at = now()) kazdy AKTYWNY link, ktorego tworca W
+--      CHWILI MIGRACJI nie przechodzi `has_content_access` dla tego wpisu -
+--      ta sama bramka, ktora od teraz pilnuje tworzenia. Odbiorca dostaje
+--      reason='revoked' (bez body), takze ten, ktory juz zuzyl slot.
+--
+--      SWIADOMY KOMPROMIS (decyzja produktowa do PR): dane nie odrozniaja
+--      darmowego konta, ktore wydalo link z luki, od bylego subskrybenta,
+--      ktoremu dostep wygasl PO uczciwym wydaniu linku. Krok cofa oba -
+--      odbiorcy linkow bylych subskrybentow traca prezent przed TTL (domyslnie
+--      najwyzej 30 dni, wiec strata jest ograniczona). Po migracji regula
+--      z punktu 2 wraca w pelni: link uczciwie wydany nie jest cofany, gdy
+--      tworca pozniej traci dostep. Slad cofniecia: gift_events 'revoked'
+--      z actor_id NULL (system, nie tworca).
+--
 -- DOMYSLNE eligibility='registered' ZOSTAJE: po tej zmianie "kazde konto" moze
 -- darowac wylacznie to, co samo czyta - tresc 'members' (konto w najemcy ma do
 -- niej dostep z definicji) albo 'paid' z wlasnym uprawnieniem. Przelaczenie na
 -- 'subscribers' pozostaje decyzja redakcji, nie warunkiem bezpieczenstwa.
 --
 -- Sygnatury i typy zwracane bez zmian - CREATE OR REPLACE, granty powtorzone
--- jawnie (jak w 20260806205328).
--- IDEMPOTENTNA. DOWOD: supabase/tests/gift_link_creator_access_test.sql.
+-- jawnie (jak w 20260806205328). Nowa funkcja korekty danych - tylko
+-- service_role.
+-- IDEMPOTENTNA (krok danych dotyka wylacznie linkow bez revoked_at, drugi
+-- przebieg nie ma czego cofnac). DOWOD: supabase/tests/gift_link_creator_access_test.sql.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -470,3 +493,82 @@ COMMENT ON FUNCTION public.redeem_gift_link(uuid, text, uuid) IS
   '(dedup po link + tozsamosc: konto albo uuid goscia); darczynca z biezacym dostepem i '
   'czytelnik z wlasnym uprawnieniem nie konsumuja budzetu, darczynca bez dostepu nie '
   'dostaje body (owner_no_access).';
+
+-- ----------------------------------------------------------------------------
+-- 4) Dane zastane: cofniecie linkow, ktorych tworca nie ma dostepu do tresci.
+--
+-- `has_content_access` czyta tozsamosc z auth.uid() (claims JWT), a najemce
+-- z reguly TRESCI (content_access.tenant_id), nie z hosta - wiec werdykt
+-- "czy tworca czyta ten wpis" liczymy, podstawiajac tworce jako podmiot JWT
+-- na czas JEDNEGO sprawdzenia. auth.uid() czyta `request.jwt.claims`, a
+-- starszy klucz `request.jwt.claim.sub` ma pierwszenstwo - podstawiamy go
+-- wiec WYLACZNIE wtedy, gdy wolajacy go ustawil (pusty napis w tym kluczu
+-- zaslanialby claims w czesci implementacji auth.uid()). Oba sa
+-- PRZYWRACANE przed jakimkolwiek zapisem: trigger audytu
+-- (gift_links_audit_tg) zapisuje actor_id = auth.uid(), a cofniecie robi
+-- system, nie tworca - i tozsamosc wolajacego nie moze "przeciec" do reszty
+-- jego transakcji. Blad w petli przerywa cala funkcje (migracja nie
+-- przechodzi polowicznie), a wycofanie transakcji cofa tez set_config.
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.gift_links_revoke_without_creator_access()
+RETURNS integer
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_claims text := current_setting('request.jwt.claims', true);
+  v_claim_sub text := current_setting('request.jwt.claim.sub', true);
+  v_link record;
+  v_doomed uuid[] := ARRAY[]::uuid[];
+  v_revoked integer := 0;
+BEGIN
+  FOR v_link IN
+    SELECT l.id, l.created_by, l.post_id
+      FROM public.post_gift_links l
+     WHERE l.revoked_at IS NULL
+       AND (l.expires_at IS NULL OR l.expires_at > now())
+  LOOP
+    IF COALESCE(v_claim_sub, '') <> '' THEN
+      PERFORM set_config('request.jwt.claim.sub', v_link.created_by::text, true);
+    END IF;
+    PERFORM set_config('request.jwt.claims',
+      json_build_object('sub', v_link.created_by, 'role', 'authenticated')::text, true);
+    IF NOT public.has_content_access('post'::public.access_entity_type, v_link.post_id) THEN
+      v_doomed := v_doomed || v_link.id;
+    END IF;
+  END LOOP;
+
+  -- Tozsamosc wolajacego wraca PRZED zapisem (actor_id audytu = system).
+  IF COALESCE(v_claim_sub, '') <> '' THEN
+    PERFORM set_config('request.jwt.claim.sub', v_claim_sub, true);
+  END IF;
+  PERFORM set_config('request.jwt.claims', COALESCE(v_claims, ''), true);
+
+  UPDATE public.post_gift_links l
+     SET revoked_at = now()
+   WHERE l.id = ANY (v_doomed)
+     AND l.revoked_at IS NULL;
+  GET DIAGNOSTICS v_revoked = ROW_COUNT;
+  RETURN v_revoked;
+END $$;
+
+REVOKE ALL ON FUNCTION public.gift_links_revoke_without_creator_access()
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.gift_links_revoke_without_creator_access() TO service_role;
+
+COMMENT ON FUNCTION public.gift_links_revoke_without_creator_access() IS
+  'Jednorazowa korekta danych (audyt SUB-06): cofa aktywne linki podarunkowe, ktorych tworca '
+  'w chwili wywolania nie ma has_content_access do darowanego wpisu (linki wydane przed '
+  'bramka tworzenia). Swiadomie obejmuje tez bylych subskrybentow z wygaslym dostepem - '
+  'dane ich nie odrozniaja. Przywraca tozsamosc wolajacego przed zapisem; zwraca liczbe '
+  'cofnietych linkow. Idempotentna. Tylko service_role.';
+
+DO $$
+DECLARE
+  v_revoked integer;
+BEGIN
+  v_revoked := public.gift_links_revoke_without_creator_access();
+  RAISE NOTICE 'gift links: revoked % link(s) whose creator lacks access to the gifted post', v_revoked;
+END $$;

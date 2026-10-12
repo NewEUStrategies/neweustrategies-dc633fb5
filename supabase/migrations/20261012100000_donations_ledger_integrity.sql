@@ -21,6 +21,8 @@
 --       `source_donation_id`), a każde ponowienie zapisu `paid -> paid`
 --       przedłużało go o kolejne 12 miesięcy. Trigger przelicza teraz
 --       przydział z POZOSTAŁYCH opłaconych wpłat i ignoruje `paid -> paid`.
+--       Przeliczenie liczy TE SAME wiersze, które przydział nadają - bez
+--       filtra środowiska (patrz komentarz przy funkcji).
 --   (4) Wiersze sesji testowych (`cs_test_...`) mają `environment = 'live'`,
 --       bo wstawienie nie podawało środowiska (DEFAULT 'live'). Identyfikator
 --       sesji Stripe NIESIE tryb, więc przeklasyfikowanie jest pewne.
@@ -31,7 +33,9 @@
 --   * pary sesja/faktura PIERWSZEJ raty tej samej subskrypcji: duplikat dostaje
 --     status `canceled` i klucz `duplicate:...` (ślad zostaje, statystyki
 --     i trigger wspierającego go nie liczą). Kryteria w funkcji niżej -
---     wyłącznie przypadki jednoznaczne; reszta zostaje nietknięta.
+--     wyłącznie przypadki jednoznaczne; reszta zostaje nietknięta. Obejmuje
+--     też kotwicę z PUSTĄ intencją (uzgodnienie w panelu sprzed poprawki)
+--     i trójkę kotwica + `renewal:in_...` + `renewal:cs_...`.
 --
 -- IDEMPOTENTNA: IF NOT EXISTS / CREATE OR REPLACE / warunki na danych.
 -- DOWÓD: supabase/tests/donations_ledger_integrity_test.sql.
@@ -87,11 +91,23 @@ UPDATE public.donations d
 -- (3) Status wspierającego z darowizny.
 --
 -- Przejście `paid -> cokolwiek` (zwrot, spór, korekta duplikatu) PRZELICZA
--- przydział z pozostałych opłaconych wpłat darczyńcy w tym samym środowisku,
--- tą samą regułą, którą przydział powstaje (każda wpłata: +12 miesięcy od
--- późniejszej z dat: zapłaty i dotychczasowego końca). Wynik może przydział
--- wyłącznie SKRÓCIĆ (LEAST z obecnym końcem) - zwrot nigdy go nie wydłuża,
--- a ręczne skrócenie przez redakcję zostaje. Brak uzasadnienia = odebranie.
+-- przydział z pozostałych opłaconych wpłat darczyńcy, tą samą regułą, którą
+-- przydział powstaje (każda wpłata: +12 miesięcy od późniejszej z dat:
+-- zapłaty i dotychczasowego końca). Wynik może przydział wyłącznie SKRÓCIĆ
+-- (LEAST z obecnym końcem) - zwrot nigdy go nie wydłuża, a ręczne skrócenie
+-- przez redakcję zostaje. Brak uzasadnienia = odebranie.
+--
+-- BEZ FILTRA ŚRODOWISKA - celowo. Gałąź nadająca (niżej) przedłuża przydział
+-- KAŻDĄ opłaconą wpłatą, więc przeliczenie musi liczyć te same wiersze.
+-- Zawężenie do `NEW.environment` dawało złą odpowiedź dokładnie na danych
+-- mieszanych, które ta migracja tworzy: korekta testowej pary sesja/faktura
+-- (przeklasyfikowanej na `sandbox`) przeliczała przydział z SAMYCH wierszy
+-- piaskownicy i skracała albo odbierała status darczyńcy, którego realne
+-- wpłaty `live` uzasadniają go dalej. Po poprawce SUB-10 produkcja nie
+-- tworzy już opłaconych wierszy `sandbox` (środowisko checkoutu z serwera,
+-- księgowanie po środowisku zdarzenia), a wdrożenie piaskownicy ma wyłącznie
+-- wiersze `sandbox` - filtr niczego tam nie chronił. Zastane przydziały
+-- z wpłat testowych na produkcji: patrz dokumentacja (§8.3, przegląd ręczny).
 --
 -- `paid -> paid` (ponowiony zapis księgujący, `UPDATE OF status` odpala się
 -- także bez zmiany wartości) nie przedłuża już przydziału.
@@ -128,7 +144,6 @@ BEGIN
         FROM public.donations d
        WHERE d.tenant_id = NEW.tenant_id
          AND d.user_id = NEW.user_id
-         AND d.environment = NEW.environment
          AND d.status = 'paid'
          AND d.id <> NEW.id
        ORDER BY COALESCE(d.paid_at, d.created_at), d.id
@@ -196,11 +211,16 @@ CREATE TRIGGER donations_grant_supporter
 -- ----------------------------------------------------------------------------
 -- (1) Korekta zastanych par sesja/faktura PIERWSZEJ raty.
 --
--- Wiersz „z sesji" to: kotwica (`provider_session_id` bez prefiksu) z
--- `provider_intent_id = cs_...` (sesja doszła pierwsza) albo wiersz
--- `renewal:cs_...` (faktura doszła pierwsza). Wiersz „z faktury" to wiersz tej
--- samej subskrypcji z `provider_invoice_id` - ten NAJWCZEŚNIEJSZY, bo pierwsza
--- rata jest pierwszą fakturą.
+-- Wiersz „z sesji" to: kotwica (`provider_session_id = cs_...`) z
+-- `provider_intent_id = cs_...` (sesja doszła pierwsza) albo z PUSTĄ intencją,
+-- albo wiersz `renewal:cs_...` (faktura doszła pierwsza). Pusta intencja to
+-- ślad uzgodnienia w panelu sprzed poprawki: `syncDonationsFromStripe`
+-- domykał kotwicę `settleDonation` z `session.payment_intent`, a ta wartość
+-- w trybie subskrypcji jest null - kotwica zostawała `paid` bez intencji
+-- (właśnie wtedy, gdy oba webhooki zawiodły, czyli gdy uzgodnienie jest
+-- potrzebne). Wiersz „z faktury" to wiersz tej samej subskrypcji
+-- z `provider_invoice_id` - ten NAJWCZEŚNIEJSZY, bo pierwsza rata jest
+-- pierwszą fakturą.
 --
 -- Para jest duplikatem WYŁĄCZNIE gdy: ten sam najemca, środowisko,
 -- subskrypcja, kwota i waluta, oba `paid`, a zapłaty dzieli najwyżej 7 dni.
@@ -211,6 +231,15 @@ CREATE TRIGGER donations_grant_supporter
 -- otwarcia kasy) z kluczem faktury; drugi wiersz dostaje `canceled`
 -- i `duplicate:<stary klucz>`, a przejście `paid -> canceled` przelicza
 -- status wspierającego (trigger wyżej).
+--
+-- TRÓJKA (kotwica + `renewal:in_X` + `renewal:cs_Y`): ponowione `invoice.paid`
+-- i ponowiona sesja dopisały DWA wiersze tej samej raty. Pętla par łączy
+-- kotwicę z fakturą, ale `renewal:cs_Y` pasuje wyłącznie do `renewal:in_X`
+-- (dwa wiersze `renewal:` = „niejednoznaczne") i zostawał opłacony. Dlatego
+-- drugi przebieg PO pętli: `renewal:cs_Y` jest duplikatem kotwicy
+-- `provider_session_id = cs_Y` z definicji - ten sam identyfikator sesji
+-- operatora, więc dopasowanie jest dokładne (bez okna czasowego), a kotwica
+-- musi być zaksięgowana (`paid`/`refunded` - pieniądze tej raty już tam są).
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.donations_dedupe_session_invoice_pairs()
 RETURNS integer
@@ -223,6 +252,7 @@ DECLARE
   v_keep uuid;
   v_drop uuid;
   v_invoice text;
+  v_session_dupes integer := 0;
 BEGIN
   FOR v_pair IN
     WITH invoice_rows AS (
@@ -249,7 +279,10 @@ BEGIN
          AND d.provider_subscription_id IS NOT NULL
          AND d.provider_invoice_id IS NULL
          AND (
-           (d.provider_session_id NOT LIKE 'renewal:%' AND d.provider_intent_id LIKE 'cs\_%')
+           -- Kotwica: klucz sesji bez prefiksu; intencja `cs_...` (webhook
+           -- sesji) albo pusta (uzgodnienie w panelu sprzed poprawki).
+           (d.provider_session_id LIKE 'cs\_%'
+             AND (d.provider_intent_id IS NULL OR d.provider_intent_id LIKE 'cs\_%'))
            OR d.provider_session_id LIKE 'renewal:cs\_%'
          )
     )
@@ -300,7 +333,38 @@ BEGIN
 
     v_count := v_count + 1;
   END LOOP;
-  RETURN v_count;
+
+  -- Drugi przebieg: `renewal:cs_Y` przy zaksięgowanej kotwicy `cs_Y` (trójka
+  -- i para bez faktury). Kotwicy nie ruszamy - klucz faktury dostała w pętli
+  -- albo nigdy go nie miała; duplikat traci unikaty jak wyżej.
+  WITH session_dupes AS (
+    SELECT r.id
+      FROM public.donations r
+      JOIN public.donations a
+        ON a.provider_session_id = substr(r.provider_session_id, length('renewal:') + 1)
+       AND a.id <> r.id
+       AND a.tenant_id = r.tenant_id
+       AND a.environment = r.environment
+       AND a.provider_subscription_id = r.provider_subscription_id
+       AND a.amount_cents = r.amount_cents
+       AND a.currency = r.currency
+       AND a.status IN ('paid', 'refunded')
+     WHERE r.recurring
+       AND r.status = 'paid'
+       AND r.provider_session_id LIKE 'renewal:cs\_%'
+       AND r.provider_invoice_id IS NULL
+  )
+  UPDATE public.donations d
+     SET status = 'canceled',
+         provider_session_id = 'duplicate:' || d.provider_session_id,
+         provider_intent_id = NULL,
+         provider_invoice_id = NULL
+    FROM session_dupes x
+   WHERE d.id = x.id
+     AND d.status = 'paid';
+  GET DIAGNOSTICS v_session_dupes = ROW_COUNT;
+
+  RETURN v_count + v_session_dupes;
 END;
 $$;
 
@@ -308,7 +372,7 @@ REVOKE ALL ON FUNCTION public.donations_dedupe_session_invoice_pairs() FROM PUBL
 GRANT EXECUTE ON FUNCTION public.donations_dedupe_session_invoice_pairs() TO service_role;
 
 COMMENT ON FUNCTION public.donations_dedupe_session_invoice_pairs() IS
-  'Jednorazowa korekta par sesja/faktura pierwszej raty darowizny cyklicznej (audyt SUB-09): duplikat -> canceled + duplicate:<klucz>, kotwica przejmuje klucz faktury. Wyłącznie pary jednoznaczne (ten sam najemca/środowisko/subskrypcja/kwota/waluta, oba paid, <= 7 dni). Idempotentna - kolejne wywołanie nie znajduje par. Tylko service_role.';
+  'Jednorazowa korekta par sesja/faktura pierwszej raty darowizny cyklicznej (audyt SUB-09): duplikat -> canceled + duplicate:<klucz>, kotwica przejmuje klucz faktury. Wyłącznie pary jednoznaczne (ten sam najemca/środowisko/subskrypcja/kwota/waluta, oba paid, <= 7 dni), także kotwica z pustą intencją (uzgodnienie w panelu sprzed poprawki); renewal:cs_X przy zaksięgowanej kotwicy cs_X (trójka) jest duplikatem z definicji. Zwraca liczbę skasowanych duplikatów. Idempotentna - kolejne wywołanie nie znajduje par. Tylko service_role.';
 
 DO $$
 DECLARE
