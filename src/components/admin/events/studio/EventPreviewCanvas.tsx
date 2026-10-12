@@ -584,9 +584,9 @@ export function EventPreviewCanvas({
           }
         >
           <div data-testid="event-preview-page">
-            {/* SCIEZKA PODSTRONY JEST CHROME'M PODGLADU, nie trescia strony:
-                mowi redaktorowi, ktory adres publiczny wlasnie oglada. */}
-            <p className="font-sans text-xs text-muted-foreground">/{page.path}</p>
+            {/* SCIEZKA PODSTRONY NIE JEST JUZ RYSOWANA - okruszki w
+                `EventModuleHero` mowia, ktora strona jest ogladana, wiec
+                duplikat umowilismy przy ujednoliceniu banerow. */}
             {/* NAGLOWEK MODULOWY JEST WSPOLNY ZE STRONA PUBLICZNA
                 (`EventModuleHero`): okruszki + karta z ikona, pigulka i
                 gradientem. Okruszki BEZ linkow (`breadcrumbLinks=false`) - klik
