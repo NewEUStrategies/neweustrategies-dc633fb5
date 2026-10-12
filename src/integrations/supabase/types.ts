@@ -10344,6 +10344,9 @@ export type Database = {
           promoted_at: string | null
           qr_issued_at: string | null
           qr_token_hash: string | null
+          quote_valid_until: string | null
+          quoted_currency: string | null
+          quoted_price_cents: number | null
           registration_mode: string
           remind_email: boolean
           remind_push: boolean
@@ -10392,6 +10395,9 @@ export type Database = {
           promoted_at?: string | null
           qr_issued_at?: string | null
           qr_token_hash?: string | null
+          quote_valid_until?: string | null
+          quoted_currency?: string | null
+          quoted_price_cents?: number | null
           registration_mode: string
           remind_email?: boolean
           remind_push?: boolean
@@ -10440,6 +10446,9 @@ export type Database = {
           promoted_at?: string | null
           qr_issued_at?: string | null
           qr_token_hash?: string | null
+          quote_valid_until?: string | null
+          quoted_currency?: string | null
+          quoted_price_cents?: number | null
           registration_mode?: string
           remind_email?: boolean
           remind_push?: boolean
@@ -29712,6 +29721,10 @@ export type Database = {
       }
       event_registration_notify_payload: {
         Args: { p_payload: Json }
+        Returns: Json
+      }
+      event_registration_notify_payload_for_tenant: {
+        Args: { _tenant_id: string; p_payload: Json }
         Returns: Json
       }
       event_registration_payment_context: {

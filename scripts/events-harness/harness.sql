@@ -67,11 +67,27 @@ CREATE OR REPLACE FUNCTION extensions.hmac(text, text, text) RETURNS bytea
 LANGUAGE sql IMMUTABLE AS $$ SELECT public.hmac($1, $2, $3) $$;
 
 -- ----------------------------------------------------------------------------
--- auth (ksztalt z platformy Supabase; z auth.users modul czyta wylacznie `id`)
+-- auth (ksztalt z platformy Supabase; z auth.users modul czyta `id`, `email`
+-- i `email_confirmed_at` - reszta kolumn GoTrue nie jest tu potrzebna)
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS auth.users (
   id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  email text
+  email text,
+  -- Potwierdzenie adresu (GoTrue). Czyta je regula wiazania konta z osoba
+  -- (`_event_uid_owns_email` / `_event_bind_uid_for_email`, 20261012100000:
+  -- konto wiaze sie z kartoteka TYLKO przy POTWIERDZONYM adresie) i akceptacja
+  -- przekazania biletu. Kolumna stoi TU, w ksztalcie tabeli, a nie dopisana
+  -- pozniej: obie funkcje sa LANGUAGE sql, a takie cialo Postgres waliduje przy
+  -- CREATE - kolumna musi istniec, zanim replay dojdzie do ich migracji.
+  --
+  -- DEFAULT now(), bo tak wyglada produkcja dla kazdej SESJI: przy wlaczonym
+  -- potwierdzaniu adresu GoTrue nie wydaje tokenu kontu bez potwierdzenia,
+  -- wiec kazdy aktor `act_as` jest kontem potwierdzonym. Istniejace fixture'y
+  -- wstawiaja `(id, email)` i zachowuja sie jak dotad. Fixture, ktory
+  -- potrzebuje konta NIEPOTWIERDZONEGO, wstawia jawnie
+  -- `email_confirmed_at = NULL` (pgTAP-owy stub platformy nie ma domyslnej
+  -- wartosci i tam NULL jest stanem wyjsciowym).
+  email_confirmed_at timestamptz DEFAULT now()
 );
 
 -- Aktor sesji. Puste = anonim (`auth.uid()` zwraca NULL), dokladnie jak
@@ -1371,14 +1387,11 @@ GRANT SELECT, INSERT ON public.audit_log TO authenticated;
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- auth.users.email_confirmed_at - kolumna platformy Supabase (GoTrue).
--- Czyta ja regula wiazania konta z osoba (R-9: `event_register` wiaze konto
--- tylko przy POTWIERDZONYM adresie) i akceptacja przekazania biletu (S8).
--- DEFAULT now(): istniejace fixture'y harnessu wstawiaja `(id, email)` i maja
--- zachowac sie jak konta potwierdzone; przypadek niepotwierdzony test ustawia
--- jawnie `email_confirmed_at = NULL`.
+-- auth.users.email_confirmed_at (potwierdzenie adresu konta, S8) - kolumna
+-- stoi w ksztalcie `auth.users` w sekcji `auth` na poczatku pliku, razem
+-- z uzasadnieniem DEFAULT now(). Dopisywana tu ALTER-em byla niewidoczna dla
+-- czytajacego ksztalt tabeli, ktory glosil „tylko id".
 -- ----------------------------------------------------------------------------
-ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS email_confirmed_at timestamptz DEFAULT now();
 
 -- ----------------------------------------------------------------------------
 -- public.rate_limits + public.rate_limit_hit - licznik okienkowy.
