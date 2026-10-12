@@ -136,8 +136,7 @@ function report(overrides: Partial<AuditReport> = {}): AuditReport {
     webhooks,
     totals: {
       orders: orders.length,
-      paidCents: 4900,
-      refundedCents: 0,
+      byCurrency: [{ currency: "PLN", orders: orders.length, paidCents: 4900, refundedCents: 0 }],
       webhooksFailed: webhooks.filter((w) => w.status === "failed").length,
     },
     truncated: false,
@@ -227,7 +226,7 @@ describe("trasa /admin/billing-audit - sklejenie i nagłówek", () => {
 
     expect(view.currentPath()).toBe(PATH);
     expect(view.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
-    expect(view.meta()).toContainEqual({ title: "Audyt rozliczeń - Panel" });
+    expect(view.meta()).toContainEqual({ title: "Billing audit | New European Strategies" });
   });
 
   it("przed wczytaniem nie pokazuje ani podsumowania, ani tabel", async () => {
@@ -355,7 +354,11 @@ describe("trasa /admin/billing-audit - podsumowanie zakresu", () => {
     h.audit.mockResolvedValue(
       report({
         orders: [order(), order({ id: "order-2", status: "refunded", refundedCents: 4900 })],
-        totals: { orders: 2, paidCents: 4900, refundedCents: 4900, webhooksFailed: 1 },
+        totals: {
+          orders: 2,
+          byCurrency: [{ currency: "PLN", orders: 2, paidCents: 4900, refundedCents: 4900 }],
+          webhooksFailed: 1,
+        },
       }),
     );
     await mount();
@@ -396,7 +399,7 @@ describe("trasa /admin/billing-audit - podsumowanie zakresu", () => {
       report({
         orders: [],
         webhooks: [],
-        totals: { orders: 0, paidCents: 0, refundedCents: 0, webhooksFailed: 0 },
+        totals: { orders: 0, byCurrency: [], webhooksFailed: 0 },
       }),
     );
     await mount();
@@ -749,10 +752,10 @@ describe("trasa /admin/billing-audit - defekty NAPRAWIONE", () => {
   // rozbicie sum po walutach), więc znacznik `it.fails` zdjęto, a komentarze
   // opisują teraz, CO było złe i JAK zostało naprawione.
   //
-  // Rozbicie sum NIE wymagało zmiany `audit.server.ts`: `AuditReport.totals`
-  // jest redukcją tablicy `report.orders`, którą klient i tak dostaje, więc
-  // kafel liczy per waluta z tego samego materiału, z którego serwer liczy
-  // sumę zbiorczą.
+  // Rozbicie sum najpierw zrobił sam kafel (z `report.orders`), bo serwer
+  // oddawał jedną zlepioną sumę. Audyt INV-19a przeniósł je do kontraktu:
+  // `AuditReport.totals.byCurrency` niesie sumy per waluta, a kafel już
+  // niczego nie przelicza - tylko formatuje każdą pozycję jej walutą.
 
   it("nieudane wczytanie audytu mówi operatorowi, CO padło", async () => {
     // CO BYŁO ZŁE. Mutacja `load` nie miała `onError` i nigdzie nie czytała
@@ -820,10 +823,10 @@ describe("trasa /admin/billing-audit - defekty NAPRAWIONE", () => {
     // więc kafel i wiersze mówiły różne rzeczy o tym samym zakresie - a kafel
     // jest czytany pierwszy i bez tabeli.
     //
-    // JAK NAPRAWIONE, BEZ RUSZANIA KONTRAKTU SERWERA. `AuditReport.totals` jest
-    // redukcją tablicy `report.orders` (ten sam, przycięty limitem materiał),
-    // którą klient i tak dostaje - kafel grupuje ją po `currency` i pokazuje
-    // jedną kwotę na walutę. Panel formatuje kwoty KODEM waluty (PLN/EUR),
+    // JAK NAPRAWIONE. Najpierw kafel sam grupował `report.orders` po walucie,
+    // powtarzając regułę przychodu po stronie klienta. Po INV-19a sumy per
+    // waluta liczy serwer (`AuditReport.totals.byCurrency`), a kafel pokazuje
+    // jedną kwotę na pozycję. Panel formatuje kwoty KODEM waluty (PLN/EUR),
     // bo symbol zależy od locale i wersji ICU, a arkusz księgowy nazywa waluty
     // kodem. Eksport CSV/XLSX niesie kolumnę `currency` per wiersz, więc jego
     // kontrakt nie wymagał zmiany.
@@ -838,7 +841,14 @@ describe("trasa /admin/billing-audit - defekty NAPRAWIONE", () => {
             providerPaymentIntentId: "pi_eur",
           }),
         ],
-        totals: { orders: 2, paidCents: 7375, refundedCents: 0, webhooksFailed: 0 },
+        totals: {
+          orders: 2,
+          byCurrency: [
+            { currency: "EUR", orders: 1, paidCents: 2475, refundedCents: 0 },
+            { currency: "PLN", orders: 1, paidCents: 4900, refundedCents: 0 },
+          ],
+          webhooksFailed: 0,
+        },
       }),
     );
     await mount();
@@ -854,6 +864,49 @@ describe("trasa /admin/billing-audit - defekty NAPRAWIONE", () => {
     expect(zaksiegowane).toContain("EUR");
     // I żadnego zlepka 73,75, który nie jest kwotą w żadnej walucie.
     expect(zaksiegowane).not.toMatch(moneyPattern(7375));
+  });
+
+  it("kafle pokazują sumy per waluta z raportu: zwroty swoją walutą, waluta z zerem znika z kafla", async () => {
+    // Kafel czyta `totals.byCurrency`, a nie wiersze: pozycja EUR ma zero
+    // przychodu (jedyne zamówienie w euro zwrócono w całości), więc w kaflu
+    // „Zaksięgowane" nie ma „0,00 EUR", a w kaflu „Zwrócone" euro stoi obok
+    // złotówek - każda kwota ze swoim kodem, bez sumy łącznej.
+    h.audit.mockResolvedValue(
+      report({
+        orders: [
+          order({ refundedCents: 1000 }),
+          order({
+            id: "order-eur",
+            status: "refunded",
+            currency: "EUR",
+            amountCents: 2475,
+            refundedCents: 2475,
+            providerPaymentIntentId: "pi_eur",
+          }),
+        ],
+        totals: {
+          orders: 2,
+          byCurrency: [
+            { currency: "EUR", orders: 1, paidCents: 0, refundedCents: 2475 },
+            { currency: "PLN", orders: 1, paidCents: 4900, refundedCents: 1000 },
+          ],
+          webhooksFailed: 0,
+        },
+      }),
+    );
+    await mount();
+    await load();
+
+    await screen.findByRole("table");
+    const zaksiegowane = summaryCard("Zaksięgowane").textContent ?? "";
+    expect(zaksiegowane).toMatch(moneyPattern(4900));
+    expect(zaksiegowane).not.toContain("EUR");
+    const zwrocone = summaryCard("Zwrócone").textContent ?? "";
+    expect(zwrocone).toMatch(moneyPattern(2475));
+    expect(zwrocone).toMatch(moneyPattern(1000));
+    expect(zwrocone).toContain("EUR");
+    expect(zwrocone).toContain("PLN");
+    expect(zwrocone).not.toMatch(moneyPattern(3475));
   });
 
   it("okno ponad zadeklarowane maksimum nie wychodzi już do serwera", async () => {

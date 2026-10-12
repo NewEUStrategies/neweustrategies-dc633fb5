@@ -27,7 +27,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { publicEventBySlugQueryOptions } from "@/lib/community/publicQueries";
 import { EventModuleHero } from "@/components/events/public/molecules/EventModuleHero";
-import { EventPortalContent, EVENT_PORTAL_CONTENT_WIDE_CLASS } from "@/components/events/public/atoms/EventPortalContent";
+import {
+  EventPortalContent,
+  EVENT_PORTAL_CONTENT_WIDE_CLASS,
+} from "@/components/events/public/atoms/EventPortalContent";
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-event-head";
 import { activeLang } from "@/lib/seo/head";
@@ -59,13 +62,27 @@ function EventMeRoute() {
   const { t, i18n: translation } = useTranslation();
   const eventQuery = useQuery(publicEventBySlugQueryOptions(slug));
   const event = eventQuery.data;
-  const title = event ? (translation.language.startsWith("en") ? event.title_en || event.title_pl : event.title_pl || event.title_en) : "";
+  const title = event
+    ? translation.language.startsWith("en")
+      ? event.title_en || event.title_pl
+      : event.title_pl || event.title_en
+    : "";
   const label = t("eventMe.tab");
   return (
     <EventPortalContent className={EVENT_PORTAL_CONTENT_WIDE_CLASS}>
-      <EventModuleHero module="me" eventTitle={title} moduleLabel={label}
-        crumbs={[{ label: t("eventFront.header.breadcrumbEvents"), href: "/events" }, ...(title ? [{ label: title, href: `/events/${slug}` }] : []), { label }]}
-        hasDocument={false}>{null}</EventModuleHero>
+      <EventModuleHero
+        module="me"
+        eventTitle={title}
+        moduleLabel={label}
+        crumbs={[
+          { label: t("eventFront.header.breadcrumbEvents"), href: "/events" },
+          ...(title ? [{ label: title, href: `/events/${slug}` }] : []),
+          { label },
+        ]}
+        hasDocument={false}
+      >
+        {null}
+      </EventModuleHero>
       <EventMePanel
         slug={slug}
         tab={tab}

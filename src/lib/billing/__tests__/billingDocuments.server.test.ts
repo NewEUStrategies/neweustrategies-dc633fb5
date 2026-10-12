@@ -11,13 +11,25 @@
 // znieść dowolną liczbę powtórzeń tego samego zdarzenia i uzupełniać, a nie
 // duplikować ani nie kasować już zapisanych danych.
 //
+// Trzecia reguła (audyt INV-04): STAN Z CHECK-A I ALARM ZAMIAST CISZY. Zapis
+// przepisywał stan operatora dosłownie (domyślnie `pending`), więc KAŻDY zakup
+// jednorazowy (bilet, darowizna, dostęp do treści) padał na CHECK-u tabeli,
+// a błąd był logowany jako „wyścig" i pomijany. Teraz: stan idzie przez
+// `billingDocumentStatus` (zbiór = CHECK, dowód: `billingDocumentsDbCheck.test`),
+// 23505 to jedyny „wyścig", a każdy inny błąd zapisu to `failed` + dzwonek dla
+// administratorów najemcy.
+//
+// Czwarta (audyt INV-07): MIGAWKA STRON z chwili zakupu zapisywana razem
+// z dokumentem - z tych samych źródeł, z których czyta kopia PDF.
+//
 // CO TEN PLIK MIERZY: gałęzie ODMOWY - brak identyfikatora, brak właściciela
 // (płatność gościa), awaria odczytu, wyścig dwóch zdarzeń o ten sam dokument,
-// aktualizacja bez żadnej zmiany. Ścieżka szczęśliwa jest tu w minimalnej
-// dawce - jako kontrakt kształtu zapisu.
+// aktualizacja bez żadnej zmiany - oraz gałęzie AWARII (alarm) i ścieżkę
+// `checkout.session.completed` od zdarzenia operatora do wiersza.
 //
-// GRANICA ATRAP: wyłącznie klient Supabase (rola serwisowa). Sam moduł nie
-// wychodzi do sieci, więc nic więcej podmieniać nie trzeba.
+// GRANICA ATRAP: klient Supabase (rola serwisowa) i nadawca dzwonka
+// (`tenantAdminAlert.server`). Sam moduł nie wychodzi do sieci, więc nic
+// więcej podmieniać nie trzeba.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import type { StripeEnv } from "@/lib/stripe.server";
@@ -31,6 +43,7 @@ import {
 
 const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
+  notifyTenantAdmins: vi.fn(async (_input: Record<string, unknown>) => 1),
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -42,16 +55,23 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 
+vi.mock("@/lib/events/tenantAdminAlert.server", () => ({
+  notifyTenantAdmins: h.notifyTenantAdmins,
+}));
+
 import {
   documentInputFromTransaction,
   recordTransactionDocument,
   type TransactionDocumentInput,
 } from "@/lib/billing/billingDocuments.server";
+import { BILLING_DOCUMENT_STATUSES } from "@/lib/billing/billingDocumentStatus";
+import { normalizeStripeEvent } from "@/lib/billing/stripeEvents.server";
 
 const ENV: StripeEnv = "sandbox";
 const TXN = "in_1SyntetycznaFaktura";
 const OWNER = { userId: "user-me", tenantId: "tenant-alfa" };
 const FOREIGN = { userId: "user-other", tenantId: "tenant-beta" };
+const ORDER_ID = "order-1";
 
 let db: SupabaseFromStub;
 
@@ -66,6 +86,7 @@ function input(overrides: Partial<TransactionDocumentInput> = {}): TransactionDo
     hostedUrl: "https://invoice.example.test/hosted",
     pdfUrl: "https://invoice.example.test/pdf",
     status: "completed",
+    kind: "invoice",
     issuedAt: "2026-08-18T10:00:00.000Z",
     environment: ENV,
     ...overrides,
@@ -87,8 +108,10 @@ function writtenRow(table: string, method: "insert" | "update"): Record<string, 
 
 /**
  * Domyślny stan: transakcja należy do zamówienia `OWNER`, rejestr dokumentów
- * jest pusty, wszystkie zapisy się udają. Każdy test odmowy podmienia
- * DOKŁADNIE JEDNĄ z tych odpowiedzi - to trzyma przyczynę porażki jawną.
+ * jest pusty, wszystkie zapisy się udają, a źródła migawki (profil
+ * rozliczeniowy, wystawca, ustawienia checkoutu) odpowiadają. Każdy test
+ * odmowy podmienia DOKŁADNIE JEDNĄ z tych odpowiedzi - to trzyma przyczynę
+ * porażki jawną.
  */
 function seed(
   options: {
@@ -96,22 +119,45 @@ function seed(
     order?: SupabaseResult;
     document?: SupabaseResult;
     write?: SupabaseResult;
+    checkoutSettings?: SupabaseResult;
   } = {},
 ): void {
   db.setResponse("subscriptions", options.subscription ?? ok(null));
   db.setResponse(
     "payment_orders",
-    options.order ?? ok({ user_id: OWNER.userId, tenant_id: OWNER.tenantId }),
+    options.order ?? ok({ id: ORDER_ID, user_id: OWNER.userId, tenant_id: OWNER.tenantId }),
   );
   db.setResponse("billing_documents", (chain) => {
     if (chain.has("insert") || chain.has("update")) return options.write ?? ok(null);
     return options.document ?? ok(null);
   });
+  db.setResponse(
+    "billing_profiles",
+    ok({
+      full_name: "Jan Kowalski",
+      company: "Dvořák s.r.o.",
+      tax_id: "CZ12345678",
+      email: "faktury@example.com",
+      address_line1: "Náměstí 1",
+      address_line2: null,
+      city: "Brno",
+      postal_code: "602 00",
+      country_code: "CZ",
+      is_company: true,
+    }),
+  );
+  db.setResponse("profiles", ok({ email: "konto@example.com" }));
+  db.setResponse(
+    "site_settings",
+    ok({ value: { name: "Fundacja Syntetyczna", tax_id: "PL5260000000", city: "Kraków" } }),
+  );
+  db.setResponse("checkout_settings", options.checkoutSettings ?? ok(null));
 }
 
 beforeEach(() => {
   db = supabaseFromStub();
   h.db.current = { from: (table: string) => db.from(table) };
+  h.notifyTenantAdmins.mockClear();
   seed();
 });
 
@@ -137,18 +183,20 @@ describe("recordTransactionDocument - ODMOWY (nic nie zapisujemy)", () => {
     expect(db.chainsFor("billing_documents")).toHaveLength(0);
   });
 
-  it("AWARIA ODCZYTU rejestru kończy się pominięciem, nie ślepym zapisem", async () => {
+  it("AWARIA ODCZYTU rejestru kończy się alarmem, nie ślepym zapisem", async () => {
     // Odczyt rozstrzyga „załóż czy uzupełnij". Gdyby błąd przeleciał dalej,
     // kod wpadłby w gałąź zakładania i zderzył się z unikalnością - albo,
-    // gorzej, założył drugi dokument dla tej samej transakcji.
+    // gorzej, założył drugi dokument dla tej samej transakcji. Dokumentu
+    // jednak NIE MA, więc to nie jest ciche `skipped`, tylko `failed` z alarmem.
     seed({ document: fail("statement timeout", "57014") });
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const outcome = await recordTransactionDocument(input());
 
-    expect(outcome).toBe("skipped");
+    expect(outcome).toBe("failed");
     expect(db.chainsFor("billing_documents").some((c) => c.has("insert"))).toBe(false);
     expect(errorLog).toHaveBeenCalled();
+    expect(h.notifyTenantAdmins).toHaveBeenCalledTimes(1);
     errorLog.mockRestore();
   });
 
@@ -159,17 +207,23 @@ describe("recordTransactionDocument - ODMOWY (nic nie zapisujemy)", () => {
     // ostrzeżenie (`warn`), nie błąd, i `skipped`, nie wyjątek.
     seed({ write: fail("duplicate key value violates unique constraint", "23505") });
     const warnLog = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const outcome = await recordTransactionDocument(input());
 
     expect(outcome).toBe("skipped");
     expect(warnLog).toHaveBeenCalled();
+    // Wyścig to dowód idempotencji - ani błąd w logu, ani dzwonek.
+    expect(errorLog).not.toHaveBeenCalled();
+    expect(h.notifyTenantAdmins).not.toHaveBeenCalled();
     warnLog.mockRestore();
+    errorLog.mockRestore();
   });
 
-  it("awaria AKTUALIZACJI istniejącego dokumentu też nie rzuca", async () => {
+  it("awaria AKTUALIZACJI istniejącego dokumentu nie rzuca, ale alarmuje", async () => {
     // Dokument już jest, dochodzi numer faktury - i zapis pada. Webhook nie
-    // może się z tego powodu wywrócić: numer dojdzie kolejnym zdarzeniem.
+    // może się z tego powodu wywrócić, ale zespół musi się dowiedzieć, że
+    // dokument w panelu członka jest niekompletny.
     seed({
       document: ok({ id: "doc-1", number: null, amount_cents: 4900, status: "paid" }),
       write: fail("permission denied for table billing_documents", "42501"),
@@ -178,8 +232,9 @@ describe("recordTransactionDocument - ODMOWY (nic nie zapisujemy)", () => {
 
     const outcome = await recordTransactionDocument(input());
 
-    expect(outcome).toBe("skipped");
+    expect(outcome).toBe("failed");
     expect(errorLog).toHaveBeenCalled();
+    expect(h.notifyTenantAdmins).toHaveBeenCalledTimes(1);
     errorLog.mockRestore();
   });
 
@@ -203,6 +258,69 @@ describe("recordTransactionDocument - ODMOWY (nic nie zapisujemy)", () => {
   });
 });
 
+describe('recordTransactionDocument - AWARIA ZAPISU to alarm, nie „wyścig"', () => {
+  it("odrzucenie przez CHECK (23514) to `failed` + błąd w logu + dzwonek najemcy", async () => {
+    // Dokładnie ten tryb chował zakupy jednorazowe: CHECK odrzucał `pending`,
+    // a kod logował `warn` o wyścigu i zwracał `skipped`.
+    seed({
+      write: fail('new row violates check constraint "billing_documents_status_check"', "23514"),
+    });
+    const warnLog = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const outcome = await recordTransactionDocument(input());
+
+    expect(outcome).toBe("failed");
+    expect(warnLog).not.toHaveBeenCalled();
+    expect(errorLog).toHaveBeenCalledWith(
+      "[payments] billing document insert failed",
+      TXN,
+      expect.objectContaining({ code: "23514" }),
+    );
+    expect(h.notifyTenantAdmins).toHaveBeenCalledTimes(1);
+    warnLog.mockRestore();
+    errorLog.mockRestore();
+  });
+
+  it("dzwonek idzie do najemcy DOKUMENTU i niesie wyłącznie identyfikatory", async () => {
+    seed({
+      order: ok({ id: ORDER_ID, user_id: FOREIGN.userId, tenant_id: FOREIGN.tenantId }),
+      write: fail("connection reset", "08006"),
+    });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await recordTransactionDocument(input());
+
+    const alert = h.notifyTenantAdmins.mock.calls[0]?.[0] ?? {};
+    expect(alert).toMatchObject({
+      tenantId: FOREIGN.tenantId,
+      kind: "billing",
+      href: "/admin/billing",
+    });
+    expect(String(alert.bodyPl)).toContain(TXN);
+    expect(String(alert.bodyPl)).toContain("08006");
+    // Żadnych danych nabywcy w treści dzwonka.
+    expect(JSON.stringify(alert)).not.toMatch(/Dvořák|faktury@example\.com|CZ12345678/);
+    errorLog.mockRestore();
+  });
+
+  it('awaria odczytu WŁAŚCICIELA to `failed`, nie cichy „gość" - i bez dzwonka (brak najemcy)', async () => {
+    // Wcześniej błąd odczytu zamówienia dawał `data: null`, czyli „płatność
+    // gościa" - dokument znikał bez śladu. Bez najemcy nie ma komu dzwonić,
+    // więc zostaje log błędu (jak przy sporze bez najemcy).
+    seed({ order: fail("JSON object requested, multiple rows", "PGRST116") });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const outcome = await recordTransactionDocument(input());
+
+    expect(outcome).toBe("failed");
+    expect(errorLog).toHaveBeenCalled();
+    expect(h.notifyTenantAdmins).not.toHaveBeenCalled();
+    expect(db.chainsFor("billing_documents")).toHaveLength(0);
+    errorLog.mockRestore();
+  });
+});
+
 describe("recordTransactionDocument - WŁAŚCICIEL dokumentu", () => {
   it("właściciel z SUBSKRYPCJI ma pierwszeństwo przed zamówieniem", async () => {
     // Faktura odnowieniowa nie ma własnego zamówienia - jedynym źródłem
@@ -218,6 +336,8 @@ describe("recordTransactionDocument - WŁAŚCICIEL dokumentu", () => {
     const row = writtenRow("billing_documents", "insert");
     expect(row.user_id).toBe(OWNER.userId);
     expect(row.tenant_id).toBe(OWNER.tenantId);
+    // Odnowienie nie ma zamówienia - powiązanie zostaje puste.
+    expect(row.order_id).toBeNull();
     // Zamówienia nawet nie pytamy, gdy subskrypcja odpowiedziała.
     expect(db.chainsFor("payment_orders")).toHaveLength(0);
   });
@@ -282,20 +402,34 @@ describe("recordTransactionDocument - ZAŁOŻENIE dokumentu", () => {
       currency: "PLN",
       status: "paid",
       issued_at: "2026-08-18T10:00:00.000Z",
+      // Zamówienie transakcji - bez niego historia płatności pokazałaby zakup
+      // dwa razy (dokument + zamówienie „bez dokumentu").
+      order_id: ORDER_ID,
     });
   });
 
-  it("status inny niż `completed` jest zapisywany dosłownie, brak statusu to `pending`", async () => {
-    seed();
-    await recordTransactionDocument(input({ status: "past_due" }));
-    expect(writtenRow("billing_documents", "insert").status).toBe("past_due");
+  it.each([
+    ["completed", "paid"],
+    ["paid", "paid"],
+    ["no_payment_required", "paid"],
+    ["open", "open"],
+    ["past_due", "open"],
+    ["uncollectible", "open"],
+    ["void", "void"],
+    ["refunded", "refunded"],
+    // Stan nieznany i brak stanu: dokument powstaje, ale NIE twierdzi, że zapłacono.
+    ["pending", "open"],
+    [null, "open"],
+  ] as const)(
+    "stan operatora %s zapisuje stan %s ze zbioru CHECK-a",
+    async (provider, expected) => {
+      await recordTransactionDocument(input({ status: provider }));
 
-    db = supabaseFromStub();
-    h.db.current = { from: (table: string) => db.from(table) };
-    seed();
-    await recordTransactionDocument(input({ status: null }));
-    expect(writtenRow("billing_documents", "insert").status).toBe("pending");
-  });
+      const status = writtenRow("billing_documents", "insert").status;
+      expect(status).toBe(expected);
+      expect(BILLING_DOCUMENT_STATUSES).toContain(status);
+    },
+  );
 
   it("brak kwoty zapisuje zero, a nie `null` (kolumna jest NOT NULL)", async () => {
     // Numer i kwotę operator dosyła osobnym zdarzeniem. Dokument ma powstać
@@ -314,6 +448,91 @@ describe("recordTransactionDocument - ZAŁOŻENIE dokumentu", () => {
     expect(row.currency).toBe("EUR");
     expect(typeof row.issued_at).toBe("string");
     expect(Date.parse(String(row.issued_at))).toBeGreaterThanOrEqual(before);
+  });
+});
+
+describe("recordTransactionDocument - MIGAWKA stron (INV-07)", () => {
+  it("nowy dokument niesie migawkę nabywcy, sprzedawcy i płaszczyzny z chwili zakupu", async () => {
+    await recordTransactionDocument(input());
+
+    expect(writtenRow("billing_documents", "insert")).toMatchObject({
+      buyer_snapshot: {
+        name: "Dvořák s.r.o.",
+        taxId: "CZ12345678",
+        addressLine1: "Náměstí 1",
+        addressLine2: null,
+        postalCode: "602 00",
+        city: "Brno",
+        country: "CZ",
+        email: "faktury@example.com",
+      },
+      seller_snapshot: { name: "Fundacja Syntetyczna", taxId: "PL5260000000", city: "Kraków" },
+      billing_plane: "managed",
+    });
+    // Źródła czytane w najemcy WŁAŚCICIELA, nie z payloadu.
+    expect(db.lastChain("checkout_settings")?.argsOf("eq")).toEqual(["tenant_id", OWNER.tenantId]);
+  });
+
+  it("własny silnik podatkowy najemcy (`automatic_tax`) zapisuje płaszczyznę `merchant`", async () => {
+    seed({ checkoutSettings: ok({ automatic_tax: true }) });
+
+    await recordTransactionDocument(input());
+
+    expect(writtenRow("billing_documents", "insert").billing_plane).toBe("merchant");
+  });
+
+  it("płaszczyzna OSTEMPLOWANA na zamówieniu wygrywa z bieżącymi ustawieniami kasy (INV-09)", async () => {
+    // Ustawienia zmienione między zakupem a webhookiem (albo jego ponowieniem
+    // po dniach) nie mogą przestawić noty podatkowej zamrażanej na zawsze.
+    seed({
+      order: ok({
+        id: ORDER_ID,
+        user_id: OWNER.userId,
+        tenant_id: OWNER.tenantId,
+        billing_plane: "merchant",
+      }),
+    });
+
+    await recordTransactionDocument(input());
+
+    expect(writtenRow("billing_documents", "insert").billing_plane).toBe("merchant");
+    const planeRead = db
+      .chainsFor("payment_orders")
+      .find((chain) => chain.argsOf("select")?.[0] === "billing_plane");
+    expect(
+      planeRead?.calls.filter((call) => call.method === "eq").map((call) => call.args),
+    ).toEqual([
+      ["id", ORDER_ID],
+      ["tenant_id", OWNER.tenantId],
+    ]);
+    expect(db.chainsFor("checkout_settings")).toHaveLength(0);
+  });
+
+  it("nieczytelne źródło migawki NIE blokuje dokumentu - zapis idzie bez migawki", async () => {
+    // Członek ma zobaczyć zakup od razu; migawkę zamrozi pierwsze pobranie
+    // PDF. Zgadywanie płaszczyzny (domyślne `managed`) utrwaliłoby za to
+    // fałszywą notę MoR - dlatego brak, a nie wartość domyślna.
+    seed({ checkoutSettings: fail("statement timeout", "57014") });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const outcome = await recordTransactionDocument(input());
+
+    expect(outcome).toBe("created");
+    const row = writtenRow("billing_documents", "insert");
+    expect(row).not.toHaveProperty("buyer_snapshot");
+    expect(row).not.toHaveProperty("billing_plane");
+    expect(errorLog).toHaveBeenCalled();
+    expect(h.notifyTenantAdmins).not.toHaveBeenCalled();
+    errorLog.mockRestore();
+  });
+
+  it("uzupełnienie istniejącego dokumentu nie dotyka migawki", async () => {
+    seed({ document: ok({ id: "doc-1", number: null, amount_cents: 4900, status: "paid" }) });
+
+    await recordTransactionDocument(input());
+
+    expect(writtenRow("billing_documents", "update")).not.toHaveProperty("buyer_snapshot");
+    expect(db.chainsFor("billing_profiles")).toHaveLength(0);
   });
 });
 
@@ -338,17 +557,35 @@ describe("recordTransactionDocument - UZUPEŁNIANIE dokumentu", () => {
     // kwoty zerem zamieniłoby fakturę w dokument na 0,00 - to najgorsza
     // możliwa „aktualizacja" dokumentu księgowego.
     seed({
-      document: ok({ id: "doc-1", number: "FV/2026/08/0001", amount_cents: 4900, status: "paid" }),
+      document: ok({ id: "doc-1", number: "FV/2026/08/0001", amount_cents: 4900, status: "open" }),
     });
 
     const outcome = await recordTransactionDocument(
-      input({ amountCents: null, hostedUrl: null, pdfUrl: null, status: "open" }),
+      input({ amountCents: null, hostedUrl: null, pdfUrl: null, status: "paid" }),
     );
 
     expect(outcome).toBe("updated");
     const patch = writtenRow("billing_documents", "update");
     expect(patch).not.toHaveProperty("amount_cents");
-    expect(patch.status).toBe("open");
+    expect(patch.status).toBe("paid");
+  });
+
+  it.each([
+    // Spóźnione `invoice.payment_failed` po `invoice.paid`.
+    ["paid", "open"],
+    // Ponowione zakończenie transakcji po pełnym zwrocie (trigger zwrotu).
+    ["refunded", "paid"],
+  ] as const)("spóźnione zdarzenie nie cofa stanu %s -> %s", async (stored, late) => {
+    seed({
+      document: ok({ id: "doc-1", number: "FV/2026/08/0001", amount_cents: 4900, status: stored }),
+    });
+
+    const outcome = await recordTransactionDocument(
+      input({ status: late, hostedUrl: null, pdfUrl: null }),
+    );
+
+    expect(outcome).toBe("skipped");
+    expect(db.chainsFor("billing_documents").some((c) => c.has("update"))).toBe(false);
   });
 
   it("linki do faktury są dopisywane, gdy operator je w końcu wystawi", async () => {
@@ -365,6 +602,19 @@ describe("recordTransactionDocument - UZUPEŁNIANIE dokumentu", () => {
       hosted_url: "https://invoice.example.test/hosted",
       pdf_url: "https://invoice.example.test/pdf",
     });
+  });
+
+  it("stan NIEZNANY nie cofa opłaconego dokumentu", async () => {
+    seed({
+      document: ok({ id: "doc-1", number: "FV/2026/08/0001", amount_cents: 4900, status: "paid" }),
+    });
+
+    const outcome = await recordTransactionDocument(
+      input({ status: "pending", hostedUrl: null, pdfUrl: null }),
+    );
+
+    expect(outcome).toBe("skipped");
+    expect(db.chainsFor("billing_documents").some((c) => c.has("update"))).toBe(false);
   });
 
   it("zmiana kwoty i statusu jest przenoszona razem", async () => {
@@ -418,6 +668,8 @@ describe("documentInputFromTransaction - odczyt payloadu operatora", () => {
       hostedUrl: "https://invoice.example.test/hosted",
       pdfUrl: "https://invoice.example.test/pdf",
       status: "completed",
+      // Brak `documentKind` (ładunek `transaction.updated`) = faktura.
+      kind: "invoice",
       // `billedAt` ma pierwszeństwo: to data WYSTAWIENIA, nie utworzenia.
       issuedAt: "2026-08-18T10:00:00.000Z",
       environment: ENV,
@@ -463,6 +715,128 @@ describe("documentInputFromTransaction - odczyt payloadu operatora", () => {
     const result = documentInputFromTransaction({ id: `  ${TXN}  ` }, ENV);
 
     expect(result?.transactionId).toBe(TXN);
+  });
+
+  it("`documentKind: null` (sesja subskrypcji) nie jest dokumentem; inne wartości spoza zbioru też nie", () => {
+    expect(documentInputFromTransaction({ id: "cs_sub", documentKind: null }, ENV)).toBeNull();
+    expect(
+      documentInputFromTransaction({ id: "cs_x", documentKind: "credit_note" }, ENV),
+    ).toBeNull();
+    expect(documentInputFromTransaction({ id: "cs_1", documentKind: "receipt" }, ENV)?.kind).toBe(
+      "receipt",
+    );
+  });
+});
+
+describe("checkout.session.completed -> wiersz dokumentu (od zdarzenia operatora do zapisu)", () => {
+  // Kryterium audytu INV-04: zakup jednorazowy dostaje wiersz w rejestrze,
+  // a jego stan należy do zbioru z CHECK-a (parytet zbioru z migracją:
+  // `billingDocumentsDbCheck.test.ts`). Ścieżka biegnie przez PRAWDZIWĄ
+  // normalizację Stripe, bo to ona gubiła stan.
+  function session(over: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      id: "cs_bilet_1",
+      mode: "payment",
+      payment_status: "paid",
+      amount_total: 12000,
+      currency: "pln",
+      customer: "cus_1",
+      subscription: null,
+      payment_intent: "pi_bilet_1",
+      metadata: { orderId: ORDER_ID, purpose: "event_ticket" },
+      customer_details: { email: "kupujacy@example.com" },
+      ...over,
+    };
+  }
+
+  async function record(type: string, object: Record<string, unknown>) {
+    const normalized = normalizeStripeEvent({
+      id: `evt_${type}`,
+      type,
+      created: 1_790_000_000,
+      data: { object },
+    });
+    const documentInput = documentInputFromTransaction(normalized?.data, ENV);
+    return documentInput ? recordTransactionDocument(documentInput) : null;
+  }
+
+  it.each(["event_ticket", "donation", "content_unlock"])(
+    "opłacony zakup jednorazowy (%s) zakłada potwierdzenie płatności `paid`",
+    async (purpose) => {
+      const outcome = await record(
+        "checkout.session.completed",
+        session({ metadata: { orderId: ORDER_ID, purpose } }),
+      );
+
+      expect(outcome).toBe("created");
+      const row = writtenRow("billing_documents", "insert");
+      expect(row).toMatchObject({
+        provider_document_id: "cs_bilet_1",
+        kind: "receipt",
+        status: "paid",
+        amount_cents: 12000,
+        currency: "PLN",
+        user_id: OWNER.userId,
+        tenant_id: OWNER.tenantId,
+        order_id: ORDER_ID,
+      });
+      expect(BILLING_DOCUMENT_STATUSES).toContain(row.status);
+    },
+  );
+
+  it("sesja w pełni pokryta kuponem (`no_payment_required`) to dokument opłacony", async () => {
+    await record(
+      "checkout.session.completed",
+      session({ payment_status: "no_payment_required", amount_total: 0 }),
+    );
+
+    expect(writtenRow("billing_documents", "insert").status).toBe("paid");
+  });
+
+  it("płatność asynchroniczna zapisuje dokument dopiero po `async_payment_succeeded`", async () => {
+    // Sesja `unpaid` nie ma jeszcze pieniędzy - normalizacja jej nie przepuszcza.
+    expect(
+      await record("checkout.session.completed", session({ payment_status: "unpaid" })),
+    ).toBeNull();
+    expect(db.chainsFor("billing_documents")).toHaveLength(0);
+
+    await record("checkout.session.async_payment_succeeded", session());
+
+    expect(writtenRow("billing_documents", "insert").status).toBe("paid");
+  });
+
+  it("sesja SUBSKRYPCJI nie zakłada drugiego dokumentu - dokumentem jest jej faktura", async () => {
+    // Ta sama płatność przychodzi też jako `invoice.paid` (`in_...`). Wiersz
+    // dla `cs_...` dublowałby te same pieniądze w panelu członka.
+    const outcome = await record(
+      "checkout.session.completed",
+      session({ mode: "subscription", subscription: "sub_stripe_1" }),
+    );
+
+    expect(outcome).toBeNull();
+    expect(db.chainsFor("billing_documents")).toHaveLength(0);
+  });
+
+  it("`invoice.paid` zakłada fakturę `paid` ze stanu faktury operatora", async () => {
+    seed({ subscription: ok({ user_id: OWNER.userId, tenant_id: OWNER.tenantId }) });
+
+    const outcome = await record("invoice.paid", {
+      id: "in_odnowienie_1",
+      status: "paid",
+      subscription: "sub_stripe_1",
+      currency: "pln",
+      amount_paid: 4900,
+      total: 4900,
+      number: "FV/2026/10/0001",
+    });
+
+    expect(outcome).toBe("created");
+    expect(writtenRow("billing_documents", "insert")).toMatchObject({
+      provider_document_id: "in_odnowienie_1",
+      kind: "invoice",
+      status: "paid",
+      number: "FV/2026/10/0001",
+    });
   });
 });
 

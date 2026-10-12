@@ -38,7 +38,11 @@ import {
 } from "@/lib/admin/community";
 
 export const Route = createFileRoute("/admin/community/polls")({
-  head: () => adminPageHead("Community polls", "Manage community polls and publication dates. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Community polls",
+      "Manage community polls and publication dates. New European Strategies administration.",
+    ),
   component: PollsAdmin,
 });
 

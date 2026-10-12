@@ -71,7 +71,11 @@ import {
 } from "@/components/admin/post-editor/lib/postsListDialogs";
 
 export const Route = createFileRoute("/admin/posts")({
-  head: () => adminPageHead("Posts", "Manage articles and publication dates. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Posts",
+      "Manage articles and publication dates. New European Strategies administration.",
+    ),
   component: PostsLayout,
 });
 
