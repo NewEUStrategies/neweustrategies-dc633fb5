@@ -49,7 +49,8 @@ export type RefundOutcome =
   | "order_refunded"
   | "donation_refunded"
   | "subscription_restored"
-  | "order_restored";
+  | "order_restored"
+  | "donation_restored";
 
 /**
  * Korekty, które odbierają dostęp.
@@ -221,7 +222,7 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   if (!PROVIDER_REFERENCE_SHAPE.test(txnId)) return "skipped";
 
   const order = await findOrderForAdjustment(event, "refund");
-  if (!order) return await revokeDonation(event, txnId);
+  if (!order) return await revokeDonation(event);
 
   // Ile łącznie wróciło do kupującego. Operator liczy narastająco, więc bierzemy
   // maksimum z zapisanego stanu - ponowione zdarzenie nie może cofnąć licznika.
@@ -346,28 +347,196 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   return "order_refunded";
 }
 
+/** Kolumny darowizny czytane przez korektę (zwrot, spór, wygrany spór). */
+const DONATION_LOOKUP_COLUMNS = "id, tenant_id, amount_cents, refunded_amount_cents, status";
+
+type AdjustmentDonation = Pick<
+  Tables<"donations">,
+  "id" | "tenant_id" | "amount_cents" | "refunded_amount_cents" | "status"
+>;
+
 /**
- * Zwrot darowizny - bez uprawnień, ale status musi się zgadzać z księgami.
- *
- * FILTR ŚRODOWISKA jak w rodzeństwie (`revokeOrder`, `revokeSubscription`):
- * zdarzenie z piaskownicy nie może zamknąć wpłaty produkcyjnej o tym samym
- * identyfikatorze intencji. Kolumnę `donations.environment` dokłada migracja
- * `20260831140000_donations_environment_isolation` (NOT NULL DEFAULT 'live'
- * + CHECK + indeks); filtr działa dopiero po jej wdrożeniu i regeneracji
- * `src/integrations/supabase/types.ts` - kolejność: migracja ->
- * `bun run generate:types` -> filtr.
+ * Powiązania intencji płatności po stronie operatora: faktura, którą opłaciła
+ * (rata darowizny cyklicznej), i sesja checkout, z której powstała (wpłata
+ * jednorazowa). Webhook faktury w API Basil NIE niesie intencji, a wiersze
+ * jednorazowe sprzed 20261012 trzymały w `provider_intent_id` sesję - bez tego
+ * mostu zwrot żadnej z tych wpłat nie trafiał w darowiznę (audyt SUB-09).
+ * Błąd operatora RZUCA: korekta wraca do ponowienia zamiast udawać „nie nasze".
  */
-async function revokeDonation(event: RefundEvent, txnId: string): Promise<RefundOutcome> {
+async function operatorRefsForIntent(
+  environment: RefundEvent["environment"],
+  intentId: string,
+): Promise<{ invoiceId: string | null; sessionId: string | null }> {
+  const { getStripeClient, getStripeErrorMessage } = await import("@/lib/stripe.server");
+  try {
+    const stripe = await getStripeClient(environment);
+    const [payments, sessions] = await Promise.all([
+      stripe.invoicePayments.list({
+        payment: { type: "payment_intent", payment_intent: intentId },
+        limit: 1,
+      }),
+      stripe.checkout.sessions.list({ payment_intent: intentId, limit: 1 }),
+    ]);
+    const invoice = payments.data[0]?.invoice;
+    return {
+      invoiceId: typeof invoice === "string" ? invoice : (invoice?.id ?? null),
+      sessionId: sessions.data[0]?.id ?? null,
+    };
+  } catch (error) {
+    throw new Error(`refund: operator lookup failed: ${getStripeErrorMessage(error)}`);
+  }
+}
+
+async function donationBy(
+  column: "provider_intent_id" | "provider_invoice_id" | "provider_session_id",
+  value: string,
+  environment: RefundEvent["environment"],
+): Promise<AdjustmentDonation | null> {
   const supabase = await admin();
   const { data, error } = await supabase
     .from("donations")
-    .update({ status: "refunded" })
-    .eq("provider_intent_id", txnId)
+    .select(DONATION_LOOKUP_COLUMNS)
+    .eq(column, value)
+    .eq("environment", environment)
+    .limit(1);
+  if (error) throw new Error(`refund: donation lookup failed: ${error.message}`);
+  return (data?.[0] as AdjustmentDonation | undefined) ?? null;
+}
+
+async function lookupDonationForAdjustment(event: RefundEvent): Promise<AdjustmentDonation | null> {
+  const txnId = event.transactionId;
+  if (!txnId || !PROVIDER_REFERENCE_SHAPE.test(txnId)) return null;
+
+  const direct = await donationBy("provider_intent_id", txnId, event.environment);
+  if (direct || !txnId.startsWith("pi_")) return direct;
+
+  const refs = await operatorRefsForIntent(event.environment, txnId);
+  if (refs.invoiceId && PROVIDER_REFERENCE_SHAPE.test(refs.invoiceId)) {
+    const byInvoice = await donationBy("provider_invoice_id", refs.invoiceId, event.environment);
+    if (byInvoice) return byInvoice;
+  }
+  if (refs.sessionId && PROVIDER_REFERENCE_SHAPE.test(refs.sessionId)) {
+    return donationBy("provider_session_id", refs.sessionId, event.environment);
+  }
+  return null;
+}
+
+/**
+ * Jedno wyszukanie darowizny na JEDNO zdarzenie korekty. Alert o sporze
+ * (`disputeTenant`) i odebranie (`revokeDonation`) pytają o ten sam wiersz -
+ * bez pamięci każdy z nich płaciłby osobno za dwa zapytania do operatora.
+ */
+const donationLookups = new WeakMap<RefundEvent, Promise<AdjustmentDonation | null>>();
+
+/**
+ * Darowizna wskazana przez korektę - JEDNO miejsce dla zwrotu, sporu
+ * i wygranego sporu (ta sama lekcja co `findOrderForAdjustment`).
+ *
+ * Kolejność: intencja wprost (wpłata jednorazowa od 20261012), potem most
+ * u operatora - faktura (raty cykliczne, `provider_invoice_id`) i sesja
+ * (wpłaty jednorazowe sprzed poprawki, `provider_session_id`). Każde zapytanie
+ * wiąże ŚRODOWISKO korekty (20260831140000): zdarzenie z piaskownicy nie
+ * zamknie wpłaty produkcyjnej.
+ */
+function findDonationForAdjustment(event: RefundEvent): Promise<AdjustmentDonation | null> {
+  let lookup = donationLookups.get(event);
+  if (!lookup) {
+    lookup = lookupDonationForAdjustment(event);
+    donationLookups.set(event, lookup);
+  }
+  return lookup;
+}
+
+/**
+ * Zwrot / obciążenie zwrotne darowizny - bez uprawnień, ale status musi się
+ * zgadzać z księgami, a status wspierającego zniknąć razem z pieniędzmi.
+ *
+ * ZWROT CZĘŚCIOWY jak w `revokeOrder`: `amount_refunded` od operatora jest
+ * narastający, zapis zaciśnięty do kwoty wpłaty, a status `refunded` dopiero
+ * przy pełnym zwrocie - częściowy zostawia wpłatę opłaconą (statystyki liczą
+ * kwotę netto), więc nie odbiera statusu wspierającego. Licznik tylko rośnie
+ * (`refunded_amount_cents < nowa wartość`): spóźnione zdarzenie z mniejszą
+ * sumą nie cofa zapisu.
+ *
+ * SPÓR nie jest zwrotem: wpłata przestaje się liczyć od otwarcia sporu (status
+ * `refunded`), ale licznik zwrotów zostaje nietknięty - wygrany spór
+ * (`restoreDonation`) przywraca ją bez zgadywania, ile „oddano".
+ *
+ * Cofnięcie statusu wspierającego robi baza: `tg_donations_grant_supporter`
+ * (20261012100000) przelicza przydział z pozostałych opłaconych wpłat
+ * i odbiera go, gdy żadna go już nie uzasadnia.
+ */
+async function revokeDonation(event: RefundEvent): Promise<RefundOutcome> {
+  const donation = await findDonationForAdjustment(event);
+  if (!donation) return "skipped";
+  const supabase = await admin();
+
+  if (event.action !== "refund") {
+    const { data, error } = await supabase
+      .from("donations")
+      .update({ status: "refunded" })
+      .eq("id", donation.id)
+      .eq("environment", event.environment)
+      .neq("status", "refunded")
+      .select("id");
+    if (error) throw new Error(`refund: donation status flip failed: ${error.message}`);
+    return data && data.length > 0 ? "donation_refunded" : "skipped";
+  }
+
+  const captured = event.capturedAmountCents ?? donation.amount_cents ?? null;
+  const knownCaptured = typeof captured === "number" && captured > 0;
+  const reported = Math.max(donation.refunded_amount_cents ?? 0, event.amountCents ?? 0);
+  const refundedSoFar = knownCaptured && reported > captured ? captured : reported;
+  const isPartial = knownCaptured && refundedSoFar > 0 && refundedSoFar < captured;
+
+  let flip = supabase
+    .from("donations")
+    .update({
+      ...(isPartial ? {} : { status: "refunded" }),
+      refunded_amount_cents: refundedSoFar,
+    })
+    .eq("id", donation.id)
     .eq("environment", event.environment)
-    .neq("status", "refunded")
-    .select("id");
+    .neq("status", "refunded");
+  if (isPartial) flip = flip.lt("refunded_amount_cents", refundedSoFar);
+  const { data, error } = await flip.select("id");
   if (error) throw new Error(`refund: donation status flip failed: ${error.message}`);
   return data && data.length > 0 ? "donation_refunded" : "skipped";
+}
+
+/**
+ * Zwrot darowizny stwierdzony POZA webhookiem (uzgodnienie w panelu,
+ * `donationsAdmin.server`) - ta sama reguła zwrotu częściowego i ten sam zapis
+ * co `charge.refunded`, bez przechodzenia przez ścieżkę zamówień.
+ */
+export async function applyDonationRefundEffects(event: RefundEvent): Promise<RefundOutcome> {
+  if (!isRevokingAdjustment(event)) return "skipped";
+  return revokeDonation(event);
+}
+
+/**
+ * Wygrany spór o darowiznę - wpłata wraca do ksiąg (a trigger przywraca status
+ * wspierającego). Przywracamy WYŁĄCZNIE wiersz zamknięty sporem: pełny zwrot
+ * (`refunded_amount_cents` >= kwota) to pieniądze oddane darczyńcy i wygrany
+ * spór niczego w tym nie zmienia.
+ */
+async function restoreDonation(event: RefundEvent): Promise<RefundOutcome> {
+  const donation = await findDonationForAdjustment(event);
+  if (!donation || donation.status !== "refunded") return "skipped";
+  if ((donation.refunded_amount_cents ?? 0) >= donation.amount_cents) return "skipped";
+
+  const supabase = await admin();
+  const { data, error } = await supabase
+    .from("donations")
+    .update({ status: "paid" })
+    .eq("id", donation.id)
+    .eq("environment", event.environment)
+    .eq("status", "refunded")
+    .select("id");
+  if (error) throw new Error(`dispute: donation restore failed: ${error.message}`);
+  if (!data || data.length === 0) return "skipped";
+  await alertAdminsAboutDispute(event, "won", donation.tenant_id);
+  return "donation_restored";
 }
 
 /** Dzwonek w aplikacji. Nigdy nie rzuca. */
@@ -431,7 +600,10 @@ async function disputeTenant(event: RefundEvent): Promise<string | null> {
       .eq("environment", event.environment)
       .limit(1)
       .maybeSingle();
-    return donation?.tenant_id ?? null;
+    if (donation) return donation.tenant_id;
+    // Rata cykliczna i wpłata sprzed 20261012 nie mają intencji w wierszu -
+    // ten sam most u operatora co przy odebraniu (wynik jest zapamiętany).
+    return (await findDonationForAdjustment(event))?.tenant_id ?? null;
   } catch (err) {
     console.error("[payments] dispute tenant lookup failed", event.adjustmentId, err);
     return null;
@@ -555,7 +727,7 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
   // i niewidoczne przy przywracaniu (spór wygrany, a klient bezpowrotnie bez
   // dostępu i bez żadnego sygnału, bo wynikiem jest wtedy `skipped`).
   const order = await findOrderForAdjustment(event, "dispute");
-  if (!order) return "skipped";
+  if (!order) return restoreDonation(event);
 
   const { error: flipErr } = await supabase
     .from("payment_orders")
@@ -593,8 +765,8 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
 
 /**
  * Jedno wejście dla zwrotów i sporów. Kieruje korektę do właściwego skutku:
- * wygrany spór -> przywrócenie; zwrot/spór otwarty -> odebranie dostępu
- * (subskrypcja -> zamówienie jednorazowe -> darowizna).
+ * wygrany spór -> przywrócenie (zamówienie albo darowizna); zwrot/spór otwarty
+ * -> odebranie dostępu (subskrypcja -> zamówienie jednorazowe -> darowizna).
  */
 export async function applyRefundEffects(event: RefundEvent): Promise<RefundOutcome> {
   if (isDisputeReversed(event)) return restoreAccess(event);

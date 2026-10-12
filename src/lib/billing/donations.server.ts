@@ -21,7 +21,7 @@ import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/chec
 import {
   DONATIONS_DEFAULTS,
   DONATIONS_SETTINGS_KEY,
-  normalizeDonationAmount,
+  checkDonationAmount,
   parseDonationsConfig,
   usesInternalDonations,
   type DonationsConfig,
@@ -61,6 +61,11 @@ const DONATION_CHECKOUT_COPY: Record<
 };
 
 export interface DonationSessionInput {
+  /**
+   * Środowisko bramki ROZSTRZYGNIĘTE PO STRONIE SERWERA (`resolveEnvironment`
+   * w warstwie server fn - w produkcji zawsze `live`). Stempluje wiersz, więc
+   * webhook z innego środowiska nie ma prawa go zaksięgować.
+   */
   environment: StripeEnv;
   amountCents: number;
   recurring: boolean;
@@ -78,12 +83,23 @@ export interface DonationSessionInput {
 export type DonationSessionResult =
   { ok: true; clientSecret: string; donationId: string } | { ok: false; error: string };
 
-/** Konfiguracja darowizn z `site_settings` (fallback: wartości domyślne). */
-export async function loadDonationsConfig(): Promise<DonationsConfig> {
+/**
+ * Konfiguracja darowizn NAJEMCY z `site_settings` (fallback: wartości domyślne).
+ *
+ * Klucz główny tabeli to `(tenant_id, key)` (20260714113000), więc odczyt po
+ * samym `key` przy dwóch najemcach z ustawieniami kończył się błędem
+ * `maybeSingle` i domyślkami, a przy jednym wierszu - konfiguracją CUDZEGO
+ * najemcy (min/max/waluta/tryb zbiórki). Najemcę podaje wołający: z hosta
+ * żądania (powierzchnie publiczne) albo z naszego wiersza - nigdy z ładunku.
+ * Brak najemcy to domyślki, nie „pierwszy lepszy wiersz".
+ */
+export async function loadDonationsConfig(tenantId: string | null): Promise<DonationsConfig> {
+  if (!tenantId) return DONATIONS_DEFAULTS;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("site_settings")
     .select("value")
+    .eq("tenant_id", tenantId)
     .eq("key", DONATIONS_SETTINGS_KEY)
     .maybeSingle();
   if (error) {
@@ -116,15 +132,8 @@ async function allowDonationAttempt(rateKey: string): Promise<boolean> {
 export async function createDonationSession(
   input: DonationSessionInput,
 ): Promise<DonationSessionResult> {
-  const config = await loadDonationsConfig();
-  if (!usesInternalDonations(config)) return { ok: false, error: "donations_disabled" };
-  if (input.recurring && !config.allowRecurring) return { ok: false, error: "recurring_disabled" };
-
-  const amountCents = normalizeDonationAmount(config, input.amountCents);
-  if (amountCents === null) return { ok: false, error: "amount_out_of_range" };
-
-  if (!(await allowDonationAttempt(input.rateKey))) return { ok: false, error: "rate_limited" };
-
+  // Najemca NAJPIERW: od niego zależy, czyje ustawienia (zakres, waluta,
+  // kwoty sugerowane, tryb zbiórki) obowiązują tę wpłatę.
   const [{ resolveTenantIdForHost }, { currentTenantHost }, { supabaseAdmin }] = await Promise.all([
     import("@/lib/server/tenant.server"),
     import("@/lib/http/requestHost"),
@@ -132,6 +141,16 @@ export async function createDonationSession(
   ]);
   const tenantId = await resolveTenantIdForHost(await currentTenantHost());
   if (!tenantId) return { ok: false, error: "tenant_unresolved" };
+
+  const config = await loadDonationsConfig(tenantId);
+  if (!usesInternalDonations(config)) return { ok: false, error: "donations_disabled" };
+  if (input.recurring && !config.allowRecurring) return { ok: false, error: "recurring_disabled" };
+
+  const amount = checkDonationAmount(config, input.amountCents);
+  if (!amount.ok) return { ok: false, error: amount.error };
+  const amountCents = amount.amountCents;
+
+  if (!(await allowDonationAttempt(input.rateKey))) return { ok: false, error: "rate_limited" };
 
   const message = config.allowMessage ? (input.message?.trim().slice(0, 500) ?? null) : null;
   const donorEmail = input.donorEmail?.trim().toLowerCase().slice(0, 320) || null;
@@ -151,6 +170,10 @@ export async function createDonationSession(
       // widzą darowiznę cykliczną, nawet jeśli pierwsza faktura nigdy nie
       // dojdzie (porzucony checkout, odrzucona karta).
       recurring: input.recurring,
+      // Środowisko sesji JAWNIE. Bez tego kolumna brała DEFAULT 'live', więc
+      // wpłata kartą testową oznaczała „produkcyjny" wiersz jako opłacony
+      // (statystyki publiczne, status wspierającego) - audyt SUB-10.
+      environment: input.environment,
       status: "pending",
     })
     .select("id")
@@ -221,8 +244,15 @@ export async function createDonationSession(
 }
 
 export interface DonationSettlement {
+  /** Środowisko ZDARZENIA operatora - wiersz z innego środowiska nie jest księgowany. */
+  environment: StripeEnv;
   donationId?: string | null;
   sessionId?: string | null;
+  /**
+   * Identyfikator intencji płatności (`pi_...`) - klucz, po którym przychodzi
+   * zwrot i spór. Sesja checkout (`cs_...`) NIE jest intencją: zapisana tutaj
+   * sprawiała, że zwrot nigdy nie trafiał w darowiznę (audyt SUB-09).
+   */
   intentId?: string | null;
   amountCents?: number | null;
   currency?: string | null;
@@ -232,17 +262,29 @@ export interface DonationSettlement {
 }
 
 /** Kolumna, po której odnajdujemy wiersz darowizny przy księgowaniu. */
-type SettlementMatch = { column: "id" | "provider_session_id"; value: string };
+type SettlementMatch = {
+  column: "id" | "provider_session_id";
+  value: string;
+  environment: StripeEnv;
+};
+
+/** Intencja płatności Stripe - jedyny kształt wolny w `provider_intent_id` wpłaty jednorazowej. */
+function isPaymentIntentRef(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.startsWith("pi_");
+}
 
 /**
  * Nakłada łatkę księgującą i mówi, czy realnie ruszyła jakiś wiersz.
  *
- * Dwie reguły domenowe zaszyte w filtrach:
+ * Trzy reguły domenowe zaszyte w filtrach:
  *   1. `status <> 'refunded'` - spóźnione ponowienie webhooka nie wskrzesza
  *      zwróconej darowizny (pieniądze wróciły do darczyńcy, a trigger
  *      `tg_donations_grant_supporter` cofnął już nadanie „supporter"),
  *   2. `paid_at` ustawiamy WYŁĄCZNIE, gdy jest puste - data księgowania to
- *      pierwsza zapłata, nie moment ostatniego ponowienia dostawcy.
+ *      pierwsza zapłata, nie moment ostatniego ponowienia dostawcy,
+ *   3. `environment` = środowisko zdarzenia - sesja opłacona kartą testową
+ *      nie zamyka wiersza produkcyjnego (ta sama reguła P0 co
+ *      `oneTimeFulfilment.server` dla zamówień).
  */
 async function applyDonationSettlement(
   match: SettlementMatch,
@@ -255,6 +297,7 @@ async function applyDonationSettlement(
     .from("donations")
     .update({ ...patch, paid_at: paidAtIso })
     .eq(match.column, match.value)
+    .eq("environment", match.environment)
     .neq("status", "refunded")
     .is("paid_at", null)
     .select("id");
@@ -267,6 +310,7 @@ async function applyDonationSettlement(
     .from("donations")
     .update(patch)
     .eq(match.column, match.value)
+    .eq("environment", match.environment)
     .neq("status", "refunded")
     .select("id");
   if (retry.error) throw new Error(`donation settle failed: ${retry.error.message}`);
@@ -274,25 +318,29 @@ async function applyDonationSettlement(
 }
 
 /**
- * Księguje opłaconą darowiznę (webhook). Idempotentne: wiersz jest odnajdywany
- * po `donationId` z metadanych albo po identyfikatorze sesji, a status ustawiany
- * na `paid` niezależnie od liczby ponowień dostawcy. Zwraca `false`, gdy nie
- * było czego zaksięgować - wywołujący raportuje wtedy „skipped" zamiast
- * udawać sukces.
+ * Księguje opłaconą darowiznę JEDNORAZOWĄ (webhook, uzgodnienie). Idempotentne:
+ * wiersz jest odnajdywany po `donationId` z metadanych albo po identyfikatorze
+ * sesji, a status ustawiany na `paid` niezależnie od liczby ponowień dostawcy.
+ * Zwraca `false`, gdy nie było czego zaksięgować (także: wiersz z innego
+ * środowiska) - wywołujący raportuje wtedy „skipped" zamiast udawać sukces.
+ *
+ * Wpłaty cyklicznej TU NIE MA: każdą jej ratę, także pierwszą, księguje
+ * faktura (`recordRecurringDonationPayment`).
  */
 export async function settleDonation(settlement: DonationSettlement): Promise<boolean> {
   const patch: DonationUpdate = {
     status: "paid",
-    ...(settlement.intentId ? { provider_intent_id: settlement.intentId } : {}),
+    ...(isPaymentIntentRef(settlement.intentId) ? { provider_intent_id: settlement.intentId } : {}),
     ...(settlement.amountCents ? { amount_cents: settlement.amountCents } : {}),
     ...(settlement.currency ? { currency: settlement.currency.toUpperCase() } : {}),
     ...(settlement.donorEmail ? { donor_email: settlement.donorEmail.toLowerCase() } : {}),
   };
   const paidAtIso = settlement.paidAt ?? new Date().toISOString();
+  const environment = settlement.environment;
 
   if (settlement.donationId) {
     return applyDonationSettlement(
-      { column: "id", value: settlement.donationId },
+      { column: "id", value: settlement.donationId, environment },
       patch,
       paidAtIso,
     );
@@ -300,7 +348,7 @@ export async function settleDonation(settlement: DonationSettlement): Promise<bo
 
   if (settlement.sessionId) {
     return applyDonationSettlement(
-      { column: "provider_session_id", value: settlement.sessionId },
+      { column: "provider_session_id", value: settlement.sessionId, environment },
       patch,
       paidAtIso,
     );
@@ -313,23 +361,37 @@ export async function settleDonation(settlement: DonationSettlement): Promise<bo
 // ---------------------------------------------------------------------------
 // Darowizny cykliczne (Stripe subscription z `metadata.purpose = "donation"`).
 //
-// Pierwsza płatność księguje wiersz utworzony przy checkoucie, a każde kolejne
-// odnowienie zakłada NOWY wiersz - dzięki temu statystyki i eksporty księgowe
-// widzą każdą realną wpłatę. Idempotencja opiera się na unikalnym
-// `provider_session_id` (`renewal:<invoiceId>`) oraz unikalnym
-// `(provider, provider_intent_id)`.
+// JEDNO ŹRÓDŁO WPŁAT: FAKTURA. Pierwsza opłacona faktura subskrypcji
+// (`billing_reason = subscription_create`) domyka wiersz utworzony przy
+// checkoucie, a każde kolejne odnowienie zakłada NOWY wiersz - dzięki temu
+// statystyki i eksporty księgowe widzą każdą realną wpłatę dokładnie raz.
+// `checkout.session.completed` w trybie subskrypcji NIE jest wpłatą, tylko
+// wiąże subskrypcję z wierszem (`linkDonationSubscription`). Wcześniej sesja
+// księgowała pierwszą ratę kluczem `cs_...`, a faktura tej samej raty zakładała
+// drugi wiersz kluczem `in_...` - różne klucze, unikat nie łapał duplikatu,
+// a pierwsza wpłata liczyła się podwójnie (audyt SUB-09).
+//
+// Idempotencja stoi na fakturze: unikat `(provider, environment,
+// provider_invoice_id)` (20261012100000), a pomocniczo unikalny
+// `provider_session_id` (`renewal:<invoiceId>`) i `(provider,
+// provider_intent_id)`. `invoice.paid` i `invoice.payment_succeeded` opisują
+// tę samą fakturę - drugie z nich trafia w unikat i kończy się `skipped`.
 // ---------------------------------------------------------------------------
 
 export interface RecurringDonationPayment {
+  /** Środowisko ZDARZENIA - kotwica i nowy wiersz wyłącznie z tego środowiska. */
+  environment: StripeEnv;
   /** `metadata.donationId` z subskrypcji - kotwica pierwszej wpłaty. */
   donationId?: string | null;
   subscriptionId: string;
-  /** Identyfikator faktury/transakcji - klucz idempotencji odnowienia. */
+  /** Identyfikator FAKTURY (`in_...`) - klucz idempotencji raty. */
   invoiceId: string;
   intentId?: string | null;
   amountCents?: number | null;
   currency?: string | null;
   donorEmail?: string | null;
+  /** Moment zapłaty faktury u operatora (ISO). Brak = teraz. */
+  paidAt?: string | null;
 }
 
 export type RecurringDonationOutcome = "settled" | "renewed" | "skipped";
@@ -356,6 +418,7 @@ async function findDonationAnchor(
       .from("donations")
       .select(columns)
       .eq("id", payment.donationId)
+      .eq("environment", payment.environment)
       .maybeSingle();
     if (data) return data as DonationAnchor;
   }
@@ -364,16 +427,23 @@ async function findDonationAnchor(
     .from("donations")
     .select(columns)
     .eq("provider_subscription_id", payment.subscriptionId)
+    .eq("environment", payment.environment)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   return (data as DonationAnchor | null) ?? null;
 }
 
-/** Księguje wpłatę cykliczną: pierwszą aktualizuje, kolejne dopisuje. */
+/** Księguje ratę darowizny cyklicznej z FAKTURY: pierwszą aktualizuje, kolejne dopisuje. */
 export async function recordRecurringDonationPayment(
   payment: RecurringDonationPayment,
 ): Promise<RecurringDonationOutcome> {
+  // Bezpiecznik kontraktu: sesja checkout nie jest ratą. Wołający, który poda
+  // tu `cs_...`, odtworzyłby podwójne księgowanie pierwszej wpłaty.
+  if (payment.invoiceId.startsWith("cs_")) {
+    console.warn("[donations] checkout session is not a recurring payment", payment.invoiceId);
+    return "skipped";
+  }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const anchor = await findDonationAnchor(payment);
   if (!anchor) {
@@ -385,6 +455,7 @@ export async function recordRecurringDonationPayment(
   const amountCents =
     payment.amountCents && payment.amountCents > 0 ? payment.amountCents : anchor.amount_cents;
   const donorEmail = payment.donorEmail?.toLowerCase() ?? anchor.donor_email;
+  const paidAt = payment.paidAt ?? new Date().toISOString();
 
   if (anchor.status === "pending") {
     const { data, error } = await supabaseAdmin
@@ -392,20 +463,22 @@ export async function recordRecurringDonationPayment(
       .update({
         status: "paid",
         recurring: true,
-        paid_at: new Date().toISOString(),
+        paid_at: paidAt,
         provider_subscription_id: payment.subscriptionId,
+        provider_invoice_id: payment.invoiceId,
         provider_intent_id: payment.intentId ?? payment.invoiceId,
         amount_cents: amountCents,
         currency,
         donor_email: donorEmail,
       })
       .eq("id", anchor.id)
+      .eq("environment", payment.environment)
       .eq("status", "pending")
       .select("id");
     if (error) throw new Error(`donation recurring settle failed: ${error.message}`);
     // Zero wierszy = kotwica przestała być `pending` między odczytem a zapisem
-    // (równolegle dostarczony webhook). Ta faktura jest wtedy odnowieniem,
-    // a nie pierwszą wpłatą - wpada niżej i dopisuje własny wiersz.
+    // (równolegle dostarczony webhook). Wpada niżej: jeśli to była TA SAMA
+    // faktura, unikat faktury odbije wstawienie; jeśli inna - to odnowienie.
     if (data.length > 0) return "settled";
   }
 
@@ -418,57 +491,93 @@ export async function recordRecurringDonationPayment(
     message: anchor.message,
     provider: "stripe",
     provider_session_id: `renewal:${payment.invoiceId}`,
+    provider_invoice_id: payment.invoiceId,
     provider_intent_id: payment.intentId ?? payment.invoiceId,
     provider_subscription_id: payment.subscriptionId,
+    environment: payment.environment,
     recurring: true,
     status: "paid",
-    paid_at: new Date().toISOString(),
+    paid_at: paidAt,
   });
 
-  // 23505 = ponowione dostarczenie webhooka; wiersz odnowienia już istnieje.
+  // 23505 = ta faktura jest już zaksięgowana: ponowione dostarczenie albo
+  // bliźniacze zdarzenie (`invoice.paid` + `invoice.payment_succeeded`).
   if (error && error.code !== "23505") {
     throw new Error(`donation renewal insert failed: ${error.message}`);
   }
   return error ? "skipped" : "renewed";
 }
 
+export interface DonationSubscriptionRef {
+  subscriptionId: string;
+  donationId?: string | null;
+  /** Środowisko ZDARZENIA - wiązanie i zamknięcie wyłącznie w tym środowisku. */
+  environment: StripeEnv;
+}
+
+/** Błąd zapisu leci wyjątkiem: webhook zapisze `failed`, operator ponowi. */
+function assertWritten(error: { message: string } | null, what: string): void {
+  if (error) throw new Error(`donation subscription ${what} failed: ${error.message}`);
+}
+
+/**
+ * Wiąże subskrypcję operatora z wierszem darowizny - BEZ księgowania wpłaty.
+ * Woła to `checkout.session.completed` w trybie subskrypcji (sesja nie jest
+ * ratą - ratę księguje faktura) i każde nieterminalne zdarzenie subskrypcji.
+ */
+export async function linkDonationSubscription(input: DonationSubscriptionRef): Promise<void> {
+  if (!input.donationId) return;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const pending = await supabaseAdmin
+    .from("donations")
+    .update({ provider_subscription_id: input.subscriptionId, recurring: true })
+    .eq("id", input.donationId)
+    .eq("environment", input.environment)
+    .eq("status", "pending");
+  assertWritten(pending.error, "link");
+  const unlinked = await supabaseAdmin
+    .from("donations")
+    .update({ provider_subscription_id: input.subscriptionId, recurring: true })
+    .eq("id", input.donationId)
+    .eq("environment", input.environment)
+    .is("provider_subscription_id", null);
+  assertWritten(unlinked.error, "link");
+}
+
 /**
  * Odbicie statusu subskrypcji darowizny. Wpłat już zaksięgowanych nie ruszamy -
  * anulowanie dotyczy wyłącznie wiersza, który nigdy nie został opłacony.
  */
-export async function syncDonationSubscription(input: {
-  subscriptionId: string;
-  donationId?: string | null;
-  status: string;
-}): Promise<void> {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+export async function syncDonationSubscription(
+  input: DonationSubscriptionRef & { status: string },
+): Promise<void> {
   const terminal = input.status === "canceled" || input.status === "incomplete_expired";
+  if (!terminal) {
+    await linkDonationSubscription(input);
+    return;
+  }
 
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   if (input.donationId) {
-    await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from("donations")
       .update({
         provider_subscription_id: input.subscriptionId,
         recurring: true,
-        ...(terminal ? { status: "canceled" } : {}),
+        status: "canceled",
       })
       .eq("id", input.donationId)
+      .eq("environment", input.environment)
       .eq("status", "pending");
-    if (!terminal) {
-      await supabaseAdmin
-        .from("donations")
-        .update({ provider_subscription_id: input.subscriptionId, recurring: true })
-        .eq("id", input.donationId)
-        .is("provider_subscription_id", null);
-    }
+    assertWritten(error, "cancel");
     return;
   }
 
-  if (terminal) {
-    await supabaseAdmin
-      .from("donations")
-      .update({ status: "canceled" })
-      .eq("provider_subscription_id", input.subscriptionId)
-      .eq("status", "pending");
-  }
+  const { error } = await supabaseAdmin
+    .from("donations")
+    .update({ status: "canceled" })
+    .eq("provider_subscription_id", input.subscriptionId)
+    .eq("environment", input.environment)
+    .eq("status", "pending");
+  assertWritten(error, "cancel");
 }

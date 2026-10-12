@@ -711,18 +711,38 @@ async function handleTransaction(
     await reportPurchaseToGa4(data, env);
     return;
   }
-  // Odnowienie darowizny cyklicznej: brak uprawnień i windykacji planów -
-  // każda opłacona faktura ma zostać zaksięgowana jako osobna wpłata.
+  // Darowizna cykliczna: brak uprawnień i windykacji planów - każda opłacona
+  // FAKTURA (także pierwsza, `subscription_create`) to osobna wpłata.
   if (data.customData?.purpose === "donation") {
     if (kind !== "paid") return;
-    const { recordRecurringDonationPayment } = await import("@/lib/billing/donations.server");
-    await recordRecurringDonationPayment({
-      donationId: (data.customData.donationId as string | undefined) ?? null,
+    const donations = await import("@/lib/billing/donations.server");
+    const donationId =
+      typeof data.customData.donationId === "string" ? data.customData.donationId : null;
+    // `checkout.session.completed` w trybie subskrypcji niesie `subscriptionId`
+    // i `purpose=donation`, ale NIE jest ratą - tę samą pierwszą wpłatę opisze
+    // za chwilę `invoice.paid`. Księgowanie z obu dawało dwa wiersze jednej
+    // wpłaty (klucze `cs_...` i `in_...`, audyt SUB-09); sesja tylko wiąże
+    // subskrypcję z wierszem darowizny. Sesję poznajemy po identyfikatorze
+    // operatora (`cs_test_...`/`cs_live_...`), bo ten sam kształt ma wiersz
+    // dziennika odtwarzany z panelu.
+    if (typeof data.id === "string" && data.id.startsWith("cs_")) {
+      await donations.linkDonationSubscription({
+        donationId,
+        subscriptionId: data.subscriptionId,
+        environment: env,
+      });
+      return;
+    }
+    const billedAt = (data as { billedAt?: unknown }).billedAt;
+    await donations.recordRecurringDonationPayment({
+      environment: env,
+      donationId,
       subscriptionId: data.subscriptionId,
       invoiceId: data.id,
       amountCents: amountFromTransaction(data),
       currency: data.currencyCode ?? null,
       donorEmail: data.customer?.email ?? null,
+      paidAt: typeof billedAt === "string" ? billedAt : null,
     });
     return;
   }
@@ -838,12 +858,15 @@ function isDonationSubscription(data: SubscriptionData): boolean {
   return data.customData?.purpose === "donation";
 }
 
-async function handleDonationSubscription(data: SubscriptionData, status: string) {
+async function handleDonationSubscription(data: SubscriptionData, status: string, env: StripeEnv) {
   const { syncDonationSubscription } = await import("@/lib/billing/donations.server");
+  // Środowisko zdarzenia wiąże zapis: subskrypcja z piaskownicy nie zamyka
+  // ani nie przepina darowizny produkcyjnej (audyt SUB-10).
   await syncDonationSubscription({
     subscriptionId: data.id,
     donationId: data.customData?.donationId ?? null,
     status,
+    environment: env,
   });
 }
 
@@ -856,6 +879,7 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
       await handleDonationSubscription(
         sub,
         eventType === "subscription.canceled" ? "canceled" : (sub.status ?? "active"),
+        env,
       );
       return "processed";
     }

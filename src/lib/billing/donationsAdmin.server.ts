@@ -6,10 +6,17 @@
 //      opłacona (albo wygasła),
 //   2. importuje opłacone sesje darowizn (`metadata.purpose = "donation"`),
 //      których w ogóle nie ma w bazie,
-//   3. oznacza zwroty (`charge.refunded`) jako `refunded`.
+//   3. oznacza zwroty (`charge.refunded`) - tą samą ścieżką co webhook
+//      (`applyDonationRefundEffects`: zwrot częściowy zostawia wpłatę opłaconą).
+//
+// Te same reguły księgi co webhook (audyt SUB-09/SUB-10): uzgodnienie czyta
+// WYŁĄCZNIE wiersze środowiska, o które poproszono (klucz operatora jest per
+// środowisko - sesja testowa nie domyka wpłaty produkcyjnej), a sesja w trybie
+// subskrypcji nie jest wpłatą: wiąże subskrypcję, a pierwszą ratę księguje
+// jej FAKTURA (`session.invoice`) kluczem, który zna też webhook faktury.
 //
 // Operacje są idempotentne - powtórny przebieg nie duplikuje wierszy
-// (klucz `provider_session_id` jest unikalny).
+// (klucze `provider_session_id` i `provider_invoice_id` są unikalne).
 //
 // Moduł server-only (klucze bramki + service_role).
 import type Stripe from "stripe";
@@ -94,20 +101,69 @@ export async function listAdminDonations(
   }));
 }
 
-async function isChargeRefunded(stripe: Stripe, intentId: string | null): Promise<boolean> {
-  if (!intentId) return false;
+/** Zwrot obciążenia intencji - `null`, gdy nic nie zwrócono albo nie da się tego ustalić. */
+async function refundedCharge(
+  stripe: Stripe,
+  intentId: string | null,
+): Promise<{
+  id: string;
+  amountRefunded: number | null;
+  amount: number | null;
+  currency: string | null;
+} | null> {
+  if (!intentId?.startsWith("pi_")) return null;
   try {
     const intent = await stripe.paymentIntents.retrieve(intentId);
     const chargeId = idOf(
       (intent as Stripe.PaymentIntent & { latest_charge?: string | Stripe.Charge }).latest_charge ??
         null,
     );
-    if (!chargeId) return false;
+    if (!chargeId) return null;
     const charge = await stripe.charges.retrieve(chargeId);
-    return charge.refunded === true || (charge.amount_refunded ?? 0) > 0;
+    const amountRefunded =
+      typeof charge.amount_refunded === "number" ? charge.amount_refunded : null;
+    if (charge.refunded !== true && !(amountRefunded !== null && amountRefunded > 0)) return null;
+    return {
+      id: chargeId,
+      amountRefunded,
+      amount: typeof charge.amount === "number" ? charge.amount : null,
+      currency: typeof charge.currency === "string" ? charge.currency.toUpperCase() : null,
+    };
   } catch {
-    return false;
+    // Kierunek degradacji jedyny dopuszczalny: awaria sieci nie zwraca wpłaty.
+    return null;
   }
+}
+
+/**
+ * Sesja w trybie subskrypcji: wiąże subskrypcję z wierszem i księguje PIERWSZĄ
+ * ratę z faktury sesji - kluczem `in_...`, tym samym, którym przychodzi
+ * `invoice.paid`. Księgowanie samej sesji (`cs_...`) dawało drugi wiersz tej
+ * samej wpłaty, gdy faktura dotarła webhookiem (audyt SUB-09). `true`, gdy
+ * rata została zaksięgowana w tym przebiegu.
+ */
+async function settleRecurringFromSession(
+  session: Stripe.Checkout.Session,
+  donationId: string | null,
+  environment: StripeEnv,
+): Promise<boolean> {
+  const subscriptionId = idOf(session.subscription ?? null);
+  const invoiceId = idOf(session.invoice ?? null);
+  const { linkDonationSubscription, recordRecurringDonationPayment } =
+    await import("@/lib/billing/donations.server");
+  if (subscriptionId) await linkDonationSubscription({ donationId, subscriptionId, environment });
+  if (!subscriptionId || !invoiceId) return false;
+  const outcome = await recordRecurringDonationPayment({
+    environment,
+    donationId,
+    subscriptionId,
+    invoiceId,
+    amountCents: session.amount_total ?? null,
+    currency: session.currency ?? null,
+    donorEmail: session.customer_details?.email ?? null,
+    paidAt: isoOf(session.created),
+  });
+  return outcome !== "skipped";
 }
 
 /**
@@ -145,6 +201,7 @@ export async function syncDonationsFromStripe(
     .from("donations")
     .select("id,status,provider,provider_session_id,provider_intent_id,created_at")
     .eq("tenant_id", tenantId)
+    .eq("environment", environment)
     .eq("provider", "stripe")
     .gte("created_at", report.sinceIso)
     .order("created_at", { ascending: false })
@@ -160,17 +217,24 @@ export async function syncDonationsFromStripe(
       try {
         const session = await stripe.checkout.sessions.retrieve(sessionId);
         if (session.payment_status === "paid" || session.status === "complete") {
-          const { settleDonation } = await import("@/lib/billing/donations.server");
-          await settleDonation({
-            donationId: row.id,
-            sessionId,
-            intentId: idOf(session.payment_intent ?? null),
-            amountCents: session.amount_total ?? null,
-            currency: session.currency ?? null,
-            donorEmail: session.customer_details?.email ?? null,
-            paidAt: isoOf(session.created),
-          });
-          report.settled += 1;
+          if (session.mode === "subscription") {
+            if (await settleRecurringFromSession(session, row.id, environment)) {
+              report.settled += 1;
+            }
+          } else {
+            const { settleDonation } = await import("@/lib/billing/donations.server");
+            const settled = await settleDonation({
+              environment,
+              donationId: row.id,
+              sessionId,
+              intentId: idOf(session.payment_intent ?? null),
+              amountCents: session.amount_total ?? null,
+              currency: session.currency ?? null,
+              donorEmail: session.customer_details?.email ?? null,
+              paidAt: isoOf(session.created),
+            });
+            if (settled) report.settled += 1;
+          }
         } else if (session.status === "expired") {
           // ZAPIS MUSI BYĆ SPRAWDZONY. Raport jest jedynym potwierdzeniem,
           // jakie dostaje człowiek domykający księgę - licznik podniesiony po
@@ -194,21 +258,33 @@ export async function syncDonationsFromStripe(
       continue;
     }
 
-    if (row.status === "paid" && (await isChargeRefunded(stripe, row.provider_intent_id))) {
+    const charge =
+      row.status === "paid" ? await refundedCharge(stripe, row.provider_intent_id) : null;
+    if (charge && row.provider_intent_id) {
       // Jak wyżej: „zwrócono 1" znaczy dla czytającego, że rejestr jest
       // uzgodniony, status wspierającego cofnięty, a eksport księgowy pokazuje
       // zwrot. Nieudany zapis raportowany jako wykonany to operacja POZORNIE
       // WYKONANA - gorsza od zablokowanej, bo rozjazd wychodzi dopiero przy
-      // rocznym rozliczeniu.
-      const { error: refundErr } = await supabase
-        .from("donations")
-        .update({ status: "refunded" })
-        .eq("id", row.id);
-      if (refundErr) {
+      // rocznym rozliczeniu. Zapis idzie TĄ SAMĄ funkcją co webhook
+      // `charge.refunded`, więc obie ścieżki zgadzają się co do zwrotu
+      // częściowego (wpłata zostaje opłacona, rośnie licznik zwrotów).
+      try {
+        const { applyDonationRefundEffects } = await import("@/lib/billing/refunds.server");
+        const outcome = await applyDonationRefundEffects({
+          adjustmentId: `sync:${charge.id}`,
+          transactionId: row.provider_intent_id,
+          subscriptionId: null,
+          action: "refund",
+          status: "succeeded",
+          amountCents: charge.amountRefunded,
+          capturedAmountCents: charge.amount,
+          currency: charge.currency,
+          environment,
+        });
+        if (outcome === "donation_refunded") report.refunded += 1;
+      } catch (refundErr) {
         report.warnings.push(`refund_write_failed:${row.id}`);
-        console.error("[donations sync] refund write failed", refundErr.message);
-      } else {
-        report.refunded += 1;
+        console.error("[donations sync] refund write failed", refundErr);
       }
     }
   }
@@ -250,20 +326,28 @@ export async function syncDonationsFromStripe(
       if (knownSessionIds.has(session.id)) continue;
       if (session.metadata?.donationId) {
         // Wiersz istnieje, ale ma jeszcze zapisany identyfikator tymczasowy.
-        const { settleDonation } = await import("@/lib/billing/donations.server");
-        await settleDonation({
-          donationId: session.metadata.donationId,
-          intentId: idOf(session.payment_intent ?? null),
-          amountCents: session.amount_total ?? null,
-          currency: session.currency ?? null,
-          donorEmail: session.customer_details?.email ?? null,
-          paidAt: isoOf(session.created),
-        });
+        const donationId = session.metadata.donationId;
+        let settled: boolean;
+        if (session.mode === "subscription") {
+          settled = await settleRecurringFromSession(session, donationId, environment);
+        } else {
+          const { settleDonation } = await import("@/lib/billing/donations.server");
+          settled = await settleDonation({
+            environment,
+            donationId,
+            intentId: idOf(session.payment_intent ?? null),
+            amountCents: session.amount_total ?? null,
+            currency: session.currency ?? null,
+            donorEmail: session.customer_details?.email ?? null,
+            paidAt: isoOf(session.created),
+          });
+        }
         await supabase
           .from("donations")
           .update({ provider_session_id: session.id })
-          .eq("id", session.metadata.donationId);
-        report.settled += 1;
+          .eq("id", donationId)
+          .eq("environment", environment);
+        if (settled) report.settled += 1;
         continue;
       }
       // IZOLACJA TENANTA. Klucz operatora jest jeden na ŚRODOWISKO, a nie na
@@ -283,6 +367,9 @@ export async function syncDonationsFromStripe(
         report.warnings.push(`import_unassigned:${session.id}`);
         continue;
       }
+      // Subskrypcja wchodzi jako wiersz OCZEKUJĄCY - jej pierwszą ratę
+      // księguje faktura (niżej albo webhookiem), jak każdą kolejną.
+      const recurring = session.mode === "subscription";
       const { error: insertError } = await supabase.from("donations").insert({
         tenant_id: tenantId,
         amount_cents: session.amount_total ?? 0,
@@ -290,16 +377,18 @@ export async function syncDonationsFromStripe(
         donor_email: session.customer_details?.email?.toLowerCase() ?? null,
         provider: "stripe",
         provider_session_id: session.id,
-        provider_intent_id: idOf(session.payment_intent ?? null),
+        provider_intent_id: recurring ? null : idOf(session.payment_intent ?? null),
         provider_subscription_id: idOf(session.subscription ?? null),
-        recurring: session.mode === "subscription",
-        status: "paid",
-        paid_at: isoOf(session.created),
+        environment,
+        recurring,
+        status: recurring ? "pending" : "paid",
+        paid_at: recurring ? null : isoOf(session.created),
       });
       if (insertError) {
         report.warnings.push(`import_failed:${session.id}`);
         continue;
       }
+      if (recurring) await settleRecurringFromSession(session, null, environment);
       report.imported += 1;
     }
   } catch (e) {

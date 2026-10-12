@@ -313,6 +313,28 @@ describe("retryWebhookEvent - odczyt wiersza dziennika", () => {
     );
   });
 
+  it("ładunek PO RETENCJI (`_redacted`) odmawia ponowienia z czytelnym komunikatem", async () => {
+    // AUDYT SUB-11: po 30/90 dniach (albo po zamknięciu konta) ładunek nie ma
+    // już e-maila ani adresu. Odtworzenie go zapisałoby w księgach puste pola
+    // zamiast prawdziwych - i nie wolno też udawać „pustego ładunku".
+    db.setResponse(
+      "payment_webhook_events",
+      logResponder(
+        logRow({
+          payload: {
+            eventType: "customer.updated",
+            data: { id: "cus_z_dziennika", email: null },
+            _redacted: { at: OCCURRED_AT, reason: "retention" },
+          },
+        }),
+      ),
+    );
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow(/zanonimizowany/);
+    // Odmowa PRZED obsługą: żaden zapis nie powstał.
+    expect(db.chainsFor("payment_webhook_events").filter((c) => c.has("update"))).toEqual([]);
+  });
+
   it("starszy wiersz zapisany SAMYM obiektem danych też daje się ponowić", async () => {
     // Dziennik historyczny bywa zapisany bez opakowania `{ eventType, data }`.
     // Odrzucenie takich wierszy odcięłoby ponowienie dokładnie tam, gdzie jest

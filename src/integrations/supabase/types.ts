@@ -5567,9 +5567,11 @@ export type Database = {
           paid_at: string | null
           provider: string
           provider_intent_id: string | null
+          provider_invoice_id: string | null
           provider_session_id: string
           provider_subscription_id: string | null
           recurring: boolean
+          refunded_amount_cents: number
           status: string
           tenant_id: string
           user_id: string | null
@@ -5585,9 +5587,11 @@ export type Database = {
           paid_at?: string | null
           provider?: string
           provider_intent_id?: string | null
+          provider_invoice_id?: string | null
           provider_session_id: string
           provider_subscription_id?: string | null
           recurring?: boolean
+          refunded_amount_cents?: number
           status?: string
           tenant_id?: string
           user_id?: string | null
@@ -5603,9 +5607,11 @@ export type Database = {
           paid_at?: string | null
           provider?: string
           provider_intent_id?: string | null
+          provider_invoice_id?: string | null
           provider_session_id?: string
           provider_subscription_id?: string | null
           recurring?: boolean
+          refunded_amount_cents?: number
           status?: string
           tenant_id?: string
           user_id?: string | null
@@ -28963,6 +28969,7 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: boolean
       }
+      donations_dedupe_session_invoice_pairs: { Args: never; Returns: number }
       early_access_window: { Args: never; Returns: string }
       editor_inline_author_lookup: {
         Args: { p_id?: string; p_limit?: number; p_query?: string }
@@ -31066,6 +31073,22 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      payment_webhook_events_redact_expired: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
+      payment_webhook_events_redact_for_user: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
+      payment_webhook_payload_redact: {
+        Args: { p_payload: Json; p_reason: string; p_strip_user_ref?: boolean }
+        Returns: Json
+      }
+      payment_webhook_payload_scrub: {
+        Args: { p_payload: Json; p_strip_user_ref?: boolean }
+        Returns: Json
       }
       payments_apply_event_ticket_outcome: {
         Args: {

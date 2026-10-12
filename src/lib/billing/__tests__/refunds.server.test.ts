@@ -39,7 +39,47 @@ const h = vi.hoisted(() => ({
     error: null as { message: string } | null,
   },
   emails: [] as unknown[],
+  /**
+   * Most intencja -> faktura / sesja u operatora (audyt SUB-09). Raty
+   * cykliczne i wpłaty sprzed poprawki nie mają `pi_...` w wierszu.
+   */
+  operator: {
+    invoiceByIntent: {} as Record<string, string>,
+    sessionByIntent: {} as Record<string, string>,
+    fails: false,
+    envs: [] as string[],
+  },
 }));
+
+// GRANICA 3: operator płatności - wyłącznie dwa odczyty mostu darowizny.
+// `getStripeErrorMessage` zostaje prawdziwy.
+vi.mock("@/lib/stripe.server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/stripe.server")>();
+  return {
+    ...actual,
+    getStripeClient: (env: string) => {
+      h.operator.envs.push(env);
+      const guard = <T>(value: T) =>
+        h.operator.fails ? Promise.reject(new Error("api_down")) : Promise.resolve(value);
+      return Promise.resolve({
+        invoicePayments: {
+          list: (params: { payment?: { payment_intent?: string } }) => {
+            const invoice = h.operator.invoiceByIntent[params.payment?.payment_intent ?? ""];
+            return guard({ data: invoice ? [{ invoice }] : [] });
+          },
+        },
+        checkout: {
+          sessions: {
+            list: (params: { payment_intent?: string }) => {
+              const session = h.operator.sessionByIntent[params.payment_intent ?? ""];
+              return guard({ data: session ? [{ id: session }] : [] });
+            },
+          },
+        },
+      });
+    },
+  };
+});
 
 // GRANICA 1: klient roli serwisowej. `rpc` jest tu, bo pełny zwrot biletu
 // przelicza status zgłoszenia funkcją bazodanową, a nie zapytaniem.
@@ -161,10 +201,28 @@ interface Scene {
   existingEntitlement: { id: string; status: string } | null;
   /** Darowizny zmienione przez zwrot. */
   refundedDonations: { id: string }[];
+  /**
+   * Wiersze `donations` dla ODCZYTU (filtrowane po `eq`). `null` = odczyt
+   * oddaje `refundedDonations`, jak przed rozdzieleniem odczytu i zapisu.
+   */
+  donationRows: DonationLookupRow[] | null;
   /** Najemca darowizny odczytany przez alert o sporze (`maybeSingle`). */
   donationTenant: string | null;
   admins: { user_id: string }[];
   adminProfiles: { id: string; tenant_id: string | null }[];
+}
+
+/** Wiersz darowizny w kształcie czytanym przez korektę. */
+interface DonationLookupRow {
+  id: string;
+  tenant_id: string;
+  amount_cents: number;
+  refunded_amount_cents: number;
+  status: string;
+  environment: string;
+  provider_intent_id: string | null;
+  provider_invoice_id: string | null;
+  provider_session_id: string;
 }
 
 let db: SupabaseFromStub;
@@ -186,13 +244,22 @@ function seed(): void {
     return ok(null);
   });
   db.setResponse("user_purchases", () => ok(null));
-  db.setResponse("donations", (chain) =>
+  db.setResponse("donations", (chain) => {
     // Alert o sporze pyta o najemcę darowizny pojedynczym wierszem; zwrot
     // zapisuje status i czyta zmienione wiersze listą.
-    chain.has("maybeSingle")
-      ? ok(scene.donationTenant ? { tenant_id: scene.donationTenant } : null)
-      : ok(scene.refundedDonations),
-  );
+    if (chain.has("maybeSingle")) {
+      return ok(scene.donationTenant ? { tenant_id: scene.donationTenant } : null);
+    }
+    if (chain.has("update") || scene.donationRows === null) return ok(scene.refundedDonations);
+    const eqs = chain.calls.filter((c) => c.method === "eq");
+    return ok(
+      scene.donationRows.filter((row) =>
+        eqs.every(
+          (c) => (row as unknown as Record<string, unknown>)[String(c.args[0])] === c.args[1],
+        ),
+      ),
+    );
+  });
   db.setResponse("event_rsvps", () => ok(null));
   db.setResponse("notifications", () => ok(null));
   db.setResponse("user_roles", () => ok(scene.admins));
@@ -284,12 +351,17 @@ beforeEach(() => {
   h.rpc.calls.length = 0;
   h.rpc.error = null;
   h.emails.length = 0;
+  h.operator.invoiceByIntent = {};
+  h.operator.sessionByIntent = {};
+  h.operator.fails = false;
+  h.operator.envs.length = 0;
   scene = {
     order: orderRow(),
     subscription: null,
     revokedEntitlements: [{ id: "us-1" }],
     existingEntitlement: null,
     refundedDonations: [],
+    donationRows: null,
     donationTenant: null,
     admins: [],
     adminProfiles: [],
@@ -813,7 +885,8 @@ describe("DAROWIZNA - brak uprawnień, ale księgi muszą się zgadzać", () => 
     const outcome = await applyRefundEffects(refundEvent());
 
     expect(outcome).toBe("donation_refunded");
-    expect(patches("donations")[0]).toEqual({ status: "refunded" });
+    // Zwrot pełny: status ORAZ narastający licznik zwrotu (audyt SUB-09).
+    expect(patches("donations")[0]).toEqual({ status: "refunded", refunded_amount_cents: 4900 });
     expect(filters("donations", "eq")).toContainEqual(["provider_intent_id", TXN]);
     expect(filters("donations", "neq")).toContainEqual(["status", "refunded"]);
   });
@@ -842,7 +915,13 @@ describe("DAROWIZNA - brak uprawnień, ale księgi muszą się zgadzać", () => 
 
   it("błąd zapisu darowizny jest zgłaszany do ponowienia", async () => {
     scene.order = null;
-    db.setResponse("donations", () => fail("statement timeout", "57014"));
+    // Odczyt wiersza przechodzi, pada dopiero ZAPIS - ten sam punkt awarii co
+    // przed rozdzieleniem odczytu (kwota, licznik zwrotu) i zapisu.
+    db.setResponse("donations", (chain) =>
+      chain.has("update")
+        ? fail("statement timeout", "57014")
+        : ok([{ id: "don-1", tenant_id: BILLING_IDS.tenant, amount_cents: 4900, status: "paid" }]),
+    );
 
     await expect(applyRefundEffects(refundEvent())).rejects.toThrow(
       "refund: donation status flip failed: statement timeout",
@@ -1524,5 +1603,145 @@ describe("refunds.server - DEFEKTY NAPRAWIONE (bramki regresji)", () => {
     );
 
     expect(outcome).toBe("order_restored");
+  });
+});
+
+// =====================================================================
+// AUDYT SUB-09: zwrot po intencji (`pi_...`) trafia w darowiznę.
+//
+// CO BYŁO ZŁE. Wpłata jednorazowa zapisywała w `provider_intent_id` SESJĘ
+// (`cs_...`), rata cykliczna - FAKTURĘ (`in_...`), a `charge.refunded` niesie
+// intencję. Zwrot nie znajdował wiersza: zwrócona darowizna zostawała
+// `paid` (statystyki publiczne, eksport) razem ze statusem wspierającego.
+// =====================================================================
+function donationLookupRow(overrides: Partial<DonationLookupRow> = {}): DonationLookupRow {
+  return {
+    id: "don-1",
+    tenant_id: BILLING_IDS.tenant,
+    amount_cents: 4900,
+    refunded_amount_cents: 0,
+    status: "paid",
+    environment: "sandbox",
+    provider_intent_id: TXN,
+    provider_invoice_id: null,
+    provider_session_id: "cs_test_darowizna",
+    ...overrides,
+  };
+}
+
+describe("SUB-09: zwrot darowizny po identyfikatorze intencji", () => {
+  beforeEach(() => {
+    scene.order = null;
+  });
+
+  it("zwrot po `pi_...` oznacza wpłatę jednorazową jako ZWRÓCONĄ (status wspierającego cofa baza)", async () => {
+    scene.donationRows = [donationLookupRow()];
+    scene.refundedDonations = [{ id: "don-1" }];
+
+    const outcome = await applyRefundEffects(refundEvent());
+
+    expect(outcome).toBe("donation_refunded");
+    expect(patches("donations")).toEqual([{ status: "refunded", refunded_amount_cents: 4900 }]);
+    // Bez mostu u operatora - intencja jest w wierszu.
+    expect(h.operator.envs).toEqual([]);
+  });
+
+  it("RATA CYKLICZNA (wiersz zna tylko fakturę) jest znajdowana mostem intencja -> faktura", async () => {
+    scene.donationRows = [
+      donationLookupRow({
+        id: "don-rata",
+        provider_intent_id: "in_1Faktura",
+        provider_invoice_id: "in_1Faktura",
+        provider_session_id: "renewal:in_1Faktura",
+      }),
+    ];
+    scene.refundedDonations = [{ id: "don-rata" }];
+    h.operator.invoiceByIntent[TXN] = "in_1Faktura";
+
+    const outcome = await applyRefundEffects(refundEvent());
+
+    expect(outcome).toBe("donation_refunded");
+    expect(filters("donations", "eq")).toContainEqual(["provider_invoice_id", "in_1Faktura"]);
+    expect(h.operator.envs).toEqual(["sandbox"]);
+  });
+
+  it("wpłata SPRZED poprawki (sesja w polu intencji) jest znajdowana mostem intencja -> sesja", async () => {
+    scene.donationRows = [
+      donationLookupRow({
+        id: "don-stara",
+        provider_intent_id: "cs_test_stara",
+        provider_session_id: "cs_test_stara",
+      }),
+    ];
+    scene.refundedDonations = [{ id: "don-stara" }];
+    h.operator.sessionByIntent[TXN] = "cs_test_stara";
+
+    expect(await applyRefundEffects(refundEvent())).toBe("donation_refunded");
+    expect(filters("donations", "eq")).toContainEqual(["provider_session_id", "cs_test_stara"]);
+  });
+
+  it("zwrot CZĘŚCIOWY zostawia wpłatę opłaconą i podnosi licznik (jak przy zamówieniu)", async () => {
+    scene.donationRows = [donationLookupRow({ amount_cents: 10_000 })];
+    scene.refundedDonations = [{ id: "don-1" }];
+
+    const outcome = await applyRefundEffects(
+      refundEvent({ amountCents: 2_500, capturedAmountCents: 10_000 }),
+    );
+
+    expect(outcome).toBe("donation_refunded");
+    expect(patches("donations")).toEqual([{ refunded_amount_cents: 2_500 }]);
+    // Licznik tylko rośnie: spóźnione zdarzenie z mniejszą sumą nie cofnie zapisu.
+    expect(filters("donations", "neq")).toContainEqual(["status", "refunded"]);
+    const flip = db.chainsFor("donations").find((c) => c.has("update"))!;
+    expect(flip.argsOf("lt")).toEqual(["refunded_amount_cents", 2_500]);
+  });
+
+  it("OBCIĄŻENIE ZWROTNE zamyka wpłatę bez dopisywania kwoty zwrotu", async () => {
+    scene.donationRows = [donationLookupRow()];
+    scene.refundedDonations = [{ id: "don-1" }];
+
+    expect(await applyRefundEffects(refundEvent({ action: "chargeback" }))).toBe(
+      "donation_refunded",
+    );
+    expect(patches("donations")).toEqual([{ status: "refunded" }]);
+  });
+
+  it("wygrany spór PRZYWRACA wpłatę zamkniętą sporem", async () => {
+    scene.donationRows = [donationLookupRow({ status: "refunded" })];
+    scene.refundedDonations = [{ id: "don-1" }];
+
+    const outcome = await applyRefundEffects(
+      refundEvent({ action: "chargeback", status: "reversed" }),
+    );
+
+    expect(outcome).toBe("donation_restored");
+    expect(patches("donations")).toEqual([{ status: "paid" }]);
+  });
+
+  it("wygrany spór NIE wskrzesza wpłaty zwróconej w całości darczyńcy", async () => {
+    scene.donationRows = [donationLookupRow({ status: "refunded", refunded_amount_cents: 4900 })];
+    scene.refundedDonations = [{ id: "don-1" }];
+
+    expect(
+      await applyRefundEffects(refundEvent({ action: "chargeback", status: "reversed" })),
+    ).toBe("skipped");
+    expect(patches("donations")).toEqual([]);
+  });
+
+  it("wiersz z INNEGO środowiska nie jest znajdowany - piaskownica nie zamyka produkcji", async () => {
+    scene.donationRows = [donationLookupRow({ environment: "live" })];
+    scene.refundedDonations = [{ id: "don-1" }];
+
+    expect(await applyRefundEffects(refundEvent({ environment: "sandbox" }))).toBe("skipped");
+    expect(patches("donations")).toEqual([]);
+  });
+
+  it("awaria mostu u operatora wraca do ponowienia zamiast udawać „nie nasze”", async () => {
+    scene.donationRows = [];
+    h.operator.fails = true;
+
+    await expect(applyRefundEffects(refundEvent())).rejects.toThrow(
+      "refund: operator lookup failed: api_down",
+    );
   });
 });

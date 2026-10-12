@@ -127,11 +127,17 @@ function donationRow(overrides: Partial<DonationRow> = {}): DonationRow {
     provider: "stripe",
     provider_session_id: "cs_alfa_1",
     provider_intent_id: null,
+    provider_invoice_id: null,
     provider_subscription_id: null,
     recurring: false,
+    refunded_amount_cents: 0,
     status: "pending",
     paid_at: null,
-    environment: "live",
+    // Środowisko, o które prosi uzgodnienie w tych testach (`"sandbox"`).
+    // Uzgodnienie czyta WYŁĄCZNIE wiersze tego środowiska (audyt SUB-10) -
+    // dawna domyślka `"live"` przy przebiegu `"sandbox"` modelowała dokładnie
+    // ten defekt: sesja testowa domykała wpłatę produkcyjną.
+    environment: "sandbox",
     // WZGLĘDNA, nie kalendarzowa: dwie doby wstecz leżą w każdym oknie, które
     // ten moduł czyta (168 h uzgodnienia i 24 h wierszy osieroconych), i będą
     // tam leżeć zawsze, bo liczą się od zamrożonego „teraz".
@@ -159,6 +165,16 @@ function fieldOf(row: DonationRow, column: string): string | null {
       return row.provider_session_id;
     case "provider_intent_id":
       return row.provider_intent_id;
+    case "provider_invoice_id":
+      return row.provider_invoice_id;
+    case "provider_subscription_id":
+      return row.provider_subscription_id;
+    case "environment":
+      return row.environment;
+    case "refunded_amount_cents":
+      // Liczba jako napis o stałej szerokości - porównanie `lt` w atrapie jest
+      // tekstowe, a tak zachowuje porządek liczbowy.
+      return String(row.refunded_amount_cents).padStart(12, "0");
     case "created_at":
       return row.created_at;
     case "paid_at":
@@ -178,7 +194,11 @@ function matches(row: DonationRow, recorded: RecordedChain): boolean {
     if (call.method === "neq" && fieldOf(row, column) === value) return false;
     if (call.method === "is" && fieldOf(row, column) !== value) return false;
     if (call.method === "gte" && String(fieldOf(row, column)) < String(value)) return false;
-    if (call.method === "lt" && String(fieldOf(row, column)) >= String(value)) return false;
+    if (call.method === "lt") {
+      const bound =
+        column === "refunded_amount_cents" ? String(value).padStart(12, "0") : String(value);
+      if (String(fieldOf(row, column)) >= bound) return false;
+    }
     if (call.method === "like") {
       const prefix = String(value).replace(/%$/, "");
       if (!(fieldOf(row, column) ?? "").startsWith(prefix)) return false;
@@ -237,7 +257,11 @@ function respondDonations(recorded: RecordedChain): SupabaseResult {
   }
   if (nullReads) return ok(null);
   const limitArg = recorded.argsOf("limit")?.[0];
-  return ok(typeof limitArg === "number" ? ordered.slice(0, limitArg) : ordered);
+  const limited = typeof limitArg === "number" ? ordered.slice(0, limitArg) : ordered;
+  // `maybeSingle()` oddaje JEDEN wiersz albo `null`, nie listę - tak czyta
+  // kotwicę księgowanie raty cyklicznej (`donations.server`).
+  if (recorded.has("maybeSingle")) return ok(limited[0] ?? null);
+  return ok(limited);
 }
 
 /**
@@ -762,6 +786,10 @@ describe("syncDonationsFromStripe - import sesji spoza rejestru", () => {
           currency: "eur",
           mode: "subscription",
           subscription: { id: "sub_1" },
+          // Sesja w trybie subskrypcji nie ma intencji - pierwszą ratę opłaca
+          // faktura sesji (AUDYT SUB-09).
+          payment_intent: null,
+          invoice: "in_sierota_1",
           customer_details: { email: "NOWY@Example.org" },
         }),
       ],
@@ -772,6 +800,9 @@ describe("syncDonationsFromStripe - import sesji spoza rejestru", () => {
 
     expect(report).toMatchObject({ scannedSessions: 1, imported: 1 });
     expect(rows).toHaveLength(1);
+    // Rata zaksięgowana z FAKTURY, kluczem, który zna webhook `invoice.paid` -
+    // wcześniej import księgował samą sesję i późniejsza faktura dopisywała
+    // drugi wiersz tej samej wpłaty.
     expect(rows[0]).toMatchObject({
       tenant_id: TENANT,
       amount_cents: 15000,
@@ -779,11 +810,32 @@ describe("syncDonationsFromStripe - import sesji spoza rejestru", () => {
       donor_email: "nowy@example.org",
       provider: "stripe",
       provider_session_id: "cs_sierota",
-      provider_intent_id: "pi_stripe_1",
+      provider_invoice_id: "in_sierota_1",
+      provider_intent_id: "in_sierota_1",
       provider_subscription_id: "sub_1",
+      environment: "sandbox",
       recurring: true,
       status: "paid",
     });
+  });
+
+  it("SUB-09: sesja subskrypcji bez faktury wchodzi jako OCZEKUJĄCA, nie jako wpłata", async () => {
+    h.fns.sessionsList.mockResolvedValue({
+      data: [
+        stripeSession({
+          id: "cs_bez_faktury",
+          mode: "subscription",
+          subscription: "sub_2",
+          payment_intent: null,
+          invoice: null,
+        }),
+      ],
+      has_more: false,
+    });
+
+    await syncDonationsFromStripe("sandbox");
+
+    expect(rows[0]).toMatchObject({ status: "pending", provider_subscription_id: "sub_2" });
   });
 
   it("sesja bez kompletu danych jest importowana z bezpiecznymi domyślnymi", async () => {
@@ -1146,5 +1198,79 @@ describe("wiarygodność raportu i izolacja tenanta", () => {
 
     expect(report.imported).toBe(1);
     expect(rows[0]).toMatchObject({ tenant_id: TENANT, provider_session_id: "cs_nasza_sierota" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AUDYT SUB-09 / SUB-10: uzgodnienie stosuje te same reguły księgi co webhook
+// ---------------------------------------------------------------------------
+
+describe("SUB-10: uzgodnienie czyta wyłącznie swoje środowisko", () => {
+  it("przebieg `sandbox` NIE domyka wpłaty produkcyjnej i nie pyta o nią operatora", async () => {
+    rows = [donationRow({ environment: "live", provider_session_id: "cs_alfa_1" })];
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report.settled).toBe(0);
+    expect(h.fns.sessionsRetrieve).not.toHaveBeenCalled();
+    expect(rowById("don-1")).toMatchObject({ status: "pending", environment: "live" });
+  });
+});
+
+describe("SUB-09: sesja subskrypcji w uzgodnieniu", () => {
+  it("opłacona sesja subskrypcji domyka kotwicę FAKTURĄ (`in_...`), a nie sesją", async () => {
+    rows = [donationRow({ provider_session_id: "cs_alfa_1", recurring: true, status: "pending" })];
+    h.fns.sessionsRetrieve.mockResolvedValue(
+      stripeSession({
+        id: "cs_alfa_1",
+        mode: "subscription",
+        subscription: "sub_alfa",
+        payment_intent: null,
+        invoice: "in_alfa_1",
+      }),
+    );
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report.settled).toBe(1);
+    expect(rows).toHaveLength(1);
+    expect(rowById("don-1")).toMatchObject({
+      status: "paid",
+      provider_subscription_id: "sub_alfa",
+      provider_invoice_id: "in_alfa_1",
+    });
+  });
+});
+
+describe("SUB-09: zwrot w uzgodnieniu - ta sama reguła co webhook", () => {
+  it("zwrot CZĘŚCIOWY zostawia wpłatę opłaconą i podnosi licznik zwrotu", async () => {
+    rows = [donationRow({ status: "paid", provider_intent_id: "pi_1", amount_cents: 5000 })];
+    h.fns.intentsRetrieve.mockResolvedValue({ id: "pi_1", latest_charge: "ch_1" });
+    h.fns.chargesRetrieve.mockResolvedValue({
+      refunded: false,
+      amount_refunded: 500,
+      amount: 5000,
+      currency: "pln",
+    });
+
+    const report = await syncDonationsFromStripe("sandbox");
+
+    expect(report.refunded).toBe(1);
+    expect(rowById("don-1")).toMatchObject({ status: "paid", refunded_amount_cents: 500 });
+  });
+
+  it("zwrot PEŁNY zamyka wpłatę statusem `refunded`", async () => {
+    rows = [donationRow({ status: "paid", provider_intent_id: "pi_1", amount_cents: 5000 })];
+    h.fns.intentsRetrieve.mockResolvedValue({ id: "pi_1", latest_charge: "ch_1" });
+    h.fns.chargesRetrieve.mockResolvedValue({
+      refunded: true,
+      amount_refunded: 5000,
+      amount: 5000,
+      currency: "pln",
+    });
+
+    await syncDonationsFromStripe("sandbox");
+
+    expect(rowById("don-1")).toMatchObject({ status: "refunded", refunded_amount_cents: 5000 });
   });
 });
