@@ -700,4 +700,129 @@ BEGIN
     '78/G TIX-13a: lista zamowien wszystkich najemcow tylko dla roli serwisowej');
 END $$;
 
+-- ---------------------------------------------------------------------------
+-- H. TIX-09 RAZEM Z FAKTURAMI Z MAIN (INV): STAWKA ZRODLA WSZEDZIE TA SAMA
+-- ---------------------------------------------------------------------------
+-- Bilet z cena NETTO (8%), osoby i zgloszenia do proformy - kazde na innej osobie.
+INSERT INTO public.event_people (id, tenant_id, user_id, email, first_name, last_name) VALUES
+  ('78300000-0000-0000-0000-000000000021', '78000000-0000-0000-0000-0000000000a0', NULL, 'h1.78@example.org', 'Hanna', 'Netto'),
+  ('78300000-0000-0000-0000-000000000022', '78000000-0000-0000-0000-0000000000a0', NULL, 'h2.78@example.org', 'Henryk', 'Proforma'),
+  ('78300000-0000-0000-0000-000000000023', '78000000-0000-0000-0000-0000000000a0', NULL, 'h3.78@example.org', 'Helena', 'Zwolniona');
+INSERT INTO public.event_ticket_types
+  (id, tenant_id, event_id, key, name_pl, name_en, price_cents, currency, quota,
+   min_tier_rank, requires_approval, is_active, sort_order, group_registration_enabled,
+   group_max_size, early_bird_price_cents, early_bird_until, tax_mode, vat_rate)
+VALUES
+  ('78100000-0000-0000-0000-000000000007', '78000000-0000-0000-0000-0000000000a0', '78e00000-0000-0000-0000-0000000000e5', 'netto', 'Netto', 'Net', 10000, 'PLN', NULL,
+   0, false, true, 30, false, 10, NULL, NULL, 'exclusive', '8');
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode,
+   payment_status, created_by)
+VALUES
+  ('78400000-0000-0000-0000-000000000034', '78000000-0000-0000-0000-0000000000a0', '78e00000-0000-0000-0000-0000000000e5', '78300000-0000-0000-0000-000000000021',
+   '78100000-0000-0000-0000-000000000007', 'approved', 'form', 'unpaid',
+   '78a00000-0000-0000-0000-000000000001'),
+  ('78400000-0000-0000-0000-000000000032', '78000000-0000-0000-0000-0000000000a0', '78e00000-0000-0000-0000-0000000000e5', '78300000-0000-0000-0000-000000000022',
+   '78100000-0000-0000-0000-000000000005', 'approved', 'form', 'unpaid',
+   '78a00000-0000-0000-0000-000000000001'),
+  ('78400000-0000-0000-0000-000000000033', '78000000-0000-0000-0000-0000000000a0', '78e00000-0000-0000-0000-0000000000e5', '78300000-0000-0000-0000-000000000023',
+   '78100000-0000-0000-0000-000000000006', 'approved', 'form', 'unpaid',
+   '78a00000-0000-0000-0000-000000000001');
+
+DO $$
+DECLARE
+  v_buyer jsonb := jsonb_build_object('is_company', false, 'name', 'Henryk Proforma',
+    'address', 'ul. Prosta 3', 'postal_code', '00-003', 'city', 'Warszawa', 'country', 'PL',
+    'email', 'h2.78@example.org');
+  v_id uuid;
+  v_pro uuid;
+  v_inv uuid;
+  v_corr uuid;
+  v_pkg uuid;
+  v_ord_invoiced uuid;
+  v_ord_plain uuid;
+  v_rates text;
+BEGIN
+  PERFORM pg_temp.act_as('78a00000-0000-0000-0000-0000000000a1', '78000000-0000-0000-0000-0000000000a0');
+
+  -- H1: bilet NETTO 100 zl ze stawka 8% - brutto 108 zl, nie 123 zl ze stawki najemcy.
+  v_id := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '78e00000-0000-0000-0000-0000000000e5', 'kind', 'invoice', 'buyer', v_buyer,
+    'sources', jsonb_build_array(jsonb_build_object('kind', 'registration',
+      'id', '78400000-0000-0000-0000-000000000034'))));
+  PERFORM pg_temp.assert(
+    (SELECT l.vat_rate = '8' AND l.gross_cents = 10800 AND l.net_cents = 10000
+       FROM public.event_invoice_lines l WHERE l.invoice_id = v_id),
+    '78/H TIX-09: bilet netto liczony stawka biletu (8%): 100 zl netto = 108 zl brutto');
+
+  -- H2: pakiet BEZ wlasnej stawki dziedziczy stawke i podstawe swojego biletu (zw).
+  v_pkg := public.admin_event_package_upsert(jsonb_build_object(
+    'event_id', '78e00000-0000-0000-0000-0000000000e5', 'ticket_type_id', '78100000-0000-0000-0000-000000000006',
+    'key', 'szkolenie_firmowe', 'name_pl', 'Szkolenie firmowe', 'name_en', 'Company training',
+    'seats', 2, 'price_cents', 40000, 'currency', 'PLN'));
+  v_ord_invoiced := public.admin_event_package_order_create(jsonb_build_object(
+    'package_id', v_pkg, 'buyer_email', 'firma.78@example.org', 'buyer_name', 'Firma 78'));
+  v_inv := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '78e00000-0000-0000-0000-0000000000e5', 'kind', 'invoice',
+    'buyer', jsonb_build_object('is_company', true, 'name', 'Firma 78', 'tax_id', '5260250274',
+      'address', 'ul. Firmowa 1', 'postal_code', '00-004', 'city', 'Warszawa', 'country', 'PL',
+      'email', 'firma.78@example.org'),
+    'sources', jsonb_build_array(jsonb_build_object('kind', 'package_order', 'id', v_ord_invoiced))));
+  PERFORM pg_temp.assert(
+    (SELECT string_agg(DISTINCT l.vat_rate, ',') FROM public.event_invoice_lines l WHERE l.invoice_id = v_inv) = 'zw'
+    AND (SELECT vat_exempt_basis LIKE 'art. 43%' FROM public.event_invoices WHERE id = v_inv),
+    '78/H TIX-09: pakiet bez stawki dziedziczy stawke zw i podstawe zwolnienia swojego biletu');
+
+  -- H3: przeglad terminow NIE anuluje zamowienia z wystawiona faktura; bez niej - tak.
+  PERFORM public.admin_event_invoice_issue(v_inv);
+  v_ord_plain := public.admin_event_package_order_create(jsonb_build_object(
+    'package_id', v_pkg, 'buyer_email', 'druga.78@example.org', 'buyer_name', 'Druga 78'));
+  UPDATE public.event_package_orders SET pay_by = now() - interval '1 day'
+   WHERE id IN (v_ord_invoiced, v_ord_plain);
+  PERFORM pg_temp.act_as();
+  PERFORM public._event_package_orders_expire(200);
+  PERFORM pg_temp.assert(
+    (SELECT status FROM public.event_package_orders WHERE id = v_ord_invoiced) = 'pending'
+    AND (SELECT status FROM public.event_package_orders WHERE id = v_ord_plain) = 'cancelled',
+    '78/H TIX-07: termin platnosci nie anuluje zamowienia z wystawiona faktura (decyduje organizator)');
+  PERFORM pg_temp.act_as('78a00000-0000-0000-0000-0000000000a1', '78000000-0000-0000-0000-0000000000a0');
+
+  -- H4: korekta faktury zwolnionej (podstawa z biletu, najemca bez podstawy)
+  -- dziedziczy podstawe faktury korygowanej - wystawienie przechodzi.
+  v_corr := public.admin_event_invoice_correction_create(jsonb_build_object(
+    'invoice_id', v_inv, 'mode', 'full', 'reason', 'Rezygnacja firmy'));
+  PERFORM public.admin_event_invoice_issue(v_corr);
+  PERFORM pg_temp.assert(
+    (SELECT status = 'issued' AND vat_exempt_basis LIKE 'art. 43%' FROM public.event_invoices WHERE id = v_corr),
+    '78/H TIX-09: korekta faktury zw wychodzi z podstawa zwolnienia faktury korygowanej');
+
+  -- H5: proforma na bilet 8% i bilet zw, potem wplaty INNE niz proforma
+  -- (przebudowa pozycji z wplat, INV-14): kazde zrodlo zachowuje swoja stawke,
+  -- a faktura - podstawe zwolnienia proformy.
+  v_pro := public.admin_event_invoice_draft_create(jsonb_build_object(
+    'event_id', '78e00000-0000-0000-0000-0000000000e5', 'kind', 'proforma', 'buyer', v_buyer,
+    'sources', jsonb_build_array(
+      jsonb_build_object('kind', 'registration', 'id', '78400000-0000-0000-0000-000000000032'),
+      jsonb_build_object('kind', 'registration', 'id', '78400000-0000-0000-0000-000000000033'))));
+  PERFORM public.admin_event_invoice_issue(v_pro);
+  UPDATE public.event_registrations SET payment_status = 'paid', paid_at = now()
+   WHERE id IN ('78400000-0000-0000-0000-000000000032', '78400000-0000-0000-0000-000000000033');
+  PERFORM public.admin_event_registration_record_payment(jsonb_build_object(
+    'registration_id', '78400000-0000-0000-0000-000000000032', 'amount_cents', 10000));
+  PERFORM public.admin_event_registration_record_payment(jsonb_build_object(
+    'registration_id', '78400000-0000-0000-0000-000000000033', 'amount_cents', 20000));
+  v_id := public.admin_event_invoice_from_proforma(v_pro);
+  -- Zbior pozycji, nie kolejnosc: zrodla jednego szkicu maja ten sam czas utworzenia.
+  SELECT string_agg(l.vat_rate || ':' || l.gross_cents, ',' ORDER BY l.vat_rate) INTO v_rates
+    FROM public.event_invoice_lines l WHERE l.invoice_id = v_id;
+  PERFORM pg_temp.assert(v_rates = '8:10000,zw:20000'
+    AND (SELECT vat_exempt_basis LIKE 'art. 43%' FROM public.event_invoices WHERE id = v_id),
+    format('78/H TIX-09: faktura z proformy po wplatach - stawka kazdego biletu i podstawa zwolnienia (%s)', v_rates));
+  PERFORM public.admin_event_invoice_issue(v_id);
+  PERFORM pg_temp.assert(
+    (SELECT status FROM public.event_invoices WHERE id = v_id) = 'issued',
+    '78/H TIX-09: faktura z proformy (8% + zw) wychodzi bez podstawy w ustawieniach najemcy');
+  PERFORM pg_temp.act_as();
+END $$;
+
 ROLLBACK;

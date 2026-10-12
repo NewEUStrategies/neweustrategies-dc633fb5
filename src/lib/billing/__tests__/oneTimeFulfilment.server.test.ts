@@ -432,6 +432,27 @@ describe("fulfilOrder - odczyt zamówienia", () => {
 
 // --- 3. księgowanie i zamówienie bez wydarzenia -----------------------------
 
+describe("fulfilOrder - zamówienie już zwrócone", () => {
+  it("ponowiony webhook NIE przestawia zwrotu z powrotem na opłacone ani nie wydaje skutków", async () => {
+    // Dyspozytor ponawia `transaction.completed` po błędzie zapisu dokumentu;
+    // zamówienie zdążyło już przejść zwrot (odmowa wpłaty, pełna sala).
+    givenOrder(orderRow({ status: "refunded" }));
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("skipped");
+    expect(h.grants).toHaveLength(0);
+    expect(paidPatch()).toBeUndefined();
+    expect(h.rpcCalls).toHaveLength(0);
+    expect(h.eventMails).toHaveLength(0);
+  });
+
+  it("anulowane zamówienie z opłaconą sesją JEST rozliczane - to realna wpłata", async () => {
+    givenOrder(orderRow({ status: "canceled" }));
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
+    expect(paidPatch()).toMatchObject({ status: "paid" });
+  });
+});
+
 describe("fulfilOrder - księgowanie", () => {
   it("brak kwoty i waluty w transakcji spada na zamówienie, a waluta idzie wielkimi literami", async () => {
     givenOrder(orderRow({ metadata: null, currency: "eur", amount_cents: 9_900 }));

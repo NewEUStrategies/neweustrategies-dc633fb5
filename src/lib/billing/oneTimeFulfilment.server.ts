@@ -377,6 +377,16 @@ async function fulfilOrder(
     );
     return "skipped";
   }
+  // ZWRÓCONE zamówienie nie wraca do `paid`. Od 20261012 dyspozytor ponawia
+  // `transaction.completed` po błędzie zapisu dokumentu (webhookDispatch), a
+  // księgowanie `.neq("status", "paid")` przestawiłoby zwrot (odmowa wpłaty,
+  // pełna sala) z powrotem na opłacone i ponownie wydało skutki zakupu.
+  // Anulowane przechodzi: opłacona sesja na anulowanym zamówieniu to realna
+  // wpłata, którą trzeba rozliczyć.
+  if (order.status === "refunded") {
+    console.warn("[payments] one-time: order already refunded, settlement skipped", orderId);
+    return "skipped";
+  }
   return (await settleOrder(txn, order, { provider: "stripe" })).outcome;
 }
 

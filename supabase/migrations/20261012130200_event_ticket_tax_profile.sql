@@ -344,6 +344,33 @@ $function$;
 
 -- Faktury: stawka pozycji i podstawa zwolnienia z biletu/pakietu. Ciala
 -- z katalogu (pg_get_functiondef); zmiany oznaczone `TIX-09`.
+-- Profil podatkowy ZRODLA faktury: zgloszenie -> jego bilet; zamowienie
+-- pakietu -> pakiet, a pakiet bez wlasnej stawki/podstawy -> jego bilet
+-- (`event_ticket_packages.ticket_type_id`). Jedno miejsce dla szkicu
+-- (`_event_invoice_draft_build`) i faktury z proformy, zeby oba liczyly
+-- pozycje ta sama stawka.
+CREATE OR REPLACE FUNCTION public._event_invoice_source_tax_profile(p_tenant uuid, p_kind text, p_id uuid)
+RETURNS TABLE(vat_rate text, vat_exempt_basis text)
+LANGUAGE sql
+STABLE
+SET search_path TO 'public', 'pg_temp'
+AS $$
+  SELECT COALESCE(pk.vat_rate, t.vat_rate),
+         COALESCE(NULLIF(btrim(pk.vat_exempt_basis), ''), NULLIF(btrim(t.vat_exempt_basis), ''))
+    FROM (SELECT 1) AS one
+    LEFT JOIN public.event_registrations r
+      ON p_kind = 'registration' AND r.id = p_id AND r.tenant_id = p_tenant
+    LEFT JOIN public.event_package_orders po
+      ON p_kind = 'package_order' AND po.id = p_id AND po.tenant_id = p_tenant
+    LEFT JOIN public.event_ticket_packages pk
+      ON pk.id = po.package_id AND pk.tenant_id = p_tenant
+    LEFT JOIN public.event_ticket_types t
+      ON t.id = COALESCE(r.ticket_type_id, pk.ticket_type_id) AND t.tenant_id = p_tenant;
+$$;
+REVOKE ALL ON FUNCTION public._event_invoice_source_tax_profile(uuid, text, uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public._event_invoice_source_tax_profile(uuid, text, uuid) TO service_role;
+
 CREATE OR REPLACE FUNCTION public._event_invoice_draft_build(p_tenant uuid, p_actor uuid, p_payload jsonb)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -438,8 +465,15 @@ BEGIN
       RAISE EXCEPTION 'duplicate_source: the same order was picked twice' USING ERRCODE = '22023';
     END IF;
     v_seen := v_seen || v_sid;
+    -- TIX-09: stawka ZRODLA przed wycena - bilet z cena netto (`tax_mode =
+    -- exclusive`) przelicza brutto ta sama stawka, ktora trafi na pozycje,
+    -- a nie domyslna stawka najemcy.
+    SELECT p.vat_rate, p.vat_exempt_basis INTO v_src_rate, v_src_basis
+      FROM public._event_invoice_source_tax_profile(p_tenant, v_skind, v_sid) AS p;
+    v_line_rate := CASE WHEN v_rate_forced THEN v_rate ELSE COALESCE(v_src_rate, v_rate) END;
     v_resolved := v_resolved || jsonb_build_array(
-      public._event_invoice_resolve_source(p_tenant, v_event_id, v_skind, v_sid, v_rate, v_locale)
+      public._event_invoice_resolve_source(p_tenant, v_event_id, v_skind, v_sid, v_line_rate, v_locale)
+        || jsonb_build_object('tix_vat_rate', v_line_rate, 'tix_exempt_basis', v_src_basis)
     );
     IF v_kind = 'invoice' AND EXISTS (
       SELECT 1 FROM public.event_invoice_sources s
@@ -582,18 +616,9 @@ BEGIN
   -- dzielona na swoje miejsca; reszta z dzielenia na osobnej pozycji
   -- (u + 1 grosz), zeby ilosc x cena = wartosc.
   FOR v_item IN SELECT x.value FROM jsonb_array_elements(v_resolved) AS x LOOP
-    SELECT COALESCE(pk.vat_rate, t.vat_rate),
-           COALESCE(NULLIF(btrim(pk.vat_exempt_basis), ''), NULLIF(btrim(t.vat_exempt_basis), ''))
-      INTO v_src_rate, v_src_basis
-      FROM (SELECT 1) AS one
-      LEFT JOIN public.event_package_orders po
-        ON v_item->>'kind' = 'package_order'
-       AND po.id = NULLIF(v_item->>'id', '')::uuid AND po.tenant_id = p_tenant
-      LEFT JOIN public.event_ticket_packages pk
-        ON pk.id = po.package_id AND pk.tenant_id = p_tenant
-      LEFT JOIN public.event_ticket_types t
-        ON t.id = NULLIF(v_item->>'ticket_type_id', '')::uuid AND t.tenant_id = p_tenant;
-    v_line_rate := CASE WHEN v_rate_forced THEN v_rate ELSE COALESCE(v_src_rate, v_rate) END;
+    -- Stawka i podstawa ustalone przy wycenie zrodla (wyzej).
+    v_line_rate := v_item->>'tix_vat_rate';
+    v_src_basis := NULLIF(v_item->>'tix_exempt_basis', '');
     IF v_line_rate = 'zw' AND v_basis = '' AND v_src_basis IS NOT NULL THEN
       v_basis := v_src_basis;
     END IF;
@@ -647,329 +672,8 @@ BEGIN
 END;
 $function$;
 
-CREATE OR REPLACE FUNCTION public._event_invoice_issue_core(p_tenant uuid, p_actor uuid, p_invoice uuid)
-RETURNS jsonb
-LANGUAGE plpgsql
-VOLATILE
-SECURITY DEFINER
-SET search_path = public, pg_temp
-AS $$
-DECLARE
-  v_inv public.event_invoices;
-  v_target public.event_invoices;
-  v_settings public.event_invoice_settings;
-  v_buyer jsonb;
-  v_today date := (now() AT TIME ZONE 'Europe/Warsaw')::date;
-  v_series text;
-  v_num record;
-  v_due date;
-  v_exempt boolean;
-  v_source public.event_invoice_sources;
-  v_now jsonb;
-  v_card uuid;
-  v_block text;
-  v_bad integer;
-  v_open integer;
-  v_open_anchors integer;
-  v_np boolean;
-  v_np_basis text;
-  v_rc boolean;
-  v_sources_gross bigint := 0;
-  v_all_paid boolean := true;
-  v_lines_gross bigint;
-  v_fx_basis date;
-  v_fx public.nbp_exchange_rates;
-  v_summary jsonb;
-BEGIN
-  SELECT * INTO v_inv FROM public.event_invoices i
-   WHERE i.id = p_invoice AND i.tenant_id = p_tenant
-   FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'not_found: document does not exist in this tenant' USING ERRCODE = '42501';
-  END IF;
-  IF v_inv.status <> 'draft' THEN
-    RAISE EXCEPTION 'not_draft: only a draft can be issued' USING ERRCODE = '22023';
-  END IF;
-  SELECT * INTO v_settings FROM public.event_invoice_settings s WHERE s.tenant_id = p_tenant;
-  IF NOT FOUND OR NOT v_settings.enabled THEN
-    RAISE EXCEPTION 'invoicing_disabled: complete and confirm the issuer settings first'
-      USING ERRCODE = '22023';
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM public.event_invoice_lines l
-                  WHERE l.invoice_id = v_inv.id AND l.tenant_id = p_tenant) THEN
-    RAISE EXCEPTION 'no_lines: a document needs at least one line' USING ERRCODE = '22023';
-  END IF;
-  v_buyer := public._event_invoice_buyer_clean(public._event_invoice_buyer_json(v_inv));
-  v_exempt := EXISTS (SELECT 1 FROM public.event_invoice_lines l
-                       WHERE l.invoice_id = v_inv.id AND l.tenant_id = p_tenant AND l.vat_rate = 'zw');
-  -- TIX-09: podstawa zwolnienia z biletu/pakietu (szkic) wystarcza - ustawienia
-  -- najemcy sa ostatnim szczeblem, nie jedynym.
-  IF v_exempt AND btrim(COALESCE(NULLIF(btrim(v_inv.vat_exempt_basis), ''),
-                                 v_settings.vat_exempt_basis)) = '' THEN
-    RAISE EXCEPTION 'vat_exempt_basis_required: exempt lines need the legal basis in issuer settings'
-      USING ERRCODE = '22023';
-  END IF;
-  IF v_inv.kind = 'correction' THEN
-    SELECT * INTO v_target FROM public.event_invoices i
-     WHERE i.id = v_inv.corrects_invoice_id AND i.tenant_id = p_tenant
-     FOR UPDATE;
-  END IF;
-  -- ZMIANA (INV-12): stawka "np" wymaga podstawy prawnej (szkic > faktura
-  -- korygowana > ustawienia wystawcy), a odwrotne obciazenie - nabywcy-firmy
-  -- spoza Polski, samych pozycji "np" i (nabywca z UE) waznej weryfikacji VIES
-  -- tego samego numeru z ostatnich 30 dni. Korekta dziedziczy decyzje faktury.
-  v_np := EXISTS (SELECT 1 FROM public.event_invoice_lines l
-                   WHERE l.invoice_id = v_inv.id AND l.tenant_id = p_tenant AND l.vat_rate = 'np');
-  v_np_basis := COALESCE(NULLIF(btrim(v_inv.np_basis), ''), NULLIF(btrim(v_target.np_basis), ''),
-                         btrim(v_settings.vat_np_basis));
-  IF v_np AND v_np_basis = '' THEN
-    RAISE EXCEPTION 'vat_np_basis_required: lines outside the scope of Polish VAT need the legal basis'
-      USING ERRCODE = '22023';
-  END IF;
-  v_rc := CASE
-    WHEN v_inv.kind = 'correction' AND v_inv.reverse_charge IS NULL THEN COALESCE(v_target.reverse_charge, false)
-    ELSE COALESCE(public._event_invoice_reverse_charge(p_tenant, v_inv.id), false)
-  END;
-  IF v_rc AND (NOT (v_buyer->>'is_company')::boolean OR v_buyer->>'country' = 'PL'
-               OR EXISTS (SELECT 1 FROM public.event_invoice_lines l
-                           WHERE l.invoice_id = v_inv.id AND l.tenant_id = p_tenant AND l.vat_rate <> 'np')) THEN
-    RAISE EXCEPTION 'reverse_charge_invalid: reverse charge needs a foreign company buyer and only np lines'
-      USING ERRCODE = '22023';
-  END IF;
-  IF v_rc AND v_inv.kind <> 'correction' AND public._event_invoice_eu_country(v_buyer->>'country')
-     AND NOT (COALESCE(v_inv.buyer_vies_valid, false)
-              AND v_inv.buyer_vies_subject = public._event_invoice_vies_subject(v_buyer->>'country', v_buyer->>'tax_id')
-              AND v_inv.buyer_vies_checked_at >= now() - interval '30 days') THEN
-    RAISE EXCEPTION 'vies_verification_required: verify the EU VAT number of the buyer in VIES first'
-      USING ERRCODE = '22023';
-  END IF;
-  IF v_inv.kind <> 'correction' AND v_inv.gross_cents < 0 THEN
-    RAISE EXCEPTION 'negative_total: only a correction can have a negative total' USING ERRCODE = '22023';
-  END IF;
-  -- ZRODLA SPRAWDZANE NA NOWO. Szkic (takze z proformy) moze powstac przed
-  -- zaplata karta albo przed zwrotem; migawka zrodla z chwili szkicu nie
-  -- wystarcza. Zamowienie z karty, ktorego organizator nie moze fakturowac
-  -- (_event_invoice_card_block), blokuje wystawienie; zrodlo zmienione od
-  -- szkicu (nowe zamowienie z karty, inna kwota zamowienia, zamowienie
-  -- usuniete) tez - organizator tworzy szkic od nowa na aktualnych danych.
-  IF v_inv.kind = 'invoice' THEN
-    FOR v_source IN
-      SELECT * FROM public.event_invoice_sources s
-       WHERE s.invoice_id = v_inv.id AND s.tenant_id = p_tenant
-       ORDER BY s.created_at, s.id
-    LOOP
-      IF COALESCE(v_source.registration_id, v_source.package_order_id) IS NULL THEN
-        RAISE EXCEPTION 'source_changed: an order of this draft changed - create the draft again'
-          USING ERRCODE = '22023';
-      END IF;
-      v_now := public._event_invoice_resolve_source(
-        p_tenant, v_inv.event_id, v_source.source_kind,
-        COALESCE(v_source.registration_id, v_source.package_order_id),
-        v_settings.default_vat_rate, v_inv.locale
-      );
-      v_card := NULLIF(v_now->>'payment_order_id', '')::uuid;
-      v_block := CASE WHEN v_card IS NOT NULL THEN public._event_invoice_card_block(p_tenant, v_card) END;
-      IF v_block = 'mor_seller_conflict' THEN
-        RAISE EXCEPTION 'mor_seller_conflict: card orders of the managed checkout are sold by the payment operator'
-          USING ERRCODE = '22023';
-      ELSIF v_block = 'operator_invoice_enabled' THEN
-        RAISE EXCEPTION 'operator_invoice_enabled: the checkout already issues invoices for card payments'
-          USING ERRCODE = '22023';
-      ELSIF v_block = 'billing_plane_unknown' THEN
-        RAISE EXCEPTION 'billing_plane_unknown: checkout settings changed after this card order'
-          USING ERRCODE = '22023';
-      END IF;
-      IF v_card IS DISTINCT FROM v_source.payment_order_id
-         OR ((v_card IS NOT NULL OR v_source.source_kind = 'package_order')
-             AND (v_now->>'gross')::bigint <> v_source.gross_cents) THEN
-        RAISE EXCEPTION 'source_changed: an order of this draft changed - create the draft again'
-          USING ERRCODE = '22023';
-      END IF;
-      -- ZMIANA (INV-14): oplacone zrodlo musi miec kwote, ktora wplynela.
-      IF (v_now->>'paid')::boolean AND v_now->>'basis' IN ('price_list', 'price_list_net') THEN
-        RAISE EXCEPTION 'payment_amount_unbooked: record the amount of the transfer before invoicing a paid order'
-          USING ERRCODE = '22023';
-      END IF;
-      v_all_paid := v_all_paid AND (v_now->>'paid')::boolean;
-      v_sources_gross := v_sources_gross + (v_now->>'gross')::bigint;
-    END LOOP;
-    -- ZMIANA (INV-14): faktura za OPLACONE zamowienia dokumentuje wplate -
-    -- suma pozycji musi byc rowna kwocie, ktora wplynela (karta po zwrotach,
-    -- wplata zaksiegowana, pakiet). Dawniej rozjazd byl tylko ostrzezeniem
-    -- w edytorze, a faktura za przelew z rabatem wychodzila na cene z cennika.
-    SELECT COALESCE(sum(l.gross_cents), 0)::bigint INTO v_lines_gross
-      FROM public.event_invoice_lines l WHERE l.invoice_id = v_inv.id AND l.tenant_id = p_tenant;
-    IF v_all_paid AND EXISTS (SELECT 1 FROM public.event_invoice_sources s
-                               WHERE s.invoice_id = v_inv.id AND s.tenant_id = p_tenant)
-       AND v_lines_gross <> v_sources_gross THEN
-      RAISE EXCEPTION 'amount_mismatch: invoice lines (%) differ from the payments of its orders (%)',
-        v_lines_gross, v_sources_gross USING ERRCODE = '22023';
-    END IF;
-    -- Jeden nabywca (patrz _event_invoice_draft_build) - takze przy wystawieniu.
-    IF (
-      SELECT count(DISTINCT CASE
-               WHEN q.buyer_tax_id <> ''
-                 THEN 'tax:' || public._event_invoice_tax_key(q.buyer_tax_id) || ':' || q.buyer_country
-               ELSE 'request:' || q.id::text
-             END)
-        FROM public.event_invoice_requests q
-        JOIN public.event_invoice_sources s
-          ON s.tenant_id = q.tenant_id AND s.invoice_id = v_inv.id
-         AND (s.registration_id = q.registration_id OR s.package_order_id = q.package_order_id)
-       WHERE q.tenant_id = p_tenant AND q.status = 'pending'
-    ) > 1 THEN
-      RAISE EXCEPTION 'buyer_mismatch: the picked orders carry invoice requests of different buyers'
-        USING ERRCODE = '22023';
-    END IF;
-  END IF;
-  IF v_inv.kind = 'correction' THEN
-    IF v_target.status IS DISTINCT FROM 'issued' THEN
-      RAISE EXCEPTION 'correction_target_invalid: the corrected invoice is not issued'
-        USING ERRCODE = '22023';
-    END IF;
-    -- ZMIANA (INV-17): korekta wskazuje numer KSeF faktury korygowanej; gdy
-    -- faktura czeka na przyjecie w KSeF, numeru jeszcze nie ma.
-    IF v_target.ksef_status = 'sent' THEN
-      RAISE EXCEPTION 'correction_awaits_ksef: the corrected invoice still waits for its KSeF number'
-        USING ERRCODE = '22023';
-    END IF;
-    -- STAN PO KOREKCIE musi byc czysty (patrz _event_invoice_state): bez
-    -- ujemnych ilosci, bez resztek netto, najwyzej jedna grupa na kotwice,
-    -- netto grupy = netto z jej brutto. Pelna korekta zeruje CALY stan (tylko
-    -- wtedy zwalnia zamowienia do ponownego zafakturowania); korekta czesciowa
-    -- zerujaca wszystko musi byc pelna, zeby zamowienia nie zostaly
-    -- zablokowane na fakturze o wartosci zero.
-    SELECT count(*) FILTER (
-             WHERE st.quantity < 0
-                OR (st.quantity = 0 AND st.net_cents <> 0)
-                OR (st.quantity > 0
-                    AND st.net_cents <> public._event_invoice_net_from_gross(st.gross_cents, st.vat_rate))),
-           count(*) FILTER (WHERE st.quantity > 0),
-           count(DISTINCT st.anchor_id) FILTER (WHERE st.quantity > 0)
-      INTO v_bad, v_open, v_open_anchors
-      FROM public._event_invoice_state(p_tenant, v_target.id, v_inv.id) AS st;
-    IF v_bad > 0 OR v_open > v_open_anchors OR (v_inv.correction_mode = 'full' AND v_open > 0) THEN
-      RAISE EXCEPTION 'correction_inconsistent: the correction does not match the current state of the invoice'
-        USING ERRCODE = '22023';
-    END IF;
-    IF v_inv.correction_mode = 'partial' AND v_open = 0 THEN
-      RAISE EXCEPTION 'correction_use_full: the correction reverses the whole invoice - use a full correction'
-        USING ERRCODE = '22023';
-    END IF;
-  END IF;
-  v_due := COALESCE(v_inv.due_date,
-                    v_today + CASE WHEN v_inv.paid_at IS NOT NULL THEN 0 ELSE v_settings.payment_days END);
-  IF v_due < v_today THEN
-    RAISE EXCEPTION 'invalid_due_date: due date is before the issue date' USING ERRCODE = '22023';
-  END IF;
-  -- ZMIANA (INV-06): dokument VAT w walucie obcej = kurs sredni NBP z ostatniego
-  -- dnia roboczego przed obowiazkiem podatkowym (art. 31a ust. 1-2) i VAT
-  -- w PLN (art. 106e ust. 11). Korekta bierze kurs faktury korygowanej
-  -- (art. 31a ust. 2b - kurs zastosowany pierwotnie). Brak kursu = odmowa,
-  -- a nie przeliczenie po kursie biezacym; serwer pobiera tabele NBP na
-  -- dzien wskazany w komunikacie (`fx_rate_required: <WALUTA> <RRRR-MM-DD>`).
-  IF v_inv.currency <> 'PLN' AND v_inv.kind <> 'proforma' THEN
-    IF v_inv.kind = 'correction' AND v_target.fx_rate IS NOT NULL THEN
-      v_fx.mid := v_target.fx_rate;
-      v_fx.table_no := v_target.fx_table_no;
-      v_fx.effective_date := v_target.fx_effective_date;
-    ELSE
-      v_fx_basis := CASE
-        WHEN v_inv.kind = 'correction'
-          THEN public._event_invoice_fx_basis(v_target.issue_date, v_target.sale_date, v_target.paid_at)
-        ELSE public._event_invoice_fx_basis(v_today, COALESCE(v_inv.sale_date, v_today), v_inv.paid_at)
-      END;
-      SELECT * INTO v_fx FROM public.nbp_exchange_rates r
-       WHERE r.currency = v_inv.currency AND r.rate_date = v_fx_basis - 1;
-      IF NOT FOUND THEN
-        RAISE EXCEPTION 'fx_rate_required: % %', v_inv.currency, to_char(v_fx_basis - 1, 'YYYY-MM-DD')
-          USING ERRCODE = '22023';
-      END IF;
-    END IF;
-  END IF;
-  -- ZMIANA (INV-16): podsumowanie stawek od sumy w stawce, liczone NA NOWO
-  -- (korekta zalezy od stanu po wczesniej wystawionych korektach), z VAT w PLN.
-  v_summary := public._event_invoice_vat_summary(p_tenant, v_inv.id, v_fx.mid);
-
-  v_series := CASE v_inv.kind
-    WHEN 'proforma' THEN v_settings.series_proforma
-    WHEN 'correction' THEN v_settings.series_correction
-    ELSE v_settings.series_invoice
-  END;
-  SELECT * INTO v_num FROM public._event_invoice_next_number(p_tenant, v_series, v_today);
-
-  UPDATE public.event_invoices i
-     SET status = 'issued',
-         series = v_series,
-         period = v_num.out_period,
-         seq = v_num.out_seq,
-         number = v_num.out_number,
-         issue_date = v_today,
-         due_date = v_due,
-         sale_date = COALESCE(i.sale_date, v_today),
-         buyer_is_company = (v_buyer->>'is_company')::boolean,
-         buyer_name = v_buyer->>'name',
-         buyer_tax_id = v_buyer->>'tax_id',
-         buyer_country = v_buyer->>'country',
-         buyer_address = v_buyer->>'address',
-         buyer_postal_code = v_buyer->>'postal_code',
-         buyer_city = v_buyer->>'city',
-         buyer_email = v_buyer->>'email',
-         po_number = v_buyer->>'po_number',
-         recipient_name = v_buyer->>'recipient_name',
-         recipient_address = v_buyer->>'recipient_address',
-         seller = public._event_invoice_seller_json(p_tenant),
-         -- TIX-09: podstawa z biletu/pakietu (szkic) przed podstawa najemcy.
-         vat_exempt_basis = CASE
-           WHEN v_exempt THEN COALESCE(NULLIF(btrim(v_inv.vat_exempt_basis), ''), v_settings.vat_exempt_basis)
-           ELSE '' END,
-         np_basis = CASE WHEN v_np THEN v_np_basis ELSE '' END,
-         reverse_charge = v_rc,
-         vat_summary = v_summary,
-         net_cents = (SELECT COALESCE(sum((x.value->>'net_cents')::bigint), 0) FROM jsonb_array_elements(v_summary) x),
-         vat_cents = (SELECT COALESCE(sum((x.value->>'vat_cents')::bigint), 0) FROM jsonb_array_elements(v_summary) x),
-         gross_cents = (SELECT COALESCE(sum((x.value->>'gross_cents')::bigint), 0) FROM jsonb_array_elements(v_summary) x),
-         fx_rate = v_fx.mid,
-         fx_table_no = v_fx.table_no,
-         fx_effective_date = v_fx.effective_date,
-         vat_pln_cents = CASE WHEN v_fx.mid IS NULL THEN NULL ELSE
-           (SELECT COALESCE(sum((x.value->>'vat_pln_cents')::bigint), 0) FROM jsonb_array_elements(v_summary) x) END,
-         ksef_status = CASE
-           WHEN i.kind <> 'proforma' AND v_settings.seller_country = 'PL' THEN 'pending'
-           ELSE 'not_applicable' END,
-         issued_at = now(),
-         issued_by = p_actor
-   WHERE i.id = v_inv.id AND i.tenant_id = p_tenant;
-
-  IF v_inv.kind = 'invoice' THEN
-    UPDATE public.event_invoice_requests q
-       SET status = 'invoiced', invoice_id = v_inv.id
-     WHERE q.tenant_id = p_tenant AND q.status = 'pending'
-       AND (q.registration_id IN (SELECT s.registration_id FROM public.event_invoice_sources s
-                                    WHERE s.invoice_id = v_inv.id AND s.tenant_id = p_tenant)
-            OR q.package_order_id IN (SELECT s.package_order_id FROM public.event_invoice_sources s
-                                       WHERE s.invoice_id = v_inv.id AND s.tenant_id = p_tenant));
-  ELSIF v_inv.kind = 'correction' AND v_inv.correction_mode = 'full' THEN
-    UPDATE public.event_invoice_sources s
-       SET released_at = now()
-     WHERE s.invoice_id = v_target.id AND s.tenant_id = p_tenant AND s.released_at IS NULL;
-    UPDATE public.event_invoice_requests q
-       SET status = 'pending', invoice_id = NULL
-     WHERE q.tenant_id = p_tenant AND q.invoice_id = v_target.id AND q.status = 'invoiced';
-  END IF;
-
-  PERFORM public._event_invoice_crm_link(p_tenant, p_actor, v_inv.id);
-
-  PERFORM public.emit_domain_event(
-    p_tenant,
-    'event_invoice',
-    v_inv.id::text,
-    'event_invoice.issued.v1',
-    jsonb_build_object('event_id', v_inv.event_id, 'invoice_id', v_inv.id, 'kind', v_inv.kind),
-    p_actor
-  );
-  RETURN jsonb_build_object(
-    'id', v_inv.id, 'number', v_num.out_number, 'kind', v_inv.kind, 'event_id', v_inv.event_id
-  );
-END;
-$$;
+-- migration-split: part 1/2 of 20261012130200_event_ticket_tax_profile.sql
+-- CIAG DALSZY: 20261012130201_event_ticket_tax_profile_part2.sql .. 20261012130201_event_ticket_tax_profile_part2.sql
+-- (scripts/split-migration.ts, limit wdrozenia Lovable). SQL wykonywalny
+-- czesci 1..2 sklejonych po kolei == SQL tej migracji sprzed podzialu.
+-- events-harness: include
