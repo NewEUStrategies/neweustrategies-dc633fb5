@@ -272,6 +272,7 @@ function punkt(overrides: Partial<EventCheckpointRow> = {}): EventCheckpointRow 
     name_en: "Main entrance",
     name_pl: "Wejście główne",
     occupancy: 0,
+    reentry_policy: "allow",
     repeat_count: 0,
     room_id: BRAK_NAPISU,
     room_name: BRAK_NAPISU,
@@ -497,11 +498,21 @@ describe("przełącznik „aktywny” wysyła CAŁY wiersz", () => {
       sponsorId: null,
       directionMode: "in_out",
       accessMode: "track",
+      reentryPolicy: "allow",
       capacity: 250,
       dedupeWindowSeconds: 900,
       isActive: false,
       sortOrder: 7,
     });
+  });
+
+  it("wyłączenie punktu z blokadą ponownego wejścia NIE zdejmuje blokady", () => {
+    h.rows = [punkt({ access_mode: "control", reentry_policy: "deny" })];
+    panel();
+    expect(screen.getByText("adminEventOnsite.labels.reentryDenied")).toBeTruthy();
+    fireEvent.click(przelacznik());
+
+    expect(ostatniZapis()).toMatchObject({ isActive: false, reentryPolicy: "deny" });
   });
 
   it("włączenie wyłączonego punktu wysyła `isActive: true`", () => {

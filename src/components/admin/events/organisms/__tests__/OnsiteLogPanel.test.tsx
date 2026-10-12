@@ -308,9 +308,10 @@ describe("filtry jadą do bazy", () => {
     expect(ostatnieZapytanie().q).toBe("Kowalska");
   });
 
-  it("droplista wyników oferuje komplet sześciu wartości bazy plus „wszystkie”", () => {
+  it("droplista wyników oferuje komplet siedmiu wartości bazy plus „wszystkie”", () => {
     panel();
 
+    // `denied_already_inside` od 20261012110000 (OPS-08, polityka `deny`).
     expect(Array.from(filtr("result").options).map((option) => option.value)).toEqual([
       "__all__",
       "granted",
@@ -319,6 +320,7 @@ describe("filtry jadą do bazy", () => {
       "denied_direction",
       "denied_capacity",
       "denied_checkpoint_inactive",
+      "denied_already_inside",
     ]);
   });
 

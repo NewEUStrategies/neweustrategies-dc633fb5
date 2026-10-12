@@ -61,6 +61,7 @@ export const adminEventOnsitePl = {
       denied_direction: "Zły kierunek",
       denied_capacity: "Brak miejsc",
       denied_checkpoint_inactive: "Punkt nieaktywny",
+      denied_already_inside: "Już w środku",
     },
     sources: {
       qr_code: "Skan kodu",
@@ -117,6 +118,7 @@ export const adminEventOnsitePl = {
       badgeNotPrinted: "Bez identyfikatora",
       repeatCount: "Powtórzenia",
       walkIn: "Bez zapisu",
+      reentryDenied: "Bez ponownego wejścia",
     },
     actions: {
       addCheckpoint: "Dodaj punkt kontrolny",
@@ -162,6 +164,9 @@ export const adminEventOnsitePl = {
       invalidLabel: "Nazwa urządzenia musi mieć co najmniej 2 znaki.",
       invalidScopes: "Wybierz co najmniej jedno uprawnienie urządzenia.",
       invalidExpiry: "Termin ważności musi być w przyszłości.",
+      expiryTooLate: "Poświadczenie może być ważne najwyżej 7 dni po zakończeniu wydarzenia.",
+      ticketNotIssued: "To zgłoszenie nie ma wydanego biletu do unieważnienia.",
+      badgeNotIssued: "Ta osoba nie ma wydrukowanego identyfikatora do unieważnienia.",
       invalidDeviceToken: "To poświadczenie urządzenia jest nieznane lub nieprawidłowe.",
       deviceRevoked: "To poświadczenie zostało unieważnione - wydaj nowe.",
       deviceInactive: "To poświadczenie jest wstrzymane.",
@@ -215,6 +220,9 @@ export const adminEventOnsitePl = {
         accessMode: "Tryb kontroli",
         accessModeHint:
           "Kontrola dostępu odmawia wejścia bez zatwierdzonego zapisu. Tylko liczenie zapisuje każde wejście.",
+        denyReentry: "Blokuj ponowne wejście",
+        denyReentryHint:
+          "Drugie wejście tej samej osoby bez wyjścia pomiędzy zostanie odrzucone - jeden kod nie wpuści dwóch osób. Powtórzone piknięcie w oknie powtórzeń to nadal to samo wejście. Działa tylko w trybie kontroli dostępu.",
         capacity: "Pojemność",
         capacityHint: "Pusto = bez limitu.",
         dedupeWindowSeconds: "Okno powtórzeń (sekundy)",
@@ -268,6 +276,7 @@ export const adminEventOnsitePl = {
       denied_registration_status: "zapis niezatwierdzony",
       unknown_code: "nieznany kod",
       repeat: "już odprawiony",
+      denied_already_inside: "już w środku",
     },
     devices: {
       title: "Urządzenia skanujące",
@@ -355,7 +364,7 @@ export const adminEventOnsitePl = {
     print: {
       title: "Generator identyfikatorów",
       subtitle:
-        "Wydruk wydaje nowy kod QR. Poprzedni identyfikator tej osoby przestaje wtedy wpuszczać - dlatego partię generujemy dopiero przy drukarce.",
+        "Identyfikator dostaje własny kod QR, niezależny od biletu z e-maila i portfela - te nadal wpuszczają. Każdy wydruk wydaje nowy kod identyfikatora i unieważnia poprzedni identyfikator tej osoby, dlatego partię generujemy dopiero przy drukarce.",
       searchLabel: "Szukaj uczestnika",
       searchPlaceholder: "Nazwisko, firma lub e-mail (min. 2 znaki)",
       searchHint: "Wpisz co najmniej dwa znaki, aby wyszukać osoby zapisane na wydarzenie.",
@@ -369,7 +378,13 @@ export const adminEventOnsitePl = {
       generate: "Wydaj i drukuj",
       generating: "Wydaję identyfikatory…",
       reprintWarning:
-        "Co najmniej jedna z wybranych osób ma już wydrukowany identyfikator. Nowy wydruk unieważni poprzedni kod QR.",
+        "Co najmniej jedna z wybranych osób ma już wydrukowany identyfikator. Nowy wydruk unieważni WYŁĄCZNIE jej poprzedni identyfikator - bilet z e-maila i portfela nadal wpuszcza. Skan starego identyfikatora pokaże „kod zastąpiony” i nie zablokuje skanera.",
+      invalidateBadge: "Unieważnij identyfikator",
+      invalidateTitle: "Unieważnić zgubiony identyfikator?",
+      invalidateDescription:
+        "Kod z wydrukowanego identyfikatora osoby {{name}} przestanie wpuszczać - skaner pokaże „kod zastąpiony”. Bilet z e-maila i portfela zostaje ważny. Nowy identyfikator wydrukujesz w tym panelu.",
+      invalidateConfirm: "Unieważnij",
+      invalidated: "Identyfikator unieważniony.",
       popupBlocked:
         "Przeglądarka zablokowała okno druku. Zezwól na wyskakujące okna i spróbuj ponownie.",
       done: "Wydano identyfikatory: {{count}}.",
@@ -487,6 +502,7 @@ export const adminEventOnsiteEn = {
       denied_direction: "Wrong direction",
       denied_capacity: "At capacity",
       denied_checkpoint_inactive: "Checkpoint inactive",
+      denied_already_inside: "Already inside",
     },
     sources: {
       qr_code: "QR scan",
@@ -543,6 +559,7 @@ export const adminEventOnsiteEn = {
       badgeNotPrinted: "No badge",
       repeatCount: "Repeats",
       walkIn: "Walk-in",
+      reentryDenied: "No re-entry",
     },
     actions: {
       addCheckpoint: "Add checkpoint",
@@ -588,6 +605,9 @@ export const adminEventOnsiteEn = {
       invalidLabel: "The device label needs at least 2 characters.",
       invalidScopes: "Select at least one device permission.",
       invalidExpiry: "The expiry date must be in the future.",
+      expiryTooLate: "A credential can be valid for at most 7 days after the event ends.",
+      ticketNotIssued: "This registration has no issued ticket to invalidate.",
+      badgeNotIssued: "This person has no printed badge to invalidate.",
       invalidDeviceToken: "This device credential is unknown or malformed.",
       deviceRevoked: "This credential was revoked - issue a new one.",
       deviceInactive: "This credential is paused.",
@@ -638,6 +658,9 @@ export const adminEventOnsiteEn = {
         accessMode: "Control mode",
         accessModeHint:
           "Access control refuses entry without an approved registration. Count only records every entry.",
+        denyReentry: "Block re-entry",
+        denyReentryHint:
+          "A second entry by the same person without an exit in between is refused - one code cannot admit two people. A repeated scan inside the repeat window is still the same entry. Works in access-control mode only.",
         capacity: "Capacity",
         capacityHint: "Empty = no limit.",
         dedupeWindowSeconds: "Repeat window (seconds)",
@@ -691,6 +714,7 @@ export const adminEventOnsiteEn = {
       denied_registration_status: "registration not approved",
       unknown_code: "unknown code",
       repeat: "already checked in",
+      denied_already_inside: "already inside",
     },
     devices: {
       title: "Scanner devices",
@@ -775,7 +799,7 @@ export const adminEventOnsiteEn = {
     print: {
       title: "Badge generator",
       subtitle:
-        "Printing issues a new QR code. The person's previous badge stops granting entry - so generate the batch at the printer, not before.",
+        "A badge gets its own QR code, separate from the e-mail and wallet ticket - those keep granting entry. Every print issues a new badge code and invalidates the person's previous badge, so generate the batch at the printer, not before.",
       searchLabel: "Find an attendee",
       searchPlaceholder: "Last name, company or email (min. 2 characters)",
       searchHint: "Type at least two characters to search people registered for this event.",
@@ -789,7 +813,13 @@ export const adminEventOnsiteEn = {
       generate: "Issue and print",
       generating: "Issuing badges…",
       reprintWarning:
-        "At least one selected person already has a printed badge. A new print invalidates the previous QR code.",
+        "At least one selected person already has a printed badge. Printing again invalidates ONLY that person's previous badge - the e-mail and wallet ticket keep working. Scanning the old badge shows “code superseded” and does not lock the scanner.",
+      invalidateBadge: "Invalidate badge",
+      invalidateTitle: "Invalidate a lost badge?",
+      invalidateDescription:
+        "The code on the printed badge of {{name}} stops granting entry - the scanner shows “code superseded”. The e-mail and wallet ticket stay valid. Print a new badge in this panel.",
+      invalidateConfirm: "Invalidate",
+      invalidated: "Badge invalidated.",
       popupBlocked: "The browser blocked the print window. Allow pop-ups and try again.",
       done: "Badges issued: {{count}}.",
       noCode: "No code - manual entry",

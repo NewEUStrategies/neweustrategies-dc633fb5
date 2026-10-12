@@ -187,6 +187,12 @@ const KODY_ONSITE = [
   "invalid_label",
   "invalid_scopes",
   "device_revoked",
+  // admin_event_scanner_device_issue od 20261012110400: termin najpozniej
+  // 7 dni po koncu wydarzenia (OPS-12)
+  "expiry_too_late",
+  // admin_event_registration_code_invalidate (20261012110400, OPS-04)
+  "ticket_not_issued",
+  "badge_not_issued",
   // admin_event_checkin_search / _manual (przez `_event_checkin_write`)
   "query_too_short",
   "invalid_source",

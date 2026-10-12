@@ -9,6 +9,11 @@
 // jedno pole - podpowiedź rozstrzyga, żeby nikt nie wpisał `0` w znaczeniu „bez
 // limitu".
 //
+// PONOWNE WEJŚCIE TO DECYZJA BRAMKI, NIE TRYBU LICZENIA. Przełącznik „blokuj
+// ponowne wejście" działa tylko w trybie kontroli - w `track` jest zgaszony,
+// a konwersja i tak wysyła `allow` (baza ma na to CHECK). Podpowiedź mówi,
+// że wyjście zeruje stan, a powtórzone piknięcie nie jest drugim wejściem.
+//
 // POWIĄZANIA CZYŚCI KONWERSJA, NIE UŻYTKOWNIK. Zmiana rodzaju punktu z `session`
 // na `event_entry` zdejmuje wskazanie sesji jawnym `null`; inaczej w bazie
 // zostaje sierota po poprzedniej wersji formularza.
@@ -160,6 +165,14 @@ export function EventCheckpointDialog({
             options={CHECKPOINT_ACCESS_MODES}
             labelFor={(option) => t(`adminEventOnsite.accessModes.${option}`)}
             onValueChange={(value) => set("accessMode", value)}
+          />
+          <AdminFormSwitchRow
+            label={t("adminEventOnsite.checkpoints.dialog.denyReentry")}
+            hint={t("adminEventOnsite.checkpoints.dialog.denyReentryHint")}
+            checked={draft.accessMode === "control" && draft.denyReentry}
+            disabled={draft.accessMode !== "control"}
+            onCheckedChange={(value) => set("denyReentry", value)}
+            className="sm:col-span-2"
           />
           <AdminFormEnumRow<CheckpointDirectionMode>
             label={t("adminEventOnsite.checkpoints.dialog.directionMode")}

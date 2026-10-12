@@ -29,6 +29,7 @@ import {
   fetchOnsiteLiveStats,
   fetchOnsiteStats,
   fetchScannerDevices,
+  invalidateRegistrationCode,
   issueBadgeBatch,
   issueScannerDevice,
   recordBadgePrint,
@@ -57,6 +58,8 @@ import {
   type ManualCheckinInput,
   type OnsiteLiveStats,
   type OnsiteStats,
+  type RegistrationCodeInvalidation,
+  type RegistrationCredential,
   type ScannerDeviceCredential,
   type ScannerDeviceIssueInput,
   type ScannerDeviceRow,
@@ -260,11 +263,20 @@ export function useRecordBadgePrint(eventId: string) {
 }
 
 /**
- * Wydanie partii identyfikatorow. Mutacja, bo rotuje kody QR - stary wydruk
- * przestaje dzialac, wiec nie wolno tego wywolac "przy okazji" renderu.
+ * Wydanie partii identyfikatorow. Mutacja, bo rotuje kody identyfikatorow -
+ * stary wydruk przestaje dzialac (bilet z e-maila i portfela zostaje wazny),
+ * wiec nie wolno tego wywolac "przy okazji" renderu.
  */
 export function useIssueBadgeBatch(eventId: string) {
   return useOnsiteMutation<BadgeBatchInput, BadgeBatch>(eventId, issueBadgeBatch);
+}
+
+/** Jawne uniewaznienie zgubionego biletu albo identyfikatora. */
+export function useInvalidateRegistrationCode(eventId: string) {
+  return useOnsiteMutation<
+    { registrationId: string; credential: RegistrationCredential },
+    RegistrationCodeInvalidation
+  >(eventId, invalidateRegistrationCode);
 }
 
 /**

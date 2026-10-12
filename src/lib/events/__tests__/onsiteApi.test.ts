@@ -99,6 +99,7 @@ describe("onsiteApi - kontrakt wywolan bazy", () => {
       sponsorId: null,
       directionMode: "in_out",
       accessMode: "control",
+      reentryPolicy: "deny",
       capacity: 200,
       dedupeWindowSeconds: 30,
       isActive: true,
@@ -116,11 +117,51 @@ describe("onsiteApi - kontrakt wywolan bazy", () => {
       "kind",
       "name_en",
       "name_pl",
+      "reentry_policy",
       "room_id",
       "session_id",
       "sort_order",
       "sponsor_id",
     ]);
+    expect(payloadOf("admin_event_checkpoint_save").reentry_policy).toBe("deny");
+  });
+
+  it("uniewaznienie zgubionego kodu niesie zapis i rodzaj poswiadczenia, kod jawny wraca RAZ", async () => {
+    rpc().setData("admin_event_registration_code_invalidate", {
+      registration_id: PERSON_ID,
+      credential: "ticket",
+      code: "nowy-kod-biletu",
+      invalidated_at: "2026-10-12T10:00:00.000Z",
+    });
+
+    const wynik = await api.invalidateRegistrationCode({
+      registrationId: PERSON_ID,
+      credential: "ticket",
+    });
+
+    expect(payloadOf("admin_event_registration_code_invalidate")).toEqual({
+      registration_id: PERSON_ID,
+      credential: "ticket",
+    });
+    expect(wynik).toEqual({
+      registrationId: PERSON_ID,
+      credential: "ticket",
+      code: "nowy-kod-biletu",
+      invalidatedAt: "2026-10-12T10:00:00.000Z",
+    });
+
+    rpc().setData("admin_event_registration_code_invalidate", {
+      registration_id: PERSON_ID,
+      credential: "badge",
+      code: null,
+      invalidated_at: "2026-10-12T10:05:00.000Z",
+    });
+    const identyfikator = await api.invalidateRegistrationCode({
+      registrationId: PERSON_ID,
+      credential: "badge",
+    });
+    expect(identyfikator.code).toBeNull();
+    expect(identyfikator.credential).toBe("badge");
   });
 
   it("`undefined` znaczy „nie dotykaj”, a jawny `null` jedzie do bazy jako „wyczysc”", async () => {

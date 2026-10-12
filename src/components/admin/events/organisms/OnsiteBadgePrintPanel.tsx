@@ -1,9 +1,17 @@
 // Organizm: GENERATOR IDENTYFIKATORÓW (wybór osób -> wydruk).
 //
-// WYDANIE ROTUJE KOD QR. `admin_event_badge_batch` nadpisuje hash kodu w
-// zapisie, więc poprzedni wydruk tej osoby przestaje wpuszczać. To celowe
-// (zgubiony identyfikator ma przestać działać), ale znaczy też, że partii nie
-// wolno generować „w tle" przy renderze - dopiero po kliknięciu operatora.
+// WYDANIE ROTUJE KOD IDENTYFIKATORA, NIE BILETU. `admin_event_badge_batch`
+// nadpisuje `badge_token_hash` - własne poświadczenie wydrukowanej karty - więc
+// poprzedni wydruk tej osoby przestaje wpuszczać (skaner pokazuje przy nim „kod
+// zastąpiony" i nie liczy go do blokady), a bilet z e-maila i portfela zostaje
+// ważny. Rotacja jest celowa (zgubiony identyfikator ma przestać działać), ale
+// znaczy też, że partii nie wolno generować „w tle" przy renderze - dopiero po
+// kliknięciu operatora, z ostrzeżeniem przy osobach, które już mają wydruk.
+//
+// ZGUBIONY IDENTYFIKATOR BEZ PRZEDRUKU. Przy osobie z wydrukiem jest akcja
+// „unieważnij identyfikator" (`admin_event_registration_code_invalidate`
+// z `credential: badge`): kod karty przestaje wpuszczać od razu, nowy wyda
+// dopiero kolejny druk. Bilet tej osoby zostaje nietknięty.
 //
 // KOD JAWNY ŻYJE TYLKO W PAMIĘCI TEJ STRONY. Baza trzyma sam hash; jawny token
 // wraca raz, trafia do obrazka QR i do okna druku, i nigdzie go nie zapisujemy
@@ -20,21 +28,33 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import QRCode from "qrcode";
-import { Printer, Search } from "lucide-react";
+import { Printer, Search, ShieldOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { adminOnsiteErrorMessage } from "@/lib/events/adminOnsiteErrors";
 import {
   useBadgeTemplates,
   useCheckinSearch,
+  useInvalidateRegistrationCode,
   useIssueBadgeBatch,
   useRecordBadgePrint,
 } from "@/lib/events/useEventOnsite";
+import type { CheckinSearchRow } from "@/lib/events/onsiteApi";
 import { badgeLocalized, badgeSizeMm, BADGE_FALLBACK_MM } from "@/lib/events/badgeSheet";
 import { buildBadgePrintDocument, type BadgePrintCard } from "@/lib/events/badgePrintDocument";
 import { uiLang } from "@/lib/i18n/format";
@@ -58,6 +78,8 @@ export function OnsiteBadgePrintPanel({
   const templatesQ = useBadgeTemplates(eventId);
   const issue = useIssueBadgeBatch(eventId);
   const recordPrint = useRecordBadgePrint(eventId);
+  const invalidate = useInvalidateRegistrationCode(eventId);
+  const [pendingInvalidate, setPendingInvalidate] = useState<CheckinSearchRow | null>(null);
 
   const templates = templatesQ.data ?? [];
   const rows = searchQ.data ?? [];
@@ -96,6 +118,24 @@ export function OnsiteBadgePrintPanel({
       else delete selection[personId];
       return selection;
     });
+  };
+
+  const confirmInvalidate = () => {
+    const row = pendingInvalidate;
+    if (row === null || row.registration_id === null) return;
+    invalidate.mutate(
+      { registrationId: row.registration_id, credential: "badge" },
+      {
+        onSuccess: () => {
+          toast.success(t("adminEventOnsite.print.invalidated"));
+          setPendingInvalidate(null);
+        },
+        onError: (error) => {
+          toast.error(adminOnsiteErrorMessage(error));
+          setPendingInvalidate(null);
+        },
+      },
+    );
   };
 
   const run = async () => {
@@ -247,6 +287,19 @@ export function OnsiteBadgePrintPanel({
                         {t("adminEventOnsite.print.alreadyPrinted")}
                       </Badge>
                     ) : null}
+                    {row.badge_printed === true && row.registration_id !== null ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-md"
+                        disabled={invalidate.isPending}
+                        onClick={() => setPendingInvalidate(row)}
+                      >
+                        <ShieldOff aria-hidden="true" className="mr-1 size-4" />
+                        {t("adminEventOnsite.print.invalidateBadge")}
+                      </Button>
+                    ) : null}
                   </li>
                 );
               })}
@@ -301,6 +354,31 @@ export function OnsiteBadgePrintPanel({
             : t("adminEventOnsite.print.generate")}
         </Button>
       </div>
+
+      <AlertDialog
+        open={pendingInvalidate !== null}
+        onOpenChange={(next) => (next ? undefined : setPendingInvalidate(null))}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("adminEventOnsite.print.invalidateTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("adminEventOnsite.print.invalidateDescription", {
+                name:
+                  pendingInvalidate === null
+                    ? ""
+                    : `${pendingInvalidate.first_name} ${pendingInvalidate.last_name}`.trim(),
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("adminEventOnsite.actions.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmInvalidate} disabled={invalidate.isPending}>
+              {t("adminEventOnsite.print.invalidateConfirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }
