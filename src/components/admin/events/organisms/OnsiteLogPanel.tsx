@@ -47,6 +47,7 @@ const OFFLINE_OUTCOME_KEY: Record<OfflineOutcome, string> = {
   denied_registration_status: "adminEventOnsite.offlineOutcomes.denied_registration_status",
   unknown_code: "adminEventOnsite.offlineOutcomes.unknown_code",
   repeat: "adminEventOnsite.offlineOutcomes.repeat",
+  denied_already_inside: "adminEventOnsite.offlineOutcomes.denied_already_inside",
 };
 
 export function OnsiteLogPanel({ eventId }: { eventId: string }) {

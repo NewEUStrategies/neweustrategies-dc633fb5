@@ -143,6 +143,19 @@ VALUES
    'approved', 'rsvp', encode(extensions.digest('qr-piotr-000000000001', 'sha256'), 'hex'), now())
 ON CONFLICT (id) DO NOTHING;
 
+-- OPS-01 (20261012090000): zgoda partnerska jest PER ZGLOSZENIE - skan leadu
+-- czyta `_event_partner_consent_at`, nie stempel osoby. Osoby, ktore wyzej
+-- maja zgode, udzielily jej w TYM zgloszeniu (ta sama chwila); Bartosz
+-- i Piotr - nie. Wycofanie Wandy nizej (event_people.consent_withdrawn_at)
+-- nadal uniewaznia jej zgode.
+UPDATE public.event_registrations r
+   SET consent_partner_sharing_at = p.consent_partner_sharing_at
+  FROM public.event_people p
+ WHERE p.tenant_id = r.tenant_id
+   AND p.id = r.person_id
+   AND r.id IN ('50300000-0000-0000-0000-0000000000a1', '50300000-0000-0000-0000-0000000000a3')
+   AND r.consent_partner_sharing_at IS NULL;
+
 -- Poswiadczenia urzadzen: sprawne, uniewaznione, wygasle, zapauzowane oraz dwa
 -- stoiskowe (kazde z INNYM sponsorem).
 INSERT INTO public.event_scanner_devices

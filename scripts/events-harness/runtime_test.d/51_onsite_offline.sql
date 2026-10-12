@@ -260,10 +260,12 @@ SELECT pg_temp.assert(
   AND NOT has_column_privilege('authenticated', 'public.event_scanner_devices', 'token_hash', 'SELECT'),
   '51/granty: panel czyta kolumny listy offline, hasz tokenu nadal odciety');
 
+-- Bramka synchronizacji ma od 20261012110100 czwarty argument (znacznik
+-- kolejki, OPS-12); ACL nowej sygnatury = ACL starej.
 SELECT pg_temp.assert(
   has_function_privilege('anon', 'public.event_scanner_roster(jsonb)', 'EXECUTE')
-  AND NOT has_function_privilege('anon', 'public._event_scanner_device_auth_sync(text, text, timestamptz)', 'EXECUTE')
-  AND NOT has_function_privilege('authenticated', 'public._event_scanner_device_auth_sync(text, text, timestamptz)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public._event_scanner_device_auth_sync(text, text, timestamptz, text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_scanner_device_auth_sync(text, text, timestamptz, text)', 'EXECUTE')
   AND NOT has_function_privilege('anon', 'public.admin_event_scanner_device_set_offline(jsonb)', 'EXECUTE')
   AND has_function_privilege('authenticated', 'public.admin_event_scanner_device_set_offline(jsonb)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.tg_event_registrations_attended_crm()', 'EXECUTE'),
@@ -392,8 +394,10 @@ BEGIN
 
   SELECT array_agg(k ORDER BY k) INTO v_keys
     FROM (SELECT DISTINCT jsonb_object_keys(x) AS k FROM jsonb_array_elements(v->'rows') x) s;
+  -- `bh` (skrot identyfikatora) i `sh` (skroty zastapione) od 20261012110300
+  -- (OPS-04): to skroty poswiadczen, nie dane osoby.
   PERFORM pg_temp.assert(
-    v_keys = ARRAY['bp', 'co', 'fn', 'g_en', 'g_pl', 'gc', 'h', 'ln', 'r', 's', 't_en', 't_pl'],
+    v_keys = ARRAY['bh', 'bp', 'co', 'fn', 'g_en', 'g_pl', 'gc', 'h', 'ln', 'r', 's', 'sh', 't_en', 't_pl'],
     '51/PRYWATNOSC: wiersz listy ma DOKLADNIE minimalne pola - bez e-maila, telefonu, stanowiska i id osoby');
   PERFORM pg_temp.assert(
     position('@' IN v::text) = 0 AND position('+4850' IN v::text) = 0
@@ -723,20 +727,39 @@ END $$;
 
 -- ---------------------------------------------------------------------------
 -- SEKCJA 9: OKNO 72 H PO TERMINIE POSWIADCZENIA
+--
+-- OPS-12 (20261012110000): po terminie okno dziala WYLACZNIE ze znacznikiem
+-- kolejki wydanym przed terminem (`queue_marker` z bootstrapu, listy albo
+-- udanego zapisu). Skany ponizej niosa znacznik wydany 3 h temu - tak, jak
+-- niosloby go urzadzenie, ktore ostatnio mialo siec przed terminem. Skan
+-- z kolejki BEZ znacznika po terminie sprawdza 54_scanner_ops_hardening.
 -- ---------------------------------------------------------------------------
 DO $$
-DECLARE v jsonb;
+DECLARE
+  v jsonb;
+  v_marker_d4 text := (
+    SELECT public._event_scanner_queue_marker(d.id, d.queue_secret, now() - interval '3 hours')
+    FROM public.event_scanner_devices d WHERE d.id = '51d10000-0000-0000-0000-000000000004');
+  v_marker_d9 text := (
+    SELECT public._event_scanner_queue_marker(d.id, d.queue_secret, now() - interval '3 hours')
+    FROM public.event_scanner_devices d WHERE d.id = '51d10000-0000-0000-0000-000000000009');
 BEGIN
   -- Olga zgadza sie na przekazanie danych partnerom - bez tego lead i tak
   -- nie oddaje tozsamosci, wiec asercje "bez danych w oknie" bylyby puste.
   UPDATE public.event_people SET consent_partner_sharing_at = now() - interval '1 day'
    WHERE id = '51700000-0000-0000-0000-000000000001';
+  -- OPS-01 (20261012090000): zgoda partnerska jest per zgloszenie - skan
+  -- leadu czyta `_event_partner_consent_at`, wiec zgoda musi byc udzielona
+  -- w zgloszeniu Olgi na TO wydarzenie.
+  UPDATE public.event_registrations SET consent_partner_sharing_at = now() - interval '1 day'
+   WHERE id = '51300000-0000-0000-0000-000000000001';
 
   v := public.event_checkin_record(jsonb_build_object(
     'device_token', 'tok51-wygasle-00001', 'code', 'qr51-olga-00000000001',
     'checkpoint_id', '51c00000-0000-0000-0000-0000000000a2',
     'client_scan_uid', 'scan51-grace-01',
-    'device_scanned_at', now() - interval '2 hours', 'queued', true));
+    'device_scanned_at', now() - interval '2 hours', 'queued', true,
+    'queue_marker', v_marker_d4));
   PERFORM pg_temp.assert(v->>'outcome' = 'granted',
     '51/okno: skan sprzed terminu z urzadzenia wygaslego godzine temu jest przyjety');
   PERFORM pg_temp.assert(v->'person' = 'null'::jsonb,
@@ -744,7 +767,8 @@ BEGIN
 
   v := public.event_lead_scan_record(jsonb_build_object(
     'device_token', 'tok51-stoiskowyg-01', 'code', 'qr51-olga-00000000001',
-    'device_scanned_at', now() - interval '2 hours', 'queued', true));
+    'device_scanned_at', now() - interval '2 hours', 'queued', true,
+    'queue_marker', v_marker_d9));
   PERFORM pg_temp.assert(v->>'outcome' = 'saved',
     '51/okno: lead sprzed terminu z wygaslego stoiska jest przyjety');
   PERFORM pg_temp.assert((v->>'consent')::boolean AND v->'person' = 'null'::jsonb
@@ -780,14 +804,19 @@ SELECT pg_temp.assert_raises_like($q$
 $q$, 'device_expired',
   '51/okno: odprawa na zywo z czasem wstecznym z wygaslego urzadzenia jest odrzucona');
 
--- Decyzja offline oznacza kolejke nawet bez flagi `queued` - okno dziala.
+-- Decyzja offline oznacza kolejke nawet bez flagi `queued` - okno dziala
+-- (ze znacznikiem kolejki, OPS-12).
 DO $$
-DECLARE v jsonb;
+DECLARE
+  v jsonb;
+  v_marker text := (
+    SELECT public._event_scanner_queue_marker(d.id, d.queue_secret, now() - interval '3 hours')
+    FROM public.event_scanner_devices d WHERE d.id = '51d10000-0000-0000-0000-000000000004');
 BEGIN
   v := public.event_checkin_record(jsonb_build_object(
     'device_token', 'tok51-wygasle-00001', 'code', 'qr51-olga-00000000001',
     'checkpoint_id', '51c00000-0000-0000-0000-0000000000a2', 'direction', 'in',
-    'client_scan_uid', 'scan51-grace-02',
+    'client_scan_uid', 'scan51-grace-02', 'queue_marker', v_marker,
     'device_scanned_at', now() - interval '90 minutes',
     'offline_admitted', true, 'offline_outcome', 'granted'));
   PERFORM pg_temp.assert(v->>'outcome' IN ('granted', 'repeat') AND v->'person' = 'null'::jsonb,

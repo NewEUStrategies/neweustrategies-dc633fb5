@@ -32,8 +32,10 @@ import {
 } from "@/lib/events/onsiteApi";
 import {
   CHECKIN_DIRECTIONS,
+  CHECKIN_RESULTS,
   CHECKIN_SOURCES,
   CHECKPOINT_ACCESS_MODES,
+  CHECKPOINT_REENTRY_POLICIES,
   OFFLINE_OUTCOMES,
   CHECKPOINT_DIRECTION_MODES,
 } from "@/lib/events/onsiteEnums";
@@ -91,7 +93,13 @@ const EQUAL: ReadonlyArray<readonly [string, string, readonly string[]]> = [
   ["CHECKIN_DIRECTIONS", "event_checkins_direction_values", CHECKIN_DIRECTIONS],
   ["CHECKIN_SOURCES", "event_checkins_source_values", CHECKIN_SOURCES],
   ["OFFLINE_OUTCOMES", "event_checkins_offline_outcome_values", OFFLINE_OUTCOMES],
+  ["CHECKIN_RESULTS", "event_checkins_result_values", CHECKIN_RESULTS],
   ["CHECKPOINT_ACCESS_MODES", "event_checkpoints_access_mode_values", CHECKPOINT_ACCESS_MODES],
+  [
+    "CHECKPOINT_REENTRY_POLICIES",
+    "event_checkpoints_reentry_policy_values",
+    CHECKPOINT_REENTRY_POLICIES,
+  ],
   [
     "CHECKPOINT_DIRECTION_MODES",
     "event_checkpoints_direction_mode_values",

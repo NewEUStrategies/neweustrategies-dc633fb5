@@ -232,6 +232,7 @@ function punkt(overrides: Partial<EventCheckpointRow> = {}): EventCheckpointRow 
     name_en: "Main entrance",
     name_pl: "Wejście główne",
     occupancy: 0,
+    reentry_policy: "allow",
     repeat_count: 0,
     room_id: BRAK,
     room_name: BRAK,

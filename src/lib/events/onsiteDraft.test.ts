@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   badgeTemplateDraftToInput,
+  checkpointDraftFromRow,
   checkpointDraftToInput,
   emptyBadgeTemplateDraft,
   emptyCheckpointDraft,
@@ -79,6 +80,26 @@ describe("punkt kontrolny", () => {
     const draft = { ...emptyCheckpointDraft(), namePl: "A", nameEn: "A" };
     expect(checkpointDraftToInput({ ...draft, capacity: "" }, EVENT).capacity).toBeNull();
     expect(checkpointDraftToInput({ ...draft, capacity: "0" }, EVENT).capacity).toBe(0);
+  });
+
+  it("polityka ponownego wejscia: deny tylko w trybie control, zawsze jawnie", () => {
+    const draft = { ...emptyCheckpointDraft(), namePl: "Brama", nameEn: "Gate" };
+    expect(draft.denyReentry).toBe(false);
+    expect(checkpointDraftToInput(draft, EVENT).reentryPolicy).toBe("allow");
+    expect(checkpointDraftToInput({ ...draft, denyReentry: true }, EVENT).reentryPolicy).toBe(
+      "deny",
+    );
+    // Tryb `track` nie zna odmowy - baza ma na to CHECK reentry_needs_control.
+    expect(
+      checkpointDraftToInput({ ...draft, denyReentry: true, accessMode: "track" }, EVENT)
+        .reentryPolicy,
+    ).toBe("allow");
+  });
+
+  it("wiersz z polityka deny wraca do szkicu jako zaznaczona blokada", () => {
+    expect(checkpointDraftFromRow({ reentry_policy: "deny" }).denyReentry).toBe(true);
+    expect(checkpointDraftFromRow({ reentry_policy: "allow" }).denyReentry).toBe(false);
+    expect(checkpointDraftFromRow({}).denyReentry).toBe(false);
   });
 
   it("edycja nie wysyla event_id", () => {

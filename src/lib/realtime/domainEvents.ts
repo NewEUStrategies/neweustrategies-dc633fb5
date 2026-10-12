@@ -115,6 +115,10 @@ export const DOMAIN_EVENT_TYPES = [
   "event.registration.cancelled.v1",
   "event.registration.promoted.v1",
   "event.registration.payment.v1",
+  // Jawne uniewaznienie zgubionego biletu albo identyfikatora (20261012110400,
+  // OPS-04). Payload: event_id, registration_id, credential (ticket|badge) -
+  // bez kodu; nowa wartosc jawna wraca wylacznie z wywolania.
+  "event.registration.code_invalidated.v1",
   // Sponsorzy: publikacja karty i odswiezenie migawki z CRM firm.
   "event_sponsor.published.v1",
   "event_sponsor.snapshot_refreshed.v1",

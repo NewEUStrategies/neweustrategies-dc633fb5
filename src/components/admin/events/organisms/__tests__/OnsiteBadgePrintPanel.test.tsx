@@ -1,9 +1,10 @@
 // Organizm „GENERATOR IDENTYFIKATORÓW" - wybór osób i wysłanie ich na papier.
 //
 // DLACZEGO TEN PLIK PATRZY TAK OSTRO NA TREŚĆ WYDRUKU. Wydanie partii ROTUJE
-// kod QR: `admin_event_badge_batch` nadpisuje skrót kodu, więc poprzedni
-// identyfikator tej osoby przestaje wpuszczać. Wydruk z pomyłką nie jest więc
-// zmarnowaną kartką - to człowiek, który stoi przy bramce z martwym kodem.
+// kod IDENTYFIKATORA: `admin_event_badge_batch` nadpisuje `badge_token_hash`,
+// więc poprzedni identyfikator tej osoby przestaje wpuszczać (bilet z e-maila
+// i portfela zostaje ważny). Wydruk z pomyłką nie jest więc zmarnowaną kartką -
+// to człowiek, który stoi przy bramce ze starym identyfikatorem.
 //
 // CO TEN PLIK DOWODZI.
 //   1. TO, CO IDZIE NA PAPIER, JEST CZYTANE Z WIERSZA ODDANEGO PRZEZ BAZĘ,
@@ -25,6 +26,9 @@
 //      cofa już wydanych kodów - zgłaszamy go i idziemy dalej.
 //   7. ROZMIAR KARTY BIERZE SIĘ Z SZABLONU, a bez szablonu - z wartości
 //      zapasowej modułu; jedno i drugie widać w wygenerowanym dokumencie.
+//   8. ZGUBIONY IDENTYFIKATOR UNIEWAŻNIA SIĘ JAWNIE, PO POTWIERDZENIU: akcja
+//      jest tylko przy osobie z wydrukiem i zapisem, wysyła `credential:
+//      badge` dla TEGO zapisu i NIE wydaje partii; odmowa bazy idzie do toasta.
 //
 // Regresja naprawionego defektu przy ostrzeżeniu o powtórnym
 // wydruku i jeden przy powodzie wydruku (opisy przy przypadkach).
@@ -58,6 +62,8 @@ const h = vi.hoisted(() => ({
   partiaPending: false,
   rejestr: [] as unknown[],
   rejestrBlad: null as unknown,
+  uniewaznienia: [] as unknown[],
+  uniewaznienieBlad: null as unknown,
   /** Wszystko, co panel wpisał do okna druku. */
   napisane: [] as string[],
   oknoZamkniete: 0,
@@ -158,6 +164,48 @@ vi.mock("@/components/ui/select", async () => {
   };
 });
 
+// Radix AlertDialog nie zarządza fokusem pod happy-dom. Atrapa rysuje treść
+// tylko przy `open` i przenosi „anuluj" na `onOpenChange(false)` - tak jak
+// produkcja przy potwierdzeniu unieważnienia identyfikatora.
+vi.mock("@/components/ui/alert-dialog", () => {
+  const stan: { open: boolean; onOpenChange?: (open: boolean) => void } = { open: false };
+  return {
+    AlertDialog: ({
+      open,
+      onOpenChange,
+      children,
+    }: {
+      open: boolean;
+      onOpenChange?: (open: boolean) => void;
+      children?: ReactNode;
+    }) => {
+      stan.open = open;
+      stan.onOpenChange = onOpenChange;
+      return <>{children}</>;
+    },
+    AlertDialogContent: ({ children }: { children?: ReactNode }) =>
+      stan.open ? (
+        <div role="alertdialog" aria-label="potwierdzenie">
+          {children}
+        </div>
+      ) : null,
+    AlertDialogHeader: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    AlertDialogFooter: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+    AlertDialogTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
+    AlertDialogDescription: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
+    AlertDialogCancel: ({ children }: { children?: ReactNode }) => (
+      <button type="button" onClick={() => stan.onOpenChange?.(false)}>
+        {children}
+      </button>
+    ),
+    AlertDialogAction: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
+      <button type="button" onClick={onClick}>
+        {children}
+      </button>
+    ),
+  };
+});
+
 vi.mock("@/lib/events/useEventOnsite", () => ({
   useCheckinSearch: (eventId: string, q: string) => {
     h.zapytania.push({ eventId, q });
@@ -175,6 +223,17 @@ vi.mock("@/lib/events/useEventOnsite", () => ({
     mutateAsync: (input: BadgePrintInput) => {
       h.rejestr.push(input);
       return h.rejestrBlad === null ? Promise.resolve({}) : Promise.reject(h.rejestrBlad);
+    },
+    isPending: false,
+  }),
+  useInvalidateRegistrationCode: () => ({
+    mutate: (
+      input: unknown,
+      handlers?: { onSuccess?: () => void; onError?: (error: unknown) => void },
+    ) => {
+      h.uniewaznienia.push(input);
+      if (h.uniewaznienieBlad === null) handlers?.onSuccess?.();
+      else handlers?.onError?.(h.uniewaznienieBlad);
     },
     isPending: false,
   }),
@@ -321,6 +380,8 @@ beforeEach(() => {
   h.partiaPending = false;
   h.rejestr = [];
   h.rejestrBlad = null;
+  h.uniewaznienia = [];
+  h.uniewaznienieBlad = null;
   h.napisane = [];
   h.oknoZamkniete = 0;
   h.oknoWydrukowane = 0;
@@ -587,6 +648,80 @@ describe("ostrzeżenie o powtórnym wydruku", () => {
 
     expect(screen.getByText(`${T}.selected(count=1)`)).toBeTruthy();
     expect(screen.getByText(`${T}.reprintWarning`)).toBeTruthy();
+  });
+});
+
+describe("unieważnienie zgubionego identyfikatora", () => {
+  const ZAPIS = "55555555-5555-4555-8555-555555555555";
+
+  it("akcja jest tylko przy osobie Z WYDRUKIEM i z zapisem", () => {
+    h.rows = [
+      osoba(),
+      osoba({ person_id: INNA_OSOBA, badge_printed: true, first_name: "Piotr" }),
+      osoba({
+        person_id: "66666666-6666-4666-8666-666666666666",
+        badge_printed: true,
+        first_name: "Ewa",
+        registration_id: BRAK,
+      }),
+    ];
+    panel();
+    szukaj();
+
+    expect(within(wiersz(0)).queryByRole("button", { name: `${T}.invalidateBadge` })).toBeNull();
+    expect(within(wiersz(1)).getByRole("button", { name: `${T}.invalidateBadge` })).toBeTruthy();
+    expect(within(wiersz(2)).queryByRole("button", { name: `${T}.invalidateBadge` })).toBeNull();
+  });
+
+  it("wymaga potwierdzenia, wysyła `badge` dla TEGO zapisu i NIE wydaje partii", () => {
+    h.rows = [osoba({ badge_printed: true })];
+    panel();
+    szukaj();
+    fireEvent.click(within(wiersz(0)).getByRole("button", { name: `${T}.invalidateBadge` }));
+
+    expect(h.uniewaznienia).toHaveLength(0);
+    const okno = screen.getByRole("alertdialog");
+    expect(within(okno).getByText(`${T}.invalidateTitle`)).toBeTruthy();
+    expect(within(okno).getByText(`${T}.invalidateDescription(name=Anna Kowalska)`)).toBeTruthy();
+
+    fireEvent.click(within(okno).getByRole("button", { name: `${T}.invalidateConfirm` }));
+
+    expect(h.uniewaznienia).toEqual([{ registrationId: ZAPIS, credential: "badge" }]);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${T}.invalidated`);
+    expect(h.partie).toHaveLength(0);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("anulowanie niczego nie unieważnia", () => {
+    h.rows = [osoba({ badge_printed: true })];
+    panel();
+    szukaj();
+    fireEvent.click(within(wiersz(0)).getByRole("button", { name: `${T}.invalidateBadge` }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "adminEventOnsite.actions.cancel",
+      }),
+    );
+
+    expect(h.uniewaznienia).toHaveLength(0);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("odmowa bazy idzie do toasta i zamyka potwierdzenie", () => {
+    h.rows = [osoba({ badge_printed: true })];
+    h.uniewaznienieBlad = new Error("badge_not_issued: nothing to invalidate");
+    panel();
+    szukaj();
+    fireEvent.click(within(wiersz(0)).getByRole("button", { name: `${T}.invalidateBadge` }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: `${T}.invalidateConfirm`,
+      }),
+    );
+
+    expect(h.toastError).toHaveBeenCalledWith("odmowa:badge_not_issued: nothing to invalidate");
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 });
 

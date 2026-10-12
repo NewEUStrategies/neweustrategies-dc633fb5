@@ -131,6 +131,11 @@ export interface CheckpointDraft {
   sponsorId: string;
   directionMode: string;
   accessMode: string;
+  /**
+   * Odmowa ponownego wejscia (`reentry_policy = deny`). Ma znaczenie tylko
+   * w trybie `control` - w `track` konwersja wysyla `allow`, jak baza.
+   */
+  denyReentry: boolean;
   /** Pusty tekst = bez limitu pojemnosci. */
   capacity: string;
   dedupeWindowSeconds: string;
@@ -148,6 +153,7 @@ export function emptyCheckpointDraft(): CheckpointDraft {
     sponsorId: "",
     directionMode: "in_only",
     accessMode: "control",
+    denyReentry: false,
     capacity: "",
     dedupeWindowSeconds: "120",
     isActive: true,
@@ -165,6 +171,7 @@ export function checkpointDraftFromRow(row: {
   sponsor_id?: string | null;
   direction_mode?: string | null;
   access_mode?: string | null;
+  reentry_policy?: string | null;
   capacity?: number | null;
   dedupe_window_seconds?: number | null;
   is_active?: boolean | null;
@@ -181,6 +188,7 @@ export function checkpointDraftFromRow(row: {
     sponsorId: row.sponsor_id ?? "",
     directionMode: row.direction_mode ?? base.directionMode,
     accessMode: row.access_mode ?? base.accessMode,
+    denyReentry: row.reentry_policy === "deny",
     capacity: typeof row.capacity === "number" ? String(row.capacity) : "",
     dedupeWindowSeconds:
       typeof row.dedupe_window_seconds === "number"
@@ -243,6 +251,7 @@ export function validateCheckpointDraft(
 export function checkpointDraftToInput(draft: CheckpointDraft, eventId: string): CheckpointInput {
   const capacity = intOrNull(draft.capacity);
   const kind = isKind(draft.kind) ? draft.kind : "event_entry";
+  const accessMode = isAccessMode(draft.accessMode) ? draft.accessMode : "control";
   return {
     id: draft.id,
     eventId: draft.id === undefined ? eventId : undefined,
@@ -255,7 +264,10 @@ export function checkpointDraftToInput(draft: CheckpointDraft, eventId: string):
     roomId: trimOrNull(draft.roomId),
     sponsorId: kind === "company_booth" ? trimOrNull(draft.sponsorId) : null,
     directionMode: isDirectionMode(draft.directionMode) ? draft.directionMode : "in_only",
-    accessMode: isAccessMode(draft.accessMode) ? draft.accessMode : "control",
+    accessMode,
+    // Polityka jedzie ZAWSZE jawnie: odznaczenie przelacznika ma zdjac `deny`
+    // z bazy, a tryb `track` nie zna odmowy (CHECK reentry_needs_control).
+    reentryPolicy: accessMode === "control" && draft.denyReentry ? "deny" : "allow",
     capacity: capacity === false ? null : capacity,
     dedupeWindowSeconds: intOr(draft.dedupeWindowSeconds, 120),
     isActive: draft.isActive,
