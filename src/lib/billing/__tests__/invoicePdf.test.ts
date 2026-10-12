@@ -19,6 +19,7 @@ const data: InvoiceData = {
     { description: "Członkostwo - okres rozliczeniowy", quantity: 1, amountCents: 99900 },
     { description: "Bilet", quantity: 2, amountCents: 10000 },
   ],
+  status: "paid",
   labels: {
     title: "Faktura",
     number: "Numer",
@@ -30,7 +31,12 @@ const data: InvoiceData = {
     quantity: "Ilość",
     amount: "Kwota",
     total: "Razem",
-    paid: "Zapłacono",
+    status: {
+      paid: "Zapłacono",
+      open: "Oczekuje na płatność",
+      void: "Unieważniono",
+      refunded: "Zwrócono",
+    },
   },
 };
 
@@ -58,5 +64,22 @@ describe("invoicePdf", () => {
   it("zwraca base64 możliwe do odkodowania", () => {
     const base64 = pdfToBase64(renderInvoicePdf(data));
     expect(atob(base64).startsWith("%PDF")).toBe(true);
+  });
+
+  it('wiersz stanu pochodzi ze stanu dokumentu - zwrot nie drukuje „Zapłacono"', () => {
+    const paid = new TextDecoder("latin1").decode(renderInvoicePdf(data));
+    const refunded = new TextDecoder("latin1").decode(
+      renderInvoicePdf({ ...data, status: "refunded" }),
+    );
+
+    expect(paid).toContain(`(${encodePdfText("Zapłacono")})`);
+    expect(refunded).toContain(`(${encodePdfText("Zwrócono")})`);
+    expect(refunded).not.toContain(`(${encodePdfText("Zapłacono")})`);
+  });
+
+  it("jest deterministyczny: te same dane dają te same bajty (bez zegara)", () => {
+    expect(Buffer.from(renderInvoicePdf(data)).equals(Buffer.from(renderInvoicePdf(data)))).toBe(
+      true,
+    );
   });
 });

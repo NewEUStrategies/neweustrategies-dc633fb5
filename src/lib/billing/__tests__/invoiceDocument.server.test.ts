@@ -1,4 +1,4 @@
-// KOPIA FAKTURY PDF Z PANELU CZŁONKA (`invoiceDocument.server`).
+// POTWIERDZENIE PŁATNOŚCI (PDF) Z PANELU CZŁONKA (`invoiceDocument.server`).
 //
 // Ten moduł składa plik, który członek pobiera z /profile/invoices i oddaje
 // księgowości - gdy operator płatności nie wystawił własnego dokumentu albo
@@ -25,6 +25,13 @@
 // członek ponawia) - nie wydajemy PDF-u bez NIP-u ani firmy, który wygląda na
 // kompletny. Opis pozycji zamówienia jednorazowego bierze się z
 // `metadata.purpose` (bilet / treść / darowizna).
+//
+// AUDYT INV-07 dołożył czwartą rzecz: PLIK STAREGO DOKUMENTU SIĘ NIE ZMIENIA.
+// Nabywca, sprzedawca i płaszczyzna rozliczeń pochodzą z migawki dokumentu
+// (zamrażanej raz, przy pierwszym pobraniu wiersza sprzed migracji), wiersz
+// stanu - z `billing_documents.status` („Zapłacono" nie drukuje się na
+// zwrocie), a nota MoR tylko w płaszczyźnie operatora. Kryterium audytu jest
+// dosłowne: zmiana profilu nie zmienia BAJTÓW pliku.
 //
 // ŚWIADOMIE NIE PRZYPIĘTE (zgłoszone jako defekt, nie jako kontrakt):
 // odnowienie subskrypcji nie ma zamówienia o identyfikatorze faktury, więc
@@ -74,14 +81,19 @@ interface DocRow {
   tenant_id: string;
   number: string | null;
   kind: string;
+  status: string;
   amount_cents: number;
   currency: string;
   issued_at: string;
   pdf_url: string | null;
   hosted_url: string | null;
   provider_document_id: string;
+  buyer_snapshot: unknown;
+  seller_snapshot: unknown;
+  billing_plane: string | null;
 }
 
+/** Domyślnie wiersz SPRZED migracji migawki - pierwsze pobranie ją zamraża. */
 function docRow(overrides: Partial<DocRow> = {}): DocRow {
   return {
     id: DOC_ID,
@@ -89,15 +101,44 @@ function docRow(overrides: Partial<DocRow> = {}): DocRow {
     tenant_id: BILLING_IDS.tenant,
     number: "FV/2099/06/0007",
     kind: "invoice",
+    status: "paid",
     amount_cents: 12300,
     currency: "PLN",
     issued_at: relativeIso(-DZIEN),
     pdf_url: "https://invoice.example.com/in_test_7.pdf",
     hosted_url: "https://invoice.example.com/in_test_7",
     provider_document_id: "in_test_7",
+    buyer_snapshot: null,
+    seller_snapshot: null,
+    billing_plane: null,
     ...overrides,
   };
 }
+
+/** Migawka zapisana już w wierszu (dokument z webhooka po migracji). */
+const FROZEN = {
+  buyer_snapshot: {
+    name: "Kovács Kft.",
+    taxId: "HU12345678",
+    addressLine1: "Fő utca 1",
+    addressLine2: null,
+    postalCode: "1011",
+    city: "Budapest",
+    country: "HU",
+    email: "szamla@example.com",
+  },
+  seller_snapshot: {
+    name: "Fundacja Migawkowa",
+    taxId: "PL5260000000",
+    addressLine1: null,
+    addressLine2: null,
+    postalCode: null,
+    city: "Kraków",
+    country: "PL",
+    email: null,
+  },
+  billing_plane: "managed",
+} as const;
 
 /** Wiersz `billing_profiles` - firma z kompletem danych adresowych. */
 function billingRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -118,6 +159,8 @@ function billingRow(overrides: Record<string, unknown> = {}): Record<string, unk
 
 interface Scene {
   doc?: DocRow | null;
+  /** `checkout_settings` najemcy (`automatic_tax: true` = płaszczyzna `merchant`). */
+  checkout?: Record<string, unknown> | null;
   billing?: Record<string, unknown> | null;
   accountEmail?: string | null;
   /** `site_settings.value` dla klucza `invoice_issuer`; `null` = brak wiersza. */
@@ -128,10 +171,30 @@ interface Scene {
 }
 
 let stub: SupabaseFromStub;
+/** Stan wiersza dokumentu „w bazie" - zamrożenie migawki go zmienia. */
+let stored: DocRow | null;
+
+/**
+ * Atrapa rejestru zachowuje się jak baza: `UPDATE ... WHERE buyer_snapshot IS
+ * NULL` zapisuje migawkę tylko w wierszu, który jej nie ma, i zwraca zapisane
+ * kolumny; wiersz z migawką nie zmienia się (0 wierszy).
+ */
+function billingDocumentsResponder(chain: RecordedChain) {
+  if (!chain.has("update")) return ok(stored);
+  if (stored === null || stored.buyer_snapshot !== null) return ok(null);
+  const patch = chain.argsOf("update")?.[0];
+  stored = { ...stored, ...(patch as Partial<DocRow>) };
+  return ok({
+    buyer_snapshot: stored.buyer_snapshot,
+    seller_snapshot: stored.seller_snapshot,
+    billing_plane: stored.billing_plane,
+  });
+}
 
 function arrange(scene: Scene = {}): void {
-  const doc = scene.doc === undefined ? docRow() : scene.doc;
-  stub.setResponse("billing_documents", ok(doc));
+  stored = scene.doc === undefined ? docRow() : scene.doc;
+  stub.setResponse("billing_documents", billingDocumentsResponder);
+  stub.setResponse("checkout_settings", ok(scene.checkout ?? null));
   stub.setResponse(
     "billing_profiles",
     ok(scene.billing === undefined ? billingRow() : scene.billing),
@@ -239,7 +302,7 @@ describe("buildInvoicePdf - komu wolno wydać plik", () => {
 });
 
 describe("buildInvoicePdf - dokument właściciela", () => {
-  it("składa polską kopię: wystawca z ustawień tenanta, firma nabywcy, kwota, nota MoR", async () => {
+  it("składa polskie potwierdzenie: wystawca z ustawień tenanta, firma nabywcy, kwota, nota MoR", async () => {
     arrange();
 
     const result = await issued("pl");
@@ -247,11 +310,13 @@ describe("buildInvoicePdf - dokument właściciela", () => {
 
     expect(result.number).toBe("FV/2099/06/0007");
     // Ukośniki numeru operatora nie mogą wejść do nazwy pobieranego pliku.
-    expect(result.fileName).toBe("faktura-FV-2099-06-0007.pdf");
+    expect(result.fileName).toBe("potwierdzenie-platnosci-FV-2099-06-0007.pdf");
     expect(result.providerUrl).toBe("https://invoice.example.com/in_test_7.pdf");
     expect(pdf.startsWith("%PDF-1.4")).toBe(true);
 
-    expect(pdf).toContain(literal("Faktura / dokument sprzedaży"));
+    // Kopia z panelu to potwierdzenie płatności, nie faktura VAT organizatora.
+    expect(pdf).toContain(literal("Potwierdzenie płatności"));
+    expect(pdf).not.toContain(literal("Faktura / dokument sprzedaży"));
     expect(pdf).toContain(literal("Numer: FV/2099/06/0007"));
     expect(pdf).toContain(literal(`Data wystawienia: ${relativeIso(-DZIEN).slice(0, 10)}`));
 
@@ -283,10 +348,11 @@ describe("buildInvoicePdf - dokument właściciela", () => {
     // Ta sama kwota w pozycji i w sumie - jedna pozycja, ilość 1.
     expect(pdf.split(literal(formatInvoiceMoney(12300, "PLN"))).length - 1).toBe(2);
     expect(pdf.match(/ Tm \(\d+\) Tj ET/g)).toEqual([" Tm (1) Tj ET"]);
-    expect(pdf).toContain(literal("Razem do zapłaty"));
+    expect(pdf).toContain(literal("Razem"));
+    expect(pdf).toContain(literal("Zapłacono - dokument nie wymaga podpisu."));
     expect(pdf).toContain(
       literal(
-        "Podatek rozlicza operator płatności (Merchant of Record). Kopia dokumentu z panelu członka.",
+        "Podatek rozlicza operator płatności (Merchant of Record). Potwierdzenie z panelu członka, nie faktura VAT.",
       ),
     );
   });
@@ -305,6 +371,9 @@ describe("buildInvoicePdf - dokument właściciela", () => {
       ["key", "invoice_issuer"],
     ]);
     expect(eqFilters(stub.lastChain("profiles"))).toEqual([["id", BILLING_IDS.me]]);
+    expect(eqFilters(stub.lastChain("checkout_settings"))).toEqual([
+      ["tenant_id", BILLING_IDS.foreignTenant],
+    ]);
     // Zamówienie TEJ transakcji (identyfikator dokumentu = identyfikator, który
     // realizacja jednorazowa zapisuje w `provider_intent_id`), nie dowolne
     // zamówienie tenanta - bez klucza opis pozycji brałby rodzaj cudzego zakupu.
@@ -320,19 +389,20 @@ describe("buildInvoicePdf - dokument właściciela", () => {
     const result = await issued("en");
     const pdf = pdfText(result);
 
-    expect(result.fileName).toBe("invoice-FV-2099-06-0007.pdf");
+    expect(result.fileName).toBe("payment-confirmation-FV-2099-06-0007.pdf");
     // Bez pliku PDF operatora UI dostaje stronę hostowaną faktury.
     expect(result.providerUrl).toBe("https://invoice.example.com/in_test_7");
-    expect(pdf).toContain(literal("Invoice / sales document"));
-    expect(pdf).toContain(literal("Total due"));
+    expect(pdf).toContain(literal("Payment confirmation"));
+    expect(pdf).toContain(literal("Total"));
+    expect(pdf).toContain(literal("Paid - this document needs no signature."));
     expect(pdf).toContain(literal("Tax ID / VAT ID: PL1130000000"));
     expect(pdf).toContain(literal("New European Strategies digital service"));
     expect(pdf).toContain(
       literal(
-        "Tax is settled by the payment provider (Merchant of Record). Member panel copy of the document.",
+        "Tax is settled by the payment provider (Merchant of Record). Member panel confirmation, not a VAT invoice.",
       ),
     );
-    expect(pdf).not.toContain(literal("Razem do zapłaty"));
+    expect(pdf).not.toContain(literal("Razem"));
   });
 
   it("bez numeru faktury dokument nosi identyfikator operatora - w treści i w nazwie pliku", async () => {
@@ -341,7 +411,7 @@ describe("buildInvoicePdf - dokument właściciela", () => {
     const result = await issued("pl");
 
     expect(result.number).toBe("in_test_7");
-    expect(result.fileName).toBe("faktura-in_test_7.pdf");
+    expect(result.fileName).toBe("potwierdzenie-platnosci-in_test_7.pdf");
     expect(result.providerUrl).toBeNull();
     expect(pdfText(result)).toContain(literal("Numer: in_test_7"));
   });
@@ -351,7 +421,7 @@ describe("buildInvoicePdf - dokument właściciela", () => {
 
     const result = await issued("pl");
 
-    expect(result.fileName).toBe("faktura--FV-7-.pdf");
+    expect(result.fileName).toBe("potwierdzenie-platnosci--FV-7-.pdf");
     // Na samym dokumencie numer zostaje dosłowny - to on jest cytowany w księgach.
     expect(result.number).toBe("../../FV 7/ą");
   });
@@ -410,7 +480,9 @@ describe("buildInvoicePdf - wystawca (site_settings.invoice_issuer)", () => {
   });
 
   it("wartość ustawienia pusta (null) traktowana jak brak danych wystawcy", async () => {
-    stub.setResponse("billing_documents", ok(docRow()));
+    stored = docRow();
+    stub.setResponse("billing_documents", billingDocumentsResponder);
+    stub.setResponse("checkout_settings", ok(null));
     stub.setResponse("billing_profiles", ok(billingRow()));
     stub.setResponse("profiles", ok({ email: "konto@example.com" }));
     stub.setResponse("site_settings", ok({ value: null }));
@@ -555,8 +627,8 @@ describe("buildInvoicePdf - błąd odczytu bazy", () => {
   // Kopia faktury bez NIP-u wystawcy albo bez firmy nabywcy to niekompletny
   // dokument księgowy. Błąd odczytu ma wywrócić wywołanie (panel pokazuje
   // błąd i członek ponawia), a nie wydać plik, który wygląda na poprawny.
-  it.each(["site_settings", "billing_profiles", "profiles"])(
-    "błąd odczytu %s -> wyjątek, a nie PDF bez danych strony",
+  it.each(["site_settings", "billing_profiles", "profiles", "checkout_settings"])(
+    "błąd odczytu %s -> wyjątek, a nie PDF bez danych strony (i bez zamrożenia migawki)",
     async (table) => {
       arrange();
       stub.setResponse(table, fail("canceling statement due to statement timeout", "57014"));
@@ -566,6 +638,8 @@ describe("buildInvoicePdf - błąd odczytu bazy", () => {
       await expect(
         buildInvoicePdf({ userId: BILLING_IDS.me, documentId: DOC_ID, locale: "pl" }),
       ).rejects.toThrow(new RegExp(`: ${table} read failed: .*statement timeout`));
+      // Niekompletna migawka zamrożona raz zostałaby na dokumencie NA ZAWSZE.
+      expect(stub.chainsFor("billing_documents").some((c) => c.has("update"))).toBe(false);
     },
   );
 
@@ -589,5 +663,147 @@ describe("buildInvoicePdf - błąd odczytu bazy", () => {
     const pdf = pdfText(await issued("pl"));
 
     expect(pdf).toContain(literal("Usługa cyfrowa New European Strategies"));
+  });
+});
+
+describe("buildInvoicePdf - migawka dokumentu (audyt INV-07)", () => {
+  it("ZMIANA PROFILU NIE ZMIENIA BAJTÓW pliku starego dokumentu", async () => {
+    // Pierwsze pobranie wiersza sprzed migracji zamraża migawkę...
+    arrange();
+    const before = await issued("pl");
+    expect(stored?.buyer_snapshot).toMatchObject({ name: "Zażółć Sp. z o.o." });
+
+    // ...potem członek zmienia dane w profilu („Pobierz z CRM"), wystawca
+    // zmienia adres, a najemca przechodzi na własny silnik podatkowy.
+    stub.setResponse(
+      "billing_profiles",
+      ok(billingRow({ company: "Dvořák s.r.o.", tax_id: "CZ12345678", city: "Brno" })),
+    );
+    stub.setResponse("site_settings", ok({ value: { name: "Nowy Wystawca", city: "Gdańsk" } }));
+    stub.setResponse("checkout_settings", ok({ automatic_tax: true }));
+    const readsBefore = stub.chains.length;
+
+    const after = await issued("pl");
+
+    expect(after.base64).toBe(before.base64);
+    // Drugie pobranie nie czyta już żadnego źródła na żywo.
+    const tables = stub.chains.slice(readsBefore).map((c) => c.table);
+    expect(tables).not.toContain("billing_profiles");
+    expect(tables).not.toContain("site_settings");
+    expect(tables).not.toContain("checkout_settings");
+  });
+
+  it("dokument z migawką drukuje ją, a nie bieżący profil - i nie zapisuje niczego", async () => {
+    arrange({ doc: docRow({ ...FROZEN }) });
+
+    const pdf = pdfText(await issued("pl"));
+
+    expect(partyBlock(pdf, 320).name).toBe(encodePdfText("Kovács Kft."));
+    expect(partyBlock(pdf, 56).name).toBe(encodePdfText("Fundacja Migawkowa"));
+    expect(pdf).not.toContain(literal("Zażółć Sp. z o.o."));
+    expect(stub.chains.map((c) => c.table)).toEqual(["billing_documents", "payment_orders"]);
+  });
+
+  it("zamrożenie jest warunkowe (write-once) i zawężone do dokumentu w jego najemcy", async () => {
+    arrange();
+
+    await issued("pl");
+
+    const update = stub.chainsFor("billing_documents").find((c) => c.has("update"));
+    expect(eqFilters(update)).toEqual([
+      ["id", DOC_ID],
+      ["tenant_id", BILLING_IDS.tenant],
+    ]);
+    expect(update?.argsOf("is")).toEqual(["buyer_snapshot", null]);
+    expect(update?.argsOf("update")?.[0]).toMatchObject({
+      buyer_snapshot: { name: "Zażółć Sp. z o.o.", taxId: "PL1130000000" },
+      seller_snapshot: { name: "Fundacja Syntetyczna" },
+      billing_plane: "managed",
+    });
+  });
+
+  it("równoległe pierwsze pobranie: przegrany drukuje migawkę ZWYCIĘZCY, nie własny odczyt", async () => {
+    // UPDATE trafia w 0 wierszy (migawkę zapisał ktoś przed chwilą) - wtedy
+    // obowiązuje to, co jest w bazie, inaczej dwa pierwsze pliki tego samego
+    // dokumentu mogłyby się różnić.
+    arrange();
+    let reads = 0;
+    stub.setResponse("billing_documents", (chain) => {
+      if (chain.has("update")) return ok(null);
+      reads += 1;
+      return ok(reads === 1 ? docRow() : { ...FROZEN });
+    });
+
+    const pdf = pdfText(await issued("pl"));
+
+    expect(partyBlock(pdf, 320).name).toBe(encodePdfText("Kovács Kft."));
+  });
+
+  it("uszkodzona migawka nie jest dorabiana na nowo - wyjątek zamiast innego pliku", async () => {
+    arrange({ doc: docRow({ ...FROZEN, buyer_snapshot: { taxId: "HU1" } }) });
+
+    await expect(
+      buildInvoicePdf({ userId: BILLING_IDS.me, documentId: DOC_ID, locale: "pl" }),
+    ).rejects.toThrow(/has no readable snapshot/);
+  });
+
+  it("płaszczyzna `merchant` z migawki: bez adnotacji o operatorze (MoR)", async () => {
+    arrange({ doc: docRow({ ...FROZEN, billing_plane: "merchant" }) });
+
+    const pdf = pdfText(await issued("pl"));
+
+    expect(pdf).not.toContain("Merchant of Record");
+    expect(pdf).toContain(
+      literal(
+        "Podatek rozlicza sprzedawca, który wystawia fakturę. Potwierdzenie z panelu członka, nie faktura VAT.",
+      ),
+    );
+  });
+
+  it("dokument sprzed migracji u najemcy `merchant` zamraża płaszczyznę z ustawień checkoutu", async () => {
+    arrange({ checkout: { automatic_tax: true } });
+
+    const pdf = pdfText(await issued("en"));
+
+    expect(stored?.billing_plane).toBe("merchant");
+    expect(pdf).not.toContain("Merchant of Record");
+    expect(pdf).toContain(
+      literal(
+        "Tax is settled by the seller, who issues the invoice. Member panel confirmation, not a VAT invoice.",
+      ),
+    );
+  });
+});
+
+describe("buildInvoicePdf - wiersz stanu z dokumentu", () => {
+  it.each([
+    ["refunded", "Płatność zwrócona.", "Payment refunded."],
+    [
+      "open",
+      "Oczekuje na płatność - dokument nie potwierdza zapłaty.",
+      "Awaiting payment - this document does not confirm payment.",
+    ],
+    [
+      "void",
+      "Dokument unieważniony - płatność nie została pobrana.",
+      "Document voided - no payment was collected.",
+    ],
+  ])('stan %s: własny wiersz i ŻADNEGO „Zapłacono"', async (status, pl, en) => {
+    arrange({ doc: docRow({ ...FROZEN, status }) });
+    const polish = pdfText(await issued("pl"));
+    const english = pdfText(await issued("en"));
+
+    expect(polish).toContain(literal(pl));
+    expect(polish).not.toContain(literal("Zapłacono - dokument nie wymaga podpisu."));
+    expect(english).toContain(literal(en));
+    expect(english).not.toContain(literal("Paid - this document needs no signature."));
+  });
+
+  it("stan spoza zbioru CHECK-a (uszkodzony wiersz) -> wyjątek, nie wiersz o zapłacie", async () => {
+    arrange({ doc: docRow({ status: "pending" }) });
+
+    await expect(
+      buildInvoicePdf({ userId: BILLING_IDS.me, documentId: DOC_ID, locale: "pl" }),
+    ).rejects.toThrow(/unknown document status "pending"/);
   });
 });

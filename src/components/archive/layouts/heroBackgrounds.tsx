@@ -18,9 +18,19 @@ export function HeroBackground({
   switch (style) {
     case "gradient":
       return (
-        <div aria-hidden data-civic-horizon="" className={`${base} archive-civic-horizon bg-background`}>
+        <div
+          aria-hidden
+          data-civic-horizon=""
+          className={`${base} archive-civic-horizon bg-background`}
+        >
           <div className="archive-civic-horizon-fade">
-            <div className="archive-civic-horizon-lines" style={{ maskImage: `url("${civicHorizon}")`, WebkitMaskImage: `url("${civicHorizon}")` }} />
+            <div
+              className="archive-civic-horizon-lines"
+              style={{
+                maskImage: `url("${civicHorizon}")`,
+                WebkitMaskImage: `url("${civicHorizon}")`,
+              }}
+            />
           </div>
         </div>
       );

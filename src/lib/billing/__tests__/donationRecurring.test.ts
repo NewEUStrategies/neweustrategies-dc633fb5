@@ -8,6 +8,14 @@ vi.mock("@/lib/billing/donations.server", () => ({
   recordRecurringDonationPayment,
 }));
 
+// Rejestr dokumentow nie jest przedmiotem tego testu: od audytu INV-04
+// nieudany zapis dokumentu konczy zdarzenie bledem (ponowienie Stripe), a ta
+// atrapa bazy go nie planuje.
+vi.mock("@/lib/billing/billingDocuments.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/billing/billingDocuments.server")>()),
+  recordTransactionDocument: async () => "created" as const,
+}));
+
 import { normalizeStripeEvent } from "@/lib/billing/stripeEvents.server";
 import { dispatchWebhookEvent } from "@/lib/billing/webhookDispatch.server";
 import type { VerifiedWebhookEvent } from "@/lib/stripe.server";

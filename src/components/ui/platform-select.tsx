@@ -1,126 +1,61 @@
-// PlatformSelect - shared native-select adapter built on Radix.
-// (shadcn) `Select`. Zachowuje API zbliżone do <select value onChange>,
-// czytając potomne <option value>Label</option>, tak by refactor edytora
-// bloków sprowadzał się do zamiany tagu, bez zmiany logiki komponentów.
+// PlatformSelect - wspólny atom listy rozwijanej: natywny <select> ze
+// wspólną osią pól formularza (`.platform-field`) i tokenami motywu.
 //
-// Popup, klawiatura, focus i motyw (light/dark) pochodzą z Radix; wygląd
-// zgadza się z resztą admin UI (design tokens: bg-popover, border, ring
-// itp.) zamiast natywnego, gray-owego dropdownu przeglądarki.
+// Natywny element jest kontraktem, nie detalem: FormData niesie wybraną
+// wartość (także pusty łańcuch, bez sentineli), `required` i `disabled`
+// działają jak w przeglądarce, <label htmlFor> i etykieta-otoczka wskazują
+// dokładnie jedną kontrolkę, a `onChange` dostaje prawdziwe
+// ChangeEvent<HTMLSelectElement> (target.value, currentTarget.selectedIndex).
+// Opcje (<option>, <optgroup>, fragmenty, mapowane tablice) renderują się
+// bez zmian, więc `select.options` działa bez otwierania listy.
+//
+// Wygląd: strzałka rysowana w currentColor (`.platform-select` w
+// styles.css), lista systemowa dziedziczy motyw przez `color-scheme`.
+// Geometria jest wspólna dla jasnego i ciemnego motywu.
 
 import * as React from "react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-type Props = {
-  "aria-invalid"?: React.AriaAttributes["aria-invalid"];
-  "aria-describedby"?: string;
-  "aria-required"?: boolean;
-  id?: string;
-  name?: string;
-  required?: boolean;
-  style?: React.CSSProperties;
-  value?: string | number;
-  defaultValue?: string | number;
-  onChange?: (event: { target: { value: string } }) => void;
-  onOpenChange?: (open: boolean) => void;
-  disabled?: boolean;
-  className?: string;
+type PlatformSelectProps = React.ComponentPropsWithoutRef<"select"> & {
+  /** Pierwsza, niewybieralna pozycja `value=""` - pomijana, gdy dzieci już ją mają. */
   placeholder?: string;
-  "aria-label"?: string;
-  title?: string;
-  children: React.ReactNode;
 };
 
-type OptionLike = {
-  value: string;
-  label: React.ReactNode;
-  disabled?: boolean;
-};
-
-function collectOptions(nodes: React.ReactNode): OptionLike[] {
-  const out: OptionLike[] = [];
-  React.Children.forEach(nodes, (child) => {
-    if (!React.isValidElement(child)) return;
+function hasEmptyOption(children: React.ReactNode): boolean {
+  return React.Children.toArray(children).some((child) => {
+    if (!React.isValidElement(child)) return false;
     if (child.type === "option") {
-      const p = child.props as {
-        value?: string | number;
-        children?: React.ReactNode;
-        disabled?: boolean;
-      };
-      const value = p.value != null ? String(p.value) : "";
-      out.push({ value, label: p.children ?? value, disabled: p.disabled });
-    } else if (child.type === "optgroup") {
-      out.push(...collectOptions((child.props as { children?: React.ReactNode }).children));
+      const value = (child.props as { value?: unknown }).value;
+      return value != null && String(value) === "";
     }
+    if (child.type === React.Fragment || child.type === "optgroup") {
+      return hasEmptyOption((child.props as { children?: React.ReactNode }).children);
+    }
+    return false;
   });
-  return out;
 }
 
-export function PlatformSelect({
-  value,
-  defaultValue,
-  onChange,
-  onOpenChange,
-  disabled,
-  className,
-  placeholder,
-  children,
-  ...rest
-}: Props) {
-  const options = React.useMemo(() => collectOptions(children), [children]);
-  const [uncontrolledValue, setUncontrolledValue] = React.useState(() =>
-    String(defaultValue ?? options.find((option) => !option.disabled)?.value ?? ""));
-  const currentValue = value === undefined ? uncontrolledValue : String(value);
-  const handle = (next: string) => {
-    setUncontrolledValue(next);
-    onChange?.({ target: { value: next } });
-  };
-  // Radix Select nie akceptuje pustego stringa jako wartości - użyj sentinela.
-  const EMPTY = "__admin_select_empty__";
-  const emptyPlaceholder = options.find((option) => option.value === "" && option.disabled);
-  const val = currentValue === "" && !emptyPlaceholder ? EMPTY : currentValue;
-
-  return (
-    <>
-    {rest.name && <input type="hidden" name={rest.name} value={currentValue} disabled={disabled} />}
-    <Select
-      value={val}
-      onValueChange={(v) => handle(v === EMPTY ? "" : v)}
-      onOpenChange={onOpenChange}
-      disabled={disabled}
-      required={rest.required}
-    >
-      <SelectTrigger
-        id={rest.id}
-        style={rest.style}
-        aria-label={rest["aria-label"]}
-        aria-invalid={rest["aria-invalid"]}
-        aria-describedby={rest["aria-describedby"]}
-        aria-required={rest["aria-required"] ?? rest.required}
-        title={rest.title}
-        className={cn("text-xs", className)}
+export const PlatformSelect = React.forwardRef<HTMLSelectElement, PlatformSelectProps>(
+  function PlatformSelect({ className, placeholder, children, ...props }, ref) {
+    const showPlaceholder = placeholder !== undefined && !hasEmptyOption(children);
+    return (
+      <select
+        ref={ref}
+        data-slot="platform-select"
+        className={cn(
+          "platform-field platform-select w-full min-w-0 cursor-pointer appearance-none border border-input bg-background text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive",
+          className,
+        )}
+        {...props}
       >
-        <SelectValue placeholder={placeholder ?? emptyPlaceholder?.label} />
-      </SelectTrigger>
-      <SelectContent className="max-h-72">
-        {options.filter((o) => o !== emptyPlaceholder).map((o, i) => (
-          <SelectItem
-            key={`${o.value}-${i}`}
-            value={o.value === "" ? EMPTY : o.value}
-            disabled={o.disabled}
-            className="text-xs"
-          >
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-    </>
-  );
-}
+        {showPlaceholder && (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        )}
+        {children}
+      </select>
+    );
+  },
+);
+PlatformSelect.displayName = "PlatformSelect";

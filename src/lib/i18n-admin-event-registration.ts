@@ -29,7 +29,7 @@ export const adminEventRegistrationPl = {
     refundJournal: {
       title: "Zwroty po odrzuceniu zgłoszenia",
       description:
-        "Ostatnie 100 zwrotów. Odrzucenie opłaconego zgłoszenia zleca zwrot automatycznie. Zwrot wspólnej płatności, gdy część grupy nadal uczestniczy, wymaga decyzji organizatora w panelu płatności.",
+        "Ostatnie 100 zwrotów. Odrzucenie opłaconego zgłoszenia zleca zwrot automatycznie. Zlecenie, które wymaga decyzji - wspólna płatność grupy, wyczerpane próby, zwrot odrzucony albo niepotwierdzony przez operatora - czeka tutaj, a administratorzy dostają powiadomienie.",
       refresh: "Odśwież zwroty",
       loadError: "Nie udało się pobrać zwrotów. Spróbuj ponownie.",
       loading: "Ładowanie zwrotów",
@@ -37,10 +37,32 @@ export const adminEventRegistrationPl = {
       unnamed: "Uczestnik",
       order: "Zamówienie: {{id}}",
       attempts: "Próby: {{count}}",
-      reviewHint:
-        "Ta płatność obejmuje aktywne zgłoszenia. Rozlicz zwrot częściowy w panelu płatności.",
+      // Zlecenie w `needs_review` bez powodu (sprzed 20261012120000) - powody
+      // niżej mają własne, konkretne wskazówki.
+      reviewHint: "To zlecenie wymaga decyzji organizatora. Sprawdź dziennik płatności.",
       failedHint:
-        "Sprawdź dziennik płatności. System ponawia do 10 prób; dalsza obsługa wymaga interwencji.",
+        "Sprawdź dziennik płatności. System ponawia do {{budget}} prób; po ostatniej nieudanej zlecenie przejdzie do decyzji, a administratorzy dostaną powiadomienie.",
+      lastError: "Ostatni błąd operatora: {{error}}",
+      escalated: "Administratorzy powiadomieni: {{date}}",
+      // Jeden wpis na każdą wartość CHECK-a `event_refund_jobs_review_reason_check`.
+      reasons: {
+        active_registrations_share_payment: {
+          label: "Wspólna płatność grupy",
+          hint: "Ta płatność obejmuje aktywne zgłoszenia. Rozlicz zwrot częściowy w panelu płatności.",
+        },
+        attempts_exhausted: {
+          label: "Wyczerpano próby zwrotu",
+          hint: "Automatyczny zwrot nie powiódł się przy żadnej próbie. Zleć zwrot ręcznie u operatora płatności.",
+        },
+        provider_refund_failed: {
+          label: "Operator odrzucił zwrot",
+          hint: "Operator płatności nie wykonał zwrotu - pieniądze nie wróciły do uczestnika. Zleć zwrot inną drogą.",
+        },
+        refund_unconfirmed: {
+          label: "Zwrot bez potwierdzenia",
+          hint: "Operator przyjął zlecenie ponad {{days}} dni temu i wciąż go nie potwierdził. Sprawdź status zwrotu w panelu operatora płatności.",
+        },
+      },
       states: {
         pending: "Oczekuje",
         processing: "Przetwarzanie",
@@ -1278,7 +1300,7 @@ export const adminEventRegistrationEn = {
     refundJournal: {
       title: "Refunds after registration rejection",
       description:
-        "Latest 100 refunds. Rejecting a paid registration queues an automatic refund. A shared payment with active group members requires an organiser decision in the payments panel.",
+        "Latest 100 refunds. Rejecting a paid registration queues an automatic refund. A request that needs a decision - a shared group payment, exhausted attempts, a refund rejected or not confirmed by the provider - waits here, and administrators are notified.",
       refresh: "Refresh refunds",
       loadError: "Could not load refunds. Please retry.",
       loading: "Loading refunds",
@@ -1286,10 +1308,29 @@ export const adminEventRegistrationEn = {
       unnamed: "Attendee",
       order: "Order: {{id}}",
       attempts: "Attempts: {{count}}",
-      reviewHint:
-        "This payment covers active registrations. Arrange a partial refund in the payments panel.",
+      reviewHint: "This request needs an organiser decision. Check the payment log.",
       failedHint:
-        "Check the payment log. The system retries up to 10 times; further action requires intervention.",
+        "Check the payment log. The system retries up to {{budget}} times; after the last failure the request moves to a decision and administrators are notified.",
+      lastError: "Last provider error: {{error}}",
+      escalated: "Administrators notified: {{date}}",
+      reasons: {
+        active_registrations_share_payment: {
+          label: "Shared group payment",
+          hint: "This payment covers active registrations. Arrange a partial refund in the payments panel.",
+        },
+        attempts_exhausted: {
+          label: "Refund attempts exhausted",
+          hint: "The automatic refund failed on every attempt. Issue the refund manually with the payment provider.",
+        },
+        provider_refund_failed: {
+          label: "Provider rejected the refund",
+          hint: "The payment provider did not complete the refund - the money did not reach the attendee. Refund them another way.",
+        },
+        refund_unconfirmed: {
+          label: "Refund not confirmed",
+          hint: "The provider accepted the request more than {{days}} days ago and still has not confirmed it. Check the refund status in the provider dashboard.",
+        },
+      },
       states: {
         pending: "Pending",
         processing: "Processing",

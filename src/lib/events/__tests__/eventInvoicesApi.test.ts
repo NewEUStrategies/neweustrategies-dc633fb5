@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { emptyBuyerDraft } from "@/lib/events/eventInvoiceBuyerDraft";
 import { parseInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
+import { fail } from "@/test/supabase/chain";
 import { supabaseRpcStub } from "@/test/supabase/rpc";
 import {
   INVOICE_IDS,
@@ -18,7 +19,19 @@ import {
   invoiceSettingsJson,
 } from "@/test/events/invoiceFixtures";
 
-const h = vi.hoisted(() => ({ stub: null as ReturnType<typeof supabaseRpcStub> | null }));
+const h = vi.hoisted(() => ({
+  stub: null as ReturnType<typeof supabaseRpcStub> | null,
+  prepareFx: vi.fn(),
+  verifyVies: vi.fn(),
+}));
+
+vi.mock("@/lib/events/eventInvoiceFx.functions", () => ({
+  prepareEventInvoiceFx: (input: unknown) => h.prepareFx(input),
+}));
+
+vi.mock("@/lib/events/eventInvoiceVies.functions", () => ({
+  verifyEventInvoiceVies: (input: unknown) => h.verifyVies(input),
+}));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -36,6 +49,8 @@ let stub: ReturnType<typeof supabaseRpcStub>;
 beforeEach(() => {
   stub = supabaseRpcStub();
   h.stub = stub;
+  h.prepareFx.mockReset();
+  h.verifyVies.mockReset();
 });
 
 const SETTINGS_INPUT = {
@@ -56,6 +71,7 @@ const SETTINGS_INPUT = {
   paymentDays: 14,
   defaultVatRate: "23" as const,
   vatExemptBasis: "",
+  vatNpBasis: "",
   footerNote: "",
   defaultLocale: "pl" as const,
   confirmSeller: false,
@@ -100,6 +116,7 @@ describe("ustawienia wystawcy", () => {
       paymentDays: 14,
       defaultVatRate: "23",
       vatExemptBasis: "",
+      vatNpBasis: "",
       footerNote: "",
       defaultLocale: "pl",
     });
@@ -131,6 +148,7 @@ describe("ustawienia wystawcy", () => {
       payment_days: 14,
       default_vat_rate: "23",
       vat_exempt_basis: "",
+      vat_np_basis: "",
       footer_note: "",
       default_locale: "pl",
     });
@@ -358,6 +376,97 @@ describe("wystawienie, masowe wystawienie, anulowanie", () => {
   });
 });
 
+describe("kurs NBP przy wystawieniu (INV-06)", () => {
+  it("rozpoznaje odmowe bazy fx_rate_required", () => {
+    expect(api.isFxRateRequired("fx_rate_required: EUR 2026-10-09")).toBe(true);
+    expect(api.isFxRateRequired(" fx_rate_required")).toBe(true);
+    expect(api.isFxRateRequired("fx_rate_required_x: y")).toBe(false);
+    expect(api.isFxRateRequired("amount_mismatch: x")).toBe(false);
+  });
+
+  it("brak kursu: serwer pobiera kurs NBP dla tego szkicu i wystawienie idzie RAZ jeszcze", async () => {
+    let calls = 0;
+    stub.setResponse("admin_event_invoice_issue", () => {
+      calls += 1;
+      return calls === 1
+        ? fail("fx_rate_required: EUR 2026-10-09")
+        : { data: { id: INVOICE_IDS.invoice, number: "FV/2026/10/0001" }, error: null };
+    });
+    h.prepareFx.mockResolvedValue({ needed: 1, loaded: 1, missing: [] });
+    await expect(api.issueInvoice(INVOICE_IDS.invoice)).resolves.toEqual({
+      id: INVOICE_IDS.invoice,
+      number: "FV/2026/10/0001",
+    });
+    expect(h.prepareFx).toHaveBeenCalledWith({ data: { invoiceIds: [INVOICE_IDS.invoice] } });
+    expect(calls).toBe(2);
+  });
+
+  it("kurs nadal niedostepny = ta sama odmowa; inne odmowy bez pobierania kursu", async () => {
+    stub.setError("admin_event_invoice_issue", "fx_rate_required: EUR 2026-10-09");
+    h.prepareFx.mockResolvedValue({ needed: 1, loaded: 0, missing: [] });
+    await expect(api.issueInvoice(INVOICE_IDS.invoice)).rejects.toThrow("fx_rate_required");
+    expect(h.prepareFx).toHaveBeenCalledTimes(1);
+    h.prepareFx.mockClear();
+    stub.setError("admin_event_invoice_issue", "amount_mismatch: 100 <> 200");
+    await expect(api.issueInvoice(INVOICE_IDS.invoice)).rejects.toThrow("amount_mismatch");
+    expect(h.prepareFx).not.toHaveBeenCalled();
+  });
+
+  it("masowo: grupy bez kursu -> kursy dla oczekujacych prosb wydarzenia i drugi przebieg", async () => {
+    let calls = 0;
+    stub.setResponse("admin_event_invoice_issue_pending", () => {
+      calls += 1;
+      return calls === 1
+        ? {
+            data: {
+              issued: [{ invoice_id: "a", number: "FV/1", request_ids: ["r1"] }],
+              failed: [{ request_ids: ["r2"], code: "fx_rate_required" }],
+            },
+            error: null,
+          }
+        : {
+            data: {
+              issued: [{ invoice_id: "b", number: "FV/2", request_ids: ["r2"] }],
+              failed: [],
+            },
+            error: null,
+          };
+    });
+    h.prepareFx.mockResolvedValue({ needed: 1, loaded: 1, missing: [] });
+    await expect(api.issuePendingInvoices(INVOICE_IDS.event, false)).resolves.toEqual({
+      issued: [
+        { id: "a", number: "FV/1" },
+        { id: "b", number: "FV/2" },
+      ],
+      failed: [],
+    });
+    expect(h.prepareFx).toHaveBeenCalledWith({
+      data: { eventId: INVOICE_IDS.event, pending: true },
+    });
+  });
+});
+
+describe("VIES (INV-12)", () => {
+  it("wynik serwera: wazny/niewazny to odpowiedz, blad techniczny to wyjatek", async () => {
+    h.verifyVies.mockResolvedValueOnce({
+      ok: true,
+      valid: true,
+      requestId: "WAPIAAAAX",
+      name: "ACME GMBH",
+      address: "BERLIN",
+    });
+    await expect(api.verifyInvoiceVies(INVOICE_IDS.draft)).resolves.toEqual({
+      valid: true,
+      requestId: "WAPIAAAAX",
+      name: "ACME GMBH",
+      address: "BERLIN",
+    });
+    expect(h.verifyVies).toHaveBeenCalledWith({ data: { invoiceId: INVOICE_IDS.draft } });
+    h.verifyVies.mockResolvedValueOnce({ ok: false, error: "vies_unavailable" });
+    await expect(api.verifyInvoiceVies(INVOICE_IDS.draft)).rejects.toThrow("vies_unavailable");
+  });
+});
+
 describe("korekta, proforma, KSeF, zaplata", () => {
   it("korekta pelna bez pozycji, czesciowa z para zmian", async () => {
     stub.setData("admin_event_invoice_correction_create", INVOICE_IDS.correction);
@@ -420,6 +529,45 @@ describe("korekta, proforma, KSeF, zaplata", () => {
       api.updateInvoiceKsef({ id: "x", status: "accepted", number: "" }),
     ).rejects.toThrow("ksef_number_required");
     await expect(api.setInvoicePaid({ id: "x", paidAt: null })).rejects.toThrow("not_found");
+  });
+
+  it("KSeF: notatka zmiany trafia do dziennika (INV-02)", async () => {
+    stub.setData("admin_event_invoice_ksef_update", INVOICE_IDS.invoice);
+    await api.updateInvoiceKsef({
+      id: INVOICE_IDS.invoice,
+      status: "rejected",
+      number: "",
+      note: "Blad schematu",
+    });
+    expect(stub.lastCall("admin_event_invoice_ksef_update")?.arg("p_payload")).toEqual({
+      id: INVOICE_IDS.invoice,
+      status: "rejected",
+      number: "",
+      note: "Blad schematu",
+    });
+    stub.setError("admin_event_invoice_ksef_update", "invalid_transition: accepted -> pending");
+    await expect(
+      api.updateInvoiceKsef({ id: INVOICE_IDS.invoice, status: "pending", number: "" }),
+    ).rejects.toThrow("invalid_transition");
+  });
+
+  it("zaksiegowana wplata za zapis (INV-14): kwota i waluta wracaja z bazy", async () => {
+    stub.setData("admin_event_registration_record_payment", {
+      amount_cents: 9900,
+      currency: "EUR",
+    });
+    await expect(
+      api.recordRegistrationPayment({ registrationId: "r1", amountCents: 9900, currency: "EUR" }),
+    ).resolves.toEqual({ amountCents: 9900, currency: "EUR" });
+    expect(stub.lastCall("admin_event_registration_record_payment")?.arg("p_payload")).toEqual({
+      registration_id: "r1",
+      amount_cents: 9900,
+      currency: "EUR",
+    });
+    stub.setError("admin_event_registration_record_payment", "payment_is_card: x");
+    await expect(
+      api.recordRegistrationPayment({ registrationId: "r1", amountCents: 1 }),
+    ).rejects.toThrow("payment_is_card");
   });
 
   it("sourcesGrossCents sumuje zrodla dokumentu", () => {

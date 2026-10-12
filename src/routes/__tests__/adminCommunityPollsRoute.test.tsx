@@ -280,11 +280,12 @@ describe("ankiety - sklejenie trasy i gdzie stoi bramka uprawnień", () => {
     // wprost (kontrakt funkcji) i przez zamontowany router (to, co faktycznie
     // trafiłoby do `<HeadContent/>`).
     expect(routeHead(PollsAdminRoute).meta).toContainEqual({
-      title: "Polls · Community · Admin",
+      title: "Community polls | New European Strategies",
     });
 
     const { meta } = await mountPolls();
-    expect(meta()).toContainEqual({ title: "Polls · Community · Admin" });
+    expect(meta()).toContainEqual({ title: "Community polls | New European Strategies" });
+    expect(meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
   });
 
   it("ta trasa NIE bramkuje dostępu sama - renderuje się bez pytania o rolę", async () => {

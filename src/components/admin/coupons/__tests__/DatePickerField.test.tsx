@@ -33,9 +33,14 @@ vi.mock("react-i18next", async () =>
 );
 // Data conversion is tested here; the real shared selectors have their own tests.
 vi.mock("@/components/ui/time-input", () => ({
-  TimeInput: ({ onChange, value, ...props }: {
+  TimeInput: ({
+    onChange,
+    value,
+    ...props
+  }: {
     onChange: (event: { target: { value: string } }) => void;
-    value: string; className?: string;
+    value: string;
+    className?: string;
   }) => <input {...props} type="time" value={value} onChange={onChange} />,
 }));
 

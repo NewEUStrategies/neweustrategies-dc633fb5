@@ -979,14 +979,24 @@ function MiniField({
       <Label htmlFor={id} className="text-[11px] text-muted-foreground">
         {label}
       </Label>
-      {type === "date" ? <DateInput id={id} type="date" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} /> : <Input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className="h-7 text-xs"
-      />}
+      {type === "date" ? (
+        <DateInput
+          id={id}
+          type="date"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+        />
+      ) : (
+        <Input
+          id={id}
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          className="h-7 text-xs"
+        />
+      )}
     </div>
   );
 }

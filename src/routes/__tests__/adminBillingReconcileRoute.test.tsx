@@ -128,7 +128,9 @@ describe("trasa /admin/billing-reconcile - sklejenie i nagłówek", () => {
 
     expect(view.currentPath()).toBe(PATH);
     expect(view.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
-    expect(view.meta()).toContainEqual({ title: "Uzgadnianie płatności - Panel" });
+    expect(view.meta()).toContainEqual({
+      title: "Payment reconciliation | New European Strategies",
+    });
   });
 
   it("przed skanem nie udaje, że cokolwiek sprawdzono", async () => {

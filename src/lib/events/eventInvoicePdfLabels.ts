@@ -7,6 +7,7 @@
 //
 // POBRANIE DZIALA TYLKO W PRZEGLADARCE i tylko w obsludze klikniecia (Blob,
 // `URL.createObjectURL`, sztuczny odnosnik) - nigdy w renderze.
+import { formatInvoiceMoney } from "@/lib/billing/invoicePdf";
 import i18n from "@/lib/i18n";
 import { ensureEventInvoicesI18n } from "@/lib/i18n-event-invoices";
 import type { EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
@@ -45,6 +46,12 @@ const RATE_KEYS: Record<EventInvoiceVatRate, string> = {
   np: "eventInvoices.pdf.rates.np",
 };
 
+/** Kurs NBP z czterema miejscami po przecinku (przecinek w dokumencie polskim). */
+export function fxRateText(rate: number, locale: string): string {
+  const text = rate.toFixed(4);
+  return locale === "en" ? text : text.replace(".", ",");
+}
+
 export function eventInvoicePdfLabels(doc: EventInvoiceDocument): EventInvoicePdfLabels {
   ensureEventInvoicesI18n();
   const t = i18n.getFixedT(doc.locale);
@@ -70,7 +77,7 @@ export function eventInvoicePdfLabels(doc: EventInvoiceDocument): EventInvoicePd
       name: t("eventInvoices.pdf.columns.name"),
       unit: t("eventInvoices.pdf.columns.unit"),
       quantity: t("eventInvoices.pdf.columns.quantity"),
-      unitNet: t("eventInvoices.pdf.columns.unitNet"),
+      unitGross: t("eventInvoices.pdf.columns.unitGross"),
       net: t("eventInvoices.pdf.columns.net"),
       rate: t("eventInvoices.pdf.columns.rate"),
       vat: t("eventInvoices.pdf.columns.vat"),
@@ -95,7 +102,21 @@ export function eventInvoicePdfLabels(doc: EventInvoiceDocument): EventInvoicePd
       date: doc.corrects?.issueDate ?? "",
     }),
     correctionReason: t("eventInvoices.pdf.correctionReason"),
+    correctsKsefNumber: t("eventInvoices.pdf.correctsKsefNumber"),
     exemptBasis: t("eventInvoices.pdf.exemptBasis"),
+    npBasis: t("eventInvoices.pdf.npBasis"),
+    reverseCharge: t("eventInvoices.pdf.reverseCharge"),
+    vatPln: t("eventInvoices.pdf.vatPln"),
+    fxLine:
+      doc.fx === null
+        ? ""
+        : t("eventInvoices.pdf.fxLine", {
+            currency: doc.currency,
+            rate: fxRateText(doc.fx.rate, doc.locale),
+            table: doc.fx.tableNo,
+            date: doc.fx.effectiveDate,
+            vat: formatInvoiceMoney(doc.fx.vatPlnCents, "PLN"),
+          }),
     ksefNumber: t("eventInvoices.pdf.ksefNumber"),
     cancelled: t("eventInvoices.pdf.cancelled"),
     proformaNote: t("eventInvoices.pdf.proformaNote"),
