@@ -1151,6 +1151,31 @@ describe("wysyłka kolejki: konflikty i odrzucone", () => {
     expect(store.rejected).toHaveLength(2);
   });
 
+  it("odmowa poświadczenia W WYSYŁCE nie przekreśla pozycji zamkniętej blokiem INNEGO tokenu (OPS-06)", async () => {
+    // Pozycja zaszyfrowana kluczem poprzedniego tokenu (kod niedostępny w tej
+    // karcie) nie należy do odrzuconego poświadczenia - czeka na swój token,
+    // tak samo jak przy odmowie w `bootstrap` (`dropSession`).
+    const foreign = queued({
+      id: "obca",
+      code: "",
+      codeHash: "f".repeat(64),
+      codePrefix: "OBCA01",
+      deviceId: null,
+      deviceScannedAt: relativeIso(-60_000),
+      sealed: { iv: "0".repeat(24), data: "ab" },
+    });
+    device.queue = [queued({ id: "wlasna", deviceScannedAt: relativeIso(-600_000) }), foreign];
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    api.recordCheckinScan.mockRejectedValue(new Error("device_revoked: gone"));
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+    await waitFor(() => expect(store.rejected.map((row) => row.item.id)).toEqual(["wlasna"]));
+    expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
+    expect(result.current.outbox.map((item) => item.id)).toEqual(["obca"]);
+    expect(result.current.outbox[0].rejectedAt).toBeUndefined();
+    expect(device.queue.map((item) => item.id)).toEqual(["obca"]);
+  });
+
   it("odrzucone i konflikty z poprzedniej zmiany wracają z pamięci; wyczyszczenie je kasuje", async () => {
     store.rejected = [{ item: queued({ id: "x" }), error: "device_revoked: x", rejectedAt: "t" }];
     store.conflicts = [

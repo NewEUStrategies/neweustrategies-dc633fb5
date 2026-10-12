@@ -216,7 +216,7 @@ export function syncIssuesCsv(
       row.checkinId ?? row.id,
     ]),
     ...rejected.map(({ item: raw, error }) => {
-      // Obrona na granicy: wpis z pami\u0119ci karty m\u00F3g\u0142 jeszcze nie\u015B\u0107 kod.
+      // Obrona na granicy: wpis z pamięci karty mógł jeszcze nieść kod.
       const item = toRejectedItem(raw);
       return [
         labels.rejected,

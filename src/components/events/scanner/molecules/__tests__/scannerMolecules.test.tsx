@@ -520,6 +520,12 @@ describe("ScannerOutboxPanel - kolejka musi być widoczna, żeby była uczciwa",
     expect(screen.getByText("eventScanner.outbox.retryingHint")).toBeInTheDocument();
     expect(screen.queryByText("CCCCCC…")).toBeNull();
     const row = screen.getByText("BBBBBB…").closest("li") as HTMLElement;
+    // Termin żądania nie ma głowy `kod:` - operator widzi „brak sieci, skan
+    // czeka", a nie „coś nie zadziałało" przy pozycji, która wyjedzie sama.
+    expect(
+      within(row).getByText("Brak sieci. Skan czeka w kolejce i pojedzie, gdy zasięg wróci."),
+    ).toBeInTheDocument();
+    expect(within(row).queryByText("Coś nie zadziałało. Spróbuj jeszcze raz.")).toBeNull();
     fireEvent.click(within(row).getByRole("button", { name: /eventScanner.outbox.retry$/ }));
     expect(view.onRetry).toHaveBeenCalledExactlyOnceWith("b");
 

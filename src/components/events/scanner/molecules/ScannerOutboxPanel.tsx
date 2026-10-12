@@ -18,6 +18,11 @@
 // KOD WIDAĆ TYLKO Z POCZĄTKU (OPS-06). Ekran pokazuje kilka pierwszych znaków
 // kodu z biletu - tyle wystarczy, żeby skojarzyć skan z osobą, a zrzut ekranu
 // nie niesie poświadczenia wejścia.
+//
+// POWÓD MÓWI, CO SIĘ DZIEJE. Awaria transportu (termin żądania, `Failed to
+// fetch`, brama 5xx) nie ma głowy `kod:`, więc słownik odmów dałby „coś nie
+// zadziałało" - przy pozycji, która za chwilę wyjedzie sama. Operator widzi
+// zamiast tego zdanie „brak sieci, skan czeka" - to samo, co przy skanie na żywo.
 import { AlertTriangle, RefreshCw, RotateCw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -27,6 +32,7 @@ import { uiLang } from "@/lib/i18n/format";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import { retryingItems, stuckItems, type OutboxItem } from "@/lib/events/scannerOutbox";
 import { codePrefixOf } from "@/lib/events/scannerVault";
+import { scanErrorKind } from "@/lib/events/scannerErrorKind";
 import { scannerErrorMessage } from "@/lib/events/scannerErrors";
 import { ensureI18n as ensureScannerI18n } from "@/lib/i18n-event-scanner";
 
@@ -34,6 +40,11 @@ ensureScannerI18n();
 
 function prefixOf(item: OutboxItem): string {
   return item.codePrefix ?? (item.code === "" ? "" : codePrefixOf(item.code));
+}
+
+/** Zdanie powodu porażki - awaria transportu to „brak sieci", nie „coś nie zadziałało". */
+function failureReason(lastError: string): string {
+  return scannerErrorMessage(scanErrorKind(lastError) === "transport" ? "offline:" : lastError);
 }
 
 function OutboxRow({
@@ -65,7 +76,7 @@ function OutboxRow({
         {formatEventDateTime(item.deviceScannedAt, timezone, lang)}
       </span>
       {item.lastError !== null && (
-        <span className="text-destructive">{scannerErrorMessage(item.lastError)}</span>
+        <span className="text-destructive">{failureReason(item.lastError)}</span>
       )}
       <span className="ml-auto flex gap-1">
         {onRetry !== undefined && (

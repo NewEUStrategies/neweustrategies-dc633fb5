@@ -281,6 +281,16 @@ export interface ScannerRuntime {
   lastFlush: FlushReport | null;
 }
 
+/**
+ * Czy pozycja należy do poświadczenia, które właśnie pracuje (albo właśnie
+ * zostało odrzucone). Pozycja zamknięta blokiem INNEGO tokenu (sejf, OPS-06)
+ * nie należy - czeka na powrót swojego tokenu (albo na `device_mismatch` pod
+ * cudzym), zamiast iść na listę odrzuconych z cudzym powodem.
+ */
+function belongsToActiveCredential(item: OutboxItem): boolean {
+  return item.code !== "" || !item.sealed;
+}
+
 function isOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
 }
@@ -490,10 +500,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       void (outboxLoadRef.current ?? Promise.resolve()).then(() => {
         // Nowe parowanie w międzyczasie - kolejka należy już do niego.
         if (pairingRef.current !== generation) return;
-        // Pozycja zamknięta blokiem INNEGO tokenu (sejf, OPS-06) nie należy do
-        // odrzuconego poświadczenia - czeka na powrót swojego tokenu (albo na
-        // `device_mismatch` pod cudzym), zamiast iść na listę z cudzym powodem.
-        const owned = outboxRef.current.filter((item) => item.code !== "" || !item.sealed);
+        const owned = outboxRef.current.filter(belongsToActiveCredential);
         const entries = rejectAll(owned, message, new Date().toISOString());
         if (entries.length === 0) return;
         persist(markRejected(outboxRef.current, entries));
@@ -973,10 +980,15 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
             credentialPaused(error);
             return;
           case "reject_all": {
-            // Odmowa poświadczenia dotyczy WSZYSTKICH pozycji, nie tylko tej -
-            // cała kolejka idzie na listę odrzuconych (z eksportem), zamiast
-            // dobijać się nią dwadzieścia razy albo zniknąć po cichu.
-            const all = rejectAll(outboxRef.current, message, nowIso);
+            // Odmowa poświadczenia dotyczy WSZYSTKICH jego pozycji, nie tylko
+            // tej - idą na listę odrzuconych (z eksportem), zamiast dobijać się
+            // nimi dwadzieścia razy albo zniknąć po cichu. Pozycje zamknięte
+            // blokiem innego tokenu zostają (jak przy `dropSession`).
+            const all = rejectAll(
+              outboxRef.current.filter(belongsToActiveCredential),
+              message,
+              nowIso,
+            );
             rejectedCount += all.length;
             persist(markRejected(outboxRef.current, all));
             transferRejected(all);

@@ -58,7 +58,18 @@ Kod obsługuje osobny origin, ale go nie tworzy. Kolejność ma znaczenie: zmien
    (`_event_scanner_device_auth`), a nie z hosta; nieznany host w płaszczyźnie
    treści spada na najemcę domyślnego, a powierzchnie crawlera są dla niego
    zamknięte (`classifyCrawlHost` -> `unknown`, robots `Disallow: /`). Jeden
-   origin skanera obsługuje wszystkich najemców wdrożenia.
+   origin skanera obsługuje wszystkich najemców wdrożenia. Sprawdzone w kodzie:
+   klient wysyła `x-tenant-host: scan.<domena>` bez poświadczenia krawędzi
+   (`tenant-host-fetch.ts`), `public_tenant_id()` spada wtedy na najemcę
+   domyślnego, a żadna funkcja płaszczyzny urządzenia
+   (`_event_scanner_device_auth`, `event_scanner_bootstrap`,
+   `event_checkin_record`, `event_lead_scan_record`, `event_scanner_roster`)
+   nie czyta hosta - najemcę, wydarzenie i zakres daje wyłącznie token.
+   Jedyny skutek hosta: powłoka strony (motyw, czcionki) jest najemcy
+   domyślnego; skaner nie ma nagłówka ani stopki serwisu, więc to kosmetyka.
+   Gdyby wdrożenie chciało powłoki per najemca, potrzebny byłby host skanera
+   per najemca (`scan.<domena-najemcy>` w `tenants.aliases`) - wtedy
+   `VITE_SCANNER_ORIGIN` (jedna wartość na build) nie wystarcza.
 5. **CSP i CORS.** Bez zmian: `connect-src 'self'` + origin Supabase działa
    tak samo pod nowym hostem, a PostgREST nie ogranicza originów.
 6. **Zmienna.** `VITE_SCANNER_ORIGIN=https://scan.<domena>` w środowisku buildu
