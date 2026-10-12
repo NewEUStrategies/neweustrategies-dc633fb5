@@ -362,6 +362,22 @@ describe("AdminBillingPanel - stan automatu przypomnień", () => {
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("scheduler nie odpowiada"));
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });
+
+  it("admin NAJEMCY dostaje zrozumiałą odmowę bramki platformy, nie surowy komunikat", async () => {
+    // SUB-08: przebieg obejmuje wszystkich najemców, więc stoi za
+    // `requirePlatformAdmin`. Odmowa middleware to techniczny napis
+    // „Forbidden: ..." - panel tłumaczy go na zdanie dla człowieka.
+    h.reminders.mockRejectedValue(
+      new Error("Forbidden: platform admin role (super_admin) required"),
+    );
+    render();
+
+    fireEvent.click(screen.getByText("adminBilling.sendReminders"));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminBilling.remindersPlatformOnly"),
+    );
+  });
 });
 
 describe("AdminBillingPanel - stan katalogu cen", () => {

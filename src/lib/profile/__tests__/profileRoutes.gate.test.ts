@@ -26,6 +26,7 @@ import {
   PROFILE_MEMBERSHIP_PATH,
   PROFILE_PAYMENTS_PATH,
   PROFILE_PLAN_PATH,
+  PROFILE_PORTAL_PATH,
   PROFILE_PRIVACY_PATH,
   PROFILE_SECURITY_PATH,
 } from "../routes";
@@ -79,5 +80,21 @@ describe("kanoniczne adresy profilu - brak przeskoku", () => {
     const orders = readFileSync("src/routes/profile.orders.tsx", "utf8");
     expect(subscription).toContain(`to: "${PROFILE_PLAN_PATH}"`);
     expect(orders).toContain(`to: "${PROFILE_PAYMENTS_PATH}"`);
+  });
+});
+
+describe("wejście do portalu płatności z maila", () => {
+  it("PROFILE_PORTAL_PATH prowadzi do trasy POZA powłoką `/profile` i jest w drzewie tras", () => {
+    // Jedyny adres modułu spoza konwencji `profile.<x>.tsx`: trasa
+    // `profile_.portal.tsx` ma własną bramkę logowania (powłoka gubiłaby cel
+    // wejścia z maila). Adres żyje w skrzynkach - musi istnieć i nie może
+    // przekierowywać dalej.
+    const file = "src/routes/profile_.portal.tsx";
+    expect(PROFILE_PORTAL_PATH.startsWith("/profile/")).toBe(true);
+    expect(existsSync(file)).toBe(true);
+    expect(readFileSync(file, "utf8")).not.toMatch(/throw\s+redirect\(/);
+    expect(readFileSync("src/routeTree.gen.ts", "utf8")).toContain(
+      `fullPath: '${PROFILE_PORTAL_PATH}'`,
+    );
   });
 });

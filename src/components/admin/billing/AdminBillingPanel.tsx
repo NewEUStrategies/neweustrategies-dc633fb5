@@ -129,7 +129,15 @@ export function AdminBillingPanel() {
       toast.success(
         t("adminBilling.remindersQueued", { renewal: r.renewal, expiring: r.expiring }),
       ),
-    onError: (e: Error) => toast.error(e.message),
+    // Przebieg jest operacją platformy (`requirePlatformAdmin`): admin najemcy
+    // dostaje zrozumiałą odmowę zamiast surowego komunikatu bramki. Inne
+    // odmowy (np. wymóg drugiego składnika) zostają przy własnym komunikacie.
+    onError: (e: Error) =>
+      toast.error(
+        e.message.includes("platform admin role")
+          ? t("adminBilling.remindersPlatformOnly")
+          : e.message,
+      ),
   });
 
   // Stan automatu: po restarcie integracji (nowe konto operatora, rotacja

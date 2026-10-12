@@ -571,6 +571,15 @@ const pl = {
         pastDue:
           "Ostatnia płatność się nie powiodła. Zaktualizuj metodę płatności, aby zachować dostęp.",
         secureNote: "Dane karty obsługuje operator płatności - nie przechowujemy ich w serwisie.",
+        entry: {
+          title: "Portal płatności",
+          signInTitle: "Zaloguj się, aby otworzyć portal płatności",
+          signInBody:
+            "Link z maila prowadzi do Twojego konta. Po zalogowaniu od razu przeniesiemy Cię do portalu operatora płatności.",
+          signInCta: "Zaloguj się",
+          retry: "Spróbuj ponownie",
+          back: "Wróć do planu",
+        },
         status: {
           active: "Aktywna",
           trialing: "Okres próbny",
@@ -1362,6 +1371,15 @@ const en: ProfileEn = {
         error: "Could not open the payment portal. Please try again.",
         pastDue: "Your last payment failed. Update your payment method to keep access.",
         secureNote: "Card details are handled by the payment provider - we never store them.",
+        entry: {
+          title: "Billing portal",
+          signInTitle: "Sign in to open the billing portal",
+          signInBody:
+            "The link from your email opens your account. Once you are signed in, we take you straight to the payment provider's portal.",
+          signInCta: "Sign in",
+          retry: "Try again",
+          back: "Back to your plan",
+        },
         status: {
           active: "Active",
           trialing: "Trial",

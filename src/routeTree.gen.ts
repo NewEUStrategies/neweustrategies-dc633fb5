@@ -88,6 +88,7 @@ import { Route as SeriesSlugRouteImport } from './routes/series.$slug'
 import { Route as QaSlugRouteImport } from './routes/qa.$slug'
 import { Route as ProgramsSlugRouteImport } from './routes/programs.$slug'
 import { Route as ProfileTicketsRouteImport } from './routes/profile.tickets'
+import { Route as ProfilePortalRouteImport } from './routes/profile_.portal'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSocialRouteImport } from './routes/profile.social'
 import { Route as ProfileSecurityRouteImport } from './routes/profile.security'
@@ -828,6 +829,11 @@ const ProfileTicketsRoute = ProfileTicketsRouteImport.update({
   id: '/tickets',
   path: '/tickets',
   getParentRoute: () => ProfileRoute,
+} as any)
+const ProfilePortalRoute = ProfilePortalRouteImport.update({
+  id: '/profile_/portal',
+  path: '/profile/portal',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileSubscriptionRoute = ProfileSubscriptionRouteImport.update({
   id: '/subscription',
@@ -2808,6 +2814,7 @@ export interface FileRoutesByFullPath {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/profile/tickets': typeof ProfileTicketsRoute
+  '/profile/portal': typeof ProfilePortalRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
@@ -3212,6 +3219,7 @@ export interface FileRoutesByTo {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/profile/tickets': typeof ProfileTicketsRoute
+  '/profile/portal': typeof ProfilePortalRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
@@ -3632,6 +3640,7 @@ export interface FileRoutesById {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/profile/tickets': typeof ProfileTicketsRoute
+  '/profile_/portal': typeof ProfilePortalRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
@@ -4055,6 +4064,7 @@ export interface FileRouteTypes {
     | '/profile/social'
     | '/profile/subscription'
     | '/profile/tickets'
+    | '/profile/portal'
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
@@ -4459,6 +4469,7 @@ export interface FileRouteTypes {
     | '/profile/social'
     | '/profile/subscription'
     | '/profile/tickets'
+    | '/profile/portal'
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
@@ -4878,6 +4889,7 @@ export interface FileRouteTypes {
     | '/profile/social'
     | '/profile/subscription'
     | '/profile/tickets'
+    | '/profile_/portal'
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
@@ -5199,6 +5211,7 @@ export interface RootRouteChildren {
   PodcastsShowRoute: typeof PodcastsShowRouteWithChildren
   PostSlugRoute: typeof PostSlugRoute
   PreviewTokenRoute: typeof PreviewTokenRoute
+  ProfilePortalRoute: typeof ProfilePortalRoute
   ProgramsSlugRoute: typeof ProgramsSlugRouteWithChildren
   SeriesSlugRoute: typeof SeriesSlugRoute
   SitemapsSectionRoute: typeof SitemapsSectionRoute
@@ -5808,6 +5821,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/profile/tickets'
       preLoaderRoute: typeof ProfileTicketsRouteImport
       parentRoute: typeof ProfileRoute
+    }
+    '/profile_/portal': {
+      id: '/profile_/portal'
+      path: '/profile/portal'
+      fullPath: '/profile/portal'
+      preLoaderRoute: typeof ProfilePortalRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/profile/subscription': {
       id: '/profile/subscription'
@@ -9159,6 +9179,7 @@ const rootRouteChildren: RootRouteChildren = {
   PodcastsShowRoute: PodcastsShowRouteWithChildren,
   PostSlugRoute: PostSlugRoute,
   PreviewTokenRoute: PreviewTokenRoute,
+  ProfilePortalRoute: ProfilePortalRoute,
   ProgramsSlugRoute: ProgramsSlugRouteWithChildren,
   SeriesSlugRoute: SeriesSlugRoute,
   SitemapsSectionRoute: SitemapsSectionRoute,

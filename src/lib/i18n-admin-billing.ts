@@ -160,6 +160,8 @@ const pl = {
     key: "klucz",
     retries: "brak ponowień",
     remindersQueued: "Przypomnienia: {{renewal}} odnowień, {{expiring}} wygaśnięć",
+    remindersPlatformOnly:
+      "Ręczną wysyłkę przypomnień uruchamia operator platformy - obejmuje ona wszystkie organizacje. Przypomnienia wychodzą automatycznie raz na dobę.",
     catalogSynced:
       "Katalog zsynchronizowany: {{created}} nowych, {{updated}} zaktualizowanych, {{archived}} zarchiwizowanych, {{failed}} błędów",
     ordersWithoutSession:
@@ -333,6 +335,8 @@ const en = {
     key: "key",
     retries: "no retries",
     remindersQueued: "Reminders: {{renewal}} renewals, {{expiring}} expirations",
+    remindersPlatformOnly:
+      "Manual reminder runs are started by the platform operator - they cover every organisation. Reminders go out automatically once a day.",
     catalogSynced:
       "Catalog synced: {{created}} created, {{updated}} updated, {{archived}} archived, {{failed}} failed",
     ordersWithoutSession:

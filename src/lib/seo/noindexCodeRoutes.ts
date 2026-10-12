@@ -33,6 +33,7 @@ export const NOINDEX_CODE_ROUTE_PATHS: ReadonlySet<string> = new Set([
   "/profile/interests",
   "/profile/invoices",
   "/profile/notifications",
+  "/profile/portal",
   "/reading-list",
   "/reset-password",
   "/scanner",
