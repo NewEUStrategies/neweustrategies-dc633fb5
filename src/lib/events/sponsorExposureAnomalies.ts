@@ -5,7 +5,8 @@
 // zapisuje trzy rodzaje zdarzeń, które zmieniają sposób liczenia:
 //   * `rate_limited` - paczka odrzucona limitem zapytań adresu (nic nie
 //     zapisane; `hits` = liczba paczek);
-//   * `session_cap` - sesja ponad 50 różnych z jednego adresu w ciągu dnia;
+//   * `session_cap` - sesja ponad limit z jednego adresu w ciągu dnia (najwyżej
+//     50 unikalnych: 49 sesji + kubełek adresu);
 //   * `invalid_session` - sesja bez ważnego podpisu serwera (stara wersja
 //     strony albo podrobione żądanie).
 // Dwie ostatnie liczą się do ŁĄCZNYCH, ale do UNIKALNYCH tylko raz na adres

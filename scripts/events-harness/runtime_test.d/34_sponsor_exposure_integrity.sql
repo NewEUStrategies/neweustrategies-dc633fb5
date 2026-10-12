@@ -10,8 +10,8 @@
 --   * wydanie sesji przez serwer (paczka bez sesji), ponowne uzycie bez
 --     nowego unikalnego, sesje niepodpisane/podrobione/obcego najemcy w
 --     kubelku zrodla (jeden unikalny na adres i dzien) z anomalia;
---   * KRYTERIUM AUDYTU: 1000 sesji z jednego adresu daje najwyzej 51
---     unikalnych (50 sesji + kubelek), a odrzucone limitem zapytan i zwiniete
+--   * KRYTERIUM AUDYTU: 1000 sesji z jednego adresu daje najwyzej N = 50
+--     unikalnych (49 sesji + kubelek), a odrzucone limitem zapytan i zwiniete
 --     ponad limit sesji sa zapisane jako anomalie z dokladnymi licznikami;
 --   * odrzucenie bez zapisu: zrodlo spoza ksztaltu (surowy adres, NULL);
 --   * stara sygnatura usunieta, granty, RLS, brak dostepu klienckiego;
@@ -293,9 +293,10 @@ $do$;
 --
 -- Skrypt nie przechowuje sesji: kazda paczka idzie BEZ sesji, wiec serwer
 -- wydaje nowa za kazdym razem. Limit zapytan przepuszcza 300 paczek w oknie
--- (now() stale w transakcji), z nich 50 dostaje wlasna sesje, 250 zwija sie
--- do kubelka zrodla; 700 odrzuca limit. S2 / home_strip jest uzywane tylko
--- tutaj, wiec liczba wierszy = liczba unikalnych wyswietlen S2.
+-- (now() stale w transakcji), z nich 49 dostaje wlasna sesje, 251 zwija sie
+-- do kubelka zrodla (N = 50 unikalnych, kubelek wliczony); 700 odrzuca limit.
+-- S2 / home_strip jest uzywane tylko tutaj, wiec liczba wierszy = liczba
+-- unikalnych wyswietlen S2.
 -- ---------------------------------------------------------------------------
 DO $do$
 DECLARE
@@ -315,12 +316,12 @@ BEGIN
   END LOOP;
 
   PERFORM pg_temp.assert(
-    pg_temp.sxi_rows(s2::uuid, 'home_strip', 'view') <= 51,
-    format('34/AUDYT: 1000 sesji z jednego adresu daje najwyzej 51 unikalnych wyswietlen (jest %s)',
+    pg_temp.sxi_rows(s2::uuid, 'home_strip', 'view') <= 50,
+    format('34/AUDYT: 1000 sesji z jednego adresu daje najwyzej N = 50 unikalnych wyswietlen (jest %s)',
       pg_temp.sxi_rows(s2::uuid, 'home_strip', 'view')));
   PERFORM pg_temp.assert(
-    pg_temp.sxi_rows(s2::uuid, 'home_strip', 'view') = 51,
-    '34/AUDYT: dokladnie 50 sesji zrodla + 1 kubelek - limit nie zjada pierwszych 50 osob');
+    pg_temp.sxi_rows(s2::uuid, 'home_strip', 'view') = 50,
+    '34/AUDYT: dokladnie 49 sesji zrodla + 1 kubelek - limit nie zjada pierwszych 49 osob');
   PERFORM pg_temp.assert(
     (SELECT sum(x.hits) FROM public.event_sponsor_exposures x
       WHERE x.sponsor_id = s2::uuid AND x.placement = 'home_strip') = 300,
@@ -330,11 +331,11 @@ BEGIN
       WHERE s.source_hash = encode(public.digest(
         'src:11111111-1111-1111-1111-111111111111:34e00000-0000-0000-0000-0000000000e1:'
         || pg_temp.sxi_src('src_c') || ':' || ((now() AT TIME ZONE 'Europe/Warsaw')::date)::text,
-        'sha256'), 'hex')) = 50,
-    '34/AUDYT: rejestr zrodla trzyma dokladnie 50 sesji');
+        'sha256'), 'hex')) = 49,
+    '34/AUDYT: rejestr zrodla trzyma dokladnie 49 sesji');
   PERFORM pg_temp.assert(
-    pg_temp.sxi_anomaly('session_cap', s2::uuid, 'src_c') = 250,
-    '34/AUDYT: 250 pozycji ponad limit sesji zapisane jako anomalia session_cap');
+    pg_temp.sxi_anomaly('session_cap', s2::uuid, 'src_c') = 251,
+    '34/AUDYT: 251 pozycji ponad limit sesji zapisane jako anomalia session_cap');
   PERFORM pg_temp.assert(
     pg_temp.sxi_anomaly('rate_limited', NULL, 'src_c') = 700,
     '34/AUDYT: 700 paczek odrzuconych limitem zapytan zapisane jako anomalia rate_limited');
@@ -347,7 +348,7 @@ BEGIN
   v_res := pg_temp.sxi_ingest(pg_temp.sxi_src('src_d'), NULL,
     jsonb_build_array(pg_temp.sxi_item(s2, 'home_strip', 'view')));
   PERFORM pg_temp.assert(
-    v_res->'collapsed' = 'null'::jsonb AND pg_temp.sxi_rows(s2::uuid, 'home_strip', 'view') = 52,
+    v_res->'collapsed' = 'null'::jsonb AND pg_temp.sxi_rows(s2::uuid, 'home_strip', 'view') = 51,
     '34/AUDYT: inny adres liczy sie normalnie (limit jest per zrodlo)');
 END
 $do$;
@@ -420,7 +421,7 @@ DECLARE
 BEGIN
   PERFORM pg_temp.assert(
     (SELECT p.hits = 700 AND p.sources = 1 FROM pg_temp.sxi_panel('rate_limited') p)
-    AND (SELECT p.hits = 250 AND p.sources = 1 AND p.days = 1 FROM pg_temp.sxi_panel('session_cap') p)
+    AND (SELECT p.hits = 251 AND p.sources = 1 AND p.days = 1 FROM pg_temp.sxi_panel('session_cap') p)
     AND (SELECT r.day FROM public.admin_event_sponsor_exposure_anomalies(e1) r
           WHERE r.reason = 'session_cap') = (now() AT TIME ZONE 'Europe/Warsaw')::date,
     '34/panel: admin widzi anomalie wydarzenia z licznikami, liczba zrodel i dniem w strefie wydarzenia');
@@ -433,7 +434,7 @@ BEGIN
     AND (SELECT p.hits = 700 FROM pg_temp.sxi_panel('rate_limited', s1) p),
     '34/panel: filtr S1 - jego zwiniecia i poziom wydarzenia, bez limitu sesji sponsora S2');
   PERFORM pg_temp.assert(
-    (SELECT p.hits = 250 FROM pg_temp.sxi_panel('session_cap', s2) p)
+    (SELECT p.hits = 251 FROM pg_temp.sxi_panel('session_cap', s2) p)
     AND (SELECT p.hits = 1 FROM pg_temp.sxi_panel('invalid_session', s2) p),
     '34/panel: filtr S2 - jego limit sesji, a z niepodpisanych tylko reklama bez sponsora');
 END

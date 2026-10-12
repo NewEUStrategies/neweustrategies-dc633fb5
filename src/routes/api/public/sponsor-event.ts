@@ -30,11 +30,12 @@
 //      nie zapisujemy;
 //   7. baza (`event_sponsor_exposure_ingest`, migracja 20261012120000) w jednej
 //      podróży: limit paczek na adres i wydarzenie (`rate_limit_hit`),
-//      weryfikacja podpisu sesji, najwyżej 50 różnych sesji z adresu na dzień
-//      (reszta i sesje niepodpisane liczą się do kubełka adresu), anomalie dla
-//      panelu oraz przynależność sponsora, materiału i reklamy do TEGO
-//      opublikowanego wydarzenia - klient nie przypisze wyświetlenia cudzemu
-//      sponsorowi ani nie nabije unikalnych rotacją identyfikatora.
+//      weryfikacja podpisu sesji, najwyżej 50 unikalnych z adresu na dzień
+//      (49 sesji + kubełek adresu, do którego liczą się dalsze sesje i sesje
+//      niepodpisane), anomalie dla panelu oraz przynależność sponsora,
+//      materiału i reklamy do TEGO opublikowanego wydarzenia - klient nie
+//      przypisze wyświetlenia cudzemu sponsorowi ani nie nabije unikalnych
+//      rotacją identyfikatora.
 // Do bazy nie trafia IP ani agent: adres idzie jako SOLONY skrót
 // (`requestRateSubject` - ta sama sól i ta sama jedyna definicja „kto dzwoni",
 // co wszystkie limity po IP w repo), a sesja jako skrót z dniem.

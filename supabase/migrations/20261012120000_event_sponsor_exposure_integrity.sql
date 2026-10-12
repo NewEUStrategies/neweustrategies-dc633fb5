@@ -37,14 +37,15 @@
 --        * wdrozenie nie wymaga nowej zmiennej srodowiska (na Lovable to krok
 --          reczny), a lancuch zapasowych sekretow w TS konczy sie stala
 --          w kodzie - podpis z takim kluczem bylby podrabialny.
---   3) LIMIT UNIKALNYCH SESJI NA ZRODLO. Na jedno zrodlo, wydarzenie i dzien
---      (strefa wydarzenia) liczy sie najwyzej 50 ROZNYCH sesji
---      (`event_sponsor_exposure_sessions`, sprawdzane pod blokada doradcza,
---      wiec rownolegle paczki nie przeskocza limitu). Kolejne sesje z tego
---      zrodla zwijaja sie do kubelka "zrodlo x dzien" i sa zapisywane jako
---      anomalia `session_cap`. Wniosek dla raportu: z jednego adresu w ciagu
---      dnia najwyzej 51 unikalnych (50 sesji + kubelek), niezaleznie od
---      liczby wyslanych identyfikatorow. KOMPROMIS NAZWANY WPROST: siec
+--   3) LIMIT UNIKALNYCH NA ZRODLO. Na jedno zrodlo, wydarzenie i dzien
+--      (strefa wydarzenia) liczy sie najwyzej N = 50 UNIKALNYCH, kubelek
+--      wliczony: 49 ROZNYCH sesji (`event_sponsor_exposure_sessions`,
+--      sprawdzane pod blokada doradcza, wiec rownolegle paczki nie przeskocza
+--      limitu) plus jeden kubelek "zrodlo x dzien", do ktorego zwijaja sie
+--      kolejne sesje z tego zrodla (anomalia `session_cap`) i sesje
+--      niepodpisane. Wniosek dla raportu: z jednego adresu w ciagu dnia
+--      najwyzej 50 unikalnych na sponsora i miejsce, niezaleznie od liczby
+--      wyslanych identyfikatorow. KOMPROMIS NAZWANY WPROST: siec
 --      konferencyjna (wielu ludzi za jednym adresem) tez trafia w limit -
 --      wyswietlenia dalej licza sie w sumach (`hits`), a panel pokazuje
 --      ostrzezenie z liczba zwinietych pozycji zamiast udawac, ze ich nie ma.
@@ -248,9 +249,10 @@ DECLARE
   -- Paczek na minute z jednego zrodla do jednego wydarzenia. Czlowiek wysyla
   -- kilka na minute; zapas jest na siec konferencyjna za jednym adresem.
   c_requests_per_minute constant integer := 300;
-  -- Roznych sesji z jednego zrodla w dniu wydarzenia, ktore licza sie jako
-  -- osobne unikalne. Kolejne zwijaja sie do jednego kubelka zrodla.
-  c_sessions_per_source constant integer := 50;
+  -- Najwiecej unikalnych z jednego zrodla w dniu wydarzenia, KUBELEK
+  -- WLICZONY: osobno liczy sie c_unique_per_source - 1 roznych sesji, kazda
+  -- kolejna (i kazda niepodpisana) zwija sie do jednego kubelka zrodla.
+  c_unique_per_source constant integer := 50;
   v_uuid constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
   v_none constant jsonb := jsonb_build_object('written', 0, 'session', NULL, 'collapsed', NULL);
   v_session text := btrim(COALESCE(p_payload->>'session', ''));
@@ -334,7 +336,7 @@ BEGIN
         FROM public.event_sponsor_exposure_sessions s
        WHERE s.tenant_id = p_tenant AND s.event_id = v_event_id AND s.day = v_day
          AND s.source_hash = v_source_hash;
-      IF v_seen < c_sessions_per_source THEN
+      IF v_seen < c_unique_per_source - 1 THEN
         INSERT INTO public.event_sponsor_exposure_sessions
           (tenant_id, event_id, day, source_hash, session_hash)
         VALUES (p_tenant, v_event_id, v_day, v_source_hash, v_hash)
@@ -431,7 +433,7 @@ REVOKE ALL ON FUNCTION public.event_sponsor_exposure_ingest(uuid, text, jsonb) F
 GRANT EXECUTE ON FUNCTION public.event_sponsor_exposure_ingest(uuid, text, jsonb) TO service_role;
 
 COMMENT ON FUNCTION public.event_sponsor_exposure_ingest(uuid, text, jsonb) IS
-  'Zapis paczki ekspozycji sponsorow: {event_slug, session?, items:[{sponsor_id, placement, kind, material_id?, home_ad_id?}]} (maks. 40). Wylacznie service_role - najemce (zaufany host) i zrodlo (solony skrot adresu, ip:<32 hex>) podaje endpoint. Limit 300 paczek/min na zrodlo i wydarzenie (rate_limit_hit); sesja wydawana i podpisywana przez serwer (HMAC klucza najemcy); najwyzej 50 roznych sesji na zrodlo i dzien - reszta oraz sesje niepodpisane licza sie do kubelka zrodla; odmowy i zwiniecia trafiaja do event_sponsor_exposure_anomalies. Kazda pozycja weryfikowana wzgledem TEGO opublikowanego wydarzenia. Zwraca {written, session (nowa sesja albo null), collapsed (powod albo null)}.';
+  'Zapis paczki ekspozycji sponsorow: {event_slug, session?, items:[{sponsor_id, placement, kind, material_id?, home_ad_id?}]} (maks. 40). Wylacznie service_role - najemce (zaufany host) i zrodlo (solony skrot adresu, ip:<32 hex>) podaje endpoint. Limit 300 paczek/min na zrodlo i wydarzenie (rate_limit_hit); sesja wydawana i podpisywana przez serwer (HMAC klucza najemcy); najwyzej 50 unikalnych na zrodlo i dzien (49 roznych sesji + kubelek zrodla, do ktorego licza sie dalsze sesje i sesje niepodpisane); odmowy i zwiniecia trafiaja do event_sponsor_exposure_anomalies. Kazda pozycja weryfikowana wzgledem TEGO opublikowanego wydarzenia. Zwraca {written, session (nowa sesja albo null), collapsed (powod albo null)}.';
 
 -- ----------------------------------------------------------------------------
 -- 6) RETENCJA - ekspozycje, anomalie i rejestr sesji
