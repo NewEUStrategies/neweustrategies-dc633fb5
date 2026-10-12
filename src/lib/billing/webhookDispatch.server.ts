@@ -56,6 +56,13 @@ export type TransactionData = {
   amountDiscountCents?: number | null;
   /** Podatek doliczony przez operatora (`total_details.amount_tax`). */
   amountTaxCents?: number | null;
+  /**
+   * Kody promocyjne operatora wpisane przez kupującego w sesji
+   * (`discounts[].promotion_code`). NASZ kupon jedzie jako `discounts[].coupon`
+   * bez kodu, więc pusta lista = brak kodu spoza kasy. Realizacja sprawdza po
+   * nich, czy kod należy do najemcy zamówienia (konto operatora jest wspólne).
+   */
+  promotionCodeIds?: string[] | null;
 };
 
 /** Wynik obsługi: `skipped` = zdarzenie spoza zakresu integracji. */
@@ -693,6 +700,7 @@ async function handleTransaction(
         amountSubtotalCents: data.amountSubtotalCents ?? null,
         amountDiscountCents: data.amountDiscountCents ?? null,
         amountTaxCents: data.amountTaxCents ?? null,
+        promotionCodeIds: data.promotionCodeIds ?? null,
       },
       env,
     );
@@ -736,6 +744,7 @@ async function handleTransaction(
         amountSubtotalCents: data.amountSubtotalCents ?? null,
         amountDiscountCents: data.amountDiscountCents ?? null,
         amountTaxCents: data.amountTaxCents ?? null,
+        promotionCodeIds: data.promotionCodeIds ?? null,
       },
       env,
     );

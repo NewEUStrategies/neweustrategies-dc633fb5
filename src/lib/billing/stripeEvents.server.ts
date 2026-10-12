@@ -194,6 +194,19 @@ function sessionAmounts(session: Raw): SessionAmounts {
   };
 }
 
+/**
+ * Kody promocyjne operatora użyte w sesji. Pozycja `discounts` niesie albo
+ * NASZ kupon (`coupon`, bez kodu), albo kod wpisany przez kupującego
+ * (`promotion_code`) - id albo rozwinięty obiekt.
+ */
+function sessionPromotionCodeIds(session: Raw): string[] {
+  const discounts = Array.isArray(session.discounts) ? session.discounts : [];
+  const ids = discounts
+    .map((discount) => (isRecord(discount) ? idOf(discount.promotion_code) : null))
+    .filter((id): id is string => id !== null);
+  return [...new Set(ids)];
+}
+
 /** Mapuje `checkout.session.*` na `TransactionData` (transakcja jednorazowa lub pierwsza faktura). */
 function mapTransactionFromCheckoutSession(session: Raw): TransactionData {
   const amounts = sessionAmounts(session);
@@ -222,6 +235,7 @@ function mapTransactionFromCheckoutSession(session: Raw): TransactionData {
     amountSubtotalCents: amounts.subtotal,
     amountDiscountCents: amounts.discount,
     amountTaxCents: amounts.tax,
+    promotionCodeIds: sessionPromotionCodeIds(session),
   };
 }
 

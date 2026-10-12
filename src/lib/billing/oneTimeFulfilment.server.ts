@@ -55,6 +55,15 @@ export interface OneTimeTransaction {
   amountDiscountCents?: number | null;
   /** Podatek doliczony przez operatora (`total_details.amount_tax`). */
   amountTaxCents?: number | null;
+  /** Kody promocyjne operatora z sesji (`TransactionData.promotionCodeIds`). */
+  promotionCodeIds?: string[] | null;
+  /**
+   * Skąd pochodzi transakcja (`TransactionData.source`): sesja Checkout albo
+   * faktura subskrypcji (pierwsza opłacona faktura domyka zamówienie trialu).
+   */
+  source?: "checkout_session" | "invoice" | null;
+  /** Chwila pobrania wg operatora (czas zdarzenia) - `paid_at` zamówienia. */
+  paidAt?: string | null;
 }
 
 export type OneTimeOutcome = "skipped" | "order" | "donation" | "oversold_refunded";

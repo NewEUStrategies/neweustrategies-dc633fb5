@@ -24,6 +24,19 @@ export interface EntitlementSyncInput {
   status: ProviderSubscriptionStatus;
   /** Koniec opłaconego okresu wg operatora; `null` = brak wygaśnięcia. */
   periodEnd: string | null;
+  /**
+   * Początek okresu rozliczeniowego, którego dotyczy stan (`current_period_start`).
+   * Uprawnienie `refunded` (zwrot albo spór bieżącego okresu, `canceled_at` =
+   * chwila korekty) wraca do życia WYŁĄCZNIE dla okresu, który zaczął się PO
+   * korekcie - czyli po kolejnym opłaconym odnowieniu. Ten sam okres
+   * (`subscription.updated`, synchronizacja na żądanie) go nie wskrzesza.
+   */
+  periodStart?: string | null;
+  /**
+   * Przywrócenie z rozstrzygnięcia na naszą korzyść (wygrany spór): stan
+   * operatora nadpisuje `refunded` niezależnie od okresu.
+   */
+  force?: boolean;
 }
 
 /**

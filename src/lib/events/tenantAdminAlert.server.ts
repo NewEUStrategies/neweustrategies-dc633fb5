@@ -18,6 +18,15 @@
 // z danymi osobowymi - wołający składa tytuł i treść z identyfikatorów.
 // Każdy dzwonek przez `enqueue_notification` (najemca z profilu odbiorcy,
 // deduplikacja, push). Nigdy nie rzuca: zwraca liczbę dostarczonych dzwonków.
+//
+// RAZ NA ZDARZENIE (`once`). Deduplikacja `enqueue_notification` trwa pięć
+// minut i klucz ma postać (odbiorca, rodzaj, href): DWA różne spory ze
+// wspólnym `/admin/billing` w tym oknie dawały jeden dzwonek, a ponowienie
+// tego samego zdarzenia po kwadransie (redelivery operatora, przegląd
+// zaległych zdarzeń) - drugi. Wołający, który przekazuje `once`, składa href
+// unikalny dla zdarzenia (np. spór + faza), a tu każdy odbiorca, który ma już
+// dzwonek z tym href, jest pomijany - po indeksie `(user_id, tenant_id, ...)`.
+// Awaria tego odczytu NIE wstrzymuje alertu: lepszy duplikat niż cisza.
 
 export interface TenantAdminAlertInput {
   tenantId: string;
@@ -28,6 +37,8 @@ export interface TenantAdminAlertInput {
   href: string;
   kind?: "billing" | "event";
   icon?: "credit-card" | "calendar-clock";
+  /** Pomiń odbiorcę, który już dostał dzwonek z tym `href` (patrz nagłówek). */
+  once?: boolean;
 }
 
 const ADMIN_ROLES = ["admin", "super_admin"] as const;
@@ -51,11 +62,29 @@ export async function notifyTenantAdmins(input: TenantAdminAlertInput): Promise<
       .in("id", ids);
     if (profilesError) throw profilesError;
 
+    const kind = input.kind ?? "billing";
     let delivered = 0;
     for (const profile of profiles ?? []) {
+      if (input.once) {
+        const { data: seen, error: seenError } = await supabaseAdmin
+          .from("notifications")
+          .select("id")
+          .eq("user_id", profile.id)
+          .eq("tenant_id", input.tenantId)
+          .eq("kind", kind)
+          .eq("href", input.href)
+          .limit(1);
+        if (seenError) {
+          console.warn("[tenantAdminAlert] once lookup failed", { error: seenError.message });
+        } else if ((seen ?? []).length > 0) {
+          // Dzwonek już leży u odbiorcy - liczy się jako dostarczony.
+          delivered += 1;
+          continue;
+        }
+      }
       const { data, error } = await supabaseAdmin.rpc("enqueue_notification", {
         p_user_id: profile.id,
-        p_kind: input.kind ?? "billing",
+        p_kind: kind,
         p_title_pl: input.titlePl,
         p_title_en: input.titleEn,
         p_body_pl: input.bodyPl,

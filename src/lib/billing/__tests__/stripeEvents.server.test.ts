@@ -345,7 +345,26 @@ describe("normalizeStripeEvent - sesje checkout", () => {
       amountSubtotalCents: null,
       amountDiscountCents: null,
       amountTaxCents: null,
+      promotionCodeIds: [],
     });
+  });
+
+  it("zbiera kody promocyjne operatora z `discounts`, pomijając NASZ kupon (bez kodu)", () => {
+    const data = transactionOf(
+      event(
+        "checkout.session.completed",
+        session({
+          discounts: [
+            { coupon: "co_ours", promotion_code: null },
+            { coupon: null, promotion_code: "promo_1" },
+            // Rozwinięty obiekt kodu i powtórka tego samego id - jedna pozycja.
+            { coupon: null, promotion_code: { id: "promo_2", object: "promotion_code" } },
+            { coupon: null, promotion_code: "promo_1" },
+          ],
+        }),
+      ),
+    );
+    expect(data.promotionCodeIds).toEqual(["promo_1", "promo_2"]);
   });
 
   it("ODRZUCA sesję nieopłaconą - pieniędzy jeszcze nie ma na koncie", () => {
