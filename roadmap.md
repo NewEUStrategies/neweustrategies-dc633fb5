@@ -1,5 +1,9 @@
 # Roadmap
 
+## Szczegóły prelegenta
+- [ ] Zmniejszyć odstęp nazwisko/stanowisko oraz pokazać uzupełniony biogram, social media i dozwolony kontakt w oknie profilu.
+- [ ] Zweryfikować przepływ danych testami i działające okno prelegenta.
+
 ## Jednolity pomarańczowy akcent
 - [x] Ujednolicić akcenty marki i zamienniki złota w obu motywach.
 - [x] Poprawić stary pomarańcz ścieżek programu i prelegentów bez zmiany danych.
