@@ -1142,6 +1142,13 @@
       "when": 1791837278312,
       "tag": "0162_billing_documents_follow_order_refund",
       "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1791837331190,
+      "tag": "0163_event_speaker_detail_safe_projection_supabase_lane",
+      "breakpoints": true
     }
   ]
 }
