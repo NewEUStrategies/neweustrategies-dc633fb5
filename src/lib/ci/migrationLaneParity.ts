@@ -748,18 +748,18 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   {
     tag: "0150_event_speaker_detail_safe_projection",
     drizzleOnly:
-      "Wersja event_speaker_detail z panelu Lovable: gałąź ELSE e-maila czyta ap.contact_email z author_profiles_public. Port 20261012123000 celowo oddaje tam NULL (widok w pasie supabase nie ma tej kolumny), więc SQL się różni i bliźniaka nie ma; produkcję wyrównuje 0151.",
+      "Wersja event_speaker_detail z panelu Lovable: gałąź ELSE e-maila czyta ap.contact_email z author_profiles_public. Port 20261012123000 celowo oddaje tam NULL (widok w pasie supabase nie ma tej kolumny), więc SQL się różni i bliźniaka nie ma; produkcję wyrównuje 0163.",
   },
   {
-    tag: "0151_event_speaker_detail_author_email_null",
+    tag: "0163_event_speaker_detail_safe_projection_supabase_lane",
     twin: "20261012123000_event_speaker_detail_safe_projection.sql",
   },
   {
-    tag: "0152_author_profiles_public_drop_contact_email",
+    tag: "0164_author_profiles_public_drop_contact_email",
     twin: "20261012200000_author_profiles_public_drop_contact_email.sql",
   },
   {
-    tag: "0153_public_definer_views_read_only",
+    tag: "0165_public_definer_views_read_only",
     twin: "20261012210000_public_definer_views_read_only.sql",
   },
 ];

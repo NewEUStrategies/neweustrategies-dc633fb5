@@ -21,9 +21,10 @@
 --       tego samego wycieku (okno prelegenta z kontem autora, zalogowany
 --       gosc). Bez podmiany funkcji usuniecie kolumny konczyloby kazde
 --       wywolanie RPC bledem 42703. Podmienia ja 20261012123000 (e-mail
---       autora NULL), ktora w tym pasie wykonuje sie PRZED ta migracja;
---       bliznieta drizzle 0151 i 0152 ida w tej samej kolejnosci, wiec na
---       produkcji funkcja nigdy nie czyta usunietej kolumny.
+--       autora NULL), ktora w tym pasie wykonuje sie PRZED ta migracja; na
+--       produkcji jej replika drizzle 0163 jest juz wgrana (sprawdzone
+--       2026-10-12: cialo event_speaker_detail nie czyta contact_email),
+--       wiec funkcja nie siega po usuwana kolumne w zadnej kolejnosci.
 --
 --   D3  Widok ma ACL `arwdDxtm` dla anon i authenticated (domyslne
 --       uprawnienia schematu public przy CREATE VIEW; GRANT SELECT ich nie
@@ -46,15 +47,16 @@
 -- najemcy (admin_get_author_profile) i service_role. get_expert_hub na
 -- produkcji juz nie czyta contact_email - bez zmian.
 --
--- Pas drizzle: drizzle/migrations/0152_author_profiles_public_drop_contact_email.sql
--- (blizniak - ten sam SQL wykonywalny); 20261012123000 ma blizniaka 0151.
+-- Pas drizzle: drizzle/migrations/0164_author_profiles_public_drop_contact_email.sql
+-- (blizniak - ten sam SQL wykonywalny).
 -- BEZ wpisu do supabase_migrations.schema_migrations z pasa drizzle (inaczej
--- niz 0149): ta wersja jest nowsza od 20261012095900..20261012122000, ktorych
--- produkcja jeszcze nie ma, a `supabase db push` bez `--include-all`
--- (scripts/migrate-with-preflight.sh) pomija wersje starsze od glowy
--- rejestru - wpis z wyprzedzeniem zgubilby je tak, jak zgubil 20260730120000.
--- Wersje zapisze sam push; SQL jest idempotentny, wiec ponowne wykonanie po
--- blizniaku drizzle niczego nie zmienia.
+-- niz 0149): rejestr produkcji nie notuje jeszcze 20261012095900..
+-- 20261012123000 (ich SQL wykonaly repliki drizzle 0151-0163, wpisow brak),
+-- a `supabase db push` bez `--include-all` (scripts/migrate-with-preflight.sh)
+-- pomija wersje starsze od glowy rejestru - wpis z wyprzedzeniem przesunalby
+-- glowe ponad nie, tak jak przesuniecie glowy zgubilo 20260730120000.
+-- Wersje rejestru uzgadnia sie razem z tamta paczka; SQL jest idempotentny,
+-- wiec ponowne wykonanie po blizniaku drizzle niczego nie zmienia.
 -- IDEMPOTENTNA: DROP IF EXISTS + CREATE, REVOKE/GRANT, COMMENT.
 -- DOWOD: supabase/tests/author_contact_privacy_test.sql,
 -- public_definer_views_read_only_test.sql.

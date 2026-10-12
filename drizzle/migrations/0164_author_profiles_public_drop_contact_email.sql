@@ -1,5 +1,6 @@
 -- Twin of supabase/migrations/20261012200000_author_profiles_public_drop_contact_email.sql (same executable SQL).
--- Rationale and the measured production drift live in that file.
+-- Rationale and the measured production drift live in that file. event_speaker_detail no longer
+-- reads ap.contact_email on production (0163), so the column can go.
 -- ---------- 1) author_profiles_public: projekcja bez kanalow kontaktu --------
 DROP VIEW IF EXISTS public.author_profiles_public;
 

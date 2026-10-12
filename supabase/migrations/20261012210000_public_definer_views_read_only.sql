@@ -48,10 +48,10 @@
 -- SELECT. Lokalne domyslne uprawnienia (Dxtm) sprawiaja, ze nowy widok
 -- DEFINER bez jawnego REVOKE ALL oblewa ten test w CI.
 --
--- Pas drizzle: drizzle/migrations/0153_public_definer_views_read_only.sql
+-- Pas drizzle: drizzle/migrations/0165_public_definer_views_read_only.sql
 -- (blizniak - ten sam SQL wykonywalny). Bez wpisu rejestru z pasa drizzle -
 -- powod jak w 20261012200000 (glowa rejestru nie moze wyprzedzic wersji
--- 20261012095900..20261012122000, ktorych produkcja jeszcze nie ma).
+-- 20261012095900..20261012123000, ktorych rejestr produkcji jeszcze nie ma).
 --
 -- careers-harness wybiera pliki po tresci (`public.career_`), wiec wciaga
 -- ten plik przez career_page_sections_public, a potem odbija sie od

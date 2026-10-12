@@ -57,14 +57,18 @@ SELECT ok(
   'anon i authenticated czytają author_profiles_public (SELECT zostaje)'
 );
 SELECT ok(
-  NOT has_table_privilege('anon', 'public.author_profiles_public',
-    'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'),
-  'anon NIE ma żadnego prawa zapisu do author_profiles_public'
+  NOT has_any_column_privilege('anon', 'public.author_profiles_public',
+    'INSERT, UPDATE, REFERENCES')
+    AND NOT has_table_privilege('anon', 'public.author_profiles_public',
+      'DELETE, TRUNCATE, TRIGGER'),
+  'anon NIE ma żadnego prawa zapisu do author_profiles_public (ani na widoku, ani kolumnowo)'
 );
 SELECT ok(
-  NOT has_table_privilege('authenticated', 'public.author_profiles_public',
-    'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER'),
-  'authenticated NIE ma żadnego prawa zapisu do author_profiles_public'
+  NOT has_any_column_privilege('authenticated', 'public.author_profiles_public',
+    'INSERT, UPDATE, REFERENCES')
+    AND NOT has_table_privilege('authenticated', 'public.author_profiles_public',
+      'DELETE, TRUNCATE, TRIGGER'),
+  'authenticated NIE ma żadnego prawa zapisu do author_profiles_public (ani na widoku, ani kolumnowo)'
 );
 SELECT ok(
   pg_get_functiondef('public.event_speaker_detail(uuid,uuid,boolean)'::regprocedure) !~ 'contact_email',
