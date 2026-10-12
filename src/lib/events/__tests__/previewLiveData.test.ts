@@ -863,6 +863,10 @@ describe("speakerRowsFromAdminEntries", () => {
 });
 
 describe("speakerRowsFromAdminEntries - naglowek i pola karty rozwijanej", () => {
+  it("preserves speaker bio supplied by the studio in both languages", () => {
+    const [row] = speakerRowsFromAdminEntries([speakerEntry({ bio_pl: "Biogram", bio_en: "Biography" })]);
+    expect(row).toMatchObject({ bio_pl: "Biogram", bio_en: "Biography" });
+  });
   it("naglowek sceniczny jedzie do karty w obu jezykach", () => {
     const [row] = speakerRowsFromAdminEntries([
       speakerEntry({ headline_pl: "Szefowa programu", headline_en: "Head of programme" }),

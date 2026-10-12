@@ -334,9 +334,16 @@ export function DirectoryPersonView({
         </DirectorySection>
       ) : null}
 
+      {detail?.email || detail?.phone ? (
+        <DirectorySection title={t("eventFront.directory.contact")} index={next()}>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-foreground/85">
+            {detail.email ? <a className="break-all underline-offset-4 hover:underline" href={`mailto:${detail.email}`}>{detail.email}</a> : null}
+            {detail.phone ? <a className="underline-offset-4 hover:underline" href={`tel:${detail.phone.replace(/[\s().-]/g, "")}`}>{detail.phone}</a> : null}
+          </div>
+        </DirectorySection>
+      ) : null}
+
       {otherEngagements.length > 0 ? (
-        <DirectorySection title={t("eventFront.directory.otherEngagements")} index={next()}>
-          <ul className="divide-y divide-border/60">
         <DirectorySection title={t("eventFront.directory.otherEngagements")} index={next()}>
           <ul className="divide-y divide-border/60">
             {otherEngagements.map((item) => (

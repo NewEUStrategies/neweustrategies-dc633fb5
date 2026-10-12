@@ -9,7 +9,8 @@
 
 - Use `tsgo --noEmit` to meet the preview gate timeout.
 
-- Call Supabase with literal RPC/table names and keep each client grant equal to what the TypeScript callers use (server-only RPCs executable by `service_role` alone, private columns outside public column constants such as `PUBLIC_AD_SLOT_COLUMNS`, identity like tenant/company/user derived from the session, never from a request payload), because the generated TS↔SQL pgTAP contract (`bun run generate:ts-sql-contract`) checks every call against the real schema in CI.
+- Use literal RPC/table names and matching grants (server-only: `service_role`; private columns outside public constants; tenant/company/user from session, never payload), because `bun run generate:ts-sql-contract` checks the live schema in CI.
+- Load speaker bio/social/contact on dialog open through the tenant-scoped detail RPC; apply existing contact visibility in SQL even in preview, to prevent admin-only PII leaks.
 
 - Keep club content-kind navigation in the shared rail, reuse thread-kind icons, and resolve its filter from validated URL search so workspace links and browser history stay synchronized.
 
