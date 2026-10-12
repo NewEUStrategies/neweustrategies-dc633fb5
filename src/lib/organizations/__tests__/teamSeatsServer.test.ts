@@ -330,6 +330,47 @@ describe("applySubscriptionOrgState", () => {
     expect((h.state.updates[0].values as { status: string }).status).toBe("suspended");
   });
 
+  // Audyt SUB-03: zaległość planu Zespół podlega TEJ SAMEJ karencji co plan
+  // indywidualny - w karencji zespół pracuje, po niej jest zawieszony.
+  it("zaległość w karencji zostawia zespół aktywny, po karencji go zawiesza", async () => {
+    h.state.updateResult = { data: [{ id: ORG_ID }], error: null };
+    for (const status of ["past_due", "unpaid"]) {
+      await applySubscriptionOrgState({
+        subscriptionId: "sub_1",
+        status,
+        priceId: PER_SEAT_PRICE,
+        accessUntil: iso(5 * DAY),
+      });
+      await applySubscriptionOrgState({
+        subscriptionId: "sub_1",
+        status,
+        priceId: PER_SEAT_PRICE,
+        accessUntil: iso(-1 * DAY),
+      });
+    }
+    expect(h.state.updates.map((u) => (u.values as { status: string }).status)).toEqual([
+      "active",
+      "suspended",
+      "active",
+      "suspended",
+    ]);
+  });
+
+  it("karencja nie otwiera dostępu pauzie, anulowaniu ani niezapłaconemu startowi", async () => {
+    h.state.updateResult = { data: [{ id: ORG_ID }], error: null };
+    for (const status of ["paused", "canceled", "incomplete", "incomplete_expired"]) {
+      await applySubscriptionOrgState({
+        subscriptionId: "sub_1",
+        status,
+        priceId: PER_SEAT_PRICE,
+        accessUntil: iso(5 * DAY),
+      });
+    }
+    expect(
+      h.state.updates.every((u) => (u.values as { status: string }).status === "suspended"),
+    ).toBe(true);
+  });
+
   it("brak trafionej organizacji to brak zmiany", async () => {
     h.state.updateResult = { data: [], error: null };
     expect(

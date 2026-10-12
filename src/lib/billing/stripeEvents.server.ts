@@ -88,6 +88,41 @@ function mapSubscriptionItems(sub: Raw): SubscriptionData["items"] {
   });
 }
 
+/**
+ * Statusy, które pauza poboru (`pause_collection`) przykrywa stanem `paused`.
+ * Subskrypcja zakończona albo nigdy nieopłacona nie ma czego wstrzymywać.
+ */
+const PAUSABLE_STATUSES = new Set(["active", "trialing", "past_due", "unpaid"]);
+
+/**
+ * Pauza poboru z panelu operatora albo z naszego `pauseSubscription`.
+ *
+ * Stripe NIE zmienia przy niej `status` (zostaje `active`), tylko ustawia
+ * `pause_collection` - a mapowanie czytało wyłącznie `status`, więc pauza
+ * zostawiała pełny dostęp bez płatności (audyt SUB-14). `behavior` zostaje
+ * w modelu domenowym, bo od niego zależy wznowienie: pauzę poboru zdejmuje
+ * `pause_collection: null`, a status `paused` (koniec triala bez metody
+ * płatności) - dopiero `subscriptions.resume`.
+ */
+function mapPauseCollection(sub: Raw): SubscriptionData["pauseCollection"] {
+  const pause = isRecord(sub.pause_collection) ? sub.pause_collection : null;
+  const behavior = strOf(pause?.behavior);
+  if (!behavior) return undefined;
+  return { behavior, resumesAt: isoFromUnix(pause?.resumes_at) };
+}
+
+/**
+ * Zaplanowana rezygnacja: `cancel_at_period_end` albo konkretna data
+ * `cancel_at` (panel operatora i portal klienta potrafią ustawić tylko ją).
+ * Dla subskrypcji już zakończonej `cancel_at` jest historią, nie planem.
+ */
+function mapScheduledChange(sub: Raw, status: string): SubscriptionData["scheduledChange"] {
+  if (sub.cancel_at_period_end === true) return { action: "cancel" };
+  const cancelAt = isoFromUnix(sub.cancel_at);
+  if (cancelAt && status !== "canceled") return { action: "cancel", effectiveAt: cancelAt };
+  return null;
+}
+
 /** Mapuje obiekt subskrypcji Stripe (API Basil) na `SubscriptionData`. */
 export function mapStripeSubscription(sub: Raw): SubscriptionData {
   const items = mapSubscriptionItems(sub);
@@ -100,11 +135,17 @@ export function mapStripeSubscription(sub: Raw): SubscriptionData {
   const periodEnd = item.current_period_end ?? sub.current_period_end;
 
   const metadata = isRecord(sub.metadata) ? sub.metadata : null;
+  const rawStatus = strOf(sub.status) ?? "";
+  const pauseCollection = mapPauseCollection(sub);
+  // Pauza poboru = brak płatnego dostępu i stan „wstrzymana" w panelu. Dalsza
+  // obsługa (uprawnienie, zespół, CRM, mail) zna już tylko status `paused`.
+  const status = pauseCollection && PAUSABLE_STATUSES.has(rawStatus) ? "paused" : rawStatus;
+  const cancellation = isRecord(sub.cancellation_details) ? sub.cancellation_details : null;
 
   return {
     id: idOf(sub.id) ?? "",
     customerId: idOf(sub.customer) ?? "",
-    status: strOf(sub.status) ?? "",
+    status,
     customData: {
       userId: strOf(metadata?.userId) ?? undefined,
       purpose: strOf(metadata?.purpose) ?? undefined,
@@ -117,7 +158,11 @@ export function mapStripeSubscription(sub: Raw): SubscriptionData {
       startsAt: isoFromUnix(periodStart) ?? undefined,
       endsAt: isoFromUnix(periodEnd) ?? undefined,
     },
-    scheduledChange: sub.cancel_at_period_end === true ? { action: "cancel" } : null,
+    scheduledChange: mapScheduledChange(sub, status),
+    // Powód zakończenia rozstrzyga o dostępie po `customer.subscription.deleted`:
+    // rezygnacja zostawia opłacony okres, koniec windykacji - tylko karencję.
+    cancellationReason: strOf(cancellation?.reason) ?? undefined,
+    pauseCollection,
     items,
   };
 }
@@ -206,6 +251,14 @@ function mapTransactionFromInvoice(invoice: Raw): TransactionData & Raw {
     customer: { email: strOf(invoice.customer_email) },
     details: { totals: { grandTotal: grandTotal !== null ? String(grandTotal) : null } },
     billingPeriod: { endsAt: isoFromUnix(period?.end) },
+    // Windykacja: wszystkie ponowienia jednej faktury niosą TEN SAM `id`,
+    // więc to numer próby odróżnia kolejną porażkę od powtórki zdarzenia,
+    // a `next_payment_attempt` jest terminem, który klient ma dostać w mailu.
+    attemptCount:
+      typeof invoice.attempt_count === "number" && Number.isFinite(invoice.attempt_count)
+        ? invoice.attempt_count
+        : null,
+    nextPaymentAttemptAt: isoFromUnix(invoice.next_payment_attempt),
     // Pola dokumentu rozliczeniowego - odczytywane przez `billingDocuments.server`.
     status: "completed",
     invoiceNumber: strOf(invoice.number),
@@ -283,8 +336,10 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
       return { eventType: "subscription.created", data: mapStripeSubscription(object) };
 
     case "customer.subscription.updated": {
-      const status = strOf(object.status);
-      return { eventType: subscriptionEventType(status), data: mapStripeSubscription(object) };
+      // Typ zdarzenia z ZNORMALIZOWANEGO statusu: pauza poboru przy statusie
+      // operatora `active` ma iść jako `subscription.paused`.
+      const data = mapStripeSubscription(object);
+      return { eventType: subscriptionEventType(data.status || null), data };
     }
 
     case "customer.subscription.deleted":
@@ -315,6 +370,15 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
         data: mapTransactionFromCheckoutSession(object),
       };
 
+    // Oba zdarzenia opisują TĘ SAMĄ opłaconą fakturę i oba zostają: lista
+    // zdarzeń subskrybowanych przez punkt odbioru żyje po stronie operatora
+    // (kod jej nie zna), a dokumentacja wdrożenia opiera odnowienia na
+    // `invoice.payment_succeeded`, nowszy kod na `invoice.paid`. Porzucenie
+    // jednego z nich mogłoby zgubić każde odnowienie. Jednokrotność obsługi
+    // daje odbiorca: dokument i wpłata darowizny są idempotentne po
+    // identyfikatorze faktury, a zamknięcie windykacji jest atomowym zajęciem
+    // otwartego cyklu (`applyPaymentRecoveredEffects`) - drugie zdarzenie nie
+    // ma już czego zamknąć.
     case "invoice.paid":
     case "invoice.payment_succeeded":
       return { eventType: "transaction.completed", data: mapTransactionFromInvoice(object) };

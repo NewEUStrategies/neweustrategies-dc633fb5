@@ -142,16 +142,27 @@ interface SubscriptionsPlan {
   claimError?: string;
   lookupError?: string;
   writeError?: string;
+  /**
+   * Czy wstawienie-jeśli-brak (`upsert(..., { ignoreDuplicates })
+   * .select("id")`) zapisało wiersz. Domyślnie tak (wiersza nie było);
+   * `false` = konflikt, wiersz już istnieje.
+   */
+  inserted?: boolean;
 }
 
 /**
- * Jeden responder na tabelę `subscriptions` rozróżnia TRZY różne zapytania,
+ * Jeden responder na tabelę `subscriptions` rozróżnia CZTERY różne zapytania,
  * które robi ta ścieżka: warunkowy UPDATE strażnika kolejności
- * (`update(...).select("id")` - zwraca wiersze), odczyt stanu (`maybeSingle`)
- * i zwykły zapis (`update` / `upsert`).
+ * (`update(...).select("id")` - zwraca wiersze), wstawienie-jeśli-brak
+ * (`upsert(...).select("id")` - zwraca wstawione wiersze), odczyt stanu
+ * (`maybeSingle`) i zwykły zapis (`update`).
  */
 function subscriptionsResponder(plan: SubscriptionsPlan): TableResponder {
   return (chain: RecordedChain) => {
+    if (chain.has("upsert") && chain.has("select")) {
+      if (plan.writeError) return fail(plan.writeError);
+      return ok(plan.inserted === false ? [] : [{ id: "row_nowy" }]);
+    }
     if (chain.has("update") && chain.has("select")) {
       if (plan.claimError) return fail(plan.claimError);
       return ok(plan.claimed === false ? [] : [{ id: "row_dziennika" }]);

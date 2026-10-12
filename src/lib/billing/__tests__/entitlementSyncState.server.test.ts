@@ -41,7 +41,7 @@ freezeClock();
 const SUB = "sub_1SyntetyczneUprawnienie";
 
 interface Plan {
-  existing: { id: string; status: string } | null;
+  existing: { id: string; status: string; canceled_at?: string | null } | null;
   read?: SupabaseResult;
   update?: SupabaseResult;
   insert?: SupabaseResult;
@@ -116,6 +116,53 @@ describe("syncEntitlementState - zapis uprawnienia", () => {
       canceled_at: FIXED_NOW_ISO,
     });
     expect(writeOf("insert").chain).toBeUndefined();
+  });
+
+  // Audyt SUB-14: `canceled_at` niesie „rezygnacja zaplanowana" dla panelu
+  // klienta i lokalnego `resumeSubscription` - zdarzenie operatora nie może go
+  // ani skasować, ani przestemplować na „teraz".
+  describe("canceled_at - kontrakt zaplanowanej rezygnacji", () => {
+    const localCancel = relativeIso(-3 * DZIEN);
+
+    it("zaplanowana rezygnacja zachowuje datę lokalnego anulowania", async () => {
+      plan({ existing: { id: "us-1", status: "active", canceled_at: localCancel } });
+
+      await syncEntitlementState(input({ cancelAtPeriodEnd: true }));
+
+      expect(writeOf("update").row).toMatchObject({ status: "active", canceled_at: localCancel });
+    });
+
+    it("stan końcowy też nie przestemplowuje zapisanej daty", async () => {
+      plan({ existing: { id: "us-1", status: "active", canceled_at: localCancel } });
+
+      await syncEntitlementState(input({ status: "canceled" }));
+
+      expect(writeOf("update").row?.canceled_at).toBe(localCancel);
+    });
+
+    it("zaplanowana rezygnacja bez zapisanej daty dostaje „teraz”", async () => {
+      plan({ existing: { id: "us-1", status: "active" } });
+
+      await syncEntitlementState(input({ cancelAtPeriodEnd: true }));
+
+      expect(writeOf("update").row?.canceled_at).toBe(FIXED_NOW_ISO);
+    });
+
+    it("jawny brak rezygnacji u operatora (wznowienie) czyści datę", async () => {
+      plan({ existing: { id: "us-1", status: "active", canceled_at: localCancel } });
+
+      await syncEntitlementState(input({ cancelAtPeriodEnd: false }));
+
+      expect(writeOf("update").row?.canceled_at).toBeNull();
+    });
+
+    it("wołający bez wiedzy o stanie operatora zostawia datę bez zmian", async () => {
+      plan({ existing: { id: "us-1", status: "active", canceled_at: localCancel } });
+
+      await syncEntitlementState(input());
+
+      expect(writeOf("update").row?.canceled_at).toBe(localCancel);
+    });
   });
 
   it("uprawnienie odebrane po zwrocie jest ostateczne - spóźnione zdarzenie go nie wskrzesza", async () => {

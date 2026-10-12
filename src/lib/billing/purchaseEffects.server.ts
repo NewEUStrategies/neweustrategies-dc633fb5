@@ -7,6 +7,7 @@ import {
   type ProviderSubscriptionStatus,
 } from "@/lib/billing/entitlementSync.server";
 import { notifySubscriptionEmail } from "@/lib/billing/notifications.server";
+import { isEntitledSubscriptionStatus } from "@/lib/billing/accessPeriod";
 import { catalogEntryByPriceId, type PlanBillingInterval } from "@/lib/billing/catalog";
 import {
   buildPremiumNewsletterConsentEntry,
@@ -31,6 +32,18 @@ export interface PurchaseContext {
   environment: "sandbox" | "live";
   /** Status subskrypcji u operatora; domyślnie `active`. */
   status?: ProviderSubscriptionStatus;
+  /**
+   * Zaplanowana rezygnacja u operatora - steruje `canceled_at` uprawnienia
+   * (`syncEntitlementState`). Brak = wołający nie zna stanu, data bez zmian.
+   */
+  cancelAtPeriodEnd?: boolean;
+  /**
+   * Atomowe zajęcie potwierdzenia zakupu (`subscriptions.purchase_confirmed_at`)
+   * - wołane PO zapisie uprawnienia, tuż przed mailem, CRM, newsletterem
+   * i dzwonkiem. `false` = potwierdzenie już wyszło (powtórka, równoległe
+   * zdarzenie), więc efekty nie idą drugi raz. Brak = bez zajęcia.
+   */
+  claimConfirmation?: () => Promise<boolean>;
   /**
    * Najemca z wiersza `subscriptions`, gdy wołający go zna - oszczędza odczyt
    * profilu przy odwzorowaniu ceny na plan (`PlanScope`).
@@ -426,7 +439,22 @@ async function subscribePremiumNewsletter(params: {
   }
 }
 
-/** Nowa subskrypcja: dostęp + mail + CRM + newsletter + powiadomienie. */
+/**
+ * Nowa subskrypcja: dostęp + mail + CRM + newsletter + powiadomienie.
+ *
+ * POTWIERDZENIE TYLKO ZA ZAPŁACONY STAN. Uprawnienie synchronizujemy zawsze
+ * (stan operatora wygrywa z domyślnym „active"), ale mail „subskrypcja
+ * potwierdzona", CRM „won", newsletter premium i dzwonek „Subskrypcja aktywna"
+ * wychodzą WYŁĄCZNIE przy `active` / `trialing`. Checkout zakłada subskrypcję
+ * jako `incomplete`, zanim przejdzie płatność (3DS, przelew) - porzucone 3DS
+ * (`incomplete_expired`) zostawiało klientowi potwierdzenie zakupu, którego
+ * nie było (audyt SUB-02).
+ *
+ * JEDNOKROTNOŚĆ: webhook (`webhookDispatch.server`) podaje `claimConfirmation`
+ * - atomowe zajęcie `subscriptions.purchase_confirmed_at`. Zajęcie idzie PO
+ * zapisie uprawnienia, więc awaria zapisu (wyjątek, operator ponawia
+ * zdarzenie) nie „zużywa" potwierdzenia, a powtórka po sukcesie go nie dubluje.
+ */
 export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> {
   const plan = await resolvePlanForPrice(ctx.priceId, {
     tenantId: ctx.tenantId,
@@ -444,7 +472,11 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     externalRef: ctx.subscriptionId,
     status: ctx.status ?? "active",
     periodEnd: ctx.periodEnd,
+    cancelAtPeriodEnd: ctx.cancelAtPeriodEnd,
   });
+
+  if (!isEntitledSubscriptionStatus(ctx.status ?? "active")) return;
+  if (ctx.claimConfirmation && !(await ctx.claimConfirmation())) return;
 
   await notifySubscriptionEmail({
     kind: "subscription_confirmed",
@@ -543,6 +575,7 @@ export async function applyPlanChangeEffects(
     externalRef: ctx.subscriptionId,
     status: ctx.status ?? "active",
     periodEnd: ctx.periodEnd,
+    cancelAtPeriodEnd: ctx.cancelAtPeriodEnd,
   });
 
   // Upgrade rozlicza się od razu: różnica cen za pozostałą część okresu to

@@ -20320,17 +20320,20 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           environment: string
+          first_payment_failed_at: string | null
           id: string
           last_dunning_at: string | null
           last_dunning_transaction_id: string | null
           last_event_at: string | null
           last_payment_at: string | null
           last_payment_failed_at: string | null
+          pause_collection_behavior: string | null
           payment_failure_count: number
           price_id: string
           product_id: string
           provider_customer_id: string
           provider_subscription_id: string
+          purchase_confirmed_at: string | null
           quantity: number
           status: string
           tenant_id: string
@@ -20344,17 +20347,20 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           environment?: string
+          first_payment_failed_at?: string | null
           id?: string
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
           last_event_at?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
+          pause_collection_behavior?: string | null
           payment_failure_count?: number
           price_id: string
           product_id: string
           provider_customer_id: string
           provider_subscription_id: string
+          purchase_confirmed_at?: string | null
           quantity?: number
           status?: string
           tenant_id?: string
@@ -20368,17 +20374,20 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           environment?: string
+          first_payment_failed_at?: string | null
           id?: string
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
           last_event_at?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
+          pause_collection_behavior?: string | null
           payment_failure_count?: number
           price_id?: string
           product_id?: string
           provider_customer_id?: string
           provider_subscription_id?: string
+          purchase_confirmed_at?: string | null
           quantity?: number
           status?: string
           tenant_id?: string

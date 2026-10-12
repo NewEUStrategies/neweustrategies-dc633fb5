@@ -769,3 +769,78 @@ describe("normalizeStripeEvent - zakres integracji", () => {
     expect(e).toEqual(snapshot);
   });
 });
+
+// Audyt SUB-03 / SUB-14 / SUB-16: pola, od których zależy dostęp i windykacja.
+describe("mapStripeSubscription - pauza poboru, powód anulowania, rezygnacja datą", () => {
+  it("pauza poboru przy statusie active to `paused` z zachowanym sposobem pauzy", () => {
+    const raw = stripeSubscription({
+      pause_collection: { behavior: "void", resumes_at: 1_710_000_000 },
+    });
+    const data = mapStripeSubscription(raw);
+
+    expect(data.status).toBe("paused");
+    expect(data.pauseCollection).toEqual({
+      behavior: "void",
+      resumesAt: "2024-03-09T16:00:00.000Z",
+    });
+    expect(normalized(event("customer.subscription.updated", raw)).eventType).toBe(
+      "subscription.paused",
+    );
+  });
+
+  it("zdjęta pauza poboru wraca do statusu operatora", () => {
+    const data = mapStripeSubscription(stripeSubscription({ pause_collection: null }));
+    expect(data.status).toBe("active");
+    expect(data.pauseCollection).toBeUndefined();
+  });
+
+  it("pauza poboru nie przykrywa subskrypcji zakończonej ani nieopłaconej", () => {
+    for (const status of ["canceled", "incomplete", "incomplete_expired"]) {
+      const data = mapStripeSubscription(
+        stripeSubscription({ status, pause_collection: { behavior: "keep_as_draft" } }),
+      );
+      expect(data.status, status).toBe(status);
+    }
+  });
+
+  it("przenosi `cancellation_details.reason` do modelu domenowego", () => {
+    const data = mapStripeSubscription(
+      stripeSubscription({
+        status: "canceled",
+        cancellation_details: { reason: "payment_failed" },
+      }),
+    );
+    expect(data.cancellationReason).toBe("payment_failed");
+  });
+
+  it("rezygnacja zaplanowana datą `cancel_at` jest zaplanowaną rezygnacją", () => {
+    expect(
+      mapStripeSubscription(stripeSubscription({ cancel_at: 1_702_000_000 })).scheduledChange,
+    ).toEqual({ action: "cancel", effectiveAt: "2023-12-08T01:46:40.000Z" });
+    // Po zakończeniu subskrypcji `cancel_at` jest historią, nie planem.
+    expect(
+      mapStripeSubscription(stripeSubscription({ status: "canceled", cancel_at: 1_702_000_000 }))
+        .scheduledChange,
+    ).toBeNull();
+  });
+});
+
+describe("normalizeStripeEvent - próby obciążenia faktury", () => {
+  it("niesie numer próby i termin kolejnej próby", () => {
+    const data = transactionOf(
+      event("invoice.payment_failed", {
+        id: "in_1",
+        attempt_count: 3,
+        next_payment_attempt: 1_800_000_000,
+      }),
+    );
+    expect(data.attemptCount).toBe(3);
+    expect(data.nextPaymentAttemptAt).toBe("2027-01-15T08:00:00.000Z");
+  });
+
+  it("bez pól próby zostawia puste wartości zamiast zgadywać", () => {
+    const data = transactionOf(event("invoice.payment_failed", { id: "in_1", attempt_count: "3" }));
+    expect(data.attemptCount).toBeNull();
+    expect(data.nextPaymentAttemptAt).toBeNull();
+  });
+});

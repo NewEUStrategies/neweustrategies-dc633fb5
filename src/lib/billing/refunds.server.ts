@@ -509,7 +509,9 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
   if (event.subscriptionId) {
     const { data: sub, error } = await supabase
       .from("subscriptions")
-      .select("user_id, tenant_id, price_id, status, current_period_end")
+      .select(
+        "user_id, tenant_id, price_id, status, current_period_start, current_period_end, first_payment_failed_at",
+      )
       .eq("provider_subscription_id", event.subscriptionId)
       .eq("environment", event.environment)
       .maybeSingle();
@@ -523,13 +525,23 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
     });
     if (plan) {
       const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
+      const { accessPeriodFromEvent } = await import("@/lib/billing/accessPeriod");
+      const status = sub.status ?? "active";
       await syncEntitlementState({
         userId: sub.user_id,
         tenantId: plan.tenantId,
         planId: plan.planId,
         externalRef: event.subscriptionId,
-        status: sub.status ?? "active",
-        periodEnd: sub.current_period_end ?? null,
+        status,
+        // Ta sama reguła karencji co w webhooku (audyt SUB-03): zaległa
+        // subskrypcja nie odzyskuje dostępu do końca nieopłaconego okresu.
+        periodEnd: accessPeriodFromEvent({
+          kind: "updated",
+          storedPeriodEnd: sub.current_period_end ?? null,
+          status,
+          periodStart: sub.current_period_start ?? null,
+          firstPaymentFailedAt: sub.first_payment_failed_at ?? null,
+        }).accessUntil,
       });
     }
     await alertAdminsAboutDispute(event, "won", sub.tenant_id);

@@ -6,6 +6,12 @@
 // Reguła: liczba opłaconych miejsc jest jedynym źródłem prawdy o limicie,
 // a stan subskrypcji (aktywna / wstrzymana / anulowana) steruje tym, czy
 // organizacja w ogóle nadaje uprawnienia.
+import {
+  accessActiveAt,
+  isDelinquentSubscriptionStatus,
+  isEntitledSubscriptionStatus,
+  paymentGraceEnd,
+} from "@/lib/billing/accessPeriod";
 import { catalogEntryByPriceId } from "@/lib/billing/catalog";
 
 export interface SeatsSyncResult {
@@ -64,17 +70,43 @@ export async function applySubscriptionSeats(input: {
 }
 
 /**
+ * Czy subskrypcja w danym stanie nadaje zespołowi uprawnienia - TA SAMA
+ * reguła karencji co dla uprawnienia indywidualnego (`accessPeriod.ts`):
+ * `active` / `trialing` zawsze, zaległość (`past_due` / `unpaid`) wyłącznie
+ * do końca karencji, reszta (pauza, anulowanie, `incomplete*`) - nie.
+ *
+ * Wcześniej zespół tracił dostęp w chwili pierwszej nieudanej próby, a osoba
+ * z planem indywidualnym miała go do końca (nieopłaconego) okresu - jedna
+ * płatność, dwie reguły (audyt SUB-03). Zaległość bez podanej daty karencji
+ * zostaje po staremu zawieszona: brak danych nie może otwierać dostępu.
+ */
+export function subscriptionGrantsTeamAccess(
+  status: string,
+  accessUntil: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (isEntitledSubscriptionStatus(status)) return true;
+  if (!isDelinquentSubscriptionStatus(status) || !accessUntil) return false;
+  return accessActiveAt(accessUntil, now);
+}
+
+/**
  * Stan subskrypcji -> stan organizacji. Wstrzymanie/anulowanie odbiera
  * uprawnienia CAŁEMU zespołowi (mo.status decyduje w current_membership_tier),
- * a wznowienie je przywraca - bez ruszania listy miejsc.
+ * a wznowienie je przywraca - bez ruszania listy miejsc. Zaległość w karencji
+ * zostawia zespół aktywny; po karencji gasi go webhook albo dobowy przebieg
+ * `suspendTeamsPastPaymentGrace` (operator po ostatniej próbie potrafi już nie
+ * wysłać żadnego zdarzenia).
  */
 export async function applySubscriptionOrgState(input: {
   subscriptionId: string;
   status: string;
   priceId: string | null;
+  /** Koniec karencji przy zaległości (`accessPeriodFromEvent().accessUntil`). */
+  accessUntil?: string | null;
 }): Promise<{ changed: boolean }> {
   if (!isPerSeatPrice(input.priceId)) return { changed: false };
-  const entitled = input.status === "active" || input.status === "trialing";
+  const entitled = subscriptionGrantsTeamAccess(input.status, input.accessUntil);
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
@@ -87,6 +119,83 @@ export async function applySubscriptionOrgState(input: {
     return { changed: false };
   }
   return { changed: (data ?? []).length > 0 };
+}
+
+/**
+ * Dobowe domknięcie karencji płatności planu Zespół.
+ *
+ * Uprawnienie indywidualne gaśnie samo (data końca karencji w
+ * `user_subscriptions.current_period_end`), a organizacja ma tylko
+ * `status`. Operator po ostatniej nieudanej próbie potrafi zostawić
+ * subskrypcję w `past_due` bez kolejnego zdarzenia (ustawienie „leave
+ * past-due"), więc bez tego przebiegu zespół zachowywał dostęp po karencji
+ * aż do następnego webhooka. Bezpieczne przy wielokrotnym uruchomieniu:
+ * zawiesza wyłącznie organizacje aktywne, a zapłata (`subscription.updated`
+ * -> `active`) przywraca je tą samą ścieżką co zawsze. Nigdy nie rzuca.
+ */
+export async function suspendTeamsPastPaymentGrace(
+  now: Date = new Date(),
+): Promise<{ suspended: number }> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: orgs, error: orgsError } = await supabaseAdmin
+    .from("member_organizations")
+    .select("id, provider_subscription_id")
+    .eq("status", "active")
+    .not("provider_subscription_id", "is", null);
+  if (orgsError) {
+    console.error("[orgs] payment grace sweep: orgs lookup failed", orgsError.message);
+    return { suspended: 0 };
+  }
+  const linked = [
+    ...new Set(
+      (orgs ?? [])
+        .map((org) => org.provider_subscription_id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  ];
+  if (linked.length === 0) return { suspended: 0 };
+
+  const { data: subs, error: subsError } = await supabaseAdmin
+    .from("subscriptions")
+    .select(
+      "provider_subscription_id, price_id, status, current_period_start, current_period_end, first_payment_failed_at",
+    )
+    .in("provider_subscription_id", linked)
+    .in("status", ["past_due", "unpaid"]);
+  if (subsError) {
+    console.error("[orgs] payment grace sweep: subscriptions lookup failed", subsError.message);
+    return { suspended: 0 };
+  }
+
+  const expired = (subs ?? [])
+    .filter(
+      (sub) =>
+        isPerSeatPrice(sub.price_id) &&
+        !subscriptionGrantsTeamAccess(
+          sub.status,
+          paymentGraceEnd({
+            firstPaymentFailedAt: sub.first_payment_failed_at,
+            periodStart: sub.current_period_start,
+            periodEnd: sub.current_period_end,
+            now,
+          }),
+          now,
+        ),
+    )
+    .map((sub) => sub.provider_subscription_id);
+  if (expired.length === 0) return { suspended: 0 };
+
+  const { data: updated, error } = await supabaseAdmin
+    .from("member_organizations")
+    .update({ status: "suspended", updated_at: now.toISOString() })
+    .in("provider_subscription_id", expired)
+    .eq("status", "active")
+    .select("id");
+  if (error) {
+    console.error("[orgs] payment grace sweep: suspend failed", error.message);
+    return { suspended: 0 };
+  }
+  return { suspended: (updated ?? []).length };
 }
 
 // ---------------------------------------------------------------------------
