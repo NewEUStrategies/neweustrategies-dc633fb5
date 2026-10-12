@@ -22,21 +22,37 @@
 // i KONFLIKTY zostają do świadomego wyczyszczenia (`clearSyncIssues()`), bo to
 // jedyny ślad skanów, których baza nie przyjęła - skasowanie ich razem
 // z sesją byłoby dokładnie tą cichą utratą, którą ten moduł ma zamknąć.
+// Świadome ODŁĄCZENIE urządzenia (po potwierdzeniu na ekranie) kasuje
+// wszystko naraz (`wipeAllOfflineData`) - telefon po wydarzeniu nie ma
+// trzymać nic z tej bazy.
 // TOKENU TU NIE MA: sesję rozpoznajemy po skrócie SHA-256 tokenu.
+//
+// LISTA OSÓB MA TERMIN (OPS-06). Rekord listy niesie termin poświadczenia,
+// pod którym ją pobrano; `purgeExpiredRoster` kasuje listę i dziennik zgód po
+// tym terminie przy każdym starcie i na odstępie - także na telefonie, na
+// którym nikt już nie otworzy skanera tym poświadczeniem. Lista bez terminu
+// (sprzed tej zmiany) bierze termin z sesji tego samego urządzenia, a lista
+// bez sesji (sierota) znika od razu.
+//
+// ODRZUCONE BEZ JAWNEGO KODU (OPS-06). Lista odrzuconych trzyma skrót SHA-256
+// i prefiks kodu (`toRejectedItem`); lista zapisana przed tą zmianą jest przy
+// odczycie przeliczana (skrót z kodu) i przepisywana - jawny kod znika z dysku.
 import {
   parseScannerSession,
   sessionToRecord,
   type ScannerSession,
 } from "@/lib/events/scannerSession";
 import {
+  isRosterExpired,
   parseDecisionLog,
   parseRosterSnapshot,
   rosterSnapshotToRecord,
   type LocalDecisionLogEntry,
   type RosterSnapshot,
 } from "@/lib/events/scannerRoster";
-import type { RejectedScan } from "@/lib/events/scannerOutbox";
+import { toRejectedItem, type RejectedScan } from "@/lib/events/scannerOutbox";
 import { parseConflicts, parseRejected, type ScanConflict } from "@/lib/events/scannerSyncIssues";
+import { scanCodeHash } from "@/lib/events/scannerVault";
 
 const DB_NAME = "nes-scanner-offline";
 const DB_VERSION = 1;
@@ -190,6 +206,35 @@ export async function loadRoster(deviceId: string): Promise<RosterSnapshot | nul
   return snapshot !== null && snapshot.deviceId === deviceId ? snapshot : null;
 }
 
+/**
+ * Kasuje listę osób i dziennik zgód po terminie poświadczenia (patrz nagłówek).
+ * `true` = lista zniknęła. Nigdy nie rzuca.
+ */
+export async function purgeExpiredRoster(nowMs: number): Promise<boolean> {
+  const raw = await readRecord("roster");
+  if (raw === undefined || raw === null) return false;
+  const snapshot = parseRosterSnapshot(raw);
+  let expired: boolean;
+  if (snapshot === null) {
+    // Uszkodzony rekord listy nikomu się nie przyda, a może nieść dane osobowe.
+    expired = true;
+  } else if (snapshot.expiresAt !== undefined && snapshot.expiresAt !== null) {
+    expired = isRosterExpired(snapshot, nowMs);
+  } else {
+    const cachedRaw = await readRecord("session");
+    const cached =
+      typeof cachedRaw === "object" && cachedRaw !== null
+        ? parseScannerSession((cachedRaw as Record<string, unknown>).session)
+        : null;
+    expired =
+      cached === null ||
+      cached.deviceId !== snapshot.deviceId ||
+      isRosterExpired({ expiresAt: cached.expiresAt }, nowMs);
+  }
+  if (expired) await wipeRoster();
+  return expired;
+}
+
 /* ------------------------------------------------- dziennik lokalnych zgód --- */
 
 export async function saveDecisionLog(log: readonly LocalDecisionLogEntry[]): Promise<void> {
@@ -202,12 +247,53 @@ export async function loadDecisionLog(): Promise<LocalDecisionLogEntry[]> {
 
 /* -------------------------------------------- odrzucone skany i konflikty --- */
 
+/** Zapis listy odrzuconych - na dysk idzie wyłącznie skrót i prefiks kodu. */
 export async function saveRejected(list: readonly RejectedScan[]): Promise<void> {
-  await writeRecords([["rejected", [...list]]]);
+  await writeRecords([
+    ["rejected", list.map((entry) => ({ ...entry, item: toRejectedItem(entry.item) }))],
+  ]);
+}
+
+/**
+ * Wpisy sprzed tej zmiany niosą jawny kod: dostają skrót liczony z kodu (ten
+ * sam co w bazie), a `parseRejected` zostawia z kodu tylko prefiks.
+ */
+async function withLegacyHashes(raw: unknown): Promise<{ value: unknown; legacy: boolean }> {
+  if (!Array.isArray(raw)) return { value: raw, legacy: false };
+  let legacy = false;
+  const value: unknown[] = [];
+  for (const entry of raw) {
+    const item =
+      typeof entry === "object" && entry !== null
+        ? (entry as Record<string, unknown>).item
+        : undefined;
+    const code =
+      typeof item === "object" && item !== null
+        ? (item as Record<string, unknown>).code
+        : undefined;
+    if (typeof code !== "string") {
+      value.push(entry);
+      continue;
+    }
+    legacy = true;
+    const row = item as Record<string, unknown>;
+    const codeHash =
+      typeof row.codeHash === "string"
+        ? row.codeHash
+        : code === ""
+          ? null
+          : await scanCodeHash(code);
+    value.push({ ...(entry as Record<string, unknown>), item: { ...row, codeHash } });
+  }
+  return { value, legacy };
 }
 
 export async function loadRejected(): Promise<RejectedScan[]> {
-  return parseRejected(await readRecord("rejected"));
+  const { value, legacy } = await withLegacyHashes(await readRecord("rejected"));
+  const list = parseRejected(value);
+  // Przepisanie: jawny kod sprzed tej zmiany znika z dysku przy pierwszym odczycie.
+  if (legacy) await saveRejected(list);
+  return list;
 }
 
 export async function saveConflicts(list: readonly ScanConflict[]): Promise<void> {
@@ -240,6 +326,20 @@ export async function wipeRoster(): Promise<void> {
 /** Świadome wyczyszczenie przez operatora - po przekazaniu listy organizatorowi. */
 export async function clearSyncIssues(): Promise<void> {
   await writeRecords([
+    ["rejected", undefined],
+    ["conflicts", undefined],
+  ]);
+}
+
+/**
+ * Świadome odłączenie urządzenia (po potwierdzeniu na ekranie): sesja, lista,
+ * dziennik, odrzucone i konflikty - telefon nie zatrzymuje niczego z tej bazy.
+ */
+export async function wipeAllOfflineData(): Promise<void> {
+  await writeRecords([
+    ["session", undefined],
+    ["roster", undefined],
+    ["log", undefined],
     ["rejected", undefined],
     ["conflicts", undefined],
   ]);

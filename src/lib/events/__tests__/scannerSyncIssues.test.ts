@@ -17,7 +17,7 @@ import { freezeClock } from "@/test/time";
 import { OBJECT_URL_REVOKE_DELAY_MS } from "@/lib/files/downloadBlob";
 
 import type { CheckinScanResult } from "@/lib/events/scannerApi";
-import type { OutboxItem, RejectedScan } from "@/lib/events/scannerOutbox";
+import { toRejectedItem, type OutboxItem, type RejectedScan } from "@/lib/events/scannerOutbox";
 import {
   CONFLICTS_CAPACITY,
   appendConflict,
@@ -131,6 +131,7 @@ const LABELS: SyncIssuesCsvLabels = {
   person: "Osoba",
   registrationId: "Zgloszenie",
   code: "Kod",
+  codeHash: "Skrot",
   reference: "Id",
   conflict: "konflikt",
   rejected: "odrzucony",
@@ -229,38 +230,82 @@ describe("lista konfliktów", () => {
 });
 
 describe("lista odrzuconych z dysku", () => {
-  it("zostawia pozycje z kodem, błędem i chwilą; resztę odsiewa", () => {
-    const ok: RejectedScan = { item: item(), error: "device_revoked: x", rejectedAt: NOW };
+  it("zostawia pozycje z błędem i chwilą, BEZ jawnego kodu; resztę odsiewa", () => {
+    const stored = {
+      item: { ...toRejectedItem(item()), codeHash: "c".repeat(64) },
+      error: "device_revoked: x",
+      rejectedAt: NOW,
+    };
     expect(
       parseRejected([
-        ok,
+        stored,
         { item: { id: "x" }, error: "e", rejectedAt: NOW },
         { item: item(), error: "", rejectedAt: NOW },
         { item: item(), error: "e", rejectedAt: null },
         null,
       ]),
-    ).toEqual([ok]);
+    ).toEqual([stored]);
     expect(parseRejected({})).toEqual([]);
+  });
+
+  it("OPS-06: wpis sprzed sejfu (z jawnym kodem) wraca BEZ kodu, z prefiksem", () => {
+    const legacy: unknown = {
+      item: item({ code: "QR-STARY-KOD" }),
+      error: "e: x",
+      rejectedAt: NOW,
+    };
+    const [parsed] = parseRejected([legacy]);
+    expect(parsed.item).not.toHaveProperty("code");
+    expect(parsed.item.codePrefix).toBe("QR-STA");
+    expect(JSON.stringify(parsed)).not.toContain("QR-STARY-KOD");
   });
 });
 
 describe("eksport dla organizatora", () => {
   const rejected: RejectedScan = {
-    item: item({ code: "=HYPERLINK(1)", offlineOutcome: undefined, kind: "lead", direction: null }),
+    item: toRejectedItem(
+      item({ code: "=HYPERLINK(1)", offlineOutcome: undefined, kind: "lead", direction: null }),
+    ),
     error: "device_revoked: gone",
     rejectedAt: NOW,
   };
+
+  it("OPS-06: plik niesie prefiks i skrót SHA-256, nigdy cały kod", () => {
+    const secret = "AbCdEfGhIjKlMnOpQrStUvWxYz012345";
+    const hash = "d".repeat(64);
+    // Także wpis z pamięci karty, który jeszcze niesie kod - obrona na granicy.
+    const unsafe = {
+      item: { ...item({ code: secret, codeHash: hash }) },
+      error: "invalid_payload: x",
+      rejectedAt: NOW,
+    } as RejectedScan;
+    const csv = syncIssuesCsv([], [unsafe], LABELS);
+    const json = syncIssuesJson([], [unsafe], {
+      deviceLabel: "B",
+      eventSlug: null,
+      exportedAt: NOW,
+    });
+    for (const file of [csv, json]) {
+      expect(file).not.toContain(secret);
+      expect(file).toContain(hash);
+    }
+    expect(csv).toContain("AbCdEf…");
+  });
 
   it("CSV ma BOM, nagłówek w języku operatora i neutralizuje formuły", () => {
     const csv = syncIssuesCsv([conflict({ checkinId: null })], [rejected], LABELS);
     const lines = csv.slice(1).split("\n");
     expect(csv.startsWith("\uFEFF")).toBe(true);
-    expect(lines[0]).toBe("Typ,Rodzaj,Czas,Punkt,Kierunek,Offline,Serwer,Osoba,Zgloszenie,Kod,Id");
+    expect(lines[0]).toBe(
+      "Typ,Rodzaj,Czas,Punkt,Kierunek,Offline,Serwer,Osoba,Zgloszenie,Kod,Skrot,Id",
+    );
     // Konflikt bez identyfikatora odprawy odsyła do klucza skanu.
     expect(lines[1]).toContain("konflikt,admitted_offline");
     expect(lines[1].endsWith(",scan-1")).toBe(true);
     expect(lines[2]).toContain("odrzucony,lead");
-    expect(lines[2]).toContain("'=HYPERLINK(1)");
+    // Prefiks kodu zaczynający się od `=` nadal jest neutralizowany (OPS-06:
+    // plik niesie tylko początek kodu).
+    expect(lines[2]).toContain("'=HYPER…");
   });
 
   it("konflikt z identyfikatorem odprawy podaje właśnie jego", () => {

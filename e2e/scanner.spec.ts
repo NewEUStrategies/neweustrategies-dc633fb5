@@ -11,6 +11,10 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 // Sprawdzamy trzy rzeczy, o które prosi scenariusz przy bramce:
 // parowanie (kod z panelu i kod z linku), zapis do kolejki przy braku sieci
 // (z weryfikacją IndexedDB, nie tylko napisu) i reakcję ekranu na wynik skanu.
+//
+// LINK PAROWANIA NIESIE TOKEN WE FRAGMENCIE (`/scanner#t=`, OPS-07) - stary
+// link `?t=` nie paruje. KOLEJKA W INDEXEDDB JEST ZASZYFROWANA (OPS-06):
+// rekord ma skrót i prefiks kodu, a sam kod tylko w bloku AES-GCM.
 
 const DEVICE_TOKEN = "e2e-scanner-token-0123456789";
 const CHECKPOINT_ID = "11111111-1111-4111-8111-111111111111";
@@ -91,11 +95,14 @@ async function stubScannerPlane(page: Page): Promise<ScannerCalls> {
   return calls;
 }
 
+/** Rekord kolejki na dysku - metadane, skrót i prefiks; kod tylko w bloku `sealed`. */
+type StoredScan = Record<string, unknown> & { id: string; kind: string };
+
 /** Kolejka zapisana na urządzeniu - czytana z IndexedDB, nie z ekranu. */
-async function readOutbox(page: Page): Promise<Array<{ id: string; code: string; kind: string }>> {
+async function readOutbox(page: Page): Promise<StoredScan[]> {
   return page.evaluate(
     () =>
-      new Promise<Array<{ id: string; code: string; kind: string }>>((resolve) => {
+      new Promise<Array<Record<string, unknown> & { id: string; kind: string }>>((resolve) => {
         const open = window.indexedDB.open("nes-scanner", 1);
         open.onerror = () => resolve([]);
         open.onsuccess = () => {
@@ -115,7 +122,7 @@ async function readOutbox(page: Page): Promise<Array<{ id: string; code: string;
             db.close();
             resolve(
               Array.isArray(value)
-                ? (value as Array<{ id: string; code: string; kind: string }>)
+                ? (value as Array<Record<string, unknown> & { id: string; kind: string }>)
                 : [],
             );
           };
@@ -190,10 +197,18 @@ test.describe("aplikacja skanera", () => {
     expect(stored).toBe(DEVICE_TOKEN);
   });
 
-  test("parowanie linkiem z panelu czyści poświadczenie z adresu", async ({ page }) => {
+  test("parowanie linkiem z panelu (token we FRAGMENCIE) czyści poświadczenie z adresu", async ({
+    page,
+  }) => {
     const calls = await stubScannerPlane(page);
+    // Żadne żądanie dokumentu nie może nieść tokenu - fragmentu przeglądarka
+    // nie wysyła na serwer (OPS-07).
+    const documentUrls: string[] = [];
+    page.on("request", (request) => {
+      if (request.resourceType() === "document") documentUrls.push(request.url());
+    });
 
-    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/scanner#t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
 
     await expect(page.locator("#scanner-code")).toBeVisible();
     // W trybie deweloperskim React montuje efekty dwa razy, więc liczymy
@@ -202,11 +217,28 @@ test.describe("aplikacja skanera", () => {
     // Token nie ma prawa zostać w pasku adresu ani w historii.
     await expect(page).toHaveURL(/\/scanner$/);
     expect(page.url()).not.toContain(DEVICE_TOKEN);
+    expect(documentUrls.some((url) => url.includes(DEVICE_TOKEN))).toBe(false);
+  });
+
+  test("STARY link `?t=` nie paruje urządzenia i prosi o nowy kod QR", async ({ page }) => {
+    const calls = await stubScannerPlane(page);
+
+    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
+
+    await expect(page.getByRole("heading", { name: "Podłącz urządzenie" })).toBeVisible();
+    await expect(page.getByText(/Ten link parowania ma stary format/)).toBeVisible();
+    // Token z zapytania już wyciekł - nie łączymy nim urządzenia.
+    expect(calls.bootstrap).toBe(0);
+    await expect(page).toHaveURL(/\/scanner$/);
+    const stored = await page.evaluate(() =>
+      window.localStorage.getItem("nes.scanner.device-token"),
+    );
+    expect(stored).toBeNull();
   });
 
   test("odłączenie urządzenia wraca do parowania i kasuje poświadczenie", async ({ page }) => {
     await stubScannerPlane(page);
-    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/scanner#t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#scanner-code")).toBeVisible();
 
     await page.getByRole("button", { name: "Odłącz urządzenie" }).first().click();
@@ -220,7 +252,7 @@ test.describe("aplikacja skanera", () => {
 
   test("skan online pokazuje decyzję bazy i nie zostawia nic w kolejce", async ({ page }) => {
     const calls = await stubScannerPlane(page);
-    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/scanner#t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#scanner-code")).toBeVisible();
 
     await page.locator("#scanner-code").fill("TICKET-ONLINE-1");
@@ -255,7 +287,7 @@ test.describe("aplikacja skanera", () => {
       });
     });
 
-    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/scanner#t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#scanner-code")).toBeVisible();
 
     await page.evaluate(() => {
@@ -274,7 +306,11 @@ test.describe("aplikacja skanera", () => {
     // 2) Zapis do outbox: sprawdzamy IndexedDB, nie napis na ekranie.
     await expect.poll(async () => (await readOutbox(page)).length, { timeout: 10_000 }).toBe(1);
     const queued = await readOutbox(page);
-    expect(queued[0]).toMatchObject({ code: "TICKET-OFFLINE-1", kind: "checkin" });
+    // OPS-06: rekord niesie skrót i prefiks - jawny kod tylko w bloku AES-GCM.
+    expect(queued[0]).toMatchObject({ kind: "checkin", codePrefix: "TICKET" });
+    expect(queued[0]).not.toHaveProperty("code");
+    expect(queued[0].sealed).toMatchObject({ iv: expect.any(String), data: expect.any(String) });
+    expect(JSON.stringify(queued)).not.toContain("TICKET-OFFLINE-1");
     expect(calls.checkin).toHaveLength(0);
 
     // 3) Powrót sieci opróżnia kolejkę bez udziału człowieka.
@@ -298,7 +334,7 @@ test.describe("aplikacja skanera", () => {
       Object.defineProperty(window.navigator, "onLine", { get: () => false });
     });
 
-    await page.goto(`/scanner?t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/scanner#t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
     await expect(page.locator("#scanner-code")).toBeVisible();
 
     await page.locator("#scanner-code").fill("TICKET-PERSIST-1");
@@ -314,6 +350,85 @@ test.describe("aplikacja skanera", () => {
     await expect(page.getByText("1 skan czeka na wysłanie")).toBeVisible();
     const restored = await readOutbox(page);
     expect(restored).toHaveLength(1);
-    expect(restored[0]).toMatchObject({ code: "TICKET-PERSIST-1", kind: "checkin" });
+    expect(restored[0]).toMatchObject({ kind: "checkin", codePrefix: "TICKET" });
+    expect(JSON.stringify(restored)).not.toContain("TICKET-PERSIST-1");
+  });
+
+  test("po wysyłce i odłączeniu w IndexedDB i localStorage nie zostaje żaden kod (OPS-06)", async ({
+    page,
+  }) => {
+    const calls = await stubScannerPlane(page);
+    await page.addInitScript(() => {
+      (window as unknown as { __scannerOffline: boolean }).__scannerOffline = false;
+      Object.defineProperty(window.navigator, "onLine", {
+        get: () => !(window as unknown as { __scannerOffline: boolean }).__scannerOffline,
+      });
+    });
+    await page.goto(`/scanner#t=${DEVICE_TOKEN}`, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("#scanner-code")).toBeVisible();
+
+    await page.evaluate(() => {
+      (window as unknown as { __scannerOffline: boolean }).__scannerOffline = true;
+      window.dispatchEvent(new Event("offline"));
+    });
+    const code = "Qr1aB2cD3eF4gH5iJ6kL7mN8oP9qR0sT";
+    await page.locator("#scanner-code").fill(code);
+    await page.locator("#scanner-code").press("Enter");
+    await expect.poll(async () => (await readOutbox(page)).length, { timeout: 10_000 }).toBe(1);
+
+    await page.evaluate(() => {
+      (window as unknown as { __scannerOffline: boolean }).__scannerOffline = false;
+      window.dispatchEvent(new Event("online"));
+    });
+    await expect.poll(() => calls.checkin.length, { timeout: 30_000 }).toBe(1);
+    expect(calls.checkin[0]).toMatchObject({ code });
+    await expect.poll(async () => (await readOutbox(page)).length, { timeout: 10_000 }).toBe(0);
+
+    await page.getByRole("button", { name: "Odłącz urządzenie" }).first().click();
+    await expect(page.getByRole("heading", { name: "Podłącz urządzenie" })).toBeVisible();
+
+    // Każda wartość z obu baz skanera i z localStorage - wzorcem kodu z biletu.
+    const atRest = await page.evaluate(async () => {
+      const dump = (name: string, store: string) =>
+        new Promise<string>((resolve) => {
+          const open = window.indexedDB.open(name);
+          open.onerror = () => resolve("");
+          open.onsuccess = () => {
+            const db = open.result;
+            if (!db.objectStoreNames.contains(store)) {
+              db.close();
+              resolve("");
+              return;
+            }
+            const values: unknown[] = [];
+            const cursor = db.transaction(store, "readonly").objectStore(store).openCursor();
+            cursor.onsuccess = () => {
+              const current = cursor.result;
+              if (current === null) {
+                db.close();
+                resolve(JSON.stringify(values));
+                return;
+              }
+              values.push(current.key, current.value);
+              current.continue();
+            };
+            cursor.onerror = () => resolve(JSON.stringify(values));
+          };
+        });
+      return {
+        idb: [
+          await dump("nes-scanner", "outbox"),
+          await dump("nes-scanner-offline", "records"),
+        ].join("\n"),
+        local: JSON.stringify({ ...window.localStorage }),
+      };
+    });
+    // Bazy skanera: ani jednego napisu w kształcie kodu z biletu.
+    expect(atRest.idb).not.toMatch(/(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{32}(?![A-Za-z0-9_-])/);
+    // `localStorage` dzieli origin z resztą aplikacji - tam szukamy dosłownie.
+    for (const value of [atRest.idb, atRest.local]) {
+      expect(value).not.toContain(code);
+      expect(value).not.toContain(DEVICE_TOKEN);
+    }
   });
 });

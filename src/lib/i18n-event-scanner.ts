@@ -43,6 +43,9 @@ export const eventScannerPl = {
         "To nie wygląda na kod urządzenia. Sprawdź, czy nic się nie urwało przy kopiowaniu.",
       help: "Kod wydaje organizator w panelu: Wydarzenia → Na miejscu → Urządzenia.",
       offlineFirstRun: "Pierwsze podłączenie wymaga sieci. Później skaner działa też bez zasięgu.",
+      legacyLink:
+        "Ten link parowania ma stary format i NIE został użyty - kod urządzenia mógł trafić do historii przeglądarki. Poproś organizatora o nowy kod QR do parowania.",
+      relocating: "Przenoszę skaner pod jego własny adres…",
     },
 
     // -----------------------------------------------------------------
@@ -59,7 +62,15 @@ export const eventScannerPl = {
       expired: "Kod urządzenia wygasł. Poproś organizatora o nowy.",
       disconnect: "Odłącz urządzenie",
       disconnectHint:
-        "Kod zniknie z tego telefonu. Skany czekające w kolejce zostaną wysłane wcześniej.",
+        "Kod, kolejka skanów, lista osób i lista do wyjaśnienia znikną z tego telefonu.",
+      disconnectTitle: "Odłączyć urządzenie i usunąć dane skanera?",
+      disconnectUnsent:
+        "Na tym telefonie są skany, które NIE trafiły do bazy, albo lista do wyjaśnienia z organizatorem. Odłączenie usunie je razem z kodem urządzenia. Najpierw wyślij kolejkę i pobierz plik dla organizatora.",
+      disconnectConfirm: "Odłącz i usuń",
+      disconnectCancel: "Anuluj",
+      relocation:
+        "Skaner ma własny adres: {{origin}}. Ta karta najpierw wyśle zaległe skany - potem przenieś urządzenie pod nowy adres.",
+      relocate: "Przejdź pod nowy adres",
       online: "Sieć dostępna",
       offline: "Brak sieci - skany czekają w kolejce",
       memoryOnly:
@@ -251,8 +262,21 @@ export const eventScannerPl = {
       stuck_many: "{{count}} skanów wymaga uwagi",
       stuck_other: "{{count}} skanów wymaga uwagi",
       stuckHint:
-        "Nie udało się ich wysłać mimo wielu prób. Pokaż je organizatorowi przed odłączeniem urządzenia.",
+        "Baza ich nie przyjęła, a lista do wyjaśnienia nie zapisała się na tym urządzeniu. Pokaż je organizatorowi przed odłączeniem urządzenia.",
+      retrying_one: "{{count}} skan czeka na ponowienie",
+      retrying_few: "{{count}} skany czekają na ponowienie",
+      retrying_many: "{{count}} skanów czeka na ponowienie",
+      retrying_other: "{{count}} skanów czeka na ponowienie",
+      retryingHint:
+        "Ostatnia próba się nie udała. Skaner ponawia sam - najpóźniej co minutę i od razu po powrocie sieci. Możesz też ponowić teraz.",
+      retry: "Ponów",
+      retryAll: "Ponów wszystkie",
+      codePrefix: "Kod zaczyna się od {{prefix}}…",
       discard: "Usuń z kolejki",
+      discardTitle: "Usunąć skan z kolejki?",
+      discardDescription:
+        "Ten skan NIE trafi do bazy: osoba nie będzie miała zapisanej obecności, a partner nie dostanie leadu. Usuń go tylko, gdy organizator tak zdecydował.",
+      discardCancel: "Anuluj",
       queuedToast: "Brak sieci - skan czeka w kolejce.",
       flushedToast_one: "Wysłano {{count}} skan z kolejki.",
       flushedToast_few: "Wysłano {{count}} skany z kolejki.",
@@ -357,7 +381,8 @@ export const eventScannerPl = {
         serverResult: "Wynik serwera",
         person: "Osoba",
         registrationId: "Zgłoszenie",
-        code: "Kod",
+        code: "Początek kodu",
+        codeHash: "Skrót kodu (SHA-256)",
         reference: "Identyfikator",
         conflict: "konflikt",
         rejected: "odrzucony",
@@ -398,6 +423,10 @@ export const eventScannerPl = {
         "Kolejka na urządzeniu była pełna - ten skan nie zmieścił się w niej. Przekaż go organizatorowi.",
       deviceMismatch:
         "Skan zapisano pod innym kodem urządzenia - nie został wysłany pod bieżącym. Przekaż go organizatorowi.",
+      outboxSealed:
+        "Kodu z tego skanu nie da się odczytać na tym urządzeniu (zapisano go pod innym kodem urządzenia albo bez szyfrowania). Przekaż skan organizatorowi - plik ma skrót kodu.",
+      rateLimited: "Baza prosi o chwilę przerwy. Skan czeka w kolejce i pojedzie sam.",
+      tooManyRequests: "Baza prosi o chwilę przerwy. Skan czeka w kolejce i pojedzie sam.",
       offline: "Brak sieci. Skan czeka w kolejce i pojedzie, gdy zasięg wróci.",
       unknown: "Coś nie zadziałało. Spróbuj jeszcze raz.",
     },
@@ -421,6 +450,9 @@ export const eventScannerEn = {
       help: "The organiser issues the code in the panel: Events → On-site → Devices.",
       offlineFirstRun:
         "The first connection needs a network. After that the scanner works offline too.",
+      legacyLink:
+        "This pairing link uses the old format and was NOT used - the device code may have reached the browser history. Ask the organiser for a new pairing QR code.",
+      relocating: "Moving the scanner to its own address…",
     },
 
     session: {
@@ -433,7 +465,15 @@ export const eventScannerEn = {
       expired: "The device code has expired. Ask the organiser for a new one.",
       disconnect: "Disconnect device",
       disconnectHint:
-        "The code leaves this phone. Scans waiting in the queue are sent before that happens.",
+        "The code, the scan queue, the people list and the list to clear up leave this phone.",
+      disconnectTitle: "Disconnect the device and delete scanner data?",
+      disconnectUnsent:
+        "This phone holds scans that did NOT reach the server, or a list to clear up with the organiser. Disconnecting deletes them together with the device code. Send the queue and download the file for the organiser first.",
+      disconnectConfirm: "Disconnect and delete",
+      disconnectCancel: "Cancel",
+      relocation:
+        "The scanner has its own address: {{origin}}. This tab sends the queued scans first - then move the device to the new address.",
+      relocate: "Go to the new address",
       online: "Network available",
       offline: "No network - scans are queued",
       memoryOnly:
@@ -593,8 +633,19 @@ export const eventScannerEn = {
       stuck_one: "{{count}} scan needs attention",
       stuck_other: "{{count}} scans need attention",
       stuckHint:
-        "They could not be sent despite many attempts. Show them to the organiser before disconnecting the device.",
+        "The server rejected them and the list to clear up could not be stored on this device. Show them to the organiser before disconnecting the device.",
+      retrying_one: "{{count}} scan waiting to be retried",
+      retrying_other: "{{count}} scans waiting to be retried",
+      retryingHint:
+        "The last attempt failed. The scanner retries on its own - at least once a minute and right after the network returns. You can also retry now.",
+      retry: "Retry",
+      retryAll: "Retry all",
+      codePrefix: "Code starts with {{prefix}}…",
       discard: "Remove from the queue",
+      discardTitle: "Remove the scan from the queue?",
+      discardDescription:
+        "This scan will NOT reach the server: the person will have no recorded attendance and the partner will not get the lead. Only remove it when the organiser has decided so.",
+      discardCancel: "Cancel",
       queuedToast: "No network - the scan is queued.",
       flushedToast_one: "Sent {{count}} scan from the queue.",
       flushedToast_other: "Sent {{count}} scans from the queue.",
@@ -671,7 +722,8 @@ export const eventScannerEn = {
         serverResult: "Server result",
         person: "Person",
         registrationId: "Registration",
-        code: "Code",
+        code: "Code prefix",
+        codeHash: "Code hash (SHA-256)",
         reference: "Reference",
         conflict: "conflict",
         rejected: "rejected",
@@ -709,6 +761,11 @@ export const eventScannerEn = {
         "The queue on this device was full - this scan did not fit. Pass it on to the organiser.",
       deviceMismatch:
         "The scan was saved under another device code - it was not sent under the current one. Pass it on to the organiser.",
+      outboxSealed:
+        "The code of this scan cannot be read on this device (it was saved under another device code or without encryption). Pass the scan on to the organiser - the file carries the code hash.",
+      rateLimited: "The server asks for a short break. The scan is queued and goes out on its own.",
+      tooManyRequests:
+        "The server asks for a short break. The scan is queued and goes out on its own.",
       offline: "No network. The scan is queued and goes out when the signal returns.",
       unknown: "Something went wrong. Please try again.",
     },

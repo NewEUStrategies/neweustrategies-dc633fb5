@@ -488,7 +488,10 @@ describe("ScannerCredentialDialog - pokaz tokenu", () => {
     // Wolontariusz nie przepisze trzydziestu dwóch znaków base64url bez
     // pomyłki, a `+` i `/` w tokenie bez zakodowania rozpadłyby się w adresie.
     const { container } = renderujToken();
-    expect(h.qrCalls[0].url).toBe(`${window.location.origin}/scanner?t=tok_abc%2Bdef%2F123`);
+    // OPS-07: token jedzie we FRAGMENCIE - przeglądarka nie wysyła go na serwer,
+    // więc nie trafia do logów pierwszego żądania HTML.
+    expect(h.qrCalls[0].url).toBe(`${window.location.origin}/scanner#t=tok_abc%2Bdef%2F123`);
+    expect(new URL(h.qrCalls[0].url).search).toBe("");
     expect(container.querySelector("img")).toBeNull();
 
     await wydajKod(0, "data:image/png;base64,PIERWSZY");
@@ -560,7 +563,7 @@ describe("ScannerCredentialDialog - schowek", () => {
 
     await waitFor(() =>
       expect(h.writeText).toHaveBeenCalledWith(
-        `${window.location.origin}/scanner?t=tok_abc%2Bdef%2F123`,
+        `${window.location.origin}/scanner#t=tok_abc%2Bdef%2F123`,
       ),
     );
     expect(h.toastSuccess).toHaveBeenCalledWith(`${C}copied`);
@@ -631,5 +634,22 @@ describe("ScannerDeviceDialog - lista offline na urządzeniu", () => {
     fireEvent.click(wydaj());
 
     expect(onSubmit.mock.calls[0][0].offlineRoster).toBe(false);
+  });
+});
+
+describe("ScannerCredentialDialog - osobny origin skanera (OPS-13)", () => {
+  it("z `VITE_SCANNER_ORIGIN` link i kod QR prowadzą pod origin skanera, nie panelu", async () => {
+    // Token w `localStorage` pod originem skanera nie sąsiaduje z treściami CMS.
+    vi.stubEnv("VITE_SCANNER_ORIGIN", "https://scan.example.eu");
+    vi.resetModules();
+    try {
+      const { ScannerCredentialDialog: Dialog } =
+        await import("@/components/admin/events/molecules/ScannerDeviceDialog");
+      render(<Dialog credential={poswiadczenie()} onClose={vi.fn()} />);
+      expect(h.qrCalls.at(-1)?.url).toBe("https://scan.example.eu/scanner#t=tok_abc%2Bdef%2F123");
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 });

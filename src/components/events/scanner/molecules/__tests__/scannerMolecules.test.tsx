@@ -10,9 +10,11 @@
 //    wartościami spoza palety serwisu; jako tło zjadają kontrast tekstu.
 // 3. POLE KODU CZYŚCI SIĘ SAMO. Bez tego drugi skan doklei się do pierwszego
 //    i powstanie kod, którego nie ma na żadnym bilecie.
-// 4. KOLEJKA LICZY OSOBNO TO, CO CZEKA, I TO, CO WYMAGA UWAGI. Pozycja po
-//    ośmiu nieudanych próbach nie jest już ponawiana; udawanie, że „czeka",
-//    byłoby kłamstwem wobec operatora kończącego zmianę.
+// 4. KOLEJKA LICZY OSOBNO TO, CO CZEKA, I TO, CO WYMAGA UWAGI. Po OPS-05
+//    awaria przejściowa nie prowadzi do „wymaga uwagi" - pozycja czeka
+//    z powodem i przyciskiem „Ponów"; „wymaga uwagi" to odmowa bazy, której
+//    lista do wyjaśnienia nie przechowała. Usunięcie pyta o potwierdzenie,
+//    a kod widać tylko z początku (OPS-06).
 //
 // i18n jest zamockowane kluczami, z jednym wyjątkiem: powód porażki pozycji
 // w kolejce powstaje POZA Reactem (`scannerErrorMessage` -> prawdziwa
@@ -42,9 +44,12 @@ const h = vi.hoisted(() => ({
   toggleTorch: vi.fn(),
   /** Wywolanie zwrotne, ktore molekula podaje aparatowi - patrz atrapa nizej. */
   wykryty: null as ((code: string) => void) | null,
+  /** Odpowiedz okna potwierdzenia usuniecia z kolejki. */
+  confirm: vi.fn<(options: Record<string, unknown>) => Promise<boolean>>(),
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("@/lib/appDialogs", () => ({ confirmDialog: h.confirm }));
 
 // Aparat nie istnieje w happy-dom - a i tak nie jest gwarancją: gwarancją są
 // czytnik sprzętowy i klawiatura. Stan aparatu ustawia każdy test u siebie.
@@ -110,6 +115,7 @@ function outboxItem(over: Partial<OutboxItem> = {}): OutboxItem {
 beforeEach(() => {
   cleanup();
   vi.clearAllMocks();
+  h.confirm.mockResolvedValue(true);
   h.wykryty = null;
   h.camera = {
     support: "unsupported",
@@ -442,6 +448,8 @@ describe("ScannerCodeInput - czytnik sprzętowy i klawiatura", () => {
 describe("ScannerOutboxPanel - kolejka musi być widoczna, żeby była uczciwa", () => {
   function mountPanel(over: Partial<Parameters<typeof ScannerOutboxPanel>[0]> = {}) {
     const onFlush = vi.fn();
+    const onRetry = vi.fn();
+    const onRetryAll = vi.fn();
     const onDiscard = vi.fn();
     const view = render(
       <ScannerOutboxPanel
@@ -450,11 +458,17 @@ describe("ScannerOutboxPanel - kolejka musi być widoczna, żeby była uczciwa",
         flushing={over.flushing ?? false}
         persistent={over.persistent ?? true}
         onFlush={over.onFlush ?? onFlush}
+        onRetry={over.onRetry ?? onRetry}
+        onRetryAll={over.onRetryAll ?? onRetryAll}
         onDiscard={over.onDiscard ?? onDiscard}
       />,
     );
-    return { ...view, onFlush, onDiscard };
+    return { ...view, onFlush, onRetry, onRetryAll, onDiscard };
   }
+
+  /** Pozycja odrzucona przez bazę, której lista do wyjaśnienia nie przechowała. */
+  const frozen = (over: Partial<OutboxItem> = {}) =>
+    outboxItem({ rejectedAt: "2026-09-01T08:05:00.000Z", lastError: "invalid_payload", ...over });
 
   it("pusta kolejka mówi WPROST, że wszystko poszło, i nie da się jej wysłać", () => {
     mountPanel();
@@ -463,47 +477,78 @@ describe("ScannerOutboxPanel - kolejka musi być widoczna, żeby była uczciwa",
     expect(screen.getByRole("button", { name: /eventScanner.outbox.sync/ })).toBeDisabled();
   });
 
-  it("licznik czekających NIE liczy pozycji, których nikt już nie ponawia", () => {
-    // Osiem nieudanych prób to koniec ponawiania. Wliczanie takiej pozycji do
-    // „czeka na wysłanie" obiecywałoby wysyłkę, której nie będzie.
+  it("licznik czekających NIE liczy pozycji, których baza nie przyjmie", () => {
+    // ZMIANA ŚWIADOMA (OPS-05): „wymaga uwagi" to już tylko odmowa bazy
+    // (zamrożona pozycja) - osiem nieudanych prób sieci NIE jest końcem
+    // ponawiania, więc taka pozycja dalej „czeka na wysłanie".
     mountPanel({
       outbox: [
         outboxItem(),
-        outboxItem({ id: "o2", code: "TICKET-2" }),
-        outboxItem({ id: "o3", code: "TICKET-3", attempts: 8, lastError: "invalid_payload" }),
+        outboxItem({ id: "o2", code: "TICKET-2", attempts: 8, lastError: "Failed to fetch" }),
+        frozen({ id: "o3", code: "TICKET-3" }),
       ],
     });
 
     expect(screen.getByText("eventScanner.outbox.pending(count=2)")).toBeInTheDocument();
     expect(screen.getByText("eventScanner.outbox.stuck(count=1)")).toBeInTheDocument();
+    expect(screen.getByText("eventScanner.outbox.retrying(count=1)")).toBeInTheDocument();
   });
 
-  it("pozycja wymagająca uwagi niesie kod, czas skanu i POWÓD zdaniem", () => {
+  it("pozycja wymagająca uwagi niesie POCZĄTEK kodu, czas skanu i POWÓD zdaniem", () => {
     mountPanel({
-      outbox: [outboxItem({ attempts: 8, lastError: "invalid_payload: missing code" })],
+      outbox: [frozen({ code: "TICKET-1-SEKRETNY", lastError: "invalid_payload: missing code" })],
     });
 
-    expect(screen.getByText("TICKET-1")).toBeInTheDocument();
+    // OPS-06: ekran pokazuje kilka pierwszych znaków - nie poświadczenie wejścia.
+    expect(screen.getByText("TICKET…")).toBeInTheDocument();
+    expect(screen.queryByText(/TICKET-1-SEKRETNY/)).toBeNull();
     expect(
       screen.getByText("Skan jest niekompletny. Zeskanuj kod jeszcze raz."),
     ).toBeInTheDocument();
     expect(screen.getByText("eventScanner.outbox.stuckHint")).toBeInTheDocument();
   });
 
-  it("usunięcie z kolejki dotyczy DOKŁADNIE tej pozycji", () => {
+  it("pozycja po awarii sieci ma „Ponów” (jedna) i „Ponów wszystkie” - z powodem zdaniem", () => {
+    const view = mountPanel({
+      outbox: [
+        outboxItem({ id: "a", code: "AAAAAA-1", lastError: "device_locked: wait" }),
+        outboxItem({ id: "b", code: "BBBBBB-2", lastError: "Scanner request timed out" }),
+        outboxItem({ id: "c", code: "CCCCCC-3" }),
+      ],
+    });
+
+    expect(screen.getByText("eventScanner.outbox.retryingHint")).toBeInTheDocument();
+    expect(screen.queryByText("CCCCCC…")).toBeNull();
+    const row = screen.getByText("BBBBBB…").closest("li") as HTMLElement;
+    fireEvent.click(within(row).getByRole("button", { name: /eventScanner.outbox.retry$/ }));
+    expect(view.onRetry).toHaveBeenCalledExactlyOnceWith("b");
+
+    fireEvent.click(screen.getByRole("button", { name: /eventScanner.outbox.retryAll/ }));
+    expect(view.onRetryAll).toHaveBeenCalledTimes(1);
+    expect(view.onDiscard).not.toHaveBeenCalled();
+  });
+
+  it("usunięcie z kolejki pyta o potwierdzenie i dotyczy DOKŁADNIE tej pozycji", async () => {
     // Operator usuwa świadomie i pokazuje pozycję organizatorowi. Pomyłka
     // w identyfikatorze kasowałaby cudzy skan, którego nikt już nie odzyska.
     const view = mountPanel({
       outbox: [
-        outboxItem({ id: "keep", code: "TICKET-KEEP", attempts: 8 }),
-        outboxItem({ id: "drop", code: "TICKET-DROP", attempts: 8 }),
+        frozen({ id: "keep", code: "KEEP01-TICKET" }),
+        frozen({ id: "drop", code: "DROP01-TICKET" }),
       ],
     });
 
-    const row = screen.getByText("TICKET-DROP").closest("li") as HTMLElement;
+    const row = screen.getByText("DROP01…").closest("li") as HTMLElement;
+    h.confirm.mockResolvedValueOnce(false);
     fireEvent.click(within(row).getByRole("button", { name: /eventScanner.outbox.discard/ }));
+    await vi.waitFor(() => expect(h.confirm).toHaveBeenCalledTimes(1));
+    expect(view.onDiscard).not.toHaveBeenCalled();
+    expect(h.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ destructive: true, title: "eventScanner.outbox.discardTitle" }),
+    );
 
-    expect(view.onDiscard).toHaveBeenCalledExactlyOnceWith("drop");
+    fireEvent.click(within(row).getByRole("button", { name: /eventScanner.outbox.discard/ }));
+    await vi.waitFor(() => expect(view.onDiscard).toHaveBeenCalledExactlyOnceWith("drop"));
   });
 
   it("wysyłka ręczna woła opróżnienie kolejki", () => {
@@ -530,7 +575,11 @@ describe("ScannerOutboxPanel - kolejka musi być widoczna, żeby była uczciwa",
 
   it("panel kolejki z pozycją wymagającą uwagi nie ma naruszeń axe", async () => {
     const { container } = mountPanel({
-      outbox: [outboxItem(), outboxItem({ id: "o2", attempts: 8, lastError: "device_locked" })],
+      outbox: [
+        outboxItem(),
+        outboxItem({ id: "o2", attempts: 8, lastError: "device_locked" }),
+        frozen({ id: "o3" }),
+      ],
       persistent: false,
     });
 

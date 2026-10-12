@@ -229,6 +229,11 @@ export interface CheckinScanInput {
   offlineAdmitted?: boolean | null;
   offlineOutcome?: string | null;
   rosterGeneratedAt?: string | null;
+  /**
+   * Nieprzezroczysty znacznik kolejki nadany przez bazę - odsyłany bez zmian
+   * z pozycją kolejki. Brak = pole nie jedzie w ładunku.
+   */
+  queueMarker?: string | null;
 }
 
 /**
@@ -265,6 +270,7 @@ export async function recordCheckinScan(input: CheckinScanInput): Promise<Checki
       offline_admitted: input.offlineAdmitted,
       offline_outcome: input.offlineOutcome,
       roster_generated_at: input.rosterGeneratedAt,
+      queue_marker: input.queueMarker,
     }),
   });
   if (error !== null) throw new Error(error.message);
@@ -316,6 +322,8 @@ export interface LeadScanInput {
   /** Chwila skanu - baza przyjmuje skan sprzed terminu poświadczenia przez 72 h. */
   deviceScannedAt?: string;
   queued?: boolean;
+  /** Patrz `CheckinScanInput.queueMarker`. */
+  queueMarker?: string | null;
 }
 
 export async function recordLeadScan(input: LeadScanInput): Promise<LeadScanResult> {
@@ -327,6 +335,7 @@ export async function recordLeadScan(input: LeadScanInput): Promise<LeadScanResu
       interest_rating: input.interestRating,
       device_scanned_at: input.deviceScannedAt,
       queued: input.queued,
+      queue_marker: input.queueMarker,
     }),
   });
   if (error !== null) throw new Error(error.message);

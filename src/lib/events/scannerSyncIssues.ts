@@ -17,11 +17,22 @@
 // EKSPORT BEZ SERWERA. Plik powstaje w przeglądarce (Blob), bo odrzucone skany
 // z definicji NIE dotarły do bazy - nie ma ich skąd pobrać później. Komórki
 // przechodzą przez wspólny escaper CSV z neutralizacją formuł.
+//
+// EKSPORT BEZ JAWNEGO KODU (OPS-06). Plik krąży pocztą, więc nie może nieść
+// poświadczeń wejścia: kolumna kodu ma tylko prefiks, a obok stoi skrót
+// SHA-256 - ten sam co `qr_token_hash` w bazie, po którym organizator odnajdzie
+// zgłoszenie. JSON idzie tą samą drogą (`toRejectedItem`).
 import { csvDocument } from "@/lib/crm/csv";
 import type { CheckinDirection, OfflineOutcome } from "@/lib/events/onsiteEnums";
 import { isCheckinDirection, isOfflineOutcome } from "@/lib/events/onsiteEnums";
 import type { CheckinScanResult } from "@/lib/events/scannerApi";
-import { parseOutboxItem, type OutboxItem, type RejectedScan } from "@/lib/events/scannerOutbox";
+import {
+  parseRejectedItem,
+  toRejectedItem,
+  type OutboxItem,
+  type RejectedItem,
+  type RejectedScan,
+} from "@/lib/events/scannerOutbox";
 import { downloadBlob } from "@/lib/files/downloadBlob";
 
 export type ConflictKind = "admitted_offline" | "denied_offline";
@@ -126,12 +137,15 @@ export function parseConflicts(value: unknown): ScanConflict[] {
   });
 }
 
-/** Rekord z IndexedDB -> odrzucone; pozycja bez kodu i identyfikatora wypada. */
+/**
+ * Rekord z IndexedDB -> odrzucone; pozycja bez identyfikatora albo rodzaju
+ * wypada. Jawny kod wpisu sprzed OPS-06 nie przechodzi - zostaje prefiks.
+ */
 export function parseRejected(value: unknown): RejectedScan[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry): RejectedScan[] => {
     const row = record(entry);
-    const item = parseOutboxItem(row.item);
+    const item = parseRejectedItem(row.item);
     const error = text(row.error);
     const rejectedAt = text(row.rejectedAt);
     if (item === null || error === null || rejectedAt === null) return [];
@@ -152,10 +166,19 @@ export interface SyncIssuesCsvLabels {
   serverResult: string;
   person: string;
   registrationId: string;
+  /** Kolumna z PREFIKSEM kodu - nigdy z całym kodem. */
   code: string;
+  /** Skrót SHA-256 kodu (ten sam co `qr_token_hash` w bazie). */
+  codeHash: string;
   reference: string;
   conflict: string;
   rejected: string;
+}
+
+/** Prefiks kodu z wielokropkiem - jedyna postać kodu, jaką widzi człowiek i plik. */
+export function codeDisplay(item: Pick<RejectedItem, "codePrefix">): string | null {
+  const prefix = item.codePrefix ?? null;
+  return prefix === null || prefix === "" ? null : `${prefix}…`;
 }
 
 export function syncIssuesCsv(
@@ -174,6 +197,7 @@ export function syncIssuesCsv(
     labels.person,
     labels.registrationId,
     labels.code,
+    labels.codeHash,
     labels.reference,
   ];
   const rows = [
@@ -188,21 +212,27 @@ export function syncIssuesCsv(
       row.personName,
       row.registrationId,
       null,
+      null,
       row.checkinId ?? row.id,
     ]),
-    ...rejected.map((row) => [
-      labels.rejected,
-      row.item.kind,
-      row.item.deviceScannedAt,
-      row.item.checkpointId,
-      row.item.direction,
-      row.item.offlineOutcome ?? null,
-      row.error,
-      null,
-      null,
-      row.item.code,
-      row.item.id,
-    ]),
+    ...rejected.map(({ item: raw, error }) => {
+      // Obrona na granicy: wpis z pami\u0119ci karty m\u00F3g\u0142 jeszcze nie\u015B\u0107 kod.
+      const item = toRejectedItem(raw);
+      return [
+        labels.rejected,
+        item.kind,
+        item.deviceScannedAt,
+        item.checkpointId,
+        item.direction,
+        item.offlineOutcome ?? null,
+        error,
+        null,
+        null,
+        codeDisplay(item),
+        item.codeHash ?? null,
+        item.id,
+      ];
+    }),
   ];
   return `\uFEFF${csvDocument(header, rows)}`;
 }
@@ -212,7 +242,8 @@ export function syncIssuesJson(
   rejected: readonly RejectedScan[],
   meta: { deviceLabel: string; eventSlug: string | null; exportedAt: string },
 ): string {
-  return JSON.stringify({ ...meta, conflicts, rejected }, null, 2);
+  const safe = rejected.map((entry) => ({ ...entry, item: toRejectedItem(entry.item) }));
+  return JSON.stringify({ ...meta, conflicts, rejected: safe }, null, 2);
 }
 
 /** Nazwa pliku: `skaner-<wydarzenie>-<dzień>.<rozszerzenie>`. */

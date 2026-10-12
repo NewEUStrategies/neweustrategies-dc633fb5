@@ -165,12 +165,20 @@ export interface RosterSnapshot {
   /** Wersja listy = `generated_at` PIERWSZEJ strony ostatniej synchronizacji. */
   generatedAt: string;
   rows: RosterEntry[];
+  /**
+   * Termin poświadczenia, pod którym lista została pobrana (OPS-06). Po nim
+   * lista osób znika z urządzenia przy każdym starcie i na odstępie - także
+   * wtedy, gdy nikt już nie otworzy skanera tym poświadczeniem. Brak = lista
+   * sprzed tej zmiany albo poświadczenie bez terminu.
+   */
+  expiresAt?: string | null;
 }
 
 export function rosterSnapshotToRecord(snapshot: RosterSnapshot): Record<string, unknown> {
   return {
     deviceId: snapshot.deviceId,
     generatedAt: snapshot.generatedAt,
+    expiresAt: snapshot.expiresAt ?? null,
     rows: snapshot.rows.map(rosterEntryToRecord),
   };
 }
@@ -181,7 +189,24 @@ export function parseRosterSnapshot(value: unknown): RosterSnapshot | null {
   const deviceId = text(row.deviceId);
   const generatedAt = text(row.generatedAt);
   if (deviceId === null || generatedAt === null || !Array.isArray(row.rows)) return null;
-  return { deviceId, generatedAt, rows: parseEntries(row.rows) };
+  const expiresAt = text(row.expiresAt);
+  // Tylko gdy jest: lista bez terminu ma ten sam kształt co przed tą zmianą.
+  return {
+    deviceId,
+    generatedAt,
+    rows: parseEntries(row.rows),
+    ...(expiresAt === null ? {} : { expiresAt }),
+  };
+}
+
+/** Czy termin listy minął (`nowMs` na zegarze skorygowanym, gdy jest znany). */
+export function isRosterExpired(
+  snapshot: Pick<RosterSnapshot, "expiresAt">,
+  nowMs: number,
+): boolean {
+  if (snapshot.expiresAt === null || snapshot.expiresAt === undefined) return false;
+  const expires = Date.parse(snapshot.expiresAt);
+  return !Number.isNaN(expires) && expires <= nowMs;
 }
 
 /** Po tylu minutach lista jest „nieświeża" - ekran mówi to operatorowi. */
@@ -248,18 +273,22 @@ export async function syncRosterSnapshot(input: {
   deviceId: string;
   previous: RosterSnapshot | null;
   fetchPage: RosterFetcher;
+  /** Termin poświadczenia - lista dziedziczy go jako własny termin na urządzeniu. */
+  expiresAt?: string | null;
 }): Promise<RosterSnapshot> {
   const { deviceId, previous, fetchPage } = input;
+  const term = input.expiresAt ?? null;
+  const expiry = term === null ? {} : { expiresAt: term };
   if (previous !== null && previous.deviceId === deviceId) {
     try {
       const delta = await drain(fetchPage, previous.rows, previous.generatedAt);
-      return { deviceId, ...delta };
+      return { deviceId, ...delta, ...expiry };
     } catch (error: unknown) {
       if (headOf(error) !== "roster_resync_required") throw error;
     }
   }
   const full = await drain(fetchPage, [], undefined);
-  return { deviceId, ...full };
+  return { deviceId, ...full, ...expiry };
 }
 
 /* ------------------------------------------------ lokalny dziennik decyzji --- */
