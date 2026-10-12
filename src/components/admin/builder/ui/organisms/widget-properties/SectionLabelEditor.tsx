@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Organism: section-label widget visual editor (variant + accent color + link).
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { WidgetNode, Json } from "@/lib/builder/types";
@@ -85,7 +86,7 @@ function MiniSelect({
   options: { value: string; label: string }[];
 }) {
   return (
-    <select
+    <AdminSelect
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="h-8 w-full rounded-[6px] border border-border bg-background px-2 text-xs"
@@ -95,7 +96,7 @@ function MiniSelect({
           {o.label}
         </option>
       ))}
-    </select>
+    </AdminSelect>
   );
 }
 

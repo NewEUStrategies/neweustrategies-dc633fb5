@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Organizm: UPRAWNIENIA DO STAWEK (akademicka, pozarządowa, firmowa).
 //
 // EKRAN ISTNIEJE, BO CENA BEZ NIEGO NIE MA JAK ZADZIAŁAĆ. Pakiet zawężony do
@@ -426,7 +427,7 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
                 <Label htmlFor="grant-valid-until">
                   {t("adminEventRegistration.audienceGrants.validUntilLabel")}
                 </Label>
-                <Input
+                <DateInput
                   id="grant-valid-until"
                   type="date"
                   value={draft.validUntil}

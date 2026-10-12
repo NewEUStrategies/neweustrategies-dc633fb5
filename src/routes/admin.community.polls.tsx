@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // /admin/community/polls — moderacja ankiet.
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -332,7 +333,7 @@ function CreatePollButton({ onCreated }: { onCreated: () => void }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>{t("adminCommunity.polls.endsAtOptional")}</Label>
-                <Input
+                <DateInput
                   type="datetime-local"
                   value={endsAt}
                   onChange={(e) => setEndsAt(e.target.value)}

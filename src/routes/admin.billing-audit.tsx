@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Admin → Rozliczenia → Audyt. Przegląd zamówień, zdarzeń webhooków i decyzji
 // korygujących, z ponowieniem rozliczenia i eksportem księgowym.
 //
@@ -179,14 +180,14 @@ function AdminBillingAudit() {
       <div className="mb-5 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("adminBillingAudit.environment")}
-          <select
+          <AdminSelect
             value={environment}
             onChange={(e) => setEnvironment(e.target.value as Env)}
             className="h-9 rounded-[6px] border border-border bg-background px-2 text-sm text-foreground"
           >
             <option value="sandbox">{t("adminBillingAudit.sandbox")}</option>
             <option value="live">{t("adminBillingAudit.live")}</option>
-          </select>
+          </AdminSelect>
         </label>
 
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">

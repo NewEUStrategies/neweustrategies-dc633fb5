@@ -56,7 +56,6 @@ describe("Label", () => {
     expect(ref.current).toBeInstanceOf(HTMLLabelElement);
     expect(ref.current).toHaveClass(
       "text-sm",
-      "leading-none",
       "peer-disabled:cursor-not-allowed",
       "peer-disabled:opacity-70",
       "font-semibold",

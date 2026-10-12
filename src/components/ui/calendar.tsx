@@ -108,7 +108,7 @@ function Calendar({
       locale={labelledLocale}
       showOutsideDays={showOutsideDays}
       className={cn(
-        "bg-background group/calendar p-3 [--cell-size:2rem]",
+        "pointer-events-auto bg-popover text-popover-foreground group/calendar p-3 [--cell-size:2rem]",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className,

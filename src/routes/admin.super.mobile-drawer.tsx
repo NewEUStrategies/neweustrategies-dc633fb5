@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Edytor konfiguracji mobilnego drawera - tylko dla super_admina.
 // Poziom trasy pod `/admin/*`, więc AdminShell + gate `useAuth` już działa;
 // tu dokładamy dodatkowy client-side redirect dla nie-super-adminów.
@@ -430,7 +431,7 @@ function SortableNavRow({
           </label>
           <label className="text-xs">
             {t("mobileDrawer.admin.icon")}
-            <select
+            <AdminSelect
               className={inputCls}
               value={item.icon}
               onChange={(e) => onChange({ icon: e.target.value as NavIcon })}
@@ -440,7 +441,7 @@ function SortableNavRow({
                   {icon}
                 </option>
               ))}
-            </select>
+            </AdminSelect>
           </label>
           <label className="text-xs inline-flex items-center gap-2 mt-4">
             <input

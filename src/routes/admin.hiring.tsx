@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Admin "Oferty pracy": pełne zarządzanie treścią strony /zatrudniamy.
 // Zakładka "Oferty" to CRUD tabeli `career_roles` (dwujęzycznie PL/EN, punkty
 // obowiązków i wymagań jako listy), zakładka "Sekcje" steruje widocznością
@@ -263,7 +264,7 @@ function Select<T extends string>({
   labelFor: (value: T) => string;
 }) {
   return (
-    <select
+    <AdminSelect
       value={value}
       onChange={(event) => onChange(event.target.value as T)}
       className="h-9 rounded-md border border-border bg-background px-2 text-sm"
@@ -273,7 +274,7 @@ function Select<T extends string>({
           {labelFor(option)}
         </option>
       ))}
-    </select>
+    </AdminSelect>
   );
 }
 

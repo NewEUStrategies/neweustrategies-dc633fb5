@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // USTAWIENIA LOGOWANIA I REJESTRACJI (/admin/login-settings).
 //
 // Ten panel decyduje o tym, czy da się wejść na serwis - dlatego DECYZJE nie
@@ -328,7 +329,7 @@ function LoginSettingsPage() {
           </SettingToggleCard>
           <div>
             <Label>{t("adminLoginSettings.formPosition")}</Label>
-            <select
+            <AdminSelect
               className="w-full mt-1 border rounded p-2 bg-background"
               value={s.login_position}
               // Straznik zamiast rzutowania: `e.target.value` jest `string`,
@@ -341,7 +342,7 @@ function LoginSettingsPage() {
               <option value="left">{t("adminLoginSettings.posLeft")}</option>
               <option value="center">{t("adminLoginSettings.posCenter")}</option>
               <option value="right">{t("adminLoginSettings.posRight")}</option>
-            </select>
+            </AdminSelect>
             <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
               {t("adminLoginSettings.formPositionHint")}
             </p>

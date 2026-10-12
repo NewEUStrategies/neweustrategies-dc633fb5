@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Admin → Rozliczenia → Uzgadnianie. Porównuje stan u operatora płatności ze
 // stanem lokalnym i pozwala odtworzyć brakującą obsługę webhooka.
 //
@@ -98,14 +99,14 @@ function AdminBillingReconcile() {
       <div className="mb-5 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("adminReconcile.environment")}
-          <select
+          <AdminSelect
             className="h-9 rounded-md border bg-background px-2 text-sm text-foreground"
             value={environment}
             onChange={(e) => setEnvironment(e.target.value === "live" ? "live" : "sandbox")}
           >
             <option value="sandbox">{t("adminReconcile.sandbox")}</option>
             <option value="live">{t("adminReconcile.live")}</option>
-          </select>
+          </AdminSelect>
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("adminReconcile.window")}

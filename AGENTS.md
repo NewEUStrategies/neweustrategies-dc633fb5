@@ -7,7 +7,8 @@
 - Share `EventModuleHero` across tabs, participant profile and studio preview; keep overview separate.
 - Share contact field ceilings between client/server validation and counters; retain complete submitted text in CRM responses and reject oversized custom values rather than slicing them, because visible limits must match stored data.
 
-- Use `tsgo --noEmit` to meet the preview gate timeout.
+- Use `tsgo --noEmit` for the preview timeout.
+- Share date/select atoms and field sizing tokens; preserve local dates to avoid shifting event days.
 
 - Use literal RPC/table names and matching grants (server-only: `service_role`; private columns outside public constants; tenant/company/user from session, never payload), because `bun run generate:ts-sql-contract` checks the live schema in CI.
 - Load speaker bio/social/contact on dialog open through the tenant-scoped detail RPC; apply existing contact visibility in SQL even in preview, to prevent admin-only PII leaks.

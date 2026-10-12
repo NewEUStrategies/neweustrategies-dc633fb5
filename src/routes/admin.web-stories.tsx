@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useId, useState, type ChangeEvent } from "react";
@@ -337,7 +338,7 @@ function Editor({
         <FloatingInput label="Slug" {...text("slug")} />
         <div>
           <Label htmlFor={statusId}>Status</Label>
-          <select
+          <AdminSelect
             id={statusId}
             className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
             value={d.status}
@@ -346,7 +347,7 @@ function Editor({
             <option value="draft">{t("adminMiscRoutes.webStories.statusDraft")}</option>
             <option value="published">{t("adminMiscRoutes.webStories.statusPublished")}</option>
             <option value="archived">{t("adminMiscRoutes.webStories.statusArchived")}</option>
-          </select>
+          </AdminSelect>
         </div>
         <FloatingInput
           label={t("adminMiscRoutes.webStories.cover")}
@@ -467,7 +468,7 @@ function PageFields({ page, setField }: { page: StoryPage; setField: SetPageFiel
       <div className="grid grid-cols-3 gap-3">
         <div>
           <Label htmlFor={backgroundId}>{t("adminMiscRoutes.webStories.background")}</Label>
-          <select
+          <AdminSelect
             id={backgroundId}
             className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
             value={page.background}
@@ -476,11 +477,11 @@ function PageFields({ page, setField }: { page: StoryPage; setField: SetPageFiel
             <option value="image">{t("adminMiscRoutes.webStories.bgImage")}</option>
             <option value="video">{t("adminMiscRoutes.webStories.bgVideo")}</option>
             <option value="color">{t("adminMiscRoutes.webStories.bgColor")}</option>
-          </select>
+          </AdminSelect>
         </div>
         <div>
           <Label htmlFor={positionId}>{t("adminMiscRoutes.webStories.textPosition")}</Label>
-          <select
+          <AdminSelect
             id={positionId}
             className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
             value={page.text_position}
@@ -491,11 +492,11 @@ function PageFields({ page, setField }: { page: StoryPage; setField: SetPageFiel
             <option value="top">{t("adminMiscRoutes.webStories.posTop")}</option>
             <option value="center">{t("adminMiscRoutes.webStories.posCenter")}</option>
             <option value="bottom">{t("adminMiscRoutes.webStories.posBottom")}</option>
-          </select>
+          </AdminSelect>
         </div>
         <div>
           <Label htmlFor={alignId}>{t("adminMiscRoutes.webStories.align")}</Label>
-          <select
+          <AdminSelect
             id={alignId}
             className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
             value={page.text_align}
@@ -504,7 +505,7 @@ function PageFields({ page, setField }: { page: StoryPage; setField: SetPageFiel
             <option value="left">{t("adminMiscRoutes.webStories.alignLeft")}</option>
             <option value="center">{t("adminMiscRoutes.webStories.alignCenter")}</option>
             <option value="right">{t("adminMiscRoutes.webStories.alignRight")}</option>
-          </select>
+          </AdminSelect>
         </div>
       </div>
 

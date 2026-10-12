@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Molekuła: okno „Udostępnij raport sponsorowi" - wydanie linku bez logowania.
 //
 // TOKEN WIDAĆ RAZ. Baza oddaje jawny token wyłącznie w odpowiedzi na wydanie
@@ -191,7 +192,7 @@ export function SponsorReportShareDialog({
               <Label htmlFor={`${baseId}-expires`}>
                 {t("adminEventSponsorReport.share.expiresOn")}
               </Label>
-              <Input
+              <DateInput
                 id={`${baseId}-expires`}
                 type="date"
                 min={bounds.min}

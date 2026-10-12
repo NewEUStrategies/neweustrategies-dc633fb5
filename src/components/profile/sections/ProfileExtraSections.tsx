@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 import { useId, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -978,14 +979,14 @@ function MiniField({
       <Label htmlFor={id} className="text-[11px] text-muted-foreground">
         {label}
       </Label>
-      <Input
+      {type === "date" ? <DateInput id={id} type="date" value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled} /> : <Input
         id={id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         className="h-7 text-xs"
-      />
+      />}
     </div>
   );
 }

@@ -112,7 +112,7 @@ export function DateTimePicker({
             aria-invalid={ariaInvalid}
             aria-describedby={ariaDescribedBy}
             className={cn(
-              "h-10 w-full justify-start gap-2 font-normal",
+              "platform-field w-full justify-start gap-2 font-normal",
               date ? "pr-9" : "text-muted-foreground",
               className,
             )}
@@ -122,20 +122,22 @@ export function DateTimePicker({
           </Button>
         </PopoverTrigger>
         {date && (
-          <button
+          <Button
             type="button"
             aria-label={resolvedClearLabel}
+            variant="ghost"
+            size="icon"
             disabled={disabled}
             onClick={() => onChange(null)}
             className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
+          </Button>
         )}
       </div>
       <PopoverContent
         align="start"
-        className="w-[18.5rem] overflow-hidden rounded-xl border-border bg-popover p-0 shadow-lg"
+        className="pointer-events-auto w-[18.5rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border-border bg-popover p-0 shadow-lg"
         sideOffset={6}
       >
         <Calendar

@@ -1,3 +1,4 @@
+import { PlatformSelect } from "@/components/ui/platform-select";
 // NewsletterDocRenderer - runtime renderer dla dokumentu z Newsletter Buildera.
 //
 // Uzywane w NewsletterForm (inline) i NewsletterPopup (popup). Walkuje sekcje
@@ -522,7 +523,7 @@ function RuntimeWidget({
     case "field.select":
       return (
         <FieldWrap label={pickI(w.label, lang)} required={w.required} error={error}>
-          <select name={w.name} required={w.required} className={INPUT_CLS} defaultValue="">
+          <PlatformSelect name={w.name} required={w.required} className={INPUT_CLS} defaultValue="">
             <option value="" disabled>
               {pickI(w.placeholder, lang)}
             </option>
@@ -531,7 +532,7 @@ function RuntimeWidget({
                 {lang === "pl" ? o.labelPl : o.labelEn}
               </option>
             ))}
-          </select>
+          </PlatformSelect>
         </FieldWrap>
       );
     case "field.checkbox":
@@ -556,7 +557,7 @@ function RuntimeWidget({
       if (w.display === "select") {
         return (
           <FieldWrap label={pickI(w.label, lang)} required={w.required} error={error}>
-            <select name={name} required={w.required} className={INPUT_CLS} defaultValue="">
+            <PlatformSelect name={name} required={w.required} className={INPUT_CLS} defaultValue="">
               <option value="" disabled>
                 {lang === "pl" ? "Wybierz..." : "Choose..."}
               </option>
@@ -565,7 +566,7 @@ function RuntimeWidget({
                   {lang === "pl" ? l.label_pl : l.label_en}
                 </option>
               ))}
-            </select>
+            </PlatformSelect>
           </FieldWrap>
         );
       }

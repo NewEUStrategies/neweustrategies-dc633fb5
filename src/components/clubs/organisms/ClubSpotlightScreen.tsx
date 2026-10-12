@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Organizm: pełny ekran "Poznaj członka".
 //
 // TRZY WARSTWY, KAŻDA Z INNYM ADRESATEM:
@@ -18,7 +19,6 @@ import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { CalendarRange, Loader2, Pin, Trash2, UserRoundSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -94,7 +94,7 @@ function PinForm({ clubId }: { clubId: string }) {
           {/* Dowolny dzień jest poprawny - RPC normalizuje go do poniedziałku
               tego tygodnia. Karanie redakcji błędem za wybranie środy byłoby
               podatkiem od tego, że kalendarz pokazuje dni, a nie tygodnie. */}
-          <Input
+          <DateInput
             id="spotlight-week"
             type="date"
             value={week}

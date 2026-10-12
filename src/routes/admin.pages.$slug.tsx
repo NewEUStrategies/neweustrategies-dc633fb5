@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { slugifyTaxonomy, normalizeSlugInput } from "@/lib/content/taxonomySlug";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -12,7 +13,6 @@ import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { isoToLocalInput, localInputToIso } from "@/lib/content/workflow";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Label } from "@/components/ui/label";
@@ -433,7 +433,7 @@ function EditPage() {
       {form.status === "scheduled" && (
         <div>
           <Label>{t("admin.workflow.publishAt")}</Label>
-          <Input
+          <DateInput
             type="datetime-local"
             value={isoToLocalInput(form.publish_at)}
             onChange={(e) => set("publish_at", localInputToIso(e.target.value))}

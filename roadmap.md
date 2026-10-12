@@ -1,5 +1,9 @@
 # Roadmap
 
+## Pola formularzy platformy
+- [ ] Ujednolicić listy wyboru, kalendarze i wysokości etykiet/pól w obu motywach.
+- [ ] Sprawdzić wybór daty i filtrów w zalogowanym raporcie sponsorów oraz testy wspólnych kontrolek.
+
 ## Szczegóły prelegenta
 - [x] Zmniejszyć odstęp nazwisko/stanowisko oraz pokazać uzupełniony biogram, social media i dozwolony kontakt w oknie profilu.
 - [x] Zweryfikować przepływ danych: 152 testy, sześć kontroli projekcji kontaktu, okno Macieja H. Grabowskiego z biogramem w zalogowanym podglądzie studia; build OK.

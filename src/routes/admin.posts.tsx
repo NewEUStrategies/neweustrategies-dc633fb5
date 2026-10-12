@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,7 +8,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2, Undo2, X, AlertTriangle, Copy } from "@/lib/lucide-shim";
 import { CalendarDays } from "lucide-react";
@@ -471,7 +471,7 @@ function PostsList() {
             <label className="text-[10px] uppercase text-muted-foreground mb-1">
               {t("admin.list.deletedFrom")}
             </label>
-            <Input
+            <DateInput
               type="date"
               value={trashFrom}
               onChange={(e) => setTrashFrom(e.target.value)}
@@ -482,7 +482,7 @@ function PostsList() {
             <label className="text-[10px] uppercase text-muted-foreground mb-1">
               {t("admin.list.deletedTo")}
             </label>
-            <Input
+            <DateInput
               type="date"
               value={trashTo}
               onChange={(e) => setTrashTo(e.target.value)}

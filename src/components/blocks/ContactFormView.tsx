@@ -1,3 +1,4 @@
+import { PlatformSelect } from "@/components/ui/platform-select";
 // Dynamic, themable contact-form widget with configurable fields,
 // columns, button placement, light/dark backgrounds, image background,
 // and six subtle animated background variants.
@@ -649,7 +650,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                   error={err}
                   className={span}
                 >
-                  <select
+                  <PlatformSelect
                     name={name}
                     required={f.required}
                     aria-required={f.required || undefined}
@@ -664,7 +665,7 @@ export function ContactFormView({ data, lang }: { data: Cfg; lang: Lang }) {
                         {(lang === "pl" ? o.labelPl : o.labelEn) ?? o.value}
                       </option>
                     ))}
-                  </select>
+                  </PlatformSelect>
                 </Field>
               );
             }

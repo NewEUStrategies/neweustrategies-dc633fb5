@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Molekuła: filtry raportu dla sponsorów - zakres dni, sponsor, miejsce.
 //
 // DZIEŃ TO DZIEŃ W STREFIE WYDARZENIA. Pola `date` dają napis YYYY-MM-DD bez
@@ -12,7 +13,6 @@ import { useTranslation } from "react-i18next";
 
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SPONSOR_PLACEMENTS } from "@/lib/events/sponsorExposure";
 import {
@@ -50,7 +50,7 @@ export function SponsorReportFiltersBar({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1">
           <Label htmlFor={`${baseId}-from`}>{t("adminEventSponsorReport.filters.from")}</Label>
-          <Input
+          <DateInput
             id={`${baseId}-from`}
             type="date"
             value={filters.from}
@@ -61,7 +61,7 @@ export function SponsorReportFiltersBar({
         </div>
         <div className="space-y-1">
           <Label htmlFor={`${baseId}-to`}>{t("adminEventSponsorReport.filters.to")}</Label>
-          <Input
+          <DateInput
             id={`${baseId}-to`}
             type="date"
             value={filters.to}

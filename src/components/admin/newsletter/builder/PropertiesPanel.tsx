@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // PropertiesPanel - prawa kolumna buildera.
 // Renderuje pola edycji dla zaznaczonego widgetu; gdy nic nie jest zaznaczone,
 // pokazuje ustawienia calego dokumentu (dla popupu: kolory + layout).
@@ -1081,7 +1082,7 @@ function WidgetProps({
         <div className="space-y-3">
           <div>
             <Label>Deadline</Label>
-            <Input
+            <DateInput
               type="datetime-local"
               value={dtLocal}
               onChange={(e) => {

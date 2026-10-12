@@ -1,3 +1,4 @@
+import { PlatformSelect } from "@/components/ui/platform-select";
 // Widget "Speakers" - premium siatka prelegentów w stylu "mentors-section":
 // portret 4:3 z overlay-bookmark (localStorage per widget, z migracją ze
 // starego klucza globalnego), badge kategorii na zdjęciu, filtry-pigułki
@@ -404,7 +405,7 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
               <span className="cms-meta text-muted-foreground">
                 {lang === "pl" ? "Sortuj:" : "Sort:"}
               </span>
-              <select
+              <PlatformSelect
                 value={sort}
                 onChange={(e) => {
                   setSort(e.target.value as SortKey);
@@ -417,7 +418,7 @@ export function SpeakersWidget({ node, lang }: { node: WidgetNode; lang: Lang })
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </PlatformSelect>
             </label>
           )}
           <p aria-live="polite" className="cms-meta whitespace-nowrap text-muted-foreground">

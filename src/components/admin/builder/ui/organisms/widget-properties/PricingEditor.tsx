@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Organism: pricing plans editor.
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
@@ -28,7 +29,7 @@ export function PricingEditor({ c, lang, setContent }: Props) {
   const sourceControls = (
     <div className="space-y-2 rounded-md border border-border/60 p-2">
       <PropField label={lang === "pl" ? "Źródło danych" : "Data source"}>
-        <select
+        <AdminSelect
           value={source}
           onChange={(e) => setContent("source", e.target.value)}
           className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
@@ -37,12 +38,12 @@ export function PricingEditor({ c, lang, setContent }: Props) {
           <option value="plans">
             {lang === "pl" ? "Katalog planów (Stripe)" : "Plan catalog (Stripe)"}
           </option>
-        </select>
+        </AdminSelect>
       </PropField>
       {source === "plans" && (
         <>
           <PropField label={lang === "pl" ? "Okres" : "Interval"}>
-            <select
+            <AdminSelect
               value={(c.planInterval as string) ?? "all"}
               onChange={(e) => setContent("planInterval", e.target.value)}
               className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
@@ -53,7 +54,7 @@ export function PricingEditor({ c, lang, setContent }: Props) {
               <option value="quarter">{lang === "pl" ? "Kwartalne" : "Quarterly"}</option>
               <option value="year">{lang === "pl" ? "Roczne" : "Yearly"}</option>
               <option value="one_time">{lang === "pl" ? "Jednorazowe" : "One-time"}</option>
-            </select>
+            </AdminSelect>
           </PropField>
           <div className="grid grid-cols-2 gap-2">
             <PropField label={lang === "pl" ? "Warstwy (CSV)" : "Tier keys (CSV)"}>

@@ -13,7 +13,7 @@ import { pl as plLocale, enGB as enLocale } from "date-fns/locale";
 import { Calendar as CalendarIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { TimeInput } from "@/components/ui/time-input";
 import { AdminCalendar } from "@/components/admin/blocks/AdminCalendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -93,7 +93,7 @@ export function AdminDatePicker({
             disabled={disabled}
             aria-label={rest["aria-label"]}
             className={cn(
-              "admin-date-trigger flex-1 justify-start font-normal h-9",
+              "platform-field admin-date-trigger flex-1 justify-start font-normal",
               !parsed && "text-muted-foreground",
               triggerClassName,
             )}
@@ -174,7 +174,7 @@ export function AdminDateTimePicker({
             disabled={disabled}
             aria-label={rest["aria-label"]}
             className={cn(
-              "admin-date-trigger w-full justify-start font-normal h-9",
+              "platform-field admin-date-trigger w-full justify-start font-normal",
               !parsed && "text-muted-foreground",
               triggerClassName,
             )}
@@ -194,7 +194,7 @@ export function AdminDateTimePicker({
           />
         </PopoverContent>
       </Popover>
-      <Input
+      <TimeInput
         type="time"
         value={timeValue}
         onChange={(e) => commit(parsed, e.target.value)}

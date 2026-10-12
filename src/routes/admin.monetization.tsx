@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 import { ensureI18n } from "@/lib/i18n-admin-monetization";
 // Dashboard monetyzacji: metered views, użycia kuponów, ustawienia checkoutu,
 // filtry po planie i organizacji. Odczyt via monetization_dashboard (RPC, staff-only).
@@ -19,7 +20,6 @@ import { billingKeys } from "@/lib/billing/keys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Database } from "@/integrations/supabase/types";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { uiLocale } from "@/lib/i18n/format";
 import {
@@ -135,7 +135,7 @@ function AdminMonetizationPage() {
               <Label htmlFor="monetization-from" className="text-xs">
                 {L("Od", "From")}
               </Label>
-              <Input
+              <DateInput
                 id="monetization-from"
                 type="date"
                 value={from}
@@ -146,7 +146,7 @@ function AdminMonetizationPage() {
               <Label htmlFor="monetization-to" className="text-xs">
                 {L("Do", "To")}
               </Label>
-              <Input
+              <DateInput
                 id="monetization-to"
                 type="date"
                 value={to}

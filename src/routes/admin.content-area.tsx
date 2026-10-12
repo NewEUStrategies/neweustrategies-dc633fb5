@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
@@ -85,7 +86,7 @@ function SelectField({
   options: Array<{ value: string; label: string }>;
 }) {
   return (
-    <select
+    <AdminSelect
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
@@ -95,7 +96,7 @@ function SelectField({
           {o.label}
         </option>
       ))}
-    </select>
+    </AdminSelect>
   );
 }
 

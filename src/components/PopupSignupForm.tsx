@@ -1,3 +1,4 @@
+import { PlatformSelect } from "@/components/ui/platform-select";
 // Formularz REJESTRACJI KONTA użytkownika w popupie (wariant split/showcase).
 // To nie jest formularz newslettera - tworzy realne konto (e-mail + hasło,
 // potwierdzenie mailem). Newsletter jest wyłącznie opcjonalnym checkboxem,
@@ -549,7 +550,7 @@ export function PopupSignupForm({
           CSS trzyma etykietę selecta na ramce (select nie ma :placeholder-shown). */}
       {showLists && (
         <div className="input-group min-w-0">
-          <select
+          <PlatformSelect
             id="nl-popup-list"
             className="input"
             value={v.list}
@@ -561,7 +562,7 @@ export function PopupSignupForm({
                 {pickLocalized(l, "label", lang)}
               </option>
             ))}
-          </select>
+          </PlatformSelect>
           <label htmlFor="nl-popup-list" className="user-label">
             {label("list")}
             {fields.list.required ? " *" : ""}

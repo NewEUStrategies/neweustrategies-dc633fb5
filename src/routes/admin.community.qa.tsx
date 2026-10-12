@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // /admin/community/qa — moderacja sesji Q&A i pytań.
 // - Lista sesji ze statusem → workflow (draft → scheduled → open → answering → closed)
 // - Drill do pytań w sesji: approve/reject/answer
@@ -592,7 +593,7 @@ function CreateQaSessionButton({ onCreated }: { onCreated: () => void }) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label>{t("adminCommunity.qa.opensAt")}</Label>
-                <Input
+                <DateInput
                   type="datetime-local"
                   value={opensAt}
                   onChange={(e) => setOpensAt(e.target.value)}
@@ -600,7 +601,7 @@ function CreateQaSessionButton({ onCreated }: { onCreated: () => void }) {
               </div>
               <div className="space-y-1">
                 <Label>{t("adminCommunity.qa.closesAt")}</Label>
-                <Input
+                <DateInput
                   type="datetime-local"
                   value={closesAt}
                   onChange={(e) => setClosesAt(e.target.value)}

@@ -8,6 +8,7 @@ import { pl, enUS } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { TimeInput } from "@/components/ui/time-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
@@ -79,7 +80,7 @@ export function DatePickerField({
             variant="outline"
             disabled={disabled}
             className={cn(
-              "w-full justify-start text-left font-normal rounded-[6px]",
+              "platform-field w-full justify-start text-left font-normal rounded-[6px]",
               heightCls,
               !value && "text-muted-foreground",
             )}
@@ -102,7 +103,7 @@ export function DatePickerField({
               <label className="text-[11px] text-muted-foreground">
                 {i18n.language === "pl" ? "Godzina" : "Time"}
               </label>
-              <input
+              <TimeInput
                 type="time"
                 value={timeValue}
                 onChange={(e) => handleTimeChange(e.target.value)}

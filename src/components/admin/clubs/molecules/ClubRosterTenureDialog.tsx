@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Molekuła: DIALOG KADENCJI ROLI.
 //
 // CO BYŁA W ORGANIZMIE. Lokalny komponent `TenureDialog` na dole pliku, który
@@ -31,7 +32,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { hasMemberTenure } from "@/lib/clubs/adminMemberRoster";
 import { formatDateTime } from "@/lib/i18n/format";
@@ -83,7 +83,7 @@ export function ClubRosterTenureDialog({
           </p>
           <div className="space-y-1.5">
             <Label htmlFor="club-tenure-date">{t("adminClubs.members.tenureUntil")}</Label>
-            <Input
+            <DateInput
               id="club-tenure-date"
               type="date"
               value={value}

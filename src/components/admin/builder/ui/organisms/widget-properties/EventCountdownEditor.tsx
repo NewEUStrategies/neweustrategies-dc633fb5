@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Organism: edytor widgetu "event-countdown". Tryb "event" (data startu z
 // modulu events, wybor przez EventPicker) lub "custom" (reczna data). Tytul,
 // tekst po zakonczeniu i etykieta CTA sa i18n (PL/EN).
@@ -64,7 +65,7 @@ export function EventCountdownEditor({ c, lang, setContent }: Props) {
         </PropField>
       ) : (
         <PropField label={l("Data i godzina celu", "Target date & time")}>
-          <Input
+          <DateInput
             type="datetime-local"
             value={isoToLocalInput(strOf(c.targetAt))}
             onChange={(e) => {
