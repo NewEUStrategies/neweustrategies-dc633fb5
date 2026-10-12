@@ -794,7 +794,7 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
   it("równoległy zapis uprawnienia: przegrany wyścig (23505) aktualizuje TEN SAM wiersz", async () => {
     // Drugi przeplot tego samego wyścigu: wiersz subskrypcji już jest, ale oba
     // zdarzenia czytają „brak uprawnienia", zanim którekolwiek je wstawi.
-    // Indeks unikalny `external_ref` (20261012100300) odrzuca drugie
+    // Indeks unikalny `external_ref` (20261012130300) odrzuca drugie
     // wstawienie, a kod zamienia je w aktualizację - nie w drugi wiersz.
     const subscriptions = subscriptionsTable();
     const entitlements = rowStore({ unique: ["external_ref"] });

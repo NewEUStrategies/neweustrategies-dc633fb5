@@ -179,7 +179,7 @@ export async function grantEntitlement(
       }
     };
 
-    // `external_ref` jest UNIKALNY w bazie (20261012100300), więc `maybeSingle`
+    // `external_ref` jest UNIKALNY w bazie (20261012130300), więc `maybeSingle`
     // nie trafi już na dwa wiersze (dawne `order + limit 1` obchodziło brak
     // indeksu). Odczyt wybiera wstawienie albo odświeżenie - unikalności
     // pilnuje indeks: przegrany wyścig niżej kończy się 23505, nie duplikatem.

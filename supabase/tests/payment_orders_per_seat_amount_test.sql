@@ -1,5 +1,5 @@
 -- pgTAP: pułap kwoty zamówienia planu za miejsce
--- (migracja 20261012100400_payment_orders_per_seat_plan_amount, audyt PAY-01).
+-- (migracja 20261012130400_payment_orders_per_seat_plan_amount, audyt PAY-01).
 --
 -- Kasa liczy kwotę zamówienia z wiersza planu RAZEM z liczbą miejsc. Strażnik
 -- wstawienia porównywał ją z ceną jednego miejsca, więc zamówienie Zespołu na

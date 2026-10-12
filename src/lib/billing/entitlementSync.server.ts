@@ -78,7 +78,7 @@ export function isUniqueViolation(error: { code?: string } | null | undefined): 
 /**
  * Idempotentnie odwzorowuje stan subskrypcji operatora w `user_subscriptions`.
  * Klucz: `external_ref` = identyfikator subskrypcji u operatora - UNIKALNY
- * w bazie (`user_subscriptions_external_ref_key`, 20261012100300).
+ * w bazie (`user_subscriptions_external_ref_key`, 20261012130300).
  *
  * Unikalności pilnuje indeks, nie kod. Dwa równoległe zdarzenia tej samej
  * subskrypcji (`created` + `updated` bez wiersza) widziały dawniej oba „brak"
