@@ -11,6 +11,7 @@
 // być widoczna na siatce, bo to najczęstsza rzecz do poprawienia przed
 // publikacją - schowanie jej znaczyłoby, że siatka kłamie o zawartości dnia.
 import { eventDayKey, eventTimeZone } from "@/lib/events/timezone";
+import { resolveBrandAccent } from "@/lib/theme/brandAccent";
 import type { AgendaConflictRow, EventRoomRow, EventSessionRow } from "@/lib/events/sessionsApi";
 
 /** Kolumna „sesje bez sali" - wartownik, bo `room_id` bywa pusty. */
@@ -203,7 +204,7 @@ export function buildAgendaTimeline(input: TimelineInput): readonly TimelineDay[
         trackName: pickTrack(session, lang),
         accentColor:
           typeof session.track_accent_color === "string" && session.track_accent_color !== ""
-            ? session.track_accent_color
+            ? resolveBrandAccent(session.track_accent_color)
             : null,
         lane: 0,
         lanes: 1,
