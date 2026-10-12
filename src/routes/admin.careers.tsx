@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Admin "Rekrutacja": skrzynka zgłoszeń ze strony /zatrudniamy.
 // Zgłoszenia trafiają do `contact_messages` (form_id = "careers") razem z
@@ -44,9 +45,7 @@ import {
 } from "@/lib/careers/recruitmentLayer";
 
 export const Route = createFileRoute("/admin/careers")({
-  head: () => ({
-    meta: [{ title: "Rekrutacja | Admin" }, { name: "robots", content: "noindex" }],
-  }),
+  head: () => adminPageHead("Recruitment", "Review recruitment applications and messages. New European Strategies administration."),
   component: AdminCareersPage,
 });
 

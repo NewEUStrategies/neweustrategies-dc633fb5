@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // USTAWIENIA LOGOWANIA I REJESTRACJI (/admin/login-settings).
 //
@@ -41,6 +42,7 @@ type TextField = {
 }[keyof AuthSettings];
 
 export const Route = createFileRoute("/admin/login-settings")({
+  head: () => adminPageHead("Sign-in settings", "Configure sign-in and registration presentation. New European Strategies administration."),
   component: LoginSettingsPage,
 });
 

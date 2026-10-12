@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -32,7 +33,9 @@ import { replaceStrokeLetters } from "@/lib/text/strokeLetters";
 // do tego podwójny padding i drugi komplet zapytań powłoki (ustawienia,
 // liczniki klubów). Ta sama naprawa co w `admin.events.tsx`: trasa oddaje
 // sam kontent.
-export const Route = createFileRoute("/admin/web-stories")({ component: Page });
+export const Route = createFileRoute("/admin/web-stories")({
+  head: () => adminPageHead("Web stories", "Manage stories and their publication settings. New European Strategies administration."),
+  component: Page });
 
 /** Klucz listy panelu i PREFIKS publicznej przestrzeni historii (`lib/queries/webStories`). */
 const ADMIN_KEY = ["admin", "web-stories"] as const;

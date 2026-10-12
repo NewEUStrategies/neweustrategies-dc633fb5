@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Edytor konfiguracji mobilnego drawera - tylko dla super_admina.
 // Poziom trasy pod `/admin/*`, więc AdminShell + gate `useAuth` już działa;
@@ -40,12 +41,7 @@ import { mobileDrawerConfigQueryOptions } from "@/lib/queries/mobileDrawer";
 import { upsertMobileDrawerConfig } from "@/lib/mobileDrawer.functions";
 
 export const Route = createFileRoute("/admin/super/mobile-drawer")({
-  head: () => ({
-    meta: [
-      { name: "robots", content: "noindex, nofollow" },
-      { title: "Mobile drawer - super admin" },
-    ],
-  }),
+  head: () => adminPageHead("Mobile navigation", "Configure mobile navigation and drawer content. New European Strategies administration."),
   component: MobileDrawerEditor,
 });
 

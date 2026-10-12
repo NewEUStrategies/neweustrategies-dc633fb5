@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Admin → Rozliczenia → Audyt. Przegląd zamówień, zdarzeń webhooków i decyzji
 // korygujących, z ponowieniem rozliczenia i eksportem księgowym.
@@ -18,9 +19,7 @@ import { ensureI18n as ensureAuditI18n } from "@/lib/i18n-admin-billing-audit";
 import { WebhookHealthPanel } from "@/components/admin/billing/WebhookHealthPanel";
 
 export const Route = createFileRoute("/admin/billing-audit")({
-  head: () => ({
-    meta: [{ title: "Audyt rozliczeń - Panel" }, { name: "robots", content: "noindex, nofollow" }],
-  }),
+  head: () => adminPageHead("Billing audit", "Review orders and billing audit records. New European Strategies administration."),
   component: AdminBillingAudit,
 });
 

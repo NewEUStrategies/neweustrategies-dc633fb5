@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Admin → Rozliczenia → Uzgadnianie. Porównuje stan u operatora płatności ze
 // stanem lokalnym i pozwala odtworzyć brakującą obsługę webhooka.
@@ -18,12 +19,7 @@ import type { ReconcileIssue, ReconcileReport } from "@/lib/billing/reconcile.se
 import { ensureI18n as ensureAdminReconcileI18n } from "@/lib/i18n-admin-reconcile";
 
 export const Route = createFileRoute("/admin/billing-reconcile")({
-  head: () => ({
-    meta: [
-      { title: "Uzgadnianie płatności - Panel" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-  }),
+  head: () => adminPageHead("Payment reconciliation", "Review payment reconciliation and corrective actions. New European Strategies administration."),
   component: AdminBillingReconcile,
 });
 
