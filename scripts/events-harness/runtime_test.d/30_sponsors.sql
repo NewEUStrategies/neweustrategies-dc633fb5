@@ -2111,10 +2111,16 @@ SELECT pg_temp.assert(
 -- 34 -> 35: 20260927000800 (klon edycji) dolozyla pomocnika
 -- `_event_clone_sponsors` (niewolalny z klienta, wolany z `admin_event_clone`).
 -- Asercje klonu sa w 92_event_clone.sql.
+-- 35 -> 38: 20261012120000 (integralnosc pomiaru, OPS-09) dolozyla panelowe
+-- `admin_event_sponsor_exposure_anomalies` i pomocnika podpisu sesji
+-- `_event_sponsor_exposure_token` (ingest zmienil sygnature - stara USUNIETA,
+-- wiec liczba sie nie dubluje); 20261012120100 (OPS-10) - pomocnika
+-- `_event_meeting_sponsor_allowed`. Asercje: 34_sponsor_exposure_integrity.sql
+-- i 61_meeting_sponsor_binding.sql.
 SELECT pg_temp.assert(
   (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname LIKE '%sponsor%') = 35,
-  '30/struktura: migracje zostawily 35 funkcji (27 panelu, 5 publicznych/serwisowych, 3 pomocnikow)');
+    WHERE n.nspname = 'public' AND p.proname LIKE '%sponsor%') = 38,
+  '30/struktura: migracje zostawily 38 funkcji (28 panelu, 5 publicznych/serwisowych, 5 pomocnikow)');
 
 SELECT pg_temp.assert(
   (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace

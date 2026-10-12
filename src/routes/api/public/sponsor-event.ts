@@ -1,14 +1,19 @@
 // Ingest ekspozycji sponsorów wydarzeń: POST /api/public/sponsor-event.
 //
-// Strona wydarzenia (`sponsorTracking.ts`) wysyła tu przez `sendBeacon` paczkę
-// wyświetleń i kliknięć logotypów, materiałów i reklam - WYŁĄCZNIE po zgodzie
-// marketingowej. Wzorzec 1:1 z `/api/public/ad-event`: odpowiedź to ZAWSZE
-// 204 bez cache, wyjątki są połykane (beacon nie czyta odpowiedzi, a kod
-// odpowiedzi zdradzałby, które identyfikatory istnieją).
+// Strona wydarzenia (`sponsorTracking.ts`) wysyła tu paczkę wyświetleń
+// i kliknięć logotypów, materiałów i reklam - WYŁĄCZNIE po zgodzie
+// marketingowej. Wzorzec z `/api/public/ad-event`: wyjątki są połykane,
+// a odpowiedź to 204 bez cache - z JEDNYM wyjątkiem: gdy baza wydała nową
+// sesję (paczka bez sesji albo z sesją bez ważnego podpisu), odpowiedź to
+// 200 `{ session }` bez cache. Beacon odpowiedzi nie czyta; czyta ją
+// pierwsza wysyłka trackera (`fetch` z `keepalive`). Sesja nie zdradza, które
+// identyfikatory sponsorów istnieją - dostaje ją każda paczka opublikowanego
+// wydarzenia, niezależnie od pozycji.
 //
 // ŚCIANY (każda ma test w `-sponsor-event.test.ts`, patrzący na SKUTEK - czy
 // zapis do bazy w ogóle się odbył i z czym):
-//   1. limiter po IP (`clientIpFromHeaders` - jedyne dopuszczone źródło IP);
+//   1. limiter po IP w pamięci izolatu (`rateLimitIpSubject`) - tani pierwszy
+//      sito; GLOBALNY limit po adresie i wydarzeniu trzyma baza (pkt 7);
 //   2. limit długości ciała;
 //   3. zaufany host strony (`currentTenantHost()` - host zwalidowany względem
 //      `tenants.domain`, także zza pośrednika z `X-Forwarded-Host`); bez niego
@@ -18,20 +23,29 @@
 //   4. filtr ruchu nieludzkiego (`botFilter.ts`: agent, prefetch, `Origin`
 //      inny niż ZAUFANY host - nie host z `req.url`, który za pośrednikiem
 //      jest wewnętrzny i odrzucał każdy prawdziwy beacon);
-//   5. kształt: slug, identyfikator sesji, biała lista miejsc i rodzajów,
-//      uuid, maks. 40 pozycji, macierz miejsce x rodzaj (`isAcceptableExposure`);
+//   5. kształt: slug, sesja (opcjonalna - jej brak to prośba o sesję), biała
+//      lista miejsc i rodzajów, uuid, maks. 40 pozycji, macierz miejsce
+//      x rodzaj (`isAcceptableExposure`);
 //   6. najemca z TEGO SAMEGO zaufanego hosta - bez rozpoznanego najemcy nic
 //      nie zapisujemy;
-//   7. przynależność sponsora, materiału i reklamy do TEGO opublikowanego
-//      wydarzenia sprawdza baza (`event_sponsor_exposure_ingest`) w jednej
-//      podróży - klient nie przypisze wyświetlenia cudzemu sponsorowi.
-// Do bazy nie trafia IP, agent ani surowy identyfikator sesji.
+//   7. baza (`event_sponsor_exposure_ingest`, migracja 20261012120000) w jednej
+//      podróży: limit paczek na adres i wydarzenie (`rate_limit_hit`),
+//      weryfikacja podpisu sesji, najwyżej 50 unikalnych z adresu na dzień
+//      (49 sesji + kubełek adresu, do którego liczą się dalsze sesje i sesje
+//      niepodpisane), anomalie dla panelu oraz przynależność sponsora,
+//      materiału i reklamy do TEGO opublikowanego wydarzenia - klient nie
+//      przypisze wyświetlenia cudzemu sponsorowi ani nie nabije unikalnych
+//      rotacją identyfikatora.
+// Do bazy nie trafia IP ani agent: adres idzie jako SOLONY skrót
+// (`requestRateSubject` - ta sama sól i ta sama jedyna definicja „kto dzwoni",
+// co wszystkie limity po IP w repo), a sesja jako skrót z dniem.
 import { createFileRoute } from "@tanstack/react-router";
 import { getRequest } from "@tanstack/react-start/server";
 
 import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 import { isLikelyBotRequest } from "@/lib/http/botFilter";
 import { currentTenantHost } from "@/lib/http/requestHost";
+import { requestRateSubject } from "@/lib/server/rateSubject.server";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import {
   SPONSOR_BATCH_MAX,
@@ -41,6 +55,7 @@ import {
   isAcceptableExposure,
   isSponsorExposureKind,
   isSponsorPlacement,
+  issuedSponsorSession,
   type SponsorExposureItem,
 } from "@/lib/events/sponsorExposure";
 
@@ -52,6 +67,14 @@ const SLUG_PATTERN = /^[a-z0-9-]{3,120}$/;
 
 function noContent(): Response {
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
+}
+
+/** Sesja wydana przez bazę - jedyna odpowiedź z treścią. */
+function sessionIssued(session: string): Response {
+  return new Response(JSON.stringify({ session }), {
+    status: 200,
+    headers: { "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8" },
+  });
 }
 
 function uuidOrNull(value: unknown): string | null {
@@ -73,6 +96,19 @@ function parseItem(value: unknown): SponsorExposureItem | null {
   return isAcceptableExposure(item) ? item : null;
 }
 
+/**
+ * Sesja z ciała: brak (klucz pominięty albo `null`) = prośba o sesję serwera;
+ * napis w szerokim kształcie idzie do bazy (podpis sprawdza baza, a stary
+ * klient ma trafić do kubełka i anomalii); cokolwiek innego - paczka odpada.
+ */
+function parseSession(value: unknown): { ok: true; session: string | null } | { ok: false } {
+  if (value === undefined || value === null) return { ok: true, session: null };
+  if (typeof value === "string" && SPONSOR_SESSION_PATTERN.test(value)) {
+    return { ok: true, session: value };
+  }
+  return { ok: false };
+}
+
 export const Route = createFileRoute("/api/public/sponsor-event")({
   server: {
     handlers: {
@@ -92,9 +128,8 @@ export const Route = createFileRoute("/api/public/sponsor-event")({
           const body = JSON.parse(raw) as Record<string, unknown>;
 
           const slug = typeof body.event_slug === "string" ? body.event_slug : "";
-          const session = typeof body.session === "string" ? body.session : "";
-          if (!SLUG_PATTERN.test(slug) || !SPONSOR_SESSION_PATTERN.test(session))
-            return noContent();
+          const session = parseSession(body.session);
+          if (!SLUG_PATTERN.test(slug) || !session.ok) return noContent();
           if (!Array.isArray(body.items)) return noContent();
 
           const items = body.items
@@ -113,10 +148,18 @@ export const Route = createFileRoute("/api/public/sponsor-event")({
           if (!tenantId) return noContent();
 
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.rpc("event_sponsor_exposure_ingest", {
+          const { data, error } = await supabaseAdmin.rpc("event_sponsor_exposure_ingest", {
             p_tenant: tenantId,
-            p_payload: { event_slug: slug, session, items: items.map(exposureToWire) },
+            p_source: requestRateSubject(req.headers),
+            p_payload: {
+              event_slug: slug,
+              ...(session.session === null ? {} : { session: session.session }),
+              items: items.map(exposureToWire),
+            },
           });
+          if (error) return noContent();
+          const issued = issuedSponsorSession(data);
+          if (issued !== null) return sessionIssued(issued);
         } catch {
           // Ingest jest best-effort - beacon nigdy nie dostaje błędu.
         }

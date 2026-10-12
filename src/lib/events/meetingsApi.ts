@@ -608,6 +608,12 @@ export async function inviteToMeeting(input: {
   startsAt: string;
   topic?: string | null;
   message?: string | null;
+  /**
+   * Przypięcie do sponsora TEGO wydarzenia. Baza zapisuje je wyłącznie, gdy
+   * któraś strona jest ze sponsorem powiązana (firma albo osoba kontaktowa,
+   * OPS-10); inaczej spotkanie powstaje bez przypięcia, a odpowiedź niesie
+   * `sponsor_id: null`.
+   */
   sponsorId?: string | null;
 }): Promise<Json> {
   const { data, error } = await supabase.rpc("event_meeting_invite", {

@@ -7,10 +7,10 @@
 //
 // Ingest ekspozycji sponsorów: POST /api/public/sponsor-event.
 //
-// PO CO ASERCJE NA SKUTKU. Endpoint jest publiczny, bez sesji i podpisu,
-// a KAŻDA ścieżka kończy się tym samym `204 no-store` i połyka wyjątki. Zapis,
-// odrzucenie i awaria wyglądają z zewnątrz identycznie, więc test kodu
-// odpowiedzi nie odróżniłby działającej ściany od zdjętej. Każda asercja
+// PO CO ASERCJE NA SKUTKU. Endpoint jest publiczny, bez konta, i połyka
+// wyjątki; zapis, odrzucenie i awaria kończą się tym samym `204 no-store`
+// (jedyny wyjątek: 200 `{ session }`, gdy baza wydała sesję). Test kodu
+// odpowiedzi nie odróżniłby działającej ściany od zdjętej, więc każda asercja
 // niżej patrzy na to, CZY i Z CZYM poszło wywołanie
 // `event_sponsor_exposure_ingest` - jedyny obserwowalny skutek.
 //
@@ -21,11 +21,15 @@
 //   4. filtr ruchu nieludzkiego (agent, prefetch, `Origin` inny niż ZAUFANY
 //      host - także gdy żądanie przyszło zza pośrednika pod hostem
 //      wewnętrznym, a publiczny niesie `X-Forwarded-Host`),
-//   5. kształt: slug, sesja, biała lista miejsc i rodzajów, uuid, 40 pozycji,
-//      macierz miejsce x rodzaj,
-//   6. najemca z zaufanego hosta - bez niego nic nie jedzie do bazy.
-// Przynależność sponsora/materiału/reklamy do wydarzenia sprawdza baza
-// (asercje harnessu `32_sponsor_report.sql`), więc tu jej nie udajemy.
+//   5. kształt: slug, sesja (opcjonalna), biała lista miejsc i rodzajów, uuid,
+//      40 pozycji, macierz miejsce x rodzaj,
+//   6. najemca z zaufanego hosta - bez niego nic nie jedzie do bazy,
+//   7. (OPS-09) do bazy jedzie SOLONY skrót adresu (`p_source`), nigdy adres;
+//      sesję wydaną przez bazę endpoint oddaje jako 200 `{ session }`.
+// Przynależność sponsora/materiału/reklamy do wydarzenia, podpis sesji, limit
+// zapytań i limit sesji na adres sprawdza baza (asercje harnessu
+// `32_sponsor_report.sql` i `34_sponsor_exposure_integrity.sql`), więc tu ich
+// nie udajemy.
 //
 // ATRAPUJEMY WYŁĄCZNIE GRANICE: klienta bazy, rozwiązywanie najemcy i host.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,6 +38,8 @@ const h = vi.hoisted(() => ({
   tenantId: "aaaaaaaa-0000-4000-8000-00000000000a" as string | null,
   tenantThrows: false,
   rpcThrows: false,
+  rpcData: { written: 1, session: null, collapsed: null } as unknown,
+  rpcError: null as { message: string } | null,
   calls: [] as { fn: string; args: Record<string, unknown> }[],
   req: null as Request | null,
   host: "nes.example" as string | null,
@@ -45,7 +51,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
     rpc: async (fn: string, args: Record<string, unknown>) => {
       h.calls.push({ fn, args });
       if (h.rpcThrows) throw new Error("baza niedostępna");
-      return { data: 1, error: null };
+      return { data: h.rpcData, error: h.rpcError };
     },
   },
 }));
@@ -70,7 +76,11 @@ const TENANT = "aaaaaaaa-0000-4000-8000-00000000000a";
 const SPONSOR = "11111111-1111-4111-8111-111111111111";
 const MATERIAL = "22222222-2222-4222-8222-222222222222";
 const AD = "33333333-3333-4333-8333-333333333333";
-const SESSION = "f".repeat(32);
+/** Sesja w kształcie serwera (nonce + podpis). */
+const SESSION = "f".repeat(64);
+/** Identyfikator starego klienta - baza policzy go do kubełka adresu. */
+const LEGACY_SESSION = "e".repeat(32);
+const SOURCE_PATTERN = /^ip:[0-9a-f]{32}$/;
 const CHROME =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36";
 
@@ -111,6 +121,8 @@ beforeEach(() => {
   h.tenantId = TENANT;
   h.tenantThrows = false;
   h.rpcThrows = false;
+  h.rpcData = { written: 1, session: null, collapsed: null };
+  h.rpcError = null;
   h.calls = [];
   h.host = "nes.example";
   h.hostsResolved = [];
@@ -138,6 +150,7 @@ describe("ścieżka szczęśliwa", () => {
         fn: "event_sponsor_exposure_ingest",
         args: {
           p_tenant: TENANT,
+          p_source: expect.stringMatching(SOURCE_PATTERN),
           p_payload: {
             event_slug: "kongres-2099",
             session: SESSION,
@@ -276,7 +289,7 @@ describe("ściana 5: kształt paczki", () => {
     ["za krótki slug", batch([VIEW], { event_slug: "ab" })],
     ["slug nie-napis", batch([VIEW], { event_slug: 7 })],
     ["zła sesja", batch([VIEW], { session: "krotka" })],
-    ["sesja nie-napis", batch([VIEW], { session: null })],
+    ["sesja nie-napis", batch([VIEW], { session: 7 })],
     ["pozycje nie-lista", batch([VIEW], { items: VIEW })],
     ["pusta lista", batch([])],
     ["same złe pozycje", batch([{ ...VIEW, kind: "hover" }])],
@@ -290,6 +303,57 @@ describe("ściana 5: kształt paczki", () => {
     await post(null, { raw: "null" });
     expect(res.status).toBe(204);
     expect(h.calls).toEqual([]);
+  });
+});
+
+describe("ściana 7 (OPS-09): źródło i sesja serwera", () => {
+  it("do bazy jedzie solony skrót adresu - stały dla adresu, różny między adresami, bez IP", async () => {
+    await post(batch([VIEW]), { ip: "203.0.113.7" });
+    await post(batch([VIEW]), { ip: "203.0.113.7" });
+    await post(batch([VIEW]), { ip: "203.0.113.8" });
+    const sources = h.calls.map((call) => String(call.args.p_source));
+    expect(sources.every((source) => SOURCE_PATTERN.test(source))).toBe(true);
+    expect(sources[0]).toBe(sources[1]);
+    expect(sources[2]).not.toBe(sources[0]);
+    expect(JSON.stringify(h.calls)).not.toContain("203.0.113");
+  });
+
+  it("paczka bez sesji (klucz pominięty albo null) to prośba o sesję - do bazy bez klucza session", async () => {
+    await post({ event_slug: "kongres-2099", items: [VIEW] });
+    await post(batch([VIEW], { session: null }));
+    expect(h.calls).toHaveLength(2);
+    for (const call of h.calls) {
+      expect(call.args.p_payload).toEqual({
+        event_slug: "kongres-2099",
+        items: [{ sponsor_id: SPONSOR, placement: "home_strip", kind: "view" }],
+      });
+    }
+  });
+
+  it("baza wydała sesję: 200 { session } bez cache", async () => {
+    h.rpcData = { written: 1, session: SESSION, collapsed: null };
+    const res = await post({ event_slug: "kongres-2099", items: [VIEW] });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("content-type")).toContain("application/json");
+    await expect(res.json()).resolves.toEqual({ session: SESSION });
+  });
+
+  it("identyfikator starego klienta jedzie do bazy (kubełek + anomalia), odpowiedź niesie nową sesję", async () => {
+    h.rpcData = { written: 1, session: SESSION, collapsed: "invalid_session" };
+    const res = await post(batch([VIEW], { session: LEGACY_SESSION }));
+    expect((h.calls[0].args.p_payload as { session: string }).session).toBe(LEGACY_SESSION);
+    await expect(res.json()).resolves.toEqual({ session: SESSION });
+  });
+
+  it("sesja w złym kształcie, brak sesji w odpowiedzi i błąd bazy - zwykłe 204", async () => {
+    h.rpcData = { written: 1, session: "f".repeat(32), collapsed: null };
+    expect((await post(batch([VIEW]))).status).toBe(204);
+    h.rpcData = 1;
+    expect((await post(batch([VIEW]))).status).toBe(204);
+    h.rpcData = { written: 0, session: SESSION, collapsed: null };
+    h.rpcError = { message: "permission denied" };
+    expect((await post(batch([VIEW]))).status).toBe(204);
   });
 });
 
