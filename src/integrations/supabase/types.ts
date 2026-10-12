@@ -7376,6 +7376,243 @@ export type Database = {
           },
         ]
       }
+      event_consent_confirmations: {
+        Row: {
+          confirmed_at: string | null
+          confirmed_by_user: string | null
+          confirmed_ip_subject: string | null
+          confirmed_user_agent: string | null
+          created_at: string
+          email_norm: string
+          event_id: string | null
+          expires_at: string
+          id: string
+          mailed_at: string | null
+          person_id: string
+          purposes: string[]
+          registration_id: string | null
+          requested_ip_subject: string | null
+          requested_user_agent: string | null
+          superseded_at: string | null
+          tenant_id: string
+          text_lang: string
+          text_version: number
+          token_hash: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          confirmed_by_user?: string | null
+          confirmed_ip_subject?: string | null
+          confirmed_user_agent?: string | null
+          created_at?: string
+          email_norm: string
+          event_id?: string | null
+          expires_at?: string
+          id?: string
+          mailed_at?: string | null
+          person_id: string
+          purposes: string[]
+          registration_id?: string | null
+          requested_ip_subject?: string | null
+          requested_user_agent?: string | null
+          superseded_at?: string | null
+          tenant_id: string
+          text_lang: string
+          text_version: number
+          token_hash: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          confirmed_by_user?: string | null
+          confirmed_ip_subject?: string | null
+          confirmed_user_agent?: string | null
+          created_at?: string
+          email_norm?: string
+          event_id?: string | null
+          expires_at?: string
+          id?: string
+          mailed_at?: string | null
+          person_id?: string
+          purposes?: string[]
+          registration_id?: string | null
+          requested_ip_subject?: string | null
+          requested_user_agent?: string | null
+          superseded_at?: string | null
+          tenant_id?: string
+          text_lang?: string
+          text_version?: number
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_consent_confirmations_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_consent_confirmations_person_fk"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_consent_confirmations_registration_fk"
+            columns: ["tenant_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_consent_confirmations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_consent_records: {
+        Row: {
+          actor_user_id: string | null
+          confirmation_id: string | null
+          created_at: string
+          email_norm: string | null
+          event_id: string | null
+          evidence: string
+          id: string
+          ip_subject: string | null
+          person_id: string
+          purpose: string
+          registration_id: string | null
+          seq: number
+          source: string | null
+          status: string
+          tenant_id: string
+          text_lang: string | null
+          text_version: number | null
+          user_agent: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          confirmation_id?: string | null
+          created_at?: string
+          email_norm?: string | null
+          event_id?: string | null
+          evidence: string
+          id?: string
+          ip_subject?: string | null
+          person_id: string
+          purpose: string
+          registration_id?: string | null
+          seq?: never
+          source?: string | null
+          status: string
+          tenant_id: string
+          text_lang?: string | null
+          text_version?: number | null
+          user_agent?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          confirmation_id?: string | null
+          created_at?: string
+          email_norm?: string | null
+          event_id?: string | null
+          evidence?: string
+          id?: string
+          ip_subject?: string | null
+          person_id?: string
+          purpose?: string
+          registration_id?: string | null
+          seq?: never
+          source?: string | null
+          status?: string
+          tenant_id?: string
+          text_lang?: string | null
+          text_version?: number | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_consent_records_confirmation_fk"
+            columns: ["tenant_id", "confirmation_id"]
+            isOneToOne: false
+            referencedRelation: "event_consent_confirmations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_consent_records_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_consent_records_person_fk"
+            columns: ["tenant_id", "person_id"]
+            isOneToOne: false
+            referencedRelation: "event_people"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_consent_records_registration_fk"
+            columns: ["tenant_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_consent_records_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_consent_records_text_fk"
+            columns: ["purpose", "text_version", "text_lang"]
+            isOneToOne: false
+            referencedRelation: "event_consent_texts"
+            referencedColumns: ["purpose", "version", "lang"]
+          },
+        ]
+      }
+      event_consent_texts: {
+        Row: {
+          body: string
+          body_sha256: string | null
+          created_at: string
+          effective_from: string
+          lang: string
+          purpose: string
+          retired_at: string | null
+          version: number
+        }
+        Insert: {
+          body: string
+          body_sha256?: string | null
+          created_at?: string
+          effective_from?: string
+          lang: string
+          purpose: string
+          retired_at?: string | null
+          version: number
+        }
+        Update: {
+          body?: string
+          body_sha256?: string | null
+          created_at?: string
+          effective_from?: string
+          lang?: string
+          purpose?: string
+          retired_at?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
       event_funnel_events: {
         Row: {
           ad_user_data: boolean
@@ -10116,6 +10353,7 @@ export type Database = {
           remind_sms_consent_via: string | null
           source: string
           status: string
+          submitted_profile: Json | null
           tenant_id: string
           ticket_code_claimed_at: string | null
           ticket_code_sent_at: string | null
@@ -10163,6 +10401,7 @@ export type Database = {
           remind_sms_consent_via?: string | null
           source?: string
           status?: string
+          submitted_profile?: Json | null
           tenant_id: string
           ticket_code_claimed_at?: string | null
           ticket_code_sent_at?: string | null
@@ -10210,6 +10449,7 @@ export type Database = {
           remind_sms_consent_via?: string | null
           source?: string
           status?: string
+          submitted_profile?: Json | null
           tenant_id?: string
           ticket_code_claimed_at?: string | null
           ticket_code_sent_at?: string | null
