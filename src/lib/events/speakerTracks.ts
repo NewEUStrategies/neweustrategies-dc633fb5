@@ -61,7 +61,7 @@ export function parseSpeakerTracks(raw: unknown): SpeakerTrack[] {
       key: textOrNull(row.key),
       namePl,
       nameEn,
-      accentColor: resolveBrandAccent(hexColorOrNull(row.accent_color)),
+      accentColor: hexColorOrNull(row.accent_color),
       sessionsCount: Number.isFinite(count) && count > 0 ? Math.floor(count) : 0,
     });
   }
