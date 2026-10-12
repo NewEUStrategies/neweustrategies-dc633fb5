@@ -40,6 +40,7 @@ interface SubRow {
   current_period_end: string | null;
   payment_failure_count: number;
   last_dunning_transaction_id: string | null;
+  last_payment_at?: string | null;
 }
 
 async function loadSubscription(ctx: DunningContext): Promise<SubRow | null> {
@@ -47,7 +48,7 @@ async function loadSubscription(ctx: DunningContext): Promise<SubRow | null> {
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
     .select(
-      "user_id, tenant_id, price_id, current_period_end, payment_failure_count, last_dunning_transaction_id",
+      "user_id, tenant_id, price_id, current_period_end, payment_failure_count, last_dunning_transaction_id, last_payment_at",
     )
     .eq("provider_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment)
@@ -117,6 +118,18 @@ async function pushNotification(params: {
  */
 export const PAYMENT_GRACE_DAYS = 14;
 
+/**
+ * `true`, gdy zdarzenie `occurredAt` nie jest późniejsze niż `reference`.
+ * Nieczytelny znacznik po którejkolwiek stronie to `false` - brak dowodu
+ * starszeństwa nie może zjeść prawdziwej porażki.
+ */
+function isNotAfter(occurredAt: string, reference: string | null): boolean {
+  if (!reference) return false;
+  const event = Date.parse(occurredAt);
+  const ref = Date.parse(reference);
+  return Number.isFinite(event) && Number.isFinite(ref) && event <= ref;
+}
+
 /** Nieudane obciążenie: licznik prób + mail + powiadomienie. */
 export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<void> {
   const sub = await loadSubscription(ctx);
@@ -129,6 +142,21 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
   // (`past_due` po `payment_failed` lub odwrotnie, w dowolnej kolejności) nie
   // podbija licznika i nie generuje kolejnego maila ani dzwonka.
   if (ctx.transactionId && sub.last_dunning_transaction_id === ctx.transactionId) {
+    return;
+  }
+
+  // Porażka STARSZA niż ostatnia udana płatność: spóźniona albo powtórzona
+  // dostawa `invoice.payment_failed` faktury, która w międzyczasie przeszła.
+  // Bez tej bramki licznik rósł, a klient z opłaconą subskrypcją dostawał
+  // mail „płatność nie powiodła się". Kolejna PRAWDZIWA porażka ma nowszy
+  // znacznik niż odzyskana płatność, więc przechodzi.
+  if (isNotAfter(ctx.occurredAt, sub.last_payment_at ?? null)) {
+    console.warn("[payments] stale payment failure after a successful payment - ignored", {
+      subscriptionId: ctx.subscriptionId,
+      transactionId: ctx.transactionId ?? null,
+      occurredAt: ctx.occurredAt,
+      lastPaymentAt: sub.last_payment_at,
+    });
     return;
   }
 
@@ -186,10 +214,15 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
   await updateSubscription(ctx, {
     payment_failure_count: 0,
     last_payment_failed_at: null,
-    last_payment_at: ctx.occurredAt,
-    // Zwolnienie klucza deduplikacji - kolejne nieudane obciążenie w nowym
-    // cyklu ma znowu uruchomić pełną windykację.
-    last_dunning_transaction_id: null,
+    // Znacznik nie cofa się: spóźnione `invoice.paid` starej faktury nie może
+    // otworzyć okna, w którym stara porażka znów przechodzi bramkę wyżej.
+    last_payment_at: isNotAfter(ctx.occurredAt, sub.last_payment_at ?? null)
+      ? (sub.last_payment_at ?? ctx.occurredAt)
+      : ctx.occurredAt,
+    // Klucza deduplikacji (`last_dunning_transaction_id`) NIE zerujemy: kolejne
+    // nieudane obciążenie w nowym cyklu ma nową fakturę, więc i tak przejdzie,
+    // a wyzerowany klucz przepuszczał spóźnione `payment_failed` tej samej,
+    // już opłaconej faktury - z mailem „płatność nie powiodła się".
     updated_at: new Date().toISOString(),
   });
 

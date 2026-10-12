@@ -4,8 +4,9 @@
 // domenowym (`SubscriptionData` / `TransactionData`), więc testujemy go jak
 // kontrakt: co wchodzi z bramki, co wychodzi do `dispatchWebhookEvent`.
 // Moduł jest czysty (importuje wyłącznie typy) - nie ma czego mockować.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mapStripeSubscription, normalizeStripeEvent } from "@/lib/billing/stripeEvents.server";
+import { STRIPE_WEBHOOK_EVENT_TYPES } from "@/lib/billing/stripeEventTypes";
 import type { NormalizedStripeEvent } from "@/lib/billing/stripeEvents.server";
 import type { SubscriptionData, TransactionData } from "@/lib/billing/webhookDispatch.server";
 import type { VerifiedWebhookEvent } from "@/lib/stripe.server";
@@ -341,6 +342,9 @@ describe("normalizeStripeEvent - sesje checkout", () => {
       details: { totals: { grandTotal: "12000" } },
       billingPeriod: null,
       source: "checkout_session",
+      amountSubtotalCents: null,
+      amountDiscountCents: null,
+      amountTaxCents: null,
     });
   });
 
@@ -422,6 +426,90 @@ describe("normalizeStripeEvent - sesje checkout", () => {
   it("zachowuje kwotę zerową jako '0' (sesja w pełni pokryta kuponem)", () => {
     const data = transactionOf(event("checkout.session.completed", session({ amount_total: 0 })));
     expect(data.details?.totals?.grandTotal).toBe("0");
+  });
+
+  it("PAY-06: niesie rozbicie kwoty sesji - pozycje, rabat i podatek", () => {
+    // Realizacja porównuje `subtotal - rabat` z kwotą zamówienia. Sama suma
+    // końcowa tego nie rozstrzyga: podatek doliczany na wierzch i kod
+    // promocyjny operatora zmieniają ją w przeciwne strony.
+    const data = transactionOf(
+      event(
+        "checkout.session.completed",
+        session({
+          amount_subtotal: 10_000,
+          amount_total: 9_840,
+          total_details: { amount_discount: 2_000, amount_tax: 1_840, amount_shipping: 0 },
+        }),
+      ),
+    );
+
+    expect(data).toMatchObject({
+      amountSubtotalCents: 10_000,
+      amountDiscountCents: 2_000,
+      amountTaxCents: 1_840,
+      currencyCode: "PLN",
+      details: { totals: { grandTotal: "9840" } },
+    });
+  });
+
+  it("PAY-06: sesja Adaptive Pricing liczy się w walucie ZAMÓWIENIA (currency_conversion)", () => {
+    // Sesja sprzed 2025-03-31: pola główne w walucie kupującego (EUR), waluta
+    // zamówienia (PLN) w `currency_conversion`. Kupon 20% bez podatku na
+    // wierzch: rabat w PLN wynika DOKŁADNIE z różnicy sum źródłowych.
+    const data = transactionOf(
+      event(
+        "checkout.session.completed",
+        session({
+          currency: "eur",
+          amount_subtotal: 2_331,
+          amount_total: 1_865,
+          total_details: { amount_discount: 466, amount_tax: 0 },
+          currency_conversion: {
+            amount_subtotal: 10_000,
+            amount_total: 8_000,
+            fx_rate: "0.2331",
+            source_currency: "pln",
+          },
+        }),
+      ),
+    );
+
+    expect(data).toMatchObject({
+      currencyCode: "PLN",
+      details: { totals: { grandTotal: "8000" } },
+      amountSubtotalCents: 10_000,
+      amountDiscountCents: 2_000,
+      amountTaxCents: 0,
+    });
+  });
+
+  it("PAY-06: Adaptive Pricing z podatkiem na wierzch przelicza podatek proporcją sum pozycji", () => {
+    const data = transactionOf(
+      event(
+        "checkout.session.completed",
+        session({
+          currency: "eur",
+          amount_subtotal: 2_500,
+          amount_total: 2_460,
+          total_details: { amount_discount: 500, amount_tax: 460 },
+          currency_conversion: {
+            amount_subtotal: 10_000,
+            amount_total: 9_840,
+            fx_rate: "0.25",
+            source_currency: "pln",
+          },
+        }),
+      ),
+    );
+
+    // Podatek na wierzch: 460 EUR-centów * 4 = 1840 groszy; rabat = pozycje
+    // - (suma - podatek) = 10000 - (9840 - 1840) = 2000.
+    expect(data).toMatchObject({
+      currencyCode: "PLN",
+      amountSubtotalCents: 10_000,
+      amountDiscountCents: 2_000,
+      amountTaxCents: 1_840,
+    });
   });
 });
 
@@ -664,7 +752,7 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
     expect(data.totals).toEqual({ total: "0", captured: "0", currencyCode: null });
   });
 
-  it("mapuje obciążenie zwrotne (dispute)", () => {
+  it("mapuje obciążenie zwrotne (dispute) na słownik domenowy, z surowym statusem obok", () => {
     const data = adjustmentOf(
       event("charge.dispute.created", {
         id: "dp_1",
@@ -679,10 +767,50 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
       id: "dp_1",
       transactionId: "ch_9",
       subscriptionId: null,
-      action: "chargeback",
-      status: "needs_response",
+      action: "chargeback_warning",
+      status: "open",
+      providerStatus: "needs_response",
       totals: { total: "2500", currencyCode: "EUR" },
     });
+  });
+
+  it.each([
+    ["charge.dispute.created", "warning_needs_response", "chargeback_warning", "open"],
+    ["charge.dispute.created", "warning_under_review", "chargeback_warning", "open"],
+    ["charge.dispute.created", "needs_response", "chargeback_warning", "open"],
+    ["charge.dispute.created", "under_review", "chargeback_warning", "open"],
+    ["charge.dispute.closed", "won", "chargeback", "reversed"],
+    ["charge.dispute.closed", "warning_closed", "chargeback", "reversed"],
+    ["charge.dispute.closed", "prevented", "chargeback", "reversed"],
+    ["charge.dispute.closed", "lost", "chargeback", "approved"],
+  ])("PAY-03: %s ze statusem `%s` -> %s/%s", (type, providerStatus, action, status) => {
+    // Bez tego tłumaczenia żaden status Stripe nie przechodził przez bramki
+    // `refunds.server` (słownik Paddle: approved/reversed) - spór nie
+    // odbierał dostępu, nie alarmował i po wygranej niczego nie przywracał.
+    const data = adjustmentOf(
+      event(type, { id: "dp_2", payment_intent: "pi_2", status: providerStatus, amount: 100 }),
+    );
+
+    expect(data).toMatchObject({ transactionId: "pi_2", action, status, providerStatus });
+  });
+
+  it("PAY-03: NIEZNANY status sporu jest sporem otwartym - ale głośno, nie po cichu", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const data = adjustmentOf(
+      event("charge.dispute.closed", { id: "dp_3", charge: "ch_3", status: "nowy_status" }),
+    );
+
+    expect(data).toMatchObject({
+      action: "chargeback_warning",
+      status: "open",
+      providerStatus: "nowy_status",
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] unknown Stripe dispute status - treated as open",
+      "nowy_status",
+    );
+    warn.mockRestore();
   });
 
   it("mapuje notę kredytową na korektę powiązaną z fakturą", () => {
@@ -707,9 +835,16 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
   });
 
   it("każda korekta jedzie tym samym typem zdarzenia domenowego", () => {
-    for (const type of ["charge.refunded", "charge.dispute.created", "credit_note.created"]) {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const type of [
+      "charge.refunded",
+      "charge.dispute.created",
+      "charge.dispute.closed",
+      "credit_note.created",
+    ]) {
       expect(normalized(event(type, { id: "x" })).eventType).toBe("adjustment.created");
     }
+    warn.mockRestore();
   });
 
   it("zeruje kwotę korekty, gdy operator poda ją w nieliczbowej postaci", () => {
@@ -722,6 +857,20 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
 });
 
 describe("normalizeStripeEvent - zakres integracji", () => {
+  it("każdy typ z `STRIPE_WEBHOOK_EVENT_TYPES` ma tłumaczenie (lista i normalizator się nie rozjeżdżają)", () => {
+    // Typ na liście, którego normalizator nie zna, kończy się w dzienniku
+    // jako `skipped` - uzgadnianie uznaje go za obsłużony, a skutek nie
+    // powstaje nigdy (tak było z `charge.dispute.closed`).
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const type of STRIPE_WEBHOOK_EVENT_TYPES) {
+      expect(
+        normalizeStripeEvent(event(type, { id: "obj_1", status: "won" })),
+        type,
+      ).not.toBeNull();
+    }
+    warn.mockRestore();
+  });
+
   it("przekazuje customer.updated bez tłumaczenia (profil rozliczeniowy)", () => {
     const object = { id: "cus_1", email: "nowy@example.com" };
     const result = normalized(event("customer.updated", object));

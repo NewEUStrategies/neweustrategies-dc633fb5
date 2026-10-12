@@ -81,6 +81,7 @@ interface SubRow {
   current_period_end: string | null;
   payment_failure_count: number;
   last_dunning_transaction_id: string | null;
+  last_payment_at?: string | null;
 }
 
 let db: SupabaseFromStub;
@@ -397,7 +398,10 @@ describe("applyPaymentFailedEffects - nieudane obciążenie", () => {
 });
 
 describe("applyPaymentRecoveredEffects - płatność zaksięgowana po porażce", () => {
-  it("zeruje licznik i klucz deduplikacji, wysyła potwierdzenie z ceną planu i dzwoni", async () => {
+  it("zeruje licznik, ale ZOSTAWIA klucz deduplikacji; wysyła potwierdzenie z ceną planu i dzwoni", async () => {
+    // PAY-13: klucz deduplikacji zostaje - kolejna porażka w nowym cyklu ma
+    // nową fakturę, a wyzerowany klucz przepuszczał spóźnione `payment_failed`
+    // tej samej, już opłaconej faktury.
     row().payment_failure_count = 2;
     row().last_dunning_transaction_id = "txn_1";
     const ctx = context({ occurredAt: relativeIso(-2 * GODZINA) });
@@ -409,7 +413,6 @@ describe("applyPaymentRecoveredEffects - płatność zaksięgowana po porażce",
       payment_failure_count: 0,
       last_payment_failed_at: null,
       last_payment_at: ctx.occurredAt,
-      last_dunning_transaction_id: null,
       updated_at: FIXED_NOW_ISO,
     });
     expect(filters).toEqual([
@@ -470,5 +473,92 @@ describe("applyPaymentRecoveredEffects - płatność zaksięgowana po porażce",
     );
     expect(mails()).toHaveLength(1);
     error.mockRestore();
+  });
+});
+
+describe("PAY-13 - porażka, która przyszła PO odzyskaniu płatności", () => {
+  /** Wiersz żyje jak w bazie: zapis zmienia to, co czyta następne zdarzenie. */
+  function persistWrites(): void {
+    db.setResponse("subscriptions", (chain) => {
+      if (chain.has("update")) {
+        Object.assign(row(), chain.argsOf("update")?.[0]);
+        return ok(null);
+      }
+      return ok({ ...row() });
+    });
+  }
+
+  it("PAY-13: porażka po odzyskaniu TEJ SAMEJ faktury -> bez maila, bez licznika, bez dzwonka", async () => {
+    // Kolejność dostaw: `payment_failed` (in_1) -> `paid` (in_1) -> powtórzone
+    // albo spóźnione `payment_failed` (in_1). Klient zapłacił - mail
+    // „płatność nie powiodła się" byłby nieprawdą, a licznik prób skróciłby
+    // mu windykację przy następnej, prawdziwej porażce.
+    persistWrites();
+    const failedAt = relativeIso(-3 * GODZINA);
+    await applyPaymentFailedEffects(context({ transactionId: "in_1", occurredAt: failedAt }));
+    await applyPaymentRecoveredEffects(
+      context({ transactionId: "in_1", occurredAt: relativeIso(-2 * GODZINA) }),
+    );
+    const mailsBefore = mails().length;
+    const writesBefore = db.chainsFor("subscriptions").filter((c) => c.has("update")).length;
+    const bellsBefore = db.chainsFor("notifications").length;
+
+    await applyPaymentFailedEffects(context({ transactionId: "in_1", occurredAt: failedAt }));
+
+    expect(mails()).toHaveLength(mailsBefore);
+    expect(mails().filter((mail) => mail.type === "payment_failed")).toHaveLength(1);
+    expect(db.chainsFor("subscriptions").filter((c) => c.has("update"))).toHaveLength(writesBefore);
+    expect(db.chainsFor("notifications")).toHaveLength(bellsBefore);
+    expect(row().payment_failure_count).toBe(0);
+  });
+
+  it("porażka STARSZA niż ostatnia udana płatność (inny identyfikator) też jest pomijana", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    row().last_payment_at = relativeIso(-1 * GODZINA);
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_stara", occurredAt: relativeIso(-5 * GODZINA) }),
+    );
+
+    expect(mails()).toHaveLength(0);
+    expect(subscriptionUpdate().patch).toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] stale payment failure after a successful payment - ignored",
+      expect.objectContaining({ subscriptionId: SUB, transactionId: "in_stara" }),
+    );
+    warn.mockRestore();
+  });
+
+  it("NOWA porażka po odzyskaniu (nowsza faktura) uruchamia pełną windykację", async () => {
+    row().last_payment_at = relativeIso(-30 * DZIEN);
+    row().last_dunning_transaction_id = "in_poprzednia";
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_nowa", occurredAt: relativeIso(-1 * DZIEN) }),
+    );
+
+    expect(subscriptionUpdate().patch).toMatchObject({
+      payment_failure_count: 1,
+      last_dunning_transaction_id: "in_nowa",
+    });
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+
+  it("spóźnione `invoice.paid` STAREJ faktury nie cofa znacznika ostatniej płatności", async () => {
+    row().last_payment_at = relativeIso(-1 * GODZINA);
+
+    await applyPaymentRecoveredEffects(context({ occurredAt: relativeIso(-40 * DZIEN) }));
+
+    expect(subscriptionUpdate().patch).toMatchObject({
+      last_payment_at: relativeIso(-1 * GODZINA),
+    });
+  });
+
+  it("nieczytelny znacznik ostatniej płatności nie zjada prawdziwej porażki", async () => {
+    row().last_payment_at = "nie-data";
+
+    await applyPaymentFailedEffects(context());
+
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
   });
 });

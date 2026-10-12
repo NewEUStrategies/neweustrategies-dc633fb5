@@ -12,7 +12,9 @@
 //   * awarię KAŻDEGO zapisu z osobna - i to, CO ZOSTAJE W BAZIE po awarii.
 //
 // GRANICA ATRAP - ŚWIADOMIE WĄSKA. Podmienione są WYŁĄCZNIE granice systemu:
-// klient Supabase (rola serwisowa) i wysyłka poczty. Sąsiednie moduły
+// klient Supabase (rola serwisowa), wysyłka poczty i klient operatora
+// (cel zwrotu spoza własnej bazy: faktura subskrypcji, sesja Checkout -
+// PAY-04 / PAY-07). Sąsiednie moduły
 // rozliczeń (`grant.server`, `purchaseEffects.server`, `notifications.server`,
 // `entitlementSync.server`, `oneTimeFulfilment.server`, `catalog`) biegną
 // PRAWDZIWE. To kosztuje więcej pracy przy planowaniu odpowiedzi bazy, ale
@@ -39,6 +41,16 @@ const h = vi.hoisted(() => ({
     error: null as { message: string } | null,
   },
   emails: [] as unknown[],
+  stripe: {
+    envs: [] as string[],
+    /** Płatności faktur zwracane przez `invoicePayments.list` (PAY-04). */
+    invoicePayments: [] as Array<Record<string, unknown>>,
+    /** Sesje zwracane przez `checkout.sessions.list` (PAY-07). */
+    sessions: [] as Array<Record<string, unknown>>,
+    calls: [] as string[],
+    /** Awaria operatora (sieć, 5xx) - każde wywołanie rzuca. */
+    failure: null as Error | null,
+  },
 }));
 
 // GRANICA 1: klient roli serwisowej. `rpc` jest tu, bo pełny zwrot biletu
@@ -53,6 +65,35 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       h.rpc.calls.push({ fn, args });
       return Promise.resolve({ data: null, error: h.rpc.error });
     },
+  },
+}));
+
+// GRANICA 3: operator płatności. Zwrot, którego nie zna własna baza, pyta
+// operatora o fakturę płatności (subskrypcja, PAY-04) i o sesję Checkout
+// (zwrot przed realizacją, PAY-07). Domyślnie operator nie zna niczego.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
+  getStripeClient: async (env: string) => {
+    h.stripe.envs.push(env);
+    return {
+      charges: { retrieve: async (id: string) => ({ id, payment_intent: null }) },
+      invoicePayments: {
+        list: async () => {
+          h.stripe.calls.push("invoicePayments.list");
+          if (h.stripe.failure) throw h.stripe.failure;
+          return { data: h.stripe.invoicePayments };
+        },
+      },
+      invoices: { retrieve: async (id: string) => ({ id }) },
+      checkout: {
+        sessions: {
+          list: async () => {
+            h.stripe.calls.push("checkout.sessions.list");
+            return { data: h.stripe.sessions };
+          },
+        },
+      },
+    };
   },
 }));
 
@@ -100,6 +141,8 @@ type SubscriptionRow = Pick<
 >;
 
 const TXN = "pi_1SyntetycznaTransakcja";
+/** Identyfikator zamówienia w kształcie UUID - tak zapisuje go `metadata.orderId` sesji. */
+const ORDER_UUID = "33333333-cccc-4ccc-8ccc-333333333333";
 const SUB = "sub_1SyntetycznaSubskrypcja";
 const EVENT_ID = "44444444-4444-4444-4444-444444444444";
 
@@ -284,6 +327,11 @@ beforeEach(() => {
   h.rpc.calls.length = 0;
   h.rpc.error = null;
   h.emails.length = 0;
+  h.stripe.envs.length = 0;
+  h.stripe.calls.length = 0;
+  h.stripe.invoicePayments = [];
+  h.stripe.sessions = [];
+  h.stripe.failure = null;
   scene = {
     order: orderRow(),
     subscription: null,
@@ -349,28 +397,34 @@ describe("applyRefundEffects - korekty, które NIE odbierają dostępu", () => {
     expect(db.chainsFor("payment_orders")).toHaveLength(0);
   });
 
-  it("transakcja wyzerowana W TRAKCIE przetwarzania kończy się `skipped`, nie zapytaniem", async () => {
-    // Kierowanie korekty czyta `transactionId` synchronicznie, a `revokeOrder`
-    // czyta go PONOWNIE dopiero po pierwszym `await`. Obiekt zdarzenia
-    // zmieniony w tym oknie (wołający, który używa go dalej) nie może
-    // skończyć się filtrem z `null` - bramka zamyka ścieżkę bez dotykania bazy.
+  it("transakcja wyzerowana W TRAKCIE przetwarzania nie zmienia celu korekty ani nie daje filtra z `null`", async () => {
+    // Obiekt zdarzenia zmieniony przez wołającego po wywołaniu (np. używany
+    // dalej) nie może skończyć się filtrem z `null`. Korekta pracuje na KOPII
+    // z wejścia: cel, alert i skutek widzą te same identyfikatory, więc zwrot
+    // trafia w zamówienie wskazane w chwili wywołania.
     const event = refundEvent();
     const pending = applyRefundEffects(event);
     event.transactionId = null;
 
-    expect(await pending).toBe("skipped");
-    expect(db.chains).toHaveLength(0);
+    expect(await pending).toBe("order_refunded");
+    const orFilters = db
+      .chainsFor("payment_orders")
+      .flatMap((chain) => chain.calls.filter((call) => call.method === "or"))
+      .map((call) => String(call.args[0]));
+    expect(orFilters.every((filter) => filter.includes(TXN) && !filter.includes("null"))).toBe(
+      true,
+    );
   });
 
-  it("subskrypcja wyzerowana W TRAKCIE przetwarzania kończy się `skipped`, nie zapytaniem", async () => {
-    // To samo okno w `revokeSubscription`: bez bramki `eq(..., null)`
-    // i odebranie uprawnienia po pustym `external_ref`.
+  it("subskrypcja wyzerowana W TRAKCIE przetwarzania nie daje odebrania po pustym `external_ref`", async () => {
+    // To samo okno w `revokeSubscription`: `eq(..., null)` odebrałoby dostęp
+    // po pustym kluczu. Kopia z wejścia trzyma subskrypcję z chwili wywołania.
     const event = refundEvent({ transactionId: null, subscriptionId: SUB });
     const pending = applyRefundEffects(event);
     event.subscriptionId = null;
 
-    expect(await pending).toBe("skipped");
-    expect(db.chains).toHaveLength(0);
+    expect(await pending).toBe("subscription_refunded");
+    expect(filters("user_subscriptions", "eq")).toEqual([["external_ref", SUB]]);
   });
 });
 
@@ -1160,14 +1214,19 @@ describe("SPÓR WYGRANY - dostęp wraca", () => {
     expect(inserted("user_subscriptions")[0]).toMatchObject({ status: "active" });
   });
 
-  it("brak lokalnej subskrypcji nic nie przywraca", async () => {
+  it("brak lokalnej subskrypcji nic nie przywraca - ale zespół i tak dostaje alert o wygranej", async () => {
+    // PAY-03: alert idzie w KAŻDEJ fazie sporu, niezależnie od tego, czy
+    // znaleźliśmy co przywrócić. Najemcę wyznacza wtedy zamówienie transakcji.
     scene.subscription = null;
+    scene.admins = [{ user_id: "admin-1" }];
+    scene.adminProfiles = [{ id: "admin-1", tenant_id: BILLING_IDS.tenant }];
 
     const outcome = await applyRefundEffects(wonEvent({ subscriptionId: SUB }));
 
     expect(outcome).toBe("skipped");
     expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
-    expect(db.chainsFor("user_roles")).toHaveLength(0);
+    expect(alertTenants()).toEqual([BILLING_IDS.tenant]);
+    expect(adminBells()[0]).toMatchObject({ p_title_pl: "Spór płatniczy rozstrzygnięty" });
   });
 
   it("błąd odczytu subskrypcji przy sporze przerywa przywrócenie", async () => {
@@ -1524,5 +1583,178 @@ describe("refunds.server - DEFEKTY NAPRAWIONE (bramki regresji)", () => {
     );
 
     expect(outcome).toBe("order_restored");
+  });
+});
+
+describe("PAY-04 - zwrot i spór płatności FAKTURY subskrypcji (cel przez operatora)", () => {
+  // Zamówienie subskrypcyjne nie zna intencji płatności odnowień, więc
+  // własna baza nie znajduje nic - cel wskazuje operator: płatność ->
+  // `InvoicePayment` -> faktura -> `parent.subscription_details.subscription`.
+  beforeEach(() => {
+    scene.order = null;
+    scene.subscription = subscriptionRow();
+    h.stripe.invoicePayments = [
+      { invoice: { id: "in_odnowienie", parent: { subscription_details: { subscription: SUB } } } },
+    ];
+  });
+
+  it("PAY-04: zwrot pełny płatności odnowienia odbiera uprawnienie subskrypcji (`external_ref` = sub_)", async () => {
+    const outcome = await applyRefundEffects(refundEvent());
+
+    expect(outcome).toBe("subscription_refunded");
+    expect(h.stripe.envs).toEqual(["sandbox"]);
+    expect(h.stripe.calls).toEqual(["invoicePayments.list"]);
+    expect(filters("user_subscriptions", "eq")).toContainEqual(["external_ref", SUB]);
+    expect(patches("user_subscriptions")[0]).toMatchObject({ status: "refunded" });
+    expect(emails()[0]).toMatchObject({ type: "payment_refunded" });
+    // Darowizny nie dotykamy - cel jest rozstrzygnięty.
+    expect(db.chainsFor("donations")).toHaveLength(0);
+  });
+
+  it("PAY-04: zwrot CZĘŚCIOWY faktury subskrypcji to korekta ceny - dostęp zostaje", async () => {
+    const warnLog = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const outcome = await applyRefundEffects(
+      refundEvent({ amountCents: 1000, capturedAmountCents: 4900 }),
+    );
+
+    expect(outcome).toBe("skipped");
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+    expect(emails()).toHaveLength(0);
+    expect(warnLog).toHaveBeenCalledWith(
+      "[payments] partial refund of a subscription payment - access kept",
+      expect.objectContaining({ subscriptionId: SUB, refunded: 1000, captured: 4900 }),
+    );
+    warnLog.mockRestore();
+  });
+
+  it("PAY-04: spór na płatności odnowienia alarmuje najemcę SUBSKRYPCJI", async () => {
+    scene.admins = [{ user_id: "admin-1" }];
+    scene.adminProfiles = [{ id: "admin-1", tenant_id: BILLING_IDS.tenant }];
+
+    await applyRefundEffects(refundEvent({ action: "chargeback_warning", status: "open" }));
+
+    expect(alertTenants()).toEqual([BILLING_IDS.tenant]);
+    expect(filters("subscriptions", "eq")).toContainEqual(["provider_subscription_id", SUB]);
+  });
+
+  it("ponowiony zwrot odebranego już uprawnienia nie dokłada dzwonka ani maila", async () => {
+    scene.revokedEntitlements = [];
+
+    expect(await applyRefundEffects(refundEvent())).toBe("skipped");
+    expect(emails()).toHaveLength(0);
+    expect(inserted("notifications")).toHaveLength(0);
+  });
+
+  it("faktura BEZ subskrypcji (płatność jednorazowa z fakturą) nie jest subskrypcją", async () => {
+    h.stripe.invoicePayments = [{ invoice: { id: "in_jednorazowa", parent: null } }];
+    scene.refundedDonations = [];
+
+    expect(await applyRefundEffects(refundEvent())).toBe("skipped");
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+    // Następny krok kaskady: sesja Checkout tej płatności.
+    expect(h.stripe.calls).toEqual(["invoicePayments.list", "checkout.sessions.list"]);
+  });
+
+  it("identyfikator spoza kształtu `pi_`/`ch_` nie pyta operatora", async () => {
+    await applyRefundEffects(refundEvent({ transactionId: "txn_paddle_1" }));
+
+    expect(h.stripe.calls).toEqual([]);
+  });
+});
+
+describe("PAY-07 - zwrot, który WYPRZEDZIŁ realizację zamówienia", () => {
+  // Zamówienie zna tylko sesję (`provider_session_id`), zwrot niesie intencję.
+  // Wcześniej zwrot nie trafiał w nic (`revokeDonation` -> `skipped`), a późna
+  // realizacja nadawała dostęp klientowi z pieniędzmi z powrotem.
+  const pending = () =>
+    orderRow({
+      status: "processing",
+      refunded_amount_cents: 0,
+      kind: "one_time",
+      entity_type: "post",
+      entity_id: "post-1",
+    });
+
+  beforeEach(() => {
+    h.stripe.sessions = [{ id: "cs_zamowienie", metadata: { orderId: ORDER_UUID } }];
+    db.setResponse("payment_orders", (chain) => {
+      if (chain.has("update")) return ok([{ id: BILLING_IDS.order }]);
+      // Własna baza nie zna intencji; sesja (albo `metadata.orderId`) - tak.
+      const or = String(chain.argsOf("or")?.[0] ?? "");
+      return ok(or.includes("cs_zamowienie") ? [pending()] : []);
+    });
+  });
+
+  it("PAY-07: zwrot przed realizacją znajduje zamówienie przez sesję i zapisuje stan zwrotu z intencją", async () => {
+    const outcome = await applyRefundEffects(refundEvent());
+
+    expect(outcome).toBe("order_refunded");
+    expect(h.stripe.calls).toEqual(["invoicePayments.list", "checkout.sessions.list"]);
+    expect(patches("payment_orders")[0]).toMatchObject({
+      status: "refunded",
+      refunded_amount_cents: 4900,
+      // Kolejne zdarzenia trafią w zamówienie bez pytania operatora.
+      provider_payment_intent_id: TXN,
+    });
+    const sessionLookup = db
+      .chainsFor("payment_orders")
+      .find((chain) => String(chain.argsOf("or")?.[0] ?? "").includes("cs_zamowienie"));
+    expect(sessionLookup?.argsOf("or")?.[0]).toBe(
+      `provider_session_id.eq.cs_zamowienie,id.eq.${ORDER_UUID}`,
+    );
+    // Środowisko korekty - ta sama reguła P0 co przy dopasowaniu po intencji.
+    expect(sessionLookup?.calls).toContainEqual({ method: "eq", args: ["environment", "sandbox"] });
+  });
+
+  it("`metadata.orderId` spoza kształtu UUID nie trafia do filtra `or(...)`", async () => {
+    h.stripe.sessions = [{ id: "cs_zamowienie", metadata: { orderId: "x),id.eq.cudze" } }];
+
+    await applyRefundEffects(refundEvent());
+
+    const ors = db
+      .chainsFor("payment_orders")
+      .map((chain) => String(chain.argsOf("or")?.[0] ?? ""));
+    expect(ors).toContain("provider_session_id.eq.cs_zamowienie");
+    expect(ors.some((filter) => filter.includes("cudze"))).toBe(false);
+  });
+
+  it("sesja bez naszego zamówienia schodzi na darowiznę", async () => {
+    h.stripe.sessions = [];
+    scene.refundedDonations = [{ id: "don-1" }];
+
+    expect(await applyRefundEffects(refundEvent())).toBe("donation_refunded");
+  });
+
+  it("awaria operatora przy szukaniu celu RZUCA - zwrot nie może przepaść po cichu", async () => {
+    // Webhook kończy się 500 i operator ponawia; `skipped` w tym miejscu
+    // zostawiłby dostęp klientowi, który odzyskał pieniądze.
+    h.stripe.failure = Object.assign(new Error("api_connection_error"), { statusCode: 500 });
+
+    await expect(applyRefundEffects(refundEvent())).rejects.toThrow("api_connection_error");
+    expect(patches("payment_orders")).toHaveLength(0);
+    expect(db.chainsFor("donations")).toHaveLength(0);
+  });
+});
+
+describe("PAY-07 - zwrot planu kupionego przez Stripe odbiera dostęp pod KAŻDYM kluczem", () => {
+  it("plan dożywotni: odebranie także pod kluczem sesji i intencji, pod którymi nadał je webhook", async () => {
+    // Realizacja z webhooka nadaje plan pod `external_ref` = sesja Checkout,
+    // przywrócenie po sporze - pod intencją. `revokeOrderEntitlement` zna
+    // wyłącznie klucz zamówienia, więc bez dodatkowych odebrań plan zostawał
+    // aktywny po zwrocie.
+    scene.order = {
+      ...orderRow({ kind: "one_time", plan_id: "plan-lifetime" }),
+      provider_session_id: "cs_plan",
+      provider_intent_id: "cs_plan",
+      provider_payment_intent_id: TXN,
+    } as OrderRow;
+
+    expect(await applyRefundEffects(refundEvent())).toBe("order_refunded");
+
+    const refs = filters("user_subscriptions", "eq")
+      .filter(([column]) => column === "external_ref")
+      .map(([, value]) => value);
+    expect(refs).toEqual([BILLING_IDS.order, "cs_plan", TXN]);
   });
 });
