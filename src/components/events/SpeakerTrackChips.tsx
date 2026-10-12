@@ -47,6 +47,11 @@ export function SpeakerTrackChips({
   const { t } = useTranslation();
   const named = tracks
     .map((track) => ({ track, name: speakerTrackName(track, lang) }))
+    .map((entry) => ({
+      ...entry,
+      // Stare odcienie akcentu marki normalizuje granica ekranu (jeden helper).
+      accent: resolveBrandAccent(entry.track.accentColor),
+    }))
     .filter((entry) => entry.name !== "");
   if (named.length === 0) return null;
 
