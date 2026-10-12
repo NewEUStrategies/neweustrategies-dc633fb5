@@ -79,10 +79,12 @@ export type EventModuleCrumb = BreadcrumbItem;
 /**
  * Miary tytułu - te same, które `src/styles.css` nadaje `h1` dokumentu CMS
  * w nagłówku (blok „ZAKŁADKI MODUŁOWE WYDARZENIA"), żeby podmiana zapasowego
- * `h1` na dokument po hydratacji nie przesuwała strony.
+ * `h1` na dokument po hydratacji nie przesuwała strony. Wysokość linii 1.2
+ * zostawia pełne znaki diakrytyczne i ogony (ą, ę, ł, g, j, y) - ciaśniejsza
+ * miara zaczynała obcinać dolne części liter.
  */
 const TITLE_CLASS =
-  "font-display text-[2rem] font-semibold leading-[1.08] tracking-[-0.02em] text-foreground sm:text-4xl";
+  "font-display text-[2rem] font-semibold leading-[1.2] tracking-[-0.02em] text-foreground sm:text-4xl";
 
 export function EventModuleHero({
   module,
