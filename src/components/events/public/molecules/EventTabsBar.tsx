@@ -142,16 +142,42 @@ export function EventTabsBar({
       }
       return true;
     };
-    if (center()) return;
-    // Pozycja bieżąca bywa dorysowana później („Nabór prelegentów" po
-    // zapytaniu o fazę, „Mój profil" po hydratacji sesji) - centrujemy, gdy
-    // dojdzie, i przestajemy patrzeć.
+    center();
+    // Pozycje dochodzą po pierwszym renderze („Nabór prelegentów" po zapytaniu
+    // o fazę, „Mój profil" po hydratacji sesji): bieżąca może dojść później
+    // albo zostać wypchnięta poza krawędź przez pozycję wstawioną przed nią.
+    // Patrzymy do zmiany zakładki i centrujemy tylko pozycję niewidoczną -
+    // przewinięcia czytelnika nie ruszamy.
     const observer = new MutationObserver(() => {
-      if (center()) observer.disconnect();
+      const active = list.querySelector('[aria-current="page"]');
+      if (active === null) return;
+      const listBox = list.getBoundingClientRect();
+      const activeBox = active.getBoundingClientRect();
+      if (activeBox.left < listBox.left || activeBox.right > listBox.right) center();
     });
     observer.observe(list, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [activeKey]);
+
+  // Komputer: pasek, który się nie mieści, przewija się ZWYKŁYM kółkiem myszy.
+  // Kółko daje tylko ruch pionowy, a ukryty pasek przewijania nie ma uchwytu -
+  // bez tego ostatnie zakładki byłyby osiągalne wyłącznie z Shiftem albo
+  // gładzikiem. Na skraju listy kółko wraca do przewijania strony.
+  useEffect(() => {
+    const list = listRef.current;
+    if (list === null) return;
+    const onWheel = (event: WheelEvent) => {
+      if (list.scrollWidth <= list.clientWidth) return;
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const max = list.scrollWidth - list.clientWidth;
+      const next = Math.min(max, Math.max(0, list.scrollLeft + event.deltaY));
+      if (next === list.scrollLeft) return;
+      event.preventDefault();
+      list.scrollLeft = next;
+    };
+    list.addEventListener("wheel", onWheel, { passive: false });
+    return () => list.removeEventListener("wheel", onWheel);
+  }, []);
 
   return (
     // Tło na `<nav>`, a nie na `<ul>`: pasek nawigacji wydarzenia idzie przez
@@ -164,7 +190,7 @@ export function EventTabsBar({
     >
       <ul
         ref={listRef}
-        className="tabs-scroller mx-auto flex max-w-5xl items-center justify-center-safe gap-x-6 px-4"
+        className="tabs-scroller mx-auto flex max-w-5xl items-center justify-center-safe gap-x-6 px-4 md:snap-none"
       >
         {children}
       </ul>

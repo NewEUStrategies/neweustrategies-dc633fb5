@@ -9703,6 +9703,9 @@ html[data-event-tabs-active] {
    nie dotyka żadnego napisu, po przewinięciu mówi „jest dalej" z obu stron. */
 .event-tabs-sticky ul {
   mask-image: linear-gradient(90deg, transparent, #000 1rem, #000 calc(100% - 1rem), transparent);
+  /* Pozycja dociągnięta (snap) albo przewinięta do fokusu staje POZA pasem
+     wygaszenia - inaczej obrys fokusu pierwszej zakładki gasłby do połowy. */
+  scroll-padding-inline: 1rem;
 }
 /* Odcinek linii nagłówka „rysuje się" tylko w nagłówku zamontowanym PO
    otwarciu bramki ruchu (przejście między zakładkami) - zimne wejście maluje

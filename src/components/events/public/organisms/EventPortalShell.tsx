@@ -119,16 +119,37 @@ function useStickyTabs(enabled: boolean) {
     let observer: ResizeObserver | null = null;
     let settle = 0;
     if (shell !== null && bar !== null && header !== null) {
+      // Kopia na powłoce dziedziczy się w całe drzewo zakładki, więc każdy
+      // zapis to przeliczenie stylów strony: piszemy tylko zmianę, a w trakcie
+      // ruchu nagłówka co najwyżej raz.
+      let writtenPx = -1;
+      let restMaxPx = 0;
+      let grown = false;
+      const write = (px: number) => {
+        if (px === writtenPx) return;
+        writtenPx = px;
+        shell.style.setProperty("--event-header-h", `${px}px`);
+      };
       const sync = () => {
         // Nagłówek nieprzyklejony odjeżdża ze stroną; ukryty ma wysokość 0.
         const pinned = getComputedStyle(header).position === "sticky";
-        const height = `${pinned ? header.getBoundingClientRect().height : 0}px`;
-        bar.style.top = height;
+        const px = pinned ? header.getBoundingClientRect().height : 0;
+        bar.style.top = `${px}px`;
         window.clearTimeout(settle);
-        settle = window.setTimeout(
-          () => shell.style.setProperty("--event-header-h", height),
-          HEADER_SETTLE_MS,
-        );
+        settle = window.setTimeout(() => {
+          grown = false;
+          restMaxPx = Math.max(restMaxPx, px);
+          write(px);
+        }, HEADER_SETTLE_MS);
+        // Nagłówek ROŚNIE (powrót na górę strony): pasek jedzie w dół razem
+        // z nim, więc elementy odsunięte od starej wysokości (pasek języka
+        // profilu, kolumna filtrów agendy) wjechałyby pod niego. Kopia idzie
+        // od razu i od razu docelowa - największa zmierzona wysokość
+        // spoczynkowa - czyli przez chwilę szczelina zamiast przykrycia.
+        if (!grown && writtenPx >= 0 && px > writtenPx) {
+          grown = true;
+          write(Math.max(px, restMaxPx));
+        }
       };
       sync();
       if (typeof ResizeObserver !== "undefined") {

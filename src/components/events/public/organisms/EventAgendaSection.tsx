@@ -123,13 +123,16 @@ export function EventAgendaSection({
   // po załadowaniu programu (efekt: na serwerze adresu z kotwicą nie ma).
   // Identyfikator sesji to uuid wpisany w kotwicę wprost - bez dekodowania,
   // które na zniekształconym adresie rzuciłoby wyjątek w efekcie.
-  const hasSessions = sessions.length > 0;
+  // Prośba idzie dopiero do tablicy NARYSOWANEJ: tablica uznaje prośbę zastaną
+  // przy montażu za obsłużoną, a zapytanie w stanie błędu trzyma dane z pamięci
+  // (`isError` przy niepustym `sessions`) i rysuje komunikat zamiast tablicy.
+  const boardShown = sessions.length > 0 && !agendaQuery.isError;
   useEffect(() => {
-    if (!profiles || !hasSessions) return;
+    if (!profiles || !boardShown) return;
     const hash = window.location.hash;
     if (!hash.startsWith(SESSION_HASH_PREFIX)) return;
     requestReveal(hash.slice(SESSION_HASH_PREFIX.length));
-  }, [profiles, hasSessions, requestReveal]);
+  }, [profiles, boardShown, requestReveal]);
 
   if (agendaQuery.isPending) {
     return (

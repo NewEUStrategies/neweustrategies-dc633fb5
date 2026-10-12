@@ -130,7 +130,19 @@ export function EventDirectoryDialog({
   useEffect(() => {
     if (!open) {
       shownView.current = null;
+      // Następne otwarcie zaczyna od zera: pierwszy widok nie wjeżdża z lewej
+      // jak „Wstecz" tylko dlatego, że okno zamknięto głębiej w stosie.
+      previousDepth.current = 0;
       return;
+    }
+    if (shownView.current === null) {
+      // Okno otwarte ponownie w trakcie animacji zamknięcia nie dostaje
+      // `onOpenAutoFocus` ani `onCloseAutoFocus` - zaległa prośba o fokus sesji
+      // nie może przejąć fokusu przy następnym zwykłym zamknięciu.
+      leavingForSession.current = false;
+      for (const marked of document.querySelectorAll(`[${DIRECTORY_RETURN_FOCUS_ATTR}]`)) {
+        marked.removeAttribute(DIRECTORY_RETURN_FOCUS_ATTR);
+      }
     }
     const opening = shownView.current === null;
     shownView.current = viewKey;

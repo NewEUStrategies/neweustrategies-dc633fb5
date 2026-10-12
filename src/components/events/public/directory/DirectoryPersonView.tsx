@@ -28,6 +28,7 @@ import {
   type DirectoryPerson,
   type EventDirectory,
 } from "@/lib/events/eventDirectory";
+import type { SocialKey } from "@/lib/events/myEventProfileApi";
 import { formatEventDate } from "@/lib/events/timezone";
 import { memberProfileQueryOptions } from "@/lib/profile/memberProfile";
 import { cn } from "@/lib/utils";
@@ -104,13 +105,15 @@ export function DirectoryPersonView({
           member.bio_en ??
           ""
         ).trim());
-  const socials =
-    Object.keys(person.socials).length > 0
-      ? person.socials
-      : {
-          linkedin: httpUrl(member?.linkedin_url),
-          website: httpUrl(member?.website_url),
-        };
+  // Każdy adres tylko jako http(s) - wpisy uczestnika i profilu członka są
+  // tekstem z formularza (patrz `httpUrl`).
+  const socials = Object.fromEntries(
+    Object.entries(
+      Object.keys(person.socials).length > 0
+        ? person.socials
+        : { linkedin: member?.linkedin_url, website: member?.website_url },
+    ).map(([key, href]) => [key, httpUrl(href)]),
+  ) as Partial<Record<SocialKey, string>>;
 
   const attendee = person.attendee;
   const seeking =

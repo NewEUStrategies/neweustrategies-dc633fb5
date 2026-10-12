@@ -196,6 +196,11 @@ export function EventAgendaBoardView({
       // Okno profilu, z którego przyszła prośba, jeszcze się zamyka i trzyma
       // stronę pod `aria-hidden` - fokus przeniesie ono samo po odmontowaniu.
       if (document.querySelector("[data-event-directory-dialog]") !== null) {
+        // Jeden znacznik naraz - starszy (okno otwarte ponownie w trakcie
+        // animacji zamknięcia) nie może przejąć fokusu później.
+        for (const marked of document.querySelectorAll(`[${DIRECTORY_RETURN_FOCUS_ATTR}]`)) {
+          marked.removeAttribute(DIRECTORY_RETURN_FOCUS_ATTR);
+        }
         heading?.setAttribute(DIRECTORY_RETURN_FOCUS_ATTR, "");
       } else {
         heading?.focus({ preventScroll: true });
