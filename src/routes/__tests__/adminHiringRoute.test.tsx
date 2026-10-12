@@ -732,14 +732,17 @@ describe("/admin/hiring - sklejenie trasy", () => {
     // zamontowany router (to, co trafiłoby do `<HeadContent/>`). `noindex` nie
     // jest ozdobą: panel redakcyjny w indeksie Google to wyciek struktury
     // organizacji i zaproszenie do zgadywania adresów.
-    expect(routeHead(HiringRoute).meta).toEqual([
-      { title: "Oferty pracy | Admin" },
-      { name: "robots", content: "noindex" },
-    ]);
+    // Tytuł sekcji pochodzi ze wspólnego `adminPageHead` (AGENTS.md).
+    expect(routeHead(HiringRoute).meta).toEqual(
+      expect.arrayContaining([
+        { title: "Job offers | New European Strategies" },
+        { name: "robots", content: "noindex, nofollow" },
+      ]),
+    );
 
     const { meta } = await mount();
-    expect(meta()).toContainEqual({ title: "Oferty pracy | Admin" });
-    expect(meta()).toContainEqual({ name: "robots", content: "noindex" });
+    expect(meta()).toContainEqual({ title: "Job offers | New European Strategies" });
+    expect(meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
   });
 
   it("trasa rejestruje się jako DZIECKO układu `/admin` - stąd bierze jego bramkę", () => {

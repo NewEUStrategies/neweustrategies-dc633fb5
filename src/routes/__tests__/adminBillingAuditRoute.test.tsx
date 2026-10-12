@@ -226,7 +226,7 @@ describe("trasa /admin/billing-audit - sklejenie i nagłówek", () => {
 
     expect(view.currentPath()).toBe(PATH);
     expect(view.meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
-    expect(view.meta()).toContainEqual({ title: "Audyt rozliczeń - Panel" });
+    expect(view.meta()).toContainEqual({ title: "Billing audit | New European Strategies" });
   });
 
   it("przed wczytaniem nie pokazuje ani podsumowania, ani tabel", async () => {
