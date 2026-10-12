@@ -319,7 +319,9 @@ export function speakerRowsFromAdminEntries(
       topics_pl: [],
       topics_en: [],
       languages: [],
-      talks_count: 0,
+      // Obsada sesji to fakt ponad karte - dzieki niej karta w podgladzie
+      // otwiera okno profilu (rola i sesje), tak jak po publikacji.
+      talks_count: entry.sessions?.length ?? 0,
       rating: 0,
       reviews_count: 0,
       is_expert: false,
