@@ -1177,6 +1177,13 @@
       "when": 1791840896719,
       "tag": "0167_event_ticket_payment_binding",
       "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1791841099873,
+      "tag": "0168_event_ticket_tax_profile",
+      "breakpoints": true
     }
   ]
 }
