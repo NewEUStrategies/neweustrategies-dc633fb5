@@ -120,9 +120,17 @@ wydłużenie ponad ustawowe minimum wyraża się `retention_hold`, nie ręczną 
 
 `billing_profiles.user_id` zostaje `ON DELETE CASCADE`. Tabela trzyma dane do
 faktury (nazwa, NIP, adres), a nie sam dowód: wystawione faktury żyją u
-operatora i w `billing_documents` (numer + trwałe linki). Usunięcie profilu
-rozliczeniowego nie niszczy więc żadnego dokumentu, a jego zachowanie byłoby
-przechowywaniem danych osobowych bez podstawy.
+operatora, a `billing_documents` trzyma ich rejestr - numer, kwotę, stan
+i od 2026-10-12 niezmienną migawkę nabywcy, sprzedawcy i płaszczyzny
+rozliczeń z chwili zakupu (audyt INV-07, migracja `20261012110000`). Plik PDF
+operatora NIE jest przechowywany: operator wystawia wyłącznie linki czasowe,
+więc adres pobieramy na żądanie (`src/lib/billing/invoice.server.ts`), a kopia
+dla członka powstaje z migawki. Rejestr obejmuje także zakupy jednorazowe
+(stan z CHECK-a tabeli tłumaczy `billingDocumentStatus` - audyt INV-04).
+Usunięcie profilu rozliczeniowego nie niszczy więc żadnego dokumentu ani
+danych na nim wydrukowanych, a zachowanie profilu byłoby przechowywaniem
+danych osobowych bez podstawy. Okres przechowywania dowodów: do końca
+szóstego roku po roku transakcji (`accountingRetentionRule.ts`, INV-13).
 
 ## 4. Bramki
 

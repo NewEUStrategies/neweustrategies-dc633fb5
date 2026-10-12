@@ -158,49 +158,46 @@ export function EventModuleHero({
           </ol>
         </nav>
       )}
-        <header
-          data-event-module-hero={module}
-          className="relative mb-10 border-b border-border/70 pb-8 pt-2 sm:pb-10"
-        >
-          {/* Nadtytuł: ikona modułu włosową kreską i nazwa wydarzenia. `div`,
+      <header
+        data-event-module-hero={module}
+        className="relative mb-10 border-b border-border/70 pb-8 pt-2 sm:pb-10"
+      >
+        {/* Nadtytuł: ikona modułu włosową kreską i nazwa wydarzenia. `div`,
               nie `p`: globalne `:where(main p:hover)` przemalowuje akapity
               na kolor tekstu przy najechaniu, a nadtytuł ma stać spokojnie. */}
-          <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[11px] font-semibold uppercase leading-4 tracking-[0.16em] text-muted-foreground">
-            <Icon className="size-4 shrink-0 text-primary" strokeWidth={1.5} aria-hidden="true" />
-            {/* Bez `truncate`: zawijanie zamiast ucinania liter nazwy wydarzenia. */}
-            <span className="min-w-0 [overflow-wrap:anywhere]">
-              {eventTitle || t("eventFront.header.moduleEyebrow")}
-            </span>
-          </div>
-          <div className="mt-4">
-            {hasDocument ? (
-              <div className="event-module-hero-doc mx-auto w-full min-w-0 max-w-3xl text-center [overflow-wrap:anywhere]">
-                {children}
-              </div>
-            ) : (
-              <h1
-                className={cn(
-                  TITLE_CLASS,
-                  "mx-auto max-w-3xl text-center [overflow-wrap:anywhere]",
-                )}
-              >
-                {moduleLabel}
-              </h1>
-            )}
-          </div>
-          {/* Odcinek linii w kolorze akcji wydarzenia - jedyny akcent nagłówka.
+        <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[11px] font-semibold uppercase leading-4 tracking-[0.16em] text-muted-foreground">
+          <Icon className="size-4 shrink-0 text-primary" strokeWidth={1.5} aria-hidden="true" />
+          {/* Bez `truncate`: zawijanie zamiast ucinania liter nazwy wydarzenia. */}
+          <span className="min-w-0 [overflow-wrap:anywhere]">
+            {eventTitle || t("eventFront.header.moduleEyebrow")}
+          </span>
+        </div>
+        <div className="mt-4">
+          {hasDocument ? (
+            <div className="event-module-hero-doc mx-auto w-full min-w-0 max-w-3xl text-center [overflow-wrap:anywhere]">
+              {children}
+            </div>
+          ) : (
+            <h1
+              className={cn(TITLE_CLASS, "mx-auto max-w-3xl text-center [overflow-wrap:anywhere]")}
+            >
+              {moduleLabel}
+            </h1>
+          )}
+        </div>
+        {/* Odcinek linii w kolorze akcji wydarzenia - jedyny akcent nagłówka.
               Kolor stylem, nie klasą `bg-primary`: globalna, niewarstwowa
               reguła `:where(.bg-primary)` podmienia tło na kolor przycisków
               serwisu (`--gc-btn-bg`) i gubiłaby kolor akcji wydarzenia. */}
-          <span
-            aria-hidden="true"
-            className={cn(
-              "event-module-hero-accent absolute inset-x-0 -bottom-px mx-auto h-px w-16",
-              accentEnters && "event-module-hero-accent--enter",
-            )}
-            style={ACCENT_STYLE}
-          />
-        </header>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "event-module-hero-accent absolute inset-x-0 -bottom-px mx-auto h-px w-16",
+            accentEnters && "event-module-hero-accent--enter",
+          )}
+          style={ACCENT_STYLE}
+        />
+      </header>
     </>
   );
 }

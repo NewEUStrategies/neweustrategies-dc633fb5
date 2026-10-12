@@ -230,7 +230,10 @@ describe("kanwa - podstrona", () => {
     expect(screen.getByTestId("dokument")).toBeInTheDocument();
     expect(h.dokumenty).toEqual([doc]);
     expect(screen.queryByText(`${P}pageEmpty`)).toBeNull();
-    expect(screen.getByText("/o-nas")).toBeInTheDocument();
+    // Sciezka podstrony nie jest juz chrome'em podgladu: ogladana strone
+    // wskazuja nawigacja podgladu i okruszki `EventModuleHero` (ujednolicenie
+    // banerow), wiec kanwa nie rysuje duplikatu nad trescia dokumentu.
+    expect(screen.queryByText("/o-nas")).toBeNull();
   });
 });
 

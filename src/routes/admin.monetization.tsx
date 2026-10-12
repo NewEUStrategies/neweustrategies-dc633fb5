@@ -32,7 +32,11 @@ import {
 } from "@/components/ui/select";
 
 export const Route = createFileRoute("/admin/monetization")({
-  head: () => adminPageHead("Monetization", "Review membership orders, coupons and revenue. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Monetization",
+      "Review membership orders, coupons and revenue. New European Strategies administration.",
+    ),
   component: AdminMonetizationPage,
 });
 

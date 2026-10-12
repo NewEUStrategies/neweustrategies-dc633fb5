@@ -2,7 +2,9 @@
 //
 // Prawo do usunięcia danych (art. 17 RODO) nie sięga dokumentacji, którą
 // musimy przechowywać z mocy prawa - art. 17 ust. 3 lit. b RODO to wyłącza, a
-// art. 74 ust. 2 ustawy o rachunkowości wyznacza 5-letni okres. Skoro więc
+// okres wyznacza przedawnienie podatkowe (art. 70 § 1 i art. 86 § 1 Ordynacji
+// podatkowej, obejmuje 5 lat z art. 74 ust. 2 uor - reguła i jej status w
+// `lib/billing/accountingRetentionRule.ts`). Skoro więc
 // część danych zostaje, użytkownik musi się o tym dowiedzieć PRZED kliknięciem,
 // a nie z odpowiedzi na wniosek o dostęp - to obowiązek przejrzystości
 // (art. 12-13 RODO). Baza realizuje ten wyjątek anonimizacją zamówień
@@ -13,6 +15,7 @@
 // każdej powierzchni (karta „strefa niebezpieczna", dialog potwierdzenia).
 import { ScrollText } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ACCOUNTING_RETENTION_YEARS_AFTER_FISCAL_YEAR } from "@/lib/billing/accountingRetentionRule";
 
 export interface LegalRetentionNoticeProps {
   /** `compact` dla dialogu (mniejszy tekst, bez tła), `card` dla sekcji strony. */
@@ -47,7 +50,11 @@ export function LegalRetentionNotice({ variant = "card", className }: LegalReten
       <div className={compact ? "grid gap-1 text-xs" : "grid gap-1 text-sm"}>
         <p className="font-medium text-foreground">{t("profile.security.danger.retentionTitle")}</p>
         <p className="text-muted-foreground">{t("profile.security.danger.retentionBody")}</p>
-        <p className="text-muted-foreground">{t("profile.security.danger.retentionBasis")}</p>
+        <p className="text-muted-foreground">
+          {t("profile.security.danger.retentionBasis", {
+            years: ACCOUNTING_RETENTION_YEARS_AFTER_FISCAL_YEAR,
+          })}
+        </p>
       </div>
     </aside>
   );

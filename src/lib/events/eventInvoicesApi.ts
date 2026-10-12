@@ -118,6 +118,8 @@ export interface EventInvoiceSettings {
   paymentDays: number;
   defaultVatRate: EventInvoiceVatRate;
   vatExemptBasis: string;
+  /** Podstawa prawna stawki "np" (INV-12), np. "art. 28b ustawy o VAT". */
+  vatNpBasis: string;
   footerNote: string;
   defaultLocale: EventInvoiceLocale;
 }
@@ -143,6 +145,7 @@ export function parseInvoiceSettings(value: Json | null): EventInvoiceSettings {
     paymentDays: typeof row.payment_days === "number" ? row.payment_days : 14,
     defaultVatRate: pickEnum(EVENT_INVOICE_VAT_RATES, row.default_vat_rate),
     vatExemptBasis: jsonText(row.vat_exempt_basis),
+    vatNpBasis: jsonText(row.vat_np_basis),
     footerNote: jsonText(row.footer_note),
     defaultLocale: pickEnum(EVENT_INVOICE_LOCALES, row.default_locale),
   };
@@ -172,6 +175,7 @@ export interface EventInvoiceSettingsInput {
   paymentDays: number;
   defaultVatRate: EventInvoiceVatRate;
   vatExemptBasis: string;
+  vatNpBasis: string;
   footerNote: string;
   defaultLocale: EventInvoiceLocale;
   /** Jednorazowe potwierdzenie "organizator jest sprzedawca" przy pierwszym wlaczeniu. */
@@ -200,6 +204,7 @@ export async function saveInvoiceSettings(
       payment_days: input.paymentDays,
       default_vat_rate: input.defaultVatRate,
       vat_exempt_basis: input.vatExemptBasis,
+      vat_np_basis: input.vatNpBasis,
       footer_note: input.footerNote,
       default_locale: input.defaultLocale,
       confirm_seller: input.confirmSeller ? true : undefined,
@@ -286,6 +291,10 @@ export interface UpdateInvoiceDraftInput {
   locale?: EventInvoiceLocale;
   note?: string;
   correctionReason?: string;
+  /** Podstawa "np" dokumentu (pusta = z ustawien wystawcy). */
+  npBasis?: string;
+  /** Odwrotne obciazenie: `null` = automatycznie (np + firma spoza PL). */
+  reverseCharge?: boolean | null;
   lines?: readonly InvoiceLineInput[];
 }
 
@@ -301,6 +310,8 @@ export async function updateInvoiceDraft(input: UpdateInvoiceDraftInput): Promis
       locale: input.locale,
       note: input.note,
       correction_reason: input.correctionReason,
+      np_basis: input.npBasis,
+      reverse_charge: input.reverseCharge,
       lines: input.lines?.map((line) => ({
         description: line.description,
         unit: line.unit,
@@ -321,11 +332,41 @@ export interface IssuedInvoice {
   number: string;
 }
 
-export async function issueInvoice(id: string): Promise<IssuedInvoice> {
+/** Odmowa bazy "brak kursu NBP" (INV-06): `fx_rate_required: EUR 2026-10-09`. */
+export function isFxRateRequired(message: string): boolean {
+  return /^fx_rate_required\b/.test(message.trim());
+}
+
+/**
+ * Kursy NBP potrzebne do wystawienia (funkcja serwerowa - kurs pobiera
+ * wylacznie serwer z api.nbp.pl). `import()`, bo tylko dokument w walucie
+ * obcej go potrzebuje.
+ */
+async function prepareFx(data: { invoiceIds: string[] } | { eventId: string; pending: true }) {
+  const { prepareEventInvoiceFx } = await import("@/lib/events/eventInvoiceFx.functions");
+  return prepareEventInvoiceFx({ data });
+}
+
+async function issueOnce(id: string): Promise<IssuedInvoice> {
   const { data, error } = await supabase.rpc("admin_event_invoice_issue", { p_id: id });
   fail(error);
   const row = jsonRecord(data ?? undefined);
   return { id: jsonText(row.id) || id, number: jsonText(row.number) };
+}
+
+/**
+ * Wystawienie. Dokument w walucie obcej bez kursu NBP baza odrzuca
+ * (`fx_rate_required`) - wtedy serwer pobiera kurs z NBP i probujemy RAZ
+ * jeszcze. Brak kursu po pobraniu (NBP niedostepny) = ta sama odmowa.
+ */
+export async function issueInvoice(id: string): Promise<IssuedInvoice> {
+  try {
+    return await issueOnce(id);
+  } catch (err) {
+    if (!(err instanceof Error) || !isFxRateRequired(err.message)) throw err;
+    await prepareFx({ invoiceIds: [id] });
+    return issueOnce(id);
+  }
 }
 
 export interface IssuePendingResult {
@@ -334,10 +375,7 @@ export interface IssuePendingResult {
   failed: { requestIds: string[]; code: string }[];
 }
 
-export async function issuePendingInvoices(
-  eventId: string,
-  collective: boolean,
-): Promise<IssuePendingResult> {
+async function issuePendingOnce(eventId: string, collective: boolean): Promise<IssuePendingResult> {
   const { data, error } = await supabase.rpc("admin_event_invoice_issue_pending", {
     p_payload: { event_id: eventId, collective },
   });
@@ -356,6 +394,23 @@ export async function issuePendingInvoices(
       };
     }),
   };
+}
+
+/**
+ * Masowe wystawienie z prosb. Grupy w walucie obcej bez kursu NBP wracaja
+ * jako `fx_rate_required` - serwer pobiera wtedy kursy dla oczekujacych prosb
+ * wydarzenia i powtarzamy RAZ (wystawione juz grupy nie sa wtedy
+ * oczekujace, wiec drugi przebieg bierze tylko reszte).
+ */
+export async function issuePendingInvoices(
+  eventId: string,
+  collective: boolean,
+): Promise<IssuePendingResult> {
+  const first = await issuePendingOnce(eventId, collective);
+  if (!first.failed.some((item) => isFxRateRequired(item.code))) return first;
+  await prepareFx({ eventId, pending: true });
+  const second = await issuePendingOnce(eventId, collective);
+  return { issued: [...first.issued, ...second.issued], failed: second.failed };
 }
 
 export async function cancelInvoice(id: string, reason: string): Promise<string> {
@@ -404,13 +459,17 @@ export async function invoiceFromProforma(id: string): Promise<string> {
   return String(data);
 }
 
-export async function updateInvoiceKsef(input: {
+export interface UpdateInvoiceKsefInput {
   id: string;
   status: EventInvoiceKsefStatus;
   number: string;
-}): Promise<string> {
+  /** Notatka do dziennika KSeF (np. "wyslano z programu FK"); brak = bez notatki. */
+  note?: string;
+}
+
+export async function updateInvoiceKsef(input: UpdateInvoiceKsefInput): Promise<string> {
   const { data, error } = await supabase.rpc("admin_event_invoice_ksef_update", {
-    p_payload: { id: input.id, status: input.status, number: input.number },
+    p_payload: { id: input.id, status: input.status, number: input.number, note: input.note },
   });
   fail(error);
   return String(data);
@@ -425,6 +484,59 @@ export async function setInvoicePaid(input: {
   });
   fail(error);
   return String(data);
+}
+
+export interface RecordRegistrationPaymentInput {
+  registrationId: string;
+  amountCents: number;
+  currency?: "PLN" | "EUR";
+}
+
+/**
+ * Zaksiegowana wplata za zapis oplacony poza kasa (przelew, gotowka) - INV-14.
+ * To ona, a nie cennik, trafia na fakture; bez niej baza odmawia wystawienia
+ * (`payment_amount_unbooked`).
+ */
+export async function recordRegistrationPayment(
+  input: RecordRegistrationPaymentInput,
+): Promise<{ amountCents: number; currency: string }> {
+  const { data, error } = await supabase.rpc("admin_event_registration_record_payment", {
+    p_payload: payload({
+      registration_id: input.registrationId,
+      amount_cents: input.amountCents,
+      currency: input.currency,
+    }),
+  });
+  fail(error);
+  const row = jsonRecord(data ?? undefined);
+  return {
+    amountCents: typeof row.amount_cents === "number" ? row.amount_cents : input.amountCents,
+    currency: jsonText(row.currency) || (input.currency ?? "PLN"),
+  };
+}
+
+export interface InvoiceViesResult {
+  valid: boolean;
+  requestId: string | null;
+  name: string;
+  address: string;
+}
+
+/**
+ * Weryfikacja numeru VAT UE nabywcy szkicu w VIES (serwer zapisuje wynik) -
+ * INV-12. Niedostepnosc VIES i odmowa bazy to blad (`vies_unavailable`,
+ * `vies_not_applicable`...), a "numer niewazny" - poprawna odpowiedz.
+ */
+export async function verifyInvoiceVies(invoiceId: string): Promise<InvoiceViesResult> {
+  const { verifyEventInvoiceVies } = await import("@/lib/events/eventInvoiceVies.functions");
+  const result = await verifyEventInvoiceVies({ data: { invoiceId } });
+  if (!result.ok) throw new Error(result.error);
+  return {
+    valid: result.valid,
+    requestId: result.requestId,
+    name: result.name,
+    address: result.address,
+  };
 }
 
 /** Sumy liczb zrodel (dla ostrzezenia "pozycje rozjechaly sie z zamowieniami"). */

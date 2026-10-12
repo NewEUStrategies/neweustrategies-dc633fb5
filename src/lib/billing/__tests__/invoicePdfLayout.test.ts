@@ -4,15 +4,16 @@
 // pilnuje tego, co psuje dokument PO CICHU - plik się pobiera, ale księgowość
 // dostaje coś innego niż powinna:
 //
-//  * ZNAK, KTÓREGO FONT NIE NARYSUJE (nazwa firmy z `Ĩ` spoza Latin-1, emoji
-//    w adresie, znak nowej linii wklejony do pola adresu), musi zostać
-//    zastąpiony `?`. Litery Latin-1 (é, ü, ß) font narysuje, a € zapisujemy
-//    jako `EUR` - żadne z nich nie może przepaść ani podszyć się pod polski
-//    glif.
+//  * ZNAK, KTÓREGO FONT NIE NARYSUJE, degraduje się do litery bazowej (`Ĩ` ->
+//    `I`), a `?` zostaje tylko dla znaków bez litery bazowej (emoji, znak nowej
+//    linii wklejony do pola adresu). Litery Latin-1 (é, ü, ß), typografia WinAnsi
+//    (–, „, €) i środkowoeuropejskie litery Helvetiki drukują się jako one same
+//    (`pdfText.ts`) - żadna nie może przepaść ani podszyć się pod inny glif.
 //    Generator zapisuje bajty jako `charCode & 0xff`, więc np. `ĩ` (U+0129)
 //    bez zastąpienia zostałby bajtem 0x29 - czyli `)` - i zamknąłby literał
 //    tekstowy PDF w połowie nazwy nabywcy. Plik z takim strumieniem otwiera
-//    się z ucięciem albo wcale.
+//    się z ucięciem albo wcale. Tak samo znak sterujący: kody 0x01-0x1F niosą
+//    tu glify, więc `\n` surowym bajtem wydrukowałby literę.
 //  * POLE BEZ WARTOŚCI nie zostawia pustej etykiety („NIP: " bez numeru).
 //  * NOTA o rozliczeniu podatku przez operatora trafia pod tabelę i jest
 //    przycinana do jednej linii, a jej brak nie zostawia pustego wiersza.
@@ -38,6 +39,7 @@ function invoice(overrides: Partial<InvoiceData> = {}): InvoiceData {
     seller: { name: "Fundacja Syntetyczna" },
     buyer: { name: "Nabywca Syntetyczny", taxId: "PL1130000000", email: "kupujacy@example.com" },
     lines: [{ description: "Pozycja", quantity: 1, amountCents: 4900 }],
+    status: "paid",
     labels: {
       title: "Faktura",
       number: "Numer",
@@ -49,7 +51,12 @@ function invoice(overrides: Partial<InvoiceData> = {}): InvoiceData {
       quantity: "Ilość",
       amount: "Kwota",
       total: "Razem",
-      paid: "Zapłacono",
+      status: {
+        paid: "Zapłacono",
+        open: "Oczekuje na płatność",
+        void: "Unieważniono",
+        refunded: "Zwrócono",
+      },
     },
     ...overrides,
   };
@@ -66,28 +73,33 @@ function contentStream(pdf: string): { declared: number; body: string } {
   return { declared: Number(match[1]), body: match[2] ?? "" };
 }
 
-/** Każda operacja tekstowa strumienia musi być domkniętym literałem `(...) Tj ET`. */
+/** Każda operacja tekstowa strumienia: domknięte literały `(...) Tj`, odcinki per font, `ET`. */
 function textOps(body: string): string[] {
   return body.split("\n").filter((op) => op.startsWith("BT "));
 }
 
 describe("encodePdfText - znaki, których font nie narysuje", () => {
   it("znak sterujący z pola adresu staje się `?` - literał zostaje w jednej linii", () => {
-    expect(encodePdfText("ul. Długa 1\nlok. 2\tB")).toBe("ul. D\\203uga 1?lok. 2?B");
+    // `ł` ma kod z /Differences (0x01-0x1F), `\n` i `\t` NIE - surowy bajt
+    // 0x0A albo 0x09 wydrukowałby glif przypisany temu kodowi.
+    const lslash = encodePdfText("ł");
+    expect(lslash).toMatch(/^\\0[0-3][0-7]$/);
+    expect(encodePdfText("ul. Długa 1\nlok. 2\tB")).toBe(`ul. D${lslash}uga 1?lok. 2?B`);
   });
 
   it("emoji (para surogatów) to JEDEN znak zapytania, nie dwa", () => {
     expect(encodePdfText("Firma 😀 SA")).toBe("Firma ? SA");
   });
 
-  it("znak, którego młodszy bajt to `)` albo `\\`, nie domyka literału przedwcześnie", () => {
-    // U+0129 & 0xff = 0x29 `)`, U+015C & 0xff = 0x5C `\`.
-    expect(encodePdfText("Ĩĩ Ŝ")).toBe("?? ?");
+  it("znak, którego młodszy bajt to `)` albo `\\`, nie domyka literału - drukuje literę bazową", () => {
+    // U+0129 & 0xff = 0x29 `)`, U+015C & 0xff = 0x5C `\`. Helvetica nie ma
+    // Ĩ/ĩ/Ŝ, więc wychodzi litera bez znaku diakrytycznego (rozkład NFD).
+    expect(encodePdfText("Ĩĩ Ŝ")).toBe("Ii S");
   });
 
-  it("znak sterujący C1 (U+0080-U+009F) to `?`, a nie bajt przejęty przez polski glif", () => {
-    // Kody 0x80-0x8F są w /Differences przemapowane na ą..Ż - surowy bajt
-    // wydrukowałby polską literę zamiast niewidocznego znaku z wklejki.
+  it("znak sterujący C1 (U+0080-U+009F) to `?`, a nie bajt typografii WinAnsi", () => {
+    // Kody 0x80-0x9F to w WinAnsi €, „, – itd. - surowy bajt z wklejki
+    // wydrukowałby taki znak zamiast niewidocznego znaku sterującego.
     expect(encodePdfText("A\u0080B\u0085C\u009fD")).toBe("A?B?C?D");
   });
 });
@@ -102,11 +114,19 @@ describe("encodePdfText - znaki, które font narysuje", () => {
     expect(encodePdfText("Straße Çà ñ Ø")).toBe("Stra\\337e \\307\\340 \\361 \\330");
   });
 
-  it("znak euro nie drukuje się jako `ą` - kod 0x80 zajmuje polski glif", () => {
+  it("znak euro drukuje się jako € (kod WinAnsi 0x80), a `ą` ma własny kod", () => {
+    // Dawny generator oddawał kod 0x80 literze `ą` i pisał € jako „EUR".
+    // Polskie glify siedzą teraz na kodach, których WinAnsi nie używa.
     const encoded = encodePdfText("100 €");
 
-    expect(encoded).toBe("100 EUR");
-    expect(encoded).not.toBe(encodePdfText("100 ą"));
+    expect(encoded).toBe("100 \\200");
+    expect(encodePdfText("ą")).not.toBe("\\200");
+  });
+
+  it("typografia WinAnsi (półpauza, polski cudzysłów) drukuje się, zamiast `?`", () => {
+    expect(encodePdfText("Fundacja „Nowa” – Kraków")).toBe(
+      "Fundacja \\204Nowa\\224 \\226 Krak\\363w",
+    );
   });
 });
 
@@ -122,15 +142,18 @@ describe("formatInvoiceMoney - kwoty korekt i duże kwoty", () => {
 
 describe("renderInvoicePdf - strumień treści", () => {
   it("nazwa nabywcy spoza kodowania nie rozrywa strumienia, a długość zgadza się z treścią", () => {
-    const pdf = latin1(renderInvoicePdf(invoice({ buyer: { name: "Ĩnvest ĩ Spółka\n😀" } })));
+    const pdf = latin1(
+      renderInvoicePdf(invoice({ buyer: { name: "Ĩnvest ĩ Spółka Dvořák\n😀" } })),
+    );
     const { declared, body } = contentStream(pdf);
 
     expect(body.length).toBe(declared);
-    expect(body).toContain("(?nvest ? Sp\\363\\203ka??) Tj ET");
+    expect(body).toContain(`(Invest i Sp\\363${encodePdfText("ł")}ka Dvo`);
     for (const op of textOps(body)) {
-      // Jedyny nawias zamykający poza ucieczką to ten kończący literał.
+      // Jedyny nawias zamykający poza ucieczką to ten kończący literał
+      // odcinka; kolejne odcinki przełączają font (`/Fn rozmiar Tf`).
       expect(op.replace(/\\[()\\]/g, "")).toMatch(
-        /^BT \/F[12] \d+ Tf 1 0 0 1 [\d.]+ \d+ Tm \([^()]*\) Tj ET$/,
+        /^BT \/F\d \d+ Tf 1 0 0 1 [\d.]+ \d+ Tm \([^()]*\) Tj( \/F\d \d+ Tf \([^()]*\) Tj)* ET$/,
       );
     }
   });
@@ -140,11 +163,32 @@ describe("renderInvoicePdf - strumień treści", () => {
     const { declared, body } = contentStream(pdf);
 
     expect(body.length).toBe(declared);
-    // Myślnik U+2013 leży poza Latin-1 i poza naszą tablicą - zostaje `?`.
-    expect(body).toContain("(M\\374ller & S\\366hne ? Caf\\351 EUR) Tj ET");
-    // Zakres 0xA0-0xFF nie jest przemapowany - glif bierze się z WinAnsi.
-    expect(pdf).toContain("/BaseEncoding /WinAnsiEncoding /Differences [ 128 /aogonek");
-    expect(pdf).not.toMatch(/\/Differences \[[^\]]*\b(1[6-9]\d|2[0-5]\d) \//);
+    // Półpauza (0x96) i € (0x80) to typografia WinAnsi - drukują się same.
+    expect(body).toContain("(M\\374ller & S\\366hne \\226 Caf\\351 \\200) Tj ET");
+    // /Differences przejmuje WYŁĄCZNIE kody, których WinAnsi nie używa - Latin-1
+    // (0xA0-0xFF), typografia (0x80-0x9F) i ASCII zostają nietknięte.
+    const free = new Set([
+      ...Array.from({ length: 31 }, (_u, i) => i + 1),
+      127,
+      129,
+      141,
+      143,
+      144,
+      157,
+    ]);
+    const arrays = [
+      ...pdf.matchAll(/\/BaseEncoding \/WinAnsiEncoding \/Differences \[ ([^\]]*) \]/g),
+    ];
+    expect(arrays.length).toBeGreaterThan(0);
+    for (const [, entries] of arrays) {
+      let code = -1;
+      for (const token of entries.split(" ")) {
+        if (token.startsWith("/")) {
+          expect(free.has(code), `kod ${code} (${token})`).toBe(true);
+          code += 1;
+        } else code = Number(token);
+      }
+    }
   });
 
   it("strona bez NIP nie dostaje pustej etykiety - wiersz NIP ma tylko nabywca", () => {

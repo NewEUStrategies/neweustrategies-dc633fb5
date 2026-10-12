@@ -23,19 +23,22 @@ export const invoicesPl = {
     },
     crm: {
       title: "Dane nabywcy i CRM",
-      hint: "Dane na fakturze pochodzą z Twojego profilu rozliczeniowego. Możesz pobrać je z kartoteki firmy w CRM albo zapisać w niej swoje zmiany.",
+      hint: "Dane na fakturze pochodzą z Twojego profilu rozliczeniowego. Możesz pobrać je z kartoteki firmy w CRM albo uzupełnić w niej brakujące dane. Dane, które kartoteka już ma, zmienia zespół.",
       companyLabel: "Firma w CRM",
       taxIdLabel: "NIP / VAT ID",
       addressLabel: "Adres",
       pull: "Pobierz dane z CRM",
-      push: "Zapisz dane w CRM",
+      push: "Uzupełnij dane w CRM",
       pulled: "Dane nabywcy uzupełnione z CRM.",
-      pushed: "Kartoteka firmy w CRM zaktualizowana.",
+      pushed: "Uzupełniliśmy brakujące dane w kartotece firmy w CRM.",
       editHint: "Dane do faktury edytujesz w zakładce „Dane do faktury”.",
       errors: {
         no_tenant: "Twoje konto nie jest przypisane do organizacji.",
-        no_company: "Nie znaleźliśmy kartoteki Twojej firmy w CRM.",
+        no_company:
+          "Nie znaleźliśmy kartoteki Twojej firmy w CRM. Wybierz firmę w profilu albo podaj jej NIP w danych do faktury.",
         no_billing_data: "Uzupełnij najpierw dane do faktury (nazwa firmy jest wymagana).",
+        tax_id_conflict:
+          "W CRM jest już firma o tej nazwie z innym NIP-em - nie zmieniliśmy jej. Sprawdź NIP w danych do faktury albo skontaktuj się z zespołem.",
         generic: "Operacja się nie powiodła. Spróbuj ponownie.",
       },
     },
@@ -63,19 +66,22 @@ export const invoicesEn: typeof invoicesPl = {
     },
     crm: {
       title: "Buyer details and CRM",
-      hint: "Invoice details come from your billing profile. You can pull them from the company record in the CRM or save your changes there.",
+      hint: "Invoice details come from your billing profile. You can pull them from the company record in the CRM or fill in what the record is missing. Details the record already has are changed by the team.",
       companyLabel: "Company in the CRM",
       taxIdLabel: "Tax ID / VAT ID",
       addressLabel: "Address",
       pull: "Pull details from the CRM",
-      push: "Save details to the CRM",
+      push: "Complete details in the CRM",
       pulled: "Buyer details filled in from the CRM.",
-      pushed: "Company record in the CRM updated.",
+      pushed: "We filled in the missing details in the company record in the CRM.",
       editHint: "You can edit invoice details in the “Billing details” tab.",
       errors: {
         no_tenant: "Your account is not assigned to an organisation.",
-        no_company: "We could not find your company record in the CRM.",
+        no_company:
+          "We could not find your company record in the CRM. Choose your company in your profile or enter its tax ID in your billing details.",
         no_billing_data: "Fill in your billing details first (the company name is required).",
+        tax_id_conflict:
+          "The CRM already has a company with this name and a different tax ID - we left it unchanged. Check the tax ID in your billing details or contact the team.",
         generic: "The operation failed. Please try again.",
       },
     },
