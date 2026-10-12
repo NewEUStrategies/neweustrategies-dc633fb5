@@ -1399,3 +1399,15 @@ describe("publishedSponsorIdSet", () => {
     expect(publishedSponsorIdSet(rows)).toBeUndefined();
   });
 });
+
+describe("speakerRowsFromAdminEntries - klikalnosc w podgladzie", () => {
+  it("liczy wystapienia z obsady sesji, wiec karta otwiera profil", () => {
+    const [row] = speakerRowsFromAdminEntries([
+      speakerEntry({
+        user_id: null,
+        sessions: [{ sessionId: "s1", role: "panelist", sortOrder: 0 }],
+      }),
+    ]);
+    expect(row?.talks_count).toBe(1);
+  });
+});
