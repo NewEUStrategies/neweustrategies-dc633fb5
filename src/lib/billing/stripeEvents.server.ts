@@ -13,6 +13,7 @@
 // takie zdarzenie (patrz `readIds` w `webhookDispatch.server.ts`).
 import type { VerifiedWebhookEvent } from "@/lib/stripe.server";
 import type { SubscriptionData, TransactionData } from "@/lib/billing/webhookDispatch.server";
+import { readPremiumNewsletterConsentMetadata } from "@/lib/billing/premiumNewsletter";
 
 /** Znormalizowane zdarzenie - gotowe do przekazania do `dispatchWebhookEvent`. */
 export interface NormalizedStripeEvent {
@@ -108,6 +109,9 @@ export function mapStripeSubscription(sub: Raw): SubscriptionData {
       userId: strOf(metadata?.userId) ?? undefined,
       purpose: strOf(metadata?.purpose) ?? undefined,
       donationId: strOf(metadata?.donationId) ?? undefined,
+      // Zgoda z pola w checkoucie (`subscription_data.metadata`). Bez kompletu
+      // wersja + język + chwila nie ma zgody - nie dopowiadamy jej (SUB-15).
+      newsletterConsent: readPremiumNewsletterConsentMetadata(metadata) ?? undefined,
     },
     currentBillingPeriod: {
       startsAt: isoFromUnix(periodStart) ?? undefined,

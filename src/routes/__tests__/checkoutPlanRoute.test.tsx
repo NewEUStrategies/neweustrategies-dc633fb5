@@ -110,6 +110,10 @@ import i18n from "@/lib/i18n";
 import { formatMoney } from "@/lib/billing/types";
 import { renderRoute } from "@/test/routeHarness";
 import { Route as PlanRoute } from "@/routes/checkout.$planId";
+import {
+  PREMIUM_NEWSLETTER_CONSENT_TEXTS,
+  PREMIUM_NEWSLETTER_CONSENT_VERSION,
+} from "@/lib/billing/premiumNewsletter";
 
 const PATH = "/checkout/$planId";
 const PLAN_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -627,5 +631,70 @@ describe("trasa /checkout/$planId - ustawienia checkoutu tenanta", () => {
     const summary = await screen.findByText("Podsumowanie");
     const card = summary.closest("div[class*='sticky']") ?? document.body;
     expect(within(card as HTMLElement).getByText(/VAT zostanie naliczony/)).toBeInTheDocument();
+  });
+});
+
+describe("trasa /checkout/$planId - zgoda na newsletter (SUB-15)", () => {
+  // Zakup nie jest zgodą marketingową. Jedyną drogą na newsletter z checkoutu
+  // jest jawne zaznaczenie pola - domyślnie pustego - a jego treść musi być
+  // dokładnie tą, którą serwer zapisze jako dowód (rejestr wersji).
+  const consentBox = () => screen.getByRole("checkbox", { name: /Wyrażam zgodę na otrzymywanie/ });
+  const registryText = (lang: "pl" | "en") =>
+    PREMIUM_NEWSLETTER_CONSENT_TEXTS[PREMIUM_NEWSLETTER_CONSENT_VERSION]?.[lang] ?? "∅";
+
+  it("pole jest NIEZAZNACZONE, a bez zaznaczenia sesja nie niesie zgody", async () => {
+    signedInBuyer();
+    await mount();
+    await screen.findByText("Plan Pro");
+
+    expect(consentBox()).toHaveAttribute("aria-checked", "false");
+    // Treść pola to pełny tekst z rejestru - ten sam, który trafi do dowodu.
+    expect(screen.getByText(registryText("pl"))).toBeInTheDocument();
+
+    fireEvent.click(payButton());
+    await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
+    expect(h.planCheckout.mock.calls[0][0].data.newsletterConsent).toBeUndefined();
+  });
+
+  it("zaznaczone pole jedzie do server function z wersją i językiem widzianej treści", async () => {
+    signedInBuyer();
+    await mount();
+    await screen.findByText("Plan Pro");
+
+    fireEvent.click(consentBox());
+    expect(consentBox()).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(payButton());
+
+    await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
+    expect(h.planCheckout.mock.calls[0][0].data.newsletterConsent).toEqual({
+      version: PREMIUM_NEWSLETTER_CONSENT_VERSION,
+      lang: "pl",
+    });
+  });
+
+  it("po angielsku: angielska treść z rejestru i `lang: en` w zgodzie", async () => {
+    await i18n.changeLanguage("en");
+    signedInBuyer();
+    await mount();
+    await screen.findByText("Pro plan");
+
+    expect(screen.getByText(registryText("en"))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree to receive/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Pay/ }));
+
+    await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
+    expect(h.planCheckout.mock.calls[0][0].data.newsletterConsent).toEqual({
+      version: PREMIUM_NEWSLETTER_CONSENT_VERSION,
+      lang: "en",
+    });
+  });
+
+  it("plan jednorazowy nie pokazuje pola - bez subskrypcji nie ma zapisu na listę", async () => {
+    signedInBuyer();
+    h.plan = plan({ interval: "one_time" });
+    await mount();
+    await screen.findByText("Plan Pro");
+
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 });

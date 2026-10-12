@@ -14,6 +14,7 @@ import {
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { GuestCheckoutGate } from "@/components/checkout/GuestCheckoutGate";
 import { CheckoutAssurances } from "@/components/checkout/CheckoutAssurances";
 import { BillingProfileForm } from "@/components/billing/molecules/BillingProfileForm";
@@ -23,6 +24,10 @@ import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
+import {
+  normalizeNewsletterLanguage,
+  PREMIUM_NEWSLETTER_CONSENT_VERSION,
+} from "@/lib/billing/premiumNewsletter";
 import { useCheckout } from "@/hooks/useCheckout";
 // Ramka operatora wchodzi przez granicę `React.lazy` (patrz nagłówek
 // EmbeddedCheckoutFrame) - trasa checkoutu nie może być drugim statycznym
@@ -50,6 +55,10 @@ function CheckoutPage() {
   const [busy, setBusy] = useState(false);
   const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  // Zgoda na newsletter: pole NIEZAZNACZONE domyślnie i niezależne od zakupu
+  // (art. 7 ust. 4 RODO - zgoda nie jest warunkiem umowy). Tylko jawne
+  // zaznaczenie wysyła zgodę na serwer; bez niego zakup nie dotyka listy (SUB-15).
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
   // Po utworzeniu sesji przewijamy do ramki - inaczej na mobile formularz
   // płatności ląduje poza ekranem i wygląda, jakby przycisk nic nie zrobił.
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -96,6 +105,10 @@ function CheckoutPage() {
   // `payment`, każdy cykliczny jako `subscription` (patrz `catalog.ts`).
   const checkoutMode: "payment" | "subscription" =
     planData?.interval === "one_time" ? "payment" : "subscription";
+  // Język etykiety zgody = język zapisany w dowodzie. Słownik bierze treść
+  // z tego samego rejestru wersji, z którego serwer odtworzy tekst.
+  const consentLang = normalizeNewsletterLanguage(i18n.language);
+  const offersNewsletterOptIn = checkoutMode === "subscription";
   const displayCurrency = displayCurrencyForLang(i18n.language);
   const planCurrency = planData?.currency ?? "PLN";
   // Kwoty do wyświetlenia po konwersji (parytet z /pricing i /support).
@@ -126,6 +139,10 @@ function CheckoutPage() {
         priceId: price.priceId,
         couponCode: coupon?.code,
         returnUrl: `${window.location.origin}/checkout/success`,
+        newsletterConsent:
+          offersNewsletterOptIn && newsletterOptIn
+            ? { version: PREMIUM_NEWSLETTER_CONSENT_VERSION, lang: consentLang }
+            : undefined,
       });
       if (!result.ok) {
         if (result.error === "not_found" || result.error === "limit_reached") {
@@ -267,6 +284,26 @@ function CheckoutPage() {
                         </span>
                       </div>
                     </div>
+                    {/* Po utworzeniu sesji pole jest zablokowane: decyzja już
+                        jedzie w metadanych tej sesji, a przełączenie po cichu
+                        rozjechałoby ekran z dowodem (nowa sesja = nowe
+                        zamówienie i druga rezerwacja kuponu). Wycofanie zgody
+                        to jeden klik w każdej wiadomości. */}
+                    {offersNewsletterOptIn && (
+                      <label
+                        htmlFor="checkout-newsletter-opt-in"
+                        className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"
+                      >
+                        <Checkbox
+                          id="checkout-newsletter-opt-in"
+                          checked={newsletterOptIn}
+                          onCheckedChange={(value) => setNewsletterOptIn(value === true)}
+                          disabled={busy || !!clientSecret}
+                          className="mt-0.5 h-4 w-4"
+                        />
+                        <span>{t("checkout.newsletterOptIn")}</span>
+                      </label>
+                    )}
                     <Button
                       className="w-full"
                       size="lg"

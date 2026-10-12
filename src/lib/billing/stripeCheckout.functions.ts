@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { CHECKOUT_LOCALES } from "@/lib/billing/checkoutLocale";
 import { isCodeProbeRateLimited, parseCouponVerdict } from "@/lib/billing/coupons";
+import { isPremiumNewsletterConsentVersion } from "@/lib/billing/premiumNewsletter";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 
 const envSchema = z.enum(["sandbox", "live"]);
@@ -19,6 +20,16 @@ const planCheckoutSchema = z.object({
   returnUrl: z.string().url(),
   environment: envSchema.optional(),
   locale: localeSchema.optional(),
+  // Zgoda na newsletter z NIEZAZNACZONEGO domyślnie pola (SUB-15). Brak klucza
+  // = brak zgody. Wersja musi być w rejestrze treści, bo dowodem jest dokładnie
+  // ten tekst, który kupujący widział w tym języku.
+  newsletterConsent: z
+    .object({
+      version: z.string().trim().max(32).refine(isPremiumNewsletterConsentVersion),
+      lang: z.enum(["pl", "en"]),
+    })
+    .strict()
+    .optional(),
 });
 
 /**
@@ -179,6 +190,12 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       // (`adhocCheckout.server` liczy trial wyłącznie dla subskrypcji).
       trialDays: Math.max(0, Number(plan.trial_days ?? 0)),
       settings,
+      // Chwila zgody = przyjęcie zaznaczonego pola przez serwer (zegar
+      // serwera, nie deklaracja klienta). Konto bierze webhook z `userId`
+      // w metadanych - nigdy z ładunku.
+      newsletterConsent: data.newsletterConsent
+        ? { ...data.newsletterConsent, at: new Date().toISOString() }
+        : null,
     });
 
     if (!result.ok) {

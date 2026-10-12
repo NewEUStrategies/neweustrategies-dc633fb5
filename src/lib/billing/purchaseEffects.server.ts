@@ -8,7 +8,19 @@ import {
 } from "@/lib/billing/entitlementSync.server";
 import { notifySubscriptionEmail } from "@/lib/billing/notifications.server";
 import { catalogEntryByPriceId, type PlanBillingInterval } from "@/lib/billing/catalog";
-import { buildPremiumNewsletterRow, canAutoSubscribe } from "@/lib/billing/premiumNewsletter";
+import {
+  buildPremiumNewsletterConsentEntry,
+  buildPremiumNewsletterRow,
+  canAutoSubscribe,
+  mergeNewsletterConsents,
+  PREMIUM_NEWSLETTER_FORM_NAME,
+  type PremiumNewsletterConsentGrant,
+} from "@/lib/billing/premiumNewsletter";
+import {
+  suppressionBlocksSignup,
+  type SuppressionReason,
+  type SuppressionScope,
+} from "@/lib/email/suppressionPolicy";
 import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 
 export interface PurchaseContext {
@@ -24,6 +36,13 @@ export interface PurchaseContext {
    * profilu przy odwzorowaniu ceny na plan (`PlanScope`).
    */
   tenantId?: string | null;
+  /**
+   * Zgoda na newsletter z pola w checkoucie (metadane subskrypcji operatora).
+   * Brak = pole niezaznaczone, więc zakup NIE dotyka listy - nowe miejsce
+   * wołające `applyPurchaseEffects`, które zapomni przekazać to pole, kończy
+   * się brakiem zapisu, a nie zgodą, której nikt nie wyraził (SUB-15).
+   */
+  newsletterConsent?: PremiumNewsletterConsentGrant | null;
 }
 
 interface ResolvedPlan {
@@ -249,16 +268,51 @@ const syncCrmCustomer = (userId: string, tierKey: string) =>
   syncCrmSubscriptionState(userId, tierKey, "customer");
 
 /**
- * Zapis płacącego klienta na newsletter premium. Nigdy nie rzuca.
+ * Ile razy ponawiamy scalenie zgód po przegranym wyścigu z innym zapisem tego
+ * samego wiersza (warunkowy UPDATE po `updated_at` nie trafił).
+ */
+const NEWSLETTER_MERGE_ATTEMPTS = 3;
+
+/**
+ * Zapis płacącego klienta na newsletter premium - WYŁĄCZNIE po jawnej zgodzie
+ * z pola w checkoucie (SUB-15). Nigdy nie rzuca.
  *
- * Świadome wypisanie się jest nadrzędne - automat nie reaktywuje takiej osoby.
+ *  1. Bez zgody ani jednego zapytania: zakup nie jest zgodą marketingową.
+ *     Zgoda nieważna (nieznana wersja treści, przeterminowana) - tak samo.
+ *  2. Lista wykluczeń jak przy zapisie z formularza (`suppressionBlocksSignup`),
+ *     ale FAIL-CLOSED: nieudany odczyt listy to brak zapisu, nie „czysto".
+ *     Pole w checkoucie nie jest double opt-in, więc wypis (`unsubscribe`)
+ *     i blokady trwałe zatrzymują zapis - zdejmuje je DOI albo operator.
+ *  3. Świadome wypisanie się jest nadrzędne (`canAutoSubscribe`).
+ *  4. Brak wiersza: wstawienie bez nadpisywania (`ignoreDuplicates`), a dowód
+ *     do rejestru `crm_consent_log` dopisuje wyzwalacz `newsletter_to_lead`.
+ *  5. Wiersz istnieje: SCALENIE. `consents` dostaje nowy wpis obok starych,
+ *     `confirmed_at`, `source`, `created_at`, imię, język i `meta` zostają
+ *     nietknięte; `pending` przechodzi w `subscribed` (zgodę złożył właściciel
+ *     zalogowanego konta), a `confirmed_at` ustawiamy tylko, gdy go nie było.
+ *     Wyzwalacz nie loguje UPDATE-u, więc dowód do rejestru dopisujemy sami.
+ *  6. Wyścig: odczyt-scalenie-zapis jest warunkowy (`updated_at` z odczytu),
+ *     więc równoległy zapis tego samego wiersza nie zginie - przegrany ponawia.
  */
 async function subscribePremiumNewsletter(params: {
   userId: string;
   tenantId: string;
   tierKey: string;
   subscriptionId: string;
+  consent: PremiumNewsletterConsentGrant | null;
 }): Promise<void> {
+  if (!params.consent) return;
+  const consent = buildPremiumNewsletterConsentEntry({
+    grant: params.consent,
+    subscriptionId: params.subscriptionId,
+  });
+  if (!consent) {
+    console.warn("[payments] premium newsletter consent rejected (unknown version or stale)", {
+      subscriptionId: params.subscriptionId,
+    });
+    return;
+  }
+
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: profile, error: profileError } = await supabaseAdmin
@@ -270,35 +324,103 @@ async function subscribePremiumNewsletter(params: {
     const email = profile?.email?.trim().toLowerCase();
     if (!email) return;
 
-    const { data: existing, error: existingError } = await supabaseAdmin
-      .from("newsletter_subscribers")
-      .select("id, status, unsubscribed_at, language")
-      .eq("tenant_id", params.tenantId)
-      .eq("email", email)
-      .maybeSingle();
-    // Nieudany odczyt to NIE „brak zapisu" - `canAutoSubscribe(null)` przepuszcza,
-    // a upsert po (tenant_id, email) nadpisałby świadome wypisanie.
-    if (existingError) {
-      throw new Error(`newsletter consent lookup failed: ${existingError.message}`);
+    const { data: suppressed, error: suppressionError } = await supabaseAdmin.rpc(
+      "email_filter_suppressed",
+      { p_tenant: params.tenantId, p_emails: [email] },
+    );
+    if (suppressionError) {
+      throw new Error(`newsletter suppression lookup failed: ${suppressionError.message}`);
     }
+    const blocked = (suppressed ?? []).some(
+      (hit) =>
+        hit.email?.trim().toLowerCase() === email &&
+        suppressionBlocksSignup({
+          reason: hit.reason as SuppressionReason,
+          scope: hit.scope as SuppressionScope,
+          doubleOptIn: false,
+        }),
+    );
+    if (blocked) return;
 
-    if (!canAutoSubscribe(existing)) return;
+    for (let attempt = 0; attempt < NEWSLETTER_MERGE_ATTEMPTS; attempt += 1) {
+      const { data: existing, error: existingError } = await supabaseAdmin
+        .from("newsletter_subscribers")
+        .select("id, status, unsubscribed_at, confirmed_at, consents, user_id, updated_at")
+        .eq("tenant_id", params.tenantId)
+        .eq("email", email)
+        .maybeSingle();
+      // Nieudany odczyt to NIE „brak zapisu" - `canAutoSubscribe(null)` przepuszcza,
+      // a zapis bez odczytu nadpisałby świadome wypisanie albo cudze dowody.
+      if (existingError) {
+        throw new Error(`newsletter consent lookup failed: ${existingError.message}`);
+      }
 
-    const row = buildPremiumNewsletterRow({
-      tenantId: params.tenantId,
-      userId: params.userId,
-      email,
-      firstName: profile?.first_name ?? null,
-      lastName: profile?.last_name ?? null,
-      language: existing?.language ?? null,
-      tierKey: params.tierKey,
-      subscriptionId: params.subscriptionId,
-    });
+      if (!canAutoSubscribe(existing)) return;
 
-    const { error } = await supabaseAdmin
-      .from("newsletter_subscribers")
-      .upsert(row, { onConflict: "tenant_id,email" });
-    if (error) throw new Error(`newsletter upsert failed: ${error.message}`);
+      if (!existing) {
+        const row = buildPremiumNewsletterRow({
+          tenantId: params.tenantId,
+          userId: params.userId,
+          email,
+          firstName: profile?.first_name ?? null,
+          lastName: profile?.last_name ?? null,
+          tierKey: params.tierKey,
+          subscriptionId: params.subscriptionId,
+          consent,
+        });
+        // `ignoreDuplicates` = ON CONFLICT DO NOTHING: wiersz wstawiony w
+        // międzyczasie przez formularz albo drugą dostawę zdarzenia NIE jest
+        // nadpisywany - pusta odpowiedź każe go przeczytać i scalić.
+        const { data: inserted, error } = await supabaseAdmin
+          .from("newsletter_subscribers")
+          .upsert(row, { onConflict: "tenant_id,email", ignoreDuplicates: true })
+          .select("id");
+        if (error) throw new Error(`newsletter insert failed: ${error.message}`);
+        if (inserted && inserted.length > 0) return;
+        continue;
+      }
+
+      const merged = mergeNewsletterConsents(existing.consents, consent);
+      if (!merged) {
+        console.error("[payments] newsletter consents column is not an array - left intact", {
+          subscriberId: existing.id,
+        });
+        return;
+      }
+      if (!merged.appended && existing.status === "subscribed") return;
+
+      const { data: updated, error } = await supabaseAdmin
+        .from("newsletter_subscribers")
+        .update({
+          consents: merged.consents,
+          ...(existing.status === "subscribed" ? {} : { status: "subscribed" }),
+          ...(existing.confirmed_at ? {} : { confirmed_at: consent.received_at }),
+          ...(existing.user_id ? {} : { user_id: params.userId }),
+        })
+        .eq("id", existing.id)
+        .eq("updated_at", existing.updated_at)
+        .select("id");
+      if (error) throw new Error(`newsletter consent merge failed: ${error.message}`);
+      if (!updated || updated.length === 0) continue;
+
+      if (merged.appended) {
+        const { error: logError } = await supabaseAdmin.from("crm_consent_log").insert({
+          tenant_id: params.tenantId,
+          email,
+          source_type: "newsletter",
+          source_id: existing.id,
+          form_name: PREMIUM_NEWSLETTER_FORM_NAME,
+          consent_key: consent.key,
+          consent_text: consent.text,
+          consent_version: consent.version,
+          given: true,
+          lang: consent.lang,
+        });
+        if (logError) throw new Error(`newsletter consent log failed: ${logError.message}`);
+      }
+      return;
+    }
+    throw new Error("newsletter consent merge kept losing the race - nothing written");
   } catch (err) {
     console.error("[payments] premium newsletter opt-in failed", err);
   }
@@ -341,6 +463,7 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     tenantId: plan.tenantId,
     tierKey: plan.tierKey,
     subscriptionId: ctx.subscriptionId,
+    consent: ctx.newsletterConsent ?? null,
   });
 
   await pushAppNotification({

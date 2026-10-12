@@ -11,12 +11,19 @@
 import { planChangeDirection } from "@/lib/billing/catalog";
 import { accessPeriodFromEvent } from "@/lib/billing/accessPeriod";
 import type { StripeEnv } from "@/lib/stripe.server";
+import type { PremiumNewsletterConsentGrant } from "@/lib/billing/premiumNewsletter";
 
 export type SubscriptionData = {
   id: string;
   customerId: string;
   status: string;
-  customData?: { userId?: string; purpose?: string; donationId?: string } | null;
+  customData?: {
+    userId?: string;
+    purpose?: string;
+    donationId?: string;
+    /** Zgoda z pola w checkoucie (metadane subskrypcji) - brak = pole niezaznaczone. */
+    newsletterConsent?: PremiumNewsletterConsentGrant | null;
+  } | null;
   currentBillingPeriod?: { startsAt?: string; endsAt?: string } | null;
   scheduledChange?: { action?: string } | null;
   items: Array<{
@@ -174,6 +181,7 @@ async function handleCreated(data: SubscriptionData, env: StripeEnv, occurredAt?
     periodEnd: data.currentBillingPeriod?.endsAt ?? trialEndsAt ?? null,
     environment: env,
     status: data.status,
+    newsletterConsent: data.customData?.newsletterConsent ?? null,
   });
 
   // Plan Zespół: liczba opłaconych miejsc ustala limit organizacji.

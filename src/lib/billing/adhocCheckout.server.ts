@@ -14,6 +14,7 @@
 import type Stripe from "stripe";
 import { getStripeClient, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
 import { normalizeCheckoutLocale, type CheckoutLocale } from "@/lib/billing/checkoutLocale";
+import { premiumNewsletterConsentMetadata } from "@/lib/billing/premiumNewsletter";
 import {
   checkoutSessionParams,
   DEFAULT_CHECKOUT_SETTINGS,
@@ -172,6 +173,12 @@ export interface PlanCheckoutSessionInput {
   trialDays?: number;
   /** Ustawienia checkoutu tenantu (kupony, VAT, NIP, faktura). */
   settings?: CheckoutSettings;
+  /**
+   * Zgoda na newsletter z pola w checkoucie (SUB-15). Jedzie metadanymi sesji
+   * i subskrypcji do webhooka - tylko w trybie subskrypcji, bo wyłącznie skutek
+   * opłaconej subskrypcji zapisuje na listę. Brak = pole niezaznaczone.
+   */
+  newsletterConsent?: { version: string; lang: "pl" | "en"; at: string } | null;
 }
 
 /**
@@ -258,6 +265,18 @@ export async function createPlanCheckoutSession(
         hasDiscount: !!discounts,
       }),
     } as SessionCreateParams;
+
+    // Zgoda z checkoutu dokładana DO metadanych, nie zamiast nich: subskrypcja
+    // u operatora dziedziczy `subscription_data.metadata`, a z niej czyta ją
+    // webhook (`readPremiumNewsletterConsentMetadata`).
+    if (mode === "subscription" && input.newsletterConsent) {
+      const consentMeta = premiumNewsletterConsentMetadata(input.newsletterConsent);
+      params.metadata = { ...params.metadata, ...consentMeta };
+      params.subscription_data = {
+        ...params.subscription_data,
+        metadata: { ...params.subscription_data?.metadata, ...consentMeta },
+      };
+    }
 
     const session = await stripe.checkout.sessions.create(params);
     if (!session.client_secret) return { ok: false, error: "session_missing_client_secret" };

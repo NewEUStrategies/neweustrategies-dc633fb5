@@ -1,4 +1,8 @@
 import i18n from "./i18n";
+import {
+  PREMIUM_NEWSLETTER_CONSENT_TEXTS,
+  PREMIUM_NEWSLETTER_CONSENT_VERSION,
+} from "@/lib/billing/premiumNewsletter";
 
 // Profile / Billing / Checkout i18n bundle - registered as overlay on top of base i18n.
 // Using addResourceBundle keeps the huge base i18n.ts untouched and lets us scale modules independently.
@@ -724,6 +728,10 @@ const pl = {
     processing: "Przetwarzanie...",
     secured: "Płatność zabezpieczona przez operatora płatności",
     terms: 'Klikając "Zapłać" akceptujesz regulamin i politykę prywatności.',
+    // Treść zgody NIE jest tu przepisana, tylko wzięta z rejestru wersji: serwer
+    // zapisuje jako dowód dokładnie ten tekst (SUB-15), więc etykieta i dowód
+    // nie mogą się rozjechać przy edycji słownika.
+    newsletterOptIn: PREMIUM_NEWSLETTER_CONSENT_TEXTS[PREMIUM_NEWSLETTER_CONSENT_VERSION].pl,
     successTitle: "Dziękujemy za zakup!",
     successBody:
       "Twoje zamówienie zostało przyjęte. Status aktualizujemy po potwierdzeniu płatności.",
@@ -1508,6 +1516,7 @@ const en: ProfileEn = {
     processing: "Processing...",
     secured: "Secured by our payment provider",
     terms: 'By clicking "Pay" you agree to the terms and privacy policy.',
+    newsletterOptIn: PREMIUM_NEWSLETTER_CONSENT_TEXTS[PREMIUM_NEWSLETTER_CONSENT_VERSION].en,
     successTitle: "Thank you!",
     successBody: "Your order was received. We will update its status once payment is confirmed.",
     cancelTitle: "Payment canceled",
