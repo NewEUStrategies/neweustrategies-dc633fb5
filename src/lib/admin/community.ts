@@ -367,6 +367,8 @@ export interface EventSpeakerEntry {
    */
   headline_pl?: string | null;
   headline_en?: string | null;
+  bio_pl?: string | null;
+  bio_en?: string | null;
   card_photo_url?: string | null;
   card_cta_label_pl?: string | null;
   card_cta_label_en?: string | null;
@@ -425,6 +427,8 @@ function mapSpeakerRow(row: Record<string, unknown>): EventSpeakerEntry {
     is_legacy: row.is_legacy === true,
     headline_pl: strOrNull(row.headline_pl),
     headline_en: strOrNull(row.headline_en),
+    bio_pl: strOrNull(row.bio_pl),
+    bio_en: strOrNull(row.bio_en),
     card_photo_url: strOrNull(row.card_photo_url),
     card_cta_label_pl: strOrNull(row.card_cta_label_pl),
     card_cta_label_en: strOrNull(row.card_cta_label_en),
