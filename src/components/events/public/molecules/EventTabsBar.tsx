@@ -143,9 +143,8 @@ export const EVENT_TAB_INACTIVE_CLASS =
 // KRESKA JEST TA SAMA W OBU MOTYWACH, ZMIENIA SIĘ TYLKO JEJ TUSZ. Geometrycznie
 // motywy są IDENTYCZNE - ten sam kształt, ta sama grubość, to samo położenie -
 // więc przełączenie motywu nie przestawia paska. `--brand-ink` to akcent marki
-// PRZELICZONY NA KONTRAST: w jasnym motywie `#a94e0b`, bo samo `#FA9346` ma na
-// jasnej płycie 2,25:1, czyli za mało jak na znak, który niesie informację
-// „tu jestem”; w ciemnym `#FA9346` (10,64:1).
+// wspólny dla obu motywów; aktywną pozycję wyróżnia też pogrubienie
+// i pełny neutralny kolor tekstu, bez przyciemniania pomarańczu.
 //
 // NA PASKU Z KOLOREM WYDARZENIA KRESKA BIERZE TUSZ POLICZONY Z TŁA.
 // `var(--event-nav-fg, var(--brand-ink))`: gdy organizator ustawił kolor

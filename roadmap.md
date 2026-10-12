@@ -1,5 +1,10 @@
 # Roadmap
 
+## Jednolity pomarańczowy akcent
+- [x] Ujednolicić akcenty marki i zamienniki złota w obu motywach.
+- [x] Poprawić stary pomarańcz ścieżek programu i prelegentów bez zmiany danych.
+- [x] Zweryfikować testy i program wydarzenia w obu motywach: 242 testy przechodzą; ścieżka i sesje mają rgb(250,147,70), podgląd buduje się bez błędów.
+
 ## Subtelne nagłówki wszystkich stron wydarzenia
 
 - [x] Ujednolicić Stronę główną, Uczestników, Prelegentów, Partnerów, Agendę, Dyskusje i Mój profil.

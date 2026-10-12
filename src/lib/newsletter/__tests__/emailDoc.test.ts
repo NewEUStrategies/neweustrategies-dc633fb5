@@ -29,6 +29,9 @@ describe("createEmailBlock", () => {
 });
 
 describe("createDefaultEmailDoc", () => {
+  it("uses #FA9346 as the newsletter brand accent", () => {
+    expect(createDefaultEmailDoc().style.accent).toBe("#FA9346");
+  });
   it("produces a renderable starter doc", () => {
     const doc = createDefaultEmailDoc();
     expect(doc.version).toBe(1);

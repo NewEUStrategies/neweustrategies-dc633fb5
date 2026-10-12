@@ -1,3 +1,4 @@
+import { resolveBrandAccent } from "@/lib/theme/brandAccent";
 // Model PUBLICZNEJ agendy wydarzenia (RPC `event_agenda`).
 //
 // JEDNO WYWOŁANIE, JEDNA CHWILA W CZASIE. Baza liczy w tym samym zapytaniu
@@ -204,7 +205,7 @@ function parseTrack(row: EventAgendaRow): AgendaTrack | null {
     key: text(row.track_key),
     namePl: text(row.track_name_pl),
     nameEn: text(row.track_name_en),
-    accentColor: text(row.track_accent_color),
+    accentColor: resolveBrandAccent(text(row.track_accent_color)),
     sponsor: parseSponsor({
       id: row.track_sponsor_id,
       name: row.track_sponsor_name,

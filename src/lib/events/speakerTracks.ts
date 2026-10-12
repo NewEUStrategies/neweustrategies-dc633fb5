@@ -1,3 +1,4 @@
+import { resolveBrandAccent } from "@/lib/theme/brandAccent";
 // SCIEZKI PRELEGENTA - lisc wydzielony z `speakerCard.ts`.
 //
 // PO CO OSOBNY PLIK. `lib/builder/speakersQuery.ts` (warstwa danych widgetu
@@ -57,7 +58,7 @@ export function parseSpeakerTracks(raw: unknown): SpeakerTrack[] {
       key: textOrNull(row.key),
       namePl,
       nameEn,
-      accentColor: hexColorOrNull(row.accent_color),
+      accentColor: resolveBrandAccent(hexColorOrNull(row.accent_color)),
       sessionsCount: Number.isFinite(count) && count > 0 ? Math.floor(count) : 0,
     });
   }

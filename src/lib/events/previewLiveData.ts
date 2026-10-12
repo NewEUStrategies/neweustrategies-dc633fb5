@@ -1,3 +1,4 @@
+import { resolveBrandAccent } from "@/lib/theme/brandAccent";
 // PRAWDZIWE DANE WYDARZENIA DLA PODGLADU STUDIA.
 //
 // PO CO OSOBNE MAPOWANIE. Publiczne projekcje (`event_agenda`,
@@ -222,7 +223,7 @@ export function agendaSessionsFromAdminRows(
                 key: nullable(row.track_key),
                 namePl: nullable(row.track_name_pl),
                 nameEn: nullable(row.track_name_en),
-                accentColor: nullable(row.track_accent_color),
+                accentColor: resolveBrandAccent(nullable(row.track_accent_color)),
                 sponsor: trackSponsors.get(row.track_id) ?? null,
               },
         room:
@@ -272,7 +273,7 @@ function previewSpeakerTracks(
       key: nullable(row.track_key),
       namePl: nullable(row.track_name_pl),
       nameEn: nullable(row.track_name_en),
-      accentColor: nullable(row.track_accent_color),
+      accentColor: resolveBrandAccent(nullable(row.track_accent_color)),
       sessionsCount: 1,
     });
   }
@@ -419,7 +420,7 @@ export function trackChipsFromAdminRows(
         id: row.id,
         namePl: nullable(row.name_pl),
         nameEn: nullable(row.name_en),
-        accentColor: nullable(row.accent_color),
+        accentColor: resolveBrandAccent(nullable(row.accent_color)),
         sponsorName: sponsor?.name ?? null,
         sponsorLogoUrl: sponsor?.logoUrl ?? null,
         sessionsCount: row.sessions_count ?? 0,
