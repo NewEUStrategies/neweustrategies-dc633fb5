@@ -532,6 +532,24 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Ponowny zapis zastosowania 20260926090000 z panelu Lovable bez instrukcji COMMENT ON (pozostale identyczne i idempotentne); blizniak supabase to juz 0056.",
   },
+  // Uzgodnienie PR #493-#494: zestaw trzech plików supabase (menu kategorii,
+  // zasiew stron noindex, odpublikowanie treści testowych) wgrany jednym
+  // zapisem narzędziowym oraz pola karty prelegenta w RPC panelu.
+  {
+    tag: "0147_pr493_menu_category_links_test_pages_noindex",
+    drizzleOnly:
+      "Zestawienie trzech plików supabase (menu, zasiew stron noindex, odpublikowanie) z uzgodnienia PR #493; wgrane razem jednym zapisem narzędziowym.",
+  },
+  {
+    tag: "0148_event_speaker_panel_bio",
+    drizzleOnly:
+      "Pola karty prelegenta w admin_event_speakers_list (bio_*, topics_*, languages, liczniki) wgrane przez narzędzie bazodanowe; brak bliźniaka supabase.",
+  },
+  {
+    tag: "0149_ledger_reconcile_pr493_pages",
+    drizzleOnly:
+      "Uzupełnienie rejestru supabase_migrations o wersje wgrane narzędziowo w PR #493; operacja księgowa bez zmian schematu.",
+  },
   // Braki modulu Wydarzen, czesc 3: zawiadomienie gosci o odwolanym bilecie,
   // awans za gosci zwroconych, bilet z puli wraca do puli i pokrywa
   // pojedyncze zgloszenie, wplata Stripe przy wyczerpanej puli.
