@@ -295,7 +295,15 @@ describe("webhook płatności - zdarzenia przyjęte przez trasę HTTP", () => {
   });
 
   it("spóźnione zdarzenie subskrypcji (stan w bazie nowszy): 200 i `skipped`, bez nadpisania", async () => {
-    planDb({ subscriptionGuard: ok([]), subscriptionExists: ok({ id: "row-sub-1" }) });
+    // Stan w bazie nowszy = znacznik zapisany PÓŹNIEJ niż chwila zdarzenia
+    // (wiersz bez znacznika strażnik zajmuje, a równy rozstrzyga remisem).
+    planDb({
+      subscriptionGuard: ok([]),
+      subscriptionExists: ok({
+        id: "row-sub-1",
+        last_event_at: new Date(FIXED_NOW_MS + 60 * SEKUNDA).toISOString(),
+      }),
+    });
 
     const res = await handle(signed(SUBSCRIPTION_UPDATED, "live"));
 

@@ -7,7 +7,7 @@ import {
   type ProviderSubscriptionStatus,
 } from "@/lib/billing/entitlementSync.server";
 import { notifySubscriptionEmail } from "@/lib/billing/notifications.server";
-import { isEntitledSubscriptionStatus } from "@/lib/billing/accessPeriod";
+import { accessActiveAt, isEntitledSubscriptionStatus } from "@/lib/billing/accessPeriod";
 import { catalogEntryByPriceId, type PlanBillingInterval } from "@/lib/billing/catalog";
 import {
   buildPremiumNewsletterConsentEntry,
@@ -616,15 +616,38 @@ export async function applyPlanChangeEffects(
   });
 }
 
-/** Rezygnacja: dostęp do końca okresu + mail + ankieta retencyjna. */
-export async function applyCancellationEffects(ctx: PurchaseContext): Promise<void> {
+/** Kontekst zakończenia subskrypcji: `nonPayment` = koniec windykacji, nie rezygnacja. */
+export interface CancellationContext extends PurchaseContext {
+  /**
+   * Operator zakończył subskrypcję za brak płatności (`payment_failed` /
+   * `payment_disputed`). `periodEnd` to wtedy koniec KARENCJI (bywa już w
+   * przeszłości), a nie koniec opłaconego okresu.
+   */
+  nonPayment?: boolean;
+}
+
+/**
+ * Rezygnacja: dostęp do końca okresu + mail + ankieta retencyjna.
+ *
+ * KONIEC WINDYKACJI TO NIE REZYGNACJA. Mail `subscription_canceled` ma stałą
+ * treść „potwierdzamy rezygnację, dostęp do końca opłaconego okresu, wznów
+ * jednym kliknięciem", a dzwonek - „Dostęp działa do końca opłaconego
+ * okresu". Po anulowaniu za brak płatności żadne z tych zdań nie jest
+ * prawdą: klient nie rezygnował, okres nie był opłacony, dostęp trwa
+ * najwyżej do końca karencji (często już minionej), a anulowanej subskrypcji
+ * nie da się wznowić (audyt SUB-03). Taki klient dostał już maile windykacji
+ * z datą końca dostępu, więc mail o rezygnacji nie idzie, a dzwonek mówi, co
+ * się stało i co dalej. CRM odnotowuje odejście tak samo.
+ */
+export async function applyCancellationEffects(ctx: CancellationContext): Promise<void> {
   const plan = await resolvePlanForPrice(ctx.priceId, {
     tenantId: ctx.tenantId,
     userId: ctx.userId,
   });
   if (!plan) return;
 
-  // Dostęp gaśnie z końcem opłaconego okresu - uprawnienie musi to odzwierciedlać.
+  // Dostęp gaśnie z końcem opłaconego okresu (albo karencji) - uprawnienie
+  // musi to odzwierciedlać.
   await syncEntitlementState({
     userId: ctx.userId,
     tenantId: plan.tenantId,
@@ -633,6 +656,26 @@ export async function applyCancellationEffects(ctx: PurchaseContext): Promise<vo
     status: "canceled",
     periodEnd: ctx.periodEnd,
   });
+
+  if (ctx.nonPayment) {
+    await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "churned");
+    const graceRunning = accessActiveAt(ctx.periodEnd) && ctx.periodEnd !== null;
+    await pushAppNotification({
+      userId: ctx.userId,
+      tenantId: plan.tenantId,
+      titlePl: "Subskrypcja zakończona",
+      titleEn: "Subscription ended",
+      bodyPl: graceRunning
+        ? "Nie udało się pobrać płatności. Dostęp działa jeszcze do końca okresu karencji - wybierz plan, żeby go zachować."
+        : "Nie udało się pobrać płatności, więc dostęp wygasł. Wybierz plan, żeby wrócić.",
+      bodyEn: graceRunning
+        ? "We couldn't collect your payment. Access continues until the grace period ends - choose a plan to keep it."
+        : "We couldn't collect your payment, so access has ended. Choose a plan to come back.",
+      href: PROFILE_PLAN_PATH,
+      icon: "credit-card",
+    });
+    return;
+  }
 
   await notifySubscriptionEmail({
     kind: "subscription_canceled",

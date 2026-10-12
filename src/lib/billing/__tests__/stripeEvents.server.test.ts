@@ -844,3 +844,26 @@ describe("normalizeStripeEvent - próby obciążenia faktury", () => {
     expect(data.nextPaymentAttemptAt).toBeNull();
   });
 });
+
+// Przegląd poprawek SUB-04/SUB-16: odrzucona dopłata do upgrade'u przy
+// `pending_if_incomplete` zostawia subskrypcję aktywną, a jej
+// `invoice.payment_failed` wyglądał dla windykacji jak zaległe odnowienie -
+// mapowanie nie niosło `billing_reason`, więc nic nie umiało ich odróżnić.
+describe("normalizeStripeEvent - powód wystawienia faktury", () => {
+  it("niesie `billing_reason` faktury - dopłatę za zmianę i odnowienie", () => {
+    for (const reason of ["subscription_update", "subscription_cycle", "subscription_create"]) {
+      for (const type of ["invoice.payment_failed", "invoice.paid"]) {
+        const data = transactionOf(event(type, { id: "in_1", billing_reason: reason }));
+        expect(data.billingReason).toBe(reason);
+      }
+    }
+  });
+
+  it("bez powodu (albo z wartością spoza słownika typów) zostawia `null`", () => {
+    expect(transactionOf(event("invoice.payment_failed", { id: "in_1" })).billingReason).toBeNull();
+    expect(
+      transactionOf(event("invoice.payment_failed", { id: "in_1", billing_reason: 7 }))
+        .billingReason,
+    ).toBeNull();
+  });
+});

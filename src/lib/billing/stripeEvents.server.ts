@@ -259,6 +259,11 @@ function mapTransactionFromInvoice(invoice: Raw): TransactionData & Raw {
         ? invoice.attempt_count
         : null,
     nextPaymentAttemptAt: isoFromUnix(invoice.next_payment_attempt),
+    // Po co powstała faktura. `subscription_update` to dopłata za zmianę
+    // w trakcie okresu (upgrade, więcej miejsc) - przy `pending_if_incomplete`
+    // jej odrzucenie zostawia subskrypcję `active` i NIE jest zaległością
+    // odnowienia, więc windykacja musi ją odróżnić od `subscription_cycle`.
+    billingReason: strOf(invoice.billing_reason),
     // Pola dokumentu rozliczeniowego - odczytywane przez `billingDocuments.server`.
     status: "completed",
     invoiceNumber: strOf(invoice.number),
