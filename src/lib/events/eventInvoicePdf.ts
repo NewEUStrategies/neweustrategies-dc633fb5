@@ -8,8 +8,8 @@
 // naglowka korekty, rachunku do przelewu, podstawy zwolnienia i - dla
 // faktury zbiorczej z kilkudziesiecioma pozycjami - WIELU STRON z
 // powtorzonym naglowkiem tabeli. Wspolne sa tylko niskopoziomowe klocki:
-// kodowanie polskich glifow (`encodePdfText`) i zapis kwoty
-// (`formatInvoiceMoney`) - uzywamy ich, nie zmieniajac tamtego modulu.
+// kodowanie glifow spoza Latin-1 z fontami dokumentu (`pdfText`, INV-19b)
+// i zapis kwoty (`formatInvoiceMoney`).
 //
 // JEZYK DOKUMENTU = jezyk faktury (`doc.locale`), nie jezyk panelu. Etykiety
 // podaje wolajacy (`eventInvoicePdfLabels.ts`, `i18n.getFixedT(locale)`), wiec

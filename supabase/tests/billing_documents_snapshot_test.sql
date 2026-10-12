@@ -11,8 +11,11 @@
 -- INV-07. Kopia PDF czytala nabywce i sprzedawce na zywo. Migawka jest
 -- zamrazana raz (`UPDATE ... WHERE buyer_snapshot IS NULL`) i od tej chwili
 -- nie zmienia jej zaden UPDATE (trigger write-once, 42501).
+--
+-- ZWROT (20261012122000). Pelny zwrot zamowienia oznacza jego dokument jako
+-- `refunded` (linia stanu PDF), zwrot czesciowy i dokument `void` - bez zmian.
 BEGIN;
-SELECT plan(11);
+SELECT plan(15);
 
 INSERT INTO public.tenants (id, slug, name) VALUES
   ('b1d0c000-0000-4000-8000-0000000000a1', 'bdoc-snapshot-a', 'Billing Doc Snapshot A');
@@ -105,6 +108,45 @@ SELECT ok(
   NOT has_function_privilege('anon', 'public.billing_documents_snapshot_write_once()', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.billing_documents_snapshot_write_once()', 'EXECUTE'),
   'funkcja triggera niedostepna dla klienta');
+
+-- Zwrot zamowienia -> stan dokumentu. Oplacone zamowienie zaklada i zamyka
+-- wylacznie serwer (straznik payment_orders czyta request.jwt.claim.role).
+SELECT set_config('request.jwt.claim.role', 'service_role', true);
+INSERT INTO public.payment_orders (id, tenant_id, user_id, kind, status, amount_cents, currency) VALUES
+  ('b1d0c000-0000-4000-8000-0000000000f1', 'b1d0c000-0000-4000-8000-0000000000a1', NULL, 'subscription', 'paid', 4900, 'PLN'),
+  ('b1d0c000-0000-4000-8000-0000000000f2', 'b1d0c000-0000-4000-8000-0000000000a1', NULL, 'subscription', 'paid', 4900, 'PLN');
+INSERT INTO public.billing_documents (tenant_id, user_id, provider_document_id, status, order_id) VALUES
+  ('b1d0c000-0000-4000-8000-0000000000a1', 'b1d0c000-0000-4000-8000-0000000000e1', 'bdoc_order_full', 'paid',
+   'b1d0c000-0000-4000-8000-0000000000f1'),
+  ('b1d0c000-0000-4000-8000-0000000000a1', 'b1d0c000-0000-4000-8000-0000000000e1', 'bdoc_order_part', 'paid',
+   'b1d0c000-0000-4000-8000-0000000000f2'),
+  ('b1d0c000-0000-4000-8000-0000000000a1', 'b1d0c000-0000-4000-8000-0000000000e1', 'bdoc_order_void', 'void',
+   'b1d0c000-0000-4000-8000-0000000000f1');
+
+UPDATE public.payment_orders SET refunded_amount_cents = 1000
+ WHERE id = 'b1d0c000-0000-4000-8000-0000000000f2';
+SELECT is(
+  (SELECT status FROM public.billing_documents WHERE provider_document_id = 'bdoc_order_part'),
+  'paid',
+  'zwrot czesciowy (zamowienie dalej paid) nie zmienia stanu dokumentu');
+
+UPDATE public.payment_orders SET status = 'refunded', refunded_amount_cents = 4900
+ WHERE id = 'b1d0c000-0000-4000-8000-0000000000f1';
+SELECT is(
+  (SELECT status FROM public.billing_documents WHERE provider_document_id = 'bdoc_order_full'),
+  'refunded',
+  'pelny zwrot zamowienia oznacza jego dokument jako refunded - PDF nie drukuje "Zaplacono"');
+SELECT is(
+  (SELECT status FROM public.billing_documents WHERE provider_document_id = 'bdoc_order_void'),
+  'void',
+  'dokument void zostaje void (anulowany nie byl zaplacony)');
+
+SELECT set_config('request.jwt.claim.role', '', true);
+
+SELECT ok(
+  NOT has_function_privilege('anon', 'public._billing_documents_follow_order_refund()', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._billing_documents_follow_order_refund()', 'EXECUTE'),
+  'funkcja triggera zwrotu niedostepna dla klienta');
 
 SELECT * FROM finish();
 ROLLBACK;
