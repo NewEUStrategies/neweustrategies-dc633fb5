@@ -434,7 +434,7 @@ describe("adres kasy pochodzi z odpowiedzi serwera", () => {
       mode: "free",
       url: "https://example.org/checkout/success",
       orderId: EVENT_IDS.order,
-      seated: true,
+      settlement: "seated",
     });
     renderPurchase();
     fireEvent.click(await buyButton());
@@ -446,6 +446,29 @@ describe("adres kasy pochodzi z odpowiedzi serwera", () => {
     );
     expect(screen.queryByTestId("checkout-dialog")).toBeNull();
   });
+
+  it.each([
+    ["sold_out", "toastError", "community.events.freeTicketSoldOut"],
+    ["awaiting", "toastSuccess", "community.events.freeTicketAwaiting"],
+    ["processing", "toastSuccess", "community.events.freeTicketProcessing"],
+  ] as const)(
+    "bilet za zero bez potwierdzonego miejsca (%s): komunikat zamiast potwierdzenia zakupu",
+    async (settlement, kind, key) => {
+      h.checkout.mockResolvedValue({
+        ok: true,
+        mode: "free",
+        url: "https://example.org/checkout/success",
+        orderId: EVENT_IDS.order,
+        settlement,
+      });
+      renderPurchase();
+      fireEvent.click(await buyButton());
+      await waitFor(() => expect(h[kind]).toHaveBeenCalledWith(realT("pl")(key)));
+      // Klucz istnieje w słowniku - inaczej `t()` oddałby sam klucz.
+      expect(realT("pl")(key)).not.toBe(key);
+      expect(h.navigate).not.toHaveBeenCalled();
+    },
+  );
 
   it("zamówienie niesie wydarzenie, ścieżki powrotu i środowisko bramki", async () => {
     h.stripeEnv = "live";

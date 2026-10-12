@@ -130,11 +130,16 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
 // Bilet za zero (kod 100%) kasa rozlicza bez operatora - ścieżką webhooka,
 // którą dowodzi `oneTimeFulfilment.server.test.ts`. Tu liczy się, ŻE kasa ją
 // woła i z jakim zamówieniem.
-const free = vi.hoisted(() => ({ settled: [] as string[] }));
+const free = vi.hoisted(() => ({
+  settled: [] as string[],
+  result: { outcome: "order", seated: true } as
+    { outcome: "order" | "oversold_refunded" | "skipped"; seated: boolean } | Error,
+}));
 vi.mock("@/lib/billing/oneTimeFulfilment.server", () => ({
   settleFreeTicketOrder: async (orderId: string) => {
     free.settled.push(orderId);
-    return "order";
+    if (free.result instanceof Error) throw free.result;
+    return free.result;
   },
 }));
 
@@ -143,7 +148,13 @@ const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions")
 
 type CheckoutResult =
   | { ok: true; mode: "stripe"; clientSecret: string; orderId: string }
-  | { ok: true; mode: "free"; url: string; orderId: string; seated: boolean }
+  | {
+      ok: true;
+      mode: "free";
+      url: string;
+      orderId: string;
+      settlement: "seated" | "sold_out" | "awaiting" | "processing";
+    }
   | { ok: false; mode: string; error: string; orderId?: string };
 
 interface SessionParams {
@@ -297,6 +308,7 @@ beforeEach(() => {
   couponAdmin.forward = (fn, args) => client().rpc(fn, args);
   couponAdmin.policy = null;
   free.settled.length = 0;
+  free.result = { outcome: "order", seated: true };
 
   vi.stubEnv("BILLING_RETURN_HOSTS", "kasa.example.org");
   vi.stubEnv("LOVABLE_API_KEY", "klucz-testowy-bramki");
@@ -482,7 +494,12 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
 
     const result = await call({ coupon_code: "WIELKI" });
 
-    expect(result).toMatchObject({ ok: true, mode: "free", orderId: "order-grupa", seated: true });
+    expect(result).toMatchObject({
+      ok: true,
+      mode: "free",
+      orderId: "order-grupa",
+      settlement: "seated",
+    });
     expect(
       result.ok && result.mode === "free" && new URL(result.url).searchParams.get("order"),
     ).toBe("order-grupa");
@@ -498,6 +515,52 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
     // Żadnej sesji ani kuponu u operatora.
     expect(h.calls.map((c) => c.method)).not.toContain("checkout.sessions.create");
     expect(stripeCoupons()).toEqual([]);
+  });
+
+  it.each([
+    [
+      "ostatnie miejsce zajęte - kod wrócił",
+      { outcome: "oversold_refunded", seated: false },
+      "sold_out",
+    ],
+    ["zgłoszenie czeka na decyzję albo w kolejce", { outcome: "order", seated: false }, "awaiting"],
+  ] as const)("bilet za zero: %s - kasa mówi prawdę (`%s`)", async (_label, settled, expected) => {
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(15000));
+    free.result = settled;
+
+    expect(await call({ coupon_code: "WIELKI" })).toMatchObject({
+      ok: true,
+      mode: "free",
+      settlement: expected,
+    });
+  });
+
+  it("bilet za zero: rozliczenie urwane - `processing`, dokończy tick zadań, nie błąd płatności", async () => {
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(15000));
+    free.result = new Error("one-time: ticket outcome failed");
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await call({ coupon_code: "WIELKI" })).toMatchObject({
+      ok: true,
+      mode: "free",
+      settlement: "processing",
+    });
+    expect(free.settled).toEqual(["order-grupa"]);
+    logged.mockRestore();
+  });
+
+  it("bilet za zero: strażnik odrzucił świeże zamówienie - jawna odmowa, bez obietnicy maila", async () => {
+    rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(15000));
+    free.result = { outcome: "skipped", seated: false };
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(await call({ coupon_code: "WIELKI" })).toEqual({
+      ok: false,
+      mode: "free",
+      error: "free_ticket_not_settled",
+      orderId: "order-grupa",
+    });
+    logged.mockRestore();
   });
 
   it("kwota DODATNIA poniżej minimum operatora zostaje odmową, bez zamówienia", async () => {

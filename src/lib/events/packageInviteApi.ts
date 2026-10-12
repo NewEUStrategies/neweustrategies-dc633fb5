@@ -44,6 +44,12 @@ export interface PackageInviteAcceptResult {
   registrationId: string;
   eventId: string | null;
   status: string;
+  /**
+   * Miejsce z pakietu, którego zamówienie nie jest jeszcze opłacone (TIX-07):
+   * zgłoszenie czeka (`pending`), kodu wejścia jeszcze nie ma - bilet przyjdzie
+   * mailem po zaksięgowaniu płatności.
+   */
+  awaitingPayment: boolean;
   /** Kod wejscia - pokazywany raz, zaraz po przyjeciu zaproszenia. */
   qrToken: string | null;
   /** Jedyny klucz samoobslugi zgloszenia dla delegata bez konta. */
@@ -94,10 +100,13 @@ export async function acceptPackageInvite(
     throw new Error("unknown: invitation response is not readable");
   }
 
+  // Brak `status` = baza sprzed 20261012130000, która przyjmowała od razu.
+  const status = text(source, "status") ?? "approved";
   return {
     registrationId,
     eventId: text(source, "event_id"),
-    status: text(source, "status") ?? "approved",
+    status,
+    awaitingPayment: source.awaiting_payment === true || status === "pending",
     qrToken: text(source, "qr_token"),
     manageToken: text(source, "manage_token"),
   };

@@ -133,6 +133,7 @@ const KODY_REJESTRACJI = [
   "seats_exhausted",
   "invalid_vat_rate",
   "invalid_tax_code",
+  "invalid_exempt_basis",
   // admin_event_package_order_set_status - powrót z anulowania, które oddało
   // użycie kodu rabatowego (20260926130000)
   "coupon_restore_exhausted",

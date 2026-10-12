@@ -320,8 +320,11 @@ BEGIN
   PERFORM pg_temp.assert(v->>'registration_status' = 'cancelled'
     AND (SELECT qr_token_hash IS NULL AND cancelled_at IS NOT NULL AND payment_status = 'paid'
          FROM pg_temp.osr('cx'))
-    -- TIX-05: „do zwrotu" znaczy zadanie zwrotu w kolejce, nie sam status.
+    -- TIX-05: „do zwrotu" znaczy zadanie zwrotu w kolejce, nie sam status -
+    -- i ODMOWA wobec kupujacego (`refused`), zeby webhook wyslal mu zawiadomienie.
     AND (v->>'refund_queued')::boolean
+    AND (v->>'refused')::boolean
+    AND v->>'reason' = 'registration_closed'
     AND EXISTS (SELECT 1 FROM public.event_registration_refund_jobs j
                 WHERE j.payment_order_id = 'f5600000-0000-0000-0000-000000000017'
                   AND j.registration_id = (pg_temp.osr('cx')).id),

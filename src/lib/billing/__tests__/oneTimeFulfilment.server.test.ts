@@ -185,6 +185,7 @@ import {
   applyTicketOutcome,
   fulfilOneTimeTransaction,
   markOneTimePaymentFailed,
+  runUnsettledFreeTicketOrders,
   settleFreeTicketOrder,
   type OneTimeTransaction,
 } from "@/lib/billing/oneTimeFulfilment.server";
@@ -950,7 +951,7 @@ describe("settleFreeTicketOrder - bilet za zero bez operatora", () => {
   it("rozlicza zamówienie tą samą ścieżką co wpłata: uprawnienie, księga, baza, miejsce", async () => {
     givenOrder(freeOrder());
 
-    expect(await settleFreeTicketOrder(ORDER_ID)).toBe("order");
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({ outcome: "order", seated: true });
     expect(paidPatch()).toMatchObject({
       status: "paid",
       provider: "coupon",
@@ -967,7 +968,10 @@ describe("settleFreeTicketOrder - bilet za zero bez operatora", () => {
     givenOrder(freeOrder());
     h.seat = "full";
 
-    expect(await settleFreeTicketOrder(ORDER_ID)).toBe("oversold_refunded");
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({
+      outcome: "oversold_refunded",
+      seated: false,
+    });
     const flip = stub()
       .chainsFor("payment_orders")
       .find((c) => c.has("update") && !c.has("neq"));
@@ -976,9 +980,35 @@ describe("settleFreeTicketOrder - bilet za zero bez operatora", () => {
     expect(h.eventMails).toHaveLength(0);
   });
 
+  it("zgłoszenie w kolejce: rozliczone, ale BEZ potwierdzonego miejsca - kasa nie obiecuje sukcesu", async () => {
+    givenOrder(
+      freeOrder({ metadata: { event_id: EVENT, coupon_id: COUPON, registration_id: REG } }),
+    );
+    h.rpcReplies.push(rpcPaid({ registration_status: "waitlist", waitlist_position: 2 }));
+
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({ outcome: "order", seated: false });
+    expect(h.eventMails).toHaveLength(0);
+  });
+
+  it("PONOWIENIE zamówienia już zaksięgowanego (rozliczenie urwane po księgowaniu) przechodzi idempotentnie", async () => {
+    // Darmowe zamówienie nie ma webhooka, który ponowiłby rozliczenie - robi to
+    // tick zadań, a zamówienie stoi już na `paid`.
+    givenOrder(freeOrder({ status: "paid" }));
+
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({ outcome: "order", seated: true });
+    expect(h.rpcCalls.map((c) => c.args["p_outcome"])).toEqual(["paid"]);
+    expect(h.claimCalls).toEqual([{ p_order_id: ORDER_ID }]);
+    // Księgowanie nie stempluje `paid_at` drugi raz (`.neq("status", "paid")`).
+    const flip = stub()
+      .chainsFor("payment_orders")
+      .find((c) => c.has("update") && c.has("neq"));
+    expect(flip?.argsOf("neq")).toEqual(["status", "paid"]);
+  });
+
   it.each([
     ["kwota dodatnia", { amount_cents: 100 }],
-    ["zamówienie już rozliczone", { status: "paid" }],
+    ["zamówienie anulowane (kod wrócił)", { status: "canceled" }],
+    ["zamówienie zwrócone", { status: "refunded" }],
     ["zamówienie operatora", { provider: "stripe" }],
     ["bez kodu w metadanych", { metadata: { event_id: EVENT } }],
     ["bez wydarzenia", { metadata: { coupon_id: COUPON } }],
@@ -986,7 +1016,7 @@ describe("settleFreeTicketOrder - bilet za zero bez operatora", () => {
   ] as const)("%s: pominięte - nic nie jest oznaczane jako opłacone", async (_label, over) => {
     givenOrder(freeOrder(over as Partial<OrderRow>));
 
-    expect(await settleFreeTicketOrder(ORDER_ID)).toBe("skipped");
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({ outcome: "skipped", seated: false });
     expect(h.grants).toHaveLength(0);
     expect(paidPatch()).toBeUndefined();
     expect(h.rpcCalls).toHaveLength(0);
@@ -995,7 +1025,100 @@ describe("settleFreeTicketOrder - bilet za zero bez operatora", () => {
   it("nieznane zamówienie: pominięte", async () => {
     givenOrder(null);
 
-    expect(await settleFreeTicketOrder(ORDER_ID)).toBe("skipped");
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({ outcome: "skipped", seated: false });
     expect(h.grants).toHaveLength(0);
+  });
+});
+
+// --- 9. ponowienia darmowych zamówień (tick zadań) ---------------------------
+
+describe("runUnsettledFreeTicketOrders - ponowienie urwanego rozliczenia", () => {
+  const COUPON = "66666666-ffff-4fff-8fff-666666666666";
+
+  /** Klient roli serwisowej ticka - tylko odczyt listy z bazy. */
+  function lister(reply: { data: unknown; error: { code?: string; message: string } | null }) {
+    const calls: Array<{ fn: string; args: unknown }> = [];
+    return {
+      calls,
+      client: {
+        rpc: async (fn: string, args: unknown) => {
+          calls.push({ fn, args });
+          return reply;
+        },
+      } as unknown as Parameters<typeof runUnsettledFreeTicketOrders>[0],
+    };
+  }
+
+  beforeEach(() => {
+    givenOrder(
+      orderRow({
+        amount_cents: 0,
+        status: "paid",
+        provider: "coupon",
+        metadata: { event_id: EVENT, coupon_id: COUPON },
+      }),
+    );
+  });
+
+  it("rozlicza każde wskazane zamówienie tą samą ścieżką i liczy wynik", async () => {
+    const { client, calls } = lister({ data: [ORDER_ID, ORDER_ID], error: null });
+
+    expect(await runUnsettledFreeTicketOrders(client, 7, Date.now() + 5_000)).toEqual({
+      claimed: 2,
+      settled: 2,
+      failed: 0,
+      deferred: 0,
+    });
+    expect(calls).toEqual([{ fn: "_event_free_ticket_orders_unsettled", args: { p_limit: 7 } }]);
+    expect(h.claimCalls).toHaveLength(2);
+  });
+
+  it("błąd jednego zamówienia nie zatrzymuje kolejnych - wróci w następnym ticku", async () => {
+    const { client } = lister({ data: [ORDER_ID, ORDER_ID], error: null });
+    h.rpcReplies.push(rpcError("XX000", "test: baza chwilowo niedostępna"));
+
+    expect(await runUnsettledFreeTicketOrders(client, 10, Date.now() + 5_000)).toEqual({
+      claimed: 2,
+      settled: 1,
+      failed: 1,
+      deferred: 0,
+    });
+    expect(errorMessages().some((m) => m.includes("free ticket order retry failed"))).toBe(true);
+  });
+
+  it("zamówienie odrzucone przez strażnika (np. anulowane w międzyczasie) to porażka, nie rozliczenie", async () => {
+    givenOrder(orderRow({ amount_cents: 0, status: "canceled", provider: "coupon" }));
+    const { client } = lister({ data: [ORDER_ID], error: null });
+
+    expect(await runUnsettledFreeTicketOrders(client)).toMatchObject({ settled: 0, failed: 1 });
+    expect(h.rpcCalls).toHaveLength(0);
+  });
+
+  it("po terminie nie pyta bazy; zamówienia ponad termin są odkładane", async () => {
+    const early = lister({ data: [ORDER_ID], error: null });
+    expect(await runUnsettledFreeTicketOrders(early.client, 10, Date.now() - 1)).toEqual({
+      claimed: 0,
+      settled: 0,
+      failed: 0,
+      deferred: 0,
+    });
+    expect(early.calls).toHaveLength(0);
+  });
+
+  it("brak funkcji w bazie (migracja przed kodem) to jawne pominięcie, nie cisza", async () => {
+    const { client } = lister({ data: null, error: { code: "PGRST202", message: "no function" } });
+
+    expect(await runUnsettledFreeTicketOrders(client)).toMatchObject({
+      claimed: 0,
+      skipped: "migration_pending",
+    });
+  });
+
+  it("inny błąd odczytu listy rzuca - tor zadań raportuje go w logu przebiegów", async () => {
+    const { client } = lister({ data: null, error: { code: "XX000", message: "boom" } });
+
+    await expect(runUnsettledFreeTicketOrders(client)).rejects.toThrow(
+      "free ticket orders lookup failed",
+    );
   });
 });

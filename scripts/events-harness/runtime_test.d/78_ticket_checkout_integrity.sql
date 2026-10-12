@@ -583,6 +583,19 @@ BEGIN
     $q$SELECT public.admin_event_ticket_set_tax_profile('78100000-0000-0000-0000-000000000005',
          '{"stripe_tax_code":"txcd_1"}'::jsonb)$q$,
     'invalid_tax_code', '78/F TIX-09: kod podatkowy Stripe w zlym ksztalcie - odmowa');
+  -- Podstawa zwolnienia dluzsza niz 300 znakow: odmowa w pakiecie tak jak w bilecie,
+  -- nigdy ucieta po cichu cytata przepisu.
+  PERFORM pg_temp.assert_raises_like(
+    format($q$SELECT public.admin_event_package_upsert(jsonb_build_object(
+         'event_id', '78e00000-0000-0000-0000-0000000000e5',
+         'ticket_type_id', '78100000-0000-0000-0000-000000000005',
+         'key', 'za_dluga_podstawa', 'name_pl', 'Pakiet', 'name_en', 'Package',
+         'vat_rate', 'zw', 'vat_exempt_basis', %L))$q$, repeat('x', 301)),
+    'invalid_exempt_basis', '78/F TIX-09: za dluga podstawa zwolnienia pakietu - odmowa, nie ucinanie');
+  PERFORM pg_temp.assert_raises_like(
+    format($q$SELECT public.admin_event_ticket_set_tax_profile('78100000-0000-0000-0000-000000000005',
+         jsonb_build_object('vat_rate', 'zw', 'vat_exempt_basis', %L))$q$, repeat('x', 301)),
+    'invalid_exempt_basis', '78/F TIX-09: za dluga podstawa zwolnienia biletu - odmowa');
 
   v := public.event_ticket_public_options('78100000-0000-0000-0000-000000000005');
   PERFORM pg_temp.assert(v->>'vat_rate' = '8' AND v->>'stripe_tax_code' = 'txcd_20030000',
@@ -597,6 +610,11 @@ BEGIN
   PERFORM pg_temp.assert(v_rates = '8',
     '78/F TIX-09: faktura bierze stawke 8% z biletu, nie domyslne 23% najemcy');
 
+  -- INV-14 (20261012100200): faktura za oplacone zgloszenie wymaga
+  -- zaksiegowanej kwoty przelewu - ksiegujemy ja przed szkicem, wiec pozycje
+  -- ida z zaksiegowanej kwoty (20000 = cena biletu szkoleniowego).
+  PERFORM public.admin_event_registration_record_payment(jsonb_build_object(
+    'registration_id', '78400000-0000-0000-0000-000000000031', 'amount_cents', 20000));
   v_id := public.admin_event_invoice_draft_create(jsonb_build_object(
     'event_id', '78e00000-0000-0000-0000-0000000000e5', 'kind', 'invoice',
     'buyer', jsonb_build_object('is_company', false, 'name', 'Lena Prowadzaca',
@@ -613,6 +631,73 @@ BEGIN
     (SELECT status = 'issued' AND vat_exempt_basis LIKE 'art. 43%' FROM public.event_invoices WHERE id = v_id),
     '78/F TIX-09: wystawienie bez podstawy w ustawieniach najemcy - podstawa z biletu');
   PERFORM pg_temp.act_as();
+END $$;
+
+-- ---------------------------------------------------------------------------
+-- G. TIX-13a: DARMOWE ZAMOWIENIE BEZ SLADU ROZLICZENIA WRACA DO PONOWIENIA
+-- ---------------------------------------------------------------------------
+-- Kasa rozlicza bilet za zero bez operatora, wiec bez webhooka, ktory ponowilby
+-- rozliczenie urwane w polowie. Tick zadan bierze liste z bazy - kryterium to
+-- fakty: `pending` po oknie laski albo `paid` bez zgloszenia, RSVP i odmowy.
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode,
+   payment_status, created_by)
+VALUES
+  ('78400000-0000-0000-0000-000000000040', '78000000-0000-0000-0000-0000000000a0',
+   '78e00000-0000-0000-0000-0000000000e5', '78300000-0000-0000-0000-000000000007',
+   '78100000-0000-0000-0000-000000000005', 'pending', 'form', 'unpaid',
+   '78a00000-0000-0000-0000-000000000007');
+INSERT INTO public.event_rsvps (tenant_id, event_id, user_id, status) VALUES
+  ('78000000-0000-0000-0000-0000000000a0', '78e00000-0000-0000-0000-0000000000e5',
+   '78a00000-0000-0000-0000-000000000005', 'going');
+
+DO $$
+DECLARE
+  v_meta jsonb := '{"event_id":"78e00000-0000-0000-0000-0000000000e5","coupon_id":"78c00000-0000-0000-0000-0000000000c1","quantity":1}';
+  v_user uuid := '78a00000-0000-0000-0000-000000000007';
+  v_id uuid;
+  v_ids uuid[] := ARRAY[]::uuid[];
+  v_listed uuid[];
+  rec record;
+BEGIN
+  FOR rec IN SELECT * FROM (VALUES
+    -- klucz,              konto,                                    status,     dostawca, metadane,                                     wiek
+    ('g_pending_old',      v_user,                                   'pending',  'coupon', v_meta,                                       interval '5 minutes'),
+    ('g_pending_fresh',    v_user,                                   'pending',  'coupon', v_meta,                                       interval '0 minutes'),
+    ('g_paid_unsettled',   v_user,                                   'paid',     'coupon', v_meta,                                       interval '5 minutes'),
+    ('g_paid_rsvp',        '78a00000-0000-0000-0000-000000000005'::uuid, 'paid', 'coupon', v_meta,                                       interval '5 minutes'),
+    ('g_paid_refused',     v_user,                                   'paid',     'coupon', v_meta || '{"ticket_refusal":{"reason":"amount_mismatch"}}', interval '5 minutes'),
+    ('g_paid_registered',  v_user,                                   'paid',     'coupon', v_meta || '{"registration_id":"78400000-0000-0000-0000-000000000040"}', interval '5 minutes'),
+    ('g_canceled',         v_user,                                   'canceled', 'coupon', v_meta,                                       interval '5 minutes'),
+    ('g_stripe',           v_user,                                   'pending',  'stripe', v_meta,                                       interval '5 minutes'),
+    ('g_too_old',          v_user,                                   'pending',  'coupon', v_meta,                                       interval '8 days'),
+    ('g_no_coupon',        v_user,                                   'pending',  'coupon', v_meta - 'coupon_id',                         interval '5 minutes')
+  ) AS t(k, u, st, prov, meta, age)
+  LOOP
+    INSERT INTO public.payment_orders (id, tenant_id, user_id, kind, status, amount_cents, currency,
+                                       provider, metadata, created_at)
+    VALUES (gen_random_uuid(), '78000000-0000-0000-0000-0000000000a0', rec.u, 'one_time', rec.st, 0,
+            'PLN', rec.prov, rec.meta, now() - rec.age)
+    RETURNING id INTO STRICT v_id;
+    v_ids := array_append(v_ids, v_id);
+    INSERT INTO t78 VALUES (rec.k, v_id);
+  END LOOP;
+  UPDATE public.event_registrations SET payment_order_id = pg_temp.o78('g_paid_registered')
+   WHERE id = '78400000-0000-0000-0000-000000000040';
+
+  SELECT array_agg(x ORDER BY x) INTO v_listed
+    FROM public._event_free_ticket_orders_unsettled(100) AS x
+   WHERE x = ANY (v_ids);
+  PERFORM pg_temp.assert(
+    v_listed = (SELECT array_agg(x ORDER BY x) FROM unnest(ARRAY[
+      pg_temp.o78('g_pending_old'), pg_temp.o78('g_paid_unsettled')]) AS x),
+    '78/G TIX-13a: do ponowienia tylko pending po oknie laski i paid bez zgloszenia, RSVP i odmowy');
+
+  PERFORM pg_temp.assert(
+    NOT has_function_privilege('authenticated', 'public._event_free_ticket_orders_unsettled(integer)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'public._event_free_ticket_orders_unsettled(integer)', 'EXECUTE')
+    AND has_function_privilege('service_role', 'public._event_free_ticket_orders_unsettled(integer)', 'EXECUTE'),
+    '78/G TIX-13a: lista zamowien wszystkich najemcow tylko dla roli serwisowej');
 END $$;
 
 ROLLBACK;

@@ -22885,6 +22885,10 @@ export type Database = {
         Args: { _ends: string; _starts: string }
         Returns: string
       }
+      _event_free_ticket_orders_unsettled: {
+        Args: { p_limit?: number }
+        Returns: string[]
+      }
       _event_group_admit_guest: {
         Args: {
           p_guest: Database["public"]["Tables"]["event_registrations"]["Row"]

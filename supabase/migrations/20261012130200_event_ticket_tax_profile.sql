@@ -204,6 +204,7 @@ DECLARE
   v_seats integer := (NULLIF(p_payload->>'seats', ''))::integer;
   v_sold integer;
   v_rate text := NULLIF(btrim(COALESCE(p_payload->>'vat_rate', '')), '');
+  v_basis text := btrim(COALESCE(p_payload->>'vat_exempt_basis', ''));
   v_code text := NULLIF(btrim(COALESCE(p_payload->>'stripe_tax_code', '')), '');
 BEGIN
   IF v_id IS NOT NULL THEN
@@ -232,6 +233,11 @@ BEGIN
 
   IF v_rate IS NOT NULL AND v_rate NOT IN ('23', '8', '5', '0', 'zw', 'np') THEN
     RAISE EXCEPTION 'invalid_vat_rate: unknown VAT rate' USING ERRCODE = '22023';
+  END IF;
+  -- Podstawa prawna zwolnienia jest cytatem przepisu - ucieta po cichu do 300
+  -- znakow trafilaby na fakture niepelna. Odmowa jak w profilu biletu.
+  IF char_length(v_basis) > 300 THEN
+    RAISE EXCEPTION 'invalid_exempt_basis: the legal basis has more than 300 characters' USING ERRCODE = '22023';
   END IF;
   IF v_code IS NOT NULL AND v_code !~ '^txcd_[0-9]{8}$' THEN
     RAISE EXCEPTION 'invalid_tax_code: the Stripe tax code looks like txcd_12345678' USING ERRCODE = '22023';
@@ -283,7 +289,7 @@ BEGIN
       END,
       vat_rate = CASE WHEN p_payload ? 'vat_rate' THEN v_rate ELSE p.vat_rate END,
       vat_exempt_basis = CASE
-        WHEN p_payload ? 'vat_exempt_basis' THEN left(btrim(COALESCE(p_payload->>'vat_exempt_basis', '')), 300)
+        WHEN p_payload ? 'vat_exempt_basis' THEN v_basis
         ELSE p.vat_exempt_basis
       END,
       stripe_tax_code = CASE WHEN p_payload ? 'stripe_tax_code' THEN v_code ELSE p.stripe_tax_code END
@@ -327,7 +333,7 @@ BEGIN
     CASE WHEN p_payload ? 'max_open_orders_per_buyer'
          THEN (NULLIF(p_payload->>'max_open_orders_per_buyer', ''))::integer ELSE 3 END,
     v_rate,
-    left(btrim(COALESCE(p_payload->>'vat_exempt_basis', '')), 300),
+    v_basis,
     v_code
   )
   RETURNING id INTO v_id;

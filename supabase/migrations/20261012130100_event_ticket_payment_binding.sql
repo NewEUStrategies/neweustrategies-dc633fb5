@@ -575,6 +575,9 @@ BEGIN
     NULL
   );
 
+  -- TIX-05: wplata na zgloszenie odwolane/odrzucone jest ODMOWA wobec kupujacego
+  -- (`refused` + powod) - inaczej webhook nie wysylal mu zawiadomienia o zwrocie,
+  -- a o pobranych pieniadzach bez biletu wiedzieli tylko organizatorzy.
   RETURN jsonb_build_object(
     'applied', true,
     'registration_id', v_reg.id,
@@ -600,6 +603,8 @@ BEGIN
       'last_name', v_person.last_name
     ),
     'waitlist', v_promoted
-  );
+  ) || CASE WHEN COALESCE(v_refund_queued, false)
+         THEN jsonb_build_object('refused', true, 'reason', 'registration_closed')
+         ELSE '{}'::jsonb END;
 END;
 $function$;

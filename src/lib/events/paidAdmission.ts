@@ -71,9 +71,17 @@ const NOT_A_REFUSAL: ReadonlySet<unknown> = new Set([
 ]);
 
 export function paidTicketVerdict(
-  payload: { applied?: unknown; registration_status?: unknown; reason?: unknown } | null,
+  payload: {
+    applied?: unknown;
+    registration_status?: unknown;
+    reason?: unknown;
+    refused?: unknown;
+  } | null,
 ): PaidTicketVerdict {
   if (payload === null) return "none";
+  // Wpłata zaksięgowana na zgłoszeniu ODWOŁANYM albo ODRZUCONYM (`applied`,
+  // ale `refused` i zwrot w kolejce) to odmowa wobec kupującego, nie miejsce.
+  if (payload.refused === true) return "refused";
   if (payload.applied === true) {
     return paidAdmission(payload.registration_status) === "seated" ? "seated" : "awaiting";
   }
@@ -85,7 +93,7 @@ export function paidTicketVerdict(
 export function isTicketPaymentRefusal(
   payload: { applied?: unknown; reason?: unknown; refused?: unknown } | null,
 ): boolean {
-  return payload !== null && (payload.refused === true || paidTicketVerdict(payload) === "refused");
+  return paidTicketVerdict(payload) === "refused";
 }
 
 /**

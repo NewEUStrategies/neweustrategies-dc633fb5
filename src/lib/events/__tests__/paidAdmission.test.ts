@@ -72,6 +72,20 @@ describe("paidTicketVerdict - co webhook robi z wpłatą po odpowiedzi bazy (TIX
     );
   });
 
+  it("wpłata zaksięgowana na zgłoszeniu odwołanym (`applied` + `refused`) to odmowa, nie miejsce", () => {
+    // Baza wiąże wpłatę ze zgłoszeniem i kolejkuje zwrot; kupujący ma dostać
+    // zawiadomienie o zwrocie, a nie RSVP ani „miejsce zarezerwowane”.
+    const payload = {
+      applied: true,
+      refused: true,
+      reason: "registration_closed",
+      registration_status: "cancelled",
+    };
+    expect(paidTicketVerdict(payload)).toBe("refused");
+    expect(isTicketPaymentRefusal(payload)).toBe(true);
+    expect(paidSeatConfirmed(payload)).toBe(false);
+  });
+
   it.each(["not_a_ticket_order", "order_not_found"])(
     "%s nie jest odmową wpłaty - nic do rozliczenia",
     (reason) => {

@@ -525,7 +525,41 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // ta sama ścieżka co webhook (zgłoszenie, kod QR, RSVP, maile).
     if (freeTicket) {
       const { settleFreeTicketOrder } = await import("@/lib/billing/oneTimeFulfilment.server");
-      const settled = await settleFreeTicketOrder(order.id);
+      // Stan rozliczenia, który kupujący zobaczy - nigdy optymistyczny sukces:
+      //   * `seated`     - miejsce potwierdzone (RSVP albo zgłoszenie z miejscem);
+      //   * `sold_out`   - ostatnie miejsce zajęte, zamówienie anulowane, kod wrócił;
+      //   * `awaiting`   - zgłoszenie czeka (decyzja organizatora, lista rezerwowa)
+      //                    albo baza odmówiła - kupujący dostał już zawiadomienie;
+      //   * `processing` - rozliczenie urwało się; dokończy je tick zadań
+      //                    (`runUnsettledFreeTicketOrders`), bilet przyjdzie mailem.
+      let settlement: "seated" | "sold_out" | "awaiting" | "processing";
+      try {
+        const settled = await settleFreeTicketOrder(order.id);
+        if (settled.outcome === "skipped") {
+          // Strażnik odrzucił świeżo założone zamówienie - ponowienie też go nie
+          // rozliczy, więc żadnej obietnicy „bilet przyjdzie mailem".
+          console.error("[checkout] free ticket order rejected by settlement guard", order.id);
+          return {
+            ok: false as const,
+            mode: "free" as const,
+            error: "free_ticket_not_settled" as const,
+            orderId: order.id,
+          };
+        }
+        settlement =
+          settled.outcome === "oversold_refunded"
+            ? "sold_out"
+            : settled.seated
+              ? "seated"
+              : "awaiting";
+      } catch (err) {
+        console.error(
+          "[checkout] free ticket settlement failed - left to the job retry",
+          order.id,
+          err instanceof Error ? err.message : String(err),
+        );
+        settlement = "processing";
+      }
       const freeUrl = new URL(resolveReturnUrl(data.success_path));
       freeUrl.searchParams.set("order", order.id);
       return {
@@ -533,7 +567,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         mode: "free" as const,
         url: freeUrl.toString(),
         orderId: order.id,
-        seated: settled === "order",
+        settlement,
       };
     }
 

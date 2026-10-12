@@ -25,6 +25,7 @@
 // organizatora. Błąd RPC to wyjątek (ponowienie), a nie cicha zgoda.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import type { StripeEnv } from "@/lib/stripe.server";
 import type { TicketOutcomePayload } from "@/lib/events/registrationOutcomeNotify.server";
 import { isTicketPaymentRefusal, paidTicketVerdict } from "@/lib/events/paidAdmission";
@@ -376,35 +377,49 @@ async function fulfilOrder(
     );
     return "skipped";
   }
-  return settleOrder(txn, order, { provider: "stripe" });
+  return (await settleOrder(txn, order, { provider: "stripe" })).outcome;
+}
+
+/** Wynik rozliczenia darmowego zamówienia - kasa mówi z niego kupującemu prawdę. */
+export interface FreeTicketSettlement {
+  outcome: Exclude<OneTimeOutcome, "donation">;
+  /** Miejsce potwierdzone (zgłoszenie z miejscem albo RSVP przyznane pod blokadą). */
+  seated: boolean;
 }
 
 /**
  * Zamówienie biletu za ZERO (kod 100%, TIX-13a) - rozliczenie bez operatora.
- * Woła je kasa (`createCheckoutOrder`) zaraz po zarezerwowaniu użycia kodu;
- * reszta jest tą samą ścieżką co wpłata z webhooka: zgłoszenie, kod QR, RSVP,
- * maile. Inne zamówienie jest pomijane - ta funkcja nie może oznaczyć jako
- * opłaconego niczego, za co ktoś powinien zapłacić: rozlicza wyłącznie
- * OCZEKUJĄCE zamówienie biletu za zero, założone z kodem (`provider = coupon`,
- * `coupon_id` w metadanych). Baza i tak porównuje kwotę z ceną biletu
- * (`_event_ticket_order_mismatch`: kwota + rabat kodu >= cena).
+ * Woła je kasa (`createCheckoutOrder`) zaraz po zarezerwowaniu użycia kodu,
+ * a ponawia tick zadań (`runUnsettledFreeTicketOrders`); reszta jest tą samą
+ * ścieżką co wpłata z webhooka: zgłoszenie, kod QR, RSVP, maile.
+ *
+ * PONOWIENIE. Darmowe zamówienie nie ma webhooka, który powtórzyłby rozliczenie
+ * urwane po księgowaniu - dlatego `paid` też przechodzi: cała ścieżka jest
+ * idempotentna dla tego samego zamówienia (RPC, klucze idempotencji maili,
+ * dzwonki na `newly_settled`), tak jak przy ponowionym webhooku.
+ *
+ * Inne zamówienie jest pomijane - ta funkcja nie może oznaczyć jako opłaconego
+ * niczego, za co ktoś powinien zapłacić: tylko zamówienie biletu za zero,
+ * założone z kodem (`provider = coupon`, `coupon_id` w metadanych), oczekujące
+ * albo już zaksięgowane - nigdy anulowane. Baza i tak porównuje kwotę z ceną
+ * biletu (`_event_ticket_order_mismatch`: kwota + rabat kodu >= cena).
  */
-export async function settleFreeTicketOrder(orderId: string): Promise<OneTimeOutcome> {
+export async function settleFreeTicketOrder(orderId: string): Promise<FreeTicketSettlement> {
   const order = await loadOrder(orderId);
   const meta = asRecord(order?.metadata);
   if (
     !order ||
     order.amount_cents !== 0 ||
     order.kind !== "one_time" ||
-    order.status !== "pending" ||
+    (order.status !== "pending" && order.status !== "paid") ||
     order.provider !== "coupon" ||
     !str(meta, "event_id") ||
     !str(meta, "coupon_id")
   ) {
     console.warn("[payments] free ticket order rejected", orderId);
-    return "skipped";
+    return { outcome: "skipped", seated: false };
   }
-  return settleOrder(
+  const settled = await settleOrder(
     {
       id: `free_${order.id}`,
       amountCents: 0,
@@ -415,13 +430,83 @@ export async function settleFreeTicketOrder(orderId: string): Promise<OneTimeOut
     order,
     { provider: "coupon" },
   );
+  return {
+    outcome: settled.outcome === "oversold_refunded" ? "oversold_refunded" : "order",
+    seated: settled.seated,
+  };
+}
+
+/** Bilans jednego przebiegu ponowień darmowych zamówień (tick zadań). */
+export interface UnsettledFreeTicketOrdersResult {
+  claimed: number;
+  settled: number;
+  failed: number;
+  deferred: number;
+  skipped?: "migration_pending";
+}
+
+/**
+ * Ponawia rozliczenie darmowych zamówień biletowych, które utknęły (kasa
+ * urwała się przed księgowaniem albo po nim). Listę wskazuje baza
+ * (`_event_free_ticket_orders_unsettled`: same fakty - status, zgłoszenie,
+ * RSVP, znacznik odmowy). Błąd jednego zamówienia nie zatrzymuje reszty;
+ * zamówienie, które znów padło, wróci w następnym ticku.
+ */
+export async function runUnsettledFreeTicketOrders(
+  admin: SupabaseClient<Database>,
+  limit = 10,
+  deadlineAt: number = Date.now() + 5_000,
+): Promise<UnsettledFreeTicketOrdersResult> {
+  const result: UnsettledFreeTicketOrdersResult = {
+    claimed: 0,
+    settled: 0,
+    failed: 0,
+    deferred: 0,
+  };
+  if (Date.now() > deadlineAt) return result;
+  const { data, error } = await admin.rpc("_event_free_ticket_orders_unsettled", {
+    p_limit: limit,
+  });
+  if (error) {
+    if (isMigrationPending(error)) return { ...result, skipped: "migration_pending" };
+    throw new Error(`free ticket orders lookup failed: ${error.message}`);
+  }
+  const ids = (Array.isArray(data) ? data : []).filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+  for (const id of ids) {
+    result.claimed += 1;
+    if (Date.now() > deadlineAt) {
+      result.deferred += 1;
+      continue;
+    }
+    try {
+      const settled = await settleFreeTicketOrder(id);
+      if (settled.outcome === "skipped") result.failed += 1;
+      else result.settled += 1;
+    } catch (err) {
+      result.failed += 1;
+      console.error(
+        "[payments] free ticket order retry failed",
+        id,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+  return result;
+}
+
+/** Skutek rozliczenia: wynik dla webhooka i to, czy miejsce zostało potwierdzone. */
+interface SettledOrder {
+  outcome: OneTimeOutcome;
+  seated: boolean;
 }
 
 async function settleOrder(
   txn: OneTimeTransaction,
   order: FulfilOrderRow,
   mode: SettlementMode,
-): Promise<OneTimeOutcome> {
+): Promise<SettledOrder> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { grantEntitlement } = await import("@/lib/billing/grant.server");
 
@@ -462,7 +547,7 @@ async function settleOrder(
   // rzucać i skazywać webhook na wieczne ponowienia.
   if (!order.user_id) {
     console.warn("[payments] one-time: order has no owner (anonymised), effects skipped", order.id);
-    return "order";
+    return { outcome: "order", seated: false };
   }
 
   // 4. Bilet na wydarzenie. NAJPIERW zgłoszenie: to samo zdarzenie płatności
@@ -495,7 +580,7 @@ async function settleOrder(
     } else if (verdict === "rsvp") {
       if ((await claimPaidRsvpSeat(order, eventId)) === "full") {
         await refundOversold(txn, order, amountCents, currency, mode);
-        return "oversold_refunded";
+        return { outcome: "oversold_refunded", seated: false };
       }
       seated = true;
     } else if (verdict === "refused") {
@@ -531,7 +616,7 @@ async function settleOrder(
       idempotencySeed: order.id,
     });
   }
-  return "order";
+  return { outcome: "order", seated };
 }
 
 /** Rozdziela opłaconą transakcję jednorazową na właściwy skutek biznesowy. */
