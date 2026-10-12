@@ -29514,6 +29514,14 @@ export type Database = {
       }
       event_session_access: { Args: { _session_id: string }; Returns: Json }
       event_session_signup: { Args: { p_payload: Json }; Returns: Json }
+      event_speaker_detail: {
+        Args: {
+          p_event_id: string
+          p_preview?: boolean
+          p_speaker_profile_id: string
+        }
+        Returns: Json
+      }
       event_speaker_logos_public: {
         Args: { p_event_id: string }
         Returns: {
