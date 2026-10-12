@@ -349,7 +349,9 @@ export function attendeeEntriesFromRegistrationRows(
     .filter((row) => row.status === "approved" || row.status === "attended")
     .map((row) => ({
       registrationId: row.id,
-      userId: null,
+      // Konto osoby (`p.user_id`): po nim katalog podglądu skleja zgłoszenie
+      // z wierszem prelegenta tak samo, jak katalog strony publicznej.
+      userId: nullable(row.person_user_id),
       name: [row.first_name ?? "", row.last_name ?? ""]
         .map((part) => part.trim())
         .filter((part) => part !== "")

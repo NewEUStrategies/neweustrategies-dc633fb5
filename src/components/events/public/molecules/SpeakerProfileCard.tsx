@@ -183,7 +183,9 @@ export function SpeakerProfileCard({
   const logoUrl = speaker.card_institution_logo_url?.trim() || null;
   // Osoba bez konta i bez faktów ponad kartę nie jest przyciskiem - okno
   // powtórzyłoby nazwisko i firmę (bramka `eventSpeakerWithoutAccount`).
-  const hasProfile = speakerHasProfileToShow(speaker);
+  // Bez nazwiska też nie: katalog pomija wiersz bez nazwy, więc przycisk bez
+  // nazwy dostępnej otwierałby okno „tej pozycji nie ma już na liście".
+  const hasProfile = speakerHasProfileToShow(speaker) && name !== "";
   const personKey = hasProfile
     ? personKeyOf({
         userId: speaker.user_id,
@@ -280,7 +282,10 @@ export function SpeakerProfileCard({
                     label={t("eventFront.directory.openCompany", { name: institution, lng: lang })}
                     className={cn(
                       "flex w-fit max-w-full items-center gap-2.5",
-                      orgKey !== null && "relative z-10 rounded-[6px]",
+                      // Cel dotyku: przycisk firmy leży na rozciągniętym
+                      // przycisku osoby, więc chybienie o piksele otwierałoby osobę.
+                      orgKey !== null &&
+                        "relative z-10 min-h-6 rounded-[6px] pointer-coarse:min-h-11",
                     )}
                   >
                     {logoUrl !== null ? <InstitutionLogo url={logoUrl} name={institution} /> : null}

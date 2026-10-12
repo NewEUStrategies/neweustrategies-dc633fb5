@@ -108,8 +108,8 @@ export function DirectoryPersonView({
     Object.keys(person.socials).length > 0
       ? person.socials
       : {
-          linkedin: member?.linkedin_url ?? undefined,
-          website: member?.website_url ?? undefined,
+          linkedin: httpUrl(member?.linkedin_url),
+          website: httpUrl(member?.website_url),
         };
 
   const attendee = person.attendee;
@@ -367,4 +367,22 @@ export function DirectoryPersonView({
       ) : null}
     </div>
   );
+}
+
+/**
+ * Adres z profilu członka tylko jako http(s) - ta sama reguła, co strona
+ * profilu (`MemberProfileView`): pola są edytowane ręcznie i importowane bez
+ * walidacji, a wpis bez schematu („linkedin.com/in/x") byłby odnośnikiem
+ * względnym pod `/events/<slug>/…`, otwieranym w nowej karcie jako błąd.
+ */
+function httpUrl(url: string | null | undefined): string | undefined {
+  if (url === null || url === undefined) return undefined;
+  try {
+    const parsed = new URL(url.trim());
+    return parsed.protocol === "https:" || parsed.protocol === "http:"
+      ? parsed.toString()
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }

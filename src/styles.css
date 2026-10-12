@@ -9633,6 +9633,10 @@ button,
   color: var(--muted-foreground) !important;
 }
 .edd-content {
+  /* `dvh`, nie `vh`: w Safari na iOS `vh` to duży widok (pasek narzędzi
+     schowany), więc arkusz przypięty do dołu wystawałby górą - z uchwytem
+     i przyciskiem zamknięcia - ponad widoczny ekran. */
+  max-height: 92dvh;
   padding-bottom: env(safe-area-inset-bottom);
   --tw-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --tw-enter-translate-y: 100%;
@@ -9660,25 +9664,31 @@ button,
   }
 }
 /* PASEK ZAKŁADEK PRZYKLEJONY (`EventPortalShell` ze `stickyTabs`): zakładki
-   widoczne cały czas, tuż pod nagłówkiem serwisu. `--sticky-header-h`
-   publikuje nagłówek (`Header.tsx`, po ustaniu zwijania); nagłówek
+   widoczne cały czas, tuż pod nagłówkiem serwisu. Pozycję pisze hook powłoki
+   z pomiaru nagłówka (styl ramki paska, klatka po klatce); te reguły to
+   wartości sprzed hydratacji i kopie dla elementów odsuwanych od paska.
+   `--sticky-header-h` publikuje nagłówek (`Header.tsx`); nagłówek
    NIEprzyklejony albo ukryty publikuje 0 dopiero po pierwszym geście, a do
    tego czasu na telefonie obowiązuje domyślne 123 px z arkusza - dlatego te
    dwa przypadki zerujemy tutaj, wprost ze znaczników powłoki strony.
-   `--event-chrome-h` = nagłówek + pasek (rząd `py-4` z napisem `text-sm`
-   = 3,25rem, plus obramowanie): od niego odsuwają się kotwice i inne
-   przyklejone elementy zakładek (kolumna filtrów agendy, pasek zapisu
-   profilu). Matowe tło zamiast przezroczystego - przyklejony pasek jedzie nad
-   treścią; kolor wydarzenia (`--event-nav`) maluje `<nav>` w środku. */
+   `--event-chrome-h` = nagłówek + pasek (jeden rząd `py-4` z napisem
+   `text-sm` = 3,25rem, plus obramowanie): od niego odsuwają się kolumna
+   filtrów agendy i pasek języka profilu. Fokus klawiatury odsuwa się od
+   paska przez `scroll-padding-top` korzenia (`data-event-tabs-active` stawia
+   powłoka, jak `ReadingHeader` swoją flagę). Matowe tło zamiast
+   przezroczystego - przyklejony pasek jedzie nad treścią; kolor wydarzenia
+   (`--event-nav`) maluje `<nav>` w środku. */
 [data-event-tabs="sticky"] {
-  --event-chrome-h: calc(var(--sticky-header-h, 0px) + 3.25rem + 1px);
+  --event-chrome-h: calc(var(--event-header-h, var(--sticky-header-h, 0px)) + 3.25rem + 1px);
 }
 header[data-site-header]:not(.sticky) ~ main [data-event-tabs="sticky"],
 [data-chrome-header="hidden"] [data-event-tabs="sticky"] {
   --sticky-header-h: 0px;
 }
-[data-event-tabs="sticky"] [id] {
-  scroll-margin-top: calc(var(--event-chrome-h) + 15px);
+html[data-event-tabs-active] {
+  scroll-padding-top: calc(
+    max(var(--sticky-header-h, 96px), var(--reading-header-h, 0px)) + 3.25rem + 16px
+  );
 }
 .event-tabs-sticky {
   position: sticky;
@@ -9688,17 +9698,17 @@ header[data-site-header]:not(.sticky) ~ main [data-event-tabs="sticky"],
   -webkit-backdrop-filter: blur(14px) saturate(1.4);
   backdrop-filter: blur(14px) saturate(1.4);
 }
-/* Telefon: pasek przewijany w poziomie (`EventTabsBar`) gaśnie na krawędziach
-   w strefie paddingu listy - w spoczynku nie dotyka żadnego napisu, po
-   przewinięciu mówi „jest dalej" z obu stron. */
-@media (max-width: 47.99rem) {
-  .event-tabs-sticky ul {
-    mask-image: linear-gradient(90deg, transparent, #000 1rem, #000 calc(100% - 1rem), transparent);
-  }
+/* Pasek jest jednym rzędem na każdej szerokości (`EventTabsBar`); gdy się
+   nie mieści, gaśnie na krawędziach w strefie paddingu listy - w spoczynku
+   nie dotyka żadnego napisu, po przewinięciu mówi „jest dalej" z obu stron. */
+.event-tabs-sticky ul {
+  mask-image: linear-gradient(90deg, transparent, #000 1rem, #000 calc(100% - 1rem), transparent);
 }
-/* Odcinek linii nagłówka „rysuje się" dopiero po pierwszej interakcji
-   (bramka ruchu `data-motion="on"`) - zimne wejście maluje go od razu. */
-:root[data-motion="on"] .event-module-hero-accent {
+/* Odcinek linii nagłówka „rysuje się" tylko w nagłówku zamontowanym PO
+   otwarciu bramki ruchu (przejście między zakładkami) - zimne wejście maluje
+   go od razu, a otwarcie bramki nad gotowym nagłówkiem go nie powtarza
+   (`EventModuleHero`). */
+.event-module-hero-accent--enter {
   animation: event-hero-accent 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 @keyframes event-hero-accent {
@@ -9708,7 +9718,7 @@ header[data-site-header]:not(.sticky) ~ main [data-event-tabs="sticky"],
 }
 @media (prefers-reduced-motion: reduce) {
   .edd-content,
-  :root[data-motion="on"] .event-module-hero-accent {
+  .event-module-hero-accent--enter {
     animation: none !important;
   }
 }

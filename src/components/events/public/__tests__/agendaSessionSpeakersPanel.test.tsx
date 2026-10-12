@@ -842,6 +842,32 @@ describe("EventAgendaBoardView - filtry, harmonogram i akcje", () => {
     expect(work).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("tablica zamontowana na nowo nie powtarza prosby obsluzonej przed odmontowaniem", () => {
+    // Podglad studia montuje tablice od nowa po powrocie do modulu „Agenda", a
+    // prosba zostaje w stanie rodzica - powtorka skakalaby do starej sesji,
+    // zdejmowala filtry i zabierala fokus.
+    const scroll = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
+    const sessions = [
+      session({ id: "a", titlePl: "Panel otwarcia" }),
+      session({
+        id: "b",
+        titlePl: "Panel drugiego dnia",
+        startsAt: "2026-09-02T08:00:00Z",
+        endsAt: "2026-09-02T09:00:00Z",
+      }),
+    ];
+    render(
+      <EventAgendaBoardView
+        sessions={sessions}
+        lang="pl"
+        signedIn
+        revealRequest={{ sessionId: "b", nonce: 1 }}
+      />,
+    );
+    expect(screen.getAllByRole("tab")[0]).toHaveAttribute("aria-selected", "true");
+    expect(scroll).not.toHaveBeenCalled();
+  });
+
   it("prosba z zewnatrz odslania sesje raz na licznik: dzien, zdjete filtry, przewiniecie", () => {
     const scroll = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
     const sessions = [

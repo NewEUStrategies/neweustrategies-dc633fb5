@@ -13,18 +13,19 @@
 // w podglądzie) rozstrzyga wołający, bo to jest różnica ZAMIERZONA, nie rozjazd.
 //
 // WZORZEC: docs/zrzuty/swapcard-2026-08-23/38-preview-event-home-desktop.png
-// (i identycznie 39, 40). Na komputerze (`md:`) pozycje zawijają się w jeden
-// wyśrodkowany rząd.
+// (i identycznie 39, 40) - jeden wyśrodkowany rząd napisów.
 //
-// NA TELEFONIE JEDEN RZĄD PRZEWIJANY - I TO ODWRACA DAWNE ZAWIJANIE. Pasek jest
-// przyklejony pod nagłówkiem serwisu (`EventPortalShell`, decyzja właściciela:
-// zakładki mają być widoczne CAŁY CZAS), a dwa rzędy przyklejone na stałe
-// zjadały ~100 px z ekranu telefonu. Dawny argument przeciw przewijaniu
-// („ostatnia zakładka znika bez znaku") gasi `justify-center-safe`: krótki
-// pasek stoi na środku, a dłuższy zaczyna się od krawędzi i ucina ostatnią
-// pozycję w pół napisu - widać, że jest dalej. Bieżąca zakładka jest
-// przewijana na środek (`activeKey`), więc czytelnik nie szuka miejsca,
-// w którym jest.
+// ZAWSZE JEDEN RZĄD, PRZEWIJANY GDY SIĘ NIE MIEŚCI - I TO ODWRACA DAWNE
+// ZAWIJANIE. Pasek jest przyklejony pod nagłówkiem serwisu (`EventPortalShell`,
+// decyzja właściciela: zakładki mają być widoczne CAŁY CZAS), a dwa rzędy
+// przyklejone na stałe zjadały ~100 px ekranu i rozjeżdżały się z wysokością,
+// od której odsuwają się kotwice i inne przyklejone elementy
+// (`--event-chrome-h` liczy jeden rząd). Dawny argument przeciw przewijaniu
+// („ostatnia zakładka znika bez znaku") gasi `justify-center-safe`: pasek,
+// który się mieści, stoi na środku (komputer), a dłuższy zaczyna się od
+// krawędzi, ucina ostatnią pozycję w pół napisu i gaśnie na brzegach - widać,
+// że jest dalej. Bieżąca zakładka jest przewijana na środek (`activeKey`),
+// więc czytelnik nie szuka miejsca, w którym jest.
 //
 // ── TU DOJEŻDŻA SLOT „KOLOR NAWIGACJI”, I TO JEST POPRAWKA DEFEKTU ──────────
 // CO BYŁO ZEPSUTE. `--event-nav` był jedyną zmienną brandingu BEZ ani jednego
@@ -126,15 +127,30 @@ export function EventTabsBar({
   const listRef = useRef<HTMLUListElement>(null);
   useEffect(() => {
     const list = listRef.current;
-    // Pasek, który się mieści (komputer, krótkie menu), nie ma czego przewijać.
-    if (list === null || list.scrollWidth <= list.clientWidth) return;
-    const active = list.querySelector('[aria-current="page"]');
-    if (active === null) return;
-    // Prostokąty, nie `offsetLeft`: przodkiem pozycjonowanym jest przyklejona
-    // ramka powłoki, nie lista, więc przesunięcia liczyłyby się od złej krawędzi.
-    const listBox = list.getBoundingClientRect();
-    const activeBox = active.getBoundingClientRect();
-    list.scrollLeft += activeBox.left + activeBox.width / 2 - (listBox.left + listBox.width / 2);
+    if (list === null || activeKey === undefined) return;
+    const center = (): boolean => {
+      const active = list.querySelector('[aria-current="page"]');
+      if (active === null) return false;
+      // Pasek, który się mieści (komputer, krótkie menu), nie ma czego przewijać.
+      if (list.scrollWidth > list.clientWidth) {
+        // Prostokąty, nie `offsetLeft`: przodkiem pozycjonowanym jest
+        // przyklejona ramka powłoki, nie lista.
+        const listBox = list.getBoundingClientRect();
+        const activeBox = active.getBoundingClientRect();
+        list.scrollLeft +=
+          activeBox.left + activeBox.width / 2 - (listBox.left + listBox.width / 2);
+      }
+      return true;
+    };
+    if (center()) return;
+    // Pozycja bieżąca bywa dorysowana później („Nabór prelegentów" po
+    // zapytaniu o fazę, „Mój profil" po hydratacji sesji) - centrujemy, gdy
+    // dojdzie, i przestajemy patrzeć.
+    const observer = new MutationObserver(() => {
+      if (center()) observer.disconnect();
+    });
+    observer.observe(list, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, [activeKey]);
 
   return (
@@ -148,7 +164,7 @@ export function EventTabsBar({
     >
       <ul
         ref={listRef}
-        className="tabs-scroller mx-auto flex max-w-5xl items-center justify-center-safe gap-x-6 px-4 md:flex-wrap md:overflow-visible"
+        className="tabs-scroller mx-auto flex max-w-5xl items-center justify-center-safe gap-x-6 px-4"
       >
         {children}
       </ul>

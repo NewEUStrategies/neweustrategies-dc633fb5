@@ -32,7 +32,7 @@ import { ArrowLeft, X } from "@/lib/lucide-shim";
 import { useReturnFocus } from "@/lib/utils";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
-import type { DirectoryView } from "./EventDirectoryContext";
+import { DIRECTORY_RETURN_FOCUS_ATTR, type DirectoryView } from "./EventDirectoryContext";
 import { DirectoryCompanyView } from "./DirectoryCompanyView";
 import { DirectoryPersonView } from "./DirectoryPersonView";
 import { Overline } from "./directoryParts";
@@ -106,6 +106,12 @@ export function EventDirectoryDialog({
       if (!leavingForSession.current) return;
       leavingForSession.current = false;
       event.preventDefault();
+      // Biegnie po odmontowaniu okna, czyli już bez `aria-hidden` na stronie -
+      // dopiero teraz fokus na tytule sesji jest ogłaszany (patrz
+      // `DIRECTORY_RETURN_FOCUS_ATTR`).
+      const target = document.querySelector<HTMLElement>(`[${DIRECTORY_RETURN_FOCUS_ATTR}]`);
+      target?.removeAttribute(DIRECTORY_RETURN_FOCUS_ATTR);
+      target?.focus({ preventScroll: true });
     },
   );
   const selectSession =
@@ -116,11 +122,22 @@ export function EventDirectoryDialog({
           onSessionSelect(sessionId);
         };
 
+  // Każda zmiana widoku POZA samym otwarciem (to obsługuje `onOpenAutoFocus`)
+  // przewija treść na górę i stawia fokus na nagłówku - także „Wstecz" do
+  // pierwszego widoku: przycisk „Wstecz" znika wtedy spod fokusu, a kontener
+  // przewijania przeżywa zmianę widoku z poprzednim przesunięciem.
+  const shownView = useRef<string | null>(null);
   useEffect(() => {
-    if (!open || depth <= 1) return;
+    if (!open) {
+      shownView.current = null;
+      return;
+    }
+    const opening = shownView.current === null;
+    shownView.current = viewKey;
+    if (opening) return;
     bodyRef.current?.scrollTo({ top: 0 });
     document.getElementById(titleId)?.focus({ preventScroll: true });
-  }, [open, viewKey, depth, titleId]);
+  }, [open, viewKey, titleId]);
 
   const person = top?.kind === "person" ? findDirectoryPerson(directory, top.key) : null;
   const viewLabel =
@@ -136,7 +153,7 @@ export function EventDirectoryDialog({
           aria-labelledby={titleId}
           data-event-directory-dialog=""
           {...eventBrandingScopeProps}
-          className="edd-content fixed inset-x-0 bottom-0 z-50 flex max-h-[92vh] flex-col rounded-t-lg border-t border-border bg-popover text-popover-foreground shadow-2xl outline-none duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
+          className="edd-content fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-lg border-t border-border bg-popover text-popover-foreground shadow-2xl outline-none duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0"
           {...focus}
         >
           <span
@@ -171,7 +188,7 @@ export function EventDirectoryDialog({
               key={viewKey}
               className="motion-safe:animate-in motion-safe:fade-in-0 duration-300"
               style={
-                depth <= 1
+                depth <= 1 && direction !== "back"
                   ? undefined
                   : {
                       ["--tw-enter-translate-x" as string]: direction === "back" ? "-12px" : "12px",

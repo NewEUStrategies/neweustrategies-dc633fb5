@@ -52,6 +52,7 @@ import {
   type AgendaSession,
 } from "@/lib/events/agendaSurface";
 import { AgendaSessionCard } from "@/components/events/public/molecules/AgendaSessionCard";
+import { DIRECTORY_RETURN_FOCUS_ATTR } from "@/components/events/public/directory/EventDirectoryContext";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 
 // Podgląd studia montuje ten widok BEZ `EventAgendaSection`, więc słownik
@@ -119,7 +120,13 @@ export function EventAgendaBoardView({
   // prośbę i nie musi się sam zerować (dawne `setFocusId(null)` w efekcie
   // kosztowało dodatkowy render całej tablicy).
   const [reveal, setReveal] = useState<PendingReveal | null>(null);
-  const [handledNonce, setHandledNonce] = useState<number | null>(null);
+  // Prośba zastana przy montażu jest już obsłużona: tablica montuje się na
+  // nowo po przełączeniu modułu w podglądzie studia albo po nieudanym
+  // odświeżeniu programu, a prawdziwe prośby (okno profilu, kotwica z efektu
+  // rodzica) przychodzą zawsze do tablicy już zamontowanej.
+  const [handledNonce, setHandledNonce] = useState<number | null>(
+    () => revealRequest?.nonce ?? null,
+  );
   // `null` w SSR i przy hydratacji - patrz `useViewerTimeZone`.
   const viewerZone = useViewerTimeZone();
   // Identyfikatory zakładek i panelu dnia z `useId` - te same na serwerze
@@ -185,7 +192,14 @@ export function EventAgendaBoardView({
     // Fokus na tytuł bloku (tylko gdy prośba przyszła z okna albo z odnośnika):
     // czytnik ogłasza sesję, a Tab idzie dalej od niej, nie od początku strony.
     if (reveal.focus) {
-      node.querySelector<HTMLElement>("h3[tabindex]")?.focus({ preventScroll: true });
+      const heading = node.querySelector<HTMLElement>("h3[tabindex]");
+      // Okno profilu, z którego przyszła prośba, jeszcze się zamyka i trzyma
+      // stronę pod `aria-hidden` - fokus przeniesie ono samo po odmontowaniu.
+      if (document.querySelector("[data-event-directory-dialog]") !== null) {
+        heading?.setAttribute(DIRECTORY_RETURN_FOCUS_ATTR, "");
+      } else {
+        heading?.focus({ preventScroll: true });
+      }
     }
   }, [reveal]);
 

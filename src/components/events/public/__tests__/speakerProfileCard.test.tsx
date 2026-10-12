@@ -337,6 +337,16 @@ describe("SpeakerProfileCard - pod dostawcą okien profilu", () => {
     expect(document.querySelector("article")?.className).not.toContain("group/speaker");
   });
 
+  it("konto bez nazwiska nie daje przycisku bez nazwy, który otwierałby okno „nie ma na liście”", () => {
+    // Katalog pomija wiersz bez nazwy, więc przycisk osoby prowadziłby donikąd.
+    renderInDirectory(speaker({ display_name: null }));
+    expect(screen.queryByRole("button", { name: /openProfile/ })).toBeNull();
+    expect(document.querySelectorAll('[aria-haspopup="dialog"]')).toHaveLength(1);
+    expect(
+      screen.getByRole("button", { name: "eventFront.directory.openCompany(lng=pl,name=NASK)" }),
+    ).toBeTruthy();
+  });
+
   it("dostawca wygrywa z `onSelect` - jedno okno na zakładkę, nie dwa", () => {
     const onSelect = vi.fn();
     const row = speaker();

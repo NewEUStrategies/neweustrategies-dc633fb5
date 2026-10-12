@@ -283,6 +283,51 @@ describe("buildEventDirectory", () => {
     expect(directoryOrgSessions(directory, key).map((item) => item.id)).toEqual(["s-2"]);
   });
 
+  it("druga instytucja tej samej osoby dostaje własne okno, a jej logo i strona nie trafiają do pierwszej", () => {
+    const directory = buildEventDirectory(
+      {
+        speakers: [
+          speaker({
+            company: "Uniwersytet Warszawski",
+            headline_pl: "",
+            job_title: "Profesor",
+            card_institution_logo_url: null,
+          }),
+          speaker({
+            user_id: "u-2",
+            speaker_profile_id: "sp-2",
+            slug: "bob",
+            display_name: "Bob Nowak",
+            company: "Uniwersytet Warszawski",
+            headline_pl: "",
+            job_title: "Adiunkt",
+            card_institution_logo_url: null,
+          }),
+        ],
+        attendees: [
+          attendee({
+            registrationId: "reg-anna",
+            userId: "u-1",
+            name: "Anna Kowalska",
+            company: "Ministerstwo Finansów",
+            companyLogoUrl: "https://cdn.example.test/mf.png",
+            companyWebsite: "https://gov.pl/finanse",
+          }),
+        ],
+      },
+      "pl",
+    );
+    const uw = directory.orgs.get(directoryOrgKey("Uniwersytet Warszawski") ?? "");
+    const mf = directory.orgs.get(directoryOrgKey("Ministerstwo Finansów") ?? "");
+    expect(uw?.logoUrl).toBeNull();
+    expect(uw?.website).toBeNull();
+    expect(mf?.logoUrl).toBe("https://cdn.example.test/mf.png");
+    expect(mf?.website).toBe("https://gov.pl/finanse");
+    // Osoba zostaje przy instytucji z listy prelegentów - pierwsze źródło.
+    expect(findDirectoryPerson(directory, "u-1")?.orgKey).toBe(uw?.key);
+    expect(findDirectoryPerson(directory, "u-1")?.orgLogoUrl).toBeNull();
+  });
+
   it("osoba spoza list nie nadpisuje znanej i nie jest mutowana", () => {
     const extra = {
       ...buildEventDirectory({ speakers: [speaker({})] }, "pl").people.get("u:u-1")!,

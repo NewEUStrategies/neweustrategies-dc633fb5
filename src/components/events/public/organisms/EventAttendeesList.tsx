@@ -596,7 +596,12 @@ function AttendeeCard({
               name={company}
               logoUrl={entry.companyLogoUrl}
               label={t("eventFront.directory.openCompany", { name: company })}
-              className="relative z-10 mt-2.5 flex max-w-full items-center gap-2 rounded-[4px] text-sm text-foreground/80"
+              className={cn(
+                "relative z-10 mt-2.5 flex max-w-full items-center gap-2 rounded-[4px] text-sm text-foreground/80",
+                // Cel dotyku: przycisk firmy leży na rozciągniętym przycisku
+                // osoby, więc chybienie o piksele otwierałoby osobę.
+                interactive && "min-h-6 pointer-coarse:min-h-11",
+              )}
             >
               <EventOrgLogo name={company} logoUrl={entry.companyLogoUrl} size="xs" />
               <span

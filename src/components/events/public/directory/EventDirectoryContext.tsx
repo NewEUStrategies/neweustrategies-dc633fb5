@@ -184,12 +184,19 @@ export function EventDirectoryProvider({
 export function DirectoryPersonTrigger({
   personKey,
   label,
+  title,
   className,
   children,
 }: {
   personKey: string | null;
   /** Nazwa dostępna przycisku - musi nieść nazwisko (kilkanaście „Otwórz" to szum). */
   label: string;
+  /**
+   * Podpowiedź z pełnym tekstem ucinanym w karcie. Rozciągnięta warstwa
+   * przycisku (`after:inset-0`) przykrywa `title` dzieci, więc pełny napis
+   * musi nieść sam przycisk.
+   */
+  title?: string;
   className?: string;
   children: ReactNode;
 }) {
@@ -205,6 +212,7 @@ export function DirectoryPersonTrigger({
       onPointerEnter={directory.prime}
       onFocus={directory.prime}
       onClick={() => directory.openPerson(personKey)}
+      title={title}
       className={cn(DIRECTORY_TRIGGER_CLASS, className)}
     >
       {children}
@@ -218,6 +226,7 @@ export function DirectoryCompanyTrigger({
   name,
   logoUrl,
   label,
+  title,
   className,
   children,
 }: {
@@ -225,6 +234,8 @@ export function DirectoryCompanyTrigger({
   name: string;
   logoUrl?: string | null;
   label: string;
+  /** Pełna nazwa ucinana w karcie - patrz `DirectoryPersonTrigger`. */
+  title?: string;
   className?: string;
   children: ReactNode;
 }) {
@@ -240,6 +251,7 @@ export function DirectoryCompanyTrigger({
       onPointerEnter={directory.prime}
       onFocus={directory.prime}
       onClick={() => directory.openCompany(orgKey, { name, logoUrl })}
+      title={title}
       className={cn(DIRECTORY_TRIGGER_CLASS, className)}
     >
       {children}
@@ -250,3 +262,13 @@ export function DirectoryCompanyTrigger({
 /** Wspólny obrys skupienia wyzwalaczy - ten sam na każdej zakładce. */
 export const DIRECTORY_TRIGGER_CLASS =
   "cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+
+/**
+ * Znacznik nagłówka, który ma dostać fokus PO zamknięciu okna. Klik w sesję
+ * zamyka okno i odsłania blok sesji w agendzie, ale okno do końca animacji
+ * trzyma resztę strony pod `aria-hidden` (`hideOthers` Radiksa) - fokus dany
+ * wtedy trafia w ukryte poddrzewo i VoiceOver go nie ogłasza. Tablica agendy
+ * stawia znacznik, a okno przenosi fokus w `onCloseAutoFocus`, już po zdjęciu
+ * `aria-hidden`.
+ */
+export const DIRECTORY_RETURN_FOCUS_ATTR = "data-directory-return-focus";

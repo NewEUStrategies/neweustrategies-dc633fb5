@@ -166,6 +166,8 @@ function AgendaSpeakerRow({
           <DirectoryPersonTrigger
             personKey={speaker.userId}
             label={t("eventFront.directory.openPerson", { name: speaker.displayName })}
+            // Rozciągnięty przycisk przykrywa `title` uciętej organizacji niżej.
+            title={headline === "" ? speaker.displayName : `${speaker.displayName} · ${headline}`}
             className={cn(
               "truncate text-sm font-semibold leading-tight text-foreground",
               interactive && cn(STRETCHED_CLASS, NAME_HOVER_CLASS),
@@ -252,13 +254,15 @@ function AgendaSponsorBadge({
           name={name}
           logoUrl={logoUrl}
           label={t("eventFront.directory.openCompany", { name })}
+          title={name}
           className={cn(
             "min-w-0 truncate text-sm font-semibold text-foreground",
             interactive && cn(STRETCHED_CLASS, NAME_HOVER_CLASS),
           )}
         >
           {/* Ucięta nazwa zostaje w `title` - wąska kolumna znaczka tnie długie
-              nazwy instytucji wielokropkiem. */}
+              nazwy instytucji wielokropkiem. Pod dostawcą okien niesie ją sam
+              przycisk (podpowiedź dziecka spod warstwy przycisku nie wyskoczy). */}
           <span title={name}>{name}</span>
         </DirectoryCompanyTrigger>
       </div>

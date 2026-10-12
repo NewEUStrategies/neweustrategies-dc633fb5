@@ -696,6 +696,27 @@ describe("EventAttendeesList - karta osoby i powierzchnie obok listy", () => {
     expect(logo?.closest('[aria-hidden="true"]')).not.toBeNull();
   });
 
+  it("„Wstecz” z okna firmy do okna osoby stawia fokus na nazwisku, nie na kontenerze okna", async () => {
+    // Przycisk „Wstecz” znika spod fokusu przy powrocie do pierwszego widoku -
+    // bez jawnego fokusu Radix oddałby go kontenerowi okna.
+    fetchAttendees.mockResolvedValue(
+      directory({
+        rows: [
+          entry({ registrationId: "reg-1", name: "Marta Kowalik", company: "Alfa Consulting" }),
+        ],
+      }),
+    );
+    renderList();
+    await screen.findByText("Marta Kowalik");
+    const okno = await openPerson("Marta Kowalik");
+    fireEvent.click(within(okno).getByRole("button", { name: /Alfa Consulting/ }));
+    expect(await within(okno).findByRole("heading", { name: "Alfa Consulting" })).toBeTruthy();
+
+    fireEvent.click(within(okno).getByRole("button", { name: /eventFront\.directory\.back/ }));
+    const heading = await within(okno).findByRole("heading", { name: "Marta Kowalik" });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+  });
+
   it("język interfejsu wybiera kolumnę biografii, intencji i tytułu panelu", async () => {
     language.current = "en";
     fetchAttendees.mockResolvedValue(

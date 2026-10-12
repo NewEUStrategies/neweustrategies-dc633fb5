@@ -251,6 +251,30 @@ describe("zakładka „Agenda” - okno osoby", () => {
     );
   });
 
+  it("fokus na tytule sesji pada dopiero po zdjęciu `aria-hidden` z zamykanego okna", async () => {
+    // Okno do końca trzyma resztę strony pod `aria-hidden` (Radix `hideOthers`);
+    // fokus dany wcześniej trafiałby w ukryte poddrzewo i VoiceOver by milczał.
+    vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
+    const hiddenAtFocus: boolean[] = [];
+    const onFocusIn = (event: FocusEvent) => {
+      const node = event.target as HTMLElement;
+      if (node.tagName === "H3") hiddenAtFocus.push(node.closest('[aria-hidden="true"]') !== null);
+    };
+    document.addEventListener("focusin", onFocusIn);
+    try {
+      renderAgenda(true);
+      press((await screen.findAllByRole("button", { name: OPEN_ANNA }))[0]);
+      const dialog = await screen.findByRole("dialog", {}, DIALOG_WAIT);
+      fireEvent.click(within(dialog).getByText("Energia jutra").closest("button") as HTMLElement);
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+      expect(hiddenAtFocus).toEqual([false]);
+      expect(document.querySelector("[data-directory-return-focus]")).toBeNull();
+    } finally {
+      document.removeEventListener("focusin", onFocusIn);
+    }
+  });
+
   it("sesja tego samego dnia: fokus zostaje na sesji, a nie wraca do przycisku, który otworzył okno", async () => {
     vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
     renderAgenda(true);

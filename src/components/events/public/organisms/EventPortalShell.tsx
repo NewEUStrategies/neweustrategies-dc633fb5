@@ -79,18 +79,73 @@
 // więc przyklejony `<nav>` nie miałby gdzie jechać. Ramką jest dziecko TEJ
 // powłoki, która obejmuje całą treść zakładki.
 //
-// Geometria (pod nagłówkiem serwisu, `--sticky-header-h`) i matowe tło żyją
-// w `src/styles.css` (blok „ZAKŁADKI MODUŁOWE WYDARZENIA"): tam też jest
-// `--event-chrome-h` - wysokość nagłówka z paskiem, od której odsuwają się
-// kotwice i inne przyklejone elementy zakładek.
+// GDZIE STAJE PASEK - Z POMIARU NAGŁÓWKA, NIE ZE ZMIENNEJ GLOBALNEJ.
+// `--sticky-header-h` publikuje nagłówek leniwie (pierwszy gest albo cisza,
+// potem dopiero po ustaniu zwijania), a na komputerze arkusz nie ma dla niej
+// wartości domyślnej - pasek stawał pod nagłówkiem (z-40), a przy zwijaniu
+// zostawiał na ~0,6 s szczelinę wysokości paska „na czasie". Hook niżej
+// czyta wysokość nagłówka przy każdej jej zmianie (ResizeObserver, także
+// klatka po klatce w trakcie zwijania) i pisze ją WYŁĄCZNIE w styl ramki
+// paska - zapis nie dotyka `:root` ani reszty drzewa, więc nie przelicza
+// stylów strony. Kopia dla elementów odsuwanych od paska (`--event-header-h`
+// na powłoce: kolumna filtrów agendy, pasek języka profilu) idzie dopiero po
+// ustaniu zmian, z tego samego powodu, dla którego nagłówek czeka z
+// `--sticky-header-h`. Fokus klawiatury odsuwa się od paska przez
+// `html[data-event-tabs-active]` (wzorzec `ReadingHeader`). Matowe tło
+// i wartości zapasowe sprzed hydratacji: `src/styles.css`, blok
+// „ZAKŁADKI MODUŁOWE WYDARZENIA".
 //
 // TYLKO STRONA PUBLICZNA. Kanwa podglądu jest skalowana `transform`-em i żyje
 // w panelu, gdzie `--sticky-header-h` opisuje nagłówek, którego tam nie ma.
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 import { eventBrandingScopeProps } from "@/lib/events/eventBrandingCss";
 import { EventBrandingStyle } from "@/components/events/public/atoms/EventBrandingStyle";
+
+/** Ile cisza po ostatniej zmianie wysokości nagłówka, zanim kopia trafi na powłokę. */
+const HEADER_SETTLE_MS = 160;
+
+function useStickyTabs(enabled: boolean) {
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const barRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const root = document.documentElement;
+    root.setAttribute("data-event-tabs-active", "");
+    const shell = shellRef.current;
+    const bar = barRef.current;
+    const header = document.querySelector<HTMLElement>("header[data-site-header]");
+    let observer: ResizeObserver | null = null;
+    let settle = 0;
+    if (shell !== null && bar !== null && header !== null) {
+      const sync = () => {
+        // Nagłówek nieprzyklejony odjeżdża ze stroną; ukryty ma wysokość 0.
+        const pinned = getComputedStyle(header).position === "sticky";
+        const height = `${pinned ? header.getBoundingClientRect().height : 0}px`;
+        bar.style.top = height;
+        window.clearTimeout(settle);
+        settle = window.setTimeout(
+          () => shell.style.setProperty("--event-header-h", height),
+          HEADER_SETTLE_MS,
+        );
+      };
+      sync();
+      if (typeof ResizeObserver !== "undefined") {
+        observer = new ResizeObserver(sync);
+        observer.observe(header);
+      }
+    }
+    return () => {
+      root.removeAttribute("data-event-tabs-active");
+      observer?.disconnect();
+      window.clearTimeout(settle);
+      bar?.style.removeProperty("top");
+      shell?.style.removeProperty("--event-header-h");
+    };
+  }, [enabled]);
+  return { shellRef, barRef };
+}
 
 export function EventPortalShell({
   branding,
@@ -118,8 +173,10 @@ export function EventPortalShell({
   style?: CSSProperties;
   children?: ReactNode;
 }) {
+  const { shellRef, barRef } = useStickyTabs(stickyTabs);
   return (
     <div
+      ref={shellRef}
       {...eventBrandingScopeProps}
       style={style}
       className={cn(
@@ -142,7 +199,9 @@ export function EventPortalShell({
         <p className="mt-4">{titleSlot}</p>
       </div>
 
-      <div className={cn("mt-4", stickyTabs && "event-tabs-sticky")}>{tabsSlot}</div>
+      <div ref={barRef} className={cn("mt-4", stickyTabs && "event-tabs-sticky")}>
+        {tabsSlot}
+      </div>
 
       {children}
     </div>

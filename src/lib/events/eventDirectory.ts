@@ -292,6 +292,16 @@ export function buildEventDirectory(
 
   const attachOrg = (person: DirectoryPerson, orgName: string, logoUrl: string | null) => {
     if (person.orgKey !== null) {
+      const key = directoryOrgKey(orgName);
+      if (key !== person.orgKey) {
+        // Inne źródło podaje INNĄ instytucję tej samej osoby (wiersz prelegenta
+        // bierze firmę z profilu autora, wpis uczestnika - z kartoteki zapisu
+        // i CRM). Osoba zostaje przy pierwszej, ale druga dostaje własne okno
+        // z WŁASNYM logo - logo jednej firmy nie trafia do drugiej.
+        const other = key === null ? null : ensureOrg(orgName);
+        if (other !== null) other.logoUrl = keep(other.logoUrl, logoUrl, isBlank);
+        return;
+      }
       const org = orgs.get(person.orgKey);
       if (org !== undefined) org.logoUrl = keep(org.logoUrl, logoUrl, isBlank);
       person.orgLogoUrl = keep(person.orgLogoUrl, logoUrl, isBlank);
@@ -441,9 +451,11 @@ export function buildEventDirectory(
     if (person.profileHref === null && slug !== "") person.profileHref = `/people/${slug}`;
     person.memberSlug = person.memberSlug ?? (slug === "" ? null : slug);
     attachOrg(person, textOf(entry.company), entry.companyLogoUrl);
-    if (person.orgKey !== null) {
-      const org = orgs.get(person.orgKey);
-      if (org !== undefined) org.website = keep(org.website, entry.companyWebsite, isBlank);
+    // Strona WŁASNEJ firmy wpisu (CRM), nie firmy, przy której osoba już stoi -
+    // te dwie mogą się różnić (patrz `attachOrg`).
+    const companyOrg = orgs.get(directoryOrgKey(entry.company) ?? "");
+    if (companyOrg !== undefined) {
+      companyOrg.website = keep(companyOrg.website, entry.companyWebsite, isBlank);
     }
     for (const item of sources.attendeeSessions?.(entry) ?? []) {
       if (person.sessions.some((session) => session.id === item.sessionId)) continue;

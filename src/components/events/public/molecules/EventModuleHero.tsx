@@ -40,12 +40,12 @@ import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 // Tytuł zapasowy (dokument pusty) dostaje TE SAME miary, więc podmiana
 // zapasowego `h1` na dokument po hydratacji nie zmienia wysokości tytułu.
 //
-// RUCH TYLKO PO INTERAKCJI. Odcinek linii „rysuje się", a tytuł podnosi o kilka
-// pikseli dopiero przy przejściu między zakładkami - reguły w `src/styles.css`
-// działają pod `:root[data-motion="on"]` (bramka ruchu, `motionGate.ts`), więc
-// zimne wejście na stronę maluje nagłówek od razu, bez wpływu na Speed Index.
+// RUCH TYLKO PRZY PRZEJŚCIU MIĘDZY ZAKŁADKAMI. Odcinek linii „rysuje się"
+// wyłącznie w nagłówku zamontowanym po otwarciu bramki ruchu (`motionGate.ts`,
+// klasa `event-module-hero-accent--enter`), więc zimne wejście na stronę maluje
+// nagłówek od razu, bez wpływu na Speed Index.
 //
-import type { ComponentType, ReactNode } from "react";
+import { useState, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Breadcrumbs, CRUMB_PILL_CLASS, CRUMB_SEPARATOR_CLASS } from "@/components/Breadcrumbs";
@@ -63,6 +63,7 @@ import {
 import type { EventModule } from "@/lib/events/eventModules";
 import { EventSectionHeading } from "@/components/events/public/atoms/EventSectionHeading";
 import { cn } from "@/lib/utils";
+import { useMotionGate } from "@/lib/performance/motionGate";
 
 ensureEventFrontI18n();
 
@@ -123,6 +124,12 @@ export function EventModuleHero({
 }) {
   const { t } = useTranslation();
   const Icon = MODULE_ICONS[module] ?? LayoutGrid;
+  // Odcinek linii „rysuje się" tylko w nagłówku zamontowanym PO otwarciu bramki
+  // ruchu, czyli przy przejściu między zakładkami. Wartość z pierwszego renderu:
+  // `false` w SSR i przy hydratacji, więc otwarcie bramki nad gotowym
+  // nagłówkiem (pierwszy gest, punkt ciszy) nie zeruje i nie rysuje go drugi raz.
+  const motion = useMotionGate();
+  const [accentEnters] = useState(motion);
 
   return (
     <>
@@ -185,7 +192,7 @@ export function EventModuleHero({
               {eventTitle || t("eventFront.header.moduleEyebrow")}
             </span>
           </div>
-          <div className="event-module-hero-title mt-4">
+          <div className="mt-4">
             {hasDocument ? (
               <div className="event-module-hero-doc mx-auto w-full min-w-0 max-w-3xl text-center [overflow-wrap:anywhere]">
                 {children}
@@ -207,7 +214,10 @@ export function EventModuleHero({
               serwisu (`--gc-btn-bg`) i gubiłaby kolor akcji wydarzenia. */}
           <span
             aria-hidden="true"
-            className="event-module-hero-accent absolute inset-x-0 -bottom-px mx-auto h-px w-16"
+            className={cn(
+              "event-module-hero-accent absolute inset-x-0 -bottom-px mx-auto h-px w-16",
+              accentEnters && "event-module-hero-accent--enter",
+            )}
             style={ACCENT_STYLE}
           />
         </header>
