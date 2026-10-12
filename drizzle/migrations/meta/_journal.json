@@ -1058,6 +1058,55 @@
       "when": 1791811680661,
       "tag": "0150_event_speaker_detail_safe_projection",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1791835714319,
+      "tag": "0151_tenant_admin_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1791835985314,
+      "tag": "0152_event_invoice_compliance",
+      "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1791836189794,
+      "tag": "0153_event_invoice_compliance_part2",
+      "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1791836386218,
+      "tag": "0154_event_invoice_compliance_part3",
+      "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1791836481499,
+      "tag": "0155_event_invoice_compliance_part4",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1791836634876,
+      "tag": "0156_event_invoice_compliance_part5",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1791836767221,
+      "tag": "0157_event_invoice_compliance_part6",
+      "breakpoints": true
     }
   ]
 }
