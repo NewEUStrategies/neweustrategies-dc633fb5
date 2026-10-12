@@ -141,14 +141,20 @@ const SMS_BODIES: Readonly<Record<NoticeKind, Record<EmailLang, (v: SmsVars) => 
   },
 };
 
-/** Wpłata bez miejsca - stany, w których ruch ma organizator. */
-type OrganizerAlertKind = Exclude<PaidAdmission, "seated">;
+/**
+ * Wpłata bez miejsca - stany, w których ruch ma organizator. `refused` =
+ * baza odmówiła wpłaty (TIX-05): cudze zgłoszenie, zła kwota albo bilet, druga
+ * wpłata za to samo zgłoszenie.
+ */
+type OrganizerAlertKind = Exclude<PaidAdmission, "seated"> | "refused";
 
 /** Treść dzwonka organizatora: tytuł wydarzenia i pozycja w kolejce. */
 interface AlertVars {
   /** Tytuł z dwukropkiem albo pusty napis - wpis nie zaczyna się od „: ". */
   lead: string;
   position: number | null;
+  /** Odmowa: czy zwrot czeka w kolejce dziennika zwrotów. */
+  refundQueued?: boolean;
 }
 
 /**
@@ -197,6 +203,18 @@ const ORGANIZER_ALERTS: Readonly<
         `${v.lead}a payment reached a cancelled or rejected registration. Check the rejection refund journal; handle cancellation and partial group refunds in the payments panel.`,
     },
   },
+  refused: {
+    title: {
+      pl: "Wpłata odrzucona - nie przypisano jej do zgłoszenia",
+      en: "Payment refused - not applied to a registration",
+    },
+    body: {
+      pl: (v) =>
+        `${v.lead}baza nie przypisała wpłaty (inne konto, niezgodny bilet albo kwota, druga wpłata za to samo zgłoszenie). ${v.refundQueued ? "Zwrot czeka w dzienniku zwrotów." : "Zamówienie oznaczono do przeglądu - zdecyduj o zwrocie w panelu płatności."}`,
+      en: (v) =>
+        `${v.lead}the payment was not applied (another account, a mismatched ticket or amount, or a second payment for the same registration). ${v.refundQueued ? "A refund is queued in the refund journal." : "The order is flagged for review - decide on the refund in the payments panel."}`,
+    },
+  },
 };
 
 interface Contact {
@@ -235,6 +253,12 @@ export interface TicketOutcomePayload {
    * Ponowiony webhook dostaje `false` - i nie dokłada dzwonków.
    */
   newly_settled?: boolean;
+  /** Powód `applied: false` (odmowa wpłaty albo zakup bez zgłoszenia). */
+  reason?: string;
+  /** Baza odmówiła wpłaty (20261012090100, TIX-05). */
+  refused?: boolean;
+  /** Zadanie zwrotu czeka w `event_registration_refund_jobs`. */
+  refund_queued?: boolean;
 }
 
 function str(source: Record<string, unknown> | null | undefined, key: string): string | null {
@@ -435,6 +459,7 @@ async function alertOrganizers(
 
     const copy = ORGANIZER_ALERTS[kind];
     const position = waitlistPosition(payload);
+    const refundQueued = payload.refund_queued === true;
     const lead = (lang: EmailLang): string => {
       const title = eventTitle(payload, lang);
       return title ? `${title}: ` : "";
@@ -446,8 +471,8 @@ async function alertOrganizers(
           p_kind: "billing",
           p_title_pl: copy.title.pl,
           p_title_en: copy.title.en,
-          p_body_pl: copy.body.pl({ lead: lead("pl"), position }),
-          p_body_en: copy.body.en({ lead: lead("en"), position }),
+          p_body_pl: copy.body.pl({ lead: lead("pl"), position, refundQueued }),
+          p_body_en: copy.body.en({ lead: lead("en"), position, refundQueued }),
           p_href: `/admin/events/${eventId}/registration/list`,
           p_icon: "credit-card",
         }),
@@ -606,4 +631,39 @@ export async function notifyTicketOutcome(
     await pushBell(payload, kind, contact);
   }
   return result;
+}
+
+/**
+ * Odmowa wpłaty przez bazę (TIX-05): kupujący dostaje dzwonek, że wpłata nie
+ * dała biletu i co dalej (zwrot w kolejce albo przegląd), a organizator -
+ * dzwonek z powodem. Nigdy „miejsce zarezerwowane". Fail-soft: wpłata jest już
+ * zaksięgowana, a zwrot siedzi w kolejce w bazie.
+ */
+export async function notifyTicketRefusal(payload: TicketOutcomePayload): Promise<void> {
+  const contact = readContact(payload);
+  const tenantId = payload.tenant_id ?? null;
+  const refundQueued = payload.refund_queued === true;
+  if (contact.userId && tenantId) {
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { error } = await supabaseAdmin.rpc("enqueue_notification", {
+        p_user_id: contact.userId,
+        p_kind: "billing",
+        p_title_pl: "Płatność nie została przypisana do biletu",
+        p_title_en: "Your payment was not applied to a ticket",
+        p_body_pl: refundQueued
+          ? `${eventTitle(payload, "pl")}: zwrócimy pełną kwotę - zwrot jest już zlecony.`
+          : `${eventTitle(payload, "pl")}: organizator sprawdzi płatność i zdecyduje o zwrocie.`,
+        p_body_en: refundQueued
+          ? `${eventTitle(payload, "en")}: we will refund the full amount - the refund is queued.`
+          : `${eventTitle(payload, "en")}: the organiser will review the payment and arrange a refund.`,
+        p_href: payload.event_slug ? `/events/${payload.event_slug}` : "/profile/tickets",
+        p_icon: "credit-card",
+      });
+      if (error) console.error("[events] ticket refusal bell failed", { error });
+    } catch (err) {
+      console.error("[events] ticket refusal bell failed", err);
+    }
+  }
+  await alertOrganizers(payload, "refused");
 }

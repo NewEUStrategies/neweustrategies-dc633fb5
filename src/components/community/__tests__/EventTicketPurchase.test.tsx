@@ -428,6 +428,25 @@ describe("adres kasy pochodzi z odpowiedzi serwera", () => {
     expect(screen.queryByTestId("checkout-dialog")).toBeNull();
   });
 
+  it("bilet za zero (kod 100%) prowadzi na potwierdzenie BEZ symulatora płatności", async () => {
+    h.checkout.mockResolvedValue({
+      ok: true,
+      mode: "free",
+      url: "https://example.org/checkout/success",
+      orderId: EVENT_IDS.order,
+      seated: true,
+    });
+    renderPurchase();
+    fireEvent.click(await buyButton());
+    await waitFor(() =>
+      expect(h.navigate).toHaveBeenCalledWith({
+        to: "/checkout/success",
+        search: { order: EVENT_IDS.order },
+      }),
+    );
+    expect(screen.queryByTestId("checkout-dialog")).toBeNull();
+  });
+
   it("zamówienie niesie wydarzenie, ścieżki powrotu i środowisko bramki", async () => {
     h.stripeEnv = "live";
     renderPurchase();

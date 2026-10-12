@@ -38,16 +38,63 @@ export function paidAdmission(status: unknown): PaidAdmission {
 }
 
 /**
- * Czy wpłata potwierdziła miejsce - warunek RSVP „going" i maila „miejsce
- * zarezerwowane".
+ * Co webhook robi z wpłatą za bilet po odpowiedzi bazy
+ * (`payments_apply_event_ticket_outcome`).
  *
- * BEZ ZAPISU W BAZIE (`applied !== true`, brak odpowiedzi, błąd RPC) ZOSTAJE
- * STARA ŚCIEŻKA. Zakup bez zgłoszenia z formularza (RSVP, bilet bez
- * rejestracji) nigdy nie miał wiersza, na którym baza mogłaby rozstrzygnąć
- * przyjęcie - a dla niego opłacenie nadal znaczy zapis.
+ *   - `seated`   - zgłoszenie dostało miejsce: RSVP „going" i „miejsce
+ *                  zarezerwowane";
+ *   - `rsvp`     - zakup BEZ zgłoszenia z formularza (`registration_not_found`):
+ *                  miejsce RSVP rozstrzyga baza pod blokadą
+ *                  (`_event_rsvp_claim_paid_seat`);
+ *   - `awaiting` - wpłata zaksięgowana bez miejsca (kolejka, decyzja
+ *                  organizatora, zgłoszenie zamknięte): bez RSVP i bez maila
+ *                  o rezerwacji - właściwy szablon wysłał moduł powiadomień;
+ *   - `refused`  - baza ODMÓWIŁA wpłaty (cudze zgłoszenie, niezgodny bilet albo
+ *                  kwota, druga wpłata za to samo zgłoszenie): bez RSVP, zwrot
+ *                  w kolejce albo znacznik do przeglądu (TIX-05);
+ *   - `none`     - zamówienie nie jest biletem, który da się rozliczyć
+ *                  (zanonimizowane konto).
+ *
+ * DO 20261012090100 KAŻDE `applied !== true` ZNACZYŁO „MIEJSCE". Odmowa bazy
+ * (druga zakładka, wskazanie niezgodne) i połknięty błąd RPC dawały kupującemu
+ * RSVP i drugi mail „miejsce zarezerwowane", a zgłoszenie zostawało
+ * nieopłacone. Teraz miejsce daje wyłącznie zapis z miejscem albo jawna
+ * ścieżka RSVP; błąd RPC rzuca wyżej (webhook ponawia).
+ */
+export type PaidTicketVerdict = "seated" | "rsvp" | "awaiting" | "refused" | "none";
+
+/** Powody `applied: false`, które NIE są odmową wpłaty. */
+const NOT_A_REFUSAL: ReadonlySet<unknown> = new Set([
+  "registration_not_found",
+  "not_a_ticket_order",
+  "order_not_found",
+]);
+
+export function paidTicketVerdict(
+  payload: { applied?: unknown; registration_status?: unknown; reason?: unknown } | null,
+): PaidTicketVerdict {
+  if (payload === null) return "none";
+  if (payload.applied === true) {
+    return paidAdmission(payload.registration_status) === "seated" ? "seated" : "awaiting";
+  }
+  if (payload.reason === "registration_not_found") return "rsvp";
+  return NOT_A_REFUSAL.has(payload.reason) ? "none" : "refused";
+}
+
+/** Czy webhook ma zgłoszenie/zakup jako odmówione przez bazę. */
+export function isTicketPaymentRefusal(
+  payload: { applied?: unknown; reason?: unknown; refused?: unknown } | null,
+): boolean {
+  return payload !== null && (payload.refused === true || paidTicketVerdict(payload) === "refused");
+}
+
+/**
+ * Czy wpłata potwierdziła miejsce zgłoszenia - warunek RSVP „going" i maila
+ * „miejsce zarezerwowane" dla zakupu ze zgłoszeniem. Ścieżkę RSVP (zakup bez
+ * zgłoszenia) rozstrzyga osobno `_event_rsvp_claim_paid_seat`.
  */
 export function paidSeatConfirmed(
-  payload: { applied?: unknown; registration_status?: unknown } | null,
+  payload: { applied?: unknown; registration_status?: unknown; reason?: unknown } | null,
 ): boolean {
-  return payload?.applied !== true || paidAdmission(payload.registration_status) === "seated";
+  return paidTicketVerdict(payload) === "seated";
 }

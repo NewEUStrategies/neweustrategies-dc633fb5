@@ -227,3 +227,49 @@ export async function releaseCouponForUser(
   });
   return { data: legacy.data, error: legacy.error };
 }
+
+/**
+ * Reguła kumulacji kodu z innymi promocjami biletu (TIX-13a, 20261012090000):
+ * `stacks_with_promotions = false` - kod nie łączy się z fazą sprzedaży ani
+ * benefitem planu; `max_total_discount_percent` - górny limit ŁĄCZNEGO rabatu
+ * od ceny regularnej.
+ */
+export interface CouponStackingPolicy {
+  stacksWithPromotions: boolean;
+  maxTotalDiscountPercent: number | null;
+}
+
+/** Zachowanie sprzed reguły: kod łączy się ze wszystkim, bez limitu. */
+export const DEFAULT_COUPON_STACKING: CouponStackingPolicy = {
+  stacksWithPromotions: true,
+  maxTotalDiscountPercent: null,
+};
+
+/** „Baza nie zna jeszcze tej kolumny" - okno wdrożenia kodu przed migracją. */
+const COLUMN_PENDING_CODES: ReadonlySet<string> = new Set(["42703", "PGRST204"]);
+
+/**
+ * Reguła kumulacji kodu przyjętego przez bazę. Rola serwisowa: kod jest już
+ * zwalidowany (`validate_event_ticket_coupon_for_user`), a odczyt dotyczy
+ * dwóch kolumn tego jednego wiersza. Przed migracją - zachowanie dotychczasowe;
+ * każdy inny błąd odczytu RZUCA (kasa nie może po cichu łączyć kodu, którego
+ * organizator nie pozwolił łączyć).
+ */
+export async function loadCouponStackingPolicy(couponId: string): Promise<CouponStackingPolicy> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("b2b_coupons")
+    .select("stacks_with_promotions, max_total_discount_percent")
+    .eq("id", couponId)
+    .maybeSingle();
+  if (error) {
+    if (COLUMN_PENDING_CODES.has(String(error.code ?? ""))) return DEFAULT_COUPON_STACKING;
+    throw new Error(`coupon_policy_unavailable: ${error.message}`);
+  }
+  const cap = data?.max_total_discount_percent;
+  return {
+    stacksWithPromotions: data?.stacks_with_promotions !== false,
+    maxTotalDiscountPercent:
+      typeof cap === "number" && Number.isInteger(cap) && cap >= 1 && cap <= 100 ? cap : null,
+  };
+}

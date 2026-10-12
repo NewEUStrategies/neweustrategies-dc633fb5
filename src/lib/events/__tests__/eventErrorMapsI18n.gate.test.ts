@@ -129,6 +129,10 @@ const KODY_REJESTRACJI = [
   "package_in_use",
   "package_sold_out",
   "invalid_email",
+  // jedna księga miejsc i profil podatkowy pakietu (20261012090000, 20261012090200)
+  "seats_exhausted",
+  "invalid_vat_rate",
+  "invalid_tax_code",
   // admin_event_package_order_set_status - powrót z anulowania, które oddało
   // użycie kodu rabatowego (20260926130000)
   "coupon_restore_exhausted",

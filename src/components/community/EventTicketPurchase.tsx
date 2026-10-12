@@ -171,6 +171,12 @@ export function EventTicketPurchase({
         setCheckoutSecret(res.clientSecret);
         return;
       }
+      // Kod 100%: zamówienie za zero rozliczył już serwer - bez operatora
+      // i bez symulatora płatności.
+      if (res.mode === "free") {
+        void navigate({ to: "/checkout/success", search: { order: res.orderId } });
+        return;
+      }
       void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
     } catch (error: unknown) {
       // Limit prób kodów (baza odmawia, zanim spojrzy na kod) to nie awaria
