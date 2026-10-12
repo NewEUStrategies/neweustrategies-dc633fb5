@@ -1,12 +1,13 @@
 # Architecture rules
 
-- Share one skyline mask and theme ink for archive banners to preserve geometry.
+- Share skyline geometry and theme ink across archive banners.
+- Resolve legacy brand accents through the shared theme helper at display boundaries; preserve unrelated colors and data.
 
-- Share `eh-slider-arrow` and `AngleChevron` across sliders, isolated from widget presets, for consistent controls.
-- Share `EventModuleHero` across module tabs, participant profile and studio preview for visual parity; keep the overview heading separate.
+- Share `eh-slider-arrow` and `AngleChevron` across sliders, not widget presets.
+- Share `EventModuleHero` across tabs, participant profile and studio preview; keep overview separate.
 - Share contact field ceilings between client/server validation and counters; retain complete submitted text in CRM responses and reject oversized custom values rather than slicing them, because visible limits must match stored data.
 
-- Use `tsgo --noEmit` for application typechecks to meet the preview gate timeout.
+- Use `tsgo --noEmit` to meet the preview gate timeout.
 
 - Call Supabase with literal RPC/table names and keep each client grant equal to what the TypeScript callers use (server-only RPCs executable by `service_role` alone, private columns outside public column constants such as `PUBLIC_AD_SLOT_COLUMNS`, identity like tenant/company/user derived from the session, never from a request payload), because the generated TS↔SQL pgTAP contract (`bun run generate:ts-sql-contract`) checks every call against the real schema in CI.
 
