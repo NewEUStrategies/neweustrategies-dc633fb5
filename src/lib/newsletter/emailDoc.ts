@@ -132,7 +132,7 @@ export interface EmailDoc {
 }
 
 export const DEFAULT_EMAIL_DOC_STYLE: EmailDocStyle = {
-  accent: "#c2410c",
+  accent: "#FA9346",
   fg: "#111827",
   muted: "#6b7280",
   bg: "#ffffff",
