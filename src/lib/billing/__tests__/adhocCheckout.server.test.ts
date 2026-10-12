@@ -92,8 +92,12 @@ const stripePrice = (over: Record<string, unknown> = {}): Stripe.Price =>
     id: "price_1",
     lookup_key: "pro_monthly",
     type: "recurring",
+    currency: "pln",
     ...over,
   }) as unknown as Stripe.Price;
+
+/** Opcje drugiego argumentu wywołania operatora (`RequestOptions`). */
+const requestOptionsOf = (fn: { mock: { calls: unknown[][] } }) => fn.mock.calls.at(-1)?.[1];
 
 const adhoc = (over: Partial<AdhocCheckoutSessionInput> = {}): AdhocCheckoutSessionInput => ({
   environment: "sandbox",
@@ -109,6 +113,8 @@ const adhoc = (over: Partial<AdhocCheckoutSessionInput> = {}): AdhocCheckoutSess
 const plan = (over: Partial<PlanCheckoutSessionInput> = {}): PlanCheckoutSessionInput => ({
   environment: "sandbox",
   priceLookupKey: "pro_monthly",
+  expectedMode: "subscription",
+  expectedCurrency: "PLN",
   planId: "plan_pro",
   orderId: "ord_1",
   userId: "user-1",
@@ -271,7 +277,7 @@ describe("createAdhocCheckoutSession - kształt sesji", () => {
   });
 
   it("przenosi cel płatności do metadanych każdego rodzaju zakupu", async () => {
-    for (const purpose of ["content_unlock", "event_ticket", "donation"] as const) {
+    for (const purpose of ["content_unlock", "event_ticket"] as const) {
       await createAdhocCheckoutSession(adhoc({ purpose }));
       expect(lastSession().metadata.purpose, purpose).toBe(purpose);
     }
@@ -419,7 +425,7 @@ describe("createPlanCheckoutSession", () => {
       data: [stripePrice({ type: "one_time", product: { id: "prod_1", name: "Kurs online" } })],
     });
 
-    await createPlanCheckoutSession(plan());
+    await createPlanCheckoutSession(plan({ expectedMode: "payment" }));
 
     const params = lastSession();
     expect(params.mode).toBe("payment");
@@ -433,7 +439,7 @@ describe("createPlanCheckoutSession", () => {
       data: [stripePrice({ type: "one_time", product: "prod_1" })],
     });
 
-    await createPlanCheckoutSession(plan());
+    await createPlanCheckoutSession(plan({ expectedMode: "payment" }));
 
     expect(lastSession().payment_intent_data?.description).toBe("Zamówienie");
   });
@@ -487,6 +493,93 @@ describe("createPlanCheckoutSession", () => {
       error: "stripe_error:api_down",
     });
     expect(console.error).toHaveBeenCalled();
+  });
+});
+
+describe("createPlanCheckoutSession - cena niezgodna z planem (audyt PAY-01)", () => {
+  // Cena pod `lookup_key` jest u operatora obiektem zmiennym. Gdy jej typ albo
+  // waluta nie zgadza się z zamówieniem, sesja pobrałaby pieniądze za coś
+  // innego, niż zapisała baza: subskrypcję zamiast zakupu jednorazowego albo
+  // euro zamiast złotych. Odmowa zapada ZANIM powstanie klient i sesja.
+  it("cena niezgodna z planem -> odmowa: cena CYKLICZNA dla zamówienia jednorazowego", async () => {
+    const result = await createPlanCheckoutSession(plan({ expectedMode: "payment" }));
+
+    expect(result).toEqual({ ok: false, error: "price_mismatch" });
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+    expect(h.fns.customersSearch).not.toHaveBeenCalled();
+    expect(h.fns.customersCreate).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalledWith(
+      "[payments] plan price mismatch",
+      expect.objectContaining({ expectedMode: "payment", priceMode: "subscription" }),
+    );
+  });
+
+  it("cena niezgodna z planem -> odmowa: cena JEDNORAZOWA dla subskrypcji", async () => {
+    h.fns.pricesList.mockResolvedValue({ data: [stripePrice({ type: "one_time" })] });
+
+    const result = await createPlanCheckoutSession(plan());
+
+    expect(result).toEqual({ ok: false, error: "price_mismatch" });
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("cena niezgodna z planem -> odmowa: INNA WALUTA niż zamówienie", async () => {
+    h.fns.pricesList.mockResolvedValue({ data: [stripePrice({ currency: "eur" })] });
+
+    const result = await createPlanCheckoutSession(plan({ expectedCurrency: "PLN" }));
+
+    expect(result).toEqual({ ok: false, error: "price_mismatch" });
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("waluta porównywana bez względu na wielkość liter (baza PLN, operator pln)", async () => {
+    const result = await createPlanCheckoutSession(plan({ expectedCurrency: "PLN" }));
+
+    expect(result).toEqual({ ok: true, clientSecret: "cs_secret_1", sessionId: "cs_1" });
+  });
+
+  it("cena bez waluty w odpowiedzi operatora nie przechodzi jako zgodna", async () => {
+    h.fns.pricesList.mockResolvedValue({ data: [stripePrice({ currency: undefined })] });
+
+    expect(await createPlanCheckoutSession(plan())).toEqual({
+      ok: false,
+      error: "price_mismatch",
+    });
+  });
+});
+
+describe("idempotencja wywołań operatora (audyt PAY-16a)", () => {
+  // Ponowione żądanie (sieć, retry SDK, podwójny handler) bez klucza zakładało
+  // drugą sesję albo drugi kupon `amount_off` na wspólnym koncie. Klucz
+  // pochodzi z zamówienia i z celu wywołania - Stripe odrzuca klucz użyty
+  // ponownie z innymi parametrami, więc nigdy nie jest wspólny dla celów.
+  it("sesja planu dostaje klucz idempotencji z zamówienia", async () => {
+    await createPlanCheckoutSession(plan({ orderId: "ord_42" }));
+
+    expect(requestOptionsOf(h.fns.sessionsCreate)).toEqual({
+      idempotencyKey: "checkout_session:ord_42",
+    });
+  });
+
+  it("sesja ad-hoc dostaje klucz idempotencji z zamówienia", async () => {
+    await createAdhocCheckoutSession(adhoc({ orderId: "ord_43" }));
+
+    expect(requestOptionsOf(h.fns.sessionsCreate)).toEqual({
+      idempotencyKey: "checkout_session:ord_43",
+    });
+  });
+
+  it("kupon operatora dostaje klucz z zamówienia - INNY niż klucz sesji", async () => {
+    await createAdhocDiscountForCoupon(asStripe(), {
+      code: "B2B10",
+      discountCents: 1000,
+      currency: "PLN",
+      orderId: "ord_44",
+    });
+
+    expect(requestOptionsOf(h.fns.couponsCreate)).toEqual({
+      idempotencyKey: "checkout_coupon:ord_44",
+    });
   });
 });
 
@@ -584,6 +677,7 @@ describe("createAdhocDiscountForCoupon", () => {
         code: "B2B10",
         discountCents,
         currency: "PLN",
+        orderId: "ord_1",
       });
       expect(id, `discountCents=${discountCents}`).toBeNull();
     }
@@ -595,16 +689,20 @@ describe("createAdhocDiscountForCoupon", () => {
       code: "B2B10",
       discountCents: 1990.4,
       currency: "PLN",
+      orderId: "ord_1",
     });
 
     expect(id).toBe("coupon_generated");
-    expect(h.fns.couponsCreate).toHaveBeenCalledWith({
-      amount_off: 1990,
-      currency: "pln",
-      duration: "once",
-      name: "Kupon B2B10",
-      metadata: { source: "b2b_coupon", code: "B2B10" },
-    });
+    expect(h.fns.couponsCreate).toHaveBeenCalledWith(
+      {
+        amount_off: 1990,
+        currency: "pln",
+        duration: "once",
+        name: "Kupon B2B10",
+        metadata: { source: "b2b_coupon", code: "B2B10" },
+      },
+      { idempotencyKey: "checkout_coupon:ord_1" },
+    );
   });
 });
 
@@ -633,6 +731,7 @@ describe("nazwa kuponu operatora - limit Stripe", () => {
       code: "Pierwsza fala sprzedaży + PARTNER-STRATEGICZNY-2026",
       discountCents: 1000,
       currency: "PLN",
+      orderId: "ord_1",
     });
 
     expect(h.fns.couponsCreate).toHaveBeenCalledWith(
@@ -643,6 +742,7 @@ describe("nazwa kuponu operatora - limit Stripe", () => {
           code: "Pierwsza fala sprzedaży + PARTNER-STRATEGICZNY-2026",
         },
       }),
+      { idempotencyKey: "checkout_coupon:ord_1" },
     );
   });
 

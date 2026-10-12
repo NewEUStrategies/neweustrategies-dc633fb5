@@ -56,7 +56,15 @@ beforeEach(() => {
   search.mockResolvedValue({ data: [{ id: "cus_1" }] });
   customersCreate.mockResolvedValue({ id: "cus_new" });
   list.mockResolvedValue({
-    data: [{ id: "price_1", lookup_key: "pro_monthly", type: "recurring", product: null }],
+    data: [
+      {
+        id: "price_1",
+        lookup_key: "pro_monthly",
+        type: "recurring",
+        currency: "pln",
+        product: null,
+      },
+    ],
   });
 });
 
@@ -108,7 +116,8 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
 
     const payload = lastSessionPayload();
     expect(payload.managed_payments).toEqual({ enabled: true });
-    expect(payload.allow_promotion_codes).toBe(true);
+    // Domyślne bez pola kodu Stripe (PAY-06) - kod spoza bazy omija limity.
+    expect(payload.allow_promotion_codes).toBeUndefined();
     expect(payload.tax_id_collection).toBeUndefined();
   });
 
@@ -161,24 +170,16 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
     expect(payload.invoice_creation).toEqual({ enabled: true });
   });
 
-  it.each([["content_unlock" as const], ["donation" as const]])(
-    "%s z tym samym tenantem ZOSTAJE przy polu kodu Stripe",
-    async (purpose) => {
-      const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
-      await createAdhocCheckoutSession({ ...base, purpose, settings: SETTINGS.managed });
-      expect(lastSessionPayload().allow_promotion_codes).toBe(true);
+  it("odblokowanie treści z tym samym tenantem ZOSTAJE przy polu kodu Stripe", async () => {
+    const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
+    await createAdhocCheckoutSession({ ...base, settings: SETTINGS.managed });
+    expect(lastSessionPayload().allow_promotion_codes).toBe(true);
+  });
 
-      // Bez ustawień - domyślne, które pole kodu włączają.
-      await createAdhocCheckoutSession({ ...base, purpose });
-      expect(lastSessionPayload().allow_promotion_codes).toBe(true);
-    },
-  );
-
-  it("darowizna anonimowa na płaszczyźnie MoR nie tworzy klienta sprzedawcy", async () => {
+  it("kupujący bez konta na płaszczyźnie MoR nie tworzy klienta sprzedawcy", async () => {
     const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
     await createAdhocCheckoutSession({
       ...base,
-      purpose: "donation",
       userId: null,
       settings: SETTINGS.managed,
     });
@@ -194,6 +195,8 @@ describe("createPlanCheckoutSession - flagi tenantu w sesji", () => {
   const base = {
     environment: "sandbox" as const,
     priceLookupKey: "pro_monthly",
+    expectedMode: "subscription" as const,
+    expectedCurrency: "PLN",
     planId: "plan-1",
     orderId: "order-2",
     userId: "user-1",

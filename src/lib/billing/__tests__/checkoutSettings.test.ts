@@ -90,14 +90,23 @@ describe("checkoutSessionParams", () => {
     });
   });
 
-  it("domyślne ustawienia nie zmieniają dotychczasowego kształtu sesji", () => {
+  it("domyślne ustawienia: płaszczyzna operatora i BEZ pola kodu Stripe", () => {
     // Na płaszczyźnie operatora rozliczeniowego sesja jedzie wyłącznie z
-    // `managed_payments` - NIP i dane klienta zbiera Stripe jako MoR.
+    // `managed_payments` - NIP i dane klienta zbiera Stripe jako MoR. Pola kodu
+    // promocyjnego domyślnie NIE ma (audyt PAY-06): kod Stripe omija zakres
+    // najemcy, limit na osobę i rezerwację użycia z bazy.
     expect(checkoutSessionParams(DEFAULT_CHECKOUT_SETTINGS, ctx())).toEqual({
-      allow_promotion_codes: true,
       billing_address_collection: "auto",
       managed_payments: { enabled: true },
     });
+  });
+
+  it("domyślne mają pole kodu Stripe WYŁĄCZONE (audyt PAY-06)", () => {
+    expect(DEFAULT_CHECKOUT_SETTINGS.allow_promotion_codes).toBe(false);
+    // Wiersz z nieczytelną wartością flagi też nie otwiera pola.
+    expect(normalizeCheckoutSettings({ allow_promotion_codes: "yes" }).allow_promotion_codes).toBe(
+      false,
+    );
   });
 
   it("kody promocyjne trafiają do obu trybów", () => {

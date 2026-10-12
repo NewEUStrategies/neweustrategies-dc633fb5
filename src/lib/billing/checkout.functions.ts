@@ -91,6 +91,8 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
     let catalogPriceId: string | null = null;
     let catalogQuantity = 1;
+    /** Tryb sesji wynikający z wyceny planu - bramka typu ceny u operatora. */
+    let catalogMode: "payment" | "subscription" = "subscription";
 
     // Zgłoszenie etapu 4 wskazane przez klienta. Deklaracja stoi TU, a nie przy
     // metadanych niżej, bo walidacja własności musi się odbyć PRZED wyceną
@@ -124,27 +126,18 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // operator zakłada cykl rozliczeniowy, trial i wysyła zdarzenia
       // `subscription.*` (odnowienia, dunning, anulowanie). Cena ad-hoc dałaby
       // pojedyncze obciążenie bez odnowienia.
+      //
+      // Wpis katalogu, liczba miejsc, próg wolumenowy i tryb sesji liczy JEDNA
+      // funkcja wspólna z drugim silnikiem (`planPricing.ts`) - dwie kopie tej
+      // reguły to dwie różne kwoty za ten sam plan.
       if (data.kind === "subscription") {
-        const { catalogPriceForPlan } = await import("@/lib/billing/catalog");
-        const entry = catalogPriceForPlan({
-          tier_key: plan.tier_key as string | null,
-          interval: plan.interval as string | null,
-        });
-        if (!entry) throw new Error("plan_price_missing");
-        catalogPriceId = entry.priceId;
-        catalogQuantity = entry.perSeat ? Math.min(Math.max(data.seats ?? 1, 1), 100) : 1;
-        // Próg wolumenowy (katalog v6.1: Zespół od 11 miejsc po 79 zł). Cena
-        // u operatora jest schodkowa w trybie `volume`, czyli po osiągnięciu
-        // progu WSZYSTKIE miejsca liczą się niżej - podsumowanie zamówienia
-        // musi liczyć tak samo, inaczej klient zobaczy w kasie inną kwotę niż
-        // na fakturze.
-        const volumeThreshold = Number(plan.volume_threshold_seats ?? 0);
-        const volumeUnit = Number(plan.volume_price_cents ?? 0);
-        const unitCents =
-          entry.perSeat && volumeThreshold >= 2 && catalogQuantity >= volumeThreshold
-            ? volumeUnit
-            : amountCents;
-        amountCents = unitCents * catalogQuantity;
+        const { planCheckoutPricing } = await import("@/lib/billing/planPricing");
+        const pricing = planCheckoutPricing(plan, data.seats);
+        if (!pricing) throw new Error("plan_price_missing");
+        catalogPriceId = pricing.entry.priceId;
+        catalogQuantity = pricing.quantity;
+        catalogMode = pricing.mode;
+        amountCents = pricing.amountCents;
       }
     } else if (isEventTicket && data.ticket_type_id) {
       // WYCENA WEJŚCIÓWKI Z CENNIKA żyje w `eventTicketPricing.server.ts`, bo
@@ -501,10 +494,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           const { createAdhocDiscountForCoupon } =
             await import("@/lib/billing/adhocCheckout.server");
           const stripe = await getStripeClient(environment);
+          // Klucz idempotencji z zamówienia - ponowienie nie zakłada drugiego kuponu.
           const couponRef = await createAdhocDiscountForCoupon(stripe, {
             code: couponCode,
             discountCents: couponDiscountCents,
             currency,
+            orderId: order.id,
           });
           if (couponRef) discount = { coupon: couponRef };
         }
@@ -512,6 +507,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           environment,
           priceLookupKey: catalogPriceId,
           quantity: catalogQuantity,
+          // Cena u operatora innego typu albo w innej walucie niż zamówienie
+          // kończy się odmową `price_mismatch`, a nie sesją na coś innego.
+          expectedMode: catalogMode,
+          expectedCurrency: currency,
           planId: data.plan_id as string,
           orderId: order.id,
           userId,
@@ -587,6 +586,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
               .join(" + ") || "Rabat",
           discountCents: phaseDiscountCents,
           currency,
+          orderId: order.id,
         }).catch((err: unknown) => {
           console.error("[checkout] phase discount failed", order.id, err);
           return null;

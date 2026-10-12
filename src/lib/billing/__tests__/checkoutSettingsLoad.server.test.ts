@@ -94,4 +94,18 @@ describe("loadCheckoutSettings", () => {
       DEFAULT_CHECKOUT_SETTINGS,
     );
   });
+
+  it("błąd odczytu NIE otwiera pola kodu Stripe - domyślne są fail-closed (PAY-06)", async () => {
+    // Chwilowa awaria bazy nie może włączyć ścieżki rabatu, której najemca nie
+    // włączył: kod Stripe omija limity i zakres kuponów z bazy.
+    const { client } = stubClient({ data: null, error: { message: "rls denied" } });
+    const settings = await loadCheckoutSettings(client, "tenant-a");
+    expect(settings.allow_promotion_codes).toBe(false);
+  });
+
+  it("brak wiersza ustawień też nie otwiera pola kodu Stripe", async () => {
+    const { client } = stubClient({ data: null, error: null });
+    const settings = await loadCheckoutSettings(client, "tenant-a");
+    expect(settings.allow_promotion_codes).toBe(false);
+  });
 });

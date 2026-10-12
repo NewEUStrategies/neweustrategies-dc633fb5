@@ -15,6 +15,7 @@ const pl = {
     checks: {
       gateway: "Bramka płatności",
       endpoint: "Odbiornik zdarzeń",
+      events: "Subskrybowane zdarzenia",
       catalog: "Katalog cen",
       failures: "Błędy zdarzeń (7 dni)",
       traffic: "Ruch zdarzeń (7 dni)",
@@ -165,7 +166,12 @@ const pl = {
     ordersWithoutSession:
       "Zamówienia bez powiązanej sesji operatora: {{count}}. Oznacza to przerwane otwarcie checkoutu - sprawdź logi serwera.",
     missingProviderPrices: "Brakuje cen u operatora: {{count}}",
-    couponsSynced: "Kupony: {{created}} nowych, {{existing}} istniejących, {{failed}} błędów",
+    couponsSynced:
+      "Kupony: {{created}} nowych, {{existing}} istniejących, {{skipped}} pominiętych, {{failed}} błędów",
+    // Odbiornik bez części obsługiwanych typów zdarzeń - lista nazw idzie pod
+    // spodem, operator włącza je w panelu Stripe.
+    missingWebhookEvents:
+      "Odbiornik nie subskrybuje {{count}} obsługiwanych zdarzeń - włącz je w panelu Stripe (Developers → Webhooks):",
     webhookSummary:
       "Zdarzenia (7 dni): {{total}}, w tym błędów {{failed}}. Ostatnie: {{last}}. Średni czas obsługi: {{avgMs}} ms.",
     ticketStats: "Opłacone: {{paid}} · biletów: {{tickets}} · oczekujące: {{pending}}",
@@ -191,6 +197,7 @@ const en = {
     checks: {
       gateway: "Payment gateway",
       endpoint: "Event endpoint",
+      events: "Subscribed events",
       catalog: "Price catalog",
       failures: "Event errors (7 days)",
       traffic: "Event traffic (7 days)",
@@ -338,7 +345,10 @@ const en = {
     ordersWithoutSession:
       "Orders without a provider session: {{count}}. The checkout session was never linked - check the server logs.",
     missingProviderPrices: "Missing provider prices: {{count}}",
-    couponsSynced: "Coupons: {{created}} created, {{existing}} existing, {{failed}} failed",
+    couponsSynced:
+      "Coupons: {{created}} created, {{existing}} existing, {{skipped}} skipped, {{failed}} failed",
+    missingWebhookEvents:
+      "The endpoint is not subscribed to {{count}} handled events - enable them in the Stripe dashboard (Developers → Webhooks):",
     webhookSummary:
       "Events (7 days): {{total}}, errors {{failed}}. Last: {{last}}. Average handling time: {{avgMs}} ms.",
     ticketStats: "Paid: {{paid}} · tickets: {{tickets}} · pending: {{pending}}",

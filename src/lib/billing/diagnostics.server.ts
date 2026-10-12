@@ -8,10 +8,14 @@
 //
 // Moduł server-only: wszystko idzie kluczem serwisowym po jawnym sprawdzeniu
 // roli admina w warstwie server fn.
+import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type Stripe from "stripe";
 
 import type { Database } from "@/integrations/supabase/types";
 import { BILLING_CATALOG, type PlanBillingInterval } from "@/lib/billing/catalog";
+import { planCheckoutPricing } from "@/lib/billing/planPricing";
+import { STRIPE_WEBHOOK_EVENT_TYPES } from "@/lib/billing/stripeEventTypes";
 import type { StripeEnv } from "@/lib/stripe.server";
 
 export interface DiagnosticCheck {
@@ -75,13 +79,45 @@ export interface WebhookHealth {
   avgDurationMs: number | null;
 }
 
+export interface WebhookDestination {
+  id: string;
+  url: string;
+  active: boolean;
+  /** Liczba włączonych typów zdarzeń (`*` liczy się jako jeden wpis). */
+  events: number;
+  /** Obsługiwane typy zdarzeń, których ten odbiornik nie subskrybuje. */
+  missingEvents: string[];
+}
+
 export interface PaymentsDiagnostics {
   environment: StripeEnv;
   checks: DiagnosticCheck[];
   catalog: CatalogPriceStatus[];
   coupons: CouponDiscountStatus[];
   webhooks: WebhookHealth;
-  destinations: Array<{ id: string; url: string; active: boolean; events: number }>;
+  destinations: WebhookDestination[];
+  /**
+   * Typy z `STRIPE_WEBHOOK_EVENT_TYPES`, których NIE włączył odbiornik naszej
+   * aplikacji. Zdarzenie spoza subskrypcji nie przychodzi wcale - a brak
+   * `checkout.session.expired` to rezerwacje kuponów, które nigdy nie wracają
+   * do puli, brak `charge.dispute.closed` to dostęp, którego wygrany spór
+   * nie przywraca. Panel pokazuje listę jako ostrzeżenie do poprawienia
+   * w panelu operatora.
+   */
+  missingWebhookEvents: string[];
+}
+
+/** Ścieżka odbiornika zdarzeń aplikacji - po niej rozpoznajemy NASZ odbiornik. */
+const APP_WEBHOOK_PATH = "/api/public/payments/webhook";
+
+/**
+ * Obsługiwane typy zdarzeń, których odbiornik nie subskrybuje. `*` u operatora
+ * znaczy „wszystkie zdarzenia", więc niczego wtedy nie brakuje.
+ */
+export function missingWebhookEventTypes(enabledEvents: readonly string[]): string[] {
+  if (enabledEvents.includes("*")) return [];
+  const enabled = new Set(enabledEvents);
+  return STRIPE_WEBHOOK_EVENT_TYPES.filter((type) => !enabled.has(type));
 }
 
 async function admin() {
@@ -162,17 +198,21 @@ export async function assertAdminWithTenant(
   return assertAdmin(supabase, userId);
 }
 
-async function readDestinations(env: StripeEnv) {
+async function readDestinations(env: StripeEnv): Promise<WebhookDestination[]> {
   const { getStripeClient } = await import("@/lib/stripe.server");
   try {
     const stripe = await getStripeClient(env);
     const result = await stripe.webhookEndpoints.list({ limit: 100 });
-    return result.data.map((d) => ({
-      id: d.id,
-      url: d.url ?? "",
-      active: d.status === "enabled",
-      events: Array.isArray(d.enabled_events) ? d.enabled_events.length : 0,
-    }));
+    return result.data.map((d) => {
+      const enabledEvents: string[] = Array.isArray(d.enabled_events) ? d.enabled_events : [];
+      return {
+        id: d.id,
+        url: d.url ?? "",
+        active: d.status === "enabled",
+        events: enabledEvents.length,
+        missingEvents: missingWebhookEventTypes(enabledEvents),
+      };
+    });
   } catch (e) {
     console.error("[payments] destinations lookup failed", e);
     return [];
@@ -347,7 +387,18 @@ export async function buildPaymentsDiagnostics(
   ]);
 
   const missingPrices = catalog.filter((c) => !c.providerPriceId);
-  const appEndpoint = destinations.find((d) => d.url.includes("/api/public/payments/webhook"));
+  const appEndpoints = destinations.filter((d) => d.url.includes(APP_WEBHOOK_PATH));
+  // Aktywny odbiornik ma pierwszeństwo przed wyłączoną starą kopią tego samego
+  // adresu - inaczej kontrola ostrzegałaby przy działającym odbiorze.
+  const appEndpoint = appEndpoints.find((d) => d.active) ?? appEndpoints[0];
+  // Subskrypcję zdarzeń sprawdzamy na odbiornikach, które faktycznie dostają
+  // ruch (aktywne); dopiero gdy żaden nie jest aktywny - na wszystkich naszych,
+  // żeby wyłączony odbiornik nie zasłonił braków, które wrócą po włączeniu.
+  const activeAppEndpoints = appEndpoints.filter((d) => d.active);
+  const eventEndpoints = activeAppEndpoints.length > 0 ? activeAppEndpoints : appEndpoints;
+  const missingSet = new Set(eventEndpoints.flatMap((d) => d.missingEvents));
+  const missingWebhookEvents = STRIPE_WEBHOOK_EVENT_TYPES.filter((type) => missingSet.has(type));
+  const totalEventTypes = STRIPE_WEBHOOK_EVENT_TYPES.length;
 
   const checks: DiagnosticCheck[] = [
     {
@@ -359,6 +410,23 @@ export async function buildPaymentsDiagnostics(
       id: "webhook_endpoint",
       state: !configured ? "warn" : appEndpoint ? (appEndpoint.active ? "ok" : "warn") : "error",
       detail: appEndpoint?.url ?? `${destinations.length}`,
+    },
+    {
+      // Czy NASZ odbiornik subskrybuje każde obsługiwane zdarzenie. Brak
+      // odbiornika to `error` (zdarzenia nie mają dokąd dojść), brakujące typy
+      // - ostrzeżenie z listą w `missingWebhookEvents`.
+      id: "webhook_events",
+      state: !configured
+        ? "warn"
+        : eventEndpoints.length === 0
+          ? "error"
+          : missingWebhookEvents.length === 0
+            ? "ok"
+            : "warn",
+      detail:
+        eventEndpoints.length === 0
+          ? "no_endpoint"
+          : `${totalEventTypes - missingWebhookEvents.length}/${totalEventTypes}`,
     },
     {
       id: "catalog",
@@ -377,16 +445,113 @@ export async function buildPaymentsDiagnostics(
     },
   ];
 
-  return { environment: env, checks, catalog, coupons, webhooks, destinations };
+  return {
+    environment: env,
+    checks,
+    catalog,
+    coupons,
+    webhooks,
+    destinations,
+    missingWebhookEvents,
+  };
+}
+
+export interface CouponSyncResult {
+  created: number;
+  existing: number;
+  failed: number;
+  /**
+   * Kody świadomie NIE wypchnięte: najemca bez pola kodu Stripe, kod planowy
+   * bez rozwiązanego produktu, kod przed datą startu, po terminie albo
+   * z wyczerpanym limitem. Pominięcie nie jest porażką - to bramka.
+   */
+  skipped: number;
+}
+
+/** Wiersz kuponu czytany przez synchronizację. */
+interface SyncCouponRow {
+  id: string;
+  code: string | null;
+  discount_kind: string | null;
+  discount_percent: number | null;
+  discount_cents: number | null;
+  currency: string | null;
+  valid_from?: string | null;
+  valid_until: string | null;
+  max_redemptions: number | null;
+  redemptions_count?: number | null;
+  plan_ids?: string[] | null;
+  event_ids?: string[] | null;
+  applies_discount?: boolean | null;
+}
+
+/**
+ * Klucz idempotencji wywołania operatora w synchronizacji: kupon + cel +
+ * odcisk PARAMETRÓW. Ponowiony przebieg z tymi samymi parametrami oddaje ten
+ * sam obiekt (przerwa między kuponem a kodem nie zostawia drugiego kuponu),
+ * a kupon zmieniony w bazie dostaje nowy klucz - Stripe odrzuca klucz użyty
+ * ponownie z innymi parametrami.
+ */
+function syncIdempotencyKey(couponId: string, purpose: string, params: unknown): string {
+  const digest = createHash("sha256").update(JSON.stringify(params)).digest("hex").slice(0, 24);
+  return `b2b_coupon_sync:${couponId}:${purpose}:${digest}`;
+}
+
+/**
+ * Produkty operatora dla planów kodu planowego, po identyfikatorze planu.
+ *
+ * Plan -> wpis katalogu tą samą wyceną, którą liczy kasa (`planCheckoutPricing`),
+ * wpis -> cena po `lookup_key` -> jej produkt u operatora. Plan, którego nie
+ * da się tak rozwiązać, NIE trafia do mapy - wołający pomija wtedy cały kod
+ * (fail-closed: kod bez zawężenia zadziałałby u operatora na każdy produkt).
+ */
+async function resolvePlanProducts(
+  supabase: Awaited<ReturnType<typeof admin>>,
+  stripe: Stripe,
+  tenantId: string,
+  planIds: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (planIds.length === 0) return out;
+  const { data: plans, error } = await supabase
+    .from("access_plans")
+    .select("id, tier_key, interval")
+    .eq("tenant_id", tenantId)
+    .in("id", planIds);
+  if (error) {
+    console.error("[payments] coupon sync: plan lookup failed", error.message);
+    return out;
+  }
+  const lookupByPlan = new Map<string, string>();
+  for (const plan of plans ?? []) {
+    const entry = planCheckoutPricing(plan)?.entry;
+    if (entry) lookupByPlan.set(String(plan.id), entry.priceId);
+  }
+  if (lookupByPlan.size === 0) return out;
+  const { resolvePricesByLookupKeys } = await import("@/lib/billing/adhocCheckout.server");
+  const prices = await resolvePricesByLookupKeys(stripe, [...new Set(lookupByPlan.values())]);
+  for (const [planId, lookupKey] of lookupByPlan) {
+    const product = prices.get(lookupKey)?.product;
+    const productId = typeof product === "string" ? product : product?.id;
+    if (productId) out.set(planId, productId);
+  }
+  return out;
 }
 
 /**
  * Wypycha aktywne kupony B2B do operatora, żeby rabat istniał zanim ktoś
  * pierwszy raz wpisze kod w nakładce płatności. Operacja jest idempotentna -
- * kod jest kluczem naturalnym po obu stronach.
+ * kod jest kluczem naturalnym po obu stronach, a każde wywołanie zakładające
+ * obiekt u operatora niesie klucz idempotencji (`syncIdempotencyKey`).
  *
  * TYLKO KUPONY NAJEMCY ADMINA. Klient serwisowy omija RLS, więc bez filtra
  * admin najemcy A wypychał do operatora kody WSZYSTKICH najemców.
+ *
+ * TYLKO NAJEMCA Z POLEM KODU STRIPE. Kod promocyjny działa wyłącznie w sesji
+ * z `allow_promotion_codes`. Najemca, który pola nie włączył (domyślnie
+ * wyłączone - PAY-06), nie ma gdzie kodu przyjąć, a kopia na wspólnym koncie
+ * zadziałałaby u KAŻDEGO innego najemcy z włączonym polem. Nic nie wypychamy;
+ * kody liczą się jako pominięte.
  *
  * KODY WYDARZEŃ NIE JADĄ DO OPERATORA. Kod ze studia wydarzenia (`event_ids`)
  * liczy nasza kasa: zakres wydarzenia i biletu, rabat kwotowy od KAŻDEGO
@@ -401,6 +566,25 @@ export async function buildPaymentsDiagnostics(
  * okno synchronizacji. Pętla powtarza tę samą regułę (`countedAtCheckout`)
  * jako bezpiecznik - kopia kodu wydarzenia u operatora to dokładnie ten błąd.
  *
+ * CO OPERATOR EGZEKWUJE, A CZEGO NIE. Konto Stripe jest WSPÓLNE dla instalacji,
+ * więc kod promocyjny to obietnica szersza niż kupon w bazie. Zawężamy to, co
+ * Stripe umie wymusić:
+ *   - zakres planów: kod planowy (`plan_ids`) dostaje `applies_to.products`
+ *     z produktami cen katalogowych tych planów; plan bez rozwiązanego
+ *     produktu = kod pominięty (bez zawężenia działałby na wszystko);
+ *   - termin (`expires_at`) i limit użyć (`max_redemptions`, liczony od
+ *     użyć, które baza już zarezerwowała);
+ *   - metadane `{ source, tenant_id, coupon_id }` na kodzie i kuponie - po nich
+ *     realizacja i uzgadnianie rozpoznają, czyj kod zszedł z sesji.
+ * Czego Stripe NIE wymusi: zakresu NAJEMCY (produkty katalogu są wspólne, więc
+ * kod najemcy A działa w kasie najemcy B z włączonym polem), limitu na osobę
+ * (`max_redemptions_per_user`), daty startu (`valid_from` - dlatego kod przed
+ * startem po prostu nie jedzie, aż do kolejnej synchronizacji) ani rezerwacji
+ * użycia w `b2b_coupon_redemptions` (liczniki bazy i operatora są rozłączne).
+ * Siatką bezpieczeństwa jest realizacja zamówienia: kwota sesji niezgodna
+ * z zamówieniem (rabat spoza bazy) kończy się flagą do przeglądu, a nie cichym
+ * „opłacone".
+ *
  * KOPII WYPCHNIĘTYCH WCZEŚNIEJ ta funkcja NIE wyłącza: operator trzyma jedną
  * przestrzeń kodów dla wszystkich najemców, a kod o tej samej treści może być
  * u innego najemcy kodem ogólnym. Tabela diagnostyki pokazuje aktywną kopię,
@@ -410,12 +594,12 @@ export async function buildPaymentsDiagnostics(
 export async function syncCouponDiscounts(
   env: StripeEnv,
   tenantId: string,
-): Promise<{ created: number; existing: number; failed: number }> {
+): Promise<CouponSyncResult> {
   const supabase = await admin();
   const { data } = await supabase
     .from("b2b_coupons")
     .select(
-      "code, discount_kind, discount_percent, discount_cents, currency, valid_until, max_redemptions, event_ids, applies_discount",
+      "id, code, discount_kind, discount_percent, discount_cents, currency, valid_from, valid_until, max_redemptions, redemptions_count, plan_ids, event_ids, applies_discount",
     )
     .eq("tenant_id", tenantId)
     .eq("active", true)
@@ -423,49 +607,100 @@ export async function syncCouponDiscounts(
     // `event_ids` jest NOT NULL z domyślną pustą tablicą - kod ogólny to `{}`.
     .filter("event_ids", "eq", "{}")
     .limit(200);
+  const rows = ((data ?? []) as SyncCouponRow[]).filter(
+    (row) => String(row.code ?? "") !== "" && !countedAtCheckout(row),
+  );
+
+  const result: CouponSyncResult = { created: 0, existing: 0, failed: 0, skipped: 0 };
+  if (rows.length === 0) return result;
+
+  // Ustawienia najemcy czytane w JEGO zakresie; awaria odczytu daje domyślne
+  // (pole kodu wyłączone), więc kończy się pominięciem, a nie wypchnięciem.
+  const { loadCheckoutSettings } = await import("@/lib/billing/checkoutSettings.server");
+  const settings = await loadCheckoutSettings(supabase, tenantId);
+  if (!settings.allow_promotion_codes) {
+    result.skipped = rows.length;
+    return result;
+  }
 
   const { getStripeClient } = await import("@/lib/stripe.server");
   const { stripeCouponName } = await import("@/lib/billing/adhocCheckout.server");
   const stripe = await getStripeClient(env);
 
-  let created = 0;
-  let existing = 0;
-  let failed = 0;
-  for (const row of data ?? []) {
+  const planProducts = await resolvePlanProducts(supabase, stripe, tenantId, [
+    ...new Set(rows.flatMap((row) => row.plan_ids ?? [])),
+  ]).catch((e: unknown) => {
+    console.error("[payments] coupon sync: plan products lookup failed", e);
+    return new Map<string, string>();
+  });
+
+  const nowMs = Date.now();
+  for (const row of rows) {
     const code = String(row.code ?? "").toUpperCase();
-    if (!code) continue;
-    if (countedAtCheckout(row)) continue;
+    const planIds = row.plan_ids ?? [];
+    const products = planIds.map((planId) => planProducts.get(planId));
+    if (products.some((productId) => productId === undefined)) {
+      console.error("[payments] coupon sync: plan product unresolved, code skipped", code);
+      result.skipped += 1;
+      continue;
+    }
+    if (row.valid_from && Date.parse(row.valid_from) > nowMs) {
+      result.skipped += 1;
+      continue;
+    }
+    const expiresAt = row.valid_until ? Math.floor(Date.parse(row.valid_until) / 1000) : null;
+    if (expiresAt !== null && expiresAt * 1000 <= nowMs) {
+      result.skipped += 1;
+      continue;
+    }
+    const remaining =
+      row.max_redemptions === null || row.max_redemptions === undefined
+        ? null
+        : row.max_redemptions - (row.redemptions_count ?? 0);
+    if (remaining !== null && remaining <= 0) {
+      result.skipped += 1;
+      continue;
+    }
     try {
       const found = await findPromotionCodeByCode(env, code);
       if (found) {
-        existing += 1;
+        result.existing += 1;
         continue;
       }
+      const metadata = { source: "b2b_coupon_sync", tenant_id: tenantId, coupon_id: row.id };
       const isPercent = row.discount_kind !== "fixed";
-      const coupon = await stripe.coupons.create({
+      const productIds = [...new Set(products as string[])];
+      const couponParams = {
         name: stripeCouponName(code),
-        duration: "once",
+        duration: "once" as const,
         ...(isPercent
           ? { percent_off: row.discount_percent ?? 0 }
           : {
               amount_off: Math.max(0, row.discount_cents ?? 0),
               currency: (row.currency ?? "PLN").toLowerCase(),
             }),
+        ...(productIds.length > 0 ? { applies_to: { products: productIds } } : {}),
+        metadata,
+      };
+      const coupon = await stripe.coupons.create(couponParams, {
+        idempotencyKey: syncIdempotencyKey(row.id, "coupon", couponParams),
       });
-      await stripe.promotionCodes.create({
+      const promotionParams = {
         // API dahlia: kupon podpinamy przez obiekt `promotion`, nie płaskie `coupon`.
-        promotion: { type: "coupon", coupon: coupon.id },
+        promotion: { type: "coupon" as const, coupon: coupon.id },
         code,
-        ...(row.valid_until
-          ? { expires_at: Math.floor(new Date(row.valid_until).getTime() / 1000) }
-          : {}),
-        ...(row.max_redemptions ? { max_redemptions: row.max_redemptions } : {}),
+        ...(expiresAt !== null ? { expires_at: expiresAt } : {}),
+        ...(remaining !== null ? { max_redemptions: remaining } : {}),
+        metadata,
+      };
+      await stripe.promotionCodes.create(promotionParams, {
+        idempotencyKey: syncIdempotencyKey(row.id, "promotion_code", promotionParams),
       });
-      created += 1;
+      result.created += 1;
     } catch (e) {
       console.error("[payments] coupon sync failed", code, e);
-      failed += 1;
+      result.failed += 1;
     }
   }
-  return { created, existing, failed };
+  return result;
 }
