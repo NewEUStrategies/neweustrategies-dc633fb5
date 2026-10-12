@@ -31,6 +31,13 @@ const h = vi.hoisted(() => ({ lang: "pl" }));
 vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
+// Data conversion is tested here; the real shared selectors have their own tests.
+vi.mock("@/components/ui/time-input", () => ({
+  TimeInput: ({ onChange, value, ...props }: {
+    onChange: (event: { target: { value: string } }) => void;
+    value: string; className?: string;
+  }) => <input {...props} type="time" value={value} onChange={onChange} />,
+}));
 
 import { DatePickerField } from "../DatePickerField";
 
