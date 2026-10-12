@@ -78,7 +78,7 @@ export function SpeakerTrackChips({
   return (
     <span className={cn("flex w-full flex-wrap items-center gap-1.5", className)}>
       <span className="sr-only">{heading}: </span>
-      {named.map(({ track, name }) => (
+      {named.map(({ track, name, accent }) => (
         <span
           key={track.id}
           title={name}
@@ -93,9 +93,9 @@ export function SpeakerTrackChips({
             aria-hidden="true"
             className={cn(
               "h-2 w-2 shrink-0 rounded-[2px]",
-              track.accentColor === null && (inverse ? "bg-white/80" : "bg-muted-foreground/60"),
+              accent === null && (inverse ? "bg-white/80" : "bg-muted-foreground/60"),
             )}
-            style={track.accentColor === null ? undefined : { backgroundColor: track.accentColor }}
+            style={accent === null ? undefined : { backgroundColor: accent }}
           />
           <span className="truncate">{name}</span>
         </span>
