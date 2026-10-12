@@ -9066,12 +9066,6 @@ select:not([multiple]):not([size]) option,
 @media (pointer: coarse) {
   :root { --form-field-height: 44px; }
 }
-[data-slot="form-label"] {
-  display: block;
-  min-height: var(--form-label-height);
-  line-height: var(--form-label-height);
-  overflow: visible;
-}
 
 [data-slot="select-trigger"] svg,
 [role="combobox"]:not(.input) svg {
