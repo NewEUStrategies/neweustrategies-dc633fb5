@@ -18,7 +18,11 @@ describe("DateInput local values", () => {
     expect(onChange).toHaveBeenCalledWith({ target: { value: "2026-10-12T09:17" } });
   });
   it("submits the original date string", () => {
-    const { container } = render(<form><DateInput name="day" type="date" value="2026-10-12" /></form>);
+    const { container } = render(
+      <form>
+        <DateInput name="day" type="date" value="2026-10-12" />
+      </form>,
+    );
     const form = container.querySelector("form");
     if (!form) throw new Error("Missing form");
     expect(new FormData(form).get("day")).toBe("2026-10-12");

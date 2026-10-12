@@ -188,7 +188,10 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
             if (!open) return;
             const selection = window.getSelection();
             const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-            savedSelection.current = range && ref.current?.contains(range.commonAncestorContainer) ? range.cloneRange() : null;
+            savedSelection.current =
+              range && ref.current?.contains(range.commonAncestorContainer)
+                ? range.cloneRange()
+                : null;
           }}
           onChange={(e) => {
             const v = e.target.value;

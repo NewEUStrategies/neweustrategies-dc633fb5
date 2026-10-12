@@ -1,14 +1,17 @@
 # Roadmap
 
 ## Pola formularzy platformy
+
 - [x] Ujednolicić listy wyboru, kalendarze i wysokości etykiet/pól w obu motywach.
 - [x] Sprawdzić wybór daty i filtrów w zalogowanym raporcie sponsorów: 151 testów; pola i etykiety na wspólnej osi, kalendarze i listy sprawdzone w light/dark.
 
 ## Szczegóły prelegenta
+
 - [x] Zmniejszyć odstęp nazwisko/stanowisko oraz pokazać uzupełniony biogram, social media i dozwolony kontakt w oknie profilu.
 - [x] Zweryfikować przepływ danych: 152 testy, sześć kontroli projekcji kontaktu, okno Macieja H. Grabowskiego z biogramem w zalogowanym podglądzie studia; build OK.
 
 ## Jednolity pomarańczowy akcent
+
 - [x] Ujednolicić akcenty marki i zamienniki złota w obu motywach.
 - [x] Poprawić stary pomarańcz ścieżek programu i prelegentów bez zmiany danych.
 - [x] Zweryfikować testy i program wydarzenia w obu motywach: 242 testy przechodzą; ścieżka i sesje mają rgb(250,147,70), podgląd buduje się bez błędów.

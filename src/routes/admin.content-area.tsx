@@ -9,8 +9,13 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/content-area")({
-  head: () => adminPageHead("Content layout", "Configure shared article and content layouts. New European Strategies administration."),
-  component: Page });
+  head: () =>
+    adminPageHead(
+      "Content layout",
+      "Configure shared article and content layouts. New European Strategies administration.",
+    ),
+  component: Page,
+});
 
 // ---------- helpers -----------------------------------------------------------
 

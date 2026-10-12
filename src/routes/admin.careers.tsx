@@ -45,7 +45,11 @@ import {
 } from "@/lib/careers/recruitmentLayer";
 
 export const Route = createFileRoute("/admin/careers")({
-  head: () => adminPageHead("Recruitment", "Review recruitment applications and messages. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Recruitment",
+      "Review recruitment applications and messages. New European Strategies administration.",
+    ),
   component: AdminCareersPage,
 });
 

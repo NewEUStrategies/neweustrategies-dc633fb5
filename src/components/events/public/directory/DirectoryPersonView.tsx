@@ -121,8 +121,8 @@ export function DirectoryPersonView({
       detail && Object.keys(detail.socials).length > 0
         ? detail.socials
         : Object.keys(person.socials).length > 0
-        ? person.socials
-        : { linkedin: member?.linkedin_url, website: member?.website_url },
+          ? person.socials
+          : { linkedin: member?.linkedin_url, website: member?.website_url },
     ).map(([key, href]) => [key, httpUrl(href)]),
   ) as Partial<Record<SocialKey, string>>;
 
@@ -337,8 +337,22 @@ export function DirectoryPersonView({
       {detail?.email || detail?.phone ? (
         <DirectorySection title={t("eventFront.directory.contact")} index={next()}>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-foreground/85">
-            {detail.email ? <a className="break-all underline-offset-4 hover:underline" href={`mailto:${detail.email}`}>{detail.email}</a> : null}
-            {detail.phone ? <a className="underline-offset-4 hover:underline" href={`tel:${detail.phone.replace(/[\s().-]/g, "")}`}>{detail.phone}</a> : null}
+            {detail.email ? (
+              <a
+                className="break-all underline-offset-4 hover:underline"
+                href={`mailto:${detail.email}`}
+              >
+                {detail.email}
+              </a>
+            ) : null}
+            {detail.phone ? (
+              <a
+                className="underline-offset-4 hover:underline"
+                href={`tel:${detail.phone.replace(/[\s().-]/g, "")}`}
+              >
+                {detail.phone}
+              </a>
+            ) : null}
           </div>
         </DirectorySection>
       ) : null}

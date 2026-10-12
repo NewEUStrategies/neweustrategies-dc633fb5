@@ -42,7 +42,11 @@ type TextField = {
 }[keyof AuthSettings];
 
 export const Route = createFileRoute("/admin/login-settings")({
-  head: () => adminPageHead("Sign-in settings", "Configure sign-in and registration presentation. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Sign-in settings",
+      "Configure sign-in and registration presentation. New European Strategies administration.",
+    ),
   component: LoginSettingsPage,
 });
 

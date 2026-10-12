@@ -75,7 +75,8 @@ export function PlatformSelect({
 }: Props) {
   const options = React.useMemo(() => collectOptions(children), [children]);
   const [uncontrolledValue, setUncontrolledValue] = React.useState(() =>
-    String(defaultValue ?? options.find((option) => !option.disabled)?.value ?? ""));
+    String(defaultValue ?? options.find((option) => !option.disabled)?.value ?? ""),
+  );
   const currentValue = value === undefined ? uncontrolledValue : String(value);
   const handle = (next: string) => {
     setUncontrolledValue(next);
@@ -88,39 +89,43 @@ export function PlatformSelect({
 
   return (
     <>
-    {rest.name && <input type="hidden" name={rest.name} value={currentValue} disabled={disabled} />}
-    <Select
-      value={val}
-      onValueChange={(v) => handle(v === EMPTY ? "" : v)}
-      onOpenChange={onOpenChange}
-      disabled={disabled}
-      required={rest.required}
-    >
-      <SelectTrigger
-        id={rest.id}
-        style={rest.style}
-        aria-label={rest["aria-label"]}
-        aria-invalid={rest["aria-invalid"]}
-        aria-describedby={rest["aria-describedby"]}
-        aria-required={rest["aria-required"] ?? rest.required}
-        title={rest.title}
-        className={cn("text-xs", className)}
+      {rest.name && (
+        <input type="hidden" name={rest.name} value={currentValue} disabled={disabled} />
+      )}
+      <Select
+        value={val}
+        onValueChange={(v) => handle(v === EMPTY ? "" : v)}
+        onOpenChange={onOpenChange}
+        disabled={disabled}
+        required={rest.required}
       >
-        <SelectValue placeholder={placeholder ?? emptyPlaceholder?.label} />
-      </SelectTrigger>
-      <SelectContent className="max-h-72">
-        {options.filter((o) => o !== emptyPlaceholder).map((o, i) => (
-          <SelectItem
-            key={`${o.value}-${i}`}
-            value={o.value === "" ? EMPTY : o.value}
-            disabled={o.disabled}
-            className="text-xs"
-          >
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+        <SelectTrigger
+          id={rest.id}
+          style={rest.style}
+          aria-label={rest["aria-label"]}
+          aria-invalid={rest["aria-invalid"]}
+          aria-describedby={rest["aria-describedby"]}
+          aria-required={rest["aria-required"] ?? rest.required}
+          title={rest.title}
+          className={cn("text-xs", className)}
+        >
+          <SelectValue placeholder={placeholder ?? emptyPlaceholder?.label} />
+        </SelectTrigger>
+        <SelectContent className="max-h-72">
+          {options
+            .filter((o) => o !== emptyPlaceholder)
+            .map((o, i) => (
+              <SelectItem
+                key={`${o.value}-${i}`}
+                value={o.value === "" ? EMPTY : o.value}
+                disabled={o.disabled}
+                className="text-xs"
+              >
+                {o.label}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
     </>
   );
 }

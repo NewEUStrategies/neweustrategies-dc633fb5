@@ -90,16 +90,22 @@ export function EventOverviewTitle({
   typeLabel?: ReactNode;
 }) {
   return (
-    <header data-event-module-hero="overview" className="relative mb-6 border-b border-border/50 bg-background">
-      <EventSectionHeading icon={<LayoutGrid className="size-6 text-primary/70" aria-hidden="true" />} eyebrow={typeLabel}>
-      <h1 className="max-w-full text-2xl font-semibold leading-snug tracking-normal text-foreground [overflow-wrap:anywhere]">
-        {title}
-      </h1>
-      {subtitle ? (
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
-          {subtitle}
-        </p>
-      ) : null}
+    <header
+      data-event-module-hero="overview"
+      className="relative mb-6 border-b border-border/50 bg-background"
+    >
+      <EventSectionHeading
+        icon={<LayoutGrid className="size-6 text-primary/70" aria-hidden="true" />}
+        eyebrow={typeLabel}
+      >
+        <h1 className="max-w-full text-2xl font-semibold leading-snug tracking-normal text-foreground [overflow-wrap:anywhere]">
+          {title}
+        </h1>
+        {subtitle ? (
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+            {subtitle}
+          </p>
+        ) : null}
       </EventSectionHeading>
     </header>
   );
