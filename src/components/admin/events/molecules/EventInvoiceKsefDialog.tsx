@@ -160,7 +160,7 @@ function KsefForm({
             {events.map((event, index) => (
               <li key={`${event.createdAt}-${index}`}>
                 {when(event.createdAt)} ·{" "}
-                {event.fromStatus === null
+                {event.fromStatus === null || event.fromStatus === event.toStatus
                   ? ""
                   : `${t(KSEF_STATUS_LABEL_KEYS[event.fromStatus])} → `}
                 {t(KSEF_STATUS_LABEL_KEYS[event.toStatus])}

@@ -187,7 +187,7 @@ export async function buildInvoicePdf(input: {
   const { data: doc, error: docError } = await supabase
     .from("billing_documents")
     .select(
-      "id, user_id, tenant_id, number, kind, status, amount_cents, currency, issued_at, pdf_url, hosted_url, provider_document_id, buyer_snapshot, seller_snapshot, billing_plane",
+      "id, user_id, tenant_id, order_id, number, kind, status, amount_cents, currency, issued_at, pdf_url, hosted_url, provider_document_id, buyer_snapshot, seller_snapshot, billing_plane",
     )
     .eq("id", input.documentId)
     .maybeSingle();

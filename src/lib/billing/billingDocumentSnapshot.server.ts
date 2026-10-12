@@ -143,10 +143,37 @@ function buyerFromProfile(
   };
 }
 
-/** Migawka ze źródeł bieżących: profil rozliczeniowy, ustawienia wystawcy i checkoutu. */
+/**
+ * Płaszczyzna dokumentu: ostemplowana na ZAMÓWIENIU w chwili jego założenia
+ * (`payment_orders.billing_plane`, audyt INV-09) - zmiana ustawień kasy
+ * między zakupem a webhookiem (albo jego ponowieniem po dniach) nie może
+ * przestawić noty podatkowej zamrażanej na zawsze. Bieżące ustawienia tylko
+ * dla dokumentu bez zamówienia (subskrypcja) albo zamówienia sprzed stempla.
+ */
+async function loadDocumentPlane(
+  supabase: AdminClient,
+  tenantId: string,
+  orderId: string | null,
+): Promise<CheckoutBillingPlane> {
+  if (orderId) {
+    const { data, error } = await supabase
+      .from("payment_orders")
+      .select("billing_plane")
+      .eq("id", orderId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    failOnReadError("payment_orders", error);
+    const stamped = data?.billing_plane;
+    if (isBillingPlane(stamped)) return stamped;
+  }
+  return loadBillingPlane(supabase, tenantId);
+}
+
+/** Migawka ze źródeł bieżących: profil rozliczeniowy, ustawienia wystawcy, płaszczyzna zamówienia. */
 export async function loadBillingDocumentSnapshot(owner: {
   userId: string;
   tenantId: string;
+  orderId?: string | null;
 }): Promise<BillingDocumentSnapshot> {
   const supabase = await admin();
   const [billingRead, profileRead, seller, plane] = await Promise.all([
@@ -160,7 +187,7 @@ export async function loadBillingDocumentSnapshot(owner: {
       .maybeSingle(),
     supabase.from("profiles").select("email").eq("id", owner.userId).maybeSingle(),
     loadSeller(supabase, owner.tenantId),
-    loadBillingPlane(supabase, owner.tenantId),
+    loadDocumentPlane(supabase, owner.tenantId, owner.orderId ?? null),
   ]);
   failOnReadError("billing_profiles", billingRead.error);
   failOnReadError("profiles", profileRead.error);
@@ -238,8 +265,13 @@ export async function freezeBillingDocumentSnapshot(doc: {
   id: string;
   user_id: string;
   tenant_id: string;
+  order_id?: string | null;
 }): Promise<BillingDocumentSnapshot> {
-  const live = await loadBillingDocumentSnapshot({ userId: doc.user_id, tenantId: doc.tenant_id });
+  const live = await loadBillingDocumentSnapshot({
+    userId: doc.user_id,
+    tenantId: doc.tenant_id,
+    orderId: doc.order_id ?? null,
+  });
   const supabase = await admin();
   const { data: frozen, error } = await supabase
     .from("billing_documents")

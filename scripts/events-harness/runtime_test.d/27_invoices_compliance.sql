@@ -409,6 +409,17 @@ SELECT pg_temp.assert_raises_like(format(
 SELECT pg_temp.assert_raises_like(format(
   $q$DELETE FROM public.event_invoice_ksef_events WHERE invoice_id = %L$q$, pg_temp.c27('c_inv')),
   'invoice_immutable', '27b/KSeF: dziennik jest append-only (DELETE)');
+-- Zapis bez zmiany stanu: bez notatki nic nie dopisuje, sama notatka to wpis
+-- dziennika (panel zglasza sukces, wiec notatka nie moze przepasc).
+SELECT public.admin_event_invoice_ksef_update(jsonb_build_object('id', pg_temp.c27('c_inv'), 'status', 'accepted'));
+SELECT public.admin_event_invoice_ksef_update(jsonb_build_object('id', pg_temp.c27('c_inv'), 'status', 'accepted',
+  'note', ' UPO 123 '));
+SELECT pg_temp.assert(
+  (SELECT string_agg(COALESCE(from_status, '-') || '>' || to_status || ':' || note, ',' ORDER BY created_at, id)
+     FROM public.event_invoice_ksef_events WHERE invoice_id = pg_temp.c27('c_inv') AND from_status = to_status)
+    = 'accepted>accepted:UPO 123'
+  AND (SELECT count(*) FROM public.event_invoice_ksef_events WHERE invoice_id = pg_temp.c27('c_inv')) = 4,
+  '27b/KSeF: sama notatka trafia do dziennika (stan bez zmian), pusty zapis - nic');
 
 -- Unikalnosc numeru i numer KSeF w korekcie.
 DO $$

@@ -172,6 +172,49 @@ describe("notifyIssuedInvoices", () => {
     expect(rpc.mock.calls.map(([name]) => name)).toEqual(["admin_event_invoice_notify_payload"]);
   });
 
+  it("stempel doreczenia: chwilowy blad - ponowienie; trwaly - porazka powiadomienia (INV-08)", async () => {
+    // Bez stempla doreczony dokument dalby sie anulowac, wiec mail bez
+    // stempla nie jest "wyslanym powiadomieniem" - panel pokazuje blad.
+    let markCalls = 0;
+    const transient = vi.fn<Rpc>(async (name) => {
+      if (name !== "admin_event_invoice_mark_notified") {
+        return { data: { ...PAYLOAD, invoice_id: "t" }, error: null };
+      }
+      markCalls += 1;
+      return markCalls === 1
+        ? { data: null, error: { message: "could not serialize access" } }
+        : { data: "2026-09-20T10:00:00Z", error: null };
+    });
+    sendTxEmail.mockResolvedValueOnce({ ok: true });
+    await expect(notifyIssuedInvoices(client(transient), ["t"])).resolves.toEqual({
+      sent: 1,
+      skipped: 0,
+      failed: 0,
+    });
+    expect(markCalls).toBe(2);
+
+    const broken = vi.fn<Rpc>(async (name) =>
+      name === "admin_event_invoice_mark_notified"
+        ? { data: null, error: { message: "connection reset" } }
+        : { data: { ...PAYLOAD, invoice_id: "x" }, error: null },
+    );
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    sendTxEmail.mockResolvedValueOnce({ ok: true });
+    await expect(notifyIssuedInvoices(client(broken), ["x"])).resolves.toEqual({
+      sent: 0,
+      skipped: 0,
+      failed: 1,
+    });
+    expect(
+      broken.mock.calls.filter(([name]) => name === "admin_event_invoice_mark_notified"),
+    ).toHaveLength(3);
+    expect(logged).toHaveBeenCalledWith("[eventInvoiceNotify] delivery stamp failed", {
+      id: "x",
+      error: "connection reset",
+    });
+    logged.mockRestore();
+  });
+
   it("pusta lista = nic", async () => {
     const rpc = vi.fn<Rpc>();
     await expect(notifyIssuedInvoices(client(rpc), [])).resolves.toEqual({

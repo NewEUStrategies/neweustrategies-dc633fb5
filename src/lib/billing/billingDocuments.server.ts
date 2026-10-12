@@ -23,7 +23,10 @@ import {
   snapshotColumns,
   type BillingDocumentSnapshot,
 } from "@/lib/billing/billingDocumentSnapshot.server";
-import { billingDocumentStatus } from "@/lib/billing/billingDocumentStatus";
+import {
+  billingDocumentStatus,
+  billingDocumentStatusTransition,
+} from "@/lib/billing/billingDocumentStatus";
 import type { BillingDocumentKind } from "@/lib/billing/types";
 import type { StripeEnv } from "@/lib/stripe.server";
 
@@ -195,7 +198,10 @@ export async function recordTransactionDocument(
       patch.number = input.invoiceNumber;
     }
     if (amount > 0 && amount !== existing.amount_cents) patch.amount_cents = amount;
-    if (status !== null && status !== existing.status) patch.status = status;
+    // Tylko do przodu: spóźnione albo ponowione zdarzenie nie cofa stanu
+    // (np. `refunded` -> `paid`, `paid` -> `open`).
+    const nextStatus = billingDocumentStatusTransition(existing.status, status);
+    if (nextStatus !== null) patch.status = nextStatus;
     if (input.hostedUrl) patch.hosted_url = input.hostedUrl;
     if (input.pdfUrl) patch.pdf_url = input.pdfUrl;
     if (Object.keys(patch).length === 1) return "skipped";

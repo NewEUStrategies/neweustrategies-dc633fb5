@@ -20,6 +20,7 @@ import { BILLING_DOCUMENT_PLANES } from "@/lib/billing/billingDocumentSnapshot.s
 import {
   BILLING_DOCUMENT_STATUSES,
   billingDocumentStatus,
+  billingDocumentStatusTransition,
   isBillingDocumentStatus,
 } from "@/lib/billing/billingDocumentStatus";
 import type { CheckoutBillingPlane } from "@/lib/billing/checkoutSettings";
@@ -150,5 +151,34 @@ describe("billingDocumentStatus - stan operatora -> stan z CHECK-a", () => {
     expect(BILLING_DOCUMENT_STATUSES.every(isBillingDocumentStatus)).toBe(true);
     expect(isBillingDocumentStatus("pending")).toBe(false);
     expect(isBillingDocumentStatus(null)).toBe(false);
+  });
+});
+
+describe("billingDocumentStatusTransition - stan tylko do przodu", () => {
+  it.each([
+    ["open", "paid", "paid"],
+    ["open", "void", "void"],
+    ["open", "refunded", "refunded"],
+    ["paid", "refunded", "refunded"],
+  ] as const)("%s -> %s dozwolone", (current, incoming, expected) => {
+    expect(billingDocumentStatusTransition(current, incoming)).toBe(expected);
+  });
+
+  it.each([
+    // Spóźnione `invoice.payment_failed` po `invoice.paid`.
+    ["paid", "open"],
+    // Powtórka zakończenia transakcji po zwrocie (trigger zwrotu, ponowiony webhook).
+    ["refunded", "paid"],
+    ["refunded", "open"],
+    ["void", "paid"],
+    ["paid", "void"],
+  ] as const)("%s -> %s odrzucone (krok wstecz albo stan końcowy)", (current, incoming) => {
+    expect(billingDocumentStatusTransition(current, incoming)).toBeNull();
+  });
+
+  it("brak informacji i ten sam stan nic nie zmieniają; uszkodzony wiersz przyjmuje znany stan", () => {
+    expect(billingDocumentStatusTransition("paid", null)).toBeNull();
+    expect(billingDocumentStatusTransition("paid", "paid")).toBeNull();
+    expect(billingDocumentStatusTransition("pending", "paid")).toBe("paid");
   });
 });

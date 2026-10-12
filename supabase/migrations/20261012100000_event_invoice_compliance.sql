@@ -203,8 +203,9 @@ GRANT ALL ON public.nbp_exchange_rates TO service_role;
 -- ----------------------------------------------------------------------------
 -- 3. DZIENNIK STANU KSeF (INV-02)
 -- Append-only: kazda zmiana `ksef_status`/`ksef_number` wystawionego
--- dokumentu, z autorem i notatka. Wpisuje WYLACZNIE trigger na
--- `event_invoices`, wiec zadna sciezka zapisu nie zmieni stanu bez sladu.
+-- dokumentu, z autorem i notatka. Zmiany stanu wpisuje WYLACZNIE trigger na
+-- `event_invoices`, wiec zadna sciezka zapisu nie zmieni stanu bez sladu;
+-- RPC panelu dopisuje jeszcze sama notatke bez zmiany stanu (from = to).
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.event_invoice_ksef_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -224,7 +225,7 @@ CREATE TABLE IF NOT EXISTS public.event_invoice_ksef_events (
     REFERENCES public.event_invoices (tenant_id, id) ON DELETE CASCADE
 );
 COMMENT ON TABLE public.event_invoice_ksef_events IS
-  'Dziennik zmian stanu i numeru KSeF dokumentow wydarzen (append-only, wpisuje trigger na event_invoices).';
+  'Dziennik zmian stanu i numeru KSeF dokumentow wydarzen (append-only; zmiany wpisuje trigger na event_invoices, notatki bez zmiany stanu - admin_event_invoice_ksef_update).';
 CREATE INDEX IF NOT EXISTS event_invoice_ksef_events_invoice_idx
   ON public.event_invoice_ksef_events (tenant_id, invoice_id, created_at);
 

@@ -481,6 +481,33 @@ describe("recordTransactionDocument - MIGAWKA stron (INV-07)", () => {
     expect(writtenRow("billing_documents", "insert").billing_plane).toBe("merchant");
   });
 
+  it("płaszczyzna OSTEMPLOWANA na zamówieniu wygrywa z bieżącymi ustawieniami kasy (INV-09)", async () => {
+    // Ustawienia zmienione między zakupem a webhookiem (albo jego ponowieniem
+    // po dniach) nie mogą przestawić noty podatkowej zamrażanej na zawsze.
+    seed({
+      order: ok({
+        id: ORDER_ID,
+        user_id: OWNER.userId,
+        tenant_id: OWNER.tenantId,
+        billing_plane: "merchant",
+      }),
+    });
+
+    await recordTransactionDocument(input());
+
+    expect(writtenRow("billing_documents", "insert").billing_plane).toBe("merchant");
+    const planeRead = db
+      .chainsFor("payment_orders")
+      .find((chain) => chain.argsOf("select")?.[0] === "billing_plane");
+    expect(
+      planeRead?.calls.filter((call) => call.method === "eq").map((call) => call.args),
+    ).toEqual([
+      ["id", ORDER_ID],
+      ["tenant_id", OWNER.tenantId],
+    ]);
+    expect(db.chainsFor("checkout_settings")).toHaveLength(0);
+  });
+
   it("nieczytelne źródło migawki NIE blokuje dokumentu - zapis idzie bez migawki", async () => {
     // Członek ma zobaczyć zakup od razu; migawkę zamrozi pierwsze pobranie
     // PDF. Zgadywanie płaszczyzny (domyślne `managed`) utrwaliłoby za to
@@ -530,17 +557,35 @@ describe("recordTransactionDocument - UZUPEŁNIANIE dokumentu", () => {
     // kwoty zerem zamieniłoby fakturę w dokument na 0,00 - to najgorsza
     // możliwa „aktualizacja" dokumentu księgowego.
     seed({
-      document: ok({ id: "doc-1", number: "FV/2026/08/0001", amount_cents: 4900, status: "paid" }),
+      document: ok({ id: "doc-1", number: "FV/2026/08/0001", amount_cents: 4900, status: "open" }),
     });
 
     const outcome = await recordTransactionDocument(
-      input({ amountCents: null, hostedUrl: null, pdfUrl: null, status: "open" }),
+      input({ amountCents: null, hostedUrl: null, pdfUrl: null, status: "paid" }),
     );
 
     expect(outcome).toBe("updated");
     const patch = writtenRow("billing_documents", "update");
     expect(patch).not.toHaveProperty("amount_cents");
-    expect(patch.status).toBe("open");
+    expect(patch.status).toBe("paid");
+  });
+
+  it.each([
+    // Spóźnione `invoice.payment_failed` po `invoice.paid`.
+    ["paid", "open"],
+    // Ponowione zakończenie transakcji po pełnym zwrocie (trigger zwrotu).
+    ["refunded", "paid"],
+  ] as const)("spóźnione zdarzenie nie cofa stanu %s -> %s", async (stored, late) => {
+    seed({
+      document: ok({ id: "doc-1", number: "FV/2026/08/0001", amount_cents: 4900, status: stored }),
+    });
+
+    const outcome = await recordTransactionDocument(
+      input({ status: late, hostedUrl: null, pdfUrl: null }),
+    );
+
+    expect(outcome).toBe("skipped");
+    expect(db.chainsFor("billing_documents").some((c) => c.has("update"))).toBe(false);
   });
 
   it("linki do faktury są dopisywane, gdy operator je w końcu wystawi", async () => {

@@ -16,6 +16,12 @@
 //     (faktura Stripe, sesja Checkout, słownik domenowy dyspozytora), i dla
 //     stanu nieznanego zwraca `null` - wołający decyduje, co to znaczy (nowy
 //     dokument: `open`, istniejący: bez zmiany), zamiast zgadywać tutaj.
+//  3. `billingDocumentStatusTransition` - stan dokumentu idzie TYLKO DO PRZODU
+//     (open -> paid -> refunded; void i refunded końcowe). Webhooki przychodzą
+//     z opóźnieniem, poza kolejnością i bywają ponawiane (nieudany zapis
+//     rejestru oddaje 500): spóźnione `invoice.payment_failed` po `paid` albo
+//     powtórka zakończenia transakcji po zwrocie nie mogą cofnąć stanu, który
+//     drukuje kopia PDF członka.
 import type { BillingDocumentStatus } from "@/lib/billing/types";
 
 /** Zbiór z `CHECK (status IN (...))` tabeli `billing_documents`, w tej samej kolejności. */
@@ -55,4 +61,30 @@ export function billingDocumentStatus(providerStatus: string | null): BillingDoc
 /** Zawężenie wartości z bazy (kolumna `text`, typ generowany to `string`). */
 export function isBillingDocumentStatus(value: unknown): value is BillingDocumentStatus {
   return (BILLING_DOCUMENT_STATUSES as readonly unknown[]).includes(value);
+}
+
+/**
+ * Dozwolone przejścia stanu dokumentu - wyłącznie do przodu. `paid` może
+ * tylko zostać zwrócony; `void` i `refunded` są końcowe (zwrot ustawia też
+ * trigger bazy przy pełnym zwrocie zamówienia, 20261012122000).
+ */
+const FORWARD: Readonly<Record<BillingDocumentStatus, readonly BillingDocumentStatus[]>> = {
+  open: ["paid", "void", "refunded"],
+  paid: ["refunded"],
+  void: [],
+  refunded: [],
+};
+
+/**
+ * Stan do zapisania przy aktualizacji istniejącego dokumentu albo `null`,
+ * gdy stanu nie zmieniamy (brak informacji, ten sam stan albo krok wstecz).
+ * Stan obecny spoza zbioru (uszkodzony wiersz) przyjmuje znany stan operatora.
+ */
+export function billingDocumentStatusTransition(
+  current: string | null,
+  incoming: BillingDocumentStatus | null,
+): BillingDocumentStatus | null {
+  if (incoming === null || incoming === current) return null;
+  if (!isBillingDocumentStatus(current)) return incoming;
+  return FORWARD[current].includes(incoming) ? incoming : null;
 }

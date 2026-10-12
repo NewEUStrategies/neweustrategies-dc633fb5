@@ -76,6 +76,18 @@ BEGIN
     END IF;
   END IF;
   IF v_status = v_inv.ksef_status AND v_number IS NOT DISTINCT FROM v_inv.ksef_number THEN
+    -- Sama notatka (np. numer UPO po przyjeciu, uwaga przy odrzuceniu) to tez
+    -- wpis dziennika: panel pozwala ja zapisac i zglasza sukces, wiec cicha
+    -- utrata notatki bylaby falszywym potwierdzeniem. Stan bez zmian
+    -- (from = to), autor jak w triggerze. Bez notatki - nic do zapisania.
+    IF v_note <> '' THEN
+      INSERT INTO public.event_invoice_ksef_events (
+        tenant_id, invoice_id, from_status, to_status, from_number, to_number, actor_id, note
+      ) VALUES (
+        v_tenant, v_inv.id, v_inv.ksef_status, v_inv.ksef_status, v_inv.ksef_number,
+        v_inv.ksef_number, auth.uid(), v_note
+      );
+    END IF;
     RETURN v_inv.id;
   END IF;
   PERFORM set_config('nes.event_invoice_ksef_note', v_note, true);
