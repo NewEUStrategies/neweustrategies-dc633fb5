@@ -199,4 +199,31 @@ describe("branding wydarzenia dojezdza do uczestnika, nie tylko do arkusza", () 
     expect(getComputedStyle(activeTab).color).toBe(THEME_FOREGROUND);
     expect(getComputedStyle(idleTab).color).toBe(THEME_MUTED_FOREGROUND);
   });
+
+  it("kreska biezacej pozycji stoi POD BIEZACA i tylko pod nia", () => {
+    // Rozroznienie „biezaca / pozostale” nie moze byc tylko gruboscia i odcieniem
+    // napisu - przy siedmiu dlugich nazwach w jednym rzedzie czytelnik jej szuka,
+    // zamiast zobaczyc. Kreska jest znakiem geometrycznym: IDENTYCZNA w obu
+    // motywach (zmienia sie tylko jej tusz), wiec nie rusza ukladu.
+    //
+    // Mierzone na tokonie klasy, nie na wartosci obliczonej: jsdom nie liczy
+    // pseudoelementow, wiec `getComputedStyle(node, "::after")` oddaje pustke.
+    const { activeTab, idleTab } = mountPortal(null);
+    expect(Array.from(activeTab.classList).filter((c) => c.startsWith("after:bg-"))).toEqual([
+      "after:bg-[color:var(--event-nav-fg,var(--brand-ink))]",
+    ]);
+    expect(Array.from(idleTab.classList).filter((c) => c.startsWith("after:bg-"))).toEqual([]);
+  });
+
+  it("pozycja niebiezaca jest MROCZNA, a biezaca nie jest", () => {
+    // `--muted-foreground` serwisu jest zapisany jako ten sam tusz co
+    // `--foreground`, wiec drugi stopien niesie mrocznosc, nie inny kolor.
+    // Bez tego wiersza podglad studia rysowalby wszystkie pozycje tak samo
+    // mocno - czyli inaczej niz strona publiczna.
+    const { activeTab, idleTab } = mountPortal(null);
+    expect(Array.from(activeTab.classList).filter((c) => c.startsWith("opacity-"))).toEqual([]);
+    expect(Array.from(idleTab.classList).filter((c) => c.startsWith("opacity-"))).toEqual([
+      "opacity-[0.62]",
+    ]);
+  });
 });

@@ -94,8 +94,28 @@ export const EVENT_TAB_CLASS =
 // `--muted-foreground` z motywu serwisu. Stoi OSOBNO od klasy bazowej właśnie
 // po to, żeby nigdy nie współistniała z `EVENT_TAB_ACTIVE_CLASS` na jednym
 // węźle - patrz komentarz nad `EVENT_TAB_CLASS`.
+//
+// ── WYCISZENIE PRZEZ MROCNOŚĆ, I DLACZEGO NIE PRZEZ SAM TOKEN ───────────────
+// CO BYŁO NIEWIDOCZNE. Token `--muted-foreground` MA być drugim stopniem tuszu,
+// ale globalne kolory serwisu ZAPISAŁY go jako dokładnie ten sam tusz co
+// `--foreground` (`#131822` w jasnym motywie, `#F8F6F4` w ciemnym - pomiar
+// `<style>` globalnych kolorów na żywej stronie). Na pasku bez własnego koloru
+// nawigacji oba stopnie znaczyły więc to samo i jedyne, co odróżniało bieżącą
+// pozycję, to grubość pisma.
+//
+// DLACZEGO MROCNOŚĆ, A NIE NOWY KOLOR. Globalny tusz serwisu jest wyborem
+// redaktora i nie wolno go nadpisywać dla jednego paska; `opacity` nie zmienia
+// żadnej barwy - bierze ten tusz, który jest na węźle, i kładzie go na tle
+// strony. Działa tak samo na pasku przezroczystym i na pasku z kolorem
+// wydarzenia, w obu motywach, i nie rusza geometrii: napisy stoją tam, gdzie
+// stały. Współczynnik 0,62 jest liczony pod próg WCAG AA, nie pod gust:
+// w jasnym motywie daje #6A6D72 na #F8F7F3 (4,8:1), w ciemnym #9B9897 na
+// #141414 (6,7:1) - czyli pozycja wyciszona nadal jest tekstem, nie dekoracją.
+//
+// `hover:`/`focus-visible:` ZDEJMUJĄ MROCNOŚĆ, bo pozycja, w którą czytelnik
+// celuje albo którą prowadzi klawiaturą, nie jest już „pozostałą”.
 export const EVENT_TAB_INACTIVE_CLASS =
-  "text-[color:var(--event-nav-fg-muted,var(--muted-foreground))]";
+  "text-[color:var(--event-nav-fg-muted,var(--muted-foreground))] opacity-[0.62] hover:opacity-100 focus-visible:opacity-100";
 
 // Pogrubienie NIE zmienia rozmiaru napisu, więc pasek nie drga przy przejściu
 // między zakładkami; kolor bierze `--foreground`, bo `--primary` jest w jasnym
@@ -104,8 +124,37 @@ export const EVENT_TAB_INACTIVE_CLASS =
 // czerń albo biel policzoną z luminancji tła - a wyciszone pozycje mieszankę
 // tego napisu z tłem paska, żeby rozróżnienie „bieżąca / pozostałe” zostało
 // DWUSTOPNIOWE (grubość ORAZ odcień), tak jak jest w motywie serwisu.
+//
+// ── KRESKA POD BIEŻĄCĄ POZYCJĄ, I DLACZEGO WŁAŚNIE ONA ──────────────────────
+// CO BYŁO ZA SŁABE. Bieżącą pozycję od pozostałych odróżniały WYŁĄCZNIE grubość
+// i odcień napisu: `--foreground` przeciw `--muted-foreground`. Różnica jest,
+// ale przy siedmiu długich nazwach w jednym rzędzie czytelnik jej szuka, zamiast
+// zobaczyć - i to szukanie było treścią zgłoszenia.
+//
+// DLACZEGO KRESKA POD NAPEM, A NIE PIGUŁKA ZA NAPEM. Pigułka (tło pod napisem)
+// ruszyłaby wysokością i rytmem rzędu oraz zderzyłaby się z `rounded-[6px]` i
+// `px-1`, których pasek nie chce. Kreska nie rusza żadnej geometrii: napisy
+// stoją dokładnie tam, gdzie stały, więc przejazd między zakładkami nadal nic
+// nie przesuwa - a to jest warunek, od którego ten pasek zaczyna komentarz
+// nad `EVENT_TAB_CLASS`. To także ten sam znak, którym serwis oznacza już
+// wybranie (tusz akcentu pod linkiem w `styles.css`), więc nie wprowadza do
+// paska nowego alfabetu.
+//
+// KRESKA JEST TA SAMA W OBU MOTYWACH, ZMIENIA SIĘ TYLKO JEJ TUSZ. Geometrycznie
+// motywy są IDENTYCZNE - ten sam kształt, ta sama grubość, to samo położenie -
+// więc przełączenie motywu nie przestawia paska. `--brand-ink` to akcent marki
+// PRZELICZONY NA KONTRAST: w jasnym motywie `#a94e0b`, bo samo `#FA9346` ma na
+// jasnej płycie 2,25:1, czyli za mało jak na znak, który niesie informację
+// „tu jestem”; w ciemnym `#FA9346` (10,64:1).
+//
+// NA PASKU Z KOLOREM WYDARZENIA KRESKA BIERZE TUSZ POLICZONY Z TŁA.
+// `var(--event-nav-fg, var(--brand-ink))`: gdy organizator ustawił kolor
+// nawigacji, kreska dostaje czerń albo biel z luminancji tego tła (markowy
+// pomarańcz na pomarańczowym pasku zniknąłby), a gdy go nie ustawił - akcent
+// marki. `pointer-events-none`: kreska jest znakiem, nie uchwytem - klik
+// należy do napisu.
 export const EVENT_TAB_ACTIVE_CLASS =
-  "font-semibold text-[color:var(--event-nav-fg,var(--foreground))]";
+  "relative font-semibold text-[color:var(--event-nav-fg,var(--foreground))] after:pointer-events-none after:absolute after:inset-x-1 after:bottom-0 after:h-[2px] after:rounded-full after:bg-[color:var(--event-nav-fg,var(--brand-ink))] after:content-['']";
 
 export function EventTabsBar({
   label,

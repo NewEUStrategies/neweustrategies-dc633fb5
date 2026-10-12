@@ -139,6 +139,29 @@ function textColorUtilities(node: Element): string[] {
   return Array.from(node.classList).filter((token) => token.startsWith("text-[color:"));
 }
 
+/**
+ * Klasy kreski bieżącej pozycji (`after:bg-*`) - znak „tu jestem”.
+ *
+ * Mierzone na TOKENIE, nie na wartości obliczonej: jsdom nie liczy
+ * pseudoelementów, więc `getComputedStyle(node, "::after")` oddaje pustkę i
+ * asercja na kolorze kreski byłaby zielona niezależnie od stanu kodu. Token
+ * stoi na węźle złożonym przez prawdziwy router, więc jego brak (albo jego
+ * obecność na pozycji niebieżącej) czerwieni test.
+ */
+function indicatorUtilities(node: Element): string[] {
+  return Array.from(node.classList).filter((token) => token.startsWith("after:bg-"));
+}
+
+/**
+ * Klasy mroczności pozycji (`opacity-*`) - drugi stopień tuszu.
+ *
+ * BEZ WARIANTÓW: `hover:opacity-100` jest własnym stanem i nie wchodzi do
+ * listy - dowód pyta o to, jak pozycja wygląda w spoczynku.
+ */
+function opacityUtilities(node: Element): string[] {
+  return Array.from(node.classList).filter((token) => token.startsWith("opacity-"));
+}
+
 function mountStyleEnvironment(navColored: boolean): void {
   const tokens = document.createElement("style");
   const brand = navColored ? `--event-nav-fg:${NAV_FG};--event-nav-fg-muted:${NAV_FG_MUTED};` : "";
@@ -260,5 +283,38 @@ describe("pasek zakladek wydarzenia: bierzaca pozycja ma kolor bierzacej", () =>
     const { active, idle } = await mount("/events/kongres/speakers", false);
     expect(getComputedStyle(active[0]).color).toBe(THEME_FOREGROUND);
     expect(getComputedStyle(idle[0]).color).toBe(THEME_MUTED_FOREGROUND);
+  });
+
+  it("kreska biezacej pozycji stoi NA BIEZACYM odnosniku i na zadnym wiecej", async () => {
+    // Rozroznienie „biezaca / pozostale” musi byc ZNAKIEM, nie tylko gruboscia i
+    // odcieniem napisu: przy siedmiu dlugich nazwach w jednym rzedzie czytelnik
+    // szuka biezacej, zamiast ja zobaczyc. Kreska jedzie przez `activeProps`,
+    // wiec trafia na wezel zlozony PRZEZ ROUTER - tam, gdzie patrzy uczestnik.
+    // `cn` by tu nic nie dowiodl (patrz naglowek pliku), a jsdom nie liczy
+    // pseudoelementow, wiec dowodem jest token klasy na wezle.
+    const { active, idle } = await mount("/events/kongres/speakers");
+    expect(active).toHaveLength(1);
+    expect(indicatorUtilities(active[0])).toEqual([
+      "after:bg-[color:var(--event-nav-fg,var(--brand-ink))]",
+    ]);
+    for (const link of idle) {
+      expect(indicatorUtilities(link)).toEqual([]);
+    }
+  });
+
+  it("pozycje niebiezace sa MROCZNE, a biezaca nie jest", async () => {
+    // GLOBALNE KOLORY SERWISU zapisaly `--muted-foreground` jako ten sam tusz co
+    // `--foreground` (pomiar `<style>` globalnych kolorów na żywej stronie:
+    // `#131822` w jasnym motywie, `#F8F6F4` w ciemnym). Sam token przestał więc
+    // znosić drugi stopień i bieżącą pozycję odróżniała wyłącznie grubość pisma.
+    // Mroczność (`opacity-[0.62]`) przywraca ten stopień bez nadpisywania barwy
+    // wybranej przez redaktora - i działa tak samo w obu motywach.
+    const { active, idle } = await mount("/events/kongres/speakers");
+    expect(active).toHaveLength(1);
+    expect(opacityUtilities(active[0])).toEqual([]);
+    expect(idle.length).toBeGreaterThan(0);
+    for (const link of idle) {
+      expect(opacityUtilities(link)).toEqual(["opacity-[0.62]"]);
+    }
   });
 });
