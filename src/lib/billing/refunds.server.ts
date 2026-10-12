@@ -42,10 +42,10 @@ export interface RefundEvent {
   currency: string | null;
   environment: "sandbox" | "live";
   /**
-   * Surowy status operatora (np. `needs_response`, `won`) - wyłącznie do
-   * logów i treści alertu. O skutku decydują `action` i `status`.
+   * Kod porażki zwrotu u operatora (`expired_or_canceled_card`, …) - tylko
+   * dla zwrotu `failed`/`canceled` (`refund.failed`, `refund.updated`).
    */
-  providerStatus?: string | null;
+  failureReason?: string | null;
 }
 
 export type RefundOutcome =
@@ -54,7 +54,8 @@ export type RefundOutcome =
   | "order_refunded"
   | "donation_refunded"
   | "subscription_restored"
-  | "order_restored";
+  | "order_restored"
+  | "refund_failure_escalated";
 
 /**
  * Korekty, które odbierają dostęp.
@@ -76,9 +77,13 @@ export function isRevokingAdjustment(event: RefundEvent): boolean {
   return event.status === null || event.status === "approved" || event.status === "succeeded";
 }
 
-/** Korekta jest sporem płatniczym (otwartym albo rozstrzygniętym). */
-function isDispute(event: RefundEvent): boolean {
-  return event.action === "chargeback" || event.action === "chargeback_warning";
+/**
+ * Zwrot, którego operator NIE wykonał (`refund.failed`, `refund.updated`
+ * ze stanem `failed`/`canceled`). Pieniądze zostały u nas, więc niczego nie
+ * odbieramy ani nie przywracamy - sprawę trzeba oddać człowiekowi.
+ */
+export function isFailedRefund(event: RefundEvent): boolean {
+  return event.action === "refund" && (event.status === "failed" || event.status === "canceled");
 }
 
 /** Spór rozstrzygnięty na naszą korzyść - dostęp wraca. */
@@ -892,34 +897,51 @@ async function restoreAccess(event: RefundEvent, target: AdjustmentTarget): Prom
 }
 
 /**
- * Jedno wejście dla zwrotów i sporów. Kolejność:
- *   1. bramka: korekta, która niczego nie odbiera ani nie przywraca (kredyt,
- *      wniosek o zwrot) i nie jest sporem, kończy się bez dotykania bazy;
- *   2. cel korekty - RAZ (zamówienie / subskrypcja przez operatora / sesja
- *      Checkout / nic);
- *   3. spór: alert dla zespołu najemcy w każdej fazie, przed skutkiem;
- *   4. skutek: wygrany spór -> przywrócenie; zwrot/spór -> odebranie dostępu
- *      (subskrypcja -> zamówienie -> darowizna).
+ * Zwrot, który nie doszedł do skutku u operatora (INV-19c).
  *
- * Zdarzenie kopiujemy na wejściu: cel, alert i skutek mają widzieć TE SAME
- * identyfikatory, nawet gdy wołający zmieni swój obiekt w trakcie.
+ * Do tej pory taka korekta kończyła się na `isRevokingAdjustment` jako
+ * `skipped`, więc zlecenie zwrotu za odrzucone zgłoszenie wisiało w
+ * `submitted` bez końca, a pieniądze nie wracały do uczestnika. RPC
+ * `_event_registration_refund_failed` przenosi zlecenie o tym identyfikatorze
+ * zwrotu do `needs_review` i w TEJ SAMEJ transakcji alarmuje administratorów
+ * najemcy - najemcę bierze z wiersza zlecenia, nie z ładunku operatora.
+ *
+ * Środowisko zdarzenia idzie do RPC jako filtr (ta sama reguła P0 co
+ * `findOrderForAdjustment`): zwrot z piaskownicy nie dotyka zlecenia
+ * produkcyjnego. Awaria zapisu RZUCA - operator ponowi dostarczenie, a RPC
+ * jest idempotentne (drugi `refund.updated` po `refund.failed` nic nie robi).
  */
-export async function applyRefundEffects(input: RefundEvent): Promise<RefundOutcome> {
-  const event: RefundEvent = { ...input };
-  const dispute = isDispute(event);
-  const reversed = isDisputeReversed(event);
-  const revoking = !reversed && isRevokingAdjustment(event);
-  if (!dispute && !revoking) return "skipped";
+async function escalateFailedRefund(event: RefundEvent): Promise<RefundOutcome> {
+  if (!PROVIDER_REFERENCE_SHAPE.test(event.adjustmentId)) return "skipped";
+  const supabase = await admin();
+  const { data, error } = await supabase.rpc("_event_registration_refund_failed", {
+    p_provider_refund_id: event.adjustmentId,
+    p_environment: event.environment,
+    p_reason: event.failureReason ?? event.status ?? "failed",
+  });
+  if (error) throw new Error(`refund failure: escalation failed: ${error.message}`);
+  if (data === true) return "refund_failure_escalated";
+  // Zwrot spoza zleceń zgłoszeń (np. nadliczbowa wpłata) albo zlecenie, które
+  // już czeka na decyzję. Ślad zostaje w dzienniku webhooków i w logu serwera.
+  console.warn("[payments] failed refund without escalation", {
+    adjustmentId: event.adjustmentId,
+    status: event.status,
+  });
+  return "skipped";
+}
 
-  const target = await resolveAdjustmentTarget(event, reversed ? "dispute" : "refund");
-  if (dispute) await alertAdminsAboutDispute(event, target, await disputeTenant(event, target));
-
-  if (reversed) return restoreAccess(event, target);
-  if (!revoking) return "skipped";
-  if (target.kind === "subscription") return revokeSubscription(event, target.subscriptionId);
-  if (target.kind === "order") return revokeOrder(event, target.order, target.persistIntent);
-  if (event.transactionId && PROVIDER_REFERENCE_SHAPE.test(event.transactionId)) {
-    return revokeDonation(event, event.transactionId);
+/**
+ * Jedno wejście dla zwrotów i sporów. Kieruje korektę do właściwego skutku:
+ * wygrany spór -> przywrócenie; zwrot, który nie doszedł -> eskalacja;
+ * zwrot/spór otwarty -> odebranie dostępu (subskrypcja -> zamówienie
+ * jednorazowe -> darowizna).
+ */
+export async function applyRefundEffects(event: RefundEvent): Promise<RefundOutcome> {
+  if (isDisputeReversed(event)) return restoreAccess(event);
+  if (isFailedRefund(event)) return escalateFailedRefund(event);
+  if (!isRevokingAdjustment(event)) return "skipped";
+  if (event.action === "chargeback" || event.action === "chargeback_warning") {
+    await alertAdminsAboutDispute(event, "opened", await disputeTenant(event));
   }
   console.warn("[payments] adjustment without transaction or subscription", event.adjustmentId);
   return "skipped";

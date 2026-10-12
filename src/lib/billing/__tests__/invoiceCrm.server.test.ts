@@ -17,12 +17,18 @@
 //   * WSPÓLNA KARTOTEKA. Firmę w profilu wybiera się z katalogu, więc dzieli
 //     ją wielu członków: „Zapisz w CRM" z danymi INNEJ firmy nie może jej
 //     przemianować ani podmienić jej NIP-u.
+//   * CUDZA KARTOTEKA (audyt INV-10). Nazwę firmy członek wpisuje sam, więc
+//     odczyt nie oddaje firmy znalezionej po samej nazwie (cudzy NIP, e-mail,
+//     telefon), a zapis tylko UZUPEŁNIA puste rubryki - jak SQL przy
+//     wystawieniu faktury - i nie dotyka firmy o tej nazwie z INNYM NIP-em.
 //   * KOD KRAJU. Kraj w CRM to wolny tekst; do `country_code` trafia tylko ISO-2.
 //
 // GRANICA ATRAP: wyłącznie klient Supabase z rolą serwisową - jako mała baza
-// w pamięci, która STOSUJE filtry `eq`/`ilike`, `order` i `range` z łańcucha
-// (pominięty filtr tenanta oddaje wtedy cudzy wiersz i test to widzi, a skan
-// przycięty do jednej porcji gubi firmę). `memberSync.server`
+// w pamięci, która STOSUJE filtry `eq`/`is`/`ilike`, `order` i `range`
+// z łańcucha (pominięty filtr tenanta oddaje wtedy cudzy wiersz i test to
+// widzi, skan przycięty do jednej porcji gubi firmę, a warunkowy UPDATE
+// naprawdę chybia, gdy rubrykę ktoś w międzyczasie wypełnił) i pilnuje
+// unikatu (tenant_id, name_norm) przy INSERT. `memberSync.server`
 // (`normalizeCompanyName`, `ensureCrmCompany`) biegnie PRAWDZIWY: to ten sam
 // dedup nazw, którego używa synchronizacja członków, i to jego zachowanie
 // jest częścią kontraktu.
@@ -67,6 +73,7 @@ import {
   loadCrmCompanyForUser,
   pushBillingProfileToCrm,
 } from "@/lib/billing/invoiceCrm.server";
+import { normalizeCompanyName } from "@/lib/crm/memberSync.server";
 
 // --- mała baza w pamięci ----------------------------------------------------
 
@@ -107,6 +114,7 @@ interface CompanyRow {
   phone: string | null;
   created_at: string;
   updated_at?: string;
+  created_by?: string | null;
 }
 
 type Row = Record<string, unknown>;
@@ -190,13 +198,22 @@ function ilikeRegex(pattern: string): RegExp {
 
 function matching<T extends object>(rows: T[], chain: RecordedChain): T[] {
   const filters = eqFilters(chain);
+  // `is(kolumna, null)` - warunek „rubryka wciąż pusta” warunkowego UPDATE.
+  const nulls = chain.calls
+    .filter((call) => call.method === "is")
+    .map((call) => [String(call.args[0]), call.args[1]] as const);
   const patterns = chain.calls
     .filter((call) => call.method === "ilike")
     .map((call) => [String(call.args[0]), ilikeRegex(String(call.args[1]))] as const);
   return rows.filter(
     (row) =>
       filters.every(([column, value]) => (row as Row)[column] === value) &&
-      patterns.every(([column, regex]) => regex.test(String((row as Row)[column]))),
+      nulls.every(([column, value]) => ((row as Row)[column] ?? null) === value) &&
+      // ILIKE na NULL to w SQL NULL, czyli „nie pasuje” - a nie napis „null”.
+      patterns.every(
+        ([column, regex]) =>
+          (row as Row)[column] != null && regex.test(String((row as Row)[column])),
+      ),
   );
 }
 
@@ -258,25 +275,64 @@ function install(next: Partial<Scene>): Scene {
     else scene.billing.push({ ...patch });
     return ok(null);
   });
-  db.setResponse("crm_companies", (chain) => {
-    if (!chain.has("update")) return readRows(scene.companies, chain);
-    if (scene.failWrite.crm_companies) return fail("crm_companies: write failed");
-    return updateRows(scene.companies, chain);
-  });
+  db.setResponse("crm_companies", crmCompaniesResponder);
   h.db.current = db;
   return scene;
 }
 
-/** RPC `crm_ensure_member_company` w kształcie bazy: dedup po nazwie w tenancie. */
+/** `name_norm` kartoteki: kolumna generowana `lower(btrim(name))`. */
+const nameNorm = (name: string) => name.trim().toLowerCase();
+
+/** Id kartoteki założonej przez INSERT (osobny podmiot o tej samej nazwie). */
+const INSERTED_ID = "crm-wstawiona";
+
+/**
+ * `crm_companies` w kształcie bazy: odczyt, UPDATE i INSERT pilnujący unikatu
+ * `crm_companies_tenant_name_norm_uniq` (tenant_id, name_norm).
+ */
+function crmCompaniesResponder(chain: RecordedChain) {
+  if (chain.has("insert")) {
+    if (scene.failWrite.crm_companies) return fail("crm_companies: write failed");
+    const draft = chain.argsOf("insert")?.[0] as Partial<CompanyRow> & {
+      tenant_id: string;
+      name: string;
+    };
+    const taken = scene.companies.some(
+      (row) => row.tenant_id === draft.tenant_id && nameNorm(row.name) === nameNorm(draft.name),
+    );
+    if (taken) {
+      return fail(
+        'duplicate key value violates unique constraint "crm_companies_tenant_name_norm_uniq"',
+        "23505",
+      );
+    }
+    const created = company({ ...draft, id: INSERTED_ID, created_at: "2026-09-01T00:00:00.000Z" });
+    scene.companies.push(created);
+    return ok(created);
+  }
+  if (!chain.has("update")) return readRows(scene.companies, chain);
+  if (scene.failWrite.crm_companies) return fail("crm_companies: write failed");
+  return updateRows(scene.companies, chain);
+}
+
+/**
+ * RPC `crm_ensure_member_company` w kształcie bazy: dedup po KLUCZU nazwy
+ * (`crm_member_company_key` = `normalizeCompanyName` - forma prawna znika),
+ * najstarsza kartoteka w tenancie, a bez trafienia - nowa, bez NIP-u.
+ */
 function ensureCompanyRpc(newId: string) {
   return (args: Record<string, unknown>) => {
     const tenantId = String(args.p_tenant_id);
     const name = String(args.p_name);
-    const existing = scene.companies.find(
-      (row) => row.tenant_id === tenantId && row.name.toLowerCase() === name.toLowerCase(),
-    );
+    const [existing] = scene.companies
+      .filter(
+        (row) =>
+          row.tenant_id === tenantId &&
+          normalizeCompanyName(row.name) === normalizeCompanyName(name),
+      )
+      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
     if (existing) return { data: [{ id: existing.id }], error: null };
-    scene.companies.push(company({ id: newId, tenant_id: tenantId, name }));
+    scene.companies.push(company({ id: newId, tenant_id: tenantId, name: name.trim() }));
     return { data: [{ id: newId }], error: null };
   };
 }
@@ -284,7 +340,7 @@ function ensureCompanyRpc(newId: string) {
 const myProfile = () => scene.profiles.find((row) => row.id === ME);
 const myBilling = () => scene.billing.find((row) => row.user_id === ME && row.tenant_id === TENANT);
 const companyById = (id: string) => scene.companies.find((row) => row.id === id);
-const writes = (table: string, method: "update" | "upsert") =>
+const writes = (table: string, method: "insert" | "update" | "upsert") =>
   db.chainsFor(table).filter((chain) => chain.has(method));
 
 beforeEach(() => {
@@ -357,13 +413,13 @@ describe("loadCrmCompanyForUser - kartoteka firmy pokazywana w panelu faktur", (
     expect(db.chainsFor("crm_companies")).toHaveLength(1);
   });
 
-  it("kartoteka spod id z profilu należy do innego tenanta: nie wycieka, wygrywa firma o tej nazwie we WŁASNYM tenancie", async () => {
+  it("kartoteka spod id z profilu należy do innego tenanta: nie wycieka, wygrywa firma o NIP-ie członka we WŁASNYM tenancie", async () => {
     install({
       profiles: [profile({ current_company_id: "crm-obca", current_company: "Acme" })],
-      billing: [],
+      billing: [billingRow({ tax_id: "5260250274" })],
       companies: [
-        company({ id: "crm-obca", tenant_id: FOREIGN_TENANT, tax_id: "OBCY-NIP" }),
-        company({ id: "crm-acme", tax_id: "5260250274" }),
+        company({ id: "crm-obca", tenant_id: FOREIGN_TENANT, tax_id: "5260250274" }),
+        company({ id: "crm-acme", tax_id: "PL5260250274" }),
       ],
     });
 
@@ -371,22 +427,61 @@ describe("loadCrmCompanyForUser - kartoteka firmy pokazywana w panelu faktur", (
 
     expect(result).toMatchObject({
       ok: true,
-      company: { companyId: "crm-acme", taxId: "5260250274" },
+      company: { companyId: "crm-acme", taxId: "PL5260250274" },
     });
-    const [byId, byName] = db.chainsFor("crm_companies");
+    const [byId, byTaxId] = db.chainsFor("crm_companies");
     expect(eqFilters(byId)).toContainEqual(["tenant_id", TENANT]);
-    expect(eqFilters(byName)).toEqual([["tenant_id", TENANT]]);
+    expect(eqFilters(byTaxId)).toEqual([["tenant_id", TENANT]]);
   });
 
-  it("bez relacji dopasowuje firmę po nazwie z profilu tym samym dedupem co synchronizacja członków", async () => {
+  it("INV-10: bez relacji firma o tej samej NAZWIE nie wycieka - ani jej NIP, ani e-mail, ani telefon", async () => {
+    // CO BYŁO ZŁE. Bez relacji odczyt dopasowywał kartotekę po nazwie firmy
+    // z profilu albo z danych do faktury - tekście, który członek wpisuje sam.
+    // Wpisanie „Acme” oddawało NIP, adres, e-mail i telefon cudzej firmy,
+    // a „Pobierz z CRM” kopiował je do jego faktury.
     install({
-      profiles: [profile({ current_company: "  ACME Sp. z o.o. " })],
-      billing: [billingRow({ company: "Inna Nazwa z Checkoutu" })],
+      profiles: [profile({ current_company: "ACME Sp. z o.o." })],
+      billing: [billingRow({ company: "Acme", tax_id: "5260250274" })],
       companies: [
-        // Ta sama nazwa w obcym tenancie stoi PIERWSZA - filtr tenanta ją odcina.
-        company({ id: "crm-obca", tenant_id: FOREIGN_TENANT, name: "Acme" }),
-        company({ id: "crm-beta", name: "Beta" }),
-        company({ id: "crm-acme", name: "acme, sp. z o.o.", city: "Poznań" }),
+        company({
+          id: "crm-cudza",
+          name: "Acme",
+          tax_id: "1132853869",
+          address: "ul. Zarządowa 1",
+          email: "zarzad@acme.example.com",
+          phone: "+48 22 111 11 11",
+        }),
+      ],
+    });
+
+    await expect(loadCrmCompanyForUser(ME)).resolves.toEqual({ ok: false, error: "no_company" });
+
+    // Żadne zapytanie nie odsiewa kandydatów po nazwie - wyłącznie po NIP-ie.
+    for (const chain of db.chainsFor("crm_companies")) {
+      const columns = chain.calls.filter((call) => call.method === "ilike").map((c) => c.args[0]);
+      expect(columns).not.toContain("name");
+    }
+  });
+
+  it("bez relacji dopasowuje kartotekę po NIP-ie z danych do faktury TEGO tenanta, niezależnie od nazwy", async () => {
+    install({
+      profiles: [profile({ current_company: "Zupełnie Inna Nazwa" })],
+      billing: [
+        // Dane do faktury tego samego członka w INNYM tenancie: ich NIP
+        // wskazywałby kartotekę „Beta” - nie wolno go użyć.
+        billingRow({ tenant_id: FOREIGN_TENANT, tax_id: "1132853869" }),
+        billingRow({ company: "Kowalska", tax_id: "526-025-02-74" }),
+      ],
+      companies: [
+        // Ten sam NIP w obcym tenancie stoi PIERWSZY - filtr tenanta go odcina.
+        company({ id: "crm-obca", tenant_id: FOREIGN_TENANT, tax_id: "5260250274" }),
+        company({ id: "crm-beta", name: "Beta", tax_id: "1132853869" }),
+        company({
+          id: "crm-kowalska",
+          name: "Kowalska Consulting Jan Kowalski",
+          tax_id: "PL 526 025 02 74",
+          city: "Sopot",
+        }),
       ],
     });
 
@@ -394,45 +489,36 @@ describe("loadCrmCompanyForUser - kartoteka firmy pokazywana w panelu faktur", (
 
     expect(result).toMatchObject({
       ok: true,
-      company: { companyId: "crm-acme", name: "acme, sp. z o.o.", city: "Poznań" },
+      company: {
+        companyId: "crm-kowalska",
+        name: "Kowalska Consulting Jan Kowalski",
+        city: "Sopot",
+      },
     });
-    // Dane do faktury czytane są wyłącznie w tenancie właściciela.
     expect(eqFilters(db.lastChain("billing_profiles")!)).toEqual([
       ["user_id", ME],
       ["tenant_id", TENANT],
     ]);
     const search = db.lastChain("crm_companies")!;
     expect(eqFilters(search)).toEqual([["tenant_id", TENANT]]);
-    // Kandydatów odsiewa baza (wzorzec po nazwie), nie przycięta porcja tenanta.
-    expect(search.argsOf("ilike")?.[0]).toBe("name");
+    // Kandydatów odsiewa baza (wzorzec po NIP-ie), nie przycięta porcja tenanta.
+    expect(search.argsOf("ilike")?.[0]).toBe("tax_id");
     expect(search.has("limit")).toBe(false);
-  });
-
-  it("gdy profil nie ma nazwy firmy, bierze ją z danych do faktury TEGO tenanta", async () => {
-    install({
-      profiles: [profile({ current_company: "   " })],
-      billing: [
-        billingRow({ tenant_id: FOREIGN_TENANT, company: "Delta" }),
-        billingRow({ company: " Gamma S.A. " }),
-      ],
-      companies: [
-        company({ id: "crm-delta", name: "Delta" }),
-        company({ id: "crm-gamma", name: "Gamma" }),
-      ],
-    });
-
-    const result = await loadCrmCompanyForUser(ME);
-
-    expect(result).toMatchObject({ ok: true, company: { companyId: "crm-gamma", name: "Gamma" } });
   });
 
   it.each([
     ["nie ma danych do faktury", [] as BillingRow[]],
-    ["dane do faktury mają pustą firmę", [billingRow({ company: "   " })]],
+    ["dane do faktury nie mają NIP-u", [billingRow({ tax_id: null })]],
+    ["NIP to same separatory", [billingRow({ tax_id: " - . " })]],
+    ["NIP nie ma ani litery, ani cyfry", [billingRow({ tax_id: "///" })]],
   ])(
-    "brak nazwy firmy (profil pusty, %s) -> no_company bez przeszukiwania kartoteki",
+    "bez relacji i bez użytecznego NIP-u (%s) -> no_company bez przeszukiwania kartoteki",
     async (_, billing) => {
-      install({ profiles: [profile()], billing, companies: [company()] });
+      install({
+        profiles: [profile({ current_company: "Acme" })],
+        billing,
+        companies: [company({ tax_id: "5260250274" })],
+      });
 
       await expect(loadCrmCompanyForUser(ME)).resolves.toEqual({
         ok: false,
@@ -442,12 +528,16 @@ describe("loadCrmCompanyForUser - kartoteka firmy pokazywana w panelu faktur", (
     },
   );
 
-  it("nazwa nie pasuje do żadnej firmy w tenancie -> no_company (bez podstawiania firmy „najbliższej”)", async () => {
+  it("NIP nie pasuje do żadnej firmy w tenancie -> no_company (bez podstawiania firmy „najbliższej”)", async () => {
     install({
-      profiles: [profile({ current_company: "Omega" })],
+      profiles: [profile()],
+      billing: [billingRow({ tax_id: "5260250274" })],
       companies: [
-        company({ id: "crm-obca", tenant_id: FOREIGN_TENANT, name: "Omega" }),
-        company({ id: "crm-beta", name: "Omega Plus" }),
+        company({ id: "crm-obca", tenant_id: FOREIGN_TENANT, tax_id: "5260250274" }),
+        // Te same cyfry w tej samej kolejności, ale inny klucz: unijny VAT ID
+        // z prefiksem DE i dłuższy numer. Wzorzec bazy je przepuszcza, klucz nie.
+        company({ id: "crm-de", tax_id: "DE5260250274" }),
+        company({ id: "crm-dluzszy", tax_id: "52602502741" }),
       ],
     });
 
@@ -455,41 +545,46 @@ describe("loadCrmCompanyForUser - kartoteka firmy pokazywana w panelu faktur", (
   });
 
   it.each([
-    // Litery klucza nie stoją w nazwie obok siebie (kropki, przecinek, forma
-    // prawna) - wzorzec „%acme holding%” odsiałby tę kartotekę jeszcze w bazie.
-    ["kropki i przecinek między literami", "Acme Holding", "A.C.M.E., Holding Sp. z o.o."],
-    // Polskie litery i wielkość liter: o ich zrównaniu decyduje JS, nie collation.
-    ["polskie znaki w innej wielkości liter", "Łódź Consulting", "ŁÓDŹ CONSULTING Sp. z o.o."],
+    ["myślniki", "526-025-02-74"],
+    ["spacje i prefiks PL", "PL 526 025 02 74"],
+    ["kropki i prefiks małymi literami", "pl526.025.02.74"],
   ])(
-    "wzorzec bazy przepuszcza każdą nazwę o tym samym kluczu: %s",
-    async (_, profileName, crmName) => {
+    "wzorzec bazy przepuszcza każdy zapis NIP-u o tym samym kluczu (jak _event_invoice_tax_key): %s",
+    async (_, crmTaxId) => {
       install({
-        profiles: [profile({ current_company: profileName })],
-        companies: [company({ id: "crm-cel", name: crmName })],
+        profiles: [profile()],
+        billing: [billingRow({ tax_id: "5260250274" })],
+        companies: [company({ id: "crm-cel", tax_id: crmTaxId })],
       });
 
       const result = await loadCrmCompanyForUser(ME);
 
-      expect(result).toMatchObject({ ok: true, company: { companyId: "crm-cel", name: crmName } });
+      expect(result).toMatchObject({
+        ok: true,
+        company: { companyId: "crm-cel", taxId: crmTaxId },
+      });
     },
   );
 
-  it("duży tenant: firma dalej niż 200 wierszy kartoteki nadal zostaje znaleziona po nazwie", async () => {
-    // Wcześniej odczyt brał DOWOLNE 200 firm tenanta (bez filtra nazwy i bez
-    // ORDER BY) i dopasowywał je dopiero w JS - firma spoza tej porcji dawała
-    // „brak firmy w CRM”, choć kartoteka istniała.
-    // Podobne nazwy (te same litery w tej samej kolejności), wszystkie starsze
-    // od szukanej firmy - po ORDER BY created_at stoi ona na samym końcu.
+  it("duży tenant: firma dalej niż pierwsza porcja kandydatów nadal zostaje znaleziona po NIP-ie", async () => {
+    // Numery podobne (te same cyfry w tej samej kolejności - wzorzec bazy ich
+    // nie odsieje), wszystkie starsze od szukanej firmy: po ORDER BY
+    // created_at stoi ona dopiero w trzeciej porcji.
     const lookalikes = Array.from({ length: 1200 }, (_, index) =>
-      company({ id: `crm-podobna-${index}`, name: `Acme Holding ${index}` }),
+      company({
+        id: `crm-podobna-${index}`,
+        name: `Podobna ${index}`,
+        tax_id: `5260250274${index}`,
+      }),
     );
     install({
-      profiles: [profile({ current_company: "ACME Sp. z o.o." })],
+      profiles: [profile()],
+      billing: [billingRow({ tax_id: "5260250274" })],
       companies: [
         ...lookalikes,
         company({
           id: "crm-acme",
-          name: "Acme",
+          tax_id: "526-025-02-74",
           city: "Poznań",
           created_at: "2026-06-01T00:00:00.000Z",
         }),
@@ -499,21 +594,24 @@ describe("loadCrmCompanyForUser - kartoteka firmy pokazywana w panelu faktur", (
     const result = await loadCrmCompanyForUser(ME);
 
     expect(result).toMatchObject({ ok: true, company: { companyId: "crm-acme", city: "Poznań" } });
-    for (const search of db.chainsFor("crm_companies")) {
+    const searches = db.chainsFor("crm_companies");
+    expect(searches).toHaveLength(3);
+    for (const search of searches) {
       expect(eqFilters(search)).toEqual([["tenant_id", TENANT]]);
     }
   });
 
-  it("kilka kartotek o tym samym kluczu nazwy: wybiera najstarszą - tę samą, którą wskazuje crm_ensure_member_company", async () => {
+  it("kilka kartotek o tym samym kluczu NIP-u: wybiera najstarszą - tę samą, którą wskazuje _event_invoice_crm_link", async () => {
     install({
-      profiles: [profile({ current_company: "Acme" })],
+      profiles: [profile()],
+      billing: [billingRow({ tax_id: "5260250274" })],
       companies: [
         // Kolejność „sterty” stawia nowszy duplikat pierwszy - bez ORDER BY
         // wynik zależałby od tego, jak baza akurat odda wiersze.
-        company({ id: "crm-nowszy", name: "acme", created_at: "2026-05-01T00:00:00.000Z" }),
+        company({ id: "crm-nowszy", tax_id: "5260250274", created_at: "2026-05-01T00:00:00.000Z" }),
         company({
           id: "crm-starszy",
-          name: "ACME Sp. z o.o.",
+          tax_id: "PL5260250274",
           created_at: "2026-02-01T00:00:00.000Z",
         }),
       ],
@@ -528,21 +626,18 @@ describe("loadCrmCompanyForUser - kartoteka firmy pokazywana w panelu faktur", (
     ).toEqual(["created_at", "id"]);
   });
 
-  it("nazwa z samej formy prawnej nie dopasowuje się do innej „firmy-widma” -> no_company bez przeszukiwania", async () => {
-    install({
-      profiles: [profile({ current_company: "Sp. z o.o." })],
-      companies: [company({ id: "crm-widmo", name: "S.A." })],
-    });
-
-    await expect(loadCrmCompanyForUser(ME)).resolves.toEqual({ ok: false, error: "no_company" });
-    expect(db.chainsFor("crm_companies")).toHaveLength(0);
-  });
-
   it("kartoteka odpowiada bez wierszy (data: null) -> no_company, nie wyjątek", async () => {
-    install({ profiles: [profile({ current_company: "Acme" })] });
+    install({ profiles: [profile()], billing: [billingRow()] });
     db.setResponse("crm_companies", ok(null));
 
     await expect(loadCrmCompanyForUser(ME)).resolves.toEqual({ ok: false, error: "no_company" });
+  });
+
+  it("błąd odczytu kartoteki przerywa operację wyjątkiem, zamiast udawać „brak firmy”", async () => {
+    install({ profiles: [profile({ current_company_id: "crm-acme" })], billing: [billingRow()] });
+    db.setResponse("crm_companies", fail("crm_companies: read failed"));
+
+    await expect(loadCrmCompanyForUser(ME)).rejects.toThrow("crm_companies: read failed");
   });
 });
 
@@ -560,6 +655,31 @@ describe("importCrmCompanyToBillingProfile - „Pobierz z CRM”", () => {
     expect(writes("billing_profiles", "upsert")).toHaveLength(0);
     expect(writes("profiles", "update")).toHaveLength(0);
     expect(scene.billing).toEqual(before);
+  });
+
+  it("INV-10: nie kopiuje do faktury danych firmy znalezionej po samej nazwie i nie przepina na nią profilu", async () => {
+    install({
+      profiles: [profile({ current_company: "Acme" })],
+      billing: [billingRow({ company: "Acme", tax_id: "5260250274" })],
+      companies: [
+        company({
+          id: "crm-cudza",
+          name: "Acme",
+          tax_id: "1132853869",
+          address: "ul. Zarządowa 1",
+          email: "zarzad@acme.example.com",
+        }),
+      ],
+    });
+    const before = structuredClone(scene.billing);
+
+    await expect(importCrmCompanyToBillingProfile(ME)).resolves.toEqual({
+      ok: false,
+      error: "no_company",
+    });
+    expect(scene.billing).toEqual(before);
+    expect(writes("billing_profiles", "upsert")).toHaveLength(0);
+    expect(myProfile()?.current_company_id).toBeNull();
   });
 
   it("profil traci tenanta między odczytem kartoteki a zapisem -> no_tenant i zero zapisów", async () => {
@@ -705,7 +825,7 @@ describe("importCrmCompanyToBillingProfile - „Pobierz z CRM”", () => {
     install({
       profiles: [profile({ current_company: "Acme" })],
       billing: [billingRow()],
-      companies: [company({ city: "Warszawa" })],
+      companies: [company({ tax_id: "5260250274", city: "Warszawa" })],
       failWrite: { billing_profiles: true },
     });
 
@@ -721,7 +841,7 @@ describe("importCrmCompanyToBillingProfile - „Pobierz z CRM”", () => {
   it("ponowny import jest idempotentny: jeden wiersz, te same dane", async () => {
     install({
       profiles: [profile({ current_company: "Acme" })],
-      billing: [],
+      billing: [billingRow({ company: "Acme" })],
       companies: [company({ tax_id: "5260250274", city: "Warszawa" })],
     });
 
@@ -963,9 +1083,9 @@ describe("pushBillingProfileToCrm - „Zapisz w CRM”", () => {
     expect(myProfile()?.current_company_id).toBeNull();
   });
 
-  it("aktualizacja nie trafiła w żaden wiersz (firmę usunięto w międzyczasie) -> no_company, profil NIE zostaje przepięty", async () => {
-    // Brak błędu PostgREST to jeszcze nie zapis: UPDATE po nieistniejącym id
-    // kończy się sukcesem z zerem wierszy.
+  it("RPC wskazało firmę, której już nie ma (usunięta w międzyczasie) -> no_company bez zapisu, profil NIE zostaje przepięty", async () => {
+    // Kartotekę czytamy przed zapisem (NIP i puste rubryki), więc zniknięcie
+    // firmy wychodzi jeszcze przed UPDATE.
     install({ profiles: [profile()], billing: [billingRow({ company: "Acme" })], companies: [] });
     h.rpc.respond = () => ({ data: [{ id: "crm-usunieta" }], error: null });
 
@@ -973,9 +1093,31 @@ describe("pushBillingProfileToCrm - „Zapisz w CRM”", () => {
       ok: false,
       error: "no_company",
     });
-    expect(writes("crm_companies", "update")).toHaveLength(1);
+    expect(writes("crm_companies", "update")).toHaveLength(0);
     expect(writes("profiles", "update")).toHaveLength(0);
     expect(myProfile()?.current_company_id).toBeNull();
+  });
+
+  it("aktualizacja nie trafiła w żaden wiersz (firmę usunięto między odczytem a zapisem) -> no_company, profil NIE zostaje przepięty", async () => {
+    // Brak błędu PostgREST to jeszcze nie zapis: UPDATE po nieistniejącym id
+    // kończy się sukcesem z zerem wierszy.
+    install({
+      profiles: [profile({ current_company_id: "crm-acme" })],
+      billing: [billingRow({ company: "Acme" })],
+      companies: [company()],
+    });
+    db.setResponse("crm_companies", (chain) => {
+      if (chain.has("update")) scene.companies = [];
+      return crmCompaniesResponder(chain);
+    });
+
+    await expect(pushBillingProfileToCrm(ME)).resolves.toEqual({
+      ok: false,
+      error: "no_company",
+    });
+    expect(writes("crm_companies", "update")).toHaveLength(1);
+    expect(writes("profiles", "update")).toHaveLength(0);
+    expect(myProfile()?.current_company_id).toBe("crm-acme");
   });
 
   it("profil powiązany ze WSPÓLNĄ firmą, a dane do faktury wskazują INNĄ firmę: kartoteka zespołu zostaje nietknięta", async () => {
@@ -1066,5 +1208,309 @@ describe("pushBillingProfileToCrm - „Zapisz w CRM”", () => {
     expect(second).toEqual(first);
     expect(h.rpc.calls).toHaveLength(1);
     expect(scene.companies).toHaveLength(1);
+    // Drugi zapis nie ma czego uzupełnić - nie wysyła pustego UPDATE.
+    expect(writes("crm_companies", "update")).toHaveLength(1);
+  });
+});
+
+// --- audyt INV-10: cudza kartoteka ------------------------------------------
+
+describe("pushBillingProfileToCrm - INV-10: zapis tylko uzupełnia i nie scala cudzych firm", () => {
+  // CO BYŁO ZŁE. `ensureCrmCompany` zwracał istniejącą firmę o tym samym
+  // kluczu nazwy, a UPDATE nadpisywał jej `tax_id`, adres, e-mail i telefon.
+  // Członek wpisywał w danych do faktury nazwę cudzej firmy i podmieniał jej
+  // NIP w CRM - a ten NIP zasila `_event_invoice_crm_link` (dopasowanie
+  // faktur wydarzeń do kartoteki po NIP-ie).
+  //
+  // KONTRAKT jak SQL przy wystawieniu faktury: relacja, potem NIP, potem
+  // nazwa; firma o tej nazwie z INNYM niepustym NIP-em to inny podmiot;
+  // uzupełniamy WYŁĄCZNIE puste rubryki.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(BASE_NOW);
+  });
+
+  /** Kartoteka cudzej firmy: niepusty NIP i kontakt, część rubryk pusta. */
+  const foreign = () =>
+    company({
+      id: "crm-cudza",
+      name: "Acme Sp. z o.o.",
+      tax_id: "1132853869",
+      address: "ul. Zarządowa 1",
+      city: "Warszawa",
+      postal_code: null,
+      email: "zarzad@acme.example.com",
+      phone: null,
+    });
+
+  /** Czy jakikolwiek UPDATE celował w daną kartotekę. */
+  const updatesOf = (id: string) =>
+    writes("crm_companies", "update").filter((chain) =>
+      eqFilters(chain).some(([column, value]) => column === "id" && value === id),
+    );
+
+  it("firma o tej samej nazwie z INNYM NIP-em zostaje nietknięta - powstaje osobna kartoteka z NIP-em członka", async () => {
+    install({
+      profiles: [profile()],
+      billing: [billingRow({ company: "Acme", tax_id: "5260250274" })],
+      companies: [foreign()],
+    });
+    h.rpc.respond = ensureCompanyRpc("crm-nieuzyte");
+
+    const result = await pushBillingProfileToCrm(ME);
+
+    // Cudza kartoteka bez zmian - także jej PUSTE rubryki (kod, telefon) nie
+    // dostały danych członka, bo to nie jego firma.
+    expect(companyById("crm-cudza")).toEqual(foreign());
+    expect(updatesOf("crm-cudza")).toHaveLength(0);
+    // Dedup nazw wskazał cudzą firmę (forma prawna znika z klucza)...
+    expect(h.rpc.calls.map((call) => call.args.p_name)).toEqual(["Acme"]);
+    // ...a zapis założył OSOBNĄ kartotekę z nazwą i danymi członka.
+    const [insert] = writes("crm_companies", "insert");
+    expect(insert.argsOf("insert")?.[0]).toEqual({
+      tenant_id: TENANT,
+      name: "Acme",
+      created_by: ME,
+      tax_id: "5260250274",
+      address: "ul. Checkoutowa 7",
+      city: "Gdańsk",
+      postal_code: "80-001",
+      country: "DE",
+      email: "anna@example.com",
+      phone: "+48 600 000 001",
+    });
+    expect(myProfile()).toMatchObject({ current_company_id: INSERTED_ID, current_company: "Acme" });
+    expect(result).toMatchObject({
+      ok: true,
+      company: { companyId: INSERTED_ID, name: "Acme", taxId: "5260250274" },
+    });
+  });
+
+  it("identyczna nazwa i inny NIP: unikat nazwy nie pozwala na osobną kartotekę -> tax_id_conflict, nic się nie zmienia", async () => {
+    const taken = company({
+      id: "crm-cudza",
+      name: "Acme",
+      tax_id: "1132853869",
+      email: "zarzad@acme.example.com",
+    });
+    install({
+      profiles: [profile({ current_company: "Moja Stara Firma" })],
+      billing: [billingRow({ company: " acme ", tax_id: "5260250274" })],
+      companies: [taken],
+    });
+    const before = structuredClone(scene.companies);
+    h.rpc.respond = ensureCompanyRpc("crm-nieuzyte");
+
+    await expect(pushBillingProfileToCrm(ME)).resolves.toEqual({
+      ok: false,
+      error: "tax_id_conflict",
+    });
+    expect(scene.companies).toEqual(before);
+    expect(writes("crm_companies", "update")).toHaveLength(0);
+    expect(writes("profiles", "update")).toHaveLength(0);
+    expect(myProfile()).toMatchObject({
+      current_company_id: null,
+      current_company: "Moja Stara Firma",
+    });
+  });
+
+  it("NIP zapisany inaczej (prefiks PL, separatory) to TEN SAM podmiot - uzupełnia jego puste rubryki, bez nowej kartoteki", async () => {
+    install({
+      profiles: [profile()],
+      billing: [billingRow({ company: "Acme", tax_id: "5260250274" })],
+      companies: [foreign()],
+    });
+    scene.companies[0].tax_id = "PL 526-025-02-74";
+    h.rpc.respond = ensureCompanyRpc("crm-nieuzyte");
+
+    const result = await pushBillingProfileToCrm(ME);
+
+    // NIP przed nazwą: kartoteka znaleziona po NIP-ie, bez RPC i bez INSERT.
+    expect(h.rpc.calls).toHaveLength(0);
+    expect(writes("crm_companies", "insert")).toHaveLength(0);
+    expect(result).toMatchObject({ ok: true, company: { companyId: "crm-cudza" } });
+  });
+
+  it("firma dopasowana uczciwie (ten sam NIP) dostaje WYŁĄCZNIE puste rubryki - wypełnionych nie nadpisuje", async () => {
+    install({
+      profiles: [profile({ current_company_id: "crm-acme", current_company: "Acme Sp. z o.o." })],
+      billing: [billingRow({ company: "Acme", tax_id: "5260250274" })],
+      companies: [
+        company({
+          name: "Acme Sp. z o.o.",
+          tax_id: "PL5260250274",
+          address: "ul. Firmowa 1",
+          city: null,
+          postal_code: "00-001",
+          country: "Polska",
+          email: "biuro@acme.example.com",
+          // Same białe znaki to też pusta rubryka (jak `NULLIF(btrim(...), '')`).
+          phone: "  ",
+        }),
+      ],
+    });
+
+    const result = await pushBillingProfileToCrm(ME);
+
+    const [update] = writes("crm_companies", "update");
+    expect(update.argsOf("update")?.[0]).toEqual({
+      city: "Gdańsk",
+      phone: "+48 600 000 001",
+      updated_at: new Date(BASE_NOW).toISOString(),
+    });
+    // Warunek zapisu: obie rubryki wciąż mają wartość z odczytu.
+    expect(update.calls.filter((call) => call.method === "is").map((c) => c.args)).toEqual([
+      ["city", null],
+    ]);
+    expect(eqFilters(update)).toEqual([
+      ["id", "crm-acme"],
+      ["tenant_id", TENANT],
+      ["phone", "  "],
+    ]);
+    expect(result).toEqual({
+      ok: true,
+      company: {
+        companyId: "crm-acme",
+        name: "Acme Sp. z o.o.",
+        taxId: "PL5260250274",
+        addressLine1: "ul. Firmowa 1",
+        city: "Gdańsk",
+        postalCode: "00-001",
+        country: "Polska",
+        email: "biuro@acme.example.com",
+        phone: "+48 600 000 001",
+      },
+    });
+  });
+
+  it("NIP przed nazwą: firma o NIP-ie członka wygrywa z firmą o tej samej nazwie, a ta zostaje nietknięta", async () => {
+    install({
+      profiles: [profile()],
+      billing: [billingRow({ company: "Acme", tax_id: "5260250274" })],
+      companies: [
+        foreign(),
+        company({ id: "crm-holding", name: "Acme Holding", tax_id: "526-025-02-74" }),
+      ],
+    });
+
+    const result = await pushBillingProfileToCrm(ME);
+
+    expect(h.rpc.calls).toHaveLength(0);
+    expect(companyById("crm-cudza")).toEqual(foreign());
+    expect(companyById("crm-holding")).toMatchObject({
+      name: "Acme Holding",
+      tax_id: "526-025-02-74",
+      city: "Gdańsk",
+    });
+    expect(myProfile()).toMatchObject({
+      current_company_id: "crm-holding",
+      current_company: "Acme Holding",
+    });
+    expect(result).toMatchObject({ ok: true, company: { companyId: "crm-holding" } });
+  });
+
+  it("powiązana firma o tej samej nazwie, ale z INNYM NIP-em: nie dopisuje się do niej, tylko zakłada osobną kartotekę", async () => {
+    // Członek wybrał w profilu firmę zespołu „Acme”, a fakturuje na inną
+    // spółkę „Acme Sp. z o.o.” z własnym NIP-em. Relacja z profilu nie czyni
+    // tych dwóch podmiotów jedną kartoteką.
+    const linked = company({ id: "crm-acme", name: "Acme", tax_id: "1132853869" });
+    install({
+      profiles: [profile({ current_company_id: "crm-acme", current_company: "Acme" })],
+      billing: [billingRow({ company: "Acme Sp. z o.o.", tax_id: "5260250274" })],
+      companies: [linked],
+    });
+    h.rpc.respond = ensureCompanyRpc("crm-nieuzyte");
+
+    const result = await pushBillingProfileToCrm(ME);
+
+    expect(companyById("crm-acme")).toEqual(linked);
+    expect(updatesOf("crm-acme")).toHaveLength(0);
+    expect(companyById(INSERTED_ID)).toMatchObject({
+      name: "Acme Sp. z o.o.",
+      tax_id: "5260250274",
+    });
+    expect(result).toMatchObject({ ok: true, company: { companyId: INSERTED_ID } });
+  });
+
+  it("zespół wypełnił rubrykę między odczytem a zapisem: zapis jej nie nadpisuje, uzupełnia tylko resztę", async () => {
+    install({
+      profiles: [profile({ current_company_id: "crm-acme", current_company: "Acme" })],
+      billing: [billingRow({ company: "Acme", tax_id: "5260250274" })],
+      companies: [
+        company({
+          tax_id: "5260250274",
+          address: "ul. Firmowa 1",
+          postal_code: "00-001",
+          country: "PL",
+          phone: "+48 22 000 00 00",
+          // Puste: e-mail i miasto.
+        }),
+      ],
+    });
+    let updates = 0;
+    db.setResponse("crm_companies", (chain) => {
+      // Pierwszy UPDATE wyprzedza zespół: w CRM pojawia się e-mail firmy.
+      if (chain.has("update") && ++updates === 1) {
+        scene.companies[0].email = "zespol@acme.example.com";
+      }
+      return crmCompaniesResponder(chain);
+    });
+
+    const result = await pushBillingProfileToCrm(ME);
+
+    const [missed, retried] = writes("crm_companies", "update");
+    expect(missed.argsOf("update")?.[0]).toMatchObject({
+      city: "Gdańsk",
+      email: "anna@example.com",
+    });
+    expect(retried.argsOf("update")?.[0]).toEqual({
+      city: "Gdańsk",
+      updated_at: new Date(BASE_NOW).toISOString(),
+    });
+    expect(companyById("crm-acme")).toMatchObject({
+      email: "zespol@acme.example.com",
+      city: "Gdańsk",
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      company: { email: "zespol@acme.example.com", city: "Gdańsk" },
+    });
+  });
+
+  it("kartoteka zmienia się przy każdej próbie: po wyczerpaniu prób no_company, profil NIE zostaje przepięty", async () => {
+    install({
+      profiles: [profile({ current_company_id: "crm-acme", current_company: "Acme" })],
+      billing: [billingRow({ company: "Acme", tax_id: "5260250274" })],
+      companies: [company({ tax_id: "5260250274" })],
+    });
+    let updates = 0;
+    db.setResponse("crm_companies", (chain) => {
+      // Rubryka wciąż „pusta”, ale za każdym razem w innym zapisie białych
+      // znaków - warunek zapisu chybia, a ponowienie nie może trwać w nieskończoność.
+      if (chain.has("update")) scene.companies[0].city = " ".repeat(++updates);
+      return crmCompaniesResponder(chain);
+    });
+
+    await expect(pushBillingProfileToCrm(ME)).resolves.toEqual({
+      ok: false,
+      error: "no_company",
+    });
+    expect(writes("crm_companies", "update")).toHaveLength(3);
+    expect(writes("profiles", "update")).toHaveLength(0);
+  });
+
+  it("błąd odczytu przy szukaniu po NIP-ie przerywa zapis - bez zakładania duplikatu po nazwie", async () => {
+    // „Nie udało się przeczytać” potraktowane jak „nie ma firmy o tym NIP-ie”
+    // skierowałoby zapis do dedupu nazw i dało dwie kartoteki tego podmiotu.
+    install({ profiles: [profile()], billing: [billingRow({ company: "Acme" })] });
+    db.setResponse("crm_companies", (chain) =>
+      chain.has("ilike") ? fail("crm_companies: read failed") : crmCompaniesResponder(chain),
+    );
+    h.rpc.respond = ensureCompanyRpc("crm-duplikat");
+
+    await expect(pushBillingProfileToCrm(ME)).rejects.toThrow("crm_companies: read failed");
+    expect(h.rpc.calls).toHaveLength(0);
+    expect(writes("crm_companies", "insert")).toHaveLength(0);
+    expect(writes("crm_companies", "update")).toHaveLength(0);
   });
 });

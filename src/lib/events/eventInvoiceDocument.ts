@@ -6,7 +6,9 @@
 // `lines`, `corrects`, a panel dodatkowo `sources`, `corrections`,
 // `current_lines` (pozycje wystawionej faktury PO jej korektach - podstawa
 // kolejnej korekty) i `correction_hint` (sprzedaz skurczyla sie po
-// wystawieniu - powod albo NULL). Typ
+// wystawieniu - powod albo NULL), `ksef_events` (dziennik stanu KSeF),
+// `rate_gross_before` (szkic korekty: brutto w stawce przed nia) i `fx_need`
+// (kurs NBP potrzebny do wystawienia, migracja 20261012100000). Typ
 // generowany widzi w tym wylacznie `Json`, wiec odczyt jest JAWNY, pole po
 // polu, z bezpiecznym zastepstwem - zadnego rzutowania wiersza na
 // recznie napisany interfejs (`check:db-row-casts`).
@@ -33,7 +35,13 @@ import {
   type EventInvoiceSourceKind,
   type EventInvoiceStatus,
 } from "@/lib/events/eventInvoiceEnums";
-import { EVENT_INVOICE_VAT_RATES, type EventInvoiceVatRate } from "@/lib/events/eventInvoiceMath";
+import {
+  EVENT_INVOICE_VAT_RATES,
+  isEventInvoiceVatRate,
+  type EventInvoiceRateGross,
+  type EventInvoiceVatRate,
+  type EventInvoiceVatSummaryRow,
+} from "@/lib/events/eventInvoiceMath";
 import { buyerDraftFromColumns, type InvoiceBuyerDraft } from "@/lib/events/eventInvoiceBuyerDraft";
 
 import {
@@ -98,6 +106,45 @@ export interface EventInvoiceCurrentLine {
   vatRate: EventInvoiceVatRate;
 }
 
+/** Wiersz podsumowania stawek ZAMROZONY na dokumencie (+ VAT w PLN przy walucie obcej). */
+export interface EventInvoiceDocumentVatRow extends EventInvoiceVatSummaryRow {
+  /** VAT w PLN po kursie NBP (art. 106e ust. 11) - tylko dokument w walucie obcej. */
+  vatPlnCents: number | null;
+}
+
+/** Kurs sredni NBP z dokumentu (art. 31a ustawy o VAT). */
+export interface EventInvoiceFx {
+  rate: number;
+  tableNo: string;
+  effectiveDate: string;
+  vatPlnCents: number;
+}
+
+/** Wpis dziennika stanu KSeF (`event_invoice_ksef_events`). */
+export interface EventInvoiceKsefEvent {
+  fromStatus: EventInvoiceKsefStatus | null;
+  toStatus: EventInvoiceKsefStatus;
+  fromNumber: string | null;
+  toNumber: string | null;
+  note: string;
+  createdAt: string;
+}
+
+/** Wynik weryfikacji VIES nabywcy szkicu. */
+export interface EventInvoiceVies {
+  subject: string;
+  valid: boolean;
+  requestId: string | null;
+  checkedAt: string;
+}
+
+/** Dzien kursu NBP potrzebny do wystawienia szkicu w walucie obcej. */
+export interface EventInvoiceFxNeed {
+  currency: string;
+  rateDate: string;
+  loaded: boolean;
+}
+
 export interface EventInvoiceCorrectionRef {
   id: string;
   number: string | null;
@@ -137,12 +184,40 @@ export interface EventInvoiceDocument {
   seller: EventInvoiceSeller;
   footerNote: string;
   lines: EventInvoiceDocumentLine[];
-  corrects: { id: string; number: string | null; issueDate: string | null } | null;
+  /** Podsumowanie stawek od SUMY w stawce (INV-16) - o kwocie podatku decyduje ono. */
+  vatSummary: EventInvoiceDocumentVatRow[];
+  /** Kurs NBP i VAT w PLN (INV-06); `null` = dokument w PLN albo szkic. */
+  fx: EventInvoiceFx | null;
+  /** Podstawa "np" zapisana na szkicu (pusta = z ustawien wystawcy). */
+  npBasis: string;
+  /** Podstawa "np", ktora trafi (albo trafila) na dokument. */
+  npBasisEffective: string;
+  /** Decyzja szkicu o odwrotnym obciazeniu (`null` = automatycznie). */
+  reverseCharge: boolean | null;
+  /** Czy dokument niesie adnotacje "odwrotne obciazenie". */
+  reverseChargeEffective: boolean;
+  buyerVies: EventInvoiceVies | null;
+  /** Doreczenie nabywcy (INV-08): mail o wystawieniu / pobranie z profilu. */
+  buyerNotifiedAt: string | null;
+  buyerDownloadedAt: string | null;
+  corrects: {
+    id: string;
+    number: string | null;
+    issueDate: string | null;
+    /** Numer KSeF faktury korygowanej (INV-17). */
+    ksefNumber: string | null;
+  } | null;
   sources: EventInvoiceDocumentSource[];
   corrections: EventInvoiceCorrectionRef[];
   currentLines: EventInvoiceCurrentLine[];
   /** Tylko panel: dlaczego wystawiona faktura wymaga korekty (NULL = nic). */
   correctionHint: EventInvoiceCorrectionHint | null;
+  /** Tylko panel: dziennik stanu KSeF (najstarsze pierwsze). */
+  ksefEvents: EventInvoiceKsefEvent[];
+  /** Tylko panel, szkic korekty: brutto w stawce stanu przed korekta. */
+  rateGrossBefore: EventInvoiceRateGross;
+  /** Tylko panel: kurs NBP, ktorego wymaga wystawienie szkicu. */
+  fxNeed: EventInvoiceFxNeed | null;
 }
 
 function parseSeller(value: Json | undefined): EventInvoiceSeller {
@@ -204,6 +279,77 @@ function parseCurrentLine(value: Json): EventInvoiceCurrentLine {
     unitGrossCents: jsonNumber(row.unit_gross_cents),
     vatRate: pickEnum(EVENT_INVOICE_VAT_RATES, row.vat_rate),
   };
+}
+
+/**
+ * Wiersz podsumowania stawek. Nieznana stawka = wiersz POMINIETY, nie
+ * "pierwsza stawka ze zbioru": podmiana dopisalaby kwoty do innej stawki
+ * i wydrukowala na fakturze podatek, ktorego baza nie policzyla.
+ */
+function parseVatRow(value: Json): EventInvoiceDocumentVatRow[] {
+  const row = jsonRecord(value);
+  const rate = row.vat_rate;
+  if (typeof rate !== "string" || !isEventInvoiceVatRate(rate)) return [];
+  return [
+    {
+      vatRate: rate,
+      netCents: jsonNumber(row.net_cents),
+      vatCents: jsonNumber(row.vat_cents),
+      grossCents: jsonNumber(row.gross_cents),
+      vatPlnCents: typeof row.vat_pln_cents === "number" ? row.vat_pln_cents : null,
+    },
+  ];
+}
+
+function parseKsefEvent(value: Json): EventInvoiceKsefEvent {
+  const row = jsonRecord(value);
+  return {
+    fromStatus:
+      typeof row.from_status === "string"
+        ? pickEnum(EVENT_INVOICE_KSEF_STATUSES, row.from_status)
+        : null,
+    toStatus: pickEnum(EVENT_INVOICE_KSEF_STATUSES, row.to_status),
+    fromNumber: jsonTextOrNull(row.from_number),
+    toNumber: jsonTextOrNull(row.to_number),
+    note: jsonText(row.note),
+    createdAt: jsonText(row.created_at),
+  };
+}
+
+function parseRateGross(value: Json | undefined): EventInvoiceRateGross {
+  const out: EventInvoiceRateGross = {};
+  for (const [rate, gross] of Object.entries(jsonRecord(value))) {
+    if (isEventInvoiceVatRate(rate) && typeof gross === "number") out[rate] = gross;
+  }
+  return out;
+}
+
+function parseFx(invoice: Record<string, Json | undefined>): EventInvoiceFx | null {
+  const rate = invoice.fx_rate;
+  const tableNo = jsonText(invoice.fx_table_no);
+  const effectiveDate = jsonText(invoice.fx_effective_date);
+  if (typeof rate !== "number" || rate <= 0 || tableNo === "" || effectiveDate === "") return null;
+  return { rate, tableNo, effectiveDate, vatPlnCents: jsonNumber(invoice.vat_pln_cents) };
+}
+
+function parseVies(invoice: Record<string, Json | undefined>): EventInvoiceVies | null {
+  const subject = jsonText(invoice.buyer_vies_subject);
+  const checkedAt = jsonText(invoice.buyer_vies_checked_at);
+  if (subject === "" || checkedAt === "") return null;
+  return {
+    subject,
+    valid: jsonBool(invoice.buyer_vies_valid),
+    requestId: jsonTextOrNull(invoice.buyer_vies_request_id),
+    checkedAt,
+  };
+}
+
+function parseFxNeed(value: Json | undefined): EventInvoiceFxNeed | null {
+  const row = jsonRecord(value);
+  const currency = jsonText(row.currency);
+  const rateDate = jsonText(row.rate_date);
+  if (currency === "" || rateDate === "") return null;
+  return { currency, rateDate, loaded: jsonBool(row.loaded) };
 }
 
 function parseCorrection(value: Json): EventInvoiceCorrectionRef {
@@ -269,6 +415,15 @@ export function parseInvoiceDocument(value: Json | null): EventInvoiceDocument |
     seller: parseSeller(root.seller),
     footerNote: jsonText(root.footer_note),
     lines: jsonList(root.lines).map(parseLine),
+    vatSummary: jsonList(root.vat_summary).flatMap(parseVatRow),
+    fx: parseFx(invoice),
+    npBasis: jsonText(invoice.np_basis),
+    npBasisEffective: jsonText(invoice.np_basis_effective),
+    reverseCharge: typeof invoice.reverse_charge === "boolean" ? invoice.reverse_charge : null,
+    reverseChargeEffective: jsonBool(invoice.reverse_charge_effective),
+    buyerVies: parseVies(invoice),
+    buyerNotifiedAt: jsonTextOrNull(invoice.buyer_notified_at),
+    buyerDownloadedAt: jsonTextOrNull(invoice.buyer_downloaded_at),
     corrects:
       correctsId === ""
         ? null
@@ -276,6 +431,7 @@ export function parseInvoiceDocument(value: Json | null): EventInvoiceDocument |
             id: correctsId,
             number: jsonTextOrNull(corrects.number),
             issueDate: jsonTextOrNull(corrects.issue_date),
+            ksefNumber: jsonTextOrNull(corrects.ksef_number),
           },
     sources: jsonList(root.sources).map(parseSource),
     corrections: jsonList(root.corrections).map(parseCorrection),
@@ -284,5 +440,8 @@ export function parseInvoiceDocument(value: Json | null): EventInvoiceDocument |
       typeof root.correction_hint === "string"
         ? pickEnum(EVENT_INVOICE_CORRECTION_HINTS, root.correction_hint)
         : null,
+    ksefEvents: jsonList(root.ksef_events).map(parseKsefEvent),
+    rateGrossBefore: parseRateGross(root.rate_gross_before),
+    fxNeed: parseFxNeed(root.fx_need),
   };
 }

@@ -798,6 +798,9 @@ async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): 
     capturedAmountCents: Number.isFinite(capturedCents) ? capturedCents : null,
     currency: str("currencyCode") ?? totals?.currencyCode ?? null,
     environment: env,
+    // Tylko zwrot, który nie doszedł (`refund.failed`) - kod trafia do
+    // dziennika zwrotów i alarmu, patrz `escalateFailedRefund`.
+    failureReason: str("failureReason"),
   });
 }
 
@@ -805,10 +808,13 @@ async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): 
  * Zapis faktury dla transakcji. Zwraca `true`, gdy coś faktycznie zapisano -
  * `transaction.updated` bez zmian traktujemy jako pominięte zdarzenie.
  *
- * `fallbackStatus` - status, gdy ładunek go nie niesie. Sesja Checkout nie ma
- * pola statusu (ma je tylko faktura), a `transaction.completed` znaczy
- * „opłacone" - bez tego dokument zakupu jednorazowego wisiał jako `pending`.
- * Porażka dokumentu nigdy nie wywraca obsługi zdarzenia (to nie są pieniądze).
+ * NIEUDANY ZAPIS TO BŁĄD ZDARZENIA, nie „pominięte". Rejestr dokumentów jest
+ * dowodem sprzedaży dla członka i księgowości; zdarzenie zamknięte jako
+ * przetworzone mimo braku dokumentu nigdy by nie wróciło (Stripe ponawia
+ * wyłącznie po odpowiedzi innej niż 2xx). Rzucamy więc - trasa webhooka
+ * oznacza zdarzenie jako `failed`, oddaje 500, a operator dostarcza je
+ * ponownie (zapis jest idempotentny). Alarm dla administratorów najemcy
+ * wysyła już `recordTransactionDocument`.
  */
 async function recordDocument(
   data: unknown,
@@ -819,10 +825,10 @@ async function recordDocument(
     await import("@/lib/billing/billingDocuments.server");
   const input = documentInputFromTransaction(data, env, fallbackStatus);
   if (!input) return false;
-  const outcome = await recordTransactionDocument(input).catch((e: unknown) => {
-    console.error("[payments] billing document failed", input.transactionId, e);
-    return "skipped" as const;
-  });
+  const outcome = await recordTransactionDocument(input);
+  if (outcome === "failed") {
+    throw new Error(`billing document not recorded: ${input.transactionId}`);
+  }
   return outcome !== "skipped";
 }
 
@@ -1037,19 +1043,12 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
     case "transaction.past_due":
       await handleTransaction(input.data as TransactionData, env, occurredAt, "failed");
       return "processed";
-    case "transaction.completed": {
-      const txn = input.data as TransactionData;
-      await handleTransaction(txn, env, occurredAt, "paid");
-      // Dokument PO realizacji (PAY-12): właściciela zakupu jednorazowego
-      // ustala zamówienie po `provider_intent_id`, które stempluje dopiero
-      // realizacja - zapis przed nią nie znajdował właściciela i zakup nie
-      // dostawał dokumentu nigdy. Pierwsza sesja Checkout subskrypcji
-      // dokumentu NIE zakłada: rozliczeniem jest faktura (`in_...`), którą
-      // zapisze jej własne `invoice.paid` - inaczej obok faktury wisiałby
-      // fantom `cs_...`.
-      if (!(txn.source === "checkout_session" && txn.subscriptionId)) {
-        await recordDocument(input.data, env, "completed");
-      }
+    // Najpierw skutki płatności, potem dokument: awaria rejestru dokumentów
+    // (ponowienie zdarzenia) nie może wstrzymać odblokowania konta po
+    // zapłacie. Skutki są idempotentne po identyfikatorze transakcji.
+    case "transaction.completed":
+      await handleTransaction(input.data as TransactionData, env, occurredAt, "paid");
+      await recordDocument(input.data, env);
       return "processed";
     }
     // Porzucona sesja Checkout: zamówienie się zamyka, a rezerwacja kuponu

@@ -34,8 +34,13 @@ import { replaceStrokeLetters } from "@/lib/text/strokeLetters";
 // liczniki klubów). Ta sama naprawa co w `admin.events.tsx`: trasa oddaje
 // sam kontent.
 export const Route = createFileRoute("/admin/web-stories")({
-  head: () => adminPageHead("Web stories", "Manage stories and their publication settings. New European Strategies administration."),
-  component: Page });
+  head: () =>
+    adminPageHead(
+      "Web stories",
+      "Manage stories and their publication settings. New European Strategies administration.",
+    ),
+  component: Page,
+});
 
 /** Klucz listy panelu i PREFIKS publicznej przestrzeni historii (`lib/queries/webStories`). */
 const ADMIN_KEY = ["admin", "web-stories"] as const;

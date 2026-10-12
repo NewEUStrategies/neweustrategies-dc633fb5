@@ -483,6 +483,38 @@ describe("buildReconcileReport - przypisanie zdarzenia do najemcy", () => {
     expect(argsOf("payment_orders", "in")).toContainEqual(["provider_payment_intent_id", ["pi_1"]]);
   });
 
+  it("zgubiony refund.failed jest rozbieżnością do naprawy (INV-19c), refund.updated - nie", async () => {
+    // Bez tego zdarzenia zlecenie zwrotu zostaje w `submitted`, choć pieniądze
+    // nie wróciły. Obiekt Refund wiąże się z zamówieniem po `payment_intent`.
+    const refund = { id: "re_1", object: "refund", payment_intent: "pi_1", status: "failed" };
+    stripe.eventsList.mockResolvedValue({
+      data: [
+        {
+          id: "evt_refund_failed",
+          type: "refund.failed",
+          created: EVENT_CREATED,
+          data: { object: refund },
+        },
+        {
+          id: "evt_refund_updated",
+          type: "refund.updated",
+          created: EVENT_CREATED,
+          data: { object: refund },
+        },
+      ],
+      has_more: false,
+    });
+    setRows("payment_orders", [
+      owningOrderRow({ provider_customer_id: null, provider_payment_intent_id: "pi_1" }),
+    ]);
+
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
+
+    expect(report.issues.map((i) => [i.reference, i.eventType, i.repairable])).toEqual([
+      ["evt_refund_failed", "refund.failed", true],
+    ]);
+  });
+
   it("nieczytelna sonda właściciela przerywa raport, zamiast zgadywać", async () => {
     stripe.eventsList.mockResolvedValue({
       data: [stripeEvent("evt_1", "invoice.paid")],

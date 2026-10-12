@@ -52,6 +52,7 @@ const SETTINGS_INPUT = {
   paymentDays: 14,
   defaultVatRate: "23" as const,
   vatExemptBasis: "",
+  vatNpBasis: "",
   footerNote: "",
   defaultLocale: "pl" as const,
   confirmSeller: false,

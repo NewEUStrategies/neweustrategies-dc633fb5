@@ -3,13 +3,15 @@
 // Edytor szkicu dokumentu w oknie. Pilnujemy: stany odczytu (ladowanie,
 // odmowa, dokument juz wystawiony), podglad sum na zywo (lustro bazy),
 // ostrzezenie o rozjezdzie z zamowieniami, jawny zapis calego formularza,
-// wystawienie z potwierdzeniem (i zapis przed nim, gdy sa zmiany), PDF podgladu.
+// wystawienie z potwierdzeniem (i zapis przed nim, gdy sa zmiany), PDF podgladu,
+// sekcja "Podatek" (podstawa "np", odwrotne obciazenie, VIES - INV-12),
+// informacja o kursie NBP (INV-06) i podglad korekty od sum w stawce (INV-16).
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { parseInvoiceDocument, type EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
-import { INVOICE_IDS, invoiceDocumentJson } from "@/test/events/invoiceFixtures";
+import { INVOICE_IDS, invoiceDocumentJson, invoiceLineJson } from "@/test/events/invoiceFixtures";
 
 const h = vi.hoisted(() => ({ confirm: true, confirmCalls: 0 }));
 
@@ -30,6 +32,7 @@ const api = vi.hoisted(() => ({
   fetchEventInvoice: vi.fn(),
   updateInvoiceDraft: vi.fn(),
   issueInvoice: vi.fn(),
+  verifyInvoiceVies: vi.fn(),
 }));
 vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/events/eventInvoicesApi")>()),
@@ -304,6 +307,165 @@ describe("EventInvoiceDraftDialog", () => {
     fireEvent.click(await screen.findByRole("button", { name: "adminEventInvoices.draft.issue" }));
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("pozycje polskie: bez sekcji podatkowej i bez informacji o kursie", async () => {
+    api.fetchEventInvoice.mockResolvedValue(draftDoc());
+    open();
+    await screen.findByText("adminEventInvoices.draft.linesSection");
+    expect(screen.queryByText("adminEventInvoices.draft.tax.section")).toBeNull();
+    expect(screen.queryByText(/adminEventInvoices\.draft\.fx\./)).toBeNull();
+  });
+
+  it("np bez podstawy: sekcja podatkowa z ostrzezeniem; podstawa ze szkicu trafia do zapisu", async () => {
+    api.fetchEventInvoice.mockResolvedValue(draftDoc());
+    api.updateInvoiceDraft.mockResolvedValue(INVOICE_IDS.draft);
+    open();
+    fireEvent.change(
+      await screen.findByLabelText("adminEventInvoices.draft.line.vatRate", {
+        selector: `#invoice-line-${INVOICE_IDS.line1}-rate`,
+      }),
+      { target: { value: "np" } },
+    );
+    expect(screen.getByText("adminEventInvoices.draft.tax.section")).toBeTruthy();
+    expect(screen.getByText("adminEventInvoices.errors.vatNpBasisRequired")).toBeTruthy();
+    // Nabywca z Polski: auto = bez odwrotnego obciazenia.
+    expect(screen.getByText("adminEventInvoices.draft.tax.reverseChargeOff")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.draft.tax.npBasis"), {
+      target: { value: " art. 28b " },
+    });
+    expect(screen.queryByText("adminEventInvoices.errors.vatNpBasisRequired")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "adminEventInvoices.draft.save" }));
+    await waitFor(() => expect(api.updateInvoiceDraft).toHaveBeenCalled());
+    expect(api.updateInvoiceDraft.mock.calls[0]?.[0]).toMatchObject({
+      npBasis: "art. 28b",
+      reverseCharge: null,
+    });
+  });
+
+  it("firma z UE + np: odwrotne obciazenie auto, podstawa z ustawien, weryfikacja VIES", async () => {
+    api.fetchEventInvoice.mockResolvedValue(
+      draftDoc({
+        invoice: {
+          buyer_country: "DE",
+          buyer_tax_id: "DE123456789",
+          np_basis: "",
+          np_basis_effective: "art. 28b ustawy o VAT",
+          reverse_charge: null,
+        },
+        lines: [invoiceLineJson({ vat_rate: "np", vat_cents: 0, net_cents: 12300 })],
+      }),
+    );
+    api.verifyInvoiceVies.mockResolvedValue({
+      valid: true,
+      requestId: "WAPI1",
+      name: "ACME GMBH",
+      address: "BERLIN",
+    });
+    open();
+    expect(
+      await screen.findByText(
+        "adminEventInvoices.draft.tax.npBasisFromSettings(basis=art. 28b ustawy o VAT)",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("adminEventInvoices.draft.tax.reverseChargeOn")).toBeTruthy();
+    expect(screen.getByText("adminEventInvoices.draft.tax.viesNone")).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventInvoices.draft.tax.viesVerify" }),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.draft.tax.viesValid"),
+    );
+    // Szkic bez zmian: VIES pyta o zapisanego nabywce bez dodatkowego zapisu.
+    expect(api.updateInvoiceDraft).not.toHaveBeenCalled();
+    expect(api.verifyInvoiceVies.mock.calls[0]?.[0]).toBe(INVOICE_IDS.invoice);
+  });
+
+  it("VIES: niezapisana zmiana idzie najpierw do bazy; niedostepnosc = toast z mapy", async () => {
+    api.fetchEventInvoice.mockResolvedValue(
+      draftDoc({
+        invoice: {
+          buyer_country: "FR",
+          buyer_tax_id: "FR40303265045",
+          np_basis: "art. 28b",
+          np_basis_effective: "art. 28b",
+          reverse_charge: true,
+          buyer_vies_subject: "FR40303265045",
+          buyer_vies_valid: false,
+          buyer_vies_request_id: null,
+          buyer_vies_checked_at: "2026-10-10T10:00:00.000Z",
+        },
+        lines: [invoiceLineJson({ vat_rate: "np", vat_cents: 0, net_cents: 12300 })],
+      }),
+    );
+    api.updateInvoiceDraft.mockResolvedValue(INVOICE_IDS.draft);
+    api.verifyInvoiceVies.mockRejectedValue(new Error("vies_unavailable: x"));
+    open();
+    expect(
+      (await screen.findByText(/adminEventInvoices\.draft\.tax\.viesStatusInvalid/)).textContent,
+    ).toContain("subject=FR40303265045");
+    fireEvent.change(screen.getByLabelText("adminEventInvoices.draft.note"), {
+      target: { value: "x" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventInvoices.draft.tax.viesVerify" }),
+    );
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(api.updateInvoiceDraft).toHaveBeenCalledTimes(1);
+    expect(api.updateInvoiceDraft.mock.calls[0]?.[0]).toMatchObject({ reverseCharge: true });
+  });
+
+  it("decyzja 'nie' wylacza adnotacje i weryfikacje VIES", async () => {
+    api.fetchEventInvoice.mockResolvedValue(
+      draftDoc({
+        invoice: { buyer_country: "DE", buyer_tax_id: "DE123456789", np_basis: "art. 28b" },
+        lines: [invoiceLineJson({ vat_rate: "np", vat_cents: 0, net_cents: 12300 })],
+      }),
+    );
+    open();
+    fireEvent.change(await screen.findByLabelText("adminEventInvoices.draft.tax.reverseCharge"), {
+      target: { value: "no" },
+    });
+    expect(screen.getByText("adminEventInvoices.draft.tax.reverseChargeOff")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "adminEventInvoices.draft.tax.viesVerify" }),
+    ).toBeNull();
+  });
+
+  it("dokument w walucie obcej: z ktorego dnia kurs NBP trafi na fakture", async () => {
+    api.fetchEventInvoice.mockResolvedValue(
+      draftDoc({
+        invoice: { currency: "EUR" },
+        fx_need: { currency: "EUR", rate_date: "2026-10-09", loaded: false },
+      }),
+    );
+    open();
+    expect(
+      await screen.findByText("adminEventInvoices.draft.fx.pending(currency=EUR,date=2026-10-09)"),
+    ).toBeTruthy();
+  });
+
+  it("korekta: podglad VAT od sum w stawce przed i po korekcie", async () => {
+    api.fetchEventInvoice.mockResolvedValue(
+      draftDoc({
+        invoice: { kind: "correction", correction_mode: "partial", correction_reason: "Zwrot" },
+        lines: [
+          invoiceLineJson({
+            quantity: -1,
+            unit_gross_cents: 61,
+            gross_cents: -61,
+            net_cents: -50,
+            vat_cents: -11,
+          }),
+        ],
+        rate_gross_before: { "23": 183 },
+        sources: [],
+      }),
+    );
+    open();
+    const totals = (await screen.findByText("adminEventInvoices.draft.totals.vat")).parentElement;
+    // 3 x 0,61 zl -> 2 x 0,61 zl: VAT 34 gr -> 23 gr, roznica -11 gr (nie -12 gr z pozycji).
+    expect(totals?.textContent).toContain("-0,11");
   });
 
   it("podglad PDF i zamkniecie", async () => {

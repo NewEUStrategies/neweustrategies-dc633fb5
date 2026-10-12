@@ -5,7 +5,7 @@ import { PRIVACY_META } from "../meta";
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_ENTITY,
-  LEGAL_UPDATED,
+  PRIVACY_UPDATED,
   PAYMENT_PROVIDER_NAME,
 } from "@/lib/legal/entity";
 
@@ -14,7 +14,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
     eyebrow: "Prywatność",
     // Tytuł + lead żyją w ../meta.ts (head() tras czyta je bez pełnej treści).
     ...PRIVACY_META.pl,
-    updated: `Ostatnia aktualizacja: ${LEGAL_UPDATED}`,
+    updated: `Ostatnia aktualizacja: ${PRIVACY_UPDATED}`,
     footnote: `Tę politykę prowadzi ${LEGAL_ENTITY}. Aktualizujemy ją, gdy zmieniają się nasze procesy lub przepisy - istotne zmiany komunikujemy na tej stronie.`,
     sections: [
       {
@@ -83,7 +83,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
         heading: "Jak długo przechowujemy dane",
         bullets: [
           "Dane konta i profilu - przez czas posiadania konta, a po jego usunięciu do 30 dni w kopiach technicznych.",
-          "Dane rozliczeniowe i dokumenty księgowe - 5 lat od końca roku podatkowego, zgodnie z przepisami.",
+          "Dane rozliczeniowe i dokumenty księgowe (w tym faktury) - do końca szóstego roku po roku, w którym powstały, czyli do upływu przedawnienia zobowiązań podatkowych (ustawa o rachunkowości, Ordynacja podatkowa, ustawa o VAT).",
           "Dane newslettera - do czasu wycofania zgody, a następnie na liście wykluczeń wyłącznie w celu respektowania rezygnacji.",
           "Logi bezpieczeństwa i zdarzenia techniczne - do 12 miesięcy.",
           "Korespondencja i zgłoszenia - do 24 miesięcy od zakończenia sprawy.",
@@ -139,7 +139,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
   en: {
     eyebrow: "Privacy",
     ...PRIVACY_META.en,
-    updated: `Last updated: ${LEGAL_UPDATED}`,
+    updated: `Last updated: ${PRIVACY_UPDATED}`,
     footnote: `This notice is maintained by ${LEGAL_ENTITY}. We update it whenever our processes or the law change - material changes are announced on this page.`,
     sections: [
       {
@@ -206,7 +206,7 @@ export const PRIVACY_CONTENT: LegalDocContent = {
         heading: "Retention",
         bullets: [
           "Account and profile data - for as long as the account exists, plus up to 30 days in technical backups.",
-          "Billing data and accounting documents - 5 years from the end of the tax year, as required by law.",
+          "Billing data and accounting documents (including invoices) - until the end of the sixth year after the year in which they were created, i.e. until tax liabilities become time-barred (Polish Accounting Act, Tax Ordinance and VAT Act).",
           "Newsletter data - until consent is withdrawn, then kept on a suppression list solely to honour the opt-out.",
           "Security logs and technical events - up to 12 months.",
           "Correspondence and support tickets - up to 24 months after the case is closed.",

@@ -36,7 +36,11 @@ import {
 import { careerSectionsAdminQueryOptions, fallbackRoleRows } from "@/lib/careers/catalogAdmin";
 
 export const Route = createFileRoute("/admin/hiring")({
-  head: () => adminPageHead("Job offers", "Manage career opportunities and role requirements. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Job offers",
+      "Manage career opportunities and role requirements. New European Strategies administration.",
+    ),
   component: AdminHiringPage,
 });
 

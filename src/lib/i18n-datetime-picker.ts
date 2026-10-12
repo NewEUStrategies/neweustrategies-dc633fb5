@@ -1,4 +1,5 @@
-// Nakładka i18n selektora daty i godziny (`components/ui/datetime-picker`).
+// Nakładka i18n selektora daty i godziny (`components/ui/datetime-picker`,
+// `components/ui/date-input`).
 //
 // Selektor dostaje język w propsach (`lang`), a nie z `i18n.language`, więc
 // woła `t(klucz, { lng: lang })`. Import efektem ubocznym:
@@ -15,6 +16,7 @@ export const dateTimePickerPl = {
     done: "Gotowe",
     now: "Teraz",
     clear: "Wyczyść",
+    openCalendar: "Otwórz kalendarz",
   },
 } as const;
 
@@ -28,6 +30,7 @@ export const dateTimePickerEn = {
     done: "Done",
     now: "Now",
     clear: "Clear",
+    openCalendar: "Open calendar",
   },
 } as const;
 

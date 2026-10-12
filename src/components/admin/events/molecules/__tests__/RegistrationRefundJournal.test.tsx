@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { registrationKeys } from "@/lib/events/useEventRegistrations";
+import { REFUND_REVIEW_REASONS } from "@/lib/events/registrationRefundJournal";
 import { axeViolations } from "@/test/axe";
 
 const h = vi.hoisted(() => ({ rpc: null as SupabaseRpcStub | null }));
@@ -18,13 +19,16 @@ vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18n
 vi.mock("@/lib/i18n-admin-event-registration", () => ({ ensureI18n: () => undefined }));
 const { RegistrationRefundJournal } = await import("../RegistrationRefundJournal");
 const base = "adminEventRegistration.refundJournal";
+const JOB = "7d1f6c2e-4b8a-4c1e-9f3a-0123456789ab";
 const row = {
-  id: "job-1",
+  id: JOB,
   payment_order_id: "order-1",
   person_name: "Anna Test",
   state: "needs_review",
   attempts: 1,
-  last_error: "active_registrations_share_payment",
+  last_error: null,
+  review_reason: "active_registrations_share_payment",
+  escalated_at: "2026-09-29T12:05:00Z",
   next_attempt_at: "2026-09-29T12:00:00Z",
   created_at: "2026-09-29T12:00:00Z",
 };
@@ -32,7 +36,10 @@ beforeEach(() => {
   h.rpc = supabaseRpcStub();
   h.rpc.setData("admin_event_refund_jobs", [row]);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.history.replaceState(null, "", "/");
+});
 function open() {
   const view = renderWithQueryClient(<RegistrationRefundJournal eventId="event-1" />);
   fireEvent.click(screen.getByRole("button", { name: `${base}.title` }));
@@ -51,18 +58,93 @@ it("defers the read until expanded and scopes it to the event", async () => {
 });
 it("shows why a shared group payment needs a decision", async () => {
   open();
-  expect(await screen.findByText(`${base}.reviewHint`)).toBeInTheDocument();
+  expect(
+    await screen.findByText(`${base}.reasons.active_registrations_share_payment.hint(days=7)`),
+  ).toBeInTheDocument();
   expect(screen.getByText(`${base}.states.needs_review`)).toBeInTheDocument();
+  expect(
+    screen.getByText(`${base}.reasons.active_registrations_share_payment.label`),
+  ).toBeInTheDocument();
 });
-it.each([null, [{ ...row, state: "unknown" }]])(
-  "treats invalid data as a read failure, not an empty journal: %j",
-  async (data) => {
-    h.rpc?.setData("admin_event_refund_jobs", data);
+it.each(REFUND_REVIEW_REASONS)(
+  "names the review reason %s, its next step and the administrator alert",
+  async (reason) => {
+    h.rpc?.setData("admin_event_refund_jobs", [
+      { ...row, review_reason: reason, last_error: "expired_or_canceled_card" },
+    ]);
     open();
-    expect(await screen.findByRole("alert")).toHaveTextContent(`${base}.loadError`);
-    expect(screen.queryByText(`${base}.empty`)).not.toBeInTheDocument();
+    expect(await screen.findByText(`${base}.reasons.${reason}.label`)).toBeInTheDocument();
+    expect(screen.getByText(`${base}.reasons.${reason}.hint(days=7)`)).toBeInTheDocument();
+    expect(
+      screen.getByText(`${base}.lastError(error=expired_or_canceled_card)`),
+    ).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`^${base}\\.escalated\\(date=.+\\)$`))).toBeInTheDocument();
+    expect(screen.queryByText(`${base}.reviewHint`)).not.toBeInTheDocument();
   },
 );
+it("keeps a generic hint for a legacy review row without a reason", async () => {
+  // Starsze RPC (bez kluczy powodu i alarmu) nie może wywrócić panelu.
+  const { review_reason: _reason, escalated_at: _escalated, ...legacy } = row;
+  h.rpc?.setData("admin_event_refund_jobs", [legacy]);
+  open();
+  expect(await screen.findByText(`${base}.reviewHint`)).toBeInTheDocument();
+  expect(screen.queryByText(/\.escalated\(/)).not.toBeInTheDocument();
+});
+it("tells the organiser how many attempts remain automatic while a refund is retried", async () => {
+  h.rpc?.setData("admin_event_refund_jobs", [
+    {
+      ...row,
+      state: "failed",
+      attempts: 3,
+      review_reason: null,
+      escalated_at: null,
+      last_error: "provider_unavailable",
+    },
+  ]);
+  open();
+  expect(await screen.findByText(`${base}.failedHint(budget=10)`)).toBeInTheDocument();
+  expect(screen.getByText(`${base}.lastError(error=provider_unavailable)`)).toBeInTheDocument();
+  expect(screen.queryByText(/\.reasons\./)).not.toBeInTheDocument();
+});
+it("opens on the job named by the administrator alert link", async () => {
+  window.history.replaceState(
+    null,
+    "",
+    `/admin/events/event-1/registration/list?refund_job=${JOB}`,
+  );
+  const other = { ...row, id: "11111111-2222-4333-8444-555555555555", person_name: "Jan Inny" };
+  h.rpc?.setData("admin_event_refund_jobs", [other, row]);
+  renderWithQueryClient(<RegistrationRefundJournal eventId="event-1" />);
+  expect(screen.getByRole("button", { name: `${base}.title` })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  const focused = (await screen.findByText("Anna Test")).closest("li");
+  expect(focused).toHaveAttribute("aria-current", "true");
+  const sibling = screen.getByText("Jan Inny").closest("li");
+  expect(sibling).not.toHaveAttribute("aria-current");
+  expect(within(focused as HTMLElement).getByText(`${base}.states.needs_review`)).toBeVisible();
+});
+it("ignores a malformed refund_job parameter", () => {
+  window.history.replaceState(null, "", "/admin/events/event-1/registration/list?refund_job=x'y");
+  renderWithQueryClient(<RegistrationRefundJournal eventId="event-1" />);
+  expect(screen.getByRole("button", { name: `${base}.title` })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  expect(h.rpc?.calls).toHaveLength(0);
+});
+it.each([
+  null,
+  [{ ...row, state: "unknown" }],
+  [{ ...row, review_reason: "guessed" }],
+  [{ ...row, escalated_at: 17 }],
+])("treats invalid data as a read failure, not an empty journal: %j", async (data) => {
+  h.rpc?.setData("admin_event_refund_jobs", data);
+  open();
+  expect(await screen.findByRole("alert")).toHaveTextContent(`${base}.loadError`);
+  expect(screen.queryByText(`${base}.empty`)).not.toBeInTheDocument();
+});
 it("retries a failed read and refreshes after registration mutation invalidation", async () => {
   h.rpc?.setError("admin_event_refund_jobs", "unavailable");
   const view = open();

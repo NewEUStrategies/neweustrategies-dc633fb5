@@ -70,7 +70,11 @@ import { useAdminLang } from "@/lib/builder/labelsEn";
 import { codePage } from "@/lib/admin/codePages";
 import { Code2 } from "lucide-react";
 export const Route = createFileRoute("/admin/pages/$slug")({
-  head: () => adminPageHead("Page editor", "Edit page content and publication settings. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Page editor",
+      "Edit page content and publication settings. New European Strategies administration.",
+    ),
   component: EditPage,
 });
 
