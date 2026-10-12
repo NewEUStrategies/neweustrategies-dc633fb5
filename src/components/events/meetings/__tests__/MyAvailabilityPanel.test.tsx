@@ -42,17 +42,13 @@
 // Hooki `useSaveMyAvailability`/`useDeleteMyAvailability` są PRAWDZIWE - atrapą
 // jest wyłącznie warstwa sieciowa, więc test przechodzi przez ten sam
 // `useMutation`, co produkcja (stan `isPending`, kolejność `onSuccess`/`onError`).
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 
 import { axeViolations, summarize } from "@/test/axe";
-import {
-  isoToLocalInput,
-  type WindowDraft,
-  type WindowPayload,
-} from "@/lib/events/meetingWindowDraft";
+import type { WindowDraft, WindowPayload } from "@/lib/events/meetingWindowDraft";
 import type { MyAvailabilityWindow } from "@/lib/events/meetingExchange";
 
 const h = vi.hoisted(() => ({
@@ -128,6 +124,7 @@ const { MyAvailabilityPanel } = await import("@/components/events/meetings/MyAva
 const SLUG = "kongres-2026";
 const TZ = "Europe/Warsaw";
 const BAZA = "eventMeetings.participant.availability";
+const ORIGINAL_TZ = process.env.TZ;
 
 function okno(over: Partial<MyAvailabilityWindow> = {}): MyAvailabilityWindow {
   return {
@@ -163,6 +160,11 @@ beforeEach(() => {
   h.dialog.isSaving = false;
   vi.stubGlobal("confirm", h.confirm);
   h.confirm.mockReturnValue(true);
+});
+
+afterEach(() => {
+  if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+  else process.env.TZ = ORIGINAL_TZ;
 });
 
 describe("MyAvailabilityPanel - trzy stany listy", () => {
@@ -226,15 +228,23 @@ describe("MyAvailabilityPanel - z czym otwiera się formularz", () => {
     expect(h.dialog.draft).toBeNull();
   });
 
-  it("ołówek otwiera formularz TEGO wiersza, w czasie lokalnym przeglądarki", () => {
+  it("ołówek otwiera formularz TEGO wiersza, w strefie WYDARZENIA, a nie przeglądarki", () => {
+    // OPS-15: dawniej szkic powstawał w strefie przeglądarki - uczestnik
+    // z Londynu widział w polu 08:30 przy oknie, które lista podpisywała 09:30.
+    // Szkic niesie też chwile z bazy, żeby nietknięte pole wróciło do niej
+    // co do milisekundy.
+    process.env.TZ = "Europe/London";
     panel({ windows: [okno({ id: "w-7", note: "Stoisko B12", isOpen: false })] });
     fireEvent.click(screen.getByLabelText(`${BAZA}.dialogEdit`));
 
     expect(h.dialog.open).toBe(true);
     expect(h.dialog.draft).toEqual({
       id: "w-7",
-      startsAtLocal: isoToLocalInput("2026-09-14T07:30:00.000Z"),
-      endsAtLocal: isoToLocalInput("2026-09-14T11:00:00.000Z"),
+      startsAtLocal: "2026-09-14T09:30",
+      endsAtLocal: "2026-09-14T13:00",
+      inputZone: "event",
+      startsAtSaved: "2026-09-14T07:30:00.000Z",
+      endsAtSaved: "2026-09-14T11:00:00.000Z",
       isOpen: false,
       note: "Stoisko B12",
     });
