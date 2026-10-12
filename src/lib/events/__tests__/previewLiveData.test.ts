@@ -1404,7 +1404,8 @@ describe("speakerRowsFromAdminEntries - klikalnosc w podgladzie", () => {
   it("liczy wystapienia z obsady sesji, wiec karta otwiera profil", () => {
     const [row] = speakerRowsFromAdminEntries([
       speakerEntry({
-        sessions: [{ sessionId: "s1" } as NonNullable<Parameters<typeof speakerEntry>[0]>["sessions"] extends (infer A)[] | undefined ? A : never],
+        user_id: null,
+        sessions: [{ sessionId: "s1", role: "panelist", sortOrder: 0 }],
       }),
     ]);
     expect(row?.talks_count).toBe(1);
