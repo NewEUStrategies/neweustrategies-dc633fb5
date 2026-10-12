@@ -427,18 +427,15 @@ SELECT ok(EXISTS (
   'analizator zapisów widzi literał club_updated w club_update_settings');
 
 -- ----------------------------------------------------------------------------
--- 2. Schemat: zero naruszeń poza znanymi wyjątkami
+-- 2. Schemat: zero naruszeń
 -- ----------------------------------------------------------------------------
--- event_package_invite_accept (20260827221214) pisze source='package_invitation'
--- do event_people i event_registrations, których listy tej wartości nie znają.
--- Funkcja ma za tą blokadą trzecią (`event_package_seats_invite_pair` przy
--- konsumpcji zaproszenia) i jej odblokowanie wymaga decyzji o płatności
--- zamówienia i stanie wydarzenia - poza zakresem migracji 20261004090000.
-SELECT set_eq(
+-- Dawny wyjątek - `event_package_invite_accept` pisał source='package_invitation'
+-- do list, które tej wartości nie znały - zamknęła migracja 20261012090000
+-- (listy CHECK znają źródło zaproszenia, a konsumpcja zaproszenia zachowuje
+-- parę `event_package_seats_invite_pair`). Wyjątków nie ma.
+SELECT is_empty(
   $$ SELECT fn, tbl, col, lit FROM wl_found WHERE fn NOT LIKE 'wl\_probe%' $$,
-  $$ VALUES ('event_package_invite_accept(jsonb)', 'event_people', 'source', 'package_invitation'),
-            ('event_package_invite_accept(jsonb)', 'event_registrations', 'source', 'package_invitation') $$,
-  'żadna funkcja nie zapisuje literału spoza białej listy CHECK - poza znanymi wyjątkami');
+  'żadna funkcja nie zapisuje literału spoza białej listy CHECK');
 
 -- ----------------------------------------------------------------------------
 -- 3. Sondy mutacyjne
