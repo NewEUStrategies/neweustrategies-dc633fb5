@@ -1063,14 +1063,21 @@
       "idx": 151,
       "version": "7",
       "when": 1791835631237,
-      "tag": "0151_author_profiles_public_drop_contact_email",
+      "tag": "0151_event_speaker_detail_author_email_null",
       "breakpoints": true
     },
     {
       "idx": 152,
       "version": "7",
       "when": 1791836394742,
-      "tag": "0152_public_definer_views_read_only",
+      "tag": "0152_author_profiles_public_drop_contact_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1791837225242,
+      "tag": "0153_public_definer_views_read_only",
       "breakpoints": true
     }
   ]

@@ -745,6 +745,23 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zastosowanie SQL-u 20261003170000_club_cover_write_follows_capabilities.sql z panelu Lovable: te same 121 instrukcji (zmierzone po zwinięciu spacji), bez pięciu COMMENT ON FUNCTION z pasa supabase. Komentarz nie zmienia ani schematu, ani zachowania; kanonem zostaje plik supabase.",
   },
+  {
+    tag: "0150_event_speaker_detail_safe_projection",
+    drizzleOnly:
+      "Wersja event_speaker_detail z panelu Lovable: gałąź ELSE e-maila czyta ap.contact_email z author_profiles_public. Port 20261012123000 celowo oddaje tam NULL (widok w pasie supabase nie ma tej kolumny), więc SQL się różni i bliźniaka nie ma; produkcję wyrównuje 0151.",
+  },
+  {
+    tag: "0151_event_speaker_detail_author_email_null",
+    twin: "20261012123000_event_speaker_detail_safe_projection.sql",
+  },
+  {
+    tag: "0152_author_profiles_public_drop_contact_email",
+    twin: "20261012200000_author_profiles_public_drop_contact_email.sql",
+  },
+  {
+    tag: "0153_public_definer_views_read_only",
+    twin: "20261012210000_public_definer_views_read_only.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

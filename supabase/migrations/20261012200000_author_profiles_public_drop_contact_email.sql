@@ -19,9 +19,11 @@
 --   D2  `event_speaker_detail` na produkcji to wersja z drizzle 0150: galaz
 --       ELSE e-maila czyta `ap.contact_email` z tego widoku - druga droga
 --       tego samego wycieku (okno prelegenta z kontem autora, zalogowany
---       gosc). Port 20261012123000 oddaje tam NULL, ale na produkcji jeszcze
---       go nie ma. Samo usuniecie kolumny bez podmiany funkcji konczyloby
---       kazde wywolanie RPC bledem 42703, wiec funkcja idzie tu PIERWSZA.
+--       gosc). Bez podmiany funkcji usuniecie kolumny konczyloby kazde
+--       wywolanie RPC bledem 42703. Podmienia ja 20261012123000 (e-mail
+--       autora NULL), ktora w tym pasie wykonuje sie PRZED ta migracja;
+--       bliznieta drizzle 0151 i 0152 ida w tej samej kolejnosci, wiec na
+--       produkcji funkcja nigdy nie czyta usunietej kolumny.
 --
 --   D3  Widok ma ACL `arwdDxtm` dla anon i authenticated (domyslne
 --       uprawnienia schematu public przy CREATE VIEW; GRANT SELECT ich nie
@@ -33,70 +35,32 @@
 --       nadaje jawnie.
 --
 -- ZMIANA (stan docelowy 20260730120000, nic ponad):
---   1) event_speaker_detail - cialo 1:1 z 20261012123000 (e-mail autora
---      NULL, kontakt tylko z event_people przy email_visible/phone_visible).
---   2) author_profiles_public - DROP + CREATE (CREATE OR REPLACE nie usunie
+--   1) author_profiles_public - DROP + CREATE (CREATE OR REPLACE nie usunie
 --      kolumny), projekcja i predykat 1:1 z 20260730120000: is_public, tenant
 --      hosta z sesji (public_tenant_id()), DEFINER + security_barrier,
 --      media_contact_name zostaje (nazwa biura, nie kanal kontaktu).
---   3) Granty: REVOKE ALL od anon/authenticated, potem GRANT SELECT jak
+--   2) Granty: REVOKE ALL od anon/authenticated, potem GRANT SELECT jak
 --      w 20260730120000. service_role bez zmian (backend).
 --
 -- Kontakt autora czytaja dalej: wlasciciel (get_own_author_profile), admin
 -- najemcy (admin_get_author_profile) i service_role. get_expert_hub na
 -- produkcji juz nie czyta contact_email - bez zmian.
 --
--- Pas drizzle: drizzle/migrations/0151_author_profiles_public_drop_contact_email.sql
--- (to samo cialo + wpis rejestru tej wersji, wzorem 0149).
--- IDEMPOTENTNA: CREATE OR REPLACE, DROP IF EXISTS + CREATE, REVOKE/GRANT.
+-- Pas drizzle: drizzle/migrations/0152_author_profiles_public_drop_contact_email.sql
+-- (blizniak - ten sam SQL wykonywalny); 20261012123000 ma blizniaka 0151.
+-- BEZ wpisu do supabase_migrations.schema_migrations z pasa drizzle (inaczej
+-- niz 0149): ta wersja jest nowsza od 20261012095900..20261012122000, ktorych
+-- produkcja jeszcze nie ma, a `supabase db push` bez `--include-all`
+-- (scripts/migrate-with-preflight.sh) pomija wersje starsze od glowy
+-- rejestru - wpis z wyprzedzeniem zgubilby je tak, jak zgubil 20260730120000.
+-- Wersje zapisze sam push; SQL jest idempotentny, wiec ponowne wykonanie po
+-- blizniaku drizzle niczego nie zmienia.
+-- IDEMPOTENTNA: DROP IF EXISTS + CREATE, REVOKE/GRANT, COMMENT.
 -- DOWOD: supabase/tests/author_contact_privacy_test.sql,
--- event_speaker_detail_test.sql, plpgsql_check_gate_test.sql.
+-- public_definer_views_read_only_test.sql.
 -- ============================================================================
 
--- ---------- 1) event_speaker_detail: bez odczytu ap.contact_email ------------
-CREATE OR REPLACE FUNCTION public.event_speaker_detail(p_event_id uuid, p_speaker_profile_id uuid, p_preview boolean DEFAULT false)
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
-AS $function$
-DECLARE v_tenant uuid; v_result jsonb;
-BEGIN
-  IF p_preview THEN
-    v_tenant := public.assert_event_admin_tenant();
-  ELSE
-    v_tenant := public.public_tenant_id();
-  END IF;
-  IF v_tenant IS NULL THEN RETURN NULL; END IF;
-  SELECT jsonb_build_object(
-    'bio_pl', COALESCE(NULLIF(btrim(sp.bio_pl), ''), NULLIF(btrim(pe.bio_pl), ''), ap.bio_pl),
-    'bio_en', COALESCE(NULLIF(btrim(sp.bio_en), ''), NULLIF(btrim(pe.bio_en), ''), ap.bio_en),
-    'social_links', jsonb_strip_nulls(COALESCE(pe.social_links, '{}'::jsonb) || jsonb_build_object(
-      'linkedin', COALESCE(NULLIF(ap.linkedin_url, ''), pe.social_links->>'linkedin'),
-      'x', COALESCE(NULLIF(ap.x_url, ''), pe.social_links->>'x'),
-      'facebook', COALESCE(NULLIF(ap.facebook_url, ''), pe.social_links->>'facebook'),
-      'instagram', COALESCE(NULLIF(ap.instagram_url, ''), pe.social_links->>'instagram'),
-      'website', COALESCE(NULLIF(ap.website_url, ''), pe.social_links->>'website', NULLIF(pe.social_profile_url, ''))
-    )),
-    'email', CASE WHEN pe.email_visible THEN NULLIF(btrim(pe.email), '') ELSE NULL END,
-    'phone', CASE WHEN pe.phone_visible THEN NULLIF(btrim(pe.phone), '') ELSE NULL END
-  ) INTO v_result
-  FROM public.speaker_profiles sp
-  JOIN public.events e ON e.id = p_event_id AND e.tenant_id = sp.tenant_id
-  LEFT JOIN public.event_people pe ON pe.id = sp.person_id AND pe.tenant_id = sp.tenant_id
-  LEFT JOIN public.author_profiles_public ap ON ap.user_id = sp.user_id AND ap.tenant_id = sp.tenant_id
-  WHERE sp.id = p_speaker_profile_id AND sp.tenant_id = v_tenant AND sp.is_public
-    AND (p_preview OR e.status = 'published')
-    AND (EXISTS (SELECT 1 FROM public.event_speaker_entries en WHERE en.event_id = e.id AND en.tenant_id = v_tenant AND en.speaker_profile_id = sp.id)
-      OR EXISTS (SELECT 1 FROM public.event_speakers es WHERE es.event_id = e.id AND es.user_id = sp.user_id));
-  RETURN v_result;
-END;
-$function$;
-
-REVOKE ALL ON FUNCTION public.event_speaker_detail(uuid, uuid, boolean) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.event_speaker_detail(uuid, uuid, boolean) TO anon, authenticated, service_role;
-
-COMMENT ON FUNCTION public.event_speaker_detail(uuid, uuid, boolean) IS
-  'On-demand event speaker details: public tenant and published event; preview requires same-tenant event admin. Contact follows existing event_people.email_visible/phone_visible; author links come from the author_profiles_public projection, which carries no author contact e-mail (20260730120000). Never raw admin contact.';
-
--- ---------- 2) author_profiles_public: projekcja bez kanalow kontaktu --------
+-- ---------- 1) author_profiles_public: projekcja bez kanalow kontaktu --------
 DROP VIEW IF EXISTS public.author_profiles_public;
 
 CREATE VIEW public.author_profiles_public
@@ -136,7 +100,7 @@ FROM public.author_profiles ap
 WHERE ap.is_public = true
   AND ap.tenant_id = public_tenant_id();
 
--- ---------- 3) Granty: tylko odczyt dla rol klienckich -----------------------
+-- ---------- 2) Granty: tylko odczyt dla rol klienckich -----------------------
 REVOKE ALL ON public.author_profiles_public FROM anon, authenticated;
 GRANT SELECT ON public.author_profiles_public TO anon, authenticated;
 
