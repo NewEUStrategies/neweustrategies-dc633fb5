@@ -24,6 +24,8 @@ import {
 } from "@/lib/events/sponsorTrackingReact";
 
 const S = "11111111-1111-4111-8111-111111111111";
+/** Sesja serwera (OPS-09) już w magazynie - pozycje idą beaconem z sesją. */
+const TOKEN = "f".repeat(64);
 
 class FakeObserver {
   static instances: FakeObserver[] = [];
@@ -68,9 +70,9 @@ function deps() {
       sent.push(payload as Record<string, unknown>);
       return true;
     },
+    exchange: async () => null,
     schedule: () => () => undefined,
-    storage: () => null,
-    randomId: () => "f".repeat(32),
+    storage: () => ({ getItem: () => TOKEN }) as unknown as Storage,
   };
   return { value, sent };
 }
@@ -150,7 +152,7 @@ describe("wyświetlenie", () => {
     expect(d.sent).toEqual([
       {
         event_slug: "kongres",
-        session: "f".repeat(32),
+        session: TOKEN,
         items: [{ placement: "home_strip", kind: "view", sponsor_id: S }],
       },
     ]);

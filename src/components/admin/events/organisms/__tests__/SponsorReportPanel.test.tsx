@@ -10,6 +10,8 @@
 //      filtra sponsora albo awaria bez słowa.
 //   5. CRM BEZ POTWIERDZENIA, bez licznika wyniku, bez ostrzeżenia o błędach.
 //   6. LINK DLA SPONSORA z wiersza tabeli dla ZŁEGO sponsora.
+//   7. ANOMALIE POMIARU (OPS-09) BEZ SŁOWA - organizator pokazuje sponsorowi
+//      liczby, z których baza odfiltrowała ruch, i nie wie ile ani skąd.
 //
 // ATRAPY: hooki zapytań (liczy się, z czym panel je woła i co rysuje z ich
 // danych), dwa sąsiednie organizmy z własnymi testami (okno linku, lista
@@ -38,7 +40,13 @@ const h = vi.hoisted(() => ({
   summary: { data: undefined, isPending: true, isError: false, error: null } as Q<unknown[]>,
   series: { data: undefined, isPending: true, isError: false, error: null } as Q<unknown[]>,
   leads: { data: undefined, isPending: true, isError: false, error: null } as Q<unknown[]>,
-  queries: { summary: [] as unknown[], series: [] as unknown[], leads: [] as unknown[] },
+  anomalies: { data: undefined, isPending: true, isError: false, error: null } as Q<unknown[]>,
+  queries: {
+    summary: [] as unknown[],
+    series: [] as unknown[],
+    leads: [] as unknown[],
+    anomalies: [] as unknown[],
+  },
   push: [] as unknown[],
   pushOutcome: {} as Record<string, number> | Error,
   pushPending: false,
@@ -67,9 +75,16 @@ const h = vi.hoisted(() => ({
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/components/ui/date-input", () => ({
-  DateInput: ({ onChange, value, type, ...props }: {
+  DateInput: ({
+    onChange,
+    value,
+    type,
+    ...props
+  }: {
     onChange: (event: { target: { value: string } }) => void;
-    value: string; type: string; id?: string;
+    value: string;
+    type: string;
+    id?: string;
   }) => <input {...props} type={type} value={value} onChange={onChange} />,
 }));
 vi.mock("sonner", () => ({ toast: h.toast }));
@@ -117,6 +132,10 @@ vi.mock("@/lib/events/useSponsorReport", () => ({
   useSponsorReportLeadsSeries: (query: SponsorReportQuery) => {
     h.queries.leads.push(query);
     return h.leads;
+  },
+  useSponsorExposureAnomalies: (query: SponsorReportQuery) => {
+    h.queries.anomalies.push(query);
+    return h.anomalies;
   },
   usePushLeadScansToCrm: () => ({
     isPending: h.pushPending,
@@ -283,7 +302,8 @@ beforeEach(() => {
   h.summary = { data: undefined, isPending: true, isError: false, error: null };
   h.series = { data: undefined, isPending: true, isError: false, error: null };
   h.leads = { data: undefined, isPending: true, isError: false, error: null };
-  h.queries = { summary: [], series: [], leads: [] };
+  h.anomalies = { data: undefined, isPending: true, isError: false, error: null };
+  h.queries = { summary: [], series: [], leads: [], anomalies: [] };
   h.push = [];
   h.pushOutcome = {
     persons: 4,
@@ -395,6 +415,52 @@ describe("filtry i zapytania", () => {
     fireEvent.change(select, { target: { value: SP_A } });
     expect(tile("views")).toBe("10");
     expect(h.queries.series.at(-1)).toMatchObject({ sponsorId: SP_A });
+  });
+});
+
+describe("anomalie pomiaru (OPS-09)", () => {
+  it("bez anomalii (i zanim baza odpowie) ostrzeżenia nie ma", () => {
+    h.summary = ready(SUMMARY);
+    const first = panel();
+    expect(screen.queryByText(`${R}.anomalies.title`)).toBeNull();
+    first.unmount();
+    h.anomalies = ready([]);
+    panel();
+    expect(screen.queryByText(`${R}.anomalies.title`)).toBeNull();
+  });
+
+  it("anomalie z kilku dni: jedno ostrzeżenie, linia na powód z sumą pozycji i źródeł", () => {
+    h.summary = ready(SUMMARY);
+    h.anomalies = ready([
+      { day: "2099-06-15", reason: "session_cap", hits: 250, sources: 1 },
+      { day: "2099-06-16", reason: "session_cap", hits: 10, sources: 2 },
+      { day: "2099-06-15", reason: "rate_limited", hits: 700, sources: 1 },
+    ]);
+    panel();
+    const notice = screen.getByText(`${R}.anomalies.title`).closest("section") as HTMLElement;
+    expect(notice.getAttribute("role")).toBe("status");
+    expect(
+      within(notice)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual([
+      `${R}.anomalies.rateLimited(hits=700,sources=1)`,
+      `${R}.anomalies.sessionCap(hits=260,sources=3)`,
+    ]);
+    expect(within(notice).getByText(`${R}.anomalies.hint`)).toBeTruthy();
+  });
+
+  it("zapytanie anomalii idzie z dniami i sponsorem z filtrów, ale BEZ miejsca", () => {
+    h.summary = ready(SUMMARY);
+    panel(SP_A);
+    fireEvent.change(screen.getByLabelText(`${R}.filters.placement`), {
+      target: { value: "materials" },
+    });
+    expect(h.queries.anomalies.at(-1)).toMatchObject({
+      eventId: STUDIO_EVENT_ID,
+      sponsorId: SP_A,
+      placement: null,
+    });
   });
 });
 

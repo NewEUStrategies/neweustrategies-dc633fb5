@@ -22,6 +22,12 @@ const api = vi.hoisted(() => ({
   pushLeadScansToCrm: vi.fn(async () => ({ created: 1 })),
 }));
 vi.mock("@/lib/events/sponsorReportApi", () => api);
+const anomaliesApi = vi.hoisted(() => ({
+  fetchSponsorExposureAnomalies: vi.fn(async () => [
+    { day: "2099-06-15", reason: "session_cap", hits: 3, sources: 1 },
+  ]),
+}));
+vi.mock("@/lib/events/sponsorExposureAnomalies", () => anomaliesApi);
 
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 import { sponsorKeys } from "@/lib/events/useEventSponsors";
@@ -34,6 +40,7 @@ import {
   useSponsorReportLeadsSeries,
   useSponsorReportLinks,
   useSponsorReportSeries,
+  useSponsorExposureAnomalies,
   useSponsorReportSummary,
 } from "@/lib/events/useSponsorReport";
 
@@ -43,6 +50,30 @@ const Q = { eventId: E1, from: null, to: null, placement: null, sponsorId: null 
 
 beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockClear();
+  anomaliesApi.fetchSponsorExposureAnomalies.mockClear();
+});
+
+describe("anomalie pomiaru (OPS-09)", () => {
+  it("klucz wisi pod gałęzią raportu wydarzenia; zapytanie woła API z filtrami", async () => {
+    expect(sponsorReportKeys.anomalies(Q)).toEqual([
+      "event-sponsors",
+      E1,
+      "report",
+      "anomalies",
+      Q,
+    ]);
+    const hook = renderHookWithQueryClient(() => useSponsorExposureAnomalies(Q));
+    await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+    expect(anomaliesApi.fetchSponsorExposureAnomalies).toHaveBeenCalledWith(Q);
+    expect(hook.result.current.data).toEqual([
+      { day: "2099-06-15", reason: "session_cap", hits: 3, sources: 1 },
+    ]);
+  });
+
+  it("pusty identyfikator wydarzenia = zapytanie wyłączone", () => {
+    renderHookWithQueryClient(() => useSponsorExposureAnomalies({ ...Q, eventId: "" }));
+    expect(anomaliesApi.fetchSponsorExposureAnomalies).not.toHaveBeenCalled();
+  });
 });
 
 describe("klucze", () => {

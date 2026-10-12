@@ -47,6 +47,17 @@ export const adminEventSponsorReportPl = {
       meetings: "Spotkania odbyte",
       meetingsHint: "Umówione: {{count}}",
     },
+    // Ostrzeżenie nad kaflami: anomalie pomiaru (OPS-09, migracja 20261012120000).
+    anomalies: {
+      title: "Część ruchu odfiltrowała ochrona pomiaru",
+      rateLimited:
+        "Odrzucone limitem zapytań z jednego adresu: {{hits}} wysyłek (źródła: {{sources}}).",
+      sessionCap:
+        "Policzone bez osobnej sesji - ponad 50 sesji z jednego adresu w ciągu dnia: {{hits}} pozycji (źródła: {{sources}}).",
+      invalidSession:
+        "Policzone bez osobnej sesji - brak ważnego podpisu serwera (stara wersja strony albo podrobione żądanie): {{hits}} pozycji (źródła: {{sources}}).",
+      hint: "Wartości unikalne w raporcie są już skorygowane: takie pozycje wchodzą do sum łącznych, a do unikalnych tylko raz na adres i dzień. Źródło to adres w danym dniu. Dużo pozycji z kilku źródeł zwykle oznacza ruch automatyczny; limit sesji może też przekroczyć wspólna sieć (np. Wi-Fi na sali).",
+    },
     placements: {
       homeStrip: "Pas partnerów na stronie głównej",
       partnersSection: "Sekcja „Partnerzy”",
@@ -263,6 +274,17 @@ export const adminEventSponsorReportEn = {
       leadsHint: "With sharing consent: {{count}}",
       meetings: "Meetings held",
       meetingsHint: "Scheduled: {{count}}",
+    },
+    // Warning above the tiles: measurement anomalies (OPS-09, migration 20261012120000).
+    anomalies: {
+      title: "Some traffic was filtered by measurement protection",
+      rateLimited:
+        "Rejected by the per-address request limit: {{hits}} batches (sources: {{sources}}).",
+      sessionCap:
+        "Counted without a separate session - more than 50 sessions from one address in a day: {{hits}} items (sources: {{sources}}).",
+      invalidSession:
+        "Counted without a separate session - no valid server signature (an outdated page version or a forged request): {{hits}} items (sources: {{sources}}).",
+      hint: "Unique values in the report are already corrected: such items count towards totals, and towards unique values only once per address and day. A source is an address on a given day. Many items from a few sources usually means automated traffic; a shared network (e.g. venue Wi-Fi) can also exceed the session limit.",
     },
     placements: {
       homeStrip: "Partner strip on the home page",

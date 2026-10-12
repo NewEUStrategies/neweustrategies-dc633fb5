@@ -31,8 +31,32 @@ export type SponsorExposureKind = (typeof SPONSOR_EXPOSURE_KINDS)[number];
 /** Endpoint przyjmujący paczki ekspozycji (zawsze 204). */
 export const SPONSOR_EVENT_ENDPOINT = "/api/public/sponsor-event";
 
-/** Kształt identyfikatora sesji pomiaru (ten sam wzorzec sprawdza baza). */
+/**
+ * Kształt identyfikatora sesji, który endpoint w ogóle przepuszcza do bazy (ten
+ * sam wzorzec sprawdza baza). Szerszy niż sesja serwera z rozmysłem: stary
+ * klient z cache wysyła własny identyfikator, a baza ma go POLICZYĆ do kubełka
+ * adresu i zapisać jako anomalię, a nie zgubić bez śladu.
+ */
 export const SPONSOR_SESSION_PATTERN = /^[A-Za-z0-9_-]{16,64}$/;
+
+/**
+ * Kształt sesji WYDANEJ przez serwer: nonce (32 hex) + podpis HMAC kluczem
+ * najemcy (32 hex) - `_event_sponsor_exposure_token`, migracja 20261012120000.
+ * Przeglądarka nie wymyśla już identyfikatora; przechowuje tylko taki.
+ */
+export const SPONSOR_SESSION_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
+
+/**
+ * Sesja wydana przez serwer z odpowiedzi (`{ session }` - endpoint albo
+ * `event_sponsor_exposure_ingest`) albo `null`, gdy jej nie ma lub ma zły kształt.
+ */
+export function issuedSponsorSession(value: unknown): string | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const session = (value as { session?: unknown }).session;
+  return typeof session === "string" && SPONSOR_SESSION_TOKEN_PATTERN.test(session)
+    ? session
+    : null;
+}
 
 /** Najwięcej pozycji w jednej paczce - nadmiar baza i tak obetnie. */
 export const SPONSOR_BATCH_MAX = 40;

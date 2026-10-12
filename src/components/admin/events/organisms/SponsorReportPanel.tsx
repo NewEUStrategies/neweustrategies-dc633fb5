@@ -17,6 +17,11 @@
 // mówi to wprost, zamiast zostawiać organizatora z liczbą, która się „nie
 // zmienia".
 //
+// ANOMALIE POMIARU (OPS-09) STOJĄ NAD KAFLAMI. Ruch ponad limit sesji z jednego
+// adresu, bez ważnej sesji serwera albo odrzucony limitem zapytań baza już
+// odfiltrowała - ostrzeżenie mówi organizatorowi ile i z ilu źródeł, zanim
+// pokaże liczby sponsorowi (`SponsorReportAnomalyNotice`).
+//
 // EKSPORT KONTAKTÓW TO ISTNIEJĄCA FUNKCJA BAZY (`admin_event_lead_scans_export`)
 // z tą samą redakcją kontaktu bez zgody, co w module odprawy - raport nie ma
 // drugiej reguły zgody.
@@ -26,6 +31,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { ChartCard } from "@/components/admin/analytics/ChartCard";
+import { SponsorReportAnomalyNotice } from "@/components/admin/events/molecules/SponsorReportAnomalyNotice";
 import { SponsorReportFiltersBar } from "@/components/admin/events/molecules/SponsorReportFiltersBar";
 import { SponsorReportShareDialog } from "@/components/admin/events/molecules/SponsorReportShareDialog";
 import { SponsorReportLinksPanel } from "@/components/admin/events/organisms/SponsorReportLinksPanel";
@@ -76,8 +82,10 @@ import {
   sponsorReportTotals,
 } from "@/lib/events/sponsorReportModel";
 import { isSponsorPlacement } from "@/lib/events/sponsorExposure";
+import { summarizeExposureAnomalies } from "@/lib/events/sponsorExposureAnomalies";
 import {
   usePushLeadScansToCrm,
+  useSponsorExposureAnomalies,
   useSponsorReportLeadsSeries,
   useSponsorReportSeries,
   useSponsorReportSummary,
@@ -117,6 +125,13 @@ export function SponsorReportPanel({
   const summaryQ = useSponsorReportSummary(summaryQuery);
   const seriesQ = useSponsorReportSeries(query);
   const leadsSeriesQ = useSponsorReportLeadsSeries(query);
+  // Anomalie nie mają miejsca na stronie - filtr miejsca nie zmienia zapytania.
+  const anomaliesQuery = useMemo(() => ({ ...query, placement: null }), [query]);
+  const anomaliesQ = useSponsorExposureAnomalies(anomaliesQuery);
+  const anomalyLines = useMemo(
+    () => summarizeExposureAnomalies(anomaliesQ.data ?? []),
+    [anomaliesQ.data],
+  );
   const push = usePushLeadScansToCrm(eventId);
 
   const summary = summaryQ.data ?? [];
@@ -250,6 +265,7 @@ export function SponsorReportPanel({
         description={t("adminEventSponsorReport.consentNote")}
       >
         <SponsorReportFiltersBar filters={filters} sponsors={sponsors} onChange={setFilters} />
+        <SponsorReportAnomalyNotice lines={anomalyLines} />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <AdminMetricTile
             icon={Eye}

@@ -8,6 +8,8 @@
 //   2. LISTY ROZJEŻDŻAJĄ SIĘ Z CHECK-AMI BAZY - nowe miejsce po jednej stronie
 //      daje albo ciche odrzucenie, albo wartość, której UI nie umie nazwać.
 //   3. KSZTAŁT PRZEWODU - baza czyta snake_case, puste pola mają wypadać.
+//   4. SESJA SERWERA (OPS-09) - przeglądarka i endpoint przyjmują z odpowiedzi
+//      WYŁĄCZNIE sesję w kształcie podpisu serwera, nie identyfikator klienta.
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -15,10 +17,13 @@ import { join } from "node:path";
 import {
   SPONSOR_EXPOSURE_KINDS,
   SPONSOR_PLACEMENTS,
+  SPONSOR_SESSION_PATTERN,
+  SPONSOR_SESSION_TOKEN_PATTERN,
   exposureToWire,
   isAcceptableExposure,
   isSponsorExposureKind,
   isSponsorPlacement,
+  issuedSponsorSession,
   type SponsorExposureItem,
 } from "@/lib/events/sponsorExposure";
 
@@ -134,5 +139,29 @@ describe("parytet z CHECK-ami migracji (ostatnia definicja wygrywa)", () => {
     expect(lastIn("event_sponsor_exposures_kind_values")).toEqual(
       [...SPONSOR_EXPOSURE_KINDS].sort(),
     );
+  });
+});
+
+describe("sesja wydana przez serwer (OPS-09)", () => {
+  const TOKEN = "0123456789abcdef".repeat(4);
+
+  it("kształt: 64 znaki hex małymi literami; mieści się we wzorcu, który przepuszcza endpoint", () => {
+    expect(SPONSOR_SESSION_TOKEN_PATTERN.test(TOKEN)).toBe(true);
+    expect(SPONSOR_SESSION_PATTERN.test(TOKEN)).toBe(true);
+    expect(SPONSOR_SESSION_TOKEN_PATTERN.test("f".repeat(32))).toBe(false);
+    expect(SPONSOR_SESSION_TOKEN_PATTERN.test(TOKEN.toUpperCase())).toBe(false);
+    expect(SPONSOR_SESSION_TOKEN_PATTERN.test(`${TOKEN}0`)).toBe(false);
+  });
+
+  it("z odpowiedzi bierzemy wyłącznie sesję w kształcie serwera", () => {
+    expect(issuedSponsorSession({ session: TOKEN, written: 1 })).toBe(TOKEN);
+    expect(issuedSponsorSession({ session: "f".repeat(32) })).toBeNull();
+    expect(issuedSponsorSession({ session: null })).toBeNull();
+    expect(issuedSponsorSession({ session: 7 })).toBeNull();
+    expect(issuedSponsorSession({})).toBeNull();
+    expect(issuedSponsorSession([TOKEN])).toBeNull();
+    expect(issuedSponsorSession(TOKEN)).toBeNull();
+    expect(issuedSponsorSession(null)).toBeNull();
+    expect(issuedSponsorSession(1)).toBeNull();
   });
 });
