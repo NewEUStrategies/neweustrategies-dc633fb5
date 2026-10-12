@@ -10117,6 +10117,7 @@ export type Database = {
           claim_token: string | null
           claimed_at: string | null
           created_at: string
+          escalated_at: string | null
           event_id: string
           id: string
           last_error: string | null
@@ -10124,6 +10125,7 @@ export type Database = {
           payment_order_id: string
           provider_refund_id: string | null
           registration_id: string
+          review_reason: string | null
           state: string
           tenant_id: string
           updated_at: string
@@ -10133,6 +10135,7 @@ export type Database = {
           claim_token?: string | null
           claimed_at?: string | null
           created_at?: string
+          escalated_at?: string | null
           event_id: string
           id?: string
           last_error?: string | null
@@ -10140,6 +10143,7 @@ export type Database = {
           payment_order_id: string
           provider_refund_id?: string | null
           registration_id: string
+          review_reason?: string | null
           state?: string
           tenant_id: string
           updated_at?: string
@@ -10149,6 +10153,7 @@ export type Database = {
           claim_token?: string | null
           claimed_at?: string | null
           created_at?: string
+          escalated_at?: string | null
           event_id?: string
           id?: string
           last_error?: string | null
@@ -10156,6 +10161,7 @@ export type Database = {
           payment_order_id?: string
           provider_refund_id?: string | null
           registration_id?: string
+          review_reason?: string | null
           state?: string
           tenant_id?: string
           updated_at?: string
@@ -23299,6 +23305,12 @@ export type Database = {
         Args: { p_lapsed_order?: string; p_registration_id: string }
         Returns: string
       }
+      _event_refund_attempt_budget: { Args: never; Returns: number }
+      _event_refund_job_escalate: {
+        Args: { p_error?: string; p_job_id: string; p_reason: string }
+        Returns: boolean
+      }
+      _event_refund_unconfirmed_days: { Args: never; Returns: number }
       _event_registration_actor: {
         Args: {
           _manage_token: string
@@ -23318,6 +23330,14 @@ export type Database = {
           p_ticket_type_id: string
         }
         Returns: string
+      }
+      _event_registration_refund_failed: {
+        Args: {
+          p_environment: string
+          p_provider_refund_id: string
+          p_reason: string
+        }
+        Returns: boolean
       }
       _event_registration_refunds_claim: {
         Args: { p_limit?: number }
