@@ -1,10 +1,23 @@
 // Organizm: publiczny formularz zapisu na wydarzenie.
 //
-// GOSC BEZ KONTA TEZ SIE ZAPISUJE. `event_registration_form()`,
-// `event_register()` i `event_registration_cancel()` maja GRANT dla `anon`,
-// wiec nie stawiamy tu bramki logowania. Zalogowanego uzytkownika baza wiaze z
-// kontem sama (`auth.uid()`), a my tylko wypelniamy mu wstepnie dane, zeby nie
-// przepisywal tego, co juz o nim wiemy.
+// GOSC BEZ KONTA TEZ SIE ZAPISUJE - PRZEZ SERWER (REG-04, decyzja D2). Zapis
+// idzie funkcja serwerowa (`submitRegistration` -> `submitEventRegistration`):
+// najemce, konto i solony skrot adresu zna tylko serwer, a baza liczy na nich
+// kubelki prob. Nie stawiamy tu bramki logowania; zalogowanemu wypelniamy
+// wstepnie dane, zeby nie przepisywal tego, co juz o nim wiemy.
+//
+// WYNIK DOSTAJE SKRZYNKA, NIE EKRAN (decyzja D3). Klucz samoobslugi, status
+// i kasa wracaja tylko do ZWERYFIKOWANEGO wlasciciela adresu (potwierdzony
+// e-mail konta = adres zgloszenia). Kazdy inny widzi `RegistrationCheckEmail` -
+// to samo zdanie dla nowego zgloszenia i dla adresu, ktory juz je ma - a mail
+// z potwierdzeniem, biletem i atrybucja kampanii wysyla serwer. Formularz NIE
+// wola juz ani potwierdzenia mailowego, ani przypiecia atrybucji: atrybucje
+// (po bramce zgody) dokleja do wejscia zapisu.
+//
+// BILETY UKRYTE (REG-05, decyzja D6). Formularz nie oddaje ich wcale; klucz
+// biletu z linku (`?ticket=`) jedzie do `event_registration_form`, a bilety
+// odsloniete kodem doklejamy do formularza i wysylamy kod przy zapisie
+// (`reveal_code`) - bez niego baza odpowiada na bilet ukryty `not_found`.
 //
 // STAN ZAMKNIETY MA PRAWDZIWY POWOD. Zamiast jednego "zapisy niedostepne"
 // pokazujemy `closedReason` z bazy - inaczej uczestnik nie wie, czy wrocic
@@ -43,18 +56,24 @@ import {
   fetchRegistrationForm,
   submitRegistration,
   type RegistrationResult,
+  type RegistrationSubmitOutcome,
 } from "@/lib/events/publicRegistrationApi";
 import { registrationErrorMessage } from "@/lib/events/publicRegistrationErrors";
 import {
   draftAccessCode,
   draftAnswers,
+  draftErrorMessageKey,
   draftOptionalText,
+  draftRevealCode,
+  emailDiffersFromAccount,
   emptyRegistrationDraft,
+  validateGroupLeadEmail,
   validateRegistrationDraft,
   withRememberedAccessCode,
   type RegistrationDraft,
   type RegistrationDraftError,
 } from "@/lib/events/registrationSubmitDraft";
+import { REGISTRATION_FIELD_LIMITS as LIMITS } from "@/lib/events/registrationFieldLimits";
 import { recallAccessCodeHint, rememberTicketAccessCode } from "@/lib/events/eventCodeMemory";
 import { GroupGuestsEditor } from "@/components/events/registration/GroupGuestsEditor";
 import {
@@ -65,17 +84,23 @@ import {
   type GroupGuest,
   type GuestIssue,
 } from "@/lib/events/ticketTaxGroup";
-import { EMPTY_REGISTRATION_FORM } from "@/lib/events/registrationFormSurface";
-import { confirmEventRegistrationEmail } from "@/lib/events/registrationSelfNotify.functions";
+import {
+  EMPTY_REGISTRATION_FORM,
+  hasHiddenTickets,
+  withRevealedTickets,
+  type TicketReveal,
+} from "@/lib/events/registrationFormSurface";
 import { sendGroupTicketCodes } from "@/lib/events/groupTicketCodes.functions";
 import { GroupGuestsRetryPanel } from "@/components/events/registration/organisms/GroupGuestsRetryPanel";
 import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
-import { attachRegistrationAttribution } from "@/lib/events/registrationAttribution";
+import { attributionPayload } from "@/lib/events/registrationAttribution";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FieldBox } from "@/components/ui/field-box";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CharacterCounter } from "@/components/forms/CharacterCounter";
 import { PaidTicketAccountNotice } from "./molecules/PaidTicketAccountNotice";
+import { RegistrationCheckEmail } from "./molecules/RegistrationCheckEmail";
 import { RegistrationAnswerField } from "./RegistrationAnswerField";
 import { RegistrationConfirmation } from "./RegistrationConfirmation";
 import { RegistrationTermsList } from "./RegistrationTermsList";
@@ -99,17 +124,38 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   const lang = useLang();
   const { user } = useAuth();
 
+  // KLUCZ BILETU Z LINKU (`?ticket=`). Trasa ma `ssr: false`, więc adres jest
+  // znany od pierwszego renderu - formularz pytamy nim od razu, bez drugiego
+  // odczytu po hydratacji.
+  const [ticketKey] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : new URLSearchParams(window.location.search).get("ticket"),
+  );
   const formQuery = useQuery({
-    queryKey: ["event-registration-form", slug],
-    queryFn: () => fetchRegistrationForm(slug),
+    queryKey: ["event-registration-form", slug, ticketKey],
+    queryFn: () => fetchRegistrationForm(slug, ticketKey),
     staleTime: 30_000,
   });
-  const form = formQuery.data ?? EMPTY_REGISTRATION_FORM;
+  // Bilety odsłonięte kodem (REG-05) dochodzą do formularza: jedna lista dla
+  // wyboru, walidacji szkicu i wysyłki.
+  const [reveal, setReveal] = useState<TicketReveal | null>(null);
+  const form = useMemo(
+    () => withRevealedTickets(formQuery.data ?? EMPTY_REGISTRATION_FORM, reveal?.tickets ?? []),
+    [formQuery.data, reveal],
+  );
 
   const [draft, setDraft] = useState<RegistrationDraft | null>(null);
   const [errors, setErrors] = useState<RegistrationDraftError[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
   const [result, setResult] = useState<RegistrationResult | null>(null);
+  // Odpowiedź neutralna (`check_email`): adres wpisany w formularzu i to, czy
+  // uczestnik zaznaczył zgody czekające na potwierdzenie mailem.
+  const [checkEmail, setCheckEmail] = useState<{
+    email: string;
+    consentPending: boolean;
+    guestsDropped: boolean;
+  } | null>(null);
   const [cancelled, setCancelled] = useState(false);
   const [guests, setGuests] = useState<GroupGuest[]>([]);
   const [guestErrors, setGuestErrors] = useState<(GuestIssue | null)[]>([]);
@@ -154,7 +200,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   // LEJEK: "rozpoczecie zapisu" liczy sie, gdy OTWARTY formularz naprawde
   // stanal przed uczestnikiem (jest szkic, zapis jeszcze nie przeszedl) - raz
   // na sesje; bramka zgody analytics i deduplikacja siedza w beaconie.
-  const formOpenForVisitor = form.isOpen && hasDraft && result === null;
+  const formOpenForVisitor = form.isOpen && hasDraft && result === null && checkEmail === null;
   useEffect(() => {
     if (formOpenForVisitor) sendEventFunnelStep("registration_start", { slug });
   }, [formOpenForVisitor, slug]);
@@ -178,16 +224,14 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
   const errorOf = useMemo(() => {
     const map = new Map<string, string>();
     for (const entry of errors) {
-      map.set(entry.field, t(`eventRegistration.validation.${entry.errorKey}`));
+      map.set(entry.field, t(draftErrorMessageKey(entry), entry.params));
     }
     return map;
   }, [errors, t]);
 
-  // Potwierdzenie mailowe zapisu. Serwer sam odczytuje adres, jezyk i status
-  // po kluczu `manage_token`, wiec wywolanie jest bezpieczne i CALKOWICIE
-  // fail-soft: brak maila nie moze uniewaznic zapisu ani zepsuc ekranu
-  // potwierdzenia. Ten sam uklad, co przy bezplatnym RSVP.
-  const sendConfirmation = useServerFn(confirmEventRegistrationEmail);
+  // Potwierdzenie mailowe zapisu i atrybucję kampanii wysyła SERWER zapisu
+  // (`eventRegistration.server.ts`) - przeglądarka niezweryfikowanego
+  // wołającego nie ma już klucza samoobsługi, którym robiła to dotąd.
   const sendTicketCodes = useServerFn(sendGroupTicketCodes);
   // Zapis bezpłatny: bilety z kodem QR wychodzą od razu, każdy na adres swojej
   // osoby. Przy zapisie płatnym serwer nic nie wyda - zrobi to webhook po
@@ -212,9 +256,9 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       current: RegistrationDraft;
       groupGuests: GroupGuest[];
       groupMaxSize: number;
-    }) => {
+    }): Promise<RegistrationSubmitOutcome> => {
       const access = draftAccessCode(current, form);
-      const registered = await submitRegistration({
+      const outcome = await submitRegistration({
         eventSlug: slug,
         firstName: current.firstName.trim(),
         lastName: current.lastName.trim(),
@@ -225,17 +269,26 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         socialProfileUrl: draftOptionalText(current.socialProfileUrl),
         ticketTypeId: current.ticketTypeId,
         accessCode: access === null ? undefined : access.code,
+        revealCode: draftRevealCode(current, form, reveal),
         answers: draftAnswers(current, form),
         acceptedTermIds: current.acceptedTermIds,
         consentDataProcessing: current.consentDataProcessing,
         consentMarketing: current.consentMarketing,
         consentPartnerSharing: current.consentPartnerSharing,
+        lang,
+        // Atrybucja kampanii po bramce zgody (bez zgody - `null`); przypina ją
+        // serwer kluczem samoobsługi, którego przeglądarka może nie dostać.
+        attribution: attributionPayload(),
       });
       // Baza przyjęła zapis z tym kodem - kasa zgłoszenia (ekran potwierdzenia)
       // zapyta `event_ticket_checkout_quote` o TEN SAM kod.
       if (access !== null) {
         rememberTicketAccessCode(access.eventId, access.ticketTypeId, access.code);
       }
+      // Odpowiedź neutralna: bez identyfikatora zgłoszenia nie ma do czego
+      // dopisać gości ani komu wysłać biletów - wynik zapisu jest w mailu.
+      if (outcome.kind === "check_email") return outcome;
+      const registered = outcome.result;
       // Goście grupy dochodzą do zgłoszenia prowadzącego; płatność obejmie
       // wszystkie miejsca jednym zamówieniem, a każdy dostanie własny kod QR.
       if (groupGuests.length > 0) {
@@ -255,19 +308,20 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
           });
         }
       }
-      return registered;
+      return outcome;
     },
-    onSuccess: (data) => {
-      setResult(data);
-      if (data.manageToken !== null) {
-        void sendConfirmation({ data: { manageToken: data.manageToken } }).catch(() => {
-          /* mail jest dodatkiem - brak potwierdzenia nie uniewaznia zapisu */
-        });
-        // Atrybucja kampanii do zgloszenia (lejek Google Ads). Bez czekania
-        // i bez komunikatu: funkcja nigdy nie rzuca, a brak zgody albo blad
-        // znaczy tylko "zgloszenie bez atrybucji" w raporcie organizatora.
-        void attachRegistrationAttribution(data.manageToken);
+    onSuccess: (outcome, { current, groupGuests }) => {
+      if (outcome.kind === "registered") {
+        setResult(outcome.result);
+        return;
       }
+      setCheckEmail({
+        email: current.email.trim(),
+        consentPending: current.consentMarketing || current.consentPartnerSharing,
+        // Goście wymagają zgłoszenia KONTA prowadzącego - przy odpowiedzi
+        // neutralnej nie zostały dopisane i uczestnik musi to wiedzieć.
+        guestsDropped: groupGuests.length > 0,
+      });
     },
     onError: (error: unknown) => setFailure(registrationErrorMessage(error)),
   });
@@ -324,7 +378,12 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
             maxSize={guestRetry.maxSize}
             loadMaxSize={async () =>
               ticketGroupMaxSize(
-                (await fetchRegistrationForm(slug)).tickets,
+                // Bilet prowadzącego bywa ukryty i odsłonięty kodem - nowy
+                // formularz go nie oddaje, więc doklejamy odsłonięte wiersze.
+                withRevealedTickets(
+                  await fetchRegistrationForm(slug, ticketKey),
+                  reveal?.tickets ?? [],
+                ).tickets,
                 guestRetry.ticketTypeId,
               )
             }
@@ -345,7 +404,28 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
           cancelled={cancelled}
           cancelling={cancel.isPending}
           onCancel={() => cancel.mutate(result)}
+          signedIn={user !== null}
+          lang={lang}
         />
+        <BackLink slug={slug} />
+      </div>
+    );
+  }
+
+  // ODPOWIEDŹ NEUTRALNA: bez klucza, rezygnacji i kasy - wynik jest w mailu.
+  if (checkEmail !== null) {
+    return (
+      <div className="space-y-6">
+        <Header title={eventTitle} />
+        <RegistrationCheckEmail
+          email={checkEmail.email}
+          consentPending={checkEmail.consentPending}
+        />
+        {checkEmail.guestsDropped && (
+          <p className="text-sm text-muted-foreground">
+            {t("eventRegistration.group.guestsNotAdded")}
+          </p>
+        )}
         <BackLink slug={slug} />
       </div>
     );
@@ -402,7 +482,14 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
       className="space-y-8"
       onSubmit={(event) => {
         event.preventDefault();
-        const found = validateRegistrationDraft(current, form);
+        const leadEmail = validateGroupLeadEmail(current, {
+          accountEmail: user?.email ?? null,
+          guestCount: groupGuests.length,
+        });
+        const found = [
+          ...validateRegistrationDraft(current, form),
+          ...(leadEmail === null ? [] : [leadEmail]),
+        ];
         setErrors(found);
         const guestFound = guestIssues(groupGuests, current.email);
         setGuestErrors(guestFound);
@@ -424,10 +511,14 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
         <h2 className="text-lg font-semibold text-foreground">
           {t("eventRegistration.sections.person")}
         </h2>
+        {/* SUFITY Z `REGISTRATION_FIELD_LIMITS` - te same liczby co schemat
+            serwera i CHECK-i bazy. Licznik stoi przy polach, których długość
+            realnie się zbliża do sufitu (stanowisko, firma, profil). */}
         <div className="grid gap-4 sm:grid-cols-2">
           <FieldBox
             label={t("eventRegistration.fields.firstName")}
             required
+            maxLength={LIMITS.name}
             value={current.firstName}
             invalid={errorOf.has("firstName")}
             onChange={(event) => patch({ firstName: event.target.value })}
@@ -435,54 +526,98 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
           <FieldBox
             label={t("eventRegistration.fields.lastName")}
             required
+            maxLength={LIMITS.name}
             value={current.lastName}
             invalid={errorOf.has("lastName")}
             onChange={(event) => patch({ lastName: event.target.value })}
           />
-          <FieldBox
-            label={t("eventRegistration.fields.email")}
-            required
-            type="email"
-            autoComplete="email"
-            value={current.email}
-            invalid={errorOf.has("email")}
-            onChange={(event) => patch({ email: event.target.value })}
-          />
+          <div className="min-w-0">
+            <FieldBox
+              label={t("eventRegistration.fields.email")}
+              required
+              type="email"
+              autoComplete="email"
+              maxLength={LIMITS.email}
+              value={current.email}
+              invalid={errorOf.has("email")}
+              onChange={(event) => patch({ email: event.target.value })}
+            />
+            {/* REG-01: konto dowiązuje się WYŁĄCZNIE przez swój potwierdzony
+                adres - inny adres to zgłoszenie poza „Moimi zgłoszeniami". */}
+            {emailDiffersFromAccount(current.email, user?.email ?? null) && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t("eventRegistration.form.emailDiffersFromAccount")}
+              </p>
+            )}
+          </div>
           <FieldBox
             label={t("eventRegistration.fields.phone")}
             type="tel"
             autoComplete="tel"
+            maxLength={LIMITS.phoneMax}
             value={current.phone}
+            invalid={errorOf.has("phone")}
             onChange={(event) => patch({ phone: event.target.value })}
           />
-          <FieldBox
-            label={t("eventRegistration.fields.jobTitle")}
-            value={current.jobTitle}
-            onChange={(event) => patch({ jobTitle: event.target.value })}
-          />
-          <FieldBox
-            label={t("eventRegistration.fields.company")}
-            value={current.companyText}
-            onChange={(event) => patch({ companyText: event.target.value })}
-          />
-          <FieldBox
-            label={t("eventRegistration.fields.socialProfile")}
-            type="url"
-            inputMode="url"
-            className="sm:col-span-2"
-            value={current.socialProfileUrl}
-            invalid={errorOf.has("socialProfileUrl")}
-            onChange={(event) => patch({ socialProfileUrl: event.target.value })}
-          />
+          <div className="min-w-0">
+            <FieldBox
+              label={t("eventRegistration.fields.jobTitle")}
+              maxLength={LIMITS.jobTitle}
+              value={current.jobTitle}
+              invalid={errorOf.has("jobTitle")}
+              onChange={(event) => patch({ jobTitle: event.target.value })}
+            />
+            <CharacterCounter count={current.jobTitle.length} limit={LIMITS.jobTitle} lang={lang} />
+          </div>
+          <div className="min-w-0">
+            <FieldBox
+              label={t("eventRegistration.fields.company")}
+              maxLength={LIMITS.companyText}
+              value={current.companyText}
+              invalid={errorOf.has("companyText")}
+              onChange={(event) => patch({ companyText: event.target.value })}
+            />
+            <CharacterCounter
+              count={current.companyText.length}
+              limit={LIMITS.companyText}
+              lang={lang}
+            />
+          </div>
+          <div className="min-w-0 sm:col-span-2">
+            <FieldBox
+              label={t("eventRegistration.fields.socialProfile")}
+              type="url"
+              inputMode="url"
+              maxLength={LIMITS.socialProfileUrl}
+              value={current.socialProfileUrl}
+              invalid={errorOf.has("socialProfileUrl")}
+              onChange={(event) => patch({ socialProfileUrl: event.target.value })}
+            />
+            <CharacterCounter
+              count={current.socialProfileUrl.length}
+              limit={LIMITS.socialProfileUrl}
+              lang={lang}
+            />
+          </div>
         </div>
         <FieldErrors
-          messages={["firstName", "lastName", "email", "socialProfileUrl"]
+          messages={[
+            "firstName",
+            "lastName",
+            "email",
+            "phone",
+            "jobTitle",
+            "companyText",
+            "socialProfileUrl",
+          ]
             .map((field) => errorOf.get(field))
             .filter((entry): entry is string => entry !== undefined)}
         />
       </section>
 
-      {form.tickets.length > 0 && (
+      {/* SEKCJA BILETU także przy pustej liście, gdy wydarzenie ma bilety
+          UKRYTE (REG-05): pole kodu jest wtedy jedyną drogą do biletu. */}
+      {(form.tickets.length > 0 || hasHiddenTickets(form)) && (
         <section className="space-y-4">
           <h2 className="text-lg font-semibold text-foreground">
             {t("eventRegistration.sections.ticket")}
@@ -493,6 +628,9 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
             lang={lang}
             invalid={errorOf.has("ticketTypeId")}
             eventId={form.event.id}
+            hasHiddenTickets={hasHiddenTickets(form)}
+            requestedKey={ticketKey}
+            onReveal={setReveal}
             onChange={(ticketId) => patch({ ticketTypeId: ticketId })}
           />
           {/* KOD DOSTĘPU WYBRANEJ WEJŚCIÓWKI. Karta biletu mówi, skąd go wziąć
@@ -504,7 +642,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
               required
               autoComplete="off"
               spellCheck={false}
-              maxLength={64}
+              maxLength={LIMITS.code}
               className="max-w-md uppercase"
               value={current.accessCode}
               invalid={errorOf.has("accessCode")}

@@ -29697,6 +29697,16 @@ export type Database = {
       }
       event_participant_options: { Args: { p_slug: string }; Returns: Json }
       event_register: { Args: { p_payload: Json }; Returns: Json }
+      event_register_for_client: {
+        Args: {
+          _ip_subject: string
+          _tenant_id: string
+          _user_agent: string
+          _user_id: string
+          p_payload: Json
+        }
+        Returns: Json
+      }
       event_register_group_guests: {
         Args: { p_guests: Json; p_lead_registration_id: string }
         Returns: Json
@@ -29710,7 +29720,10 @@ export type Database = {
         Args: { p_dry_run?: boolean; p_registration_id: string }
         Returns: Json
       }
-      event_registration_form: { Args: { p_event_slug: string }; Returns: Json }
+      event_registration_form: {
+        Args: { p_event_slug: string; p_ticket_key?: string }
+        Returns: Json
+      }
       event_registration_group_seats: {
         Args: { p_registration_id: string }
         Returns: number
@@ -29733,6 +29746,16 @@ export type Database = {
       }
       event_registration_redeem_plan_ticket: {
         Args: { p_registration_id: string }
+        Returns: Json
+      }
+      event_registration_revealed_tickets: {
+        Args: {
+          _probe_subject: string
+          _tenant_id: string
+          _user_id: string
+          p_code: string
+          p_event_id: string
+        }
         Returns: Json
       }
       event_registration_set_channels: {

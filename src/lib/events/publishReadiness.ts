@@ -37,6 +37,9 @@ export const READINESS_CHECK_KEYS = [
   "tickets",
   // Plan sali (f4): opublikowany plan, na ktorym uprawnieni nie maja miejsca.
   "seating",
+  // REG-05: aktywny bilet UKRYTY bez kodu dostepu - sam link z kluczem biletu
+  // go juz nie pokazuje, odslania go wylacznie kod z „Kodow wydarzenia".
+  "hiddenTickets",
 ] as const;
 export type ReadinessCheckKey = (typeof READINESS_CHECK_KEYS)[number];
 
@@ -110,6 +113,15 @@ export interface ReadinessInput {
    * darmowego „spelnione" w liczniku postepu.
    */
   seatingUnseated?: number | null;
+  /**
+   * AKTYWNE bilety ukryte BEZ kodu dostepu (REG-05, decyzja D6). Od B1a
+   * `event_registration_form` ich nie oddaje, a link rejestracyjny z kluczem
+   * biletu juz ich nie odslania - uczestnik dotrze do nich tylko kodem
+   * odslaniajacym (`reveals_hidden`). Organizator, ktory rozeslal sam link,
+   * musi to wiedziec PRZED publikacja. `null` albo brak = nie policzone
+   * (prezentacja biletow jeszcze nie wrocila) - pozycja nie wchodzi do rachunku.
+   */
+  hiddenTicketsWithoutCode?: number | null;
 }
 
 function filled(value: string | null | undefined): boolean {
@@ -156,6 +168,7 @@ function check(
 export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
   const { event, sessions, conflictCount, roomCount, ticketTypeCount } = input;
   const seatingUnseated = input.seatingUnseated ?? null;
+  const hiddenWithoutCode = input.hiddenTicketsWithoutCode ?? null;
   const format = readinessFormat(event.format);
   const onsite = format !== "online";
   const online = format !== "onsite";
@@ -182,6 +195,21 @@ export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
             "registrationSeating",
             seatingUnseated === 0,
             seatingUnseated,
+          ),
+        ];
+
+  // OSTRZEZENIE, NIE BLOKADA: bilet ukryty za kodem odslaniajacym to poprawna
+  // konfiguracja (zaproszenia z kodem) - zly jest tylko link bez kodu.
+  const hiddenTicketChecks: ReadinessCheck[] =
+    hiddenWithoutCode === null
+      ? []
+      : [
+          check(
+            "hiddenTickets",
+            "warning",
+            "registrationTickets",
+            hiddenWithoutCode === 0,
+            hiddenWithoutCode,
           ),
         ];
 
@@ -228,6 +256,7 @@ export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
       !sellsTicketsThroughForm(event) || ticketTypeCount > 0,
       ticketTypeCount,
     ),
+    ...hiddenTicketChecks,
     ...seatingChecks,
   ];
 

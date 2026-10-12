@@ -15,6 +15,12 @@
 // z kluczem w zapytaniu da sie zapisac, wyslac sobie mailem i otworzyc na
 // telefonie w dniu wydarzenia. Pokazujemy oba, bo klucz bywa wklejany recznie
 // w innej przegladarce niz ta, w ktorej powstal zapis.
+//
+// TEN EKRAN WIDZI TYLKO ZWERYFIKOWANY WLASCICIEL ADRESU (REG-04, decyzja D3).
+// Kazdy inny dostaje `RegistrationCheckEmail` - bez klucza, rezygnacji i kasy.
+// Tutaj dochodza wiec dwa zdania o koncie: zgloszenie NIE powiazane z kontem
+// zalogowanego (REG-01: konto ma inny potwierdzony adres) i zgody czekajace na
+// potwierdzenie mailem (D5), oraz termin ceny z chwili zapisu (REG-16).
 import { useState } from "react";
 import { Check, Copy, Link as LinkIcon, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -22,6 +28,7 @@ import { toast } from "sonner";
 
 import type { RegistrationResult } from "@/lib/events/publicRegistrationApi";
 import { manageLinkPath } from "@/lib/events/manageToken";
+import { formatEventDateTime } from "@/lib/events/timezone";
 import { Button } from "@/components/ui/button";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
@@ -39,6 +46,8 @@ export function RegistrationConfirmation({
   cancelling,
   onCancel,
   guestsAdded = 0,
+  signedIn = false,
+  lang = "pl",
 }: {
   result: RegistrationResult;
   /** Slug wydarzenia - buduje adres strony zarzadzania zgloszeniem. */
@@ -57,6 +66,13 @@ export function RegistrationConfirmation({
   onCancel: () => void;
   /** Ilu gosci baza dopisala do tego zgloszenia (zapis grupowy); 0 = bez grupy. */
   guestsAdded?: number;
+  /**
+   * Wolajacy jest zalogowany - tylko wtedy zdanie „zgloszenie nie jest
+   * powiazane z kontem" ma sens (gosc bez konta nie ma czego wiazac).
+   */
+  signedIn?: boolean;
+  /** Jezyk terminu ceny z chwili zapisu. */
+  lang?: "pl" | "en";
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -113,12 +129,35 @@ export function RegistrationConfirmation({
    */
   const amountCents = result.amountCents ?? null;
   const currency = result.currency ?? null;
+  // `?? null` / `=== true` z tego samego powodu co wyzej: wynik sklada tez kod
+  // wywolujacy (i testy), a brak pola nie moze rysowac zdania.
+  const quoteUntil =
+    result.paymentRequired && !planSettled
+      ? formatEventDateTime(result.quoteValidUntil ?? null, null, lang)
+      : "";
+  const accountNotLinked = signedIn && result.accountLinked === false;
+  const consentPending = result.consentConfirmationRequired === true;
 
   return (
     <section className="space-y-6" aria-live="polite">
       <p className="rounded-[6px] border border-primary/40 bg-primary/5 p-4 text-sm text-foreground">
         {cancelled ? t("eventRegistration.result.cancelled") : statusMessage}
       </p>
+
+      {/* KONTO I ZGODY. Zgloszenie zalogowanego, ktorego baza nie powiazala
+          z kontem (inny potwierdzony adres), nie pojawi sie w „Moich
+          zgloszeniach" - bez tego zdania uczestnik szukalby go tam na prozno.
+          Zgody marketingowe czekaja na klikniecie w mailu (double opt-in). */}
+      {!cancelled && accountNotLinked && (
+        <p className="text-sm text-muted-foreground">
+          {t("eventRegistration.result.accountNotLinked")}
+        </p>
+      )}
+      {!cancelled && consentPending && (
+        <p className="text-sm text-muted-foreground">
+          {t("eventRegistration.result.checkEmailConsent")}
+        </p>
+      )}
 
       {/* BILETY GOSCI GRUPY. Kazdy gosc dostaje WLASNY mail z kodem QR - ale
           nie zawsze teraz. Bez tego zdania kupujacy nie wiedzial, czy goscie
@@ -148,6 +187,14 @@ export function RegistrationConfirmation({
               <p className="text-xs text-muted-foreground">
                 {t("eventRegistration.result.paymentNoTicketYet")}
               </p>
+              {/* CENA Z CHWILI ZAPISU MA TERMIN (REG-16). Do niego kasa liczy
+                  nizsza z zapamietanej i biezacej; po nim - biezaca. Bez tego
+                  zdania zmiana kwoty po granicy promocji bylaby niespodzianka. */}
+              {quoteUntil !== "" && (
+                <p className="text-xs text-muted-foreground">
+                  {t("eventRegistration.result.quoteValidUntil", { date: quoteUntil })}
+                </p>
+              )}
             </>
           )}
           {/* DROGA DO KASY. Zdanie o braku wejsciowki ZOSTAJE - czlowiek ma

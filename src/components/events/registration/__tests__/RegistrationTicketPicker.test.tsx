@@ -21,29 +21,37 @@
 //      serwer pyta tylko wydarzenie z ukrytymi biletami - na zwykłym kod
 //      trafia wyłącznie do pamięci kasy, bez próby z limitu.
 //      Bilet z linku, który kod też odsłania, nie pojawia się dwa razy.
+//   6. BILETY UKRYTE SPOZA LISTY (REG-05). Od B1a formularz nie oddaje biletów
+//      ukrytych, tylko flagę `hasHiddenTickets` - pole kodu stoi też wtedy,
+//      a odsłonięte bilety przychodzą z serwera PEŁNYMI wierszami i idą do
+//      rodzica (`onReveal`) razem z kodem, którym zapis je potwierdzi. Klucz
+//      biletu z linku podaje rodzic (`requestedKey`), żeby odczyt formularza
+//      i wybór patrzyły na ten sam klucz.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Reguł wyboru (`isTicketSelectable`,
 // `visibleTickets`, `customPriceLabel`) - mają je testy
 // `lib/events/registrationFormSurface`; tutaj jadą PRAWDZIWE. Drogi wybranego
-// biletu do `event_register` - ma ją `PublicRegistrationFormBehaviour.test.tsx`.
+// biletu do zapisu - ma ją `PublicRegistrationFormBehaviour.test.tsx`.
 //
 // ATRAPUJEMY WYŁĄCZNIE GRANICĘ: `supabase.rpc` (odsłanianie kodem). Pamięć kodu
 // (`sessionStorage`) jest prawdziwa i czytamy ją tym, czym czyta ją kasa.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
-import type { RegistrationFormTicket } from "@/lib/events/registrationFormSurface";
+import type { RegistrationFormTicket, TicketReveal } from "@/lib/events/registrationFormSurface";
 import { recallEventCode } from "@/lib/events/eventCodeMemory";
 import { DZIEN, freezeClock, relativeIso } from "@/test/time";
 
 type RevealArg = { data: { eventId: string; code: string } };
 type RevealResult =
-  { ok: true; ticketIds: string[] } | { ok: false; reason: "rate_limited" | "error" };
+  | { ok: true; ticketIds: string[]; tickets?: RegistrationFormTicket[] }
+  | { ok: false; reason: "rate_limited" | "error" };
 
 const h = vi.hoisted(() => ({
   lang: "pl" as "pl" | "en",
   reveal: vi.fn<(arg: RevealArg) => Promise<RevealResult>>(),
   onChange: vi.fn<(ticketId: string) => void>(),
+  onReveal: vi.fn<(reveal: TicketReveal) => void>(),
 }));
 
 vi.mock("react-i18next", async () =>
@@ -111,11 +119,15 @@ function wybor({
   value = null,
   invalid = false,
   eventId,
+  hasHiddenTickets,
+  requestedKey,
 }: {
   tickets?: RegistrationFormTicket[];
   value?: string | null;
   invalid?: boolean;
   eventId?: string;
+  hasHiddenTickets?: boolean;
+  requestedKey?: string | null;
 } = {}) {
   return render(
     <RegistrationTicketPicker
@@ -125,6 +137,9 @@ function wybor({
       invalid={invalid}
       eventId={eventId}
       onChange={h.onChange}
+      hasHiddenTickets={hasHiddenTickets}
+      requestedKey={requestedKey}
+      onReveal={h.onReveal}
     />,
   );
 }
@@ -148,6 +163,7 @@ beforeEach(() => {
   h.reveal.mockReset();
   h.reveal.mockResolvedValue({ ok: true, ticketIds: ["t-vip"] });
   h.onChange.mockReset();
+  h.onReveal.mockReset();
   window.sessionStorage.clear();
   naAdresie("");
 });
@@ -633,5 +649,86 @@ describe("limit prob kodow i awaria odslaniania (20261001100000)", () => {
 
     expect(await screen.findByRole("status")).toHaveTextContent(`${P}.revealNone`);
     expect(h.reveal).not.toHaveBeenCalled();
+  });
+});
+
+describe("bilety ukryte spoza listy formularza (REG-05)", () => {
+  it("flaga `hasHiddenTickets` stawia pole kodu z podpowiedzią, choć na liście nie ma biletu ukrytego", () => {
+    wybor({ tickets: [bilet()], eventId: EVENT_ID, hasHiddenTickets: true });
+
+    expect(poleKodu()).toBeInTheDocument();
+    expect(screen.getByText(`${P}.revealHint`)).toBeInTheDocument();
+  });
+
+  it("bez flagi i bez biletu ukrytego - nadal bez pola", () => {
+    wybor({ tickets: [bilet()], eventId: EVENT_ID, hasHiddenTickets: false });
+
+    expect(screen.queryByPlaceholderText(`${P}.promoPlaceholder`)).not.toBeInTheDocument();
+  });
+
+  it("odsłonięte wiersze idą do rodzica razem ze znormalizowanym kodem", async () => {
+    h.reveal.mockResolvedValue({ ok: true, ticketIds: ["t-vip"], tickets: [UKRYTY] });
+    wybor({ tickets: [bilet()], eventId: EVENT_ID, hasHiddenTickets: true });
+
+    fireEvent.change(poleKodu(), { target: { value: " vip10 " } });
+    fireEvent.click(screen.getByRole("button", { name: `${P}.revealApply` }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(`${P}.revealFound(count=1)`);
+    expect(h.onReveal).toHaveBeenCalledTimes(1);
+    expect(h.onReveal).toHaveBeenCalledWith({
+      code: "VIP10",
+      ticketIds: ["t-vip"],
+      tickets: [UKRYTY],
+    });
+  });
+
+  it("stary serwer bez wierszy (okno wdrożenia) oddaje rodzicowi pustą listę, nie `undefined`", async () => {
+    h.reveal.mockResolvedValue({ ok: true, ticketIds: ["t-vip"] });
+    wybor({ tickets: [bilet(), UKRYTY], eventId: EVENT_ID });
+
+    fireEvent.change(poleKodu(), { target: { value: "vip10" } });
+    fireEvent.click(screen.getByRole("button", { name: `${P}.revealApply` }));
+
+    expect(await screen.findByRole("radio", { name: /Bilet VIP/ })).toBeInTheDocument();
+    expect(h.onReveal).toHaveBeenCalledWith({ code: "VIP10", ticketIds: ["t-vip"], tickets: [] });
+  });
+
+  it("odmowa odsłonięcia NIE woła rodzica - nie ma czego dokładać", async () => {
+    h.reveal.mockResolvedValue({ ok: false, reason: "rate_limited" });
+    wybor({ tickets: [bilet()], eventId: EVENT_ID, hasHiddenTickets: true });
+
+    fireEvent.change(poleKodu(), { target: { value: "vip10" } });
+    fireEvent.click(screen.getByRole("button", { name: `${P}.revealApply` }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(`${P}.revealRateLimited`);
+    expect(h.onReveal).not.toHaveBeenCalled();
+  });
+
+  it("kod z linku odsłania także przy samej fladze - bilet spoza listy też istnieje", async () => {
+    naAdresie("?code=vip10");
+    h.reveal.mockResolvedValue({ ok: true, ticketIds: ["t-vip"], tickets: [UKRYTY] });
+    wybor({ tickets: [bilet()], eventId: EVENT_ID, hasHiddenTickets: true });
+
+    expect(await screen.findByRole("status")).toHaveTextContent(`${P}.revealFound(count=1)`);
+    expect(h.reveal.mock.lastCall?.[0]).toEqual({ data: { eventId: EVENT_ID, code: "VIP10" } });
+  });
+
+  it("klucz biletu podany przez rodzica wygrywa z adresem - oba odczyty patrzą na ten sam klucz", () => {
+    // Rodzic czyta klucz raz i nim pyta bazę o formularz; wybór nie może
+    // pokazać biletu po kluczu, którego formularz nie wysłał.
+    naAdresie("?ticket=vip");
+    const view = wybor({ tickets: [bilet(), UKRYTY], requestedKey: null });
+    expect(screen.queryByRole("radio", { name: /Bilet VIP/ })).not.toBeInTheDocument();
+    view.unmount();
+
+    naAdresie("");
+    wybor({ tickets: [bilet(), UKRYTY], requestedKey: "vip" });
+    expect(screen.getByRole("radio", { name: /Bilet VIP/ })).toBeInTheDocument();
+  });
+
+  it("pole kodu ma sufit kontraktu (64 znaki)", () => {
+    wybor({ tickets: [bilet()], eventId: EVENT_ID, hasHiddenTickets: true });
+
+    expect(poleKodu()).toHaveAttribute("maxLength", "64");
   });
 });

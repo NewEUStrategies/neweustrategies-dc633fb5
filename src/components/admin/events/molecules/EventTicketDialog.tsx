@@ -356,6 +356,17 @@ export function EventTicketDialog({
                 label={t("adminEventRegistration.tickets.studio.hidden")}
                 onSelect={() => setLookField("isHidden", true)}
               />
+              {/* REG-05: bilet ukryty BEZ kodu dostępu baza oddaje wyłącznie po
+                  kodzie odsłaniającym - sam link z kluczem już nie wystarcza.
+                  Kod liczymy tak, jak zapisze go upsert: nowy kod albo stary,
+                  którego organizator nie zdejmuje. */}
+              {look.isHidden &&
+                draft.accessCode.trim() === "" &&
+                (!draft.hasAccessCode || draft.removeAccessCode) && (
+                  <p role="note" className="text-xs text-muted-foreground sm:col-span-2">
+                    {t("adminEventRegistration.tickets.studio.hiddenNeedsCodeHint")}
+                  </p>
+                )}
             </AdminFormSection>
 
             <AdminFormSection

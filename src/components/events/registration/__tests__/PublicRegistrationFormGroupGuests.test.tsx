@@ -11,9 +11,10 @@
 //      adres prowadzącego na liście gości - bez żadnego wywołania RPC. Każda
 //      zmiana listy zdejmuje komunikaty, bo odnosiły się do starej listy.
 //   4. ODMOWA DOPISANIA GOŚCI NIE COFA ZAPISU PROWADZĄCEGO: potwierdzenie stoi,
-//      mail do prowadzącego wychodzi, a powód odmowy (zdanie o gościu, nie
-//      o zapisie prowadzącego) widać nad potwierdzeniem razem z listą gości
-//      gotową do ponownego dopisania.
+//      a powód odmowy (zdanie o gościu, nie o zapisie prowadzącego) widać nad
+//      potwierdzeniem razem z listą gości gotową do ponownego dopisania. Mail
+//      do prowadzącego wysyła serwer po zapisie (REG-04) - przeglądarka go nie
+//      woła.
 //   5. GOŚCIE ZOSTAJĄ W FORMULARZU, GDY PRZESTAJĄ MIEĆ SENS: po zmianie biletu na
 //      zwykły albo po wylogowaniu lista nie jedzie do bazy, która by jej nie
 //      przyjęła.
@@ -26,7 +27,7 @@
 //      pokazuje klucza sklejonego z `null`.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Reszty ścieżki uczestnika (pola organizatora,
-// zgody, regulaminy, odmowy `event_register`, rezygnacja) - ma ją
+// zgody, regulaminy, odmowy zapisu, rezygnacja) - ma ją
 // `PublicRegistrationFormBehaviour.test.tsx`; bramki „płatna wejściówka wymaga
 // konta" - ma ją `components/events/__tests__/publicRegistrationForm.test.tsx`.
 // Reguł walidacji gości (`guestIssues`) - mają tabelę przypadków w
@@ -35,18 +36,21 @@
 // - ma ją `GroupGuestsEditor.test.tsx`.
 //
 // ATRAPUJEMY WYŁĄCZNIE GRANICE, jak w pliku zachowań: klienta Supabase (RPC),
-// server fn poczty i kasy, tożsamość, język, toasty i modal Stripe. Parser
+// server fn zapisu (`registrationServerFnStub` - prawdziwy `p_payload`,
+// odpowiedź planowana pod `event_register_for_client`), poczty i kasy,
+// tożsamość, język, toasty i modal Stripe. Parser
 // formularza i wszystkie komponenty potomne jadą prawdziwe. Wyjątkiem jest
 // punkt 8 - kształt, którego parser nie oddaje, podajemy z pominięciem parsera.
 //
 // RODO: dane osób są syntetyczne, adresy wyłącznie w domenach example.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import type { Json } from "@/integrations/supabase/types";
 import type { RegistrationForm } from "@/lib/events/registrationFormSurface";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
+import { REGISTER_FOR_CLIENT_RPC } from "@/test/events/registrationServerFn";
 
 interface TestUser {
   id: string;
@@ -83,6 +87,10 @@ vi.mock("@tanstack/react-router", async () => ({
   Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
   useNavigate: () => vi.fn(),
 }));
+
+vi.mock("@/lib/events/eventRegistration.functions", async () =>
+  (await import("@/test/events/registrationServerFn")).registrationServerFnStub(() => h.rpc),
+);
 
 vi.mock("@/lib/events/registrationSelfNotify.functions", () => ({
   confirmEventRegistrationEmail: { name: "confirmEventRegistrationEmail" },
@@ -125,9 +133,9 @@ vi.mock("@/lib/events/publicRegistrationApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/events/publicRegistrationApi")>();
   return {
     ...actual,
-    fetchRegistrationForm: (slug: string) =>
+    fetchRegistrationForm: (slug: string, ticketKey?: string | null) =>
       h.formOverride === null
-        ? actual.fetchRegistrationForm(slug)
+        ? actual.fetchRegistrationForm(slug, ticketKey)
         : Promise.resolve(h.formOverride),
   };
 });
@@ -141,7 +149,8 @@ const REGISTRATION_ID = "22222222-2222-2222-2222-222222222222";
 const MANAGE_TOKEN = "Ab3d_Xy9-Qw1zEr4TyU7iOp2AsDf1gHj";
 
 const FORM_RPC = "event_registration_form";
-const REGISTER_RPC = "event_register";
+/** Odpowiedź funkcji serwerowej zapisu - planowana w atrapie pod tą nazwą. */
+const REGISTER_RPC = REGISTER_FOR_CLIENT_RPC;
 const GUESTS_RPC = "event_register_group_guests";
 
 const G = "eventRegistration.group";
@@ -220,6 +229,8 @@ function formPayload(tickets: Record<string, Json>[]): Record<string, Json> {
 
 function registerPayload(): Record<string, Json> {
   return {
+    ok: true,
+    outcome: "registered",
     registration_id: REGISTRATION_ID,
     event_id: EVENT_ID,
     person_id: null,
@@ -467,9 +478,9 @@ describe("zapis grupowy - zalogowany prowadzący", () => {
     );
     expect(screen.getByDisplayValue("ewa.nowak@example.org")).toBeInTheDocument();
     expect(stub().callsFor(GUESTS_RPC)).toHaveLength(1);
-    await waitFor(() =>
-      expect(h.sendConfirmation).toHaveBeenCalledWith({ data: { manageToken: MANAGE_TOKEN } }),
-    );
+    // Potwierdzenie prowadzącego wysłał serwer razem z zapisem (REG-04) -
+    // przeglądarka nie ma już własnej drogi do poczty.
+    expect(h.sendConfirmation).not.toHaveBeenCalled();
   });
 });
 

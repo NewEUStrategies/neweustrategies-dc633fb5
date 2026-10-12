@@ -154,6 +154,14 @@ export const TX_EMAIL_CATEGORY: Readonly<Record<TxEmailType, EmailCategory>> = {
   event_registration_approved: "transactional",
   event_registration_rejected: "transactional",
   event_waitlist_promoted: "transactional",
+  // Ponowny zapis na adres, który już ma zgłoszenie (REG-04): informacja dla
+  // WŁAŚCICIELA adresu o próbie użycia go w formularzu - poczta 1:1 o jego
+  // własnym zgłoszeniu, bez treści marketingowej.
+  event_registration_already_registered: "transactional",
+  // Double opt-in zgód z formularza zapisu (REG-02/REG-14): bez tej wiadomości
+  // zaznaczona zgoda nigdy nie zacznie działać. Wywołana działaniem w
+  // formularzu, ograniczona kubełkiem odbiorcy (3 / 60 min).
+  event_consent_confirm: "transactional",
   // Nabór prelegentów: potwierdzenie wysłania zgłoszenia i decyzja organizatora
   // o NIM - odpowiedź na własne działanie odbiorcy, nie wysyłka marketingowa.
   event_cfp_submission_received: "transactional",

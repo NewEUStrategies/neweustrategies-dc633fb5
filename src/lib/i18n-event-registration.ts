@@ -72,9 +72,15 @@ export const eventRegistrationPl = {
       external: "Przejdź do zapisu",
       back: "Wróć do wydarzenia",
     },
+    // Podpowiedzi pod polami formularza (nie odmowy - te są w `validation`).
+    form: {
+      emailDiffersFromAccount:
+        "Ten adres różni się od adresu Twojego konta - zgłoszenie nie trafi do „Moich zgłoszeń”, a płatnej wejściówki na inny adres nie kupisz.",
+    },
     closed: {
       title: "Zapisy są zamknięte",
       event_cancelled: "Wydarzenie zostało odwołane.",
+      event_ended: "Wydarzenie już się odbyło.",
       registration_disabled: "To wydarzenie nie przyjmuje zapisów.",
       registration_external: "Zapis prowadzimy w zewnętrznym narzędziu.",
       registration_not_open: "Zapisy jeszcze się nie otworzyły.",
@@ -100,6 +106,20 @@ export const eventRegistrationPl = {
       manageTokenCopyFailed: "Nie udało się skopiować klucza - przepisz go z ekranu.",
       cancelled: "Rezygnacja przyjęta.",
       promoted: "Z listy oczekujących weszła kolejna osoba ({{count}}).",
+      // EKRAN „SPRAWDŹ SKRZYNKĘ" (REG-04, decyzja D3). To samo zdanie dla
+      // nowego zgłoszenia i dla adresu, który już je ma - inaczej formularz
+      // mówiłby każdemu, czy dany adres jest zapisany. Wynik jest w mailu.
+      checkEmailTitle: "Sprawdź skrzynkę",
+      checkEmail:
+        "Na adres {{email}} wysłaliśmy wiadomość z wynikiem zgłoszenia i dalszymi krokami. Zachowaj ją - jest w niej odnośnik do zarządzania zgłoszeniem.",
+      checkEmailHint:
+        "Wiadomość nie dotarła w ciągu kilku minut? Zajrzyj do folderu spam i sprawdź, czy adres jest poprawny.",
+      checkEmailConsent:
+        "Zaznaczone zgody na informacje i przekazanie danych partnerom zaczną obowiązywać po potwierdzeniu - przycisk potwierdzenia wyślemy osobną wiadomością na ten sam adres.",
+      accountNotLinked:
+        "Zgłoszenie jest zapisane, ale nie jest powiązane z Twoim kontem - nie zobaczysz go w „Moich zgłoszeniach”. Zarządzasz nim odnośnikiem z maila; aby powiązać kolejne zgłoszenia, zapisuj się potwierdzonym adresem e-mail konta.",
+      quoteValidUntil:
+        "Cena z chwili zapisu obowiązuje do {{date}} - po tym terminie kasa policzy cenę aktualną.",
     },
     // DROGA DO KASY. Do migracji `20260830090000` ekran potwierdzenia mówił
     // „nie masz jeszcze wejściówki" i na tym kończył: nie było przycisku,
@@ -130,6 +150,14 @@ export const eventRegistrationPl = {
       sessionLost:
         "Sesja wygasła, a zapis gości wymaga konta. Zaloguj się ponownie albo usuń wpisanych gości i zapisz tylko siebie.",
       removeLostGuests: "Usuń wpisanych gości",
+      // Goście należą do zgłoszenia KONTA prowadzącego - baza dowiązuje je
+      // wyłącznie przez potwierdzony adres konta (REG-01).
+      leadEmailMismatch:
+        "Zapis z gośćmi wymaga adresu e-mail Twojego konta - wpisz go w polu e-mail albo usuń gości.",
+      // Odpowiedź neutralna (`check_email`): zgłoszenia nie da się wskazać,
+      // więc gości nie dopisaliśmy - mówimy to zamiast milczeć.
+      guestsNotAdded:
+        "Gości nie dopisaliśmy - zapis grupowy wymaga konta z potwierdzonym adresem e-mail zgłoszenia. Zapisz każdą z tych osób osobnym zgłoszeniem.",
       // Ekran potwierdzenia: kiedy goście dostaną WŁASNE bilety z kodem QR.
       ticketsAfterApproval:
         "Każdy gość dostanie bilet z kodem QR mailem, gdy zgłoszenie zostanie przyjęte.",
@@ -210,6 +238,9 @@ export const eventRegistrationPl = {
       quoteCodeAmount: "Kod {{code}}: -{{amount}}",
       quoteCodePercent: "Kod {{code}}: -{{percent}}% (-{{amount}})",
       revealLabel: "Masz kod dostępu?",
+      // Bilety ukryte nie przychodzą z formularzem (REG-05) - pole kodu mówi,
+      // że jest co odsłaniać, nawet gdy lista biletów jest pusta.
+      revealHint: "Część biletów na to wydarzenie jest dostępna tylko z kodem od organizatora.",
       revealApply: "Pokaż bilety",
       revealFound: "Odsłonięto bilety: {{count}}.",
       revealNone: "Ten kod nie odsłania żadnych biletów.",
@@ -266,9 +297,24 @@ export const eventRegistrationPl = {
       requiredTerms: "Zaznacz zgody obowiązkowe.",
       dataProcessing: "Bez zgody na przetwarzanie danych nie możemy przyjąć zapisu.",
       number: "Podaj liczbę.",
+      // Sufity z `REGISTRATION_FIELD_LIMITS` - te same, co w bazie.
+      tooLong: "Za długie - najwyżej {{max}} znaków.",
+      phoneLength: "Numer telefonu musi mieć od {{min}} do {{max}} znaków.",
+      ticketHiddenOnly:
+        "Bilety na to wydarzenie są dostępne z kodem od organizatora - wpisz go w polu powyżej.",
     },
     errors: {
       unknown: "Nie udało się zapisać. Spróbuj ponownie.",
+      // Odmowy zapisu przez serwer (REG-04/05/13, B1a) - każda ma zdanie.
+      invalidPayload: "Zgłoszenie ma nieprawidłowy format. Odśwież stronę i spróbuj ponownie.",
+      invalidPhone: "Numer telefonu ma nieprawidłową długość - popraw go i spróbuj ponownie.",
+      invalidJobTitle: "Stanowisko jest za długie - skróć je i spróbuj ponownie.",
+      invalidCompany: "Nazwa instytucji lub firmy jest za długa - skróć ją i spróbuj ponownie.",
+      eventEnded: "Wydarzenie już się odbyło - zapisy są zamknięte.",
+      soldOut: "Brak wolnych miejsc na ten bilet.",
+      accountEmailRequired:
+        "Płatną wejściówkę kupujesz na potwierdzony adres e-mail swojego konta - wpisz go w formularzu albo najpierw potwierdź adres konta.",
+      consentTextUnknown: "Treść zgód właśnie się zmieniła - odśwież stronę i zapisz się ponownie.",
       notFound: "Nie znaleźliśmy tego wydarzenia.",
       invalidEvent: "Brak danych wydarzenia w zgłoszeniu.",
       invalidRequest: "Brak danych potrzebnych do wykonania operacji.",
@@ -498,9 +544,14 @@ export const eventRegistrationEn = {
       external: "Go to registration",
       back: "Back to the event",
     },
+    form: {
+      emailDiffersFromAccount:
+        "This address differs from your account address - the registration will not appear in “My registrations”, and a paid admission cannot be bought for another address.",
+    },
     closed: {
       title: "Registration is closed",
       event_cancelled: "The event has been cancelled.",
+      event_ended: "The event has already taken place.",
       registration_disabled: "This event does not take registrations.",
       registration_external: "Registration runs in an external tool.",
       registration_not_open: "Registration has not opened yet.",
@@ -522,6 +573,17 @@ export const eventRegistrationEn = {
       manageTokenCopyFailed: "Could not copy the key - write it down from the screen.",
       cancelled: "Cancellation accepted.",
       promoted: "Someone moved up from the waiting list ({{count}}).",
+      checkEmailTitle: "Check your inbox",
+      checkEmail:
+        "We sent a message to {{email}} with the outcome of your registration and the next steps. Keep it - it contains the link to manage your registration.",
+      checkEmailHint:
+        "No message within a few minutes? Check your spam folder and whether the address is correct.",
+      checkEmailConsent:
+        "The ticked consents to updates and to sharing your data with partners take effect once confirmed - we will send the confirmation button in a separate message to the same address.",
+      accountNotLinked:
+        "Your registration is saved but not linked to your account - you will not see it in “My registrations”. Manage it with the link from the e-mail; to link future registrations, register with your account's confirmed e-mail address.",
+      quoteValidUntil:
+        "The price at registration is valid until {{date}} - after that the checkout charges the current price.",
     },
     // Ticket page with the QR code opened from the email (`/events/<slug>/ticket#t=…`).
     ticketPage: {
@@ -544,6 +606,10 @@ export const eventRegistrationEn = {
       sessionLost:
         "Your session has expired and registering guests requires an account. Sign in again, or remove the entered guests and register only yourself.",
       removeLostGuests: "Remove the entered guests",
+      leadEmailMismatch:
+        "Registering guests requires your account's e-mail address - enter it in the e-mail field or remove the guests.",
+      guestsNotAdded:
+        "Your guests were not added - group registration requires an account with a confirmed registration e-mail address. Register each of them separately.",
       ticketsAfterApproval:
         "Each guest will receive their own QR ticket by e-mail once the registration is accepted.",
       ticketsAfterPayment:
@@ -612,6 +678,7 @@ export const eventRegistrationEn = {
       quoteCodeAmount: "Code {{code}}: -{{amount}}",
       quoteCodePercent: "Code {{code}}: -{{percent}}% (-{{amount}})",
       revealLabel: "Have an access code?",
+      revealHint: "Some tickets for this event are available only with a code from the organiser.",
       revealApply: "Show tickets",
       revealFound: "Tickets revealed: {{count}}.",
       revealNone: "This code does not reveal any tickets.",
@@ -666,9 +733,23 @@ export const eventRegistrationEn = {
       requiredTerms: "Tick the required consents.",
       dataProcessing: "Without consent to data processing we cannot accept the registration.",
       number: "Enter a number.",
+      tooLong: "Too long - at most {{max}} characters.",
+      phoneLength: "The phone number must have between {{min}} and {{max}} characters.",
+      ticketHiddenOnly:
+        "Tickets for this event are available with a code from the organiser - enter it in the field above.",
     },
     errors: {
       unknown: "Registration failed. Please try again.",
+      invalidPayload: "The request has an invalid format. Refresh the page and try again.",
+      invalidPhone: "The phone number has an invalid length - correct it and try again.",
+      invalidJobTitle: "The job title is too long - shorten it and try again.",
+      invalidCompany: "The institution or company name is too long - shorten it and try again.",
+      eventEnded: "The event has already taken place - registration is closed.",
+      soldOut: "There are no seats left for this ticket.",
+      accountEmailRequired:
+        "A paid admission is bought with your account's confirmed e-mail address - enter it in the form or confirm your account address first.",
+      consentTextUnknown:
+        "The consent wording has just changed - refresh the page and register again.",
       notFound: "We could not find this event.",
       invalidEvent: "The request is missing event data.",
       invalidRequest: "Required operation data is missing.",

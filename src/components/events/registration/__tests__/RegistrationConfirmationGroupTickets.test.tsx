@@ -49,12 +49,14 @@ function result(over: Partial<RegistrationResult> = {}): RegistrationResult {
     decisionSource: null,
     waitlistPosition: null,
     ticketTypeId: null,
-    qrToken: null,
     manageToken: null,
     paymentRequired: false,
     paymentStatus: "not_required",
     amountCents: null,
     currency: null,
+    quoteValidUntil: null,
+    accountLinked: null,
+    consentConfirmationRequired: false,
     ...over,
   };
 }

@@ -26,6 +26,12 @@
 // 7. KWOTA POCHODZI Z PODGLĄDU KASY, NIE Z CENY MIEJSCA. `amountCents` zapisu to
 //    cena JEDNEGO miejsca bez kodu; zamówienie grupowe na trzy osoby pokazywało
 //    ją jako „Do zapłaty" i kupujący widział trzecią liczbę, niezgodną z kasą.
+// 8. KONTO, ZGODY I TERMIN CENY (REG-01/REG-14/REG-16). Zalogowany, którego
+//    zgłoszenia baza NIE powiązała z kontem (inny potwierdzony adres), dostaje
+//    zdanie, że nie znajdzie go w „Moich zgłoszeniach"; zgody marketingowe
+//    czekające na kliknięcie w mailu mają własne zdanie; cena z chwili zapisu
+//    ma termin, po którym kasa liczy cenę bieżącą. Ekran nie pokazuje też
+//    kodu QR - wejściówkę wysyła serwer mailem.
 //
 // ATRAPA OBEJMUJE WYŁĄCZNIE GRANICE: wywołanie server fn, sesję, modal
 // operatora i środowisko bramki. Mapper odmów (`ticketCheckoutRefusal` ->
@@ -37,6 +43,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import type { RegistrationResult } from "@/lib/events/publicRegistrationApi";
+import { formatEventDateTime } from "@/lib/events/timezone";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
 
@@ -120,25 +127,33 @@ function result(over: Partial<RegistrationResult> = {}): RegistrationResult {
     decisionSource: null,
     waitlistPosition: null,
     ticketTypeId: TICKET_ID,
-    qrToken: null,
     manageToken: null,
     paymentRequired: true,
     paymentStatus: "unpaid",
     amountCents: 15000,
     currency: "PLN",
+    quoteValidUntil: null,
+    accountLinked: null,
+    consentConfirmationRequired: false,
     ...over,
   };
 }
 
-function renderConfirmation(over: Partial<RegistrationResult> = {}, eventId?: string | null) {
+function renderConfirmation(
+  over: Partial<RegistrationResult> = {},
+  eventId?: string | null,
+  props: { signedIn?: boolean; lang?: "pl" | "en"; cancelled?: boolean } = {},
+) {
   return renderWithQueryClient(
     <RegistrationConfirmation
       result={result(over)}
       slug={SLUG}
       eventId={eventId}
-      cancelled={false}
+      cancelled={props.cancelled ?? false}
       cancelling={false}
       onCancel={() => {}}
+      signedIn={props.signedIn}
+      lang={props.lang}
     />,
   );
 }
@@ -229,7 +244,6 @@ describe("RegistrationConfirmation - stan oczekiwania na wpłatę", () => {
       paymentRequired: false,
       paymentStatus: "paid",
       status: "approved",
-      qrToken: "Ab3d_Xy9-Qw1zEr4TyU7iOp2AsDf1gHj",
     });
 
     expect(screen.queryByText("eventRegistration.payment.payNow")).not.toBeInTheDocument();
@@ -423,5 +437,77 @@ describe("RegistrationConfirmation - bilet odebrany z planu na tym ekranie", () 
     expect(
       screen.queryByText("eventRegistration.result.paymentNoTicketYet"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("RegistrationConfirmation - konto, zgody i termin ceny", () => {
+  it("zalogowany, którego zgłoszenia baza NIE powiązała z kontem, dostaje zdanie o tym", () => {
+    // REG-01: baza wiąże konto wyłącznie przez jego potwierdzony adres. Bez
+    // tego zdania uczestnik szukałby zgłoszenia w „Moich zgłoszeniach".
+    renderConfirmation({ accountLinked: false }, undefined, { signedIn: true });
+
+    expect(screen.getByText("eventRegistration.result.accountNotLinked")).toBeInTheDocument();
+  });
+
+  it("gość bez konta, zgłoszenie powiązane albo stary backend - bez zdania o koncie", () => {
+    for (const [accountLinked, signedIn] of [
+      [false, false],
+      [true, true],
+      [null, true],
+    ] as const) {
+      const view = renderConfirmation({ accountLinked }, undefined, { signedIn });
+      expect(
+        screen.queryByText("eventRegistration.result.accountNotLinked"),
+      ).not.toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  it("zgody czekające na potwierdzenie mailem mają własne zdanie (double opt-in)", () => {
+    const view = renderConfirmation({ consentConfirmationRequired: true });
+    expect(screen.getByText("eventRegistration.result.checkEmailConsent")).toBeInTheDocument();
+    view.unmount();
+
+    renderConfirmation({ consentConfirmationRequired: false });
+    expect(
+      screen.queryByText("eventRegistration.result.checkEmailConsent"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("odwołane zgłoszenie nie mówi już ani o koncie, ani o zgodach", () => {
+    renderConfirmation({ accountLinked: false, consentConfirmationRequired: true }, undefined, {
+      signedIn: true,
+      cancelled: true,
+    });
+
+    expect(screen.queryByText("eventRegistration.result.accountNotLinked")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("eventRegistration.result.checkEmailConsent"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("cena z chwili zapisu ma TERMIN w języku widza (REG-16)", () => {
+    const until = "2026-09-01T10:00:00Z";
+    renderConfirmation({ quoteValidUntil: until }, undefined, { lang: "en" });
+
+    const date = formatEventDateTime(until, null, "en");
+    expect(date).not.toBe("");
+    expect(
+      screen.getByText(`eventRegistration.result.quoteValidUntil(date=${date})`),
+    ).toBeInTheDocument();
+  });
+
+  it("bez terminu albo po opłaceniu - bez zdania o terminie ceny", () => {
+    const view = renderConfirmation({ quoteValidUntil: null });
+    expect(screen.queryByText(/result\.quoteValidUntil/)).not.toBeInTheDocument();
+    view.unmount();
+
+    renderConfirmation({
+      quoteValidUntil: "2026-09-01T10:00:00Z",
+      paymentRequired: false,
+      paymentStatus: "paid",
+      status: "approved",
+    });
+    expect(screen.queryByText(/result\.quoteValidUntil/)).not.toBeInTheDocument();
   });
 });
