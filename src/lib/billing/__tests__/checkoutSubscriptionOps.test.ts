@@ -96,9 +96,20 @@ let adminChain: SupabaseFromStub;
 let adminRpcCalls: { fn: string; args: Record<string, unknown> }[];
 let adminRpcResponses: Map<string, SupabaseResult>;
 
-/** Atrapa operatora: bazowy `stripeStub()` + katalog cen dla zmiany planu. */
-type ProviderStub = ReturnType<typeof stripeStub> & {
+/**
+ * Atrapa operatora: bazowy `stripeStub()` + katalog cen i harmonogramy dla
+ * zmiany planu oraz `resume` dla wznowienia po pauzie.
+ */
+type ProviderStub = Omit<ReturnType<typeof stripeStub>, "subscriptions"> & {
   prices: { list: ReturnType<typeof vi.fn> };
+  subscriptions: ReturnType<typeof stripeStub>["subscriptions"] & {
+    resume: ReturnType<typeof vi.fn>;
+  };
+  subscriptionSchedules: {
+    create: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    release: ReturnType<typeof vi.fn>;
+  };
 };
 let stripe: ProviderStub;
 
@@ -106,7 +117,16 @@ function providerStub(): ProviderStub {
   const base = stripeStub();
   return {
     ...base,
+    subscriptions: {
+      ...base.subscriptions,
+      resume: vi.fn(() => Promise.resolve({ id: "sub_operator_1", status: "active" })),
+    },
     prices: { list: vi.fn(() => Promise.resolve({ data: [{ id: "price_pro" }] })) },
+    subscriptionSchedules: {
+      create: vi.fn(() => Promise.resolve({ id: "sched_1", metadata: {} })),
+      update: vi.fn(() => Promise.resolve({ id: "sched_1" })),
+      release: vi.fn(() => Promise.resolve({ id: "sched_1" })),
+    },
   };
 }
 
@@ -187,11 +207,14 @@ function orderRow(over: Partial<OrderRow> = {}): OrderRow {
   };
 }
 
-/** Migawka subskrypcji u operatora w kształcie, jaki czyta snapshot. */
+/** Żywa subskrypcja u operatora w kształcie, jaki czyta operacja zmiany planu. */
 function providerSnapshot(lookupKey = "plus_monthly"): Record<string, unknown> {
   return {
     id: "sub_operator_1",
+    status: "active",
     customer: "cus_1",
+    cancel_at_period_end: false,
+    latest_invoice: "in_prev",
     items: {
       data: [
         {
@@ -236,6 +259,8 @@ beforeEach(() => {
     query.has("update") ? ok([{ id: SUB_ID }]) : ok(subscriptionRow()),
   );
   adminChain.setResponse("access_plans", ok(planRow()));
+  // Najemca SESJI (profil wołającego) - jedyne źródło zakresu oferty planów.
+  adminChain.setResponse("profiles", ok({ tenant_id: "tenant-alfa" }));
   adminChain.setResponse("payment_orders", ok(orderRow()));
   adminChain.setResponse("user_purchases", ok(null));
   adminRpcResponses.set("apply_b2b_coupon_effects", ok({ applied: true }));
@@ -396,9 +421,12 @@ describe("cancelSubscription - rezygnacja klienta", () => {
   it("anulowanie idzie NAJPIERW do operatora, z zachowaniem opłaconego okresu", async () => {
     const result = await cancel();
 
-    expect(stripe.subscriptions.update).toHaveBeenCalledWith("sub_operator_1", {
-      cancel_at_period_end: true,
-    });
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith(
+      "sub_operator_1",
+      expect.objectContaining({ cancel_at_period_end: true }),
+      // Dwuklik / ponowienie sieciowe nie może dać drugiej operacji u operatora.
+      { idempotencyKey: expect.stringMatching(/^nes-sub-cancel-/) },
+    );
     expect(result).toEqual({ ok: true, alreadyCanceled: false });
   });
 
@@ -564,8 +592,8 @@ describe("changeSubscriptionPlan - upgrade i downgrade z samoobsługi", () => {
   });
 
   it("ODMOWA PRZEŁĄCZENIA u operatora zostawia bazę nietkniętą", async () => {
-    // `on_payment_failure=prevent_change`: nieudana dopłata nie może zmienić
-    // planu w bazie, bo klient dostałby wyższą warstwę bez zapłaty.
+    // Brak ceny u operatora: zmiana nie wychodzi, więc baza nie może twierdzić,
+    // że plan się zmienił.
     stripe.prices.list.mockResolvedValue({ data: [] });
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -594,13 +622,44 @@ describe("changeSubscriptionPlan - upgrade i downgrade z samoobsługi", () => {
   it("upgrade zapisuje nowy plan, czyści anulowanie i bierze kotwicę okresu OD OPERATORA", async () => {
     const result = await change();
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, effect: "applied" });
+    // Dopłata PRZED zmianą: operator podmienia pozycję dopiero po opłaceniu
+    // faktury proporcjonalnej (SUB-04).
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith(
+      "sub_operator_1",
+      expect.objectContaining({
+        payment_behavior: "pending_if_incomplete",
+        proration_behavior: "always_invoice",
+      }),
+      { idempotencyKey: expect.stringMatching(/^nes-sub-plan-upgrade-/) },
+    );
     const patch = writeChain("user_subscriptions")?.argsOf("update")?.[0];
     expect(patch).toMatchObject({
       plan_id: NEW_PLAN_ID,
       canceled_at: null,
       current_period_end: new Date(1_795_000_000 * 1000).toISOString(),
     });
+  });
+
+  it("upgrade opłacony, ale operator NIE zdjął zaplanowanego końca: `canceled_at` zostaje", async () => {
+    stripe.subscriptions.retrieve.mockResolvedValue({
+      ...providerSnapshot(),
+      cancel_at_period_end: true,
+    });
+    stripe.subscriptions.update
+      .mockResolvedValueOnce({ items: { data: [{ current_period_end: 1_795_000_000 }] } })
+      .mockRejectedValueOnce(new Error("rate limited"));
+    adminChain.setResponse("user_subscriptions", (query) =>
+      query.has("update") ? ok({ id: SUB_ID }) : ok(subscriptionRow({ canceled_at: isoPast(1) })),
+    );
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await change()).toEqual({ ok: true, effect: "applied" });
+    const patch = writeChain("user_subscriptions")?.argsOf("update")?.[0];
+    expect(patch).toMatchObject({ plan_id: NEW_PLAN_ID });
+    // Lustro stanu operatora: subskrypcja nadal kończy się z okresem.
+    expect(patch).not.toHaveProperty("canceled_at");
+    logged.mockRestore();
   });
 
   it("gdy operator nie poda kotwicy, zostaje ta z bazy - nie liczymy jej sami", async () => {
@@ -686,6 +745,175 @@ describe("changeSubscriptionPlan - upgrade i downgrade z samoobsługi", () => {
 });
 
 // ---------------------------------------------------------------------------
+// SUB-04 - KRYTERIUM: odrzucona dopłata nie zmienia planu i nie daje wyższego
+// uprawnienia. Plan w bazie (`user_subscriptions.plan_id`) to jedyne, co czyta
+// `has_content_access()`; webhook widzi pozycje ze STARĄ ceną, dopóki
+// oczekująca zmiana nie jest opłacona (patrz test mapowania niżej).
+// ---------------------------------------------------------------------------
+
+describe("changeSubscriptionPlan - odrzucona dopłata (SUB-04)", () => {
+  const HOSTED = "https://invoice.stripe.test/i/inv_proration";
+  const change = () =>
+    callServerFn<{ ok: boolean; error?: string; hostedInvoiceUrl?: string | null }>(
+      changeSubscriptionPlan,
+      { subscriptionId: SUB_ID, newPlanId: NEW_PLAN_ID },
+      context(),
+    );
+
+  beforeEach(() => {
+    stripe.subscriptions.retrieve.mockResolvedValue(providerSnapshot());
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("`pending_update` od operatora: wynik `payment_failed` z fakturą, plan w bazie NIETKNIĘTY", async () => {
+    stripe.subscriptions.update.mockResolvedValue({
+      ...providerSnapshot(),
+      pending_update: { expires_at: 1_790_000_000 },
+      latest_invoice: { id: "in_proration", hosted_invoice_url: HOSTED },
+    });
+
+    const result = await change();
+
+    expect(result).toEqual({ ok: false, error: "payment_failed", hostedInvoiceUrl: HOSTED });
+    expect(writeChain("user_subscriptions")).toBeUndefined();
+    // Nieudana dopłata nie odwołuje też rezygnacji ani niczego innego u operatora.
+    expect(stripe.subscriptions.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("odmowa RZUCONA (`card_declined`) daje ten sam wynik i też nie zapisuje planu", async () => {
+    stripe.subscriptions.update.mockRejectedValue(
+      Object.assign(new Error("Your card was declined"), {
+        type: "StripeCardError",
+        raw: { type: "card_error", code: "card_declined" },
+      }),
+    );
+
+    const result = await change();
+
+    expect(result).toMatchObject({ ok: false, error: "payment_failed" });
+    expect(writeChain("user_subscriptions")).toBeUndefined();
+  });
+
+  it("3DS: `payment_requires_action` - zmiana czeka na potwierdzenie, baza bez zmian", async () => {
+    stripe.subscriptions.update.mockResolvedValue({
+      ...providerSnapshot(),
+      pending_update: { expires_at: 1_790_000_000 },
+      latest_invoice: {
+        hosted_invoice_url: HOSTED,
+        payments: { data: [{ payment: { payment_intent: { status: "requires_action" } } }] },
+      },
+    });
+
+    expect(await change()).toMatchObject({ ok: false, error: "payment_requires_action" });
+    expect(writeChain("user_subscriptions")).toBeUndefined();
+  });
+
+  it("webhook dla subskrypcji z oczekującą zmianą widzi STARĄ cenę - wyższe uprawnienie nie powstaje", async () => {
+    // Ten sam obiekt, który operator odda w `customer.subscription.updated`
+    // po nieudanej dopłacie: `pending_update` z nową ceną, `items` ze starą.
+    const { mapStripeSubscription } = await import("@/lib/billing/stripeEvents.server");
+    const mapped = mapStripeSubscription({
+      ...providerSnapshot("plus_monthly"),
+      pending_update: {
+        subscription_items: [{ price: { id: "price_pro", lookup_key: "pro_monthly" } }],
+      },
+    });
+
+    expect(mapped.items?.[0]?.price.externalId).toBe("plus_monthly");
+  });
+});
+
+describe("changeSubscriptionPlan - downgrade od nowego okresu i cele spoza oferty", () => {
+  const change = (newPlanId = NEW_PLAN_ID) =>
+    callServerFn<{ ok: boolean; effect?: string; effectiveAt?: string | null }>(
+      changeSubscriptionPlan,
+      { subscriptionId: SUB_ID, newPlanId },
+      context(),
+    );
+
+  beforeEach(() => {
+    stripe.subscriptions.retrieve.mockResolvedValue(providerSnapshot("pro_monthly"));
+    adminChain.setResponse("access_plans", ok(planRow({ tier_key: "member", name_pl: "Plus" })));
+  });
+
+  it("downgrade jest HARMONOGRAMEM, a plan w bazie zostaje do końca opłaconego okresu", async () => {
+    const result = await change();
+
+    expect(result).toEqual({
+      ok: true,
+      effect: "scheduled",
+      effectiveAt: new Date(1_790_000_000 * 1000).toISOString(),
+    });
+    expect(stripe.subscriptionSchedules.create).toHaveBeenCalled();
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+    // Dawniej baza dostawała niższy plan OD RAZU, choć operator zmieniał
+    // cenę dopiero od nowego okresu - klient tracił opłacony okres.
+    expect(writeChain("user_subscriptions")).toBeUndefined();
+  });
+
+  it("downgrade z zaplanowanym końcem czyści wyłącznie `canceled_at` - plan bez zmian", async () => {
+    stripe.subscriptions.retrieve.mockResolvedValue({
+      ...providerSnapshot("pro_monthly"),
+      cancel_at_period_end: true,
+    });
+    stripe.subscriptions.update.mockResolvedValue({
+      ...providerSnapshot("pro_monthly"),
+      cancel_at_period_end: false,
+    });
+    adminChain.setResponse("user_subscriptions", (query) =>
+      query.has("update") ? ok(null) : ok(subscriptionRow({ canceled_at: isoPast(1) })),
+    );
+
+    await change();
+
+    expect(writeChain("user_subscriptions")?.argsOf("update")?.[0]).toEqual({ canceled_at: null });
+  });
+
+  it("plan za miejsce (Zespół) z planu indywidualnego to odmowa przed operatorem", async () => {
+    adminChain.setResponse("user_subscriptions", (query) =>
+      query.has("update")
+        ? ok([{ id: SUB_ID }])
+        : ok({ ...subscriptionRow(), plan: { tier_key: "member", interval: "month" } }),
+    );
+    adminChain.setResponse("access_plans", ok(planRow({ tier_key: "team" })));
+
+    await expect(change()).rejects.toThrow("plan_kind_mismatch");
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it("ta sama reguła na ŻYWYM stanie: lustro bez planu, operator ma plus - Zespół odmówiony", async () => {
+    stripe.subscriptions.retrieve.mockResolvedValue(providerSnapshot("plus_monthly"));
+    adminChain.setResponse("access_plans", ok(planRow({ tier_key: "team" })));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(change()).rejects.toThrow("plan_kind_mismatch");
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+    expect(writeChain("user_subscriptions")).toBeUndefined();
+    logged.mockRestore();
+  });
+
+  it("plan szukamy WYŁĄCZNIE w najemcy sesji (profil), nie w najemcy z ładunku czy hosta", async () => {
+    await change();
+
+    const planQuery = adminChain.chainsFor("access_plans").at(-1);
+    expect(planQuery?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["id", NEW_PLAN_ID],
+      ["tenant_id", "tenant-alfa"],
+    ]);
+    expect(adminChain.chainsFor("profiles").at(0)?.argsOf("eq")).toEqual(["id", USER_ID]);
+  });
+
+  it("subskrypcja z INNEGO najemcy niż sesja nie przełącza się na żaden plan", async () => {
+    adminChain.setResponse("profiles", ok({ tenant_id: "tenant-beta" }));
+
+    await expect(change()).rejects.toThrow("plan_not_found");
+    expect(h.calls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 
 describe("resumeSubscription - cofnięcie rezygnacji", () => {
   const resume = () =>
@@ -695,6 +923,11 @@ describe("resumeSubscription - cofnięcie rezygnacji", () => {
     adminChain.setResponse("user_subscriptions", (query) =>
       query.has("update") ? ok([{ id: SUB_ID }]) : ok(subscriptionRow({ canceled_at: isoPast(1) })),
     );
+    // Żywy stan u operatora: zaplanowany koniec okresu.
+    stripe.subscriptions.retrieve.mockResolvedValue({
+      ...providerSnapshot(),
+      cancel_at_period_end: true,
+    });
   });
 
   it("BŁĄD odczytu jest zgłaszany", async () => {
@@ -709,10 +942,26 @@ describe("resumeSubscription - cofnięcie rezygnacji", () => {
     await expect(resume()).rejects.toThrow("subscription_not_resumable");
   });
 
-  it("subskrypcja, która NIE była anulowana, nie ma czego wznawiać", async () => {
+  it("subskrypcja, która NIE była anulowana (ani lokalnie, ani u operatora), nie ma czego wznawiać", async () => {
     adminChain.setResponse("user_subscriptions", ok(subscriptionRow({ canceled_at: null })));
+    stripe.subscriptions.retrieve.mockResolvedValue(providerSnapshot());
 
     await expect(resume()).rejects.toThrow("subscription_not_resumable");
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+  });
+
+  it("lokalne `canceled_at` wyzerowane, a operator wciąż ma zaplanowany koniec - wznowienie DZIAŁA", async () => {
+    // SUB-14: synchronizacja uprawnień zerowała `canceled_at`, a stara bramka
+    // patrzyła tylko na nie - subskrypcja kończyła się, choć dało się ją wznowić.
+    adminChain.setResponse("user_subscriptions", ok(subscriptionRow({ canceled_at: null })));
+
+    expect(await resume()).toEqual({ ok: true });
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith(
+      "sub_operator_1",
+      expect.objectContaining({ cancel_at_period_end: false }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+    expect(writeChain("user_subscriptions")).toBeUndefined();
   });
 
   it("subskrypcja w stanie innym niż aktywny nie jest wznawialna", async () => {
@@ -736,9 +985,11 @@ describe("resumeSubscription - cofnięcie rezygnacji", () => {
   it("wznowienie idzie NAJPIERW do operatora", async () => {
     const result = await resume();
 
-    expect(stripe.subscriptions.update).toHaveBeenCalledWith("sub_operator_1", {
-      cancel_at_period_end: false,
-    });
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith(
+      "sub_operator_1",
+      { cancel_at_period_end: false, metadata: { nes_ops_rev: "1" } },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-resume-/) },
+    );
     expect(result).toEqual({ ok: true });
   });
 

@@ -367,20 +367,3 @@ export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<Ca
     failed,
   };
 }
-
-/** Cache jednokrotnego samo-naprawiania w obrębie instancji workera. */
-let healingRun: Promise<CatalogSyncReport> | null = null;
-
-/**
- * Samonaprawa wywoływana z checkoutu, gdy cena nie istnieje w Stripe -
- * typowy objaw restartu integracji. Uruchamiamy najwyżej jedną synchronizację
- * naraz, żeby równoległe zakupy nie zasypały API Stripe.
- */
-export async function healCatalogOnce(env: StripeEnv): Promise<void> {
-  if (!healingRun) {
-    healingRun = syncBillingCatalog(env).finally(() => {
-      healingRun = null;
-    });
-  }
-  await healingRun;
-}

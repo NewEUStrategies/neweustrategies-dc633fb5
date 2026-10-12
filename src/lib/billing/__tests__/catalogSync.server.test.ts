@@ -78,11 +78,7 @@ vi.mock("../catalogReap.server", () => ({
 }));
 
 import { BILLING_CATALOG } from "@/lib/billing/catalog";
-import {
-  healCatalogOnce,
-  syncBillingCatalog,
-  type CatalogSyncReport,
-} from "@/lib/billing/catalogSync.server";
+import { syncBillingCatalog, type CatalogSyncReport } from "@/lib/billing/catalogSync.server";
 
 const plan = (over: Partial<PlanRow> = {}): PlanRow => ({
   tier_key: "member",
@@ -590,16 +586,6 @@ describe("odczyt ceny u operatora", () => {
       limit: 1,
       expand: ["data.tiers"],
     });
-  });
-});
-
-describe("healCatalogOnce", () => {
-  it("równoległe samonaprawy dzielą jeden przebieg, kolejna rusza od nowa", async () => {
-    await Promise.all([healCatalogOnce("sandbox"), healCatalogOnce("sandbox")]);
-    expect(h.selects).toHaveLength(1);
-
-    await healCatalogOnce("sandbox");
-    expect(h.selects).toHaveLength(2);
   });
 });
 

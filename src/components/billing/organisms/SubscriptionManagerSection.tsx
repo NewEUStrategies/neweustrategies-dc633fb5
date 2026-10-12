@@ -80,6 +80,12 @@ export function SubscriptionManagerSection() {
 
   const providerSubQ = useMySubscriptionProvider();
   const providerSub = providerSubQ.data ?? null;
+  // Dopóki lustro operatora się wczytuje, nie wiadomo, która karta obsługuje
+  // subskrypcję. Pokazanie w tym czasie karty lokalnej dawało klientowi akcje
+  // DRUGIEJ ścieżki (anuluj/wznów/zmień plan przez `user_subscriptions`) na
+  // subskrypcji, którą za chwilę przejmie karta operatora - dwie
+  // implementacje tej samej operacji w jednym kliknięciu (SUB-14).
+  const providerPending = providerSubQ.isLoading === true;
 
   // Rezygnacja. Błąd jest zgłaszany DALEJ (`throw`), a nie połykany w toaście:
   // wywołuje to dialog retencyjny, który po nieudanym anulowaniu MUSI zostać
@@ -122,6 +128,13 @@ export function SubscriptionManagerSection() {
   // subskrypcję trzeba kupić od nowa (nowy checkout).
   const periodStillRunning =
     !!data?.current_period_end && new Date(data.current_period_end).getTime() > Date.now();
+  // O tym, czy jest co wznawiać, rozstrzyga STAN OPERATORA (zaplanowany koniec,
+  // status `paused`; pauzę poboru serwer czyta na żywo). Z lustrem operatora
+  // renderuje się karta operatora i to ona liczy wznowienie z jego stanu
+  // (`canResumeStripeSubscription`) - tutaj, w gałęzi bez lustra (mock, zakup
+  // dożywotni, webhook w drodze), lokalne `canceled_at` jest jedynym
+  // fallbackiem. Serwer (`resumeSubscription`) i tak pyta operatora o żywy
+  // stan, więc przycisk nie obiecuje niczego, czego operator nie wykona.
   const canResume = !!data?.canceled_at && data.status === "active" && periodStillRunning;
 
   const paymentBadge = lastOrder ? (
@@ -149,6 +162,7 @@ export function SubscriptionManagerSection() {
       </div>
     );
   }
+  if (providerPending) return null;
 
   return (
     <div className="space-y-6">

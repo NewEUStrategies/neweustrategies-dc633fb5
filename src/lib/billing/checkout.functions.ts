@@ -811,12 +811,41 @@ const changePlanSchema = z.object({
   newPlanId: z.string().uuid(),
 });
 
+// Kody odmowy DOPŁATY z warstwy operatora. Te jedyne wracają jako wynik
+// (`{ ok: false, error, hostedInvoiceUrl }`), a nie wyjątek: to nie awaria,
+// tylko decyzja klienta/banku, a UI potrzebuje adresu faktury, żeby klient
+// mógł dokończyć zmianę - wyjątek na granicy RPC by go zgubił.
+const PAYMENT_OUTCOMES = new Set(["payment_failed", "payment_requires_action"]);
+
+// Odmowy DOMENOWE liczone przez operację u dostawcy na żywym stanie (reguła
+// katalogu, status subskrypcji). Przechodzą do UI pod własnym kodem - to nie
+// awaria operatora, tylko odpowiedź „tej zmiany nie wykonamy, bo...".
+const DOMAIN_REFUSALS = new Set([
+  "same_plan",
+  "plan_kind_mismatch",
+  "plan_not_switchable",
+  "subscription_not_switchable",
+  "subscription_not_active",
+  "subscription_paused",
+]);
+
 // Samoobsługowy upgrade/downgrade planu. Kolejność jak przy cancel/resume:
 // najpierw operator, potem baza. Reguła biznesowa: upgrade rozlicza się od
 // razu z proratą, downgrade wchodzi dopiero od nowego okresu. Nieudana dopłata
-// NIE zmienia planu (on_payment_failure=prevent_change). Zmiana planu czyści
-// zaplanowane anulowanie - klient zostaje. Cena i waluta pochodzą z katalogu
+// NIE zmienia planu: operacja u dostawcy idzie z `pending_if_incomplete`
+// (pozycje subskrypcji podmieniają się dopiero po opłaceniu faktury), a baza
+// zapisuje nowy plan WYŁĄCZNIE dla zmiany, którą operator potwierdził jako
+// zastosowaną (`effect: "applied"`). Downgrade (`scheduled`) zostawia bieżący
+// plan - klient zapłacił za niego do końca okresu, a przejście na nową cenę
+// domknie webhook na starcie nowego okresu. Zmiana planu czyści zaplanowane
+// anulowanie - klient zostaje - ale `canceled_at` czyścimy dopiero, gdy
+// operator flagę faktycznie zdjął. Cena i waluta pochodzą z katalogu
 // dostawcy (stały cennik per plan), więc nic nie przeliczamy tutaj.
+//
+// Cel (plan aktywny w ofercie najemcy WOŁAJĄCEGO, cykliczny, ścisły
+// odpowiednik w katalogu, ten sam model rozliczenia) sprawdza ta sama bramka,
+// co kartę operatora (`planSwitch.server.ts`) - także w trybie mock, żeby
+// środowisko deweloperskie nie przepuszczało celów, których produkcja odmówi.
 export const changeSubscriptionPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => changePlanSchema.parse(input))
@@ -825,7 +854,9 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
 
     const { data: sub, error: loadError } = await supabaseAdmin
       .from("user_subscriptions")
-      .select("id, tenant_id, plan_id, status, external_ref, canceled_at, current_period_end")
+      .select(
+        "id, tenant_id, plan_id, status, external_ref, canceled_at, current_period_end, plan:access_plans(tier_key, interval)",
+      )
       .eq("id", data.subscriptionId)
       .eq("user_id", context.userId)
       .maybeSingle();
@@ -838,61 +869,69 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
     }
     if (sub.plan_id === data.newPlanId) throw new Error("same_plan");
 
-    const { data: newPlan, error: planErr } = await supabaseAdmin
-      .from("access_plans")
-      .select("id, tenant_id, active, price_cents, currency, interval, tier_key, name_pl, name_en")
-      .eq("id", data.newPlanId)
-      .maybeSingle();
-    if (planErr) throw new Error(planErr.message);
-    if (!newPlan || !newPlan.active) throw new Error("plan_not_found");
-    if (newPlan.tenant_id !== sub.tenant_id) throw new Error("plan_not_found");
-    const interval = String(newPlan.interval);
-    if (
-      interval !== "two_weeks" &&
-      interval !== "month" &&
-      interval !== "quarter" &&
-      interval !== "year"
-    ) {
-      // Przepustki/plany jednorazowe nie są celem zmiany subskrypcji.
-      throw new Error("plan_not_recurring");
-    }
+    // Bieżąca cena wg planu w bazie - tylko do wczesnej odmowy (ten sam plan,
+    // inny model rozliczenia, także w trybie mock); regułę na żywym stanie
+    // liczy jeszcze raz operacja u dostawcy.
+    const { switchEntryForPlan } = await import("@/lib/billing/planSwitch");
+    const { resolveOfferedSwitchTarget } = await import("@/lib/billing/planSwitch.server");
+    const offered = await resolveOfferedSwitchTarget({
+      userId: context.userId,
+      subscriptionTenantId: sub.tenant_id,
+      currentLookupKey: sub.plan ? (switchEntryForPlan(sub.plan)?.priceId ?? null) : null,
+      target: { planId: data.newPlanId },
+    });
+    if (!offered.ok) throw new Error(offered.error);
+    const target = offered.target;
 
-    const {
-      changeSubscriptionPrice,
-      catalogPriceFor,
-      fetchSubscriptionSnapshot,
-      isProviderSubscriptionRef,
-      subscriptionEnvironment,
-    } = await import("@/lib/billing/subscriptionProvider.server");
-    const { planChangeDirection } = await import("@/lib/billing/catalog");
+    const { changeSubscriptionPrice, isProviderSubscriptionRef, subscriptionEnvironment } =
+      await import("@/lib/billing/subscriptionProvider.server");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
 
     const providerConfigured = paymentsConfiguredServer();
     let providerPeriodEnd: string | null = null;
+    let cancellationCleared = true;
 
     if (providerConfigured && isProviderSubscriptionRef(sub.external_ref)) {
-      const env = subscriptionEnvironment();
-      const snap = await fetchSubscriptionSnapshot(env, sub.external_ref);
-      if (!snap.ok) {
-        console.error("[billing] subscription snapshot failed", sub.external_ref, snap.error);
-        throw new Error("provider_plan_change_failed");
-      }
-
-      const targetPriceId = catalogPriceFor(newPlan.tier_key, interval);
-      if (!targetPriceId) throw new Error("plan_not_switchable");
-      const direction = planChangeDirection(snap.snapshot.priceId, targetPriceId);
-      if (direction === "same") throw new Error("same_plan");
-
-      const changeRes = await changeSubscriptionPrice(env, sub.external_ref, {
-        newPriceExternalId: targetPriceId,
-        quantity: snap.snapshot.quantity,
-        direction,
+      const changeRes = await changeSubscriptionPrice(subscriptionEnvironment(), sub.external_ref, {
+        newPriceExternalId: target.lookupKey,
       });
       if (!changeRes.ok) {
         console.error("[billing] provider plan change failed", sub.external_ref, changeRes.error);
+        if (DOMAIN_REFUSALS.has(changeRes.error)) throw new Error(changeRes.error);
+        if (PAYMENT_OUTCOMES.has(changeRes.error)) {
+          // Dopłata nie przeszła: plan, uprawnienie i anulowanie zostają
+          // nietknięte. Klient dostaje fakturę do opłacenia - po zapłacie
+          // operator sam zastosuje zmianę, a webhook ją odwzoruje.
+          return {
+            ok: false as const,
+            error: changeRes.error,
+            hostedInvoiceUrl: changeRes.hostedInvoiceUrl ?? null,
+          };
+        }
         throw new Error("provider_plan_change_failed");
       }
-      providerPeriodEnd = changeRes.currentPeriodEnd ?? snap.snapshot.currentPeriodEnd;
+      if (changeRes.effect === "scheduled") {
+        // Downgrade od nowego okresu: bieżący plan zostaje w bazie do końca
+        // opłaconego okresu. Jedyny zapis to cofnięte anulowanie (operator je
+        // potwierdził) - inaczej panel pokazywałby „wygasa" przy subskrypcji,
+        // która przejdzie na niższy plan i będzie się odnawiać.
+        if (!changeRes.cancelAtPeriodEnd && sub.canceled_at) {
+          const { error: clearErr } = await supabaseAdmin
+            .from("user_subscriptions")
+            .update({ canceled_at: null })
+            .eq("id", sub.id);
+          if (clearErr) throw new Error(clearErr.message);
+        }
+        return {
+          ok: true as const,
+          effect: "scheduled" as const,
+          effectiveAt: changeRes.currentPeriodEnd,
+        };
+      }
+      providerPeriodEnd = changeRes.currentPeriodEnd;
+      // Lustro flagi operatora: jeśli zdjęcie zaplanowanego końca się nie
+      // udało, `canceled_at` zostaje - UI nie może obiecać odnowienia.
+      cancellationCleared = !changeRes.cancelAtPeriodEnd;
     } else if (providerConfigured) {
       // Subskrypcja bez identyfikatora u dostawcy (np. dożywotnia z zakupu
       // jednorazowego) nie ma czego przełączać po stronie operatora.
@@ -905,27 +944,35 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
     const { data: updated, error: updateErr } = await supabaseAdmin
       .from("user_subscriptions")
       .update({
-        plan_id: newPlan.id,
-        canceled_at: null,
+        plan_id: target.planId,
+        ...(cancellationCleared ? { canceled_at: null } : {}),
         // Operator jest źródłem prawdy o kotwicy okresu; mock liczy od teraz.
         current_period_end:
           providerPeriodEnd ??
           (providerConfigured
             ? (sub.current_period_end ?? undefined)
-            : periodEndFor(interval, new Date()).toISOString()),
+            : periodEndFor(target.interval, new Date()).toISOString()),
       })
       .eq("id", sub.id)
       .select("id")
       .maybeSingle();
     if (updateErr) throw new Error(updateErr.message);
     if (!updated) throw new Error("subscription_not_found");
-    return { ok: true as const };
+    return { ok: true as const, effect: "applied" as const };
   });
 
 // Wznowienie subskrypcji anulowanej "na koniec okresu": dopóki opłacony okres
 // trwa, operator pozwala cofnąć zaplanowaną zmianę. Lustrzane do
 // cancelSubscription - najpierw operator, potem baza, żeby UI nigdy nie
 // pokazywał wznowienia, którego operator nie wykonał.
+//
+// O tym, CO wznowić, rozstrzyga żywy stan u operatora
+// (`resumeProviderSubscription`: zaplanowane anulowanie, pauza poboru), a nie
+// samo lokalne `canceled_at`: synchronizacja uprawnień potrafiła je wyzerować
+// przy subskrypcji, która dalej miała zaplanowany koniec, i wtedy wznowienie
+// było odmawiane, choć operator miał co cofnąć. Lokalne `canceled_at` zostaje
+// warunkiem dla subskrypcji bez operatora (mock, zakup dożywotni) i dla
+// przypadku, w którym u operatora nie ma już czego wznawiać.
 export const resumeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => cancelSubscriptionSchema.parse(input))
@@ -939,7 +986,7 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .maybeSingle();
     if (loadError) throw new Error(loadError.message);
-    if (!sub || sub.canceled_at === null || sub.status !== "active") {
+    if (!sub || sub.status !== "active") {
       throw new Error("subscription_not_resumable");
     }
     if (sub.current_period_end && new Date(sub.current_period_end).getTime() < Date.now()) {
@@ -947,15 +994,23 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       throw new Error("subscription_period_ended");
     }
 
-    const { resumeScheduledCancellation, isProviderSubscriptionRef, subscriptionEnvironment } =
+    const { resumeProviderSubscription, isProviderSubscriptionRef, subscriptionEnvironment } =
       await import("@/lib/billing/subscriptionProvider.server");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
-      const result = await resumeScheduledCancellation(subscriptionEnvironment(), sub.external_ref);
+      const result = await resumeProviderSubscription(subscriptionEnvironment(), sub.external_ref);
       if (!result.ok) {
         console.error("[billing] provider resume failed", sub.external_ref, result.error);
         throw new Error("provider_resume_failed");
       }
+      if (result.mode === "already_active" && sub.canceled_at === null) {
+        throw new Error("subscription_not_resumable");
+      }
+      // Operator cofnął zaplanowany koniec / pauzę, a lokalnego znacznika już
+      // nie ma - nic do zapisania, stan domknie webhook.
+      if (sub.canceled_at === null) return { ok: true as const };
+    } else if (sub.canceled_at === null) {
+      throw new Error("subscription_not_resumable");
     }
 
     const { data: updated, error } = await supabaseAdmin

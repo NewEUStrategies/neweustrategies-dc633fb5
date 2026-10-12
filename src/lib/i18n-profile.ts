@@ -546,13 +546,20 @@ const pl = {
       change: "Zmień plan",
       changePlan: {
         title: "Zmiana planu",
-        hint: "Różnica ceny rozliczana jest proporcjonalnie od razu: przy przejściu wyżej dopłacasz za pozostałą część okresu, przy przejściu niżej nadpłata pomniejszy kolejną fakturę.",
+        hint: "Przejście wyżej działa od razu: dopłacasz proporcjonalnie za pozostałą część okresu, a nowy plan wchodzi po udanej płatności. Przejście niżej zacznie obowiązywać od kolejnego okresu rozliczeniowego.",
         cancelNote:
           "Zmiana planu anuluje zaplanowane wygaśnięcie - subskrypcja będzie się odnawiać.",
         placeholder: "Wybierz nowy plan",
         cta: "Zmień plan",
         success: "Plan zmieniony",
         error: "Nie udało się zmienić planu. Spróbuj ponownie lub skontaktuj się z nami.",
+      },
+      payment: {
+        failed:
+          "Płatność nie przeszła - zmiana nie weszła w życie, a Twój plan pozostaje bez zmian. Opłać fakturę inną kartą albo zaktualizuj metodę płatności.",
+        requiresAction:
+          "Bank prosi o potwierdzenie płatności - zmiana wejdzie w życie po jej potwierdzeniu na stronie faktury.",
+        payInvoice: "Opłać fakturę",
       },
       portal: {
         changeHint:
@@ -604,6 +611,8 @@ const pl = {
           label: "Miejsca",
           cta: "Zapisz liczbę miejsc",
           success: "Liczba miejsc zaktualizowana",
+          scheduled:
+            "Zmniejszenie liczby miejsc zaplanowane - obecne miejsca zostają do końca opłaconego okresu.",
           error: "Nie udało się zmienić liczby miejsc. Spróbuj ponownie.",
         },
       },
@@ -1347,13 +1356,20 @@ const en: ProfileEn = {
       change: "Change plan",
       changePlan: {
         title: "Change plan",
-        hint: "The price difference is prorated immediately: upgrades charge the remainder of the period now, downgrades credit your next invoice.",
+        hint: "Upgrades apply right away: you pay the prorated difference for the rest of the period and the new plan starts once the payment succeeds. Downgrades take effect from your next billing period.",
         cancelNote:
           "Changing the plan clears the scheduled cancellation - the subscription will keep renewing.",
         placeholder: "Choose a new plan",
         cta: "Change plan",
         success: "Plan changed",
         error: "Could not change the plan. Please try again or contact us.",
+      },
+      payment: {
+        failed:
+          "The payment did not go through - the change was not applied and your plan stays the same. Pay the invoice with another card or update your payment method.",
+        requiresAction:
+          "Your bank asks you to confirm the payment - the change applies once you confirm it on the invoice page.",
+        payInvoice: "Pay invoice",
       },
       portal: {
         changeHint:
@@ -1405,6 +1421,8 @@ const en: ProfileEn = {
           label: "Seats",
           cta: "Save seat count",
           success: "Seat count updated",
+          scheduled:
+            "Seat reduction scheduled - your current seats stay until the end of the paid period.",
           error: "Could not change the seat count. Please try again.",
         },
       },

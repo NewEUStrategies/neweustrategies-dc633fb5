@@ -1,9 +1,22 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
+import { getStripeErrorMessage, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
 
 const envSchema = z.enum(["sandbox", "live"]);
+
+// OPERACJE NA SUBSKRYPCJI (zmiana planu, miejsca, anulowanie, wznowienie)
+// to tutaj CIENKIE ADAPTERY: wejście z karty operatora (lookup_key +
+// środowisko), wiersz subskrypcji pod RLS wołającego, a cała decyzja - cel
+// w ofercie najemcy (`planSwitch.server.ts`) i operacja na żywym stanie
+// (`subscriptionProvider.server.ts`) - w tych samych modułach, z których
+// korzysta karta lokalna (`checkout.functions.ts`). Dwie ścieżki UI, jedna
+// warstwa serwerowa (SUB-14).
+//
+// Środowisko rozstrzyga serwer (`resolveEnvironment`: produkcja = live), tak
+// jak przy zakładaniu zamówienia - parametr klienta jest tylko podpowiedzią
+// dla buildów deweloperskich. Bez tego produkcyjna sesja mogła operować na
+// wierszach sandboxa (izolacja środowisk).
 
 /** Zamiana czytelnego identyfikatora ceny (`lookup_key`) na `price_...` u Stripe. */
 export const resolveStripePrice = createServerFn({ method: "GET" })
@@ -27,8 +40,31 @@ export const resolveStripePrice = createServerFn({ method: "GET" })
   });
 
 /**
+ * Cel zmiany planu w ofercie najemcy wołającego - ta sama bramka co karta
+ * lokalna. Odmowa RZUCA (jak brak subskrypcji): to błąd wejścia, nie decyzja
+ * operatora, a UI i tak nie pokazuje celów, których bramka nie przyjmie.
+ */
+async function assertOfferedTarget(
+  userId: string,
+  sub: { tenant_id?: string | null; price_id: string | null },
+  lookupKey: string,
+): Promise<string> {
+  const { resolveOfferedSwitchTarget } = await import("@/lib/billing/planSwitch.server");
+  const offered = await resolveOfferedSwitchTarget({
+    userId,
+    subscriptionTenantId: sub.tenant_id ?? null,
+    currentLookupKey: sub.price_id,
+    target: { lookupKey },
+  });
+  if (!offered.ok) throw new Error(offered.error);
+  return offered.target.lookupKey;
+}
+
+/**
  * Zmiana planu istniejącej subskrypcji.
- * - upgrade  -> natychmiast, z rozliczeniem proporcjonalnym,
+ * - upgrade  -> natychmiast, z rozliczeniem proporcjonalnym, ale DOPIERO po
+ *   opłaceniu dopłaty; odmowa karty zwraca `payment_failed` /
+ *   `payment_requires_action` z adresem faktury i plan zostaje bez zmian,
  * - downgrade -> zaplanowane na koniec opłaconego okresu (bez proraty).
  */
 export const changeStripePlan = createServerFn({ method: "POST" })
@@ -37,79 +73,74 @@ export const changeStripePlan = createServerFn({ method: "POST" })
     z.object({ targetPriceId: z.string().min(1).max(64), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { catalogEntryByPriceId, planChangeDirection } = await import("@/lib/billing/catalog");
+    const { catalogEntryByPriceId } = await import("@/lib/billing/catalog");
     const target = catalogEntryByPriceId(data.targetPriceId);
     if (!target) throw new Error("unknown_price");
+    const environment = resolveEnvironment(data.environment);
 
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("provider_subscription_id, price_id, status, quantity")
+      .select("provider_subscription_id, price_id, tenant_id")
       .eq("user_id", context.userId)
-      .eq("environment", data.environment)
+      .eq("environment", environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
     if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const direction = planChangeDirection(sub.price_id, target.priceId);
-    if (direction === "same") return { ok: true as const, direction };
+    // Ten sam cel wg lustra: nic do zrobienia (operator i tak odmówiłby
+    // `same_plan` na żywym stanie, ale bez ruchu do niego).
+    if (sub.price_id === target.priceId) return { ok: true as const, direction: "same" as const };
 
+    const lookupKey = await assertOfferedTarget(context.userId, sub, target.priceId);
     const { changeSubscriptionPrice } = await import("@/lib/billing/subscriptionProvider.server");
-    const result = await changeSubscriptionPrice(data.environment, sub.provider_subscription_id, {
-      newPriceExternalId: target.priceId,
-      quantity: sub.quantity ?? 1,
-      direction,
+    const result = await changeSubscriptionPrice(environment, sub.provider_subscription_id, {
+      newPriceExternalId: lookupKey,
     });
     if (!result.ok) {
       console.error("[payments] plan change failed", sub.provider_subscription_id, result.error);
-      return { error: result.error };
+      return { error: result.error, hostedInvoiceUrl: result.hostedInvoiceUrl ?? null };
     }
 
-    return { ok: true as const, direction };
+    // Lustro w bazie domyka webhook - i to dopiero wtedy, gdy pozycje
+    // subskrypcji naprawdę niosą nową cenę (po dopłacie / na starcie okresu).
+    return { ok: true as const, direction: result.direction, effect: result.effect };
   });
 
-/** Link do portalu klienta (anulowanie, zmiana planu/ceny, metoda płatności, faktury). */
+/**
+ * Link do portalu klienta (anulowanie, zmiana planu/ceny, metoda płatności,
+ * faktury) - przycisk w profilu, karcie operatora i potwierdzeniu zakupu.
+ *
+ * JEDNA implementacja sesji portalu. Do 12.10.2026 był tu własny odczyt
+ * klienta operatora i własne `billingPortal.sessions.create` - równoległa
+ * kopia tego, co robi `createPortalLinkForUser` (strona wejścia z maila,
+ * `openMyBillingPortal`), ale BEZ granicy najemcy. Teraz adapter woła tę samą
+ * funkcję z najemcą z profilu wołającego i ze ścieżką powrotu, z której
+ * użytkownik wszedł (sanityzowaną tą samą bramką `absoluteReturnUrl`; brak
+ * ścieżki = `/profile/plan`, jak dotąd). Kształt odpowiedzi zostaje -
+ * wołające komponenty czytają `overviewUrl` i kod `no_customer`.
+ */
 export const createStripePortalSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: { environment: StripeEnv; returnPath?: string }) =>
     z.object({ environment: envSchema, returnPath: z.string().max(300).optional() }).parse(data),
   )
   .handler(async ({ data, context }) => {
-    const { data: sub, error } = await context.supabase
-      .from("subscriptions")
-      .select("provider_customer_id")
-      .eq("user_id", context.userId)
-      .eq("environment", data.environment)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (error) throw error;
-    if (!sub?.provider_customer_id) return { error: "no_customer" as const };
-
-    try {
-      const { getStripeClient } = await import("@/lib/stripe.server");
-      const { absoluteReturnUrl } = await import("@/lib/billing/returnUrl.server");
-      const stripe = await getStripeClient(data.environment);
-      // Powrót na ekran, z którego użytkownik wszedł do portalu (ścieżka jest
-      // sanityzowana - tylko adresy względne w obrębie serwisu).
-      const returnUrl = absoluteReturnUrl(data.returnPath);
-      const session = await stripe.billingPortal.sessions.create({
-        customer: sub.provider_customer_id,
-        return_url: returnUrl,
-      });
-
-      // Stripe otwiera jeden ogólny portal (bez osobnych podadresów per akcja
-      // jak w Paddle) - użytkownik samodzielnie wybiera anulowanie/płatność.
-      return {
-        url: session.url,
-        overviewUrl: session.url,
-        updatePaymentMethodUrl: null,
-        cancelUrl: null,
-      };
-    } catch (e) {
-      return { error: getStripeErrorMessage(e) };
-    }
+    const environment = resolveEnvironment(data.environment);
+    const { resolveUserTenantId } = await import("@/lib/server/userTenant.server");
+    const { createPortalLinkForUser } = await import("@/lib/billing/portalLink.server");
+    const tenantId = await resolveUserTenantId(context.supabase, context.userId);
+    const result = await createPortalLinkForUser(
+      context.userId,
+      environment,
+      { tenantId },
+      data.returnPath,
+    );
+    if (!result.ok) return { error: result.error };
+    // Stripe otwiera jeden ogólny portal (bez osobnych podadresów per akcja
+    // jak w Paddle) - użytkownik samodzielnie wybiera anulowanie/płatność.
+    return { url: result.urls.overviewUrl, ...result.urls };
   });
 
 /**
@@ -123,11 +154,12 @@ export const cancelStripeSubscription = createServerFn({ method: "POST" })
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
+    const environment = resolveEnvironment(data.environment);
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
       .select("provider_subscription_id")
       .eq("user_id", context.userId)
-      .eq("environment", data.environment)
+      .eq("environment", environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -136,18 +168,18 @@ export const cancelStripeSubscription = createServerFn({ method: "POST" })
 
     const { cancelSubscriptionAtPeriodEnd } =
       await import("@/lib/billing/subscriptionProvider.server");
-    const result = await cancelSubscriptionAtPeriodEnd(
-      data.environment,
-      sub.provider_subscription_id,
-    );
+    const result = await cancelSubscriptionAtPeriodEnd(environment, sub.provider_subscription_id);
     if (!result.ok) return { error: result.error };
     return { ok: true as const };
   });
 
 /**
- * Wznowienie subskrypcji. Dwa różne stany, jedna intencja użytkownika:
- * - zaplanowane anulowanie -> kasujemy zmianę, okres biegnie dalej,
- * - subskrypcja wstrzymana  -> wznawiamy ją u operatora od zaraz.
+ * Wznowienie subskrypcji. Trzy różne stany u operatora, jedna intencja
+ * użytkownika - rozstrzyga ŻYWY stan (`resumeProviderSubscription`), nie
+ * status z lustra:
+ * - status `paused` (koniec triala bez metody płatności) -> `subscriptions.resume`,
+ * - wstrzymany pobór (`pause_collection`)               -> zdjęcie pauzy,
+ * - zaplanowane anulowanie                              -> cofnięcie, okres biegnie dalej.
  */
 export const resumeStripeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -155,32 +187,31 @@ export const resumeStripeSubscription = createServerFn({ method: "POST" })
     z.object({ environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
+    const environment = resolveEnvironment(data.environment);
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("provider_subscription_id, status")
+      .select("provider_subscription_id")
       .eq("user_id", context.userId)
-      .eq("environment", data.environment)
+      .eq("environment", environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
     if (!sub?.provider_subscription_id) throw new Error("no_active_subscription");
 
-    const { resumePausedSubscription, resumeScheduledCancellation } =
+    const { resumeProviderSubscription } =
       await import("@/lib/billing/subscriptionProvider.server");
-
-    if (sub.status === "paused") {
-      const result = await resumePausedSubscription(data.environment, sub.provider_subscription_id);
-      if (!result.ok) return { error: result.error };
-      return { ok: true as const, mode: "unpaused" as const };
+    const result = await resumeProviderSubscription(environment, sub.provider_subscription_id);
+    if (!result.ok) {
+      return { error: result.error, hostedInvoiceUrl: result.hostedInvoiceUrl ?? null };
     }
-
-    const result = await resumeScheduledCancellation(
-      data.environment,
-      sub.provider_subscription_id,
-    );
-    if (!result.ok) return { error: result.error };
-    return { ok: true as const, mode: "cancellation_reverted" as const };
+    // Obie pauzy to dla klienta ten sam komunikat („wznowiono dostęp"); brak
+    // czegokolwiek do wznowienia u operatora = lustro było spóźnione.
+    const mode =
+      result.mode === "unpaused" || result.mode === "collection_resumed"
+        ? ("unpaused" as const)
+        : ("cancellation_reverted" as const);
+    return { ok: true as const, mode };
   });
 
 /**
@@ -199,12 +230,13 @@ export const previewStripePlanChange = createServerFn({ method: "POST" })
     const { catalogEntryByPriceId, planChangeDirection } = await import("@/lib/billing/catalog");
     const target = catalogEntryByPriceId(data.targetPriceId);
     if (!target) throw new Error("unknown_price");
+    const environment = resolveEnvironment(data.environment);
 
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
-      .select("provider_subscription_id, price_id, quantity")
+      .select("provider_subscription_id, price_id, quantity, tenant_id")
       .eq("user_id", context.userId)
-      .eq("environment", data.environment)
+      .eq("environment", environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -221,10 +253,13 @@ export const previewStripePlanChange = createServerFn({ method: "POST" })
         nextBilledAt: null,
       };
     }
+    // Podgląd tylko dla celu, który zmiana by przyjęła - kwota dla planu spoza
+    // oferty byłaby obietnicą, której serwer potem nie dotrzyma.
+    await assertOfferedTarget(context.userId, sub, target.priceId);
 
     try {
       const { resolveProviderPriceId } = await import("@/lib/billing/subscriptionProvider.server");
-      const providerPriceId = await resolveProviderPriceId(data.environment, target.priceId);
+      const providerPriceId = await resolveProviderPriceId(environment, target.priceId);
       if (!providerPriceId) {
         return {
           ok: false as const,
@@ -236,7 +271,7 @@ export const previewStripePlanChange = createServerFn({ method: "POST" })
       }
 
       const { getStripeClient } = await import("@/lib/stripe.server");
-      const stripe = await getStripeClient(data.environment);
+      const stripe = await getStripeClient(environment);
       const current = await stripe.subscriptions.retrieve(sub.provider_subscription_id);
       const itemId = current.items.data[0]?.id;
       const upcoming = await stripe.invoices.createPreview({
@@ -279,8 +314,9 @@ export const previewStripePlanChange = createServerFn({ method: "POST" })
 
 /**
  * Samodzielna zmiana liczby miejsc w planie rozliczanym za miejsce.
- * Zwiększenie rozlicza się proporcjonalnie od razu, zmniejszenie obowiązuje od
- * nowego okresu - opłacony okres należy się klientowi w całości.
+ * Zwiększenie rozlicza się proporcjonalnie od razu (po opłaceniu dopłaty),
+ * zmniejszenie obowiązuje od nowego okresu - opłacony okres należy się
+ * klientowi w całości.
  */
 export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -288,11 +324,12 @@ export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
     z.object({ quantity: z.number().int().min(1).max(500), environment: envSchema }).parse(data),
   )
   .handler(async ({ data, context }) => {
+    const environment = resolveEnvironment(data.environment);
     const { data: sub, error } = await context.supabase
       .from("subscriptions")
       .select("provider_subscription_id, price_id, quantity, status")
       .eq("user_id", context.userId)
-      .eq("environment", data.environment)
+      .eq("environment", environment)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -305,25 +342,23 @@ export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
 
     const { updateSubscriptionQuantity } =
       await import("@/lib/billing/subscriptionProvider.server");
-    const result = await updateSubscriptionQuantity(
-      data.environment,
-      sub.provider_subscription_id,
-      {
-        priceExternalId: entry.priceId,
-        quantity: data.quantity,
-        previousQuantity: sub.quantity ?? 1,
-      },
-    );
+    const result = await updateSubscriptionQuantity(environment, sub.provider_subscription_id, {
+      priceExternalId: entry.priceId,
+      quantity: data.quantity,
+      previousQuantity: sub.quantity ?? 1,
+    });
     if (!result.ok) {
       console.error("[payments] seat change failed", sub.provider_subscription_id, result.error);
-      return { error: result.error };
+      return { error: result.error, hostedInvoiceUrl: result.hostedInvoiceUrl ?? null };
     }
     // Stan w bazie domknie webhook `customer.subscription.updated`; zwracamy
-    // wartość docelową, żeby panel nie migotał starą liczbą do czasu dostarczenia.
+    // wartość docelową i moment wejścia wg OPERATORA (nie wg lustra, które
+    // przy spóźnionym webhooku dawało zły kierunek).
     return {
       ok: true as const,
       quantity: result.quantity,
-      immediate: data.quantity > (sub.quantity ?? 1),
+      immediate: result.effect === "applied",
+      effect: result.effect,
     };
   });
 
