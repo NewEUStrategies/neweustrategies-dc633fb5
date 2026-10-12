@@ -1062,15 +1062,92 @@
     {
       "idx": 151,
       "version": "7",
-      "when": 1791835631237,
-      "tag": "0151_author_profiles_public_drop_contact_email",
+      "when": 1791835714319,
+      "tag": "0151_tenant_admin_alerts",
       "breakpoints": true
     },
     {
       "idx": 152,
       "version": "7",
-      "when": 1791836394742,
-      "tag": "0152_public_definer_views_read_only",
+      "when": 1791835985314,
+      "tag": "0152_event_invoice_compliance",
+      "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1791836189794,
+      "tag": "0153_event_invoice_compliance_part2",
+      "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1791836386218,
+      "tag": "0154_event_invoice_compliance_part3",
+      "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1791836481499,
+      "tag": "0155_event_invoice_compliance_part4",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1791836634876,
+      "tag": "0156_event_invoice_compliance_part5",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1791836767221,
+      "tag": "0157_event_invoice_compliance_part6",
+      "breakpoints": true
+    },
+    {
+      "idx": 158,
+      "version": "7",
+      "when": 1791836906697,
+      "tag": "0158_event_invoice_compliance_part7",
+      "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1791836937442,
+      "tag": "0159_billing_documents_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1791837137311,
+      "tag": "0160_event_refund_jobs_escalation",
+      "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1791837269324,
+      "tag": "0161_accounting_retention_tax_limitation",
+      "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1791837278312,
+      "tag": "0162_billing_documents_follow_order_refund",
+      "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1791837331190,
+      "tag": "0163_event_speaker_detail_safe_projection_supabase_lane",
       "breakpoints": true
     }
   ]
