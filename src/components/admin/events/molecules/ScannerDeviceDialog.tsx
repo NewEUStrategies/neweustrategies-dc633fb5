@@ -50,6 +50,7 @@ import {
   validateScannerDeviceDraft,
   type ScannerDeviceDraft,
 } from "@/lib/events/onsiteDraft";
+import { scannerOriginFor, scannerPairingUrl } from "@/lib/events/scannerLink";
 import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
 
 ensureOnsiteI18n();
@@ -247,12 +248,18 @@ interface ScannerCredentialDialogProps {
  * KOD QR JEST TU NAJWAŻNIEJSZY. Wolontariusz nie przepisze trzydziestu dwóch
  * znaków base64url z ekranu laptopa na telefon bez pomyłki, a przepisany
  * z pomyłką token wygląda jak awaria systemu. Kod prowadzi wprost do
- * `/scanner?t=…`, więc telefon jest sparowany w jednym geście - a trasa
+ * `/scanner#t=…`, więc telefon jest sparowany w jednym geście - a trasa
  * skanera natychmiast czyści token z paska adresu.
  *
- * ADRES POWSTAJE W PRZEGLĄDARCE, NIE NA SERWERZE. `window.location.origin`
- * daje tę samą domenę, na której stoi organizator - a przy wielu domenach
- * najemców to jest jedyna wartość, która na pewno wskaże właściwą.
+ * TOKEN WE FRAGMENCIE, NIE W ZAPYTANIU (OPS-07). Fragmentu przeglądarka nie
+ * wysyła na serwer - poświadczenie nie trafia do logów Cloudflare/Workers.
+ *
+ * ADRES POWSTAJE W PRZEGLĄDARCE, NIE NA SERWERZE. Bez osobnego originu skanera
+ * `window.location.origin` daje tę samą domenę, na której stoi organizator -
+ * a przy wielu domenach najemców to jest jedyna wartość, która na pewno wskaże
+ * właściwą. Wdrożenie z `VITE_SCANNER_ORIGIN` (OPS-13) paruje telefony pod
+ * originem skanera: tam token w `localStorage` nie sąsiaduje z treściami CMS,
+ * a najemcę i wydarzenie i tak wyznacza sam token.
  */
 export function ScannerCredentialDialog({ credential, onClose }: ScannerCredentialDialogProps) {
   const { t } = useTranslation();
@@ -262,7 +269,7 @@ export function ScannerCredentialDialog({ credential, onClose }: ScannerCredenti
   const pairingUrl =
     credential === null || typeof window === "undefined"
       ? null
-      : `${window.location.origin}/scanner?t=${encodeURIComponent(credential.token)}`;
+      : scannerPairingUrl(scannerOriginFor(window.location.origin), credential.token);
 
   useEffect(() => {
     if (pairingUrl === null) {

@@ -33,6 +33,7 @@ import {
   FIXED_NOW,
   GODZINA,
   MINUTA,
+  SEKUNDA,
   advanceClock,
   freezeClock,
   relativeDate,
@@ -83,6 +84,12 @@ vi.mock("@/lib/events/scannerStorage", () => ({
   loadOutbox: () => Promise.resolve([...device.queue]),
   saveOutbox: (queue: readonly OutboxItem[]) => {
     device.queue = [...queue];
+    return Promise.resolve();
+  },
+  // Sejf (OPS-06) ma własne testy - tu pamięć urządzenia trzyma pozycje jawnie.
+  openSealedItems: () => Promise.resolve(null),
+  clearOutbox: () => {
+    device.queue = [];
     return Promise.resolve();
   },
 }));
@@ -148,6 +155,17 @@ vi.mock("@/lib/events/scannerOfflineStorage", () => ({
     store.clears += 1;
     return Promise.resolve();
   },
+  // Odłączenie (OPS-06) kasuje wszystko naraz - także odrzucone i konflikty.
+  wipeAllOfflineData: () => {
+    store.session = null;
+    store.roster = null;
+    store.log = [];
+    store.rejected = [];
+    store.conflicts = [];
+    store.wipes += 1;
+    return Promise.resolve();
+  },
+  purgeExpiredRoster: () => Promise.resolve(false),
 }));
 
 const { useScannerRuntime } = await import("@/lib/events/useScanner");
@@ -388,7 +406,13 @@ describe("zimny start i sesja z pamięci urządzenia", () => {
     expect(result.current.clockOffsetMs).toBe(4000);
   });
 
-  it("czasowa blokada zachowuje skan bez lokalnego przyznania wejścia", async () => {
+  // ZMIANA ŚWIADOMA (OPS-04, strona klienta). Ten test pilnował dawniej, że
+  // blokada czasowa kolejkuje skan BEZ decyzji - bramka stała wtedy bez
+  // odpowiedzi przez całą blokadę (do 30 minut). Lista offline i tak leży na
+  // telefonie, więc decyzja z niej nie ujawnia niczego nowego: blokada idzie
+  // teraz tą samą ścieżką co brak sieci - decyzja offline, podpisana jako
+  // offline, i skan w kolejce do późniejszej synchronizacji.
+  it("czasowa blokada przy skanie NA ŻYWO daje decyzję z listy offline i kolejkuje skan", async () => {
     const { result } = await withRoster();
     api.recordCheckinScan.mockRejectedValue(new Error("device_locked: cooling down"));
     let outcome: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
@@ -399,10 +423,41 @@ describe("zimny start i sesja z pamięci urządzenia", () => {
         direction: "in",
       });
     });
-    expect(outcome).toEqual({ queued: true, local: null });
+    expect(outcome).toMatchObject({ queued: true, local: { outcome: "granted", admit: true } });
     expect(result.current.outbox).toHaveLength(1);
+    expect(result.current.outbox[0]).toMatchObject({
+      offlineAdmitted: true,
+      offlineOutcome: "granted",
+      rosterGeneratedAt: page().generatedAt,
+    });
+    expect(store.log).toHaveLength(1);
+    // Drugie piknięcie w czasie blokady to „już odprawiony” z dziennika zgód.
+    let second: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
+    await act(async () => {
+      second = await result.current.submitCheckin({
+        code: CODE,
+        checkpointId: CP,
+        direction: "in",
+      });
+    });
+    expect(second).toMatchObject({ queued: true, local: { outcome: "repeat" } });
+  });
+
+  it("czasowa blokada BEZ listy offline nadal tylko kolejkuje skan (bez decyzji)", async () => {
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    api.recordCheckinScan.mockRejectedValue(new Error("device_locked: cooling down"));
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    let outcome: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
+    await act(async () => {
+      outcome = await result.current.submitCheckin({
+        code: CODE,
+        checkpointId: CP,
+        direction: "in",
+      });
+    });
+    expect(outcome).toEqual({ queued: true, local: null });
     expect(result.current.outbox[0].offlineAdmitted).toBeUndefined();
-    expect(store.log).toEqual([]);
   });
 
   it("odmowa NAZWANA przez bazę (nie sieć) nie podnosi sesji z pamięci", async () => {
@@ -484,7 +539,9 @@ describe("zimny start i sesja z pamięci urządzenia", () => {
 
   it("odłączenie kasuje sesję i listę z urządzenia", async () => {
     const { result } = await withRoster();
-    act(() => result.current.disconnect());
+    await act(async () => {
+      await result.current.disconnect();
+    });
     expect(result.current.status).toBe("idle");
     expect(result.current.roster.count).toBe(0);
     expect(store.wipes).toBe(1);
@@ -583,7 +640,9 @@ describe("lista offline", () => {
     expect(api.fetchScannerRoster).toHaveBeenCalledTimes(inFlight);
     await act(async () => finish(page()));
 
-    act(() => result.current.disconnect());
+    await act(async () => {
+      await result.current.disconnect();
+    });
     act(() => result.current.syncRoster());
     expect(api.fetchScannerRoster).toHaveBeenCalledTimes(inFlight);
   });
@@ -594,7 +653,9 @@ describe("lista offline", () => {
     api.fetchScannerRoster.mockReturnValue(new Promise((resolve) => (finish = resolve)));
     const { result } = render();
     await waitFor(() => expect(result.current.roster.syncing).toBe(true));
-    act(() => result.current.disconnect());
+    await act(async () => {
+      await result.current.disconnect();
+    });
     await act(async () => finish(page()));
     expect(result.current.roster.count).toBe(0);
     expect(store.roster).toBeNull();
@@ -606,7 +667,9 @@ describe("lista offline", () => {
     api.bootstrapScanner.mockResolvedValue(session());
     const { result } = render();
     await waitFor(() => expect(result.current.status).toBe("ready"));
-    act(() => result.current.disconnect());
+    await act(async () => {
+      await result.current.disconnect();
+    });
     await act(async () => release({ deviceId: "dev-1", generatedAt: "v1", rows: [entry()] }));
     expect(result.current.roster.count).toBe(0);
     expect(api.fetchScannerRoster).not.toHaveBeenCalled();
@@ -618,7 +681,9 @@ describe("lista offline", () => {
     api.fetchScannerRoster.mockReturnValue(new Promise((_resolve, reject) => (fail = reject)));
     const { result } = render();
     await waitFor(() => expect(result.current.roster.syncing).toBe(true));
-    act(() => result.current.disconnect());
+    await act(async () => {
+      await result.current.disconnect();
+    });
     const wipes = store.wipes;
     await act(async () => fail(new Error("device_revoked: gone")));
     expect(result.current.connectError).toBeNull();
@@ -676,7 +741,9 @@ describe("pokolenie parowania", () => {
     api.bootstrapScanner.mockReturnValue(new Promise((resolve) => (finish = resolve)));
     goOnline();
     await waitFor(() => expect(api.bootstrapScanner).toHaveBeenCalled());
-    act(() => result.current.disconnect());
+    await act(async () => {
+      await result.current.disconnect();
+    });
     await act(async () => finish(session({ offlineRoster: false })));
 
     expect(result.current.status).toBe("idle");
@@ -693,14 +760,21 @@ describe("pokolenie parowania", () => {
     const { result } = render();
     await waitFor(() => expect(api.bootstrapScanner).toHaveBeenCalled());
     await waitFor(() => expect(result.current.outbox).toHaveLength(1));
-    act(() => result.current.disconnect());
+    await act(async () => {
+      await result.current.disconnect();
+    });
+    // ZMIANA ŚWIADOMA (OPS-06): odłączenie (po potwierdzeniu na ekranie)
+    // samo kasuje kolejkę - telefon po wydarzeniu nie trzyma kodów z biletów.
+    expect(device.queue).toEqual([]);
     const wipes = store.wipes;
     await act(async () => fail(new Error("device_revoked: gone")));
 
+    // Spóźniona odmowa nie dokłada niczego: ani kasowania, ani odrzuconych.
     expect(result.current.connectError).toBeNull();
     expect(store.wipes).toBe(wipes);
     expect(result.current.rejected).toEqual([]);
-    expect(device.queue).toHaveLength(1);
+    expect(store.rejected).toEqual([]);
+    expect(device.queue).toEqual([]);
   });
 });
 
@@ -1077,6 +1151,31 @@ describe("wysyłka kolejki: konflikty i odrzucone", () => {
     expect(store.rejected).toHaveLength(2);
   });
 
+  it("odmowa poświadczenia W WYSYŁCE nie przekreśla pozycji zamkniętej blokiem INNEGO tokenu (OPS-06)", async () => {
+    // Pozycja zaszyfrowana kluczem poprzedniego tokenu (kod niedostępny w tej
+    // karcie) nie należy do odrzuconego poświadczenia - czeka na swój token,
+    // tak samo jak przy odmowie w `bootstrap` (`dropSession`).
+    const foreign = queued({
+      id: "obca",
+      code: "",
+      codeHash: "f".repeat(64),
+      codePrefix: "OBCA01",
+      deviceId: null,
+      deviceScannedAt: relativeIso(-60_000),
+      sealed: { iv: "0".repeat(24), data: "ab" },
+    });
+    device.queue = [queued({ id: "wlasna", deviceScannedAt: relativeIso(-600_000) }), foreign];
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    api.recordCheckinScan.mockRejectedValue(new Error("device_revoked: gone"));
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+    await waitFor(() => expect(store.rejected.map((row) => row.item.id)).toEqual(["wlasna"]));
+    expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
+    expect(result.current.outbox.map((item) => item.id)).toEqual(["obca"]);
+    expect(result.current.outbox[0].rejectedAt).toBeUndefined();
+    expect(device.queue.map((item) => item.id)).toEqual(["obca"]);
+  });
+
   it("odrzucone i konflikty z poprzedniej zmiany wracają z pamięci; wyczyszczenie je kasuje", async () => {
     store.rejected = [{ item: queued({ id: "x" }), error: "device_revoked: x", rejectedAt: "t" }];
     store.conflicts = [
@@ -1118,7 +1217,9 @@ describe("wysyłka kolejki: konflikty i odrzucone", () => {
 
   it("termin w wysyłce odrzuca TYLKO skan po terminie - reszta jedzie i czeka dalej", async () => {
     // Baza liczy termin per pozycja: „a" sprzed terminu przechodzi, „b" po
-    // terminie odpada, „c" (jeszcze nie jego kolej) zostaje w kolejce.
+    // terminie odpada, „c" (sieć zawiodła) zostaje w kolejce. Dawniej „c"
+    // czekało na odległy termin ponowienia - start aplikacji ZERUJE teraz
+    // wycofanie (OPS-05), więc „c" jedzie w tym samym przebiegu.
     device.queue = [
       queued({ id: "a", deviceScannedAt: relativeIso(-600_000) }),
       queued({ id: "b", deviceScannedAt: relativeIso(-60_000) }),
@@ -1132,7 +1233,9 @@ describe("wysyłka kolejki: konflikty i odrzucone", () => {
     api.recordCheckinScan.mockImplementation((input) =>
       input.clientScanUid === "b"
         ? Promise.reject(new Error("device_expired: past expiry"))
-        : Promise.resolve(scanResult()),
+        : input.clientScanUid === "c"
+          ? Promise.reject(new TypeError("Failed to fetch"))
+          : Promise.resolve(scanResult()),
     );
     const { result } = render();
     await waitFor(() => expect(result.current.lastFlush).not.toBeNull());
@@ -1148,6 +1251,9 @@ describe("wysyłka kolejki: konflikty i odrzucone", () => {
       queued({ id: `q${index}`, nextAttemptAt: relativeIso(GODZINA) }),
     );
     api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    // Start zeruje wycofanie (OPS-05), więc pierwsza wysyłka rusza od razu -
+    // sieć jej odmawia, kolejka zostaje pełna.
+    api.recordCheckinScan.mockRejectedValue(new TypeError("Failed to fetch"));
     const { result } = render();
     await waitFor(() => expect(result.current.status).toBe("ready"));
     await waitFor(() => expect(result.current.outbox).toHaveLength(OUTBOX_CAPACITY));
@@ -1213,6 +1319,8 @@ describe("pozycja kolejki należy do urządzenia", () => {
   it("nieudane parowanie NOWEGO kodu nie przekreśla kolejki bieżącego urządzenia", async () => {
     device.queue = [queued({ id: "a", nextAttemptAt: relativeIso(GODZINA) })];
     api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    // Start zeruje wycofanie (OPS-05): pozycja próbuje od razu, sieć odmawia.
+    api.recordCheckinScan.mockRejectedValue(new TypeError("Failed to fetch"));
     const { result } = render();
     await waitFor(() => expect(result.current.status).toBe("ready"));
     await waitFor(() => expect(result.current.outbox).toHaveLength(1));
@@ -1298,5 +1406,235 @@ describe("wstrzymanie urządzenia w panelu (`device_inactive`)", () => {
     expect(device.queue).toHaveLength(1);
     expect(result.current.rejected).toEqual([]);
     expect(store.wipes).toBe(0);
+  });
+});
+
+/* ------------------------------------- OPS-05: kolejka nigdy nie utyka --- */
+
+// KRYTERIUM ODBIORU OPS-05. Dawniej po ośmiu nieudanych próbach (4 + 8 + ...
+// + 256 s, około 8,5 minuty) pozycja przestawała być ponawiana NA ZAWSZE,
+// a jedyną akcją było „usuń". Portal Wi-Fi albo jedna kreska zasięgu przy
+// `navigator.onLine === true`, dziesięć minut awarii bazy czy trzydziestominutowa
+// blokada urządzenia kończyły się więc utratą obecności i płatnych leadów.
+// Te testy sterują PRAWDZIWYM odstępem wysyłki (udawane timery) - bez
+// skrótów przez `flush()`.
+describe("OPS-05: awarie przejściowe nie zostawiają skanów w kolejce", () => {
+  const TIMED_OUT = "Scanner request timed out";
+
+  /** Kolejka z poprzedniej zmiany: trzy odprawy i lead, w kolejności skanów. */
+  function previousShift(): OutboxItem[] {
+    return [
+      queued({ id: "a", deviceScannedAt: relativeIso(-400_000) }),
+      queued({ id: "b", deviceScannedAt: relativeIso(-300_000) }),
+      queued({ id: "c", deviceScannedAt: relativeIso(-200_000) }),
+      queued({
+        id: "d",
+        kind: "lead",
+        checkpointId: null,
+        direction: null,
+        deviceScannedAt: relativeIso(-100_000),
+      }),
+    ];
+  }
+
+  /** Udawane timery w pełnym zakresie - test sam popycha zegar i odstęp wysyłki. */
+  function fakeTimers(): void {
+    vi.useFakeTimers({
+      toFake: ["Date", "setTimeout", "setInterval", "clearTimeout", "clearInterval"],
+    });
+    vi.setSystemTime(FIXED_NOW);
+  }
+
+  async function advance(ms: number, step = 15 * SEKUNDA, onStep?: () => void): Promise<void> {
+    for (let passed = 0; passed < ms; passed += step) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(Math.min(step, ms - passed));
+      });
+      onStep?.();
+    }
+  }
+
+  async function readyWith(queue: OutboxItem[]) {
+    device.queue = queue;
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    const view = render();
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(view.result.current.status).toBe("ready");
+      expect(view.result.current.outbox).toHaveLength(queue.length);
+    });
+    return view;
+  }
+
+  /** Sieć „wraca": każde wywołanie bramki się udaje. */
+  function networkBack(): void {
+    api.recordCheckinScan.mockResolvedValue(scanResult());
+    api.recordLeadScan.mockResolvedValue(leadResult());
+  }
+
+  it("10 minut przekroczeń terminu (onLine = true), potem sieć - WSZYSTKIE pozycje wychodzą", async () => {
+    fakeTimers();
+    const attemptsOf = new Map<string, number>();
+    api.recordCheckinScan.mockImplementation((input) => {
+      const id = input.clientScanUid ?? "?";
+      attemptsOf.set(id, (attemptsOf.get(id) ?? 0) + 1);
+      return Promise.reject(new Error(TIMED_OUT));
+    });
+    api.recordLeadScan.mockRejectedValue(new Error(TIMED_OUT));
+    const { result } = await readyWith(previousShift());
+
+    // Dziesięć minut portalu Wi-Fi: przeglądarka twierdzi, że sieć jest,
+    // a każde żądanie kończy się przekroczeniem terminu.
+    await advance(10 * MINUTA, 15 * SEKUNDA, () => {
+      const current = result.current;
+      // Nic nie trafia do „wymaga uwagi" ani na listę odrzuconych...
+      expect(current.outboxCounts).toEqual({ pending: 4, stuck: 0 });
+      expect(current.rejected).toEqual([]);
+      // ...a żadna pozycja nie czeka dłużej niż sufit wycofania.
+      for (const item of current.outbox) {
+        expect(Date.parse(item.nextAttemptAt) - Date.now()).toBeLessThanOrEqual(60 * SEKUNDA);
+      }
+    });
+    // Ponawianie trwało przez całe dziesięć minut - dawniej kończyło się na 8.
+    expect(attemptsOf.get("a") ?? 0).toBeGreaterThan(8);
+    expect(device.queue).toHaveLength(4);
+
+    // Sieć wraca PO CICHU (bez zdarzenia `online`) - wystarczy odstęp wysyłki.
+    networkBack();
+    await advance(90 * SEKUNDA);
+    expect(result.current.outbox).toEqual([]);
+    expect(device.queue).toEqual([]);
+    const sentCheckins = api.recordCheckinScan.mock.calls
+      .slice(-3)
+      .map(([input]) => input.clientScanUid);
+    expect(sentCheckins.sort()).toEqual(["a", "b", "c"]);
+    expect(api.recordLeadScan).toHaveBeenLastCalledWith(
+      expect.objectContaining({ code: CODE, queued: true }),
+    );
+    expect(result.current.rejected).toEqual([]);
+  });
+
+  it("powrót sieci (`online`) zeruje wycofanie i wysyła OD RAZU, bez czekania na odstęp", async () => {
+    fakeTimers();
+    api.recordCheckinScan.mockRejectedValue(new Error(TIMED_OUT));
+    api.recordLeadScan.mockRejectedValue(new Error(TIMED_OUT));
+    const { result } = await readyWith(previousShift());
+    await advance(10 * MINUTA);
+    expect(result.current.outbox).toHaveLength(4);
+    expect(result.current.outbox.some((item) => item.attempts > 0)).toBe(true);
+
+    networkBack();
+    goOnline();
+    // Zero upływu czasu - tylko mikrozadania.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(result.current.outbox).toEqual([]);
+    });
+    expect(Date.now()).toBeLessThan(FIXED_NOW.getTime() + 10 * MINUTA + 5 * SEKUNDA);
+  });
+
+  it("powrót karty na wierzch (`visibilitychange`) też zeruje wycofanie i wysyła", async () => {
+    fakeTimers();
+    api.recordCheckinScan.mockRejectedValue(new Error(TIMED_OUT));
+    api.recordLeadScan.mockRejectedValue(new Error(TIMED_OUT));
+    const { result } = await readyWith(previousShift());
+    await advance(3 * MINUTA);
+
+    networkBack();
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(result.current.outbox).toEqual([]);
+    });
+  });
+
+  it("30 minut blokady czasowej (`device_locked`) - pozycje czekają, po blokadzie wychodzą", async () => {
+    fakeTimers();
+    api.recordCheckinScan.mockRejectedValue(new Error("device_locked: cooling down"));
+    api.recordLeadScan.mockRejectedValue(new Error("device_locked: cooling down"));
+    const { result } = await readyWith(previousShift());
+
+    await advance(30 * MINUTA, 15 * SEKUNDA, () => {
+      expect(result.current.outboxCounts).toEqual({ pending: 4, stuck: 0 });
+      expect(result.current.rejected).toEqual([]);
+    });
+    // Blokada dotyczy całego urządzenia: najwyżej jedna próba na przebieg
+    // (przebieg co tyknięcie odstępu), a nie cztery.
+    const ticks = (30 * MINUTA) / (15 * SEKUNDA);
+    expect(api.recordCheckinScan.mock.calls.length).toBeLessThanOrEqual(ticks + 1);
+
+    networkBack();
+    await advance(90 * SEKUNDA);
+    expect(result.current.outbox).toEqual([]);
+    expect(result.current.status).toBe("ready");
+    expect(device.token).toBe(TOKEN);
+  });
+
+  it("seria porażek przejściowych kończy BIEŻĄCY przebieg po trzech pozycjach", async () => {
+    // Pięćset pozycji po dziesięć sekund terminu każda trzymałoby przebieg
+    // ponad godzinę - a powrót sieci nie miałby jak go przyspieszyć.
+    api.recordCheckinScan.mockRejectedValue(new Error(TIMED_OUT));
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    device.queue = ["a", "b", "c", "d", "e"].map((id, index) =>
+      queued({ id, deviceScannedAt: relativeIso(-100_000 + index) }),
+    );
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    await waitFor(() => expect(result.current.flushing).toBe(false));
+    await act(async () => {});
+    expect(api.recordCheckinScan).toHaveBeenCalledTimes(3);
+    expect(result.current.outbox.map((item) => [item.id, item.attempts])).toEqual([
+      ["a", 1],
+      ["b", 1],
+      ["c", 1],
+      ["d", 0],
+      ["e", 0],
+    ]);
+  });
+
+  it("start aplikacji: pozycje „po limicie prób” z poprzedniej wersji wracają do wysyłki od razu", async () => {
+    // Telefon, na którym stara wersja zostawiła pozycje w „wymaga uwagi”
+    // (osiem prób, termin ponowienia daleko), wysyła je przy pierwszym starcie.
+    api.recordCheckinScan.mockResolvedValue(scanResult());
+    api.recordLeadScan.mockResolvedValue(leadResult());
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    device.queue = previousShift().map((item) => ({
+      ...item,
+      attempts: 8,
+      lastError: TIMED_OUT,
+      nextAttemptAt: relativeIso(GODZINA),
+    }));
+    const { result } = render();
+    await waitFor(() => expect(api.recordLeadScan).toHaveBeenCalledTimes(1));
+    expect(api.recordCheckinScan).toHaveBeenCalledTimes(3);
+    await waitFor(() => expect(result.current.outbox).toEqual([]));
+    expect(device.queue).toEqual([]);
+  });
+
+  it("„Ponów” przy jednej pozycji i „Ponów wszystkie” wysyłają od razu, mimo wycofania", async () => {
+    api.recordCheckinScan.mockRejectedValue(new Error(TIMED_OUT));
+    api.recordLeadScan.mockRejectedValue(new Error(TIMED_OUT));
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    device.queue = previousShift().map((item) => ({ ...item, attempts: 6 }));
+    const { result } = render();
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    // Pierwszy przebieg: trzy porażki z rzędu i koniec - „d" jeszcze nie próbowało.
+    await waitFor(() =>
+      expect(result.current.outbox.filter((item) => item.lastError !== null)).toHaveLength(3),
+    );
+    await waitFor(() => expect(result.current.flushing).toBe(false));
+
+    networkBack();
+    act(() => result.current.retry("d"));
+    await waitFor(() => expect(result.current.outbox.map((item) => item.id)).not.toContain("d"));
+    expect(result.current.outbox).toHaveLength(3);
+
+    act(() => result.current.retryAll());
+    await waitFor(() => expect(result.current.outbox).toEqual([]));
   });
 });

@@ -62,9 +62,41 @@
 // PRZEPEŁNIENIE TEŻ NIE ZNIKA. Pełna kolejka nadal wypycha najstarszą pozycję
 // (świeży skan jest cenniejszy), ale `enqueueScanWithOverflow` ją ODDAJE,
 // a środowisko dopisuje ją do odrzuconych (`outbox_overflow`).
+//
+// AWARIA PRZEJŚCIOWA NIE PROWADZI DO „WYMAGA UWAGI" (OPS-05). Wcześniej po
+// ośmiu nieudanych próbach (4 + 8 + ... + 256 s, około 8,5 minuty) pozycja
+// przestawała być ponawiana na zawsze, a jedyną akcją było „usuń". Portal
+// Wi-Fi, jedna kreska zasięgu przy `navigator.onLine === true`, dziesięć minut
+// awarii bazy albo trzydziestominutowa blokada urządzenia kończyły się więc
+// utratą obecności i płatnych leadów. Teraz:
+//   * awaria transportu, przekroczony termin, 5xx, blokada czasowa i dławik
+//     (`OUTBOX_DISPOSITIONS`) to tylko WYCOFANIE: wykładnicze z losowym
+//     rozrzutem, z sufitem minuty - bez limitu prób;
+//   * `attempts` to wyłącznie wykładnik wycofania - kolejne przejściowe porażki
+//     od ostatniego wyzerowania; zerują go powrót sieci, powrót karty na
+//     wierzch, start aplikacji i przycisk „Ponów" (`resetBackoff`);
+//   * jedyną drogą z kolejki poza wysłaniem jest TRWAŁA odmowa (lista
+//     odrzuconych z eksportem) albo świadome usunięcie przez operatora.
+//
+// JAWNY KOD NIE WYCHODZI POZA PAMIĘĆ KARTY (OPS-06). `code` w pozycji żyje
+// tylko w pamięci; magazyn zapisuje go zaszyfrowanego (`scannerVault.ts`).
+// Pozycja ODRZUCONA (`RejectedItem`) nie ma kodu w ogóle - niesie skrót
+// SHA-256 (`codeHash`, ten sam co `qr_token_hash` w bazie) i kilka pierwszych
+// znaków (`codePrefix`): tyle wystarczy organizatorowi, a eksport krążący
+// pocztą nie wpuści nikogo na salę.
+//
+// ZNACZNIK KOLEJKI (`queueMarker`) jest nieprzezroczysty: baza może go nadać,
+// kolejka go przechowa (zaszyfrowany, w części tajnej sejfu) i odeśle
+// z ładunkiem przy wysyłce - bez kolejnej migracji formatu zapisu.
 import type { CheckinDirection, OfflineOutcome } from "@/lib/events/onsiteEnums";
 import { isOfflineOutcome } from "@/lib/events/onsiteEnums";
-import { isPermanentScanError, scannerErrorHead } from "@/lib/events/scannerErrorKind";
+import {
+  isPermanentScanError,
+  scanErrorKind,
+  scannerErrorHead,
+  type ScanErrorKind,
+} from "@/lib/events/scannerErrorKind";
+import { codePrefixOf, isSealedBlob, type SealedBlob } from "@/lib/events/scannerVault";
 
 export const OUTBOX_KINDS = ["checkin", "lead"] as const;
 export type OutboxKind = (typeof OUTBOX_KINDS)[number];
@@ -73,17 +105,38 @@ export interface OutboxItem {
   /** Dla odprawy JEST to `client_scan_uid` - klucz idempotencji w bazie. */
   id: string;
   kind: OutboxKind;
+  /**
+   * Jawny kod z biletu - WYŁĄCZNIE w pamięci karty; na dysku leży tylko
+   * w zaszyfrowanym bloku. Pusty napis = kod niedostępny w tej karcie (blok
+   * innego poświadczenia albo zapis bez sejfu) - taka pozycja nie wyjedzie.
+   */
   code: string;
+  /** sha256(btrim(kod)) - ten sam skrót co `qr_token_hash` w bazie i na liście offline. */
+  codeHash?: string | null;
+  /** Kilka pierwszych znaków kodu - to, co wolno pokazać i wyeksportować. */
+  codePrefix?: string | null;
   checkpointId: string | null;
   direction: CheckinDirection | null;
   note: string | null;
   interestRating: number | null;
   /** Chwila SKANU, nie chwila wysyłki - to ona trafia do dziennika. */
   deviceScannedAt: string;
+  /**
+   * Kolejne PRZEJŚCIOWE porażki od ostatniego wyzerowania - wyłącznie wykładnik
+   * wycofania. Nie ma sufitu i nie prowadzi do „wymaga uwagi" (patrz nagłówek).
+   */
   attempts: number;
   /** Nie ponawiamy przed tą chwilą (wykładnicze wycofanie). */
   nextAttemptAt: string;
   lastError: string | null;
+  /** Nieprzezroczysty znacznik bazy odsyłany z ładunkiem przy wysyłce. */
+  queueMarker?: string | null;
+  /**
+   * Zaszyfrowana część tajna, której ta karta NIE otworzyła (blok spod innego
+   * poświadczenia). Magazyn zapisuje ją z powrotem bez zmian, a środowisko
+   * otwiera ją, gdy dostanie właściwy klucz.
+   */
+  sealed?: SealedBlob | null;
   /** Co urządzenie zdecydowało bez sieci (z listy offline); brak = bez decyzji. */
   offlineAdmitted?: boolean | null;
   offlineOutcome?: OfflineOutcome | null;
@@ -99,12 +152,30 @@ export interface OutboxItem {
   rejectedAt?: string | null;
 }
 
+/**
+ * Pozycja na liście odrzuconych - BEZ jawnego kodu, bloku sejfu i znacznika
+ * kolejki. Do odnalezienia zgłoszenia wystarczą `codeHash` i `codePrefix`.
+ */
+export type RejectedItem = Omit<OutboxItem, "code" | "sealed" | "queueMarker">;
+
 /** Pozycja zdjęta z kolejki trwałą odmową - czeka na organizatora. */
 export interface RejectedScan {
-  item: OutboxItem;
+  item: RejectedItem;
   /** Komunikat bazy (z głową `kod:`), z którym pozycja została odrzucona. */
   error: string;
   rejectedAt: string;
+}
+
+/**
+ * Pozycja kolejki -> wpis listy odrzuconych: kod znika, zostają skrót
+ * i prefiks (prefiks liczony z kodu, gdy pozycja go jeszcze nie miała).
+ */
+export function toRejectedItem(item: OutboxItem | RejectedItem): RejectedItem {
+  const source: Partial<Pick<OutboxItem, "code" | "sealed" | "queueMarker">> & RejectedItem = item;
+  const { code, sealed: _sealed, queueMarker: _marker, ...rest } = source;
+  const prefix =
+    item.codePrefix ?? (typeof code === "string" && code !== "" ? codePrefixOf(code) : null);
+  return { ...rest, codeHash: item.codeHash ?? null, codePrefix: prefix };
 }
 
 /**
@@ -129,16 +200,38 @@ function numberOrNull(value: unknown): number | null {
  * pola opcjonalne (kolejki sprzed decyzji offline) dostają wartości puste.
  */
 export function parseOutboxItem(value: unknown): OutboxItem | null {
+  const meta = parseItemMeta(value);
+  if (meta === null) return null;
+  const code = (value as Record<string, unknown>).code;
+  if (typeof code !== "string") return null;
+  return { ...meta, code };
+}
+
+/**
+ * Wpis listy odrzuconych z dysku. Wpis zapisany przed tą zmianą niesie jawny
+ * kod - wraca BEZ niego (prefiks liczony z kodu); skrót dolicza magazyn.
+ */
+export function parseRejectedItem(value: unknown): RejectedItem | null {
+  const meta = parseItemMeta(value);
+  if (meta === null) return null;
+  const code = (value as Record<string, unknown>).code;
+  return toRejectedItem({ ...meta, code: typeof code === "string" ? code : "" });
+}
+
+/**
+ * Pola pozycji wspólne dla kolejki i listy odrzuconych - bez kodu. Pozycja
+ * bez identyfikatora albo znanego rodzaju wypada.
+ */
+function parseItemMeta(value: unknown): Omit<OutboxItem, "code"> | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
-  if (typeof row.id !== "string" || typeof row.code !== "string") return null;
+  if (typeof row.id !== "string") return null;
   if (row.kind !== "checkin" && row.kind !== "lead") return null;
   const deviceScannedAt = stringOrNull(row.deviceScannedAt) ?? "";
   const outcome = stringOrNull(row.offlineOutcome);
   return {
     id: row.id,
     kind: row.kind,
-    code: row.code,
     checkpointId: stringOrNull(row.checkpointId),
     direction: row.direction === "in" || row.direction === "out" ? row.direction : null,
     note: stringOrNull(row.note),
@@ -151,14 +244,15 @@ export function parseOutboxItem(value: unknown): OutboxItem | null {
     offlineOutcome: outcome !== null && isOfflineOutcome(outcome) ? outcome : null,
     rosterGeneratedAt: stringOrNull(row.rosterGeneratedAt),
     deviceId: stringOrNull(row.deviceId),
-    // Tylko gdy jest: pozycja żywa nie dostaje pola, więc eksport odrzuconych
-    // i zapisane kolejki mają ten sam kształt co przed tą zmianą.
+    // Tylko gdy są: pozycja żywa nie dostaje pól, więc eksport odrzuconych
+    // i zapisane kolejki mają ten sam kształt co przed tymi zmianami.
     ...(typeof row.rejectedAt === "string" ? { rejectedAt: row.rejectedAt } : {}),
+    ...(typeof row.codeHash === "string" ? { codeHash: row.codeHash } : {}),
+    ...(typeof row.codePrefix === "string" ? { codePrefix: row.codePrefix } : {}),
+    ...(typeof row.queueMarker === "string" ? { queueMarker: row.queueMarker } : {}),
+    ...(isSealedBlob(row.sealed) ? { sealed: row.sealed } : {}),
   };
 }
-
-/** Po tylu nieudanych próbach pozycja idzie do „wymaga uwagi", nie w nieskończoność. */
-export const OUTBOX_MAX_ATTEMPTS = 8;
 
 /** Więcej i tak nie zmieści się w jednej zmianie wolontariusza przy bramce. */
 export const OUTBOX_CAPACITY = 500;
@@ -183,15 +277,67 @@ export function isRejectedItem(item: OutboxItem): boolean {
   return typeof item.rejectedAt === "string";
 }
 
+/* ------------------------------------------------- co robić z odmową --- */
+
 /**
- * Wykładnicze wycofanie z sufitem: 2 s, 4 s, 8 s … do 5 minut.
- *
- * Bez sufitu ósma próba wypadałaby po czterech minutach, a dziewiąta po ośmiu -
- * czyli po powrocie sieci kolejka stałaby dalej, mimo że wszystko już działa.
+ * Co kolejka robi z błędem wysyłki - tabela, nie łańcuch warunków:
+ *   * `retry`          - przejściowe: wycofanie BEZ limitu prób;
+ *   * `hold`           - wstrzymanie w panelu: przebieg staje, pozycje nietknięte;
+ *   * `reject`         - odmowa TEJ pozycji: na listę odrzuconych;
+ *   * `reject_all`     - poświadczenie unieważnione: cała kolejka na listę, koniec sesji;
+ *   * `reject_expired` - termin poświadczenia: baza liczy go PER POZYCJA (skan
+ *                        sprzed terminu przechodzi jeszcze 72 h), więc odrzucamy
+ *                        tę pozycję, ekran przechodzi w „wygasło", reszta jedzie.
  */
-export function backoffDelayMs(attempts: number): number {
-  const step = Math.max(attempts, 0);
-  return Math.min(2_000 * 2 ** step, 300_000);
+export type OutboxDisposition = "retry" | "hold" | "reject" | "reject_all" | "reject_expired";
+
+export const OUTBOX_DISPOSITIONS: Readonly<Record<ScanErrorKind, OutboxDisposition>> = {
+  transport: "retry",
+  locked: "retry",
+  throttled: "retry",
+  paused: "hold",
+  session: "reject_all",
+  refused: "reject",
+};
+
+/** Wyjątki od klasy - po głowie `kod:` (termin jest klasy `session`, ale liczy się per pozycja). */
+const DISPOSITION_BY_HEAD: Readonly<Partial<Record<string, OutboxDisposition>>> = {
+  device_expired: "reject_expired",
+};
+
+export function outboxDisposition(error: unknown): OutboxDisposition {
+  return DISPOSITION_BY_HEAD[scannerErrorHead(error)] ?? OUTBOX_DISPOSITIONS[scanErrorKind(error)];
+}
+
+/**
+ * Porażka dotyczy CAŁEGO urządzenia (blokada czasowa, dławik) - następna
+ * pozycja w tym przebiegu dostałaby to samo, więc przebieg staje.
+ */
+export function stopsFlushRun(error: unknown): boolean {
+  const kind = scanErrorKind(error);
+  return kind === "locked" || kind === "throttled";
+}
+
+/* --------------------------------------------------------- wycofanie --- */
+
+/** Sufit wycofania: po powrocie sieci nic nie czeka dłużej niż minutę (plus odstęp tyknięcia). */
+export const OUTBOX_BACKOFF_CAP_MS = 60_000;
+
+/** Wycofanie bez rozrzutu: 2 s, 4 s, 8 s … do minuty. */
+export function backoffBaseMs(attempts: number): number {
+  const step = Math.min(Math.max(attempts, 0), 16);
+  return Math.min(2_000 * 2 ** step, OUTBOX_BACKOFF_CAP_MS);
+}
+
+/**
+ * Wycofanie z losowym rozrzutem w przedziale [połowa, całość] - dwadzieścia
+ * telefonów, którym sieć wróciła w tej samej sekundzie, nie uderza w bazę
+ * w tej samej sekundzie. Nigdy powyżej `OUTBOX_BACKOFF_CAP_MS`.
+ */
+export function backoffDelayMs(attempts: number, random: () => number = Math.random): number {
+  const base = backoffBaseMs(attempts);
+  const spread = Math.min(Math.max(random(), 0), 1);
+  return Math.round(base / 2 + (base / 2) * spread);
 }
 
 function withDelay(nowIso: string, delayMs: number): string {
@@ -255,7 +401,7 @@ export function dueItems(queue: readonly OutboxItem[], nowIso: string): OutboxIt
   const now = Date.parse(nowIso);
   const stamp = Number.isNaN(now) ? Date.now() : now;
   return queue
-    .filter((item) => item.attempts < OUTBOX_MAX_ATTEMPTS && !isRejectedItem(item))
+    .filter((item) => !isRejectedItem(item))
     .filter((item) => {
       const due = Date.parse(item.nextAttemptAt);
       return Number.isNaN(due) || due <= stamp;
@@ -265,12 +411,41 @@ export function dueItems(queue: readonly OutboxItem[], nowIso: string): OutboxIt
 
 /**
  * Pozycje, które przestały być ponawiane - ekran musi je pokazać człowiekowi.
- * Należy tu też pozycja odrzucona, której lista odrzuconych NIE przechowała
- * trwale (np. prywatne okno): zostaje widoczna z powodem i przyciskiem
- * „odrzuć", zamiast zniknąć razem z kartą.
+ * Po OPS-05 jest to WYŁĄCZNIE pozycja odrzucona, której lista odrzuconych NIE
+ * przechowała trwale (np. prywatne okno): zostaje widoczna z powodem
+ * i przyciskiem „usuń", zamiast zniknąć razem z kartą. Awaria przejściowa
+ * nigdy tu nie prowadzi.
  */
 export function stuckItems(queue: readonly OutboxItem[]): OutboxItem[] {
-  return queue.filter((item) => item.attempts >= OUTBOX_MAX_ATTEMPTS || isRejectedItem(item));
+  return queue.filter(isRejectedItem);
+}
+
+/** Pozycje żywe, których ostatnia próba się nie udała - ekran daje przy nich „Ponów". */
+export function retryingItems(queue: readonly OutboxItem[]): OutboxItem[] {
+  return queue.filter((item) => !isRejectedItem(item) && item.lastError !== null);
+}
+
+/**
+ * Zeruje wycofanie pozycji żywych (wszystkich albo wskazanych): powrót sieci,
+ * powrót karty na wierzch, start aplikacji, „Ponów". Gdy nic się nie zmienia,
+ * oddaje TĘ SAMĄ tablicę - wołający nie zapisuje kolejki bez potrzeby.
+ */
+export function resetBackoff(
+  queue: readonly OutboxItem[],
+  nowIso: string,
+  ids?: readonly string[],
+): readonly OutboxItem[] {
+  const only = ids === undefined ? null : new Set(ids);
+  const now = Date.parse(nowIso);
+  let changed = false;
+  const next = queue.map((item) => {
+    if (isRejectedItem(item) || (only !== null && !only.has(item.id))) return item;
+    const due = Date.parse(item.nextAttemptAt);
+    if (item.attempts === 0 && !Number.isNaN(due) && due <= now) return item;
+    changed = true;
+    return { ...item, attempts: 0, nextAttemptAt: nowIso };
+  });
+  return changed ? next : queue;
 }
 
 export function withoutItem(queue: readonly OutboxItem[], id: string): OutboxItem[] {
@@ -324,7 +499,7 @@ export function reconcileRejected(
     }
     const { rejectedAt, ...live } = item;
     orphans.push({
-      item: live,
+      item: toRejectedItem(live),
       error: item.lastError ?? "",
       rejectedAt: rejectedAt ?? "",
     });
@@ -339,16 +514,18 @@ export interface OutboxFailure {
 }
 
 /**
- * Nieudana próba: licznik w górę, następny termin wg wycofania. Trwała odmowa
- * ZAMRAŻA pozycję w kolejce (`rejectedAt`) i ODDAJE ją jako odrzuconą -
- * z kolejki zdejmuje ją środowisko, dopiero gdy lista odrzuconych zapisze ją
- * trwale (patrz nagłówek). Nigdy w próżnię.
+ * Nieudana próba. Trwała odmowa ZAMRAŻA pozycję w kolejce (`rejectedAt`)
+ * i ODDAJE ją jako odrzuconą (bez jawnego kodu) - z kolejki zdejmuje ją
+ * środowisko, dopiero gdy lista odrzuconych zapisze ją trwale (patrz nagłówek).
+ * Porażka przejściowa przesuwa wyłącznie termin następnej próby: wykładnik
+ * wycofania w górę, sufit minuty, BEZ limitu prób. Nigdy w próżnię.
  */
 export function withFailure(
   queue: readonly OutboxItem[],
   id: string,
   message: string,
   nowIso: string,
+  random: () => number = Math.random,
 ): OutboxFailure {
   if (isPermanentFailure(message)) {
     const item = queue.find((row) => row.id === id);
@@ -357,7 +534,7 @@ export function withFailure(
       queue: queue.map((row) =>
         row.id === id ? { ...row, lastError: message, rejectedAt: nowIso } : row,
       ),
-      rejected: { item, error: message, rejectedAt: nowIso },
+      rejected: { item: toRejectedItem(item), error: message, rejectedAt: nowIso },
     };
   }
   return {
@@ -368,7 +545,7 @@ export function withFailure(
         ...item,
         attempts,
         lastError: message,
-        nextAttemptAt: withDelay(nowIso, backoffDelayMs(attempts)),
+        nextAttemptAt: withDelay(nowIso, backoffDelayMs(attempts, random)),
       };
     }),
     rejected: null,
@@ -387,7 +564,7 @@ export function rejectAll(
 ): RejectedScan[] {
   return queue
     .filter((item) => !isRejectedItem(item))
-    .map((item) => ({ item, error: message, rejectedAt: nowIso }));
+    .map((item) => ({ item: toRejectedItem(item), error: message, rejectedAt: nowIso }));
 }
 
 /** Dopisuje odrzucone na koniec listy; przepełnienie zjada najstarsze. */

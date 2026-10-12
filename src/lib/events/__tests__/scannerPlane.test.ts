@@ -24,6 +24,7 @@ import {
   CLOCK_SKEW_WARNING_MS,
 } from "@/lib/events/scannerSession";
 import {
+  backoffBaseMs,
   backoffDelayMs,
   dueItems,
   enqueueScan,
@@ -31,9 +32,14 @@ import {
   errorHead,
   isPermanentFailure,
   outboxCounts,
+  outboxDisposition,
+  OUTBOX_BACKOFF_CAP_MS,
   OUTBOX_CAPACITY,
-  OUTBOX_MAX_ATTEMPTS,
+  resetBackoff,
+  retryingItems,
+  stopsFlushRun,
   stuckItems,
+  toRejectedItem,
   withFailure,
   withoutItem,
   withoutItems,
@@ -41,6 +47,7 @@ import {
   isRejectedItem,
   markRejected,
   parseOutboxItem,
+  parseRejectedItem,
   reconcileRejected,
   rejectAll,
   REJECTED_CAPACITY,
@@ -235,10 +242,19 @@ describe("scannerOutbox - kolejka bez sieci", () => {
     expect(REJECTED_CAPACITY).toBeGreaterThan(OUTBOX_CAPACITY * 2);
   });
 
-  it("wycofanie rosnie wykladniczo i ma sufit", () => {
-    expect(backoffDelayMs(0)).toBe(2_000);
-    expect(backoffDelayMs(3)).toBe(16_000);
-    expect(backoffDelayMs(30)).toBe(300_000);
+  it("wycofanie rosnie wykladniczo i ma sufit MINUTY (OPS-05, wczesniej 5 minut)", () => {
+    expect(backoffBaseMs(0)).toBe(2_000);
+    expect(backoffBaseMs(3)).toBe(16_000);
+    expect(backoffBaseMs(30)).toBe(OUTBOX_BACKOFF_CAP_MS);
+    expect(OUTBOX_BACKOFF_CAP_MS).toBe(60_000);
+    // Rozrzut: od polowy do calosci podstawy - nigdy powyzej sufitu.
+    expect(backoffDelayMs(3, () => 0)).toBe(8_000);
+    expect(backoffDelayMs(3, () => 1)).toBe(16_000);
+    expect(backoffDelayMs(30, () => 1)).toBe(60_000);
+    expect(backoffDelayMs(30, () => 7)).toBe(60_000);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      expect(backoffDelayMs(attempt)).toBeLessThanOrEqual(OUTBOX_BACKOFF_CAP_MS);
+    }
   });
 
   it("odmowa POSWIADCZENIA zamraza pozycje w kolejce i oddaje ja jako odrzucona, awaria sieci ja odklada", () => {
@@ -250,13 +266,22 @@ describe("scannerOutbox - kolejka bez sieci", () => {
     expect(isRejectedItem(revoked.queue[0])).toBe(true);
     expect(revoked.queue[0].lastError).toBe("device_revoked: gone");
     expect(dueItems(revoked.queue, "2026-09-01T09:00:00Z")).toHaveLength(0);
-    // Oddana jako odrzucona - z bledem, chwila i pozycja w stanie sprzed odmowy.
+    // Oddana jako odrzucona - z bledem, chwila i pozycja w stanie sprzed odmowy,
+    // ale BEZ jawnego kodu (OPS-06): zostaje prefiks.
     expect(revoked.rejected).toEqual({
-      item: queue[0],
+      item: toRejectedItem(queue[0]),
       error: "device_revoked: gone",
       rejectedAt: "2026-09-01T08:00:00Z",
     });
-    const retried = withFailure(queue, "i1", "TypeError: Failed to fetch", "2026-09-01T08:00:00Z");
+    expect(revoked.rejected?.item).not.toHaveProperty("code");
+    expect(revoked.rejected?.item.codePrefix).toBe("AAA");
+    const retried = withFailure(
+      queue,
+      "i1",
+      "TypeError: Failed to fetch",
+      "2026-09-01T08:00:00Z",
+      () => 1,
+    );
     expect(retried.rejected).toBeNull();
     expect(retried.queue[0].attempts).toBe(1);
     expect(retried.queue[0].nextAttemptAt).toBe("2026-09-01T08:00:04.000Z");
@@ -264,12 +289,53 @@ describe("scannerOutbox - kolejka bez sieci", () => {
     expect(errorHead("checkpoint_not_found: nope")).toBe("checkpoint_not_found");
   });
 
-  it("pozycja po limicie prob przestaje byc ponawiana i idzie do „wymaga uwagi”", () => {
-    const stuck = item({ id: "i1", attempts: OUTBOX_MAX_ATTEMPTS });
+  it("OPS-05: po DOWOLNEJ liczbie porazek przejsciowych pozycja nadal jest ponawiana, nie „wymaga uwagi”", () => {
+    // Wczesniej po osmiu probach (~8,5 min) pozycja wypadala z wysylki na
+    // zawsze. Teraz licznik prob to tylko wykladnik wycofania - bez sufitu.
+    const veteran = item({ id: "i1", attempts: 500, lastError: "Scanner request timed out" });
     const fresh = item({ id: "i2" });
-    expect(dueItems([stuck, fresh], "2026-09-01T09:00:00Z").map((row) => row.id)).toEqual(["i2"]);
-    expect(stuckItems([stuck, fresh])).toHaveLength(1);
-    expect(outboxCounts([stuck, fresh])).toEqual({ pending: 1, stuck: 1 });
+    expect(dueItems([veteran, fresh], "2026-09-01T09:00:00Z").map((row) => row.id)).toEqual([
+      "i1",
+      "i2",
+    ]);
+    expect(stuckItems([veteran, fresh])).toEqual([]);
+    expect(outboxCounts([veteran, fresh])).toEqual({ pending: 2, stuck: 0 });
+    expect(retryingItems([veteran, fresh]).map((row) => row.id)).toEqual(["i1"]);
+  });
+
+  it("OPS-05: zerowanie wycofania oddaje te sama tablice, gdy nie ma czego zerowac", () => {
+    const now = "2026-09-01T09:00:00.000Z";
+    const waiting = item({ id: "w", attempts: 6, nextAttemptAt: "2026-09-01T09:01:00.000Z" });
+    const ready = item({ id: "r" });
+    const frozen = item({ id: "f", attempts: 3, rejectedAt: now, lastError: "invalid_payload: x" });
+
+    const all = resetBackoff([waiting, ready, frozen], now);
+    expect(all.map((row) => [row.id, row.attempts, row.nextAttemptAt])).toEqual([
+      ["w", 0, now],
+      ["r", 0, ready.nextAttemptAt],
+      // Zamrozona (odrzucona) nie wraca do wysylki.
+      ["f", 3, frozen.nextAttemptAt],
+    ]);
+    const queue = [ready];
+    expect(resetBackoff(queue, now)).toBe(queue);
+    // Tylko wskazane pozycje (przycisk „Ponów” przy jednej pozycji).
+    const one = resetBackoff([waiting, item({ id: "x", attempts: 2 })], now, ["x"]);
+    expect(one.map((row) => row.attempts)).toEqual([6, 0]);
+  });
+
+  it("OPS-05: tabela dyspozycji - przejsciowe ponawiamy, trwale odrzucamy", () => {
+    expect(outboxDisposition(new Error("Scanner request timed out"))).toBe("retry");
+    expect(outboxDisposition(new TypeError("Failed to fetch"))).toBe("retry");
+    expect(outboxDisposition(new Error("<html>502 Bad Gateway</html>"))).toBe("retry");
+    expect(outboxDisposition(new Error("device_locked: 30 min"))).toBe("retry");
+    expect(outboxDisposition(new Error("rate_limited: slow down"))).toBe("retry");
+    expect(outboxDisposition(new Error("device_inactive: paused"))).toBe("hold");
+    expect(outboxDisposition(new Error("device_revoked: gone"))).toBe("reject_all");
+    expect(outboxDisposition(new Error("device_expired: past"))).toBe("reject_expired");
+    expect(outboxDisposition(new Error("invalid_payload: x"))).toBe("reject");
+    // Blokada i dlawik dotycza CALEGO urzadzenia - przebieg staje.
+    expect(stopsFlushRun(new Error("device_locked: wait"))).toBe(true);
+    expect(stopsFlushRun(new Error("Failed to fetch"))).toBe(false);
   });
 
   it("wysyla w kolejnosci SKANOWANIA, nie dokladania do kolejki", () => {
@@ -573,9 +639,29 @@ describe("scannerOutbox - odrzucone i pozycje z pamięci", () => {
   it("odmowa poświadczenia zamienia CAŁĄ kolejkę w odrzucone z tym samym powodem", () => {
     const queue = [item({ id: "a" }), item({ id: "b" })];
     expect(rejectAll(queue, "device_revoked: x", "t")).toEqual([
-      { item: queue[0], error: "device_revoked: x", rejectedAt: "t" },
-      { item: queue[1], error: "device_revoked: x", rejectedAt: "t" },
+      { item: toRejectedItem(queue[0]), error: "device_revoked: x", rejectedAt: "t" },
+      { item: toRejectedItem(queue[1]), error: "device_revoked: x", rejectedAt: "t" },
     ]);
+  });
+
+  it("OPS-06: wpis odrzuconej NIE niesie jawnego kodu, bloku sejfu ani znacznika kolejki", () => {
+    const queued = item({
+      id: "s1",
+      code: "  QR-SEKRETNY-KOD-0000000000000001 ",
+      codeHash: "f".repeat(64),
+      queueMarker: "marker",
+      sealed: { iv: "0".repeat(24), data: "ab" },
+    });
+    const rejected = toRejectedItem(queued);
+    expect(rejected).not.toHaveProperty("code");
+    expect(rejected).not.toHaveProperty("sealed");
+    expect(rejected).not.toHaveProperty("queueMarker");
+    // Prefiks z kodu bez spacji z czytnika (jak `btrim` w bazie).
+    expect(rejected).toMatchObject({ codeHash: "f".repeat(64), codePrefix: "QR-SEK" });
+    // Wpis sprzed tej zmiany (z jawnym kodem) wraca z dysku bez kodu.
+    const legacy = parseRejectedItem(JSON.parse(JSON.stringify(item({ code: "TICKET-XYZ-1" }))));
+    expect(legacy).not.toHaveProperty("code");
+    expect(legacy?.codePrefix).toBe("TICKET");
   });
 
   it("lista odrzuconych dopisuje na koniec, a przepełnienie zjada najstarsze", () => {
@@ -768,7 +854,7 @@ describe("scannerOutbox - odrzucona pozycja schodzi z kolejki dopiero po trwalym
     expect(result.settled).toEqual(["znana"]);
     expect(result.orphans).toEqual([
       {
-        item: item({ id: "sierota", lastError: "invalid_payload: x" }),
+        item: toRejectedItem(item({ id: "sierota", lastError: "invalid_payload: x" })),
         error: "invalid_payload: x",
         rejectedAt: NOW,
       },

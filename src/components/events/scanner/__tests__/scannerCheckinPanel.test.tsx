@@ -148,6 +148,8 @@ function runtimeStub(over: Partial<ScannerRuntime>): ScannerRuntime {
     outboxPersistent: true,
     flushing: false,
     flush: vi.fn(),
+    retry: vi.fn(),
+    retryAll: vi.fn(),
     discard: vi.fn(),
     sessionStale: false,
     clockOffsetMs: 0,

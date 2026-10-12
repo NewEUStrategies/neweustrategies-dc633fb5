@@ -15,6 +15,7 @@
 //      których baza nie przyjęła).
 //   5. AWARIA IndexedDB WYWRACA SKANER zamiast przejść na pamięć karty
 //      (prywatne okno Safari, zablokowana baza, przerwana transakcja).
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ScannerSession } from "@/lib/events/scannerSession";
@@ -410,4 +411,103 @@ describe("brak trwałości to stan, nie awaria", () => {
       expect(storage.isOfflineStoragePersistent()).toBe(false);
     },
   );
+});
+
+/* ------------------------------------------- OPS-06: dane osobowe i kody --- */
+
+describe("OPS-06: lista osób ma termin, odrzucone nie mają kodu, odłączenie kasuje wszystko", () => {
+  const sha = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
+  const NOW = Date.parse("2026-09-26T12:00:00.000Z");
+
+  it("lista z terminem poświadczenia znika po nim - razem z dziennikiem zgód", async () => {
+    const data = new Map<unknown, unknown>([["log", [{ checkpointId: "c1" }]]]);
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+    await storage.saveRoster({ ...ROSTER, expiresAt: "2026-09-26T11:59:59.000Z" });
+    expect(data.get("roster")).toMatchObject({ expiresAt: "2026-09-26T11:59:59.000Z" });
+
+    await expect(storage.purgeExpiredRoster(NOW)).resolves.toBe(true);
+    expect(data.has("roster")).toBe(false);
+    expect(data.has("log")).toBe(false);
+    await expect(storage.purgeExpiredRoster(NOW)).resolves.toBe(false);
+  });
+
+  it("lista bez własnego terminu bierze go z sesji TEGO urządzenia; uszkodzona znika", async () => {
+    const data = new Map<unknown, unknown>();
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+    await storage.saveCachedSession({
+      tokenHash: "h",
+      session: SESSION,
+      serverOffsetMs: 0,
+      savedAt: "x",
+    });
+    await storage.saveRoster(ROSTER);
+
+    // SESSION.expiresAt = 2026-09-27T18:00Z - jeszcze ważna.
+    await expect(storage.purgeExpiredRoster(NOW)).resolves.toBe(false);
+    await expect(storage.purgeExpiredRoster(Date.parse("2026-09-28T00:00:00.000Z"))).resolves.toBe(
+      true,
+    );
+    expect(data.has("roster")).toBe(false);
+
+    data.set("roster", { nie: "lista" });
+    await expect(storage.purgeExpiredRoster(NOW)).resolves.toBe(true);
+    expect(data.has("roster")).toBe(false);
+  });
+
+  it("lista odrzuconych zapisuje skrót i prefiks - wpis sprzed sejfu jest przepisywany przy odczycie", async () => {
+    const data = new Map<unknown, unknown>([
+      [
+        "rejected",
+        [
+          {
+            item: {
+              id: "s1",
+              kind: "checkin",
+              code: "QR-JAWNY-KOD-1",
+              checkpointId: null,
+              direction: "in",
+              note: null,
+              interestRating: null,
+              deviceScannedAt: "x",
+              attempts: 0,
+              nextAttemptAt: "x",
+              lastError: null,
+            },
+            error: "device_revoked: x",
+            rejectedAt: "y",
+          },
+        ],
+      ],
+    ]);
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+
+    const [entry] = await storage.loadRejected();
+    expect(entry.item).toMatchObject({ codeHash: sha("QR-JAWNY-KOD-1"), codePrefix: "QR-JAW" });
+    expect(entry.item).not.toHaveProperty("code");
+    expect(JSON.stringify(data.get("rejected"))).not.toContain("QR-JAWNY-KOD-1");
+    expect(data.get("rejected")).toEqual([
+      expect.objectContaining({
+        item: expect.objectContaining({ codeHash: sha("QR-JAWNY-KOD-1") }),
+      }),
+    ]);
+  });
+
+  it("odłączenie kasuje sesję, listę, dziennik, odrzucone i konflikty", async () => {
+    const data = new Map<unknown, unknown>([
+      ["session", {}],
+      ["roster", {}],
+      ["log", []],
+      ["rejected", ["x"]],
+      ["conflicts", ["y"]],
+    ]);
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+
+    await storage.wipeAllOfflineData();
+
+    expect([...data.keys()]).toEqual([]);
+  });
 });

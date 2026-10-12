@@ -9,6 +9,9 @@
 // KONFLIKT MA KIERUNEK. „Wpuszczony bez sieci, serwer odmawia" wymaga reakcji
 // organizatora (ktoś wszedł mimo anulowanego zapisu); „odmowa bez sieci, serwer
 // by wpuścił" znaczy, że człowiek został odesłany - trzeba go odnaleźć.
+//
+// BEZ JAWNEGO KODU (OPS-06). Lista i plik pokazują początek kodu i skrót
+// SHA-256 (ten sam co w bazie) - nie poświadczenie wejścia.
 import { AlertTriangle, Download, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -19,6 +22,7 @@ import { formatEventDateTime } from "@/lib/events/timezone";
 import type { RejectedScan } from "@/lib/events/scannerOutbox";
 import { scanOutcomeKey, scannerErrorMessage } from "@/lib/events/scannerErrors";
 import {
+  codeDisplay,
   downloadTextFile,
   syncIssuesCsv,
   syncIssuesFileName,
@@ -66,6 +70,7 @@ export function ScannerSyncIssuesPanel({
       person: t("eventScanner.sync.columns.person"),
       registrationId: t("eventScanner.sync.columns.registrationId"),
       code: t("eventScanner.sync.columns.code"),
+      codeHash: t("eventScanner.sync.columns.codeHash"),
       reference: t("eventScanner.sync.columns.reference"),
       conflict: t("eventScanner.sync.columns.conflict"),
       rejected: t("eventScanner.sync.columns.rejected"),
@@ -145,7 +150,14 @@ export function ScannerSyncIssuesPanel({
                 key={`${row.item.id}-${row.rejectedAt}`}
                 className="flex flex-wrap items-center gap-2 rounded-[6px] border border-border bg-card px-3 py-2"
               >
-                <code className="rounded bg-muted px-1.5 py-0.5 font-mono">{row.item.code}</code>
+                {codeDisplay(row.item) !== null && (
+                  <code
+                    className="rounded bg-muted px-1.5 py-0.5 font-mono"
+                    title={row.item.codeHash ?? undefined}
+                  >
+                    {codeDisplay(row.item)}
+                  </code>
+                )}
                 <span className="text-muted-foreground">
                   {formatEventDateTime(row.item.deviceScannedAt, timezone, lang)}
                 </span>

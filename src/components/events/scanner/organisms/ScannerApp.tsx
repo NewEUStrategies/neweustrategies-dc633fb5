@@ -19,17 +19,28 @@
 // LISTA DO WYJAŚNIENIA WIDAĆ W KAŻDYM STANIE. Konflikty i odrzucone skany
 // zostają po unieważnieniu poświadczenia - dlatego panel stoi także na ekranie
 // parowania i na ekranie „wygasło", a nie tylko przy działającej sesji.
+//
+// ODŁĄCZENIE PYTA, GDY JEST CO STRACIĆ (OPS-06). Odłączenie kasuje z telefonu
+// token, kolejkę, listę osób i listę do wyjaśnienia. Gdy coś nie zostało
+// wysłane albo przekazane organizatorowi, ekran najpierw o tym mówi.
+//
+// STARY LINK I NOWY ADRES. Link parowania w starym formacie (`?t=`) nie paruje
+// urządzenia - ekran mówi, że trzeba nowego kodu QR (OPS-07). Skaner pod
+// originem portalu, gdy wdrożenie ma osobny origin skanera, pokazuje baner
+// z przyciskiem przeniesienia - aktywnym, gdy kolejka jest pusta (OPS-13).
 import { useEffect, useMemo, useState } from "react";
-import { LogOut, Signal } from "lucide-react";
+import { ExternalLink, LogOut, Signal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/lib/appDialogs";
 import { cn } from "@/lib/utils";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { availableModes, hoursUntilExpiry, type ScannerMode } from "@/lib/events/scannerSession";
+import { scannerUrl, type ScannerNotice } from "@/lib/events/scannerLink";
 import { rosterState } from "@/lib/events/scannerRoster";
 import { useScannerRuntime } from "@/lib/events/useScanner";
 import { useScannerReadiness } from "@/lib/events/useScannerReadiness";
@@ -50,13 +61,84 @@ ensureScannerI18n();
 /** Termin, od którego mówimy „wygasa dziś" zamiast liczyć godziny. */
 const EXPIRY_WARNING_HOURS = 12;
 
-export function ScannerApp({ initialToken }: { initialToken: string | null }) {
+export function ScannerApp({
+  initialToken,
+  notice = null,
+  relocateTo = null,
+}: {
+  initialToken: string | null;
+  /** Komunikat z adresu (stary link `?t=`). */
+  notice?: ScannerNotice | null;
+  /** Origin skanera, pod który to urządzenie ma się przenieść (OPS-13). */
+  relocateTo?: string | null;
+}) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   // Token z adresu ma pierwszeństwo nad tym z pamięci urządzenia - rozstrzyga
   // to samo środowisko uruchomieniowe, żeby nie było dwóch wywołań `bootstrap`.
   const runtime = useScannerRuntime(initialToken);
   const [mode, setMode] = useState<ScannerMode | null>(null);
+  const [relocating, setRelocating] = useState(false);
+
+  /** Coś, czego odłączenie nie może skasować bez pytania. */
+  const holdsWork =
+    runtime.outbox.length > 0 || runtime.rejected.length > 0 || runtime.conflicts.length > 0;
+
+  /** `true` = urządzenie odłączone (po zgodzie, gdy było co stracić). */
+  const disconnect = async (): Promise<boolean> => {
+    if (holdsWork) {
+      const confirmed = await confirmDialog({
+        title: t("eventScanner.session.disconnectTitle"),
+        description: t("eventScanner.session.disconnectUnsent"),
+        confirmLabel: t("eventScanner.session.disconnectConfirm"),
+        cancelLabel: t("eventScanner.session.disconnectCancel"),
+        destructive: true,
+      });
+      if (!confirmed) return false;
+    }
+    await runtime.disconnect();
+    return true;
+  };
+
+  /** Przeniesienie pod origin skanera: token jedzie we fragmencie, tu nic nie zostaje. */
+  const relocate = async () => {
+    if (relocateTo === null) return;
+    const token = runtime.token;
+    setRelocating(true);
+    if (!(await disconnect())) {
+      setRelocating(false);
+      return;
+    }
+    window.location.replace(scannerUrl(relocateTo, { token }));
+  };
+
+  const banners = (
+    <>
+      {notice === "legacy_link" && (
+        <p
+          role="alert"
+          className="rounded-[6px] border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          {t("eventScanner.pairing.legacyLink")}
+        </p>
+      )}
+      {relocateTo !== null && (
+        <div className="space-y-2 rounded-[6px] border border-brand/40 bg-brand/10 px-3 py-2 text-sm text-brand-ink dark:text-brand">
+          <p>{t("eventScanner.session.relocation", { origin: relocateTo })}</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={runtime.outbox.length > 0 || relocating}
+            onClick={() => void relocate()}
+          >
+            <ExternalLink className="mr-2 h-4 w-4" aria-hidden="true" />
+            {t("eventScanner.session.relocate")}
+          </Button>
+        </div>
+      )}
+    </>
+  );
 
   const session = runtime.session;
   const modes = useMemo(() => (session === null ? [] : availableModes(session)), [session]);
@@ -102,6 +184,7 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
       return (
         <section className="mx-auto w-full max-w-md space-y-4 text-center">
           <h1 className="text-xl font-semibold text-foreground">{t("eventScanner.appName")}</h1>
+          <div className="space-y-2 text-left">{banners}</div>
           <p className="rounded-[6px] border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {t("eventScanner.session.expired")}
           </p>
@@ -116,14 +199,16 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
                   timezone={session.event.timezone}
                   flushing={runtime.flushing}
                   persistent={runtime.outboxPersistent}
-                  onFlush={runtime.flush}
+                  onFlush={runtime.retryAll}
+                  onRetry={runtime.retry}
+                  onRetryAll={runtime.retryAll}
                   onDiscard={runtime.discard}
                 />
               </div>
             </>
           )}
           {syncIssues !== null && <div className="text-left">{syncIssues}</div>}
-          <Button type="button" variant="secondary" onClick={runtime.disconnect}>
+          <Button type="button" variant="secondary" onClick={() => void disconnect()}>
             <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("eventScanner.session.disconnect")}
           </Button>
@@ -132,6 +217,9 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
     }
     return (
       <div className="space-y-6">
+        {(notice !== null || relocateTo !== null) && (
+          <div className="mx-auto w-full max-w-md space-y-2">{banners}</div>
+        )}
         <ScannerPairingCard
           onConnect={runtime.connect}
           connecting={runtime.status === "connecting"}
@@ -169,7 +257,7 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
               offlineReady={listState === "fresh" || listState === "stale"}
               sessionStale={runtime.sessionStale}
             />
-            <Button type="button" size="sm" variant="ghost" onClick={runtime.disconnect}>
+            <Button type="button" size="sm" variant="ghost" onClick={() => void disconnect()}>
               <LogOut className="h-4 w-4" aria-hidden="true" />
               <span className="sr-only">{t("eventScanner.session.disconnect")}</span>
             </Button>
@@ -216,6 +304,8 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
         )}
       </header>
 
+      {banners}
+
       {/* ------------------------------------------------------------ tryb */}
       {activeMode === "checkin" && <ScannerCheckinPanel runtime={runtime} session={session} />}
       {activeMode === "lead" && <ScannerLeadPanel runtime={runtime} />}
@@ -235,7 +325,9 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
           timezone={session.event.timezone}
           flushing={runtime.flushing}
           persistent={runtime.outboxPersistent}
-          onFlush={runtime.flush}
+          onFlush={runtime.retryAll}
+          onRetry={runtime.retry}
+          onRetryAll={runtime.retryAll}
           onDiscard={runtime.discard}
         />
       )}

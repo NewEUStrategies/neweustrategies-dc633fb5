@@ -124,6 +124,17 @@ vi.mock("@/lib/events/scannerOfflineStorage", () => ({
     store.clears += 1;
     return Promise.resolve();
   },
+  // Odłączenie (OPS-06) kasuje wszystko naraz - także odrzucone i konflikty.
+  wipeAllOfflineData: () => {
+    store.session = null;
+    store.roster = null;
+    store.log = [];
+    store.rejected = [];
+    store.conflicts = [];
+    store.wipes += 1;
+    return Promise.resolve();
+  },
+  purgeExpiredRoster: () => Promise.resolve(false),
 }));
 
 /** Pamiec urzadzenia w RAM - bez localStorage i bez IndexedDB. */
@@ -145,6 +156,12 @@ vi.mock("@/lib/events/scannerStorage", () => ({
   loadOutbox: () => Promise.resolve([...device.queue]),
   saveOutbox: (queue: readonly OutboxItem[]) => {
     device.queue = [...queue];
+    return Promise.resolve();
+  },
+  // Sejf (OPS-06) ma własne testy - tu pamięć urządzenia trzyma pozycje jawnie.
+  openSealedItems: () => Promise.resolve(null),
+  clearOutbox: () => {
+    device.queue = [];
     return Promise.resolve();
   },
 }));
@@ -408,8 +425,8 @@ describe("useScannerRuntime - poswiadczenie urzadzenia", () => {
     const { result } = await connected();
     expect(device.token).toBe(TOKEN);
 
-    act(() => {
-      result.current.disconnect();
+    await act(async () => {
+      await result.current.disconnect();
     });
 
     expect(result.current.status).toBe("idle");
@@ -769,7 +786,13 @@ describe("useScannerRuntime - utrata polaczenia i powrot sieci", () => {
     // cichu, jak dawniej, gdy `withFailure` tylko je kasowalo.
     await waitFor(() => expect(result.current.rejected).toHaveLength(3));
     expect(result.current.outbox).toEqual([]);
-    expect(result.current.rejected.map((row) => row.item.code)).toEqual(["QR-A", "QR-B", "QR-C"]);
+    // Lista odrzuconych niesie POCZĄTEK kodu, nie cały kod (OPS-06).
+    expect(result.current.rejected.map((row) => row.item.codePrefix)).toEqual([
+      "QR-A",
+      "QR-B",
+      "QR-C",
+    ]);
+    expect(result.current.rejected.every((row) => !("code" in row.item))).toBe(true);
     expect(result.current.rejected.every((row) => row.error.startsWith("device_revoked"))).toBe(
       true,
     );
@@ -798,13 +821,16 @@ describe("useScannerRuntime - utrata polaczenia i powrot sieci", () => {
     await waitFor(() => expect(result.current.outboxPersistent).toBe(false));
   });
 
-  it("operator moze ZDJAC pozycje z kolejki, ktorej nie da sie wyslac", async () => {
+  it("operator moze ZDJAC pozycje z kolejki - nawet taka, ktora wciaz jest ponawiana", async () => {
+    // ZMIANA SWIADOMA (OPS-05): dawniej pozycja po osmiu probach wypadala do
+    // „wymaga uwagi” na zawsze. Pozycja z poprzedniej zmiany wraca teraz jako
+    // CZEKAJACA (start zeruje wycofanie), a usuniecie zostaje swiadoma
+    // decyzja operatora (ekran pyta o potwierdzenie).
     device.queue = [queuedItem({ id: "do-zdjecia", attempts: 8, lastError: "Failed to fetch" })];
     const { result } = render();
     await waitFor(() => expect(result.current.outbox).toHaveLength(1));
-    // Pozycja po ostatniej probie nie jest juz ponawiana - liczy sie jako
-    // „wymaga uwagi”, nie jako czekajaca.
-    expect(result.current.outboxCounts).toEqual({ pending: 0, stuck: 1 });
+    expect(result.current.outboxCounts).toEqual({ pending: 1, stuck: 0 });
+    expect(result.current.outbox[0]).toMatchObject({ attempts: 0, lastError: "Failed to fetch" });
 
     act(() => {
       result.current.discard("do-zdjecia");
@@ -1195,7 +1221,9 @@ describe("useScannerRuntime - odrzucona pozycja nie ginie między dwiema bazami"
       error: "invalid_payload: code is required",
       rejectedAt: "2026-08-01T07:05:00.000Z",
     });
-    expect(result.current.rejected[0].item.code).toBe("QR-S");
+    // Bez jawnego kodu (OPS-06) - zostaje jego początek.
+    expect(result.current.rejected[0].item.codePrefix).toBe("QR-S");
+    expect(result.current.rejected[0].item).not.toHaveProperty("code");
     await waitFor(() => expect(result.current.outbox).toEqual([]));
     expect(api.recordCheckinScan).not.toHaveBeenCalled();
   });
