@@ -274,4 +274,21 @@ describe("pasek zakladek wydarzenia: bierzaca pozycja ma kolor bierzacej", () =>
     expect(getComputedStyle(active[0]).color).toBe(THEME_FOREGROUND);
     expect(getComputedStyle(idle[0]).color).toBe(THEME_MUTED_FOREGROUND);
   });
+
+  it("kreska biezacej pozycji stoi NA BIEZACYM odnosniku i na zadnym wiecej", async () => {
+    // Rozroznienie „biezaca / pozostale” musi byc ZNAKIEM, nie tylko gruboscia i
+    // odcieniem napisu: przy siedmiu dlugich nazwach w jednym rzedzie czytelnik
+    // szuka biezacej, zamiast ja zobaczyc. Kreska jedzie przez `activeProps`,
+    // wiec trafia na wezel zlozony PRZEZ ROUTER - tam, gdzie patrzy uczestnik.
+    // `cn` by tu nic nie dowiodl (patrz naglowek pliku), a jsdom nie liczy
+    // pseudoelementow, wiec dowodem jest token klasy na wezle.
+    const { active, idle } = await mount("/events/kongres/speakers");
+    expect(active).toHaveLength(1);
+    expect(indicatorUtilities(active[0])).toEqual([
+      "after:bg-[color:var(--event-nav-fg,var(--brand-ink))]",
+    ]);
+    for (const link of idle) {
+      expect(indicatorUtilities(link)).toEqual([]);
+    }
+  });
 });
