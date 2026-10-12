@@ -104,8 +104,37 @@ export const EVENT_TAB_INACTIVE_CLASS =
 // czerń albo biel policzoną z luminancji tła - a wyciszone pozycje mieszankę
 // tego napisu z tłem paska, żeby rozróżnienie „bieżąca / pozostałe” zostało
 // DWUSTOPNIOWE (grubość ORAZ odcień), tak jak jest w motywie serwisu.
+//
+// ── KRESKA POD BIEŻĄCĄ POZYCJĄ, I DLACZEGO WŁAŚNIE ONA ──────────────────────
+// CO BYŁO ZA SŁABE. Bieżącą pozycję od pozostałych odróżniały WYŁĄCZNIE grubość
+// i odcień napisu: `--foreground` przeciw `--muted-foreground`. Różnica jest,
+// ale przy siedmiu długich nazwach w jednym rzędzie czytelnik jej szuka, zamiast
+// zobaczyć - i to szukanie było treścią zgłoszenia.
+//
+// DLACZEGO KRESKA POD NAPEM, A NIE PIGUŁKA ZA NAPEM. Pigułka (tło pod napisem)
+// ruszyłaby wysokością i rytmem rzędu oraz zderzyłaby się z `rounded-[6px]` i
+// `px-1`, których pasek nie chce. Kreska nie rusza żadnej geometrii: napisy
+// stoją dokładnie tam, gdzie stały, więc przejazd między zakładkami nadal nic
+// nie przesuwa - a to jest warunek, od którego ten pasek zaczyna komentarz
+// nad `EVENT_TAB_CLASS`. To także ten sam znak, którym serwis oznacza już
+// wybranie (tusz akcentu pod linkiem w `styles.css`), więc nie wprowadza do
+// paska nowego alfabetu.
+//
+// KRESKA JEST TA SAMA W OBU MOTYWACH, ZMIENIA SIĘ TYLKO JEJ TUSZ. Geometrycznie
+// motywy są IDENTYCZNE - ten sam kształt, ta sama grubość, to samo położenie -
+// więc przełączenie motywu nie przestawia paska. `--brand-ink` to akcent marki
+// PRZELICZONY NA KONTRAST: w jasnym motywie `#a94e0b`, bo samo `#FA9346` ma na
+// jasnej płycie 2,25:1, czyli za mało jak na znak, który niesie informację
+// „tu jestem”; w ciemnym `#FA9346` (10,64:1).
+//
+// NA PASKU Z KOLorem WYDARZENIA KRESKA BIERZE TUSZ POLICZONY Z TŁA.
+// `var(--event-nav-fg, var(--brand-ink))`: gdy organizator ustawił kolor
+// nawigacji, kreska dostaje czerń albo biel z luminancji tego tła (markowy
+// pomarańcz na pomarańczowym pasku zniknąłby), a gdy go nie ustawił - akcent
+// marki. `pointer-events-none`: kreska jest znakiem, nie uchwytem - klik
+// należy do napisu.
 export const EVENT_TAB_ACTIVE_CLASS =
-  "font-semibold text-[color:var(--event-nav-fg,var(--foreground))]";
+  "relative font-semibold text-[color:var(--event-nav-fg,var(--foreground))] after:pointer-events-none after:absolute after:inset-x-1 after:bottom-0 after:h-[2px] after:rounded-full after:bg-[color:var(--event-nav-fg,var(--brand-ink))] after:content-['']";
 
 export function EventTabsBar({
   label,
