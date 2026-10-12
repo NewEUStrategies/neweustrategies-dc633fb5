@@ -18,6 +18,18 @@
 // płatność + karencja) - i to TA data trafia do uprawnienia, więc dostęp
 // gaśnie sam (`has_content_access()` czyta `current_period_end`), bez
 // czekania na kolejne zdarzenie operatora.
+//
+// JEDNA REGUŁA DLA OSOBY I ZESPOŁU. Anulowanie za brak płatności
+// (`payment_failed` / `payment_disputed`) to koniec TEGO SAMEGO cyklu
+// windykacji, w którym mail obiecał dostęp do końca karencji - więc dostęp
+// trwa do końca karencji i ani dnia dłużej, a gdy karencja już minęła, nie ma
+// go wcale. Tak samo dla uprawnienia indywidualnego, dla organizacji planu
+// Zespół (`subscriptionGrantsTeamAccess`, dobowy `suspendTeamsPastPaymentGrace`)
+// i dla treści dzwonka po takim anulowaniu. Wcześniej zespół tracił dostęp
+// w chwili `deleted`, a osoba z planem indywidualnym miała go do końca
+// karencji - jedna płatność, dwie reguły (audyt SUB-03). Subskrypcja, która
+// nigdy nie została opłacona (`incomplete*`), po anulowaniu nie daje dostępu
+// w ogóle - nie ma okresu, za który ktoś zapłacił.
 export type SubscriptionEventKind = "created" | "updated" | "canceled";
 
 /**
@@ -47,6 +59,16 @@ export function isDelinquentSubscriptionStatus(status: string | null | undefined
 }
 
 /**
+ * Stan sprzed pierwszej zapłaty: checkout założył subskrypcję, ale pieniądze
+ * nie wpłynęły (3DS w toku, przelew) albo już nie wpłyną (wygasła po 23 h).
+ * Taka subskrypcja nie ma opłaconego okresu, więc jej anulowanie nie zostawia
+ * dostępu ani nie jest „rezygnacją klienta" (mail, CRM, dzwonek).
+ */
+export function isPreActivationSubscriptionStatus(status: string | null | undefined): boolean {
+  return status === "incomplete" || status === "incomplete_expired";
+}
+
+/**
  * Anulowanie z powodu braku zapłaty (koniec windykacji albo spór o płatność)
  * - w odróżnieniu od rezygnacji klienta nie zostawia dostępu do końca okresu,
  * bo ten okres nigdy nie został opłacony (`cancellation_details.reason`).
@@ -73,18 +95,27 @@ const iso = (value: string | null | undefined): string | null => {
 };
 
 /**
- * Koniec karencji: min(koniec okresu, kotwica + `PAYMENT_GRACE_DAYS`).
- *
- * Kotwica to pierwsza nieudana płatność; bez niej - początek okresu (przy
- * obciążeniu automatycznym odnowienie i pierwsza próba to ta sama chwila);
- * bez obu - „teraz", żeby brak danych nigdy nie oznaczał dostępu do końca
- * nieopłaconego okresu. Zawsze zwraca datę.
+ * Kotwica karencji: pierwsza nieudana płatność; bez niej - początek okresu
+ * (przy obciążeniu automatycznym odnowienie i pierwsza próba to ta sama
+ * chwila); bez obu - „teraz", żeby brak danych nigdy nie oznaczał dostępu do
+ * końca nieopłaconego okresu. Wydzielona, bo wołający, który na jej podstawie
+ * DAŁ dostęp, musi ją też ZAPISAĆ (`first_payment_failed_at`) - inaczej dobowy
+ * przebieg zespołów nie miałby od czego policzyć końca tej samej karencji.
  */
-export function paymentGraceEnd(input: PaymentGraceInput): string {
-  const anchor =
+export function paymentGraceAnchor(input: PaymentGraceInput): string {
+  return (
     iso(input.firstPaymentFailedAt) ??
     iso(input.periodStart) ??
-    (input.now ?? new Date()).toISOString();
+    (input.now ?? new Date()).toISOString()
+  );
+}
+
+/**
+ * Koniec karencji: min(koniec okresu, kotwica + `PAYMENT_GRACE_DAYS`), kotwica
+ * z `paymentGraceAnchor`. Zawsze zwraca datę.
+ */
+export function paymentGraceEnd(input: PaymentGraceInput): string {
+  const anchor = paymentGraceAnchor(input);
   const graceEnd = Date.parse(anchor) + PAYMENT_GRACE_DAYS * DAY_MS;
   const end = iso(input.periodEnd);
   const bounded = end !== null ? Math.min(graceEnd, Date.parse(end)) : graceEnd;

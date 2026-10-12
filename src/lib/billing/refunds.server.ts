@@ -28,7 +28,11 @@ export interface RefundEvent {
   transactionId: string | null;
   subscriptionId: string | null;
   action: AdjustmentAction;
-  /** `approved` / `pending_approval` / `rejected` / `reversed`. */
+  /**
+   * Status korekty u operatora. Paddle: `approved` / `pending_approval` /
+   * `rejected` / `reversed`. Stripe: zwrot - status obiektu Refund
+   * (`succeeded`, ...), spór - surowy `Dispute.status` (`STRIPE_DISPUTE_*`).
+   */
   status: string | null;
   /**
    * Kwota korekty. Dla zwrotu Stripe to `amount_refunded` - wartość
@@ -53,17 +57,56 @@ export type RefundOutcome =
   | "donation_restored";
 
 /**
+ * Statusy sporu Stripe (`Dispute.status`), które normalizacja
+ * (`stripeEvents.server`: `charge.dispute.created` i `charge.dispute.closed`)
+ * przekazuje BEZ tłumaczenia - o skutku decyduje to jedno miejsce, wspólne dla
+ * zamówień, subskrypcji i darowizn.
+ *
+ * Wcześniej spór przechodził wyłącznie przy statusie `null` / `approved` /
+ * `succeeded` (słownik Paddle), których Stripe dla sporu nigdy nie wysyła -
+ * każdy prawdziwy `charge.dispute.created` kończył się `skipped`, a wygrana
+ * (`won`) nie miała żadnej drogi do przywrócenia (przegląd adwersaryjny,
+ * poz. 26).
+ *
+ *  - FORMALNY SPÓR: środki są pobrane z konta serwisu od otwarcia
+ *    (`needs_response`, `under_review`) do przegranej (`lost`) - odbieramy.
+ *  - ZAPYTANIE banku (`warning_needs_response`, `warning_under_review`,
+ *    `warning_closed`): pieniądze NIE zostały pobrane - nie odbieramy.
+ *  - `prevented`: spór zablokowany przed powstaniem - nic się nie stało.
+ *  - `won`: rozstrzygnięty na naszą korzyść - dostęp wraca.
+ */
+const STRIPE_DISPUTE_REVOKING: ReadonlySet<string> = new Set([
+  "needs_response",
+  "under_review",
+  "lost",
+]);
+const STRIPE_DISPUTE_NON_REVOKING: ReadonlySet<string> = new Set([
+  "warning_needs_response",
+  "warning_under_review",
+  "warning_closed",
+  "prevented",
+  "won",
+]);
+const STRIPE_DISPUTE_WON = "won";
+/** Spór rozstrzygnięty na niekorzyść - dostęp zniknął już przy otwarciu. */
+const STRIPE_DISPUTE_LOST = "lost";
+
+/**
  * Korekty, które odbierają dostęp.
  *
  * Spór (`chargeback_warning`) liczy się od chwili otwarcia: bank już wycofuje
  * środki, a rozstrzygnięcie trwa tygodniami. Trzymanie dostępu przez ten czas
  * oznaczałoby darmową treść na koszt serwisu - dlatego odbieramy od razu i
- * przywracamy, gdy spór zostanie wygrany (`reversed`).
+ * przywracamy, gdy spór zostanie wygrany (`reversed` / Stripe `won`).
  */
 export function isRevokingAdjustment(event: RefundEvent): boolean {
   if (event.action === "credit" || event.action === "other") return false;
   if (event.action === "chargeback_warning") {
     return event.status !== "reversed" && event.status !== "rejected";
+  }
+  if (event.action === "chargeback" && event.status !== null) {
+    if (STRIPE_DISPUTE_REVOKING.has(event.status)) return true;
+    if (STRIPE_DISPUTE_NON_REVOKING.has(event.status)) return false;
   }
   // `pending_approval` to dopiero wniosek - dostęp odbieramy po zatwierdzeniu.
   // `reversed` / `rejected` oznaczają, że zwrot nie doszedł do skutku.
@@ -72,10 +115,13 @@ export function isRevokingAdjustment(event: RefundEvent): boolean {
   return event.status === null || event.status === "approved" || event.status === "succeeded";
 }
 
-/** Spór rozstrzygnięty na naszą korzyść - dostęp wraca. */
+/** Spór rozstrzygnięty na naszą korzyść - dostęp wraca (Paddle `reversed`, Stripe `won`). */
 export function isDisputeReversed(event: RefundEvent): boolean {
   if (event.action !== "chargeback" && event.action !== "chargeback_warning") return false;
-  return event.status === "reversed";
+  return (
+    event.status === "reversed" ||
+    (event.action === "chargeback" && event.status === STRIPE_DISPUTE_WON)
+  );
 }
 
 /** Mapuje akcję operatora na czytelny powód w dzienniku i CRM. */
@@ -387,6 +433,83 @@ async function operatorRefsForIntent(
   }
 }
 
+/** Identyfikator wiersza darowizny z metadanych operatora (uuid) - bramka przed zapytaniem. */
+const DONATION_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Czy faktura operatora to RATA NASZEJ DAROWIZNY CYKLICZNEJ, której księga
+ * jeszcze nie zna (przegląd adwersaryjny, poz. 25).
+ *
+ * Kolejność zdarzeń, której wcześniej nic nie łapało: `invoice.paid` raty
+ * pada (np. chwilowe 500) i czeka na ponowienie operatora, a w tym czasie
+ * ratę zwrócono. `charge.refunded` nie znajdował wiersza - kotwica nie ma
+ * jeszcze ani intencji, ani faktury, a sesja checkout w trybie subskrypcji
+ * ma `payment_intent = null`, więc most sesji też milczy - i kończył się
+ * `skipped`, czyli „przetworzony" bez ponowienia. Ponowione `invoice.paid`
+ * księgowało potem ratę jako opłaconą: zwrócone pieniądze w statystykach,
+ * eksporcie i w przedłużonym statusie wspierającego.
+ *
+ * Ratę rozpoznaje TA SAMA normalizacja, którą faktura przejdzie przy
+ * księgowaniu (`normalizeStripeEvent` dla `invoice.paid` - te same zapasowe
+ * pola API Basil), plus DOWÓD LOKALNY: wiersz darowizny tej subskrypcji albo
+ * kotwica z `metadata.donationId`, oba w środowisku korekty. Bez dowodu
+ * lokalnego faktura nie jest „nasza" (wspólne konto operatora, inne
+ * wdrożenie) i korekta nie może wisieć w ponowieniach. Faktura bez
+ * subskrypcji nie jest ratą.
+ */
+async function isUnbookedDonationInstallment(
+  environment: RefundEvent["environment"],
+  invoiceId: string,
+): Promise<boolean> {
+  const { getStripeClient, getStripeErrorMessage } = await import("@/lib/stripe.server");
+  let invoice: Record<string, unknown>;
+  try {
+    const stripe = await getStripeClient(environment);
+    invoice = (await stripe.invoices.retrieve(invoiceId)) as unknown as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`refund: operator lookup failed: ${getStripeErrorMessage(error)}`);
+  }
+  const { normalizeStripeEvent } = await import("@/lib/billing/stripeEvents.server");
+  const normalized = normalizeStripeEvent({
+    id: `refund-bridge:${invoiceId}`,
+    type: "invoice.paid",
+    created: 0,
+    data: { object: invoice },
+  });
+  const tx = (normalized?.data ?? null) as {
+    subscriptionId?: unknown;
+    customData?: Record<string, unknown> | null;
+  } | null;
+  const subscriptionId = typeof tx?.subscriptionId === "string" ? tx.subscriptionId : null;
+  if (!subscriptionId || !PROVIDER_REFERENCE_SHAPE.test(subscriptionId)) return false;
+
+  const supabase = await admin();
+  const bySubscription = await supabase
+    .from("donations")
+    .select("id")
+    .eq("provider_subscription_id", subscriptionId)
+    .eq("environment", environment)
+    .limit(1);
+  if (bySubscription.error) {
+    throw new Error(`refund: donation lookup failed: ${bySubscription.error.message}`);
+  }
+  if ((bySubscription.data ?? []).length > 0) return true;
+
+  // Kotwica bez powiązanej subskrypcji (zawiodły też zdarzenia, które ją
+  // wiążą) - rozpoznawalna wyłącznie po metadanych subskrypcji darowizny.
+  const custom = tx?.customData ?? null;
+  const donationId = custom?.purpose === "donation" ? custom.donationId : null;
+  if (typeof donationId !== "string" || !DONATION_ID_SHAPE.test(donationId)) return false;
+  const byAnchor = await supabase
+    .from("donations")
+    .select("id")
+    .eq("id", donationId)
+    .eq("environment", environment)
+    .limit(1);
+  if (byAnchor.error) throw new Error(`refund: donation lookup failed: ${byAnchor.error.message}`);
+  return (byAnchor.data ?? []).length > 0;
+}
+
 async function donationBy(
   column: "provider_intent_id" | "provider_invoice_id" | "provider_session_id",
   value: string,
@@ -414,6 +537,16 @@ async function lookupDonationForAdjustment(event: RefundEvent): Promise<Adjustme
   if (refs.invoiceId && PROVIDER_REFERENCE_SHAPE.test(refs.invoiceId)) {
     const byInvoice = await donationBy("provider_invoice_id", refs.invoiceId, event.environment);
     if (byInvoice) return byInvoice;
+    // Rata naszej darowizny, której faktura jeszcze się nie zaksięgowała:
+    // WYJĄTEK, nie `null`. Dziennik zapisze `failed`, operator ponowi
+    // `charge.refunded` w tym samym oknie co `invoice.paid`, a po
+    // zaksięgowaniu raty ponowienie trafi w nią zwykłą regułą zwrotu
+    // (pełny -> `refunded`, częściowy -> licznik). Oznaczenie oczekującej
+    // kotwicy jako zwróconej nie wystarcza: księgowanie widzi wtedy kotwicę
+    // „nie pending" i dopisuje świeży opłacony wiersz `renewal:in_...`.
+    if (await isUnbookedDonationInstallment(event.environment, refs.invoiceId)) {
+      throw new Error(`refund: donation installment ${refs.invoiceId} not booked yet - retry`);
+    }
   }
   if (refs.sessionId && PROVIDER_REFERENCE_SHAPE.test(refs.sessionId)) {
     return donationBy("provider_session_id", refs.sessionId, event.environment);
@@ -771,7 +904,13 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
 export async function applyRefundEffects(event: RefundEvent): Promise<RefundOutcome> {
   if (isDisputeReversed(event)) return restoreAccess(event);
   if (!isRevokingAdjustment(event)) return "skipped";
-  if (event.action === "chargeback" || event.action === "chargeback_warning") {
+  // Przegrany spór (`charge.dispute.closed`, `lost`) odbiera dostęp tak samo -
+  // na wypadek, gdyby otwarcie nigdy nie dotarło - ale NIE jest otwarciem:
+  // alert „przygotuj dowody" po zamknięciu sprawy byłby fałszywy.
+  const opensDispute =
+    (event.action === "chargeback" || event.action === "chargeback_warning") &&
+    event.status !== STRIPE_DISPUTE_LOST;
+  if (opensDispute) {
     await alertAdminsAboutDispute(event, "opened", await disputeTenant(event));
   }
   if (event.subscriptionId) return revokeSubscription(event);

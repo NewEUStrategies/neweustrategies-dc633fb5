@@ -151,9 +151,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           const { loadLocalPlanSubscriptionHistory, SUBSCRIPTION_EXISTS_ERROR } =
             await import("@/lib/billing/planSubscriptionGuard");
           const { resolveEnvironment: envForHistory } = await import("@/lib/stripe.server");
+          // Konflikt względem KUPOWANEJ pozycji (osobny zakup przy innym
+          // modelu rozliczenia przechodzi - zmiana planu by go odrzuciła).
           const history = await loadLocalPlanSubscriptionHistory(supabase, {
             userId,
             environment: envForHistory(data.environment),
+            target: quote.entry,
           });
           if (history.hasLive) {
             return {
@@ -546,6 +549,18 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           trialDays,
           trialEligible,
         });
+        // Sesje wygaszone przez kasę (poprzednia próba, druga karta) już nie
+        // zostaną opłacone - ich zamówienia nie mogą wisieć w `processing`.
+        if (createdSub.supersededOrderIds?.length) {
+          const { markOrderSession } = await import("@/lib/billing/markOrderSession.server");
+          for (const supersededId of createdSub.supersededOrderIds) {
+            await markOrderSession(supabase, {
+              orderId: supersededId,
+              sessionId: null,
+              status: "canceled",
+            });
+          }
+        }
         if (!createdSub.ok) {
           await (
             await import("@/lib/billing/markOrderSession.server")
@@ -1029,8 +1044,12 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       throw new Error("subscription_period_ended");
     }
 
-    const { resumeProviderSubscription, isProviderSubscriptionRef, subscriptionEnvironment } =
-      await import("@/lib/billing/subscriptionProvider.server");
+    const {
+      resumeProviderSubscription,
+      isProviderSubscriptionRef,
+      subscriptionEnvironment,
+      PAUSED_BY_OPERATOR,
+    } = await import("@/lib/billing/subscriptionProvider.server");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
       const result = await resumeProviderSubscription(subscriptionEnvironment(), sub.external_ref);
@@ -1045,8 +1064,15 @@ export const resumeSubscription = createServerFn({ method: "POST" })
             hostedInvoiceUrl: result.hostedInvoiceUrl ?? null,
           };
         }
-        if (result.error === "subscription_not_resumable") {
-          throw new Error("subscription_not_resumable");
+        // Odmowy domenowe przechodzą pod własnym kodem: pauzę poboru przy
+        // nieopłaconym okresie zdejmuje operator, nie klient (reguła
+        // w `resumeProviderSubscription`) - UI kieruje wtedy do kontaktu
+        // zamiast udawać chwilową awarię.
+        if (
+          result.error === "subscription_not_resumable" ||
+          result.error === PAUSED_BY_OPERATOR
+        ) {
+          throw new Error(result.error);
         }
         throw new Error("provider_resume_failed");
       }

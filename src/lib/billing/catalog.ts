@@ -174,6 +174,35 @@ export function catalogRecurringFor(entry: CatalogPriceEntry): CatalogRecurring 
   }
 }
 
+/** Minimalny kształt ceny operatora, jakiego potrzebuje kontrola cyklu. */
+export interface CatalogPriceCycleShape {
+  type?: string | null;
+  recurring?: { interval?: string | null; interval_count?: number | null } | null;
+}
+
+/**
+ * Czy cena operatora ma INNY cykl niż pozycja katalogu (albo cykl tam, gdzie
+ * pozycja jest jednorazowa). Typ ceny musi się zgadzać jawnie - brak `type`
+ * to też rozjazd, bo nie wiemy, co operator obciąży.
+ *
+ * JEDNA KONTROLA DLA KASY I SYNCHRONIZACJI. Kasa przed sesją odmawia ceny
+ * w złym cyklu (`catalogPriceMismatch`), a synchronizacja porównywała dotąd
+ * tylko kwotę, walutę i trial - cena w złym rytmie (np. miejsce w Decision
+ * Labie założone kiedyś jako miesięczna subskrypcja albo kwartał zapisany
+ * jako miesiąc × 1) dostawała od synchronizacji „ok" i blokowała każdy zakup
+ * planu na zawsze. Ten sam predykat po obu stronach sprawia, że to, co kasa
+ * odrzuca, synchronizacja odtwarza.
+ */
+export function catalogCycleMismatch(price: CatalogPriceCycleShape, entry: CatalogPriceEntry): boolean {
+  const cycle = catalogRecurringFor(entry);
+  if (cycle === null) return price.type !== "one_time" || !!price.recurring;
+  return (
+    price.type !== "recurring" ||
+    price.recurring?.interval !== cycle.interval ||
+    (price.recurring?.interval_count ?? 1) !== cycle.interval_count
+  );
+}
+
 /** Wycena planu z katalogu: pozycja operatora, ilość i kwota PRZED kuponem. */
 export interface CatalogPlanQuote {
   entry: CatalogPriceEntry;

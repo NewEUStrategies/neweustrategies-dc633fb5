@@ -46,6 +46,9 @@ const h = vi.hoisted(() => ({
   operator: {
     invoiceByIntent: {} as Record<string, string>,
     sessionByIntent: {} as Record<string, string>,
+    /** Faktury zwracane przez `invoices.retrieve` (rozpoznanie raty darowizny). */
+    invoices: {} as Record<string, Record<string, unknown>>,
+    retrievedInvoices: [] as string[],
     fails: false,
     envs: [] as string[],
   },
@@ -74,6 +77,13 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
               const session = h.operator.sessionByIntent[params.payment_intent ?? ""];
               return guard({ data: session ? [{ id: session }] : [] });
             },
+          },
+        },
+        // Faktura bez wpisu w scenie = faktura bez subskrypcji (nie rata).
+        invoices: {
+          retrieve: (id: string) => {
+            h.operator.retrievedInvoices.push(id);
+            return guard(h.operator.invoices[id] ?? { id, object: "invoice" });
           },
         },
       });
@@ -112,6 +122,8 @@ vi.mock("@/lib/email/transactional.server", async () => {
 });
 
 import { applyRefundEffects, type RefundEvent } from "@/lib/billing/refunds.server";
+import { normalizeStripeEvent } from "@/lib/billing/stripeEvents.server";
+import { dispatchWebhookEvent } from "@/lib/billing/webhookDispatch.server";
 
 // --- atomy sceny ------------------------------------------------------------
 
@@ -223,6 +235,7 @@ interface DonationLookupRow {
   provider_intent_id: string | null;
   provider_invoice_id: string | null;
   provider_session_id: string;
+  provider_subscription_id: string | null;
 }
 
 let db: SupabaseFromStub;
@@ -353,6 +366,8 @@ beforeEach(() => {
   h.emails.length = 0;
   h.operator.invoiceByIntent = {};
   h.operator.sessionByIntent = {};
+  h.operator.invoices = {};
+  h.operator.retrievedInvoices.length = 0;
   h.operator.fails = false;
   h.operator.envs.length = 0;
   scene = {
@@ -1625,6 +1640,7 @@ function donationLookupRow(overrides: Partial<DonationLookupRow> = {}): Donation
     provider_intent_id: TXN,
     provider_invoice_id: null,
     provider_session_id: "cs_test_darowizna",
+    provider_subscription_id: null,
     ...overrides,
   };
 }
@@ -1743,5 +1759,236 @@ describe("SUB-09: zwrot darowizny po identyfikatorze intencji", () => {
     await expect(applyRefundEffects(refundEvent())).rejects.toThrow(
       "refund: operator lookup failed: api_down",
     );
+  });
+});
+
+// =====================================================================
+// PRZEGLĄD ADWERSARYJNY, poz. 25: zwrot raty, zanim jej faktura się
+// zaksięgowała. `invoice.paid` padło i czeka na ponowienie operatora, a ratę
+// zwrócono: kotwica nie ma ani intencji, ani faktury, sesja subskrypcji ma
+// `payment_intent = null`. Dawniej `skipped` = „przetworzone" bez ponowienia,
+// a spóźnione `invoice.paid` księgowało zwrócone pieniądze jako wpłatę.
+// =====================================================================
+describe("poz. 25: zwrot raty darowizny przed zaksięgowaniem faktury", () => {
+  const ANCHOR = "7a1e0000-0000-4000-8000-000000000025";
+  const INVOICE = "in_1RataBezKsiegowania";
+  const SUB_DONATION = "sub_1DarowiznaCykliczna";
+
+  const pendingAnchor = (overrides: Partial<DonationLookupRow> = {}) =>
+    donationLookupRow({
+      id: ANCHOR,
+      status: "pending",
+      provider_intent_id: null,
+      provider_invoice_id: null,
+      provider_session_id: "cs_test_kotwicaRaty",
+      provider_subscription_id: SUB_DONATION,
+      ...overrides,
+    });
+
+  /** Faktura w kształcie API Basil: powiązanie z subskrypcją w `parent`. */
+  const basilInvoice = (subscription: string, metadata: Record<string, string>) => ({
+    id: INVOICE,
+    object: "invoice",
+    lines: { data: [] },
+    parent: {
+      type: "subscription_details",
+      subscription_details: { subscription, metadata },
+    },
+  });
+
+  beforeEach(() => {
+    scene.order = null;
+    h.operator.invoiceByIntent[TXN] = INVOICE;
+  });
+
+  it("rata NASZEJ darowizny bez wiersza faktury RZUCA (operator ponowi), zamiast `skipped`", async () => {
+    scene.donationRows = [pendingAnchor()];
+    h.operator.invoices[INVOICE] = basilInvoice(SUB_DONATION, {
+      purpose: "donation",
+      donationId: ANCHOR,
+    });
+
+    await expect(applyRefundEffects(refundEvent())).rejects.toThrow(
+      `refund: donation installment ${INVOICE} not booked yet`,
+    );
+    // Oczekująca kotwica NIE jest oznaczana jako zwrócona - księgowanie
+    // dopisałoby wtedy świeży opłacony wiersz `renewal:in_...`.
+    expect(patches("donations")).toEqual([]);
+    expect(h.operator.retrievedInvoices).toEqual([INVOICE]);
+  });
+
+  it("kotwica bez powiązanej subskrypcji: rata rozpoznana po metadanych darowizny", async () => {
+    // Zawiodły też zdarzenia wiążące subskrypcję z wierszem.
+    scene.donationRows = [pendingAnchor({ provider_subscription_id: null })];
+    h.operator.invoices[INVOICE] = basilInvoice(SUB_DONATION, {
+      purpose: "donation",
+      donationId: ANCHOR,
+    });
+
+    await expect(applyRefundEffects(refundEvent())).rejects.toThrow("not booked yet");
+  });
+
+  it("ponowienie PO zaksięgowaniu raty trafia w nią zwykłą regułą zwrotu", async () => {
+    scene.donationRows = [pendingAnchor()];
+    h.operator.invoices[INVOICE] = basilInvoice(SUB_DONATION, {
+      purpose: "donation",
+      donationId: ANCHOR,
+    });
+    await expect(applyRefundEffects(refundEvent())).rejects.toThrow("not booked yet");
+
+    // Ponowione `invoice.paid` zaksięgowało ratę na kotwicy kluczem faktury.
+    scene.donationRows = [
+      pendingAnchor({ status: "paid", provider_invoice_id: INVOICE, provider_intent_id: INVOICE }),
+    ];
+    scene.refundedDonations = [{ id: ANCHOR }];
+
+    expect(await applyRefundEffects(refundEvent())).toBe("donation_refunded");
+    expect(patches("donations")).toEqual([{ status: "refunded", refunded_amount_cents: 4900 }]);
+  });
+
+  it("faktura PLANU (nie darowizny) nie wstrzymuje korekty - `skipped` jak dotąd", async () => {
+    scene.donationRows = [];
+    h.operator.invoices[INVOICE] = basilInvoice("sub_1PlanCzlonkowski", { planKey: "plus" });
+
+    expect(await applyRefundEffects(refundEvent())).toBe("skipped");
+  });
+
+  it("subskrypcja darowizny SPOZA tej bazy (wspólne konto operatora) nie wisi w ponowieniach", async () => {
+    scene.donationRows = [];
+    h.operator.invoices[INVOICE] = basilInvoice("sub_1ObcaDarowizna", {
+      purpose: "donation",
+      donationId: "7a1e0000-0000-4000-8000-0000000000ff",
+    });
+
+    expect(await applyRefundEffects(refundEvent())).toBe("skipped");
+  });
+
+  it("faktura bez subskrypcji nie jest ratą", async () => {
+    scene.donationRows = [pendingAnchor()];
+    h.operator.invoices[INVOICE] = { id: INVOICE, object: "invoice", lines: { data: [] } };
+
+    expect(await applyRefundEffects(refundEvent())).toBe("skipped");
+  });
+});
+
+// =====================================================================
+// PRZEGLĄD ADWERSARYJNY, poz. 26: spór o darowiznę na PRAWDZIWYCH statusach
+// Stripe. Zdarzenie w kształcie operatora przechodzi całą drogę webhooka:
+// `normalizeStripeEvent` -> `dispatchWebhookEvent` (`handleAdjustment`) ->
+// `applyRefundEffects`. Dawniej spór przechodził wyłącznie przy statusie
+// `approved` (słownik Paddle), którego Stripe nie wysyła, a `charge.dispute.closed`
+// nie był w ogóle normalizowany - testy dowodziły gałęzi syntetycznym statusem.
+// =====================================================================
+describe("poz. 26: spór o darowiznę - zdarzenia w kształcie Stripe", () => {
+  const disputeEvent = (type: string, object: Record<string, unknown>) => ({
+    id: `evt_1${type.replace(/\W/g, "")}`,
+    type,
+    created: 1_760_000_000,
+    data: {
+      object: {
+        id: "dp_1SporDarowizny",
+        object: "dispute",
+        amount: 4900,
+        currency: "pln",
+        charge: "ch_1SporDarowizny",
+        payment_intent: TXN,
+        reason: "fraudulent",
+        is_charge_refundable: false,
+        ...object,
+      },
+    },
+  });
+
+  async function deliver(type: string, status: string): Promise<void> {
+    const normalized = normalizeStripeEvent(disputeEvent(type, { status }));
+    if (!normalized) throw new Error(`test: ${type} nie został znormalizowany`);
+    await dispatchWebhookEvent({
+      eventType: normalized.eventType,
+      data: normalized.data,
+      environment: "sandbox",
+      occurredAt: "2026-10-12T10:00:00.000Z",
+    });
+  }
+
+  beforeEach(() => {
+    scene.order = null;
+    scene.donationTenant = BILLING_IDS.tenant;
+    scene.admins = [{ user_id: "admin-1" }];
+    scene.adminProfiles = [{ id: "admin-1", tenant_id: BILLING_IDS.tenant }];
+  });
+
+  it.each(["needs_response", "under_review"])(
+    "otwarty spór (`%s`) zamyka wpłatę i alarmuje zespół najemcy",
+    async (status) => {
+      scene.donationRows = [donationLookupRow()];
+      scene.refundedDonations = [{ id: "don-1" }];
+
+      await deliver("charge.dispute.created", status);
+
+      expect(patches("donations")).toEqual([{ status: "refunded" }]);
+      expect(adminBells().map((bell) => bell.p_title_pl)).toEqual(["Otwarto spór płatniczy"]);
+    },
+  );
+
+  it.each(["warning_needs_response", "warning_under_review"])(
+    "ZAPYTANIE banku (`%s`) - pieniądze nie zostały pobrane, wpłata zostaje",
+    async (status) => {
+      scene.donationRows = [donationLookupRow()];
+      scene.refundedDonations = [{ id: "don-1" }];
+
+      await deliver("charge.dispute.created", status);
+
+      expect(patches("donations")).toEqual([]);
+      expect(adminBells()).toHaveLength(0);
+    },
+  );
+
+  it("wygrany spór (`charge.dispute.closed`, `won`) przywraca wpłatę i zawiadamia zespół", async () => {
+    scene.donationRows = [donationLookupRow({ status: "refunded" })];
+    scene.refundedDonations = [{ id: "don-1" }];
+
+    await deliver("charge.dispute.closed", "won");
+
+    expect(patches("donations")).toEqual([{ status: "paid" }]);
+    expect(adminBells().map((bell) => bell.p_title_pl)).toEqual(["Spór płatniczy rozstrzygnięty"]);
+  });
+
+  it("przegrany spór (`lost`) zostawia wpłatę zamkniętą i NIE udaje otwarcia sporu", async () => {
+    scene.donationRows = [donationLookupRow({ status: "refunded" })];
+    // Wiersz jest już `refunded` - warunek `neq(status, refunded)` niczego nie zmienia.
+    scene.refundedDonations = [];
+
+    await deliver("charge.dispute.closed", "lost");
+
+    expect(filters("donations", "neq")).toContainEqual(["status", "refunded"]);
+    expect(adminBells()).toHaveLength(0);
+  });
+
+  it("przegrany spór domyka wpłatę, gdy otwarcie sporu nigdy nie dotarło", async () => {
+    scene.donationRows = [donationLookupRow()];
+    scene.refundedDonations = [{ id: "don-1" }];
+
+    await deliver("charge.dispute.closed", "lost");
+
+    expect(patches("donations")).toEqual([{ status: "refunded" }]);
+  });
+
+  it("zamknięte zapytanie (`warning_closed`) niczego nie przywraca ani nie odbiera", async () => {
+    scene.donationRows = [donationLookupRow({ status: "refunded" })];
+    scene.refundedDonations = [{ id: "don-1" }];
+
+    await deliver("charge.dispute.closed", "warning_closed");
+
+    expect(patches("donations")).toEqual([]);
+    expect(adminBells()).toHaveLength(0);
+  });
+
+  it("ta sama reguła dotyczy zamówienia: prawdziwy spór odbiera dostęp do zakupu", async () => {
+    scene.order = orderRow();
+
+    await deliver("charge.dispute.created", "needs_response");
+
+    expect(patches("payment_orders")[0]).toMatchObject({ status: "refunded" });
+    expect(adminBells().map((bell) => bell.p_title_pl)).toEqual(["Otwarto spór płatniczy"]);
   });
 });

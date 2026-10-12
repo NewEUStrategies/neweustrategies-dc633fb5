@@ -1,14 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchMyBillingProfile, fetchPlanById } from "@/lib/billing/queries";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
 import { billingKeys } from "@/lib/billing/keys";
 import {
+  CHECKOUT_SUPERSEDED_ERROR,
   isLivePlanSubscriptionStatus,
   SUBSCRIPTION_EXISTS_ERROR,
+  visiblePlanPurchaseConflict,
+  type PlanPurchaseConflict,
 } from "@/lib/billing/planSubscriptionGuard";
 import { fetchMyStripeSubscription } from "@/lib/billing/subscriptionQueries";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
@@ -43,6 +46,35 @@ import { useCheckout } from "@/hooks/useCheckout";
 import { EmbeddedCheckoutFrame } from "@/components/checkout/EmbeddedCheckoutFrame";
 import { checkoutIntentHandlers } from "@/components/checkout/checkoutIntent";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
+import { PROFILE_PLAN_PATH, PROFILE_PORTAL_PATH } from "@/lib/profile/routes";
+
+/**
+ * Komunikat i JEDYNA ścieżka, która dla danego konfliktu naprawdę działa
+ * (`planPurchaseConflict` = reguła zmiany planu). Dawniej każdy konflikt
+ * odsyłał do „Zmień plan", także tam, gdzie zmiana planu odmawia (ten sam
+ * plan, cena spoza katalogu) - kupujący lądował w ślepym zaułku.
+ */
+const CONFLICT_PATH: Record<
+  PlanPurchaseConflict,
+  { message: string; cta: string; to: typeof PROFILE_PLAN_PATH | typeof PROFILE_PORTAL_PATH }
+> = {
+  change_plan: {
+    message: "checkout.subscriptionExists",
+    cta: "checkout.changePlanCta",
+    to: PROFILE_PLAN_PATH,
+  },
+  same_plan: {
+    message: "checkout.subscriptionSamePlan",
+    cta: "checkout.manageSubscriptionCta",
+    to: PROFILE_PLAN_PATH,
+  },
+  unmanaged: {
+    message: "checkout.subscriptionUnmanaged",
+    cta: "checkout.billingPortalCta",
+    to: PROFILE_PORTAL_PATH,
+  },
+};
+
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
   head: () => ({
@@ -73,6 +105,7 @@ function CheckoutPage() {
     if (clientSecret) frameRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [clientSecret]);
   const { openPlanCheckout } = useCheckout();
+  const queryClient = useQueryClient();
 
   const plan = useQuery({
     queryKey: ["plan", planId],
@@ -144,10 +177,24 @@ function CheckoutPage() {
   const finalCentsDisplay = Math.max(originalDisplay.cents - discountDisplay.cents, 0);
 
   const existingSubscription = mySubscription.data ?? null;
-  // Żywa subskrypcja planu blokuje drugi zakup subskrypcji - ścieżką jest
-  // zmiana planu w profilu (ta sama reguła co w `planSubscriptionGuard`).
-  const blockedByExistingSubscription =
-    checkoutMode === "subscription" && isLivePlanSubscriptionStatus(existingSubscription?.status);
+  // Żywa subskrypcja planu blokuje drugi zakup TYLKO tam, gdzie istnieje
+  // działająca ścieżka obok (zmiana planu, zarządzanie, portal) - ta sama
+  // reguła co na serwerze (`planSubscriptionGuard`). `incomplete` (porzucone
+  // 3DS) nie blokuje: serwer unieważnia jego fakturę przed nową sesją.
+  const purchaseConflict: PlanPurchaseConflict | null =
+    checkoutMode === "subscription" && planData
+      ? visiblePlanPurchaseConflict(existingSubscription, catalogPriceForPlan(planData))
+      : null;
+  const blockedByExistingSubscription = purchaseConflict !== null;
+  const conflictPath = purchaseConflict ? CONFLICT_PATH[purchaseConflict] : null;
+  // Inny model rozliczenia (Zespół za miejsce <-> plan indywidualny) to OSOBNY
+  // zakup - zmiana planu go odrzuca. Obecna subskrypcja zostaje i dalej
+  // obciąża, więc kupujący ma to wiedzieć przed płatnością; profil pokazuje
+  // tylko najnowszą subskrypcję, dlatego jej rezygnacja idzie przez portal.
+  const separatePurchase =
+    checkoutMode === "subscription" &&
+    !purchaseConflict &&
+    isLivePlanSubscriptionStatus(existingSubscription?.status);
   // Trial raz na konto: kto miał już subskrypcję planu, nie dostanie okresu
   // próbnego, więc nakładka nie może go obiecywać. Wolimy nie obiecać triala,
   // który by przysługiwał, niż obiecać taki, którego operator nie da.
@@ -180,7 +227,13 @@ function CheckoutPage() {
       });
       if (!result.ok) {
         if (result.error === SUBSCRIPTION_EXISTS_ERROR) {
-          toast.error(t("checkout.subscriptionExists"));
+          // Serwer widzi pełną historię (i operatora) - nakładka tylko najnowszy
+          // wiersz lustra. Odświeżenie pokazuje kartę z właściwą ścieżką.
+          toast.error(t((conflictPath ?? CONFLICT_PATH.change_plan).message));
+          void queryClient.invalidateQueries({ queryKey: billingKeys.myStripeSubscriptionAll() });
+        } else if (result.error === CHECKOUT_SUPERSEDED_ERROR) {
+          // Równolegle otwarta płatność (druga karta) wygrała - ta jest wygaszona.
+          toast.error(t("checkout.sessionSuperseded"));
         } else if (result.error === "not_found" || result.error === "limit_reached") {
           toast.error(t("checkout.applyFailed"));
         } else if (result.error === "rate_limited") {
@@ -274,11 +327,18 @@ function CheckoutPage() {
                         </p>
                       )}
                     </div>
-                    {blockedByExistingSubscription ? (
+                    {conflictPath ? (
                       <div className="space-y-2 rounded-md border px-3 py-2 text-xs">
-                        <p>{t("checkout.subscriptionExists")}</p>
+                        <p>{t(conflictPath.message)}</p>
                         <Button asChild variant="link" className="h-auto p-0 text-xs">
-                          <Link to="/profile/plan">{t("checkout.changePlanCta")}</Link>
+                          <Link to={conflictPath.to}>{t(conflictPath.cta)}</Link>
+                        </Button>
+                      </div>
+                    ) : separatePurchase ? (
+                      <div className="space-y-2 rounded-md border px-3 py-2 text-xs">
+                        <p>{t("checkout.separatePurchase")}</p>
+                        <Button asChild variant="link" className="h-auto p-0 text-xs">
+                          <Link to={PROFILE_PORTAL_PATH}>{t("checkout.billingPortalCta")}</Link>
                         </Button>
                       </div>
                     ) : trialOffered ? (

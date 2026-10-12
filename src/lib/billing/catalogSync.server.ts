@@ -4,8 +4,10 @@
 // środowiska) identyfikatory wewnętrzne znikają, a w aplikacji zostają tylko
 // czytelne identyfikatory (`lookup_key` ceny, `metadata.lovable_external_id`
 // produktu). Ten moduł odtwarza katalog idempotentnie: produkt/cena są
-// zakładane, gdy ich brak, a rozjechana kwota, waluta, cykl lub trial są
-// korygowane do wartości z `access_plans` (źródło prawdy aplikacji).
+// zakładane, gdy ich brak, a rozjechana kwota, waluta, cykl, kształt ceny
+// (progi, przekształcanie ilości) lub trial są korygowane do wartości
+// z `access_plans` (źródło prawdy aplikacji) - dokładnie to, czego kasa
+// wymaga przed sesją (`catalogPriceMismatch`).
 //
 // JEDNO ŹRÓDŁO PRAWDY: PLANY NAJEMCY DOMYŚLNEGO. Katalog operatora jest JEDEN
 // na instalację - `lookup_key` (`plus_monthly`, `pro_annual`...) nie niesie
@@ -26,7 +28,12 @@ import type Stripe from "stripe";
 
 import { getStripeClient, type StripeEnv } from "@/lib/stripe.server";
 
-import { BILLING_CATALOG, catalogRecurringFor, type CatalogPriceEntry } from "./catalog";
+import {
+  BILLING_CATALOG,
+  catalogCycleMismatch,
+  catalogRecurringFor,
+  type CatalogPriceEntry,
+} from "./catalog";
 import type { ReapedEntry } from "./catalogReap.server";
 
 export type CatalogSyncAction = "created" | "updated" | "ok" | "skipped" | "failed";
@@ -178,7 +185,11 @@ type StripePriceShape =
   | { billing_scheme: "tiered"; tiers_mode: "volume"; tiers: Stripe.PriceCreateParams.Tier[] }
   | { unit_amount: number };
 
-/** Czy zdalna cena schodkowa odpowiada progom wyliczonym z katalogu. */
+/**
+ * Czy zdalna cena schodkowa odpowiada progom wyliczonym z katalogu. Opłata
+ * stała progu (`flat_amount`) też jest częścią kwoty - kasa doliczy ją do
+ * obciążenia (`stripePriceAmountFor`), a katalog jej nie zakłada.
+ */
 function tiersMatch(
   remote: Stripe.Price.Tier[] | undefined,
   expected: Stripe.PriceCreateParams.Tier[],
@@ -188,8 +199,28 @@ function tiersMatch(
     const got = remote[i];
     if (!got) return false;
     const wantUpTo = want.up_to === "inf" ? null : Number(want.up_to);
-    return (got.up_to ?? null) === wantUpTo && (got.unit_amount ?? null) === want.unit_amount;
+    return (
+      (got.up_to ?? null) === wantUpTo &&
+      (got.unit_amount ?? null) === want.unit_amount &&
+      (got.flat_amount ?? 0) === 0
+    );
   });
+}
+
+/**
+ * Kształt ceny, którego kasa nie umie policzyć jednoznacznie albo który
+ * zmienia obciążenie niezależnie od kwoty: przekształcanie ilości, kwota
+ * wpisywana przez klienta i schodki w trybie innym niż `volume` (`graduated`
+ * liczy niższą stawkę tylko od nadwyżki). Kasa odmawia takiej ceny
+ * (`unverifiable_amount` / `amount`), więc synchronizacja musi ją odtworzyć -
+ * inaczej plan byłby niekupowalny do ręcznej interwencji u operatora.
+ */
+function priceShapeDrifted(
+  price: Stripe.Price,
+  tiers: Stripe.PriceCreateParams.Tier[] | null,
+): boolean {
+  if (price.transform_quantity || price.custom_unit_amount) return true;
+  return !!tiers && price.tiers_mode !== "volume";
 }
 
 /** Okres próbny z `access_plans.trial_days` - `null` oznacza plan bez triala. */
@@ -297,20 +328,29 @@ async function syncOne(
     return item;
   }
 
-  // 3. Korekta rozjechanej kwoty/waluty/triala - checkout musi pobierać tyle,
-  // ile pokazuje cennik w aplikacji.
+  // 3. Korekta rozjechanej kwoty/waluty/cyklu/kształtu/triala - checkout musi
+  // pobierać tyle i w takim rytmie, jak pokazuje cennik w aplikacji. Każda
+  // odmowa ceny w kasie (`catalogPriceMismatch`) ma tu swój odpowiednik.
   const remoteTrialRaw = price.metadata?.["trial_days"];
   const remoteTrialDays = remoteTrialRaw ? Number(remoteTrialRaw) : null;
   const currencyDrifted = (price.currency ?? "").toLowerCase() !== currency;
   // Cena schodkowa nie ma `unit_amount` - porównujemy progi. Zmiana kształtu
   // (płaska <-> schodkowa) też jest dryfem: przejście progu wolumenowego
-  // z konfiguracji do katalogu musi przełożyć się na cenę u operatora.
+  // z konfiguracji do katalogu musi przełożyć się na cenę u operatora. Cena
+  // płaska BEZ `unit_amount` (sama `unit_amount_decimal`) to dryf nawet przy
+  // kwocie zero - kasa takiej ceny nie policzy.
   const amountDrifted = tiers
     ? price.billing_scheme !== "tiered" || !tiersMatch(price.tiers ?? undefined, tiers)
-    : price.billing_scheme === "tiered" || (price.unit_amount ?? 0) !== amount;
+    : price.billing_scheme === "tiered" ||
+      typeof price.unit_amount !== "number" ||
+      price.unit_amount !== amount;
+  // Cykl: ta sama kontrola, którą kasa odrzuca cenę przed sesją. Stripe nie
+  // pozwala zmienić cyklu istniejącej ceny, więc dryf = nowa cena.
+  const cycleDrifted = catalogCycleMismatch(price, entry);
+  const shapeDrifted = priceShapeDrifted(price, tiers);
   const trialDrifted = (trialDays ?? null) !== (remoteTrialDays ?? null);
 
-  if (amountDrifted || currencyDrifted) {
+  if (amountDrifted || currencyDrifted || cycleDrifted || shapeDrifted) {
     // Stripe nie pozwala zmienić kwoty istniejącej ceny - zakładamy nową
     // z tym samym `lookup_key` (przenoszonym automatycznie), a starą
     // archiwizujemy zamiast kasować (zachowanie historii transakcji).

@@ -259,6 +259,11 @@ function mapTransactionFromInvoice(invoice: Raw): TransactionData & Raw {
         ? invoice.attempt_count
         : null,
     nextPaymentAttemptAt: isoFromUnix(invoice.next_payment_attempt),
+    // Po co powstała faktura. `subscription_update` to dopłata za zmianę
+    // w trakcie okresu (upgrade, więcej miejsc) - przy `pending_if_incomplete`
+    // jej odrzucenie zostawia subskrypcję `active` i NIE jest zaległością
+    // odnowienia, więc windykacja musi ją odróżnić od `subscription_cycle`.
+    billingReason: strOf(invoice.billing_reason),
     // Pola dokumentu rozliczeniowego - odczytywane przez `billingDocuments.server`.
     status: "completed",
     invoiceNumber: strOf(invoice.number),
@@ -295,7 +300,8 @@ function mapAdjustment(
   }
 
   if (action === "chargeback") {
-    // `charge.dispute.created` - obiekt to Dispute.
+    // `charge.dispute.created` / `charge.dispute.closed` - obiekt to Dispute,
+    // `status` zostaje surowy (`needs_response`, `won`, ...).
     return {
       id: idOf(object.id) ?? "",
       transactionId: idOf(object.payment_intent) ?? idOf(object.charge),
@@ -391,6 +397,13 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
 
     case "charge.dispute.created":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "chargeback") };
+
+    // Rozstrzygnięcie sporu: bez tego zdarzenia wygrana (`won`) nie miała
+    // żadnej drogi do przywrócenia dostępu ani wpłaty. Status `Dispute`
+    // (`won` / `lost` / `warning_closed`) jedzie surowy - skutek wybiera
+    // `refunds.server` (`STRIPE_DISPUTE_*`), jak przy otwarciu sporu.
+    case "charge.dispute.closed":
+      return { eventType: "adjustment.updated", data: mapAdjustment(object, "chargeback") };
 
     case "credit_note.created":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "credit") };

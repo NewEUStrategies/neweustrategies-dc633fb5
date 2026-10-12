@@ -12,7 +12,11 @@
 //
 // Moduł server-only - importuj wyłącznie z handlerów webhooka.
 import type { Database } from "@/integrations/supabase/types";
-import { PAYMENT_GRACE_DAYS, paymentGraceEnd } from "@/lib/billing/accessPeriod";
+import {
+  PAYMENT_GRACE_DAYS,
+  isDelinquentSubscriptionStatus,
+  paymentGraceEnd,
+} from "@/lib/billing/accessPeriod";
 import { notifyPaymentEmail } from "@/lib/billing/notifications.server";
 import { resolvePlanForPrice } from "@/lib/billing/purchaseEffects.server";
 import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
@@ -41,6 +45,11 @@ export interface DunningContext {
    * jeden mail na fakturę, bez terminu kolejnej próby (audyt SUB-16).
    */
   attemptCount?: number | null;
+  /**
+   * `invoice.billing_reason` - po co operator wystawił fakturę. Rozróżnia
+   * odnowienie (zaległość) od dopłaty za zmianę w trakcie okresu.
+   */
+  billingReason?: string | null;
 }
 
 type SubscriptionUpdate = Database["public"]["Tables"]["subscriptions"]["Update"];
@@ -91,6 +100,25 @@ function isHandledAttempt(lastKey: string | null, ctx: DunningContext): boolean 
   if (lastKey.slice(0, sep) !== ctx.transactionId) return false;
   const lastAttempt = Number(lastKey.slice(sep + 1));
   return Number.isFinite(lastAttempt) && attempt <= lastAttempt;
+}
+
+/**
+ * Faktura dopłaty za zmianę W TRAKCIE okresu (upgrade, więcej miejsc), a nie
+ * za odnowienie (`subscription_cycle`). Zmiany planu i miejsc idą
+ * z `payment_behavior: pending_if_incomplete`: odrzucona dopłata zostawia
+ * subskrypcję w dotychczasowym, opłaconym stanie (`pending_update` czeka na
+ * zapłatę), a klient widzi odmowę od razu w interfejsie razem z fakturą do
+ * opłacenia.
+ */
+function isMidCycleChangeInvoice(ctx: DunningContext): boolean {
+  return ctx.billingReason === "subscription_update";
+}
+
+/** Faktura, której próba otworzyła cykl windykacji (klucz `<faktura>:<próba>`). */
+function dunningInvoiceOf(key: string | null): string | null {
+  if (!key) return null;
+  const sep = key.lastIndexOf(":");
+  return sep < 0 ? key : key.slice(0, sep);
 }
 
 /** Czas w ms albo `null`, gdy wartości nie da się odczytać. */
@@ -212,6 +240,18 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
   // byłby nieprawdą - porażkę pokazuje mu sam checkout operatora.
   if (sub.status === "incomplete" || sub.status === "incomplete_expired") return;
 
+  // Odrzucona dopłata do upgrade'u albo dodatkowych miejsc to nie zaległość:
+  // subskrypcja zostaje opłacona i aktywna, dostęp nie jest zagrożony.
+  // Pełna windykacja (licznik, kotwica karencji, mail „zaktualizuj metodę
+  // płatności, żeby zachować dostęp" z datą końca karencji, dzwonek)
+  // straszyła klienta, któremu nic nie grozi, panel admina pokazywał go
+  // „w windykacji", a najbliższe zwykłe odnowienie dosyłało fałszywe
+  // „płatność zaksięgowana" (audyt SUB-04/SUB-16). Odmowę klient widzi już
+  // w interfejsie razem z fakturą do opłacenia. Gdy subskrypcja JEST
+  // w zaległości (np. zmiana z `allow_incomplete` zepchnęła ją w `past_due`),
+  // to jest realna windykacja tej subskrypcji i idzie zwykłą ścieżką.
+  if (isMidCycleChangeInvoice(ctx) && !isDelinquentSubscriptionStatus(sub.status)) return;
+
   // Spóźniona porażka próby, po której płatność już przeszła (ponowiona
   // dostawa sprzed zaksięgowania): otwierałaby nowy cykl i wysłała wezwanie
   // klientowi, który właśnie zapłacił.
@@ -301,6 +341,19 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
   // potwierdzać - odnotowujemy samą zapłatę.
   if (sub.payment_failure_count === 0) {
     await updateSubscription(ctx, reset);
+    return;
+  }
+
+  // Opłacona dopłata za zmianę w trakcie okresu NIE spłaca zaległego
+  // odnowienia: tamta faktura wciąż czeka. Zamknięcie cyklu kasowałoby kotwicę
+  // karencji subskrypcji, która dalej jest w zaległości (kolejne `past_due`
+  // zakotwiczyłoby ją od nowa, czyli wydłużyło darmowy dostęp), i wysłało
+  // „płatność zaksięgowana". Cykl zamyka wyłącznie zapłata faktury, która go
+  // otworzyła - albo każda zapłata odnowienia.
+  if (
+    isMidCycleChangeInvoice(ctx) &&
+    dunningInvoiceOf(sub.last_dunning_transaction_id) !== (ctx.transactionId || null)
+  ) {
     return;
   }
 

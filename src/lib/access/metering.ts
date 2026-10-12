@@ -108,6 +108,13 @@ export function meterCounterVisible(meter: MeterState | null | undefined): boole
  * miesiąca monotoniczne, więc świeższym źródłem jest zawsze większa wartość;
  * limit bierzemy z quota (admin mógł go zmienić w trakcie miesiąca).
  *
+ * `remaining` NIE jest tu przeliczane z samego `limit - used`: serwer liczy je
+ * dla gościa jako min(własny limit, sufit adresu - 5 x limit różnych artykułów
+ * na adres; audyt SUB-17), a tego sufitu klient nie zna. Bierzemy więc liczbę
+ * serwera ze ŚWIEŻSZEGO źródła (większe `used`; przy remisie quota - zasiewa
+ * ją każda konsumpcja) i ograniczamy ją z góry własnym limitem. Inaczej za
+ * NAT-em biura licznik mówił "zostały 2", a następny artykuł odbijał sufit.
+ *
  * Inwariant: oba źródła opisują TEN SAM okres rozliczeniowy - klucze zapytań
  * obu hooków zawierają currentMeterPeriod(), więc po przełomie miesiąca każdy
  * remount czyta świeże stany nowego okresu, a zeszłomiesięczne wpisy cache są
@@ -122,7 +129,12 @@ export function latestMeterNumbers(
   }
   const monthlyLimit = quota.monthlyLimit;
   const used = Math.max(entity.used, quota.used);
-  return { used, monthlyLimit, remaining: Math.max(monthlyLimit - used, 0) };
+  const serverRemaining = entity.used > quota.used ? entity.remaining : quota.remaining;
+  return {
+    used,
+    monthlyLimit,
+    remaining: Math.max(Math.min(monthlyLimit - used, serverRemaining), 0),
+  };
 }
 
 /**
@@ -178,7 +190,10 @@ export function meteringApplies(
 /**
  * Wariant komunikatu paywalla wynikający z meteringu:
  *  - "register": anonim bez własnego limitu - CTA "załóż konto i czytaj N/mies."
- *    (brakujące ogniwo lejka anonim -> członek),
+ *    (brakujące ogniwo lejka anonim -> członek); także gość, którego serwer
+ *    zatrzymał ścianą rejestracji przy NIEwyczerpanym własnym limicie
+ *    (`requiresRegistration`: sufit adresu za NAT-em, brak tożsamości gościa) -
+ *    konto ma własny licznik poza sufitem adresu, więc to jest droga wyjścia,
  *  - "exhausted": tożsamość wykorzystała miesięczny limit,
  *  - null: metering nie zmienia komunikatu (standardowy paywall).
  */
@@ -191,6 +206,11 @@ export function meterPaywallVariant(input: {
   const { isLoggedIn, settings, applies, state } = input;
   if (!settings || !settings.enabled || !applies) return null;
   if (!isLoggedIn && settings.anon_monthly_limit <= 0) {
+    return settings.member_monthly_limit > 0 ? "register" : null;
+  }
+  // Odmowa sufitu adresu ma used < limit, więc bez tej gałęzi gość dostawał
+  // goły paywall bez żadnej informacji, choć nie przeczytał nic za darmo.
+  if (!isLoggedIn && state && !state.granted && state.requiresRegistration) {
     return settings.member_monthly_limit > 0 ? "register" : null;
   }
   if (state && !state.granted && state.monthlyLimit > 0 && state.used >= state.monthlyLimit) {
