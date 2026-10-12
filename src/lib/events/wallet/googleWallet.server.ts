@@ -3,26 +3,40 @@
 // PRZEPŁYW. (1) Token OAuth konta usługi (JWT RS256 wymieniany na
 // `oauth2.googleapis.com/token` - wzór `getServiceAccountToken` z
 // `analytics/ga4.server.ts`, zakres `wallet_object.issuer`). (2) Upsert klasy
-// `<issuer>.evt_<eventId>` i obiektu `<issuer>.reg_<registrationId>` przez
-// REST. (3) „Chudy” JWT `savetowallet` z samym identyfikatorem obiektu ->
+// `<issuer>.evt_<eventId>` i obiektu `<issuer>.reg_<registrationId>.<kod>`
+// przez REST. (3) „Chudy” JWT `savetowallet` z samym identyfikatorem obiektu ->
 // `https://pay.google.com/gp/v/save/<jwt>`. Chudy, bo pełny obiekt w JWT
 // wydłużałby adres ponad limity przeglądarek, a obiekt i tak istnieje po (2).
 //
-// UPSERT BEZ WYŚCIGU: najpierw PATCH (najczęstszy przypadek przy klasie -
-// istnieje od pierwszego biletu), na 404 POST, a na 409 z POST (ktoś wstawił
-// równolegle) jeszcze raz PATCH. Każdy inny status to `GoogleWalletError`.
+// OBIEKT NA KOD, NIE NA ZGŁOSZENIE (OPS-14). Sufiks identyfikatora to 12 znaków
+// SHA-256 kodu biletu (w osobnej domenie skrótu, więc to NIE jest prefiks
+// `qr_token_hash` z bazy). Nowy kod (ponowna wysyłka, unieważnienie
+// zgubionego) to nowy obiekt; obiekt starego kodu zadanie
+// `walletRevocationJob.server.ts` ustawia jako INACTIVE i nic go już nie
+// reaktywuje: dodanie wymaga WAŻNEGO kodu, a ten prowadzi do nowego obiektu.
+// Ktoś, kto zapisał stary obiekt w swoim koncie Google (przekazany mail), nie
+// dostaje więc nowego kodu, a zadanie i ponowne dodanie przez uczestnika nie
+// piszą do tego samego obiektu.
+//
+// KOSZT JEDNEGO „DODAJ” (OPS-14). Dotąd każde kliknięcie importowało klucz
+// i robiło PATCH klasy i obiektu. Teraz: klucz jest importowany raz na izolat
+// (`rsa.ts`), klasa jest zapisywana raz na izolat i treść (pamięć po
+// identyfikatorze klasy i SHA-256 treści, ważna 15 minut), a obiekt - tylko gdy
+// baza nie zna go jako aktywnego z TĄ SAMĄ treścią (`_event_wallet_pass_state`,
+// skrót treści w `event_wallet_passes.content_hash`). Obiekt, którego baza nie
+// zna, jest wstawiany od razu (POST), bez PATCH kończącego się 404.
+//
+// UPSERT BEZ WYŚCIGU: PATCH (zasób zwykle istnieje), na 404 POST, a na 409
+// z POST (ktoś wstawił równolegle) jeszcze raz PATCH; przy wstawianiu od razu
+// - POST, na 409 PATCH. Każdy inny status to `GoogleWalletError`.
 //
 // DATY Z PRZESUNIĘCIEM STREFY WYDARZENIA. Google pokazuje czas „lokalny”
 // z przesunięcia w znaczniku - znacznik w UTC pokazałby uczestnikowi godzinę
 // o dwie godziny za wcześnie. `isoInTimeZone` liczy przesunięcie numerycznie
 // (bez zależności od formatu nazw stref w danym silniku).
 //
-// PRZEPUSTKI MOŻNA PÓŹNIEJ AKTUALIZOWAĆ/DEZAKTYWOWAĆ (`state: INACTIVE`) po
-// identyfikatorze z dziennika `event_wallet_passes` - to jest następny krok,
-// nie część tej wersji.
-//
 // Moduł serwerowy: klucz prywatny konta usługi z konfiguracji.
-import { importRsaSigningKey, signRsaSha256 } from "./rsa";
+import { importRsaSigningKey, sha256, signRsaSha256, toHex } from "./rsa";
 import type { GoogleServiceAccount, GoogleWalletConfig } from "./walletConfig.server";
 import { WALLET_COPY, type WalletLang } from "./walletCopy";
 import { eventPageUrl, type WalletText, type WalletTicket } from "./walletTicket";
@@ -168,8 +182,23 @@ export function googleClassId(issuerId: string, eventId: string): string {
   return `${issuerId}.evt_${eventId}`;
 }
 
-export function googleObjectId(issuerId: string, registrationId: string): string {
-  return `${issuerId}.reg_${registrationId}`;
+/**
+ * Sufiks obiektu z kodu biletu: 12 znaków szesnastkowych SHA-256 w domenie
+ * `nes-wallet-object:` (nie prefiks skrótu kodu z bazy). 48 bitów wystarcza,
+ * żeby kody JEDNEGO zgłoszenia się nie zderzyły.
+ */
+export async function walletObjectSuffix(qrToken: string): Promise<string> {
+  const digest = await sha256(new TextEncoder().encode(`nes-wallet-object:${qrToken}`));
+  return toHex(digest).slice(0, 12);
+}
+
+export function googleObjectId(issuerId: string, registrationId: string, suffix: string): string {
+  return `${issuerId}.reg_${registrationId}.${suffix}`;
+}
+
+/** SHA-256 (hex) treści zasobu - `JSON.stringify` budowniczych jest deterministyczny. */
+export async function walletContentHash(body: Record<string, unknown>): Promise<string> {
+  return toHex(await sha256(new TextEncoder().encode(JSON.stringify(body))));
 }
 
 /** `eventTicketClass` - wspólna dla wszystkich biletów wydarzenia. */
@@ -204,10 +233,11 @@ export function buildEventTicketClass(
   };
 }
 
-/** `eventTicketObject` - jeden bilet jednej osoby. */
+/** `eventTicketObject` - jeden bilet (jeden kod) jednej osoby. */
 export function buildEventTicketObject(
   ticket: WalletTicket,
   issuerId: string,
+  objectId: string,
 ): Record<string, unknown> {
   const { event, lang } = ticket;
   const lastDay = new Date(new Date(event.endsAt ?? event.startsAt).getTime() + DAY_MS);
@@ -232,7 +262,7 @@ export function buildEventTicketObject(
     },
   ];
   return {
-    id: googleObjectId(issuerId, ticket.registrationId),
+    id: objectId,
     classId: googleClassId(issuerId, event.id),
     state: "ACTIVE",
     barcode: { type: "QR_CODE", value: ticket.qrToken, alternateText: ticket.qrToken },
@@ -263,22 +293,100 @@ async function call(
   return response.status;
 }
 
-/** Idempotentny zapis zasobu: PATCH -> (404) POST -> (409) PATCH. */
+function isSuccess(status: number): boolean {
+  return status >= 200 && status < 300;
+}
+
+/**
+ * Idempotentny zapis zasobu: PATCH -> (404) POST -> (409) PATCH, a przy
+ * `insertFirst` (zasobu nie ma w dzienniku) od razu POST -> (409) PATCH.
+ */
 export async function upsertWalletResource(
   resource: WalletResource,
   id: string,
   body: Record<string, unknown>,
   token: string,
+  options: { insertFirst?: boolean } = {},
 ): Promise<void> {
   const itemUrl = `${GOOGLE_WALLET_API}/${resource}/${encodeURIComponent(id)}`;
-  let status = await call("PATCH", itemUrl, token, body);
-  if (status === 404) {
-    status = await call("POST", `${GOOGLE_WALLET_API}/${resource}`, token, body);
+  const collectionUrl = `${GOOGLE_WALLET_API}/${resource}`;
+  let status: number;
+  if (options.insertFirst === true) {
+    status = await call("POST", collectionUrl, token, body);
     if (status === 409) status = await call("PATCH", itemUrl, token, body);
+  } else {
+    status = await call("PATCH", itemUrl, token, body);
+    if (status === 404) {
+      status = await call("POST", collectionUrl, token, body);
+      if (status === 409) status = await call("PATCH", itemUrl, token, body);
+    }
   }
-  if (status < 200 || status >= 300) {
+  if (!isSuccess(status)) {
     throw new GoogleWalletError(status, `google wallet ${resource} upsert failed`);
   }
+}
+
+/**
+ * Stan obiektu biletu (`INACTIVE` - unieważniony, `ACTIVE` - przywrócony)
+ * częściowym PATCH-em. `missing` = obiektu nie ma (nic do unieważnienia).
+ */
+export async function setWalletObjectState(
+  objectId: string,
+  state: "ACTIVE" | "INACTIVE",
+  token: string,
+): Promise<"updated" | "missing"> {
+  const status = await call(
+    "PATCH",
+    `${GOOGLE_WALLET_API}/eventTicketObject/${encodeURIComponent(objectId)}`,
+    token,
+    { state },
+  );
+  if (status === 404) return "missing";
+  if (!isSuccess(status)) {
+    throw new GoogleWalletError(status, "google wallet eventTicketObject state update failed");
+  }
+  return "updated";
+}
+
+// Klasa zapisana w tym izolacie: identyfikator -> skrót treści i ważność wpisu.
+// Wpis wygasa, żeby zmiana po stronie Google (np. ręczna edycja w konsoli
+// wystawcy) nie żyła w izolacie bez końca; sufit chroni pamięć przy wielu
+// wydarzeniach.
+const CLASS_MEMO_TTL_MS = 15 * 60 * 1000;
+const CLASS_MEMO_LIMIT = 256;
+const classMemo = new Map<string, { hash: string; until: number }>();
+
+/** Tylko testy: czysta pamięć klas. */
+export function resetGoogleWalletMemoForTests(): void {
+  classMemo.clear();
+}
+
+async function ensureEventClass(
+  classId: string,
+  body: Record<string, unknown>,
+  token: string,
+  nowMs: number,
+): Promise<boolean> {
+  const hash = await walletContentHash(body);
+  const memo = classMemo.get(classId);
+  if (memo !== undefined && memo.hash === hash && memo.until > nowMs) return false;
+  await upsertWalletResource("eventTicketClass", classId, body, token);
+  classMemo.delete(classId);
+  classMemo.set(classId, { hash, until: nowMs + CLASS_MEMO_TTL_MS });
+  if (classMemo.size > CLASS_MEMO_LIMIT) {
+    const oldest = classMemo.keys().next().value;
+    if (oldest !== undefined) classMemo.delete(oldest);
+  }
+  return true;
+}
+
+/**
+ * Obiekt w dzienniku (`_event_wallet_pass_state`): `null` = dziennik go nie
+ * zna, `undefined` = stanu nie udało się odczytać (zapisujemy jak dawniej).
+ */
+export interface StoredWalletObject {
+  readonly contentHash: string | null;
+  readonly active: boolean;
 }
 
 export interface GoogleSaveInput {
@@ -286,27 +394,41 @@ export interface GoogleSaveInput {
   readonly config: GoogleWalletConfig;
   readonly publicOrigin: string | null;
   readonly nowMs: number;
+  /** Identyfikator obiektu (`googleObjectId` z sufiksem kodu). */
+  readonly objectId: string;
+  readonly stored?: StoredWalletObject | null;
 }
 
-/** Klasa + obiekt w Google i link zapisu do portfela. */
-export async function createGoogleWalletSave(
-  input: GoogleSaveInput,
-): Promise<{ saveUrl: string; objectId: string }> {
-  const { ticket, config, publicOrigin, nowMs } = input;
+export interface GoogleSaveResult {
+  readonly saveUrl: string;
+  readonly objectId: string;
+  /** SHA-256 treści obiektu - do dziennika (`p_content_hash`). */
+  readonly contentHash: string;
+  /** Czy w tym wywołaniu zapisano klasę / obiekt (koszt API). */
+  readonly classWritten: boolean;
+  readonly objectWritten: boolean;
+}
+
+/** Klasa + obiekt w Google (tylko gdy trzeba) i link zapisu do portfela. */
+export async function createGoogleWalletSave(input: GoogleSaveInput): Promise<GoogleSaveResult> {
+  const { ticket, config, publicOrigin, nowMs, objectId, stored } = input;
   const token = await walletAccessToken(config.serviceAccount, nowMs);
-  await upsertWalletResource(
-    "eventTicketClass",
+  const classWritten = await ensureEventClass(
     googleClassId(config.issuerId, ticket.event.id),
     buildEventTicketClass(ticket, config.issuerId, publicOrigin),
     token,
+    nowMs,
   );
-  const objectId = googleObjectId(config.issuerId, ticket.registrationId);
-  await upsertWalletResource(
-    "eventTicketObject",
-    objectId,
-    buildEventTicketObject(ticket, config.issuerId),
-    token,
-  );
+
+  const objectBody = buildEventTicketObject(ticket, config.issuerId, objectId);
+  const contentHash = await walletContentHash(objectBody);
+  const unchanged =
+    stored !== undefined && stored !== null && stored.active && stored.contentHash === contentHash;
+  if (!unchanged) {
+    await upsertWalletResource("eventTicketObject", objectId, objectBody, token, {
+      insertFirst: stored === null,
+    });
+  }
 
   const jwt = await signServiceAccountJwt(
     {
@@ -319,5 +441,11 @@ export async function createGoogleWalletSave(
     },
     config.serviceAccount,
   );
-  return { saveUrl: `${GOOGLE_WALLET_SAVE_URL}${jwt}`, objectId };
+  return {
+    saveUrl: `${GOOGLE_WALLET_SAVE_URL}${jwt}`,
+    objectId,
+    contentHash,
+    classWritten,
+    objectWritten: !unchanged,
+  };
 }

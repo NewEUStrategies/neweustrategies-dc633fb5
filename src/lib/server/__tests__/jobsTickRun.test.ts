@@ -111,6 +111,15 @@ const fixtures = vi.hoisted(() => ({
   crmTaskReminders: 5,
   eventTicketCodes: { registrations: 4, sent: 3, deferred: 0 },
   eventTicketRevocations: { notices: 3, sent: 2, failed: 1, deferred: 0 },
+  walletPassRevocations: {
+    claimed: 4,
+    revoked: 3,
+    failed: 1,
+    deferred: 0,
+    gaveUp: 0,
+    closed: 2,
+    reactivated: 0,
+  },
   linkCheck: { postsScanned: 6, linksChecked: 41, broken: 2, archived: 1, alerted: 1 },
   integrations: { claimed: 7, delivered: 6, failed: 1 },
   semanticIndex: { scanned: 24, embedded: 20 },
@@ -233,6 +242,10 @@ vi.mock("@/lib/events/ticketRevokedNotify.server", () => ({
   runPendingTicketRevocations: (limit: number, deadlineAt: number) =>
     jobs.run("eventTicketRevocations", [limit, deadlineAt], fixtures.eventTicketRevocations),
 }));
+vi.mock("@/lib/events/wallet/walletRevocationJob.server", () => ({
+  runWalletPassRevocations: (admin: unknown, opts: unknown) =>
+    jobs.run("walletPassRevocations", [admin, opts], fixtures.walletPassRevocations),
+}));
 
 // Zadania funkcji uczestnika F1-F5 (spec B.10) - też `await import(...)`.
 // Każde ma własny test w swoim torze (A/B/C); tu dowodzimy wyłącznie tego,
@@ -312,6 +325,7 @@ const FULL_ORDER = [
   "crmTaskReminders",
   "eventTicketCodes",
   "eventTicketRevocations",
+  "walletPassRevocations",
   "linkCheck",
   "integrations",
   "semanticIndex",
@@ -338,6 +352,8 @@ const CRITICAL_SENDS = [
 
 /** Joby kosztowne sieciowo - kandydaci do pominięcia jako PIERWSI. */
 const NETWORK_COSTLY = [
+  // Google Wallet API (OPS-14) - za wysyłkami, przed skanem linków.
+  "walletPassRevocations",
   "linkCheck",
   "integrations",
   "semanticIndex",
@@ -361,6 +377,7 @@ const EVERY_MINUTE_JOBS = [
   "crmTaskReminders",
   "eventTicketCodes",
   "eventTicketRevocations",
+  "walletPassRevocations",
   "integrations",
 ] as const;
 
@@ -528,6 +545,7 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       crmTaskReminders: fixtures.crmTaskReminders,
       eventTicketCodes: fixtures.eventTicketCodes,
       eventTicketRevocations: fixtures.eventTicketRevocations,
+      walletPassRevocations: fixtures.walletPassRevocations,
       linkCheck: fixtures.linkCheck,
       integrations: fixtures.integrations,
       semanticIndex: fixtures.semanticIndex,
@@ -549,6 +567,7 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       "eventTicketLifecycle",
       "eventFollowUp",
       "emailQueue",
+      "walletPassRevocations",
       "linkCheck",
       "semanticIndex",
       "profileIndex",
@@ -770,6 +789,27 @@ describe("zawiadomienia o odwołanych biletach (TICKET_REVOCATIONS_DEADLINE_MS =
     const result = await tickAt(3);
     expect(jobs.steps()).not.toContain("eventTicketRevocations");
     expect(result.eventTicketRevocations).toEqual({ error: "skipped_time_budget" });
+  });
+});
+
+// ===========================================================================
+// PRZEPUSTKI GOOGLE WALLET UNIEWAŻNIONYCH BILETÓW (OPS-14)
+// ===========================================================================
+describe("dezaktywacja przepustek Google (WALLET_REVOCATIONS_DEADLINE_MS = 22 s)", () => {
+  it("biegnie zaraz po zawiadomieniach, z klientem service role, partią 10 i terminem 22 s", async () => {
+    await tickAt(0);
+
+    expect(orderOf("walletPassRevocations")).toBe(orderOf("eventTicketRevocations") + 1);
+    const [client, options] = jobs.argsOf("walletPassRevocations") ?? [];
+    expect(client).toBe(admin);
+    expect(options).toEqual({ limit: 10, deadlineAt: at(0).getTime() + 22_000 });
+  });
+
+  it("po wyczerpaniu budżetu jest pomijana - kolejka czeka w bazie na następny tick", async () => {
+    slowJob("eventTicketCodes", 25_001);
+    const result = await tickAt(3);
+    expect(jobs.steps()).not.toContain("walletPassRevocations");
+    expect(result.walletPassRevocations).toEqual({ error: "skipped_time_budget" });
   });
 });
 

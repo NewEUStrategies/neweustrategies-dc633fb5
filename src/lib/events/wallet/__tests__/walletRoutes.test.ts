@@ -36,6 +36,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { rpc: 
 
 const { appleWalletPost, googleWalletPost, walletAvailabilityGet } =
   await import("../walletRoutes.server");
+const { resetWalletConfigMemoForTests } = await import("../walletConfig.server");
+const { resetGoogleWalletMemoForTests, walletObjectSuffix } =
+  await import("../googleWallet.server");
+
+/** SHA-256 kodu biletu - ten sam skrót, który baza trzyma w `qr_token_hash`. */
+const QR_HASH = createHash("sha256").update(WALLET_QR).digest("hex");
 
 freezeClock();
 
@@ -109,6 +115,8 @@ afterEach(() => {
   error.mockRestore();
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+  resetWalletConfigMemoForTests();
+  resetGoogleWalletMemoForTests();
 });
 
 describe("appleWalletPost", () => {
@@ -262,11 +270,13 @@ describe("appleWalletPost", () => {
       value: "https://wydarzenia.example.org/events/wallet-kongres",
     });
 
+    // Dziennik niesie skrót kodu (jak `qr_token_hash` w bazie), nigdy sam kod.
     expect(h.adminRpc).toHaveBeenCalledWith("_event_wallet_pass_note", {
       p_tenant: "52000000-0000-0000-0000-0000000000a0",
       p_registration_id: "52b00000-0000-0000-0000-0000000000a1",
       p_platform: "apple",
       p_object_id: "52b00000-0000-0000-0000-0000000000a1",
+      p_code_hash: QR_HASH,
     });
   });
 
@@ -291,15 +301,51 @@ describe("appleWalletPost", () => {
     expect(warn).toHaveBeenCalledWith("[wallet] apple issue log failed:", "Error: boom");
   });
 
-  it("zły klucz podpisującego -> 500 wallet_failed (błąd serwera, nie brak konfiguracji)", async () => {
+  // ZMIANA ŚWIADOMA (OPS-14). Do 20261012130000 ten test utrwalał, że zły klucz
+  // to 500 przy KAŻDYM kliknięciu („błąd serwera, nie brak konfiguracji") -
+  // dokładnie zachowanie, które audyt wskazał jako defekt: przycisk widoczny,
+  // każde dodanie kończy się błędem. Teraz nieczytelny klucz i klucz z innej
+  // pary niż certyfikat są BRAKIEM konfiguracji: 503 przed limitem i bazą,
+  // jedna czytelna linia logu, a dostępność chowa przycisk.
+  it("nieczytelny klucz podpisującego -> 503 not_configured przed limitem i bazą, log z powodem", async () => {
     stubApple({
       APPLE_WALLET_SIGNER_KEY_PEM: "-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----",
     });
     const response = await appleWalletPost(form({ token: WALLET_QR }));
-    expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ error: "wallet_failed" });
-    expect(error).toHaveBeenCalled();
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "not_configured" });
+    expect(error).toHaveBeenCalledWith(
+      expect.stringMatching(/^\[wallet\] apple wallet not configured: signer private key/),
+    );
+    expect(h.rateLimit).not.toHaveBeenCalled();
     expect(h.adminRpc).not.toHaveBeenCalled();
+  });
+
+  it("klucz z innej pary niż certyfikat Pass Type ID -> 503 not_configured i niedostępny portfel", async () => {
+    // Klucz CA testowego PKI nie istnieje w fixture - inną parę daje klucz
+    // wygenerowany tu, w teście (nigdzie nie zapisany).
+    const pair = await crypto.subtle.generateKey(
+      {
+        name: "RSASSA-PKCS1-v1_5",
+        modulusLength: 2048,
+        publicExponent: Uint8Array.of(1, 0, 1),
+        hash: "SHA-256",
+      },
+      true,
+      ["sign"],
+    );
+    const pkcs8 = Buffer.from(await crypto.subtle.exportKey("pkcs8", pair.privateKey));
+    stubApple({
+      APPLE_WALLET_SIGNER_KEY_PEM: `-----BEGIN PRIVATE KEY-----\n${pkcs8.toString("base64")}\n-----END PRIVATE KEY-----`,
+    });
+    const response = await appleWalletPost(form({ token: WALLET_QR }));
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "not_configured" });
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining("private key does not match the Pass Type ID certificate"),
+    );
+    expect(await walletAvailabilityGet().json()).toMatchObject({ apple: false });
+    expect(h.rpc).not.toHaveBeenCalled();
   });
 });
 
@@ -356,11 +402,19 @@ describe("googleWalletPost", () => {
     const body = (await response.json()) as { saveUrl: string };
     expect(body.saveUrl.startsWith("https://pay.google.com/gp/v/save/")).toBe(true);
     expect(body.saveUrl).not.toContain(WALLET_QR);
-    expect(h.adminRpc).toHaveBeenCalledWith("_event_wallet_pass_note", {
+    const objectId = `${GOOGLE_CONFIG_FIXTURE.issuerId}.reg_52b00000-0000-0000-0000-0000000000a1.${await walletObjectSuffix(WALLET_QR)}`;
+    expect(h.adminRpc).toHaveBeenNthCalledWith(1, "_event_wallet_pass_state", {
+      p_tenant: "52000000-0000-0000-0000-0000000000a0",
+      p_platform: "google",
+      p_object_id: objectId,
+    });
+    expect(h.adminRpc).toHaveBeenNthCalledWith(2, "_event_wallet_pass_note", {
       p_tenant: "52000000-0000-0000-0000-0000000000a0",
       p_registration_id: "52b00000-0000-0000-0000-0000000000a1",
       p_platform: "google",
-      p_object_id: `${GOOGLE_CONFIG_FIXTURE.issuerId}.reg_52b00000-0000-0000-0000-0000000000a1`,
+      p_object_id: objectId,
+      p_code_hash: QR_HASH,
+      p_content_hash: expect.stringMatching(/^[0-9a-f]{64}$/),
     });
   });
 
@@ -370,7 +424,94 @@ describe("googleWalletPost", () => {
     const response = await googleWalletPost(jsonRequest({ token: WALLET_QR }));
     expect(response.status).toBe(502);
     expect(await response.json()).toEqual({ error: "wallet_failed" });
-    expect(h.adminRpc).not.toHaveBeenCalled();
+    expect(h.adminRpc).not.toHaveBeenCalledWith("_event_wallet_pass_note", expect.anything());
+  });
+
+  it("obiekt aktywny z tą samą treścią w dzienniku -> bez zapisu obiektu w Google (OPS-14)", async () => {
+    stubGoogle();
+    const fetches: string[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      fetches.push(`${String(init.method)} ${url}`);
+      return url.startsWith("https://oauth2.googleapis.com")
+        ? new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 })
+        : new Response("{}", { status: 200 });
+    });
+    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+    const note = h.adminRpc.mock.calls.find(([name]) => name === "_event_wallet_pass_note");
+    const contentHash = (note?.[1] as { p_content_hash: string }).p_content_hash;
+
+    h.adminRpc
+      .mockReset()
+      .mockImplementation(async (name: string) =>
+        name === "_event_wallet_pass_state"
+          ? { data: { content_hash: contentHash, active: true }, error: null }
+          : { data: 2, error: null },
+      );
+    fetches.length = 0;
+    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+    expect(fetches.filter((f) => f.includes("/eventTicketObject"))).toEqual([]);
+    expect(h.adminRpc).toHaveBeenCalledWith(
+      "_event_wallet_pass_note",
+      expect.objectContaining({ p_content_hash: contentHash }),
+    );
+
+    // Obiekt nieznany dziennikowi -> wstawienie od razu (POST), bez PATCH -> 404.
+    h.adminRpc
+      .mockReset()
+      .mockImplementation(async (name: string) =>
+        name === "_event_wallet_pass_state"
+          ? { data: null, error: null }
+          : { data: 1, error: null },
+      );
+    fetches.length = 0;
+    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+    expect(fetches.filter((f) => f.includes("/eventTicketObject"))).toEqual([
+      "POST https://walletobjects.googleapis.com/walletobjects/v1/eventTicketObject",
+    ]);
+  });
+
+  it("błąd odczytu stanu nie blokuje dodania (ostrzeżenie); migracja w drodze - po cichu", async () => {
+    stubGoogle();
+    stubGoogleApi();
+    h.adminRpc.mockImplementation(async (name: string) =>
+      name === "_event_wallet_pass_state"
+        ? { data: null, error: { code: "57014", message: "statement timeout" } }
+        : { data: 1, error: null },
+    );
+    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+    expect(warn).toHaveBeenCalledWith("[wallet] google pass state failed:", "statement timeout");
+
+    warn.mockClear();
+    h.adminRpc.mockImplementation(async (name: string) =>
+      name === "_event_wallet_pass_state"
+        ? { data: null, error: { code: "PGRST202", message: "no function" } }
+        : { data: 1, error: null },
+    );
+    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("baza sprzed migracji 20261012130000 -> dziennik wraca do czterech argumentów", async () => {
+    stubGoogle();
+    stubGoogleApi();
+    let noteCalls = 0;
+    h.adminRpc.mockImplementation(async (name: string) => {
+      if (name !== "_event_wallet_pass_note") return { data: null, error: null };
+      noteCalls += 1;
+      return noteCalls === 1
+        ? { data: null, error: { code: "PGRST202", message: "no function with these args" } }
+        : { data: 1, error: null };
+    });
+    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+    const notes = h.adminRpc.mock.calls.filter(([name]) => name === "_event_wallet_pass_note");
+    expect(notes).toHaveLength(2);
+    expect(Object.keys(notes[1][1] as object).sort()).toEqual([
+      "p_object_id",
+      "p_platform",
+      "p_registration_id",
+      "p_tenant",
+    ]);
+    expect(warn).not.toHaveBeenCalledWith("[wallet] google issue log failed:", expect.anything());
   });
 });
 
