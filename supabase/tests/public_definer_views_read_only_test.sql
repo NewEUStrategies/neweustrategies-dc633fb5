@@ -11,8 +11,16 @@
 --   * inwariant klasy: ZADEN widok DEFINER w public nie daje anon,
 --     authenticated ani PUBLIC niczego poza SELECT - ani na relacji, ani
 --     kolumnowo. Lokalne domyslne uprawnienia daja klientom `Dxtm`, wiec
---     nowy widok DEFINER bez jawnego `REVOKE ALL ... FROM anon,
---     authenticated` oblewa ten test w CI, zanim trafi na produkcje,
+--     nowy widok DEFINER w PASIE SUPABASE bez jawnego `REVOKE ALL ... FROM
+--     anon, authenticated` oblewa ten test w CI. Zasieg jest uczciwie
+--     waski: baza pgTAP powstaje wylacznie z supabase/migrations, wiec
+--     widok zalozony tylko w pasie drizzle (migracja panelu Lovable bez
+--     blizniaka, jak 0150) jest dla tego testu niewidoczny - i Lovable
+--     wgrywa go na produkcje, zanim CI cokolwiek uruchomi,
+--   * warunek czulosci: domyslne uprawnienia roli postgres w public daja
+--     anon i authenticated cos poza SELECT. Inwariant wyzej lapie brak
+--     REVOKE tylko dlatego; gdyby nowsze CLI zaostrzylo domyslki, test
+--     przestalby widziec blad cicho - ta asercja zamienia to w czerwien,
 --   * znane widoki zachowuja SELECT dla anon i authenticated (strony
 --     publiczne czytaja je bez sesji),
 --   * zapis przez kazdy znany widok konczy sie 42501 - anon UPDATE,
@@ -26,7 +34,7 @@
 -- przez SET LOCAL ROLE + request.jwt.claims.
 
 BEGIN;
-SELECT plan(34);
+SELECT plan(35);
 
 -- ── (1) Inwariant klasy: widok DEFINER = tylko SELECT dla klientow ─────────
 SELECT is_empty(
@@ -60,6 +68,21 @@ SELECT is_empty(
        AND (a.grantee = 0 OR a.grantee IN ('anon'::regrole, 'authenticated'::regrole))
        AND a.privilege_type <> 'SELECT'$$,
   'zaden widok DEFINER w public nie daje klientom kolumnowego INSERT/UPDATE/REFERENCES'
+);
+
+-- ── (1b) Warunek czulosci inwariantu: lokalne domyslki daja klientom zapis ──
+SELECT ok(
+  (SELECT bool_and(EXISTS (
+            SELECT 1
+              FROM pg_default_acl d
+              CROSS JOIN LATERAL aclexplode(d.defaclacl) a
+             WHERE d.defaclrole = 'postgres'::regrole
+               AND d.defaclnamespace = 'public'::regnamespace
+               AND d.defaclobjtype = 'r'
+               AND a.grantee = r.role
+               AND a.privilege_type <> 'SELECT'))
+     FROM (VALUES ('anon'::regrole), ('authenticated'::regrole)) AS r(role)),
+  'domyslne uprawnienia public daja anon i authenticated prawo poza SELECT - bez tego inwariant (1) nie wykrylby brakujacego REVOKE ALL'
 );
 
 -- ── (2) Znane widoki publiczne zachowuja odczyt ─────────────────────────────
