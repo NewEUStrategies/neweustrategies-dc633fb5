@@ -63,12 +63,12 @@ export function SpeakerTrackChips({
     return (
       <span className={cn("inline-flex items-center gap-1", className)} title={spoken}>
         <span className="sr-only">{spoken}</span>
-        {named.map(({ track }) => (
+        {named.map(({ track, accent }) => (
           <span
             key={track.id}
             aria-hidden="true"
             className="h-2.5 w-2.5 shrink-0 rounded-[3px] border border-border bg-muted"
-            style={track.accentColor === null ? undefined : { backgroundColor: track.accentColor }}
+            style={accent === null ? undefined : { backgroundColor: accent }}
           />
         ))}
       </span>
