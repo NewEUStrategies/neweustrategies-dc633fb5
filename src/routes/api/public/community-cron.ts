@@ -221,6 +221,16 @@ async function runJobs(job: SchedulerJob): Promise<{ result: JobOutcome; errors:
       return runPlanSeatRelease(500);
     });
   }
+  if (job === "all" || job === "event-wallet-passes") {
+    // Przepustki Google Wallet unieważnionych biletów (OPS-14) - ta sama
+    // kolejka co w ticku (zajęcia dzierżawione, więc oba źródła nie dublują).
+    await step("walletPassRevocations", async () => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { runWalletPassRevocations } =
+        await import("@/lib/events/wallet/walletRevocationJob.server");
+      return runWalletPassRevocations(supabaseAdmin, { limit: 25 });
+    });
+  }
   if (job === "all" || job === "career-cv-retention") {
     // Dane osobowe kandydatów: plik CV ląduje w buckecie przy WYBORZE, przed
     // wysyłką formularza, więc bez tego kroku porzucony kreator zostawiał CV na
