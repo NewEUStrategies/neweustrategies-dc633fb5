@@ -60,6 +60,11 @@ function run(
           PROBE_STRICT: "true",
           PROBE_WAIT_TIMEOUT_MS: "20",
           PROBE_WAIT_POLL_MS: "1",
+          // Nasza baza (krok `verify`) - ta sama atrapa transportu, inna ścieżka.
+          PROBE_SUPABASE_URL: "https://probe.invalid/supabase",
+          PROBE_SUPABASE_SERVICE_ROLE_KEY: "fixture-service-role",
+          PROBE_DB_WAIT_TIMEOUT_MS: "20",
+          PROBE_DB_POLL_MS: "1",
           ...env,
         },
       },
@@ -83,6 +88,73 @@ describe("billing renewal CLI contract", () => {
     expect(readFileSync(join(directory, "output.txt"), "utf8")).toBe(
       "outcome=armed\noutcome=ready\noutcome=renewed\n",
     );
+    // Werdykt naszej strony trafia do raportu razem z werdyktem operatora.
+    expect(report).toMatchObject({
+      stripeOutcome: "renewed",
+      local: { outcome: "synced", processedEvents: 1, failedEventIds: [] },
+    });
+  });
+
+  // KRYTERIUM PAY-17c: sonda czerwona, gdy nasza strona nie odebrała odnowienia.
+  it.each([
+    ["brak przetworzonego zdarzenia w dzienniku", "missing", "PRZETWORZONEGO"],
+    ["porażka obsługi w dzienniku", "failed", "PADŁA"],
+    ["okres w bazie nieprzesunięty", "stale", "NIE nadąża"],
+  ])(
+    "operator odnowił, a nasza strona nie (%s) - weryfikacja CZERWONA",
+    async (_label, mode, reason) => {
+      expect(await run("arm")).toMatchObject({ code: 0 });
+      expect(await run("wait")).toMatchObject({ code: 0 });
+
+      const result = await run("verify", { PROBE_FIXTURE_LOCAL: mode });
+
+      expect(result.code).toBe(1);
+      const report = JSON.parse(readFileSync(join(directory, "report.json"), "utf8"));
+      expect(report).toMatchObject({ outcome: "failed", stripeOutcome: "renewed" });
+      expect(report.local.outcome).toBe("failed");
+      expect(report.local.reason).toContain(reason);
+      expect(result.output).toContain("Nasza strona nie odebrała odnowienia");
+    },
+  );
+
+  it("tryb ścisły bez dostępu do naszej bazy: weryfikacja jest błędem konfiguracji, jak brak kluczy", async () => {
+    expect(await run("arm")).toMatchObject({ code: 0 });
+
+    const result = await run("verify", { PROBE_SUPABASE_SERVICE_ROLE_KEY: "" });
+
+    expect(result.code).toBe(1);
+    expect(result.output).toContain("PROBE_SUPABASE_SERVICE_ROLE_KEY");
+    expect(readFileSync(join(directory, "output.txt"), "utf8")).toContain("outcome=skipped");
+  });
+
+  it("przebieg ręczny bez dostępu do naszej bazy: ostrzeżenie i werdykt samego operatora", async () => {
+    expect(await run("arm", { PROBE_STRICT: "false" })).toMatchObject({ code: 0 });
+
+    const result = await run("verify", {
+      PROBE_STRICT: "false",
+      PROBE_SUPABASE_URL: "",
+    });
+
+    expect(result.code).toBe(0);
+    expect(result.output).toContain("Sonda nie widzi naszej strony");
+    const report = JSON.parse(readFileSync(join(directory, "report.json"), "utf8"));
+    expect(report).toMatchObject({ outcome: "renewed", local: null });
+  });
+
+  it("sonda NIGDY nie pisze do naszej bazy i nie wysyła tam klucza bramki operatora", async () => {
+    expect(await run("arm")).toMatchObject({ code: 0 });
+    expect(await run("verify")).toMatchObject({ code: 0 });
+
+    const calls = readFileSync(join(directory, "calls.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as { path: string; method: string });
+    const ours = calls.filter((call) => call.path.startsWith("/supabase/"));
+    expect(ours.map((call) => call.path).sort()).toEqual([
+      "/supabase/rest/v1/payment_webhook_events",
+      "/supabase/rest/v1/subscriptions",
+    ]);
+    expect(ours.every((call) => call.method === "GET")).toBe(true);
   });
 
   it("does not retry a clock-advance POST after an ambiguous operator failure", async () => {

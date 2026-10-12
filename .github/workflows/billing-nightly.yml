@@ -4,7 +4,9 @@ name: Rozliczenia (nocna sonda odnowienia i dunningu)
 # których nie da się sprawdzić klikając checkout. Przebieg przesuwa Test Clock
 # w sandboxie Stripe, ODPYTUJE go do skutku i weryfikuje, że powstała nowa
 # faktura cykliczna, okres poszedł do przodu, a stan faktury jest spójny ze
-# stanem subskrypcji.
+# stanem subskrypcji. Potem sprawdza NASZĄ stronę: dziennik webhooków ma
+# przetworzone zdarzenie `subscription.*` tej subskrypcji (i żadnej porażki)
+# z okna po zbrojeniu, a wiersz `subscriptions` ma przesunięty okres.
 #
 # HISTORIA TEGO PLIKU (nie usuwać - to uzasadnienie trybu ścisłego):
 # do 2026-08 job eksportował sekret pod nazwą poprzedniego operatora płatności,
@@ -14,8 +16,22 @@ name: Rozliczenia (nocna sonda odnowienia i dunningu)
 # BŁĘDEM, a nie ostrzeżeniem.
 #
 # Konfiguracja (Settings -> Secrets and variables -> Actions):
-#   secrets.STRIPE_SANDBOX_API_KEY
-#   secrets.LOVABLE_API_KEY
+#   secrets.STRIPE_SANDBOX_API_KEY            - kroki sondy (arm, wait, verify)
+#   secrets.LOVABLE_API_KEY                   - kroki sondy (arm, wait, verify)
+#   secrets.PROBE_SUPABASE_URL                - WYŁĄCZNIE krok weryfikacji:
+#                                               adres projektu Supabase wdrożenia,
+#                                               do którego Stripe sandbox wysyła
+#                                               webhooki
+#   secrets.PROBE_SUPABASE_SERVICE_ROLE_KEY   - WYŁĄCZNIE krok weryfikacji:
+#                                               klucz `service_role` tego projektu
+#                                               (sonda tylko CZYTA dziennik
+#                                               webhooków i `subscriptions`)
+#
+# SEKRETY SĄ W ENV KROKÓW, NIE JOBA. Env joba widzi każdy krok, także akcje
+# zewnętrzne (`oven-sh/setup-bun`, `actions/upload-artifact`) - klucz
+# `service_role` produkcji nie ma czego szukać w kodzie instalatora Buna.
+# Z tego samego powodu akcje są przypięte do SHA commita, a nie do tagu:
+# przesunięty tag podmieniłby kod uruchamiany obok sekretów bez śladu w repo.
 #
 # UWAGA (naprawa 06.08): workflow eksportował `PADDLE_SANDBOX_API_KEY`, a skrypt
 # czyta `STRIPE_SANDBOX_API_KEY` od czasu migracji na Stripe. `keys()` zwracało
@@ -24,7 +40,8 @@ name: Rozliczenia (nocna sonda odnowienia i dunningu)
 #   * nazwa sekretu zgodna ze skryptem,
 #   * na przebiegu z HARMONOGRAMU brak sekretów jest BŁĘDEM (PROBE_REQUIRE_CONFIG),
 #     bo cicho wyłączona jedyna weryfikacja odnowienia jest gorsza niż czerwony job;
-#     ręczne uruchomienie (fork, świeży klon) nadal tylko ostrzega,
+#     dotyczy to także dostępu do naszej bazy w kroku weryfikacji; ręczne
+#     uruchomienie (fork, świeży klon) nadal tylko ostrzega,
 #   * ślepy `sleep` zastąpiony odpytywaniem Test Clocka - przebieg kończy się,
 #     gdy Stripe skończy przeliczać, zamiast palić 40 minut runnera codziennie.
 
@@ -51,39 +68,51 @@ jobs:
       (github.event_name != 'schedule' || github.repository_owner == 'NewEUStrategies')
     runs-on: ubuntu-latest
     # Czekanie na Test Clock jest odpytywaniem z twardym terminem
-    # (PROBE_WAIT_TIMEOUT_S), więc typowy przebieg trwa minuty, nie 40 minut.
-    # Limit joba jest zapasem nad tym terminem, nie planowanym czasem trwania.
+    # (PROBE_WAIT_TIMEOUT_MS = 20 min), a nasza strona jest odpytywana najwyżej
+    # 3 minuty, więc typowy przebieg trwa minuty. Limit joba jest zapasem nad
+    # tymi terminami, nie planowanym czasem trwania.
     timeout-minutes: 30
+    # Wyłącznie konfiguracja bez sekretów - sekrety są w env kroków niżej.
     env:
-      STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
-      LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
       PROBE_WAIT_TIMEOUT_MS: "1200000"
       PROBE_STATE_FILE: ${{ github.workspace }}/billing-renewal-probe.json
       # Nocny przebieg to monitoring produkcyjny - brak sekretów ma być czerwony.
       PROBE_REQUIRE_CONFIG: ${{ github.event_name == 'schedule' }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: "1.2.23"
 
       - name: Przesuń Test Clock za koniec okresu
         id: arm
+        env:
+          STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
+          LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
         run: bun scripts/billing-renewal-probe.ts arm
 
-      # Odpytywanie Test Clocka z warunkiem wyjścia (sufit 40 min, próba co 30 s).
+      # Odpytywanie Test Clocka z warunkiem wyjścia (sufit 20 min =
+      # PROBE_WAIT_TIMEOUT_MS, próby co 5 s z łagodnym backoffem do 30 s).
       - name: Poczekaj na naliczenie
         if: steps.arm.outputs.outcome == 'armed'
+        env:
+          STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
+          LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
         run: bun scripts/billing-renewal-probe.ts wait
 
-      - name: Zweryfikuj odnowienie i dunning
+      - name: Zweryfikuj odnowienie, dunning i naszą stronę
         if: steps.arm.outputs.outcome == 'armed'
+        env:
+          STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
+          LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
+          PROBE_SUPABASE_URL: ${{ secrets.PROBE_SUPABASE_URL }}
+          PROBE_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROBE_SUPABASE_SERVICE_ROLE_KEY }}
         run: bun scripts/billing-renewal-probe.ts verify
 
       - name: Zachowaj raport sondy
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: billing-renewal-probe
           path: reports/billing-renewal-probe.json

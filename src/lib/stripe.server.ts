@@ -87,11 +87,35 @@ export async function getStripeClient(env: StripeEnv): Promise<Stripe> {
   }
 }
 
+/**
+ * Twardy limit pojedynczego żądania do operatora (ms).
+ *
+ * Domyślne ustawienia SDK to 80 s na żądanie i 2 ponowienia - czyli do ~4 min
+ * jednego wywołania. Ten klient biegnie wewnątrz webhooka (Stripe sam zrywa
+ * dostawę po kilkunastu sekundach i ponawia ją, gdy nasza obsługa jeszcze
+ * trwa), ticku zadań i kasy kupującego. Zawieszona bramka trzymała więc
+ * wiersz dziennika w `received`, a ponowna dostawa trafiała w „w toku" i
+ * odbijała się od drzwi. 10 s to zapas nad typowym czasem odpowiedzi
+ * operatora, a jednocześnie mieści się w oknie dostawy webhooka.
+ */
+export const STRIPE_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * Jedno ponowienie po błędzie sieci/5xx/409. Bezpieczne także dla zapisów:
+ * SDK dokłada `Idempotency-Key` do każdego POST-a (v1), więc ponowienie po
+ * zerwanym połączeniu trafia w ten sam obiekt u operatora zamiast tworzyć
+ * drugie obciążenie. Więcej ponowień wydłużałoby najgorszy przypadek ponad
+ * okno dostawy webhooka.
+ */
+export const STRIPE_MAX_NETWORK_RETRIES = 1;
+
 async function buildStripeClient(connectionApiKey: string, lovableApiKey: string): Promise<Stripe> {
   const { default: Stripe } = await loadStripeSdk();
 
   return new Stripe(connectionApiKey, {
     apiVersion: "2026-08-26.dahlia",
+    timeout: STRIPE_REQUEST_TIMEOUT_MS,
+    maxNetworkRetries: STRIPE_MAX_NETWORK_RETRIES,
     // `FetchHttpClient` SDK woła transport zawsze z adresem jako napisem i z
     // nagłówkami w `init` - nigdy z obiektem `Request`.
     httpClient: Stripe.createFetchHttpClient((url, init) => {
@@ -156,9 +180,33 @@ export interface VerifiedWebhookEvent {
   data: { object: Record<string, unknown> };
 }
 
+/** Podpis v1 to HMAC-SHA256: dokładnie 32 bajty, czyli 64 znaki szesnastkowe. */
+const V1_SIGNATURE_HEX = /^[0-9a-f]{64}$/i;
+
+/**
+ * Bajty podpisu z zapisu szesnastkowego albo `null` dla wpisu uszkodzonego.
+ * Uszkodzony wpis POMIJAMY zamiast odrzucać cały nagłówek - przy rotacji
+ * sekretu operator wysyła kilka `v1`, a jeden śmieciowy nie może unieważnić
+ * poprawnego obok.
+ */
+function v1SignatureBytes(hex: string): Uint8Array<ArrayBuffer> | null {
+  if (!V1_SIGNATURE_HEX.test(hex)) return null;
+  const bytes = new Uint8Array(new ArrayBuffer(hex.length / 2));
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+  }
+  return bytes;
+}
+
 /**
  * Weryfikacja podpisu webhooka (HMAC-SHA256) bez SDK - działa w runtime
  * Workers i nie wymaga bramki (sekret podpisu jest lokalny).
+ *
+ * Porównanie podpisów robi `crypto.subtle.verify`, czyli WebCrypto w czasie
+ * stałym - nie `===`/`includes` na napisach. Porównanie napisów kończy się na
+ * pierwszym różnym znaku, więc czas odpowiedzi zdradzał, ile początkowych
+ * znaków podrobionego podpisu się zgadza; przy publicznym odbiorniku to
+ * wyrocznia do zgadywania podpisu „opłacono" znak po znaku.
  */
 export async function verifyWebhook(req: Request, env: StripeEnv): Promise<VerifiedWebhookEvent> {
   const signature = req.headers.get("stripe-signature");
@@ -174,9 +222,17 @@ export async function verifyWebhook(req: Request, env: StripeEnv): Promise<Verif
     if (key === "t") timestamp = value;
     if (key === "v1" && value) v1Signatures.push(value);
   }
-  if (!timestamp || v1Signatures.length === 0) throw new Error("Invalid signature format");
+  // Znacznik czasu WYŁĄCZNIE z cyfr i skończony. `Number("abc")` to `NaN`,
+  // a `Math.abs(NaN) > 300` jest FAŁSZEM - zdarzenie z `t=abc` przechodziło
+  // przez okno powtórki, czyli przechwycony podpis dało się odtwarzać bez
+  // limitu czasu (wystarczyło podpisać nim treść z nieliczbowym `t`).
+  if (!timestamp || !/^\d+$/.test(timestamp) || v1Signatures.length === 0) {
+    throw new Error("Invalid signature format");
+  }
+  const signedAt = Number(timestamp);
+  if (!Number.isFinite(signedAt)) throw new Error("Invalid signature format");
 
-  const age = Math.abs(Date.now() / 1000 - Number(timestamp));
+  const age = Math.abs(Date.now() / 1000 - signedAt);
   if (age > 300) throw new Error("Webhook timestamp too old");
 
   const key = await crypto.subtle.importKey(
@@ -184,18 +240,19 @@ export async function verifyWebhook(req: Request, env: StripeEnv): Promise<Verif
     new TextEncoder().encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign"],
+    ["verify"],
   );
-  const signed = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(`${timestamp}.${body}`),
-  );
-  const expected = Array.from(new Uint8Array(signed))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  const signedPayload = new TextEncoder().encode(`${timestamp}.${body}`);
 
-  if (!v1Signatures.includes(expected)) throw new Error("Invalid webhook signature");
+  // Każdy kandydat jest sprawdzany do końca (bez wczesnego wyjścia), żeby czas
+  // zależał od LICZBY wpisów w nagłówku, a nie od tego, który z nich pasuje.
+  let valid = false;
+  for (const candidate of v1Signatures) {
+    const bytes = v1SignatureBytes(candidate);
+    if (!bytes) continue;
+    if (await crypto.subtle.verify("HMAC", key, bytes, signedPayload)) valid = true;
+  }
+  if (!valid) throw new Error("Invalid webhook signature");
 
   return JSON.parse(body) as VerifiedWebhookEvent;
 }

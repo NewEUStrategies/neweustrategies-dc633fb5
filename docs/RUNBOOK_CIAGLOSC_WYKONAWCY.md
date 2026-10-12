@@ -74,8 +74,8 @@ dostawcy.
 
 - [ ] **GitHub, organizacja `NewEUStrategies`** (Settings → People): min. dwa konta
       Zamawiającego z rolą `Owner`. **NIE PRZENOSIĆ REPO DO INNEJ ORGANIZACJI** - warunek
-      `github.repository_owner == 'NewEUStrategies'` (`scheduler.yml:72`,
-      `billing-nightly.yml:51`) zatrzyma oba harmonogramy BEZ ŻADNEGO BŁĘDU.
+      `github.repository_owner == 'NewEUStrategies'` (`scheduler.yml:84`,
+      `billing-nightly.yml:68`) zatrzyma oba harmonogramy BEZ ŻADNEGO BŁĘDU.
 - [ ] **Supabase, projekt `unnltowbgszpdzwpawdu`** (`supabase/config.toml:1`): rola `Owner`
       u Zamawiającego; Settings → General → Transfer project - sprawdź, czyja to organizacja.
 - [ ] **Lovable** - workspace i projekt (`.lovable/project.json`). To panel, w którym leżą
@@ -117,7 +117,7 @@ curl -X POST "https://neweuropeanstrategies.com/api/public/community-cron?job=al
 - [ ] Przycisk **„Uruchom tick teraz"** (`src/components/admin/community/SchedulerHealthPanel.tsx:12`) - woła TĘ SAMĄ funkcję co cron (`runJobsTick`). Dostępny też z `/admin/tracker`.
 - [ ] GitHub → Actions: czy `scheduler.yml` (co 5 min) i `billing-nightly.yml` biegną.
       **GitHub wyłącza zaplanowane workflow po 60 dniach bez aktywności w repo**
-      (`scheduler.yml:25-27`) - w przestoju gaśnie to po cichu.
+      (`scheduler.yml:31-33`) - w przestoju gaśnie to po cichu.
 - [ ] Supabase → Database → Extensions: `pg_cron` i `pg_net` włączone. Bez nich ścieżka
       podstawowa doręczeń nie istnieje.
 
@@ -137,7 +137,7 @@ bun run verify:blocking        # verify:static + typecheck + lint + test
 ```
 
 - [ ] Lustrzana kopia repo poza GitHubem (`git clone --mirror`), przechowana u Zamawiającego.
-- [ ] Eksport nazw (nie wartości) sekretów i zmiennych Actions. Oczekiwane: **7 sekretów,
+- [ ] Eksport nazw (nie wartości) sekretów i zmiennych Actions. Oczekiwane: **10 sekretów,
       4 zmienne** (§3.1, §3.2).
 - [ ] Supabase → Settings → Database → Backups: **udokumentuj, czy PITR jest włączony i
       z jakim oknem**. W repo NIE MA procedury backupu - 0 trafień `pg_dump`, `pg_restore`
@@ -145,28 +145,31 @@ bun run verify:blocking        # verify:static + typecheck + lint + test
 
 ## 3. Inwentarz dostępów do przejęcia
 
-### 3.1 Sekrety GitHub Actions - 7 nazw
+### 3.1 Sekrety GitHub Actions - 10 nazw
 
 Miejsce: **Settings → Secrets and variables → Actions → Repository secrets**.
 
-| Sekret                          | Gdzie użyty                                                       | Kto musi mieć dostęp                              | Co się stanie, gdy zabraknie                                                                                                                                             |
-| ------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SUPABASE_URL`                  | `ci.yml:481` (build), `ci.yml:746` i `ci.yml:758` (`post-deploy`) | Zamawiający + wykonawca zastępczy                 | W jobie `verify` jest fallback na placeholder. W `post-deploy` **BEZ FALLBACKU** - bramki `check:db-contract` i `check:migration-ledger` przestają weryfikować cokolwiek |
-| `SUPABASE_PUBLISHABLE_KEY`      | `ci.yml:482`, `ci.yml:747`, `ci.yml:759`                          | jw.                                               | jw.                                                                                                                                                                      |
-| `VITE_SUPABASE_URL`             | `ci.yml:479`, `e2e.yml:51-54`, `lighthouse.yml:176-179`           | jw.                                               | Build CI schodzi na `https://placeholder.supabase.co` - przechodzi na zielono, nie testując niczego realnego                                                             |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | jw.                                                               | jw.                                               | jw. (`placeholder-anon-key`)                                                                                                                                             |
-| `STRIPE_SANDBOX_API_KEY`        | `billing-nightly.yml:58`                                          | Zamawiający + osoba odpowiedzialna za rozliczenia | Nocna sonda odnowienia i dunningu nie wykonuje ŻADNEGO żądania                                                                                                           |
-| `LOVABLE_API_KEY`               | `billing-nightly.yml:59`                                          | Zamawiający                                       | Sonda rozliczeń nie autoryzuje gatewaya Stripe                                                                                                                           |
-| `COMMUNITY_CRON_SECRET`         | `scheduler.yml:84`, `:123`, `:140`                                | Zamawiający + dyżur operacyjny                    | Workflow kończy się **ZIELONO z ostrzeżeniem** i nic nie wysyła (`scheduler.yml:22-23`)                                                                                  |
+| Sekret                            | Gdzie użyty                                                       | Kto musi mieć dostęp                                          | Co się stanie, gdy zabraknie                                                                                                                                             |
+| --------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SUPABASE_URL`                    | `ci.yml:481` (build), `ci.yml:746` i `ci.yml:758` (`post-deploy`) | Zamawiający + wykonawca zastępczy                             | W jobie `verify` jest fallback na placeholder. W `post-deploy` **BEZ FALLBACKU** - bramki `check:db-contract` i `check:migration-ledger` przestają weryfikować cokolwiek |
+| `SUPABASE_PUBLISHABLE_KEY`        | `ci.yml:482`, `ci.yml:747`, `ci.yml:759`                          | jw.                                                           | jw.                                                                                                                                                                      |
+| `VITE_SUPABASE_URL`               | `ci.yml:479`, `e2e.yml:51-54`, `lighthouse.yml:176-179`           | jw.                                                           | Build CI schodzi na `https://placeholder.supabase.co` - przechodzi na zielono, nie testując niczego realnego                                                             |
+| `VITE_SUPABASE_PUBLISHABLE_KEY`   | jw.                                                               | jw.                                                           | jw. (`placeholder-anon-key`)                                                                                                                                             |
+| `STRIPE_SANDBOX_API_KEY`          | `billing-nightly.yml` (env kroków sondy, nie joba)                | Zamawiający + osoba odpowiedzialna za rozliczenia             | Nocna sonda odnowienia i dunningu nie wykonuje ŻADNEGO żądania                                                                                                           |
+| `LOVABLE_API_KEY`                 | `billing-nightly.yml` (env kroków sondy, nie joba)                | Zamawiający                                                   | Sonda rozliczeń nie autoryzuje gatewaya Stripe                                                                                                                           |
+| `PROBE_SUPABASE_URL`              | `billing-nightly.yml` (wyłącznie krok weryfikacji)                | Zamawiający + osoba odpowiedzialna za rozliczenia             | Sonda nie sprawdza NASZEJ strony (dziennik webhooków, `subscriptions`). Z harmonogramu: przebieg **CZERWONY**, ręcznie: ostrzeżenie                                      |
+| `PROBE_SUPABASE_SERVICE_ROLE_KEY` | jw.                                                               | jw. (klucz `service_role` produkcji - tylko odczyt w sondzie) | jw.                                                                                                                                                                      |
+| `COMMUNITY_CRON_SECRET`           | `scheduler.yml` (przebiegi 5-minutowe)                            | Zamawiający + dyżur operacyjny                                | Workflow kończy się **ZIELONO z ostrzeżeniem** i nic nie wysyła (`scheduler.yml:28-29`)                                                                                  |
+| `BILLING_CRON_SECRET`             | `scheduler.yml` (dobowy krok „Tick rozliczeń")                    | Zamawiający + dyżur operacyjny                                | Dobowy przebieg rozliczeń z repo kończy się **ZIELONO z ostrzeżeniem**; `pg_cron` (`billing-cron-daily`) dalej działa sekretem runnera                                   |
 
 ### 3.2 Zmienne GitHub Actions - 4 nazwy
 
-| Zmienna                  | Gdzie                          | Znaczenie                                                                                               |
-| ------------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| `APP_BASE_URL`           | `scheduler.yml:83,122,139,164` | Adres aplikacji, np. `https://neweuropeanstrategies.com`. Bez niej scheduler nie ma dokąd pukać         |
-| `BILLING_PROBE_DISABLED` | `billing-nightly.yml:50`       | `'1'` wyłącza sondę rozliczeń. Wyłącznik jest JAWNY celowo                                              |
-| `LHCI_URL`               | `lighthouse.yml:53-173`        | Pusty ⇒ MODE B (niebłokujący smoke). Ustawiony ⇒ MODE A: audyt realnego wdrożenia i bramkowanie merge'y |
-| `LHCI_EXTRA_PATHS`       | `lighthouse.yml:58`            | Dodatkowe ścieżki audytu, rozdzielane przecinkami                                                       |
+| Zmienna                  | Gdzie                               | Znaczenie                                                                                               |
+| ------------------------ | ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `APP_BASE_URL`           | `scheduler.yml:124,151,165,183,211` | Adres aplikacji, np. `https://neweuropeanstrategies.com`. Bez niej scheduler nie ma dokąd pukać         |
+| `BILLING_PROBE_DISABLED` | `billing-nightly.yml:67`            | `'1'` wyłącza sondę rozliczeń. Wyłącznik jest JAWNY celowo                                              |
+| `LHCI_URL`               | `lighthouse.yml:53-173`             | Pusty ⇒ MODE B (niebłokujący smoke). Ustawiony ⇒ MODE A: audyt realnego wdrożenia i bramkowanie merge'y |
+| `LHCI_EXTRA_PATHS`       | `lighthouse.yml:58`                 | Dodatkowe ścieżki audytu, rozdzielane przecinkami                                                       |
 
 ### 3.3 Zmienne środowiskowe produkcyjne wg dostawcy
 
@@ -206,7 +209,7 @@ pozycja w całym inwentarzu, bo nie daje żadnego komunikatu.
 | `GA4_EMBED_URL`                                                               | `status.functions.ts:134`                                                              | konfiguracja                         | Osadzony raport w panelu                                                                                                                                                    |
 | `GOOGLE_SEARCH_CONSOLE_API_KEY`                                               | `gsc.functions.ts:46`, `status.functions.ts:103`                                       | **SEKRET**                           | Dane GSC (przez gateway Lovable)                                                                                                                                            |
 | `SESSION_SECRET`                                                              | `bruteforce.functions.ts:18`, `rateSubject.server.ts:16`, `trackingToken.server.ts:28` | **SEKRET**                           | **Fallback na `SUPABASE_SERVICE_ROLE_KEY`** - anty-bruteforce i tokeny śledzenia newslettera dziedziczą klucz serwisowy. Rotacja klucza serwisowego unieważnia je wszystkie |
-| `OG_REFRESH_SECRET` / `BILLING_CRON_SECRET`                                   | `hooks.refresh-og-image.ts:81`, `billing-cron.ts:32`                                   | **SEKRET**                           | Hak odświeżania obrazków OG; `billing-cron` z fallbackiem na `COMMUNITY_CRON_SECRET`                                                                                        |
+| `OG_REFRESH_SECRET` / `BILLING_CRON_SECRET`                                   | `hooks.refresh-og-image.ts:81`, `billing-cron.ts` (`envSecretMatches`)                 | **SEKRET**                           | Hak odświeżania obrazków OG; `billing-cron` przyjmuje WYŁĄCZNIE własny sekret albo `job_runner_settings.secret` - bez fallbacku na `COMMUNITY_CRON_SECRET`                  |
 | `OG_REFRESH_LEGACY_SIGNATURES`                                                | `hooks.refresh-og-image.ts:127`, `ogRefreshLegacySignature.ts:49`                      | konfiguracja (wyłącznik)             | `off`/`0`/`false` kończy fazę 1 starego podpisu haka OG przed terminem; brak = faza 1 do 2027-01-01T00:00:00Z, potem **401 bez wdrożenia**. Przedłużenia przez env nie ma   |
 
 | `PUBLIC_APP_URL` | `src/lib/admin/invitations.functions.ts:262` | konfiguracja | Fallback **zahardkodowany** na `https://neweuropeanstrategies.com` - zaproszenia zawsze prowadzą tam, niezależnie od środowiska |
@@ -270,7 +273,7 @@ serwisowym, z przygotowanym wycofaniem.
 | #   | Poświadczenie               | Warunek bezpieczeństwa                                                                                                                                                                                                 |
 | --- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 8   | `COMMUNITY_CRON_SECRET`     | Zmienić **jednocześnie** w env aplikacji, w GitHub Secrets ORAZ w `job_runner_settings.secret`. Endpoint przyjmuje oba źródła, więc rozjazd nie da błędu - da ciche milczenie kolejki                                  |
-| 9   | `BILLING_CRON_SECRET`       | Fallback na `COMMUNITY_CRON_SECRET` - rotować razem z pozycją 8                                                                                                                                                        |
+| 9   | `BILLING_CRON_SECRET`       | Własny sekret (bez fallbacku na `COMMUNITY_CRON_SECRET`). Zmienić **jednocześnie** w env aplikacji i w GitHub Secrets; `pg_cron` autoryzuje się `job_runner_settings.secret`, więc rotacja go nie dotyka               |
 | 10  | `RESEND_WEBHOOK_SECRET`     | Nowy sekret podpisu w panelu Resend **i** w env, w tej kolejności. Między jedną a drugą zmianą webhook zwraca 503 i zdarzenia dostarczalności przepadają bezpowrotnie - okno musi być liczone w minutach               |
 | 11  | `TENANT_HOST_ASSERTION_KEY` | Nowy `kid` (np. `edge2`), wpis do Vaulta `select public.set_tenant_host_assertion_key('edge2','<sekret>')`, potem podmiana env. Stary `kid` zostawić do czasu potwierdzenia                                            |
 | 12  | `SESSION_SECRET`            | **USTAWIĆ JAWNIE, jeśli dziś nie jest ustawiony.** Dziś spada na `SUPABASE_SERVICE_ROLE_KEY` - dopóki tak jest, rotacja klucza serwisowego (poz. 15) unieważni liczniki anty-bruteforce i tokeny śledzenia newslettera |
@@ -419,7 +422,7 @@ punktach), **wysoka** (praca projektowa od zera bez wzorca w repo).
 | W-9 | **MCP** - zastąpić `@lovable.dev/mcp-js` albo wygasić serwer                                                                                  | `src/lib/mcp/index.ts:1`; trasy `src/routes/mcp.ts:11`, `[.mcp]/list-tools.ts:10`, `[.mcp]/invoke-tool/$tool.ts:10`, `[.well-known]/oauth-protected-resource.ts:11`; manifest `.lovable/mcp/manifest.json`                                                                                                                                                                                                   | niska                                       | Funkcja poboczna - 3 narzędzia (`search_posts`, `get_post`, `list_recent_posts`)                                                          |
 
 **PUŁAPKA UDOKUMENTOWANA W TYM REPO.** Przy każdej zmianie nazwy sekretu grozi powtórka
-incydentu z `billing-nightly.yml:9-29`: workflow eksportował `PADDLE_SANDBOX_API_KEY`,
+incydentu z `billing-nightly.yml:11-46`: workflow eksportował `PADDLE_SANDBOX_API_KEY`,
 a sonda czytała `STRIPE_SANDBOX_API_KEY` - job co dobę spał 40 minut, kończył się na
 zielono i nie wykonywał ŻADNEGO żądania. Chroni przed tym wyłącznie
 `bun run check:workflow-env-contract` (`scripts/check-workflow-env-contract.ts`,
@@ -525,8 +528,8 @@ odpowiedzialności.
 | **L-9**  | Nieznana dostępność `@lovable.dev/vite-tanstack-config` 2.13.1                                                                                                    | `package.json:161`, `vite.config.ts:10`                                                                                                                                                                   | Jeśli pakiet jest prywatny, **nie ma czym zbudować produkcji** po odcięciu od platformy                                              | wykonawca zastępczy - sprawdzenie zajmuje minuty i musi być pierwsze                    |
 | **L-10** | Brak pipeline'u wdrożenia i stosowania migracji                                                                                                                   | 0 kroków wdrożenia w `.github/`; `SUPABASE_ACCESS_TOKEN`/`SUPABASE_DB_PASSWORD` w `TOOL_CONSUMED`, ale nieużywane                                                                                         | Brak ścieżki wydania kodu i schematu                                                                                                 | wykonawca zastępczy (prace W-6, W-7 z §7)                                               |
 | **L-11** | Zahardkodowany ref `unnltowbgszpdzwpawdu` w kodzie i danych                                                                                                       | `src/lib/seo/rootHead.ts:30`, `src/lib/email-templates/icons.tsx:13`, `nes-layout.tsx:22,24`, 5 plików migracji                                                                                           | Migracja na inny projekt Supabase wymaga zmiany kodu **i danych**                                                                    | wykonawca zastępczy (praca W-8)                                                         |
-| **L-12** | Bezpieczniki właścicielskie w 2 workflow                                                                                                                          | `scheduler.yml:72`, `billing-nightly.yml:51`                                                                                                                                                              | Przeniesienie repo do innej organizacji **zatrzyma harmonogramy bez błędu**                                                          | wykonawca zastępczy - zamienić literał na `vars.*` przed jakąkolwiek zmianą właściciela |
-| **L-13** | GitHub gasi zaplanowane workflow po 60 dniach bezczynności                                                                                                        | `scheduler.yml:25-27`                                                                                                                                                                                     | W okresie przestoju - dokładnie w scenariuszu tego runbooka - siatka zewnętrzna umiera po cichu                                      | dyżur operacyjny - dowolna aktywność w repo raz na 60 dni                               |
+| **L-12** | Bezpieczniki właścicielskie w 2 workflow                                                                                                                          | `scheduler.yml:84`, `billing-nightly.yml:68`                                                                                                                                                              | Przeniesienie repo do innej organizacji **zatrzyma harmonogramy bez błędu**                                                          | wykonawca zastępczy - zamienić literał na `vars.*` przed jakąkolwiek zmianą właściciela |
+| **L-13** | GitHub gasi zaplanowane workflow po 60 dniach bezczynności                                                                                                        | `scheduler.yml:31-33`                                                                                                                                                                                     | W okresie przestoju - dokładnie w scenariuszu tego runbooka - siatka zewnętrzna umiera po cichu                                      | dyżur operacyjny - dowolna aktywność w repo raz na 60 dni                               |
 | **L-14** | `bunfig.toml:5-6` zwalnia 2 pakiety platformy z 24-godzinnej blokady supply-chain                                                                                 | `minimumReleaseAgeExcludes`                                                                                                                                                                               | Przyspieszona ścieżka cudzego kodu do buildu                                                                                         | **Zamawiający** - świadome zamknięcie albo akceptacja na piśmie                         |
 
 ## 11. Przegląd dokumentu

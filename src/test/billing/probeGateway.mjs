@@ -8,13 +8,64 @@ globalThis.fetch = async (input, init) => {
   const request = new Request(input, init);
   const url = new URL(request.url);
   if (url.origin !== "https://probe.invalid") throw new Error("Unexpected external request");
+  const advanced = existsSync(stateFile) && JSON.parse(readFileSync(stateFile, "utf8")).advanced;
+  // NASZA baza (REST Supabase, klucz service_role) - krok `verify` sprawdza,
+  // czy odnowienie dotarło do naszego webhooka. Tryb sterowany zmienną:
+  // `missing` (brak przetworzonego zdarzenia), `failed` (porażka w dzienniku),
+  // `stale` (okres w bazie nieprzesunięty); domyślnie wszystko się zgadza.
+  if (url.pathname.startsWith("/supabase/rest/v1/")) {
+    if (
+      request.headers.get("apikey") !== "fixture-service-role" ||
+      request.headers.get("Authorization") !== "Bearer fixture-service-role"
+    )
+      throw new Error("Invalid fixture database authentication");
+    if (request.method !== "GET") throw new Error("Probe must never write to our database");
+    appendFileSync(
+      callsFile,
+      JSON.stringify({ path: url.pathname, method: request.method }) + "\n",
+    );
+    const mode = process.env.PROBE_FIXTURE_LOCAL ?? "synced";
+    if (url.pathname.endsWith("/payment_webhook_events")) {
+      if (url.searchParams.get("subscription_id") !== "eq.sub_probe")
+        throw new Error("Webhook log query must be scoped to the probed subscription");
+      const now = new Date().toISOString();
+      const rows = [];
+      if (mode !== "missing")
+        rows.push({
+          event_id: "evt_renewal",
+          event_type: "subscription.updated",
+          status: "processed",
+          error: null,
+          created_at: now,
+        });
+      if (mode === "failed")
+        rows.push({
+          event_id: "evt_invoice",
+          event_type: "transaction.completed",
+          status: "failed",
+          error: "deadlock detected",
+          created_at: now,
+        });
+      return Response.json(rows);
+    }
+    if (url.pathname.endsWith("/subscriptions")) {
+      const end = mode === "stale" || !advanced ? period : period + 2_592_000;
+      return Response.json([
+        {
+          provider_subscription_id: "sub_probe",
+          status: "active",
+          current_period_end: new Date(end * 1000).toISOString(),
+        },
+      ]);
+    }
+    throw new Error(`Unexpected fixture table: ${url.pathname}`);
+  }
   if (
     request.headers.get("X-Connection-Api-Key") !== "fixture-connection" ||
     request.headers.get("Lovable-API-Key") !== "fixture-platform"
   )
     throw new Error("Invalid fixture authentication");
   appendFileSync(callsFile, JSON.stringify({ path: url.pathname, method: request.method }) + "\n");
-  const advanced = existsSync(stateFile) && JSON.parse(readFileSync(stateFile, "utf8")).advanced;
   const subscription = {
     id: "sub_probe",
     status: "active",

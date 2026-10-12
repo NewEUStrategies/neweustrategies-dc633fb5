@@ -274,9 +274,9 @@ async function replayEvent(
   environment: StripeEnv,
   reference: string,
 ): Promise<RepairOutcome> {
-  const [{ normalizeStripeEvent }, { dispatchWebhookEvent }, log] = await Promise.all([
+  const [{ normalizeStripeEvent }, { processClaimedWebhookEvent }, log] = await Promise.all([
     import("@/lib/billing/stripeEvents.server"),
-    import("@/lib/billing/webhookDispatch.server"),
+    import("@/lib/billing/webhookReplay.server"),
     import("@/lib/billing/webhookLog.server"),
   ]);
 
@@ -288,42 +288,53 @@ async function replayEvent(
       ? new Date(event.created * 1000).toISOString()
       : new Date().toISOString();
 
-  // Dziennik webhooków JEST bramką idempotencji: `false` znaczy "to zdarzenie
-  // jest już w stanie końcowym (processed/skipped)". Produkcyjna trasa webhooka
-  // to honoruje i kończy jako duplikat; naprawa z panelu tego nie robiła, więc
-  // powtórne kliknięcie "Napraw" przepuszczało pełny handler dla domkniętego
-  // zdarzenia i nadpisywało `processed_at`/`duration_ms` istniejącego wpisu.
-  const claimed = await log.claimWebhookEvent({
+  // Dziennik webhooków JEST bramką idempotencji - ten sam porównaj-i-zamień
+  // co trasa webhooka i zamiatarka:
+  //   * `done` - zdarzenie jest już w stanie końcowym (processed/skipped);
+  //     powtórne kliknięcie "Napraw" nie przepuszcza pełnego handlera drugi raz,
+  //   * `in_progress` - obsługuje je właśnie żywa dostawa albo zamiatarka;
+  //     równoległa naprawa wykonałaby zdarzenie dwa razy, więc odmawiamy
+  //     z komunikatem, a admin ponawia za chwilę.
+  // Typ w dzienniku jest typem PO normalizacji, tak jak w wierszach trasy -
+  // ponowienie z panelu i zamiatarka czytają go jako typ dla dyspozytora.
+  const claim = await log.claimWebhookEvent({
     eventId: event.id,
-    eventType: event.type,
+    eventType: normalized.eventType,
     environment,
     occurredAt,
     payload: { eventType: normalized.eventType, data: normalized.data },
   });
-  if (!claimed) return { reference, status: "skipped", error: null };
-
-  const startedAt = Date.now();
-  try {
-    const outcome = await dispatchWebhookEvent({
-      eventId: event.id,
-      eventType: normalized.eventType,
-      data: normalized.data,
-      environment,
-      occurredAt,
-    });
-    const status = outcome === "processed" ? "processed" : "skipped";
-    await log.finishWebhookEvent({ eventId: event.id, environment }, status, {
-      durationMs: Date.now() - startedAt,
-    });
-    return { reference, status, error: null };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    await log.finishWebhookEvent({ eventId: event.id, environment }, "failed", {
-      error: message,
-      durationMs: Date.now() - startedAt,
-    });
-    return { reference, status: "failed", error: message };
+  if (claim === "done") return { reference, status: "skipped", error: null };
+  if (claim === "in_progress") {
+    return {
+      reference,
+      status: "failed",
+      error: "Zdarzenie jest właśnie przetwarzane - ponów naprawę za kilka minut.",
+    };
   }
+
+  const outcome = await processClaimedWebhookEvent({
+    eventId: event.id,
+    environment,
+    occurredAt,
+    normalized,
+  });
+  return { reference, status: outcome.status, error: outcome.error };
+}
+
+/**
+ * Znacznik chwili naprawy (sekundy uniksowe) w identyfikatorze sztucznego
+ * zdarzenia.
+ *
+ * Bez niego identyfikator zależał wyłącznie od obiektu (`reconcile_<sub>_<status>`),
+ * więc DRUGA naprawa tego samego rozjazdu - np. subskrypcja wróciła do złego
+ * stanu po tygodniu - trafiała w wiersz dziennika domknięty pierwszą naprawą
+ * i kończyła się `skipped` bez wykonania. Sekunda zostawia za to ochronę przed
+ * podwójnym kliknięciem: dwa kliknięcia w tej samej sekundzie dają ten sam
+ * identyfikator i drugie dostaje `done` albo `in_progress`.
+ */
+function repairStamp(): number {
+  return Math.floor(Date.now() / 1000);
 }
 
 /** Identyfikatory operatora, po których da się rozstrzygnąć przynależność. */
@@ -619,13 +630,14 @@ export async function repairReconcileIssue(
     const session = await stripe.checkout.sessions.retrieve(order.provider_session_id);
     // Sztuczne zdarzenie o kształcie webhooka - dalej idzie wspólną ścieżką,
     // więc księgowanie zamówienia jest identyczne jak przy dostawie od Stripe.
+    const stamp = repairStamp();
     const synthetic: VerifiedWebhookEvent = {
-      id: `reconcile_${session.id}`,
+      id: `reconcile_${session.id}_${stamp}`,
       type:
         session.payment_status === "unpaid"
           ? "checkout.session.async_payment_failed"
           : "checkout.session.completed",
-      created: Math.floor(Date.now() / 1000),
+      created: stamp,
       data: { object: session as unknown as Record<string, unknown> },
     } as VerifiedWebhookEvent;
     return replayEvent(synthetic, environment, reference);
@@ -637,10 +649,11 @@ export async function repairReconcileIssue(
     customerId: typeof subscription.customer === "string" ? subscription.customer : null,
   });
   if (!ownsSubscription) return { reference, status: "skipped", error: null };
+  const stamp = repairStamp();
   const synthetic: VerifiedWebhookEvent = {
-    id: `reconcile_${subscription.id}_${subscription.status}`,
+    id: `reconcile_${subscription.id}_${subscription.status}_${stamp}`,
     type: "customer.subscription.updated",
-    created: Math.floor(Date.now() / 1000),
+    created: stamp,
     data: { object: subscription as unknown as Record<string, unknown> },
   } as VerifiedWebhookEvent;
   return replayEvent(synthetic, environment, reference);

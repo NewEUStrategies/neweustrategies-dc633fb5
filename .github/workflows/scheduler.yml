@@ -19,8 +19,14 @@ name: Scheduler (push / digesty / przypomnienia)
 #   variables.APP_BASE_URL          np. https://neweuropeanstrategies.com
 #   secrets.COMMUNITY_CRON_SECRET   = env COMMUNITY_CRON_SECRET aplikacji ALBO
 #                                     job_runner_settings.secret (oba działają)
-# Bez tej pary przebieg kończy się zielono z ostrzeżeniem - fork i świeży klon
-# nie mogą hałasować, ale brak konfiguracji jest widoczny.
+#                                     - przebiegi 5-minutowe (community-cron)
+#   secrets.BILLING_CRON_SECRET     = env BILLING_CRON_SECRET aplikacji ALBO
+#                                     job_runner_settings.secret - WYŁĄCZNIE
+#                                     dobowy przebieg rozliczeń (billing-cron).
+#                                     Sekret społeczności NIE otwiera rozliczeń:
+#                                     endpoint przestał go przyjmować (PAY-17a).
+# Bez sekretu właściwego dla zakresu przebieg kończy się zielono z ostrzeżeniem
+# - fork i świeży klon nie mogą hałasować, ale brak konfiguracji jest widoczny.
 #
 # Uwaga operacyjna: GitHub wyłącza zaplanowane workflow po 60 dniach braku
 # aktywności w repo i potrafi spóźnić przebieg o kilka minut - dlatego to jest
@@ -81,23 +87,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Bez `bun install` i bez build-stepu: sterownik ticku to czysty Node 18+
-      # (globalne fetch), więc przebieg kosztuje sekundy, nie minuty.
-      - name: Sprawdź konfigurację
-        id: cfg
-        env:
-          BASE_URL: ${{ vars.APP_BASE_URL }}
-          SECRET: ${{ secrets.COMMUNITY_CRON_SECRET }}
-        run: |
-          if [ -z "$BASE_URL" ] || [ -z "$SECRET" ]; then
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Scheduler nieskonfigurowany::Ustaw variables.APP_BASE_URL oraz secrets.COMMUNITY_CRON_SECRET - kolejka push i digesty nie są drenowane z repo."
-          else
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          fi
-
       # Zakres i liczba ticków zależą od wyzwalacza: wpis dobowy obsługuje
-      # rozliczenia, wpis 5-minutowy drenuje kanały społeczności.
+      # rozliczenia, wpis 5-minutowy drenuje kanały społeczności. Zakres jest
+      # ustalany PRZED kontrolą konfiguracji, bo od niego zależy, który sekret
+      # jest wymagany.
       - name: Ustal zakres ticku
         id: plan
         env:
@@ -122,8 +115,38 @@ jobs:
           echo "ticks=$ticks" >> "$GITHUB_OUTPUT"
           echo "endpoint=$endpoint" >> "$GITHUB_OUTPUT"
 
+      # Bez `bun install` i bez build-stepu: sterownik ticku to czysty Node 18+
+      # (globalne fetch), więc przebieg kosztuje sekundy, nie minuty. Kontrola
+      # widzi wyłącznie OBECNOŚĆ sekretów (`!= ''`), nie ich wartości.
+      - name: Sprawdź konfigurację
+        id: cfg
+        env:
+          BASE_URL: ${{ vars.APP_BASE_URL }}
+          ENDPOINT: ${{ steps.plan.outputs.endpoint }}
+          HAS_COMMUNITY_SECRET: ${{ secrets.COMMUNITY_CRON_SECRET != '' }}
+          HAS_BILLING_SECRET: ${{ secrets.BILLING_CRON_SECRET != '' }}
+        run: |
+          if [ "$ENDPOINT" = "/api/public/billing-cron" ]; then
+            has_secret="$HAS_BILLING_SECRET"
+            secret_name="secrets.BILLING_CRON_SECRET"
+            scope="przypomnienia rozliczeniowe i zamiatarka płatności nie biegną z repo"
+          else
+            has_secret="$HAS_COMMUNITY_SECRET"
+            secret_name="secrets.COMMUNITY_CRON_SECRET"
+            scope="kolejka push i digesty nie są drenowane z repo"
+          fi
+          if [ -z "$BASE_URL" ] || [ "$has_secret" != "true" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Scheduler nieskonfigurowany::Ustaw variables.APP_BASE_URL oraz $secret_name - $scope."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Dwa kroki zamiast jednego z wyrażeniem `a && b || c`: każdy endpoint
+      # dostaje WYŁĄCZNIE swój sekret, a pusty sekret rozliczeń nigdy nie
+      # „spada" na sekret społeczności.
       - name: Tick
-        if: steps.cfg.outputs.configured == 'true'
+        if: steps.cfg.outputs.configured == 'true' && steps.plan.outputs.endpoint != '/api/public/billing-cron'
         env:
           SCHEDULER_BASE_URL: ${{ vars.APP_BASE_URL }}
           SCHEDULER_SECRET: ${{ secrets.COMMUNITY_CRON_SECRET }}
@@ -136,10 +159,25 @@ jobs:
           SCHEDULER_DEADLINE_MS: "240000"
         run: node scripts/scheduler-tick.mjs
 
+      - name: Tick rozliczeń
+        if: steps.cfg.outputs.configured == 'true' && steps.plan.outputs.endpoint == '/api/public/billing-cron'
+        env:
+          SCHEDULER_BASE_URL: ${{ vars.APP_BASE_URL }}
+          SCHEDULER_SECRET: ${{ secrets.BILLING_CRON_SECRET }}
+          SCHEDULER_ENDPOINT: ${{ steps.plan.outputs.endpoint }}
+          SCHEDULER_JOB: ${{ steps.plan.outputs.job }}
+          SCHEDULER_TICKS: ${{ steps.plan.outputs.ticks }}
+          SCHEDULER_SOURCE: github_actions
+          SCHEDULER_INTERVAL_MS: "60000"
+          SCHEDULER_DEADLINE_MS: "240000"
+        run: node scripts/scheduler-tick.mjs
+
       # Sonda zdrowia po tickach: jeśli kolejka mimo drenażu stoi (brak VAPID,
       # martwy runner bazy), zostawiamy ostrzeżenie w podsumowaniu przebiegu.
+      # Tylko przy przebiegach społeczności - dobowy przebieg rozliczeń nie ma
+      # (i nie powinien mieć) sekretu społeczności.
       - name: Sonda zdrowia harmonogramu
-        if: steps.cfg.outputs.configured == 'true'
+        if: steps.cfg.outputs.configured == 'true' && steps.plan.outputs.endpoint != '/api/public/billing-cron'
         continue-on-error: true
         env:
           SCHEDULER_BASE_URL: ${{ vars.APP_BASE_URL }}

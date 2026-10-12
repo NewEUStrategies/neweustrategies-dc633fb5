@@ -6,8 +6,11 @@
 //   - `buildReconcileReport` jest wyłącznie odczytowy i klasyfikuje każdy
 //     rodzaj rozjazdu (event / order / subscription) wraz z flagą `repairable`,
 //   - `repairReconcileIssue` idzie tą samą ścieżką co webhook
-//     (`normalizeStripeEvent` -> `claimWebhookEvent` -> `dispatchWebhookEvent`
-//     -> `finishWebhookEvent`) i używa DETERMINISTYCZNEGO klucza dziennika,
+//     (`normalizeStripeEvent` -> `claimWebhookEvent` -> wspólny rdzeń
+//     `webhookReplay.server`: `dispatchWebhookEvent` -> `finishWebhookEvent`)
+//     i używa klucza dziennika zależnego od obiektu ORAZ sekundy naprawy:
+//     podwójne kliknięcie w tej samej sekundzie trafia w ten sam wpis, a kolejna
+//     naprawa tego samego rozjazdu (inna chwila) jest nowym zdarzeniem,
 //   - rozjazd nienaprawialny nie może po cichu zapisać czegokolwiek,
 //   - ZAKRES NAJEMCY: oba wejścia (raport i naprawa) biegną spod `service_role`,
 //     czyli z pominięciem RLS, a `reference` przychodzi wprost od klienta -
@@ -223,7 +226,7 @@ beforeEach(() => {
     fn.mockReset();
   }
   stripe.eventsList.mockResolvedValue({ data: [], has_more: false });
-  hook.claim.mockResolvedValue(true);
+  hook.claim.mockResolvedValue("claimed");
   hook.finish.mockResolvedValue(undefined);
   hook.normalize.mockReturnValue({ eventType: "transaction.completed", data: { id: "obj_1" } });
   hook.dispatch.mockResolvedValue("processed");
@@ -710,7 +713,10 @@ describe("repairReconcileIssue - zdarzenie", () => {
     expect(hook.normalize).toHaveBeenCalledWith(event);
     expect(hook.claim).toHaveBeenCalledWith({
       eventId: "evt_1",
-      eventType: "invoice.paid",
+      // Typ PO normalizacji, jak w wierszach trasy webhooka - ponowienie
+      // z panelu i zamiatarka podają go dyspozytorowi, a surowego typu
+      // operatora („invoice.paid") dyspozytor nie zna.
+      eventType: "transaction.completed",
       environment: "sandbox",
       occurredAt: EVENT_CREATED_ISO,
       payload: { eventType: "transaction.completed", data: { id: "in_1" } },
@@ -904,15 +910,16 @@ describe("repairReconcileIssue - zamówienie", () => {
 
     const outcome = await repairReconcileIssue("sandbox", "order", "ord_1", TENANT);
 
+    const stamp = Math.floor(NOW / 1000);
     expect(hook.normalize).toHaveBeenCalledWith({
-      id: "reconcile_cs_1",
+      id: `reconcile_cs_1_${stamp}`,
       type: "checkout.session.completed",
-      created: Math.floor(NOW / 1000),
+      created: stamp,
       data: { object: session },
     });
     // Wynik jest raportowany pod identyfikatorem ZAMÓWIENIA, nie sesji.
     expect(outcome).toEqual({ reference: "ord_1", status: "processed", error: null });
-    expect(hook.claim.mock.calls[0][0]).toMatchObject({ eventId: "reconcile_cs_1" });
+    expect(hook.claim.mock.calls[0][0]).toMatchObject({ eventId: `reconcile_cs_1_${stamp}` });
   });
 
   it("zamówienie czytane jest tylko z własnego środowiska", async () => {
@@ -993,12 +1000,13 @@ describe("repairReconcileIssue - subskrypcja", () => {
     const outcome = await repairReconcileIssue("sandbox", "subscription", "sub_1", TENANT);
 
     expect(stripe.subscriptionRetrieve).toHaveBeenCalledWith("sub_1");
+    const stamp = Math.floor(NOW / 1000);
     expect(hook.normalize).toHaveBeenCalledWith({
-      // Klucz dziennika niesie status: kolejny rozjazd tej samej subskrypcji
-      // to nowe zdarzenie, a powtórka tego samego - ten sam wpis.
-      id: "reconcile_sub_1_past_due",
+      // Klucz dziennika niesie status i SEKUNDĘ naprawy: kolejna naprawa tej
+      // samej subskrypcji to nowe zdarzenie, a podwójne kliknięcie - ten sam wpis.
+      id: `reconcile_sub_1_past_due_${stamp}`,
       type: "customer.subscription.updated",
-      created: Math.floor(NOW / 1000),
+      created: stamp,
       data: { object: { id: "sub_1", status: "past_due" } },
     });
     expect(outcome).toEqual({ reference: "sub_1", status: "processed", error: null });
@@ -1017,10 +1025,11 @@ describe("repairReconcileIssue - subskrypcja", () => {
 });
 
 describe("repairReconcileIssue - idempotencja", () => {
-  it("powtórna naprawa tego samego rozjazdu trafia w TEN SAM wpis dziennika", async () => {
-    // Klucz dziennika (event_id, environment) jest deterministyczny dla każdego
-    // rodzaju rozjazdu, więc druga naprawa nie tworzy drugiego wpisu - to na nim
-    // stoi cała idempotencja odtwarzania.
+  it("podwójne kliknięcie W TEJ SAMEJ SEKUNDZIE trafia w TEN SAM wpis dziennika", async () => {
+    // Klucz dziennika (event_id, environment) jest w obrębie sekundy
+    // deterministyczny dla każdego rodzaju rozjazdu, więc drugie kliknięcie nie
+    // tworzy drugiego wpisu - trafia w ten sam i dostaje `done`/`in_progress`.
+    // Zegar jest zamrożony, więc obie naprawy dzieją się w tej samej sekundzie.
     setSingle("payment_orders", { id: "ord_1", provider_session_id: "cs_1" });
     stripe.sessionRetrieve.mockResolvedValue({ id: "cs_1", payment_status: "paid" });
     stripe.eventsRetrieve.mockResolvedValue({
@@ -1038,19 +1047,90 @@ describe("repairReconcileIssue - idempotencja", () => {
     await repairReconcileIssue("sandbox", "subscription", "sub_1", TENANT);
     await repairReconcileIssue("sandbox", "subscription", "sub_1", TENANT);
 
+    const stamp = Math.floor(NOW / 1000);
     const keys = hook.claim.mock.calls.map((c) => (c[0] as { eventId: string }).eventId);
     expect(keys).toEqual([
-      "reconcile_cs_1",
-      "reconcile_cs_1",
+      `reconcile_cs_1_${stamp}`,
+      `reconcile_cs_1_${stamp}`,
       "evt_1",
       "evt_1",
-      "reconcile_sub_1_active",
-      "reconcile_sub_1_active",
+      `reconcile_sub_1_active_${stamp}`,
+      `reconcile_sub_1_active_${stamp}`,
     ]);
   });
 
+  // KRYTERIUM PAY-15.
+  it("dwie naprawy tego samego rozjazdu (różne chwile) obie są przetworzone", async () => {
+    // Scenariusz z audytu: subskrypcja rozjechała się, naprawa ją wyrównała,
+    // po tygodniu rozjechała się TAK SAMO (ten sam status). Dawny klucz
+    // `reconcile_<sub>_<status>` trafiał w wiersz domknięty pierwszą naprawą,
+    // dziennik odpowiadał „już zrobione", a druga naprawa kończyła się
+    // `skipped` bez wykonania - rozjazd zostawał na zawsze.
+    //
+    // Atrapa dziennika zachowuje się jak prawdziwy: wpis domknięty pod
+    // kluczem = `done`, nowy klucz = `claimed`.
+    const closed = new Set<string>();
+    hook.claim.mockImplementation(async (ref: { eventId: string }) =>
+      closed.has(ref.eventId) ? "done" : "claimed",
+    );
+    hook.finish.mockImplementation(async (ref: { eventId: string }) => {
+      closed.add(ref.eventId);
+    });
+    stripe.subscriptionRetrieve.mockResolvedValue({ id: "sub_1", status: "active" });
+
+    const first = await repairReconcileIssue("sandbox", "subscription", "sub_1", TENANT);
+    vi.setSystemTime(NOW + 7 * 24 * 3600_000);
+    const second = await repairReconcileIssue("sandbox", "subscription", "sub_1", TENANT);
+
+    expect(first.status).toBe("processed");
+    expect(second.status).toBe("processed");
+    expect(hook.dispatch).toHaveBeenCalledTimes(2);
+    const keys = hook.claim.mock.calls.map((c) => (c[0] as { eventId: string }).eventId);
+    expect(new Set(keys).size).toBe(2);
+    // Druga naprawa niesie własną chwilę - strażnik kolejności subskrypcji
+    // widzi ją jako NOWSZĄ od pierwszej.
+    expect(hook.dispatch.mock.calls[1][0]).toMatchObject({
+      occurredAt: new Date(NOW + 7 * 24 * 3600_000).toISOString(),
+    });
+  });
+
+  it("dwie naprawy tego samego zamówienia w różnych chwilach też dostają osobne wpisy", async () => {
+    setSingle("payment_orders", { id: "ord_1", provider_session_id: "cs_1" });
+    stripe.sessionRetrieve.mockResolvedValue({ id: "cs_1", payment_status: "paid" });
+
+    await repairReconcileIssue("sandbox", "order", "ord_1", TENANT);
+    vi.setSystemTime(NOW + 60_000);
+    await repairReconcileIssue("sandbox", "order", "ord_1", TENANT);
+
+    const keys = hook.claim.mock.calls.map((c) => (c[0] as { eventId: string }).eventId);
+    expect(keys).toEqual([
+      `reconcile_cs_1_${Math.floor(NOW / 1000)}`,
+      `reconcile_cs_1_${Math.floor(NOW / 1000) + 60}`,
+    ]);
+  });
+
+  it("zdarzenie W TOKU (żywa dostawa albo zamiatarka) - naprawa odmawia bez obsługi", async () => {
+    // Równoległa naprawa wykonałaby zdarzenie dwa razy. Odmowa jest JAWNA
+    // (`failed` z komunikatem), a nie `skipped` - admin ma wiedzieć, że nic
+    // się nie stało i że może ponowić za chwilę.
+    stripe.eventsRetrieve.mockResolvedValue({
+      id: "evt_1",
+      type: "invoice.paid",
+      created: EVENT_CREATED,
+      data: { object: { id: "in_1", customer: "cus_1" } },
+    });
+    hook.claim.mockResolvedValueOnce("in_progress");
+
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
+
+    expect(outcome.status).toBe("failed");
+    expect(outcome.error).toContain("właśnie przetwarzane");
+    expect(hook.dispatch).not.toHaveBeenCalled();
+    expect(hook.finish).not.toHaveBeenCalled();
+  });
+
   it("odmowa dziennika (zdarzenie już domknięte) wstrzymuje ponowną wysyłkę", async () => {
-    // `claimWebhookEvent` zwraca `false`, gdy wpis jest już w stanie końcowym
+    // `claimWebhookEvent` zwraca `done`, gdy wpis jest już w stanie końcowym
     // (processed/skipped) - to JEST bramka idempotencji. Trasa webhooka honoruje
     // tę odmowę i kończy jako duplikat; naprawa z panelu musi zachowywać się tak
     // samo, inaczej powtórne kliknięcie "Napraw" przepuszcza pełny handler dla
@@ -1061,7 +1141,7 @@ describe("repairReconcileIssue - idempotencja", () => {
       created: EVENT_CREATED,
       data: { object: { id: "in_1", customer: "cus_1" } },
     });
-    hook.claim.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    hook.claim.mockResolvedValueOnce("claimed").mockResolvedValueOnce("done");
 
     const first = await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);
     const second = await repairReconcileIssue("sandbox", "event", "evt_1", TENANT);

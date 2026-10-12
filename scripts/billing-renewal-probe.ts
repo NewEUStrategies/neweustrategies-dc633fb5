@@ -13,30 +13,48 @@
  *            `ready`). Zastępuje ślepe `sleep 40m`: Stripe kończy zwykle
  *            w kilkadziesiąt sekund, a przy awarii i tak mamy twardy termin,
  *   verify - sprawdza, czy powstała NOWA faktura cykliczna, czy okres poszedł
- *            do przodu i czy stan faktury jest spójny ze stanem subskrypcji.
+ *            do przodu i czy stan faktury jest spójny ze stanem subskrypcji,
+ *            a potem - przez REST Supabase kluczem `service_role` - czy NASZA
+ *            strona odebrała odnowienie: przetworzone zdarzenie `subscription.*`
+ *            w dzienniku webhooków, brak porażek w oknie po zbrojeniu i koniec
+ *            okresu w `subscriptions` co najmniej taki jak u operatora. Dostawa
+ *            webhooka jest asynchroniczna, więc naszą stronę ODPYTUJEMY do
+ *            terminu (domyślnie 3 min).
  *
  * Brak kluczy: domyślnie zielone wyjście z ostrzeżeniem (świeży klon i fork nie
  * mogą wywracać CI). W trybie ścisłym (`PROBE_STRICT=true`, ustawianym dla
  * przebiegów z harmonogramu w repozytorium właściciela) brak konfiguracji jest
  * BŁĘDEM - nocna sonda, która nic nie sprawdza, nie ma prawa świecić na zielono.
+ * Dotyczy to także dostępu do NASZEJ bazy w kroku `verify` (PROBE_SUPABASE_*):
+ * bez niego sonda widzi tylko operatora, czyli przegapia awarię naszego
+ * webhooka - w trybie ścisłym to błąd, ręcznie ostrzeżenie.
  *
  * Zmienne: STRIPE_SANDBOX_API_KEY, LOVABLE_API_KEY, PROBE_STATE_FILE,
- *          PROBE_REPORT_FILE, PROBE_STRICT, PROBE_SUBSCRIPTION_ID,
- *          PROBE_WAIT_TIMEOUT_S, PROBE_REQUEST_TIMEOUT_MS, PROBE_GATEWAY_URL
+ *          PROBE_REPORT_FILE, PROBE_STRICT, PROBE_REQUIRE_CONFIG,
+ *          PROBE_SUBSCRIPTION_ID, PROBE_WAIT_TIMEOUT_MS, PROBE_WAIT_TIMEOUT_S,
+ *          PROBE_WAIT_POLL_MS, PROBE_REQUEST_TIMEOUT_MS, PROBE_GATEWAY_URL,
+ *          PROBE_SUPABASE_URL, PROBE_SUPABASE_SERVICE_ROLE_KEY (tylko `verify`),
+ *          PROBE_DB_WAIT_TIMEOUT_MS, PROBE_DB_POLL_MS
  */
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
+  type LocalSubscriptionRow,
+  type LocalSyncVerdict,
+  type LocalWebhookRow,
   type ProbeOutcome,
   type ProbeState,
   type StripeInvoice,
   type StripeSubscription,
   type StripeTestClock,
+  classifyLocalSync,
   classifyRenewal,
+  combineOutcomes,
   isFailure,
   parseProbeState,
   periodEndOf,
   renderArmSummary,
+  renderLocalSyncSummary,
   renderVerifySummary,
   selectRenewalCandidate,
 } from "../src/lib/ci/billingRenewalProbe";
@@ -57,12 +75,25 @@ const WAIT_TIMEOUT_MS = positiveNumber(
 );
 const WAIT_POLL_MS = positiveNumber(process.env.PROBE_WAIT_POLL_MS, 5_000);
 const REQUEST_TIMEOUT_MS = positiveNumber(process.env.PROBE_REQUEST_TIMEOUT_MS, 15_000);
+/**
+ * Ile czekamy, aż NASZA strona odbierze odnowienie. Stripe wysyła webhooki
+ * po przeliczeniu Test Clocka zwykle w sekundach; 3 minuty to zapas na
+ * ponowienie po chwilowym 503/409 naszego punktu odbioru.
+ */
+const DB_WAIT_TIMEOUT_MS = positiveNumber(process.env.PROBE_DB_WAIT_TIMEOUT_MS, 3 * 60_000);
+const DB_POLL_MS = positiveNumber(process.env.PROBE_DB_POLL_MS, 10_000);
 const RETRY_DELAYS_MS = [250, 1_000, 3_000] as const;
 const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
 
 interface Auth {
   readonly connection: string;
   readonly platform: string;
+}
+
+/** Dostęp do NASZEJ bazy (REST Supabase, klucz `service_role`) - tylko `verify`. */
+interface DbAuth {
+  readonly url: string;
+  readonly serviceRoleKey: string;
 }
 
 /**
@@ -125,6 +156,13 @@ function keys(): Auth | null {
   return { connection, platform };
 }
 
+function dbKeys(): DbAuth | null {
+  const url = process.env.PROBE_SUPABASE_URL?.trim().replace(/\/+$/, "");
+  const serviceRoleKey = process.env.PROBE_SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !serviceRoleKey) return null;
+  return { url, serviceRoleKey };
+}
+
 /** Stripe przyjmuje wyłącznie `application/x-www-form-urlencoded`. */
 function form(body: Record<string, string | number>): string {
   return Object.entries(body)
@@ -133,7 +171,7 @@ function form(body: Record<string, string | number>): string {
 }
 
 /**
- * Żądanie do bramki konektorów. Nocny przebieg rozmawia z usługą zdalną, więc
+ * Żądanie z ponowieniami. Nocny przebieg rozmawia z usługami zdalnymi, więc
  * pojedynczy 502 na odczycie nie może oznaczać „odnowienie nie działa" -
  * inaczej bramka generuje fałszywe alarmy i przestaje być czytana.
  *
@@ -143,12 +181,12 @@ function form(body: Record<string, string | number>): string {
  * advancing" - czyli zamienia jedną usterkę przejściową w czerwony przebieg
  * z mylącym komunikatem. Zapis ma paść od razu, z prawdziwą przyczyną.
  */
-async function api<T>(
-  path: string,
-  init: { auth: Auth; method?: "GET" | "POST"; body?: Record<string, string | number> },
+async function requestJson<T>(
+  url: string,
+  label: string,
+  init: { method: "GET" | "POST"; headers: Record<string, string>; body?: string },
 ): Promise<T> {
-  const { auth, method = "GET", body } = init;
-  const attempts = method === "GET" ? RETRY_DELAYS_MS.length : 0;
+  const attempts = init.method === "GET" ? RETRY_DELAYS_MS.length : 0;
   let lastError = "";
 
   for (let attempt = 0; attempt <= attempts; attempt += 1) {
@@ -156,29 +194,59 @@ async function api<T>(
 
     let response: Response;
     try {
-      response = await fetch(`${GATEWAY}/v1${path}`, {
-        method,
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "X-Connection-Api-Key": auth.connection,
-          "Lovable-API-Key": auth.platform,
-        },
+      response = await fetch(url, {
+        method: init.method,
+        headers: init.headers,
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        ...(body ? { body: form(body) } : {}),
+        ...(init.body !== undefined ? { body: init.body } : {}),
       });
     } catch (error) {
-      lastError = `${method} ${path} -> ${error instanceof Error ? error.message : String(error)}`;
+      lastError = `${init.method} ${label} -> ${error instanceof Error ? error.message : String(error)}`;
       continue;
     }
 
     const text = await response.text();
     if (response.ok) return JSON.parse(text) as T;
 
-    lastError = `${method} ${path} -> ${response.status}: ${text.slice(0, 400)}`;
+    lastError = `${init.method} ${label} -> ${response.status}: ${text.slice(0, 400)}`;
     if (!RETRYABLE_STATUS.has(response.status)) break;
   }
 
   throw new Error(lastError);
+}
+
+/** Żądanie do bramki konektorów operatora. */
+async function api<T>(
+  path: string,
+  init: { auth: Auth; method?: "GET" | "POST"; body?: Record<string, string | number> },
+): Promise<T> {
+  const { auth, method = "GET", body } = init;
+  return requestJson<T>(`${GATEWAY}/v1${path}`, path, {
+    method,
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Connection-Api-Key": auth.connection,
+      "Lovable-API-Key": auth.platform,
+    },
+    ...(body ? { body: form(body) } : {}),
+  });
+}
+
+/**
+ * Odczyt z NASZEJ bazy przez REST Supabase (PostgREST). Wyłącznie GET -
+ * sonda niczego u nas nie zapisuje; klucz `service_role` jest potrzebny tylko
+ * dlatego, że dziennik webhooków jest zamknięty RLS-em dla wszystkich innych.
+ * Błąd przy odczycie nie ujawnia klucza: etykieta to sama ścieżka tabeli.
+ */
+async function restGet<T>(db: DbAuth, table: string, query: string): Promise<T> {
+  return requestJson<T>(`${db.url}/rest/v1/${table}?${query}`, `/rest/v1/${table}`, {
+    method: "GET",
+    headers: {
+      apikey: db.serviceRoleKey,
+      Authorization: `Bearer ${db.serviceRoleKey}`,
+      Accept: "application/json",
+    },
+  });
 }
 
 async function listInvoiceIds(auth: Auth, subscriptionId: string): Promise<string[]> {
@@ -328,6 +396,52 @@ function readState(): ProbeState | null {
   return state;
 }
 
+/**
+ * Odpytuje NASZĄ bazę, aż odnowienie dotrze do naszej obsługi albo minie
+ * termin. Porażka w dzienniku kończy odpytywanie od razu - czekanie jej nie
+ * naprawi.
+ */
+async function awaitLocalSync(
+  db: DbAuth,
+  state: ProbeState,
+  stripePeriodEnd: number | null,
+): Promise<LocalSyncVerdict> {
+  const startedAt = Date.now();
+  const subscription = encodeURIComponent(state.subscriptionId);
+
+  for (;;) {
+    const [webhookRows, subscriptions] = await Promise.all([
+      restGet<LocalWebhookRow[]>(
+        db,
+        "payment_webhook_events",
+        "select=event_id,event_type,status,error,created_at" +
+          `&environment=eq.sandbox&subscription_id=eq.${subscription}` +
+          `&created_at=gte.${encodeURIComponent(state.armedAt)}` +
+          "&order=created_at.asc&limit=200",
+      ),
+      restGet<LocalSubscriptionRow[]>(
+        db,
+        "subscriptions",
+        "select=provider_subscription_id,status,current_period_end" +
+          `&provider_subscription_id=eq.${subscription}&environment=eq.sandbox` +
+          "&order=updated_at.desc&limit=1",
+      ),
+    ]);
+
+    const deadlineReached = Date.now() - startedAt >= DB_WAIT_TIMEOUT_MS;
+    const verdict = classifyLocalSync({
+      state,
+      stripePeriodEnd,
+      webhookRows,
+      subscription: subscriptions[0] ?? null,
+      deadlineReached,
+    });
+    if (verdict.outcome !== "waiting") return verdict;
+
+    await sleep(Math.min(DB_POLL_MS, Math.max(0, DB_WAIT_TIMEOUT_MS - (Date.now() - startedAt))));
+  }
+}
+
 async function verify(auth: Auth): Promise<StepOutcome> {
   const state = readState();
   if (!state) return "skipped";
@@ -357,9 +471,33 @@ async function verify(auth: Auth): Promise<StepOutcome> {
   const dunningCensus = (dunning.data ?? []).length;
 
   summary(renderVerifySummary({ state, subscription, verdict, dunningCensus }));
+
+  // Nasza strona ma sens wyłącznie wtedy, gdy operator potwierdził odnowienie
+  // albo dunning - przy porażce operatora nie ma czego u nas szukać.
+  let local: LocalSyncVerdict | null = null;
+  let outcome: ProbeOutcome = verdict.outcome;
+  if (verdict.outcome === "renewed" || verdict.outcome === "dunning") {
+    const db = dbKeys();
+    if (db) {
+      local = await awaitLocalSync(db, state, verdict.periodEnd);
+      summary(renderLocalSyncSummary(local));
+      outcome = combineOutcomes(verdict.outcome, local);
+    } else {
+      // Tu dociera wyłącznie przebieg ręczny - w trybie ścisłym brak dostępu
+      // do bazy zatrzymał `verify` już w `main`, jak brak kluczy operatora.
+      annotate(
+        "warning",
+        "Sonda nie widzi naszej strony",
+        "Ustaw PROBE_SUPABASE_URL oraz PROBE_SUPABASE_SERVICE_ROLE_KEY - bez nich sonda " +
+          "potwierdza wyłącznie stan u operatora, a nie odbiór odnowienia przez nasz webhook.",
+      );
+    }
+  }
+
   writeJson(REPORT_FILE, {
     generatedAt: new Date().toISOString(),
-    outcome: verdict.outcome,
+    outcome,
+    stripeOutcome: verdict.outcome,
     reason: verdict.reason,
     subscriptionId: state.subscriptionId,
     subscriptionStatus: subscription.status,
@@ -369,14 +507,25 @@ async function verify(auth: Auth): Promise<StepOutcome> {
     periodEnd: verdict.periodEnd,
     periodMoved: verdict.periodMoved,
     dunningCensus,
+    local: local
+      ? {
+          outcome: local.outcome,
+          reason: local.reason,
+          processedEvents: local.processedEvents,
+          failedEventIds: local.failedEvents.map((row) => row.event_id),
+          localPeriodEnd: local.localPeriodEnd,
+        }
+      : null,
   });
 
   if (verdict.outcome === "failed") {
     annotate("error", "Regresja odnowienia lub dunningu", verdict.reason);
   } else if (verdict.outcome === "pending") {
     annotate("warning", "Wynik nierozstrzygnięty", verdict.reason);
+  } else if (local && local.outcome !== "synced") {
+    annotate("error", "Nasza strona nie odebrała odnowienia", local.reason);
   }
-  return verdict.outcome;
+  return outcome;
 }
 
 type Mode = "arm" | "await" | "verify";
@@ -400,6 +549,20 @@ async function main(): Promise<void> {
     );
     setOutput("outcome", "skipped");
     if (strict) process.exitCode = 1;
+    return;
+  }
+  // Weryfikacja bez dostępu do NASZEJ bazy widzi tylko operatora - przegapia
+  // awarię naszego webhooka, czyli najdroższy scenariusz. W trybie ścisłym to
+  // ten sam błąd konfiguracji co brak kluczy operatora; ręcznie - ostrzeżenie
+  // w `verify` i weryfikacja samego operatora.
+  if (mode === "verify" && strict && !dbKeys()) {
+    annotate(
+      "error",
+      "Sonda rozliczeń nieskonfigurowana",
+      "Ustaw PROBE_SUPABASE_URL oraz PROBE_SUPABASE_SERVICE_ROLE_KEY (krok weryfikacji).",
+    );
+    setOutput("outcome", "skipped");
+    process.exitCode = 1;
     return;
   }
   const outcome =

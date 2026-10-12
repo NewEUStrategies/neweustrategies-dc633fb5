@@ -34,6 +34,20 @@
 // dostęp do płatnej treści bez płatności, którego nikt nie zauważy, bo
 // wszystkie zielone metryki wyglądają normalnie.
 //
+// ── I NASZA STRONA (PAY-17c) ────────────────────────────────────────────────
+// Wszystkie trzy punkty wyżej to stan U OPERATORA. Sonda świeciła na zielono
+// także wtedy, gdy nasz webhook w ogóle nie odebrał odnowienia (zły sekret
+// podpisu, wyłączony punkt odbioru, obsługa padająca na każdym zdarzeniu) -
+// czyli dokładnie w awarii, w której klient płaci, a dostęp mu wygasa.
+// Dlatego po werdykcie operatora sprawdzamy jeszcze NASZĄ bazę:
+//   - dziennik `payment_webhook_events` ma PRZETWORZONE zdarzenie
+//     `subscription.*` tej subskrypcji z okna po zbrojeniu i nie ma w tym
+//     oknie żadnego `failed`,
+//   - wiersz `subscriptions` ma koniec okresu co najmniej taki jak u operatora.
+// `user_subscriptions` świadomie NIE jest sprawdzane: na wdrożeniu
+// produkcyjnym zdarzenia piaskownicy zostawiają wyłącznie ślad księgowy
+// (dziennik + `subscriptions`), a uprawnienia są dla nich wyłączone z założenia.
+//
 // Warstwa wykonawcza (HTTP przez bramkę konektorów, pliki, kody wyjścia) żyje
 // w `scripts/billing-renewal-probe.ts`; ten moduł jest czysty i testowalny.
 
@@ -307,6 +321,172 @@ export function classifyRenewal({ subscription, invoices, state }: RenewalInput)
       `nadal ma status \`${subscription.status}\`. To dostęp do płatnej treści bez płatności: ` +
       "dunning się nie uruchomił.",
   };
+}
+
+// ─── Nasza strona: dziennik webhooków i wiersz subskrypcji ─────────────────
+
+/** Wiersz `payment_webhook_events` w kształcie czytanym przez sondę. */
+export interface LocalWebhookRow {
+  readonly event_id: string;
+  readonly event_type: string;
+  readonly status: string;
+  readonly error?: string | null;
+  readonly created_at: string;
+}
+
+/** Wiersz `subscriptions` w kształcie czytanym przez sondę. */
+export interface LocalSubscriptionRow {
+  readonly provider_subscription_id: string;
+  readonly status: string | null;
+  readonly current_period_end: string | null;
+}
+
+/**
+ * Tolerancja porównania końca okresu (s). Stripe podaje sekundy uniksowe,
+ * nasza baza `timestamptz` - zaokrąglenia i przesunięcie zegara Test Clocka
+ * o pojedyncze sekundy nie są rozjazdem stanu.
+ */
+export const LOCAL_PERIOD_TOLERANCE_S = 60;
+
+/**
+ * `synced`  - nasza strona odebrała i przetworzyła odnowienie,
+ * `waiting` - jeszcze nie (dostawa webhooka jest asynchroniczna) - odpytujemy dalej,
+ * `failed`  - porażka w dzienniku albo termin minął bez śladu odnowienia.
+ */
+export type LocalSyncOutcome = "synced" | "waiting" | "failed";
+
+export interface LocalSyncInput {
+  readonly state: ProbeState;
+  /** Koniec okresu u operatora po odnowieniu (`RenewalVerdict.periodEnd`). */
+  readonly stripePeriodEnd: number | null;
+  readonly webhookRows: readonly LocalWebhookRow[];
+  readonly subscription: LocalSubscriptionRow | null;
+  /** Termin odpytywania minął - „jeszcze nie" staje się porażką. */
+  readonly deadlineReached: boolean;
+}
+
+export interface LocalSyncVerdict {
+  readonly outcome: LocalSyncOutcome;
+  /** Przetworzone zdarzenia `subscription.*` z okna po zbrojeniu. */
+  readonly processedEvents: number;
+  /** Zdarzenia tej subskrypcji z okna, których obsługa padła. */
+  readonly failedEvents: readonly LocalWebhookRow[];
+  readonly localPeriodEnd: number | null;
+  readonly reason: string;
+}
+
+function unixOf(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
+}
+
+/**
+ * Rozstrzyga, czy NASZA strona nadąża za odnowieniem u operatora.
+ *
+ * Kolejność ma znaczenie: porażka w dzienniku przesądza od razu (czekanie jej
+ * nie naprawi - operator ponowi dostawę za godzinę, a nocny przebieg ma
+ * powiedzieć, że obsługa pada TERAZ), brak śladu i nieprzesunięty okres są
+ * „jeszcze nie" aż do terminu, a dopiero po nim porażką.
+ */
+export function classifyLocalSync(input: LocalSyncInput): LocalSyncVerdict {
+  const { state, stripePeriodEnd, webhookRows, subscription, deadlineReached } = input;
+  const armedAt = Date.parse(state.armedAt);
+  // Wyłącznie okno PO zbrojeniu - stary `processed` z poprzedniej nocy nie
+  // może potwierdzać dzisiejszego odnowienia, a stary `failed` go oblewać.
+  const windowed = webhookRows.filter((row) => {
+    const createdAt = Date.parse(row.created_at);
+    return Number.isFinite(createdAt) && createdAt >= armedAt;
+  });
+  const failedEvents = windowed.filter((row) => row.status === "failed");
+  const processedEvents = windowed.filter(
+    (row) => row.status === "processed" && row.event_type.startsWith("subscription."),
+  ).length;
+  const localPeriodEnd = unixOf(subscription?.current_period_end);
+
+  if (failedEvents.length > 0) {
+    const listed = failedEvents
+      .map((row) => `\`${row.event_type}\` (${row.event_id}): ${row.error ?? "bez komunikatu"}`)
+      .join("; ");
+    return {
+      outcome: "failed",
+      processedEvents,
+      failedEvents,
+      localPeriodEnd,
+      reason:
+        `Obsługa zdarzeń subskrypcji \`${state.subscriptionId}\` PADŁA po naszej stronie: ${listed}. ` +
+        "Operator odnowił subskrypcję, a nasz dziennik webhooków ma porażkę - sprawdź panel " +
+        "/admin/billing (dziennik zdarzeń).",
+    };
+  }
+
+  const periodAdvanced =
+    stripePeriodEnd !== null &&
+    localPeriodEnd !== null &&
+    localPeriodEnd >= stripePeriodEnd - LOCAL_PERIOD_TOLERANCE_S;
+
+  if (processedEvents > 0 && periodAdvanced) {
+    return {
+      outcome: "synced",
+      processedEvents,
+      failedEvents,
+      localPeriodEnd,
+      reason:
+        `Nasza strona nadąża: przetworzone zdarzenia \`subscription.*\`: ${processedEvents}, ` +
+        `koniec okresu w bazie ${formatUnix(localPeriodEnd)}.`,
+    };
+  }
+
+  const missing =
+    processedEvents === 0
+      ? `Dziennik webhooków nie ma PRZETWORZONEGO zdarzenia \`subscription.*\` subskrypcji ` +
+        `\`${state.subscriptionId}\` po zbrojeniu (${state.armedAt}) - odnowienie u operatora ` +
+        "nie dotarło do naszej obsługi (punkt odbioru, sekret podpisu, środowisko)."
+      : !subscription
+        ? `Brak wiersza \`subscriptions\` dla \`${state.subscriptionId}\` (sandbox) - zdarzenie ` +
+          "przetworzone, ale subskrypcja nie została zapisana."
+        : `Koniec okresu w bazie (${formatUnix(localPeriodEnd)}) NIE nadąża za operatorem ` +
+          `(${formatUnix(stripePeriodEnd)}) - nasza baza nie przesunęła okresu po odnowieniu.`;
+
+  return {
+    outcome: deadlineReached ? "failed" : "waiting",
+    processedEvents,
+    failedEvents,
+    localPeriodEnd,
+    reason: missing,
+  };
+}
+
+/**
+ * Wynik całej weryfikacji: werdykt operatora, a gdy ten mówi „zadziałało",
+ * dodatkowo werdykt naszej strony. `local === null` = nasza strona nie była
+ * sprawdzana (brak konfiguracji poza trybem ścisłym).
+ */
+export function combineOutcomes(
+  stripe: ProbeOutcome,
+  local: LocalSyncVerdict | null,
+): ProbeOutcome {
+  if (stripe !== "renewed" && stripe !== "dunning") return stripe;
+  if (local === null) return stripe;
+  return local.outcome === "synced" ? stripe : "failed";
+}
+
+const LOCAL_OUTCOME_LABEL: Readonly<Record<LocalSyncOutcome, string>> = {
+  synced: "✓ nasza strona nadąża",
+  waiting: "· nasza strona jeszcze nie nadąża",
+  failed: "✗ nasza strona nie nadąża",
+};
+
+export function renderLocalSyncSummary(verdict: LocalSyncVerdict): string {
+  return [
+    "### Sonda odnowienia - nasza strona",
+    `- wynik: **${LOCAL_OUTCOME_LABEL[verdict.outcome]}**`,
+    `- przetworzone zdarzenia \`subscription.*\` po zbrojeniu: ${verdict.processedEvents}`,
+    `- zdarzenia z porażką: ${verdict.failedEvents.length}`,
+    `- koniec okresu w bazie: ${formatUnix(verdict.localPeriodEnd)}`,
+    "",
+    verdict.reason,
+  ].join("\n");
 }
 
 /** Sekundy uniksowe -> czytelny znacznik ISO (albo `-`). */

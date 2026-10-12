@@ -116,7 +116,11 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.client }));
-vi.mock("@/lib/stripe.server", () => ({
+// Reszta modułu operatora (np. `environmentGrantsAccess`) zostaje PRAWDZIWA -
+// to czyste funkcje, z których korzysta dyspozytor; podmieniamy wyłącznie
+// weryfikację podpisu i klucz bramki.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   verifyWebhook: async () => h.event.value,
   // catalogAutoSync liczy odcisk integracji na starcie handlera.
   getConnectionApiKey: () => "test_key",
@@ -523,7 +527,25 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("duplikat zdarzenia nie dotyka żadnej warstwy", async () => {
-    seed({ user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" });
+    seed(
+      { user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" },
+      {
+        // Wiersz dziennika DOMKNIĘTY - dopiero to czyni dostawę duplikatem.
+        // Konflikt klucza bez widocznego wiersza to „w toku" (409), nie duplikat.
+        payment_webhook_events: [
+          {
+            data: {
+              id: "row_done",
+              status: "processed",
+              created_at: "2026-07-29T10:00:01.000Z",
+              last_retried_at: null,
+              retry_count: 0,
+            },
+            error: null,
+          },
+        ],
+      },
+    );
     h.state.write = { data: null, error: { code: "23505", message: "duplicate" } };
     h.event.value = subEvent("customer.subscription.updated", { status: "paused" });
 

@@ -11,10 +11,16 @@
 //   3. brak walidacji pliku stanu przekazywanego między krokami joba.
 import { describe, expect, it } from "vitest";
 import {
+  type LocalSubscriptionRow,
+  type LocalWebhookRow,
   type ProbeState,
   type StripeInvoice,
   type StripeSubscription,
+  LOCAL_PERIOD_TOLERANCE_S,
+  classifyLocalSync,
   classifyRenewal,
+  combineOutcomes,
+  renderLocalSyncSummary,
   formatUnix,
   isFailure,
   parseProbeState,
@@ -321,5 +327,159 @@ describe("incomplete or corrupt renewal evidence", () => {
     expect(
       renderVerifySummary({ state: state(), subscription: sub, verdict, dunningCensus: 0 }),
     ).toContain("`in_new` (-)");
+  });
+});
+
+// PAY-17c: sonda potwierdzała wyłącznie stan U OPERATORA. Zielony przebieg był
+// możliwy, gdy nasz webhook w ogóle nie odebrał odnowienia - czyli dokładnie
+// w awarii, w której klient płaci, a dostęp mu wygasa.
+describe("nasza strona: dziennik webhooków i wiersz subskrypcji", () => {
+  const ARMED_AT = "2026-08-06T02:40:00.000Z";
+  const NEW_PERIOD_END = PERIOD_END + 2_592_000;
+
+  function logRow(overrides: Partial<LocalWebhookRow> = {}): LocalWebhookRow {
+    return {
+      event_id: "evt_renewal",
+      event_type: "subscription.updated",
+      status: "processed",
+      error: null,
+      created_at: "2026-08-06T02:41:10.000Z",
+      ...overrides,
+    };
+  }
+
+  function localSub(periodEnd: number | null = NEW_PERIOD_END): LocalSubscriptionRow {
+    return {
+      provider_subscription_id: "sub_probe",
+      status: "active",
+      current_period_end: periodEnd === null ? null : new Date(periodEnd * 1000).toISOString(),
+    };
+  }
+
+  function check(
+    over: {
+      rows?: LocalWebhookRow[];
+      subscription?: LocalSubscriptionRow | null;
+      stripePeriodEnd?: number | null;
+      deadlineReached?: boolean;
+    } = {},
+  ) {
+    return classifyLocalSync({
+      state: state({ armedAt: ARMED_AT }),
+      stripePeriodEnd: over.stripePeriodEnd === undefined ? NEW_PERIOD_END : over.stripePeriodEnd,
+      webhookRows: over.rows ?? [logRow()],
+      subscription: over.subscription === undefined ? localSub() : over.subscription,
+      deadlineReached: over.deadlineReached ?? true,
+    });
+  }
+
+  it("zielono: przetworzone `subscription.*` po zbrojeniu i okres w bazie nadąża", () => {
+    const verdict = check();
+
+    expect(verdict).toMatchObject({
+      outcome: "synced",
+      processedEvents: 1,
+      failedEvents: [],
+      localPeriodEnd: NEW_PERIOD_END,
+    });
+    expect(combineOutcomes("renewed", verdict)).toBe("renewed");
+    expect(combineOutcomes("dunning", verdict)).toBe("dunning");
+  });
+
+  // KRYTERIUM PAY-17c.
+  it("CZERWONO: brak przetworzonego wpisu w dzienniku (po terminie)", () => {
+    const verdict = check({ rows: [] });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.reason).toContain("PRZETWORZONEGO");
+    expect(combineOutcomes("renewed", verdict)).toBe("failed");
+  });
+
+  it("CZERWONO: wpis `processed` sprzed zbrojenia nie potwierdza dzisiejszego odnowienia", () => {
+    const verdict = check({ rows: [logRow({ created_at: "2026-08-05T02:41:10.000Z" })] });
+
+    expect(verdict).toMatchObject({ outcome: "failed", processedEvents: 0 });
+  });
+
+  it("CZERWONO: przetworzone zdarzenie innego typu (transakcja) nie zastępuje zdarzenia subskrypcji", () => {
+    const verdict = check({ rows: [logRow({ event_type: "transaction.completed" })] });
+
+    expect(verdict).toMatchObject({ outcome: "failed", processedEvents: 0 });
+  });
+
+  it("CZERWONO OD RAZU: wpis `failed` w oknie, nawet obok przetworzonego i przed terminem", () => {
+    const failed = logRow({
+      event_id: "evt_invoice",
+      event_type: "transaction.completed",
+      status: "failed",
+      error: "deadlock detected",
+    });
+
+    const verdict = check({ rows: [logRow(), failed], deadlineReached: false });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.failedEvents).toEqual([failed]);
+    expect(verdict.reason).toContain("evt_invoice");
+    expect(verdict.reason).toContain("deadlock detected");
+  });
+
+  it("stary wpis `failed` sprzed zbrojenia NIE oblewa dzisiejszego przebiegu", () => {
+    const verdict = check({
+      rows: [logRow(), logRow({ status: "failed", created_at: "2026-08-01T00:00:00.000Z" })],
+    });
+
+    expect(verdict.outcome).toBe("synced");
+  });
+
+  it("CZERWONO: okres w bazie nieprzesunięty (po terminie)", () => {
+    const verdict = check({ subscription: localSub(PERIOD_END) });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.reason).toContain("NIE nadąża");
+    expect(verdict.localPeriodEnd).toBe(PERIOD_END);
+  });
+
+  it("CZERWONO: brak wiersza subskrypcji mimo przetworzonego zdarzenia", () => {
+    const verdict = check({ subscription: null });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.reason).toContain("Brak wiersza");
+  });
+
+  it("tolerancja kilku sekund na zaokrąglenia znacznika czasu - ale nie więcej", () => {
+    expect(
+      check({ subscription: localSub(NEW_PERIOD_END - LOCAL_PERIOD_TOLERANCE_S) }).outcome,
+    ).toBe("synced");
+    expect(
+      check({ subscription: localSub(NEW_PERIOD_END - LOCAL_PERIOD_TOLERANCE_S - 1) }).outcome,
+    ).toBe("failed");
+  });
+
+  it("przed terminem brak śladu to „jeszcze nie” (odpytujemy dalej), nie porażka", () => {
+    // Dostawa webhooka jest asynchroniczna - nasza strona może być sekundy za
+    // operatorem. Porażką staje się dopiero po terminie odpytywania.
+    expect(check({ rows: [], deadlineReached: false }).outcome).toBe("waiting");
+    expect(check({ subscription: localSub(PERIOD_END), deadlineReached: false }).outcome).toBe(
+      "waiting",
+    );
+  });
+
+  it("werdykt operatora inny niż sukces wygrywa - naszej strony wtedy nie ma czego pytać", () => {
+    const failedLocal = check({ rows: [] });
+
+    expect(combineOutcomes("failed", failedLocal)).toBe("failed");
+    expect(combineOutcomes("pending", failedLocal)).toBe("pending");
+    expect(combineOutcomes("skipped", null)).toBe("skipped");
+    // Brak sprawdzenia naszej strony (przebieg ręczny bez konfiguracji).
+    expect(combineOutcomes("renewed", null)).toBe("renewed");
+  });
+
+  it("podsumowanie naszej strony pokazuje wynik, liczniki, okres i uzasadnienie", () => {
+    const summary = renderLocalSyncSummary(check({ rows: [] }));
+
+    expect(summary).toContain("### Sonda odnowienia - nasza strona");
+    expect(summary).toContain("✗ nasza strona nie nadąża");
+    expect(summary).toContain("po zbrojeniu: 0");
+    expect(summary).toContain(formatUnix(NEW_PERIOD_END));
   });
 });

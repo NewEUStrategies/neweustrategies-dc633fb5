@@ -1,10 +1,12 @@
 // Harmonogram rozliczeń: POST /api/public/billing-cron.
 //
 // PO CO TEN PLIK ISTNIEJE. To jest PUBLICZNY adres, pod który każdy z internetu
-// może wysłać POST-a, a za nim stoi trzy zadania dotykające PIENIĘDZY i DOSTĘPU:
+// może wysłać POST-a, a za nim stoją zadania dotykające PIENIĘDZY i DOSTĘPU:
 //   * `runBillingReminders`      - masowa wysyłka maili do płacących klientów,
 //   * `sendSeatGraceReminders`   - maile o kończącej się karencji miejsc,
-//   * `expireSeatGrace`          - realne ODEBRANIE dostępu członkom zespołów.
+//   * `expireSeatGrace`          - realne ODEBRANIE dostępu członkom zespołów,
+//   * `sweepWebhookEvents`       - dobowa siatka zamiatarki dziennika płatności
+//                                  (ponowienie zdarzeń operatora, które padły).
 // Jedyną bramką jest współdzielony sekret w nagłówku `x-billing-cron-secret`.
 // Do 31.08.2026 ten plik nie miał ANI JEDNEGO testu (0% linii, 0 z 8 funkcji),
 // czyli zdjęcie bramki albo odwrócenie porównania sekretu przechodziłoby przez
@@ -22,7 +24,8 @@
 // GRANICE, KTÓRE ATRAPUJEMY: klient Supabase (service role) i dostawca poczty
 // (`sendTxEmail`). WSZYSTKO inne biegnie PRAWDZIWE - `reminders.server`,
 // `notifications.server`, `purchaseEffects.server`, `teamSeats.server`,
-// limiter po IP i porównanie sekretu w stałym czasie. To one są przedmiotem
+// zamiatarka `webhookReplay.server`, limiter po IP i porównanie sekretu
+// w stałym czasie. To one są przedmiotem
 // dowodu, więc atrapowanie ich zamieniłoby ten plik w test atrapy.
 //
 // RODO: żaden adres w tym pliku nie jest prawdziwy - wyłącznie example.com /
@@ -204,6 +207,8 @@ interface SeedOptions {
   /** Czy istnieje profil odbiorcy - bez niego mail nie ma dokąd pójść. */
   profile?: boolean;
   jobRunner?: { enabled: boolean; secret: string } | null | "error";
+  /** Kandydaci zamiatarki dziennika płatności; `"error"` = odmowa bazy. */
+  webhookEvents?: Record<string, unknown>[] | "error";
 }
 
 function seed(options: SeedOptions = {}): void {
@@ -266,6 +271,11 @@ function seed(options: SeedOptions = {}): void {
             seats_grace_reminder_days: options.orgReminderDays ?? null,
           })),
     ),
+  );
+
+  const webhookEvents = options.webhookEvents ?? [];
+  stub.setResponse("payment_webhook_events", () =>
+    webhookEvents === "error" ? fail("webhook log unavailable", "57014") : ok(webhookEvents),
   );
 
   const runner = options.jobRunner;
@@ -364,19 +374,27 @@ describe("autoryzacja: współdzielony sekret w nagłówku", () => {
     expect(db.current!.chainsFor("subscriptions")).toHaveLength(1);
   });
 
-  it("gdy BILLING_CRON_SECRET nie jest ustawiony, wchodzi COMMUNITY_CRON_SECRET", async () => {
+  // KRYTERIUM PAY-17a. DEFEKT NAPRAWIONY (kod produkcyjny).
+  //
+  // CO BYŁO ZŁE. Bez `BILLING_CRON_SECRET` endpoint przyjmował
+  // `COMMUNITY_CRON_SECRET` - sekret harmonogramu społeczności (push, digesty),
+  // z innym właścicielem, inną rotacją i szerszym gronem znających go osób.
+  // Znajomość sekretu od digestów otwierała masową wysyłkę maili do
+  // abonentów i odbieranie dostępu zespołom.
+  it("tylko COMMUNITY_CRON_SECRET w środowisku -> 401 i żadne zadanie nie ruszyło", async () => {
     vi.stubEnv("BILLING_CRON_SECRET", "");
     vi.stubEnv("COMMUNITY_CRON_SECRET", "sekret-spolecznosciowy");
+    seed({ jobRunner: null, subscriptions: [sub()] });
 
     const res = await post({ secret: "sekret-spolecznosciowy" });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
+    expect(db.current!.chainsFor("subscriptions")).toHaveLength(0);
+    expect(db.current!.chainsFor("payment_webhook_events")).toHaveLength(0);
+    expect(mail.sent).toEqual([]);
   });
 
-  it("gdy BILLING_CRON_SECRET JEST ustawiony, sekret społecznościowy NIE działa", async () => {
-    // Kolejność `BILLING || COMMUNITY` to reguła bezpieczeństwa, nie kosmetyka:
-    // rotacja sekretu billingu nie może zostawić czynnego starego sekretu
-    // drugiego harmonogramu.
+  it("gdy BILLING_CRON_SECRET JEST ustawiony, sekret społecznościowy też NIE działa", async () => {
     vi.stubEnv("COMMUNITY_CRON_SECRET", "sekret-spolecznosciowy");
 
     const res = await post({ secret: "sekret-spolecznosciowy" });
@@ -965,6 +983,47 @@ describe("izolacja zadań w cyklu", () => {
       "team_seat_access_ended",
       "team_seat_grace_reminder",
     ]);
+  });
+});
+
+// ===========================================================================
+// ZAMIATARKA DZIENNIKA PŁATNOŚCI - dobowa siatka bezpieczeństwa
+// ===========================================================================
+describe("zadanie 4: zamiatarka dziennika płatności", () => {
+  it("biegnie w każdym cyklu i raportuje liczniki w odpowiedzi", async () => {
+    // Ścieżką podstawową jest tick zadań co 5 minut; tu jest siatka na wypadek
+    // stojącego pg_cron - bez niej zdarzenie, które padło, czekałoby na
+    // człowieka z rolą `super_admin`.
+    const res = await run();
+
+    expect(res.status).toBe(200);
+    expect(section(await body(res), "webhookSweep")).toMatchObject({
+      scanned: 0,
+      processed: 0,
+      failed: 0,
+    });
+    const query = db.current!.chainsFor("payment_webhook_events")[0];
+    expect(query?.argsOf("in")).toEqual(["status", ["failed", "received"]]);
+  });
+
+  it("awaria zamiatarki NIE zmienia kodu odpowiedzi - o 500 decydują wyłącznie przypomnienia", async () => {
+    seed({ webhookEvents: "error" });
+
+    const res = await run();
+
+    expect(res.status).toBe(200);
+    expect(section(await body(res), "webhookSweep")).toMatchObject({
+      error: "webhook sweep read failed: webhook log unavailable",
+    });
+  });
+
+  it("padnięcie przypomnień NIE zabija zamiatarki", async () => {
+    seed({ subscriptions: "error" });
+
+    const res = await run();
+
+    expect(res.status).toBe(500);
+    expect(db.current!.chainsFor("payment_webhook_events")).toHaveLength(1);
   });
 });
 

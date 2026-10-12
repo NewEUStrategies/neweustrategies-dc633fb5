@@ -1,9 +1,17 @@
 // Harmonogram rozliczeń: automatyczne przypomnienia mailowe o zbliżającym się
-// odnowieniu subskrypcji oraz o kończącym się dostępie po anulowaniu.
+// odnowieniu subskrypcji oraz o kończącym się dostępie po anulowaniu, domknięcie
+// karencji miejsc zespołowych i dobowa siatka bezpieczeństwa zamiatarki
+// dziennika płatności (ścieżką podstawową jest tick zadań co 5 minut).
 //
 // Wywoływany przez zewnętrzny scheduler raz na dobę z sekretem w nagłówku.
 // Idempotencja żyje w warstwie wysyłki (klucz = subskrypcja + data graniczna),
 // więc powtórne wywołania są bezpieczne.
+//
+// Sekret jest WŁASNY: `BILLING_CRON_SECRET` w środowisku albo sekret runnera
+// zadań z `job_runner_settings` (pg_cron). Dawny fallback na
+// `COMMUNITY_CRON_SECRET` wiązał dostęp do maili do wszystkich abonentów i do
+// odbierania dostępu zespołom z sekretem harmonogramu społeczności - innym
+// właścicielem, inną rotacją i szerszym gronem znających go osób.
 //
 //   curl -X POST https://neweuropeanstrategies.com/api/public/billing-cron \
 //     -H "x-billing-cron-secret: $BILLING_CRON_SECRET" \
@@ -14,6 +22,13 @@ import { timingSafeEqual } from "node:crypto";
 import { createRateLimiter, rateLimitIpSubject } from "@/lib/http/rateLimit";
 
 const limiter = createRateLimiter({ capacity: 10, refillPerSec: 0.2 });
+
+/**
+ * Okno zamiatarki dziennika płatności w dobowym cyklu (ms od jej startu).
+ * Harmonogram w bazie (`invoke_billing_cron`, pg_net) czeka na odpowiedź
+ * 25 s, a przed zamiatarką biegną trzy zadania - 10 s zostawia im zapas.
+ */
+const WEBHOOK_SWEEP_WINDOW_MS = 10_000;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -29,7 +44,7 @@ function constantEquals(provided: string, expected: string): boolean {
 }
 
 function envSecretMatches(provided: string | null): boolean {
-  const expected = process.env.BILLING_CRON_SECRET || process.env.COMMUNITY_CRON_SECRET;
+  const expected = process.env.BILLING_CRON_SECRET;
   if (!expected || !provided) return false;
   return constantEquals(provided, expected);
 }
@@ -122,6 +137,19 @@ export const Route = createFileRoute("/api/public/billing-cron")({
             perOrg: true,
           }));
           const seats = await expireSeatGrace().catch(() => ({ expired: 0, notified: 0 }));
+          // Dobowa siatka bezpieczeństwa zamiatarki dziennika płatności - na
+          // wypadek, gdyby tick zadań (pg_cron co minutę) stał. Zamiatarka nie
+          // rzuca, a jej wynik NIE zmienia kodu odpowiedzi: o 500 decydują
+          // wyłącznie przypomnienia, jak dotąd. Własny termin: jedno
+          // odtworzenie potrafi czekać na operatora (limit SDK 10 s), a
+          // reszta partii wróci w ticku zadań za kilka minut.
+          const webhookSweep = await import("@/lib/billing/webhookReplay.server")
+            .then(({ sweepWebhookEvents }) =>
+              sweepWebhookEvents({ deadlineAt: Date.now() + WEBHOOK_SWEEP_WINDOW_MS }),
+            )
+            .catch((err: unknown) => ({
+              error: err instanceof Error ? err.message : String(err),
+            }));
 
           // KONTRAKT ODPOWIEDZI ZOSTAJE BEZ ZMIAN: padnięcie przypomnień nadal
           // daje 500 `cron_failed`, bo zewnętrzny scheduler opiera na tym kodzie
@@ -139,6 +167,7 @@ export const Route = createFileRoute("/api/public/billing-cron")({
             ...result,
             seatGraceReminders: reminders,
             seatGrace: seats,
+            webhookSweep,
           });
         } catch (err) {
           console.error("[billing-cron] failed", err);

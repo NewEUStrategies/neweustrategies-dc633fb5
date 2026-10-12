@@ -27,6 +27,7 @@ import { countTickFailures, type SchedulerSource } from "@/lib/jobs/scheduler";
 import type { ParticipantJobResult } from "@/lib/events/jobs/types";
 import { recordJobRun } from "@/lib/server/jobScheduler.server";
 import type { PendingTicketRevocationsResult } from "@/lib/events/ticketRevokedNotify.server";
+import type { WebhookSweepResult } from "@/lib/billing/webhookReplay.server";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -74,6 +75,13 @@ export interface JobsTickResult {
    * baza nie ma jeszcze funkcji zajęcia (migracje produkcji idą ręcznie).
    */
   eventTicketRevocations: PendingTicketRevocationsResult | { error: string };
+  /**
+   * Zamiatarka dziennika płatności: zdarzenia operatora `failed` (z odstępem
+   * rosnącym wykładniczo) i porzucone `received` są ponawiane tą samą ścieżką
+   * co dostawa od operatora. Co 5 minut - w typowym ticku to jeden pusty
+   * odczyt; własny termin chroni joby sieciowe po nim.
+   */
+  webhookSweep: WebhookSweepResult | { error: string };
   /**
    * `archived`/`alerted`: skaner nie tylko raportuje martwe linki, ale też
    * dobiera im migawkę Internet Archive i - po przekroczeniu progu - powiadamia
@@ -179,6 +187,14 @@ const TICKET_CODES_DEADLINE_MS = 18_000;
  */
 const TICKET_REVOCATIONS_DEADLINE_MS = 20_000;
 
+/**
+ * Okno zamiatarki dziennika płatności, liczone od JEJ startu i przycięte do
+ * budżetu ticku. Jedno odtworzenie zdarzenia to kilka zapytań i czasem
+ * żądanie do operatora (limit SDK 10 s), więc 8 s mieści kilka wierszy, a
+ * reszta wraca za 5 minut - przejęcia są warunkowe, nic się nie dubluje.
+ */
+const WEBHOOK_SWEEP_WINDOW_MS = 8_000;
+
 /** Uruchamia krok joba tylko w ramach budżetu czasu; błąd/pominięcie łapie w
  *  wspólnym kształcie `{ error }` (każde pole JobsTickResult go dopuszcza). */
 async function runJobStep<T>(
@@ -277,6 +293,21 @@ export async function runJobsTick(
     const { runPendingTicketRevocations } = await import("@/lib/events/ticketRevokedNotify.server");
     return runPendingTicketRevocations(20, startedAt + TICKET_REVOCATIONS_DEADLINE_MS);
   });
+  // Zamiatarka dziennika płatności: PO wysyłkach 1:1 (one starzeją się
+  // szybciej), ale PRZED jobami kosztownymi sieciowo - zdarzenie, które padło,
+  // to klient, który zapłacił i czeka na dostęp. Co 5 minut: odstęp ponowień
+  // i tak liczy się w minutach, a pusty dziennik kosztuje jeden odczyt.
+  const webhookSweep = everyNthMinute(5, tickTime)
+    ? await runJobStep(overBudget, async () => {
+        const { sweepWebhookEvents } = await import("@/lib/billing/webhookReplay.server");
+        return sweepWebhookEvents({
+          deadlineAt: Math.min(
+            Date.now() + WEBHOOK_SWEEP_WINDOW_MS,
+            startedAt + JOBS_TICK_DEADLINE_MS,
+          ),
+        });
+      })
+    : skipped;
   // Rotacyjny skan linków wychodzących (B7): 6 wpisów co 15 minut zamiast 3 co
   // minutę - ta sama przepustowość dzienna przy ~15x mniejszym ruchu HTTP.
   const linkCheck = everyNthMinute(15, tickTime)
@@ -353,6 +384,7 @@ export async function runJobsTick(
     crmTaskReminders,
     eventTicketCodes,
     eventTicketRevocations,
+    webhookSweep,
     linkCheck,
     integrations,
     semanticIndex,
