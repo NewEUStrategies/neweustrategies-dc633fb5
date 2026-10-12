@@ -60,7 +60,11 @@ import {
 } from "@/lib/admin/community";
 
 export const Route = createFileRoute("/admin/community/qa")({
-  head: () => adminPageHead("Community Q&A", "Manage community questions and scheduled Q&A sessions. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Community Q&A",
+      "Manage community questions and scheduled Q&A sessions. New European Strategies administration.",
+    ),
   component: AdminCommunityQa,
 });
 

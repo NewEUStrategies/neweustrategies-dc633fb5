@@ -19,8 +19,8 @@
 //     fikcyjną cenę przekreśloną.
 //
 // Baza pilnuje tego samego przy zapisie zamówienia (`payment_orders_secure_insert`,
-// 20261012090300) i przy rozliczeniu (`payments_apply_event_ticket_outcome`,
-// 20261012090100) - ten plik daje kupującemu powód odmowy, zanim powstanie
+// 20261012130300) i przy rozliczeniu (`payments_apply_event_ticket_outcome`,
+// 20261012130100) - ten plik daje kupującemu powód odmowy, zanim powstanie
 // zamówienie.
 
 /** Pola ładunku, które decydują o ścieżce wyceny. */

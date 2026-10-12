@@ -22,7 +22,7 @@
 --   * panel: `admin_event_ticket_tax_profile` / `admin_event_ticket_set_tax_profile`
 --     (bilet) oraz `admin_event_package_terms` i nowe klucze
 --     `admin_event_package_upsert` (pakiet: profil podatkowy + warunki zakupu
---     z 20261012090000 - termin platnosci, limit otwartych zamowien, zaufanie
+--     z 20261012130000 - termin platnosci, limit otwartych zamowien, zaufanie
 --     do faktury).
 --
 -- IDEMPOTENTNA: IF NOT EXISTS / CREATE OR REPLACE.
@@ -642,11 +642,12 @@ END;
 $function$;
 
 CREATE OR REPLACE FUNCTION public._event_invoice_issue_core(p_tenant uuid, p_actor uuid, p_invoice uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
-AS $function$
+RETURNS jsonb
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 DECLARE
   v_inv public.event_invoices;
   v_target public.event_invoices;
@@ -664,6 +665,15 @@ DECLARE
   v_bad integer;
   v_open integer;
   v_open_anchors integer;
+  v_np boolean;
+  v_np_basis text;
+  v_rc boolean;
+  v_sources_gross bigint := 0;
+  v_all_paid boolean := true;
+  v_lines_gross bigint;
+  v_fx_basis date;
+  v_fx public.nbp_exchange_rates;
+  v_summary jsonb;
 BEGIN
   SELECT * INTO v_inv FROM public.event_invoices i
    WHERE i.id = p_invoice AND i.tenant_id = p_tenant
@@ -686,9 +696,45 @@ BEGIN
   v_buyer := public._event_invoice_buyer_clean(public._event_invoice_buyer_json(v_inv));
   v_exempt := EXISTS (SELECT 1 FROM public.event_invoice_lines l
                        WHERE l.invoice_id = v_inv.id AND l.tenant_id = p_tenant AND l.vat_rate = 'zw');
+  -- TIX-09: podstawa zwolnienia z biletu/pakietu (szkic) wystarcza - ustawienia
+  -- najemcy sa ostatnim szczeblem, nie jedynym.
   IF v_exempt AND btrim(COALESCE(NULLIF(btrim(v_inv.vat_exempt_basis), ''),
                                  v_settings.vat_exempt_basis)) = '' THEN
     RAISE EXCEPTION 'vat_exempt_basis_required: exempt lines need the legal basis in issuer settings'
+      USING ERRCODE = '22023';
+  END IF;
+  IF v_inv.kind = 'correction' THEN
+    SELECT * INTO v_target FROM public.event_invoices i
+     WHERE i.id = v_inv.corrects_invoice_id AND i.tenant_id = p_tenant
+     FOR UPDATE;
+  END IF;
+  -- ZMIANA (INV-12): stawka "np" wymaga podstawy prawnej (szkic > faktura
+  -- korygowana > ustawienia wystawcy), a odwrotne obciazenie - nabywcy-firmy
+  -- spoza Polski, samych pozycji "np" i (nabywca z UE) waznej weryfikacji VIES
+  -- tego samego numeru z ostatnich 30 dni. Korekta dziedziczy decyzje faktury.
+  v_np := EXISTS (SELECT 1 FROM public.event_invoice_lines l
+                   WHERE l.invoice_id = v_inv.id AND l.tenant_id = p_tenant AND l.vat_rate = 'np');
+  v_np_basis := COALESCE(NULLIF(btrim(v_inv.np_basis), ''), NULLIF(btrim(v_target.np_basis), ''),
+                         btrim(v_settings.vat_np_basis));
+  IF v_np AND v_np_basis = '' THEN
+    RAISE EXCEPTION 'vat_np_basis_required: lines outside the scope of Polish VAT need the legal basis'
+      USING ERRCODE = '22023';
+  END IF;
+  v_rc := CASE
+    WHEN v_inv.kind = 'correction' AND v_inv.reverse_charge IS NULL THEN COALESCE(v_target.reverse_charge, false)
+    ELSE COALESCE(public._event_invoice_reverse_charge(p_tenant, v_inv.id), false)
+  END;
+  IF v_rc AND (NOT (v_buyer->>'is_company')::boolean OR v_buyer->>'country' = 'PL'
+               OR EXISTS (SELECT 1 FROM public.event_invoice_lines l
+                           WHERE l.invoice_id = v_inv.id AND l.tenant_id = p_tenant AND l.vat_rate <> 'np')) THEN
+    RAISE EXCEPTION 'reverse_charge_invalid: reverse charge needs a foreign company buyer and only np lines'
+      USING ERRCODE = '22023';
+  END IF;
+  IF v_rc AND v_inv.kind <> 'correction' AND public._event_invoice_eu_country(v_buyer->>'country')
+     AND NOT (COALESCE(v_inv.buyer_vies_valid, false)
+              AND v_inv.buyer_vies_subject = public._event_invoice_vies_subject(v_buyer->>'country', v_buyer->>'tax_id')
+              AND v_inv.buyer_vies_checked_at >= now() - interval '30 days') THEN
+    RAISE EXCEPTION 'vies_verification_required: verify the EU VAT number of the buyer in VIES first'
       USING ERRCODE = '22023';
   END IF;
   IF v_inv.kind <> 'correction' AND v_inv.gross_cents < 0 THEN
@@ -733,7 +779,26 @@ BEGIN
         RAISE EXCEPTION 'source_changed: an order of this draft changed - create the draft again'
           USING ERRCODE = '22023';
       END IF;
+      -- ZMIANA (INV-14): oplacone zrodlo musi miec kwote, ktora wplynela.
+      IF (v_now->>'paid')::boolean AND v_now->>'basis' IN ('price_list', 'price_list_net') THEN
+        RAISE EXCEPTION 'payment_amount_unbooked: record the amount of the transfer before invoicing a paid order'
+          USING ERRCODE = '22023';
+      END IF;
+      v_all_paid := v_all_paid AND (v_now->>'paid')::boolean;
+      v_sources_gross := v_sources_gross + (v_now->>'gross')::bigint;
     END LOOP;
+    -- ZMIANA (INV-14): faktura za OPLACONE zamowienia dokumentuje wplate -
+    -- suma pozycji musi byc rowna kwocie, ktora wplynela (karta po zwrotach,
+    -- wplata zaksiegowana, pakiet). Dawniej rozjazd byl tylko ostrzezeniem
+    -- w edytorze, a faktura za przelew z rabatem wychodzila na cene z cennika.
+    SELECT COALESCE(sum(l.gross_cents), 0)::bigint INTO v_lines_gross
+      FROM public.event_invoice_lines l WHERE l.invoice_id = v_inv.id AND l.tenant_id = p_tenant;
+    IF v_all_paid AND EXISTS (SELECT 1 FROM public.event_invoice_sources s
+                               WHERE s.invoice_id = v_inv.id AND s.tenant_id = p_tenant)
+       AND v_lines_gross <> v_sources_gross THEN
+      RAISE EXCEPTION 'amount_mismatch: invoice lines (%) differ from the payments of its orders (%)',
+        v_lines_gross, v_sources_gross USING ERRCODE = '22023';
+    END IF;
     -- Jeden nabywca (patrz _event_invoice_draft_build) - takze przy wystawieniu.
     IF (
       SELECT count(DISTINCT CASE
@@ -752,11 +817,14 @@ BEGIN
     END IF;
   END IF;
   IF v_inv.kind = 'correction' THEN
-    SELECT * INTO v_target FROM public.event_invoices i
-     WHERE i.id = v_inv.corrects_invoice_id AND i.tenant_id = p_tenant
-     FOR UPDATE;
     IF v_target.status IS DISTINCT FROM 'issued' THEN
       RAISE EXCEPTION 'correction_target_invalid: the corrected invoice is not issued'
+        USING ERRCODE = '22023';
+    END IF;
+    -- ZMIANA (INV-17): korekta wskazuje numer KSeF faktury korygowanej; gdy
+    -- faktura czeka na przyjecie w KSeF, numeru jeszcze nie ma.
+    IF v_target.ksef_status = 'sent' THEN
+      RAISE EXCEPTION 'correction_awaits_ksef: the corrected invoice still waits for its KSeF number'
         USING ERRCODE = '22023';
     END IF;
     -- STAN PO KOREKCIE musi byc czysty (patrz _event_invoice_state): bez
@@ -788,6 +856,34 @@ BEGIN
   IF v_due < v_today THEN
     RAISE EXCEPTION 'invalid_due_date: due date is before the issue date' USING ERRCODE = '22023';
   END IF;
+  -- ZMIANA (INV-06): dokument VAT w walucie obcej = kurs sredni NBP z ostatniego
+  -- dnia roboczego przed obowiazkiem podatkowym (art. 31a ust. 1-2) i VAT
+  -- w PLN (art. 106e ust. 11). Korekta bierze kurs faktury korygowanej
+  -- (art. 31a ust. 2b - kurs zastosowany pierwotnie). Brak kursu = odmowa,
+  -- a nie przeliczenie po kursie biezacym; serwer pobiera tabele NBP na
+  -- dzien wskazany w komunikacie (`fx_rate_required: <WALUTA> <RRRR-MM-DD>`).
+  IF v_inv.currency <> 'PLN' AND v_inv.kind <> 'proforma' THEN
+    IF v_inv.kind = 'correction' AND v_target.fx_rate IS NOT NULL THEN
+      v_fx.mid := v_target.fx_rate;
+      v_fx.table_no := v_target.fx_table_no;
+      v_fx.effective_date := v_target.fx_effective_date;
+    ELSE
+      v_fx_basis := CASE
+        WHEN v_inv.kind = 'correction'
+          THEN public._event_invoice_fx_basis(v_target.issue_date, v_target.sale_date, v_target.paid_at)
+        ELSE public._event_invoice_fx_basis(v_today, COALESCE(v_inv.sale_date, v_today), v_inv.paid_at)
+      END;
+      SELECT * INTO v_fx FROM public.nbp_exchange_rates r
+       WHERE r.currency = v_inv.currency AND r.rate_date = v_fx_basis - 1;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'fx_rate_required: % %', v_inv.currency, to_char(v_fx_basis - 1, 'YYYY-MM-DD')
+          USING ERRCODE = '22023';
+      END IF;
+    END IF;
+  END IF;
+  -- ZMIANA (INV-16): podsumowanie stawek od sumy w stawce, liczone NA NOWO
+  -- (korekta zalezy od stanu po wczesniej wystawionych korektach), z VAT w PLN.
+  v_summary := public._event_invoice_vat_summary(p_tenant, v_inv.id, v_fx.mid);
 
   v_series := CASE v_inv.kind
     WHEN 'proforma' THEN v_settings.series_proforma
@@ -821,6 +917,17 @@ BEGIN
          vat_exempt_basis = CASE
            WHEN v_exempt THEN COALESCE(NULLIF(btrim(v_inv.vat_exempt_basis), ''), v_settings.vat_exempt_basis)
            ELSE '' END,
+         np_basis = CASE WHEN v_np THEN v_np_basis ELSE '' END,
+         reverse_charge = v_rc,
+         vat_summary = v_summary,
+         net_cents = (SELECT COALESCE(sum((x.value->>'net_cents')::bigint), 0) FROM jsonb_array_elements(v_summary) x),
+         vat_cents = (SELECT COALESCE(sum((x.value->>'vat_cents')::bigint), 0) FROM jsonb_array_elements(v_summary) x),
+         gross_cents = (SELECT COALESCE(sum((x.value->>'gross_cents')::bigint), 0) FROM jsonb_array_elements(v_summary) x),
+         fx_rate = v_fx.mid,
+         fx_table_no = v_fx.table_no,
+         fx_effective_date = v_fx.effective_date,
+         vat_pln_cents = CASE WHEN v_fx.mid IS NULL THEN NULL ELSE
+           (SELECT COALESCE(sum((x.value->>'vat_pln_cents')::bigint), 0) FROM jsonb_array_elements(v_summary) x) END,
          ksef_status = CASE
            WHEN i.kind <> 'proforma' AND v_settings.seller_country = 'PL' THEN 'pending'
            ELSE 'not_applicable' END,
@@ -859,4 +966,4 @@ BEGIN
     'id', v_inv.id, 'number', v_num.out_number, 'kind', v_inv.kind, 'event_id', v_inv.event_id
   );
 END;
-$function$;
+$$;

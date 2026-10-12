@@ -3,7 +3,7 @@
 -- PAKIETY, RSVP, OKNO KODU, PODATEK (audyt biletow TIX-01..TIX-13b)
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracje 20261012090000..090200 zamykaja dziury, w ktorych pieniadze
+-- Migracje 20261012130000..090200 zamykaja dziury, w ktorych pieniadze
 -- i miejsca rozjezdzaly sie z tym, za co zaplacono. Kazda sekcja to
 -- kryterium akceptacji z audytu - scenariusz, ktory przed migracja dawal
 -- zly wynik:

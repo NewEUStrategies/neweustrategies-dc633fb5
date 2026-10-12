@@ -25,7 +25,12 @@ export const Route = createFileRoute("/events/$slug/discussions")({
   },
   head: ({ params, loaderData }) => {
     const url = getRequestUrl() || `/events/${params.slug}/discussions`;
-    return buildEventTabHead({ tab: "discussions", url, lang: activeLang(url), event: loaderData?.headEvent ?? null });
+    return buildEventTabHead({
+      tab: "discussions",
+      url,
+      lang: activeLang(url),
+      event: loaderData?.headEvent ?? null,
+    });
   },
   component: EventDiscussionsTab,
 });

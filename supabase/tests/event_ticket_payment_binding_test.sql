@@ -1,6 +1,6 @@
 -- pgTAP: wplata za bilet rozlicza WYLACZNIE zgloszenie, za ktore zaplacono
--- (migracje 20261012090100_event_ticket_payment_binding,
--- 20261012090300_payment_orders_purchase_shape_guard; audyt TIX-01, TIX-02, TIX-05).
+-- (migracje 20261012130100_event_ticket_payment_binding,
+-- 20261012130300_payment_orders_purchase_shape_guard; audyt TIX-01, TIX-02, TIX-05).
 --
 -- DEFEKT. Kasa doklejala `event_id` i `registration_id` do zamowienia
 -- wycenionego inna sciezka (artykul, plan), a webhook dopasowywal zgloszenie po

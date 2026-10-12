@@ -62,6 +62,35 @@ LANGUAGE sql AS $f$ SELECT set_config('nes.t27_' || _k, _v::text, false)::uuid $
 CREATE FUNCTION pg_temp.t27_today() RETURNS date
 LANGUAGE sql STABLE AS $f$ SELECT (now() AT TIME ZONE 'Europe/Warsaw')::date $f$;
 
+-- INV-14 (20261012100300): faktura za OPLACONY zapis poza kasa wymaga
+-- zaksiegowanej kwoty wplaty (`payment_amount_unbooked`). Scenariusze tego
+-- pliku powstaly przed ta regula, wiec przed wystawieniem ksieguja DOKLADNIE
+-- kwote z cennika - te, ktora faktury braly dotad - i kwoty oraz numery
+-- dokumentow zostaja bez zmian. Cennik netto (14c) zostaje niezaksiegowany:
+-- tam plik sprawdza sama podstawe kandydata i szkic, bez wystawienia. Wplate inna niz cennik i odmowe przy
+-- rozjezdzie sprawdza 27_invoices_compliance.sql.
+CREATE FUNCTION pg_temp.t27_book_paid() RETURNS integer
+LANGUAGE plpgsql AS $f$
+DECLARE n integer;
+BEGIN
+  WITH src AS (
+    SELECT r.id, public._event_invoice_registration_source(r.tenant_id, r.id, COALESCE(
+             (SELECT s.default_vat_rate FROM public.event_invoice_settings s WHERE s.tenant_id = r.tenant_id),
+             '23')) AS j
+      FROM public.event_registrations r
+     WHERE r.paid_amount_cents IS NULL AND r.group_lead_registration_id IS NULL
+       AND r.payment_status IN ('paid', 'partially_refunded')
+  )
+  UPDATE public.event_registrations r
+     SET paid_amount_cents = (src.j->>'gross')::bigint,
+         paid_amount_currency = src.j->>'currency',
+         paid_amount_recorded_at = now()
+    FROM src
+   WHERE r.id = src.id AND src.j->>'basis' = 'price_list' AND src.j->>'block' IS NULL;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END $f$;
+
 -- Bramka czestotliwosci: atrapa sterowana GUC-iem (deterministyczna odmowa).
 -- Ksztalt z 20260724221149; wycofywana razem z plikiem.
 DROP FUNCTION IF EXISTS public.rate_limit_hit(text, text, integer, integer);
@@ -160,6 +189,13 @@ INSERT INTO public.event_people (id, tenant_id, user_id, email, first_name, last
    NULL, 'stary@acme.example', 'Stefan', 'Stary', NULL),
   ('27300000-0000-0000-0000-0000000000b1', '27000000-0000-0000-0000-0000000000b0',
    NULL, 'b@orgb.example', 'Bartek', 'Obcy', NULL);
+
+-- Zamowienia tego pliku udaja zamowienia SPRZED stempla plaszczyzny rozliczen
+-- (INV-09, 20261012100000): `billing_plane` NULL, wiec obowiazuje regula
+-- zachowawcza z 20260927000201 (ustawienia kasy z chwili wystawienia + data
+-- ich zmiany). Stempel i jego niezmiennosc sprawdza 27_invoices_compliance.sql.
+-- DDL jest transakcyjne - ROLLBACK na koncu pliku wlacza trigger z powrotem.
+ALTER TABLE public.payment_orders DISABLE TRIGGER payment_orders_zz_billing_plane;
 
 -- O1: zamowienie z karty za zapis grupowy (2 miejsca, 246,01 zl - kwota NIE
 -- dzieli sie rowno, wiec faktura musi miec dwie pozycje). O6: zaplacone pol
@@ -476,9 +512,16 @@ BEGIN
    WHERE id = pg_temp.t27('req1');
 END $$;
 
+-- INV-15 (20261012100500): termin liczy sie od POZNIEJSZEJ z dat zaplaty
+-- i wydarzenia. Kongres za 30 dni trzymalby okno R6 (zaplata 5 miesiecy temu)
+-- otwarte, wiec na czas dwoch sprawdzen terminu wydarzenie jest juz za nami -
+-- wtedy obie daty sa dawno temu i prosba jest spozniona. Wydarzenie
+-- pozniejsze niz zaplata sprawdza 27_invoices_compliance.sql.
+UPDATE public.events SET starts_at = now() - interval '200 days'
+ WHERE id = '27e00000-0000-0000-0000-0000000000e1';
 SELECT pg_temp.assert_raises_like(
   $q$SELECT public.event_invoice_request_save('{"registration_id":"27400000-0000-0000-0000-000000000006","buyer":{"is_company":false,"name":"Stefan Stary","address":"ul. Stara 1","postal_code":"00-001","city":"Warszawa"}}')$q$,
-  'request_window_closed', '27/prosba: po koncu trzeciego miesiaca od zaplaty - za pozno');
+  'request_window_closed', '27/prosba: po koncu trzeciego miesiaca od zaplaty i wydarzenia - za pozno');
 SELECT pg_temp.assert_raises_like(
   $q$SELECT public.event_invoice_request_save('{"registration_id":"27400000-0000-0000-0000-000000000002","buyer":{"name":"Obcy"}}')$q$,
   'not_found', '27/prosba: cudzy zapis');
@@ -541,6 +584,8 @@ BEGIN
                            WHERE source_id = '27400000-0000-0000-0000-000000000003') IS NULL,
     '27/moje zamowienia: wycofana prosba nie wisi przy zamowieniu');
 END $$;
+UPDATE public.events SET starts_at = now() + interval '30 days'
+ WHERE id = '27e00000-0000-0000-0000-0000000000e1';
 
 SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a4', '27000000-0000-0000-0000-0000000000a0');
 SELECT pg_temp.assert((SELECT count(*) FROM public.event_my_invoice_sources()) = 0,
@@ -782,6 +827,11 @@ SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_get(pg_te
 -- 7) WYSTAWIENIE
 -- ---------------------------------------------------------------------------
 SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.t27_book_paid();
+-- R2 zaplacil przelewem bilet I parking - tyle, ile niesie szkic 'single' po
+-- edycji (sekcja 6: 123,00 + 2 x 10,50). Faktura dokumentuje te wplate.
+UPDATE public.event_registrations SET paid_amount_cents = 14400
+ WHERE id = '27400000-0000-0000-0000-000000000002';
 
 -- Kasa w trybie operatora (automatic_tax falsz; brak wiersza dziala tak samo)
 -- = operator jest sprzedawca (MoR).
@@ -1018,16 +1068,20 @@ SELECT pg_temp.assert_raises_like(
   $q$SELECT public.admin_event_invoice_ksef_update(jsonb_build_object('id', pg_temp.t27('final2'), 'status', 'sent'))$q$,
   'ksef_not_applicable', '27/KSeF: szkic nie idzie do KSeF');
 SELECT pg_temp.assert_raises_like(
-  $q$SELECT public.admin_event_invoice_ksef_update(jsonb_build_object('id', pg_temp.t27('single'), 'status', 'sent', 'number', repeat('1', 65)))$q$,
-  'invalid_ksef_number', '27/KSeF: numer dluzszy niz 64 znaki');
+  $q$SELECT public.admin_event_invoice_ksef_update(jsonb_build_object('id', pg_temp.t27('single'), 'status', 'accepted', 'number', repeat('1', 65)))$q$,
+  'invalid_ksef_number', '27/KSeF: numer dluzszy niz 64 znaki (i bez formatu numeru KSeF)');
 
+-- Numer KSeF (INV-17, 20261012100000): NIP SPRZEDAWCY (7011278375) - data
+-- przyjecia - 12 znakow hex - 2 znaki sumy; wielkosc liter i spacje
+-- normalizuje RPC.
 DO $$
 DECLARE i public.event_invoices;
+        v_number text := '7011278375-' || to_char(pg_temp.t27_today(), 'YYYYMMDD') || '-ABCDEF012345-01';
 BEGIN
   PERFORM public.admin_event_invoice_ksef_update(jsonb_build_object(
-    'id', pg_temp.t27('single'), 'status', 'accepted', 'number', ' 1132853869-20260926-ABCDEF-01 '));
+    'id', pg_temp.t27('single'), 'status', 'accepted', 'number', ' ' || lower(v_number) || ' '));
   SELECT * INTO i FROM public.event_invoices WHERE id = pg_temp.t27('single');
-  PERFORM pg_temp.assert(i.ksef_status = 'accepted' AND i.ksef_number = '1132853869-20260926-ABCDEF-01'
+  PERFORM pg_temp.assert(i.ksef_status = 'accepted' AND i.ksef_number = v_number
     AND i.ksef_updated_at IS NOT NULL,
     '27/KSeF: stan i numer zapisane (na wystawionym dokumencie - wolno)');
   PERFORM public.admin_event_invoice_set_paid(jsonb_build_object('id', pg_temp.t27('single'), 'paid_at', NULL));
@@ -1345,8 +1399,9 @@ SELECT pg_temp.assert(
                     'public.event_invoices'::regclass, 'public.event_invoice_requests'::regclass,
                     'public.event_invoice_sources'::regclass, 'public.event_invoice_lines'::regclass)),
   '27/RLS: wlaczony na wszystkich szesciu tabelach');
+-- Szosta polityka: dziennik KSeF (`event_invoice_ksef_events`, 20261012100000).
 SELECT pg_temp.assert(
-  (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename LIKE 'event_invoice%') = 5
+  (SELECT count(*) FROM pg_policies WHERE schemaname = 'public' AND tablename LIKE 'event_invoice%') = 6
   AND (SELECT bool_and(cmd = 'SELECT' AND qual LIKE '%is_super_admin%' AND qual NOT LIKE '%editor%'
                        AND roles = '{authenticated}')
          FROM pg_policies WHERE schemaname = 'public' AND tablename LIKE 'event_invoice%'),
@@ -1475,6 +1530,7 @@ INSERT INTO public.crm_companies (id, tenant_id, name, tax_id, created_at) VALUE
 
 -- 14a) KOREKTY OD STANU PO KOREKTACH -----------------------------------------
 SELECT pg_temp.act_as('27a00000-0000-0000-0000-0000000000a1', '27000000-0000-0000-0000-0000000000a0');
+SELECT pg_temp.t27_book_paid();
 
 DO $$
 DECLARE v_inv uuid; v_c1 uuid; v_c2 uuid; d jsonb;
@@ -1654,10 +1710,12 @@ BEGIN
   PERFORM pg_temp.assert(s.payment_order_id = '27600000-0000-0000-0000-000000000022' AND s.gross_cents = 9900
     AND s.covers AND s.paid_at IS NOT NULL,
     '27/proforma -> faktura: zrodlo w BIEZACYM stanie (zamowienie z karty, zaplacone 99,00), nie kopia proformy');
+  -- INV-14 (20261012100600): zaplacono 99,00 zamiast 123,00 z proformy -
+  -- faktura dokumentuje wplate, wiec pozycje ida z zamowienia, nie z proformy.
   PERFORM pg_temp.assert(
     (SELECT payment_method || '|' || (paid_at IS NOT NULL)::text FROM public.event_invoices WHERE id = v_final) = 'card|true'
-    AND pg_temp.t27_lines(v_final) = '1x12300@23',
-    '27/proforma -> faktura: platnosc karta i data zaplaty; pozycje z proformy (edytor pokaze rozjazd 123,00 vs 99,00)');
+    AND pg_temp.t27_lines(v_final) = '1x9900@23',
+    '27/proforma -> faktura: platnosc karta i data zaplaty; pozycje z faktycznej wplaty (99,00), nie z proformy (123,00)');
 END $$;
 SELECT pg_temp.assert_raises_like($q$SELECT public.admin_event_invoice_issue(pg_temp.t27('s3final'))$q$,
   'mor_seller_conflict', '27/proforma -> faktura: zaplata karta w trybie operatora - wlasnej faktury VAT nie wolno');
@@ -2200,6 +2258,7 @@ BEGIN
     AND (SELECT admission FROM public.admin_event_invoice_candidates('27e00000-0000-0000-0000-0000000000e1')
           WHERE source_id = '27400000-0000-0000-0000-000000000047') = 'seated',
     '27/miejsce: kandydat mowi, czy oplacony zapis ma miejsce (kolejka, decyzja; nieoplacony bez plakietki)');
+  PERFORM pg_temp.t27_book_paid();
   v := public.admin_event_invoice_issue_pending('{"event_id":"27e00000-0000-0000-0000-0000000000e1"}');
   SELECT jsonb_agg(x) INTO v_issued FROM jsonb_array_elements(v->'issued') AS e, jsonb_array_elements_text(e->'request_ids') AS x;
   SELECT jsonb_agg(x) INTO v_failed FROM jsonb_array_elements(v->'failed') AS e, jsonb_array_elements_text(e->'request_ids') AS x;

@@ -229,7 +229,7 @@ export async function releaseCouponForUser(
 }
 
 /**
- * Reguła kumulacji kodu z innymi promocjami biletu (TIX-13a, 20261012090000):
+ * Reguła kumulacji kodu z innymi promocjami biletu (TIX-13a, 20261012130000):
  * `stacks_with_promotions = false` - kod nie łączy się z fazą sprzedaży ani
  * benefitem planu; `max_total_discount_percent` - górny limit ŁĄCZNEGO rabatu
  * od ceny regularnej.

@@ -113,7 +113,7 @@ VALUES
    'firmowy_2', 'Pakiet firmowy 2', 'Corporate 2', 'company', 2, 100000, 'PLN', NULL);
 
 -- Ten plik sprawdza oddawanie uzycia kodu, nie limit otwartych zamowien
--- (20261012090000, TIX-07) - kupujacy sklada tu wiele zamowien.
+-- (20261012130000, TIX-07) - kupujacy sklada tu wiele zamowien.
 UPDATE public.event_ticket_packages SET max_open_orders_per_buyer = NULL
 WHERE id = '72900000-0000-0000-0000-0000000000a2';
 

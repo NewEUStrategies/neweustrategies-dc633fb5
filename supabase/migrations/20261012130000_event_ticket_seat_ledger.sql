@@ -97,7 +97,7 @@ ALTER TABLE public.event_package_orders
   ADD COLUMN IF NOT EXISTS pay_by timestamptz;
 
 COMMENT ON COLUMN public.event_package_orders.pay_by IS
-  'Termin platnosci zamowienia pakietu. NULL = bez terminu (zamowienie organizatora albo sprzed 20261012090000). Przeterminowane zamowienie pending bez delegata na miejscu anuluje _event_package_orders_expire.';
+  'Termin platnosci zamowienia pakietu. NULL = bez terminu (zamowienie organizatora albo sprzed 20261012130000). Przeterminowane zamowienie pending bez delegata na miejscu anuluje _event_package_orders_expire.';
 
 CREATE INDEX IF NOT EXISTS event_package_orders_pay_by_idx
   ON public.event_package_orders (pay_by)

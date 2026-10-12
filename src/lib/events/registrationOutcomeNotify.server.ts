@@ -255,7 +255,7 @@ export interface TicketOutcomePayload {
   newly_settled?: boolean;
   /** Powód `applied: false` (odmowa wpłaty albo zakup bez zgłoszenia). */
   reason?: string;
-  /** Baza odmówiła wpłaty (20261012090100, TIX-05). */
+  /** Baza odmówiła wpłaty (20261012130100, TIX-05). */
   refused?: boolean;
   /** Zadanie zwrotu czeka w `event_registration_refund_jobs`. */
   refund_queued?: boolean;

@@ -287,7 +287,7 @@ END $$;
 DO $$
 DECLARE v jsonb; v_ns public.event_registrations;
 BEGIN
-  -- Zamowienie wskazuje INNY (pelny) bilet niz zgloszenie: od 20261012090100
+  -- Zamowienie wskazuje INNY (pelny) bilet niz zgloszenie: od 20261012130100
   -- (TIX-01) to odmowa `ticket_mismatch` ze zwrotem w kolejce - kasa nigdy nie
   -- sklada takiego zamowienia, a zgloszenie zostaje nietkniete.
   v := public.payments_apply_event_ticket_outcome(
@@ -334,7 +334,7 @@ END $$;
 DO $$
 DECLARE v jsonb;
 BEGIN
-  -- Do 20261012090100 zamowienie na INNY bilet przenosilo czekajace zgloszenie
+  -- Do 20261012130100 zamowienie na INNY bilet przenosilo czekajace zgloszenie
   -- na bilet z zamowienia - taniej sciezki nikt nie musial nawet wyceniac.
   -- Teraz (TIX-01) to odmowa ze zwrotem; zgloszenie zostaje przy swoim bilecie.
   v := public.payments_apply_event_ticket_outcome(

@@ -246,7 +246,7 @@ export async function priceEventTicket(
 
   // PODATEK. Tryb (wliczony/doliczany) i kod podatkowy produktu pochodzą
   // z biletu; stawkę liczy Stripe z kodu - ta sama, którą bilet niesie na
-  // fakturę (`vat_rate`, 20261012090200).
+  // fakturę (`vat_rate`, 20261012130200).
   const { data: opts } = await supabase.rpc("event_ticket_public_options", {
     p_ticket_type_id: input.ticketTypeId,
   });

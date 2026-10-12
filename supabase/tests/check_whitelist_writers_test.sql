@@ -430,7 +430,7 @@ SELECT ok(EXISTS (
 -- 2. Schemat: zero naruszeń
 -- ----------------------------------------------------------------------------
 -- Dawny wyjątek - `event_package_invite_accept` pisał source='package_invitation'
--- do list, które tej wartości nie znały - zamknęła migracja 20261012090000
+-- do list, które tej wartości nie znały - zamknęła migracja 20261012130000
 -- (listy CHECK znają źródło zaproszenia, a konsumpcja zaproszenia zachowuje
 -- parę `event_package_seats_invite_pair`). Wyjątków nie ma.
 SELECT is_empty(

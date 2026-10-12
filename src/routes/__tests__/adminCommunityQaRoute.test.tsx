@@ -418,10 +418,13 @@ describe("/admin/community/qa - sklejenie trasy", () => {
     // zamontowany router (to, co faktycznie trafiłoby do `<HeadContent/>`).
     // Panel ma kilkadziesiąt podstron - bez tytułu operator z otwartymi
     // zakładkami widzi kilka identycznych kart.
-    expect(routeHead(QaAdminRoute).meta).toContainEqual({ title: "Q&A · Community · Admin" });
+    expect(routeHead(QaAdminRoute).meta).toContainEqual({
+      title: "Community Q&A | New European Strategies",
+    });
 
     const { meta } = await mount();
-    expect(meta()).toContainEqual({ title: "Q&A · Community · Admin" });
+    expect(meta()).toContainEqual({ title: "Community Q&A | New European Strategies" });
+    expect(meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
   });
 
   it("trasa wisi pod `/admin`, więc chroni ją bramka `isStaff` z układu nadrzędnego", () => {

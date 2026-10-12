@@ -11,6 +11,7 @@ import {
   buildEventInvoicePdf,
   downloadEventInvoicePdf,
   eventInvoicePdfLabels,
+  fxRateText,
 } from "@/lib/events/eventInvoicePdfLabels";
 import { invoiceDocumentJson } from "@/test/events/invoiceFixtures";
 
@@ -30,7 +31,9 @@ describe("eventInvoicePdfLabels", () => {
     const labels = eventInvoicePdfLabels(doc());
     expect(labels.title).toBe("Faktura VAT");
     expect(labels.paymentMethodValue).toBe("przelew");
-    expect(labels.columns.unitNet).toBe("Cena netto");
+    expect(labels.columns.unitGross).toBe("Cena jedn. brutto");
+    expect(labels.reverseCharge).toBe("odwrotne obciążenie");
+    expect(labels.fxLine).toBe("");
     expect(labels.rates).toEqual({
       "23": "23%",
       "8": "8%",
@@ -78,6 +81,43 @@ describe("eventInvoicePdfLabels", () => {
     expect(labels.paymentMethodValue).toBe("inny");
     expect(labels.correctsLine).toBe("Korekta do faktury  z dnia ");
     expect(labels.fileStem).toBe("proforma");
+  });
+});
+
+describe("kurs NBP na dokumencie (INV-06)", () => {
+  it("polski dokument: przecinek dziesietny, tabela, dzien i VAT w PLN", () => {
+    const labels = eventInvoicePdfLabels(
+      doc({
+        invoice: {
+          currency: "EUR",
+          fx_rate: 4.2731,
+          fx_table_no: "195/A/NBP/2026",
+          fx_effective_date: "2026-10-09",
+          vat_pln_cents: 19657,
+        },
+      }),
+    );
+    expect(labels.fxLine).toBe(
+      "Kurs średni NBP EUR: 4,2731 PLN, tabela 195/A/NBP/2026 z dnia 2026-10-09. Kwota VAT w PLN: 196,57 PLN.",
+    );
+  });
+
+  it("angielski dokument: kropka dziesietna; adnotacja ustawowa zostaje po polsku", () => {
+    const labels = eventInvoicePdfLabels(
+      doc({
+        invoice: {
+          locale: "en",
+          currency: "EUR",
+          fx_rate: 4.25,
+          fx_table_no: "1/A/NBP/2026",
+          fx_effective_date: "2026-01-02",
+          vat_pln_cents: 100,
+        },
+      }),
+    );
+    expect(labels.fxLine).toContain("4.2500 PLN, table 1/A/NBP/2026 of 2026-01-02");
+    expect(labels.reverseCharge).toBe("odwrotne obciążenie / reverse charge");
+    expect(fxRateText(4.2731, "pl")).toBe("4,2731");
   });
 });
 

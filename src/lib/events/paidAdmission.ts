@@ -55,7 +55,7 @@ export function paidAdmission(status: unknown): PaidAdmission {
  *   - `none`     - zamówienie nie jest biletem, który da się rozliczyć
  *                  (zanonimizowane konto).
  *
- * DO 20261012090100 KAŻDE `applied !== true` ZNACZYŁO „MIEJSCE". Odmowa bazy
+ * DO 20261012130100 KAŻDE `applied !== true` ZNACZYŁO „MIEJSCE". Odmowa bazy
  * (druga zakładka, wskazanie niezgodne) i połknięty błąd RPC dawały kupującemu
  * RSVP i drugi mail „miejsce zarezerwowane", a zgłoszenie zostawało
  * nieopłacone. Teraz miejsce daje wyłącznie zapis z miejscem albo jawna

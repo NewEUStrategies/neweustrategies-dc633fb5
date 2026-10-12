@@ -13,6 +13,10 @@ import {
   documentDraftFromDocument,
   documentDraftPreview,
   documentDraftToUpdate,
+  draftNeedsTaxSection,
+  draftReverseChargeEffective,
+  reverseChargeChoice,
+  reverseChargeValue,
   hasDocumentErrors,
   isDocumentDraftDirty,
   lineDraftAmounts,
@@ -192,6 +196,8 @@ describe("documentDraftToUpdate", () => {
       paymentMethod: "transfer",
       locale: "pl",
       note: "Uwaga",
+      npBasis: "",
+      reverseCharge: null,
       lines: [
         {
           description: "Bilet",
@@ -219,6 +225,77 @@ describe("documentDraftToUpdate", () => {
     );
     expect(update.correctionReason).toBe("Zwrot");
     expect(update.lines?.[0]).toMatchObject({ quantity: 0, unitGrossCents: 0 });
+  });
+});
+
+describe("podstawa np i odwrotne obciazenie (INV-12)", () => {
+  it("szkic z bazy: decyzja null = auto, podstawa ze szkicu", () => {
+    const parsed = parseInvoiceDocument(
+      invoiceDocumentJson({ invoice: { np_basis: "art. 28b", reverse_charge: true } }),
+    );
+    if (parsed === null) throw new Error("fixture");
+    expect(documentDraftFromDocument(parsed)).toMatchObject({
+      npBasis: "art. 28b",
+      reverseCharge: "yes",
+    });
+    expect(draft().reverseCharge).toBe("auto");
+    expect(reverseChargeChoice(false)).toBe("no");
+  });
+
+  it("zapis: auto = null, tak/nie = true/false, podstawa przycieta", () => {
+    expect(
+      documentDraftToUpdate("d", draft({ npBasis: " art. 28b ", reverseCharge: "no" }), "invoice"),
+    ).toMatchObject({ npBasis: "art. 28b", reverseCharge: false });
+    expect(reverseChargeValue("auto")).toBeNull();
+    expect(reverseChargeValue("yes")).toBe(true);
+  });
+
+  it("podstawa ponad 300 znakow blokuje zapis", () => {
+    expect(validateDocumentDraft(draft({ npBasis: "x".repeat(301) }), "invoice").document).toBe(
+      DOCUMENT_ERROR_KEYS.npBasisTooLong,
+    );
+  });
+
+  it("auto = pozycja np i firma spoza Polski (lustro _event_invoice_reverse_charge)", () => {
+    const foreign = { ...emptyBuyerDraft(), isCompany: true, country: "DE", name: "GmbH" };
+    const np = [line({ key: "a", vatRate: "np" })];
+    expect(draftReverseChargeEffective(draft({ buyer: foreign, lines: np }))).toBe(true);
+    expect(
+      draftReverseChargeEffective(draft({ buyer: { ...foreign, country: "PL" }, lines: np })),
+    ).toBe(false);
+    expect(
+      draftReverseChargeEffective(draft({ buyer: { ...foreign, isCompany: false }, lines: np })),
+    ).toBe(false);
+    expect(draftReverseChargeEffective(draft({ buyer: foreign, lines: [line()] }))).toBe(false);
+    expect(
+      draftReverseChargeEffective(draft({ buyer: foreign, lines: [line()], reverseCharge: "yes" })),
+    ).toBe(true);
+    expect(
+      draftReverseChargeEffective(draft({ buyer: foreign, lines: np, reverseCharge: "no" })),
+    ).toBe(false);
+  });
+
+  it("sekcja podatkowa: np, decyzja albo zagraniczna firma", () => {
+    expect(draftNeedsTaxSection(draft())).toBe(false);
+    expect(draftNeedsTaxSection(draft({ lines: [line({ vatRate: "np" })] }))).toBe(true);
+    expect(draftNeedsTaxSection(draft({ reverseCharge: "no" }))).toBe(true);
+    expect(
+      draftNeedsTaxSection(
+        draft({ buyer: { ...emptyBuyerDraft(), isCompany: true, country: "FR" } }),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("podglad korekty liczy roznice podatku od sum w stawce (INV-16)", () => {
+  it("before = brutto w stawce przed korekta", () => {
+    // Faktura 3 x 0,61 zl @23 (brutto 183 gr; VAT od sumy 34 gr). Korekta -1 szt.:
+    // po korekcie 122 gr (VAT 23 gr), roznica VAT = -11 gr, netto -50 gr.
+    const preview = documentDraftPreview(
+      draft({ lines: [line({ key: "a", quantity: "-1", unitGross: "0,61", vatRate: "23" })] }),
+      { "23": 183 },
+    );
+    expect(preview.totals).toEqual({ netCents: -50, vatCents: -11, grossCents: -61 });
   });
 });
 
