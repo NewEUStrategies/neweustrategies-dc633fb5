@@ -1032,6 +1032,8 @@ export type Database = {
       billing_documents: {
         Row: {
           amount_cents: number
+          billing_plane: string | null
+          buyer_snapshot: Json | null
           created_at: string
           currency: string
           hosted_url: string | null
@@ -1043,6 +1045,7 @@ export type Database = {
           pdf_url: string | null
           provider: string
           provider_document_id: string
+          seller_snapshot: Json | null
           status: string
           subscription_id: string | null
           tenant_id: string
@@ -1051,6 +1054,8 @@ export type Database = {
         }
         Insert: {
           amount_cents?: number
+          billing_plane?: string | null
+          buyer_snapshot?: Json | null
           created_at?: string
           currency?: string
           hosted_url?: string | null
@@ -1062,6 +1067,7 @@ export type Database = {
           pdf_url?: string | null
           provider?: string
           provider_document_id: string
+          seller_snapshot?: Json | null
           status?: string
           subscription_id?: string | null
           tenant_id: string
@@ -1070,6 +1076,8 @@ export type Database = {
         }
         Update: {
           amount_cents?: number
+          billing_plane?: string | null
+          buyer_snapshot?: Json | null
           created_at?: string
           currency?: string
           hosted_url?: string | null
@@ -1081,6 +1089,7 @@ export type Database = {
           pdf_url?: string | null
           provider?: string
           provider_document_id?: string
+          seller_snapshot?: Json | null
           status?: string
           subscription_id?: string | null
           tenant_id?: string
