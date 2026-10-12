@@ -716,6 +716,7 @@ describe("repairReconcileIssue - zdarzenie", () => {
       payload: { eventType: "transaction.completed", data: { id: "in_1" } },
     });
     expect(hook.dispatch).toHaveBeenCalledWith({
+      eventId: "evt_1",
       eventType: "transaction.completed",
       data: { id: "in_1" },
       environment: "sandbox",

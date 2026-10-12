@@ -213,3 +213,19 @@ export function resolveEnvironment(requested?: StripeEnv | null): StripeEnv {
   if (requested === "sandbox" || requested === "live") return requested;
   return "sandbox";
 }
+
+/**
+ * Czy zdarzenie operatora z danego środowiska może nadać na TYM wdrożeniu
+ * realny skutek: uprawnienie, miejsce w zespole, mail, wpis CRM, dokument
+ * w panelu klienta.
+ *
+ * Produkcja przyjmuje wyłącznie pieniądze z trybu `live`. Zdarzenie z
+ * piaskownicy (karta testowa) może tu co najwyżej zostawić ślad księgowy
+ * oznaczony środowiskiem - `metadata.userId` w subskrypcji testowej potrafi
+ * wskazać prawdziwe konto, a `user_subscriptions` nie zna środowisk. Poza
+ * produkcją (podgląd, dev) oba tryby są dozwolone, tak jak w
+ * `resolveEnvironment`.
+ */
+export function environmentGrantsAccess(env: StripeEnv): boolean {
+  return process.env["NODE_ENV"] !== "production" || env === "live";
+}

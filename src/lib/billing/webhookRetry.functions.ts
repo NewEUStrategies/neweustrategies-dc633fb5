@@ -139,6 +139,9 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
     try {
       const { dispatchWebhookEvent } = await import("@/lib/billing/webhookDispatch.server");
       const outcome = await dispatchWebhookEvent({
+        // Ten sam identyfikator co przy pierwszej dostawie - strażnik kolejności
+        // subskrypcji rozpoznaje po nim ponowienie TEGO SAMEGO zdarzenia.
+        eventId: row.event_id,
         eventType,
         data: eventData,
         environment,

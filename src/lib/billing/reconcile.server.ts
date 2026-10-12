@@ -17,24 +17,10 @@
 // Moduł server-only (klucze bramki + service_role).
 import type Stripe from "stripe";
 import { getStripeClient, type StripeEnv, type VerifiedWebhookEvent } from "@/lib/stripe.server";
+import { STRIPE_WEBHOOK_EVENT_TYPES } from "@/lib/billing/stripeEventTypes";
 
 /** Typy zdarzeń, które nasza integracja umie obsłużyć (reszta jest ignorowana). */
-const SUPPORTED_EVENT_TYPES = [
-  "customer.subscription.created",
-  "customer.subscription.updated",
-  "customer.subscription.deleted",
-  "customer.subscription.resumed",
-  "checkout.session.completed",
-  "checkout.session.async_payment_succeeded",
-  "checkout.session.async_payment_failed",
-  "invoice.paid",
-  "invoice.payment_succeeded",
-  "invoice.payment_failed",
-  "charge.refunded",
-  "charge.dispute.created",
-  "credit_note.created",
-  "customer.updated",
-] as const;
+const SUPPORTED_EVENT_TYPES = STRIPE_WEBHOOK_EVENT_TYPES;
 
 export type ReconcileKind = "event" | "order" | "subscription";
 
@@ -319,6 +305,7 @@ async function replayEvent(
   const startedAt = Date.now();
   try {
     const outcome = await dispatchWebhookEvent({
+      eventId: event.id,
       eventType: normalized.eventType,
       data: normalized.data,
       environment,

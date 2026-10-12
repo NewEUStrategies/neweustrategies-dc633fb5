@@ -150,6 +150,7 @@ function mapTransactionFromCheckoutSession(session: Raw): TransactionData {
     customer: { email: strOf(customerDetails?.email) ?? strOf(session.customer_email) },
     details: { totals: { grandTotal: amountTotal !== null ? String(amountTotal) : null } },
     billingPeriod: null,
+    source: "checkout_session",
   };
 }
 
@@ -202,6 +203,7 @@ function mapTransactionFromInvoice(invoice: Raw): TransactionData & Raw {
     customer: { email: strOf(invoice.customer_email) },
     details: { totals: { grandTotal: grandTotal !== null ? String(grandTotal) : null } },
     billingPeriod: { endsAt: isoFromUnix(period?.end) },
+    source: "invoice",
     // Pola dokumentu rozliczeniowego - odczytywane przez `billingDocuments.server`.
     status: "completed",
     invoiceNumber: strOf(invoice.number),
@@ -308,6 +310,12 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
     case "checkout.session.async_payment_failed":
       return {
         eventType: "transaction.payment_failed",
+        data: mapTransactionFromCheckoutSession(object),
+      };
+
+    case "checkout.session.expired":
+      return {
+        eventType: "transaction.expired",
         data: mapTransactionFromCheckoutSession(object),
       };
 

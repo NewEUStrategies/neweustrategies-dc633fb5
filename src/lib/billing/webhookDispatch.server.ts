@@ -44,6 +44,18 @@ export type TransactionData = {
   details?: { totals?: { grandTotal?: string | null } | null } | null;
   payments?: Array<{ errorCode?: string | null }> | null;
   billingPeriod?: { endsAt?: string | null } | null;
+  /**
+   * Skąd pochodzi transakcja: sesja Checkout (`cs_...`) albo faktura
+   * (`in_...`). Faktura subskrypcji niesie metadane subskrypcji, w tym
+   * `orderId` - domknięcie zamówienia wolno wykonać WYŁĄCZNIE na sesji.
+   */
+  source?: "checkout_session" | "invoice" | null;
+  /** Suma pozycji przed rabatem i podatkiem (sesja Checkout: `amount_subtotal`). */
+  amountSubtotalCents?: number | null;
+  /** Rabat zdjęty przez operatora (`total_details.amount_discount`). */
+  amountDiscountCents?: number | null;
+  /** Podatek doliczony przez operatora (`total_details.amount_tax`). */
+  amountTaxCents?: number | null;
 };
 
 /** Wynik obsługi: `skipped` = zdarzenie spoza zakresu integracji. */
@@ -435,7 +447,7 @@ async function handleTransaction(
       // musi być widoczne jako NIEOPŁACONE - inaczej organizator wpuściłby na
       // salę osobę, której karta nie przeszła.
       const { markOneTimePaymentFailed } = await import("@/lib/billing/oneTimeFulfilment.server");
-      await markOneTimePaymentFailed(data.customData ?? null);
+      await markOneTimePaymentFailed(data.customData ?? null, env);
       return;
     }
     if (kind !== "paid") return;
@@ -450,6 +462,9 @@ async function handleTransaction(
         sessionId: data.id,
         paymentIntentId: data.paymentIntentId ?? null,
         customerId: data.customerId ?? null,
+        amountSubtotalCents: data.amountSubtotalCents ?? null,
+        amountDiscountCents: data.amountDiscountCents ?? null,
+        amountTaxCents: data.amountTaxCents ?? null,
       },
       env,
     );
@@ -470,6 +485,32 @@ async function handleTransaction(
       donorEmail: data.customer?.email ?? null,
     });
     return;
+  }
+
+  // Pierwsza sesja Checkout subskrypcji domyka NASZE zamówienie (księgi,
+  // kupon). Uprawnienie nadaje wyłącznie ścieżka `subscription.*` - tu nie
+  // wolno go dublować. Faktury odnowień niosą to samo `orderId` w metadanych
+  // subskrypcji, dlatego bramką jest źródło zdarzenia, nie same metadane.
+  if (kind === "paid" && data.source === "checkout_session") {
+    const { settleSubscriptionCheckoutOrder } =
+      await import("@/lib/billing/oneTimeFulfilment.server");
+    await settleSubscriptionCheckoutOrder(
+      {
+        id: data.id,
+        amountCents: amountFromTransaction(data),
+        currency: data.currencyCode ?? null,
+        customerEmail: data.customer?.email ?? null,
+        customData: data.customData ?? null,
+        sessionId: data.id,
+        paymentIntentId: data.paymentIntentId ?? null,
+        customerId: data.customerId ?? null,
+        subscriptionId: data.subscriptionId,
+        amountSubtotalCents: data.amountSubtotalCents ?? null,
+        amountDiscountCents: data.amountDiscountCents ?? null,
+        amountTaxCents: data.amountTaxCents ?? null,
+      },
+      env,
+    );
   }
 
   const ctx = {
@@ -551,6 +592,7 @@ export const HANDLED_EVENT_TYPES = [
   "transaction.updated",
   "transaction.payment_failed",
   "transaction.past_due",
+  "transaction.expired",
   "adjustment.created",
   "adjustment.updated",
   "customer.updated",
@@ -559,6 +601,13 @@ export const HANDLED_EVENT_TYPES = [
 ] as const;
 
 export interface DispatchInput {
+  /**
+   * Identyfikator zdarzenia u operatora (`evt_...`, albo syntetyczny
+   * `reconcile_...`). Ten sam przy każdej ponownej dostawie i przy ponowieniu
+   * z panelu - po nim strażnik kolejności odróżnia powtórkę TEGO SAMEGO
+   * zdarzenia od innego zdarzenia z tym samym znacznikiem czasu.
+   */
+  eventId?: string | null;
   eventType: string;
   data: unknown;
   environment: StripeEnv;
@@ -639,6 +688,26 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
       await recordDocument(input.data, env);
       await handleTransaction(input.data as TransactionData, env, occurredAt, "paid");
       return "processed";
+    // Porzucona sesja Checkout: zamówienie się zamyka, a rezerwacja kuponu
+    // wraca do puli - inaczej limitowany kod wyczerpują same porzucone kasy.
+    case "transaction.expired": {
+      const { expireCheckoutOrder } = await import("@/lib/billing/oneTimeFulfilment.server");
+      const txn = input.data as TransactionData;
+      const expired = await expireCheckoutOrder(
+        {
+          id: txn.id,
+          amountCents: amountFromTransaction(txn),
+          currency: txn.currencyCode ?? null,
+          customerEmail: txn.customer?.email ?? null,
+          customData: txn.customData ?? null,
+          sessionId: txn.id,
+          paymentIntentId: txn.paymentIntentId ?? null,
+          customerId: txn.customerId ?? null,
+        },
+        env,
+      );
+      return expired ? "processed" : "skipped";
+    }
     // Operator nadaje numer faktury i domyka kwoty osobnym zdarzeniem - bez
     // niego dokument w panelu klienta zostałby bez numeru.
     case "transaction.updated":

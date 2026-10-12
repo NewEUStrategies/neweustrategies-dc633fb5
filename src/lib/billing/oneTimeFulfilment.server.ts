@@ -33,6 +33,14 @@ export interface OneTimeTransaction {
   paymentIntentId?: string | null;
   /** Identyfikator klienta u operatora - powtarzalne płatności i portal. */
   customerId?: string | null;
+  /** Subskrypcja operatora założona tą sesją (tylko sesja w trybie `subscription`). */
+  subscriptionId?: string | null;
+  /** Suma pozycji przed rabatem i podatkiem (`amount_subtotal`). */
+  amountSubtotalCents?: number | null;
+  /** Rabat zdjęty przez operatora (`total_details.amount_discount`). */
+  amountDiscountCents?: number | null;
+  /** Podatek doliczony przez operatora (`total_details.amount_tax`). */
+  amountTaxCents?: number | null;
 }
 
 export type OneTimeOutcome = "skipped" | "order" | "donation" | "oversold_refunded";
@@ -201,10 +209,43 @@ export async function applyTicketOutcome(
  */
 export async function markOneTimePaymentFailed(
   customData: Record<string, unknown> | null,
+  env?: StripeEnv,
 ): Promise<void> {
+  void env;
   const orderId = str(customData, "orderId") ?? str(customData, "order_id");
   if (!orderId) return;
   await applyTicketOutcome(orderId, "unpaid");
+}
+
+/**
+ * Sesja Checkout wygasła bez płatności (`checkout.session.expired`).
+ *
+ * SZKIELET KONTRAKTU - implementacja: zamknięcie zamówienia (`canceled`)
+ * i zwolnienie rezerwacji kuponu. Zwraca `true`, gdy coś faktycznie zmieniono.
+ */
+export async function expireCheckoutOrder(
+  txn: OneTimeTransaction,
+  env: StripeEnv,
+): Promise<boolean> {
+  void txn;
+  void env;
+  return false;
+}
+
+/**
+ * Pierwsza sesja Checkout subskrypcji została opłacona (albo zaczęła trial).
+ *
+ * SZKIELET KONTRAKTU - implementacja: domknięcie zamówienia `kind=subscription`
+ * po `metadata.orderId` (status, identyfikatory operatora, efekty kuponu) BEZ
+ * nadawania uprawnienia - to robi ścieżka `subscription.*`.
+ */
+export async function settleSubscriptionCheckoutOrder(
+  txn: OneTimeTransaction,
+  env: StripeEnv,
+): Promise<"settled" | "skipped"> {
+  void txn;
+  void env;
+  return "skipped";
 }
 
 async function fulfilOrder(

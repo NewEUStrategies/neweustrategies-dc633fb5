@@ -77,6 +77,7 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
   try {
     const { dispatchWebhookEvent } = await import("@/lib/billing/webhookDispatch.server");
     const outcome = await dispatchWebhookEvent({
+      eventId: verified.id,
       eventType: normalized.eventType,
       data: normalized.data,
       environment: env,

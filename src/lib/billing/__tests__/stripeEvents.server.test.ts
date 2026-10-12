@@ -340,6 +340,7 @@ describe("normalizeStripeEvent - sesje checkout", () => {
       customer: { email: "kupujacy@example.com" },
       details: { totals: { grandTotal: "12000" } },
       billingPeriod: null,
+      source: "checkout_session",
     });
   });
 
@@ -737,7 +738,6 @@ describe("normalizeStripeEvent - zakres integracji", () => {
       "customer.created",
       "charge.succeeded",
       "customer.subscription.trial_will_end",
-      "checkout.session.expired",
       "",
     ];
 
