@@ -215,6 +215,9 @@ export const adminEventRegistrationPl = {
       // Ponowna wysylka biletu z kodem QR (`admin_event_ticket_resend`).
       resendTicket: "Wyślij bilet ponownie",
       resendGroupTickets: "Wyślij bilety całej grupie",
+      // Prośba uczestnika złożona innym kanałem niż strona samoobsługi
+      // (`admin_event_registration_partner_consent_withdraw`).
+      withdrawPartnerConsent: "Wycofaj zgodę partnerską",
     },
 
     registrations: {
@@ -322,6 +325,8 @@ export const adminEventRegistrationPl = {
         missing: "Brak",
         requiredMissing: "Brakuje {{count}} zgód wymaganych",
         requiredComplete: "Wszystkie zgody wymagane udzielone",
+        partnerWithdrawn: "Zgoda na przekazanie danych partnerom wycofana.",
+        partnerNothingToWithdraw: "Ta osoba nie ma zgody partnerskiej do wycofania.",
       },
 
       decision: {
@@ -1451,6 +1456,7 @@ export const adminEventRegistrationEn = {
       exportCsv: "Export CSV",
       resendTicket: "Resend ticket",
       resendGroupTickets: "Resend tickets to the whole group",
+      withdrawPartnerConsent: "Withdraw partner consent",
     },
 
     registrations: {
@@ -1548,6 +1554,8 @@ export const adminEventRegistrationEn = {
         missing: "None",
         requiredMissing: "{{count}} required consents missing",
         requiredComplete: "All required consents given",
+        partnerWithdrawn: "Consent to share data with partners withdrawn.",
+        partnerNothingToWithdraw: "This person has no partner consent to withdraw.",
       },
 
       decision: {

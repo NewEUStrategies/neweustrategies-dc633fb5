@@ -517,6 +517,24 @@ INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, stat
    '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000001', 'approved', 'rsvp'),
   ('32900000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
    '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000002', 'approved', 'rsvp');
+
+-- ZGODA PARTNERSKA JEST PER ZGLOSZENIE (OPS-01, 20261012090000 i 20261012100100).
+-- Raport, link i historia firmy pytaja `_event_partner_consent_at()` - o stempel
+-- ZGLOSZENIA osoby na TO wydarzenie. Stemple osob z sekcji 1 sa juz tylko
+-- historyczne, wiec te same zgody odtwarzamy na zgloszeniach E1: P1 i P4 ze
+-- zgoda, P3 ze zgoda wycofana pozniej globalnie, P2 bez zgody. Liczby
+-- oczekiwane nizej (2 z 4 kontaktow ze zgoda) zostaja bez zmian.
+INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, status, registration_mode) VALUES
+  ('32900000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111',
+   '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000003', 'approved', 'rsvp'),
+  ('32900000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111',
+   '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000004', 'approved', 'rsvp');
+UPDATE public.event_registrations r
+   SET consent_partner_sharing_at = p.consent_partner_sharing_at
+  FROM public.event_people p
+ WHERE p.tenant_id = r.tenant_id
+   AND p.id = r.person_id
+   AND r.event_id = '32e00000-0000-0000-0000-0000000000e1';
 ALTER TABLE public.event_meetings DISABLE TRIGGER USER;
 -- Kazdy stan gieldy raz: umowione to accepted + held + no_show (3), a NIE
 -- zaproszenie bez odpowiedzi, odmowa, odwolanie ani STARY wiersz przelozenia

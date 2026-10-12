@@ -587,6 +587,15 @@ export const eventFrontPl = {
       paymentPaid: "Wejściówka jest opłacona.",
       paymentRefunded: "Wpłata została zwrócona.",
       notFound: "Nie znaleźliśmy zgłoszenia dla tego klucza.",
+      // ZGODA NA PRZEKAZANIE DANYCH PARTNEROM. Udziela się jej jednym
+      // kliknięciem w formularzu zapisu, więc wycofuje się ją tu tak samo
+      // (art. 7 ust. 3 RODO) - bez konta i bez maila do organizatora.
+      partnerTitle: "Przekazywanie danych partnerom",
+      partnerBody:
+        "Zgodziłeś się na przekazanie swoich danych partnerom tego wydarzenia (np. wystawcom, którzy zeskanują Twój identyfikator). Możesz tę zgodę wycofać w każdej chwili - partnerzy przestaną otrzymywać Twoje dane.",
+      partnerWithdraw: "Wycofaj zgodę",
+      partnerWithdrawing: "Wycofujemy…",
+      partnerWithdrawn: "Zgoda na przekazanie danych partnerom została wycofana.",
     },
 
     // ---------------------------------------------------------------------
@@ -1266,6 +1275,12 @@ export const eventFrontEn = {
       paymentPaid: "The admission is paid.",
       paymentRefunded: "The payment has been refunded.",
       notFound: "We found no registration for this key.",
+      partnerTitle: "Sharing your data with partners",
+      partnerBody:
+        "You agreed to share your data with the partners of this event (e.g. exhibitors who scan your badge). You can withdraw this consent at any time - partners will stop receiving your data.",
+      partnerWithdraw: "Withdraw consent",
+      partnerWithdrawing: "Withdrawing…",
+      partnerWithdrawn: "Your consent to share data with partners has been withdrawn.",
     },
 
     // The video header, the page menu and the practical facts - three

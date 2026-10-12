@@ -67,11 +67,40 @@ describe("leadExportCells", () => {
     expect(leadExportCells(withConsent, "pl")).toHaveLength(leadExportColumns("pl").length);
   });
 
-  it("wiersz bez zgody ma puste kontakty i jawne 'nie'", () => {
+  it("wiersz bez zgody nie niesie zadnej danej osoby (kolumny 1-6) i ma jawne 'nie'", () => {
+    // OPS-03: imie, nazwisko, firma i stanowisko identyfikuja osobe tak samo
+    // jak e-mail - bez zgody na przekazanie partnerom TEGO wydarzenia plik
+    // sponsora nie dostaje zadnego z nich, nawet gdy RPC je poda.
     const cells = leadExportCells(withoutConsent, "pl");
-    expect(cells[5]).toBeNull();
-    expect(cells[6]).toBeNull();
+    expect(cells.slice(1, 7)).toEqual([null, null, null, null, null, null]);
     expect(cells[7]).toBe("nie");
+  });
+
+  it("wiersz bez zgody zostawia sponsora, ocene, notatke stoiska i liczniki", () => {
+    const cells = leadExportCells(
+      {
+        ...withoutConsent,
+        note: "Notatka stoiska",
+        interest_rating: 2,
+      } as unknown as LeadExportRow,
+      "en",
+    );
+    expect(cells[0]).toBe("Acme");
+    expect(cells[9]).toBe(2);
+    expect(cells[10]).toBe("Notatka stoiska");
+    expect(cells[11]).toBe(2);
+    expect(cells[14]).toBe("Stoisko A");
+  });
+
+  it("wiersz ze zgoda oddaje komplet danych osoby", () => {
+    expect(leadExportCells(withConsent, "pl").slice(1, 7)).toEqual([
+      "Anna",
+      "Nowak",
+      "NES",
+      "Analityk",
+      "anna@example.org",
+      "+48 500 100 200",
+    ]);
   });
 
   it("zgoda tlumaczy sie na jezyk interfejsu", () => {
@@ -82,7 +111,9 @@ describe("leadExportCells", () => {
   it("wiersz z raportu dla sponsora (jawne null, zgoda nieznana) ma puste komorki i 'nie'", () => {
     // Link sponsora zeruje w bazie WSZYSTKIE dane osoby bez zgody, a parser
     // odpowiedzi daje `null` zamiast pustych napisow. Zgoda `null` (starsza
-    // odpowiedz) liczy sie jak brak zgody.
+    // odpowiedz) liczy sie jak brak zgody. Adres, ktory mimo to przyszedl,
+    // wychodzi jako `null` - ta sama postac, co z RPC (dawniej `""`; zmiana
+    // celowa: redakcja tozsamosci ma jedna postac w calym wierszu).
     const cells = leadExportCells(
       {
         sponsor_name: "Acme",
@@ -109,7 +140,7 @@ describe("leadExportCells", () => {
       null,
       null,
       null,
-      "",
+      null,
       null,
       "no",
       null,
@@ -136,7 +167,7 @@ describe("leadExportFileName", () => {
 });
 
 describe("buildLeadExport", () => {
-  it("CSV zaczyna sie od BOM i zawiera oba wiersze", async () => {
+  it("CSV zaczyna sie od BOM i zawiera oba wiersze - bez nazwiska osoby bez zgody", async () => {
     const file = await buildLeadExport([withConsent, withoutConsent], {
       format: "csv",
       lang: "pl",
@@ -147,8 +178,12 @@ describe("buildLeadExport", () => {
     expect(typeof file.data).toBe("string");
     const text = file.data as string;
     expect(text.startsWith("\uFEFF")).toBe(true);
+    expect(text.trimEnd().split("\n")).toHaveLength(3);
     expect(text).toContain("anna@example.org");
-    expect(text).toContain("Kowalski");
+    // Dawniej plik niosl nazwisko osoby bez zgody (OPS-03) - ta asercja
+    // utrwalala defekt i zostala odwrocona celowo.
+    expect(text).not.toContain("Kowalski");
+    expect(text).not.toContain("Jan");
   });
 
   it("XLSX zwraca bajty i nazwe z rozszerzeniem arkusza", async () => {

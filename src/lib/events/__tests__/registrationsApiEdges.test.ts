@@ -286,3 +286,37 @@ describe("kod dostępu biletu", () => {
     });
   });
 });
+
+// Wycofanie zgody partnerskiej z panelu (OPS-01): identyfikator zgłoszenia
+// jedzie wprost, a wynik `withdrawn` czytamy tylko z literalnego `true`.
+describe("wycofanie zgody partnerskiej z panelu", () => {
+  it("wysyła sam identyfikator zgłoszenia i czyta, czy było co wycofać", async () => {
+    stub().setData("admin_event_registration_partner_consent_withdraw", {
+      ok: true,
+      withdrawn: true,
+      partner_consent: false,
+    });
+    await expect(api.withdrawRegistrationPartnerConsent(ID)).resolves.toBe(true);
+    expect(
+      stub()
+        .lastCall("admin_event_registration_partner_consent_withdraw")
+        ?.arg("p_registration_id"),
+    ).toBe(ID);
+
+    stub().setData("admin_event_registration_partner_consent_withdraw", {
+      ok: true,
+      withdrawn: false,
+    });
+    await expect(api.withdrawRegistrationPartnerConsent(ID)).resolves.toBe(false);
+    stub().setData("admin_event_registration_partner_consent_withdraw", null);
+    await expect(api.withdrawRegistrationPartnerConsent(ID)).resolves.toBe(false);
+  });
+
+  it("odmowa bazy rzuca, a nie udaje wycofania", async () => {
+    stub().setError(
+      "admin_event_registration_partner_consent_withdraw",
+      "forbidden: admin role required",
+    );
+    await expect(api.withdrawRegistrationPartnerConsent(ID)).rejects.toThrow(/forbidden/);
+  });
+});
