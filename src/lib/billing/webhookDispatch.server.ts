@@ -482,6 +482,7 @@ async function handleUpdated(
       cancelAtPeriodEnd,
       claimConfirmation: () => claimPurchaseConfirmation(data.id, env),
       status: data.status,
+      newsletterConsent: data.customData?.newsletterConsent ?? null,
     });
     return;
   }

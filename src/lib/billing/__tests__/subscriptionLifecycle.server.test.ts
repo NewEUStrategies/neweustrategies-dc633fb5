@@ -28,6 +28,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TxSendInput } from "@/lib/email/transactional.server";
 import type { VerifiedWebhookEvent } from "@/lib/stripe.server";
 import {
+  PREMIUM_NEWSLETTER_CONSENT_VERSION,
+  premiumNewsletterConsentMetadata,
+} from "@/lib/billing/premiumNewsletter";
+import {
   BILLING_IDS,
   accessPlan,
   fail,
@@ -219,6 +223,7 @@ beforeEach(() => {
   h.db.current = db;
   h.rpc.current = rpc;
   rpc.setData("org_apply_subscription_seats", { linked: false });
+  rpc.setData("email_filter_suppressed", []);
 
   db.setResponse(
     "subscriptions",
@@ -281,6 +286,8 @@ interface SubOpts {
   cancelAtPeriodEnd?: boolean;
   cancellationReason?: string;
   pauseCollection?: { behavior: string } | null;
+  /** Dodatkowe metadane subskrypcji (np. zgoda z checkoutu, SUB-15). */
+  metadata?: Record<string, string>;
 }
 
 function stripeSubscription(o: SubOpts): Record<string, unknown> {
@@ -291,7 +298,7 @@ function stripeSubscription(o: SubOpts): Record<string, unknown> {
     cancel_at_period_end: o.cancelAtPeriodEnd ?? false,
     cancellation_details: o.cancellationReason ? { reason: o.cancellationReason } : null,
     pause_collection: o.pauseCollection ?? null,
-    metadata: { userId: BILLING_IDS.me },
+    metadata: { userId: BILLING_IDS.me, ...o.metadata },
     items: {
       data: [
         {
@@ -416,7 +423,17 @@ describe("SUB-02: created pod strażnikiem kolejności, potwierdzenie dopiero po
     // zamyka się zwykle w tej samej sekundzie co `created`. Przy równych
     // znacznikach strażnik odrzucał `updated` - płacący zostawał bez dostępu.
     const at = relativeIso(-2 * DZIEN);
-    const period = { periodStart: at, periodEnd: relativeIso(28 * DZIEN) };
+    // Zgoda na newsletter z checkoutu (SUB-15) siedzi w metadanych subskrypcji,
+    // więc niesie ją KAŻDE zdarzenie - zapis listy ma być jeden, przy aktywacji.
+    const period = {
+      periodStart: at,
+      periodEnd: relativeIso(28 * DZIEN),
+      metadata: premiumNewsletterConsentMetadata({
+        version: PREMIUM_NEWSLETTER_CONSENT_VERSION,
+        lang: "pl",
+        at: relativeIso(-2 * DZIEN - 2 * SEKUNDA),
+      }),
+    };
 
     await deliver(
       "customer.subscription.created",

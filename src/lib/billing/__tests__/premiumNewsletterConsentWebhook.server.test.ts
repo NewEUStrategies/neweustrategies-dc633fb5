@@ -122,6 +122,13 @@ beforeEach(() => {
   db = supabaseFromStub();
   rpc = supabaseRpcStub();
   for (const table of TABLES) db.setResponse(table, ok(null));
+  // Tor `created` (SUB-02): wstawienie-jeśli-brak (`upsert(..., { ignoreDuplicates })
+  // .select("id")`) i atomowe zajęcie potwierdzenia zakupu (`update(...).select("id")`)
+  // zwracają zapisany wiersz - pusty wynik znaczyłby „wiersz już był" albo „potwierdzenie
+  // już wysłane", czyli inny scenariusz niż pierwszy zakup, który ten plik przybija.
+  db.setResponse("subscriptions", (chain) =>
+    ok(isWrite(chain) && chain.has("select") ? [{ id: "sub-row-1" }] : null),
+  );
   db.setResponse(
     "profiles",
     ok({
