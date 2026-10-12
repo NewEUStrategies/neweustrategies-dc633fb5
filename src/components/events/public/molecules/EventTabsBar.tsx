@@ -94,8 +94,28 @@ export const EVENT_TAB_CLASS =
 // `--muted-foreground` z motywu serwisu. Stoi OSOBNO od klasy bazowej właśnie
 // po to, żeby nigdy nie współistniała z `EVENT_TAB_ACTIVE_CLASS` na jednym
 // węźle - patrz komentarz nad `EVENT_TAB_CLASS`.
+//
+// ── WYCISZENIE PRZEZ MROCNOŚĆ, I DLACZEGO NIE PRZEZ SAM TOKEN ───────────────
+// CO BYŁO NIEWIDOCZNE. Token `--muted-foreground` MA być drugim stopniem tuszu,
+// ale globalne kolory serwisu ZAPISAŁY go jako dokładnie ten sam tusz co
+// `--foreground` (`#131822` w jasnym motywie, `#F8F6F4` w ciemnym - pomiar
+// `<style>` globalnych kolorów na żywej stronie). Na pasku bez własnego koloru
+// nawigacji oba stopnie znaczyły więc to samo i jedyne, co odróżniało bieżącą
+// pozycję, to grubość pisma.
+//
+// DLACZEGO MROCNOŚĆ, A NIE NOWY KOLOR. Globalny tusz serwisu jest wyborem
+// redaktora i nie wolno go nadpisywać dla jednego paska; `opacity` nie zmienia
+// żadnej barwy - bierze ten tusz, który jest na węźle, i kładzie go na tle
+// strony. Działa tak samo na pasku przezroczystym i na pasku z kolorem
+// wydarzenia, w obu motywach, i nie rusza geometrii: napisy stoją tam, gdzie
+// stały. Współczynnik 0,62 jest liczony pod próg WCAG AA, nie pod gust:
+// w jasnym motywie daje #6A6D72 na #F8F7F3 (4,8:1), w ciemnym #9B9897 na
+// #141414 (6,7:1) - czyli pozycja wyciszona nadal jest tekstem, nie dekoracją.
+//
+// `hover:`/`focus-visible:` ZDEJMUJĄ MROCNOŚĆ, bo pozycja, w którą czytelnik
+// celuje albo którą prowadzi klawiaturą, nie jest już „pozostałą”.
 export const EVENT_TAB_INACTIVE_CLASS =
-  "text-[color:var(--event-nav-fg-muted,var(--muted-foreground))]";
+  "text-[color:var(--event-nav-fg-muted,var(--muted-foreground))] opacity-[0.62] hover:opacity-100 focus-visible:opacity-100";
 
 // Pogrubienie NIE zmienia rozmiaru napisu, więc pasek nie drga przy przejściu
 // między zakładkami; kolor bierze `--foreground`, bo `--primary` jest w jasnym
