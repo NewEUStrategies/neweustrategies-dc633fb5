@@ -1,3 +1,4 @@
+import { PlatformSelect } from "@/components/ui/platform-select";
 // HTML5 audio podcast player atom - variants: mini/full/sticky.
 // World-class UX: keyboard accessible, A11Y labelled, speed control,
 // 15s skip, seek slider, time display.
@@ -113,7 +114,7 @@ export function PodcastPlayer({
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration);
   // SSR-parity: start od domyślnego tempa, zapisana preferencja wchodzi w
-  // efekcie po montażu (initializer rozjechałby hydratację <select value>).
+  // efekcie po montażu (initializer rozjechałby hydratację <PlatformSelect value>).
   const [speed, setSpeed] = useState<number>(DEFAULT_PLAYBACK_RATE);
   const [muted, setMuted] = useState(false);
   /**
@@ -413,7 +414,7 @@ export function PodcastPlayer({
       </div>
 
       {!compact && showSpeed && (
-        <select
+        <PlatformSelect
           aria-label={label("speed")}
           value={speed}
           onChange={(e) => changeSpeed(Number(e.target.value))}
@@ -424,7 +425,7 @@ export function PodcastPlayer({
               {s}×
             </option>
           ))}
-        </select>
+        </PlatformSelect>
       )}
 
       {!compact && (

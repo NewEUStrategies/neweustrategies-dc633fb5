@@ -1,3 +1,6 @@
+import { DateInput } from "@/components/ui/date-input";
+import { TimeInput } from "@/components/ui/time-input";
+import { PlatformSelect } from "@/components/ui/platform-select";
 // Widget "meeting-booking" - networking 1-1: siatka slotow godzinowych
 // (grupowanych po dniu) z rezerwacja jednym kliknieciem. Tryby: sloty
 // wskazanego hosta (ekspert/prelegent) lub sloty networkingowe wydarzenia.
@@ -190,25 +193,25 @@ function HostManagePanel({
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
           {lang === "pl" ? "Data" : "Date"}
-          <input
+          <DateInput
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="h-9 rounded-[6px] border border-border/70 bg-background px-2 text-sm text-foreground"
+            className="min-w-0"
           />
         </label>
         <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
           {lang === "pl" ? "Godzina" : "Time"}
-          <input
+          <TimeInput
             type="time"
             value={time}
             onChange={(e) => setTime(e.target.value)}
-            className="h-9 rounded-[6px] border border-border/70 bg-background px-2 text-sm text-foreground"
+            className="w-40"
           />
         </label>
         <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
           {lang === "pl" ? "Długość" : "Duration"}
-          <select
+          <PlatformSelect
             value={duration}
             onChange={(e) => setDuration(Number(e.target.value) || 30)}
             className="h-9 rounded-[6px] border border-border/70 bg-background px-2 text-sm text-foreground"
@@ -218,7 +221,7 @@ function HostManagePanel({
                 {m} min
               </option>
             ))}
-          </select>
+          </PlatformSelect>
         </label>
         <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
           {lang === "pl" ? "Miejsce / link (opcjonalnie)" : "Place / link (optional)"}

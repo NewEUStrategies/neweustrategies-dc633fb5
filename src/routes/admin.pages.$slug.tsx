@@ -1,3 +1,5 @@
+import { adminPageHead } from "@/lib/adminPageHead";
+import { DateInput } from "@/components/ui/date-input";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { slugifyTaxonomy, normalizeSlugInput } from "@/lib/content/taxonomySlug";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -12,7 +14,6 @@ import { useAutosave } from "@/hooks/useAutosave";
 import { useUnsavedChangesGuard } from "@/hooks/useUnsavedChangesGuard";
 import { AutosaveBar } from "@/components/admin/AutosaveBar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { isoToLocalInput, localInputToIso } from "@/lib/content/workflow";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Label } from "@/components/ui/label";
@@ -69,6 +70,7 @@ import { useAdminLang } from "@/lib/builder/labelsEn";
 import { codePage } from "@/lib/admin/codePages";
 import { Code2 } from "lucide-react";
 export const Route = createFileRoute("/admin/pages/$slug")({
+  head: () => adminPageHead("Page editor", "Edit page content and publication settings. New European Strategies administration."),
   component: EditPage,
 });
 
@@ -433,7 +435,7 @@ function EditPage() {
       {form.status === "scheduled" && (
         <div>
           <Label>{t("admin.workflow.publishAt")}</Label>
-          <Input
+          <DateInput
             type="datetime-local"
             value={isoToLocalInput(form.publish_at)}
             onChange={(e) => set("publish_at", localInputToIso(e.target.value))}

@@ -484,6 +484,7 @@ body {
      = 35px), więc floating-label inputy (`.input-group > .input`) i zwykłe
      kontrolki muszą mieć dokładnie tę samą wysokość. */
   --form-field-height: 35px;
+  --form-label-height: 1.25rem;
   --form-input-height: var(--form-field-height);
   --input-group-height: var(--form-field-height);
   --form-input-padding-x: 0.75rem;
@@ -9052,14 +9053,24 @@ select:not([multiple]):not([size]) option,
   font-size: var(--fs-droplist) !important;
 }
 
-/* Compact droplist sizing: shorter triggers/items and smaller caret.
-   Wykluczone pola formularzy (.input) - np. combobox "Kraj" w formularzu
-   "Dołącz do nas" ma pełną wysokość .input-group jak pozostałe pola. */
+/* Shared axis for text, select and calendar fields. */
 [data-slot="select-trigger"],
-[role="combobox"]:not(.input) {
-  min-height: 1.75rem !important;
-  height: auto !important;
-  padding: 0.25rem 0.5rem !important;
+[role="combobox"]:not(.input),
+.platform-field {
+  min-height: var(--form-field-height) !important;
+  height: var(--form-field-height) !important;
+  padding: 0 var(--form-input-padding-x) !important;
+  border-radius: var(--form-input-radius);
+  line-height: var(--form-input-line-height);
+}
+@media (pointer: coarse) {
+  :root { --form-field-height: 44px; }
+}
+[data-slot="form-label"] {
+  display: block;
+  min-height: var(--form-label-height);
+  line-height: var(--form-label-height);
+  overflow: visible;
 }
 
 [data-slot="select-trigger"] svg,

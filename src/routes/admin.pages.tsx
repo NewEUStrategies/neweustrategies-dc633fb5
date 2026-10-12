@@ -1,3 +1,5 @@
+import { adminPageHead } from "@/lib/adminPageHead";
+import { DateInput } from "@/components/ui/date-input";
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,7 +10,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2, Home, Undo2, X, Download } from "@/lib/lucide-shim";
 import { Code2 } from "lucide-react";
@@ -60,6 +61,7 @@ const READING_DEFAULTS: Reading = {
 };
 
 export const Route = createFileRoute("/admin/pages")({
+  head: () => adminPageHead("Pages", "Manage pages and publication schedules. New European Strategies administration."),
   component: PagesLayout,
 });
 
@@ -498,7 +500,7 @@ function PagesList() {
             <label className="text-[10px] uppercase text-muted-foreground mb-1">
               {t("admin.list.deletedFrom")}
             </label>
-            <Input
+            <DateInput
               type="date"
               value={trashFrom}
               onChange={(e) => setTrashFrom(e.target.value)}
@@ -509,7 +511,7 @@ function PagesList() {
             <label className="text-[10px] uppercase text-muted-foreground mb-1">
               {t("admin.list.deletedTo")}
             </label>
-            <Input
+            <DateInput
               type="date"
               value={trashTo}
               onChange={(e) => setTrashTo(e.target.value)}

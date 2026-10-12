@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Sekcja "Obecność w mediach" w /profile/author - własciciel (autor)
 // zarządza swoimi wpisami `media_mentions` (cytat / wywiad / wystąpienie / oped /
 // podcast_guest). Zapis idzie przez RLS "media_mentions owner manage", więc
@@ -257,7 +258,7 @@ export function MediaMentionsSection({ userId }: { userId: string }) {
                     >
                       {t("profile.author.media.publishedOn")}
                     </Label>
-                    <Input
+                    <DateInput
                       id={idFor("publishedOn")}
                       type="date"
                       value={row.published_on}

@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Organizm skrzynki wysyłek (/admin/newsletter/outbox).
 //
 // Kolejność ekranu odpowiada kolejności pytań operatora:
@@ -149,7 +150,7 @@ export function EmailOutboxPanel() {
         </div>
         <label className="space-y-1">
           <span className="block text-xs text-muted-foreground">{t("adminOutbox.range.from")}</span>
-          <Input
+          <DateInput
             type="date"
             value={from}
             onChange={(e) => resetPage(setFrom)(e.target.value)}
@@ -158,7 +159,7 @@ export function EmailOutboxPanel() {
         </label>
         <label className="space-y-1">
           <span className="block text-xs text-muted-foreground">{t("adminOutbox.range.to")}</span>
-          <Input
+          <DateInput
             type="date"
             value={to}
             onChange={(e) => resetPage(setTo)(e.target.value)}

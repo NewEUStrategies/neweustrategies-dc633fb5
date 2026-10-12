@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Organizm: cala strona panelu darowizn - konfiguracja checkoutu, synchronizacja
 // ze Stripe i zlozenie panelu podsumowania z panelem listy wplat.
 // Zapytania zostaja TUTAJ: oba panele sa prezentacyjne, wiec `sync` nadal
@@ -216,7 +217,7 @@ export function AdminDonations() {
           hint={t("donate.admin.engine.providerHint")}
           htmlFor={ID.provider}
         >
-          <select
+          <AdminSelect
             id={ID.provider}
             className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             value={draft.provider}
@@ -229,7 +230,7 @@ export function AdminDonations() {
           >
             <option value="stripe">{t("donate.admin.engine.providerStripe")}</option>
             <option value="external">{t("donate.admin.engine.providerExternal")}</option>
-          </select>
+          </AdminSelect>
         </Field>
         {draft.provider === "external" && (
           <Field label={t("donate.admin.engine.externalUrlLabel")} htmlFor={ID.externalUrl}>
@@ -241,7 +242,7 @@ export function AdminDonations() {
           </Field>
         )}
         <Field label={t("donate.admin.engine.currencyLabel")} htmlFor={ID.currency}>
-          <select
+          <AdminSelect
             id={ID.currency}
             className="h-9 w-full rounded-md border bg-background px-2 text-sm"
             value={draft.currency}
@@ -251,7 +252,7 @@ export function AdminDonations() {
           >
             <option value="PLN">PLN</option>
             <option value="EUR">EUR</option>
-          </select>
+          </AdminSelect>
         </Field>
       </section>
 
@@ -363,7 +364,7 @@ export function AdminDonations() {
           {t("donate.admin.sync.description")}
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <select
+          <AdminSelect
             id={ID.environment}
             aria-label={t("donate.admin.sync.environmentLabel")}
             className="h-9 rounded-md border bg-background px-2 text-sm"
@@ -378,7 +379,7 @@ export function AdminDonations() {
           >
             <option value="sandbox">{t("donate.admin.sync.sandbox")}</option>
             <option value="live">{t("donate.admin.sync.live")}</option>
-          </select>
+          </AdminSelect>
           <Button onClick={() => sync.mutate()} disabled={sync.isPending}>
             {sync.isPending ? t("donate.admin.sync.running") : t("donate.admin.sync.run")}
           </Button>

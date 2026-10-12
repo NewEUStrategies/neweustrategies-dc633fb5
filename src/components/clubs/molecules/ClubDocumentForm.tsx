@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Molekuła: formularz źródła (dodanie i redakcja jednym komponentem).
 //
 // JEDEN formularz na obie operacje, bo pola są identyczne, a dwa komponenty
@@ -127,7 +128,7 @@ export function ClubDocumentForm({
 
         <div>
           <Label htmlFor="club-doc-published">{t("club.workspace.documents.publishedLabel")}</Label>
-          <Input
+          <DateInput
             id="club-doc-published"
             type="date"
             className="mt-1"

@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Organizm: kody rejestracyjne wydarzenia (Swapcard „Registration codes").
 // Lista + okno tworzenia/edycji. Rabat liczy baza i nasza kasa (kod NIE jedzie
 // do pola kodów Stripe) - panel zapisuje tylko definicję kodu.
@@ -317,7 +318,7 @@ function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogPr
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1">
               <Label htmlFor="ec-from">{t("eventCodes.form.validFrom")}</Label>
-              <Input
+              <DateInput
                 id="ec-from"
                 type="datetime-local"
                 value={d.validFrom}
@@ -326,7 +327,7 @@ function EventCodeDialog({ eventId, eventSlug, row, tickets, onClose }: DialogPr
             </div>
             <div className="space-y-1">
               <Label htmlFor="ec-until">{t("eventCodes.form.validUntil")}</Label>
-              <Input
+              <DateInput
                 id="ec-until"
                 type="datetime-local"
                 value={d.validUntil}

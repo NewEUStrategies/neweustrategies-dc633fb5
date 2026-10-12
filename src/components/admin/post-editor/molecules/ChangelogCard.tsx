@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Panel "Historia aktualizacji" w edytorze wpisu (A4): świadome wpisy
 // redakcyjne widoczne publicznie pod analizą. Mutacje bezpośrednio przez
 // klienta Supabase - RLS (changelog staff manage) pilnuje staff + tenant,
@@ -84,7 +85,7 @@ export function ChangelogCard({ postId }: { postId: string }) {
         {t("adminPostPanes.changelog.hint")}
       </p>
       <div className="space-y-1.5">
-        <Input
+        <DateInput
           type="date"
           value={entryDate}
           onChange={(e) => setEntryDate(e.target.value)}

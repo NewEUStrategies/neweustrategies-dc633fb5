@@ -1,3 +1,5 @@
+import { DateInput } from "@/components/ui/date-input";
+import { TimeInput } from "@/components/ui/time-input";
 // Organizm: siatka slotów i reguła giełdy spotkań 1-1.
 //
 // SIATKA JEST WIDOCZNA PRZED ZAPISEM. „Giełda daje 19 slotów (19 na dzień)"
@@ -198,7 +200,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="day-start">{t("adminEventMeetings.settings.dayStartLabel")}</Label>
-          <Input
+          <TimeInput
             id="day-start"
             type="time"
             value={draft.dayStartTime}
@@ -207,7 +209,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="day-end">{t("adminEventMeetings.settings.dayEndLabel")}</Label>
-          <Input
+          <TimeInput
             id="day-end"
             type="time"
             value={draft.dayEndTime}
@@ -266,7 +268,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Input
+          <DateInput
             type="date"
             value={newDay}
             className="max-w-[12rem]"
@@ -289,7 +291,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
       <AdminFormSection title={t("adminEventMeetings.settings.windowSection")} columns={2}>
         <div className="space-y-1.5">
           <Label htmlFor="invites-open">{t("adminEventMeetings.settings.opensAtLabel")}</Label>
-          <Input
+          <DateInput
             id="invites-open"
             type="datetime-local"
             value={draft.invitesOpenAt}
@@ -301,7 +303,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="invites-close">{t("adminEventMeetings.settings.closesAtLabel")}</Label>
-          <Input
+          <DateInput
             id="invites-close"
             type="datetime-local"
             value={draft.invitesCloseAt}

@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Organism: tab content editor (HTML per language).
 import { toJson } from "@/lib/builder/types";
 import type { WidgetNode, Json } from "@/lib/builder/types";
@@ -45,7 +46,7 @@ export function TabsEditor({ c, lang, setContent }: Props) {
       }
     >
       <PropField label={isPL ? "Układ zakładek" : "Tabs layout"}>
-        <select
+        <AdminSelect
           value={orientation}
           onChange={(e) => setContent("orientation", e.target.value)}
           className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
@@ -56,11 +57,11 @@ export function TabsEditor({ c, lang, setContent }: Props) {
           <option value="vertical">
             {isPL ? "Pionowy (tekst po prawej)" : "Vertical (text on the right)"}
           </option>
-        </select>
+        </AdminSelect>
       </PropField>
       {orientation === "horizontal" && (
         <PropField label={isPL ? "Pozycjonowanie zakładek" : "Tabs alignment"}>
-          <select
+          <AdminSelect
             value={tabAlign}
             onChange={(e) => setContent("tabAlign", e.target.value)}
             className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
@@ -69,7 +70,7 @@ export function TabsEditor({ c, lang, setContent }: Props) {
             <option value="center">{isPL ? "Wyśrodkowane" : "Center"}</option>
             <option value="right">{isPL ? "Do prawej" : "Right"}</option>
             <option value="justify">{isPL ? "Wyjustowane" : "Justify"}</option>
-          </select>
+          </AdminSelect>
         </PropField>
       )}
       <div className="space-y-2">

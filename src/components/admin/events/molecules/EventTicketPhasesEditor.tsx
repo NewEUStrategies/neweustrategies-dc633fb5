@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Molekuła: CENNIK FAZOWY jednego biletu (early bird -> regular -> last minute).
 //
 // KOLEJNOŚĆ JEST CZĘŚCIĄ UMOWY, NIE KOSMETYKĄ. Baza bierze PIERWSZY próg,
@@ -128,7 +129,7 @@ export function EventTicketPhasesEditor({ phases, onChange, error }: EventTicket
                 <Label htmlFor={`phase-from-${index}`}>
                   {t("adminEventRegistration.tickets.editor.phaseFrom")}
                 </Label>
-                <Input
+                <DateInput
                   id={`phase-from-${index}`}
                   type="datetime-local"
                   value={phase.from}
@@ -139,7 +140,7 @@ export function EventTicketPhasesEditor({ phases, onChange, error }: EventTicket
                 <Label htmlFor={`phase-to-${index}`}>
                   {t("adminEventRegistration.tickets.editor.phaseTo")}
                 </Label>
-                <Input
+                <DateInput
                   id={`phase-to-${index}`}
                   type="datetime-local"
                   value={phase.to}

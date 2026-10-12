@@ -1,3 +1,5 @@
+import { adminPageHead } from "@/lib/adminPageHead";
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Admin "Rekrutacja": skrzynka zgłoszeń ze strony /zatrudniamy.
 // Zgłoszenia trafiają do `contact_messages` (form_id = "careers") razem z
 // polami rekrutacyjnymi w kolumnie `custom`, a równolegle są synchronizowane
@@ -43,9 +45,7 @@ import {
 } from "@/lib/careers/recruitmentLayer";
 
 export const Route = createFileRoute("/admin/careers")({
-  head: () => ({
-    meta: [{ title: "Rekrutacja | Admin" }, { name: "robots", content: "noindex" }],
-  }),
+  head: () => adminPageHead("Recruitment", "Review recruitment applications and messages. New European Strategies administration."),
   component: AdminCareersPage,
 });
 
@@ -527,7 +527,7 @@ function AdminCareersPage() {
               placeholder={L.search}
               className="h-8 text-xs"
             />
-            <select
+            <AdminSelect
               aria-label={L.stage}
               value={stageFilter}
               onChange={(e) =>
@@ -543,7 +543,7 @@ function AdminCareersPage() {
                   {stageLabel(st, adminLang)}
                 </option>
               ))}
-            </select>
+            </AdminSelect>
           </div>
           <ul className="max-h-[70vh] flex-1 divide-y divide-border overflow-y-auto">
             {isLoading && <li className="p-3 text-xs text-muted-foreground">…</li>}
@@ -702,7 +702,7 @@ function AdminCareersPage() {
                       >
                         {L.stage}
                       </label>
-                      <select
+                      <AdminSelect
                         id="career-stage"
                         value={current.pipeline.stage}
                         disabled={savePipeline.isPending}
@@ -719,7 +719,7 @@ function AdminCareersPage() {
                             {stageLabel(st, adminLang)}
                           </option>
                         ))}
-                      </select>
+                      </AdminSelect>
                     </div>
                     <div className="w-28">
                       <label
@@ -728,7 +728,7 @@ function AdminCareersPage() {
                       >
                         {L.rating}
                       </label>
-                      <select
+                      <AdminSelect
                         id="career-rating"
                         value={current.pipeline.rating ?? ""}
                         disabled={savePipeline.isPending}
@@ -745,7 +745,7 @@ function AdminCareersPage() {
                             {"★".repeat(n)}
                           </option>
                         ))}
-                      </select>
+                      </AdminSelect>
                     </div>
                   </div>
 

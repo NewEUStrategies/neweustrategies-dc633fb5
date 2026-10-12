@@ -1,3 +1,4 @@
+import { DateInput } from "@/components/ui/date-input";
 // Molekula: formularz JEDNEGO okna dostepnosci uczestnika.
 //
 // DIALOG, A NIE EDYCJA W MIEJSCU. Okno dostepnosci nie jest ozdoba - decyduje
@@ -19,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -88,7 +88,7 @@ export function AvailabilityWindowDialog({
             <Label htmlFor="availability-from">
               {t("eventMeetings.participant.availability.from")}
             </Label>
-            <Input
+            <DateInput
               id="availability-from"
               type="datetime-local"
               value={form.startsAtLocal}
@@ -105,7 +105,7 @@ export function AvailabilityWindowDialog({
             <Label htmlFor="availability-to">
               {t("eventMeetings.participant.availability.to")}
             </Label>
-            <Input
+            <DateInput
               id="availability-to"
               type="datetime-local"
               value={form.endsAtLocal}

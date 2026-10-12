@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // WidgetPreview - wizualny render pojedynczego widgetu na kanwie buildera.
 // Uzywane rowniez w DragOverlay. HTML uzytkownika sanityzowany przez
 // `sanitizeHtml`; input fieldy renderowane jako read-only.
@@ -197,7 +198,7 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
             {pick(widget.label)}
             {widget.required && <span className="text-destructive ml-0.5">*</span>}
           </span>
-          <select
+          <AdminSelect
             disabled
             className="w-full px-3 py-2 rounded border border-input bg-background/60 text-sm"
           >
@@ -205,7 +206,7 @@ export function WidgetPreview({ widget, lang }: { widget: NlWidget | null; lang:
             {widget.options.map((o) => (
               <option key={o.value}>{lang === "pl" ? o.labelPl : o.labelEn}</option>
             ))}
-          </select>
+          </AdminSelect>
         </label>
       );
     case "field.mailing-lists":

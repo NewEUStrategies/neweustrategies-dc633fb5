@@ -3,6 +3,7 @@
 // listy punktowane i numerowane, cytat, link) operujący na contentEditable.
 // Wartością pola pozostaje HTML string - żadnej zmiany w schemacie/renderze.
 import { useEffect, useRef } from "react";
+import { PlatformSelect } from "@/components/ui/platform-select";
 import { useTranslation } from "react-i18next";
 import { looksLikeRichPaste, parseWordInlineHtml } from "@/lib/blocks/wordPaste";
 
@@ -47,6 +48,7 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
   const { t } = useTranslation();
   const rf = (k: string) => t(`builder.richHtmlField.${k}`);
   const ref = useRef<HTMLDivElement>(null);
+  const savedSelection = useRef<Range | null>(null);
   const lastEmitted = useRef<string>(value);
 
   // Zsynchronizuj DOM tylko wtedy, gdy wartość przyszła z zewnątrz (np. zmiana
@@ -178,15 +180,25 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
           ),
         )}
         <span className="mx-0.5 h-4 w-px bg-border" aria-hidden />
-        <select
+        <PlatformSelect
           title={rf("fontSize")}
           aria-label={rf("fontSize")}
-          defaultValue=""
-          onMouseDown={(e) => e.preventDefault()}
+          value=""
+          onOpenChange={(open) => {
+            if (!open) return;
+            const selection = window.getSelection();
+            const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+            savedSelection.current = range && ref.current?.contains(range.commonAncestorContainer) ? range.cloneRange() : null;
+          }}
           onChange={(e) => {
             const v = e.target.value;
+            ref.current?.focus();
+            const selection = window.getSelection();
+            if (selection && savedSelection.current) {
+              selection.removeAllRanges();
+              selection.addRange(savedSelection.current);
+            }
             applyFontSize(v);
-            e.currentTarget.selectedIndex = 0;
           }}
           className="h-6 rounded border border-border bg-background px-1 text-[11px] text-muted-foreground transition hover:text-foreground focus:outline-none"
         >
@@ -195,7 +207,7 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
               {s.label}
             </option>
           ))}
-        </select>
+        </PlatformSelect>
       </div>
       <div
         ref={ref}

@@ -1,3 +1,5 @@
+import { DateInput } from "@/components/ui/date-input";
+import { TimeInput } from "@/components/ui/time-input";
 // Organism: edytor widgetu "event-schedule". Struktura: dni -> sesje ->
 // (prelegenci | sponsorzy). Prelegent sesji moze byc wpisany recznie
 // (imie/rola/zdjecie) lub podpiety pod profil platformy (ProfilePicker ->
@@ -293,7 +295,7 @@ function SessionEditor({
 
       <div className="grid grid-cols-2 gap-2">
         <PropField label={l("Od", "From")}>
-          <Input
+          <TimeInput
             type="time"
             value={session.timeStart}
             onChange={(e) => onPatch({ timeStart: e.target.value })}
@@ -301,7 +303,7 @@ function SessionEditor({
           />
         </PropField>
         <PropField label={l("Do", "To")}>
-          <Input
+          <TimeInput
             type="time"
             value={session.timeEnd}
             onChange={(e) => onPatch({ timeEnd: e.target.value })}
@@ -585,7 +587,7 @@ export function EventScheduleEditor({ c, lang, setContent }: Props) {
                 </PropField>
               </div>
               <PropField label={l("Data", "Date")}>
-                <Input
+                <DateInput
                   type="date"
                   value={day.date}
                   onChange={(e) => patchDay(i, { date: e.target.value })}

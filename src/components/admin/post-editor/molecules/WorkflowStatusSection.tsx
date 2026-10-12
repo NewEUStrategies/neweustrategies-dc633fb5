@@ -1,6 +1,6 @@
+import { DateInput } from "@/components/ui/date-input";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -72,7 +72,7 @@ export function WorkflowStatusSection({
       {status === "scheduled" && (
         <div>
           <Label htmlFor="workflow-publish-at">{t("admin.workflow.publishAt")}</Label>
-          <Input
+          <DateInput
             id="workflow-publish-at"
             type="datetime-local"
             value={isoToLocalInput(publishAt)}

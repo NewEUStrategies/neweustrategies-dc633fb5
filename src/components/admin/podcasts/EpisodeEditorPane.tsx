@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Edytor odcinka podcastu - WYCIĄG z `routes/admin.podcasts.tsx`.
 //
 // CO TU MIESZKA: dwukolumnowy formularz odcinka (pola dwujęzyczne, audio,
@@ -198,7 +199,7 @@ export function EpisodeEditorPane({
             </div>
             <div>
               <Label>{t("adminPodcasts.fieldStatus")}</Label>
-              <select
+              <AdminSelect
                 className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
                 value={d.status}
                 onChange={(e) => upd({ status: e.target.value as PodcastStatus })}
@@ -206,7 +207,7 @@ export function EpisodeEditorPane({
                 <option value="draft">{t("adminPodcasts.editor.statusDraft")}</option>
                 <option value="published">{t("adminPodcasts.editor.statusPublished")}</option>
                 <option value="archived">{t("adminPodcasts.editor.statusArchived")}</option>
-              </select>
+              </AdminSelect>
             </div>
           </div>
 
@@ -215,7 +216,7 @@ export function EpisodeEditorPane({
               <FieldLabel tip={t("adminPodcasts.editor.showTip")}>
                 {t("adminPodcasts.editor.showLabel")}
               </FieldLabel>
-              <select
+              <AdminSelect
                 className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
                 value={d.show_id ?? ""}
                 onChange={(e) => upd({ show_id: e.target.value || null })}
@@ -226,13 +227,13 @@ export function EpisodeEditorPane({
                     {showListTitle(s)}
                   </option>
                 ))}
-              </select>
+              </AdminSelect>
             </div>
             <div>
               <FieldLabel tip={t("adminPodcasts.editor.categoryTip")}>
                 {t("adminPodcasts.editor.categoryLabel")}
               </FieldLabel>
-              <select
+              <AdminSelect
                 className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
                 value={d.category_id ?? ""}
                 onChange={(e) => upd({ category_id: e.target.value || null })}
@@ -243,7 +244,7 @@ export function EpisodeEditorPane({
                     {c.name_pl || c.name_en}
                   </option>
                 ))}
-              </select>
+              </AdminSelect>
             </div>
           </div>
 

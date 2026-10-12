@@ -1,3 +1,5 @@
+import { adminPageHead } from "@/lib/adminPageHead";
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AdminShell } from "@/components/admin/AdminShell";
 import { usePostLayoutSettings, useSavePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
@@ -6,7 +8,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/admin/content-area")({ component: Page });
+export const Route = createFileRoute("/admin/content-area")({
+  head: () => adminPageHead("Content layout", "Configure shared article and content layouts. New European Strategies administration."),
+  component: Page });
 
 // ---------- helpers -----------------------------------------------------------
 
@@ -85,7 +89,7 @@ function SelectField({
   options: Array<{ value: string; label: string }>;
 }) {
   return (
-    <select
+    <AdminSelect
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
@@ -95,7 +99,7 @@ function SelectField({
           {o.label}
         </option>
       ))}
-    </select>
+    </AdminSelect>
   );
 }
 

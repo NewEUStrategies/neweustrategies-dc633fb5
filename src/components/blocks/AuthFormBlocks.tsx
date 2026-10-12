@@ -1,3 +1,4 @@
+import { PlatformSelect } from "@/components/ui/platform-select";
 // Publiczne, strukturalne formularze auth używane przez BlocksRenderer.
 // Renderuje semantyczny HTML + integrację Supabase. Nie używać raw HTML.
 //
@@ -344,7 +345,7 @@ function CustomAuthFields({
               <label className="mb-1 block text-xs text-muted-foreground" htmlFor={name}>
                 {label}
               </label>
-              <select
+              <PlatformSelect
                 id={name}
                 name={name}
                 required={field.required}
@@ -360,7 +361,7 @@ function CustomAuthFields({
                     {(lang === "pl" ? option.labelPl : option.labelEn) ?? option.value}
                   </option>
                 ))}
-              </select>
+              </PlatformSelect>
               {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
             </div>
           );

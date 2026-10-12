@@ -1,3 +1,5 @@
+import { adminPageHead } from "@/lib/adminPageHead";
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Admin → Rozliczenia → Uzgadnianie. Porównuje stan u operatora płatności ze
 // stanem lokalnym i pozwala odtworzyć brakującą obsługę webhooka.
 //
@@ -17,12 +19,7 @@ import type { ReconcileIssue, ReconcileReport } from "@/lib/billing/reconcile.se
 import { ensureI18n as ensureAdminReconcileI18n } from "@/lib/i18n-admin-reconcile";
 
 export const Route = createFileRoute("/admin/billing-reconcile")({
-  head: () => ({
-    meta: [
-      { title: "Uzgadnianie płatności - Panel" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-  }),
+  head: () => adminPageHead("Payment reconciliation", "Review payment reconciliation and corrective actions. New European Strategies administration."),
   component: AdminBillingReconcile,
 });
 
@@ -98,14 +95,14 @@ function AdminBillingReconcile() {
       <div className="mb-5 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("adminReconcile.environment")}
-          <select
+          <AdminSelect
             className="h-9 rounded-md border bg-background px-2 text-sm text-foreground"
             value={environment}
             onChange={(e) => setEnvironment(e.target.value === "live" ? "live" : "sandbox")}
           >
             <option value="sandbox">{t("adminReconcile.sandbox")}</option>
             <option value="live">{t("adminReconcile.live")}</option>
-          </select>
+          </AdminSelect>
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           {t("adminReconcile.window")}

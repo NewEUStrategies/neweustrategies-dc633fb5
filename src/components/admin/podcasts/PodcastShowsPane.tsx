@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Panel programów (serii) podcastowych - WYCIĄG z `routes/admin.podcasts.tsx`.
 //
 // CO TU MIESZKA: lista programów z potwierdzeniem usunięcia i formularz
@@ -219,7 +220,7 @@ function ShowEditor({
         </div>
         <div>
           <Label>{t("adminPodcasts.fieldStatus")}</Label>
-          <select
+          <AdminSelect
             className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
             value={d.status}
             onChange={(e) => upd({ status: e.target.value as PodcastStatus })}
@@ -227,7 +228,7 @@ function ShowEditor({
             <option value="draft">{t("adminPodcasts.showEditor.statusDraft")}</option>
             <option value="published">{t("adminPodcasts.showEditor.statusPublished")}</option>
             <option value="archived">{t("adminPodcasts.showEditor.statusArchived")}</option>
-          </select>
+          </AdminSelect>
         </div>
       </div>
 

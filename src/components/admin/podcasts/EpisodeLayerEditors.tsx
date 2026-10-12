@@ -1,3 +1,4 @@
+import { AdminSelect } from "@/components/admin/blocks/AdminSelect";
 // Powtarzalne edytory warstw odcinka (uczestnicy, rozdziały, cytaty, źródła) -
 // WYCIĄG z `routes/admin.podcasts.tsx`.
 //
@@ -129,15 +130,15 @@ export function PeopleEditor({
           {people.map((person, i) => (
             <RowShell key={person.id ?? i} onRemove={() => remove(i)}>
               <div className="grid sm:grid-cols-[110px_1fr] gap-2">
-                <select
+                <AdminSelect
                   className="px-2 py-1.5 rounded border border-input bg-background text-sm"
                   value={person.role}
                   onChange={(e) => update(i, { role: e.target.value as "host" | "guest" })}
                 >
                   <option value="host">{t("adminPodcasts.people.roleHost")}</option>
                   <option value="guest">{t("adminPodcasts.people.roleGuest")}</option>
-                </select>
-                <select
+                </AdminSelect>
+                <AdminSelect
                   className="px-2 py-1.5 rounded border border-input bg-background text-sm"
                   value={person.profile_id ?? ""}
                   onChange={(e) => {
@@ -159,7 +160,7 @@ export function PeopleEditor({
                       {prof.display_name || prof.slug || prof.id.slice(0, 8)}
                     </option>
                   ))}
-                </select>
+                </AdminSelect>
               </div>
               <div className="grid sm:grid-cols-2 gap-2">
                 <Input
@@ -318,7 +319,7 @@ export function ResourcesEditor({
           {resources.map((r, i) => (
             <RowShell key={i} onRemove={() => remove(i)}>
               <div className="grid sm:grid-cols-[150px_1fr] gap-2">
-                <select
+                <AdminSelect
                   className="px-2 py-1.5 rounded border border-input bg-background text-sm"
                   value={r.kind}
                   onChange={(e) =>
@@ -327,7 +328,7 @@ export function ResourcesEditor({
                 >
                   <option value="source">{t("adminPodcasts.resources.kindSource")}</option>
                   <option value="related">{t("adminPodcasts.resources.kindRelated")}</option>
-                </select>
+                </AdminSelect>
                 <Input
                   value={r.url}
                   onChange={(e) => update(i, { url: e.target.value })}
