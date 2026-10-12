@@ -192,6 +192,22 @@ BEGIN
     v_p.consent_withdrawn_at IS NULL AND v_p.consent_marketing_at IS NOT NULL
     AND v_p.consent_partner_sharing_at IS NULL,
     '23/DOI: wycofanie zdjete, stary stempel partnerow (spoza linku) NIE wraca');
+
+  -- Dane przyslane przez niezweryfikowanego zapisujacego: obiekt, <= 4000.
+  UPDATE public.event_registrations
+     SET submitted_profile = '{"last_name":"Podszywacz"}'::jsonb
+   WHERE id = '23d00000-0000-0000-0000-000000000002';
+  PERFORM pg_temp.assert_raises_like(
+    $q$UPDATE public.event_registrations SET submitted_profile = '[1]'::jsonb
+        WHERE id = '23d00000-0000-0000-0000-000000000002'$q$,
+    'event_registrations_submitted_profile_shape',
+    '23/submitted_profile: tylko obiekt jsonb');
+  PERFORM pg_temp.assert_raises_like(
+    $q$UPDATE public.event_registrations
+          SET submitted_profile = jsonb_build_object('company_text', repeat('x', 4000))
+        WHERE id = '23d00000-0000-0000-0000-000000000002'$q$,
+    'event_registrations_submitted_profile_shape',
+    '23/submitted_profile: ponad 4000 znakow odrzucone');
 END
 $do$;
 

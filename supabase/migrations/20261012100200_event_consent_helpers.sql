@@ -19,7 +19,9 @@
 --     (`consent_withdrawn_at`) wymaga DOI: kanal `verified_account` dostaje
 --     `consent_withdrawn_requires_reconfirmation` (ta sama "lepka" regula
 --     wycofania co w naborze, 42_cfp.sql:812-827). DOI zdejmuje wycofanie,
---     ale zeruje cele, ktorych link NIE potwierdzil - nic nie zmartwychwstaje.
+--     ale zeruje cele, ktorych link NIE potwierdzil - nic nie zmartwychwstaje;
+--     link musi byc wydany na OBECNY adres osoby i potwierdzony przed
+--     wygasnieciem (druga linia obrony za RPC potwierdzenia jednostki B3).
 --   * `_event_consent_issue_confirmation` - wpisy 'pending' + nowy link DOI
 --     (w bazie tylko sha256; jawny token wraca raz, do wysylki mailem),
 --     zastepuje poprzedni otwarty link osoby.
@@ -136,16 +138,28 @@ BEGIN
   END LOOP;
 
   -- Blokada wiersza osoby: projekcja i decyzja o wycofaniu na jednym obrazie
-  -- (rownolegle wycofanie czeka albo widzi juz nasz wpis).
+  -- (rownolegle wycofanie czeka albo widzi juz nasz wpis). NO KEY: zmieniamy
+  -- wylacznie kolumny zgod, wiec nie blokujemy kontroli kluczy obcych
+  -- (rownolegly zapis zgloszenia tej osoby nie czeka na rejestr zgod).
   SELECT p.* INTO v_person
     FROM public.event_people p
    WHERE p.tenant_id = p_tenant AND p.id = p_person
-   FOR UPDATE;
+   FOR NO KEY UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'not_found: person does not exist';
   END IF;
   IF v_person.email_norm IS NULL THEN
     RAISE EXCEPTION 'invalid_payload: person has no e-mail address';
+  END IF;
+
+  -- DOI potwierdza SKRZYNKE, do ktorej poszedl mail. Gdy organizator zmienil
+  -- w miedzyczasie adres osoby albo link potwierdzono po terminie, link nie
+  -- jest dowodem dla obecnej kartoteki. RPC potwierdzenia (B3) odrzuca oba
+  -- przypadki wczesniej jako `expired`; tu druga linia obrony, zeby zaden
+  -- przyszly wolajacy nie udzielil zgody nie tej skrzynce.
+  IF p_evidence = 'email_double_opt_in'
+     AND (v_conf.email_norm <> v_person.email_norm OR v_conf.confirmed_at > v_conf.expires_at) THEN
+    RAISE EXCEPTION 'invalid_payload: double opt-in link was issued for another address or confirmed after expiry';
   END IF;
 
   -- Zgloszenie musi nalezec do tej osoby, a wydarzenie - do zgloszenia: wpis
@@ -231,7 +245,7 @@ GRANT EXECUTE ON FUNCTION public._event_person_consents_confirm(
 COMMENT ON FUNCTION public._event_person_consents_confirm(
   uuid, uuid, text[], text, uuid, uuid, uuid, integer, text, text, text, uuid, text, boolean
 ) IS
-  'Wewnetrzna (service_role i funkcje SECURITY DEFINER). Jedyne udzielenie zgody uczestnika: wpis confirmed w event_consent_records na kazdy cel + projekcja w event_people (p_project = false: sam wpis). Kanaly: registration_form (wylacznie data_processing - CHECK ksiegi), verified_account (wolajacy sprawdzil potwierdzony adres konta = adres osoby; przy consent_withdrawn_at RAISE consent_withdrawn_requires_reconfirmation), email_double_opt_in (potwierdzony link tej osoby; zdejmuje wycofanie i zeruje cele spoza linku). Tozsamosc i adres IP wylacznie z argumentow serwera, nigdy z ladunku.';
+  'Wewnetrzna (service_role i funkcje SECURITY DEFINER). Jedyne udzielenie zgody uczestnika: wpis confirmed w event_consent_records na kazdy cel + projekcja w event_people (p_project = false: sam wpis). Kanaly: registration_form (wylacznie data_processing - CHECK ksiegi), verified_account (wolajacy sprawdzil potwierdzony adres konta = adres osoby; przy consent_withdrawn_at RAISE consent_withdrawn_requires_reconfirmation), email_double_opt_in (link tej osoby potwierdzony przed wygasnieciem, wydany na jej obecny adres; zdejmuje wycofanie i zeruje cele spoza linku). Tozsamosc i adres IP wylacznie z argumentow serwera, nigdy z ladunku.';
 
 -- ----------------------------------------------------------------------------
 -- 2) LINK DOUBLE OPT-IN
@@ -284,7 +298,7 @@ BEGIN
   SELECT p.* INTO v_person
     FROM public.event_people p
    WHERE p.tenant_id = p_tenant AND p.id = p_person
-   FOR UPDATE;
+   FOR NO KEY UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'not_found: person does not exist';
   END IF;
@@ -501,7 +515,7 @@ BEGIN
   SELECT p.* INTO v_person
     FROM public.event_people p
    WHERE p.tenant_id = p_tenant AND p.id = p_person
-   FOR UPDATE;
+   FOR NO KEY UPDATE;
   -- Wycofanie nigdy nie rzuca z braku osoby: link wypisu i klucz samoobslugi
   -- moga przezyc kartoteke (usuniecie danych). Nie ma czego wycofac.
   IF NOT FOUND THEN
@@ -607,6 +621,11 @@ DECLARE
   v_email_norm text := NULLIF(lower(btrim(COALESCE(p_email, ''))), '');
   v_person uuid;
 BEGIN
+  -- Kanal sprawdzamy PRZED szukaniem osoby: zly kanal to blad wolajacego,
+  -- ktory nie moze sie chowac za adresem bez kartoteki (wynik false).
+  IF p_channel IS NULL OR p_channel NOT IN ('manage_token', 'account_settings', 'unsubscribe_link') THEN
+    RAISE EXCEPTION 'invalid_consent_evidence: % cannot withdraw a consent', COALESCE(p_channel, 'NULL');
+  END IF;
   IF p_tenant IS NULL OR v_email_norm IS NULL THEN
     RETURN false;
   END IF;
@@ -618,7 +637,7 @@ BEGIN
   END IF;
   RETURN public._event_person_consents_withdraw(
     p_tenant, v_person, ARRAY['marketing']::text[], p_channel,
-    NULL, NULL, NULL, 'email:' || COALESCE(p_channel, '')
+    NULL, NULL, NULL, 'email:' || p_channel
   );
 END;
 $$;

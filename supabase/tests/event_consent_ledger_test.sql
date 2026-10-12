@@ -25,11 +25,14 @@
 --     stary pisarz ponownie postawi stempel, i takze po wycofaniu po stronie
 --     CRM (given=false spoza modulu);
 --   * spadek `legacy_single_opt_in` i zachowanie mostu dla osob bez ksiegi;
---   * RLS: wlasciciel czyta swoja ksiege, admin najemcy swoja, nikt cudzej.
+--   * `event_registrations.submitted_profile`: tylko obiekt, najwyzej 4000
+--     znakow (odmowa, nie przyciecie);
+--   * RLS: wlasciciel czyta swoja ksiege, admin najemcy swoja, nikt cudzej;
+--   * wersje tekstu wycofuje sie z uzycia raz, a wycofana dalej jest dowodem.
 --
 -- now() jest stale w transakcji - kolejnosc wpisow niesie `seq`.
 BEGIN;
-SELECT plan(82);
+SELECT plan(95);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -289,7 +292,7 @@ SELECT throws_ok(
             'fresh@ecl.example', 'marketing', 'confirmed', 'verified_account', 99, 'pl')$$,
   '23503', NULL, 'klucz obcy tekstu: wersji, ktorej nie ma, nie da sie wskazac');
 
--- ── 33-45. Udzielenie ────────────────────────────────────────────────────────
+-- ── 33-48. Udzielenie ────────────────────────────────────────────────────────
 SELECT throws_ok(
   $$SELECT public._event_person_consents_confirm(
       'ec0a0000-0000-0000-0000-0000000000aa', 'ec300000-0000-0000-0000-000000000001',
@@ -378,7 +381,31 @@ SELECT ok(
     WHERE id = 'ec300000-0000-0000-0000-000000000006'),
   'p_project = true: COALESCE(consent_data_processing_at, now())');
 
--- ── 46-53. Link DOI i potwierdzenie ──────────────────────────────────────────
+-- data_processing nie przesuwa istniejacego stempla i nie dotyka wycofania
+-- (to podstawa obslugi zapisu, nie zgoda marketingowa).
+SELECT lives_ok(
+  $$SELECT public._event_person_consents_confirm(
+      'ec0a0000-0000-0000-0000-0000000000aa', 'ec300000-0000-0000-0000-000000000001',
+      ARRAY['data_processing'], 'verified_account', NULL, 'ec400000-0000-0000-0000-000000000001',
+      NULL, 1, 'pl', NULL, NULL, 'ec000000-0000-0000-0000-0000000000a1', 'registration_form')$$,
+  'data_processing kanalem konta u osoby z dawnym stemplem przechodzi');
+SELECT lives_ok(
+  $$SELECT public._event_person_consents_confirm(
+      'ec0a0000-0000-0000-0000-0000000000aa', 'ec300000-0000-0000-0000-000000000002',
+      ARRAY['data_processing'], 'registration_form', NULL, 'ec400000-0000-0000-0000-000000000002',
+      NULL, 1, 'pl', NULL, NULL, NULL, 'registration_form')$$,
+  'data_processing u osoby wycofanej przechodzi (bez consent_withdrawn_requires_reconfirmation)');
+SELECT ok(
+  (SELECT consent_data_processing_at = '2026-01-01 10:00+00' FROM public.event_people
+    WHERE id = 'ec300000-0000-0000-0000-000000000001')
+  AND (SELECT consent_data_processing_at = '2026-01-01 10:00+00'
+              AND consent_withdrawn_at = '2026-02-01 10:00+00'
+              AND consent_marketing_at IS NULL
+              AND consent_partner_sharing_at = '2026-01-10 10:00+00'
+         FROM public.event_people WHERE id = 'ec300000-0000-0000-0000-000000000002'),
+  'data_processing: COALESCE nie przesuwa stempla; wycofanie i cele marketingowe nietkniete');
+
+-- ── 49-59. Link DOI i potwierdzenie ──────────────────────────────────────────
 INSERT INTO _ecl_tok (k, token)
 SELECT 'p2-first', public._event_consent_issue_confirmation(
   'ec0a0000-0000-0000-0000-0000000000aa', 'ec300000-0000-0000-0000-000000000002',
@@ -449,7 +476,46 @@ SELECT is(
       AND r.text_version = 1 AND r.text_lang = 'pl' AND r.ip_subject = 'ip:' || repeat('c3', 16)),
   1, 'wpis DOI: potwierdzenie, tekst wersji z linku, IP z potwierdzenia');
 
--- ── 54-65. Most CRM i wycofanie (REG-14) ─────────────────────────────────────
+-- Link potwierdzony, ale wydany na INNY adres (organizator zmienil e-mail
+-- osoby) albo potwierdzony po terminie - nie jest dowodem dla tej skrzynki.
+INSERT INTO _ecl_tok (k, token)
+SELECT 'p6-moved', public._event_consent_issue_confirmation(
+  'ec0a0000-0000-0000-0000-0000000000aa', 'ec300000-0000-0000-0000-000000000006',
+  ARRAY['marketing'], 'ec100000-0000-0000-0000-0000000000e1', NULL, 1, 'pl', NULL, NULL);
+UPDATE public.event_consent_confirmations c
+   SET confirmed_at = now(), email_norm = 'previous@ecl.example'
+  FROM _ecl_tok t
+ WHERE t.k = 'p6-moved' AND c.token_hash = encode(extensions.digest(t.token, 'sha256'), 'hex');
+SELECT throws_like(
+  $$SELECT public._event_person_consents_confirm(
+      'ec0a0000-0000-0000-0000-0000000000aa', 'ec300000-0000-0000-0000-000000000006',
+      ARRAY['marketing'], 'email_double_opt_in', NULL, NULL,
+      (SELECT c.id FROM public.event_consent_confirmations c, _ecl_tok t
+        WHERE t.k = 'p6-moved' AND c.token_hash = encode(extensions.digest(t.token, 'sha256'), 'hex')),
+      NULL, NULL, NULL, NULL, NULL, 'email_double_opt_in')$$,
+  'invalid_payload%', 'DOI z linku wydanego na poprzedni adres osoby: odmowa');
+UPDATE public.event_consent_confirmations c
+   SET email_norm = 'fresh@ecl.example', expires_at = c.created_at + interval '1 minute',
+       confirmed_at = c.created_at + interval '2 minutes'
+  FROM _ecl_tok t
+ WHERE t.k = 'p6-moved' AND c.token_hash = encode(extensions.digest(t.token, 'sha256'), 'hex');
+SELECT throws_like(
+  $$SELECT public._event_person_consents_confirm(
+      'ec0a0000-0000-0000-0000-0000000000aa', 'ec300000-0000-0000-0000-000000000006',
+      ARRAY['marketing'], 'email_double_opt_in', NULL, NULL,
+      (SELECT c.id FROM public.event_consent_confirmations c, _ecl_tok t
+        WHERE t.k = 'p6-moved' AND c.token_hash = encode(extensions.digest(t.token, 'sha256'), 'hex')),
+      NULL, NULL, NULL, NULL, NULL, 'email_double_opt_in')$$,
+  'invalid_payload%', 'DOI potwierdzony po wygasnieciu linku: odmowa');
+SELECT ok(
+  (SELECT consent_marketing_at IS NULL FROM public.event_people
+    WHERE id = 'ec300000-0000-0000-0000-000000000006')
+  AND NOT EXISTS (SELECT 1 FROM public.event_consent_records
+                   WHERE person_id = 'ec300000-0000-0000-0000-000000000006'
+                     AND purpose = 'marketing' AND status = 'confirmed'),
+  'odrzucony DOI: ani projekcji, ani wpisu confirmed');
+
+-- ── 60-71. Most CRM i wycofanie (REG-14) ─────────────────────────────────────
 -- Kazde wywolanie z efektem ubocznym idzie OSOBNA instrukcja, a asercja
 -- dopiero po niej: podzapytanie w tej samej instrukcji co funkcja VOLATILE
 -- widzi migawke sprzed jej zapisow, wiec sprawdzaloby stan sprzed wywolania.
@@ -547,7 +613,7 @@ SELECT is(
     NULL, NULL, NULL, 'account_settings'),
   false, 'wycofanie bez aktywnej zgody: false (wpis i tak zapisany)');
 
--- ── 66-68. Wycofanie po stronie CRM, osoby bez ksiegi, dowod DOI ─────────────
+-- ── 72-74. Wycofanie po stronie CRM, osoby bez ksiegi, dowod DOI ─────────────
 INSERT INTO _ecl_sync (k, lead)
 SELECT 'p5-crmside', public._event_person_crm_sync('ec0a0000-0000-0000-0000-0000000000aa',
   'ec300000-0000-0000-0000-000000000005', 'event_participant', 'event:ecl-event:registration',
@@ -588,7 +654,7 @@ SELECT ok(
        AND g.ip = 'ip:' || repeat('c3', 16) AND g.user_agent = 'ua-c'),
   'most z dowodem DOI: prawdziwy tekst, wersja, kanal, IP i UA w rejestrze zgod CRM');
 
--- ── 69-76. Wycofanie z konta, po adresie, odmowy, najemca ────────────────────
+-- ── 75-83. Wycofanie z konta, po adresie, odmowy, najemca ────────────────────
 SELECT lives_ok(
   $$SELECT public._event_person_consents_withdraw('ec0a0000-0000-0000-0000-0000000000aa',
       'ec300000-0000-0000-0000-000000000001', ARRAY['marketing'], 'account_settings',
@@ -630,6 +696,10 @@ SELECT throws_like(
       'owner@ecl.example', 'registration_form')$$,
   'invalid_consent_evidence%', 'wycofanie kanalem spoza listy: odmowa');
 SELECT throws_like(
+  $$SELECT public._event_consent_withdraw_by_email('ec0a0000-0000-0000-0000-0000000000aa',
+      'nobody@ecl.example', 'registration_form')$$,
+  'invalid_consent_evidence%', 'zly kanal nie chowa sie za adresem bez kartoteki');
+SELECT throws_like(
   $$SELECT public._event_person_consents_withdraw('ec0a0000-0000-0000-0000-0000000000aa',
       'ec300000-0000-0000-0000-000000000001', ARRAY['data_processing'], 'account_settings',
       NULL, NULL, NULL, NULL)$$,
@@ -644,13 +714,33 @@ SELECT ok(
                    WHERE tenant_id = 'ec0b0000-0000-0000-0000-0000000000bb'),
   'osoba z innego najemcy: false i zaden wpis');
 
+-- ── 84-86. submitted_profile: dane niezweryfikowanego zapisujacego ───────────
+SELECT lives_ok(
+  $$UPDATE public.event_registrations
+       SET submitted_profile = '{"first_name":"Mallory","last_name":"Attacker"}'::jsonb
+     WHERE id = 'ec400000-0000-0000-0000-000000000003'$$,
+  'submitted_profile: obiekt jsonb przyjety');
+SELECT throws_ok(
+  $$UPDATE public.event_registrations SET submitted_profile = '["Mallory"]'::jsonb
+     WHERE id = 'ec400000-0000-0000-0000-000000000003'$$,
+  '23514',
+  'new row for relation "event_registrations" violates check constraint "event_registrations_submitted_profile_shape"',
+  'submitted_profile: tablica (nie obiekt) odrzucona');
+SELECT throws_ok(
+  $$UPDATE public.event_registrations
+       SET submitted_profile = jsonb_build_object('company_text', repeat('x', 4000))
+     WHERE id = 'ec400000-0000-0000-0000-000000000003'$$,
+  '23514',
+  'new row for relation "event_registrations" violates check constraint "event_registrations_submitted_profile_shape"',
+  'submitted_profile: ponad 4000 znakow odrzucone (odmowa, nie przyciecie)');
+
 -- Wpis w drugim najemcy (do asercji RLS).
 SELECT public._event_person_consents_confirm(
   'ec0b0000-0000-0000-0000-0000000000bb', 'ec300000-0000-0000-0000-000000000009',
   ARRAY['data_processing'], 'registration_form', NULL, 'ec400000-0000-0000-0000-000000000009',
   NULL, 1, 'pl', NULL, NULL, NULL, 'registration_form');
 
--- ── 77-82. RLS ksiegi i potwierdzen ──────────────────────────────────────────
+-- ── 87-92. RLS ksiegi i potwierdzen ──────────────────────────────────────────
 SELECT set_config('request.jwt.claims',
   '{"sub":"ec000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
 SET LOCAL ROLE authenticated;
@@ -691,6 +781,21 @@ SET LOCAL ROLE anon;
 SELECT throws_ok($$SELECT 1 FROM public.event_consent_records$$, '42501', NULL,
   'anon nie ma dostepu do ksiegi');
 RESET ROLE;
+
+-- ── 93-95. Wycofanie wersji tekstu z uzycia ──────────────────────────────────
+-- Jedyna dopuszczalna zmiana opublikowanej wersji, jednorazowa; wpisy
+-- wskazujace wersje wycofana dalej sie waliduja (stara paczka formularza).
+SELECT lives_ok(
+  $$UPDATE public.event_consent_texts SET retired_at = now()
+     WHERE purpose = 'marketing' AND version = 1 AND lang = 'pl'$$,
+  'tekst: wycofanie wersji z uzycia (retired_at) przechodzi');
+SELECT throws_like(
+  $$UPDATE public.event_consent_texts SET retired_at = now() + interval '1 day'
+     WHERE purpose = 'marketing' AND version = 1 AND lang = 'pl'$$,
+  'append_only%', 'tekst: wersje wycofuje sie raz (bez przesuwania daty)');
+SELECT lives_ok(
+  $$SELECT public._event_consent_text_check('marketing', 1, 'pl')$$,
+  'tekst: wersja wycofana z uzycia nadal jest znanym dowodem');
 
 SELECT set_config('request.jwt.claims', '', true);
 SELECT * FROM finish();
