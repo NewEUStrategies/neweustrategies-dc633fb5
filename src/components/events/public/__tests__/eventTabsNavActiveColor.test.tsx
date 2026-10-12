@@ -139,6 +139,19 @@ function textColorUtilities(node: Element): string[] {
   return Array.from(node.classList).filter((token) => token.startsWith("text-[color:"));
 }
 
+/**
+ * Klasy kreski bieżącej pozycji (`after:bg-*`) - znak „tu jestem”.
+ *
+ * Mierzone na TOKENIE, nie na wartości obliczonej: jsdom nie liczy
+ * pseudoelementów, więc `getComputedStyle(node, "::after")` oddaje pustkę i
+ * asercja na kolorze kreski byłaby zielona niezależnie od stanu kodu. Token
+ * stoi na węźle złożonym przez prawdziwy router, więc jego brak (albo jego
+ * obecność na pozycji niebieżącej) czerwieni test.
+ */
+function indicatorUtilities(node: Element): string[] {
+  return Array.from(node.classList).filter((token) => token.startsWith("after:bg-"));
+}
+
 function mountStyleEnvironment(navColored: boolean): void {
   const tokens = document.createElement("style");
   const brand = navColored ? `--event-nav-fg:${NAV_FG};--event-nav-fg-muted:${NAV_FG_MUTED};` : "";
