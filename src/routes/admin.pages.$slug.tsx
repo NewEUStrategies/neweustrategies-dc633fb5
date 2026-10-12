@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { DateInput } from "@/components/ui/date-input";
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { slugifyTaxonomy, normalizeSlugInput } from "@/lib/content/taxonomySlug";
@@ -69,6 +70,7 @@ import { useAdminLang } from "@/lib/builder/labelsEn";
 import { codePage } from "@/lib/admin/codePages";
 import { Code2 } from "lucide-react";
 export const Route = createFileRoute("/admin/pages/$slug")({
+  head: () => adminPageHead("Page editor", "Edit page content and publication settings. New European Strategies administration."),
   component: EditPage,
 });
 

@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { DateInput } from "@/components/ui/date-input";
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
@@ -70,6 +71,7 @@ import {
 } from "@/components/admin/post-editor/lib/postsListDialogs";
 
 export const Route = createFileRoute("/admin/posts")({
+  head: () => adminPageHead("Posts", "Manage articles and publication dates. New European Strategies administration."),
   component: PostsLayout,
 });
 

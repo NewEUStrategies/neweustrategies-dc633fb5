@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { DateInput } from "@/components/ui/date-input";
 // /admin/community/polls — moderacja ankiet.
 import { createFileRoute } from "@tanstack/react-router";
@@ -37,7 +38,7 @@ import {
 } from "@/lib/admin/community";
 
 export const Route = createFileRoute("/admin/community/polls")({
-  head: () => ({ meta: [{ title: "Polls · Community · Admin" }] }),
+  head: () => adminPageHead("Community polls", "Manage community polls and publication dates. New European Strategies administration."),
   component: PollsAdmin,
 });
 

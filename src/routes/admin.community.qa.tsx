@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { DateInput } from "@/components/ui/date-input";
 // /admin/community/qa — moderacja sesji Q&A i pytań.
 // - Lista sesji ze statusem → workflow (draft → scheduled → open → answering → closed)
@@ -59,7 +60,7 @@ import {
 } from "@/lib/admin/community";
 
 export const Route = createFileRoute("/admin/community/qa")({
-  head: () => ({ meta: [{ title: "Q&A · Community · Admin" }] }),
+  head: () => adminPageHead("Community Q&A", "Manage community questions and scheduled Q&A sessions. New European Strategies administration."),
   component: AdminCommunityQa,
 });
 

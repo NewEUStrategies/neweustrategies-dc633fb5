@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { DateInput } from "@/components/ui/date-input";
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, useMemo, useEffect } from "react";
@@ -60,6 +61,7 @@ const READING_DEFAULTS: Reading = {
 };
 
 export const Route = createFileRoute("/admin/pages")({
+  head: () => adminPageHead("Pages", "Manage pages and publication schedules. New European Strategies administration."),
   component: PagesLayout,
 });
 

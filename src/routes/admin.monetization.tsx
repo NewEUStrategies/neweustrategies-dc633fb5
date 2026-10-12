@@ -1,3 +1,4 @@
+import { adminPageHead } from "@/lib/adminPageHead";
 import { DateInput } from "@/components/ui/date-input";
 import { ensureI18n } from "@/lib/i18n-admin-monetization";
 // Dashboard monetyzacji: metered views, użycia kuponów, ustawienia checkoutu,
@@ -31,6 +32,7 @@ import {
 } from "@/components/ui/select";
 
 export const Route = createFileRoute("/admin/monetization")({
+  head: () => adminPageHead("Monetization", "Review membership orders, coupons and revenue. New European Strategies administration."),
   component: AdminMonetizationPage,
 });
 
