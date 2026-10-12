@@ -17,6 +17,7 @@
 // 6 PX. Chip ma promien platformy (6 px), tak jak zdjecia i przyciski karty.
 import { useTranslation } from "react-i18next";
 
+import { resolveBrandAccent } from "@/lib/theme/brandAccent";
 import { cn } from "@/lib/utils";
 import { speakerTrackName, type SpeakerTrack } from "@/lib/events/speakerCard";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
