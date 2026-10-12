@@ -2183,6 +2183,60 @@ const CLIENT_DIR =
 // OBOWIĄZUJE: pierwszy log runnera na main po scaleniu jest podstawą korekty
 // w dół.
 
+// 2026-10-12 XXIX  ZAKŁADKI MODUŁOWE WYDARZENIA: OKNA OSÓB I INSTYTUCJI,
+//             PRZYKLEJONY PASEK ZAKŁADEK. Floory PUBLIC 2877 -> 2881,
+//             OVERALL 4855 -> 4879, CSS 98 -> 100, DECYZJĄ ZAMAWIAJĄCEGO
+//             („Trzeba będzie podnieść check:bundle (4859.1 KB vs 4855 KB
+//             budget) before any changes, with CSS nearly maxed at 97.8/98 KB").
+//             CHUNK, PUBLIC CSS i BOOT nie ruszone - mieszczą się w progach
+//             (chunk 263,5 <= 286, public css 84,0 <= 85, boot 489,3 <= 579).
+//
+// BAZA BYŁA JUŻ CZERWONA. Pomiar na tym samym hoście (`bun run build` + ta
+// bramka), dwa drzewa:
+//   baza 85e0495d8:  overall 4859,1   public 2861,2   admin 1997,9   css 97,8
+//   gałąź (ten wpis): overall 4877,8  public 2879,1   admin 1998,7   css 98,3
+// Baza przekraczała OVERALL o 4,1 KB (dryf main po XXVIII, poza tym PR) - zero
+// delta i tak dałoby czerwoną bramkę.
+//
+// SKŁAD PRZYROSTU PR, public +17,9 (gzip per chunk):
+//   +5,9  EventDirectoryDialog (NOWY, leniwy): okno osoby i instytucji -
+//         widoki, sekcje, stos „Wstecz", arkusz od dołu na telefonie
+//   +4,3  EventDirectoryContext (NOWY): katalog `lib/events/eventDirectory`
+//         (sklejanie prelegentów, obsady sesji, partnerów i uczestników po
+//         tożsamości) + dostawca i wyzwalacze. Z tego ~1,0 to lista wstępnego
+//         ładowania Vite dla leniwego okna (62 pliki zależności: akcje
+//         networkingu, sieci społecznościowe, materiały prelegenta)
+//   +1,3  EventAgendaSection: wyzwalacze osób i partnera sesji, odsłanianie
+//         sesji z okna i z kotwicy, klawiatura zakładek dni
+//   +1,1  events._slug.discussions: wiersze redakcyjne, autor jako przycisk
+//   +1,0  EventSponsorsSection (+ nowy EventPartnersTab - ściana logotypów)
+//   +1,0  EventOrgLogo + usePublicEventDirectory (wzbogacenie na sygnał)
+//   +0,9  i18n-event-front: słownik `eventFront.directory.*` PL/EN
+//   +0,4  EventTabsBar: pasek jednorzędowy, centrowanie bieżącej zakładki,
+//         kółko myszy na komputerze
+//   +0,2  EventModuleHero, +0,2 SpeakerProfileCard, -0,5 SpeakerProfileDialog
+//   +1,9  przetasowanie chunków (`experimentalMinChunkSize`: m.in. entry
+//         +4,4 przy zniknięciu `keys`, `IntentBulletList`, części
+//         `web-stories._slug`) - żaden moduł PR nie trafił do entry
+// admin +0,8: katalog okien w podglądzie studia (EventPreviewLiveModule).
+// CSS +0,5: blok „ZAKŁADKI MODUŁOWE WYDARZENIA" w `src/styles.css` (nagłówek
+// zakładki, okno, przyklejony pasek) i cztery nowe klasy narzędzi (295 B
+// surowych: dwa przesunięcia od paska, `justify-center-safe`, `box-content`).
+//
+// CO WYCIĘTO: martwe klucze `attendees.profileLink`, `attendees.speakerSessions`
+// i nieużywane `directory.speakersCount_*`, stała `EMPTY_EVENT_DIRECTORY`,
+// martwa gałąź dokumentu w nagłówku „Mój profil" (kilkanaście wariantów
+// `[&_p]:…`) i klasa `event-module-hero-title` bez reguły. Typografia
+// dokumentu w nagłówku i geometria okna idą jednym blokiem arkusza zamiast
+// wariantów narzędzi (`[&_h1]:!…`, `sm:data-[state=open]:…`), ruch okna przez
+// zmienne `tw-animate-css` - pierwsza wersja kosztowała arkusz ~7 KB więcej.
+// CZEGO NIE DA SIĘ PRZENIEŚĆ: okno jest już leniwe, a leniwy import nie obniża
+// PUBLIC ani OVERALL (suma wszystkich chunków osiągalnych z publicznego URL-a).
+//
+// FORMUŁA JAK W XIX-XXVIII: public 2879,1 -> 2880 -> 2881; overall 4877,8 ->
+// 4878 -> 4879; css 98,3 -> 99 -> 100. ZASADA Z WPISU V OBOWIĄZUJE: pierwszy
+// log runnera na main po scaleniu jest podstawą korekty w dół.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet
@@ -2265,7 +2319,10 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 2866 -> 2877 (wpis 2026-09-27 XX): XIX liczył z hosta i nie pokrył
   // `xlsx` 0.20.3 runnera (+18,5 KB w publicznym procesie arkuszy). Runner
   // cfb11b263 2878,5 + delta hosta po redukcjach -3,04 = 2875,51 -> 2876 -> +1.
-  public: 2877,
+  // Ratchet 2877 -> 2881 (wpis 2026-10-12 XXIX): okna osób i instytucji na
+  // zakładkach modułowych wydarzenia (+17,9), decyzją zamawiającego. Baza
+  // 85e0495d8 2861,2; host 2879,1 -> 2880 -> +1.
+  public: 2881,
   // gzip JS łącznie z kodem tylko adminowym. Zmierzone NA RUNNERZE 2026-08-19
   // (run 2397 i 2408, identycznie): 3892,0 przy 790 plikach.
   // Floor 3893, NIE 3892 - i to nie zapas, tylko granica zaokrąglenia.
@@ -2316,7 +2373,11 @@ const FROZEN_BUDGET_KB = {
   // Ratchet 4849 -> 4855 (wpis 2026-10-11 XXVIII): mapy w Google z panelu
   // (admin +3,5) i dokumenty naprawione po audycie produkcji (public +2,5),
   // decyzją zamawiającego. Baza 6506148d 4847,5; host 4853,4 -> 4854 -> +1.
-  overall: 4855,
+  // Ratchet 4855 -> 4879 (wpis 2026-10-12 XXIX): okna osób i instytucji
+  // i przyklejony pasek zakładek wydarzenia (public +17,9, admin +0,8),
+  // decyzją zamawiającego; baza 85e0495d8 stała już na 4859,1.
+  // Host 4877,8 -> 4878 -> +1.
+  overall: 4879,
   // gzip WSZYSTKICH wyemitowanych arkuszy stylów. Zdominowany przez arkusz
   // korzenia, który blokuje render na KAŻDYM URL-u (`rootHead.ts` wypisuje go
   // jako `<link rel=stylesheet>` i jako pierwszą wartość nagłówka `Link`).
@@ -2428,7 +2489,10 @@ const FROZEN_BUDGET_KB = {
   // 2026-10-09: css 96 -> 98 (wpis XXV), decyzją zamawiającego. Arkusz `styles`
   // +1,2 KB za panel, legendę, okna i tooltip systemu wykresów; baza 95,8,
   // gałąź 97,0 -> 97 -> +1. Zapas po podniesieniu 1,0 KB.
-  css: 98,
+  // 2026-10-12: css 98 -> 100 (wpis XXIX), decyzją zamawiającego. +0,5 KB za
+  // blok zakładek modułowych wydarzenia (nagłówek, okno, przyklejony pasek);
+  // baza 97,8, gałąź 98,3 -> 99 -> +1.
+  css: 100,
   // 2026-09-07: publicCss 74 -> 75. PRZEFLOOROWANE ŚWIADOMIE, z pomiarem
   // przyczyny i z rachunkiem wymiany - bo tego wymaga reguła na końcu tego
   // pliku, a nie dlatego, że próg „przeszkadzał".
