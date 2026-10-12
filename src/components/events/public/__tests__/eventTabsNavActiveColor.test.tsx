@@ -152,6 +152,16 @@ function indicatorUtilities(node: Element): string[] {
   return Array.from(node.classList).filter((token) => token.startsWith("after:bg-"));
 }
 
+/**
+ * Klasy mroczności pozycji (`opacity-*`) - drugi stopień tuszu.
+ *
+ * BEZ WARIANTÓW: `hover:opacity-100` jest własnym stanem i nie wchodzi do
+ * listy - dowód pyta o to, jak pozycja wygląda w spoczynku.
+ */
+function opacityUtilities(node: Element): string[] {
+  return Array.from(node.classList).filter((token) => token.startsWith("opacity-"));
+}
+
 function mountStyleEnvironment(navColored: boolean): void {
   const tokens = document.createElement("style");
   const brand = navColored ? `--event-nav-fg:${NAV_FG};--event-nav-fg-muted:${NAV_FG_MUTED};` : "";
@@ -289,6 +299,22 @@ describe("pasek zakladek wydarzenia: bierzaca pozycja ma kolor bierzacej", () =>
     ]);
     for (const link of idle) {
       expect(indicatorUtilities(link)).toEqual([]);
+    }
+  });
+
+  it("pozycje niebiezace sa MROCZNE, a biezaca nie jest", async () => {
+    // GLOBALNE KOLORY SERWISU zapisaly `--muted-foreground` jako ten sam tusz co
+    // `--foreground` (pomiar `<style>` globalnych kolorów na żywej stronie:
+    // `#131822` w jasnym motywie, `#F8F6F4` w ciemnym). Sam token przestał więc
+    // znosić drugi stopień i bieżącą pozycję odróżniała wyłącznie grubość pisma.
+    // Mroczność (`opacity-[0.62]`) przywraca ten stopień bez nadpisywania barwy
+    // wybranej przez redaktora - i działa tak samo w obu motywach.
+    const { active, idle } = await mount("/events/kongres/speakers");
+    expect(active).toHaveLength(1);
+    expect(opacityUtilities(active[0])).toEqual([]);
+    expect(idle.length).toBeGreaterThan(0);
+    for (const link of idle) {
+      expect(opacityUtilities(link)).toEqual(["opacity-[0.62]"]);
     }
   });
 });

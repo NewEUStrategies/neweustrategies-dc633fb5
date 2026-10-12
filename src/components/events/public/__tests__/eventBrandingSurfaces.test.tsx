@@ -214,4 +214,16 @@ describe("branding wydarzenia dojezdza do uczestnika, nie tylko do arkusza", () 
     ]);
     expect(Array.from(idleTab.classList).filter((c) => c.startsWith("after:bg-"))).toEqual([]);
   });
+
+  it("pozycja niebiezaca jest MROCZNA, a biezaca nie jest", () => {
+    // `--muted-foreground` serwisu jest zapisany jako ten sam tusz co
+    // `--foreground`, wiec drugi stopien niesie mrocznosc, nie inny kolor.
+    // Bez tego wiersza podglad studia rysowalby wszystkie pozycje tak samo
+    // mocno - czyli inaczej niz strona publiczna.
+    const { activeTab, idleTab } = mountPortal(null);
+    expect(Array.from(activeTab.classList).filter((c) => c.startsWith("opacity-"))).toEqual([]);
+    expect(Array.from(idleTab.classList).filter((c) => c.startsWith("opacity-"))).toEqual([
+      "opacity-[0.62]",
+    ]);
+  });
 });
