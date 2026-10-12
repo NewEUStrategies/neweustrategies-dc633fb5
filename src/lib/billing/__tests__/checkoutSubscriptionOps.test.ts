@@ -973,6 +973,89 @@ describe("resumeSubscription - cofnięcie rezygnacji", () => {
     await expect(resume()).rejects.toThrow("subscription_not_resumable");
   });
 
+  describe("PAUZA - uprawnienie `canceled` z `canceled_at` (SUB-14)", () => {
+    /** Wiersz uprawnienia wstrzymanej subskrypcji: okres mógł już minąć (koniec triala). */
+    const pausedRow = () =>
+      subscriptionRow({
+        status: "canceled",
+        canceled_at: isoPast(1),
+        current_period_end: isoPast(2),
+      });
+
+    beforeEach(() => {
+      adminChain.setResponse("user_subscriptions", (query) =>
+        query.has("update") ? ok([{ id: SUB_ID }]) : ok(pausedRow()),
+      );
+    });
+
+    it("status `paused` u operatora (koniec triala bez metody) wznawia `subscriptions.resume`", async () => {
+      stripe.subscriptions.retrieve.mockResolvedValue({ ...providerSnapshot(), status: "paused" });
+
+      expect(await resume()).toEqual({ ok: true });
+      expect(stripe.subscriptions.resume).toHaveBeenCalledWith(
+        "sub_operator_1",
+        expect.objectContaining({ billing_cycle_anchor: "now" }),
+        expect.objectContaining({ idempotencyKey: expect.any(String) }),
+      );
+      // Dostęp przywraca webhook po potwierdzeniu operatora - wiersz `canceled`
+      // nie może sam sobie oddać uprawnienia.
+      expect(writeChain("user_subscriptions")).toBeUndefined();
+    });
+
+    it("pauza poboru (`pause_collection`) jest zdejmowana, nie `resume`", async () => {
+      stripe.subscriptions.retrieve.mockResolvedValue({
+        ...providerSnapshot(),
+        pause_collection: { behavior: "void", resumes_at: null },
+      });
+
+      expect(await resume()).toEqual({ ok: true });
+      expect(stripe.subscriptions.update).toHaveBeenCalledWith(
+        "sub_operator_1",
+        expect.objectContaining({ pause_collection: "" }),
+        expect.objectContaining({ idempotencyKey: expect.any(String) }),
+      );
+      expect(stripe.subscriptions.resume).not.toHaveBeenCalled();
+      expect(writeChain("user_subscriptions")).toBeUndefined();
+    });
+
+    it("odrzucona faktura za wznowienie to wynik z fakturą, nie awaria i nie sukces", async () => {
+      stripe.subscriptions.retrieve.mockResolvedValue({ ...providerSnapshot(), status: "paused" });
+      stripe.subscriptions.resume.mockResolvedValue({
+        ...providerSnapshot(),
+        status: "paused",
+        latest_invoice: { hosted_invoice_url: "https://invoice.stripe.test/i/resume" },
+      });
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      expect(await resume()).toEqual({
+        ok: false,
+        error: "payment_failed",
+        hostedInvoiceUrl: "https://invoice.stripe.test/i/resume",
+      });
+      logged.mockRestore();
+    });
+
+    it("subskrypcja zakończona u operatora nie „wznawia się”", async () => {
+      stripe.subscriptions.retrieve.mockResolvedValue({
+        ...providerSnapshot(),
+        status: "canceled",
+      });
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await expect(resume()).rejects.toThrow("subscription_not_resumable");
+      expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+      logged.mockRestore();
+    });
+
+    it("bez operatora (mock) wiersz `canceled` nie odzyskuje dostępu", async () => {
+      vi.stubEnv("LOVABLE_API_KEY", "");
+      vi.stubEnv("STRIPE_SANDBOX_API_KEY", "");
+
+      await expect(resume()).rejects.toThrow("subscription_not_resumable");
+      expect(writeChain("user_subscriptions")).toBeUndefined();
+    });
+  });
+
   it("po wygaśnięciu okresu wznowienia nie ma - potrzebny nowy checkout", async () => {
     adminChain.setResponse(
       "user_subscriptions",

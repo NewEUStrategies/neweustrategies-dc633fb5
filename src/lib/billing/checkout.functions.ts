@@ -986,10 +986,21 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .maybeSingle();
     if (loadError) throw new Error(loadError.message);
-    if (!sub || sub.status !== "active") {
+    if (!sub) throw new Error("subscription_not_resumable");
+    // Wstrzymana subskrypcja (status `paused` albo pauza poboru u operatora)
+    // ma uprawnienie `canceled` z ustawionym `canceled_at` - to osobna gałąź:
+    // o wznowieniu decyduje wyłącznie operator, a dostęp przywraca webhook
+    // (`syncEntitlementState`), nie zapis stąd. Okresu nie sprawdzamy: po
+    // triale bez metody płatności okres już minął, a `resume` zaczyna nowy.
+    const pausedEntitlement = sub.status === "canceled" && sub.canceled_at !== null;
+    if (sub.status !== "active" && !pausedEntitlement) {
       throw new Error("subscription_not_resumable");
     }
-    if (sub.current_period_end && new Date(sub.current_period_end).getTime() < Date.now()) {
+    if (
+      !pausedEntitlement &&
+      sub.current_period_end &&
+      new Date(sub.current_period_end).getTime() < Date.now()
+    ) {
       // Okres wygasł - odnowienia nie ma czego reaktywować; potrzebny nowy checkout.
       throw new Error("subscription_period_ended");
     }
@@ -1001,7 +1012,26 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       const result = await resumeProviderSubscription(subscriptionEnvironment(), sub.external_ref);
       if (!result.ok) {
         console.error("[billing] provider resume failed", sub.external_ref, result.error);
+        // Wznowienie po pauzie wystawia fakturę - jej odmowa to wynik z adresem
+        // faktury (pauza trwa), a nie awaria.
+        if (PAYMENT_OUTCOMES.has(result.error)) {
+          return {
+            ok: false as const,
+            error: result.error,
+            hostedInvoiceUrl: result.hostedInvoiceUrl ?? null,
+          };
+        }
+        if (result.error === "subscription_not_resumable") {
+          throw new Error("subscription_not_resumable");
+        }
         throw new Error("provider_resume_failed");
+      }
+      if (pausedEntitlement) {
+        // Wiersz `canceled` nie może sam sobie przywrócić dostępu - zrobi to
+        // webhook po potwierdzeniu operatora. Brak czegokolwiek do wznowienia
+        // u operatora = subskrypcja naprawdę się skończyła.
+        if (result.mode === "already_active") throw new Error("subscription_not_resumable");
+        return { ok: true as const };
       }
       if (result.mode === "already_active" && sub.canceled_at === null) {
         throw new Error("subscription_not_resumable");
@@ -1009,7 +1039,9 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       // Operator cofnął zaplanowany koniec / pauzę, a lokalnego znacznika już
       // nie ma - nic do zapisania, stan domknie webhook.
       if (sub.canceled_at === null) return { ok: true as const };
-    } else if (sub.canceled_at === null) {
+    } else if (sub.canceled_at === null || pausedEntitlement) {
+      // Bez operatora (mock, zakup dożywotni) wznawia się wyłącznie zaplanowany
+      // koniec na wierszu aktywnym - wiersz `canceled` nie odzyskuje dostępu.
       throw new Error("subscription_not_resumable");
     }
 

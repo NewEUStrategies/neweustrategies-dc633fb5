@@ -195,6 +195,8 @@ export async function cancelMySubscription(subscriptionId: string): Promise<void
 }
 
 export async function resumeMySubscription(subscriptionId: string): Promise<void> {
-  // Cofa cancel_at_period_end (Stripe + DB) dopóki opłacony okres trwa.
-  await resumeSubscription({ data: { subscriptionId } });
+  // Cofa cancel_at_period_end (Stripe + DB) dopóki opłacony okres trwa, albo
+  // wznawia pauzę u operatora. Odmowa faktury za wznowienie wraca jako wynik -
+  // odpakowujemy ją do `ProviderCallError`, żeby UI nie meldowało wznowienia.
+  unwrapProviderResult(await resumeSubscription({ data: { subscriptionId } }));
 }

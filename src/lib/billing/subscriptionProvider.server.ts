@@ -570,6 +570,13 @@ export async function resumeProviderSubscription(
     const current = await retrieveLive(stripe, subscriptionId);
     const fingerprint = stateFingerprint(subscriptionId, current);
 
+    // Subskrypcja zakończona nie ma czego wznawiać - potrzebny nowy zakup.
+    // Bez tej odmowy pusty patch dawał „already_active" dla subskrypcji,
+    // która nie istnieje już jako aktywna.
+    if (current.status === "canceled" || current.status === "incomplete_expired") {
+      return { ok: false, error: "subscription_not_resumable" };
+    }
+
     if (current.status === "paused") {
       // `billing_cycle_anchor: "now"`: nowy okres od wznowienia, bez proraty -
       // klient płaci za okres, z którego faktycznie skorzysta. Operator

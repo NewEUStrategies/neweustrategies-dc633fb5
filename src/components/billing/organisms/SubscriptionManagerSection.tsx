@@ -35,6 +35,7 @@ import { CustomerPortalButton } from "@/components/billing/molecules/CustomerPor
 import { SyncBillingButton } from "@/components/billing/molecules/SyncBillingButton";
 import { LifetimeAccessCard } from "@/components/billing/molecules/LifetimeAccessCard";
 import { primaryGrant, useMyGrants } from "@/lib/billing/membership";
+import { toastSubscriptionFailure } from "@/lib/billing/paymentOutcomeToast";
 
 /** Warstwa członkostwa wołającego (RPC; dla braku subskrypcji: domyślna). */
 function TierChip() {
@@ -115,8 +116,9 @@ export function SubscriptionManagerSection() {
       await resumeMySubscription(data.id);
       await qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
       toast.success(t("profile.subscription.resumed"));
-    } catch {
-      toast.error(t("profile.subscription.resumeError"));
+    } catch (error) {
+      // Odmowa faktury za wznowienie dostaje komunikat z linkiem do zapłaty.
+      toastSubscriptionFailure(t, error, "profile.subscription.resumeError");
     } finally {
       setBusy(false);
     }

@@ -306,6 +306,20 @@ describe("resumeProviderSubscription - żywy stan rozstrzyga mechanizm", () => {
     });
   });
 
+  it.each(["canceled", "incomplete_expired"])(
+    "subskrypcja zakończona (%s) nie ma czego wznawiać - odmowa, nie „already_active”",
+    async (status) => {
+      h.subscriptions.retrieve.mockResolvedValue(liveSub({ status }));
+
+      expect(await resumeProviderSubscription("sandbox", "sub_1")).toEqual({
+        ok: false,
+        error: "subscription_not_resumable",
+      });
+      expect(h.subscriptions.update).not.toHaveBeenCalled();
+      expect(h.subscriptions.resume).not.toHaveBeenCalled();
+    },
+  );
+
   it("bez niczego do wznowienia nie ma mutacji", async () => {
     expect(await resumeProviderSubscription("sandbox", "sub_1")).toEqual({
       ok: true,
