@@ -225,6 +225,7 @@ export function EventStudioPreview({
   );
   const live: EventPreviewLiveData = useMemo(
     () => ({
+      eventId,
       sessions: agendaSessionsFromAdminRows(sessionsQ.data, base.timezone, {
         tracks: tracksQ.data,
         publishedSponsorIds,
@@ -239,6 +240,7 @@ export function EventStudioPreview({
       sponsorsStatus,
     }),
     [
+      eventId,
       sessionsQ.data,
       tracksQ.data,
       speakersQ.data,

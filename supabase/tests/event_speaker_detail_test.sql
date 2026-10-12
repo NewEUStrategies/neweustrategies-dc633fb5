@@ -1,0 +1,10 @@
+BEGIN;
+SELECT plan(6);
+SELECT ok(has_function_privilege('anon', 'public.event_speaker_detail(uuid,uuid,boolean)', 'EXECUTE'), 'published speaker details are callable by visitors');
+SELECT ok(pg_get_functiondef('public.event_speaker_detail(uuid,uuid,boolean)'::regprocedure) LIKE '%pe.email_visible%', 'email follows its existing visibility flag');
+SELECT ok(pg_get_functiondef('public.event_speaker_detail(uuid,uuid,boolean)'::regprocedure) LIKE '%pe.phone_visible%', 'phone follows its existing visibility flag');
+SELECT ok(pg_get_functiondef('public.event_speaker_detail(uuid,uuid,boolean)'::regprocedure) LIKE '%assert_event_admin_tenant%', 'studio details require tenant admin');
+SELECT ok(pg_get_functiondef('public.event_speaker_detail(uuid,uuid,boolean)'::regprocedure) LIKE '%sp.tenant_id = v_tenant%', 'speaker lookup is tenant scoped');
+SELECT ok(pg_get_functiondef('public.event_speaker_detail(uuid,uuid,boolean)'::regprocedure) LIKE '%sp.is_public%', 'private speaker details are withheld');
+SELECT * FROM finish();
+ROLLBACK;
