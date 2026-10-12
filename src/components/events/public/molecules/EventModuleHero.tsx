@@ -79,10 +79,12 @@ export type EventModuleCrumb = BreadcrumbItem;
 /**
  * Miary tytułu - te same, które `src/styles.css` nadaje `h1` dokumentu CMS
  * w nagłówku (blok „ZAKŁADKI MODUŁOWE WYDARZENIA"), żeby podmiana zapasowego
- * `h1` na dokument po hydratacji nie przesuwała strony.
+ * `h1` na dokument po hydratacji nie przesuwała strony. Wysokość linii 1.2
+ * zostawia pełne znaki diakrytyczne i ogony (ą, ę, ł, g, j, y) - ciaśniejsza
+ * miara zaczynała obcinać dolne części liter.
  */
 const TITLE_CLASS =
-  "font-display text-[2rem] font-semibold leading-[1.08] tracking-[-0.02em] text-foreground sm:text-4xl";
+  "font-display text-[2rem] font-semibold leading-[1.2] tracking-[-0.02em] text-foreground sm:text-4xl";
 
 export function EventModuleHero({
   module,
@@ -163,9 +165,10 @@ export function EventModuleHero({
           {/* Nadtytuł: ikona modułu włosową kreską i nazwa wydarzenia. `div`,
               nie `p`: globalne `:where(main p:hover)` przemalowuje akapity
               na kolor tekstu przy najechaniu, a nadtytuł ma stać spokojnie. */}
-          <div className="flex min-w-0 items-center justify-center gap-2.5 text-[11px] font-semibold uppercase leading-4 tracking-[0.16em] text-muted-foreground">
+          <div className="flex min-w-0 flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[11px] font-semibold uppercase leading-4 tracking-[0.16em] text-muted-foreground">
             <Icon className="size-4 shrink-0 text-primary" strokeWidth={1.5} aria-hidden="true" />
-            <span className="min-w-0 truncate">
+            {/* Bez `truncate`: zawijanie zamiast ucinania liter nazwy wydarzenia. */}
+            <span className="min-w-0 [overflow-wrap:anywhere]">
               {eventTitle || t("eventFront.header.moduleEyebrow")}
             </span>
           </div>

@@ -9620,7 +9620,8 @@ button,
 }
 [data-event-module-hero] .event-module-hero-doc [data-builder-renderer] [data-w-id] h1 {
   margin: 0 !important;
-  font: 600 2rem/1.08 var(--font-display) !important;
+  /* 1.2 zamiast ciaśniejszej miary: pełne ą/ę/ł i ogony g/j/y bez obcinania. */
+  font: 600 2rem/1.2 var(--font-display) !important;
   letter-spacing: -0.02em !important;
   color: var(--foreground) !important;
 }

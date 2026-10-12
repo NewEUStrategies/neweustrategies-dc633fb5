@@ -1,4 +1,7 @@
-import { resolveBrandAccent } from "@/lib/theme/brandAccent";
+// UWAGA: bez importu runtime'owego - liść dla chunku wejściowego (patrz
+// `entryLightModules.test.ts`). Stare odcienie akcentu marki normalizuje
+// WARSTWA WYSWIETLANIA: kolor ścieżki przechodzi tu czysto z bazy, a
+// `resolveBrandAccent` (theme/brandAccent) działa na granicy ekranu.
 // SCIEZKI PRELEGENTA - lisc wydzielony z `speakerCard.ts`.
 //
 // PO CO OSOBNY PLIK. `lib/builder/speakersQuery.ts` (warstwa danych widgetu
@@ -58,7 +61,7 @@ export function parseSpeakerTracks(raw: unknown): SpeakerTrack[] {
       key: textOrNull(row.key),
       namePl,
       nameEn,
-      accentColor: resolveBrandAccent(hexColorOrNull(row.accent_color)),
+      accentColor: hexColorOrNull(row.accent_color),
       sessionsCount: Number.isFinite(count) && count > 0 ? Math.floor(count) : 0,
     });
   }

@@ -17,6 +17,7 @@
 // 6 PX. Chip ma promien platformy (6 px), tak jak zdjecia i przyciski karty.
 import { useTranslation } from "react-i18next";
 
+import { resolveBrandAccent } from "@/lib/theme/brandAccent";
 import { cn } from "@/lib/utils";
 import { speakerTrackName, type SpeakerTrack } from "@/lib/events/speakerCard";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
@@ -46,6 +47,11 @@ export function SpeakerTrackChips({
   const { t } = useTranslation();
   const named = tracks
     .map((track) => ({ track, name: speakerTrackName(track, lang) }))
+    .map((entry) => ({
+      ...entry,
+      // Stare odcienie akcentu marki normalizuje granica ekranu (jeden helper).
+      accent: resolveBrandAccent(entry.track.accentColor),
+    }))
     .filter((entry) => entry.name !== "");
   if (named.length === 0) return null;
 
@@ -57,12 +63,12 @@ export function SpeakerTrackChips({
     return (
       <span className={cn("inline-flex items-center gap-1", className)} title={spoken}>
         <span className="sr-only">{spoken}</span>
-        {named.map(({ track }) => (
+        {named.map(({ track, accent }) => (
           <span
             key={track.id}
             aria-hidden="true"
             className="h-2.5 w-2.5 shrink-0 rounded-[3px] border border-border bg-muted"
-            style={track.accentColor === null ? undefined : { backgroundColor: track.accentColor }}
+            style={accent === null ? undefined : { backgroundColor: accent }}
           />
         ))}
       </span>
@@ -72,7 +78,7 @@ export function SpeakerTrackChips({
   return (
     <span className={cn("flex w-full flex-wrap items-center gap-1.5", className)}>
       <span className="sr-only">{heading}: </span>
-      {named.map(({ track, name }) => (
+      {named.map(({ track, name, accent }) => (
         <span
           key={track.id}
           title={name}
@@ -87,9 +93,9 @@ export function SpeakerTrackChips({
             aria-hidden="true"
             className={cn(
               "h-2 w-2 shrink-0 rounded-[2px]",
-              track.accentColor === null && (inverse ? "bg-white/80" : "bg-muted-foreground/60"),
+              accent === null && (inverse ? "bg-white/80" : "bg-muted-foreground/60"),
             )}
-            style={track.accentColor === null ? undefined : { backgroundColor: track.accentColor }}
+            style={accent === null ? undefined : { backgroundColor: accent }}
           />
           <span className="truncate">{name}</span>
         </span>
