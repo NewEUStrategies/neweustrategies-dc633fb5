@@ -308,7 +308,7 @@ export const getRouter = () => {
     // zaciskania zagnieżdżonych timerów, czyli ~0 ms każde).
     const prewarmRouteChunks = () => {
       try {
-        const [matchedRoutes] = router.getMatchedRoutes(router.latestLocation.pathname);
+        const { matchedRoutes } = router.getMatchedRoutes(router.latestLocation.pathname);
         for (const route of matchedRoutes) {
           void Promise.resolve(router.loadRouteChunk(route)).catch(() => undefined);
         }
