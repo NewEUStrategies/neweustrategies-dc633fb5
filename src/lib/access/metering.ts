@@ -5,8 +5,11 @@
 // widzi body inaczej niż przez policzone odblokowanie. Ten moduł dostarcza:
 //   * odczyt konfiguracji (metering_settings, publiczne),
 //   * czyste reguły uczestnictwa/wariantów paywalla (unit-testowalne),
-//   * tożsamość gościa (uuid w localStorage - miękki licznik anonimów;
-//     twardą walutą lejka jest limit KONTA egzekwowany po auth.uid()),
+//   * dwie ścieżki tożsamości (audyt billingowy SUB-17): KONTO woła RPC
+//     wprost (tożsamość z auth.uid()), GOŚĆ - funkcję serwerową
+//     (meteringVisitor.functions.ts), która bierze identyfikator z podpisanego
+//     cookie HttpOnly, najemcę z hosta i skrót adresu z jedynej definicji
+//     „kto dzwoni". Klient nie podaje bazie ŻADNEGO klucza gościa,
 //   * hooki: useMeteringSettings + useMeteredAccess (konsumpcja po stronie
 //     klienta PO hydracji, żeby boty/prefetch nie paliły limitu),
 //   * useMeterQuota (RPC metering_state - stan miesięcznego limitu BEZ
@@ -17,9 +20,12 @@ import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-q
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { EMPTY_BODY, hasRenderableBody, type BodyParts } from "@/lib/access/gating";
-// Tożsamość gościa jest współdzielona z budżetem kliknięć linku
-// podarunkowego - jeden klucz w localStorage, jedno miejsce definicji.
-import { getVisitorId } from "@/lib/access/visitor";
+// Gość: tożsamość i najemcę rozstrzyga serwer (cookie HttpOnly z HMAC-iem) -
+// przeglądarka nie zna nawet identyfikatora, więc nie ma czego podmienić.
+import {
+  consumeMeteredVisitorView,
+  getMeteredVisitorQuota,
+} from "@/lib/access/meteringVisitor.functions";
 import type { AccessMode } from "@/hooks/useContentAccess";
 
 export type MeteringPolicy = "inherit" | "metered" | "exempt";
@@ -256,20 +262,28 @@ function toMeterQuota(row: QuotaRow): MeterQuota {
 }
 
 /**
- * Klucz cache stanu miesiąca - per tożsamość (konto albo klucz gościa) ORAZ
+ * Tożsamość gościa w kluczach cache. Prawdziwy identyfikator zna wyłącznie
+ * serwer (cookie HttpOnly), a przeglądarka ma najwyżej jednego gościa naraz -
+ * stała etykieta wystarcza, żeby login/logout przełączał wpisy.
+ */
+const VISITOR_IDENTITY = "visitor";
+
+/**
+ * Klucz cache stanu miesiąca - per tożsamość (konto albo gość) ORAZ
  * okres rozliczeniowy: login/logout naturalnie przełącza licznik na właściwe
  * zużycie, a przełom miesiąca unieważnia zeszłomiesięczny stan zamiast
  * przenosić go w nowy okres.
  */
-function meterQuotaQueryKey(identity: string | null, period: string) {
-  return ["metering-quota", identity ?? "anon", period] as const;
+function meterQuotaQueryKey(identity: string, period: string) {
+  return ["metering-quota", identity, period] as const;
 }
 
-async function fetchMeterQuota(visitorId: string | null): Promise<MeterQuota | null> {
-  const { data, error } = await supabase.rpc(
-    "metering_state",
-    visitorId ? { _visitor_id: visitorId } : {},
-  );
+async function fetchMeterQuota(isAccount: boolean): Promise<MeterQuota | null> {
+  if (!isAccount) {
+    const row = await getMeteredVisitorQuota();
+    return row ? toMeterQuota(row) : null;
+  }
+  const { data, error } = await supabase.rpc("metering_state");
   if (error) throw error;
   const row = ((data ?? []) as QuotaRow[])[0];
   return row ? toMeterQuota(row) : null;
@@ -284,14 +298,13 @@ async function fetchMeterQuota(visitorId: string | null): Promise<MeterQuota | n
 export function useMeterQuota(enabled: boolean = true): UseQueryResult<MeterQuota | null> {
   const { session } = useAuth();
   const uid = session?.user?.id ?? null;
-  const visitorId = uid ? null : getVisitorId();
   const period = currentMeterPeriod();
   return useQuery({
-    queryKey: meterQuotaQueryKey(uid ?? visitorId, period),
-    enabled: enabled && (!!uid || !!visitorId),
+    queryKey: meterQuotaQueryKey(uid ?? VISITOR_IDENTITY, period),
+    enabled,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
-    queryFn: () => fetchMeterQuota(uid ? null : visitorId),
+    queryFn: () => fetchMeterQuota(!!uid),
   });
 }
 
@@ -331,25 +344,34 @@ export function useMeteredAccess(
   const { session } = useAuth();
   const queryClient = useQueryClient();
   const uid = session?.user?.id ?? null;
-  const visitorId = uid ? null : getVisitorId();
+  const identity = uid ?? VISITOR_IDENTITY;
   const period = currentMeterPeriod();
 
   const query = useQuery({
-    queryKey: ["metered-unlock", entityType, entityId, uid ?? visitorId ?? "none", period] as const,
-    enabled: enabled && !!entityId && (!!uid || !!visitorId),
+    queryKey: ["metered-unlock", entityType, entityId, identity, period] as const,
+    enabled: enabled && !!entityId,
     // Konsumpcja jest efektem ubocznym - nie ponawiamy automatycznie i nie
     // odświeżamy w tle, żeby licznik nie skakał w trakcie czytania.
     staleTime: Infinity,
     retry: false,
     refetchOnWindowFocus: false,
     queryFn: async (): Promise<{ body: BodyParts | null; meter: MeterState | null }> => {
-      const { data, error } = await supabase.rpc("consume_metered_view", {
-        _entity_type: entityType,
-        _entity_id: entityId as string,
-        ...(uid ? {} : { _visitor_id: visitorId as string }),
-      });
-      if (error) throw error;
-      const row = ((data ?? []) as ConsumeRow[])[0];
+      let row: ConsumeRow | undefined;
+      if (uid) {
+        const { data, error } = await supabase.rpc("consume_metered_view", {
+          _entity_type: entityType,
+          _entity_id: entityId as string,
+        });
+        if (error) throw error;
+        row = ((data ?? []) as ConsumeRow[])[0];
+      } else {
+        // Gość: serwer wystawia/weryfikuje podpisane cookie i woła wersję
+        // `service_role` - błąd leci jak błąd RPC (paywall zostaje zamknięty).
+        row =
+          (await consumeMeteredVisitorView({
+            data: { entityType, entityId: entityId as string },
+          })) ?? undefined;
+      }
       if (!row) return { body: null, meter: null };
       // Zasiew żywego licznika miesiąca: werdykt konsumpcji to najświeższy
       // znany stan quoty, więc każdy zamontowany licznik "zostało N"
@@ -358,7 +380,7 @@ export function useMeteredAccess(
       // uprawnionych) nie opisują quoty czytelnika - tych nie zasiewamy.
       if (row.monthly_limit > 0) {
         queryClient.setQueryData(
-          meterQuotaQueryKey(uid ?? visitorId, period),
+          meterQuotaQueryKey(identity, period),
           quotaFromMeterState(toMeterState(row)),
         );
       }
@@ -369,8 +391,10 @@ export function useMeteredAccess(
         blocks_data: row.blocks_data,
       };
       // Debug log dla dashboardu monetyzacji: odmowa / registration-wall.
-      // Sukces ("consumed") loguje trigger po INSERT na metered_views.
-      if (!row.granted) {
+      // Sukces ("consumed") loguje trigger po INSERT na metered_views, a
+      // odmowy GOŚCIA - sama baza (rdzeń licznika), bo anon nie ma już
+      // EXECUTE na log_metering_event. Tu loguje wyłącznie konto.
+      if (uid && !row.granted) {
         const outcome = row.requires_registration ? "requires_registration" : "denied";
         const reason = row.requires_registration
           ? "anon_limit_zero"
@@ -382,7 +406,6 @@ export function useMeteredAccess(
           _entity_id: entityId as string,
           _outcome: outcome,
           _reason: reason,
-          _visitor_id: uid ? undefined : (visitorId as string | undefined),
           _used_before: row.used,
           _monthly_limit: row.monthly_limit,
         });

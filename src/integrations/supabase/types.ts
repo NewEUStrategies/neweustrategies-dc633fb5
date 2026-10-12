@@ -14750,6 +14750,7 @@ export type Database = {
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id: string
+          ip_subject: string | null
           period_month: string
           tenant_id: string
           user_id: string | null
@@ -14760,6 +14761,7 @@ export type Database = {
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id?: string
+          ip_subject?: string | null
           period_month?: string
           tenant_id: string
           user_id?: string | null
@@ -14770,6 +14772,7 @@ export type Database = {
           entity_id?: string
           entity_type?: Database["public"]["Enums"]["access_entity_type"]
           id?: string
+          ip_subject?: string | null
           period_month?: string
           tenant_id?: string
           user_id?: string | null
@@ -23411,6 +23414,45 @@ export type Database = {
       }
       _menu_items_prune_dead: { Args: { _item_ids: string[] }; Returns: number }
       _menu_items_repair_category_links: { Args: never; Returns: number }
+      _metered_view_consume: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _ip_subject: string
+          _tenant: string
+          _uid: string
+          _visitor_id: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          consumed: boolean
+          content_en: string
+          content_pl: string
+          granted: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
+      _metering_state: {
+        Args: {
+          _ip_subject: string
+          _tenant: string
+          _uid: string
+          _visitor_id: string
+        }
+        Returns: {
+          enabled: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
       _pages_unpublish_test_content: { Args: never; Returns: number }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
       _redeem_b2b_coupon: {
@@ -28615,7 +28657,28 @@ export type Database = {
         Args: {
           _entity_id: string
           _entity_type: Database["public"]["Enums"]["access_entity_type"]
-          _visitor_id?: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          consumed: boolean
+          content_en: string
+          content_pl: string
+          granted: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
+      consume_metered_view_visitor: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _ip_subject: string
+          _tenant: string
+          _visitor_id: string
         }
         Returns: {
           blocks_data: Json
@@ -30602,6 +30665,7 @@ export type Database = {
           period_start: string
         }[]
       }
+      metered_views_scrub_ip: { Args: { p_limit?: number }; Returns: number }
       metering_impact_preview: {
         Args: { _proposed_member_limit: number }
         Returns: {
@@ -30617,7 +30681,18 @@ export type Database = {
         }[]
       }
       metering_state: {
-        Args: { _visitor_id?: string }
+        Args: never
+        Returns: {
+          enabled: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
+      metering_state_visitor: {
+        Args: { _ip_subject: string; _tenant: string; _visitor_id?: string }
         Returns: {
           enabled: boolean
           monthly_limit: number
@@ -31826,10 +31901,12 @@ export type Database = {
       }
       unaccent: { Args: { "": string }; Returns: string }
       unendorse_skill: { Args: { p_skill_id: string }; Returns: undefined }
-      user_has_tier_feature: {
-        Args: { _feature: string; p_user: string }
-        Returns: boolean
-      }
+      user_has_tier_feature:
+        | { Args: { _feature: string; p_user: string }; Returns: boolean }
+        | {
+            Args: { _feature: string; p_tenant: string; p_user: string }
+            Returns: boolean
+          }
       user_is_editorial: { Args: { p_user: string }; Returns: boolean }
       user_tier_rank: {
         Args: { p_tenant?: string; p_user: string }

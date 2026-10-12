@@ -3,7 +3,11 @@
 --
 -- Weryfikuje mechanike serwerowa, na ktorej stoi cale UI:
 --   1. eligibility='registered': zwykle konto (bez subskrypcji) generuje link,
---      a anonim nie;
+--      a anonim nie. Od 20261012110100 darczynca musi sam miec dostep do
+--      darowanej tresci (has_content_access) - nadawca czyta wpis platny dzieki
+--      zakupowi jednorazowemu, wiec nadal NIE ma subskrypcji (bramka
+--      can_gift_articles = false), a mimo to moze darowac to, co kupil
+--      (przypadek bez dostepu: gift_link_creator_access_test.sql);
 --   2. link jest IDEMPOTENTNY per (wpis, nadawca) - powtorne wywolanie zwraca
 --      ten sam kod i nie konsumuje limitu;
 --   3. tresc publiczna nie da sie udostepnic (gift_post_not_gated), tresc na
@@ -88,9 +92,12 @@ INSERT INTO public.gift_article_settings
 VALUES
   ('c1111111-1111-1111-1111-111111111111', true, 10, 30, 2, 'registered');
 
--- Czytelnik z wlasnym uprawnieniem (zakup jednorazowy) - test 6.
+-- Czytelnik z wlasnym uprawnieniem (zakup jednorazowy) - test 6 - oraz
+-- nadawca: darowac wolno tylko tresc, ktora sie samemu czyta (zakup a1).
 INSERT INTO public.user_purchases (user_id, tenant_id, entity_type, entity_id, amount_cents, currency, status) VALUES
   ('c0000000-0000-0000-0000-000000000005', 'c1111111-1111-1111-1111-111111111111',
+   'post', 'c0000000-0000-0000-0000-0000000000a1', 1900, 'PLN', 'active'),
+  ('c0000000-0000-0000-0000-000000000001', 'c1111111-1111-1111-1111-111111111111',
    'post', 'c0000000-0000-0000-0000-0000000000a1', 1900, 'PLN', 'active');
 
 -- ── 1) Bramka: anonim vs zarejestrowany bez subskrypcji ────────────────────

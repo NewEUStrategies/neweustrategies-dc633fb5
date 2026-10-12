@@ -6,8 +6,12 @@
 --   3. ponowne czytanie TEGO SAMEGO artykułu nie zużywa kolejnego slotu;
 --   4. po wyczerpaniu limitu kolejny artykuł nie dostaje body;
 --   5. polityka 'exempt' (per wpis) wyklucza z meteringu mimo wolnego limitu;
---   6. anonim przy anon_monthly_limit=0 dostaje ścianę rejestracji
---      (requires_registration), a po podniesieniu limitu - body;
+--   6. gość przy anon_monthly_limit=0 dostaje ścianę rejestracji
+--      (requires_registration), a po podniesieniu limitu - body. Od
+--      20261012110200 tożsamość gościa podaje WYŁĄCZNIE serwer
+--      (consume_metered_view_visitor, service_role; uuid z podpisanego cookie,
+--      skrót adresu z requestRateSubject) - klient nie ma ścieżki z kluczem
+--      gościa (dowód: metering_visitor_identity_test.sql);
 --   7. uprawniony (zakup) dostaje body BEZ zużycia licznika;
 --   8. miejsce w organizacji (tier z features.premium_content) przechodzi
 --      has_content_access - site licence dla B2B.
@@ -125,37 +129,40 @@ SELECT is(
   (SELECT content_pl FROM public.consume_metered_view('post', 'd0000000-0000-0000-0000-0000000000a2')),
   NULL, 'po wyczerpaniu limitu body nie wycieka');
 
--- ── Anonim ─────────────────────────────────────────────────────────────────
+-- ── Gość (tożsamość od serwera: service_role) ──────────────────────────────
 RESET ROLE;
-SET LOCAL ROLE anon;
-SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+SET LOCAL ROLE service_role;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
 -- 6a) anon_monthly_limit=0 → ściana rejestracji, zero konsumpcji.
 SELECT results_eq(
   $$ SELECT granted, requires_registration
-       FROM public.consume_metered_view('post', 'd0000000-0000-0000-0000-0000000000a2',
-                                        'e0000000-0000-0000-0000-0000000000ee') $$,
+       FROM public.consume_metered_view_visitor('d1111111-1111-1111-1111-111111111111', 'post',
+         'd0000000-0000-0000-0000-0000000000a2', 'e0000000-0000-0000-0000-0000000000ee',
+         'ip:' || substr(md5('meter-paywall'), 1, 32)) $$,
   $$ VALUES (false, true) $$,
-  'anonim bez limitu: requires_registration');
+  'gość bez limitu: requires_registration');
 
 RESET ROLE;
 UPDATE public.metering_settings SET anon_monthly_limit = 1
  WHERE tenant_id = 'd1111111-1111-1111-1111-111111111111';
-SET LOCAL ROLE anon;
-SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+SET LOCAL ROLE service_role;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 
--- 6b) Po podniesieniu limitu anonim z kluczem gościa dostaje body.
+-- 6b) Po podniesieniu limitu gość z kluczem od serwera dostaje body.
 SELECT results_eq(
   $$ SELECT granted, consumed, used
-       FROM public.consume_metered_view('post', 'd0000000-0000-0000-0000-0000000000a2',
-                                        'e0000000-0000-0000-0000-0000000000ee') $$,
+       FROM public.consume_metered_view_visitor('d1111111-1111-1111-1111-111111111111', 'post',
+         'd0000000-0000-0000-0000-0000000000a2', 'e0000000-0000-0000-0000-0000000000ee',
+         'ip:' || substr(md5('meter-paywall'), 1, 32)) $$,
   $$ VALUES (true, true, 1) $$,
-  'anonim z limitem: granted i policzone');
+  'gość z limitem: granted i policzone');
 
 -- 6c) Bez klucza gościa nie ma tożsamości → odmowa (nie liczymy w ciemno).
 SELECT is(
-  (SELECT granted FROM public.consume_metered_view('post', 'd0000000-0000-0000-0000-0000000000a1')),
-  false, 'anonim bez visitor_id: odmowa');
+  (SELECT granted FROM public.consume_metered_view_visitor('d1111111-1111-1111-1111-111111111111', 'post',
+     'd0000000-0000-0000-0000-0000000000a1', NULL, 'ip:' || substr(md5('meter-paywall'), 1, 32))),
+  false, 'gość bez visitor_id: odmowa');
 
 -- ── Uprawniony przez zakup (nie zużywa licznika) ───────────────────────────
 RESET ROLE;
