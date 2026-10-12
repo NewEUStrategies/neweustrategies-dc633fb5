@@ -14,12 +14,20 @@
 // PUSTA ODPOWIEDŹ NIE JEDZIE DO BAZY. Klucz z pustym napisem wyglądałby w
 // `answers` jak odpowiedź „nic", a `missing_required_fields` liczy właśnie
 // obecność treści.
-import type { RegistrationAnswer } from "@/lib/events/publicRegistrationApi";
+//
+// SUFITY DŁUGOŚCI TO TE SAME LICZBY CO W BAZIE (`REGISTRATION_FIELD_LIMITS`).
+// Za długi tekst jest błędem pod polem - nigdy nie przycinamy go po cichu
+// (AGENTS.md): organizator widziałby w kartotece coś innego, niż wpisano.
+import type { RegistrationAnswer } from "@/lib/events/registrationPayload";
+import { REGISTRATION_FIELD_LIMITS as LIMITS } from "@/lib/events/registrationFieldLimits";
 import {
+  hasHiddenTickets,
   isTicketSelectable,
   requiredTermIds,
+  requiresTicketChoice,
   type RegistrationForm,
   type RegistrationFormField,
+  type TicketReveal,
 } from "@/lib/events/registrationFormSurface";
 
 export interface RegistrationDraft {
@@ -70,6 +78,9 @@ export type RegistrationDraftField =
   | "firstName"
   | "lastName"
   | "email"
+  | "phone"
+  | "jobTitle"
+  | "companyText"
   | "socialProfileUrl"
   | "ticketTypeId"
   | "accessCode"
@@ -79,12 +90,34 @@ export type RegistrationDraftField =
 
 export interface RegistrationDraftError {
   field: RegistrationDraftField;
-  /** Klucz w `eventRegistration.validation.*`. */
+  /**
+   * Klucz w `eventRegistration.validation.*` - albo, z kropką, pełna ścieżka
+   * pod `eventRegistration.` (np. `group.leadEmailMismatch`). Zdanie składa
+   * `draftErrorMessageKey`.
+   */
   errorKey: string;
+  /** Liczby do zdania (`{{max}}`, `{{min}}`) - sufity z `REGISTRATION_FIELD_LIMITS`. */
+  params?: Record<string, number>;
+}
+
+/** Pełny klucz i18n zdania pod polem. */
+export function draftErrorMessageKey(error: RegistrationDraftError): string {
+  return error.errorKey.includes(".")
+    ? `eventRegistration.${error.errorKey}`
+    : `eventRegistration.validation.${error.errorKey}`;
 }
 
 /** Ten sam wzorzec, co w `event_register()` - ani ostrzejszy, ani luźniejszy. */
 const EMAIL = /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/;
+
+/** Błąd sufitu długości, gdy przycięty tekst go przekracza. */
+function tooLong(
+  field: RegistrationDraftField,
+  value: string,
+  max: number,
+): RegistrationDraftError | null {
+  return value.trim().length > max ? { field, errorKey: "tooLong", params: { max } } : null;
+}
 
 function answerText(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value.join(",");
@@ -107,27 +140,58 @@ export function validateRegistrationDraft(
   form: RegistrationForm,
 ): RegistrationDraftError[] {
   const errors: RegistrationDraftError[] = [];
+  const push = (error: RegistrationDraftError | null): void => {
+    if (error !== null) errors.push(error);
+  };
 
-  if (draft.firstName.trim() === "") errors.push({ field: "firstName", errorKey: "firstName" });
-  if (draft.lastName.trim() === "") errors.push({ field: "lastName", errorKey: "lastName" });
-  if (!EMAIL.test(draft.email.trim())) errors.push({ field: "email", errorKey: "email" });
+  const firstName = draft.firstName.trim();
+  if (firstName === "") errors.push({ field: "firstName", errorKey: "firstName" });
+  else push(tooLong("firstName", firstName, LIMITS.name));
+  const lastName = draft.lastName.trim();
+  if (lastName === "") errors.push({ field: "lastName", errorKey: "lastName" });
+  else push(tooLong("lastName", lastName, LIMITS.name));
+
+  const email = draft.email.trim();
+  if (email.length > LIMITS.email) push(tooLong("email", email, LIMITS.email));
+  else if (!EMAIL.test(email)) errors.push({ field: "email", errorKey: "email" });
+
+  // Telefon jest dobrowolny, ale podany musi zmieścić się w CHECK-u bazy
+  // (4..40 znaków) - inaczej `invalid_phone` przyszłoby dopiero z serwera.
+  const phone = draft.phone.trim();
+  if (phone !== "" && (phone.length < LIMITS.phoneMin || phone.length > LIMITS.phoneMax)) {
+    errors.push({
+      field: "phone",
+      errorKey: "phoneLength",
+      params: { min: LIMITS.phoneMin, max: LIMITS.phoneMax },
+    });
+  }
+  push(tooLong("jobTitle", draft.jobTitle, LIMITS.jobTitle));
+  push(tooLong("companyText", draft.companyText, LIMITS.companyText));
 
   const social = draft.socialProfileUrl.trim();
-  if (social !== "" && !social.startsWith("https://")) {
+  if (social.length > LIMITS.socialProfileUrl) {
+    push(tooLong("socialProfileUrl", social, LIMITS.socialProfileUrl));
+  } else if (social !== "" && !social.startsWith("https://")) {
     errors.push({ field: "socialProfileUrl", errorKey: "socialProfile" });
   }
 
-  // Bilet wymagany tylko wtedy, gdy wydarzenie ma bilety - i tylko wybieralny,
-  // bo bilet spoza sprzedaży baza odrzuci osobnym błędem.
-  if (form.tickets.length > 0) {
+  // Bilet wymagany wtedy, gdy wydarzenie ma AKTYWNE bilety (także same ukryte -
+  // REG-05) - i tylko wybieralny, bo bilet spoza sprzedaży baza odrzuci
+  // osobnym błędem.
+  if (requiresTicketChoice(form)) {
     const chosen = form.tickets.find((ticket) => ticket.id === draft.ticketTypeId);
     if (chosen === undefined || !isTicketSelectable(chosen)) {
-      errors.push({ field: "ticketTypeId", errorKey: "ticket" });
+      // Nic do wybrania, a bilety są - ukryte za kodem. „Wybierz bilet" przy
+      // pustej liście byłoby zdaniem bez wyjścia; mówimy, skąd wziąć kod.
+      const hiddenOnly = !form.tickets.some(isTicketSelectable) && hasHiddenTickets(form);
+      errors.push({ field: "ticketTypeId", errorKey: hiddenOnly ? "ticketHiddenOnly" : "ticket" });
     } else if (chosen.requiresAccessCode && draft.accessCode.trim() === "") {
       // Bez kodu `event_register` odmawia (`invalid_access_code`) - mówimy
       // to pod polem, zanim uczestnik straci wypełniony formularz. Czy kod
       // jest POPRAWNY, wie tylko baza (skrót kodu nie wychodzi do klienta).
       errors.push({ field: "accessCode", errorKey: "accessCode" });
+    } else if (chosen.requiresAccessCode) {
+      push(tooLong("accessCode", draft.accessCode, LIMITS.code));
     }
   }
 
@@ -243,4 +307,56 @@ export function withRememberedAccessCode(
 ): RegistrationDraft | null {
   if (draft === null || draft.accessCode !== "" || remembered === "") return draft;
   return { ...draft, accessCode: remembered };
+}
+
+/**
+ * Kod ODSŁANIAJĄCY, który jedzie do zapisu (`reveal_code`, REG-05). Tylko dla
+ * biletu ukrytego BEZ kodu dostępu, który ten kod odsłonił - baza odpowiada na
+ * taki bilet bez ważnego kodu `not_found`, jak na bilet nieistniejący. Bilet
+ * za kodem dostępu ma własną bramkę (`access_code`), a bilet jawny - żadnej,
+ * więc w obu przypadkach kod nie jedzie.
+ */
+export function draftRevealCode(
+  draft: RegistrationDraft,
+  form: RegistrationForm,
+  reveal: TicketReveal | null,
+): string | null {
+  if (reveal === null || draft.ticketTypeId === null) return null;
+  const chosen = form.tickets.find((ticket) => ticket.id === draft.ticketTypeId);
+  if (chosen === undefined || chosen.isHidden !== true || chosen.requiresAccessCode) return null;
+  if (!reveal.ticketIds.includes(chosen.id)) return null;
+  const code = reveal.code.trim();
+  return code === "" ? null : code;
+}
+
+/** Porównanie adresów tak, jak robi to baza (`lower(btrim(...))`). */
+function sameEmail(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+/**
+ * Zapis z gośćmi należy do konta prowadzącego (REG-01, decyzja D1): baza wiąże
+ * zgłoszenie z kontem WYŁĄCZNIE przez potwierdzony adres konta, a gości dopisuje
+ * tylko zgłoszeniu z tego konta. Prowadzący z innym adresem niż konto dostałby
+ * zgłoszenie bez gości i odmowę dopisania - mówimy to pod polem e-mail, ZANIM
+ * cokolwiek zostanie zapisane.
+ */
+export function validateGroupLeadEmail(
+  draft: RegistrationDraft,
+  context: { accountEmail: string | null; guestCount: number },
+): RegistrationDraftError | null {
+  if (context.guestCount === 0 || context.accountEmail === null) return null;
+  return sameEmail(draft.email, context.accountEmail)
+    ? null
+    : { field: "email", errorKey: "group.leadEmailMismatch" };
+}
+
+/**
+ * Czy wpisany adres różni się od adresu konta zalogowanego - podpowiedź pod
+ * polem: zgłoszenie na inny adres nie trafi do „Moich zgłoszeń", a płatnej
+ * wejściówki baza nie przyjmie (`account_email_required`).
+ */
+export function emailDiffersFromAccount(email: string, accountEmail: string | null): boolean {
+  if (accountEmail === null || accountEmail.trim() === "" || email.trim() === "") return false;
+  return !sameEmail(email, accountEmail);
 }

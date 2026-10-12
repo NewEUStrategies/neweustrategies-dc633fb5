@@ -19,6 +19,8 @@ import { EVENT_STUDIO_ROUTES } from "@/lib/events/eventStudioNav";
 import { DEFAULT_SESSIONS_QUERY } from "@/lib/events/sessionsApi";
 import { useAgendaConflicts, useEventRooms, useEventSessions } from "@/lib/events/useEventSessions";
 import { useEventTickets } from "@/lib/events/useEventRegistrations";
+import { useTicketPresentation, type TicketPresentation } from "@/lib/events/ticketPresentation";
+import type { EventTicketRow } from "@/lib/events/registrationsApi";
 import { buildPublishReadiness, type ReadinessCheck } from "@/lib/events/publishReadiness";
 import { eventFeaturesFromJson } from "@/lib/events/eventFeatures";
 import { unseatedOnPublishedMaps } from "@/lib/events/seatingApi";
@@ -28,6 +30,23 @@ import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 export interface EventReadinessPanelProps {
   row: AdminEventDetailRow;
+}
+
+/**
+ * Aktywne bilety ukryte bez kodu dostepu (REG-05) albo `null`, dopoki
+ * prezentacja biletow nie wrocila - brak danych nie jest „zero problemow".
+ */
+function hiddenWithoutCode(
+  tickets: readonly EventTicketRow[],
+  presentation: ReadonlyMap<string, TicketPresentation> | undefined,
+): number | null {
+  if (presentation === undefined) return null;
+  return tickets.filter(
+    (ticket) =>
+      ticket.is_active &&
+      presentation.get(ticket.id)?.isHidden === true &&
+      ticket.has_access_code !== true,
+  ).length;
 }
 
 export function EventReadinessPanel({ row }: EventReadinessPanelProps) {
@@ -40,6 +59,9 @@ export function EventReadinessPanel({ row }: EventReadinessPanelProps) {
   const roomsQ = useEventRooms(eventId);
   const conflictsQ = useAgendaConflicts(eventId);
   const ticketsQ = useEventTickets(eventId);
+  // Widocznosc biletu (`is_hidden`) zyje w prezentacji, nie w wierszu cennika -
+  // to samo zapytanie i klucz co panel biletow, wiec w studiu idzie z pamieci.
+  const presentationQ = useTicketPresentation(eventId);
   // Plan sali tylko przy WLACZONYM module - wylaczony nie pyta bazy wcale
   // (pusty identyfikator gasi zapytanie), a pozycja znika z rachunku.
   const seatingOn = eventFeaturesFromJson(row.features).seating;
@@ -73,6 +95,8 @@ export function EventReadinessPanel({ row }: EventReadinessPanelProps) {
         // Nieaktywny typ nie sprzedaje: `event_register` liczy tylko `is_active`.
         ticketTypeCount: (ticketsQ.data ?? []).filter((ticket) => ticket.is_active).length,
         seatingUnseated: seatingOn ? unseatedOnPublishedMaps(seatMapsQ.data ?? []) : null,
+        // REG-05: aktywny bilet ukryty bez kodu dostepu - sam link go nie pokaze.
+        hiddenTicketsWithoutCode: hiddenWithoutCode(ticketsQ.data ?? [], presentationQ.data),
       }),
     [
       row,
@@ -81,6 +105,7 @@ export function EventReadinessPanel({ row }: EventReadinessPanelProps) {
       conflictsQ.data,
       roomsQ.data,
       ticketsQ.data,
+      presentationQ.data,
       seatingOn,
       seatMapsQ.data,
     ],
@@ -92,6 +117,7 @@ export function EventReadinessPanel({ row }: EventReadinessPanelProps) {
     roomsQ,
     conflictsQ,
     ticketsQ,
+    presentationQ,
     ...(seatingOn ? [seatMapsQ] : []),
   ];
   const failed = sources.some((query) => query.isError);

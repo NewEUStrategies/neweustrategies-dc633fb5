@@ -33,6 +33,16 @@ export type TxEmailType =
   | "event_registration_approved"
   | "event_registration_rejected"
   | "event_waitlist_promoted"
+  // ZAPIS NA ADRES, KTORY JUZ MA ZGLOSZENIE (REG-04, decyzja D3). Formularz
+  // odpowiada wtedy tym samym „sprawdz skrzynke", co przy nowym zgloszeniu
+  // (inaczej bylby wyrocznia czlonkostwa), a wlasciciel adresu dostaje te
+  // wiadomosc - bez klucza samoobslugi i bez zadnego poswiadczenia.
+  | "event_registration_already_registered"
+  // POTWIERDZENIE ZGODY (double opt-in, REG-02/REG-14, decyzja D5). Zgoda
+  // marketingowa i na przekazanie partnerom zaznaczona przez kogos, kto nie
+  // jest zweryfikowanym wlascicielem adresu, dziala dopiero po kliknieciu
+  // w link z tej wiadomosci.
+  | "event_consent_confirm"
   // NABOR PRELEGENTOW (f1): potwierdzenie wyslania zgloszenia (samoobsluga) i
   // trzy decyzje organizatora (przyjecie, odmowa, prosba o zmiany). Osobne
   // typy, bo kazda decyzja mowi prelegentowi co innego o tym, co ma zrobic.
@@ -165,6 +175,8 @@ export interface TxCopy {
     recipient: string;
     /** Imię osoby przekazującej bilet - mail z zaproszeniem do przyjęcia. */
     sender: string;
+    /** Zgoda do potwierdzenia - wiersz na cel w mailu double opt-in. */
+    consent: string;
   };
   footerHelp: string;
 }
@@ -205,6 +217,7 @@ const LABELS_PL: TxCopy["labels"] = {
   room: "Sala",
   recipient: "Odbiorca",
   sender: "Nadawca",
+  consent: "Zgoda",
 };
 
 const LABELS_EN: TxCopy["labels"] = {
@@ -238,6 +251,7 @@ const LABELS_EN: TxCopy["labels"] = {
   room: "Room",
   recipient: "Recipient",
   sender: "From",
+  consent: "Consent",
 };
 
 const HELP_PL =
@@ -538,6 +552,34 @@ const PL: Dict = {
       "Zwolniło się miejsce i przeszłaś/przeszedłeś z listy rezerwowej na listę uczestników. Nie musisz nic potwierdzać - zapis jest już aktywny.",
     cta: "Szczegóły wydarzenia",
     note: "Jeśli nie możesz przyjść, odwołaj udział odnośnikiem z potwierdzenia zapisu - miejsce trafi do kolejnej osoby z kolejki.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_registration_already_registered: {
+    subject: (v) =>
+      `Ten adres ma już zgłoszenie${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Ktoś ponownie wysłał formularz zapisu z tym adresem - niczego nie zmieniliśmy.",
+    eyebrow: "Wydarzenie",
+    heading: "Masz już zgłoszenie na to wydarzenie",
+    intro:
+      "Ktoś - być może Ty - wysłał formularz zapisu z tym adresem e-mail, ale ten adres ma już aktywne zgłoszenie na to wydarzenie. Niczego nie zmieniliśmy: zgłoszenie i Twoje dane zostają takie, jak były.",
+    cta: "Szczegóły wydarzenia",
+    note: "Zgłoszeniem zarządzasz odnośnikiem z pierwszego potwierdzenia zapisu albo w profilu („Moje zgłoszenia”), jeśli masz konto z tym adresem. Jeśli formularz wysłał ktoś inny, zignoruj tę wiadomość.",
+    labels: LABELS_PL,
+    footerHelp: HELP_PL,
+  },
+  event_consent_confirm: {
+    subject: (v) =>
+      `Potwierdź zgodę${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "Zgody zaznaczone przy zapisie zaczną obowiązywać po Twoim potwierdzeniu.",
+    eyebrow: "Wydarzenie",
+    heading: "Potwierdź swoją zgodę",
+    intro:
+      "Przy zapisie na wydarzenie zaznaczono zgody wymienione poniżej. Zaczną obowiązywać dopiero wtedy, gdy je potwierdzisz - przycisk otwiera stronę, na której zrobisz to jednym kliknięciem.",
+    cta: "Potwierdź zgodę",
+    note: "Odnośnik jest ważny przez 7 dni. Jeśli zgody zaznaczono bez Twojej wiedzy albo nie chcesz ich udzielać, zignoruj tę wiadomość - bez potwierdzenia żadnej z nich nie zapiszemy. Zgodę możesz w każdej chwili wycofać.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -1241,6 +1283,34 @@ const EN: Dict = {
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },
+  event_registration_already_registered: {
+    subject: (v) =>
+      `This address is already registered${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "info",
+    preview: "Someone submitted the registration form with this address again - nothing changed.",
+    eyebrow: "Event",
+    heading: "You already have a registration for this event",
+    intro:
+      "Someone - possibly you - submitted the registration form with this e-mail address, but the address already has an active registration for this event. We changed nothing: the registration and your details stay as they were.",
+    cta: "Event details",
+    note: "Manage your registration with the link from your first registration confirmation, or in your profile (“My registrations”) if you have an account with this address. If someone else submitted the form, ignore this message.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
+  event_consent_confirm: {
+    subject: (v) =>
+      `Confirm your consent${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
+    icon: "hero-shield",
+    preview: "The consents ticked at registration take effect once you confirm them.",
+    eyebrow: "Event",
+    heading: "Confirm your consent",
+    intro:
+      "When registering for the event, the consents listed below were ticked. They take effect only once you confirm them - the button opens a page where you can do so with one click.",
+    cta: "Confirm consent",
+    note: "The link is valid for 7 days. If the consents were ticked without your knowledge or you do not want to give them, ignore this message - without confirmation we record none of them. You can withdraw your consent at any time.",
+    labels: LABELS_EN,
+    footerHelp: HELP_EN,
+  },
   event_cfp_submission_received: {
     subject: (v) =>
       `📝 Talk submission sent${v.subject ? ` - ${v.subject}` : ""} | New European Strategies`,
@@ -1691,6 +1761,30 @@ export const PARTICIPANT_TX_DETAIL_LABELS = {
 /** Etykieta wiersza szczegółów używana przez maile uczestnika. */
 export type ParticipantTxDetailLabel =
   (typeof PARTICIPANT_TX_DETAIL_LABELS)[ParticipantTxEmailType][number];
+
+/** Cele zgody, które potwierdza mail double opt-in (`event_consent_confirm`). */
+export type EventConsentConfirmPurpose = "marketing" | "partner_sharing";
+
+/**
+ * Treść zgód w mailu double opt-in - DOKŁADNIE napisy checkboxów formularza
+ * zapisu (`eventRegistration.consents.*`, wersja `EVENT_CONSENT_TEXT_VERSION`).
+ * Odbiorca potwierdza TEN tekst, który pokazał formularz, więc kopia nie może
+ * się od niego różnić - test porównuje oba słowniki (ten plik nie wciąga
+ * i18next, patrz nagłówek `txCopy.test.ts`).
+ */
+export const EVENT_CONSENT_PURPOSE_COPY: Record<
+  EmailLang,
+  Record<EventConsentConfirmPurpose, string>
+> = {
+  pl: {
+    marketing: "Chcę otrzymywać informacje o kolejnych wydarzeniach.",
+    partner_sharing: "Zgadzam się na przekazanie danych partnerom tego wydarzenia.",
+  },
+  en: {
+    marketing: "I want to hear about upcoming events.",
+    partner_sharing: "I agree to share my data with the partners of this event.",
+  },
+};
 
 export function isParticipantTxEmailType(type: TxEmailType): type is ParticipantTxEmailType {
   return (PARTICIPANT_TX_EMAIL_TYPES as readonly string[]).includes(type);

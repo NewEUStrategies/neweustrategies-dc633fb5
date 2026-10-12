@@ -84,12 +84,14 @@ function result(over: Partial<RegistrationResult> = {}): RegistrationResult {
     decisionSource: null,
     waitlistPosition: null,
     ticketTypeId: null,
-    qrToken: null,
     manageToken: null,
     paymentRequired: false,
     paymentStatus: "not_required",
     amountCents: null,
     currency: null,
+    quoteValidUntil: null,
+    accountLinked: null,
+    consentConfirmationRequired: false,
     ...over,
   };
 }
@@ -133,7 +135,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 describe("RegistrationConfirmation - co uczestnik czyta o swoim zgloszeniu", () => {
   it("zapis przyjety od reki mowi „jestes zapisany”", () => {
-    renderConfirmation({ status: "approved", qrToken: "Ab3d_Xy9-Qw1zEr4TyU7iOp2AsDf1gHj" });
+    renderConfirmation({ status: "approved" });
 
     expect(screen.getByText("eventRegistration.result.approved")).toBeInTheDocument();
     expect(screen.queryByText("eventRegistration.result.paymentTitle")).not.toBeInTheDocument();

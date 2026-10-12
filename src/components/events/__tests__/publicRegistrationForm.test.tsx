@@ -4,9 +4,11 @@
 // pozostalych testach komponentow), bo parzystosc PL/EN pilnuje osobna bramka
 // slownikow. Tu chodzi o cztery rzeczy, ktore po zepsuciu kosztuja zgloszenie:
 // 1. zamkniete zapisy nie rysuja formularza, tylko POWOD z bazy,
-// 2. brak zgody obowiazkowej nie wysyla nic do `event_register()`,
-// 3. poprawny szkic jedzie do RPC w kluczach kontraktu (bilet, odpowiedzi, zgody),
-// 4. `manage_token` widac po zapisie, bo baza trzyma tylko jego SHA-256.
+// 2. brak zgody obowiazkowej nie wysyla nic do zapisu,
+// 3. poprawny szkic jedzie do zapisu w kluczach kontraktu (bilet, odpowiedzi,
+//    zgody, jezyk widza),
+// 4. `manage_token` widac po zapisie zweryfikowanym (`kind: "registered"`),
+//    bo baza trzyma tylko jego SHA-256.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -176,7 +178,7 @@ describe("publiczny formularz zapisu", () => {
     expect(screen.queryByLabelText(/firstName/)).toBeNull();
   });
 
-  it("bez zgody obowiazkowej NIE wola event_register()", async () => {
+  it("bez zgody obowiazkowej NIE wola zapisu", async () => {
     fetchForm.mockResolvedValue(openForm());
     renderForm();
     await fillPerson();
@@ -187,17 +189,21 @@ describe("publiczny formularz zapisu", () => {
     expect(register).not.toHaveBeenCalled();
   });
 
-  it("poprawny szkic jedzie do RPC z biletem, odpowiedzia i zgoda", async () => {
+  it("poprawny szkic jedzie do zapisu z biletem, odpowiedzia, zgoda i jezykiem", async () => {
     fetchForm.mockResolvedValue(openForm());
+    // `submitRegistration` oddaje WYNIK z rodzajem (REG-04): zapis
+    // zweryfikowany niesie zgloszenie, odpowiedz neutralna - tylko `check_email`.
     register.mockResolvedValue({
-      registrationId: "r1",
-      personId: null,
-      status: "approved",
-      decisionSource: null,
-      waitlistPosition: null,
-      ticketTypeId: "t1",
-      qrToken: "qr",
-      manageToken: "manage-secret",
+      kind: "registered",
+      result: {
+        registrationId: "r1",
+        personId: null,
+        status: "approved",
+        decisionSource: null,
+        waitlistPosition: null,
+        ticketTypeId: "t1",
+        manageToken: "manage-secret",
+      },
     });
     renderForm();
     await fillPerson();
@@ -219,7 +225,11 @@ describe("publiczny formularz zapisu", () => {
       ticketTypeId: "t1",
       consentDataProcessing: true,
       answers: [{ key: "diet", value: "wegetarianska" }],
+      // Jezyk widza - w nim serwer wysle maila po zapisie.
+      lang: "pl",
     });
+    // Atrybucja jedzie z zapisem; bez zgody reklamowej jest jawnym `null`.
+    expect(payload).toHaveProperty("attribution", null);
 
     // Klucz zarzadzania wraca RAZ - musi byc widoczny od razu po zapisie.
     expect(await screen.findByText("manage-secret")).toBeTruthy();
@@ -272,19 +282,21 @@ describe("platna wejsciowka a konto", () => {
     auth.user = { id: "u-1" };
     fetchForm.mockResolvedValue(openForm({ tickets: [paidTicket()] } as never));
     register.mockResolvedValue({
-      registrationId: "r1",
-      eventId: "e1",
-      personId: null,
-      status: "pending",
-      decisionSource: null,
-      waitlistPosition: null,
-      ticketTypeId: "t1",
-      qrToken: null,
-      manageToken: "manage-secret",
-      paymentRequired: true,
-      paymentStatus: "unpaid",
-      amountCents: 15000,
-      currency: "PLN",
+      kind: "registered",
+      result: {
+        registrationId: "r1",
+        eventId: "e1",
+        personId: null,
+        status: "pending",
+        decisionSource: null,
+        waitlistPosition: null,
+        ticketTypeId: "t1",
+        manageToken: "manage-secret",
+        paymentRequired: true,
+        paymentStatus: "unpaid",
+        amountCents: 15000,
+        currency: "PLN",
+      },
     });
     renderForm();
 

@@ -6,14 +6,19 @@
 import { describe, expect, it } from "vitest";
 import {
   draftAnswers,
+  draftErrorMessageKey,
   draftOptionalText,
   draftAccessCode,
+  draftRevealCode,
+  emailDiffersFromAccount,
   emptyRegistrationDraft,
+  validateGroupLeadEmail,
   validateRegistrationDraft,
   withRememberedAccessCode,
   type RegistrationDraft,
 } from "@/lib/events/registrationSubmitDraft";
 import type { RegistrationForm } from "@/lib/events/registrationFormSurface";
+import { REGISTRATION_FIELD_LIMITS } from "@/lib/events/registrationFieldLimits";
 
 const TICKET = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
 const TERM = "cccccccc-cccc-cccc-cccc-cccccccccccc";
@@ -352,5 +357,169 @@ describe("zgody organizatora", () => {
     const legacy = { ...form, consents: undefined } as unknown as RegistrationForm;
     expect(validateRegistrationDraft(filled(), legacy)).toEqual([]);
     expect(draftAnswers(filled(), legacy)).toEqual([{ key: "diet", value: "wege" }]);
+  });
+});
+
+// SUFITY DŁUGOŚCI - te same liczby co CHECK-i `event_people` i schemat serwera
+// (`REGISTRATION_FIELD_LIMITS`). Granica przechodzi, granica + 1 jest błędem pod
+// polem - nigdy przycięciem.
+describe("wspólne sufity pól (REGISTRATION_FIELD_LIMITS)", () => {
+  const L = REGISTRATION_FIELD_LIMITS;
+
+  it("liczby są równe CHECK-om bazy (imię 80, e-mail 320, telefon 4-40, stanowisko 160, firma 200)", () => {
+    expect(L).toMatchObject({
+      name: 80,
+      email: 320,
+      phoneMin: 4,
+      phoneMax: 40,
+      jobTitle: 160,
+      companyText: 200,
+      socialProfileUrl: 500,
+      code: 64,
+    });
+  });
+
+  function errorsOf(overrides: Partial<RegistrationDraft>) {
+    return validateRegistrationDraft(filled(overrides), form);
+  }
+
+  it.each([
+    ["firstName", "firstName" as const, L.name],
+    ["lastName", "lastName" as const, L.name],
+    ["jobTitle", "jobTitle" as const, L.jobTitle],
+    ["companyText", "companyText" as const, L.companyText],
+  ])("%s: granica przechodzi, granica + 1 to `tooLong` z sufitem", (_label, key, max) => {
+    expect(errorsOf({ [key]: "x".repeat(max) })).toEqual([]);
+    expect(errorsOf({ [key]: "x".repeat(max + 1) })).toEqual([
+      { field: key, errorKey: "tooLong", params: { max } },
+    ]);
+    // Białe znaki wokół nie są treścią - baza liczy po `btrim`.
+    expect(errorsOf({ [key]: `  ${"x".repeat(max)}  ` })).toEqual([]);
+  });
+
+  it("e-mail dłuższy niż 320 znaków to `tooLong`, nie `email`", () => {
+    const boundary = `${"a".repeat(L.email - 12)}@example.com`;
+    expect(boundary).toHaveLength(L.email);
+    expect(errorsOf({ email: boundary })).toEqual([]);
+    expect(errorsOf({ email: `a${boundary}` })).toEqual([
+      { field: "email", errorKey: "tooLong", params: { max: L.email } },
+    ]);
+  });
+
+  it("telefon: pusty przechodzi, 4..40 przechodzi, poza zakresem - `phoneLength`", () => {
+    expect(errorsOf({ phone: "" })).toEqual([]);
+    expect(errorsOf({ phone: "1".repeat(L.phoneMin) })).toEqual([]);
+    expect(errorsOf({ phone: "1".repeat(L.phoneMax) })).toEqual([]);
+    const expected = [
+      { field: "phone", errorKey: "phoneLength", params: { min: L.phoneMin, max: L.phoneMax } },
+    ];
+    expect(errorsOf({ phone: "1".repeat(L.phoneMin - 1) })).toEqual(expected);
+    expect(errorsOf({ phone: "1".repeat(L.phoneMax + 1) })).toEqual(expected);
+  });
+
+  it("profil zawodowy: sufit 500 sprawdzany przed regułą https", () => {
+    const boundary = `https://${"s".repeat(L.socialProfileUrl - 8)}`;
+    expect(errorsOf({ socialProfileUrl: boundary })).toEqual([]);
+    expect(errorsOf({ socialProfileUrl: `${boundary}s` })).toEqual([
+      { field: "socialProfileUrl", errorKey: "tooLong", params: { max: L.socialProfileUrl } },
+    ]);
+  });
+
+  it("kod dostępu dłuższy niż 64 znaki to `tooLong` przy polu kodu", () => {
+    const gated: RegistrationForm = { ...form, tickets: [ticket({ requiresAccessCode: true })] };
+    expect(
+      validateRegistrationDraft(
+        filled({ ticketTypeId: TICKET, accessCode: "K".repeat(L.code) }),
+        gated,
+      ),
+    ).toEqual([]);
+    expect(
+      validateRegistrationDraft(
+        filled({ ticketTypeId: TICKET, accessCode: "K".repeat(L.code + 1) }),
+        gated,
+      ),
+    ).toEqual([{ field: "accessCode", errorKey: "tooLong", params: { max: L.code } }]);
+  });
+
+  it("klucz zdania: walidacja pod `validation.*`, ścieżka z kropką pod `eventRegistration.*`", () => {
+    expect(draftErrorMessageKey({ field: "phone", errorKey: "phoneLength" })).toBe(
+      "eventRegistration.validation.phoneLength",
+    );
+    expect(draftErrorMessageKey({ field: "email", errorKey: "group.leadEmailMismatch" })).toBe(
+      "eventRegistration.group.leadEmailMismatch",
+    );
+  });
+});
+
+describe("bilety ukryte (REG-05)", () => {
+  const hiddenOnly: RegistrationForm = {
+    ...form,
+    tickets: [],
+    hasHiddenTickets: true,
+    requiresTicket: true,
+  };
+
+  it("same bilety ukryte: wybór WYMAGANY, a zdanie mówi o kodzie, nie „wybierz bilet”", () => {
+    expect(validateRegistrationDraft(filled({ ticketTypeId: null }), hiddenOnly)).toEqual([
+      { field: "ticketTypeId", errorKey: "ticketHiddenOnly" },
+    ]);
+    // Bez flagi `requiresTicket` (starszy backend) pusta lista nie wymaga biletu.
+    expect(
+      validateRegistrationDraft(filled({ ticketTypeId: null }), { ...form, tickets: [] }),
+    ).toEqual([]);
+  });
+
+  it("bilet odsłonięty kodem i doklejony do formularza jest poprawnym wyborem", () => {
+    const vip = ticket({ id: "t-vip", key: "vip", isHidden: true });
+    const merged: RegistrationForm = { ...hiddenOnly, tickets: [vip] };
+    expect(validateRegistrationDraft(filled({ ticketTypeId: "t-vip" }), merged)).toEqual([]);
+  });
+
+  it("kod odsłaniający jedzie TYLKO dla biletu ukrytego bez kodu dostępu, który ten kod odsłonił", () => {
+    const vip = ticket({ id: "t-vip", key: "vip", isHidden: true });
+    const press = ticket({ id: "t-press", key: "press", isHidden: true, requiresAccessCode: true });
+    const merged: RegistrationForm = { ...form, tickets: [ticket(), vip, press] };
+    const reveal = { code: "VIP-2099", ticketIds: ["t-vip", "t-press"], tickets: [vip, press] };
+
+    expect(draftRevealCode(filled({ ticketTypeId: "t-vip" }), merged, reveal)).toBe("VIP-2099");
+    // Bilet jawny, bilet za kodem dostępu, brak odsłonięcia, inny kod - nic nie jedzie.
+    expect(draftRevealCode(filled({ ticketTypeId: TICKET }), merged, reveal)).toBeNull();
+    expect(draftRevealCode(filled({ ticketTypeId: "t-press" }), merged, reveal)).toBeNull();
+    expect(draftRevealCode(filled({ ticketTypeId: "t-vip" }), merged, null)).toBeNull();
+    expect(
+      draftRevealCode(filled({ ticketTypeId: "t-vip" }), merged, { ...reveal, ticketIds: [] }),
+    ).toBeNull();
+    expect(draftRevealCode(filled({ ticketTypeId: null }), merged, reveal)).toBeNull();
+  });
+});
+
+describe("zapis grupowy należy do konta prowadzącego (REG-01)", () => {
+  it("z gośćmi adres zgłoszenia MUSI być adresem konta - wielkość liter i spacje nie mają znaczenia", () => {
+    const mismatch = validateGroupLeadEmail(filled({ email: "inny@example.com" }), {
+      accountEmail: "anna@example.com",
+      guestCount: 2,
+    });
+    expect(mismatch).toEqual({ field: "email", errorKey: "group.leadEmailMismatch" });
+    expect(
+      validateGroupLeadEmail(filled({ email: "  ANNA@Example.com " }), {
+        accountEmail: "anna@example.com",
+        guestCount: 2,
+      }),
+    ).toBeNull();
+  });
+
+  it("bez gości albo bez konta reguła nie obowiązuje", () => {
+    const draft = filled({ email: "inny@example.com" });
+    expect(
+      validateGroupLeadEmail(draft, { accountEmail: "anna@example.com", guestCount: 0 }),
+    ).toBeNull();
+    expect(validateGroupLeadEmail(draft, { accountEmail: null, guestCount: 3 })).toBeNull();
+  });
+
+  it("podpowiedź „adres różni się od konta” tylko przy zalogowanym i wpisanym adresie", () => {
+    expect(emailDiffersFromAccount("inny@example.com", "anna@example.com")).toBe(true);
+    expect(emailDiffersFromAccount(" Anna@Example.com", "anna@example.com")).toBe(false);
+    expect(emailDiffersFromAccount("inny@example.com", null)).toBe(false);
+    expect(emailDiffersFromAccount("", "anna@example.com")).toBe(false);
   });
 });

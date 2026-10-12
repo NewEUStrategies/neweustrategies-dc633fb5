@@ -887,7 +887,16 @@ export const adminEventRegistrationPl = {
         visibility: "Widoczność biletu",
         visible: "Widoczny",
         hidden: "Ukryty",
-        hiddenHint: "Bilet ukryty nie pojawia się na liście - dostęp daje link rejestracyjny.",
+        // REG-05: sam link z kluczem biletu nie daje już dostępu - klucz bywa
+        // zgadywalny. Bilet ukryty odsłania kod dostępu biletu albo kod
+        // odsłaniający z sekcji „Kody wydarzenia".
+        hiddenHint:
+          "Bilet ukryty nie pojawia się na liście. Uczestnik dotrze do niego linkiem rejestracyjnym tylko z kodem dostępu biletu - bez kodu bilet odsłania wyłącznie kod odsłaniający z sekcji „Kody wydarzenia”.",
+        hiddenNeedsCode: "Widoczny tylko z kodem odsłaniającym - Kody wydarzenia",
+        hiddenNeedsCodeHint:
+          "Ten bilet nie ma kodu dostępu, więc sam link rejestracyjny go nie pokaże. Dodaj kod dostępu albo wydaj kod odsłaniający w sekcji „Kody wydarzenia”.",
+        copyUrlNeedsCode:
+          "Link skopiowany - bez kodu dostępu bilet zobaczy tylko osoba z kodem odsłaniającym (Kody wydarzenia).",
         payment: "Szczegóły płatności",
         paymentHint:
           "Cena, waluta i cennik w czasie. Płatność obsługuje bramka płatności wydarzenia.",
@@ -2085,7 +2094,12 @@ export const adminEventRegistrationEn = {
         visible: "Visible",
         hidden: "Hidden",
         hiddenHint:
-          "A hidden ticket is not listed - it is reachable through its registration link.",
+          "A hidden ticket is not listed. Its registration link reaches it only together with the ticket access code - without a code, only a reveal code from “Event codes” uncovers it.",
+        hiddenNeedsCode: "Visible only with a reveal code - Event codes",
+        hiddenNeedsCodeHint:
+          "This ticket has no access code, so the registration link alone will not show it. Add an access code or issue a reveal code in “Event codes”.",
+        copyUrlNeedsCode:
+          "Link copied - without an access code, only someone with a reveal code (Event codes) will see this ticket.",
         payment: "Payment details",
         paymentHint:
           "Price, currency and time-based pricing. Payments go through the event payment gateway.",

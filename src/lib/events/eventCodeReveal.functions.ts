@@ -4,12 +4,17 @@
 // odsłania bilet" mówi, że kod istnieje - bez limitu prób to wyrocznia do
 // zgadywania kodów. Limit po IP zna wyłącznie serwer, a najemca ma pochodzić
 // z ZAUFANEGO hosta, a nie z nagłówka zapytania do bazy. Dlatego RPC
-// `event_coupon_revealed_tickets` jest wykonywalne tylko dla `service_role`
-// (migracja 20261001100000) i przyjmuje najemcę jawnie.
+// `event_registration_revealed_tickets` (B1a; w oknie wdrożenia
+// `event_coupon_revealed_tickets`, migracja 20261001100000) jest wykonywalne
+// tylko dla `service_role` i przyjmuje najemcę jawnie.
+//
+// BILETY, NIE IDENTYFIKATORY (REG-05). Formularz publiczny nie oddaje już
+// biletów ukrytych, więc odpowiedź niesie pełne wiersze biletów w kształcie
+// formularza - przeglądarka dokleja je do listy wyboru.
 //
 // PUBLICZNA, BEZ MIDDLEWARE. Formularz zapisu jest dla anonimów; sesję, gdy
-// jest, serwer czyta miękko (`optionalUserIdFromRequest`) tylko po to, żeby
-// dołożyć kubełek limitu na konto.
+// jest, serwer czyta miękko (`optionalUserIdFromRequest`), żeby dołożyć
+// kubełek limitu na konto i policzyć blokadę poziomu członkostwa.
 //
 // POST, bo każde wywołanie liczy się do limitu - odpowiedź nie może leżeć
 // w żadnym cache.

@@ -72,7 +72,9 @@ describe("TX_EMAIL_CATEGORY", () => {
     // 35 -> 36: powiadomienie o fakturze organizatora wydarzenia (`event_invoice_issued`).
     // 36 -> 47: jedenaście maili funkcji uczestnika (`PARTICIPANT_TX_EMAIL_TYPES`).
     // 47 -> 50: `event_ticket_revoked`, `event_ticket_paid_waitlisted`, `event_ticket_paid_pending`.
-    expect(TX_EMAIL_TYPES.length).toBe(50);
+    // 50 -> 52: zapis na zajęty adres (`event_registration_already_registered`)
+    // i double opt-in zgód (`event_consent_confirm`) - REG-04/REG-14.
+    expect(TX_EMAIL_TYPES.length).toBe(52);
     expect(Object.keys(TX_EMAIL_CATEGORY).sort()).toEqual([...TX_EMAIL_TYPES].sort());
     for (const type of TX_EMAIL_TYPES) {
       expect(TX_EMAIL_CATEGORY[type]).toMatch(/^(transactional|bulk)$/);

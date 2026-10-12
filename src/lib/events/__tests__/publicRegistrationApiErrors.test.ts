@@ -10,11 +10,13 @@
 //    oddaje na smieciach `EMPTY_REGISTRATION_FORM`, a ten ma `isOpen: false`.
 //    Zgubiony `if (error) throw error` nie rysuje zadnego bledu - rysuje
 //    poprawny ekran "zapisy zamkniete" na wydarzeniu, ktore wlasnie je otworzylo.
-// 2) POLE, KTOREGO FORMULARZ NIE OFERUJE. `event_register` czyta ladunek po
-//    nazwie i nie protestuje przeciw kluczowi, ktorego nie zna, wiec komplet
-//    wysylanych kluczy jest jedynym miejscem, w ktorym widac, ze zapis
-//    publiczny NIE przyjmuje statusu, platnosci ani tozsamosci wolajacego.
-//    O tych trzech decyduje SQL, nie przegladarka gosca.
+// 2) POLE, KTOREGO FORMULARZ NIE OFERUJE. Baza czyta ladunek po nazwie i nie
+//    protestuje przeciw kluczowi, ktorego nie zna, wiec komplet wysylanych
+//    kluczy jest jedynym miejscem, w ktorym widac, ze zapis publiczny NIE
+//    przyjmuje statusu, platnosci ani tozsamosci wolajacego. O tych trzech
+//    decyduje SQL i serwer zapisu (REG-04), nie przegladarka gosca. Zapis idzie
+//    funkcja serwerowa - jej atrapa (`@/test/events/registrationServerFn`)
+//    sklada PRAWDZIWY ladunek i oddaje odpowiedz zaplanowana w atrapie RPC.
 // 3) ODPOWIEDZ NIECZYTELNA UDAJACA SUKCES. `manage_token` i `qr_token` wracaja
 //    RAZ (baza trzyma tylko SHA-256), wiec "zapisano, ale nie umiemy tego
 //    pokazac" jest utrata jedynej drogi rezygnacji gosc bez konta.
@@ -29,6 +31,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { supabaseRpcStub } from "@/test/supabase/rpc";
+import { REGISTER_FOR_CLIENT_RPC } from "@/test/events/registrationServerFn";
 import { EMPTY_REGISTRATION_FORM } from "@/lib/events/registrationFormSurface";
 
 const h = vi.hoisted(() => ({
@@ -43,6 +46,10 @@ vi.mock("@/integrations/supabase/client", () => ({
     },
   },
 }));
+
+vi.mock("@/lib/events/eventRegistration.functions", async () =>
+  (await import("@/test/events/registrationServerFn")).registrationServerFnStub(() => h.rpc),
+);
 
 const api = await import("@/lib/events/publicRegistrationApi");
 
@@ -124,25 +131,33 @@ describe("odczyt formularza", () => {
 
 describe("zapis - ladunek", () => {
   beforeEach(() => {
-    h.rpc?.setData("event_register", { registration_id: REG, status: "approved" });
+    h.rpc?.setData(REGISTER_FOR_CLIENT_RPC, {
+      ok: true,
+      outcome: "registered",
+      registration_id: REG,
+      status: "approved",
+    });
   });
 
   it("wysyla DOKLADNIE pola formularza - ani statusu, ani platnosci, ani tozsamosci", async () => {
     await api.submitRegistration(minimalInput());
-    const payload = payloadOf("event_register");
+    const payload = payloadOf(REGISTER_FOR_CLIENT_RPC);
 
-    // Komplet, nie podzbior: o statusie, kwocie, osobie i najemcy decyduje SQL.
-    // Kazdy dodatkowy klucz w tym miejscu byloby polem, ktorego formularz nie
-    // oferuje, a ktore `event_register` moze kiedys zaczac czytac.
+    // Komplet, nie podzbior: o statusie, kwocie, osobie i najemcy decyduje SQL,
+    // a o adresie i przegladarce - serwer. Kazdy dodatkowy klucz w tym miejscu
+    // byloby polem, ktorego formularz nie oferuje, a ktore baza moze kiedys
+    // zaczac czytac.
     expect(Object.keys(payload).sort()).toEqual([
       "accepted_term_ids",
       "answers",
       "consent_data_processing",
       "consent_marketing",
       "consent_partner_sharing",
+      "consent_text_version",
       "email",
       "event_slug",
       "first_name",
+      "lang",
       "last_name",
     ]);
     // Zgody nieoznaczone jada jako jawne `false`, a nie jako brak klucza:
@@ -164,7 +179,7 @@ describe("zapis - ladunek", () => {
         { key: "dieta", value: ["bez glutenu"] },
       ],
     });
-    const payload = payloadOf("event_register");
+    const payload = payloadOf(REGISTER_FOR_CLIENT_RPC);
     // Klucz przycinany, ostatnia odpowiedz na ten sam klucz wygrywa - formularz
     // wysyla jedno pole, nie dwa sprzeczne.
     expect(payload.answers).toEqual({ dieta: ["bez glutenu"] });
@@ -180,7 +195,7 @@ describe("zapis - ladunek", () => {
       jobTitle: "Analityczka",
       socialProfileUrl: "https://social.example.org/anna-kowalska",
     });
-    const payload = payloadOf("event_register");
+    const payload = payloadOf(REGISTER_FOR_CLIENT_RPC);
     expect("phone" in payload).toBe(true);
     expect(payload.phone).toBeNull();
     expect(payload.job_title).toBe("Analityczka");
@@ -191,10 +206,19 @@ describe("zapis - ladunek", () => {
 });
 
 describe("zapis - odczyt odpowiedzi", () => {
-  it("wejsciowka platna wraca jako `czeka na wplate`, bez kodu wejscia", async () => {
+  /** Wynik zapisu zweryfikowanego wlasciciela - albo blad testu. */
+  async function registered(input = minimalInput()) {
+    const outcome = await api.submitRegistration(input);
+    if (outcome.kind !== "registered") throw new Error("test: oczekiwano zapisu `registered`");
+    return outcome.result;
+  }
+
+  it("wejsciowka platna wraca jako `czeka na wplate`, z terminem ceny z chwili zapisu", async () => {
     // Przed migracja 20260828206000 front rysowal tu ekran "do zobaczenia na
     // wydarzeniu" i wysylal potwierdzenie komus, kto nic nie zaplacil.
-    h.rpc?.setData("event_register", {
+    h.rpc?.setData(REGISTER_FOR_CLIENT_RPC, {
+      ok: true,
+      outcome: "registered",
       registration_id: REG,
       event_id: EVENT,
       ticket_type_id: TICKET,
@@ -205,41 +229,55 @@ describe("zapis - odczyt odpowiedzi", () => {
       payment_status: "unpaid",
       amount_cents: 25000,
       currency: "EUR",
+      quote_valid_until: "2099-09-01T08:00:00Z",
     });
-    const result = await api.submitRegistration({ ...minimalInput(), ticketTypeId: TICKET });
+    const result = await registered({ ...minimalInput(), ticketTypeId: TICKET });
     expect(result.paymentRequired).toBe(true);
     expect(result.paymentStatus).toBe("unpaid");
     expect(result.amountCents).toBe(25000);
     expect(result.currency).toBe("EUR");
-    expect(result.qrToken).toBeNull();
+    expect(result.quoteValidUntil).toBe("2099-09-01T08:00:00Z");
     // Kasa przyjmuje trojke naraz, wiec odpowiedz zapisu musi niesc komplet -
     // inaczej ekran potwierdzenia doszukiwalby wydarzenia drugim zapytaniem.
     expect(result.eventId).toBe(EVENT);
     expect(result.ticketTypeId).toBe(TICKET);
   });
 
-  it("starszy backend bez kluczy platnosci NIE robi z zapisu platnego", async () => {
-    h.rpc?.setData("event_register", { registration_id: REG, status: "approved" });
-    const result = await api.submitRegistration(minimalInput());
+  it("starszy backend bez kluczy platnosci i konta NIE robi z zapisu platnego", async () => {
+    h.rpc?.setData(REGISTER_FOR_CLIENT_RPC, {
+      ok: true,
+      outcome: "registered",
+      registration_id: REG,
+      status: "approved",
+    });
+    const result = await registered();
     expect(result.paymentRequired).toBe(false);
     expect(result.paymentStatus).toBeNull();
     expect(result.amountCents).toBeNull();
     expect(result.eventId).toBeNull();
+    expect(result.quoteValidUntil).toBeNull();
+    // Brak klucza `account_linked` to "baza tego nie mowi", nie "niepowiazane".
+    expect(result.accountLinked).toBeNull();
+    expect(result.consentConfirmationRequired).toBe(false);
   });
 
-  it("`payment_required` jako napis nie zamyka wejscia uczestnikowi", async () => {
+  it("`payment_required` i `account_linked` jako napisy nie udaja wartosci logicznych", async () => {
     // Tylko literalne `true` znaczy "trzeba zaplacic". Napis "false" jest
     // w JavaScripcie prawdziwy, a napis "true" nie jest wartoscia logiczna -
     // czytanie tego pola luzno blokowaloby wejscie po stronie darmowej.
-    h.rpc?.setData("event_register", {
+    h.rpc?.setData(REGISTER_FOR_CLIENT_RPC, {
+      ok: true,
+      outcome: "registered",
       registration_id: REG,
       status: "approved",
       payment_required: "true",
-      qr_token: "qr-0123456789",
+      account_linked: "false",
+      consent_confirmation_required: "true",
     });
-    const result = await api.submitRegistration(minimalInput());
+    const result = await registered();
     expect(result.paymentRequired).toBe(false);
-    expect(result.qrToken).toBe("qr-0123456789");
+    expect(result.accountLinked).toBeNull();
+    expect(result.consentConfirmationRequired).toBe(false);
   });
 
   it("odpowiedz, ktora nie jest obiektem, nie udaje udanego zapisu", async () => {
@@ -248,21 +286,26 @@ describe("zapis - odczyt odpowiedzi", () => {
     // rezygnacji gosca bez konta.
     for (const data of [null, "ok", [{ registration_id: REG }]]) {
       h.rpc = supabaseRpcStub();
-      h.rpc.setData("event_register", data);
+      h.rpc.setData(REGISTER_FOR_CLIENT_RPC, data);
       await expect(api.submitRegistration(minimalInput())).rejects.toThrow(/unknown/);
     }
   });
 
-  it("odmowa bazy dociera z zachowanym kluczem dla warstwy i18n", async () => {
-    h.rpc?.setError("event_register", "ticket_required: wybierz wejsciowke");
-    await expect(api.submitRegistration(minimalInput())).rejects.toThrow(/ticket_required/);
+  it("odmowa bazy WARTOSCIA dociera z zachowanym kluczem dla warstwy i18n", async () => {
+    h.rpc?.setData(REGISTER_FOR_CLIENT_RPC, { ok: false, error: "ticket_required" });
+    await expect(api.submitRegistration(minimalInput())).rejects.toThrow(/^ticket_required: /);
+  });
+
+  it("awaria funkcji serwerowej (transport) dociera jako blad, nie jako zapis", async () => {
+    h.rpc?.setError(REGISTER_FOR_CLIENT_RPC, "fetch failed");
+    await expect(api.submitRegistration(minimalInput())).rejects.toThrow(/fetch failed/);
   });
 
   it("pudlo kodu dostepu zwrocone WARTOSCIA daje ten sam klucz co dawny wyjatek", async () => {
     // Od 20261007140400 baza oddaje pudlo wartoscia (wyjatek wycofywal
     // zliczenie proby). Ekran mapuje odmowe po glowie komunikatu - musi dostac
     // `invalid_access_code`, a nie `unknown` z gałęzi „brak identyfikatora".
-    h.rpc?.setData("event_register", { ok: false, error: "invalid_access_code" });
+    h.rpc?.setData(REGISTER_FOR_CLIENT_RPC, { ok: false, error: "invalid_access_code" });
     await expect(
       api.submitRegistration({ ...minimalInput(), ticketTypeId: TICKET, accessCode: "PRESS" }),
     ).rejects.toThrow(/^invalid_access_code: /);

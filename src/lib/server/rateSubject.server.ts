@@ -18,8 +18,13 @@ const SALT = () =>
   process.env.SUPABASE_PUBLISHABLE_KEY ||
   "rate-subject-fallback-salt";
 
-/** `kind:hash` - prefiks zostaje jawny, żeby dało się czytać metryki scope'u. */
-function hashedRateSubject(kind: string, raw: string): string {
+/**
+ * `kind:hash` - prefiks zostaje jawny, żeby dało się czytać metryki scope'u.
+ * Eksportowany dla kubełków, których podmiotem nie jest żądanie (np. odbiorca
+ * maila double opt-in): ta sama sól, więc `rate_limits` nigdy nie trzyma
+ * surowego adresu ani e-maila.
+ */
+export function hashedRateSubject(kind: string, raw: string): string {
   return `${kind}:${bytesToHex(sha256(utf8ToBytes(`${SALT()}|${kind}|${raw}`))).slice(0, 32)}`;
 }
 
