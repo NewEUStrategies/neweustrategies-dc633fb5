@@ -9695,8 +9695,10 @@ html[data-event-tabs-active] {
   top: var(--sticky-header-h, 0px);
   z-index: 30;
   background-color: color-mix(in oklab, var(--background) 92%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
-  backdrop-filter: blur(14px) saturate(1.4);
+  /* Samo rozmycie: `saturate` przebarwiało jednolite tło strony pod paskiem
+     i zostawiało widoczny pas także wtedy, gdy pasek stoi w miejscu. */
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 /* Pasek jest jednym rzędem na każdej szerokości (`EventTabsBar`); gdy się
    nie mieści, gaśnie na krawędziach w strefie paddingu listy - w spoczynku
