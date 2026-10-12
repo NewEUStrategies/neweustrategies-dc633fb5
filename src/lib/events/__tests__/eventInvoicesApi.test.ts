@@ -71,6 +71,7 @@ const SETTINGS_INPUT = {
   paymentDays: 14,
   defaultVatRate: "23" as const,
   vatExemptBasis: "",
+  vatNpBasis: "",
   footerNote: "",
   defaultLocale: "pl" as const,
   confirmSeller: false,
@@ -147,6 +148,7 @@ describe("ustawienia wystawcy", () => {
       payment_days: 14,
       default_vat_rate: "23",
       vat_exempt_basis: "",
+      vat_np_basis: "",
       footer_note: "",
       default_locale: "pl",
     });

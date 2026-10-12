@@ -463,8 +463,8 @@ export interface UpdateInvoiceKsefInput {
   id: string;
   status: EventInvoiceKsefStatus;
   number: string;
-  /** Notatka do dziennika KSeF (np. "wyslano z programu FK"). */
-  note: string;
+  /** Notatka do dziennika KSeF (np. "wyslano z programu FK"); brak = bez notatki. */
+  note?: string;
 }
 
 export async function updateInvoiceKsef(input: UpdateInvoiceKsefInput): Promise<string> {
