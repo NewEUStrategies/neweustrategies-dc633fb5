@@ -31,6 +31,7 @@ import {
 import type { SocialKey } from "@/lib/events/myEventProfileApi";
 import { formatEventDate } from "@/lib/events/timezone";
 import { memberProfileQueryOptions } from "@/lib/profile/memberProfile";
+import { speakerDetailQueryOptions } from "@/lib/events/speakerDetail";
 import { cn } from "@/lib/utils";
 
 import {
@@ -69,6 +70,13 @@ export function DirectoryPersonView({
   const { t } = useTranslation();
   const { user } = useAuth();
   const speakerUserId = person.speakerRow?.user_id ?? "";
+  const speakerProfileId = person.speakerRow?.speaker_profile_id ?? "";
+  const detailQuery = useQuery({
+    ...speakerDetailQueryOptions(eventId ?? "", speakerProfileId, !live, user?.id ?? null),
+    enabled: eventId !== null && speakerProfileId !== "" && (live || user !== null),
+    retry: false,
+  });
+  const detail = detailQuery.data;
 
   // Autor wątku przychodzi z listy dyskusji z samym nazwiskiem i zdjęciem -
   // stanowisko i firmę zna tylko profil członka. Pytamy o niego wyłącznie
@@ -96,6 +104,7 @@ export function DirectoryPersonView({
   const orgName = org?.name ?? (person.orgName || memberCompany);
   const orgLogo = org?.logoUrl ?? person.orgLogoUrl;
   const bio =
+    (lang === "en" ? detail?.bioEn || detail?.bioPl : detail?.bioPl || detail?.bioEn) ||
     person.bio ||
     (member === null
       ? ""
@@ -109,7 +118,9 @@ export function DirectoryPersonView({
   // tekstem z formularza (patrz `httpUrl`).
   const socials = Object.fromEntries(
     Object.entries(
-      Object.keys(person.socials).length > 0
+      detail && Object.keys(detail.socials).length > 0
+        ? detail.socials
+        : Object.keys(person.socials).length > 0
         ? person.socials
         : { linkedin: member?.linkedin_url, website: member?.website_url },
     ).map(([key, href]) => [key, httpUrl(href)]),
@@ -186,7 +197,7 @@ export function DirectoryPersonView({
             </h2>
           </DialogPrimitive.Title>
           {position !== "" ? (
-            <p className="mt-1.5 text-[15px] leading-6 text-foreground/75 [overflow-wrap:anywhere]">
+            <p className="mt-0.5 text-[15px] leading-6 text-foreground/75 [overflow-wrap:anywhere]">
               {position}
             </p>
           ) : null}
@@ -317,9 +328,18 @@ export function DirectoryPersonView({
         </DirectorySection>
       ) : null}
 
-      {hasSocials && live ? (
+      {hasSocials ? (
         <DirectorySection title={t("eventFront.directory.online")} index={next()}>
           <EventSocialLinks links={socials} size={32} />
+        </DirectorySection>
+      ) : null}
+
+      {detail?.email || detail?.phone ? (
+        <DirectorySection title={t("eventFront.directory.contact")} index={next()}>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-foreground/85">
+            {detail.email ? <a className="break-all underline-offset-4 hover:underline" href={`mailto:${detail.email}`}>{detail.email}</a> : null}
+            {detail.phone ? <a className="underline-offset-4 hover:underline" href={`tel:${detail.phone.replace(/[\s().-]/g, "")}`}>{detail.phone}</a> : null}
+          </div>
         </DirectorySection>
       ) : null}
 

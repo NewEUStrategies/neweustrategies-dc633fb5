@@ -53,6 +53,7 @@ import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
  * modulowych i dla partnerow strony glownej.
  */
 export interface EventPreviewLiveData {
+  eventId?: string;
   sessions: AgendaSession[];
   /** Pasma programu - takze te ze szkicami, zeby redaktor je widzial. */
   tracks: PreviewTrackChip[];
@@ -230,7 +231,7 @@ export function EventPreviewLiveModule({
     <EventDirectoryProvider
       directory={directory}
       slug={null}
-      eventId={null}
+      eventId={data.eventId ?? null}
       live={false}
       onSessionSelect={onSessionSelect}
     >

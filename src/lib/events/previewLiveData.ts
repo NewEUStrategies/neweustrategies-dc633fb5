@@ -314,8 +314,8 @@ export function speakerRowsFromAdminEntries(
       // ktora ten filtr juz sprawdzil - wiec podglad moze go pokazac.
       headline_pl: entry.headline_pl ?? null,
       headline_en: entry.headline_en ?? null,
-      bio_pl: null,
-      bio_en: null,
+      bio_pl: entry.bio_pl ?? null,
+      bio_en: entry.bio_en ?? null,
       topics_pl: [],
       topics_en: [],
       languages: [],
