@@ -41,6 +41,8 @@ const pl = {
     pricingChangedSyncQueued: "Zmiana cennika - sync w kolejce",
     lastSync: "Ostatnia synchronizacja",
     syncedYet: "Jeszcze nie synchronizowano",
+    catalogPlatformOnly:
+      "Katalog cen jest wspólny dla całej instalacji - synchronizuje go wyłącznie operator platformy (super admin najemcy domyślnego).",
     status: "Status",
     subscriptions: "Subskrypcje",
     payments: "Płatności",
@@ -219,6 +221,8 @@ const en = {
     pricingChangedSyncQueued: "Pricing changed - sync queued",
     lastSync: "Last sync",
     syncedYet: "Not synced yet",
+    catalogPlatformOnly:
+      "The price catalog is shared by the whole installation - only the platform operator (super admin of the default tenant) can sync it.",
     status: "Status",
     subscriptions: "Subscriptions",
     payments: "Payments",

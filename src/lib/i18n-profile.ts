@@ -763,6 +763,9 @@ const pl = {
     paymentsNotConfigured:
       "Bramka płatności nie jest jeszcze skonfigurowana. Skontaktuj się z administratorem.",
     trialLine: "Pierwsze {{days}} dni za darmo - pierwsza płatność po okresie próbnym.",
+    subscriptionExists:
+      "Masz już aktywną subskrypcję. Zmień plan w profilu - druga subskrypcja oznaczałaby podwójne obciążenie.",
+    changePlanCta: "Zmień plan",
     promoHint: "Masz kupon? Kod rabatowy wpiszesz na bezpiecznej stronie płatności.",
     taxHint: "VAT zostanie naliczony automatycznie według Twojego adresu.",
     taxIdHint: "NIP/VAT ID do faktury podasz na stronie płatności.",
@@ -1565,6 +1568,9 @@ const en: ProfileEn = {
     paymentsNotConfigured:
       "Payment gateway is not configured yet. Please contact the administrator.",
     trialLine: "First {{days}} days free - the first charge comes after the trial.",
+    subscriptionExists:
+      "You already have an active subscription. Change your plan in your profile - a second subscription would mean being charged twice.",
+    changePlanCta: "Change plan",
     promoHint: "Have a coupon? Enter your promo code on the secure payment page.",
     taxHint: "VAT is calculated automatically based on your address.",
     taxIdHint: "You can provide your VAT ID for the invoice on the payment page.",

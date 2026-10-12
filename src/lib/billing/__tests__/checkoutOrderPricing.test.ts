@@ -276,6 +276,9 @@ beforeEach(() => {
   vi.stubEnv("BILLING_ALLOW_MOCK", "");
 
   chain.setResponse("access_plans", ok(planQuote()));
+  // Kupujący bez historii subskrypcji planu (lustro `subscriptions` pod RLS) -
+  // kasa subskrypcji sprawdza ją przed zamówieniem (audyt SUB-13).
+  chain.setResponse("subscriptions", ok([]));
   chain.setResponse("payment_orders", ok({ id: "order-1", tenant_id: "tenant-alfa" }));
   chain.setResponse("content_access_public", ok(accessRule()));
   chain.setResponse("posts", ok({ title_pl: "Analiza CEE", title_en: "CEE analysis" }));
@@ -383,6 +386,16 @@ describe("createCheckoutOrder - odmowy na ścieżce planu", () => {
     chain.setResponse("access_plans", ok(planQuote({ tier_key: null })));
 
     await expect(call(planPayload())).rejects.toThrow("plan_price_missing");
+  });
+
+  it("plan KWARTALNY bez pozycji w katalogu NIE spada na cenę miesięczną progu (audyt SUB-05)", async () => {
+    // Dawny zapasowy „pierwszy wpis progu" dobierał planowi `pro/quarter`
+    // cenę `pro_monthly`: zamówienie mówiło o kwartale, operator zakładał
+    // subskrypcję miesięczną po cenie miesięcznej.
+    chain.setResponse("access_plans", ok(planQuote({ tier_key: "pro", interval: "quarter" })));
+
+    await expect(call(planPayload())).rejects.toThrow("plan_price_missing");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
 
   it("plan za zero złotych nie zakłada zamówienia (`zero_amount`)", async () => {

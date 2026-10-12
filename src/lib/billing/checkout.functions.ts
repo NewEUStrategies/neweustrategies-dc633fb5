@@ -91,6 +91,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
     let catalogPriceId: string | null = null;
     let catalogQuantity = 1;
+    /** Kwota katalogowa PRZED kuponem - ta, którą musi dać cena operatora. */
+    let catalogExpectedCents = 0;
+    /** Trial raz na konto: `false`, gdy kupujący miał już subskrypcję planu. */
+    let trialEligible = true;
 
     // Zgłoszenie etapu 4 wskazane przez klienta. Deklaracja stoi TU, a nie przy
     // metadanych niżej, bo walidacja własności musi się odbyć PRZED wyceną
@@ -125,26 +129,41 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // `subscription.*` (odnowienia, dunning, anulowanie). Cena ad-hoc dałaby
       // pojedyncze obciążenie bez odnowienia.
       if (data.kind === "subscription") {
-        const { catalogPriceForPlan } = await import("@/lib/billing/catalog");
-        const entry = catalogPriceForPlan({
-          tier_key: plan.tier_key as string | null,
-          interval: plan.interval as string | null,
-        });
-        if (!entry) throw new Error("plan_price_missing");
-        catalogPriceId = entry.priceId;
-        catalogQuantity = entry.perSeat ? Math.min(Math.max(data.seats ?? 1, 1), 100) : 1;
-        // Próg wolumenowy (katalog v6.1: Zespół od 11 miejsc po 79 zł). Cena
-        // u operatora jest schodkowa w trybie `volume`, czyli po osiągnięciu
-        // progu WSZYSTKIE miejsca liczą się niżej - podsumowanie zamówienia
-        // musi liczyć tak samo, inaczej klient zobaczy w kasie inną kwotę niż
+        // Pozycja katalogu WYŁĄCZNIE po parze (tier, cykl) - bez zapasowej
+        // ceny „pierwszego wpisu progu", która plan kwartalny obciążała ceną
+        // miesięczną. Próg wolumenowy (katalog v6.1: Zespół od 11 miejsc po
+        // 79 zł) liczy `catalogPlanQuote` tą samą regułą co cena schodkowa
+        // `volume` u operatora - inaczej klient zobaczy w kasie inną kwotę niż
         // na fakturze.
-        const volumeThreshold = Number(plan.volume_threshold_seats ?? 0);
-        const volumeUnit = Number(plan.volume_price_cents ?? 0);
-        const unitCents =
-          entry.perSeat && volumeThreshold >= 2 && catalogQuantity >= volumeThreshold
-            ? volumeUnit
-            : amountCents;
-        amountCents = unitCents * catalogQuantity;
+        const { catalogPlanQuote } = await import("@/lib/billing/catalog");
+        const quote = catalogPlanQuote(plan, data.seats);
+        if (!quote) throw new Error("plan_price_missing");
+        catalogPriceId = quote.entry.priceId;
+        catalogQuantity = quote.quantity;
+        amountCents = quote.amountCents;
+        catalogExpectedCents = quote.amountCents;
+        // Druga subskrypcja = drugie obciążenie co cykl za ten sam dostęp;
+        // ponowny trial = dostęp bez płatności („anuluj w trialu, kup znowu").
+        // Lustro `subscriptions` pod RLS kupującego (konto i najemca z sesji);
+        // historię u operatora sprawdza jeszcze `createPlanCheckoutSession`.
+        // Pozycja jednorazowa (Decision Lab) nie zakłada cyklu - bez strażnika.
+        if (!quote.entry.oneTime) {
+          const { loadLocalPlanSubscriptionHistory, SUBSCRIPTION_EXISTS_ERROR } =
+            await import("@/lib/billing/planSubscriptionGuard");
+          const { resolveEnvironment: envForHistory } = await import("@/lib/stripe.server");
+          const history = await loadLocalPlanSubscriptionHistory(supabase, {
+            userId,
+            environment: envForHistory(data.environment),
+          });
+          if (history.hasLive) {
+            return {
+              ok: false as const,
+              mode: "subscription" as const,
+              error: SUBSCRIPTION_EXISTS_ERROR,
+            };
+          }
+          trialEligible = !history.hadAny;
+        }
       }
     } else if (isEventTicket && data.ticket_type_id) {
       // WYCENA WEJŚCIÓWKI Z CENNIKA żyje w `eventTicketPricing.server.ts`, bo
@@ -512,6 +531,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           environment,
           priceLookupKey: catalogPriceId,
           quantity: catalogQuantity,
+          // Kwota PRZED kuponem (kupon jedzie wyżej jako rabat operatora):
+          // cena pod `lookup_key` musi dać dokładnie ją, inaczej odmowa.
+          expectedAmountCents: catalogExpectedCents,
+          expectedCurrency: currency,
           planId: data.plan_id as string,
           orderId: order.id,
           userId,
@@ -521,6 +544,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           // Bez tego okres próbny planu jest martwy: metadane ceny w katalogu
           // operatora niczego nie wymuszają, a karta zostaje obciążona od razu.
           trialDays,
+          trialEligible,
         });
         if (!createdSub.ok) {
           await (

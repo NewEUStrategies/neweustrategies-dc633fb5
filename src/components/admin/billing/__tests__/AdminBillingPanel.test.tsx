@@ -43,6 +43,8 @@ const h = vi.hoisted(() => ({
   subsError: { current: false },
   runner: { current: null as { enabled: boolean; base_url: string | null } | null },
   catalogState: { current: null as Record<string, unknown> | null },
+  /** Odmowa bramki operatora platformy przy odczycie stanu katalogu. */
+  catalogStateDenied: { current: false },
   reminders: vi.fn(),
   syncCatalog: vi.fn(),
   resend: vi.fn(),
@@ -80,7 +82,10 @@ vi.mock("@/lib/billing/reminders.functions", () => ({
 }));
 
 vi.mock("@/lib/billing/catalogSync.functions", () => ({
-  getCatalogSyncState: () => Promise.resolve(h.catalogState.current),
+  getCatalogSyncState: () =>
+    h.catalogStateDenied.current
+      ? Promise.reject(new Error("Forbidden: platform admin role (super_admin) required"))
+      : Promise.resolve(h.catalogState.current),
   syncPaymentCatalogNow: (arg: unknown) => h.syncCatalog(arg),
 }));
 
@@ -152,6 +157,7 @@ beforeEach(() => {
     lastStatus: "ok",
     lastError: null,
   };
+  h.catalogStateDenied.current = false;
   h.reminders.mockReset().mockResolvedValue({ renewal: 3, expiring: 1 });
   h.syncCatalog.mockReset().mockResolvedValue({ created: 2, updated: 1, archived: [], failed: 0 });
   h.resend.mockReset().mockResolvedValue({ ok: true, email: "syntetyczny@example.test" });
@@ -459,6 +465,19 @@ describe("AdminBillingPanel - stan katalogu cen", () => {
         'adminBilling.catalogSynced {"created":0,"updated":0,"archived":0,"failed":1}',
       ),
     );
+  });
+
+  it("admin NAJEMCY (nie operator platformy) dostaje wyjaśnienie zamiast działającego przycisku", async () => {
+    // Audyt SUB-05: katalog operatora jest wspólny dla instalacji, więc obie
+    // funkcje stoją za `requirePlatformAdmin`. Odmowa bramki chowa stan
+    // i blokuje przycisk, zamiast kończyć kliknięcie błędem.
+    h.catalogStateDenied.current = true;
+    render();
+
+    await waitFor(() => expect(screen.getByText("adminBilling.catalogPlatformOnly")).toBeTruthy());
+    const button = screen.getByText("adminBilling.syncCatalog").closest("button");
+    expect(button?.disabled).toBe(true);
+    expect(screen.queryByText("adminBilling.integrationSync")).toBeNull();
   });
 
   it("awaria synchronizacji katalogu pokazuje powód", async () => {

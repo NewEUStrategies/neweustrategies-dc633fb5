@@ -25,6 +25,8 @@ const h = vi.hoisted(() => ({
   billing: null as unknown,
   settings: null as unknown,
   coupon: null as unknown,
+  /** Subskrypcja kupującego z lustra `subscriptions` (`null` = brak historii). */
+  mySubscription: null as unknown,
   planCheckout: vi.fn(),
   toast: { error: vi.fn(), success: vi.fn() },
   preloadStripeSdk: vi.fn(),
@@ -51,6 +53,10 @@ vi.mock("@/lib/billing/queries", () => ({
     return h.plan;
   },
   fetchMyBillingProfile: async () => h.billing,
+}));
+// Granica sieci: subskrypcja kupującego (podpowiedź blokady i triala w nakładce).
+vi.mock("@/lib/billing/subscriptionQueries", () => ({
+  fetchMyStripeSubscription: async () => h.mySubscription,
 }));
 vi.mock("@/hooks/useCheckoutSettings", () => ({
   useCheckoutSettings: () => ({ data: h.settings }),
@@ -221,6 +227,7 @@ beforeEach(() => {
   h.billing = null;
   h.settings = DEFAULT_CHECKOUT_SETTINGS satisfies CheckoutSettings;
   h.coupon = couponResult();
+  h.mySubscription = null;
   h.planCheckout.mockReset().mockResolvedValue({
     ok: true,
     clientSecret: "cs_test_123",
@@ -588,6 +595,58 @@ describe("trasa /checkout/$planId - i18n i waluta prezentacji", () => {
 
     expect(await screen.findByText("Plan Pro")).toBeInTheDocument();
     expect(screen.queryByText(/1 EUR = /)).not.toBeInTheDocument();
+  });
+});
+
+describe("trasa /checkout/$planId - istniejąca subskrypcja i trial raz na konto (audyt SUB-13)", () => {
+  it("ŻYWA subskrypcja: zamiast płatności - komunikat i link do zmiany planu", async () => {
+    signedInBuyer();
+    h.mySubscription = { status: "active", price_id: "pro_monthly" };
+    await mount();
+
+    expect(await screen.findByText(/Masz już aktywną subskrypcję/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Zmień plan" })).toHaveAttribute(
+      "href",
+      "/profile/plan",
+    );
+    expect(payButton()).toBeDisabled();
+  });
+
+  it("wcześniejsza (anulowana) subskrypcja: płatność dostępna, ale BEZ obietnicy triala", async () => {
+    signedInBuyer();
+    h.plan = plan({ trial_days: 14 });
+    h.mySubscription = { status: "canceled", price_id: "pro_monthly" };
+    await mount();
+
+    await screen.findByText("Plan Pro");
+    await waitFor(() => expect(payButton()).toBeEnabled());
+    expect(screen.queryByText(/Pierwsze 14 dni za darmo/)).not.toBeInTheDocument();
+  });
+
+  it("plan jednorazowy nie jest blokowany przez subskrypcję", async () => {
+    signedInBuyer();
+    h.plan = plan({ interval: "one_time" });
+    h.mySubscription = { status: "active", price_id: "pro_monthly" };
+    await mount();
+
+    await screen.findByText("Plan Pro");
+    expect(screen.queryByText(/Masz już aktywną subskrypcję/)).not.toBeInTheDocument();
+    expect(payButton()).toBeEnabled();
+  });
+
+  it("odmowa serwera `subscription_exists` daje komunikat o zmianie planu, nie „brak konfiguracji”", async () => {
+    signedInBuyer();
+    h.planCheckout.mockResolvedValue({ ok: false, error: "subscription_exists" });
+    await mount();
+
+    await screen.findByText("Plan Pro");
+    fireEvent.click(payButton());
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        expect.stringContaining("Masz już aktywną subskrypcję"),
+      ),
+    );
   });
 });
 

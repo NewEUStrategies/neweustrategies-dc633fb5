@@ -142,12 +142,19 @@ export function AdminBillingPanel() {
 
   // Stan automatu: po restarcie integracji (nowe konto operatora, rotacja
   // klucza) odcisk przestaje się zgadzać i katalog odtwarza się sam.
+  //
+  // Katalog jest ZASOBEM INSTALACJI (jeden cennik operatora dla wszystkich
+  // najemców), więc obie funkcje stoją za `requirePlatformAdmin`. Admin
+  // najemcy dostaje odmowę - bez ponawiania i z wyjaśnieniem zamiast
+  // przycisku, który i tak skończyłby się błędem.
   const loadCatalogState = useServerFn(getCatalogSyncState);
   const catalogStateQ = useQuery({
     queryKey: ["admin", "billing", "catalog-state"],
     queryFn: () => loadCatalogState({ data: {} }),
     staleTime: 60_000,
+    retry: false,
   });
+  const catalogPlatformOnly = catalogStateQ.isError;
 
   const syncCatalog = useServerFn(syncPaymentCatalogNow);
   const catalogM = useMutation({
@@ -257,6 +264,7 @@ export function AdminBillingPanel() {
         </CardHeader>
         <CardContent className="space-y-1 pt-0 text-[0.8125rem] text-muted-foreground">
           <p>{t("adminBilling.catalogRebuiltAutomaticallyAfterPayment")}</p>
+          {catalogPlatformOnly ? <p>{t("adminBilling.catalogPlatformOnly")}</p> : null}
           {catalogStateQ.data ? (
             <div className="flex flex-wrap items-center gap-2">
               <Badge
@@ -321,7 +329,7 @@ export function AdminBillingPanel() {
               variant="outline"
               size="sm"
               className="rounded-[6px]"
-              disabled={catalogM.isPending}
+              disabled={catalogM.isPending || catalogPlatformOnly}
               onClick={() => catalogM.mutate()}
             >
               <RefreshCcw className="mr-2 h-4 w-4" />

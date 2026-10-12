@@ -19,6 +19,8 @@ vi.mock("@/lib/stripe.server", () => ({
     checkout: { sessions: { create } },
     prices: { list },
     customers: { search, list: vi.fn().mockResolvedValue({ data: [] }), create: customersCreate },
+    // Historia subskrypcji klienta - kasa planu sprawdza ją przed sesją.
+    subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
   }),
   resolveEnvironment: (env?: string) => env ?? "sandbox",
   getStripeErrorMessage: (e: unknown) => String(e),
@@ -53,10 +55,25 @@ beforeEach(() => {
   search.mockReset();
   customersCreate.mockReset();
   create.mockResolvedValue({ id: "cs_1", client_secret: "cs_secret" });
-  search.mockResolvedValue({ data: [{ id: "cus_1" }] });
+  // Klient konta z adresem zgodnym z sesją - bez synchronizacji adresu.
+  search.mockResolvedValue({
+    data: [{ id: "cus_1", email: "buyer@example.com", metadata: { userId: "user-1" } }],
+  });
   customersCreate.mockResolvedValue({ id: "cus_new" });
+  // Cena w pełnym kształcie: kasa porównuje ją z kwotą zamówienia przed sesją.
   list.mockResolvedValue({
-    data: [{ id: "price_1", lookup_key: "pro_monthly", type: "recurring", product: null }],
+    data: [
+      {
+        id: "price_1",
+        lookup_key: "pro_monthly",
+        type: "recurring",
+        product: null,
+        billing_scheme: "per_unit",
+        unit_amount: 12900,
+        currency: "pln",
+        recurring: { interval: "month", interval_count: 1 },
+      },
+    ],
   });
 });
 
@@ -199,6 +216,8 @@ describe("createPlanCheckoutSession - flagi tenantu w sesji", () => {
     userId: "user-1",
     customerEmail: "buyer@example.com",
     returnUrl: "https://example.com/checkout/success",
+    expectedAmountCents: 12900,
+    expectedCurrency: "PLN",
   };
 
   it("subskrypcja nie dostaje invoice_creation ani customer_creation", async () => {

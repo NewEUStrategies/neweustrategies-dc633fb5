@@ -194,6 +194,8 @@ beforeEach(() => {
   vi.stubEnv("SUPABASE_URL", "https://projekt-testowy.supabase.test");
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-syntetyczny");
   db = supabaseFromStub();
+  // Źródło prawdy cennika to plany NAJEMCY DOMYŚLNEGO (audyt SUB-05).
+  db.setResponse("tenants", ok({ id: "tenant-domyslny" }));
   db.setResponse("access_plans", ok([planRow()]));
   db.setResponse("payment_integration_state", ok(null));
   stripeState.products = [];
@@ -338,6 +340,50 @@ describe("odcisk treści cennika", () => {
     expect(bezInterwalu).toBe(miesieczny);
     // Kontrola: pomylenie z planem rocznym dałoby INNY odcisk.
     expect(bezInterwalu).not.toBe(tylkoRoczny);
+  });
+});
+
+describe("odcisk treści cennika - wyłącznie najemca domyślny (audyt SUB-05)", () => {
+  /** Odpowiedź `access_plans`, która WYKONUJE filtr najemcy z łańcucha zapytania. */
+  function plansOfTenants(rows: Array<Record<string, unknown>>) {
+    db.setResponse("access_plans", (chain) => {
+      const filter = chain.calls.find((c) => c.method === "eq" && c.args[0] === "tenant_id");
+      return ok(filter ? rows.filter((row) => row["tenant_id"] === filter.args[1]) : rows);
+    });
+  }
+
+  it("edycja planu u najemcy B NIE zmienia odcisku (nie budzi automatu)", async () => {
+    plansOfTenants([
+      planRow({ tenant_id: "tenant-domyslny", price_cents: 9900 }),
+      planRow({ tenant_id: "tenant-b", price_cents: 9900 }),
+    ]);
+    const before = await catalogFingerprint();
+
+    plansOfTenants([
+      planRow({ tenant_id: "tenant-domyslny", price_cents: 9900 }),
+      planRow({ tenant_id: "tenant-b", price_cents: 100 }),
+    ]);
+    const after = await catalogFingerprint();
+
+    expect(before).toMatch(/^[0-9a-f]{16}$/);
+    expect(after).toBe(before);
+    expect(db.lastChain("tenants")?.argsOf("eq")).toEqual(["is_default", true]);
+  });
+
+  it("edycja planu najemcy domyślnego zmienia odcisk", async () => {
+    plansOfTenants([planRow({ tenant_id: "tenant-domyslny", price_cents: 9900 })]);
+    const before = await catalogFingerprint();
+
+    plansOfTenants([planRow({ tenant_id: "tenant-domyslny", price_cents: 7900 })]);
+    const after = await catalogFingerprint();
+
+    expect(after).not.toBe(before);
+  });
+
+  it("brak najemcy domyślnego to „nie wiem” (`null`), a nie pusty cennik", async () => {
+    db.setResponse("tenants", ok(null));
+
+    expect(await catalogFingerprint()).toBeNull();
   });
 });
 
@@ -696,6 +742,12 @@ describe("ensureCatalogSynced - CZĘŚCIOWA porażka automatu", () => {
     db.setResponse(
       "payment_integration_state",
       ok(stateRow({ fingerprint, catalog_fingerprint: "cennik-sprzed-wdrozenia" })),
+    );
+    // Plan roczny jest jawny: pozycja `pro_annual` nie bierze już kwoty planu
+    // miesięcznego (brak zapasowego „pierwszego planu progu", audyt SUB-05).
+    db.setResponse(
+      "access_plans",
+      ok([planRow(), planRow({ interval: "year", price_cents: 99000 })]),
     );
     stripeState.rejectPriceCreateFor = "pro_annual";
 

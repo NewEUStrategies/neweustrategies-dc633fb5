@@ -39,7 +39,9 @@ const RETURN_URL = "https://kasa.example.org/checkout/sukces";
 const h = vi.hoisted(() => {
   const calls: { method: string; args: unknown[] }[] = [];
   const state = {
-    prices: [{ id: "price_1", lookup_key: "plus_monthly", type: "recurring" }] as unknown[],
+    prices: [] as unknown[],
+    /** Subskrypcje klienta u operatora (`subscriptions.list`). */
+    remoteSubscriptions: [] as unknown[],
     sessionError: null as Error | null,
     coupon: { id: "coupon_1" } as Record<string, unknown>,
   };
@@ -109,6 +111,10 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
           update: h.record("customers.update", () => ({ id: "cus_1" })),
           create: h.record("customers.create", () => ({ id: "cus_1" })),
         },
+        subscriptions: {
+          ...base.subscriptions,
+          list: h.record("subscriptions.list", () => ({ data: h.state.remoteSubscriptions })),
+        },
         coupons: { create: h.record("coupons.create", () => h.state.coupon) },
         checkout: {
           sessions: {
@@ -152,7 +158,15 @@ interface CouponVerdict {
 /** Kolumny planu, które czyta TEN silnik (`select` w kodzie). */
 type PlanQuote = Pick<
   Tables<"access_plans">,
-  "id" | "price_cents" | "currency" | "active" | "trial_days"
+  | "id"
+  | "price_cents"
+  | "currency"
+  | "active"
+  | "trial_days"
+  | "tier_key"
+  | "interval"
+  | "volume_threshold_seats"
+  | "volume_price_cents"
 >;
 
 type OrderInsert = Database["public"]["Tables"]["payment_orders"]["Insert"];
@@ -180,7 +194,32 @@ interface SessionParams {
 }
 
 function planQuote(over: Partial<PlanQuote> = {}): PlanQuote {
-  return { id: PLAN_ID, price_cents: 4900, currency: "PLN", active: true, trial_days: 0, ...over };
+  return {
+    id: PLAN_ID,
+    price_cents: 4900,
+    currency: "PLN",
+    active: true,
+    trial_days: 0,
+    tier_key: "member",
+    interval: "month",
+    volume_threshold_seats: null,
+    volume_price_cents: null,
+    ...over,
+  };
+}
+
+/** Cena katalogowa u operatora - domyślnie zgodna z `planQuote()`. */
+function stripePrice(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: "price_1",
+    lookup_key: "plus_monthly",
+    type: "recurring",
+    billing_scheme: "per_unit",
+    unit_amount: 4900,
+    currency: "pln",
+    recurring: { interval: "month", interval_count: 1 },
+    ...over,
+  };
 }
 
 function couponOk(over: Partial<CouponVerdict> = {}): CouponVerdict {
@@ -295,7 +334,8 @@ function adhocCall(over: Record<string, unknown> = {}): Promise<SessionResult> {
 
 beforeEach(() => {
   h.calls.length = 0;
-  h.state.prices = [{ id: "price_1", lookup_key: "plus_monthly", type: "recurring" }];
+  h.state.prices = [stripePrice()];
+  h.state.remoteSubscriptions = [];
   h.state.sessionError = null;
   h.state.coupon = { id: "coupon_1" };
 
@@ -314,6 +354,8 @@ beforeEach(() => {
   vi.stubEnv("STRIPE_SANDBOX_API_KEY", "klucz-testowy-piaskownicy");
 
   chain.setResponse("access_plans", ok(planQuote()));
+  // Kupujący bez historii subskrypcji (lustro `subscriptions` pod RLS).
+  chain.setResponse("subscriptions", ok([]));
   chain.setResponse("payment_orders", ok({ id: "order-1", tenant_id: "tenant-alfa" }));
   chain.setResponse(
     "checkout_settings",
@@ -616,6 +658,7 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
 
   it("kwota zamówienia pochodzi Z PLANU - żądanie nie zawiera i nie może zawierać ceny", async () => {
     chain.setResponse("access_plans", ok(planQuote({ price_cents: 29900, currency: "EUR" })));
+    h.state.prices = [stripePrice({ unit_amount: 29900, currency: "eur" })];
 
     await planCall({ amountCents: 1, currency: "PLN" });
 
@@ -651,10 +694,26 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
     expect(lastSession()?.subscription_data).not.toHaveProperty("trial_period_days");
   });
 
-  it("liczba miejsc z żądania jedzie do pozycji sesji", async () => {
+  it("liczba miejsc z żądania NIE mnoży planu jednostkowego", async () => {
+    // Zmienione zachowanie (audyt SUB-05): `quantity: 5` szło dotąd wprost do
+    // pozycji sesji przy zamówieniu za JEDNĄ sztukę - operator pobierał
+    // 5 × cena, zamówienie zapisywało 1 × cena. Ten test wcześniej utrwalał
+    // to zachowanie jako poprawne.
     await planCall({ quantity: 5 });
 
+    expect(lastSession()?.line_items[0]?.quantity).toBe(1);
+    expect(insertedOrder()?.amount_cents).toBe(4900);
+  });
+
+  it("plan rozliczany za miejsce: liczba miejsc jedzie do sesji I do kwoty zamówienia", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ tier_key: "team", price_cents: 9900 })));
+    h.state.prices = [stripePrice({ lookup_key: "team_monthly_seat", unit_amount: 9900 })];
+
+    const result = await planCall({ priceId: "team_monthly_seat", quantity: 5 });
+
+    expect(result.ok).toBe(true);
     expect(lastSession()?.line_items[0]?.quantity).toBe(5);
+    expect(insertedOrder()?.amount_cents).toBe(5 * 9900);
   });
 
   it("bez liczby miejsc pozycja ma jedną sztukę", async () => {
@@ -771,6 +830,145 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
     expect(result.ok).toBe(false);
     expect(result.ok === false && result.error).toContain("card_declined");
     logged.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AUDYT SUB-05: cenę i ilość wyprowadza serwer z planu; kwota zamówienia musi
+// zgadzać się z ceną operatora.
+// ---------------------------------------------------------------------------
+
+describe("createPlanCheckoutSession - cena z planu, nie z żądania (audyt SUB-05)", () => {
+  it("`priceId` z żądania innego niż pozycja planu: odmowa, zamówienie NIE powstaje", async () => {
+    // Plan „Plus" z `priceId: "student_monthly"` dawał zamówienie Plus
+    // opłacone u operatora ceną studencką.
+    const result = await planCall({ priceId: "student_monthly" });
+
+    expect(result).toEqual({ ok: false, error: "plan_price_mismatch" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+  });
+
+  it("plan bez pozycji w swoim cyklu (np. kwartalny Pro): odmowa zamiast ceny miesięcznej", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ tier_key: "pro", interval: "quarter" })));
+
+    const result = await planCall({ priceId: "pro_monthly" });
+
+    expect(result).toEqual({ ok: false, error: "plan_price_missing" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("cena operatora RÓŻNA od kwoty planu najemcy: sesja NIE powstaje, zamówienie `failed`", async () => {
+    // Cena wspólna (najemca domyślny) 59 zł, plan najemcy zamówienia 49 zł:
+    // zamówienie zapisałoby 49 zł, operator pobrałby 59 zł.
+    h.state.prices = [stripePrice({ unit_amount: 5900 })];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await planCall({ couponCode: "PARTNER-CEE" });
+
+    expect(result).toEqual({ ok: false, error: "price_mismatch" });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    expect(rpcArgs("payment_order_mark_session")).toEqual({
+      _order_id: "order-1",
+      _status: "failed",
+    });
+    // Kupon zarezerwowany przed sesją wraca do puli.
+    expect(rpcArgs("release_b2b_coupon_for_user")).toMatchObject({ _order_id: "order-1" });
+    logged.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AUDYT SUB-13: druga subskrypcja i trial raz na konto.
+// ---------------------------------------------------------------------------
+
+describe("createPlanCheckoutSession - druga subskrypcja i ponowny trial (audyt SUB-13)", () => {
+  it("ŻYWA subskrypcja planu w lustrze: odmowa `subscription_exists` PRZED zamówieniem", async () => {
+    chain.setResponse("subscriptions", ok([{ status: "active" }]));
+
+    const result = await planCall();
+
+    expect(result).toEqual({ ok: false, error: "subscription_exists" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it("historia jest czytana dla konta z SESJI i środowiska zamówienia (zakres najemcy daje RLS)", async () => {
+    await planCall({ environment: "live" });
+
+    const history = chain.lastChain("subscriptions");
+    expect(history?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["user_id", "user-kupujacy"],
+      ["environment", "live"],
+    ]);
+  });
+
+  it("drugi trial NIE przysługuje: wcześniejsza (anulowana) subskrypcja zdejmuje okres próbny", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ trial_days: 14 })));
+    chain.setResponse("subscriptions", ok([{ status: "canceled" }]));
+
+    const result = await planCall();
+
+    expect(result.ok).toBe(true);
+    expect(lastSession()?.subscription_data).not.toHaveProperty("trial_period_days");
+  });
+
+  it("pierwszy zakup DOSTAJE trial", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ trial_days: 14 })));
+
+    await planCall();
+
+    expect(lastSession()?.subscription_data?.trial_period_days).toBe(14);
+  });
+
+  it("żywa subskrypcja widoczna TYLKO u operatora (przed webhookiem): odmowa i zamówienie `failed`", async () => {
+    h.state.remoteSubscriptions = [{ id: "sub_1", status: "trialing", metadata: {} }];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await planCall();
+
+    expect(result).toEqual({ ok: false, error: "subscription_exists" });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    expect(rpcArgs("payment_order_mark_session")).toMatchObject({ _status: "failed" });
+    logged.mockRestore();
+  });
+
+  it("subskrypcja DAROWIZNY u operatora nie blokuje zakupu planu", async () => {
+    h.state.remoteSubscriptions = [
+      { id: "sub_don", status: "active", metadata: { purpose: "donation" } },
+    ];
+
+    const result = await planCall();
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("BŁĄD odczytu historii jest zgłaszany - „nie wiem” nie znaczy „brak subskrypcji”", async () => {
+    chain.setResponse("subscriptions", fail("permission denied for table subscriptions"));
+
+    await expect(planCall()).rejects.toThrow("subscription history lookup failed");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("plan jednorazowy (Decision Lab) nie przechodzi przez strażnika subskrypcji", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),
+    );
+    chain.setResponse("subscriptions", ok([{ status: "active" }]));
+    h.state.prices = [
+      stripePrice({
+        lookup_key: "decision_lab_seat",
+        type: "one_time",
+        recurring: null,
+        unit_amount: 1600000,
+      }),
+    ];
+
+    const result = await planCall({ priceId: "decision_lab_seat" });
+
+    expect(result.ok).toBe(true);
+    expect(chain.chainsFor("subscriptions")).toHaveLength(0);
   });
 });
 

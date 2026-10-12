@@ -5,6 +5,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchMyBillingProfile, fetchPlanById } from "@/lib/billing/queries";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
+import { billingKeys } from "@/lib/billing/keys";
+import {
+  isLivePlanSubscriptionStatus,
+  SUBSCRIPTION_EXISTS_ERROR,
+} from "@/lib/billing/planSubscriptionGuard";
+import { fetchMyStripeSubscription } from "@/lib/billing/subscriptionQueries";
+import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import {
   convertToDisplayCurrency,
   displayCurrencyForLang,
@@ -80,6 +87,18 @@ function CheckoutPage() {
 
   const { data: checkoutSettings } = useCheckoutSettings();
 
+  // Subskrypcja kupującego w tym środowisku (lustro `subscriptions` pod RLS).
+  // To tylko PODPOWIEDŹ dla nakładki - serwer sprawdza to samo i odmawia
+  // (`subscription_exists`), ale klient ma się o tym dowiedzieć przed
+  // kliknięciem, a nie dopiero po nim. Ten sam klucz co profil, więc odczyt
+  // współdzieli cache z kartą subskrypcji.
+  const stripeEnv = getStripeEnvironmentSafe();
+  const mySubscription = useQuery({
+    queryKey: billingKeys.myStripeSubscription(session?.user?.id, stripeEnv),
+    queryFn: fetchMyStripeSubscription,
+    enabled: !!session,
+  });
+
   // IZOLACJA OBSZARÓW ROBOCZYCH. Autorytetem jest RLS i NIE WOLNO go tu dublować
   // porównaniem z tenantem z profilu (`useAuth().tenantId`). `access_plans` czyta
   // polityka `plans public read` przez `public_tenant_id()`, czyli tenanta
@@ -124,6 +143,21 @@ function CheckoutPage() {
   );
   const finalCentsDisplay = Math.max(originalDisplay.cents - discountDisplay.cents, 0);
 
+  const existingSubscription = mySubscription.data ?? null;
+  // Żywa subskrypcja planu blokuje drugi zakup subskrypcji - ścieżką jest
+  // zmiana planu w profilu (ta sama reguła co w `planSubscriptionGuard`).
+  const blockedByExistingSubscription =
+    checkoutMode === "subscription" && isLivePlanSubscriptionStatus(existingSubscription?.status);
+  // Trial raz na konto: kto miał już subskrypcję planu, nie dostanie okresu
+  // próbnego, więc nakładka nie może go obiecywać. Wolimy nie obiecać triala,
+  // który by przysługiwał, niż obiecać taki, którego operator nie da.
+  const trialOffered =
+    !!planData &&
+    planData.trial_days > 0 &&
+    planData.interval !== "one_time" &&
+    mySubscription.isSuccess &&
+    existingSubscription === null;
+
   const submit = async () => {
     if (!planData || !hasBilling) return;
     setBusy(true);
@@ -145,7 +179,9 @@ function CheckoutPage() {
             : undefined,
       });
       if (!result.ok) {
-        if (result.error === "not_found" || result.error === "limit_reached") {
+        if (result.error === SUBSCRIPTION_EXISTS_ERROR) {
+          toast.error(t("checkout.subscriptionExists"));
+        } else if (result.error === "not_found" || result.error === "limit_reached") {
           toast.error(t("checkout.applyFailed"));
         } else if (result.error === "rate_limited") {
           // Limit prób kodów - to nie brak konfiguracji płatności.
@@ -238,11 +274,18 @@ function CheckoutPage() {
                         </p>
                       )}
                     </div>
-                    {planData.trial_days > 0 && planData.interval !== "one_time" && (
+                    {blockedByExistingSubscription ? (
+                      <div className="space-y-2 rounded-md border px-3 py-2 text-xs">
+                        <p>{t("checkout.subscriptionExists")}</p>
+                        <Button asChild variant="link" className="h-auto p-0 text-xs">
+                          <Link to="/profile/plan">{t("checkout.changePlanCta")}</Link>
+                        </Button>
+                      </div>
+                    ) : trialOffered ? (
                       <p className="rounded-md bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
                         {t("checkout.trialLine", { days: planData.trial_days })}
                       </p>
-                    )}
+                    ) : null}
                     <CouponInput
                       planId={planData.id}
                       amountCents={planData.price_cents}
@@ -307,7 +350,7 @@ function CheckoutPage() {
                     <Button
                       className="w-full"
                       size="lg"
-                      disabled={busy || !hasBilling}
+                      disabled={busy || !hasBilling || blockedByExistingSubscription}
                       onClick={submit}
                       {...checkoutIntentHandlers}
                     >

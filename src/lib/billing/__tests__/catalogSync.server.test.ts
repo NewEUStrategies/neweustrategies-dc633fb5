@@ -9,6 +9,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface PlanRow {
+  /** Najemca planu - źródłem prawdy katalogu jest WYŁĄCZNIE najemca domyślny. */
+  tenant_id: string;
+  id?: string;
+  sort_order?: number | null;
+  created_at?: string | null;
   tier_key: string | null;
   interval: string | null;
   price_cents: number | null;
@@ -33,6 +38,12 @@ const h = vi.hoisted(() => ({
   plansError: null as { message: string } | null,
   /** Kolumny odpytane w bazie (liczba przebiegów synchronizacji). */
   selects: [] as string[],
+  /** Najemca domyślny instalacji (`tenants.is_default`); `null` = brak wiersza. */
+  defaultTenant: "tenant-domyslny" as string | null,
+  /** Wstrzyknięty błąd odczytu najemcy domyślnego. */
+  tenantError: null as { message: string } | null,
+  /** Filtry `eq` nałożone na odczyt `access_plans` (zawężenie do najemcy). */
+  planFilters: [] as Array<[string, unknown]>,
   /** Produkty widoczne u operatora, kluczowane po `lovable_external_id`. */
   remoteProducts: {} as Record<string, { id: string } | undefined>,
   /** Ceny widoczne u operatora, kluczowane po `lookup_key`. */
@@ -60,15 +71,44 @@ vi.mock("@/lib/stripe.server", () => ({
   },
 }));
 
+// Atrapa odwzorowuje DWA odczyty źródła prawdy: najemca domyślny
+// (`tenants.is_default`), potem jego plany (`access_plans.tenant_id`). Filtr
+// najemcy jest WYKONYWANY na wierszach, więc plany innych najemców w `h.plans`
+// realnie nie docierają do synchronizacji - test wielonajemcowy dowodzi
+// zawężenia, a nie tylko tego, że ktoś wywołał `.eq`.
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
-    from: () => ({
-      select: (columns: string) => {
-        h.selects.push(columns);
-        return Promise.resolve(
-          h.plansError ? { data: null, error: h.plansError } : { data: h.plans, error: null },
-        );
-      },
+    from: (table: string) => ({
+      select: (columns: string) => ({
+        eq: (column: string, value: unknown) => {
+          if (table === "tenants") {
+            return {
+              maybeSingle: () =>
+                Promise.resolve(
+                  h.tenantError
+                    ? { data: null, error: h.tenantError }
+                    : {
+                        data:
+                          column === "is_default" && value === true && h.defaultTenant
+                            ? { id: h.defaultTenant }
+                            : null,
+                        error: null,
+                      },
+                ),
+            };
+          }
+          h.selects.push(columns);
+          h.planFilters.push([column, value]);
+          return Promise.resolve(
+            h.plansError
+              ? { data: null, error: h.plansError }
+              : {
+                  data: h.plans.filter((row) => (row as Record<string, unknown>)[column] === value),
+                  error: null,
+                },
+          );
+        },
+      }),
     }),
   },
 }));
@@ -81,6 +121,7 @@ import { BILLING_CATALOG } from "@/lib/billing/catalog";
 import { syncBillingCatalog, type CatalogSyncReport } from "@/lib/billing/catalogSync.server";
 
 const plan = (over: Partial<PlanRow> = {}): PlanRow => ({
+  tenant_id: "tenant-domyslny",
   tier_key: "member",
   interval: "month",
   price_cents: 4900,
@@ -131,6 +172,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.envs.length = 0;
   h.selects.length = 0;
+  h.planFilters.length = 0;
+  h.defaultTenant = "tenant-domyslny";
+  h.tenantError = null;
   h.clientError = null;
   h.plans = [plan()];
   h.plansError = null;
@@ -215,6 +259,7 @@ describe("syncBillingCatalog - zakładanie brakujących pozycji", () => {
   it("mapuje interwały aplikacji na słownik cykli operatora", async () => {
     h.plans = [
       plan({ tier_key: "business", interval: "two_weeks", name_pl: "Partner" }),
+      plan({ tier_key: "business", interval: "month", name_pl: "Partner" }),
       plan({ tier_key: "business", interval: "quarter", name_pl: "Partner" }),
       plan({ tier_key: "member", interval: "year" }),
     ];
@@ -232,6 +277,24 @@ describe("syncBillingCatalog - zakładanie brakujących pozycji", () => {
     });
     expect(priceCreateFor("plus_annual")).toMatchObject({
       recurring: { interval: "year", interval_count: 1 },
+    });
+  });
+
+  it("pozycja BEZ planu w swoim cyklu NIE dostaje kwoty planu z innego cyklu", async () => {
+    // Zmienione zachowanie (audyt SUB-05): dawny zapasowy „pierwszy plan tego
+    // progu" zakładał `business_monthly` i `business_quarterly` z kwotą planu
+    // dwutygodniowego - cena kwartalna kosztowała u operatora tyle, co dwa
+    // tygodnie. Ten test wcześniej utrwalał to zachowanie jako poprawne.
+    h.plans = [plan({ tier_key: "business", interval: "two_weeks", price_cents: 59000 })];
+
+    const report = await syncBillingCatalog("sandbox");
+
+    expect(priceCreateFor("business_2w")).toMatchObject({ unit_amount: 59000 });
+    expect(priceCreateFor("business_monthly")).toBeUndefined();
+    expect(priceCreateFor("business_quarterly")).toBeUndefined();
+    expect(itemFor(report, "business_quarterly")).toMatchObject({
+      price: "skipped",
+      reason: "no_local_plan",
     });
   });
 
@@ -482,6 +545,9 @@ describe("syncBillingCatalog - brak planu w źródle prawdy", () => {
 
 describe("syncBillingCatalog - sprzątanie po czystym przebiegu", () => {
   it("przekazuje do archiwizacji tylko pozycje obecne w źródle prawdy", async () => {
+    // Plan roczny jest JAWNY: bez niego `plus_annual` nie ma już planu
+    // w źródle (brak zapasowego planu miesięcznego) i trafia do wyłączonych.
+    h.plans = [plan(), plan({ interval: "year", price_cents: 49000 })];
     h.reap.mockResolvedValue([
       { kind: "price", externalId: "stary_plan", providerId: "price_x", reason: "not_in_catalog" },
     ]);
@@ -514,7 +580,7 @@ describe("syncBillingCatalog - sprzątanie po czystym przebiegu", () => {
 describe("syncBillingCatalog - błędy operatora i konfiguracji", () => {
   it("błąd na jednej pozycji nie zatrzymuje pozostałych", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    h.plans = [plan(), plan({ tier_key: "pro", name_pl: "Pro" })];
+    h.plans = [plan(), plan({ interval: "year" }), plan({ tier_key: "pro", name_pl: "Pro" })];
     h.productSearchErrors["plan_plus"] = new Error("rate limited");
 
     const report = await syncBillingCatalog("sandbox");
@@ -565,6 +631,94 @@ describe("syncBillingCatalog - błędy operatora i konfiguracji", () => {
     );
     // Bez klienta nie ma nawet zapytania do bazy - nie ma czego synchronizować.
     expect(h.selects).toHaveLength(0);
+  });
+});
+
+// Audyt SUB-05: katalog operatora jest JEDEN na instalację (`lookup_key` bez
+// najemcy), a `access_plans` ma wiersze każdego najemcy. Źródłem prawdy jest
+// wyłącznie najemca domyślny - test wielonajemcowy dowodzi, że plany innych
+// najemców nie zmieniają kwoty ceny wspólnej ani nie archiwizują jej.
+describe("źródło prawdy - wyłącznie najemca domyślny", () => {
+  it("dwóch najemców z RÓŻNĄ ceną tego samego planu: cena wspólna idzie z najemcy domyślnego", async () => {
+    h.plans = [
+      plan({ tenant_id: "tenant-b", price_cents: 1900, name_pl: "Plus B" }),
+      plan({ tenant_id: "tenant-domyslny", price_cents: 4900 }),
+    ];
+
+    await syncBillingCatalog("live");
+
+    expect(h.planFilters).toEqual([["tenant_id", "tenant-domyslny"]]);
+    expect(priceCreateFor("plus_monthly")).toMatchObject({ unit_amount: 4900 });
+    expect(args(h.priceCreate).some((p) => p["unit_amount"] === 1900)).toBe(false);
+  });
+
+  it("zmiana ceny przez najemcę B NIE przepisuje ceny u operatora", async () => {
+    // Scenariusz z audytu: edytor najemcy B zmienia „member/month" i odpala
+    // synchronizację - operator ma już cenę zgodną z najemcą domyślnym.
+    h.remotePrices["plus_monthly"] = remotePlusMonthly();
+    h.plans = [
+      plan({ tenant_id: "tenant-b", price_cents: 9900 }),
+      plan({ tenant_id: "tenant-domyslny", price_cents: 4900 }),
+    ];
+
+    const report = await syncBillingCatalog("live");
+
+    expect(priceCreateFor("plus_monthly")).toBeUndefined();
+    expect(h.priceUpdate).not.toHaveBeenCalled();
+    expect(itemFor(report, "plus_monthly")?.price).toBe("ok");
+  });
+
+  it("plan WYŁĄCZONY u najemcy B nie archiwizuje ceny wspólnej", async () => {
+    h.plans = [
+      plan({ tenant_id: "tenant-b", active: false }),
+      plan({ tenant_id: "tenant-domyslny", active: true }),
+    ];
+
+    await syncBillingCatalog("live");
+
+    expect([...(reapInput()?.expectedPriceIds ?? [])]).toContain("plus_monthly");
+    expect([...(reapInput()?.inactivePriceIds ?? [])]).not.toContain("plus_monthly");
+  });
+
+  it("plan istniejący TYLKO u najemcy B nie zakłada ceny wspólnej", async () => {
+    h.plans = [plan({ tenant_id: "tenant-b", tier_key: "pro", name_pl: "Pro B" })];
+
+    const report = await syncBillingCatalog("live");
+
+    expect(priceCreateFor("pro_monthly")).toBeUndefined();
+    expect(itemFor(report, "pro_monthly")).toMatchObject({ reason: "no_local_plan" });
+  });
+
+  it("duplikat planu w najemcy domyślnym: aktywny wygrywa z wyłączonym (bez archiwizacji)", async () => {
+    h.plans = [
+      plan({ id: "a", sort_order: 1, active: false, price_cents: 1000 }),
+      plan({ id: "b", sort_order: 2, active: true, price_cents: 4900 }),
+    ];
+
+    await syncBillingCatalog("sandbox");
+
+    expect(priceCreateFor("plus_monthly")).toMatchObject({ unit_amount: 4900 });
+    expect([...(reapInput()?.expectedPriceIds ?? [])]).toContain("plus_monthly");
+  });
+
+  it("BRAK najemcy domyślnego przerywa synchronizację, zanim cokolwiek trafi do operatora", async () => {
+    // Pusta lista planów po „nie wiem, który najemca" wyglądałaby jak
+    // wyłączenie całej oferty - sprzątanie zarchiwizowałoby każdą cenę.
+    h.defaultTenant = null;
+
+    await expect(syncBillingCatalog("live")).rejects.toThrow("default tenant missing");
+    expect(h.priceCreate).not.toHaveBeenCalled();
+    expect(h.reap).not.toHaveBeenCalled();
+  });
+
+  it("błąd odczytu najemcy domyślnego też przerywa synchronizację", async () => {
+    h.tenantError = { message: "connection reset" };
+
+    await expect(syncBillingCatalog("live")).rejects.toThrow(
+      "default tenant lookup failed: connection reset",
+    );
+    expect(h.selects).toHaveLength(0);
+    expect(h.reap).not.toHaveBeenCalled();
   });
 });
 
