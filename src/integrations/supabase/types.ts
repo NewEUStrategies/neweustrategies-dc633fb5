@@ -22539,6 +22539,10 @@ export type Database = {
               ok: boolean
             }[]
           }
+      _b2b_coupon_window_open: {
+        Args: { p_at?: string; p_valid_from: string; p_valid_until: string }
+        Returns: boolean
+      }
       _caller_tenant: { Args: never; Returns: string }
       _club_slugify: { Args: { p_text: string }; Returns: string }
       _club_unique_slug: {
@@ -23102,6 +23106,13 @@ export type Database = {
         Args: { p_tenant: string }
         Returns: Json
       }
+      _event_invoice_source_tax_profile: {
+        Args: { p_id: string; p_kind: string; p_tenant: string }
+        Returns: {
+          vat_exempt_basis: string
+          vat_rate: string
+        }[]
+      }
       _event_invoice_state: {
         Args: { p_draft: string; p_invoice: string; p_tenant: string }
         Returns: {
@@ -23246,6 +23257,10 @@ export type Database = {
         Returns: Json
       }
       _event_package_coupon_link_backfill: { Args: never; Returns: Json }
+      _event_package_order_set_status_core: {
+        Args: { p_expire_only?: boolean; p_payload: Json; p_tenant: string }
+        Returns: boolean
+      }
       _event_package_orders_expire: {
         Args: { p_limit?: number }
         Returns: number
@@ -23253,6 +23268,18 @@ export type Database = {
       _event_package_purchase: {
         Args: { p_ip_subject: string; p_payload: Json }
         Returns: Json
+      }
+      _event_package_seats_held: {
+        Args: {
+          p_event_id: string
+          p_tenant: string
+          p_ticket_type_id?: string
+        }
+        Returns: number
+      }
+      _event_package_sold_recount: {
+        Args: { p_package_id: string; p_tenant: string }
+        Returns: number
       }
       _event_page_chain_published: {
         Args: { _page_id: string }
@@ -23363,6 +23390,10 @@ export type Database = {
           _uid: string
         }
         Returns: Json
+      }
+      _event_registration_checkout_open: {
+        Args: { p_registration_id: string; p_tenant: string }
+        Returns: boolean
       }
       _event_registration_lang: {
         Args: { _registration_id: string; _tenant: string }
@@ -23637,6 +23668,27 @@ export type Database = {
         }
         Returns: number
       }
+      _event_ticket_floor_cents: {
+        Args: { p_tenant: string; p_ticket_type_id: string }
+        Returns: number
+      }
+      _event_ticket_order_mismatch: {
+        Args: {
+          p_check_amount: boolean
+          p_order: Database["public"]["Tables"]["payment_orders"]["Row"]
+          p_reg: Database["public"]["Tables"]["event_registrations"]["Row"]
+        }
+        Returns: string
+      }
+      _event_ticket_payment_refused: {
+        Args: {
+          p_event_id: string
+          p_order: Database["public"]["Tables"]["payment_orders"]["Row"]
+          p_reason: string
+          p_registration_id: string
+        }
+        Returns: boolean
+      }
       _event_ticket_phase: {
         Args: {
           p_at?: string
@@ -23656,12 +23708,28 @@ export type Database = {
         }
         Returns: number
       }
+      _event_ticket_refusal_payload: {
+        Args: {
+          p_event_id: string
+          p_order: Database["public"]["Tables"]["payment_orders"]["Row"]
+          p_outcome: string
+          p_reason: string
+          p_refund_queued: boolean
+          p_refunded: number
+          p_registration_id: string
+        }
+        Returns: Json
+      }
       _event_ticket_revoked_notices_claim: {
         Args: { p_limit?: number }
         Returns: Json
       }
       _event_ticket_revoked_notices_settle: {
         Args: { p_claimed_at: string; p_done: string[]; p_retry: string[] }
+        Returns: number
+      }
+      _event_ticket_sold_recount: {
+        Args: { p_tenant: string; p_ticket_type_id: string }
         Returns: number
       }
       _event_unique_page_slug: {
@@ -25401,10 +25469,7 @@ export type Database = {
           state: string
         }[]
       }
-      admin_event_package_terms: {
-        Args: { p_event_id: string }
-        Returns: Json
-      }
+      admin_event_package_terms: { Args: { p_event_id: string }; Returns: Json }
       admin_event_package_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_packages_list: {
         Args: { p_event_id: string }
