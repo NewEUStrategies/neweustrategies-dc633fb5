@@ -157,10 +157,15 @@ export async function recordTransactionDocument(
  * Odczyt pól dokumentu ze znormalizowanej transakcji Stripe (faktura albo
  * sesja Checkout - `stripeEvents.server` dokłada `invoiceNumber`,
  * `hostedInvoiceUrl` i `invoicePdf` przy mapowaniu zdarzeń `invoice.*`).
+ *
+ * `fallbackStatus` obowiązuje, gdy ładunek nie niesie statusu: sesja Checkout
+ * go nie ma, a jej `transaction.completed` znaczy „opłacone" - bez zapasu
+ * dokument zakupu jednorazowego zapisywał się jako `pending`.
  */
 export function documentInputFromTransaction(
   data: unknown,
   environment: StripeEnv,
+  fallbackStatus: string | null = null,
 ): TransactionDocumentInput | null {
   const row = (data ?? {}) as Raw;
   const id = str(row, "id");
@@ -176,7 +181,7 @@ export function documentInputFromTransaction(
     invoiceNumber: str(row, "invoiceNumber"),
     hostedUrl: str(row, "hostedInvoiceUrl"),
     pdfUrl: str(row, "invoicePdf"),
-    status: str(row, "status"),
+    status: str(row, "status") ?? fallbackStatus,
     issuedAt: str(row, "billedAt") ?? str(row, "createdAt"),
     environment,
   };

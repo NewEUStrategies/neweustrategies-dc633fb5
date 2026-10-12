@@ -12,8 +12,15 @@ const h = vi.hoisted(() => {
     maybeSingleQueue: { data: unknown; error: unknown }[];
     /** Wynik awaitowanego zapisu (`insert`/`update`/`upsert`). */
     writeResult: { data: unknown; error: unknown };
+    /** Kolejne wyniki zapisów (przed `writeResult`) - np. 23505, potem sukces. */
+    writeQueue: { data: unknown; error: unknown }[];
     calls: { method: string; args: unknown[] }[];
-  } = { maybeSingleQueue: [], writeResult: { data: null, error: null }, calls: [] };
+  } = {
+    maybeSingleQueue: [],
+    writeResult: { data: null, error: null },
+    writeQueue: [],
+    calls: [],
+  };
   const chain: any = {};
   for (const m of [
     "from",
@@ -37,7 +44,11 @@ const h = vi.hoisted(() => {
       state.maybeSingleQueue.length ? state.maybeSingleQueue.shift()! : { data: null, error: null },
     );
   chain.single = chain.maybeSingle;
-  chain.then = (onF: any, onR: any) => Promise.resolve(state.writeResult).then(onF, onR);
+  chain.then = (onF: any, onR: any) =>
+    Promise.resolve(state.writeQueue.length ? state.writeQueue.shift()! : state.writeResult).then(
+      onF,
+      onR,
+    );
   return { state, chain };
 });
 
@@ -84,6 +95,7 @@ describe("grantEntitlement", () => {
     h.state.calls = [];
     h.state.maybeSingleQueue = [];
     h.state.writeResult = { data: null, error: null };
+    h.state.writeQueue = [];
   });
 
   it("inserts an active subscription when none exists for the external ref", async () => {
@@ -160,7 +172,7 @@ describe("grantEntitlement", () => {
   it("refreshes an existing subscription instead of duplicating it (Stripe replay)", async () => {
     h.state.maybeSingleQueue = [
       { data: { interval: "month" }, error: null },
-      { data: { id: "sub_row_1" }, error: null },
+      { data: { id: "sub_row_1", status: "active" }, error: null },
     ];
 
     await grantEntitlement(subOrder, "sub_999");
@@ -171,32 +183,86 @@ describe("grantEntitlement", () => {
     expect(patch.status).toBe("active");
     expect(patch.canceled_at).toBeNull();
     expect(typeof patch.current_period_end).toBe("string");
-    // The update targets the existing row by id (the last .eq in the chain;
-    // earlier .eq calls are the plan lookup and the external_ref existence check).
-    expect(findLast("eq")?.args).toEqual(["id", "sub_row_1"]);
+    // The refresh targets the entitlement by its (unique) key and never a row
+    // revoked by a refund - the condition lives in the write itself.
+    expect(findLast("eq")?.args).toEqual(["external_ref", "sub_999"]);
+    expect(findLast("neq")?.args).toEqual(["status", "refunded"]);
     // Refresh path, not insert.
     expect(find("insert")).toBeFalsy();
   });
 
-  it("odczyt istniejącego uprawnienia przeżywa DUPLIKAT external_ref (order + limit 1)", async () => {
-    // Baza nie egzekwuje unikalności `user_subscriptions.external_ref`. Gołe
-    // `maybeSingle()` na dwóch wierszach to PGRST116 -> wyjątek -> webhook
-    // ponawiany bez końca. Zawężenie do jednego wiersza robi zapytanie, nie
-    // nadzieja na czyste dane.
+  it("odczyt uprawnienia nie potrzebuje już `order + limit 1` - klucz jest unikalny w bazie", async () => {
+    // Do 20261012100300 baza nie egzekwowała unikalności `external_ref`, więc
+    // odczyt zawężał się `order + limit 1`, żeby duplikat nie dawał PGRST116.
+    // Indeks unikalny usuwa duplikat u źródła - obejście znika razem z nim.
     h.state.maybeSingleQueue = [
       { data: { interval: "month" }, error: null },
-      { data: { id: "sub_row_1" }, error: null },
+      { data: { id: "sub_row_1", status: "active" }, error: null },
     ];
 
-    await grantEntitlement(subOrder, "sub_dup");
+    await grantEntitlement(subOrder, "sub_unikalny");
 
     const methods = h.state.calls.map((c) => c.method);
-    const lookupAt = h.state.calls.findIndex(
-      (c) => c.method === "eq" && c.args[0] === "external_ref",
+    expect(methods).not.toContain("order");
+    expect(methods).not.toContain("limit");
+  });
+
+  it("uprawnienie odebrane po zwrocie NIE wraca przy ponowionej realizacji", async () => {
+    // Zwrot przed (albo po) realizacji zostawia wiersz `refunded`. Ponowiona
+    // realizacja tego samego zamówienia nie może go przestawić na `active` -
+    // inaczej klient ma pieniądze z powrotem i dostęp.
+    h.state.maybeSingleQueue = [
+      { data: { interval: "month" }, error: null },
+      { data: { id: "sub_row_1", status: "refunded" }, error: null },
+    ];
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await grantEntitlement(subOrder, "sub_zwrocona");
+
+    expect(find("update")).toBeFalsy();
+    expect(find("insert")).toBeFalsy();
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] grant skipped: entitlement refunded",
+      "sub_zwrocona",
     );
-    expect(methods.slice(lookupAt + 1, lookupAt + 3)).toEqual(["order", "limit"]);
-    expect(h.state.calls[lookupAt + 1]?.args).toEqual(["created_at", { ascending: true }]);
-    expect(h.state.calls[lookupAt + 2]?.args).toEqual([1]);
+    warn.mockRestore();
+  });
+
+  it("przegrany wyścig o wstawienie (23505) odświeża TEN SAM klucz zamiast dopisać drugi wiersz", async () => {
+    // Dwie równoległe realizacje tego samego zamówienia (dostawa + ponowienie)
+    // widzą „brak" i obie wstawiają. Indeks unikalny odrzuca drugie
+    // wstawienie, a kod zamienia je w odświeżenie istniejącego wiersza.
+    h.state.maybeSingleQueue = [
+      { data: { interval: "month" }, error: null },
+      { data: null, error: null },
+    ];
+    h.state.writeQueue = [
+      { data: null, error: { code: "23505", message: "duplicate key value" } },
+      { data: null, error: null },
+    ];
+
+    await grantEntitlement(subOrder, "sub_wyscig");
+
+    expect(find("insert")).toBeTruthy();
+    const update = find("update");
+    expect(update?.args[0]).toMatchObject({ status: "active", canceled_at: null });
+    expect(findLast("eq")?.args).toEqual(["external_ref", "sub_wyscig"]);
+    expect(findLast("neq")?.args).toEqual(["status", "refunded"]);
+  });
+
+  it("23505 i nieudane odświeżenie po nim - wyjątek, nie cichy sukces", async () => {
+    h.state.maybeSingleQueue = [
+      { data: { interval: "month" }, error: null },
+      { data: null, error: null },
+    ];
+    h.state.writeQueue = [
+      { data: null, error: { code: "23505", message: "duplicate key value" } },
+      { data: null, error: { message: "rls_denied" } },
+    ];
+
+    await expect(grantEntitlement(subOrder, "sub_wyscig")).rejects.toThrow(
+      /refresh failed \(sub_wyscig\): rls_denied/,
+    );
   });
 
   it("falls back to the order id as external ref when none is provided", async () => {
@@ -285,7 +351,7 @@ describe("grantEntitlement", () => {
 
     it("rzuca, gdy sprawdzenie istniejącej subskrypcji ZAWIODŁO", async () => {
       // Gdyby to przemilczeć, `existing` byłoby null i kod poszedłby w INSERT,
-      // który przy unikalnym `external_ref` też by padł - grant przepadłby cały.
+      // ścigając się z wierszem, którego nie udało się odczytać.
       h.state.maybeSingleQueue = [
         { data: { interval: "month" }, error: null },
         { data: null, error: dbErr },
@@ -297,7 +363,7 @@ describe("grantEntitlement", () => {
     it("rzuca, gdy odświeżenie istniejącej subskrypcji padło", async () => {
       h.state.maybeSingleQueue = [
         { data: { interval: "month" }, error: null },
-        { data: { id: "sub_row_9" }, error: null },
+        { data: { id: "sub_row_9", status: "active" }, error: null },
       ];
       h.state.writeResult = { data: null, error: dbErr };
       await expect(grantEntitlement(subOrder, "sub_e3")).rejects.toThrow(/refresh failed/);
@@ -338,6 +404,7 @@ describe("revokeSubscriptionEntitlement", () => {
     h.state.calls = [];
     h.state.maybeSingleQueue = [];
     h.state.writeResult = { data: null, error: null };
+    h.state.writeQueue = [];
   });
 
   it("ustawia refunded po external_ref i zwraca true, gdy trafiła jakikolwiek wiersz", async () => {
@@ -383,6 +450,7 @@ describe("revokeOrderEntitlement", () => {
     h.state.calls = [];
     h.state.maybeSingleQueue = [];
     h.state.writeResult = { data: null, error: null };
+    h.state.writeQueue = [];
   });
 
   const subRevocable: RevocableOrder = {

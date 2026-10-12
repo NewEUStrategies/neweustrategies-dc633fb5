@@ -305,7 +305,16 @@ describe("webhook płatności - zdarzenia przyjęte przez trasę HTTP", () => {
   });
 
   it("spóźnione zdarzenie subskrypcji (stan w bazie nowszy): 200 i `skipped`, bez nadpisania", async () => {
-    planDb({ subscriptionGuard: ok([]), subscriptionExists: ok({ id: "row-sub-1" }) });
+    // Strażnik czyta parę (znacznik, identyfikator) - wiersz bez porównywalnego
+    // znacznika nie jest „nowszy", tylko sporny, więc stan musi go nieść.
+    planDb({
+      subscriptionGuard: ok([]),
+      subscriptionExists: ok({
+        id: "row-sub-1",
+        last_event_at: relativeIso(MINUTA),
+        last_event_id: "evt_nowsze",
+      }),
+    });
 
     const res = await handle(signed(SUBSCRIPTION_UPDATED, "live"));
 
@@ -322,7 +331,10 @@ describe("webhook płatności - zdarzenia przyjęte przez trasę HTTP", () => {
     // Jedyny zapis do `subscriptions` to warunkowy strażnik - żadnego upsertu.
     const writes = db.chainsFor("subscriptions").filter((c) => c.has("update") || c.has("upsert"));
     expect(writes).toHaveLength(1);
-    expect(writes[0]!.argsOf("update")?.[0]).toEqual({ last_event_at: FIXED_NOW_ISO });
+    expect(writes[0]!.argsOf("update")?.[0]).toEqual({
+      last_event_at: FIXED_NOW_ISO,
+      last_event_id: "evt_test_1",
+    });
   });
 });
 

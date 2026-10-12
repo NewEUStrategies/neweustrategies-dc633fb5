@@ -464,6 +464,23 @@ describe("documentInputFromTransaction - odczyt payloadu operatora", () => {
 
     expect(result?.transactionId).toBe(TXN);
   });
+
+  it("sesja Checkout bez statusu dostaje status zapasowy - dokument zakupu jest opłacony", async () => {
+    // Sesja nie ma pola statusu (ma je tylko faktura). Bez zapasu
+    // `transaction.completed` zakładał dokument zakupu jednorazowego jako
+    // `pending` - klient widział nieopłaconą fakturę za opłacony zakup.
+    const result = documentInputFromTransaction({ id: "cs_1Sesja" }, ENV, "completed");
+
+    expect(result?.status).toBe("completed");
+    await recordTransactionDocument(result!);
+    expect(writtenRow("billing_documents", "insert")).toMatchObject({ status: "paid" });
+  });
+
+  it("status z ładunku wygrywa z zapasowym", () => {
+    const result = documentInputFromTransaction({ id: TXN, status: "draft" }, ENV, "completed");
+
+    expect(result?.status).toBe("draft");
+  });
 });
 
 describe("billingDocuments - DEFEKTY NAPRAWIONE (bramki regresji)", () => {

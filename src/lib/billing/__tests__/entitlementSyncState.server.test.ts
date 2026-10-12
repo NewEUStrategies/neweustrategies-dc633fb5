@@ -5,7 +5,9 @@
 //
 // JAKIE RYZYKA:
 //   * DUPLIKAT UPRAWNIENIA. Kolejne zdarzenie tej samej subskrypcji ma
-//     zaktualizować JEDEN wiersz po `external_ref`, a nie dopisać drugi.
+//     zaktualizować JEDEN wiersz po `external_ref`, a nie dopisać drugi -
+//     także wtedy, gdy dwa zdarzenia ścigają się o wstawienie (indeks
+//     unikalny `external_ref`, 20261012100300: przegrany dostaje 23505).
 //   * WSKRZESZENIE PO ZWROCIE. Uprawnienie odebrane po zwrocie jest
 //     ostateczne - spóźnione zdarzenie nie przywraca płatnego dostępu.
 //   * POZORNY SUKCES. Błąd odczytu albo zapisu MUSI polecieć wyjątkiem
@@ -17,15 +19,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { EntitlementSyncInput } from "@/lib/billing/entitlementSync.server";
+import { BILLING_IDS } from "@/test/billing/fixtures";
+// Atrapa kanoniczna (`@/test/supabase/chain`), nie zgodnościowy re-eksport:
+// testy wyścigu odpowiadają obietnicą (tabela w pamięci), a tylko ten typ
+// `TableResponder` ją dopuszcza.
 import {
-  BILLING_IDS,
   fail,
   ok,
   supabaseFromStub,
   type RecordedChain,
   type SupabaseFromStub,
   type SupabaseResult,
-} from "@/test/billing/fixtures";
+} from "@/test/supabase/chain";
+import { rowStore } from "@/test/billing/rowStore";
 import { DZIEN, FIXED_NOW_ISO, freezeClock, relativeIso } from "@/test/time";
 
 let db: SupabaseFromStub;
@@ -85,10 +91,10 @@ describe("syncEntitlementState - zapis uprawnienia", () => {
 
     const read = db.chainsFor("user_subscriptions")[0];
     expect(read?.argsOf("eq")).toEqual(["external_ref", SUB]);
-    // Deterministyczny odczyt najstarszego wiersza - duplikat nie wywraca
-    // odczytu (PGRST116) i nie zapętla ponowień webhooka.
-    expect(read?.argsOf("order")).toEqual(["created_at", { ascending: true }]);
-    expect(read?.argsOf("limit")).toEqual([1]);
+    // Klucz jest unikalny w bazie - obejście `order + limit 1` (dawniej chroniło
+    // przed PGRST116 na duplikacie) nie jest już potrzebne.
+    expect(read?.has("order")).toBe(false);
+    expect(read?.has("maybeSingle")).toBe(true);
 
     expect(writeOf("insert").row).toEqual({
       user_id: BILLING_IDS.me,
@@ -108,7 +114,10 @@ describe("syncEntitlementState - zapis uprawnienia", () => {
     await syncEntitlementState(input({ status: "paused", planId: "plan-pro-monthly" }));
 
     const { chain, row } = writeOf("update");
-    expect(chain?.argsOf("eq")).toEqual(["id", "us-1"]);
+    expect(chain?.argsOf("eq")).toEqual(["external_ref", SUB]);
+    // „Zwrot jest ostateczny" stoi w SAMYM zapisie - trzyma także przy zwrocie,
+    // który wpadnie między odczyt a aktualizację.
+    expect(chain?.argsOf("neq")).toEqual(["status", "refunded"]);
     expect(row).toEqual({
       plan_id: "plan-pro-monthly",
       status: "canceled",
@@ -151,6 +160,63 @@ describe("syncEntitlementState - zapis uprawnienia", () => {
       await expect(syncEntitlementState(input())).rejects.toThrow(komunikat);
     },
   );
+
+  it("przegrany wyścig o wstawienie (23505) aktualizuje TEN SAM klucz zamiast dopisać drugi wiersz", async () => {
+    // Równoległe zdarzenie wstawiło uprawnienie między naszym odczytem
+    // („brak") a wstawieniem. Indeks unikalny odrzuca drugi wiersz, a stan
+    // tego zdarzenia trafia aktualizacją w wiersz zwycięzcy.
+    plan({
+      existing: null,
+      insert: fail("duplicate key value violates unique constraint", "23505"),
+    });
+
+    await syncEntitlementState(input({ status: "past_due" }));
+
+    const { chain, row } = writeOf("update");
+    expect(chain?.argsOf("eq")).toEqual(["external_ref", SUB]);
+    expect(chain?.argsOf("neq")).toEqual(["status", "refunded"]);
+    expect(row).toMatchObject({ status: "active", plan_id: "plan-member-monthly" });
+  });
+
+  it("dwie równoległe synchronizacje bez wiersza: jedno uprawnienie (indeks unikalny)", async () => {
+    // Najgorszy przeplot odtworzony deterministycznie: druga synchronizacja
+    // biegnie w całości w chwili, gdy pierwsza właśnie przeczytała „brak".
+    const store = rowStore({ unique: ["external_ref"] });
+    let inner: Promise<void> | null = null;
+    db.setResponse("user_subscriptions", async (chain) => {
+      const result = await store.respond(chain);
+      if (chain.has("maybeSingle") && inner === null) {
+        inner = syncEntitlementState(input({ status: "trialing" }));
+        await inner;
+      }
+      return result;
+    });
+
+    await syncEntitlementState(input({ status: "past_due" }));
+    await inner;
+
+    expect(store.rows).toHaveLength(1);
+    expect(store.rows[0]).toMatchObject({ external_ref: SUB, status: "active" });
+  });
+
+  it("wiersz odebrany po zwrocie nie wraca do życia także na ścieżce wyścigu", async () => {
+    // Wstawienie przegrywa z wierszem, który w międzyczasie dostał `refunded`
+    // (zwrot) - aktualizacja z warunkiem `status <> 'refunded'` go nie rusza.
+    const store = rowStore({
+      rows: [{ id: "us-1", external_ref: SUB, status: "refunded" }],
+      unique: ["external_ref"],
+    });
+    let reads = 0;
+    db.setResponse("user_subscriptions", (chain) => {
+      // Odczyt sprzed zwrotu: „brak wiersza".
+      if (chain.has("maybeSingle") && reads++ === 0) return ok(null);
+      return store.respond(chain);
+    });
+
+    await syncEntitlementState(input({ status: "active" }));
+
+    expect(store.rows).toEqual([{ id: "us-1", external_ref: SUB, status: "refunded" }]);
+  });
 
   it("błąd odczytu nie prowadzi do zapisu „na ślepo”", async () => {
     plan({ existing: null, read: fail("statement timeout", "57014") });

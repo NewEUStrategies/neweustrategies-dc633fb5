@@ -57,9 +57,25 @@ export function mapProviderStatus(
   }
 }
 
+/** Naruszenie unikalności (Postgres 23505) - przegrany wyścig o ten sam klucz. */
+export function isUniqueViolation(error: { code?: string } | null | undefined): boolean {
+  return error?.code === "23505";
+}
+
 /**
  * Idempotentnie odwzorowuje stan subskrypcji operatora w `user_subscriptions`.
- * Klucz: `external_ref` = identyfikator subskrypcji u operatora.
+ * Klucz: `external_ref` = identyfikator subskrypcji u operatora - UNIKALNY
+ * w bazie (`user_subscriptions_external_ref_key`, 20261012100300).
+ *
+ * Unikalności pilnuje indeks, nie kod. Dwa równoległe zdarzenia tej samej
+ * subskrypcji (`created` + `updated` bez wiersza) widziały dawniej oba „brak"
+ * i wstawiały DWA uprawnienia; późniejsza rezygnacja trafiała tylko
+ * w najstarsze, a drugie dawało dostęp bez płatności. Teraz przegrany wyścig
+ * kończy się 23505 i zamienia w aktualizację TEGO SAMEGO klucza. Odczyt na
+ * początku jest skrótem (zwrot -> nic nie piszemy), a nie bramką unikalności.
+ *
+ * Reguła „zwrot jest ostateczny" stoi w samym zapisie (`status <> 'refunded'`),
+ * więc trzyma także wtedy, gdy zwrot wpadnie między odczyt a aktualizację.
  */
 export async function syncEntitlementState(input: EntitlementSyncInput): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -67,17 +83,27 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
   const canceledAt =
     input.status === "canceled" || input.status === "paused" ? new Date().toISOString() : null;
 
-  // `order` + `limit(1)` - ten sam powód co w `grantEntitlement`: unikalności
-  // `external_ref` pilnuje tylko kod, więc duplikat nie może wywrócić odczytu
-  // (PGRST116) i zapętlić ponowień webhooka. Reguła „zwrot jest ostateczny"
-  // nie cierpi na tym: `revokeSubscriptionEntitlement` stempluje `refunded`
-  // na WSZYSTKICH wierszach z tym kluczem naraz.
+  // Aktualizacja po kluczu operatora, nigdy wiersza odebranego po zwrocie.
+  const refresh = async (): Promise<void> => {
+    const { error } = await supabaseAdmin
+      .from("user_subscriptions")
+      .update({
+        plan_id: input.planId,
+        status,
+        current_period_end: input.periodEnd,
+        canceled_at: canceledAt,
+      })
+      .eq("external_ref", input.externalRef)
+      .neq("status", "refunded");
+    if (error) {
+      throw new Error(`entitlement sync: update failed (${input.externalRef}): ${error.message}`);
+    }
+  };
+
   const { data: existing, error: readErr } = await supabaseAdmin
     .from("user_subscriptions")
     .select("id, status")
     .eq("external_ref", input.externalRef)
-    .order("created_at", { ascending: true })
-    .limit(1)
     .maybeSingle();
   if (readErr) {
     throw new Error(`entitlement sync: lookup failed (${input.externalRef}): ${readErr.message}`);
@@ -89,18 +115,7 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
     // korekcie) nie może przywrócić płatnego dostępu. Ponowny zakup zakłada
     // nową subskrypcję, czyli inny `external_ref`, więc nic nie tracimy.
     if (existing.status === "refunded") return;
-    const { error } = await supabaseAdmin
-      .from("user_subscriptions")
-      .update({
-        plan_id: input.planId,
-        status,
-        current_period_end: input.periodEnd,
-        canceled_at: canceledAt,
-      })
-      .eq("id", existing.id);
-    if (error) {
-      throw new Error(`entitlement sync: update failed (${input.externalRef}): ${error.message}`);
-    }
+    await refresh();
     return;
   }
 
@@ -113,6 +128,12 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
     current_period_end: input.periodEnd,
     canceled_at: canceledAt,
   });
+  // Równoległe zdarzenie wstawiło wiersz między odczytem a zapisem - nasz stan
+  // trafia w TEN wiersz zamiast w drugi.
+  if (isUniqueViolation(error)) {
+    await refresh();
+    return;
+  }
   if (error) {
     throw new Error(`entitlement sync: insert failed (${input.externalRef}): ${error.message}`);
   }

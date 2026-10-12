@@ -284,7 +284,9 @@ const opsOn = (table: string, method: string) =>
 const isClaimOnly = (arg: unknown): boolean =>
   typeof arg === "object" &&
   arg !== null &&
-  Object.keys(arg as Record<string, unknown>).every((k) => k === "last_event_at");
+  Object.keys(arg as Record<string, unknown>).every(
+    (k) => k === "last_event_at" || k === "last_event_id",
+  );
 const payload = <T>(table: string, method: string): T =>
   (opsOn(table, method)
     .map((o) => o.args[0])
