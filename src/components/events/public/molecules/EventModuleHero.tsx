@@ -9,16 +9,9 @@ import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 // Dane pod nagłówkiem (program, prelegenci, uczestnicy) zostają po stronie
 // wywołania - ten plik nie zna źródeł danych.
 //
-// DWA RYSUNKI W JEDNYM PLIKU - I TO JEST DECYZJA WŁAŚCICIELA. Zakładki
-// modułowe dostały nagłówek redakcyjny (nadtytuł z wydarzeniem, duży tytuł,
-// zdanie wstępu, włosowa linia z odcinkiem w kolorze akcji), a „Mój profil"
-// (`module="me"`) i strona główna (`EventOverviewTitle`) zostają przy wspólnej
-// geometrii `EventSectionHeading` - właściciel uznał je za gotowe i zakazał
-// zmian. Gałąź `me` rysuje dokładnie to, co rysowała: oba miejsca, które ją
-// montują (`events.$slug.me.tsx`, profil w `EventPreviewCanvas`), podają
-// `hasDocument={false}`, więc zostaje sam zapasowy `h1` - dawna gałąź
-// dokumentu była martwa, a jej kilkanaście wariantów `[&_p]:…` kosztowało
-// arkusz bez jednego narysowanego piksela.
+// Zakładki modułowe i „Mój profil” współdzielą nagłówek redakcyjny:
+// nadtytuł z wydarzeniem, duży tytuł i włosową linię z akcentem.
+// Strona główna nadal używa osobnego `EventSectionHeading`.
 //
 // KARTA, GRADIENT I KAFEL IKONY ZNIKNĘŁY CELOWO. Poprzedni nagłówek był kartą
 // z gradientowym paskiem, poświatą i ikoną w kaflu - wszystkie trzy mówiły
@@ -61,7 +54,6 @@ import {
   User,
 } from "@/lib/lucide-shim";
 import type { EventModule } from "@/lib/events/eventModules";
-import { EventSectionHeading } from "@/components/events/public/atoms/EventSectionHeading";
 import { cn } from "@/lib/utils";
 import { useMotionGate } from "@/lib/performance/motionGate";
 
@@ -164,21 +156,6 @@ export function EventModuleHero({
           </ol>
         </nav>
       )}
-      {module === "me" ? (
-        <header
-          data-event-module-hero={module}
-          className="relative mb-6 border-b border-border/50 bg-background"
-        >
-          <EventSectionHeading
-            icon={<Icon className="size-6 text-primary/70" aria-hidden="true" />}
-            eyebrow={eventTitle || t("eventFront.header.moduleEyebrow")}
-          >
-            <h1 className="max-w-full text-2xl font-semibold leading-snug tracking-normal text-foreground [overflow-wrap:anywhere]">
-              {moduleLabel}
-            </h1>
-          </EventSectionHeading>
-        </header>
-      ) : (
         <header
           data-event-module-hero={module}
           className="relative mb-10 border-b border-border/70 pb-8 pt-2 sm:pb-10"
@@ -221,7 +198,6 @@ export function EventModuleHero({
             style={ACCENT_STYLE}
           />
         </header>
-      )}
     </>
   );
 }
