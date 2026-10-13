@@ -34,6 +34,12 @@ const h = vi.hoisted(() => ({
   seatsFull: false,
   /** Zlecenia zwrotu u operatora: parametry i opcje żądania (klucz idempotencji). */
   refundRequests: [] as Array<{ params: unknown; options: unknown }>,
+  /** `billing_reason` faktur u operatora (`invoices.retrieve`). */
+  invoiceReasons: new Map<string, string>(),
+  /** Bieżący stan obciążenia intencji płatności (ostatnie dostarczone `charge.*`). */
+  charges: new Map<string, Record<string, unknown>>(),
+  /** Kody promocyjne operatora (`promotionCodes.retrieve`). */
+  promotionCodes: new Map<string, Record<string, unknown>>(),
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -77,7 +83,26 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => ({
     // Płatność jednorazowa nie opłaca faktury subskrypcji.
     invoicePayments: { list: async () => ({ data: [] }) },
     invoices: {
-      retrieve: async (id: string) => ({ id, status: h.invoiceStatus.get(id) ?? "open" }),
+      retrieve: async (id: string) => ({
+        id,
+        status: h.invoiceStatus.get(id) ?? "open",
+        billing_reason: h.invoiceReasons.get(id) ?? null,
+      }),
+    },
+    // Stan zwrotów u operatora (`refunds.server` czyta go zamiast ładunku):
+    // obciążenie z ostatniego dostarczonego zdarzenia `charge.*` tej intencji.
+    paymentIntents: {
+      retrieve: async (id: string) => ({
+        id,
+        latest_charge: h.charges.get(id) ?? { id: "ch_brak", amount: 0, amount_refunded: 0 },
+      }),
+    },
+    promotionCodes: {
+      retrieve: async (id: string) => {
+        const code = h.promotionCodes.get(id);
+        if (!code) throw new Error(`test: nieznany kod promocyjny ${id}`);
+        return { id, ...code };
+      },
     },
     refunds: {
       create: async (params: unknown, options: unknown) => {
@@ -134,7 +159,9 @@ function order(over: Row = {}): Row {
   };
 }
 
-function tables(rows: { orders?: Row[]; subscriptions?: Row[] } = {}): Record<string, Row[]> {
+function tables(
+  rows: { orders?: Row[]; subscriptions?: Row[]; coupons?: Row[] } = {},
+): Record<string, Row[]> {
   return {
     payment_orders: rows.orders ?? [order()],
     user_purchases: [],
@@ -145,6 +172,7 @@ function tables(rows: { orders?: Row[]; subscriptions?: Row[] } = {}): Record<st
     notifications: [],
     event_rsvps: [],
     billing_documents: [],
+    b2b_coupons: rows.coupons ?? [],
     user_roles: [{ user_id: "admin-1", tenant_id: TENANT, role: "admin" }],
     profiles: [
       { id: USER, tenant_id: TENANT, email: "kupujacy@example.com", prefs: {} },
@@ -157,13 +185,16 @@ async function deliver(
   type: string,
   object: Record<string, unknown>,
   createdS = 1_790_000_000,
+  eventId = `evt_${type}_${createdS}`,
 ): Promise<string> {
   const event: VerifiedWebhookEvent = {
-    id: `evt_${type}_${createdS}`,
+    id: eventId,
     type,
     created: createdS,
     data: { object },
   };
+  const intent = object.payment_intent;
+  if (object.object === "charge" && typeof intent === "string") h.charges.set(intent, object);
   const normalized = normalizeStripeEvent(event);
   if (!normalized) throw new Error(`test: normalizator odrzucił ${type}`);
   return dispatchWebhookEvent({
@@ -248,6 +279,9 @@ beforeEach(() => {
   h.sessionsByIntent.set(INTENT, { id: SESSION, metadata: { orderId: ORDER } });
   h.seatsFull = false;
   h.refundRequests.length = 0;
+  h.invoiceReasons.clear();
+  h.charges.clear();
+  h.promotionCodes.clear();
   const rpc = supabaseRpcStub();
   rpc.setData("payments_apply_event_ticket_outcome", null);
   rpc.setData("apply_b2b_coupon_effects", { applied: false, reason: "no_redemption" });
@@ -331,6 +365,8 @@ describe("S7 e2e: dokument z prawdziwą realizacją (PAY-12)", () => {
         ],
       }),
     );
+
+    h.invoiceReasons.set("in_live_pierwsza", "subscription_create");
 
     await deliver("invoice.paid", invoice("in_live_pierwsza"));
     await deliver("invoice.payment_succeeded", invoice("in_live_pierwsza"));
@@ -528,5 +564,235 @@ describe("PAY-13 e2e: windykacja z prawdziwymi `event.created`", () => {
       payment_failure_count: 1,
       last_dunning_transaction_id: "in_live_2",
     });
+  });
+});
+
+describe("R1 / R2 e2e: faktura subskrypcji a NASZE zamówienie (PAY-06, PAY-09, PAY-12)", () => {
+  const T0 = 1_790_000_000;
+  const subscriptionOrder = (over: Row = {}): Row =>
+    order({
+      kind: "subscription",
+      plan_id: "plan-pro",
+      entity_type: null,
+      entity_id: null,
+      ...over,
+    });
+
+  it("R1 e2e: `invoice.paid` PRZED sesją - przegląd kwoty i tak się odbywa, historia ma jeden wiersz", async () => {
+    // Cena w katalogu podmieniona: zamówienie 49 zł, operator pobrał 99 zł.
+    // Stripe wysyła fakturę i sesję równolegle; dawniej faktura domykała
+    // zamówienie (kwota oczekiwana nadpisana pobraną) i spóźniona sesja nie
+    // miała z czym porównać - bez flagi i bez alertu.
+    h.db = memoryTables(tables({ orders: [subscriptionOrder()] }));
+    h.invoiceReasons.set("in_live_pierwsza", "subscription_create");
+
+    await deliver(
+      "invoice.paid",
+      invoice("in_live_pierwsza", { amount_paid: 9_900, total: 9_900 }),
+      T0,
+    );
+    expect(theOrder()).toMatchObject({ status: "processing", amount_cents: 4_900 });
+
+    await deliver(
+      "checkout.session.completed",
+      subscriptionSession({ amount_subtotal: 9_900, amount_total: 9_900 }),
+      T0 + 1,
+    );
+
+    const paid = theOrder();
+    expect(paid).toMatchObject({
+      status: "paid",
+      amount_cents: 9_900,
+      provider_intent_id: SESSION,
+      provider_subscription_id: SUB,
+    });
+    expect((paid?.metadata as Row | undefined)?.review).toMatchObject({
+      reason: "amount_mismatch",
+      expected_cents: 4_900,
+      charged_cents: 9_900,
+    });
+    expect(h.rpc?.callsFor("enqueue_notification").map((call) => call.arg("p_href"))).toContain(
+      `/admin/billing?order=${ORDER}&review=amount_mismatch`,
+    );
+    // Pierwsza faktura przykrywa zamówienie - zakup jest w historii raz.
+    const history = mergePaymentHistory(
+      db().rows("payment_orders") as unknown as PaymentOrder[],
+      db().rows("billing_documents") as unknown as BillingDocument[],
+    );
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ source: "document", amountCents: 9_900 });
+  });
+
+  it("R2 e2e: odnowienie subskrypcji sprzed wdrożenia nie opłaca zamówienia i nie przejmuje jego kuponu", async () => {
+    // Zamówienie z czerwca: kasa sprzed domknięcia zostawiła je w
+    // `processing` bez stempla subskrypcji, a pierwsza faktura zapisała się
+    // bez powiązania. Metadane subskrypcji niosą `orderId`, więc dawniej
+    // pierwsze odnowienie po wdrożeniu „opłacało" zamówienie (kwota i data
+    // odnowienia, efekty kuponu po czterech miesiącach) i przykrywało je
+    // w historii - z kodem LATO na fakturze, która rabatu nie miała.
+    h.db = memoryTables(
+      tables({
+        orders: [
+          subscriptionOrder({
+            amount_cents: 2_450,
+            metadata: {
+              coupon_id: "kupon-lato",
+              coupon_code: "LATO",
+              original_amount_cents: 4_900,
+            },
+            created_at: "2026-06-01T10:00:00.000Z",
+          }),
+        ],
+        subscriptions: [
+          {
+            provider_subscription_id: SUB,
+            environment: "live",
+            user_id: USER,
+            tenant_id: TENANT,
+            price_id: "pro_monthly",
+            current_period_end: null,
+            payment_failure_count: 0,
+            last_dunning_transaction_id: null,
+            last_payment_at: "2026-09-01T10:00:00.000Z",
+          },
+        ],
+      }),
+    );
+    db().rows("billing_documents").push({
+      id: "doc-czerwiec",
+      provider: "stripe",
+      provider_document_id: "in_live_czerwiec",
+      kind: "invoice",
+      amount_cents: 2_450,
+      currency: "PLN",
+      status: "paid",
+      issued_at: "2026-06-01T10:00:00.000Z",
+      user_id: USER,
+      tenant_id: TENANT,
+      order_id: null,
+    });
+    h.invoiceReasons.set("in_live_pazdziernik", "subscription_cycle");
+
+    await deliver("invoice.paid", invoice("in_live_pazdziernik"), 1_791_500_000);
+
+    const legacy = theOrder();
+    expect(legacy).toMatchObject({ status: "processing", amount_cents: 2_450 });
+    expect(legacy?.provider_intent_id ?? null).toBeNull();
+    expect(legacy?.paid_at ?? null).toBeNull();
+    expect(rpcNames()).not.toContain("apply_b2b_coupon_effects");
+    const renewal = db().find(
+      "billing_documents",
+      (row) => row.provider_document_id === "in_live_pazdziernik",
+    );
+    expect(renewal).toMatchObject({ user_id: USER, order_id: null, amount_cents: 4_900 });
+    const history = mergePaymentHistory(
+      db().rows("payment_orders") as unknown as PaymentOrder[],
+      db().rows("billing_documents") as unknown as BillingDocument[],
+    );
+    expect(history.find((row) => row.id === `doc:${String(renewal?.id)}`)?.couponCode).toBeNull();
+  });
+});
+
+describe("R3 e2e: kupon wyłączony PO zakupie, potem powtórka zdarzenia (S8)", () => {
+  it("R3 e2e: powtórka nie wstrzymuje opłaconego i nadanego zamówienia ani nie alarmuje o wstrzymaniu", async () => {
+    const COUPON = "55555555-eeee-4eee-8eee-555555555555";
+    h.db = memoryTables(
+      tables({
+        orders: [order({ amount_cents: 2_450 })],
+        coupons: [{ id: COUPON, tenant_id: TENANT, active: true, plan_ids: [], event_ids: [] }],
+      }),
+    );
+    h.promotionCodes.set("promo_wlasny", { metadata: { tenant_id: TENANT, coupon_id: COUPON } });
+    const session = oneTimeSession({
+      amount_subtotal: 4_900,
+      amount_total: 2_450,
+      total_details: { amount_discount: 2_450, amount_tax: 0, amount_shipping: 0 },
+      discounts: [{ promotion_code: "promo_wlasny" }],
+    });
+
+    expect(await deliver("checkout.session.completed", session)).toBe("processed");
+    expect(theOrder()).toMatchObject({ status: "paid" });
+    expect(db().rows("user_purchases")).toHaveLength(1);
+
+    // Administrator wyłącza kupon; to samo zdarzenie wraca (panel, zamiatarka).
+    const coupon = db().find("b2b_coupons", (row) => row.id === COUPON);
+    if (coupon) coupon.active = false;
+    expect(
+      await deliver("checkout.session.completed", session, 1_790_000_000, "evt_ponowienie"),
+    ).toBe("processed");
+
+    expect(db().rows("user_purchases")).toHaveLength(1);
+    expect((theOrder()?.metadata as Row | undefined)?.review).toBeUndefined();
+    const hrefs = h.rpc?.callsFor("enqueue_notification").map((call) => call.arg("p_href")) ?? [];
+    expect(hrefs.filter((href) => String(href).includes("review="))).toEqual([]);
+  });
+});
+
+describe("R4 e2e: zwrot częściowy PRZED realizacją, podatek doliczony na wierzch (2.8 / 5.9)", () => {
+  it("R4 e2e: przychód netto po realizacji zgadza się z operatorem (98,40 - 85,00 = 13,40 zł)", async () => {
+    h.db = memoryTables(tables({ orders: [order({ amount_cents: 8_000 })] }));
+
+    await deliver(
+      "charge.refunded",
+      {
+        id: "ch_live_kasa",
+        object: "charge",
+        amount: 9_840,
+        amount_refunded: 8_500,
+        refunded: false,
+        currency: "pln",
+        payment_intent: INTENT,
+        refunds: {
+          object: "list",
+          data: [{ id: "re_live_1", status: "succeeded", amount: 8_500 }],
+        },
+        livemode: true,
+      },
+      1_790_000_000,
+    );
+    // Zwrot częściowy: zamówienie dalej w toku, licznik w podstawie zamówienia.
+    expect(theOrder()).toMatchObject({ status: "processing" });
+    expect(Number(theOrder()?.refunded_amount_cents)).toBeGreaterThan(0);
+
+    await deliver(
+      "checkout.session.completed",
+      oneTimeSession({
+        amount_subtotal: 8_000,
+        amount_total: 9_840,
+        total_details: { amount_discount: 0, amount_tax: 1_840, amount_shipping: 0 },
+      }),
+      1_790_000_100,
+    );
+
+    const paid = theOrder();
+    expect(paid).toMatchObject({
+      status: "paid",
+      amount_cents: 9_840,
+      refunded_amount_cents: 8_500,
+    });
+    expect(Number(paid?.amount_cents) - Number(paid?.refunded_amount_cents)).toBe(1_340);
+    expect(db().rows("user_purchases")).toHaveLength(1);
+  });
+});
+
+describe("PAY-06 e2e: podatek WLICZONY w cenę (luka kryterium, soczewka 4)", () => {
+  it("PAY-06 e2e: cena brutto z VAT w środku - bez flagi, księgi = suma sesji", async () => {
+    // Najemca na płaszczyźnie platformy: cena 49 zł zawiera 9,16 zł VAT.
+    // Stripe raportuje `amount_tax`, ale suma i `subtotal` są równe cenie.
+    h.db = memoryTables(tables());
+
+    await deliver(
+      "checkout.session.completed",
+      oneTimeSession({
+        amount_subtotal: 4_900,
+        amount_total: 4_900,
+        total_details: { amount_discount: 0, amount_tax: 916, amount_shipping: 0 },
+      }),
+    );
+
+    const paid = theOrder();
+    expect(paid).toMatchObject({ status: "paid", amount_cents: 4_900 });
+    expect((paid?.metadata as Row | undefined)?.review).toBeUndefined();
+    expect(rpcNames()).not.toContain("enqueue_notification");
   });
 });

@@ -31,6 +31,15 @@ import type { StripeEnv } from "@/lib/stripe.server";
 
 export type PromotionHoldReason = "foreign_promotion_code" | "promotion_code_out_of_scope";
 
+/**
+ * Powód przeglądu, który WSTRZYMUJE nadanie - także odczytany z zapisanego
+ * `payment_orders.metadata.review` (powtórka realizacji nie ocenia kodów od
+ * nowa, tylko czyta decyzję z chwili zakupu).
+ */
+export function isPromotionHoldReason(value: unknown): value is PromotionHoldReason {
+  return value === "foreign_promotion_code" || value === "promotion_code_out_of_scope";
+}
+
 export interface PromotionCodeReview {
   /** Kod, którym nie wolno było opłacić zamówienia - realizacja do przeglądu. */
   readonly hold: {
