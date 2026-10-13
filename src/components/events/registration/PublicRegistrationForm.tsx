@@ -43,7 +43,7 @@
 // wysylal pusta liste gosci i pokazywal sukces samego prowadzacego. Goscie nie
 // istnieli w bazie, a kupujacy byl przekonany, ze zapisal cala grupe.
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, Loader2, UserPlus } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -58,7 +58,13 @@ import {
   type RegistrationResult,
   type RegistrationSubmitOutcome,
 } from "@/lib/events/publicRegistrationApi";
-import { registrationErrorMessage } from "@/lib/events/publicRegistrationErrors";
+import {
+  cancellationErrorMessage,
+  isRefundTermsChanged,
+  registrationErrorMessage,
+} from "@/lib/events/publicRegistrationErrors";
+import type { CancellationEffect } from "@/lib/events/cancellationPreview";
+import { cancellationPreviewKey } from "@/lib/events/useCancellationPreview";
 import {
   draftAccessCode,
   draftAnswers,
@@ -157,6 +163,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
     guestsDropped: boolean;
   } | null>(null);
   const [cancelled, setCancelled] = useState(false);
+  const queryClient = useQueryClient();
   const [guests, setGuests] = useState<GroupGuest[]>([]);
   const [guestErrors, setGuestErrors] = useState<(GuestIssue | null)[]>([]);
   const [guestRetry, setGuestRetry] = useState<GuestRetry | null>(null);
@@ -326,18 +333,35 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
     onError: (error: unknown) => setFailure(registrationErrorMessage(error)),
   });
 
+  // REZYGNACJA Z EKRANU PO ZAPISIE. Skutek finansowy, który uczestnik
+  // potwierdził (REG-03), jedzie z rezygnacją tylko wtedy, gdy baza go wymaga;
+  // zmieniony skutek (np. wpłata przeszła na tym ekranie) odświeża podgląd.
   const cancel = useMutation({
-    mutationFn: async (current: RegistrationResult) =>
-      cancelRegistration(
-        current.manageToken !== null
+    mutationFn: async ({
+      current,
+      acknowledgedEffect,
+    }: {
+      current: RegistrationResult;
+      acknowledgedEffect?: CancellationEffect;
+    }) =>
+      cancelRegistration({
+        ...(current.manageToken !== null
           ? { manageToken: current.manageToken }
-          : { registrationId: current.registrationId },
-      ),
+          : { registrationId: current.registrationId }),
+        ...(acknowledgedEffect === undefined ? {} : { acknowledgedEffect }),
+      }),
     onSuccess: () => {
       setFailure(null);
       setCancelled(true);
     },
-    onError: (error: unknown) => setFailure(registrationErrorMessage(error)),
+    onError: (error: unknown, { current }) => {
+      if (isRefundTermsChanged(error)) {
+        void queryClient.invalidateQueries({
+          queryKey: cancellationPreviewKey(slug, current.manageToken ?? current.registrationId),
+        });
+      }
+      setFailure(cancellationErrorMessage(error));
+    },
   });
 
   if (formQuery.isPending) {
@@ -403,7 +427,7 @@ export function PublicRegistrationForm({ slug }: { slug: string }) {
           guestsAdded={guestsAdded}
           cancelled={cancelled}
           cancelling={cancel.isPending}
-          onCancel={() => cancel.mutate(result)}
+          onCancel={(acknowledgedEffect) => cancel.mutate({ current: result, acknowledgedEffect })}
           signedIn={user !== null}
           lang={lang}
         />

@@ -93,21 +93,22 @@ export interface TxEmailPreview {
 const SITE_URL = "https://neweuropeanstrategies.com";
 
 /**
- * Przykladowe uzasadnienie odmowy w podgladzie maila.
+ * Przykladowy powod odmowy dla uczestnika (`participant_reason`, REG-06)
+ * w podgladzie maila - nigdy notatka wewnetrzna.
  *
  * MAPA PO JEZYKU, A NIE TERNARY. Reszta danych demonstracyjnych w tym pliku
  * rozgalezia sie w kodzie (dlug zmierzony przez `check:i18n-hardcoded`);
  * nowy wpis nie ma powodu ten dlug powiekszac, a `Record<EmailLang, string>`
  * jest kanonicznym zapisem tej samej rzeczy.
  */
-const DEMO_DECISION_NOTE: Record<EmailLang, string> = {
+const DEMO_PARTICIPANT_REASON: Record<EmailLang, string> = {
   pl: "Komplet miejsc dla tej grupy uczestników.",
   en: "The seat pool for this participant group is full.",
 };
 
 /**
  * Dane demonstracyjne biletu na wydarzenie - ten sam zapis, co
- * `DEMO_DECISION_NOTE` wyzej i z tego samego powodu.
+ * `DEMO_PARTICIPANT_REASON` wyzej i z tego samego powodu.
  *
  * `DEMO_TICKET_PRICE` sluzy DWOM rzeczom naraz: to cena biletu i zarazem kwota
  * zwrotu calkowitego (`event_ticket_refunded` oddaje cale wejsciowke). Zwrot
@@ -150,7 +151,7 @@ interface DemoData {
 /**
  * Dane demonstracyjne maili uczestnika F1-F5 - JEDNA wartość na etykietę
  * z kontraktu `PARTICIPANT_TX_DETAIL_LABELS`, w obu językach mapą (nie
- * ternarym, patrz `DEMO_DECISION_NOTE`). Wiersze budujemy z kontraktu, więc
+ * ternarym, patrz `DEMO_PARTICIPANT_REASON`). Wiersze budujemy z kontraktu, więc
  * podgląd nie może pokazać innego zestawu wierszy niż ten, który wysyłają tory.
  */
 const DEMO_PARTICIPANT_VALUES: Record<EmailLang, Record<ParticipantTxDetailLabel, string>> = {
@@ -365,7 +366,7 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
         details: [
           { label: l.event, value: eventTitle },
           { label: l.date, value: eventDate },
-          { label: l.decisionNote, value: DEMO_DECISION_NOTE[lang] },
+          { label: l.participantReason, value: DEMO_PARTICIPANT_REASON[lang] },
         ],
         ctaUrl: `${SITE_URL}/events`,
       };

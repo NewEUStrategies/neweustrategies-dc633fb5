@@ -114,6 +114,9 @@ const h = vi.hoisted(() => ({
   exportSeatError: null as unknown,
   /** Treść ostatniego pliku CSV złożonego przez eksport. */
   csvParts: [] as string[],
+  /** Skutek finansowy anulowania (`fetchRegistrationRefundPreview`) i wywołania. */
+  refundPreview: null as unknown,
+  refundPreviewCalls: [] as string[],
 }));
 
 // Dziennik ma osobne testy odczytu, błędu i ponowienia. Ten test izoluje
@@ -147,6 +150,12 @@ vi.mock("@/lib/events/adminRegistrationErrors", () => ({
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: () => undefined } }));
 vi.mock("@/lib/events/registrationsApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/events/registrationsApi")>()),
+  // Skutek finansowy anulowania (REG-03) - okno decyzji pyta o niego przy
+  // `cancel`. Domyślnie zgłoszenie bez wpłaty: okno wygląda jak przed REG-03.
+  fetchRegistrationRefundPreview: (registrationId: string) => {
+    h.refundPreviewCalls.push(registrationId);
+    return Promise.resolve(h.refundPreview);
+  },
   fetchRegistrations: (query: RegistrationsQuery) => {
     h.listQueries.push({ eksport: true, ...query });
     if (h.exportError !== null) return Promise.reject(h.exportError);
@@ -307,7 +316,7 @@ vi.mock("@/components/admin/events/molecules/RegistrationDecideDialog", async (i
         <button
           type="button"
           data-testid="okno-potwierdz-na-slepo"
-          onClick={() => props.onConfirm(null)}
+          onClick={() => props.onConfirm({ note: null, participantReason: null })}
         />
       </>
     ),
@@ -376,6 +385,8 @@ import { emptyRegistrationCounts } from "@/lib/events/registrationCounts";
 import { eventTicketRow } from "@/test/events/adminSalesRows";
 import { seatLookupRow } from "@/test/events/seatingFixtures";
 import { FIXED_NOW_ISO } from "@/test/time";
+import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 /**
  * Kolumny NULL-owalne, które generator typuje jako `string`/`number`.
@@ -458,7 +469,10 @@ function counts(over: Partial<RegistrationCounts> = {}): RegistrationCounts {
 const B = "adminEventRegistration.registrations";
 
 function panel(props: { eventSlug?: string } = {}) {
-  return render(<RegistrationsListPanel eventId={WYDARZENIE} eventSlug={props.eventSlug ?? ""} />);
+  // Okno decyzji czyta skutek anulowania przez react-query (REG-03).
+  return renderWithQueryClient(
+    <RegistrationsListPanel eventId={WYDARZENIE} eventSlug={props.eventSlug ?? ""} />,
+  );
 }
 
 const przycisk = (nazwa: string | RegExp): HTMLElement =>
@@ -515,6 +529,19 @@ function opcje(el: HTMLElement): string[] {
 
 beforeEach(() => {
   h.lang = "pl";
+  h.refundPreview = {
+    effect: "none",
+    reviewReason: null,
+    amountCents: null,
+    currency: null,
+    refundMode: null,
+    refundDeadlineAt: null,
+    groupGuestsClosing: 0,
+    acknowledgementRequired: false,
+    jobState: null,
+    paymentStatus: "not_required",
+  };
+  h.refundPreviewCalls = [];
   h.rows = [registrationRow()];
   h.total = 1;
   h.listLoading = false;
@@ -859,11 +886,15 @@ describe("liczniki i pojemność sali", () => {
 
   it("licznik czekających na powiadomienie pokazuje się TYLKO, gdy ktoś czeka", () => {
     h.counts = counts({ awaitingNotice: 0 });
-    const { rerender } = panel();
+    const { rerender, queryClient } = panel();
     expect(screen.queryByText(/waitlist\.awaitingNotice/)).toBeNull();
 
     h.counts = counts({ awaitingNotice: 4 });
-    rerender(<RegistrationsListPanel eventId={WYDARZENIE} />);
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <RegistrationsListPanel eventId={WYDARZENIE} />
+      </QueryClientProvider>,
+    );
 
     expect(screen.getByText("adminEventRegistration.waitlist.awaitingNotice: 4")).toBeTruthy();
   });
@@ -977,6 +1008,25 @@ describe("co niesie wiersz zgłoszenia", () => {
     expect(screen.getAllByText(/decision\.note/)).toHaveLength(1);
   });
 
+  it("powód dla uczestnika stoi OSOBNO od notatki wewnętrznej (REG-06)", () => {
+    // Organizator musi widzieć, co usłyszał uczestnik - bez tego jedynym
+    // śladem byłby dziennik wysyłek maili.
+    h.rows = [
+      registrationRow({
+        id: "a",
+        decision_note: "WEWN: podejrzana firma",
+        participant_reason: "Pula dla firm jest wyczerpana.",
+      }),
+      registrationRow({ id: "b", participant_reason: "" }),
+    ];
+    panel();
+
+    expect(
+      screen.getByText(`${B}.decision.participantReason: Pula dla firm jest wyczerpana.`),
+    ).toBeTruthy();
+    expect(screen.getAllByText(/decision\.participantReason/)).toHaveLength(1);
+  });
+
   it("nazwa biletu spada na drugi język, a bez obu na klucz", () => {
     h.lang = "en";
     h.rows = [
@@ -1079,7 +1129,7 @@ describe("decyzja organizatora", () => {
     h.decideError = new Error("registrations: invalid_transition");
     panel();
     otworzDecyzje("adminEventRegistration.actions.reject");
-    const powod = screen.getByLabelText(`${B}.decideDialog.reasonLabel`);
+    const powod = screen.getByLabelText(`${B}.decideDialog.noteLabel`);
     fireEvent.change(powod, { target: { value: "brak miejsc" } });
 
     potwierdz();
@@ -1088,7 +1138,7 @@ describe("decyzja organizatora", () => {
     expect(h.toastSuccess).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(
-      (screen.getByLabelText(`${B}.decideDialog.reasonLabel`) as HTMLTextAreaElement).value,
+      (screen.getByLabelText(`${B}.decideDialog.noteLabel`) as HTMLTextAreaElement).value,
     ).toBe("brak miejsc");
     // Poczta NIE leci, skoro decyzja się nie zapisała.
     expect(h.notifyCalls).toEqual([]);
@@ -1140,7 +1190,7 @@ describe("decyzja organizatora", () => {
     panel();
     otworzDecyzje(`adminEventRegistration.actions.${czynnosc}`);
     if (czynnosc === "reject") {
-      fireEvent.change(screen.getByLabelText(`${B}.decideDialog.reasonLabel`), {
+      fireEvent.change(screen.getByLabelText(`${B}.decideDialog.noteLabel`), {
         target: { value: "brak miejsc" },
       });
     }
@@ -1163,7 +1213,7 @@ describe("decyzja organizatora", () => {
       panel();
       otworzDecyzje(`adminEventRegistration.actions.${czynnosc}`);
       if (czynnosc === "cancel") {
-        fireEvent.change(screen.getByLabelText(`${B}.decideDialog.reasonLabel`), {
+        fireEvent.change(screen.getByLabelText(`${B}.decideDialog.noteLabel`), {
           target: { value: "rezygnacja" },
         });
       }
@@ -1197,6 +1247,81 @@ describe("decyzja organizatora", () => {
     potwierdz();
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(`${B}.toasts.notifyFailed`));
+  });
+
+  // REG-06: DWA POLA, DWÓCH ODBIORCÓW. Notatka wewnętrzna zostaje w historii,
+  // powód dla uczestnika jedzie osobnym kluczem - mail o odrzuceniu dalej leci.
+  it("odrzucenie wysyła notatkę wewnętrzną i powód dla uczestnika OSOBNO, mail leci", async () => {
+    h.rows = [registrationRow({ status: "pending" })];
+    panel();
+    otworzDecyzje("adminEventRegistration.actions.reject");
+    fireEvent.change(screen.getByLabelText(`${B}.decideDialog.noteLabel`), {
+      target: { value: "  WEWN: konkurencja  " },
+    });
+    fireEvent.change(screen.getByLabelText(`${B}.decideDialog.participantReasonLabel`), {
+      target: { value: " Pula dla firm jest wyczerpana. " },
+    });
+
+    potwierdz();
+
+    expect(h.decideCalls).toEqual([
+      {
+        registrationId: "reg-1",
+        action: "reject",
+        note: "WEWN: konkurencja",
+        participantReason: "Pula dla firm jest wyczerpana.",
+      },
+    ]);
+    await waitFor(() =>
+      expect(h.notifyCalls).toEqual([{ registrationId: "reg-1", notice: "rejected" }]),
+    );
+  });
+
+  // REG-03: anulowanie OPŁACONEGO zgłoszenia pyta bazę o skutek, a „nie zwracaj"
+  // jedzie jawnie jako `refund: none` - z wymaganą notatką.
+  it("anulowanie opłaconego: skutek przed decyzją, „nie zwracaj” wymaga notatki i wysyła refund none", async () => {
+    h.rows = [registrationRow({ status: "approved" })];
+    h.refundPreview = {
+      effect: "full_refund",
+      reviewReason: null,
+      amountCents: 15000,
+      currency: "PLN",
+      refundMode: "policy",
+      refundDeadlineAt: null,
+      groupGuestsClosing: 0,
+      acknowledgementRequired: true,
+      jobState: "pending",
+      paymentStatus: "paid",
+    };
+    panel();
+    otworzDecyzje("adminEventRegistration.actions.cancel");
+
+    const okno = screen.getByRole("dialog");
+    expect(await within(okno).findByText(/decideDialog\.refund\.full/)).toBeTruthy();
+    expect(h.refundPreviewCalls).toEqual(["reg-1"]);
+
+    fireEvent.click(within(okno).getByLabelText(`${B}.decideDialog.refund.waive`));
+    fireEvent.change(screen.getByLabelText(`${B}.decideDialog.noteLabel`), {
+      target: { value: "ab" },
+    });
+    // Dwa znaki to za mało - baza liczy uzasadnienie od trzech.
+    expect(
+      within(okno).getByRole("button", { name: `${B}.decideDialog.confirmAction` }),
+    ).toHaveAttribute("aria-disabled", "true");
+
+    fireEvent.change(screen.getByLabelText(`${B}.decideDialog.noteLabel`), {
+      target: { value: "Bilet przeniesiony na 2027" },
+    });
+    potwierdz();
+
+    expect(h.decideCalls).toEqual([
+      {
+        registrationId: "reg-1",
+        action: "cancel",
+        note: "Bilet przeniesiony na 2027",
+        refund: "none",
+      },
+    ]);
   });
 });
 

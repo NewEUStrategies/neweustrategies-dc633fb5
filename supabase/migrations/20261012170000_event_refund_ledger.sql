@@ -578,13 +578,15 @@ BEGIN
 
   -- Rezygnacja uczestnika: organizator dowiaduje sie od razu. Decyzja
   -- organizatora nie dzwoni - jej autor widzial skutek w oknie decyzji.
+  -- Cudzyslow tytulu doklejany `||`, nie w szablonie formatu: lekser bramki
+  -- check_whitelist_writers czyta 3 bajty za operatorem jako ASCII.
   IF _origin = 'participant_cancelled' THEN
     IF v_job_state = 'pending' THEN
       PERFORM public._event_refund_alert_organizers(
         _tenant, v_event_id,
         'Rezygnacja z opłaconego biletu: zwrot zlecony',
         'Paid ticket cancelled: refund queued',
-        format('„%s”: uczestnik zrezygnował w terminie zwrotu, zwrot trafił do operatora płatności. Szczegóły w dzienniku zwrotów.', v_title_pl),
+        format('%s: uczestnik zrezygnował w terminie zwrotu, zwrot trafił do operatora płatności. Szczegóły w dzienniku zwrotów.', '„' || v_title_pl || '”'),
         format('"%s": a participant cancelled within the refund window and the refund went to the payment provider. Details in the refund journal.', v_title_en));
     ELSIF v_job_state = 'needs_review' THEN
       v_why_pl := CASE v_reason
@@ -605,7 +607,7 @@ BEGIN
         _tenant, v_event_id,
         'Rezygnacja z opłaconego biletu: zwrot czeka na decyzję',
         'Paid ticket cancelled: refund needs a decision',
-        format('„%s”: uczestnik zrezygnował (%s). Zdecyduj o zwrocie w dzienniku zwrotów.', v_title_pl, v_why_pl),
+        format('%s: uczestnik zrezygnował (%s). Zdecyduj o zwrocie w dzienniku zwrotów.', '„' || v_title_pl || '”', v_why_pl),
         format('"%s": a participant cancelled (%s). Decide on the refund in the refund journal.', v_title_en, v_why_en));
     END IF;
   END IF;
@@ -813,7 +815,7 @@ BEGIN
       v_tenant, v_event_id,
       'Automatyczny zwrot nie powiódł się',
       'Automatic refund failed',
-      format('„%s”: operator płatności odrzucił zwrot %s razy. Zdecyduj o zwrocie w dzienniku zwrotów.', v_title_pl, v_attempts),
+      format('%s: operator płatności odrzucił zwrot %s razy. Zdecyduj o zwrocie w dzienniku zwrotów.', '„' || v_title_pl || '”', v_attempts),
       format('"%s": the payment provider rejected the refund %s times. Decide on the refund in the refund journal.', v_title_en, v_attempts));
   END IF;
   RETURN true;

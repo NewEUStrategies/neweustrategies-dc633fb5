@@ -192,9 +192,9 @@ const ORGANIZER_ALERTS: Readonly<
     },
     body: {
       pl: (v) =>
-        `${v.lead}wpłata dotarła do zgłoszenia odwołanego albo odrzuconego. Sprawdź dziennik zwrotów po odrzuceniu; anulowanie i zwrot części grupy rozlicz w panelu płatności.`,
+        `${v.lead}wpłata dotarła do zgłoszenia odwołanego albo odrzuconego. Zlecenie czeka w dzienniku zwrotów zgłoszeń - zdecyduj tam o zwrocie; zwrot części grupy rozlicz w panelu płatności.`,
       en: (v) =>
-        `${v.lead}a payment reached a cancelled or rejected registration. Check the rejection refund journal; handle cancellation and partial group refunds in the payments panel.`,
+        `${v.lead}a payment reached a cancelled or rejected registration. The request waits in the registration refund journal - decide on the refund there; handle partial group refunds in the payments panel.`,
     },
   },
 };

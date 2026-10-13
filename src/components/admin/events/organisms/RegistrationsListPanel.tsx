@@ -40,7 +40,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
-import { RegistrationDecideDialog } from "@/components/admin/events/molecules/RegistrationDecideDialog";
+import {
+  RegistrationDecideDialog,
+  type RegistrationDecision,
+} from "@/components/admin/events/molecules/RegistrationDecideDialog";
 import { RegistrationRefundJournal } from "@/components/admin/events/molecules/RegistrationRefundJournal";
 import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
 import { notifyEventRegistrationDecision } from "@/lib/events/registrationNotify.functions";
@@ -235,11 +238,19 @@ export function RegistrationsListPanel({
     resetPage();
   };
 
-  const confirmDecision = (note: string | null) => {
+  const confirmDecision = (decision: RegistrationDecision) => {
     if (decided === null || action === null) return;
     const registrationId = decided.id;
     decide.mutate(
-      { registrationId, action, note },
+      {
+        registrationId,
+        action,
+        // Notatka wewnetrzna i powod dla uczestnika jada OSOBNO (REG-06);
+        // `refund` tylko przy anulowaniu oplaconego (REG-03).
+        note: decision.note,
+        participantReason: decision.participantReason ?? undefined,
+        refund: decision.refund,
+      },
       {
         onSuccess: () => {
           toast.success(t(`${base}.toasts.${TOAST_KEYS[action]}`));
@@ -687,6 +698,11 @@ export function RegistrationsListPanel({
                   {row.decision_note === null || row.decision_note === "" ? null : (
                     <p className="max-w-xs">{`${t(`${base}.decision.note`)}: ${row.decision_note}`}</p>
                   )}
+                  {/* Co uslyszal uczestnik (REG-06) - osobno od notatki wewnetrznej. */}
+                  {(row.participant_reason ?? null) === null ||
+                  row.participant_reason === "" ? null : (
+                    <p className="max-w-xs">{`${t(`${base}.decision.participantReason`)}: ${row.participant_reason}`}</p>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
@@ -765,6 +781,7 @@ export function RegistrationsListPanel({
       <RegistrationDecideDialog
         open={action !== null}
         action={action}
+        registrationId={decided?.id ?? null}
         personName={decided === null ? "" : registrationPersonName(decided)}
         hint={groupHint}
         isPending={decide.isPending}

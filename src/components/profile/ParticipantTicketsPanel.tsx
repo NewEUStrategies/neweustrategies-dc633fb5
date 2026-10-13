@@ -202,11 +202,16 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
           {t("participantTickets.reason.title")}
         </h3>
         <p className="text-sm text-muted-foreground">{reasonSentence}</p>
-        {item.cancelReason !== null && (
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("participantTickets.reason.note", { note: item.cancelReason })}
-          </p>
-        )}
+        {/* Tylko zgloszenie zamkniete: powod na ponownie otwartym wierszu byl
+            juz nieaktualny (baza i tak go nie oddaje - podwojny zamek). */}
+        {item.participantReason !== null &&
+          (item.status === "rejected" || item.status === "cancelled") && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("participantTickets.reason.participantReason", {
+                reason: item.participantReason,
+              })}
+            </p>
+          )}
         {item.decisionSource !== null && (
           <p className="mt-1 text-xs text-muted-foreground">
             {t("participantTickets.reason.source", { source: item.decisionSource })}

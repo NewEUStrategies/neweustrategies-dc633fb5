@@ -303,6 +303,59 @@ export const eventRegistrationPl = {
       ticketHiddenOnly:
         "Bilety na to wydarzenie są dostępne z kodem od organizatora - wpisz go w polu powyżej.",
     },
+    // SKUTEK FINANSOWY REZYGNACJI (REG-03, decyzja D9). Uczestnik widzi, co
+    // stanie się z wpłatą, ZANIM potwierdzi - a baza przyjmuje rezygnację
+    // opłaconego zgłoszenia dopiero z tym samym skutkiem (`acknowledged_effect`).
+    cancelRefund: {
+      title: "Co stanie się z wpłatą",
+      loading: "Sprawdzamy, co stanie się z wpłatą…",
+      loadError: "Nie udało się sprawdzić, co stanie się z wpłatą.",
+      retry: "Sprawdź ponownie",
+      fullRefund:
+        "Zwrot {{amount}} zlecimy automatycznie - pieniądze wrócą na kartę lub konto, z którego zapłacono, zwykle w ciągu kilku dni roboczych.",
+      fullRefundPlain:
+        "Zwrot wpłaty zlecimy automatycznie - pieniądze wrócą na kartę lub konto, z którego zapłacono.",
+      deadline: "Pełny zwrot przy rezygnacji przysługuje do {{date}}.",
+      noRefundWindow:
+        "Termin samodzielnego zwrotu minął {{date}}. Wpłata nie wróci automatycznie - o ewentualnym zwrocie zdecyduje organizator.",
+      noRefundWindowPlain:
+        "Termin samodzielnego zwrotu minął. Wpłata nie wróci automatycznie - o ewentualnym zwrocie zdecyduje organizator.",
+      noRefundDisabled:
+        "To wydarzenie nie przewiduje samodzielnych zwrotów. Wpłata nie wróci automatycznie - o ewentualnym zwrocie zdecyduje organizator.",
+      reviewShared:
+        "Ta wpłata obejmuje też inne zgłoszenia z Twojej grupy. O zwrocie Twojej części zdecyduje organizator - nie wróci ona automatycznie.",
+      reviewManual:
+        "Wpłata nie przeszła przez operatora płatności. O jej zwrocie zdecyduje organizator.",
+      reviewGeneric: "O zwrocie wpłaty zdecyduje organizator - nie wróci ona automatycznie.",
+      includedTicket:
+        "Bilet pochodzi z Twojego planu członkowskiego - wróci do puli planu, nie ma wpłaty do zwrotu.",
+      groupGuests_one: "Razem z Twoim zgłoszeniem odwołamy {{count}} gościa z grupy.",
+      groupGuests_few: "Razem z Twoim zgłoszeniem odwołamy {{count}} gości z grupy.",
+      groupGuests_many: "Razem z Twoim zgłoszeniem odwołamy {{count}} gości z grupy.",
+      groupGuests_other: "Razem z Twoim zgłoszeniem odwołamy {{count}} gości z grupy.",
+      termsChanged:
+        "Skutek rezygnacji dla wpłaty właśnie się zmienił - sprawdź go i potwierdź jeszcze raz.",
+      refundQueued: "Zwrot {{amount}} został zlecony operatorowi płatności.",
+      refundQueuedPlain: "Zwrot wpłaty został zlecony operatorowi płatności.",
+      reviewQueued: "Organizator dostał prośbę o decyzję w sprawie Twojej wpłaty.",
+      // Gniazdo zasad zwrotu na stronie samoobsługi (`ManageTicketActionsSlot`).
+      policyTitle: "Zasady zwrotu",
+      policyUntil: "Rezygnacja do {{date}} oznacza pełny zwrot wpłaty.",
+      policyWindow: "Rezygnacja w terminie zwrotu oznacza pełny zwrot wpłaty.",
+      policyNone:
+        "Samodzielna rezygnacja nie zwraca już wpłaty automatycznie - o zwrocie decyduje organizator.",
+      // Odmowy znane z góry (podgląd) i odmowy rezygnacji w jej własnym tonie.
+      refusals: {
+        alreadyClosed: "To zgłoszenie jest już zamknięte - nie ma czego odwoływać.",
+        eventFinished: "Obecność jest już zapisana - zgłoszenia nie da się odwołać.",
+        eventEnded:
+          "Wydarzenie już się zakończyło - zgłoszenia nie da się odwołać. W sprawie wpłaty napisz do organizatora.",
+      },
+      errors: {
+        eventEnded:
+          "Wydarzenie już się zakończyło - zgłoszenia nie da się odwołać. W sprawie wpłaty napisz do organizatora.",
+      },
+    },
     errors: {
       unknown: "Nie udało się zapisać. Spróbuj ponownie.",
       // Odmowy zapisu przez serwer (REG-04/05/13, B1a) - każda ma zdanie.
@@ -347,6 +400,13 @@ export const eventRegistrationPl = {
       alreadyClosed: "Ten zapis jest już zamknięty.",
       eventFinished: "Wydarzenie się zakończyło - obecność jest już zapisana.",
       forbidden: "Ten zapis należy do innej osoby.",
+      // Rezygnacja opłaconego zgłoszenia (REG-03) i klucz po końcu (REG-17).
+      refundAckRequired:
+        "Przed rezygnacją sprawdź, co stanie się z wpłatą - odśwież stronę i potwierdź jeszcze raz.",
+      refundTermsChanged:
+        "Skutek rezygnacji dla wpłaty właśnie się zmienił - sprawdź go i potwierdź jeszcze raz.",
+      manageExpired:
+        "Ten odnośnik wygasł po zakończeniu wydarzenia. W sprawie zgłoszenia napisz do organizatora.",
       invalidToken: "Zaproszenie jest nieważne lub zostało cofnięte.",
       seatTaken: "To zaproszenie zostało już wykorzystane.",
       invitationExpired: "Zaproszenie wygasło - poproś organizatora o nowe.",
@@ -738,6 +798,56 @@ export const eventRegistrationEn = {
       ticketHiddenOnly:
         "Tickets for this event are available with a code from the organiser - enter it in the field above.",
     },
+    // FINANCIAL EFFECT OF CANCELLING (REG-03, decision D9).
+    cancelRefund: {
+      title: "What happens to your payment",
+      loading: "Checking what happens to your payment…",
+      loadError: "We could not check what happens to your payment.",
+      retry: "Check again",
+      fullRefund:
+        "We will refund {{amount}} automatically - the money returns to the card or account you paid with, usually within a few business days.",
+      fullRefundPlain:
+        "We will refund your payment automatically - the money returns to the card or account you paid with.",
+      deadline: "A full refund on cancellation is available until {{date}}.",
+      noRefundWindow:
+        "The self-service refund deadline passed on {{date}}. The payment will not be returned automatically - the organiser decides on any refund.",
+      noRefundWindowPlain:
+        "The self-service refund deadline has passed. The payment will not be returned automatically - the organiser decides on any refund.",
+      noRefundDisabled:
+        "This event has no self-service refunds. The payment will not be returned automatically - the organiser decides on any refund.",
+      reviewShared:
+        "This payment also covers other registrations in your group. The organiser decides on refunding your share - it is not returned automatically.",
+      reviewManual:
+        "This payment did not go through the payment provider. The organiser decides on refunding it.",
+      reviewGeneric:
+        "The organiser decides on refunding the payment - it is not returned automatically.",
+      includedTicket:
+        "This ticket comes from your membership plan - it returns to the plan pool, there is no payment to refund.",
+      groupGuests_one:
+        "Together with your registration we will cancel {{count}} guest of your group.",
+      groupGuests_other:
+        "Together with your registration we will cancel {{count}} guests of your group.",
+      termsChanged:
+        "The effect of cancelling on your payment has just changed - review it and confirm again.",
+      refundQueued: "A refund of {{amount}} has been sent to the payment provider.",
+      refundQueuedPlain: "Your refund has been sent to the payment provider.",
+      reviewQueued: "The organiser has been asked to decide about your payment.",
+      policyTitle: "Refund policy",
+      policyUntil: "Cancelling until {{date}} means a full refund.",
+      policyWindow: "Cancelling within the refund window means a full refund.",
+      policyNone:
+        "Cancelling yourself no longer returns the payment automatically - the organiser decides on any refund.",
+      refusals: {
+        alreadyClosed: "This registration is already closed - there is nothing to cancel.",
+        eventFinished: "Attendance is already recorded - the registration cannot be cancelled.",
+        eventEnded:
+          "The event has already ended - the registration cannot be cancelled. Please contact the organiser about your payment.",
+      },
+      errors: {
+        eventEnded:
+          "The event has already ended - the registration cannot be cancelled. Please contact the organiser about your payment.",
+      },
+    },
     errors: {
       unknown: "Registration failed. Please try again.",
       invalidPayload: "The request has an invalid format. Refresh the page and try again.",
@@ -779,6 +889,12 @@ export const eventRegistrationEn = {
       alreadyClosed: "This registration is already closed.",
       eventFinished: "The event has ended - attendance is already recorded.",
       forbidden: "This registration belongs to somebody else.",
+      refundAckRequired:
+        "Before cancelling, review what happens to your payment - reload the page and confirm again.",
+      refundTermsChanged:
+        "The effect of cancelling on your payment has just changed - review it and confirm again.",
+      manageExpired:
+        "This link expired when the event ended. Please contact the organiser about your registration.",
       invalidToken: "The invitation is invalid or has been revoked.",
       seatTaken: "This invitation has already been used.",
       invitationExpired: "The invitation has expired - ask the organiser for a new one.",

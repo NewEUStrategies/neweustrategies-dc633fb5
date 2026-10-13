@@ -37,6 +37,7 @@ import type {
   RegistrationCancelResult,
   RegistrationManageView,
 } from "@/lib/events/publicRegistrationApi";
+import type { CancellationPreview } from "@/lib/events/cancellationPreview";
 import type { ManagePanelSlotProps } from "@/components/events/participant/slots/slotTypes";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
@@ -70,6 +71,7 @@ const fetchHeader = vi.fn<(slug: string) => Promise<EventPageHeader | null>>();
 const cancel = vi.fn<(input: CancelRegistrationInput) => Promise<RegistrationCancelResult>>();
 const manageView =
   vi.fn<(input: { manageToken?: string }) => Promise<RegistrationManageView | null>>();
+const preview = vi.fn<(input: { manageToken?: string }) => Promise<CancellationPreview>>();
 const checkout = vi.fn();
 // Podgląd kasy (`quoteEventTicketCheckout`) - molekuła kasy pyta go o kwotę.
 const quote = vi.fn();
@@ -120,6 +122,7 @@ vi.mock("@/lib/community/publicQueries", () => ({
 vi.mock("@/lib/events/publicRegistrationApi", () => ({
   cancelRegistration: (input: CancelRegistrationInput) => cancel(input),
   fetchRegistrationManageView: (input: { manageToken?: string }) => manageView(input),
+  fetchCancellationPreview: (input: { manageToken?: string }) => preview(input),
 }));
 
 const { toast } = await import("sonner");
@@ -158,6 +161,30 @@ function confirmButton(): HTMLElement {
   return screen.getByRole("button", { name: "eventFront.manage.confirm" });
 }
 
+/** Podgląd rezygnacji (REG-03) - domyślnie bez pieniędzy, bez odmowy. */
+function okPreview(
+  refund: Partial<NonNullable<Extract<CancellationPreview, { kind: "ok" }>["refund"]>> = {},
+): CancellationPreview {
+  return {
+    kind: "ok",
+    registrationId: "11111111-1111-1111-1111-111111111111",
+    status: "approved",
+    canCancel: true,
+    refusal: null,
+    refund: {
+      effect: "none",
+      reviewReason: null,
+      amountCents: null,
+      currency: null,
+      refundMode: null,
+      refundDeadlineAt: null,
+      groupGuestsClosing: 0,
+      acknowledgementRequired: false,
+      ...refund,
+    },
+  };
+}
+
 /** Odpowiedź `event_registration_manage_view` w kształcie z migracji. */
 function manageState(over: Partial<RegistrationManageView> = {}): RegistrationManageView {
   return {
@@ -192,7 +219,9 @@ beforeEach(() => {
   });
   fetchHeader.mockResolvedValue(header());
   manageView.mockResolvedValue(null);
-  cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0 });
+  // Domyślnie rezygnacja bez pieniędzy - ekran wygląda jak przed REG-03.
+  preview.mockResolvedValue(okPreview());
+  cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0, refund: null });
   writeText.mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -288,10 +317,13 @@ describe("RegistrationManagePanel", () => {
     });
 
     fireEvent.click(confirmButton());
+    // Potwierdzenie czeka na skutek finansowy z podglądu (REG-03).
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
     fireEvent.click(confirmButton());
 
     await waitFor(() => expect(cancel).toHaveBeenCalledTimes(1));
     expect(cancel).toHaveBeenCalledWith({ manageToken: TOKEN });
+    expect(preview).toHaveBeenCalledWith({ manageToken: TOKEN });
   });
 
   it("rezygnacja wymaga DRUGIEGO kliknięcia - pierwsze tylko pyta", async () => {
@@ -333,7 +365,7 @@ describe("RegistrationManagePanel", () => {
   it("zwolnione miejsce pokazuje się TYLKO wtedy, gdy ktoś faktycznie wszedł", async () => {
     // `promoted_from_waitlist` bywa zerem (nie było kolejki). Zdanie „miejsce
     // trafiło do 0 osób" jest gorsze niż milczenie.
-    cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0 });
+    cancel.mockResolvedValue({ registrationId: "r1", promotedFromWaitlist: 0, refund: null });
     const zero = renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
     fireEvent.click(confirmButton());
@@ -341,7 +373,7 @@ describe("RegistrationManagePanel", () => {
     expect(screen.queryByText(/eventFront\.manage\.promoted/)).toBeNull();
     zero.unmount();
 
-    cancel.mockResolvedValue({ registrationId: "r2", promotedFromWaitlist: 2 });
+    cancel.mockResolvedValue({ registrationId: "r2", promotedFromWaitlist: 2, refund: null });
     renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
     fireEvent.click(confirmButton());
@@ -398,7 +430,7 @@ describe("RegistrationManagePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "eventFront.manage.confirming" }));
     expect(cancel).toHaveBeenCalledTimes(1);
 
-    release({ registrationId: "r1", promotedFromWaitlist: 0 });
+    release({ registrationId: "r1", promotedFromWaitlist: 0, refund: null });
     expect(await screen.findByText("eventFront.manage.cancelled")).toBeInTheDocument();
   });
 
@@ -571,5 +603,179 @@ describe("RegistrationManagePanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
     expect(screen.queryByTestId("gniazdo-akcje-biletu")).toBeNull();
     expect(screen.queryByTestId("gniazdo-kalendarz-przypomnienia")).toBeNull();
     expect(screen.queryByTestId("gniazdo-po-wydarzeniu")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SKUTEK FINANSOWY PRZED POTWIERDZENIEM (REG-03) I ODMOWY Z GÓRY (REG-13/17)
+//
+// Do REG-03 ekran mówił „Twoje miejsce trafi do kolejnej osoby" i nic
+// o pieniądzach - a baza zamykała opłacone zgłoszenie bez zwrotu i bez śladu.
+// Teraz drugi krok pokazuje skutek z podglądu, potwierdzenie czeka na niego
+// i odsyła go do bazy (`acknowledged_effect`), a odmowy znane z góry chowają
+// przycisk zamiast kończyć się błędem po kliknięciu.
+// ---------------------------------------------------------------------------
+describe("RegistrationManagePanel - skutek finansowy rezygnacji (REG-03)", () => {
+  it("drugi krok pokazuje zwrot z kwotą, a potwierdzenie odsyła skutek do bazy", async () => {
+    manageView.mockResolvedValue(manageState({ status: "approved", paymentStatus: "paid" }));
+    preview.mockResolvedValue(
+      okPreview({
+        effect: "full_refund",
+        amountCents: 10000,
+        currency: "PLN",
+        refundMode: "policy",
+        refundDeadlineAt: "2026-09-08T08:00:00Z",
+        acknowledgementRequired: true,
+      }),
+    );
+    renderPanel();
+
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    expect(
+      await screen.findByText(/eventRegistration\.cancelRefund\.fullRefund\(amount=100,00/),
+    ).toBeInTheDocument();
+    // Termin zwrotu w strefie wydarzenia (08:00 UTC = 10:00 w Warszawie).
+    expect(
+      screen.getByText("eventRegistration.cancelRefund.deadline(date=8 września 2026 10:00)"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(confirmButton());
+    await waitFor(() =>
+      expect(cancel).toHaveBeenCalledWith({
+        manageToken: TOKEN,
+        acknowledgedEffect: "full_refund",
+      }),
+    );
+  });
+
+  it("potwierdzenie jest ZABLOKOWANE, dopóki skutek się nie wczyta", async () => {
+    preview.mockReturnValue(new Promise<CancellationPreview>(() => {}));
+    renderPanel();
+
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    expect(screen.getByText("eventRegistration.cancelRefund.loading")).toBeInTheDocument();
+    expect(confirmButton()).toBeDisabled();
+    fireEvent.click(confirmButton());
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("rezygnacja po terminie mówi wprost: bez automatycznego zwrotu", async () => {
+    preview.mockResolvedValue(
+      okPreview({
+        effect: "no_refund",
+        reviewReason: "outside_refund_window",
+        refundMode: "policy",
+        refundDeadlineAt: "2026-09-08T08:00:00Z",
+        acknowledgementRequired: true,
+      }),
+    );
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+
+    expect(
+      await screen.findByText(
+        "eventRegistration.cancelRefund.noRefundWindow(date=8 września 2026 10:00)",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
+    fireEvent.click(confirmButton());
+    await waitFor(() =>
+      expect(cancel).toHaveBeenCalledWith({ manageToken: TOKEN, acknowledgedEffect: "no_refund" }),
+    );
+  });
+
+  it("zmieniony skutek (`refund_terms_changed`) odświeża podgląd i zostawia pytanie otwarte", async () => {
+    preview.mockResolvedValue(okPreview({ effect: "full_refund", acknowledgementRequired: true }));
+    cancel.mockRejectedValue(new Error("refund_terms_changed: no_refund"));
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
+    const before = preview.mock.calls.length;
+
+    fireEvent.click(confirmButton());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("eventRegistration.cancelRefund.termsChanged"),
+    );
+    await waitFor(() => expect(preview.mock.calls.length).toBeGreaterThan(before));
+    // Pytanie zostaje otwarte z nowym skutkiem - para „odwołaj / zostaw" stoi dalej.
+    expect(screen.getByRole("button", { name: "eventFront.manage.keep" })).toBeInTheDocument();
+  });
+
+  it("po rezygnacji mówi, że zwrot został zlecony", async () => {
+    preview.mockResolvedValue(okPreview({ effect: "full_refund", acknowledgementRequired: true }));
+    cancel.mockResolvedValue({
+      registrationId: "r1",
+      promotedFromWaitlist: 0,
+      refund: {
+        effect: "full_refund",
+        jobState: "pending",
+        reviewReason: null,
+        amountCents: 10000,
+        currency: "PLN",
+        refundDeadlineAt: null,
+      },
+    });
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
+    fireEvent.click(confirmButton());
+
+    expect(
+      await screen.findByText(/eventRegistration\.cancelRefund\.refundQueued\(amount=100,00/),
+    ).toBeInTheDocument();
+  });
+
+  it("po końcu wydarzenia (REG-13) nie ma przycisku rezygnacji - jest zdanie", async () => {
+    preview.mockResolvedValue({
+      kind: "ok",
+      registrationId: "11111111-1111-1111-1111-111111111111",
+      status: "approved",
+      canCancel: false,
+      refusal: "event_ended",
+      refund: null,
+    });
+    renderPanel();
+
+    expect(
+      await screen.findByText("eventRegistration.cancelRefund.refusals.eventEnded"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.confirmTitle")).toBeNull();
+    expect(screen.queryByRole("button", { name: "eventFront.manage.confirm" })).toBeNull();
+  });
+
+  it("wygasły klucz (REG-17) mówi „odnośnik wygasł” i nie pokazuje rezygnacji", async () => {
+    preview.mockResolvedValue({ kind: "expired" });
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.confirmTitle")).toBeNull();
+    expect(screen.queryByText("eventFront.manage.notFound")).toBeNull();
+  });
+
+  it("odmowa `event_ended` po kliknięciu mówi zdaniem rezygnacji, nie zapisu", async () => {
+    cancel.mockRejectedValue(new Error("event_ended: the event has already ended"));
+    renderPanel();
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
+    fireEvent.click(confirmButton());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Wydarzenie już się zakończyło - zgłoszenia nie da się odwołać. W sprawie wpłaty napisz do organizatora.",
+      ),
+    );
+  });
+
+  it("częściowy zwrot NIE jest opisany jak zwrot całości", async () => {
+    manageView.mockResolvedValue(
+      manageState({ status: "approved", paymentStatus: "partially_refunded" }),
+    );
+    renderPanel();
+
+    expect(
+      await screen.findByText("eventFront.manage.paymentPartiallyRefunded"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.paymentRefunded")).toBeNull();
   });
 });

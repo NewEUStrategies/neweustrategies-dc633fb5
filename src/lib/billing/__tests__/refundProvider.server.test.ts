@@ -130,6 +130,17 @@ describe("refundTransactionFully - kontrakt zlecenia", () => {
     ["oversold", "requested_by_customer", "Event sold out before payment was fulfilled"],
     ["duplicate", "duplicate", "Duplicate payment"],
     ["error", "requested_by_customer", "Fulfilment error"],
+    [
+      "registration_rejected",
+      "requested_by_customer",
+      "The organiser rejected the paid event registration",
+    ],
+    // REG-03: rezygnacja uczestnika i anulowanie przez organizatora.
+    [
+      "registration_cancelled",
+      "requested_by_customer",
+      "The paid event registration was cancelled",
+    ],
   ])(
     "powód `%s` schodzi na enum operatora i opis w metadanych",
     async (reason, enumValue, text) => {

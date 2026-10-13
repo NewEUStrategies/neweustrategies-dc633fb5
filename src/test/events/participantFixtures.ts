@@ -42,7 +42,7 @@ export function makeParticipantRegistration(
     promotedAt: null,
     notifyEmail: true,
     notifySms: false,
-    cancelReason: null,
+    participantReason: null,
     decisionSource: null,
     eventSlug: PARTICIPANT_EVENT_SLUG,
     eventTitlePl: "Forum 2030",

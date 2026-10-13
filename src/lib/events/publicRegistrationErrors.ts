@@ -87,6 +87,37 @@ export function registrationErrorMessage(error: unknown): string {
   return i18n.t(failure.key, failure.params);
 }
 
+const CANCEL_PREFIX = "eventRegistration.cancelRefund.errors.";
+
+/**
+ * Odmowa REZYGNACJI -> zdanie. Ten sam słownik co zapis, z jednym wyjątkiem:
+ * `event_ended` przy zapisie znaczy „zapisy zamknięte", a przy rezygnacji
+ * „po wydarzeniu nie odwołasz zgłoszenia - w sprawie wpłaty napisz do
+ * organizatora" (REG-13). Słowa z `cancelRefund.errors` wygrywają, reszta
+ * spada do `registrationErrorMessage`.
+ */
+export function cancellationFailure(error: unknown): RegistrationFailure {
+  ensureEventRegistrationI18n();
+  const { head } = splitMessage(error);
+  if (/^[a-z][a-z0-9_]*$/.test(head)) {
+    const candidate = `${CANCEL_PREFIX}${camel(head)}`;
+    if (i18n.exists(candidate)) return { key: candidate, params: {} };
+  }
+  return registrationFailure(error);
+}
+
+/** Gotowe zdanie odmowy rezygnacji (toast, pole błędu ekranu po zapisie). */
+export function cancellationErrorMessage(error: unknown): string {
+  const failure = cancellationFailure(error);
+  return i18n.t(failure.key, failure.params);
+}
+
+/** Czy odmowa rezygnacji mówi, że skutek finansowy się zmienił (podgląd do odświeżenia). */
+export function isRefundTermsChanged(error: unknown): boolean {
+  const { head } = splitMessage(error);
+  return head === "refund_terms_changed" || head === "refund_ack_required";
+}
+
 /**
  * Każdy `RAISE EXCEPTION` z `event_register_group_guests`
  * (migracja `20260922230000_event_ticket_tax_and_group.sql`), w kolejności

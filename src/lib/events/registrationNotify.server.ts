@@ -12,11 +12,17 @@
 // źródłem; wspólny `formatEventDateTime` z warstwy front-endowej mówi w języku
 // INTERFEJSU, a tutaj liczy się język ODBIORCY.
 //
-// WIERSZE SZCZEGÓŁÓW SĄ RÓŻNE DLA RÓŻNYCH WIADOMOŚCI. Odmowa niesie
-// uzasadnienie organizatora (i nic o miejscu), awans z rezerwy niesie miejsce
+// WIERSZE SZCZEGÓŁÓW SĄ RÓŻNE DLA RÓŻNYCH WIADOMOŚCI. Odmowa niesie powód
+// napisany dla uczestnika (i nic o miejscu), awans z rezerwy niesie miejsce
 // w kolejce, przyjęcie i akceptacja niosą termin i lokalizację. Jeden wspólny
 // zestaw wierszy albo obiecywałby miejsce w mailu odmownym, albo milczał
 // o powodzie.
+//
+// NOTATKA WEWNĘTRZNA NIGDY NIE TRAFIA DO MAILA (REG-06, decyzja D10). Mail
+// odmowny czyta WYŁĄCZNIE `participant_reason` - pole, które organizator
+// wypełnia świadomie dla uczestnika. `decision_note` to notatka do historii
+// zgłoszenia; ładunek bazy jej już nie niesie, a ten moduł i tak by jej nie
+// przeczytał (podwójny zamek przeciw ponownemu nałożeniu starej migracji).
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import type { TxDetail } from "@/lib/email-templates/transactional";
 import { txCopy } from "@/lib/email-templates/tx-copy";
@@ -115,8 +121,8 @@ export function buildRegistrationNotice(
   if (when !== "") details.push({ label: labels.date, value: when });
 
   if (notice === "rejected") {
-    const note = text(row.decision_note);
-    if (note !== null) details.push({ label: labels.decisionNote, value: note });
+    const reason = text(row.participant_reason);
+    if (reason !== null) details.push({ label: labels.participantReason, value: reason });
   } else {
     if (location !== null) details.push({ label: labels.place, value: location });
     if (ticket !== null) details.push({ label: labels.ticketType, value: ticket });

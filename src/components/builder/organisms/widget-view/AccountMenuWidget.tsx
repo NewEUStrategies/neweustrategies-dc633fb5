@@ -266,7 +266,7 @@ export const ACCOUNT_PRESETS: Array<{
  * Etykiety pozycji domyślnych (gdy redakcja nie skonfigurowała ani jednej
  * pozycji sekcji `auth`).
  *
- * MAPA PO JĘZYKU, A NIE TERNARY - ten sam zapis, co `DEMO_DECISION_NOTE`
+ * MAPA PO JĘZYKU, A NIE TERNARY - ten sam zapis, co `DEMO_PARTICIPANT_REASON`
  * w `lib/email/tx-preview.server.ts` i co `label_pl`/`label_en` w
  * `ACCOUNT_PRESETS` wyżej. Ternary po języku jest długiem mierzonym przez
  * `check:i18n-hardcoded`, a `t()` byłoby tu WPROST BŁĘDNE: `lang` to prop

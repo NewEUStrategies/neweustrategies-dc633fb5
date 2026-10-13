@@ -3,6 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 // The database outbox commits with rejection. Stripe's webhook remains the
 // authority for payment completion and the existing invoice/refund notices.
 import type { StripeEnv } from "@/lib/stripe.server";
+import type { RefundReason } from "@/lib/billing/refundProvider.server";
 
 interface RefundJob {
   id: string;
@@ -10,6 +11,21 @@ interface RefundJob {
   orderId: string;
   environment: StripeEnv;
   transactionId: string;
+  reason: RefundReason;
+}
+
+/**
+ * Powód zwrotu u operatora z pochodzenia zlecenia (REG-03). Rezygnacja
+ * uczestnika i anulowanie przez organizatora to `registration_cancelled`;
+ * odrzucenie, zamknięcie bez decyzji i dzierżawa sprzed migracji (bez
+ * `origin`) zostają `registration_rejected`, jak dotąd. Ziarno idempotencji
+ * (`event-rejection:<zamówienie>`) się nie zmienia - jedno zlecenie na
+ * zamówienie.
+ */
+export function refundReasonForOrigin(origin: unknown): RefundReason {
+  return origin === "participant_cancelled" || origin === "organizer_cancelled"
+    ? "registration_cancelled"
+    : "registration_rejected";
 }
 
 function parseJob(value: unknown): RefundJob | null {
@@ -32,6 +48,7 @@ function parseJob(value: unknown): RefundJob | null {
     orderId: row.order_id,
     environment: row.environment,
     transactionId: row.transaction_id,
+    reason: refundReasonForOrigin(row.origin),
   };
 }
 
@@ -71,7 +88,7 @@ export async function runRegistrationRefunds(
       ? await refundTransactionFully(
           job.environment,
           job.transactionId,
-          "registration_rejected",
+          job.reason,
           `event-rejection:${job.orderId}`,
         )
       : { ok: false as const, error: "invalid_refund_order" };

@@ -44,7 +44,13 @@ export interface ParticipantRegistration {
   promotedAt: string | null;
   notifyEmail: boolean;
   notifySms: boolean;
-  cancelReason: string | null;
+  /**
+   * Powód zamknięcia napisany DLA uczestnika (`participant_reason`, REG-06) -
+   * tylko przy zgłoszeniu odrzuconym albo anulowanym. Celowo bez zapasu
+   * w `cancel_reason`/`decision_note`: notatka wewnętrzna organizatora nigdy
+   * nie trafia na tę kartę, także przy starszej bazie.
+   */
+  participantReason: string | null;
   decisionSource: string | null;
   eventSlug: string;
   eventTitlePl: string | null;
@@ -120,7 +126,7 @@ function parseRegistration(raw: unknown): ParticipantRegistration | null {
     promotedAt: text(row, "promoted_at"),
     notifyEmail: bool(row, "notify_email", true),
     notifySms: bool(row, "notify_sms", true),
-    cancelReason: text(row, "cancel_reason"),
+    participantReason: text(row, "participant_reason"),
     decisionSource: text(row, "decision_source"),
     eventSlug: slug,
     eventTitlePl: text(row, "event_title_pl"),
