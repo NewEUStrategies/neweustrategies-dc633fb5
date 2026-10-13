@@ -1457,6 +1457,13 @@
       "when": 1791926362687,
       "tag": "0207_event_package_invite_accept_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 208,
+      "version": "7",
+      "when": 1791926443716,
+      "tag": "0208_event_session_delete_checkpoints",
+      "breakpoints": true
     }
   ]
 }
