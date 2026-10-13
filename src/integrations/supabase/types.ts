@@ -22864,6 +22864,7 @@ export type Database = {
         Args: {
           _checkpoint_id: string
           _client_uid: string
+          _code_denied?: string
           _device_at: string
           _device_id: string
           _direction: string
@@ -22872,6 +22873,7 @@ export type Database = {
           _offline_denied?: string
           _operator: string
           _person_id: string
+          _reentry_override?: boolean
           _source: string
           _tenant: string
         }
