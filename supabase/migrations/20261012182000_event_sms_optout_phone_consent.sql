@@ -42,11 +42,19 @@
 --        ktora pokazalo okno zgody. Przy wlaczaniu SMS niezgodnosc z biezaca
 --        podpowiedzia (trzy ostatnie cyfry, ta sama regula co
 --        `event_registration_preferences`) -> `phone_changed`. Brak klucza
---        (stary front) - bez porownania.
+--        (stary front) - bez porownania;
+--      * numer przy wlaczaniu czytany z blokada wiersza osoby (FOR SHARE
+--        NOWAIT): zmiana numeru W LOCIE (niezacommitowana) dawala dotad
+--        zgode na stary numer, a trigger zmiany - uruchomiony przed stemplem -
+--        nie mial czego zdjac. Teraz wiersz w trakcie zmiany -> `phone_changed`
+--        (bez czekania, wiec bez zakleszczenia z triggerem, ktory blokuje
+--        osobe przed zgloszeniem); zmiana po stemplu czeka na commit zgody
+--        i trigger ja zdejmuje.
 --
 -- CZEGO TO NIE ZAMYKA. Podpowiedz ma trzy cyfry: zmiana numeru z tym samym
--- koncem przechodzi porownanie (zgode i tak kasuje trigger, jesli zmiana
--- przyszla PO stemplu). Nie ma weryfikacji wlasnosci numeru (OTP). Wycofanie
+-- koncem miedzy oknem a zgoda przechodzi porownanie. Rownolegla zmiana
+-- INNEJ kolumny osoby w chwili zgody daje falszywe `phone_changed`
+-- (ponowienie pomaga). Nie ma weryfikacji wlasnosci numeru (OTP). Wycofanie
 -- po kluczu nie zmienia `remind_email` (glowny przelacznik notify_email
 -- wystarcza - przypomnienia go czytaja).
 --
@@ -59,7 +67,8 @@
 -- bezstanowe REVOKE/GRANT, COMMENT ON.
 -- DOWOD: supabase/tests/event_sms_scanner_r67_test.sql,
 -- scripts/events-harness/runtime_test.d/16_sms_consent_reminder_gates.sql
--- (sekcja R67).
+-- (sekcja R67), 17_sms_consent_phone_race.sql (dwie sesje: zmiana numeru
+-- w locie i po zgodzie).
 -- ============================================================================
 
 -- A) ADRESAT SMS-A - LUSTRO `normalizePhone` --------------------------------------
@@ -142,8 +151,11 @@ CREATE TRIGGER event_people_phone_revokes_sms
 
 -- C) PISARZ PREFERENCJI ----------------------------------------------------------------
 -- Cialo z 20261012110100:133-277. Zmiany (ZMIANA 20261012, przeglad R67):
--- wycofanie po kluczu zamknietym/wygaslym, `phone_hint` przy wlaczaniu SMS.
--- LOCKS: event_registrations (FOR UPDATE OF r jednego zgloszenia).
+-- wycofanie po kluczu zamknietym/wygaslym, `phone_hint` przy wlaczaniu SMS,
+-- blokada wiersza osoby przy odczycie numeru.
+-- LOCKS: event_registrations (FOR UPDATE OF r jednego zgloszenia), przy
+-- wlaczaniu SMS event_people (FOR SHARE NOWAIT osoby zgloszenia - bez
+-- czekania, wiec odwrotna kolejnosc triggera numeru nie zakleszcza).
 CREATE OR REPLACE FUNCTION public.event_registration_set_channels(p_payload jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -280,14 +292,22 @@ BEGIN
     IF v_consent IS NOT TRUE THEN
       RAISE EXCEPTION 'sms_consent_required: enabling SMS needs explicit consent';
     END IF;
-    -- Numer czytany pod blokada zgloszenia; zmiane numeru po tej chwili
-    -- i tak odwraca trigger (zdejmuje stempel).
-    SELECT regexp_replace(pe.phone, '[^0-9]', '', 'g') INTO v_phone_digits
-      FROM public.event_people pe
-     WHERE pe.tenant_id = v_tenant
-       AND pe.id = v_row.person_id
-       AND NULLIF(btrim(COALESCE(pe.phone, '')), '') IS NOT NULL;
-    IF NOT FOUND THEN
+    -- ZMIANA 20261012 (R67): numer czytany z blokada wiersza osoby. Zmiana
+    -- numeru zacommitowana PO zgodzie czeka na nia, a jej trigger zdejmuje
+    -- stempel; zmiana W LOCIE (wiersz zablokowany) to numer, ktorego okno nie
+    -- pokazalo - odmowa bez czekania (NOWAIT: trigger numeru blokuje osobe,
+    -- potem zgloszenie, czyli odwrotnie niz ta funkcja).
+    BEGIN
+      SELECT regexp_replace(pe.phone, '[^0-9]', '', 'g') INTO v_phone_digits
+        FROM public.event_people pe
+       WHERE pe.tenant_id = v_tenant
+         AND pe.id = v_row.person_id
+         AND NULLIF(btrim(COALESCE(pe.phone, '')), '') IS NOT NULL
+         FOR SHARE OF pe NOWAIT;
+    EXCEPTION WHEN lock_not_available THEN
+      RAISE EXCEPTION 'phone_changed: the phone number changed since the consent was shown';
+    END;
+    IF v_phone_digits IS NULL THEN
       RAISE EXCEPTION 'phone_required: registration has no phone number';
     END IF;
     -- ZMIANA 20261012 (R67): zgoda dotyczy numeru, ktory POKAZALO okno -
