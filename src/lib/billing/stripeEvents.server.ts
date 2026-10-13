@@ -309,8 +309,33 @@ const DISPUTE_OPEN_STATUSES: ReadonlySet<string> = new Set([
   "under_review",
 ]);
 
-/** Spór zamknięty na naszą korzyść - pieniądze zostają, dostęp wraca. */
-const DISPUTE_WON_STATUSES: ReadonlySet<string> = new Set(["won", "warning_closed", "prevented"]);
+/**
+ * Spór zamknięty bez utraty pieniędzy - dostęp wraca.
+ *
+ * `won` - bank przyznał nam rację; `warning_closed` - zapytanie banku
+ * (inquiry) zamknięte, środki nigdy nie zostały wycofane. Przywrócenie i tak
+ * sprawdza u operatora, czy obciążenie nie zostało w międzyczasie zwrócone
+ * (`refunds.server`): zapytanie zamknięte ZWROTEM też kończy się
+ * `warning_closed`.
+ */
+const DISPUTE_WON_STATUSES: ReadonlySet<string> = new Set(["won", "warning_closed"]);
+
+/**
+ * Spór zakończony zwrotem pieniędzy klientowi.
+ *
+ * `lost` - bank rozstrzygnął na korzyść klienta; `prevented` - spór
+ * zatrzymany przed formalnym obciążeniem zwrotnym przez zapobieganie sporom
+ * (reguła Radar / RDR), które działa przez AUTOMATYCZNY ZWROT płatności.
+ * Dawniej `prevented` był liczony jak wygrana - przywracał dostęp klientowi,
+ * który miał już pieniądze z powrotem.
+ */
+const DISPUTE_LOST_STATUSES: ReadonlySet<string> = new Set(["lost", "prevented"]);
+
+/** Skutek statusu sporu w słowniku domenowym `refunds.server`. */
+export interface StripeDisputePhase {
+  action: "chargeback" | "chargeback_warning";
+  status: "open" | "reversed" | "approved";
+}
 
 /**
  * Status sporu Stripe -> słownik domenowy `refunds.server` (wcześniej
@@ -320,25 +345,55 @@ const DISPUTE_WON_STATUSES: ReadonlySet<string> = new Set(["won", "warning_close
  *
  *   otwarty (`needs_response`, `warning_*`...) -> `chargeback_warning`/`open`
  *     - dostęp znika od razu, rozstrzygnięcie trwa tygodniami;
- *   wygrany (`won`, `warning_closed`, `prevented`) -> `reversed` - dostęp wraca;
- *   przegrany (`lost`) -> `chargeback`/`approved` - stan ostateczny.
+ *   bez utraty środków (`won`, `warning_closed`) -> `reversed` - dostęp wraca;
+ *   środki wróciły do klienta (`lost`, `prevented`) -> `chargeback`/`approved`
+ *     - stan ostateczny.
  *
  * Status NIEZNANY traktujemy jak spór otwarty (bank już cofa środki), ale
  * GŁOŚNO - nowa wartość u operatora ma być widoczna w logu, a nie po cichu
  * odbierać dostęp.
+ *
+ * Eksport: `refunds.server` liczy skutek z BIEŻĄCEGO stanu sporu u operatora
+ * (spóźnione `created` po `closed`) - tym samym słownikiem co normalizator.
  */
-function disputePhase(providerStatus: string | null): {
-  action: "chargeback" | "chargeback_warning";
-  status: "open" | "reversed" | "approved";
-} {
+export function stripeDisputePhase(providerStatus: string | null): StripeDisputePhase {
   if (providerStatus && DISPUTE_WON_STATUSES.has(providerStatus)) {
     return { action: "chargeback", status: "reversed" };
   }
-  if (providerStatus === "lost") return { action: "chargeback", status: "approved" };
+  if (providerStatus && DISPUTE_LOST_STATUSES.has(providerStatus)) {
+    return { action: "chargeback", status: "approved" };
+  }
   if (!providerStatus || !DISPUTE_OPEN_STATUSES.has(providerStatus)) {
     console.warn("[payments] unknown Stripe dispute status - treated as open", providerStatus);
   }
   return { action: "chargeback_warning", status: "open" };
+}
+
+/**
+ * Nieudany zwrot (`refund.failed`) - obiekt to Refund.
+ *
+ * `charge.refunded` przychodzi w chwili UTWORZENIA zwrotu, więc dostęp znika
+ * od razu. Zwrot na wygasłą kartę potrafi jednak przepaść po kilku dniach:
+ * pieniądze wracają na saldo serwisu, a `amount_refunded` obciążenia spada.
+ * Bez tego zdarzenia klient zostawał bez pieniędzy I bez dostępu, a zespół
+ * bez sygnału. `refunds.server` przelicza stan z obciążenia u operatora,
+ * więc tu wystarczą identyfikatory i powód porażki (do alertu).
+ */
+function mapRefundFailure(object: Raw): Record<string, unknown> {
+  return {
+    id: idOf(object.id) ?? "",
+    transactionId: idOf(object.payment_intent) ?? idOf(object.charge),
+    subscriptionId: null,
+    action: "refund_failed",
+    status: strOf(object.status) ?? "failed",
+    // Powód porażki (`expired_or_canceled_card`, `lost_or_stolen_card`...) -
+    // wyłącznie do treści alertu dla zespołu.
+    providerStatus: strOf(object.failure_reason),
+    totals: {
+      total: String(typeof object.amount === "number" ? object.amount : 0),
+      currencyCode: strOf(object.currency)?.toUpperCase() ?? null,
+    },
+  };
 }
 
 /** Korekty rozliczeniowe: zwrot, obciążenie zwrotne, nota kredytowa. */
@@ -370,7 +425,7 @@ function mapAdjustment(
   if (action === "chargeback") {
     // `charge.dispute.created` / `charge.dispute.closed` - obiekt to Dispute.
     const providerStatus = strOf(object.status);
-    const phase = disputePhase(providerStatus);
+    const phase = stripeDisputePhase(providerStatus);
     return {
       id: idOf(object.id) ?? "",
       transactionId: idOf(object.payment_intent) ?? idOf(object.charge),
@@ -463,13 +518,19 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
       return { eventType: "adjustment.created", data: mapAdjustment(object, "refund") };
 
     // Otwarcie i rozstrzygnięcie sporu jadą tym samym kształtem - o skutku
-    // decyduje status sporu (`disputePhase`), nie typ zdarzenia.
+    // decyduje status sporu (`stripeDisputePhase`), nie typ zdarzenia.
     case "charge.dispute.created":
     case "charge.dispute.closed":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "chargeback") };
 
     case "credit_note.created":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "credit") };
+
+    // Zwrot, który nie doszedł do skutku, KORYGUJE wcześniejszą korektę -
+    // stąd `adjustment.updated`, a decyzję (przeliczenie, ewentualne
+    // przywrócenie dostępu, alert) podejmuje `refunds.server`.
+    case "refund.failed":
+      return { eventType: "adjustment.updated", data: mapRefundFailure(object) };
 
     case "customer.updated":
       return { eventType: "customer.updated", data: object };

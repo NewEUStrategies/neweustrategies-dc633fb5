@@ -99,6 +99,56 @@ function refOf(value: unknown): string | null {
  * `invoice.subscription` albo na pozycji faktury - ta sama kaskada co
  * w normalizatorze (`stripeEvents.server`).
  */
+function isoFromUnix(seconds: unknown): string | null {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return null;
+  return new Date(seconds * 1000).toISOString();
+}
+
+function textOf(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/** Pozycje faktury (pierwsza strona listy - tyle niesie obiekt faktury). */
+function invoiceLines(invoice: Raw): Raw[] {
+  const lines =
+    isRecord(invoice.lines) && Array.isArray(invoice.lines.data) ? invoice.lines.data : [];
+  return lines.filter(isRecord);
+}
+
+/**
+ * Okres usługi opłacony fakturą: najwcześniejszy początek i NAJPÓŹNIEJSZY
+ * koniec okresów pozycji. Faktura proracyjna (zmiana planu w trakcie cyklu)
+ * niesie pozycje kończące się z bieżącym okresem - koniec jest tu tym, co
+ * rozstrzyga, czy korekta dotyczy okresu, który jeszcze trwa.
+ */
+function invoiceServicePeriod(invoice: Raw): { start: string | null; end: string | null } {
+  let start: number | null = null;
+  let end: number | null = null;
+  for (const line of invoiceLines(invoice)) {
+    const period = isRecord(line.period) ? line.period : null;
+    const lineStart = typeof period?.start === "number" ? period.start : null;
+    const lineEnd = typeof period?.end === "number" ? period.end : null;
+    if (lineStart !== null && (start === null || lineStart < start)) start = lineStart;
+    if (lineEnd !== null && (end === null || lineEnd > end)) end = lineEnd;
+  }
+  return { start: isoFromUnix(start), end: isoFromUnix(end) };
+}
+
+/**
+ * Metadane subskrypcji, która wystawiła fakturę - ta sama kaskada co
+ * w normalizatorze: `parent.subscription_details.metadata` (Basil), potem
+ * metadane faktury i pierwszej pozycji.
+ */
+function invoiceSubscriptionMetadata(invoice: Raw): Raw | null {
+  const parent = isRecord(invoice.parent) ? invoice.parent : null;
+  const details = isRecord(parent?.subscription_details) ? parent.subscription_details : null;
+  const candidates = [details?.metadata, invoice.metadata, invoiceLines(invoice)[0]?.metadata];
+  for (const candidate of candidates) {
+    if (isRecord(candidate) && Object.keys(candidate).length > 0) return candidate;
+  }
+  return null;
+}
+
 function subscriptionOfInvoice(invoice: Raw): string | null {
   const parent = isRecord(invoice.parent) ? invoice.parent : null;
   const details = isRecord(parent?.subscription_details) ? parent.subscription_details : null;
@@ -119,6 +169,20 @@ export interface PaymentInvoiceRef {
   invoiceId: string;
   /** `null` = faktura bez subskrypcji (np. faktura po płatności jednorazowej). */
   subscriptionId: string | null;
+  /**
+   * Okres USŁUGI opłacony fakturą - z pozycji faktury (`lines.data[].period`),
+   * nie z `invoice.period_*`. Pola faktury opisują okres naliczania zużycia,
+   * czyli przy odnowieniu POPRZEDNI cykl; pozycja subskrypcji niesie okres,
+   * za który klient płaci. `null` = faktura bez pozycji z okresem.
+   */
+  periodStart: string | null;
+  periodEnd: string | null;
+  /** `billing_reason` faktury (`subscription_create`, `subscription_cycle`...). */
+  billingReason: string | null;
+  /** `metadata.purpose` subskrypcji (np. `donation`) - kim jest płatnik. */
+  purpose: string | null;
+  /** `metadata.orderId` subskrypcji - nasze zamówienie z pierwszej kasy. */
+  orderId: string | null;
 }
 
 /**
@@ -161,7 +225,17 @@ export async function resolvePaymentInvoice(
     if (!isRecord(invoice) || invoice.deleted === true) return null;
     const invoiceId = refOf(invoice.id);
     if (!invoiceId) return null;
-    return { invoiceId, subscriptionId: subscriptionOfInvoice(invoice) };
+    const period = invoiceServicePeriod(invoice);
+    const metadata = invoiceSubscriptionMetadata(invoice);
+    return {
+      invoiceId,
+      subscriptionId: subscriptionOfInvoice(invoice),
+      periodStart: period.start,
+      periodEnd: period.end,
+      billingReason: textOf(invoice.billing_reason),
+      purpose: textOf(metadata?.purpose),
+      orderId: textOf(metadata?.orderId) ?? textOf(metadata?.order_id),
+    };
   } catch (e) {
     if (isNotFound(e)) return null;
     throw e;
@@ -173,6 +247,10 @@ export interface PaymentCheckoutSession {
   sessionId: string;
   /** `metadata.orderId` sesji - stempel serwera z chwili tworzenia sesji. */
   orderId: string | null;
+  /** `metadata.purpose` sesji (`donation` dla wpłaty z własnego formularza). */
+  purpose: string | null;
+  /** `metadata.donationId` - wiersz `donations` założony przy tworzeniu sesji. */
+  donationId: string | null;
 }
 
 /**
@@ -194,12 +272,150 @@ export async function findCheckoutSessionForPayment(
     });
     const session = sessions.data[0];
     if (!session?.id) return null;
-    const metadata = session.metadata ?? {};
-    const orderId = metadata.orderId ?? metadata.order_id;
+    const metadata: Raw = session.metadata ?? {};
     return {
       sessionId: session.id,
-      orderId: typeof orderId === "string" && orderId.trim() ? orderId.trim() : null,
+      orderId: textOf(metadata.orderId) ?? textOf(metadata.order_id),
+      purpose: textOf(metadata.purpose),
+      donationId: textOf(metadata.donationId),
     };
+  } catch (e) {
+    if (isNotFound(e)) return null;
+    throw e;
+  }
+}
+
+/**
+ * Stan zwrotów obciążenia u operatora - JEDYNE źródło prawdy o tym, ile
+ * pieniędzy naprawdę wróciło do klienta.
+ *
+ * DLACZEGO NIE NASZ LICZNIK. `payment_orders.refunded_amount_cents` miesza dwa
+ * źródła: zwroty i spór (otwarcie sporu zapisuje kwotę, którą wycofuje bank).
+ * Wygrany spór nie mówi, czy w międzyczasie nie było PRAWDZIWEGO zwrotu
+ * (zapytanie banku zamknięte zwrotem, zwrot przed sporem), a nieudany zwrot
+ * (`refund.failed`) cofa licznik operatora w dół - nasz licznik rośnie tylko
+ * w górę. Przywrócenie dostępu i przeliczenie po nieudanym zwrocie czytają
+ * więc obciążenie: `amount`, `amount_refunded`, `refunded`, `disputed`.
+ */
+export interface PaymentRefundState {
+  chargeId: string | null;
+  /** Kwota obciążenia (waluta obciążenia). */
+  amountCents: number;
+  /** Suma zwrotów, które doszły do skutku (narastająco). */
+  refundedCents: number;
+  /** Obciążenie zwrócone w całości - dostęp nie ma prawa wrócić. */
+  fullyRefunded: boolean;
+  /** Obciążenie objęte sporem - o dostępie decyduje ścieżka sporu. */
+  disputed: boolean;
+  currency: string | null;
+}
+
+function refundStateOf(charge: Raw): PaymentRefundState {
+  const amount = typeof charge.amount === "number" ? charge.amount : 0;
+  const refunded = typeof charge.amount_refunded === "number" ? charge.amount_refunded : 0;
+  return {
+    chargeId: refOf(charge.id),
+    amountCents: amount,
+    refundedCents: refunded,
+    fullyRefunded: charge.refunded === true || (amount > 0 && refunded >= amount),
+    disputed: charge.disputed === true,
+    currency: textOf(charge.currency)?.toUpperCase() ?? null,
+  };
+}
+
+/**
+ * Stan zwrotów płatności `pi_...` (PaymentIntent z rozwiniętym
+ * `latest_charge`) albo obciążenia `ch_...`.
+ *
+ * Kontrakt błędów jak w `resolvePaymentInvoice`: brak zasobu -> `null`
+ * (wołający nie może potwierdzić stanu i NIE przywraca dostępu), każda inna
+ * awaria rzuca - webhook dostaje 500 i operator ponawia.
+ */
+export async function retrievePaymentRefundState(
+  env: StripeEnv,
+  paymentRef: string,
+): Promise<PaymentRefundState | null> {
+  if (!paymentRef.startsWith("pi_") && !paymentRef.startsWith("ch_")) return null;
+  const stripe = await getStripeClient(env);
+  try {
+    let charge: unknown;
+    if (paymentRef.startsWith("pi_")) {
+      const intent: unknown = await stripe.paymentIntents.retrieve(paymentRef, {
+        expand: ["latest_charge"],
+      });
+      charge = isRecord(intent) ? intent.latest_charge : null;
+      if (typeof charge === "string") charge = await stripe.charges.retrieve(charge);
+    } else {
+      charge = await stripe.charges.retrieve(paymentRef);
+    }
+    return isRecord(charge) ? refundStateOf(charge) : null;
+  } catch (e) {
+    if (isNotFound(e)) return null;
+    throw e;
+  }
+}
+
+/** Bieżący stan sporu u operatora. */
+export interface DisputeState {
+  id: string;
+  /** Surowy status Stripe (`needs_response`, `won`, `lost`, `prevented`...). */
+  status: string | null;
+  amountCents: number | null;
+  currency: string | null;
+  paymentIntentId: string | null;
+  chargeId: string | null;
+}
+
+/**
+ * Spór w stanie BIEŻĄCYM, a nie w stanie z chwili wysłania zdarzenia.
+ *
+ * Zdarzenia sporu nie mają strażnika kolejności: `charge.dispute.created`
+ * ponowione (redelivery operatora, przegląd zaległych zdarzeń) PO
+ * `charge.dispute.closed(won)` zawieszało dostęp klientowi, który spór już
+ * wygrał - i nic go potem nie przywracało. Skutek liczymy więc ze stanu
+ * sporu u operatora, jak autorytatywny odczyt subskrypcji przy remisie.
+ *
+ * Kontrakt błędów: brak zasobu -> `null`, każda inna awaria rzuca.
+ */
+export async function retrieveDisputeState(
+  env: StripeEnv,
+  disputeId: string,
+): Promise<DisputeState | null> {
+  const stripe = await getStripeClient(env);
+  try {
+    const dispute: unknown = await stripe.disputes.retrieve(disputeId);
+    if (!isRecord(dispute)) return null;
+    return {
+      id: refOf(dispute.id) ?? disputeId,
+      status: textOf(dispute.status),
+      amountCents: typeof dispute.amount === "number" ? dispute.amount : null,
+      currency: textOf(dispute.currency)?.toUpperCase() ?? null,
+      paymentIntentId: refOf(dispute.payment_intent),
+      chargeId: refOf(dispute.charge),
+    };
+  } catch (e) {
+    if (isNotFound(e)) return null;
+    throw e;
+  }
+}
+
+/**
+ * Subskrypcja w stanie BIEŻĄCYM (z produktem - mapowanie zna wtedy czytelny
+ * identyfikator ceny). Przywrócenie dostępu po wygranym sporze i po nieudanym
+ * zwrocie nadpisuje uprawnienie `refunded` (`force`), więc stan musi
+ * pochodzić od operatora, a nie z wiersza `subscriptions`, który mógł się
+ * zestarzeć. Kontrakt błędów jak wyżej.
+ */
+export async function retrieveSubscriptionState(
+  env: StripeEnv,
+  subscriptionId: string,
+): Promise<Raw | null> {
+  const stripe = await getStripeClient(env);
+  try {
+    const subscription: unknown = await stripe.subscriptions.retrieve(subscriptionId, {
+      expand: ["items.data.price.product"],
+    });
+    return isRecord(subscription) && subscription.deleted !== true ? subscription : null;
   } catch (e) {
     if (isNotFound(e)) return null;
     throw e;

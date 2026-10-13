@@ -5,7 +5,11 @@
 // kontrakt: co wchodzi z bramki, co wychodzi do `dispatchWebhookEvent`.
 // Moduł jest czysty (importuje wyłącznie typy) - nie ma czego mockować.
 import { describe, expect, it, vi } from "vitest";
-import { mapStripeSubscription, normalizeStripeEvent } from "@/lib/billing/stripeEvents.server";
+import {
+  mapStripeSubscription,
+  normalizeStripeEvent,
+  stripeDisputePhase,
+} from "@/lib/billing/stripeEvents.server";
 import { STRIPE_WEBHOOK_EVENT_TYPES } from "@/lib/billing/stripeEventTypes";
 import type { NormalizedStripeEvent } from "@/lib/billing/stripeEvents.server";
 import type { SubscriptionData, TransactionData } from "@/lib/billing/webhookDispatch.server";
@@ -800,7 +804,6 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
     ["charge.dispute.created", "under_review", "chargeback_warning", "open"],
     ["charge.dispute.closed", "won", "chargeback", "reversed"],
     ["charge.dispute.closed", "warning_closed", "chargeback", "reversed"],
-    ["charge.dispute.closed", "prevented", "chargeback", "reversed"],
     ["charge.dispute.closed", "lost", "chargeback", "approved"],
   ])("PAY-03: %s ze statusem `%s` -> %s/%s", (type, providerStatus, action, status) => {
     // Bez tego tłumaczenia żaden status Stripe nie przechodził przez bramki
@@ -811,6 +814,75 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
     );
 
     expect(data).toMatchObject({ transactionId: "pi_2", action, status, providerStatus });
+  });
+
+  it("2.3: `prevented` to spór zatrzymany AUTOMATYCZNYM ZWROTEM - jak przegrany (środki wróciły), nie wygrana", () => {
+    // Zapobieganie sporom (reguła Radar / RDR) działa przez zwrot płatności.
+    // Mapowanie na `reversed` przywracało dostęp klientowi, który miał już
+    // pieniądze z powrotem, a alert mówił „rozstrzygnięto na naszą korzyść".
+    const data = adjustmentOf(
+      event("charge.dispute.closed", { id: "dp_p", payment_intent: "pi_p", status: "prevented" }),
+    );
+
+    expect(data).toMatchObject({
+      action: "chargeback",
+      status: "approved",
+      providerStatus: "prevented",
+    });
+  });
+
+  it.each([
+    ["won", { action: "chargeback", status: "reversed" }],
+    ["warning_closed", { action: "chargeback", status: "reversed" }],
+    ["lost", { action: "chargeback", status: "approved" }],
+    ["prevented", { action: "chargeback", status: "approved" }],
+    ["needs_response", { action: "chargeback_warning", status: "open" }],
+    ["warning_under_review", { action: "chargeback_warning", status: "open" }],
+  ])(
+    "S2: `stripeDisputePhase(%s)` - ten sam słownik dla zdarzenia i dla stanu BIEŻĄCEGO sporu",
+    (status, phase) => {
+      // `refunds.server` liczy skutek z odczytu sporu u operatora tym samym
+      // eksportem - rozjazd słowników dałby inny skutek dla zdarzenia i dla
+      // jego ponowienia.
+      expect(stripeDisputePhase(status)).toEqual(phase);
+    },
+  );
+
+  it("2.11: `refund.failed` to korekta korekty - `adjustment.updated` z akcją `refund_failed`", () => {
+    const result = normalized(
+      event("refund.failed", {
+        id: "re_1",
+        object: "refund",
+        amount: 4900,
+        charge: "ch_1",
+        payment_intent: "pi_1",
+        currency: "pln",
+        status: "failed",
+        failure_reason: "expired_or_canceled_card",
+      }),
+    );
+
+    expect(result.eventType).toBe("adjustment.updated");
+    expect(result.data).toEqual({
+      id: "re_1",
+      transactionId: "pi_1",
+      subscriptionId: null,
+      action: "refund_failed",
+      status: "failed",
+      providerStatus: "expired_or_canceled_card",
+      totals: { total: "4900", currencyCode: "PLN" },
+    });
+  });
+
+  it("2.11: nieudany zwrot bez intencji wskazuje obciążenie; pusty ładunek nie wywraca normalizacji", () => {
+    expect(
+      adjustmentOf(event("refund.failed", { id: "re_2", charge: { id: "ch_2" } })),
+    ).toMatchObject({ transactionId: "ch_2", status: "failed", providerStatus: null });
+    expect(adjustmentOf(event("refund.failed", {}))).toMatchObject({
+      id: "",
+      transactionId: null,
+      totals: { total: "0", currencyCode: null },
+    });
   });
 
   it("PAY-03: NIEZNANY status sporu jest sporem otwartym - ale głośno, nie po cichu", () => {

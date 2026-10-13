@@ -130,9 +130,20 @@ export async function revokeOrderEntitlement(
  * to `paid` and answer 200 - Stripe would never retry and the customer would
  * stay charged with no access.
  */
+export interface GrantOptions {
+  /**
+   * Ożyw uprawnienie planu odebrane korektą (`refunded`). WYŁĄCZNIE dla
+   * rozstrzygnięcia potwierdzonego u operatora - zwrot, który przepadł
+   * (`refund.failed`), zostawił pieniądze u nas. Każda inna ścieżka (ponowiona
+   * realizacja, spóźniony webhook) zwrotu nie cofa.
+   */
+  reviveRefunded?: boolean;
+}
+
 export async function grantEntitlement(
   order: GrantableOrder,
   externalRef: string | null,
+  options: GrantOptions = {},
 ): Promise<void> {
   // Zamówienie zanonimizowanego konta: pieniądze są zaksięgowane, ale nie ma
   // komu nadać dostępu. Pomijamy CICHO (bez rzucania) - inaczej webhook
@@ -169,11 +180,11 @@ export async function grantEntitlement(
     // webhook) przyjdzie po korekcie - warunek stoi w samym zapisie, więc
     // trzyma również przy zwrocie wpadającym między odczyt a UPDATE.
     const refresh = async (): Promise<void> => {
-      const { error } = await supabaseAdmin
+      const base = supabaseAdmin
         .from("user_subscriptions")
         .update({ status: "active", current_period_end: periodEnd, canceled_at: null })
-        .eq("external_ref", ref)
-        .neq("status", "refunded");
+        .eq("external_ref", ref);
+      const { error } = await (options.reviveRefunded ? base : base.neq("status", "refunded"));
       if (error) {
         throw new Error(`grant: user_subscriptions refresh failed (${ref}): ${error.message}`);
       }
@@ -195,7 +206,7 @@ export async function grantEntitlement(
     }
 
     if (existing) {
-      if (existing.status === "refunded") {
+      if (existing.status === "refunded" && !options.reviveRefunded) {
         // Nie rzucamy: wyjątek skazałby webhook na wieczne ponowienia przy
         // stanie, który jest poprawny. Decyzję o samym zamówieniu podejmuje
         // realizacja (`oneTimeFulfilment.server`).

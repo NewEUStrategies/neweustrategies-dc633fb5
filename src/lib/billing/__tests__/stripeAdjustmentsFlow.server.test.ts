@@ -33,6 +33,8 @@ const h = vi.hoisted(() => ({
   emails: [] as Array<Record<string, unknown>>,
   /** `invoicePayments.list` po intencji płatności (PAY-04). */
   invoiceByIntent: new Map<string, Record<string, unknown>>(),
+  /** Bieżący status sporu u operatora (`disputes.retrieve`, S2). */
+  disputeStatus: new Map<string, string>(),
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -73,6 +75,42 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => ({
     },
     invoices: { retrieve: async (id: string) => ({ id }) },
     checkout: { sessions: { list: async () => ({ data: [] }) } },
+    // S2: spór liczony ze stanu BIEŻĄCEGO u operatora, przywrócenie sprawdza
+    // obciążenie (bez zwrotów) i bierze stan subskrypcji od operatora.
+    disputes: {
+      retrieve: async (id: string) => {
+        const paymentIntent = id.replace(/^dp_/, "");
+        return {
+          id,
+          status: h.disputeStatus.get(id) ?? null,
+          amount: 4900,
+          currency: "pln",
+          payment_intent: paymentIntent,
+          charge: `ch_${paymentIntent}`,
+        };
+      },
+    },
+    paymentIntents: {
+      retrieve: async (id: string) => ({
+        id,
+        latest_charge: { id: `ch_${id}`, amount: 4900, amount_refunded: 0, refunded: false },
+      }),
+    },
+    subscriptions: {
+      retrieve: async (id: string) => ({
+        id,
+        status: "active",
+        items: {
+          data: [
+            {
+              current_period_start: Math.floor(Date.parse(FUTURE) / 1000) - 30 * 86_400,
+              current_period_end: Math.floor(Date.parse(FUTURE) / 1000),
+              price: { id: "price_plus", lookup_key: "plus_monthly" },
+            },
+          ],
+        },
+      }),
+    },
   }),
 }));
 
@@ -240,6 +278,7 @@ function stripeEvent(type: string, object: Record<string, unknown>): VerifiedWeb
 
 /** Ładunek `Dispute` w kształcie API 2026-08-26.dahlia (pola czytane + kontekst). */
 function dispute(status: string, paymentIntent: string): Record<string, unknown> {
+  h.disputeStatus.set(`dp_${paymentIntent}`, status);
   return {
     id: `dp_${paymentIntent}`,
     object: "dispute",
@@ -308,6 +347,7 @@ function order(): Row | undefined {
 beforeEach(() => {
   h.emails.length = 0;
   h.invoiceByIntent.clear();
+  h.disputeStatus.clear();
   const rpc = supabaseRpcStub();
   rpc.setResponse("enqueue_notification", (call) => ({
     data: `bell-${String(call.arg("p_user_id"))}`,
@@ -388,7 +428,9 @@ describe("PAY-03 + PAY-04: spór Stripe na płatności FAKTURY SUBSKRYPCJI", () 
 
     await deliver("charge.dispute.created", dispute("needs_response", "pi_odnowienie"));
 
-    expect(entitlement("user_subscriptions")).toMatchObject({ status: "canceled" });
+    // S1: korekta bieżącego okresu to `refunded` (trzyma przez
+    // `subscription.updated` tego samego okresu), nie zawieszenie `canceled`.
+    expect(entitlement("user_subscriptions")).toMatchObject({ status: "refunded" });
     expect(adminAlerts()).toEqual(["Otwarto spór płatniczy"]);
   });
 

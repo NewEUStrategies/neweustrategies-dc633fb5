@@ -43,6 +43,13 @@ describe("isRevokingAdjustment", () => {
     expect(isRevokingAdjustment({ ...base, action: "credit" })).toBe(false);
   });
 
+  it("2.11: nieudany zwrot niczego nie odbiera - przywraca (osobna ścieżka), w każdym statusie", () => {
+    for (const status of [null, "approved", "succeeded", "failed"]) {
+      expect(isRevokingAdjustment({ ...base, action: "refund_failed", status })).toBe(false);
+    }
+    expect(isDisputeReversed({ ...base, action: "refund_failed", status: "reversed" })).toBe(false);
+  });
+
   it("nie odbiera dostępu przy sporze cofniętym lub odrzuconym", () => {
     expect(
       isRevokingAdjustment({ ...base, action: "chargeback_warning", status: "reversed" }),

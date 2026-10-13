@@ -228,6 +228,24 @@ describe("grantEntitlement", () => {
     warn.mockRestore();
   });
 
+  it("2.11: `reviveRefunded` (zwrot, który przepadł) ożywia plan odebrany zwrotem - bez warunku `status <> refunded`", async () => {
+    // Pieniądze wróciły na saldo serwisu - plan dożywotni odebrany zwrotem
+    // jako `refunded` musi wrócić. Zwykła ścieżka (ponowiona realizacja) tego
+    // nie robi - patrz test wyżej.
+    h.state.maybeSingleQueue = [{ data: { id: "sub_row_1", status: "refunded" }, error: null }];
+    const lifetime: GrantableOrder = { ...subOrder, kind: "one_time" };
+
+    await grantEntitlement(lifetime, "cs_plan", { reviveRefunded: true });
+
+    expect(find("update")?.args[0]).toEqual({
+      status: "active",
+      current_period_end: null,
+      canceled_at: null,
+    });
+    expect(find("eq")?.args).toEqual(["external_ref", "cs_plan"]);
+    expect(find("neq")).toBeFalsy();
+  });
+
   it("przegrany wyścig o wstawienie (23505) odświeża TEN SAM klucz zamiast dopisać drugi wiersz", async () => {
     // Dwie równoległe realizacje tego samego zamówienia (dostawa + ponowienie)
     // widzą „brak" i obie wstawiają. Indeks unikalny odrzuca drugie

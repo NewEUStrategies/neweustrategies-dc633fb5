@@ -24,6 +24,9 @@ export const STRIPE_WEBHOOK_EVENT_TYPES = [
   "charge.dispute.created",
   // Rozstrzygnięcie sporu: wygrany przywraca dostęp, przegrany go zamyka.
   "charge.dispute.closed",
+  // Zwrot, który przepadł (np. wygasła karta): pieniądze wracają na saldo,
+  // więc zwrot przestaje być pełny - przeliczenie i alert dla zespołu.
+  "refund.failed",
   "credit_note.created",
   "customer.updated",
 ] as const;

@@ -76,6 +76,41 @@ export function isUniqueViolation(error: { code?: string } | null | undefined): 
 }
 
 /**
+ * Czy stan operatora wolno zapisać na uprawnieniu `refunded`.
+ *
+ * `refunded` to korekta BIEŻĄCEGO okresu (pełny zwrot, spór otwarty albo
+ * przegrany - `refunds.server`), zapisana z `canceled_at` = chwila korekty.
+ * Subskrypcja u operatora trwa dalej (zwrot ani spór jej nie anulują), więc
+ * stan wraca do uprawnienia w dwóch i tylko dwóch przypadkach:
+ *
+ *   * `force` - rozstrzygnięcie na naszą korzyść (wygrany spór, zwrot, który
+ *     przepadł) z AUTORYTATYWNYM stanem od operatora;
+ *   * nowy okres - `periodStart` późniejszy niż korekta, czyli kolejne
+ *     OPŁACONE odnowienie. Bez tego klient płacił co miesiąc bez dostępu.
+ *
+ * Ten sam okres (`subscription.updated` po zmianie `cancel_at_period_end`,
+ * synchronizacja na żądanie klienta, ponowione zdarzenie) korekty nie cofa:
+ * inaczej klient sam przywracał sobie dostęp w trakcie sporu.
+ */
+export function mayReviveRefunded(
+  input: Pick<EntitlementSyncInput, "periodStart" | "force">,
+  correctedAt: string | null,
+): boolean {
+  if (input.force === true) return true;
+  if (!input.periodStart || !correctedAt) return false;
+  const periodStart = Date.parse(input.periodStart);
+  const corrected = Date.parse(correctedAt);
+  return Number.isFinite(periodStart) && Number.isFinite(corrected) && periodStart > corrected;
+}
+
+/** Wiersz uprawnienia w kształcie potrzebnym do decyzji o zapisie. */
+interface ExistingEntitlement {
+  id: string;
+  status: string;
+  canceled_at: string | null;
+}
+
+/**
  * Idempotentnie odwzorowuje stan subskrypcji operatora w `user_subscriptions`.
  * Klucz: `external_ref` = identyfikator subskrypcji u operatora - UNIKALNY
  * w bazie (`user_subscriptions_external_ref_key`, 20261012100300).
@@ -84,28 +119,31 @@ export function isUniqueViolation(error: { code?: string } | null | undefined): 
  * subskrypcji (`created` + `updated` bez wiersza) widziały dawniej oba „brak"
  * i wstawiały DWA uprawnienia; późniejsza rezygnacja trafiała tylko
  * w najstarsze, a drugie dawało dostęp bez płatności. Teraz przegrany wyścig
- * kończy się 23505 i zamienia w aktualizację TEGO SAMEGO klucza. Odczyt na
- * początku jest skrótem (zwrot -> nic nie piszemy), a nie bramką unikalności.
+ * kończy się 23505 i zamienia w aktualizację TEGO SAMEGO klucza - według tej
+ * samej reguły co zwykła ścieżka (`mayReviveRefunded`).
  *
- * Reguła „zwrot jest ostateczny" stoi w samym zapisie (`status <> 'refunded'`),
- * więc trzyma także wtedy, gdy zwrot wpadnie między odczyt a aktualizację.
+ * Reguła „korekta jest ostateczna w swoim okresie" stoi w samym zapisie:
+ * zwykła aktualizacja ma `status <> 'refunded'`, a ożywienie - warunek na
+ * TĘ korektę, którą odczyt widział (`canceled_at`). Zwrot, który wpadnie
+ * między odczyt a zapis, nie zostanie więc nadpisany.
  */
 export async function syncEntitlementState(input: EntitlementSyncInput): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const status = mapProviderStatus(input.status, input.periodEnd);
   const canceledAt =
     input.status === "canceled" || input.status === "paused" ? new Date().toISOString() : null;
+  const patch = {
+    plan_id: input.planId,
+    status,
+    current_period_end: input.periodEnd,
+    canceled_at: canceledAt,
+  };
 
-  // Aktualizacja po kluczu operatora, nigdy wiersza odebranego po zwrocie.
+  // Aktualizacja po kluczu operatora, nigdy wiersza odebranego korektą.
   const refresh = async (): Promise<void> => {
     const { error } = await supabaseAdmin
       .from("user_subscriptions")
-      .update({
-        plan_id: input.planId,
-        status,
-        current_period_end: input.periodEnd,
-        canceled_at: canceledAt,
-      })
+      .update(patch)
       .eq("external_ref", input.externalRef)
       .neq("status", "refunded");
     if (error) {
@@ -113,22 +151,47 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
     }
   };
 
-  const { data: existing, error: readErr } = await supabaseAdmin
-    .from("user_subscriptions")
-    .select("id, status")
-    .eq("external_ref", input.externalRef)
-    .maybeSingle();
-  if (readErr) {
-    throw new Error(`entitlement sync: lookup failed (${input.externalRef}): ${readErr.message}`);
-  }
+  // Ożywienie wiersza `refunded` - wyłącznie TEJ korekty, którą widział odczyt.
+  // `canceled_at` dostaje stan operatora (dla aktywnej subskrypcji `null`),
+  // a nie zostaje chwilą korekty.
+  const revive = async (correctedAt: string | null): Promise<void> => {
+    const base = supabaseAdmin
+      .from("user_subscriptions")
+      .update(patch)
+      .eq("external_ref", input.externalRef)
+      .eq("status", "refunded");
+    const { error } = await (correctedAt
+      ? base.eq("canceled_at", correctedAt)
+      : base.is("canceled_at", null));
+    if (error) {
+      throw new Error(`entitlement sync: revive failed (${input.externalRef}): ${error.message}`);
+    }
+  };
 
+  const read = async (): Promise<ExistingEntitlement | null> => {
+    const { data, error } = await supabaseAdmin
+      .from("user_subscriptions")
+      .select("id, status, canceled_at")
+      .eq("external_ref", input.externalRef)
+      .maybeSingle();
+    if (error) {
+      throw new Error(`entitlement sync: lookup failed (${input.externalRef}): ${error.message}`);
+    }
+    return data;
+  };
+
+  const apply = async (existing: ExistingEntitlement): Promise<void> => {
+    if (existing.status !== "refunded") {
+      await refresh();
+      return;
+    }
+    if (!mayReviveRefunded(input, existing.canceled_at)) return;
+    await revive(existing.canceled_at);
+  };
+
+  const existing = await read();
   if (existing) {
-    // Uprawnienie odebrane po zwrocie / obciążeniu zwrotnym jest ostateczne:
-    // spóźnione zdarzenie od operatora (retry, `subscription.updated` tuż po
-    // korekcie) nie może przywrócić płatnego dostępu. Ponowny zakup zakłada
-    // nową subskrypcję, czyli inny `external_ref`, więc nic nie tracimy.
-    if (existing.status === "refunded") return;
-    await refresh();
+    await apply(existing);
     return;
   }
 
@@ -142,9 +205,12 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
     canceled_at: canceledAt,
   });
   // Równoległe zdarzenie wstawiło wiersz między odczytem a zapisem - nasz stan
-  // trafia w TEN wiersz zamiast w drugi.
+  // trafia w TEN wiersz według tej samej reguły co wyżej. Wiersz zwycięzcy
+  // mógł zdążyć dostać korektę (`refunded`) - ślepa aktualizacja by ją cofnęła.
   if (isUniqueViolation(error)) {
-    await refresh();
+    const winner = await read();
+    if (winner) await apply(winner);
+    else await refresh();
     return;
   }
   if (error) {
