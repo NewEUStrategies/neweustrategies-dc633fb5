@@ -1,6 +1,10 @@
 -- Weryfikacja po wdrozeniu migracji modulu Wydarzen (TYLKO ODCZYT).
 -- Wygenerowane przez scripts/deploy-order-proof.sh (produkcja.txt, linia 20260926140000).
 -- PUSTY wynik = stan produkcji zgodny z repozytorium. Kazdy wiersz to rozjazd.
+-- Uzupelnione recznie w formacie generatora (B5, REG-09/10/11, migracje
+-- 20261012110000-110200): sms_send_log, set_channels, preferences,
+-- _event_reminder_candidates, trigger zgody na numer. Hash = md5 tresci po
+-- normalizacji generatora (pg_proc.prosrc z bazy po pelnym odtworzeniu).
 WITH f(n, a, h) AS (VALUES
   ('_event_ads_clean', 'p_value text, p_max integer', '1f21c194a61bc789a98c988d68ce807a'),
   ('_event_ads_touch', 'p_touch jsonb, p_ad_consent boolean, p_now timestamp with time zone', 'b57782a6e146efe923dfcd33c4e5da0b'),
@@ -98,6 +102,7 @@ WITH f(n, a, h) AS (VALUES
   ('_event_registration_actor', '_tenant uuid, _registration_id uuid, _uid uuid, _manage_token text', '6380a5904775f63ddf36f4f9b099e018'),
   ('_event_registration_lang', '_tenant uuid, _registration_id uuid', 'c4454b44711df88d4e8bd12b1c9553aa'),
   ('_event_registration_paid_admission', 'p_reg event_registrations, p_ticket_type_id uuid', '0ddc5eeaded85d54ed5fa8b134e6b677'),
+  ('_event_reminder_candidates', 'p_now timestamp with time zone, p_channels text[], p_limit integer', 'bf33122722b5e948e3087770b0f5d4e3'),
   ('_event_safe_timezone', '_tz text', 'd68314cd384a0997f64ad4b6acf75124'),
   ('_event_scanner_device_auth_sync', '_token text, _scope text, _device_at timestamp with time zone', '9c03df8df43c50033d2c178950c6d08e'),
   ('_event_seat_assign_problem', 'p_tenant uuid, p_map uuid, p_seat uuid, p_registration uuid, p_force boolean', 'c399f40e4c288ac744a5846eda4b25fe'),
@@ -118,6 +123,7 @@ WITH f(n, a, h) AS (VALUES
   ('_tg_event_invoice_lines_guard', '', 'fff583b449eefa536f1e1903a206400b'),
   ('_tg_event_invoice_sources_guard', '', 'a4b707f9a622a0630dcd22265fb3e2dc'),
   ('_tg_event_invoices_guard', '', '30593ee91fa7a90045dca3857658215f'),
+  ('_tg_event_people_phone_revokes_sms', '', '1fd840e5ca6319fdb18244512687f4bd'),
   ('_tg_event_plan_seat_follow', '', 'e750c6480dbe584986e01988a8cfc9c1'),
   ('_tg_event_registration_release_seats', '', '8e9c0ecd7369ca504c36f8143614bf31'),
   ('_tg_event_seat_assignment_validate', '', 'b3d04fd93deaa205cdfeebd5d6c5622f'),
@@ -236,7 +242,9 @@ WITH f(n, a, h) AS (VALUES
   ('event_participant_options', 'p_slug text', '549fd2b7d6e2b064938ff76564cc0ef5'),
   ('event_registration_attribution_attach', 'p_payload jsonb', 'a197230f9774b1d77687848f03fe6e0b'),
   ('event_registration_claim_plan_seat', 'p_registration_id uuid, p_dry_run boolean', 'c46006104729a40da5a9780c7902586d'),
+  ('event_registration_preferences', 'p_payload jsonb', '890cbf44716fb870bfd809aa80a66db1'),
   ('event_registration_redeem_plan_ticket', 'p_registration_id uuid', '48176ab0adaefdbafacac3de785006b4'),
+  ('event_registration_set_channels', 'p_payload jsonb', 'e4ca54d0449b3d40c7ca901988021572'),
   ('event_scanner_bootstrap', 'p_payload jsonb', '5c16015d45df3c560b7dfc879ba38b2f'),
   ('event_scanner_roster', 'p_payload jsonb', '90dc00a81b8111e304f88fa007b4023e'),
   ('event_speaker_materials_public', 'p_event_id uuid', '2d081151eeadb87baae3013336a668ab'),
@@ -248,6 +256,9 @@ WITH f(n, a, h) AS (VALUES
   ('event_ticket_wallet_payload', 'p_payload jsonb', '924793085718f9388479da457bda0d70'),
   ('payments_apply_event_ticket_outcome', 'p_order_id uuid, p_outcome text, p_refunded_cents integer', '03705a69c59608469f77729d1dc94e19'),
   ('release_included_event_ticket', 'p_event_id uuid, p_user uuid', 'be6e5cc711da12239e052806a42f26c6'),
+  ('sms_send_claim', 'p_tenant_id uuid, p_idempotency_key text', '23c08c05a51d3feeb6daa91a1e19686a'),
+  ('sms_send_finish', 'p_tenant_id uuid, p_claim_id uuid, p_status text, p_detail text', '9df9780246298431698663ad0cc19e2e'),
+  ('sms_send_log_prune', 'p_limit integer', '81960d662abbc5f9bad6d2504e9c5d15'),
   ('tg_event_registrations_attended_crm', '', '47bf153f6e114ad5bd7d15910ba132dd')),
 t(n) AS (VALUES
   ('event_ad_campaign_costs'),
@@ -279,7 +290,8 @@ t(n) AS (VALUES
   ('event_speaker_materials'),
   ('event_sponsor_exposures'),
   ('event_sponsor_report_links'),
-  ('event_wallet_passes')),
+  ('event_wallet_passes'),
+  ('sms_send_log')),
 k(t, c) AS (VALUES
   ('event_checkins', 'offline_admitted'),
   ('event_checkins', 'offline_outcome'),
@@ -321,6 +333,7 @@ g(n) AS (VALUES
   ('event_invoices_touch_updated_at'),
   ('event_message_deliveries_touch_updated_at'),
   ('event_participant_settings_touch_updated_at'),
+  ('event_people_phone_revokes_sms'),
   ('event_registrations_attended_crm'),
   ('event_registrations_plan_seat_follow'),
   ('event_registrations_release_seats'),
@@ -332,7 +345,8 @@ g(n) AS (VALUES
   ('event_seats_touch_updated_at'),
   ('event_speaker_materials_touch_updated_at'),
   ('event_sponsor_report_links_touch_updated_at'),
-  ('event_wallet_passes_touch_updated_at'))
+  ('event_wallet_passes_touch_updated_at'),
+  ('sms_send_log_touch_updated_at'))
 SELECT 'funkcja' AS rodzaj, f.n || '(' || f.a || ')' AS obiekt,
        CASE WHEN p.oid IS NULL THEN 'brak' ELSE 'inna tresc' END AS problem
   FROM f
