@@ -13,6 +13,13 @@
 //
 // ADRES KONTA ZAMASKOWANY. Konto nie nalezy do kartoteki organizacji
 // (`auth.users` jest wspolne), wiec baza oddaje tylko `j***@domena`.
+//
+// LISTA PRZEGLADU (przeglad R12, migracja 20261012180650). Dowiazanie moze
+// spelniac regule, a mimo to byc przejeciem: napastnik dowiazany przed
+// poprawka przestawial adres kartoteki ofiary na SWOJ potwierdzony adres.
+// Baza nie odwiazuje takich kont sama - oddaje je w `suspect` z sygnalami
+// (maile zgloszen wyslane na inny adres, zgloszenia innego konta), a decyzje
+// (odwiaz albo zostaw) podejmuje organizator.
 import { supabase } from "@/integrations/supabase/client";
 
 export const ACCOUNT_BINDING_RISKS = [
@@ -21,6 +28,8 @@ export const ACCOUNT_BINDING_RISKS = [
   "account_unconfirmed",
   "self_created",
   "verified",
+  "admin_provisioned",
+  "suspect_takeover",
 ] as const;
 export type AccountBindingRisk = (typeof ACCOUNT_BINDING_RISKS)[number];
 
@@ -58,8 +67,23 @@ export interface AccountUnbindEntry {
   personBound: boolean;
 }
 
+/** Dowiazanie spelniajace regule, ale z sygnalem przejecia (do przegladu). */
+export interface SuspectAccountBinding {
+  personId: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  accountEmailHint: string | null;
+  /** Maile zgloszen tej osoby wyslane na adres inny niz obecny. */
+  mailsElsewhere: number;
+  /** Zgloszenia tej osoby zalozone przez inne konto (spoza personelu). */
+  registrationsByOthers: number;
+}
+
 export interface AccountBindingsOverview {
   unverified: UnverifiedAccountBinding[];
+  /** Lista przegladu - starsza baza bez klucza `suspect` daje pusta liste. */
+  suspect: SuspectAccountBinding[];
   unbinds: AccountUnbindEntry[];
 }
 
@@ -113,6 +137,20 @@ export function parseAccountBindings(data: unknown): AccountBindingsOverview {
       registrationsByAccount: count(row, "registrations_by_account"),
     });
   }
+  const suspect: SuspectAccountBinding[] = [];
+  for (const row of rows(source?.suspect)) {
+    const personId = text(row, "person_id");
+    if (personId === null) continue;
+    suspect.push({
+      personId,
+      firstName: text(row, "first_name") ?? "",
+      lastName: text(row, "last_name") ?? "",
+      email: text(row, "email"),
+      accountEmailHint: text(row, "account_email_hint"),
+      mailsElsewhere: count(row, "mails_elsewhere"),
+      registrationsByOthers: count(row, "registrations_by_others"),
+    });
+  }
   const unbinds: AccountUnbindEntry[] = [];
   for (const row of rows(source?.unbinds)) {
     const id = text(row, "id");
@@ -135,7 +173,7 @@ export function parseAccountBindings(data: unknown): AccountBindingsOverview {
       personBound: row.person_bound === true,
     });
   }
-  return { unverified, unbinds };
+  return { unverified, suspect, unbinds };
 }
 
 export async function fetchAccountBindings(): Promise<AccountBindingsOverview> {
