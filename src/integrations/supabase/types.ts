@@ -24236,6 +24236,7 @@ export type Database = {
         Args: { p_limit?: number }
         Returns: Json
       }
+      _event_wallet_pass_revocations_requeue: { Args: never; Returns: Json }
       _event_wallet_pass_revocations_settle: {
         Args: {
           p_claimed_at: string
