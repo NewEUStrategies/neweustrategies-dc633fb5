@@ -185,9 +185,12 @@ SELECT is(public.event_registration_manage_view(jsonb_build_object('manage_token
 SELECT is(public.event_registration_manage_view(jsonb_build_object('manage_token', pg_temp.k('nie-ma'))),
   '{"ok": false, "reason": "not_found"}'::jsonb,
   'podglad: nieznany klucz -> not_found jak dotad');
+-- SCALENIE Z MAIN (PR #504, runda 4): `partner_consent` (main 20261013110400,
+-- OPS-01) to sama flaga skutecznej zgody partnerskiej - bez dat i danych
+-- osoby; unia 20261013900710.
 SELECT ok((SELECT bool_and(k IN ('ok', 'registration_id', 'event_id', 'event_slug', 'ticket_type_id', 'status',
                                   'payment_status', 'waitlist_position', 'amount_cents', 'price_source',
-                                  'quote_valid_until', 'currency', 'owned_by_caller'))
+                                  'quote_valid_until', 'currency', 'owned_by_caller', 'partner_consent'))
              FROM jsonb_object_keys(public.event_registration_manage_view(
                     jsonb_build_object('manage_token', pg_temp.k('ok')))) k),
   'podglad: wylacznie stan i kwota - zadnego adresu, imienia ani nazwiska');

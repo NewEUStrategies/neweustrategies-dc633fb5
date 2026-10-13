@@ -92,10 +92,15 @@ SELECT ok(NOT has_function_privilege('anon', 'public._event_waitlist_promote(uui
       AND NOT has_function_privilege('authenticated', 'public._event_waitlist_promote(uuid,uuid,uuid,integer)', 'EXECUTE')
       AND has_function_privilege('service_role', 'public._event_waitlist_promote(uuid,uuid,uuid,integer)', 'EXECUTE'),
   'ACL: _event_waitlist_promote (4 arg.) tylko service_role');
-SELECT ok(NOT has_function_privilege('anon', 'public._event_checkin_evaluate(uuid,uuid,uuid,uuid,text)', 'EXECUTE')
-      AND NOT has_function_privilege('authenticated', 'public._event_checkin_evaluate(uuid,uuid,uuid,uuid,text)', 'EXECUTE')
-      AND has_function_privilege('service_role', 'public._event_checkin_evaluate(uuid,uuid,uuid,uuid,text)', 'EXECUTE'),
-  'ACL: _event_checkin_evaluate tylko service_role');
+-- SCALENIE Z MAIN (PR #504, runda 4): main 20261013110600 zastapil sygnature
+-- 5-arg. (REG 20261012150000) 6-arg. z chwila skanu `_at` (DEFAULT NULL);
+-- unia 20261013900720 trzyma JEDNO przeciazenie (6-arg.) z bramka REG-07.
+-- Wywolania 5-arg. nizej trafiaja w nie przez DEFAULT.
+SELECT ok(NOT has_function_privilege('anon', 'public._event_checkin_evaluate(uuid,uuid,uuid,uuid,text,timestamptz)', 'EXECUTE')
+      AND NOT has_function_privilege('authenticated', 'public._event_checkin_evaluate(uuid,uuid,uuid,uuid,text,timestamptz)', 'EXECUTE')
+      AND has_function_privilege('service_role', 'public._event_checkin_evaluate(uuid,uuid,uuid,uuid,text,timestamptz)', 'EXECUTE')
+      AND to_regprocedure('public._event_checkin_evaluate(uuid,uuid,uuid,uuid,text)') IS NULL,
+  'ACL: _event_checkin_evaluate tylko service_role, jedno przeciazenie (6 arg.)');
 SELECT ok(NOT has_function_privilege('anon', 'public.admin_event_waitlist_promote(jsonb)', 'EXECUTE')
       AND has_function_privilege('authenticated', 'public.admin_event_waitlist_promote(jsonb)', 'EXECUTE'),
   'ACL: admin_event_waitlist_promote dla authenticated (bramka redaktora), nie dla anon');

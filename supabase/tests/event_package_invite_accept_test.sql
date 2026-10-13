@@ -302,29 +302,38 @@ SELECT ok(
                                         AND r.registration_mode = 'form')
          FROM public.event_registrations r WHERE r.tenant_id = 'b2ba0000-0000-0000-0000-0000000000aa'),
   'zrodlo package_invitation w kartotece i zgloszeniu (dozwolone przez CHECK), zgloszenia zatwierdzone w trybie form');
+-- SCALENIE Z MAIN (PR #504, runda 4): main 20261013111800 zeruje przy zuzyciu
+-- OBA pola pary (`invite_token_hash`, `invite_email` - minimalizacja danych,
+-- para `event_package_seats_invite_pair` scisla); REG (20261012132200) i unia
+-- z rundy 1 zostawialy skrot, zeby ponowne uzycie dawalo `seat_taken`.
+-- Unia 20261013900400 przyjmuje regule main: zuzyty link = nieznany token.
 SELECT ok(
   (SELECT s.registration_id = (SELECT (v->>'registration_id')::uuid FROM epi_r WHERE k = 'd_del')
           AND s.assigned_at IS NOT NULL
-          AND s.invite_email = 'del@epi.example'
-          AND s.invite_token_hash = encode(extensions.digest((SELECT token FROM epi_tok WHERE k = 'del'), 'sha256'), 'hex')
+          AND s.invite_email IS NULL
+          AND s.invite_token_hash IS NULL
      FROM public.event_package_seats s WHERE s.id = 'b2bc0000-0000-0000-0000-0000000000c1')
   AND (SELECT seats_assigned = 4 FROM public.event_package_orders WHERE id = 'b2b90000-0000-0000-0000-0000000000a1'),
-  'miejsce przypisane, adres i skrot tokenu zostaja (para CHECK), licznik zamowienia 4');
+  'miejsce przypisane, adres i skrot tokenu wyzerowane razem (para CHECK, main 20261013111800), licznik zamowienia 4');
 
 SET LOCAL ROLE authenticated;
-SELECT throws_like(
-  $$SELECT public.event_package_invite_accept(pg_temp.epi_payload('del', true, '{"sector":"energia"}'::jsonb))$$,
-  'seat_taken%', 'ponowne uzycie linku -> seat_taken');
+SELECT is(
+  public.event_package_invite_accept(pg_temp.epi_payload('del', true, '{"sector":"energia"}'::jsonb)) ->> 'error',
+  'invalid_token', 'ponowne uzycie zuzytego linku -> invalid_token (wartosc, jak nieznany token)');
 INSERT INTO epi_r VALUES
   ('prev_used', public.event_package_invite_preview(jsonb_build_object('token', (SELECT token FROM epi_tok WHERE k = 'del')))),
   ('prev_end', public.event_package_invite_preview(jsonb_build_object('token', (SELECT token FROM epi_tok WHERE k = 'end')))),
   ('prev_ref', public.event_package_invite_preview(jsonb_build_object('token', (SELECT token FROM epi_tok WHERE k = 'ref')))),
   ('prev_exp', public.event_package_invite_preview(jsonb_build_object('token', (SELECT token FROM epi_tok WHERE k = 'exp'))));
 RESET ROLE;
+-- SCALENIE Z MAIN (PR #504, runda 4): podglad zuzytego linku nie znajduje juz
+-- miejsca (skrot wyzerowany - main 20261013111800), wiec zamiast stanu `used`
+-- oddaje `invalid_token` jak kazdy nieznany token.
 SELECT is(
-  (SELECT string_agg(v->>'state', ',' ORDER BY k) FROM epi_r WHERE k IN ('prev_used', 'prev_end', 'prev_ref', 'prev_exp')),
-  'event_ended,expired,order_refunded,used',
-  'podglad: stany event_ended, expired, order_refunded i used');
+  (SELECT string_agg(COALESCE(v->>'state', v->>'error'), ',' ORDER BY k)
+     FROM epi_r WHERE k IN ('prev_used', 'prev_end', 'prev_ref', 'prev_exp')),
+  'event_ended,expired,order_refunded,invalid_token',
+  'podglad: stany event_ended, expired, order_refunded; zuzyty link -> invalid_token');
 SELECT ok(
   EXISTS (SELECT 1 FROM public.event_term_acceptances a
            WHERE a.term_id = 'b2bf0000-0000-0000-0000-0000000000f1'
@@ -409,11 +418,13 @@ SELECT is(
   5,
   -- SCALENIE Z MAIN (PR #504): zrodlo jak w wierszu (main TIX-07, REG-15).
   'kazde przyjecie emituje event.registration.created.v1 ze zrodlem package_invitation');
+-- SCALENIE Z MAIN (PR #504, runda 4): miejsce zuzyte ma juz obie kolumny
+-- puste (main 20261013111800); para dalej scisla - sam adres bez skrotu odpada.
 SELECT throws_like(
-  $$UPDATE public.event_package_seats SET invite_token_hash = NULL
+  $$UPDATE public.event_package_seats SET invite_email = 'del@epi.example'
      WHERE id = 'b2bc0000-0000-0000-0000-0000000000c1'$$,
   '%event_package_seats_invite_pair%',
-  'para adres + skrot tokenu nadal wymuszana przez CHECK (stara konsumpcja byla niemozliwa)');
+  'para adres + skrot tokenu nadal wymuszana przez CHECK (adres bez skrotu odpada)');
 
 SELECT set_config('request.jwt.claims', '', true);
 SELECT set_config('request.headers', '', true);

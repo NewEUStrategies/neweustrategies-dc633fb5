@@ -1,7 +1,19 @@
 -- events-harness: include
 -- ============================================================================
 -- SCALENIE Z MAIN (PR #504), CZ. 7: GRANTY KOLUMNOWE `event_registrations`
--- DLA KOLUMN MAIN = REG-06/R45 (SELECT kolumnowy dla authenticated) + INV-14.
+-- DLA KOLUMN MAIN = REG-06/R45 (SELECT kolumnowy dla authenticated) + INV-14
+-- + (runda 4) OPS-01/OPS-04.
+--
+-- RUNDA 4 (origin/main @ 6733f8ef, plik niewdrozony - poprawiony w miejscu):
+-- main dodal do `event_registrations` cztery kolumny - 20261013110000
+-- (`consent_partner_sharing_at`, `consent_partner_withdrawn_at`) i
+-- 20261013110500 (`badge_token_hash`, `badge_issued_at`). W replayu powstaja
+-- PO bloku REG 20261012181500 (bez grantu kolumnowego - prywatne), w produkcji
+-- PRZED nim (blok REG daje je authenticated). Ten blok liczy granty z katalogu
+-- po wszystkich plikach obu stron, wiec obie kolejnosci koncza tym samym:
+-- `badge_token_hash` (skrot poswiadczenia identyfikatora - ta sama kategoria
+-- co `qr_token_hash`) PRYWATNY; stemple zgody partnerskiej i chwila wydania
+-- identyfikatora czytelne przez RLS (wlasne zgloszenie uczestnika, personel).
 --
 -- POCHODZENIE
 --   * main: 20261012100000 (INV-14) - kolumny wplaty zaksiegowanej przez
@@ -29,7 +41,7 @@
 --   z tabeli; panel organizatora - przez RPC SECURITY DEFINER). PO wszystkich
 --   migracjach main i REG.
 -- IDEMPOTENTNA: bezstanowe REVOKE/GRANT liczone z katalogu, COMMENT ON.
--- DOWOD: supabase/tests/reg_main_merge_test.sql (F3).
+-- DOWOD: supabase/tests/reg_main_merge_test.sql (F3, H9).
 -- ============================================================================
 
 DO $grants$
@@ -46,7 +58,10 @@ BEGIN
                'decided_by', 'cancel_reason',
                -- ZMIANA (scalenie z main, INV-14): konto organizatora, ktory
                -- zaksiegowal wplate - jak `decided_by`.
-               'paid_amount_recorded_by']),
+               'paid_amount_recorded_by',
+               -- ZMIANA (scalenie z main, runda 4, OPS-04 z 20261013110500):
+               -- skrot kodu identyfikatora - poswiadczenie jak `qr_token_hash`.
+               'badge_token_hash']),
         ('public.event_people'::regclass, ARRAY['notes'])
       ) AS t(rel, private_cols)
   LOOP
@@ -70,4 +85,4 @@ END
 $grants$;
 
 COMMENT ON TABLE public.event_registrations IS
-  'Zapis osoby na wydarzenie: osiem stanow cyklu zycia, tryb zapisu, bilet, grupa, odpowiedzi formularza, slad decyzji i HASZ tokenu QR. Jeden aktywny zapis na osobe i wydarzenie. REG-06 (D10): authenticated ma SELECT KOLUMNOWY - bez decision_note, submitted_profile, manage_token_hash, qr_token_hash (20261012170200), decided_by i cancel_reason (20261012181500) oraz paid_amount_recorded_by (20261013900600). Kolumna dodana pozniej jest PRYWATNA, dopoki jej migracja nie nada jawnie GRANT SELECT (kolumna) TO authenticated.';
+  'Zapis osoby na wydarzenie: osiem stanow cyklu zycia, tryb zapisu, bilet, grupa, odpowiedzi formularza, slad decyzji i HASZ tokenu QR. Jeden aktywny zapis na osobe i wydarzenie. REG-06 (D10): authenticated ma SELECT KOLUMNOWY - bez decision_note, submitted_profile, manage_token_hash, qr_token_hash (20261012170200), decided_by i cancel_reason (20261012181500) oraz paid_amount_recorded_by i badge_token_hash (20261013900600). Kolumna dodana pozniej jest PRYWATNA, dopoki jej migracja nie nada jawnie GRANT SELECT (kolumna) TO authenticated.';

@@ -1,7 +1,12 @@
 -- events-harness: include
 -- ============================================================================
 -- SCALENIE Z MAIN (PR #504), CZ. 5: PRZYJECIE ZAPROSZENIA Z PAKIETU =
--- REG-01/02/14/15 + R12/R38 (REG) + TIX-07/TIX-04 (main).
+-- REG-01/02/14/15 + R12/R38 (REG) + TIX-07/TIX-04, OPS-01 S1, F14 (main).
+--
+-- RUNDA 4 (origin/main @ 6733f8ef, plik niewdrozony - poprawiony w miejscu):
+-- main zdefiniowal te funkcje jeszcze trzy razy (20261013110100,
+-- 20261013111800, 20261013112700); ten plik sortuje sie po nich w obu
+-- kolejnosciach, wiec cialo nizej MUSI niesc ich intencje (lista nizej).
 --
 -- POCHODZENIE
 --   * REG: 20261012132200 (REG-15: wlasciciel po potwierdzonym adresie,
@@ -19,6 +24,16 @@
 --     `event_ticket_types_sold_within_quota` odrzuca przyjecie przy pelnej
 --     puli); zrodlo `package_invitation` (CHECK-i dostaly te wartosc;
 --     przeglad zamowien i lejek reklam rozpoznaja po nim delegatow).
+--   * main (runda 4): 20261013110100 (OPS-01 S1) - przyjecie nie czysci
+--     `consent_withdrawn_at` i nie nadaje zgody partnerskiej (cialo REG juz
+--     tak dziala: zgody tylko przez rejestr A2); 20261013111800 - zuzycie
+--     zaproszenia zeruje `invite_email` RAZEM z `invite_token_hash` (para
+--     `event_package_seats_invite_pair` scisla, minimalizacja danych - kopia
+--     adresu na miejscu nie podlegala wymazaniu osoby); 20261013112700 (F14) -
+--     konto wolajacego trafia do NOWEJ osoby tylko przy potwierdzonym adresie
+--     rownym adresowi zaproszenia i bez innej osoby z tym kontem (= D1:
+--     `_event_bind_uid_for_email`), a wyscig unikalnosci przy zakladaniu
+--     osoby konczy sie odmowa `person_conflict` zamiast surowego 23505.
 --
 -- DEFEKT (stan po samym scaleniu): plik REG 20261012180550 sortuje sie PO
 --   20261012130001, wiec jego cialo (zbudowane na 20260827221214) wycofywalo
@@ -29,20 +44,30 @@
 --   ich nie przyjmowalo, anulowanie nie zamykalo).
 --
 -- ZMIANA: cialo REG (20261012180550) + zmiany main oznaczone
---   `ZMIANA (scalenie z main, TIX-07)`; obie strony juz zachowywaly skrot
---   tokenu (CHECK `event_package_seats_invite_pair`). Zamowienie zwrocone
+--   `ZMIANA (scalenie z main, TIX-07)` i (runda 4) `ZMIANA (scalenie z main,
+--   F14)` / `ZMIANA (scalenie z main, 20261013111800)`. Zamowienie zwrocone
 --   zostaje osobnym kodem REG `order_refunded` (main: `order_cancelled`) -
---   TS po scaleniu zna oba.
+--   TS po scaleniu zna oba. Runda 4: zuzyte zaproszenie zeruje OBA pola pary
+--   (main 20261013111800 zastepuje regule REG/main z rundy 1 "skrot zostaje,
+--   ponowne uzycie = seat_taken": ponowne uzycie zuzytego linku daje teraz
+--   `invalid_token` i liczy sie w `_event_invite_probe_miss`, jak kazdy
+--   nieznany token); `person_conflict` z main 20261013112700. Wiazanie konta
+--   zostaje WYLACZNIE przez `_event_bind_uid_for_email` (D1) - ta sama regula
+--   co F14, bez drugiej kopii warunku w ciele.
 --
 -- CZEGO TO NIE ZAMYKA. Zapis `event_people.user_id` dalej wylacznie przez
 --   `_event_bind_uid_for_email`; naprawa historii REG-01 biegnie po tej
---   migracji jeszcze raz (20261013900900).
+--   migracji jeszcze raz (20261013900900) - w produkcji obejmuje takze osoby
+--   przypiete przez cialo main 20261013111800 (przed F14) i 20261013112700
+--   (warunek F14 = D1, wiec audyt dla nich i tak daje 0).
 -- KOLEJNOSC WDROZENIA: dowolna wzgledem kodu (klucz `awaiting_payment` czyta
 --   TS po scaleniu, `qr_token` moze byc null). PO wszystkich migracjach main
 --   i REG, PRZED 20261013900900.
 -- IDEMPOTENTNA: CREATE OR REPLACE, bezstanowe REVOKE/GRANT, COMMENT ON.
 -- DOWOD: scripts/events-harness/runtime_test.d/78_ticket_checkout_integrity.sql
---   (main, TIX-07), 25_account_binding_invites.sql (REG),
+--   (main, TIX-07), 78_ops_followups.sql (main, sekcje 1 i 4: para e-mail/
+--   token, F14), 33_partner_consent_per_registration.sql (main, S1),
+--   25_account_binding_invites.sql (REG),
 --   supabase/tests/event_package_invite_accept_test.sql (REG),
 --   event_identity_consents_r12_test.sql (REG), reg_main_merge_test.sql.
 -- ============================================================================
@@ -331,15 +356,23 @@ BEGIN
   v_bind_uid := public._event_bind_uid_for_email(v_tenant, v_uid, v_seat.invite_email);
 
   IF v_new_person THEN
-    INSERT INTO public.event_people (
-      tenant_id, user_id, email, first_name, last_name, job_title, company_text,
-      source, created_by
-    ) VALUES (
-      -- ZMIANA (scalenie z main, TIX-07): zrodlo `package_invitation`.
-      v_tenant, v_bind_uid, v_seat.invite_email, v_first, v_last, v_job, v_company,
-      'package_invitation', v_uid
-    )
-    RETURNING * INTO v_person;
+    -- ZMIANA (scalenie z main, F14 z 20261013112700): wyscig - osoba z tym
+    -- adresem albo kontem powstala rownolegle miedzy SELECT-em a INSERT-em.
+    -- Odmowa modulu zamiast surowego 23505; ponowienie trafi w galaz osoby
+    -- istniejacej (konto i tak tylko przez `_event_bind_uid_for_email`).
+    BEGIN
+      INSERT INTO public.event_people (
+        tenant_id, user_id, email, first_name, last_name, job_title, company_text,
+        source, created_by
+      ) VALUES (
+        -- ZMIANA (scalenie z main, TIX-07): zrodlo `package_invitation`.
+        v_tenant, v_bind_uid, v_seat.invite_email, v_first, v_last, v_job, v_company,
+        'package_invitation', v_uid
+      )
+      RETURNING * INTO v_person;
+    EXCEPTION WHEN unique_violation THEN
+      RAISE EXCEPTION 'person_conflict: the participant record changed while accepting the invitation - try again';
+    END;
   ELSIF v_owner THEN
     UPDATE public.event_people p SET
       user_id = COALESCE(p.user_id, v_bind_uid),
@@ -398,12 +431,16 @@ BEGIN
   )
   RETURNING id INTO v_reg_id;
 
-  -- Miejsce PRZYPISANE, ale adres i skrot tokenu zostaja: para
-  -- `event_package_seats_invite_pair` jest spelniona, a ponowne uzycie linku
-  -- trafia na `seat_taken` zamiast na „nieznany token".
+  -- ZMIANA (scalenie z main, 20261013111800): miejsce PRZYPISANE, a adres
+  -- zaproszenia znika RAZEM ze skrotem tokenu - para
+  -- `event_package_seats_invite_pair` jest scisla ("e-mail i token" = czeka na
+  -- przyjecie), adres zostaje na osobie, ktora miejsce zajela. Jednorazowosc
+  -- trzyma `registration_id`; zuzyty link to odtad nieznany token.
   UPDATE public.event_package_seats s SET
     registration_id = v_reg_id,
-    assigned_at = now()
+    assigned_at = now(),
+    invite_token_hash = NULL,
+    invite_email = NULL
   WHERE s.tenant_id = v_tenant AND s.id = v_seat.id;
 
   -- ZMIANA (scalenie z main, TIX-07): przyjecie na miejsce z kodem QR - tylko
@@ -487,4 +524,4 @@ REVOKE ALL ON FUNCTION public.event_package_invite_accept(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.event_package_invite_accept(jsonb) TO anon, authenticated, service_role;
 
 COMMENT ON FUNCTION public.event_package_invite_accept(jsonb) IS
-  'REG-15: przyjecie zaproszenia na miejsce z pakietu (token po sha256, najemca z hosta). Pudlo tokenu jako wartosc {ok:false,error:invalid_token} liczone w _event_invite_probe_* (najemca + konto). Pola z sufitami i bez znakow sterujacych (_event_text_has_control, R38) przed tokenem. Wydarzenie opublikowane/nieodwolane/niezakonczone, zamowienie nie cancelled/refunded, pola, zgody formularza i regulaminy obowiazkowe. Konto wiaze sie tylko przez _event_bind_uid_for_email z adresem zaproszenia; kartoteke zmienia tylko wlasciciel (R12: potwierdzony adres zaproszenia ORAZ osoba bez konta albo z kontem wolajacego), cudza kartoteka nietknieta (submitted_profile); zgody przez rejestr A2 (marketing tylko zweryfikowany wlasciciel). Zrodlo package_invitation; zgloszenie wstawiane jako pending, przyjete z kodem QR po przypisaniu miejsca tylko przy zamowieniu oplaconym albo admit_before_payment (TIX-07/TIX-04, awaiting_payment w odpowiedzi); miejsce zachowuje adres i skrot tokenu (ponownie: seat_taken).';
+  'REG-15: przyjecie zaproszenia na miejsce z pakietu (token po sha256, najemca z hosta). Pudlo tokenu jako wartosc {ok:false,error:invalid_token} liczone w _event_invite_probe_* (najemca + konto). Pola z sufitami i bez znakow sterujacych (_event_text_has_control, R38) przed tokenem. Wydarzenie opublikowane/nieodwolane/niezakonczone, zamowienie nie cancelled/refunded, pola, zgody formularza i regulaminy obowiazkowe. Konto wiaze sie tylko przez _event_bind_uid_for_email z adresem zaproszenia; kartoteke zmienia tylko wlasciciel (R12: potwierdzony adres zaproszenia ORAZ osoba bez konta albo z kontem wolajacego), cudza kartoteka nietknieta (submitted_profile); zgody przez rejestr A2 (marketing tylko zweryfikowany wlasciciel). Zrodlo package_invitation; zgloszenie wstawiane jako pending, przyjete z kodem QR po przypisaniu miejsca tylko przy zamowieniu oplaconym albo admit_before_payment (TIX-07/TIX-04, awaiting_payment w odpowiedzi); zuzycie zeruje adres i skrot tokenu miejsca (main 20261013111800); wyscig przy zakladaniu osoby -> person_conflict (main F14). Przyjecie nie czysci consent_withdrawn_at i nie nadaje zgody partnerskiej (main OPS-01 S1).';
