@@ -16,7 +16,8 @@
 --     waski: baza pgTAP powstaje wylacznie z supabase/migrations, wiec
 --     widok zalozony tylko w pasie drizzle (migracja panelu Lovable bez
 --     blizniaka, jak 0150) jest dla tego testu niewidoczny - i Lovable
---     wgrywa go na produkcje, zanim CI cokolwiek uruchomi,
+--     wgrywa go na produkcje, zanim CI cokolwiek uruchomi. Te luke domyka
+--     statycznie `check:sql-definer-views` (oba pasy, job verify),
 --   * warunek czulosci: domyslne uprawnienia roli postgres w public daja
 --     anon i authenticated cos poza SELECT. Inwariant wyzej lapie brak
 --     REVOKE tylko dlatego; gdyby nowsze CLI zaostrzylo domyslki, test

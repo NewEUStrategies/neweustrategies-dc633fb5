@@ -47,7 +47,8 @@
 -- kazdy widok DEFINER w public daje anon/authenticated/PUBLIC wylacznie
 -- SELECT. Lokalne domyslne uprawnienia (Dxtm) sprawiaja, ze nowy widok
 -- DEFINER w pasie supabase bez jawnego REVOKE ALL oblewa ten test w CI.
--- Widoku zalozonego tylko w pasie drizzle (panel Lovable) test nie widzi.
+-- Widoku zalozonego tylko w pasie drizzle (panel Lovable) test nie widzi -
+-- oba pasy statycznie pilnuje `bun run check:sql-definer-views` (CI, verify).
 --
 -- Pas drizzle: drizzle/migrations/0172_public_definer_views_read_only.sql
 -- (blizniak - ten sam SQL wykonywalny). Bez wpisu rejestru z pasa drizzle -

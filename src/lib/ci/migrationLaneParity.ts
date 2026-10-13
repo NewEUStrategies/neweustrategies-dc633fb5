@@ -755,6 +755,11 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     twin: "20261012123000_event_speaker_detail_safe_projection.sql",
   },
   {
+    tag: "0170_payment_orders_shape_guard_and_free_ticket_settlement",
+    drizzleOnly:
+      "Zestawienie dwóch plików supabase z panelu Lovable: SQL wykonywalny to dokładnie 20261012130300_payment_orders_purchase_shape_guard.sql, a po nim 20261012130400_event_free_ticket_settlement.sql (zmierzone executableSql 2026-10-13). Jeden plik dla dwóch wersji, więc pojedynczego bliźniaka nie ma.",
+  },
+  {
     tag: "0171_author_profiles_public_drop_contact_email",
     twin: "20261012200000_author_profiles_public_drop_contact_email.sql",
   },
@@ -1263,4 +1268,191 @@ export function renderLaneReport(report: LaneReport): string {
   if (report.violations.length === 0) return [`${head} Zgodne.`, ...recordLines].join("\n");
   const lines = report.violations.map((v) => `  [${v.kind}] ${v.tag}: ${v.detail}`);
   return [head, `NARUSZENIA (${report.violations.length}):`, ...lines, ...recordLines].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// BRAMKA W CI (`bun run check:migration-lanes`).
+//
+// Rejestr wyżej istniał od początku, ale nic go nie wołało - plik dołożony do
+// drizzle/ bez decyzji przechodził po cichu, choć nagłówek tego modułu mówi
+// „Nie da się już dołożyć pliku po cichu". Od 2026-10-12 runner porównuje
+// raport z rejestrem ZNANYCH naruszeń w dniu włączenia: każde NOWE naruszenie
+// czerwieni CI, a znane, które przestało występować, trzeba z listy usunąć -
+// lista może tylko maleć. Kopia pliku supabase (ten sam SQL wykonywalny)
+// przechodzi bez wpisu jako zapis wdrożenia, więc repliki panelu Lovable nie
+// zapalają bramki; zapala ją plik WYŁĄCZNIE drizzle bez wpisu.
+//
+// Znane w dniu włączenia: 31 wpisów `wpis-bez-pliku`. To nie są brakujące
+// pliki - pliki leżą w drizzle/migrations, ale NIE MA ich w `_journal.json`
+// (sieroty po przenumerowaniu przez panel, np. `0057_event_cfp.sql` wobec
+// dziennikowego `0079_event_cfp`), więc migrator drizzle nigdy ich nie
+// wykona, a wpisy niczego, co jedzie na produkcję, nie maskują. Zamrożone
+// zamiast skasowanych, żeby nie gubić zapisu decyzji; usunięcie sieroty albo
+// jej wpisu skraca tę listę.
+//
+// KOLEJNOŚĆ DZIENNIKA. Migrator drizzle stosuje wyłącznie wpisy, których
+// `when` jest PÓŹNIEJSZE niż `created_at` ostatniej zastosowanej migracji.
+// Wpis z `when` nie większym od poprzednika - typowo po scaleniu gałęzi,
+// której numeracja powstała przed nowszymi wpisami z main - zostaje na
+// produkcji pominięty po cichu. Ten PR trafił na to dwa razy w jeden dzień
+// (bliźnięta 0151-0153 i 0164/0165 pod wpisami Lovable 0151-0170). Bramka
+// wymaga więc, żeby każdy wpis miał `when` późniejsze od WSZYSTKICH
+// wcześniejszych (tak liczy migrator: względem najnowszego zastosowanego);
+// pięć historycznych odstępstw - powtórek bez skutku - jest zamrożonych jak
+// sieroty wyżej.
+// ---------------------------------------------------------------------------
+
+/** Wpisy rejestru dla sierot spoza `_journal.json` - znane w dniu włączenia bramki. */
+export const KNOWN_ORPHAN_LANE_ENTRIES: readonly string[] = [
+  "0055_crm_consent_source_event",
+  "0056_event_organizer_foundation",
+  "0057_event_cfp",
+  "0057_event_cfp_part2",
+  "0057_event_cfp_part3",
+  "0057_event_cfp_part4",
+  "0057_event_cfp_part5",
+  "0057_event_cfp_part6",
+  "0058_event_invoices",
+  "0058_event_invoices_part2",
+  "0058_event_invoices_part3",
+  "0058_event_invoices_part4",
+  "0058_event_invoices_part5",
+  "0059_event_ads_funnel",
+  "0059_event_ads_funnel_part2",
+  "0060_event_seating",
+  "0060_event_seating_part2",
+  "0060_event_seating_part3",
+  "0061_event_sponsor_report",
+  "0061_event_sponsor_report_part2",
+  "0062_event_scanner_offline",
+  "0062_event_scanner_offline_part2",
+  "0063_event_ticket_wallet",
+  "0064_event_clone",
+  "0064_event_clone_part2",
+  "0064_event_clone_part3",
+  "0073_event_ads_funnel_review_fixes",
+  "0074_event_seating_review_fixes",
+  "0075_event_clone_participant_settings",
+  "0076_event_person_crm_intents",
+  "0131_event_seat_state_single_source",
+];
+
+/**
+ * Wpisy `_journal.json`, których `when` nie przekracza najpóźniejszego `when`
+ * wcześniejszych wpisów - znane w dniu włączenia bramki. Wszystkie pięć to
+ * powtórki o IDENTYCZNYM SQL-u wykonywalnym (zmierzone `executableSql`
+ * 2026-10-13): 0062-0064 = 0059-0061 (ręcznie ustawione `when` co godzinę),
+ * 0114/0115 = 0112/0113 (`when` 11:00/11:30). Pominięcie ich przez migrator
+ * niczego nie zmienia - stąd zamrożenie zamiast naprawy.
+ */
+export const KNOWN_NON_MONOTONIC_JOURNAL: readonly string[] = [
+  "0062_event_group_lead_closes_admitted_guests",
+  "0063_event_package_order_cancel_returns_coupon",
+  "0064_event_group_lead_plan_seat",
+  "0114_event_publication_readiness",
+  "0115_event_participation_lifecycle",
+];
+
+/** Wpis dziennika drizzle (`meta/_journal.json`) w zakresie, którego potrzebuje bramka. */
+export interface JournalEntry {
+  readonly idx: number;
+  readonly when: number;
+  readonly tag: string;
+}
+
+/** Tagi wpisów, których `when` nie rośnie względem poprzednika w dzienniku. */
+export function nonMonotonicJournal(entries: readonly JournalEntry[]): string[] {
+  const out: string[] = [];
+  let prev = Number.NEGATIVE_INFINITY;
+  for (const e of entries) {
+    if (e.when <= prev) out.push(e.tag);
+    prev = Math.max(prev, e.when);
+  }
+  return out;
+}
+
+export interface LaneGateResult {
+  /** Naruszenia rejestru spoza listy znanych sierot - czerwienią CI. */
+  readonly fresh: readonly LaneViolation[];
+  /** Znane sieroty, które już nie są naruszeniem - do usunięcia z listy. */
+  readonly stale: readonly string[];
+  /** Wpisy dziennika z niemonotonicznym `when` spoza listy znanych - czerwienią CI. */
+  readonly journalFresh: readonly string[];
+  /** Znane odstępstwa kolejności, których już nie ma - do usunięcia z listy. */
+  readonly journalStale: readonly string[];
+}
+
+export interface LaneGateKnown {
+  readonly orphans: readonly string[];
+  readonly nonMonotonic: readonly string[];
+}
+
+/** Ocena bramki: raport rejestru + kolejność dziennika względem list znanych przypadków. */
+export function evaluateLaneGate(
+  report: LaneReport,
+  journal: readonly JournalEntry[],
+  known: LaneGateKnown = {
+    orphans: KNOWN_ORPHAN_LANE_ENTRIES,
+    nonMonotonic: KNOWN_NON_MONOTONIC_JOURNAL,
+  },
+): LaneGateResult {
+  const orphans = new Set(known.orphans);
+  const fresh = report.violations.filter(
+    (v) => !(v.kind === "wpis-bez-pliku" && orphans.has(v.tag)),
+  );
+  const still = new Set(
+    report.violations.filter((v) => v.kind === "wpis-bez-pliku").map((v) => v.tag),
+  );
+  const stale = known.orphans.filter((tag) => !still.has(tag));
+  const disordered = nonMonotonicJournal(journal);
+  const knownDisorder = new Set(known.nonMonotonic);
+  const journalFresh = disordered.filter((tag) => !knownDisorder.has(tag));
+  const journalStale = known.nonMonotonic.filter((tag) => !disordered.includes(tag));
+  return { fresh, stale, journalFresh, journalStale };
+}
+
+export function laneGateFailed(result: LaneGateResult): boolean {
+  return (
+    result.fresh.length > 0 ||
+    result.stale.length > 0 ||
+    result.journalFresh.length > 0 ||
+    result.journalStale.length > 0
+  );
+}
+
+export function renderLaneGate(report: LaneReport, result: LaneGateResult): string {
+  const records = report.deployRecords.length;
+  const knownOrphans = report.violations.length - result.fresh.length;
+  const head = `Pasy migracji: ${report.checked} wpisów dziennika drizzle (${report.twins} z bliźniakiem, ${report.drizzleOnly} świadomie bez, ${records} zapisów wdrożenia rozpoznanych po treści, ${knownOrphans} znanych sierot spoza dziennika).`;
+  if (!laneGateFailed(result)) return `✓ ${head}`;
+  const lines = [`✗ ${head}`];
+  if (result.fresh.length > 0) {
+    lines.push(`NOWE NARUSZENIA REJESTRU (${result.fresh.length}):`);
+    for (const v of result.fresh) lines.push(`  [${v.kind}] ${v.tag}: ${v.detail}`);
+    lines.push(
+      "  Naprawa: dopisz wpis do MIGRATION_LANES w src/lib/ci/migrationLaneParity.ts - `twin` (plik supabase o tym samym SQL-u) albo `drizzleOnly` z powodem.",
+    );
+  }
+  if (result.journalFresh.length > 0) {
+    lines.push(`NIEMONOTONICZNY DZIENNIK (${result.journalFresh.length}):`);
+    for (const t of result.journalFresh)
+      lines.push(
+        `  ${t}: \`when\` nie jest późniejsze od poprzedniego wpisu - migrator drizzle pominie go na bazie, która zastosowała już nowszy wpis.`,
+      );
+    lines.push(
+      "  Naprawa: przenumeruj wpis na koniec dziennika z `when` późniejszym od ostatniego wpisu main i od ostatniej migracji zastosowanej na produkcji.",
+    );
+  }
+  for (const [label, list] of [
+    ["ZNANE SIEROTY, KTÓRE ZNIKNĘŁY - usuń je z KNOWN_ORPHAN_LANE_ENTRIES", result.stale],
+    [
+      "ZNANE ODSTĘPSTWA KOLEJNOŚCI, KTÓRYCH JUŻ NIE MA - usuń je z KNOWN_NON_MONOTONIC_JOURNAL",
+      result.journalStale,
+    ],
+  ] as const) {
+    if (list.length === 0) continue;
+    lines.push(`${label} (${list.length}):`);
+    for (const t of list) lines.push(`  ${t}`);
+  }
+  return lines.join("\n");
 }
