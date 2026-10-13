@@ -1380,6 +1380,13 @@
       "when": 1791922799919,
       "tag": "0196_event_scanner_ops_hardening_part3",
       "breakpoints": true
+    },
+    {
+      "idx": 197,
+      "version": "7",
+      "when": 1791923055361,
+      "tag": "0197_event_scanner_ops_hardening_part4",
+      "breakpoints": true
     }
   ]
 }
