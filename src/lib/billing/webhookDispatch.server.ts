@@ -513,9 +513,32 @@ async function handleCreated(
       },
       { onConflict: "provider_subscription_id", ignoreDuplicates: true },
     )
-    .select("id");
+    // `tenant_id` i `user_id` z RETURNING: najemcę przypina trigger z profilu
+    // właściciela, więc alarm o drugiej subskrypcji niżej nie bierze go z ładunku.
+    .select("id, tenant_id, user_id");
   if (error) throw new Error(`subscriptions upsert failed: ${error.message}`);
   if (!inserted || inserted.length === 0) return "exists";
+
+  // Siatka bezpieczeństwa za kasą: druga żywa subskrypcja planu tego konta
+  // (panel operatora, skrajny wyścig, osobny zakup w innym modelu
+  // rozliczenia). Wyłącznie przy NOWYM wierszu - ponowienie zdarzenia zastaje
+  // wiersz (`exists`) i nie dzwoni drugi raz. Tylko alarm i log, bez
+  // anulowania; sprawdzenie biegnie za odpowiedzią i nigdy nie rzuca, więc
+  // nie wstrzymuje ani nie wywraca nadania uprawnienia poniżej.
+  const insertedRow = inserted[0];
+  if (insertedRow?.tenant_id && insertedRow.user_id) {
+    const { scheduleDuplicatePlanSubscriptionAlert } =
+      await import("@/lib/billing/duplicateSubscriptionAlert.server");
+    scheduleDuplicatePlanSubscriptionAlert({
+      subscriptionId: data.id,
+      userId: insertedRow.user_id,
+      tenantId: insertedRow.tenant_id,
+      environment: env,
+      priceId,
+      status: data.status,
+      purpose: data.customData?.purpose ?? null,
+    });
+  }
 
   const period = accessPeriodFromEvent({
     kind: "created",

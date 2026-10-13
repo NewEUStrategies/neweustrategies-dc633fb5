@@ -1,0 +1,556 @@
+// Alarm o DRUGIEJ żywej subskrypcji planu tego samego konta (siatka
+// bezpieczeństwa webhooka za strażnikiem kasy).
+//
+// DLACZEGO TEN PLIK. Kasa blokuje drugi plan tylko na swojej ścieżce. Panel
+// operatora, skrajny wyścig i świadomie dopuszczony osobny zakup w innym
+// modelu rozliczenia (Zespół za miejsce <-> plan indywidualny) zakładały
+// drugą subskrypcję bez śladu u organizatora - podwójne obciążenie wychodziło
+// dopiero w reklamacji. Każdy przypadek niżej przybija jedną granicę:
+//   * ten sam model -> ostrzeżenie RAZ (ponowienie zdarzenia nie dzwoni),
+//   * zdarzenia widzące się nawzajem -> ten sam klucz, jeden dzwonek,
+//   * darowizna -> cisza (nowa z `purpose`, istniejąca z rejestru darowizn),
+//   * inny model rozliczenia -> alarm INFORMACYJNY,
+//   * jedna subskrypcja -> cisza, ale sprawdzenie naprawdę się odbyło,
+//   * awaria albo zawieszenie alarmu -> webhook i tak przetworzony.
+//
+// ATRAPUJEMY GRANICE: klienta Supabase, SDK operatora (bezpiecznik - nic tu
+// nie ma prawa niczego anulować u operatora) i `waitUntil` środowiska
+// Workers, żeby test mógł dokończyć pracę „za odpowiedzią" deterministycznie.
+// Dispatch, efekty zakupu i `notifyTenantAdmins` biegną prawdziwym kodem.
+//
+// RODO: adresy syntetyczne (`example.com`), identyfikatory zmyślone.
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  fail,
+  ok,
+  supabaseFromStub,
+  type RecordedChain,
+  type SupabaseFromStub,
+  type SupabaseResult,
+  type TableResponder,
+} from "@/test/supabase/chain";
+import { supabaseRpcStub, type RecordedRpc, type SupabaseRpcStub } from "@/test/supabase/rpc";
+import { accessPlan } from "@/test/billing/fixtures";
+import type { SubscriptionData } from "@/lib/billing/webhookDispatch.server";
+
+const h = vi.hoisted(() => ({
+  /** Praca zarejestrowana „za odpowiedzią" (atrapa `ctx.waitUntil`). */
+  background: [] as Promise<unknown>[],
+}));
+
+let db: SupabaseFromStub;
+let rpc: SupabaseRpcStub;
+
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: {
+    from: (table: string) => db.from(table),
+    rpc: (name: string, args?: Record<string, unknown>) => rpc.rpc(name, args),
+  },
+}));
+
+// Bezpiecznik: alarm NIGDY nie anuluje subskrypcji u operatora. Gdyby którakolwiek
+// ścieżka sięgnęła po klienta Stripe, test poleci z jawnym komunikatem.
+vi.mock("@/lib/stripe.server", () => ({
+  getConnectionApiKey: () => "test_klucz_atrapy",
+  getWebhookSecret: () => "test_sekret_atrapy",
+  getStripeClient: async () => {
+    throw new Error("test: alarm o drugiej subskrypcji nie ma prawa wołać operatora");
+  },
+  getStripeErrorMessage: (error: unknown) => String(error),
+  resolveEnvironment: () => "sandbox",
+  verifyWebhook: () => {
+    throw new Error("test: weryfikacja podpisu nie należy do tej warstwy");
+  },
+}));
+
+// `ctx.waitUntil` to granica środowiska: zbieramy obietnice, żeby test mógł je
+// dokończyć PO powrocie dispatchu - dokładnie tak, jak runtime po odpowiedzi.
+vi.mock("@/lib/http/waitUntil.server", () => ({
+  runAfterResponse: (work: Promise<unknown>) => {
+    h.background.push(work.catch(() => undefined));
+  },
+}));
+
+const { dispatchWebhookEvent } = await import("@/lib/billing/webhookDispatch.server");
+const {
+  alertOnDuplicatePlanSubscription,
+  duplicatePlanAlertHref,
+  duplicatePlanAlertKey,
+  duplicatePlanSeverity,
+} = await import("@/lib/billing/duplicateSubscriptionAlert.server");
+
+const TENANT = "tenant-a";
+const BUYER = "user-kupujacy";
+const ADMIN = "admin-najemcy";
+const NEW_SUB = "sub_nowa";
+const OLD_SUB = "sub_stara";
+const OCCURRED_AT = "2026-10-13T10:00:00.000Z";
+
+const TABLES = [
+  "subscriptions",
+  "user_subscriptions",
+  "access_plans",
+  "payment_orders",
+  "billing_documents",
+  "billing_profiles",
+  "donations",
+  "notifications",
+  "crm_leads",
+  "crm_consent_log",
+  "newsletter_subscribers",
+  "member_organizations",
+  "organization_seats",
+  "event_rsvps",
+  "membership_grants",
+] as const;
+
+interface LiveRow {
+  provider_subscription_id: string;
+  price_id: string;
+  status: string;
+}
+
+interface Scenario {
+  /** Czy wstawienie-jeśli-brak zapisało wiersz (`false` = ponowienie, wiersz już był). */
+  inserted: boolean;
+  /** Żywe subskrypcje planu, które zwraca odczyt „czy jest druga". */
+  live: LiveRow[];
+  liveError?: string;
+  /** Odczyt zawieszony na zawsze (alarm, który się nie kończy). */
+  liveHangs?: boolean;
+  /** Identyfikatory znane rejestrowi darowizn. */
+  donationIds: string[];
+  userRolesError?: string;
+}
+
+let scenario: Scenario;
+
+/** Wiersz po pierwszym przebiegu - dla ponowienia, które idzie torem aktualizacji. */
+const EXISTING_ROW = {
+  id: "row-nowy",
+  user_id: BUYER,
+  tenant_id: TENANT,
+  price_id: "pro_monthly",
+  status: "active",
+  current_period_start: "2026-10-01T00:00:00.000Z",
+  current_period_end: "2026-11-01T00:00:00.000Z",
+  first_payment_failed_at: null,
+  purchase_confirmed_at: OCCURRED_AT,
+  last_event_at: OCCURRED_AT,
+};
+
+/** Odczyt „czy konto ma INNĄ żywą subskrypcję planu" - jedyny z `neq` po identyfikatorze. */
+const isLiveLookup = (chain: RecordedChain): boolean =>
+  chain.argsOf("neq")?.[0] === "provider_subscription_id";
+
+function subscriptionsResponder(): TableResponder {
+  return (chain) => {
+    if (chain.has("upsert") && chain.has("select")) {
+      // RETURNING niesie najemcę przypiętego triggerem z profilu właściciela.
+      return ok(scenario.inserted ? [{ id: "row-nowy", tenant_id: TENANT, user_id: BUYER }] : []);
+    }
+    if (chain.has("update") && chain.has("select")) return ok([{ id: "row-nowy" }]);
+    if (isLiveLookup(chain)) {
+      if (scenario.liveHangs) return new Promise<SupabaseResult>(() => undefined);
+      return scenario.liveError ? fail(scenario.liveError) : ok(scenario.live);
+    }
+    if (chain.has("maybeSingle")) return ok(scenario.inserted ? null : EXISTING_ROW);
+    return ok(null);
+  };
+}
+
+function donationsResponder(): TableResponder {
+  return (chain) => {
+    if (!chain.has("in")) return ok(null);
+    const ids = (chain.argsOf("in")?.[1] ?? []) as string[];
+    return ok(
+      ids
+        .filter((id) => scenario.donationIds.includes(id))
+        .map((id) => ({ provider_subscription_id: id })),
+    );
+  };
+}
+
+/** Deduplikacja `enqueue_notification`: (odbiorca, rodzaj, href) - jak w SQL. */
+let deliveredKeys: Set<string>;
+
+beforeEach(() => {
+  h.background.length = 0;
+  scenario = { inserted: true, live: [], donationIds: [] };
+  deliveredKeys = new Set();
+  db = supabaseFromStub();
+  rpc = supabaseRpcStub();
+  for (const table of TABLES) db.setResponse(table, ok(null));
+  db.setResponse("subscriptions", subscriptionsResponder());
+  // Plan najemcy dla ceny zdarzenia - bez niego uprawnienie nie powstaje, a test
+  // „awaria alarmu nie odbiera dostępu" nie miałby czego sprawdzić.
+  db.setResponse("access_plans", (chain) => {
+    const tier = chain.calls.find((c) => c.method === "eq" && c.args[0] === "tier_key")?.args[1];
+    return ok(
+      accessPlan({ id: `plan-${String(tier)}`, tenant_id: TENANT, tier_key: String(tier) }),
+    );
+  });
+  db.setResponse("donations", donationsResponder());
+  db.setResponse("user_roles", () =>
+    scenario.userRolesError ? fail(scenario.userRolesError) : ok([{ user_id: ADMIN }]),
+  );
+  db.setResponse("profiles", (chain) =>
+    chain.has("in")
+      ? ok([{ id: ADMIN }])
+      : ok({
+          email: "kupujacy@example.com",
+          first_name: "Jan",
+          last_name: null,
+          display_name: null,
+          tenant_id: TENANT,
+          prefs: { language: "pl" },
+        }),
+  );
+  rpc.setData("email_filter_suppressed", []);
+  rpc.setData("org_apply_subscription_seats", { linked: false });
+  rpc.setResponse("enqueue_notification", (call: RecordedRpc) => {
+    const key = `${String(call.arg("p_user_id"))}|${String(call.arg("p_kind"))}|${String(call.arg("p_href"))}`;
+    if (deliveredKeys.has(key)) return ok(null);
+    deliveredKeys.add(key);
+    return ok(`notif-${deliveredKeys.size}`);
+  });
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(console, "info").mockImplementation(() => undefined);
+  vi.spyOn(console, "log").mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+/** Dokończ pracę „za odpowiedzią" - jak runtime po wysłaniu odpowiedzi. */
+async function settleBackground(): Promise<void> {
+  while (h.background.length > 0) await h.background.shift();
+}
+
+function createdEvent(overrides: Partial<SubscriptionData> = {}, priceId = "pro_monthly") {
+  const productId = priceId === "team_monthly_seat" ? "plan_team" : "plan_pro";
+  const data: SubscriptionData = {
+    id: NEW_SUB,
+    customerId: "cus_atrapa",
+    status: "active",
+    customData: { userId: BUYER },
+    currentBillingPeriod: {
+      startsAt: "2026-10-01T00:00:00.000Z",
+      endsAt: "2026-11-01T00:00:00.000Z",
+    },
+    items: [
+      {
+        quantity: 1,
+        price: { id: "price_atrapa", externalId: priceId },
+        product: { id: "prod_atrapa", externalId: productId },
+      },
+    ],
+    ...overrides,
+  };
+  return data;
+}
+
+async function deliverCreated(
+  data: SubscriptionData,
+  environment: "live" | "sandbox" = "live",
+): Promise<string> {
+  return dispatchWebhookEvent({
+    eventType: "subscription.created",
+    data,
+    environment,
+    occurredAt: OCCURRED_AT,
+  });
+}
+
+/** Dzwonki alarmu o drugiej subskrypcji (inne `enqueue_notification` się nie liczą). */
+const duplicateBells = (): RecordedRpc[] =>
+  rpc
+    .callsFor("enqueue_notification")
+    .filter((call) => String(call.arg("p_href")).includes("duplicate_subscriptions="));
+
+const liveLookups = (): RecordedChain[] => db.chainsFor("subscriptions").filter(isLiveLookup);
+
+const loggedWith = (spy: unknown, message: string): unknown[][] =>
+  (spy as { mock: { calls: unknown[][] } }).mock.calls.filter((args) => args[0] === message);
+
+describe("webhook: druga żywa subskrypcja planu w tym samym modelu", () => {
+  it("ostrzega administratorów RAZ, a ponowienie tego samego zdarzenia nie dzwoni drugi raz", async () => {
+    scenario.live = [
+      { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+
+    expect(await deliverCreated(createdEvent())).toBe("processed");
+    await settleBackground();
+
+    // Zakres z WIERSZA W BAZIE (RETURNING) - ładunek nie niesie najemcy.
+    const [lookup] = liveLookups();
+    expect(lookup?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["tenant_id", TENANT],
+      ["user_id", BUYER],
+      ["environment", "live"],
+    ]);
+    expect(lookup?.argsOf("in")).toEqual([
+      "status",
+      ["active", "trialing", "past_due", "unpaid", "paused"],
+    ]);
+    expect(lookup?.argsOf("neq")).toEqual(["provider_subscription_id", NEW_SUB]);
+
+    const bells = duplicateBells();
+    expect(bells).toHaveLength(1);
+    expect(bells[0]?.arg("p_user_id")).toBe(ADMIN);
+    expect(bells[0]?.arg("p_kind")).toBe("billing");
+    expect(bells[0]?.arg("p_title_pl")).toBe("Druga aktywna subskrypcja planu");
+    expect(bells[0]?.arg("p_href")).toBe(
+      "/admin/billing?duplicate_subscriptions=sub_nowa,sub_stara",
+    );
+    expect(String(bells[0]?.arg("p_body_pl"))).toContain(NEW_SUB);
+    expect(String(bells[0]?.arg("p_body_pl"))).toContain(OLD_SUB);
+    // Głośny log z obiema subskrypcjami - ślad zostaje, nawet gdy dzwonek padnie.
+    expect(loggedWith(console.error, "[payments] duplicate live plan subscription")).toEqual([
+      [
+        "[payments] duplicate live plan subscription",
+        expect.objectContaining({
+          subscriptionId: NEW_SUB,
+          otherSubscriptionIds: [OLD_SUB],
+          tenantId: TENANT,
+          environment: "live",
+          severity: "warning",
+        }),
+      ],
+    ]);
+    // Nic nie anulowano: żaden zapis nie zmienia statusu na `canceled`.
+    const cancelWrites = db
+      .chainsFor("subscriptions")
+      .filter((c) => c.has("update"))
+      .filter((c) => (c.argsOf("update")?.[0] as { status?: string })?.status === "canceled");
+    expect(cancelWrites).toHaveLength(0);
+
+    // Ponowienie (operator albo panel admina): wiersz już jest -> tor aktualizacji.
+    scenario.inserted = false;
+    expect(await deliverCreated(createdEvent())).toBe("processed");
+    await settleBackground();
+
+    expect(liveLookups()).toHaveLength(1);
+    expect(duplicateBells()).toHaveLength(1);
+  });
+
+  it("dwa zdarzenia widzące się nawzajem dają TEN SAM klucz i jeden dzwonek", async () => {
+    scenario.live = [
+      { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+    const first = await alertOnDuplicatePlanSubscription({
+      subscriptionId: NEW_SUB,
+      userId: BUYER,
+      tenantId: TENANT,
+      environment: "live",
+      priceId: "pro_monthly",
+      status: "active",
+    });
+    scenario.live = [
+      { provider_subscription_id: NEW_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+    const second = await alertOnDuplicatePlanSubscription({
+      subscriptionId: OLD_SUB,
+      userId: BUYER,
+      tenantId: TENANT,
+      environment: "live",
+      priceId: "pro_monthly",
+      status: "trialing",
+    });
+
+    expect(first).toMatchObject({ kind: "alerted", severity: "warning", delivered: 1 });
+    expect(second).toMatchObject({ kind: "alerted", severity: "warning", delivered: 0 });
+    expect(first.kind === "alerted" && first.dedupeKey).toBe("sub_nowa,sub_stara");
+    expect(second.kind === "alerted" && second.dedupeKey).toBe("sub_nowa,sub_stara");
+    const hrefs = duplicateBells().map((call) => call.arg("p_href"));
+    expect(hrefs).toEqual([hrefs[0], hrefs[0]]);
+  });
+
+  it("klucz deduplikacji nie zależy od kolejności i nie dubluje identyfikatorów", () => {
+    expect(duplicatePlanAlertKey(["sub_b", "sub_a", "sub_b"])).toBe("sub_a,sub_b");
+    expect(duplicatePlanAlertKey(["sub_a", "sub_b"])).toBe(
+      duplicatePlanAlertKey(["sub_b", "sub_a"]),
+    );
+    expect(duplicatePlanAlertHref("sub_a,sub_b")).toBe(
+      "/admin/billing?duplicate_subscriptions=sub_a,sub_b",
+    );
+  });
+});
+
+describe("webhook: darowizna nie jest drugim planem", () => {
+  it("istniejący wiersz znany rejestrowi darowizn nie podnosi alarmu", async () => {
+    scenario.live = [
+      { provider_subscription_id: "sub_darowizna", price_id: "donation_monthly", status: "active" },
+    ];
+    scenario.donationIds = ["sub_darowizna"];
+
+    expect(await deliverCreated(createdEvent())).toBe("processed");
+    await settleBackground();
+
+    // Sprawdzenie naprawdę się odbyło i zapytało rejestr darowizn w tym zakresie.
+    expect(liveLookups()).toHaveLength(1);
+    const ledger = db.chainsFor("donations").find((c) => c.has("in"));
+    expect(ledger?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["tenant_id", TENANT],
+      ["environment", "live"],
+    ]);
+    expect(ledger?.argsOf("in")).toEqual(["provider_subscription_id", ["sub_darowizna"]]);
+    expect(duplicateBells()).toHaveLength(0);
+    expect(db.chainsFor("user_roles")).toHaveLength(0);
+  });
+
+  it("nowa subskrypcja z `purpose = donation` w ogóle nie trafia do sprawdzenia", async () => {
+    const outcome = await alertOnDuplicatePlanSubscription({
+      subscriptionId: "sub_darowizna",
+      userId: BUYER,
+      tenantId: TENANT,
+      environment: "live",
+      priceId: "donation_monthly",
+      status: "active",
+      purpose: "donation",
+    });
+
+    expect(outcome).toEqual({ kind: "skipped", reason: "donation" });
+    expect(db.chains).toHaveLength(0);
+  });
+});
+
+describe("webhook: osobny zakup w innym modelu rozliczenia", () => {
+  it("Zespół za miejsce obok planu indywidualnego daje alarm INFORMACYJNY", async () => {
+    scenario.live = [
+      { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+
+    expect(await deliverCreated(createdEvent({}, "team_monthly_seat"), "sandbox")).toBe(
+      "processed",
+    );
+    await settleBackground();
+
+    expect(liveLookups()[0]?.calls.find((c) => c.args[0] === "environment")?.args).toEqual([
+      "environment",
+      "sandbox",
+    ]);
+    const bells = duplicateBells();
+    expect(bells).toHaveLength(1);
+    expect(bells[0]?.arg("p_title_pl")).toBe("Informacja: osobny plan w innym modelu rozliczenia");
+    expect(String(bells[0]?.arg("p_body_pl"))).toContain("środowisko testowe");
+    expect(
+      loggedWith(console.warn, "[payments] separate plan subscription in another billing model"),
+    ).toEqual([
+      [
+        "[payments] separate plan subscription in another billing model",
+        expect.objectContaining({ severity: "info", otherSubscriptionIds: [OLD_SUB] }),
+      ],
+    ]);
+    // Niższa waga: żadnego ostrzeżenia o podwójnym obciążeniu.
+    expect(loggedWith(console.error, "[payments] duplicate live plan subscription")).toHaveLength(
+      0,
+    );
+  });
+
+  it("waga wynika ze wspólnej reguły kasy: inny model = info, każdy inny konflikt = ostrzeżenie", () => {
+    expect(duplicatePlanSeverity("pro_monthly", ["team_monthly_seat"])).toBe("info");
+    expect(duplicatePlanSeverity("team_monthly_seat", ["plus_monthly"])).toBe("info");
+    // Ten sam plan, zmiana planu i cena spoza katalogu - kasa by to zablokowała.
+    expect(duplicatePlanSeverity("pro_monthly", ["pro_monthly"])).toBe("warning");
+    expect(duplicatePlanSeverity("pro_monthly", ["plus_monthly"])).toBe("warning");
+    expect(duplicatePlanSeverity("pro_monthly", ["nieznany_klucz"])).toBe("warning");
+    expect(duplicatePlanSeverity("nieznany_klucz", ["pro_monthly"])).toBe("warning");
+    // Mieszanka: jeden prawdziwy duplikat wystarcza do ostrzeżenia.
+    expect(duplicatePlanSeverity("pro_monthly", ["team_monthly_seat", "plus_annual"])).toBe(
+      "warning",
+    );
+  });
+});
+
+describe("webhook: jedna subskrypcja", () => {
+  it("bez innej żywej subskrypcji planu nie ma alarmu - choć sprawdzenie się odbyło", async () => {
+    expect(await deliverCreated(createdEvent())).toBe("processed");
+    await settleBackground();
+
+    expect(liveLookups()).toHaveLength(1);
+    expect(duplicateBells()).toHaveLength(0);
+    expect(db.chainsFor("user_roles")).toHaveLength(0);
+    expect(db.chainsFor("donations").filter((c) => c.has("in"))).toHaveLength(0);
+  });
+
+  it("subskrypcja bez dostępu (`incomplete`) nie jest jeszcze drugim opłaconym planem", async () => {
+    scenario.live = [
+      { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+    const outcome = await alertOnDuplicatePlanSubscription({
+      subscriptionId: NEW_SUB,
+      userId: BUYER,
+      tenantId: TENANT,
+      environment: "live",
+      priceId: "pro_monthly",
+      status: "incomplete",
+    });
+
+    expect(outcome).toEqual({ kind: "skipped", reason: "not_entitled" });
+    expect(db.chains).toHaveLength(0);
+  });
+});
+
+describe("webhook: awaria alarmu nie dotyka obsługi zdarzenia", () => {
+  const entitlementWrites = (): RecordedChain[] =>
+    db
+      .chainsFor("user_subscriptions")
+      .filter((c) => c.has("insert") || c.has("update") || c.has("upsert"));
+
+  it("błąd odczytu: zdarzenie przetworzone, uprawnienie nadane, błąd w logu", async () => {
+    scenario.liveError = "connection reset";
+
+    expect(await deliverCreated(createdEvent())).toBe("processed");
+    await settleBackground();
+
+    expect(entitlementWrites().length).toBeGreaterThan(0);
+    expect(duplicateBells()).toHaveLength(0);
+    expect(
+      loggedWith(console.error, "[payments] duplicate plan subscription check failed"),
+    ).toEqual([
+      [
+        "[payments] duplicate plan subscription check failed",
+        {
+          subscriptionId: NEW_SUB,
+          error: "live plan subscriptions lookup failed: connection reset",
+        },
+      ],
+    ]);
+  });
+
+  it("błąd dzwonka: zdarzenie przetworzone, a duplikat i tak zostaje w logu", async () => {
+    scenario.live = [
+      { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+    scenario.userRolesError = "permission denied";
+
+    expect(await deliverCreated(createdEvent())).toBe("processed");
+    await settleBackground();
+
+    expect(entitlementWrites().length).toBeGreaterThan(0);
+    expect(duplicateBells()).toHaveLength(0);
+    expect(loggedWith(console.error, "[payments] duplicate live plan subscription")).toHaveLength(
+      1,
+    );
+    expect(loggedWith(console.error, "[tenantAdminAlert] alert failed")).toHaveLength(1);
+  });
+
+  it("zawieszony alarm nie wstrzymuje webhooka - biegnie za odpowiedzią", async () => {
+    scenario.live = [
+      { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+    scenario.liveHangs = true;
+
+    // Dispatch wraca, choć odczyt alarmu nigdy się nie kończy.
+    expect(await deliverCreated(createdEvent())).toBe("processed");
+    expect(entitlementWrites().length).toBeGreaterThan(0);
+    expect(h.background).toHaveLength(1);
+    // Odczyt ruszył - alarm nie został po prostu pominięty.
+    await vi.waitFor(() => expect(liveLookups()).toHaveLength(1));
+    h.background.length = 0;
+  });
+});
