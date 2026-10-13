@@ -204,6 +204,19 @@ const FORM_RPC = "event_registration_form";
 /** Odpowiedz funkcji serwerowej zapisu - planowana w atrapie pod ta nazwa. */
 const REGISTER_RPC = REGISTER_FOR_CLIENT_RPC;
 const CANCEL_RPC = "event_registration_cancel";
+const CANCEL_PREVIEW_RPC = "event_registration_cancel_preview";
+
+/** Podgląd rezygnacji (REG-03) w kształcie z migracji - domyślnie bez pieniędzy. */
+function cancelPreviewPayload(refund: Record<string, Json> = {}): Json {
+  return {
+    ok: true,
+    registration_id: REGISTRATION_ID,
+    status: "approved",
+    can_cancel: true,
+    refusal: null,
+    refund: { effect: "none", acknowledgement_required: false, group_guests_closing: 0, ...refund },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // LADUNEK RPC W POSTACI, W JAKIEJ ODDAJE GO BAZA (jsonb, snake_case). Parser
@@ -380,11 +393,22 @@ function submitForm(): void {
   fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.submit" }));
 }
 
+/**
+ * Rezygnacja z ekranu po zapisie. Przycisk czeka na podgląd skutku
+ * finansowego (REG-03) - bez niego nie wiadomo, czy wystarczy jedno kliknięcie.
+ */
+async function clickCancel(): Promise<void> {
+  const button = screen.getByRole("button", { name: "eventRegistration.actions.cancel" });
+  await waitFor(() => expect(button).toBeEnabled());
+  fireEvent.click(button);
+}
+
 beforeEach(() => {
   h.rpc = supabaseRpcStub();
   h.rpc.setData(FORM_RPC, formPayload());
   h.rpc.setData(REGISTER_RPC, registerPayload());
   h.rpc.setData(CANCEL_RPC, { registration_id: REGISTRATION_ID, promoted_from_waitlist: 0 });
+  h.rpc.setData(CANCEL_PREVIEW_RPC, cancelPreviewPayload());
   h.user = null;
   h.lang = "pl";
   h.sendConfirmation.mockReset();
@@ -1531,7 +1555,7 @@ describe("PublicRegistrationForm - rezygnacja tuz po zapisie", () => {
   it("gosc odwoluje zapis KLUCZEM - to jego jedyne poswiadczenie", async () => {
     await submitAndOpenConfirmation();
 
-    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.cancel" }));
+    await clickCancel();
 
     await waitFor(() => expect(stub().callsFor(CANCEL_RPC)).toHaveLength(1));
     expect(payloadOf(CANCEL_RPC)).toEqual({ manage_token: MANAGE_TOKEN });
@@ -1542,17 +1566,47 @@ describe("PublicRegistrationForm - rezygnacja tuz po zapisie", () => {
     h.user = { id: "u-1", email: "anna.kowalska@example.com" };
     await submitAndOpenConfirmation({ manage_token: null });
 
-    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.cancel" }));
+    await clickCancel();
 
     await waitFor(() => expect(stub().callsFor(CANCEL_RPC)).toHaveLength(1));
     expect(payloadOf(CANCEL_RPC)).toEqual({ registration_id: REGISTRATION_ID });
+  });
+
+  it("opłacone zgłoszenie: dwa kroki, skutek na ekranie, a rezygnacja niesie go do bazy (REG-03)", async () => {
+    stub().setData(
+      CANCEL_PREVIEW_RPC,
+      cancelPreviewPayload({
+        effect: "full_refund",
+        amount_cents: 10000,
+        currency: "PLN",
+        acknowledgement_required: true,
+      }),
+    );
+    await submitAndOpenConfirmation();
+
+    await clickCancel();
+
+    // Pierwsze kliknięcie tylko pyta - nic nie poszło do bazy.
+    expect(
+      await screen.findByText(/eventRegistration\.cancelRefund\.fullRefund\(amount=100,00/),
+    ).toBeInTheDocument();
+    expect(stub().callsFor(CANCEL_RPC)).toHaveLength(0);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "eventRegistration.actions.confirmCancel" }),
+    );
+    await waitFor(() => expect(stub().callsFor(CANCEL_RPC)).toHaveLength(1));
+    expect(payloadOf(CANCEL_RPC)).toEqual({
+      manage_token: MANAGE_TOKEN,
+      acknowledged_effect: "full_refund",
+    });
   });
 
   it("odmowa rezygnacji NIE udaje, ze zapis zostal odwolany", async () => {
     stub().setError(CANCEL_RPC, "already_closed");
     await submitAndOpenConfirmation();
 
-    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.cancel" }));
+    await clickCancel();
 
     expect(await screen.findByText("Ten zapis jest już zamknięty.")).toBeInTheDocument();
     expect(screen.queryByText("eventRegistration.result.cancelled")).not.toBeInTheDocument();
@@ -2046,7 +2100,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     groupForm();
     await submitWithRefusedGuest("group_too_large");
 
-    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.actions.cancel" }));
+    await clickCancel();
 
     expect(await screen.findByText("eventRegistration.result.cancelled")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /eventRegistration.group.retry/ })).toBeNull();

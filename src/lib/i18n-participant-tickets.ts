@@ -35,7 +35,9 @@ const pl = {
       refunded: "Płatność zwrócona w całości - miejsce zostało zwolnione.",
       partial: "Zwrócono część kwoty - miejsce pozostaje zarezerwowane.",
       none: "Brak anulowania i zwrotu dla tego zgłoszenia.",
-      note: "Notatka organizatora: {{note}}",
+      // REG-06: WYŁĄCZNIE powód napisany dla uczestnika (`participant_reason`),
+      // nigdy wewnętrzna notatka organizatora.
+      participantReason: "Powód podany przez organizatora: {{reason}}",
       source: "Źródło decyzji: {{source}}",
     },
     channels: {
@@ -119,7 +121,7 @@ const en = {
       refunded: "Payment fully refunded - the seat was released.",
       partial: "Part of the amount was refunded - your seat stays reserved.",
       none: "No cancellation or refund for this registration.",
-      note: "Organiser note: {{note}}",
+      participantReason: "Reason given by the organiser: {{reason}}",
       source: "Decision source: {{source}}",
     },
     channels: {

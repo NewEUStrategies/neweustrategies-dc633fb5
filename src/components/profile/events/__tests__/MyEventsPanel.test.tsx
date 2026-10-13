@@ -132,7 +132,7 @@ function zapis(over: Partial<ParticipantRegistration> = {}): ParticipantRegistra
     promotedAt: null,
     notifyEmail: true,
     notifySms: false,
-    cancelReason: null,
+    participantReason: null,
     decisionSource: null,
     eventSlug: "kongres-cee",
     eventTitlePl: "Kongres CEE 2026",

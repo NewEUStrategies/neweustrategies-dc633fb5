@@ -17,7 +17,7 @@ function registration(overrides: Partial<ParticipantRegistration> = {}): Partici
     promotedAt: null,
     notifyEmail: true,
     notifySms: false,
-    cancelReason: null,
+    participantReason: null,
     decisionSource: null,
     eventSlug: "szczyt",
     eventTitlePl: "Szczyt",

@@ -21,6 +21,7 @@
 // organizatorowi mozliwosc zdjecia limitu.
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { parseCancellationRefund, type CancellationRefund } from "@/lib/events/cancellationPreview";
 
 type Fns = Database["public"]["Functions"];
 
@@ -484,8 +485,23 @@ export async function fetchRegistrationCounts(query: RegistrationCountsQuery): P
 export interface RegistrationDecisionInput {
   registrationId: string;
   action: RegistrationAction;
-  /** Baza wymaga uzasadnienia przy odrzuceniu i anulowaniu (`reason_required`). */
+  /**
+   * WEWNĘTRZNA notatka organizatora (`decision_note`, REG-06) - nigdy nie
+   * trafia do uczestnika. Baza wymaga jej przy odrzuceniu (`reason_required`).
+   */
   note: string | null;
+  /**
+   * Powód widoczny dla uczestnika (`participant_reason`) - mail o decyzji
+   * i „Moje bilety". Baza przyjmuje go tylko przy odrzuceniu i anulowaniu
+   * (`invalid_request` przy innej decyzji); `undefined` = klucz nie jedzie.
+   */
+  participantReason?: string | null;
+  /**
+   * Anulowanie opłaconego zgłoszenia (REG-03): `full` (domyślnie w bazie) zleca
+   * zwrot automatyczny, `none` zostawia wpis „bez zwrotu" w dzienniku - baza
+   * wymaga wtedy notatki wewnętrznej. Tylko przy `cancel`.
+   */
+  refund?: "full" | "none";
 }
 
 export async function decideRegistration(input: RegistrationDecisionInput): Promise<Json> {
@@ -494,10 +510,45 @@ export async function decideRegistration(input: RegistrationDecisionInput): Prom
       registration_id: input.registrationId,
       action: input.action,
       note: input.note,
+      participant_reason: input.participantReason,
+      refund: input.refund,
     }),
   });
   if (error) throw error;
   return (data ?? {}) as Json;
+}
+
+/**
+ * Skutek finansowy anulowania zgłoszenia przez organizatora (REG-03): ta sama
+ * reguła, którą baza zastosuje przy `cancel`, plus oś płatności zgłoszenia
+ * (wiersz listy zgłoszeń jej nie niesie).
+ */
+export interface RegistrationRefundPreview extends CancellationRefund {
+  /** `pending` = zwrot automatyczny, `needs_review` = decyzja w dzienniku, `null` = brak zlecenia. */
+  jobState: "pending" | "needs_review" | null;
+  paymentStatus: string | null;
+}
+
+export async function fetchRegistrationRefundPreview(
+  registrationId: string,
+): Promise<RegistrationRefundPreview> {
+  const { data, error } = await supabase.rpc("admin_event_registration_refund_preview", {
+    p_registration_id: registrationId,
+  });
+  if (error) throw error;
+  const source =
+    typeof data === "object" && data !== null && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : {};
+  // Odpowiedź bez skutku traktujemy jak „decyduje organizator" - okno decyzji
+  // nie może z niej wywnioskować, że pieniędzy nie ma.
+  const refund = parseCancellationRefund(source) ?? parseCancellationRefund({});
+  const jobState = source.job_state;
+  return {
+    ...(refund as CancellationRefund),
+    jobState: jobState === "pending" || jobState === "needs_review" ? jobState : null,
+    paymentStatus: typeof source.payment_status === "string" ? source.payment_status : null,
+  };
 }
 
 export interface RegistrationUpsertInput {

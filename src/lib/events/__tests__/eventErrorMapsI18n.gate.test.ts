@@ -67,6 +67,8 @@ import {
 } from "@/lib/i18n-admin-event-sponsor-report";
 import { adminEventAdsFunnelEn, adminEventAdsFunnelPl } from "@/lib/i18n-admin-event-ads-funnel";
 import { adminCloneFailure } from "@/lib/events/adminCloneErrors";
+import { cancellationFailure } from "@/lib/events/publicRegistrationErrors";
+import { eventRegistrationEn, eventRegistrationPl } from "@/lib/i18n-event-registration";
 import { adminEventCloneEn, adminEventClonePl } from "@/lib/i18n-admin-event-clone";
 
 // ══ FUNKCJE UCZESTNIKA F1-F5: BLOKI TORÓW (spec B.11-2) ══════════════════════
@@ -103,6 +105,14 @@ const STRAZNIK_TENANTA = "forbidden";
 const KODY_REJESTRACJI = [
   // admin_event_registration_decide / _upsert / _mark_notified, admin_event_waitlist_promote
   "already_registered",
+  // admin_event_registration_decide - limity tekstow decyzji (REG-06) i pomocnicze
+  // zwrotu (`_event_registration_refund_assess` / `_cancel_refund`, REG-03)
+  "note_too_long",
+  "participant_reason_too_long",
+  "invalid_payload",
+  // admin_event_refund_job_decide - decyzje w dzienniku zwrotow (REG-03)
+  "refund_manual_payment",
+  "refund_shared_payment",
   "invalid_action",
   "invalid_request",
   "invalid_transition",
@@ -601,6 +611,26 @@ const KODY_PLANU_SALI = [
   STRAZNIK_TENANTA,
 ] as const;
 /**
+ * Samoobsługa zgłoszenia uczestnika - `publicRegistrationApi` (rezygnacja i jej
+ * podgląd, widok po kluczu, formularz). REG-03/REG-13/REG-17: potwierdzenie
+ * skutku finansowego, koniec wydarzenia i wygasły klucz.
+ */
+const KODY_REZYGNACJI = [
+  // event_registration_cancel / _cancel_preview (+ _event_registration_refund_assess,
+  // _event_registration_cancel_refund, _event_manage_token_resolve)
+  "already_closed",
+  "event_ended",
+  "event_finished",
+  "forbidden",
+  "invalid_payload",
+  "invalid_request",
+  "manage_expired",
+  "not_found",
+  "refund_ack_required",
+  "refund_terms_changed",
+] as const;
+
+/**
  * Kod dopisany przez tor do ISTNIEJĄCEJ mapy: `[nazwa mapy, kod]`.
  * `PF_<X>_BEZ_INTERPOLACJI` - nazwy NOWYCH map toru, które wołają `t()`
  * bez parametrów (sprawdzenie „zdania bez interpolacji" niżej).
@@ -690,7 +720,14 @@ const MAPY: readonly BramkowanaMapa[] = [
     nakladka: "src/lib/i18n-admin-event-registration.ts",
     pl: adminEventRegistrationPl,
     en: adminEventRegistrationEn,
-    moduly: ["registrationsApi", "packagesApi", "audienceGrantsApi", "ticketResend.functions"],
+    moduly: [
+      "registrationsApi",
+      "packagesApi",
+      "audienceGrantsApi",
+      "ticketResend.functions",
+      // Dziennik zwrotow (REG-03) - decyzje organizatora tlumaczy ta sama mapa.
+      "registrationRefundJournal",
+    ],
     interpoluje: true,
   },
   {
@@ -823,6 +860,17 @@ const MAPY: readonly BramkowanaMapa[] = [
     pl: adminEventSeatingPl,
     en: adminEventSeatingEn,
     moduly: ["seatingApi"],
+    interpoluje: true,
+  },
+  {
+    nazwa: "publicCancellationErrors",
+    prefix: "eventRegistration.errors.",
+    klucz: (error) => cancellationFailure(error).key,
+    kody: KODY_REZYGNACJI,
+    nakladka: "src/lib/i18n-event-registration.ts",
+    pl: eventRegistrationPl,
+    en: eventRegistrationEn,
+    moduly: ["publicRegistrationApi"],
     interpoluje: true,
   },
   // >>> PF-A maps (begin)

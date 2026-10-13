@@ -589,6 +589,32 @@ describe("fetchMyRegistrations", () => {
     expect(item.webhooks).toEqual([]);
   });
 
+  // REG-06: karta pokazuje WYŁĄCZNIE powód napisany dla uczestnika. Stara baza
+  // (albo ponownie nałożona migracja) oddawała notatkę wewnętrzną w
+  // `cancel_reason` - front nie ma do niej żadnego zapasu.
+  it("powód zamknięcia czyta się TYLKO z `participant_reason`, nigdy z notatki wewnętrznej", async () => {
+    rpc().setData("event_my_registrations", {
+      registrations: [
+        wiersz({
+          status: "rejected",
+          cancel_reason: "VIP-NOTATKA z panelu",
+          decision_note: "VIP-NOTATKA wewnetrzna",
+        }),
+        wiersz({
+          registration_id: REG_DRUGIE,
+          status: "rejected",
+          participant_reason: "Brak miejsc",
+        }),
+      ],
+    });
+
+    const [stara, nowa] = await api.fetchMyRegistrations();
+
+    expect(stara.participantReason).toBeNull();
+    expect(JSON.stringify(stara)).not.toContain("VIP-NOTATKA");
+    expect(nowa.participantReason).toBe("Brak miejsc");
+  });
+
   // Odmowa nie może zamienić się w pustą listę: „nie masz żadnych zgłoszeń"
   // pokazane komuś, kto ma wygasłą sesję, jest kłamstwem, po którym uczestnik
   // zapisuje się drugi raz.

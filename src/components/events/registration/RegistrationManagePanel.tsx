@@ -21,11 +21,18 @@
 // znany) stoją trzy PUSTE gniazda: B (przekazanie, zwrot), A (przypomnienia
 // i kalendarz), C (ankieta, certyfikat). Tory wypełniają swoje pliki gniazd;
 // linie montażu są dla nich nietykalne.
+//
+// SKUTEK FINANSOWY PRZED POTWIERDZENIEM (REG-03, decyzja D9). Drugie kliknięcie
+// pokazuje, co stanie się z wpłatą (`event_registration_cancel_preview`),
+// i dopiero z wczytanym skutkiem wolno potwierdzić; rezygnacja odsyła skutek,
+// który uczestnik zobaczył (`acknowledged_effect`). Odmowy znane z góry
+// (zgłoszenie zamknięte, wydarzenie zakończone - REG-13, klucz wygasły) chowają
+// przycisk i mówią zdaniem, zamiast czekać na błąd bazy.
 import { browserPublicOrigin } from "@/lib/http/host";
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, CheckCircle2, Copy, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Info, Loader2, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -35,16 +42,31 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { formatEventDateTime } from "@/lib/events/timezone";
+import { formatMoney } from "@/lib/billing/types";
 import { fetchEventPageHeader } from "@/lib/community/publicQueries";
 import {
   cancelRegistration,
   fetchRegistrationManageView,
+  type RegistrationCancelResult,
 } from "@/lib/events/publicRegistrationApi";
+import {
+  acknowledgedEffectFor,
+  cancellationReady,
+  type CancellationRefusal,
+} from "@/lib/events/cancellationPreview";
+import {
+  cancellationPreviewKey,
+  useCancellationPreview,
+} from "@/lib/events/useCancellationPreview";
+import { CancellationFinancialEffect } from "@/components/events/registration/molecules/CancellationFinancialEffect";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
 import { ManageCalendarRemindersSlot } from "@/components/events/participant/slots/ManageCalendarRemindersSlot";
 import { ManageFollowUpSlot } from "@/components/events/participant/slots/ManageFollowUpSlot";
 import { ManageTicketActionsSlot } from "@/components/events/participant/slots/ManageTicketActionsSlot";
-import { registrationErrorMessage } from "@/lib/events/publicRegistrationErrors";
+import {
+  cancellationErrorMessage,
+  isRefundTermsChanged,
+} from "@/lib/events/publicRegistrationErrors";
 import { isManageToken, manageLinkPath } from "@/lib/events/manageToken";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
@@ -63,9 +85,11 @@ export function RegistrationManagePanel({
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
 
+  const queryClient = useQueryClient();
+
   const [typed, setTyped] = useState("");
   const [confirming, setConfirming] = useState(false);
-  const [promoted, setPromoted] = useState<number | null>(null);
+  const [outcome, setOutcome] = useState<RegistrationCancelResult | null>(null);
 
   const headerQuery = useQuery({
     queryKey: ["event-page-header", slug, "manage"],
@@ -89,15 +113,37 @@ export function RegistrationManagePanel({
   });
   const state = stateQuery.data ?? null;
 
+  // SKUTEK REZYGNACJI pod tym samym kluczem zapytania, co gniazdo zasad zwrotu.
+  const previewQuery = useCancellationPreview({ slug, manageToken: activeToken });
+  const preview = previewQuery.data;
+  const refusal: CancellationRefusal | null =
+    preview?.kind === "ok" && !preview.canCancel ? preview.refusal : null;
+  const keyExpired = preview?.kind === "expired";
+  const keyUnknown = preview?.kind === "not_found";
+
   const cancelM = useMutation({
-    mutationFn: (manageToken: string) => cancelRegistration({ manageToken }),
+    mutationFn: (manageToken: string) => {
+      const acknowledgedEffect = acknowledgedEffectFor(preview);
+      return cancelRegistration(
+        acknowledgedEffect === undefined ? { manageToken } : { manageToken, acknowledgedEffect },
+      );
+    },
     onSuccess: (result) => {
-      setPromoted(result.promotedFromWaitlist);
+      setOutcome(result);
       setConfirming(false);
     },
     onError: (error: unknown) => {
+      // Skutek się zmienił (termin minął w trakcie, organizator zmienił
+      // zasadę, ktoś zwrócił wpłatę): zostawiamy pytanie otwarte z NOWYM
+      // skutkiem do ponownego potwierdzenia. Każda inna odmowa wraca do
+      // stanu wyjściowego - kolejne kliknięcie ma być znów świadome.
+      void queryClient.invalidateQueries({ queryKey: cancellationPreviewKey(slug, activeToken) });
+      if (isRefundTermsChanged(error)) {
+        toast.error(t("eventRegistration.cancelRefund.termsChanged"));
+        return;
+      }
       setConfirming(false);
-      toast.error(registrationErrorMessage(error));
+      toast.error(cancellationErrorMessage(error));
     },
   });
 
@@ -108,6 +154,7 @@ export function RegistrationManagePanel({
     lang,
   );
   const when = header === null ? "" : formatEventDateTime(header.starts_at, header.timezone, lang);
+  const refundOutcome = outcome?.refund ?? null;
 
   async function copyManageLink(): Promise<void> {
     if (activeToken === null) return;
@@ -160,9 +207,23 @@ export function RegistrationManagePanel({
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             {t("eventFront.manage.cancelled")}
           </p>
-          {promoted !== null && promoted > 0 && (
+          {outcome !== null && outcome.promotedFromWaitlist > 0 && (
             <p className="text-sm text-muted-foreground">
-              {t("eventFront.manage.promoted", { count: promoted })}
+              {t("eventFront.manage.promoted", { count: outcome.promotedFromWaitlist })}
+            </p>
+          )}
+          {refundOutcome?.jobState === "pending" && (
+            <p className="text-sm text-muted-foreground">
+              {refundOutcome.amountCents !== null && refundOutcome.currency !== null
+                ? t("eventRegistration.cancelRefund.refundQueued", {
+                    amount: formatMoney(refundOutcome.amountCents, refundOutcome.currency, lang),
+                  })
+                : t("eventRegistration.cancelRefund.refundQueuedPlain")}
+            </p>
+          )}
+          {refundOutcome?.jobState === "needs_review" && (
+            <p className="text-sm text-muted-foreground">
+              {t("eventRegistration.cancelRefund.reviewQueued")}
             </p>
           )}
         </div>
@@ -186,7 +247,13 @@ export function RegistrationManagePanel({
             </div>
           )}
 
-          {activeToken !== null && stateQuery.isSuccess && state === null && (
+          {activeToken !== null && keyExpired && (
+            <p role="status" className="text-sm text-muted-foreground">
+              {t("eventFront.manage.expired")}
+            </p>
+          )}
+
+          {activeToken !== null && !keyExpired && stateQuery.isSuccess && state === null && (
             <p role="status" className="text-sm text-muted-foreground">
               {t("eventFront.manage.notFound")}
             </p>
@@ -205,7 +272,9 @@ export function RegistrationManagePanel({
                       ? "eventFront.manage.paymentPaid"
                       : state.paymentStatus === "unpaid"
                         ? "eventFront.manage.paymentUnpaid"
-                        : "eventFront.manage.paymentRefunded",
+                        : state.paymentStatus === "partially_refunded"
+                          ? "eventFront.manage.paymentPartiallyRefunded"
+                          : "eventFront.manage.paymentRefunded",
                   )}
                 </p>
               )}
@@ -235,7 +304,20 @@ export function RegistrationManagePanel({
             </>
           )}
 
-          {activeToken !== null && (
+          {activeToken !== null && refusal !== null && (
+            <div className="space-y-3 rounded-[6px] border border-border bg-card p-4">
+              <p className="flex items-start gap-2 text-sm text-foreground">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                {t(REFUSAL_KEYS[refusal])}
+              </p>
+              <Button type="button" variant="secondary" onClick={() => void copyManageLink()}>
+                <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
+                {t("eventFront.manage.copyLink")}
+              </Button>
+            </div>
+          )}
+
+          {activeToken !== null && refusal === null && !keyExpired && !keyUnknown && (
             <div className="space-y-4 rounded-[6px] border border-destructive/40 bg-destructive/5 p-4">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">
@@ -246,13 +328,25 @@ export function RegistrationManagePanel({
                 </p>
               </div>
 
+              {confirming && (
+                <CancellationFinancialEffect
+                  preview={preview}
+                  isError={previewQuery.isError}
+                  onRetry={() => void previewQuery.refetch()}
+                  timezone={header?.timezone ?? null}
+                />
+              )}
+
               <div className="flex flex-wrap gap-2">
                 {confirming ? (
                   <>
                     <Button
                       type="button"
                       variant="destructive"
-                      disabled={cancelM.isPending}
+                      // Potwierdzenie dopiero ze skutkiem na ekranie: bez niego
+                      // baza i tak odmówi (`refund_ack_required`), a uczestnik
+                      // nie wiedziałby, co potwierdza.
+                      disabled={cancelM.isPending || !cancellationReady(preview)}
                       onClick={() => cancelM.mutate(activeToken)}
                     >
                       {cancelM.isPending ? (
@@ -290,6 +384,13 @@ export function RegistrationManagePanel({
     </section>
   );
 }
+
+/** Odmowa znana z podglądu -> zdanie (literały kluczy dla bramki słowników). */
+const REFUSAL_KEYS: Record<CancellationRefusal, string> = {
+  already_closed: "eventRegistration.cancelRefund.refusals.alreadyClosed",
+  event_finished: "eventRegistration.cancelRefund.refusals.eventFinished",
+  event_ended: "eventRegistration.cancelRefund.refusals.eventEnded",
+};
 
 /**
  * Stan zapisu -> zdanie dla uczestnika.

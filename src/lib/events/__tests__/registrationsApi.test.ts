@@ -73,7 +73,15 @@ const KONTRAKT: Record<string, readonly string[]> = {
     "qualify_value",
     "sort_order",
   ],
-  admin_event_registration_decide: ["action", "note", "registration_id"],
+  // `participant_reason` (REG-06) i `refund` (REG-03) - klucze czytane przez
+  // `admin_event_registration_decide` z 20261012170100.
+  admin_event_registration_decide: [
+    "action",
+    "note",
+    "participant_reason",
+    "refund",
+    "registration_id",
+  ],
   admin_event_registration_upsert: [
     "answers",
     "company_id",
@@ -218,7 +226,52 @@ describe("registrationsApi - kontrakt payloadów", () => {
   it("decyzja: identyfikator, akcja i uzasadnienie", async () => {
     await api.decideRegistration({ registrationId: ID, action: "reject", note: "poza profilem" });
     const sent = sentKeys("admin_event_registration_decide");
+    // Bez powodu dla uczestnika i bez wyboru zwrotu klucze NIE jadą (zgodność
+    // ze starszą bazą, która ich nie zna).
     expect(sent).toEqual(["action", "note", "registration_id"]);
+  });
+
+  it("decyzja z powodem dla uczestnika i wyborem zwrotu wysyła je OSOBNO od notatki", async () => {
+    await api.decideRegistration({
+      registrationId: ID,
+      action: "cancel",
+      note: "WEWN",
+      participantReason: "Wydarzenie przeniesione",
+      refund: "none",
+    });
+    const sent = sentKeys("admin_event_registration_decide");
+    expect(sent).toEqual(["action", "note", "participant_reason", "refund", "registration_id"]);
+    expect(outsideContract("admin_event_registration_decide", sent)).toEqual([]);
+    const payload = h.rpc?.lastCall("admin_event_registration_decide")?.arg("p_payload");
+    expect(payload).toMatchObject({
+      note: "WEWN",
+      participant_reason: "Wydarzenie przeniesione",
+      refund: "none",
+    });
+  });
+
+  it("skutek finansowy anulowania: literalne RPC i parser odporny na stary kształt", async () => {
+    h.rpc?.setData("admin_event_registration_refund_preview", {
+      effect: "full_refund",
+      job_state: "pending",
+      amount_cents: 15000,
+      currency: "PLN",
+      payment_status: "paid",
+    });
+    const preview = await api.fetchRegistrationRefundPreview(ID);
+    expect(h.rpc?.lastCall("admin_event_registration_refund_preview")?.args).toEqual({
+      p_registration_id: ID,
+    });
+    expect(preview).toMatchObject({
+      effect: "full_refund",
+      jobState: "pending",
+      amountCents: 15000,
+      paymentStatus: "paid",
+    });
+
+    // Odpowiedź bez skutku nie może wyglądać jak „nic do zwrotu".
+    h.rpc?.setData("admin_event_registration_refund_preview", null);
+    expect((await api.fetchRegistrationRefundPreview(ID)).effect).toBe("organizer_review");
   });
 
   it("edycja zapisu identyfikuje wiersz przez `registration_id`, nie `id`", async () => {

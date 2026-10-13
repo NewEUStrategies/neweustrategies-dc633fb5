@@ -143,7 +143,7 @@ function registration(over: Partial<ParticipantRegistration> = {}): ParticipantR
     promotedAt: null,
     notifyEmail: true,
     notifySms: false,
-    cancelReason: null,
+    participantReason: null,
     decisionSource: null,
     eventSlug: "kongres-cee",
     eventTitlePl: "Kongres CEE 2026",
@@ -285,6 +285,31 @@ describe("ParticipantTicketsPanel - stan i pieniądze", () => {
     expect(await screen.findByText("participantTickets.reason.refunded")).toBeInTheDocument();
     expect(screen.getByText("participantTickets.reason.partial")).toBeInTheDocument();
     expect(screen.getAllByText(/participantTickets\.reason\.cancelled/)).toHaveLength(1);
+  });
+
+  // REG-06: jedyny tekst decyzji na karcie to powód napisany DLA uczestnika,
+  // i tylko przy zgłoszeniu zamkniętym - nieaktualny powód na ponownie
+  // otwartym wierszu nie wraca (podwójny zamek z bazą).
+  it("powód organizatora stoi tylko przy zgłoszeniu odrzuconym albo anulowanym", async () => {
+    fetchRegistrations.mockResolvedValue([
+      registration({
+        registrationId: "r-rej",
+        status: "rejected",
+        participantReason: "Brak miejsc",
+      }),
+      registration({
+        registrationId: "r-stale",
+        status: "approved",
+        participantReason: "STALE-powod",
+      }),
+    ]);
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    expect(
+      await screen.findByText("participantTickets.reason.participantReason(reason=Brak miejsc)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/STALE-powod/)).toBeNull();
+    expect(screen.getAllByText(/participantTickets\.reason\.participantReason/)).toHaveLength(1);
   });
 
   it("ważny bilet mówi, skąd dodać przepustkę do portfela; nieważny - nie", async () => {

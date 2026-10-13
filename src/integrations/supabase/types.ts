@@ -10245,49 +10245,76 @@ export type Database = {
       }
       event_registration_refund_jobs: {
         Row: {
+          amount_cents: number | null
           attempts: number
           claim_token: string | null
           claimed_at: string | null
           created_at: string
+          currency: string | null
+          decided_at: string | null
+          decided_by: string | null
           event_id: string
           id: string
           last_error: string | null
           next_attempt_at: string
-          payment_order_id: string
+          origin: string
+          payment_order_id: string | null
           provider_refund_id: string | null
+          refund_deadline_at: string | null
           registration_id: string
+          requested_by: string | null
+          review_note: string | null
+          review_reason: string | null
           state: string
           tenant_id: string
           updated_at: string
         }
         Insert: {
+          amount_cents?: number | null
           attempts?: number
           claim_token?: string | null
           claimed_at?: string | null
           created_at?: string
+          currency?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
           event_id: string
           id?: string
           last_error?: string | null
           next_attempt_at?: string
-          payment_order_id: string
+          origin?: string
+          payment_order_id?: string | null
           provider_refund_id?: string | null
+          refund_deadline_at?: string | null
           registration_id: string
+          requested_by?: string | null
+          review_note?: string | null
+          review_reason?: string | null
           state?: string
           tenant_id: string
           updated_at?: string
         }
         Update: {
+          amount_cents?: number | null
           attempts?: number
           claim_token?: string | null
           claimed_at?: string | null
           created_at?: string
+          currency?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
           event_id?: string
           id?: string
           last_error?: string | null
           next_attempt_at?: string
-          payment_order_id?: string
+          origin?: string
+          payment_order_id?: string | null
           provider_refund_id?: string | null
+          refund_deadline_at?: string | null
           registration_id?: string
+          requested_by?: string | null
+          review_note?: string | null
+          review_reason?: string | null
           state?: string
           tenant_id?: string
           updated_at?: string
@@ -10338,6 +10365,7 @@ export type Database = {
           notify_email: boolean
           notify_sms: boolean
           paid_at: string | null
+          participant_reason: string | null
           payment_order_id: string | null
           payment_status: string
           person_id: string
@@ -10347,6 +10375,8 @@ export type Database = {
           quote_valid_until: string | null
           quoted_currency: string | null
           quoted_price_cents: number | null
+          refund_terms_deadline_at: string | null
+          refund_terms_mode: string | null
           registration_mode: string
           remind_email: boolean
           remind_push: boolean
@@ -10389,6 +10419,7 @@ export type Database = {
           notify_email?: boolean
           notify_sms?: boolean
           paid_at?: string | null
+          participant_reason?: string | null
           payment_order_id?: string | null
           payment_status?: string
           person_id: string
@@ -10398,6 +10429,8 @@ export type Database = {
           quote_valid_until?: string | null
           quoted_currency?: string | null
           quoted_price_cents?: number | null
+          refund_terms_deadline_at?: string | null
+          refund_terms_mode?: string | null
           registration_mode: string
           remind_email?: boolean
           remind_push?: boolean
@@ -10440,6 +10473,7 @@ export type Database = {
           notify_email?: boolean
           notify_sms?: boolean
           paid_at?: string | null
+          participant_reason?: string | null
           payment_order_id?: string | null
           payment_status?: string
           person_id?: string
@@ -10449,6 +10483,8 @@ export type Database = {
           quote_valid_until?: string | null
           quoted_currency?: string | null
           quoted_price_cents?: number | null
+          refund_terms_deadline_at?: string | null
+          refund_terms_mode?: string | null
           registration_mode?: string
           remind_email?: boolean
           remind_push?: boolean
@@ -25412,6 +25448,10 @@ export type Database = {
         Args: { p_event_id: string }
         Returns: string[]
       }
+      admin_event_refund_job_decide: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_refund_jobs: { Args: { p_event_id: string }; Returns: Json }
       admin_event_registration_decide: {
         Args: { p_payload: Json }
@@ -25472,6 +25512,10 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      admin_event_registration_refund_preview: {
+        Args: { p_registration_id: string }
+        Returns: Json
+      }
       admin_event_registration_upsert: {
         Args: { p_payload: Json }
         Returns: string
@@ -25529,6 +25573,7 @@ export type Database = {
           id: string
           job_title: string
           last_name: string
+          participant_reason: string
           person_id: string
           person_user_id: string
           phone: string
@@ -29716,6 +29761,10 @@ export type Database = {
         Returns: Json
       }
       event_registration_cancel: { Args: { p_payload: Json }; Returns: Json }
+      event_registration_cancel_preview: {
+        Args: { p_payload?: Json }
+        Returns: Json
+      }
       event_registration_claim_plan_seat: {
         Args: { p_dry_run?: boolean; p_registration_id: string }
         Returns: Json

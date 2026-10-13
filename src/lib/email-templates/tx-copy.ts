@@ -142,8 +142,11 @@ export interface TxCopy {
     ticketType: string;
     /** Pozycja w kolejce rezerwowej - tylko mail o awansie. */
     waitlistPosition: string;
-    /** Powód decyzji organizatora - tylko mail odmowny. */
-    decisionNote: string;
+    /**
+     * Powód decyzji napisany DLA uczestnika (`participant_reason`, REG-06) -
+     * tylko mail odmowny. Nigdy wewnętrzna notatka organizatora.
+     */
+    participantReason: string;
     /** Wiadomość darczyńcy przekazana w formularzu darowizny. */
     donorMessage: string;
     /** Kod wejścia (to samo, co w QR) - do wpisania ręcznie, gdy skaner zawiedzie. */
@@ -201,7 +204,7 @@ const LABELS_PL: TxCopy["labels"] = {
   ticketCode: "Numer biletu",
   ticketType: "Rodzaj wejściówki",
   waitlistPosition: "Miejsce w kolejce",
-  decisionNote: "Uzasadnienie organizatora",
+  participantReason: "Powód podany przez organizatora",
   donorMessage: "Twoja wiadomość",
   entryCode: "Kod wejścia",
   registeredBy: "Zgłoszenie od",
@@ -238,7 +241,7 @@ const LABELS_EN: TxCopy["labels"] = {
   ticketCode: "Ticket number",
   ticketType: "Ticket type",
   waitlistPosition: "Waiting list position",
-  decisionNote: "Organiser's note",
+  participantReason: "Reason given by the organiser",
   donorMessage: "Your message",
   entryCode: "Entry code",
   registeredBy: "Registered by",

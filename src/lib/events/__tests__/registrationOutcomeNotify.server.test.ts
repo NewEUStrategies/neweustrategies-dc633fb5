@@ -1470,8 +1470,8 @@ describe("wpłata na zgłoszeniu zamkniętym i zgodność ze starą bazą", () =
         user_id: ADMIN_A,
         title_pl: "Wpłata za zamknięte zgłoszenie - do zwrotu",
         title_en: "Payment for a closed registration - refund due",
-        body_pl: `${TITLE_PL}: wpłata dotarła do zgłoszenia odwołanego albo odrzuconego. Sprawdź dziennik zwrotów po odrzuceniu; anulowanie i zwrot części grupy rozlicz w panelu płatności.`,
-        body_en: `${TITLE_EN}: a payment reached a cancelled or rejected registration. Check the rejection refund journal; handle cancellation and partial group refunds in the payments panel.`,
+        body_pl: `${TITLE_PL}: wpłata dotarła do zgłoszenia odwołanego albo odrzuconego. Zlecenie czeka w dzienniku zwrotów zgłoszeń - zdecyduj tam o zwrocie; zwrot części grupy rozlicz w panelu płatności.`,
+        body_en: `${TITLE_EN}: a payment reached a cancelled or rejected registration. The request waits in the registration refund journal - decide on the refund there; handle partial group refunds in the payments panel.`,
       });
     },
   );

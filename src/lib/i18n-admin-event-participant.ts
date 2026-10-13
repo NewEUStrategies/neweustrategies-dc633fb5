@@ -91,13 +91,18 @@ export const adminEventParticipantPl = {
       },
       refund: {
         title: "Zwrot za bilet",
-        description: "Płacący może sam zwrócić bilet przed terminem, jeśli go nie przekazał.",
+        // REG-03: zasada ma konsumenta w bazie (`_event_registration_refund_assess`)
+        // - opis mówi, co się NAPRAWDĘ dzieje przy rezygnacji opłaconego biletu.
+        description:
+          "Uczestnik, który zrezygnuje przed terminem, dostaje pełny zwrot automatycznie. Rezygnacja po terminie trafia do dziennika zwrotów - o zwrocie decydujesz Ty, a my powiadomimy Cię dzwonkiem.",
         modeLegend: "Zasada zwrotu",
         modes: {
           policy: "Zwrot do terminu",
-          policyHint: "Pełny zwrot bez opłat do terminu poniżej.",
+          policyHint:
+            "Rezygnacja do terminu poniżej zleca pełny zwrot bez opłat; po terminie decyzja należy do Ciebie.",
           none: "Bez samodzielnego zwrotu",
-          noneHint: "O wyjątkach decyduje organizator.",
+          noneHint:
+            "Rezygnacja nie zwraca wpłaty automatycznie - każda trafia do dziennika zwrotów do Twojej decyzji.",
         },
         deadline: "Koniec zwrotów (godziny przed startem)",
         deadlineHint: "Domyślnie 168 godzin.",
@@ -231,13 +236,15 @@ export const adminEventParticipantEn = {
       refund: {
         title: "Ticket refund",
         description:
-          "The payer can refund the ticket before the deadline if it was not transferred.",
+          "A participant who cancels before the deadline gets a full refund automatically. A later cancellation goes to the refund journal - you decide on the refund and we notify you with a bell.",
         modeLegend: "Refund rule",
         modes: {
           policy: "Refund until the deadline",
-          policyHint: "A full refund with no fee until the deadline below.",
+          policyHint:
+            "Cancelling until the deadline below queues a full refund with no fee; after it, the decision is yours.",
           none: "No self-service refund",
-          noneHint: "The organiser decides on exceptions.",
+          noneHint:
+            "Cancelling never returns the payment automatically - every cancellation goes to the refund journal for your decision.",
         },
         deadline: "Refunds end (hours before the start)",
         deadlineHint: "168 hours by default.",

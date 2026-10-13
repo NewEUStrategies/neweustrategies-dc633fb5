@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { isManageToken, manageLinkPath, readManageToken } from "@/lib/events/manageToken";
 import { buildRegistrationNotice, formatEventMoment } from "@/lib/events/registrationNotify.server";
+import { txCopy } from "@/lib/email-templates/tx-copy";
 import {
   REGISTRATION_CSV_COLUMNS,
   registrationsCsvFileName,
@@ -50,7 +51,10 @@ describe("registrationNotify - tresc maila o zgloszeniu", () => {
     registration_id: "r1",
     tenant_id: "t1",
     status: "approved",
-    decision_note: "Komplet miejsc.",
+    // REG-06: notatka wewnetrzna NIE MOZE trafic do zadnego maila; nowa baza
+    // juz jej nie oddaje, a stara (albo ponownie nalozony plik) - mogla.
+    decision_note: "NOTATKA-WEWNETRZNA: podejrzana firma",
+    participant_reason: "Komplet miejsc.",
     waitlist_position: 3,
     email: "uczestnik@example.test",
     first_name: "Anna",
@@ -76,13 +80,36 @@ describe("registrationNotify - tresc maila o zgloszeniu", () => {
     expect(formatEventMoment("2026-09-01T07:00:00Z", "Kosmos/Ksiezyc", "pl")).toContain("09:00");
   });
 
-  it("akceptacja niesie miejsce i rodzaj wejsciowki, odmowa - uzasadnienie", () => {
+  it("akceptacja niesie miejsce i rodzaj wejsciowki, odmowa - powod dla uczestnika", () => {
     const approved = buildRegistrationNotice("approved", payload);
     const rejected = buildRegistrationNotice("rejected", { ...payload, status: "rejected" });
     expect(approved.details.map((row) => row.value)).toContain("Bruksela");
     expect(approved.details.map((row) => row.value)).toContain("Wejsciowka standard");
     expect(rejected.details.map((row) => row.value)).toContain("Komplet miejsc.");
     expect(rejected.details.map((row) => row.value)).not.toContain("Bruksela");
+    // Etykieta mowi, ze to zdanie organizatora DLA uczestnika.
+    expect(rejected.details.find((row) => row.value === "Komplet miejsc.")?.label).toBe(
+      txCopy("event_registration_received", "pl").labels.participantReason,
+    );
+  });
+
+  it("REG-06: notatka wewnetrzna (decision_note) nie trafia do ZADNEGO maila", () => {
+    for (const notice of ["received", "approved", "rejected", "promoted"] as const) {
+      const content = buildRegistrationNotice(notice, { ...payload, status: notice });
+      expect(JSON.stringify(content), notice).not.toContain("NOTATKA-WEWNETRZNA");
+    }
+  });
+
+  it("odmowa bez powodu dla uczestnika nie ma wiersza powodu - notatka go nie zastepuje", () => {
+    const rejected = buildRegistrationNotice("rejected", {
+      ...payload,
+      status: "rejected",
+      participant_reason: null,
+    });
+    expect(rejected.details.map((row) => row.label)).toEqual([
+      txCopy("event_registration_received", "pl").labels.event,
+      txCopy("event_registration_received", "pl").labels.date,
+    ]);
   });
 
   it("odmowa prowadzi do KATALOGU, nie do wydarzenia bez wstepu", () => {

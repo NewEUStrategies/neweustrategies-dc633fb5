@@ -26,21 +26,57 @@ import i18n from "@/lib/i18n";
 
 export const adminEventRegistrationPl = {
   adminEventRegistration: {
+    // DZIENNIK ZWROTÓW (REG-03): każde zamknięcie opłaconego zgłoszenia -
+    // odrzucenie, anulowanie, rezygnacja uczestnika, zamknięcie bez decyzji.
     refundJournal: {
-      title: "Zwroty po odrzuceniu zgłoszenia",
+      title: "Zwroty zgłoszeń",
       description:
-        "Ostatnie 100 zwrotów. Odrzucenie opłaconego zgłoszenia zleca zwrot automatycznie. Zwrot wspólnej płatności, gdy część grupy nadal uczestniczy, wymaga decyzji organizatora w panelu płatności.",
+        "Ostatnie 100 zleceń. Odrzucenie i anulowanie opłaconego zgłoszenia oraz rezygnacja w terminie zwrotu zlecają zwrot automatycznie. Rezygnacja po terminie, wspólna wpłata grupy i wpłata poza operatorem czekają tu na Twoją decyzję.",
       refresh: "Odśwież zwroty",
       loadError: "Nie udało się pobrać zwrotów. Spróbuj ponownie.",
       loading: "Ładowanie zwrotów",
       empty: "Brak zleceń zwrotu.",
       unnamed: "Uczestnik",
       order: "Zamówienie: {{id}}",
+      manualOrder: "Wpłata poza operatorem płatności (bez zamówienia)",
+      amount: "Kwota: {{amount}}",
       attempts: "Próby: {{count}}",
-      reviewHint:
-        "Ta płatność obejmuje aktywne zgłoszenia. Rozlicz zwrot częściowy w panelu płatności.",
+      reviewNote: "Notatka decyzji: {{note}}",
       failedHint:
-        "Sprawdź dziennik płatności. System ponawia do 10 prób; dalsza obsługa wymaga interwencji.",
+        "Operator płatności odrzucił zwrot. System ponawia do 10 prób - potem zdecyduj tutaj: ponów zwrot albo zamknij zlecenie z notatką.",
+      origin: {
+        organizer_rejected: "Odrzucenie przez organizatora",
+        organizer_cancelled: "Anulowanie przez organizatora",
+        participant_cancelled: "Rezygnacja uczestnika",
+        system: "Zamknięcie bez decyzji o zwrocie",
+      },
+      reason: {
+        outside_refund_window:
+          "Uczestnik zrezygnował po terminie zwrotu - zdecyduj, czy zwracasz wpłatę.",
+        refund_disabled: "Wydarzenie nie ma samodzielnych zwrotów - zdecyduj, czy zwracasz wpłatę.",
+        shared_payment:
+          "Ta wpłata obejmuje aktywne zgłoszenia grupy. Zwrot całości przez operatora jest zablokowany - rozlicz część w panelu płatności albo zamknij zlecenie z notatką.",
+        manual_payment:
+          "Wpłata przeszła poza operatorem płatności. Oddaj pieniądze poza systemem i oznacz zwrot albo zamknij zlecenie z notatką.",
+        organizer_waived: "Organizator zdecydował: bez zwrotu.",
+        closed_without_refund_decision:
+          "Opłacone zgłoszenie zamknięto bez decyzji o zwrocie - zdecyduj, czy zwracasz wpłatę.",
+      },
+      actions: {
+        refund: "Zwróć przez operatora",
+        markRefunded: "Oznacz jako zwrócone",
+        dismiss: "Nie zwracaj",
+        confirm: "Potwierdź decyzję",
+        back: "Wróć",
+      },
+      noteLabel: "Notatka wewnętrzna (opcjonalnie)",
+      noteRequiredLabel: "Notatka wewnętrzna - dlaczego bez zwrotu (wymagana)",
+      noteHint: "Widzą ją tylko organizatorzy. Nie trafia do uczestnika.",
+      toasts: {
+        refund: "Zwrot przekazany do operatora płatności.",
+        markRefunded: "Zwrot oznaczony jako wykonany.",
+        dismiss: "Zlecenie zamknięte bez zwrotu.",
+      },
       states: {
         pending: "Oczekuje",
         processing: "Przetwarzanie",
@@ -328,7 +364,9 @@ export const adminEventRegistrationPl = {
         by: "Zdecydował",
         at: "Kiedy",
         source: "Podstawa",
-        note: "Powód",
+        // REG-06: notatka wewnętrzna i powód dla uczestnika to dwa różne pola.
+        note: "Notatka wewnętrzna",
+        participantReason: "Powód dla uczestnika",
         automatic: "Bez udziału człowieka",
         none: "Bez decyzji",
       },
@@ -343,14 +381,15 @@ export const adminEventRegistrationPl = {
           "Goście z tego zgłoszenia ({{count}}) zostaną przyjęci razem z prowadzącym - jeśli są rozliczeni i jest dla nich miejsce - i każdy dostanie własny bilet mailem.",
         rejectTitle: "Odrzucić to zgłoszenie?",
         rejectBody:
-          "Powód jest wymagany i zostaje w historii zgłoszenia. Osoba może złożyć nowe zgłoszenie.",
+          "Notatka wewnętrzna jest wymagana i zostaje w historii zgłoszenia - uczestnik jej nie zobaczy. Powód dla uczestnika trafi do maila o decyzji. Osoba może złożyć nowe zgłoszenie.",
         rejectGroupHint:
           "Goście z tego zgłoszenia ({{count}}) zostaną odrzuceni razem z prowadzącym - także ci już przyjęci: ich bilety przestaną wpuszczać. Obecność już odnotowana zostaje. Ponowne zatwierdzenie prowadzącego przywróci gości z nowymi biletami.",
         waitlistTitle: "Przenieść na listę rezerwową?",
         waitlistBody:
           "Zgłoszenie trafi na koniec kolejki i zwolni zajmowane miejsce, jeśli je zajmowało.",
         cancelTitle: "Anulować ten zapis?",
-        cancelBody: "Miejsce wróci do puli, a pierwsza osoba z kolejki rezerwowej awansuje.",
+        cancelBody:
+          "Miejsce wróci do puli, a pierwsza osoba z kolejki rezerwowej awansuje (po zakończeniu wydarzenia - bez awansu). Opłacone zgłoszenie dostaje zwrot automatycznie, chyba że zaznaczysz inaczej.",
         cancelGroupHint:
           "Goście z tego zgłoszenia ({{count}}) zostaną anulowani razem z prowadzącym - także ci już przyjęci: ich bilety przestaną wpuszczać, a zwolnione miejsca awansują kolejkę rezerwową. Obecność już odnotowana zostaje.",
         attendedTitle: "Oznaczyć obecność?",
@@ -358,9 +397,29 @@ export const adminEventRegistrationPl = {
         noShowTitle: "Oznaczyć nieobecność?",
         noShowBody:
           "Miejsce pozostaje policzone jako zajęte - uczestnik je zablokował, więc nie wraca do puli.",
-        reasonLabel: "Powód decyzji",
-        reasonPlaceholder: "Napisz, dlaczego - to zdanie zobaczy organizator przy sporze",
         noteLabel: "Notatka wewnętrzna",
+        noteHint: "Widzą ją tylko organizatorzy. Nie trafia do uczestnika ani do maila.",
+        noteRequiredHint: "Wymagana - zostaje w historii zgłoszenia (co najmniej 3 znaki).",
+        participantReasonLabel: "Powód widoczny dla uczestnika",
+        participantReasonHint:
+          "Opcjonalnie. Uczestnik zobaczy to zdanie w mailu o decyzji i w zakładce „Moje bilety”. Nie wpisuj tu uwag wewnętrznych.",
+        // SKUTEK FINANSOWY ANULOWANIA (REG-03) - przed decyzją, nie po.
+        refund: {
+          loading: "Sprawdzamy płatność tego zgłoszenia…",
+          loadError:
+            "Nie udało się sprawdzić płatności. Anulowanie opłaconego zgłoszenia zleci zwrot automatycznie.",
+          full: "Zgłoszenie jest opłacone: anulowanie zleci automatyczny zwrot {{amount}}.",
+          fullPlain: "Zgłoszenie jest opłacone: anulowanie zleci automatyczny zwrot.",
+          shared:
+            "Wpłata obejmuje inne aktywne zgłoszenia grupy - zwrot trafi do dziennika zwrotów do Twojej decyzji.",
+          manual:
+            "Wpłata przeszła poza operatorem płatności - zwrot trafi do dziennika zwrotów do Twojej decyzji.",
+          review: "Zwrot trafi do dziennika zwrotów do Twojej decyzji.",
+          included: "Bilet z planu członkowskiego wróci do puli planu - bez zwrotu pieniędzy.",
+          waive: "Nie zwracaj płatności",
+          waiveHint:
+            "Zlecenie zostanie zamknięte bez zwrotu z Twoją notatką wewnętrzną (wymagana). Powód dla uczestnika możesz podać w polu poniżej.",
+        },
         confirmAction: "Potwierdź",
         cancelAction: "Anuluj",
       },
@@ -1229,7 +1288,17 @@ export const adminEventRegistrationPl = {
       invalidTransition: "Zgłoszenie w stanie „{{from}}” nie może przejść tej operacji.",
       invalidStatus:
         "Wpis organizatora może startować jako szkic, oczekujący, zatwierdzony albo rezerwowy.",
-      reasonRequired: "Powód odrzucenia jest wymagany.",
+      reasonRequired:
+        "Wpisz notatkę wewnętrzną (co najmniej 3 znaki) - odrzucenie i decyzja bez zwrotu jej wymagają.",
+      // Limity tekstów decyzji (REG-06) - odmowa, nigdy przycięcie.
+      noteTooLong: "Notatka wewnętrzna może mieć najwyżej {{count}} znaków.",
+      participantReasonTooLong: "Powód dla uczestnika może mieć najwyżej {{count}} znaków.",
+      invalidPayload: "Nieprawidłowe dane operacji. Odśwież ekran i spróbuj ponownie.",
+      // Decyzje w dzienniku zwrotów (REG-03).
+      refundManualPayment:
+        "Ta wpłata przeszła poza operatorem płatności - oddaj ją poza systemem i oznacz zwrot.",
+      refundSharedPayment:
+        "Wpłata obejmuje inne aktywne zgłoszenia - zwrot całości przez operatora jest zablokowany.",
       noSeatsLeft: "Brak wolnych miejsc dla tego biletu. Użyj listy rezerwowej.",
       quotaBelowSold: "Pula nie może być mniejsza od liczby zajętych miejsc ({{count}}).",
       ticketInUse: "Bilet jest używany przez {{count}} zapisów - wyłącz go zamiast usuwać.",
@@ -1285,20 +1354,54 @@ export const adminEventRegistrationPl = {
 export const adminEventRegistrationEn = {
   adminEventRegistration: {
     refundJournal: {
-      title: "Refunds after registration rejection",
+      title: "Registration refunds",
       description:
-        "Latest 100 refunds. Rejecting a paid registration queues an automatic refund. A shared payment with active group members requires an organiser decision in the payments panel.",
+        "Latest 100 requests. Rejecting or cancelling a paid registration and a participant cancelling within the refund window queue an automatic refund. Late cancellations, shared group payments and payments outside the provider wait here for your decision.",
       refresh: "Refresh refunds",
       loadError: "Could not load refunds. Please retry.",
       loading: "Loading refunds",
       empty: "No refund requests.",
       unnamed: "Attendee",
       order: "Order: {{id}}",
+      manualOrder: "Paid outside the payment provider (no order)",
+      amount: "Amount: {{amount}}",
       attempts: "Attempts: {{count}}",
-      reviewHint:
-        "This payment covers active registrations. Arrange a partial refund in the payments panel.",
+      reviewNote: "Decision note: {{note}}",
       failedHint:
-        "Check the payment log. The system retries up to 10 times; further action requires intervention.",
+        "The payment provider rejected the refund. The system retries up to 10 times - then decide here: retry the refund or close the request with a note.",
+      origin: {
+        organizer_rejected: "Rejected by the organiser",
+        organizer_cancelled: "Cancelled by the organiser",
+        participant_cancelled: "Cancelled by the participant",
+        system: "Closed without a refund decision",
+      },
+      reason: {
+        outside_refund_window:
+          "The participant cancelled after the refund deadline - decide whether to refund.",
+        refund_disabled: "The event has no self-service refunds - decide whether to refund.",
+        shared_payment:
+          "This payment covers active group registrations. A full refund through the provider is blocked - settle a share in the payments panel or close the request with a note.",
+        manual_payment:
+          "The payment did not go through the payment provider. Return the money outside the system and mark it refunded, or close the request with a note.",
+        organizer_waived: "The organiser decided: no refund.",
+        closed_without_refund_decision:
+          "A paid registration was closed without a refund decision - decide whether to refund.",
+      },
+      actions: {
+        refund: "Refund through the provider",
+        markRefunded: "Mark as refunded",
+        dismiss: "Do not refund",
+        confirm: "Confirm decision",
+        back: "Back",
+      },
+      noteLabel: "Internal note (optional)",
+      noteRequiredLabel: "Internal note - why no refund (required)",
+      noteHint: "Only organisers see it. It never reaches the participant.",
+      toasts: {
+        refund: "The refund went to the payment provider.",
+        markRefunded: "The refund is marked as done.",
+        dismiss: "The request is closed without a refund.",
+      },
       states: {
         pending: "Pending",
         processing: "Processing",
@@ -1563,7 +1666,8 @@ export const adminEventRegistrationEn = {
         by: "Decided by",
         at: "When",
         source: "Basis",
-        note: "Reason",
+        note: "Internal note",
+        participantReason: "Reason for the participant",
         automatic: "No human involved",
         none: "No decision",
       },
@@ -1576,14 +1680,15 @@ export const adminEventRegistrationEn = {
           "This registration's guests ({{count}}) will be admitted together with the lead - if they are settled and there is a seat for them - and each gets their own ticket by e-mail.",
         rejectTitle: "Reject this application?",
         rejectBody:
-          "A reason is required and stays in the application history. The person may submit a new application.",
+          "An internal note is required and stays in the application history - the participant never sees it. The reason for the participant goes into the decision e-mail. The person may submit a new application.",
         rejectGroupHint:
           "This registration's guests ({{count}}) will be rejected together with the lead - including those already admitted: their tickets will stop working. Attendance already recorded stays. Approving the lead again restores the guests with new tickets.",
         waitlistTitle: "Move to the waiting list?",
         waitlistBody:
           "The application goes to the end of the queue and frees the seat it held, if it held one.",
         cancelTitle: "Cancel this registration?",
-        cancelBody: "The seat returns to the pool and the first person in the queue is promoted.",
+        cancelBody:
+          "The seat returns to the pool and the first person in the queue is promoted (after the event has ended - no promotion). A paid registration is refunded automatically unless you choose otherwise.",
         cancelGroupHint:
           "This registration's guests ({{count}}) will be cancelled together with the lead - including those already admitted: their tickets will stop working and the freed seats promote the waiting list. Attendance already recorded stays.",
         attendedTitle: "Mark attendance?",
@@ -1592,9 +1697,28 @@ export const adminEventRegistrationEn = {
         noShowTitle: "Mark as no show?",
         noShowBody:
           "The seat still counts as taken - the participant blocked it, so it does not return to the pool.",
-        reasonLabel: "Reason for the decision",
-        reasonPlaceholder: "Write down why - the organiser will read this sentence in a dispute",
         noteLabel: "Internal note",
+        noteHint: "Only organisers see it. It never reaches the participant or the e-mail.",
+        noteRequiredHint: "Required - it stays in the application history (at least 3 characters).",
+        participantReasonLabel: "Reason shown to the participant",
+        participantReasonHint:
+          "Optional. The participant will see this sentence in the decision e-mail and under “My tickets”. Do not put internal remarks here.",
+        refund: {
+          loading: "Checking this registration's payment…",
+          loadError:
+            "Could not check the payment. Cancelling a paid registration queues an automatic refund.",
+          full: "The registration is paid: cancelling queues an automatic refund of {{amount}}.",
+          fullPlain: "The registration is paid: cancelling queues an automatic refund.",
+          shared:
+            "The payment covers other active group registrations - the refund goes to the refund journal for your decision.",
+          manual:
+            "The payment did not go through the payment provider - the refund goes to the refund journal for your decision.",
+          review: "The refund goes to the refund journal for your decision.",
+          included: "The membership-plan ticket returns to the plan pool - no money is refunded.",
+          waive: "Do not refund the payment",
+          waiveHint:
+            "The request is closed without a refund, with your internal note (required). You can give the participant a reason in the field below.",
+        },
         confirmAction: "Confirm",
         cancelAction: "Cancel",
       },
@@ -2429,7 +2553,16 @@ export const adminEventRegistrationEn = {
       invalidAction: "Unknown action.",
       invalidTransition: "An application in state “{{from}}” cannot go through this operation.",
       invalidStatus: "An organiser entry may start as draft, awaiting, approved or waiting list.",
-      reasonRequired: "A rejection reason is required.",
+      reasonRequired:
+        "Write an internal note (at least 3 characters) - rejecting and deciding not to refund require it.",
+      noteTooLong: "The internal note can have at most {{count}} characters.",
+      participantReasonTooLong:
+        "The reason for the participant can have at most {{count}} characters.",
+      invalidPayload: "The operation data is invalid. Refresh the screen and try again.",
+      refundManualPayment:
+        "This payment did not go through the payment provider - return it outside the system and mark it refunded.",
+      refundSharedPayment:
+        "The payment covers other active registrations - a full refund through the provider is blocked.",
       noSeatsLeft: "No free seat for this ticket. Use the waiting list.",
       quotaBelowSold: "The pool cannot be smaller than the number of taken seats ({{count}}).",
       ticketInUse:

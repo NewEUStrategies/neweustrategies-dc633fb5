@@ -1,7 +1,8 @@
 // Publiczny zapis na wydarzenie: formularz, zapis, rezygnacja.
 //
 // TRZY WYWOŁANIA, JEDEN MODUŁ. `event_registration_form` czyta stan, zapis
-// i `event_registration_cancel` go zmieniają. Trzymamy je razem, bo mają
+// i `event_registration_cancel` go zmieniają (rezygnację poprzedza podgląd
+// skutku finansowego `event_registration_cancel_preview`, REG-03). Trzymamy je razem, bo mają
 // wspólny kontrakt tenantowy i wspólne słownictwo odmów.
 //
 // ZAPIS IDZIE PRZEZ SERWER (REG-04, decyzja D2). Przeglądarka nie woła już
@@ -23,6 +24,13 @@
 // „nie dotykaj" - biała lista kluczy zapisu żyje w `registrationPayload.ts`.
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
+import {
+  parseCancellationPreview,
+  parseCancellationRefundResult,
+  type CancellationEffect,
+  type CancellationPreview,
+  type CancellationRefundResult,
+} from "@/lib/events/cancellationPreview";
 import { submitEventRegistration } from "@/lib/events/eventRegistration.functions";
 import { parseRegistrationForm, type RegistrationForm } from "@/lib/events/registrationFormSurface";
 import type { RegisterInput, RegistrationAttribution } from "@/lib/events/registrationPayload";
@@ -106,6 +114,11 @@ export type RegistrationSubmitOutcome =
 export interface RegistrationCancelResult {
   registrationId: string;
   promotedFromWaitlist: number;
+  /**
+   * Co dzieje się z wpłatą (REG-03): zlecony zwrot albo decyzja organizatora.
+   * `null` przy starszej bazie, która tego nie mówi.
+   */
+  refund: CancellationRefundResult | null;
 }
 
 /** Wejście zapisu z przeglądarki - ładunek formularza plus atrybucja kampanii. */
@@ -119,6 +132,12 @@ export interface CancelRegistrationInput {
   /** Token z odpowiedzi zapisu - jedyna droga rezygnacji bez konta. */
   manageToken?: string;
   reason?: string | null;
+  /**
+   * Skutek finansowy, który uczestnik zobaczył w podglądzie (REG-03). Baza
+   * wymaga go przy rezygnacji opłaconego zgłoszenia (`refund_ack_required`)
+   * i odmawia, gdy skutek się zmienił (`refund_terms_changed`).
+   */
+  acknowledgedEffect?: CancellationEffect;
 }
 
 type Bag = Record<string, unknown>;
@@ -291,6 +310,32 @@ export async function fetchRegistrationManageView(input: {
   };
 }
 
+/**
+ * Podgląd rezygnacji: skutek finansowy i odmowa znana z góry (REG-03, REG-13).
+ *
+ * Ta sama tożsamość co rezygnacja - klucz `manage_token` albo konto
+ * właściciela. Odmowa jest WARTOŚCIĄ (`not_found` / `expired`), bo „zły klucz"
+ * to normalny stan strony. Baza sprzed migracji (PGRST202/42883) daje
+ * `unavailable`: ekran pokazuje wtedy rezygnację jak dotąd, bez skutku.
+ */
+export async function fetchCancellationPreview(input: {
+  manageToken?: string;
+  registrationId?: string;
+}): Promise<CancellationPreview> {
+  const payload: Record<string, Json> = {};
+  if (input.registrationId !== undefined) payload.registration_id = input.registrationId;
+  if (input.manageToken !== undefined) payload.manage_token = input.manageToken;
+
+  const { data, error } = await supabase.rpc("event_registration_cancel_preview", {
+    p_payload: payload,
+  });
+  if (error) {
+    if (isMigrationPending(error)) return { kind: "unavailable" };
+    throw error;
+  }
+  return parseCancellationPreview(data);
+}
+
 export async function cancelRegistration(
   input: CancelRegistrationInput,
 ): Promise<RegistrationCancelResult> {
@@ -298,6 +343,8 @@ export async function cancelRegistration(
   if (input.registrationId !== undefined) payload.registration_id = input.registrationId;
   if (input.manageToken !== undefined) payload.manage_token = input.manageToken;
   if (input.reason !== undefined) payload.reason = input.reason;
+  if (input.acknowledgedEffect !== undefined)
+    payload.acknowledged_effect = input.acknowledgedEffect;
 
   const { data, error } = await supabase.rpc("event_registration_cancel", {
     p_payload: payload,
@@ -316,5 +363,6 @@ export async function cancelRegistration(
   return {
     registrationId: nullableText(source, "registration_id") ?? "",
     promotedFromWaitlist: optionalInt(source, "promoted_from_waitlist") ?? 0,
+    refund: parseCancellationRefundResult(source.refund),
   };
 }

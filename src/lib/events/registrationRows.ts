@@ -44,6 +44,33 @@ export function actionRequiresReason(action: RegistrationAction): boolean {
   return REASON_REQUIRED.includes(action);
 }
 
+/**
+ * Sufity tekstow decyzji (REG-06) - te same liczby, co CHECK-i
+ * `event_registrations_note_len` / `event_registrations_participant_reason_len`
+ * i odmowy `note_too_long` / `participant_reason_too_long` w
+ * `admin_event_registration_decide`. Pole i licznik w oknie decyzji czytaja
+ * je stad: za dlugi tekst blokuje zapis, nigdy nie jest przycinany.
+ */
+export const DECISION_NOTE_MAX_LENGTH = 2000;
+export const PARTICIPANT_REASON_MAX_LENGTH = 1000;
+/**
+ * Najkrotsza notatka, ktora baza uznaje za uzasadnienie (CHECK
+ * `event_registrations_rejection_has_reason`, odmowa `reason_required` przy
+ * odrzuceniu i przy anulowaniu bez zwrotu).
+ */
+export const DECISION_NOTE_MIN_LENGTH = 3;
+
+/**
+ * Decyzje, przy ktorych organizator moze podac powod WIDOCZNY dla uczestnika
+ * (`participant_reason`). Baza przyjmuje go tez przy `refund`, ale panel tej
+ * akcji nie oferuje; przy kazdej innej decyzji odmawia (`invalid_request`).
+ */
+const PARTICIPANT_REASON_ACTIONS: readonly RegistrationAction[] = ["reject", "cancel"];
+
+export function actionAcceptsParticipantReason(action: RegistrationAction): boolean {
+  return PARTICIPANT_REASON_ACTIONS.includes(action);
+}
+
 /** Wariant plakietki statusu - jedno miejsce, zeby lista i szuflada zgadzaly sie. */
 export type StatusTone = "neutral" | "warning" | "success" | "danger" | "info";
 
