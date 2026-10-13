@@ -26,6 +26,57 @@ import i18n from "@/lib/i18n";
 
 export const adminEventRegistrationPl = {
   adminEventRegistration: {
+    // ZGODY I DANE Z ZAPISU (REG-02 / REG-14): rozwinięcie wiersza zgłoszenia.
+    // Niezweryfikowany zapis nie przepisuje kartoteki - organizator widzi, co
+    // przysłano, obok tego, co jest, i sam decyduje o przeniesieniu.
+    consentDetail: {
+      toggle: "Zgody i dane z zapisu",
+      hide: "Ukryj zgody i dane z zapisu",
+      loading: "Wczytywanie zgód i danych z zapisu…",
+      loadError: "Nie udało się wczytać zgód. Spróbuj ponownie.",
+      differsTitle: "Dane z zapisu różnią się od kartoteki",
+      differsHint:
+        "Zapisała się osoba, która nie potwierdziła, że jest właścicielem tego adresu - jej dane nie nadpisały kartoteki. Przenieś je tylko, jeśli wiesz, że są prawdziwe.",
+      noDifferences: "Dane z zapisu zgadzają się z kartoteką.",
+      field: "Pole",
+      current: "W kartotece",
+      submitted: "Przysłane przy zapisie",
+      fields: {
+        first_name: "Imię",
+        last_name: "Nazwisko",
+        phone: "Telefon",
+        job_title: "Stanowisko",
+        company_text: "Firma",
+        social_profile_url: "Profil w sieci",
+      },
+      apply: "Przenieś dane z zapisu do kartoteki",
+      applying: "Przenosimy…",
+      applied: "Dane z zapisu przeniesione do kartoteki.",
+      pending: "Czeka na potwierdzenie zgód linkiem z maila (do {{date}})",
+      ledgerTitle: "Księga zgód osoby",
+      ledgerEmpty: "Brak wpisów w księdze zgód.",
+      ledgerEvidence: "kanał: {{evidence}}",
+      ledgerText: "tekst v{{version}} ({{lang}})",
+      purposes: {
+        data_processing: "Przetwarzanie danych",
+        marketing: "Komunikacja marketingowa",
+        partner_sharing: "Przekazanie danych partnerom",
+      },
+      statuses: {
+        pending: "czeka na potwierdzenie",
+        confirmed: "udzielona",
+        withdrawn: "wycofana",
+      },
+      evidences: {
+        registration_form: "formularz zapisu",
+        verified_account: "konto z potwierdzonym adresem",
+        email_double_opt_in: "link z maila (double opt-in)",
+        manage_token: "strona zarządzania zgłoszeniem",
+        account_settings: "ustawienia konta",
+        unsubscribe_link: "link wypisu z maila",
+        legacy_single_opt_in: "zgoda sprzed rejestru",
+      },
+    },
     // DZIENNIK ZWROTÓW (REG-03): każde zamknięcie opłaconego zgłoszenia -
     // odrzucenie, anulowanie, rezygnacja uczestnika, zamknięcie bez decyzji.
     refundJournal: {
@@ -1410,6 +1461,55 @@ export const adminEventRegistrationPl = {
 
 export const adminEventRegistrationEn = {
   adminEventRegistration: {
+    // CONSENTS AND SUBMITTED DATA (REG-02 / REG-14).
+    consentDetail: {
+      toggle: "Consents and submitted data",
+      hide: "Hide consents and submitted data",
+      loading: "Loading consents and submitted data…",
+      loadError: "We could not load the consents. Please try again.",
+      differsTitle: "Submitted data differs from the record",
+      differsHint:
+        "The person who registered did not confirm that they own this address - their data did not overwrite the record. Move it only if you know it is correct.",
+      noDifferences: "The submitted data matches the record.",
+      field: "Field",
+      current: "In the record",
+      submitted: "Submitted at registration",
+      fields: {
+        first_name: "First name",
+        last_name: "Last name",
+        phone: "Phone",
+        job_title: "Job title",
+        company_text: "Company",
+        social_profile_url: "Social profile",
+      },
+      apply: "Move submitted data to the record",
+      applying: "Moving…",
+      applied: "Submitted data moved to the record.",
+      pending: "Waiting for consent confirmation with the e-mail link (until {{date}})",
+      ledgerTitle: "Person's consent ledger",
+      ledgerEmpty: "No entries in the consent ledger.",
+      ledgerEvidence: "channel: {{evidence}}",
+      ledgerText: "text v{{version}} ({{lang}})",
+      purposes: {
+        data_processing: "Data processing",
+        marketing: "Marketing communication",
+        partner_sharing: "Sharing data with partners",
+      },
+      statuses: {
+        pending: "awaiting confirmation",
+        confirmed: "given",
+        withdrawn: "withdrawn",
+      },
+      evidences: {
+        registration_form: "registration form",
+        verified_account: "account with a confirmed address",
+        email_double_opt_in: "e-mail link (double opt-in)",
+        manage_token: "registration management page",
+        account_settings: "account settings",
+        unsubscribe_link: "unsubscribe link in an e-mail",
+        legacy_single_opt_in: "consent from before the register",
+      },
+    },
     refundJournal: {
       title: "Registration refunds",
       description:

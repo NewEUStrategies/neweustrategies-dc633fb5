@@ -23,11 +23,23 @@
 // `admin_event_registration_group_links`. Bez tego organizator widzial gosci
 // jak zwykle zgloszenia, nie wiedzial, ze zatwierdzenie prowadzacego przyjmie
 // cala grupe, i nie mial jak wyslac biletu komus, do kogo mail nie doszedl.
+//
+// ZGODY I DANE Z ZAPISU (REG-02 / REG-14) w rozwinieciu wiersza: dane, ktore
+// przyslal niezweryfikowany zapisujacy (kartoteka ich nie przyjela), ksiega
+// zgod osoby i otwarty link double opt-in - ladowane dopiero po rozwinieciu.
 import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { BellRing, ChevronLeft, ChevronRight, Download, MailPlus, Search } from "lucide-react";
+import {
+  BellRing,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  MailPlus,
+  Search,
+  ShieldCheck,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -44,6 +56,7 @@ import {
   RegistrationDecideDialog,
   type RegistrationDecision,
 } from "@/components/admin/events/molecules/RegistrationDecideDialog";
+import { RegistrationConsentDetail } from "@/components/admin/events/molecules/RegistrationConsentDetail";
 import { RegistrationRefundJournal } from "@/components/admin/events/molecules/RegistrationRefundJournal";
 import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
 import { notifyEventRegistrationDecision } from "@/lib/events/registrationNotify.functions";
@@ -173,6 +186,8 @@ export function RegistrationsListPanel({
 
   const [decided, setDecided] = useState<EventRegistrationRow | null>(null);
   const [action, setAction] = useState<RegistrationAction | null>(null);
+  // Rozwiniety wiersz zgod (jeden naraz - szczegol laduje sie dopiero po kliknieciu).
+  const [consentOpenId, setConsentOpenId] = useState<string | null>(null);
 
   const filters = useMemo(
     () => ({ eventId, ticketTypeId, groupId: null, q, from: null, to: null }),
@@ -750,7 +765,23 @@ export function RegistrationsListPanel({
                       {t("adminEventRegistration.actions.resendGroupTickets")}
                     </Button>
                   ) : null}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-expanded={consentOpenId === row.id}
+                    onClick={() => setConsentOpenId(consentOpenId === row.id ? null : row.id)}
+                  >
+                    <ShieldCheck className="mr-2 h-4 w-4" aria-hidden="true" />
+                    {consentOpenId === row.id
+                      ? t("adminEventRegistration.consentDetail.hide")
+                      : t("adminEventRegistration.consentDetail.toggle")}
+                  </Button>
                 </div>
+                {consentOpenId === row.id ? (
+                  <div className="w-full">
+                    <RegistrationConsentDetail eventId={eventId} registrationId={row.id} />
+                  </div>
+                ) : null}
               </li>
             );
           })}

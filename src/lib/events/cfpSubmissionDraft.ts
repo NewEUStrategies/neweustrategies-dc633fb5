@@ -22,6 +22,7 @@ import type { Json } from "@/integrations/supabase/types";
 import type { RegistrationFormField } from "@/lib/events/registrationFormSurface";
 import type { CfpSpeakerRole, CfpTalkLanguage } from "@/lib/events/cfpEnums";
 import type { CfpSubmissionSaveInput } from "@/lib/events/cfpPublicApi";
+import { EVENT_CONSENT_TEXT_VERSION } from "@/lib/events/consentTexts";
 import type { CfpFieldDef, CfpMyPerson, CfpMySubmission, CfpPublic } from "@/lib/events/cfpSurface";
 
 export const CFP_MAX_CO_SPEAKERS = 5;
@@ -277,6 +278,10 @@ export function cfpSubmissionSaveInput(
       company_text: draft.companyText.trim(),
       consent_data_processing: draft.consentDataProcessing,
       consent_marketing: draft.consentMarketing,
+      // Wersja i język napisu zgody marketingowej, który formularz pokazał
+      // (REG-14) - bez nich baza nie zapisze zgody (brak dowodu treści).
+      consent_text_version: EVENT_CONSENT_TEXT_VERSION,
+      lang: input.notifyLang,
     },
     titlePl: draft.titlePl.trim(),
     titleEn: draft.titleEn.trim(),

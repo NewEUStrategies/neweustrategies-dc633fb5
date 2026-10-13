@@ -28,6 +28,11 @@
 // który uczestnik zobaczył (`acknowledged_effect`). Odmowy znane z góry
 // (zgłoszenie zamknięte, wydarzenie zakończone - REG-13, klucz wygasły) chowają
 // przycisk i mówią zdaniem, zamiast czekać na błąd bazy.
+//
+// ZGODY (REG-14). Pod resztą panelu stoi gniazdo wycofania zgód marketingu
+// i partnerów (`ManageConsentsSlot`) - przy KAŻDYM kluczu, który nie jest
+// nieznany: także po anulowaniu zgłoszenia i po końcu wydarzenia, bo zgodę
+// wycofuje się w dowolnej chwili, a nie tylko do dnia wydarzenia.
 import { browserPublicOrigin } from "@/lib/http/host";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -61,6 +66,7 @@ import {
 import { CancellationFinancialEffect } from "@/components/events/registration/molecules/CancellationFinancialEffect";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
 import { ManageCalendarRemindersSlot } from "@/components/events/participant/slots/ManageCalendarRemindersSlot";
+import { ManageConsentsSlot } from "@/components/events/participant/slots/ManageConsentsSlot";
 import { ManageFollowUpSlot } from "@/components/events/participant/slots/ManageFollowUpSlot";
 import { ManageTicketActionsSlot } from "@/components/events/participant/slots/ManageTicketActionsSlot";
 import {
@@ -381,6 +387,8 @@ export function RegistrationManagePanel({
           )}
         </>
       )}
+
+      {activeToken !== null && !keyUnknown && <ManageConsentsSlot token={activeToken} />}
     </section>
   );
 }
