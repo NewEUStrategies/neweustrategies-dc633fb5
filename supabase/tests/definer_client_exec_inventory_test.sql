@@ -2,8 +2,10 @@
 -- anon ani authenticated (migracja 20261007140100_definer_functions_without_client_path).
 -- Kazda pozycja ma tez kontrole dodatnia: service_role zachowuje EXECUTE, wiec
 -- wolajacy serwerowi i funkcje SECURITY DEFINER dzialaja dalej.
+-- Dopisane pozniej: _event_seats_left (20261012150000_event_waitlist_settlement,
+-- REG-08 - najemca z argumentu, wolaja ja wylacznie funkcje SECURITY DEFINER).
 BEGIN;
-SELECT plan(84);
+SELECT plan(86);
 SELECT ok(NOT has_function_privilege('anon', 'public._are_connected(uuid,uuid)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public._are_connected(uuid,uuid)', 'EXECUTE'),
   '_are_connected(uuid,uuid): bez EXECUTE dla anon i authenticated');
 SELECT ok(has_function_privilege('service_role', 'public._are_connected(uuid,uuid)', 'EXECUTE'),
@@ -12,6 +14,10 @@ SELECT ok(NOT has_function_privilege('anon', 'public._event_registration_verdict
   '_event_registration_verdict(uuid,uuid,jsonb): bez EXECUTE dla anon i authenticated');
 SELECT ok(has_function_privilege('service_role', 'public._event_registration_verdict(uuid,uuid,jsonb)', 'EXECUTE'),
   '_event_registration_verdict(uuid,uuid,jsonb): service_role zachowuje EXECUTE');
+SELECT ok(NOT has_function_privilege('anon', 'public._event_seats_left(uuid,uuid,uuid)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public._event_seats_left(uuid,uuid,uuid)', 'EXECUTE'),
+  '_event_seats_left(uuid,uuid,uuid): bez EXECUTE dla anon i authenticated');
+SELECT ok(has_function_privilege('service_role', 'public._event_seats_left(uuid,uuid,uuid)', 'EXECUTE'),
+  '_event_seats_left(uuid,uuid,uuid): service_role zachowuje EXECUTE');
 SELECT ok(NOT has_function_privilege('anon', 'public.admin_club_poll_create(uuid,text,text,text,text,jsonb,timestamp with time zone,uuid)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public.admin_club_poll_create(uuid,text,text,text,text,jsonb,timestamp with time zone,uuid)', 'EXECUTE'),
   'admin_club_poll_create(uuid,text,text,text,text,jsonb,timestamp with time zone,uuid): bez EXECUTE dla anon i authenticated');
 SELECT ok(has_function_privilege('service_role', 'public.admin_club_poll_create(uuid,text,text,text,text,jsonb,timestamp with time zone,uuid)', 'EXECUTE'),
