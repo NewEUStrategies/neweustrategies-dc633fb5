@@ -48,13 +48,15 @@
 // liście wywołań, bo kolejność jest tu treścią, nie kosmetyką.
 //
 // GRANICE, KTÓRE ATRAPUJEMY, I DLACZEGO (granica atrapy = moduł z własnym
-// dowodem). Jedenaście modułów - cztery z importów GÓRNYCH i siedem wciąganych
+// dowodem). Dwanaście modułów - cztery z importów GÓRNYCH i osiem wciąganych
 // `await import(...)` w środku ticku:
 //   * `@/lib/newsletter-campaigns.functions`, `@/lib/email/queueDrain.server`,
 //     `@/lib/notifications/dispatch.server` - realna poczta, Resend i VAPID;
 //   * `@/lib/server/linkCheck.server`, `@/lib/integrations/dispatch.functions`,
 //     `@/lib/server/embeddings.server` - realna sieć wychodząca i model
 //     embeddingów (każdy ma własny plik testowy obok);
+//   * `@/lib/billing/webhookReplay.server` - zamiatarka dziennika płatności
+//     (klucz serwisowy, dyspozytor zdarzeń operatora; własny test obok),
 //   * `@/lib/events/ticketCodeNotify.server` - bilety z kodem QR: klucz
 //     serwisowy i poczta (własny test w `lib/events/__tests__`);
 //   * `@/lib/events/jobs/{reminderJob,ticketLifecycleJob,followUpJob}.server`
@@ -111,6 +113,18 @@ const fixtures = vi.hoisted(() => ({
   crmTaskReminders: 5,
   eventTicketCodes: { registrations: 4, sent: 3, deferred: 0 },
   eventTicketRevocations: { notices: 3, sent: 2, failed: 1, deferred: 0 },
+  // Typ jawny: przypadek „padnięty odczyt kandydatów" dokłada pole `error`.
+  webhookSweep: {
+    scanned: 4,
+    due: 3,
+    processed: 2,
+    skipped: 0,
+    failed: 1,
+    busy: 0,
+    errors: 0,
+    deferred: 0,
+    timedOut: 0,
+  } as import("@/lib/billing/webhookReplay.server").WebhookSweepResult,
   walletPassRevocations: {
     claimed: 4,
     revoked: 3,
@@ -247,6 +261,13 @@ vi.mock("@/lib/events/wallet/walletRevocationJob.server", () => ({
     jobs.run("walletPassRevocations", [admin, opts], fixtures.walletPassRevocations),
 }));
 
+// Zamiatarka dziennika płatności - własny dowód w
+// `lib/billing/__tests__/webhookReplay.server.test.ts`; tu wyłącznie miejsce
+// w kolejności, cykl pracy i termin.
+vi.mock("@/lib/billing/webhookReplay.server", () => ({
+  sweepWebhookEvents: (opts: unknown) => jobs.run("webhookSweep", [opts], fixtures.webhookSweep),
+}));
+
 // Zadania funkcji uczestnika F1-F5 (spec B.10) - też `await import(...)`.
 // Każde ma własny test w swoim torze (A/B/C); tu dowodzimy wyłącznie tego,
 // że dyspozytor woła je w swoim miejscu, z klientem i wspólnym deadline'em.
@@ -325,6 +346,8 @@ const FULL_ORDER = [
   "crmTaskReminders",
   "eventTicketCodes",
   "eventTicketRevocations",
+  // Zamiatarka dziennika płatności: po wysyłkach 1:1, przed jobami sieciowymi.
+  "webhookSweep",
   "walletPassRevocations",
   "linkCheck",
   "integrations",
@@ -362,7 +385,13 @@ const NETWORK_COSTLY = [
 ] as const;
 
 /** Joby bramkowane co 5 minut (`everyNthMinute(5)`). */
-const FIVE_MINUTE_JOBS = ["digestDaily", "digestWeekly", "semanticIndex", "clubScheduler"] as const;
+const FIVE_MINUTE_JOBS = [
+  "digestDaily",
+  "digestWeekly",
+  "webhookSweep",
+  "semanticIndex",
+  "clubScheduler",
+] as const;
 /** Joby bramkowane co 15 minut (`everyNthMinute(15)`). */
 const FIFTEEN_MINUTE_JOBS = ["linkCheck", "profileIndex", "clubThreadIndex"] as const;
 /** Joby biegnące w KAŻDYM ticku - bez bramki cyklu pracy. */
@@ -545,6 +574,7 @@ describe("kolejność jobów jest kontraktem, nie kosmetyką", () => {
       crmTaskReminders: fixtures.crmTaskReminders,
       eventTicketCodes: fixtures.eventTicketCodes,
       eventTicketRevocations: fixtures.eventTicketRevocations,
+      webhookSweep: fixtures.webhookSweep,
       walletPassRevocations: fixtures.walletPassRevocations,
       linkCheck: fixtures.linkCheck,
       integrations: fixtures.integrations,
@@ -793,13 +823,75 @@ describe("zawiadomienia o odwołanych biletach (TICKET_REVOCATIONS_DEADLINE_MS =
 });
 
 // ===========================================================================
+// ZAMIATARKA DZIENNIKA PŁATNOŚCI
+// ===========================================================================
+describe("zamiatarka dziennika płatności (co 5 minut, termin = okno 8 s, nie dalej niż koniec budżetu ticku minus zapas)", () => {
+  it("biegnie PO wysyłkach i PRZED jobami kosztownymi sieciowo", async () => {
+    // Zdarzenie, które padło, to klient, który zapłacił i czeka na dostęp -
+    // nie może być pomijane jako pierwsze razem ze skanerem linków. Ale mail
+    // z linkiem do logowania starzeje się jeszcze szybciej.
+    await tickAt(0);
+
+    expect(orderOf("webhookSweep")).toBe(orderOf("eventTicketRevocations") + 1);
+    expect(orderOf("webhookSweep")).toBeLessThan(Math.min(...NETWORK_COSTLY.map(orderOf)));
+  });
+
+  // KRYTERIUM przeglądu 3.0 i regresji po nim. Termin to chwila, do której
+  // zamiatarka ZACZYNA wiersze i na nie czeka: własne okno 8 s od jej startu
+  // (zaległość w dzienniku nie zjada czasu jobom sieciowym po niej), ale nie
+  // dalej niż koniec budżetu ticku (25 s = timeout pg_net) minus 2 s na zapis
+  // przebiegu. Wiersz zaczęty tuż przed terminem dokańcza się „za odpowiedzią"
+  // (webhookReplay). Dawny termin „start ticku + 23 s" razem z bramką pełnego
+  // budżetu wiersza przepuszczał wiersze tylko w pierwszych ~3 s ticku.
+  it("dostaje termin = własne okno 8 s, przycięte do startu ticku + 25 s - 2 s", async () => {
+    await tickAt(0);
+    expect(jobs.argsOf("webhookSweep")).toEqual([{ deadlineAt: at(0).getTime() + 8_000 }]);
+
+    // Start po 10 s ticku (po zwykłym drenie poczty): okno biegnie od startu
+    // zamiatarki - wiersze nadal startują, zamiast czekać na pusty tick.
+    jobs.reset();
+    slowJob("eventTicketRevocations", 10_000);
+    await tickAt(5);
+    expect(jobs.argsOf("webhookSweep")).toEqual([{ deadlineAt: at(5).getTime() + 18_000 }]);
+
+    // Start po 20 s ticku: okno przycięte do końca budżetu minus zapas (23 s).
+    jobs.reset();
+    slowJob("eventTicketRevocations", 20_000);
+    await tickAt(10);
+    expect(jobs.argsOf("webhookSweep")).toEqual([{ deadlineAt: at(10).getTime() + 23_000 }]);
+  });
+
+  it("poza piątą minutą: `skipped_duty_cycle`, bez wywołania", async () => {
+    const result = await tickAt(3);
+
+    expect(jobs.steps()).not.toContain("webhookSweep");
+    expect(result.webhookSweep).toEqual({ error: "skipped_duty_cycle" });
+  });
+
+  it("padnięty odczyt kandydatów (pole `error` w wyniku) jest AWARIĄ w logu przebiegów", async () => {
+    // Zamiatarka nie rzuca - zwraca wynik z `error`. Heartbeat ma to policzyć
+    // jako awarię, inaczej stojąca zamiatarka wyglądałaby jak pusty dziennik.
+    fixtures.webhookSweep.error = "webhook sweep read failed: timeout";
+    try {
+      await tickAt(0);
+      expect(lastRun()).toMatchObject({
+        ok: false,
+        error: "webhookSweep: webhook sweep read failed: timeout",
+      });
+    } finally {
+      delete fixtures.webhookSweep.error;
+    }
+  });
+});
+
+// ===========================================================================
 // PRZEPUSTKI GOOGLE WALLET UNIEWAŻNIONYCH BILETÓW (OPS-14)
 // ===========================================================================
 describe("dezaktywacja przepustek Google (WALLET_REVOCATIONS_DEADLINE_MS = 22 s)", () => {
-  it("biegnie zaraz po zawiadomieniach, z klientem service role, partią 10 i terminem 22 s", async () => {
+  it("biegnie zaraz po zamiatarce dziennika płatności, z klientem service role, partią 10 i terminem 22 s", async () => {
     await tickAt(0);
 
-    expect(orderOf("walletPassRevocations")).toBe(orderOf("eventTicketRevocations") + 1);
+    expect(orderOf("walletPassRevocations")).toBe(orderOf("webhookSweep") + 1);
     const [client, options] = jobs.argsOf("walletPassRevocations") ?? [];
     expect(client).toBe(admin);
     expect(options).toEqual({ limit: 10, deadlineAt: at(0).getTime() + 22_000 });

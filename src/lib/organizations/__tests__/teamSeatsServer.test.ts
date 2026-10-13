@@ -330,6 +330,73 @@ describe("applySubscriptionOrgState", () => {
     expect((h.state.updates[0].values as { status: string }).status).toBe("suspended");
   });
 
+  // Audyt SUB-03: zaległość planu Zespół podlega TEJ SAMEJ karencji co plan
+  // indywidualny - w karencji zespół pracuje, po niej jest zawieszony.
+  it("zaległość w karencji zostawia zespół aktywny, po karencji go zawiesza", async () => {
+    h.state.updateResult = { data: [{ id: ORG_ID }], error: null };
+    for (const status of ["past_due", "unpaid"]) {
+      await applySubscriptionOrgState({
+        subscriptionId: "sub_1",
+        status,
+        priceId: PER_SEAT_PRICE,
+        accessUntil: iso(5 * DAY),
+      });
+      await applySubscriptionOrgState({
+        subscriptionId: "sub_1",
+        status,
+        priceId: PER_SEAT_PRICE,
+        accessUntil: iso(-1 * DAY),
+      });
+    }
+    expect(h.state.updates.map((u) => (u.values as { status: string }).status)).toEqual([
+      "active",
+      "suspended",
+      "active",
+      "suspended",
+    ]);
+  });
+
+  it("karencja nie otwiera dostępu pauzie, anulowaniu ani niezapłaconemu startowi", async () => {
+    h.state.updateResult = { data: [{ id: ORG_ID }], error: null };
+    for (const status of ["paused", "canceled", "incomplete", "incomplete_expired"]) {
+      await applySubscriptionOrgState({
+        subscriptionId: "sub_1",
+        status,
+        priceId: PER_SEAT_PRICE,
+        accessUntil: iso(5 * DAY),
+      });
+    }
+    expect(
+      h.state.updates.every((u) => (u.values as { status: string }).status === "suspended"),
+    ).toBe(true);
+  });
+
+  // Przegląd poprawek SUB-03 (#43): koniec windykacji to koniec TEJ SAMEJ
+  // karencji co dla osoby z planem indywidualnym - rezygnacja jej nie daje.
+  it("anulowanie ZA BRAK PŁATNOŚCI zostawia zespół do końca karencji, rezygnacja - nie", async () => {
+    h.state.updateResult = { data: [{ id: ORG_ID }], error: null };
+    const cases: Array<[string | null, string, string]> = [
+      ["payment_failed", iso(5 * DAY), "active"],
+      ["payment_disputed", iso(5 * DAY), "active"],
+      ["payment_failed", iso(-1 * DAY), "suspended"],
+      ["payment_failed", "", "suspended"],
+      ["cancellation_requested", iso(5 * DAY), "suspended"],
+      [null, iso(5 * DAY), "suspended"],
+    ];
+    for (const [cancellationReason, accessUntil] of cases) {
+      await applySubscriptionOrgState({
+        subscriptionId: "sub_1",
+        status: "canceled",
+        priceId: PER_SEAT_PRICE,
+        accessUntil: accessUntil || null,
+        cancellationReason,
+      });
+    }
+    expect(h.state.updates.map((u) => (u.values as { status: string }).status)).toEqual(
+      cases.map(([, , expected]) => expected),
+    );
+  });
+
   it("brak trafionej organizacji to brak zmiany", async () => {
     h.state.updateResult = { data: [], error: null };
     expect(

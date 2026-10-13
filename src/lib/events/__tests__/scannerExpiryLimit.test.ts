@@ -61,7 +61,7 @@ describe("granica terminu poświadczenia", () => {
 });
 
 describe("odmowa `expiry_too_late` od bazy do zdania w panelu", () => {
-  // Oba warianty komunikatu z `admin_event_scanner_device_issue` (20261012110400).
+  // Oba warianty komunikatu z `admin_event_scanner_device_issue` (20261013110900).
   const MESSAGES = [
     "expiry_too_late: the credential must expire at most 7 days after the event ends",
     "expiry_too_late: the event ended more than 7 days ago - a scanner credential can no longer be issued",

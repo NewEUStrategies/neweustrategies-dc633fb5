@@ -11,10 +11,21 @@
 //   3. brak walidacji pliku stanu przekazywanego między krokami joba.
 import { describe, expect, it } from "vitest";
 import {
+  type LocalSubscriptionRow,
+  type LocalWebhookRow,
   type ProbeState,
   type StripeInvoice,
   type StripeSubscription,
+  LOCAL_PERIOD_TOLERANCE_S,
+  WEBHOOK_ENDPOINT_PATH,
+  classifyLocalSync,
   classifyRenewal,
+  classifyWebhookEndpoints,
+  combineOutcomes,
+  parseProbeStatus,
+  renderWebhookEndpointSummary,
+  withEndpointVerdict,
+  renderLocalSyncSummary,
   formatUnix,
   isFailure,
   parseProbeState,
@@ -321,5 +332,325 @@ describe("incomplete or corrupt renewal evidence", () => {
     expect(
       renderVerifySummary({ state: state(), subscription: sub, verdict, dunningCensus: 0 }),
     ).toContain("`in_new` (-)");
+  });
+});
+
+// PAY-17c: sonda potwierdzała wyłącznie stan U OPERATORA. Zielony przebieg był
+// możliwy, gdy nasz webhook w ogóle nie odebrał odnowienia - czyli dokładnie
+// w awarii, w której klient płaci, a dostęp mu wygasa.
+describe("nasza strona: dziennik webhooków i wiersz subskrypcji", () => {
+  const ARMED_AT = "2026-08-06T02:40:00.000Z";
+  const NEW_PERIOD_END = PERIOD_END + 2_592_000;
+
+  function logRow(overrides: Partial<LocalWebhookRow> = {}): LocalWebhookRow {
+    return {
+      event_id: "evt_renewal",
+      event_type: "subscription.updated",
+      status: "processed",
+      error: null,
+      created_at: "2026-08-06T02:41:10.000Z",
+      ...overrides,
+    };
+  }
+
+  function localSub(periodEnd: number | null = NEW_PERIOD_END): LocalSubscriptionRow {
+    return {
+      provider_subscription_id: "sub_probe",
+      status: "active",
+      current_period_end: periodEnd === null ? null : new Date(periodEnd * 1000).toISOString(),
+    };
+  }
+
+  function check(
+    over: {
+      rows?: LocalWebhookRow[];
+      subscription?: LocalSubscriptionRow | null;
+      stripePeriodEnd?: number | null;
+      deadlineReached?: boolean;
+    } = {},
+  ) {
+    return classifyLocalSync({
+      state: state({ armedAt: ARMED_AT }),
+      stripePeriodEnd: over.stripePeriodEnd === undefined ? NEW_PERIOD_END : over.stripePeriodEnd,
+      webhookRows: over.rows ?? [logRow()],
+      subscription: over.subscription === undefined ? localSub() : over.subscription,
+      deadlineReached: over.deadlineReached ?? true,
+    });
+  }
+
+  it("zielono: przetworzone `subscription.*` po zbrojeniu i okres w bazie nadąża", () => {
+    const verdict = check();
+
+    expect(verdict).toMatchObject({
+      outcome: "synced",
+      processedEvents: 1,
+      failedEvents: [],
+      localPeriodEnd: NEW_PERIOD_END,
+    });
+    expect(combineOutcomes("renewed", verdict)).toBe("renewed");
+    expect(combineOutcomes("dunning", verdict)).toBe("dunning");
+  });
+
+  // KRYTERIUM PAY-17c.
+  it("CZERWONO: brak przetworzonego wpisu w dzienniku (po terminie)", () => {
+    const verdict = check({ rows: [] });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.reason).toContain("PRZETWORZONEGO");
+    expect(combineOutcomes("renewed", verdict)).toBe("failed");
+  });
+
+  it("CZERWONO: wpis `processed` sprzed zbrojenia nie potwierdza dzisiejszego odnowienia", () => {
+    const verdict = check({ rows: [logRow({ created_at: "2026-08-05T02:41:10.000Z" })] });
+
+    expect(verdict).toMatchObject({ outcome: "failed", processedEvents: 0 });
+  });
+
+  it("CZERWONO: przetworzone zdarzenie innego typu (transakcja) nie zastępuje zdarzenia subskrypcji", () => {
+    const verdict = check({ rows: [logRow({ event_type: "transaction.completed" })] });
+
+    expect(verdict).toMatchObject({ outcome: "failed", processedEvents: 0 });
+  });
+
+  it("CZERWONO OD RAZU: wpis `failed` w oknie, nawet obok przetworzonego i przed terminem", () => {
+    const failed = logRow({
+      event_id: "evt_invoice",
+      event_type: "transaction.completed",
+      status: "failed",
+      error: "deadlock detected",
+    });
+
+    const verdict = check({ rows: [logRow(), failed], deadlineReached: false });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.failedEvents).toEqual([failed]);
+    expect(verdict.reason).toContain("evt_invoice");
+    expect(verdict.reason).toContain("deadlock detected");
+  });
+
+  it("stary wpis `failed` sprzed zbrojenia NIE oblewa dzisiejszego przebiegu", () => {
+    const verdict = check({
+      rows: [logRow(), logRow({ status: "failed", created_at: "2026-08-01T00:00:00.000Z" })],
+    });
+
+    expect(verdict.outcome).toBe("synced");
+  });
+
+  it("CZERWONO: okres w bazie nieprzesunięty (po terminie)", () => {
+    const verdict = check({ subscription: localSub(PERIOD_END) });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.reason).toContain("NIE nadąża");
+    expect(verdict.localPeriodEnd).toBe(PERIOD_END);
+  });
+
+  it("CZERWONO: brak wiersza subskrypcji mimo przetworzonego zdarzenia", () => {
+    const verdict = check({ subscription: null });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.reason).toContain("Brak wiersza");
+  });
+
+  it("tolerancja kilku sekund na zaokrąglenia znacznika czasu - ale nie więcej", () => {
+    expect(
+      check({ subscription: localSub(NEW_PERIOD_END - LOCAL_PERIOD_TOLERANCE_S) }).outcome,
+    ).toBe("synced");
+    expect(
+      check({ subscription: localSub(NEW_PERIOD_END - LOCAL_PERIOD_TOLERANCE_S - 1) }).outcome,
+    ).toBe("failed");
+  });
+
+  it("przed terminem brak śladu to „jeszcze nie” (odpytujemy dalej), nie porażka", () => {
+    // Dostawa webhooka jest asynchroniczna - nasza strona może być sekundy za
+    // operatorem. Porażką staje się dopiero po terminie odpytywania.
+    expect(check({ rows: [], deadlineReached: false }).outcome).toBe("waiting");
+    expect(check({ subscription: localSub(PERIOD_END), deadlineReached: false }).outcome).toBe(
+      "waiting",
+    );
+  });
+
+  it("werdykt operatora inny niż sukces wygrywa - naszej strony wtedy nie ma czego pytać", () => {
+    const failedLocal = check({ rows: [] });
+
+    expect(combineOutcomes("failed", failedLocal)).toBe("failed");
+    expect(combineOutcomes("pending", failedLocal)).toBe("pending");
+    expect(combineOutcomes("skipped", null)).toBe("skipped");
+    // Brak sprawdzenia naszej strony (przebieg ręczny bez konfiguracji).
+    expect(combineOutcomes("renewed", null)).toBe("renewed");
+  });
+
+  it("podsumowanie naszej strony pokazuje wynik, liczniki, okres i uzasadnienie", () => {
+    const summary = renderLocalSyncSummary(check({ rows: [] }));
+
+    expect(summary).toContain("### Sonda odnowienia - nasza strona");
+    expect(summary).toContain("✗ nasza strona nie nadąża");
+    expect(summary).toContain("po zbrojeniu: 0");
+    expect(summary).toContain(formatUnix(NEW_PERIOD_END));
+  });
+});
+
+// ─── Odpowiedź RPC sondy (przegląd 7.6) ─────────────────────────────────────
+
+describe("parseProbeStatus - kształt odpowiedzi `billing_probe_status`", () => {
+  const event = {
+    event_id: "evt_1",
+    event_type: "subscription.updated",
+    status: "processed",
+    error: null,
+    created_at: "2026-10-13T02:41:00+00:00",
+  };
+  const sub = {
+    provider_subscription_id: "sub_probe",
+    status: "active",
+    current_period_end: "2026-11-13T02:41:00+00:00",
+  };
+
+  it("poprawna odpowiedź daje wiersze dziennika i subskrypcję w kształcie klasyfikatora", () => {
+    expect(parseProbeStatus({ webhook_events: [event], subscription: sub })).toEqual({
+      webhookRows: [event],
+      subscription: sub,
+    });
+  });
+
+  it("brak wiersza subskrypcji (`null`) jest poprawnym stanem, nie błędem kontraktu", () => {
+    expect(parseProbeStatus({ webhook_events: [], subscription: null })).toEqual({
+      webhookRows: [],
+      subscription: null,
+    });
+  });
+
+  it.each([
+    ["nie obiekt", []],
+    ["brak listy zdarzeń", { subscription: null }],
+    ["zdarzenie bez statusu", { webhook_events: [{ ...event, status: 1 }], subscription: null }],
+    ["błąd nie-tekstowy", { webhook_events: [{ ...event, error: {} }], subscription: null }],
+    ["subskrypcja bez identyfikatora", { webhook_events: [], subscription: { status: "active" } }],
+  ])("odrzuca kształt spoza kontraktu (%s) - zamiast zgadywać", (_label, value) => {
+    expect(parseProbeStatus(value)).toBeNull();
+  });
+});
+
+// ─── Punkt odbioru webhooków piaskownicy (przegląd 7.12) ────────────────────
+
+describe("classifyWebhookEndpoints - punkt odbioru subskrybuje każdy obsługiwany typ", () => {
+  const EXPECTED = ["invoice.paid", "charge.dispute.closed", "checkout.session.expired"];
+  const ours = (
+    overrides: Partial<{ id: string; url: string; status: string; enabled_events: string[] }> = {},
+  ) => ({
+    id: "we_ours",
+    url: `https://app.example${WEBHOOK_ENDPOINT_PATH}?env=sandbox`,
+    status: "enabled",
+    enabled_events: [...EXPECTED],
+    ...overrides,
+  });
+
+  it("komplet typów (albo `*`) na włączonym punkcie piaskownicy przechodzi", () => {
+    for (const endpoint of [ours(), ours({ enabled_events: ["*"] })]) {
+      const verdict = classifyWebhookEndpoints({
+        endpoints: [endpoint],
+        expectedTypes: EXPECTED,
+        appBaseUrl: null,
+      });
+      expect(verdict).toMatchObject({ outcome: "ok", checked: 1, gaps: [] });
+    }
+  });
+
+  it("brakujące typy oblewają sondę i są wymienione z nazwy", () => {
+    const verdict = classifyWebhookEndpoints({
+      endpoints: [ours({ enabled_events: ["invoice.paid"] })],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.gaps).toEqual([
+      {
+        id: "we_ours",
+        url: ours().url,
+        problem: null,
+        missingTypes: ["charge.dispute.closed", "checkout.session.expired"],
+      },
+    ]);
+    expect(verdict.reason).toContain("`checkout.session.expired`");
+    expect(renderWebhookEndpointSummary(verdict)).toContain("✗ braki");
+  });
+
+  it("brak naszego punktu (tylko obce adresy) to porażka - nic do nas nie dociera", () => {
+    const verdict = classifyWebhookEndpoints({
+      endpoints: [ours({ url: "https://elsewhere.example/hooks" })],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+
+    expect(verdict).toMatchObject({ outcome: "failed", checked: 0 });
+    expect(verdict.reason).toContain("nie ma punktu odbioru");
+  });
+
+  it("punkt wyłączony albo z `env=live` w piaskownicy jest błędem, nawet z kompletem typów", () => {
+    const disabled = classifyWebhookEndpoints({
+      endpoints: [ours({ status: "disabled" })],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+    const wrongEnv = classifyWebhookEndpoints({
+      endpoints: [ours({ url: `https://app.example${WEBHOOK_ENDPOINT_PATH}?env=live` })],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+
+    expect(disabled.gaps[0]?.problem).toContain("disabled");
+    expect(wrongEnv.gaps[0]?.problem).toContain("env=live");
+  });
+
+  it("z adresem wdrożenia liczą się WYŁĄCZNIE jego punkty - stary podgląd nie oblewa sondy", () => {
+    const verdict = classifyWebhookEndpoints({
+      endpoints: [
+        ours(),
+        ours({
+          id: "we_preview",
+          url: `https://preview.example${WEBHOOK_ENDPOINT_PATH}?env=sandbox`,
+          enabled_events: [],
+        }),
+      ],
+      expectedTypes: EXPECTED,
+      appBaseUrl: "https://app.example",
+    });
+
+    expect(verdict).toMatchObject({ outcome: "ok", checked: 1 });
+  });
+
+  it("bez adresu wdrożenia KAŻDY punkt z naszą ścieżką musi być kompletny", () => {
+    const verdict = classifyWebhookEndpoints({
+      endpoints: [
+        ours(),
+        ours({
+          id: "we_preview",
+          url: `https://preview.example${WEBHOOK_ENDPOINT_PATH}?env=sandbox`,
+          enabled_events: [],
+        }),
+      ],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.gaps.map((gap) => gap.id)).toEqual(["we_preview"]);
+  });
+
+  it("porażka punktu odbioru przesądza werdykt całości, sukces go nie zmienia", () => {
+    const failed = classifyWebhookEndpoints({
+      endpoints: [],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+    const ok = classifyWebhookEndpoints({
+      endpoints: [ours()],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+
+    expect(withEndpointVerdict("renewed", failed)).toBe("failed");
+    expect(withEndpointVerdict("renewed", ok)).toBe("renewed");
+    expect(withEndpointVerdict("pending", null)).toBe("pending");
   });
 });

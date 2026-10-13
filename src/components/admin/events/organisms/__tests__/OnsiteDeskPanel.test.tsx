@@ -15,7 +15,7 @@
 //      wiadomo, przy której bramce stoi.
 //   5. WIERSZ MÓWI, CZY OSOBA MA ZAPIS. Brak zapisu to odznaka, a nie cisza -
 //      operator ma zobaczyć powód odmowy, zanim kliknie.
-//   6. OBEJŚCIE BLOKADY PONOWNEGO WEJŚCIA JEST JAWNE (20261012111100). Gdy
+//   6. OBEJŚCIE BLOKADY PONOWNEGO WEJŚCIA JEST JAWNE (20261013111100). Gdy
 //      baza wpuściła osobę „już w środku" (`reentryOverride`), stanowisko
 //      dostaje OSTRZEŻENIE z nazwiskiem i chwilą poprzedniego wejścia
 //      oraz plakietkę na karcie decyzji - nie zwykłe „wpuszczono".

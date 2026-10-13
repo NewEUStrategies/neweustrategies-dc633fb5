@@ -115,7 +115,7 @@ export const DOMAIN_EVENT_TYPES = [
   "event.registration.cancelled.v1",
   "event.registration.promoted.v1",
   "event.registration.payment.v1",
-  // Jawne uniewaznienie zgubionego biletu albo identyfikatora (20261012110400,
+  // Jawne uniewaznienie zgubionego biletu albo identyfikatora (20261013110900,
   // OPS-04). Payload: event_id, registration_id, credential (ticket|badge) -
   // bez kodu; nowa wartosc jawna wraca wylacznie z wywolania.
   "event.registration.code_invalidated.v1",

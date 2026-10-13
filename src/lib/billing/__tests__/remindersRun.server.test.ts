@@ -8,7 +8,9 @@
 // przypomnienie NIEWYSŁANE przed automatycznym pobraniem środków to
 // reklamacja i podstawa do obciążenia zwrotnego.
 //
-// GRANICE ATRAPOWANE: klient service_role i wysyłka poczty. Świadomie NIE
+// GRANICE ATRAPOWANE: klient service_role, wysyłka poczty i katalog najemców
+// (`tenants.domain` - z niego PRAWDZIWY `tenantPublicUrl` składa host linku
+// w przypomnieniu). Świadomie NIE
 // atrapujemy `@/lib/billing/notifications.server` ani
 // `@/lib/billing/purchaseEffects.server` - to sąsiedzi w tej samej warstwie,
 // a przebieg przypomnień polega właśnie na ich prawdziwym zachowaniu
@@ -63,6 +65,22 @@ const mail = vi.hoisted(() => {
   };
 });
 
+// Katalog najemców: dwie organizacje z własnymi domenami - przypomnienie ma
+// prowadzić na host najemcy SUBSKRYPCJI, nie na domenę marki.
+vi.mock("@/lib/server/tenant.server", () => {
+  const entries = [
+    { id: "tenant-alfa", slug: "alfa", domain: "alfa.example.com", isDefault: true },
+    { id: "tenant-beta", slug: "beta", domain: "beta.example.com", isDefault: false },
+  ];
+  return {
+    getTenantDirectory: () =>
+      Promise.resolve({
+        byDomain: new Map(entries.map((entry) => [entry.domain, entry])),
+        defaultTenant: entries[0],
+      }),
+  };
+});
+
 vi.mock("@/lib/email/transactional.server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/email/transactional.server")>();
   return { ...actual, sendTxEmail: mail.sendTxEmail };
@@ -85,6 +103,9 @@ type SubscriptionProjection = Pick<
   | "cancel_at_period_end"
   | "provider_subscription_id"
 >;
+
+/** Wiersz z kluczem kursora - przebieg stronicuje `ORDER BY id`. */
+type SubscriptionProjectionWithId = SubscriptionProjection & { id: string };
 
 type ProfileProjection = {
   [P in "email" | "first_name" | "display_name" | "prefs"]:
@@ -187,8 +208,46 @@ describe("zakres zapytania o subskrypcje do przypomnienia", () => {
     // Karencja (`past_due`) MUSI być w zestawie: to klient, który ma jeszcze
     // dostęp i którego da się uratować. `canceled` też - jemu należy się
     // przypomnienie o KOŃCU dostępu, nie o odnowieniu.
-    expect(chain?.argsOf("in")).toEqual(["status", ["active", "trialing", "past_due", "canceled"]]);
+    const inFilters = chain?.calls.filter((c) => c.method === "in").map((c) => c.args);
+    expect(inFilters).toContainEqual(["status", ["active", "trialing", "past_due", "canceled"]]);
     expect(chain?.argsOf("limit")).toEqual([200]);
+  });
+
+  // PRZEGLĄD 1.5 / 7.8 (S9). Produkcja trzyma subskrypcje piaskownicy jako
+  // ŚLAD KSIĘGOWY (`environment = 'sandbox'`) z prawdziwym `user_id`
+  // z metadanych karty testowej. Bez filtra środowiska cron wysyłał realnemu
+  // klientowi „Twoja subskrypcja się odnawia" za plan, którego nie kupił.
+  //
+  // Po scaleniu z SUB-08 przebieg obejmuje JEDNO środowisko (domyślnie
+  // `resolveEnvironment` - na produkcji zawsze `live`, patrz blok „przebieg
+  // platformowy" niżej), a bramka `environmentGrantsAccess` pilnuje, żeby
+  // jawne `sandbox` na produkcji nie wysłało niczego. Dawne asercje na filtr
+  // `in("environment", [...])` zastąpiło `eq` z bloku SUB-08 - tu zostaje
+  // bramka, której tamten blok nie dowodzi.
+  describe("środowisko wdrożenia (S9)", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("produkcja + jawne `sandbox`: ani jednego zapytania, ani jednego maila", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      const stub = givenDb({ rows: [subscriptionRow()] });
+
+      const result = await runBillingReminders(3, 200, NOW, "sandbox");
+
+      expect(result).toEqual({ renewal: 0, expiring: 0, skipped: 0 });
+      expect(stub.chainsFor("subscriptions")).toHaveLength(0);
+      expect(mail.sendTxEmail).not.toHaveBeenCalled();
+    });
+
+    it("podgląd i dev: jawne `sandbox` przechodzi - karta testowa dostaje przypomnienie", async () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const stub = givenDb({ rows: [] });
+
+      await runBillingReminders(3, 200, NOW, "sandbox");
+
+      expect(stub.lastChain("subscriptions")?.argsOf("eq")).toEqual(["environment", "sandbox"]);
+    });
   });
 
   it("okno nigdy nie sięga w PRZESZŁOŚĆ - subskrypcja po terminie nie dostanie przypomnienia", async () => {
@@ -476,5 +535,151 @@ describe("awaria dostawcy poczty w trakcie przebiegu", () => {
     expect(mail.sent).toEqual([]);
     // ...i wynik przebiegu mówi dokładnie to samo.
     expect(result).toEqual({ renewal: 0, expiring: 0, skipped: 1 });
+  });
+});
+
+describe("przebieg platformowy - środowisko, kolejność, kursor (SUB-08)", () => {
+  /** Wiersze z identyfikatorami - kursor keyset przesuwa się po `id`. */
+  function rowsWithIds(count: number): SubscriptionProjectionWithId[] {
+    return Array.from({ length: count }, (_, index) => ({
+      ...subscriptionRow({ provider_subscription_id: `sub_${index + 1}` }),
+      id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    }));
+  }
+
+  /**
+   * Atrapa stronicowania: odpowiada partią `limit` wierszy o `id` większym od
+   * kursora (`gt`) - tak, jak zrobiłby to PostgREST dla `ORDER BY id`.
+   */
+  function givenPagedDb(all: SubscriptionProjectionWithId[]): SupabaseFromStub {
+    const stub = givenDb({ rows: [] });
+    stub.setResponse("subscriptions", (chain) => {
+      const after = chain.argsOf("gt")?.[1];
+      const limit = Number(chain.argsOf("limit")?.[0] ?? 0);
+      const page = all
+        .filter((row) => typeof after !== "string" || row.id > after)
+        .sort((a, b) => (a.id < b.id ? -1 : 1))
+        .slice(0, limit);
+      return ok(page);
+    });
+    return stub;
+  }
+
+  it("filtruje ŚRODOWISKO rozstrzygnięte po stronie serwera (poza produkcją: piaskownica)", async () => {
+    const stub = givenDb({ rows: [] });
+    await runBillingReminders(3, 200, NOW);
+
+    expect(stub.lastChain("subscriptions")?.argsOf("eq")).toEqual(["environment", "sandbox"]);
+  });
+
+  it("w PRODUKCJI przebieg bierze wyłącznie `live` - klienci testowi nie dostają maili", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      const stub = givenDb({ rows: [] });
+      await runBillingReminders(3, 200, NOW);
+
+      expect(stub.lastChain("subscriptions")?.argsOf("eq")).toEqual(["environment", "live"]);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("jawne środowisko wywołującego wygrywa z domyślnym", async () => {
+    const stub = givenDb({ rows: [] });
+    await runBillingReminders(3, 200, NOW, "live");
+
+    expect(stub.lastChain("subscriptions")?.argsOf("eq")).toEqual(["environment", "live"]);
+  });
+
+  it("partie mają deterministyczną kolejność `ORDER BY id`", async () => {
+    // `limit 200` bez `ORDER BY` oddawało przy każdym przebiegu INNY wycinek
+    // okna - część klientów nie dostawała przypomnienia wcale.
+    const stub = givenDb({ rows: [] });
+    await runBillingReminders(3, 200, NOW);
+
+    expect(stub.lastChain("subscriptions")?.argsOf("order")).toEqual(["id", { ascending: true }]);
+    expect(stub.lastChain("subscriptions")?.has("gt")).toBe(false);
+  });
+
+  it("przebieg czyta WSZYSTKIE rekordy z okna, partia po partii, kursorem po `id`", async () => {
+    const all = rowsWithIds(5);
+    const stub = givenPagedDb(all);
+
+    const result = await runBillingReminders(3, 2, NOW);
+
+    // 2 + 2 + 1 - ostatnia, niepełna partia kończy przebieg.
+    expect(result).toEqual({ renewal: 5, expiring: 0, skipped: 0 });
+    expect(mail.sent).toHaveLength(5);
+    const chains = stub.chainsFor("subscriptions");
+    expect(chains).toHaveLength(3);
+    expect(chains[0]?.has("gt")).toBe(false);
+    expect(chains[1]?.argsOf("gt")).toEqual(["id", all[1]?.id]);
+    expect(chains[2]?.argsOf("gt")).toEqual(["id", all[3]?.id]);
+    // Żaden rekord nie został obsłużony dwa razy.
+    const keys = mail.sent.map((m) => m.idempotencyKey);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("pełna OSTATNIA partia kończy się jednym pustym odczytem, nie pętlą", async () => {
+    const stub = givenPagedDb(rowsWithIds(4));
+
+    const result = await runBillingReminders(3, 2, NOW);
+
+    expect(result.renewal).toBe(4);
+    expect(stub.chainsFor("subscriptions")).toHaveLength(3);
+  });
+
+  it("kursor, który się nie przesuwa, przerywa przebieg głośno", async () => {
+    // Defekt bazy/atrapy oddający w kółko tę samą partię nie może zamienić
+    // crona w nieskończoną wysyłkę tych samych maili.
+    const same = rowsWithIds(2);
+    givenDb({ rows: same });
+
+    await expect(runBillingReminders(3, 2, NOW)).rejects.toThrow(/cursor did not advance/);
+  });
+});
+
+describe("przypomnienie niesie najemcę SWOJEJ subskrypcji", () => {
+  it("host linku i najemca wysyłki pochodzą z `subscriptions.tenant_id`", async () => {
+    // Przebieg jest platformowy i biegnie bez nagłówka hosta. Bez najemcy
+    // subskrypcji link prowadził na domenę marki, a redakcja i lista
+    // wykluczeń były rozstrzygane z samego adresu.
+    givenDb({
+      rows: [
+        subscriptionRow({ provider_subscription_id: "sub_alfa", tenant_id: "tenant-alfa" }),
+        subscriptionRow({ provider_subscription_id: "sub_beta", tenant_id: "tenant-beta" }),
+      ],
+    });
+
+    await runBillingReminders(3, 200, NOW);
+
+    expect(mail.sent.map((m) => m.tenantId)).toEqual(["tenant-alfa", "tenant-beta"]);
+    expect(mail.sent.map((m) => new URL(String(m.ctaUrl)).origin)).toEqual([
+      "https://alfa.example.com",
+      "https://beta.example.com",
+    ]);
+    expect(new URL(String(mail.sent[0]?.ctaUrl)).pathname).toBe("/profile/plan");
+  });
+});
+
+describe("ręczny przebieg z innym wyprzedzeniem NIE zużywa klucza przypomnienia (SUB-08)", () => {
+  it("leadDays=30 i standardowe 3 dni dają RÓŻNE klucze dla tej samej daty granicznej", async () => {
+    // Scenariusz z audytu: przebieg ręczny z `leadDays = 30` zjadał klucz
+    // idempotencji, więc właściwe przypomnienie 3 dni przed odnowieniem już
+    // nie wychodziło (dostawca poczty odrzucał je jako duplikat).
+    const periodEnd = "2026-09-17T12:00:00.000Z";
+    givenDb({ rows: [subscriptionRow({ current_period_end: periodEnd })] });
+    await runBillingReminders(30, 200, NOW);
+
+    givenDb({ rows: [subscriptionRow({ current_period_end: periodEnd })] });
+    await runBillingReminders(REMINDER_LEAD_DAYS, 200, new Date("2026-09-14T10:00:00.000Z"));
+
+    expect(mail.sent).toHaveLength(2);
+    expect(mail.sent[0]?.idempotencyKey).toBe(
+      "subscription_renewal_reminder:sub_syntetyczna_1:2026-09-17:lead30",
+    );
+    expect(mail.sent[1]?.idempotencyKey).toBe(
+      "subscription_renewal_reminder:sub_syntetyczna_1:2026-09-17",
+    );
   });
 });

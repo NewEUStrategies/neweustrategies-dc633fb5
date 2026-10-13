@@ -7,12 +7,16 @@
 // Dluga nazwa i adres stron sa ZAWIJANE w swojej kolumnie (inaczej nazwa
 // sprzedawcy wchodzila na kolumne nabywcy, a adres nabywcy wychodzil poza
 // strone), a korekta z ujemna suma drukuje "Do zwrotu", nie "Do zaplaty: -".
+// Metoda brutto (art. 106e ust. 7-8): pozycje bez netto i VAT, podatek
+// z podsumowania stawek ZAMROZONEGO na dokumencie; kurs NBP i VAT w PLN,
+// "odwrotne obciazenie", podstawa "np" i numer KSeF faktury korygowanej.
 import { describe, expect, it } from "vitest";
 
 import { encodePdfText } from "@/lib/billing/invoicePdf";
 import { parseInvoiceDocument, type EventInvoiceDocument } from "@/lib/events/eventInvoiceDocument";
 import {
   eventInvoicePdfFileName,
+  pdfVatRows,
   renderEventInvoicePdf,
   wrapText,
   type EventInvoicePdfLabels,
@@ -41,7 +45,7 @@ const LABELS: EventInvoicePdfLabels = {
     name: "Nazwa",
     unit: "J.m.",
     quantity: "Ilość",
-    unitNet: "Cena netto",
+    unitGross: "Cena jedn. brutto",
     net: "Netto",
     rate: "VAT",
     vat: "Kwota VAT",
@@ -57,6 +61,11 @@ const LABELS: EventInvoicePdfLabels = {
   correctsLine: "Korekta do FV/2026/09/0001",
   correctionReason: "Przyczyna",
   exemptBasis: "Podstawa zwolnienia",
+  correctsKsefNumber: "Numer KSeF faktury korygowanej",
+  npBasis: "Podstawa np",
+  reverseCharge: "odwrotne obciążenie",
+  vatPln: "VAT w PLN",
+  fxLine: "",
   ksefNumber: "Numer KSeF",
   cancelled: "ANULOWANY",
   proformaNote: "Proforma nie jest fakturą VAT",
@@ -223,11 +232,136 @@ describe("renderEventInvoicePdf", () => {
     const text = pdfText(renderEventInvoicePdf(doc({ lines }), LABELS));
     const pages = Number(/\/Count (\d+)/.exec(text)?.[1] ?? "0");
     expect(pages).toBeGreaterThan(1);
-    const headers = text.split(`(${encodePdfText("Cena netto")})`).length - 1;
+    const headers = text.split(`(${encodePdfText("Cena jedn. brutto")})`).length - 1;
     expect(headers).toBe(pages);
     expect(contains(text, `Strona ${pages}/${pages}`)).toBe(true);
     expect(contains(text, "8%")).toBe(true);
     expect(text.match(/\/Type \/Page /g)).toHaveLength(pages);
+  });
+});
+
+describe("adnotacje podatkowe i metoda brutto (INV-06, INV-12, INV-16, INV-17)", () => {
+  it("pozycje: cena i wartosc brutto, bez VAT z pozycji; podsumowanie z dokumentu", () => {
+    // Trzy pozycje po 0,61 zl: VAT od pozycji 3 x 0,11 = 0,33, a od sumy 1,83 -> 0,34.
+    const lines = [1, 2, 3].map((position) =>
+      invoiceLineJson({
+        id: `l${position}`,
+        position,
+        unit_gross_cents: 61,
+        gross_cents: 61,
+        net_cents: 50,
+        vat_cents: 11,
+        unit_net_cents: 50,
+      }),
+    );
+    const text = pdfText(
+      renderEventInvoicePdf(
+        doc({
+          invoice: { net_cents: 149, vat_cents: 34, gross_cents: 183 },
+          lines,
+          vat_summary: [{ vat_rate: "23", net_cents: 149, vat_cents: 34, gross_cents: 183 }],
+        }),
+        LABELS,
+      ),
+    );
+    expect(contains(text, "0,34")).toBe(true);
+    expect(contains(text, "1,49")).toBe(true);
+    expect(contains(text, "0,11")).toBe(false);
+    expect(contains(text, "0,50")).toBe(false);
+    expect(contains(text, "Cena jedn. brutto")).toBe(true);
+  });
+
+  it("szkic korekty bez zamrozonego podsumowania: roznica od stanu przed korekta", () => {
+    const parsed = doc({
+      invoice: { kind: "correction", status: "draft", number: null },
+      lines: [invoiceLineJson({ quantity: -1, unit_gross_cents: 61, gross_cents: -61 })],
+      vat_summary: [],
+      rate_gross_before: { "23": 183 },
+    });
+    expect(pdfVatRows(parsed)).toEqual([
+      { vatRate: "23", netCents: -50, vatCents: -11, grossCents: -61, vatPlnCents: null },
+    ]);
+  });
+
+  it("waluta obca: kolumna VAT w PLN i wiersz kursu NBP", () => {
+    const text = pdfText(
+      renderEventInvoicePdf(
+        doc({
+          invoice: {
+            currency: "EUR",
+            fx_rate: 4.2731,
+            fx_table_no: "195/A/NBP/2026",
+            fx_effective_date: "2026-10-09",
+            vat_pln_cents: 19657,
+          },
+          vat_summary: [
+            {
+              vat_rate: "23",
+              net_cents: 20001,
+              vat_cents: 4600,
+              gross_cents: 24601,
+              vat_pln_cents: 19657,
+            },
+          ],
+        }),
+        { ...LABELS, fxLine: "Kurs NBP EUR 4,2731 tabela 195/A/NBP/2026 z 2026-10-09" },
+      ),
+    );
+    expect(contains(text, "VAT w PLN")).toBe(true);
+    expect(contains(text, "196,57")).toBe(true);
+    expect(contains(text, "Kurs NBP EUR 4,2731 tabela 195/A/NBP/2026 z 2026-10-09")).toBe(true);
+  });
+
+  it("dokument w PLN: bez kolumny VAT w PLN i bez kursu", () => {
+    const text = pdfText(renderEventInvoicePdf(doc(), { ...LABELS, fxLine: "KURS" }));
+    expect(contains(text, "VAT w PLN")).toBe(false);
+    expect(contains(text, "KURS")).toBe(false);
+  });
+
+  it("odwrotne obciazenie i podstawa np", () => {
+    const text = pdfText(
+      renderEventInvoicePdf(
+        doc({
+          invoice: {
+            buyer_country: "DE",
+            reverse_charge_effective: true,
+            np_basis_effective: "art. 28b ustawy o VAT",
+          },
+          lines: [invoiceLineJson({ vat_rate: "np", vat_cents: 0, net_cents: 12300 })],
+        }),
+        LABELS,
+      ),
+    );
+    expect(contains(text, "odwrotne obciążenie")).toBe(true);
+    expect(contains(text, "Podstawa np: art. 28b ustawy o VAT")).toBe(true);
+  });
+
+  it("bez pozycji np podstawa np nie trafia na dokument", () => {
+    const text = pdfText(
+      renderEventInvoicePdf(doc({ invoice: { np_basis_effective: "art. 28b" } }), LABELS),
+    );
+    expect(contains(text, "Podstawa np: art. 28b")).toBe(false);
+    expect(contains(text, "odwrotne obciążenie")).toBe(false);
+  });
+
+  it("korekta: numer KSeF faktury korygowanej", () => {
+    const text = pdfText(
+      renderEventInvoicePdf(
+        doc({
+          invoice: { kind: "correction", correction_reason: "Zwrot" },
+          corrects: {
+            id: INVOICE_IDS.invoice,
+            number: "FV/2026/09/0001",
+            issue_date: "2026-09-20",
+            ksef_number: "7011278375-20260920-0123456789AB-CD",
+          },
+        }),
+        LABELS,
+      ),
+    );
+    expect(
+      contains(text, "Numer KSeF faktury korygowanej: 7011278375-20260920-0123456789AB-CD"),
+    ).toBe(true);
   });
 });
 
@@ -322,7 +456,7 @@ describe("stopka dluzsza niz strona", () => {
     );
     const pages = Number(/\/Count (\d+)/.exec(text)?.[1] ?? "0");
     expect(pages).toBeGreaterThan(1);
-    expect(text.split(`(${encodePdfText("Cena netto")})`).length - 1).toBe(1);
+    expect(text.split(`(${encodePdfText("Cena jedn. brutto")})`).length - 1).toBe(1);
   });
 
   it("pusty sposob platnosci nie trafia do metryki", () => {

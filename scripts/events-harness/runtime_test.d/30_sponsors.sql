@@ -2111,10 +2111,10 @@ SELECT pg_temp.assert(
 -- 34 -> 35: 20260927000800 (klon edycji) dolozyla pomocnika
 -- `_event_clone_sponsors` (niewolalny z klienta, wolany z `admin_event_clone`).
 -- Asercje klonu sa w 92_event_clone.sql.
--- 35 -> 38: 20261012120000 (integralnosc pomiaru, OPS-09) dolozyla panelowe
+-- 35 -> 38: 20261013111400 (integralnosc pomiaru, OPS-09) dolozyla panelowe
 -- `admin_event_sponsor_exposure_anomalies` i pomocnika podpisu sesji
 -- `_event_sponsor_exposure_token` (ingest zmienil sygnature - stara USUNIETA,
--- wiec liczba sie nie dubluje); 20261012120100 (OPS-10) - pomocnika
+-- wiec liczba sie nie dubluje); 20261013111500 (OPS-10) - pomocnika
 -- `_event_meeting_sponsor_allowed`. Asercje: 34_sponsor_exposure_integrity.sql
 -- i 61_meeting_sponsor_binding.sql.
 SELECT pg_temp.assert(

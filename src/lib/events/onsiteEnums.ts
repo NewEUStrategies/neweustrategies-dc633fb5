@@ -17,9 +17,9 @@
 // wartości przepisany z migracji, a nie z pamięci.
 //
 // Źródła (najnowsze definicje):
-//   * `event_checkins_result_values`  -> 20261012111000_event_scanner_review_fixes.sql
-//   * `event_checkins_offline_outcome_values` -> 20261012110000_event_scanner_ops_hardening.sql
-//   * `event_checkpoints_reentry_policy_values` -> 20261012110000_event_scanner_ops_hardening.sql
+//   * `event_checkins_result_values`  -> 20261013111000_event_scanner_review_fixes.sql
+//   * `event_checkins_offline_outcome_values` -> 20261013110500_event_scanner_ops_hardening.sql
+//   * `event_checkpoints_reentry_policy_values` -> 20261013110500_event_scanner_ops_hardening.sql
 //   * `event_checkpoints_direction_mode` -> 20260824100844_29c02b4d-…sql
 //   * `event_badge_prints_reason_values` -> 20260824101451_98a0f340-…sql
 //   * zakresy poświadczenia urządzenia -> `_event_scanner_device_auth`
@@ -52,7 +52,7 @@ export type CheckpointAccessMode = (typeof CHECKPOINT_ACCESS_MODES)[number];
  * wydarzenia) i nie późniejszy niż oceniany, był wejściem. Wyjście w tym
  * punkcie i północ zerują stan (bramka tylko-wejście: jedno wejście dziennie);
  * punkty są od siebie niezależne. Ręczna odprawa na stanowisku omija odmowę
- * jawnie (`reentry_override`). 20261012111000.
+ * jawnie (`reentry_override`). 20261013111000.
  */
 export const CHECKPOINT_REENTRY_POLICIES = ["allow", "deny"] as const;
 export type CheckpointReentryPolicy = (typeof CHECKPOINT_REENTRY_POLICIES)[number];
@@ -87,7 +87,7 @@ export type CheckinResult = (typeof CHECKIN_RESULTS)[number];
  * Wynik decyzji skanera BEZ SIECI (z listy offline) - lustro
  * `event_checkins_offline_outcome_values`. Brak `denied_capacity`: limit
  * obecności offline jest przybliżony i nie odmawia. `denied_already_inside`
- * (20261012110000): bramka bez sieci przy polityce `deny` odesłała osobę,
+ * (20261013110500): bramka bez sieci przy polityce `deny` odesłała osobę,
  * która według jej własnego dziennika jest w środku.
  */
 export const OFFLINE_OUTCOMES = [

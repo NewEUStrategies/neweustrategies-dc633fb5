@@ -22,7 +22,11 @@
 //      weryfikacji podpisu zamieniłby panel w darmowy generator uprawnień.
 //   3. LICZNIK PRÓB I ŚLAD AUTORA. Każde ponowienie ma zostawić `retry_count`,
 //      `last_retried_at`, `retried_by` i czas obsługi - bez tego nie da się
-//      odróżnić zdarzenia naprawionego od klikanego w kółko.
+//      odróżnić zdarzenia naprawionego od klikanego w kółko. Licznik, chwila
+//      i autor lądują w WARUNKOWYM zapisie przejęcia (porównaj-i-zamień na
+//      statusie i liczniku), tym samym co przy dostawie od operatora - więc
+//      kliknięcie w trakcie żywej dostawy tego samego zdarzenia dostaje
+//      odmowę „w toku" zamiast równoległej, drugiej obsługi.
 //   4. PORAŻKA MA BYĆ WIDOCZNA. Wyjątek z obsługi nie może wywrócić server fn
 //      (admin zostałby bez odpowiedzi), ale MUSI wylądować w dzienniku jako
 //      `failed` z komunikatem.
@@ -93,7 +97,10 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 // Bezpiecznik granicy operatora: żaden przypadek nie ma prawa wyjść do sieci.
-vi.mock("@/lib/stripe.server", () => ({
+// Reszta modułu (np. `environmentGrantsAccess`) zostaje PRAWDZIWA - to czyste
+// funkcje, z których korzysta dyspozytor.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   getConnectionApiKey: () => "test_klucz_atrapy",
   getWebhookSecret: () => "test_sekret_atrapy",
   getStripeClient: () => {
@@ -126,15 +133,27 @@ function logRow(overrides: Record<string, unknown> = {}): Record<string, unknown
     // Kształt zapisywany przez ścieżkę uzgadniania (`reconcile.server`):
     // całe zdarzenie po normalizacji, czyli `{ eventType, data }`.
     payload: { eventType: "customer.updated", data: { id: "cus_z_dziennika" } },
+    // Typowy powód kliknięcia: obsługa padła godzinę temu.
+    status: "failed",
+    created_at: "2026-08-30T10:00:05.000Z",
+    last_retried_at: null,
     retry_count: 0,
     ...overrides,
   };
 }
 
-/** Odpowiedź dziennika: odczyt wiersza (`maybeSingle`) kontra zapis wyniku. */
-function logResponder(row: Record<string, unknown> | null, readError?: string) {
+/**
+ * Odpowiedź dziennika: odczyt wiersza (`maybeSingle`), warunkowe przejęcie
+ * (UPDATE ... RETURNING id; domyślnie wygrane) i domknięcie wyniku.
+ */
+function logResponder(
+  row: Record<string, unknown> | null,
+  readError?: string,
+  reclaim: ReturnType<typeof ok> = ok([{ id: EVENT_ROW_ID }]),
+) {
   return (chain: RecordedChain) => {
     if (chain.has("maybeSingle")) return readError ? fail(readError) : ok(row);
+    if (chain.has("update") && chain.has("select")) return reclaim;
     return ok(null);
   };
 }
@@ -151,11 +170,24 @@ function callRetry(data: unknown, userId: string = ADMIN_ID) {
   }>(retryWebhookEvent, data, { supabase: userClient(), userId });
 }
 
-/** Ładunek zapisu wyniku ponowienia (UPDATE na dzienniku). */
-function retryPatch(): Record<string, unknown> | undefined {
-  const chain = db.chainsFor("payment_webhook_events").find((c) => c.has("update"));
+function updateArgs(chain: RecordedChain | undefined): Record<string, unknown> | undefined {
   const args = chain?.argsOf("update")?.[0];
   return typeof args === "object" && args !== null ? (args as Record<string, unknown>) : undefined;
+}
+
+/** Warunkowe PRZEJĘCIE wiersza (UPDATE ... RETURNING) - licznik, chwila i autor. */
+function claimChain(): RecordedChain | undefined {
+  return db.chainsFor("payment_webhook_events").find((c) => c.has("update") && c.has("select"));
+}
+
+/** DOMKNIĘCIE wiersza wynikiem obsługi (UPDATE bez RETURNING). */
+function finishChain(): RecordedChain | undefined {
+  return db.chainsFor("payment_webhook_events").find((c) => c.has("update") && !c.has("select"));
+}
+
+/** Ładunek zapisu wyniku ponowienia (domknięcie wiersza). */
+function retryPatch(): Record<string, unknown> | undefined {
+  return updateArgs(finishChain());
 }
 
 beforeEach(() => {
@@ -313,6 +345,28 @@ describe("retryWebhookEvent - odczyt wiersza dziennika", () => {
     );
   });
 
+  it("ładunek PO RETENCJI (`_redacted`) odmawia ponowienia z czytelnym komunikatem", async () => {
+    // AUDYT SUB-11: po 30/90 dniach (albo po zamknięciu konta) ładunek nie ma
+    // już e-maila ani adresu. Odtworzenie go zapisałoby w księgach puste pola
+    // zamiast prawdziwych - i nie wolno też udawać „pustego ładunku".
+    db.setResponse(
+      "payment_webhook_events",
+      logResponder(
+        logRow({
+          payload: {
+            eventType: "customer.updated",
+            data: { id: "cus_z_dziennika", email: null },
+            _redacted: { at: OCCURRED_AT, reason: "retention" },
+          },
+        }),
+      ),
+    );
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow(/zanonimizowany/);
+    // Odmowa PRZED obsługą: żaden zapis nie powstał.
+    expect(db.chainsFor("payment_webhook_events").filter((c) => c.has("update"))).toEqual([]);
+  });
+
   it("starszy wiersz zapisany SAMYM obiektem danych też daje się ponowić", async () => {
     // Dziennik historyczny bywa zapisany bez opakowania `{ eventType, data }`.
     // Odrzucenie takich wierszy odcięłoby ponowienie dokładnie tam, gdzie jest
@@ -345,19 +399,31 @@ describe("retryWebhookEvent - przebieg ponowienia", () => {
     });
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
 
-    const patch = retryPatch();
-    expect(patch).toMatchObject({
-      status: "processed",
+    // Przejęcie: licznik, chwila i autor w JEDNYM warunkowym zapisie.
+    const claim = updateArgs(claimChain());
+    expect(claim).toMatchObject({
+      status: "received",
       error: null,
       retry_count: 1,
       retried_by: ADMIN_ID,
     });
-    expect(patch?.["last_retried_at"]).toEqual(expect.any(String));
-    expect(patch?.["processed_at"]).toEqual(expect.any(String));
-    expect(db.chainsFor("payment_webhook_events").at(-1)?.argsOf("eq")).toEqual([
-      "id",
-      EVENT_ROW_ID,
+    expect(claim?.["last_retried_at"]).toEqual(expect.any(String));
+    expect(
+      claimChain()
+        ?.calls.filter((c) => c.method === "eq")
+        .map((c) => c.args),
+    ).toEqual([
+      ["id", EVENT_ROW_ID],
+      ["tenant_id", TENANT_ID],
+      ["status", "failed"],
+      ["retry_count", 0],
     ]);
+
+    // Domknięcie: wynik i czas obsługi.
+    const patch = retryPatch();
+    expect(patch).toMatchObject({ status: "processed", error: null });
+    expect(patch?.["processed_at"]).toEqual(expect.any(String));
+    expect(patch?.["duration_ms"]).toEqual(expect.any(Number));
   });
 
   it("KOLEJNA próba podbija licznik zapisany przy wierszu, a nie zaczyna od zera", async () => {
@@ -368,7 +434,7 @@ describe("retryWebhookEvent - przebieg ponowienia", () => {
     const result = await callRetry({ id: EVENT_ROW_ID });
 
     expect(result.retryCount).toBe(4);
-    expect(retryPatch()).toMatchObject({ retry_count: 4 });
+    expect(updateArgs(claimChain())).toMatchObject({ retry_count: 4 });
   });
 
   it("pusty licznik w wierszu jest traktowany jak zero", async () => {
@@ -395,6 +461,47 @@ describe("retryWebhookEvent - przebieg ponowienia", () => {
 
     expect(result.status).toBe("processed");
     expect(result.retryCount).toBe(41);
+  });
+
+  it("ponowienie w trakcie ŻYWEJ dostawy tego samego zdarzenia - odmowa, zero obsługi", async () => {
+    // Wiersz przejęty minutę temu (dostawa od operatora albo zamiatarka
+    // właśnie go obsługuje). Dawne ponowienie nie pytało o stan: odpalało
+    // obsługę równolegle i nadpisywało wynik pierwszej swoim domknięciem.
+    db.setResponse(
+      "payment_webhook_events",
+      logResponder(
+        logRow({
+          status: "received",
+          created_at: new Date(Date.now() - 60_000).toISOString(),
+          last_retried_at: null,
+        }),
+      ),
+    );
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("właśnie przetwarzane");
+    expect(db.chainsFor("payment_webhook_events").some((c) => c.has("update"))).toBe(false);
+    expect(db.chainsFor("subscriptions")).toHaveLength(0);
+  });
+
+  it("przegrany wyścig o przejęcie (zamiatarka była pierwsza) - odmowa bez obsługi i domknięcia", async () => {
+    db.setResponse("payment_webhook_events", logResponder(logRow(), undefined, ok([])));
+
+    await expect(callRetry({ id: EVENT_ROW_ID })).rejects.toThrow("właśnie przetwarzane");
+    expect(finishChain()).toBeUndefined();
+    expect(db.chainsFor("subscriptions")).toHaveLength(0);
+  });
+
+  it("admin MOŻE świadomie odtworzyć wiersz domknięty (`processed`)", async () => {
+    // Np. plan dodano do katalogu po zdarzeniu - automaty domkniętego nie
+    // ruszają, ręczne ponowienie tak (obsługa jest idempotentna).
+    db.setResponse("payment_webhook_events", logResponder(logRow({ status: "processed" })));
+
+    const result = await callRetry({ id: EVENT_ROW_ID });
+
+    expect(result.status).toBe("processed");
+    expect(
+      claimChain()?.calls.find((c) => c.method === "eq" && c.args[0] === "status")?.args,
+    ).toEqual(["status", "processed"]);
   });
 
   it("zdarzenie spoza zakresu integracji kończy się statusem `skipped`", async () => {
@@ -540,6 +647,39 @@ describe("retryWebhookEvent - przebieg ponowienia", () => {
   });
 });
 
+describe("retryWebhookEvent - typ zdarzenia z wiersza uzgadniania", () => {
+  // DEFEKT NAPRAWIONY (kod produkcyjny, wspólny rdzeń `webhookReplay.server`).
+  //
+  // Uzgadnianie zapisywało w kolumnie `event_type` SUROWY typ operatora
+  // („customer.subscription.updated"), a w ładunku typ po normalizacji.
+  // Ponowienie brało typ z kolumny - dyspozytor go nie znał, więc ponowienie
+  // naprawy kończyło się `skipped` bez dotknięcia subskrypcji.
+  it("typ z ładunku `{ eventType, data }` wygrywa z surowym typem w kolumnie", async () => {
+    db.setResponse(
+      "payment_webhook_events",
+      logResponder(
+        logRow({
+          event_type: "customer.subscription.updated",
+          payload: {
+            eventType: "subscription.updated",
+            data: { id: "sub_z_naprawy", status: "active", items: [] },
+          },
+        }),
+      ),
+    );
+    db.setResponse("subscriptions", (chain: RecordedChain) =>
+      chain.has("update") && chain.has("select") ? ok([{ id: "wiersz_1" }]) : ok(null),
+    );
+
+    await callRetry({ id: EVENT_ROW_ID });
+
+    expect(db.chainsFor("subscriptions")[0]?.argsOf("eq")).toEqual([
+      "provider_subscription_id",
+      "sub_z_naprawy",
+    ]);
+  });
+});
+
 describe("readWebhookEventPayload - podgląd ładunku", () => {
   it("podgląd też jest tylko dla `super_admin`", async () => {
     // Ładunek zdarzenia zawiera dane rozliczeniowe klienta (adres, e-mail,
@@ -655,12 +795,14 @@ describe("izolacja najemcy w dzienniku webhooków", () => {
   it("ZAPIS wyniku ponowienia też filtruje po najemcy", async () => {
     // Osobny wymóg, nie powtórzenie: gdyby filtr stał wyłącznie na odczycie,
     // rozdzielenie obu zapytań (albo ponowienie po `row.id` z innego źródła)
-    // przestemplowałoby `retried_by` w cudzym wierszu.
+    // przestemplowałoby `retried_by` w cudzym wierszu. Dotyczy OBU zapisów:
+    // przejęcia (stempel autora) i domknięcia (wynik obsługi).
     await callRetry({ id: EVENT_ROW_ID });
 
-    const write = db.chainsFor("payment_webhook_events").find((c) => c.has("update"));
-    expect(tenantFilterOf(write)).toBe(TENANT_ID);
-    expect(write?.argsOf("eq")).toEqual(["id", EVENT_ROW_ID]);
+    const writes = db.chainsFor("payment_webhook_events").filter((c) => c.has("update"));
+    expect(writes).toHaveLength(2);
+    for (const write of writes) expect(tenantFilterOf(write)).toBe(TENANT_ID);
+    expect(claimChain()?.argsOf("eq")).toEqual(["id", EVENT_ROW_ID]);
   });
 
   it("PODGLĄD ładunku jest zawężony tym samym filtrem", async () => {

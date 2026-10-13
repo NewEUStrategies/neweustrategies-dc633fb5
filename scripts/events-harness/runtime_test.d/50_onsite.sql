@@ -143,7 +143,7 @@ VALUES
    'approved', 'rsvp', encode(extensions.digest('qr-piotr-000000000001', 'sha256'), 'hex'), now())
 ON CONFLICT (id) DO NOTHING;
 
--- ZGODA PARTNERSKA JEST PER ZGLOSZENIE (OPS-01, 20261012090000 i 20261012100100).
+-- ZGODA PARTNERSKA JEST PER ZGLOSZENIE (OPS-01, 20261013110000 i 20261013110200).
 -- Czytelnicy (w tym skan leadu) pytaja `_event_partner_consent_at()`, czyli
 -- o stempel ZGLOSZENIA na to wydarzenie; stemple osob wyzej sa juz tylko
 -- historyczne. Osoby, ktore wyzej maja zgode (Zofia i Wanda), udzielily jej

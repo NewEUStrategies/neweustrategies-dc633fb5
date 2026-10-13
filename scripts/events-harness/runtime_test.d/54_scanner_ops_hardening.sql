@@ -4,8 +4,8 @@
 --                            KOLEJKI, ZGODA PARTNERSKA W SKANIE LEADU
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracje 20261012110000 .. 20261012110400 zamykaja cztery ustalenia audytu
--- operacyjnego i konsumuja fundament zgody per zgloszenie (20261012090000).
+-- Migracje 20261013110500 .. 20261013110900 zamykaja cztery ustalenia audytu
+-- operacyjnego i konsumuja fundament zgody per zgloszenie (20261013110000).
 -- Kazde ma tu swoj test "gotowe, gdy":
 --   OPS-04  druk -> skan starego kodu x25 NIE blokuje urzadzenia i daje
 --           rozpoznawalny wynik (code_superseded); bilet z portfela po druku
@@ -78,7 +78,7 @@ VALUES
    'published', 'rsvp', 'instant')
 ON CONFLICT (id) DO NOTHING;
 
--- 20261012111000 (R8): stan "w srodku" zeruje sie o polnocy CZASU WYDARZENIA.
+-- 20261013111000 (R8): stan "w srodku" zeruje sie o polnocy CZASU WYDARZENIA.
 -- Skany tego pliku leza w ostatniej godzinie; strefa o stalym przesunieciu,
 -- w ktorej TERAZ jest okolo poludnia, trzyma je w jednym dniu lokalnym
 -- niezaleznie od godziny przebiegu (w Europe/Warsaw przebieg tuz po polnocy
@@ -654,7 +654,7 @@ END $$;
 -- Skan z kolejki a wejscie na zywo tego samego kodu: zadne "granted x2" nie
 -- znika bez sladu.
 --
--- ZMIANA ZAMIERZONA (20261012111000, R9): dotad skan z kolejki SPRZED wejscia
+-- ZMIANA ZAMIERZONA (20261013111000, R9): dotad skan z kolejki SPRZED wejscia
 -- na zywo (-40 min wobec -35 min) byl zapisywany jako denied_already_inside
 -- na podstawie POZNIEJSZEGO wejscia - nieprawdziwie (to bylo pierwsze
 -- wejscie), a przy wyjsciu jeszcze w drodze z tej samej kolejki byl to
@@ -829,7 +829,7 @@ SELECT pg_temp.assert(
   AND NOT has_function_privilege('anon', 'public._event_scanner_device_auth_sync(text, text, timestamptz, text)', 'EXECUTE'),
   '54/OPS-12: sekret kolejki bez grantu kolumnowego, funkcje pomocnicze tylko dla service_role');
 
--- ZMIANA ZAMIERZONA (20261012111100, R0/R11): scisla regula znacznika
+-- ZMIANA ZAMIERZONA (20261013111100, R0/R11): scisla regula znacznika
 -- obowiazuje urzadzenie, ktore zadeklarowalo klienta przechowujacego
 -- znacznik (queue_marker_required_at - bootstrap z client_caps albo wazny
 -- znacznik). Urzadzenie, ktore NIGDY tego nie zrobilo (stara wersja skanera),
@@ -955,7 +955,7 @@ BEGIN
     'device_token', 'tok54-kolejka-000001', 'code', 'zgadywany-z-kolejki-100',
     'checkpoint_id', '54c00000-0000-0000-0000-0000000000a2',
     'device_scanned_at', now() - interval '10 minutes', 'queued', true));
-  -- ZMIANA ZAMIERZONA (20261012111100, R12): blokada z kolejki zatrzymuje
+  -- ZMIANA ZAMIERZONA (20261013111100, R12): blokada z kolejki zatrzymuje
   -- SAMA kolejke (queue_locked_until), nie skanowanie na zywo (locked_until).
   PERFORM pg_temp.assert((v->>'queue_locked')::boolean AND NOT (v->>'device_locked')::boolean
       AND (SELECT queue_locked_until > now() AND locked_until IS NULL
@@ -1034,7 +1034,7 @@ SELECT pg_temp.assert(
       AND pg_get_constraintdef(c.oid) !~ 'SET NULL \('
   ),
   '54/OPS-11: w schemacie nie ma ANI JEDNEGO zlozonego klucza obcego SET NULL bez listy kolumn');
--- Rozszerzenie (20261012111000, R10): klucze obce SET NULL, ktorych zerowana
+-- Rozszerzenie (20261013111000, R10): klucze obce SET NULL, ktorych zerowana
 -- kolumna stoi w CHECK-u (takze jednokolumnowe, np. aktor -> auth.users),
 -- pilnuje przejrzany rejestr w 56_scanner_review_fixes.
 

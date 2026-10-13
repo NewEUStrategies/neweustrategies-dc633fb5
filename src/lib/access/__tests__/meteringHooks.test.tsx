@@ -5,8 +5,10 @@
 // dashboard monetyzacji) oraz useMeterQuota / fetchMeteringSettings.
 //
 // Egzekwowanie jest serwerowe (SECURITY DEFINER, tenant z kontekstu wołającego,
-// idempotencja per byt/miesiąc) - tu dowodzimy kontraktu KLIENTA: właściwe
-// argumenty RPC per tożsamość (konto vs klucz gościa), EMPTY_BODY przy odmowie
+// idempotencja per byt/miesiąc) - tu dowodzimy kontraktu KLIENTA: właściwa
+// droga per tożsamość (konto: RPC z auth.uid(); gość: funkcja serwerowa z
+// podpisanym cookie - przeglądarka nie podaje ŻADNEGO klucza gościa, audyt
+// SUB-17), EMPTY_BODY przy odmowie
 // (a nie null, który cofnąłby paywall do stanu "jeszcze nie próbowano"),
 // zasiew wyłącznie werdyktów z realnym limitem i cisza RPC, gdy licznik
 // czyta świeżo zasiany cache.
@@ -34,15 +36,20 @@ interface MeteringSettingsRow {
 
 const h = vi.hoisted(() => ({
   session: null as { user: { id: string } } | null,
-  visitorId: null as string | null,
   consume: { data: [] as ConsumeMeteredViewRow[], error: null as Error | null },
   quota: { data: [] as MeteringStateRow[], error: null as Error | null },
   settings: { data: null as MeteringSettingsRow | null, error: null as Error | null },
   rpc: vi.fn(),
+  serverFn: vi.fn(),
 }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ session: h.session }) }));
-vi.mock("@/lib/access/visitor", () => ({ getVisitorId: () => h.visitorId }));
+// Gość: konsumpcja i stan idą przez funkcje serwerowe (cookie HttpOnly
+// z podpisem) - atrapa oddaje te same wiersze, co RPC konta.
+vi.mock("@/lib/access/meteringVisitor.functions", () => ({
+  consumeMeteredVisitorView: (opts: unknown) => h.serverFn("consume", opts),
+  getMeteredVisitorQuota: () => h.serverFn("quota"),
+}));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: (name: string, args?: Record<string, unknown>) => h.rpc(name, args),
@@ -77,10 +84,11 @@ function harness() {
 }
 
 const rpcCalls = (name: string) => h.rpc.mock.calls.filter(([called]) => called === name);
+const serverCalls = (name: string) => h.serverFn.mock.calls.filter(([called]) => called === name);
+const VISITOR = "visitor";
 
 beforeEach(() => {
   h.session = null;
-  h.visitorId = PAYWALL_IDS.visitor;
   h.consume = { data: [], error: null };
   h.quota = { data: [], error: null };
   h.settings = { data: null, error: null };
@@ -93,10 +101,15 @@ beforeEach(() => {
     }
     return Promise.resolve({ data: null, error: null });
   });
+  h.serverFn.mockReset().mockImplementation((name: string) => {
+    const source = name === "consume" ? h.consume : h.quota;
+    if (source.error) return Promise.reject(source.error);
+    return Promise.resolve(source.data[0] ?? null);
+  });
 });
 
 describe("useMeteredAccess - konsumpcja i tożsamość", () => {
-  it("gość: konsumuje kluczem gościa, oddaje body i zmapowany werdykt", async () => {
+  it("gość: konsumuje przez funkcję serwerową, bez klucza gościa z przeglądarki", async () => {
     h.consume.data = [consumeRow()];
     const { wrapper } = harness();
     const { result } = renderHook(() => useMeteredAccess("post", PAYWALL_IDS.entity, true), {
@@ -104,16 +117,12 @@ describe("useMeteredAccess - konsumpcja i tożsamość", () => {
     });
 
     await waitFor(() => expect(result.current.settled).toBe(true));
-    expect(rpcCalls("consume_metered_view")).toEqual([
-      [
-        "consume_metered_view",
-        {
-          _entity_type: "post",
-          _entity_id: PAYWALL_IDS.entity,
-          _visitor_id: PAYWALL_IDS.visitor,
-        },
-      ],
+    // Tożsamość gościa rozstrzyga serwer z cookie HttpOnly - w ładunku jest
+    // wyłącznie byt, a RPC konta (i jakikolwiek _visitor_id) nie wychodzi.
+    expect(serverCalls("consume")).toEqual([
+      ["consume", { data: { entityType: "post", entityId: PAYWALL_IDS.entity } }],
     ]);
+    expect(rpcCalls("consume_metered_view")).toEqual([]);
     expect(result.current.body?.content_pl).toBe("<p>Pełna treść analizy.</p>");
     expect(result.current.meter).toEqual({
       granted: true,
@@ -140,6 +149,7 @@ describe("useMeteredAccess - konsumpcja i tożsamość", () => {
     expect(rpcCalls("consume_metered_view")).toEqual([
       ["consume_metered_view", { _entity_type: "page", _entity_id: PAYWALL_IDS.page }],
     ]);
+    expect(h.serverFn).not.toHaveBeenCalled();
   });
 
   it("wyłączony (meteringApplies=false) nie dotyka serwera i jest natychmiast rozstrzygnięty", () => {
@@ -149,21 +159,18 @@ describe("useMeteredAccess - konsumpcja i tożsamość", () => {
     });
     expect(result.current).toEqual({ body: null, meter: null, settled: true });
     expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.serverFn).not.toHaveBeenCalled();
   });
 
-  it("brak tożsamości (SSR / zablokowany storage): konsumpcja nigdy nie startuje", () => {
-    // Twarda degradacja trybu prywatnego: bez konta i bez klucza gościa nie ma
-    // czego liczyć - czytelnik zobaczy ścianę rejestracji z meterPaywallVariant.
-    h.visitorId = null;
+  it("brak bytu: konsumpcja nigdy nie startuje", () => {
     const { wrapper } = harness();
-    const { result } = renderHook(() => useMeteredAccess("post", PAYWALL_IDS.entity, true), {
-      wrapper,
-    });
+    const { result } = renderHook(() => useMeteredAccess("post", null, true), { wrapper });
     expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.serverFn).not.toHaveBeenCalled();
     expect(result.current.settled).toBe(false);
   });
 
-  it("błąd RPC: rozstrzygnięty bez body i bez werdyktu (paywall zostaje zamknięty)", async () => {
+  it("błąd funkcji serwerowej gościa: rozstrzygnięty bez body i bez werdyktu (paywall zostaje zamknięty)", async () => {
     h.consume.error = new Error("rpc failed");
     const { wrapper } = harness();
     const { result } = renderHook(() => useMeteredAccess("post", PAYWALL_IDS.entity, true), {
@@ -176,7 +183,8 @@ describe("useMeteredAccess - konsumpcja i tożsamość", () => {
 });
 
 describe("useMeteredAccess - odmowy i telemetria monetyzacji", () => {
-  it("wyczerpany limit: EMPTY_BODY (nie null) i log denied/monthly_limit_reached", async () => {
+  it("konto, wyczerpany limit: EMPTY_BODY (nie null) i log denied/monthly_limit_reached", async () => {
+    h.session = { user: { id: PAYWALL_IDS.user } };
     h.consume.data = [
       consumeRow({
         granted: false,
@@ -205,7 +213,6 @@ describe("useMeteredAccess - odmowy i telemetria monetyzacji", () => {
           _entity_id: PAYWALL_IDS.entity,
           _outcome: "denied",
           _reason: "monthly_limit_reached",
-          _visitor_id: PAYWALL_IDS.visitor,
           _used_before: 3,
           _monthly_limit: 3,
         },
@@ -213,7 +220,20 @@ describe("useMeteredAccess - odmowy i telemetria monetyzacji", () => {
     ]);
   });
 
-  it("ściana rejestracji anonima: outcome requires_registration / anon_limit_zero", async () => {
+  it("gość, odmowa: EMPTY_BODY bez logu z przeglądarki (odmowy gościa loguje baza)", async () => {
+    h.consume.data = [
+      consumeRow({ granted: false, consumed: false, used: 1, monthly_limit: 1, remaining: 0 }),
+    ];
+    const { wrapper } = harness();
+    const { result } = renderHook(() => useMeteredAccess("post", PAYWALL_IDS.entity, true), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.settled).toBe(true));
+    expect(result.current.body).toEqual(EMPTY_BODY);
+    expect(rpcCalls("log_metering_event")).toEqual([]);
+  });
+
+  it("ściana rejestracji gościa: EMPTY_BODY i werdykt requires_registration, bez logu klienta", async () => {
     h.consume.data = [
       consumeRow({
         granted: false,
@@ -231,15 +251,13 @@ describe("useMeteredAccess - odmowy i telemetria monetyzacji", () => {
     });
 
     await waitFor(() => expect(result.current.settled).toBe(true));
-    const log = rpcCalls("log_metering_event");
-    expect(log).toHaveLength(1);
-    expect(log[0][1]).toMatchObject({
-      _outcome: "requires_registration",
-      _reason: "anon_limit_zero",
-    });
+    expect(result.current.body).toEqual(EMPTY_BODY);
+    expect(result.current.meter?.requiresRegistration).toBe(true);
+    expect(rpcCalls("log_metering_event")).toEqual([]);
   });
 
-  it("odmowa bez licznika (byt poza meteringiem): reason no_access", async () => {
+  it("konto, odmowa bez licznika (byt poza meteringiem): reason no_access", async () => {
+    h.session = { user: { id: PAYWALL_IDS.user } };
     h.consume.data = [
       consumeRow({ granted: false, consumed: false, monthly_limit: 0, used: 0, content_pl: null }),
     ];
@@ -272,11 +290,7 @@ describe("useMeteredAccess - zasiew żywego licznika miesiąca", () => {
     });
 
     await waitFor(() => expect(result.current.settled).toBe(true));
-    const seeded = queryClient.getQueryData([
-      "metering-quota",
-      PAYWALL_IDS.visitor,
-      currentMeterPeriod(),
-    ]);
+    const seeded = queryClient.getQueryData(["metering-quota", VISITOR, currentMeterPeriod()]);
     expect(seeded).toEqual(quotaFromMeterState(result.current.meter as MeterState));
   });
 
@@ -291,7 +305,7 @@ describe("useMeteredAccess - zasiew żywego licznika miesiąca", () => {
 
     await waitFor(() => expect(result.current.settled).toBe(true));
     expect(
-      queryClient.getQueryData(["metering-quota", PAYWALL_IDS.visitor, currentMeterPeriod()]),
+      queryClient.getQueryData(["metering-quota", VISITOR, currentMeterPeriod()]),
     ).toBeUndefined();
   });
 
@@ -308,20 +322,20 @@ describe("useMeteredAccess - zasiew żywego licznika miesiąca", () => {
     expect(quota.result.current.data).toMatchObject({ used: 2, remaining: 1, monthlyLimit: 3 });
     // Licznik "zostało N" NIE wychodzi do serwera po świeżej konsumpcji.
     expect(rpcCalls("metering_state")).toEqual([]);
+    expect(serverCalls("quota")).toEqual([]);
     expect(queryClient.isFetching()).toBe(0);
   });
 });
 
 describe("useMeterQuota - odczyt stanu miesiąca bez konsumpcji", () => {
-  it("gość: metering_state z kluczem gościa, zmapowany na MeterQuota", async () => {
+  it("gość: stan z funkcji serwerowej (bez klucza gościa), zmapowany na MeterQuota", async () => {
     h.quota.data = [meteringStateRow({ used: 2, remaining: 1 })];
     const { wrapper } = harness();
     const { result } = renderHook(() => useMeterQuota(true), { wrapper });
 
     await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(rpcCalls("metering_state")).toEqual([
-      ["metering_state", { _visitor_id: PAYWALL_IDS.visitor }],
-    ]);
+    expect(serverCalls("quota")).toEqual([["quota"]]);
+    expect(rpcCalls("metering_state")).toEqual([]);
     expect(result.current.data).toEqual({
       enabled: true,
       monthlyLimit: 3,
@@ -338,7 +352,8 @@ describe("useMeterQuota - odczyt stanu miesiąca bez konsumpcji", () => {
     const { wrapper } = harness();
     const { result } = renderHook(() => useMeterQuota(true), { wrapper });
     await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(rpcCalls("metering_state")).toEqual([["metering_state", {}]]);
+    expect(rpcCalls("metering_state")).toEqual([["metering_state", undefined]]);
+    expect(h.serverFn).not.toHaveBeenCalled();
   });
 
   it("pusty wynik daje null; enabled=false nie odpytuje serwera", async () => {
@@ -350,9 +365,11 @@ describe("useMeterQuota - odczyt stanu miesiąca bez konsumpcji", () => {
     // Świeży klient: wyłączony licznik nie ma prawa ani czytać cudzego cache,
     // ani wywołać RPC (np. baner zamontowany warunkowo z visible=false).
     h.rpc.mockClear();
+    h.serverFn.mockClear();
     const off = renderHook(() => useMeterQuota(false), { wrapper: harness().wrapper });
     expect(off.result.current.data).toBeUndefined();
     expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.serverFn).not.toHaveBeenCalled();
   });
 });
 

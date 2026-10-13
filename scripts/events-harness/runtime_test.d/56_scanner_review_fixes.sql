@@ -2,8 +2,8 @@
 -- 56_scanner_review_fixes - SKANER: POPRAWKI PO PRZEGLADZIE UTWARDZENIA
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracje 20261012111000 .. 20261012111300 zamykaja potwierdzone ustalenia
--- przegladu 20261012110000 .. 20261012110400. Kazde ma tu swoj dowod:
+-- Migracje 20261013111000 .. 20261013111300 zamykaja potwierdzone ustalenia
+-- przegladu 20261013110500 .. 20261013110900. Kazde ma tu swoj dowod:
 --   R0/R11  stary klient (bez znacznika kolejki) po terminie na urzadzeniu,
 --           ktore nigdy nie zadeklarowalo nowego klienta -> przyjety; urzadzenie
 --           z deklaracja (client_caps albo wazny znacznik) bez znacznika ->
@@ -13,7 +13,7 @@
 --           waznego (wiersz, obecnosc, polityka deny dziala dalej); kod martwy
 --           juz w chwili skanu, a wpuszczony offline, zostawia prawdziwa odmowe
 --           denied_code_superseded (konflikt admitted_offline). Od F4
---           (20261012150000) czas skanu musi potwierdzic znacznik kolejki
+--           (20261013112000) czas skanu musi potwierdzic znacznik kolejki
 --           urzadzenia - skany z kolejki w sekcji 3 go niosa; czasy
 --           podrobione sprawdza 57_scanner_final_fixes.sql;
 --   R5      identyfikator zapisu oczekujacego bez biletu nie przezywa
@@ -475,7 +475,7 @@ BEGIN
     'person_ids', jsonb_build_array('56700000-0000-0000-0000-000000000007')));
   INSERT INTO b2_codes VALUES ('olga_b2', v->'badges'->0->>'qr_code');
 
-  -- F4 (20261012150000): wyjatek R4 wymaga potwierdzonego czasu skanu. Scena
+  -- F4 (20261013112000): wyjatek R4 wymaga potwierdzonego czasu skanu. Scena
   -- zgodna z czasem: pierwszy identyfikator Olgi wydrukowano godzine temu,
   -- poswiadczenia bramki i stoiska wydano wczoraj, a pozycje kolejki niosa
   -- znacznik z ostatniej odpowiedzi przed utrata sieci (20 minut temu).
@@ -1035,7 +1035,7 @@ $q$, 'event_badge_prints_actor_exactly_one',
 --                (sprawdzane nizej: trigger musi istniec);
 --   handoff    - zagrozenie poza ta zmiana, zgloszone dalej (dzis zaden
 --                wpis; ostatni - events / discussion_club_id - naprawiony
---                w 20261012150200, dowod zachowania w 57, sekcja B2).
+--                w 20261013112200, dowod zachowania w 57, sekcja B2).
 -- Nowa para (nowy SET NULL na kolumnie z CHECK-iem albo nowy CHECK na
 -- kolumnie zerowanej) czerwieni bramke do czasu przegladu.
 CREATE TEMP TABLE b2_setnull_register (tbl text, chk text, col text, kind text) ON COMMIT DROP;

@@ -2,7 +2,12 @@
 // mock-mode finaliser so "a paid order unlocks content" lives in one place and
 // behaves identically in both paths. Uses the service-role client because
 // user_subscriptions / user_purchases are insert-locked to service_role.
-import { periodEndFor, entitlementForOrder } from "@/lib/billing/entitlement";
+import {
+  entitlementForOrder,
+  isLifetimePlanInterval,
+  periodEndFor,
+} from "@/lib/billing/entitlement";
+import { isUniqueViolation } from "@/lib/billing/entitlementSync.server";
 
 export interface GrantableOrder {
   id: string;
@@ -111,8 +116,9 @@ export async function revokeOrderEntitlement(
  * Grant the entitlement a paid order represents.
  *
  * - subscription -> active user_subscriptions row, period end derived from the
- *   plan interval. Idempotent on external_ref (Stripe retries webhooks), so a
- *   replay refreshes the period instead of duplicating the row.
+ *   plan interval. Idempotent on external_ref (unique index; Stripe retries
+ *   webhooks), so a replay refreshes the period instead of duplicating the row
+ *   - and never revives a row revoked by a refund.
  * - one_time -> active user_purchases row, idempotent on the
  *   (user_id, entity_type, entity_id) unique key.
  *
@@ -128,9 +134,20 @@ export async function revokeOrderEntitlement(
  * to `paid` and answer 200 - Stripe would never retry and the customer would
  * stay charged with no access.
  */
+export interface GrantOptions {
+  /**
+   * Ożyw uprawnienie planu odebrane korektą (`refunded`). WYŁĄCZNIE dla
+   * rozstrzygnięcia potwierdzonego u operatora - zwrot, który przepadł
+   * (`refund.failed`), zostawił pieniądze u nas. Każda inna ścieżka (ponowiona
+   * realizacja, spóźniony webhook) zwrotu nie cofa.
+   */
+  reviveRefunded?: boolean;
+}
+
 export async function grantEntitlement(
   order: GrantableOrder,
   externalRef: string | null,
+  options: GrantOptions = {},
 ): Promise<void> {
   // Zamówienie zanonimizowanego konta: pieniądze są zaksięgowane, ale nie ma
   // komu nadać dostępu. Pomijamy CICHO (bez rzucania) - inaczej webhook
@@ -145,63 +162,84 @@ export async function grantEntitlement(
   const entitlement = entitlementForOrder(order);
 
   if (entitlement.type === "subscription") {
+    const { data: plan, error: planErr } = await supabaseAdmin
+      .from("access_plans")
+      .select("interval")
+      .eq("id", entitlement.planId)
+      .maybeSingle();
+    // A MISSING plan row is tolerated (periodEndFor(null) => safe default);
+    // a FAILED lookup is not - it would silently grant the default period
+    // instead of the one the customer paid for.
+    if (planErr) throw new Error(`grant: access_plans lookup failed: ${planErr.message}`);
     // Lifetime (one-time plan purchase) => no expiry; has_content_access()
-    // treats current_period_end IS NULL as never-expiring.
-    let periodEnd: string | null = null;
-    if (!entitlement.lifetime) {
-      const { data: plan, error: planErr } = await supabaseAdmin
-        .from("access_plans")
-        .select("interval")
-        .eq("id", entitlement.planId)
-        .maybeSingle();
-      // A MISSING plan row is tolerated (periodEndFor(null) => safe default);
-      // a FAILED lookup is not - it would silently grant the default period
-      // instead of the one the customer paid for.
-      if (planErr) throw new Error(`grant: access_plans lookup failed: ${planErr.message}`);
-      periodEnd = periodEndFor(plan?.interval ?? null, new Date()).toISOString();
-    }
+    // treats current_period_end IS NULL as never-expiring. ONLY a one-time
+    // plan: a recurring plan reaching this branch as `one_time` (an order
+    // placed before the checkout guard, TIX-02) gets the one period it paid
+    // for, never access without end.
+    const lifetime = entitlement.lifetime && isLifetimePlanInterval(plan?.interval ?? null);
+    const periodEnd: string | null = lifetime
+      ? null
+      : periodEndFor(plan?.interval ?? null, new Date()).toISOString();
     const ref = externalRef ?? order.id;
 
-    // `order` + `limit(1)`: baza NIE egzekwuje unikalności `external_ref`
-    // (brak indeksu unikalnego - audyt wyd. 11/12). Gołe `maybeSingle()` na
-    // dwóch wierszach z tym samym kluczem kończy się błędem PGRST116, czyli
-    // wyjątkiem niżej - a webhook operatora ponawia wtedy dostarczenie bez
-    // końca i nikt nie dostaje dostępu. Odświeżamy najstarszy wiersz; dostęp
-    // (`has_content_access`) czyta dowolny aktywny, więc to wystarcza.
+    // Odświeżenie po kluczu, NIGDY wiersza odebranego po zwrocie: zwrot jest
+    // ostateczny także wtedy, gdy ponowiona realizacja (albo spóźniony
+    // webhook) przyjdzie po korekcie - warunek stoi w samym zapisie, więc
+    // trzyma również przy zwrocie wpadającym między odczyt a UPDATE.
+    const refresh = async (): Promise<void> => {
+      const base = supabaseAdmin
+        .from("user_subscriptions")
+        .update({ status: "active", current_period_end: periodEnd, canceled_at: null })
+        .eq("external_ref", ref);
+      const { error } = await (options.reviveRefunded ? base : base.neq("status", "refunded"));
+      if (error) {
+        throw new Error(`grant: user_subscriptions refresh failed (${ref}): ${error.message}`);
+      }
+    };
+
+    // `external_ref` jest UNIKALNY w bazie (20261013100300), więc `maybeSingle`
+    // nie trafi już na dwa wiersze (dawne `order + limit 1` obchodziło brak
+    // indeksu). Odczyt wybiera wstawienie albo odświeżenie - unikalności
+    // pilnuje indeks: przegrany wyścig niżej kończy się 23505, nie duplikatem.
     const { data: existing, error: existingErr } = await supabaseAdmin
       .from("user_subscriptions")
-      .select("id")
+      .select("id, status")
       .eq("external_ref", ref)
-      .order("created_at", { ascending: true })
-      .limit(1)
       .maybeSingle();
     // This read picks insert-vs-refresh. If it fails we must not fall through to
-    // the insert branch: it would add yet another row for the same external_ref
-    // instead of refreshing the one we could not read.
+    // the insert branch: it would race the row we could not read.
     if (existingErr) {
       throw new Error(`grant: user_subscriptions lookup failed (${ref}): ${existingErr.message}`);
     }
 
     if (existing) {
-      const { error } = await supabaseAdmin
-        .from("user_subscriptions")
-        .update({ status: "active", current_period_end: periodEnd, canceled_at: null })
-        .eq("id", existing.id);
-      if (error) {
-        throw new Error(`grant: user_subscriptions refresh failed (${ref}): ${error.message}`);
+      if (existing.status === "refunded" && !options.reviveRefunded) {
+        // Nie rzucamy: wyjątek skazałby webhook na wieczne ponowienia przy
+        // stanie, który jest poprawny. Decyzję o samym zamówieniu podejmuje
+        // realizacja (`oneTimeFulfilment.server`).
+        console.warn("[payments] grant skipped: entitlement refunded", ref);
+        return;
       }
-    } else {
-      const { error } = await supabaseAdmin.from("user_subscriptions").insert({
-        user_id: order.user_id,
-        tenant_id: order.tenant_id,
-        plan_id: entitlement.planId,
-        status: "active",
-        external_ref: ref,
-        current_period_end: periodEnd,
-      });
-      if (error) {
-        throw new Error(`grant: user_subscriptions insert failed (${ref}): ${error.message}`);
-      }
+      await refresh();
+      return;
+    }
+
+    const { error } = await supabaseAdmin.from("user_subscriptions").insert({
+      user_id: order.user_id,
+      tenant_id: order.tenant_id,
+      plan_id: entitlement.planId,
+      status: "active",
+      external_ref: ref,
+      current_period_end: periodEnd,
+    });
+    // Równoległa realizacja tego samego klucza wstawiła wiersz pierwsza -
+    // odświeżamy go zamiast dopisywać drugi.
+    if (isUniqueViolation(error)) {
+      await refresh();
+      return;
+    }
+    if (error) {
+      throw new Error(`grant: user_subscriptions insert failed (${ref}): ${error.message}`);
     }
     return;
   }

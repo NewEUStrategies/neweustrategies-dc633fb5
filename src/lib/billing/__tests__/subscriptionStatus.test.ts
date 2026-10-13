@@ -150,4 +150,29 @@ describe("deriveSubscriptionStatus with access grants", () => {
     });
     expect(view.key).toBe("none");
   });
+
+  // Audyt SUB-03: okres operatora po nieudanym odnowieniu sięga końca
+  // NIEOPŁACONEGO cyklu - o dostępie mówi koniec karencji z uprawnienia.
+  it("past_due po karencji: odnowienie nadal zaplanowane, ale dostępu już nie ma", () => {
+    const view = deriveSubscriptionStatus({
+      local: local({ current_period_end: PAST }),
+      provider: provider({ status: "past_due", current_period_end: FUTURE }),
+      now: NOW,
+    });
+    expect(view.key).toBe("pastDue");
+    expect(view.renewsAt).toBe(FUTURE);
+    expect(view.hasAccess).toBe(false);
+  });
+
+  it("anulowanie za brak płatności kończy się z karencją, nie z okresem operatora", () => {
+    const graceEnd = "2026-03-05T00:00:00.000Z";
+    const view = deriveSubscriptionStatus({
+      local: local({ current_period_end: graceEnd }),
+      provider: provider({ status: "canceled", current_period_end: FUTURE }),
+      now: NOW,
+    });
+    expect(view.key).toBe("canceled");
+    expect(view.endsAt).toBe(graceEnd);
+    expect(view.hasAccess).toBe(true);
+  });
 });

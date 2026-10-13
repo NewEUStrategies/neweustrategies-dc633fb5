@@ -13,6 +13,12 @@
 //
 // KLUCZ IDEMPOTENCJI `event-invoice:<id>:issued` - dwa klikniecia i ponowna
 // proba po awarii wysylaja jeden mail.
+//
+// DORECZENIE WRACA DO BAZY (INV-08). Mail wyslany (albo rozpoznany duplikat
+// juz wyslanego) stempluje dokument `admin_event_invoice_mark_notified` - od
+// tej chwili faktury nie da sie anulowac, zostaje korekta. Mail zatrzymany
+// przez liste wypisanych (`suppressed`) niczego nie doreczyl i stempla nie
+// dostaje.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, Json } from "@/integrations/supabase/types";
@@ -87,9 +93,35 @@ export async function notifyIssuedInvoices(
       tenantId: notice.tenantId,
       idempotencyKey: `event-invoice:${notice.invoiceId}:issued`,
     });
-    if (!sent.ok) result.failed += 1;
-    else if (sent.skipped === undefined) result.sent += 1;
+    if (!sent.ok) {
+      result.failed += 1;
+      continue;
+    }
+    // Mail poszedl (albo poszedl wczesniej - `duplicate`): stempel doreczenia
+    // blokuje anulowanie (INV-08). Bez stempla doreczony dokument dalby sie
+    // anulowac, wiec jego brak to PORAZKA powiadomienia (toast w panelu),
+    // nie cichy log - po chwilowym bledzie bazy probujemy jeszcze dwa razy.
+    if (sent.skipped === undefined || sent.skipped === "duplicate") {
+      if (!(await stampDelivered(supabase, id))) {
+        result.failed += 1;
+        continue;
+      }
+    }
+    if (sent.skipped === undefined) result.sent += 1;
     else result.skipped += 1;
   }
   return result;
+}
+
+const STAMP_ATTEMPTS = 3;
+
+async function stampDelivered(supabase: SupabaseClient<Database>, id: string): Promise<boolean> {
+  let lastError = "";
+  for (let attempt = 0; attempt < STAMP_ATTEMPTS; attempt += 1) {
+    const { error } = await supabase.rpc("admin_event_invoice_mark_notified", { p_id: id });
+    if (!error) return true;
+    lastError = error.message;
+  }
+  console.error("[eventInvoiceNotify] delivery stamp failed", { id, error: lastError });
+  return false;
 }

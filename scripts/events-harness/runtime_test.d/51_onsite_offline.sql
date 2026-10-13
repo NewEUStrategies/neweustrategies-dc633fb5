@@ -260,7 +260,7 @@ SELECT pg_temp.assert(
   AND NOT has_column_privilege('authenticated', 'public.event_scanner_devices', 'token_hash', 'SELECT'),
   '51/granty: panel czyta kolumny listy offline, hasz tokenu nadal odciety');
 
--- Bramka synchronizacji ma od 20261012110100 czwarty argument (znacznik
+-- Bramka synchronizacji ma od 20261013110600 czwarty argument (znacznik
 -- kolejki, OPS-12); ACL nowej sygnatury = ACL starej.
 SELECT pg_temp.assert(
   has_function_privilege('anon', 'public.event_scanner_roster(jsonb)', 'EXECUTE')
@@ -394,7 +394,7 @@ BEGIN
 
   SELECT array_agg(k ORDER BY k) INTO v_keys
     FROM (SELECT DISTINCT jsonb_object_keys(x) AS k FROM jsonb_array_elements(v->'rows') x) s;
-  -- `bh` (skrot identyfikatora) i `sh` (skroty zastapione) od 20261012110300
+  -- `bh` (skrot identyfikatora) i `sh` (skroty zastapione) od 20261013110800
   -- (OPS-04): to skroty poswiadczen, nie dane osoby.
   PERFORM pg_temp.assert(
     v_keys = ARRAY['bh', 'bp', 'co', 'fn', 'g_en', 'g_pl', 'gc', 'h', 'ln', 'r', 's', 'sh', 't_en', 't_pl'],
@@ -728,7 +728,7 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- SEKCJA 9: OKNO 72 H PO TERMINIE POSWIADCZENIA
 --
--- OPS-12 (20261012110000): po terminie okno dziala WYLACZNIE ze znacznikiem
+-- OPS-12 (20261013110500): po terminie okno dziala WYLACZNIE ze znacznikiem
 -- kolejki wydanym przed terminem (`queue_marker` z bootstrapu, listy albo
 -- udanego zapisu). Skany ponizej niosa znacznik wydany 3 h temu - tak, jak
 -- niosloby go urzadzenie, ktore ostatnio mialo siec przed terminem. Skan
@@ -748,7 +748,7 @@ BEGIN
   -- nie oddaje tozsamosci, wiec asercje "bez danych w oknie" bylyby puste.
   UPDATE public.event_people SET consent_partner_sharing_at = now() - interval '1 day'
    WHERE id = '51700000-0000-0000-0000-000000000001';
-  -- OPS-01 (20261012090000): zgoda partnerska jest per zgloszenie - skan
+  -- OPS-01 (20261013110000): zgoda partnerska jest per zgloszenie - skan
   -- leadu czyta `_event_partner_consent_at`, wiec zgoda musi byc udzielona
   -- w zgloszeniu Olgi na TO wydarzenie.
   UPDATE public.event_registrations SET consent_partner_sharing_at = now() - interval '1 day'

@@ -17,7 +17,7 @@
 // pobranie jest też zdarzeniem audytowym). Włączenie przechodzi przez
 // potwierdzenie z ostrzeżeniem RODO, wyłączenie działa od razu.
 //
-// KOLEJKA MA WŁASNĄ BLOKADĘ (20261012111100). `state` mówi o skanowaniu NA
+// KOLEJKA MA WŁASNĄ BLOKADĘ (20261013111100). `state` mówi o skanowaniu NA
 // ŻYWO; wstrzymanie samej synchronizacji kolejki (100 nieznanych kodów
 // z kolejki w godzinę) to osobna plakietka z terminem - telefon dalej
 // wpuszcza ludzi, a „Wznów" zdejmuje obie blokady. Obok: licznik nieznanych

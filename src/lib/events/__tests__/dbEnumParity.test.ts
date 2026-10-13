@@ -48,7 +48,7 @@ const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
  * Etykiety zrodla osoby i zgloszenia. Slownik jest jedynym wyliczeniem tych
  * wartosci po stronie klienta, a `package_invitation` zapisywala od
  * 20260827221214 funkcja, ktorej CHECK tej wartosci nie znal (do
- * 20261012140000) - wiec slownik jest wiazany z OBIEMA listami, zeby kazda
+ * 20261013111800) - wiec slownik jest wiazany z OBIEMA listami, zeby kazda
  * droga wejscia miala etykiete i zeby rozjazd byl widoczny w CI.
  */
 const SOURCE_LABEL_KEYS = Object.keys(adminEventRegistrationPl.adminEventRegistration.sources);

@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 34 INTEGRALNOSC POMIARU EKSPOZYCJI SPONSOROW (OPS-09)
 --
--- Migracja `20261012120000_event_sponsor_exposure_integrity`. Defekt: liczba
+-- Migracja `20261013111400_event_sponsor_exposure_integrity`. Defekt: liczba
 -- unikalnych wyswietlen sponsora = liczba roznych identyfikatorow sesji, a te
 -- wymyslal KLIENT - skrypt rotujacy identyfikator nabijal raport, na ktorym
 -- organizator rozlicza sponsora. Plik sprawdza:

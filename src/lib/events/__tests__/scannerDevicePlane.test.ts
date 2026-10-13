@@ -708,7 +708,7 @@ describe("scannerApi - pola trybu offline przy zapisie", () => {
   });
 });
 
-describe("scannerApi - kontrakt 20261012110000 (OPS-04, OPS-08, OPS-12)", () => {
+describe("scannerApi - kontrakt 20261013110500 (OPS-04, OPS-08, OPS-12)", () => {
   const MARKER = "AAAAAGkAAAA" + "q".repeat(43);
   const VALID_UNTIL = "2026-10-13T08:00:00+00:00";
 

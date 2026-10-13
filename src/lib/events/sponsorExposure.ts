@@ -41,7 +41,7 @@ export const SPONSOR_SESSION_PATTERN = /^[A-Za-z0-9_-]{16,64}$/;
 
 /**
  * Kształt sesji WYDANEJ przez serwer: nonce (32 hex) + podpis HMAC kluczem
- * najemcy (32 hex) - `_event_sponsor_exposure_token`, migracja 20261012120000.
+ * najemcy (32 hex) - `_event_sponsor_exposure_token`, migracja 20261013111400.
  * Przeglądarka nie wymyśla już identyfikatora; przechowuje tylko taki.
  */
 export const SPONSOR_SESSION_TOKEN_PATTERN = /^[0-9a-f]{64}$/;

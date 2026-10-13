@@ -5,9 +5,9 @@
 -- PO CO TEN PLIK ISTNIEJE
 -- Zgoda na przekazanie danych partnerom siedziala na osobie (jedna na
 -- najemce), byla wiec globalna i lepka: zgoda przy A otwierala dane sponsorowi
--- B, a zapis na kolejne wydarzenie kasowal wycofanie. Migracje 20261012090000
--- (fundament), 20261012100000 (pisarze), 20261012100100 (czytelnicy),
--- 20261012100200 (lista zgloszen) i 20261012100300 (wycofanie) przenosza ja
+-- B, a zapis na kolejne wydarzenie kasowal wycofanie. Migracje 20261013110000
+-- (fundament), 20261013110100 (pisarze), 20261013110200 (czytelnicy),
+-- 20261013110300 (lista zgloszen) i 20261013110400 (wycofanie) przenosza ja
 -- na zgloszenie. Ten plik sprawdza:
 --   * zgoda przy A i brak zgody przy B -> `_event_partner_consent_at` daje
 --     stempel dla A i NULL dla B, a KAZDY czytelnik (eksport, lista panelu,
@@ -613,7 +613,7 @@ VALUES ('33600000-0000-0000-0000-0000000000d1', '11111111-1111-1111-1111-1111111
 SELECT pg_temp.act_as(NULL, NULL);
 
 -- Przyjecie zaproszenia biegnie na NIETKNIETYCH ograniczeniach. Do
--- 20261012140000 funkcja padala tu przy kazdym wywolaniu (zrodlo
+-- 20261013111800 funkcja padala tu przy kazdym wywolaniu (zrodlo
 -- `package_invitation` spoza list CHECK, e-mail zaproszenia bez tokenu) i ten
 -- plik zdejmowal oba ograniczenia w wycofywanej transakcji, z wpisami
 -- `assert_known_defect`. Defekt jest naprawiony; pozytywne asercje o samym

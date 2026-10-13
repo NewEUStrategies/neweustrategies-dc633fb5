@@ -87,6 +87,7 @@ import { Route as SitemapsSectionRouteImport } from './routes/sitemaps.$section'
 import { Route as SeriesSlugRouteImport } from './routes/series.$slug'
 import { Route as QaSlugRouteImport } from './routes/qa.$slug'
 import { Route as ProgramsSlugRouteImport } from './routes/programs.$slug'
+import { Route as ProfilePortalRouteImport } from './routes/profile_.portal'
 import { Route as ProfileTicketsRouteImport } from './routes/profile.tickets'
 import { Route as ProfileSubscriptionRouteImport } from './routes/profile.subscription'
 import { Route as ProfileSocialRouteImport } from './routes/profile.social'
@@ -202,6 +203,7 @@ import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminCareersRouteImport } from './routes/admin.careers'
+import { Route as AdminBillingSettlementsRouteImport } from './routes/admin.billing-settlements'
 import { Route as AdminBillingReconcileRouteImport } from './routes/admin.billing-reconcile'
 import { Route as AdminBillingAuditRouteImport } from './routes/admin.billing-audit'
 import { Route as AdminBillingRouteImport } from './routes/admin.billing'
@@ -824,6 +826,11 @@ const ProgramsSlugRoute = ProgramsSlugRouteImport.update({
   path: '/programs/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProfilePortalRoute = ProfilePortalRouteImport.update({
+  id: '/profile_/portal',
+  path: '/profile/portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileTicketsRoute = ProfileTicketsRouteImport.update({
   id: '/tickets',
   path: '/tickets',
@@ -1397,6 +1404,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
 const AdminCareersRoute = AdminCareersRouteImport.update({
   id: '/careers',
   path: '/careers',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminBillingSettlementsRoute = AdminBillingSettlementsRouteImport.update({
+  id: '/billing-settlements',
+  path: '/billing-settlements',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminBillingReconcileRoute = AdminBillingReconcileRouteImport.update({
@@ -2693,6 +2705,7 @@ export interface FileRoutesByFullPath {
   '/admin/billing': typeof AdminBillingRoute
   '/admin/billing-audit': typeof AdminBillingAuditRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
+  '/admin/billing-settlements': typeof AdminBillingSettlementsRoute
   '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
@@ -2808,6 +2821,7 @@ export interface FileRoutesByFullPath {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/profile/tickets': typeof ProfileTicketsRoute
+  '/profile/portal': typeof ProfilePortalRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
@@ -3108,6 +3122,7 @@ export interface FileRoutesByTo {
   '/admin/billing': typeof AdminBillingRoute
   '/admin/billing-audit': typeof AdminBillingAuditRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
+  '/admin/billing-settlements': typeof AdminBillingSettlementsRoute
   '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
@@ -3212,6 +3227,7 @@ export interface FileRoutesByTo {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/profile/tickets': typeof ProfileTicketsRoute
+  '/profile/portal': typeof ProfilePortalRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
@@ -3517,6 +3533,7 @@ export interface FileRoutesById {
   '/admin/billing': typeof AdminBillingRoute
   '/admin/billing-audit': typeof AdminBillingAuditRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
+  '/admin/billing-settlements': typeof AdminBillingSettlementsRoute
   '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
@@ -3632,6 +3649,7 @@ export interface FileRoutesById {
   '/profile/social': typeof ProfileSocialRoute
   '/profile/subscription': typeof ProfileSubscriptionRoute
   '/profile/tickets': typeof ProfileTicketsRoute
+  '/profile_/portal': typeof ProfilePortalRoute
   '/programs/$slug': typeof ProgramsSlugRouteWithChildren
   '/qa/$slug': typeof QaSlugRoute
   '/series/$slug': typeof SeriesSlugRoute
@@ -3940,6 +3958,7 @@ export interface FileRouteTypes {
     | '/admin/billing'
     | '/admin/billing-audit'
     | '/admin/billing-reconcile'
+    | '/admin/billing-settlements'
     | '/admin/careers'
     | '/admin/categories'
     | '/admin/category-colors'
@@ -4055,6 +4074,7 @@ export interface FileRouteTypes {
     | '/profile/social'
     | '/profile/subscription'
     | '/profile/tickets'
+    | '/profile/portal'
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
@@ -4355,6 +4375,7 @@ export interface FileRouteTypes {
     | '/admin/billing'
     | '/admin/billing-audit'
     | '/admin/billing-reconcile'
+    | '/admin/billing-settlements'
     | '/admin/careers'
     | '/admin/categories'
     | '/admin/category-colors'
@@ -4459,6 +4480,7 @@ export interface FileRouteTypes {
     | '/profile/social'
     | '/profile/subscription'
     | '/profile/tickets'
+    | '/profile/portal'
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
@@ -4763,6 +4785,7 @@ export interface FileRouteTypes {
     | '/admin/billing'
     | '/admin/billing-audit'
     | '/admin/billing-reconcile'
+    | '/admin/billing-settlements'
     | '/admin/careers'
     | '/admin/categories'
     | '/admin/category-colors'
@@ -4878,6 +4901,7 @@ export interface FileRouteTypes {
     | '/profile/social'
     | '/profile/subscription'
     | '/profile/tickets'
+    | '/profile_/portal'
     | '/programs/$slug'
     | '/qa/$slug'
     | '/series/$slug'
@@ -5199,6 +5223,7 @@ export interface RootRouteChildren {
   PodcastsShowRoute: typeof PodcastsShowRouteWithChildren
   PostSlugRoute: typeof PostSlugRoute
   PreviewTokenRoute: typeof PreviewTokenRoute
+  ProfilePortalRoute: typeof ProfilePortalRoute
   ProgramsSlugRoute: typeof ProgramsSlugRouteWithChildren
   SeriesSlugRoute: typeof SeriesSlugRoute
   SitemapsSectionRoute: typeof SitemapsSectionRoute
@@ -5800,6 +5825,13 @@ declare module '@tanstack/react-router' {
       path: '/programs/$slug'
       fullPath: '/programs/$slug'
       preLoaderRoute: typeof ProgramsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile_/portal': {
+      id: '/profile_/portal'
+      path: '/profile/portal'
+      fullPath: '/profile/portal'
+      preLoaderRoute: typeof ProfilePortalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile/tickets': {
@@ -6605,6 +6637,13 @@ declare module '@tanstack/react-router' {
       path: '/careers'
       fullPath: '/admin/careers'
       preLoaderRoute: typeof AdminCareersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/billing-settlements': {
+      id: '/admin/billing-settlements'
+      path: '/billing-settlements'
+      fullPath: '/admin/billing-settlements'
+      preLoaderRoute: typeof AdminBillingSettlementsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/billing-reconcile': {
@@ -8657,6 +8696,7 @@ interface AdminRouteChildren {
   AdminBillingRoute: typeof AdminBillingRoute
   AdminBillingAuditRoute: typeof AdminBillingAuditRoute
   AdminBillingReconcileRoute: typeof AdminBillingReconcileRoute
+  AdminBillingSettlementsRoute: typeof AdminBillingSettlementsRoute
   AdminCareersRoute: typeof AdminCareersRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
@@ -8737,6 +8777,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminBillingRoute: AdminBillingRoute,
   AdminBillingAuditRoute: AdminBillingAuditRoute,
   AdminBillingReconcileRoute: AdminBillingReconcileRoute,
+  AdminBillingSettlementsRoute: AdminBillingSettlementsRoute,
   AdminCareersRoute: AdminCareersRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,
@@ -9159,6 +9200,7 @@ const rootRouteChildren: RootRouteChildren = {
   PodcastsShowRoute: PodcastsShowRouteWithChildren,
   PostSlugRoute: PostSlugRoute,
   PreviewTokenRoute: PreviewTokenRoute,
+  ProfilePortalRoute: ProfilePortalRoute,
   ProgramsSlugRoute: ProgramsSlugRouteWithChildren,
   SeriesSlugRoute: SeriesSlugRoute,
   SitemapsSectionRoute: SitemapsSectionRoute,

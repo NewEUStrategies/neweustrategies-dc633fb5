@@ -102,9 +102,9 @@ describe("settleDonation - błędy zapisu nie udają „pominięto”", () => {
   it("błąd pierwszego zapisu leci wyjątkiem i nie próbuje drugiej ścieżki", async () => {
     scene.firstUpdate = fail("statement timeout", "57014");
 
-    await expect(settleDonation({ donationId: "don-1", intentId: "pi_1" })).rejects.toThrow(
-      "donation settle failed: statement timeout",
-    );
+    await expect(
+      settleDonation({ environment: "sandbox", donationId: "don-1", intentId: "pi_1" }),
+    ).rejects.toThrow("donation settle failed: statement timeout");
     expect(updates()).toHaveLength(1);
     expect(updates()[0]?.argsOf("update")?.[0]).toMatchObject({
       status: "paid",
@@ -117,7 +117,7 @@ describe("settleDonation - błędy zapisu nie udają „pominięto”", () => {
     scene.firstUpdate = ok([]);
     scene.retryUpdate = fail("permission denied", "42501");
 
-    await expect(settleDonation({ sessionId: "cs_1" })).rejects.toThrow(
+    await expect(settleDonation({ environment: "sandbox", sessionId: "cs_1" })).rejects.toThrow(
       "donation settle failed: permission denied",
     );
     expect(updates()).toHaveLength(2);
@@ -133,6 +133,7 @@ describe("recordRecurringDonationPayment - kotwica i błędy", () => {
     scene.bySubscription = { ...ANCHOR };
 
     const outcome = await recordRecurringDonationPayment({
+      environment: "sandbox",
       donationId: "don-usuniety",
       subscriptionId: "sub_1",
       invoiceId: "in_2",
@@ -162,6 +163,7 @@ describe("recordRecurringDonationPayment - kotwica i błędy", () => {
     scene.byId = { ...ANCHOR, status: "pending" };
 
     const outcome = await recordRecurringDonationPayment({
+      environment: "sandbox",
       donationId: "don-1",
       subscriptionId: "sub_1",
       invoiceId: "in_1",
@@ -185,6 +187,7 @@ describe("recordRecurringDonationPayment - kotwica i błędy", () => {
 
     await expect(
       recordRecurringDonationPayment({
+        environment: "sandbox",
         donationId: "don-1",
         subscriptionId: "sub_1",
         invoiceId: "in_1",
@@ -199,6 +202,7 @@ describe("recordRecurringDonationPayment - kotwica i błędy", () => {
 
     await expect(
       recordRecurringDonationPayment({
+        environment: "sandbox",
         donationId: "don-1",
         subscriptionId: "sub_1",
         invoiceId: "in_3",

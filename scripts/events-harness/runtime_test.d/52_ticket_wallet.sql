@@ -411,7 +411,7 @@ SELECT pg_temp.assert_raises_like(
        '52b00000-0000-0000-0000-0000000000b1', 'apple', 'x')$q$,
   'not_found', '52/dziennik: zgloszenie najemcy B podane z najemca A -> not_found');
 
--- Sygnatura od 20261012130000: + skrot kodu i skrot tresci (DEFAULT NULL), wiec
+-- Sygnatura od 20261013111600: + skrot kodu i skrot tresci (DEFAULT NULL), wiec
 -- wywolania czterema argumentami wyzej dzialaja bez zmian; granty sprawdzamy na
 -- biezacej sygnaturze (stara zostala usunieta).
 SELECT pg_temp.assert(

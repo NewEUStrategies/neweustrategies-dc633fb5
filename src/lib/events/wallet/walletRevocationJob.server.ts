@@ -1,7 +1,7 @@
 // Zadanie tła: obiekty Google Wallet unieważnionych biletów -> INACTIVE (OPS-14).
 //
 // SKĄD BIERZE SIĘ PRACA. Baza zgłasza dezaktywację triggerami (migracja
-// 20261012130000): zgłoszenie przestało dawać przepustkę (anulowanie,
+// 20261013111600): zgłoszenie przestało dawać przepustkę (anulowanie,
 // odrzucenie, zwrot, `no_show`), zmienił się kod biletu (ponowna wysyłka,
 // unieważnienie zgubionego), wydarzenie odwołano albo obiekt zastąpił nowszy.
 // Baza nie umie zawołać Google Wallet API - klucz konta usługi żyje
@@ -15,7 +15,7 @@
 // i sama zamyka bez sieci przypadki, w których wywołanie nic by nie dało
 // (wydarzenie skończone - obiekt wygasł; zgłoszenie znów ważne z tym samym
 // kodem). `_event_wallet_pass_revocations_settle` rozlicza wynik po dzierżawie.
-// Od 20261012170100 partia niesie też NAGROBKI obiektów usuniętych wydarzeń
+// Od 20261013112500 partia niesie też NAGROBKI obiektów usuniętych wydarzeń
 // i zgłoszeń (ten sam kształt pozycji, rozliczenie po identyfikatorze) - dla
 // zadania to zwykłe obiekty do unieważnienia.
 //

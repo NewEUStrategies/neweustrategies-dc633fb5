@@ -23,7 +23,7 @@
 //      Zero nieudanych skanów bez odznaki, pierwszy nieudany - z odznaką.
 //   6. UNIEWAŻNIENIE JEST ZA POTWIERDZENIEM i idzie z identyfikatorem TEGO
 //      urządzenia, nie pierwszego z listy.
-//   7. KOLEJKA MA WŁASNĄ BLOKADĘ (20261012111100). Wstrzymanie samej
+//   7. KOLEJKA MA WŁASNĄ BLOKADĘ (20261013111100). Wstrzymanie samej
 //      synchronizacji kolejki to osobna odznaka - stan na żywo zostaje
 //      `active`, bo telefon dalej wpuszcza ludzi. Liczniki kolejki i kodów
 //      zastąpionych pojawiają się dopiero, gdy jest co pokazać, a telefon ze

@@ -17,7 +17,7 @@
 // bywa zgubione. Wyjątkiem jest skan leadu - tam dane kontaktowe wracają
 // WYŁĄCZNIE przy udzielonej i niewycofanej zgodzie, i tak też je pokazujemy.
 //
-// KONTRAKT 20261012110000-110400 (OPS-04, OPS-08, OPS-12). Odpowiedzi niosą
+// KONTRAKT 20261013110500-110400 (OPS-04, OPS-08, OPS-12). Odpowiedzi niosą
 // wynik `code_superseded` (kod zastąpiony - `superseded`, `display_name`),
 // `denied_already_inside` i flagę ponownego wejścia (`reentry`,
 // `reentry_previous_at`), zeskanowane poświadczenie (`credential`) i świeży

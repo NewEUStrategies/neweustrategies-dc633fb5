@@ -41,7 +41,11 @@ import { mobileDrawerConfigQueryOptions } from "@/lib/queries/mobileDrawer";
 import { upsertMobileDrawerConfig } from "@/lib/mobileDrawer.functions";
 
 export const Route = createFileRoute("/admin/super/mobile-drawer")({
-  head: () => adminPageHead("Mobile navigation", "Configure mobile navigation and drawer content. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Mobile navigation",
+      "Configure mobile navigation and drawer content. New European Strategies administration.",
+    ),
   component: MobileDrawerEditor,
 });
 

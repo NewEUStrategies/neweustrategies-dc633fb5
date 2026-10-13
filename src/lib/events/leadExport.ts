@@ -12,7 +12,7 @@
 // Notatkę wpisała obsługa stoiska na własnym urządzeniu - sponsor widzi ją też
 // na liście stoiska i w linku raportu, więc plik oddaje mu jego własny zapis,
 // a nie dane z kartoteki organizatora (ta sama decyzja w SQL, migracja
-// `20261012100100`).
+// `20261013110200`).
 //
 // TOŻSAMOŚĆ ZERUJE TEN MODUŁ, NIE TYLKO SQL. RPC też redaguje te pola, ale
 // to jest OSTATNIA bramka przed dyskiem sponsora: regresja po stronie zapytania

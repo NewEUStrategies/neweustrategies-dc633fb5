@@ -33,7 +33,7 @@ const SQL_KEYS = [
   "banner_single_image",
   "invalid_layout",
   // Usuniecie sponsora ze stanowiskiem firmy (`admin_event_sponsor_delete`,
-  // 20261012110400, OPS-11).
+  // 20261013110900, OPS-11).
   "sponsor_has_checkpoints",
 ] as const;
 

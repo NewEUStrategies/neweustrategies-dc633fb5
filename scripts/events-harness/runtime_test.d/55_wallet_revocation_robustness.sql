@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 55_wallet_revocation_robustness - KOLEJKA DEZAKTYWACJI PRZEPUSTEK GOOGLE
 -- WALLET: PRZYPADKI BRZEGOWE Z PRZEGLADU KONCOWEGO OPS-14 (F7, F8, F9, F10)
--- (migracje 20261012170000 i 20261012170100)
+-- (migracje 20261013112400 i 20261013112500)
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- 55_wallet_pass_revocation dowodzi sciezki glownej (triggery, zajecie,

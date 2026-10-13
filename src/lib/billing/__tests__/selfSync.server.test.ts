@@ -66,6 +66,34 @@ describe("syncUserSubscriptionsFromProvider", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  // PRZEGLĄD 1.1. Znacznik „teraz" w milisekundach PO odczycie (np.
+  // 10:00:00.600) robił z `customer.subscription.updated` operatora z tej samej
+  // sekundy (stempel 10:00:00) zdarzenie SPÓŹNIONE - opłacona subskrypcja
+  // zostawała `incomplete`. Znacznik idzie PRZED odczytem, ucięty do sekundy
+  // i cofnięty o jedną; identyfikator jest stały w obrębie sekundy.
+  it("stempluje zdarzenie chwilą SPRZED odczytu (pełna sekunda minus jedna) i identyfikatorem syntetycznym", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-10-12T10:00:00.300Z"));
+      retrieve.mockImplementation(async () => {
+        // Odczyt u operatora trwa - zegar idzie dalej.
+        vi.setSystemTime(new Date("2026-10-12T10:00:00.900Z"));
+        return subscription("sub_1", "user-1");
+      });
+      const { syncUserSubscriptionsFromProvider } = await import("../selfSync.server");
+
+      await syncUserSubscriptionsFromProvider("live", "user-1", ["sub_1"]);
+
+      const second = Math.floor(Date.parse("2026-10-12T10:00:00.300Z") / 1000);
+      expect(dispatch.mock.calls[0][0]).toMatchObject({
+        eventId: `self-sync:sub_1:${second}`,
+        occurredAt: "2026-10-12T09:59:59.000Z",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("mapuje anulowaną subskrypcję na zdarzenie usunięcia", async () => {
     retrieve.mockResolvedValue(subscription("sub_3", "user-1", "canceled"));
     const { syncUserSubscriptionsFromProvider } = await import("../selfSync.server");

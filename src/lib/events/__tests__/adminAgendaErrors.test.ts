@@ -15,9 +15,9 @@ import {
 
 /**
  * Klucze podnoszone przez migrację 20260823140000, w postaci z SQL-a, plus
- * `session_has_checkpoints` z 20261012140100 (usunięcie sesji z punktem
- * kontrolnym - klucz obcy punktu jest NO ACTION od 20261012110000).
- * `session_has_signups` od 20261012180000 liczy zapisy całego poddrzewa.
+ * `session_has_checkpoints` z 20261013111900 (usunięcie sesji z punktem
+ * kontrolnym - klucz obcy punktu jest NO ACTION od 20261013110500).
+ * `session_has_signups` od 20261013112600 liczy zapisy całego poddrzewa.
  */
 const SQL_KEYS = [
   "not_found",
@@ -97,7 +97,7 @@ describe("adminAgendaFailure", () => {
     expect(failure.params).toEqual({ count: 200, total: 120 });
   });
 
-  it("punkt kontrolny sesji: kod z 20261012140100 daje zdanie z liczbą punktów", () => {
+  it("punkt kontrolny sesji: kod z 20261013111900 daje zdanie z liczbą punktów", () => {
     const error = new Error(
       "session_has_checkpoints: 2 checkpoint(s) are bound to this session or its sub-sessions - change their kind or delete them first",
     );
@@ -111,7 +111,7 @@ describe("adminAgendaFailure", () => {
     expect(en).toContain("2 checkpoint(s)");
   });
 
-  it("zapisy poddrzewa: kod z 20261012180000 mówi o sesji ALBO jej podsesjach", () => {
+  it("zapisy poddrzewa: kod z 20261013112600 mówi o sesji ALBO jej podsesjach", () => {
     // Blok bez własnych zapisów odmawia zapisami podsesji (F11) - zdanie
     // „Sesja ma N zapisów" byłoby nieprawdą o samym bloku.
     const error = new Error(

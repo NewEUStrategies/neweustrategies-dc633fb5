@@ -24,9 +24,19 @@ export interface CheckoutSettings {
   invoice_creation: boolean;
 }
 
-/** Zachowanie przy braku wiersza ustawień - bezpieczne, konserwatywne domyślne. */
+/**
+ * Zachowanie przy braku wiersza ustawień - bezpieczne, konserwatywne domyślne.
+ *
+ * POLE KODU STRIPE DOMYŚLNIE WYŁĄCZONE (audyt PAY-06). Kod wpisany w nakładce
+ * operatora omija wszystko, co wie baza: zakres najemcy, limit na osobę,
+ * datę startu, rezerwację użycia i wiersz realizacji - rabat schodzi u Stripe,
+ * a my dowiadujemy się o nim dopiero z kwoty zdarzenia. Te same domyślne
+ * dostaje kasa przy AWARII odczytu ustawień (`loadCheckoutSettings`), więc
+ * chwilowy błąd bazy nie może otwierać pola, którego najemca nie włączył.
+ * Najemca, który świadomie chce kodów Stripe, włącza je w panelu.
+ */
 export const DEFAULT_CHECKOUT_SETTINGS: CheckoutSettings = {
-  allow_promotion_codes: true,
+  allow_promotion_codes: false,
   automatic_tax: false,
   tax_id_collection: true,
   billing_address_collection: "auto",

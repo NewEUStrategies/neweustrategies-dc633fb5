@@ -20,7 +20,7 @@
 // (`admin_event_checkins_list.conflict_kind`, według trybu punktu), a filtr
 // „tylko konflikty" idzie do bazy jak pozostałe.
 //
-// PODWÓJNE WEJŚCIE I OBEJŚCIE (20261012111300). `double_entry` to dwa wejścia
+// PODWÓJNE WEJŚCIE I OBEJŚCIE (20261013111300). `double_entry` to dwa wejścia
 // tej osoby w punkcie z blokadą ponownego wejścia tego samego dnia, bez
 // wyjścia pomiędzy - baza liczy je przy odczycie, więc plakietka znika sama,
 // gdy dotrze wyjście z kolejki innego urządzenia. `reentry_override` to

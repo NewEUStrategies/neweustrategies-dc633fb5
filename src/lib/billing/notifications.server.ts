@@ -473,6 +473,14 @@ export type ReminderEmailKind = Extract<
 export interface ReminderNotifyInput {
   kind: ReminderEmailKind;
   userId: string;
+  /**
+   * Najemca SUBSKRYPCJI (`subscriptions.tenant_id`). Przebieg przypomnień jest
+   * platformowy i biegnie bez nagłówka hosta, więc bez tego pola link w mailu
+   * prowadził na domenę marki, a lista wykluczeń i redakcja treści były
+   * rozstrzygane z samego adresu - czyli dla adresata najemcy B często jako
+   * najemca domyślny.
+   */
+  tenantId?: string | null;
   planId: string | null;
   /** Data odnowienia (renewal) albo końca dostępu (expiring). */
   periodEnd: string;
@@ -515,6 +523,19 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<b
       value: formatDate(input.periodEnd, lang),
     });
 
+    // Z najemcą subskrypcji: link na JEGO host (katalog najemców) i jego
+    // redakcja/lista wykluczeń. Bez niego - zachowanie dotychczasowe.
+    let target: { ctaUrl?: string; ctaPath?: string; tenantId?: string } = {
+      ctaPath: PROFILE_PLAN_PATH,
+    };
+    if (input.tenantId) {
+      const { tenantPublicUrl } = await import("@/lib/events/tenantPublicOrigin.server");
+      target = {
+        ctaUrl: await tenantPublicUrl(input.tenantId, PROFILE_PLAN_PATH, lang),
+        tenantId: input.tenantId,
+      };
+    }
+
     const result = await sendTxEmail({
       type: input.kind,
       to: recipient.email,
@@ -528,7 +549,7 @@ export async function notifyReminderEmail(input: ReminderNotifyInput): Promise<b
         interval: plan?.interval ? INTERVAL_LABEL[lang][plan.interval] : null,
       },
 
-      ctaPath: PROFILE_PLAN_PATH,
+      ...target,
       idempotencyKey: `${input.kind}:${input.idempotencySeed}`,
     });
     return result.ok;

@@ -13,7 +13,7 @@ function report(partial?: Partial<AuditReport>): AuditReport {
     generatedAt: "2026-01-08T00:00:00.000Z",
     orders: [],
     webhooks: [],
-    totals: { orders: 0, paidCents: 0, refundedCents: 0, webhooksFailed: 0 },
+    totals: { orders: 0, byCurrency: [], webhooksFailed: 0 },
     truncated: false,
     ...partial,
   };

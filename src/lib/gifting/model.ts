@@ -186,7 +186,9 @@ export interface GiftLinkResult {
  * Faza UI popovera:
  *  - "disabled"             - funkcja wylaczona w tenancie,
  *  - "requiresAuth"         - gosc (albo konto spoza tenanta): CTA logowania,
- *  - "requiresSubscription" - eligibility=subscribers bez platnej subskrypcji,
+ *  - "requiresSubscription" - eligibility=subscribers bez platnej subskrypcji
+ *                             ALBO brak wlasnego dostepu do TEGO wpisu (darowac
+ *                             mozna tylko to, co sie samemu czyta - SUB-06),
  *  - "limitReached"         - wyczerpany miesieczny limit ARTYKULOW,
  *  - "budgetExhausted"      - link dla TEGO artykulu wyczerpal budzet klikniec,
  *  - "ready"                - mozna generowac/udostepniac,
@@ -244,6 +246,9 @@ export type GiftErrorKey =
 const ERROR_PATTERNS: ReadonlyArray<readonly [string, GiftErrorKey]> = [
   ["gift_auth_required", "authRequired"],
   ["gift_subscription_required", "subscriptionRequired"],
+  // Darczynca bez wlasnego dostepu do platnego wpisu: ta sama droga wyjscia
+  // (plany) co bramka subskrypcyjna, wiec ten sam klucz copy.
+  ["gift_access_required", "subscriptionRequired"],
   ["gift_limit_reached", "limitReached"],
   ["gift_disabled", "disabled"],
   // Kolejnosc ma znaczenie: "gift_post_not_gated" nie moze wpasc w
@@ -265,6 +270,9 @@ export function mapGiftError(message: string | null | undefined): GiftErrorKey {
  * Werdykt redeem_gift_link:
  *  - "ok"        - odbiorca zuzyl (albo juz mial) slot budzetu,
  *  - "owner"     - to darczynca oglada wlasny link (bez konsumpcji),
+ *  - "owner_no_access" - darczynca bez BIEZACEGO dostepu do tresci (koniec
+ *                  subskrypcji, link sprzed SUB-06): bez body i bez slotu -
+ *                  wlasny link nie jest furtka obok paywalla,
  *  - "entitled"  - czytelnik ma wlasne uprawnienie (bez konsumpcji),
  *  - "exhausted" - budzet klikniec wyczerpany,
  *  - "expired"   - link po terminie waznosci,
@@ -272,11 +280,12 @@ export function mapGiftError(message: string | null | undefined): GiftErrorKey {
  *  - "invalid"   - kod nieznany / nie dla tego wpisu / tresc na haslo.
  */
 export type GiftRedeemReason =
-  "ok" | "owner" | "entitled" | "exhausted" | "expired" | "revoked" | "invalid";
+  "ok" | "owner" | "owner_no_access" | "entitled" | "exhausted" | "expired" | "revoked" | "invalid";
 
 const REDEEM_REASONS: ReadonlySet<string> = new Set<GiftRedeemReason>([
   "ok",
   "owner",
+  "owner_no_access",
   "entitled",
   "exhausted",
   "expired",
@@ -308,6 +317,8 @@ export function giftBannerVariant(reason: GiftRedeemReason): GiftBannerVariant {
       return "exhausted";
     case "expired":
       return "expired";
+    // owner_no_access: tresc zostaje za paywallem, a droga wyjscia to cennik -
+    // dokladnie wariant "invalid" (link nie otwiera tresci, CTA planow).
     default:
       return "invalid";
   }

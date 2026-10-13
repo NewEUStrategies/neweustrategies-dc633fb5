@@ -63,6 +63,13 @@ export const communityPl = {
       joinSignInHint: "Zaloguj się, aby zobaczyć link do transmisji.",
       recordingTierHint: "Nagranie jest dostępne dla członków.",
       rsvpFull: "Brak wolnych miejsc - spróbuj później, ktoś może zwolnić miejsce.",
+      // Bilet za zero (kod 100%): stan rozliczenia z kasy, nie optymistyczny sukces.
+      freeTicketSoldOut:
+        "Ostatnie miejsce właśnie zajęto. Kod nie został zużyty - możesz go użyć ponownie.",
+      freeTicketAwaiting:
+        "Zamówienie przyjęte. O miejscu zdecyduje organizator - damy znać mailem.",
+      freeTicketProcessing:
+        "Kończymy rejestrację biletu - potwierdzenie przyjdzie mailem w ciągu kilku minut.",
       ticket: {
         title: "Twój bilet",
         confirmed: "Miejsce potwierdzone",
@@ -300,6 +307,12 @@ export const communityEn = {
       joinSignInHint: "Sign in to see the live link.",
       recordingTierHint: "The recording is available to members.",
       rsvpFull: "Fully booked - check back later, a seat may free up.",
+      freeTicketSoldOut:
+        "The last seat was just taken. Your code was not used - you can use it again.",
+      freeTicketAwaiting:
+        "Order received. The organiser will decide on your seat - we will email you.",
+      freeTicketProcessing:
+        "We are finishing your ticket registration - a confirmation will arrive by email within a few minutes.",
       ticket: {
         title: "Your ticket",
         confirmed: "Seat confirmed",

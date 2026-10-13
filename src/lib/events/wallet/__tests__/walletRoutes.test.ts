@@ -308,7 +308,7 @@ describe("appleWalletPost", () => {
     expect(warn).toHaveBeenCalledWith("[wallet] apple issue log failed:", "Error: boom");
   });
 
-  // ZMIANA ŚWIADOMA (OPS-14). Do 20261012130000 ten test utrwalał, że zły klucz
+  // ZMIANA ŚWIADOMA (OPS-14). Do 20261013111600 ten test utrwalał, że zły klucz
   // to 500 przy KAŻDYM kliknięciu („błąd serwera, nie brak konfiguracji") -
   // dokładnie zachowanie, które audyt wskazał jako defekt: przycisk widoczny,
   // każde dodanie kończy się błędem. Teraz nieczytelny klucz i klucz z innej
@@ -498,7 +498,7 @@ describe("googleWalletPost", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("baza sprzed migracji 20261012130000 -> obiekt w STARYM kształcie i dziennik z czterema argumentami (F8)", async () => {
+  it("baza sprzed migracji 20261013111600 -> obiekt w STARYM kształcie i dziennik z czterema argumentami (F8)", async () => {
     // Stara funkcja dziennika trzyma jeden wiersz na zgłoszenie i nadpisuje
     // jego `object_id`. Obiekt z kodem nadpisałby wiersz obiektu sprzed OPS-14,
     // który wtedy nigdy nie trafiłby do dezaktywacji.

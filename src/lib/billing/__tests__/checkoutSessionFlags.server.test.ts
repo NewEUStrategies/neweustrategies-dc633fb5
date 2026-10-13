@@ -16,9 +16,14 @@ const customersCreate = vi.fn();
 
 vi.mock("@/lib/stripe.server", () => ({
   getStripeClient: () => ({
-    checkout: { sessions: { create } },
+    // Otwarte sesje klienta (strażnik drugiej karty) - tu żadnych.
+    checkout: {
+      sessions: { create, list: vi.fn().mockResolvedValue({ data: [], has_more: false }) },
+    },
     prices: { list },
     customers: { search, list: vi.fn().mockResolvedValue({ data: [] }), create: customersCreate },
+    // Historia subskrypcji klienta - kasa planu sprawdza ją przed sesją.
+    subscriptions: { list: vi.fn().mockResolvedValue({ data: [] }) },
   }),
   resolveEnvironment: (env?: string) => env ?? "sandbox",
   getStripeErrorMessage: (e: unknown) => String(e),
@@ -53,10 +58,26 @@ beforeEach(() => {
   search.mockReset();
   customersCreate.mockReset();
   create.mockResolvedValue({ id: "cs_1", client_secret: "cs_secret" });
-  search.mockResolvedValue({ data: [{ id: "cus_1" }] });
+  // Klient konta z adresem zgodnym z sesją - bez synchronizacji adresu.
+  search.mockResolvedValue({
+    data: [{ id: "cus_1", email: "buyer@example.com", metadata: { userId: "user-1" } }],
+  });
   customersCreate.mockResolvedValue({ id: "cus_new" });
+  // Cena w pełnym kształcie operatora - kasa porównuje typ, walutę, cykl
+  // i kwotę z zamówieniem przed sesją (PAY-01, SUB-05).
   list.mockResolvedValue({
-    data: [{ id: "price_1", lookup_key: "pro_monthly", type: "recurring", product: null }],
+    data: [
+      {
+        id: "price_1",
+        lookup_key: "pro_monthly",
+        type: "recurring",
+        product: null,
+        billing_scheme: "per_unit",
+        unit_amount: 12900,
+        currency: "pln",
+        recurring: { interval: "month", interval_count: 1, usage_type: "licensed" },
+      },
+    ],
   });
 });
 
@@ -108,7 +129,8 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
 
     const payload = lastSessionPayload();
     expect(payload.managed_payments).toEqual({ enabled: true });
-    expect(payload.allow_promotion_codes).toBe(true);
+    // Domyślne bez pola kodu Stripe (PAY-06) - kod spoza bazy omija limity.
+    expect(payload.allow_promotion_codes).toBeUndefined();
     expect(payload.tax_id_collection).toBeUndefined();
   });
 
@@ -161,24 +183,16 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
     expect(payload.invoice_creation).toEqual({ enabled: true });
   });
 
-  it.each([["content_unlock" as const], ["donation" as const]])(
-    "%s z tym samym tenantem ZOSTAJE przy polu kodu Stripe",
-    async (purpose) => {
-      const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
-      await createAdhocCheckoutSession({ ...base, purpose, settings: SETTINGS.managed });
-      expect(lastSessionPayload().allow_promotion_codes).toBe(true);
+  it("odblokowanie treści z tym samym tenantem ZOSTAJE przy polu kodu Stripe", async () => {
+    const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
+    await createAdhocCheckoutSession({ ...base, settings: SETTINGS.managed });
+    expect(lastSessionPayload().allow_promotion_codes).toBe(true);
+  });
 
-      // Bez ustawień - domyślne, które pole kodu włączają.
-      await createAdhocCheckoutSession({ ...base, purpose });
-      expect(lastSessionPayload().allow_promotion_codes).toBe(true);
-    },
-  );
-
-  it("darowizna anonimowa na płaszczyźnie MoR nie tworzy klienta sprzedawcy", async () => {
+  it("kupujący bez konta na płaszczyźnie MoR nie tworzy klienta sprzedawcy", async () => {
     const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
     await createAdhocCheckoutSession({
       ...base,
-      purpose: "donation",
       userId: null,
       settings: SETTINGS.managed,
     });
@@ -199,6 +213,8 @@ describe("createPlanCheckoutSession - flagi tenantu w sesji", () => {
     userId: "user-1",
     customerEmail: "buyer@example.com",
     returnUrl: "https://example.com/checkout/success",
+    expectedAmountCents: 12900,
+    expectedCurrency: "PLN",
   };
 
   it("subskrypcja nie dostaje invoice_creation ani customer_creation", async () => {

@@ -156,7 +156,7 @@ CREATE TEMP TABLE spr_q (k text PRIMARY KEY, u uuid, t text) ON COMMIT DROP;
 -- Wygodnik: jedno wywolanie zapisu ekspozycji (harness laczy sie jako
 -- superuzytkownik, wiec gra role `service_role` z endpointu).
 --
--- OD 20261012120000 (OPS-09) sesje wydaje i podpisuje serwer, a ingest bierze
+-- OD 20261013111400 (OPS-09) sesje wydaje i podpisuje serwer, a ingest bierze
 -- zrodlo (solony skrot adresu) osobnym parametrem i oddaje jsonb. Etykieta
 -- sesji z tego pliku o poprawnym ksztalcie jest wiec zamieniana na PODPISANA
 -- sesje (nonce = md5 etykiety) - ta sama etykieta to ta sama sesja, jak
@@ -468,7 +468,7 @@ BEGIN
 END
 $do$;
 
--- Sygnatura od 20261012120000: (najemca, zrodlo, ladunek).
+-- Sygnatura od 20261013111400: (najemca, zrodlo, ladunek).
 SELECT pg_temp.assert(
   NOT has_function_privilege('anon', 'public.event_sponsor_exposure_ingest(uuid, text, jsonb)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.event_sponsor_exposure_ingest(uuid, text, jsonb)', 'EXECUTE')
@@ -533,7 +533,7 @@ INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, stat
   ('32900000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
    '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000002', 'approved', 'rsvp');
 
--- ZGODA PARTNERSKA JEST PER ZGLOSZENIE (OPS-01, 20261012090000 i 20261012100100).
+-- ZGODA PARTNERSKA JEST PER ZGLOSZENIE (OPS-01, 20261013110000 i 20261013110200).
 -- Raport, link i historia firmy pytaja `_event_partner_consent_at()` - o stempel
 -- ZGLOSZENIA osoby na TO wydarzenie. Stemple osob z sekcji 1 sa juz tylko
 -- historyczne, wiec te same zgody odtwarzamy na zgloszeniach E1: P1 i P4 ze

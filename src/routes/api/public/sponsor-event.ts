@@ -28,7 +28,7 @@
 //      x rodzaj (`isAcceptableExposure`);
 //   6. najemca z TEGO SAMEGO zaufanego hosta - bez rozpoznanego najemcy nic
 //      nie zapisujemy;
-//   7. baza (`event_sponsor_exposure_ingest`, migracja 20261012120000) w jednej
+//   7. baza (`event_sponsor_exposure_ingest`, migracja 20261013111400) w jednej
 //      podróży: limit paczek na adres i wydarzenie (`rate_limit_hit`),
 //      weryfikacja podpisu sesji, najwyżej 50 unikalnych z adresu na dzień
 //      (49 sesji + kubełek adresu, do którego liczą się dalsze sesje i sesje

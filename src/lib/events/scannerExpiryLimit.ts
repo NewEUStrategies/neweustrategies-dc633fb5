@@ -1,5 +1,5 @@
 // Najpóźniejszy termin poświadczenia urządzenia skanującego - lustro
-// `_event_scanner_expiry_limit` (20261012110000, OPS-12).
+// `_event_scanner_expiry_limit` (20261013110500, OPS-12).
 //
 // PO CO PO STRONIE PANELU. `admin_event_scanner_device_issue` odmawia terminu
 // późniejszego niż koniec wydarzenia + 7 dni (`expiry_too_late`), a gdy ta

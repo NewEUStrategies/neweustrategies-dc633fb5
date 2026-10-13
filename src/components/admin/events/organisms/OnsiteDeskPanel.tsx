@@ -17,7 +17,7 @@
 // odpowie. Ponowne kliknięcie po zerwanej odpowiedzi daje w bazie `replay`
 // zamiast drugiego wejścia tej samej osoby (`clientScanUid.ts`).
 //
-// OBEJŚCIE BLOKADY PONOWNEGO WEJŚCIA JEST JAWNE (20261012111100). W punkcie
+// OBEJŚCIE BLOKADY PONOWNEGO WEJŚCIA JEST JAWNE (20261013111100). W punkcie
 // z polityką `deny` odprawa ręczna wpuszcza także osobę, która według
 // dziennika jest już w środku (np. wyszła bocznym wyjściem) - baza zapisuje
 // zgodę z operatorem i znacznikiem `reentry_override`. Ekran mówi o tym

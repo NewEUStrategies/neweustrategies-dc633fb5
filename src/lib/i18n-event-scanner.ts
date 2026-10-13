@@ -16,7 +16,7 @@
 // KLUCZE ODPOWIADAJĄ WARTOŚCIOM Z BAZY, JEDEN DO JEDNEGO:
 //   * `event_checkins.result` -> `eventScanner.outcomes.*` (osiem wartości
 //     z ograniczenia CHECK, w tym `denied_already_inside` - OPS-08, oraz
-//     `denied_code_superseded` z 20261012111000 - wiersz konfliktu, gdy bramka
+//     `denied_code_superseded` z 20261013111000 - wiersz konfliktu, gdy bramka
 //     offline wpuściła kod już zastąpiony; plus
 //     `repeat`, `unknown_code`, `wrong_event` i `code_superseded` - OPS-04,
 //     które są WYNIKAMI RPC, a nie wierszami dziennika); zgoda na PONOWNE

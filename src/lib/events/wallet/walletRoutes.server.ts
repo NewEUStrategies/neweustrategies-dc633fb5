@@ -35,7 +35,7 @@
 // nieznany - wstawiany od razu. Błąd odczytu stanu nie blokuje dodania
 // (zapis jak dawniej).
 //
-// KOD PRZED MIGRACJĄ 20261012130000 (migracje produkcji idą osobno). Stara
+// KOD PRZED MIGRACJĄ 20261013111600 (migracje produkcji idą osobno). Stara
 // funkcja dziennika ma cztery argumenty i JEDEN wiersz na zgłoszenie
 // i platformę, a konflikt rozwiązuje nadpisaniem `object_id`. Gdyby trasa
 // wydała w tym oknie obiekt z kodem, nadpisałaby wiersz obiektu sprzed OPS-14
@@ -237,7 +237,7 @@ async function noteIssued(ticket: WalletTicket, platform: WalletPlatform, issued
         console.warn(`[wallet] ${platform} issue log skipped: migration pending`);
         return;
       }
-      // Baza sprzed 20261012130000 zna tylko cztery argumenty.
+      // Baza sprzed 20261013111600 zna tylko cztery argumenty.
       ({ error } = await supabaseAdmin.rpc("_event_wallet_pass_note", {
         p_tenant: ticket.tenantId,
         p_registration_id: ticket.registrationId,
@@ -254,7 +254,7 @@ async function noteIssued(ticket: WalletTicket, platform: WalletPlatform, issued
 /**
  * Stan obiektu Google w dzienniku; `undefined`, gdy odczyt się nie udał,
  * `"migration_pending"`, gdy baza nie ma jeszcze funkcji stanu (sprzed
- * 20261012130000 - trasa wydaje wtedy obiekt w starym kształcie).
+ * 20261013111600 - trasa wydaje wtedy obiekt w starym kształcie).
  */
 async function storedGoogleObject(
   ticket: WalletTicket,
@@ -362,7 +362,7 @@ export async function googleWalletPost(request: Request): Promise<Response> {
     await walletObjectSuffix(ticket.qrToken),
   );
   const stored = await storedGoogleObject(ticket, codeObjectId);
-  // Baza sprzed 20261012130000: obiekt w starym kształcie, zapis jak przed
+  // Baza sprzed 20261013111600: obiekt w starym kształcie, zapis jak przed
   // OPS-14 (patrz nagłówek - KOD PRZED MIGRACJĄ).
   const legacy = stored === "migration_pending";
   let saved: GoogleSaveResult;

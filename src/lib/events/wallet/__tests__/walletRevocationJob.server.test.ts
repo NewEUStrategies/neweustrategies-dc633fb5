@@ -10,7 +10,7 @@
 // błędu to odpowiednio podwójna praca i wyciek treści odpowiedzi do bazy.
 // Zadanie, które pomija `reactivate` z zajęcia, zostawia INACTIVE przepustkę
 // biletu znów ważnego. Sieć jest tu zamockowana w całości, baza - atrapą RPC
-// (`supabaseRpcStub`) z odpowiedziami w kształcie migracji 20261012170100
+// (`supabaseRpcStub`) z odpowiedziami w kształcie migracji 20261013112500
 // (ich prawdziwe zachowanie dowodzą harness 55 i 55_wallet_revocation_robustness).
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

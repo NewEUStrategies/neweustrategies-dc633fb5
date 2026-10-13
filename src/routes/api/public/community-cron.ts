@@ -60,9 +60,10 @@ function envSecretMatches(provided: string): boolean {
 
 /**
  * Fallback: współdzielony sekret runnera z `job_runner_settings` (tabela
- * service-role-only, ten sam mechanizm co w billing-cron.ts). Dzięki temu
- * operator ma JEDEN sekret dla obu ścieżek i nie musi wstrzykiwać env tylko po
- * to, żeby uruchomić scheduler w repo.
+ * service-role-only). Dzięki temu operator ma JEDEN sekret dla obu ścieżek
+ * SPOŁECZNOŚCI (pg_cron i scheduler repo) i nie musi wstrzykiwać env tylko po
+ * to, żeby uruchomić scheduler w repo. Rozliczeń ten sekret NIE otwiera -
+ * billing-cron ma własny (`billing_secret` / `BILLING_CRON_SECRET`, PAY-17a).
  */
 async function runnerSecretMatches(provided: string): Promise<boolean> {
   try {

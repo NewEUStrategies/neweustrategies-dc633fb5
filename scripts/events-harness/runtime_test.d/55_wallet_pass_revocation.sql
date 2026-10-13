@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 55_wallet_pass_revocation - PRZEPUSTKA GOOGLE WALLET TRACI WAZNOSC RAZEM
--- Z BILETEM (OPS-14, migracje 20261012130000 i 20261012130100)
+-- Z BILETEM (OPS-14, migracje 20261013111600 i 20261013111700)
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- Obiekt Google Wallet zostawal ACTIVE po anulowaniu zgloszenia, zwrocie,

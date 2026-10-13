@@ -7,7 +7,7 @@
 // ekranie jako decyzja offline. Po powrocie sieci baza i tak liczy swój wynik,
 // a rozbieżność trafia na listę konfliktów.
 //
-// DWA KODY NA ZAPIS, PLUS KODY ZASTĄPIONE (OPS-04, 20261012110300). Wiersz
+// DWA KODY NA ZAPIS, PLUS KODY ZASTĄPIONE (OPS-04, 20261013110800). Wiersz
 // listy niesie skrót BILETU (`h`, może być `null` - identyfikator wydrukowany
 // dla zapisu bez biletu), skrót IDENTYFIKATORA (`bh`) i skróty kodów
 // ZASTĄPIONYCH (`sh`: stary identyfikator po dodruku, stary bilet po ponownym
@@ -30,7 +30,7 @@
 //   6. wejście osoby, która JEST W ŚRODKU punktu z polityką `deny` (tryb
 //      `control`) -> `denied_already_inside` (OPS-08). „W środku" liczymy
 //      z dziennika zgód urządzenia tą samą regułą co baza
-//      (`_event_checkin_inside_since`, 20261012111000): ostatnia zgoda osoby
+//      (`_event_checkin_inside_since`, 20261013111000): ostatnia zgoda osoby
 //      na TYM punkcie w bieżącej dobie WYDARZENIA (strefa wydarzenia), nie
 //      późniejsza niż skan, była wejściem; wyjście na tym punkcie i początek
 //      nowej doby zerują stan (bramka tylko-wejście: jedno wejście dziennie).
@@ -548,7 +548,7 @@ function directionDenied(checkpoint: ScannerCheckpoint, direction: CheckinDirect
 
 /**
  * Powtórzone piknięcie: zgoda w tym samym kierunku w oknie punktu, BEZ zgody
- * w przeciwnym kierunku pomiędzy (lustro R6, 20261012111000). Wejście po
+ * w przeciwnym kierunku pomiędzy (lustro R6, 20261013111000). Wejście po
  * wyjściu w oknie to NOWE przejście, a nie „już odprawiony" - inaczej jeden
  * kod wpuszczałby dwie osoby, a dziennik nie wiedziałby, że ktoś jest w środku.
  */

@@ -21,6 +21,33 @@ export interface SelfSyncResult {
   statuses: string[];
 }
 
+/**
+ * Znacznik i identyfikator zdarzenia syntetycznego (1.1).
+ *
+ * Stan z `subscriptions.retrieve` jest prawdziwy na chwilę ODCZYTU, więc
+ * znacznik bierzemy PRZED odczytem i ucinamy do pełnej sekundy minus jedna.
+ * Stripe stempluje zdarzenia z rozdzielczością sekundy: dawny znacznik
+ * „teraz" w milisekundach PO odczycie (np. 10:00:00.600) robił z
+ * `customer.subscription.updated` wysłanego w tej samej sekundzie (10:00:00)
+ * zdarzenie spóźnione - opłacona subskrypcja zostawała `incomplete`, a klient
+ * bez dostępu aż do następnego zdarzenia. Teraz każde zdarzenie operatora
+ * z sekundy odczytu albo późniejszej jest od synchronizacji ŚWIEŻSZE, a
+ * starsze i tak opisuje stan, który odczyt już widział.
+ *
+ * Identyfikator jest stały w obrębie sekundy: ponowienie tego samego
+ * kliknięcia to `replay` (skutki idempotentne), a nie remis z odczytem API.
+ */
+function selfSyncMark(
+  subscriptionId: string,
+  readStartedAt: number,
+): { occurredAt: string; eventId: string } {
+  const second = Math.floor(readStartedAt / 1000);
+  return {
+    occurredAt: new Date((second - 1) * 1000).toISOString(),
+    eventId: `self-sync:${subscriptionId}:${second}`,
+  };
+}
+
 /** Identyfikator wygląda jak subskrypcja Stripe. */
 function isSubscriptionId(value: string | null | undefined): value is string {
   return typeof value === "string" && value.startsWith("sub_");
@@ -38,6 +65,42 @@ function syntheticEvent(subscription: Stripe.Subscription): VerifiedWebhookEvent
   } as VerifiedWebhookEvent;
 }
 
+/** Identyfikator bezpieczny do interpolacji w zapytaniu Search (UUID-podobny). */
+export function isSearchableUserId(userId: string): boolean {
+  return /^[a-zA-Z0-9_-]+$/.test(userId);
+}
+
+/**
+ * Subskrypcje operatora z `metadata.userId` = `userId` - JEDNO zapytanie Search
+ * dla samoobsługowej synchronizacji i dla zamknięcia konta
+ * (`accountClosure.server`), które musi znaleźć subskrypcję także wtedy, gdy
+ * jej webhook nigdy nie dotarł. RZUCA przy błędzie operatora - to wołający
+ * decyduje, czy brak wyniku wolno przemilczeć. Identyfikator spoza bezpiecznego
+ * kształtu nie trafia do zapytania wcale (pusta lista).
+ */
+export async function searchSubscriptionsByUserId(
+  stripe: Stripe,
+  userId: string,
+  options: { limit?: number; maxPages?: number } = {},
+): Promise<Stripe.Subscription[]> {
+  if (!isSearchableUserId(userId)) return [];
+  const limit = options.limit ?? 20;
+  const maxPages = Math.max(1, options.maxPages ?? 1);
+  const found: Stripe.Subscription[] = [];
+  let page: string | undefined;
+  for (let i = 0; i < maxPages; i += 1) {
+    const result = await stripe.subscriptions.search({
+      query: `metadata['userId']:'${userId}'`,
+      limit,
+      ...(page ? { page } : {}),
+    });
+    found.push(...result.data);
+    if (!result.has_more || !result.next_page) break;
+    page = result.next_page;
+  }
+  return found;
+}
+
 /**
  * Zbiera identyfikatory subskrypcji użytkownika: lokalne (tabela
  * `subscriptions`) uzupełnione o wyszukiwanie po `metadata.userId` u operatora,
@@ -49,19 +112,12 @@ async function collectSubscriptionIds(
   localIds: string[],
 ): Promise<string[]> {
   const ids = new Set<string>(localIds.filter(isSubscriptionId));
-  // Zapytanie Search jest interpolowane - wpuszczamy wyłącznie UUID-podobne id.
-  if (/^[a-zA-Z0-9_-]+$/.test(userId)) {
-    try {
-      const found = await stripe.subscriptions.search({
-        query: `metadata['userId']:'${userId}'`,
-        limit: 20,
-      });
-      for (const sub of found.data) ids.add(sub.id);
-    } catch (error) {
-      // Search bywa niedostępny tuż po utworzeniu obiektu (indeks jest
-      // asynchroniczny) - lokalne identyfikatory wystarczą do synchronizacji.
-      console.error("[selfSync] subscriptions.search failed", error);
-    }
+  try {
+    for (const sub of await searchSubscriptionsByUserId(stripe, userId)) ids.add(sub.id);
+  } catch (error) {
+    // Search bywa niedostępny tuż po utworzeniu obiektu (indeks jest
+    // asynchroniczny) - lokalne identyfikatory wystarczą do synchronizacji.
+    console.error("[selfSync] subscriptions.search failed", error);
   }
   return [...ids];
 }
@@ -87,6 +143,8 @@ export async function syncUserSubscriptionsFromProvider(
   const statuses: string[] = [];
 
   for (const id of ids) {
+    // Znacznik PRZED odczytem - patrz `selfSyncMark`.
+    const mark = selfSyncMark(id, Date.now());
     let subscription: Stripe.Subscription;
     try {
       subscription = await stripe.subscriptions.retrieve(id, { expand: ["items.data.price"] });
@@ -104,10 +162,11 @@ export async function syncUserSubscriptionsFromProvider(
     if (!normalized) continue;
 
     const outcome = await dispatchWebhookEvent({
+      eventId: mark.eventId,
       eventType: normalized.eventType,
       data: normalized.data,
       environment,
-      occurredAt: new Date().toISOString(),
+      occurredAt: mark.occurredAt,
     });
     if (outcome === "processed") applied += 1;
   }

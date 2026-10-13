@@ -106,7 +106,12 @@ export const Route = createFileRoute("/events/$slug/")({
   },
   head: ({ params, loaderData }) => {
     const url = getRequestUrl() || `/events/${params.slug}`;
-    return buildEventTabHead({ tab: "overview", url, lang: activeLang(url), event: loaderData?.headEvent ?? null });
+    return buildEventTabHead({
+      tab: "overview",
+      url,
+      lang: activeLang(url),
+      event: loaderData?.headEvent ?? null,
+    });
   },
   component: EventOverview,
 });

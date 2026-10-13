@@ -392,7 +392,7 @@ describe("onsiteApi - decyzja odprawy", () => {
     expect(outcome.checkinId).toBe("55555555-5555-4555-8555-555555555555");
   });
 
-  it("OBEJŚCIE ODMOWY (20261012111100): stanowisko widzi, że wpuściło osobę „już w środku” i od kiedy", async () => {
+  it("OBEJŚCIE ODMOWY (20261013111100): stanowisko widzi, że wpuściło osobę „już w środku” i od kiedy", async () => {
     // Odprawa ręczna omija politykę `deny` JAWNIE - baza zapisuje zgodę
     // z operatorem i znacznikiem `reentry_override`. Panel musi to przenieść
     // bez zmian: inaczej obsługa nie wie, że właśnie obeszła blokadę.

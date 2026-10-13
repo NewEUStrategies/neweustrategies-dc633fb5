@@ -312,8 +312,8 @@ describe("filtry jadą do bazy", () => {
   it("droplista wyników oferuje komplet ośmiu wartości bazy plus „wszystkie”", () => {
     panel();
 
-    // `denied_already_inside` od 20261012110000 (OPS-08, polityka `deny`);
-    // `denied_code_superseded` od 20261012111000 (R4: bramka bez sieci
+    // `denied_already_inside` od 20261013110500 (OPS-08, polityka `deny`);
+    // `denied_code_superseded` od 20261013111000 (R4: bramka bez sieci
     // wpuściła kod martwy już w chwili skanu).
     expect(Array.from(filtr("result").options).map((option) => option.value)).toEqual([
       "__all__",

@@ -1,7 +1,7 @@
 // ANOMALIE POMIARU EKSPOZYCJI SPONSORÓW (OPS-09) - warstwa RPC panelu i model
 // ostrzeżenia w raporcie dla sponsorów.
 //
-// SKĄD SIĘ BIORĄ. `event_sponsor_exposure_ingest` (migracja 20261012120000)
+// SKĄD SIĘ BIORĄ. `event_sponsor_exposure_ingest` (migracja 20261013111400)
 // zapisuje trzy rodzaje zdarzeń, które zmieniają sposób liczenia:
 //   * `rate_limited` - paczka odrzucona limitem zapytań adresu (nic nie
 //     zapisane; `hits` = liczba paczek);

@@ -44,7 +44,7 @@ describe("odmowy zaproszenia maja zdania", () => {
       "eventRegistration.errors.alreadyRegistered",
     ],
     ["rate_limited: too many attempts", "eventRegistration.errors.rateLimited"],
-    // 20261012180100 (F14): wyscig unikalnosci przy zakladaniu osoby.
+    // 20261013112700 (F14): wyscig unikalnosci przy zakladaniu osoby.
     [
       "person_conflict: the participant record changed while accepting the invitation - try again",
       "eventRegistration.errors.personConflict",

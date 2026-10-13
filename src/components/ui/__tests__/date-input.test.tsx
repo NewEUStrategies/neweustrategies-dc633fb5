@@ -1,118 +1,201 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
+import { afterEach, describe, expect, it } from "vitest";
 import { DateInput } from "../date-input";
+
+// `onChange` dostaje prawdziwe ChangeEvent: wartość czytamy W CHWILI
+// zdarzenia, bo kontrolowane pole bez aktualizacji stanu React przywraca.
+function recordValues() {
+  const values: string[] = [];
+  const onChange = (event: { target: { value: string } }) => values.push(event.target.value);
+  return { values, onChange };
+}
+
+function openCalendar(container: HTMLElement) {
+  const opener = container.querySelector("[data-calendar-opener]");
+  if (!opener) throw new Error("Missing calendar opener");
+  fireEvent.click(opener);
+}
+
+function dayButton(day: string) {
+  const button = screen
+    .getAllByRole("button")
+    .find((candidate) => candidate.textContent?.trim() === day && candidate.closest("td"));
+  if (!button) throw new Error(`Missing day ${day}`);
+  return button;
+}
+
+const originalTz = process.env.TZ;
+afterEach(() => {
+  process.env.TZ = originalTz;
+});
 
 describe("DateInput local values", () => {
   it("clears a date using the existing empty-string contract", () => {
-    const onChange = vi.fn();
-    render(<DateInput type="date" value="2026-10-12" onChange={onChange} />);
+    const { values, onChange } = recordValues();
+    const { container } = render(<DateInput type="date" value="2026-10-12" onChange={onChange} />);
+    openCalendar(container);
     fireEvent.click(screen.getByRole("button", { name: "Wyczyść" }));
-    expect(onChange).toHaveBeenCalledWith({ target: { value: "" } });
+    expect(values.at(-1)).toBe("");
   });
+
   it("changes an hour without shifting the local day or minute", () => {
-    const onChange = vi.fn();
-    render(<DateInput type="datetime-local" value="2026-10-12T08:17" onChange={onChange} />);
-    fireEvent.click(screen.getByRole("button", { name: "12.10.2026, 08:17" }));
-    fireEvent.click(screen.getByRole("combobox", { name: "Godzina" }));
-    fireEvent.click(screen.getByRole("option", { name: "09" }));
-    expect(onChange).toHaveBeenCalledWith({ target: { value: "2026-10-12T09:17" } });
+    const { values, onChange } = recordValues();
+    const { container } = render(
+      <DateInput type="datetime-local" value="2026-10-12T08:17" onChange={onChange} />,
+    );
+    openCalendar(container);
+    fireEvent.change(screen.getByLabelText("Godzina"), { target: { value: "09:17" } });
+    expect(values.at(-1)).toBe("2026-10-12T09:17");
   });
+
   it("submits the original date string", () => {
     const { container } = render(
       <form>
-        <DateInput name="day" type="date" value="2026-10-12" />
+        <DateInput name="day" type="date" value="2026-10-12" onChange={() => {}} />
       </form>,
     );
     const form = container.querySelector("form");
     if (!form) throw new Error("Missing form");
     expect(new FormData(form).get("day")).toBe("2026-10-12");
   });
-});
-// F13: THE VALUE IS A WALL CLOCK IN SOMEONE ELSE'S ZONE. Event-zone fields
-// (ticket phases, meeting invites, event codes, availability) hand DateInput a
-// Warsaw clock while the organizer's browser runs in New York. 2026-03-08 is
-// the US spring-forward night (02:00-02:59 does not exist in New York) but an
-// ordinary night in Warsaw (EU switches on 29.03). Reading the value through a
-// browser-local `Date` showed 03:30 and re-committed 03:30 - a one-hour move
-// of the saved instant. Each case below fails on that implementation.
-describe("DateInput - wall clock outside the viewer's DST gap", () => {
-  const ORIGINAL_TZ = process.env.TZ;
-  beforeAll(() => {
-    process.env.TZ = "America/New_York";
-  });
-  afterAll(() => {
-    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
-    else process.env.TZ = ORIGINAL_TZ;
+
+  it("labels exactly one native input, also inside a wrapping label", () => {
+    render(
+      <>
+        <label htmlFor="start">Start</label>
+        <DateInput id="start" type="date" value="2026-08-17" onChange={() => {}} />
+        <label>
+          End
+          <DateInput type="datetime-local" value="2026-08-18T10:30" onChange={() => {}} />
+        </label>
+      </>,
+    );
+    const start = screen.getByLabelText("Start");
+    expect(start).toBeInstanceOf(HTMLInputElement);
+    expect(start).toHaveAttribute("type", "date");
+    expect(start).toHaveValue("2026-08-17");
+    expect(screen.getByLabelText("End")).toHaveValue("2026-08-18T10:30");
   });
 
+  it.each(["America/Los_Angeles", "Pacific/Auckland"])(
+    "picks a calendar day as a local YYYY-MM-DD string in %s",
+    (tz) => {
+      process.env.TZ = tz;
+      const { values, onChange } = recordValues();
+      const { container } = render(
+        <DateInput type="date" value="2026-10-12" onChange={onChange} />,
+      );
+      openCalendar(container);
+      fireEvent.click(dayButton("15"));
+      expect(values.at(-1)).toBe("2026-10-15");
+    },
+  );
+
+  it("keeps the chosen time when a new day is picked", () => {
+    const { values, onChange } = recordValues();
+    const { container } = render(
+      <DateInput type="datetime-local" value="2026-10-12T08:17" onChange={onChange} />,
+    );
+    openCalendar(container);
+    fireEvent.click(dayButton("20"));
+    expect(values.at(-1)).toBe("2026-10-20T08:17");
+  });
+
+  it("keeps the time disabled until a date exists", () => {
+    const { container } = render(<DateInput type="datetime-local" value="" onChange={() => {}} />);
+    openCalendar(container);
+    expect(screen.getByLabelText("Godzina")).toBeDisabled();
+  });
+
+  it("stores an uncontrolled calendar pick in FormData", () => {
+    const { container } = render(
+      <form>
+        <DateInput name="day" type="date" defaultValue="2026-10-12" />
+      </form>,
+    );
+    openCalendar(container);
+    fireEvent.click(dayButton("21"));
+    const form = container.querySelector("form");
+    if (!form) throw new Error("Missing form");
+    expect(new FormData(form).get("day")).toBe("2026-10-21");
+  });
+
+  it("updates a controlled parent through the calendar", () => {
+    function Controlled() {
+      const [day, setDay] = useState("2026-10-12");
+      return (
+        <>
+          <DateInput
+            aria-label="Day"
+            type="date"
+            value={day}
+            onChange={(e) => setDay(e.target.value)}
+          />
+          <output>{day}</output>
+        </>
+      );
+    }
+    const { container } = render(<Controlled />);
+    openCalendar(container);
+    fireEvent.click(dayButton("3"));
+    expect(screen.getByLabelText("Day")).toHaveValue("2026-10-03");
+    expect(screen.getByRole("status")).toHaveTextContent("2026-10-03");
+  });
+
+  it("uses native validity and skips a disabled field", () => {
+    const { container } = render(
+      <form>
+        <DateInput name="required" type="date" required value="" onChange={() => {}} />
+        <DateInput name="locked" type="date" disabled value="2026-10-12" onChange={() => {}} />
+      </form>,
+    );
+    const form = container.querySelector("form");
+    if (!form) throw new Error("Missing form");
+    expect(form.checkValidity()).toBe(false);
+    expect(new FormData(form).has("locked")).toBe(false);
+  });
+});
+
+// OPS-15 / F13: wartość to ZEGAR ŚCIENNY, często strefy wydarzenia, nie
+// przeglądarki. Godzina, która nie istnieje w strefie OGLĄDAJĄCEGO (luka DST),
+// musi zostać tekstem 1:1 - przeliczenie przez lokalny `Date` przesuwało ją
+// o godzinę przy ponownym wyborze dnia.
+describe("DateInput - wall clock outside the viewer's DST gap", () => {
   const GAP = "2026-03-08T02:30";
 
-  it("canary: the machine really is in New York and 02:30 is in its gap", () => {
+  it("canary: the machine is in New York and 02:30 is in its gap", () => {
+    process.env.TZ = "America/New_York";
     expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe("America/New_York");
     expect(new Date(2026, 2, 8, 2, 30).getHours()).toBe(3);
   });
 
-  it("shows the original HH:mm, not the browser-normalised one", () => {
-    render(<DateInput type="datetime-local" value={GAP} onChange={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "08.03.2026, 02:30" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "08.03.2026, 03:30" })).toBeNull();
+  it("keeps the original HH:mm in the field and when a new day is picked", () => {
+    process.env.TZ = "America/New_York";
+    const { values, onChange } = recordValues();
+    const { container } = render(
+      <DateInput type="datetime-local" value={GAP} onChange={onChange} />,
+    );
+    const input = container.querySelector("input[type='datetime-local']");
+    if (!(input instanceof HTMLInputElement)) throw new Error("Missing native input");
+    expect(input.value).toBe(GAP);
+    openCalendar(container);
+    fireEvent.click(dayButton("10"));
+    expect(values.at(-1)).toBe("2026-03-10T02:30");
   });
 
-  it("re-picking a day keeps the original time text", () => {
-    const onChange = vi.fn();
-    render(<DateInput type="datetime-local" value={GAP} onChange={onChange} />);
-    fireEvent.click(screen.getByRole("button", { name: "08.03.2026, 02:30" }));
-    const selected = document.querySelector('[data-day="2026-03-08"]');
-    expect(selected?.getAttribute("aria-selected")).toBe("true");
-    const next = document.querySelector('[data-day="2026-03-10"] button');
-    if (!(next instanceof HTMLElement)) throw new Error("Missing day 10");
-    fireEvent.click(next);
-    expect(onChange).toHaveBeenLastCalledWith({ target: { value: "2026-03-10T02:30" } });
-  });
-
-  it("the time picker starts at 02 and a minute change keeps hour 02", () => {
-    const onChange = vi.fn();
-    render(<DateInput type="datetime-local" value={GAP} onChange={onChange} />);
-    fireEvent.click(screen.getByRole("button", { name: "08.03.2026, 02:30" }));
-    fireEvent.click(screen.getByRole("combobox", { name: "Minuta" }));
-    fireEvent.click(screen.getByRole("option", { name: "45" }));
-    expect(onChange).toHaveBeenLastCalledWith({ target: { value: "2026-03-08T02:45" } });
-  });
-
-  it("a bare date is the same calendar day, not the previous one", () => {
-    const onChange = vi.fn();
-    render(<DateInput type="date" value="2026-03-08" onChange={onChange} />);
-    expect(screen.getByRole("button", { name: "08.03.2026" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "08.03.2026" }));
-    expect(document.querySelector('[data-day="2026-03-08"]')?.getAttribute("aria-selected")).toBe(
+  it("a midnight the viewer's zone skips stays 00:00 on the same day", () => {
+    process.env.TZ = "America/Santiago";
+    expect(new Date(2026, 8, 6, 0, 0).getHours()).toBe(1);
+    const { values, onChange } = recordValues();
+    const { container } = render(
+      <DateInput type="datetime-local" value="2026-09-06T00:00" onChange={onChange} />,
+    );
+    openCalendar(container);
+    expect(document.querySelector('[data-day="2026-09-06"]')?.getAttribute("aria-selected")).toBe(
       "true",
     );
-  });
-
-  it("an impossible date reads as empty instead of rolling over", () => {
-    render(<DateInput type="datetime-local" value="2026-02-30T10:00" onChange={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: /03\.2026/ })).toBeNull();
-  });
-});
-
-describe("DateInput - midnight that does not exist in the viewer's zone", () => {
-  const ORIGINAL_TZ = process.env.TZ;
-  beforeAll(() => {
-    process.env.TZ = "America/Santiago";
-  });
-  afterAll(() => {
-    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
-    else process.env.TZ = ORIGINAL_TZ;
-  });
-
-  it("2026-09-06T00:00 stays 00:00 on the 6th (Chile skips that midnight)", () => {
-    expect(new Date(2026, 8, 6, 0, 0).getHours()).toBe(1);
-    const onChange = vi.fn();
-    render(<DateInput type="datetime-local" value="2026-09-06T00:00" onChange={onChange} />);
-    fireEvent.click(screen.getByRole("button", { name: "06.09.2026, 00:00" }));
-    const next = document.querySelector('[data-day="2026-09-07"] button');
-    if (!(next instanceof HTMLElement)) throw new Error("Missing day 7");
-    fireEvent.click(next);
-    expect(onChange).toHaveBeenLastCalledWith({ target: { value: "2026-09-07T00:00" } });
+    fireEvent.click(dayButton("7"));
+    expect(values.at(-1)).toBe("2026-09-07T00:00");
   });
 });

@@ -1,8 +1,8 @@
 -- ============================================================================
 -- 61 PRZYPIECIE SPOTKANIA DO SPONSORA (OPS-10, poprawka F6)
 --
--- Migracje `20261012120100_event_meeting_sponsor_binding` (helper i wolanie
--- w zaproszeniu) oraz `20261012160000_event_meeting_sponsor_verified_contact`
+-- Migracje `20261013111500_event_meeting_sponsor_binding` (helper i wolanie
+-- w zaproszeniu) oraz `20261013112300_event_meeting_sponsor_verified_contact`
 -- (F6: powiazanie tylko przez osobe kontaktowa wskazana przez organizatora
 -- i POTWIERDZONE konto). Defekt pierwotny: `event_meeting_invite` zapisywal
 -- `sponsor_id` wprost z ladunku, a raport sponsora liczy spotkania po tej

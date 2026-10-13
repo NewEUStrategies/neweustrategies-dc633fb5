@@ -47,7 +47,7 @@ export const adminEventSponsorReportPl = {
       meetings: "Spotkania odbyte",
       meetingsHint: "Umówione: {{count}}",
     },
-    // Ostrzeżenie nad kaflami: anomalie pomiaru (OPS-09, migracja 20261012120000).
+    // Ostrzeżenie nad kaflami: anomalie pomiaru (OPS-09, migracja 20261013111400).
     anomalies: {
       title: "Część ruchu odfiltrowała ochrona pomiaru",
       rateLimited:
@@ -275,7 +275,7 @@ export const adminEventSponsorReportEn = {
       meetings: "Meetings held",
       meetingsHint: "Scheduled: {{count}}",
     },
-    // Warning above the tiles: measurement anomalies (OPS-09, migration 20261012120000).
+    // Warning above the tiles: measurement anomalies (OPS-09, migration 20261013111400).
     anomalies: {
       title: "Some traffic was filtered by measurement protection",
       rateLimited:

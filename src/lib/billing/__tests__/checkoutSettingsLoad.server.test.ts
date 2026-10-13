@@ -94,4 +94,38 @@ describe("loadCheckoutSettings", () => {
       DEFAULT_CHECKOUT_SETTINGS,
     );
   });
+
+  it("błąd odczytu NIE otwiera pola kodu Stripe - domyślne są fail-closed (PAY-06)", async () => {
+    // Chwilowa awaria bazy nie może włączyć ścieżki rabatu, której najemca nie
+    // włączył: kod Stripe omija limity i zakres kuponów z bazy.
+    const { client } = stubClient({ data: null, error: { message: "rls denied" } });
+    const settings = await loadCheckoutSettings(client, "tenant-a");
+    expect(settings.allow_promotion_codes).toBe(false);
+  });
+
+  it("ZAPISANY wybór najemcy (`true`) jest honorowany - kasa nie przepisuje go po cichu (PAY-06, 0.4)", async () => {
+    // Migracja 20261013100100 zmienia wyłącznie DEFAULT kolumny. Wiersz
+    // zapisany panelem przed zmianą może nieść `true` bez świadomej decyzji,
+    // ale tabela nie odróżnia go od włączenia celowego - przegląd tych
+    // wierszy jest krokiem operatora, a kod obcego najemcy zatrzymuje
+    // realizacja zamówienia. Odczyt oddaje dokładnie to, co zapisano.
+    const { client } = stubClient({
+      data: {
+        allow_promotion_codes: true,
+        automatic_tax: false,
+        tax_id_collection: true,
+        billing_address_collection: "auto",
+        invoice_creation: true,
+      },
+      error: null,
+    });
+    const settings = await loadCheckoutSettings(client, "tenant-a");
+    expect(settings.allow_promotion_codes).toBe(true);
+  });
+
+  it("brak wiersza ustawień też nie otwiera pola kodu Stripe", async () => {
+    const { client } = stubClient({ data: null, error: null });
+    const settings = await loadCheckoutSettings(client, "tenant-a");
+    expect(settings.allow_promotion_codes).toBe(false);
+  });
 });

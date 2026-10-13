@@ -92,7 +92,7 @@ Cloudflare).
 
 ## Kolejność wdrożenia
 
-1. Migracje `20261012090000` … `20261012180100` (28 plików, każdy < 45 KiB),
+1. Migracje `20261013110000` … `20261013112700` (28 plików, każdy < 45 KiB),
    w kolejności nazw. Potem kod aplikacji. Kod portfeli działa także przed
    migracjami `2026101213*`/`2026101217*` (tryb zgodności), ale kolejka
    dezaktywacji rusza dopiero po nich.

@@ -1,4 +1,8 @@
 import i18n from "./i18n";
+import {
+  PREMIUM_NEWSLETTER_CONSENT_TEXTS,
+  PREMIUM_NEWSLETTER_CONSENT_VERSION,
+} from "@/lib/billing/premiumNewsletter";
 
 // Profile / Billing / Checkout i18n bundle - registered as overlay on top of base i18n.
 // Using addResourceBundle keeps the huge base i18n.ts untouched and lets us scale modules independently.
@@ -297,8 +301,10 @@ const pl = {
         retentionTitle: "Co zostaje po usunięciu konta",
         retentionBody:
           "Historia płatności (kwoty, waluty, daty, numery transakcji u operatora) oraz zapisy o wykupionym dostępie zostają jako dowód księgowy, ale tracisz z nimi związek: usuwamy identyfikator konta, adres e-mail do potwierdzeń i dane opisowe, a w ich miejsce wchodzi nieodwracalny pseudonim. Darmowe przyznania dostępu, które nic nie dowodzą, usuwamy razem z kontem.",
+        // `{{years}}` = ACCOUNTING_RETENTION_YEARS_AFTER_FISCAL_YEAR - ta sama stała
+        // co reguła purge'a w bazie (INV-13), więc nota nie obiecuje innego terminu.
         retentionBasis:
-          "Podstawa: art. 74 ust. 2 ustawy o rachunkowości (5 lat od końca roku obrotowego) w związku z art. 17 ust. 3 lit. b RODO. Po tym terminie zapisy usuwamy automatycznie.",
+          "Podstawa: art. 74 ust. 2 ustawy o rachunkowości oraz art. 70 § 1 i art. 86 § 1 Ordynacji podatkowej (do przedawnienia zobowiązania podatkowego: 31 grudnia, {{years}} lat po końcu roku transakcji) w związku z art. 17 ust. 3 lit. b RODO. Po tym terminie zapisy usuwamy automatycznie.",
       },
       tip: {
         currentPassword: "Podaj obecne hasło, aby potwierdzić, że to Ty.",
@@ -539,16 +545,25 @@ const pl = {
       resume: "Wznów subskrypcję",
       resumed: "Subskrypcja wznowiona",
       resumeError: "Nie udało się wznowić subskrypcji.",
+      pausedByOperator:
+        "Płatności za tę subskrypcję wstrzymaliśmy po naszej stronie, a bieżący okres nie jest opłacony. Napisz do nas - wznowimy ją razem z rozliczeniem.",
       change: "Zmień plan",
       changePlan: {
         title: "Zmiana planu",
-        hint: "Różnica ceny rozliczana jest proporcjonalnie od razu: przy przejściu wyżej dopłacasz za pozostałą część okresu, przy przejściu niżej nadpłata pomniejszy kolejną fakturę.",
+        hint: "Przejście wyżej działa od razu: dopłacasz proporcjonalnie za pozostałą część okresu, a nowy plan wchodzi po udanej płatności. Przejście niżej zacznie obowiązywać od kolejnego okresu rozliczeniowego.",
         cancelNote:
           "Zmiana planu anuluje zaplanowane wygaśnięcie - subskrypcja będzie się odnawiać.",
         placeholder: "Wybierz nowy plan",
         cta: "Zmień plan",
         success: "Plan zmieniony",
         error: "Nie udało się zmienić planu. Spróbuj ponownie lub skontaktuj się z nami.",
+      },
+      payment: {
+        failed:
+          "Płatność nie przeszła - zmiana nie weszła w życie, a Twój plan pozostaje bez zmian. Opłać fakturę inną kartą albo zaktualizuj metodę płatności.",
+        requiresAction:
+          "Bank prosi o potwierdzenie płatności - zmiana wejdzie w życie po jej potwierdzeniu na stronie faktury.",
+        payInvoice: "Opłać fakturę",
       },
       portal: {
         changeHint:
@@ -567,6 +582,15 @@ const pl = {
         pastDue:
           "Ostatnia płatność się nie powiodła. Zaktualizuj metodę płatności, aby zachować dostęp.",
         secureNote: "Dane karty obsługuje operator płatności - nie przechowujemy ich w serwisie.",
+        entry: {
+          title: "Portal płatności",
+          signInTitle: "Zaloguj się, aby otworzyć portal płatności",
+          signInBody:
+            "Link z maila prowadzi do Twojego konta. Po zalogowaniu od razu przeniesiemy Cię do portalu operatora płatności.",
+          signInCta: "Zaloguj się",
+          retry: "Spróbuj ponownie",
+          back: "Wróć do planu",
+        },
         status: {
           active: "Aktywna",
           trialing: "Okres próbny",
@@ -591,6 +615,8 @@ const pl = {
           label: "Miejsca",
           cta: "Zapisz liczbę miejsc",
           success: "Liczba miejsc zaktualizowana",
+          scheduled:
+            "Zmniejszenie liczby miejsc zaplanowane - obecne miejsca zostają do końca opłaconego okresu.",
           error: "Nie udało się zmienić liczby miejsc. Spróbuj ponownie.",
         },
       },
@@ -724,6 +750,10 @@ const pl = {
     processing: "Przetwarzanie...",
     secured: "Płatność zabezpieczona przez operatora płatności",
     terms: 'Klikając "Zapłać" akceptujesz regulamin i politykę prywatności.',
+    // Treść zgody NIE jest tu przepisana, tylko wzięta z rejestru wersji: serwer
+    // zapisuje jako dowód dokładnie ten tekst (SUB-15), więc etykieta i dowód
+    // nie mogą się rozjechać przy edycji słownika.
+    newsletterOptIn: PREMIUM_NEWSLETTER_CONSENT_TEXTS[PREMIUM_NEWSLETTER_CONSENT_VERSION].pl,
     successTitle: "Dziękujemy za zakup!",
     successBody:
       "Twoje zamówienie zostało przyjęte. Status aktualizujemy po potwierdzeniu płatności.",
@@ -737,6 +767,19 @@ const pl = {
     paymentsNotConfigured:
       "Bramka płatności nie jest jeszcze skonfigurowana. Skontaktuj się z administratorem.",
     trialLine: "Pierwsze {{days}} dni za darmo - pierwsza płatność po okresie próbnym.",
+    subscriptionExists:
+      "Masz już aktywną subskrypcję. Zmień plan w profilu - druga subskrypcja oznaczałaby podwójne obciążenie.",
+    changePlanCta: "Zmień plan",
+    subscriptionSamePlan:
+      "Masz już ten plan. Liczbę miejsc, odnowienie i rezygnację zmienisz w profilu - drugi zakup oznaczałby podwójne obciążenie.",
+    manageSubscriptionCta: "Zarządzaj subskrypcją",
+    subscriptionUnmanaged:
+      "Masz już aktywną subskrypcję, której nie da się zmienić w profilu. Zarządzaj nią w portalu płatności albo napisz do nas - drugi zakup oznaczałby podwójne obciążenie.",
+    billingPortalCta: "Otwórz portal płatności",
+    separatePurchase:
+      "Ten plan jest rozliczany inaczej niż Twoja obecna subskrypcja (za miejsce zamiast indywidualnie albo odwrotnie), więc kupujesz go osobno. Obecna subskrypcja zostaje aktywna i dalej się odnawia - jeśli nie jest już potrzebna, zrezygnujesz z niej w portalu płatności.",
+    sessionSuperseded:
+      "Ta płatność została zastąpiona nowszą, otwartą w innej karcie lub oknie. Dokończ ją tam albo zacznij od nowa.",
     promoHint: "Masz kupon? Kod rabatowy wpiszesz na bezpiecznej stronie płatności.",
     taxHint: "VAT zostanie naliczony automatycznie według Twojego adresu.",
     taxIdHint: "NIP/VAT ID do faktury podasz na stronie płatności.",
@@ -1087,7 +1130,7 @@ const en: ProfileEn = {
         retentionBody:
           "Your payment history (amounts, currencies, dates, provider transaction ids) and the records of access you purchased stay on file as accounting evidence, but they can no longer be traced to you: we drop the account id, the receipt e-mail address and descriptive fields, and put an irreversible pseudonym in their place. Free access grants prove nothing, so they are deleted along with the account.",
         retentionBasis:
-          "Legal basis: Article 74(2) of the Polish Accounting Act (5 years from the end of the financial year) read with Article 17(3)(b) GDPR. Records are purged automatically once that period lapses.",
+          "Legal basis: Article 74(2) of the Polish Accounting Act and Articles 70 § 1 and 86 § 1 of the Polish Tax Ordinance (until the tax liability is time-barred: 31 December, {{years}} years after the end of the transaction year) read with Article 17(3)(b) GDPR. Records are purged automatically once that period lapses.",
       },
       tip: {
         currentPassword: "Enter your current password to confirm it's you.",
@@ -1327,16 +1370,25 @@ const en: ProfileEn = {
       resume: "Resume subscription",
       resumed: "Subscription resumed",
       resumeError: "Could not resume the subscription.",
+      pausedByOperator:
+        "We paused payments for this subscription on our side and the current period is unpaid. Contact us and we will resume it together with the billing.",
       change: "Change plan",
       changePlan: {
         title: "Change plan",
-        hint: "The price difference is prorated immediately: upgrades charge the remainder of the period now, downgrades credit your next invoice.",
+        hint: "Upgrades apply right away: you pay the prorated difference for the rest of the period and the new plan starts once the payment succeeds. Downgrades take effect from your next billing period.",
         cancelNote:
           "Changing the plan clears the scheduled cancellation - the subscription will keep renewing.",
         placeholder: "Choose a new plan",
         cta: "Change plan",
         success: "Plan changed",
         error: "Could not change the plan. Please try again or contact us.",
+      },
+      payment: {
+        failed:
+          "The payment did not go through - the change was not applied and your plan stays the same. Pay the invoice with another card or update your payment method.",
+        requiresAction:
+          "Your bank asks you to confirm the payment - the change applies once you confirm it on the invoice page.",
+        payInvoice: "Pay invoice",
       },
       portal: {
         changeHint:
@@ -1354,6 +1406,15 @@ const en: ProfileEn = {
         error: "Could not open the payment portal. Please try again.",
         pastDue: "Your last payment failed. Update your payment method to keep access.",
         secureNote: "Card details are handled by the payment provider - we never store them.",
+        entry: {
+          title: "Billing portal",
+          signInTitle: "Sign in to open the billing portal",
+          signInBody:
+            "The link from your email opens your account. Once you are signed in, we take you straight to the payment provider's portal.",
+          signInCta: "Sign in",
+          retry: "Try again",
+          back: "Back to your plan",
+        },
         status: {
           active: "Active",
           trialing: "Trial",
@@ -1379,6 +1440,8 @@ const en: ProfileEn = {
           label: "Seats",
           cta: "Save seat count",
           success: "Seat count updated",
+          scheduled:
+            "Seat reduction scheduled - your current seats stay until the end of the paid period.",
           error: "Could not change the seat count. Please try again.",
         },
       },
@@ -1508,6 +1571,7 @@ const en: ProfileEn = {
     processing: "Processing...",
     secured: "Secured by our payment provider",
     terms: 'By clicking "Pay" you agree to the terms and privacy policy.',
+    newsletterOptIn: PREMIUM_NEWSLETTER_CONSENT_TEXTS[PREMIUM_NEWSLETTER_CONSENT_VERSION].en,
     successTitle: "Thank you!",
     successBody: "Your order was received. We will update its status once payment is confirmed.",
     cancelTitle: "Payment canceled",
@@ -1520,6 +1584,19 @@ const en: ProfileEn = {
     paymentsNotConfigured:
       "Payment gateway is not configured yet. Please contact the administrator.",
     trialLine: "First {{days}} days free - the first charge comes after the trial.",
+    subscriptionExists:
+      "You already have an active subscription. Change your plan in your profile - a second subscription would mean being charged twice.",
+    changePlanCta: "Change plan",
+    subscriptionSamePlan:
+      "You already have this plan. Change seats, renewal or cancellation in your profile - buying it again would mean being charged twice.",
+    manageSubscriptionCta: "Manage subscription",
+    subscriptionUnmanaged:
+      "You already have an active subscription that can't be changed in your profile. Manage it in the payment portal or contact us - a second purchase would mean being charged twice.",
+    billingPortalCta: "Open the payment portal",
+    separatePurchase:
+      "This plan is billed differently from your current subscription (per seat instead of individually, or the other way round), so you buy it separately. Your current subscription stays active and keeps renewing - if you no longer need it, cancel it in the payment portal.",
+    sessionSuperseded:
+      "This payment was replaced by a newer one opened in another tab or window. Finish it there or start again.",
     promoHint: "Have a coupon? Enter your promo code on the secure payment page.",
     taxHint: "VAT is calculated automatically based on your address.",
     taxIdHint: "You can provide your VAT ID for the invoice on the payment page.",

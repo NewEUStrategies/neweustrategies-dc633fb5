@@ -2,7 +2,7 @@
 -- 57_scanner_final_fixes - SKANER: POPRAWKI PO KONCOWYM PRZEGLADZIE (F4, F5, B2)
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracje 20261012150000 .. 20261012150200 zamykaja trzy potwierdzone
+-- Migracje 20261013112000 .. 20261013112200 zamykaja trzy potwierdzone
 -- ustalenia koncowego przegladu. Kazde ma tu swoj dowod - asercja oznaczona
 -- GOTOWE byla czerwona przed migracja (sprawdzone na 0061c24):
 --   F4  wyjatek R4 ("kod wazny w chwili skanu") wymaga POTWIERDZONEGO czasu

@@ -8,7 +8,7 @@
 --      zrodlo `package_invitation` spoza list CHECK osoby i zgloszenia oraz
 --      e-mail zaproszenia zostawiany bez tokenu (`event_package_seats_
 --      invite_pair`). S1 zarejestrowal to w 33_* jako `assert_known_defect`
---      i sprawdzal zgody po zdjeciu obu ograniczen. Migracja 20261012140000
+--      i sprawdzal zgody po zdjeciu obu ograniczen. Migracja 20261013111800
 --      dopisuje `package_invitation` do obu list i zeruje e-mail razem
 --      z tokenem. Tu: przyjecie na NIETKNIETYCH ograniczeniach, ksztalt
 --      miejsca po przyjeciu, jednorazowosc tokenu, gwarancja S1 (przyjecie
@@ -17,7 +17,7 @@
 --      i druga strona: ograniczenia nadal odrzucaja to, co mialy odrzucac.
 --   2. `admin_event_session_delete` po S2 (`event_checkpoints_session_fk`
 --      NO ACTION) konczyl sie surowym 23503 dla sesji z punktem odprawy.
---      Migracja 20261012140100 dodaje jawny kod `session_has_checkpoints`.
+--      Migracja 20261013111900 dodaje jawny kod `session_has_checkpoints`.
 --      Tu: odmowa dla punktu na sesji i na PODSESJI (kaskada), liczba
 --      punktow w komunikacie, pierwszenstwo `session_has_signups`, punkt
 --      wylaczony tez blokuje, izolacja najemcy, kontrapunkt po usunieciu
@@ -27,14 +27,14 @@
 --
 --   3. F11: `admin_event_session_delete` liczyl zapisy tylko na samej sesji,
 --      wiec blok, ktorego PODSESJA ma aktywne zapisy, znikal razem z nimi
---      (kaskada). Migracja 20261012180000 liczy zapisy na poddrzewie. Tu:
+--      (kaskada). Migracja 20261013112600 liczy zapisy na poddrzewie. Tu:
 --      odmowa z suma zapisow podsesji (takze listy oczekujacych), zapis
 --      sesji sasiedniej sie nie liczy, zapisy wygrywaja z punktem odprawy
 --      podsesji, nic nie znika; po odwolaniu zapisow - kolejna przeszkoda,
 --      a potem usuniecie.
 --   4. F14: `event_package_invite_accept` zakladal nowa osobe z kontem
 --      wolajacego (`auth.uid()`), a konto z osoba pod innym adresem dostawalo
---      surowe 23505. Migracja 20261012180100 przypina konto tylko przy
+--      surowe 23505. Migracja 20261013112700 przypina konto tylko przy
 --      potwierdzonym adresie rownym adresowi zaproszenia i braku innej osoby
 --      tego konta. Tu: macierz kont (kupujacy, konto z osoba, zaproszony,
 --      niepotwierdzony, konto z inna osoba i pasujacym adresem) oraz
@@ -88,7 +88,7 @@ VALUES
    'published', 'rsvp', 'instant');
 
 -- ---------------------------------------------------------------------------
--- SEKCJA 1: PRZYJECIE ZAPROSZENIA Z PAKIETU (20261012140000)
+-- SEKCJA 1: PRZYJECIE ZAPROSZENIA Z PAKIETU (20261013111800)
 -- ---------------------------------------------------------------------------
 INSERT INTO public.event_ticket_types (id, tenant_id, event_id, key, name_pl, name_en)
 VALUES ('78700000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111',
@@ -301,7 +301,7 @@ SELECT pg_temp.assert(
   '78/pakiet/granty: link z maila dziala dla anonima, funkcja DEFINER z search_path public, pg_temp');
 
 -- ---------------------------------------------------------------------------
--- SEKCJA 2: USUNIECIE SESJI Z PUNKTEM ODPRAWY (20261012140100)
+-- SEKCJA 2: USUNIECIE SESJI Z PUNKTEM ODPRAWY (20261013111900)
 -- ---------------------------------------------------------------------------
 -- Blok K (z podsesja K1), sesja P z punktem, sesja Z z zapisem i punktem,
 -- sesja L bez niczego (kontrapunkt).
@@ -428,7 +428,7 @@ SELECT pg_temp.assert(
   '78/sesje/granty: ACL bez zmian (anon nie, authenticated i service_role tak), DEFINER z search_path');
 
 -- ---------------------------------------------------------------------------
--- SEKCJA 3: BLOK Z PODSESJA, KTORA MA ZAPISY (F11, 20261012180000)
+-- SEKCJA 3: BLOK Z PODSESJA, KTORA MA ZAPISY (F11, 20261013112600)
 -- ---------------------------------------------------------------------------
 -- Blok B z podsesjami B1 (zapis aktywny) i B2 (lista oczekujacych) oraz
 -- punktem odprawy na B1. Sesja Z (sekcja 2) ma wlasny zapis - jest sasiadem,
@@ -517,7 +517,7 @@ SELECT pg_temp.assert(
 SELECT pg_temp.act_as(NULL, NULL);
 
 -- ---------------------------------------------------------------------------
--- SEKCJA 4: KONTO WOLAJACEGO A NOWA OSOBA Z ZAPROSZENIA (F14, 20261012180100)
+-- SEKCJA 4: KONTO WOLAJACEGO A NOWA OSOBA Z ZAPROSZENIA (F14, 20261013112700)
 -- ---------------------------------------------------------------------------
 -- Konta (auth.users; `email_confirmed_at` domyslnie now() - harness.sql):
 --   d1 kupujacy (potwierdzony, bez osoby) - otwiera link kolegi;

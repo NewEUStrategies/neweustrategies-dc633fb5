@@ -18,7 +18,9 @@
  *
  * Env:
  *   SCHEDULER_BASE_URL        wymagane, np. https://neweuropeanstrategies.com
- *   SCHEDULER_SECRET          wymagane (COMMUNITY_CRON_SECRET albo sekret runnera)
+ *   SCHEDULER_SECRET          wymagane: COMMUNITY_CRON_SECRET dla community-cron,
+ *                             BILLING_CRON_SECRET dla billing-cron (bez zamienności),
+ *                             albo sekret runnera z job_runner_settings
  *   SCHEDULER_ENDPOINT        domyślnie /api/public/community-cron
  *   SCHEDULER_JOB             all | push | digest-daily | digest-weekly |
  *                             event-reminders | crm-task-reminders |
@@ -209,7 +211,8 @@ async function main() {
   if (!BASE_URL || !SECRET) {
     console.error(
       "Brak konfiguracji: wymagane SCHEDULER_BASE_URL i SCHEDULER_SECRET " +
-        "(repo: variables.APP_BASE_URL + secrets.COMMUNITY_CRON_SECRET).",
+        "(repo: variables.APP_BASE_URL + secrets.COMMUNITY_CRON_SECRET, " +
+        "a dla billing-cron secrets.BILLING_CRON_SECRET).",
     );
     return 2;
   }
