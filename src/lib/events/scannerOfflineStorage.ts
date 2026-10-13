@@ -40,9 +40,10 @@
 // osób może zniknąć wcześniej (termin), znacznik nie: po terminie nowy skan
 // i tak nie powstanie, a pozycje w kolejce mają już własny stempel.
 //
-// ODRZUCONE BEZ JAWNEGO KODU (OPS-06). Lista odrzuconych trzyma skrót SHA-256
-// i prefiks kodu (`toRejectedItem`); lista zapisana przed tą zmianą jest przy
-// odczycie przeliczana (skrót z kodu) i przepisywana - jawny kod znika z dysku.
+// ODRZUCONE BEZ JAWNEGO KODU I NOTATKI (OPS-06). Lista odrzuconych trzyma skrót
+// SHA-256 i prefiks kodu (`toRejectedItem`), bez notatki sponsora; lista zapisana
+// przed tą zmianą jest przy odczycie przeliczana (skrót z kodu) i przepisywana -
+// jawny kod i notatka znikają z dysku.
 import {
   parseScannerSession,
   sessionToRecord,
@@ -79,10 +80,13 @@ export function isOfflineStoragePersistent(): boolean {
   return !memoryOnly;
 }
 
+/** Bez IndexedDB nic nie mogło trafić na dysk - „pusto" jest wtedy prawdą. */
+function hasIndexedDb(): boolean {
+  return typeof window !== "undefined" && typeof window.indexedDB !== "undefined";
+}
+
 function openDb(): Promise<IDBDatabase | null> {
-  if (typeof window === "undefined" || typeof window.indexedDB === "undefined") {
-    return Promise.resolve(null);
-  }
+  if (!hasIndexedDb()) return Promise.resolve(null);
   return new Promise((resolve) => {
     let request: IDBOpenDBRequest;
     try {
@@ -101,34 +105,45 @@ function openDb(): Promise<IDBDatabase | null> {
   });
 }
 
-async function readRecord(key: RecordKey): Promise<unknown> {
+type StoredRead = { ok: true; value: unknown } | { ok: false };
+
+/** Odczyt rekordu z dysku; `ok: false` = bazy nie da się otworzyć albo odczytać. */
+async function readStored(key: RecordKey): Promise<StoredRead> {
   const db = await openDb();
-  if (db === null) {
-    memoryOnly = true;
-    return memory[key];
-  }
+  if (db === null) return { ok: false };
   return new Promise((resolve) => {
     try {
       const request = db.transaction(STORE, "readonly").objectStore(STORE).get(key);
       request.onsuccess = () => {
         db.close();
-        resolve(request.result);
+        resolve({ ok: true, value: request.result });
       };
       request.onerror = () => {
-        memoryOnly = true;
         db.close();
-        resolve(memory[key]);
+        resolve({ ok: false });
       };
     } catch {
-      memoryOnly = true;
       db.close();
-      resolve(memory[key]);
+      resolve({ ok: false });
     }
   });
 }
 
-/** Zapis (`value` = `undefined` kasuje rekord). Nigdy nie rzuca. */
-async function writeRecords(entries: ReadonlyArray<readonly [RecordKey, unknown]>): Promise<void> {
+/** Rekord z dysku, a gdy baza odmawia - z pamięci karty (tryb bez trwałości). */
+async function readRecord(key: RecordKey): Promise<unknown> {
+  const read = await readStored(key);
+  if (read.ok) return read.value;
+  memoryOnly = true;
+  return memory[key];
+}
+
+/**
+ * Zapis (`value` = `undefined` kasuje rekord). Nigdy nie rzuca; `true` = zapis
+ * trafił na dysk (transakcja zakończona), `false` = żyje tylko w pamięci karty.
+ */
+async function writeRecords(
+  entries: ReadonlyArray<readonly [RecordKey, unknown]>,
+): Promise<boolean> {
   for (const [key, value] of entries) {
     if (value === undefined) delete memory[key];
     else memory[key] = value;
@@ -136,13 +151,13 @@ async function writeRecords(entries: ReadonlyArray<readonly [RecordKey, unknown]
   const db = await openDb();
   if (db === null) {
     memoryOnly = true;
-    return;
+    return false;
   }
-  await new Promise<void>((resolve) => {
-    const done = (failed: boolean) => {
-      if (failed) memoryOnly = true;
+  return new Promise<boolean>((resolve) => {
+    const done = (stored: boolean) => {
+      if (!stored) memoryOnly = true;
       db.close();
-      resolve();
+      resolve(stored);
     };
     try {
       const tx = db.transaction(STORE, "readwrite");
@@ -151,11 +166,11 @@ async function writeRecords(entries: ReadonlyArray<readonly [RecordKey, unknown]
         if (value === undefined) store.delete(key);
         else store.put(value, key);
       }
-      tx.oncomplete = () => done(false);
-      tx.onerror = () => done(true);
-      tx.onabort = () => done(true);
+      tx.oncomplete = () => done(true);
+      tx.onerror = () => done(false);
+      tx.onabort = () => done(false);
     } catch {
-      done(true);
+      done(false);
     }
   });
 }
@@ -301,7 +316,9 @@ export async function saveRejected(list: readonly RejectedScan[]): Promise<void>
 
 /**
  * Wpisy sprzed tej zmiany niosą jawny kod: dostają skrót liczony z kodu (ten
- * sam co w bazie), a `parseRejected` zostawia z kodu tylko prefiks.
+ * sam co w bazie), a `parseRejected` zostawia z kodu tylko prefiks. Wpis
+ * z notatką sponsora (zapisany, zanim lista przestała ją trzymać) też jest
+ * „stary" - przepisanie ją zdejmuje.
  */
 async function withLegacyHashes(raw: unknown): Promise<{ value: unknown; legacy: boolean }> {
   if (!Array.isArray(raw)) return { value: raw, legacy: false };
@@ -312,16 +329,15 @@ async function withLegacyHashes(raw: unknown): Promise<{ value: unknown; legacy:
       typeof entry === "object" && entry !== null
         ? (entry as Record<string, unknown>).item
         : undefined;
-    const code =
-      typeof item === "object" && item !== null
-        ? (item as Record<string, unknown>).code
-        : undefined;
-    if (typeof code !== "string") {
+    const row =
+      typeof item === "object" && item !== null ? (item as Record<string, unknown>) : null;
+    if (row !== null && "note" in row) legacy = true;
+    const code = row?.code;
+    if (row === null || typeof code !== "string") {
       value.push(entry);
       continue;
     }
     legacy = true;
-    const row = item as Record<string, unknown>;
     const codeHash =
       typeof row.codeHash === "string"
         ? row.codeHash
@@ -336,7 +352,8 @@ async function withLegacyHashes(raw: unknown): Promise<{ value: unknown; legacy:
 export async function loadRejected(): Promise<RejectedScan[]> {
   const { value, legacy } = await withLegacyHashes(await readRecord("rejected"));
   const list = parseRejected(value);
-  // Przepisanie: jawny kod sprzed tej zmiany znika z dysku przy pierwszym odczycie.
+  // Przepisanie: jawny kod i notatka sprzed tej zmiany znikają z dysku przy
+  // pierwszym odczycie.
   if (legacy) await saveRejected(list);
   return list;
 }
@@ -347,6 +364,27 @@ export async function saveConflicts(list: readonly ScanConflict[]): Promise<void
 
 export async function loadConflicts(): Promise<ScanConflict[]> {
   return parseConflicts(await readRecord("conflicts"));
+}
+
+/**
+ * Ile wpisów do wyjaśnienia (odrzucone + konflikty) leży na dysku - surowo,
+ * bez parsowania i przepisywania (przeniesienie skanera pyta o to bez klucza).
+ * Przeglądarka bez IndexedDB = to, co jest w pamięci karty.
+ *
+ * `null` = baza JEST, ale nie da się jej otworzyć ani odczytać - nie wiadomo,
+ * co na niej leży; wołający traktuje to jak pracę do przekazania (fail closed).
+ * `loadRejected`/`loadConflicts` oddają wtedy pustą listę z pamięci karty,
+ * dlatego nie nadają się do tego pytania.
+ */
+export async function countStoredSyncIssues(): Promise<number | null> {
+  const size = (value: unknown) => (Array.isArray(value) ? value.length : 0);
+  if (!hasIndexedDb()) return size(memory.rejected) + size(memory.conflicts);
+  const [rejected, conflicts] = await Promise.all([
+    readStored("rejected"),
+    readStored("conflicts"),
+  ]);
+  if (!rejected.ok || !conflicts.ok) return null;
+  return size(rejected.value) + size(conflicts.value);
 }
 
 /* ------------------------------------------------------------- kasowanie --- */
@@ -380,9 +418,12 @@ export async function clearSyncIssues(): Promise<void> {
 /**
  * Świadome odłączenie urządzenia (po potwierdzeniu na ekranie): sesja, lista,
  * dziennik, odrzucone i konflikty - telefon nie zatrzymuje niczego z tej bazy.
+ * `true` = kasowanie dotarło na dysk (albo przeglądarka nie ma IndexedDB);
+ * `false` = baza odmówiła i dane MOGĄ tam leżeć (`purgeScannerData` zostawia
+ * wtedy token).
  */
-export async function wipeAllOfflineData(): Promise<void> {
-  await writeRecords([
+export async function wipeAllOfflineData(): Promise<boolean> {
+  const stored = await writeRecords([
     ["session", undefined],
     ["marker", undefined],
     ["roster", undefined],
@@ -390,4 +431,5 @@ export async function wipeAllOfflineData(): Promise<void> {
     ["rejected", undefined],
     ["conflicts", undefined],
   ]);
+  return stored || !hasIndexedDb();
 }

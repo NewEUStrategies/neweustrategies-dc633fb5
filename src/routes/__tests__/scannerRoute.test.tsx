@@ -77,7 +77,7 @@ vi.mock("@/lib/events/scannerRelocation", () => ({
   purgeScannerData: () => {
     h.purges += 1;
     window.localStorage.removeItem("nes.scanner.device-token");
-    return Promise.resolve();
+    return Promise.resolve(true);
   },
 }));
 

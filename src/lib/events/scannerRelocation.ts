@@ -21,6 +21,18 @@
 // tylko gdy origin skanera jest skonfigurowany, inny niż bieżący, a token leży
 // w `localStorage`) woła `purgeLeftoverScannerData` - ta sama reguła co trasa:
 // niewysłane skany albo lista do wyjaśnienia zatrzymują sprzątanie.
+//
+// SPRZĄTANIE JEST FAIL CLOSED. Kolejka leży na dysku zaszyfrowana kluczem
+// z tokenu - token skasowany przy kolejce, która została na dysku, to skany
+// stracone na zawsze. Dlatego:
+//   * magazyn, którego nie da się otworzyć ani odczytać (WebKit „Connection to
+//     Indexed Database server lost", błąd wejścia-wyjścia, zablokowana baza),
+//     to NIEWYSŁANA PRACA, a nie „pusto" (`holdsScannerWork`);
+//   * token znika OSTATNI i tylko wtedy, gdy kolejka i magazyn offline
+//     potwierdziły skasowanie (`purgeScannerData`) - nieudane kasowanie
+//     zostawia token, a następny start portalu spróbuje znowu;
+//   * karta, w której skaner właśnie pracuje, trzyma blokadę
+//     (`scannerRuntimeLock.ts`) - sprzątanie z innej karty jej nie rusza.
 import {
   clearOutbox,
   clearStoredToken,
@@ -28,33 +40,41 @@ import {
   readStoredToken,
 } from "@/lib/events/scannerStorage";
 import { SCANNER_ORIGIN, scannerRelocationTarget } from "@/lib/events/scannerLink";
-import {
-  loadConflicts,
-  loadRejected,
-  wipeAllOfflineData,
-} from "@/lib/events/scannerOfflineStorage";
+import { countStoredSyncIssues, wipeAllOfflineData } from "@/lib/events/scannerOfflineStorage";
+import { whenScannerRuntimeIdle } from "@/lib/events/scannerRuntimeLock";
 
-/** Czy pod tym originem leży cokolwiek, czego przeniesienie nie może porzucić. */
+/**
+ * Czy pod tym originem leży cokolwiek, czego przeniesienie nie może porzucić.
+ * Magazyn nieczytelny = `true` (patrz nagłówek: fail closed).
+ */
 export async function holdsScannerWork(): Promise<boolean> {
-  const [queued, rejected, conflicts] = await Promise.all([
-    countStoredOutbox(),
-    loadRejected(),
-    loadConflicts(),
-  ]);
-  return queued > 0 || rejected.length > 0 || conflicts.length > 0;
+  const [queued, issues] = await Promise.all([countStoredOutbox(), countStoredSyncIssues()]);
+  if (queued === null || issues === null) return true;
+  return queued > 0 || issues > 0;
 }
 
-/** Wszystko, co skaner zostawił pod tym originem, znika - token też. */
-export async function purgeScannerData(): Promise<void> {
-  clearStoredToken();
-  await Promise.all([clearOutbox(), wipeAllOfflineData()]);
+/**
+ * Wszystko, co skaner zostawił pod tym originem, znika - token OSTATNI.
+ * `true` = kolejka i magazyn offline potwierdziły skasowanie, token zniknął;
+ * `false` = coś mogło zostać na dysku (token zostaje, żeby to dało się jeszcze
+ * otworzyć i wysłać) albo skaner pracuje w innej karcie (nic nie ruszone).
+ */
+export async function purgeScannerData(): Promise<boolean> {
+  const purged = await whenScannerRuntimeIdle(async () => {
+    const [queue, offline] = await Promise.all([clearOutbox(), wipeAllOfflineData()]);
+    if (!queue || !offline) return false;
+    clearStoredToken();
+    return true;
+  });
+  return purged === true;
 }
 
 /**
  * Sprzątanie resztek skanera pod originem PORTALU przy starcie dowolnej
  * strony (patrz nagłówek). `true` = token i dane zniknęły; `false` = nie ma
  * czego sprzątać (origin skanera nieskonfigurowany albo jesteśmy pod nim, brak
- * tokenu) albo pod tym originem leży niewysłana praca.
+ * tokenu), pod tym originem leży niewysłana praca (także: magazyn nieczytelny),
+ * kasowanie się nie powiodło albo skaner pracuje w innej karcie.
  */
 export async function purgeLeftoverScannerData(
   current: string,
@@ -63,6 +83,5 @@ export async function purgeLeftoverScannerData(
   if (scannerRelocationTarget(current, configured) === null) return false;
   if (readStoredToken() === null) return false;
   if (await holdsScannerWork()) return false;
-  await purgeScannerData();
-  return true;
+  return purgeScannerData();
 }

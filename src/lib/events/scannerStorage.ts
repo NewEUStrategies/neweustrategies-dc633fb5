@@ -50,9 +50,9 @@ import {
 } from "@/lib/events/scannerVault";
 
 /**
- * Klucz poświadczenia w `localStorage`. `__root.tsx` ma KOPIĘ tego literału
- * (sprzątanie resztek pod originem portalu bez importu modułów skanera na
- * ścieżce bootu) - parytet pilnuje `rootRoute.test.tsx`.
+ * Klucz poświadczenia w `localStorage`. `scannerLeftoverPurge.ts` ma KOPIĘ
+ * tego literału (sprzątanie resztek pod originem portalu bez importu modułów
+ * skanera na ścieżce bootu) - parytet pilnuje `rootRoute.test.tsx`.
  */
 export const SCANNER_TOKEN_STORAGE_KEY = "nes.scanner.device-token";
 const TOKEN_KEY = SCANNER_TOKEN_STORAGE_KEY;
@@ -66,6 +66,15 @@ export const OUTBOX_RECORD_VERSION = 2;
 
 function hasWindow(): boolean {
   return typeof window !== "undefined";
+}
+
+/**
+ * Czy przeglądarka w ogóle ma IndexedDB. Bez niego nic nie mogło trafić na
+ * dysk - „pusto" jest wtedy prawdą. Z nim baza, której nie da się otworzyć
+ * albo odczytać, NIE jest pusta, tylko nieznana (patrz `countStoredOutbox`).
+ */
+function hasIndexedDb(): boolean {
+  return hasWindow() && typeof window.indexedDB !== "undefined";
 }
 
 /* ------------------------------------------------------- poświadczenie --- */
@@ -128,7 +137,7 @@ export function isOutboxPersistent(): boolean {
 }
 
 function openDb(): Promise<IDBDatabase | null> {
-  if (!hasWindow() || typeof window.indexedDB === "undefined") return Promise.resolve(null);
+  if (!hasIndexedDb()) return Promise.resolve(null);
   return new Promise((resolve) => {
     let request: IDBOpenDBRequest;
     try {
@@ -293,13 +302,19 @@ export async function loadOutbox(key: CryptoKey | null = null): Promise<OutboxIt
 /**
  * Ile pozycji leży w kolejce na dysku - BEZ odczytu i przepisywania rekordów
  * (przeniesienie skanera pod osobny origin pyta o to, zanim ktokolwiek ma
- * klucz). Brak bazy = to, co jest w pamięci karty.
+ * klucz). Przeglądarka bez IndexedDB = to, co jest w pamięci karty.
+ *
+ * `null` = baza JEST, ale nie da się jej otworzyć ani odczytać (WebKit „Connection
+ * to Indexed Database server lost", błąd wejścia-wyjścia, zablokowana migracja).
+ * To NIE jest „pusto": mogą tam leżeć niewysłane skany zaszyfrowane kluczem
+ * z tokenu, więc wołający traktuje `null` jak niewysłaną pracę (fail closed).
  */
-export async function countStoredOutbox(): Promise<number> {
+export async function countStoredOutbox(): Promise<number | null> {
+  if (!hasIndexedDb()) return memoryQueue.length;
   const db = await openDb();
-  if (db === null) return memoryQueue.length;
+  if (db === null) return null;
   const read = await readQueueRecord(db);
-  if (!read.ok) return memoryQueue.length;
+  if (!read.ok) return null;
   return Array.isArray(read.value) ? read.value.length : 0;
 }
 
@@ -332,7 +347,8 @@ export async function openSealedItems(
   return changed ? next : null;
 }
 
-async function writeQueue(queue: readonly OutboxItem[], key: CryptoKey | null): Promise<void> {
+/** `true` = rekord kolejki trafił na dysk (transakcja zakończona). */
+async function writeQueue(queue: readonly OutboxItem[], key: CryptoKey | null): Promise<boolean> {
   let records: Record<string, unknown>[];
   try {
     records = await Promise.all(queue.map((item) => toStoredRecord(item, key)));
@@ -350,50 +366,53 @@ async function writeQueue(queue: readonly OutboxItem[], key: CryptoKey | null): 
   const db = await openDb();
   if (db === null) {
     memoryOnly = true;
-    return;
+    return false;
   }
-  await new Promise<void>((resolve) => {
+  return new Promise<boolean>((resolve) => {
+    const done = (stored: boolean) => {
+      if (!stored) memoryOnly = true;
+      db.close();
+      resolve(stored);
+    };
     try {
       const tx = db.transaction(STORE, "readwrite");
       tx.objectStore(STORE).put(records, OUTBOX_KEY);
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => {
-        memoryOnly = true;
-        db.close();
-        resolve();
-      };
-      tx.onabort = () => {
-        memoryOnly = true;
-        db.close();
-        resolve();
-      };
+      tx.oncomplete = () => done(true);
+      tx.onerror = () => done(false);
+      tx.onabort = () => done(false);
     } catch {
-      memoryOnly = true;
-      resolve();
+      done(false);
     }
   });
 }
 
 /**
  * Zapis kolejki (po kolei - patrz nagłówek). `key` szyfruje kody; `null`
- * oznacza zapis BEZ kodów (skrót i prefiks zostają). Nigdy nie rzuca.
+ * oznacza zapis BEZ kodów (skrót i prefiks zostają). Nigdy nie rzuca;
+ * `true` = kolejka trafiła na dysk, `false` = żyje tylko w pamięci karty.
  */
 export function saveOutbox(
   queue: readonly OutboxItem[],
   key: CryptoKey | null = null,
-): Promise<void> {
+): Promise<boolean> {
   memoryQueue = [...queue];
   const snapshot = [...queue];
   const run = writeChain.then(() => writeQueue(snapshot, key));
-  writeChain = run.catch(() => undefined);
+  writeChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
   return run;
 }
 
-/** Kolejka znika z urządzenia - z dysku, z pamięci karty i z pamięci bloków. */
-export async function clearOutbox(): Promise<void> {
+/**
+ * Kolejka znika z urządzenia - z dysku, z pamięci karty i z pamięci bloków.
+ * `true` = na dysku nie ma już kolejki (pusty rekord zapisany albo przeglądarka
+ * bez IndexedDB); `false` = baza odmówiła zapisu i stara kolejka MOŻE tam leżeć -
+ * sprzątanie pod originem portalu nie kasuje wtedy tokenu (`purgeScannerData`).
+ */
+export async function clearOutbox(): Promise<boolean> {
   sealCache.clear();
-  await saveOutbox([], null);
+  const stored = await saveOutbox([], null);
+  return stored || !hasIndexedDb();
 }
