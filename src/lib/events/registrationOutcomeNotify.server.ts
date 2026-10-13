@@ -23,10 +23,18 @@
 // Szablon, SMS i dzwonek czytają to z `registration_status` - a organizator
 // dostaje własny dzwonek, bo w każdym z tych trzech stanów to on ma ruch.
 //
-// Moduł server-only (klient service_role, token SMS).
+// SMS TYLKO ZA ZGODĄ I TYLKO PRZEZ BRAMKĘ (REG-10, D12). Każdy SMS stąd idzie
+// przez `sendParticipantSms` (wyłącznik `EVENT_SMS_ENABLED`, GSM-7, budżet
+// najemcy, dziennik idempotencji) i wyłącznie na zgłoszenie z `notify_sms`
+// ORAZ stemplem zgody. Dotąd moduł wołał `sendSms` wprost: SMS o płatności
+// wychodził przy samym tokenie operatora, z ogonkami w tytule (UCS-2, kilka
+// segmentów) i z „zgodą" wziętą z DEFAULT true.
+//
+// Moduł server-only (klient service_role).
 import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import type { TxDetail } from "@/lib/email-templates/transactional";
 import type { TxEmailType } from "@/lib/email-templates/tx-copy";
+import { composeSmsBody } from "@/lib/events/gsm7";
 import { paidAdmission, type PaidAdmission } from "@/lib/events/paidAdmission";
 
 /** Wyniki płatności, o których piszemy do uczestnika. */
@@ -97,48 +105,61 @@ const BELL_TITLES: Readonly<Record<NoticeKind, { pl: string; en: string }>> = {
   partial_refund: { pl: "Częściowy zwrot za bilet", en: "Partial ticket refund" },
 };
 
-/** Treść SMS-a: tytuł wydarzenia i (dla kolejki) pozycja, gdy baza ją podała. */
-interface SmsVars {
-  title: string;
-  position: number | null;
-}
+/**
+ * Szablon SMS-a: pozycja w kolejce (gdy baza ją podała), potem tytuł
+ * wydarzenia. Tytuł wstawia `composeSmsBody` (GSM-7, jeden segment) - szablon
+ * dostaje go już transliterowanego i przyciętego do budżetu septetów.
+ */
+type SmsTemplate = (position: number | null) => (title: string) => string;
 
 /**
  * Treści SMS-ów per rodzaj i język. BEZ OGONKÓW CELOWO: jeden znak spoza
  * GSM-7 przełącza całą wiadomość na UCS-2, połowi długość segmentu i podwaja
- * koszt wysyłki.
+ * koszt wysyłki. Ogonki z TYTUŁU zdejmuje `composeSmsBody` (REG-10) - dotąd
+ * „Kongres Bezpieczeństwa Łódź" wysyłał SMS w UCS-2 do 300 znaków, czyli
+ * kilka płatnych segmentów, z pominięciem bramki `sendParticipantSms`.
+ * Najdłuższy szkielet (paid_waitlisted/en z pozycją 9999) zostawia tytułowi
+ * ponad 20 septetów - pilnuje tego test „każdy szkielet mieści się w segmencie".
  */
-const SMS_BODIES: Readonly<Record<NoticeKind, Record<EmailLang, (v: SmsVars) => string>>> = {
+const SMS_BODIES: Readonly<Record<NoticeKind, Record<EmailLang, SmsTemplate>>> = {
   paid: {
-    pl: (v) => `Bilet oplacony: ${v.title}. Szczegoly wyslalismy mailem.`,
-    en: (v) => `Ticket paid: ${v.title}. Details are in your inbox.`,
+    pl: () => (title) => `Bilet oplacony: ${title}. Szczegoly wyslalismy mailem.`,
+    en: () => (title) => `Ticket paid: ${title}. Details are in your inbox.`,
   },
   paid_waitlisted: {
-    pl: (v) =>
-      `Platnosc za ${v.title} przyjeta - brak wolnych miejsc, jestes na liscie rezerwowej${v.position === null ? "" : ` (miejsce ${v.position})`}. Bilet wyslemy, gdy zwolni sie miejsce.`,
-    en: (v) =>
-      `Payment for ${v.title} received - no seat is free yet, you are on the waiting list${v.position === null ? "" : ` (position ${v.position})`}. We will send your ticket when a seat opens up.`,
+    pl: (position) => (title) =>
+      `Platnosc za ${title} przyjeta - brak wolnych miejsc, jestes na liscie rezerwowej${position === null ? "" : ` (miejsce ${position})`}. Bilet wyslemy, gdy zwolni sie miejsce.`,
+    en: (position) => (title) =>
+      `Payment for ${title} received - no seat is free yet, you are on the waiting list${position === null ? "" : ` (position ${position})`}. We will send your ticket when a seat opens up.`,
   },
   paid_pending: {
-    pl: (v) =>
-      `Platnosc za ${v.title} przyjeta - zgloszenie czeka na decyzje organizatora. Szczegoly w mailu.`,
-    en: (v) =>
-      `Payment for ${v.title} received - your registration awaits the organiser's decision. Details are in your inbox.`,
+    pl: () => (title) =>
+      `Platnosc za ${title} przyjeta - zgloszenie czeka na decyzje organizatora. Szczegoly w mailu.`,
+    en: () => (title) =>
+      `Payment for ${title} received - your registration awaits the organiser's decision. Details are in your inbox.`,
   },
   unpaid: {
-    pl: (v) =>
-      `Platnosc za bilet na ${v.title} nie przeszla - miejsce nie jest potwierdzone. Szczegoly w mailu.`,
-    en: (v) =>
-      `Payment for ${v.title} was declined - your seat is not confirmed. Details are in your inbox.`,
+    pl: () => (title) =>
+      `Platnosc za bilet na ${title} nie przeszla - miejsce nie jest potwierdzone. Szczegoly w mailu.`,
+    en: () => (title) =>
+      `Payment for ${title} was declined - your seat is not confirmed. Details are in your inbox.`,
   },
   refunded: {
-    pl: (v) => `Bilet na ${v.title} zostal anulowany, platnosc zwrocona. Szczegoly w mailu.`,
-    en: (v) => `Your ticket for ${v.title} was cancelled and refunded. Details are in your inbox.`,
+    pl: () => (title) => `Bilet na ${title} zostal anulowany, platnosc zwrocona. Szczegoly w mailu.`,
+    en: () => (title) =>
+      `Your ticket for ${title} was cancelled and refunded. Details are in your inbox.`,
   },
   partial_refund: {
-    pl: (v) => `Czesciowy zwrot za bilet na ${v.title}. Miejsce pozostaje zarezerwowane.`,
-    en: (v) => `Partial refund issued for ${v.title}. Your seat stays reserved.`,
+    pl: () => (title) => `Czesciowy zwrot za bilet na ${title}. Miejsce pozostaje zarezerwowane.`,
+    en: () => (title) => `Partial refund issued for ${title}. Your seat stays reserved.`,
   },
+};
+
+/** SMS o awansie z listy rezerwowej (ten sam kontrakt GSM-7). */
+const PROMOTED_SMS: Readonly<Record<EmailLang, (title: string) => string>> = {
+  pl: (title) =>
+    `Zwolnilo sie miejsce na ${title} - jestes na liscie uczestnikow. Szczegoly w mailu.`,
+  en: (title) => `A seat opened up for ${title} - you are in. Details are in your inbox.`,
 };
 
 /** Wpłata bez miejsca - stany, w których ruch ma organizator. */
@@ -315,10 +336,37 @@ function detailsFor(payload: TicketOutcomePayload, kind: NoticeKind, lang: Email
 }
 
 function smsBody(payload: TicketOutcomePayload, kind: NoticeKind, lang: EmailLang): string {
-  return SMS_BODIES[kind][lang]({
-    title: eventTitle(payload, lang),
-    position: waitlistPosition(payload),
-  });
+  return composeSmsBody(
+    SMS_BODIES[kind][lang](waitlistPosition(payload)),
+    eventTitle(payload, lang),
+  );
+}
+
+/**
+ * SMS o zgłoszeniu - WYŁĄCZNIE przez `sendParticipantSms` (REG-10): wyłącznik
+ * platformy (`EVENT_SMS_ENABLED`), GSM-7, budżet najemcy, dziennik
+ * idempotencji. Zgodę uczestnika sprawdza wołający (`readChannels`).
+ * `true` tylko dla SMS-a, który operator NAPRAWDĘ przyjął teraz - duplikat,
+ * wyłączony kanał i budżet to `false`. Nigdy nie rzuca: szablon za długi
+ * (`sms_template_too_long`) i awaria bramy kończą się śladem w logu.
+ */
+async function sendOutcomeSms(
+  input: { tenantId: string; to: string; idempotencyKey: string; body: () => string },
+  logLabel: string,
+): Promise<boolean> {
+  try {
+    const { sendParticipantSms } = await import("@/lib/events/participantNotify.server");
+    const result = await sendParticipantSms({
+      tenantId: input.tenantId,
+      to: input.to,
+      body: input.body(),
+      idempotencyKey: input.idempotencyKey,
+    });
+    return result.ok && !result.skipped;
+  } catch (err) {
+    console.error(logLabel, err);
+    return false;
+  }
 }
 
 /** Dzwonek w aplikacji - tylko dla zalogowanego uczestnika. Nigdy nie rzuca. */
@@ -369,7 +417,7 @@ async function notifyPromoted(payload: TicketOutcomePayload): Promise<number> {
     // po JEGO identyfikatorze - dokładnie tak, jak dla płacącego niżej. Pilność
     // awansu nie jest tu wyjątkiem: ścieżka pieniężna, co najmniej równie pilna,
     // preferencje respektuje.
-    const channels = await readChannels(registrationId);
+    const channels = await readChannels(registrationId, payload.tenant_id ?? null);
 
     if (channels.email) {
       const result = await sendTxEmail({
@@ -388,18 +436,23 @@ async function notifyPromoted(payload: TicketOutcomePayload): Promise<number> {
       if (result.ok && !result.skipped) sent += 1;
     }
 
-    if (channels.sms) {
-      const { sendSms } = await import("@/lib/notify/sms.server");
-      await sendSms({
-        to: str(row, "phone"),
-        body:
-          lang === "en"
-            ? `A seat opened up for ${title} - you are in. Details are in your inbox.`
-            : `Zwolnilo sie miejsce na ${title} - jestes na liscie uczestnikow. Szczegoly w mailu.`,
-        // Ten sam kontrakt co przy mailu o awansie: ponowione zdarzenie nie ma
-        // prawa dołożyć drugiego SMS-a.
-        idempotencyKey: `event-ticket-promoted-sms:${registrationId}`,
-      });
+    // ZMIANA 20261012 (REG-10): przez `sendParticipantSms` i tylko za zgodą
+    // zapisaną na TYM zgłoszeniu. Wiersz awansu z `_event_waitlist_promote`
+    // nie niesie dziś numeru - bez niego SMS-a po prostu nie ma.
+    const phone = str(row, "phone");
+    const tenantId = payload.tenant_id ?? null;
+    if (channels.sms && phone && tenantId) {
+      await sendOutcomeSms(
+        {
+          tenantId,
+          to: phone,
+          body: () => composeSmsBody(PROMOTED_SMS[lang], title),
+          // Ten sam kontrakt co przy mailu o awansie: ponowione zdarzenie nie ma
+          // prawa dołożyć drugiego SMS-a.
+          idempotencyKey: `event-ticket-promoted-sms:${registrationId}`,
+        },
+        "[events] waitlist promotion sms failed",
+      );
     }
   }
   return sent;
@@ -472,33 +525,59 @@ export interface OutcomeNotifyResult {
   organizerAlerted: number;
 }
 
-/** Kanały wybrane przez uczestnika na TYM zgłoszeniu (domyślnie oba włączone). */
+/** Kanały wybrane przez uczestnika na TYM zgłoszeniu. */
 interface Channels {
   email: boolean;
   sms: boolean;
 }
 
+/** Brak odczytu: mail o pieniądzach idzie, SMS nie (brak dowodu zgody). */
+const CHANNELS_UNKNOWN: Channels = { email: true, sms: false };
+
 /**
  * Centrum preferencji komunikacji jest PER ZGŁOSZENIE, nie per konto: na jedno
  * wydarzenie zapisuje się też gość bez konta, a osoba z kontem może chcieć
- * SMS-a o kongresie i ciszy o webinarze. Odczyt jest fail-soft - brak wiersza
- * albo błąd bazy nie może wyciszyć powiadomienia o pieniądzach.
+ * SMS-a o kongresie i ciszy o webinarze.
+ *
+ * DWIE RÓŻNE SEMANTYKI (ZMIANA 20261012, REG-10):
+ *   * e-mail - opt-out i fail-OPEN: tylko jawne `notify_email = false`
+ *     wycisza; brak wiersza albo błąd bazy nie może wyciszyć wiadomości
+ *     o pieniądzach;
+ *   * SMS - opt-in i fail-CLOSED: wymaga `notify_sms = true` ORAZ stempla
+ *     zgody `remind_sms_consent_at` (D12). Brak wiersza, błąd PostgREST
+ *     (dotąd ignorowany - `error` nie był nawet czytany) i rzut klienta to
+ *     brak dowodu zgody, czyli brak SMS-a.
+ * Odczyt idzie po identyfikatorze ORAZ najemcy z wyniku RPC - klient
+ * service_role omija RLS, więc filtr najemcy jest jedyną granicą. Bez
+ * najemcy nie czytamy wcale.
  */
-async function readChannels(registrationId: string): Promise<Channels> {
+async function readChannels(registrationId: string, tenantId: string | null): Promise<Channels> {
+  if (!tenantId) return CHANNELS_UNKNOWN;
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("event_registrations")
-      .select("notify_email, notify_sms")
+      .select("notify_email, notify_sms, remind_sms_consent_at")
       .eq("id", registrationId)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
+    if (error) {
+      console.error("[events] channel preferences read failed", {
+        code: error.code,
+        message: error.message,
+      });
+      return CHANNELS_UNKNOWN;
+    }
     return {
       email: data?.notify_email !== false,
-      sms: data?.notify_sms !== false,
+      sms:
+        data?.notify_sms === true &&
+        typeof data.remind_sms_consent_at === "string" &&
+        data.remind_sms_consent_at !== "",
     };
   } catch (err) {
     console.error("[events] channel preferences read failed", err);
-    return { email: true, sms: true };
+    return CHANNELS_UNKNOWN;
   }
 }
 
@@ -557,7 +636,7 @@ export async function notifyTicketOutcome(
   if (!type || !registrationId) return result;
 
   const lang = await resolveLang(contact.userId);
-  const channels = await readChannels(registrationId);
+  const channels = await readChannels(registrationId, payload.tenant_id ?? null);
   const suffix = options.idempotencySuffix ? `:${options.idempotencySuffix}` : "";
 
   if (contact.email && channels.email) {
@@ -582,21 +661,20 @@ export async function notifyTicketOutcome(
     }
   }
 
-  if (contact.phone && channels.sms) {
-    try {
-      const { sendSms } = await import("@/lib/notify/sms.server");
-      const sms = await sendSms({
+  const tenantId = payload.tenant_id ?? null;
+  if (contact.phone && channels.sms && tenantId) {
+    result.smsSent = await sendOutcomeSms(
+      {
+        tenantId,
         to: contact.phone,
-        body: smsBody(payload, kind, lang),
+        body: () => smsBody(payload, kind, lang),
         // Klucz zbudowany tak samo jak pocztowy - z samego zdarzenia, więc
         // ponowiony webhook nie wysyła drugiego SMS-a, a dopisek z panelu
         // świadomie omija bramkę.
         idempotencyKey: `event-ticket-sms:${registrationId}:${outcome}:${payload.refunded_cents ?? 0}${suffix}`,
-      });
-      result.smsSent = sms.ok && !sms.skipped;
-    } catch (err) {
-      console.error("[events] ticket outcome sms failed", err);
-    }
+      },
+      "[events] ticket outcome sms failed",
+    );
   }
 
   // Dzwonek nie ma klucza idempotencji jak poczta i SMS, więc ponowiony

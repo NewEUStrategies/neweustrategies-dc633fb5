@@ -15,6 +15,14 @@
 // wysyłki. Gdy zamknięcie się nie uda, wpisy wrócą po 15 minutach, a klucz
 // idempotencji poczty i SMS-a (= klucz deduplikacji) nie wyśle ich drugi raz.
 //
+// SMS: „WYSŁANE" TYLKO PO PRZYJĘCIU PRZEZ OPERATORA (REG-11). Dziennik
+// `sms_send_log` zapisuje sukces dopiero po odpowiedzi operatora, więc
+// `duplicate` znaczy „ten SMS naprawdę wyszedł" i wolno go potwierdzić jako
+// wysłany. Błąd operatora to `failed` - dziennik doręczeń ponowi wpis
+// (attempts < 3), a dziennik SMS odda klucz do ponownej wysyłki. `in_flight`
+// (ten sam SMS wysyła właśnie inny proces) też jest `failed`: ponowienie po
+// 10 minutach zastanie albo `duplicate`, albo przejętą rezerwację.
+//
 // IMPORTY STATYCZNE: harmonogram ładuje ten moduł leniwie (`import()` w ticku
 // i w cronie społeczności), więc wysyłka nie płaci za `import()` na każde
 // doręczenie.
@@ -95,13 +103,21 @@ async function deliverSms(claim: ReminderClaim): Promise<ReminderOutcome> {
     idempotencyKey: reminderIdempotencyKey(claim),
   });
   if ("skipped" in result && result.skipped !== undefined) {
-    // `duplicate` = ten sam SMS wyszedł już z innego harmonogramu.
+    // `duplicate` = dziennik SMS ma ten klucz jako PRZYJĘTY przez operatora
+    // (inny harmonogram albo wcześniejsza próba) - potwierdzenie jest prawdą.
     if (result.skipped === "duplicate") {
       return { id: claim.deliveryId, status: "sent", detail: "duplicate" };
+    }
+    // Ten sam SMS wysyła teraz inny proces - nie wiemy jeszcze, czy wyjdzie.
+    if (result.skipped === "in_flight") {
+      return { id: claim.deliveryId, status: "failed", detail: "sms_in_flight" };
     }
     return { id: claim.deliveryId, status: "skipped", detail: result.skipped };
   }
   if (result.ok) return { id: claim.deliveryId, status: "sent" };
+  if ("error" in result && result.error === "sms_retry_exhausted") {
+    return { id: claim.deliveryId, status: "failed", detail: "sms_retry_exhausted" };
+  }
   return { id: claim.deliveryId, status: "failed", detail: "sms_send_failed" };
 }
 
