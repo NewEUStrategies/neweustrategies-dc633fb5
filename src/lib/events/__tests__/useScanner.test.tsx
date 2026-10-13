@@ -46,6 +46,11 @@ import type {
   SentCheckinOutcome,
   SentLeadOutcome,
 } from "@/lib/events/useScanner";
+// Atrapy magazynów są typowane kontraktem modułu (`satisfies`): funkcja, która
+// zmieni zwracany typ (np. `Promise<boolean>` zamiast `Promise<void>`), zatrzyma
+// typecheck, zamiast przejść cicho z atrapą oddającą `undefined`.
+import type * as ScannerStorageModule from "@/lib/events/scannerStorage";
+import type * as ScannerOfflineStorageModule from "@/lib/events/scannerOfflineStorage";
 
 /* --------------------------------------------------------------- atrapy --- */
 
@@ -75,79 +80,84 @@ const store = vi.hoisted(() => ({
   clears: 0,
 }));
 
-vi.mock("@/lib/events/scannerOfflineStorage", () => ({
-  isOfflineStoragePersistent: () => store.persistent,
-  saveCachedSession: (value: CachedSession) => {
-    store.session = value;
-    return Promise.resolve();
-  },
-  loadCachedSession: (hash: string) =>
-    Promise.resolve(
-      store.session !== null && store.session.tokenHash === hash ? store.session : null,
-    ),
-  saveRoster: (snapshot: RosterSnapshot | null) => {
-    store.roster = snapshot;
-    return Promise.resolve();
-  },
-  loadRoster: (deviceId: string) =>
-    Promise.resolve(
-      store.roster !== null && store.roster.deviceId === deviceId ? store.roster : null,
-    ),
-  saveDecisionLog: (log: LocalDecisionLogEntry[]) => {
-    store.log = [...log];
-    return Promise.resolve();
-  },
-  loadDecisionLog: () => Promise.resolve([...store.log]),
-  saveRejected: (list: RejectedScan[]) => {
-    store.rejected = [...list];
-    return Promise.resolve();
-  },
-  loadRejected: () => Promise.resolve([...store.rejected]),
-  saveConflicts: (list: ScanConflict[]) => {
-    store.conflicts = [...list];
-    return Promise.resolve();
-  },
-  loadConflicts: () => Promise.resolve([...store.conflicts]),
-  wipeOfflineSession: () => {
-    store.session = null;
-    store.marker = null;
-    store.roster = null;
-    store.log = [];
-    store.wipes += 1;
-    return Promise.resolve();
-  },
-  wipeRoster: () => {
-    store.roster = null;
-    store.log = [];
-    store.rosterWipes += 1;
-    return Promise.resolve();
-  },
-  clearSyncIssues: () => {
-    store.rejected = [];
-    store.conflicts = [];
-    store.clears += 1;
-    return Promise.resolve();
-  },
-  // Odłączenie (OPS-06) kasuje wszystko naraz - także odrzucone i konflikty.
-  wipeAllOfflineData: () => {
-    store.session = null;
-    store.marker = null;
-    store.roster = null;
-    store.log = [];
-    store.rejected = [];
-    store.conflicts = [];
-    store.wipes += 1;
-    return Promise.resolve();
-  },
-  purgeExpiredRoster: () => Promise.resolve(false),
-  // Znacznik kolejki (OPS-12) - sejf ma własne testy; tu pamięć w RAM.
-  saveQueueMarker: (deviceId: string, marker: QueueMarker) => {
-    store.marker = { deviceId, marker };
-    return Promise.resolve(true);
-  },
-  loadQueueMarker: (deviceId: string) =>
-    Promise.resolve(store.marker?.deviceId === deviceId ? store.marker.marker : null),
-}));
+vi.mock(
+  "@/lib/events/scannerOfflineStorage",
+  () =>
+    ({
+      isOfflineStoragePersistent: () => store.persistent,
+      saveCachedSession: (value: CachedSession) => {
+        store.session = value;
+        return Promise.resolve();
+      },
+      loadCachedSession: (hash: string) =>
+        Promise.resolve(
+          store.session !== null && store.session.tokenHash === hash ? store.session : null,
+        ),
+      saveRoster: (snapshot: RosterSnapshot | null) => {
+        store.roster = snapshot;
+        return Promise.resolve();
+      },
+      loadRoster: (deviceId: string) =>
+        Promise.resolve(
+          store.roster !== null && store.roster.deviceId === deviceId ? store.roster : null,
+        ),
+      saveDecisionLog: (log: readonly LocalDecisionLogEntry[]) => {
+        store.log = [...log];
+        return Promise.resolve();
+      },
+      loadDecisionLog: () => Promise.resolve([...store.log]),
+      saveRejected: (list: readonly RejectedScan[]) => {
+        store.rejected = [...list];
+        return Promise.resolve();
+      },
+      loadRejected: () => Promise.resolve([...store.rejected]),
+      saveConflicts: (list: readonly ScanConflict[]) => {
+        store.conflicts = [...list];
+        return Promise.resolve();
+      },
+      loadConflicts: () => Promise.resolve([...store.conflicts]),
+      wipeOfflineSession: () => {
+        store.session = null;
+        store.marker = null;
+        store.roster = null;
+        store.log = [];
+        store.wipes += 1;
+        return Promise.resolve();
+      },
+      wipeRoster: () => {
+        store.roster = null;
+        store.log = [];
+        store.rosterWipes += 1;
+        return Promise.resolve();
+      },
+      clearSyncIssues: () => {
+        store.rejected = [];
+        store.conflicts = [];
+        store.clears += 1;
+        return Promise.resolve();
+      },
+      // Odłączenie (OPS-06) kasuje wszystko naraz - także odrzucone i konflikty.
+      wipeAllOfflineData: () => {
+        store.session = null;
+        store.marker = null;
+        store.roster = null;
+        store.log = [];
+        store.rejected = [];
+        store.conflicts = [];
+        store.wipes += 1;
+        // Kontrakt `wipeAllOfflineData`: `true` = kasowanie dotarło na dysk.
+        return Promise.resolve(true);
+      },
+      purgeExpiredRoster: () => Promise.resolve(false),
+      // Znacznik kolejki (OPS-12) - sejf ma własne testy; tu pamięć w RAM.
+      saveQueueMarker: (deviceId: string, marker: QueueMarker) => {
+        store.marker = { deviceId, marker };
+        return Promise.resolve(true);
+      },
+      loadQueueMarker: (deviceId: string) =>
+        Promise.resolve(store.marker?.deviceId === deviceId ? store.marker.marker : null),
+    }) satisfies Partial<typeof ScannerOfflineStorageModule>,
+);
 
 /** Pamiec urzadzenia w RAM - bez localStorage i bez IndexedDB. */
 const device = vi.hoisted(() => ({
@@ -156,27 +166,32 @@ const device = vi.hoisted(() => ({
   persistent: true,
 }));
 
-vi.mock("@/lib/events/scannerStorage", () => ({
-  readStoredToken: () => device.token,
-  writeStoredToken: (token: string) => {
-    device.token = token;
-  },
-  clearStoredToken: () => {
-    device.token = null;
-  },
-  isOutboxPersistent: () => device.persistent,
-  loadOutbox: () => Promise.resolve([...device.queue]),
-  saveOutbox: (queue: readonly OutboxItem[]) => {
-    device.queue = [...queue];
-    return Promise.resolve();
-  },
-  // Sejf (OPS-06) ma własne testy - tu pamięć urządzenia trzyma pozycje jawnie.
-  openSealedItems: () => Promise.resolve(null),
-  clearOutbox: () => {
-    device.queue = [];
-    return Promise.resolve();
-  },
-}));
+vi.mock(
+  "@/lib/events/scannerStorage",
+  () =>
+    ({
+      readStoredToken: () => device.token,
+      writeStoredToken: (token: string) => {
+        device.token = token;
+      },
+      clearStoredToken: () => {
+        device.token = null;
+      },
+      isOutboxPersistent: () => device.persistent,
+      loadOutbox: () => Promise.resolve([...device.queue]),
+      saveOutbox: (queue: readonly OutboxItem[]) => {
+        device.queue = [...queue];
+        return Promise.resolve(true);
+      },
+      // Sejf (OPS-06) ma własne testy - tu pamięć urządzenia trzyma pozycje jawnie.
+      openSealedItems: () => Promise.resolve(null),
+      // Kontrakt `clearOutbox`: `true` = kolejki nie ma już na dysku.
+      clearOutbox: () => {
+        device.queue = [];
+        return Promise.resolve(true);
+      },
+    }) satisfies Partial<typeof ScannerStorageModule>,
+);
 
 const { useScannerRuntime } = await import("@/lib/events/useScanner");
 

@@ -17,6 +17,11 @@
 //
 // ODMOWA PO PRÓBIE, NIE OD WEJŚCIA - ta sama zasada co w kreatorze wydarzenia:
 // zdanie o brakującym polu nad świeżo otwartym formularzem czyta się jak awaria.
+//
+// TERMIN JEST ZEGAREM W STREFIE NOWEJ EDYCJI (klasa OPS-15), jak w kreatorze:
+// pola pokazują godzinę w strefie z droplisty, nie przeglądarki, pod nimi
+// stoi ta strefa (albo zdanie o luce/zakładce zmiany czasu), a zmiana strefy
+// zostawia godzinę - tak samo przesuwa program sam klon (`eventCloneDraft.ts`).
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -50,6 +55,7 @@ import {
   eventCloneIssue,
   type EventCloneDraft,
 } from "@/lib/events/eventCloneDraft";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
 import {
   CLONE_INCLUDE_COUNT_KEYS,
   CLONE_INCLUDE_HINT_KEYS,
@@ -67,6 +73,7 @@ import { useEventClonePreview } from "@/lib/events/useEventClone";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { uiLang } from "@/lib/i18n/format";
 import { ensureCloneI18n } from "@/lib/i18n-admin-event-clone";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 export function EventCloneForm({
   source,
@@ -85,6 +92,8 @@ export function EventCloneForm({
   onDraftChange?: (draft: EventCloneDraft) => void;
 }) {
   ensureCloneI18n();
+  // Podpowiedź strefy pod terminem (`adminEvents.eventTime.*`).
+  ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const context = useMemo(() => cloneSourceContext(source), [source]);
@@ -103,6 +112,13 @@ export function EventCloneForm({
   const issue = eventCloneIssue(draft, context.externalMode);
   const blocked = (preview?.blockers.length ?? 0) > 0;
   const zones = timeZoneOptions(draft.timezone);
+
+  /** Podpowiedź pola terminu: zdanie pola + strefa edycji (albo luka/zakładka). */
+  const timeHint = (field: "startsAt" | "endsAt", base: string): string =>
+    `${base} ${
+      eventLocalInputHint(t, lang, draft[field], draft.timezone, draft.savedTimes[field] ?? null) ??
+      ""
+    }`.trim();
 
   const update = (patch: Partial<EventCloneDraft>) =>
     setDraft((current) => ({ ...current, ...patch }));
@@ -206,16 +222,16 @@ export function EventCloneForm({
             <AdminFormDateTimeRow
               id="event-clone-starts-at"
               label={t("adminEventClone.fields.startsAt")}
-              hint={t("adminEventClone.fields.startsAtHint")}
+              hint={timeHint("startsAt", t("adminEventClone.fields.startsAtHint"))}
               value={draft.startsAt}
               onValueChange={(value) => update({ startsAt: value })}
             />
             <AdminFormDateTimeRow
               id="event-clone-ends-at"
               label={t("adminEventClone.fields.endsAt")}
-              hint={t("adminEventClone.fields.endsAtHint")}
+              hint={timeHint("endsAt", t("adminEventClone.fields.endsAtHint"))}
               value={draft.endsAt}
-              minDate={draft.startsAt === "" ? undefined : new Date(draft.startsAt)}
+              min={draft.startsAt}
               onValueChange={(value) => update({ endsAt: value })}
             />
           </div>

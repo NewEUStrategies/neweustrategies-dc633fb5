@@ -377,7 +377,7 @@ export function EventSponsorsSection({ row }: { row: AdminEventDetailRow }) {
           <TabsTrigger value="tiers">{t("adminEventSponsors.nav.tiers")}</TabsTrigger>
         </TabsList>
         <TabsContent value="board">
-          <SponsorSectionsBoard key={eventId} eventId={eventId} />
+          <SponsorSectionsBoard key={eventId} eventId={eventId} timezone={row.timezone} />
         </TabsContent>
         <TabsContent value="sponsors">
           <SponsorsListPanel key={eventId} eventId={eventId} />

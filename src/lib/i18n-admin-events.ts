@@ -650,6 +650,12 @@ export const adminEventsPl = {
         beginsLabel: "Początek",
         endsLabel: "Koniec",
         timeZoneLabel: "Strefa czasowa",
+        // Regula zmiany strefy na „Informacjach ogolnych": chwile zostaja, godziny
+        // w polach sie przeliczaja (uzasadnienie w `lib/events/eventGeneralDraft.ts`).
+        timeZoneKeepsInstants:
+          "Zmiana strefy nie przesuwa wydarzenia: początek, koniec, sesje i bilety zostają w tych samych chwilach, a godziny w polach przeliczą się na nową strefę.",
+        timeZoneConverted:
+          "Godziny przeliczone z {{previous}} na {{zone}} - wydarzenie, sesje i bilety zostają w tych samych chwilach. Jeśli wydarzenie ma się zaczynać o innej godzinie lokalnej, popraw ją w polu.",
         contentLanguage: "Przełącz język edytowanej treści",
         cover: "Okładka i nagłówek",
         coverDescription:
@@ -793,6 +799,7 @@ export const adminEventsPl = {
           externalUrlInvalid: "Adres musi zaczynać się od https:// i nie zawierać spacji.",
           externalUrlTooLong: "Adres może mieć najwyżej 2048 znaków.",
           tierRankInvalid: "Ranga warstwy to liczba całkowita nie mniejsza od zera.",
+          rsvpOpensInvalid: "Podaj pełną datę i godzinę otwarcia zapisów albo wyczyść pole.",
           capacityInvalid:
             "Limit miejsc to liczba całkowita większa od zera. Zostaw pole puste, żeby nie ustawiać limitu.",
           priceInvalid:
@@ -1798,6 +1805,12 @@ export const adminEventsEn = {
         beginsLabel: "Starts",
         endsLabel: "Ends",
         timeZoneLabel: "Time zone",
+        // Regula zmiany strefy na „Informacjach ogolnych": chwile zostaja, godziny
+        // w polach sie przeliczaja (uzasadnienie w `lib/events/eventGeneralDraft.ts`).
+        timeZoneKeepsInstants:
+          "Changing the zone does not move the event: the start, end, sessions and tickets keep their instants, and the hours in the fields are converted to the new zone.",
+        timeZoneConverted:
+          "Hours converted from {{previous}} to {{zone}} - the event, its sessions and tickets keep the same instants. If the event should start at a different local hour, correct it in the field.",
         contentLanguage: "Switch the language of the content being edited",
         cover: "Cover and header",
         coverDescription:
@@ -1925,6 +1938,7 @@ export const adminEventsEn = {
           externalUrlInvalid: "The address must start with https:// and contain no spaces.",
           externalUrlTooLong: "The address may be at most 2048 characters long.",
           tierRankInvalid: "A tier rank is a whole number no smaller than zero.",
+          rsvpOpensInvalid: "Give the full date and time sign-ups open, or clear the field.",
           capacityInvalid:
             "The seat limit is a whole number greater than zero. Leave the field empty to set no limit.",
           priceInvalid:

@@ -8,6 +8,10 @@
 //
 // PLAN JEST OPCJONALNY. Program często układa się dopiero po zamknięciu naboru;
 // przyjęcie bez terminu jest pełnoprawne, a sesję dodaje się później w agendzie.
+//
+// TERMIN SESJI JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), tak jak
+// w dialogu sesji agendy: pod polami stoi ta strefa albo zdanie o luce lub
+// zakładce zmiany czasu (`eventLocalInputHint`).
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -32,8 +36,10 @@ import {
   type CfpAcceptDraft,
 } from "@/lib/events/cfpReviewDraft";
 import type { CfpRoomOption, CfpTrackOption } from "@/lib/events/cfpSurface";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
 import { uiLang } from "@/lib/i18n/format";
 import { ensureAdminEventCfpI18n } from "@/lib/i18n-admin-event-cfp";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 /** Wartownik „brak" - Radix Select zabrania pustego `value`. */
 const NONE = "__none__";
@@ -51,6 +57,7 @@ export function CfpAcceptDialog({
   decisionNote,
   feedbackToSpeaker,
   trackId,
+  timeZone,
   tracks,
   rooms,
   isSaving,
@@ -63,30 +70,35 @@ export function CfpAcceptDialog({
   feedbackToSpeaker: string;
   /** Ścieżka ze zgłoszenia - podpowiedź dla szkicu sesji. */
   trackId: string | null;
+  /** Strefa wydarzenia (`events.timezone`) - termin sesji jest zegarem w niej. */
+  timeZone: string | null;
   tracks: readonly CfpTrackOption[];
   rooms: readonly CfpRoomOption[];
   isSaving: boolean;
   onSubmit: (input: CfpAcceptInput) => void;
 }) {
   ensureAdminEventCfpI18n();
+  ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const [draft, setDraft] = useState<CfpAcceptDraft>(() =>
-    cfpAcceptDraftFrom({ decisionNote, feedbackToSpeaker, trackId }),
+    cfpAcceptDraftFrom({ decisionNote, feedbackToSpeaker, trackId, timeZone }),
   );
   const [touched, setTouched] = useState(false);
 
   // Każde otwarcie zaczyna od tego, co organizator wpisał w formularzu decyzji.
   useEffect(() => {
     if (!open) return;
-    setDraft(cfpAcceptDraftFrom({ decisionNote, feedbackToSpeaker, trackId }));
+    setDraft(cfpAcceptDraftFrom({ decisionNote, feedbackToSpeaker, trackId, timeZone }));
     setTouched(false);
-  }, [open, decisionNote, feedbackToSpeaker, trackId]);
+  }, [open, decisionNote, feedbackToSpeaker, trackId, timeZone]);
 
   const set = <K extends keyof CfpAcceptDraft>(key: K, value: CfpAcceptDraft[K]) =>
     setDraft((previous) => ({ ...previous, [key]: value }));
 
   const issue = cfpAcceptIssue(draft);
+  const timeHint = (field: "startsAt" | "endsAt"): string =>
+    eventLocalInputHint(t, lang, draft[field], draft.timeZone) ?? "";
   const submit = () => {
     setTouched(true);
     if (issue !== null) return;
@@ -126,12 +138,14 @@ export function CfpAcceptDialog({
                   id="cfp-accept-starts"
                   label={t("adminEventCfp.accept.startsAt")}
                   value={draft.startsAt}
+                  hint={timeHint("startsAt")}
                   onValueChange={(value) => set("startsAt", value)}
                 />
                 <AdminFormDateTimeRow
                   id="cfp-accept-ends"
                   label={t("adminEventCfp.accept.endsAt")}
                   value={draft.endsAt}
+                  hint={timeHint("endsAt")}
                   error={
                     touched && issue === "adminEventCfp.accept.validation.schedule"
                       ? t(issue)

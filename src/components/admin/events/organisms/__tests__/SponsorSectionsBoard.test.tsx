@@ -236,8 +236,8 @@ vi.mock("@/components/admin/events/molecules/SponsorSectionCard", async (importO
 });
 
 vi.mock("@/components/admin/events/organisms/EventHomeAdsPanel", () => ({
-  EventHomeAdsPanel: ({ eventId }: { eventId: string }) => (
-    <div data-testid="reklamy" data-wydarzenie={eventId} />
+  EventHomeAdsPanel: ({ eventId, timezone }: { eventId: string; timezone: string | null }) => (
+    <div data-testid="reklamy" data-wydarzenie={eventId} data-strefa={timezone ?? ""} />
   ),
 }));
 
@@ -469,7 +469,7 @@ function trzySekcje(): EventSponsorTierRow[] {
 }
 
 function tablica() {
-  return render(<SponsorSectionsBoard eventId={WYDARZENIE} />);
+  return render(<SponsorSectionsBoard eventId={WYDARZENIE} timezone="Europe/Warsaw" />);
 }
 
 const tytulyKart = (): string[] =>
@@ -558,6 +558,9 @@ describe("lista sekcji", () => {
     );
     expect(h.zapytaniaSponsorow[0]).toEqual({ eventId: WYDARZENIE, limit: 500 });
     expect(screen.getByTestId("reklamy").getAttribute("data-wydarzenie")).toBe(WYDARZENIE);
+    // Harmonogram reklam jest zegarem strefy wydarzenia (OPS-15) - tablica
+    // podaje ją panelowi reklam dalej.
+    expect(screen.getByTestId("reklamy").getAttribute("data-strefa")).toBe("Europe/Warsaw");
     expect(screen.getByRole("heading", { level: 3, name: `${S}.title` })).toBeTruthy();
     expect(screen.getByText(`${S}.lead`)).toBeTruthy();
   });
@@ -762,7 +765,7 @@ describe("zmiana kolejności sekcji", () => {
       rank: zapis.get(tier.id)?.rank ?? tier.rank,
       sort_order: zapis.get(tier.id)?.sortOrder ?? tier.sort_order,
     }));
-    widok.rerender(<SponsorSectionsBoard eventId={WYDARZENIE} />);
+    widok.rerender(<SponsorSectionsBoard eventId={WYDARZENIE} timezone="Europe/Warsaw" />);
     expect(tytulyKart()).toEqual(["Srebrni partnerzy", "Złoci partnerzy", "Patroni medialni"]);
   });
 

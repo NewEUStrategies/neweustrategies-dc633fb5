@@ -29,8 +29,10 @@ const VALID: EventGeneralDraft = {
   subtitlePl: "Wyzwania dla Europy",
   subtitleEn: "Challenges for Europe",
   slug: "kongres-2026",
-  startsAt: "2026-09-14T08:00:00.000Z",
-  endsAt: "2026-09-15T16:00:00.000Z",
+  // Zegar w strefie wydarzenia (`timezone`), nie chwila ISO - patrz
+  // `eventZoneAdminForms.test.ts` dla przeliczen przy obcej strefie maszyny.
+  startsAt: "2026-09-14T10:00",
+  endsAt: "2026-09-15T18:00",
   timezone: "Europe/Warsaw",
   coverUrl: "https://example.org/cover.jpg",
   videoPlatform: "youtube",
@@ -47,6 +49,7 @@ const VALID: EventGeneralDraft = {
   socialHashtag: "NES2026",
   languages: ["pl", "en"],
   supportEmail: "kontakt@example.org",
+  savedTimes: {},
 };
 
 function draft(patch: Partial<EventGeneralDraft>): EventGeneralDraft {
@@ -89,12 +92,19 @@ describe("walidacja informacji ogolnych", () => {
 
   it("nie przepuszcza konca rownego poczatkowi ani wczesniejszego", () => {
     expect(fields({ endsAt: VALID.startsAt })).toEqual(["endsAt"]);
-    expect(fields({ endsAt: "2026-09-13T08:00:00.000Z" })).toEqual(["endsAt"]);
+    expect(fields({ endsAt: "2026-09-13T10:00" })).toEqual(["endsAt"]);
   });
 
   it("koniec pozniejszy niz poczatek NIE jest bledem", () => {
-    expect(fields({ endsAt: "2026-09-14T08:00:00.001Z" })).toEqual([]);
+    expect(fields({ endsAt: "2026-09-14T10:01" })).toEqual([]);
     expect(fields({ endsAt: "" })).toEqual([]);
+  });
+
+  it("poczatek albo koniec bez chwili (napis niepelny) nie przechodzi", () => {
+    // Pole niepelne nie daje chwili; ladunek wyslalby pusty napis, czyli
+    // wymazalby koniec po cichu - wiec walidacja go zatrzymuje.
+    expect(fields({ startsAt: "2026-09-14" })).toContain("startsAt");
+    expect(fields({ endsAt: "2026-02-30T10:00" })).toEqual(["endsAt"]);
   });
 
   it("wymaga strefy czasowej", () => {
@@ -187,12 +197,12 @@ describe("ostrzezenia informacji ogolnych", () => {
     // Granica pilnuje literowki w roku daty konca - ale kongres trwajacy
     // miesiac jest mozliwy, wiec rowne 30 dni musi milczec.
     const trzydziesci = draft({
-      startsAt: "2026-01-01T00:00:00.000Z",
-      endsAt: "2026-01-31T00:00:00.000Z",
+      startsAt: "2026-01-01T00:00",
+      endsAt: "2026-01-31T00:00",
     });
     const trzydziesciJeden = draft({
-      startsAt: "2026-01-01T00:00:00.000Z",
-      endsAt: "2026-02-01T00:00:00.000Z",
+      startsAt: "2026-01-01T00:00",
+      endsAt: "2026-02-01T00:00",
     });
     expect(eventGeneralWarnings(trzydziesci)).not.toContain(
       "adminEvents.general.warnings.veryLong",
@@ -406,8 +416,8 @@ describe("szkic z wiersza RPC", () => {
       title_pl: "Kongres",
       title_en: "Congress",
       slug: "kongres-2026",
-      starts_at: "2026-09-14T08:00:00.000Z",
-      ends_at: "2026-09-15T16:00:00.000Z",
+      starts_at: "2026-09-14T08:00:00+00:00",
+      ends_at: "2026-09-15T16:00:00+00:00",
       timezone: "Europe/Warsaw",
       cover_url: "https://example.org/cover.jpg",
       video_header_platform: "vimeo",
@@ -424,6 +434,13 @@ describe("szkic z wiersza RPC", () => {
     expect(draftFromRow.format).toBe("hybrid");
     expect(draftFromRow.postalCode).toBe("00-001");
     expect(draftFromRow.languages).toEqual(["en", "pl"]);
+    // Termin jako zegar Warszawy (CEST, +2), chwile z bazy w postaci kanonicznej.
+    expect(draftFromRow.startsAt).toBe("2026-09-14T10:00");
+    expect(draftFromRow.endsAt).toBe("2026-09-15T18:00");
+    expect(draftFromRow.savedTimes).toEqual({
+      startsAt: "2026-09-14T08:00:00.000Z",
+      endsAt: "2026-09-15T16:00:00.000Z",
+    });
   });
 
   it("nieznane pole degraduje do wartosci bezpiecznej, a nie wywraca ekranu", () => {
@@ -442,6 +459,8 @@ describe("szkic z wiersza RPC", () => {
   it("pusty wiersz daje szkic z pustymi polami, nie z undefined", () => {
     const draftFromRow = eventGeneralDraftFromRow({});
     expect(draftFromRow.slug).toBe("");
+    expect(draftFromRow.startsAt).toBe("");
+    expect(draftFromRow.savedTimes).toEqual({ startsAt: null, endsAt: null });
     expect(draftFromRow.coverUrl).toBe("");
     expect(draftFromRow.languages).toEqual([]);
     expect(draftFromRow.format).toBe("onsite");

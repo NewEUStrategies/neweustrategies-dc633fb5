@@ -15,6 +15,12 @@
 // ADRES PUBLICZNY JEST POD KLODKA. Zmiana slugu opublikowanego wydarzenia psuje
 // linki w wyslanych e-mailach i w mediach spolecznosciowych, wiec pole jest
 // zamkniete do momentu swiadomego klikniecia olowka.
+//
+// TERMIN JEST ZEGAREM W STREFIE WYDARZENIA, tak jak w kreatorze (klasa OPS-15).
+// Pola pokazuja godzine w strefie z droplisty obok, a nie w strefie
+// przegladarki; pod kazdym stoi strefa (albo zdanie o luce/zakladce zmiany
+// czasu), a pod droplista - regula jej zmiany: chwile zostaja, godziny sie
+// przeliczaja (`eventGeneralWithTimeZone`, uzasadnienie w `eventGeneralDraft`).
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -47,8 +53,10 @@ import {
   eventAddressLine,
   eventGeneralDirty,
   eventGeneralDraftFromRow,
+  eventGeneralInstant,
   eventGeneralPayload,
   eventGeneralWarnings,
+  eventGeneralWithTimeZone,
   parseVideoId,
   validateEventGeneralDraft,
   type EventGeneralDraft,
@@ -56,6 +64,8 @@ import {
   type EventVideoPlatform,
 } from "@/lib/events/eventGeneralDraft";
 import { eventLanguageOptions } from "@/lib/events/eventLanguages";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 import { EVENT_FORMATS, EVENT_FORMAT_LABEL_KEYS, type EventFormat } from "@/lib/events/eventTypes";
 import { useSaveEventGeneral } from "@/lib/events/useAdminEventDetail";
 import { useEventTypes } from "@/lib/events/useEventTypes";
@@ -111,8 +121,9 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
     subtitlePl: draft.subtitlePl,
     subtitleEn: draft.subtitleEn,
     slug: draft.slug,
-    startsAt: draft.startsAt,
-    endsAt: draft.endsAt,
+    // Dok formatuje CHWILE w strefie wydarzenia - pola sa zegarem tej strefy.
+    startsAt: eventGeneralInstant(draft, "startsAt") ?? "",
+    endsAt: eventGeneralInstant(draft, "endsAt") ?? "",
     timezone: draft.timezone,
     format: draft.format,
     coverUrl: draft.coverUrl,
@@ -142,6 +153,15 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
   const origin = browserPublicOrigin();
   const languages = eventLanguageOptions(i18n.language);
   const zones = timeZoneOptions(draft.timezone);
+
+  // Strefa, w ktorej pola SA zegarem (nieznana `Intl` -> domyslna serwisu), i ta,
+  // w ktorej zapisany jest wiersz - roznica znaczy, ze godziny w polach
+  // przeliczyly sie z jednej na druga.
+  const zone = eventTimeZone({ timezone: draft.timezone });
+  const savedZone = eventTimeZone({ timezone: saved.timezone });
+  const timeHint = (field: "startsAt" | "endsAt"): string =>
+    eventLocalInputHint(t, lang, draft[field], draft.timezone, draft.savedTimes[field] ?? null) ??
+    "";
 
   const copyId = () => {
     void navigator.clipboard?.writeText(row.id).then(
@@ -247,6 +267,7 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
             id="event-begins"
             label={t("adminEvents.studio.general.beginsLabel")}
             value={draft.startsAt}
+            hint={timeHint("startsAt")}
             error={errorFor("startsAt")}
             onValueChange={(value) => set("startsAt", value)}
           />
@@ -254,6 +275,7 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
             id="event-ends"
             label={t("adminEvents.studio.general.endsLabel")}
             value={draft.endsAt}
+            hint={timeHint("endsAt")}
             error={errorFor("endsAt")}
             onValueChange={(value) => set("endsAt", value)}
           />
@@ -262,14 +284,25 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
             label={t("adminEvents.studio.general.timeZoneLabel")}
             value={draft.timezone}
             options={zones}
-            labelFor={(zone) => zone}
+            labelFor={(option) => option}
+            hint={
+              zone === savedZone
+                ? t("adminEvents.studio.general.timeZoneKeepsInstants")
+                : t("adminEvents.studio.general.timeZoneConverted", {
+                    previous: savedZone,
+                    zone,
+                  })
+            }
             // `validateEventGeneralDraft` zwraca błąd pola `timezone` od zawsze,
             // ale panel nie rysował go NIGDZIE: `errorFor` wołane było dla
             // dziewięciu innych pól i ani razu dla strefy. Wiersz z pustą strefą
             // (kolumna tekstowa, szkic degraduje brak do `""`) dawał ekran,
             // na którym „Zapisz" gaśnie po kliknięciu i nic się nie dzieje.
             error={errorFor("timezone")}
-            onValueChange={(value) => set("timezone", value)}
+            // Zmiana strefy przelicza GODZINY w polach, a chwile zostawia.
+            onValueChange={(value) =>
+              setDraft((previous) => eventGeneralWithTimeZone(previous, value))
+            }
           />
         </div>
       </EventStudioRow>

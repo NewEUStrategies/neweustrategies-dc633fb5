@@ -67,9 +67,12 @@ describe("cloneDraftFromPreview", () => {
       titlePl: "Kongres 2027",
       titleEn: "Congress 2027",
       slug: "",
-      startsAt: "2100-03-20T08:00:00.000Z",
+      // Podpowiedź z bazy jako zegar Warszawy (20.03.2100 - jeszcze CET, +1);
+      // sama chwila zostaje kotwicą nietkniętego pola.
+      startsAt: "2100-03-20T09:00",
       endsAt: "",
       timezone: "Europe/Warsaw",
+      savedTimes: { startsAt: "2100-03-20T08:00:00.000Z" },
       externalRegistrationUrl: "",
       include: clonePreview().include,
       flags: {
@@ -110,7 +113,7 @@ describe("cloneDraftFromPreview", () => {
 describe("eventCloneIssue - lustro odmów SQL", () => {
   it("poprawny szkic przechodzi (bez końca i z końcem po początku)", () => {
     expect(eventCloneIssue(draft(), false)).toBeNull();
-    expect(eventCloneIssue(draft({ endsAt: "2100-03-21T17:00:00.000Z" }), false)).toBeNull();
+    expect(eventCloneIssue(draft({ endsAt: "2100-03-21T18:00" }), false)).toBeNull();
   });
 
   it.each<[string, Partial<EventCloneDraft>, boolean, string]>([
@@ -121,13 +124,13 @@ describe("eventCloneIssue - lustro odmów SQL", () => {
     ["brak początku", { startsAt: "" }, false, "adminEventClone.issues.startsAt"],
     [
       "koniec przed początkiem",
-      { endsAt: "2100-03-19T08:00:00.000Z" },
+      { endsAt: "2100-03-19T09:00" },
       false,
       "adminEventClone.issues.endsAt",
     ],
     [
       "koniec równy początkowi",
-      { endsAt: "2100-03-20T08:00:00.000Z" },
+      { endsAt: "2100-03-20T09:00" },
       false,
       "adminEventClone.issues.endsAt",
     ],
@@ -232,7 +235,7 @@ describe("cloneDraftToInput", () => {
         titlePl: "  Kongres 2027 ",
         titleEn: " Congress 2027",
         slug: " Kongres-2027 ",
-        endsAt: "2100-03-21T17:00:00.000Z",
+        endsAt: "2100-03-21T18:00",
         codeSuffix: " -x27 ",
         crmTaskDueDays: "14",
       }),
