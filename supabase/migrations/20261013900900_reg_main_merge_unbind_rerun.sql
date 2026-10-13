@@ -1,8 +1,8 @@
 -- ============================================================================
--- SCALENIE Z MAIN (PR #504), CZ. 7 (OSTATNIA): NAPRAWA HISTORII REG-01 PO
+-- SCALENIE Z MAIN (PR #504), CZ. 8 (OSTATNIA): NAPRAWA HISTORII REG-01 PO
 -- MIGRACJACH UZGADNIAJACYCH (decyzja D14).
 --
--- DEFEKT. Migracje uzgadniajace 20261013900000-900500 sortuja sie PO naprawie
+-- DEFEKT. Migracje uzgadniajace 20261013900000-900600 sortuja sie PO naprawie
 --   REG-01 (20261012190000/190100), a 20261013900400 redefiniuje pisarza
 --   `event_people.user_id` (`event_package_invite_accept` - konto wiaze sie
 --   wylacznie przez `_event_bind_uid_for_email`, regula bez zmian). W
@@ -23,7 +23,7 @@
 --   do organizatora). Plik bez znacznika harnessu wydarzen (harness nie ma
 --   `user_invitations`, a jego baza startuje pusta - naprawa jest no-opem).
 -- KOLEJNOSC WDROZENIA: OSTATNIA migracja serii REG i scalenia - po
---   20261013900000-900500. Przed i po: `SELECT count(*) FROM
+--   20261013900000-900600. Przed i po: `SELECT count(*) FROM
 --   public.event_people_account_binding_audit()` = 0.
 -- IDEMPOTENTNA: obie funkcje robia wylacznie to, co jest do zrobienia
 --   w danej chwili; licznik audytu po przebiegu idzie do logu wdrozenia
