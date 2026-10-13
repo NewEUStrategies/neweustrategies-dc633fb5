@@ -7,6 +7,11 @@
 //
 // LICZBY POKAZUJEMY OBOK PULI, bo pula bez liczby zajętych miejsc nie mówi nic o
 // tym, czy można ją bezpiecznie obniżyć - a RPC odmawia zejścia poniżej zajętych.
+//
+// PROFIL PODATKOWY (TIX-09) ZAPISUJE SIĘ PO BILECIE, pod identyfikatorem
+// oddanym przez upsert - tak jak wygląd i tryb podatku. Odmowa tego drugiego
+// zapisu NIE jest połykana: bilet już stoi, więc organizator dostaje zdanie
+// z mapy odmów i wie, że stawka na fakturze się nie zmieniła.
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -48,6 +53,15 @@ import {
   useTicketPresentation,
   type TicketPresentation,
 } from "@/lib/events/ticketPresentation";
+import { EMPTY_TAX_PROFILE, type TaxProfileDraft } from "@/lib/events/taxProfileDraft";
+import {
+  fetchTicketTaxProfiles,
+  ticketTaxProfileChanged,
+  ticketTaxProfileState,
+  useSaveTicketTaxProfile,
+  useTicketTaxProfiles,
+  type TicketTaxProfiles,
+} from "@/lib/events/ticketTaxProfileApi";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 
 /** Cena w najmniejszej jednostce -> zapis walutowy w języku interfejsu. */
@@ -60,6 +74,8 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
   const { t, i18n } = useTranslation();
   const presentationQ = useTicketPresentation(eventId);
   const savePresentation = useSaveTicketPresentation(eventId);
+  const taxProfilesQ = useTicketTaxProfiles(eventId);
+  const saveTaxProfile = useSaveTicketTaxProfile(eventId);
   const [query, setQuery] = useState("");
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const lookOf = (id: string): TicketPresentation =>
@@ -78,10 +94,38 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
 
   const fail = (error: unknown) => toast.error(adminRegistrationErrorMessage(error));
 
-  const submit = (input: EventTicketInput, look: TicketPresentation) => {
+  /**
+   * Profil podatkowy po zapisie biletu. Mapa profili nie siedzi w gałęzi
+   * zapytań biletów, więc bez tego odświeżenia nowy bilet (albo kopia) nie
+   * miałby w niej wiersza i okno czekałoby na profil bez końca. Odmowa
+   * zapisu profilu też odświeża - mapa ma mówić to, co jest w bazie.
+   */
+  const saveTaxAfterTicket = (ticketId: string, taxProfile: TaxProfileDraft | null) => {
+    if (taxProfile === null) {
+      void taxProfilesQ.refetch();
+      return;
+    }
+    saveTaxProfile.mutate(
+      { ticketId, value: taxProfile },
+      {
+        onError: (error) => {
+          fail(error);
+          void taxProfilesQ.refetch();
+        },
+      },
+    );
+  };
+
+  const submit = (
+    input: EventTicketInput,
+    look: TicketPresentation,
+    taxProfile: TaxProfileDraft | null,
+  ) => {
     save.mutate(input, {
       onSuccess: (ticketId) => {
         savePresentation.mutate({ ticketId, value: look }, { onError: fail });
+        // `null` = okno nie ma czego zapisać (bez zmian albo baza bez migracji).
+        saveTaxAfterTicket(ticketId, taxProfile);
         toast.success(t("adminEventRegistration.tickets.toasts.saved"));
         setDialogOpen(false);
         setEdited(null);
@@ -108,7 +152,24 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
   };
 
   /** Kopia zapisuje się od razu jako nieaktywna - organizator włącza ją świadomie. */
-  const duplicate = (row: EventTicketRow) => {
+  const duplicate = async (row: EventTicketRow) => {
+    // Profil podatkowy oryginału jedzie za kopią jak wygląd - kopia z inną
+    // stawką VAT rozjechałaby fakturę z kasą. Mapa jeszcze się wczytuje, odczyt
+    // padł albo mapa jest starsza od oryginału (RPC oddaje KAŻDY bilet
+    // wydarzenia, więc brak wiersza znaczy nieaktualną mapę, nie pusty profil):
+    // czytamy ją teraz, a odmowa odczytu zatrzymuje kopię, zamiast po cichu
+    // zgubić stawkę. Baza bez migracji (`null`) - kopia bez profilu.
+    let profiles: TicketTaxProfiles;
+    try {
+      const cached = taxProfilesQ.data;
+      profiles =
+        cached === null || (cached !== undefined && cached.has(row.id))
+          ? cached
+          : await fetchTicketTaxProfiles(eventId);
+    } catch (error: unknown) {
+      fail(error);
+      return;
+    }
     const copy = duplicateTicketDraft(
       ticketDraftFromRow(row),
       new Set(rows.map((entry) => entry.key)),
@@ -119,6 +180,10 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
       nextSortOrder,
     );
     const look = lookOf(row.id);
+    // Pusty profil to stan nowego biletu, więc nie woła drugiego RPC.
+    const taxProfile = profiles?.get(row.id) ?? EMPTY_TAX_PROFILE;
+    const copyTaxProfile =
+      profiles !== null && ticketTaxProfileChanged(EMPTY_TAX_PROFILE, taxProfile);
     save.mutate(
       { ...ticketDraftToInput(copy, eventId), isActive: false },
       {
@@ -126,6 +191,7 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
           void saveTicketPresentation(ticketId, look)
             .then(() => presentationQ.refetch())
             .catch(fail);
+          saveTaxAfterTicket(ticketId, copyTaxProfile ? taxProfile : null);
           toast.success(t("adminEventRegistration.tickets.studio.duplicated"));
           setDialogOpen(false);
           setEdited(null);
@@ -393,7 +459,7 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
                                 label={t("adminEventRegistration.tickets.studio.duplicate")}
                                 onSelect={() => {
                                   setMenuFor(null);
-                                  duplicate(row);
+                                  void duplicate(row);
                                 }}
                               />
                               {url !== null ? (
@@ -435,9 +501,13 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
         nextSortOrder={nextSortOrder}
         isSaving={save.isPending}
         onSubmit={submit}
+        taxProfile={ticketTaxProfileState(
+          { data: taxProfilesQ.data, error: taxProfilesQ.error },
+          edited === null ? null : edited.id,
+        )}
         eventSlug={eventSlug}
         presentation={edited === null ? undefined : lookOf(edited.id)}
-        onDuplicate={edited === null ? undefined : () => duplicate(edited)}
+        onDuplicate={edited === null ? undefined : () => void duplicate(edited)}
       />
 
       <AlertDialog

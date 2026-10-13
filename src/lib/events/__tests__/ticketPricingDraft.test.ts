@@ -25,7 +25,7 @@ function draft(overrides: Partial<TicketDraft> = {}): TicketDraft {
     key: "standard",
     namePl: "Standard",
     nameEn: "Standard",
-    priceCents: "12000",
+    price: "120,00",
     ...overrides,
   };
 }
@@ -49,9 +49,14 @@ describe("korzyści biletu", () => {
 describe("progi cenowe", () => {
   it("odrzuca próg bez ceny", () => {
     const issue = ticketDraftIssue(
-      draft({ phases: [{ labelPl: "", labelEn: "", from: "", to: "", priceCents: "" }] }),
+      draft({ phases: [{ labelPl: "", labelEn: "", from: "", to: "", price: "" }] }),
     );
-    expect(issue).toEqual({ field: "phases", errorKey: "invalidPriceSchedule" });
+    expect(issue).toEqual({
+      field: "phases",
+      errorKey: "invalidPriceSchedule",
+      messageKey: "adminEventRegistration.tickets.editor.phaseMoneyFormat.PLN",
+      params: { index: 1 },
+    });
   });
 
   it("odrzuca okno, które kończy się przed startem", () => {
@@ -63,7 +68,7 @@ describe("progi cenowe", () => {
             labelEn: "Early",
             from: "2026-09-10T10:00",
             to: "2026-09-01T10:00",
-            priceCents: "9000",
+            price: "90,00",
           },
         ],
       }),
@@ -75,8 +80,8 @@ describe("progi cenowe", () => {
     const input = ticketDraftToInput(
       draft({
         phases: [
-          { labelPl: "Early", labelEn: "Early", from: "", to: "", priceCents: "9000" },
-          { labelPl: "Last", labelEn: "Last", from: "", to: "", priceCents: "15000" },
+          { labelPl: "Early", labelEn: "Early", from: "", to: "", price: "90" },
+          { labelPl: "Last", labelEn: "Last", from: "", to: "", price: "150,00" },
         ],
       }),
       EVENT,
@@ -92,7 +97,7 @@ describe("progi cenowe", () => {
       "nie obiekt",
     ]);
     expect(rows).toHaveLength(1);
-    expect(rows[0].priceCents).toBe("9000");
+    expect(rows[0].price).toBe("90,00");
   });
 });
 

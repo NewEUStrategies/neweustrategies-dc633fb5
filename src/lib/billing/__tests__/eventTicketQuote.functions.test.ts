@@ -157,8 +157,11 @@ describe("quoteEventTicketCheckout - obudowa", () => {
     expect(serverFnMiddlewareNames(quoteEventTicketCheckout)).toEqual(["requireSupabaseAuth"]);
   });
 
-  it("jest ODCZYTEM (GET) - niczego nie zapisuje", () => {
-    expect(asServerFn(quoteEventTicketCheckout).method).toBe("GET");
+  it("idzie POST-em (TIX-11): kod dostępu i kod rabatowy nie trafiają do adresu URL", () => {
+    // GET włożyłby `coupon_code` i `access_code` do adresu - logi proxy i CDN,
+    // historia przeglądarki, nagłówek Referer. Podgląd i tak niczego nie
+    // zapisuje (niżej: zero `redeem_b2b_coupon` i zero zamówień).
+    expect(asServerFn(quoteEventTicketCheckout).method).toBe("POST");
   });
 
   it("walidator odrzuca identyfikatory spoza UUID i za długi kod", () => {

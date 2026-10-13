@@ -88,8 +88,8 @@ export function registrationErrorMessage(error: unknown): string {
 }
 
 /**
- * Każdy `RAISE EXCEPTION` z `event_register_group_guests`
- * (migracja `20260922230000_event_ticket_tax_and_group.sql`), w kolejności
+ * Każdy `RAISE EXCEPTION` z `event_register_group_guests` (ostatnia definicja:
+ * migracja `20261012130000_event_ticket_seat_ledger.sql`), w kolejności
  * sprawdzeń w funkcji. Lista jest jawna, a nie wyliczana z `i18n.exists`, żeby
  * test mógł dowieść, że KAŻDA odmowa tej funkcji ma zdanie w obu językach.
  */
@@ -99,6 +99,9 @@ export const GROUP_GUEST_REFUSALS = [
   "not_found",
   "registration_closed",
   "already_settled",
+  // TIX-03: kasa tego zgłoszenia jest otwarta - jej kwota policzyła już
+  // miejsca, więc gość dopisany teraz nie byłby opłacony.
+  "checkout_in_progress",
   "group_not_enabled",
   "group_too_large",
   "sold_out",

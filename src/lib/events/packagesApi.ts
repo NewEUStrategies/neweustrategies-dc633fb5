@@ -15,6 +15,8 @@
 // zasady, co w `registrationsApi.ts`.
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
+import type { TaxProfilePayload } from "@/lib/events/taxProfileDraft";
+import { isMigrationPending } from "@/lib/supabase/migrationPending";
 
 type Fns = Database["public"]["Functions"];
 
@@ -119,6 +121,126 @@ export async function fetchEventPackages(eventId: string): Promise<EventPackageR
   return data ?? [];
 }
 
+// ---------------------------------------------------------------------------
+// WARUNKI ZAKUPU I PROFIL PODATKOWY PAKIETU (TIX-07, TIX-09)
+// ---------------------------------------------------------------------------
+//
+// OSOBNE RPC, BO LISTA PAKIETOW ICH NIE NIESIE. `admin_event_packages_list` ma
+// sygnature `RETURNS TABLE` sprzed migracji 20261012130000/130200; rozszerzenie
+// jej zmieniloby typ wyniku dla kazdego klienta naraz. Warunki ida wiec
+// `admin_event_package_terms` (jsonb: tablica wierszy z `id` pakietu).
+//
+// BRAK DANYCH TO NIE SA WARTOSCI DOMYSLNE. Baza bez migracji (kod wszedl
+// pierwszy) oddaje `null` - „warunki niedostepne" - i wtedy zapis pakietu NIE
+// niesie zadnego z szesciu kluczy: upsert zmienia kolumne tylko, gdy klucz
+// jest w ladunku, wiec chwilowa niedostepnosc odczytu nie nadpisze prawdziwych
+// warunkow wartosciami domyslnymi. Kazda inna odmowa (uprawnienia, siec) leci
+// wyjatkiem - to awaria, a nie okno wdrozenia.
+
+/**
+ * „Baza nie zna jeszcze kolumny" - funkcja juz jest, ale czyta kolumny, ktorych
+ * nie ma (migracja weszla czesciowo). Ten sam zbior, co w `eventCodesApi.ts`.
+ */
+const TERMS_COLUMN_PENDING_CODES: ReadonlySet<string> = new Set(["42703", "PGRST204"]);
+
+function isTermsPending(error: unknown): boolean {
+  if (isMigrationPending(error)) return true;
+  if (error === null || typeof error !== "object") return false;
+  return TERMS_COLUMN_PENDING_CODES.has(String((error as { code?: unknown }).code ?? ""));
+}
+
+/** Wiersz `admin_event_package_terms` - warunki zakupu i profil podatkowy pakietu. */
+export interface EventPackageTermsRow {
+  id: string;
+  /** Zaufanie do faktury: QR od razu, zanim zamowienie zostanie oplacone. */
+  admit_before_payment: boolean;
+  /** Termin platnosci zakupu samoobslugowego w dniach (1-120). */
+  payment_terms_days: number;
+  /** Limit nieoplaconych zamowien jednego kupujacego; `null` = bez limitu. */
+  max_open_orders_per_buyer: number | null;
+  /** `null` = stawka biletu pakietu. */
+  vat_rate: string | null;
+  vat_exempt_basis: string;
+  stripe_tax_code: string | null;
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === "string";
+}
+
+/**
+ * Jeden wiersz odpowiedzi -> wiersz warunkow albo `null` (pominiety).
+ *
+ * WIERSZ NIECZYTELNY JEST POMIJANY W CALOSCI, a nie uzupelniany domyslnymi.
+ * Pakiet bez wiersza w mapie dialog traktuje jak „warunki nieznane" i nie
+ * wysyla kluczy - uzupelnienie „14 dni" w miejsce nieczytelnej liczby
+ * zapisaloby je przy pierwszej zmianie nazwy pakietu.
+ */
+function termsRowFrom(value: unknown): EventPackageTermsRow | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const {
+    id,
+    admit_before_payment: admit,
+    payment_terms_days: days,
+    max_open_orders_per_buyer: maxOpen,
+    vat_rate: vatRate,
+    vat_exempt_basis: basis,
+    stripe_tax_code: taxCode,
+  } = record;
+  if (typeof id !== "string" || id === "") return null;
+  if (typeof admit !== "boolean") return null;
+  if (typeof days !== "number" || !Number.isInteger(days)) return null;
+  let maxOpenOrders: number | null;
+  if (maxOpen === null) maxOpenOrders = null;
+  else if (typeof maxOpen === "number" && Number.isInteger(maxOpen)) maxOpenOrders = maxOpen;
+  else return null;
+  if (!isNullableString(vatRate) || typeof basis !== "string" || !isNullableString(taxCode)) {
+    return null;
+  }
+  return {
+    id,
+    admit_before_payment: admit,
+    payment_terms_days: days,
+    max_open_orders_per_buyer: maxOpenOrders,
+    vat_rate: vatRate,
+    vat_exempt_basis: basis,
+    stripe_tax_code: taxCode,
+  };
+}
+
+/**
+ * Warunki zakupu i profil podatkowy pakietow wydarzenia, po identyfikatorze
+ * pakietu. `null` = baza jeszcze bez migracji (warunki niedostepne).
+ */
+export async function fetchEventPackageTerms(
+  eventId: string,
+): Promise<ReadonlyMap<string, EventPackageTermsRow> | null> {
+  const { data, error } = await supabase.rpc("admin_event_package_terms", {
+    p_event_id: eventId,
+  });
+  if (error) {
+    if (isTermsPending(error)) return null;
+    throw error;
+  }
+  const byPackage = new Map<string, EventPackageTermsRow>();
+  if (!Array.isArray(data)) return byPackage;
+  for (const item of data) {
+    const row = termsRowFrom(item);
+    if (row !== null) byPackage.set(row.id, row);
+  }
+  return byPackage;
+}
+
+/** Warunki zakupu i profil podatkowy w ladunku zapisu pakietu. */
+export interface EventPackageTermsInput {
+  admitBeforePayment: boolean;
+  paymentTermsDays: number;
+  /** `null` = bez limitu (klucz jedzie jawnym `null`). */
+  maxOpenOrdersPerBuyer: number | null;
+  tax: TaxProfilePayload;
+}
+
 export interface EventPackageInput {
   /** `null` = nowy pakiet; wtedy `key` i `ticketTypeId` sa obowiazkowe. */
   id: string | null;
@@ -142,9 +264,17 @@ export interface EventPackageInput {
   requiresVerification: boolean;
   isActive: boolean;
   sortOrder: number;
+  /**
+   * Warunki zakupu i profil podatkowy. BRAK albo `null` = warunki nieznane
+   * (baza bez migracji, nieudany odczyt, przelacznik „aktywny" w wierszu) -
+   * wtedy ladunek nie niesie ZADNEGO z szesciu kluczy i baza zostawia kolumny
+   * bez zmian (nowy pakiet dostaje wartosci domyslne kolumn).
+   */
+  terms?: EventPackageTermsInput | null;
 }
 
 export async function saveEventPackage(input: EventPackageInput): Promise<string> {
+  const terms = input.terms ?? null;
   const { data, error } = await supabase.rpc("admin_event_package_upsert", {
     p_payload: payload({
       id: input.id,
@@ -167,6 +297,14 @@ export async function saveEventPackage(input: EventPackageInput): Promise<string
       requires_verification: input.requiresVerification,
       is_active: input.isActive,
       sort_order: input.sortOrder,
+      // TIX-07 / TIX-09: klucze TYLKO przy znanych warunkach - obecnosc klucza
+      // w ladunku jest dla bazy poleceniem zmiany kolumny.
+      admit_before_payment: terms === null ? undefined : terms.admitBeforePayment,
+      payment_terms_days: terms === null ? undefined : terms.paymentTermsDays,
+      max_open_orders_per_buyer: terms === null ? undefined : terms.maxOpenOrdersPerBuyer,
+      vat_rate: terms === null ? undefined : terms.tax.vat_rate,
+      vat_exempt_basis: terms === null ? undefined : terms.tax.vat_exempt_basis,
+      stripe_tax_code: terms === null ? undefined : terms.tax.stripe_tax_code,
     }),
   });
   if (error) throw error;
