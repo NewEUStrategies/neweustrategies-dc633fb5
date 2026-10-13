@@ -184,9 +184,18 @@ export async function loadMyEventTicket(
   // (`metadata ->> 'event_id'`), więc bilet i bramka wejścia widzą to samo
   // zamówienie.
   //
-  // ZGŁOSZENIE CZYTA WŁASNA POLITYKA RLS (`event_registrations_self_read`:
-  // osoba dowiązana do konta, ten najemca). Kolumny są jawne - bez hashy kodu
-  // i klucza, których `authenticated` i tak nie czyta (D10).
+  // ZGŁOSZENIE WOŁAJĄCEGO, NIE „JAKIEŚ WIDOCZNE". Sama polityka RLS nie
+  // wystarcza: `event_registrations_staff_read` oddaje organizatorowi KAŻDE
+  // zgłoszenie najemcy, więc administrator zapisany na wydarzenie dostawał
+  // tryb wejścia z najnowszego cudzego zgłoszenia (przegląd R67) - np.
+  // „kod przyszedł mailem", choć jego własne zgłoszenie czeka na zapłatę.
+  // Złączenie wewnętrzne z `event_people` po `user_id` wołającego zostawia
+  // wyłącznie jego własne wiersze - także dla roli z szerszym odczytem.
+  // Podpowiedź klucza obcego (`event_registrations_person_fkey`, para
+  // `(tenant_id, person_id)`, więc osoba jest z tego samego najemcy) jest
+  // jawna: tabele łączą też tabele pośrednie (np. leady), a PostgREST bez
+  // podpowiedzi odmówiłby osadzenia jako niejednoznacznego. Kolumny są jawne -
+  // bez hashy kodu i klucza, których `authenticated` i tak nie czyta (D10).
   const [{ data: event }, { data: order }, { data: profile }, { data: registration }] =
     await Promise.all([
       supabase
@@ -210,8 +219,11 @@ export async function loadMyEventTicket(
         .maybeSingle(),
       supabase
         .from("event_registrations")
-        .select("status, payment_status, ticket_code_sent_at, ticket_code_undeliverable_at")
+        .select(
+          "status, payment_status, ticket_code_sent_at, ticket_code_undeliverable_at, event_people!event_registrations_person_fkey!inner(user_id)",
+        )
         .eq("event_id", eventId)
+        .eq("event_people.user_id", userId)
         .in("status", ["approved", "attended"])
         .order("created_at", { ascending: false })
         .limit(1)
