@@ -25,6 +25,10 @@
 // baza - a po granicy (wydarzenie skończyło się ponad tydzień temu) wydania nie
 // ma wcale. Granicę liczymy z wiersza wydarzenia, który studio i tak trzyma
 // w cache (`useAdminEventDetail`); bez dat wydarzenia granicę zna tylko baza.
+//
+// TERMIN JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), jak terminy biletów:
+// pole, granica w kalendarzu i granica w podpowiedzi mówią tą samą strefą
+// (`events.timezone` z tego samego wiersza), a podpowiedź ją nazywa.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -65,12 +69,15 @@ import {
   scannerExpiryLimit,
 } from "@/lib/events/scannerExpiryLimit";
 import { scannerOriginFor, scannerPairingUrl } from "@/lib/events/scannerLink";
-import { browserTimeZone } from "@/lib/events/timezone";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
 import { formatDate, uiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
 
 ensureOnsiteI18n();
+ensureAdminEventsI18n();
 
 const NONE = "__none__";
 
@@ -112,22 +119,26 @@ export function ScannerDeviceDialog({
     setTouched(false);
   }, [open]);
 
-  // Granica terminu (OPS-12) - patrz nagłówek.
+  // Granica terminu (OPS-12) i strefa pola (OPS-15) - patrz nagłówek.
+  const zone = eventTimeZone({ timezone: eventQ.data?.timezone });
   const expiryLimit = scannerExpiryLimit(eventQ.data);
   const issueClosed = isIssueWindowClosed(expiryLimit, Date.now());
-  const chosenExpiry = localToIso(draft.expiresAtLocal);
+  const chosenExpiry = localToIso(draft.expiresAtLocal, zone);
   const tooLate = isExpiryTooLate(
     typeof chosenExpiry === "string" ? chosenExpiry : null,
     expiryLimit,
   );
   const errors = [
-    ...validateScannerDeviceDraft(draft),
+    ...validateScannerDeviceDraft(draft, zone),
     ...(tooLate ? [{ field: "expiresAtLocal", messageKey: EXPIRY_TOO_LATE }] : []),
   ];
+  // „Godzina w strefie …" albo zdanie o luce/zakładce (to drugie ma już kropkę).
+  const zoneHint = eventLocalInputHint(t, lang, draft.expiresAtLocal, zone) ?? "";
+  const zoneSentence = /[.!?]$/.test(zoneHint) ? zoneHint : `${zoneHint}.`;
   const expiryHint =
     expiryLimit === null
-      ? t("adminEventOnsite.devices.dialog.expiresHint")
-      : `${t("adminEventOnsite.devices.dialog.expiresHint")} ${t(EXPIRY_TOO_LATE)} (${formatDate(
+      ? `${t("adminEventOnsite.devices.dialog.expiresHint")} ${zoneHint}`
+      : `${t("adminEventOnsite.devices.dialog.expiresHint")} ${zoneSentence} ${t(EXPIRY_TOO_LATE)} (${formatDate(
           expiryLimit,
           lang,
           {
@@ -136,8 +147,8 @@ export function ScannerDeviceDialog({
             day: "numeric",
             hour: "2-digit",
             minute: "2-digit",
-            // Pole `datetime-local` mówi czasem przeglądarki - granica też.
-            timeZone: browserTimeZone(),
+            // Pole mówi zegarem strefy wydarzenia - granica też.
+            timeZone: zone,
           },
         )})`;
   const hasCheckin = draft.scopes.includes("checkin");
@@ -158,7 +169,7 @@ export function ScannerDeviceDialog({
   const submit = () => {
     setTouched(true);
     if (errors.length > 0 || issueClosed) return;
-    onSubmit(scannerDeviceDraftToInput(draft, eventId));
+    onSubmit(scannerDeviceDraftToInput(draft, eventId, zone));
   };
 
   const options = (items: ScannerRelationOption[], noneLabel: string) => [
@@ -270,7 +281,7 @@ export function ScannerDeviceDialog({
             value={draft.expiresAtLocal}
             onValueChange={(value) => setDraft((prev) => ({ ...prev, expiresAtLocal: value }))}
             type="datetime-local"
-            max={expiryLimit === null ? undefined : isoToLocal(expiryLimit)}
+            max={expiryLimit === null ? undefined : isoToLocal(expiryLimit, zone)}
             disabled={issueClosed}
             error={issueClosed ? t(EXPIRY_TOO_LATE) : errorFor("expiresAtLocal")}
           />

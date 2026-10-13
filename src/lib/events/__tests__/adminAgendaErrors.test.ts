@@ -17,6 +17,7 @@ import {
  * Klucze podnoszone przez migrację 20260823140000, w postaci z SQL-a, plus
  * `session_has_checkpoints` z 20261012140100 (usunięcie sesji z punktem
  * kontrolnym - klucz obcy punktu jest NO ACTION od 20261012110000).
+ * `session_has_signups` od 20261012180000 liczy zapisy całego poddrzewa.
  */
 const SQL_KEYS = [
   "not_found",
@@ -108,6 +109,23 @@ describe("adminAgendaFailure", () => {
     expect(pl).toContain("(2)");
     expect(pl).toContain("punkty kontrolne");
     expect(en).toContain("2 checkpoint(s)");
+  });
+
+  it("zapisy poddrzewa: kod z 20261012180000 mówi o sesji ALBO jej podsesjach", () => {
+    // Blok bez własnych zapisów odmawia zapisami podsesji (F11) - zdanie
+    // „Sesja ma N zapisów" byłoby nieprawdą o samym bloku.
+    const error = new Error(
+      "session_has_signups: 2 active signup(s) on this session or its sub-sessions - cancel the session instead",
+    );
+    const failure = adminAgendaFailure(error);
+    expect(failure.key).toBe("adminEventAgenda.errors.sessionHasSignups");
+    expect(failure.params).toEqual({ count: 2 });
+    const pl = i18n.t(failure.key, { ...failure.params, lng: "pl" });
+    const en = i18n.t(failure.key, { ...failure.params, lng: "en" });
+    expect(pl).toContain("podsesje");
+    expect(pl).toContain("(2)");
+    expect(en).toContain("sub-sessions");
+    expect(en).toContain("2 active signup(s)");
   });
 
   it('„Failed to fetch" nie udaje klucza bazy', () => {

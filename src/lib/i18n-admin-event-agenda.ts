@@ -508,7 +508,8 @@ export const adminEventAgendaPl = {
       parentSelf: "Sesja nie może być swoją własną sesją nadrzędną.",
       parentNotFound: "Sesja nadrzędna nie należy do tego wydarzenia.",
       parentDepth: "Podsesja nie może mieć własnych podsesji.",
-      sessionHasSignups: "Sesja ma {{count}} aktywnych zapisów - odwołaj ją zamiast usuwać.",
+      sessionHasSignups:
+        "Sesja albo jej podsesje mają aktywne zapisy ({{count}}) - odwołaj je zamiast usuwać.",
       sessionHasCheckpoints:
         "Do tej sesji albo jej podsesji przypisano punkty kontrolne ({{count}}). Zmień ich rodzaj albo usuń je w module na miejscu, a potem usuń sesję.",
       speakerNotFound: "Profil prelegenta nie istnieje w tej organizacji.",
@@ -1016,7 +1017,7 @@ export const adminEventAgendaEn = {
       parentNotFound: "The parent session does not belong to this event.",
       parentDepth: "A sub-session cannot have sub-sessions of its own.",
       sessionHasSignups:
-        "The session has {{count}} active signups - cancel it instead of deleting.",
+        "The session or its sub-sessions have {{count}} active signup(s) - cancel them instead of deleting.",
       sessionHasCheckpoints:
         "{{count}} checkpoint(s) are bound to this session or its sub-sessions. Change their kind or delete them in the onsite module, then delete the session.",
       speakerNotFound: "The speaker profile does not exist in this organisation.",
