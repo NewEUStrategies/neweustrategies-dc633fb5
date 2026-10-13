@@ -159,6 +159,13 @@ const KODY_REJESTRACJI = [
   // w SQL-u, wiec skan migracji jej nie zobaczy; stoi tu, zeby bramka pilnowala
   // jej zdania w obu jezykach.
   "ticket_address_suppressed",
+  // admin_event_person_account_unbind / _restore - dowiazania kont do kartotek
+  // (REG-01, D14; ekran /admin/events/account-bindings, `accountBindingsAdminApi`)
+  "not_bound",
+  "already_restored",
+  "account_deleted",
+  "person_bound",
+  "account_in_use",
   STRAZNIK_TENANTA,
 ] as const;
 
@@ -727,6 +734,8 @@ const MAPY: readonly BramkowanaMapa[] = [
       "ticketResend.functions",
       // Dziennik zwrotow (REG-03) - decyzje organizatora tlumaczy ta sama mapa.
       "registrationRefundJournal",
+      // Dowiazania kont do kartotek (REG-01, D14) - ta sama mapa panelu.
+      "accountBindingsAdminApi",
     ],
     interpoluje: true,
   },

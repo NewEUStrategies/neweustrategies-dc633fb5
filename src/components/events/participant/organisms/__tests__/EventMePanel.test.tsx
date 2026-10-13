@@ -59,7 +59,11 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import type { EventMeSlotProps } from "@/components/events/participant/slots/slotTypes";
 import type { EventMeTab } from "@/lib/events/eventMeTabs";
-import type { MyEventPanelState, MyEventProfile } from "@/lib/events/myEventProfileApi";
+import type {
+  MyEventAccountLink,
+  MyEventPanelState,
+  MyEventProfile,
+} from "@/lib/events/myEventProfileApi";
 import type { EventParticipantOptions } from "@/lib/events/participantOptionsApi";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
@@ -96,6 +100,8 @@ const h = vi.hoisted(() => ({
   kontakty: { rows: [] as KontaktWiersz[], loading: false },
   pobierzProfil: vi.fn<(slug: string) => Promise<MyEventPanelState>>(),
   pobierzOpcje: vi.fn<(slug: string) => Promise<EventParticipantOptions | null>>(),
+  /** `event_my_account_link` - samodzielne dowiązanie kartoteki (REG-01, D14). */
+  polacz: vi.fn<() => Promise<MyEventAccountLink | null>>(),
   /** Właściwości, które panel podał swoim dzieciom - w kolejności renderu. */
   formularz: [] as { slug: string; maProfil: boolean; maKonto: boolean; loading: boolean }[],
   podglad: [] as { self: boolean }[],
@@ -272,6 +278,7 @@ vi.mock("@/components/events/participant/molecules/MySeatsPanel", () => ({
 vi.mock("@/lib/events/myEventProfileApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/events/myEventProfileApi")>()),
   fetchMyEventProfile: (slug: string) => h.pobierzProfil(slug),
+  linkMyEventAccount: () => h.polacz(),
 }));
 
 vi.mock("@/lib/events/participantOptionsApi", async (importOriginal) => ({
@@ -383,6 +390,12 @@ beforeEach(() => {
   h.zmianyZakladki.length = 0;
   h.pobierzProfil.mockResolvedValue(stan());
   h.pobierzOpcje.mockResolvedValue(makeEventParticipantOptions());
+  h.polacz.mockResolvedValue({
+    linked: false,
+    alreadyLinked: false,
+    personId: null,
+    reason: "no_record",
+  });
 });
 
 /** Przełącza zakładkę panelu po kluczu i18n na przycisku. */
@@ -591,6 +604,57 @@ describe("EventMePanel - zakładka kartoteki", () => {
     fireEvent.click(screen.getByRole("button", { name: /eventMe\.publicPreview\.close/ }));
     await waitFor(() => expect(screen.getByTestId("formularz-kartoteki")).toBeTruthy());
     expect(screen.queryByTestId("podglad-publiczny")).toBeNull();
+  });
+});
+
+// SAMODZIELNE DOWIĄZANIE (REG-01, D14). Naprawa historii odwiązała konta bez
+// potwierdzonego adresu kartoteki, a gość mógł założyć konto po zapisie - panel
+// bez kartoteki RAZ prosi bazę o dowiązanie osoby o POTWIERDZONYM adresie konta.
+describe("EventMePanel - samodzielne dowiązanie kartoteki", () => {
+  it("brak kartoteki: jedna prośba, a po dowiązaniu panel ma kartotekę i notkę", async () => {
+    h.pobierzProfil.mockResolvedValueOnce(stan({ profile: null, registration: null }));
+    h.polacz.mockResolvedValue({
+      linked: true,
+      alreadyLinked: false,
+      personId: "11111111-1111-4111-8111-111111111111",
+      reason: null,
+    });
+    pokaz();
+
+    expect(await screen.findByText("eventMe.accountLink.linked")).toBeTruthy();
+    expect(h.polacz).toHaveBeenCalledTimes(1);
+    // Udane dowiązanie odświeża kartotekę - drugi odczyt oddaje profil.
+    await waitFor(() => expect(h.pobierzProfil).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(h.formularz.at(-1)?.maProfil).toBe(true));
+  });
+
+  it("konto bez potwierdzonego adresu: notka zamiast milczenia", async () => {
+    h.pobierzProfil.mockResolvedValue(stan({ profile: null, registration: null }));
+    h.polacz.mockResolvedValue({
+      linked: false,
+      alreadyLinked: false,
+      personId: null,
+      reason: "email_unconfirmed",
+    });
+    pokaz();
+
+    expect(await screen.findByText("eventMe.accountLink.emailUnconfirmed")).toBeTruthy();
+    expect(h.polacz).toHaveBeenCalledTimes(1);
+  });
+
+  it("kartoteka już jest - żadnej prośby o dowiązanie", async () => {
+    pokaz();
+
+    await screen.findByTestId("formularz-kartoteki");
+    await waitFor(() => expect(h.formularz.at(-1)?.maProfil).toBe(true));
+    expect(h.polacz).not.toHaveBeenCalled();
+  });
+
+  it("gość nie prosi bazy o dowiązanie", () => {
+    h.sesja.current = null;
+    pokaz();
+
+    expect(h.polacz).not.toHaveBeenCalled();
   });
 });
 

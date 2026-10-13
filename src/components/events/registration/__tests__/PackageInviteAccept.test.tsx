@@ -155,21 +155,32 @@ function wynik(over: Partial<PackageInviteAcceptResult> = {}): PackageInviteAcce
   };
 }
 
+/**
+ * Etykieta pola OBOWIĄZKOWEGO: `FieldBox` dopisuje do niej „ *”. Dopasowanie
+ * dokładne z opcjonalną gwiazdką - zapytanie o brak pola (`queryBy...`) nie
+ * może przejść tylko dlatego, że etykieta ma inny ogon.
+ */
+function wymagane(klucz: string): RegExp {
+  return new RegExp(`^${klucz.replace(/\./g, "\\.")}( \\*)?$`);
+}
+
 /** Czeka, aż podgląd i formularz wydarzenia dojadą i formularz stanie. */
 async function formularzGotowy(): Promise<void> {
-  await screen.findByLabelText("eventRegistration.fields.firstName");
+  await screen.findByLabelText(wymagane("eventRegistration.fields.firstName"));
   await waitFor(() => expect(h.formularz).toHaveBeenCalled());
 }
 
 /** Wypełnia dane wymagane przez RPC (bez pól wydarzenia). */
 function wypelnij(): void {
-  fireEvent.change(screen.getByLabelText("eventRegistration.fields.firstName"), {
+  fireEvent.change(screen.getByLabelText(wymagane("eventRegistration.fields.firstName")), {
     target: { value: "Anna" },
   });
-  fireEvent.change(screen.getByLabelText("eventRegistration.fields.lastName"), {
+  fireEvent.change(screen.getByLabelText(wymagane("eventRegistration.fields.lastName")), {
     target: { value: "Kowalska" },
   });
-  fireEvent.click(screen.getByLabelText("eventRegistration.consents.dataProcessing"));
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "eventRegistration.consents.dataProcessing" }),
+  );
 }
 
 function przyciskWyslij(): HTMLElement {
@@ -278,7 +289,7 @@ describe("PackageInviteAccept - stan zaproszenia przed formularzem (REG-15)", ()
     renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
 
     expect(await screen.findByText(zdanie)).toBeTruthy();
-    expect(screen.queryByLabelText("eventRegistration.fields.firstName")).toBeNull();
+    expect(screen.queryByLabelText(wymagane("eventRegistration.fields.firstName"))).toBeNull();
     expect(h.przyjmij).not.toHaveBeenCalled();
   });
 
@@ -287,22 +298,29 @@ describe("PackageInviteAccept - stan zaproszenia przed formularzem (REG-15)", ()
     renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
 
     expect(await screen.findByText(INVALID_TOKEN_PL)).toBeTruthy();
-    expect(screen.queryByLabelText("eventRegistration.fields.firstName")).toBeNull();
+    expect(screen.queryByLabelText(wymagane("eventRegistration.fields.firstName"))).toBeNull();
   });
 
   it("baza sprzed migracji (podgląd `null`) - sam formularz, jak dotąd", async () => {
     h.podglad.mockResolvedValue(null);
     renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
 
-    expect(await screen.findByLabelText("eventRegistration.fields.firstName")).toBeTruthy();
+    expect(
+      await screen.findByLabelText(wymagane("eventRegistration.fields.firstName")),
+    ).toBeTruthy();
     expect(h.formularz).not.toHaveBeenCalled();
   });
 
   it("podgląd pokazuje wydarzenie i ZAMASKOWANY adres zaproszenia", async () => {
     renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
 
-    expect(await screen.findByText("eventRegistration.invite.forEvent")).toBeTruthy();
-    expect(screen.getByText("eventRegistration.invite.addressedTo")).toBeTruthy();
+    expect(
+      await screen.findByText("eventRegistration.invite.forEvent(title=Kongres 2026)"),
+    ).toBeTruthy();
+    // Pełnego adresu baza nie oddaje - ekran pokazuje dokładnie maskę z podglądu.
+    expect(
+      screen.getByText("eventRegistration.invite.addressedTo(email=a***@example.com)"),
+    ).toBeTruthy();
   });
 });
 
@@ -312,7 +330,9 @@ describe("PackageInviteAccept - konto i zgoda marketingowa", () => {
     await formularzGotowy();
 
     expect(screen.getByText("eventRegistration.invite.signInHint")).toBeTruthy();
-    expect(screen.queryByLabelText("eventRegistration.consents.marketing")).toBeNull();
+    expect(
+      screen.queryByRole("checkbox", { name: "eventRegistration.consents.marketing" }),
+    ).toBeNull();
   });
 
   it("zalogowany na INNY adres: notka, że zgłoszenie nie trafi do konta, BEZ marketingu", async () => {
@@ -321,7 +341,9 @@ describe("PackageInviteAccept - konto i zgoda marketingowa", () => {
     await formularzGotowy();
 
     expect(screen.getByText("eventRegistration.invite.accountOther")).toBeTruthy();
-    expect(screen.queryByLabelText("eventRegistration.consents.marketing")).toBeNull();
+    expect(
+      screen.queryByRole("checkbox", { name: "eventRegistration.consents.marketing" }),
+    ).toBeNull();
   });
 
   it("zalogowany na POTWIERDZONY adres zaproszenia: notka i pole marketingu, które jedzie do bazy", async () => {
@@ -333,7 +355,7 @@ describe("PackageInviteAccept - konto i zgoda marketingowa", () => {
 
     expect(screen.getByText("eventRegistration.invite.accountMatches")).toBeTruthy();
     wypelnij();
-    fireEvent.click(screen.getByLabelText("eventRegistration.consents.marketing"));
+    fireEvent.click(screen.getByRole("checkbox", { name: "eventRegistration.consents.marketing" }));
     wyslij();
 
     await waitFor(() => expect(h.przyjmij).toHaveBeenCalledTimes(1));
@@ -375,10 +397,10 @@ describe("PackageInviteAccept - formularz pilnuje tego, czego wymaga baza", () =
   it("wysyłka Enterem bez zgody na przetwarzanie danych też się zatrzymuje", async () => {
     const { container } = renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
     await formularzGotowy();
-    fireEvent.change(screen.getByLabelText("eventRegistration.fields.firstName"), {
+    fireEvent.change(screen.getByLabelText(wymagane("eventRegistration.fields.firstName")), {
       target: { value: "Anna" },
     });
-    fireEvent.change(screen.getByLabelText("eventRegistration.fields.lastName"), {
+    fireEvent.change(screen.getByLabelText(wymagane("eventRegistration.fields.lastName")), {
       target: { value: "Kowalska" },
     });
     wyslijEnterem(container);
@@ -420,7 +442,7 @@ describe("PackageInviteAccept - formularz pilnuje tego, czego wymaga baza", () =
   it("pola i regulaminy WYDARZENIA: bez nich przycisk odcięty, z nimi jadą do bazy", async () => {
     h.formularz.mockResolvedValue(formularzZPolami());
     renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
-    await screen.findByText("Sektor");
+    await screen.findByLabelText(/^Sektor/);
     wypelnij();
 
     // Brak odpowiedzi na pole obowiązkowe i brak regulaminu - baza odmówiłaby
@@ -477,15 +499,17 @@ describe("PackageInviteAccept - formularz pilnuje tego, czego wymaga baza", () =
     renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
     await formularzGotowy();
 
-    expect(screen.getByLabelText("eventRegistration.fields.firstName").getAttribute("maxLength")).toBe(
-      "80",
-    );
-    expect(screen.getByLabelText("eventRegistration.fields.jobTitle").getAttribute("maxLength")).toBe(
-      "160",
-    );
-    expect(screen.getByLabelText("eventRegistration.fields.company").getAttribute("maxLength")).toBe(
-      "200",
-    );
+    expect(
+      screen
+        .getByLabelText(wymagane("eventRegistration.fields.firstName"))
+        .getAttribute("maxLength"),
+    ).toBe("80");
+    expect(
+      screen.getByLabelText("eventRegistration.fields.jobTitle").getAttribute("maxLength"),
+    ).toBe("160");
+    expect(
+      screen.getByLabelText("eventRegistration.fields.company").getAttribute("maxLength"),
+    ).toBe("200");
   });
 });
 
@@ -544,7 +568,7 @@ describe("PackageInviteAccept - odmowy, różne zdania", () => {
     wyslij();
 
     await waitFor(() => expect(screen.getByText(INVITATION_EXPIRED_PL)).toBeTruthy());
-    const imie = screen.getByLabelText("eventRegistration.fields.firstName");
+    const imie = screen.getByLabelText(wymagane("eventRegistration.fields.firstName"));
     expect(imie).toHaveProperty("value", "Anna");
     expect(screen.queryByText("eventRegistration.invite.successTitle")).toBeNull();
   });
@@ -577,7 +601,7 @@ describe("PackageInviteAccept - potwierdzenie", () => {
     wyslij();
 
     await screen.findByText("eventRegistration.invite.successTitle");
-    expect(screen.queryByLabelText("eventRegistration.fields.firstName")).toBeNull();
+    expect(screen.queryByLabelText(wymagane("eventRegistration.fields.firstName"))).toBeNull();
     expect(screen.queryByRole("button", { name: /eventRegistration\.invite\.submit/ })).toBeNull();
   });
 
@@ -598,7 +622,7 @@ describe("PackageInviteAccept - dostępność", () => {
   it("formularz zaproszenia (z polami i regulaminem) nie ma naruszeń axe", async () => {
     h.formularz.mockResolvedValue(formularzZPolami());
     const { container } = renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
-    await screen.findByText("Sektor");
+    await screen.findByLabelText(/^Sektor/);
 
     const violations = await axeViolations(container);
     expect(violations, summarize(violations)).toEqual([]);

@@ -372,7 +372,10 @@ function InviteForm({ token, preview }: { token: string; preview: PackageInviteP
         </p>
       )}
 
+      {/* `noValidate`: braki pokazuje wspolna walidacja szkicu (te same zdania
+          co zapis), a nie dymek przegladarki od atrybutu `required`. */}
       <form
+        noValidate
         className="space-y-4 rounded-[6px] border border-border bg-card p-4"
         onSubmit={(event) => {
           event.preventDefault();
@@ -495,8 +498,11 @@ function InviteForm({ token, preview }: { token: string; preview: PackageInviteP
             checked={draft.consentDataProcessing}
             onCheckedChange={(value) => patch({ consentDataProcessing: value === true })}
             aria-label={t("eventRegistration.consents.dataProcessing")}
+            aria-required="true"
           />
-          <span>{t("eventRegistration.consents.dataProcessing")}</span>
+          {/* Gwiazdka jak w formularzu zapisu: bez tej zgody baza odmawia
+              (`consent_required`). */}
+          <span>{t("eventRegistration.consents.dataProcessing")} *</span>
         </label>
         {shown("consentDataProcessing") !== null && (
           <p className="text-sm text-destructive">{shown("consentDataProcessing")}</p>
