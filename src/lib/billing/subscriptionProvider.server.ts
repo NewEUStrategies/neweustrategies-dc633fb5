@@ -56,7 +56,8 @@
 // więc zachowany harmonogram zostawał i na koniec okresu cofał opłacony
 // upgrade / dołożone miejsca. Tę samą decyzję co po udanej dopłacie podejmuje
 // wtedy webhook (`reconcileScheduleWithAppliedUpdate`), ale tylko dla
-// harmonogramu, którego następna faza zmianie przeczy.
+// harmonogramu, którego następna faza zmianie przeczy, a fazy zaplanowano od
+// pozycji sprzed niej (odcisk `nes_basis` w metadanych harmonogramu).
 //
 // Ta sama zasada - nieudana operacja nie kasuje zaplanowanej zmiany - dotyczy
 // rezygnacji i powrotu do bieżącej liczby miejsc. Rezygnacja MUSI zwolnić
@@ -325,12 +326,13 @@ function stateFingerprint(subscriptionId: string, sub: Stripe.Subscription): Key
  */
 async function idempotencyKey(op: string, parts: readonly KeyPart[]): Promise<string> {
   const material = [op, ...parts.map((p) => (p === null || p === undefined ? "" : String(p)))];
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(material.join("|")),
-  );
-  const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  const hex = await sha256Hex(material.join("|"));
   return `nes-sub-${op}-${hex.slice(0, 48)}`;
+}
+
+async function sha256Hex(material: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(material));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // --- odmowa dopłaty ----------------------------------------------------------
@@ -538,6 +540,28 @@ type PhaseTerms = Pick<PhaseParams, "discounts" | "default_tax_rates" | "automat
 /** Pozycja fazy sprowadzona do tego, co porównujemy z subskrypcją i odtwarzamy. */
 type PhaseLine = { price: string; quantity: number };
 
+/**
+ * Metadane harmonogramu: odcisk pozycji subskrypcji, OD KTÓRYCH zaplanowano
+ * zmianę zapisaną w fazach (`scheduleFromNextPeriod`). Rozstrzyga, czy
+ * harmonogram dołączony po zastosowanej później dopłacie to ten zachowany
+ * przy odmowie (zaplanowany od STARYCH pozycji), czy nowsza decyzja klienta
+ * podjęta już na opłaconych pozycjach - w obu przypadkach identyfikator jest
+ * ten sam, bo aplikacja przepisuje fazy dołączonego harmonogramu w miejscu
+ * (`reconcileScheduleWithAppliedUpdate`).
+ */
+const SCHEDULE_BASIS_KEY = "nes_basis";
+
+/**
+ * Odcisk pozycji subskrypcji (cena, ilość) - skrót, bo metadane operatora
+ * mieszczą 500 znaków, a subskrypcja z panelu może mieć do 20 pozycji.
+ * Pozycja bez ilości to dla operatora jedna sztuka - ta sama reguła co
+ * w porównaniu z migawką zdarzenia.
+ */
+async function scheduleBasis(items: readonly Stripe.SubscriptionItem[]): Promise<string> {
+  const lines = items.map((item) => `${refOf(item.price) ?? ""}*${item.quantity ?? 1}`);
+  return (await sha256Hex(lines.join(","))).slice(0, 40);
+}
+
 /** Identyfikatory z listy pól SDK (napis albo rozwinięty obiekt z `id`). */
 function idsOf(values: readonly unknown[] | null | undefined): string[] {
   return (values ?? []).map(refOf).filter((id): id is string => id !== null);
@@ -612,7 +636,8 @@ function trialTerms(sub: Stripe.Subscription, phaseEnd: number): Pick<PhaseParam
  * subskrypcji (druga karta, portal operatora) zostawiłby nasz przypięty.
  * Warunki rozliczenia (rabat, podatek, trial) czytamy z ŻYWEJ subskrypcji -
  * to ją operator nalicza teraz, a obie ścieżki (nowy i dołączony
- * harmonogram) mają ją w ręku bez dodatkowego odczytu.
+ * harmonogram) mają ją w ręku bez dodatkowego odczytu. Z niej też odcisk
+ * pozycji, od których zaplanowano zmianę (`SCHEDULE_BASIS_KEY`).
  *
  * @returns koniec bieżącego okresu (sekundy) - moment wejścia zmiany.
  */
@@ -652,7 +677,17 @@ async function scheduleFromNextPeriod(
 
   await stripe.subscriptionSchedules.update(
     scheduleId,
-    { end_behavior: "release", phases, metadata: nextRevision(schedule?.metadata) },
+    {
+      end_behavior: "release",
+      phases,
+      // Odcisk pozycji, od których planujemy, jedzie w TYM SAMYM zapisie co
+      // fazy - osobny zapis mógłby się nie udać i zostawić stary odcisk przy
+      // nowych fazach (`SCHEDULE_BASIS_KEY`).
+      metadata: {
+        ...nextRevision(schedule?.metadata),
+        [SCHEDULE_BASIS_KEY]: await scheduleBasis(items),
+      },
+    },
     {
       // Pełne fazy w kluczu: zmiana rabatu albo podatku między próbami to
       // inna operacja, nie powtórzenie poprzedniej.
@@ -1337,8 +1372,9 @@ export interface AppliedSubscriptionLine {
  *                    umiemy odczytać) - nietknięta,
  * - `not_attached` - w chwili zastosowania harmonogramu nie było, a dziś nie
  *                    ma go wcale albo steruje inny (nowsza decyzja),
- * - `superseded`   - pozycje u operatora nie są już tymi z migawki: późniejsza
- *                    operacja rozstrzygnęła harmonogram po swojemu,
+ * - `superseded`   - późniejsza operacja rozstrzygnęła harmonogram po swojemu:
+ *                    pozycje u operatora nie są już tymi z migawki albo fazy
+ *                    zaplanowano już OD opłaconych pozycji (`nes_basis`),
  * - `missing`      - operator nie zna subskrypcji (usunięta w piaskownicy).
  */
 export type AppliedUpdateScheduleOutcome =
@@ -1391,14 +1427,22 @@ async function isLowerPlan(
  * - wszystko inne (wyższy plan, tyle samo albo więcej miejsc, kształt
  *   nieczytelny) zostaje.
  *
- * NOWSZA DECYZJA KLIENTA ZOSTAJE. Zdarzenie bywa dostarczone z opóźnieniem
- * (ponowienie po błędzie), a klient mógł w tym czasie zaplanować downgrade
- * już z nowego planu. Działamy więc tylko na harmonogramie, który był
- * dołączony W CHWILI zastosowania (`applied.scheduleId` z migawki) - bez
- * niego nie pytamy operatora wcale - i tylko gdy pozycje u operatora wciąż
- * są tymi z migawki. Przepisania faz TEGO SAMEGO harmonogramu między
- * zastosowaniem a obsługą zdarzenia nie odróżnimy (operator nie podaje,
- * kiedy zmieniono fazy) - takie okno istnieje tylko przy spóźnionej dostawie.
+ * NOWSZA DECYZJA KLIENTA ZOSTAJE. Zdarzenie bywa obsłużone z opóźnieniem
+ * (5xx, które operator pamięta pod kluczem zwolnienia przez dobę; limit
+ * zapytań; ponowienie z panelu), a klient mógł w tym czasie zaplanować
+ * downgrade albo mniej miejsc już od opłaconych pozycji. Działamy więc tylko:
+ * - na harmonogramie dołączonym W CHWILI zastosowania (`applied.scheduleId`
+ *   z migawki) - bez niego nie pytamy operatora wcale,
+ * - przy pozycjach u operatora wciąż równych migawce,
+ * - gdy fazy NIE zaplanowano od tych pozycji. Nowsza decyzja z aplikacji
+ *   przepisuje fazy dołączonego harmonogramu W MIEJSCU (ten sam
+ *   identyfikator), więc identyfikator jej nie odróżni; robi to odcisk
+ *   pozycji zapisany razem z fazami (`SCHEDULE_BASIS_KEY`): harmonogram
+ *   zachowany przy odmowie zaplanowano od pozycji SPRZED zmiany. Kształt
+ *   faz nie wystarcza - zmiana `items` na subskrypcji z harmonogramem potrafi
+ *   podzielić bieżącą fazę u operatora i bieżąca faza harmonogramu z odmowy
+ *   niesie wtedy już NOWE pozycje, jak przepisanego. Harmonogram bez odcisku
+ *   (panel operatora, zapis sprzed odcisku) rozstrzygamy samymi fazami.
  *
  * W przeciwieństwie do operacji z UI ta funkcja RZUCA: błąd operatora (także
  * zgubiona odpowiedź) wraca do webhooka, który odpowiada 500 i dostaje
@@ -1440,6 +1484,9 @@ export async function reconcileScheduleWithAppliedUpdate(
         (items[index]?.quantity ?? 1) === line.quantity,
     );
   if (!unchanged) return "superseded";
+  if (schedule.metadata?.[SCHEDULE_BASIS_KEY] === (await scheduleBasis(items))) {
+    return "superseded";
+  }
 
   const pending = pendingPhaseLines(live);
   if (!pending || pending.length !== items.length) return "kept";

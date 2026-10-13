@@ -199,12 +199,18 @@ class FakeStripe {
   /**
    * Klient płaci odrzuconą wcześniej dopłatę (strona faktury, inna karta) w
    * oknie oczekującej zmiany: operator stosuje `pending_update` - pozycje
-   * dostają nową cenę/ilość, faktura jest opłacona, a dołączony harmonogram
-   * zostaje nietknięty. Zwraca migawkę subskrypcji z chwili zastosowania
-   * (ładunek `customer.subscription.pending_update_applied`: harmonogram jako
-   * identyfikator, nie obiekt).
+   * dostają nową cenę/ilość, faktura jest opłacona, a fazy dołączonego
+   * harmonogramu domyślnie zostają nietknięte. Zwraca migawkę subskrypcji
+   * z chwili zastosowania (ładunek `customer.subscription.pending_update_applied`:
+   * harmonogram jako identyfikator, nie obiekt).
+   *
+   * `splitPhase` odtwarza drugie zachowanie operatora: zmiana `items` na
+   * subskrypcji z harmonogramem potrafi PODZIELIĆ bieżącą fazę - stara kończy
+   * się teraz ze starymi pozycjami, nowa (bieżąca) niesie już nowe, a faza
+   * następna (zaplanowana zmiana) zostaje. Wtedy bieżąca faza harmonogramu
+   * z odmowy wygląda tak samo jak przepisanego po zastosowaniu zmiany.
    */
-  payPendingInvoice(): Raw {
+  payPendingInvoice(o: { splitPhase?: boolean } = {}): Raw {
     const pending = this.sub.pending_update as {
       subscription_items: { price?: string; quantity?: number }[];
     } | null;
@@ -213,6 +219,19 @@ class FakeStripe {
     const next = pending.subscription_items[0];
     if (next.price) item.price = { id: next.price, lookup_key: lookupKeyOf(next.price) };
     if (next.quantity) item.quantity = next.quantity;
+    const schedule = this.liveSchedule();
+    if (o.splitPhase && schedule?.current_phase) {
+      const start = schedule.current_phase.start_date;
+      const index = schedule.phases.findIndex((phase) => phase.start_date === start);
+      const ended = { ...schedule.phases[index], end_date: this.now };
+      const applied = {
+        ...schedule.phases[index],
+        start_date: this.now,
+        items: [{ price: item.price.id, quantity: item.quantity }],
+      };
+      schedule.phases.splice(index, 1, ended, applied);
+      schedule.current_phase = { start_date: this.now, end_date: item.current_period_end };
+    }
     if (this.sub.latest_invoice) {
       const invoice = this.invoices.get(this.sub.latest_invoice);
       if (invoice) invoice.status = "paid";
@@ -982,28 +1001,42 @@ describe("odrzucona dopłata opłacona PÓŹNIEJ - `pending_update_applied` (luk
   const proFake = () =>
     new FakeStripe({}, { price: { id: priceIdOf("pro_monthly"), lookup_key: "pro_monthly" } });
 
-  it("upgrade przy zaplanowanym downgradzie: zapłata w oknie zwalnia harmonogram, odnowienie po nowym planie", async () => {
-    useFake(proFake());
-    expect(await changePlan("plus_monthly")).toMatchObject({ ok: true, effect: "scheduled" });
-    const downgrade = fake.sub.schedule;
-    await upgradeDeclined();
+  it.each([
+    { name: "fazy nietknięte", splitPhase: false },
+    // Strażnik projektu: bieżąca faza bywa już na nowych pozycjach także
+    // w harmonogramie z odmowy, więc „bieżąca faza = opłacone pozycje" NIE
+    // znaczy „przepisany po zastosowaniu" - o tym rozstrzyga `nes_basis`.
+    { name: "operator podzielił bieżącą fazę", splitPhase: true },
+  ])(
+    "upgrade przy zaplanowanym downgradzie: zapłata w oknie zwalnia harmonogram, odnowienie po nowym planie ($name)",
+    async ({ splitPhase }) => {
+      useFake(proFake());
+      expect(await changePlan("plus_monthly")).toMatchObject({ ok: true, effect: "scheduled" });
+      const downgrade = fake.sub.schedule;
+      await upgradeDeclined();
 
-    const snapshot = fake.payPendingInvoice();
-    // Luka: operator zastosował upgrade, ale harmonogram z downgradem żyje -
-    // bez zwolnienia odnowienie zeszłoby na Plus, a klient zapłacił za Business.
-    expect(fake.sub.items.data[0].price.lookup_key).toBe("business_monthly");
-    expect(snapshot.schedule).toBe(downgrade);
-    expect(fake.liveSchedule()?.phases[1]).toMatchObject({
-      items: [{ price: priceIdOf("plus_monthly") }],
-    });
+      const snapshot = fake.payPendingInvoice({ splitPhase });
+      // Luka: operator zastosował upgrade, ale harmonogram z downgradem żyje -
+      // bez zwolnienia odnowienie zeszłoby na Plus, a klient zapłacił za Business.
+      expect(fake.sub.items.data[0].price.lookup_key).toBe("business_monthly");
+      expect(snapshot.schedule).toBe(downgrade);
+      expect(fake.liveSchedule()?.phases.at(-1)).toMatchObject({
+        items: [{ price: priceIdOf("plus_monthly") }],
+      });
+      if (splitPhase) {
+        expect(fake.liveSchedule()?.phases[1]).toMatchObject({
+          items: [{ price: priceIdOf("business_monthly"), quantity: 1 }],
+        });
+      }
 
-    expect(await settle(snapshot)).toBe("released");
-    expect(fake.liveSchedule()).toBeNull();
-    expect(fake.schedules.get(String(downgrade))?.status).toBe("released");
+      expect(await settle(snapshot)).toBe("released");
+      expect(fake.liveSchedule()).toBeNull();
+      expect(fake.schedules.get(String(downgrade))?.status).toBe("released");
 
-    fake.renew();
-    expect(fake.sub.items.data[0].price.lookup_key).toBe("business_monthly");
-  });
+      fake.renew();
+      expect(fake.sub.items.data[0].price.lookup_key).toBe("business_monthly");
+    },
+  );
 
   it("dołożenie miejsc przy zaplanowanym zmniejszeniu: zapłata w oknie - odnowienie na opłaconej liczbie miejsc", async () => {
     useFake(new FakeStripe({}, teamItem(10)));
@@ -1126,6 +1159,69 @@ describe("odrzucona dopłata opłacona PÓŹNIEJ - `pending_update_applied` (luk
       "schedule.release:REJECTED",
       "schedule.release:EXEC",
     ]);
+  });
+
+  // Okno ponowień (5xx, limit zapytań, ponowienie z panelu): klient planuje
+  // NOWĄ zmianę już z opłaconego planu, a aplikacja przepisuje fazy
+  // dołączonego harmonogramu w miejscu - identyfikator ten sam co w migawce.
+  // Ponowienie nie może zwolnić tej nowszej decyzji.
+  it.each([
+    { name: "fazy nietknięte", splitPhase: false },
+    { name: "operator podzielił bieżącą fazę", splitPhase: true },
+  ])(
+    "ponowienie po błędzie NIE zwalnia downgrade'u zaplanowanego już z nowego planu w tym samym harmonogramie ($name)",
+    async ({ splitPhase }) => {
+      useFake(proFake());
+      await changePlan("plus_monthly");
+      const scheduleId = fake.sub.schedule;
+      await upgradeDeclined();
+      const snapshot = fake.payPendingInvoice({ splitPhase });
+      fake.rejectNextRelease = stripeError(
+        "Too many requests",
+        "invalid_request_error",
+        "rate_limit",
+      );
+      await expect(settle(snapshot)).rejects.toThrow(/Too many requests/);
+
+      expect(await changePlan("pro_monthly")).toMatchObject({ ok: true, effect: "scheduled" });
+      expect(fake.sub.schedule).toBe(scheduleId);
+      expect(fake.liveSchedule()?.phases.at(-1)).toMatchObject({
+        items: [{ price: priceIdOf("pro_monthly") }],
+      });
+
+      expect(await settle(snapshot)).toBe("superseded");
+      expect(fake.liveSchedule()?.id).toBe(scheduleId);
+      expect(fake.log.filter((l) => l.startsWith("schedule.release"))).toEqual([
+        "schedule.release:REJECTED",
+      ]);
+
+      fake.renew();
+      expect(fake.sub.items.data[0].price.lookup_key).toBe("pro_monthly");
+    },
+  );
+
+  it("ponowienie po błędzie NIE zwalnia zmniejszenia miejsc zaplanowanego już od opłaconej liczby", async () => {
+    useFake(new FakeStripe({}, teamItem(10)));
+    await seats(5);
+    const scheduleId = fake.sub.schedule;
+    await seatsDeclined();
+    const snapshot = fake.payPendingInvoice();
+    fake.rejectNextRelease = stripeError(
+      "Too many requests",
+      "invalid_request_error",
+      "rate_limit",
+    );
+    await expect(settle(snapshot)).rejects.toThrow(/Too many requests/);
+
+    // Klient ma już 12 opłaconych miejsc i planuje 8 od odnowienia.
+    expect(await seats(8)).toMatchObject({ ok: true, quantity: 8, effect: "scheduled" });
+    expect(fake.sub.schedule).toBe(scheduleId);
+
+    expect(await settle(snapshot)).toBe("superseded");
+    expect(fake.liveSchedule()?.phases[1]).toMatchObject({ items: [{ quantity: 8 }] });
+
+    fake.renew();
+    expect(fake.sub.items.data[0].quantity).toBe(8);
   });
 
   it("zwolnienie weszło, a odpowiedź zginęła: wyjątek, a ponowienie widzi zwolniony harmonogram", async () => {

@@ -42,11 +42,28 @@ spadałby przy odnowieniu.
 | wyższy plan, tyle samo albo więcej miejsc, kształt nieczytelny | `kept` - bez zmian                                               |
 | w migawce brak harmonogramu albo dziś steruje inny / żaden     | `not_attached` - bez zmian (bez migawki - bez pytania operatora) |
 | pozycje u operatora już nie te z migawki                       | `superseded` - bez zmian                                         |
+| fazy zaplanowano już od opłaconych pozycji (`nes_basis`)       | `superseded` - bez zmian (nowsza decyzja klienta)                |
+
+Nowszą decyzję rozpoznaje odcisk pozycji `nes_basis` w metadanych
+harmonogramu: `scheduleFromNextPeriod` zapisuje go w TYM SAMYM wywołaniu co
+fazy - skrót cen i ilości subskrypcji, od których zaplanowano zmianę.
+Harmonogram zachowany przy odmowie ma odcisk pozycji SPRZED dopłaty, a
+downgrade / mniej miejsc zaplanowane już z nowego planu przepisują fazy
+dołączonego harmonogramu w miejscu (ten sam identyfikator) z odciskiem
+opłaconych pozycji. Kształt faz tego nie rozstrzyga: zmiana `items` na
+subskrypcji z harmonogramem potrafi podzielić bieżącą fazę u operatora, więc
+bieżąca faza harmonogramu z odmowy też niesie już nowe pozycje.
 
 4. Błąd operatora (odmowa, zgubiona odpowiedź) **rzuca**: trasa odpowiada 500,
    zdarzenie w dzienniku zostaje `failed`, operator je ponawia. Ponowienie czyta
    żywy stan od nowa - zwolnienie, które jednak weszło, nie idzie drugi raz, a
    znacznik strażnika nie jest zajęty, więc lustro też się domyka.
+5. Uzgodnienie (`reconcile.server.ts`, `SUPPORTED_EVENT_TYPES`) zna typ
+   `customer.subscription.pending_update_applied`: zdarzenie, którego nie ma
+   w dzienniku (punkt odbioru bez tego typu, nieudana dostawa), wychodzi w
+   raporcie jako `event_missing` z przyciskiem „Napraw" (odtworzenie tą samą
+   ścieżką co webhook). `pending_update_expired` - celowo nie (opcjonalne, sama
+   migawka stanu).
 
 `customer.subscription.pending_update_expired` (zmiana wygasła bez zapłaty) to
 zwykła migawka stanu (`subscription.updated` / `past_due` / `paused` jak przy
@@ -69,19 +86,29 @@ Pozostałe zdarzenia bez zmian (m.in. `invoice.paid` / `invoice.payment_succeede
 
 ## Ryzyka i ograniczenia
 
-- **Spóźniona dostawa i przepisany TEN SAM harmonogram.** Działamy tylko na
-  harmonogramie z migawki i tylko przy niezmienionych pozycjach, więc
-  harmonogram założony po zastosowaniu zmiany zostaje. Gdy jednak klient
-  między zastosowaniem a (spóźnioną) obsługą zdarzenia przepisał fazy tego
-  samego harmonogramu, nie odróżnimy tego - operator nie podaje, kiedy
-  zmieniono fazy. Okno istnieje tylko przy ponowieniu po błędzie.
+- **Ponowienie po błędzie a nowsza decyzja klienta.** Okno między
+  zastosowaniem zmiany a udaną obsługą zdarzenia bywa długie (zapamiętane 5xx
+  pod kluczem zwolnienia przez dobę, ponowienia operatora do 3 dni, naprawa
+  z panelu). Harmonogram założony w tym czasie zostaje (`not_attached`), a
+  przepisany przez aplikację w miejscu - też (`superseded`, odcisk
+  `nes_basis`). Nie odróżnimy jedynie harmonogramu z odciskiem sprzed
+  dopłaty, którego fazy przepisano w tym oknie RĘCZNIE w panelu operatora
+  (panel nie pisze naszych metadanych) - wtedy rozstrzyga następna faza jak
+  dla harmonogramu z odmowy. Harmonogram bez odcisku (panel, zapis sprzed tej
+  zmiany) rozstrzygamy samymi fazami.
 - **Zapamiętany błąd 5xx.** Klucz zwolnienia jest deterministyczny (id
   harmonogramu), a operator pamięta pod kluczem także 5xx przez dobę - takie
   ponowienia dostaną ten sam błąd, aż klucz wygaśnie (operator ponawia
   zdarzenie do 3 dni). Odmowa sprzed wykonania (limit zapytań) i zgubiona
   odpowiedź nie są tym dotknięte.
-- **Uzgodnienie (`reconcile.server.ts`)** nie zna jeszcze typu
-  `customer.subscription.pending_update_applied` (`SUPPORTED_EVENT_TYPES`) -
-  zgubione zdarzenie nie pokaże się w panelu jako naprawialne.
+- **Data końca `cancel_at` przy upgradzie opłaconym później (poza zakresem
+  tej zmiany).** Synchroniczny upgrade zdejmuje datę końca z portalu/panelu
+  (`clearCancelDateAfterUpgrade` - „zmiana planu = zostaję"), ale operator nie
+  przyjmuje `cancel_at` w oczekującej zmianie, a gałąź `pending_update_applied`
+  rozstrzyga wyłącznie harmonogram: po odmowie i późniejszej zapłacie data
+  zostaje i subskrypcja kończy się w niej mimo opłaconego upgrade'u. Flaga
+  `cancel_at_period_end` tego problemu nie ma (jedzie w oczekującej zmianie).
+  Bezpieczna naprawa wymaga zapamiętania daty z chwili odmowy, żeby nie zdjąć
+  daty ustawionej przez klienta już po niej - osobne zadanie.
 - **Cena spoza katalogu** w następnej fazie nie ma rangi: przy tej samej lub
   większej liczbie miejsc harmonogram zostaje (nie zwalniamy na domysł).

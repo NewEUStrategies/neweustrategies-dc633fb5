@@ -24,6 +24,14 @@ const SUPPORTED_EVENT_TYPES = [
   "customer.subscription.updated",
   "customer.subscription.deleted",
   "customer.subscription.resumed",
+  // Odrzucona dopłata opłacona później: bez obsługi harmonogram zachowany przy
+  // odmowie cofnąłby opłacony upgrade / dołożone miejsca przy odnowieniu, więc
+  // zgubiona dostawa (np. punkt odbioru bez tego typu) ma być widoczna
+  // i naprawialna. `pending_update_expired` - celowo nie: jego subskrypcja
+  // jest opcjonalna, a zdarzenie niesie wyłącznie migawkę stanu (pozycje
+  // zostały stare), którą domyka `customer.subscription.updated` - brak
+  // dostawy nie jest rozjazdem, a w raporcie byłby fałszywym alarmem.
+  "customer.subscription.pending_update_applied",
   "checkout.session.completed",
   "checkout.session.async_payment_succeeded",
   "checkout.session.async_payment_failed",

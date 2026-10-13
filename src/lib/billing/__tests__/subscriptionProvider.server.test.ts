@@ -94,6 +94,13 @@ const liveSub = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+/**
+ * Odcisk pozycji, od których zaplanowano zmianę - zapisywany RAZEM z fazami,
+ * żeby webhook `pending_update_applied` odróżnił harmonogram zachowany przy
+ * odmowie dopłaty od nowszej decyzji klienta (skutek dowodzi stanowa atrapa).
+ */
+const BASIS = expect.stringMatching(/^[0-9a-f]{40}$/);
+
 const teamItem = (quantity: number) =>
   subscriptionItem({ quantity, price: { id: "price_team", lookup_key: "team_monthly_seat" } });
 
@@ -229,7 +236,7 @@ describe("cancelSubscriptionAtPeriodEnd", () => {
           },
           { items: [{ price: "price_team", quantity: 2 }] },
         ],
-        metadata: { nes_ops_rev: "1" },
+        metadata: { nes_ops_rev: "1", nes_basis: BASIS },
       },
       { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-update-/) },
     );
@@ -711,7 +718,7 @@ describe("changeSubscriptionPrice - downgrade od nowego okresu", () => {
           },
           { items: [{ price: "price_new", quantity: 1 }] },
         ],
-        metadata: { nes_ops_rev: "1" },
+        metadata: { nes_ops_rev: "1", nes_basis: BASIS },
       },
       { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-update-/) },
     );
@@ -753,7 +760,7 @@ describe("changeSubscriptionPrice - downgrade od nowego okresu", () => {
       expect.objectContaining({
         // Początek bieżącej fazy należy do harmonogramu - operator odrzuca jego zmianę.
         phases: [expect.objectContaining({ start_date: PERIOD_START - 60 }), expect.anything()],
-        metadata: { nes_ops_rev: "5" },
+        metadata: { nes_ops_rev: "5", nes_basis: BASIS },
       }),
       expect.objectContaining({ idempotencyKey: expect.any(String) }),
     );
@@ -980,7 +987,7 @@ describe("updateSubscriptionQuantity", () => {
           },
           { items: [{ price: "price_team_next", quantity: 4 }] },
         ],
-        metadata: { nes_ops_rev: "3" },
+        metadata: { nes_ops_rev: "3", nes_basis: BASIS },
       },
       { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-update-/) },
     );

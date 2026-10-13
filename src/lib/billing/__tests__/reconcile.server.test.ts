@@ -1318,6 +1318,44 @@ describe("przynależność po identyfikatorze samego obiektu", () => {
     ]);
   });
 
+  it("raport: zgubione `pending_update_applied` jest widoczne i naprawialne, a opcjonalne `pending_update_expired` nie robi fałszywego alarmu", async () => {
+    // Bez obsługi tego zdarzenia harmonogram zachowany przy odmowie dopłaty
+    // cofnąłby opłacony upgrade przy odnowieniu - zgubiona dostawa (np. punkt
+    // odbioru bez tego typu w subskrypcji) musi wyjść w raporcie.
+    const subscriptionEvent = (id: string, type: string) => ({
+      id,
+      type,
+      created: EVENT_CREATED,
+      data: {
+        object: { id: "sub_wlasna", object: "subscription", customer: null, schedule: "sched_1" },
+      },
+    });
+    stripe.eventsList.mockResolvedValue({
+      data: [
+        subscriptionEvent("evt_applied", "customer.subscription.pending_update_applied"),
+        subscriptionEvent("evt_expired", "customer.subscription.pending_update_expired"),
+      ],
+      has_more: false,
+    });
+    setRows("subscriptions", [ownedSubscriptionRow()]);
+
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
+
+    expect(report.issues.filter((i) => i.kind === "event")).toEqual([
+      {
+        kind: "event",
+        reference: "evt_applied",
+        eventId: "evt_applied",
+        eventType: "customer.subscription.pending_update_applied",
+        reason: "event_missing",
+        detail: null,
+        occurredAt: EVENT_CREATED_ISO,
+        repairable: true,
+      },
+    ]);
+    expect(report.scannedEvents).toBe(1);
+  });
+
   it("raport: zdarzenie bez obiektu nie da się przypisać - nie wchodzi ani do raportu, ani do licznika", async () => {
     // Bez obiektu nie ma identyfikatorów, po których można by ustalić
     // właściciela. Zgłoszenie takiego zdarzenia jako `event_missing` byłoby
