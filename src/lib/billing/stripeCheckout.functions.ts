@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { CHECKOUT_LOCALES } from "@/lib/billing/checkoutLocale";
 import { isCodeProbeRateLimited, parseCouponVerdict } from "@/lib/billing/coupons";
+import { isPremiumNewsletterConsentVersion } from "@/lib/billing/premiumNewsletter";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 
 const envSchema = z.enum(["sandbox", "live"]);
@@ -19,6 +20,16 @@ const planCheckoutSchema = z.object({
   returnUrl: z.string().url(),
   environment: envSchema.optional(),
   locale: localeSchema.optional(),
+  // Zgoda na newsletter z NIEZAZNACZONEGO domyślnie pola (SUB-15). Brak klucza
+  // = brak zgody. Wersja musi być w rejestrze treści, bo dowodem jest dokładnie
+  // ten tekst, który kupujący widział w tym języku.
+  newsletterConsent: z
+    .object({
+      version: z.string().trim().max(32).refine(isPremiumNewsletterConsentVersion),
+      lang: z.enum(["pl", "en"]),
+    })
+    .strict()
+    .optional(),
 });
 
 /**
@@ -27,6 +38,14 @@ const planCheckoutSchema = z.object({
  * walidowany tym samym mechanizmem co dotychczas (`validate_b2b_coupon`) -
  * jeżeli ma odpowiednik u Stripe, przekazujemy `discounts`; jeśli jest
  * wyłącznie wewnętrzny, zakładamy jednorazowy kupon Stripe o tej samej kwocie.
+ *
+ * CENĘ I ILOŚĆ WYPROWADZA SERWER Z PLANU. `priceId` i `quantity` z żądania
+ * szły dotąd wprost do sesji: plan Pro z `priceId: "student_monthly"` dawał
+ * zamówienie Pro opłacone ceną studencką, a `quantity: 5` przy planie
+ * jednostkowym - obciążenie 5 × cena przy zamówieniu za jedną sztukę.
+ * Pozycja katalogu pochodzi teraz z `catalogPlanQuote(plan)`, `priceId`
+ * z żądania jest wyłącznie asercją (rozjazd = odmowa), a ilość liczy się
+ * tylko dla planu rozliczanego za miejsce.
  */
 export const createPlanCheckoutSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -38,11 +57,39 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
 
     const { data: plan, error: planErr } = await supabase
       .from("access_plans")
-      .select("id, price_cents, currency, active, trial_days")
+      .select(
+        "id, price_cents, currency, active, trial_days, tier_key, interval, volume_threshold_seats, volume_price_cents",
+      )
       .eq("id", data.planId)
       .maybeSingle();
     if (planErr) throw planErr;
     if (!plan || !plan.active) return { ok: false as const, error: "plan_not_found" };
+
+    const { catalogPlanQuote } = await import("@/lib/billing/catalog");
+    const quote = catalogPlanQuote(plan, data.quantity);
+    if (!quote) return { ok: false as const, error: "plan_price_missing" };
+    if (quote.entry.priceId !== data.priceId) {
+      return { ok: false as const, error: "plan_price_mismatch" };
+    }
+    /** Kwota zamówienia PRZED kuponem - ta, którą musi dać cena operatora. */
+    const orderAmountCents = quote.amountCents;
+
+    // Druga subskrypcja i ponowny trial (ta sama reguła co w drugim silniku).
+    // Lustro `subscriptions` pod RLS kupującego: konto i najemca z sesji.
+    // Konflikt liczony względem KUPOWANEJ pozycji: przejście między modelem
+    // za miejsce a indywidualnym to osobny zakup, nie zmiana planu.
+    let trialEligible = true;
+    if (!quote.entry.oneTime) {
+      const { loadLocalPlanSubscriptionHistory, SUBSCRIPTION_EXISTS_ERROR } =
+        await import("@/lib/billing/planSubscriptionGuard");
+      const history = await loadLocalPlanSubscriptionHistory(supabase, {
+        userId,
+        environment,
+        target: quote.entry,
+      });
+      if (history.hasLive) return { ok: false as const, error: SUBSCRIPTION_EXISTS_ERROR };
+      trialEligible = !history.hadAny;
+    }
 
     // Rezerwacja kuponu ATOMOWO w bazie - dokładnie ta sama ścieżka co przy
     // zamówieniach ad-hoc (patrz checkout.functions.ts), więc limit użyć nie
@@ -63,7 +110,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         userId,
         code: normalizedCode,
         planId: data.planId,
-        amountCents: plan.price_cents,
+        amountCents: orderAmountCents,
         currency: plan.currency,
       });
       // Limit prób kodów (`_coupon_probe_guard`) wraca WŁASNYM powodem: strona
@@ -100,7 +147,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         user_id: userId,
         kind: "subscription",
         status: "pending",
-        amount_cents: plan.price_cents,
+        amount_cents: orderAmountCents,
         currency: plan.currency,
         plan_id: data.planId,
         provider: "stripe",
@@ -117,7 +164,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
               coupon_code: couponCode,
               coupon_id: couponId,
               coupon_discount_cents: couponDiscountCents,
-              original_amount_cents: plan.price_cents,
+              original_amount_cents: orderAmountCents,
             }
           : {},
       } as never)
@@ -140,7 +187,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         couponId,
         orderId: order.id,
         appliedCents: couponDiscountCents,
-        originalCents: plan.price_cents,
+        originalCents: orderAmountCents,
         currency: plan.currency,
       });
       if (redeemErr || !redeemed) {
@@ -162,8 +209,10 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
     const settings = await loadCheckoutSettings(supabase, order.tenant_id);
     const result = await createSession({
       environment,
-      priceLookupKey: data.priceId,
-      quantity: data.quantity,
+      priceLookupKey: quote.entry.priceId,
+      quantity: quote.quantity,
+      expectedAmountCents: orderAmountCents,
+      expectedCurrency: plan.currency,
       planId: data.planId,
       orderId: order.id,
       userId,
@@ -178,8 +227,28 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       // wyd. 11/12, defekt wysoki). Tryb jednorazowy pole ignoruje
       // (`adhocCheckout.server` liczy trial wyłącznie dla subskrypcji).
       trialDays: Math.max(0, Number(plan.trial_days ?? 0)),
+      trialEligible,
       settings,
+      // Chwila zgody = przyjęcie zaznaczonego pola przez serwer (zegar
+      // serwera, nie deklaracja klienta). Konto bierze webhook z `userId`
+      // w metadanych - nigdy z ładunku.
+      newsletterConsent: data.newsletterConsent
+        ? { ...data.newsletterConsent, at: new Date().toISOString() }
+        : null,
     });
+
+    // Zamówienia, których sesje kasa właśnie wygasiła (druga karta, poprzednia
+    // próba) - już nie zostaną opłacone, więc nie mogą wisieć w `processing`.
+    if (result.supersededOrderIds?.length) {
+      const { markOrderSession } = await import("@/lib/billing/markOrderSession.server");
+      for (const supersededId of result.supersededOrderIds) {
+        await markOrderSession(supabase, {
+          orderId: supersededId,
+          sessionId: null,
+          status: "canceled",
+        });
+      }
+    }
 
     if (!result.ok) {
       await (

@@ -254,7 +254,7 @@ const PL: Dict = {
     intro:
       "Przyciskiem poniżej otworzysz bezpieczny portal płatności. Pobierzesz w nim faktury, zmienisz metodę płatności oraz zarządzisz subskrypcją lub ją anulujesz.",
     cta: "Otwórz portal płatności",
-    note: "Link jest jednorazowy i wygasa po krótkim czasie. Jeśli przestanie działać, poproś o nowy w swoim profilu.",
+    note: "Link prowadzi do Twojego konta - po zalogowaniu od razu otworzymy portal płatności. Działa także później, bo nową sesję portalu tworzymy przy każdym kliknięciu.",
     labels: LABELS_PL,
     footerHelp: HELP_PL,
   },
@@ -955,7 +955,7 @@ const EN: Dict = {
     intro:
       "Use the button below to open the secure billing portal. You can download invoices, update your payment method and manage or cancel your subscription there.",
     cta: "Open billing portal",
-    note: "The link is single-use and expires after a short time. If it stops working, request a new one from your profile.",
+    note: "The link opens your account - once you are signed in, we take you straight to the billing portal. It keeps working later, because a fresh portal session is created on every click.",
     labels: LABELS_EN,
     footerHelp: HELP_EN,
   },

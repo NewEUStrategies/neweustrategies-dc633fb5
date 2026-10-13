@@ -14,13 +14,20 @@ type Row = Record<string, unknown>;
 type Pred = (row: Row) => boolean;
 type Result = { data: Row[] | Row | null; error: { message: string; code?: string } | null };
 
-/** Unikaty z migracji: `provider_session_id` oraz `(provider, provider_intent_id)`. */
+/**
+ * Unikaty z migracji: `provider_session_id`, `(provider, provider_intent_id)`
+ * oraz `(provider, environment, provider_invoice_id)` (20261013090000).
+ */
 function uniqueViolation(rows: Row[], candidate: Row): boolean {
   return rows.some(
     (row) =>
       row["provider_session_id"] === candidate["provider_session_id"] ||
       (candidate["provider_intent_id"] != null &&
         row["provider_intent_id"] === candidate["provider_intent_id"] &&
+        row["provider"] === candidate["provider"]) ||
+      (candidate["provider_invoice_id"] != null &&
+        row["provider_invoice_id"] === candidate["provider_invoice_id"] &&
+        row["environment"] === candidate["environment"] &&
         row["provider"] === candidate["provider"]),
   );
 }
@@ -96,7 +103,9 @@ class FakeQuery implements PromiseLike<Result> {
         recurring: false,
         paid_at: null,
         provider_intent_id: null,
+        provider_invoice_id: null,
         provider_subscription_id: null,
+        environment: "live",
         user_id: null,
         message: null,
         ...this.payload,
@@ -155,6 +164,11 @@ vi.mock("@/lib/stripe.server", () => ({
   getStripeErrorMessage: () => "provider_error",
 }));
 vi.mock("@/lib/server/tenant.server", () => ({ resolveTenantIdForHost: async () => "tenant-1" }));
+// Dokument rozliczeniowy faktury to osobny rejestr - poza zakresem tej księgi.
+vi.mock("@/lib/billing/billingDocuments.server", () => ({
+  documentInputFromTransaction: () => null,
+  recordTransactionDocument: async () => "skipped",
+}));
 vi.mock("@/lib/http/requestHost", () => ({ currentTenantHost: async () => "nes.test" }));
 
 const allowAttempt = vi.fn(async () => true);
@@ -178,7 +192,9 @@ const ANCHOR = {
   provider: "stripe",
   provider_session_id: "cs_first",
   provider_intent_id: null,
+  provider_invoice_id: null,
   provider_subscription_id: "sub_1",
+  environment: "sandbox",
   recurring: true,
   status: "pending",
   paid_at: null,
@@ -261,6 +277,7 @@ describe("księgowanie wpłaty jednorazowej", () => {
     seed({ ...ANCHOR, recurring: false, provider_subscription_id: null });
 
     const settled = await settleDonation({
+      environment: "sandbox",
       donationId: "don-1",
       intentId: "pi_1",
       amountCents: 7500,
@@ -284,6 +301,7 @@ describe("księgowanie wpłaty jednorazowej", () => {
     seed({ ...ANCHOR, status: "paid", paid_at: "2026-02-01T12:00:00.000Z" });
 
     await settleDonation({
+      environment: "sandbox",
       donationId: "don-1",
       intentId: "pi_1",
       paidAt: "2026-02-03T18:00:00.000Z",
@@ -299,7 +317,11 @@ describe("księgowanie wpłaty jednorazowej", () => {
   it("NIE wskrzesza darowizny zwróconej darczyńcy", async () => {
     seed({ ...ANCHOR, status: "refunded", paid_at: "2026-02-01T12:00:00.000Z" });
 
-    const settled = await settleDonation({ donationId: "don-1", intentId: "pi_1" });
+    const settled = await settleDonation({
+      environment: "sandbox",
+      donationId: "don-1",
+      intentId: "pi_1",
+    });
 
     expect(settled).toBe(false);
     expect(row("don-1")).toMatchObject({ status: "refunded" });
@@ -307,14 +329,18 @@ describe("księgowanie wpłaty jednorazowej", () => {
 
   it("odnajduje wiersz po identyfikatorze sesji, gdy brakuje metadanych", async () => {
     seed({ ...ANCHOR, provider_session_id: "cs_abc" });
-    const settled = await settleDonation({ sessionId: "cs_abc", amountCents: 1000 });
+    const settled = await settleDonation({
+      environment: "sandbox",
+      sessionId: "cs_abc",
+      amountCents: 1000,
+    });
     expect(settled).toBe(true);
     expect(row("don-1")).toMatchObject({ status: "paid", amount_cents: 1000 });
   });
 
   it("bez identyfikatorów nie zgaduje, którą wpłatę zaksięgować", async () => {
     seed({ ...ANCHOR });
-    await expect(settleDonation({ intentId: "pi_1" })).resolves.toBe(false);
+    await expect(settleDonation({ environment: "sandbox", intentId: "pi_1" })).resolves.toBe(false);
     expect(row("don-1")).toMatchObject({ status: "pending" });
   });
 });
@@ -324,6 +350,7 @@ describe("darowizna cykliczna", () => {
     seed({ ...ANCHOR });
 
     const outcome = await recordRecurringDonationPayment({
+      environment: "sandbox",
       donationId: "don-1",
       subscriptionId: "sub_1",
       invoiceId: "in_1",
@@ -347,6 +374,7 @@ describe("darowizna cykliczna", () => {
     seed({ ...ANCHOR, status: "paid", provider_intent_id: "pi_1", paid_at: "2026-01-01" });
 
     const outcome = await recordRecurringDonationPayment({
+      environment: "sandbox",
       donationId: "don-1",
       subscriptionId: "sub_1",
       invoiceId: "in_2",
@@ -377,11 +405,13 @@ describe("darowizna cykliczna", () => {
     seed({ ...ANCHOR, status: "paid", provider_intent_id: "pi_1", paid_at: "2026-01-01" });
 
     const first = await recordRecurringDonationPayment({
+      environment: "sandbox",
       subscriptionId: "sub_1",
       invoiceId: "in_2",
       intentId: "pi_2",
     });
     const retry = await recordRecurringDonationPayment({
+      environment: "sandbox",
       subscriptionId: "sub_1",
       invoiceId: "in_2",
       intentId: "pi_2",
@@ -406,6 +436,7 @@ describe("darowizna cykliczna", () => {
     );
 
     const outcome = await recordRecurringDonationPayment({
+      environment: "sandbox",
       subscriptionId: "sub_1",
       invoiceId: "in_3",
       intentId: "pi_3",
@@ -422,6 +453,7 @@ describe("darowizna cykliczna", () => {
 
   it("wpłata bez żadnej kotwicy jest pomijana, a nie zgadywana", async () => {
     const outcome = await recordRecurringDonationPayment({
+      environment: "sandbox",
       subscriptionId: "sub_nieznana",
       invoiceId: "in_9",
     });
@@ -433,6 +465,7 @@ describe("darowizna cykliczna", () => {
     seed({ ...ANCHOR, status: "paid", provider_intent_id: "pi_1", paid_at: "2026-01-01" });
 
     await recordRecurringDonationPayment({
+      environment: "sandbox",
       subscriptionId: "sub_1",
       invoiceId: "in_2",
       amountCents: 0,
@@ -459,6 +492,7 @@ describe("darowizna cykliczna", () => {
 
     try {
       const outcome = await recordRecurringDonationPayment({
+        environment: "sandbox",
         donationId: "don-1",
         subscriptionId: "sub_1",
         invoiceId: "in_1",
@@ -478,6 +512,7 @@ describe("stan subskrypcji darowizny", () => {
     seed({ ...ANCHOR, provider_subscription_id: null });
 
     await syncDonationSubscription({
+      environment: "sandbox",
       subscriptionId: "sub_1",
       donationId: "don-1",
       status: "active",
@@ -496,9 +531,203 @@ describe("stan subskrypcji darowizny", () => {
       { ...ANCHOR, id: "don-2", status: "paid", provider_session_id: "renewal:in_2" },
     );
 
-    await syncDonationSubscription({ subscriptionId: "sub_1", status: "canceled" });
+    await syncDonationSubscription({
+      environment: "sandbox",
+      subscriptionId: "sub_1",
+      status: "canceled",
+    });
 
     expect(row("don-1")).toMatchObject({ status: "canceled" });
     expect(row("don-2")).toMatchObject({ status: "paid" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AUDYT SUB-09 / SUB-10: prawdziwa sekwencja zdarzeń operatora.
+//
+// Pierwsza rata darowizny cyklicznej przychodzi DWA (a z bliźniaczym
+// `invoice.payment_succeeded` - TRZY) razy: jako sesja checkout i jako
+// faktura. Przed poprawką sesja księgowała ją kluczem `cs_...`, a faktura
+// zakładała drugi wiersz `renewal:in_...` - jedna wpłata liczyła się podwójnie
+// w statystykach, eksporcie i uzgodnieniu z wyciągiem. Kolejność dostarczenia
+// nie jest gwarantowana, więc oba kierunki muszą dać JEDEN wiersz.
+// ---------------------------------------------------------------------------
+
+const { dispatchWebhookEvent } = await import("@/lib/billing/webhookDispatch.server");
+const { normalizeStripeEvent } = await import("@/lib/billing/stripeEvents.server");
+
+type StripeEnvironment = "sandbox" | "live";
+
+async function deliver(
+  type: string,
+  object: Record<string, unknown>,
+  environment: StripeEnvironment = "sandbox",
+): Promise<void> {
+  const normalized = normalizeStripeEvent({
+    id: `evt_${type}_${String(object["id"])}`,
+    type,
+    created: 1_790_000_000,
+    data: { object },
+  });
+  if (!normalized) throw new Error(`test: zdarzenie ${type} nie zostało znormalizowane`);
+  await dispatchWebhookEvent({
+    eventType: normalized.eventType,
+    data: normalized.data,
+    environment,
+    occurredAt: "2026-10-12T10:00:00.000Z",
+  });
+}
+
+const SESSION = {
+  id: "cs_test_sekwencja",
+  object: "checkout.session",
+  mode: "subscription",
+  payment_status: "paid",
+  status: "complete",
+  subscription: "sub_sekwencja",
+  amount_total: 5000,
+  currency: "pln",
+  customer_details: { email: "darczynca@example.com" },
+  metadata: { purpose: "donation", donationId: "don-1" },
+};
+
+function invoice(id: string, paidAt = 1_790_000_100): Record<string, unknown> {
+  return {
+    id,
+    object: "invoice",
+    amount_paid: 5000,
+    total: 5000,
+    currency: "pln",
+    customer_email: "darczynca@example.com",
+    billing_reason: id.endsWith("_1") ? "subscription_create" : "subscription_cycle",
+    metadata: {},
+    parent: {
+      subscription_details: {
+        subscription: "sub_sekwencja",
+        metadata: { purpose: "donation", donationId: "don-1" },
+      },
+    },
+    lines: { data: [{ period: { end: 1_792_600_000 } }] },
+    status_transitions: { paid_at: paidAt },
+  };
+}
+
+function seedCheckoutAnchor(environment: StripeEnvironment = "sandbox"): void {
+  seed({
+    ...ANCHOR,
+    provider_session_id: "cs_test_sekwencja",
+    provider_subscription_id: null,
+    environment,
+  });
+}
+
+const subscriptionRows = (): Row[] =>
+  donations.rows.filter(
+    (r) =>
+      r["provider_subscription_id"] === "sub_sekwencja" ||
+      r["provider_session_id"] === "cs_test_sekwencja",
+  );
+
+describe("SUB-09: sesja + faktura pierwszej raty = JEDEN wiersz", () => {
+  it("sesja PRZED fakturą: sesja tylko wiąże subskrypcję, ratę księguje faktura", async () => {
+    seedCheckoutAnchor();
+
+    await deliver("checkout.session.completed", SESSION);
+    // Sesja nie jest wpłatą - kotwica czeka na fakturę, ale zna już subskrypcję.
+    expect(row("don-1")).toMatchObject({
+      status: "pending",
+      provider_subscription_id: "sub_sekwencja",
+    });
+
+    await deliver("invoice.paid", invoice("in_sekwencja_1"));
+    await deliver("invoice.payment_succeeded", invoice("in_sekwencja_1"));
+
+    expect(subscriptionRows()).toHaveLength(1);
+    expect(row("don-1")).toMatchObject({
+      status: "paid",
+      provider_session_id: "cs_test_sekwencja",
+      provider_invoice_id: "in_sekwencja_1",
+      amount_cents: 5000,
+      paid_at: new Date(1_790_000_100 * 1000).toISOString(),
+    });
+  });
+
+  it("faktura PRZED sesją: ten sam jeden wiersz", async () => {
+    seedCheckoutAnchor();
+
+    await deliver("invoice.payment_succeeded", invoice("in_sekwencja_1"));
+    await deliver("checkout.session.completed", SESSION);
+    await deliver("invoice.paid", invoice("in_sekwencja_1"));
+
+    expect(subscriptionRows()).toHaveLength(1);
+    expect(row("don-1")).toMatchObject({ status: "paid", provider_invoice_id: "in_sekwencja_1" });
+  });
+
+  it("kolejna rata zakłada osobny wiersz - jedna wpłata, jeden wiersz", async () => {
+    seedCheckoutAnchor();
+
+    await deliver("checkout.session.completed", SESSION);
+    await deliver("invoice.paid", invoice("in_sekwencja_1"));
+    await deliver("invoice.paid", invoice("in_sekwencja_2", 1_792_600_100));
+    await deliver("invoice.payment_succeeded", invoice("in_sekwencja_2", 1_792_600_100));
+
+    expect(subscriptionRows().map((r) => r["provider_invoice_id"])).toEqual([
+      "in_sekwencja_1",
+      "in_sekwencja_2",
+    ]);
+  });
+});
+
+describe("SUB-10: zdarzenie z piaskownicy nie księguje wpłaty produkcyjnej", () => {
+  it("sesja jednorazowa opłacona w piaskownicy NIE zamyka wiersza `live`", async () => {
+    seed({ ...ANCHOR, recurring: false, provider_subscription_id: null, environment: "live" });
+
+    await deliver(
+      "checkout.session.completed",
+      {
+        ...SESSION,
+        id: "cs_first",
+        mode: "payment",
+        subscription: null,
+        payment_intent: "pi_testowa",
+        metadata: { purpose: "donation", donationId: "don-1" },
+      },
+      "sandbox",
+    );
+
+    expect(row("don-1")).toMatchObject({ status: "pending", paid_at: null });
+  });
+
+  it("faktura z piaskownicy NIE domyka kotwicy `live` i nie dopisuje raty", async () => {
+    seedCheckoutAnchor("live");
+
+    await deliver("checkout.session.completed", SESSION, "sandbox");
+    await deliver("invoice.paid", invoice("in_sekwencja_1"), "sandbox");
+
+    expect(donations.rows).toHaveLength(1);
+    expect(row("don-1")).toMatchObject({ status: "pending", provider_subscription_id: null });
+  });
+
+  it("wpłata jednorazowa zapisuje INTENCJĘ (`pi_...`), po której przychodzi zwrot", async () => {
+    seed({
+      ...ANCHOR,
+      recurring: false,
+      provider_subscription_id: null,
+      provider_session_id: "cs_jednorazowa",
+    });
+
+    await deliver("checkout.session.completed", {
+      ...SESSION,
+      id: "cs_jednorazowa",
+      mode: "payment",
+      subscription: null,
+      payment_intent: "pi_jednorazowa",
+    });
+
+    expect(row("don-1")).toMatchObject({
+      status: "paid",
+      provider_session_id: "cs_jednorazowa",
+      provider_intent_id: "pi_jednorazowa",
+    });
   });
 });

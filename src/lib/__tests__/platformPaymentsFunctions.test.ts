@@ -14,12 +14,14 @@ const h = vi.hoisted(() => ({
   resolvePrice: vi.fn(),
   change: vi.fn(),
   cancel: vi.fn(),
-  unpause: vi.fn(),
-  revertCancellation: vi.fn(),
+  resume: vi.fn(),
+  offered: vi.fn(),
   seats: vi.fn(),
   sync: vi.fn(),
   paymentMethod: vi.fn(),
   portal: vi.fn(),
+  portalLink: vi.fn(),
+  tenant: vi.fn(),
   retrieve: vi.fn(),
   preview: vi.fn(),
   createClient: vi.fn(),
@@ -40,16 +42,26 @@ vi.mock("@/lib/billing/subscriptionProvider.server", () => ({
   resolveProviderPriceId: h.resolvePrice,
   changeSubscriptionPrice: h.change,
   cancelSubscriptionAtPeriodEnd: h.cancel,
-  resumePausedSubscription: h.unpause,
-  resumeScheduledCancellation: h.revertCancellation,
+  resumeProviderSubscription: h.resume,
   updateSubscriptionQuantity: h.seats,
 }));
+// Bramka celu (oferta najemcy) ma własne testy - tu sprawdzamy, ŻE adapter
+// karty operatora przez nią przechodzi i z czym.
+vi.mock("@/lib/billing/planSwitch.server", () => ({ resolveOfferedSwitchTarget: h.offered }));
 vi.mock("@/lib/billing/selfSync.server", () => ({ syncUserSubscriptionsFromProvider: h.sync }));
 vi.mock("@/lib/billing/paymentMethod.server", () => ({
   fetchPaymentMethodPreview: h.paymentMethod,
 }));
 vi.mock("@/lib/billing/returnUrl.server", () => ({ absoluteReturnUrl: h.returnUrl }));
-vi.mock("@/lib/stripe.server", () => ({
+// Sesja portalu ma JEDNĄ implementację (`createPortalLinkForUser`, testowaną
+// we własnym pliku) - tu sprawdzamy, że adapter przekazuje do niej tożsamość
+// i najemcę z sesji oraz ścieżkę powrotu.
+vi.mock("@/lib/billing/portalLink.server", () => ({ createPortalLinkForUser: h.portalLink }));
+vi.mock("@/lib/server/userTenant.server", () => ({ resolveUserTenantId: h.tenant }));
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  // Rozstrzygnięcie środowiska jest PRAWDZIWE - produkcja zawsze na live.
+  resolveEnvironment: (await importOriginal<typeof import("@/lib/stripe.server")>())
+    .resolveEnvironment,
   getStripeClient: h.createClient,
   getStripeErrorMessage: () => "provider unavailable",
 }));
@@ -63,6 +75,7 @@ const sub = {
   price_id: "old_plan",
   status: "active",
   quantity: 3,
+  tenant_id: "tenant-own",
 };
 const input = { environment: "sandbox", targetPriceId: "new_plan", quantity: 5 };
 const protectedFns = [
@@ -75,6 +88,8 @@ const protectedFns = [
   "syncMyBillingFromProvider",
   "getMyPaymentMethod",
 ] as const;
+/** Funkcje czytające wiersz subskrypcji pod RLS wołającego (portal czyta przez bramkę portalu). */
+const subscriptionReaders = protectedFns.filter((name) => name !== "createStripePortalSession");
 const invoke = (name: keyof typeof payments, data: unknown = input) =>
   callServerFn(payments[name], { data, context });
 beforeEach(() => {
@@ -86,12 +101,31 @@ beforeEach(() => {
   h.direction.mockReturnValue("upgrade");
   h.syncCatalog.mockResolvedValue(undefined);
   h.resolvePrice.mockResolvedValue("price_resolved");
-  for (const fn of [h.change, h.cancel, h.unpause, h.revertCancellation])
-    fn.mockResolvedValue({ ok: true });
-  h.seats.mockResolvedValue({ ok: true, quantity: 5 });
+  h.change.mockResolvedValue({ ok: true, direction: "upgrade", effect: "applied" });
+  h.cancel.mockResolvedValue({ ok: true });
+  h.resume.mockResolvedValue({ ok: true, mode: "cancellation_reverted" });
+  h.offered.mockResolvedValue({
+    ok: true,
+    target: {
+      planId: "plan-new",
+      tenantId: "tenant-own",
+      interval: "month",
+      lookupKey: "new_plan",
+    },
+  });
+  h.seats.mockResolvedValue({ ok: true, quantity: 5, effect: "applied" });
   h.sync.mockResolvedValue({ synced: 2 });
   h.paymentMethod.mockResolvedValue({ brand: "visa", last4: "4242" });
   h.portal.mockResolvedValue({ url: "https://billing.stripe.test/session" });
+  h.portalLink.mockResolvedValue({
+    ok: true,
+    urls: {
+      overviewUrl: "https://billing.stripe.test/session",
+      updatePaymentMethodUrl: null,
+      cancelUrl: null,
+    },
+  });
+  h.tenant.mockResolvedValue("tenant-own");
   h.returnUrl.mockReturnValue("https://example.test/account");
   h.retrieve.mockResolvedValue({ items: { data: [{ id: "si_own" }] } });
   h.preview.mockResolvedValue({
@@ -124,7 +158,7 @@ describe("payment server function boundaries", () => {
       expect(db.chains).toHaveLength(0);
     },
   );
-  it.each(protectedFns)(
+  it.each(subscriptionReaders)(
     "%s scopes reads to the session user and selected environment",
     async (name) => {
       if (name === "syncMyBillingFromProvider" || name === "getMyPaymentMethod")
@@ -139,7 +173,7 @@ describe("payment server function boundaries", () => {
       expect(chain.argsOf("limit")).toEqual([name === "syncMyBillingFromProvider" ? 10 : 1]);
     },
   );
-  it.each(protectedFns)(
+  it.each(subscriptionReaders)(
     "%s propagates database failure before reaching the provider",
     async (name) => {
       db.setResponse("subscriptions", fail("RLS read failed"));
@@ -220,28 +254,71 @@ describe("catalog resolution", () => {
 });
 
 describe("plan changes and seats", () => {
-  it("does not contact the provider when the plan is unchanged", async () => {
-    h.direction.mockReturnValue("same");
+  it("does not contact the provider when the mirror already has the target price", async () => {
+    h.catalog.mockReturnValue({ priceId: "old_plan" });
     expect(await invoke("changeStripePlan")).toEqual({ ok: true, direction: "same" });
     expect(h.change).not.toHaveBeenCalled();
+    expect(h.offered).not.toHaveBeenCalled();
   });
-  it.each(["upgrade", "downgrade"])(
-    "passes the %s direction and preserves purchased quantity",
-    async (direction) => {
-      h.direction.mockReturnValue(direction);
-      expect(await invoke("changeStripePlan")).toEqual({ ok: true, direction });
-      expect(h.change).toHaveBeenCalledWith("sandbox", "sub_own", {
-        newPriceExternalId: "new_plan",
-        quantity: 3,
-        direction,
-      });
+  it("checks the target against the SESSION tenant's offer before touching the provider", async () => {
+    await invoke("changeStripePlan", { ...input, userId: "victim", tenantId: "tenant-victim" });
+    expect(h.offered).toHaveBeenCalledWith({
+      userId: "caller-from-session",
+      subscriptionTenantId: "tenant-own",
+      currentLookupKey: "old_plan",
+      target: { lookupKey: "new_plan" },
+    });
+    expect(h.offered.mock.invocationCallOrder[0]).toBeLessThan(
+      h.change.mock.invocationCallOrder[0],
+    );
+  });
+  it.each(["plan_not_found", "plan_not_switchable", "plan_kind_mismatch", "plan_not_recurring"])(
+    "an out-of-offer target (%s) is refused and the provider is never called",
+    async (error) => {
+      // SUB-14: wcześniej wystarczał dowolny lookup_key z katalogu - plan
+      // nieaktywny w najemcy, cudzy, `decision_lab_seat`.
+      h.offered.mockResolvedValue({ ok: false, error });
+      await expect(invoke("changeStripePlan")).rejects.toThrow(error);
+      expect(h.change).not.toHaveBeenCalled();
+      expect(h.createClient).not.toHaveBeenCalled();
     },
   );
-  it("uses one seat for a legacy null quantity and returns the provider error", async () => {
-    db.setResponse("subscriptions", ok({ ...sub, quantity: null }));
+  it.each([
+    ["upgrade", "applied"],
+    ["downgrade", "scheduled"],
+  ])("passes the provider's %s outcome (%s) through", async (direction, effect) => {
+    h.change.mockResolvedValue({ ok: true, direction, effect, cancelAtPeriodEnd: false });
+    expect(await invoke("changeStripePlan")).toEqual({ ok: true, direction, effect });
+    // Kierunek i liczbę miejsc liczy operacja u dostawcy na ŻYWYM stanie -
+    // adapter przekazuje wyłącznie zatwierdzony cel z oferty.
+    expect(h.change).toHaveBeenCalledWith("sandbox", "sub_own", {
+      newPriceExternalId: "new_plan",
+    });
+  });
+  it("returns a declined proration charge with the invoice to pay, never as success", async () => {
+    h.change.mockResolvedValue({
+      ok: false,
+      error: "payment_failed",
+      hostedInvoiceUrl: "https://invoice.stripe.test/i/1",
+    });
+    expect(await invoke("changeStripePlan")).toEqual({
+      error: "payment_failed",
+      hostedInvoiceUrl: "https://invoice.stripe.test/i/1",
+    });
+  });
+  it("returns any other provider error", async () => {
     h.change.mockResolvedValue({ ok: false, error: "declined" });
-    expect(await invoke("changeStripePlan")).toEqual({ error: "declined" });
-    expect(h.change.mock.calls[0][2].quantity).toBe(1);
+    expect(await invoke("changeStripePlan")).toEqual({ error: "declined", hostedInvoiceUrl: null });
+  });
+  it("production always operates on live, whatever the client asks for", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    await invoke("changeStripePlan", { ...input, environment: "sandbox" });
+    expect(db.lastChain("subscriptions")!.calls.filter((c) => c.method === "eq")).toContainEqual({
+      method: "eq",
+      args: ["environment", "live"],
+    });
+    expect(h.change.mock.calls[0]?.[0]).toBe("live");
+    vi.unstubAllEnvs();
   });
   it.each([undefined, { priceId: "flat", perSeat: false }])(
     "refuses a non-seat plan",
@@ -252,57 +329,108 @@ describe("plan changes and seats", () => {
     },
   );
   it.each([
-    { old: 3, next: 5, immediate: true },
-    { old: 3, next: 2, immediate: false },
-    { old: null, next: 1, immediate: false },
-  ])("seat transition $old → $next reports timing correctly", async ({ old, next, immediate }) => {
-    db.setResponse("subscriptions", ok({ ...sub, quantity: old }));
-    h.seats.mockResolvedValue({ ok: true, quantity: next });
-    expect(await invoke("updateStripeSubscriptionSeats", { ...input, quantity: next })).toEqual({
+    { old: 3, next: 5, effect: "applied", immediate: true },
+    { old: 3, next: 2, effect: "scheduled", immediate: false },
+    // Lustro spóźnione (3), operator ma już 8 - o terminie decyduje OPERATOR.
+    { old: 3, next: 5, effect: "scheduled", immediate: false },
+    { old: null, next: 1, effect: "applied", immediate: true },
+  ])(
+    "seat transition $old → $next reports the provider's timing ($effect)",
+    async ({ old, next, effect, immediate }) => {
+      db.setResponse("subscriptions", ok({ ...sub, quantity: old }));
+      h.seats.mockResolvedValue({ ok: true, quantity: next, effect });
+      expect(await invoke("updateStripeSubscriptionSeats", { ...input, quantity: next })).toEqual({
+        ok: true,
+        quantity: next,
+        immediate,
+        effect,
+      });
+      expect(h.seats).toHaveBeenCalledWith("sandbox", "sub_own", {
+        priceExternalId: "new_plan",
+        quantity: next,
+        previousQuantity: old ?? 1,
+      });
+    },
+  );
+  it("a scheduled seat decrease carries the provider's effective date to the card", async () => {
+    db.setResponse("subscriptions", ok({ ...sub, quantity: 10 }));
+    h.seats.mockResolvedValue({
       ok: true,
-      quantity: next,
-      immediate,
+      quantity: 5,
+      effect: "scheduled",
+      effectiveAt: "2026-11-01T00:00:00.000Z",
     });
-    expect(h.seats).toHaveBeenCalledWith("sandbox", "sub_own", {
-      priceExternalId: "new_plan",
-      quantity: next,
-      previousQuantity: old ?? 1,
+    expect(await invoke("updateStripeSubscriptionSeats", { ...input, quantity: 5 })).toEqual({
+      ok: true,
+      quantity: 5,
+      immediate: false,
+      effect: "scheduled",
+      effectiveAt: "2026-11-01T00:00:00.000Z",
     });
   });
   it("does not announce success when a seat update fails", async () => {
-    h.seats.mockResolvedValue({ ok: false, error: "declined" });
-    expect(await invoke("updateStripeSubscriptionSeats")).toEqual({ error: "declined" });
+    h.seats.mockResolvedValue({ ok: false, error: "payment_failed", hostedInvoiceUrl: null });
+    expect(await invoke("updateStripeSubscriptionSeats")).toEqual({
+      error: "payment_failed",
+      hostedInvoiceUrl: null,
+    });
   });
 });
 
 describe("billing portal, cancellation and resumption", () => {
-  it.each([null, { provider_customer_id: null }])(
-    "returns no_customer without a provider request",
-    async (row) => {
-      db.setResponse("subscriptions", ok(row));
-      expect(await invoke("createStripePortalSession")).toEqual({ error: "no_customer" });
-      expect(h.createClient).not.toHaveBeenCalled();
-    },
-  );
-  it("uses the sanitized return URL and the authenticated customer's general portal", async () => {
+  it("delegates to the single portal implementation with the SESSION identity and tenant", async () => {
     expect(
-      await invoke("createStripePortalSession", { environment: "live", returnPath: "/account" }),
+      await invoke("createStripePortalSession", {
+        environment: "live",
+        returnPath: "/account",
+        userId: "victim",
+        tenantId: "tenant-victim",
+      }),
     ).toEqual({
       url: "https://billing.stripe.test/session",
       overviewUrl: "https://billing.stripe.test/session",
       updatePaymentMethodUrl: null,
       cancelUrl: null,
     });
-    expect(h.returnUrl).toHaveBeenCalledWith("/account");
-    expect(h.portal).toHaveBeenCalledWith({
-      customer: "cus_own",
-      return_url: "https://example.test/account",
-    });
-    expect(h.createClient).toHaveBeenCalledWith("live");
+    expect(h.tenant).toHaveBeenCalledWith(context.supabase, "caller-from-session");
+    // Ścieżka powrotu jedzie dalej - sanityzuje ją `absoluteReturnUrl`
+    // wewnątrz `createPortalLinkForUser`, tą samą bramką co wcześniej.
+    expect(h.portalLink).toHaveBeenCalledWith(
+      "caller-from-session",
+      "live",
+      { tenantId: "tenant-own" },
+      "/account",
+    );
+    // Żadnej drugiej, równoległej sesji portalu tworzonej w tym pliku.
+    expect(h.portal).not.toHaveBeenCalled();
+    expect(db.chains).toHaveLength(0);
   });
-  it("maps a portal provider failure to an actionable error", async () => {
-    h.portal.mockRejectedValue(new Error("secret provider detail"));
-    expect(await invoke("createStripePortalSession")).toEqual({ error: "provider unavailable" });
+  it("without a return path the portal implementation applies its default", async () => {
+    await invoke("createStripePortalSession", { environment: "sandbox" });
+    expect(h.portalLink).toHaveBeenCalledWith(
+      "caller-from-session",
+      "sandbox",
+      { tenantId: "tenant-own" },
+      undefined,
+    );
+  });
+  it.each(["no_customer", "portal_failed"])(
+    "returns the %s refusal without a session URL",
+    async (error) => {
+      h.portalLink.mockResolvedValue({ ok: false, error });
+      expect(await invoke("createStripePortalSession")).toEqual({ error });
+    },
+  );
+  it("a caller without a tenant never reaches the portal", async () => {
+    h.tenant.mockRejectedValue(new Error("No tenant for current user"));
+    await expect(invoke("createStripePortalSession")).rejects.toThrow("No tenant for current user");
+    expect(h.portalLink).not.toHaveBeenCalled();
+  });
+  it("production always opens the live portal", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    await invoke("createStripePortalSession", { environment: "sandbox" });
+    expect(h.portalLink.mock.calls[0]?.[1]).toBe("live");
+    vi.unstubAllEnvs();
   });
   it.each([true, false])("cancel at period end returns provider outcome %s", async (success) => {
     h.cancel.mockResolvedValue(success ? { ok: true } : { ok: false, error: "declined" });
@@ -312,18 +440,31 @@ describe("billing portal, cancellation and resumption", () => {
     expect(h.cancel).toHaveBeenCalledWith("sandbox", "sub_own");
   });
   it.each([
-    { status: "paused", mode: "unpaused", method: "unpause" },
-    { status: "active", mode: "cancellation_reverted", method: "revertCancellation" },
+    { provider: "unpaused", mode: "unpaused" },
+    { provider: "collection_resumed", mode: "unpaused" },
+    { provider: "cancellation_reverted", mode: "cancellation_reverted" },
+    { provider: "already_active", mode: "cancellation_reverted" },
   ] as const)(
-    "resumes $status using the correct provider operation",
-    async ({ status, mode, method }) => {
-      db.setResponse("subscriptions", ok({ ...sub, status }));
+    "the LIVE provider state decides the mechanism ($provider -> $mode), not the mirror status",
+    async ({ provider, mode }) => {
+      // Lustro mówi „active" - pauza poboru i status `paused` rozstrzyga operator.
+      db.setResponse("subscriptions", ok({ ...sub, status: "active" }));
+      h.resume.mockResolvedValue({ ok: true, mode: provider });
       expect(await invoke("resumeStripeSubscription")).toEqual({ ok: true, mode });
-      expect(h[method]).toHaveBeenCalledWith("sandbox", "sub_own");
-      h[method].mockResolvedValue({ ok: false, error: "declined" });
-      expect(await invoke("resumeStripeSubscription")).toEqual({ error: "declined" });
+      expect(h.resume).toHaveBeenCalledWith("sandbox", "sub_own");
     },
   );
+  it("a resume whose invoice was declined stays an error with the invoice to pay", async () => {
+    h.resume.mockResolvedValue({
+      ok: false,
+      error: "payment_failed",
+      hostedInvoiceUrl: "https://invoice.stripe.test/i/2",
+    });
+    expect(await invoke("resumeStripeSubscription")).toEqual({
+      error: "payment_failed",
+      hostedInvoiceUrl: "https://invoice.stripe.test/i/2",
+    });
+  });
 });
 
 describe("invoice preview never mutates the subscription", () => {
@@ -385,6 +526,11 @@ describe("invoice preview never mutates the subscription", () => {
       nextBilledAt: null,
     });
     expect(h.preview.mock.calls[0][0].subscription_details.items).toBeUndefined();
+  });
+  it("refuses to quote a target outside the tenant's offer", async () => {
+    h.offered.mockResolvedValue({ ok: false, error: "plan_not_found" });
+    await expect(invoke("previewStripePlanChange")).rejects.toThrow("plan_not_found");
+    expect(h.preview).not.toHaveBeenCalled();
   });
   it("returns unavailable preview on provider failure, without attempting a change", async () => {
     h.preview.mockRejectedValue(new Error("offline"));

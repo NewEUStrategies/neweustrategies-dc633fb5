@@ -4,11 +4,9 @@
 // biznesowy - tak jak grant.server jest jedynym miejscem nadawania uprawnień:
 //   - `kind=order` -> payment_orders: nadanie uprawnienia, zaksięgowanie,
 //                     efekty kuponu B2B, maile (subskrypcja / wydarzenie),
-//                     potwierdzenie RSVP dla biletu na wydarzenie.
-//
-// Darowizny NIE przechodzą przez dostawcę (AUP Paddle) - zbiera je zewnętrzny
-// serwis zbiórkowy (donationsExternal.ts). Zabłąkany webhook `kind=donation`
-// z historycznej transakcji jest logowany i pomijany bez zapisu.
+//                     potwierdzenie RSVP dla biletu na wydarzenie,
+//   - `purpose=donation` -> rejestr `donations` (wpłata JEDNORAZOWA; ratę
+//                     cykliczną księguje faktura w `webhookDispatch.server`).
 //
 // Kontrakt błędów: funkcja RZUCA przy awarii zapisu. Webhook zamienia wyjątek
 // na 500, więc dostawca ponawia dostarczenie i realizacja się dokończy.
@@ -639,11 +637,20 @@ export async function fulfilOneTimeTransaction(
   if (kind === "donation") {
     // Darowizny mają własny rejestr (`donations`) - księgujemy je tutaj, a nie
     // przez payment_orders: nie nadają żadnego uprawnienia.
+    //
+    // DWA RÓŻNE IDENTYFIKATORY, każdy w swojej kolumnie: sesja (`cs_...`,
+    // `txn.id`) odnajduje wiersz, a intencja płatności (`pi_...`) jest kluczem,
+    // po którym przychodzi zwrot i spór. Dawniej w `provider_intent_id` lądowała
+    // sesja, więc `charge.refunded` (niosący `pi_...`) nigdy nie trafiał
+    // w darowiznę: zwrócona wpłata zostawała `paid` razem ze statusem
+    // wspierającego (audyt SUB-09). Środowisko zdarzenia bramkuje zapis tak
+    // samo jak przy zamówieniu (`fulfilOrder`).
     const { settleDonation } = await import("@/lib/billing/donations.server");
     const settled = await settleDonation({
+      environment: env,
       donationId: str(txn.customData, "donationId"),
-      sessionId: str(txn.customData, "sessionId") ?? txn.id,
-      intentId: txn.id,
+      sessionId: txn.sessionId ?? str(txn.customData, "sessionId") ?? txn.id,
+      intentId: txn.paymentIntentId ?? null,
       amountCents: txn.amountCents,
       currency: txn.currency,
       donorEmail: txn.customerEmail,

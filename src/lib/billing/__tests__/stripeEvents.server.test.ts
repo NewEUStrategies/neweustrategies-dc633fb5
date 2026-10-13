@@ -745,6 +745,31 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
     });
   });
 
+  it("mapuje rozstrzygnięcie sporu (dispute.closed) z SUROWYM statusem operatora", () => {
+    // Przegląd adwersaryjny, poz. 26: bez tej normalizacji wygrany spór nie
+    // miał żadnej drogi do przywrócenia dostępu ani wpłaty.
+    const result = normalized(
+      event("charge.dispute.closed", {
+        id: "dp_1",
+        charge: "ch_9",
+        payment_intent: "pi_9",
+        currency: "eur",
+        amount: 2500,
+        status: "won",
+      }),
+    );
+
+    expect(result.eventType).toBe("adjustment.updated");
+    expect(result.data).toEqual({
+      id: "dp_1",
+      transactionId: "pi_9",
+      subscriptionId: null,
+      action: "chargeback",
+      status: "won",
+      totals: { total: "2500", currencyCode: "EUR" },
+    });
+  });
+
   it("mapuje notę kredytową na korektę powiązaną z fakturą", () => {
     const data = adjustmentOf(
       event("credit_note.created", {
@@ -828,5 +853,103 @@ describe("normalizeStripeEvent - zakres integracji", () => {
 
     expect(normalizeStripeEvent(e)).toEqual(normalizeStripeEvent(e));
     expect(e).toEqual(snapshot);
+  });
+});
+
+// Audyt SUB-03 / SUB-14 / SUB-16: pola, od których zależy dostęp i windykacja.
+describe("mapStripeSubscription - pauza poboru, powód anulowania, rezygnacja datą", () => {
+  it("pauza poboru przy statusie active to `paused` z zachowanym sposobem pauzy", () => {
+    const raw = stripeSubscription({
+      pause_collection: { behavior: "void", resumes_at: 1_710_000_000 },
+    });
+    const data = mapStripeSubscription(raw);
+
+    expect(data.status).toBe("paused");
+    expect(data.pauseCollection).toEqual({
+      behavior: "void",
+      resumesAt: "2024-03-09T16:00:00.000Z",
+    });
+    expect(normalized(event("customer.subscription.updated", raw)).eventType).toBe(
+      "subscription.paused",
+    );
+  });
+
+  it("zdjęta pauza poboru wraca do statusu operatora", () => {
+    const data = mapStripeSubscription(stripeSubscription({ pause_collection: null }));
+    expect(data.status).toBe("active");
+    expect(data.pauseCollection).toBeUndefined();
+  });
+
+  it("pauza poboru nie przykrywa subskrypcji zakończonej ani nieopłaconej", () => {
+    for (const status of ["canceled", "incomplete", "incomplete_expired"]) {
+      const data = mapStripeSubscription(
+        stripeSubscription({ status, pause_collection: { behavior: "keep_as_draft" } }),
+      );
+      expect(data.status, status).toBe(status);
+    }
+  });
+
+  it("przenosi `cancellation_details.reason` do modelu domenowego", () => {
+    const data = mapStripeSubscription(
+      stripeSubscription({
+        status: "canceled",
+        cancellation_details: { reason: "payment_failed" },
+      }),
+    );
+    expect(data.cancellationReason).toBe("payment_failed");
+  });
+
+  it("rezygnacja zaplanowana datą `cancel_at` jest zaplanowaną rezygnacją", () => {
+    expect(
+      mapStripeSubscription(stripeSubscription({ cancel_at: 1_702_000_000 })).scheduledChange,
+    ).toEqual({ action: "cancel", effectiveAt: "2023-12-08T01:46:40.000Z" });
+    // Po zakończeniu subskrypcji `cancel_at` jest historią, nie planem.
+    expect(
+      mapStripeSubscription(stripeSubscription({ status: "canceled", cancel_at: 1_702_000_000 }))
+        .scheduledChange,
+    ).toBeNull();
+  });
+});
+
+describe("normalizeStripeEvent - próby obciążenia faktury", () => {
+  it("niesie numer próby i termin kolejnej próby", () => {
+    const data = transactionOf(
+      event("invoice.payment_failed", {
+        id: "in_1",
+        attempt_count: 3,
+        next_payment_attempt: 1_800_000_000,
+      }),
+    );
+    expect(data.attemptCount).toBe(3);
+    expect(data.nextPaymentAttemptAt).toBe("2027-01-15T08:00:00.000Z");
+  });
+
+  it("bez pól próby zostawia puste wartości zamiast zgadywać", () => {
+    const data = transactionOf(event("invoice.payment_failed", { id: "in_1", attempt_count: "3" }));
+    expect(data.attemptCount).toBeNull();
+    expect(data.nextPaymentAttemptAt).toBeNull();
+  });
+});
+
+// Przegląd poprawek SUB-04/SUB-16: odrzucona dopłata do upgrade'u przy
+// `pending_if_incomplete` zostawia subskrypcję aktywną, a jej
+// `invoice.payment_failed` wyglądał dla windykacji jak zaległe odnowienie -
+// mapowanie nie niosło `billing_reason`, więc nic nie umiało ich odróżnić.
+describe("normalizeStripeEvent - powód wystawienia faktury", () => {
+  it("niesie `billing_reason` faktury - dopłatę za zmianę i odnowienie", () => {
+    for (const reason of ["subscription_update", "subscription_cycle", "subscription_create"]) {
+      for (const type of ["invoice.payment_failed", "invoice.paid"]) {
+        const data = transactionOf(event(type, { id: "in_1", billing_reason: reason }));
+        expect(data.billingReason).toBe(reason);
+      }
+    }
+  });
+
+  it("bez powodu (albo z wartością spoza słownika typów) zostawia `null`", () => {
+    expect(transactionOf(event("invoice.payment_failed", { id: "in_1" })).billingReason).toBeNull();
+    expect(
+      transactionOf(event("invoice.payment_failed", { id: "in_1", billing_reason: 7 }))
+        .billingReason,
+    ).toBeNull();
   });
 });

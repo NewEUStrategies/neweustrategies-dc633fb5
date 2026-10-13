@@ -51,8 +51,19 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         eq: () => chain,
         maybeSingle: async () => ({ data: { ...state }, error: null }),
         update: (patch: Partial<SubState>) => {
+          // Zamknięcie cyklu windykacji jest warunkowe (`gt(count, 0)`) i
+          // czyta RETURNING - zajęte, gdy cykl był otwarty przed zapisem.
+          const claimed = state.payment_failure_count > 0;
           Object.assign(state, patch);
-          return { eq: () => ({ eq: async () => ({ error: null }) }) };
+          const query = {
+            eq: () => query,
+            gt: () => query,
+            or: () => query,
+            select: async () => ({ data: claimed ? [{ id: "sub-row-1" }] : [], error: null }),
+            then: (resolve: (value: { error: null }) => unknown) =>
+              Promise.resolve({ error: null }).then(resolve),
+          };
+          return query;
         },
       };
       return chain;

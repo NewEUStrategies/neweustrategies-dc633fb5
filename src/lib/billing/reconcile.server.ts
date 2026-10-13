@@ -36,6 +36,9 @@ const SUPPORTED_EVENT_TYPES = [
   // celowo nie: większość jego dostaw to sukces, który niesie `charge.refunded`.
   "refund.failed",
   "charge.dispute.created",
+  // Rozstrzygnięcie sporu (`won` przywraca dostęp i wpłatę) - zgubione
+  // zdarzenie ma być widoczne i naprawialne jak każde inne.
+  "charge.dispute.closed",
   "credit_note.created",
   "customer.updated",
 ] as const;
