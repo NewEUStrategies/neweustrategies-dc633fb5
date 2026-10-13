@@ -16,7 +16,10 @@
 // reaktywuje: dodanie wymaga WAŻNEGO kodu, a ten prowadzi do nowego obiektu.
 // Ktoś, kto zapisał stary obiekt w swoim koncie Google (przekazany mail), nie
 // dostaje więc nowego kodu, a zadanie i ponowne dodanie przez uczestnika nie
-// piszą do tego samego obiektu.
+// piszą do tego samego obiektu. Wyjątek: przed migracją 20261012130000 trasa
+// wydaje obiekt w starym kształcie `<issuer>.reg_<registrationId>`
+// (`legacyGoogleObjectId`) - inaczej stara funkcja dziennika nadpisałaby jego
+// wiersz i obiekt sprzed OPS-14 nigdy nie trafiłby do dezaktywacji.
 //
 // KOSZT JEDNEGO „DODAJ” (OPS-14). Dotąd każde kliknięcie importowało klucz
 // i robiło PATCH klasy i obiektu. Teraz: klucz jest importowany raz na izolat
@@ -192,8 +195,20 @@ export async function walletObjectSuffix(qrToken: string): Promise<string> {
   return toHex(digest).slice(0, 12);
 }
 
+/**
+ * Identyfikator obiektu sprzed OPS-14: jeden obiekt na zgłoszenie. Trasa
+ * wydaje go już tylko wtedy, gdy baza nie ma migracji 20261012130000 (stara
+ * funkcja dziennika trzyma JEDEN wiersz na zgłoszenie i nadpisuje jego
+ * identyfikator - obiekt z kodem zgubiłby ten wiersz). Jest prefiksem
+ * identyfikatora z kodem, więc migracja 20261012170000 wyprowadza go z wiersza
+ * dziennika (`_event_wallet_pass_queue_legacy_google_objects`).
+ */
+export function legacyGoogleObjectId(issuerId: string, registrationId: string): string {
+  return `${issuerId}.reg_${registrationId}`;
+}
+
 export function googleObjectId(issuerId: string, registrationId: string, suffix: string): string {
-  return `${issuerId}.reg_${registrationId}.${suffix}`;
+  return `${legacyGoogleObjectId(issuerId, registrationId)}.${suffix}`;
 }
 
 /** SHA-256 (hex) treści zasobu - `JSON.stringify` budowniczych jest deterministyczny. */

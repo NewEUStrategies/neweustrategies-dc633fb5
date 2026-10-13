@@ -15,16 +15,35 @@
 // i sama zamyka bez sieci przypadki, w których wywołanie nic by nie dało
 // (wydarzenie skończone - obiekt wygasł; zgłoszenie znów ważne z tym samym
 // kodem). `_event_wallet_pass_revocations_settle` rozlicza wynik po dzierżawie.
+// Od 20261012170100 partia niesie też NAGROBKI obiektów usuniętych wydarzeń
+// i zgłoszeń (ten sam kształt pozycji, rozliczenie po identyfikatorze) - dla
+// zadania to zwykłe obiekty do unieważnienia.
 //
 // WYNIK WYWOŁANIA GOOGLE:
 //   * 2xx i 404 (obiektu nie ma - nie ma czego unieważnić) -> revoked;
 //   * każdy inny status albo błąd sieci -> failed z krótką przyczyną
 //     (`http 403`, `timeout`, `network`) - bez treści odpowiedzi i bez sekretów;
 //     baza ponawia z odstępem, po 8 próbach przestaje (`gaveUp` w wyniku
-//     przebiegu, przyczyna w `event_wallet_passes.revoke_error`);
+//     przebiegu, przyczyna w `event_wallet_passes.revoke_error`; operacje
+//     przywracają porzucone `_event_wallet_pass_revocations_requeue()`);
 //   * minięty termin partii -> deferred (próba nie przepada).
-// Obiekt, który w trakcie próby uczestnik dodał ponownie (ten sam kod, znów
-// ważny), rozliczenie oddaje w `reactivate` - zadanie przywraca mu ACTIVE.
+//
+// PRZYWRÓCENIE ACTIVE (best-effort, z tym samym tokenem):
+//   * obiekt, który w trakcie próby uczestnik dodał ponownie (ten sam kod,
+//     znów ważny) - `reactivate` z rozliczenia;
+//   * obiekt, którego zgłoszenie dezaktywacji zajęcie zamknęło jako
+//     nieaktualne PO próbie (PATCH INACTIVE mógł dojść do Google, choć nie
+//     został odnotowany) - `reactivate` z zajęcia (F7).
+// W obu przypadkach baza wyczyściła skrót treści, więc nawet nieudane
+// przywrócenie naprawia następne „Dodaj do Google Wallet” (pełny zapis).
+//
+// TOKEN DOPIERO PRZY PRACY, A JEGO BŁĄD NIE ZJADA PRÓB (F10). Token jest
+// potrzebny tylko, gdy zajęcie oddało obiekty - pusta kolejka nie kosztuje
+// wymiany. Wymiana, która się nie udała (klucz konta usługi usunięty,
+// wyłączony albo obrócony w GCP), to awaria CAŁEGO zadania, nie obiektu:
+// partia wraca jako `deferred` (próba oddana, dzierżawa zdjęta), a przebieg
+// rzuca - krok crona świeci na czerwono przy każdym ticku, aż ktoś naprawi
+// klucz, i żaden obiekt nie dochodzi przez awarię do sufitu 8 prób.
 //
 // BRAK KONFIGURACJI GOOGLE = nic do zrobienia (`skipped: not_configured`),
 // a nie awaria: zadanie niczego nie zajmuje, więc próby nie przepadają.
@@ -55,9 +74,12 @@ export interface WalletRevocationsResult {
   deferred: number;
   /** Nieudana ÓSMA próba - obiekt zostaje z błędem, bez dalszych prób. */
   gaveUp: number;
-  /** Zamknięte przez bazę bez wywołania (wydarzenie minione, zgłoszenie znów ważne). */
+  /** Zamknięte przez bazę bez wywołania (wydarzenie minione, zgłoszenie znów ważne, nagrobek wygasły). */
   closed: number;
-  /** Obiekty wydane ponownie w trakcie próby, którym przywrócono ACTIVE. */
+  /**
+   * Obiekty, którym przywrócono ACTIVE: wydane ponownie w trakcie próby albo
+   * zamknięte jako nieaktualne po próbie, która mogła dojść do Google.
+   */
   reactivated: number;
   skipped?: "not_configured" | "migration_pending";
 }
@@ -85,10 +107,18 @@ export function revokeErrorLabel(err: unknown): string {
   return "network";
 }
 
+/** Identyfikatory obiektów z listy `reactivate` (zajęcie albo rozliczenie). */
+function objectIds(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === "string" && id !== "")
+    : [];
+}
+
 function readClaim(data: Json | null): {
   claimedAt: string | null;
   passes: ClaimedPass[];
   closed: number;
+  reactivate: string[];
 } {
   const payload = isRecord(data) ? data : {};
   const claimedAt = typeof payload.claimed_at === "string" ? payload.claimed_at : null;
@@ -99,13 +129,49 @@ function readClaim(data: Json | null): {
     if (typeof item.id !== "string" || typeof item.object_id !== "string") continue;
     passes.push({ id: item.id, objectId: item.object_id });
   }
-  return { claimedAt, passes, closed: count(payload.closed) };
+  return {
+    claimedAt,
+    passes,
+    closed: count(payload.closed),
+    reactivate: objectIds(payload.reactivate),
+  };
+}
+
+interface SettleLists {
+  readonly revoked: string[];
+  readonly failed: { id: string; error: string }[];
+  readonly deferred: string[];
+}
+
+/** Rozliczenie partii; `null`, gdy się nie udało (dzierżawa w bazie wygaśnie sama). */
+async function settle(
+  admin: DbClient,
+  claimedAt: string,
+  lists: SettleLists,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const { data, error } = await admin.rpc("_event_wallet_pass_revocations_settle", {
+      p_claimed_at: claimedAt,
+      p_revoked: lists.revoked,
+      p_failed: lists.failed,
+      p_deferred: lists.deferred,
+    });
+    if (error) {
+      console.error("[wallet] google revocations settle failed:", error.message);
+      return null;
+    }
+    return isRecord(data) ? data : {};
+  } catch (err) {
+    console.error("[wallet] google revocations settle failed:", String(err));
+    return null;
+  }
 }
 
 /**
  * Cron: obiekty Google Wallet do unieważnienia. Termin sprawdzamy PRZED
  * zajęciem (miniony termin nie zajmuje niczego) i przed każdym wywołaniem.
- * Rzuca tylko przy błędzie zajęcia - krok crona świeci wtedy na czerwono.
+ * Rzuca przy błędzie zajęcia i przy nieudanej wymianie tokenu (partia oddana
+ * jako `deferred`) - krok crona świeci wtedy na czerwono.
  */
 export async function runWalletPassRevocations(
   admin: DbClient,
@@ -135,85 +201,70 @@ export async function runWalletPassRevocations(
   }
   const claim = readClaim(data);
   result.closed = claim.closed;
-  result.claimed = claim.passes.length;
-  if (claim.claimedAt === null || claim.passes.length === 0) return result;
+  const claimedAt = claim.passes.length > 0 ? claim.claimedAt : null;
+  result.claimed = claimedAt === null ? 0 : claim.passes.length;
+  if (claimedAt === null && claim.reactivate.length === 0) return result;
 
-  const revoked: string[] = [];
-  const failed: { id: string; error: string }[] = [];
-  const deferred: string[] = [];
-
-  let token: string | null = null;
-  let tokenError: string | null = null;
+  let token: string;
   try {
     token = await walletAccessToken(config.serviceAccount, Date.now());
   } catch (err) {
-    tokenError = `token ${revokeErrorLabel(err)}`;
+    // Awaria zadania, nie obiektu (F10): partia wraca bez zużycia próby.
+    const reason = revokeErrorLabel(err);
+    if (claimedAt !== null) {
+      const deferred = claim.passes.map((pass) => pass.id);
+      await settle(admin, claimedAt, { revoked: [], failed: [], deferred });
+    }
+    if (claim.reactivate.length > 0) {
+      // Skrót treści jest już wyczyszczony - następne dodanie zapisze obiekt.
+      console.warn("[wallet] google reactivations skipped:", claim.reactivate.length);
+    }
+    throw new Error(`google wallet token failed: ${reason}`);
   }
 
-  for (const pass of claim.passes) {
-    if (token === null) {
-      failed.push({ id: pass.id, error: tokenError ?? "token" });
-      continue;
+  const reactivate = new Set(claim.reactivate);
+  if (claimedAt !== null) {
+    const revoked: string[] = [];
+    const failed: { id: string; error: string }[] = [];
+    const deferred: string[] = [];
+    for (const pass of claim.passes) {
+      if (Date.now() > deadlineAt) {
+        deferred.push(pass.id);
+        continue;
+      }
+      try {
+        await setWalletObjectState(pass.objectId, "INACTIVE", token);
+        revoked.push(pass.id);
+      } catch (err) {
+        failed.push({ id: pass.id, error: revokeErrorLabel(err) });
+      }
     }
-    if (Date.now() > deadlineAt) {
-      deferred.push(pass.id);
-      continue;
+    if (failed.length > 0) {
+      console.warn(
+        "[wallet] google revocations failed:",
+        failed.length,
+        [...new Set(failed.map((f) => f.error))].join(", "),
+      );
     }
-    try {
-      await setWalletObjectState(pass.objectId, "INACTIVE", token);
-      revoked.push(pass.id);
-    } catch (err) {
-      failed.push({ id: pass.id, error: revokeErrorLabel(err) });
-    }
-  }
-  if (failed.length > 0) {
-    console.warn(
-      "[wallet] google revocations failed:",
-      failed.length,
-      [...new Set(failed.map((f) => f.error))].join(", "),
-    );
-  }
 
-  let reactivate: string[] = [];
-  try {
-    const { data: settled, error: settleError } = await admin.rpc(
-      "_event_wallet_pass_revocations_settle",
-      {
-        p_claimed_at: claim.claimedAt,
-        p_revoked: revoked,
-        p_failed: failed,
-        p_deferred: deferred,
-      },
-    );
-    if (settleError) {
+    const summary = await settle(admin, claimedAt, { revoked, failed, deferred });
+    if (summary === null) {
       // Nierozliczone zajęcie wygaśnie samo; ponowny PATCH INACTIVE jest idempotentny.
-      console.error("[wallet] google revocations settle failed:", settleError.message);
       result.revoked = revoked.length;
       result.failed = failed.length;
       result.deferred = deferred.length;
-      return result;
+    } else {
+      result.revoked = count(summary.revoked);
+      result.failed = count(summary.failed);
+      result.deferred = count(summary.deferred);
+      result.gaveUp = count(summary.gave_up);
+      for (const objectId of objectIds(summary.reactivate)) reactivate.add(objectId);
     }
-    const summary = isRecord(settled) ? settled : {};
-    result.revoked = count(summary.revoked);
-    result.failed = count(summary.failed);
-    result.deferred = count(summary.deferred);
-    result.gaveUp = count(summary.gave_up);
-    reactivate = Array.isArray(summary.reactivate)
-      ? summary.reactivate.filter((id): id is string => typeof id === "string")
-      : [];
-  } catch (err) {
-    console.error("[wallet] google revocations settle failed:", String(err));
-    result.revoked = revoked.length;
-    result.failed = failed.length;
-    result.deferred = deferred.length;
-    return result;
   }
 
-  // Wydany ponownie w trakcie próby: PATCH INACTIVE mógł przyjść po zapisie
-  // trasy. Best-effort - dziennik wyczyścił skrót treści, więc następne
-  // dodanie i tak zapisze obiekt w całości (ze stanem ACTIVE).
+  // Best-effort: baza wyczyściła skrót treści, więc następne dodanie i tak
+  // zapisze obiekt w całości (ze stanem ACTIVE).
   for (const objectId of reactivate) {
-    if (token === null) break;
     try {
       await setWalletObjectState(objectId, "ACTIVE", token);
       result.reactivated += 1;

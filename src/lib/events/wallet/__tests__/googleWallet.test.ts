@@ -17,6 +17,7 @@ import {
   googleObjectId,
   GoogleWalletError,
   isoInTimeZone,
+  legacyGoogleObjectId,
   resetGoogleWalletMemoForTests,
   setWalletObjectState,
   signServiceAccountJwt,
@@ -359,6 +360,16 @@ describe("identyfikator obiektu i skrót treści", () => {
     expect(googleObjectId(ISSUER, "52b00000-0000-0000-0000-0000000000a1", suffix)).toBe(
       `${ISSUER}.reg_52b00000-0000-0000-0000-0000000000a1.${suffix}`,
     );
+  });
+
+  it("identyfikator sprzed OPS-14 to identyfikator z kodem bez sufiksu (`.` + 12 hex) - jak wyprowadza go migracja", async () => {
+    const registrationId = "52b00000-0000-0000-0000-0000000000a1";
+    const suffix = await walletObjectSuffix(WALLET_QR);
+    const legacy = legacyGoogleObjectId(ISSUER, registrationId);
+    expect(legacy).toBe(`${ISSUER}.reg_${registrationId}`);
+    const withCode = googleObjectId(ISSUER, registrationId, suffix);
+    expect(withCode.startsWith(`${legacy}.`)).toBe(true);
+    expect(withCode.slice(0, -13)).toBe(legacy);
   });
 
   it("skrót treści jest deterministyczny i zmienia się razem z treścią", async () => {
