@@ -25698,6 +25698,10 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      admin_event_registration_partner_consent_withdraw: {
+        Args: { p_registration_id: string }
+        Returns: Json
+      }
       admin_event_registration_record_payment: {
         Args: { p_payload: Json }
         Returns: Json
@@ -29986,6 +29990,10 @@ export type Database = {
         Returns: Json
       }
       event_registration_notify_payload: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      event_registration_partner_consent_withdraw: {
         Args: { p_payload: Json }
         Returns: Json
       }
