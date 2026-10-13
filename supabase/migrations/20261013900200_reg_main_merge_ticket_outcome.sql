@@ -509,7 +509,7 @@ BEGIN
   ) || CASE WHEN v_refused
          -- ZMIANA (scalenie z main, TIX-05): wplata na zamkniete zgloszenie
          -- to odmowa wobec kupujacego (`notifyTicketRefusal`), a nie
-         -- „miejsce zarezerwowane"; `refund_queued` rozroznia zwrot
+         -- "miejsce zarezerwowane"; `refund_queued` rozroznia zwrot
          -- automatyczny od decyzji organizatora.
          THEN jsonb_build_object('refused', true, 'reason', 'registration_closed')
          ELSE '{}'::jsonb END;

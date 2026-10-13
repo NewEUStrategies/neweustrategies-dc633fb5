@@ -16,7 +16,7 @@
 --     znacznik na zamowieniu i zlecenie zwrotu (`refund_queued`).
 --
 -- DEFEKT (stan po samym scaleniu)
---   1. Zapis zlecenia po rezygnacji i decyzja „zwroc" zerowaly `attempts`, ale
+--   1. Zapis zlecenia po rezygnacji i decyzja "zwroc" zerowaly `attempts`, ale
 --      zostawialy `escalated_at` i `provider_refund_id` poprzedniego epizodu:
 --      dziennik pokazywal stary alarm przy nowym zleceniu, a `refund.failed`
 --      dla STAREGO identyfikatora zwrotu eskalowal nowe zlecenie.
@@ -29,8 +29,8 @@
 --      `organizer_rejected` i bez kwoty, a przy wplacie na zgloszenie juz
 --      zamkniete siatka bezpieczenstwa REG zdazyla w TEJ SAMEJ transakcji
 --      wstawic `needs_review/closed_without_refund_decision` - zwrot nie
---      wychodzil, a odpowiedz mowila kupujacemu „zwrot zlecony"
---      (`refund_queued` = „wiersz istnieje").
+--      wychodzil, a odpowiedz mowila kupujacemu "zwrot zlecony"
+--      (`refund_queued` = "wiersz istnieje").
 --
 -- ZMIANA (ciala zbudowane na NAJNOWSZYCH definicjach: zapis - 20261012181200,
 --   decyzja - 20261012170050, odmowa - 20261012130100; zmiany oznaczone
@@ -40,7 +40,7 @@
 --      (odpowiedz oddaje jego stan, wolajacy widzi, ze zwrot jest w drodze).
 --   B. `admin_event_refund_job_decide`: `refund_unconfirmed` nie ma decyzji
 --      (`invalid_transition` - najpierw potwierdzenie albo `refund.failed`;
---      panel po scaleniu nie pokazuje dla niego przyciskow), „zwroc" startuje
+--      panel po scaleniu nie pokazuje dla niego przyciskow), "zwroc" startuje
 --      z czystym budzetem.
 --   C. `_event_ticket_payment_refused`: pochodzenie `system`, kwota i waluta
 --      zamowienia; zlecenie siatki bezpieczenstwa z TEJ transakcji
@@ -49,9 +49,9 @@
 --      wplata na zamkniete zgloszenie nie kupila niczego (intencja TIX-05);
 --      wspolna wplata zostaje w przegladzie (intencja REG-03/R45). Wynik =
 --      PRAWDA, ze zwrot jest automatyczny albo juz w drodze (`pending`,
---      `processing`, `submitted`, `failed`, `completed`), a nie „wiersz istnieje" -
---      tak czyta go TS (`notifyTicketRefusal`: „zwrot zlecony" kontra
---      „organizator zdecyduje").
+--      `processing`, `submitted`, `failed`, `completed`), a nie "wiersz istnieje" -
+--      tak czyta go TS (`notifyTicketRefusal`: "zwrot zlecony" kontra
+--      "organizator zdecyduje").
 --
 -- CZEGO TO NIE ZAMYKA. Zlecenie `refund_unconfirmed` bez potwierdzenia
 --   operatora nie ma recznego wyjscia w panelu - rozstrzyga je webhook
@@ -490,8 +490,8 @@ BEGIN
          AND x.payment_order_id = p_order.id
          AND x.status NOT IN ('cancelled', 'rejected'));
 
-  -- ZMIANA (scalenie z main): „zwrot zlecony" znaczy zwrot automatyczny albo
-  -- juz w drodze/zakonczony - nie „wiersz istnieje". Zlecenie w przegladzie
+  -- ZMIANA (scalenie z main): "zwrot zlecony" znaczy zwrot automatyczny albo
+  -- juz w drodze/zakonczony - nie "wiersz istnieje". Zlecenie w przegladzie
   -- (wspolna wplata, decyzja organizatora) albo zdjete to `false`: TS mowi
   -- wtedy kupujacemu, ze o zwrocie zdecyduje organizator.
   SELECT j.state INTO v_state

@@ -22,7 +22,7 @@
 -- DEFEKT (stan po samym scaleniu)
 --   1. `_event_package_purchase` z 20261012181400 (cialo sprzed ksiegi)
 --      dokladal `sold_count + seats` OBOK triggera miejsc pakietu: zakup
---      pakietu na 2 miejsca zajmowal 4 (harness 24-R45/A „dwa miejsca
+--      pakietu na 2 miejsca zajmowal 4 (harness 24-R45/A "dwa miejsca
 --      w puli biletu"), bez kontroli sali, limitu otwartych zamowien
 --      i terminu platnosci.
 --   2. Rdzen gosci REG (R38) nie znal TIX-03 - gosc dopisany przy otwartej

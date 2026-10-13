@@ -40,7 +40,7 @@
 --      z powodem" pod nazwa main (`event_refund_jobs_review_reason_check`) -
 --      ten sam stan co 20261012170000.
 --   2. `_event_refund_job_escalate`: cialo main, tresc alarmu bez slowa
---      „odrzucone" - zlecenia REG pochodza tez z rezygnacji i anulowania.
+--      "odrzucone" - zlecenia REG pochodza tez z rezygnacji i anulowania.
 --   3. Kolejka: odrzucenie przy wspolnej wplacie wchodzi do przegladu PRZEZ
 --      helper eskalacji (powod `active_registrations_share_payment` + alarm,
 --      w tej samej transakcji - worker nie zobaczy `pending`); ponowne
@@ -106,7 +106,7 @@ UPDATE public.event_registration_refund_jobs j
 
 -- 2) HELPER ESKALACJI ----------------------------------------------------------
 -- Cialo z 20261012120000:129-216. ZMIANA (scalenie): tresc alarmu nie mowi
--- „odrzucone zgloszenie" - po REG-03 zlecenie powstaje tez z rezygnacji,
+-- "odrzucone zgloszenie" - po REG-03 zlecenie powstaje tez z rezygnacji,
 -- anulowania i zamkniecia bez decyzji. Liczba prob i okno potwierdzenia
 -- zostaja w tresci (test 24b).
 CREATE OR REPLACE FUNCTION public._event_refund_job_escalate(
