@@ -22,6 +22,7 @@
 import type { Database } from "@/integrations/supabase/types";
 import {
   PAYMENT_GRACE_DAYS,
+  billingReasonPaysPeriod,
   isDelinquentSubscriptionStatus,
   paymentGraceEnd,
 } from "@/lib/billing/accessPeriod";
@@ -58,6 +59,12 @@ export interface DunningContext {
    * odnowienie (zaległość) od dopłaty za zmianę w trakcie okresu.
    */
   billingReason?: string | null;
+  /**
+   * Czy faktura obciąża za CAŁY okres (pozycja subskrypcji bez proraty).
+   * Dopłata za zmianę interwału (`subscription_update`, np. miesięczny ->
+   * roczny) resetuje okres i opłaca nowy - jak odnowienie.
+   */
+  chargesFullPeriod?: boolean | null;
 }
 
 type SubscriptionUpdate = Database["public"]["Tables"]["subscriptions"]["Update"];
@@ -120,6 +127,17 @@ function isHandledAttempt(lastKey: string | null, ctx: DunningContext): boolean 
  */
 function isMidCycleChangeInvoice(ctx: DunningContext): boolean {
   return ctx.billingReason === "subscription_update";
+}
+
+/**
+ * Czy zapłata tej faktury opłaca OKRES rozliczeniowy (`billingReasonPaysPeriod`):
+ * odnowienie, pierwsza płatność albo dopłata, która otworzyła nowy okres.
+ * Zwykła dopłata za zmianę w trakcie okresu, faktura ręczna i pozostałe powody
+ * - nie. Bez powodu (sesja checkout, stary dziennik) - tak, jak dotąd.
+ */
+function paysBillingPeriod(ctx: DunningContext): boolean {
+  if (!ctx.billingReason) return true;
+  return billingReasonPaysPeriod(ctx.billingReason, ctx.chargesFullPeriod === true);
 }
 
 /** Faktura, której próba otworzyła cykl windykacji (klucz `<faktura>:<próba>`). */
@@ -402,10 +420,17 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
   const sub = await loadSubscription(ctx);
   if (!sub) return;
 
+  // `last_payment_at` to ostatnia zapłata ZA OKRES (`paysBillingPeriod`).
+  // Zwykła dopłata za zmianę w trakcie okresu ani faktura ręczna go nie
+  // przesuwają: przy zgubionej porażce odnowienia (brak licznika) znacznik
+  // z dopłaty wyglądał jak zapłata bieżącego okresu - `paymentCoversPeriod`
+  // uznawał okres za opłacony, a strażnik spóźnionej porażki połykał nieudane
+  // odnowienie dostarczone po dopłacie.
+  const periodPayment = paysBillingPeriod(ctx);
   const reset: SubscriptionUpdate = {
     payment_failure_count: 0,
     last_payment_failed_at: null,
-    last_payment_at: nextLastPaymentAt(ctx, sub),
+    ...(periodPayment ? { last_payment_at: nextLastPaymentAt(ctx, sub) } : {}),
     // Klucza deduplikacji (`last_dunning_transaction_id`) NIE zerujemy
     // (PAY-13): kolejne nieudane obciążenie w nowym cyklu ma nową fakturę
     // (nowy klucz `<faktura>:<próba>`), więc i tak przejdzie, a wyzerowany
@@ -414,21 +439,21 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
     updated_at: new Date().toISOString(),
   };
 
-  // Zwykłe odnowienie bez porażki: nie ma cyklu do zamknięcia ani czego
-  // potwierdzać - odnotowujemy samą zapłatę.
+  // Bez porażki nie ma cyklu do zamknięcia ani czego potwierdzać. Zapłata za
+  // okres odnotowuje samą zapłatę; dopłata za zmianę i faktura ręczna - nic.
   if (sub.payment_failure_count === 0) {
-    await updateSubscription(ctx, reset);
+    if (periodPayment) await updateSubscription(ctx, reset);
     return;
   }
 
-  // Opłacona dopłata za zmianę w trakcie okresu NIE spłaca zaległego
-  // odnowienia: tamta faktura wciąż czeka. Zamknięcie cyklu kasowałoby kotwicę
-  // karencji subskrypcji, która dalej jest w zaległości (kolejne `past_due`
-  // zakotwiczyłoby ją od nowa, czyli wydłużyło darmowy dostęp), i wysłało
-  // „płatność zaksięgowana". Cykl zamyka wyłącznie zapłata faktury, która go
-  // otworzyła - albo każda zapłata odnowienia.
+  // Opłacona dopłata za zmianę w trakcie okresu (albo faktura ręczna) NIE
+  // spłaca zaległego odnowienia: tamta faktura wciąż czeka. Zamknięcie cyklu
+  // kasowałoby kotwicę karencji subskrypcji, która dalej jest w zaległości
+  // (kolejne `past_due` zakotwiczyłoby ją od nowa, czyli wydłużyło darmowy
+  // dostęp), i wysłało „płatność zaksięgowana". Cykl zamyka wyłącznie zapłata
+  // faktury, która go otworzyła - albo każda zapłata za okres.
   if (
-    isMidCycleChangeInvoice(ctx) &&
+    !periodPayment &&
     dunningInvoiceOf(sub.last_dunning_transaction_id) !== (ctx.transactionId || null)
   ) {
     return;
