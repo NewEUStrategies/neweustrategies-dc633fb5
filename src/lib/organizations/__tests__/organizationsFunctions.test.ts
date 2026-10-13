@@ -27,7 +27,7 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
 const h = vi.hoisted(() => ({
   emails: [] as Array<{ to: string; subject: string }>,
   emailOk: true,
-  providerResult: { ok: true } as { ok: boolean; error?: string },
+  providerResult: { ok: true } as { ok: boolean; error?: string } & Record<string, unknown>,
   providerCalls: [] as unknown[],
   notified: [] as unknown[],
   expiry: { expired: 0, notified: 0 },
@@ -269,6 +269,68 @@ describe("setTeamSeatLimit", () => {
     const result = await callServerFn(seats.setTeamSeatLimit, { data: input, context: context() });
     expect(result).toEqual({ ok: false, error: "provider: card declined" });
     expect(rpcCalls.map((c) => c.fn)).not.toContain("org_set_seats_limit");
+  });
+
+  it("zmniejszenie ZAPLANOWANE u operatora nie rusza limitu ani miejsc - zrobi to webhook nowego okresu", async () => {
+    db.setResponse("member_organizations", () =>
+      ok({
+        id: ORG_ID,
+        seats_limit: 10,
+        seats_source: "subscription",
+        provider_subscription_id: "sub_1",
+      }),
+    );
+    db.setResponse("subscriptions", () =>
+      ok({ price_id: "team_monthly_seat", quantity: 10, environment: "live", status: "active" }),
+    );
+    h.providerResult = {
+      ok: true,
+      quantity: 5,
+      effect: "scheduled",
+      effectiveAt: "2026-11-01T00:00:00.000Z",
+    };
+
+    const result = await callServerFn(seats.setTeamSeatLimit, { data: input, context: context() });
+
+    expect(result).toEqual({
+      ok: true,
+      effect: "scheduled",
+      seatsLimit: 10,
+      scheduledSeats: 5,
+      effectiveAt: "2026-11-01T00:00:00.000Z",
+      source: "subscription",
+      providerSynced: true,
+    });
+    // Dawniej limit spadał tu do 5 od razu: osoby 6-10 wchodziły w karencję
+    // z mailem w okresie opłaconym za 10 miejsc, a najbliższe zdarzenie
+    // subskrypcji (ilość 10) przywracało limit - dostęp skakał.
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("org_set_seats_limit");
+    expect(h.notified).toHaveLength(0);
+  });
+
+  it("odrzucona dopłata za miejsca oddaje panelowi kod i stronę faktury, limit bez zmian", async () => {
+    db.setResponse("member_organizations", () =>
+      ok({ id: ORG_ID, seats_limit: 3, provider_subscription_id: "sub_1" }),
+    );
+    db.setResponse("subscriptions", () =>
+      ok({ price_id: "team_monthly_seat", quantity: 3, environment: "live", status: "active" }),
+    );
+    h.providerResult = {
+      ok: false,
+      error: "payment_failed",
+      hostedInvoiceUrl: "https://invoice.stripe.test/i/seats",
+    };
+
+    expect(await callServerFn(seats.setTeamSeatLimit, { data: input, context: context() })).toEqual(
+      {
+        ok: false,
+        error: "provider: payment_failed",
+        paymentOutcome: "payment_failed",
+        hostedInvoiceUrl: "https://invoice.stripe.test/i/seats",
+      },
+    );
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("org_set_seats_limit");
+    expect(h.notified).toHaveLength(0);
   });
 
   it("niewidoczna subskrypcja przerywa zmianę", async () => {

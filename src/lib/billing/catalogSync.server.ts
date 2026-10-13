@@ -4,13 +4,36 @@
 // środowiska) identyfikatory wewnętrzne znikają, a w aplikacji zostają tylko
 // czytelne identyfikatory (`lookup_key` ceny, `metadata.lovable_external_id`
 // produktu). Ten moduł odtwarza katalog idempotentnie: produkt/cena są
-// zakładane, gdy ich brak, a rozjechana kwota, waluta, cykl lub trial są
-// korygowane do wartości z `access_plans` (źródło prawdy aplikacji).
+// zakładane, gdy ich brak, a rozjechana kwota, waluta, cykl, kształt ceny
+// (progi, przekształcanie ilości) lub trial są korygowane do wartości
+// z `access_plans` (źródło prawdy aplikacji) - dokładnie to, czego kasa
+// wymaga przed sesją (`catalogPriceMismatch`).
+//
+// JEDNO ŹRÓDŁO PRAWDY: PLANY NAJEMCY DOMYŚLNEGO. Katalog operatora jest JEDEN
+// na instalację - `lookup_key` (`plus_monthly`, `pro_annual`...) nie niesie
+// najemcy, a każdy najemca ma własne wiersze `access_plans` z tym samym
+// `tier_key`/`interval`. Odczyt bez filtra najemcy i `plans.find(...)` brały
+// pierwszy z brzegu wiersz DOWOLNEGO najemcy: edytor najemcy B zmieniał
+// kwotę, synchronizacja przepisywała cenę wszystkim (zamówienie A zapisywało
+// cenę A, operator pobierał cenę B), a plan wyłączony w jednym najemcy
+// archiwizował cenę całej instalacji. Źródłem jest więc wyłącznie najemca
+// `tenants.is_default` - ten, z którego cennika powstały dzisiejsze ceny,
+// więc żaden `lookup_key` nie zmienia się przy tej naprawie. Pozostali
+// najemcy sprzedają po cenie wspólnej albo wcale: kasa przed sesją porównuje
+// kwotę zamówienia z ceną operatora (`catalogPriceMismatch`) i odmawia przy
+// rozjeździe. Osobne `lookup_key` per najemca odrzuciliśmy świadomie - webhook
+// mapuje cenę na plan po samym kluczu (`catalogEntryByPriceId`), więc zmiana
+// klucza ceny oznaczałaby migrację żywych subskrypcji.
 import type Stripe from "stripe";
 
 import { getStripeClient, type StripeEnv } from "@/lib/stripe.server";
 
-import { BILLING_CATALOG, type CatalogPriceEntry } from "./catalog";
+import {
+  BILLING_CATALOG,
+  catalogCycleMismatch,
+  catalogRecurringFor,
+  type CatalogPriceEntry,
+} from "./catalog";
 import type { ReapedEntry } from "./catalogReap.server";
 
 export type CatalogSyncAction = "created" | "updated" | "ok" | "skipped" | "failed";
@@ -34,7 +57,9 @@ export interface CatalogSyncReport {
   failed: number;
 }
 
-interface PlanRow {
+/** Wiersz `access_plans` w kształcie czytanym przez synchronizację i odcisk cennika. */
+export interface CatalogSourcePlan {
+  id?: string | null;
   tier_key: string | null;
   interval: string | null;
   price_cents: number | null;
@@ -46,35 +71,78 @@ interface PlanRow {
   active: boolean | null;
   volume_threshold_seats: number | null;
   volume_price_cents: number | null;
+  sort_order?: number | null;
+  created_at?: string | null;
+}
+
+type PlanRow = CatalogSourcePlan;
+
+const SOURCE_PLAN_COLUMNS =
+  "id, tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, trial_days, active, volume_threshold_seats, volume_price_cents, sort_order, created_at";
+
+/**
+ * Plany źródła prawdy katalogu: WYŁĄCZNIE najemca domyślny instalacji.
+ *
+ * Błąd odczytu i brak najemcy domyślnego RZUCAJĄ - to nie jest pusty cennik.
+ * Pusta lista po awarii dawałaby przebieg bez porażek, po którym sprzątanie
+ * archiwizowałoby u operatora całą ofertę.
+ */
+export async function loadCatalogSourcePlans(): Promise<CatalogSourcePlan[]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: tenant, error: tenantError } = await supabaseAdmin
+    .from("tenants")
+    .select("id")
+    .eq("is_default", true)
+    .maybeSingle();
+  if (tenantError) {
+    throw new Error(`catalog sync: default tenant lookup failed: ${tenantError.message}`);
+  }
+  const tenantId = (tenant as { id?: string } | null)?.id;
+  if (!tenantId) throw new Error("catalog sync: default tenant missing");
+
+  const { data, error } = await supabaseAdmin
+    .from("access_plans")
+    .select(SOURCE_PLAN_COLUMNS)
+    .eq("tenant_id", tenantId);
+  // Błąd odczytu (timeout, RLS) NIE jest pustym cennikiem. Potraktowany jak
+  // brak planów dawał przebieg bez porażek, po którym sprzątanie archiwizowało
+  // u operatora CAŁĄ ofertę, a stan integracji zapisywał `ok`. Rzut trafia do
+  // wołających (`runEnsure`, panel), które zapisują go jako porażkę.
+  if (error) throw new Error(`catalog sync: access_plans lookup failed: ${error.message}`);
+  return (data ?? []) as CatalogSourcePlan[];
+}
+
+/**
+ * Plan źródła dla pozycji katalogu - dokładnie ta para (tier, cykl).
+ *
+ * Bez zapasowego „pierwszego planu tego progu": pozycja kwartalna bez planu
+ * kwartalnego dostawała kwotę planu miesięcznego (cena u operatora w innym
+ * cyklu za inną kwotę). Brak planu = pozycja pominięta i zarchiwizowana.
+ *
+ * Kilka planów tej samej pary w jednym najemcy to stan dopuszczalny; wybór
+ * jest powtarzalny i ten sam co w webhooku (`resolvePlanForPrice`): aktywny,
+ * potem `sort_order`, `created_at`, `id`. Wyłączony duplikat nie może więc
+ * zarchiwizować ceny aktywnego planu.
+ */
+export function catalogPlanForEntry(
+  plans: readonly CatalogSourcePlan[],
+  entry: CatalogPriceEntry,
+): CatalogSourcePlan | undefined {
+  const candidates = plans.filter(
+    (p) => p.tier_key === entry.tierKey && (p.interval ?? "month") === entry.interval,
+  );
+  const text = (v: string | null | undefined) => v ?? "";
+  return [...candidates].sort(
+    (a, b) =>
+      Number(b.active !== false) - Number(a.active !== false) ||
+      (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+      text(a.created_at).localeCompare(text(b.created_at)) ||
+      text(a.id).localeCompare(text(b.id)),
+  )[0];
 }
 
 /** Kod podatkowy dla treści cyfrowych/oprogramowania SaaS - wspólny dla całego katalogu. */
 const DIGITAL_SERVICE_TAX_CODE = "txcd_10103000";
-
-/**
- * Cykl rozliczeniowy ceny w słowniku Stripe. Stripe zna wyłącznie
- * day/week/month/year, więc interwały aplikacji mapują się na krotności:
- * two_weeks -> week x2, quarter -> month x3.
- */
-function billingCycle(entry: CatalogPriceEntry): {
-  interval: Stripe.PriceCreateParams.Recurring.Interval;
-  interval_count: number;
-} | null {
-  // Cena jednorazowa NIE MA cyklu. Bez tej gałęzi `one_time` wpadało w
-  // `default` i lądowało u operatora jako subskrypcja miesięczna - miejsce
-  // w Decision Labie odnawiałoby się co miesiąc.
-  if (entry.oneTime || entry.interval === "one_time") return null;
-  switch (entry.interval) {
-    case "two_weeks":
-      return { interval: "week", interval_count: 2 };
-    case "quarter":
-      return { interval: "month", interval_count: 3 };
-    case "year":
-      return { interval: "year", interval_count: 1 };
-    default:
-      return { interval: "month", interval_count: 1 };
-  }
-}
 
 /**
  * Progi wolumenowe ceny. Zwraca `null`, gdy plan ich nie ma - wtedy cena jest
@@ -117,7 +185,11 @@ type StripePriceShape =
   | { billing_scheme: "tiered"; tiers_mode: "volume"; tiers: Stripe.PriceCreateParams.Tier[] }
   | { unit_amount: number };
 
-/** Czy zdalna cena schodkowa odpowiada progom wyliczonym z katalogu. */
+/**
+ * Czy zdalna cena schodkowa odpowiada progom wyliczonym z katalogu. Opłata
+ * stała progu (`flat_amount`) też jest częścią kwoty - kasa doliczy ją do
+ * obciążenia (`stripePriceAmountFor`), a katalog jej nie zakłada.
+ */
 function tiersMatch(
   remote: Stripe.Price.Tier[] | undefined,
   expected: Stripe.PriceCreateParams.Tier[],
@@ -127,8 +199,28 @@ function tiersMatch(
     const got = remote[i];
     if (!got) return false;
     const wantUpTo = want.up_to === "inf" ? null : Number(want.up_to);
-    return (got.up_to ?? null) === wantUpTo && (got.unit_amount ?? null) === want.unit_amount;
+    return (
+      (got.up_to ?? null) === wantUpTo &&
+      (got.unit_amount ?? null) === want.unit_amount &&
+      (got.flat_amount ?? 0) === 0
+    );
   });
+}
+
+/**
+ * Kształt ceny, którego kasa nie umie policzyć jednoznacznie albo który
+ * zmienia obciążenie niezależnie od kwoty: przekształcanie ilości, kwota
+ * wpisywana przez klienta i schodki w trybie innym niż `volume` (`graduated`
+ * liczy niższą stawkę tylko od nadwyżki). Kasa odmawia takiej ceny
+ * (`unverifiable_amount` / `amount`), więc synchronizacja musi ją odtworzyć -
+ * inaczej plan byłby niekupowalny do ręcznej interwencji u operatora.
+ */
+function priceShapeDrifted(
+  price: Stripe.Price,
+  tiers: Stripe.PriceCreateParams.Tier[] | null,
+): boolean {
+  if (price.transform_quantity || price.custom_unit_amount) return true;
+  return !!tiers && price.tiers_mode !== "volume";
 }
 
 /** Okres próbny z `access_plans.trial_days` - `null` oznacza plan bez triala. */
@@ -208,7 +300,7 @@ async function syncOne(
   }
 
   // 2. Cena
-  const recurring = billingCycle(entry);
+  const recurring = catalogRecurringFor(entry);
   const tiers = volumeTiersFor(entry, plan, amount);
   // Kształt ceny jest jeden dla założenia i dla korekty - inaczej cena
   // odtworzona po dryfie kwoty gubiłaby progi wolumenowe.
@@ -236,20 +328,29 @@ async function syncOne(
     return item;
   }
 
-  // 3. Korekta rozjechanej kwoty/waluty/triala - checkout musi pobierać tyle,
-  // ile pokazuje cennik w aplikacji.
+  // 3. Korekta rozjechanej kwoty/waluty/cyklu/kształtu/triala - checkout musi
+  // pobierać tyle i w takim rytmie, jak pokazuje cennik w aplikacji. Każda
+  // odmowa ceny w kasie (`catalogPriceMismatch`) ma tu swój odpowiednik.
   const remoteTrialRaw = price.metadata?.["trial_days"];
   const remoteTrialDays = remoteTrialRaw ? Number(remoteTrialRaw) : null;
   const currencyDrifted = (price.currency ?? "").toLowerCase() !== currency;
   // Cena schodkowa nie ma `unit_amount` - porównujemy progi. Zmiana kształtu
   // (płaska <-> schodkowa) też jest dryfem: przejście progu wolumenowego
-  // z konfiguracji do katalogu musi przełożyć się na cenę u operatora.
+  // z konfiguracji do katalogu musi przełożyć się na cenę u operatora. Cena
+  // płaska BEZ `unit_amount` (sama `unit_amount_decimal`) to dryf nawet przy
+  // kwocie zero - kasa takiej ceny nie policzy.
   const amountDrifted = tiers
     ? price.billing_scheme !== "tiered" || !tiersMatch(price.tiers ?? undefined, tiers)
-    : price.billing_scheme === "tiered" || (price.unit_amount ?? 0) !== amount;
+    : price.billing_scheme === "tiered" ||
+      typeof price.unit_amount !== "number" ||
+      price.unit_amount !== amount;
+  // Cykl: ta sama kontrola, którą kasa odrzuca cenę przed sesją. Stripe nie
+  // pozwala zmienić cyklu istniejącej ceny, więc dryf = nowa cena.
+  const cycleDrifted = catalogCycleMismatch(price, entry);
+  const shapeDrifted = priceShapeDrifted(price, tiers);
   const trialDrifted = (trialDays ?? null) !== (remoteTrialDays ?? null);
 
-  if (amountDrifted || currencyDrifted) {
+  if (amountDrifted || currencyDrifted || cycleDrifted || shapeDrifted) {
     // Stripe nie pozwala zmienić kwoty istniejącej ceny - zakładamy nową
     // z tym samym `lookup_key` (przenoszonym automatycznie), a starą
     // archiwizujemy zamiast kasować (zachowanie historii transakcji).
@@ -276,27 +377,16 @@ async function syncOne(
 }
 
 /**
- * Odtwarza katalog w Stripe na podstawie `access_plans` + `BILLING_CATALOG`.
- * Idempotentna: powtórne wywołanie na spójnym katalogu nic nie zmienia.
+ * Odtwarza katalog w Stripe na podstawie `access_plans` najemcy domyślnego
+ * + `BILLING_CATALOG`. Idempotentna: powtórne wywołanie na spójnym katalogu
+ * nic nie zmienia.
  */
 export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<CatalogSyncReport> {
   const stripe = await getStripeClient(env);
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data, error } = await supabaseAdmin
-    .from("access_plans")
-    .select(
-      "tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, trial_days, active, volume_threshold_seats, volume_price_cents",
-    );
-  // Błąd odczytu (timeout, RLS) NIE jest pustym cennikiem. Potraktowany jak
-  // brak planów dawał przebieg bez porażek, po którym sprzątanie archiwizowało
-  // u operatora CAŁĄ ofertę, a stan integracji zapisywał `ok`. Rzut trafia do
-  // wołających (`runEnsure`, panel), które zapisują go jako porażkę.
-  if (error) throw new Error(`catalog sync: access_plans lookup failed: ${error.message}`);
-  const plans = (data ?? []) as PlanRow[];
+  const plans = await loadCatalogSourcePlans();
 
   const planFor = (entry: CatalogPriceEntry): PlanRow | undefined =>
-    plans.find((p) => p.tier_key === entry.tierKey && (p.interval ?? "month") === entry.interval) ??
-    plans.find((p) => p.tier_key === entry.tierKey);
+    catalogPlanForEntry(plans, entry);
 
   const items: CatalogSyncItem[] = [];
   for (const entry of BILLING_CATALOG) {
@@ -366,21 +456,4 @@ export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<Ca
     updated: items.filter((i) => i.price === "updated").length,
     failed,
   };
-}
-
-/** Cache jednokrotnego samo-naprawiania w obrębie instancji workera. */
-let healingRun: Promise<CatalogSyncReport> | null = null;
-
-/**
- * Samonaprawa wywoływana z checkoutu, gdy cena nie istnieje w Stripe -
- * typowy objaw restartu integracji. Uruchamiamy najwyżej jedną synchronizację
- * naraz, żeby równoległe zakupy nie zasypały API Stripe.
- */
-export async function healCatalogOnce(env: StripeEnv): Promise<void> {
-  if (!healingRun) {
-    healingRun = syncBillingCatalog(env).finally(() => {
-      healingRun = null;
-    });
-  }
-  await healingRun;
 }

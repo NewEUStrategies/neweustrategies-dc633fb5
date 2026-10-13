@@ -1,15 +1,19 @@
-// Pseudonimowa tożsamość gościa dla warstwy dostępu.
+// Pseudonimowa tożsamość gościa dla budżetu kliknięć linku "Udostępnij pełny
+// artykuł" - dedup odbiorcy, żeby odświeżenie strony nie paliło kolejnego
+// z 5 slotów. Tu klucz z klienta jest bezpieczny: może wyłącznie ZAWĘZIĆ
+// konsumpcję (nowy uuid = nowy odbiorca = kolejny slot z budżetu linku), nigdy
+// dodać darmowego dostępu.
 //
-// Jedno źródło prawdy dla DWÓCH mechanik, które muszą rozpoznać "to ta sama
-// przeglądarka", zanim pojawi się konto:
-//   * metering ("N darmowych artykułów / miesiąc") - miękki licznik anonimów,
-//   * budżet kliknięć linku "Udostępnij pełny artykuł" - dedup odbiorcy, żeby
-//     odświeżenie strony nie paliło kolejnego z 5 slotów.
+// METERING ("N darmowych artykułów / miesiąc") Z TEGO KLUCZA JUŻ NIE KORZYSTA
+// (audyt billingowy SUB-17): tam nowy uuid oznaczał nowy, pusty licznik, czyli
+// nieograniczony dostęp. Gościa meteringu identyfikuje serwer - cookie
+// HttpOnly z podpisem HMAC (`src/lib/access/visitorToken.ts`,
+// `src/lib/access/meteringVisitor.server.ts`).
 //
 // To NIE jest identyfikator osoby: losowy uuid trzymany w localStorage tej
 // przeglądarki, bez powiązania z tożsamością, kasowalny razem ze storage.
-// Twardą walutą obu mechanik pozostaje serwer (RPC SECURITY DEFINER) - klucz
-// gościa jedynie zawęża konsumpcję, nigdy jej nie autoryzuje.
+// Nazwa klucza zostaje historyczna, żeby powracający odbiorcy linków nie
+// dostali nowej tożsamości (i nie spalili kolejnego slotu) po wdrożeniu.
 const VISITOR_STORAGE_KEY = "nes:metering:visitor";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -28,9 +32,8 @@ function randomUuid(source: Crypto): string {
 
 /**
  * Trwały uuid per przeglądarka. SSR zwraca null (konsumpcja i tak startuje po
- * hydracji), tak samo tryb prywatny z zablokowanym storage - wtedy mechaniki
- * degradują się bezpiecznie: metering pokazuje ścianę rejestracji, a budżet
- * kliknięć liczy każde wejście osobno.
+ * hydracji), tak samo tryb prywatny z zablokowanym storage - wtedy budżet
+ * kliknięć degraduje się bezpiecznie i liczy każde wejście osobno.
  */
 export function getVisitorId(): string | null {
   if (typeof window === "undefined") return null;

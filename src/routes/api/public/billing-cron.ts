@@ -93,7 +93,7 @@ export const Route = createFileRoute("/api/public/billing-cron")({
           const { runBillingReminders } = await import("@/lib/billing/reminders.server");
           // Ta sama doba: domykamy karencje miejsc zespołowych, którym minął
           // termin - dostęp gaśnie dopiero tutaj, wraz z mailem końcowym.
-          const { expireSeatGrace, sendSeatGraceReminders } =
+          const { expireSeatGrace, sendSeatGraceReminders, suspendTeamsPastPaymentGrace } =
             await import("@/lib/organizations/teamSeats.server");
 
           // KAŻDE Z TRZECH ZADAŃ JEST ODDZIELNE. Wcześniej `runBillingReminders`
@@ -122,6 +122,12 @@ export const Route = createFileRoute("/api/public/billing-cron")({
             perOrg: true,
           }));
           const seats = await expireSeatGrace().catch(() => ({ expired: 0, notified: 0 }));
+          // Karencja PŁATNOŚCI planu Zespół: po ostatniej nieudanej próbie
+          // operator potrafi nie wysłać już żadnego zdarzenia, a organizacja
+          // (w odróżnieniu od uprawnienia indywidualnego) nie wygasa sama z daty.
+          const paymentGrace = await suspendTeamsPastPaymentGrace().catch(() => ({
+            suspended: 0,
+          }));
 
           // KONTRAKT ODPOWIEDZI ZOSTAJE BEZ ZMIAN: padnięcie przypomnień nadal
           // daje 500 `cron_failed`, bo zewnętrzny scheduler opiera na tym kodzie
@@ -139,6 +145,7 @@ export const Route = createFileRoute("/api/public/billing-cron")({
             ...result,
             seatGraceReminders: reminders,
             seatGrace: seats,
+            teamPaymentGrace: paymentGrace,
           });
         } catch (err) {
           console.error("[billing-cron] failed", err);

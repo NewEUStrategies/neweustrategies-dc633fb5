@@ -32,6 +32,8 @@ import {
   type ProviderSubscriptionRow,
 } from "@/lib/billing/subscriptionQueries";
 import { catalogPriceForPlan, planChangeDirection } from "@/lib/billing/catalog";
+import { switchTargets } from "@/lib/billing/planSwitch";
+import { toastSubscriptionFailure } from "@/lib/billing/paymentOutcomeToast";
 import { providerErrorCode, unwrapProviderResult } from "@/lib/billing/providerResult";
 import { formatMoney, planName, type AccessPlan } from "@/lib/billing/types";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
@@ -87,15 +89,18 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
     );
   }, [plansQ.data, entry]);
 
+  // Cele z TEJ SAMEJ reguły, którą serwer sprawdza przy zmianie
+  // (`planSwitchRefusal`): ścisły odpowiednik w katalogu, bez pozycji
+  // jednorazowych i bez przejścia między planem za miejsce a indywidualnym.
+  // Wcześniej lista brała każdy plan z ceną katalogową, a serwer nie sprawdzał
+  // niczego poza katalogiem - obie strony przepuszczały cele spoza oferty.
   const targets = useMemo(
     () =>
-      (plansQ.data ?? [])
-        .map((plan) => ({ plan, price: catalogPriceForPlan(plan) }))
-        .filter(
-          (item): item is { plan: AccessPlan; price: NonNullable<typeof item.price> } =>
-            !!item.price && item.price.priceId !== entry?.priceId,
-        ),
-    [plansQ.data, entry?.priceId],
+      switchTargets(plansQ.data ?? [], entry).map((option) => ({
+        plan: option.plan,
+        price: option.entry,
+      })),
+    [plansQ.data, entry],
   );
 
   const refresh = () => {
@@ -121,7 +126,11 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
           : t("profile.subscription.changePlan.success"),
       );
     },
-    onError: () => toast.error(t("profile.subscription.changePlan.error")),
+    // Odrzucona dopłata: plan zostaje bez zmian, a klient dostaje link do
+    // faktury, po której opłaceniu operator sam dokończy zmianę.
+    onError: (error) => {
+      toastSubscriptionFailure(t, error, "profile.subscription.changePlan.error");
+    },
   });
 
   const cancel = useMutation({
@@ -147,7 +156,10 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
           : t("profile.subscription.resumed"),
       );
     },
-    onError: () => toast.error(t("profile.subscription.resumeError")),
+    // Wznowienie po pauzie wystawia fakturę - jej odmowa zostawia pauzę.
+    onError: (error) => {
+      toastSubscriptionFailure(t, error, "profile.subscription.resumeError");
+    },
   });
 
   // Podgląd kosztu liczy operator - pokazujemy go zanim klient potwierdzi
@@ -162,11 +174,19 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   const seatsMutation = useMutation({
     mutationFn: (quantity: number) =>
       updateStripeSubscriptionSeats({ data: { quantity, environment } }).then(unwrapProviderResult),
-    onSuccess: () => {
+    onSuccess: (result) => {
       refresh();
-      toast.success(t("profile.subscription.portal.seats.success"));
+      // Zmniejszenie wchodzi od nowego okresu - „zaktualizowano" sugerowałoby,
+      // że miejsca zniknęły od razu.
+      toast.success(
+        result.effect === "scheduled"
+          ? t("profile.subscription.portal.seats.scheduled")
+          : t("profile.subscription.portal.seats.success"),
+      );
     },
-    onError: () => toast.error(t("profile.subscription.portal.seats.error")),
+    onError: (error) => {
+      toastSubscriptionFailure(t, error, "profile.subscription.portal.seats.error");
+    },
   });
 
   const portal = useMutation({

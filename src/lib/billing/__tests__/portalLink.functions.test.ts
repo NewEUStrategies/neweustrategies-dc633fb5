@@ -5,11 +5,15 @@
 // `invoice.server.ts`) mają własne testy. Nieprzetestowane było opakowanie,
 // a siedzą w nim trzy rzeczy, których nie widać z żadnej innej warstwy:
 //
-//   1. SKĄD BIERZE SIĘ TOŻSAMOŚĆ. `sendMyPortalLink` i
-//      `fetchMyInvoiceByTransaction` biorą `userId` z KONTEKSTU (token sesji),
-//      a `resendPortalLinkForUser` z ŁADUNKU (bo administrator działa za kogoś).
-//      Pomyłka w tym miejscu nie wywala się głośno: po prostu wysyła link do
-//      cudzego portalu płatności albo oddaje cudzą fakturę.
+//   1. SKĄD BIERZE SIĘ TOŻSAMOŚĆ I NAJEMCA. `sendMyPortalLink`,
+//      `openMyBillingPortal` i `fetchMyInvoiceByTransaction` biorą `userId`
+//      z KONTEKSTU (token sesji), a `resendPortalLinkForUser` z ŁADUNKU (bo
+//      administrator działa za kogoś). NAJEMCA nigdy nie pochodzi z ładunku:
+//      dla funkcji „moje" - z profilu użytkownika, dla panelu - z profilu
+//      administratora skonfrontowanego z hostem (SUB-08: do 12.10.2026 panel
+//      działał ponad granicą najemcy). Pomyłka w tym miejscu nie wywala się
+//      głośno: po prostu wysyła link do cudzego portalu płatności albo oddaje
+//      cudzą fakturę.
 //   2. WZORZEC NUMERU TRANSAKCJI. Walidator przycina białe znaki (użytkownik
 //      wkleja z maila), NIE zmienia wielkości liter (identyfikatory operatora
 //      są na nią wrażliwe) i sprawdza wzorzec. To jedyna bramka między polem
@@ -40,7 +44,12 @@ import {
 
 const h = vi.hoisted(() => ({
   sendPortalLinkEmail: vi.fn(),
+  createPortalLinkForUser: vi.fn(),
   invoiceUrlForTransaction: vi.fn(),
+  /** Najemca wołającego z profilu (funkcje „moje"). */
+  resolveUserTenantId: vi.fn(),
+  /** Najemca administratora z profilu, skonfrontowany z hostem (panel). */
+  assertCallerTenantMatchesHost: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-start", async () =>
@@ -54,6 +63,13 @@ vi.mock("@/integrations/supabase/require-staff", () => ({
 }));
 vi.mock("@/lib/billing/portalLink.server", () => ({
   sendPortalLinkEmail: h.sendPortalLinkEmail,
+  createPortalLinkForUser: h.createPortalLinkForUser,
+}));
+vi.mock("@/lib/server/userTenant.server", () => ({
+  resolveUserTenantId: h.resolveUserTenantId,
+}));
+vi.mock("@/lib/server/callerTenant.server", () => ({
+  assertCallerTenantMatchesHost: h.assertCallerTenantMatchesHost,
 }));
 vi.mock("@/lib/billing/invoice.server", () => ({
   invoiceUrlForTransaction: h.invoiceUrlForTransaction,
@@ -62,6 +78,7 @@ vi.mock("@/lib/billing/invoice.server", () => ({
 import {
   fetchInvoiceByTransactionAsAdmin,
   fetchMyInvoiceByTransaction,
+  openMyBillingPortal,
   resendPortalLinkForUser,
   sendMyPortalLink,
 } from "@/lib/billing/portalLink.functions";
@@ -71,9 +88,15 @@ const WLASCICIEL_SESJI = "11111111-1111-4111-8111-111111111111";
 /** Cudzy użytkownik - administrator podaje go świadomie w ładunku. */
 const INNY_UZYTKOWNIK = "22222222-2222-4222-8222-222222222222";
 
+/** Najemca z profilu właściciela sesji. */
+const NAJEMCA_UZYTKOWNIKA = "tenant-uzytkownika";
+/** Najemca z profilu ADMINISTRATORA (po kontroli hosta). */
+const NAJEMCA_ADMINA = "tenant-admina";
+
 /** Znaczniki tożsamości - dowodzą przekazania TEGO SAMEGO obiektu, nie kopii. */
 const WYNIK_MAILA = { marker: "wynik-wysylki" };
 const WYNIK_FAKTURY = { marker: "wynik-faktury" };
+const WYNIK_PORTALU = { marker: "wynik-portalu" };
 
 /** Numer transakcji o kształcie, który wzorzec przyjmuje. */
 const NUMER_PLATNOSCI = "pi_3AbCdEfGhIjKlMnO";
@@ -90,14 +113,20 @@ interface WejscieTransakcji extends WejscieSrodowiska {
 }
 
 /** Argumenty ostatniego wywołania wysyłki maila z linkiem do portalu. */
-function ostatniMail(): { userId: string; environment: string; idempotencySeed: string } {
+function ostatniMail(): {
+  userId: string;
+  environment: string;
+  idempotencySeed: string;
+  tenantId: string;
+} {
   const args = h.sendPortalLinkEmail.mock.calls.at(-1)?.[0];
   if (
     typeof args !== "object" ||
     args === null ||
     typeof Reflect.get(args, "userId") !== "string" ||
     typeof Reflect.get(args, "environment") !== "string" ||
-    typeof Reflect.get(args, "idempotencySeed") !== "string"
+    typeof Reflect.get(args, "idempotencySeed") !== "string" ||
+    typeof Reflect.get(args, "tenantId") !== "string"
   ) {
     throw new Error("test: wysyłka linku nie dostała kompletnego ładunku");
   }
@@ -105,17 +134,23 @@ function ostatniMail(): { userId: string; environment: string; idempotencySeed: 
     userId: String(Reflect.get(args, "userId")),
     environment: String(Reflect.get(args, "environment")),
     idempotencySeed: String(Reflect.get(args, "idempotencySeed")),
+    tenantId: String(Reflect.get(args, "tenantId")),
   };
 }
 
+const KLIENT_Z_KONTEKSTU = { marker: "klient-z-kontekstu" };
+
 function kontekst() {
-  return { supabase: { marker: "klient-z-kontekstu" }, userId: WLASCICIEL_SESJI };
+  return { supabase: KLIENT_Z_KONTEKSTU, userId: WLASCICIEL_SESJI };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   h.sendPortalLinkEmail.mockResolvedValue(WYNIK_MAILA);
+  h.createPortalLinkForUser.mockResolvedValue(WYNIK_PORTALU);
   h.invoiceUrlForTransaction.mockResolvedValue(WYNIK_FAKTURY);
+  h.resolveUserTenantId.mockResolvedValue(NAJEMCA_UZYTKOWNIKA);
+  h.assertCallerTenantMatchesHost.mockResolvedValue(NAJEMCA_ADMINA);
 });
 
 describe("obudowa - podział bramek", () => {
@@ -123,10 +158,11 @@ describe("obudowa - podział bramek", () => {
     // Dowód STRUKTURALNY: harness nie wykonuje middleware. Ten podział jest
     // istotą modułu - `resendPortalLinkForUser` i
     // `fetchInvoiceByTransactionAsAdmin` działają NA CUDZYCH danych
-    // (wysyłają maila komuś innemu, pomijają kontrolę własności transakcji),
-    // więc zejście ich bramki do samego `requireSupabaseAuth` oddałoby te
-    // operacje każdemu zalogowanemu.
+    // (wysyłają maila komuś innemu, zamiast własności transakcji sprawdzają
+    // tylko najemcę), więc zejście ich bramki do samego `requireSupabaseAuth`
+    // oddałoby te operacje każdemu zalogowanemu.
     expect(serverFnMiddlewareNames(sendMyPortalLink)).toEqual(["requireSupabaseAuth"]);
+    expect(serverFnMiddlewareNames(openMyBillingPortal)).toEqual(["requireSupabaseAuth"]);
     expect(serverFnMiddlewareNames(fetchMyInvoiceByTransaction)).toEqual(["requireSupabaseAuth"]);
     expect(serverFnMiddlewareNames(resendPortalLinkForUser)).toEqual(["requireAdminEditor"]);
     expect(serverFnMiddlewareNames(fetchInvoiceByTransactionAsAdmin)).toEqual([
@@ -134,11 +170,12 @@ describe("obudowa - podział bramek", () => {
     ]);
   });
 
-  it("wszystkie cztery idą metodą POST", () => {
+  it("wszystkie pięć idzie metodą POST", () => {
     // Numer transakcji nie ma prawa wylądować w adresie (logi serwera,
     // historia przeglądarki, nagłówek `Referer`) - to identyfikator, po którym
     // odpytuje się operatora o dokument rozliczeniowy.
     expect(asServerFn(sendMyPortalLink).method).toBe("POST");
+    expect(asServerFn(openMyBillingPortal).method).toBe("POST");
     expect(asServerFn(resendPortalLinkForUser).method).toBe("POST");
     expect(asServerFn(fetchMyInvoiceByTransaction).method).toBe("POST");
     expect(asServerFn(fetchInvoiceByTransactionAsAdmin).method).toBe("POST");
@@ -494,6 +531,27 @@ describe("handler linku do portalu - tożsamość i ziarno", () => {
     expect(ostatniMail().userId).toBe(WLASCICIEL_SESJI);
   });
 
+  it("najemca pochodzi z PROFILU właściciela sesji, nie z ładunku", async () => {
+    // Ładunek może nieść cokolwiek - walidator zdejmuje obce pola, a handler
+    // i tak pyta profil wołającego o jego najemcę.
+    await callServerFn(sendMyPortalLink, {
+      data: { environment: "live", tenantId: "tenant-obcy" },
+      context: kontekst(),
+    });
+
+    expect(h.resolveUserTenantId).toHaveBeenCalledWith(KLIENT_Z_KONTEKSTU, WLASCICIEL_SESJI);
+    expect(ostatniMail().tenantId).toBe(NAJEMCA_UZYTKOWNIKA);
+  });
+
+  it("brak najemcy w profilu to odmowa PRZED wysyłką (fail-closed)", async () => {
+    h.resolveUserTenantId.mockRejectedValue(new Error("No tenant for current user"));
+
+    await expect(
+      callServerFn(sendMyPortalLink, { data: { environment: "live" }, context: kontekst() }),
+    ).rejects.toThrow("No tenant for current user");
+    expect(h.sendPortalLinkEmail).not.toHaveBeenCalled();
+  });
+
   it("środowisko jedzie dalej 1:1, a wynik wraca bez przetwarzania", async () => {
     const wynik = await callServerFn(sendMyPortalLink, {
       data: { environment: "sandbox" },
@@ -537,6 +595,72 @@ describe("handler linku do portalu - tożsamość i ziarno", () => {
     await callServerFn(sendMyPortalLink, { data: { environment: "live" }, context: kontekst() });
 
     expect(ostatniMail().idempotencySeed).toMatch(/^\d+$/);
+  });
+});
+
+describe("handler sesji portalu na żądanie (wejście z maila, SUB-19)", () => {
+  it("sesja powstaje dla użytkownika Z SESJI - podstawiony `userId` odpada", async () => {
+    // Adres z maila nie niesie identyfikatora konta. Gdyby handler czytał
+    // `userId` z ładunku, każdy zalogowany otwierałby portal DOWOLNEGO klienta.
+    await callServerFn(openMyBillingPortal, {
+      data: { environment: "live", userId: INNY_UZYTKOWNIK },
+      context: kontekst(),
+    });
+
+    expect(h.createPortalLinkForUser).toHaveBeenCalledWith(WLASCICIEL_SESJI, "live", {
+      tenantId: NAJEMCA_UZYTKOWNIKA,
+    });
+  });
+
+  it("najemca z profilu właściciela sesji zawęża wybór klienta operatora", async () => {
+    await callServerFn(openMyBillingPortal, {
+      data: { environment: "sandbox" },
+      context: kontekst(),
+    });
+
+    expect(h.resolveUserTenantId).toHaveBeenCalledWith(KLIENT_Z_KONTEKSTU, WLASCICIEL_SESJI);
+  });
+
+  it("wynik implementacji wraca bez przetwarzania", async () => {
+    const wynik = await callServerFn(openMyBillingPortal, {
+      data: { environment: "live" },
+      context: kontekst(),
+    });
+
+    expect(wynik).toBe(WYNIK_PORTALU);
+  });
+
+  it("środowisko spoza enuma jest odrzucane", () => {
+    expect(() => validateServerFnInput(openMyBillingPortal, { environment: "prod" })).toThrow(
+      ZodError,
+    );
+  });
+});
+
+describe("handler ponowienia z panelu - granica najemcy (SUB-08)", () => {
+  it("najemca pochodzi z profilu ADMINISTRATORA (z kontrolą hosta), nie z ładunku", async () => {
+    await callServerFn(resendPortalLinkForUser, {
+      data: { userId: INNY_UZYTKOWNIK, environment: "live", tenantId: "tenant-obcy" },
+      context: kontekst(),
+    });
+
+    expect(h.assertCallerTenantMatchesHost).toHaveBeenCalledWith(
+      KLIENT_Z_KONTEKSTU,
+      WLASCICIEL_SESJI,
+    );
+    expect(ostatniMail().tenantId).toBe(NAJEMCA_ADMINA);
+  });
+
+  it("host żądania obcego najemcy to odmowa PRZED jakimkolwiek odczytem celu", async () => {
+    h.assertCallerTenantMatchesHost.mockRejectedValue(new Error("TENANT/HOST_MISMATCH"));
+
+    await expect(
+      callServerFn(resendPortalLinkForUser, {
+        data: { userId: INNY_UZYTKOWNIK, environment: "live" },
+        context: kontekst(),
+      }),
+    ).rejects.toThrow("TENANT/HOST_MISMATCH");
+    expect(h.sendPortalLinkEmail).not.toHaveBeenCalled();
   });
 });
 
@@ -627,21 +751,49 @@ describe("handlery faktur - kto jest właścicielem transakcji", () => {
     });
   });
 
-  it("panel administratora POMIJA kontrolę własności - jawne `null`", async () => {
-    // Świadome rozluźnienie: obsługa zgłoszeń dostaje numer od klienta, który
-    // nie zawsze jest zalogowany. Dlatego ta funkcja siedzi za
-    // `requireAdminEditor`, a `null` musi być JAWNE - `undefined` w tym polu
-    // wyglądałoby jak przeoczenie, a nie jak decyzja.
+  // DEFEKT SUB-08 / INV-11 (naprawiony 12.10.2026). Ten test przypinał
+  // wcześniej `userId: null`, czyli WYŁĄCZENIE kontroli: edytor dowolnego
+  // najemcy pobierał hostowaną fakturę (NIP, adres) każdej transakcji na
+  // wspólnym koncie operatora. Panel nadal nie pyta o konto klienta (obsługa
+  // dostaje sam numer), ale transakcja musi należeć do JEGO najemcy.
+  it("panel administratora zawęża fakturę do NAJEMCY WOŁAJĄCEGO", async () => {
     await callServerFn(fetchInvoiceByTransactionAsAdmin, {
       data: { transactionId: NUMER_PLATNOSCI, environment: "live" },
       context: kontekst(),
     });
 
+    expect(h.assertCallerTenantMatchesHost).toHaveBeenCalledWith(
+      KLIENT_Z_KONTEKSTU,
+      WLASCICIEL_SESJI,
+    );
     expect(h.invoiceUrlForTransaction).toHaveBeenCalledWith({
       transactionId: NUMER_PLATNOSCI,
       environment: "live",
-      userId: null,
+      tenantId: NAJEMCA_ADMINA,
     });
+  });
+
+  it("panel administratora nigdy nie woła implementacji bez zakresu", async () => {
+    await callServerFn(fetchInvoiceByTransactionAsAdmin, {
+      data: { transactionId: NUMER_PLATNOSCI, environment: "live", tenantId: "tenant-obcy" },
+      context: kontekst(),
+    });
+
+    const args = Object(h.invoiceUrlForTransaction.mock.calls.at(-1)?.[0]);
+    expect(Reflect.has(args, "userId")).toBe(false);
+    expect(Reflect.get(args, "tenantId")).toBe(NAJEMCA_ADMINA);
+  });
+
+  it("host obcego najemcy to odmowa, zanim padnie pytanie o transakcję", async () => {
+    h.assertCallerTenantMatchesHost.mockRejectedValue(new Error("TENANT/HOST_MISMATCH"));
+
+    await expect(
+      callServerFn(fetchInvoiceByTransactionAsAdmin, {
+        data: { transactionId: NUMER_PLATNOSCI, environment: "live" },
+        context: kontekst(),
+      }),
+    ).rejects.toThrow("TENANT/HOST_MISMATCH");
+    expect(h.invoiceUrlForTransaction).not.toHaveBeenCalled();
   });
 
   it("funkcja panelu NIE bierze tożsamości z kontekstu, nawet gdy ta jest dostępna", async () => {

@@ -47,7 +47,7 @@
 -- najemcy (admin_get_author_profile) i service_role. get_expert_hub na
 -- produkcji juz nie czyta contact_email - bez zmian.
 --
--- Pas drizzle: drizzle/migrations/0171_author_profiles_public_drop_contact_email.sql
+-- Pas drizzle: drizzle/migrations/0178_author_profiles_public_drop_contact_email.sql
 -- (blizniak - ten sam SQL wykonywalny).
 -- BEZ wpisu do supabase_migrations.schema_migrations z pasa drizzle (inaczej
 -- niz 0149): rejestr produkcji nie notuje jeszcze 20261012095900..

@@ -86,15 +86,26 @@ export function deriveSubscriptionStatus(input: {
   const periodEnd = provider?.current_period_end ?? local?.current_period_end ?? null;
   const withinPeriod = isFuture(periodEnd, now);
 
+  // Koniec DOSTĘPU przy zaległości i po anulowaniu: uprawnienie niesie datę
+  // po regule karencji (`accessPeriod.ts`), WCZEŚNIEJSZĄ niż koniec okresu
+  // operatora, który przy odnowieniu przesuwa się o cały nieopłacony cykl
+  // (audyt SUB-03). Wiersz lokalny może tylko skrócić okres operatora, nigdy
+  // go wydłużyć - bez niego zostaje data operatora.
+  const localEnd = local?.current_period_end ?? null;
+  const accessEnd =
+    periodEnd && localEnd && Date.parse(localEnd) < Date.parse(periodEnd) ? localEnd : periodEnd;
+  const withinAccess = isFuture(accessEnd, now);
+
   const build = (
     key: SubscriptionStatusKey,
     renews: boolean,
     access: boolean,
+    endsAt: string | null = periodEnd,
   ): SubscriptionStatusView => ({
     key,
     tone: TONES[key],
     renewsAt: renews ? periodEnd : null,
-    endsAt: renews ? null : periodEnd,
+    endsAt: renews ? null : endsAt,
     hasAccess: access,
     grant: null,
   });
@@ -120,10 +131,12 @@ export function deriveSubscriptionStatus(input: {
     if (provider.status === "paused")
       return grant ? buildGrant() : build("paused", false, withinPeriod);
     if (provider.status === "canceled")
-      return grant && !withinPeriod ? buildGrant() : build("canceled", false, withinPeriod);
+      return grant && !withinAccess
+        ? buildGrant()
+        : build("canceled", false, withinAccess, accessEnd);
     if (provider.cancel_at_period_end) return build("cancelScheduled", false, withinPeriod);
     if (provider.status === "past_due" || provider.status === "unpaid")
-      return build("pastDue", true, withinPeriod);
+      return build("pastDue", true, withinAccess);
     if (provider.status === "trialing") return build("trialing", true, true);
     if (provider.status === "active") return build("active", true, true);
   }
