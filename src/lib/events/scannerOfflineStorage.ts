@@ -23,7 +23,7 @@
 // jedyny ślad skanów, których baza nie przyjęła - skasowanie ich razem
 // z sesją byłoby dokładnie tą cichą utratą, którą ten moduł ma zamknąć.
 // Świadome ODŁĄCZENIE urządzenia (po potwierdzeniu na ekranie) kasuje
-// wszystko naraz (`wipeAllOfflineData`) - telefon po wydarzeniu nie ma
+// wszystko naraz (`wipeAllOfflineData`, także znacznik kolejki) - telefon po wydarzeniu nie ma
 // trzymać nic z tej bazy.
 // TOKENU TU NIE MA: sesję rozpoznajemy po skrócie SHA-256 tokenu.
 //
@@ -33,6 +33,12 @@
 // którym nikt już nie otworzy skanera tym poświadczeniem. Lista bez terminu
 // (sprzed tej zmiany) bierze termin z sesji tego samego urządzenia, a lista
 // bez sesji (sierota) znika od razu.
+//
+// ZNACZNIK KOLEJKI (OPS-12) leży tu WYŁĄCZNIE w sejfie (`scannerQueueMarker.ts`):
+// blok AES-GCM z kluczem z tokenu, związany z urządzeniem. Bez klucza nie trafia
+// na dysk wcale. Znika razem z sesją (odmowa poświadczenia, odłączenie) - lista
+// osób może zniknąć wcześniej (termin), znacznik nie: po terminie nowy skan
+// i tak nie powstanie, a pozycje w kolejce mają już własny stempel.
 //
 // ODRZUCONE BEZ JAWNEGO KODU (OPS-06). Lista odrzuconych trzyma skrót SHA-256
 // i prefiks kodu (`toRejectedItem`); lista zapisana przed tą zmianą jest przy
@@ -52,13 +58,18 @@ import {
 } from "@/lib/events/scannerRoster";
 import { toRejectedItem, type RejectedScan } from "@/lib/events/scannerOutbox";
 import { parseConflicts, parseRejected, type ScanConflict } from "@/lib/events/scannerSyncIssues";
-import { scanCodeHash } from "@/lib/events/scannerVault";
+import { isSealedBlob, scanCodeHash } from "@/lib/events/scannerVault";
+import {
+  openQueueMarker,
+  sealQueueMarker,
+  type QueueMarker,
+} from "@/lib/events/scannerQueueMarker";
 
 const DB_NAME = "nes-scanner-offline";
 const DB_VERSION = 1;
 const STORE = "records";
 
-type RecordKey = "session" | "roster" | "log" | "rejected" | "conflicts";
+type RecordKey = "session" | "roster" | "log" | "rejected" | "conflicts" | "marker";
 
 const memory: Partial<Record<RecordKey, unknown>> = {};
 let memoryOnly = false;
@@ -235,6 +246,40 @@ export async function purgeExpiredRoster(nowMs: number): Promise<boolean> {
   return expired;
 }
 
+/* ---------------------------------------------------- znacznik kolejki --- */
+
+/**
+ * Zapis znacznika urządzenia - WYŁĄCZNIE zaszyfrowany. `false` = nie zapisano
+ * (brak klucza, WebCrypto odmówił albo `stillWanted` po szyfrowaniu mówi „nie" -
+ * urządzenie w międzyczasie odłączono): znacznik żyje wtedy tylko w pamięci
+ * karty. Nigdy nie rzuca.
+ */
+export async function saveQueueMarker(
+  deviceId: string,
+  marker: QueueMarker,
+  key: CryptoKey | null,
+  stillWanted: () => boolean = () => true,
+): Promise<boolean> {
+  if (key === null) return false;
+  const sealed = await sealQueueMarker(key, deviceId, marker).catch(() => null);
+  if (sealed === null || !stillWanted()) return false;
+  await writeRecords([["marker", { deviceId, sealed }]]);
+  return true;
+}
+
+/** Znacznik TEGO urządzenia, otwarty kluczem jego poświadczenia - inaczej `null`. */
+export async function loadQueueMarker(
+  deviceId: string,
+  key: CryptoKey | null,
+): Promise<QueueMarker | null> {
+  if (key === null) return null;
+  const raw = await readRecord("marker");
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  const row = raw as Record<string, unknown>;
+  if (row.deviceId !== deviceId || !isSealedBlob(row.sealed)) return null;
+  return openQueueMarker(key, deviceId, row.sealed);
+}
+
 /* ------------------------------------------------- dziennik lokalnych zgód --- */
 
 export async function saveDecisionLog(log: readonly LocalDecisionLogEntry[]): Promise<void> {
@@ -306,10 +351,11 @@ export async function loadConflicts(): Promise<ScanConflict[]> {
 
 /* ------------------------------------------------------------- kasowanie --- */
 
-/** Sesja, lista offline i dziennik zgód - dane osobowe znikają z urządzenia. */
+/** Sesja, znacznik kolejki, lista offline i dziennik zgód - znikają z urządzenia. */
 export async function wipeOfflineSession(): Promise<void> {
   await writeRecords([
     ["session", undefined],
+    ["marker", undefined],
     ["roster", undefined],
     ["log", undefined],
   ]);
@@ -338,6 +384,7 @@ export async function clearSyncIssues(): Promise<void> {
 export async function wipeAllOfflineData(): Promise<void> {
   await writeRecords([
     ["session", undefined],
+    ["marker", undefined],
     ["roster", undefined],
     ["log", undefined],
     ["rejected", undefined],

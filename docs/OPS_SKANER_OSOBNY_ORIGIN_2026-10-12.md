@@ -90,9 +90,15 @@ Kod obsługuje osobny origin, ale go nie tworzy. Kolejność ma znaczenie: zmien
   w potoku żądań (`src/start.ts`/`src/server.ts`) wymaga zmiany poza tym
   strumieniem.
 - Kasowanie starego klucza `nes.scanner.device-token` odbywa się przy wejściu
-  na `/scanner` pod originem portalu. Kasowanie przy KAŻDYM starcie portalu
-  (telefon, który już nie otworzy `/scanner`) wymaga jednej linii w korzeniu
-  aplikacji - przekazane dalej.
+  na `/scanner` pod originem portalu, a od `ops/b1-scanner-client` także przy
+  starcie KAŻDEJ innej strony portalu (telefon, który już nie otworzy
+  `/scanner`): `armScannerLeftoverPurge` w `src/routes/__root.tsx` sprawdza
+  trzy tanie warunki (origin skanera skonfigurowany i inny niż bieżący, trasa
+  inna niż `/scanner`, token w `localStorage`) i dopiero wtedy - po załadowaniu
+  strony i bezczynności - dociąga dynamicznym `import()` moduł przeniesienia
+  (`purgeLeftoverScannerData`). Niewysłane skany albo lista do wyjaśnienia
+  zatrzymują sprzątanie, jak na trasie. Zwykły czytelnik bez tokenu nie
+  pobiera ani bajtu skanera.
 - Token wysłany przez stary link `?t=` już przeszedł przez logi: ekran prosi
   o nowy kod, ale unieważnienie starego poświadczenia jest decyzją organizatora
   w panelu (Wydarzenia → Na miejscu → Urządzenia).

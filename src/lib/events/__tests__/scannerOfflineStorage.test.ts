@@ -57,6 +57,8 @@ const ROSTER: RosterSnapshot = {
     {
       registrationId: "r1",
       hash: "a".repeat(64),
+      badgeHash: null,
+      supersededHashes: [],
       status: "approved",
       firstName: "Anna",
       lastName: null,
@@ -301,9 +303,10 @@ describe("lista, dziennik, odrzucone i konflikty", () => {
     await expect(storage.loadConflicts()).resolves.toEqual([]);
   });
 
-  it("odłączenie kasuje sesję, listę i dziennik - ale NIE odrzucone i konflikty", async () => {
+  it("odłączenie kasuje sesję, znacznik, listę i dziennik - ale NIE odrzucone i konflikty", async () => {
     const data = new Map<unknown, unknown>([
       ["session", {}],
+      ["marker", {}],
       ["roster", {}],
       ["log", []],
       ["rejected", ["x"]],
@@ -317,9 +320,12 @@ describe("lista, dziennik, odrzucone i konflikty", () => {
     expect([...data.keys()].sort()).toEqual(["conflicts", "rejected"]);
   });
 
-  it("wygaśnięcie kasuje listę i dziennik, zostawia sesję", async () => {
+  it("wygaśnięcie kasuje listę i dziennik, zostawia sesję i znacznik kolejki", async () => {
+    // Znacznik (OPS-12) nie jest daną osobową; pozycje w kolejce mają własny
+    // stempel, a nowego skanu po terminie i tak nie będzie.
     const data = new Map<unknown, unknown>([
       ["session", {}],
+      ["marker", {}],
       ["roster", {}],
       ["log", []],
     ]);
@@ -328,7 +334,7 @@ describe("lista, dziennik, odrzucone i konflikty", () => {
 
     await storage.wipeRoster();
 
-    expect([...data.keys()]).toEqual(["session"]);
+    expect([...data.keys()]).toEqual(["session", "marker"]);
   });
 
   it("świadome wyczyszczenie kasuje odrzucone i konflikty", async () => {
@@ -495,9 +501,10 @@ describe("OPS-06: lista osób ma termin, odrzucone nie mają kodu, odłączenie 
     ]);
   });
 
-  it("odłączenie kasuje sesję, listę, dziennik, odrzucone i konflikty", async () => {
+  it("odłączenie kasuje sesję, znacznik, listę, dziennik, odrzucone i konflikty", async () => {
     const data = new Map<unknown, unknown>([
       ["session", {}],
+      ["marker", {}],
       ["roster", {}],
       ["log", []],
       ["rejected", ["x"]],
@@ -509,5 +516,74 @@ describe("OPS-06: lista osób ma termin, odrzucone nie mają kodu, odłączenie 
     await storage.wipeAllOfflineData();
 
     expect([...data.keys()]).toEqual([]);
+  });
+});
+
+describe("OPS-12: znacznik kolejki na dysku wyłącznie w sejfie", () => {
+  const MARKER = {
+    value: "AAAAAGkAAAA" + "x".repeat(43),
+    validUntil: "2026-09-27T08:00:00.000Z",
+  };
+
+  async function vaultKey(token: string): Promise<CryptoKey> {
+    const { deriveVaultKey } = await import("@/lib/events/scannerVault");
+    const derived = await deriveVaultKey(token);
+    if (derived === null) throw new Error("test: brak WebCrypto w środowisku testowym");
+    return derived;
+  }
+
+  it("zapis szyfruje znacznik kluczem tokenu, a odczyt oddaje go TYLKO temu urządzeniu", async () => {
+    const data = new Map<unknown, unknown>();
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+    const key = await vaultKey("token-urzadzenia-0123456789");
+
+    await expect(storage.saveQueueMarker("d1", MARKER, key)).resolves.toBe(true);
+
+    // Na dysku nie ma napisu znacznika - jest blok sejfu i urządzenie.
+    const stored = data.get("marker") as Record<string, unknown>;
+    expect(stored.deviceId).toBe("d1");
+    expect(stored.sealed).toMatchObject({ iv: expect.any(String), data: expect.any(String) });
+    expect(JSON.stringify([...data.values()])).not.toContain(MARKER.value);
+
+    await expect(storage.loadQueueMarker("d1", key)).resolves.toEqual(MARKER);
+    // Inne urządzenie i klucz innego poświadczenia nie dostają nic.
+    await expect(storage.loadQueueMarker("d2", key)).resolves.toBeNull();
+    await expect(
+      storage.loadQueueMarker("d1", await vaultKey("inny-token-urzadzenia-987654")),
+    ).resolves.toBeNull();
+  });
+
+  it("blok przełożony do innego urządzenia się nie otwiera (AAD wiąże go z urządzeniem)", async () => {
+    const data = new Map<unknown, unknown>();
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+    const key = await vaultKey("token-urzadzenia-0123456789");
+    await storage.saveQueueMarker("d1", MARKER, key);
+
+    const stored = data.get("marker") as Record<string, unknown>;
+    data.set("marker", { ...stored, deviceId: "d2" });
+
+    await expect(storage.loadQueueMarker("d2", key)).resolves.toBeNull();
+  });
+
+  it("bez klucza (brak WebCrypto) znacznik NIE trafia na dysk wcale", async () => {
+    const data = new Map<unknown, unknown>();
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+
+    await expect(storage.saveQueueMarker("d1", MARKER, null)).resolves.toBe(false);
+    await expect(storage.loadQueueMarker("d1", null)).resolves.toBeNull();
+    expect(data.has("marker")).toBe(false);
+  });
+
+  it("odłączenie w trakcie szyfrowania - zapis się nie odbywa", async () => {
+    const data = new Map<unknown, unknown>();
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+    const key = await vaultKey("token-urzadzenia-0123456789");
+
+    await expect(storage.saveQueueMarker("d1", MARKER, key, () => false)).resolves.toBe(false);
+    expect(data.has("marker")).toBe(false);
   });
 });

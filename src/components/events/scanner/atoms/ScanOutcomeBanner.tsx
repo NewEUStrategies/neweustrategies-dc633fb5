@@ -2,18 +2,25 @@
 //
 // OPERATOR PATRZY Z METRA, PRZEZ RAMIĘ, W SŁOŃCU. Dlatego wynik nie jest
 // plakietką w rogu, tylko pasem na całą szerokość: zielony znaczy „wpuść",
-// czerwony „nie wpuszczaj", bursztynowy „to nie jest odmowa, ale przeczytaj".
-// Kolor NIE jest jedynym nośnikiem - obok stoi ikona i słowo, bo bramkę
-// obsługują też osoby nierozróżniające barw.
-import { AlertTriangle, CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+// niebieski „wpuść PONOWNIE - ta osoba już weszła" (OPS-08), czerwony „nie
+// wpuszczaj", bursztynowy „to nie jest odmowa, ale przeczytaj".
+// Kolor NIE jest jedynym nośnikiem - każdy ton ma WŁASNĄ ikonę i słowo
+// w nagłówku, bo bramkę obsługują też osoby nierozróżniające barw.
+import { AlertTriangle, CheckCircle2, DoorOpen, RefreshCw, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { ScanTone } from "@/lib/events/scannerOutcomeView";
 
-export type ScanTone = "granted" | "denied" | "warning" | "neutral";
+// Tabela „wynik -> ton" mieszka w `scannerOutcomeView.ts`; atom zna tylko tony.
+export type { ScanTone };
 
 const TONE: Record<ScanTone, { box: string; icon: typeof CheckCircle2 }> = {
   granted: {
     box: "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
     icon: CheckCircle2,
+  },
+  reentry: {
+    box: "border-sky-500/50 bg-sky-500/10 text-sky-800 dark:text-sky-300",
+    icon: DoorOpen,
   },
   denied: {
     box: "border-destructive/50 bg-destructive/10 text-destructive",
@@ -44,6 +51,7 @@ export function ScanOutcomeBanner({
     <div
       role="status"
       aria-live="assertive"
+      data-tone={tone}
       className={cn("rounded-[6px] border px-4 py-4 sm:px-5 sm:py-5", style.box)}
     >
       <p className="flex items-center gap-3 text-xl font-bold leading-tight sm:text-2xl">

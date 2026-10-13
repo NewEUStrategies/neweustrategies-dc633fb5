@@ -16,11 +16,23 @@
 // oddaje adresu poczty ani telefonu: bramka ich nie potrzebuje, a urządzenie
 // bywa zgubione. Wyjątkiem jest skan leadu - tam dane kontaktowe wracają
 // WYŁĄCZNIE przy udzielonej i niewycofanej zgodzie, i tak też je pokazujemy.
+//
+// KONTRAKT 20261012110000-110400 (OPS-04, OPS-08, OPS-12). Odpowiedzi niosą
+// wynik `code_superseded` (kod zastąpiony - `superseded`, `display_name`),
+// `denied_already_inside` i flagę ponownego wejścia (`reentry`,
+// `reentry_previous_at`), zeskanowane poświadczenie (`credential`) i świeży
+// znacznik kolejki (`queue_marker`). Konfiguracja i lista offline dostają
+// w ładunku `client_caps` - baza wie, że ten klient stempluje kolejkę.
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { CheckinDirection } from "@/lib/events/onsiteEnums";
 import { parseScannerSession, type ScannerSession } from "@/lib/events/scannerSession";
 import { parseRosterPage, type RosterPage } from "@/lib/events/scannerRoster";
+import {
+  SCANNER_CLIENT_CAPS,
+  parseQueueMarker,
+  type QueueMarker,
+} from "@/lib/events/scannerQueueMarker";
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -82,14 +94,29 @@ export function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 /* ----------------------------------------------------------- tożsamość --- */
 
-export async function bootstrapScanner(deviceToken: string): Promise<ScannerSession> {
+/**
+ * Konfiguracja skanera i świeży znacznik kolejki (OPS-12). Znacznik NIE jest
+ * częścią sesji: środowisko zdejmuje go przed zapisem sesji i trzyma w sejfie
+ * (`scannerQueueMarker.ts`), a sesja trafia do ekranu i pamięci podręcznej.
+ */
+export interface ScannerBootstrap extends ScannerSession {
+  /** Brak = odpowiedź bez znacznika (starsza baza). */
+  queueMarker?: QueueMarker | null;
+}
+
+/** Zdolności klienta w ładunku - baza wie, że ten klient stempluje kolejkę. */
+function clientCaps(): string[] {
+  return [...SCANNER_CLIENT_CAPS];
+}
+
+export async function bootstrapScanner(deviceToken: string): Promise<ScannerBootstrap> {
   const { data, error } = await supabase.rpc("event_scanner_bootstrap", {
-    p_payload: payload({ device_token: deviceToken }),
+    p_payload: payload({ device_token: deviceToken, client_caps: clientCaps() }),
   });
   if (error !== null) throw new Error(error.message);
   const session = parseScannerSession(data);
   if (session === null) throw new Error("invalid_device_token: bootstrap response is not readable");
-  return session;
+  return { ...session, queueMarker: parseQueueMarker(data) };
 }
 
 /* -------------------------------------------------------------- osoba --- */
@@ -143,6 +170,8 @@ export interface ScanCheckpointInfo {
   kind: string | null;
   directionMode: string | null;
   accessMode: string | null;
+  /** `allow` | `deny` (OPS-08); `null` = odpowiedź bez polityki. */
+  reentryPolicy: string | null;
   capacity: number | null;
   occupancy: number | null;
 }
@@ -156,15 +185,56 @@ function parseCheckpointInfo(value: unknown): ScanCheckpointInfo {
     kind: text(row.kind),
     directionMode: text(row.direction_mode),
     accessMode: text(row.access_mode),
+    reentryPolicy: text(row.reentry_policy),
     capacity: nullableInt(row.capacity),
     occupancy: nullableInt(row.occupancy),
+  };
+}
+
+/* ------------------------------------------------------ kod zastąpiony --- */
+
+/** Które poświadczenie zeskanowano: bilet (e-mail, portfel) czy wydrukowany identyfikator. */
+export type ScanCredential = "ticket" | "badge";
+
+/** Dlaczego kod przestał wpuszczać (OPS-04). */
+export type SupersededReason = "reissued" | "revoked" | "invalidated";
+
+/**
+ * Kod ZASTĄPIONY (`code_superseded`): był ważny, ale zastąpił go nowszy
+ * (dodruk identyfikatora, ponowne wydanie biletu), wyczyścił go zwrot albo
+ * anulowanie, albo administrator unieważnił go jako zgubiony. Wartości spoza
+ * słownika czytamy jako `null` - ekran pokazuje wtedy zdanie ogólne.
+ */
+export interface SupersededInfo {
+  credential: ScanCredential | null;
+  reason: SupersededReason | null;
+  supersededAt: string | null;
+}
+
+function parseCredential(value: unknown): ScanCredential | null {
+  return value === "ticket" || value === "badge" ? value : null;
+}
+
+function parseSuperseded(value: unknown): SupersededInfo | null {
+  if (value === null || value === undefined) return null;
+  const row = record(value);
+  if (Object.keys(row).length === 0) return null;
+  const reason = row.reason;
+  return {
+    credential: parseCredential(row.credential),
+    reason:
+      reason === "reissued" || reason === "revoked" || reason === "invalidated" ? reason : null,
+    supersededAt: text(row.superseded_at),
   };
 }
 
 /* ------------------------------------------------------------ odprawa --- */
 
 export interface CheckinScanResult {
-  /** `granted`, `repeat`, `unknown_code`, `wrong_event` albo powód odmowy. */
+  /**
+   * `granted`, `repeat`, `unknown_code`, `wrong_event`, `code_superseded` albo
+   * powód odmowy (w tym `denied_already_inside`).
+   */
   outcome: string;
   /** JEDYNA odpowiedź na pytanie „wpuścić?" - liczy ją baza, nie ekran. */
   admit: boolean;
@@ -188,6 +258,22 @@ export interface CheckinScanResult {
   /** Bilet z INNEGO wydarzenia tego samego najemcy - nazwa do komunikatu. */
   otherEventTitlePl: string | null;
   otherEventTitleEn: string | null;
+  /**
+   * Osoba była już W ŚRODKU punktu (OPS-08): przy polityce `allow` to zgoda na
+   * PONOWNE wejście (osobny ton ekranu), przy `deny` powód
+   * `denied_already_inside`. `false` przy pierwszym wejściu i przy wyjściu.
+   */
+  reentry: boolean;
+  /** Chwila tamtego wejścia - ekran ją pokazuje. */
+  reentryPreviousAt: string | null;
+  /** Zeskanowane poświadczenie (bilet albo identyfikator). */
+  credential: ScanCredential | null;
+  /** Szczegóły `code_superseded`; `null` przy każdym innym wyniku. */
+  superseded: SupersededInfo | null;
+  /** Imię i nazwisko przy `code_superseded` (w terminie poświadczenia). */
+  displayName: string | null;
+  /** Świeży znacznik kolejki (OPS-12); brak = odpowiedź bez znacznika. */
+  queueMarker?: QueueMarker | null;
 }
 
 function parseCheckinScan(value: unknown): CheckinScanResult {
@@ -211,6 +297,12 @@ function parseCheckinScan(value: unknown): CheckinScanResult {
     person: parseScanPerson(row.person),
     otherEventTitlePl: text(other.title_pl),
     otherEventTitleEn: text(other.title_en),
+    reentry: row.reentry === true,
+    reentryPreviousAt: text(row.reentry_previous_at),
+    credential: parseCredential(row.credential),
+    superseded: parseSuperseded(row.superseded),
+    displayName: text(row.display_name),
+    queueMarker: parseQueueMarker(row),
   };
 }
 
@@ -230,8 +322,10 @@ export interface CheckinScanInput {
   offlineOutcome?: string | null;
   rosterGeneratedAt?: string | null;
   /**
-   * Nieprzezroczysty znacznik kolejki nadany przez bazę - odsyłany bez zmian
-   * z pozycją kolejki. Brak = pole nie jedzie w ładunku.
+   * Nieprzezroczysty znacznik kolejki (OPS-12) - ten, który był aktualny, gdy
+   * pozycja trafiła do kolejki (`scannerQueueMarker.ts`). Bez niego baza po
+   * terminie poświadczenia odrzuca skan (`device_expired`). Brak = pole nie
+   * jedzie w ładunku.
    */
   queueMarker?: string | null;
 }
@@ -297,6 +391,10 @@ export interface LeadScanResult {
   consent: boolean;
   deviceLocked: boolean;
   person: LeadPerson | null;
+  /** Szczegóły `code_superseded` - na stoisku bez imienia i nazwiska. */
+  superseded: SupersededInfo | null;
+  /** Świeży znacznik kolejki (OPS-12); brak = odpowiedź bez znacznika. */
+  queueMarker?: QueueMarker | null;
 }
 
 function parseLeadPerson(value: unknown): LeadPerson | null {
@@ -319,7 +417,10 @@ export interface LeadScanInput {
   note?: string | null;
   /** 1-5; baza odrzuca wartości spoza zakresu. */
   interestRating?: number | null;
-  /** Chwila skanu - baza przyjmuje skan sprzed terminu poświadczenia przez 72 h. */
+  /**
+   * Chwila skanu - baza przyjmuje skan sprzed terminu poświadczenia przez 72 h,
+   * jeśli niesie znacznik kolejki (`queueMarker`).
+   */
   deviceScannedAt?: string;
   queued?: boolean;
   /** Patrz `CheckinScanInput.queueMarker`. */
@@ -347,6 +448,8 @@ export async function recordLeadScan(input: LeadScanInput): Promise<LeadScanResu
     consent: row.consent === true,
     deviceLocked: row.device_locked === true,
     person: parseLeadPerson(row.person),
+    superseded: parseSuperseded(row.superseded),
+    queueMarker: parseQueueMarker(row),
   };
 }
 
@@ -432,6 +535,7 @@ export async function fetchScannerRoster(input: RosterPageInput): Promise<Roster
       since: input.since,
       after: input.after,
       limit: input.limit,
+      client_caps: clientCaps(),
     }),
   });
   if (error !== null) throw new Error(error.message);
@@ -452,6 +556,8 @@ export interface BadgePrintScanResult {
   previousPrints: number;
   deviceLocked: boolean;
   person: ScanPerson | null;
+  /** Szczegóły `code_superseded` - kod zastąpiony nie drukuje i nie liczy się do blokady. */
+  superseded: SupersededInfo | null;
 }
 
 export interface BadgePrintScanInput {
@@ -486,5 +592,6 @@ export async function recordBadgePrintScan(
     previousPrints: nullableInt(row.previous_prints) ?? 0,
     deviceLocked: row.device_locked === true,
     person: parseScanPerson(row.person),
+    superseded: parseSuperseded(row.superseded),
   };
 }

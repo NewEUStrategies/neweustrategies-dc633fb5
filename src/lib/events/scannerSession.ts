@@ -16,7 +16,11 @@
 // stoiska partnera ma `lead`, stanowisko druku ma `badge_print`. Pokazujemy
 // tylko te tryby, które poświadczenie naprawdę niesie - inaczej wolontariusz
 // klikałby w zakładkę, która zawsze kończy się odmową.
-import type { CheckinDirection, ScannerScope } from "@/lib/events/onsiteEnums";
+import type {
+  CheckinDirection,
+  CheckpointReentryPolicy,
+  ScannerScope,
+} from "@/lib/events/onsiteEnums";
 import { isScannerScope } from "@/lib/events/onsiteEnums";
 
 // Kształt tokenu mieszka w `scannerToken` (trasa `/scanner` sprawdza go
@@ -30,6 +34,13 @@ export interface ScannerCheckpoint {
   kind: string;
   directionMode: string;
   accessMode: string;
+  /**
+   * Polityka ponownego wejścia (OPS-08). `deny` (tylko w trybie `control`)
+   * odmawia wejścia osobie, która jest już w środku - także offline, z dziennika
+   * zgód urządzenia (`decideOffline`). Zmiana w panelu dociera z konfiguracją
+   * i z każdą stroną listy offline (`withReentryPolicies`).
+   */
+  reentryPolicy: CheckpointReentryPolicy;
   capacity: number | null;
   dedupeWindowSeconds: number;
   sortOrder: number;
@@ -95,6 +106,15 @@ function nullableInt(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? Math.trunc(value) : null;
 }
 
+/**
+ * Polityka ponownego wejścia z bazy. Wartość nieznana (albo brak - konfiguracja
+ * sprzed OPS-08) to `allow`: domyślna wartość kolumny i jedyna, która nie
+ * odsyła nikogo od bramki na podstawie domysłu.
+ */
+export function parseReentryPolicy(value: unknown): CheckpointReentryPolicy {
+  return value === "deny" ? "deny" : "allow";
+}
+
 function parseCheckpoints(value: unknown): ScannerCheckpoint[] {
   if (!Array.isArray(value)) return [];
   const out: ScannerCheckpoint[] = [];
@@ -109,6 +129,7 @@ function parseCheckpoints(value: unknown): ScannerCheckpoint[] {
       kind: text(row.kind) ?? "event_entry",
       directionMode: text(row.direction_mode) ?? "in_only",
       accessMode: text(row.access_mode) ?? "control",
+      reentryPolicy: parseReentryPolicy(row.reentry_policy),
       capacity: nullableInt(row.capacity),
       // Okno idempotencji z bazy - ekran pokazuje je operatorowi, żeby
       // „powtórzone piknięcie" nie wyglądało na awarię czytnika.
@@ -197,11 +218,38 @@ export function sessionToRecord(session: ScannerSession): Record<string, unknown
       kind: checkpoint.kind,
       direction_mode: checkpoint.directionMode,
       access_mode: checkpoint.accessMode,
+      reentry_policy: checkpoint.reentryPolicy,
       capacity: checkpoint.capacity,
       dedupe_window_seconds: checkpoint.dedupeWindowSeconds,
       sort_order: checkpoint.sortOrder,
     })),
   };
+}
+
+/** Polityka ponownego wejścia punktu z listy offline (`event_scanner_roster.checkpoints`). */
+export interface CheckpointReentryUpdate {
+  id: string;
+  reentryPolicy: CheckpointReentryPolicy;
+}
+
+/**
+ * Sesja z politykami ponownego wejścia z listy offline. Zmiana w panelu w trakcie
+ * wydarzenia dociera z kolejną deltą listy - bez ponownej konfiguracji. Gdy nic
+ * się nie zmienia, oddaje TĘ SAMĄ sesję (wołający nie przerysowuje ekranu).
+ */
+export function withReentryPolicies(
+  session: ScannerSession,
+  updates: readonly CheckpointReentryUpdate[],
+): ScannerSession {
+  const byId = new Map(updates.map((update) => [update.id, update.reentryPolicy]));
+  let changed = false;
+  const checkpoints = session.checkpoints.map((checkpoint) => {
+    const policy = byId.get(checkpoint.id);
+    if (policy === undefined || policy === checkpoint.reentryPolicy) return checkpoint;
+    changed = true;
+    return { ...checkpoint, reentryPolicy: policy };
+  });
+  return changed ? { ...session, checkpoints } : session;
 }
 
 /** Od tego przesunięcia zegara urządzenia ekran ostrzega operatora. */

@@ -57,6 +57,16 @@
 // przy starcie i na odstępie. ŚWIADOME ODŁĄCZENIE (ekran pyta, gdy coś nie
 // zostało wysłane) kasuje kolejkę, odrzucone, konflikty, listę i token.
 //
+// ZNACZNIK KOLEJKI (OPS-12, `scannerQueueMarker.ts`). Najnowszy znacznik z każdej
+// odpowiedzi bazy (konfiguracja, strona listy offline, zapis odprawy i leadu)
+// żyje w pamięci karty i - zaszyfrowany - na dysku; każda pozycja dostaje
+// znacznik aktualny W CHWILI KOLEJKOWANIA (`queue`) i odsyła go przy wysyłce.
+// Tylko z nim baza przyjmie skan sprzed terminu poświadczenia po tym terminie.
+//
+// POLITYKA PONOWNEGO WEJŚCIA (OPS-08) dociera z konfiguracją i z każdą stroną
+// listy offline (`withReentryPolicies`) - decyzja offline zna ją bez ponownego
+// parowania.
+//
 // POŚWIADCZENIE WYGASA TAKŻE BEZ SIECI. Termin sprawdzamy na zegarze
 // skorygowanym - przy każdym skanie i co pół minuty - zamiast czekać na
 // odmowę bazy: telefon bez zasięgu inaczej wpuszczałby dalej po terminie
@@ -77,6 +87,14 @@ import {
   type CheckinScanResult,
   type LeadScanResult,
 } from "@/lib/events/scannerApi";
+import type { RosterPage } from "@/lib/events/scannerRoster";
+import {
+  newerQueueMarker,
+  queueMarkerFor,
+  shouldPersistQueueMarker,
+  type DeviceQueueMarker,
+  type QueueMarker,
+} from "@/lib/events/scannerQueueMarker";
 import {
   appendRejected,
   dueItems,
@@ -112,12 +130,14 @@ import {
   loadCachedSession,
   loadConflicts,
   loadDecisionLog,
+  loadQueueMarker,
   loadRejected,
   loadRoster,
   purgeExpiredRoster,
   saveCachedSession,
   saveConflicts,
   saveDecisionLog,
+  saveQueueMarker,
   saveRejected,
   saveRoster,
   wipeAllOfflineData,
@@ -131,6 +151,8 @@ import {
   isClockSkewed,
   isScannerToken,
   isSessionExpired,
+  withReentryPolicies,
+  type CheckpointReentryUpdate,
   type ScannerSession,
 } from "@/lib/events/scannerSession";
 import {
@@ -145,6 +167,8 @@ import {
   buildRosterIndex,
   decideOffline,
   isRosterExpired,
+  matchRoster,
+  queuedOfflineDecision,
   syncRosterSnapshot,
   type LocalDecisionLogEntry,
   type OfflineDecision,
@@ -353,6 +377,10 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
   /** Klucz sejfu kolejki dla bieżącego poświadczenia (`null` = kod nie trafia na dysk). */
   const vaultKeyRef = useRef<CryptoKey | null>(null);
   const vaultMemoRef = useRef<{ token: string; key: Promise<CryptoKey | null> } | null>(null);
+  /** Najnowszy znacznik kolejki (OPS-12) - stempel każdej nowej pozycji. */
+  const markerRef = useRef<DeviceQueueMarker | null>(null);
+  /** Znacznik, który leży na dysku (w sejfie) - zapis tylko, gdy nowy jest wyraźnie nowszy. */
+  const persistedMarkerRef = useRef<DeviceQueueMarker | null>(null);
 
   const rosterIndex = useMemo(() => buildRosterIndex(roster?.rows ?? []), [roster]);
   const rosterIndexRef = useRef(rosterIndex);
@@ -461,6 +489,63 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     void saveDecisionLog(next);
   }, []);
 
+  /* ---------------------------------------------------- znacznik kolejki --- */
+
+  /**
+   * Znacznik z odpowiedzi bazy (OPS-12): najnowszy wygrywa (`newerQueueMarker`),
+   * odpowiedź bez znacznika niczego nie kasuje. Na dysk - zaszyfrowany kluczem
+   * bieżącego poświadczenia - trafia co kilka minut, nie przy każdym skanie.
+   * `restored` = znacznik właśnie przeczytany z dysku (nie zapisujemy go z powrotem).
+   */
+  const observeMarker = useCallback(
+    (
+      deviceId: string | null | undefined,
+      marker: QueueMarker | null | undefined,
+      restored = false,
+    ) => {
+      if (deviceId === null || deviceId === undefined || marker === null || marker === undefined) {
+        return;
+      }
+      const current = markerRef.current;
+      const held = current !== null && current.deviceId === deviceId ? current.marker : null;
+      const chosen = newerQueueMarker(held, marker);
+      if (chosen === null || chosen === held) return;
+      const next: DeviceQueueMarker = { deviceId, marker: chosen };
+      markerRef.current = next;
+      if (restored) {
+        persistedMarkerRef.current = next;
+        return;
+      }
+      if (!shouldPersistQueueMarker(persistedMarkerRef.current, next)) return;
+      const generation = pairingRef.current;
+      void saveQueueMarker(
+        deviceId,
+        chosen,
+        vaultKeyRef.current,
+        // Odłączenie albo nowe parowanie w trakcie szyfrowania - nic na dysk.
+        () => pairingRef.current === generation,
+      ).then((saved) => {
+        if (saved) persistedMarkerRef.current = next;
+      });
+    },
+    [],
+  );
+
+  /** Znacznik z dysku dla sesji z pamięci (start bez sieci) - zanim ktoś zeskanuje. */
+  const restoreMarker = useCallback(
+    async (deviceId: string): Promise<void> => {
+      if (markerRef.current?.deviceId === deviceId) return;
+      const stored = await loadQueueMarker(deviceId, vaultKeyRef.current);
+      observeMarker(deviceId, stored, true);
+    },
+    [observeMarker],
+  );
+
+  const forgetMarker = useCallback(() => {
+    markerRef.current = null;
+    persistedMarkerRef.current = null;
+  }, []);
+
   /* ------------------------------------------------------- poświadczenie --- */
 
   /** Lista i dziennik zgód znikają z urządzenia; sesja zostaje. */
@@ -495,6 +580,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       setRoster(null);
       setRosterLoadedFor(null);
       logRef.current = [];
+      forgetMarker();
       void wipeOfflineSession();
       if (!ownsQueue) return;
       void (outboxLoadRef.current ?? Promise.resolve()).then(() => {
@@ -507,7 +593,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         transferRejected(entries);
       });
     },
-    [persist, transferRejected],
+    [persist, transferRejected, forgetMarker],
   );
 
   /**
@@ -566,9 +652,14 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       // w międzyczasie odłączono albo zastąpiono, nie dotyka już stanu.
       const generation = pairingRef.current;
       const superseded = () => pairingRef.current !== generation;
-      /** Klucz sejfu przed sesją: pierwsza wysyłka ma już otwarte kody. */
+      /**
+       * Klucz sejfu przed sesją: pierwsza wysyłka ma już otwarte kody, a skan
+       * po starcie bez sieci - znacznik kolejki z dysku.
+       */
       const adopt = async (next: ScannerSession, offset: number, stale: boolean) => {
         await adoptVault(clean);
+        if (superseded()) return false;
+        await restoreMarker(next.deviceId);
         if (superseded()) return false;
         adoptSession(clean, next, offset, stale);
         return true;
@@ -585,10 +676,16 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       }
       const sentAt = Date.now();
       try {
-        const next = await withDeadline(bootstrapScanner(clean), BOOTSTRAP_TIMEOUT_MS);
+        // Znacznik kolejki NIE jest częścią sesji (ekran, pamięć podręczna
+        // sesji bez szyfrowania) - zdejmujemy go od razu.
+        const { queueMarker, ...next } = await withDeadline(
+          bootstrapScanner(clean),
+          BOOTSTRAP_TIMEOUT_MS,
+        );
         if (superseded()) return;
         const offset = computeClockOffset(next.serverNow, sentAt, Date.now());
         if (!(await adopt(next, offset, false))) return;
+        observeMarker(next.deviceId, queueMarker);
         const tokenHash = await sha256Hex(clean);
         if (superseded()) return;
         await saveCachedSession({
@@ -632,7 +729,16 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         setConnectError(scannerErrorText(error));
       }
     },
-    [adoptSession, adoptVault, cachedFor, credentialPaused, dropSession, markOfflinePersistence],
+    [
+      adoptSession,
+      adoptVault,
+      cachedFor,
+      credentialPaused,
+      dropSession,
+      markOfflinePersistence,
+      observeMarker,
+      restoreMarker,
+    ],
   );
 
   const connect = useCallback(
@@ -660,6 +766,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     clearStoredToken();
     vaultKeyRef.current = null;
     vaultMemoRef.current = null;
+    forgetMarker();
     setToken(null);
     setSession(null);
     setSessionStale(false);
@@ -680,7 +787,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       setOutboxPersistent(isOutboxPersistent());
       markOfflinePersistence();
     });
-  }, [markOfflinePersistence]);
+  }, [markOfflinePersistence, forgetMarker]);
 
   // Kolejka z poprzedniej zmiany - wczytujemy raz, zanim ktokolwiek zeskanuje.
   // Klucz sejfu powstaje z tokenu, który zaraz będzie łączony (z adresu albo
@@ -835,6 +942,47 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     };
   }, [status, sessionDeviceId, sessionOffline, forgetRoster, markOfflinePersistence]);
 
+  /**
+   * Polityki ponownego wejścia z listy offline (OPS-08) - zmiana w panelu
+   * w trakcie wydarzenia trafia do sesji (i do jej kopii na dysku, z której
+   * startuje skaner bez sieci) bez ponownej konfiguracji.
+   */
+  const adoptReentryPolicies = useCallback(
+    (deviceId: string, updates: readonly CheckpointReentryUpdate[]) => {
+      const latest = sessionRef.current;
+      if (latest === null || latest.deviceId !== deviceId) return;
+      const next = withReentryPolicies(latest, updates);
+      if (next === latest) return;
+      sessionRef.current = next;
+      setSession(next);
+      const activeToken = tokenRef.current;
+      if (activeToken === null) return;
+      const generation = pairingRef.current;
+      void sha256Hex(activeToken).then((tokenHash) => {
+        if (pairingRef.current !== generation) return;
+        void saveCachedSession({
+          tokenHash,
+          session: next,
+          serverOffsetMs: clockOffsetRef.current,
+          savedAt: new Date().toISOString(),
+        }).then(markOfflinePersistence);
+      });
+    },
+    [markOfflinePersistence],
+  );
+
+  /** Strona listy offline niesie znacznik kolejki i polityki punktów. */
+  const observeRosterPage = useCallback(
+    (deviceId: string, page: RosterPage) => {
+      if (sessionRef.current?.deviceId !== deviceId) return;
+      observeMarker(deviceId, page.queueMarker);
+      if (page.checkpoints !== null && page.checkpoints !== undefined) {
+        adoptReentryPolicies(deviceId, page.checkpoints);
+      }
+    },
+    [observeMarker, adoptReentryPolicies],
+  );
+
   const syncRoster = useCallback(() => {
     const activeToken = tokenRef.current;
     const current = sessionRef.current;
@@ -848,7 +996,13 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       // Lista dziedziczy termin poświadczenia - po nim znika z telefonu.
       expiresAt: current.expiresAt,
       fetchPage: (input) =>
-        withDeadline(fetchScannerRoster({ deviceToken: activeToken, ...input }), ROSTER_TIMEOUT_MS),
+        withDeadline(
+          fetchScannerRoster({ deviceToken: activeToken, ...input }),
+          ROSTER_TIMEOUT_MS,
+        ).then((page) => {
+          observeRosterPage(current.deviceId, page);
+          return page;
+        }),
     })
       .then((snapshot) => {
         if (sessionRef.current?.deviceId === current.deviceId) commitRoster(snapshot);
@@ -872,7 +1026,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         rosterSyncingRef.current = false;
         setRosterSyncing(false);
       });
-  }, [commitRoster, credentialFailed, credentialPaused, forgetRoster]);
+  }, [commitRoster, credentialFailed, credentialPaused, forgetRoster, observeRosterPage]);
 
   useEffect(() => {
     if (status !== "ready" || !online || !sessionOffline) return;
@@ -946,13 +1100,14 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
             }),
             FLUSH_TIMEOUT_MS,
           );
+          observeMarker(sessionRef.current?.deviceId, result.queueMarker);
           const conflict = detectConflict(item, result, new Date().toISOString());
           if (conflict !== null) {
             conflictCount += 1;
             commitConflict(conflict);
           }
         } else {
-          await withDeadline(
+          const result = await withDeadline(
             recordLeadScan({
               deviceToken: activeToken,
               code: item.code,
@@ -964,6 +1119,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
             }),
             FLUSH_TIMEOUT_MS,
           );
+          observeMarker(sessionRef.current?.deviceId, result.queueMarker);
         }
         sent += 1;
         transientStreak = 0;
@@ -1005,8 +1161,9 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           case "reject":
           case "reject_expired": {
             // Termin baza liczy PER POZYCJA (`_event_scanner_device_auth_sync`
-            // porównuje chwilę skanu z terminem): skan sprzed terminu przechodzi
-            // jeszcze 72 h, więc odrzucamy tylko tę pozycję i jedziemy dalej.
+            // porównuje chwilę skanu i znacznik kolejki z terminem): skan sprzed
+            // terminu ze znacznikiem przechodzi jeszcze 72 h, więc odrzucamy
+            // tylko tę pozycję i jedziemy dalej.
             const failure = withFailure(outboxRef.current, item.id, message, nowIso);
             persist(failure.queue);
             if (failure.rejected !== null) {
@@ -1038,7 +1195,14 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         flushRef.current();
       }
     });
-  }, [persist, commitConflict, transferRejected, credentialFailed, credentialPaused]);
+  }, [
+    persist,
+    commitConflict,
+    transferRejected,
+    credentialFailed,
+    credentialPaused,
+    observeMarker,
+  ]);
   flushRef.current = flush;
 
   /** Zeruje wycofanie (wszystkich albo wskazanych pozycji) i od razu wysyła. */
@@ -1083,7 +1247,8 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
   }, []);
 
   // Powrót sieci i tykający odstęp - patrz nagłówek. Wygasłe poświadczenie
-  // też wysyła: baza przyjmuje skany sprzed terminu jeszcze przez 72 h.
+  // też wysyła: baza przyjmuje skany sprzed terminu jeszcze przez 72 h - te,
+  // które niosą znacznik kolejki z chwili kolejkowania (OPS-12).
   const flushable = status === "ready" || status === "expired";
   useEffect(() => {
     if (!flushable) return;
@@ -1111,13 +1276,20 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
 
   /* -------------------------------------------------------------- skany --- */
 
-  /** Dokłada skan do kolejki - ze skrótem i prefiksem kodu (lista odrzuconych, eksport). */
+  /**
+   * Dokłada skan do kolejki - ze skrótem i prefiksem kodu (lista odrzuconych,
+   * eksport) i ze ZNACZNIKIEM KOLEJKI aktualnym TERAZ (OPS-12): baza po terminie
+   * poświadczenia przyjmie skan tylko ze znacznikiem wydanym najwyżej kwadrans
+   * po skanie, więc stempel z chwili wysyłki byłby za młody.
+   */
   const queue = useCallback(
     async (item: OutboxItem): Promise<void> => {
+      const marker = item.queueMarker ?? queueMarkerFor(markerRef.current, item.deviceId);
       const fingerprinted: OutboxItem = {
         ...item,
         codeHash: item.codeHash ?? (await scanCodeHash(item.code)),
         codePrefix: item.codePrefix ?? codePrefixOf(item.code),
+        ...(marker === null ? {} : { queueMarker: marker }),
       };
       const { queue: next, overflow } = enqueueScanWithOverflow(outboxRef.current, fingerprinted);
       persist(next);
@@ -1156,13 +1328,18 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       if (snapshot === null || current === null || !current.offlineRoster) return null;
       const checkpoint = findCheckpoint(current, checkpointId);
       if (checkpoint === null) return null;
+      // Bilet ALBO identyfikator; kod zastąpiony to odmowa, nie „nieznany kod".
+      const match = matchRoster(rosterIndexRef.current, codeHash);
       const decision = decideOffline({
-        entry: rosterIndexRef.current.get(codeHash) ?? null,
+        entry: match.entry,
+        superseded: match.superseded,
         checkpoint,
         direction,
         log: logRef.current,
         nowMs: atMs,
         rosterGeneratedAt: snapshot.generatedAt,
+        // Doba „w środku" (OPS-08) liczy się w strefie WYDARZENIA.
+        timezone: current.event.timezone,
       });
       if (decision.outcome === "granted" && decision.entry !== null) {
         logGrant({
@@ -1209,17 +1386,10 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         // Ten sam skrót, pod którym bilet zna lista offline i baza.
         const codeHash = await scanCodeHash(input.code);
         const local = decideLocally(codeHash, input.checkpointId, input.direction, atMs);
-        const fingerprinted = { ...item, codeHash };
-        await queue(
-          local === null
-            ? fingerprinted
-            : {
-                ...fingerprinted,
-                offlineAdmitted: local.admit,
-                offlineOutcome: local.outcome,
-                rosterGeneratedAt: local.rosterGeneratedAt,
-              },
-        );
+        // Kod zastąpiony jedzie BEZ decyzji offline - baza odpowie tym samym
+        // `code_superseded` i nie zapisze wiersza (`queuedOfflineDecision`).
+        const offline = local === null ? null : queuedOfflineDecision(local);
+        await queue({ ...item, codeHash, ...(offline ?? {}) });
         return { queued: true, local };
       };
 
@@ -1237,6 +1407,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           }),
           SCAN_TIMEOUT_MS,
         );
+        observeMarker(sessionRef.current?.deviceId, result.queueMarker);
         // Zgoda online też trafia do dziennika zgód - powtórne piknięcie
         // po utracie sieci ma dać „już odprawiony", a nie drugą zgodę.
         const registrationId = result.person?.registrationId ?? null;
@@ -1274,7 +1445,15 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         }
       }
     },
-    [queue, decideLocally, logGrant, credentialFailed, credentialPaused, assertNotExpired],
+    [
+      queue,
+      decideLocally,
+      logGrant,
+      credentialFailed,
+      credentialPaused,
+      assertNotExpired,
+      observeMarker,
+    ],
   );
 
   const submitLead = useCallback(
@@ -1318,6 +1497,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           }),
           SCAN_TIMEOUT_MS,
         );
+        observeMarker(sessionRef.current?.deviceId, result.queueMarker);
         return { queued: false, result };
       } catch (error: unknown) {
         if (credentialPaused(error)) throw error;
@@ -1334,7 +1514,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         }
       }
     },
-    [queue, credentialFailed, credentialPaused, assertNotExpired],
+    [queue, credentialFailed, credentialPaused, assertNotExpired, observeMarker],
   );
 
   return {

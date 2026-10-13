@@ -22,6 +22,7 @@ import {
   clockOffsetMs,
   isClockSkewed,
   CLOCK_SKEW_WARNING_MS,
+  withReentryPolicies,
 } from "@/lib/events/scannerSession";
 import {
   backoffBaseMs,
@@ -227,6 +228,38 @@ describe("scannerOutbox - kolejka bez sieci", () => {
     expect(enqueueScanWithOverflow([], fresh).overflow).toEqual([]);
     const lead = item({ id: "l1", kind: "lead", code: "X" });
     expect(enqueueScanWithOverflow([lead], { ...lead, id: "l2" }).overflow).toEqual([]);
+  });
+
+  it("sklejony lead bierze chwilę NOWSZEGO skanu razem z jego znacznikiem kolejki (OPS-12)", () => {
+    // Baza sprawdza je RAZEM: skan najwyżej kwadrans przed wydaniem znacznika
+    // i najwyżej dobę po nim - stary znacznik z nową chwilą mógłby nie przejść.
+    const merged = enqueueScan(
+      enqueueScan(
+        [],
+        item({
+          id: "l1",
+          kind: "lead",
+          code: "X",
+          deviceScannedAt: "2026-09-01T08:00:00Z",
+          queueMarker: "m-stary",
+        }),
+      ),
+      item({
+        id: "l2",
+        kind: "lead",
+        code: "X",
+        deviceScannedAt: "2026-09-02T09:00:00Z",
+        queueMarker: "m-nowy",
+      }),
+    );
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      deviceScannedAt: "2026-09-02T09:00:00Z",
+      queueMarker: "m-nowy",
+    });
+    // Nowszy skan bez znacznika nie kasuje starszego.
+    const kept = enqueueScan(merged, item({ id: "l3", kind: "lead", code: "X" }));
+    expect(kept[0].queueMarker).toBe("m-nowy");
   });
 
   it("leady sklejają się tylko w obrębie JEDNEGO urządzenia", () => {
@@ -576,6 +609,47 @@ describe("onsiteEnums - slownik wynikow odprawy", () => {
 //   * pozycja kolejki sprzed zmiany (bez pól offline) nie wczytuje się albo
 //     wczytuje się z `undefined` w polach, które flush wysyła do bazy;
 //   * trwała odmowa kasuje pozycję zamiast oddać ją jako odrzuconą.
+
+describe("scannerSession - polityka ponownego wejścia (OPS-08)", () => {
+  it("punkt niesie politykę z bazy; brak albo wartość obca to `allow` (domyślna kolumny)", () => {
+    const session = parseScannerSession({
+      ...BOOTSTRAP,
+      checkpoints: [
+        { id: "c1", reentry_policy: "deny" },
+        { id: "c2", reentry_policy: "zakaz" },
+        { id: "c3" },
+      ],
+    });
+    expect(session?.checkpoints.map((cp) => cp.reentryPolicy)).toEqual(["deny", "allow", "allow"]);
+  });
+
+  it("polityka przeżywa zapis sesji na urządzeniu (zimny start bez sieci)", () => {
+    const session = parseScannerSession({
+      ...BOOTSTRAP,
+      checkpoints: [{ id: "c1", reentry_policy: "deny" }],
+    });
+    if (session === null) throw new Error("test: sesja nieczytelna");
+    expect(parseScannerSession(sessionToRecord(session))?.checkpoints[0].reentryPolicy).toBe(
+      "deny",
+    );
+  });
+
+  it("zmiana z listy offline podmienia politykę; bez zmiany oddaje TĘ SAMĄ sesję", () => {
+    const session = parseScannerSession({
+      ...BOOTSTRAP,
+      checkpoints: [{ id: "c1" }, { id: "c2", reentry_policy: "deny" }],
+    });
+    if (session === null) throw new Error("test: sesja nieczytelna");
+    const next = withReentryPolicies(session, [
+      { id: "c1", reentryPolicy: "deny" },
+      { id: "obcy", reentryPolicy: "deny" },
+    ]);
+    expect(next).not.toBe(session);
+    expect(next.checkpoints.map((cp) => cp.reentryPolicy)).toEqual(["deny", "deny"]);
+    expect(withReentryPolicies(next, [{ id: "c1", reentryPolicy: "deny" }])).toBe(next);
+    expect(withReentryPolicies(next, [])).toBe(next);
+  });
+});
 
 describe("scannerSession - pola trybu offline", () => {
   it("bootstrap niesie zgodę na listę offline, jej pobranie i zegar serwera", () => {

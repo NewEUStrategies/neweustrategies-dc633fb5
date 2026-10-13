@@ -25,6 +25,7 @@ import type {
   LeadScanInput,
   LeadScanResult,
   RosterPageInput,
+  ScannerBootstrap,
 } from "@/lib/events/scannerApi";
 import type { RosterPage } from "@/lib/events/scannerRoster";
 import type { ScannerSession } from "@/lib/events/scannerSession";
@@ -38,7 +39,7 @@ import {
 freezeClock();
 
 const api = vi.hoisted(() => ({
-  bootstrapScanner: vi.fn<(token: string) => Promise<ScannerSession>>(),
+  bootstrapScanner: vi.fn<(token: string) => Promise<ScannerBootstrap>>(),
   recordCheckinScan: vi.fn<(input: CheckinScanInput) => Promise<CheckinScanResult>>(),
   recordLeadScan: vi.fn<(input: LeadScanInput) => Promise<LeadScanResult>>(),
   fetchScannerRoster: vi.fn<(input: RosterPageInput) => Promise<RosterPage>>(),
@@ -87,6 +88,7 @@ function session(over: Partial<ScannerSession> = {}): ScannerSession {
         kind: "event_entry",
         directionMode: "in_out",
         accessMode: "control",
+        reentryPolicy: "allow",
         capacity: null,
         dedupeWindowSeconds: 60,
         sortOrder: 0,
@@ -107,6 +109,8 @@ function rosterPage(): RosterPage {
       {
         registrationId: "r-olga",
         hash: sha(GRANTED),
+        badgeHash: null,
+        supersededHashes: [],
         status: "approved",
         firstName: "Olga",
         lastName: "Obecna",
@@ -141,12 +145,18 @@ function checkinResult(): CheckinScanResult {
       kind: null,
       directionMode: null,
       accessMode: "control",
+      reentryPolicy: null,
       capacity: null,
       occupancy: null,
     },
     person: null,
     otherEventTitlePl: null,
     otherEventTitleEn: null,
+    reentry: false,
+    reentryPreviousAt: null,
+    credential: null,
+    superseded: null,
+    displayName: null,
   };
 }
 
@@ -158,6 +168,7 @@ function leadResult(): LeadScanResult {
     consent: false,
     deviceLocked: false,
     person: null,
+    superseded: null,
   };
 }
 
@@ -306,6 +317,54 @@ describe("OPS-06: kody z biletów nie leżą jawnie na urządzeniu", () => {
     expect(idb.read("nes-scanner-offline", "records", "roster")).toBeUndefined();
     expect(idb.read("nes-scanner-offline", "records", "rejected")).toBeUndefined();
     expect(idb.read("nes-scanner", "outbox", "queue")).toEqual([]);
+  });
+
+  it("OPS-12: znacznik kolejki leży na dysku WYŁĄCZNIE w sejfie, a z kolejką wraca po restarcie", async () => {
+    const MARKER = "AAAAAGkAAAA" + "Z".repeat(43);
+    const useScannerRuntime = await loadRuntime();
+    api.bootstrapScanner.mockResolvedValue({
+      ...session({ offlineRoster: false }),
+      queueMarker: { value: MARKER, validUntil: relativeIso(24 * GODZINA) },
+    });
+    const first = renderHookWithQueryClient(() => useScannerRuntime(TOKEN));
+    await waitFor(() => expect(first.result.current.status).toBe("ready"));
+    // Znacznik urządzenia trafia do magazynu offline - w bloku sejfu.
+    await waitFor(() =>
+      expect(idb.read("nes-scanner-offline", "records", "marker")).toMatchObject({
+        deviceId: "dev-1",
+        sealed: { iv: expect.any(String), data: expect.any(String) },
+      }),
+    );
+    goOffline();
+    await act(async () => {
+      await first.result.current.submitCheckin({
+        code: GRANTED,
+        checkpointId: CP,
+        direction: "in",
+      });
+    });
+    await waitFor(() => expect(idb.read("nes-scanner", "outbox", "queue")).toHaveLength(1));
+    expect(first.result.current.outbox[0].queueMarker).toBe(MARKER);
+    // Ani w kolejce, ani w magazynie offline, ani w localStorage - jawnie nigdzie.
+    expect(everythingAtRest().some((value) => value.includes(MARKER))).toBe(false);
+    first.unmount();
+
+    // Restart karty: pozycja otwiera się kluczem tokenu RAZEM ze swoim znacznikiem.
+    const useScannerRuntime2 = await loadRuntime();
+    api.recordCheckinScan.mockResolvedValue(checkinResult());
+    offline = false;
+    const second = renderHookWithQueryClient(() => useScannerRuntime2(TOKEN));
+    await waitFor(() => expect(api.recordCheckinScan).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(second.result.current.outbox).toEqual([]));
+    expect(api.recordCheckinScan).toHaveBeenCalledWith(
+      expect.objectContaining({ code: GRANTED, queued: true, queueMarker: MARKER }),
+    );
+
+    // Odłączenie kasuje znacznik razem z sesją.
+    await act(async () => {
+      await second.result.current.disconnect();
+    });
+    expect(idb.read("nes-scanner-offline", "records", "marker")).toBeUndefined();
   });
 
   it("kolejka i lista odrzuconych sprzed sejfu (jawne kody) są przepisywane przy starcie, a skany nadal wychodzą", async () => {

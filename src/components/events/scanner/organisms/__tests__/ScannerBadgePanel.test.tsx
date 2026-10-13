@@ -15,6 +15,9 @@
 // 4. ODMOWA JEST ZDANIEM DLA OPERATORA. Powstaje POZA Reactem
 //    (`scannerErrorMessage` -> prawdziwa instancja i18next), więc asercja czyta
 //    zdanie, które faktycznie zobaczy człowiek.
+// 5. KOD ZASTĄPIONY NIE DRUKUJE (OPS-04): stary identyfikator po dodruku albo
+//    bilet po zwrocie dostaje bursztyn z powodem i chwilą - nie „nieznany kod"
+//    i nie plakietki rejestru.
 //
 // i18n jest zamockowane kluczami (parytetu PL/EN pilnuje osobna bramka
 // słowników), z wyjątkiem opisanym w punkcie 4.
@@ -120,6 +123,7 @@ function printed(over: Partial<BadgePrintScanResult> = {}): BadgePrintScanResult
     previousPrints: 0,
     deviceLocked: false,
     person: null,
+    superseded: null,
     ...over,
   };
 }
@@ -276,6 +280,31 @@ describe("ScannerBadgePanel - na ekranie ląduje ODPOWIEDŹ BAZY", () => {
     scan("BADGE-9");
     expect(await screen.findByText("eventScanner.outcomes.unknownCode")).toBeInTheDocument();
     expect(within(resultBlock()).queryByText(/previousPrints/)).toBeNull();
+  });
+
+  it("kod ZASTĄPIONY nie drukuje: bursztyn z powodem i chwilą, bez plakietek rejestru", async () => {
+    printScan.mockResolvedValueOnce(
+      printed({
+        outcome: "code_superseded",
+        reason: null,
+        printId: null,
+        superseded: {
+          credential: "badge",
+          reason: "invalidated",
+          supersededAt: "2026-10-12T08:01:02Z",
+        },
+      }),
+    );
+    mount();
+
+    scan("BADGE-OLD");
+    expect(await screen.findByText("eventScanner.outcomes.codeSuperseded")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveAttribute("data-tone", "warning");
+    expect(
+      screen.getByText(/^eventScanner\.superseded\.badge\.invalidated\(when=/),
+    ).toBeInTheDocument();
+    expect(within(resultBlock()).queryByText(/previousPrints/)).toBeNull();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it("odmowa ZDEJMUJE poprzedni wynik z ekranu i mówi zdaniem, co robić", async () => {
