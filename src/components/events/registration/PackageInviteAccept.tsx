@@ -166,16 +166,27 @@ export function PackageInviteAccept({ token }: { token: string | null }) {
   return <InviteFlow token={token} />;
 }
 
+/** Licznik montowan podgladu - wyroznik klucza cache zamiast tokenu. */
+let inviteMountSeq = 0;
+function nextInviteMount(): number {
+  inviteMountSeq += 1;
+  return inviteMountSeq;
+}
+
 function InviteFlow({ token }: { token: string }) {
   const { t } = useTranslation();
 
   // TOKEN NIE TRAFIA DO KLUCZA CACHE (to poswiadczenie, nie identyfikator).
-  // Trasa montuje komponent z `key={token}`, a `gcTime: 0` zdejmuje wynik
-  // z pamieci zaraz po odmontowaniu - podglad innego linku nie dziedziczy
-  // cudzego stanu. Bez ponowien: kazda proba z blednym tokenem to pudlo
-  // liczone w bazie.
+  // Klucz niesie NUMER MONTOWANIA: trasa montuje komponent z `key={token}`,
+  // ale to za malo - stary obserwator odpina sie w tym samym commicie,
+  // w ktorym nowy czyta cache, a `gcTime: 0` zdejmuje wpis dopiero w nastepnym
+  // takcie. Przy wspolnym kluczu i `staleTime: Infinity` drugi link dostalby
+  // podglad pierwszego (cudze wydarzenie i zamaskowany adres) bez zapytania
+  // do bazy. Bez ponowien: kazda proba z blednym tokenem to pudlo liczone
+  // w bazie.
+  const [mount] = useState(nextInviteMount);
   const preview = useQuery<PackageInvitePreview | null>({
-    queryKey: ["package-invite", "preview"],
+    queryKey: ["package-invite", "preview", mount],
     queryFn: () => fetchPackageInvitePreview(token),
     gcTime: 0,
     staleTime: Infinity,
@@ -343,7 +354,12 @@ function InviteForm({ token, preview }: { token: string; preview: PackageInviteP
   }
 
   const formLoading = slug !== null && registrationForm.isPending;
-  const blocked = errors.length > 0 || accept.isPending || formLoading;
+  // Formularz wydarzenia, ktory nie dojechal, to NIE pusty formularz: pola
+  // obowiazkowe i regulaminy sa wtedy nieznane, wiec wysylka szlaby z pustymi
+  // odpowiedziami, ktorych baza nie przyjmie, a delegat nie mialby czym ich
+  // uzupelnic. Przycisk czeka na ponowienie.
+  const formFailed = slug !== null && registrationForm.isError;
+  const blocked = errors.length > 0 || accept.isPending || formLoading || formFailed;
   const eventTitle =
     preview === null
       ? null
@@ -382,11 +398,22 @@ function InviteForm({ token, preview }: { token: string; preview: PackageInviteP
           <Notice>{t("eventRegistration.invite.signInHint")}</Notice>
         ))}
 
-      {registrationForm.isError && (
-        <p className="flex items-start gap-2 rounded-[6px] border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          {t("eventRegistration.invite.previewFailed")}
-        </p>
+      {formFailed && (
+        <div className="space-y-2 rounded-[6px] border border-destructive/40 bg-destructive/5 p-3">
+          <p role="alert" className="flex items-start gap-2 text-sm text-destructive">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            {t("eventRegistration.invite.formFailed")}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={registrationForm.isFetching}
+            onClick={() => void registrationForm.refetch()}
+          >
+            {t("eventRegistration.invite.retry")}
+          </Button>
+        </div>
       )}
 
       {/* `noValidate`: braki pokazuje wspolna walidacja szkicu (te same zdania

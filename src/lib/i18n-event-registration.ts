@@ -328,7 +328,8 @@ export const eventRegistrationPl = {
       backToEvents: "Przejdź do listy wydarzeń",
       // Podgląd zaproszenia, pola i regulaminy wydarzenia (REG-15).
       loading: "Sprawdzamy zaproszenie...",
-      previewFailed: "Nie udało się sprawdzić zaproszenia. Spróbuj ponownie za chwilę.",
+      formFailed:
+        "Nie udało się wczytać pytań i regulaminów wydarzenia - bez nich nie możemy przyjąć zgłoszenia. Spróbuj ponownie.",
       retry: "Spróbuj ponownie",
       forEvent: "Wydarzenie: {{title}}",
       addressedTo: "Zaproszenie wysłano na adres {{email}}.",
@@ -948,7 +949,8 @@ export const eventRegistrationEn = {
       qrHint: "Save it now - we show it only once.",
       backToEvents: "Go to the event list",
       loading: "Checking the invitation...",
-      previewFailed: "We could not check the invitation. Please try again in a moment.",
+      formFailed:
+        "We could not load the event's questions and terms - we cannot accept the registration without them. Please try again.",
       retry: "Try again",
       forEvent: "Event: {{title}}",
       addressedTo: "The invitation was sent to {{email}}.",

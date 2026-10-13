@@ -34,6 +34,7 @@
 //     ekran musi je pokazać, a nie schować „na potem”, którego już nie będzie.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 import type {
   PackageInviteAcceptInput,
@@ -512,6 +513,78 @@ describe("PackageInviteAccept - formularz pilnuje tego, czego wymaga baza", () =
     expect(
       screen.getByLabelText("eventRegistration.fields.company").getAttribute("maxLength"),
     ).toBe("200");
+  });
+});
+
+describe("PackageInviteAccept - dwa odnośniki w tej samej karcie", () => {
+  // Trasa montuje komponent z `key={token}` - test robi to samo. Stary
+  // obserwator odpina się w tym samym commicie, w którym nowy czyta cache,
+  // więc przy wspólnym kluczu (token poza kluczem, `staleTime: Infinity`)
+  // drugi odnośnik dostałby podgląd pierwszego bez pytania bazy.
+  it("DRUGI odnośnik pyta bazę o SWÓJ podgląd - nie dziedziczy cudzego wydarzenia ani adresu", async () => {
+    h.podglad.mockImplementation(async (token) =>
+      token === TOKEN
+        ? podglad()
+        : podglad({
+            eventSlug: "forum-2027",
+            eventTitlePl: "Forum 2027",
+            eventTitleEn: "Forum 2027",
+            inviteEmailHint: "b***@example.com",
+          }),
+    );
+    const { rerender, queryClient } = renderWithQueryClient(
+      <PackageInviteAccept key={TOKEN} token={TOKEN} />,
+    );
+    expect(
+      await screen.findByText("eventRegistration.invite.forEvent(title=Kongres 2026)"),
+    ).toBeTruthy();
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <PackageInviteAccept key={TOKEN_KUPUJACEGO} token={TOKEN_KUPUJACEGO} />
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText("eventRegistration.invite.forEvent(title=Forum 2027)"),
+    ).toBeTruthy();
+    expect(h.podglad).toHaveBeenLastCalledWith(TOKEN_KUPUJACEGO);
+    expect(
+      screen.getByText("eventRegistration.invite.addressedTo(email=b***@example.com)"),
+    ).toBeTruthy();
+    expect(screen.queryByText("eventRegistration.invite.forEvent(title=Kongres 2026)")).toBeNull();
+    // Token nie trafia do klucza cache - to poświadczenie, nie identyfikator.
+    const klucze = JSON.stringify(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .map((q) => q.queryKey),
+    );
+    expect(klucze).not.toContain(TOKEN);
+    expect(klucze).not.toContain(TOKEN_KUPUJACEGO);
+  });
+});
+
+describe("PackageInviteAccept - formularz wydarzenia, który nie dojechał", () => {
+  it("błąd wczytania pól i regulaminów ODCINA wysyłkę i daje ponowienie zamiast pustego formularza", async () => {
+    h.formularz.mockRejectedValue(new Error("network: form unavailable"));
+    const { container } = renderWithQueryClient(<PackageInviteAccept token={TOKEN} />);
+
+    expect(await screen.findByText("eventRegistration.invite.formFailed")).toBeTruthy();
+    wypelnij();
+    // Komplet danych z RPC nie wystarcza: pola obowiązkowe i regulaminy są
+    // nieznane, więc ani przycisk, ani Enter nie wysyłają pustych odpowiedzi.
+    expect(przyciskWyslij()).toHaveProperty("disabled", true);
+    wyslijEnterem(container);
+    expect(h.przyjmij).not.toHaveBeenCalled();
+
+    h.formularz.mockResolvedValue(formularzZPolami());
+    fireEvent.click(screen.getByRole("button", { name: "eventRegistration.invite.retry" }));
+
+    expect(await screen.findByLabelText(/^Sektor/)).toBeTruthy();
+    expect(screen.queryByText("eventRegistration.invite.formFailed")).toBeNull();
+    // Po ponowieniu obowiązują pola wydarzenia - przycisk czeka na odpowiedź i regulamin.
+    expect(przyciskWyslij()).toHaveProperty("disabled", true);
   });
 });
 
