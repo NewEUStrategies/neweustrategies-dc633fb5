@@ -130,6 +130,18 @@ vi.mock("@/components/admin/events/molecules/RegistrationRefundJournal", () => (
   ),
 }));
 
+// Zgody i dane z zapisu (REG-02 / REG-14) mają własny plik testów
+// (`RegistrationConsentDetail.test.tsx`) - tu liczy się montaż po rozwinięciu.
+vi.mock("@/components/admin/events/molecules/RegistrationConsentDetail", () => ({
+  RegistrationConsentDetail: (props: { eventId: string; registrationId: string }) => (
+    <div
+      data-testid="consent-detail"
+      data-event-id={props.eventId}
+      data-registration-id={props.registrationId}
+    />
+  ),
+}));
+
 vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
@@ -1076,11 +1088,38 @@ describe("co niesie wiersz zgłoszenia", () => {
     panel();
 
     const wiersz = wiersze()[0] as HTMLElement;
-    expect(within(wiersz).queryAllByRole("button")).toHaveLength(0);
+    // Jedyny przycisk to rozwinięcie zgód i danych z zapisu (REG-14) - podgląd,
+    // nie decyzja.
+    expect(
+      within(wiersz)
+        .queryAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["adminEventRegistration.consentDetail.toggle"]);
     // Nieznany stan i tak dostaje plakietkę - pusty pasek statusu czyta się jak
     // uszkodzony wiersz. (Napis awaryjny dokłada i18n przez `defaultValue`,
     // czego atrapa słownika nie pokazuje - tu liczy się, że plakietka JEST.)
     expect(within(wiersz).getByText(/statuses\.z_kosmosu/)).toBeTruthy();
+  });
+});
+
+describe("zgody i dane z zapisu (REG-02 / REG-14)", () => {
+  it("rozwinięcie montuje szczegół zgód TEGO wiersza, drugie kliknięcie go zwija", () => {
+    const row = registrationRow({ status: "approved" });
+    h.rows = [row];
+    panel();
+
+    const wiersz = wiersze()[0] as HTMLElement;
+    expect(screen.queryByTestId("consent-detail")).toBeNull();
+    fireEvent.click(
+      within(wiersz).getByRole("button", { name: "adminEventRegistration.consentDetail.toggle" }),
+    );
+    const detail = screen.getByTestId("consent-detail");
+    expect(detail.getAttribute("data-event-id")).toBe(WYDARZENIE);
+    expect(detail.getAttribute("data-registration-id")).toBe(row.id);
+    fireEvent.click(
+      within(wiersz).getByRole("button", { name: "adminEventRegistration.consentDetail.hide" }),
+    );
+    expect(screen.queryByTestId("consent-detail")).toBeNull();
   });
 });
 
