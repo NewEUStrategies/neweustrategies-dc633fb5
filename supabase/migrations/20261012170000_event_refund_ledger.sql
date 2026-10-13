@@ -76,9 +76,19 @@ ALTER TABLE public.event_registration_refund_jobs
   ADD COLUMN IF NOT EXISTS decided_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS decided_at timestamptz;
 
+-- ZMIANA (scalenie z main, PR #504): main (20261012120000, INV-19c, juz
+-- wdrozone) dodal te sama kolumne `review_reason` z WLASNYM CHECK-iem
+-- `event_refund_jobs_review_reason_check` (powody eskalacji kolejki) - dwa
+-- CHECK-i naraz odrzucalyby kazdy powod drugiej strony, a dodanie samego
+-- CHECK-u REG-03 wywrociloby te migracje na wierszach produkcji z powodami
+-- main. Jeden CHECK zna oba slowniki; regula main „needs_review zawsze
+-- z powodem" zostaje jako osobny CHECK. Stan koncowy potwierdza migracja
+-- uzgadniajaca 20261013900000.
 ALTER TABLE public.event_registration_refund_jobs
   DROP CONSTRAINT IF EXISTS event_refund_jobs_origin_values,
   DROP CONSTRAINT IF EXISTS event_refund_jobs_review_reason_values,
+  DROP CONSTRAINT IF EXISTS event_refund_jobs_review_reason_check,
+  DROP CONSTRAINT IF EXISTS event_refund_jobs_needs_review_has_reason,
   DROP CONSTRAINT IF EXISTS event_refund_jobs_amount_nonneg,
   DROP CONSTRAINT IF EXISTS event_refund_jobs_currency_shape,
   DROP CONSTRAINT IF EXISTS event_refund_jobs_review_note_len,
@@ -90,7 +100,11 @@ ALTER TABLE public.event_registration_refund_jobs
   ADD CONSTRAINT event_refund_jobs_review_reason_values CHECK (
     review_reason IS NULL OR review_reason IN (
       'outside_refund_window', 'refund_disabled', 'shared_payment', 'manual_payment',
-      'organizer_waived', 'closed_without_refund_decision')),
+      'organizer_waived', 'closed_without_refund_decision',
+      'active_registrations_share_payment', 'attempts_exhausted',
+      'provider_refund_failed', 'refund_unconfirmed')),
+  ADD CONSTRAINT event_refund_jobs_needs_review_has_reason CHECK (
+    state <> 'needs_review' OR review_reason IS NOT NULL),
   ADD CONSTRAINT event_refund_jobs_amount_nonneg CHECK (amount_cents IS NULL OR amount_cents >= 0),
   ADD CONSTRAINT event_refund_jobs_currency_shape CHECK (currency IS NULL OR currency ~ '^[A-Z]{3}$'),
   ADD CONSTRAINT event_refund_jobs_review_note_len CHECK (
