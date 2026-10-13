@@ -49,15 +49,7 @@ import { browserPublicOrigin } from "@/lib/http/host";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Copy,
-  Info,
-  Loader2,
-  ShieldOff,
-  XCircle,
-} from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Info, Loader2, ShieldOff, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
