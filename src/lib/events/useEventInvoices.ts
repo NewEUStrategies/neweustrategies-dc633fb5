@@ -29,10 +29,12 @@ import {
   invoiceFromProforma,
   issueInvoice,
   issuePendingInvoices,
+  recordRegistrationPayment,
   saveInvoiceSettings,
   setInvoicePaid,
   updateInvoiceDraft,
   updateInvoiceKsef,
+  verifyInvoiceVies,
   type CreateCorrectionInput,
   type CreateInvoiceDraftInput,
   type EventInvoiceCandidateRow,
@@ -40,10 +42,12 @@ import {
   type EventInvoiceSettings,
   type EventInvoiceSettingsInput,
   type IssuePendingResult,
+  type InvoiceViesResult,
   type IssuedInvoice,
+  type RecordRegistrationPaymentInput,
   type UpdateInvoiceDraftInput,
+  type UpdateInvoiceKsefInput,
 } from "@/lib/events/eventInvoicesApi";
-import type { EventInvoiceKsefStatus } from "@/lib/events/eventInvoiceEnums";
 
 export const eventInvoiceKeys = {
   all: ["event-invoices"] as const,
@@ -154,10 +158,20 @@ export function useInvoiceFromProforma(eventId: string) {
 }
 
 export function useUpdateInvoiceKsef(eventId: string) {
-  return useInvoiceMutation<{ id: string; status: EventInvoiceKsefStatus; number: string }, string>(
-    eventId,
-    updateInvoiceKsef,
-  );
+  return useInvoiceMutation<UpdateInvoiceKsefInput, string>(eventId, updateInvoiceKsef);
+}
+
+/** Wplata zaksiegowana (INV-14) zmienia kandydata i podstawe szkicu - cala galaz wydarzenia. */
+export function useRecordRegistrationPayment(eventId: string) {
+  return useInvoiceMutation<
+    RecordRegistrationPaymentInput,
+    { amountCents: number; currency: string }
+  >(eventId, recordRegistrationPayment);
+}
+
+/** Weryfikacja VIES zapisuje wynik na szkicu - odswiezamy galaz wydarzenia. */
+export function useVerifyInvoiceVies(eventId: string) {
+  return useInvoiceMutation<string, InvoiceViesResult>(eventId, verifyInvoiceVies);
 }
 
 export function useSetInvoicePaid(eventId: string) {

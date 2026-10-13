@@ -2501,9 +2501,9 @@ describe("2.11 - nieudany zwrot (`refund.failed`): przeliczenie, przywrócenie, 
   const failedRefund = (overrides: Partial<RefundEvent> = {}) =>
     refundEvent({
       adjustmentId: "re_nieudany",
-      action: "refund_failed",
+      action: "refund",
       status: "failed",
-      providerStatus: "expired_or_canceled_card",
+      failureReason: "expired_or_canceled_card",
       ...overrides,
     });
 
@@ -2581,7 +2581,11 @@ describe("2.11 - nieudany zwrot (`refund.failed`): przeliczenie, przywrócenie, 
     expect(await applyRefundEffects(failedRefund())).toBe("order_restored");
     expect(patches("payment_orders")[0]).toMatchObject({ status: "paid" });
     expect(db.chainsFor("user_purchases")).toHaveLength(0);
-    expect(h.rpc.calls.filter((call) => call.fn !== "enqueue_notification")).toHaveLength(0);
+    // Bez RPC biletu: jedynym wywołaniem poza dzwonkami jest eskalacja
+    // zlecenia zwrotu zgłoszenia (INV-19c) - miejsce wraca decyzją człowieka.
+    expect(
+      h.rpc.calls.filter((call) => call.fn !== "enqueue_notification").map((call) => call.fn),
+    ).toEqual(["_event_registration_refund_failed"]);
     expect(String(adminBells()[0].p_body_pl)).toContain("wymaga decyzji organizatora");
   });
 

@@ -12,6 +12,7 @@ import { catalogEntryByPriceId, planChangeDirection } from "@/lib/billing/catalo
 import { accessPeriodFromEvent } from "@/lib/billing/accessPeriod";
 import type { OneTimeOutcome } from "@/lib/billing/oneTimeFulfilment.server";
 import { environmentGrantsAccess, type StripeEnv } from "@/lib/stripe.server";
+import type { Database } from "@/integrations/supabase/types";
 
 export type SubscriptionData = {
   id: string;
@@ -386,6 +387,9 @@ async function insertSubscriptionRow(
   return inserted && inserted.length > 0 ? "inserted" : "exists";
 }
 
+/** Kolumny wiersza `subscriptions` zapisywane przez obsługę zdarzenia. */
+type SubscriptionPatch = Database["public"]["Tables"]["subscriptions"]["Update"];
+
 /**
  * Zapis stanu subskrypcji - OSTATNI krok obsługi zdarzenia, warunkowy
  * względem jego zajęcia (`last_event_at` + `last_event_id`).
@@ -404,7 +408,7 @@ async function commitSubscriptionState(
   subscriptionId: string,
   env: StripeEnv,
   claim: EventClaim | null,
-  patch: Record<string, unknown>,
+  patch: SubscriptionPatch,
   failure: string,
 ): Promise<boolean> {
   const supabase = await admin();
@@ -1271,6 +1275,9 @@ async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): 
     capturedAmountCents: Number.isFinite(capturedCents) ? capturedCents : null,
     currency: str("currencyCode") ?? totals?.currencyCode ?? null,
     environment: env,
+    // Tylko zwrot, który nie doszedł (`refund.failed`) - kod trafia do
+    // dziennika zwrotów i alarmu, patrz `escalateFailedRefund`.
+    failureReason: str("failureReason"),
   });
 }
 
@@ -1278,10 +1285,17 @@ async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): 
  * Zapis faktury dla transakcji. Zwraca `true`, gdy coś faktycznie zapisano -
  * `transaction.updated` bez zmian traktujemy jako pominięte zdarzenie.
  *
- * `fallbackStatus` - status, gdy ładunek go nie niesie. Sesja Checkout nie ma
- * pola statusu (ma je tylko faktura), a `transaction.completed` znaczy
- * „opłacone" - bez tego dokument zakupu jednorazowego wisiał jako `pending`.
- * Porażka dokumentu nigdy nie wywraca obsługi zdarzenia (to nie są pieniądze).
+ * `fallbackStatus` - status, gdy ładunek go nie niesie (ładunek z dziennika
+ * sprzed pola `status` w normalizatorze); `transaction.completed` znaczy
+ * „opłacone".
+ *
+ * NIEUDANY ZAPIS TO BŁĄD ZDARZENIA, nie „pominięte". Rejestr dokumentów jest
+ * dowodem sprzedaży dla członka i księgowości; zdarzenie zamknięte jako
+ * przetworzone mimo braku dokumentu nigdy by nie wróciło (Stripe ponawia
+ * wyłącznie po odpowiedzi innej niż 2xx). Rzucamy więc - trasa webhooka
+ * oznacza zdarzenie jako `failed`, oddaje 500, a operator dostarcza je
+ * ponownie (zapis jest idempotentny). Alarm dla administratorów najemcy
+ * wysyła już `recordTransactionDocument`.
  */
 async function recordDocument(
   data: unknown,
@@ -1292,10 +1306,10 @@ async function recordDocument(
     await import("@/lib/billing/billingDocuments.server");
   const input = documentInputFromTransaction(data, env, fallbackStatus);
   if (!input) return false;
-  const outcome = await recordTransactionDocument(input).catch((e: unknown) => {
-    console.error("[payments] billing document failed", input.transactionId, e);
-    return "skipped" as const;
-  });
+  const outcome = await recordTransactionDocument(input);
+  if (outcome === "failed") {
+    throw new Error(`billing document not recorded: ${input.transactionId}`);
+  }
   return outcome !== "skipped";
 }
 

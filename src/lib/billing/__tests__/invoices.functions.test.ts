@@ -91,12 +91,17 @@ function documentRow(overrides: Record<string, unknown> = {}) {
     tenant_id: BILLING_IDS.tenant,
     number: "FV/10/2026",
     kind: "invoice",
+    status: "paid",
     amount_cents: 4900,
     currency: "PLN",
     issued_at: ISSUED_AT,
     pdf_url: null,
     hosted_url: "https://operator.example.com/i/abc",
     provider_document_id: "in_test_1",
+    // Wiersz sprzed migawki: pierwsze pobranie ją zamraża (UPDATE ... RETURNING).
+    buyer_snapshot: null,
+    seller_snapshot: null,
+    billing_plane: null,
     ...overrides,
   };
 }
@@ -167,7 +172,10 @@ describe("generateMyInvoicePdf - kopia faktury z panelu członka", () => {
   });
 
   it("własny dokument -> PDF z numerem, nabywcą z danych do faktury i linkiem operatora", async () => {
-    db.setResponse("billing_documents", ok(documentRow()));
+    db.setResponse("billing_documents", (chain) =>
+      chain.has("update") ? ok(chain.argsOf("update")?.[0] ?? null) : ok(documentRow()),
+    );
+    db.setResponse("checkout_settings", ok(null));
     db.setResponse(
       "billing_profiles",
       ok({
@@ -197,7 +205,7 @@ describe("generateMyInvoicePdf - kopia faktury z panelu członka", () => {
 
     expect(result.ok).toBe(true);
     expect(result.result).toMatchObject({
-      fileName: "invoice-FV-10-2026.pdf",
+      fileName: "payment-confirmation-FV-10-2026.pdf",
       number: "FV/10/2026",
       providerUrl: "https://operator.example.com/i/abc",
     });
@@ -325,7 +333,12 @@ describe("import/push CRM - każdy przycisk pisze w SWOIM kierunku", () => {
         phone: null,
       }),
     );
-    db.setResponse("crm_companies", ok(ACME_CRM_ROW));
+    // Kartoteka z pustym adresem i e-mailem: „Zapisz w CRM" je UZUPEŁNIA
+    // (INV-10), a wypełnionych rubryk (NIP, kraj) nie przepisuje.
+    db.setResponse(
+      "crm_companies",
+      ok({ ...ACME_CRM_ROW, address: null, city: null, postal_code: null, email: null }),
+    );
 
     const result = await callServerFn(pushMyBillingToCrm, { context: context(OWNER) });
 
@@ -333,6 +346,8 @@ describe("import/push CRM - każdy przycisk pisze w SWOIM kierunku", () => {
     const [update] = writesTo("crm_companies", "update");
     // Nazwy kartoteki „Zapisz w CRM" nie przepisuje - utrzymuje ją zespół.
     expect(update?.argsOf("update")?.[0]).not.toHaveProperty("name");
+    expect(update?.argsOf("update")?.[0]).not.toHaveProperty("tax_id");
+    expect(update?.argsOf("update")?.[0]).not.toHaveProperty("country");
     expect(update?.argsOf("update")?.[0]).toMatchObject({
       address: "ul. Nowa 2",
       city: "Kraków",

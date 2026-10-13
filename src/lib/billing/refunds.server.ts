@@ -37,8 +37,7 @@ import type { PaymentRefundState } from "@/lib/billing/transactions.server";
 import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 
 /** Kwalifikacja zdarzenia korygującego przysłanego przez operatora. */
-export type AdjustmentAction =
-  "refund" | "refund_failed" | "chargeback" | "chargeback_warning" | "credit" | "other";
+export type AdjustmentAction = "refund" | "chargeback" | "chargeback_warning" | "credit" | "other";
 
 export interface RefundEvent {
   /**
@@ -68,6 +67,11 @@ export interface RefundEvent {
    * zwrotu) - do logów i treści alertu. O skutku decydują `action` i `status`.
    */
   providerStatus?: string | null;
+  /**
+   * Kod porażki zwrotu u operatora (`expired_or_canceled_card`, …) - tylko
+   * dla zwrotu `failed`/`canceled` (`refund.failed`, `refund.updated`).
+   */
+  failureReason?: string | null;
 }
 
 export type RefundOutcome =
@@ -77,7 +81,8 @@ export type RefundOutcome =
   | "donation_refunded"
   | "subscription_restored"
   | "order_restored"
-  | "donation_restored";
+  | "donation_restored"
+  | "refund_failure_escalated";
 
 /**
  * Korekty, które odbierają dostęp.
@@ -90,7 +95,7 @@ export type RefundOutcome =
 export function isRevokingAdjustment(event: RefundEvent): boolean {
   if (event.action === "credit" || event.action === "other") return false;
   // Nieudany zwrot niczego nie odbiera - przywraca (patrz `applyRefundFailure`).
-  if (event.action === "refund_failed") return false;
+  if (isFailedRefund(event)) return false;
   if (event.action === "chargeback_warning") {
     return event.status !== "reversed" && event.status !== "rejected";
   }
@@ -104,6 +109,16 @@ export function isRevokingAdjustment(event: RefundEvent): boolean {
 /** Korekta jest sporem płatniczym (otwartym albo rozstrzygniętym). */
 function isDispute(event: RefundEvent): boolean {
   return event.action === "chargeback" || event.action === "chargeback_warning";
+}
+
+/**
+ * Zwrot, którego operator NIE wykonał (`refund.failed`, `refund.updated`
+ * ze stanem `failed`/`canceled`). Pieniądze zostały u nas: zamówienie wraca
+ * do stanu z obciążenia (`applyRefundFailure`), a zlecenie zwrotu zgłoszenia
+ * trafia do człowieka (`escalateFailedRefund`, INV-19c).
+ */
+export function isFailedRefund(event: RefundEvent): boolean {
+  return event.action === "refund" && (event.status === "failed" || event.status === "canceled");
 }
 
 /** Spór rozstrzygnięty na naszą korzyść - dostęp wraca. */
@@ -859,7 +874,6 @@ async function restoreOrder(event: RefundEvent, order: AdjustmentOrder): Promise
  * Obciążenie objęte sporem zostawiamy ścieżce sporu.
  */
 async function reopenOrderAfterFailedRefund(
-  event: RefundEvent,
   order: AdjustmentOrder,
   state: PaymentRefundState,
 ): Promise<CorrectionResult> {
@@ -1544,7 +1558,8 @@ async function alertAdminsAboutRefund(
     return;
   }
   const access = ACCESS_NOTES[alert.note];
-  const reason = event.providerStatus ? ` (${event.providerStatus})` : "";
+  const failure = event.failureReason ?? event.providerStatus;
+  const reason = failure ? ` (${failure})` : "";
   const copy =
     alert.phase === "failed"
       ? {
@@ -1687,7 +1702,7 @@ async function refundFailureEffect(
 
   switch (target.kind) {
     case "order":
-      return reopenOrderAfterFailedRefund(event, target.order, state);
+      return reopenOrderAfterFailedRefund(target.order, state);
     case "subscription": {
       await recordSubscriptionOrderCorrection(event, target, { kind: "refund_failed", state });
       if (state.fullyRefunded) return { outcome: "skipped", note: "refunded_kept" };
@@ -1725,8 +1740,58 @@ async function applyRefundFailure(event: RefundEvent): Promise<RefundOutcome> {
 }
 
 /**
+ * Zwrot, który nie doszedł do skutku u operatora (INV-19c).
+ *
+ * Do tej pory taka korekta kończyła się na `isRevokingAdjustment` jako
+ * `skipped`, więc zlecenie zwrotu za odrzucone zgłoszenie wisiało w
+ * `submitted` bez końca, a pieniądze nie wracały do uczestnika. RPC
+ * `_event_registration_refund_failed` przenosi zlecenie o tym identyfikatorze
+ * zwrotu do `needs_review` i w TEJ SAMEJ transakcji alarmuje administratorów
+ * najemcy - najemcę bierze z wiersza zlecenia, nie z ładunku operatora.
+ *
+ * Środowisko zdarzenia idzie do RPC jako filtr (ta sama reguła P0 co
+ * `findOrderForAdjustment`): zwrot z piaskownicy nie dotyka zlecenia
+ * produkcyjnego. Awaria zapisu RZUCA - operator ponowi dostarczenie, a RPC
+ * jest idempotentne (drugi `refund.updated` po `refund.failed` nic nie robi).
+ */
+async function escalateFailedRefund(event: RefundEvent): Promise<RefundOutcome> {
+  if (!PROVIDER_REFERENCE_SHAPE.test(event.adjustmentId)) return "skipped";
+  const supabase = await admin();
+  const { data, error } = await supabase.rpc("_event_registration_refund_failed", {
+    p_provider_refund_id: event.adjustmentId,
+    p_environment: event.environment,
+    p_reason: event.failureReason ?? event.status ?? "failed",
+  });
+  if (error) throw new Error(`refund failure: escalation failed: ${error.message}`);
+  if (data === true) return "refund_failure_escalated";
+  // Zwrot spoza zleceń zgłoszeń (np. nadliczbowa wpłata) albo zlecenie, które
+  // już czeka na decyzję. Ślad zostaje w dzienniku webhooków i w logu serwera.
+  console.warn("[payments] failed refund without escalation", {
+    adjustmentId: event.adjustmentId,
+    status: event.status,
+  });
+  return "skipped";
+}
+
+/**
+ * Nieudany zwrot: obie strony tej samej porażki. Zlecenie zwrotu zgłoszenia
+ * o tym identyfikatorze zwrotu idzie do przeglądu (`escalateFailedRefund`,
+ * sama baza - PIERWSZE, żeby awaria operatora przy przeliczeniu nie
+ * wstrzymała sprawy dla człowieka), a zamówienie, subskrypcja albo darowizna
+ * wracają do stanu z obciążenia u operatora (`applyRefundFailure`). Obie
+ * ścieżki są idempotentne, więc ponowienie po awarii jednej z nich nie
+ * dubluje skutków drugiej.
+ */
+async function applyFailedRefund(event: RefundEvent): Promise<RefundOutcome> {
+  const escalated = await escalateFailedRefund(event);
+  const corrected = await applyRefundFailure(event);
+  return corrected !== "skipped" ? corrected : escalated;
+}
+
+/**
  * Jedno wejście dla zwrotów, sporów i nieudanych zwrotów. Kolejność:
- *   1. nieudany zwrot - osobna ścieżka (przeliczenie, nie odebranie);
+ *   1. nieudany zwrot - osobna ścieżka: przeliczenie zamówienia z obciążenia
+ *      i eskalacja zlecenia zwrotu zgłoszenia (INV-19c), nic nie odbiera;
  *   2. spór - stan BIEŻĄCY od operatora (S2);
  *   3. bramka: korekta, która niczego nie odbiera ani nie przywraca (kredyt,
  *      wniosek o zwrot) i nie jest sporem, kończy się bez dotykania bazy;
@@ -1739,7 +1804,7 @@ async function applyRefundFailure(event: RefundEvent): Promise<RefundOutcome> {
  */
 export async function applyRefundEffects(input: RefundEvent): Promise<RefundOutcome> {
   let event: RefundEvent = { ...input };
-  if (event.action === "refund_failed") return applyRefundFailure(event);
+  if (isFailedRefund(event)) return applyFailedRefund(event);
   if (isDispute(event)) event = await withCurrentDisputeState(event);
 
   const dispute = isDispute(event);

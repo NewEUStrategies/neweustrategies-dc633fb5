@@ -10,6 +10,7 @@ import { render, screen } from "@testing-library/react";
 import i18n from "@/lib/i18n";
 import { ensureI18n } from "@/lib/i18n-profile";
 import { LegalRetentionNotice } from "@/components/molecules/LegalRetentionNotice";
+import { ACCOUNTING_RETENTION_YEARS_AFTER_FISCAL_YEAR } from "@/lib/billing/accountingRetentionRule";
 
 const KEYS = [
   "profile.security.danger.retentionTitle",
@@ -29,6 +30,13 @@ describe("LegalRetentionNotice", () => {
     const notice = screen.getByTestId("legal-retention-notice");
     expect(notice.textContent).toContain("art. 74");
     expect(notice.textContent).toContain("art. 17 ust. 3 lit. b RODO");
+    // INV-13: okres to przedawnienie podatkowe, a liczba lat pochodzi z TEJ
+    // SAMEJ stałej co reguła purge'a - nota nie obiecuje innego terminu.
+    expect(notice.textContent).toContain("art. 70 § 1 i art. 86 § 1 Ordynacji podatkowej");
+    expect(notice.textContent).toContain(
+      `${ACCOUNTING_RETENTION_YEARS_AFTER_FISCAL_YEAR} lat po końcu roku transakcji`,
+    );
+    expect(notice.textContent).not.toContain("{{");
     // Sedno komunikatu: historia płatności zostaje, ale traci związek z osobą.
     expect(notice.textContent).toContain("pseudonim");
     // Żaden klucz nie wyciekł jako surowy identyfikator.
@@ -42,6 +50,11 @@ describe("LegalRetentionNotice", () => {
     const notice = screen.getByTestId("legal-retention-notice");
     expect(notice.textContent).toContain("Article 74(2)");
     expect(notice.textContent).toContain("Article 17(3)(b) GDPR");
+    expect(notice.textContent).toContain("Polish Tax Ordinance");
+    expect(notice.textContent).toContain(
+      `${ACCOUNTING_RETENTION_YEARS_AFTER_FISCAL_YEAR} years after the end of the transaction year`,
+    );
+    expect(notice.textContent).not.toContain("{{");
     expect(notice.textContent).toContain("pseudonym");
     for (const key of KEYS) expect(notice.textContent).not.toContain(key);
   });

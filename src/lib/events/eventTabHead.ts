@@ -20,7 +20,8 @@ import "@/lib/i18n-event-head";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { buildContentHead, SITE_NAME, type HeadDescriptor, type Lang } from "@/lib/seo/meta";
 
-export type EventTab = "agenda" | "speakers" | "cfp" | "overview" | "participants" | "partners" | "discussions";
+export type EventTab =
+  "agenda" | "speakers" | "cfp" | "overview" | "participants" | "partners" | "discussions";
 
 // Mapy literałów, nie ternary: bramka kluczy i18n widzi tylko literały, a nowa
 // zakładka bez wpisu tutaj nie przejdzie `tsc` (`Record<EventTab, …>`).

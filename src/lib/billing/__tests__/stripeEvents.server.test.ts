@@ -322,6 +322,7 @@ describe("normalizeStripeEvent - zdarzenia subskrypcji", () => {
 describe("normalizeStripeEvent - sesje checkout", () => {
   const session = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
     id: "cs_1",
+    mode: "payment",
     payment_status: "paid",
     amount_total: 12000,
     currency: "pln",
@@ -350,7 +351,53 @@ describe("normalizeStripeEvent - sesje checkout", () => {
       amountDiscountCents: null,
       amountTaxCents: null,
       promotionCodeIds: [],
+      // Pola dokumentu rozliczeniowego: bez stanu zapis dostawał `pending`,
+      // którego CHECK tabeli nie zna - zakup jednorazowy znikał z rejestru.
+      status: "paid",
+      documentKind: "receipt",
     });
+  });
+
+  it("sesja SUBSKRYPCJI nie jest osobnym dokumentem - opisuje ją pierwsza faktura", () => {
+    // `invoice.paid` tej samej płatności zakłada dokument `in_...`; drugi
+    // wiersz dla `cs_...` dublowałby te same pieniądze w panelu członka.
+    expect(
+      transactionOf(
+        event(
+          "checkout.session.completed",
+          session({ mode: "subscription", subscription: "sub_9" }),
+        ),
+      ).documentKind,
+    ).toBeNull();
+    // Sesja z subskrypcją bez pola `mode` (starszy kształt) - tak samo.
+    expect(
+      transactionOf(
+        event("checkout.session.completed", session({ mode: undefined, subscription: "sub_9" })),
+      ).documentKind,
+    ).toBeNull();
+  });
+
+  it("stan dokumentu to `payment_status` sesji; bez pola - zapłata dowiedziona zdarzeniem", () => {
+    expect(
+      transactionOf(
+        event("checkout.session.completed", session({ payment_status: "no_payment_required" })),
+      ).status,
+    ).toBe("no_payment_required");
+    expect(
+      transactionOf(event("checkout.session.completed", session({ payment_status: undefined })))
+        .status,
+    ).toBe("paid");
+    expect(
+      transactionOf(
+        event("checkout.session.async_payment_failed", session({ payment_status: "unpaid" })),
+      ).status,
+    ).toBe("unpaid");
+    // Porażka nie dowodzi niczego - brak pola zostaje brakiem.
+    expect(
+      transactionOf(
+        event("checkout.session.async_payment_failed", session({ payment_status: undefined })),
+      ).status,
+    ).toBeNull();
   });
 
   it("zbiera kody promocyjne operatora z `discounts`, pomijając NASZ kupon (bez kodu)", () => {
@@ -549,6 +596,7 @@ describe("normalizeStripeEvent - faktury", () => {
     invoice_pdf: "https://invoice.stripe.com/i/1.pdf",
     metadata: { orderId: "ord_1" },
     lines: { data: [{ period: { end: 1_800_000_000 } }] },
+    status: "paid",
     status_transitions: { paid_at: 1_790_000_000 },
     ...over,
   });
@@ -564,7 +612,8 @@ describe("normalizeStripeEvent - faktury", () => {
       customer: { email: "platnik@example.com" },
       details: { totals: { grandTotal: "2500" } },
       billingPeriod: { endsAt: "2027-01-15T08:00:00.000Z" },
-      status: "completed",
+      status: "paid",
+      documentKind: "invoice",
       invoiceNumber: "FV/2026/07/1",
       hostedInvoiceUrl: "https://invoice.stripe.com/i/1",
       invoicePdf: "https://invoice.stripe.com/i/1.pdf",
@@ -703,10 +752,22 @@ describe("normalizeStripeEvent - faktury", () => {
     expect(data.details?.totals?.grandTotal).toBe("4500");
   });
 
-  it("stempluje nieudaną fakturę statusem 'completed'", () => {
-    // UWAGA: dokumentuje obecne zachowanie, patrz raport.
-    const data = transactionOf(event("invoice.payment_failed", invoice({ amount_paid: 0 })));
-    expect(data.status).toBe("completed");
+  it("stan faktury to `invoice.status` operatora - nieudana płatność nie jest 'completed'", () => {
+    // Dawniej każda faktura, także nieudana, dostawała stałe "completed".
+    const failed = transactionOf(
+      event("invoice.payment_failed", invoice({ amount_paid: 0, status: "open" })),
+    );
+    expect(failed.status).toBe("open");
+    expect(
+      transactionOf(event("invoice.payment_failed", invoice({ status: "uncollectible" }))).status,
+    ).toBe("uncollectible");
+    // Brak pola: `invoice.paid` dowodzi zapłaty, porażka - niczego.
+    expect(transactionOf(event("invoice.paid", invoice({ status: undefined }))).status).toBe(
+      "paid",
+    );
+    expect(
+      transactionOf(event("invoice.payment_failed", invoice({ status: undefined }))).status,
+    ).toBeNull();
   });
 
   it("nie wywraca się na fakturze bez pozycji i bez pól dokumentu", () => {
@@ -848,7 +909,7 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
     },
   );
 
-  it("2.11: `refund.failed` to korekta korekty - `adjustment.updated` z akcją `refund_failed`", () => {
+  it("2.11: `refund.failed` to korekta korekty - `adjustment.updated` ze zwrotem `failed`", () => {
     const result = normalized(
       event("refund.failed", {
         id: "re_1",
@@ -862,26 +923,29 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
       }),
     );
 
+    // Kształt wspólny z INV-19c: `refunds.server` przelicza zamówienie
+    // z obciążenia i eskaluje zlecenie zwrotu zgłoszenia - kwota zdarzenia
+    // (pojedynczy zwrot) celowo nie jedzie dalej.
     expect(result.eventType).toBe("adjustment.updated");
     expect(result.data).toEqual({
       id: "re_1",
       transactionId: "pi_1",
       subscriptionId: null,
-      action: "refund_failed",
+      action: "refund",
       status: "failed",
-      providerStatus: "expired_or_canceled_card",
-      totals: { total: "4900", currencyCode: "PLN" },
+      failureReason: "expired_or_canceled_card",
     });
   });
 
-  it("2.11: nieudany zwrot bez intencji wskazuje obciążenie; pusty ładunek nie wywraca normalizacji", () => {
+  it("2.11: nieudany zwrot bez intencji wskazuje obciążenie; ładunek bez stanu to porażka", () => {
     expect(
       adjustmentOf(event("refund.failed", { id: "re_2", charge: { id: "ch_2" } })),
-    ).toMatchObject({ transactionId: "ch_2", status: "failed", providerStatus: null });
+    ).toMatchObject({ transactionId: "ch_2", status: "failed", failureReason: null });
     expect(adjustmentOf(event("refund.failed", {}))).toMatchObject({
       id: "",
       transactionId: null,
-      totals: { total: "0", currencyCode: null },
+      action: "refund",
+      status: "failed",
     });
   });
 
@@ -954,10 +1018,9 @@ describe("normalizeStripeEvent - zakres integracji", () => {
     // powstaje nigdy (tak było z `charge.dispute.closed`).
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     for (const type of STRIPE_WEBHOOK_EVENT_TYPES) {
-      expect(
-        normalizeStripeEvent(event(type, { id: "obj_1", status: "won" })),
-        type,
-      ).not.toBeNull();
+      // `refund.failed` niesie stan porażki - stan sporu `won` go nie dotyczy.
+      const status = type === "refund.failed" ? "failed" : "won";
+      expect(normalizeStripeEvent(event(type, { id: "obj_1", status })), type).not.toBeNull();
     }
     warn.mockRestore();
   });

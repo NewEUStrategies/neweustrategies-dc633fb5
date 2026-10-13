@@ -14,6 +14,13 @@
 // POZYCJI (nie na sztuce), VAT = brutto - netto. Symetria wzgledem zera jest
 // potrzebna korekcie: pozycja odwracajaca (-2 szt.) ma dokladnie przeciwne
 // netto i VAT niz pozycja, ktora odwraca.
+//
+// O KWOCIE PODATKU DECYDUJE PODSUMOWANIE STAWEK (INV-16, migracja
+// 20261012100100): metoda "od brutto" z art. 106e ust. 7 i 8 ustawy o VAT -
+// netto w stawce z SUMY wartosci brutto tej stawki, a nie suma netto pozycji
+// (te rozjezdzaly sie o grosze przy wielu pozycjach w jednej stawce). Netto
+// pozycji zostaje podstawa liczenia stanu po korektach; dokument drukuje
+// pozycje w brutto. Korekta pokazuje roznice stanu w stawce (po - przed).
 
 /** Stawki VAT pozycji - ten sam zbior co CHECK `event_invoice_lines_vat_rate_values`. */
 export const EVENT_INVOICE_VAT_RATES = ["23", "8", "5", "0", "zw", "np"] as const;
@@ -94,8 +101,8 @@ export interface EventInvoiceTotals {
   grossCents: number;
 }
 
-/** Sumy dokumentu = sumy pozycji (tak jak `_event_invoice_recalc`). */
-export function invoiceTotals(lines: readonly EventInvoiceAmountLine[]): EventInvoiceTotals {
+/** Sumy dokumentu = sumy wierszy podsumowania stawek (tak jak `_event_invoice_recalc`). */
+export function invoiceTotals(lines: readonly EventInvoiceTotals[]): EventInvoiceTotals {
   return lines.reduce<EventInvoiceTotals>(
     (sum, line) => ({
       netCents: sum.netCents + line.netCents,
@@ -110,10 +117,41 @@ export interface EventInvoiceVatSummaryRow extends EventInvoiceTotals {
   vatRate: EventInvoiceVatRate;
 }
 
-/** Podsumowanie wg stawek w kolejnosci `EVENT_INVOICE_VAT_RATES` (tylko obecne stawki). */
-export function vatSummary(lines: readonly EventInvoiceAmountLine[]): EventInvoiceVatSummaryRow[] {
+/** Suma brutto w stawce stanu PRZED korekta (faktura + wystawione korekty). */
+export type EventInvoiceRateGross = Partial<Record<EventInvoiceVatRate, number>>;
+
+/**
+ * Podsumowanie wg stawek w kolejnosci `EVENT_INVOICE_VAT_RATES` (tylko stawki
+ * obecne w pozycjach) - lustro `_event_invoice_vat_summary`. Netto w stawce
+ * liczone OD SUMY brutto; dla korekty (`before` = brutto stanu przed nia)
+ * wiersz to roznica: netto(przed + korekta) - netto(przed).
+ */
+export function vatSummary(
+  lines: readonly EventInvoiceAmountLine[],
+  before: EventInvoiceRateGross = {},
+): EventInvoiceVatSummaryRow[] {
   return EVENT_INVOICE_VAT_RATES.flatMap((rate) => {
     const group = lines.filter((line) => line.vatRate === rate);
-    return group.length === 0 ? [] : [{ vatRate: rate, ...invoiceTotals(group) }];
+    if (group.length === 0) return [];
+    const grossBefore = before[rate] ?? 0;
+    const grossAfter = grossBefore + group.reduce((sum, line) => sum + line.grossCents, 0);
+    const netBefore = netFromGross(grossBefore, rate);
+    const netAfter = netFromGross(grossAfter, rate);
+    const netCents = netAfter - netBefore;
+    const grossCents = grossAfter - grossBefore;
+    return [{ vatRate: rate, netCents, vatCents: grossCents - netCents, grossCents }];
   });
+}
+
+/**
+ * Kwota w walucie -> PLN po kursie NBP (`rate` = PLN za jednostke, najwyzej 4
+ * miejsca po przecinku), zaokraglenie polowkowe od zera do grosza. Lustro
+ * `_event_invoice_pln`: arytmetyka na BigInt, bo grosze x kurs x 10^4
+ * wychodza poza bezpieczny zakres liczb calkowitych `number`.
+ */
+export function amountInPln(cents: number, rate: number): number {
+  const scaled = BigInt(Math.round(rate * 10_000));
+  const value = BigInt(Math.trunc(cents));
+  const magnitude = (2n * (value < 0n ? -value : value) * scaled + 10_000n) / 20_000n;
+  return Number(value < 0n ? -magnitude : magnitude);
 }

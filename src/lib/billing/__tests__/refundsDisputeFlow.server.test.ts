@@ -476,6 +476,8 @@ beforeEach(() => {
     return { data: id, error: null };
   });
   rpc.setData("payments_apply_event_ticket_outcome", null);
+  // Zwrot spoza zleceń zwrotu zgłoszeń (INV-19c) - eskalacja nic nie przejmuje.
+  rpc.setData("_event_registration_refund_failed", false);
   h.rpc = rpc;
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});

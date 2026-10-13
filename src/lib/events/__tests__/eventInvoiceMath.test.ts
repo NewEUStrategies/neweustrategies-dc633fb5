@@ -5,11 +5,14 @@
 // liczy podglad tym modulem - wiec kazdy grosz rozjazdu to podglad inny niz
 // wydruk. Wektory netto sa TE SAME co w harnessie
 // (`scripts/events-harness/runtime_test.d/27_invoices.sql`, sekcja 1) - zmiana
-// jednego zbioru bez drugiego to zerwana parytetowosc.
+// jednego zbioru bez drugiego to zerwana parytetowosc. Wektory metody brutto
+// (VAT od sumy w stawce, korekta jako roznica stanu) i przeliczenia na PLN sa
+// te same co w `27_invoices_compliance.sql` (sekcja B i 27b/EUR).
 import { describe, expect, it } from "vitest";
 
 import {
   EVENT_INVOICE_VAT_RATES,
+  amountInPln,
   invoiceTotals,
   isEventInvoiceVatRate,
   lineAmounts,
@@ -144,5 +147,52 @@ describe("sumy i podsumowanie VAT", () => {
       { vatRate: "5", netCents: 2000, vatCents: 100, grossCents: 2100 },
     ]);
     expect(vatSummary([])).toEqual([]);
+  });
+});
+
+describe("metoda brutto: VAT od SUMY w stawce (art. 106e ust. 7-8, INV-16)", () => {
+  const three = [1, 2, 3].map(() => ({ vatRate: "23" as const, ...lineAmounts(1, 61, "23") }));
+
+  it("3 x 0,61 zl: netto 1,49 + VAT 0,34 (nie 1,50 + 0,33 z pozycji)", () => {
+    expect(three.reduce((sum, line) => sum + line.netCents, 0)).toBe(150);
+    const summary = vatSummary(three);
+    expect(summary).toEqual([{ vatRate: "23", netCents: 149, vatCents: 34, grossCents: 183 }]);
+    expect(invoiceTotals(summary)).toEqual({ netCents: 149, vatCents: 34, grossCents: 183 });
+  });
+
+  it("korekta = roznica stanu: 1,83 -> 1,22 daje -0,50 netto i -0,11 VAT", () => {
+    const correction = [{ vatRate: "23" as const, ...lineAmounts(-1, 61, "23") }];
+    expect(vatSummary(correction, { "23": 183 })).toEqual([
+      { vatRate: "23", netCents: -50, vatCents: -11, grossCents: -61 },
+    ]);
+    // Stan przed korekta ma znaczenie: obnizka 0,50 zl -> 0,47 zl to roznica
+    // VAT 0,09 -> 0,09 = 0,00, a podatek liczony od samej pozycji -0,03 dalby -0,01.
+    const cut = [{ vatRate: "23" as const, ...lineAmounts(-1, 3, "23") }];
+    expect(vatSummary(cut, { "23": 50 })[0]).toMatchObject({ netCents: -3, vatCents: 0 });
+    expect(vatSummary(cut)[0]).toMatchObject({ netCents: -2, vatCents: -1 });
+  });
+
+  it("stan przed korekta w innej stawce nie wplywa na stawke korekty", () => {
+    const line = [{ vatRate: "8" as const, ...lineAmounts(1, 10800, "8") }];
+    expect(vatSummary(line, { "23": 183 })).toEqual([
+      { vatRate: "8", netCents: 10000, vatCents: 800, grossCents: 10800 },
+    ]);
+  });
+});
+
+describe("amountInPln - przeliczenie po kursie NBP (INV-06), wektory z harnessem", () => {
+  it.each([
+    [1870, 4.2731, 7991],
+    [-1870, 4.2731, -7991],
+    [1, 0.5, 1],
+    [-1, 0.5, -1],
+    [3, 0.1667, 1],
+    [0, 4.5, 0],
+  ])("%i x %f = %i (polowka od zera)", (cents, rate, pln) => {
+    expect(amountInPln(cents, rate)).toBe(pln);
+  });
+
+  it("duze kwoty bez utraty precyzji (BigInt)", () => {
+    expect(amountInPln(99_999_999_999, 4.2731)).toBe(427_309_999_996);
   });
 });

@@ -524,6 +524,24 @@ const KODY_FAKTUR = [
   "ksef_number_required",
   "invalid_ksef_number",
   "correction_not_latest",
+  // Zgodnosc po audycie rozliczen (migracje 20261012100000..100600):
+  // KSeF jednokierunkowy i numer (INV-02/17), doreczenie (INV-08), kurs NBP
+  // (INV-06), "np" + odwrotne obciazenie + VIES (INV-12), wplata (INV-14).
+  "invalid_transition",
+  "ksef_number_immutable",
+  "ksef_number_requires_accepted",
+  "ksef_number_taken",
+  "correction_awaits_ksef",
+  "delivered_locked",
+  "fx_rate_required",
+  "vat_np_basis_required",
+  "invalid_np_basis",
+  "reverse_charge_invalid",
+  "vies_verification_required",
+  "payment_amount_unbooked",
+  "amount_mismatch",
+  "payment_is_card",
+  "registration_not_paid",
   // Osiagalne przez most CRM (`crm_ensure_member_company`, `_event_person_crm_sync`);
   // oba sa wolane w bloku, ktory ich blad polyka, ale skan ich nie odroznia.
   "crm",

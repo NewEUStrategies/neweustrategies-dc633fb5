@@ -1,4 +1,4 @@
-// Generator PDF faktury/rachunku - czysty TypeScript, bez zależności.
+// Generator PDF potwierdzenia płatności - czysty TypeScript, bez zależności.
 //
 // PRZYCZYNA. Panel musi wystawić plik PDF także wtedy, gdy operator płatności
 // nie udostępnił własnego dokumentu (paragon zamiast faktury, dokument jeszcze
@@ -6,13 +6,21 @@
 // tam przeglądarki ani natywnych bibliotek (puppeteer/sharp), więc plik składamy
 // bajt po bajcie.
 //
-// POLSKIE ZNAKI. Bazowe fonty PDF (Helvetica) używają kodowania WinAnsi, w
-// którym nie ma ą/ć/ę/ł/ń/ś/ź/ż. Podmieniamy więc kody 0x80-0x8F (znaki
-// typograficzne WinAnsi, w tym €, których generator nie drukuje) na właściwe
-// nazwy glifów przez tablicę /Differences - to standardowy zapis PDF, czytany
-// przez każdą przeglądarkę i program księgowy. Zakres 0xA0-0xFF zostaje
-// nietknięty: tam WinAnsi to Latin-1, więc é/ü/ß/ó z nazw firm drukują się
-// pod własnym kodem.
+// ZNAKI SPOZA ASCII. Kodowanie glifów (polskie, środkowoeuropejskie, bałtyckie,
+// rumuńskie i tureckie litery standardowej Helvetiki), podział napisu między
+// fonty i słowniki fontów żyją we wspólnym `pdfText.ts` - tym samym, którego
+// używa faktura wydarzenia (`eventInvoicePdf.ts`). Ten moduł zna wyłącznie
+// układ strony.
+//
+// DETERMINIZM. Każda wartość na stronie pochodzi z `InvoiceData` - generator
+// nie czyta zegara ani niczego poza argumentem, więc ten sam dokument daje
+// zawsze te same bajty (kryterium audytu INV-07: zmiana profilu nie zmienia
+// pliku starego dokumentu - pilnuje tego migawka w `invoiceDocument.server`).
+import type { BillingDocumentStatus } from "@/lib/billing/types";
+import { pdfFontObjects, pdfFontResources, pdfTextOp } from "@/lib/billing/pdfText";
+
+// Zgodność wsteczna importów: kodowanie napisu mieszkało w tym module.
+export { encodePdfText } from "@/lib/billing/pdfText";
 
 export interface InvoiceParty {
   name: string;
@@ -39,9 +47,14 @@ export interface InvoiceData {
   seller: InvoiceParty;
   buyer: InvoiceParty;
   lines: InvoiceLine[];
+  /**
+   * Stan płatności z dokumentu (`billing_documents.status`) - wybiera wiersz
+   * pod sumą. „Zapłacono" na zwróconej transakcji byłoby fałszywym dokumentem.
+   */
+  status: BillingDocumentStatus;
   /** Etykiety w języku odbiorcy - moduł nie zna i18n aplikacji. */
   labels: InvoiceLabels;
-  /** Nota pod tabelą (np. informacja o rozliczeniu podatku przez operatora). */
+  /** Nota pod tabelą (np. informacja o tym, kto rozlicza podatek). */
   note?: string | null;
 }
 
@@ -56,57 +69,8 @@ export interface InvoiceLabels {
   quantity: string;
   amount: string;
   total: string;
-  paid: string;
-}
-
-/** Kody 0x80-0x8F przypisane polskim glifom (patrz nota na górze pliku). */
-const DIFFERENCES: Array<[number, string, string]> = [
-  [0x80, "aogonek", "ą"],
-  [0x81, "cacute", "ć"],
-  [0x82, "eogonek", "ę"],
-  [0x83, "lslash", "ł"],
-  [0x84, "nacute", "ń"],
-  [0x85, "sacute", "ś"],
-  [0x86, "zacute", "ź"],
-  [0x87, "zdotaccent", "ż"],
-  [0x88, "Aogonek", "Ą"],
-  [0x89, "Cacute", "Ć"],
-  [0x8a, "Eogonek", "Ę"],
-  [0x8b, "Lslash", "Ł"],
-  [0x8c, "Nacute", "Ń"],
-  [0x8d, "Sacute", "Ś"],
-  [0x8e, "Zacute", "Ź"],
-  [0x8f, "Zdotaccent", "Ż"],
-];
-
-const CHAR_TO_CODE = new Map<string, number>(DIFFERENCES.map(([code, , ch]) => [ch, code]));
-
-const octal = (code: number): string => `\\${code.toString(8).padStart(3, "0")}`;
-
-/** Zamiana napisu na literał PDF w naszym kodowaniu (z ucieczkami). */
-export function encodePdfText(value: string): string {
-  let out = "";
-  for (const ch of value) {
-    const mapped = CHAR_TO_CODE.get(ch);
-    if (mapped !== undefined) {
-      out += octal(mapped);
-      continue;
-    }
-    // Euro ma w WinAnsi kod 0x80, który /Differences oddaje literze `ą` -
-    // wolnego kodu bez kolizji z polskimi glifami nie ma, więc piszemy skrót.
-    if (ch === "€") {
-      out += "EUR";
-      continue;
-    }
-    // Pierwsza jednostka UTF-16 wystarcza: znak spoza BMP daje surogat
-    // (0xD800+), który i tak ląduje w gałęzi `?`.
-    const code = ch.charCodeAt(0);
-    if (ch === "(" || ch === ")" || ch === "\\") out += `\\${ch}`;
-    else if (code >= 32 && code <= 126) out += ch;
-    else if (code >= 0xa0 && code <= 0xff) out += octal(code);
-    else out += "?";
-  }
-  return out;
+  /** Wiersz stanu płatności dla każdego stanu dokumentu. */
+  status: Record<BillingDocumentStatus, string>;
 }
 
 /** Kwota w groszach -> tekst „1 234,56 EUR" (spacja niełamliwa jest zbędna w PDF). */
@@ -131,13 +95,9 @@ interface Cursor {
 
 const LEFT = 56;
 const RIGHT = 539;
-const FONT_REGULAR = "F1";
-const FONT_BOLD = "F2";
 
 function text(cursor: Cursor, x: number, value: string, size: number, bold = false): void {
-  cursor.ops.push(
-    `BT /${bold ? FONT_BOLD : FONT_REGULAR} ${size} Tf 1 0 0 1 ${x} ${cursor.y} Tm (${encodePdfText(value)}) Tj ET`,
-  );
+  cursor.ops.push(pdfTextOp(x, cursor.y, value, size, bold));
 }
 
 function textRight(cursor: Cursor, x: number, value: string, size: number, bold = false): void {
@@ -226,7 +186,7 @@ export function renderInvoicePdf(data: InvoiceData): Uint8Array {
     true,
   );
   cursor.y -= 20;
-  textRight(cursor, RIGHT, labels.paid, 9);
+  textRight(cursor, RIGHT, labels.status[data.status], 9);
 
   if (data.note) {
     cursor.y -= 30;
@@ -236,16 +196,16 @@ export function renderInvoicePdf(data: InvoiceData): Uint8Array {
   return assemblePdf(cursor.ops.join("\n"));
 }
 
+/** Obiekty 1-4: katalog, drzewo stron, strona, treść; od 5: fonty `pdfText`. */
+const FIRST_FONT_OBJECT = 5;
+
 function assemblePdf(content: string): Uint8Array {
-  const differences = DIFFERENCES.map(([code, glyph]) => `${code} /${glyph}`).join(" ");
-  const encoding = `<< /Type /Encoding /BaseEncoding /WinAnsiEncoding /Differences [ ${differences} ] >>`;
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font ${pdfFontResources(FIRST_FONT_OBJECT)} >> /Contents 4 0 R >>`,
     `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
-    `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding ${encoding} >>`,
-    `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding ${encoding} >>`,
+    ...pdfFontObjects(),
   ];
 
   let pdf = "%PDF-1.4\n";

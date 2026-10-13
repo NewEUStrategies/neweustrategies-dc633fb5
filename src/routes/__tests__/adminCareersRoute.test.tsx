@@ -704,14 +704,17 @@ describe("/admin/careers - sklejenie trasy i gdzie stoi bramka uprawnień", () =
     // Czytamy `head()` DWIEMA drogami: wprost (kontrakt funkcji) i przez
     // zamontowany router (to, co faktycznie trafiłoby do `<HeadContent/>`).
     // `noindex` nie jest tu ozdobą: skrzynka niesie CV i kontakty kandydatów.
-    expect(routeHead(CareersRoute).meta).toEqual([
-      { title: "Rekrutacja | Admin" },
-      { name: "robots", content: "noindex" },
-    ]);
+    // Tytuł sekcji pochodzi ze wspólnego `adminPageHead` (AGENTS.md).
+    expect(routeHead(CareersRoute).meta).toEqual(
+      expect.arrayContaining([
+        { title: "Recruitment | New European Strategies" },
+        { name: "robots", content: "noindex, nofollow" },
+      ]),
+    );
 
     const { meta } = await mount();
-    expect(meta()).toContainEqual({ title: "Rekrutacja | Admin" });
-    expect(meta()).toContainEqual({ name: "robots", content: "noindex" });
+    expect(meta()).toContainEqual({ title: "Recruitment | New European Strategies" });
+    expect(meta()).toContainEqual({ name: "robots", content: "noindex, nofollow" });
   });
 
   it("trasa jest DZIECKIEM layoutu `/admin` w wygenerowanym drzewie tras", () => {

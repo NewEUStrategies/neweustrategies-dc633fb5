@@ -241,24 +241,22 @@ describe("dokument rozliczeniowy z `transaction.completed` (PAY-12)", () => {
     expect(db.chainsFor("billing_documents")).toHaveLength(0);
   });
 
-  it("porażka zapisu dokumentu nie wywraca obsługi zdarzenia", async () => {
-    // Dokument to widok dla klienta, nie pieniądze: zamówienie jest już
-    // zrealizowane, a 500 kazałoby operatorowi ponawiać skutki, które się udały.
+  it("porażka zapisu dokumentu: zamówienie JUŻ zrealizowane, zdarzenie pada i wróci (INV)", async () => {
+    // Rejestr dokumentów to dowód sprzedaży (audyt INV): zdarzenie zamknięte
+    // mimo braku dokumentu nigdy by nie wróciło, więc zapis, który padł, RZUCA
+    // (500 -> ponowienie). Kolejność PAY-12 zostaje: realizacja idzie PIERWSZA,
+    // więc klient ma dostęp, zanim rejestr dokumentów zawiedzie, a ponowienie
+    // realizacji jest idempotentne.
     db.setResponse("billing_documents", (chain) =>
       chain.has("insert") ? fail("permission denied") : ok(null),
     );
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(await deliver("checkout.session.completed", ONE_TIME_SESSION, "evt_jednorazowy")).toBe(
-      "processed",
-    );
+    await expect(
+      deliver("checkout.session.completed", ONE_TIME_SESSION, "evt_jednorazowy"),
+    ).rejects.toThrow("billing document not recorded: cs_live_jednorazowy");
 
     expect(orders.rows[0]).toMatchObject({ status: "paid" });
-    expect(warn).toHaveBeenCalledWith(
-      "[payments] billing document insert skipped",
-      "cs_live_jednorazowy",
-      "permission denied",
-    );
-    warn.mockRestore();
+    error.mockRestore();
   });
 });

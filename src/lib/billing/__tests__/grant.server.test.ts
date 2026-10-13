@@ -192,7 +192,7 @@ describe("grantEntitlement", () => {
   });
 
   it("odczyt uprawnienia nie potrzebuje już `order + limit 1` - klucz jest unikalny w bazie", async () => {
-    // Do 20261012100300 baza nie egzekwowała unikalności `external_ref`, więc
+    // Do 20261012130300 baza nie egzekwowała unikalności `external_ref`, więc
     // odczyt zawężał się `order + limit 1`, żeby duplikat nie dawał PGRST116.
     // Indeks unikalny usuwa duplikat u źródła - obejście znika razem z nim.
     h.state.maybeSingleQueue = [

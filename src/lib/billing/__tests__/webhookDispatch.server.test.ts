@@ -932,7 +932,7 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
   it("równoległy zapis uprawnienia: przegrany wyścig (23505) aktualizuje TEN SAM wiersz", async () => {
     // Drugi przeplot tego samego wyścigu: oba zdarzenia czytają „brak
     // uprawnienia", zanim którekolwiek je wstawi. Indeks unikalny
-    // `external_ref` (20261012100300) odrzuca drugie wstawienie, a kod zamienia
+    // `external_ref` (20261012130300) odrzuca drugie wstawienie, a kod zamienia
     // je w aktualizację - nie w drugi wiersz.
     //
     // Skutki zakładania biegną PRZED wstawieniem wiersza (1.2), więc wiersz
@@ -1904,6 +1904,32 @@ describe("dokument rozliczeniowy (`transaction.updated`)", () => {
     expect(writePayload("billing_documents", "update")).toMatchObject({
       number: "FV/2026/08/0001",
     });
+  });
+
+  it("NIEUDANY zapis rejestru to błąd zdarzenia - Stripe je ponowi", async () => {
+    // Zdarzenie zamknięte jako przetworzone mimo braku dokumentu nigdy by nie
+    // wróciło: operator ponawia tylko po odpowiedzi innej niż 2xx. Błąd bazy
+    // inny niż wyścig (23505) musi więc wyjść z dyspozytora jako wyjątek.
+    db.setResponse("subscriptions", ok({ user_id: "user-kupujacy", tenant_id: "tenant-alfa" }));
+    db.setResponse("billing_documents", (chain: RecordedChain) =>
+      chain.has("maybeSingle") ? ok(null) : fail("check constraint violated", "23514"),
+    );
+
+    await expect(
+      dispatchWebhookEvent({
+        eventType: "transaction.updated",
+        data: {
+          id: "txn_atrapa_2",
+          subscriptionId: "sub_atrapa_1",
+          invoiceNumber: "FV/2026/08/0002",
+          currencyCode: "PLN",
+          status: "completed",
+          details: { totals: { grandTotal: "4900" } },
+        },
+        environment: "live",
+        occurredAt: LATER,
+      }),
+    ).rejects.toThrow("billing document not recorded: txn_atrapa_2");
   });
 
   it("POWTÓRZONE zdarzenie o niezmienionym dokumencie nie zapisuje nic drugi raz", async () => {
