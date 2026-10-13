@@ -220,6 +220,8 @@ interface MirrorRow {
   first_payment_failed_at: string | null;
   purchase_confirmed_at: string | null;
   last_event_at: string | null;
+  /** Identyfikator zdarzenia z pary strażnika (po nim strażnik rozpoznaje powtórkę). */
+  last_event_id?: string | null;
   last_payment_at: string | null;
 }
 
@@ -233,9 +235,10 @@ function eqFilters(chain: RecordedChain): Record<string, unknown> {
 
 /**
  * Lustro `subscriptions` ze stanem: wstawienie-jeśli-brak, strażnik kolejności
- * (`last_event_at < stamp`), atomowe zajęcie `purchase_confirmed_at` i odczyty
- * z filtrami - po to, żeby `created(incomplete)` -> `updated(active)` szło
- * przez dispatch dokładnie tymi zapytaniami, którymi idzie w produkcji.
+ * (`last_event_at < stamp`, para znacznik + identyfikator zdarzenia), zapis
+ * stanu warunkiem na tę parę, atomowe zajęcie `purchase_confirmed_at`
+ * i odczyty z filtrami - po to, żeby `created(incomplete)` -> `updated(active)`
+ * szło przez dispatch dokładnie tymi zapytaniami, którymi idzie w produkcji.
  */
 function mirrorResponder(rows: Map<string, MirrorRow>): TableResponder {
   return (chain) => {
@@ -266,21 +269,34 @@ function mirrorResponder(rows: Map<string, MirrorRow>): TableResponder {
     }
     if (chain.has("update")) {
       const patch = (chain.argsOf("update")?.[0] ?? {}) as Partial<MirrorRow>;
-      if (!target || !inEnv(target)) return ok(chain.has("select") ? [] : null);
-      if (chain.has("is")) {
+      const none = ok(chain.has("select") ? [] : null);
+      if (!target || !inEnv(target)) return none;
+      const isNull = chain.argsOf("is")?.[0];
+      if (isNull === "purchase_confirmed_at") {
         // `claimPurchaseConfirmation`: UPDATE ... WHERE purchase_confirmed_at IS NULL.
         if (target.purchase_confirmed_at) return ok([]);
         Object.assign(target, patch);
         return ok([{ id: target.id }]);
       }
       if (chain.has("or")) {
-        // Strażnik kolejności: zajęcie tylko starszego (albo pustego) znacznika.
+        // Strażnik kolejności: zajęcie tylko starszego (albo pustego) znacznika -
+        // razem z identyfikatorem zdarzenia (para strażnika).
         const stamp = Date.parse(String(patch.last_event_at));
         if (target.last_event_at && Date.parse(target.last_event_at) >= stamp) return ok([]);
-        target.last_event_at = String(patch.last_event_at);
+        Object.assign(target, patch);
         return ok([{ id: target.id }]);
       }
-      if ("last_event_at" in eq) return ok(null); // zwolnienie zajęcia po błędzie
+      if ("last_event_at" in eq) {
+        // Zapis warunkiem na zajęcie (`commitSubscriptionState`, remis): tylko
+        // gdy para w wierszu wciąż jest TEGO zdarzenia.
+        const sameId =
+          isNull === "last_event_id"
+            ? (target.last_event_id ?? null) === null
+            : !("last_event_id" in eq) || target.last_event_id === eq.last_event_id;
+        if (target.last_event_at !== eq.last_event_at || !sameId) return none;
+        Object.assign(target, patch);
+        return ok(chain.has("select") ? [{ id: target.id }] : null);
+      }
       Object.assign(target, patch);
       return ok(null);
     }
@@ -448,11 +464,21 @@ function createdEvent(overrides: Partial<SubscriptionData> = {}, priceId = "pro_
   return data;
 }
 
+/**
+ * Identyfikator zdarzenia operatora: ten sam typ, subskrypcja i chwila = TO
+ * SAMO zdarzenie (ponowna dostawa, ponowienie z panelu). Trasa podaje go
+ * dyspozytorowi, a strażnik kolejności rozpoznaje po nim powtórkę (`replay`) -
+ * bez niego każda powtórka byłaby remisem rozstrzyganym u operatora.
+ */
+const eventIdOf = (eventType: string, data: SubscriptionData, occurredAt: string): string =>
+  `evt_${eventType}_${data.id}_${occurredAt}`;
+
 async function deliverCreated(
   data: SubscriptionData,
   environment: "live" | "sandbox" = "live",
 ): Promise<string> {
   return dispatchWebhookEvent({
+    eventId: eventIdOf("subscription.created", data, OCCURRED_AT),
     eventType: "subscription.created",
     data,
     environment,
@@ -765,7 +791,13 @@ async function deliver(
   occurredAt: string,
   environment: "live" | "sandbox" = "live",
 ): Promise<string> {
-  return dispatchWebhookEvent({ eventType, data, environment, occurredAt });
+  return dispatchWebhookEvent({
+    eventId: eventIdOf(eventType, data, occurredAt),
+    eventType,
+    data,
+    environment,
+    occurredAt,
+  });
 }
 
 const liveLookupScope = (chain: RecordedChain | undefined) =>
@@ -988,5 +1020,38 @@ describe("deduplikacja: dwa sprawdzenia widzące się nawzajem RÓWNOLEGLE", () 
     expect(rpc.callsFor("rate_limit_hit")).toHaveLength(1);
     expect(outcome).toMatchObject({ kind: "alerted", delivered: 1 });
     expect(duplicateBells()).toHaveLength(1);
+  });
+});
+
+describe("izolacja środowisk (PAY-05): ślad księgowy piaskownicy na produkcji nie sprawdza drugiego planu", () => {
+  // Na wdrożeniu produkcyjnym zdarzenie piaskownicy zostawia wyłącznie wiersz
+  // księgowy - karta testowa nie jest podwójnym obciążeniem, więc alarm dla
+  // administratorów byłby fałszywy. Poza produkcją (reszta pliku) oba
+  // środowiska sprawdzają normalnie.
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "production");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("subskrypcja z kasy i subskrypcja z panelu: bez zajęcia potwierdzenia i bez sprawdzenia w tle", async () => {
+    scenario.live = [
+      { provider_subscription_id: OLD_SUB, price_id: "pro_monthly", status: "active" },
+    ];
+
+    expect(await deliverCreated(createdEvent(), "sandbox")).toBe("processed");
+    expect(await deliverCreated(createdEvent({ id: "sub_panel", customData: {} }), "sandbox")).toBe(
+      "processed",
+    );
+
+    expect(h.background).toHaveLength(0);
+    await settleBackground();
+    expect(liveLookups()).toHaveLength(0);
+    expect(
+      db.chainsFor("subscriptions").filter((c) => eqFilters(c).provider_customer_id !== undefined),
+    ).toHaveLength(0);
+    expect(duplicateBells()).toHaveLength(0);
   });
 });

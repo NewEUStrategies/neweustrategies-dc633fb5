@@ -85,8 +85,10 @@ rozpoznaje to anulowanie jako koniec windykacji.
 kolejne `customer.subscription.deleted` - przycisk synchronizacji rozliczeń
 klienta (`syncMyBillingFromProvider` buduje syntetyczne zdarzenie z czasem
 „teraz"), odtworzenie zdarzenia, remis rozstrzygany żywym stanem - przechodzi
-przez `handleCanceled`. Ten dla anulowania **bez powodu** z zapisaną kotwicą
-i bez zapłaty za bieżący okres przyjmuje `payment_failed`
+przez `handleCanceled`, a spóźnione zdarzenie przy anulowanej subskrypcji
+wyrównuje uprawnienie stanem z API (`resyncFromProvider`). Oba liczą dostęp
+jedną regułą (`cancellationAccess`), która dla anulowania **bez powodu**
+z zapisaną kotwicą i bez zapłaty za bieżący okres przyjmuje `payment_failed`
 (`effectiveCancellationReason`), czyli liczy tę samą karencję co zadanie,
 zamiast oddać dostęp do końca nieopłaconego okresu. Zapłata za okres
 (`paymentCoversPeriod`) to wnioskowanie znosi - tak samo jak decyzja `paid`.

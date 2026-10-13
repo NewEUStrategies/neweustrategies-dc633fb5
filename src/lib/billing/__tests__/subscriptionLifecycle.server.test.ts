@@ -62,6 +62,8 @@ const h = vi.hoisted(() => ({
       subscriptions: { retrieve: StripeRetrieve };
       invoices?: { retrieve: (id: string) => Promise<unknown> };
     } | null,
+    /** Środowiska, dla których poproszono o klienta operatora (sandbox nie czyta produkcji). */
+    envs: [] as string[],
   },
 }));
 
@@ -765,6 +767,34 @@ describe("SUB-03: dostęp tylko za opłacony okres - karencja od pierwszej pora�
     const graceEnd = new Date(Date.parse(renewalAt) + PAYMENT_GRACE_DAYS * DZIEN).toISOString();
     expect(entitlement()).toMatchObject({ status: "active", current_period_end: graceEnd });
     expect(grantsAccess(entitlement(), new Date(Date.parse(graceEnd) + SEKUNDA))).toBe(false);
+  });
+
+  it("spóźnione zdarzenie po deleted BEZ powodu: wyrównanie stanem z API trzyma tę samą karencję", async () => {
+    // Wyrównanie po wyparciu (`resyncFromProvider`) liczy dostęp tą samą
+    // regułą co rezygnacja: anulowanie bez powodu z kotwicą i bez zapłaty za
+    // okres to koniec windykacji, a nie rezygnacja do końca nieopłaconego roku.
+    const renewalAt = relativeIso(-5 * DZIEN);
+    const { nextYear } = await annualRenewalFails(renewalAt);
+    const annual = { priceKey: "plus_annual", periodStart: renewalAt, periodEnd: nextYear };
+    const canceled = stripeSubscription({ status: "canceled", ...annual });
+    await deliver("customer.subscription.deleted", canceled, relativeIso(-1 * DZIEN));
+    const graceEnd = new Date(Date.parse(renewalAt) + PAYMENT_GRACE_DAYS * DZIEN).toISOString();
+    expect(entitlement()).toMatchObject({ status: "active", current_period_end: graceEnd });
+
+    // Spóźnione `updated(past_due)` sprzed rezygnacji: ładunku nie stosuje,
+    // a stan z API to anulowanie, któremu operator nie podał powodu.
+    const retrieve = stripeLive(() => canceled);
+    expect(
+      await deliver(
+        "customer.subscription.updated",
+        stripeSubscription({ status: "past_due", ...annual }),
+        relativeIso(-2 * DZIEN),
+      ),
+    ).toBe("processed");
+
+    expect(retrieve).toHaveBeenCalled();
+    expect(subscriptionRow()?.status).toBe("canceled");
+    expect(entitlement()).toMatchObject({ status: "active", current_period_end: graceEnd });
   });
 
   it("przycięcie z uzgodnienia dawnych anulowań (dowód z faktury) przetrwa ponowne deleted bez powodu, a zapłata je znosi", async () => {
@@ -2145,5 +2175,474 @@ describe("wyrównanie po wyparciu liczy karencję (PAY-02 x SUB-03)", () => {
       first_payment_failed_at: renewalAt,
     });
     expect(entitlement()?.current_period_end).toBe(graceEnd);
+  });
+});
+
+// =============================================================================
+// Odrzucona dopłata opłacona PÓŹNIEJ (`customer.subscription.pending_update_applied`).
+// =============================================================================
+
+const SCHEDULE = "sub_sched_1SyntetycznyHarmonogram";
+
+type LiveItem = { current_period_start: number; current_period_end: number };
+
+/**
+ * Operator z harmonogramem dołączonym do subskrypcji. Pamięta zwolnienie,
+ * więc ponowienie zdarzenia widzi stan PO nim - jak prawdziwy operator.
+ * Ceny operatora to `price_<lookup_key>`; bieżąca faza niesie cenę sprzed
+ * zmiany, następna - `nextPrice` (zaplanowana wcześniej zmiana).
+ */
+function stripeWithSchedule(o: {
+  live: Record<string, unknown>;
+  nextPrice: string;
+  failedReleases?: number;
+}) {
+  const [item] = (o.live.items as { data: LiveItem[] }).data;
+  const schedule = {
+    id: SCHEDULE,
+    object: "subscription_schedule",
+    status: "active",
+    subscription: SUB as string | null,
+    metadata: {},
+    current_phase: { start_date: item.current_period_start, end_date: item.current_period_end },
+    phases: [
+      {
+        start_date: item.current_period_start,
+        end_date: item.current_period_end,
+        items: [{ price: "price_plus_monthly", quantity: 1 }],
+      },
+      { start_date: item.current_period_end, end_date: null, items: [{ price: o.nextPrice }] },
+    ],
+  };
+  let failures = o.failedReleases ?? 0;
+  const release = vi.fn(async (id: string, _params: unknown, _opts?: unknown) => {
+    if (failures > 0) {
+      failures -= 1;
+      throw Object.assign(new Error("Too many requests"), { type: "StripeRateLimitError" });
+    }
+    if (id !== SCHEDULE || schedule.status !== "active")
+      throw new Error("test: nie ten harmonogram");
+    schedule.status = "released";
+    schedule.subscription = null;
+    return structuredClone(schedule);
+  });
+  const retrieve = vi.fn<StripeRetrieve>(async (id, params) => {
+    if (id !== SUB) {
+      throw Object.assign(new Error("No such subscription"), { code: "resource_missing" });
+    }
+    const expand = (params as { expand?: string[] } | undefined)?.expand ?? [];
+    const attached = schedule.status === "active";
+    return {
+      ...structuredClone(o.live),
+      schedule: attached
+        ? expand.includes("schedule")
+          ? structuredClone(schedule)
+          : SCHEDULE
+        : null,
+    };
+  });
+  h.stripe.current = {
+    subscriptions: { retrieve },
+    subscriptionSchedules: { release },
+    prices: { retrieve: async (id: string) => ({ id, lookup_key: id.replace(/^price_/, "") }) },
+  } as unknown as typeof h.stripe.current;
+  return { release, schedule };
+}
+
+describe("odrzucona dopłata opłacona później: pending_update_applied zwalnia sprzeczny harmonogram", () => {
+  const start = relativeIso(-10 * DZIEN);
+  const end = relativeIso(20 * DZIEN);
+  const appliedAt = relativeIso(-1 * DZIEN);
+
+  /** Plus z zaplanowaną wcześniej zmianą; upgrade do Pro odrzucony, a potem opłacony. */
+  async function plusWithDeclinedUpgrade() {
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({
+        status: "active",
+        providerPriceId: "price_plus_monthly",
+        periodStart: start,
+        periodEnd: end,
+      }),
+      start,
+    );
+    return stripeSubscription({
+      status: "active",
+      priceKey: "pro_monthly",
+      providerPriceId: "price_pro_monthly",
+      periodStart: start,
+      periodEnd: end,
+    });
+  }
+
+  it("zaplanowany downgrade cofałby opłacony upgrade: zwolniony klientem środowiska zdarzenia, lustro na Pro", async () => {
+    const applied = await plusWithDeclinedUpgrade();
+    const stripe = stripeWithSchedule({ live: applied, nextPrice: "price_student_monthly" });
+
+    const outcome = await deliver(
+      "customer.subscription.pending_update_applied",
+      { ...applied, schedule: SCHEDULE },
+      appliedAt,
+    );
+
+    expect(outcome).toBe("processed");
+    expect(stripe.release).toHaveBeenCalledTimes(1);
+    expect(stripe.release.mock.calls[0]?.[0]).toBe(SCHEDULE);
+    expect(stripe.release.mock.calls[0]?.[2]).toEqual({
+      idempotencyKey: expect.stringMatching(/^nes-sub-schedule-release-[0-9a-f]{48}$/),
+    });
+    expect(stripe.schedule.status).toBe("released");
+    expect(h.stripe.envs.length).toBeGreaterThan(0);
+    expect(h.stripe.envs.every((env) => env === "live")).toBe(true);
+    // To samo zdarzenie domyka lustro: opłacony plan, dostęp, znacznik.
+    expect(subscriptionRow()).toMatchObject({ price_id: "pro_monthly", last_event_at: appliedAt });
+    expect(entitlement()).toMatchObject({ plan_id: "plan-pro-monthly" });
+    expect(grantsAccess(entitlement())).toBe(true);
+  });
+
+  it("zgodny harmonogram (od odnowienia Pro rocznie) zostaje, a lustro i tak przechodzi na Pro", async () => {
+    const applied = await plusWithDeclinedUpgrade();
+    const stripe = stripeWithSchedule({ live: applied, nextPrice: "price_pro_annual" });
+
+    expect(
+      await deliver(
+        "customer.subscription.pending_update_applied",
+        { ...applied, schedule: SCHEDULE },
+        appliedAt,
+      ),
+    ).toBe("processed");
+
+    expect(stripe.release).not.toHaveBeenCalled();
+    expect(stripe.schedule.status).toBe("active");
+    expect(subscriptionRow()?.price_id).toBe("pro_monthly");
+  });
+
+  it("odmowa operatora przy zwolnieniu: zdarzenie wraca do ponowienia (500), ponowienie zwalnia i domyka lustro", async () => {
+    const applied = await plusWithDeclinedUpgrade();
+    const stripe = stripeWithSchedule({
+      live: applied,
+      nextPrice: "price_student_monthly",
+      failedReleases: 1,
+    });
+    const object = { ...applied, schedule: SCHEDULE };
+
+    await expect(
+      deliver("customer.subscription.pending_update_applied", object, appliedAt),
+    ).rejects.toThrow(/Too many requests/);
+    // Nic nie przepadło po cichu: harmonogram żyje, lustro bez zmian - a
+    // znacznik strażnika nie jest zajęty, więc ponowienie przejdzie.
+    expect(stripe.schedule.status).toBe("active");
+    expect(subscriptionRow()?.price_id).toBe("plus_monthly");
+    expect(subscriptionRow()?.last_event_at).not.toBe(appliedAt);
+
+    // Operator ponawia TO SAMO zdarzenie (ten sam znacznik).
+    expect(await deliver("customer.subscription.pending_update_applied", object, appliedAt)).toBe(
+      "processed",
+    );
+    expect(stripe.release).toHaveBeenCalledTimes(2);
+    expect(stripe.schedule.status).toBe("released");
+    expect(subscriptionRow()).toMatchObject({ price_id: "pro_monthly", last_event_at: appliedAt });
+  });
+
+  it("migawka bez harmonogramu: bez pytania operatora - zwykła aktualizacja lustra", async () => {
+    const applied = await plusWithDeclinedUpgrade();
+
+    // `h.stripe.current` pusty: każde wywołanie operatora wywróciłoby test.
+    expect(
+      await deliver(
+        "customer.subscription.pending_update_applied",
+        { ...applied, schedule: null },
+        appliedAt,
+      ),
+    ).toBe("processed");
+    expect(subscriptionRow()?.price_id).toBe("pro_monthly");
+    expect(grantsAccess(entitlement())).toBe(true);
+  });
+
+  it("wygasła oczekująca zmiana: stary plan i zaplanowana zmiana zostają, bez pytania operatora", async () => {
+    await plusWithDeclinedUpgrade();
+    const expired = stripeSubscription({
+      status: "active",
+      providerPriceId: "price_plus_monthly",
+      periodStart: start,
+      periodEnd: end,
+      schedule: SCHEDULE,
+    });
+
+    await deliver("customer.subscription.pending_update_expired", expired, appliedAt);
+
+    expect(subscriptionRow()).toMatchObject({ price_id: "plus_monthly", status: "active" });
+    expect(grantsAccess(entitlement())).toBe(true);
+  });
+});
+
+// =============================================================================
+// Odrzucony upgrade przy dacie końca `cancel_at`, opłacony PÓŹNIEJ.
+// =============================================================================
+
+/** Faktura dopłaty, której zapłata zastosowała zmianę (identyfikator z migawki). */
+const UPGRADE_INVOICE = "in_1SyntetycznaDoplata";
+
+/**
+ * Operator ze subskrypcją kończącą się datą `cancel_at` i opłaconą fakturą
+ * dopłaty (`marker` = metadane zapisane przy odmowie, `paidAt` = chwila
+ * zapłaty). Pamięta zdjęcie daty, więc ponowienie zdarzenia widzi stan PO nim
+ * - jak prawdziwy operator.
+ */
+function stripeWithCancelDate(o: {
+  live: Record<string, unknown>;
+  marker: Record<string, string>;
+  paidAt: string;
+  failedUpdates?: number;
+}) {
+  const state = structuredClone(o.live);
+  let failures = o.failedUpdates ?? 0;
+  const retrieve = vi.fn<StripeRetrieve>(async (id) => {
+    if (id !== SUB) {
+      throw Object.assign(new Error("No such subscription"), { code: "resource_missing" });
+    }
+    return structuredClone(state);
+  });
+  const update = vi.fn(async (id: string, params: Record<string, unknown>, _opts?: unknown) => {
+    if (failures > 0) {
+      failures -= 1;
+      throw Object.assign(new Error("Too many requests"), { type: "StripeRateLimitError" });
+    }
+    if (id !== SUB) throw new Error("test: nie ta subskrypcja");
+    if (params.cancel_at === "") {
+      state.cancel_at = null;
+      state.canceled_at = null;
+    }
+    state.metadata = { ...(state.metadata as object), ...(params.metadata as object) };
+    return structuredClone(state);
+  });
+  const invoices = {
+    retrieve: vi.fn(async (id: string) => {
+      if (id !== UPGRADE_INVOICE) {
+        throw Object.assign(new Error("No such invoice"), { code: "resource_missing" });
+      }
+      return {
+        id,
+        object: "invoice",
+        status: "paid",
+        billing_reason: "subscription_update",
+        parent: { subscription_details: { subscription: SUB } },
+        status_transitions: { paid_at: unix(o.paidAt) },
+        metadata: o.marker,
+      };
+    }),
+  };
+  h.stripe.current = {
+    subscriptions: { retrieve, update },
+    invoices,
+  } as unknown as typeof h.stripe.current;
+  return { retrieve, update, state };
+}
+
+describe("odrzucony upgrade przy dacie końca opłacony później: pending_update_applied zdejmuje datę", () => {
+  const start = relativeIso(-10 * DZIEN);
+  const end = relativeIso(20 * DZIEN);
+  const cancelSetAt = relativeIso(-5 * DZIEN);
+  const appliedAt = relativeIso(-1 * DZIEN);
+  /** Data końca z portalu („anuluj z końcem okresu") i chwila jej ustawienia. */
+  const dateEnd = { cancel_at: unix(end), canceled_at: unix(cancelSetAt) };
+  /** Znacznik zapisany przy odmowie - stan z chwili prośby o upgrade. */
+  const MARKER = {
+    nes_upgrade_cancel_at: String(unix(end)),
+    nes_upgrade_canceled_at: String(unix(cancelSetAt)),
+    nes_upgrade_price: "price_pro_monthly",
+  };
+
+  /** Plus kończący się datą; upgrade do Pro odrzucony, a potem opłacony - migawka z chwili zastosowania. */
+  async function plusEndingOnDate() {
+    const plus = { providerPriceId: "price_plus_monthly", periodStart: start, periodEnd: end };
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({ status: "active", ...plus }),
+      start,
+    );
+    await deliver(
+      "customer.subscription.updated",
+      { ...stripeSubscription({ status: "active", ...plus }), ...dateEnd },
+      cancelSetAt,
+    );
+    expect(subscriptionRow()?.cancel_at_period_end).toBe(true);
+    expect(entitlement()?.canceled_at).toBeTruthy();
+    return {
+      ...stripeSubscription({
+        status: "active",
+        priceKey: "pro_monthly",
+        providerPriceId: "price_pro_monthly",
+        periodStart: start,
+        periodEnd: end,
+        schedule: null,
+      }),
+      ...dateEnd,
+      latest_invoice: UPGRADE_INVOICE,
+    };
+  }
+
+  it("data z chwili prośby schodzi u operatora (klient środowiska zdarzenia); lustro: Pro, odnawia się", async () => {
+    const applied = await plusEndingOnDate();
+    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER, paidAt: appliedAt });
+
+    expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
+      "processed",
+    );
+
+    expect(stripe.update).toHaveBeenCalledTimes(1);
+    expect(stripe.update).toHaveBeenCalledWith(
+      SUB,
+      { cancel_at: "", metadata: { nes_ops_rev: "1" } },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-cancel-at-clear-applied-[0-9a-f]{48}$/) },
+    );
+    expect(h.stripe.envs.length).toBeGreaterThan(0);
+    expect(h.stripe.envs.every((env) => env === "live")).toBe(true);
+    // Migawka wciąż niesie datę, ale lustro dostaje stan operatora PO zdjęciu:
+    // bez „kończy się" i bez przycisku „Wznów" przy subskrypcji, która się odnowi.
+    expect(subscriptionRow()).toMatchObject({
+      price_id: "pro_monthly",
+      cancel_at_period_end: false,
+      last_event_at: appliedAt,
+    });
+    expect(entitlement()).toMatchObject({ plan_id: "plan-pro-monthly", canceled_at: null });
+    expect(grantsAccess(entitlement())).toBe(true);
+    expect(mails("subscription_upgraded")).toHaveLength(1);
+
+    // Zdarzenie samego zdjęcia (nowszy znacznik): nic się nie dubluje.
+    const clearedAt = new Date(Date.parse(appliedAt) + 5 * SEKUNDA).toISOString();
+    expect(
+      await deliver("customer.subscription.updated", structuredClone(stripe.state), clearedAt),
+    ).toBe("processed");
+    expect(subscriptionRow()).toMatchObject({
+      cancel_at_period_end: false,
+      last_event_at: clearedAt,
+    });
+    expect(entitlement()?.canceled_at).toBeNull();
+    expect(mails("subscription_upgraded")).toHaveLength(1);
+    expect(mails("subscription_canceled")).toHaveLength(0);
+  });
+
+  it.each([
+    {
+      name: "inna data ustawiona po odmowie",
+      live: { cancel_at: unix(end) - 86_400, canceled_at: unix(relativeIso(-2 * DZIEN)) },
+    },
+    {
+      name: "ta sama data ustawiona ponownie po odmowie (nowsze `canceled_at`)",
+      live: { cancel_at: unix(end), canceled_at: unix(relativeIso(-2 * DZIEN)) },
+    },
+  ])("$name: data zostaje, lustro dalej „kończy się”", async ({ live }) => {
+    const applied = { ...(await plusEndingOnDate()), ...live };
+    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER, paidAt: appliedAt });
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
+      "processed",
+    );
+
+    expect(stripe.update).not.toHaveBeenCalled();
+    expect(stripe.state).toMatchObject(live);
+    expect(warned).toHaveBeenCalledWith(
+      "[payments] pending update paid later, cancel date kept",
+      "kept_changed",
+      SUB,
+      expect.any(String),
+    );
+    expect(subscriptionRow()).toMatchObject({
+      price_id: "pro_monthly",
+      cancel_at_period_end: true,
+    });
+    expect(entitlement()?.canceled_at).toBeTruthy();
+    warned.mockRestore();
+  });
+
+  it("flaga „z końcem okresu” w migawce: bez pytania operatora - flaga jechała w oczekującej zmianie", async () => {
+    const applied = { ...(await plusEndingOnDate()), cancel_at_period_end: true };
+
+    // `h.stripe.current` pusty: każde wywołanie operatora wywróciłoby test.
+    expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
+      "processed",
+    );
+    expect(subscriptionRow()).toMatchObject({
+      price_id: "pro_monthly",
+      cancel_at_period_end: true,
+    });
+  });
+
+  it("odmowa operatora przy zdjęciu: zdarzenie wraca do ponowienia (500), ponowienie zdejmuje i domyka lustro", async () => {
+    const applied = await plusEndingOnDate();
+    const stripe = stripeWithCancelDate({
+      live: applied,
+      marker: MARKER,
+      paidAt: appliedAt,
+      failedUpdates: 1,
+    });
+
+    await expect(
+      deliver("customer.subscription.pending_update_applied", applied, appliedAt),
+    ).rejects.toThrow(/Too many requests/);
+    // Nic nie przepadło po cichu: data jest, lustro bez zmian, znacznik strażnika wolny.
+    expect(stripe.state.cancel_at).toBe(unix(end));
+    expect(subscriptionRow()?.price_id).toBe("plus_monthly");
+    expect(subscriptionRow()?.last_event_at).not.toBe(appliedAt);
+
+    expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
+      "processed",
+    );
+    expect(stripe.update).toHaveBeenCalledTimes(2);
+    expect(stripe.state.cancel_at).toBeNull();
+    expect(subscriptionRow()).toMatchObject({
+      price_id: "pro_monthly",
+      cancel_at_period_end: false,
+      last_event_at: appliedAt,
+    });
+  });
+
+  it("ponowienie, gdy data już zeszła (zgubiona odpowiedź): bez drugiej mutacji, lustro bez „kończy się”", async () => {
+    const applied = await plusEndingOnDate();
+    const stripe = stripeWithCancelDate({
+      live: { ...applied, cancel_at: null, canceled_at: null },
+      marker: MARKER,
+      paidAt: appliedAt,
+    });
+
+    expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
+      "processed",
+    );
+
+    expect(stripe.update).not.toHaveBeenCalled();
+    expect(subscriptionRow()).toMatchObject({
+      price_id: "pro_monthly",
+      cancel_at_period_end: false,
+    });
+    expect(entitlement()?.canceled_at).toBeNull();
+  });
+
+  it("dostawa później niż okno ponowień operatora od zapłaty (naprawa z panelu): data zostaje, lustro „kończy się” jak u klienta", async () => {
+    const applied = await plusEndingOnDate();
+    // Klient zapłacił 5 dni temu; zdarzenie dociera dopiero teraz.
+    const paidAt = relativeIso(-5 * DZIEN + 60 * SEKUNDA);
+    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER, paidAt });
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(await deliver("customer.subscription.pending_update_applied", applied, paidAt)).toBe(
+      "processed",
+    );
+
+    expect(stripe.update).not.toHaveBeenCalled();
+    expect(stripe.state.cancel_at).toBe(unix(end));
+    expect(warned).toHaveBeenCalledWith(
+      "[payments] pending update paid later, cancel date kept",
+      "kept_stale",
+      SUB,
+      expect.stringContaining(`"paidAt":${unix(paidAt)}`),
+    );
+    expect(subscriptionRow()).toMatchObject({
+      price_id: "pro_monthly",
+      cancel_at_period_end: true,
+    });
+    expect(entitlement()?.canceled_at).toBeTruthy();
+    warned.mockRestore();
   });
 });

@@ -12,6 +12,12 @@ export const STRIPE_WEBHOOK_EVENT_TYPES = [
   "customer.subscription.updated",
   "customer.subscription.deleted",
   "customer.subscription.resumed",
+  // Odrzucona dopłata opłacona później: bez tej obsługi harmonogram z odmowy
+  // cofnąłby opłacony upgrade przy odnowieniu, a data `cancel_at` by go
+  // zakończyła. `pending_update_expired` - celowo nie: opcjonalne (sama
+  // migawka stanu, domyka ją `customer.subscription.updated`), więc jego brak
+  // byłby fałszywym alarmem uzgodnienia i diagnostyki.
+  "customer.subscription.pending_update_applied",
   "checkout.session.completed",
   "checkout.session.async_payment_succeeded",
   "checkout.session.async_payment_failed",

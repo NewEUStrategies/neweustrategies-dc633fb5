@@ -44,7 +44,9 @@ zmianie.
    (klient środowiska zdarzenia, żywy stan), na końcu stosuje stan tym samym
    strażnikiem kolejności co każde `subscription.updated`
    (`claimSubscriptionEvent`, remis rozstrzygany żywym stanem). Zdarzenie jest
-   `processed`, gdy cokolwiek zmieniło się u operatora.
+   `processed`, gdy cokolwiek zmieniło się u operatora. Na wdrożeniu
+   produkcyjnym zdarzenie z piaskownicy (PAY-05) zostawia wyłącznie ślad
+   księgowy lustra: bez odczytu i zmian u operatora.
 3. Decyzja na następnej fazie harmonogramu (para pozycja-pozycja):
 
 | Następna faza                                                  | Skutek                                                           |
@@ -72,13 +74,17 @@ bieżąca faza harmonogramu z odmowy też niesie już nowe pozycje.
    zdarzenie w dzienniku zostaje `failed`, operator je ponawia. Ponowienie czyta
    żywy stan od nowa - zwolnienie / zdjęcie daty, które jednak weszło, nie idzie
    drugi raz, a znacznik strażnika nie jest zajęty, więc lustro też się domyka.
-6. Uzgodnienie (`reconcile.server.ts`, `SUPPORTED_EVENT_TYPES`) zna typ
+6. Wspólna lista typów (`stripeEventTypes.ts`, `STRIPE_WEBHOOK_EVENT_TYPES` -
+   jedno źródło dla uzgodnienia i diagnostyki) zna typ
    `customer.subscription.pending_update_applied`: zdarzenie, którego nie ma
    w dzienniku (punkt odbioru bez tego typu, nieudana dostawa), wychodzi w
-   raporcie jako `event_missing` z przyciskiem „Napraw" (odtworzenie tą samą
-   ścieżką co webhook: zdarzenie z `events.retrieve`, więc z fakturą i datą).
-   Ponowienie z dziennika też normalizuje zapisane surowe zdarzenie od nowa.
-   `pending_update_expired` - celowo nie (opcjonalne, sama migawka stanu).
+   raporcie uzgodnienia jako `event_missing` z przyciskiem „Napraw"
+   (odtworzenie tą samą ścieżką co webhook: zdarzenie z `events.retrieve`, więc
+   z fakturą i datą), a diagnostyka płatności ostrzega o punkcie odbioru, który
+   tego typu nie subskrybuje (nocna sonda piaskownicy - `classifyWebhookEndpoints`
+   - też). Ponowienie z dziennika też normalizuje zapisane surowe zdarzenie od
+     nowa. `pending_update_expired` - celowo nie (opcjonalne, sama migawka stanu):
+     jego brak w punkcie odbioru byłby fałszywym alarmem.
 
 ### Data końca `cancel_at` po upgradzie opłaconym później
 

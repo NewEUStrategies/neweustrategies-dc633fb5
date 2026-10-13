@@ -18,10 +18,12 @@ import {
   isPreActivationSubscriptionStatus,
   paymentGraceAnchor,
 } from "@/lib/billing/accessPeriod";
+import type { UnmirroredPlanSubscriptionInput } from "@/lib/billing/duplicateSubscriptionAlert.server";
 import type { OneTimeOutcome } from "@/lib/billing/oneTimeFulfilment.server";
 import type { PremiumNewsletterConsentGrant } from "@/lib/billing/premiumNewsletter";
 import type { AnnouncementQueue } from "@/lib/billing/purchaseEffects.server";
 import type { AdjustmentAction } from "@/lib/billing/refunds.server";
+import type { AppliedUpgradeCancelDateOutcome } from "@/lib/billing/subscriptionProvider.server";
 import { environmentGrantsAccess, type StripeEnv } from "@/lib/stripe.server";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -464,6 +466,12 @@ type SubscriptionRowSource = NonNullable<ReturnType<typeof subscriptionRowFrom>>
 /** Kolumny wiersza `subscriptions` zapisywane przez obsługę zdarzenia. */
 type SubscriptionPatch = Database["public"]["Tables"]["subscriptions"]["Update"];
 
+/** Właściciel i najemca WIERSZA `subscriptions` (nigdy z ładunku). */
+interface RowOwner {
+  userId: string | null;
+  tenantId: string | null;
+}
+
 /**
  * Zakłada wiersz `subscriptions` WYŁĄCZNIE, gdy go nie ma
  * (`ON CONFLICT (provider_subscription_id) DO NOTHING`).
@@ -473,16 +481,18 @@ type SubscriptionPatch = Database["public"]["Tables"]["subscriptions"]["Update"]
  * anulowaną subskrypcję. Wstawienie niesie parę strażnika - wiersz od
  * pierwszej chwili zna zdarzenie, którego skutki wystartowały.
  *
- * @returns `inserted` - ten zapis założył wiersz; `exists` - przegraliśmy
- *          wyścig z równoległym zdarzeniem (wołający ponawia strażnika);
- *          `invalid` - właściciel już nie istnieje.
+ * @returns `outcome`: `inserted` - ten zapis założył wiersz; `exists` -
+ *          przegraliśmy wyścig z równoległym zdarzeniem (wołający ponawia
+ *          strażnika); `invalid` - właściciel już nie istnieje. `owner` -
+ *          właściciel i najemca założonego wiersza z RETURNING (tylko przy
+ *          `inserted`).
  */
 async function insertSubscriptionRow(
   source: SubscriptionRowSource,
   subscriptionId: string,
   mark: EventMark,
   extra: { purchase_confirmed_at?: string } = {},
-): Promise<"inserted" | "exists" | "invalid"> {
+): Promise<{ outcome: "inserted" | "exists" | "invalid"; owner: RowOwner | null }> {
   const supabase = await admin();
   const { data: inserted, error } = await supabase
     .from("subscriptions")
@@ -496,16 +506,21 @@ async function insertSubscriptionRow(
       },
       { onConflict: "provider_subscription_id", ignoreDuplicates: true },
     )
-    .select("id");
+    // `tenant_id` i `user_id` z RETURNING: najemcę przypina trigger z profilu
+    // właściciela, więc alarm o drugiej subskrypcji (przy zajęciu potwierdzenia
+    // zakupu) nie bierze go z ładunku.
+    .select("id, tenant_id, user_id");
   // 23503: konto właściciela usunięte (`user_id` -> `auth.users`). Zdarzenie
   // po zamknięciu konta (np. `deleted` subskrypcji anulowanej przy zamknięciu)
   // nie ma komu zapisać śladu, a wyjątek skazałby je na ponowienia bez końca.
   if (error?.code === "23503") {
     console.warn("[payments] subscription owner no longer exists", subscriptionId);
-    return "invalid";
+    return { outcome: "invalid", owner: null };
   }
   if (error) throw new Error(`subscriptions upsert failed: ${error.message}`);
-  return inserted && inserted.length > 0 ? "inserted" : "exists";
+  const row = inserted?.[0];
+  if (!row) return { outcome: "exists", owner: null };
+  return { outcome: "inserted", owner: { userId: row.user_id, tenantId: row.tenant_id } };
 }
 
 /**
@@ -674,6 +689,12 @@ interface CancellationAccess {
   neverPaid: boolean;
   /** Koniec windykacji (`payment_failed` / `payment_disputed`), nie rezygnacja. */
   nonPayment: boolean;
+  /**
+   * Powód, z którym liczymy dostęp i stan zespołu (`effectiveCancellationReason`):
+   * powód operatora, a bez niego - wniosek z kotwicy karencji. `null` przy
+   * `neverPaid` albo gdy nie ma ani powodu, ani dowodu windykacji.
+   */
+  cancellationReason: string | null;
   periodStart: string | null;
   /**
    * Kotwica karencji do ZAPISANIA w wierszu (koniec windykacji, a zdarzenia
@@ -703,6 +724,15 @@ interface CancellationAccess {
  * KONIEC WINDYKACJI. Anulowanie za brak płatności daje dostęp WYŁĄCZNIE
  * w karencji od pierwszej nieudanej płatności (a gdy ta minęła - wcale);
  * rezygnacja klienta - do końca opłaconego okresu.
+ *
+ * ANULOWANIE BEZ POWODU. Gdy operator powodu nie podał (anulowania sprzed
+ * `cancellation_details`, stare wersje API), zapisana kotwica karencji bez
+ * zapłaty za bieżący okres to koniec windykacji - także kotwica dopisana przez
+ * uzgodnienie dawnych anulowań na dowodzie z faktury
+ * (`effectiveCancellationReason`). Bez tego kolejne `deleted` bez powodu
+ * (przycisk synchronizacji rozliczeń klienta, odtworzenie zdarzenia, remis,
+ * wyrównanie po wyparciu) liczyło dostęp jak po rezygnacji i cofało przycięcie
+ * do końca nieopłaconego okresu (SUB-03).
  */
 function cancellationAccess(
   existing: CancellationRow | null,
@@ -715,8 +745,16 @@ function cancellationAccess(
     (isPreActivationSubscriptionStatus(existing.status) ||
       isPreActivationSubscriptionStatus(data.status) ||
       existing.status === "canceled");
-  const nonPayment = !neverPaid && isNonPaymentCancellation(data.cancellationReason);
   const periodStart = data.currentBillingPeriod?.startsAt ?? existing?.current_period_start ?? null;
+  const cancellationReason = neverPaid
+    ? null
+    : effectiveCancellationReason({
+        reason: data.cancellationReason,
+        firstPaymentFailedAt: existing?.first_payment_failed_at ?? null,
+        lastPaymentAt: existing?.last_payment_at ?? null,
+        periodStart,
+      });
+  const nonPayment = isNonPaymentCancellation(cancellationReason);
   const graceAnchor = nonPayment
     ? paymentGraceAnchor({
         firstPaymentFailedAt: existing?.first_payment_failed_at ?? null,
@@ -728,13 +766,14 @@ function cancellationAccess(
     eventPeriodEnd: data.currentBillingPeriod?.endsAt ?? null,
     storedPeriodEnd: existing?.current_period_end ?? null,
     status: "canceled",
-    cancellationReason: data.cancellationReason ?? null,
+    cancellationReason,
     periodStart,
     firstPaymentFailedAt: graceAnchor ?? existing?.first_payment_failed_at ?? null,
   });
   return {
     neverPaid,
     nonPayment,
+    cancellationReason,
     periodStart,
     graceAnchor: graceAnchor && !existing?.first_payment_failed_at ? graceAnchor : null,
     accessUntil: neverPaid ? null : period.accessUntil,
@@ -826,7 +865,7 @@ async function resyncFromProvider(
       accessUntil: access.accessUntil,
       // Jak w `handleCanceled`: koniec windykacji nie ożywia korekty.
       periodStart: access.nonPayment ? null : periodStart,
-      cancellationReason: access.neverPaid ? null : (current.cancellationReason ?? null),
+      cancellationReason: access.cancellationReason,
     });
     return;
   }
@@ -874,13 +913,114 @@ async function claimPurchaseConfirmation(subscriptionId: string, env: StripeEnv)
   return Array.isArray(data) && data.length > 0;
 }
 
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** Zakres sprawdzenia drugiego planu - właściciel i najemca z WIERSZA, nie z ładunku. */
+interface DuplicateCheckScope {
+  /**
+   * Czytany w chwili ZAJĘCIA potwierdzenia, nie przy budowie zakresu: na
+   * ścieżce zakładania skutki biegną przed wstawieniem wiersza, a właściciela
+   * i najemcę wpisuje dopiero RETURNING wstawienia (`createSubscription`).
+   * Zajęcie i tak czeka na udany zapis wiersza (`announcements`).
+   */
+  owner: RowOwner;
+  priceId: string;
+  status: string;
+  purpose: string | null;
+}
+
+/**
+ * `claimPurchaseConfirmation` + siatka bezpieczeństwa za kasą: druga żywa
+ * subskrypcja planu tego konta (skrajny wyścig, osobny zakup w innym modelu
+ * rozliczenia, subskrypcja z panelu z wpisanym właścicielem).
+ *
+ * DLACZEGO PRZY ZAJĘCIU, A NIE PRZY WSTAWIENIU. Zajęcie wygrywa DOKŁADNIE raz
+ * na subskrypcję i dokładnie przy pierwszym wejściu w stan uprawniający -
+ * także wtedy, gdy wiersz powstał jako `incomplete`, a `active` przyszło
+ * osobnym `updated` po 3DS albo przelewie (zwykła droga kart z UE). Sprawdzenie
+ * przy samym wstawieniu pomijało `incomplete` i nic go potem nie powtarzało.
+ * Ponowienie po sukcesie przegrywa zajęcie i nie dzwoni drugi raz; ponowienie
+ * po awarii przed zajęciem dochodzi do niego i sprawdza wtedy.
+ *
+ * Tylko alarm i log, bez anulowania; sprawdzenie biegnie za odpowiedzią
+ * i NIGDY nie rzuca (także gdy moduł alarmu się nie załaduje) - zajęcie już
+ * wygrało, więc wyjątek tutaj zgubiłby mail i dzwonek potwierdzenia na zawsze.
+ * Wołają je wyłącznie skutki zakupu, a te biegną tylko przy `grantsAccess`
+ * (PAY-05): ślad księgowy piaskownicy na produkcji niczego nie sprawdza.
+ */
+function claimConfirmationWithDuplicateCheck(
+  subscriptionId: string,
+  env: StripeEnv,
+  scope: DuplicateCheckScope,
+): () => Promise<boolean> {
+  return async () => {
+    const won = await claimPurchaseConfirmation(subscriptionId, env);
+    if (!won) return false;
+    try {
+      const { userId, tenantId } = scope.owner;
+      if (!userId || !tenantId) {
+        throw new Error("subscription row without owner scope");
+      }
+      const { scheduleDuplicatePlanSubscriptionAlert } =
+        await import("@/lib/billing/duplicateSubscriptionAlert.server");
+      scheduleDuplicatePlanSubscriptionAlert({
+        subscriptionId,
+        userId,
+        tenantId,
+        environment: env,
+        priceId: scope.priceId,
+        status: scope.status,
+        purpose: scope.purpose,
+      });
+    } catch (err) {
+      console.error("[payments] duplicate plan subscription check not scheduled", {
+        subscriptionId,
+        error: errorText(err),
+      });
+    }
+    return true;
+  };
+}
+
+/**
+ * Subskrypcja bez `metadata.userId` (panel operatora): wiersza nie zakładamy,
+ * ale sprawdzamy, czy ten sam klient operatora nie ma już żywego planu
+ * u NASZEGO właściciela (moduł alarmu czyta go z wierszy tego klienta).
+ * W tle i nigdy nie rzuca. Wołający pilnuje `grantsAccess` (PAY-05) - karta
+ * testowa na produkcji nie jest podwójnym obciążeniem.
+ */
+async function scheduleUnmirroredPlanCheck(data: SubscriptionData, env: StripeEnv): Promise<void> {
+  const input: UnmirroredPlanSubscriptionInput = {
+    subscriptionId: data.id,
+    customerId: data.customerId,
+    environment: env,
+    priceId: readIds(data).priceId,
+    status: data.status,
+    purpose: data.customData?.purpose ?? null,
+  };
+  try {
+    const { scheduleUnmirroredPlanSubscriptionAlert } =
+      await import("@/lib/billing/duplicateSubscriptionAlert.server");
+    scheduleUnmirroredPlanSubscriptionAlert(input);
+  } catch (err) {
+    console.error("[payments] duplicate plan subscription check not scheduled", {
+      subscriptionId: input.subscriptionId,
+      error: errorText(err),
+    });
+  }
+}
+
 /**
  * Skutki ZAŁOŻENIA subskrypcji: dostęp, mail, CRM, newsletter, dzwonek
  * i miejsca planu Zespół. Wołający pilnuje `grantsAccess` (zdarzenie
  * piaskownicy na produkcji zostawia wyłącznie ślad księgowy w `subscriptions`).
  * Mail, CRM, newsletter i dzwonek trafiają do `announcements` - wychodzą
  * dopiero po zapisie wiersza (patrz `AnnouncementQueue`), i tylko w stanie
- * opłaconym, raz (`purchase_confirmed_at`, SUB-02).
+ * opłaconym, raz (`purchase_confirmed_at`, SUB-02). Wygrane zajęcie
+ * potwierdzenia uruchamia też sprawdzenie drugiego planu w zakresie `owner`
+ * (RETURNING wstawienia - wpisuje go `createSubscription`).
  */
 async function applyCreationEffects(
   data: SubscriptionData,
@@ -888,6 +1028,7 @@ async function applyCreationEffects(
   source: SubscriptionRowSource,
   mark: EventMark,
   announcements: AnnouncementQueue,
+  owner: RowOwner,
 ): Promise<void> {
   const periodStart = data.currentBillingPeriod?.startsAt ?? null;
   // W trialu dostęp trwa do końca okresu próbnego - dopiero pierwsze
@@ -910,7 +1051,12 @@ async function applyCreationEffects(
     environment: env,
     status: data.status,
     cancelAtPeriodEnd: data.scheduledChange?.action === "cancel",
-    claimConfirmation: () => claimPurchaseConfirmation(data.id, env),
+    claimConfirmation: claimConfirmationWithDuplicateCheck(data.id, env, {
+      owner,
+      priceId: source.priceId,
+      status: data.status,
+      purpose: data.customData?.purpose ?? null,
+    }),
     newsletterConsent: data.customData?.newsletterConsent ?? null,
     // `created` i zdarzenie, które je wyprzedziło, to TO SAMO założenie -
     // dzwonek szukamy od początku pierwszego okresu.
@@ -1040,6 +1186,11 @@ async function applyTombstoneAccess(
  * wstawieniu - przegrane wstawienie (`exists`) ogłasza zdarzenie, które
  * wiersz założyło, a `invalid` nie ma komu.
  *
+ * Zdarzenie stanu BEZ `metadata.userId` (subskrypcja z panelu operatora, np.
+ * `incomplete` z `created`, które dopiero teraz weszło w `active`): wiersza
+ * nie zakładamy, ale lustro jej nie zna, więc sprawdzenie drugiego planu idzie
+ * po kliencie operatora; powtórki tłumi bramka jednokrotności modułu alarmu.
+ *
  * @returns wynik wstawienia (`insertSubscriptionRow`); przegrane wstawienie
  *          wołający rozstrzyga strażnikiem jeszcze raz.
  */
@@ -1054,12 +1205,21 @@ async function createSubscription(
   const row: SubscriptionData =
     kind === "canceled" ? { ...data, status: "canceled", pauseCollection: null } : data;
   const source = subscriptionRowFrom(row, env, mark.stamp);
-  if (!source) return "invalid";
+  if (!source) {
+    if (grantsAccess && kind !== "canceled" && !row.customData?.userId) {
+      await scheduleUnmirroredPlanCheck(row, env);
+    }
+    return "invalid";
+  }
 
+  // Właściciel i najemca do sprawdzenia drugiego planu: wpisuje je RETURNING
+  // wstawienia niżej, a czyta zajęcie potwierdzenia - komunikat, który wychodzi
+  // dopiero po udanym wstawieniu.
+  const owner: RowOwner = { userId: null, tenantId: null };
   let extra: { purchase_confirmed_at?: string } = {};
   if (grantsAccess) {
     if (kind !== "canceled") {
-      await applyCreationEffects(row, env, source, mark, announcements);
+      await applyCreationEffects(row, env, source, mark, announcements, owner);
     } else if (await applyTombstoneAccess(row, env, source)) {
       // Nagrobek OPŁACONEGO okresu: zakup rozstrzygnął operator, a potwierdzenia
       // anulowanej subskrypcji już nie będzie. Pusty `purchase_confirmed_at`
@@ -1068,9 +1228,10 @@ async function createSubscription(
       extra = { purchase_confirmed_at: new Date().toISOString() };
     }
   }
-  const outcome = await insertSubscriptionRow(source, data.id, mark, extra);
-  if (outcome !== "inserted") announcements.length = 0;
-  return outcome;
+  const inserted = await insertSubscriptionRow(source, data.id, mark, extra);
+  if (inserted.outcome !== "inserted") announcements.length = 0;
+  if (inserted.owner) Object.assign(owner, inserted.owner);
+  return inserted.outcome;
 }
 
 /**
@@ -1262,7 +1423,15 @@ async function applyUpdateEffects(input: {
       environment: env,
       status: data.status,
       cancelAtPeriodEnd: input.cancelAtPeriodEnd,
-      claimConfirmation: () => claimPurchaseConfirmation(data.id, env),
+      // Pierwsze wejście w stan uprawniający istniejącego wiersza (aktywacja po
+      // 3DS / przelewie): wygrane zajęcie sprawdza drugi plan w zakresie
+      // `existing`, nie ładunku.
+      claimConfirmation: claimConfirmationWithDuplicateCheck(data.id, env, {
+        owner: { userId: existing.user_id, tenantId: existing.tenant_id },
+        priceId,
+        status: data.status,
+        purpose: data.customData?.purpose ?? null,
+      }),
       newsletterConsent: data.customData?.newsletterConsent ?? null,
       eventAt: mark.stamp,
       announcements,
@@ -1361,7 +1530,7 @@ async function handleCanceled(
       priceId: row.price_id,
       quantity: null,
       accessUntil: access.accessUntil,
-      cancellationReason: access.neverPaid ? null : (data.cancellationReason ?? null),
+      cancellationReason: access.cancellationReason,
     });
 
     if (access.neverPaid) {
@@ -1956,6 +2125,9 @@ function subscriptionEventKind(eventType: string): "created" | "updated" | "canc
       return "created";
     // Wszystkie zdarzenia zmiany stanu subskrypcji dzielą jedną obsługę -
     // operator wysyła je jako osobne typy, ale autorytatywny jest `status`.
+    // Oczekująca zmiana zastosowana po późniejszej zapłacie też: jej lustro
+    // to zwykła aktualizacja, ale PRZED nim dyspozytor rozstrzyga harmonogram
+    // i datę końca u operatora (`handlePendingUpdateApplied`).
     case "subscription.updated":
     case "subscription.activated":
     case "subscription.trialing":
@@ -1963,6 +2135,7 @@ function subscriptionEventKind(eventType: string): "created" | "updated" | "canc
     case "subscription.paused":
     case "subscription.resumed":
     case "subscription.imported":
+    case "subscription.pending_update_applied":
       return "updated";
     case "subscription.canceled":
       return "canceled";
@@ -2002,7 +2175,13 @@ async function handleSubscriptionEvent(
   // `created` bez właściciela albo identyfikatorów cennika nie ma czego
   // zapisać - ani wiersza, ani skutków. Odsiewamy je PRZED strażnikiem, żeby
   // śmieciowy ładunek nie zajmował znacznika istniejącej subskrypcji.
-  if (kind === "created" && !subscriptionRowFrom(data, env)) return "processed";
+  if (kind === "created" && !subscriptionRowFrom(data, env)) {
+    // Subskrypcja spoza kasy (panel operatora nie wpisuje metadanych): bez
+    // właściciela nie nadajemy dostępu, ale klient płaci - a jeśli ma już żywy
+    // plan, płaci podwójnie. Właściciela zna wyłącznie nasza baza.
+    if (grantsAccess && !data.customData?.userId) await scheduleUnmirroredPlanCheck(data, env);
+    return "processed";
+  }
 
   // Komunikaty skutków bieżącej próby - wychodzą PO zapisie stanu (A3).
   const announcements: AnnouncementQueue = [];
@@ -2107,6 +2286,50 @@ async function handleSubscriptionEvent(
   }
 }
 
+/**
+ * Oczekująca zmiana zastosowana po późniejszej zapłacie
+ * (`subscription.pending_update_applied`). NAJPIERW harmonogram i data końca
+ * u operatora (żywy stan - niezależnie od werdyktu strażnika, bo spóźniona
+ * migawka nie czyni sprzecznego harmonogramu ani opłaconej rezygnacji mniej
+ * żywymi), potem lustro TĄ SAMĄ drogą co każda aktualizacja
+ * (`handleSubscriptionEvent`: strażnik kolejności, remis i wyrównanie stanem
+ * z API operatora). Błąd operatora rzuca PRZED zajęciem zdarzenia, więc
+ * ponowienie przejdzie strażnika i rozstrzygnie wszystkie kroki od nowa; błąd
+ * lustra po zajęciu ponowienie dostaje jako `replay`, a kroki u operatora
+ * czytają żywy stan i nie powtarzają zmiany, która już weszła.
+ *
+ * IZOLACJA ŚRODOWISK (PAY-05). Zdarzenie piaskownicy na wdrożeniu
+ * produkcyjnym zostawia wyłącznie ślad księgowy lustra: produkcja ani nie
+ * czyta, ani nie zmienia piaskownicy operatora w odpowiedzi na jej webhook
+ * (jak przy remisie i wyrównaniu po wyparciu).
+ *
+ * @returns `processed`, gdy cokolwiek zmieniło się u operatora; inaczej wynik
+ *          lustra.
+ */
+async function handlePendingUpdateApplied(
+  input: DispatchInput,
+  grantsAccess: boolean,
+): Promise<DispatchOutcome> {
+  if (!grantsAccess) return handleSubscriptionEvent("updated", input, grantsAccess);
+  const env = input.environment;
+  const sub = input.data as PendingUpdateAppliedData;
+  const settled = await settleScheduleAfterAppliedUpdate(sub, env);
+  const cancelDate = await settleCancelDateAfterAppliedUpdate(sub, env);
+  // Migawka niesie datę z chwili zastosowania. Gdy u operatora końca już
+  // nie ma (zdjęty teraz albo przy wcześniejszej próbie), lustro dostaje
+  // stan operatora - jak `cancelAtPeriodEnd` ścieżki synchronicznej - bez
+  // chwilowego „kończy się" przy subskrypcji, która się odnowi. Okres
+  // (przedłużony po zdjęciu daty w bieżącym okresie) domyka zdarzenie
+  // `customer.subscription.updated` tego zdjęcia.
+  const endGone = cancelDate === "cleared" || cancelDate === "not_scheduled";
+  const mirrored = await handleSubscriptionEvent(
+    "updated",
+    endGone ? { ...input, data: { ...sub, scheduledChange: null } } : input,
+    grantsAccess,
+  );
+  return settled || cancelDate === "cleared" ? "processed" : mirrored;
+}
+
 export async function dispatchWebhookEvent(input: DispatchInput): Promise<DispatchOutcome> {
   const { eventType, environment: env, occurredAt } = input;
   const subscriptionKind = subscriptionEventKind(eventType);
@@ -2145,6 +2368,11 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
     }
   }
 
+  // Oczekująca zmiana zastosowana po późniejszej zapłacie: rozstrzygnięcie
+  // u operatora, potem lustro jak każda aktualizacja.
+  if (eventType === "subscription.pending_update_applied") {
+    return handlePendingUpdateApplied(input, grantsAccess);
+  }
   if (subscriptionKind) return handleSubscriptionEvent(subscriptionKind, input, grantsAccess);
 
   switch (eventType) {
