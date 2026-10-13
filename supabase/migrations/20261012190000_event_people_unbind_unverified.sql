@@ -1,0 +1,44 @@
+-- events-harness: include
+-- ============================================================================
+-- NAPRAWA HISTORII REG-01 (B2, decyzja D14): ODWIAZANIE KONT, KTORE NIE MAJA
+-- POTWIERDZONEGO ADRESU SWOJEJ OSOBY.
+--
+-- DEFEKT. Do serii 20261012 konto wiazalo sie z osoba wydarzen po adresie
+-- z LADUNKU (`event_register` 20261007140400:507-516, :535; zaproszenie
+-- pakietowe 20260827221214:653; nabor bez `email_confirmed_at`
+-- 20260927000101:328-354), a profil uczestnika przestawial adres kartoteki
+-- na dowolny (20260828140004:127, 20260828105751:494). Dowiazania z tamtego
+-- okresu dalej daja kontu „Moje zgloszenia", panel uczestnika, rezygnacje
+-- i platnosci osoby, ktorej adresu konto nigdy nie potwierdzilo.
+--
+-- ZMIANA. Jedno wywolanie `_event_people_unbind_unverified('reg01_remediation')`
+-- (20261012120100): kazdy wiersz `event_people_account_binding_audit()`
+-- dostaje `user_id = NULL` i wpis w `event_person_account_unbinds` (ryzyko,
+-- adres osoby i konta, liczba zgloszen zalozonych przez konto). Nic nie jest
+-- usuwane. Po tej migracji audyt zwraca 0 wierszy (kryterium REG-01).
+--
+-- CZEGO TO NIE ZAMYKA: scisla regula odwiazuje tez wlascicieli, ktorzy
+-- zapisali sie adresem innym niz adres konta albo nie potwierdzili konta -
+-- odzyskuja panel przez `event_my_account_link` (adres konta = adres osoby),
+-- ponowny zapis albo przywrocenie przez organizatora
+-- (`admin_event_person_account_restore`, logowane). Klucz samoobslugi z maila
+-- i wlasnosc platnosci po `created_by` dzialaja dalej.
+--
+-- KOLEJNOSC WDROZENIA: OSTATNIA w serii REG - PO poprawkach WSZYSTKICH
+-- pisarzy `event_people.user_id` (20261012120000 profil, 20261012120200
+-- zaproszenie, slot 20261012130000 nabor, 20261012140000 zapis). Wczesniej
+-- niepoprawiony pisarz dowiazalby konto ponownie. Przed wdrozeniem liczby
+-- z `SELECT tenant_id, risk, count(*) FROM
+-- public.event_people_account_binding_audit() GROUP BY 1, 2` (runbook REG);
+-- po wdrozeniu `SELECT count(*) FROM public.event_people_account_binding_audit()`
+-- jako service_role musi dac 0. Warunek wstepny: w panelu Supabase Auth
+-- wlaczone „Confirm email" i „Secure email change" - inaczej
+-- `email_confirmed_at` nie dowodzi skrzynki.
+-- IDEMPOTENTNA: ponowne uruchomienie odwiazuje wylacznie to, co audyt
+-- zwraca w danej chwili (po pierwszym przebiegu - nic).
+-- DOWOD: supabase/tests/event_people_account_binding_test.sql
+--   (audyt najemcy po naprawie: is_empty),
+--   scripts/events-harness/runtime_test.d/25_account_binding_invites.sql.
+-- ============================================================================
+
+SELECT public._event_people_unbind_unverified('reg01_remediation');

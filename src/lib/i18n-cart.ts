@@ -72,6 +72,27 @@ const pl = {
     profileSaved: "Profil na wydarzenie zapisany.",
     profileSaveError: "Nie udało się zapisać profilu. Spróbuj ponownie.",
     noPerson: "Nie mamy jeszcze Twojej kartoteki na tym wydarzeniu. Zapisz się, aby ją utworzyć.",
+    // REG-01: adres kartoteki to potwierdzony adres konta - zmiana tylko przez
+    // „Użyj adresu konta" albo zmianę adresu konta (ustawienia bezpieczeństwa).
+    actions: {
+      useAccountEmail: "Użyj adresu e-mail konta",
+      changeAccountEmail: "Zmień adres e-mail konta",
+    },
+    errors: {
+      emailUnverified:
+        "Adres e-mail profilu może być tylko potwierdzonym adresem Twojego konta. Zmień adres konta w ustawieniach bezpieczeństwa.",
+      emailInUse:
+        "Ten adres ma już inna kartoteka na tym wydarzeniu. Napisz do organizatora, żeby je połączył.",
+      emailRequired: "Profil wydarzenia musi mieć adres e-mail.",
+    },
+    // Samodzielne dowiązanie kartoteki do konta (`event_my_account_link`).
+    accountLink: {
+      linked: "Twoja kartoteka na wydarzeniu została powiązana z kontem.",
+      emailUnconfirmed:
+        "Potwierdź adres e-mail konta - wtedy powiążemy z nim Twoją kartotekę na wydarzeniu.",
+      boundElsewhere:
+        "Kartoteka z adresem Twojego konta jest powiązana z innym kontem. Napisz do organizatora.",
+    },
     fields: {
       firstName: "Imię",
       lastName: "Nazwisko",
@@ -80,6 +101,8 @@ const pl = {
       industry: "Branża",
       specialization: "Specjalizacja",
       email: "Adres e-mail",
+      emailAccountHint:
+        "Adres e-mail kartoteki to potwierdzony adres Twojego konta - na niego wysyłamy bilety.",
       emailVisible: "Pokaż e-mail uczestnikom",
       phone: "Telefon",
       phoneVisible: "Pokaż telefon uczestnikom",
@@ -280,6 +303,24 @@ const en: typeof pl = {
     profileSaved: "Event profile saved.",
     profileSaveError: "Could not save your profile. Please try again.",
     noPerson: "You do not have an attendee record for this event yet. Register to create one.",
+    actions: {
+      useAccountEmail: "Use my account e-mail",
+      changeAccountEmail: "Change my account e-mail",
+    },
+    errors: {
+      emailUnverified:
+        "The profile e-mail can only be the confirmed e-mail of your account. Change your account e-mail in the security settings.",
+      emailInUse:
+        "Another record of this event already uses this address. Ask the organiser to merge them.",
+      emailRequired: "The event profile needs an e-mail address.",
+    },
+    accountLink: {
+      linked: "Your attendee record for this event is now linked to your account.",
+      emailUnconfirmed:
+        "Confirm your account e-mail - then we will link your attendee record to your account.",
+      boundElsewhere:
+        "The record with your account e-mail is linked to another account. Please contact the organiser.",
+    },
     fields: {
       firstName: "First name",
       lastName: "Last name",
@@ -288,6 +329,8 @@ const en: typeof pl = {
       industry: "Industry",
       specialization: "Specialisation",
       email: "E-mail address",
+      emailAccountHint:
+        "Your record uses the confirmed e-mail of your account - we send your tickets there.",
       emailVisible: "Show e-mail to attendees",
       phone: "Phone",
       phoneVisible: "Show phone to attendees",

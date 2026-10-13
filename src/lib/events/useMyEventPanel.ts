@@ -4,15 +4,18 @@
 // zakładkach jednego ekranu; wspólny klucz `["event-me", slug, ...]` sprawia,
 // że przełączanie zakładek nie generuje nowych zapytań, a zapis profilu
 // odświeża dokładnie tę jedną gałąź.
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 
 import {
   fetchMyAgenda,
   fetchMyEventProfile,
+  linkMyEventAccount,
   saveMyEventProfile,
   syncMyEventProfileFromAccount,
   type MyAgendaSession,
+  type MyEventAccountLink,
   type MyEventPanelState,
   type MyEventProfileInput,
 } from "@/lib/events/myEventProfileApi";
@@ -79,4 +82,35 @@ export function useSyncMyEventProfileFromAccount(
       void qc.invalidateQueries({ queryKey: ["public-event-surface", slug] });
     },
   });
+}
+
+/**
+ * SAMODZIELNE DOWIĄZANIE KARTOTEKI (REG-01, D14). Gdy zalogowany uczestnik
+ * nie ma kartoteki na tym wydarzeniu (`profile === null`), panel RAZ prosi
+ * bazę o dowiązanie osoby o POTWIERDZONYM adresie konta
+ * (`event_my_account_link`). Udane dowiązanie odświeża panel - kartoteka
+ * pojawia się bez organizatora. Jedna próba na zamontowanie panelu: wynik
+ * „nie ma czego dowiązać" nie zmieni się od ponownego pytania.
+ */
+export function useAutoLinkMyEventAccount(
+  slug: string,
+  panel: MyEventPanelState | undefined,
+  enabled: boolean,
+): UseMutationResult<MyEventAccountLink | null, Error, void> {
+  const qc = useQueryClient();
+  const link = useMutation({
+    mutationFn: () => linkMyEventAccount(),
+    onSuccess: (result) => {
+      if (result?.linked === true) void qc.invalidateQueries({ queryKey: myEventPanelKey(slug) });
+    },
+  });
+  const { mutate } = link;
+  const needsLink = enabled && slug.length > 0 && panel !== undefined && panel.profile === null;
+  const tried = useRef(false);
+  useEffect(() => {
+    if (!needsLink || tried.current) return;
+    tried.current = true;
+    mutate();
+  }, [needsLink, mutate]);
+  return link;
 }

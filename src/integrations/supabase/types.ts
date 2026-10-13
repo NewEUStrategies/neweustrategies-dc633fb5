@@ -25440,6 +25440,18 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      admin_event_people_account_bindings: {
+        Args: { p_payload?: Json }
+        Returns: Json
+      }
+      admin_event_person_account_restore: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_person_account_unbind: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_person_crm_retry: {
         Args: { p_person_id: string }
         Returns: string
@@ -29531,6 +29543,7 @@ export type Database = {
           sort_order: number
         }[]
       }
+      event_my_account_link: { Args: { p_payload?: Json }; Returns: Json }
       event_my_agenda: { Args: { p_payload?: Json }; Returns: Json }
       event_my_cfp_submissions: { Args: { p_slug: string }; Returns: Json }
       event_my_event_profile: { Args: { p_payload?: Json }; Returns: Json }
@@ -29645,6 +29658,7 @@ export type Database = {
       event_my_speaker_panel: { Args: { p_slug: string }; Returns: Json }
       event_my_speaker_profile_set: { Args: { p_payload: Json }; Returns: Json }
       event_package_invite_accept: { Args: { p_payload: Json }; Returns: Json }
+      event_package_invite_preview: { Args: { p_payload: Json }; Returns: Json }
       event_package_order_attribution_attach: {
         Args: { p_payload: Json }
         Returns: Json

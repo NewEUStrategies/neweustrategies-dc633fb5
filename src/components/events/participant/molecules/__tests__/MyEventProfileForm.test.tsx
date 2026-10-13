@@ -28,6 +28,11 @@
 //     formularzem zmienia EDYTOWANĄ wersję wpisu; zlanie obu znaczy polski
 //     biogram w angielskiej wersji katalogu.
 //
+//  7. ADRES KARTOTEKI TO POTWIERDZONY ADRES KONTA (REG-01). Pole jest tylko do
+//     odczytu, zmienia je wyłącznie „Użyj adresu konta", a adres jedzie do bazy
+//     TYLKO przy zmianie - baza odmawia każdego innego (`email_unverified`),
+//     a odmowa ma własne zdanie, nie ogólne „nie udało się".
+//
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Wyboru organizacji - `OrganizationPicker` ma
 // WŁASNY plik testowy (wyszukiwarka, zakładanie kartoteki, logo), więc tutaj
 // jest atrapą i dowodzimy wyłącznie KOMPOZYCJI: co formularz robi z jego
@@ -50,7 +55,10 @@ import type {
 const h = vi.hoisted(() => ({
   jezyk: { current: "pl" },
   auth: {
-    current: { user: { id: "u-1" } as { id: string } | null, tenantId: "t-1" as string | null },
+    current: {
+      user: { id: "u-1" } as { id: string; email?: string } | null,
+      tenantId: "t-1" as string | null,
+    },
   },
   save: vi.fn(),
   sync: vi.fn(),
@@ -70,6 +78,11 @@ vi.mock("@/lib/i18n-cart", () => ({ ensureI18n: () => {} }));
 vi.mock("sonner", () => ({ toast: { success: h.success, error: h.error } }));
 
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.auth.current }));
+
+// Odnośnik do zmiany adresu konta (`/profile/security`) - bez routera.
+vi.mock("@tanstack/react-router", async () => ({
+  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
+}));
 
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.register }));
 
@@ -411,7 +424,6 @@ describe("MyEventProfileForm - co jedzie do bazy", () => {
       slug: SLUG,
       first_name: "Anna",
       last_name: "Kowalska",
-      email: "anna@example.org",
       job_title: "Dyrektorka",
       company_id: "org-1",
       company_text: "ACME",
@@ -421,6 +433,8 @@ describe("MyEventProfileForm - co jedzie do bazy", () => {
       bio_en: "English bio",
       photo_url: "https://cdn.example/anna.jpg",
     });
+    // Niezmieniony adres NIE jedzie (REG-01) - patrz blok „adres kartoteki".
+    expect("email" in ostatniZapis()).toBe(false);
   });
 
   it("SKASOWANE pole opcjonalne jedzie jako pusty napis, czyli polecenie wyczyszczenia", async () => {
@@ -940,5 +954,68 @@ describe("punkty listy intencji i obcinanie białych znaków", () => {
     await wyslij();
 
     expect(ostatniZapis().job_title).toBe("Dyrektorka biura");
+  });
+});
+
+describe("MyEventProfileForm - adres kartoteki to potwierdzony adres konta (REG-01)", () => {
+  it("pole adresu jest TYLKO DO ODCZYTU i mówi, skąd adres się bierze", () => {
+    // Dowolny adres w kartotece pozwalał zawłaszczyć cudzy, jeszcze nieużyty
+    // adres - kolejne zapisy i bilety jego właściciela trafiały do napastnika.
+    renderForm({ profile: pelnyProfil() });
+
+    expect(pole("email").readOnly).toBe(true);
+    expect(screen.getByText("eventMe.fields.emailAccountHint")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "eventMe.actions.changeAccountEmail" }).getAttribute("href"),
+    ).toBe("/profile/security");
+  });
+
+  it("adres sesji INNY niż w kartotece: przycisk ustawia adres konta i zapis go wysyła", async () => {
+    h.auth.current = { user: { id: "u-1", email: "Anna.Nowa@Example.org" }, tenantId: "t-1" };
+    renderForm({ profile: pelnyProfil() });
+
+    fireEvent.click(screen.getByRole("button", { name: "eventMe.actions.useAccountEmail" }));
+    expect(pole("email").value).toBe("anna.nowa@example.org");
+    // Po ustawieniu adresu konta przycisk nie ma już czego proponować.
+    expect(
+      screen.queryByRole("button", { name: "eventMe.actions.useAccountEmail" }),
+    ).not.toBeInTheDocument();
+
+    await wyslij();
+    expect(ostatniZapis().email).toBe("anna.nowa@example.org");
+  });
+
+  it("adres sesji TEN SAM (inna wielkość liter) - brak przycisku i brak adresu w zapisie", async () => {
+    h.auth.current = { user: { id: "u-1", email: "ANNA@example.org" }, tenantId: "t-1" };
+    renderForm({ profile: pelnyProfil() });
+
+    expect(
+      screen.queryByRole("button", { name: "eventMe.actions.useAccountEmail" }),
+    ).not.toBeInTheDocument();
+    await wyslij();
+    expect("email" in ostatniZapis()).toBe(false);
+  });
+
+  it("BEZ kartoteki wydarzenia (tylko konto) nie ma czego przestawiać", () => {
+    h.auth.current = { user: { id: "u-1", email: "inny@example.org" }, tenantId: "t-1" };
+    renderForm({ profile: null, account: konto() });
+
+    expect(
+      screen.queryByRole("button", { name: "eventMe.actions.useAccountEmail" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["email_unverified", "eventMe.errors.emailUnverified"],
+    ["email_in_use", "eventMe.errors.emailInUse"],
+    ["email_required", "eventMe.errors.emailRequired"],
+  ])("odmowa `%s` ma WŁASNE zdanie, a nie ogólne „nie udało się”", async (kod, klucz) => {
+    h.auth.current = { user: { id: "u-1", email: "nowy@example.org" }, tenantId: "t-1" };
+    h.save.mockRejectedValue(new Error(`${kod}: refused by database`));
+    renderForm({ profile: pelnyProfil() });
+    fireEvent.click(screen.getByRole("button", { name: "eventMe.actions.useAccountEmail" }));
+    await wyslij();
+
+    await waitFor(() => expect(h.error).toHaveBeenCalledWith(klucz));
   });
 });

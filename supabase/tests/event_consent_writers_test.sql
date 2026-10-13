@@ -18,9 +18,10 @@
 --
 -- TYMCZASOWA LISTA (moze TYLKO malec). Dzisiejsze funkcje, ktore pisza stemple
 -- wprost, naleza do innych jednostek naprawy, ktore przepinaja je na funkcje
--- rejestru: `event_package_invite_accept` (B2), `_event_cfp_resolve_person`
--- (B3). `event_register` (B1a) zniknal z listy w 20261012140000 - rdzen
--- `_event_register` pisze zgody wylacznie przez funkcje rejestru. Jednostka,
+-- rejestru: `_event_cfp_resolve_person` (B3). `event_register` (B1a) zniknal
+-- z listy w 20261012140000 - rdzen `_event_register` pisze zgody wylacznie
+-- przez funkcje rejestru; `event_package_invite_accept` (B2) zniknal
+-- w 20261012120200 - przyjecie zaproszenia tez. Jednostka,
 -- ktora naprawi swoja funkcje, USUWA jej nazwe z `pg_temp.ecw_pending()` -
 -- asercja 5 czerwieni plik, dopoki martwy wpis zostaje (martwy wpis to
 -- przyszla furtka).
@@ -145,8 +146,7 @@ $f$;
 CREATE FUNCTION pg_temp.ecw_pending()
 RETURNS TABLE (proname name)
 LANGUAGE sql IMMUTABLE AS $f$
-  VALUES ('event_package_invite_accept'::name), -- B2: bez nadpisania i bez `= NULL`
-         ('_event_cfp_resolve_person'::name)    -- B3: marketing przez _event_person_consents_confirm
+  VALUES ('_event_cfp_resolve_person'::name)    -- B3: marketing przez _event_person_consents_confirm
 $f$;
 
 -- ── 1-2. Sondy: wzorce nie sa slepe ani nadgorliwe ──────────────────────────

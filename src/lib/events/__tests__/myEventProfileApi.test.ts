@@ -8,8 +8,13 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc } }));
 import {
   fetchMyAgenda,
   fetchMyEventProfile,
+  linkMyEventAccount,
+  myEventProfileErrorKey,
+  sameEmail,
   saveMyEventProfile,
 } from "@/lib/events/myEventProfileApi";
+import i18n from "@/lib/i18n";
+import { ensureI18n } from "@/lib/i18n-cart";
 
 beforeEach(() => {
   rpc.mockReset();
@@ -125,5 +130,91 @@ describe("fetchMyAgenda", () => {
   it("zwraca pustą listę, gdy RPC nie ma sesji", async () => {
     rpc.mockResolvedValue({ data: {}, error: null });
     await expect(fetchMyAgenda("summit")).resolves.toEqual([]);
+  });
+});
+
+// ADRES KARTOTEKI = POTWIERDZONY ADRES KONTA (REG-01, 20261012120000). Baza
+// odmawia zmiany adresu trzema kodami; kazdy ma trafic w zdanie formularza
+// profilu w OBU jezykach, a inne odmowy zostaja przy zdaniu ogolnym.
+describe("myEventProfileErrorKey", () => {
+  // Zasob czytany WPROST z bundla jezyka - `i18n.exists()` ma fallback na
+  // polski i odpowiedzialby „tak" za brakujace zdanie angielskie.
+  function maTekst(lng: "pl" | "en", klucz: string): boolean {
+    ensureI18n();
+    const wartosc: unknown = i18n.getResource(lng, "translation", klucz);
+    return typeof wartosc === "string" && wartosc.trim() !== "";
+  }
+
+  it.each([
+    [
+      "email_unverified: only the confirmed e-mail of your account can be used here",
+      "eventMe.errors.emailUnverified",
+    ],
+    ["email_in_use: this e-mail belongs to another event profile", "eventMe.errors.emailInUse"],
+    ["email_required: the event profile keeps a contact e-mail", "eventMe.errors.emailRequired"],
+  ])("%s -> %s (PL i EN)", (message, key) => {
+    expect(myEventProfileErrorKey(new Error(message))).toBe(key);
+    expect(myEventProfileErrorKey({ message })).toBe(key);
+    expect(maTekst("pl", key), `brak PL: ${key}`).toBe(true);
+    expect(maTekst("en", key), `brak EN: ${key}`).toBe(true);
+  });
+
+  it("inne odmowy i treść bez kodu zostają przy zdaniu ogólnym (`null`)", () => {
+    expect(
+      myEventProfileErrorKey(new Error("invalid_url: photo link must start with http(s)")),
+    ).toBeNull();
+    expect(myEventProfileErrorKey(new Error("Failed to fetch"))).toBeNull();
+    expect(myEventProfileErrorKey(null)).toBeNull();
+  });
+});
+
+describe("sameEmail", () => {
+  it("porównuje adresy jak `email_norm` (wielkość liter i spacje bez znaczenia)", () => {
+    expect(sameEmail(" Ada@Example.COM ", "ada@example.com")).toBe(true);
+    expect(sameEmail(null, "")).toBe(true);
+    expect(sameEmail("ada@example.com", "ada2@example.com")).toBe(false);
+  });
+});
+
+// SAMODZIELNE DOWIAZANIE (REG-01, D14): ladunek pusty - konto z sesji, najemca
+// z hosta. Brak funkcji w bazie (wdrozenie „najpierw kod") to `null`.
+describe("linkMyEventAccount", () => {
+  it("woła `event_my_account_link` z pustym ładunkiem i czyta wynik", async () => {
+    rpc.mockResolvedValue({
+      data: { ok: true, linked: true, already_linked: false, person_id: "p1" },
+      error: null,
+    });
+
+    await expect(linkMyEventAccount()).resolves.toEqual({
+      linked: true,
+      alreadyLinked: false,
+      personId: "p1",
+      reason: null,
+    });
+    expect(rpc).toHaveBeenCalledWith("event_my_account_link", { p_payload: {} });
+  });
+
+  it("brak dowiązania niesie powód; nieznany powód nie udaje znanego", async () => {
+    rpc.mockResolvedValue({
+      data: { ok: true, linked: false, reason: "email_unconfirmed" },
+      error: null,
+    });
+    await expect(linkMyEventAccount()).resolves.toMatchObject({
+      linked: false,
+      reason: "email_unconfirmed",
+    });
+
+    rpc.mockResolvedValue({ data: { ok: true, linked: false, reason: "cos_innego" }, error: null });
+    await expect(linkMyEventAccount()).resolves.toMatchObject({ linked: false, reason: null });
+  });
+
+  it.each(["PGRST202", "42883"])("brak funkcji w bazie (%s) to `null`", async (code) => {
+    rpc.mockResolvedValue({ data: null, error: { code, message: "function does not exist" } });
+    await expect(linkMyEventAccount()).resolves.toBeNull();
+  });
+
+  it("inny błąd bazy leci dalej", async () => {
+    rpc.mockResolvedValue({ data: null, error: new Error("auth_required: sign in") });
+    await expect(linkMyEventAccount()).rejects.toThrow("auth_required");
   });
 });

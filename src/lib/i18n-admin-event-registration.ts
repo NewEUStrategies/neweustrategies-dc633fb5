@@ -1239,6 +1239,52 @@ export const adminEventRegistrationPl = {
       },
     },
 
+    // DOWIAZANIA KONT DO KARTOTEK (REG-01, D14) - ekran
+    // /admin/events/account-bindings. Organizator widzi dowiazania, ktorych
+    // konto nie potwierdzilo adresu osoby, i dziennik odwiazan (naprawa
+    // historii i jego wlasne), a przywrocenie jest jawnym, logowanym atestem.
+    bindings: {
+      title: "Dowiązania kont do kartotek uczestników",
+      lead: "Konto uczestnika łączy się z kartoteką wydarzeń wyłącznie przez potwierdzony adres e-mail tej kartoteki. Tu widać dowiązania, które tej reguły nie spełniają, oraz każde odwiązanie - z możliwością przywrócenia.",
+      loading: "Wczytujemy dowiązania...",
+      loadFailed: "Nie udało się wczytać dowiązań. Odśwież ekran.",
+      unverifiedTitle: "Dowiązania bez potwierdzonego adresu",
+      unverifiedEmpty: "Wszystkie dowiązania kont mają potwierdzony adres kartoteki.",
+      unbindsTitle: "Dziennik odwiązań",
+      unbindsEmpty: "Nie odwiązano jeszcze żadnego konta.",
+      person: "Uczestnik",
+      email: "Adres kartoteki",
+      account: "Konto",
+      accountUnconfirmed: "adres konta niepotwierdzony",
+      riskLabel: "Ryzyko",
+      reasonLabel: "Powód",
+      registrationsByAccount: "Zgłoszenia z tego konta: {{count}}",
+      unboundAt: "Odwiązano {{date}}",
+      restoredAt: "Przywrócono {{date}}",
+      accountDeleted: "Konto usunięte",
+      personBound: "Kartoteka ma już konto",
+      unbind: "Odwiąż konto",
+      unbindConfirm:
+        "Odwiązać konto od tej kartoteki? Uczestnik straci podgląd zgłoszeń w panelu, dopóki konto nie potwierdzi adresu kartoteki albo nie przywrócisz dowiązania.",
+      unbound: "Konto odwiązane od kartoteki.",
+      restore: "Przywróć dowiązanie",
+      restoreConfirm:
+        "Przywrócić dowiązanie? Potwierdzasz, że konto należy do tej osoby, choć nie potwierdziło adresu kartoteki. Decyzja zostanie zapisana w dzienniku.",
+      restored: "Dowiązanie przywrócone.",
+      cancel: "Anuluj",
+      risk: {
+        foreign_record: "Kartotekę założył ktoś inny niż to konto",
+        no_email: "Kartoteka bez adresu e-mail",
+        account_unconfirmed: "Konto bez potwierdzonego adresu",
+        self_created: "Adres kartoteki inny niż adres konta",
+        verified: "Adres potwierdzony",
+      },
+      reason: {
+        reg01_remediation: "Naprawa historii (REG-01)",
+        admin_unbind: "Odwiązanie przez organizatora",
+      },
+    },
+
     errors: {
       // Plaszczyzna tresci - zapis publiczny.
       rateLimited: "Za dużo prób zapisu z tego miejsca. Spróbuj ponownie za kilka minut.",
@@ -1323,6 +1369,12 @@ export const adminEventRegistrationPl = {
         "Każdy próg cennika potrzebuje ceny i okna, które kończy się po tym, jak się zaczyna.",
       invalidConsentUrl: "Adres dokumentu zgody musi zaczynać się od https:// (do 500 znaków).",
       notFound: "Rekord nie istnieje w tej organizacji.",
+      // Dowiazania kont do kartotek (REG-01, D14).
+      notBound: "Ta kartoteka nie ma dowiązanego konta.",
+      alreadyRestored: "To dowiązanie zostało już przywrócone.",
+      accountDeleted: "Konto z tego wpisu zostało usunięte - nie ma czego przywrócić.",
+      personBound: "Kartoteka ma już dowiązane konto - najpierw je odwiąż.",
+      accountInUse: "To konto jest już dowiązane do innej kartoteki tej organizacji.",
       ticketNotIssuable: "Bilet dostaje tylko zgłoszenie przyjęte i rozliczone.",
       ticketSendInProgress: "Bilet jest właśnie wysyłany - spróbuj ponownie za kilka minut.",
       // Odmowa SERWERA, nie bazy (`ticketResend.functions.ts`): nowy bilet by
@@ -2509,6 +2561,48 @@ export const adminEventRegistrationEn = {
       },
     },
 
+    bindings: {
+      title: "Account links to attendee records",
+      lead: "An attendee account links to an event record only through the confirmed e-mail of that record. Here you see links that break this rule and every unlink - with the option to restore it.",
+      loading: "Loading account links...",
+      loadFailed: "Could not load account links. Refresh the screen.",
+      unverifiedTitle: "Links without a confirmed address",
+      unverifiedEmpty: "Every account link has the record's address confirmed.",
+      unbindsTitle: "Unlink log",
+      unbindsEmpty: "No account has been unlinked yet.",
+      person: "Attendee",
+      email: "Record address",
+      account: "Account",
+      accountUnconfirmed: "account address not confirmed",
+      riskLabel: "Risk",
+      reasonLabel: "Reason",
+      registrationsByAccount: "Registrations from this account: {{count}}",
+      unboundAt: "Unlinked {{date}}",
+      restoredAt: "Restored {{date}}",
+      accountDeleted: "Account deleted",
+      personBound: "The record already has an account",
+      unbind: "Unlink account",
+      unbindConfirm:
+        "Unlink the account from this record? The attendee loses their registrations in the panel until the account confirms the record's address or you restore the link.",
+      unbound: "Account unlinked from the record.",
+      restore: "Restore link",
+      restoreConfirm:
+        "Restore the link? You confirm the account belongs to this person even though it has not confirmed the record's address. The decision is recorded in the log.",
+      restored: "Link restored.",
+      cancel: "Cancel",
+      risk: {
+        foreign_record: "The record was created by someone other than this account",
+        no_email: "Record without an e-mail address",
+        account_unconfirmed: "Account without a confirmed address",
+        self_created: "Record address differs from the account address",
+        verified: "Address confirmed",
+      },
+      reason: {
+        reg01_remediation: "History repair (REG-01)",
+        admin_unbind: "Unlinked by the organiser",
+      },
+    },
+
     errors: {
       rateLimited: "Too many registration attempts from here. Try again in a few minutes.",
       packageKeyPattern: "The key must match ^[a-z][a-z0-9_]{1,48}$",
@@ -2590,6 +2684,11 @@ export const adminEventRegistrationEn = {
       invalidConsentUrl:
         "The consent document address must start with https:// (up to 500 characters).",
       notFound: "The record does not exist in this organisation.",
+      notBound: "This record has no linked account.",
+      alreadyRestored: "This link has already been restored.",
+      accountDeleted: "The account from this entry was deleted - there is nothing to restore.",
+      personBound: "The record already has a linked account - unlink it first.",
+      accountInUse: "This account is already linked to another record of this organisation.",
       ticketNotIssuable: "Only an approved and settled registration gets a ticket.",
       ticketSendInProgress: "The ticket is being sent right now - try again in a few minutes.",
       ticketAddressSuppressed:

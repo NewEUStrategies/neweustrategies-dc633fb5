@@ -38,9 +38,12 @@ export const Route = createFileRoute("/events_/invite/$token")({
 
 function InviteRoute() {
   const { token } = Route.useParams();
+  // `key`: inny link = nowy komponent. Podglad zaproszenia nie trzyma tokenu
+  // w kluczu cache (to poswiadczenie), wiec stan nie moze przejsc miedzy
+  // dwoma odnosnikami otwartymi w tej samej karcie.
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
-      <PackageInviteAccept token={readPackageInviteToken(token)} />
+      <PackageInviteAccept key={token} token={readPackageInviteToken(token)} />
     </main>
   );
 }

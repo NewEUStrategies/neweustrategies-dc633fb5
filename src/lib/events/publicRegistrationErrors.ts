@@ -112,6 +112,31 @@ export function cancellationErrorMessage(error: unknown): string {
   return i18n.t(failure.key, failure.params);
 }
 
+const INVITE_PREFIX = "eventRegistration.invite.errors.";
+
+/**
+ * Odmowa PRZYJĘCIA ZAPROSZENIA pakietowego -> zdanie (REG-15). Ten sam słownik
+ * co zapis, z wyjątkami w tonie zaproszenia: `event_ended` znaczy tu „zaproszenia
+ * nie można przyjąć", a `already_registered` dotyczy osoby z zaproszenia, nie
+ * wypełniającego formularz. Słowa z `invite.errors` wygrywają, reszta spada do
+ * `registrationFailure`.
+ */
+export function packageInviteFailure(error: unknown): RegistrationFailure {
+  ensureEventRegistrationI18n();
+  const { head } = splitMessage(error);
+  if (/^[a-z][a-z0-9_]*$/.test(head)) {
+    const candidate = `${INVITE_PREFIX}${camel(head)}`;
+    if (i18n.exists(candidate)) return { key: candidate, params: {} };
+  }
+  return registrationFailure(error);
+}
+
+/** Gotowe zdanie odmowy przyjęcia zaproszenia pakietowego. */
+export function packageInviteErrorMessage(error: unknown): string {
+  const failure = packageInviteFailure(error);
+  return i18n.t(failure.key, failure.params);
+}
+
 /** Czy odmowa rezygnacji mówi, że skutek finansowy się zmienił (podgląd do odświeżenia). */
 export function isRefundTermsChanged(error: unknown): boolean {
   const { head } = splitMessage(error);

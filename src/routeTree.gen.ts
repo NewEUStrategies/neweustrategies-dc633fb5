@@ -328,6 +328,7 @@ import { Route as AdminEventsRegistrationsRouteImport } from './routes/admin.eve
 import { Route as AdminEventsOnsiteRouteImport } from './routes/admin.events.onsite'
 import { Route as AdminEventsMeetingsRouteImport } from './routes/admin.events.meetings'
 import { Route as AdminEventsListRouteImport } from './routes/admin.events.list'
+import { Route as AdminEventsAccountBindingsRouteImport } from './routes/admin.events.account-bindings'
 import { Route as AdminEventsAgendaRouteImport } from './routes/admin.events.agenda'
 import { Route as AdminCrmIdRouteImport } from './routes/admin.crm.$id'
 import { Route as AdminCouponsRedemptionsRouteImport } from './routes/admin.coupons.redemptions'
@@ -2046,6 +2047,12 @@ const AdminEventsListRoute = AdminEventsListRouteImport.update({
   path: '/list',
   getParentRoute: () => AdminEventsRoute,
 } as any)
+const AdminEventsAccountBindingsRoute =
+  AdminEventsAccountBindingsRouteImport.update({
+    id: '/account-bindings',
+    path: '/account-bindings',
+    getParentRoute: () => AdminEventsRoute,
+  } as any)
 const AdminEventsAgendaRoute = AdminEventsAgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
@@ -2851,6 +2858,7 @@ export interface FileRoutesByFullPath {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/account-bindings': typeof AdminEventsAccountBindingsRoute
   '/admin/events/agenda': typeof AdminEventsAgendaRoute
   '/admin/events/list': typeof AdminEventsListRoute
   '/admin/events/meetings': typeof AdminEventsMeetingsRoute
@@ -3255,6 +3263,7 @@ export interface FileRoutesByTo {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/account-bindings': typeof AdminEventsAccountBindingsRoute
   '/admin/events/agenda': typeof AdminEventsAgendaRoute
   '/admin/events/list': typeof AdminEventsListRoute
   '/admin/events/meetings': typeof AdminEventsMeetingsRoute
@@ -3675,6 +3684,7 @@ export interface FileRoutesById {
   '/admin/coupons/campaigns': typeof AdminCouponsCampaignsRoute
   '/admin/coupons/redemptions': typeof AdminCouponsRedemptionsRoute
   '/admin/crm/$id': typeof AdminCrmIdRoute
+  '/admin/events/account-bindings': typeof AdminEventsAccountBindingsRoute
   '/admin/events/agenda': typeof AdminEventsAgendaRoute
   '/admin/events/list': typeof AdminEventsListRoute
   '/admin/events/meetings': typeof AdminEventsMeetingsRoute
@@ -4098,6 +4108,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/account-bindings'
     | '/admin/events/agenda'
     | '/admin/events/list'
     | '/admin/events/meetings'
@@ -4502,6 +4513,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/account-bindings'
     | '/admin/events/agenda'
     | '/admin/events/list'
     | '/admin/events/meetings'
@@ -4921,6 +4933,7 @@ export interface FileRouteTypes {
     | '/admin/coupons/campaigns'
     | '/admin/coupons/redemptions'
     | '/admin/crm/$id'
+    | '/admin/events/account-bindings'
     | '/admin/events/agenda'
     | '/admin/events/list'
     | '/admin/events/meetings'
@@ -7489,6 +7502,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEventsListRouteImport
       parentRoute: typeof AdminEventsRoute
     }
+    '/admin/events/account-bindings': {
+      id: '/admin/events/account-bindings'
+      path: '/account-bindings'
+      fullPath: '/admin/events/account-bindings'
+      preLoaderRoute: typeof AdminEventsAccountBindingsRouteImport
+      parentRoute: typeof AdminEventsRoute
+    }
     '/admin/events/agenda': {
       id: '/admin/events/agenda'
       path: '/agenda'
@@ -8322,6 +8342,7 @@ const AdminCrmRouteWithChildren = AdminCrmRoute._addFileChildren(
 )
 
 interface AdminEventsRouteChildren {
+  AdminEventsAccountBindingsRoute: typeof AdminEventsAccountBindingsRoute
   AdminEventsAgendaRoute: typeof AdminEventsAgendaRoute
   AdminEventsListRoute: typeof AdminEventsListRoute
   AdminEventsMeetingsRoute: typeof AdminEventsMeetingsRoute
@@ -8334,6 +8355,7 @@ interface AdminEventsRouteChildren {
 }
 
 const AdminEventsRouteChildren: AdminEventsRouteChildren = {
+  AdminEventsAccountBindingsRoute: AdminEventsAccountBindingsRoute,
   AdminEventsAgendaRoute: AdminEventsAgendaRoute,
   AdminEventsListRoute: AdminEventsListRoute,
   AdminEventsMeetingsRoute: AdminEventsMeetingsRoute,

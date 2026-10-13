@@ -34,6 +34,7 @@ const api = vi.hoisted(() => ({
   fetchMyAgenda: vi.fn(),
   saveMyEventProfile: vi.fn(),
   syncMyEventProfileFromAccount: vi.fn(),
+  linkMyEventAccount: vi.fn(),
 }));
 
 vi.mock("@/lib/events/myEventProfileApi", () => api);
@@ -41,6 +42,7 @@ vi.mock("@/lib/events/myEventProfileApi", () => api);
 import {
   myAgendaKey,
   myEventPanelKey,
+  useAutoLinkMyEventAccount,
   useMyAgenda,
   useMyEventProfile,
   useSaveMyEventProfile,
@@ -451,5 +453,63 @@ describe("useSyncMyEventProfileFromAccount", () => {
 
     expect(client.getQueryData(myEventPanelKey(SLUG))).toBe(before);
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+// SAMODZIELNE DOWIAZANIE KARTOTEKI (REG-01, D14). Panel bez kartoteki prosi
+// baze RAZ o dowiazanie osoby o potwierdzonym adresie konta; udane dowiazanie
+// odswieza kartoteke tego wydarzenia. Gosc i panel z kartoteka nie pytaja.
+describe("useAutoLinkMyEventAccount", () => {
+  it("zalogowany bez kartoteki: jedna prosba, a po dowiazaniu odswiezony panel", async () => {
+    api.linkMyEventAccount.mockResolvedValue({
+      linked: true,
+      alreadyLinked: false,
+      personId: "p-1",
+      reason: null,
+    });
+    client.setQueryData(myEventPanelKey(SLUG), panelState());
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    const { result, rerender } = renderHook(
+      () => useAutoLinkMyEventAccount(SLUG, panelState(), true),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    rerender();
+
+    expect(api.linkMyEventAccount).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: myEventPanelKey(SLUG) });
+  });
+
+  it("brak dowiazania (`linked: false`) nie odswieza panelu i nie ponawia prosby", async () => {
+    api.linkMyEventAccount.mockResolvedValue({
+      linked: false,
+      alreadyLinked: false,
+      personId: null,
+      reason: "no_record",
+    });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    const { result, rerender } = renderHook(
+      () => useAutoLinkMyEventAccount(SLUG, panelState(), true),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    rerender();
+    rerender();
+
+    expect(api.linkMyEventAccount).toHaveBeenCalledTimes(1);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["gosc (brak zalogowania)", panelState(), false],
+    ["panel z kartoteka", panelState({ profile: profile("p-1", "Analityk") }), true],
+    ["panel jeszcze sie laduje", undefined, true],
+  ] as const)("%s - zadnej prosby o dowiazanie", async (_nazwa, panel, enabled) => {
+    renderHook(() => useAutoLinkMyEventAccount(SLUG, panel, enabled), { wrapper });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(api.linkMyEventAccount).not.toHaveBeenCalled();
   });
 });
