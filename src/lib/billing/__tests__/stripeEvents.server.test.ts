@@ -6,6 +6,7 @@
 // Moduł jest czysty (importuje wyłącznie typy) - nie ma czego mockować.
 import { describe, expect, it, vi } from "vitest";
 import {
+  isStripeDisputeStatus,
   mapStripeSubscription,
   normalizeStripeEvent,
   stripeDisputePhase,
@@ -858,9 +859,123 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
     });
   });
 
-  it("mapuje rozstrzygnięcie sporu (dispute.closed) z SUROWYM statusem operatora", () => {
-    // Przegląd adwersaryjny, poz. 26: bez tej normalizacji wygrany spór nie
-    // miał żadnej drogi do przywrócenia dostępu ani wpłaty.
+  it.each([
+    ["charge.dispute.created", "warning_needs_response", "chargeback_warning", "open"],
+    ["charge.dispute.created", "warning_under_review", "chargeback_warning", "open"],
+    ["charge.dispute.created", "needs_response", "chargeback_warning", "open"],
+    ["charge.dispute.created", "under_review", "chargeback_warning", "open"],
+    ["charge.dispute.closed", "won", "chargeback", "reversed"],
+    ["charge.dispute.closed", "warning_closed", "chargeback", "reversed"],
+    ["charge.dispute.closed", "lost", "chargeback", "approved"],
+  ])("PAY-03: %s ze statusem `%s` -> %s/%s", (type, providerStatus, action, status) => {
+    // Bez tego tłumaczenia żaden status Stripe nie przechodził przez bramki
+    // `refunds.server` (słownik Paddle: approved/reversed) - spór nie
+    // odbierał dostępu, nie alarmował i po wygranej niczego nie przywracał.
+    const data = adjustmentOf(
+      event(type, { id: "dp_2", payment_intent: "pi_2", status: providerStatus, amount: 100 }),
+    );
+
+    expect(data).toMatchObject({ transactionId: "pi_2", action, status, providerStatus });
+  });
+
+  it("2.3: `prevented` to spór zatrzymany AUTOMATYCZNYM ZWROTEM - jak przegrany (środki wróciły), nie wygrana", () => {
+    // Zapobieganie sporom (reguła Radar / RDR) działa przez zwrot płatności.
+    // Mapowanie na `reversed` przywracało dostęp klientowi, który miał już
+    // pieniądze z powrotem, a alert mówił „rozstrzygnięto na naszą korzyść".
+    const data = adjustmentOf(
+      event("charge.dispute.closed", { id: "dp_p", payment_intent: "pi_p", status: "prevented" }),
+    );
+
+    expect(data).toMatchObject({
+      action: "chargeback",
+      status: "approved",
+      providerStatus: "prevented",
+    });
+  });
+
+  it.each([
+    ["won", { action: "chargeback", status: "reversed" }],
+    ["warning_closed", { action: "chargeback", status: "reversed" }],
+    ["lost", { action: "chargeback", status: "approved" }],
+    ["prevented", { action: "chargeback", status: "approved" }],
+    ["needs_response", { action: "chargeback_warning", status: "open" }],
+    ["warning_under_review", { action: "chargeback_warning", status: "open" }],
+  ])(
+    "S2: `stripeDisputePhase(%s)` - ten sam słownik dla zdarzenia i dla stanu BIEŻĄCEGO sporu",
+    (status, phase) => {
+      // `refunds.server` liczy skutek z odczytu sporu u operatora tym samym
+      // eksportem - rozjazd słowników dałby inny skutek dla zdarzenia i dla
+      // jego ponowienia.
+      expect(stripeDisputePhase(status)).toEqual(phase);
+    },
+  );
+
+  it("2.11: `refund.failed` to korekta korekty - `adjustment.updated` ze zwrotem `failed`", () => {
+    const result = normalized(
+      event("refund.failed", {
+        id: "re_1",
+        object: "refund",
+        amount: 4900,
+        charge: "ch_1",
+        payment_intent: "pi_1",
+        currency: "pln",
+        status: "failed",
+        failure_reason: "expired_or_canceled_card",
+      }),
+    );
+
+    // Kształt wspólny z INV-19c: `refunds.server` przelicza zamówienie
+    // z obciążenia i eskaluje zlecenie zwrotu zgłoszenia - kwota zdarzenia
+    // (pojedynczy zwrot) celowo nie jedzie dalej.
+    expect(result.eventType).toBe("adjustment.updated");
+    expect(result.data).toEqual({
+      id: "re_1",
+      transactionId: "pi_1",
+      subscriptionId: null,
+      action: "refund",
+      status: "failed",
+      failureReason: "expired_or_canceled_card",
+    });
+  });
+
+  it("2.11: nieudany zwrot bez intencji wskazuje obciążenie; ładunek bez stanu to porażka", () => {
+    expect(
+      adjustmentOf(event("refund.failed", { id: "re_2", charge: { id: "ch_2" } })),
+    ).toMatchObject({ transactionId: "ch_2", status: "failed", failureReason: null });
+    expect(adjustmentOf(event("refund.failed", {}))).toMatchObject({
+      id: "",
+      transactionId: null,
+      action: "refund",
+      status: "failed",
+    });
+  });
+
+  it("PAY-03: NIEZNANY status sporu jest sporem otwartym - ale głośno, nie po cichu", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const data = adjustmentOf(
+      event("charge.dispute.closed", { id: "dp_3", charge: "ch_3", status: "nowy_status" }),
+    );
+
+    expect(data).toMatchObject({
+      action: "chargeback_warning",
+      status: "open",
+      providerStatus: "nowy_status",
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] unknown Stripe dispute status - treated as open",
+      "nowy_status",
+    );
+    warn.mockRestore();
+  });
+
+  it("mapuje rozstrzygnięcie sporu (dispute.closed) - surowy status w `providerStatus`", () => {
+    // Przegląd adwersaryjny #495, poz. 26: bez tej normalizacji wygrany spór
+    // nie miał żadnej drogi do przywrócenia dostępu ani wpłaty. ZMIANA ASERCJI
+    // przy scaleniu z PAY-03/S2: rozstrzygnięcie jedzie tym samym typem co
+    // otwarcie (`adjustment.created` - dyspozytor obsługuje oba typy tak samo),
+    // a status sporu dostaje słownik domenowy (`won` -> `reversed`); surowy
+    // status zostaje w `providerStatus`.
     const result = normalized(
       event("charge.dispute.closed", {
         id: "dp_1",
@@ -872,15 +987,34 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
       }),
     );
 
-    expect(result.eventType).toBe("adjustment.updated");
+    expect(result.eventType).toBe("adjustment.created");
     expect(result.data).toEqual({
       id: "dp_1",
       transactionId: "pi_9",
       subscriptionId: null,
       action: "chargeback",
-      status: "won",
+      status: "reversed",
+      providerStatus: "won",
       totals: { total: "2500", currencyCode: "EUR" },
     });
+  });
+
+  it("`isStripeDisputeStatus` rozpoznaje surowe statusy sporu, nie słownik domenowy", () => {
+    for (const status of [
+      "warning_needs_response",
+      "warning_under_review",
+      "warning_closed",
+      "needs_response",
+      "under_review",
+      "won",
+      "lost",
+      "prevented",
+    ]) {
+      expect(isStripeDisputeStatus(status)).toBe(true);
+    }
+    for (const status of ["open", "reversed", "approved", "succeeded", null]) {
+      expect(isStripeDisputeStatus(status)).toBe(false);
+    }
   });
 
   it("mapuje notę kredytową na korektę powiązaną z fakturą", () => {

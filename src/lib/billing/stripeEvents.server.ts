@@ -363,6 +363,10 @@ function mapTransactionFromInvoice(
     customer: { email: strOf(invoice.customer_email) },
     details: { totals: { grandTotal: grandTotal !== null ? String(grandTotal) : null } },
     billingPeriod: { endsAt: isoFromUnix(period?.end) },
+    // Bez rozbicia kwoty (`amountSubtotalCents` i reszta): `subtotal` faktury
+    // ma już wliczone rabaty pozycji, więc `subtotal - rabat` liczyłby rabat
+    // dwa razy. Porównanie z zamówieniem robi wyłącznie sesja Checkout.
+    source: "invoice",
     // Windykacja: wszystkie ponowienia jednej faktury niosą TEN SAM `id`,
     // więc to numer próby odróżnia kolejną porażkę od powtórki zdarzenia,
     // a `next_payment_attempt` jest terminem, który klient ma dostać w mailu.
@@ -413,11 +417,27 @@ const DISPUTE_WON_STATUSES: ReadonlySet<string> = new Set(["won", "warning_close
  *
  * `lost` - bank rozstrzygnął na korzyść klienta; `prevented` - spór
  * zatrzymany przed formalnym obciążeniem zwrotnym przez zapobieganie sporom
- * (reguła Radar / RDR), które działa przez AUTOMATYCZNY ZWROT płatności.
- * Dawniej `prevented` był liczony jak wygrana - przywracał dostęp klientowi,
- * który miał już pieniądze z powrotem.
+ * (reguła Radar / RDR), które zwykle działa przez AUTOMATYCZNY ZWROT
+ * płatności. Dawniej `prevented` był liczony jak wygrana - przywracał dostęp
+ * klientowi, który miał już pieniądze z powrotem. Zatrzymanie BEZ zwrotu
+ * (środki zostały u nas) rozpoznaje `refunds.server` po stanie obciążenia
+ * u operatora i niczego wtedy nie odbiera.
  */
 const DISPUTE_LOST_STATUSES: ReadonlySet<string> = new Set(["lost", "prevented"]);
+
+/**
+ * Czy to surowy `Dispute.status` Stripe (a nie słownik domenowy) - korekta
+ * może nieść go wprost, `refunds.server` tłumaczy go wtedy tym samym
+ * słownikiem (`stripeDisputePhase`).
+ */
+export function isStripeDisputeStatus(status: string | null | undefined): status is string {
+  return (
+    typeof status === "string" &&
+    (DISPUTE_OPEN_STATUSES.has(status) ||
+      DISPUTE_WON_STATUSES.has(status) ||
+      DISPUTE_LOST_STATUSES.has(status))
+  );
+}
 
 /** Skutek statusu sporu w słowniku domenowym `refunds.server`. */
 export interface StripeDisputePhase {
@@ -432,7 +452,9 @@ export interface StripeDisputePhase {
  * alarmował zespołu i - po wygranej - niczego nie przywracał.
  *
  *   otwarty (`needs_response`, `warning_*`...) -> `chargeback_warning`/`open`
- *     - dostęp znika od razu, rozstrzygnięcie trwa tygodniami;
+ *     - dostęp znika od razu, rozstrzygnięcie trwa tygodniami (zapytanie
+ *     banku `warning_*` nie rusza wpłaty darowizny - środki nie zostały
+ *     pobrane; decyduje `refunds.server` po surowym `providerStatus`);
  *   bez utraty środków (`won`, `warning_closed`) -> `reversed` - dostęp wraca;
  *   środki wróciły do klienta (`lost`, `prevented`) -> `chargeback`/`approved`
  *     - stan ostateczny.
@@ -484,8 +506,11 @@ function mapAdjustment(
   }
 
   if (action === "chargeback") {
-    // `charge.dispute.created` / `charge.dispute.closed` - obiekt to Dispute,
-    // `status` zostaje surowy (`needs_response`, `won`, ...).
+    // `charge.dispute.created` / `charge.dispute.closed` - obiekt to Dispute.
+    // Surowy `status` (`needs_response`, `won`, ...) jedzie w `providerStatus`,
+    // a skutek niesie słownik domenowy (`stripeDisputePhase`).
+    const providerStatus = strOf(object.status);
+    const phase = stripeDisputePhase(providerStatus);
     return {
       id: idOf(object.id) ?? "",
       transactionId: idOf(object.payment_intent) ?? idOf(object.charge),
@@ -599,6 +624,12 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
         data: mapTransactionFromCheckoutSession(object, null),
       };
 
+    case "checkout.session.expired":
+      return {
+        eventType: "transaction.expired",
+        data: mapTransactionFromCheckoutSession(object, null),
+      };
+
     // Oba zdarzenia opisują TĘ SAMĄ opłaconą fakturę i oba zostają: lista
     // zdarzeń subskrybowanych przez punkt odbioru żyje po stronie operatora
     // (kod jej nie zna), a dokumentacja wdrożenia opiera odnowienia na
@@ -632,17 +663,13 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
     }
 
     // Otwarcie i rozstrzygnięcie sporu jadą tym samym kształtem - o skutku
-    // decyduje status sporu (`stripeDisputePhase`), nie typ zdarzenia.
+    // decyduje status sporu (`stripeDisputePhase`), nie typ zdarzenia. Bez
+    // `charge.dispute.closed` wygrana (`won`) nie miała żadnej drogi do
+    // przywrócenia dostępu ani wpłaty; `refunds.server` i tak liczy skutek
+    // z BIEŻĄCEGO stanu sporu u operatora (spóźnione `created` po `closed`).
     case "charge.dispute.created":
     case "charge.dispute.closed":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "chargeback") };
-
-    // Rozstrzygnięcie sporu: bez tego zdarzenia wygrana (`won`) nie miała
-    // żadnej drogi do przywrócenia dostępu ani wpłaty. Status `Dispute`
-    // (`won` / `lost` / `warning_closed`) jedzie surowy - skutek wybiera
-    // `refunds.server` (`STRIPE_DISPUTE_*`), jak przy otwarciu sporu.
-    case "charge.dispute.closed":
-      return { eventType: "adjustment.updated", data: mapAdjustment(object, "chargeback") };
 
     case "credit_note.created":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "credit") };

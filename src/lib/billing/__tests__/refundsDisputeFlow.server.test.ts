@@ -280,6 +280,37 @@ function subscriptionInvoice(paymentIntent: string, start: string, end: string):
   h.stripe.charges.set(paymentIntent, charge());
 }
 
+/** Pozycja proracyjna faktury zmiany planu (`always_invoice`) - kształt dahlia. */
+const PRORATION_LINE = {
+  parent: {
+    type: "subscription_item_details",
+    subscription_item_details: { subscription: "sub_1", proration: true },
+  },
+};
+
+/**
+ * Faktura DODATKOWA `sub_1` w bieżącym okresie (dopłata proracyjna, faktura
+ * ręczna): pozycja kończy się z bieżącym okresem, ale go nie opłaca.
+ */
+function supplementalInvoice(
+  paymentIntent: string,
+  amount: number,
+  billingReason: string,
+  line: Record<string, unknown> = PRORATION_LINE,
+): void {
+  h.stripe.invoices.set(paymentIntent, {
+    id: `in_${paymentIntent}`,
+    billing_reason: billingReason,
+    parent: { type: "subscription_details", subscription_details: { subscription: "sub_1" } },
+    lines: {
+      data: [
+        { period: { start: unixAt(relativeIso(-1 * DZIEN)), end: unixAt(PERIOD_END) }, ...line },
+      ],
+    },
+  });
+  h.stripe.charges.set(paymentIntent, charge({ amount }));
+}
+
 /** Subskrypcja odnawiana fakturą - zamówienie NIE zna intencji płatności odnowienia. */
 function subscriptionScene(): Record<string, Row[]> {
   subscriptionInvoice("pi_odnowienie", PERIOD_START, PERIOD_END);
@@ -376,12 +407,14 @@ async function dispute(
 }
 
 /** Zwrot: operator podnosi `amount_refunded`, ładunek bez listy `refunds` (dahlia). */
-async function refund(paymentIntent: string, refunded: number): Promise<void> {
+async function refund(paymentIntent: string, refunded: number): Promise<Record<string, unknown>> {
   const current = h.stripe.charges.get(paymentIntent) ?? charge();
   current.amount_refunded = refunded;
   current.refunded = refunded >= current.amount;
   h.stripe.charges.set(paymentIntent, current);
-  await deliver("charge.refunded", {
+  // Ładunek wraca do testu - ponowienie (redelivery, przegląd zaległych)
+  // dostarcza TEN SAM obiekt, nawet gdy stan u operatora już się zmienił.
+  const payload = {
     id: `ch_${paymentIntent}`,
     object: "charge",
     amount: current.amount,
@@ -390,7 +423,29 @@ async function refund(paymentIntent: string, refunded: number): Promise<void> {
     refunded: current.refunded,
     currency: "pln",
     payment_intent: paymentIntent,
-  });
+  };
+  await deliver("charge.refunded", payload);
+  return payload;
+}
+
+/** Operator cofa zwrot, który nie doszedł: `amount_refunded` wraca do zera. */
+function refundFailsAtProvider(paymentIntent: string): void {
+  const current = h.stripe.charges.get(paymentIntent);
+  if (current) Object.assign(current, { amount_refunded: 0, refunded: false });
+}
+
+/** Ładunek `refund.failed` (obiekt Refund, dahlia). */
+function failedRefund(id: string, paymentIntent: string): Record<string, unknown> {
+  return {
+    id,
+    object: "refund",
+    amount: 4900,
+    charge: `ch_${paymentIntent}`,
+    payment_intent: paymentIntent,
+    currency: "pln",
+    status: "failed",
+    failure_reason: "expired_or_canceled_card",
+  };
 }
 
 function db(): MemoryTables {
@@ -665,15 +720,42 @@ describe("2.6: darowizna - spór alarmuje, zwrot zamyka wpłatę", () => {
     });
   }
 
-  it("spór otwarty alarmuje administratorów najemcy darowizny; przegrany zamyka wpłatę", async () => {
+  it("spór otwarty alarmuje administratorów najemcy darowizny i zamyka wpłatę; przegrany ją zostawia zamkniętą", async () => {
     h.db = memoryTables(donationScene());
 
     await dispute("charge.dispute.created", "needs_response", "pi_darowizna");
     expect(adminAlerts()).toEqual(["Otwarto spór płatniczy"]);
-    expect(find("donations", () => true)).toMatchObject({ status: "paid" });
+    // ZMIANA ASERCJI przy scaleniu z #495 (poz. 26): formalny spór pobiera
+    // środki od otwarcia - wpłata przestaje się liczyć (licznik zwrotów bez
+    // zmian), a wygrana ją przywraca (przypadek niżej).
+    expect(find("donations", () => true)).toMatchObject({ status: "refunded" });
+    expect(find("donations", () => true)?.refunded_amount_cents ?? 0).toBe(0);
 
     await dispute("charge.dispute.closed", "lost", "pi_darowizna");
     expect(find("donations", () => true)).toMatchObject({ status: "refunded" });
+  });
+
+  it("#495 poz. 26: spór otwarty -> wygrany: wpłata wraca na `paid` z licznikiem zwrotów operatora", async () => {
+    h.db = memoryTables(donationScene());
+
+    await dispute("charge.dispute.created", "needs_response", "pi_darowizna");
+    await dispute("charge.dispute.closed", "won", "pi_darowizna");
+
+    expect(find("donations", () => true)).toMatchObject({
+      status: "paid",
+      refunded_amount_cents: 0,
+    });
+    expect(adminAlerts()).toEqual(["Otwarto spór płatniczy", "Spór płatniczy rozstrzygnięty"]);
+  });
+
+  it("#495 poz. 26: zapytanie banku (`warning_*`) nie zamyka wpłaty - środki nie zostały pobrane", async () => {
+    h.db = memoryTables(donationScene());
+
+    await dispute("charge.dispute.created", "warning_needs_response", "pi_darowizna");
+    await dispute("charge.dispute.closed", "warning_closed", "pi_darowizna");
+
+    expect(find("donations", () => true)).toMatchObject({ status: "paid" });
+    expect(adminAlerts()).toEqual(["Otwarto spór płatniczy", "Spór płatniczy rozstrzygnięty"]);
   });
 
   it("pełny zwrot wpłaty zapisanej z sesją oznacza ją `refunded`", async () => {
@@ -735,6 +817,151 @@ describe("2.11: nieudany zwrot przywraca dostęp i alarmuje zespół raz", () =>
     expect(order()).toMatchObject({ status: "paid", refunded_amount_cents: 0 });
     expect(purchase()).toMatchObject({ status: "active" });
     expect(adminAlerts()).toEqual(["Zwrot płatności nie powiódł się"]);
+  });
+});
+
+describe("2.1 / 6.1: faktura DODATKOWA bieżącego okresu nie odbiera opłaconego miesiąca", () => {
+  it("pełny zwrot dopłaty PRORACYJNEJ (zmiana planu, 12 zł): dostęp zostaje, bez maila „dostęp zakończony”, zespół - jeden alert", async () => {
+    h.db = memoryTables(subscriptionScene());
+    supplementalInvoice("pi_proracja", 1200, "subscription_update");
+
+    await refund("pi_proracja", 1200);
+    // Ponowienie zdarzenia nie dokłada alertu.
+    await refund("pi_proracja", 1200);
+
+    expect(subscriptionEntitlement()).toMatchObject({
+      status: "active",
+      current_period_end: PERIOD_END,
+      canceled_at: null,
+    });
+    expect(h.emails).toHaveLength(0);
+    expect(customerBells()).toEqual([]);
+    expect(adminAlerts()).toEqual(["Zwrot faktury dodatkowej subskrypcji"]);
+
+    // Zwrot faktury, która OPŁACIŁA okres, nadal odbiera dostęp.
+    await refund("pi_odnowienie", 4900);
+    expect(subscriptionEntitlement()).toMatchObject({ status: "refunded" });
+  });
+
+  it("pełny zwrot POWTÓRZONEGO obciążenia za ten sam okres (faktura ręczna): dostęp zostaje", async () => {
+    h.db = memoryTables(subscriptionScene());
+    supplementalInvoice("pi_duplikat", 4900, "manual", {});
+
+    await refund("pi_duplikat", 4900);
+
+    expect(subscriptionEntitlement()).toMatchObject({ status: "active", canceled_at: null });
+    expect(h.emails).toHaveLength(0);
+    expect(customerBells()).toEqual([]);
+  });
+
+  it("spór otwarty, a potem przegrany o dopłatę proracyjną: opłacony okres trwa, alert mówi „dostęp bez zmian”", async () => {
+    h.db = memoryTables(subscriptionScene());
+    supplementalInvoice("pi_proracja", 1200, "subscription_update");
+
+    await dispute("charge.dispute.created", "needs_response", "pi_proracja");
+    await dispute("charge.dispute.closed", "lost", "pi_proracja");
+
+    expect(subscriptionEntitlement()).toMatchObject({ status: "active", canceled_at: null });
+    expect(adminAlerts()).toEqual(["Otwarto spór płatniczy", "Spór płatniczy przegrany"]);
+    expect(adminAlertBodies().every((body) => body.includes("dostęp klienta bez zmian"))).toBe(
+      true,
+    );
+  });
+
+  it("zmiana planu z NOWYM cyklem rozliczeń (pozycja bez proraty) opłaca okres - jej pełny zwrot odbiera dostęp", async () => {
+    h.db = memoryTables(subscriptionScene());
+    supplementalInvoice("pi_nowy_cykl", 4900, "subscription_update", {
+      parent: {
+        type: "subscription_item_details",
+        subscription_item_details: { subscription: "sub_1", proration: false },
+      },
+    });
+
+    await refund("pi_nowy_cykl", 4900);
+
+    expect(subscriptionEntitlement()).toMatchObject({ status: "refunded" });
+  });
+});
+
+describe("2.11: stare `charge.refunded` po nieudanym zwrocie - kwota ze stanu BIEŻĄCEGO u operatora", () => {
+  it("pełny zwrot -> `refund.failed` -> ponowione STARE `charge.refunded`: zamówienie `paid`, zakup aktywny, bez drugiego maila", async () => {
+    h.db = memoryTables(orderScene());
+
+    const stale = await refund("pi_zamowienie", 4900);
+    refundFailsAtProvider("pi_zamowienie");
+    await deliver("refund.failed", failedRefund("re_wygasla_karta", "pi_zamowienie"));
+    expect(order()).toMatchObject({ status: "paid", refunded_amount_cents: 0 });
+
+    // Redelivery / przegląd zaległych / ponowienie z panelu - stary ładunek.
+    await deliver("charge.refunded", stale);
+
+    expect(order()).toMatchObject({ status: "paid", refunded_amount_cents: 0 });
+    expect(purchase()).toMatchObject({ status: "active" });
+    expect(h.emails.map((mail) => mail.type)).toEqual(["payment_refunded"]);
+    expect(customerBells()).toEqual(["Zwrot płatności"]);
+  });
+
+  it("`refund.failed` PRZED `charge.refunded` (kolejność dostaw): zamówienie zostaje `paid`, klient bez maila", async () => {
+    h.db = memoryTables(orderScene());
+
+    // Operator: zwrot utworzony i od razu nieudany - obciążenie bez zwrotów.
+    await deliver("refund.failed", failedRefund("re_od_razu", "pi_zamowienie"));
+    await deliver("charge.refunded", {
+      id: "ch_pi_zamowienie",
+      object: "charge",
+      amount: 4900,
+      amount_captured: 4900,
+      amount_refunded: 4900,
+      refunded: true,
+      currency: "pln",
+      payment_intent: "pi_zamowienie",
+    });
+
+    expect(order()).toMatchObject({ status: "paid", refunded_amount_cents: 0 });
+    expect(purchase()).toMatchObject({ status: "active" });
+    expect(h.emails).toHaveLength(0);
+    expect(customerBells()).toEqual([]);
+  });
+
+  it("subskrypcja: zwrot bieżącego okresu -> `refund.failed` -> ponowione `charge.refunded`: dostęp zostaje", async () => {
+    h.db = memoryTables(subscriptionScene());
+
+    const stale = await refund("pi_odnowienie", 4900);
+    refundFailsAtProvider("pi_odnowienie");
+    await deliver("refund.failed", failedRefund("re_odnowienie", "pi_odnowienie"));
+    expect(subscriptionEntitlement()).toMatchObject({ status: "active" });
+
+    await deliver("charge.refunded", stale);
+
+    expect(subscriptionEntitlement()).toMatchObject({ status: "active", canceled_at: null });
+    expect(h.emails.map((mail) => mail.type)).toEqual(["payment_refunded"]);
+    expect(customerBells()).toEqual(["Zwrot płatności"]);
+  });
+
+  it("nieudany zwrot zgłoszenia, który zaalarmowała już eskalacja (RPC): zespół dostaje JEDEN dzwonek", async () => {
+    h.db = memoryTables(orderScene());
+    // RPC jak w bazie: zlecenie zwrotu przechodzi do `needs_review` z alarmem
+    // dla administratorów najemcy (INV-19c) i zwraca `true`.
+    h.rpc?.setResponse("_event_registration_refund_failed", () => {
+      db().rows("notifications").push({
+        id: "bell-eskalacja",
+        user_id: ADMIN,
+        tenant_id: TENANT,
+        kind: "billing",
+        href: "/admin/events/refunds?job=job-1",
+        title_pl: "Zwrot zgłoszenia wymaga decyzji",
+        body_pl: "Zwrot nie doszedł do skutku.",
+      });
+      return { data: true, error: null };
+    });
+
+    await refund("pi_zamowienie", 4900);
+    refundFailsAtProvider("pi_zamowienie");
+    await deliver("refund.failed", failedRefund("re_zgloszenie", "pi_zamowienie"));
+
+    expect(adminAlerts()).toEqual(["Zwrot zgłoszenia wymaga decyzji"]);
+    // Skutek po naszej stronie i tak zaszedł - pieniądze są u nas.
+    expect(order()).toMatchObject({ status: "paid", refunded_amount_cents: 0 });
   });
 });
 

@@ -51,6 +51,9 @@ const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
   afterResponse: [] as Promise<unknown>[],
   catalogSync: vi.fn<(env: string) => Promise<void>>(),
+  /** Odczyt subskrypcji u operatora (wyrównanie spóźnionego zdarzenia). */
+  retrieve: null as null | ((id: string) => Promise<unknown>),
+  retrieveCalls: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -68,6 +71,23 @@ vi.mock("@/lib/http/waitUntil.server", () => ({
 }));
 vi.mock("@/lib/billing/catalogAutoSync.server", () => ({
   ensureCatalogSynced: (env: string) => h.catalogSync(env),
+}));
+// Klient operatora: jedyne wyjście to odczyt subskrypcji przy wyrównaniu
+// spóźnionego zdarzenia. Weryfikacja podpisu zostaje PRAWDZIWA.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
+  getStripeClient: async () => {
+    const retrieve = h.retrieve;
+    if (!retrieve) throw new Error("test: żaden przypadek nie ma prawa wołać operatora");
+    return {
+      subscriptions: {
+        retrieve: (id: string) => {
+          h.retrieveCalls.push(id);
+          return retrieve(id);
+        },
+      },
+    };
+  },
 }));
 
 import { Route, __handleForTests as handle } from "./webhook";
@@ -171,6 +191,8 @@ beforeEach(() => {
   vi.stubEnv("PAYMENTS_SANDBOX_WEBHOOK_SECRET", SECRETS.sandbox);
   vi.stubEnv("PAYMENTS_LIVE_WEBHOOK_SECRET", SECRETS.live);
   vi.spyOn(console, "error").mockImplementation(() => {});
+  h.retrieve = null;
+  h.retrieveCalls = [];
   // Bez prawdziwej sieci: ścieżka ACK nie może wołać operatora ani maila
   // synchronicznie. Próba wyjścia do sieci = awaria dyspozytora = 500 w teście.
   vi.stubGlobal(
@@ -304,14 +326,24 @@ describe("webhook płatności - zdarzenia przyjęte przez trasę HTTP", () => {
     expect(logFinish()).toMatchObject({ status: "processed" });
   });
 
-  it("spóźnione zdarzenie subskrypcji (stan w bazie nowszy): 200 i `skipped`, bez nadpisania", async () => {
-    // Stan w bazie nowszy = znacznik zapisany PÓŹNIEJ niż chwila zdarzenia
-    // (wiersz bez znacznika strażnik zajmuje, a równy rozstrzyga remisem).
+  it("spóźnione zdarzenie subskrypcji (stan w bazie nowszy): 200 i `processed`, stan nietknięty, wyrównanie z API", async () => {
+    // Strażnik czyta parę (znacznik, identyfikator) - wiersz bez porównywalnego
+    // znacznika nie jest „nowszy", tylko sporny, więc stan musi go nieść.
+    // Spóźnione zdarzenie nie stosuje ładunku, ale wyrównuje uprawnienie stanem
+    // z API (jego wcześniejsza próba mogła zapisać uprawnienie i paść - A1/A2).
+    h.retrieve = async (id) => ({
+      id,
+      customer: "cus_test_1",
+      status: "active",
+      items: { data: [] },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     planDb({
       subscriptionGuard: ok([]),
       subscriptionExists: ok({
         id: "row-sub-1",
-        last_event_at: new Date(FIXED_NOW_MS + 60 * SEKUNDA).toISOString(),
+        last_event_at: relativeIso(MINUTA),
+        last_event_id: "evt_nowsze",
       }),
     });
 
@@ -326,7 +358,8 @@ describe("webhook płatności - zdarzenia przyjęte przez trasę HTTP", () => {
       customer_id: "cus_test_1",
       user_id: "user-me",
     });
-    expect(logFinish()).toMatchObject({ status: "skipped", error: null });
+    expect(logFinish()).toMatchObject({ status: "processed", error: null });
+    expect(h.retrieveCalls).toEqual(["sub_test_1"]);
     // Jedyny zapis do `subscriptions` to warunkowy strażnik - żadnego upsertu.
     const writes = db.chainsFor("subscriptions").filter((c) => c.has("update") || c.has("upsert"));
     expect(writes).toHaveLength(1);
@@ -334,6 +367,7 @@ describe("webhook płatności - zdarzenia przyjęte przez trasę HTTP", () => {
       last_event_at: FIXED_NOW_ISO,
       last_event_id: "evt_test_1",
     });
+    warn.mockRestore();
   });
 });
 

@@ -13805,6 +13805,7 @@ export type Database = {
         Row: {
           auto_armed_at: string | null
           base_url: string
+          billing_secret: string
           community_last_tick_at: string | null
           community_last_tick_error: string | null
           community_last_tick_status: string | null
@@ -13826,6 +13827,7 @@ export type Database = {
         Insert: {
           auto_armed_at?: string | null
           base_url?: string
+          billing_secret?: string
           community_last_tick_at?: string | null
           community_last_tick_error?: string | null
           community_last_tick_status?: string | null
@@ -13847,6 +13849,7 @@ export type Database = {
         Update: {
           auto_armed_at?: string | null
           base_url?: string
+          billing_secret?: string
           community_last_tick_at?: string | null
           community_last_tick_error?: string | null
           community_last_tick_status?: string | null
@@ -31488,6 +31491,27 @@ export type Database = {
       payment_webhook_payload_scrub: {
         Args: { p_payload: Json; p_strip_user_ref?: boolean }
         Returns: Json
+      }
+      payment_webhook_sweep_candidates: {
+        Args: {
+          p_backoff_base_ms: number
+          p_horizon_ms: number
+          p_limit: number
+          p_max_attempts: number
+          p_stuck_after_ms: number
+        }
+        Returns: {
+          created_at: string
+          environment: string
+          event_id: string
+          event_type: string
+          id: string
+          last_retried_at: string
+          occurred_at: string
+          processed_at: string
+          retry_count: number
+          status: string
+        }[]
       }
       payments_apply_event_ticket_outcome: {
         Args: {

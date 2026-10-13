@@ -217,33 +217,36 @@ describe("zakres zapytania o subskrypcje do przypomnienia", () => {
   // ŚLAD KSIĘGOWY (`environment = 'sandbox'`) z prawdziwym `user_id`
   // z metadanych karty testowej. Bez filtra środowiska cron wysyłał realnemu
   // klientowi „Twoja subskrypcja się odnawia" za plan, którego nie kupił.
-  describe("środowisko wdrożenia", () => {
+  //
+  // Po scaleniu z SUB-08 przebieg obejmuje JEDNO środowisko (domyślnie
+  // `resolveEnvironment` - na produkcji zawsze `live`, patrz blok „przebieg
+  // platformowy" niżej), a bramka `environmentGrantsAccess` pilnuje, żeby
+  // jawne `sandbox` na produkcji nie wysłało niczego. Dawne asercje na filtr
+  // `in("environment", [...])` zastąpiło `eq` z bloku SUB-08 - tu zostaje
+  // bramka, której tamten blok nie dowodzi.
+  describe("środowisko wdrożenia (S9)", () => {
     afterEach(() => {
       vi.unstubAllEnvs();
     });
 
-    const environmentFilter = (stub: SupabaseFromStub) =>
-      stub
-        .lastChain("subscriptions")
-        ?.calls.filter((c) => c.method === "in" && c.args[0] === "environment")
-        .map((c) => c.args);
-
-    it("produkcja: przypomnienia WYŁĄCZNIE dla subskrypcji `live`", async () => {
+    it("produkcja + jawne `sandbox`: ani jednego zapytania, ani jednego maila", async () => {
       vi.stubEnv("NODE_ENV", "production");
-      const stub = givenDb({ rows: [] });
+      const stub = givenDb({ rows: [subscriptionRow()] });
 
-      await runBillingReminders(3, 200, NOW);
+      const result = await runBillingReminders(3, 200, NOW, "sandbox");
 
-      expect(environmentFilter(stub)).toEqual([["environment", ["live"]]]);
+      expect(result).toEqual({ renewal: 0, expiring: 0, skipped: 0 });
+      expect(stub.chainsFor("subscriptions")).toHaveLength(0);
+      expect(mail.sendTxEmail).not.toHaveBeenCalled();
     });
 
-    it("podgląd i dev: oba środowiska, jak w `environmentGrantsAccess`", async () => {
+    it("podgląd i dev: jawne `sandbox` przechodzi - karta testowa dostaje przypomnienie", async () => {
       vi.stubEnv("NODE_ENV", "development");
       const stub = givenDb({ rows: [] });
 
-      await runBillingReminders(3, 200, NOW);
+      await runBillingReminders(3, 200, NOW, "sandbox");
 
-      expect(environmentFilter(stub)).toEqual([["environment", ["live", "sandbox"]]]);
+      expect(stub.lastChain("subscriptions")?.argsOf("eq")).toEqual(["environment", "sandbox"]);
     });
   });
 

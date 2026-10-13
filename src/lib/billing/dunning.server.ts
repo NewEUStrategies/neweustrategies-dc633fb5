@@ -10,6 +10,14 @@
 //   - wrzucamy powiadomienie w aplikacji (dzwonek) z linkiem do portalu.
 // Zaksięgowanie płatności zeruje licznik i kotwicę i wysyła potwierdzenie.
 //
+// Porażka, która dociera PO zapłacie, jest pomijana wyłącznie wtedy, gdy TA
+// faktura jest już opłacona u operatora (PAY-13) - nie wtedy, gdy jest po
+// prostu starsza od ostatniej płatności (to mogła być płatność innej faktury).
+//
+// Odczyty, które mogą rzucić (plan, stan faktury u operatora), idą PRZED
+// zapisem klucza deduplikacji: ponowienie po awarii ma ten klucz jeszcze
+// wolny, więc mail i dzwonek nie giną (przegląd 6.2).
+//
 // Moduł server-only - importuj wyłącznie z handlerów webhooka.
 import type { Database } from "@/integrations/supabase/types";
 import {
@@ -128,6 +136,58 @@ function msOf(value: string | null | undefined): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
+/**
+ * `true`, gdy zdarzenie `occurredAt` nie jest późniejsze niż `reference`.
+ * Nieczytelny znacznik po którejkolwiek stronie to `false` - brak dowodu
+ * starszeństwa nie może zjeść prawdziwej porażki.
+ */
+function isNotAfter(occurredAt: string, reference: string | null): boolean {
+  const event = msOf(occurredAt);
+  const ref = msOf(reference);
+  return event !== null && ref !== null && event <= ref;
+}
+
+/** Brak obiektu u operatora (404 / `resource_missing`) - to nie awaria odczytu. */
+function isMissingResource(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { code?: unknown; statusCode?: unknown };
+  return e.code === "resource_missing" || e.statusCode === 404;
+}
+
+/**
+ * Czy faktura, której dotyczy porażka, jest JUŻ opłacona u operatora (PAY-13,
+ * 4.5). Odpowiedź daje sama faktura - nie znacznik ostatniej płatności
+ * subskrypcji, bo ten opisuje DOWOLNĄ fakturę (i przesuwa go też powtórka
+ * sesji z uzgadniania). Identyfikator spoza faktur (`in_...`) nie ma czego
+ * sprawdzić - wtedy porażka jest prawdziwa. Faktura nieznana operatorowi
+ * w tym środowisku też nie jest opłacona; każdy inny błąd RZUCA, żeby
+ * zdarzenie wróciło, zanim cokolwiek wyjdzie do klienta.
+ */
+async function invoiceAlreadyPaid(ctx: DunningContext): Promise<boolean> {
+  const invoiceId = ctx.transactionId;
+  if (!invoiceId || !invoiceId.startsWith("in_")) return false;
+  try {
+    const { getStripeClient } = await import("@/lib/stripe.server");
+    const stripe = await getStripeClient(ctx.environment);
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+    return invoice.status === "paid";
+  } catch (error) {
+    if (isMissingResource(error)) return false;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`dunning: invoice status lookup failed (${invoiceId}): ${message}`);
+  }
+}
+
+/**
+ * Znacznik ostatniej płatności nie cofa się: spóźnione `invoice.paid` starej
+ * faktury nie może otworzyć okna, w którym stara porażka znów przechodzi
+ * bramkę PAY-13 bez pytania operatora.
+ */
+function nextLastPaymentAt(ctx: DunningContext, sub: SubRow): string {
+  const stored = sub.last_payment_at ?? null;
+  return stored && isNotAfter(ctx.occurredAt, stored) ? stored : ctx.occurredAt;
+}
+
 async function loadSubscription(ctx: DunningContext): Promise<SubRow | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
@@ -227,49 +287,6 @@ async function claimRecovery(ctx: DunningContext, patch: SubscriptionUpdate): Pr
   return Array.isArray(data) && data.length > 0;
 }
 
-/**
- * `true`, gdy zdarzenie `occurredAt` nie jest późniejsze niż `reference`.
- * Nieczytelny znacznik po którejkolwiek stronie to `false` - brak dowodu
- * starszeństwa nie może zjeść prawdziwej porażki.
- */
-function isNotAfter(occurredAt: string, reference: string | null): boolean {
-  if (!reference) return false;
-  const event = Date.parse(occurredAt);
-  const ref = Date.parse(reference);
-  return Number.isFinite(event) && Number.isFinite(ref) && event <= ref;
-}
-
-/** Brak obiektu u operatora (404 / `resource_missing`) - to nie awaria odczytu. */
-function isMissingResource(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const e = error as { code?: unknown; statusCode?: unknown };
-  return e.code === "resource_missing" || e.statusCode === 404;
-}
-
-/**
- * Czy faktura, której dotyczy porażka, jest JUŻ opłacona u operatora (PAY-13,
- * 4.5). Odpowiedź daje sama faktura - nie znacznik ostatniej płatności
- * subskrypcji, bo ten opisuje DOWOLNĄ fakturę (i przesuwa go też powtórka
- * sesji z uzgadniania). Identyfikator spoza faktur (`in_...`) nie ma czego
- * sprawdzić - wtedy porażka jest prawdziwa. Faktura nieznana operatorowi
- * w tym środowisku też nie jest opłacona; każdy inny błąd RZUCA, żeby
- * zdarzenie wróciło, zanim cokolwiek wyjdzie do klienta.
- */
-async function invoiceAlreadyPaid(ctx: DunningContext): Promise<boolean> {
-  const invoiceId = ctx.transactionId;
-  if (!invoiceId || !invoiceId.startsWith("in_")) return false;
-  try {
-    const { getStripeClient } = await import("@/lib/stripe.server");
-    const stripe = await getStripeClient(ctx.environment);
-    const invoice = await stripe.invoices.retrieve(invoiceId);
-    return invoice.status === "paid";
-  } catch (error) {
-    if (isMissingResource(error)) return false;
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`dunning: invoice status lookup failed (${invoiceId}): ${message}`);
-  }
-}
-
 /** Nieudane obciążenie: licznik prób + mail + powiadomienie. */
 export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<void> {
   const sub = await loadSubscription(ctx);
@@ -295,33 +312,22 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
   // to jest realna windykacja tej subskrypcji i idzie zwykłą ścieżką.
   if (isMidCycleChangeInvoice(ctx) && !isDelinquentSubscriptionStatus(sub.status)) return;
 
-  // Spóźniona porażka próby, po której płatność już przeszła (ponowiona
-  // dostawa sprzed zaksięgowania): otwierałaby nowy cykl i wysłała wezwanie
-  // klientowi, który właśnie zapłacił.
-  const failedAt = msOf(ctx.occurredAt);
-  const paidAt = msOf(sub.last_payment_at);
-  if (failedAt !== null && paidAt !== null && failedAt < paidAt) return;
-
   // Deduplikacja: drugie zdarzenie o tej samej (albo wcześniejszej) próbie tej
   // samej faktury nie podbija licznika i nie generuje kolejnego maila ani
   // dzwonka. Kolejna próba (wyższy `attempt_count`) to nowy klucz - licznik
-  // rośnie co próbę.
+  // rośnie co próbę. Klucz zostaje po odzyskaniu płatności, więc powtórzona
+  // porażka już opłaconej faktury odpada tu, bez pytania operatora.
   if (isHandledAttempt(sub.last_dunning_transaction_id, ctx)) return;
   const key = dunningKey(ctx);
 
-  // Kotwica karencji: PIERWSZA porażka cyklu. Kolejne próby jej nie
-  // przesuwają - inaczej każda nieudana próba wydłużałaby darmowy dostęp.
-  const firstFailedAt = sub.first_payment_failed_at ?? ctx.occurredAt;
-
   // Porażka, która dochodzi PO udanej płatności (spóźniona albo pierwsza
-  // dostawa `invoice.payment_failed` poza kolejnością): pomijamy ją WYŁĄCZNIE
-  // wtedy, gdy TA faktura jest już opłacona (4.5). Sama kolejność czasu to
-  // tylko powód, żeby zapytać operatora: dawna bramka czasowa zjadała porażkę
-  // KAŻDEJ starszej faktury - także wciąż nieopłaconego odnowienia, gdy
-  // znacznik przesunęła płatność innej faktury albo powtórka sesji
-  // z uzgadniania - i klient nie dostawał żadnego wezwania aż do utraty
-  // dostępu. Ta sama porażka powtórzona po odzyskaniu odpada wcześniej, na
-  // kluczu deduplikacji.
+  // dostawa `invoice.payment_failed` poza kolejnością, ponowiona dostawa
+  // próby sprzed zaksięgowania): pomijamy ją WYŁĄCZNIE wtedy, gdy TA faktura
+  // jest już opłacona (PAY-13, 4.5). Sama kolejność czasu to tylko powód,
+  // żeby zapytać operatora: bramka czasowa zjadała porażkę KAŻDEJ starszej
+  // faktury - także wciąż nieopłaconego odnowienia, gdy znacznik przesunęła
+  // płatność innej faktury albo powtórka sesji z uzgadniania - i klient nie
+  // dostawał żadnego wezwania aż do utraty dostępu.
   if (isNotAfter(ctx.occurredAt, sub.last_payment_at ?? null) && (await invoiceAlreadyPaid(ctx))) {
     console.warn("[payments] stale payment failure of an already paid invoice - ignored", {
       subscriptionId: ctx.subscriptionId,
@@ -332,6 +338,18 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
     return;
   }
 
+  // Plan PRZED zapisem klucza deduplikacji (przegląd 6.2): odczyt planu może
+  // rzucić, a ponowienie po zapisanym kluczu uznałoby tę próbę za obsłużoną -
+  // mail i dzwonek przepadłyby na zawsze. Mail i dzwonek niżej nie rzucają.
+  const plan = await resolvePlanForPrice(sub.price_id, {
+    tenantId: sub.tenant_id,
+    userId: sub.user_id,
+  });
+
+  // Kotwica karencji: PIERWSZA porażka cyklu. Kolejne próby jej nie
+  // przesuwają - inaczej każda nieudana próba wydłużałaby darmowy dostęp.
+  const firstFailedAt = sub.first_payment_failed_at ?? ctx.occurredAt;
+
   await updateSubscription(ctx, {
     payment_failure_count: sub.payment_failure_count + 1,
     last_payment_failed_at: ctx.occurredAt,
@@ -339,11 +357,6 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
     last_dunning_at: ctx.occurredAt,
     ...(sub.first_payment_failed_at ? {} : { first_payment_failed_at: firstFailedAt }),
     updated_at: new Date().toISOString(),
-  });
-
-  const plan = await resolvePlanForPrice(sub.price_id, {
-    tenantId: sub.tenant_id,
-    userId: sub.user_id,
   });
 
   await notifyPaymentEmail({
@@ -392,15 +405,12 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
   const reset: SubscriptionUpdate = {
     payment_failure_count: 0,
     last_payment_failed_at: null,
-    // Znacznik nie cofa się: spóźnione `invoice.paid` starej faktury nie może
-    // otworzyć okna, w którym stara porażka znów przechodzi bramkę wyżej.
-    last_payment_at: isNotAfter(ctx.occurredAt, sub.last_payment_at ?? null)
-      ? (sub.last_payment_at ?? ctx.occurredAt)
-      : ctx.occurredAt,
-    // Klucza deduplikacji (`last_dunning_transaction_id`) NIE zerujemy: kolejne
-    // nieudane obciążenie w nowym cyklu ma nową fakturę, więc i tak przejdzie,
-    // a wyzerowany klucz przepuszczał spóźnione `payment_failed` tej samej,
-    // już opłaconej faktury - z mailem „płatność nie powiodła się".
+    last_payment_at: nextLastPaymentAt(ctx, sub),
+    // Klucza deduplikacji (`last_dunning_transaction_id`) NIE zerujemy
+    // (PAY-13): kolejne nieudane obciążenie w nowym cyklu ma nową fakturę
+    // (nowy klucz `<faktura>:<próba>`), więc i tak przejdzie, a wyzerowany
+    // klucz przepuszczał spóźnione `payment_failed` tej samej, już opłaconej
+    // faktury - z mailem „płatność nie powiodła się".
     updated_at: new Date().toISOString(),
   };
 
@@ -424,15 +434,18 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
     return;
   }
 
-  // Potwierdzenie wysyłamy tylko wtedy, gdy realnie odzyskaliśmy płatność -
-  // i tylko raz, nawet gdy operator zgłosi ją dwoma zdarzeniami naraz.
-  // Kotwica karencji gaśnie razem z cyklem: następna porażka liczy od nowa.
-  if (!(await claimRecovery(ctx, { ...reset, first_payment_failed_at: null }))) return;
-
+  // Plan PRZED zajęciem cyklu (przegląd 6.2): zajęcie jest jednorazowe, więc
+  // odczyt, który rzuciłby po nim, gubiłby potwierdzenie na zawsze -
+  // ponowienie widzi już zamknięty cykl.
   const plan = await resolvePlanForPrice(sub.price_id, {
     tenantId: sub.tenant_id,
     userId: sub.user_id,
   });
+
+  // Potwierdzenie wysyłamy tylko wtedy, gdy realnie odzyskaliśmy płatność -
+  // i tylko raz, nawet gdy operator zgłosi ją dwoma zdarzeniami naraz.
+  // Kotwica karencji gaśnie razem z cyklem: następna porażka liczy od nowa.
+  if (!(await claimRecovery(ctx, { ...reset, first_payment_failed_at: null }))) return;
 
   await notifyPaymentEmail({
     kind: "payment_recovered",

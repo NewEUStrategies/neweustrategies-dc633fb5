@@ -48,7 +48,7 @@
 -- wiersz i przegrany wyscig (23505) zamieniaja w aktualizacje TEGO SAMEGO
 -- klucza z warunkiem `status <> 'refunded'` - zwrot jest ostateczny.
 --
--- KOLEJNOSC WDROZENIA: NAJPIERW MIGRACJA (jak 20261012131200_subscription_event_guard). Nowy kod czyta
+-- KOLEJNOSC WDROZENIA: NAJPIERW MIGRACJA (jak `subscription_event_guard`). Nowy kod czyta
 -- uprawnienie po kluczu przez `maybeSingle()` bez dawnego
 -- `order by created_at limit 1` - klucz z dwoma wierszami (duplikat sprzed
 -- indeksu) daje PGRST116 („multiple rows"), wiec KAZDE zdarzenie takiej

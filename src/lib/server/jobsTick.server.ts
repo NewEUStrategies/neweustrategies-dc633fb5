@@ -79,7 +79,8 @@ export interface JobsTickResult {
    * Zamiatarka dziennika płatności: zdarzenia operatora `failed` (z odstępem
    * rosnącym wykładniczo) i porzucone `received` są ponawiane tą samą ścieżką
    * co dostawa od operatora. Co 5 minut - w typowym ticku to jeden pusty
-   * odczyt; własny termin chroni joby sieciowe po nim.
+   * odczyt; termin (okno 8 s, nie dalej niż koniec budżetu ticku minus
+   * zapas) chroni joby po niej i zapis przebiegu przed zerwanym połączeniem.
    */
   webhookSweep: WebhookSweepResult | { error: string };
   /**
@@ -188,12 +189,32 @@ const TICKET_CODES_DEADLINE_MS = 18_000;
 const TICKET_REVOCATIONS_DEADLINE_MS = 20_000;
 
 /**
- * Okno zamiatarki dziennika płatności, liczone od JEJ startu i przycięte do
- * budżetu ticku. Jedno odtworzenie zdarzenia to kilka zapytań i czasem
- * żądanie do operatora (limit SDK 10 s), więc 8 s mieści kilka wierszy, a
- * reszta wraca za 5 minut - przejęcia są warunkowe, nic się nie dubluje.
+ * Okno zamiatarki dziennika płatności, liczone od JEJ startu (ms). Jedno
+ * odtworzenie zdarzenia to kilka zapytań i czasem żądanie do operatora, więc
+ * 8 s mieści kilka wierszy, a reszta wraca za 5 minut - przejęcia są
+ * warunkowe, nic się nie dubluje. Okno, a nie „do końca budżetu ticku":
+ * zaległość w dzienniku nie może co piąty tick zjadać czasu jobom po
+ * zamiatarce (integracje, indeksy).
  */
 const WEBHOOK_SWEEP_WINDOW_MS = 8_000;
+
+/**
+ * Zapas ticku po zamiatarce (ms): zapis przebiegu w `job_runner_runs`
+ * i odpowiedź muszą zdążyć przed zerwaniem połączenia przez pg_net
+ * (25 s = `JOBS_TICK_DEADLINE_MS`). Termin zamiatarki nigdy nie wychodzi
+ * poza koniec budżetu ticku minus ten zapas.
+ *
+ * Termin to chwila, do której zamiatarka ZACZYNA wiersze i na nie czeka
+ * (przegląd 3.0 i regresja po nim). Wiersz zaczęty tuż przed terminem nie
+ * ginie z zerwanym połączeniem: zamiatarka rejestruje każdy wiersz „za
+ * odpowiedzią" od startu, a runtime daje takiej pracy 30 s po rozłączeniu
+ * (`WEBHOOK_SWEEP_AFTER_RESPONSE_GRACE_MS`). Bramka „pełne 20 s budżetu
+ * wiersza PRZED terminem" przy terminie 23 s od startu ticku przepuszczała
+ * wiersze tylko wtedy, gdy zamiatarka ruszyła w pierwszych ~3 s - po
+ * zwykłym drenie poczty czy digestach odkładała wszystko, a log pokazywał
+ * `ok:true`.
+ */
+const WEBHOOK_SWEEP_TAIL_RESERVE_MS = 2_000;
 
 /** Uruchamia krok joba tylko w ramach budżetu czasu; błąd/pominięcie łapie w
  *  wspólnym kształcie `{ error }` (każde pole JobsTickResult go dopuszcza). */
@@ -297,13 +318,15 @@ export async function runJobsTick(
   // szybciej), ale PRZED jobami kosztownymi sieciowo - zdarzenie, które padło,
   // to klient, który zapłacił i czeka na dostęp. Co 5 minut: odstęp ponowień
   // i tak liczy się w minutach, a pusty dziennik kosztuje jeden odczyt.
+  // Termin = własne okno zamiatarki (8 s od jej startu), przycięte do końca
+  // budżetu ticku minus zapas na zapis przebiegu.
   const webhookSweep = everyNthMinute(5, tickTime)
     ? await runJobStep(overBudget, async () => {
         const { sweepWebhookEvents } = await import("@/lib/billing/webhookReplay.server");
         return sweepWebhookEvents({
           deadlineAt: Math.min(
             Date.now() + WEBHOOK_SWEEP_WINDOW_MS,
-            startedAt + JOBS_TICK_DEADLINE_MS,
+            startedAt + JOBS_TICK_DEADLINE_MS - WEBHOOK_SWEEP_TAIL_RESERVE_MS,
           ),
         });
       })

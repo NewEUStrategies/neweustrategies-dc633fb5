@@ -14,10 +14,16 @@
 //      Endpoint przestał go przyjmować (PAY-17a), więc dobowy przebieg
 //      rozliczeń musi jechać WŁASNYM sekretem - bez „spadania" na sekret
 //      społeczności, gdy własnego brakuje.
+//   3. Sonda trzymała klucz `service_role` PRODUKCJI w sekretach repo - każdy
+//      workflow wypchnięty na gałąź mógł go wypisać (przegląd 7.6). Teraz
+//      żaden workflow nie dostaje klucza `service_role`.
+//   4. `scheduler.yml` niósł BILLING_CRON_SECRET obok `actions/checkout@v7`
+//      (tag, nie SHA) - przegląd 3.6/7.10. Pinowanie obowiązuje KAŻDY workflow
+//      z sekretem rozliczeń, nie tylko nocną sondę.
 //
 // Parsujemy YAML wcięciami, bez zależności: workflow ma przewidywalny kształt,
 // a test ma się zapalić przy przesunięciu sekretu, nie przy zmianie formatowania.
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 interface Block {
@@ -109,15 +115,30 @@ describe("billing-nightly.yml - sekrety w krokach, akcje przypięte (PAY-17b)", 
     }
   });
 
-  it("klucz `service_role` naszej bazy widzi WYŁĄCZNIE krok weryfikacji", () => {
-    const holders = steps.filter((step) => text(step).includes("secrets.PROBE_SUPABASE_"));
+  it("dostęp do naszej bazy (adres, klucz publikowalny, token sondy) widzi WYŁĄCZNIE krok weryfikacji", () => {
+    const holders = steps.filter(
+      (step) =>
+        text(step).includes("secrets.PROBE_SUPABASE_") ||
+        text(step).includes("secrets.BILLING_PROBE_TOKEN"),
+    );
 
     expect(holders).toHaveLength(1);
-    expect(text(holders[0]!)).toContain("run: bun scripts/billing-renewal-probe.ts verify");
-    expect(text(holders[0]!)).toContain(
-      "PROBE_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROBE_SUPABASE_SERVICE_ROLE_KEY }}",
+    const verify = text(holders[0]!);
+    expect(verify).toContain("run: bun scripts/billing-renewal-probe.ts verify");
+    expect(verify).toContain("PROBE_SUPABASE_URL: ${{ secrets.PROBE_SUPABASE_URL }}");
+    expect(verify).toContain(
+      "PROBE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PROBE_SUPABASE_PUBLISHABLE_KEY }}",
     );
-    expect(text(holders[0]!)).toContain("PROBE_SUPABASE_URL: ${{ secrets.PROBE_SUPABASE_URL }}");
+    expect(verify).toContain("BILLING_PROBE_TOKEN: ${{ secrets.BILLING_PROBE_TOKEN }}");
+    // Adres wdrożenia zawęża kontrolę punktu odbioru webhooków (przegląd 7.12).
+    expect(verify).toContain("PROBE_APP_BASE_URL: ${{ vars.APP_BASE_URL }}");
+  });
+
+  // KRYTERIUM przeglądu 7.6.
+  it("ŻADEN krok nie dostaje klucza `service_role` (prawo zapisu do repo != dostęp do bazy)", () => {
+    for (const step of steps) {
+      expect(text(step)).not.toMatch(/secrets\.[A-Z_]*SERVICE_ROLE[A-Z_]*/);
+    }
   });
 
   it("akcje zewnętrzne nie widzą sekretów i są przypięte do SHA z komentarzem wersji", () => {
@@ -139,6 +160,35 @@ describe("billing-nightly.yml - sekrety w krokach, akcje przypięte (PAY-17b)", 
     expect(workflow).toContain("sufit 20 min");
     expect(workflow).not.toContain("PROBE_WAIT_TIMEOUT_S)");
   });
+});
+
+// KRYTERIUM PAY-17b (przegląd 3.6/7.10): KAŻDY workflow, który dotyka sekretu
+// rozliczeń, ma akcje przypięte do SHA commita - nie tylko nocna sonda.
+const BILLING_SECRET = /secrets\.(BILLING_[A-Z_]+|STRIPE_[A-Z_]+|PROBE_[A-Z_]+|LOVABLE_API_KEY)\b/;
+
+describe.each(
+  readdirSync(".github/workflows")
+    .filter((name) => /\.ya?ml$/.test(name))
+    .filter((name) => BILLING_SECRET.test(readFileSync(`.github/workflows/${name}`, "utf8"))),
+)("%s - sekret rozliczeń obok akcji przypiętych do SHA (PAY-17b)", (name) => {
+  const lines = readFileSync(`.github/workflows/${name}`, "utf8").split("\n");
+
+  it("każde `uses:` wskazuje pełny SHA commita z komentarzem wersji", () => {
+    const uses = lines.filter((line) => /^\s*(- )?uses:/.test(line));
+
+    expect(uses.length).toBeGreaterThan(0);
+    for (const line of uses) {
+      expect(line).toMatch(/uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/);
+    }
+  });
+});
+
+it("lista workflow z sekretem rozliczeń obejmuje scheduler i nocną sondę", () => {
+  const holders = readdirSync(".github/workflows").filter((name) =>
+    BILLING_SECRET.test(readFileSync(`.github/workflows/${name}`, "utf8")),
+  );
+
+  expect(holders).toEqual(expect.arrayContaining(["billing-nightly.yml", "scheduler.yml"]));
 });
 
 describe("scheduler.yml - dobowy przebieg rozliczeń jedzie własnym sekretem (PAY-17a)", () => {
@@ -165,6 +215,45 @@ describe("scheduler.yml - dobowy przebieg rozliczeń jedzie własnym sekretem (P
     for (const step of steps) {
       expect(text(step)).not.toMatch(/secrets\.[A-Z_]+ \|\|/);
     }
+  });
+
+  // Przegląd 3.0: zamiatarka w billing-cron planuje pracę do terminu
+  // wołającego. Trzy miejsca muszą znać TEN SAM termin: pg_net w invokerze,
+  // scheduler repo i stała w kodzie endpointu.
+  it("termin kroku rozliczeń = BILLING_CRON_CALLER_TIMEOUT_MS = timeout pg_net invokera", () => {
+    const route = readFileSync("src/routes/api/public/billing-cron.ts", "utf8");
+    const constant = /export const BILLING_CRON_CALLER_TIMEOUT_MS = ([\d_]+);/.exec(route)?.[1];
+    expect(constant).toBeDefined();
+    const ms = Number(constant!.replaceAll("_", ""));
+
+    const migrations = readdirSync("supabase/migrations").filter((name) =>
+      readFileSync(`supabase/migrations/${name}`, "utf8").includes(
+        "CREATE OR REPLACE FUNCTION public.invoke_billing_cron()",
+      ),
+    );
+    const latest = readFileSync(`supabase/migrations/${migrations.sort().at(-1)!}`, "utf8");
+    expect(latest).toContain(`timeout_milliseconds := ${ms}`);
+    // ... i puka WŁASNYM sekretem rozliczeń, nie sekretem runnera.
+    expect(latest).toContain("'x-billing-cron-secret', cfg.billing_secret");
+
+    const billing = stepNamed(steps, "Tick rozliczeń");
+    expect(text(billing)).toContain(`SCHEDULER_TIMEOUT_MS: "${ms}"`);
+  });
+
+  it("dokumentacja sekretów nie podsuwa sekretu runnera jako sekretu rozliczeń", () => {
+    // Nagłówek jako jeden akapit: bez `#` i łamania linii.
+    const header = lines
+      .filter((line) => line.startsWith("#"))
+      .map((line) => line.replace(/^#\s*/, ""))
+      .join(" ");
+    const alternative =
+      /secrets\.BILLING_CRON_SECRET\s+= env BILLING_CRON_SECRET aplikacji ALBO (\S+)/.exec(
+        header,
+      )?.[1];
+
+    // Dawniej: „ALBO job_runner_settings.secret" - sekret, który otwiera też
+    // community-cron i jobs-tick.
+    expect(alternative).toBe("job_runner_settings.billing_secret");
   });
 
   it("kontrola konfiguracji wymaga sekretu WŁAŚCIWEGO dla zakresu i nie widzi wartości", () => {

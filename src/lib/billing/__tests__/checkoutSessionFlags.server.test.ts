@@ -63,7 +63,8 @@ beforeEach(() => {
     data: [{ id: "cus_1", email: "buyer@example.com", metadata: { userId: "user-1" } }],
   });
   customersCreate.mockResolvedValue({ id: "cus_new" });
-  // Cena w pełnym kształcie: kasa porównuje ją z kwotą zamówienia przed sesją.
+  // Cena w pełnym kształcie operatora - kasa porównuje typ, walutę, cykl
+  // i kwotę z zamówieniem przed sesją (PAY-01, SUB-05).
   list.mockResolvedValue({
     data: [
       {
@@ -74,7 +75,7 @@ beforeEach(() => {
         billing_scheme: "per_unit",
         unit_amount: 12900,
         currency: "pln",
-        recurring: { interval: "month", interval_count: 1 },
+        recurring: { interval: "month", interval_count: 1, usage_type: "licensed" },
       },
     ],
   });
@@ -207,10 +208,6 @@ describe("createPlanCheckoutSession - flagi tenantu w sesji", () => {
   const base = {
     environment: "sandbox" as const,
     priceLookupKey: "pro_monthly",
-    expectedMode: "subscription" as const,
-    expectedCurrency: "PLN",
-    expectedRecurring: { interval: "month" as const, intervalCount: 1 },
-    expectedAmountCents: 4900,
     planId: "plan-1",
     orderId: "order-2",
     userId: "user-1",

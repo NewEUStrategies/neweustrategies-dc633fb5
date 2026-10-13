@@ -86,27 +86,21 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
     if (error) throw new Error(`nie udało się odczytać zdarzenia: ${error.message}`);
     if (!row) throw new Error("Zdarzenie nie istnieje.");
 
-    // Dziennik trzyma TRZY kształty ładunku i ponowienie musi rozumieć każdy:
-    //   * SUROWE zdarzenie operatora (trasa webhooka) - przepuszczamy je przez
-    //     tę samą normalizację, co dostawa przychodząca; bez tego obsługa
-    //     dostawała opakowanie `{ object: ... }` zamiast modelu domenowego,
-    //     nie robiła nic i kończyła się fałszywym „przetworzono",
-    //   * całe zdarzenie po normalizacji (`{ eventType, data }` z uzgadniania),
-    //   * sam obiekt danych (wiersze historyczne).
-    const payload = isRecord(row.payload) ? row.payload : null;
-    // Ładunek po retencji (`payment_webhook_events_redact_expired`, 30/90 dni)
-    // albo po zamknięciu konta nie ma już e-maila, adresu ani danych karty -
-    // odtworzenie z niego zapisałoby w księgach puste pola zamiast prawdziwych.
-    // Zdarzenie żywe u operatora odtwarza uzgadnianie (`reconcile`), nie dziennik.
-    if (payload && isRecord(payload._redacted)) {
-      throw new Error(
-        "Ładunek zdarzenia został zanonimizowany (retencja danych) - ponowienie z dziennika nie jest możliwe. Użyj uzgodnienia ze Stripe.",
-      );
-    }
-    const verified = payload ? asVerifiedStripeEvent(payload) : null;
-    const normalized = verified
-      ? (await import("@/lib/billing/stripeEvents.server")).normalizeStripeEvent(verified)
-      : null;
+    // Kształt ładunku (surowe zdarzenie z trasy, `{ eventType, data }`
+    // z uzgadniania, sam obiekt danych) rozpoznaje wspólny rdzeń - ten sam,
+    // którym odtwarza zdarzenia zamiatarka. Ładunek pusty albo po retencji
+    // zatrzymuje ponowienie PRZED przejęciem wiersza:
+    //   * pusty - nie ma czego odtwarzać, a wpis `processed` zamykałby
+    //     zgłoszenie klienta, który dalej nie ma uprawnienia,
+    //   * po retencji (`payment_webhook_events_redact_expired`, 30/90 dni,
+    //     albo zamknięcie konta; audyt SUB-11) - nie ma już e-maila, adresu
+    //     ani danych karty, więc odtworzenie zapisałoby w księgach puste pola
+    //     zamiast prawdziwych. Zdarzenie żywe u operatora odtwarza
+    //     uzgadnianie (`reconcile`), nie dziennik.
+    const { loggedWebhookEvent, processClaimedWebhookEvent, unreplayablePayloadError } =
+      await import("@/lib/billing/webhookReplay.server");
+    const replay = await loggedWebhookEvent(row);
+    if (!replay) throw new Error(unreplayablePayloadError(row.payload));
 
     // Przejęcie wiersza: licznik prób, `last_retried_at` i autor ponowienia
     // lądują w TYM SAMYM warunkowym zapisie, który rezerwuje zdarzenie.

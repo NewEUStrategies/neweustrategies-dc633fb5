@@ -176,17 +176,15 @@ describe("dyspozycja porażki zwrotu", () => {
     expect(rpc.lastCall(RPC)?.has("p_tenant_id")).toBe(false);
     // Porażka bez celu po naszej stronie niczego nie odbiera ani nie
     // przywraca: tabele są wyłącznie czytane (szukanie celu), zero zapisów.
-    // Jedyny zapis to WARUNKOWE wznowienie darowizny `refunded` tej płatności
-    // (przegląd 2.11) - bez takiej darowizny nie zmienia żadnego wiersza.
+    // ZMIANA ASERCJI przy scaleniu z #495 (SUB-09): korekta najpierw znajduje
+    // WIERSZ wpłaty (intencja, faktura raty, sesja) i dopiero jego wznawia -
+    // dawny warunkowy zapis „na ślepo" po `or(...)` zniknął, więc bez
+    // darowizny tej płatności nie ma już ani jednego zapisu.
     const writes = db.chains.filter((chain) =>
       ["insert", "update", "upsert", "delete"].some((op) => chain.has(op)),
     );
-    expect(writes.map((chain) => chain.table)).toEqual(["donations"]);
-    expect(
-      writes[0]?.calls.some(
-        (call) => call.method === "eq" && call.args[0] === "status" && call.args[1] === "refunded",
-      ),
-    ).toBe(true);
+    expect(writes.map((chain) => chain.table)).toEqual([]);
+    expect(db.chains.some((chain) => chain.table === "donations")).toBe(true);
   });
 
   it("refund.updated -> canceled bez kodu operatora przekazuje stan jako powód", async () => {

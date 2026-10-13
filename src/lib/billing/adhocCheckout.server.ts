@@ -28,9 +28,11 @@ import {
   type CheckoutSessionParams,
   type CheckoutSettings,
 } from "@/lib/billing/checkoutSettings";
+import { isBelowMinimumCharge } from "@/lib/billing/chargeMinimum";
 import {
   catalogEntryByPriceId,
   catalogCycleMismatch,
+  catalogRecurringFor,
   type CatalogPriceEntry,
 } from "@/lib/billing/catalog";
 import {
@@ -105,9 +107,11 @@ export type CheckoutSessionResult =
 
 /**
  * Wynik sesji PLANU. `supersededOrderIds` = zamówienia tego konta, których
- * otwarte sesje kasa właśnie wygasiła (patrz `expireOpenPlanSessions`) -
- * wołający oznacza je jako anulowane, bo webhook `checkout.session.expired`
- * nie jest obsługiwany i zamówienie zostałoby w `processing` na zawsze. Pole
+ * otwarte sesje kasa właśnie wygasiła (`listOpenPlanSessions` +
+ * `expirePlanSession`) - wołający od razu oznacza je jako anulowane, żeby nie
+ * wisiały w `processing` do dostawy zdarzenia. Rezerwację kuponu takiego
+ * zamówienia oddaje `checkout.session.expired` (`expireCheckoutOrder`
+ * zwalnia kupon także zamówieniu już zamkniętemu jako `canceled`). Pole
  * pojawia się tylko, gdy coś wygaszono.
  */
 export type PlanCheckoutSessionResult = CheckoutSessionResult & {
@@ -295,17 +299,15 @@ export async function resolveOrCreateCustomer(
  * Ceny katalogowe rozwiązane hurtowo po czytelnym `lookup_key`.
  *
  * `data.tiers` jest rozwijane jawnie: operator NIE oddaje progów ceny
- * schodkowej bez rozwinięcia, a bramka kasy (`planPriceMismatch`) liczy z nich
- * kwotę za zamówioną liczbę miejsc. Bez progów cena Zespołu wyglądałaby jak
- * cena bez kwoty i każda sesja kończyłaby się odmową.
+ * schodkowej bez rozwinięcia, a bramka kasy (`catalogPriceMismatch`) liczy
+ * z nich kwotę za zamówioną liczbę miejsc. Bez progów cena Zespołu wyglądałaby
+ * jak cena bez kwoty i każda sesja kończyłaby się odmową.
  */
 export async function resolvePricesByLookupKeys(
   stripe: Stripe,
   lookupKeys: string[],
 ): Promise<Map<string, Stripe.Price>> {
   if (lookupKeys.length === 0) return new Map();
-  // `tiers` NIE przychodzi domyślnie - bez rozwinięcia cena schodkowa
-  // (Zespół) nie dałaby się porównać z kwotą zamówienia przed sesją.
   const result = await stripe.prices.list({
     lookup_keys: lookupKeys,
     active: true,
@@ -361,26 +363,6 @@ export interface PlanCheckoutSessionInput {
   /** Czytelny identyfikator ceny z `BILLING_CATALOG` (`lookup_key` w Stripe). */
   priceLookupKey: string;
   quantity?: number;
-  /**
-   * Tryb, którego oczekuje ZAMÓWIENIE (wycena planu, `planPricing.ts`). Cena
-   * u operatora o innym typie (cykliczna zamiast jednorazowej i odwrotnie) to
-   * sesja na coś innego niż zamówienie - odmowa `price_mismatch`.
-   */
-  expectedMode: "payment" | "subscription";
-  /** Waluta zamówienia - cena u operatora w innej walucie to też `price_mismatch`. */
-  expectedCurrency: string;
-  /**
-   * Cykl planu w słowniku operatora (`planPricing.ts`); `null` dla planu
-   * jednorazowego. Cena rozliczana w innym cyklu (co dwa tygodnie zamiast co
-   * rok) to `price_mismatch`.
-   */
-  expectedRecurring: StripeRecurringCycle | null;
-  /**
-   * Kwota BRUTTO pozycji za `quantity` sztuk, przed rabatem i podatkiem - ta,
-   * którą zapisało zamówienie (wycena planu). Cena, która za tę ilość naliczy
-   * cokolwiek innego (dryf kwoty, inne progi), to `price_mismatch`.
-   */
-  expectedAmountCents: number;
   planId: string;
   orderId: string;
   userId: string;
@@ -405,9 +387,13 @@ export interface PlanCheckoutSessionInput {
    */
   trialEligible?: boolean;
   /**
-   * Kwota zamówienia PRZED kuponem (kupon jedzie osobno jako rabat operatora)
-   * i jej waluta. Cena pod `lookup_key` MUSI dać dokładnie tę kwotę przy tej
-   * ilości - inaczej zamówienie zapisuje jedną kwotę, a operator pobiera inną.
+   * Kwota BRUTTO pozycji za `quantity` sztuk z wyceny planu (`planCheckoutPricing`)
+   * - PRZED kuponem (kupon jedzie osobno jako rabat operatora) i przed
+   * podatkiem - oraz waluta zamówienia. Cena pod `lookup_key` MUSI dać dokładnie
+   * tę kwotę przy tej ilości i w tej walucie: inaczej zamówienie zapisuje jedno,
+   * a operator pobiera co innego (dryf kwoty, inne progi, cena innego najemcy
+   * na wspólnym koncie) - odmowa `price_mismatch`. Typ i cykl ceny sprawdza
+   * bramka względem pozycji katalogu (`catalogCycleMismatch`).
    */
   expectedAmountCents: number;
   expectedCurrency: string;
@@ -462,7 +448,11 @@ export function stripePriceAmountFor(price: Stripe.Price, quantity: number): num
  * cena rozjechała się z ceną wspólną, albo cena przestawiona u operatora poza
  * synchronizacją dawały sesję, w której klient płacił inną kwotę niż ta
  * zapisana na zamówieniu (i na fakturze). Sprawdzamy więc wszystko, co
- * decyduje o obciążeniu: kwotę × ilość, walutę i cykl (albo jego brak).
+ * decyduje o obciążeniu: kwotę × ilość, walutę, typ ceny (cykliczna albo
+ * jednorazowa - czyli tryb sesji, który musi odpowiadać rodzajowi zamówienia
+ * z planu) i cykl rozliczany za ilość (albo jego brak). Rodzaj zamówienia
+ * i pozycja katalogu pochodzą z tej samej wyceny planu (`planCheckoutPricing`),
+ * więc zgodność typu ceny z pozycją to zgodność z zamówieniem (audyt PAY-01).
  */
 export function catalogPriceMismatch(
   price: Stripe.Price,
@@ -479,6 +469,15 @@ export function catalogPriceMismatch(
   // Ta sama kontrola co w synchronizacji katalogu - cena, którą tu odrzucamy,
   // tam jest odtwarzana w poprawnym cyklu.
   if (catalogCycleMismatch(price, input.entry)) return "cycle";
+  // Schodki inne niż `volume` (`graduated`) odmawiamy niezależnie od kwoty dla
+  // tej ilości: katalog zakłada wyłącznie `volume` (synchronizacja odtwarza
+  // każdy inny kształt), a `graduated` liczy niższą stawkę tylko od nadwyżki -
+  // przy innej liczbie miejsc (zmiana w portalu, odnowienie) operator
+  // obciążyłby inaczej niż reguła planu, choć ta jedna kwota się zgadza
+  // (przegląd PAY-01, 0.1).
+  if (price.billing_scheme === "tiered" && price.tiers_mode !== "volume") {
+    return "unverifiable_amount";
+  }
   const amount = stripePriceAmountFor(price, input.quantity);
   if (amount === null) return "unverifiable_amount";
   if (amount !== Math.round(input.expectedAmountCents)) return "amount";
@@ -610,71 +609,23 @@ async function voidAbandonedFirstInvoice(
 }
 
 /**
- * Kwota, którą operator naliczy za `quantity` sztuk tej ceny - przed rabatem
- * i podatkiem. `null`, gdy cena liczy w sposób, którego kasa nie wycenia
- * (kwota dowolna, przekształcenie ilości, stawka ułamkowa, schodki inne niż
- * `volume`, brak rozwiniętych progów) - bramka traktuje to jak niezgodność.
- */
-export function stripePriceAmountCents(price: Stripe.Price, quantity: number): number | null {
-  if (price.custom_unit_amount || price.transform_quantity) return null;
-  if (price.billing_scheme === "tiered") {
-    // Katalog zakłada wyłącznie schodki `volume` (catalogSync): WSZYSTKIE
-    // sztuki po stawce progu, który osiągnęła ilość.
-    if (price.tiers_mode !== "volume" || !Array.isArray(price.tiers)) return null;
-    const tier = price.tiers.find((t) => t.up_to === null || quantity <= t.up_to);
-    if (!tier || typeof tier.unit_amount !== "number") return null;
-    return tier.unit_amount * quantity + (tier.flat_amount ?? 0);
-  }
-  return typeof price.unit_amount === "number" ? price.unit_amount * quantity : null;
-}
-
-/** Oczekiwania zamówienia wobec ceny pod `lookup_key` (z wyceny planu). */
-export interface PlanPriceExpectation {
-  mode: "payment" | "subscription";
-  currency: string;
-  recurring: StripeRecurringCycle | null;
-  amountCents: number;
-  quantity: number;
-}
-
-/**
- * Powód niezgodności ceny u operatora z zamówieniem albo `null`, gdy cena
- * pobierze dokładnie to, co zapisało zamówienie: ten sam typ (cykliczna /
- * jednorazowa), waluta, cykl (`interval` + `interval_count`, rozliczanie za
- * ilość, nie za zużycie) i kwota za zamówioną liczbę sztuk.
- */
-export function planPriceMismatch(
-  price: Stripe.Price,
-  expected: PlanPriceExpectation,
-): "mode" | "currency" | "interval" | "amount" | null {
-  const mode = price.type === "recurring" ? "subscription" : "payment";
-  if (mode !== expected.mode) return "mode";
-  if ((price.currency ?? "").toLowerCase() !== expected.currency.toLowerCase()) {
-    return "currency";
-  }
-  const recurring = price.recurring ?? null;
-  if (expected.recurring === null) {
-    if (recurring !== null) return "interval";
-  } else if (
-    recurring === null ||
-    recurring.interval !== expected.recurring.interval ||
-    recurring.interval_count !== expected.recurring.intervalCount ||
-    (recurring.usage_type ?? "licensed") !== "licensed"
-  ) {
-    return "interval";
-  }
-  if (stripePriceAmountCents(price, expected.quantity) !== expected.amountCents) return "amount";
-  return null;
-}
-
-/**
  * Tworzy Embedded Checkout Session z ceny katalogowej. Tryb (subscription vs
- * payment) wynika z `price.type` - katalog może w przyszłości zawierać też
- * ceny jednorazowe.
+ * payment) wynika z `price.type` - katalog zawiera też ceny jednorazowe.
  *
  * PRZED sesją, w tej kolejności:
  *   1. `lookup_key` musi być pozycją `BILLING_CATALOG`,
- *   2. cena operatora musi dać kwotę zamówienia (`catalogPriceMismatch`),
+ *   2. BRAMKA SPÓJNOŚCI CENY Z ZAMÓWIENIEM (`catalogPriceMismatch`). Wołający
+ *      podaje kwotę brutto i walutę z wyceny planu zamówienia, a typ i cykl
+ *      ceny wynikają z pozycji katalogu - tej samej, którą wycenił plan
+ *      (`planCheckoutPricing`). Cena pod `lookup_key` jest u operatora
+ *      obiektem zmiennym (synchronizacja katalogu, ręczna edycja w panelu,
+ *      przeniesiony klucz, cena zbudowana z planu najemcy domyślnego na
+ *      wspólnym koncie) - gdy cokolwiek się nie zgadza, sesja pobrałaby
+ *      pieniądze za coś innego, niż zapisaliśmy: subskrypcję zamiast zakupu
+ *      jednorazowego, euro zamiast złotych, rozliczenie co dwa tygodnie
+ *      zamiast co rok albo inną kwotę (audyty PAY-01 i SUB-05). Odmawiamy
+ *      ZANIM powstanie klient i sesja, a wołający zamyka zamówienie jako
+ *      `failed` i zwalnia kupon,
  *   3. subskrypcja - kolejność kroków jest częścią dowodu:
  *      a. WYGASZENIE otwartych sesji planu tego klienta. Strażnik patrzy na
  *         subskrypcje, a te powstają dopiero przy opłaceniu sesji: dwie karty
@@ -689,12 +640,13 @@ export function planPriceMismatch(
  * Po założeniu sesji (krok 4) drugi przegląd rozstrzyga wyścig z sesją
  * otwartą RÓWNOLEGLE: zostaje nowsza, starsza jest wygaszana - także nasza.
  *
- * KLUCZ IDEMPOTENCJI `plan-checkout-session:<orderId>`: ponowienie żądania
- * przez SDK po zerwanym połączeniu dostaje TĘ SAMĄ sesję zamiast drugiej.
- * Parametry sesji są stałe dla zamówienia (chwilę zgody wylicza wołający raz),
- * więc klucz nigdy nie trafia na inny ładunek. Świadomie BEZ `expires_at`:
- * minimum operatora to 30 minut, więc samo skrócenie życia sesji okna nie
- * zamyka, a parametr zależny od zegara łamałby tożsamość ponowienia.
+ * KLUCZ IDEMPOTENCJI z zamówienia (`checkoutSessionIdempotencyKey`, ten sam co
+ * w sesji ad-hoc): ponowienie żądania przez SDK po zerwanym połączeniu dostaje
+ * TĘ SAMĄ sesję zamiast drugiej. Parametry sesji są stałe dla zamówienia
+ * (chwilę zgody wylicza wołający raz), więc klucz nigdy nie trafia na inny
+ * ładunek. Świadomie BEZ `expires_at`: minimum operatora to 30 minut, więc
+ * samo skrócenie życia sesji okna nie zamyka, a parametr zależny od zegara
+ * łamałby tożsamość ponowienia.
  */
 export async function createPlanCheckoutSession(
   input: PlanCheckoutSessionInput,
@@ -711,7 +663,16 @@ export async function createPlanCheckoutSession(
     const price = prices.get(input.priceLookupKey);
     if (!price) return { ok: false, error: "price_missing" };
 
-    const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), MAX_LINE_QUANTITY);
+    // Literalna unia, NIE `NonNullable<SessionCreateParams["mode"]>`: od
+    // stripe@22.6 ten typ dopuszcza też `string & Record<never, never>`
+    // (otwarta unia dla nowych trybów SDK), więc przez `sessionFlags`, które
+    // przyjmuje wyłącznie `"payment" | "subscription"`, już nie przechodził.
+    // Zawężamy u ŹRÓDŁA - to nasz kontrakt, nie kontrakt SDK.
+    const mode: "payment" | "subscription" =
+      price.type === "recurring" ? "subscription" : "payment";
+    // Ilość liczona PRZED bramką - kwotę ceny sprawdzamy dokładnie dla tej
+    // liczby sztuk, która pójdzie w pozycji sesji.
+    const quantity = lineQuantityOf(input.quantity);
 
     const mismatch = catalogPriceMismatch(price, {
       entry,
@@ -728,10 +689,19 @@ export async function createPlanCheckoutSession(
         priceId: price.id,
         orderId: input.orderId,
         quantity,
+        priceMode: mode,
         expectedAmountCents: input.expectedAmountCents,
+        priceAmountCents: stripePriceAmountFor(price, quantity),
         expectedCurrency: input.expectedCurrency,
-        stripeUnitAmount: price.unit_amount,
         stripeCurrency: price.currency,
+        expectedRecurring: catalogRecurringFor(entry),
+        priceRecurring: price.recurring
+          ? {
+              interval: price.recurring.interval,
+              interval_count: price.recurring.interval_count,
+              usage_type: price.recurring.usage_type,
+            }
+          : null,
       });
       return { ok: false, error: PRICE_MISMATCH_ERROR };
     }
@@ -740,43 +710,6 @@ export async function createPlanCheckoutSession(
       userId: input.userId,
       email: input.customerEmail,
     });
-
-    // Literalna unia, NIE `NonNullable<SessionCreateParams["mode"]>`: od
-    // stripe@22.6 ten typ dopuszcza też `string & Record<never, never>`
-    // (otwarta unia dla nowych trybów SDK), więc przez `sessionFlags`, które
-    // przyjmuje wyłącznie `"payment" | "subscription"`, już nie przechodził.
-    // Zawężamy u ŹRÓDŁA - to nasz kontrakt, nie kontrakt SDK.
-    const mode: "payment" | "subscription" =
-      price.type === "recurring" ? "subscription" : "payment";
-    // Ilość liczona PRZED bramką - kwotę ceny sprawdzamy dokładnie dla tej
-    // liczby sztuk, która pójdzie w pozycji sesji.
-    const quantity = lineQuantityOf(input.quantity);
-    const mismatch = planPriceMismatch(price, {
-      mode: input.expectedMode,
-      currency: input.expectedCurrency,
-      recurring: input.expectedRecurring,
-      amountCents: input.expectedAmountCents,
-      quantity,
-    });
-    if (mismatch) {
-      console.error("[payments] plan price mismatch", {
-        orderId: input.orderId,
-        lookupKey: input.priceLookupKey,
-        reason: mismatch,
-        expectedMode: input.expectedMode,
-        priceMode: mode,
-        expectedCurrency: input.expectedCurrency,
-        priceCurrency: (price.currency ?? "").toLowerCase(),
-        expectedRecurring: input.expectedRecurring,
-        priceRecurring: price.recurring
-          ? { interval: price.recurring.interval, intervalCount: price.recurring.interval_count }
-          : null,
-        expectedAmountCents: input.expectedAmountCents,
-        priceAmountCents: stripePriceAmountCents(price, quantity),
-        quantity,
-      });
-      return { ok: false, error: "price_mismatch" };
-    }
 
     // Historia u OPERATORA - widzi okno przed webhookiem (subskrypcja już
     // założona, wiersza `subscriptions` jeszcze nie ma) i subskrypcje, których
@@ -896,7 +829,7 @@ export async function createPlanCheckoutSession(
     }
 
     const session = await stripe.checkout.sessions.create(params, {
-      idempotencyKey: `plan-checkout-session:${input.orderId}`,
+      idempotencyKey: checkoutSessionIdempotencyKey(input.orderId),
     });
     if (!session.client_secret) {
       return withSuperseded({ ok: false, error: "session_missing_client_secret" });

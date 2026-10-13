@@ -61,7 +61,7 @@ const h = vi.hoisted(() => {
   });
   const state = {
     /** Cena katalogowa zwracana przez operatora (pusto = brak ceny). */
-    prices: [] as unknown[],
+    prices: [catalogPrice()] as unknown[],
     /** Subskrypcje klienta u operatora (`subscriptions.list`). */
     remoteSubscriptions: [] as unknown[],
     /** Wynik `checkout.sessions.create`; wyjątek symuluje odmowę operatora. */
@@ -234,18 +234,12 @@ function planQuote(over: Partial<PlanQuote> = {}): PlanQuote {
   };
 }
 
-/** Cena katalogowa u operatora - domyślnie zgodna z `planQuote()` (49 zł / mies.). */
+/**
+ * Cena katalogowa u operatora - domyślnie zgodna z `planQuote()` (49 zł / mies.).
+ * Ta sama atrapa co `h.catalogPrice` (testy audytu SUB-05 używają tej nazwy).
+ */
 function stripePrice(over: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    id: "price_1",
-    lookup_key: "plus_monthly",
-    type: "recurring",
-    billing_scheme: "per_unit",
-    unit_amount: 4900,
-    currency: "pln",
-    recurring: { interval: "month", interval_count: 1 },
-    ...over,
-  };
+  return h.catalogPrice(over);
 }
 
 function couponOk(over: Partial<CouponVerdict> = {}): CouponVerdict {
@@ -354,7 +348,7 @@ function entityPayload(over: Record<string, unknown> = {}): Record<string, unkno
 
 beforeEach(() => {
   h.calls.length = 0;
-  h.state.prices = [stripePrice()];
+  h.state.prices = [h.catalogPrice()];
   h.state.remoteSubscriptions = [];
   h.state.sessionError = null;
   h.state.coupon = { id: "coupon_1" };
@@ -490,7 +484,7 @@ describe("createCheckoutOrder - subskrypcja idzie CENĄ KATALOGOWĄ", () => {
   it("liczba miejsc jedzie do pozycji sesji, a nie tylko do kwoty zamówienia", async () => {
     chain.setResponse("access_plans", ok(planQuote({ tier_key: "team", price_cents: 9900 })));
     h.state.prices = [
-      stripePrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
+      h.catalogPrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
     ];
 
     await call(planPayload({ seats: 7 }));

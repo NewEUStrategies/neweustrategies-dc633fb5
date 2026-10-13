@@ -139,6 +139,9 @@ function storedSubscription(overrides: StoredRow = {}): StoredRow {
     product_id: "plan_pro",
     status: "active",
     current_period_end: "2026-09-01T00:00:00.000Z",
+    // Subskrypcja dawno kupiona: potwierdzenie zakupu już wyszło (SUB-02 -
+    // pusty znacznik przy stanie opłaconym to zakup do potwierdzenia).
+    purchase_confirmed_at: "2026-08-01T00:00:00.000Z",
     last_event_at: T0,
     last_event_id: "evt_poprzednie",
     ...overrides,
@@ -292,9 +295,12 @@ describe("1.0 - skutki starszego zdarzenia nie wygrywają z nowszym", () => {
     });
     expect(entitlements.rows[0]).toMatchObject({ status: "active" });
     expect(h.retrieveCalls).toEqual(["sub_atrapa_1"]);
-    // Klient usłyszał „wstrzymana" (skutki pauzy wyszły), więc wyrównanie
-    // domyka komunikat stanem prawdziwym - „wznowiona".
-    expect(bellTitles()).toEqual(["Subskrypcja wstrzymana", "Subskrypcja wznowiona"]);
+    // Komunikaty wychodzą PO zapisie stanu. Pauza go nie zapisała (wyparta),
+    // więc niczego nie ogłosiła, a wznowienie liczyło przejście od ZAPISANEGO
+    // `active` - klient nie słyszy ani „wstrzymana", ani „wznowiona" i ma
+    // dokładnie to, co słyszał ostatnio: aktywną subskrypcję.
+    expect(bellTitles()).toEqual([]);
+    expect(mailKinds()).toEqual([]);
   });
 
   it("wyparte zdarzenie bez odpowiedzi operatora pada głośno (dziennik `failed`), zamiast zostawić stary zapis", async () => {
@@ -323,6 +329,141 @@ describe("1.0 - skutki starszego zdarzenia nie wygrywają z nowszym", () => {
       }),
     ).rejects.toThrow("subscription resync: provider read failed (sub_atrapa_1): gateway timeout");
     expect(subscriptions.rows[0]).toMatchObject({ status: "active", last_event_id: "evt_x" });
+  });
+});
+
+// WERYFIKACJA RUNDY 3 (A1/A2/A3). Wyparte zdarzenie wyrównuje uprawnienie
+// stanem z API - ale gdy w tym samym przebiegu trafi je jeszcze przejściowa
+// awaria, wyjątek kończy próbę, a ponowienie widzi już `stale`. Dawniej
+// `stale` kończyło się `skipped`: uprawnienie zostawało ze STARSZEGO zapisu
+// (klient zapłacił, dostępu nie ma) aż do następnego zdarzenia subskrypcji,
+// a uzgadnianie tego nie widziało (porównuje `subscriptions`, nie
+// uprawnienie). A komunikaty wysłane PRZED zapisem stanu mówiły klientowi
+// o pauzie, po której wznowienia nikt już nie ogłaszał.
+describe("1.0 (cd.) - wyparte zdarzenie i przejściowa awaria: ponowienie wyrównuje", () => {
+  const paused = {
+    eventId: "evt_pauza",
+    eventType: "subscription.paused",
+    data: subscriptionEvent({ status: "paused" }),
+    environment: "live" as const,
+    occurredAt: T1,
+  };
+  const resumed = {
+    eventId: "evt_wznowienie",
+    eventType: "subscription.resumed",
+    data: subscriptionEvent({ status: "active" }),
+    environment: "live" as const,
+    occurredAt: T2,
+  };
+
+  /** Wznowienie przechodzi w całości, gdy pauza właśnie zapisuje uprawnienie. */
+  function resumeDuringPauseWrite(): () => Promise<unknown> {
+    let inner: Promise<unknown> | null = null;
+    beforeEntitlementWrite = async () => {
+      inner = dispatchWebhookEvent(resumed);
+      await inner;
+    };
+    return () => inner ?? Promise.resolve(null);
+  }
+
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    subscriptions.rows.push(storedSubscription({ status: "active" }));
+    entitlements.rows.push({ id: "us-1", external_ref: "sub_atrapa_1", status: "active" });
+  });
+
+  it("A1: wyparta pauza + operator nie odpowiada przy wyrównaniu -> ponowienie (`stale`) przywraca dostęp", async () => {
+    let providerUp = false;
+    h.retrieve = async () => {
+      if (!providerUp) throw new Error("gateway timeout");
+      return remoteSubscription("active");
+    };
+    const inner = resumeDuringPauseWrite();
+
+    await expect(dispatchWebhookEvent(paused)).rejects.toThrow(
+      "subscription resync: provider read failed (sub_atrapa_1): gateway timeout",
+    );
+    expect(await inner()).toBe("processed");
+    // Stan po pierwszej próbie: wiersz należy do wznowienia, ale uprawnienie
+    // nadpisał spóźniony zapis pauzy.
+    expect(entitlements.rows[0]).toMatchObject({ status: "canceled" });
+
+    providerUp = true;
+    expect(await dispatchWebhookEvent(paused)).toBe("processed");
+
+    expect(entitlements.rows[0]).toMatchObject({ status: "active" });
+    // Wiersz `subscriptions` nadal należy do nowszego zdarzenia.
+    expect(subscriptions.rows[0]).toMatchObject({
+      status: "active",
+      last_event_at: T2,
+      last_event_id: "evt_wznowienie",
+    });
+  });
+
+  it("A2: wyparta pauza + błąd bazy przy zapisie stanu -> ponowienie (`stale`) przywraca dostęp", async () => {
+    h.retrieve = async () => remoteSubscription("active");
+    db.setResponse("subscriptions", (chain) => {
+      const patch = chain.argsOf("update")?.[0] as StoredRow | undefined;
+      if (patch?.status === "paused") return fail("statement timeout");
+      return subscriptions.respond(chain);
+    });
+    const inner = resumeDuringPauseWrite();
+
+    await expect(dispatchWebhookEvent(paused)).rejects.toThrow(
+      "subscriptions update failed: statement timeout",
+    );
+    expect(await inner()).toBe("processed");
+    expect(entitlements.rows[0]).toMatchObject({ status: "canceled" });
+
+    expect(await dispatchWebhookEvent(paused)).toBe("processed");
+
+    expect(entitlements.rows[0]).toMatchObject({ status: "active" });
+    expect(subscriptions.rows[0]).toMatchObject({
+      status: "active",
+      last_event_id: "evt_wznowienie",
+    });
+  });
+
+  it("A3: zapis stanu pauzy pada, wznowienie przychodzi przed ponowieniem - klient nie słyszy „wstrzymana” bez „wznowiona”", async () => {
+    h.retrieve = async () => remoteSubscription("active");
+    let failCommit = true;
+    db.setResponse("subscriptions", (chain) => {
+      const patch = chain.argsOf("update")?.[0] as StoredRow | undefined;
+      if (failCommit && patch?.status === "paused") return fail("statement timeout");
+      return subscriptions.respond(chain);
+    });
+
+    await expect(dispatchWebhookEvent(paused)).rejects.toThrow("statement timeout");
+    failCommit = false;
+    expect(await dispatchWebhookEvent(resumed)).toBe("processed");
+    expect(await dispatchWebhookEvent(paused)).toBe("processed");
+
+    // Stan zapisany po kolei to `active` -> `active`: nie było czego ogłaszać.
+    expect(bellTitles()).toEqual([]);
+    expect(mailKinds()).toEqual([]);
+    expect(leads.rows.flatMap((lead) => lead.tags as string[])).not.toContain(
+      "subscription:paused",
+    );
+    expect(entitlements.rows[0]).toMatchObject({ status: "active" });
+    expect(subscriptions.rows[0]).toMatchObject({
+      status: "active",
+      last_event_id: "evt_wznowienie",
+    });
+  });
+
+  it("PAY-05: spóźnione zdarzenie piaskownicy na produkcji nie odpytuje operatora i niczego nie wyrównuje", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    subscriptions.rows[0] = storedSubscription({
+      environment: "sandbox",
+      last_event_at: T2,
+      last_event_id: "evt_nowsze",
+    });
+
+    expect(await dispatchWebhookEvent({ ...paused, environment: "sandbox" })).toBe("skipped");
+
+    expect(h.retrieveCalls).toEqual([]);
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+    vi.unstubAllEnvs();
   });
 });
 
@@ -381,10 +522,10 @@ describe("1.3 / 5.10 / 6.2 - powtórka po porażce skutków widzi POPRZEDNI stan
     expect(mailKinds()).toEqual(["subscription_upgraded"]);
   });
 
-  it("porażka DOPIERO przy zapisie stanu: powtórka nie dubluje dzwonka (dokładnie raz)", async () => {
-    // Skutki przeszły w całości (dzwonek już leży), padł ostatni krok - zapis
-    // stanu. Powtórka wykonuje skutki jeszcze raz: mail ma ziarno
-    // idempotencji, CRM jest zbieżny, a dzwonek - próg deduplikacji.
+  it("porażka DOPIERO przy zapisie stanu: zero komunikatów przed zapisem, po powtórce dokładnie raz", async () => {
+    // Uprawnienie przeszło, padł zapis stanu. Komunikaty czekają na udany
+    // zapis (A3), więc pierwsza próba niczego klientowi nie mówi - powtórka
+    // mówi raz.
     subscriptions.rows.push(storedSubscription({ status: "active" }));
     entitlements.rows.push({ id: "us-1", external_ref: "sub_atrapa_1", status: "active" });
     let stateWrites = 0;
@@ -407,18 +548,24 @@ describe("1.3 / 5.10 / 6.2 - powtórka po porażce skutków widzi POPRZEDNI stan
     await expect(dispatchWebhookEvent(paused)).rejects.toThrow(
       "subscriptions update failed: statement timeout",
     );
+    // Stan nie poszedł - klient nie słyszy o pauzie, której jeszcze nie ma.
+    expect(bellTitles()).toEqual([]);
+    expect(mailKinds()).toEqual([]);
+    expect(leads.rows).toEqual([]);
+
     expect(await dispatchWebhookEvent(paused)).toBe("processed");
 
     expect(bellTitles()).toEqual(["Subskrypcja wstrzymana"]);
-    // Oba przebiegi zgłaszają mail z TYM SAMYM ziarnem - dziennik wysyłek
-    // (`email_send_log`) przepuszcza tylko pierwszy.
-    expect(new Set(h.mails.map((mail) => mail.idempotencySeed)).size).toBe(1);
+    expect(mailKinds()).toEqual(["subscription_paused"]);
+    expect(leads.rows[0]?.tags).toContain("subscription:paused");
     expect(subscriptions.rows[0]).toMatchObject({ status: "paused" });
   });
 });
 
 describe("1.2 - skutki założenia nie giną, gdy pierwsza próba `created` padnie", () => {
   it("`created` pada na zapisie uprawnienia, potem przychodzi `updated`: mail, CRM i dzwonek założenia wychodzą", async () => {
+    h.retrieve = async () => remoteSubscription("active");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
     let writes = 0;
     db.setResponse("user_subscriptions", (chain) => {
       const write = chain.has("insert") || chain.has("update");
@@ -449,8 +596,10 @@ describe("1.2 - skutki założenia nie giną, gdy pierwsza próba `created` padn
         occurredAt: T2,
       }),
     ).toBe("processed");
-    // Ponowione `created` jest już spóźnione - i niczego nie traci.
-    expect(await dispatchWebhookEvent(created)).toBe("skipped");
+    // Ponowione `created` jest już spóźnione - niczego nie traci i niczego nie
+    // ogłasza drugi raz; uprawnienie wyrównuje stanem z API (`stale`).
+    expect(await dispatchWebhookEvent(created)).toBe("processed");
+    expect(h.retrieveCalls).toEqual(["sub_atrapa_1"]);
 
     expect(mailKinds()).toEqual(["subscription_confirmed"]);
     expect(bellTitles()).toEqual(["Subskrypcja aktywna"]);

@@ -554,6 +554,27 @@ describe("syncBillingCatalog - dryf cyklu i kształtu ceny (audyt #21)", () => {
     expect(itemFor(report, "business_quarterly")?.price).toBe("updated");
   });
 
+  it("cena rozliczana za ZUŻYCIE (`metered`) pod kluczem planu jest odtwarzana jako `licensed`", async () => {
+    // Po scaleniu PAY-01 z SUB-05 kasa odmawia ceny `metered` przez wspólne
+    // `catalogCycleMismatch` (nalicza za zgłoszone zużycie, nie za miejsca
+    // z pozycji sesji) - ten sam predykat musi tu wymusić nową cenę, inaczej
+    // plan zostałby niekupowalny przy raporcie „ok".
+    h.plans = [plan()];
+    h.remotePrices["plus_monthly"] = remotePlusMonthly({
+      recurring: { interval: "month", interval_count: 1, usage_type: "metered" },
+    });
+
+    const report = await syncBillingCatalog("sandbox");
+
+    expect(priceCreateFor("plus_monthly")).toMatchObject({
+      unit_amount: 4900,
+      recurring: { interval: "month", interval_count: 1 },
+      transfer_lookup_key: true,
+    });
+    expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", { active: false });
+    expect(itemFor(report, "plus_monthly")?.price).toBe("updated");
+  });
+
   it("cena płaska z przekształcaniem ilości albo kwotą od klienta jest odtwarzana", async () => {
     for (const drift of [
       { transform_quantity: { divide_by: 10, round: "up" } },

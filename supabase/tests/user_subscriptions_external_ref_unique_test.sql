@@ -1,6 +1,6 @@
 -- pgTAP: jedno uprawnienie na klucz operatora + kolumna strażnika kolejności
--- (migracje 20261012131200_subscription_event_guard
---  i 20261012131300_user_subscriptions_external_ref_unique, audyt PAY-02/PAY-10).
+-- (migracje 20261013100200_subscription_event_guard
+--  i 20261013100300_user_subscriptions_external_ref_unique, audyt PAY-02/PAY-10).
 --
 -- `syncEntitlementState` i `grantEntitlement` zamieniają przegrany wyścig
 -- (23505) w aktualizację TEGO SAMEGO klucza - działa to wyłącznie wtedy, gdy

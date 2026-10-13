@@ -19,14 +19,24 @@ name: Scheduler (push / digesty / przypomnienia)
 #   variables.APP_BASE_URL          np. https://neweuropeanstrategies.com
 #   secrets.COMMUNITY_CRON_SECRET   = env COMMUNITY_CRON_SECRET aplikacji ALBO
 #                                     job_runner_settings.secret (oba działają)
-#                                     - przebiegi 5-minutowe (community-cron)
+#                                     - przebiegi 5-minutowe (community-cron).
+#                                     Sekret runnera NIE otwiera rozliczeń.
 #   secrets.BILLING_CRON_SECRET     = env BILLING_CRON_SECRET aplikacji ALBO
-#                                     job_runner_settings.secret - WYŁĄCZNIE
-#                                     dobowy przebieg rozliczeń (billing-cron).
-#                                     Sekret społeczności NIE otwiera rozliczeń:
-#                                     endpoint przestał go przyjmować (PAY-17a).
+#                                     job_runner_settings.billing_secret -
+#                                     WYŁĄCZNIE dobowy przebieg rozliczeń
+#                                     (billing-cron). Endpoint przyjmuje tylko
+#                                     te dwa sekrety (PAY-17a): ani sekretu
+#                                     społeczności, ani sekretu runnera
+#                                     (job_runner_settings.secret), a wartość
+#                                     równą COMMUNITY_CRON_SECRET odrzuca jako
+#                                     błąd konfiguracji. Nigdy nie wpisuj tu
+#                                     sekretu społeczności ani runnera.
 # Bez sekretu właściwego dla zakresu przebieg kończy się zielono z ostrzeżeniem
 # - fork i świeży klon nie mogą hałasować, ale brak konfiguracji jest widoczny.
+#
+# AKCJE PRZYPIĘTE DO SHA COMMITA (PAY-17b, przegląd 3.6/7.10). Krok „Tick
+# rozliczeń" uruchamia skrypt z katalogu roboczego z BILLING_CRON_SECRET w env;
+# przesunięty tag `actions/checkout` podmieniłby ten skrypt bez śladu w repo.
 #
 # Uwaga operacyjna: GitHub wyłącza zaplanowane workflow po 60 dniach braku
 # aktywności w repo i potrafi spóźnić przebieg o kilka minut - dlatego to jest
@@ -85,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Zakres i liczba ticków zależą od wyzwalacza: wpis dobowy obsługuje
       # rozliczenia, wpis 5-minutowy drenuje kanały społeczności. Zakres jest
@@ -170,6 +180,10 @@ jobs:
           SCHEDULER_SOURCE: github_actions
           SCHEDULER_INTERVAL_MS: "60000"
           SCHEDULER_DEADLINE_MS: "240000"
+          # Ten sam termin co pg_net w invoke_billing_cron i
+          # BILLING_CRON_CALLER_TIMEOUT_MS w billing-cron.ts: zamiatarka po
+          # przypomnieniach planuje pracę do tej chwili (przegląd 3.0).
+          SCHEDULER_TIMEOUT_MS: "60000"
         run: node scripts/scheduler-tick.mjs
 
       # Sonda zdrowia po tickach: jeśli kolejka mimo drenażu stoi (brak VAPID,

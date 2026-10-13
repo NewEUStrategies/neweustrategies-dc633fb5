@@ -99,11 +99,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     /** Cena miejsca prowadzącego dla rozbicia kodu kwotowego (tylko cennik wejściówek). */
     let ticketLeadCents: number | undefined;
     let trialDays = 0;
-    /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
-    let catalogPriceId: string | null = null;
-    let catalogQuantity = 1;
-    /** Kwota katalogowa PRZED kuponem - ta, którą musi dać cena operatora. */
-    let catalogExpectedCents = 0;
+    /**
+     * Wycena planu (`planPricing.ts`) - jedyne źródło ceny katalogowej, ilości,
+     * kwoty, rodzaju zamówienia, trybu sesji i cyklu ceny. `null` poza zakupem
+     * planu (treść, bilet - kwota osadzona w pozycji sesji).
+     */
+    let planPricing: PlanCheckoutPricing | null = null;
     /** Trial raz na konto: `false`, gdy kupujący miał już subskrypcję planu. */
     let trialEligible = true;
 
@@ -176,50 +177,32 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       amountCents = pricing.amountCents;
       currency = String(plan.currency);
       label = String(plan.name_pl || plan.name_en);
-      trialDays = data.kind === "subscription" ? Math.max(0, Number(plan.trial_days ?? 0)) : 0;
-      // Subskrypcja MUSI powstać z ceny katalogowej dostawcy - tylko wtedy
-      // operator zakłada cykl rozliczeniowy, trial i wysyła zdarzenia
-      // `subscription.*` (odnowienia, dunning, anulowanie). Cena ad-hoc dałaby
-      // pojedyncze obciążenie bez odnowienia.
-      if (data.kind === "subscription") {
-        // Pozycja katalogu WYŁĄCZNIE po parze (tier, cykl) - bez zapasowej
-        // ceny „pierwszego wpisu progu", która plan kwartalny obciążała ceną
-        // miesięczną. Próg wolumenowy (katalog v6.1: Zespół od 11 miejsc po
-        // 79 zł) liczy `catalogPlanQuote` tą samą regułą co cena schodkowa
-        // `volume` u operatora - inaczej klient zobaczy w kasie inną kwotę niż
-        // na fakturze.
-        const { catalogPlanQuote } = await import("@/lib/billing/catalog");
-        const quote = catalogPlanQuote(plan, data.seats);
-        if (!quote) throw new Error("plan_price_missing");
-        catalogPriceId = quote.entry.priceId;
-        catalogQuantity = quote.quantity;
-        amountCents = quote.amountCents;
-        catalogExpectedCents = quote.amountCents;
-        // Druga subskrypcja = drugie obciążenie co cykl za ten sam dostęp;
-        // ponowny trial = dostęp bez płatności („anuluj w trialu, kup znowu").
-        // Lustro `subscriptions` pod RLS kupującego (konto i najemca z sesji);
-        // historię u operatora sprawdza jeszcze `createPlanCheckoutSession`.
-        // Pozycja jednorazowa (Decision Lab) nie zakłada cyklu - bez strażnika.
-        if (!quote.entry.oneTime) {
-          const { loadLocalPlanSubscriptionHistory, SUBSCRIPTION_EXISTS_ERROR } =
-            await import("@/lib/billing/planSubscriptionGuard");
-          const { resolveEnvironment: envForHistory } = await import("@/lib/stripe.server");
-          // Konflikt względem KUPOWANEJ pozycji (osobny zakup przy innym
-          // modelu rozliczenia przechodzi - zmiana planu by go odrzuciła).
-          const history = await loadLocalPlanSubscriptionHistory(supabase, {
-            userId,
-            environment: envForHistory(data.environment),
-            target: quote.entry,
-          });
-          if (history.hasLive) {
-            return {
-              ok: false as const,
-              mode: "subscription" as const,
-              error: SUBSCRIPTION_EXISTS_ERROR,
-            };
-          }
-          trialEligible = !history.hadAny;
+      trialDays = pricing.mode === "subscription" ? Math.max(0, Number(plan.trial_days ?? 0)) : 0;
+      // Druga subskrypcja = drugie obciążenie co cykl za ten sam dostęp;
+      // ponowny trial = dostęp bez płatności („anuluj w trialu, kup znowu"),
+      // audyt SUB-13. Lustro `subscriptions` pod RLS kupującego (konto
+      // i najemca z sesji); historię u operatora sprawdza jeszcze
+      // `createPlanCheckoutSession`. Plan jednorazowy (Decision Lab) nie
+      // zakłada cyklu - bez strażnika. Odmowa PRZED kuponem i zamówieniem.
+      if (pricing.kind === "subscription") {
+        const { loadLocalPlanSubscriptionHistory, SUBSCRIPTION_EXISTS_ERROR } =
+          await import("@/lib/billing/planSubscriptionGuard");
+        const { resolveEnvironment: envForHistory } = await import("@/lib/stripe.server");
+        // Konflikt względem KUPOWANEJ pozycji (osobny zakup przy innym
+        // modelu rozliczenia przechodzi - zmiana planu by go odrzuciła).
+        const history = await loadLocalPlanSubscriptionHistory(supabase, {
+          userId,
+          environment: envForHistory(data.environment),
+          target: pricing.entry,
+        });
+        if (history.hasLive) {
+          return {
+            ok: false as const,
+            mode: "subscription" as const,
+            error: SUBSCRIPTION_EXISTS_ERROR,
+          };
         }
+        trialEligible = !history.hadAny;
       }
     } else if (isEventTicket && data.ticket_type_id) {
       // WYCENA WEJŚCIÓWKI Z CENNIKA żyje w `eventTicketPricing.server.ts`, bo
@@ -692,11 +675,14 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         }
         const createdPlan = await createPlanCheckoutSession({
           environment,
-          priceLookupKey: catalogPriceId,
-          quantity: catalogQuantity,
-          // Kwota PRZED kuponem (kupon jedzie wyżej jako rabat operatora):
-          // cena pod `lookup_key` musi dać dokładnie ją, inaczej odmowa.
-          expectedAmountCents: catalogExpectedCents,
+          priceLookupKey: planPricing.entry.priceId,
+          quantity: planPricing.quantity,
+          // Kwota BRUTTO z wyceny (PRZED kuponem - kupon jedzie wyżej jako
+          // rabat operatora) i waluta zamówienia. Cena u operatora innego
+          // typu, w innej walucie, w innym cyklu albo z inną kwotą za tę
+          // liczbę sztuk niż zamówienie kończy się odmową `price_mismatch`,
+          // a nie sesją na coś innego.
+          expectedAmountCents: planPricing.amountCents,
           expectedCurrency: currency,
           planId: data.plan_id as string,
           orderId: order.id,
@@ -708,45 +694,19 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           // operatora niczego nie wymuszają, a karta zostaje obciążona od razu.
           trialDays,
           trialEligible,
+          settings,
         });
         // Sesje wygaszone przez kasę (poprzednia próba, druga karta) już nie
         // zostaną opłacone - ich zamówienia nie mogą wisieć w `processing`.
-        if (createdSub.supersededOrderIds?.length) {
-          const { markOrderSession } = await import("@/lib/billing/markOrderSession.server");
-          for (const supersededId of createdSub.supersededOrderIds) {
-            await markOrderSession(supabase, {
-              orderId: supersededId,
-              sessionId: null,
-              status: "canceled",
-            });
-          }
+        for (const supersededId of createdPlan.supersededOrderIds ?? []) {
+          await markOrderSession(supabase, {
+            orderId: supersededId,
+            sessionId: null,
+            status: "canceled",
+          });
         }
-        if (!createdSub.ok) {
-          await (
-            await import("@/lib/billing/markOrderSession.server")
-          ).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
-          if (couponId) {
-            const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
-            const { error: releaseErr } = await releaseCouponForUser(supabase, {
-              tenantId: order.tenant_id,
-              userId,
-              couponId,
-              orderId: order.id,
-            });
-            if (releaseErr) {
-              console.error("[checkout] coupon release failed", order.id, releaseErr.message);
-            }
-          }
-          return {
-            ok: false as const,
-            mode: "stripe" as const,
-            error: createdSub.error,
-            orderId: order.id,
-          };
-        }
-        await (
-          await import("@/lib/billing/markOrderSession.server")
-        ).markOrderSession(supabase, {
+        if (!createdPlan.ok) return await failOrder(createdPlan.error);
+        await markOrderSession(supabase, {
           orderId: order.id,
           sessionId: createdPlan.sessionId,
           status: "processing",

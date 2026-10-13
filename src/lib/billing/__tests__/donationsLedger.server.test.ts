@@ -159,9 +159,12 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 }));
 
 const sessionsCreate = vi.fn();
-vi.mock("@/lib/stripe.server", () => ({
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
   getStripeClient: () => ({ checkout: { sessions: { create: sessionsCreate } } }),
   getStripeErrorMessage: () => "provider_error",
+  // Reguła S9 (dyspozytor pyta o nią przy każdym zdarzeniu) zostaje prawdziwa.
+  environmentGrantsAccess: (await importOriginal<typeof import("@/lib/stripe.server")>())
+    .environmentGrantsAccess,
 }));
 vi.mock("@/lib/server/tenant.server", () => ({ resolveTenantIdForHost: async () => "tenant-1" }));
 // Dokument rozliczeniowy faktury to osobny rejestr - poza zakresem tej księgi.

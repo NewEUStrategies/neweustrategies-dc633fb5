@@ -48,6 +48,20 @@
 // produkcyjnym zdarzenia piaskownicy zostawiają wyłącznie ślad księgowy
 // (dziennik + `subscriptions`), a uprawnienia są dla nich wyłączone z założenia.
 //
+// Odczyt idzie RPC `billing_probe_status` (klucz publikowalny + token sondy),
+// a nie REST kluczem `service_role` produkcji (przegląd 7.6): funkcja zwraca
+// wyłącznie pola sondy i wyłącznie z piaskownicy, a token nie otwiera niczego
+// więcej. `parseProbeStatus` pilnuje kształtu jej odpowiedzi.
+//
+// ── PUNKT ODBIORU WEBHOOKÓW (przegląd 7.12) ─────────────────────────────────
+// Integracja obsługuje typy z `STRIPE_WEBHOOK_EVENT_TYPES`, ale Stripe wysyła
+// tylko te, które punkt odbioru ma włączone - nowe typy (np.
+// `checkout.session.expired`, `charge.dispute.closed`, `refund.failed`) trzeba
+// włączyć ręcznie. Bez tego spór wygrany nie przywraca dostępu, porzucona
+// kasa nie zwalnia kuponu, a wszystkie testy i sonda świecą na zielono.
+// `classifyWebhookEndpoints` oblewa sondę, gdy nasz punkt odbioru
+// w piaskownicy nie ma któregoś z nich.
+//
 // Warstwa wykonawcza (HTTP przez bramkę konektorów, pliki, kody wyjścia) żyje
 // w `scripts/billing-renewal-probe.ts`; ten moduł jest czysty i testowalny.
 
@@ -373,6 +387,213 @@ export interface LocalSyncVerdict {
   readonly failedEvents: readonly LocalWebhookRow[];
   readonly localPeriodEnd: number | null;
   readonly reason: string;
+}
+
+/** Odpowiedź RPC `billing_probe_status` po walidacji kształtu. */
+export interface ProbeStatus {
+  readonly webhookRows: readonly LocalWebhookRow[];
+  readonly subscription: LocalSubscriptionRow | null;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+const optionalString = (value: unknown): value is string | null | undefined =>
+  value === null || value === undefined || typeof value === "string";
+
+/**
+ * Waliduje odpowiedź `billing_probe_status`
+ * (`{ webhook_events: [...], subscription: {...} | null }`). Zwraca `null`
+ * przy KAŻDEJ niezgodności kształtu - sonda zgłasza wtedy błąd kontraktu,
+ * zamiast zgadywać na niepełnych danych (pusta lista wyglądałaby jak „nic nie
+ * dotarło" i dawała fałszywy alarm albo fałszywy spokój).
+ */
+export function parseProbeStatus(value: unknown): ProbeStatus | null {
+  if (!isObject(value) || !Array.isArray(value.webhook_events)) return null;
+  const webhookRows: LocalWebhookRow[] = [];
+  for (const row of value.webhook_events) {
+    if (
+      !isObject(row) ||
+      typeof row.event_id !== "string" ||
+      typeof row.event_type !== "string" ||
+      typeof row.status !== "string" ||
+      typeof row.created_at !== "string" ||
+      !optionalString(row.error)
+    ) {
+      return null;
+    }
+    webhookRows.push({
+      event_id: row.event_id,
+      event_type: row.event_type,
+      status: row.status,
+      error: row.error ?? null,
+      created_at: row.created_at,
+    });
+  }
+
+  const raw = value.subscription;
+  if (raw === null || raw === undefined) return { webhookRows, subscription: null };
+  if (
+    !isObject(raw) ||
+    typeof raw.provider_subscription_id !== "string" ||
+    !optionalString(raw.status) ||
+    !optionalString(raw.current_period_end)
+  ) {
+    return null;
+  }
+  return {
+    webhookRows,
+    subscription: {
+      provider_subscription_id: raw.provider_subscription_id,
+      status: raw.status ?? null,
+      current_period_end: raw.current_period_end ?? null,
+    },
+  };
+}
+
+// ─── Punkt odbioru webhooków w piaskownicy ─────────────────────────────────
+
+/** Ścieżka naszego odbiornika (`src/routes/api/public/payments/webhook.ts`). */
+export const WEBHOOK_ENDPOINT_PATH = "/api/public/payments/webhook";
+
+/** Punkt odbioru webhooków w kształcie zwracanym przez `GET /v1/webhook_endpoints`. */
+export interface StripeWebhookEndpoint {
+  readonly id: string;
+  readonly url: string;
+  readonly status?: string | null;
+  readonly enabled_events?: readonly string[] | null;
+}
+
+export interface WebhookEndpointInput {
+  readonly endpoints: readonly StripeWebhookEndpoint[];
+  /** Typy, które integracja obsługuje (`STRIPE_WEBHOOK_EVENT_TYPES`). */
+  readonly expectedTypes: readonly string[];
+  /**
+   * Publiczny adres aplikacji (`vars.APP_BASE_URL`). Z nim liczą się wyłącznie
+   * punkty odbioru tego wdrożenia; bez niego - każdy z naszą ścieżką.
+   */
+  readonly appBaseUrl: string | null;
+}
+
+export interface EndpointGap {
+  readonly id: string;
+  readonly url: string;
+  /** Problem inny niż brak typów (wyłączony punkt, środowisko w adresie). */
+  readonly problem: string | null;
+  readonly missingTypes: readonly string[];
+}
+
+export interface WebhookEndpointVerdict {
+  readonly outcome: "ok" | "failed";
+  /** Nasze punkty odbioru, które sonda oceniała. */
+  readonly checked: number;
+  readonly gaps: readonly EndpointGap[];
+  readonly reason: string;
+}
+
+function parseUrl(raw: string): URL | null {
+  try {
+    return new URL(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Czy punkty odbioru piaskownicy, które wskazują na NASZ odbiornik, są
+ * włączone, oznaczone `env=sandbox` i subskrybują każdy obsługiwany typ
+ * (albo `*`). Brak takiego punktu to też porażka - wtedy nic nie dociera.
+ */
+export function classifyWebhookEndpoints(input: WebhookEndpointInput): WebhookEndpointVerdict {
+  const origin = input.appBaseUrl ? (parseUrl(input.appBaseUrl)?.origin ?? null) : null;
+  const ours = input.endpoints.filter((endpoint) => {
+    const url = parseUrl(endpoint.url);
+    if (!url || url.pathname.replace(/\/+$/, "") !== WEBHOOK_ENDPOINT_PATH) return false;
+    return origin === null || url.origin === origin;
+  });
+
+  if (ours.length === 0) {
+    return {
+      outcome: "failed",
+      checked: 0,
+      gaps: [],
+      reason:
+        `W piaskownicy Stripe nie ma punktu odbioru webhooków z adresem ` +
+        `${origin ?? "<wdrożenie>"}${WEBHOOK_ENDPOINT_PATH}?env=sandbox - zdarzenia ` +
+        "piaskownicy nie docierają do naszego odbiornika.",
+    };
+  }
+
+  const gaps: EndpointGap[] = [];
+  for (const endpoint of ours) {
+    const enabled = endpoint.enabled_events ?? [];
+    const missingTypes = enabled.includes("*")
+      ? []
+      : input.expectedTypes.filter((type) => !enabled.includes(type));
+    const env = parseUrl(endpoint.url)?.searchParams.get("env") ?? null;
+    const problem =
+      endpoint.status && endpoint.status !== "enabled"
+        ? `punkt odbioru ma status \`${endpoint.status}\``
+        : env !== "sandbox"
+          ? `adres ma \`env=${env ?? "(brak)"}\` zamiast \`env=sandbox\``
+          : null;
+    if (problem || missingTypes.length > 0) {
+      gaps.push({ id: endpoint.id, url: endpoint.url, problem, missingTypes });
+    }
+  }
+
+  if (gaps.length === 0) {
+    return {
+      outcome: "ok",
+      checked: ours.length,
+      gaps,
+      reason:
+        `Punkty odbioru piaskownicy (${ours.length}) subskrybują wszystkie ` +
+        `${input.expectedTypes.length} obsługiwane typy zdarzeń.`,
+    };
+  }
+
+  const listed = gaps
+    .map((gap) =>
+      [
+        `\`${gap.id}\` (${gap.url})`,
+        gap.problem,
+        gap.missingTypes.length > 0
+          ? `brak typów: ${gap.missingTypes.map((type) => `\`${type}\``).join(", ")}`
+          : null,
+      ]
+        .filter((part): part is string => part !== null)
+        .join(" - "),
+    )
+    .join("; ");
+  return {
+    outcome: "failed",
+    checked: ours.length,
+    gaps,
+    reason:
+      `Punkt odbioru webhooków piaskownicy nie odbiera wszystkiego, co obsługujemy: ${listed}. ` +
+      "Włącz brakujące typy w Stripe (Developers -> Webhooks -> punkt odbioru -> " +
+      "Listen to events) - bez nich spór, zwrot albo porzucona kasa nie dotrą do obsługi.",
+  };
+}
+
+export function renderWebhookEndpointSummary(verdict: WebhookEndpointVerdict): string {
+  return [
+    "### Sonda odnowienia - punkt odbioru webhooków (piaskownica)",
+    `- wynik: **${verdict.outcome === "ok" ? "✓ wszystkie typy włączone" : "✗ braki"}**`,
+    `- sprawdzone punkty odbioru: ${verdict.checked}`,
+    "",
+    verdict.reason,
+  ].join("\n");
+}
+
+/** Werdykt całości po dołożeniu punktu odbioru: jego porażka przesądza. */
+export function withEndpointVerdict(
+  outcome: ProbeOutcome,
+  endpoint: WebhookEndpointVerdict | null,
+): ProbeOutcome {
+  return endpoint?.outcome === "failed" ? "failed" : outcome;
 }
 
 function unixOf(iso: string | null | undefined): number | null {

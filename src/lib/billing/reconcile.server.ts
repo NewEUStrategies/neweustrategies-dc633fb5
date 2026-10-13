@@ -20,29 +20,7 @@ import { getStripeClient, type StripeEnv, type VerifiedWebhookEvent } from "@/li
 import { STRIPE_WEBHOOK_EVENT_TYPES } from "@/lib/billing/stripeEventTypes";
 
 /** Typy zdarzeń, które nasza integracja umie obsłużyć (reszta jest ignorowana). */
-const SUPPORTED_EVENT_TYPES = [
-  "customer.subscription.created",
-  "customer.subscription.updated",
-  "customer.subscription.deleted",
-  "customer.subscription.resumed",
-  "checkout.session.completed",
-  "checkout.session.async_payment_succeeded",
-  "checkout.session.async_payment_failed",
-  "invoice.paid",
-  "invoice.payment_succeeded",
-  "invoice.payment_failed",
-  "charge.refunded",
-  // Zwrot, który nie doszedł (INV-19c): zgubione zdarzenie zostawiłoby zlecenie
-  // zwrotu w `submitted`, więc uzgadnianie ma je widzieć. `refund.updated` -
-  // celowo nie: większość jego dostaw to sukces, który niesie `charge.refunded`.
-  "refund.failed",
-  "charge.dispute.created",
-  // Rozstrzygnięcie sporu (`won` przywraca dostęp i wpłatę) - zgubione
-  // zdarzenie ma być widoczne i naprawialne jak każde inne.
-  "charge.dispute.closed",
-  "credit_note.created",
-  "customer.updated",
-] as const;
+const SUPPORTED_EVENT_TYPES = STRIPE_WEBHOOK_EVENT_TYPES;
 
 export type ReconcileKind = "event" | "order" | "subscription";
 
@@ -248,7 +226,12 @@ export async function buildReconcileReport(
     }
   }
 
-  // 3. Status subskrypcji w bazie kontra Stripe.
+  // 3. Status subskrypcji w bazie kontra Stripe - porównujemy status
+  // ZNORMALIZOWANY tak jak w webhooku (`mapStripeSubscription`). Pauza poboru
+  // (SUB-14) zostawia u operatora `status: active` z `pause_collection`, a do
+  // bazy trafia `paused`: surowe porównanie zgłaszało rozjazd przy każdej
+  // takiej subskrypcji, a naprawa (to samo mapowanie) nigdy by go nie domknęła.
+  const { mapStripeSubscription } = await import("@/lib/billing/stripeEvents.server");
   const { data: subs, error: subErr } = await supabase
     .from("subscriptions")
     .select("provider_subscription_id, status, updated_at")
@@ -262,14 +245,17 @@ export async function buildReconcileReport(
   for (const sub of subs ?? []) {
     try {
       const remote = await stripe.subscriptions.retrieve(sub.provider_subscription_id);
-      if (remote.status === sub.status) continue;
+      const remoteStatus = mapStripeSubscription(
+        remote as unknown as Record<string, unknown>,
+      ).status;
+      if (remoteStatus === sub.status) continue;
       issues.push({
         kind: "subscription",
         reference: sub.provider_subscription_id,
         eventId: null,
         eventType: "customer.subscription.updated",
         reason: "subscription_status_drift",
-        detail: `${sub.status} -> ${remote.status}`,
+        detail: `${sub.status} -> ${remoteStatus}`,
         occurredAt: sub.updated_at,
         repairable: true,
       });
@@ -666,12 +652,18 @@ export async function repairReconcileIssue(
     // więc księgowanie zamówienia jest identyczne jak przy dostawie od Stripe.
     const stamp = repairStamp();
     const synthetic: VerifiedWebhookEvent = {
+      // Sekunda naprawy zostaje w IDENTYFIKATORZE (PAY-15: kolejna naprawa to
+      // nowe zdarzenie, podwójne kliknięcie - ten sam wpis dziennika).
       id: `reconcile_${session.id}_${stamp}`,
       type:
         session.payment_status === "unpaid"
           ? "checkout.session.async_payment_failed"
           : "checkout.session.completed",
-      created: stamp,
+      // Czas zdarzenia to chwila ZAKUPU (utworzenie sesji), nie naprawy (4.5).
+      // Dyspozytor przekazuje go realizacji i domknięciu zamówienia jako
+      // `paidAt`: naprawa zaległego zamówienia sprzed tygodni stemplowała
+      // `paid_at` na dziś i przenosiła stary przychód do bieżącego okresu.
+      created: typeof session.created === "number" ? session.created : stamp,
       data: { object: session as unknown as Record<string, unknown> },
     } as VerifiedWebhookEvent;
     return replayEvent(synthetic, environment, reference);

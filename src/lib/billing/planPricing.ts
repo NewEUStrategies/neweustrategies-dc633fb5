@@ -9,25 +9,28 @@
 // rodzaj zamówienia i tryb sesji są teraz wyprowadzane WYŁĄCZNIE z wiersza
 // planu, w jednym miejscu, więc oba silniki nie mogą się w tym rozjechać.
 //
-// WYŁĄCZNIE DOKŁADNA PARA (warstwa, cykl). `catalogPriceForPlan` z `catalog.ts`
-// służy interfejsowi i przy braku pary schodzi na PIERWSZY wpis warstwy, a cykl
-// spoza słownika czyta jako miesiąc. W kasie to była cena za coś innego: plan
-// „Pro kwartalny" otwierał subskrypcję `pro_monthly` (co miesiąc, inną kwotą),
-// „Biznes roczny" - `business_2w` (co dwa tygodnie), a zamówienie zapisywało
-// kwotę planu. Rozjazd wychodził dopiero po pobraniu pieniędzy (przegląd
-// PAY-01, 0.1). Kasa bierze więc wpis wyłącznie dla DOKŁADNEJ pary i odmawia
-// w każdym innym przypadku.
+// WYŁĄCZNIE DOKŁADNA PARA (warstwa, cykl). Pozycję, ilość, próg wolumenowy
+// i kwotę liczy `catalogPlanQuote` z `catalog.ts` (ta sama reguła, z której
+// korzysta synchronizacja katalogu - audyt SUB-05), a cykl ceny u operatora -
+// `catalogRecurringFor` (jeden słownik dla zakładania ceny i dla kontroli
+// w kasie). Ten moduł dokłada to, czego katalog nie wie o zamówieniu: rodzaj
+// zamówienia i tryb sesji wynikające z planu, ze sprawdzeniem, że plan
+// jednorazowy trafia w cenę jednorazową, a cykliczny w cykliczną (przegląd
+// PAY-01, 0.0/0.1).
 //
 // Moduł czysty (bez zależności serwerowych) - korzysta z niego kasa po stronie
 // serwera, a testy jednostkowe wołają go bez atrap.
 import {
-  BILLING_CATALOG,
+  catalogPlanQuote,
+  catalogRecurringFor,
   type CatalogPriceEntry,
-  type PlanBillingInterval,
+  type CatalogRecurring,
 } from "@/lib/billing/catalog";
 
-/** Górny limit miejsc w jednym zamówieniu - ten sam, co limit pozycji sesji. */
-export const MAX_PLAN_SEATS = 100;
+// Dokładna para i limit miejsc żyją w `catalog.ts` (wspólne z synchronizacją
+// katalogu i wyceną `catalogPlanQuote`); tu re-eksport, żeby kasa i testy
+// wyceny miały całą regułę pod jednym adresem.
+export { exactCatalogEntryForPlan, MAX_PLAN_SEATS } from "@/lib/billing/catalog";
 
 /** Kolumny `access_plans`, z których liczy się wycena. */
 export interface PlanPricingRow {
@@ -36,12 +39,6 @@ export interface PlanPricingRow {
   price_cents?: number | null;
   volume_threshold_seats?: number | null;
   volume_price_cents?: number | null;
-}
-
-/** Cykl ceny w słowniku operatora (Stripe zna wyłącznie day/week/month/year). */
-export interface StripeRecurringCycle {
-  interval: "day" | "week" | "month" | "year";
-  intervalCount: number;
 }
 
 export interface PlanCheckoutPricing {
@@ -59,47 +56,10 @@ export interface PlanCheckoutPricing {
   mode: "subscription" | "payment";
   /**
    * Cykl, który MUSI mieć cena u operatora (`recurring.interval` +
-   * `interval_count`); `null` dla planu jednorazowego.
+   * `interval_count`, słownik `catalogRecurringFor`); `null` dla planu
+   * jednorazowego. Kasa sprawdza go przed sesją (`catalogCycleMismatch`).
    */
-  recurring: StripeRecurringCycle | null;
-}
-
-/**
- * Cykl rozliczeniowy ceny u operatora dla cyklu planu. Stripe zna wyłącznie
- * day/week/month/year, więc interwały aplikacji mapują się na krotności:
- * `two_weeks` -> week x2, `quarter` -> month x3. Ten sam słownik zakłada ceny
- * w `catalogSync.server.ts` (`billingCycle`) - kasa sprawdza nim, czy cena pod
- * kluczem nadal rozlicza się w cyklu planu. `null` = cena jednorazowa.
- */
-export function stripeRecurringForInterval(
-  interval: PlanBillingInterval,
-): StripeRecurringCycle | null {
-  switch (interval) {
-    case "one_time":
-      return null;
-    case "two_weeks":
-      return { interval: "week", intervalCount: 2 };
-    case "quarter":
-      return { interval: "month", intervalCount: 3 };
-    case "year":
-      return { interval: "year", intervalCount: 1 };
-    case "month":
-      return { interval: "month", intervalCount: 1 };
-  }
-}
-
-/**
- * Wpis katalogu dla DOKŁADNEJ pary (warstwa, cykl) planu - bez schodzenia na
- * pierwszy wpis warstwy i bez czytania nieznanego cyklu jako miesiąca.
- */
-export function exactCatalogEntryForPlan(plan: {
-  tier_key?: string | null;
-  interval?: string | null;
-}): CatalogPriceEntry | null {
-  const tier = plan.tier_key ?? "";
-  const interval = plan.interval ?? "";
-  if (!tier || !interval) return null;
-  return BILLING_CATALOG.find((e) => e.tierKey === tier && e.interval === interval) ?? null;
+  recurring: CatalogRecurring | null;
 }
 
 /**
@@ -113,42 +73,29 @@ export function exactCatalogEntryForPlan(plan: {
  * z flagą `oneTime` niezgodną z cyklem.
  *
  * Liczba miejsc z żądania liczy się wyłącznie dla wpisów `perSeat`
- * i jest docinana do 1..100. Próg wolumenowy (katalog v6.1: Zespół od
- * 11 miejsc po 79 zł) przecenia WSZYSTKIE miejsca - cena u operatora jest
- * schodkowa w trybie `volume` (patrz `catalogSync.server.ts`), więc kwota
- * zamówienia musi liczyć tak samo, inaczej klient zobaczy w kasie inną kwotę
- * niż na fakturze.
+ * i jest docinana do 1..100 (`catalogPlanQuote`). Próg wolumenowy (katalog
+ * v6.1: Zespół od 11 miejsc po 79 zł) przecenia WSZYSTKIE miejsca - cena
+ * u operatora jest schodkowa w trybie `volume` (patrz `catalogSync.server.ts`),
+ * więc kwota zamówienia musi liczyć tak samo, inaczej klient zobaczy w kasie
+ * inną kwotę niż na fakturze.
  */
 export function planCheckoutPricing(
   plan: PlanPricingRow,
   seats?: number | null,
 ): PlanCheckoutPricing | null {
-  const entry = exactCatalogEntryForPlan(plan);
-  if (!entry) return null;
+  const quote = catalogPlanQuote(plan, seats);
+  if (!quote) return null;
+  const { entry } = quote;
 
   const planOneTime = entry.interval === "one_time";
   const entryOneTime = entry.oneTime === true;
   if (planOneTime !== entryOneTime) return null;
 
-  const requestedSeats = typeof seats === "number" && Number.isFinite(seats) ? seats : 1;
-  const quantity = entry.perSeat ? Math.min(Math.max(requestedSeats, 1), MAX_PLAN_SEATS) : 1;
-
-  const baseUnitCents = Number(plan.price_cents ?? 0);
-  const volumeThreshold = Number(plan.volume_threshold_seats ?? 0);
-  const volumeUnitCents = Number(plan.volume_price_cents ?? 0);
-  const unitCents =
-    entry.perSeat && volumeThreshold >= 2 && quantity >= volumeThreshold
-      ? volumeUnitCents
-      : baseUnitCents;
-
   const kind = planOneTime ? "one_time" : "subscription";
   return {
-    entry,
-    quantity,
-    unitCents,
-    amountCents: unitCents * quantity,
+    ...quote,
     kind,
     mode: kind === "one_time" ? "payment" : "subscription",
-    recurring: stripeRecurringForInterval(entry.interval),
+    recurring: catalogRecurringFor(entry),
   };
 }

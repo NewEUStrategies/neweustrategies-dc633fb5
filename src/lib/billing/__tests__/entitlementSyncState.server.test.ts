@@ -7,7 +7,8 @@
 //   * DUPLIKAT UPRAWNIENIA. Kolejne zdarzenie tej samej subskrypcji ma
 //     zaktualizować JEDEN wiersz po `external_ref`, a nie dopisać drugi -
 //     także wtedy, gdy dwa zdarzenia ścigają się o wstawienie (indeks
-//     unikalny `external_ref`, 20261012131300: przegrany dostaje 23505).
+//     unikalny `external_ref`, migracja `user_subscriptions_external_ref_unique`:
+//     przegrany dostaje 23505).
 //   * WSKRZESZENIE PO ZWROCIE. Uprawnienie odebrane po zwrocie jest
 //     ostateczne - spóźnione zdarzenie nie przywraca płatnego dostępu.
 //   * POZORNY SUKCES. Błąd odczytu albo zapisu MUSI polecieć wyjątkiem
@@ -413,10 +414,46 @@ describe("S1: uprawnienie `refunded` (korekta BIEŻĄCEGO okresu) - kiedy stan o
   });
 
   it("`mayReviveRefunded` - reguła w jednym miejscu", () => {
-    expect(mayReviveRefunded({ force: true }, null)).toBe(true);
-    expect(mayReviveRefunded({ periodStart: relativeIso(0) }, relativeIso(-1))).toBe(true);
-    expect(mayReviveRefunded({ periodStart: relativeIso(0) }, null)).toBe(false);
-    expect(mayReviveRefunded({ periodStart: null }, relativeIso(-1))).toBe(false);
-    expect(mayReviveRefunded({ periodStart: relativeIso(0) }, "nie-data")).toBe(false);
+    expect(mayReviveRefunded({ status: "past_due", force: true }, null)).toBe(true);
+    expect(
+      mayReviveRefunded({ status: "active", periodStart: relativeIso(0) }, relativeIso(-1)),
+    ).toBe(true);
+    expect(mayReviveRefunded({ status: "active", periodStart: relativeIso(0) }, null)).toBe(false);
+    expect(mayReviveRefunded({ status: "active", periodStart: null }, relativeIso(-1))).toBe(false);
+    expect(mayReviveRefunded({ status: "active", periodStart: relativeIso(0) }, "nie-data")).toBe(
+      false,
+    );
   });
+
+  // S1 x SUB-03 (scalenie z #495). Stripe przesuwa `current_period_start` przy
+  // odnowieniu ZANIM obciąży kartę, a karencja płatności daje zaległości
+  // dostęp do końca karencji. Nieudane odnowienie po zwrocie albo sporze
+  // przychodziło więc jako „nowy okres" i ożywiało uprawnienie odebrane
+  // korektą - klient, któremu zwróciliśmy pieniądze, dostawał dwa tygodnie
+  // dostępu za kolejną nieudaną płatność.
+  it.each([["past_due"], ["unpaid"], ["paused"], ["incomplete"], ["incomplete_expired"]])(
+    "S1 x SUB-03: `%s` w NOWYM okresie nie ożywia korekty (karencja to nie zapłata)",
+    async (status) => {
+      plan({ existing: { id: "us-1", status: "refunded", canceled_at: CORRECTED_AT } });
+
+      await syncEntitlementState(
+        input({ status, periodStart: relativeIso(-1 * DZIEN), periodEnd: relativeIso(13 * DZIEN) }),
+      );
+
+      expect(writeOf("update").chain).toBeUndefined();
+      expect(writeOf("insert").chain).toBeUndefined();
+      expect(
+        mayReviveRefunded({ status, periodStart: relativeIso(-1 * DZIEN) }, CORRECTED_AT),
+      ).toBe(false);
+    },
+  );
+
+  it.each([["active"], ["trialing"], ["canceled"]])(
+    "S1: `%s` w NOWYM opłaconym okresie ożywia korektę",
+    (status) => {
+      expect(
+        mayReviveRefunded({ status, periodStart: relativeIso(-1 * DZIEN) }, CORRECTED_AT),
+      ).toBe(true);
+    },
+  );
 });

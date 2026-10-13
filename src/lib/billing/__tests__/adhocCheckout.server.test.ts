@@ -68,12 +68,10 @@ import {
   createAdhocCheckoutSession,
   createAdhocDiscountForCoupon,
   createPlanCheckoutSession,
-  planPriceMismatch,
   resolveOrCreateCustomer,
   resolvePricesByLookupKeys,
   reuseOpenSession,
   stripeCouponName,
-  stripePriceAmountCents,
   type AdhocCheckoutSessionInput,
   type PlanCheckoutSessionInput,
 } from "@/lib/billing/adhocCheckout.server";
@@ -107,16 +105,24 @@ const lastSession = (): SessionParams =>
   h.fns.sessionsCreate.mock.calls.at(-1)![0] as SessionParams;
 const asStripe = () => h.stripe as unknown as Stripe;
 
-/** Cena `pro_monthly` u operatora - zgodna z `plan()` (kwota, waluta, cykl). */
+/**
+ * Cena `pro_monthly` w kształcie, który oddaje operator: płaska stawka za
+ * sztukę, cykl miesięczny, rozliczenie za ilość - zgodna z `plan()` (kwota,
+ * waluta, cykl). Bramka spójności (PAY-01, SUB-05) porównuje KAŻDE z tych pól
+ * z zamówieniem.
+ */
 const stripePrice = (over: Record<string, unknown> = {}): Stripe.Price =>
   ({
     id: "price_1",
     lookup_key: "pro_monthly",
     type: "recurring",
+    currency: "pln",
     billing_scheme: "per_unit",
     unit_amount: 12900,
-    currency: "pln",
-    recurring: { interval: "month", interval_count: 1 },
+    recurring: { interval: "month", interval_count: 1, usage_type: "licensed" },
+    tiers_mode: null,
+    transform_quantity: null,
+    custom_unit_amount: null,
     ...over,
   }) as unknown as Stripe.Price;
 
@@ -141,10 +147,6 @@ const adhoc = (over: Partial<AdhocCheckoutSessionInput> = {}): AdhocCheckoutSess
 const plan = (over: Partial<PlanCheckoutSessionInput> = {}): PlanCheckoutSessionInput => ({
   environment: "sandbox",
   priceLookupKey: "pro_monthly",
-  expectedMode: "subscription",
-  expectedCurrency: "PLN",
-  expectedRecurring: { interval: "month", intervalCount: 1 },
-  expectedAmountCents: 4900,
   planId: "plan_pro",
   orderId: "ord_1",
   userId: "user-1",
@@ -601,16 +603,27 @@ describe("createPlanCheckoutSession - cena niezgodna z planem (audyt PAY-01)", (
   // waluta nie zgadza się z zamówieniem, sesja pobrałaby pieniądze za coś
   // innego, niż zapisała baza: subskrypcję zamiast zakupu jednorazowego albo
   // euro zamiast złotych. Odmowa zapada ZANIM powstanie klient i sesja.
+  //
+  // Po scaleniu z audytem SUB-05 typ i cykl ceny sprawdza bramka względem
+  // POZYCJI KATALOGU (`catalogCycleMismatch`), którą wołający bierze z wyceny
+  // planu - zamiast osobnych `expectedMode`/`expectedRecurring`. Zamówienie
+  // jednorazowe to więc klucz pozycji jednorazowej (`decision_lab_seat`).
   it("cena niezgodna z planem -> odmowa: cena CYKLICZNA dla zamówienia jednorazowego", async () => {
-    const result = await createPlanCheckoutSession(plan({ expectedMode: "payment" }));
+    h.fns.pricesList.mockResolvedValue({
+      data: [stripePrice({ lookup_key: "decision_lab_seat", unit_amount: 1600000 })],
+    });
+
+    const result = await createPlanCheckoutSession(
+      plan({ priceLookupKey: "decision_lab_seat", expectedAmountCents: 1600000 }),
+    );
 
     expect(result).toEqual({ ok: false, error: "price_mismatch" });
     expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
     expect(h.fns.customersSearch).not.toHaveBeenCalled();
     expect(h.fns.customersCreate).not.toHaveBeenCalled();
     expect(console.error).toHaveBeenCalledWith(
-      "[payments] plan price mismatch",
-      expect.objectContaining({ expectedMode: "payment", priceMode: "subscription" }),
+      "[payments] catalog price mismatch - checkout refused",
+      expect.objectContaining({ reason: "cycle", priceMode: "subscription" }),
     );
   });
 
@@ -659,20 +672,32 @@ describe("createPlanCheckoutSession - cykl i kwota ceny zgodne z planem (przegl�
     expect(h.fns.customersSearch).not.toHaveBeenCalled();
   };
 
-  it("plan ROCZNY, cena co DWA TYGODNIE -> odmowa (interval)", async () => {
+  it("plan ROCZNY, cena co DWA TYGODNIE -> odmowa (cykl)", async () => {
     h.fns.pricesList.mockResolvedValue({
-      data: [stripePrice({ recurring: { interval: "week", interval_count: 2 } })],
+      data: [
+        stripePrice({
+          lookup_key: "pro_annual",
+          recurring: { interval: "week", interval_count: 2 },
+        }),
+      ],
     });
 
-    await refused(plan({ expectedRecurring: { interval: "year", intervalCount: 1 } }));
+    await refused(plan({ priceLookupKey: "pro_annual" }));
     expect(console.error).toHaveBeenCalledWith(
-      "[payments] plan price mismatch",
-      expect.objectContaining({ reason: "interval" }),
+      "[payments] catalog price mismatch - checkout refused",
+      expect.objectContaining({
+        reason: "cycle",
+        expectedRecurring: { interval: "year", interval_count: 1 },
+      }),
     );
   });
 
   it("plan KWARTALNY, cena miesięczna -> odmowa (`interval_count` 1 zamiast 3)", async () => {
-    await refused(plan({ expectedRecurring: { interval: "month", intervalCount: 3 } }));
+    h.fns.pricesList.mockResolvedValue({
+      data: [stripePrice({ lookup_key: "business_quarterly" })],
+    });
+
+    await refused(plan({ priceLookupKey: "business_quarterly" }));
   });
 
   it("cena rozliczana za ZUŻYCIE (`metered`) nie jest ceną za miejsca -> odmowa", async () => {
@@ -686,9 +711,11 @@ describe("createPlanCheckoutSession - cykl i kwota ceny zgodne z planem (przegl�
   });
 
   it("plan jednorazowy, cena z cyklem -> odmowa", async () => {
-    h.fns.pricesList.mockResolvedValue({ data: [oneTimePrice({ recurring: {} })] });
+    h.fns.pricesList.mockResolvedValue({
+      data: [oneTimePrice({ lookup_key: "decision_lab_seat", recurring: {} })],
+    });
 
-    await refused(plan({ expectedMode: "payment", expectedRecurring: null }));
+    await refused(plan({ priceLookupKey: "decision_lab_seat" }));
   });
 
   it("DRYF KWOTY: operator nalicza 99 zł, zamówienie zapisało 49 zł -> odmowa (amount)", async () => {
@@ -696,7 +723,7 @@ describe("createPlanCheckoutSession - cykl i kwota ceny zgodne z planem (przegl�
 
     await refused(plan({ expectedAmountCents: 4900 }));
     expect(console.error).toHaveBeenCalledWith(
-      "[payments] plan price mismatch",
+      "[payments] catalog price mismatch - checkout refused",
       expect.objectContaining({
         reason: "amount",
         expectedAmountCents: 4900,
@@ -783,30 +810,54 @@ describe("createPlanCheckoutSession - cykl i kwota ceny zgodne z planem (przegl�
   });
 });
 
-describe("planPriceMismatch / stripePriceAmountCents - czyste reguły bramki", () => {
+describe("catalogPriceMismatch / stripePriceAmountFor - czyste reguły bramki", () => {
+  // Po scaleniu z audytem SUB-05 jedna bramka (`catalogPriceMismatch`) zamiast
+  // dwóch: typ ceny (dawne „mode") i cykl (dawne „interval") mają jeden powód
+  // `cycle`, bo oba wynikają z pozycji katalogu.
   const expected = {
-    mode: "subscription" as const,
-    currency: "PLN",
-    recurring: { interval: "month" as const, intervalCount: 1 },
-    amountCents: 4900,
+    entry: catalogEntryByPriceId("pro_monthly")!,
     quantity: 1,
+    expectedAmountCents: 12900,
+    expectedCurrency: "PLN",
   };
 
-  it("zwraca PIERWSZY powód niezgodności w kolejności typ, waluta, cykl, kwota", () => {
-    expect(planPriceMismatch(stripePrice(), expected)).toBeNull();
-    expect(planPriceMismatch(oneTimePrice(), expected)).toBe("mode");
-    expect(planPriceMismatch(stripePrice({ currency: "eur" }), expected)).toBe("currency");
+  it("zwraca PIERWSZY powód niezgodności w kolejności waluta, typ i cykl, kwota", () => {
+    expect(catalogPriceMismatch(stripePrice(), expected)).toBeNull();
+    expect(catalogPriceMismatch(oneTimePrice(), expected)).toBe("cycle");
+    expect(catalogPriceMismatch(stripePrice({ currency: "eur" }), expected)).toBe("currency");
     expect(
-      planPriceMismatch(
+      catalogPriceMismatch(
         stripePrice({ recurring: { interval: "year", interval_count: 1 } }),
         expected,
       ),
-    ).toBe("interval");
-    expect(planPriceMismatch(stripePrice({ unit_amount: 4800 }), expected)).toBe("amount");
+    ).toBe("cycle");
+    expect(
+      catalogPriceMismatch(
+        stripePrice({ recurring: { interval: "month", interval_count: 1, usage_type: "metered" } }),
+        expected,
+      ),
+    ).toBe("cycle");
+    expect(catalogPriceMismatch(stripePrice({ unit_amount: 12800 }), expected)).toBe("amount");
+  });
+
+  it("schodki `graduated` są odmową nawet przy zgodnej kwocie dla tej ilości", () => {
+    // Jedna sztuka po 129 zł w pierwszym progu to ta sama kwota, ale przy innej
+    // liczbie miejsc operator liczyłby nadwyżkę po innej stawce niż plan.
+    const graduated = stripePrice({
+      billing_scheme: "tiered",
+      tiers_mode: "graduated",
+      unit_amount: null,
+      tiers: [
+        { up_to: 10, unit_amount: 12900, flat_amount: null },
+        { up_to: null, unit_amount: 7900, flat_amount: null },
+      ],
+    });
+    expect(stripePriceAmountFor(graduated, 1)).toBe(12900);
+    expect(catalogPriceMismatch(graduated, expected)).toBe("unverifiable_amount");
   });
 
   it("kwota ceny płaskiej to stawka × ilość, schodkowej `volume` - stawka progu × ilość + opłata stała", () => {
-    expect(stripePriceAmountCents(stripePrice(), 3)).toBe(14700);
+    expect(stripePriceAmountFor(stripePrice(), 3)).toBe(38700);
     const tiered = stripePrice({
       billing_scheme: "tiered",
       tiers_mode: "volume",
@@ -816,8 +867,8 @@ describe("planPriceMismatch / stripePriceAmountCents - czyste reguły bramki", (
         { up_to: null, unit_amount: 7900, flat_amount: 500 },
       ],
     });
-    expect(stripePriceAmountCents(tiered, 10)).toBe(99000);
-    expect(stripePriceAmountCents(tiered, 11)).toBe(87400);
+    expect(stripePriceAmountFor(tiered, 10)).toBe(99000);
+    expect(stripePriceAmountFor(tiered, 11)).toBe(87400);
   });
 });
 
@@ -1502,10 +1553,12 @@ describe("createPlanCheckoutSession - otwarte sesje tego konta (audyt #18)", () 
   });
 
   it("sesja planu ma klucz idempotencji z zamówienia (ponowienie SDK = ta sama sesja)", async () => {
+    // Po scaleniu z PAY-16a: jeden klucz sesji dla obu silników
+    // (`checkoutSessionIdempotencyKey`) zamiast `plan-checkout-session:`.
     await createPlanCheckoutSession(plan({ orderId: "ord_42" }));
 
     expect(h.fns.sessionsCreate).toHaveBeenCalledWith(expect.any(Object), {
-      idempotencyKey: "plan-checkout-session:ord_42",
+      idempotencyKey: "checkout_session:ord_42",
     });
   });
 
@@ -1673,8 +1726,9 @@ describe("resolvePricesByLookupKeys", () => {
 
     expect([...prices.keys()]).toEqual(["pro_monthly", "pro_yearly"]);
     expect(prices.get("pro_monthly")?.id).toBe("price_m");
-    // `data.tiers` jest potrzebne kontroli kwoty przed sesją (cena schodkowa
-    // Zespołu bez rozwiniętych progów nie da się porównać z zamówieniem).
+    // Progi ceny schodkowej operator oddaje WYŁĄCZNIE po rozwinięciu - bez nich
+    // bramka kwoty (`catalogPriceMismatch`) nie policzy ceny Zespołu i odmówi
+    // każdej sesji.
     expect(h.fns.pricesList).toHaveBeenCalledWith({
       lookup_keys: ["pro_monthly", "pro_yearly"],
       active: true,

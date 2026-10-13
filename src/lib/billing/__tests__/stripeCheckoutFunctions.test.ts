@@ -59,7 +59,7 @@ const h = vi.hoisted(() => {
     ...over,
   });
   const state = {
-    prices: [] as unknown[],
+    prices: [catalogPrice()] as unknown[],
     /** Subskrypcje klienta u operatora (`subscriptions.list`). */
     remoteSubscriptions: [] as unknown[],
     /** Otwarte sesje Checkout klienta (`checkout.sessions.list`, status `open`). */
@@ -138,7 +138,12 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
           ...base.subscriptions,
           list: h.record("subscriptions.list", () => ({ data: h.state.remoteSubscriptions })),
         },
-        coupons: { create: h.record("coupons.create", () => h.state.coupon) },
+        coupons: {
+          create: h.record("coupons.create", () => {
+            if (h.state.couponError) throw h.state.couponError;
+            return h.state.coupon;
+          }),
+        },
         checkout: {
           sessions: {
             ...base.checkout.sessions,
@@ -244,18 +249,12 @@ function planQuote(over: Partial<PlanQuote> = {}): PlanQuote {
   };
 }
 
-/** Cena katalogowa u operatora - domyślnie zgodna z `planQuote()`. */
+/**
+ * Cena katalogowa u operatora - domyślnie zgodna z `planQuote()`. Ta sama
+ * atrapa co `h.catalogPrice` (testy audytu SUB-05 używają tej nazwy).
+ */
 function stripePrice(over: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
-    id: "price_1",
-    lookup_key: "plus_monthly",
-    type: "recurring",
-    billing_scheme: "per_unit",
-    unit_amount: 4900,
-    currency: "pln",
-    recurring: { interval: "month", interval_count: 1 },
-    ...over,
-  };
+  return h.catalogPrice(over);
 }
 
 function couponOk(over: Partial<CouponVerdict> = {}): CouponVerdict {
@@ -375,7 +374,7 @@ function adhocCall(over: Record<string, unknown> = {}): Promise<SessionResult> {
 
 beforeEach(() => {
   h.calls.length = 0;
-  h.state.prices = [stripePrice()];
+  h.state.prices = [h.catalogPrice()];
   h.state.remoteSubscriptions = [];
   h.state.openSessions = [];
   h.state.sessionError = null;
@@ -727,7 +726,7 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
 
   it("kwota zamówienia pochodzi Z PLANU - żądanie nie zawiera i nie może zawierać ceny", async () => {
     chain.setResponse("access_plans", ok(planQuote({ price_cents: 29900, currency: "EUR" })));
-    h.state.prices = [stripePrice({ unit_amount: 29900, currency: "eur" })];
+    h.state.prices = [h.catalogPrice({ currency: "eur", unit_amount: 29900 })];
 
     await planCall({ amountCents: 1, currency: "PLN" });
 
@@ -761,6 +760,59 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
     await planCall();
 
     expect(lastSession()?.subscription_data).not.toHaveProperty("trial_period_days");
+  });
+
+  it("liczba miejsc planu ZA MIEJSCE jedzie do pozycji sesji i do kwoty zamówienia", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ tier_key: "team", price_cents: 9900 })));
+    h.state.prices = [
+      h.catalogPrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
+    ];
+
+    await planCall({ seats: 5 });
+
+    expect(lastSession()?.line_items[0]).toMatchObject({ price: "price_team", quantity: 5 });
+    expect(insertedOrder()?.amount_cents).toBe(49500);
+    expect(orderMetadata()).toEqual({ quantity: 5 });
+  });
+
+  it("plan NIE rozliczany za miejsce ignoruje liczbę miejsc z żądania", async () => {
+    await planCall({ seats: 5 });
+
+    expect(lastSession()?.line_items[0]?.quantity).toBe(1);
+    expect(insertedOrder()?.amount_cents).toBe(4900);
+  });
+
+  it("próg wolumenowy przecenia WSZYSTKIE miejsca - tak samo jak drugi silnik", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(
+        planQuote({
+          tier_key: "team",
+          price_cents: 9900,
+          volume_threshold_seats: 11,
+          volume_price_cents: 7900,
+        }),
+      ),
+    );
+    // Cena u operatora jest schodkowa (`volume`) - tak ją zakłada catalogSync.
+    h.state.prices = [
+      h.catalogPrice({
+        id: "price_team",
+        lookup_key: "team_monthly_seat",
+        billing_scheme: "tiered",
+        tiers_mode: "volume",
+        unit_amount: null,
+        tiers: [
+          { up_to: 10, unit_amount: 9900, flat_amount: null },
+          { up_to: null, unit_amount: 7900, flat_amount: null },
+        ],
+      }),
+    ];
+
+    await planCall({ seats: 11 });
+
+    expect(insertedOrder()?.amount_cents).toBe(86900);
+    expect(lastSession()?.line_items[0]?.quantity).toBe(11);
   });
 
   it("liczba miejsc z żądania NIE mnoży planu jednostkowego", async () => {
@@ -1092,6 +1144,26 @@ describe("createPlanCheckoutSession - walidacja wejścia", () => {
     await expect(planCall({ seats: 0 })).rejects.toThrow();
     await expect(planCall({ seats: 101 })).rejects.toThrow();
     await expect(planCall({ seats: 2.5 })).rejects.toThrow();
+    // Dawna nazwa `seats` (klient sprzed zmiany) ma ten sam zakres.
+    await expect(planCall({ quantity: 0 })).rejects.toThrow();
+    await expect(planCall({ quantity: 101 })).rejects.toThrow();
+  });
+
+  it("pusty identyfikator ceny (asercja klienta sprzed zmiany) jest odrzucany", async () => {
+    await expect(planCall({ priceId: "" })).rejects.toThrow();
+    expect(chain.chains).toHaveLength(0);
+  });
+
+  it("`seats` ma pierwszeństwo przed dawnym `quantity`", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ tier_key: "team", price_cents: 9900 })));
+    h.state.prices = [
+      h.catalogPrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
+    ];
+
+    await planCall({ seats: 3, quantity: 7 });
+
+    expect(lastSession()?.line_items[0]).toMatchObject({ price: "price_team", quantity: 3 });
+    expect(insertedOrder()?.amount_cents).toBe(3 * 9900);
   });
 
   it("nieobsługiwany język ramki jest odrzucany", async () => {
@@ -1111,32 +1183,53 @@ describe("createPlanCheckoutSession - cena wiązana z planem (audyt PAY-01)", ()
   // jednorazową zakładał zamówienie subskrypcyjne z obcą kwotą, a liczba
   // miejsc nie trafiała do kwoty zamówienia.
   //
-  // JAK NAPRAWIONE. Schemat nie zna ceny ani ilości. Wpis katalogu, ilość,
+  // JAK NAPRAWIONE. Schemat nie zna ceny ani kwoty. Wpis katalogu, ilość,
   // kwotę i tryb liczy `planCheckoutPricing` z wiersza planu (wspólny
   // z drugim silnikiem), a sesja odmawia, gdy cena u operatora ma inny typ
-  // albo walutę niż zamówienie.
-  it("schemat NIE zna `priceId` ani `quantity` - walidator je zdejmuje", () => {
+  // albo walutę niż zamówienie. Po scaleniu z audytem SUB-05 `priceId`
+  // i `quantity` klienta sprzed zmiany zostają WYŁĄCZNIE jako zgodność wstecz:
+  // `priceId` to asercja (inna cena = odmowa, nigdy źródło ceny), `quantity`
+  // to dawna nazwa `seats`.
+  it("schemat nie przenosi ceny ani kwoty z żądania - `priceId`/`quantity` to tylko pola zgodności", () => {
     const parsed = asServerFn(createPlanCheckoutSession).validator?.({
       planId: PLAN_ID,
       returnUrl: RETURN_URL,
       priceId: "pro_annual",
       quantity: 7,
+      amountCents: 1,
+      unitAmount: 1,
     });
 
-    expect(parsed).toEqual({ planId: PLAN_ID, returnUrl: RETURN_URL });
-    expect(parsed).not.toHaveProperty("priceId");
-    expect(parsed).not.toHaveProperty("quantity");
+    expect(parsed).toEqual({
+      planId: PLAN_ID,
+      returnUrl: RETURN_URL,
+      priceId: "pro_annual",
+      quantity: 7,
+    });
+    expect(parsed).not.toHaveProperty("amountCents");
   });
 
-  it("stary klient wysyłający `priceId: pro_annual` dla planu spoza Pro dostaje sesję z ceną PLANU", async () => {
-    // Domyślne `strip` zoda: klient sprzed zmiany działa, a wskazana cena jest
-    // po prostu ignorowana - operator jest pytany o `lookup_key` planu.
-    const result = await planCall({ priceId: "pro_annual", quantity: 7 });
+  it("stary klient z `priceId` PLANU i `quantity` dostaje sesję z ceną i ilością z PLANU", async () => {
+    // Plan „Członek" nie jest rozliczany za miejsce: `quantity: 7` nie mnoży
+    // pozycji, a operator jest pytany o `lookup_key` planu.
+    const result = await planCall({ priceId: "plus_monthly", quantity: 7 });
 
     expect(result.ok).toBe(true);
     expect(stripeCall("prices.list")?.args[0]).toMatchObject({ lookup_keys: ["plus_monthly"] });
     expect(lastSession()?.line_items[0]).toMatchObject({ price: "price_1", quantity: 1 });
     expect(insertedOrder()?.amount_cents).toBe(4900);
+  });
+
+  it("`priceId: pro_annual` dla planu spoza Pro to ODMOWA, nie sesja z ceną planu", async () => {
+    // Zmienione po scaleniu z audytem SUB-05 (świadomie surowiej): dawniej
+    // wskazana cena była po cichu ignorowana; teraz żądanie o inną cenę niż
+    // pozycja planu kończy się `plan_price_mismatch` przed kuponem
+    // i zamówieniem - kupujący nie dostaje sesji na coś innego, niż widział.
+    const result = await planCall({ priceId: "pro_annual", quantity: 7 });
+
+    expect(result).toEqual({ ok: false, error: "plan_price_mismatch" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(h.calls).toHaveLength(0);
   });
 
   it("cena niezgodna z planem -> odmowa: zamówienie `failed`, rezerwacja kuponu zwolniona", async () => {

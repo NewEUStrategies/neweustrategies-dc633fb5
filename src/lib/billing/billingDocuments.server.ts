@@ -25,12 +25,19 @@
 // subskrypcja, właściciel). Ładunek operatora jest tu tylko kluczem
 // wyszukiwania - właściciel i najemca zawsze z naszego wiersza.
 //
+// Faktura subskrypcji przykrywa zamówienie tylko wtedy, gdy JEST zakupem
+// z zamówienia: opłaciła je (trial) albo jest PIERWSZĄ fakturą subskrypcji
+// (`billing_reason = subscription_create`). Metadane `orderId` niesie każda
+// faktura subskrypcji z naszej kasy - także odnowienia subskrypcji sprzed
+// wdrożenia, których zamówienie nie ma jeszcze żadnego dokumentu.
+//
 // WŁAŚCICIEL PIERWSZEJ FAKTURY (4.4 / 5.5 / 6.9). `invoice.paid` potrafi
 // przyjść przed `customer.subscription.created` (Stripe wysyła je równolegle);
 // bez wiersza `subscriptions` faktura nie miała właściciela i przepadała bez
 // śladu. Zapasem jest zamówienie z metadanych subskrypcji.
 //
-// Moduł server-only (klient service_role).
+// Moduł server-only (klient service_role; klient operatora wyłącznie po
+// `billing_reason` faktury, gdy ładunek go nie niesie).
 import {
   loadBillingDocumentSnapshot,
   snapshotColumns,
@@ -84,6 +91,12 @@ export interface TransactionDocumentInput {
    * klucz wyszukiwania - wiązanie i właściciela rozstrzyga nasz wiersz.
    */
   orderId?: string | null;
+  /**
+   * `billing_reason` faktury, gdy niesie go ładunek. Bez niego (ładunek bez
+   * pola, powtórka z dziennika) pytamy operatora - tylko wtedy, gdy od tego
+   * zależy powiązanie z zamówieniem.
+   */
+  billingReason?: string | null;
 }
 
 /** Właściciel dokumentu i zamówienie, które dokument przykrywa w historii. */
@@ -130,12 +143,48 @@ async function subscriptionOrderFor(input: TransactionDocumentInput): Promise<Ow
   return order;
 }
 
+/** Brak obiektu u operatora (404 / `resource_missing`) - to nie awaria odczytu. */
+function isMissingResource(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { code?: unknown; statusCode?: unknown };
+  return e.code === "resource_missing" || e.statusCode === 404;
+}
+
 /**
- * Czy dokument tej transakcji ma przykryć zamówienie subskrypcji. Faktura,
- * która je opłaciła (`provider_intent_id` - trial), albo pierwszy dokument
- * zamówienia. Odnowienia niosą to samo `orderId` w metadanych subskrypcji,
- * ale NIE są zakupem z zamówienia - przypięte dostałyby z historii rabat
- * kuponu, którego nie miały.
+ * `billing_reason` faktury: z ładunku, a bez niego od operatora (w środowisku
+ * zdarzenia). Identyfikator spoza faktur i faktura nieznana operatorowi to
+ * `null` (powodu nie znamy - nie wiążemy); każda inna awaria RZUCA, a zapis
+ * dokumentu kończy się `failed` i zdarzenie wraca (reguła INV).
+ */
+async function invoiceBillingReason(input: TransactionDocumentInput): Promise<string | null> {
+  if (input.billingReason) return input.billingReason;
+  if (!input.transactionId.startsWith("in_")) return null;
+  try {
+    const { getStripeClient } = await import("@/lib/stripe.server");
+    const stripe = await getStripeClient(input.environment);
+    const invoice = await stripe.invoices.retrieve(input.transactionId);
+    return typeof invoice.billing_reason === "string" ? invoice.billing_reason : null;
+  } catch (error) {
+    if (isMissingResource(error)) return null;
+    throw new Error(
+      `invoice billing reason lookup failed (${input.transactionId}): ${errorMessage(error)}`,
+    );
+  }
+}
+
+/**
+ * Czy dokument tej transakcji ma przykryć zamówienie subskrypcji:
+ *   - faktura, która OPŁACIŁA zamówienie (`provider_intent_id` - po trialu);
+ *   - dokument już przypięty do zamówienia (ponowiona dostawa) - bez pytania
+ *     operatora;
+ *   - pierwszy dokument zamówienia, ale WYŁĄCZNIE pierwsza faktura
+ *     subskrypcji (`subscription_create`).
+ * Odnowienia niosą to samo `orderId` w metadanych subskrypcji, ale NIE są
+ * zakupem z zamówienia - przypięte dostałyby z historii rabat kuponu, którego
+ * nie miały, i schowały zamówienie. Pusty rejestr zamówienia tego nie
+ * rozstrzyga: subskrypcja sprzed wdrożenia ma pierwszą fakturę zapisaną bez
+ * powiązania (albo wcale), więc jej pierwsze odnowienie po wdrożeniu było
+ * „pierwszym dokumentem" zamówienia.
  */
 async function coversSubscriptionOrder(
   order: OwnerOrder,
@@ -145,13 +194,14 @@ async function coversSubscriptionOrder(
   const supabase = await admin();
   const { data, error } = await supabase
     .from("billing_documents")
-    .select("id")
+    .select("provider_document_id")
     .eq("order_id", order.id)
-    .neq("provider_document_id", input.transactionId)
-    .limit(1)
-    .maybeSingle();
+    .limit(2);
   if (error) throw new Error(`order document lookup failed: ${error.message}`);
-  return !data;
+  const linked = (data ?? []).map((row) => row.provider_document_id);
+  if (linked.includes(input.transactionId)) return true;
+  if (linked.length > 0) return false;
+  return (await invoiceBillingReason(input)) === "subscription_create";
 }
 
 /**
@@ -405,5 +455,6 @@ export function documentInputFromTransaction(
     issuedAt: str(row, "billedAt") ?? str(row, "createdAt"),
     environment,
     orderId: str(customData, "orderId") ?? str(customData, "order_id"),
+    billingReason: str(row, "billingReason"),
   };
 }

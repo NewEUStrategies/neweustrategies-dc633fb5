@@ -12,12 +12,15 @@
 // częścią kontraktu.
 import { describe, expect, it } from "vitest";
 
-import { BILLING_CATALOG, type PlanBillingInterval } from "@/lib/billing/catalog";
+import {
+  BILLING_CATALOG,
+  catalogRecurringFor,
+  type PlanBillingInterval,
+} from "@/lib/billing/catalog";
 import {
   MAX_PLAN_SEATS,
   exactCatalogEntryForPlan,
   planCheckoutPricing,
-  stripeRecurringForInterval,
   type PlanPricingRow,
 } from "@/lib/billing/planPricing";
 
@@ -192,12 +195,17 @@ describe("planCheckoutPricing - wyłącznie DOKŁADNA para (warstwa, cykl) (prze
 });
 
 describe("planCheckoutPricing - cykl i stawka, które MUSI mieć cena u operatora", () => {
+  // Po scaleniu z audytem SUB-05 słownikiem cykli jest `catalogRecurringFor`
+  // z `catalog.ts` (ten sam dla synchronizacji i kasy) - dawne
+  // `stripeRecurringForInterval` było jego drugą kopią i zniknęło.
   it("słownik cykli operatora: dwa tygodnie = week×2, kwartał = month×3, jednorazowy = brak", () => {
-    expect(stripeRecurringForInterval("two_weeks")).toEqual({ interval: "week", intervalCount: 2 });
-    expect(stripeRecurringForInterval("month")).toEqual({ interval: "month", intervalCount: 1 });
-    expect(stripeRecurringForInterval("quarter")).toEqual({ interval: "month", intervalCount: 3 });
-    expect(stripeRecurringForInterval("year")).toEqual({ interval: "year", intervalCount: 1 });
-    expect(stripeRecurringForInterval("one_time")).toBeNull();
+    const recurringOf = (tier: string, interval: string) =>
+      planCheckoutPricing(plan({ tier_key: tier, interval }))?.recurring;
+    expect(recurringOf("business", "two_weeks")).toEqual({ interval: "week", interval_count: 2 });
+    expect(recurringOf("member", "month")).toEqual({ interval: "month", interval_count: 1 });
+    expect(recurringOf("business", "quarter")).toEqual({ interval: "month", interval_count: 3 });
+    expect(recurringOf("pro", "year")).toEqual({ interval: "year", interval_count: 1 });
+    expect(recurringOf("decision_lab", "one_time")).toBeNull();
   });
 
   it("każdy wpis katalogu niesie cykl zgodny ze swoim typem ceny", () => {
@@ -205,9 +213,7 @@ describe("planCheckoutPricing - cykl i stawka, które MUSI mieć cena u operator
       const pricing = planCheckoutPricing(
         plan({ tier_key: entry.tierKey, interval: entry.interval }),
       );
-      expect(pricing?.recurring ?? null, entry.priceId).toEqual(
-        stripeRecurringForInterval(entry.interval),
-      );
+      expect(pricing?.recurring ?? null, entry.priceId).toEqual(catalogRecurringFor(entry));
       expect(pricing?.recurring === null, entry.priceId).toBe(entry.oneTime === true);
     }
   });

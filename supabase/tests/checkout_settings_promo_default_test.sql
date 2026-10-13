@@ -1,6 +1,6 @@
 -- pgTAP: pole kodu promocyjnego Stripe jest DOMYŚLNIE wyłączone (audyt PAY-06).
 --
--- Weryfikuje migrację 20261012131100_checkout_settings_promo_default_off.sql.
+-- Weryfikuje migrację 20261013100100_checkout_settings_promo_default_off.sql.
 -- Kod wpisany w nakładce operatora omija zakres najemcy i limity kuponów B2B
 -- z bazy, a konto Stripe jest wspólne dla instalacji - więc nowy wiersz
 -- ustawień (pierwszy zapis panelu, nowy najemca) nie może go włączać sam.
