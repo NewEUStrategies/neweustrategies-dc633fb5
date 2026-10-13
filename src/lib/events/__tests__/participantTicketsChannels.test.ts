@@ -18,6 +18,9 @@
 //    albo pominięta wartość dają przełącznik, który wygląda na wyłączony
 //    i nadal przepuszcza pocztę - a to jest sterowanie zgodami na komunikację,
 //    nie kosmetyka interfejsu.
+//    SMS JEST WYJĄTKIEM (REG-10, D12): kanał opt-in, domyślnie wyłączony,
+//    włączany wyłącznie z jawną zgodą (`sms_consent: true`, stempel w bazie).
+//    Brak pola na odczycie to więc „bez SMS-a", nie „wysyłaj".
 //
 // 2) BRAK KLUCZA ZNACZY „ZOSTAW JAK BYŁO". Baza aktualizuje przez
 //    `COALESCE(v_email, r.notify_email)` i czyta obecność klucza przez
@@ -157,7 +160,17 @@ describe("setRegistrationChannels", () => {
     const sent = payloadOf("event_registration_set_channels");
     expect(sent).toEqual({ registration_id: REG, notify_email: false });
     expect(sent.notify_email).not.toBeNull();
-    expect(prefs).toEqual({ registrationId: REG, notifyEmail: false, notifySms: true });
+    expect(prefs).toEqual({
+      registrationId: REG,
+      notifyEmail: false,
+      notifySms: true,
+      // Starsza odpowiedź bez remind_* - DEFAULT-y kolumn, nie zgadywanie.
+      remindEmail: true,
+      remindPush: true,
+      remindSms: false,
+      remindSessions: true,
+      smsConsentAt: null,
+    });
   });
 
   // Wyciszenie jednego kanału nie ma prawa dotknąć drugiego: baza czyta
@@ -267,16 +280,82 @@ describe("setRegistrationChannels", () => {
     expect(payloadOf("event_registration_set_channels")).toEqual({});
   });
 
-  // Odpowiedź niepełna czyta się PO STRONIE OPT-OUT, tak samo jak wiersz bazy
-  // w `registrationOutcomeNotify.server.ts:242`. Obie strony muszą zgadzać się
-  // co do znaczenia braku: „wysyłaj". Rozjazd dałby interfejs mówiący „kanał
-  // wyciszony" o kanale, który nadal wysyła.
-  it("brak kanału w odpowiedzi znaczy wysyłaj - tak jak po stronie wysyłki", async () => {
+  // Odpowiedź niepełna czyta się tak samo jak wiersz bazy po stronie wysyłki
+  // (`registrationOutcomeNotify.server.ts`, `readChannels`): e-mail OPT-OUT
+  // („wysyłaj"), SMS OPT-IN (REG-10 - brak pola to brak zgody). Rozjazd dałby
+  // interfejs mówiący „SMS włączony" o kanale, który nie wyśle nic.
+  it("brak kanału w odpowiedzi: e-mail wysyłaj, SMS wyłączony - tak jak po stronie wysyłki", async () => {
     rpc().setData("event_registration_set_channels", { registration_id: REG });
 
     const prefs = await api.setRegistrationChannels({ registrationId: REG, notifyEmail: false });
 
-    expect(prefs).toEqual({ registrationId: REG, notifyEmail: true, notifySms: true });
+    expect(prefs).toMatchObject({ registrationId: REG, notifyEmail: true, notifySms: false });
+  });
+
+  // PODPRZEŁĄCZNIKI PRZYPOMNIEŃ (REG-09) i ZGODA (REG-10) jadą tylko wtedy,
+  // gdy są podane - ten sam kontrakt „brak klucza = zostaw" co dla notify_*.
+  it("remind_* i sms_consent jadą tylko obecne, w kluczach bazy", async () => {
+    rpc().setData("event_registration_set_channels", {
+      registration_id: REG,
+      notify_email: true,
+      notify_sms: true,
+      remind_email: false,
+      remind_push: true,
+      remind_sms: true,
+      remind_sessions: false,
+      sms_consent_at: "2026-10-12T10:00:00Z",
+    });
+
+    const prefs = await api.setRegistrationChannels({
+      registrationId: REG,
+      remindSms: true,
+      smsConsent: true,
+    });
+
+    expect(payloadOf("event_registration_set_channels")).toEqual({
+      registration_id: REG,
+      remind_sms: true,
+      sms_consent: true,
+    });
+    expect(prefs).toEqual({
+      registrationId: REG,
+      notifyEmail: true,
+      notifySms: true,
+      remindEmail: false,
+      remindPush: true,
+      remindSms: true,
+      remindSessions: false,
+      smsConsentAt: "2026-10-12T10:00:00Z",
+    });
+
+    await api.setRegistrationChannels({
+      manageToken: MANAGE_TOKEN,
+      remindEmail: false,
+      remindPush: false,
+      remindSessions: true,
+    });
+    expect(payloadOf("event_registration_set_channels")).toEqual({
+      manage_token: MANAGE_TOKEN,
+      remind_email: false,
+      remind_push: false,
+      remind_sessions: true,
+    });
+  });
+
+  it.each([
+    ["sms_consent_required: enabling SMS needs explicit consent", "sms_consent_required"],
+    ["phone_required: registration has no phone number", "phone_required"],
+    ["manage_expired: this management link expired when the event ended", "manage_expired"],
+    ["already_closed: this registration is already closed", "already_closed"],
+    ["not_found: registration does not exist", "not_found"],
+    ["invalid_payload: notify_sms must be boolean", "invalid_payload"],
+    ["violates check constraint", "unknown"],
+  ])("kod odmowy pisarza: %s -> %s", async (message, code) => {
+    rpc().setError("event_registration_set_channels", message);
+    const error = await api
+      .setRegistrationChannels({ registrationId: REG, notifySms: true, smsConsent: true })
+      .catch((err: unknown) => err);
+    expect(api.channelErrorCode(error)).toBe(code);
   });
 
   // Odpowiedź bez identyfikatora to odpowiedź, o której nie wiadomo, CZYJE
@@ -454,18 +533,18 @@ describe("fetchMyRegistrations", () => {
     expect(item.refundedCents).toBe(0);
   });
 
-  // OPT-OUT NA ODCZYCIE. Zgłoszenie sprzed wprowadzenia przełączników nie ma
-  // tych pól, a domyślną odpowiedzią musi być „wysyłamy" - dokładnie tak, jak
-  // czyta to wysyłka. Domyślne `false` wyciszyłoby ludziom powiadomienia
-  // o pieniądzach bez ich decyzji.
-  it("brak decyzji o kanałach czyta się jako zgoda na oba", async () => {
+  // OPT-OUT NA ODCZYCIE POCZTY, OPT-IN SMS-A. Zgłoszenie sprzed wprowadzenia
+  // przełączników nie ma tych pól: e-mail czyta się jako „wysyłamy" (domyślne
+  // `false` wyciszyłoby powiadomienia o pieniądzach bez decyzji), a SMS jako
+  // „wyłączony" (REG-10 - zgody nikt nie zbierał, wysyłka też nie wyśle).
+  it("brak decyzji o kanałach: e-mail włączony, SMS wyłączony", async () => {
     const bezKanalow = wiersz();
     delete bezKanalow.notify_email;
     delete bezKanalow.notify_sms;
     rpc().setData("event_my_registrations", { registrations: [bezKanalow] });
     const [domyslne] = await api.fetchMyRegistrations();
     expect(domyslne.notifyEmail).toBe(true);
-    expect(domyslne.notifySms).toBe(true);
+    expect(domyslne.notifySms).toBe(false);
 
     rpc().setData("event_my_registrations", {
       registrations: [wiersz({ notify_email: false, notify_sms: true })],
@@ -794,5 +873,116 @@ describe("fetchEventSpeakerSessions", () => {
     rpc().setError("event_attendee_sessions", "not_found: event does not exist");
 
     await expect(api.fetchEventSpeakerSessions("nie-ma-takiego")).rejects.toThrow(/not_found/);
+  });
+});
+
+/* ------------------------------------------- preferencje przypomnień --- */
+
+describe("fetchRegistrationPreferences (REG-09/REG-10)", () => {
+  const PELNA = {
+    ok: true,
+    registration_id: REG,
+    event_id: "evt-1",
+    event_slug: "kongres",
+    status: "approved",
+    notify_email: true,
+    notify_sms: true,
+    remind_email: false,
+    remind_push: true,
+    remind_sms: true,
+    remind_sessions: false,
+    sms_consent_at: "2026-10-12T10:00:00Z",
+    sms_consent_via: "token",
+    has_account: false,
+    has_phone: true,
+    phone_hint: "333",
+    reminders_enabled: true,
+    reminder_sms_enabled: true,
+    session_reminders_enabled: false,
+  };
+
+  it("klucz z maila ma pierwszeństwo - identyfikator nie jedzie obok niego", async () => {
+    rpc().setData("event_registration_preferences", PELNA);
+    await api.fetchRegistrationPreferences({ manageToken: MANAGE_TOKEN, registrationId: REG });
+    expect(payloadOf("event_registration_preferences")).toEqual({ manage_token: MANAGE_TOKEN });
+
+    await api.fetchRegistrationPreferences({ registrationId: REG });
+    expect(payloadOf("event_registration_preferences")).toEqual({ registration_id: REG });
+  });
+
+  it("pełny kształt: przełączniki, zgoda, flagi organizatora i podpowiedź numeru", async () => {
+    rpc().setData("event_registration_preferences", PELNA);
+    await expect(api.fetchRegistrationPreferences({ registrationId: REG })).resolves.toEqual({
+      kind: "ok",
+      registrationId: REG,
+      eventSlug: "kongres",
+      status: "approved",
+      notifyEmail: true,
+      notifySms: true,
+      remindEmail: false,
+      remindPush: true,
+      remindSms: true,
+      remindSessions: false,
+      smsConsentAt: "2026-10-12T10:00:00Z",
+      smsConsentVia: "token",
+      hasAccount: false,
+      hasPhone: true,
+      phoneHint: "333",
+      remindersEnabled: true,
+      reminderSmsEnabled: true,
+      sessionRemindersEnabled: false,
+    });
+  });
+
+  it("numer nigdy nie przechodzi: pole `phone` jest ignorowane, podpowiedź tylko z cyfr", async () => {
+    rpc().setData("event_registration_preferences", {
+      ...PELNA,
+      phone: "+48 600 100 200",
+      phone_hint: "+48600100200",
+    });
+    const prefs = await api.fetchRegistrationPreferences({ registrationId: REG });
+    expect(JSON.stringify(prefs)).not.toContain("600");
+    expect(prefs.kind === "ok" ? prefs.phoneHint : "x").toBeNull();
+  });
+
+  it("odmowy wartością: expired i not_found (bez wyroczni)", async () => {
+    rpc().setData("event_registration_preferences", { ok: false, reason: "expired" });
+    await expect(api.fetchRegistrationPreferences({ manageToken: MANAGE_TOKEN })).resolves.toEqual({
+      kind: "expired",
+    });
+    rpc().setData("event_registration_preferences", { ok: false, reason: "not_found" });
+    await expect(api.fetchRegistrationPreferences({ manageToken: MANAGE_TOKEN })).resolves.toEqual({
+      kind: "not_found",
+    });
+    rpc().setData("event_registration_preferences", null);
+    await expect(api.fetchRegistrationPreferences({ registrationId: REG })).resolves.toEqual({
+      kind: "not_found",
+    });
+  });
+
+  it("brak flag organizatora = funkcja wyłączona (bezpieczna strona)", async () => {
+    rpc().setData("event_registration_preferences", { ok: true, registration_id: REG });
+    const prefs = await api.fetchRegistrationPreferences({ registrationId: REG });
+    expect(prefs).toMatchObject({
+      kind: "ok",
+      notifySms: false,
+      remindSms: false,
+      remindersEnabled: false,
+      reminderSmsEnabled: false,
+      sessionRemindersEnabled: false,
+      hasPhone: false,
+      phoneHint: null,
+    });
+  });
+
+  it("baza sprzed migracji (PGRST202) -> unavailable; inna odmowa leci wyjątkiem", async () => {
+    rpc().setError("event_registration_preferences", "function not found", "PGRST202");
+    await expect(api.fetchRegistrationPreferences({ registrationId: REG })).resolves.toEqual({
+      kind: "unavailable",
+    });
+    rpc().setError("event_registration_preferences", "boom", "XX000");
+    await expect(api.fetchRegistrationPreferences({ registrationId: REG })).rejects.toThrow(
+      /boom/,
+    );
   });
 });
