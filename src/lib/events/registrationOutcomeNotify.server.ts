@@ -446,9 +446,16 @@ async function notifyPromoted(payload: TicketOutcomePayload): Promise<number> {
 
     // ZMIANA 20261012 (REG-10): przez `sendParticipantSms` i tylko za zgodą
     // zapisaną na TYM zgłoszeniu. Wiersz awansu z `_event_waitlist_promote`
-    // nie niesie dziś numeru - bez niego SMS-a po prostu nie ma.
-    const phone = str(row, "phone");
+    // nie niesie numeru (przegląd R67: bramkowany SMS o awansie był przez to
+    // martwy), więc przy zgodzie numer czytamy z kartoteki osoby - po osobie
+    // TEGO zgłoszenia i w najemcy z wyniku RPC. Bez zgody kartoteki nie
+    // czytamy wcale.
     const tenantId = payload.tenant_id ?? null;
+    const phone =
+      str(row, "phone") ??
+      (channels.sms && tenantId && channels.personId
+        ? await readPersonPhone(channels.personId, tenantId)
+        : null);
     if (channels.sms && phone && tenantId) {
       await sendOutcomeSms(
         {
@@ -537,10 +544,12 @@ export interface OutcomeNotifyResult {
 interface Channels {
   email: boolean;
   sms: boolean;
+  /** Osoba zgłoszenia - numer awansowanego czytamy z jej kartoteki (R67). */
+  personId: string | null;
 }
 
 /** Brak odczytu: mail o pieniądzach idzie, SMS nie (brak dowodu zgody). */
-const CHANNELS_UNKNOWN: Channels = { email: true, sms: false };
+const CHANNELS_UNKNOWN: Channels = { email: true, sms: false, personId: null };
 
 /**
  * Centrum preferencji komunikacji jest PER ZGŁOSZENIE, nie per konto: na jedno
@@ -565,7 +574,7 @@ async function readChannels(registrationId: string, tenantId: string | null): Pr
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data, error } = await supabaseAdmin
       .from("event_registrations")
-      .select("notify_email, notify_sms, remind_sms_consent_at")
+      .select("notify_email, notify_sms, remind_sms_consent_at, person_id")
       .eq("id", registrationId)
       .eq("tenant_id", tenantId)
       .maybeSingle();
@@ -582,10 +591,41 @@ async function readChannels(registrationId: string, tenantId: string | null): Pr
         data?.notify_sms === true &&
         typeof data.remind_sms_consent_at === "string" &&
         data.remind_sms_consent_at !== "",
+      personId:
+        typeof data?.person_id === "string" && data.person_id !== "" ? data.person_id : null,
     };
   } catch (err) {
     console.error("[events] channel preferences read failed", err);
     return CHANNELS_UNKNOWN;
+  }
+}
+
+/**
+ * Numer osoby z kartoteki - dla awansu z listy rezerwowej, którego wiersz
+ * (`_event_waitlist_promote`) nie niesie numeru. Po kluczu osoby ORAZ
+ * najemcy z wyniku RPC (service_role omija RLS - filtr najemcy jest jedyną
+ * granicą). Każda awaria to brak numeru, czyli brak SMS-a: nigdy nie rzuca.
+ */
+async function readPersonPhone(personId: string, tenantId: string): Promise<string | null> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("event_people")
+      .select("phone")
+      .eq("id", personId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (error) {
+      console.error("[events] promoted phone read failed", {
+        code: error.code,
+        message: error.message,
+      });
+      return null;
+    }
+    return str(data, "phone");
+  } catch (err) {
+    console.error("[events] promoted phone read failed", err);
+    return null;
   }
 }
 

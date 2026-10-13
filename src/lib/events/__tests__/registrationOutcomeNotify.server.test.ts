@@ -279,15 +279,36 @@ function payload(over: Partial<TicketOutcomePayload> = {}): TicketOutcomePayload
   };
 }
 
+/**
+ * Wiersz awansu W KSZTAŁCIE `_event_waitlist_promote` (przegląd R67): bez
+ * numeru telefonu - funkcja bazowa go nie zwraca. Dawna atrapa podawała tu
+ * numer i tym samym ukrywała, że bramkowany SMS o awansie był martwy. Numer
+ * awansowanego przychodzi z kartoteki osoby (`event_people`, `personPhones`).
+ */
 function promotedRow(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     registration_id: REG_PROMOTED,
     user_id: USER_PROMOTED,
     email: "rezerwa@example.com",
-    phone: "+48500100201",
     first_name: "Bogumil",
+    last_name: "Rezerwowy",
+    ticket_type_id: null,
     ...over,
   };
+}
+
+/** Osoba zgłoszenia w atrapie: deterministycznie z identyfikatora zgłoszenia. */
+function personOf(registrationId: string): string {
+  return `person-${registrationId}`;
+}
+
+/** Numery w kartotece osób (`event_people.phone`) - klucz: osoba. */
+const personPhones = new Map<string, string | null>();
+
+/** Domyślne numery osób zgłoszeń awansowanych w tym pliku. */
+function seedPersonPhones(): void {
+  personPhones.set(personOf(REG_PROMOTED), "+48500100201");
+  personPhones.set(personOf("22222222-8888-4888-8888-222222222222"), "+48500100202");
 }
 
 /** Wiersz `event_registrations` w kształcie, jaki czyta `readChannels`. */
@@ -360,7 +381,18 @@ function givenDb(): SupabaseFromStub {
     // najemcy (albo z obcym) nie dostaje nic.
     if (eqs.get("tenant_id") !== TENANT) return ok(null);
     const row = channelRows.get(id) ?? CONSENTED;
-    return ok(row === MISSING ? null : row);
+    return ok(row === MISSING ? null : { ...row, person_id: personOf(id) });
+  });
+  // Kartoteka osób: numer po kluczu osoby, wyłącznie w najemcy z ładunku.
+  next.setResponse("event_people", (chain) => {
+    const eqs = new Map(
+      chain.calls
+        .filter((call) => call.method === "eq")
+        .map((call) => [call.args[0], call.args[1]]),
+    );
+    if (eqs.get("tenant_id") !== TENANT) return ok(null);
+    const id = typeof eqs.get("id") === "string" ? String(eqs.get("id")) : "";
+    return ok(personPhones.has(id) ? { phone: personPhones.get(id) ?? null } : null);
   });
   // Profil odbiorcy czyta prawdziwy `resolveRecipient` - też po identyfikatorze,
   // więc atrapa musi rozróżniać konta. Inaczej płacący i awansowany dostawaliby
@@ -411,6 +443,8 @@ beforeEach(() => {
   budget.reset();
   profileRows.clear();
   channelRows.clear();
+  personPhones.clear();
+  seedPersonPhones();
   stub = givenDb();
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
   // Platforma z operatorem i z wyłącznikiem SMS-ów uczestnika (R-6).
@@ -662,7 +696,9 @@ describe("preferencje kanałów zapisane na zgłoszeniu", () => {
       ["id", REG],
       ["tenant_id", TENANT],
     ]);
-    expect(chain?.argsOf("select")).toEqual(["notify_email, notify_sms, remind_sms_consent_at"]);
+    expect(chain?.argsOf("select")).toEqual([
+      "notify_email, notify_sms, remind_sms_consent_at, person_id",
+    ]);
   });
 
   it("NULL e-maila znaczy „wysyłaj”, NULL SMS-a - brak zgody", async () => {
@@ -830,7 +866,6 @@ describe("treść SMS-a nie wychodzi z GSM-7", () => {
               registration_id: "22222222-8888-4888-8888-222222222222",
               user_id: other,
               email: "rezerwa2@example.com",
-              phone: "+48500100202",
             }),
           ],
         },
@@ -1286,7 +1321,9 @@ describe("kolejka rezerwowa", () => {
 
   it("wiersz bez adresu poczty jest pomijany W CAŁOŚCI - także bez SMS-a", async () => {
     // Osoba, do której nie ma jak napisać maila ze szczegółami, nie może
-    // dostać samego SMS-a „sprawdź pocztę".
+    // dostać samego SMS-a „sprawdź pocztę" - choć jej kartoteka ma numer
+    // (osoba REG_PROMOTED: +48500100201).
+    personPhones.set(personOf("44444444-1010-4010-8010-444444444444"), "+48500100204");
     const result = await notifyTicketOutcome(
       payload({
         outcome: "refunded",
@@ -1295,7 +1332,7 @@ describe("kolejka rezerwowa", () => {
         waitlist: {
           promoted: 3,
           registrations: [
-            promotedRow({ email: null, phone: "+48500100203" }),
+            promotedRow({ email: null }),
             promotedRow({ registration_id: null, email: "bez-zgloszenia@example.com" }),
             promotedRow({ registration_id: "44444444-1010-4010-8010-444444444444" }),
           ],
@@ -1305,7 +1342,7 @@ describe("kolejka rezerwowa", () => {
 
     expect(result.promotedNotified).toBe(1);
     expect(attemptsOfType("event_waitlist_promoted")).toHaveLength(1);
-    expect(sms.sent.map((entry) => entry.to)).toEqual(["+48500100201"]);
+    expect(sms.sent.map((entry) => entry.to)).toEqual(["+48500100204"]);
   });
 
   it("ładunek bez najemcy nie blokuje maila o awansie, tylko oddaje najemcę jako null", async () => {
@@ -1871,6 +1908,77 @@ describe("REG-10: SMS o wyniku płatności i awansie tylko przez sendParticipant
     });
   });
 
+  // PRZEGLĄD R67. Wiersz awansu z `_event_waitlist_promote` nie niesie numeru
+  // (atrapa `promotedRow` ma dziś dokładnie jego kształt). Bez odczytu
+  // kartoteki bramkowany SMS o awansie nie wychodził nigdy.
+  describe("numer awansowanego z kartoteki osoby (R67)", () => {
+    const awans = (): TicketOutcomePayload =>
+      payload({
+        outcome: "refunded",
+        refunded_cents: 24_900,
+        contact: null,
+        waitlist: { promoted: 1, registrations: [promotedRow()] },
+      });
+
+    it("wiersz awansu bez numeru: SMS idzie na numer z kartoteki TEJ osoby", async () => {
+      expect(promotedRow()).not.toHaveProperty("phone");
+      await notifyTicketOutcome(awans());
+
+      expect(sms.sent.map((entry) => entry.to)).toEqual(["+48500100201"]);
+    });
+
+    it("kartotekę czyta po osobie zgłoszenia i najemcy z wyniku RPC", async () => {
+      await notifyTicketOutcome(awans());
+
+      const chain = stub.lastChain("event_people");
+      const eqs = chain?.calls.filter((call) => call.method === "eq").map((call) => call.args);
+      expect(eqs).toEqual([
+        ["id", personOf(REG_PROMOTED)],
+        ["tenant_id", TENANT],
+      ]);
+      expect(chain?.argsOf("select")).toEqual(["phone"]);
+    });
+
+    it("bez zgody na zgłoszeniu awansu kartoteki nie czyta wcale", async () => {
+      channelRows.set(REG_PROMOTED, {
+        notify_email: true,
+        notify_sms: false,
+        remind_sms_consent_at: CONSENT_AT,
+      });
+      await notifyTicketOutcome(awans());
+
+      expect(sms.sendSms).not.toHaveBeenCalled();
+      expect(stub.chainsFor("event_people")).toHaveLength(0);
+    });
+
+    it("osoba bez numeru albo awaria odczytu kartoteki: bez SMS-a, mail idzie", async () => {
+      personPhones.set(personOf(REG_PROMOTED), null);
+      const empty = await notifyTicketOutcome(awans());
+      expect(sms.sendSms).not.toHaveBeenCalled();
+      expect(empty.promotedNotified).toBe(1);
+
+      personPhones.set(personOf(REG_PROMOTED), "+48500100201");
+      stub.setResponse("event_people", fail("kartoteka niedostępna"));
+      const broken = await notifyTicketOutcome(awans());
+      expect(sms.sendSms).not.toHaveBeenCalled();
+      expect(broken.promotedNotified).toBe(0); // duplikat maila (ten sam klucz awansu)
+    });
+
+    it("numer z wiersza (gdyby baza go kiedyś podała) ma pierwszeństwo - bez odczytu kartoteki", async () => {
+      await notifyTicketOutcome(
+        payload({
+          outcome: "refunded",
+          refunded_cents: 24_900,
+          contact: null,
+          waitlist: { promoted: 1, registrations: [promotedRow({ phone: "+48500100299" })] },
+        }),
+      );
+
+      expect(sms.sent.map((entry) => entry.to)).toEqual(["+48500100299"]);
+      expect(stub.chainsFor("event_people")).toHaveLength(0);
+    });
+  });
+
   const withTitle = (over: Partial<TicketOutcomePayload> = {}): TicketOutcomePayload =>
     payload({ event_title_pl: TITLE_DIACRITICS, event_title_en: TITLE_DIACRITICS, ...over });
 
@@ -1939,7 +2047,6 @@ describe("REG-10: SMS o wyniku płatności i awansie tylko przez sendParticipant
               registration_id: "22222222-8888-4888-8888-222222222222",
               user_id: other,
               email: "rezerwa2@example.com",
-              phone: "+48500100202",
             }),
           ],
         },
