@@ -14,6 +14,20 @@
 // WALIDACJA ODCINA ZAPIS PRZED ŻĄDANIEM. Odmowa CHECK-a wraca jako `23514` bez
 // nazwy pola, więc każdy warunek, który baza sprawdza, ma tu odpowiednik z
 // kluczem komunikatu przy polu.
+//
+// TERMINY SĄ ZEGAREM W STREFIE WYDARZENIA, nie przeglądarki (klasa OPS-15).
+// „Sprzedaż do 18:00" wpisane w Londynie dla kongresu w Warszawie zamykało
+// sprzedaż o 19:00 czasu kongresu. Szkic niesie strefę (`timeZone`) i chwile
+// z bazy (`savedTimes`, `savedFrom`/`savedTo` faz): nietknięte pole wraca co do
+// milisekundy, więc „przełącz aktywność" i duplikacja nie przycinają
+// `sales_to` 23:59:59 do pełnej minuty. Konwersje: `lib/events/eventLocalInput.ts`.
+import {
+  canonicalInstant,
+  eventLocalInput,
+  eventLocalInputToIso,
+  type SavedInstants,
+} from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 import type {
   EventTicketInput,
   EventTicketRow,
@@ -44,7 +58,7 @@ export interface TicketDraft {
   currency: TicketCurrency;
   /** Pusty tekst = bez limitu miejsc na tym bilecie. */
   quota: string;
-  /** `datetime-local` albo pusty tekst. */
+  /** `datetime-local` w strefie `timeZone` albo pusty tekst. */
   salesFrom: string;
   salesTo: string;
   minTierRank: string;
@@ -73,16 +87,23 @@ export interface TicketDraft {
   benefitsEn: string;
   /** Progi cenowe w czasie; pusta lista = tylko cena bazowa i early bird. */
   phases: TicketPhaseDraft[];
+  /** Strefa wydarzenia (IANA, zwalidowana), w której pola dat są zegarem. */
+  timeZone: string;
+  /** Chwile z bazy, z których powstały pola dat (edycja); pusto dla nowego biletu. */
+  savedTimes: SavedInstants<"salesFrom" | "salesTo" | "earlyBirdUntil">;
 }
 
 /** Jeden wiersz cennika fazowego w formularzu (wartosci jako tekst). */
 export interface TicketPhaseDraft {
   labelPl: string;
   labelEn: string;
-  /** `datetime-local` albo pusty tekst = od zawsze / bezterminowo. */
+  /** `datetime-local` w strefie biletu albo pusty tekst = od zawsze / bezterminowo. */
   from: string;
   to: string;
   priceCents: string;
+  /** Chwile z bazy, z których powstały `from`/`to`; brak = faza nowa. */
+  savedFrom?: string | null;
+  savedTo?: string | null;
 }
 
 export const TICKET_MAX_PHASES = 12;
@@ -105,7 +126,10 @@ export const TICKET_ACCESS_CODE_MIN = 4;
 export const TICKET_ACCESS_CODE_MAX = 64;
 export const TICKET_MAX_ACCESS_CODE_HINT = 120;
 
-export function emptyTicketDraft(sortOrder: number): TicketDraft {
+export function emptyTicketDraft(
+  sortOrder: number,
+  timeZone: string | null | undefined,
+): TicketDraft {
   return {
     id: null,
     key: "",
@@ -133,29 +157,44 @@ export function emptyTicketDraft(sortOrder: number): TicketDraft {
     benefitsPl: "",
     benefitsEn: "",
     phases: [],
+    timeZone: eventTimeZone({ timezone: timeZone }),
+    savedTimes: {},
   };
 }
 
-/** ISO z bazy -> wartość `datetime-local` (bez sekund, w czasie przeglądarki). */
-export function toLocalInput(iso: string | null): string {
-  if (iso === null || iso === "") return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
+/** ISO z bazy -> wartość `datetime-local` w strefie wydarzenia (bez sekund). */
+export function toLocalInput(iso: string | null, timeZone: string | null | undefined): string {
+  return eventLocalInput(iso, timeZone);
 }
 
-/** Wartość `datetime-local` -> ISO albo `null`, gdy pole puste/niepełne. */
-export function fromLocalInput(value: string): string | null {
-  if (value.trim() === "") return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+/**
+ * Wartość `datetime-local` w strefie wydarzenia -> ISO albo `null`, gdy pole
+ * puste/niepełne. `saved` - chwila z bazy, którą nietknięte pole oddaje bez zmian.
+ */
+export function fromLocalInput(
+  value: string,
+  timeZone: string | null | undefined,
+  saved: string | null = null,
+): string | null {
+  return eventLocalInputToIso(value, timeZone, saved);
 }
 
-export function ticketDraftFromRow(row: EventTicketRow): TicketDraft {
+/** Pole daty szkicu -> chwila (z pamięcią chwili z bazy). */
+function draftInstant(
+  draft: TicketDraft,
+  field: "salesFrom" | "salesTo" | "earlyBirdUntil",
+): string | null {
+  return fromLocalInput(draft[field], draft.timeZone, draft.savedTimes[field] ?? null);
+}
+
+export function ticketDraftFromRow(
+  row: EventTicketRow,
+  timeZone: string | null | undefined,
+): TicketDraft {
+  const zone = eventTimeZone({ timezone: timeZone });
+  const salesFrom = canonicalInstant(row.sales_from);
+  const salesTo = canonicalInstant(row.sales_to);
+  const earlyBirdUntil = canonicalInstant(row.early_bird_until);
   return {
     id: row.id,
     key: row.key,
@@ -170,8 +209,8 @@ export function ticketDraftFromRow(row: EventTicketRow): TicketDraft {
     // `quota` jest w wygenerowanym typie liczbą, ale kolumna jest NULL-owalna -
     // brak limitu przychodzi jako `null` i musi zostać pustym polem.
     quota: row.quota === null || row.quota === undefined ? "" : String(row.quota),
-    salesFrom: toLocalInput(row.sales_from ?? null),
-    salesTo: toLocalInput(row.sales_to ?? null),
+    salesFrom: toLocalInput(salesFrom, zone),
+    salesTo: toLocalInput(salesTo, zone),
     minTierRank: String(row.min_tier_rank ?? 0),
     requiresApproval: row.requires_approval,
     groupId: row.group_id ?? null,
@@ -181,7 +220,7 @@ export function ticketDraftFromRow(row: EventTicketRow): TicketDraft {
       row.early_bird_price_cents === null || row.early_bird_price_cents === undefined
         ? ""
         : String(row.early_bird_price_cents),
-    earlyBirdUntil: toLocalInput(row.early_bird_until ?? null),
+    earlyBirdUntil: toLocalInput(earlyBirdUntil, zone),
     accessCode: "",
     hasAccessCode: row.has_access_code === true,
     removeAccessCode: false,
@@ -189,7 +228,9 @@ export function ticketDraftFromRow(row: EventTicketRow): TicketDraft {
     waitlistEnabled: row.waitlist_enabled !== false,
     benefitsPl: (row.benefits_pl ?? []).join("\n"),
     benefitsEn: (row.benefits_en ?? []).join("\n"),
-    phases: phasesFromJson(row.price_schedule),
+    phases: phasesFromJson(row.price_schedule, zone),
+    timeZone: zone,
+    savedTimes: { salesFrom, salesTo, earlyBirdUntil },
   };
 }
 
@@ -280,8 +321,8 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
 
   // Okno sprzedaży zamknięte przed otwarciem to bilet, którego nie da się kupić
   // ani dziś, ani nigdy - baza odrzuca to CHECK-iem, więc odcinamy wcześniej.
-  const from = fromLocalInput(draft.salesFrom);
-  const to = fromLocalInput(draft.salesTo);
+  const from = draftInstant(draft, "salesFrom");
+  const to = draftInstant(draft, "salesTo");
   if (from !== null && to !== null && new Date(to).getTime() <= new Date(from).getTime()) {
     return { field: "salesTo", errorKey: "invalidRequest" };
   }
@@ -350,8 +391,8 @@ export function ticketDraftIssue(draft: TicketDraft): TicketDraftIssue | null {
     ) {
       return { field: "phases", errorKey: "invalidPriceSchedule" };
     }
-    const phaseFrom = fromLocalInput(phase.from);
-    const phaseTo = fromLocalInput(phase.to);
+    const phaseFrom = fromLocalInput(phase.from, draft.timeZone, phase.savedFrom ?? null);
+    const phaseTo = fromLocalInput(phase.to, draft.timeZone, phase.savedTo ?? null);
     if (
       phaseFrom !== null &&
       phaseTo !== null &&
@@ -378,8 +419,8 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     priceCents: Number(draft.priceCents.trim()),
     currency: draft.currency,
     quota: quota === null || Number.isNaN(quota) ? null : quota,
-    salesFrom: fromLocalInput(draft.salesFrom),
-    salesTo: fromLocalInput(draft.salesTo),
+    salesFrom: draftInstant(draft, "salesFrom"),
+    salesTo: draftInstant(draft, "salesTo"),
     minTierRank: Number(draft.minTierRank.trim()),
     requiresApproval: draft.requiresApproval,
     groupId: draft.groupId,
@@ -387,7 +428,7 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     sortOrder: Number(draft.sortOrder.trim() === "" ? "0" : draft.sortOrder.trim()),
     earlyBirdPriceCents:
       draft.earlyBirdPriceCents.trim() === "" ? null : Number(draft.earlyBirdPriceCents.trim()),
-    earlyBirdUntil: fromLocalInput(draft.earlyBirdUntil),
+    earlyBirdUntil: draftInstant(draft, "earlyBirdUntil"),
     // Trzy stany kodu: `undefined` = zostaw, `null` = zdejmij, napis = ustaw.
     accessCode: draft.removeAccessCode
       ? null
@@ -401,15 +442,21 @@ export function ticketDraftToInput(draft: TicketDraft, eventId: string): EventTi
     priceSchedule: draft.phases.map((phase): TicketPricePhaseInput => ({
       labelPl: phase.labelPl.trim(),
       labelEn: phase.labelEn.trim(),
-      from: fromLocalInput(phase.from),
-      to: fromLocalInput(phase.to),
+      from: fromLocalInput(phase.from, draft.timeZone, phase.savedFrom ?? null),
+      to: fromLocalInput(phase.to, draft.timeZone, phase.savedTo ?? null),
       priceCents: Number(phase.priceCents.trim()),
     })),
   };
 }
 
-/** `price_schedule` (jsonb) -> wiersze formularza. Bełkot odpada po cichu. */
-export function phasesFromJson(value: unknown): TicketPhaseDraft[] {
+/**
+ * `price_schedule` (jsonb) -> wiersze formularza w strefie `timeZone`.
+ * Bełkot odpada po cichu.
+ */
+export function phasesFromJson(
+  value: unknown,
+  timeZone: string | null | undefined,
+): TicketPhaseDraft[] {
   if (!Array.isArray(value)) return [];
   const out: TicketPhaseDraft[] = [];
   for (const entry of value) {
@@ -417,12 +464,16 @@ export function phasesFromJson(value: unknown): TicketPhaseDraft[] {
     const row = entry as Record<string, unknown>;
     const price = row.price_cents;
     if (typeof price !== "number" || !Number.isFinite(price)) continue;
+    const savedFrom = canonicalInstant(typeof row.from === "string" ? row.from : null);
+    const savedTo = canonicalInstant(typeof row.to === "string" ? row.to : null);
     out.push({
       labelPl: typeof row.label_pl === "string" ? row.label_pl : "",
       labelEn: typeof row.label_en === "string" ? row.label_en : "",
-      from: toLocalInput(typeof row.from === "string" ? row.from : null),
-      to: toLocalInput(typeof row.to === "string" ? row.to : null),
+      from: toLocalInput(savedFrom, timeZone),
+      to: toLocalInput(savedTo, timeZone),
       priceCents: String(Math.trunc(price)),
+      savedFrom,
+      savedTo,
     });
   }
   return out;

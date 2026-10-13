@@ -31,8 +31,11 @@
 // (`useSessionDetail`, klucze cache) - zamockowane na poziomie MODUŁU, bo
 // przedmiotem dowodu jest, O CO molekuła pyta i co robi z odpowiedzią.
 //
-// DETERMINIZM STREFY: godziny przechodzą przez `toLocalInput`/`fromLocalInput`
-// z modułu reguł, więc test nie zakłada strefy maszyny, na której leci.
+// DETERMINIZM STREFY: godziny są zegarem w STREFIE WYDARZENIA (`timeZoneLabel`,
+// tu Europe/Warsaw) i przechodzą przez `toLocalInput`/`fromLocalInput` z modułu
+// reguł z tą strefą - konwersja nie czyta strefy maszyny, więc test też jej nie
+// zakłada. Obca strefa przeglądarki i noce zmiany czasu:
+// `lib/events/__tests__/eventLocalInputZone.test.ts`.
 // Radix Dialog, Select i Switch są podmienione na natywne odpowiedniki.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
@@ -433,8 +436,10 @@ describe("EventSessionDialog - tryb tworzenia kontra tryb edycji", () => {
     expect(poleTytuluEn()).toHaveValue("Opening");
     expect(poleOpisuPl()).toHaveValue("Słowo wstępne");
     expect(poleOpisuEn()).toHaveValue("Opening remarks");
-    expect(poleStartu()).toHaveValue(toLocalInput("2026-09-01T08:00:00.000Z"));
-    expect(poleKonca()).toHaveValue(toLocalInput("2026-09-01T09:00:00.000Z"));
+    // Zegar wydarzenia (CEST, UTC+2), nie maszyny.
+    expect(poleStartu()).toHaveValue("2026-09-01T10:00");
+    expect(poleKonca()).toHaveValue("2026-09-01T11:00");
+    expect(poleStartu()).toHaveValue(toLocalInput("2026-09-01T08:00:00.000Z", STREFA));
     expect(droplistaSciezki()).toHaveValue("track-a");
     expect(droplistaSali()).toHaveValue("room-a");
     // TO JEST POWÓD ISTNIENIA ZAPYTANIA O SZCZEGÓŁ: oba adresy są w formularzu,
@@ -785,8 +790,8 @@ describe("EventSessionDialog - ładunek zapisu", () => {
       titleEn: "Opening",
       descriptionPl: "",
       descriptionEn: "",
-      startsAt: fromLocalInput("2026-09-01T09:00"),
-      endsAt: fromLocalInput("2026-09-01T10:00"),
+      startsAt: fromLocalInput("2026-09-01T09:00", STREFA),
+      endsAt: fromLocalInput("2026-09-01T10:00", STREFA),
       format: "onsite",
       status: "draft",
       trackId: null,
@@ -820,7 +825,24 @@ describe("EventSessionDialog - ładunek zapisu", () => {
     expect(wyslane.startsAt.endsWith("Z")).toBe(true);
     // Droga powrotna musi dać dokładnie to, co organizator wpisał - inaczej
     // sesja przesuwa się o strefę przy każdym zapisie.
-    expect(toLocalInput(wyslane.startsAt)).toBe("2026-09-01T09:00");
+    expect(toLocalInput(wyslane.startsAt, STREFA)).toBe("2026-09-01T09:00");
+    // 09:00 w Warszawie to 07:00 UTC - zegar wydarzenia, nie przeglądarki.
+    expect(wyslane.startsAt).toBe("2026-09-01T07:00:00.000Z");
+  });
+
+  it("noc wiosennej zmiany czasu: pod polem stoi zdanie o luce i zapisana godzina", () => {
+    const { onSubmit } = renderuj();
+    wypelnijMinimum();
+    // 02:30 29.03.2026 nie istnieje w Warszawie - zegar skacze z 02:00 na 03:00.
+    fireEvent.change(poleStartu(), { target: { value: "2026-03-29T02:30" } });
+    fireEvent.change(poleKonca(), { target: { value: "2026-03-29T04:00" } });
+    const opisy = (poleStartu().getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent ?? "");
+    expect(opisy.some((tekst) => tekst.startsWith("adminEvents.eventTime.gap("))).toBe(true);
+    fireEvent.click(przyciskZapisu());
+    // Reguła bazy: przesunięcie sprzed zmiany, czyli 03:30 CEST = 01:30 UTC.
+    expect(ladunek(onSubmit).startsAt).toBe("2026-03-29T01:30:00.000Z");
   });
 
   it("wszystkie przełączniki i liczby dochodzą do warstwy zapisu", () => {

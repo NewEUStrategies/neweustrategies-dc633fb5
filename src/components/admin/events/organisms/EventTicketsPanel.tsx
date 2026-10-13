@@ -7,6 +7,12 @@
 //
 // LICZBY POKAZUJEMY OBOK PULI, bo pula bez liczby zajętych miejsc nie mówi nic o
 // tym, czy można ją bezpiecznie obniżyć - a RPC odmawia zejścia poniżej zajętych.
+//
+// TERMINY W STREFIE WYDARZENIA - w formularzu i w tabeli (klasa OPS-15). Tabela
+// pokazywała okno sprzedaży w strefie serwisu, a formularz miał je w strefie
+// wydarzenia: przy kongresie poza Polską te same terminy różniłyby się o godzinę
+// między wierszem a dialogiem. Przełącznik aktywności i duplikacja przechodzą
+// przez szkic, który pamięta chwile z bazy - okno wraca bez zmian.
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -29,7 +35,8 @@ import {
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { EventTicketDialog } from "@/components/admin/events/molecules/EventTicketDialog";
 import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
-import { formatDateTime } from "@/lib/i18n/format";
+import { formatDate } from "@/lib/i18n/format";
+import { eventTimeZone } from "@/lib/events/timezone";
 import { ticketDraftFromRow, ticketDraftToInput } from "@/lib/events/ticketDraft";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
 import {
@@ -55,9 +62,28 @@ function formatPrice(cents: number, currency: string, locale: string): string {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
 }
 
-export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eventSlug?: string }) {
+export function EventTicketsPanel({
+  eventId,
+  eventSlug,
+  timezone,
+}: {
+  eventId: string;
+  eventSlug?: string;
+  /** Strefa wydarzenia (`events.timezone`) - terminy biletów są zegarem w niej. */
+  timezone: string | null;
+}) {
   ensureRegistrationI18n();
   const { t, i18n } = useTranslation();
+  const zone = eventTimeZone({ timezone });
+  const formatDateTime = (value: string): string =>
+    formatDate(value, i18n.language, {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: zone,
+    });
   const presentationQ = useTicketPresentation(eventId);
   const savePresentation = useSaveTicketPresentation(eventId);
   const [query, setQuery] = useState("");
@@ -93,7 +119,7 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
   /** Przełącznik w wierszu wysyła CAŁY wiersz - RPC zapisu jest upsertem. */
   const toggleActive = (row: EventTicketRow, next: boolean) => {
     save.mutate(
-      { ...ticketDraftToInput(ticketDraftFromRow(row), eventId), isActive: next },
+      { ...ticketDraftToInput(ticketDraftFromRow(row, zone), eventId), isActive: next },
       {
         onError: fail,
       },
@@ -110,7 +136,7 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
   /** Kopia zapisuje się od razu jako nieaktywna - organizator włącza ją świadomie. */
   const duplicate = (row: EventTicketRow) => {
     const copy = duplicateTicketDraft(
-      ticketDraftFromRow(row),
+      ticketDraftFromRow(row, zone),
       new Set(rows.map((entry) => entry.key)),
       {
         pl: t("adminEventRegistration.tickets.studio.duplicateSuffixPl"),
@@ -143,14 +169,12 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
     if (from !== null) {
       parts.push(
         t("adminEventRegistration.tickets.windowFrom", {
-          date: formatDateTime(from, i18n.language),
+          date: formatDateTime(from),
         }),
       );
     }
     if (to !== null) {
-      parts.push(
-        t("adminEventRegistration.tickets.windowTo", { date: formatDateTime(to, i18n.language) }),
-      );
+      parts.push(t("adminEventRegistration.tickets.windowTo", { date: formatDateTime(to) }));
     }
     return parts.join(" ");
   };
@@ -159,7 +183,7 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
   const dateCell = (value: string | null | undefined) =>
     value === null || value === undefined
       ? t("adminEventRegistration.tickets.studio.noDate")
-      : formatDateTime(value, i18n.language);
+      : formatDateTime(value);
 
   const confirmDelete = () => {
     if (pendingDelete === null) return;
@@ -273,7 +297,7 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
                           {row.early_bird_until !== null && row.early_bird_until !== undefined ? (
                             <Badge variant="secondary">
                               {t("adminEventRegistration.tickets.earlyBirdBadge", {
-                                date: formatDateTime(row.early_bird_until, i18n.language),
+                                date: formatDateTime(row.early_bird_until),
                               })}
                             </Badge>
                           ) : null}
@@ -438,6 +462,7 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
         eventSlug={eventSlug}
         presentation={edited === null ? undefined : lookOf(edited.id)}
         onDuplicate={edited === null ? undefined : () => duplicate(edited)}
+        timezone={zone}
       />
 
       <AlertDialog

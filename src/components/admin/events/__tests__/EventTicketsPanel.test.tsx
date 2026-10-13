@@ -304,7 +304,7 @@ const KONIEC_SPRZEDAZY = relativeIso(-21 * DZIEN);
 const KONIEC_PROGU = relativeIso(-33 * DZIEN);
 
 function panel() {
-  return render(<EventTicketsPanel eventId={SALES_IDS.event} />);
+  return render(<EventTicketsPanel eventId={SALES_IDS.event} timezone="Europe/Warsaw" />);
 }
 
 const wiersze = (): HTMLElement[] => screen.queryAllByRole("row").slice(1);
@@ -585,6 +585,38 @@ describe("przełącznik „aktywny” w wierszu", () => {
     expect(ladunek.namePl).toBe("Karnet VIP");
     expect(ladunek.priceCents).toBe(1999);
     expect(ladunek.quota).toBe(50);
+  });
+
+  it("przełącznik oddaje terminy biletu co do milisekundy - takze faz cennika", () => {
+    // Szkic jest zegarem w strefie wydarzenia bez sekund; bez pamięci chwil
+    // z bazy przełącznik przycinałby koniec sprzedaży 23:59:59 do 23:59:00,
+    // a granicę z pierwszego wystąpienia 02:30 nocy zakładki przesuwał o godzinę.
+    h.rows = [
+      eventTicketRow({
+        sales_from: "2026-10-25T00:30:00.000Z",
+        sales_to: "2026-12-31T22:59:59.000Z",
+        early_bird_price_cents: 900,
+        early_bird_until: "2026-11-30T22:59:59.999Z",
+        price_schedule: [
+          {
+            label_pl: "I",
+            label_en: "I",
+            from: null,
+            to: "2026-11-01T10:15:45.000Z",
+            price_cents: 900,
+          },
+        ],
+      }),
+    ];
+    panel();
+
+    fireEvent.click(within(wiersz()).getByRole("switch", { name: `${T}.editor.active` }));
+
+    const ladunek = h.saveCalls[0] as EventTicketInput;
+    expect(ladunek.salesFrom).toBe("2026-10-25T00:30:00.000Z");
+    expect(ladunek.salesTo).toBe("2026-12-31T22:59:59.000Z");
+    expect(ladunek.earlyBirdUntil).toBe("2026-11-30T22:59:59.999Z");
+    expect(ladunek.priceSchedule[0].to).toBe("2026-11-01T10:15:45.000Z");
   });
 
   it("włączenie wyłączonego biletu jedzie w drugą stronę", () => {

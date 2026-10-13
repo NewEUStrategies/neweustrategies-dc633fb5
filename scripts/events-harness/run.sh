@@ -62,11 +62,40 @@ if [ "$RUNAS" = "root" ]; then
   RUNAS=postgres
 fi
 
-pg_ctl -D "$PGDIR/data" stop >/dev/null 2>&1 || true
+run_as() { if [ "$(id -un)" = "root" ]; then su "$RUNAS" -c "PATH=$PGBIN:\$PATH $*"; else eval "$*"; fi; }
+
+# SPRZATANIE PO POPRZEDNIM PRZEBIEGU MUSI ZATRZYMAC KLASTER, ZANIM `rm -rf`.
+#
+# Zatrzymanie idzie przez `run_as`, jak kazde inne wywolanie `pg_ctl`. Jako
+# root goly `pg_ctl` odmawia pracy ("cannot be run as root"), a `|| true`
+# polykalo te odmowe - klaster zostawiony przez `--keep` zyl dalej, `rm -rf`
+# kasowal mu katalog spod nog, a gdy w koncu sie zamykal, usuwal plik gniazda
+# `$PGDIR/run/.s.PGSQL.<port>` - czyli gniazdo NOWEGO klastra na tej samej
+# sciezce. Asercje padaly wtedy w polowie przebiegu na "connection refused".
+#
+# Drugi przypadek: katalog danych juz nie istnieje (ktos go skasowal recznie,
+# poprzedni przebieg przerwany miedzy `rm -rf` a `initdb`), a postmaster nadal
+# dziala. `pg_ctl` bez katalogu nie ma pliku PID, wiec nie ma czego zatrzymac.
+# Wtedy szukamy procesu po linii polecen `postgres -D <PGDIR>/data` - wzorzec
+# jest kotwiczony na sciezce katalogu, wiec nie trafi w klastry innych
+# harnessow (klubowy, rekrutacyjny, inne sesje agentow) - i zatrzymujemy go
+# szybkim zamknieciem (SIGINT), a po pieciu sekundach bezwarunkowo (SIGKILL).
+# Bez `pkill` w obrazie ten krok jest pomijany, nie wywraca przebiegu.
+run_as "pg_ctl -D $PGDIR/data stop" >/dev/null 2>&1 || true
+if command -v pkill >/dev/null 2>&1 && command -v pgrep >/dev/null 2>&1; then
+  STALE_PG="postgres -D $(printf '%s' "$PGDIR/data" | sed 's/[][\.*^$+?(){}|]/\\&/g')( |\$)"
+  if pgrep -f -- "$STALE_PG" >/dev/null 2>&1; then
+    pkill -INT -f -- "$STALE_PG" >/dev/null 2>&1 || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      pgrep -f -- "$STALE_PG" >/dev/null 2>&1 || break
+      sleep 0.5
+    done
+    pkill -KILL -f -- "$STALE_PG" >/dev/null 2>&1 || true
+  fi
+fi
 rm -rf "$PGDIR"; mkdir -p "$PGDIR/data" "$PGDIR/run"
 [ "$(id -un)" = "root" ] && chown -R "$RUNAS" "$PGDIR"
 
-run_as() { if [ "$(id -un)" = "root" ]; then su "$RUNAS" -c "PATH=$PGBIN:\$PATH $*"; else eval "$*"; fi; }
 run_as "initdb -D $PGDIR/data -U postgres --auth=trust -E UTF8 --locale=C" >/dev/null
 run_as "pg_ctl -D $PGDIR/data -o '-k $PGDIR/run -p $PGPORT_HARNESS -c listen_addresses=\"\"' -l $PGDIR/pg.log start" >/dev/null
 sleep 2

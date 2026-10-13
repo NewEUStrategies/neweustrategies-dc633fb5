@@ -13,7 +13,11 @@ import {
   ensureAgendaI18n,
 } from "@/lib/i18n-admin-event-agenda";
 
-/** Klucze podnoszone przez migrację 20260823140000, w postaci z SQL-a. */
+/**
+ * Klucze podnoszone przez migrację 20260823140000, w postaci z SQL-a, plus
+ * `session_has_checkpoints` z 20261012140100 (usunięcie sesji z punktem
+ * kontrolnym - klucz obcy punktu jest NO ACTION od 20261012110000).
+ */
 const SQL_KEYS = [
   "not_found",
   "session_before_event",
@@ -43,6 +47,7 @@ const SQL_KEYS = [
   "parent_not_found",
   "room_conflict",
   "session_has_signups",
+  "session_has_checkpoints",
   "invalid_payload",
   "invalid_role",
   "speaker_not_found",
@@ -89,6 +94,20 @@ describe("adminAgendaFailure", () => {
     );
     expect(failure.key).toBe("adminEventAgenda.errors.capacityOverRoom");
     expect(failure.params).toEqual({ count: 200, total: 120 });
+  });
+
+  it("punkt kontrolny sesji: kod z 20261012140100 daje zdanie z liczbą punktów", () => {
+    const error = new Error(
+      "session_has_checkpoints: 2 checkpoint(s) are bound to this session or its sub-sessions - change their kind or delete them first",
+    );
+    const failure = adminAgendaFailure(error);
+    expect(failure.key).toBe("adminEventAgenda.errors.sessionHasCheckpoints");
+    expect(failure.params).toEqual({ count: 2 });
+    const pl = i18n.t(failure.key, { ...failure.params, lng: "pl" });
+    const en = i18n.t(failure.key, { ...failure.params, lng: "en" });
+    expect(pl).toContain("(2)");
+    expect(pl).toContain("punkty kontrolne");
+    expect(en).toContain("2 checkpoint(s)");
   });
 
   it('„Failed to fetch" nie udaje klucza bazy', () => {

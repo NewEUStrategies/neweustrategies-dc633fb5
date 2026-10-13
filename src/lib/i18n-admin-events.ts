@@ -23,6 +23,16 @@ import i18n from "@/lib/i18n";
 
 export const adminEventsPl = {
   adminEvents: {
+    // PODPIS POLA DATY formularzy studia (bilet, pakiet, sesja, giełda).
+    // Pole `datetime-local` jest zegarem w strefie wydarzenia, nie przeglądarki
+    // (`lib/events/eventLocalInput.ts`); noc zmiany czasu ma regułę bazy.
+    eventTime: {
+      zone: "Godzina w strefie {{zone}}",
+      gap: "Tej godziny nie ma w strefie {{zone}} - zegar przestawia się wtedy o godzinę do przodu. Zapiszemy {{value}}.",
+      overlap:
+        "Ta godzina występuje w strefie {{zone}} dwa razy - zegar cofa się wtedy o godzinę. Przyjmujemy drugą: {{value}}.",
+    },
+
     nav: {
       sectionTitle: "Wydarzenia",
       sectionsNavLabel: "Sekcje modułu wydarzeń",
@@ -1273,6 +1283,13 @@ export const adminEventsPl = {
 
 export const adminEventsEn = {
   adminEvents: {
+    eventTime: {
+      zone: "Time in {{zone}}",
+      gap: "This time does not exist in {{zone}} - clocks jump forward an hour. We will save {{value}}.",
+      overlap:
+        "This time occurs twice in {{zone}} - clocks go back an hour. We use the second one: {{value}}.",
+    },
+
     nav: {
       sectionTitle: "Events",
       sectionsNavLabel: "Event module sections",

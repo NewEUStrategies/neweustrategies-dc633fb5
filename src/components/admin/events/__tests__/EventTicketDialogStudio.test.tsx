@@ -116,6 +116,7 @@ function renderuj(props: Wejscie = {}) {
   return render(
     <EventTicketDialog
       open
+      timezone="Europe/Warsaw"
       onOpenChange={vi.fn()}
       eventId={SALES_IDS.event}
       ticket={props.ticket ?? null}

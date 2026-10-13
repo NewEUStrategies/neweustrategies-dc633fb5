@@ -15,9 +15,15 @@ import {
 } from "@/lib/events/ticketDraft";
 import type { EventTicketRow } from "@/lib/events/registrationsApi";
 
+/**
+ * Strefa wydarzenia - terminy biletu są zegarem w niej. Obca strefa
+ * przeglądarki i noce zmiany czasu: `eventLocalInputZone.test.ts`.
+ */
+const STREFA = "Europe/Warsaw";
+
 function valid(overrides: Partial<TicketDraft> = {}): TicketDraft {
   return {
-    ...emptyTicketDraft(10),
+    ...emptyTicketDraft(10, STREFA),
     key: "vip_pass",
     namePl: "Karnet VIP",
     nameEn: "VIP pass",
@@ -93,15 +99,18 @@ describe("ticketDraftToInput", () => {
 
 describe("konwersja daty", () => {
   it("puste i niepoprawne wejście daje null", () => {
-    expect(fromLocalInput("")).toBeNull();
-    expect(fromLocalInput("   ")).toBeNull();
-    expect(fromLocalInput("2026-13-45T99:99")).toBeNull();
-    expect(toLocalInput(null)).toBe("");
-    expect(toLocalInput("nonsense")).toBe("");
+    expect(fromLocalInput("", STREFA)).toBeNull();
+    expect(fromLocalInput("   ", STREFA)).toBeNull();
+    expect(fromLocalInput("2026-13-45T99:99", STREFA)).toBeNull();
+    expect(toLocalInput(null, STREFA)).toBe("");
+    expect(toLocalInput("nonsense", STREFA)).toBe("");
   });
 
   it("ISO -> pole -> ISO zachowuje moment z dokładnością do minuty", () => {
-    const iso = fromLocalInput(toLocalInput("2026-09-01T08:30:00.000Z"));
+    const local = toLocalInput("2026-09-01T08:30:00.000Z", STREFA);
+    // Pole pokazuje zegar WYDARZENIA (CEST), niezależnie od strefy maszyny.
+    expect(local).toBe("2026-09-01T10:30");
+    const iso = fromLocalInput(local, STREFA);
     expect(iso).not.toBeNull();
     expect(new Date(iso as string).toISOString()).toBe("2026-09-01T08:30:00.000Z");
   });
@@ -128,7 +137,7 @@ describe("ticketDraftFromRow", () => {
   } as unknown as EventTicketRow;
 
   it("brak limitu z bazy zostaje pustym polem, nie zerem", () => {
-    const draft = ticketDraftFromRow(row);
+    const draft = ticketDraftFromRow(row, STREFA);
     expect(draft.quota).toBe("");
     expect(draft.salesFrom).toBe("");
     expect(draft.currency).toBe("EUR");
@@ -136,7 +145,7 @@ describe("ticketDraftFromRow", () => {
   });
 
   it("nieznana waluta spada do PLN, zamiast wysypywać listę wyboru", () => {
-    const draft = ticketDraftFromRow({ ...row, currency: "CHF" } as EventTicketRow);
+    const draft = ticketDraftFromRow({ ...row, currency: "CHF" } as EventTicketRow, STREFA);
     expect(draft.currency).toBe("PLN");
   });
 });

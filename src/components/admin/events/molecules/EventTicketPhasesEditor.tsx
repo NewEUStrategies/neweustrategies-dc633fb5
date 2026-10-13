@@ -12,12 +12,19 @@ import { DateInput } from "@/components/ui/date-input";
 //
 // GROSZE, NIE ZŁOTÓWKI - tak jak w pozostałych polach cenowych biletu. Jedna
 // jednostka w całym module to brak pomyłki o dwa rzędy wielkości.
+//
+// GRANICE PROGU SĄ ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), jak terminy
+// biletu - pod każdym polem stoi strefa, a w noc zmiany czasu zdanie o tym,
+// którą godzinę zapiszemy.
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
+import { uiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import {
   TICKET_MAX_PHASES,
   emptyTicketPhase,
@@ -29,10 +36,21 @@ export interface EventTicketPhasesEditorProps {
   onChange: (phases: TicketPhaseDraft[]) => void;
   /** Komunikat walidacji dla CAŁEJ listy - baza też odrzuca ją w całości. */
   error: string | null;
+  /** Strefa wydarzenia (IANA), w której pola granic progu są zegarem. */
+  timeZone: string;
 }
 
-export function EventTicketPhasesEditor({ phases, onChange, error }: EventTicketPhasesEditorProps) {
-  const { t } = useTranslation();
+export function EventTicketPhasesEditor({
+  phases,
+  onChange,
+  error,
+  timeZone,
+}: EventTicketPhasesEditorProps) {
+  ensureAdminEventsI18n();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
+  const hintFor = (value: string, saved: string | null | undefined): string =>
+    eventLocalInputHint(t, lang, value, timeZone, saved ?? null) ?? "";
 
   const patch = (index: number, part: Partial<TicketPhaseDraft>) =>
     onChange(phases.map((phase, i) => (i === index ? { ...phase, ...part } : phase)));
@@ -133,8 +151,12 @@ export function EventTicketPhasesEditor({ phases, onChange, error }: EventTicket
                   id={`phase-from-${index}`}
                   type="datetime-local"
                   value={phase.from}
+                  aria-describedby={`phase-from-${index}-zone`}
                   onChange={(event) => patch(index, { from: event.target.value })}
                 />
+                <p id={`phase-from-${index}-zone`} className="text-xs text-muted-foreground">
+                  {hintFor(phase.from, phase.savedFrom)}
+                </p>
               </div>
               <div className="space-y-1">
                 <Label htmlFor={`phase-to-${index}`}>
@@ -144,8 +166,12 @@ export function EventTicketPhasesEditor({ phases, onChange, error }: EventTicket
                   id={`phase-to-${index}`}
                   type="datetime-local"
                   value={phase.to}
+                  aria-describedby={`phase-to-${index}-zone`}
                   onChange={(event) => patch(index, { to: event.target.value })}
                 />
+                <p id={`phase-to-${index}-zone`} className="text-xs text-muted-foreground">
+                  {hintFor(phase.to, phase.savedTo)}
+                </p>
               </div>
               <div className="space-y-1">
                 <Label htmlFor={`phase-price-${index}`}>

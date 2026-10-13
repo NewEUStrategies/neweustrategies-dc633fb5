@@ -6,8 +6,16 @@
 // BILET WYBIERAMY Z LISTY BILETÓW TEGO WYDARZENIA, a nie wpisujemy z ręki:
 // miejsce z pakietu zamienia się w zwykłe zgłoszenie na wskazanym bilecie, więc
 // literówka w identyfikatorze dawałaby pakiet, którego nie da się zrealizować.
+//
+// OKNO SPRZEDAŻY JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), jak terminy
+// biletu - strefa przychodzi od rodzica, a pod polem stoi jej nazwa albo zdanie
+// o luce/zakładce zmiany czasu.
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
+import { uiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,6 +58,8 @@ interface EventPackageDialogProps {
   nextSortOrder: number;
   isSaving: boolean;
   onSubmit: (input: EventPackageInput) => void;
+  /** Strefa wydarzenia (`events.timezone`); pola okna sprzedaży są zegarem w niej. */
+  timezone: string | null;
 }
 
 export function EventPackageDialog({
@@ -61,9 +71,13 @@ export function EventPackageDialog({
   nextSortOrder,
   isSaving,
   onSubmit,
+  timezone,
 }: EventPackageDialogProps) {
+  ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
-  const [draft, setDraft] = useState<PackageDraft>(() => emptyPackageDraft(nextSortOrder));
+  const lang = uiLang(i18n.language);
+  const zone = eventTimeZone({ timezone });
+  const [draft, setDraft] = useState<PackageDraft>(() => emptyPackageDraft(nextSortOrder, zone));
   const [touched, setTouched] = useState(false);
 
   // ZALEŻNOŚĆ JEST TOŻSAMOŚCIĄ WIERSZA, NIE OBIEKTEM - dokładnie jak
@@ -76,12 +90,18 @@ export function EventPackageDialog({
   nextSortOrderRef.current = nextSortOrder;
   const packageRef = useRef(eventPackage);
   packageRef.current = eventPackage;
+  const zoneRef = useRef(zone);
+  zoneRef.current = zone;
   const packageId = eventPackage === null ? null : eventPackage.id;
 
   useEffect(() => {
     if (!open) return;
     const row = packageRef.current;
-    setDraft(row === null ? emptyPackageDraft(nextSortOrderRef.current) : packageDraftFromRow(row));
+    setDraft(
+      row === null
+        ? emptyPackageDraft(nextSortOrderRef.current, zoneRef.current)
+        : packageDraftFromRow(row, zoneRef.current),
+    );
     setTouched(false);
   }, [open, packageId]);
 
@@ -91,6 +111,8 @@ export function EventPackageDialog({
 
   const set = <K extends keyof PackageDraft>(key: K, value: PackageDraft[K]) =>
     setDraft((previous) => ({ ...previous, [key]: value }));
+  const timeHint = (field: "salesFrom" | "salesTo"): string | undefined =>
+    eventLocalInputHint(t, lang, draft[field], draft.timeZone, draft.savedTimes[field] ?? null);
 
   const submit = () => {
     setTouched(true);
@@ -242,6 +264,7 @@ export function EventPackageDialog({
               value={draft.salesFrom}
               onValueChange={(value) => set("salesFrom", value)}
               type="datetime-local"
+              hint={timeHint("salesFrom")}
               error={errorFor("salesFrom")}
             />
             <AdminFormTextRow
@@ -249,6 +272,7 @@ export function EventPackageDialog({
               value={draft.salesTo}
               onValueChange={(value) => set("salesTo", value)}
               type="datetime-local"
+              hint={timeHint("salesTo")}
               error={errorFor("salesTo")}
             />
             <AdminFormTextRow
