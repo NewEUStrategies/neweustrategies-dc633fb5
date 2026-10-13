@@ -61,7 +61,8 @@
 -- kluczem serwisowym, a stara funkcje klientem anonimowym WYLACZNIE przy
 -- PGRST202/42883. Migracja zastosowana przed kodem: maile potwierdzen
 -- i biletow grupy przestaja wychodzic do czasu wdrozenia kodu (fail-soft -
--- zapis stoi). Front czyta `reason:'expired'` i `price_source`, gdy sa.
+-- zapis stoi). Front (loadRegistrationManageView) czyta `reason:'expired'`;
+-- `price_source` i `quote_valid_until` sa addytywne - starszy front je pomija.
 --
 -- IDEMPOTENTNA: CREATE OR REPLACE (sygnatury bez zmian), bezstanowe
 -- REVOKE/GRANT, COMMENT ON.

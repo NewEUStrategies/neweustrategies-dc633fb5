@@ -29,6 +29,12 @@
 // (zgłoszenie zamknięte, wydarzenie zakończone - REG-13, klucz wygasły) chowają
 // przycisk i mówią zdaniem, zamiast czekać na błąd bazy.
 //
+// KLUCZ POZA ADRESAMI, KTÓRE WYCHODZĄ (REG-17). Przycisk „kopiuj" daje odnośnik
+// z kluczem we fragmencie (`#token=`), a adres powrotu z kasy - samą stronę bez
+// klucza: klucz czeka na powrót w `sessionStorage` karty (`onBeforeCheckout`).
+// Klucz wygasły z końcem wydarzenia (podgląd `expired`) zostawia tylko zdanie
+// i gniazdo zgód - bez przycisków rezygnacji i kopiowania.
+//
 // ZGODY (REG-14). Pod resztą panelu stoi gniazdo wycofania zgód marketingu
 // i partnerów (`ManageConsentsSlot`) - przy KAŻDYM kluczu, który nie jest
 // nieznany: także po anulowaniu zgłoszenia i po końcu wydarzenia, bo zgodę
@@ -51,7 +57,7 @@ import { formatMoney } from "@/lib/billing/types";
 import { fetchEventPageHeader } from "@/lib/community/publicQueries";
 import {
   cancelRegistration,
-  fetchRegistrationManageView,
+  loadRegistrationManageView,
   type RegistrationCancelResult,
 } from "@/lib/events/publicRegistrationApi";
 import {
@@ -73,7 +79,12 @@ import {
   cancellationErrorMessage,
   isRefundTermsChanged,
 } from "@/lib/events/publicRegistrationErrors";
-import { isManageToken, manageLinkPath } from "@/lib/events/manageToken";
+import {
+  isManageToken,
+  manageLinkPath,
+  managePagePath,
+  stashManageTokenForReturn,
+} from "@/lib/events/manageToken";
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 
@@ -113,18 +124,20 @@ export function RegistrationManagePanel({
   // golym slugiem: klucz w kluczu zapytania trzyma odpowiedzi rozdzielnie.
   const stateQuery = useQuery({
     queryKey: ["event-registration-manage-view", slug, activeToken],
-    queryFn: () => fetchRegistrationManageView({ manageToken: activeToken ?? "" }),
+    queryFn: () => loadRegistrationManageView({ manageToken: activeToken ?? "" }),
     enabled: activeToken !== null,
     staleTime: 15_000,
   });
-  const state = stateQuery.data ?? null;
+  const state = stateQuery.data?.kind === "view" ? stateQuery.data.view : null;
 
   // SKUTEK REZYGNACJI pod tym samym kluczem zapytania, co gniazdo zasad zwrotu.
   const previewQuery = useCancellationPreview({ slug, manageToken: activeToken });
   const preview = previewQuery.data;
   const refusal: CancellationRefusal | null =
     preview?.kind === "ok" && !preview.canCancel ? preview.refusal : null;
-  const keyExpired = preview?.kind === "expired";
+  // Wygaśnięcie mówi KAŻDA z dwóch odpowiedzi - podgląd stanu i podgląd
+  // rezygnacji (ta druga bywa niedostępna w oknie wdrożenia).
+  const keyExpired = preview?.kind === "expired" || stateQuery.data?.kind === "expired";
   const keyUnknown = preview?.kind === "not_found";
 
   const cancelM = useMutation({
@@ -295,7 +308,10 @@ export function RegistrationManagePanel({
                   ticketTypeId={state.ticketTypeId}
                   amountCents={state.amountCents}
                   currency={state.currency}
-                  returnPath={manageLinkPath(slug, activeToken ?? "")}
+                  returnPath={managePagePath(slug)}
+                  onBeforeCheckout={() => {
+                    if (activeToken !== null) stashManageTokenForReturn(slug, activeToken);
+                  }}
                   intent="resume"
                   ownedByCaller={state.ownedByCaller}
                 />
@@ -310,7 +326,7 @@ export function RegistrationManagePanel({
             </>
           )}
 
-          {activeToken !== null && refusal !== null && (
+          {activeToken !== null && refusal !== null && !keyExpired && (
             <div className="space-y-3 rounded-[6px] border border-border bg-card p-4">
               <p className="flex items-start gap-2 text-sm text-foreground">
                 <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

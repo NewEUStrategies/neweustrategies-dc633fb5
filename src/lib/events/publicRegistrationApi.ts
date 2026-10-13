@@ -274,14 +274,24 @@ export interface RegistrationManageView {
 }
 
 /**
- * Zgloszenie pod kluczem `manage_token` (gosc) albo pod identyfikatorem
- * (wlasciciel konta). `null` = nie ma czego pokazac; odmowa NIE jest wyjatkiem,
- * bo „zly klucz" to normalny stan strony, a nie awaria.
+ * Odpowiedz podgladu samoobslugi: zgloszenie albo powod, dla ktorego go nie ma.
+ *
+ * `expired` (REG-17): klucz zgloszenia wydarzenia, ktore sie skonczylo -
+ * strona mowi „odnosnik wygasl", a nie „nie znaleziono", zeby uczestnik pisal
+ * do organizatora zamiast szukac literowki. Kazdy inny brak to `not_found`.
  */
-export async function fetchRegistrationManageView(input: {
+export type RegistrationManageViewResult =
+  { kind: "view"; view: RegistrationManageView } | { kind: "not_found" } | { kind: "expired" };
+
+/**
+ * Zgloszenie pod kluczem `manage_token` (gosc) albo pod identyfikatorem
+ * (wlasciciel konta). Odmowa NIE jest wyjatkiem, bo „zly klucz" to normalny
+ * stan strony, a nie awaria.
+ */
+export async function loadRegistrationManageView(input: {
   manageToken?: string;
   registrationId?: string;
-}): Promise<RegistrationManageView | null> {
+}): Promise<RegistrationManageViewResult> {
   const payload: Record<string, Json> = {};
   if (input.manageToken !== undefined) payload.manage_token = input.manageToken;
   if (input.registrationId !== undefined) payload.registration_id = input.registrationId;
@@ -292,22 +302,40 @@ export async function fetchRegistrationManageView(input: {
   if (error) throw error;
 
   const source = bag(data);
-  if (source === null || source.ok !== true) return null;
+  if (source === null) return { kind: "not_found" };
+  if (source.ok !== true) {
+    return source.reason === "expired" ? { kind: "expired" } : { kind: "not_found" };
+  }
   const registrationId = nullableText(source, "registration_id");
-  if (registrationId === null) return null;
+  if (registrationId === null) return { kind: "not_found" };
 
   return {
-    registrationId,
-    eventId: nullableText(source, "event_id"),
-    eventSlug: nullableText(source, "event_slug"),
-    ticketTypeId: nullableText(source, "ticket_type_id"),
-    status: nullableText(source, "status") ?? "pending",
-    paymentStatus: nullableText(source, "payment_status"),
-    waitlistPosition: optionalInt(source, "waitlist_position"),
-    amountCents: optionalInt(source, "amount_cents"),
-    currency: nullableText(source, "currency"),
-    ownedByCaller: source.owned_by_caller === true,
+    kind: "view",
+    view: {
+      registrationId,
+      eventId: nullableText(source, "event_id"),
+      eventSlug: nullableText(source, "event_slug"),
+      ticketTypeId: nullableText(source, "ticket_type_id"),
+      status: nullableText(source, "status") ?? "pending",
+      paymentStatus: nullableText(source, "payment_status"),
+      waitlistPosition: optionalInt(source, "waitlist_position"),
+      amountCents: optionalInt(source, "amount_cents"),
+      currency: nullableText(source, "currency"),
+      ownedByCaller: source.owned_by_caller === true,
+    },
   };
+}
+
+/**
+ * To samo co `loadRegistrationManageView`, ale `null` zamiast powodu - dla
+ * wolajacych, ktorym wystarcza „jest albo nie ma".
+ */
+export async function fetchRegistrationManageView(input: {
+  manageToken?: string;
+  registrationId?: string;
+}): Promise<RegistrationManageView | null> {
+  const result = await loadRegistrationManageView(input);
+  return result.kind === "view" ? result.view : null;
 }
 
 /**
