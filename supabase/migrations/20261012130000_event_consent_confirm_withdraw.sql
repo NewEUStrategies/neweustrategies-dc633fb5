@@ -538,7 +538,7 @@ BEGIN
     RAISE EXCEPTION 'invalid_payload: registration_id is required';
   END IF;
 
-  SELECT r.id, r.person_id, r.event_id, r.submitted_profile
+  SELECT r.id, r.person_id, r.event_id, r.submitted_profile, r.source, r.group_id
     INTO v_reg
     FROM public.event_registrations r
    WHERE r.tenant_id = v_tenant AND r.id = p_registration_id;
@@ -609,9 +609,15 @@ BEGIN
        LIMIT 50
     ) r;
 
+  -- `source` i `group_id` zgloszenia: przeniesienie danych z zapisu idzie
+  -- przez `admin_event_registration_upsert`, ktory bez nich nadpisalby zrodlo
+  -- na 'organizer' i przepial zgloszenie do grupy domyslnej.
   RETURN jsonb_build_object(
     'registration_id', v_reg.id,
     'person_id', v_reg.person_id,
+    'event_id', v_reg.event_id,
+    'registration_source', v_reg.source,
+    'group_id', v_reg.group_id,
     'submitted_profile', v_submitted,
     'current', v_current,
     'differs', cardinality(v_differences) > 0,
@@ -630,4 +636,4 @@ REVOKE ALL ON FUNCTION public.admin_event_registration_consent_detail(uuid) FROM
 GRANT EXECUTE ON FUNCTION public.admin_event_registration_consent_detail(uuid) TO authenticated, service_role;
 
 COMMENT ON FUNCTION public.admin_event_registration_consent_detail(uuid) IS
-  'REG-02/REG-14, panel zgloszen: dane przyslane przy zapisie (submitted_profile) obok kartoteki osoby (current, differs, differences), projekcja zgod, ksiega zgod osoby (50 najnowszych, z dowodem: kanal, tekst, skrot IP, user agent) i otwarty link double opt-in. Najemca z assert_event_admin_tenant() (admin albo super_admin), nigdy z argumentu. not_found dla cudzego zgloszenia.';
+  'REG-02/REG-14, panel zgloszen: dane przyslane przy zapisie (submitted_profile) obok kartoteki osoby (current, differs, differences), zrodlo i grupa zgloszenia (registration_source, group_id - do przeniesienia danych przez admin_event_registration_upsert), projekcja zgod, ksiega zgod osoby (50 najnowszych, z dowodem: kanal, tekst, skrot IP, user agent) i otwarty link double opt-in. Najemca z assert_event_admin_tenant() (admin albo super_admin), nigdy z argumentu. not_found dla cudzego zgloszenia.';
