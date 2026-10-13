@@ -1324,6 +1324,13 @@
       "when": 1791907515475,
       "tag": "0188_public_definer_views_read_only",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1791917838506,
+      "tag": "0189_event_registration_partner_consent",
+      "breakpoints": true
     }
   ]
 }
