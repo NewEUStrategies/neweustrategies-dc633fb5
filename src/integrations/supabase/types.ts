@@ -23383,7 +23383,7 @@ export type Database = {
           _exclude_id?: string
           _person_id: string
           _tenant: string
-          _window: unknown
+          _window: string
         }
         Returns: string
       }
