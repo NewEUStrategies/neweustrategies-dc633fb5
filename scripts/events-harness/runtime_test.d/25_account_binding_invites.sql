@@ -23,7 +23,7 @@
 --      odrzucony.
 --   4. Zaproszenie: pudlo tokenu jako wartosc z licznikiem, ktory zostaje;
 --      regulamin i pola obowiazkowe; pierwsze udane przyjecie (zrodlo
---      `invitation`, para adres + skrot tokenu zachowana, akceptacja
+--      `package_invitation` po scaleniu z main, para adres + skrot tokenu zachowana, akceptacja
 --      regulaminu z wersja); ponowne uzycie -> `seat_taken`; cudza kartoteka
 --      nietknieta, a konto niezaproszonego nie wiaze sie.
 --
@@ -271,23 +271,27 @@ INSERT INTO bind25 VALUES
 RESET ROLE;
 SELECT pg_temp.act_as(NULL, NULL);
 
+-- SCALENIE Z MAIN (PR #504): zrodlo `package_invitation` (main 20261012130000/
+-- 130001, TIX-07: po nim oplacenie i anulowanie zamowienia znajduja delegatow)
+-- zamiast `invitation` (REG 20261012132200 - obejscie starego CHECK-u). Unia:
+-- 20261013900400. Zamowienie tego pliku jest oplacone - delegat na miejscu.
 SELECT pg_temp.assert(
   (SELECT v->>'ok' = 'true' AND v->>'account_linked' = 'true' AND v->>'status' = 'approved'
           AND v->>'qr_token' ~ '^[A-Za-z0-9_-]{32}$' AND v->>'manage_token' ~ '^[A-Za-z0-9_-]{32}$'
      FROM bind25 WHERE k = 'acc_d')
-  AND (SELECT user_id = 'c5b00000-0000-0000-0000-000000000007' AND source = 'invitation'
+  AND (SELECT user_id = 'c5b00000-0000-0000-0000-000000000007' AND source = 'package_invitation'
          FROM public.event_people WHERE tenant_id = 'c5b2c5b2-c5b2-c5b2-c5b2-c5b2c5b2c5b2'
           AND email_norm = 'del.bind@example.org'),
-  '25/zaproszenie: pierwsze udane przyjecie - kartoteka zaproszenia (zrodlo invitation) dowiazana do potwierdzonego konta');
+  '25/zaproszenie: pierwsze udane przyjecie - kartoteka zaproszenia (zrodlo package_invitation) dowiazana do potwierdzonego konta');
 SELECT pg_temp.assert(
-  (SELECT r.source = 'invitation' AND r.status = 'approved' AND r.registration_mode = 'form'
+  (SELECT r.source = 'package_invitation' AND r.status = 'approved' AND r.registration_mode = 'form'
           AND r.answers->>'sektor' = 'energia' AND r.qr_token_hash IS NOT NULL
      FROM public.event_registrations r
     WHERE r.id = (SELECT (v->>'registration_id')::uuid FROM bind25 WHERE k = 'acc_d'))
   AND (SELECT s.registration_id = (SELECT (v->>'registration_id')::uuid FROM bind25 WHERE k = 'acc_d')
           AND s.invite_email = 'del.bind@example.org' AND s.invite_token_hash IS NOT NULL
      FROM public.event_package_seats s WHERE s.id = 'c5b90000-0000-0000-0000-000000000001'),
-  '25/zaproszenie: zgloszenie z zaproszenia (invitation, form, odpowiedzi), miejsce zachowuje adres i skrot tokenu');
+  '25/zaproszenie: zgloszenie z zaproszenia (package_invitation, form, odpowiedzi), miejsce zachowuje adres i skrot tokenu');
 SELECT pg_temp.assert(
   EXISTS (SELECT 1 FROM public.event_term_acceptances a
            WHERE a.term_id = 'c5b40000-0000-0000-0000-000000000001'
