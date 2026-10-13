@@ -92,6 +92,9 @@ const {
   applyPlanChangeEffects,
   applyPurchaseEffects,
   applyStatusTransitionEffects,
+  deliverAnnouncements,
+  NewsletterOptInRetryableError,
+  RetryableAnnouncementError,
   syncCrmSubscriptionState,
 } = await import("@/lib/billing/purchaseEffects.server");
 
@@ -919,6 +922,279 @@ describe("syncCrmSubscriptionState - wywołanie bezpośrednie", () => {
       "[payments] crm sync failed",
       expect.objectContaining({ message: expect.stringContaining("(profiles)") }),
     );
+    error.mockRestore();
+  });
+});
+
+// PRZEGLĄD S1. Uprawnienie `refunded` (zwrot albo spór BIEŻĄCEGO okresu,
+// `canceled_at` = chwila korekty) wraca do życia wyłącznie dla okresu zaczętego
+// PO korekcie. Skutki zakupu, zmiany planu i rezygnacji nie podawały początku
+// okresu, więc nawet kolejne OPŁACONE odnowienie zostawiało klienta bez dostępu.
+describe("S1 - początek okresu trafia do zapisu uprawnienia", () => {
+  const CORRECTED_AT = relativeIso(-10 * DZIEN);
+
+  beforeEach(() => {
+    db.setResponse("user_subscriptions", (chain) =>
+      chain.has("maybeSingle")
+        ? ok({ id: "us-1", status: "refunded", canceled_at: CORRECTED_AT })
+        : ok(null),
+    );
+  });
+
+  /** Ożywienie: aktualizacja WYŁĄCZNIE tej korekty, którą widział odczyt. */
+  function revive(): RecordedChain | undefined {
+    return db
+      .chainsFor("user_subscriptions")
+      .find(
+        (chain) =>
+          chain.has("update") &&
+          eqFilters(chain).some(([column, value]) => column === "status" && value === "refunded"),
+      );
+  }
+
+  it.each([
+    [
+      "zakup (odnowienie po korekcie)",
+      () => applyPurchaseEffects(purchase({ periodStart: FIXED_NOW_ISO })),
+    ],
+    ["zmiana planu", () => applyPlanChangeEffects(planChange({ periodStart: FIXED_NOW_ISO }))],
+    [
+      "rezygnacja w nowym okresie",
+      () => applyCancellationEffects(purchase({ periodStart: FIXED_NOW_ISO })),
+    ],
+  ])("%s: okres zaczęty PO korekcie ożywia uprawnienie", async (_label, run) => {
+    await run();
+
+    const revived = revive();
+    expect(revived).toBeDefined();
+    expect(eqFilters(revived as RecordedChain)).toContainEqual(["canceled_at", CORRECTED_AT]);
+  });
+
+  it("okres sprzed korekty (to samo zdarzenie okresu) zostawia `refunded`", async () => {
+    await applyPurchaseEffects(purchase({ periodStart: relativeIso(-20 * DZIEN) }));
+
+    expect(revive()).toBeUndefined();
+  });
+});
+
+// PRZEGLĄD 1.3 (dokładnie raz). Webhook zapisuje stan subskrypcji dopiero PO
+// skutkach, więc powtórka po porażce wykonuje je jeszcze raz. Maile mają ziarna
+// idempotencji, CRM jest zbieżny - dzwonek to zwykły INSERT i musi sam
+// rozpoznać, że już leży u odbiorcy od chwili zdarzenia.
+describe("dzwonek raz na zdarzenie (`eventAt`)", () => {
+  const EVENT_AT = relativeIso(-1 * DZIEN);
+
+  function bellLookup(): RecordedChain | undefined {
+    return db.chainsFor("notifications").find((chain) => chain.has("select"));
+  }
+
+  it("dzwonek z tym samym tytułem i adresem od chwili zdarzenia już jest: drugiego nie ma", async () => {
+    db.setResponse("notifications", (chain) =>
+      chain.has("select") ? ok([{ id: "dzwonek-1" }]) : ok(null),
+    );
+
+    await applyStatusTransitionEffects({
+      userId: BILLING_IDS.me,
+      tenantId: BILLING_IDS.tenant,
+      priceId: "plus_monthly",
+      subscriptionId: SUB,
+      periodEnd: relativeIso(20 * DZIEN),
+      previousStatus: "active",
+      status: "paused",
+      eventAt: EVENT_AT,
+    });
+
+    expect(written("notifications", "insert")).toBeUndefined();
+    const lookup = bellLookup();
+    expect(lookup).toBeDefined();
+    expect(eqFilters(lookup as RecordedChain)).toEqual([
+      ["user_id", BILLING_IDS.me],
+      ["tenant_id", BILLING_IDS.tenant],
+      ["kind", "billing"],
+      ["title_pl", "Subskrypcja wstrzymana"],
+      ["href", "/profile/plan"],
+    ]);
+    expect(lookup?.argsOf("gte")).toEqual(["created_at", EVENT_AT]);
+    // Mail idzie dalej - jego duplikat odsiewa ziarno idempotencji.
+    expect(mails()).toHaveLength(1);
+  });
+
+  it.each([
+    ["zakup", () => applyPurchaseEffects(purchase({ eventAt: EVENT_AT }))],
+    ["zmiana planu", () => applyPlanChangeEffects(planChange({ eventAt: EVENT_AT }))],
+    ["rezygnacja", () => applyCancellationEffects(purchase({ eventAt: EVENT_AT }))],
+  ])("%s: dzwonek już leży - drugiego nie ma", async (_label, run) => {
+    db.setResponse("notifications", (chain) =>
+      chain.has("select") ? ok([{ id: "dzwonek-1" }]) : ok(null),
+    );
+
+    await run();
+
+    expect(written("notifications", "insert")).toBeUndefined();
+  });
+
+  it("dzwonka jeszcze nie ma: pierwszy przebieg go zapisuje", async () => {
+    db.setResponse("notifications", (chain) => (chain.has("select") ? ok([]) : ok(null)));
+
+    await applyPurchaseEffects(purchase({ eventAt: EVENT_AT }));
+
+    expect(written("notifications", "insert")).toMatchObject({ title_pl: "Subskrypcja aktywna" });
+  });
+
+  it("nieudany odczyt deduplikacji nie wstrzymuje dzwonka - lepszy duplikat niż cisza", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    db.setResponse("notifications", (chain) =>
+      chain.has("select") ? fail("statement timeout") : ok(null),
+    );
+
+    await applyPurchaseEffects(purchase({ eventAt: EVENT_AT }));
+
+    expect(written("notifications", "insert")).toMatchObject({ title_pl: "Subskrypcja aktywna" });
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] notification dedupe lookup failed",
+      "statement timeout",
+    );
+    warn.mockRestore();
+  });
+
+  it("bez chwili zdarzenia (wołający spoza webhooka) dzwonek idzie bez odczytu", async () => {
+    await applyPurchaseEffects(purchase());
+
+    expect(bellLookup()).toBeUndefined();
+    expect(written("notifications", "insert")).toBeDefined();
+  });
+});
+
+// WERYFIKACJA RUNDY 3 (A3). Webhook zapisuje stan subskrypcji NA KOŃCU,
+// warunkiem na zajęcie zdarzenia. Komunikat wysłany przed tym zapisem mówił
+// klientowi o stanie, którego potem nie było (zapis padł albo nowsze zdarzenie
+// przejęło wiersz) - „wstrzymana" bez „wznowiona". Z kolejką skutki dzielą się
+// na zapisy zbieżne, które RZUCAJĄ (plan, uprawnienie - od razu), i komunikaty
+// (mail, dzwonek, CRM, newsletter), które czekają na `deliverAnnouncements`.
+describe("kolejka komunikatów (`announcements`) - komunikaty po zapisie stanu", () => {
+  let queue: Array<() => Promise<void>> = [];
+  beforeEach(() => {
+    queue = [];
+  });
+
+  it.each([
+    ["zakup", () => applyPurchaseEffects(purchase({ announcements: queue }))],
+    ["zmiana planu", () => applyPlanChangeEffects(planChange({ announcements: queue }))],
+    ["rezygnacja", () => applyCancellationEffects(purchase({ announcements: queue }))],
+  ])(
+    "%s: uprawnienie od razu, mail, dzwonek i CRM dopiero po `deliverAnnouncements`",
+    async (_, run) => {
+      scene.lead = { id: "lead-1", tags: ["customer", "plan:member"] };
+
+      await run();
+
+      expect(writes("user_subscriptions")).toHaveLength(1);
+      expect(mails()).toHaveLength(0);
+      expect(writes("notifications")).toHaveLength(0);
+      expect(writes("crm_leads")).toHaveLength(0);
+      expect(queue).toHaveLength(1);
+
+      await deliverAnnouncements(queue);
+
+      expect(mails()).toHaveLength(1);
+      expect(writes("notifications")).toHaveLength(1);
+      expect(queue).toHaveLength(0);
+    },
+  );
+
+  it("zmiana stanu: plan rozwiązany od razu (porażka odczytu RZUCA przed zapisem stanu), komunikaty w kolejce", async () => {
+    const ctx = {
+      userId: BILLING_IDS.me,
+      tenantId: BILLING_IDS.tenant,
+      priceId: "plus_monthly",
+      subscriptionId: SUB,
+      periodEnd: relativeIso(20 * DZIEN),
+      previousStatus: "active",
+      status: "paused",
+      announcements: queue,
+    };
+
+    await applyStatusTransitionEffects(ctx);
+
+    expect(planLookups()).toHaveLength(1);
+    expect(mails()).toHaveLength(0);
+    expect(writes("notifications")).toHaveLength(0);
+
+    await deliverAnnouncements(queue);
+
+    expect(mails()[0]).toMatchObject({ type: "subscription_paused" });
+    expect(written("notifications", "insert")).toMatchObject({
+      title_pl: "Subskrypcja wstrzymana",
+    });
+    // Drugie doręczenie tej samej kolejki niczego nie powtarza.
+    await deliverAnnouncements(queue);
+    expect(mails()).toHaveLength(1);
+  });
+
+  it("wyjątek jednego komunikatu zostaje w logu, a pozostałe wychodzą - doręczenie nigdy nie rzuca", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const delivered: string[] = [];
+    queue.push(
+      async () => {
+        throw new Error("test: awaria komunikatu");
+      },
+      async () => {
+        delivered.push("drugi");
+      },
+    );
+
+    await expect(deliverAnnouncements(queue)).resolves.toBeUndefined();
+
+    expect(delivered).toEqual(["drugi"]);
+    expect(error).toHaveBeenCalledWith(
+      "[payments] subscription announcement failed",
+      expect.any(Error),
+    );
+    error.mockRestore();
+  });
+
+  // SCALENIE SUB-15 (#34) Z A3. Potwierdzenie zakupu (zgoda z checkoutu,
+  // zajęcie `purchase_confirmed_at`, mail, dzwonek) jest komunikatem w kolejce,
+  // a jego przejściowa porażka nie może zniknąć w logu: zdarzenie ma paść,
+  // operator je ponowi, a pusty znacznik potwierdzenia każe ogłosić zakup
+  // jeszcze raz. Reszta kolejki wychodzi PRZED wyjątkiem.
+  it("porażka do ponowienia (`RetryableAnnouncementError`) wraca PO doręczeniu reszty kolejki", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const delivered: string[] = [];
+    const transient = new NewsletterOptInRetryableError("test: zapis zgody - reset połączenia");
+    queue.push(
+      async () => {
+        throw transient;
+      },
+      async () => {
+        delivered.push("drugi");
+      },
+      async () => {
+        throw new RetryableAnnouncementError("test: druga porażka do ponowienia");
+      },
+    );
+
+    await expect(deliverAnnouncements(queue)).rejects.toBe(transient);
+
+    expect(delivered).toEqual(["drugi"]);
+    expect(queue).toHaveLength(0);
+    error.mockRestore();
+  });
+
+  it("zakup: awaria zajęcia potwierdzenia to porażka do ponowienia - mail i dzwonek nie wychodzą", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await applyPurchaseEffects(
+      purchase({
+        announcements: queue,
+        claimConfirmation: () => Promise.reject(new Error("connection reset")),
+      }),
+    );
+
+    await expect(deliverAnnouncements(queue)).rejects.toThrow(
+      "purchase confirmation claim failed: connection reset",
+    );
+    expect(mails()).toHaveLength(0);
+    expect(writes("notifications")).toHaveLength(0);
     error.mockRestore();
   });
 });

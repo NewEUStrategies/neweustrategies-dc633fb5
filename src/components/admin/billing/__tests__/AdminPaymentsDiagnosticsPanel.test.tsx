@@ -19,10 +19,12 @@
 //      nakładkę mówiącą o czymś innym niż raport.
 //   3. BRAKUJĄCA CENA W KATALOGU JEST WIDOCZNA PRZY PRZYCISKU TESTU - to
 //      najczęstsza przyczyna „zakup nie działa".
-//   4. SYNCHRONIZACJA KUPONÓW raportuje trzy liczby (utworzone / istniejące /
-//      nieudane) i odświeża raport.
+//   4. SYNCHRONIZACJA KUPONÓW raportuje cztery liczby (utworzone / istniejące /
+//      pominięte / nieudane) i odświeża raport.
+//   5. BRAKUJĄCE TYPY ZDARZEŃ na odbiorniku są osobnym ostrzeżeniem z nazwami -
+//      operator musi wiedzieć, CO włączyć w panelu Stripe.
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, supabaseFromStub } from "@/test/billing/fixtures";
 
@@ -38,6 +40,7 @@ interface DiagnosticsShape {
     avgDurationMs: number | null;
   };
   destinations: Array<Record<string, unknown>>;
+  missingWebhookEvents?: string[];
 }
 
 const h = vi.hoisted(() => ({
@@ -146,7 +149,7 @@ beforeEach(() => {
   h.plans.current = [
     { id: "plan-1", name_pl: "Członek", name_en: "Member", tier_key: "member", interval: "month" },
   ];
-  h.sync.mockReset().mockResolvedValue({ created: 1, existing: 2, failed: 0 });
+  h.sync.mockReset().mockResolvedValue({ created: 1, existing: 2, failed: 0, skipped: 3 });
   h.openPlanCheckout
     .mockReset()
     .mockResolvedValue({ ok: true, session: { clientSecret: "cs_secret_syntetyczny" } });
@@ -166,6 +169,41 @@ describe("AdminPaymentsDiagnosticsPanel - raport kontroli", () => {
     await awaitReport();
     expect(screen.getByText("adminBilling.checks.endpoint")).toBeTruthy();
     expect(screen.getByText("https://example.test/hook")).toBeTruthy();
+  });
+
+  it("kontrola subskrybowanych zdarzeń ma własną etykietę", async () => {
+    h.diag.current = diagnostics({
+      checks: [{ id: "webhook_events", state: "warn", detail: "14/16" }],
+    });
+    render();
+
+    await waitFor(() => expect(screen.getByText("adminBilling.checks.events")).toBeTruthy());
+    expect(screen.getByText("14/16")).toBeTruthy();
+  });
+
+  it("BRAKUJĄCE typy zdarzeń na odbiorniku są ostrzeżeniem z ich nazwami", async () => {
+    h.diag.current = diagnostics({
+      missingWebhookEvents: ["checkout.session.expired", "charge.dispute.closed"],
+    });
+    render();
+
+    await awaitReport();
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain('adminBilling.missingWebhookEvents {"count":2}');
+    expect(within(alert).getByText("checkout.session.expired, charge.dispute.closed")).toBeTruthy();
+  });
+
+  it("odbiornik z kompletem zdarzeń (albo raport bez pola) nie pokazuje ostrzeżenia", async () => {
+    h.diag.current = diagnostics({ missingWebhookEvents: [] });
+    render();
+    await awaitReport();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    cleanup();
+    h.diag.current = diagnostics();
+    render();
+    await awaitReport();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("NIEZNANA kontrola pokazuje nazwę techniczną, zamiast zniknąć z listy", async () => {
@@ -321,9 +359,9 @@ describe("AdminPaymentsDiagnosticsPanel - kontrolowany test checkoutu", () => {
     fireEvent.click(screen.getByText("adminBilling.runTest"));
 
     await waitFor(() => expect(h.dialogSecrets.at(-1)).toBe("cs_secret_syntetyczny"));
-    expect(h.openPlanCheckout).toHaveBeenCalledWith(
-      expect.objectContaining({ planId: "plan-1", priceId: "plus_monthly" }),
-    );
+    expect(h.openPlanCheckout).toHaveBeenCalledWith(expect.objectContaining({ planId: "plan-1" }));
+    // Ceny panel NIE wysyła (audyt PAY-01) - wyprowadza ją serwer z planu.
+    expect(h.openPlanCheckout.mock.calls[0]?.[0]).not.toHaveProperty("priceId");
   });
 
   it("zamknięcie nakładki gasi sekret sesji, a „otwarta” niczego nie zmienia", async () => {
@@ -503,7 +541,9 @@ describe("AdminPaymentsDiagnosticsPanel - kontrolowany test checkoutu", () => {
 });
 
 describe("AdminPaymentsDiagnosticsPanel - synchronizacja kuponów", () => {
-  it("raportuje trzy liczby: utworzone, istniejące, nieudane", async () => {
+  it("raportuje cztery liczby: utworzone, istniejące, pominięte, nieudane", async () => {
+    // Pominięte to bramka, nie porażka: najemca bez pola kodu Stripe, kod
+    // planowy bez produktu u operatora, kod przed startem albo wyczerpany.
     render();
     await awaitReport();
 
@@ -511,7 +551,7 @@ describe("AdminPaymentsDiagnosticsPanel - synchronizacja kuponów", () => {
 
     await waitFor(() =>
       expect(h.toastSuccess).toHaveBeenCalledWith(
-        'adminBilling.couponsSynced {"created":1,"existing":2,"failed":0}',
+        'adminBilling.couponsSynced {"created":1,"existing":2,"skipped":3,"failed":0}',
       ),
     );
     expect(h.sync).toHaveBeenCalledWith({ data: { environment: "sandbox" } });

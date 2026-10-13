@@ -197,6 +197,81 @@ function subscriptionEventType(status: string | null): string {
   }
 }
 
+function numOf(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** Kwoty sesji w walucie, w której powstało NASZE zamówienie. */
+interface SessionAmounts {
+  currency: string | null;
+  total: number | null;
+  subtotal: number | null;
+  discount: number | null;
+  tax: number | null;
+}
+
+/**
+ * Kwoty sesji Checkout do porównania z zamówieniem: suma pozycji
+ * (`amount_subtotal`), rabat i podatek (`total_details`).
+ *
+ * ADAPTIVE PRICING (sesje sprzed 2025-03-31): pola główne sesji są wtedy
+ * w walucie KUPUJĄCEGO, a waluta zamówienia żyje w `currency_conversion`.
+ * Porównanie z zamówieniem w PLN kwotą w EUR flagowałoby każdą taką wpłatę
+ * jako rozjazd, a księgowanie zapisałoby obcą walutę - więc przechodzimy na
+ * kwoty źródłowe. Operator podaje w źródłowej walucie tylko sumę pozycji
+ * i sumę końcową; rabat wyprowadzamy z ich różnicy (dokładnie, gdy podatek
+ * nie jest doliczany na wierzch), a podatek przeliczamy proporcją sum
+ * pozycji - kurs zaokrąglony przez operatora nie wchodzi do rachunku.
+ */
+function sessionAmounts(session: Raw): SessionAmounts {
+  const details = isRecord(session.total_details) ? session.total_details : null;
+  const total = numOf(session.amount_total);
+  const subtotal = numOf(session.amount_subtotal);
+  const discount = numOf(details?.amount_discount);
+  const tax = numOf(details?.amount_tax);
+  const currency = strOf(session.currency)?.toUpperCase() ?? null;
+
+  const conversion = isRecord(session.currency_conversion) ? session.currency_conversion : null;
+  const sourceSubtotal = numOf(conversion?.amount_subtotal);
+  const sourceTotal = numOf(conversion?.amount_total);
+  const sourceCurrency = strOf(conversion?.source_currency)?.toUpperCase() ?? null;
+  if (sourceSubtotal === null || sourceTotal === null || !sourceCurrency) {
+    return { currency, total, subtotal, discount, tax };
+  }
+
+  const ratio = subtotal !== null && subtotal > 0 ? sourceSubtotal / subtotal : null;
+  const toSource = (amount: number | null): number | null =>
+    amount === null ? null : amount === 0 ? 0 : ratio === null ? null : Math.round(amount * ratio);
+  // Podatek doliczony NA WIERZCH = suma końcowa minus (pozycje - rabat). Przy
+  // podatku wliczonym w cenę ta różnica wynosi zero.
+  const addedTax =
+    total !== null && subtotal !== null ? Math.max(0, total - (subtotal - (discount ?? 0))) : null;
+  const addedTaxSource = toSource(addedTax);
+  return {
+    currency: sourceCurrency,
+    total: sourceTotal,
+    subtotal: sourceSubtotal,
+    discount:
+      addedTaxSource === null
+        ? toSource(discount)
+        : Math.max(0, sourceSubtotal - (sourceTotal - addedTaxSource)),
+    tax: toSource(tax),
+  };
+}
+
+/**
+ * Kody promocyjne operatora użyte w sesji. Pozycja `discounts` niesie albo
+ * NASZ kupon (`coupon`, bez kodu), albo kod wpisany przez kupującego
+ * (`promotion_code`) - id albo rozwinięty obiekt.
+ */
+function sessionPromotionCodeIds(session: Raw): string[] {
+  const discounts = Array.isArray(session.discounts) ? session.discounts : [];
+  const ids = discounts
+    .map((discount) => (isRecord(discount) ? idOf(discount.promotion_code) : null))
+    .filter((id): id is string => id !== null);
+  return [...new Set(ids)];
+}
+
 /**
  * Stan płatności, który zdarzenie samo w sobie dowodzi - na wypadek ładunku
  * bez pola stanu. `invoice.paid` i opłacona sesja to zapłata z definicji;
@@ -212,7 +287,7 @@ function mapTransactionFromCheckoutSession(
   session: Raw,
   impliedStatus: ImpliedStatus,
 ): TransactionData & Raw {
-  const amountTotal = typeof session.amount_total === "number" ? session.amount_total : null;
+  const amounts = sessionAmounts(session);
   const customerDetails = isRecord(session.customer_details) ? session.customer_details : null;
   const subscriptionId = idOf(session.subscription);
   const subscriptionMode = strOf(session.mode) === "subscription" || subscriptionId !== null;
@@ -225,11 +300,22 @@ function mapTransactionFromCheckoutSession(
     // przychodzą z identyfikatorem intencji, więc bez zapisania go przy
     // realizacji żaden zwrot nie trafiłby we właściwe zamówienie.
     paymentIntentId: idOf(session.payment_intent),
-    currencyCode: strOf(session.currency)?.toUpperCase() ?? null,
+    currencyCode: amounts.currency,
     customData: isRecord(session.metadata) ? session.metadata : null,
     customer: { email: strOf(customerDetails?.email) ?? strOf(session.customer_email) },
-    details: { totals: { grandTotal: amountTotal !== null ? String(amountTotal) : null } },
+    details: {
+      totals: { grandTotal: amounts.total !== null ? String(amounts.total) : null },
+    },
     billingPeriod: null,
+    source: "checkout_session",
+    // Rozbicie kwoty: realizacja porównuje `subtotal - rabat` z kwotą
+    // zamówienia (po NASZYM kuponie, przed podatkiem). Sama suma końcowa tego
+    // nie rozstrzyga - kod promocyjny operatora i podatek doliczany na wierzch
+    // zmieniają ją w przeciwne strony.
+    amountSubtotalCents: amounts.subtotal,
+    amountDiscountCents: amounts.discount,
+    amountTaxCents: amounts.tax,
+    promotionCodeIds: sessionPromotionCodeIds(session),
     // Pola dokumentu rozliczeniowego. Bez stanu zapis dostawał domyślne
     // `pending`, którego CHECK tabeli nie zna - bilet, darowizna i dostęp do
     // treści nie trafiały do rejestru członka WCALE (audyt INV-04).
@@ -296,6 +382,10 @@ function mapTransactionFromInvoice(
     customer: { email: strOf(invoice.customer_email) },
     details: { totals: { grandTotal: grandTotal !== null ? String(grandTotal) : null } },
     billingPeriod: { endsAt: isoFromUnix(period?.end) },
+    // Bez rozbicia kwoty (`amountSubtotalCents` i reszta): `subtotal` faktury
+    // ma już wliczone rabaty pozycji, więc `subtotal - rabat` liczyłby rabat
+    // dwa razy. Porównanie z zamówieniem robi wyłącznie sesja Checkout.
+    source: "invoice",
     // Windykacja: wszystkie ponowienia jednej faktury niosą TEN SAM `id`,
     // więc to numer próby odróżnia kolejną porażkę od powtórki zdarzenia,
     // a `next_payment_attempt` jest terminem, który klient ma dostać w mailu.
@@ -320,6 +410,92 @@ function mapTransactionFromInvoice(
     invoicePdf: strOf(invoice.invoice_pdf),
     billedAt: paidAt,
   };
+}
+
+/** Spór otwarty u operatora: bank albo wydawca karty czeka na rozstrzygnięcie. */
+const DISPUTE_OPEN_STATUSES: ReadonlySet<string> = new Set([
+  "warning_needs_response",
+  "warning_under_review",
+  "needs_response",
+  "under_review",
+]);
+
+/**
+ * Spór zamknięty bez utraty pieniędzy - dostęp wraca.
+ *
+ * `won` - bank przyznał nam rację; `warning_closed` - zapytanie banku
+ * (inquiry) zamknięte, środki nigdy nie zostały wycofane. Przywrócenie i tak
+ * sprawdza u operatora, czy obciążenie nie zostało w międzyczasie zwrócone
+ * (`refunds.server`): zapytanie zamknięte ZWROTEM też kończy się
+ * `warning_closed`.
+ */
+const DISPUTE_WON_STATUSES: ReadonlySet<string> = new Set(["won", "warning_closed"]);
+
+/**
+ * Spór zakończony zwrotem pieniędzy klientowi.
+ *
+ * `lost` - bank rozstrzygnął na korzyść klienta; `prevented` - spór
+ * zatrzymany przed formalnym obciążeniem zwrotnym przez zapobieganie sporom
+ * (reguła Radar / RDR), które zwykle działa przez AUTOMATYCZNY ZWROT
+ * płatności. Dawniej `prevented` był liczony jak wygrana - przywracał dostęp
+ * klientowi, który miał już pieniądze z powrotem. Zatrzymanie BEZ zwrotu
+ * (środki zostały u nas) rozpoznaje `refunds.server` po stanie obciążenia
+ * u operatora i niczego wtedy nie odbiera.
+ */
+const DISPUTE_LOST_STATUSES: ReadonlySet<string> = new Set(["lost", "prevented"]);
+
+/**
+ * Czy to surowy `Dispute.status` Stripe (a nie słownik domenowy) - korekta
+ * może nieść go wprost, `refunds.server` tłumaczy go wtedy tym samym
+ * słownikiem (`stripeDisputePhase`).
+ */
+export function isStripeDisputeStatus(status: string | null | undefined): status is string {
+  return (
+    typeof status === "string" &&
+    (DISPUTE_OPEN_STATUSES.has(status) ||
+      DISPUTE_WON_STATUSES.has(status) ||
+      DISPUTE_LOST_STATUSES.has(status))
+  );
+}
+
+/** Skutek statusu sporu w słowniku domenowym `refunds.server`. */
+export interface StripeDisputePhase {
+  action: "chargeback" | "chargeback_warning";
+  status: "open" | "reversed" | "approved";
+}
+
+/**
+ * Status sporu Stripe -> słownik domenowy `refunds.server` (wcześniej
+ * paddle'owy: `approved` / `reversed`). Bez tego tłumaczenia żaden status
+ * Stripe nie przechodził przez bramki zwrotu: spór nie odbierał dostępu, nie
+ * alarmował zespołu i - po wygranej - niczego nie przywracał.
+ *
+ *   otwarty (`needs_response`, `warning_*`...) -> `chargeback_warning`/`open`
+ *     - dostęp znika od razu, rozstrzygnięcie trwa tygodniami (zapytanie
+ *     banku `warning_*` nie rusza wpłaty darowizny - środki nie zostały
+ *     pobrane; decyduje `refunds.server` po surowym `providerStatus`);
+ *   bez utraty środków (`won`, `warning_closed`) -> `reversed` - dostęp wraca;
+ *   środki wróciły do klienta (`lost`, `prevented`) -> `chargeback`/`approved`
+ *     - stan ostateczny.
+ *
+ * Status NIEZNANY traktujemy jak spór otwarty (bank już cofa środki), ale
+ * GŁOŚNO - nowa wartość u operatora ma być widoczna w logu, a nie po cichu
+ * odbierać dostęp.
+ *
+ * Eksport: `refunds.server` liczy skutek z BIEŻĄCEGO stanu sporu u operatora
+ * (spóźnione `created` po `closed`) - tym samym słownikiem co normalizator.
+ */
+export function stripeDisputePhase(providerStatus: string | null): StripeDisputePhase {
+  if (providerStatus && DISPUTE_WON_STATUSES.has(providerStatus)) {
+    return { action: "chargeback", status: "reversed" };
+  }
+  if (providerStatus && DISPUTE_LOST_STATUSES.has(providerStatus)) {
+    return { action: "chargeback", status: "approved" };
+  }
+  if (!providerStatus || !DISPUTE_OPEN_STATUSES.has(providerStatus)) {
+    console.warn("[payments] unknown Stripe dispute status - treated as open", providerStatus);
+  }
+  return { action: "chargeback_warning", status: "open" };
 }
 
 /** Korekty rozliczeniowe: zwrot, obciążenie zwrotne, nota kredytowa. */
@@ -349,14 +525,20 @@ function mapAdjustment(
   }
 
   if (action === "chargeback") {
-    // `charge.dispute.created` / `charge.dispute.closed` - obiekt to Dispute,
-    // `status` zostaje surowy (`needs_response`, `won`, ...).
+    // `charge.dispute.created` / `charge.dispute.closed` - obiekt to Dispute.
+    // Surowy `status` (`needs_response`, `won`, ...) jedzie w `providerStatus`,
+    // a skutek niesie słownik domenowy (`stripeDisputePhase`).
+    const providerStatus = strOf(object.status);
+    const phase = stripeDisputePhase(providerStatus);
     return {
       id: idOf(object.id) ?? "",
       transactionId: idOf(object.payment_intent) ?? idOf(object.charge),
       subscriptionId: null,
-      action: "chargeback",
-      status: strOf(object.status),
+      action: phase.action,
+      status: phase.status,
+      // Surowy status operatora - dla logów i alertu dla zespołu. Decyzję
+      // o dostępie podejmuje WYŁĄCZNIE słownik domenowy wyżej.
+      providerStatus,
       totals: {
         total: String(typeof object.amount === "number" ? object.amount : 0),
         currencyCode: strOf(object.currency)?.toUpperCase() ?? null,
@@ -389,8 +571,9 @@ const UNSUCCESSFUL_REFUND_STATUSES = new Set(["failed", "canceled"]);
  * z kwotą NARASTAJĄCĄ (`amount_refunded`), na której stoi rachunek zwrotów
  * częściowych w `refunds.server`. Obiekt Refund niesie kwotę POJEDYNCZEGO
  * zwrotu - wpuszczony tą samą ścieżką cofnąłby licznik po drugim zwrocie
- * częściowym. Stąd `totals` celowo NIE ma: ta korekta niczego nie księguje,
- * tylko oddaje sprawę człowiekowi (zlecenie zwrotu -> `needs_review`).
+ * częściowym. Stąd `totals` celowo NIE ma: `refunds.server` przelicza stan
+ * z obciążenia u operatora (inne zwroty tego obciążenia mogły się udać),
+ * a zlecenie zwrotu zgłoszenia oddaje człowiekowi (`needs_review`).
  *
  * `null` = aktualizacja zwrotu bez porażki (np. `pending` -> `succeeded`).
  */
@@ -486,6 +669,12 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
         data: mapTransactionFromCheckoutSession(object, null),
       };
 
+    case "checkout.session.expired":
+      return {
+        eventType: "transaction.expired",
+        data: mapTransactionFromCheckoutSession(object, null),
+      };
+
     // Oba zdarzenia opisują TĘ SAMĄ opłaconą fakturę i oba zostają: lista
     // zdarzeń subskrybowanych przez punkt odbioru żyje po stronie operatora
     // (kod jej nie zna), a dokumentacja wdrożenia opiera odnowienia na
@@ -518,15 +707,14 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
       return failure ? { eventType: "adjustment.updated", data: failure } : null;
     }
 
+    // Otwarcie i rozstrzygnięcie sporu jadą tym samym kształtem - o skutku
+    // decyduje status sporu (`stripeDisputePhase`), nie typ zdarzenia. Bez
+    // `charge.dispute.closed` wygrana (`won`) nie miała żadnej drogi do
+    // przywrócenia dostępu ani wpłaty; `refunds.server` i tak liczy skutek
+    // z BIEŻĄCEGO stanu sporu u operatora (spóźnione `created` po `closed`).
     case "charge.dispute.created":
-      return { eventType: "adjustment.created", data: mapAdjustment(object, "chargeback") };
-
-    // Rozstrzygnięcie sporu: bez tego zdarzenia wygrana (`won`) nie miała
-    // żadnej drogi do przywrócenia dostępu ani wpłaty. Status `Dispute`
-    // (`won` / `lost` / `warning_closed`) jedzie surowy - skutek wybiera
-    // `refunds.server` (`STRIPE_DISPUTE_*`), jak przy otwarciu sporu.
     case "charge.dispute.closed":
-      return { eventType: "adjustment.updated", data: mapAdjustment(object, "chargeback") };
+      return { eventType: "adjustment.created", data: mapAdjustment(object, "chargeback") };
 
     case "credit_note.created":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "credit") };

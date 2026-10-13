@@ -5,9 +5,16 @@
 // klient nigdy nie przekazuje ceny. Dla subskrypcji korzystamy z cen
 // katalogowych (`lookup_key`, patrz `catalog.ts`) - tylko taka sesja zakłada u
 // Stripe cykl rozliczeniowy, trial i zdarzenia `customer.subscription.*`. Dla
-// kwot ad-hoc (darowizna administracyjna, odblokowanie treści, bilet)
-// tworzymy `price_data` osadzoną w pozycji, więc kwota nie pochodzi z żadnego
-// katalogu.
+// kwot ad-hoc (odblokowanie treści, bilet) tworzymy `price_data` osadzoną
+// w pozycji, więc kwota nie pochodzi z żadnego katalogu. Darowizny mają własną
+// ścieżkę (`donations.server.ts`) z własnym rejestrem - tutaj nie wchodzą.
+//
+// IDEMPOTENCJA. Każde wywołanie operatora, które coś ZAKŁADA (sesja, kupon),
+// niesie klucz wyprowadzony z identyfikatora zamówienia i celu wywołania.
+// Ponowienie tego samego żądania (sieć, retry SDK, podwójny handler) oddaje
+// wtedy ten sam obiekt zamiast drugiej sesji albo drugiego kuponu na jedno
+// zamówienie. Stripe odrzuca klucz użyty ponownie z INNYMI parametrami, więc
+// klucz jest per zamówienie i per cel - nigdy wspólny.
 //
 // Moduł jest server-only (klucze bramki) - importuj wyłącznie z handlerów
 // `createServerFn`.
@@ -21,9 +28,11 @@ import {
   type CheckoutSessionParams,
   type CheckoutSettings,
 } from "@/lib/billing/checkoutSettings";
+import { isBelowMinimumCharge } from "@/lib/billing/chargeMinimum";
 import {
   catalogEntryByPriceId,
   catalogCycleMismatch,
+  catalogRecurringFor,
   type CatalogPriceEntry,
 } from "@/lib/billing/catalog";
 import {
@@ -63,15 +72,22 @@ function sessionFlags(
 export { resolveEnvironment };
 export type { StripeEnv };
 
-/** Minimalna kwota dopuszczana przez Stripe dla obciążeń kartą (50 groszy/centów). */
-export const MIN_ADHOC_AMOUNT_CENTS = 50;
-
 /**
  * Górny limit ilości na pozycji sesji. Wołający, który rozbija sumę na
  * „N × cena", MUSI go znać - ilość ucięta tutaj po cichu dałaby w nakładce
  * inną kwotę niż zamówienie.
  */
 export const MAX_LINE_QUANTITY = 100;
+
+/**
+ * Liczba sztuk pozycji sesji: całkowita, 1..`MAX_LINE_QUANTITY`. Wartość
+ * nieliczbowa schodzi na jedną sztukę - `NaN` przechodził dotąd do operatora
+ * jako ilość pozycji, a bramka minimum liczy kwotę od tej samej liczby.
+ */
+function lineQuantityOf(quantity: number | undefined): number {
+  if (typeof quantity !== "number" || !Number.isFinite(quantity)) return 1;
+  return Math.min(Math.max(Math.trunc(quantity), 1), MAX_LINE_QUANTITY);
+}
 
 /**
  * Stripe przyjmuje nazwę kuponu do 40 znaków i ODRZUCA dłuższą. Nazwa fazy
@@ -91,9 +107,11 @@ export type CheckoutSessionResult =
 
 /**
  * Wynik sesji PLANU. `supersededOrderIds` = zamówienia tego konta, których
- * otwarte sesje kasa właśnie wygasiła (patrz `expireOpenPlanSessions`) -
- * wołający oznacza je jako anulowane, bo webhook `checkout.session.expired`
- * nie jest obsługiwany i zamówienie zostałoby w `processing` na zawsze. Pole
+ * otwarte sesje kasa właśnie wygasiła (`listOpenPlanSessions` +
+ * `expirePlanSession`) - wołający od razu oznacza je jako anulowane, żeby nie
+ * wisiały w `processing` do dostawy zdarzenia. Rezerwację kuponu takiego
+ * zamówienia oddaje `checkout.session.expired` (`expireCheckoutOrder`
+ * zwalnia kupon także zamówieniu już zamkniętemu jako `canceled`). Pole
  * pojawia się tylko, gdy coś wygaszono.
  */
 export type PlanCheckoutSessionResult = CheckoutSessionResult & {
@@ -277,14 +295,19 @@ export async function resolveOrCreateCustomer(
   return created.id;
 }
 
-/** Ceny katalogowe rozwiązane hurtowo po czytelnym `lookup_key`. */
+/**
+ * Ceny katalogowe rozwiązane hurtowo po czytelnym `lookup_key`.
+ *
+ * `data.tiers` jest rozwijane jawnie: operator NIE oddaje progów ceny
+ * schodkowej bez rozwinięcia, a bramka kasy (`catalogPriceMismatch`) liczy
+ * z nich kwotę za zamówioną liczbę miejsc. Bez progów cena Zespołu wyglądałaby
+ * jak cena bez kwoty i każda sesja kończyłaby się odmową.
+ */
 export async function resolvePricesByLookupKeys(
   stripe: Stripe,
   lookupKeys: string[],
 ): Promise<Map<string, Stripe.Price>> {
   if (lookupKeys.length === 0) return new Map();
-  // `tiers` NIE przychodzi domyślnie - bez rozwinięcia cena schodkowa
-  // (Zespół) nie dałaby się porównać z kwotą zamówienia przed sesją.
   const result = await stripe.prices.list({
     lookup_keys: lookupKeys,
     active: true,
@@ -297,24 +320,41 @@ export async function resolvePricesByLookupKeys(
   return map;
 }
 
+/** Klucz idempotencji sesji Checkout zamówienia - jedna sesja na zamówienie. */
+export function checkoutSessionIdempotencyKey(orderId: string): string {
+  return `checkout_session:${orderId}`;
+}
+
+/** Klucz idempotencji kuponu operatora zamówienia - jeden rabat na zamówienie. */
+export function checkoutCouponIdempotencyKey(orderId: string): string {
+  return `checkout_coupon:${orderId}`;
+}
+
 /**
  * Rabat wyłącznie wewnętrzny (kupon B2B bez odpowiednika w Stripe): tworzymy
  * jednorazowy kupon Stripe o dokładnie tej samej kwocie, jaką wyliczyła baza
  * (`validate_b2b_coupon`), żeby nakładka pokazała identyczną kwotę co
  * podsumowanie zamówienia. `duration: "once"` - kupon dotyczy tylko tej sesji.
+ *
+ * `orderId` jest WYMAGANY: klucz idempotencji pochodzi z zamówienia, więc
+ * ponowione żądanie nie zakłada u operatora drugiego kuponu na ten sam rabat
+ * (osierocone kupony `amount_off` na wspólnym koncie to rabaty bez właściciela).
  */
 export async function createAdhocDiscountForCoupon(
   stripe: Stripe,
-  input: { code: string; discountCents: number; currency: string },
+  input: { code: string; discountCents: number; currency: string; orderId: string },
 ): Promise<string | null> {
   if (input.discountCents <= 0) return null;
-  const coupon = await stripe.coupons.create({
-    amount_off: Math.round(input.discountCents),
-    currency: input.currency.toLowerCase(),
-    duration: "once",
-    name: stripeCouponName(input.code),
-    metadata: { source: "b2b_coupon", code: input.code },
-  });
+  const coupon = await stripe.coupons.create(
+    {
+      amount_off: Math.round(input.discountCents),
+      currency: input.currency.toLowerCase(),
+      duration: "once",
+      name: stripeCouponName(input.code),
+      metadata: { source: "b2b_coupon", code: input.code },
+    },
+    { idempotencyKey: checkoutCouponIdempotencyKey(input.orderId) },
+  );
   return coupon.id;
 }
 
@@ -347,9 +387,13 @@ export interface PlanCheckoutSessionInput {
    */
   trialEligible?: boolean;
   /**
-   * Kwota zamówienia PRZED kuponem (kupon jedzie osobno jako rabat operatora)
-   * i jej waluta. Cena pod `lookup_key` MUSI dać dokładnie tę kwotę przy tej
-   * ilości - inaczej zamówienie zapisuje jedną kwotę, a operator pobiera inną.
+   * Kwota BRUTTO pozycji za `quantity` sztuk z wyceny planu (`planCheckoutPricing`)
+   * - PRZED kuponem (kupon jedzie osobno jako rabat operatora) i przed
+   * podatkiem - oraz waluta zamówienia. Cena pod `lookup_key` MUSI dać dokładnie
+   * tę kwotę przy tej ilości i w tej walucie: inaczej zamówienie zapisuje jedno,
+   * a operator pobiera co innego (dryf kwoty, inne progi, cena innego najemcy
+   * na wspólnym koncie) - odmowa `price_mismatch`. Typ i cykl ceny sprawdza
+   * bramka względem pozycji katalogu (`catalogCycleMismatch`).
    */
   expectedAmountCents: number;
   expectedCurrency: string;
@@ -404,7 +448,11 @@ export function stripePriceAmountFor(price: Stripe.Price, quantity: number): num
  * cena rozjechała się z ceną wspólną, albo cena przestawiona u operatora poza
  * synchronizacją dawały sesję, w której klient płacił inną kwotę niż ta
  * zapisana na zamówieniu (i na fakturze). Sprawdzamy więc wszystko, co
- * decyduje o obciążeniu: kwotę × ilość, walutę i cykl (albo jego brak).
+ * decyduje o obciążeniu: kwotę × ilość, walutę, typ ceny (cykliczna albo
+ * jednorazowa - czyli tryb sesji, który musi odpowiadać rodzajowi zamówienia
+ * z planu) i cykl rozliczany za ilość (albo jego brak). Rodzaj zamówienia
+ * i pozycja katalogu pochodzą z tej samej wyceny planu (`planCheckoutPricing`),
+ * więc zgodność typu ceny z pozycją to zgodność z zamówieniem (audyt PAY-01).
  */
 export function catalogPriceMismatch(
   price: Stripe.Price,
@@ -421,6 +469,15 @@ export function catalogPriceMismatch(
   // Ta sama kontrola co w synchronizacji katalogu - cena, którą tu odrzucamy,
   // tam jest odtwarzana w poprawnym cyklu.
   if (catalogCycleMismatch(price, input.entry)) return "cycle";
+  // Schodki inne niż `volume` (`graduated`) odmawiamy niezależnie od kwoty dla
+  // tej ilości: katalog zakłada wyłącznie `volume` (synchronizacja odtwarza
+  // każdy inny kształt), a `graduated` liczy niższą stawkę tylko od nadwyżki -
+  // przy innej liczbie miejsc (zmiana w portalu, odnowienie) operator
+  // obciążyłby inaczej niż reguła planu, choć ta jedna kwota się zgadza
+  // (przegląd PAY-01, 0.1).
+  if (price.billing_scheme === "tiered" && price.tiers_mode !== "volume") {
+    return "unverifiable_amount";
+  }
   const amount = stripePriceAmountFor(price, input.quantity);
   if (amount === null) return "unverifiable_amount";
   if (amount !== Math.round(input.expectedAmountCents)) return "amount";
@@ -553,12 +610,22 @@ async function voidAbandonedFirstInvoice(
 
 /**
  * Tworzy Embedded Checkout Session z ceny katalogowej. Tryb (subscription vs
- * payment) wynika z `price.type` - katalog może w przyszłości zawierać też
- * ceny jednorazowe.
+ * payment) wynika z `price.type` - katalog zawiera też ceny jednorazowe.
  *
  * PRZED sesją, w tej kolejności:
  *   1. `lookup_key` musi być pozycją `BILLING_CATALOG`,
- *   2. cena operatora musi dać kwotę zamówienia (`catalogPriceMismatch`),
+ *   2. BRAMKA SPÓJNOŚCI CENY Z ZAMÓWIENIEM (`catalogPriceMismatch`). Wołający
+ *      podaje kwotę brutto i walutę z wyceny planu zamówienia, a typ i cykl
+ *      ceny wynikają z pozycji katalogu - tej samej, którą wycenił plan
+ *      (`planCheckoutPricing`). Cena pod `lookup_key` jest u operatora
+ *      obiektem zmiennym (synchronizacja katalogu, ręczna edycja w panelu,
+ *      przeniesiony klucz, cena zbudowana z planu najemcy domyślnego na
+ *      wspólnym koncie) - gdy cokolwiek się nie zgadza, sesja pobrałaby
+ *      pieniądze za coś innego, niż zapisaliśmy: subskrypcję zamiast zakupu
+ *      jednorazowego, euro zamiast złotych, rozliczenie co dwa tygodnie
+ *      zamiast co rok albo inną kwotę (audyty PAY-01 i SUB-05). Odmawiamy
+ *      ZANIM powstanie klient i sesja, a wołający zamyka zamówienie jako
+ *      `failed` i zwalnia kupon,
  *   3. subskrypcja - kolejność kroków jest częścią dowodu:
  *      a. WYGASZENIE otwartych sesji planu tego klienta. Strażnik patrzy na
  *         subskrypcje, a te powstają dopiero przy opłaceniu sesji: dwie karty
@@ -573,12 +640,13 @@ async function voidAbandonedFirstInvoice(
  * Po założeniu sesji (krok 4) drugi przegląd rozstrzyga wyścig z sesją
  * otwartą RÓWNOLEGLE: zostaje nowsza, starsza jest wygaszana - także nasza.
  *
- * KLUCZ IDEMPOTENCJI `plan-checkout-session:<orderId>`: ponowienie żądania
- * przez SDK po zerwanym połączeniu dostaje TĘ SAMĄ sesję zamiast drugiej.
- * Parametry sesji są stałe dla zamówienia (chwilę zgody wylicza wołający raz),
- * więc klucz nigdy nie trafia na inny ładunek. Świadomie BEZ `expires_at`:
- * minimum operatora to 30 minut, więc samo skrócenie życia sesji okna nie
- * zamyka, a parametr zależny od zegara łamałby tożsamość ponowienia.
+ * KLUCZ IDEMPOTENCJI z zamówienia (`checkoutSessionIdempotencyKey`, ten sam co
+ * w sesji ad-hoc): ponowienie żądania przez SDK po zerwanym połączeniu dostaje
+ * TĘ SAMĄ sesję zamiast drugiej. Parametry sesji są stałe dla zamówienia
+ * (chwilę zgody wylicza wołający raz), więc klucz nigdy nie trafia na inny
+ * ładunek. Świadomie BEZ `expires_at`: minimum operatora to 30 minut, więc
+ * samo skrócenie życia sesji okna nie zamyka, a parametr zależny od zegara
+ * łamałby tożsamość ponowienia.
  */
 export async function createPlanCheckoutSession(
   input: PlanCheckoutSessionInput,
@@ -595,7 +663,16 @@ export async function createPlanCheckoutSession(
     const price = prices.get(input.priceLookupKey);
     if (!price) return { ok: false, error: "price_missing" };
 
-    const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), MAX_LINE_QUANTITY);
+    // Literalna unia, NIE `NonNullable<SessionCreateParams["mode"]>`: od
+    // stripe@22.6 ten typ dopuszcza też `string & Record<never, never>`
+    // (otwarta unia dla nowych trybów SDK), więc przez `sessionFlags`, które
+    // przyjmuje wyłącznie `"payment" | "subscription"`, już nie przechodził.
+    // Zawężamy u ŹRÓDŁA - to nasz kontrakt, nie kontrakt SDK.
+    const mode: "payment" | "subscription" =
+      price.type === "recurring" ? "subscription" : "payment";
+    // Ilość liczona PRZED bramką - kwotę ceny sprawdzamy dokładnie dla tej
+    // liczby sztuk, która pójdzie w pozycji sesji.
+    const quantity = lineQuantityOf(input.quantity);
 
     const mismatch = catalogPriceMismatch(price, {
       entry,
@@ -612,10 +689,19 @@ export async function createPlanCheckoutSession(
         priceId: price.id,
         orderId: input.orderId,
         quantity,
+        priceMode: mode,
         expectedAmountCents: input.expectedAmountCents,
+        priceAmountCents: stripePriceAmountFor(price, quantity),
         expectedCurrency: input.expectedCurrency,
-        stripeUnitAmount: price.unit_amount,
         stripeCurrency: price.currency,
+        expectedRecurring: catalogRecurringFor(entry),
+        priceRecurring: price.recurring
+          ? {
+              interval: price.recurring.interval,
+              interval_count: price.recurring.interval_count,
+              usage_type: price.recurring.usage_type,
+            }
+          : null,
       });
       return { ok: false, error: PRICE_MISMATCH_ERROR };
     }
@@ -624,14 +710,6 @@ export async function createPlanCheckoutSession(
       userId: input.userId,
       email: input.customerEmail,
     });
-
-    // Literalna unia, NIE `NonNullable<SessionCreateParams["mode"]>`: od
-    // stripe@22.6 ten typ dopuszcza też `string & Record<never, never>`
-    // (otwarta unia dla nowych trybów SDK), więc przez `sessionFlags`, które
-    // przyjmuje wyłącznie `"payment" | "subscription"`, już nie przechodził.
-    // Zawężamy u ŹRÓDŁA - to nasz kontrakt, nie kontrakt SDK.
-    const mode: "payment" | "subscription" =
-      price.type === "recurring" ? "subscription" : "payment";
 
     // Historia u OPERATORA - widzi okno przed webhookiem (subskrypcja już
     // założona, wiersza `subscriptions` jeszcze nie ma) i subskrypcje, których
@@ -751,7 +829,7 @@ export async function createPlanCheckoutSession(
     }
 
     const session = await stripe.checkout.sessions.create(params, {
-      idempotencyKey: `plan-checkout-session:${input.orderId}`,
+      idempotencyKey: checkoutSessionIdempotencyKey(input.orderId),
     });
     if (!session.client_secret) {
       return withSuperseded({ ok: false, error: "session_missing_client_secret" });
@@ -804,8 +882,13 @@ export interface AdhocCheckoutSessionInput {
   currency: string;
   quantity?: number;
   orderId: string;
-  /** Cel płatności ad-hoc, do metadanych i webhooka. */
-  purpose: "content_unlock" | "event_ticket" | "donation";
+  /**
+   * Cel płatności ad-hoc, do metadanych i webhooka. Darowizny tu NIE ma: ma
+   * własną ścieżkę z rejestrem (`donations.server.ts`), a sesja ad-hoc
+   * z `purpose: "donation"` pobierała pieniądze, których webhook nie miał
+   * gdzie zaksięgować (brak wiersza `donations` -> `skipped`).
+   */
+  purpose: "content_unlock" | "event_ticket";
   userId?: string | null;
   customerEmail?: string | null;
   returnUrl: string;
@@ -846,8 +929,8 @@ export interface AdhocCheckoutSessionInput {
  * (`stripeCheckout.functions.ts` -> `buildAdhocOrder`), która przyjmuje
  * `purpose: "event_ticket"` prosto z żądania. Wyłączenie tylko w pierwszej
  * zostawiało drugą z polem kodu z ustawień tenantu - a do obejścia
- * wystarczało ręcznie złożone żądanie. Treść, darowizna i plany zostają przy
- * ustawieniach tenantu bez zmian.
+ * wystarczało ręcznie złożone żądanie. Treść i plany zostają przy ustawieniach
+ * tenantu bez zmian.
  */
 function adhocSessionSettings(input: AdhocCheckoutSessionInput): CheckoutSettings | undefined {
   if (input.purpose !== "event_ticket") return input.settings;
@@ -866,8 +949,8 @@ export const ADHOC_DIGITAL_TAX_CODE = "txcd_10000000";
 
 /**
  * Czy sesja ad-hoc może jechać płaszczyzną operatora. Wstęp na wydarzenie
- * stacjonarne i darowizna nie są produktem cyfrowym - operator nie obsługuje
- * ich jako MoR, więc sesja idzie bez `managed_payments` (podatek biletu niesie
+ * stacjonarne nie jest produktem cyfrowym - operator nie obsługuje go jako
+ * MoR, więc sesja idzie bez `managed_payments` (podatek biletu niesie
  * `tax_behavior`, a fakturę wystawia organizator modułem faktur).
  */
 export function adhocAllowsManagedPayments(purpose: AdhocCheckoutSessionInput["purpose"]): boolean {
@@ -900,17 +983,24 @@ function adhocFlags(input: AdhocCheckoutSessionInput, hasCustomer: boolean): Ses
 /**
  * Tworzy Embedded Checkout Session z ceną osadzoną w pozycji (`price_data`) -
  * jedyny sposób na kwotę wyliczoną dynamicznie serwerowo (kupon, waluta
- * prezentacji, cena wydarzenia). Odrzuca kwoty poniżej minimum operatora.
+ * prezentacji, cena wydarzenia). Odrzuca kwoty poniżej minimum operatora
+ * W WALUCIE POZYCJI (`chargeMinimum.ts` - 2,00 zł, 0,50 EUR), liczone od sumy
+ * za wszystkie sztuki, bo minimum dotyczy obciążenia, nie stawki.
  */
 export async function createAdhocCheckoutSession(
   input: AdhocCheckoutSessionInput,
 ): Promise<CheckoutSessionResult> {
-  if (!Number.isFinite(input.amountCents) || input.amountCents < MIN_ADHOC_AMOUNT_CENTS) {
+  const lineQuantity = lineQuantityOf(input.quantity);
+  if (
+    !Number.isFinite(input.amountCents) ||
+    input.amountCents <= 0 ||
+    isBelowMinimumCharge(Math.round(input.amountCents) * lineQuantity, input.currency)
+  ) {
     return { ok: false, error: "amount_too_low" };
   }
   try {
     const stripe = await getStripeClient(input.environment);
-    const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), MAX_LINE_QUANTITY);
+    const quantity = lineQuantity;
 
     let customerId: string | undefined;
     if (input.userId) {
@@ -954,14 +1044,16 @@ export async function createAdhocCheckoutSession(
         description: input.name.slice(0, 200),
         metadata,
       },
-      // Jak wyżej - flagi tenantu. Tu klient bywa nieprzypięty (anonimowa
-      // darowizna), więc `customer_creation=always` dojedzie wtedy, gdy sesja
+      // Jak wyżej - flagi tenantu. Tu klient bywa nieprzypięty (wołający bez
+      // konta), więc `customer_creation=always` dojedzie wtedy, gdy sesja
       // musi zapisać NIP, policzyć podatek albo wystawić fakturę.
       ...(input.discount ? { discounts: [{ coupon: input.discount.coupon }] } : {}),
       ...adhocFlags(input, !!customerId),
     } as SessionCreateParams;
 
-    const session = await stripe.checkout.sessions.create(params);
+    const session = await stripe.checkout.sessions.create(params, {
+      idempotencyKey: checkoutSessionIdempotencyKey(input.orderId),
+    });
     if (!session.client_secret) return { ok: false, error: "session_missing_client_secret" };
     return { ok: true, clientSecret: session.client_secret, sessionId: session.id };
   } catch (e) {

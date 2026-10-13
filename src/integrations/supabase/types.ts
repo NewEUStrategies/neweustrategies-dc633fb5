@@ -1126,6 +1126,24 @@ export type Database = {
           },
         ]
       }
+      billing_probe_credentials: {
+        Row: {
+          id: number
+          rotated_at: string | null
+          token_sha256: string | null
+        }
+        Insert: {
+          id?: number
+          rotated_at?: string | null
+          token_sha256?: string | null
+        }
+        Update: {
+          id?: number
+          rotated_at?: string | null
+          token_sha256?: string | null
+        }
+        Relationships: []
+      }
       billing_profiles: {
         Row: {
           address_line1: string | null
@@ -13805,6 +13823,7 @@ export type Database = {
         Row: {
           auto_armed_at: string | null
           base_url: string
+          billing_secret: string
           community_last_tick_at: string | null
           community_last_tick_error: string | null
           community_last_tick_status: string | null
@@ -13826,6 +13845,7 @@ export type Database = {
         Insert: {
           auto_armed_at?: string | null
           base_url?: string
+          billing_secret?: string
           community_last_tick_at?: string | null
           community_last_tick_error?: string | null
           community_last_tick_status?: string | null
@@ -13847,6 +13867,7 @@ export type Database = {
         Update: {
           auto_armed_at?: string | null
           base_url?: string
+          billing_secret?: string
           community_last_tick_at?: string | null
           community_last_tick_error?: string | null
           community_last_tick_status?: string | null
@@ -20523,6 +20544,7 @@ export type Database = {
           last_dunning_at: string | null
           last_dunning_transaction_id: string | null
           last_event_at: string | null
+          last_event_id: string | null
           last_payment_at: string | null
           last_payment_failed_at: string | null
           pause_collection_behavior: string | null
@@ -20550,6 +20572,7 @@ export type Database = {
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
           last_event_at?: string | null
+          last_event_id?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
           pause_collection_behavior?: string | null
@@ -20577,6 +20600,7 @@ export type Database = {
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
           last_event_at?: string | null
+          last_event_id?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
           pause_collection_behavior?: string | null
@@ -21837,7 +21861,6 @@ export type Database = {
           brand_accent: string | null
           brand_accent_dark: string | null
           company: string | null
-          contact_email: string | null
           counterpart_lang: string | null
           counterpart_user_id: string | null
           created_at: string | null
@@ -21870,7 +21893,6 @@ export type Database = {
           brand_accent?: string | null
           brand_accent_dark?: string | null
           company?: string | null
-          contact_email?: never
           counterpart_lang?: string | null
           counterpart_user_id?: string | null
           created_at?: string | null
@@ -21903,7 +21925,6 @@ export type Database = {
           brand_accent?: string | null
           brand_accent_dark?: string | null
           company?: string | null
-          contact_email?: never
           counterpart_lang?: string | null
           counterpart_user_id?: string | null
           created_at?: string | null
@@ -27305,6 +27326,11 @@ export type Database = {
       }
       b64url_decode: { Args: { p_value: string }; Returns: string }
       b64url_encode: { Args: { p_value: string }; Returns: string }
+      billing_probe_rotate_token: { Args: never; Returns: string }
+      billing_probe_status: {
+        Args: { p_since: string; p_subscription_id: string; p_token: string }
+        Returns: Json
+      }
       book_meeting_slot: {
         Args: { p_note?: string; p_slot_id: string }
         Returns: Json
@@ -30781,6 +30807,7 @@ export type Database = {
           used: number
         }[]
       }
+      gift_links_revoke_without_creator_access: { Args: never; Returns: number }
       gift_share_eligibility: { Args: never; Returns: string }
       guess_gender_from_name: {
         Args: { _name: string }
@@ -31484,6 +31511,27 @@ export type Database = {
       payment_webhook_payload_scrub: {
         Args: { p_payload: Json; p_strip_user_ref?: boolean }
         Returns: Json
+      }
+      payment_webhook_sweep_candidates: {
+        Args: {
+          p_backoff_base_ms: number
+          p_horizon_ms: number
+          p_limit: number
+          p_max_attempts: number
+          p_stuck_after_ms: number
+        }
+        Returns: {
+          created_at: string
+          environment: string
+          event_id: string
+          event_type: string
+          id: string
+          last_retried_at: string
+          occurred_at: string
+          processed_at: string
+          retry_count: number
+          status: string
+        }[]
       }
       payments_apply_event_ticket_outcome: {
         Args: {

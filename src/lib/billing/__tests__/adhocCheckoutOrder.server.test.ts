@@ -1,11 +1,12 @@
-// Zamówienie ad-hoc (odblokowanie treści, bilet, darowizna) - 0 z 2 funkcji
-// pokrytych do 31.08.2026.
+// Zamówienie ad-hoc (odblokowanie treści, bilet) - 0 z 2 funkcji pokrytych
+// do 31.08.2026. Darowizna wyleciała z tej ścieżki 12.10.2026 (audyt PAY-16b,
+// blok „darowizna" niżej).
 //
 // PO CO TEN PLIK ISTNIEJE. To jest ŚCIEŻKA PIENIĘDZY commitu, który deklarował
 // domknięcie kasy: `buildAdhocOrder` wylicza kwotę, zakłada wiersz
 // `payment_orders` i otwiera sesję u operatora. Audyt pokazał ją jako
 // niewykonywaną przez żaden test - czyli reguła „KWOTA NIGDY NIE POCHODZI
-// OD KLIENTA" (dla treści i biletów) nie była niczym dowiedziona.
+// OD KLIENTA" nie była niczym dowiedziona.
 //
 // CO TU JEST ATRAPOWANE, A CO NIE. Atrapujemy GRANICE: klienta Supabase
 // i operatora płatności (`@/lib/stripe.server`). NIE atrapujemy sąsiadów
@@ -121,6 +122,15 @@ function insertedOrder(): Record<string, unknown> {
     : {};
 }
 
+/**
+ * Żądanie z polami, których kontrakt NIE zna (kwota, waluta, cel spoza listy) -
+ * tak wygląda ręcznie złożony ładunek. Typ wejścia ich nie przewiduje, więc
+ * składamy je poza literałem; moduł ma je zignorować albo odmówić.
+ */
+function tampered(data: AdhocInput, extra: Record<string, unknown>): AdhocInput {
+  return { ...data, ...extra } as AdhocInput;
+}
+
 /** Wiersz wydarzenia w kształcie czytanym przez wycenę biletu. */
 function eventRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -149,8 +159,9 @@ function respondEvents(row: Record<string, unknown> | null, capacity: number | n
 
 function args(overrides: Partial<AdhocArgs> = {}): AdhocArgs {
   const data: AdhocInput = {
-    purpose: "donation",
-    amountCents: 5000,
+    purpose: "content_unlock",
+    entityType: "post",
+    entityId: ENTITY,
     returnUrl: "https://nes.example.com/dziekujemy",
     ...overrides.data,
   };
@@ -213,12 +224,10 @@ describe("bilet na wydarzenie - wycena serwerowa", () => {
     // bilet za 1 grosz - a zamówienie i tak zostałoby zrealizowane webhookiem.
     const result = await buildAdhocOrder(
       args({
-        data: {
-          purpose: "event_ticket",
-          eventId: EVENT,
-          amountCents: 1,
-          returnUrl: "https://nes.example.com/ok",
-        },
+        data: tampered(
+          { purpose: "event_ticket", eventId: EVENT, returnUrl: "https://nes.example.com/ok" },
+          { amountCents: 1 },
+        ),
       }),
     );
 
@@ -236,12 +245,10 @@ describe("bilet na wydarzenie - wycena serwerowa", () => {
 
     await buildAdhocOrder(
       args({
-        data: {
-          purpose: "event_ticket",
-          eventId: EVENT,
-          currency: "PLN",
-          returnUrl: "https://nes.example.com/ok",
-        },
+        data: tampered(
+          { purpose: "event_ticket", eventId: EVENT, returnUrl: "https://nes.example.com/ok" },
+          { currency: "PLN" },
+        ),
       }),
     );
 
@@ -461,7 +468,19 @@ describe("odblokowanie treści - wycena z reguły dostępu", () => {
     });
 
   it("kwota i waluta pochodzą z reguły dostępu, a zamówienie wskazuje treść", async () => {
-    const result = await buildAdhocOrder(unlock({ amountCents: 1 }));
+    const result = await buildAdhocOrder(
+      args({
+        data: tampered(
+          {
+            purpose: "content_unlock",
+            entityType: "post",
+            entityId: ENTITY,
+            returnUrl: "https://nes.example.com/ok",
+          },
+          { amountCents: 1 },
+        ),
+      }),
+    );
 
     expect(result).toMatchObject({ ok: true, orderId: "order-adhoc-1" });
     expect(insertedOrder()).toMatchObject({
@@ -543,61 +562,37 @@ describe("odblokowanie treści - wycena z reguły dostępu", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DAROWIZNA - jedyna kwota podawana przez wpłacającego
+// DAROWIZNA - poza tą ścieżką (audyt PAY-16b)
 // ---------------------------------------------------------------------------
 
-describe("darowizna - kwota od ofiarodawcy, ale walidowana", () => {
-  it("ODMOWA: kwota poniżej minimum operatora nie zakłada zamówienia", async () => {
-    for (const amountCents of [undefined, 0, 1, 49, -100]) {
-      const result = await buildAdhocOrder(
-        args({
-          data: { purpose: "donation", amountCents, returnUrl: "https://nes.example.com/ok" },
-        }),
-      );
-      expect(result, `amountCents=${amountCents}`).toEqual({ ok: false, error: "amount_too_low" });
-    }
-    expect(chain.chains).toHaveLength(0);
+describe("darowizna - NIE jest celem kasy ad-hoc", () => {
+  // CO BYŁO ZŁE. Gałąź `purpose: "donation"` brała kwotę z żądania, zakładała
+  // `payment_orders` i sesję z `metadata.purpose = "donation"`. Webhook księguje
+  // darowizny wyłącznie po wierszu `donations` (`settleDonation`), którego ta
+  // ścieżka nigdy nie zakładała - pieniądze wpływały, rozliczenie kończyło się
+  // `skipped`, bez zapisu w rejestrze i bez potwierdzenia dla wpłacającego.
+  //
+  // JAK NAPRAWIONE. Cel `donation` wyleciał z kontraktu (walidator server fn
+  // go odrzuca - `stripeCheckoutFunctions.test.ts`), a ten moduł nie ma już
+  // ścieżki kwoty od klienta. Darowizny idą przez `donations.server.ts`.
+  it("ładunek z `purpose: donation` i kwotą od klienta nie zakłada zamówienia ani sesji", async () => {
+    const result = await buildAdhocOrder(
+      args({
+        data: tampered(
+          {
+            purpose: "content_unlock",
+            entityType: undefined,
+            entityId: undefined,
+            returnUrl: "https://nes.example.com/ok",
+          },
+          { purpose: "donation", amountCents: 5000, currency: "EUR" },
+        ),
+      }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "entity_required" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
     expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
-  });
-
-  it("przepuszcza dokładnie minimum operatora i zaokrągla grosze", async () => {
-    await buildAdhocOrder(
-      args({
-        data: { purpose: "donation", amountCents: 50, returnUrl: "https://nes.example.com/ok" },
-      }),
-    );
-    expect(insertedOrder().amount_cents).toBe(50);
-
-    await buildAdhocOrder(
-      args({
-        data: { purpose: "donation", amountCents: 1234.6, returnUrl: "https://nes.example.com/ok" },
-      }),
-    );
-    expect(insertedOrder().amount_cents).toBe(1235);
-  });
-
-  it("waluta domyślna to PLN, a wskazana jest respektowana", async () => {
-    await buildAdhocOrder(args());
-    expect(insertedOrder().currency).toBe("PLN");
-
-    await buildAdhocOrder(
-      args({
-        data: {
-          purpose: "donation",
-          amountCents: 5000,
-          currency: "EUR",
-          returnUrl: "https://nes.example.com/ok",
-        },
-      }),
-    );
-    expect(insertedOrder().currency).toBe("EUR");
-  });
-
-  it("darowizna nie wskazuje żadnej treści ani wydarzenia", async () => {
-    await buildAdhocOrder(args());
-
-    expect(insertedOrder()).toMatchObject({ entity_type: null, entity_id: null });
-    expect(lastSession().metadata).not.toHaveProperty("event_id");
   });
 });
 
@@ -616,7 +611,7 @@ describe("zamówienie i sesja operatora", () => {
       provider: "stripe",
       receipt_email: "kupujacy@example.com",
       environment: "live",
-      metadata: { label: "Darowizna", purpose: "donation" },
+      metadata: { label: "Analiza tygodnia", purpose: "content_unlock" },
     });
     // Operator jest pytany DOKŁADNIE o środowisko zamówienia - inaczej sesja
     // opłacona kartą testową domykałaby zamówienie produkcyjne.

@@ -58,9 +58,10 @@ const h = vi.hoisted(() => ({
    * wywołanie operatora kończy test jawnym błędem.
    */
   stripe: {
-    current: null as { subscriptions: { retrieve: StripeRetrieve } } | null,
-    /** Środowiska, dla których poproszono o klienta operatora (sandbox nie czyta produkcji). */
-    envs: [] as string[],
+    current: null as {
+      subscriptions: { retrieve: StripeRetrieve };
+      invoices?: { retrieve: (id: string) => Promise<unknown> };
+    } | null,
   },
 }));
 
@@ -76,7 +77,10 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 
-vi.mock("@/lib/stripe.server", () => ({
+// `environmentGrantsAccess` zostaje PRAWDZIWE (czysta funkcja bramki PAY-05,
+// poza produkcją oba środowiska nadają dostęp).
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   getConnectionApiKey: () => "test_klucz_atrapy",
   getWebhookSecret: () => "test_sekret_atrapy",
   getStripeClient: async (env: string) => {
@@ -152,6 +156,14 @@ function matches(row: Row, chain: RecordedChain): boolean {
     switch (method) {
       case "eq":
         return row[column] === args[1];
+      // `neq` (zapis uprawnienia omija `refunded`) i porównania czasu (próg
+      // deduplikacji dzwonka `gte created_at`) - jak PostgREST.
+      case "neq":
+        return row[column] !== args[1];
+      case "gte":
+        return row[column] != null && cmp(row[column], args[1]) >= 0;
+      case "lt":
+        return row[column] != null && cmp(row[column], args[1]) < 0;
       case "is":
         return args[1] === null ? row[column] == null : row[column] === args[1];
       case "gt":
@@ -361,12 +373,26 @@ function stripeInvoice(o: InvoiceOpts): Record<string, unknown> {
   };
 }
 
+/**
+ * Identyfikator zdarzenia operatora: ta sama treść, typ i chwila = TO SAMO
+ * zdarzenie (ponowna dostawa, ponowienie z panelu), inna treść w tej samej
+ * sekundzie = INNE zdarzenie. Trasa podaje dyspozytorowi `event.id`, a po
+ * scaleniu z PAY-02 strażnik rozpoznaje po nim powtórkę (`replay`) - bez
+ * identyfikatora każda powtórka byłaby remisem rozstrzyganym u operatora.
+ */
+function eventId(type: string, object: Record<string, unknown>, at: string): string {
+  let hash = 0;
+  for (const char of JSON.stringify(object)) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return `evt_${type}_${at}_${(hash >>> 0).toString(36)}`;
+}
+
 /** Surowe zdarzenie Stripe -> normalizacja -> dyspozytor (jak trasa HTTP). */
 async function deliver(type: string, object: Record<string, unknown>, at: string) {
-  const event = { id: `evt_${type}_${at}`, type, created: unix(at), data: { object } };
+  const event = { id: eventId(type, object, at), type, created: unix(at), data: { object } };
   const normalized = normalizeStripeEvent(event as unknown as VerifiedWebhookEvent);
   if (!normalized) throw new Error(`test: zdarzenie ${type} poza zakresem integracji`);
   return dispatchWebhookEvent({
+    eventId: event.id,
     eventType: normalized.eventType,
     data: normalized.data,
     environment: "live",
@@ -408,13 +434,19 @@ describe("SUB-02: created pod strażnikiem kolejności, potwierdzenie dopiero po
       stripeSubscription({ status: "active", ...period }),
       activated,
     );
+    // Po scaleniu z PAY-02 spóźnione zdarzenie (`stale`) nie stosuje ładunku,
+    // ale WYRÓWNUJE uprawnienie żywym stanem operatora (jego wcześniejsza próba
+    // mogła zapisać uprawnienie i paść) - stąd odczyt i `processed` zamiast
+    // `skipped`. Ładunek `incomplete` niczego nie cofa.
+    const retrieve = stripeLive(() => stripeSubscription({ status: "active", ...period }));
     const outcome = await deliver(
       "customer.subscription.created",
       stripeSubscription({ status: "incomplete", ...period }),
       created,
     );
 
-    expect(outcome).toBe("skipped");
+    expect(outcome).toBe("processed");
+    expect(retrieve).toHaveBeenCalledTimes(1);
     expect(subscriptionRow()).toMatchObject({ status: "active", last_event_at: activated });
     expect(grantsAccess(entitlement())).toBe(true);
     // Zakup potwierdzony raz - przy aktywacji, a nie drugi raz przy `created`.
@@ -537,16 +569,22 @@ describe("SUB-02: created pod strażnikiem kolejności, potwierdzenie dopiero po
       /entitlement sync: insert failed/,
     );
     expect(mails("subscription_confirmed")).toHaveLength(0);
-    expect(subscriptionRow()?.purchase_confirmed_at).toBeNull();
+    // Po scaleniu z PAY-02 (1.2) skutki założenia idą PRZED wstawieniem
+    // wiersza: porażka zostawia „brak wiersza", więc ponowienie znów idzie
+    // ścieżką zakładania - potwierdzenie zakupu nie ma czego zużyć.
+    expect(subscriptionRow()).toBeUndefined();
 
     expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
     expect(grantsAccess(entitlement())).toBe(true);
     expect(mails("subscription_confirmed")).toHaveLength(1);
     expect(bells("Subskrypcja aktywna")).toHaveLength(1);
 
-    // Powtórka po sukcesie niczego nie dubluje.
-    expect(await deliver("customer.subscription.created", object, at)).toBe("skipped");
+    // Powtórka po sukcesie niczego nie dubluje. Strażnik rozpoznaje TO SAMO
+    // zdarzenie po identyfikatorze (`replay`) i przechodzi obsługę jeszcze raz
+    // (idempotentnie) - stąd `processed`, ale potwierdzenie jest już zajęte.
+    expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
     expect(mails("subscription_confirmed")).toHaveLength(1);
+    expect(bells("Subskrypcja aktywna")).toHaveLength(1);
   });
 
   it("zdarzenie stanu, którego obsługa padła, przechodzi przy ponowieniu", async () => {
@@ -585,7 +623,9 @@ describe("SUB-02: created pod strażnikiem kolejności, potwierdzenie dopiero po
     });
 
     expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
-    expect(await deliver("customer.subscription.created", object, at)).toBe("skipped");
+    // Druga dostawa to `replay` (ten sam identyfikator zdarzenia, PAY-02):
+    // obsługa biegnie jeszcze raz, idempotentnie - `processed`, bez duplikatów.
+    expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
 
     expect(subscriptions).toHaveLength(1);
     expect(mails("subscription_confirmed")).toHaveLength(1);
@@ -1089,6 +1129,16 @@ describe("SUB-16: windykacja liczy każdą próbę i podaje jej termin", () => {
 
   it("spóźniona porażka próby, po której płatność już przeszła, nie otwiera nowego cyklu", async () => {
     await activeSubscription();
+    // PAY-13 (4.5): porażka sprzed ostatniej płatności jest pomijana WYŁĄCZNIE,
+    // gdy TA faktura jest opłacona u operatora - windykacja pyta o nią.
+    h.stripe.current = {
+      subscriptions: {
+        retrieve: async () => {
+          throw new Error("test: ten przypadek nie ma prawa czytać subskrypcji");
+        },
+      },
+      invoices: { retrieve: async (id: string) => ({ id, status: "paid" }) },
+    };
     await deliver("invoice.payment_failed", stripeInvoice({ attempt: 1 }), relativeIso(-2 * DZIEN));
     await deliver("invoice.paid", stripeInvoice({ attempt: 2 }), relativeIso(-1 * DZIEN));
     // Ponowiona dostawa drugiej próby sprzed zapłaty.
@@ -1500,7 +1550,9 @@ describe("strażnik kolejności: remis sekundy, wiersz „w trakcie” i awaria 
     await deliver("customer.subscription.updated", object, at);
 
     // `h.stripe.current` pusty: każde wywołanie operatora wywróciłoby test.
-    expect(await deliver("customer.subscription.updated", object, at)).toBe("skipped");
+    // Powtórkę rozpoznaje identyfikator zdarzenia (`replay`, PAY-02): obsługa
+    // przechodzi jeszcze raz idempotentnie (`processed`), bez pytania operatora.
+    expect(await deliver("customer.subscription.updated", object, at)).toBe("processed");
     expect(subscriptionRow()).toMatchObject({ status: "active", last_event_at: at });
   });
 });
@@ -1535,17 +1587,21 @@ describe("potwierdzenie zakupu nie ginie po awarii (#2, #42)", () => {
     await expect(deliver("customer.subscription.updated", active, at)).rejects.toThrow(
       /entitlement sync: insert failed/,
     );
-    expect(subscriptionRow()?.status).toBe("active");
+    // PAY-02 (1.2): skutki założenia PRZED wstawieniem - po porażce wiersza nie ma.
+    expect(subscriptionRow()).toBeUndefined();
     expect(mails("subscription_confirmed")).toHaveLength(0);
 
-    // `created` z wcześniejszej sekundy dociera między porażką a ponowieniem.
+    // `created` z wcześniejszej sekundy dociera między porażką a ponowieniem
+    // i zakłada wiersz (`incomplete`, bez potwierdzenia) - dlatego `processed`.
     expect(
       await deliver(
         "customer.subscription.created",
         stripeSubscription({ status: "incomplete", ...period }),
         relativeIso(-1 * DZIEN - 2 * SEKUNDA),
       ),
-    ).toBe("skipped");
+    ).toBe("processed");
+    expect(mails("subscription_confirmed")).toHaveLength(0);
+    // Ponowienie aktywacji jest świeższe od `created` - potwierdza zakup.
     expect(await deliver("customer.subscription.updated", active, at)).toBe("processed");
 
     expect(grantsAccess(entitlement())).toBe(true);
@@ -1574,8 +1630,11 @@ describe("potwierdzenie zakupu nie ginie po awarii (#2, #42)", () => {
         relativeIso(-2 * DZIEN + 60 * 60 * SEKUNDA),
       ),
     ).toBe("processed");
-    // Ponowienie `created` jest już starsze od zapisanego stanu.
-    expect(await deliver("customer.subscription.created", created, createdAt)).toBe("skipped");
+    // Ponowienie `created` jest już starsze od zapisanego stanu (`stale`):
+    // ładunku nie stosuje, uprawnienie wyrównuje żywym stanem operatora
+    // (PAY-02) - `processed`, bez drugiego potwierdzenia.
+    stripeLive(() => stripeSubscription({ status: "active", ...period }));
+    expect(await deliver("customer.subscription.created", created, createdAt)).toBe("processed");
 
     expect(grantsAccess(entitlement())).toBe(true);
     expect(mails("subscription_confirmed")).toHaveLength(1);
@@ -1602,8 +1661,13 @@ describe("potwierdzenie zakupu nie ginie po awarii (#2, #42)", () => {
     await expect(deliver("customer.subscription.updated", active, activatedAt)).rejects.toThrow(
       /entitlement sync: update failed/,
     );
-    // Status `active` jest już zapisany - to on zmylił stary warunek aktywacji.
-    expect(subscriptionRow()?.status).toBe("active");
+    // Po scaleniu z PAY-02 stan zapisuje się PO skutkach (zapis warunkiem na
+    // zajęcie), więc wiersz zostaje `incomplete`. Wyzwalaczem potwierdzenia
+    // i tak jest pusty `purchase_confirmed_at`, nie poprzedni status (SUB-02).
+    expect(subscriptionRow()).toMatchObject({
+      status: "incomplete",
+      purchase_confirmed_at: null,
+    });
 
     expect(await deliver("customer.subscription.updated", active, activatedAt)).toBe("processed");
     expect(grantsAccess(entitlement())).toBe(true);
@@ -1887,470 +1951,199 @@ describe("koniec windykacji to nie rezygnacja - treść dla klienta (#7)", () =>
 });
 
 // =============================================================================
-// Odrzucona dopłata opłacona PÓŹNIEJ (`customer.subscription.pending_update_applied`).
+// SCALENIE #495 (SUB) Z PAY-02/S1: jeden strażnik, komunikaty po zapisie stanu.
 // =============================================================================
 
-const SCHEDULE = "sub_sched_1SyntetycznyHarmonogram";
-
-type LiveItem = { current_period_start: number; current_period_end: number };
-
-/**
- * Operator z harmonogramem dołączonym do subskrypcji. Pamięta zwolnienie,
- * więc ponowienie zdarzenia widzi stan PO nim - jak prawdziwy operator.
- * Ceny operatora to `price_<lookup_key>`; bieżąca faza niesie cenę sprzed
- * zmiany, następna - `nextPrice` (zaplanowana wcześniej zmiana).
- */
-function stripeWithSchedule(o: {
-  live: Record<string, unknown>;
-  nextPrice: string;
-  failedReleases?: number;
-}) {
-  const [item] = (o.live.items as { data: LiveItem[] }).data;
-  const schedule = {
-    id: SCHEDULE,
-    object: "subscription_schedule",
-    status: "active",
-    subscription: SUB as string | null,
-    metadata: {},
-    current_phase: { start_date: item.current_period_start, end_date: item.current_period_end },
-    phases: [
-      {
-        start_date: item.current_period_start,
-        end_date: item.current_period_end,
-        items: [{ price: "price_plus_monthly", quantity: 1 }],
-      },
-      { start_date: item.current_period_end, end_date: null, items: [{ price: o.nextPrice }] },
-    ],
-  };
-  let failures = o.failedReleases ?? 0;
-  const release = vi.fn(async (id: string, _params: unknown, _opts?: unknown) => {
-    if (failures > 0) {
-      failures -= 1;
-      throw Object.assign(new Error("Too many requests"), { type: "StripeRateLimitError" });
-    }
-    if (id !== SCHEDULE || schedule.status !== "active")
-      throw new Error("test: nie ten harmonogram");
-    schedule.status = "released";
-    schedule.subscription = null;
-    return structuredClone(schedule);
-  });
-  const retrieve = vi.fn<StripeRetrieve>(async (id, params) => {
-    if (id !== SUB) {
-      throw Object.assign(new Error("No such subscription"), { code: "resource_missing" });
-    }
-    const expand = (params as { expand?: string[] } | undefined)?.expand ?? [];
-    const attached = schedule.status === "active";
-    return {
-      ...structuredClone(o.live),
-      schedule: attached
-        ? expand.includes("schedule")
-          ? structuredClone(schedule)
-          : SCHEDULE
-        : null,
-    };
-  });
-  h.stripe.current = {
-    subscriptions: { retrieve },
-    subscriptionSchedules: { release },
-    prices: { retrieve: async (id: string) => ({ id, lookup_key: id.replace(/^price_/, "") }) },
-  } as unknown as typeof h.stripe.current;
-  return { release, schedule };
-}
-
-describe("odrzucona dopłata opłacona później: pending_update_applied zwalnia sprzeczny harmonogram", () => {
-  const start = relativeIso(-10 * DZIEN);
-  const end = relativeIso(20 * DZIEN);
-  const appliedAt = relativeIso(-1 * DZIEN);
-
-  /** Plus z zaplanowaną wcześniej zmianą; upgrade do Pro odrzucony, a potem opłacony. */
-  async function plusWithDeclinedUpgrade() {
+describe("S1 x SUB-03: karencja nie ożywia korekty (zwrot / spór bieżącego okresu)", () => {
+  it("zaległość w NOWYM okresie i koniec windykacji po zwrocie: uprawnienie zostaje `refunded`", async () => {
+    // Zwrot bieżącego okresu zapisuje `refunded` + `canceled_at` = chwila
+    // korekty (S1). Stripe przesuwa okres przy odnowieniu PRZED obciążeniem,
+    // więc nieudane odnowienie przychodzi jako `past_due` z okresem zaczętym po
+    // korekcie, a karencja (SUB-03) dawała mu dostęp. Klient, któremu właśnie
+    // zwróciliśmy pieniądze, dostawał dwa tygodnie za kolejną nieudaną płatność
+    // - a koniec windykacji (`deleted`, `payment_failed`) jeszcze raz.
+    const start = relativeIso(-40 * DZIEN);
+    const renewalAt = relativeIso(-10 * DZIEN);
     await deliver(
       "customer.subscription.created",
-      stripeSubscription({
-        status: "active",
-        providerPriceId: "price_plus_monthly",
-        periodStart: start,
-        periodEnd: end,
-      }),
+      stripeSubscription({ status: "active", periodStart: start, periodEnd: renewalAt }),
       start,
     );
-    return stripeSubscription({
-      status: "active",
-      priceKey: "pro_monthly",
-      providerPriceId: "price_pro_monthly",
-      periodStart: start,
-      periodEnd: end,
-    });
-  }
+    const correctedAt = relativeIso(-20 * DZIEN);
+    Object.assign(entitlement()!, { status: "refunded", canceled_at: correctedAt });
 
-  it("zaplanowany downgrade cofałby opłacony upgrade: zwolniony klientem środowiska zdarzenia, lustro na Pro", async () => {
-    const applied = await plusWithDeclinedUpgrade();
-    const stripe = stripeWithSchedule({ live: applied, nextPrice: "price_student_monthly" });
+    await deliver(
+      "customer.subscription.updated",
+      stripeSubscription({
+        status: "past_due",
+        periodStart: renewalAt,
+        periodEnd: relativeIso(20 * DZIEN),
+      }),
+      renewalAt,
+    );
+    expect(entitlement()).toMatchObject({ status: "refunded", canceled_at: correctedAt });
 
-    const outcome = await deliver(
-      "customer.subscription.pending_update_applied",
-      { ...applied, schedule: SCHEDULE },
-      appliedAt,
+    await deliver(
+      "customer.subscription.deleted",
+      stripeSubscription({
+        status: "canceled",
+        periodStart: renewalAt,
+        periodEnd: relativeIso(20 * DZIEN),
+        cancellationReason: "payment_failed",
+      }),
+      relativeIso(-1 * DZIEN),
+    );
+    expect(entitlement()).toMatchObject({ status: "refunded", canceled_at: correctedAt });
+    expect(grantsAccess(entitlement())).toBe(false);
+  });
+
+  it("kolejne OPŁACONE odnowienie po korekcie nadal ją ożywia", async () => {
+    const start = relativeIso(-40 * DZIEN);
+    const renewalAt = relativeIso(-10 * DZIEN);
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({ status: "active", periodStart: start, periodEnd: renewalAt }),
+      start,
+    );
+    Object.assign(entitlement()!, { status: "refunded", canceled_at: relativeIso(-20 * DZIEN) });
+
+    await deliver(
+      "customer.subscription.updated",
+      stripeSubscription({
+        status: "active",
+        periodStart: renewalAt,
+        periodEnd: relativeIso(20 * DZIEN),
+      }),
+      renewalAt,
     );
 
-    expect(outcome).toBe("processed");
-    expect(stripe.release).toHaveBeenCalledTimes(1);
-    expect(stripe.release.mock.calls[0]?.[0]).toBe(SCHEDULE);
-    expect(stripe.release.mock.calls[0]?.[2]).toEqual({
-      idempotencyKey: expect.stringMatching(/^nes-sub-schedule-release-[0-9a-f]{48}$/),
-    });
-    expect(stripe.schedule.status).toBe("released");
-    expect(h.stripe.envs.length).toBeGreaterThan(0);
-    expect(h.stripe.envs.every((env) => env === "live")).toBe(true);
-    // To samo zdarzenie domyka lustro: opłacony plan, dostęp, znacznik.
-    expect(subscriptionRow()).toMatchObject({ price_id: "pro_monthly", last_event_at: appliedAt });
-    expect(entitlement()).toMatchObject({ plan_id: "plan-pro-monthly" });
-    expect(grantsAccess(entitlement())).toBe(true);
-  });
-
-  it("zgodny harmonogram (od odnowienia Pro rocznie) zostaje, a lustro i tak przechodzi na Pro", async () => {
-    const applied = await plusWithDeclinedUpgrade();
-    const stripe = stripeWithSchedule({ live: applied, nextPrice: "price_pro_annual" });
-
-    expect(
-      await deliver(
-        "customer.subscription.pending_update_applied",
-        { ...applied, schedule: SCHEDULE },
-        appliedAt,
-      ),
-    ).toBe("processed");
-
-    expect(stripe.release).not.toHaveBeenCalled();
-    expect(stripe.schedule.status).toBe("active");
-    expect(subscriptionRow()?.price_id).toBe("pro_monthly");
-  });
-
-  it("odmowa operatora przy zwolnieniu: zdarzenie wraca do ponowienia (500), ponowienie zwalnia i domyka lustro", async () => {
-    const applied = await plusWithDeclinedUpgrade();
-    const stripe = stripeWithSchedule({
-      live: applied,
-      nextPrice: "price_student_monthly",
-      failedReleases: 1,
-    });
-    const object = { ...applied, schedule: SCHEDULE };
-
-    await expect(
-      deliver("customer.subscription.pending_update_applied", object, appliedAt),
-    ).rejects.toThrow(/Too many requests/);
-    // Nic nie przepadło po cichu: harmonogram żyje, lustro bez zmian - a
-    // znacznik strażnika nie jest zajęty, więc ponowienie przejdzie.
-    expect(stripe.schedule.status).toBe("active");
-    expect(subscriptionRow()?.price_id).toBe("plus_monthly");
-    expect(subscriptionRow()?.last_event_at).not.toBe(appliedAt);
-
-    // Operator ponawia TO SAMO zdarzenie (ten sam znacznik).
-    expect(await deliver("customer.subscription.pending_update_applied", object, appliedAt)).toBe(
-      "processed",
-    );
-    expect(stripe.release).toHaveBeenCalledTimes(2);
-    expect(stripe.schedule.status).toBe("released");
-    expect(subscriptionRow()).toMatchObject({ price_id: "pro_monthly", last_event_at: appliedAt });
-  });
-
-  it("migawka bez harmonogramu: bez pytania operatora - zwykła aktualizacja lustra", async () => {
-    const applied = await plusWithDeclinedUpgrade();
-
-    // `h.stripe.current` pusty: każde wywołanie operatora wywróciłoby test.
-    expect(
-      await deliver(
-        "customer.subscription.pending_update_applied",
-        { ...applied, schedule: null },
-        appliedAt,
-      ),
-    ).toBe("processed");
-    expect(subscriptionRow()?.price_id).toBe("pro_monthly");
-    expect(grantsAccess(entitlement())).toBe(true);
-  });
-
-  it("wygasła oczekująca zmiana: stary plan i zaplanowana zmiana zostają, bez pytania operatora", async () => {
-    await plusWithDeclinedUpgrade();
-    const expired = stripeSubscription({
-      status: "active",
-      providerPriceId: "price_plus_monthly",
-      periodStart: start,
-      periodEnd: end,
-      schedule: SCHEDULE,
-    });
-
-    await deliver("customer.subscription.pending_update_expired", expired, appliedAt);
-
-    expect(subscriptionRow()).toMatchObject({ price_id: "plus_monthly", status: "active" });
+    expect(entitlement()).toMatchObject({ status: "active", canceled_at: null });
     expect(grantsAccess(entitlement())).toBe(true);
   });
 });
 
-// =============================================================================
-// Odrzucony upgrade przy dacie końca `cancel_at`, opłacony PÓŹNIEJ.
-// =============================================================================
-
-/** Faktura dopłaty, której zapłata zastosowała zmianę (identyfikator z migawki). */
-const UPGRADE_INVOICE = "in_1SyntetycznaDoplata";
-
-/**
- * Operator ze subskrypcją kończącą się datą `cancel_at` i opłaconą fakturą
- * dopłaty (`marker` = metadane zapisane przy odmowie, `paidAt` = chwila
- * zapłaty). Pamięta zdjęcie daty, więc ponowienie zdarzenia widzi stan PO nim
- * - jak prawdziwy operator.
- */
-function stripeWithCancelDate(o: {
-  live: Record<string, unknown>;
-  marker: Record<string, string>;
-  paidAt: string;
-  failedUpdates?: number;
-}) {
-  const state = structuredClone(o.live);
-  let failures = o.failedUpdates ?? 0;
-  const retrieve = vi.fn<StripeRetrieve>(async (id) => {
-    if (id !== SUB) {
-      throw Object.assign(new Error("No such subscription"), { code: "resource_missing" });
-    }
-    return structuredClone(state);
-  });
-  const update = vi.fn(async (id: string, params: Record<string, unknown>, _opts?: unknown) => {
-    if (failures > 0) {
-      failures -= 1;
-      throw Object.assign(new Error("Too many requests"), { type: "StripeRateLimitError" });
-    }
-    if (id !== SUB) throw new Error("test: nie ta subskrypcja");
-    if (params.cancel_at === "") {
-      state.cancel_at = null;
-      state.canceled_at = null;
-    }
-    state.metadata = { ...(state.metadata as object), ...(params.metadata as object) };
-    return structuredClone(state);
-  });
-  const invoices = {
-    retrieve: vi.fn(async (id: string) => {
-      if (id !== UPGRADE_INVOICE) {
-        throw Object.assign(new Error("No such invoice"), { code: "resource_missing" });
-      }
-      return {
-        id,
-        object: "invoice",
-        status: "paid",
-        billing_reason: "subscription_update",
-        parent: { subscription_details: { subscription: SUB } },
-        status_transitions: { paid_at: unix(o.paidAt) },
-        metadata: o.marker,
-      };
-    }),
-  };
-  h.stripe.current = {
-    subscriptions: { retrieve, update },
-    invoices,
-  } as unknown as typeof h.stripe.current;
-  return { retrieve, update, state };
-}
-
-describe("odrzucony upgrade przy dacie końca opłacony później: pending_update_applied zdejmuje datę", () => {
-  const start = relativeIso(-10 * DZIEN);
-  const end = relativeIso(20 * DZIEN);
-  const cancelSetAt = relativeIso(-5 * DZIEN);
-  const appliedAt = relativeIso(-1 * DZIEN);
-  /** Data końca z portalu („anuluj z końcem okresu") i chwila jej ustawienia. */
-  const dateEnd = { cancel_at: unix(end), canceled_at: unix(cancelSetAt) };
-  /** Znacznik zapisany przy odmowie - stan z chwili prośby o upgrade. */
-  const MARKER = {
-    nes_upgrade_cancel_at: String(unix(end)),
-    nes_upgrade_canceled_at: String(unix(cancelSetAt)),
-    nes_upgrade_price: "price_pro_monthly",
-  };
-
-  /** Plus kończący się datą; upgrade do Pro odrzucony, a potem opłacony - migawka z chwili zastosowania. */
-  async function plusEndingOnDate() {
-    const plus = { providerPriceId: "price_plus_monthly", periodStart: start, periodEnd: end };
+describe("rezygnacja nigdy nieopłaconej subskrypcji - powtórka po zapisie", () => {
+  it("ponowiona rezygnacja (wiersz już `canceled`) nie daje dostępu, maila ani dzwonka", async () => {
+    // Po scaleniu z PAY-02 ponowna dostawa tego samego zdarzenia to `replay`,
+    // który przechodzi obsługę jeszcze raz - a wiersz ma już status
+    // `canceled`, nie `incomplete`. Bez reguły „brak potwierdzenia i płatności
+    // przy wierszu `canceled` = nigdy nieopłacona" druga dostawa dawała dostęp
+    // do końca ROCZNEGO okresu i mail „rezygnacja, dostęp do końca opłaconego
+    // okresu".
+    const at = relativeIso(-1 * DZIEN);
+    const period = {
+      priceKey: "plus_annual",
+      periodStart: at,
+      periodEnd: relativeIso(364 * DZIEN),
+    };
     await deliver(
       "customer.subscription.created",
-      stripeSubscription({ status: "active", ...plus }),
-      start,
+      stripeSubscription({ status: "incomplete", ...period }),
+      at,
     );
-    await deliver(
-      "customer.subscription.updated",
-      { ...stripeSubscription({ status: "active", ...plus }), ...dateEnd },
-      cancelSetAt,
-    );
-    expect(subscriptionRow()?.cancel_at_period_end).toBe(true);
-    expect(entitlement()?.canceled_at).toBeTruthy();
-    return {
-      ...stripeSubscription({
-        status: "active",
-        priceKey: "pro_monthly",
-        providerPriceId: "price_pro_monthly",
-        periodStart: start,
-        periodEnd: end,
-        schedule: null,
+    const deleted = stripeSubscription({
+      status: "canceled",
+      ...period,
+      cancellationReason: "cancellation_requested",
+    });
+    const deletedAt = relativeIso(-1 * DZIEN + 60 * 60 * SEKUNDA);
+
+    expect(await deliver("customer.subscription.deleted", deleted, deletedAt)).toBe("processed");
+    expect(await deliver("customer.subscription.deleted", deleted, deletedAt)).toBe("processed");
+
+    expect(subscriptionRow()?.status).toBe("canceled");
+    expect(grantsAccess(entitlement())).toBe(false);
+    expect(h.emails).toHaveLength(0);
+    expect(notifications).toHaveLength(0);
+    expect(crmWrites()).toHaveLength(0);
+  });
+});
+
+describe("potwierdzenie zakupu po zapisie stanu - przejściowa awaria zgody (SUB-15 #34 x A3)", () => {
+  it("awaria zapisu zgody PO wstawieniu wiersza: zdarzenie pada, ponowienie zapisuje zgodę i potwierdza RAZ", async () => {
+    // Komunikaty zakupu (CRM, zgoda z checkoutu, zajęcie potwierdzenia, mail,
+    // dzwonek) wychodzą dopiero PO zapisie wiersza. Przejściowa awaria zapisu
+    // zgody nie może wtedy zniknąć w logu: zdarzenie musi paść, żeby operator
+    // je ponowił - a ponowienie (`replay`) widzi pusty `purchase_confirmed_at`
+    // i ogłasza zakup jeszcze raz, tym razem do skutku.
+    const newsletter = table([]);
+    let failNext = true;
+    db.setResponse("newsletter_subscribers", (chain) => {
+      if (failNext && chain.has("upsert")) {
+        failNext = false;
+        return fail("could not serialize access", "40001");
+      }
+      return newsletter(chain);
+    });
+    const at = relativeIso(-1 * DZIEN);
+    const object = stripeSubscription({
+      status: "active",
+      periodStart: at,
+      periodEnd: relativeIso(29 * DZIEN),
+      metadata: premiumNewsletterConsentMetadata({
+        version: PREMIUM_NEWSLETTER_CONSENT_VERSION,
+        lang: "pl",
+        at: relativeIso(-1 * DZIEN - 5 * SEKUNDA),
       }),
-      ...dateEnd,
-      latest_invoice: UPGRADE_INVOICE,
-    };
-  }
-
-  it("data z chwili prośby schodzi u operatora (klient środowiska zdarzenia); lustro: Pro, odnawia się", async () => {
-    const applied = await plusEndingOnDate();
-    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER, paidAt: appliedAt });
-
-    expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
-      "processed",
-    );
-
-    expect(stripe.update).toHaveBeenCalledTimes(1);
-    expect(stripe.update).toHaveBeenCalledWith(
-      SUB,
-      { cancel_at: "", metadata: { nes_ops_rev: "1" } },
-      { idempotencyKey: expect.stringMatching(/^nes-sub-cancel-at-clear-applied-[0-9a-f]{48}$/) },
-    );
-    expect(h.stripe.envs.length).toBeGreaterThan(0);
-    expect(h.stripe.envs.every((env) => env === "live")).toBe(true);
-    // Migawka wciąż niesie datę, ale lustro dostaje stan operatora PO zdjęciu:
-    // bez „kończy się" i bez przycisku „Wznów" przy subskrypcji, która się odnowi.
-    expect(subscriptionRow()).toMatchObject({
-      price_id: "pro_monthly",
-      cancel_at_period_end: false,
-      last_event_at: appliedAt,
     });
-    expect(entitlement()).toMatchObject({ plan_id: "plan-pro-monthly", canceled_at: null });
+
+    await expect(deliver("customer.subscription.created", object, at)).rejects.toThrow(
+      /newsletter insert failed/,
+    );
+    // Stan zapisany (dostęp jest), potwierdzenie wolne - nic nie wyszło.
     expect(grantsAccess(entitlement())).toBe(true);
-    expect(mails("subscription_upgraded")).toHaveLength(1);
+    expect(subscriptionRow()?.purchase_confirmed_at).toBeNull();
+    expect(mails("subscription_confirmed")).toHaveLength(0);
 
-    // Zdarzenie samego zdjęcia (nowszy znacznik): nic się nie dubluje.
-    const clearedAt = new Date(Date.parse(appliedAt) + 5 * SEKUNDA).toISOString();
+    expect(await deliver("customer.subscription.created", object, at)).toBe("processed");
+    expect(newsletterWrites()).toHaveLength(2);
+    expect(subscriptionRow()?.purchase_confirmed_at).toBeTruthy();
+    expect(mails("subscription_confirmed")).toHaveLength(1);
+    expect(bells("Subskrypcja aktywna")).toHaveLength(1);
+  });
+});
+
+describe("wyrównanie po wyparciu liczy karencję (PAY-02 x SUB-03)", () => {
+  it("spóźnione zdarzenie przy zaległości: uprawnienie do końca karencji, nie do końca nowego roku", async () => {
+    const renewalAt = relativeIso(-3 * DZIEN);
+    const yearAgo = new Date(Date.parse(renewalAt) - 365 * DZIEN).toISOString();
+    const nextYear = new Date(Date.parse(renewalAt) + 365 * DZIEN).toISOString();
+    const annual = { priceKey: "plus_annual" };
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({
+        status: "active",
+        ...annual,
+        periodStart: yearAgo,
+        periodEnd: renewalAt,
+      }),
+      yearAgo,
+    );
+    const pastDue = { status: "past_due", ...annual, periodStart: renewalAt, periodEnd: nextYear };
+    await deliver("customer.subscription.updated", stripeSubscription(pastDue), renewalAt);
+
+    // Spóźnione `updated(active)` sprzed odnowienia: ładunku nie stosuje,
+    // uprawnienie wyrównuje żywym stanem operatora (zaległość) - z tą samą
+    // karencją co obsługa zdarzenia, a nie do końca przesuniętego okresu.
+    stripeLive(() => stripeSubscription(pastDue));
     expect(
-      await deliver("customer.subscription.updated", structuredClone(stripe.state), clearedAt),
+      await deliver(
+        "customer.subscription.updated",
+        stripeSubscription({
+          status: "active",
+          ...annual,
+          periodStart: yearAgo,
+          periodEnd: renewalAt,
+        }),
+        relativeIso(-200 * DZIEN),
+      ),
     ).toBe("processed");
+
+    const graceEnd = new Date(Date.parse(renewalAt) + PAYMENT_GRACE_DAYS * DZIEN).toISOString();
     expect(subscriptionRow()).toMatchObject({
-      cancel_at_period_end: false,
-      last_event_at: clearedAt,
+      status: "past_due",
+      first_payment_failed_at: renewalAt,
     });
-    expect(entitlement()?.canceled_at).toBeNull();
-    expect(mails("subscription_upgraded")).toHaveLength(1);
-    expect(mails("subscription_canceled")).toHaveLength(0);
-  });
-
-  it.each([
-    {
-      name: "inna data ustawiona po odmowie",
-      live: { cancel_at: unix(end) - 86_400, canceled_at: unix(relativeIso(-2 * DZIEN)) },
-    },
-    {
-      name: "ta sama data ustawiona ponownie po odmowie (nowsze `canceled_at`)",
-      live: { cancel_at: unix(end), canceled_at: unix(relativeIso(-2 * DZIEN)) },
-    },
-  ])("$name: data zostaje, lustro dalej „kończy się”", async ({ live }) => {
-    const applied = { ...(await plusEndingOnDate()), ...live };
-    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER, paidAt: appliedAt });
-    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
-      "processed",
-    );
-
-    expect(stripe.update).not.toHaveBeenCalled();
-    expect(stripe.state).toMatchObject(live);
-    expect(warned).toHaveBeenCalledWith(
-      "[payments] pending update paid later, cancel date kept",
-      "kept_changed",
-      SUB,
-      expect.any(String),
-    );
-    expect(subscriptionRow()).toMatchObject({
-      price_id: "pro_monthly",
-      cancel_at_period_end: true,
-    });
-    expect(entitlement()?.canceled_at).toBeTruthy();
-    warned.mockRestore();
-  });
-
-  it("flaga „z końcem okresu” w migawce: bez pytania operatora - flaga jechała w oczekującej zmianie", async () => {
-    const applied = { ...(await plusEndingOnDate()), cancel_at_period_end: true };
-
-    // `h.stripe.current` pusty: każde wywołanie operatora wywróciłoby test.
-    expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
-      "processed",
-    );
-    expect(subscriptionRow()).toMatchObject({
-      price_id: "pro_monthly",
-      cancel_at_period_end: true,
-    });
-  });
-
-  it("odmowa operatora przy zdjęciu: zdarzenie wraca do ponowienia (500), ponowienie zdejmuje i domyka lustro", async () => {
-    const applied = await plusEndingOnDate();
-    const stripe = stripeWithCancelDate({
-      live: applied,
-      marker: MARKER,
-      paidAt: appliedAt,
-      failedUpdates: 1,
-    });
-
-    await expect(
-      deliver("customer.subscription.pending_update_applied", applied, appliedAt),
-    ).rejects.toThrow(/Too many requests/);
-    // Nic nie przepadło po cichu: data jest, lustro bez zmian, znacznik strażnika wolny.
-    expect(stripe.state.cancel_at).toBe(unix(end));
-    expect(subscriptionRow()?.price_id).toBe("plus_monthly");
-    expect(subscriptionRow()?.last_event_at).not.toBe(appliedAt);
-
-    expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
-      "processed",
-    );
-    expect(stripe.update).toHaveBeenCalledTimes(2);
-    expect(stripe.state.cancel_at).toBeNull();
-    expect(subscriptionRow()).toMatchObject({
-      price_id: "pro_monthly",
-      cancel_at_period_end: false,
-      last_event_at: appliedAt,
-    });
-  });
-
-  it("ponowienie, gdy data już zeszła (zgubiona odpowiedź): bez drugiej mutacji, lustro bez „kończy się”", async () => {
-    const applied = await plusEndingOnDate();
-    const stripe = stripeWithCancelDate({
-      live: { ...applied, cancel_at: null, canceled_at: null },
-      marker: MARKER,
-      paidAt: appliedAt,
-    });
-
-    expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
-      "processed",
-    );
-
-    expect(stripe.update).not.toHaveBeenCalled();
-    expect(subscriptionRow()).toMatchObject({
-      price_id: "pro_monthly",
-      cancel_at_period_end: false,
-    });
-    expect(entitlement()?.canceled_at).toBeNull();
-  });
-
-  it("dostawa później niż okno ponowień operatora od zapłaty (naprawa z panelu): data zostaje, lustro „kończy się” jak u klienta", async () => {
-    const applied = await plusEndingOnDate();
-    // Klient zapłacił 5 dni temu; zdarzenie dociera dopiero teraz.
-    const paidAt = relativeIso(-5 * DZIEN + 60 * SEKUNDA);
-    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER, paidAt });
-    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    expect(await deliver("customer.subscription.pending_update_applied", applied, paidAt)).toBe(
-      "processed",
-    );
-
-    expect(stripe.update).not.toHaveBeenCalled();
-    expect(stripe.state.cancel_at).toBe(unix(end));
-    expect(warned).toHaveBeenCalledWith(
-      "[payments] pending update paid later, cancel date kept",
-      "kept_stale",
-      SUB,
-      expect.stringContaining(`"paidAt":${unix(paidAt)}`),
-    );
-    expect(subscriptionRow()).toMatchObject({
-      price_id: "pro_monthly",
-      cancel_at_period_end: true,
-    });
-    expect(entitlement()?.canceled_at).toBeTruthy();
-    warned.mockRestore();
+    expect(entitlement()?.current_period_end).toBe(graceEnd);
   });
 });

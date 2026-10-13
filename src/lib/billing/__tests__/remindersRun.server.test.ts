@@ -208,8 +208,46 @@ describe("zakres zapytania o subskrypcje do przypomnienia", () => {
     // Karencja (`past_due`) MUSI być w zestawie: to klient, który ma jeszcze
     // dostęp i którego da się uratować. `canceled` też - jemu należy się
     // przypomnienie o KOŃCU dostępu, nie o odnowieniu.
-    expect(chain?.argsOf("in")).toEqual(["status", ["active", "trialing", "past_due", "canceled"]]);
+    const inFilters = chain?.calls.filter((c) => c.method === "in").map((c) => c.args);
+    expect(inFilters).toContainEqual(["status", ["active", "trialing", "past_due", "canceled"]]);
     expect(chain?.argsOf("limit")).toEqual([200]);
+  });
+
+  // PRZEGLĄD 1.5 / 7.8 (S9). Produkcja trzyma subskrypcje piaskownicy jako
+  // ŚLAD KSIĘGOWY (`environment = 'sandbox'`) z prawdziwym `user_id`
+  // z metadanych karty testowej. Bez filtra środowiska cron wysyłał realnemu
+  // klientowi „Twoja subskrypcja się odnawia" za plan, którego nie kupił.
+  //
+  // Po scaleniu z SUB-08 przebieg obejmuje JEDNO środowisko (domyślnie
+  // `resolveEnvironment` - na produkcji zawsze `live`, patrz blok „przebieg
+  // platformowy" niżej), a bramka `environmentGrantsAccess` pilnuje, żeby
+  // jawne `sandbox` na produkcji nie wysłało niczego. Dawne asercje na filtr
+  // `in("environment", [...])` zastąpiło `eq` z bloku SUB-08 - tu zostaje
+  // bramka, której tamten blok nie dowodzi.
+  describe("środowisko wdrożenia (S9)", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("produkcja + jawne `sandbox`: ani jednego zapytania, ani jednego maila", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      const stub = givenDb({ rows: [subscriptionRow()] });
+
+      const result = await runBillingReminders(3, 200, NOW, "sandbox");
+
+      expect(result).toEqual({ renewal: 0, expiring: 0, skipped: 0 });
+      expect(stub.chainsFor("subscriptions")).toHaveLength(0);
+      expect(mail.sendTxEmail).not.toHaveBeenCalled();
+    });
+
+    it("podgląd i dev: jawne `sandbox` przechodzi - karta testowa dostaje przypomnienie", async () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const stub = givenDb({ rows: [] });
+
+      await runBillingReminders(3, 200, NOW, "sandbox");
+
+      expect(stub.lastChain("subscriptions")?.argsOf("eq")).toEqual(["environment", "sandbox"]);
+    });
   });
 
   it("okno nigdy nie sięga w PRZESZŁOŚĆ - subskrypcja po terminie nie dostanie przypomnienia", async () => {

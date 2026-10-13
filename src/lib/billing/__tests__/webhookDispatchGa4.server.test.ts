@@ -44,7 +44,10 @@ vi.mock("@/lib/billing/billingDocuments.server", async (importOriginal) => ({
 vi.mock("@/lib/analytics/ga4Mp.server", () => ({
   sendGa4Purchase: (input: unknown) => h.sendGa4Purchase(input),
 }));
-vi.mock("@/lib/stripe.server", () => ({
+// Reszta modułu (`environmentGrantsAccess`) zostaje PRAWDZIWA - dyspozytor
+// pyta ją o każde zdarzenie, a poza produkcją przepuszcza oba środowiska.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   getStripeClient: () => {
     throw new Error("test: żaden przypadek nie ma prawa wołać operatora");
   },
