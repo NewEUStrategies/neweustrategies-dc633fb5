@@ -17,7 +17,7 @@
 // wartości przepisany z migracji, a nie z pamięci.
 //
 // Źródła (najnowsze definicje):
-//   * `event_checkins_result_values`  -> 20261012110000_event_scanner_ops_hardening.sql
+//   * `event_checkins_result_values`  -> 20261012111000_event_scanner_review_fixes.sql
 //   * `event_checkins_offline_outcome_values` -> 20261012110000_event_scanner_ops_hardening.sql
 //   * `event_checkpoints_reentry_policy_values` -> 20261012110000_event_scanner_ops_hardening.sql
 //   * `event_checkpoints_direction_mode` -> 20260824100844_29c02b4d-…sql
@@ -47,7 +47,12 @@ export type CheckpointAccessMode = (typeof CHECKPOINT_ACCESS_MODES)[number];
 /**
  * Polityka ponownego wejścia punktu (OPS-08). `deny` - tylko w trybie
  * `control` (CHECK `event_checkpoints_reentry_needs_control`) - odmawia
- * wejścia osobie, której ostatni skan zgody w tym punkcie był wejściem.
+ * wejścia osobie, która jest „w środku" TEGO punktu: jej ostatni skan zgody
+ * w tym punkcie, z tego samego dnia czasu wydarzenia (północ w strefie
+ * wydarzenia) i nie późniejszy niż oceniany, był wejściem. Wyjście w tym
+ * punkcie i północ zerują stan (bramka tylko-wejście: jedno wejście dziennie);
+ * punkty są od siebie niezależne. Ręczna odprawa na stanowisku omija odmowę
+ * jawnie (`reentry_override`). 20261012111000.
  */
 export const CHECKPOINT_REENTRY_POLICIES = ["allow", "deny"] as const;
 export type CheckpointReentryPolicy = (typeof CHECKPOINT_REENTRY_POLICIES)[number];
@@ -60,8 +65,11 @@ export const CHECKIN_DIRECTIONS = ["in", "out"] as const;
 export type CheckinDirection = (typeof CHECKIN_DIRECTIONS)[number];
 
 /**
- * Wyniki odprawy - dokładnie siedem wartości z ograniczenia CHECK.
+ * Wyniki odprawy - dokładnie osiem wartości z ograniczenia CHECK.
  * `denied_already_inside`: polityka `deny` punktu, osoba już w środku.
+ * `denied_code_superseded`: bramka bez sieci wpuściła kod, który w chwili
+ * skanu był już zastąpiony (przedruk, unieważnienie) - prawdziwa odmowa
+ * serwera, w dzienniku konflikt `admitted_offline`.
  */
 export const CHECKIN_RESULTS = [
   "granted",
@@ -71,6 +79,7 @@ export const CHECKIN_RESULTS = [
   "denied_capacity",
   "denied_checkpoint_inactive",
   "denied_already_inside",
+  "denied_code_superseded",
 ] as const;
 export type CheckinResult = (typeof CHECKIN_RESULTS)[number];
 

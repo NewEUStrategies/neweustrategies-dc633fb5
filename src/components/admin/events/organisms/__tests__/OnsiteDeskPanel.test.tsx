@@ -15,6 +15,10 @@
 //      wiadomo, przy której bramce stoi.
 //   5. WIERSZ MÓWI, CZY OSOBA MA ZAPIS. Brak zapisu to odznaka, a nie cisza -
 //      operator ma zobaczyć powód odmowy, zanim kliknie.
+//   6. OBEJŚCIE BLOKADY PONOWNEGO WEJŚCIA JEST JAWNE (20261012111100). Gdy
+//      baza wpuściła osobę „już w środku" (`reentryOverride`), stanowisko
+//      dostaje OSTRZEŻENIE z nazwiskiem i chwilą poprzedniego wejścia
+//      oraz plakietkę na karcie decyzji - nie zwykłe „wpuszczono".
 //
 // Dwa naprawione defekty są chronione zwykłymi testami regresyjnymi.
 //
@@ -72,12 +76,15 @@ const h = vi.hoisted(() => ({
   wydrukPending: false,
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  toastWarning: vi.fn(),
 }));
 
 vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
-vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
+vi.mock("sonner", () => ({
+  toast: { success: h.toastSuccess, error: h.toastError, warning: h.toastWarning },
+}));
 
 vi.mock("@/lib/events/adminOnsiteErrors", () => ({
   adminOnsiteErrorMessage: (error: unknown) =>
@@ -258,6 +265,9 @@ function decyzja(overrides: Partial<CheckinOutcome> = {}): CheckinOutcome {
     occurredAt: "2026-09-01T08:30:00.000Z",
     repeatCount: 1,
     previousCheckinAt: null,
+    reentry: false,
+    reentryPreviousAt: null,
+    reentryOverride: false,
     checkpoint: {},
     person: {},
     ...overrides,
@@ -310,6 +320,7 @@ beforeEach(() => {
   h.wydrukPending = false;
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
+  h.toastWarning.mockClear();
 });
 
 describe("wybór bramki bramkuje całą resztę", () => {
@@ -534,6 +545,35 @@ describe("zapis odprawy", () => {
       `${T}.desk.outcome.denied(reason=${T}.results.denied_capacity)`,
     );
     expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("OBEJŚCIE blokady ponownego wejścia to OSTRZEŻENIE z nazwiskiem, nie zwykłe „wpuszczono”", () => {
+    h.odprawaWynik = decyzja({
+      reentry: true,
+      reentryPreviousAt: "2026-09-01T07:45:00.000Z",
+      reentryOverride: true,
+    });
+    panel();
+    przyBramce();
+    fireEvent.click(within(wiersz()).getByRole("button", { name: `${T}.actions.checkIn` }));
+
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(h.toastWarning).toHaveBeenCalledTimes(1);
+    const komunikat = String(h.toastWarning.mock.calls[0]?.[0]);
+    expect(komunikat.startsWith(`${T}.desk.outcome.reentryOverride(`)).toBe(true);
+    expect(komunikat).toContain("name=Anna Kowalska");
+    expect(screen.getByText(`${T}.desk.outcome.reentryOverrideBadge`)).toBeTruthy();
+    expect(screen.getByText(/desk\.outcome\.reentrySince\(since=.+\)/)).toBeTruthy();
+  });
+
+  it("zwykłe wpuszczenie NIE ma plakietki obejścia ani chwili poprzedniego wejścia", () => {
+    panel();
+    przyBramce();
+    fireEvent.click(within(wiersz()).getByRole("button", { name: `${T}.actions.checkIn` }));
+
+    expect(h.toastWarning).not.toHaveBeenCalled();
+    expect(screen.queryByText(`${T}.desk.outcome.reentryOverrideBadge`)).toBeNull();
+    expect(screen.queryByText(/desk\.outcome\.reentrySince/)).toBeNull();
   });
 
   it("pierwsze wejście nie mówi o powtórzeniu", () => {

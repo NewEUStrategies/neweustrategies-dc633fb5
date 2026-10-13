@@ -16,6 +16,13 @@
 // przy ponowieniu tej samej próby (osoba + bramka + kierunek), dopóki baza nie
 // odpowie. Ponowne kliknięcie po zerwanej odpowiedzi daje w bazie `replay`
 // zamiast drugiego wejścia tej samej osoby (`clientScanUid.ts`).
+//
+// OBEJŚCIE BLOKADY PONOWNEGO WEJŚCIA JEST JAWNE (20261012111100). W punkcie
+// z polityką `deny` odprawa ręczna wpuszcza także osobę, która według
+// dziennika jest już w środku (np. wyszła bocznym wyjściem) - baza zapisuje
+// zgodę z operatorem i znacznikiem `reentry_override`. Ekran mówi o tym
+// wprost (inny komunikat, plakietka i chwila poprzedniego wejścia), żeby
+// obsługa wiedziała, że świadomie obeszła blokadę, a nie zwyczajnie wpuściła.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -36,6 +43,7 @@ import {
   useRecordBadgePrint,
 } from "@/lib/events/useEventOnsite";
 import { uiLang } from "@/lib/i18n/format";
+import { formatEventDateTime } from "@/lib/events/timezone";
 import { createCheckinAttemptKeys } from "@/lib/events/clientScanUid";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import type { CheckinDirection, CheckinOutcome, CheckinSearchRow } from "@/lib/events/onsiteApi";
@@ -86,7 +94,14 @@ export function OnsiteDeskPanel({ eventId }: { eventId: string }) {
         onSuccess: (outcome) => {
           attempts.settle(attempt, clientScanUid);
           setLastOutcome(outcome);
-          if (outcome.admit) {
+          if (outcome.admit && outcome.reentryOverride) {
+            toast.warning(
+              t("adminEventOnsite.desk.outcome.reentryOverride", {
+                name: personName(row),
+                since: formatEventDateTime(outcome.reentryPreviousAt, null, lang),
+              }),
+            );
+          } else if (outcome.admit) {
             toast.success(t("adminEventOnsite.desk.outcome.granted", { name: personName(row) }));
           } else {
             toast.error(
@@ -180,6 +195,18 @@ export function OnsiteDeskPanel({ eventId }: { eventId: string }) {
             {lastOutcome.repeatCount > 1 ? (
               <span className="text-muted-foreground">
                 {t("adminEventOnsite.desk.outcome.repeat", { count: lastOutcome.repeatCount })}
+              </span>
+            ) : null}
+            {lastOutcome.reentryOverride ? (
+              <Badge variant="secondary">
+                {t("adminEventOnsite.desk.outcome.reentryOverrideBadge")}
+              </Badge>
+            ) : null}
+            {lastOutcome.reentry && lastOutcome.reentryPreviousAt !== null ? (
+              <span className="text-muted-foreground">
+                {t("adminEventOnsite.desk.outcome.reentrySince", {
+                  since: formatEventDateTime(lastOutcome.reentryPreviousAt, null, lang),
+                })}
               </span>
             ) : null}
           </CardContent>

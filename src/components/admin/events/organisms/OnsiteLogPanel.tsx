@@ -19,6 +19,13 @@
 // z ważnym biletem (trzeba go odnaleźć). Konflikt i jego rodzaj liczy baza
 // (`admin_event_checkins_list.conflict_kind`, według trybu punktu), a filtr
 // „tylko konflikty" idzie do bazy jak pozostałe.
+//
+// PODWÓJNE WEJŚCIE I OBEJŚCIE (20261012111300). `double_entry` to dwa wejścia
+// tej osoby w punkcie z blokadą ponownego wejścia tego samego dnia, bez
+// wyjścia pomiędzy - baza liczy je przy odczycie, więc plakietka znika sama,
+// gdy dotrze wyjście z kolejki innego urządzenia. `reentry_override` to
+// jawne obejście blokady na stanowisku (z operatorem) - osobna, spokojna
+// plakietka, NIE konflikt.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
@@ -239,9 +246,24 @@ export function OnsiteLogPanel({ eventId }: { eventId: string }) {
                     >
                       {t("adminEventOnsite.log.conflictDeniedBadge")}
                     </Badge>
+                  ) : row.conflict_kind === "double_entry" ? (
+                    <Badge
+                      variant="destructive"
+                      title={t("adminEventOnsite.log.conflictDoubleEntryHint")}
+                    >
+                      {t("adminEventOnsite.log.conflictDoubleEntryBadge")}
+                    </Badge>
                   ) : row.conflict ? (
                     <Badge variant="destructive" title={t("adminEventOnsite.log.conflictHint")}>
                       {t("adminEventOnsite.log.conflictBadge")}
+                    </Badge>
+                  ) : null}
+                  {row.reentry_override ? (
+                    <Badge
+                      variant="secondary"
+                      title={t("adminEventOnsite.log.reentryOverrideHint")}
+                    >
+                      {t("adminEventOnsite.log.reentryOverrideBadge")}
                     </Badge>
                   ) : null}
                   {row.repeat_count > 1 ? (

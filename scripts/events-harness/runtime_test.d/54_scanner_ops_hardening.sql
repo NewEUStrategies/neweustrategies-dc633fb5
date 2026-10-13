@@ -17,7 +17,9 @@
 --   OPS-11  usuniecie sponsora i punktu kontrolnego, ktore maja uniewaznione
 --           urzadzenie, przechodzi; w schemacie nie zostal ANI JEDEN zlozony
 --           klucz obcy SET NULL bez listy kolumn;
---   OPS-12  skan z kolejki po terminie BEZ znacznika kolejki -> device_expired;
+--   OPS-12  skan z kolejki po terminie BEZ znacznika kolejki na urzadzeniu,
+--           ktore zadeklarowalo klienta ze znacznikiem -> device_expired
+--           (sciezka przejsciowa starych klientow: 56_scanner_review_fixes);
 --           nieznane kody z kolejki maja wlasny prog; termin poswiadczenia
 --           najpozniej 7 dni po koncu wydarzenia;
 --   OPS-01  zgoda u A -> brak zgody u B -> skan stoiska u B: person NULL;
@@ -75,6 +77,19 @@ VALUES
    'ops54-e', 'Kongres E', 'Congress E', now() + interval '1 day', NULL,
    'published', 'rsvp', 'instant')
 ON CONFLICT (id) DO NOTHING;
+
+-- 20261012111000 (R8): stan "w srodku" zeruje sie o polnocy CZASU WYDARZENIA.
+-- Skany tego pliku leza w ostatniej godzinie; strefa o stalym przesunieciu,
+-- w ktorej TERAZ jest okolo poludnia, trzyma je w jednym dniu lokalnym
+-- niezaleznie od godziny przebiegu (w Europe/Warsaw przebieg tuz po polnocy
+-- rozcinalby sekwencje wejsc Bolka i Darka na dwa dni).
+UPDATE public.events
+   SET timezone = (
+     SELECT CASE WHEN s.o >= 0 THEN 'Etc/GMT-' || s.o ELSE 'Etc/GMT+' || (-s.o) END
+     FROM (SELECT 12 - extract(hour FROM now() AT TIME ZONE 'UTC')::integer AS o) s)
+ WHERE id IN ('54e00000-0000-0000-0000-0000000000a1', '54e00000-0000-0000-0000-0000000000b1',
+              '54e00000-0000-0000-0000-0000000000c1', '54e00000-0000-0000-0000-0000000000d1',
+              '54e00000-0000-0000-0000-0000000000e1');
 
 INSERT INTO public.crm_companies (id, tenant_id, name) VALUES
   ('54f00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111', 'Firma 54 Alfa'),
@@ -636,9 +651,21 @@ BEGIN
     '54/OPS-08: allow - ponowne wejscie wpuszcza z flaga reentry = true i chwila poprzedniego');
 END $$;
 
--- Skan z kolejki wpuszczony offline jako DRUGIE wejscie: konflikt, nie "granted x2".
+-- Skan z kolejki a wejscie na zywo tego samego kodu: zadne "granted x2" nie
+-- znika bez sladu.
+--
+-- ZMIANA ZAMIERZONA (20261012111000, R9): dotad skan z kolejki SPRZED wejscia
+-- na zywo (-40 min wobec -35 min) byl zapisywany jako denied_already_inside
+-- na podstawie POZNIEJSZEGO wejscia - nieprawdziwie (to bylo pierwsze
+-- wejscie), a przy wyjsciu jeszcze w drodze z tej samej kolejki byl to
+-- falszywy konflikt zalezny od kolejnosci synchronizacji. Teraz ocena widzi
+-- tylko skany WCZESNIEJSZE: skan -40 min to prawdziwa zgoda (wpuszczono
+-- offline), a para dwoch wejsc bez wyjscia pomiedzy jest konfliktem
+-- double_entry w dzienniku panelu. Prawdziwie DRUGIE wejscie z kolejki
+-- (wczesniejsze wejscie bez wyjscia, zsynchronizowane pozniej z innego
+-- urzadzenia) nadal zapisuje sie jako denied_already_inside + admitted_offline.
 DO $$
-DECLARE v jsonb; v_row public.event_checkins; v_list record;
+DECLARE v jsonb; v_row public.event_checkins; v_list record; v_live uuid; v_second uuid;
 BEGIN
   PERFORM pg_temp.act_as(NULL, NULL);
   v := public.event_checkin_record(jsonb_build_object(
@@ -647,6 +674,7 @@ BEGIN
     'client_scan_uid', 'scan54-darek-live', 'device_scanned_at', now() - interval '35 minutes'));
   PERFORM pg_temp.assert(v->>'outcome' = 'granted',
     '54/OPS-08: wejscie na zywo przez urzadzenie 2');
+  v_live := (v->>'checkin_id')::uuid;
 
   v := public.event_checkin_record(jsonb_build_object(
     'device_token', 'tok54-brama-00000001', 'code', 'qr54-darek-0000000001',
@@ -655,19 +683,46 @@ BEGIN
     'queued', true, 'offline_admitted', true, 'offline_outcome', 'granted',
     'roster_generated_at', now() - interval '1 hour'));
   SELECT * INTO v_row FROM public.event_checkins WHERE id = (v->>'checkin_id')::uuid;
-  PERFORM pg_temp.assert(v->>'outcome' = 'denied_already_inside' AND (v->>'reentry')::boolean
-      AND v_row.result = 'denied_already_inside' AND v_row.offline_admitted
+  PERFORM pg_temp.assert(v->>'outcome' = 'granted' AND (v->>'admit')::boolean
+      AND NOT (v->>'reentry')::boolean AND v->'reentry_previous_at' = 'null'::jsonb
+      AND v_row.result = 'granted' AND v_row.offline_admitted
       AND v_row.offline_outcome = 'granted',
-    '54/OPS-08: kolejka - drugie wejscie tego kodu zapisane PRAWDZIWIE (odmowa serwera + wpuszczono offline)');
+    '54/OPS-08 (R9): kolejka - wejscie SPRZED wejscia na zywo zapisane PRAWDZIWIE jako zgoda (nie odbija sie od pozniejszego skanu, reentry_previous_at nie wskazuje przyszlosci)');
   PERFORM pg_temp.assert(
     (SELECT count(*) FROM public.event_checkins
-      WHERE person_id = '54700000-0000-0000-0000-000000000004' AND result = 'granted') = 1,
-    '54/OPS-08: kolejka - jeden kod NIE ma dwoch zgod na wejscie (brak "granted x2")');
+      WHERE person_id = '54700000-0000-0000-0000-000000000004'
+        AND checkpoint_id = '54c00000-0000-0000-0000-0000000000a3'
+        AND result = 'granted' AND direction = 'in') = 2,
+    '54/OPS-08 (R9): oba fizyczne wejscia tego kodu sa w dzienniku - nic nie znika po cichu');
+
+  PERFORM pg_temp.act_as('54a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM public.admin_event_checkins_list(
+      '54e00000-0000-0000-0000-0000000000a1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 50, 0, true) l
+      WHERE l.id IN (v_row.id, v_live) AND l.conflict AND l.conflict_kind = 'double_entry') = 2,
+    '54/OPS-08 (R9): dziennik panelu pokazuje konflikt double_entry na OBU wierszach pary - organizator wie o podwojnym wejsciu');
+
+  -- Prawdziwie drugie wejscie: wczesniejsze wejscie (-35 min) bez wyjscia,
+  -- skan z kolejki innego urzadzenia pozniej (-30 min), wpuszczony offline.
+  PERFORM pg_temp.act_as(NULL, NULL);
+  v := public.event_checkin_record(jsonb_build_object(
+    'device_token', 'tok54-brama-00000001', 'code', 'qr54-darek-0000000001',
+    'checkpoint_id', '54c00000-0000-0000-0000-0000000000a3',
+    'client_scan_uid', 'scan54-darek-offline-2', 'device_scanned_at', now() - interval '30 minutes',
+    'queued', true, 'offline_admitted', true, 'offline_outcome', 'granted',
+    'roster_generated_at', now() - interval '1 hour'));
+  SELECT * INTO v_row FROM public.event_checkins WHERE id = (v->>'checkin_id')::uuid;
+  v_second := v_row.id;
+  PERFORM pg_temp.assert(v->>'outcome' = 'denied_already_inside' AND (v->>'reentry')::boolean
+      AND (v->>'reentry_previous_at')::timestamptz = now() - interval '35 minutes'
+      AND v_row.result = 'denied_already_inside' AND v_row.offline_admitted
+      AND v_row.offline_outcome = 'granted',
+    '54/OPS-08: kolejka - prawdziwie DRUGIE wejscie tego kodu zapisane PRAWDZIWIE (odmowa serwera + wpuszczono offline)');
 
   PERFORM pg_temp.act_as('54a00000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111');
   SELECT * INTO v_list FROM public.admin_event_checkins_list(
     '54e00000-0000-0000-0000-0000000000a1', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 50, 0, true) l
-   WHERE l.id = v_row.id;
+   WHERE l.id = v_second;
   PERFORM pg_temp.assert(v_list.conflict AND v_list.conflict_kind = 'admitted_offline',
     '54/OPS-08: dziennik panelu pokazuje konflikt admitted_offline - organizator wie o podwojnym wejsciu');
 
@@ -774,7 +829,19 @@ SELECT pg_temp.assert(
   AND NOT has_function_privilege('anon', 'public._event_scanner_device_auth_sync(text, text, timestamptz, text)', 'EXECUTE'),
   '54/OPS-12: sekret kolejki bez grantu kolumnowego, funkcje pomocnicze tylko dla service_role');
 
--- GOTOWE, GDY: queued = true po terminie bez znacznika -> device_expired.
+-- ZMIANA ZAMIERZONA (20261012111100, R0/R11): scisla regula znacznika
+-- obowiazuje urzadzenie, ktore zadeklarowalo klienta przechowujacego
+-- znacznik (queue_marker_required_at - bootstrap z client_caps albo wazny
+-- znacznik). Urzadzenie, ktore NIGDY tego nie zrobilo (stara wersja skanera),
+-- przechodzi sciezka przejsciowa - sprawdza ja 56_scanner_review_fixes.
+-- Ponizsze asercje dotycza wiec urzadzenia, ktore deklaracje zlozylo przed
+-- terminem; ich tresc jest bez zmian.
+UPDATE public.event_scanner_devices
+   SET queue_marker_required_at = now() - interval '2 days'
+ WHERE id = '54d00000-0000-0000-0000-000000000003';
+
+-- GOTOWE, GDY: queued = true po terminie bez znacznika (urzadzenie
+-- z klientem ze znacznikiem) -> device_expired.
 SELECT pg_temp.assert_raises_like($q$
   SELECT public.event_checkin_record(jsonb_build_object(
     'device_token', 'tok54-wygasle-000001', 'code', 'qr54-hanna-0000000001',
@@ -782,7 +849,7 @@ SELECT pg_temp.assert_raises_like($q$
     'client_scan_uid', 'scan54-hanna-nomark',
     'device_scanned_at', now() - interval '2 hours', 'queued', true))
 $q$, 'device_expired',
-  '54/OPS-12 GOTOWE: skan z kolejki po terminie BEZ znacznika kolejki -> device_expired');
+  '54/OPS-12 GOTOWE: skan z kolejki po terminie BEZ znacznika kolejki (urzadzenie z klientem ze znacznikiem) -> device_expired');
 
 SELECT pg_temp.assert_raises_like($q$
   SELECT public.event_checkin_record(jsonb_build_object(
@@ -888,14 +955,18 @@ BEGIN
     'device_token', 'tok54-kolejka-000001', 'code', 'zgadywany-z-kolejki-100',
     'checkpoint_id', '54c00000-0000-0000-0000-0000000000a2',
     'device_scanned_at', now() - interval '10 minutes', 'queued', true));
-  PERFORM pg_temp.assert((v->>'device_locked')::boolean
-      AND (SELECT locked_until > now() FROM public.event_scanner_devices
+  -- ZMIANA ZAMIERZONA (20261012111100, R12): blokada z kolejki zatrzymuje
+  -- SAMA kolejke (queue_locked_until), nie skanowanie na zywo (locked_until).
+  PERFORM pg_temp.assert((v->>'queue_locked')::boolean AND NOT (v->>'device_locked')::boolean
+      AND (SELECT queue_locked_until > now() AND locked_until IS NULL
+             FROM public.event_scanner_devices
             WHERE id = '54d00000-0000-0000-0000-000000000004')
       AND EXISTS (SELECT 1 FROM public.domain_events
                    WHERE event_type = 'event_scanner_device.locked.v1'
                      AND aggregate_id = '54d00000-0000-0000-0000-000000000004'
-                     AND payload->>'source' = 'queue'),
-    '54/OPS-12: setny nieznany kod z kolejki blokuje urzadzenie (zdarzenie locked.v1 ze zrodlem queue)');
+                     AND payload->>'source' = 'queue'
+                     AND payload->>'scope' = 'queue_sync'),
+    '54/OPS-12 (R12): setny nieznany kod z kolejki blokuje SAMA kolejke (queue_locked_until, zdarzenie locked.v1 ze zrodlem queue); blokada na zywo nietknieta');
 
   PERFORM pg_temp.assert_raises_like($q$
     SELECT public.event_checkin_record(jsonb_build_object(
@@ -908,10 +979,11 @@ BEGIN
   PERFORM public.admin_event_scanner_device_set_active(jsonb_build_object(
     'device_id', '54d00000-0000-0000-0000-000000000004', 'is_active', true));
   PERFORM pg_temp.assert(
-    (SELECT locked_until IS NULL AND queue_fail_window_count = 0 AND queue_fail_window_started_at IS NULL
+    (SELECT locked_until IS NULL AND queue_locked_until IS NULL
+       AND queue_fail_window_count = 0 AND queue_fail_window_started_at IS NULL
        AND failed_scan_count = 100
       FROM public.event_scanner_devices WHERE id = '54d00000-0000-0000-0000-000000000004'),
-    '54/OPS-12: wznowienie zdejmuje blokade i czysci okno kolejki (licznik monotoniczny zostaje)');
+    '54/OPS-12: wznowienie zdejmuje blokade (takze kolejki) i czysci okno kolejki (licznik monotoniczny zostaje)');
 END $$;
 
 -- Termin poswiadczenia: najpozniej 7 dni po koncu wydarzenia.
@@ -962,6 +1034,9 @@ SELECT pg_temp.assert(
       AND pg_get_constraintdef(c.oid) !~ 'SET NULL \('
   ),
   '54/OPS-11: w schemacie nie ma ANI JEDNEGO zlozonego klucza obcego SET NULL bez listy kolumn');
+-- Rozszerzenie (20261012111000, R10): klucze obce SET NULL, ktorych zerowana
+-- kolumna stoi w CHECK-u (takze jednokolumnowe, np. aktor -> auth.users),
+-- pilnuje przejrzany rejestr w 56_scanner_review_fixes.
 
 DO $$
 DECLARE v_dev public.event_scanner_devices;
