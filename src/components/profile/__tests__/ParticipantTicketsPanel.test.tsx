@@ -20,7 +20,9 @@
 //    trzy różne zdania, a nie jedno słowo „anulowane".
 // 6. KANAŁY SĄ PER ZGŁOSZENIE i zapisują się do RPC z identyfikatorem TEGO
 //    wiersza - przełącznik piszący do cudzego zgłoszenia wyciszyłby komuś
-//    innemu potwierdzenie wejścia.
+//    innemu potwierdzenie wejścia. SMS włącza się WYŁĄCZNIE przez okno zgody
+//    (REG-10): przełącznik sam nie zapisuje niczego, „Anuluj" nie wysyła nic,
+//    a bez SMS-ów na platformie przełącznika nie da się włączyć.
 // 7. KARTA NIESIE OBA DOPISKI OBOK SIEBIE: stan faktury za bilet (f2,
 //    `EventInvoiceTicketStatus`, własny test) i podpowiedź portfela (f7b).
 //    Każdy dotyczy SWOJEGO zgłoszenia - faktura cudzego biletu na karcie
@@ -72,6 +74,8 @@ vi.mock("@/components/events/participant/slots/RegistrationCardFollowUpSlot", ()
 }));
 const setChannels = vi.fn();
 const checkout = vi.fn();
+// Dostępność SMS-ów na platformie (`getParticipantSmsAvailability`).
+const smsAvailability = vi.fn();
 // Podgląd kasy (`quoteEventTicketCheckout`) - molekuła kasy pyta go o kwotę.
 const quote = vi.fn();
 
@@ -87,7 +91,15 @@ vi.mock("@tanstack/react-router", async () => ({
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
   useServerFn: (fn: { name?: string }) =>
-    fn.name === "quoteEventTicketCheckout" ? quote : checkout,
+    fn.name === "quoteEventTicketCheckout"
+      ? quote
+      : fn.name === "getParticipantSmsAvailability"
+        ? smsAvailability
+        : checkout,
+}));
+
+vi.mock("@/lib/events/smsAvailability.functions", () => ({
+  getParticipantSmsAvailability: { name: "getParticipantSmsAvailability" },
 }));
 
 vi.mock("@/lib/billing/checkout.functions", () => ({
@@ -117,7 +129,9 @@ vi.mock("@/components/events/invoices/atoms/EventInvoiceTicketStatus", () => ({
   ),
 }));
 
-vi.mock("@/lib/events/participantTicketsApi", () => ({
+// Prawdziwy moduł (mapa odmów `channelErrorKey`), atrapa wyłącznie sieci.
+vi.mock("@/lib/events/participantTicketsApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/events/participantTicketsApi")>()),
   fetchMyRegistrations: () => fetchRegistrations(),
   setRegistrationChannels: (input: unknown) => setChannels(input),
 }));
@@ -176,6 +190,7 @@ beforeEach(() => {
     couponError: null,
   });
   fetchRegistrations.mockResolvedValue([registration()]);
+  smsAvailability.mockResolvedValue({ smsEnabled: true });
   setChannels.mockResolvedValue({
     registrationId: REGISTRATION_ID,
     notifyEmail: true,
@@ -381,13 +396,87 @@ describe("ParticipantTicketsPanel - kanały powiadomień", () => {
     renderWithQueryClient(<ParticipantTicketsPanel />);
 
     const switches = await screen.findAllByRole("switch");
+    fireEvent.click(switches[0] as HTMLElement);
+
+    await waitFor(() =>
+      expect(setChannels).toHaveBeenCalledWith({
+        registrationId: REGISTRATION_ID,
+        notifyEmail: false,
+      }),
+    );
+  });
+
+  it("REG-10: włączenie SMS-a otwiera okno zgody i dopiero zgoda zapisuje `smsConsent`", async () => {
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    const switches = await screen.findAllByRole("switch");
+    await waitFor(() => expect(switches[1]).not.toBeDisabled());
+    fireEvent.click(switches[1] as HTMLElement);
+
+    // Sam przełącznik niczego nie zapisuje - pyta o zgodę.
+    expect(await screen.findByText("participantTickets.channels.smsConsent.bodyNoHint")).toBeTruthy();
+    expect(setChannels).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("participantTickets.channels.smsConsent.confirm"));
+    await waitFor(() =>
+      expect(setChannels).toHaveBeenCalledWith({
+        registrationId: REGISTRATION_ID,
+        notifySms: true,
+        smsConsent: true,
+      }),
+    );
+  });
+
+  it("„Anuluj” w oknie zgody nie wysyła nic", async () => {
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    const switches = await screen.findAllByRole("switch");
+    await waitFor(() => expect(switches[1]).not.toBeDisabled());
+    fireEvent.click(switches[1] as HTMLElement);
+    fireEvent.click(await screen.findByText("participantTickets.channels.smsConsent.cancel"));
+
+    await waitFor(() =>
+      expect(screen.queryByText("participantTickets.channels.smsConsent.bodyNoHint")).toBeNull(),
+    );
+    expect(setChannels).not.toHaveBeenCalled();
+  });
+
+  it("wyłączenie SMS-a idzie od razu, bez okna zgody", async () => {
+    fetchRegistrations.mockResolvedValue([registration({ notifySms: true })]);
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    const switches = await screen.findAllByRole("switch");
     fireEvent.click(switches[1] as HTMLElement);
 
     await waitFor(() =>
       expect(setChannels).toHaveBeenCalledWith({
         registrationId: REGISTRATION_ID,
-        notifySms: true,
+        notifySms: false,
       }),
+    );
+    expect(screen.queryByText("participantTickets.channels.smsConsent.bodyNoHint")).toBeNull();
+  });
+
+  it("bez SMS-ów na platformie przełącznika nie da się włączyć - i karta mówi dlaczego", async () => {
+    smsAvailability.mockResolvedValue({ smsEnabled: false });
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    const switches = await screen.findAllByRole("switch");
+    expect(switches[1]).toBeDisabled();
+    expect(screen.getByText("participantTickets.channels.smsUnavailable")).toBeTruthy();
+  });
+
+  it("odmowa bazy ma własne zdanie: brak numeru -> phoneRequired", async () => {
+    setChannels.mockRejectedValue(new Error("phone_required: registration has no phone number"));
+    renderWithQueryClient(<ParticipantTicketsPanel />);
+
+    const switches = await screen.findAllByRole("switch");
+    await waitFor(() => expect(switches[1]).not.toBeDisabled());
+    fireEvent.click(switches[1] as HTMLElement);
+    fireEvent.click(await screen.findByText("participantTickets.channels.smsConsent.confirm"));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("participantTickets.channels.errors.phoneRequired"),
     );
   });
 
@@ -399,7 +488,7 @@ describe("ParticipantTicketsPanel - kanały powiadomień", () => {
     fireEvent.click(switches[0] as HTMLElement);
 
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith("participantTickets.channels.failed"),
+      expect(toast.error).toHaveBeenCalledWith("participantTickets.channels.errors.unknown"),
     );
     expect(toast.success).not.toHaveBeenCalled();
   });

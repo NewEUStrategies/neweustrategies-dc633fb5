@@ -3,7 +3,7 @@
 // wyniku płatności przeniesionym na zgłoszenie.
 import i18n from "@/lib/i18n";
 
-const pl = {
+export const participantTicketsPl = {
   participantTickets: {
     title: "Moje zgłoszenia",
     lead: "Status każdego zapisu na wydarzenie, historia zdarzeń płatności oraz powód anulowania lub zwrotu. Tu też decydujesz, czy o zmianach mamy pisać mailem, SMS-em, czy wcale.",
@@ -42,11 +42,52 @@ const pl = {
     },
     channels: {
       title: "Powiadomienia o tym zgłoszeniu",
-      hint: "Wiadomości krytyczne dla wejścia (potwierdzenie i kod QR) wysyłamy zawsze mailem, o ile masz e-mail włączony.",
+      hint: "Wiadomości krytyczne dla wejścia (potwierdzenie i kod QR) wysyłamy zawsze mailem, o ile masz e-mail włączony. Wyłączenie e-maila wycisza też przypomnienia mailowe.",
       email: "E-mail",
       sms: "SMS",
       saved: "Preferencje zapisane.",
       failed: "Nie udało się zapisać preferencji.",
+      smsUnavailable: "SMS-y nie są obecnie wysyłane na tej platformie.",
+      smsConsent: {
+        title: "Zgoda na SMS-y",
+        body: "Zgadzam się na SMS-y o tym zgłoszeniu (płatność, zmiany statusu, przypomnienia) na numer kończący się na {{hint}}. Zgodę wycofasz, wyłączając SMS.",
+        bodyNoHint:
+          "Zgadzam się na SMS-y o tym zgłoszeniu (płatność, zmiany statusu, przypomnienia) na numer podany w zgłoszeniu. Zgodę wycofasz, wyłączając SMS.",
+        confirm: "Zgadzam się",
+        cancel: "Anuluj",
+      },
+      // Odmowy `event_registration_set_channels` (REG-10). Bez interpolacji -
+      // bramka `eventErrorMapsI18n.gate.test.ts`.
+      errors: {
+        smsConsentRequired: "Włączenie SMS-ów wymaga Twojej zgody.",
+        phoneRequired: "Zgłoszenie nie ma numeru telefonu - SMS-ów nie ma dokąd wysłać.",
+        manageExpired: "Link do zgłoszenia wygasł wraz z końcem wydarzenia.",
+        alreadyClosed: "Zgłoszenie jest już zamknięte - powiadomień nie można zmienić.",
+        notFound: "Nie znaleźliśmy tego zgłoszenia.",
+        authRequired: "Zaloguj się albo otwórz link z maila, aby zmienić powiadomienia.",
+        invalidPayload: "Nie udało się zapisać tej zmiany. Odśwież stronę i spróbuj ponownie.",
+        invalidTenant: "Nie rozpoznaliśmy tej strony. Odśwież ją i spróbuj ponownie.",
+        unknown: "Nie udało się zapisać preferencji.",
+      },
+    },
+    reminders: {
+      title: "Przypomnienia o wydarzeniu",
+      lead: "Wybierz, jak mamy przypominać o tym wydarzeniu i o sesjach z Twojego planu.",
+      show: "Pokaż przypomnienia",
+      hide: "Ukryj przypomnienia",
+      loadError: "Nie udało się wczytać przypomnień.",
+      unavailable: "Ustawienia przypomnień są chwilowo niedostępne.",
+      expired: "Wydarzenie się zakończyło - przypomnienia nie są już wysyłane.",
+      organizerOff: "Organizator wyłączył przypomnienia dla tego wydarzenia.",
+      closed: "Zgłoszenie jest zamknięte - przypomnienia nie są wysyłane.",
+      email: "Przypomnienia e-mailem",
+      emailOff: "E-mail jest wyłączony dla tego zgłoszenia - włącz go w powiadomieniach, aby dostawać przypomnienia.",
+      push: "Powiadomienia w aplikacji",
+      sms: "Przypomnienia SMS-em",
+      smsHint: "Włączenie wymaga zgody na SMS-y o tym zgłoszeniu.",
+      smsNoPhone: "Zgłoszenie nie ma numeru telefonu.",
+      sessions: "Przypomnienia o sesjach z mojego planu",
+      saved: "Przypomnienia zapisane.",
     },
     webhooks: {
       title: "Historia zdarzeń płatności",
@@ -89,7 +130,7 @@ const pl = {
   },
 };
 
-const en = {
+export const participantTicketsEn = {
   participantTickets: {
     title: "My registrations",
     lead: "Status of every event registration, the payment event history, and the exact reason for a cancellation or refund. You also decide here whether we write by email, SMS, or not at all.",
@@ -126,11 +167,50 @@ const en = {
     },
     channels: {
       title: "Notifications for this registration",
-      hint: "Entry-critical messages (confirmation and QR code) are always sent by email while email stays enabled.",
+      hint: "Entry-critical messages (confirmation and QR code) are always sent by email while email stays enabled. Turning email off also silences email reminders.",
       email: "Email",
       sms: "SMS",
       saved: "Preferences saved.",
       failed: "Could not save preferences.",
+      smsUnavailable: "Text messages are not sent on this platform at the moment.",
+      smsConsent: {
+        title: "Consent to text messages",
+        body: "I agree to receive text messages about this registration (payment, status changes, reminders) at the number ending in {{hint}}. You can withdraw consent by turning SMS off.",
+        bodyNoHint:
+          "I agree to receive text messages about this registration (payment, status changes, reminders) at the number given in the registration. You can withdraw consent by turning SMS off.",
+        confirm: "I agree",
+        cancel: "Cancel",
+      },
+      errors: {
+        smsConsentRequired: "Turning text messages on requires your consent.",
+        phoneRequired: "This registration has no phone number - there is nowhere to send texts.",
+        manageExpired: "The registration link expired when the event ended.",
+        alreadyClosed: "This registration is closed - notifications can no longer be changed.",
+        notFound: "We could not find this registration.",
+        authRequired: "Sign in or open the link from your email to change notifications.",
+        invalidPayload: "We could not save this change. Refresh the page and try again.",
+        invalidTenant: "We did not recognise this site. Refresh the page and try again.",
+        unknown: "Could not save preferences.",
+      },
+    },
+    reminders: {
+      title: "Event reminders",
+      lead: "Choose how we remind you about this event and about the sessions in your plan.",
+      show: "Show reminders",
+      hide: "Hide reminders",
+      loadError: "Could not load reminders.",
+      unavailable: "Reminder settings are temporarily unavailable.",
+      expired: "The event has ended - reminders are no longer sent.",
+      organizerOff: "The organiser turned reminders off for this event.",
+      closed: "This registration is closed - reminders are not sent.",
+      email: "Email reminders",
+      emailOff: "Email is off for this registration - turn it on in notifications to receive reminders.",
+      push: "In-app notifications",
+      sms: "Text message reminders",
+      smsHint: "Turning this on requires consent to text messages about this registration.",
+      smsNoPhone: "This registration has no phone number.",
+      sessions: "Reminders about sessions in my plan",
+      saved: "Reminders saved.",
     },
     webhooks: {
       title: "Payment event history",
@@ -178,8 +258,8 @@ let registered = false;
 export function ensureI18n(): void {
   if (registered) return;
   registered = true;
-  i18n.addResourceBundle("pl", "translation", pl, true, true);
-  i18n.addResourceBundle("en", "translation", en, true, true);
+  i18n.addResourceBundle("pl", "translation", participantTicketsPl, true, true);
+  i18n.addResourceBundle("en", "translation", participantTicketsEn, true, true);
 }
 
 ensureI18n();
