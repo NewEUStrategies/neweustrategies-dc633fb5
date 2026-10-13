@@ -156,7 +156,8 @@ BEGIN
       o.id AS order_id,
       o.status AS order_status,
       COALESCE(o.amount_cents,
-        CASE WHEN r.payment_status = 'unpaid' AND r.cancelled_at IS NULL
+        -- Bez biletu nie ma ceny (NULL jak dotad), nie "0 zl do zaplaty".
+        CASE WHEN r.payment_status = 'unpaid' AND r.cancelled_at IS NULL AND tt.id IS NOT NULL
           THEN (public._event_registration_unit_price(r, tt)->>'amount_cents')::integer
         END
       ) AS amount_cents,

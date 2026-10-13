@@ -12,7 +12,7 @@
 -- Polityki RLS innych tabel, ktore czytaja `event_registrations`
 -- (spotkania), nadal dzialaja - uczestnik widzi swoje spotkanie.
 BEGIN;
-SELECT plan(36);
+SELECT plan(37);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -84,6 +84,22 @@ INSERT INTO public.event_registrations
    'b4630000-0000-0000-0000-0000000000c1', 'approved', 'form', 'not_required', NULL, NULL,
    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
+-- REG-16 (D8) w „Moich zgloszeniach": nieoplacone zgloszenie z oferta z chwili
+-- zapisu (5000 PLN, wazna) na bilet, ktory dzis kosztuje 10000 PLN.
+INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, starts_at, status, registration_mode)
+VALUES ('b4610000-0000-0000-0000-000000000009', 'b46a0000-0000-0000-0000-0000000000aa', 'b4pr-9',
+        'B4 cena', 'B4 price', now() + interval '30 days', 'published', 'form');
+INSERT INTO public.event_ticket_types (id, tenant_id, event_id, key, name_pl, name_en, price_cents, currency)
+VALUES ('b4620000-0000-0000-0000-000000000009', 'b46a0000-0000-0000-0000-0000000000aa',
+        'b4610000-0000-0000-0000-000000000009', 'b4pr_9', 'Wstep', 'Admission', 10000, 'PLN');
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, ticket_type_id, status, registration_mode, payment_status,
+   quoted_price_cents, quoted_currency, quote_valid_until)
+VALUES ('b4640000-0000-0000-0000-000000000009', 'b46a0000-0000-0000-0000-0000000000aa',
+        'b4610000-0000-0000-0000-000000000009', 'b4630000-0000-0000-0000-0000000000c1',
+        'b4620000-0000-0000-0000-000000000009', 'pending', 'form', 'unpaid',
+        5000, 'PLN', now() + interval '2 days');
+
 -- Spotkanie uczestnika (r1) z partnerem. Walidacja reguł spotkan (okna,
 -- ustawienia wydarzenia) nie jest tu przedmiotem testu.
 ALTER TABLE public.event_meetings DISABLE TRIGGER event_meetings_validate;
@@ -139,7 +155,7 @@ SELECT throws_ok(
   '42501', NULL, 'GET /rest/v1/event_people?select=notes -> odmowa uprawnien');
 SELECT is(
   (SELECT count(*)::int FROM (SELECT id, status, payment_status FROM public.event_registrations) x),
-  8, 'uczestnik nadal czyta WLASNE zgloszenia w kolumnach jawnych (polityka self_read)');
+  9, 'uczestnik nadal czyta WLASNE zgloszenia w kolumnach jawnych (polityka self_read)');
 SELECT is(
   (SELECT count(*)::int FROM public.event_meetings WHERE id = 'b4650000-0000-0000-0000-000000000001'),
   1, 'polityka spotkan (podzapytanie do event_registrations) dziala: uczestnik widzi swoje spotkanie');
@@ -152,7 +168,7 @@ CREATE TEMP TABLE b4pr_my ON COMMIT DROP AS
 SELECT public.event_my_registrations('{"limit":50}'::jsonb) AS v;
 RESET ROLE;
 SELECT is(
-  (SELECT jsonb_array_length(v->'registrations') FROM b4pr_my), 8,
+  (SELECT jsonb_array_length(v->'registrations') FROM b4pr_my), 9,
   'event_my_registrations zwraca wszystkie zgloszenia uczestnika (kazdy status)');
 SELECT ok(
   NOT EXISTS (SELECT 1 FROM b4pr_my, jsonb_array_elements(v->'registrations') e
@@ -179,6 +195,10 @@ SELECT ok(
 SELECT ok(
   (SELECT strpos(v::text, 'OSOBA-WEWN') = 0 FROM b4pr_my),
   'notatka o osobie nie wychodzi w „Moich zgloszeniach"');
+SELECT is(
+  (SELECT (e->>'amount_cents')::int FROM b4pr_my, jsonb_array_elements(v->'registrations') e
+    WHERE e->>'registration_id' = 'b4640000-0000-0000-0000-000000000009'),
+  5000, 'REG-16: kwota nieoplaconego to cena z chwili zapisu (_event_registration_unit_price), nie goly cennik');
 
 -- ── 19-23. Dane do maila ──────────────────────────────────────────────────────────
 SELECT set_config('request.jwt.claims',
