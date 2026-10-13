@@ -20,9 +20,10 @@ import {
   type LaneFiles,
 } from "../src/lib/ci/definerViewGrants";
 
-function load(lane: LaneFiles["lane"], dir: string): LaneFiles {
+function loadSupabase(): LaneFiles {
+  const dir = "supabase/migrations";
   return {
-    lane,
+    lane: "supabase",
     files: readdirSync(dir)
       .filter((f) => f.endsWith(".sql"))
       .sort()
@@ -30,8 +31,23 @@ function load(lane: LaneFiles["lane"], dir: string): LaneFiles {
   };
 }
 
+/** Pas drizzle w kolejności `_journal.json` - sieroty spoza dziennika migrator pomija, więc i my. */
+function loadDrizzle(): LaneFiles {
+  const dir = "drizzle/migrations";
+  const journal = JSON.parse(readFileSync(join(dir, "meta/_journal.json"), "utf8")) as {
+    entries: { tag: string }[];
+  };
+  return {
+    lane: "drizzle",
+    files: journal.entries.map(({ tag }) => ({
+      name: `${tag}.sql`,
+      sql: readFileSync(join(dir, `${tag}.sql`), "utf8"),
+    })),
+  };
+}
+
 function main(): void {
-  const lanes = [load("supabase", "supabase/migrations"), load("drizzle", "drizzle/migrations")];
+  const lanes = [loadSupabase(), loadDrizzle()];
   const report = analyzeDefinerViews(lanes, KNOWN_DEFINER_VIEW_OFFENDERS);
   if (process.argv.includes("--print-baseline")) {
     for (const k of suggestKnownOffenders(report, lanes)) {

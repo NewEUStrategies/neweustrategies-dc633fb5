@@ -1,5 +1,5 @@
-// Bramka: widok DEFINER w schemacie public jest dla ról klienckich TYLKO DO
-// ODCZYTU - w OBU pasach migracji (supabase/ i drizzle/).
+// Bramka: widok w schemacie public, przez który zapis omija RLS, jest dla ról
+// klienckich TYLKO DO ODCZYTU - w OBU pasach migracji (supabase/ i drizzle/).
 //
 // PRZYCZYNA ŹRÓDŁOWA (zmierzone na produkcji 2026-10-12). `pg_default_acl` roli
 // postgres w public daje anon, authenticated i service_role `arwdDxtm` na KAŻDĄ
@@ -13,48 +13,61 @@
 // DLACZEGO STATYCZNIE I PO OBU PASACH. Test pgTAP
 // (supabase/tests/public_definer_views_read_only_test.sql) widzi wyłącznie
 // bazę zbudowaną z supabase/migrations. Migracja panelu Lovable bywa TYLKO
-// w drizzle/ (0148, 0150) i Lovable wgrywa ją na produkcję, zanim CI cokolwiek
-// uruchomi - widok DEFINER zapisywalny dla anon byłby dla pgTAP niewidzialny.
-// Ta bramka czyta pliki obu pasów i zapala się na następnym PR-ze albo pushu do
-// main, który taki plik niesie.
+// w drizzle/ (0148, 0150, 0170) i Lovable wgrywa ją na produkcję, zanim CI
+// cokolwiek uruchomi. Ta bramka czyta oba pasy - drizzle w kolejności
+// `_journal.json`, bo tylko te pliki migrator wykonuje.
 //
-// REGUŁA (na plik, zachowawczo):
-//   * Każde zdarzenie, które czyni widok public DEFINEREM - `CREATE [OR REPLACE]
-//     VIEW` bez `security_invoker = on`, `ALTER VIEW ... SET (security_invoker =
-//     off)` albo `RESET (security_invoker)` - musi w TYM SAMYM pliku dostać
-//     `REVOKE ALL ON <widok> FROM anon, authenticated` (albo przełączenie na
-//     `security_invoker = on`). `CREATE OR REPLACE` także: zachowuje ACL, ale
-//     PODMIENIA opcje - bez `WITH (security_invoker = on)` robi z widoku
-//     INVOKER-a DEFINERA (tak zdryfował content_access_public w 20260721120000),
-//     a jeśli widoku nie było, dostaje świeże domyślne `arwdDxtm`.
-//   * Wymagany jest REVOKE ALL (albo jawna lista wszystkich praw poza SELECT),
-//     nie samo INSERT/UPDATE/DELETE - test pgTAP dopuszcza dla klientów
-//     wyłącznie SELECT, więc bramka statyczna nie może przepuścić mniej.
-//   * Żaden GRANT praw innych niż SELECT dla anon/authenticated/PUBLIC na widok,
-//     który w tym miejscu historii jest DEFINEREM - także w innym pliku niż jego
-//     CREATE i także z pasa drizzle na widok z pasa supabase.
+// REGUŁA - PER PLIK, BEZ ZAUFANIA DO HISTORII. Każda instrukcja, po której
+// widok public może przepuszczać zapis obok RLS, musi w TYM SAMYM pliku
+// dostać `REVOKE ALL ON <widok> FROM anon, authenticated` (może być w kilku
+// instrukcjach, byle zdjęły wszystkie prawa poza SELECT) albo przełączenie na
+// `security_invoker = on`. Takie instrukcje to:
+//   * `CREATE [OR REPLACE] VIEW` bez `security_invoker = on`,
+//   * `ALTER VIEW|TABLE ... SET (security_invoker = off)` i `RESET (...)`,
+//   * `CREATE TRIGGER ... INSTEAD OF ... ON <widok>` - funkcja wyzwalacza
+//     (np. SECURITY DEFINER, jak przy suppressed_emails) pisze do bazy jako
+//     ktoś inny niż klient, więc nawet widok INVOKER musi być wtedy zamknięty.
+// Bramka NIE zakłada, że `CREATE OR REPLACE` zachowa wcześniej zdjęte prawa.
+// W Postgresie zachowuje - ale tylko gdy pod tą nazwą wciąż stoi TEN SAM widok.
+// `DROP ... CASCADE` tabeli bazowej, `RENAME`, `SET SCHEMA` i przeplot pasów
+// (drizzle trafia na produkcję w innej kolejności niż supabase do CI) potrafią
+// podmienić widok niezauważenie, a nowy dostaje świeże `arwdDxtm`. Wymóg
+// REVOKE w każdym pliku jest tani (dwie idempotentne linie) i nie zależy od
+// kolejności czegokolwiek.
 //
-// CZEGO NIE WIDZI, powiedziane wprost: SQL-a dynamicznego (`DO $$ ... EXECUTE
-// ... $$`, ciała funkcji) - lekser maskuje ciała cytowane dolarami. W żadnym
-// pasie nie ma dziś widoku tworzonego dynamicznie (sprawdzone 2026-10-12).
+// Do tego żaden GRANT praw innych niż SELECT dla anon/authenticated/PUBLIC na
+// widok, który w tym miejscu historii jest DEFINEREM albo ma INSTEAD OF
+// trigger - także w innym pliku niż jego CREATE i z pasa drizzle na widok
+// z pasa supabase. Widok spoza public też jest śledzony, bo `SET SCHEMA public`
+// przenosi go razem z prawami i triggerami.
+//
+// FAIL CLOSED. Instrukcja `CREATE ... VIEW` albo `ALTER VIEW|TABLE` dotykająca
+// `security_invoker`, której parser nie rozpozna, czerwieni bramkę jako
+// nierozpoznana - cicha luka parsera byłaby luką bramki. Tak samo plik, którego
+// nie da się poprawnie podzielić na instrukcje.
+//
+// CZEGO NIE WIDZI, powiedziane wprost: SQL-a dynamicznego (`DO $$ ... $$`,
+// `EXECUTE`, ciała funkcji). REVOKE w bloku DO też się nie liczy - musi być
+// instrukcją najwyższego poziomu. W żadnym pasie nie ma dziś widoku tworzonego
+// dynamicznie (sprawdzone 2026-10-13).
 //
 // Historyczne naruszenia, domknięte późniejszą migracją, stoją w rejestrze
-// znanych przypadków (`KnownDefinerViewOffender`) z WSKAZANIEM pliku, który je
-// domyka. Bramka sprawdza ten wskaźnik: plik musi istnieć w tym samym pasie,
-// być późniejszy i rzeczywiście zdejmować prawa klientów albo przełączać widok
-// na INVOKER. Wpis, który przestał być naruszeniem, czerwieni bramkę - rejestr
-// może tylko maleć.
+// `KNOWN_DEFINER_VIEW_OFFENDERS` z WSKAZANIEM pliku, który je domyka. Bramka
+// sprawdza ten wskaźnik: plik musi istnieć w tym samym pasie, być późniejszy
+// i rzeczywiście zamykać ten widok (a sam nie być dla niego naruszeniem).
+// Martwy albo zdublowany wpis czerwieni bramkę, a test jednostkowy pilnuje, że
+// rejestr nie rośnie - nowe naruszenie naprawia się migracją, nie wpisem.
 import { lexStatements, objectName } from "./migrationSplit";
 
 export type MigrationLane = "supabase" | "drizzle";
 
 export interface LaneFiles {
   readonly lane: MigrationLane;
-  /** Pliki w kolejności zastosowania (sortowane po nazwie). */
+  /** Pliki w kolejności zastosowania (supabase: po nazwie, drizzle: jak w `_journal.json`). */
   readonly files: readonly { readonly name: string; readonly sql: string }[];
 }
 
-/** Role, którym widok DEFINER wolno dać wyłącznie SELECT. */
+/** Role, którym taki widok wolno dać wyłącznie SELECT. */
 const CLIENT_ROLES = ["anon", "authenticated", "public"] as const;
 type ClientRole = (typeof CLIENT_ROLES)[number];
 
@@ -74,7 +87,7 @@ export interface DefinerViewOffender {
   readonly file: string;
   /** `schema.nazwa` jak w `objectName`. */
   readonly view: string;
-  /** Linia instrukcji, po której widok został z prawami zapisu dla klientów. */
+  /** Linia instrukcji, która otworzyła zapis dla pierwszej wciąż otwartej roli. */
   readonly line: number;
   readonly reason: string;
 }
@@ -83,7 +96,7 @@ export interface KnownDefinerViewOffender {
   readonly lane: MigrationLane;
   readonly file: string;
   readonly view: string;
-  /** Późniejszy plik tego samego pasa, który zdejmuje klientom prawa zapisu albo przełącza widok na INVOKER. */
+  /** Późniejszy plik tego samego pasa, który zamyka ten widok (REVOKE ALL albo INVOKER). */
   readonly closedBy: string;
 }
 
@@ -95,22 +108,21 @@ export interface DefinerViewReport {
   readonly fresh: readonly DefinerViewOffender[];
   /** Wady rejestru (martwy wpis, zły wskaźnik domknięcia) - też czerwienią bramkę. */
   readonly registryDefects: readonly string[];
-  /**
-   * Pliki, które zdejmują klientom prawa zapisu do widoku albo przełączają go na
-   * INVOKER (`pas:plik` -> widoki). Do walidacji `closedBy` i do `--print-baseline`.
-   */
+  /** Instrukcje i pliki, których bramka nie umie odczytać (fail closed) - też czerwienią. */
+  readonly parseDefects: readonly string[];
+  /** `pas:plik` -> widoki, które ten plik zamyka. Do walidacji `closedBy` i `--print-baseline`. */
   readonly closingFiles: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
 /**
- * ZAMKNIĘTE NARUSZENIA HISTORYCZNE. Każdy wpis to plik, po którym widok DEFINER
- * zostawał zapisywalny dla klientów, oraz PÓŹNIEJSZY plik tego samego pasa,
- * który to domyka (REVOKE ALL ... FROM anon, authenticated albo
- * security_invoker = on) - bramka sprawdza oba fakty. Ostatnie domknięcia to
+ * ZAMKNIĘTE NARUSZENIA HISTORYCZNE. Każdy wpis to plik, po którym widok
+ * zostawał zapisywalny dla klientów obok RLS, oraz PÓŹNIEJSZY plik tego samego
+ * pasa, który go domyka - bramka sprawdza oba fakty. Ostatnie domknięcia to
  * 20261012200000 (author_profiles_public) i 20261012210000 (pozostałe widoki
  * oraz content_access_public), zmierzone wcześniej na produkcji jako otwarte.
- *
- * Lista może TYLKO MALEĆ: nowe naruszenie naprawia się migracją, nie wpisem.
+ * Lista może TYLKO MALEĆ (pilnuje tego test): nowe naruszenie naprawia się
+ * migracją, nie wpisem. `bun run check:sql-definer-views --print-baseline`
+ * wypisuje wpisy z najwcześniejszym plikiem domykającym.
  */
 export const KNOWN_DEFINER_VIEW_OFFENDERS: readonly KnownDefinerViewOffender[] = [
   {
@@ -265,23 +277,124 @@ export const KNOWN_DEFINER_VIEW_OFFENDERS: readonly KnownDefinerViewOffender[] =
   },
 ];
 
-const QNAME = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*)(?:\s*\.\s*(?:"(?:[^"]|"")+"|[A-Za-z_][A-Za-z0-9_$]*))?`;
+// ---------------------------------------------------------------------------
+// Tokeny. Instrukcje rozpoznajemy na znormalizowanym ciągu tokenów
+// rozdzielonych pojedynczą spacją: `AS(`, `)AS`, `VIEW"x"` i `WITH(...)AS` są
+// w Postgresie poprawne bez białych znaków, a wzorce na surowym tekście by je
+// przeoczyły.
+// ---------------------------------------------------------------------------
 
-const RE_CREATE_VIEW = new RegExp(
-  String.raw`^CREATE\s+(?:OR\s+REPLACE\s+)?((?:(?:TEMP|TEMPORARY|RECURSIVE|MATERIALIZED)\s+)*)VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?(${QNAME})([\s\S]*?)\s+AS\s`,
-  "i",
+const WORD = /[A-Za-z0-9_$\u0080-￿]/;
+
+/**
+ * Tokenizuje kod SQL bez komentarzy. `keepLiterals = false` dla szkieletu
+ * z `lexStatements` (literały są tam już `''`, ciała dolarowe `$$`).
+ * Z `keepLiterals = true` czytamy surowy tekst instrukcji: komentarze są
+ * pomijane, literały zostają całe - tylko po to, żeby odczytać wartość opcji.
+ */
+function tokenize(src: string, keepLiterals: boolean): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i]!;
+    if (/\s/.test(ch)) {
+      i += 1;
+      continue;
+    }
+    if (ch === "-" && src[i + 1] === "-") {
+      while (i < src.length && src[i] !== "\n" && src[i] !== "\r") i += 1;
+      continue;
+    }
+    if (ch === "/" && src[i + 1] === "*") {
+      let depth = 1;
+      i += 2;
+      while (i < src.length && depth > 0) {
+        if (src[i] === "/" && src[i + 1] === "*") {
+          depth += 1;
+          i += 2;
+        } else if (src[i] === "*" && src[i + 1] === "/") {
+          depth -= 1;
+          i += 2;
+        } else i += 1;
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      let j = i + 1;
+      while (j < src.length) {
+        if (src[j] === ch) {
+          if (src[j + 1] === ch) {
+            j += 2;
+            continue;
+          }
+          break;
+        }
+        j += 1;
+      }
+      const token = src.slice(i, j + 1);
+      out.push(ch === "'" && !keepLiterals ? "''" : token);
+      i = j + 1;
+      continue;
+    }
+    if (ch === "$") {
+      const tag = /^\$(?:[A-Za-z_\u0080-￿][A-Za-z0-9_\u0080-￿]*)?\$/.exec(src.slice(i));
+      if (tag) {
+        // Szkielet ma już ciało zamaskowane do `$$`; surowy tekst - szukamy tagu zamykającego.
+        const end = keepLiterals ? src.indexOf(tag[0], i + tag[0].length) : -1;
+        out.push("$$");
+        i = keepLiterals && end !== -1 ? end + tag[0].length : i + tag[0].length;
+        continue;
+      }
+    }
+    if (WORD.test(ch)) {
+      let j = i + 1;
+      while (j < src.length && WORD.test(src[j]!)) j += 1;
+      out.push(src.slice(i, j));
+      i = j;
+      continue;
+    }
+    out.push(ch);
+    i += 1;
+  }
+  return out;
+}
+
+const IDENT = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_\u0080-￿][A-Za-z0-9_$\u0080-￿]*)`;
+const QNAME = String.raw`${IDENT}(?: \. ${IDENT})*`;
+const rx = (src: string): RegExp => new RegExp(src, "i");
+
+const RE_ANY_VIEW = rx(
+  String.raw`^CREATE (?:OR REPLACE )?(?:(?:TEMP|TEMPORARY|RECURSIVE|MATERIALIZED) )*VIEW\b`,
 );
-const RE_ALTER_VIEW_OPTS = new RegExp(
-  String.raw`^ALTER\s+(VIEW|TABLE)\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?(${QNAME})\s+(SET|RESET)\s*\(([^)]*)\)`,
-  "i",
+const RE_CREATE_VIEW = rx(
+  String.raw`^CREATE (OR REPLACE )?((?:(?:TEMP|TEMPORARY|RECURSIVE|MATERIALIZED) )*)VIEW (?:IF NOT EXISTS )?(${QNAME})(?: \( [^()]*\))?(?: WITH \( ([^()]*)\))? AS\b`,
 );
-const RE_DROP_VIEW =
-  /^DROP\s+VIEW\s+(?:IF\s+EXISTS\s+)?([\s\S]+?)(?:\s+(?:CASCADE|RESTRICT))?\s*;?$/i;
-const RE_GRANT =
-  /^GRANT\s+([\s\S]+?)\s+ON\s+([\s\S]+?)\s+TO\s+([\s\S]+?)(?:\s+WITH\s+GRANT\s+OPTION)?(?:\s+GRANTED\s+BY\s+[\s\S]+?)?\s*;?$/i;
-const RE_REVOKE =
-  /^REVOKE\s+(GRANT\s+OPTION\s+FOR\s+)?([\s\S]+?)\s+ON\s+([\s\S]+?)\s+FROM\s+([\s\S]+?)(?:\s+GRANTED\s+BY\s+[\s\S]+?)?(?:\s+(?:CASCADE|RESTRICT))?\s*;?$/i;
-const RE_ALL_IN_SCHEMA = /^ALL\s+TABLES\s+IN\s+SCHEMA\s+([\s\S]+)$/i;
+const RE_SCHEMA_ELEMENT_VIEW = rx(
+  String.raw`^CREATE SCHEMA\b.* CREATE (?:OR REPLACE )?(?:(?:TEMP|TEMPORARY|RECURSIVE) )*VIEW\b`,
+);
+const RE_ALTER_REL = rx(String.raw`^ALTER (VIEW|TABLE) (?:IF EXISTS )?(?:ONLY )?(${QNAME}) (.*)$`);
+const RE_RENAME = rx(String.raw`^RENAME TO (${IDENT})(?: ;)?$`);
+const RE_SET_SCHEMA = rx(String.raw`^SET SCHEMA (${IDENT})(?: ;)?$`);
+const RE_OPTION_GROUP = /\b(SET|RESET) \( ([^()]*)\)/gi;
+const RE_DROP_VIEW = rx(
+  String.raw`^DROP VIEW (?:IF EXISTS )?(.+?)(?: (?:CASCADE|RESTRICT))?(?: ;)?$`,
+);
+const RE_CREATE_TABLE = rx(
+  String.raw`^CREATE (?:(?:GLOBAL|LOCAL) )?(?:(?:TEMP|TEMPORARY|UNLOGGED) )?TABLE (?:IF NOT EXISTS )?(${QNAME})\b`,
+);
+const RE_INSTEAD_TRIGGER = rx(
+  String.raw`^CREATE (?:OR REPLACE )?(?:CONSTRAINT )?TRIGGER ${IDENT} INSTEAD OF .+? ON (${QNAME}) `,
+);
+const RE_GRANT = rx(
+  String.raw`^GRANT (.+?) ON (.+?) TO (.+?)(?: WITH GRANT OPTION)?(?: GRANTED BY .+?)?(?: ;)?$`,
+);
+const RE_REVOKE = rx(
+  String.raw`^REVOKE (GRANT OPTION FOR )?(.+?) ON (.+?) FROM (.+?)(?: GRANTED BY .+?)?(?: (?:CASCADE|RESTRICT))?(?: ;)?$`,
+);
+const RE_ALL_IN_SCHEMA = rx(String.raw`^ALL TABLES IN SCHEMA (.+)$`);
+const RE_NON_RELATION_TARGET = rx(
+  String.raw`^(?:FUNCTION|PROCEDURE|ROUTINE|SEQUENCE|SCHEMA|DATABASE|DOMAIN|TYPE|LANGUAGE|TABLESPACE|FOREIGN|LARGE|PARAMETER|ALL (?:FUNCTIONS|PROCEDURES|ROUTINES|SEQUENCES))\b`,
+);
 
 /** Wartość opcji logicznej PostgreSQL (`on`/`true`/`1`/`yes`...) albo `null`, gdy nieczytelna. */
 function pgBool(raw: string): boolean | null {
@@ -295,20 +408,18 @@ function pgBool(raw: string): boolean | null {
 }
 
 /**
- * Wartość `security_invoker` z listy opcji. Szkielet maskuje literały (`''`),
- * więc dla wartości w apostrofach sięgamy do surowego tekstu instrukcji.
- * Brak opcji = `false` (DEFINER, domyślne zachowanie PostgreSQL). Nieczytelna
- * wartość też liczy się jako DEFINER - bramka myli się w bezpieczną stronę.
+ * Wartość `security_invoker` z listy opcji (`a = b , c`); `undefined`, gdy
+ * opcji nie ma. Nazwa może stać w cudzysłowie, sama nazwa znaczy true, a
+ * nieczytelna wartość liczy się jako DEFINER (bezpieczny kierunek błędu).
  */
-function securityInvoker(options: string, rawText: string): boolean {
-  const m = /\bsecurity_invoker\b\s*(?:=\s*('[^']*'|[^,\s)]+))?/i.exec(options);
-  if (!m) return false;
-  if (m[1] === undefined) return true; // `WITH (security_invoker)` = true
-  if (m[1] === "''") {
-    const raw = /\bsecurity_invoker\b\s*=\s*'([^']*)'/i.exec(rawText);
-    return raw ? pgBool(raw[1]!) === true : false;
+function securityInvokerOption(options: string): boolean | undefined {
+  let found: boolean | undefined;
+  for (const item of splitTopLevel(options)) {
+    const m = /^"?security_invoker"? *(?:= *(.+))?$/i.exec(item.trim());
+    if (!m) continue;
+    found = m[1] === undefined ? true : pgBool(m[1]) === true;
   }
-  return pgBool(m[1]) === true;
+  return found;
 }
 
 /** Elementy listy rozdzielonej przecinkami na najwyższym poziomie nawiasów. */
@@ -332,23 +443,26 @@ function splitTopLevel(list: string): string[] {
   return out;
 }
 
-/** Nazwy obiektów z listy celów GRANT/REVOKE/DROP (`[TABLE] a, b`). */
+/** Nazwy relacji z listy celów (`[TABLE] a , b`). */
 function targetNames(list: string): string[] {
-  const body = list.replace(/^TABLE\s+/i, "");
-  return splitTopLevel(body).map((item) => objectName(item));
+  return splitTopLevel(list.replace(/^TABLE /i, "")).map((item) => objectName(item));
 }
 
-/** Role z listy odbiorców; `PUBLIC` i `"anon"` znormalizowane do małych liter bez cudzysłowów. */
+/** Role z listy odbiorców; `PUBLIC`, `GROUP x` i `"anon"` znormalizowane. */
 function roleNames(list: string): string[] {
-  return splitTopLevel(list).map((r) =>
-    r.startsWith('"') ? r.slice(1, -1).replace(/""/g, '"') : r.toLowerCase(),
-  );
+  return splitTopLevel(list).map((r) => {
+    const name = r.replace(/^GROUP /i, "");
+    return name.startsWith('"') ? name.slice(1, -1).replace(/""/g, '"') : name.toLowerCase();
+  });
 }
+
+const clientRoles = (list: string): ClientRole[] =>
+  roleNames(list).filter((r): r is ClientRole => (CLIENT_ROLES as readonly string[]).includes(r));
 
 interface PrivilegeSet {
-  /** Prawa w postaci WIELKICH liter; `ALL` rozwinięte do pełnej listy. */
+  /** Prawa całej relacji; `ALL` rozwinięte. */
   readonly table: ReadonlySet<string>;
-  /** Prawa kolumnowe (`UPDATE (a, b)`) - liczą się jako zapis, ale nie jako pełne zdjęcie. */
+  /** Prawa kolumnowe (`UPDATE (a)`) - otwierają zapis, ale nie zamykają go. */
   readonly column: ReadonlySet<string>;
 }
 
@@ -356,186 +470,298 @@ function privileges(list: string): PrivilegeSet {
   const table = new Set<string>();
   const column = new Set<string>();
   for (const item of splitTopLevel(list)) {
-    const m = /^([A-Za-z]+)(?:\s+PRIVILEGES)?\s*(\(.*\))?$/i.exec(item);
+    const m = /^([A-Za-z]+)(?: PRIVILEGES)?(?: (\(.*\)))?$/i.exec(item);
     if (!m) continue;
     const name = m[1]!.toUpperCase();
     const target = m[2] ? column : table;
-    if (name === "ALL") {
-      target.add("SELECT");
-      for (const p of NON_SELECT_PRIVILEGES) target.add(p);
-    } else target.add(name);
+    if (name === "ALL") for (const p of ["SELECT", ...NON_SELECT_PRIVILEGES]) target.add(p);
+    else target.add(name);
   }
   return { table, column };
 }
 
-const grantsWrite = (p: PrivilegeSet): boolean =>
-  [...p.table, ...p.column].some((x) => x !== "SELECT");
-
-const revokesAllWrite = (p: PrivilegeSet): boolean =>
-  NON_SELECT_PRIVILEGES.every((x) => p.table.has(x));
-
-/** Stan widoku w historii pasa: tryb bezpieczeństwa i czy klient ma prawo zapisu. */
-interface ViewState {
-  definer: boolean;
-  write: Record<ClientRole, boolean>;
-  /** Plik i linia zdarzenia, które ostatnio otworzyło zapis (do raportu). */
-  openedAt: { file: string; line: number; reason: string } | null;
-}
-
 const isPublic = (name: string): boolean => name.startsWith("public.");
 
-/**
- * Widoki, których dotyczy lista celów GRANT/REVOKE: jawne nazwy albo - dla
- * `ALL TABLES IN SCHEMA s` - wszystkie znane widoki tego schematu.
- */
-function viewTargets(list: string, state: ReadonlyMap<string, ViewState>): string[] {
-  const schema = RE_ALL_IN_SCHEMA.exec(list.trim());
-  if (!schema) return targetNames(list);
-  const names = splitTopLevel(schema[1]!).map((s) => objectName(`${s}.x`).split(".")[0]!);
-  return [...state.keys()].filter((v) => names.includes(v.split(".")[0]!));
+interface Opening {
+  readonly line: number;
+  readonly reason: string;
 }
 
-/**
- * Przechodzi jeden pas w kolejności plików. `seed` to stan końcowy innego pasa
- * (drizzle startuje ze stanem supabase - tak wygląda produkcja, na której oba
- * pasy lądują w jednej bazie).
- */
+/** Stan widoku W OBRĘBIE jednego pliku: kto ma jakie prawa poza SELECT. */
+interface FileViewState {
+  /** Prawa poza SELECT (relacja + kolumny) na rolę. */
+  readonly open: Record<ClientRole, Set<string>>;
+  /** Zdarzenie, które ostatnio otworzyło zapis danej roli. */
+  readonly at: Record<ClientRole, Opening | null>;
+}
+
+const freshDefaults = (opening: Opening): FileViewState => ({
+  open: {
+    anon: new Set(NON_SELECT_PRIVILEGES),
+    authenticated: new Set(NON_SELECT_PRIVILEGES),
+    public: new Set(),
+  },
+  at: { anon: opening, authenticated: opening, public: null },
+});
+
+const emptyState = (): FileViewState => ({
+  open: { anon: new Set(), authenticated: new Set(), public: new Set() },
+  at: { anon: null, authenticated: null, public: null },
+});
+
+interface LaneScan {
+  offenders: DefinerViewOffender[];
+  parseDefects: string[];
+  /** Widok -> czy DEFINER (stan końcowy pasa; drizzle startuje ze stanem supabase). */
+  definer: Map<string, boolean>;
+  /** Widoki z INSTEAD OF triggerem (przeżywa CREATE OR REPLACE, ginie z DROP VIEW). */
+  triggered: Set<string>;
+  viewStatements: number;
+}
+
 function scanLane(
   lane: LaneFiles,
-  seed: ReadonlyMap<string, ViewState>,
-  closingEvents: Map<string, Set<string>>,
-): {
-  offenders: DefinerViewOffender[];
-  state: Map<string, ViewState>;
-  viewStatements: number;
-} {
-  const state = new Map<string, ViewState>(
-    [...seed].map(([k, v]) => [k, { ...v, write: { ...v.write } }]),
-  );
+  seed: Pick<LaneScan, "definer" | "triggered">,
+  closing: Map<string, Set<string>>,
+): LaneScan {
+  const definer = new Map(seed.definer);
+  const triggered = new Set(seed.triggered);
   const offenders: DefinerViewOffender[] = [];
+  const parseDefects: string[] = [];
   let viewStatements = 0;
+  const dir = lane.lane === "supabase" ? "supabase/migrations" : "drizzle/migrations";
 
   for (const file of lane.files) {
-    const touched = new Set<string>();
-    const open = (view: string, line: number, reason: string, roles: readonly ClientRole[]) => {
-      const s = state.get(view)!;
-      for (const r of roles) s.write[r] = true;
-      s.openedAt = { file: file.name, line, reason };
-      touched.add(view);
+    const where = (line: number) => `${dir}/${file.name}:${line}`;
+    const states = new Map<string, FileViewState>();
+    const closed = new Set<string>();
+    let segments;
+    try {
+      segments = lexStatements(file.sql);
+    } catch (error) {
+      parseDefects.push(
+        `${dir}/${file.name}: nie da się podzielić na instrukcje - ${(error as Error).message}`,
+      );
+      continue;
+    }
+
+    const stateOf = (view: string, opening: Opening): FileViewState => {
+      let s = states.get(view);
+      if (!s) {
+        s = freshDefaults(opening);
+        states.set(view, s);
+      }
+      return s;
     };
-    const close = (view: string) => {
-      const key = `${lane.lane}:${file.name}`;
-      if (!closingEvents.has(key)) closingEvents.set(key, new Set());
-      closingEvents.get(key)!.add(view);
+    const rename = (from: string, to: string) => {
+      if (definer.has(from)) {
+        definer.set(to, definer.get(from)!);
+        definer.delete(from);
+      }
+      const s = states.get(from);
+      if (s) {
+        states.set(to, s);
+        states.delete(from);
+      }
+      if (closed.delete(from)) closed.add(to);
+      if (triggered.delete(from)) triggered.add(to);
+    };
+    const knownViews = (schemaList: string): string[] => {
+      const schemas = splitTopLevel(schemaList).map((s) => objectName(`${s} . x`).split(".")[0]!);
+      return [...new Set([...definer.keys(), ...states.keys()])].filter((v) =>
+        schemas.includes(v.split(".")[0]!),
+      );
+    };
+    const viewTargets = (list: string): string[] => {
+      const all = RE_ALL_IN_SCHEMA.exec(list);
+      return all
+        ? knownViews(all[1]!)
+        : targetNames(list).filter((v) => definer.has(v) || states.has(v));
     };
 
-    for (const seg of lexStatements(file.sql)) {
+    for (const seg of segments) {
       if (seg.codeStart === -1) continue;
-      const sk = seg.skeleton;
+      const sk = tokenize(seg.skeleton, false).join(" ");
+      const opening = (reason: string): Opening => ({ line: seg.line, reason });
       let m: RegExpExecArray | null;
 
-      if ((m = RE_CREATE_VIEW.exec(sk))) {
-        const modifiers = m[1]!.toUpperCase();
-        if (/MATERIALIZED|TEMP/.test(modifiers)) continue; // brak zapisu przez widok / obiekt sesji
-        const view = objectName(m[2]!);
-        if (!isPublic(view)) continue;
-        viewStatements += 1;
-        const withOpts = /\bWITH\s*\(([\s\S]*?)\)\s*$/i.exec(m[3]!.trim());
-        const invoker = securityInvoker(withOpts?.[1] ?? "", seg.text);
-        const prev = state.get(view);
-        // Nowa relacja (CREATE, albo OR REPLACE widoku, którego historia pasa nie zna)
-        // dostaje domyślne arwdDxtm. OR REPLACE znanego widoku zachowuje jego ACL,
-        // ale PODMIENIA opcje - bez security_invoker = on widok staje się DEFINEREM.
-        const isNew = !/^CREATE\s+OR\s+REPLACE/i.test(sk) || prev === undefined;
-        const s: ViewState = {
-          definer: !invoker,
-          write: isNew ? { anon: true, authenticated: true, public: false } : { ...prev.write },
-          openedAt: null,
-        };
-        state.set(view, s);
-        touched.add(view);
-        if (invoker) close(view);
-        else
-          s.openedAt = {
-            file: file.name,
-            line: seg.line,
-            reason: isNew
-              ? "nowy widok DEFINER (domyślne uprawnienia public dają klientom arwdDxtm)"
-              : "CREATE OR REPLACE bez security_invoker = on (opcje podmienione - widok jest DEFINEREM)",
-          };
+      if (/^CREATE (?:OR REPLACE )?MATERIALIZED VIEW\b/i.test(sk)) continue; // nie da się przez nie pisać
+      if (RE_ANY_VIEW.test(sk) || RE_SCHEMA_ELEMENT_VIEW.test(sk)) {
+        m = RE_CREATE_VIEW.exec(sk);
+        if (!m) {
+          parseDefects.push(
+            `${where(seg.line)}: nierozpoznany CREATE VIEW - bramka nie wie, czy widok jest DEFINEREM`,
+          );
+          continue;
+        }
+        if (/TEMP/i.test(m[2]!)) continue; // obiekt sesji, nie schematu public
+        // Widoki spoza public też śledzimy - `ALTER VIEW ... SET SCHEMA public` może je przenieść.
+        const view = objectName(m[3]!);
+        if (isPublic(view)) viewStatements += 1;
+        // Wartość opcji czytamy z kodu bez komentarzy, ale z literałami (szkielet ma `''`).
+        let invoker = securityInvokerOption(m[4] ?? "");
+        if (m[4] !== undefined && /''/.test(m[4])) {
+          const raw = tokenize(seg.text.slice(seg.codeStart), true).join(" ");
+          const w = / WITH \( ([^()]*)\) AS\b/i.exec(raw);
+          invoker = securityInvokerOption(w?.[1] ?? "");
+        }
+        const isInvoker = invoker === true;
+        definer.set(view, !isInvoker);
+        // Zawsze świeże domyślne prawa: patrz REGUŁA w nagłówku.
+        states.set(
+          view,
+          freshDefaults(
+            opening(
+              isInvoker
+                ? "widok INVOKER (domyślne arwdDxtm)"
+                : `${m[1] ? "CREATE OR REPLACE" : "CREATE"} VIEW bez security_invoker = on`,
+            ),
+          ),
+        );
+        if (isInvoker) closed.add(view);
         continue;
       }
 
-      if ((m = RE_ALTER_VIEW_OPTS.exec(sk))) {
+      if ((m = RE_ALTER_REL.exec(sk))) {
         const view = objectName(m[2]!);
-        const s = state.get(view);
-        if (!s || !/\bsecurity_invoker\b/i.test(m[4]!)) continue;
-        const invoker = m[3]!.toUpperCase() === "SET" && securityInvoker(m[4]!, seg.text);
-        s.definer = !invoker;
-        touched.add(view);
-        if (invoker) close(view);
-        else if (s.write.anon || s.write.authenticated || s.write.public)
-          s.openedAt = {
-            file: file.name,
-            line: seg.line,
-            reason: "ALTER VIEW przełącza widok z prawami zapisu klientów na DEFINER",
-          };
+        const action = m[3]!;
+        if ((m = RE_RENAME.exec(action))) {
+          rename(view, objectName(`${view.split(".")[0]!} . ${m[1]!}`));
+          continue;
+        }
+        if ((m = RE_SET_SCHEMA.exec(action))) {
+          rename(view, objectName(`${m[1]!} . ${view.split(".").slice(1).join(".")}`));
+          continue;
+        }
+        if (!/security_invoker/i.test(action)) continue;
+        const groups = [...action.matchAll(RE_OPTION_GROUP)];
+        if (groups.length === 0) {
+          parseDefects.push(`${where(seg.line)}: nierozpoznana zmiana security_invoker`);
+          continue;
+        }
+        for (const g of groups) {
+          const opts = g[2]!;
+          if (!/security_invoker/i.test(opts)) continue;
+          let invoker =
+            g[1]!.toUpperCase() === "SET" ? securityInvokerOption(opts) === true : false;
+          if (g[1]!.toUpperCase() === "SET" && /''/.test(opts)) {
+            const raw = tokenize(seg.text.slice(seg.codeStart), true).join(" ");
+            const all = [...raw.matchAll(RE_OPTION_GROUP)].filter((x) =>
+              /security_invoker/i.test(x[2]!),
+            );
+            invoker = all.length > 0 && securityInvokerOption(all[all.length - 1]![2]!) === true;
+          }
+          definer.set(view, !invoker);
+          if (invoker) closed.add(view);
+          else {
+            closed.delete(view);
+            stateOf(
+              view,
+              opening("ALTER ... security_invoker = off/RESET (widok staje się DEFINEREM)"),
+            );
+          }
+        }
         continue;
       }
 
       if ((m = RE_DROP_VIEW.exec(sk))) {
         for (const view of targetNames(m[1]!)) {
-          state.delete(view);
-          touched.delete(view);
+          definer.delete(view);
+          triggered.delete(view);
+          states.delete(view);
+          closed.delete(view);
         }
         continue;
       }
 
+      if ((m = RE_CREATE_TABLE.exec(sk))) {
+        const name = objectName(m[1]!);
+        definer.delete(name);
+        triggered.delete(name);
+        states.delete(name);
+        continue;
+      }
+
+      if ((m = RE_INSTEAD_TRIGGER.exec(sk))) {
+        const view = objectName(m[1]!);
+        triggered.add(view);
+        // Zamknięcie wymagane także dla INVOKER-a - zapis idzie przez funkcję wyzwalacza.
+        stateOf(view, opening("INSTEAD OF trigger (zapis przez funkcję wyzwalacza)"));
+        continue;
+      }
+
       if ((m = RE_REVOKE.exec(sk))) {
-        if (m[1]) continue; // GRANT OPTION FOR zdejmuje tylko prawo dalszego nadawania
+        if (m[1] || RE_NON_RELATION_TARGET.test(m[3]!)) continue; // GRANT OPTION FOR zdejmuje tylko prawo nadawania
         const privs = privileges(m[2]!);
-        if (!revokesAllWrite(privs)) continue;
-        const roles = roleNames(m[4]!).filter((r): r is ClientRole =>
-          (CLIENT_ROLES as readonly string[]).includes(r),
-        );
-        for (const view of viewTargets(m[3]!, state)) {
-          const s = state.get(view);
-          if (!s) continue;
-          for (const r of roles) s.write[r] = false;
-          if (!s.write.anon && !s.write.authenticated && !s.write.public) close(view);
+        const roles = clientRoles(m[4]!);
+        for (const view of viewTargets(m[3]!)) {
+          // Widok bez stanu w tym pliku: REVOKE liczymy wobec ZAŁOŻONYCH domyślnych praw -
+          // pełne zdjęcie zamyka widok (plik domykający), częściowe niczego nie otwiera.
+          const s = states.get(view) ?? freshDefaults(opening("prawa sprzed pliku"));
+          for (const r of roles) {
+            // REVOKE na relacji zdejmuje też prawa kolumnowe tego rodzaju; kolumnowy - tylko kolumnowe.
+            for (const p of privs.table) {
+              s.open[r].delete(p);
+              s.open[r].delete(`${p}(kol)`);
+            }
+            for (const p of privs.column) s.open[r].delete(`${p}(kol)`);
+            if (s.open[r].size === 0) s.at[r] = null;
+          }
+          if (CLIENT_ROLES.every((r) => s.open[r].size === 0)) closed.add(view);
         }
         continue;
       }
 
       if ((m = RE_GRANT.exec(sk))) {
+        if (RE_NON_RELATION_TARGET.test(m[2]!)) continue;
         const privs = privileges(m[1]!);
-        if (!grantsWrite(privs)) continue;
-        const roles = roleNames(m[3]!).filter((r): r is ClientRole =>
-          (CLIENT_ROLES as readonly string[]).includes(r),
-        );
-        if (roles.length === 0) continue;
-        for (const view of viewTargets(m[2]!, state)) {
-          if (!state.has(view)) continue;
-          open(view, seg.line, `GRANT praw innych niż SELECT dla ${roles.join(", ")}`, roles);
+        const write = [...privs.table].filter((p) => p !== "SELECT");
+        const writeCols = [...privs.column].filter((p) => p !== "SELECT").map((p) => `${p}(kol)`);
+        const roles = clientRoles(m[3]!);
+        if (roles.length === 0 || write.length + writeCols.length === 0) continue;
+        for (const view of viewTargets(m[2]!)) {
+          let s = states.get(view);
+          if (!s) {
+            s = emptyState();
+            states.set(view, s);
+          }
+          for (const r of roles) {
+            for (const p of [...write, ...writeCols]) s.open[r].add(p);
+            s.at[r] = opening(`GRANT ${[...write, ...writeCols].join(", ")} dla ${r}`);
+          }
+          closed.delete(view);
         }
       }
     }
 
-    for (const view of touched) {
-      const s = state.get(view);
-      if (!s || !s.definer) continue;
-      const roles = CLIENT_ROLES.filter((r) => s.write[r]);
-      if (roles.length === 0) continue;
+    for (const [view, s] of states) {
+      if (!isPublic(view)) continue;
+      const mustClose = definer.get(view) === true || triggered.has(view);
+      const roles = CLIENT_ROLES.filter((r) => s.open[r].size > 0);
+      if (!mustClose || roles.length === 0) continue;
+      closed.delete(view);
+      const first = roles
+        .map((r) => s.at[r])
+        .filter((a): a is Opening => a !== null)
+        .sort((a, b) => a.line - b.line)[0] ?? { line: 1, reason: "widok bez zamknięcia" };
       offenders.push({
         lane: lane.lane,
         file: file.name,
         view,
-        line: s.openedAt?.file === file.name ? s.openedAt.line : 1,
-        reason: `${s.openedAt?.file === file.name ? s.openedAt.reason : "widok DEFINER"}; po pliku zapis zostaje dla: ${roles.join(", ")}`,
+        line: first.line,
+        reason: `${first.reason}${triggered.has(view) ? " + INSTEAD OF trigger" : ""}; po pliku zostaje: ${roles
+          .map((r) => `${r} (${[...s.open[r]].join(", ")})`)
+          .join("; ")}`,
       });
     }
+    for (const view of closed) {
+      if (!isPublic(view)) continue;
+      const key = `${lane.lane}:${file.name}`;
+      if (!closing.has(key)) closing.set(key, new Set());
+      closing.get(key)!.add(view);
+    }
   }
-  return { offenders, state, viewStatements };
+  return { offenders, parseDefects, definer, triggered, viewStatements };
 }
 
 const offenderKey = (o: { lane: string; file: string; view: string }): string =>
@@ -549,8 +775,8 @@ export function analyzeDefinerViews(
   const closing = new Map<string, Set<string>>();
   const supabase = lanes.find((l) => l.lane === "supabase") ?? { lane: "supabase", files: [] };
   const drizzle = lanes.find((l) => l.lane === "drizzle") ?? { lane: "drizzle", files: [] };
-  const a = scanLane(supabase, new Map(), closing);
-  const b = scanLane(drizzle, a.state, closing);
+  const a = scanLane(supabase, { definer: new Map(), triggered: new Set() }, closing);
+  const b = scanLane(drizzle, a, closing);
   const offenders = [...a.offenders, ...b.offenders];
 
   const knownKeys = new Set(known.map(offenderKey));
@@ -574,15 +800,16 @@ export function analyzeDefinerViews(
       continue;
     }
     const files = filesOf.get(k.lane) ?? [];
+    const order = (f: string) => files.indexOf(f);
     if (!files.includes(k.closedBy)) {
       registryDefects.push(`${key}: plik domykający ${k.closedBy} nie istnieje w pasie ${k.lane}.`);
-    } else if (k.closedBy <= k.file) {
+    } else if (order(k.closedBy) <= order(k.file)) {
       registryDefects.push(
         `${key}: plik domykający ${k.closedBy} nie jest późniejszy niż naruszenie.`,
       );
     } else if (!closing.get(`${k.lane}:${k.closedBy}`)?.has(k.view)) {
       registryDefects.push(
-        `${key}: ${k.closedBy} nie zdejmuje klientom praw do ${k.view} (REVOKE ALL ... FROM anon, authenticated) ani nie przełącza go na security_invoker = on.`,
+        `${key}: ${k.closedBy} nie zamyka ${k.view} (REVOKE ALL ... FROM anon, authenticated ani security_invoker = on).`,
       );
     }
   }
@@ -593,6 +820,7 @@ export function analyzeDefinerViews(
     offenders,
     fresh,
     registryDefects,
+    parseDefects: [...a.parseDefects, ...b.parseDefects],
     closingFiles: closing,
   };
 }
@@ -608,38 +836,43 @@ export function suggestKnownOffenders(
 ): (Omit<KnownDefinerViewOffender, "closedBy"> & { readonly closedBy: string | null })[] {
   return report.offenders.map((o) => {
     const files = lanes.find((l) => l.lane === o.lane)?.files.map((f) => f.name) ?? [];
+    const from = files.indexOf(o.file);
     const closedBy =
       files.find(
-        (f) => f > o.file && report.closingFiles.get(`${o.lane}:${f}`)?.has(o.view) === true,
+        (f, i) => i > from && report.closingFiles.get(`${o.lane}:${f}`)?.has(o.view) === true,
       ) ?? null;
     return { lane: o.lane, file: o.file, view: o.view, closedBy };
   });
 }
 
 export function definerViewsFailed(report: DefinerViewReport): boolean {
-  return report.fresh.length > 0 || report.registryDefects.length > 0;
+  return (
+    report.fresh.length > 0 || report.registryDefects.length > 0 || report.parseDefects.length > 0
+  );
 }
 
 export function renderDefinerViewReport(report: DefinerViewReport): string {
-  const lines: string[] = [];
   if (!definerViewsFailed(report)) {
-    lines.push(
-      `✓ Widoki DEFINER tylko do odczytu dla klientów (${report.filesScanned} plików w obu pasach, ${report.viewStatements} instrukcji widoków, ${report.offenders.length} znanych domkniętych naruszeń).`,
-    );
-    return lines.join("\n");
+    return `✓ Widoki DEFINER tylko do odczytu dla klientów (${report.filesScanned} plików w obu pasach, ${report.viewStatements} instrukcji widoków, ${report.offenders.length} znanych domkniętych naruszeń).`;
   }
+  const lines: string[] = [];
   if (report.fresh.length > 0) {
-    lines.push("✗ Widok DEFINER w public zostaje zapisywalny dla ról klienckich:");
+    lines.push("✗ Widok w public zostaje zapisywalny dla ról klienckich obok RLS:");
     for (const o of report.fresh) {
-      lines.push(
-        `  ${o.lane === "supabase" ? "supabase/migrations" : "drizzle/migrations"}/${o.file}:${o.line}  ${o.view}`,
-      );
-      lines.push(`    ${o.reason}`);
+      const dir = o.lane === "supabase" ? "supabase/migrations" : "drizzle/migrations";
+      lines.push(`  ${dir}/${o.file}:${o.line}  ${o.view}`, `    ${o.reason}`);
     }
     lines.push(
-      "  Naprawa: w tym samym pliku `REVOKE ALL ON <widok> FROM anon, authenticated;` i `GRANT SELECT ON <widok> TO anon, authenticated;`",
-      "  albo `WITH (security_invoker = on)`. Zob. supabase/migrations/20261012210000_public_definer_views_read_only.sql.",
+      "  Naprawa: w TYM SAMYM pliku, jako instrukcje najwyższego poziomu (nie w bloku DO):",
+      "    REVOKE ALL ON <widok> FROM anon, authenticated;",
+      "    GRANT SELECT ON <widok> TO anon, authenticated;",
+      "  albo `WITH (security_invoker = on)` (dla INSTEAD OF trigger to nie wystarcza).",
+      "  Wzór: supabase/migrations/20261012210000_public_definer_views_read_only.sql.",
     );
+  }
+  if (report.parseDefects.length > 0) {
+    lines.push("✗ Instrukcje, których bramka nie umie odczytać (fail closed):");
+    for (const d of report.parseDefects) lines.push(`  ${d}`);
   }
   if (report.registryDefects.length > 0) {
     lines.push("✗ Wady rejestru znanych naruszeń:");

@@ -1,9 +1,10 @@
 // Kontrakt bramki `check:migration-lanes` + self-test na REALNYM dzienniku drizzle.
 //
 // Rejestr MIGRATION_LANES istniał, ale nic go nie wołało; od 2026-10-12 bramka
-// jedzie w CI. Pilnuje dwóch rzeczy: każdy wpis dziennika ma decyzję (bliźniak,
-// powód albo identyczna kopia pliku supabase) i `when` rośnie wzdłuż dziennika -
-// inaczej migrator drizzle pomija wpis po cichu (ten PR trafił na to dwa razy).
+// jedzie w CI. Pilnuje trzech rzeczy: każdy wpis dziennika ma decyzję (bliźniak,
+// powód albo identyczna kopia pliku supabase), każdy wpis dziennika ma plik .sql
+// i `when` rośnie wzdłuż dziennika - inaczej migrator drizzle pomija wpis po
+// cichu (ten PR trafił na to dwa razy).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
@@ -41,6 +42,9 @@ const report = (violations: LaneReport["violations"] = []): LaneReport => ({
 
 const noKnown = { orphans: [] as string[], nonMonotonic: [] as string[] };
 
+/** Syntetyczne tagi nie mają plików na dysku - czytnik udaje, że każdy istnieje. */
+const anyFile = () => "SELECT 1;";
+
 describe("kolejność dziennika", () => {
   it("ściśle rosnące `when` jest w porządku", () => {
     expect(nonMonotonicJournal([entry(1, 10), entry(2, 20), entry(3, 30)])).toEqual([]);
@@ -66,26 +70,35 @@ describe("ocena bramki względem list znanych przypadków", () => {
   const missing = { kind: "brak-wpisu" as const, tag: "0200_panel", detail: "" };
 
   it("znana sierota nie czerwieni, nieznana i brak wpisu - tak", () => {
-    const r = evaluateLaneGate(report([orphan, missing]), [], {
-      orphans: ["0057_old"],
-      nonMonotonic: [],
-    });
+    const r = evaluateLaneGate(
+      report([orphan, missing]),
+      [],
+      { orphans: ["0057_old"], nonMonotonic: [] },
+      anyFile,
+    );
     expect(r.fresh.map((v) => v.tag)).toEqual(["0200_panel"]);
     expect(laneGateFailed(r)).toBe(true);
   });
 
   it("znana sierota, której już nie ma, jest wadą listy (lista tylko maleje)", () => {
-    const r = evaluateLaneGate(report([]), [], { orphans: ["0057_old"], nonMonotonic: [] });
+    const r = evaluateLaneGate(
+      report([]),
+      [],
+      { orphans: ["0057_old"], nonMonotonic: [] },
+      anyFile,
+    );
     expect(r.stale).toEqual(["0057_old"]);
     expect(laneGateFailed(r)).toBe(true);
   });
 
   it("nowe odstępstwo kolejności czerwieni, znane - nie; znane, którego nie ma - też czerwieni", () => {
     const journal = [entry(1, 100), entry(2, 50, "0002_known"), entry(3, 70, "0003_new")];
-    const r = evaluateLaneGate(report([]), journal, {
-      orphans: [],
-      nonMonotonic: ["0002_known", "0009_gone"],
-    });
+    const r = evaluateLaneGate(
+      report([]),
+      journal,
+      { orphans: [], nonMonotonic: ["0002_known", "0009_gone"] },
+      anyFile,
+    );
     expect(r.journalFresh).toEqual(["0003_new"]);
     expect(r.journalStale).toEqual(["0009_gone"]);
     const text = renderLaneGate(report([]), r);
@@ -93,8 +106,30 @@ describe("ocena bramki względem list znanych przypadków", () => {
     expect(text).toContain("0009_gone");
   });
 
+  it("samo znane odstępstwo kolejności, którego już nie ma, czerwieni bramkę", () => {
+    const r = evaluateLaneGate(
+      report([]),
+      [entry(1, 1), entry(2, 2)],
+      { orphans: [], nonMonotonic: ["0002_m"] },
+      anyFile,
+    );
+    expect(r.journalStale).toEqual(["0002_m"]);
+    expect(laneGateFailed(r)).toBe(true);
+  });
+
+  it("wpis dziennika bez pliku .sql czerwieni bramkę, nawet gdy ma decyzję w rejestrze", () => {
+    // analyzeMigrationLanes pomija wpis z decyzją, gdy pliku nie ma - migrator by się wywrócił.
+    const read = (p: string) => (p === `${DRIZZLE_DIR}/0002_m.sql` ? null : "SELECT 1;");
+    const r = evaluateLaneGate(report([]), [entry(1, 1), entry(2, 2)], noKnown, read);
+    expect(r.missingFiles).toEqual(["0002_m"]);
+    expect(laneGateFailed(r)).toBe(true);
+    const text = renderLaneGate(report([]), r);
+    expect(text).toContain("WPISY DZIENNIKA BEZ PLIKU");
+    expect(text).toContain("0002_m");
+  });
+
   it("czysty raport i dziennik przechodzą", () => {
-    const r = evaluateLaneGate(report([]), [entry(1, 1), entry(2, 2)], noKnown);
+    const r = evaluateLaneGate(report([]), [entry(1, 1), entry(2, 2)], noKnown, anyFile);
     expect(laneGateFailed(r)).toBe(false);
     expect(renderLaneGate(report([]), r)).toMatch(/^✓/);
   });
@@ -123,7 +158,7 @@ describe("analiza pasów na wstrzykniętych plikach", () => {
       "brak-wpisu:0201_panel_only",
       "rozjazd-sql:0202_twin_drift",
     ]);
-    expect(laneGateFailed(evaluateLaneGate(r, [], noKnown))).toBe(true);
+    expect(laneGateFailed(evaluateLaneGate(r, [], noKnown, read))).toBe(true);
   });
 });
 
@@ -141,6 +176,13 @@ describe("self-test na realnym dzienniku drizzle", () => {
     expect(r.stale).toEqual([]);
     expect(r.journalFresh).toEqual([]);
     expect(r.journalStale).toEqual([]);
+    expect(r.missingFiles).toEqual([]);
+  });
+
+  it("listy znanych przypadków tylko maleją", () => {
+    // Nowa sierota albo nowe odstępstwo kolejności naprawia się w dzienniku, nie wpisem.
+    expect(KNOWN_ORPHAN_LANE_ENTRIES.length).toBeLessThanOrEqual(31);
+    expect(KNOWN_NON_MONOTONIC_JOURNAL.length).toBeLessThanOrEqual(5);
   });
 
   it("listy znanych przypadków są dokładnie tym, co bramka dziś widzi", () => {
@@ -153,6 +195,9 @@ describe("self-test na realnym dzienniku drizzle", () => {
   it("wpis dopisany na koniec z `when` sprzed ostatniego wpisu main zapala bramkę (stara numeracja gałęzi)", () => {
     const last = journal[journal.length - 1]!;
     const stale = [...journal, entry(last.idx + 1, last.when - 1, "9999_branch_twin")];
-    expect(evaluateLaneGate(real, stale).journalFresh).toEqual(["9999_branch_twin"]);
+    const r = evaluateLaneGate(real, stale);
+    expect(r.journalFresh).toEqual(["9999_branch_twin"]);
+    // Ten wpis nie ma też pliku - bramka mówi o tym osobno.
+    expect(r.missingFiles).toEqual(["9999_branch_twin"]);
   });
 });

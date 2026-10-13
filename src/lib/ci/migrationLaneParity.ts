@@ -1360,7 +1360,10 @@ export interface JournalEntry {
   readonly tag: string;
 }
 
-/** Tagi wpisów, których `when` nie rośnie względem poprzednika w dzienniku. */
+/**
+ * Tagi wpisów, których `when` nie jest późniejsze od NAJPÓŹNIEJSZEGO `when`
+ * wcześniejszych wpisów (tak liczy migrator: względem najnowszej zastosowanej).
+ */
 export function nonMonotonicJournal(entries: readonly JournalEntry[]): string[] {
   const out: string[] = [];
   let prev = Number.NEGATIVE_INFINITY;
@@ -1380,6 +1383,8 @@ export interface LaneGateResult {
   readonly journalFresh: readonly string[];
   /** Znane odstępstwa kolejności, których już nie ma - do usunięcia z listy. */
   readonly journalStale: readonly string[];
+  /** Wpisy dziennika bez pliku `.sql` - migrator wywróci się na nich przy wdrożeniu. */
+  readonly missingFiles: readonly string[];
 }
 
 export interface LaneGateKnown {
@@ -1395,6 +1400,7 @@ export function evaluateLaneGate(
     orphans: KNOWN_ORPHAN_LANE_ENTRIES,
     nonMonotonic: KNOWN_NON_MONOTONIC_JOURNAL,
   },
+  read: ReadFile = readFileOrNull,
 ): LaneGateResult {
   const orphans = new Set(known.orphans);
   const fresh = report.violations.filter(
@@ -1408,7 +1414,11 @@ export function evaluateLaneGate(
   const knownDisorder = new Set(known.nonMonotonic);
   const journalFresh = disordered.filter((tag) => !knownDisorder.has(tag));
   const journalStale = known.nonMonotonic.filter((tag) => !disordered.includes(tag));
-  return { fresh, stale, journalFresh, journalStale };
+  // analyzeMigrationLanes pomija wpis z decyzją, gdy pliku nie ma - tu to łapiemy.
+  const missingFiles = journal
+    .map((e) => e.tag)
+    .filter((tag) => read(`${DRIZZLE_DIR}/${tag}.sql`) === null);
+  return { fresh, stale, journalFresh, journalStale, missingFiles };
 }
 
 export function laneGateFailed(result: LaneGateResult): boolean {
@@ -1416,7 +1426,8 @@ export function laneGateFailed(result: LaneGateResult): boolean {
     result.fresh.length > 0 ||
     result.stale.length > 0 ||
     result.journalFresh.length > 0 ||
-    result.journalStale.length > 0
+    result.journalStale.length > 0 ||
+    result.missingFiles.length > 0
   );
 }
 
@@ -1428,10 +1439,21 @@ export function renderLaneGate(report: LaneReport, result: LaneGateResult): stri
   const lines = [`✗ ${head}`];
   if (result.fresh.length > 0) {
     lines.push(`NOWE NARUSZENIA REJESTRU (${result.fresh.length}):`);
-    for (const v of result.fresh) lines.push(`  [${v.kind}] ${v.tag}: ${v.detail}`);
+    for (const v of result.fresh)
+      lines.push(
+        v.kind === "wpis-bez-pliku"
+          ? `  [${v.kind}] ${v.tag}: wpis MIGRATION_LANES dla tagu spoza _journal.json (migrator go nie wykona) - usuń wpis albo dopisz plik do dziennika.`
+          : `  [${v.kind}] ${v.tag}: ${v.detail}`,
+      );
     lines.push(
       "  Naprawa: dopisz wpis do MIGRATION_LANES w src/lib/ci/migrationLaneParity.ts - `twin` (plik supabase o tym samym SQL-u) albo `drizzleOnly` z powodem.",
     );
+  }
+  if (result.missingFiles.length > 0) {
+    lines.push(
+      `WPISY DZIENNIKA BEZ PLIKU (${result.missingFiles.length}) - migrator wywróci się przy wdrożeniu:`,
+    );
+    for (const t of result.missingFiles) lines.push(`  ${DRIZZLE_DIR}/${t}.sql`);
   }
   if (result.journalFresh.length > 0) {
     lines.push(`NIEMONOTONICZNY DZIENNIK (${result.journalFresh.length}):`);
