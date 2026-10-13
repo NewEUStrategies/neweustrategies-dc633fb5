@@ -8,9 +8,10 @@
 // `event_my_registrations` składa komplet po stronie bazy dla `auth.uid()`
 // i nie przyjmuje ŻADNEGO identyfikatora od wołającego.
 //
-// KANAŁY ZMIENIA UCZESTNIK, NIE ORGANIZATOR. `event_registration_set_channels`
-// przyjmuje albo identyfikator zgłoszenia zalogowanego właściciela, albo klucz
-// `manage_token` z maila - ta druga droga jest jedyną dla gościa bez konta.
+// KANAŁY ZMIENIA UCZESTNIK, NIE ORGANIZATOR - przez `registrationChannelsApi`
+// (re-eksport niżej): identyfikator zgłoszenia zalogowanego właściciela albo
+// klucz `manage_token` z maila. SMS jest domyślnie wyłączony i włącza się
+// wyłącznie z jawną zgodą (REG-10).
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -125,7 +126,8 @@ function parseRegistration(raw: unknown): ParticipantRegistration | null {
     waitlistPosition: int(row, "waitlist_position"),
     promotedAt: text(row, "promoted_at"),
     notifyEmail: bool(row, "notify_email", true),
-    notifySms: bool(row, "notify_sms", true),
+    // Brak pola to brak dowodu zgody - SMS nie jest domyślny (REG-10).
+    notifySms: bool(row, "notify_sms", false),
     participantReason: text(row, "participant_reason"),
     decisionSource: text(row, "decision_source"),
     eventSlug: slug,
@@ -181,41 +183,22 @@ export async function fetchMyRegistrations(): Promise<ParticipantRegistration[]>
   return out;
 }
 
-export interface ChannelPrefsInput {
-  registrationId?: string;
-  /** Klucz z maila - jedyna droga dla uczestnika bez konta. */
-  manageToken?: string;
-  notifyEmail?: boolean;
-  notifySms?: boolean;
-}
-
-export interface ChannelPrefs {
-  registrationId: string;
-  notifyEmail: boolean;
-  notifySms: boolean;
-}
-
-/** Zmienia kanały powiadomień pojedynczego zgłoszenia. */
-export async function setRegistrationChannels(input: ChannelPrefsInput): Promise<ChannelPrefs> {
-  const payload: Record<string, Json> = {};
-  if (input.registrationId !== undefined) payload["registration_id"] = input.registrationId;
-  if (input.manageToken !== undefined) payload["manage_token"] = input.manageToken;
-  if (input.notifyEmail !== undefined) payload["notify_email"] = input.notifyEmail;
-  if (input.notifySms !== undefined) payload["notify_sms"] = input.notifySms;
-
-  const { data, error } = await supabase.rpc("event_registration_set_channels", {
-    p_payload: payload as Json,
-  });
-  if (error) throw error;
-  const row = bag(data);
-  const id = row === null ? null : text(row, "registration_id");
-  if (row === null || id === null) throw new Error("invalid_response");
-  return {
-    registrationId: id,
-    notifyEmail: bool(row, "notify_email", true),
-    notifySms: bool(row, "notify_sms", true),
-  };
-}
+// Kanały, przypomnienia i zgoda na SMS mieszkają w `registrationChannelsApi`
+// (własna mapa odmów i bramka i18n); ten moduł oddaje je dalej, żeby ekrany
+// i testy importowały je jak dotąd.
+export {
+  CHANNEL_ERROR_CODES,
+  channelErrorCode,
+  channelErrorKey,
+  fetchRegistrationPreferences,
+  parseRegistrationPreferences,
+  setRegistrationChannels,
+  type ChannelErrorCode,
+  type ChannelPrefs,
+  type ChannelPrefsInput,
+  type RegistrationPreferences,
+  type RegistrationPreferencesData,
+} from "@/lib/events/registrationChannelsApi";
 
 export interface SpeakerSessionEntry {
   sessionId: string;

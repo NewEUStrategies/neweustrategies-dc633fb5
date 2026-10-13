@@ -3,7 +3,8 @@
 // STAWKI: (1) dzwonek idzie przez `enqueue_notification` z rodzajem `event`
 // i ikoną z listy kuratorskiej (nazwa spoza niej ładuje leniwy rejestr 109 KB);
 // (2) SMS ma trzy bramki PRZED operatorem - wyłącznik platformy, GSM-7 +
-// 160 septetów i budżet najemcy FAIL-CLOSED; (3) nic nie wychodzi do sieci.
+// 160 septetów i budżet najemcy FAIL-CLOSED - a transport dostaje najemcę
+// dziennika idempotencji (REG-11); (3) nic nie wychodzi do sieci.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CURATED_ICON_NAMES } from "@/lib/icons/curatedIconNames";
@@ -180,7 +181,9 @@ describe("sendParticipantSms", () => {
     expect(sms.sendSms).not.toHaveBeenCalled();
   });
 
-  it("wszystko w porządku -> sendSms z kluczem idempotencji", async () => {
+  it("wszystko w porządku -> sendSms z kluczem idempotencji i NAJEMCĄ dziennika", async () => {
+    // Najemca jest kluczem dziennika `sms_send_log` (REG-11): bez niego
+    // transport nie miałby gdzie zapisać, że ten SMS już wyszedł.
     enableSms();
     limiter.rateLimit.mockResolvedValue(true);
     sms.sendSms.mockResolvedValue({ ok: true });
@@ -191,6 +194,27 @@ describe("sendParticipantSms", () => {
       to: "+48500000000",
       body: "x".repeat(160),
       idempotencyKey: "event-reminder-sms:k",
+      tenantId: "t1",
     });
+  });
+
+  it("REG-10: token operatora bez EVENT_SMS_ENABLED -> disabled, bez budżetu i operatora", async () => {
+    // Dotąd SMS o płatności szedł przy samym tokenie: `sendSms` sprawdzał
+    // wyłącznie SMSAPI_TOKEN. Wyłącznik platformy obowiązuje każdy SMS.
+    process.env.SMSAPI_TOKEN = "token-atrapa";
+    await expect(sendParticipantSms(input)).resolves.toEqual({ ok: false, skipped: "disabled" });
+    expect(limiter.rateLimit).not.toHaveBeenCalled();
+    expect(sms.sendSms).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["in_flight", { ok: true, skipped: "in_flight" }],
+    ["duplicate", { ok: true, skipped: "duplicate" }],
+    ["exhausted", { ok: false, error: "sms_retry_exhausted" }],
+  ] as const)("wynik dziennika %s przechodzi do wołającego bez zmian", async (_label, result) => {
+    enableSms();
+    limiter.rateLimit.mockResolvedValue(true);
+    sms.sendSms.mockResolvedValue(result);
+    await expect(sendParticipantSms(input)).resolves.toEqual(result);
   });
 });

@@ -163,6 +163,13 @@ INSERT INTO public.event_registrations
   ('f6500000-0000-0000-0000-000000000012', 'f6a00000-0000-0000-0000-0000000000aa', 'f6100000-0000-0000-0000-000000000006',
    'f6400000-0000-0000-0000-000000000011', 'form', 'approved', 'not_required', now() - interval '2 days', true, true, false, NULL, NULL);
 
+-- ZMIANA 20261012 (REG-09/REG-10, 20261012110100/110200): `notify_sms` jest
+-- glownym przelacznikiem kanalu SMS, domyslnie false - przypomnienie SMS
+-- wymaga notify_sms AND remind_sms AND stempla. Zgloszenie 07 MA zgode, wiec
+-- wlacza tez kanal (wczesniej dawal go DEFAULT true, ktory nie byl zgoda).
+UPDATE public.event_registrations SET notify_sms = true
+ WHERE id = 'f6500000-0000-0000-0000-000000000007';
+
 -- RSVP: samo RSVP (U2), projekcja RSVP posiadacza E1 (U1) i stary skaner (U7,
 -- przypomnienie wyslane 10 min temu, czyli PO chwili terminu 60 min).
 INSERT INTO public.event_rsvps (tenant_id, event_id, user_id, status, created_at, reminded_at) VALUES
