@@ -160,6 +160,8 @@ const csvOrUndefined = (value: string): string[] | undefined => {
  * dostaja STALA wysokosc wiersza (`h-4` / `min-h-3.5`) - inaczej pole z
  * podpowiedzia bylo nizsze od sasiada i ramki inputow rozjezdzaly sie o kilka
  * pikseli. Siatka `auto auto 1fr` trzyma kontrolke zawsze w tym samym wierszu.
+ * `min-h-0` zdejmuje domyslne `min-h-(--form-label-height)` z `<Label>`, bo
+ * min-height wygrywa z `h-4` i etykieta wystawalaby poza wiersz 1rem.
  */
 function Field({
   label,
@@ -174,7 +176,7 @@ function Field({
 }) {
   return (
     <div className="grid content-start gap-1 [grid-template-rows:1rem_auto_1fr]">
-      <Label className="flex h-4 items-center text-[11px] font-medium leading-none text-muted-foreground">
+      <Label className="flex h-4 min-h-0 items-center text-[11px] font-medium leading-none text-muted-foreground">
         {required === true && (
           <span aria-hidden="true" className="mr-1 text-destructive">
             *

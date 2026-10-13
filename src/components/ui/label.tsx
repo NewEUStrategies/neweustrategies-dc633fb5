@@ -6,8 +6,11 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
 
+// Wspólna geometria etykiety (`--form-label-height`) siedzi w klasach, nie w
+// bezwarstwowej regule CSS: dzięki temu `cn()` pozwala wywołującemu podmienić
+// `block` na `flex`/`inline-flex`, a token interlinii na `leading-none`.
 const labelVariants = cva(
-  "text-sm font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
+  "block min-h-(--form-label-height) text-sm font-medium leading-(--form-label-height) peer-disabled:cursor-not-allowed peer-disabled:opacity-70",
 );
 
 const Label = React.forwardRef<
