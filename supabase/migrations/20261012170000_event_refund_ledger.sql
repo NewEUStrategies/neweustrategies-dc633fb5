@@ -81,9 +81,10 @@ ALTER TABLE public.event_registration_refund_jobs
 -- `event_refund_jobs_review_reason_check` (powody eskalacji kolejki) - dwa
 -- CHECK-i naraz odrzucalyby kazdy powod drugiej strony, a dodanie samego
 -- CHECK-u REG-03 wywrociloby te migracje na wierszach produkcji z powodami
--- main. Jeden CHECK zna oba slowniki; regula main „needs_review zawsze
--- z powodem" zostaje jako osobny CHECK. Stan koncowy potwierdza migracja
--- uzgadniajaca 20261013900000.
+-- main. Slownik (`event_refund_jobs_review_reason_values`) zna oba zbiory
+-- powodow; regula main "needs_review zawsze z powodem" zostaje pod nazwa main
+-- (`event_refund_jobs_review_reason_check` - na nia patrzy harness 24b).
+-- Stan koncowy potwierdza migracja uzgadniajaca 20261013900000.
 ALTER TABLE public.event_registration_refund_jobs
   DROP CONSTRAINT IF EXISTS event_refund_jobs_origin_values,
   DROP CONSTRAINT IF EXISTS event_refund_jobs_review_reason_values,
@@ -103,7 +104,7 @@ ALTER TABLE public.event_registration_refund_jobs
       'organizer_waived', 'closed_without_refund_decision',
       'active_registrations_share_payment', 'attempts_exhausted',
       'provider_refund_failed', 'refund_unconfirmed')),
-  ADD CONSTRAINT event_refund_jobs_needs_review_has_reason CHECK (
+  ADD CONSTRAINT event_refund_jobs_review_reason_check CHECK (
     state <> 'needs_review' OR review_reason IS NOT NULL),
   ADD CONSTRAINT event_refund_jobs_amount_nonneg CHECK (amount_cents IS NULL OR amount_cents >= 0),
   ADD CONSTRAINT event_refund_jobs_currency_shape CHECK (currency IS NULL OR currency ~ '^[A-Z]{3}$'),

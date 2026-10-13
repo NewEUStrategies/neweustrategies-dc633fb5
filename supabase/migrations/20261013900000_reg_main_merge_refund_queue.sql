@@ -35,8 +35,10 @@
 -- ZMIANA (unia obu intencji, ciala zbudowane na NAJNOWSZYCH definicjach:
 --   kolejka i straznik - 20261012181200, claim/settle/dziennik - 20261012170050
 --   + 20261012120000, helper eskalacji - 20261012120000)
---   1. CHECK-i powodu: jeden slownik (zamkniecie REG + eskalacja main) i regula
---      main „needs_review zawsze z powodem" (ten sam stan co 20261012170000).
+--   1. CHECK-i powodu: jeden slownik (`event_refund_jobs_review_reason_values`
+--      - zamkniecie REG + eskalacja main) i regula main "needs_review zawsze
+--      z powodem" pod nazwa main (`event_refund_jobs_review_reason_check`) -
+--      ten sam stan co 20261012170000.
 --   2. `_event_refund_job_escalate`: cialo main, tresc alarmu bez slowa
 --      „odrzucone" - zlecenia REG pochodza tez z rezygnacji i anulowania.
 --   3. Kolejka: odrzucenie przy wspolnej wplacie wchodzi do przegladu PRZEZ
@@ -84,7 +86,7 @@ ALTER TABLE public.event_registration_refund_jobs
       'organizer_waived', 'closed_without_refund_decision',
       'active_registrations_share_payment', 'attempts_exhausted',
       'provider_refund_failed', 'refund_unconfirmed')),
-  ADD CONSTRAINT event_refund_jobs_needs_review_has_reason CHECK (
+  ADD CONSTRAINT event_refund_jobs_review_reason_check CHECK (
     state <> 'needs_review' OR review_reason IS NOT NULL);
 
 COMMENT ON COLUMN public.event_registration_refund_jobs.review_reason IS

@@ -434,7 +434,8 @@ SELECT ok(EXISTS (
 -- go dwie zmiany: na main migracja 20261012130000 (listy CHECK znaja zrodlo
 -- zaproszenia, konsumpcja zachowuje pare `event_package_seats_invite_pair`),
 -- w REG-15 przyjecie zaproszenia (scalone cialo w migracji uzgadniajacej
--- 20261013900xxx). Wyjatkow nie ma.
+-- 20261013900400 pisze `package_invitation`, ktore CHECK-i juz znaja).
+-- Wyjatkow nie ma.
 SELECT is_empty(
   $$ SELECT fn, tbl, col, lit FROM wl_found WHERE fn NOT LIKE 'wl\_probe%' $$,
   'żadna funkcja nie zapisuje literału spoza białej listy CHECK');
