@@ -18,8 +18,11 @@ Data: 2026-10-12 · Gałąź: `ops/s3-scanner-client` · Ustalenia audytu: OPS-0
   z tokenu urządzenia, nieeksportowalny `CryptoKey`, losowy 96-bitowy IV,
   identyfikator pozycji jako AAD) - `scannerVault.ts`. Lista odrzuconych
   i eksport (CSV/JSON) niosą skrót SHA-256 (ten sam co `qr_token_hash`)
-  i 6 pierwszych znaków kodu. Rekordy sprzed zmiany są przepisywane przy
-  starcie. Bez WebCrypto kod nie trafia na dysk (kolejka żyje w karcie, ekran
+  i 6 pierwszych znaków kodu. Notatka stoiska NIE przechodzi na listę
+  odrzuconych ani do eksportu: główna droga na tę listę to unieważnienie
+  poświadczenia, które kasuje token, czyli jedyny klucz - zapieczętowana
+  notatka byłaby tam nieczytelna, a jawna łamałaby zasadę. Rekordy sprzed
+  zmiany (także odrzucone z notatką) są przepisywane przy pierwszym odczycie. Bez WebCrypto kod nie trafia na dysk (kolejka żyje w karcie, ekran
   ostrzega). Lista osób ma termin poświadczenia i znika po nim przy starcie
   i co minutę. Odłączenie (z potwierdzeniem, gdy coś nie wyszło) kasuje token,
   kolejkę, listę osób, sesję, odrzucone i konflikty.
@@ -92,13 +95,18 @@ Kod obsługuje osobny origin, ale go nie tworzy. Kolejność ma znaczenie: zmien
 - Kasowanie starego klucza `nes.scanner.device-token` odbywa się przy wejściu
   na `/scanner` pod originem portalu, a od `ops/b1-scanner-client` także przy
   starcie KAŻDEJ innej strony portalu (telefon, który już nie otworzy
-  `/scanner`): `armScannerLeftoverPurge` w `src/routes/__root.tsx` sprawdza
+  `/scanner`): `armScannerLeftoverPurge` (`src/lib/events/scannerLeftoverPurge.ts`,
+  wołane z `src/routes/__root.tsx`) sprawdza
   trzy tanie warunki (origin skanera skonfigurowany i inny niż bieżący, trasa
   inna niż `/scanner`, token w `localStorage`) i dopiero wtedy - po załadowaniu
   strony i bezczynności - dociąga dynamicznym `import()` moduł przeniesienia
   (`purgeLeftoverScannerData`). Niewysłane skany albo lista do wyjaśnienia
-  zatrzymują sprzątanie, jak na trasie. Zwykły czytelnik bez tokenu nie
-  pobiera ani bajtu skanera.
+  zatrzymują sprzątanie, jak na trasie. Sprzątanie jest domknięte na błąd:
+  IndexedDB, której nie da się otworzyć albo odczytać, liczy się jak
+  niewysłana praca; token znika OSTATNI i tylko po potwierdzonym wyczyszczeniu
+  kolejki i danych offline; karta skanera trzymająca blokadę Web Locks
+  `nes-scanner-runtime` wstrzymuje sprzątanie w innej karcie. Zwykły czytelnik
+  bez tokenu nie pobiera ani bajtu skanera.
 - Token wysłany przez stary link `?t=` już przeszedł przez logi: ekran prosi
   o nowy kod, ale unieważnienie starego poświadczenia jest decyzją organizatora
   w panelu (Wydarzenia → Na miejscu → Urządzenia).
