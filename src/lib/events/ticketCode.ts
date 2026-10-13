@@ -55,12 +55,19 @@ export function classifyScannedCode(raw: string): "booking_reference" | "url" | 
 }
 
 /**
+ * Odmowa „to nie kod biletu" - jedna treść dla bramki lokalnej i dla wyniku
+ * `not_entry_code` z bazy (RPC skanera rozpoznają te same napisy przed
+ * wyszukaniem kodu, przegląd R67).
+ */
+export const NOT_ENTRY_CODE_ERROR = "not_entry_code: booking reference or link, not a ticket code";
+
+/**
  * Bramka skanera przed siecią i kolejką offline. Numer potwierdzenia i adres
  * nie są kodem biletu - odmowa z głową `not_entry_code` (klasa „odmowa":
  * bez ponawiania, bez kolejki, bez licznika nieznanych kodów urządzenia).
  */
 export function assertScannableCode(raw: string): void {
   if (classifyScannedCode(raw) !== "candidate") {
-    throw new Error("not_entry_code: booking reference or link, not a ticket code");
+    throw new Error(NOT_ENTRY_CODE_ERROR);
   }
 }
