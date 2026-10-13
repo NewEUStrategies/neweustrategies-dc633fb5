@@ -63,8 +63,10 @@
 -- ============================================================================
 
 -- A) ADRESAT SMS-A - LUSTRO `normalizePhone` --------------------------------------
--- Ta sama regula co src/lib/notify/sms.server.ts:normalizePhone. `[[:space:]]`
--- to `\s` z JS (spacje, tabulatory, nowe linie), cyfry tylko ASCII jak `\d`.
+-- Ta sama regula co src/lib/notify/sms.server.ts:normalizePhone. Klasa
+-- `[[:space:]\u00a0...\ufeff]` to `\s` z JS: biale znaki ASCII i jawnie
+-- wyliczone unikodowe (twarda spacja, waskie spacje, separatory linii, BOM) -
+-- `[[:space:]]` sam zalezy od lokalizacji bazy. Cyfry tylko ASCII, jak `\d`.
 -- LOCKS: none.
 CREATE OR REPLACE FUNCTION public._event_phone_sms_destination(p_phone text)
 RETURNS text
@@ -79,7 +81,10 @@ AS $$
     WHEN v ~ '^[0-9]{9}$' THEN '+48' || v
     ELSE NULL
   END
-  FROM (SELECT regexp_replace(COALESCE(p_phone, ''), '[[:space:]()-]', '', 'g') AS v) s;
+  FROM (SELECT regexp_replace(
+                 COALESCE(p_phone, ''),
+                 '[[:space:]\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff()-]',
+                 '', 'g') AS v) s;
 $$;
 
 REVOKE ALL ON FUNCTION public._event_phone_sms_destination(text) FROM PUBLIC, anon, authenticated;

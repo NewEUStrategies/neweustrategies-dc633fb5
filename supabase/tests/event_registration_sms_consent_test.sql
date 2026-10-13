@@ -8,7 +8,8 @@
 --   * `event_registration_set_channels`: wlaczenie SMS wymaga sms_consent =
 --     true i numeru, stempluje zgode (via account|token); remind_* maja
 --     pisarza; scisle typy boolean; klucz przez resolver A1 (wygasly ->
---     manage_expired, zamkniete -> already_closed, obcy najemca -> not_found);
+--     manage_expired, zamkniete -> already_closed przy wlaczaniu - samo
+--     wylaczenie przechodzi, przeglad R67; obcy najemca -> not_found);
 --   * zmiana CYFR numeru osoby zdejmuje zgode na wszystkich jej zgloszeniach,
 --     zmiana formatu - nie;
 --   * `event_registration_preferences`: ksztalt bez numeru (tylko 3 ostatnie
@@ -211,16 +212,18 @@ SELECT throws_ok(
       'manage_token', rpad('smsc-t3', 32, 'x'), 'notify_sms', true, 'sms_consent', true))$$,
   'P0001', 'phone_required: registration has no phone number',
   'klucz: osoba bez numeru -> phone_required');
+-- Przeglad R67: samo WYLACZENIE przechodzi na kluczu wygaslym i zamknietym
+-- (supabase/tests/event_sms_scanner_r67_test.sql); kazde wlaczenie - nie.
 SELECT throws_ok(
   $$SELECT public.event_registration_set_channels(jsonb_build_object(
-      'manage_token', rpad('smsc-t5', 32, 'x'), 'notify_email', false))$$,
+      'manage_token', rpad('smsc-t5', 32, 'x'), 'notify_email', true))$$,
   'P0001', 'manage_expired: this management link expired when the event ended',
-  'REG-17: klucz po koncu wydarzenia -> manage_expired');
+  'REG-17: klucz po koncu wydarzenia, wlaczenie -> manage_expired');
 SELECT throws_ok(
   $$SELECT public.event_registration_set_channels(jsonb_build_object(
-      'manage_token', rpad('smsc-t6', 32, 'x'), 'notify_email', false))$$,
+      'manage_token', rpad('smsc-t6', 32, 'x'), 'notify_email', true))$$,
   'P0001', 'already_closed: this registration is already closed',
-  'REG-17: klucz anulowanego zgloszenia -> already_closed');
+  'REG-17: klucz anulowanego zgloszenia, wlaczenie -> already_closed');
 SELECT throws_ok(
   $$SELECT public.event_registration_set_channels(jsonb_build_object(
       'manage_token', rpad('smsc-zz', 32, 'x'), 'notify_email', false))$$,

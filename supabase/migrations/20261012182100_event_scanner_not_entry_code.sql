@@ -17,8 +17,9 @@
 --
 -- ZMIANA
 --   * `_event_scan_is_not_entry_code(text)` - ta sama regula co klient
---     (`classifyScannedCode`, src/lib/events/ticketCode.ts): napis po btrim
---     pasujacy (bez rozrozniania wielkosci liter) do
+--     (`classifyScannedCode`, src/lib/events/ticketCode.ts): napis bez
+--     bialych znakow na brzegach (`trim()` z JS, takze unikodowych) pasujacy
+--     (bez rozrozniania wielkosci liter) do
 --     `^(https?://|NES-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}$)`.
 --   * Kazde z czterech RPC rozpoznaje go PRZED wyszukaniem po skrocie
 --     i zwraca osobny wynik `outcome: 'not_entry_code'` (`device_locked:
@@ -45,6 +46,10 @@
 -- ============================================================================
 
 -- A) REGULA ------------------------------------------------------------------------
+-- Brzegi jak `String.prototype.trim()`: biale znaki ASCII i jawnie wyliczone
+-- unikodowe (`[[:space:]]` sam zalezy od lokalizacji bazy). Kod biletu
+-- (32 znaki base64url) nie zawiera ani `:`, ani `/`, a numer potwierdzenia
+-- ma 13 znakow - regula nie moze przyslonic prawdziwego kodu.
 -- LOCKS: none.
 CREATE OR REPLACE FUNCTION public._event_scan_is_not_entry_code(p_code text)
 RETURNS boolean
@@ -52,7 +57,12 @@ LANGUAGE sql
 IMMUTABLE
 SET search_path = public, pg_temp
 AS $$
-  SELECT btrim(COALESCE(p_code, '')) ~* '^(https?://|NES-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}$)';
+  SELECT regexp_replace(
+           COALESCE(p_code, ''),
+           '^[[:space:]\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+'
+           '|[[:space:]\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+$',
+           '', 'g')
+         ~* '^(https?://|NES-[0-9A-HJ-NP-Z]{4}-[0-9A-HJ-NP-Z]{4}$)';
 $$;
 
 REVOKE ALL ON FUNCTION public._event_scan_is_not_entry_code(text) FROM PUBLIC, anon, authenticated;
