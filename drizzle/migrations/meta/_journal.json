@@ -1415,6 +1415,27 @@
       "when": 1791925074665,
       "tag": "0201_event_scanner_review_fixes_part3",
       "breakpoints": true
+    },
+    {
+      "idx": 202,
+      "version": "7",
+      "when": 1791925184068,
+      "tag": "0202_event_scanner_review_fixes_part4",
+      "breakpoints": true
+    },
+    {
+      "idx": 203,
+      "version": "7",
+      "when": 1791925463736,
+      "tag": "0203_event_sponsor_exposure_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 204,
+      "version": "7",
+      "when": 1791925646073,
+      "tag": "0204_event_meeting_sponsor_binding",
+      "breakpoints": true
     }
   ]
 }
