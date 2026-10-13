@@ -35,6 +35,12 @@ const h = vi.hoisted(() => ({
   invoiceByIntent: new Map<string, Record<string, unknown>>(),
   /** Bieżący status sporu u operatora (`disputes.retrieve`, S2). */
   disputeStatus: new Map<string, string>(),
+  /**
+   * `amount_refunded` obciążenia u operatora po intencji płatności - zwrot
+   * czyta kwotę ze stanu BIEŻĄCEGO (2.11), więc ładunek i operator muszą się
+   * zgadzać, jak u Stripe.
+   */
+  refundedByIntent: new Map<string, number>(),
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -91,10 +97,18 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => ({
       },
     },
     paymentIntents: {
-      retrieve: async (id: string) => ({
-        id,
-        latest_charge: { id: `ch_${id}`, amount: 4900, amount_refunded: 0, refunded: false },
-      }),
+      retrieve: async (id: string) => {
+        const refunded = h.refundedByIntent.get(id) ?? 0;
+        return {
+          id,
+          latest_charge: {
+            id: `ch_${id}`,
+            amount: 4900,
+            amount_refunded: refunded,
+            refunded: refunded >= 4900,
+          },
+        };
+      },
     },
     subscriptions: {
       retrieve: async (id: string) => ({
@@ -292,8 +306,9 @@ function dispute(status: string, paymentIntent: string): Record<string, unknown>
   };
 }
 
-/** Ładunek `Charge` po zwrocie - bez pola `invoice` (Basil+). */
+/** Ładunek `Charge` po zwrocie - bez pola `invoice` (Basil+); operator ma ten sam stan. */
 function refundedCharge(paymentIntent: string, refunded: number): Record<string, unknown> {
+  h.refundedByIntent.set(paymentIntent, refunded);
   return {
     id: `ch_${paymentIntent}`,
     object: "charge",
@@ -348,6 +363,7 @@ beforeEach(() => {
   h.emails.length = 0;
   h.invoiceByIntent.clear();
   h.disputeStatus.clear();
+  h.refundedByIntent.clear();
   const rpc = supabaseRpcStub();
   rpc.setResponse("enqueue_notification", (call) => ({
     data: `bell-${String(call.arg("p_user_id"))}`,

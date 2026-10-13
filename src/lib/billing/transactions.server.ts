@@ -135,6 +135,23 @@ function invoiceServicePeriod(invoice: Raw): { start: string | null; end: string
 }
 
 /**
+ * Pozycja subskrypcji BEZ proraty - pełny okres w cenie planu. Taką pozycję
+ * ma faktura otwierająca i odnawiająca okres, a z faktur „zmiany" wyłącznie
+ * ta, która przestawia cykl rozliczeń (`billing_cycle_anchor`). Proracja przy
+ * zmianie planu (`always_invoice`) niesie same pozycje `proration: true`.
+ * Basil/dahlia trzyma flagę w `parent.subscription_item_details`, starsze
+ * kształty - na pozycji (`type: "subscription"`).
+ */
+function isFullPeriodLine(line: Raw): boolean {
+  const parent = isRecord(line.parent) ? line.parent : null;
+  const item = isRecord(parent?.subscription_item_details)
+    ? parent.subscription_item_details
+    : null;
+  if (item) return item.proration === false;
+  return line.type === "subscription" && line.proration === false;
+}
+
+/**
  * Metadane subskrypcji, która wystawiła fakturę - ta sama kaskada co
  * w normalizatorze: `parent.subscription_details.metadata` (Basil), potem
  * metadane faktury i pierwszej pozycji.
@@ -179,6 +196,11 @@ export interface PaymentInvoiceRef {
   periodEnd: string | null;
   /** `billing_reason` faktury (`subscription_create`, `subscription_cycle`...). */
   billingReason: string | null;
+  /**
+   * Faktura niesie pozycję subskrypcji bez proraty (pełny okres w cenie
+   * planu) - odróżnia zmianę planu z nowym cyklem od samej dopłaty proracyjnej.
+   */
+  fullPeriodLine: boolean;
   /** `metadata.purpose` subskrypcji (np. `donation`) - kim jest płatnik. */
   purpose: string | null;
   /** `metadata.orderId` subskrypcji - nasze zamówienie z pierwszej kasy. */
@@ -233,6 +255,7 @@ export async function resolvePaymentInvoice(
       periodStart: period.start,
       periodEnd: period.end,
       billingReason: textOf(invoice.billing_reason),
+      fullPeriodLine: invoiceLines(invoice).some(isFullPeriodLine),
       purpose: textOf(metadata?.purpose),
       orderId: textOf(metadata?.orderId) ?? textOf(metadata?.order_id),
     };

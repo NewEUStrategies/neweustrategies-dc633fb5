@@ -14,11 +14,19 @@
 // SUBSKRYPCJA (S1). Zwrot ani spór NIE anulują subskrypcji u operatora - kolejne
 // odnowienia nadal są pobierane. Dlatego korekta faktury za okres, który już
 // MINĄŁ (koniec okresu pozycji faktury <= teraz), nie zmienia dostępu (usługa
-// została skonsumowana) - zostaje księgowanie i alert dla zespołu. Korekta
-// BIEŻĄCEGO okresu (pełny zwrot, spór otwarty, przegrany albo zatrzymany
-// zwrotem) zapisuje `refunded` z `canceled_at` = chwila korekty, a
+// została skonsumowana) - zostaje księgowanie i alert dla zespołu. Tak samo
+// faktura DODATKOWA bieżącego okresu (dopłata proracyjna przy zmianie planu,
+// faktura ręczna, np. podwójne obciążenie): okres opłaciła inna faktura, więc
+// zwrot 12 zł dopłaty nie odbiera opłaconego miesiąca. Korekta faktury, która
+// OPŁACA bieżący okres (pełny zwrot, spór otwarty, przegrany albo zatrzymany
+// zwrotem), zapisuje `refunded` z `canceled_at` = chwila korekty, a
 // `syncEntitlementState` przywraca dostęp dopiero za NOWY opłacony okres albo
 // po rozstrzygnięciu na naszą korzyść (`force`).
+//
+// ZWROT (2.11). Kwotę zwrotu bierzemy z obciążenia W STANIE BIEŻĄCYM u
+// operatora, nie z ładunku `charge.refunded`: po nieudanym zwrocie operator
+// zmniejsza `amount_refunded`, a ponowione albo spóźnione stare zdarzenie
+// niosłoby kwotę, której już nie ma - i odbierało dostęp drugi raz.
 //
 // SPORY (S2). Skutek liczymy z BIEŻĄCEGO stanu sporu u operatora, nie ze stanu
 // w zdarzeniu - spóźnione `created` po `closed(won)` nie zawiesza ponownie
@@ -204,6 +212,8 @@ interface InvoiceContext {
   /** Koniec okresu USŁUGI z pozycji faktury - rozstrzyga regułę „okres minął". */
   periodEnd: string | null;
   billingReason: string | null;
+  /** Pozycja subskrypcji bez proraty - faktura zmiany planu otwiera nowy cykl. */
+  fullPeriodLine: boolean;
   /** `metadata.orderId` subskrypcji - zamówienie z pierwszej kasy (księgi). */
   orderId: string | null;
 }
@@ -363,6 +373,7 @@ async function resolveAdjustmentTarget(
         invoiceId: invoice.invoiceId,
         periodEnd: invoice.periodEnd,
         billingReason: invoice.billingReason,
+        fullPeriodLine: invoice.fullPeriodLine,
         orderId: invoice.orderId,
       },
     };
@@ -590,6 +601,46 @@ function invoicePeriodEnded(invoice: InvoiceContext | null): boolean {
   if (!invoice?.periodEnd) return false;
   const end = Date.parse(invoice.periodEnd);
   return Number.isFinite(end) && end <= Date.now();
+}
+
+/**
+ * Przyczyny faktur, które okres usługi UZUPEŁNIAJĄ, a nie opłacają: dopłata
+ * proracyjna przy zmianie planu albo liczby miejsc (`always_invoice`
+ * w `subscriptionProvider.server`), próg zużycia, faktura ręczna (np.
+ * powtórzone obciążenie za ten sam okres) i faktura oczekujących pozycji.
+ */
+const SUPPLEMENTAL_INVOICE_REASONS: ReadonlySet<string> = new Set([
+  "subscription_update",
+  "subscription_threshold",
+  "manual",
+  "automatic_pending_invoice_item_invoice",
+]);
+
+/**
+ * Faktura OPŁACA bieżący okres usługi (2.1 / 6.1). Pełny zwrot liczymy
+ * względem obciążenia, więc bez tej reguły zwrot 12 zł dopłaty proracyjnej
+ * był „pełny" i odbierał resztę miesiąca opłaconego fakturą odnowienia
+ * (z mailem „dostęp zakończony"). Faktura dodatkowa opłaca okres wyłącznie
+ * wtedy, gdy niesie pozycję bez proraty (zmiana planu z nowym cyklem).
+ *
+ * Przyczyna nieznana (zdarzenie z samą subskrypcją, faktura bez
+ * `billing_reason`) zostaje przy dawnej regule - bezpieczniej odebrać niż
+ * zostawić opłacone uprawnienie po oddaniu pieniędzy.
+ */
+function invoicePaysPeriod(invoice: InvoiceContext | null): boolean {
+  if (!invoice?.billingReason || !SUPPLEMENTAL_INVOICE_REASONS.has(invoice.billingReason)) {
+    return true;
+  }
+  return invoice.fullPeriodLine;
+}
+
+/**
+ * Korekta tej faktury nie dotyka dostępu: okres minął (usługa skonsumowana)
+ * albo faktura nie opłaca okresu (opłaciła go inna). `null` = dotyka.
+ */
+function accessUnaffectedBy(invoice: InvoiceContext | null): "past_period" | "supplemental" | null {
+  if (invoicePeriodEnded(invoice)) return "past_period";
+  return invoicePaysPeriod(invoice) ? null : "supplemental";
 }
 
 // --- skutki: zamówienie ------------------------------------------------------
@@ -1009,9 +1060,11 @@ async function recordSubscriptionOrderCorrection(
  * Zwrot płatności faktury subskrypcji.
  *
  *   * zwrot CZĘŚCIOWY - korekta ceny, dostęp zostaje (jak w `revokeOrder`);
- *   * faktura za okres, który MINĄŁ - usługa skonsumowana, dostęp zostaje;
- *     zespół dostaje ślad, klient nie dostaje „dostęp zakończony";
- *   * pełny zwrot bieżącego okresu - `refunded` (S1), mail, dzwonek, CRM.
+ *   * faktura za okres, który MINĄŁ, albo faktura DODATKOWA (proracja, faktura
+ *     ręczna) - dostęp zostaje; zespół dostaje ślad, klient nie dostaje
+ *     „dostęp zakończony";
+ *   * pełny zwrot faktury opłacającej bieżący okres - `refunded` (S1), mail,
+ *     dzwonek, CRM.
  *     Subskrypcja u operatora trwa - kolejne opłacone odnowienie przywróci
  *     dostęp (`syncEntitlementState`, nowy okres po korekcie).
  */
@@ -1038,10 +1091,11 @@ async function refundSubscription(
     return "skipped";
   }
 
-  if (invoicePeriodEnded(target.invoice)) {
+  const unaffected = accessUnaffectedBy(target.invoice);
+  if (unaffected) {
     await alertAdminsAboutRefund(event, target, await adjustmentTenant(event, target), {
-      phase: "past_period",
-      note: "past_period",
+      phase: unaffected,
+      note: unaffected,
     });
     return "skipped";
   }
@@ -1092,6 +1146,10 @@ async function refundSubscription(
  *
  * Spór przegrany po otwartym nie zmienia już wiersza - i nic nie wysyła:
  * spór nie dostaje maila ani dzwonka klienta w żadnej fazie.
+ *
+ * Spór o fakturę za zakończony okres albo o fakturę dodatkową (dopłata
+ * proracyjna) nie odbiera okresu opłaconego inną fakturą - alert mówi
+ * zespołowi, że dostęp jest bez zmian.
  */
 async function disputeSubscription(
   event: RefundEvent,
@@ -1100,7 +1158,8 @@ async function disputeSubscription(
 ): Promise<CorrectionResult> {
   const final = phase !== "open";
   if (final) await recordSubscriptionOrderCorrection(event, target, { kind: "adjustment" });
-  if (invoicePeriodEnded(target.invoice)) return { outcome: "skipped", note: "past_period" };
+  const unaffected = accessUnaffectedBy(target.invoice);
+  if (unaffected) return { outcome: "skipped", note: unaffected };
 
   const { revokeSubscriptionEntitlement } = await import("@/lib/billing/grant.server");
   const revoked = await revokeSubscriptionEntitlement(
@@ -1173,15 +1232,18 @@ async function reviveSubscription(
 
 /**
  * Spór na fakturze subskrypcji rozstrzygnięty bez utraty środków. Dostęp
- * wraca tylko wtedy, gdy korekta w ogóle go zabrała (bieżący okres) i gdy
- * obciążenie NIE zostało w międzyczasie zwrócone (zapytanie banku
- * rozwiązane zwrotem) - pełny zwrot bieżącego okresu ma `refunded` na stałe.
+ * wraca tylko wtedy, gdy korekta w ogóle go zabrała (faktura opłacająca
+ * bieżący okres) i gdy obciążenie NIE zostało w międzyczasie zwrócone
+ * (zapytanie banku rozwiązane zwrotem) - pełny zwrot bieżącego okresu ma
+ * `refunded` na stałe. Wygrana na fakturze dodatkowej nie przywraca niczego:
+ * jeśli dostęp zniknął, zabrała go inna korekta.
  */
 async function restoreSubscription(
   event: RefundEvent,
   target: SubscriptionTarget,
 ): Promise<CorrectionResult> {
-  if (invoicePeriodEnded(target.invoice)) return { outcome: "skipped", note: "past_period" };
+  const unaffected = accessUnaffectedBy(target.invoice);
+  if (unaffected) return { outcome: "skipped", note: unaffected };
   if (isPaymentRef(event.transactionId)) {
     const { retrievePaymentRefundState } = await import("@/lib/billing/transactions.server");
     const state = await retrievePaymentRefundState(event.environment, event.transactionId);
@@ -1364,6 +1426,7 @@ type AccessNote =
   | "restored"
   | "refunded_kept"
   | "past_period"
+  | "supplemental"
   | "unverified"
   | "disputed"
   | "ticket_review"
@@ -1390,6 +1453,10 @@ const ACCESS_NOTES: Record<AccessNote, { pl: string; en: string }> = {
   past_period: {
     pl: " Faktura dotyczy zakończonego okresu - dostęp klienta bez zmian.",
     en: " The invoice covers a past period - customer access is unchanged.",
+  },
+  supplemental: {
+    pl: " Faktura dodatkowa (np. dopłata za zmianę planu) nie opłaca bieżącego okresu - dostęp klienta bez zmian.",
+    en: " A supplemental invoice (e.g. a plan-change proration) does not pay for the current period - customer access is unchanged.",
   },
   unverified: {
     pl: " Nie udało się potwierdzić stanu płatności u operatora - sprawdź dostęp ręcznie.",
@@ -1537,14 +1604,14 @@ async function alertAdminsAboutDispute(
 /**
  * Alert dla zespołu przy zwrocie, który nie zrobił tego, czego można by się
  * spodziewać: zwrot nieudany (pieniądze wróciły na saldo) albo zwrot faktury
- * za zakończony okres (dostęp bez zmian). Raz na zwrot i fazę (`once`).
- * Nigdy nie rzuca.
+ * za zakończony okres lub faktury dodatkowej (dostęp bez zmian). Raz na zwrot
+ * i fazę (`once`). Nigdy nie rzuca.
  */
 async function alertAdminsAboutRefund(
   event: RefundEvent,
   target: AdjustmentTarget,
   tenantId: string | null,
-  alert: { phase: "failed" | "past_period"; note: AccessNote },
+  alert: { phase: "failed" | "past_period" | "supplemental"; note: AccessNote },
 ): Promise<void> {
   const ref =
     event.transactionId ??
@@ -1560,6 +1627,10 @@ async function alertAdminsAboutRefund(
   const access = ACCESS_NOTES[alert.note];
   const failure = event.failureReason ?? event.providerStatus;
   const reason = failure ? ` (${failure})` : "";
+  const invoiceReason =
+    target.kind === "subscription" && target.invoice?.billingReason
+      ? ` (${target.invoice.billingReason})`
+      : "";
   const copy =
     alert.phase === "failed"
       ? {
@@ -1568,12 +1639,19 @@ async function alertAdminsAboutRefund(
           bodyPl: `Zwrot ${event.adjustmentId} dla ${ref}${reason} nie doszedł do skutku - środki wróciły na saldo.${access.pl}`,
           bodyEn: `Refund ${event.adjustmentId} for ${ref}${reason} failed - the funds returned to the balance.${access.en}`,
         }
-      : {
-          titlePl: "Zwrot faktury za zakończony okres",
-          titleEn: "Refund of a past-period invoice",
-          bodyPl: `Zwrócono płatność ${ref} za okres, który już minął.${access.pl}`,
-          bodyEn: `Payment ${ref} for an already finished period was refunded.${access.en}`,
-        };
+      : alert.phase === "supplemental"
+        ? {
+            titlePl: "Zwrot faktury dodatkowej subskrypcji",
+            titleEn: "Refund of a supplemental subscription invoice",
+            bodyPl: `Zwrócono płatność ${ref} faktury dodatkowej${invoiceReason}.${access.pl} Jeśli zwrot cofa zmianę planu, popraw plan klienta ręcznie.`,
+            bodyEn: `Payment ${ref} of a supplemental invoice${invoiceReason} was refunded.${access.en} If the refund reverts a plan change, adjust the customer's plan manually.`,
+          }
+        : {
+            titlePl: "Zwrot faktury za zakończony okres",
+            titleEn: "Refund of a past-period invoice",
+            bodyPl: `Zwrócono płatność ${ref} za okres, który już minął.${access.pl}`,
+            bodyEn: `Payment ${ref} for an already finished period was refunded.${access.en}`,
+          };
   const { notifyTenantAdmins } = await import("@/lib/events/tenantAdminAlert.server");
   await notifyTenantAdmins({
     tenantId,
@@ -1618,6 +1696,48 @@ async function withCurrentDisputeState(event: RefundEvent): Promise<RefundEvent>
     transactionId:
       event.transactionId ??
       (paymentRef && PROVIDER_REFERENCE_SHAPE.test(paymentRef) ? paymentRef : null),
+  };
+}
+
+/**
+ * Zwrot w stanie BIEŻĄCYM u operatora (2.11). `charge.refunded` niesie
+ * `amount_refunded` z chwili wysłania, a nieudany zwrot (`refund.failed`)
+ * cofa tę kwotę u operatora. Ponowione albo spóźnione stare zdarzenie
+ * (redelivery, przegląd zaległych, ponowienie z panelu, uzgodnienie) - także
+ * dostarczone PO `refund.failed` - zamykało więc zamówienie drugi raz, odbierało
+ * dostęp przywrócony po porażce i wysyłało drugi mail „Płatność została
+ * zwrócona". Kwoty bierzemy zatem z obciążenia, jak spór bierze stan sporu (S2).
+ *
+ *   * nic już nie jest zwrócone -> `null`: zwrot przepadł, nie ma czego odbierać;
+ *   * płatność nieznana operatorowi (404) -> stan ze zdarzenia, z ostrzeżeniem;
+ *   * awaria odczytu RZUCA, zanim cokolwiek zapiszemy (operator ponowi).
+ *
+ * Korekta bez płatności `pi_`/`ch_` (dawny Paddle) zostaje przy zdarzeniu.
+ */
+async function withCurrentRefundState(event: RefundEvent): Promise<RefundEvent | null> {
+  if (!isPaymentRef(event.transactionId)) return event;
+  const { retrievePaymentRefundState } = await import("@/lib/billing/transactions.server");
+  const state = await retrievePaymentRefundState(event.environment, event.transactionId);
+  if (!state) {
+    console.warn("[payments] refunded payment unknown to the provider - acting on the event", {
+      adjustmentId: event.adjustmentId,
+      transactionId: event.transactionId,
+    });
+    return event;
+  }
+  if (state.refundedCents <= 0) {
+    console.warn("[payments] refund no longer in effect at the provider - skipped", {
+      adjustmentId: event.adjustmentId,
+      transactionId: event.transactionId,
+      eventAmountCents: event.amountCents,
+    });
+    return null;
+  }
+  return {
+    ...event,
+    amountCents: state.refundedCents,
+    capturedAmountCents: state.amountCents > 0 ? state.amountCents : event.capturedAmountCents,
+    currency: state.currency ?? event.currency,
   };
 }
 
@@ -1707,7 +1827,10 @@ async function refundFailureEffect(
       await recordSubscriptionOrderCorrection(event, target, { kind: "refund_failed", state });
       if (state.fullyRefunded) return { outcome: "skipped", note: "refunded_kept" };
       if (state.disputed) return { outcome: "skipped", note: "disputed" };
-      if (invoicePeriodEnded(target.invoice)) return { outcome: "skipped", note: "past_period" };
+      // Zwrot, który przepadł, niczego nie zabrał (okres minął, faktura
+      // dodatkowa) - wymuszone ożywienie cofałoby korektę INNEJ faktury.
+      const unaffected = accessUnaffectedBy(target.invoice);
+      if (unaffected) return { outcome: "skipped", note: unaffected };
       return reviveSubscription(event, target.subscriptionId, "refund");
     }
     case "donation":
@@ -1723,19 +1846,29 @@ async function refundFailureEffect(
  * Stan liczymy z obciążenia u operatora (`amount_refunded` po porażce), nie
  * z kwoty zdarzenia: inne zwroty tego samego obciążenia mogły się udać.
  * Dostęp wraca WYŁĄCZNIE wtedy, gdy pozostałe zwroty nie są już zwrotem
- * pełnym; inaczej zostaje księgowanie. Zespół dostaje alert raz na zwrot.
+ * pełnym; inaczej zostaje księgowanie. Zespół dostaje alert raz na zwrot -
+ * chyba że ten sam zwrot zgłosiła już eskalacja zlecenia zwrotu zgłoszenia
+ * (`alreadyAlerted`): RPC alarmuje tych samych administratorów najemcy o tym
+ * samym zwrocie, a drugi dzwonek o jednym zdarzeniu to szum.
  */
-async function applyRefundFailure(event: RefundEvent): Promise<RefundOutcome> {
+async function applyRefundFailure(
+  event: RefundEvent,
+  options: { alreadyAlerted: boolean },
+): Promise<RefundOutcome> {
   const target = await resolveAdjustmentTarget(event, "refund");
-  const tenantId = await adjustmentTenant(event, target);
+  const tenantId = options.alreadyAlerted ? null : await adjustmentTenant(event, target);
+  const alert = (note: AccessNote) =>
+    options.alreadyAlerted
+      ? Promise.resolve()
+      : alertAdminsAboutRefund(event, target, tenantId, { phase: "failed", note });
   let result: CorrectionResult;
   try {
     result = await refundFailureEffect(event, target);
   } catch (err) {
-    await alertAdminsAboutRefund(event, target, tenantId, { phase: "failed", note: "pending" });
+    await alert("pending");
     throw err;
   }
-  await alertAdminsAboutRefund(event, target, tenantId, { phase: "failed", note: result.note });
+  await alert(result.note);
   return result.outcome;
 }
 
@@ -1784,7 +1917,9 @@ async function escalateFailedRefund(event: RefundEvent): Promise<RefundOutcome> 
  */
 async function applyFailedRefund(event: RefundEvent): Promise<RefundOutcome> {
   const escalated = await escalateFailedRefund(event);
-  const corrected = await applyRefundFailure(event);
+  const corrected = await applyRefundFailure(event, {
+    alreadyAlerted: escalated === "refund_failure_escalated",
+  });
   return corrected !== "skipped" ? corrected : escalated;
 }
 
@@ -1795,9 +1930,11 @@ async function applyFailedRefund(event: RefundEvent): Promise<RefundOutcome> {
  *   2. spór - stan BIEŻĄCY od operatora (S2);
  *   3. bramka: korekta, która niczego nie odbiera ani nie przywraca (kredyt,
  *      wniosek o zwrot) i nie jest sporem, kończy się bez dotykania bazy;
- *   4. cel korekty - RAZ (zamówienie / subskrypcja przez operatora / sesja
+ *   4. zwrot - kwota z obciążenia w stanie BIEŻĄCYM (2.11); zwrot, który
+ *      przepadł, kończy się bez dotykania bazy;
+ *   5. cel korekty - RAZ (zamówienie / subskrypcja przez operatora / sesja
  *      Checkout / darowizna);
- *   5. skutek; przy sporze - alert dla zespołu najemcy w każdej fazie.
+ *   6. skutek; przy sporze - alert dla zespołu najemcy w każdej fazie.
  *
  * Zdarzenie kopiujemy na wejściu: cel, alert i skutek mają widzieć TE SAME
  * identyfikatory, nawet gdy wołający zmieni swój obiekt w trakcie.
@@ -1810,6 +1947,12 @@ export async function applyRefundEffects(input: RefundEvent): Promise<RefundOutc
   const dispute = isDispute(event);
   const revoking = !isDisputeReversed(event) && isRevokingAdjustment(event);
   if (!dispute && !revoking) return "skipped";
+
+  if (!dispute) {
+    const current = await withCurrentRefundState(event);
+    if (!current) return "skipped";
+    event = current;
+  }
 
   const target = await resolveAdjustmentTarget(event, dispute ? "dispute" : "refund");
   return dispute ? applyDispute(event, target) : applyRefund(event, target);
