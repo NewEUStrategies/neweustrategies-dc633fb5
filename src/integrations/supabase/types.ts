@@ -7171,6 +7171,7 @@ export type Database = {
           event_id: string
           id: string
           last_repeat_at: string | null
+          last_repeat_device_at: string | null
           note: string | null
           occurred_at: string | null
           offline_admitted: boolean | null
@@ -7198,6 +7199,7 @@ export type Database = {
           event_id: string
           id?: string
           last_repeat_at?: string | null
+          last_repeat_device_at?: string | null
           note?: string | null
           occurred_at?: string | null
           offline_admitted?: boolean | null
@@ -7225,6 +7227,7 @@ export type Database = {
           event_id?: string
           id?: string
           last_repeat_at?: string | null
+          last_repeat_device_at?: string | null
           note?: string | null
           occurred_at?: string | null
           offline_admitted?: boolean | null
@@ -12218,6 +12221,7 @@ export type Database = {
           credential: string
           event_id: string
           id: string
+          issued_at: string | null
           reason: string
           registration_id: string
           superseded_at: string
@@ -12228,6 +12232,7 @@ export type Database = {
           credential: string
           event_id: string
           id?: string
+          issued_at?: string | null
           reason: string
           registration_id: string
           superseded_at?: string
@@ -12238,6 +12243,7 @@ export type Database = {
           credential?: string
           event_id?: string
           id?: string
+          issued_at?: string | null
           reason?: string
           registration_id?: string
           superseded_at?: string
@@ -23437,6 +23443,7 @@ export type Database = {
         Returns: {
           credential: string
           event_id: string
+          issued_at: string
           person_id: string
           registration_id: string
           superseded: boolean
@@ -23562,6 +23569,16 @@ export type Database = {
       _event_scanner_queue_marker_reply: {
         Args: { _device_id: string; _expires_at: string; _secret: string }
         Returns: Json
+      }
+      _event_scanner_scan_time_corroborated: {
+        Args: {
+          _code_issued_at: string
+          _device_at: string
+          _device_id: string
+          _marker: string
+          _tenant: string
+        }
+        Returns: boolean
       }
       _event_scanner_superseded_reply: {
         Args: {
