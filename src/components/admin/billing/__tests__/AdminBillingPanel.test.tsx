@@ -115,6 +115,9 @@ vi.mock("@/components/admin/billing/AdminPaymentOrdersPanel", () => ({
 vi.mock("@/components/admin/billing/AdminTicketOrdersPanel", () => ({
   AdminTicketOrdersPanel: () => <div data-testid="panel-bilety" />,
 }));
+vi.mock("@/components/admin/billing/LegacyNonPaymentReconcileCard", () => ({
+  LegacyNonPaymentReconcileCard: () => <div data-testid="karta-dawne-anulowania" />,
+}));
 
 vi.mock("sonner", () => ({
   toast: { success: (m: string) => h.toastSuccess(m), error: (m: string) => h.toastError(m) },
@@ -603,6 +606,16 @@ describe("AdminBillingPanel - kompozycja paneli potomnych", () => {
 
     fireEvent.click(screen.getByText("adminBilling.tickets"));
     await waitFor(() => expect(screen.getByTestId("panel-bilety")).toBeTruthy());
+  });
+
+  it("karta uzgodnienia dawnych anulowań stoi nad zakładkami, niezależnie od zakładki", async () => {
+    render();
+    await awaitRows();
+
+    expect(screen.getByTestId("karta-dawne-anulowania")).toBeTruthy();
+    fireEvent.click(screen.getByText("adminBilling.eventLog"));
+    await waitFor(() => expect(screen.getByTestId("panel-dziennik")).toBeTruthy());
+    expect(screen.getByTestId("karta-dawne-anulowania")).toBeTruthy();
   });
 
   it("odświeżenie pyta bazę PONOWNIE o subskrypcje i zdarzenia", async () => {
