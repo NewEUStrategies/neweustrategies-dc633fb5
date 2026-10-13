@@ -40,6 +40,7 @@ import {
   setRegistrationChannels,
   type ParticipantRegistration,
 } from "@/lib/events/participantTicketsApi";
+import type { RegistrationPreferencesData } from "@/lib/events/registrationChannelsApi";
 import {
   registrationPreferencesKey,
   useParticipantSmsAvailable,
@@ -107,7 +108,10 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
     registrationId: item.registrationId,
     enabled: smsConsentOpen,
   });
-  const consentPrefsData = consentPrefs.data?.kind === "ok" ? consentPrefs.data : null;
+  // Lokalna stała zawęża unię (`kind`) - pole wyniku zapytania by jej nie zawęziło.
+  const consentResult = consentPrefs.data;
+  const consentPrefsData: RegistrationPreferencesData | null =
+    consentResult?.kind === "ok" ? consentResult : null;
 
   const channels = useMutation({
     mutationFn: (patch: {
