@@ -20,7 +20,7 @@
 --      z chwili zapisu (REG-16).
 --   F. Naprawa REG-01 po uzgodnieniach (20261013900900): audyt = 0.
 BEGIN;
-SELECT plan(20);
+SELECT plan(23);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -79,6 +79,7 @@ SELECT ('9e050000-0000-0000-0000-000000000' || o.s)::uuid, '9e000000-0000-0000-0
                ('013', '01', 'paid', '9e000000-0000-0000-0000-0000000000c1'),
                ('015', '01', 'paid', '9e000000-0000-0000-0000-0000000000c1'),
                ('016', '01', 'paid', '9e000000-0000-0000-0000-0000000000c1'),
+               ('018', '01', 'paid', '9e000000-0000-0000-0000-0000000000c1'),
                ('017', '01', 'paid', '9e000000-0000-0000-0000-0000000000c3'),
                ('022', '02', 'paid', '9e000000-0000-0000-0000-0000000000c1'),
                ('041', '04', 'processing', '9e000000-0000-0000-0000-0000000000c2'))
@@ -106,6 +107,9 @@ INSERT INTO public.event_registrations
   ('9e040000-0000-0000-0000-000000000016', '9e000000-0000-0000-0000-0000000000aa', '9e010000-0000-0000-0000-000000000001',
    '9e030000-0000-0000-0000-0000000000c1', '9e020000-0000-0000-0000-000000000001', 'cancelled', 'form', 'paid',
    '9e050000-0000-0000-0000-000000000016', now(), now(), 'organizer', now(), NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+  ('9e040000-0000-0000-0000-000000000018', '9e000000-0000-0000-0000-0000000000aa', '9e010000-0000-0000-0000-000000000001',
+   '9e030000-0000-0000-0000-0000000000c1', '9e020000-0000-0000-0000-000000000001', 'cancelled', 'form', 'paid',
+   '9e050000-0000-0000-0000-000000000018', now(), now(), 'organizer', now(), NULL, NULL, NULL, NULL, NULL, NULL, NULL),
   ('9e040000-0000-0000-0000-000000000017', '9e000000-0000-0000-0000-0000000000aa', '9e010000-0000-0000-0000-000000000001',
    '9e030000-0000-0000-0000-0000000000f1', '9e020000-0000-0000-0000-000000000001', 'pending', 'form', 'unpaid',
    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL),
@@ -131,7 +135,8 @@ INSERT INTO public.event_registrations
 
 -- Zlecenia zastane: 11 po eskalacji (budzet wyczerpany, stary identyfikator
 -- zwrotu), 12 zwrot bez potwierdzenia, 13 zwrot odrzucony przez operatora,
--- 15 ostatnia proba w toku, 16 czeka na dzierzawe.
+-- 15 ostatnia proba w toku, 16 czeka na dzierzawe, 18 porazka z budzetem
+-- wyczerpanym przed eskalacja (zastane po wdrozeniu - zamiata je dzierzawa).
 INSERT INTO public.event_registration_refund_jobs
   (tenant_id, event_id, payment_order_id, registration_id, state, origin, review_reason, attempts,
    escalated_at, provider_refund_id, claim_token, claimed_at, next_attempt_at)
@@ -143,7 +148,8 @@ SELECT '9e000000-0000-0000-0000-0000000000aa', '9e010000-0000-0000-0000-00000000
                ('012', 'needs_review', 'refund_unconfirmed', 1, now(), 're_mm_pending', NULL),
                ('013', 'needs_review', 'provider_refund_failed', 3, now(), 're_mm_failed', NULL),
                ('015', 'processing', NULL, 10, NULL, NULL, '9e060000-0000-0000-0000-000000000015'),
-               ('016', 'pending', NULL, 0, NULL, NULL, NULL))
+               ('016', 'pending', NULL, 0, NULL, NULL, NULL),
+               ('018', 'failed', NULL, 10, NULL, NULL, NULL))
        AS j(s, state, reason, attempts, escalated, refund_id, claim);
 
 CREATE FUNCTION pg_temp.mm_job(_order uuid) RETURNS public.event_registration_refund_jobs
@@ -223,14 +229,21 @@ SELECT ok(
   AND (SELECT count(*) = 1 FROM public.notifications n
         WHERE n.user_id = '9e000000-0000-0000-0000-0000000000a1'
           AND n.title_pl = 'Zwrot wymaga decyzji'
+          -- Zlecenie z rezygnacji, nie z odrzucenia: tresc alarmu nie mowi
+          -- „odrzucone zgloszenie" (REG-03 zaklada zlecenia przy kazdym zamknieciu).
+          AND n.body_pl LIKE 'Zwrot za zgłoszenie na „Zwroty MM”%po 10 próbach%'
           AND n.href LIKE '%refund_job=' || (SELECT j.id::text FROM pg_temp.mm_job('9e050000-0000-0000-0000-000000000015') j)),
-  'B3 (REG-03 x INV-19c): jedno zdarzenie refund_failed.v1 na szynie (REG) i jeden alarm administratora (main)');
+  'B3 (REG-03 x INV-19c): jedno zdarzenie refund_failed.v1 na szynie (REG) i jeden alarm administratora (main) bez slowa "odrzucone"');
 
 SELECT ok(
   EXISTS (SELECT 1 FROM jsonb_array_elements(public._event_registration_refunds_claim(100)) c
            WHERE c->>'order_id' = '9e050000-0000-0000-0000-000000000016'
              AND c->>'origin' = 'participant_cancelled'),
   'B4 (REG-03 x INV-19c): dzierzawa po zamiataniu eskalacji oddaje pochodzenie zlecenia');
+SELECT ok(
+  (SELECT j.state = 'needs_review' AND j.review_reason = 'attempts_exhausted' AND j.escalated_at IS NOT NULL
+     FROM pg_temp.mm_job('9e050000-0000-0000-0000-000000000018') j),
+  'B4b (INV-19c): ta sama dzierzawa zamiata zlecenie z wyczerpanym budzetem do przegladu z alarmem');
 
 SELECT set_config('request.jwt.claims', '{"sub":"9e000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
 SET LOCAL ROLE authenticated;
@@ -238,7 +251,7 @@ SELECT ok(
   (SELECT bool_and(x ? 'escalated_at' AND x ? 'origin' AND x ? 'amount_cents' AND x ? 'review_note'
                    AND NOT x ? 'claim_token' AND NOT x ? 'provider_refund_id')
      FROM jsonb_array_elements(public.admin_event_refund_jobs('9e010000-0000-0000-0000-000000000001')) x)
-  AND jsonb_array_length(public.admin_event_refund_jobs('9e010000-0000-0000-0000-000000000001')) = 5,
+  AND jsonb_array_length(public.admin_event_refund_jobs('9e010000-0000-0000-0000-000000000001')) = 6,
   'B5 (REG-03 x INV-19c): dziennik zwrotow - pola REG i chwila alarmu main, bez dzierzawy i identyfikatora zwrotu');
 RESET ROLE;
 
@@ -286,6 +299,19 @@ SELECT is(
     '[{"first_name":"Gosc","last_name":"Pierwszy","email":"mm-guest1@example.org"}]'::jsonb)->'client',
   '{"ok": false, "error": "checkout_in_progress"}'::jsonb,
   'D1 (TIX-03 x R38): otwarta kasa prowadzacego - odmowa wartoscia z rdzenia gosci');
+-- Wrapper zgodnosci (najemca z hosta, konto z JWT): ta sama odmowa WARTOSCIA
+-- (R38), a nie wyjatkiem jak w ciele main 20261012130000.
+SELECT set_config('request.headers', '{"x-tenant-host":"mm-a.example"}', true);
+SELECT set_config('request.jwt.claims', '{"sub":"9e000000-0000-0000-0000-0000000000c2","role":"service_role"}', true);
+SELECT set_config('request.jwt.claim.sub', '9e000000-0000-0000-0000-0000000000c2', true);
+SELECT is(
+  public.event_register_group_guests('9e040000-0000-0000-0000-000000000041',
+    '[{"first_name":"Gosc","last_name":"Pierwszy","email":"mm-guest1@example.org"}]'::jsonb),
+  '{"ok": false, "error": "checkout_in_progress"}'::jsonb,
+  'D1b (TIX-03 x R38): wrapper zgodnosci oddaje te sama odmowe wartoscia');
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT set_config('request.jwt.claims', '', true);
+SELECT set_config('request.headers', '', true);
 UPDATE public.payment_orders SET created_at = now() - interval '2 hours'
  WHERE id = '9e050000-0000-0000-0000-000000000041';
 SELECT is(
@@ -299,6 +325,11 @@ SELECT ok(
   pg_get_functiondef('public._event_reveal_coupon_covers(uuid,uuid,uuid,text)'::regprocedure)
     LIKE '%public._b2b_coupon_window_open(c.valid_from, c.valid_until)%',
   'D3 (TIX-13b x REG-05): odslanianie biletow liczy okno kodu jedna regula _b2b_coupon_window_open');
+SELECT ok(
+  pg_get_functiondef('public.event_coupon_revealed_tickets(uuid,uuid,text)'::regprocedure)
+    LIKE '%public._event_reveal_coupon_covers(p_tenant, p_event_id, t.id, v_norm)%'
+  AND NOT has_function_privilege('anon', 'public.event_coupon_revealed_tickets(uuid,uuid,text)', 'EXECUTE'),
+  'D3b (REG-05 x TIX-13b): stara sciezka odslaniania na tym samym predykacie co zapis, tylko serwer');
 SELECT ok(
   obj_description('public._event_seats_left(uuid,uuid,uuid)'::regprocedure, 'pg_proc') LIKE '%_event_package_seats_held%'
   AND obj_description('public._event_seats_left(uuid,uuid,uuid)'::regprocedure, 'pg_proc') LIKE '%wydarzenie -> bilet -> zgloszenie%'
