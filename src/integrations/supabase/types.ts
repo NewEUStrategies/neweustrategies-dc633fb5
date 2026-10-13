@@ -30781,6 +30781,7 @@ export type Database = {
           used: number
         }[]
       }
+      gift_links_revoke_without_creator_access: { Args: never; Returns: number }
       gift_share_eligibility: { Args: never; Returns: string }
       guess_gender_from_name: {
         Args: { _name: string }
