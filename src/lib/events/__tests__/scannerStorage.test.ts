@@ -608,7 +608,8 @@ describe("zapis kolejki", () => {
     const idb = installFakeIdb();
     const storage = await freshModule();
 
-    await storage.saveOutbox(queue, key);
+    // `true` = transakcja zakończona, kolejka na dysku.
+    await expect(storage.saveOutbox(queue, key)).resolves.toBe(true);
 
     expect(idb.txCalls).toEqual([{ store: "outbox", mode: "readwrite" }]);
     expect(idb.puts).toHaveLength(1);
@@ -693,7 +694,9 @@ describe("zapis kolejki", () => {
     const idb = installFakeIdb({ tx: "error" });
     const storage = await freshModule();
 
-    await expect(storage.saveOutbox([item()])).resolves.toBeUndefined();
+    // `false` = zapis nie trafil na dysk (sprzatanie pod originem portalu
+    // nie kasuje wtedy tokenu - `purgeScannerData`).
+    await expect(storage.saveOutbox([item()])).resolves.toBe(false);
     expect(storage.isOutboxPersistent()).toBe(false);
     expect(idb.closes).toBe(1);
   });
@@ -708,13 +711,15 @@ describe("zapis kolejki", () => {
     expect(idb.closes).toBe(1);
   });
 
-  it("wyjatek z `transaction()` przy zapisie schodzi do pamieci, zostawiajac polaczenie (usterka)", async () => {
+  it("wyjatek z `transaction()` przy zapisie schodzi do pamieci i ZAMYKA polaczenie", async () => {
     const idb = installFakeIdb({ transactionThrows: true });
     const storage = await freshModule();
 
-    await expect(storage.saveOutbox([item()])).resolves.toBeUndefined();
+    await expect(storage.saveOutbox([item()])).resolves.toBe(false);
     expect(storage.isOutboxPersistent()).toBe(false);
-    expect(idb.closes).toBe(0); // stan obecny; poprawka powinna dac 1
+    // Wspolna sciezka porazki zapisu (`done(false)`) zamyka uchwyt - zwisajace
+    // polaczenie blokowaloby przyszla migracje (`onblocked`).
+    expect(idb.closes).toBe(1);
   });
 
   it("bez bazy zapis trafia do pamieci karty i tam DA sie go odczytac", async () => {

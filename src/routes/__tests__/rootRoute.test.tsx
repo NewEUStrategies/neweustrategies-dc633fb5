@@ -362,9 +362,9 @@ const {
   ConsentSurface,
   useNoActivePopupsFromSsr,
   armCacheBusting,
-  armScannerLeftoverPurge,
-  PORTAL_SCANNER_TOKEN_KEY,
 } = await import("@/routes/__root");
+const { armScannerLeftoverPurge, PORTAL_SCANNER_TOKEN_KEY } =
+  await import("@/lib/events/scannerLeftoverPurge");
 
 type Loader = (a: {
   context: { queryClient: QueryClient };

@@ -85,6 +85,14 @@
 // znaków (`codePrefix`): tyle wystarczy organizatorowi, a eksport krążący
 // pocztą nie wpuści nikogo na salę.
 //
+// NOTATKA SPONSORA TEŻ NIE PRZECHODZI NA LISTĘ ODRZUCONYCH. W kolejce leży
+// wyłącznie w sejfie (jak kod), a lista odrzuconych żyje poza sejfem: przeżywa
+// unieważnienie poświadczenia (z nim znika token, czyli jedyny klucz) i jedzie
+// w eksporcie JSON pocztą. Zaszyfrowana byłaby nieczytelna dokładnie wtedy, gdy
+// trafia na listę (odmowa poświadczenia kasuje klucz), a jawna łamałaby obietnicę
+// sejfu - więc odrzucony lead traci notatkę, tak jak kod i znacznik kolejki.
+// Ekran ani eksport CSV i tak jej nie pokazywały.
+//
 // ZNACZNIK KOLEJKI (`queueMarker`, OPS-12) jest nieprzezroczysty: środowisko
 // stempluje nim pozycję W CHWILI KOLEJKOWANIA (znacznik aktualny wtedy, nie
 // przy wysyłce - patrz `scannerQueueMarker.ts`), kolejka go przechowa
@@ -159,10 +167,14 @@ export interface OutboxItem {
 }
 
 /**
- * Pozycja na liście odrzuconych - BEZ jawnego kodu, bloku sejfu i znacznika
- * kolejki. Do odnalezienia zgłoszenia wystarczą `codeHash` i `codePrefix`.
+ * Pozycja na liście odrzuconych - BEZ jawnego kodu, notatki, bloku sejfu
+ * i znacznika kolejki (patrz nagłówek). Do odnalezienia zgłoszenia wystarczą
+ * `codeHash` i `codePrefix`.
  */
-export type RejectedItem = Omit<OutboxItem, "code" | "sealed" | "queueMarker">;
+export type RejectedItem = Omit<OutboxItem, "code" | "note" | "sealed" | "queueMarker">;
+
+/** Pola, które istnieją wyłącznie w sejfie kolejki - nigdy na liście odrzuconych. */
+type VaultOnlyFields = Pick<OutboxItem, "code" | "note" | "sealed" | "queueMarker">;
 
 /** Pozycja zdjęta z kolejki trwałą odmową - czeka na organizatora. */
 export interface RejectedScan {
@@ -173,12 +185,15 @@ export interface RejectedScan {
 }
 
 /**
- * Pozycja kolejki -> wpis listy odrzuconych: kod znika, zostają skrót
- * i prefiks (prefiks liczony z kodu, gdy pozycja go jeszcze nie miała).
+ * Pozycja kolejki -> wpis listy odrzuconych: kod i notatka znikają, zostają
+ * skrót i prefiks (prefiks liczony z kodu, gdy pozycja go jeszcze nie miała).
+ * JEDYNA droga na listę odrzuconych, do jej zapisu i do eksportu - pole spoza
+ * `RejectedItem` (np. notatka z pamięci karty albo z rekordu sprzed tej zmiany)
+ * nie przechodzi żadną z nich.
  */
 export function toRejectedItem(item: OutboxItem | RejectedItem): RejectedItem {
-  const source: Partial<Pick<OutboxItem, "code" | "sealed" | "queueMarker">> & RejectedItem = item;
-  const { code, sealed: _sealed, queueMarker: _marker, ...rest } = source;
+  const source: Partial<VaultOnlyFields> & RejectedItem = item;
+  const { code, note: _note, sealed: _sealed, queueMarker: _marker, ...rest } = source;
   const prefix =
     item.codePrefix ?? (typeof code === "string" && code !== "" ? codePrefixOf(code) : null);
   return { ...rest, codeHash: item.codeHash ?? null, codePrefix: prefix };

@@ -105,7 +105,7 @@ function conflict(over: Partial<ScanConflict> = {}): ScanConflict {
 
 function rejectedScan(over: Partial<RejectedScan> = {}): RejectedScan {
   return {
-    // OPS-06: wpis listy odrzuconych nie ma jawnego kodu - skrót i prefiks.
+    // OPS-06: wpis listy odrzuconych nie ma jawnego kodu ani notatki - skrót i prefiks.
     item: {
       id: "scan-9",
       kind: "checkin",
@@ -113,7 +113,6 @@ function rejectedScan(over: Partial<RejectedScan> = {}): RejectedScan {
       codePrefix: "QR-ODR",
       checkpointId: "c1",
       direction: "in",
-      note: null,
       interestRating: null,
       deviceScannedAt: "2026-09-26T08:30:00.000Z",
       attempts: 0,

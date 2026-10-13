@@ -8,15 +8,22 @@
 //      wyjaśnienia), których przeniesienie nie może porzucić.
 //   3. Sprzątanie biegnie pod originem SKANERA (albo bez skonfigurowanego
 //      originu) i wylogowuje działające urządzenie.
+//   4. Token znika PRZED kasowaniem kolejki albo mimo nieudanego kasowania -
+//      zaszyfrowane skany zostają na dysku bez klucza (F3; na prawdziwych
+//      modułach i awariach IndexedDB: `scannerLeftoverFailClosed.test.ts`).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   token: null as string | null,
-  queued: 0,
-  rejected: [] as unknown[],
-  conflicts: [] as unknown[],
+  /** `null` = magazyn nieczytelny. */
+  queued: 0 as number | null,
+  issues: 0 as number | null,
   cleared: 0,
   wiped: 0,
+  clearedOk: true,
+  wipedOk: true,
+  /** Token w chwili każdego kasowania - musi jeszcze być (znika OSTATNI). */
+  tokenAtWipe: [] as Array<string | null>,
 }));
 
 vi.mock("@/lib/events/scannerStorage", () => ({
@@ -27,16 +34,17 @@ vi.mock("@/lib/events/scannerStorage", () => ({
   countStoredOutbox: () => Promise.resolve(h.queued),
   clearOutbox: () => {
     h.cleared += 1;
-    return Promise.resolve();
+    h.tokenAtWipe.push(h.token);
+    return Promise.resolve(h.clearedOk);
   },
 }));
 
 vi.mock("@/lib/events/scannerOfflineStorage", () => ({
-  loadRejected: () => Promise.resolve(h.rejected),
-  loadConflicts: () => Promise.resolve(h.conflicts),
+  countStoredSyncIssues: () => Promise.resolve(h.issues),
   wipeAllOfflineData: () => {
     h.wiped += 1;
-    return Promise.resolve();
+    h.tokenAtWipe.push(h.token);
+    return Promise.resolve(h.wipedOk);
   },
 }));
 
@@ -48,24 +56,37 @@ const SCANNER = "https://scan.example.eu";
 beforeEach(() => {
   h.token = "token-z-dawnych-czasow-0123";
   h.queued = 0;
-  h.rejected = [];
-  h.conflicts = [];
+  h.issues = 0;
   h.cleared = 0;
   h.wiped = 0;
+  h.clearedOk = true;
+  h.wipedOk = true;
+  h.tokenAtWipe = [];
 });
 
 describe("resztki skanera pod originem portalu", () => {
-  it("token bez niewysłanej pracy znika razem z danymi skanera", async () => {
+  it("token bez niewysłanej pracy znika razem z danymi skanera - OSTATNI", async () => {
     await expect(purgeLeftoverScannerData(PORTAL, SCANNER)).resolves.toBe(true);
     expect(h.token).toBeNull();
     expect(h.cleared).toBe(1);
     expect(h.wiped).toBe(1);
+    expect(h.tokenAtWipe).toEqual(["token-z-dawnych-czasow-0123", "token-z-dawnych-czasow-0123"]);
+  });
+
+  it.each([
+    ["kolejka nie potwierdziła kasowania", () => (h.clearedOk = false)],
+    ["magazyn offline nie potwierdził kasowania", () => (h.wipedOk = false)],
+  ])("%s: token ZOSTAJE (bez niego zaszyfrowana kolejka przepada)", async (_opis, arrange) => {
+    arrange();
+    await expect(purgeLeftoverScannerData(PORTAL, SCANNER)).resolves.toBe(false);
+    expect(h.token).toBe("token-z-dawnych-czasow-0123");
   });
 
   it.each([
     ["kolejka z niewysłanymi skanami", () => (h.queued = 2)],
-    ["lista odrzuconych do przekazania", () => (h.rejected = [{}])],
-    ["konflikty decyzji offline", () => (h.conflicts = [{}])],
+    ["lista odrzuconych albo konflikty do przekazania", () => (h.issues = 1)],
+    ["kolejka nieczytelna (fail closed)", () => (h.queued = null)],
+    ["magazyn offline nieczytelny (fail closed)", () => (h.issues = null)],
   ])("%s ZATRZYMUJE sprzątanie (ta sama reguła co trasa `/scanner`)", async (_opis, arrange) => {
     arrange();
     await expect(purgeLeftoverScannerData(PORTAL, SCANNER)).resolves.toBe(false);

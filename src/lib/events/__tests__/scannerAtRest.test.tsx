@@ -29,12 +29,18 @@ import type {
 } from "@/lib/events/scannerApi";
 import type { RosterPage } from "@/lib/events/scannerRoster";
 import type { ScannerSession } from "@/lib/events/scannerSession";
+import type { RejectedScan } from "@/lib/events/scannerOutbox";
+import { syncIssuesJson } from "@/lib/events/scannerSyncIssues";
 import {
   CODE_SHAPE,
   createMemoryIndexedDb,
   stringsIn,
   type MemoryIndexedDb,
 } from "@/lib/events/__tests__/support/memoryIndexedDb";
+import {
+  createFakeLockManager,
+  installFakeLockManager,
+} from "@/lib/events/__tests__/support/fakeLockManager";
 
 freezeClock();
 
@@ -209,6 +215,36 @@ function everythingAtRest(): string[] {
 function plaintextCodesAtRest(): string[] {
   const all = everythingAtRest();
   return CODES.filter((code) => all.some((value) => value.includes(code)));
+}
+
+function atRest(fragment: string): boolean {
+  return everythingAtRest().some((value) => value.includes(fragment));
+}
+
+/** Obietnica do rozstrzygnięcia z testu - spóźniona odpowiedź bazy. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+/** Kilka obrotów mikrozadań i timerów - kontynuacje po `await` mają czas dobiec. */
+async function settle(): Promise<void> {
+  await act(async () => {
+    for (let round = 0; round < 10; round += 1) await new Promise((r) => setTimeout(r, 0));
+  });
+}
+
+function exportJson(rejected: readonly RejectedScan[]): string {
+  return syncIssuesJson([], rejected, {
+    deviceLabel: "Brama 1",
+    eventSlug: "kongres",
+    exportedAt: relativeIso(0),
+  });
 }
 
 async function loadRuntime() {
@@ -549,5 +585,352 @@ describe("OPS-06: kody z biletów nie leżą jawnie na urządzeniu", () => {
     });
     await expect(storage.purgeExpiredRoster(Date.now())).resolves.toBe(true);
     expect(idb.read("nes-scanner-offline", "records", "roster")).toBeUndefined();
+  });
+});
+
+/* ------------------------------------- notatka sponsora na liście odrzuconych --- */
+
+/** Notatka sponsora - w kolejce leży wyłącznie w sejfie, jak kod. */
+const NOTE = "PRIVATE-NOTE tel 600100200";
+
+describe("F0: notatka leadu nie przechodzi jawnie na listę odrzuconych", () => {
+  /** Lead z notatką w kolejce (bez sieci) - notatka tylko w bloku sejfu. */
+  async function leadQueuedOffline() {
+    const useScannerRuntime = await loadRuntime();
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    const hook = renderHookWithQueryClient(() => useScannerRuntime(TOKEN));
+    await waitFor(() => expect(hook.result.current.status).toBe("ready"));
+    goOffline();
+    await act(async () => {
+      await hook.result.current.submitLead({ code: LEAD, note: NOTE, interestRating: 5 });
+    });
+    await waitFor(() => expect(idb.read("nes-scanner", "outbox", "queue")).toHaveLength(1));
+    expect(atRest(NOTE)).toBe(false);
+    return hook;
+  }
+
+  function storedRejected(): Array<{ item: Record<string, unknown> }> {
+    const stored = idb.read("nes-scanner-offline", "records", "rejected");
+    return Array.isArray(stored) ? (stored as Array<{ item: Record<string, unknown> }>) : [];
+  }
+
+  it("odmowa pozycji (`invalid_payload`): odrzucony lead bez notatki - na dysku, w pamięci i w eksporcie JSON", async () => {
+    const { result } = await leadQueuedOffline();
+    api.recordLeadScan.mockRejectedValue(new Error("invalid_payload: not a ticket"));
+    goOnline();
+    await waitFor(() => expect(storedRejected()).toHaveLength(1));
+    await waitFor(() => expect(result.current.outbox).toEqual([]));
+    // Do bazy notatka pojechała - sejf otwiera ją w pamięci karty.
+    expect(api.recordLeadScan).toHaveBeenCalledWith(
+      expect.objectContaining({ code: LEAD, note: NOTE }),
+    );
+    const [entry] = storedRejected();
+    expect(entry.item).toMatchObject({ kind: "lead", codeHash: sha(LEAD), codePrefix: "Ld_012" });
+    expect(entry.item).not.toHaveProperty("note");
+    expect(result.current.rejected).toHaveLength(1);
+    expect(result.current.rejected[0].item).not.toHaveProperty("note");
+    expect(atRest(NOTE)).toBe(false);
+    expect(plaintextCodesAtRest()).toEqual([]);
+    expect(exportJson(result.current.rejected)).not.toContain(NOTE);
+  });
+
+  it("odmowa poświadczenia (`device_revoked`, cała kolejka na listę): notatka nie zostaje jawnie po utracie klucza", async () => {
+    const { result } = await leadQueuedOffline();
+    api.recordLeadScan.mockRejectedValue(new Error("device_revoked: revoked in panel"));
+    goOnline();
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+    await waitFor(() => expect(storedRejected()).toHaveLength(1));
+    await waitFor(() => expect(idb.read("nes-scanner", "outbox", "queue")).toEqual([]));
+    // Klucz (token) zniknął z urządzenia - lista odrzuconych zostaje, bez notatki.
+    expect(window.localStorage.getItem("nes.scanner.device-token")).toBeNull();
+    expect(storedRejected()[0].item).toMatchObject({ kind: "lead", codeHash: sha(LEAD) });
+    expect(storedRejected()[0].item).not.toHaveProperty("note");
+    expect(result.current.rejected[0].item).not.toHaveProperty("note");
+    expect(atRest(NOTE)).toBe(false);
+    expect(exportJson(result.current.rejected)).not.toContain(NOTE);
+  });
+
+  it("eksport JSON i zapis listy zdejmują notatkę także z wpisu, który ją jeszcze niesie (granica)", async () => {
+    const storage = await import("@/lib/events/scannerOfflineStorage");
+    const carrying = {
+      item: {
+        id: "l-1",
+        kind: "lead",
+        checkpointId: null,
+        direction: null,
+        note: NOTE,
+        interestRating: 3,
+        deviceScannedAt: relativeIso(-60_000),
+        attempts: 0,
+        nextAttemptAt: relativeIso(-60_000),
+        lastError: null,
+        codeHash: sha(LEAD),
+        codePrefix: "Ld_012",
+      },
+      error: "invalid_payload: not a ticket",
+      rejectedAt: relativeIso(-30_000),
+    } as unknown as RejectedScan;
+    expect(exportJson([carrying])).not.toContain(NOTE);
+    await storage.saveRejected([carrying]);
+    expect(atRest(NOTE)).toBe(false);
+    expect(storedRejected()).toHaveLength(1);
+  });
+
+  it("lista odrzuconych z notatką (zapisana przed tą zmianą) traci ją przy pierwszym odczycie", async () => {
+    idb.seed("nes-scanner-offline", "records", "rejected", [
+      {
+        item: {
+          id: "l-stary",
+          kind: "lead",
+          checkpointId: null,
+          direction: null,
+          note: NOTE,
+          interestRating: 4,
+          deviceScannedAt: relativeIso(-600_000),
+          attempts: 0,
+          nextAttemptAt: relativeIso(-600_000),
+          lastError: null,
+          codeHash: sha(LEAD),
+          codePrefix: "Ld_012",
+        },
+        error: "device_revoked: x",
+        rejectedAt: relativeIso(-500_000),
+      },
+    ]);
+    expect(atRest(NOTE)).toBe(true);
+    const useScannerRuntime = await loadRuntime();
+    const { result } = renderHookWithQueryClient(() => useScannerRuntime(null));
+    await waitFor(() => expect(atRest(NOTE)).toBe(false));
+    expect(storedRejected()).toEqual([
+      expect.objectContaining({ item: expect.objectContaining({ id: "l-stary" }) }),
+    ]);
+    await waitFor(() => expect(result.current.rejected).toHaveLength(1));
+    expect(result.current.rejected[0].item).not.toHaveProperty("note");
+  });
+});
+
+/* --------------------------------------- odłączenie w trakcie żądania (F1/F2) --- */
+
+describe("F1/F2: odpowiedź spóźniona względem „Odłącz” nie zapisuje niczego", () => {
+  const TOKEN_B = "OTHERTOKEN-zZyYxXwWvVuUtTsSrRqQ";
+
+  it("wysyłka kolejki: spóźniona odpowiedź z rozbieżną decyzją nie zostawia konfliktu (imię i nazwisko) ani kolejki", async () => {
+    const useScannerRuntime = await loadRuntime();
+    api.bootstrapScanner.mockResolvedValue(session());
+    api.fetchScannerRoster.mockResolvedValue(rosterPage());
+    const { result } = renderHookWithQueryClient(() => useScannerRuntime(TOKEN));
+    await waitFor(() => expect(result.current.roster.count).toBe(1));
+
+    // Odprawa bez sieci wpuszczona z listy - decyzja jedzie z pozycją.
+    goOffline();
+    await act(async () => {
+      await result.current.submitCheckin({ code: GRANTED, checkpointId: CP, direction: "in" });
+    });
+    await waitFor(() => expect(idb.read("nes-scanner", "outbox", "queue")).toHaveLength(1));
+
+    // Sieć wraca, wysyłka trwa (słaby zasięg przy bramce)...
+    const late = deferred<CheckinScanResult>();
+    api.recordCheckinScan.mockReturnValue(late.promise);
+    goOnline();
+    await waitFor(() => expect(api.recordCheckinScan).toHaveBeenCalledTimes(1));
+
+    // ...a operator potwierdza „Odłącz".
+    await act(async () => {
+      await result.current.disconnect();
+    });
+    expect(idb.read("nes-scanner", "outbox", "queue")).toEqual([]);
+    expect(idb.read("nes-scanner-offline", "records", "conflicts")).toBeUndefined();
+
+    // Baza nie potwierdza decyzji offline - dawniej: konflikt z nazwiskiem na dysku.
+    late.resolve({
+      ...checkinResult(),
+      outcome: "registration_cancelled",
+      admit: false,
+      serverAdmit: false,
+      result: "registration_cancelled",
+      person: {
+        personId: "p1",
+        firstName: "Olga",
+        lastName: "Obecna",
+        company: null,
+        jobTitle: null,
+        registrationId: "r-olga",
+        registrationStatus: "cancelled",
+        ticketNamePl: null,
+        ticketNameEn: null,
+        groupNamePl: null,
+        groupNameEn: null,
+        groupColor: null,
+        badgePrinted: false,
+        badgePrintedAt: null,
+        badgePrintedVersion: null,
+      },
+    } as CheckinScanResult);
+    await settle();
+
+    expect(idb.read("nes-scanner-offline", "records", "conflicts")).toBeUndefined();
+    expect(idb.read("nes-scanner-offline", "records", "rejected")).toBeUndefined();
+    expect(idb.read("nes-scanner", "outbox", "queue")).toEqual([]);
+    expect(atRest("Obecna")).toBe(false);
+    expect(atRest("r-olga")).toBe(false);
+    expect(result.current.conflicts).toEqual([]);
+    expect(result.current.outbox).toEqual([]);
+    expect(result.current.lastFlush).toBeNull();
+    expect(result.current.status).toBe("idle");
+  });
+
+  it("wysyłka kolejki: spóźniona odmowa poświadczenia nie kończy NOWEGO parowania", async () => {
+    const useScannerRuntime = await loadRuntime();
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    const { result } = renderHookWithQueryClient(() => useScannerRuntime(TOKEN));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    goOffline();
+    await act(async () => {
+      await result.current.submitCheckin({ code: GRANTED, checkpointId: CP, direction: "in" });
+    });
+    await waitFor(() => expect(idb.read("nes-scanner", "outbox", "queue")).toHaveLength(1));
+    const late = deferred<CheckinScanResult>();
+    api.recordCheckinScan.mockReturnValue(late.promise);
+    goOnline();
+    await waitFor(() => expect(api.recordCheckinScan).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await result.current.disconnect();
+    });
+
+    // Nowe poświadczenie (inne urządzenie) - zanim stara odpowiedź wróci.
+    api.bootstrapScanner.mockResolvedValue(session({ deviceId: "dev-2", offlineRoster: false }));
+    act(() => result.current.connect(TOKEN_B));
+    await waitFor(() => expect(result.current.session?.deviceId).toBe("dev-2"));
+
+    late.reject(new Error("device_revoked: revoked in panel"));
+    await settle();
+    expect(result.current.status).toBe("ready");
+    expect(result.current.connectError).toBeNull();
+    expect(window.localStorage.getItem("nes.scanner.device-token")).toBe(TOKEN_B);
+    expect(result.current.rejected).toEqual([]);
+    expect(idb.read("nes-scanner-offline", "records", "rejected")).toBeUndefined();
+  });
+
+  it("skan na żywo po terminie żądania już po „Odłącz”: nie trafia do kolejki ani do kolejki następnego urządzenia", async () => {
+    const useScannerRuntime = await loadRuntime();
+    api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+    const { result } = renderHookWithQueryClient(() => useScannerRuntime(TOKEN));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    const liveCheckin = deferred<CheckinScanResult>();
+    const liveLead = deferred<LeadScanResult>();
+    api.recordCheckinScan.mockReturnValue(liveCheckin.promise);
+    api.recordLeadScan.mockReturnValue(liveLead.promise);
+    let checkin!: Promise<unknown>;
+    let lead!: Promise<unknown>;
+    act(() => {
+      checkin = result.current.submitCheckin({ code: GRANTED, checkpointId: CP, direction: "in" });
+      lead = result.current.submitLead({ code: LEAD, note: NOTE, interestRating: 2 });
+    });
+    const outcomes = Promise.all(
+      [checkin, lead].map((pending) =>
+        pending.then(
+          () => "zapisany",
+          (error: unknown) => (error instanceof Error ? error.message : String(error)),
+        ),
+      ),
+    );
+    await waitFor(() => expect(api.recordLeadScan).toHaveBeenCalledTimes(1));
+    expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.disconnect();
+    });
+    // Termin żądania mija PO odłączeniu - dawniej: skan w kolejce na dysku.
+    liveCheckin.reject(new Error("Scanner request timed out"));
+    liveLead.reject(new Error("Scanner request timed out"));
+    await settle();
+
+    // Operator dostaje odmowę „brak sesji", a nie „zapisano w kolejce".
+    await expect(outcomes).resolves.toEqual([
+      expect.stringMatching(/^invalid_device_token/),
+      expect.stringMatching(/^invalid_device_token/),
+    ]);
+    expect(idb.read("nes-scanner", "outbox", "queue")).toEqual([]);
+    expect(result.current.outbox).toEqual([]);
+    expect(atRest(NOTE)).toBe(false);
+
+    // Następne urządzenie nie dziedziczy cudzego skanu (dawniej: `device_mismatch`).
+    api.bootstrapScanner.mockResolvedValue(session({ deviceId: "dev-2", offlineRoster: false }));
+    act(() => result.current.connect(TOKEN_B));
+    await waitFor(() => expect(result.current.session?.deviceId).toBe("dev-2"));
+    await settle();
+    expect(result.current.outbox).toEqual([]);
+    expect(result.current.rejected).toEqual([]);
+    expect(idb.read("nes-scanner-offline", "records", "rejected")).toBeUndefined();
+  });
+
+  it("F2: znacznik z odpowiedzi urządzenia A, która wróciła po sparowaniu B, nie stempluje skanów B", async () => {
+    const MARKER_A = "AAAAAGkAAAA" + "A".repeat(43);
+    const MARKER_A_LATE = "AAAAAGkAAAA" + "L".repeat(43);
+    const MARKER_B = "AAAAAGkAAAA" + "B".repeat(43);
+    const useScannerRuntime = await loadRuntime();
+    api.bootstrapScanner.mockResolvedValue({
+      ...session({ offlineRoster: false }),
+      queueMarker: { value: MARKER_A, validUntil: relativeIso(24 * GODZINA) },
+    });
+    const { result } = renderHookWithQueryClient(() => useScannerRuntime(TOKEN));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    goOffline();
+    await act(async () => {
+      await result.current.submitCheckin({ code: GRANTED, checkpointId: CP, direction: "in" });
+    });
+    await waitFor(() => expect(result.current.outbox).toHaveLength(1));
+    expect(result.current.outbox[0].queueMarker).toBe(MARKER_A);
+
+    // Wysyłka urządzenia A w locie...
+    const late = deferred<CheckinScanResult>();
+    api.recordCheckinScan.mockReturnValue(late.promise);
+    goOnline();
+    await waitFor(() => expect(api.recordCheckinScan).toHaveBeenCalledTimes(1));
+    // ...telefon przechodzi na urządzenie B, które wygasa wcześniej niż znacznik A.
+    await act(async () => {
+      await result.current.disconnect();
+    });
+    api.bootstrapScanner.mockResolvedValue({
+      ...session({ deviceId: "dev-2", offlineRoster: false, expiresAt: relativeIso(2 * GODZINA) }),
+      queueMarker: { value: MARKER_B, validUntil: relativeIso(2 * GODZINA) },
+    });
+    act(() => result.current.connect(TOKEN_B));
+    await waitFor(() => expect(result.current.session?.deviceId).toBe("dev-2"));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    // Spóźniona odpowiedź A niesie NOWSZY (dłużej ważny) znacznik A.
+    late.resolve({
+      ...checkinResult(),
+      queueMarker: { value: MARKER_A_LATE, validUntil: relativeIso(24 * GODZINA) },
+    });
+    await settle();
+
+    goOffline();
+    await act(async () => {
+      await result.current.submitCheckin({ code: REFUSED, checkpointId: CP, direction: "in" });
+    });
+    await waitFor(() => expect(result.current.outbox).toHaveLength(1));
+    expect(result.current.outbox[0]).toMatchObject({ deviceId: "dev-2", queueMarker: MARKER_B });
+  });
+});
+
+/* ------------------------------------------- blokada „skaner pracuje” (F3) --- */
+
+describe("F3: środowisko skanera trzyma blokadę przez cały czas życia karty", () => {
+  it("blokada `nes-scanner-runtime` jest trzymana od startu i zwalniana przy zamknięciu", async () => {
+    const locks = createFakeLockManager();
+    const restore = installFakeLockManager(locks);
+    try {
+      const useScannerRuntime = await loadRuntime();
+      api.bootstrapScanner.mockResolvedValue(session({ offlineRoster: false }));
+      const { unmount } = renderHookWithQueryClient(() => useScannerRuntime(TOKEN));
+      await waitFor(() => expect(locks.held()).toEqual(["nes-scanner-runtime"]));
+      unmount();
+      await waitFor(() => expect(locks.held()).toEqual([]));
+    } finally {
+      restore();
+    }
   });
 });
