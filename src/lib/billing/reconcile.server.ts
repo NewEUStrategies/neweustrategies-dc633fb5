@@ -644,12 +644,18 @@ export async function repairReconcileIssue(
     // więc księgowanie zamówienia jest identyczne jak przy dostawie od Stripe.
     const stamp = repairStamp();
     const synthetic: VerifiedWebhookEvent = {
+      // Sekunda naprawy zostaje w IDENTYFIKATORZE (PAY-15: kolejna naprawa to
+      // nowe zdarzenie, podwójne kliknięcie - ten sam wpis dziennika).
       id: `reconcile_${session.id}_${stamp}`,
       type:
         session.payment_status === "unpaid"
           ? "checkout.session.async_payment_failed"
           : "checkout.session.completed",
-      created: stamp,
+      // Czas zdarzenia to chwila ZAKUPU (utworzenie sesji), nie naprawy (4.5).
+      // Dyspozytor przekazuje go realizacji i domknięciu zamówienia jako
+      // `paidAt`: naprawa zaległego zamówienia sprzed tygodni stemplowała
+      // `paid_at` na dziś i przenosiła stary przychód do bieżącego okresu.
+      created: typeof session.created === "number" ? session.created : stamp,
       data: { object: session as unknown as Record<string, unknown> },
     } as VerifiedWebhookEvent;
     return replayEvent(synthetic, environment, reference);

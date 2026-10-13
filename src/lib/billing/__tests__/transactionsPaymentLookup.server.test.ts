@@ -121,6 +121,7 @@ const NO_INVOICE_CONTEXT = {
   periodStart: null,
   periodEnd: null,
   billingReason: null,
+  fullPeriodLine: false,
   purpose: null,
   orderId: null,
 };
@@ -247,8 +248,109 @@ describe("resolvePaymentInvoice - płatność -> faktura -> subskrypcja", () => 
       periodStart: new Date(1_789_000_000 * 1000).toISOString(),
       periodEnd: new Date(1_793_000_000 * 1000).toISOString(),
       billingReason: "subscription_update",
+      fullPeriodLine: false,
       purpose: "plan",
       orderId: "order-1",
+    });
+  });
+
+  it("2.1/6.1: dopłata proracyjna to same pozycje `proration: true` - faktura NIE opłaca okresu", async () => {
+    // Zmiana planu z `always_invoice`: kredyt za niewykorzystany czas starego
+    // planu i dopłata za resztę okresu nowego - obie pozycje proracyjne.
+    h.invoicePayments = [
+      {
+        invoice: {
+          id: "in_proracja",
+          billing_reason: "subscription_update",
+          parent: { subscription_details: { subscription: "sub_1" } },
+          lines: {
+            data: [
+              {
+                period: { start: 1_790_000_000, end: 1_792_000_000 },
+                parent: {
+                  type: "subscription_item_details",
+                  subscription_item_details: { subscription: "sub_1", proration: true },
+                },
+              },
+              {
+                period: { start: 1_790_000_000, end: 1_792_000_000 },
+                parent: {
+                  type: "subscription_item_details",
+                  subscription_item_details: { subscription: "sub_1", proration: true },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+
+    expect(await resolvePaymentInvoice("live", "pi_proracja")).toMatchObject({
+      billingReason: "subscription_update",
+      fullPeriodLine: false,
+    });
+  });
+
+  it.each([
+    [
+      "Basil: `parent.subscription_item_details.proration = false`",
+      {
+        parent: {
+          type: "subscription_item_details",
+          subscription_item_details: { subscription: "sub_1", proration: false },
+        },
+      },
+    ],
+    [
+      "kształt sprzed Basil: `type: subscription`, `proration: false`",
+      { type: "subscription", proration: false },
+    ],
+  ])(
+    "2.1: pozycja bez proraty (%s) - zmiana planu z NOWYM cyklem opłaca okres",
+    async (_label, line) => {
+      h.invoicePayments = [
+        {
+          invoice: {
+            id: "in_nowy_cykl",
+            billing_reason: "subscription_update",
+            parent: { subscription_details: { subscription: "sub_1" } },
+            lines: { data: [{ period: { start: 1_790_000_000, end: 1_792_000_000 } }, line] },
+          },
+        },
+      ];
+
+      expect(await resolvePaymentInvoice("live", "pi_nowy_cykl")).toMatchObject({
+        fullPeriodLine: true,
+      });
+    },
+  );
+
+  it("pozycja pozycji fakturowej (`invoice_item_details`) nie jest pełnym okresem", async () => {
+    // Faktura ręczna (np. powtórzone obciążenie) niesie pozycje fakturowe, nie
+    // pozycje subskrypcji - nawet bez proraty nie opłaca okresu usługi.
+    h.invoicePayments = [
+      {
+        invoice: {
+          id: "in_reczna",
+          billing_reason: "manual",
+          parent: { subscription_details: { subscription: "sub_1" } },
+          lines: {
+            data: [
+              {
+                parent: {
+                  type: "invoice_item_details",
+                  invoice_item_details: { invoice_item: "ii_1", proration: false },
+                },
+              },
+            ],
+          },
+        },
+      },
+    ];
+
+    expect(await resolvePaymentInvoice("live", "pi_reczna")).toMatchObject({
+      billingReason: "manual",
+      fullPeriodLine: false,
     });
   });
 

@@ -264,8 +264,14 @@ function subscriptionRow(overrides: Partial<SubscriptionRow> = {}): Subscription
   };
 }
 
+/**
+ * Korekta w słowniku domenowym. Zwrot, który odbiera dostęp, ustawia też
+ * obciążenie u operatora na TEN SAM stan (2.11: kwotę zwrotu `refunds.server`
+ * czyta z obciążenia, nie ze zdarzenia) - operator „zgadza się" ze zdarzeniem,
+ * dopóki test nie ustawi rozjazdu sam, PO zbudowaniu zdarzenia.
+ */
 function refundEvent(overrides: Partial<RefundEvent> = {}): RefundEvent {
-  return {
+  const event: RefundEvent = {
     adjustmentId: "adj_1Syntetyczna",
     transactionId: TXN,
     subscriptionId: null,
@@ -277,6 +283,19 @@ function refundEvent(overrides: Partial<RefundEvent> = {}): RefundEvent {
     environment: "sandbox",
     ...overrides,
   };
+  const revokingRefund =
+    event.action === "refund" &&
+    (event.status === null || event.status === "approved" || event.status === "succeeded");
+  if (revokingRefund) {
+    const captured = event.capturedAmountCents ?? 0;
+    const refunded = event.amountCents ?? captured;
+    h.stripe.charge = chargeState({
+      amount: captured,
+      amount_refunded: refunded,
+      refunded: captured > 0 && refunded >= captured,
+    });
+  }
+  return event;
 }
 
 /** Stan bazy dla jednego testu - podmieniany polami, nie całymi atrapami. */
@@ -680,7 +699,10 @@ describe("zwrot CZĘŚCIOWY - korekta ceny, nie rezygnacja", () => {
   it("korekta BEZ KWOTY jest traktowana jak zwrot pełny", async () => {
     // Brak wiedzy o kwocie to nie powód do zostawienia dostępu. Bezpieczniej
     // odebrać uprawnienie niż zostawić opłaconą treść po oddaniu pieniędzy.
-    await applyRefundEffects(refundEvent({ amountCents: null, capturedAmountCents: null }));
+    // Operator nie zna płatności (404) - decyduje wyłącznie zdarzenie.
+    const event = refundEvent({ amountCents: null, capturedAmountCents: null });
+    h.stripe.charge = null;
+    await applyRefundEffects(event);
 
     expect(patches("payment_orders")[0]).toMatchObject({ status: "refunded" });
     expect(patches("user_subscriptions")[0]).toMatchObject({ status: "refunded" });
@@ -1857,8 +1879,9 @@ describe("PAY-04 - zwrot i spór płatności FAKTURY subskrypcji (cel przez oper
     const outcome = await applyRefundEffects(refundEvent());
 
     expect(outcome).toBe("subscription_refunded");
-    expect(h.stripe.envs).toEqual(["sandbox"]);
-    expect(h.stripe.calls).toEqual(["invoicePayments.list"]);
+    // Stan zwrotu z obciążenia (2.11), potem cel - oba w środowisku korekty.
+    expect(h.stripe.envs).toEqual(["sandbox", "sandbox"]);
+    expect(h.stripe.calls).toEqual(["paymentIntents.retrieve", "invoicePayments.list"]);
     expect(filters("user_subscriptions", "eq")).toContainEqual(["external_ref", SUB]);
     expect(patches("user_subscriptions")[0]).toMatchObject({ status: "refunded" });
     expect(emails()[0]).toMatchObject({ type: "payment_refunded" });
@@ -1908,7 +1931,11 @@ describe("PAY-04 - zwrot i spór płatności FAKTURY subskrypcji (cel przez oper
     expect(await applyRefundEffects(refundEvent())).toBe("skipped");
     expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
     // Następny krok kaskady: sesja Checkout tej płatności.
-    expect(h.stripe.calls).toEqual(["invoicePayments.list", "checkout.sessions.list"]);
+    expect(h.stripe.calls).toEqual([
+      "paymentIntents.retrieve",
+      "invoicePayments.list",
+      "checkout.sessions.list",
+    ]);
   });
 
   it("identyfikator spoza kształtu `pi_`/`ch_` nie pyta operatora", async () => {
@@ -1945,11 +1972,15 @@ describe("PAY-07 - zwrot, który WYPRZEDZIŁ realizację zamówienia", () => {
     const outcome = await applyRefundEffects(refundEvent());
 
     expect(outcome).toBe("order_refunded");
-    expect(h.stripe.calls).toEqual(["invoicePayments.list", "checkout.sessions.list"]);
+    expect(h.stripe.calls).toEqual([
+      "paymentIntents.retrieve",
+      "invoicePayments.list",
+      "checkout.sessions.list",
+    ]);
     expect(patches("payment_orders")[0]).toMatchObject({
       status: "refunded",
       refunded_amount_cents: 4900,
-      // Kolejne zdarzenia trafią w zamówienie bez pytania operatora.
+      // Kolejne zdarzenia trafią w zamówienie bez pytania operatora o cel.
       provider_payment_intent_id: TXN,
     });
     const sessionLookup = db
@@ -2265,6 +2296,185 @@ describe("S1 - korekta faktury subskrypcji: okres bieżący vs zakończony (2.1,
     expect(outcome).toBe("skipped");
     expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
     expect(h.stripe.calls).not.toContain("subscriptions.retrieve");
+  });
+});
+
+describe("2.1 / 6.1 - faktura DODATKOWA bieżącego okresu (proracja, faktura ręczna) nie odbiera opłaconego okresu", () => {
+  // Pełny zwrot liczy się względem OBCIĄŻENIA, więc zwrot 12 zł dopłaty
+  // proracyjnej był „pełny" - i odbierał resztę miesiąca opłaconego fakturą
+  // odnowienia, z mailem „dostęp zakończony". Okres opłaca faktura
+  // `subscription_create` / `subscription_cycle`; dopłata i faktura ręczna go
+  // tylko uzupełniają.
+  const prorationLine = (proration: boolean) => ({
+    period: { start: unixAt(-1 * DZIEN), end: unixAt(20 * DZIEN) },
+    parent: {
+      type: "subscription_item_details",
+      subscription_item_details: { subscription: SUB, proration },
+    },
+  });
+
+  /** Dopłata przy zmianie planu (`always_invoice`) - same pozycje proracyjne. */
+  const prorationInvoice = (overrides: Record<string, unknown> = {}) =>
+    subscriptionInvoice({
+      id: "in_proracja",
+      billing_reason: "subscription_update",
+      lines: { data: [prorationLine(true), prorationLine(true)] },
+      ...overrides,
+    });
+
+  beforeEach(() => {
+    scene.order = null;
+    scene.subscription = subscriptionRow();
+    scene.admins = [{ user_id: "admin-1" }];
+    scene.adminProfiles = [{ id: "admin-1", tenant_id: BILLING_IDS.tenant }];
+  });
+
+  it("2.1/6.1: pełny zwrot dopłaty PRORACYJNEJ (12 zł) zostawia dostęp - klient bez maila „dostęp zakończony”, zespół dostaje alert `phase=supplemental`", async () => {
+    h.stripe.invoicePayments = [prorationInvoice()];
+
+    const outcome = await applyRefundEffects(
+      refundEvent({ amountCents: 1200, capturedAmountCents: 1200 }),
+    );
+
+    expect(outcome).toBe("skipped");
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+    expect(emails()).toHaveLength(0);
+    expect(inserted("notifications")).toHaveLength(0);
+    expect(inserted("crm_leads")).toHaveLength(0);
+    expect(adminBells()).toEqual([
+      expect.objectContaining({
+        p_title_pl: "Zwrot faktury dodatkowej subskrypcji",
+        p_href: "/admin/billing?refund=adj_1Syntetyczna&phase=supplemental",
+      }),
+    ]);
+    expect(String(adminBells()[0].p_body_pl)).toContain("(subscription_update)");
+    expect(String(adminBells()[0].p_body_pl)).toContain("dostęp klienta bez zmian");
+  });
+
+  it("2.1: pełny zwrot POWTÓRZONEGO obciążenia za ten sam okres (faktura ręczna) zostawia dostęp", async () => {
+    h.stripe.invoicePayments = [subscriptionInvoice({ id: "in_reczna", billing_reason: "manual" })];
+
+    expect(await applyRefundEffects(refundEvent())).toBe("skipped");
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+    expect(emails()).toHaveLength(0);
+  });
+
+  it.each([
+    ["otwarty", { action: "chargeback_warning" as const, status: "open" }],
+    ["przegrany", { action: "chargeback" as const, status: "approved" }],
+  ])(
+    "spór %s o dopłatę proracyjną nie wstrzymuje opłaconego okresu - alert mówi, że dostęp bez zmian",
+    async (_label, dispute) => {
+      h.stripe.invoicePayments = [prorationInvoice()];
+
+      const outcome = await applyRefundEffects(
+        refundEvent({ ...dispute, amountCents: 1200, capturedAmountCents: 1200 }),
+      );
+
+      expect(outcome).toBe("skipped");
+      expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+      expect(String(adminBells()[0].p_body_pl)).toContain("Faktura dodatkowa");
+    },
+  );
+
+  it("wygrana na dopłacie proracyjnej niczego nie przywraca - dostęp, jeśli zniknął, zabrała inna korekta", async () => {
+    h.stripe.invoicePayments = [prorationInvoice()];
+
+    const outcome = await applyRefundEffects(
+      refundEvent({ action: "chargeback", status: "reversed" }),
+    );
+
+    expect(outcome).toBe("skipped");
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+    expect(h.stripe.calls).not.toContain("subscriptions.retrieve");
+  });
+
+  it("nieudany zwrot dopłaty proracyjnej nie ożywia (`force`) subskrypcji odebranej zwrotem faktury odnowienia", async () => {
+    scene.existingEntitlement = { id: "us-1", status: "refunded", canceled_at: relativeIso(-1) };
+    h.stripe.invoicePayments = [prorationInvoice()];
+    h.stripe.charge = chargeState({ amount: 1200, amount_refunded: 0 });
+
+    const outcome = await applyRefundEffects(
+      refundEvent({ adjustmentId: "re_proracja", status: "failed" }),
+    );
+
+    expect(outcome).toBe("skipped");
+    expect(db.chainsFor("user_subscriptions")).toHaveLength(0);
+    expect(h.stripe.calls).not.toContain("subscriptions.retrieve");
+    expect(String(adminBells()[0].p_body_pl)).toContain("Faktura dodatkowa");
+  });
+
+  it("zmiana planu z NOWYM cyklem (pozycja bez proraty) opłaca okres - jej pełny zwrot odbiera dostęp", async () => {
+    h.stripe.invoicePayments = [
+      prorationInvoice({ lines: { data: [prorationLine(true), prorationLine(false)] } }),
+    ];
+
+    expect(await applyRefundEffects(refundEvent())).toBe("subscription_refunded");
+    expect(patches("user_subscriptions")[0]).toMatchObject({ status: "refunded" });
+  });
+
+  it("faktura bez `billing_reason` zostaje przy dawnej regule - pełny zwrot bieżącego okresu odbiera dostęp", async () => {
+    h.stripe.invoicePayments = [subscriptionInvoice({ billing_reason: null })];
+
+    expect(await applyRefundEffects(refundEvent())).toBe("subscription_refunded");
+  });
+});
+
+describe("2.11 - kwota zwrotu ze stanu BIEŻĄCEGO obciążenia, nie z ładunku `charge.refunded`", () => {
+  // Nieudany zwrot cofa `amount_refunded` u operatora. Stare `charge.refunded`
+  // (ponowienie, przegląd zaległych, zdarzenie spóźnione za `refund.failed`)
+  // niosło kwotę, której już nie ma - i zamykało zamówienie drugi raz.
+  beforeEach(() => {
+    scene.order = orderRow({ kind: "one_time", entity_type: "post", entity_id: "post-1" });
+  });
+
+  it("zwrot, który przepadł u operatora (`amount_refunded` = 0): stare zdarzenie niczego nie zapisuje ani nie wysyła", async () => {
+    const stale = refundEvent();
+    h.stripe.charge = chargeState({ amount_refunded: 0 });
+
+    expect(await applyRefundEffects(stale)).toBe("skipped");
+    expect(db.chains).toHaveLength(0);
+    expect(emails()).toHaveLength(0);
+    expect(h.stripe.calls).toEqual(["paymentIntents.retrieve"]);
+  });
+
+  it("część zwrotów przepadła: stare zdarzenie z pełną kwotą księguje TYLKO to, co wróciło - korekta ceny, dostęp zostaje", async () => {
+    const stale = refundEvent({ amountCents: 4900 });
+    h.stripe.charge = chargeState({ amount_refunded: 1000 });
+
+    expect(await applyRefundEffects(stale)).toBe("order_refunded");
+    expect(patches("payment_orders")[0]).toEqual(
+      expect.objectContaining({ refunded_amount_cents: 1000 }),
+    );
+    expect(patches("payment_orders")[0]).not.toHaveProperty("status");
+    expect(db.chainsFor("user_purchases")).toHaveLength(0);
+    expect(emails()).toHaveLength(0);
+  });
+
+  it("awaria odczytu obciążenia RZUCA, zanim cokolwiek zapisze - operator ponowi", async () => {
+    const event = refundEvent();
+    h.stripe.failure = Object.assign(new Error("api_connection_error"), { statusCode: 500 });
+
+    await expect(applyRefundEffects(event)).rejects.toThrow("api_connection_error");
+    expect(db.chains).toHaveLength(0);
+    expect(emails()).toHaveLength(0);
+  });
+
+  it("płatność nieznana operatorowi (404): zwrot liczony ze zdarzenia, z ostrzeżeniem w logu", async () => {
+    const event = refundEvent();
+    h.stripe.charge = null;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(await applyRefundEffects(event)).toBe("order_refunded");
+    expect(patches("payment_orders")[0]).toMatchObject({
+      status: "refunded",
+      refunded_amount_cents: 4900,
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] refunded payment unknown to the provider - acting on the event",
+      expect.objectContaining({ transactionId: TXN }),
+    );
+    warn.mockRestore();
   });
 });
 

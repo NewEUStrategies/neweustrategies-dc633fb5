@@ -38,6 +38,7 @@ const h = vi.hoisted(() => ({
   dunningRecovered: vi.fn(),
   recordDocument: vi.fn(),
   ga4: vi.fn(),
+  refundEffects: vi.fn(),
 }));
 
 let db: SupabaseFromStub;
@@ -61,6 +62,9 @@ vi.mock("@/lib/billing/billingDocuments.server", () => ({
     h.recordDocument(input);
     return Promise.resolve("inserted");
   },
+}));
+vi.mock("@/lib/billing/refunds.server", () => ({
+  applyRefundEffects: (...args: unknown[]) => h.refundEffects(...args),
 }));
 vi.mock("@/lib/analytics/ga4Mp.server", () => ({
   sendGa4Purchase: (input: unknown) => h.ga4(input),
@@ -250,6 +254,55 @@ describe("S6 - nieudana płatność", () => {
   });
 });
 
+describe("S6 e2e - zdarzenie Stripe przez normalizator i dyspozytor", () => {
+  // Kryterium z przeglądu (4.8 / 5.8 / 7.11): ta sama droga co trasa webhooka,
+  // od surowego `checkout.session.async_payment_failed` sesji w trybie
+  // `subscription` (SEPA) - sesja niesie `subscription`, więc dawniej trafiała
+  // do windykacji, a zamówienie i rezerwacja kodu wisiały na zawsze.
+  it("odroczona płatność SEPA sesji subskrypcji: zamówienie zamknięte, bez windykacji", async () => {
+    const { normalizeStripeEvent } = await import("@/lib/billing/stripeEvents.server");
+    const normalized = normalizeStripeEvent({
+      id: "evt_sepa_porazka",
+      type: "checkout.session.async_payment_failed",
+      created: Date.parse(OCCURRED_AT) / 1000,
+      data: {
+        object: {
+          id: "cs_live_sepa",
+          object: "checkout.session",
+          mode: "subscription",
+          subscription: "sub_sepa",
+          customer: "cus_kupujacy",
+          payment_status: "unpaid",
+          status: "complete",
+          currency: "pln",
+          amount_total: 9900,
+          amount_subtotal: 9900,
+          metadata: { orderId: "order-sepa", userId: "user-kupujacy" },
+        },
+      },
+    } as unknown as Parameters<typeof normalizeStripeEvent>[0]);
+    expect(normalized?.eventType).toBe("transaction.payment_failed");
+
+    expect(
+      await dispatchWebhookEvent({
+        eventId: "evt_sepa_porazka",
+        eventType: normalized!.eventType,
+        data: normalized!.data,
+        environment: "live",
+        occurredAt: OCCURRED_AT,
+      }),
+    ).toBe("processed");
+
+    expect(h.markFailed).toHaveBeenCalledWith(
+      { orderId: "order-sepa", userId: "user-kupujacy" },
+      "live",
+    );
+    expect(h.dunningFailed).not.toHaveBeenCalled();
+    expect(h.settle).not.toHaveBeenCalled();
+    expect(h.recordDocument).not.toHaveBeenCalled();
+  });
+});
+
 describe("S7 / 6.8 - dokument i GA4 wyłącznie dla zakupu zaksięgowanego", () => {
   const oneTime = () =>
     txn({
@@ -287,5 +340,59 @@ describe("S7 / 6.8 - dokument i GA4 wyłącznie dla zakupu zaksięgowanego", () 
       }),
       "live",
     );
+  });
+});
+
+describe("korekta: dyspozytor przekazuje obsłudze zwrotów komplet pól", () => {
+  it("nieudany zwrot (INV-19c): akcja, stan, kod porażki i surowy stan operatora", async () => {
+    expect(
+      await dispatchWebhookEvent({
+        eventId: "evt_zwrot",
+        eventType: "adjustment.updated",
+        data: {
+          id: "re_nieudany",
+          action: "refund",
+          status: "failed",
+          transactionId: "pi_kupujacy",
+          subscriptionId: null,
+          providerStatus: "failed",
+          failureReason: "expired_or_canceled_card",
+          totals: { total: "4900", captured: "4900", currencyCode: "PLN" },
+        },
+        environment: "live",
+        occurredAt: OCCURRED_AT,
+      }),
+    ).toBe("processed");
+
+    expect(h.refundEffects).toHaveBeenCalledWith({
+      adjustmentId: "re_nieudany",
+      transactionId: "pi_kupujacy",
+      subscriptionId: null,
+      action: "refund",
+      status: "failed",
+      providerStatus: "failed",
+      amountCents: 4900,
+      capturedAmountCents: 4900,
+      currency: "PLN",
+      environment: "live",
+      failureReason: "expired_or_canceled_card",
+    });
+  });
+
+  it.each([
+    ["refund_failed", "other"],
+    ["chargeback", "chargeback"],
+    ["chargeback_warning", "chargeback_warning"],
+    ["credit", "credit"],
+    [undefined, "other"],
+  ] as const)("akcja `%s` dociera jako `%s`", async (action, expected) => {
+    await dispatchWebhookEvent({
+      eventType: "adjustment.created",
+      data: { id: "adj_x", action, status: "approved", transactionId: "pi_kupujacy" },
+      environment: "live",
+      occurredAt: OCCURRED_AT,
+    });
+
+    expect(h.refundEffects).toHaveBeenCalledWith(expect.objectContaining({ action: expected }));
   });
 });

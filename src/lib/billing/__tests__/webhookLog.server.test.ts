@@ -21,24 +21,38 @@
 //   * awaria bazy na każdym kroku -> wyjątek z nazwą kroku (trasa webhooka
 //     odpowiada wtedy 503 i NIE obsługuje zdarzenia), nigdy cichy wynik.
 // `finishWebhookEvent` domyka wiersz i NIGDY nie rzuca - awaria dziennika nie
-// może zamienić obsłużonego zdarzenia w 500 i ponowną dostawę.
+// może zamienić obsłużonego zdarzenia w 500 i ponowną dostawę. Domknięcie jest
+// WARUNKOWE (wiersz nadal `received`, w pokoleniu wołającego - przegląd 3.4),
+// a błąd bazy przy nim jest ponawiany (przegląd 6.10): najpierw na miejscu
+// (wołający czeka), potem „za odpowiedzią" (wołający dostaje `deferred`).
 //
-// GRANICA ATRAP: wyłącznie klient roli serwisowej Supabase. Zegar zamrożony -
+// GRANICE ATRAP: klient roli serwisowej Supabase i rejestracja pracy „za
+// odpowiedzią" (`runAfterResponse` - test sam ją dociąga). Zegar zamrożony -
 // okno „porzucenia" liczy się od `Date.now()`.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   fail,
   ok,
+  okCount,
   supabaseFromStub,
   webhookEvent,
   type RecordedChain,
   type SupabaseResult,
 } from "@/test/billing/fixtures";
-import { FIXED_NOW_ISO, MINUTA, SEKUNDA, freezeClock, relativeIso } from "@/test/time";
+import {
+  FIXED_NOW_ISO,
+  FIXED_NOW_MS,
+  MINUTA,
+  SEKUNDA,
+  freezeClock,
+  relativeIso,
+} from "@/test/time";
 
 const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
+  /** Praca oddana „za odpowiedź" (`runAfterResponse`) - próby domknięcia w tle. */
+  afterResponse: [] as Promise<unknown>[],
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -49,12 +63,21 @@ vi.mock("@/integrations/supabase/client.server", () => ({
     },
   },
 }));
+vi.mock("@/lib/http/waitUntil.server", () => ({
+  runAfterResponse: (work: Promise<unknown>) => {
+    h.afterResponse.push(work);
+  },
+}));
 
 import {
+  WEBHOOK_FINISH_BACKGROUND_DELAYS_MS,
+  WEBHOOK_FINISH_RETRY_DELAYS_MS,
   claimWebhookEvent,
+  claimWebhookEventWithGeneration,
   finishWebhookEvent,
   isAbandonedClaim,
   reclaimWebhookEventRow,
+  reclaimWebhookEventRowWithGeneration,
 } from "@/lib/billing/webhookLog.server";
 
 freezeClock();
@@ -65,24 +88,34 @@ const db = supabaseFromStub();
 /**
  * Odpowiedzi bazy per krok: INSERT rezerwacji, odczyt duplikatu, warunkowy
  * UPDATE przejęcia (RETURNING - wygrany wyścig to jeden wiersz) i UPDATE
- * domknięcia.
+ * domknięcia (liczba dotkniętych wierszy w `count` - przegrany warunek
+ * pokolenia to 0). Przejęcie od domknięcia odróżnia status w zapisie:
+ * przejęcie zawsze pisze `received`, domknięcie - status końcowy.
  */
 interface Plan {
   insert?: SupabaseResult;
   lookup?: SupabaseResult;
   reclaim?: SupabaseResult;
-  finish?: SupabaseResult;
+  finish?: SupabaseResult | (() => SupabaseResult);
 }
+
+const isReclaim = (chain: RecordedChain): boolean =>
+  (chain.argsOf("update")?.[0] as { status?: string } | undefined)?.status === "received";
 
 function plan(p: Plan) {
   db.setResponse(TABLE, (chain: RecordedChain) => {
     if (chain.has("insert")) return p.insert ?? ok(null);
     if (chain.has("maybeSingle")) return p.lookup ?? ok(null);
-    if (chain.has("update") && chain.has("select")) return p.reclaim ?? ok([{ id: "row-won" }]);
-    if (chain.has("update")) return p.finish ?? ok(null);
+    if (chain.has("update") && isReclaim(chain)) return p.reclaim ?? ok([{ id: "row-won" }]);
+    if (chain.has("update")) {
+      const finish = typeof p.finish === "function" ? p.finish() : p.finish;
+      return finish ?? okCount(1);
+    }
     return fail(`test: nieoczekiwany łańcuch na ${TABLE}`);
   });
 }
+
+const finishes = () => chainsWith("update").filter((chain) => !isReclaim(chain));
 
 const DUPLICATE = fail('duplicate key value violates unique constraint "uq_event"', "23505");
 
@@ -96,9 +129,41 @@ const chainsWith = (method: string) => db.chainsFor(TABLE).filter((c) => c.has(m
 const eqFilters = (chain: RecordedChain) =>
   chain.calls.filter((c) => c.method === "eq").map((c) => c.args);
 
+/** Prawdziwy `setTimeout` - zapamiętany, zanim test podmieni liczniki czasu. */
+const realSetTimeout = globalThis.setTimeout;
+
+/**
+ * Przerwy między próbami domknięcia bez realnego czekania (~1 s na miejscu,
+ * ~17 s w tle): fałszywy `setTimeout`, który `drive` popycha, dopóki praca się
+ * nie rozstrzygnie.
+ */
+function fakeRetryTimers(): void {
+  vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+  vi.setSystemTime(FIXED_NOW_MS);
+}
+
+/**
+ * Popycha fałszywy zegar, aż `work` się rozstrzygnie. Prawdziwy krok pętli
+ * zdarzeń między popchnięciami daje dojść importowi klienta bazy, który bywa
+ * rozwiązywany poza kolejką mikrozadań.
+ */
+async function drive<T>(work: Promise<T>): Promise<T> {
+  let settled = false;
+  const mark = () => {
+    settled = true;
+  };
+  work.then(mark, mark);
+  while (!settled) {
+    await vi.runOnlyPendingTimersAsync();
+    await new Promise<void>((resolve) => realSetTimeout(resolve, 0));
+  }
+  return work;
+}
+
 beforeEach(() => {
   db.reset();
   h.db.current = db;
+  h.afterResponse.length = 0;
 });
 
 describe("claimWebhookEvent - rezerwacja zdarzenia", () => {
@@ -460,10 +525,14 @@ describe("finishWebhookEvent - domknięcie wiersza", () => {
       subscription_id: "sub_test_1",
       user_id: "user-me",
     });
+    // Bez pokolenia (wołający, którzy go jeszcze nie przekazują) - po kluczu
+    // zdarzenia, jak dotąd. Strażnik pokolenia: osobny opis niżej.
     expect(eqFilters(update)).toEqual([
       ["event_id", "evt_test_1"],
       ["environment", "sandbox"],
     ]);
+    // Liczba dotkniętych wierszy bez odsyłania wiersza (bez RETURNING).
+    expect(update.argsOf("update")?.[1]).toEqual({ count: "exact" });
   });
 
   it("porażka zapisuje komunikat błędu; ujemny czas (przestawiony zegar) zapisuje się jako 0", async () => {
@@ -512,10 +581,23 @@ describe("finishWebhookEvent - domknięcie wiersza", () => {
     const denied = fail("permission denied for table payment_webhook_events", "42501");
     plan({ finish: denied });
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    fakeRetryTimers();
 
-    await expect(finishWebhookEvent(REF, "processed")).resolves.toBeUndefined();
+    await expect(drive(finishWebhookEvent(REF, "processed"))).resolves.toBe("deferred");
 
     expect(consoleError).toHaveBeenCalledWith("[payments] webhook log update failed", denied.error);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[payments] webhook log finish deferred - kolejne próby za odpowiedzią",
+      "evt_test_1",
+    );
+    // Ostatni ślad pada dopiero, gdy przepadną też próby „za odpowiedzią".
+    expect(h.afterResponse).toHaveLength(1);
+    await drive(h.afterResponse[0]!);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[payments] webhook log finish lost",
+      "evt_test_1",
+      "processed",
+    );
     consoleError.mockRestore();
   });
 
@@ -527,10 +609,255 @@ describe("finishWebhookEvent - domknięcie wiersza", () => {
       },
     };
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    fakeRetryTimers();
 
-    await expect(finishWebhookEvent(REF, "processed")).resolves.toBeUndefined();
+    await expect(drive(finishWebhookEvent(REF, "processed"))).resolves.toBe("deferred");
+    // Próby w tle też połykają wyjątek - odrzucona praca „za odpowiedzią"
+    // byłaby raportowana jako błąd żądania.
+    await expect(drive(h.afterResponse[0]!)).resolves.toBeUndefined();
 
     expect(consoleError).toHaveBeenCalledWith("[payments] webhook log update failed", boom);
+    expect(consoleError).toHaveBeenCalledWith(
+      "[payments] webhook log finish lost",
+      "evt_test_1",
+      "processed",
+    );
     consoleError.mockRestore();
+  });
+
+  // KRYTERIUM przeglądu 6.10. Obsługa już się WYKONAŁA; zgubione domknięcie
+  // zostawiało wiersz `received`, a zamiatarka po oknie porzucenia wykonywała
+  // zdarzenie drugi raz (drugi alert sporu, drugi dzwonek, drugi GA4).
+  it("chwilowy błąd bazy przy domknięciu jest PONAWIANY - przetworzone zdarzenie nie zostaje `received`", async () => {
+    let attempts = 0;
+    plan({
+      finish: () => {
+        attempts += 1;
+        return attempts === 1 ? fail("server closed the connection unexpectedly") : okCount(1);
+      },
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(finishWebhookEvent(REF, "processed")).resolves.toBe("finished");
+
+    expect(finishes()).toHaveLength(2);
+    // Druga próba to ten sam zapis warunkowy - nie „na ślepo".
+    expect(eqFilters(finishes()[1]!)).toEqual(eqFilters(finishes()[0]!));
+    consoleError.mockRestore();
+  });
+
+  it("trwała awaria: na miejscu tyle prób, ile przerw w WEBHOOK_FINISH_RETRY_DELAYS_MS + 1, potem `deferred`", async () => {
+    plan({ finish: fail("could not connect to server") });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    fakeRetryTimers();
+    let attemptsAtReturn = -1;
+
+    const outcome = finishWebhookEvent(REF, "failed", { error: "x" }).then((result) => {
+      attemptsAtReturn = finishes().length;
+      return result;
+    });
+
+    await expect(drive(outcome)).resolves.toBe("deferred");
+    // Wołający (trasa przed odpowiedzią dla operatora) czeka WYŁĄCZNIE na
+    // próby na miejscu - próby w tle nie wydłużają odpowiedzi.
+    expect(attemptsAtReturn).toBe(WEBHOOK_FINISH_RETRY_DELAYS_MS.length + 1);
+    expect(consoleError).not.toHaveBeenCalledWith(
+      "[payments] webhook log finish lost",
+      expect.anything(),
+      expect.anything(),
+    );
+
+    await drive(h.afterResponse[0]!);
+    expect(finishes()).toHaveLength(
+      WEBHOOK_FINISH_RETRY_DELAYS_MS.length + 1 + WEBHOOK_FINISH_BACKGROUND_DELAYS_MS.length,
+    );
+    // Każda próba to ten sam zapis warunkowy - nie „na ślepo".
+    for (const chain of finishes()) expect(eqFilters(chain)).toEqual(eqFilters(finishes()[0]!));
+    expect(consoleError).toHaveBeenCalledWith(
+      "[payments] webhook log finish lost",
+      "evt_test_1",
+      "failed",
+    );
+    consoleError.mockRestore();
+  });
+
+  // KRYTERIUM przeglądu 6.10 (ciąg dalszy). Dwie próby w ~1 s nie przeżywały
+  // typowego restartu puli połączeń (kilka-kilkanaście sekund), a każde
+  // zgubione domknięcie zamieniało się w powtórkę skutków przez zamiatarkę.
+  it("awaria dłuższa niż próby na miejscu: domknięcie dochodzi „za odpowiedzią”, bez śladu utraty", async () => {
+    let attempts = 0;
+    const inline = WEBHOOK_FINISH_RETRY_DELAYS_MS.length + 1;
+    plan({
+      finish: () => {
+        attempts += 1;
+        // Pula wraca po pierwszej próbie w tle (~3 s od startu domknięcia).
+        return attempts <= inline + 1
+          ? fail("server closed the connection unexpectedly")
+          : okCount(1);
+      },
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    fakeRetryTimers();
+
+    await expect(drive(finishWebhookEvent(REF, "processed"))).resolves.toBe("deferred");
+    await drive(h.afterResponse[0]!);
+
+    expect(finishes()).toHaveLength(inline + 2);
+    expect(finishes().at(-1)!.argsOf("update")?.[0]).toMatchObject({ status: "processed" });
+    expect(consoleError).not.toHaveBeenCalledWith(
+      "[payments] webhook log finish lost",
+      expect.anything(),
+      expect.anything(),
+    );
+    consoleError.mockRestore();
+  });
+
+  it("próba w tle, która przegrywa warunek pokolenia, kończy serię - wynik nowszego przejęcia zostaje", async () => {
+    let attempts = 0;
+    const inline = WEBHOOK_FINISH_RETRY_DELAYS_MS.length + 1;
+    plan({
+      finish: () => {
+        attempts += 1;
+        // Po próbach na miejscu wiersz przejął już ktoś inny: 0 dotkniętych.
+        return attempts <= inline ? fail("could not connect to server") : okCount(0);
+      },
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    fakeRetryTimers();
+
+    await expect(
+      drive(finishWebhookEvent({ ...REF, generation: 2 }, "failed", { error: "x" })),
+    ).resolves.toBe("deferred");
+    await drive(h.afterResponse[0]!);
+
+    // Jedna próba w tle i koniec - przegrany warunek to nie awaria bazy.
+    expect(finishes()).toHaveLength(inline + 1);
+    expect(consoleError).not.toHaveBeenCalledWith(
+      "[payments] webhook log finish lost",
+      expect.anything(),
+      expect.anything(),
+    );
+    consoleError.mockRestore();
+    consoleWarn.mockRestore();
+  });
+
+  it("próby w tle mieszczą się w oknie pracy po odpowiedzi (30 s), także z próbami na miejscu", () => {
+    const sum = (delays: readonly number[]) => delays.reduce((total, ms) => total + ms, 0);
+    expect(
+      sum(WEBHOOK_FINISH_RETRY_DELAYS_MS) + sum(WEBHOOK_FINISH_BACKGROUND_DELAYS_MS),
+    ).toBeLessThan(30 * SEKUNDA);
+  });
+});
+
+// KRYTERIUM przeglądu 3.4: domknięcie tylko WŁASNEGO przejęcia.
+describe("pokolenie przejęcia - spóźniony wykonawca nie nadpisuje nowszego", () => {
+  /**
+   * Jeden wiersz dziennika z prawdziwą semantyką warunkowego UPDATE:
+   * zapis trafia tylko wtedy, gdy KAŻDY filtr `eq` pasuje do wiersza, a
+   * RETURNING oddaje dotknięte wiersze. Wystarcza, żeby odegrać dwóch
+   * wykonawców tego samego zdarzenia bez prawdziwej bazy.
+   */
+  function statefulRow(initial: Record<string, unknown>) {
+    const row: Record<string, unknown> = { ...initial };
+    db.setResponse(TABLE, (chain: RecordedChain) => {
+      if (chain.has("maybeSingle")) return ok({ ...row });
+      if (!chain.has("update")) return fail("test: nieoczekiwany łańcuch");
+      const matches = chain.calls
+        .filter((c) => c.method === "eq")
+        .every((c) => row[String(c.args[0])] === c.args[1]);
+      if (matches) Object.assign(row, chain.argsOf("update")?.[0] as Record<string, unknown>);
+      // Przejęcie odsyła wiersze (RETURNING), domknięcie - samą liczbę.
+      if (chain.has("select")) return ok(matches ? [{ id: row.id }] : []);
+      return okCount(matches ? 1 : 0);
+    });
+    return row;
+  }
+
+  it("nowe zdarzenie to pokolenie 0, przejęcie istniejącego - licznik + 1, przegrany - brak", async () => {
+    plan({});
+    await expect(claimWebhookEventWithGeneration(REF)).resolves.toEqual({
+      claim: "claimed",
+      generation: 0,
+    });
+
+    db.reset();
+    plan({
+      insert: DUPLICATE,
+      lookup: ok(webhookEvent({ id: "row-f", status: "failed", retry_count: 4 })),
+    });
+    await expect(claimWebhookEventWithGeneration(REF)).resolves.toEqual({
+      claim: "claimed",
+      generation: 5,
+    });
+
+    db.reset();
+    plan({
+      insert: DUPLICATE,
+      lookup: ok(webhookEvent({ id: "row-f", status: "failed", retry_count: 4 })),
+      reclaim: ok([]),
+    });
+    await expect(claimWebhookEventWithGeneration(REF)).resolves.toEqual({
+      claim: "in_progress",
+      generation: null,
+    });
+  });
+
+  it("domknięcie z pokoleniem: warunek na `received` ORAZ na licznik prób wołającego", async () => {
+    plan({});
+
+    await finishWebhookEvent({ ...REF, generation: 3 }, "processed");
+
+    expect(eqFilters(finishes()[0]!)).toEqual([
+      ["event_id", "evt_test_1"],
+      ["environment", "live"],
+      ["status", "received"],
+      ["retry_count", 3],
+    ]);
+  });
+
+  it("A (porzucony) kończy PO tym, jak B przejął wiersz - wynik A nie ląduje, wiersz zostaje B", async () => {
+    // Wykonawca A przejął wiersz (pokolenie 1) i utknął na >5 min. Zamiatarka
+    // B uznała przejęcie za porzucone i przejęła wiersz (pokolenie 2).
+    const row = statefulRow({
+      id: "row-1",
+      event_id: "evt_test_1",
+      environment: "live",
+      status: "received",
+      created_at: relativeIso(-20 * MINUTA),
+      last_retried_at: relativeIso(-6 * MINUTA),
+      retry_count: 1,
+    });
+    const b = await reclaimWebhookEventRowWithGeneration({
+      id: "row-1",
+      status: "received",
+      created_at: relativeIso(-20 * MINUTA),
+      last_retried_at: relativeIso(-6 * MINUTA),
+      retry_count: 1,
+    });
+    expect(b).toEqual({ claim: "claimed", generation: 2 });
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // A kończy porażką W TRAKCIE obsługi B - bez strażnika wiersz stawał się
+    // `failed`, a kolejna dostawa uruchamiała C równolegle z B.
+    await expect(
+      finishWebhookEvent({ ...REF, generation: 1 }, "failed", { error: "A: timeout" }),
+    ).resolves.toBe("superseded");
+    expect(row).toMatchObject({ status: "received", retry_count: 2, error: null });
+
+    // B kończy swoje przejęcie normalnie.
+    await expect(finishWebhookEvent({ ...REF, generation: 2 }, "processed")).resolves.toBe(
+      "finished",
+    );
+    expect(row).toMatchObject({ status: "processed", retry_count: 2 });
+
+    // A spóźnia się jeszcze bardziej - `processed` B zostaje nietknięte.
+    await expect(
+      finishWebhookEvent({ ...REF, generation: 1 }, "failed", { error: "A: late" }),
+    ).resolves.toBe("superseded");
+    expect(row).toMatchObject({ status: "processed", error: null });
+    // Przegrany warunek to nie awaria bazy - bez ponowień.
+    expect(finishes()).toHaveLength(3);
+    consoleWarn.mockRestore();
   });
 });

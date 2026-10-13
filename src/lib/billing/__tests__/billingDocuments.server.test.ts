@@ -27,9 +27,10 @@
 // aktualizacja bez żadnej zmiany - oraz gałęzie AWARII (alarm) i ścieżkę
 // `checkout.session.completed` od zdarzenia operatora do wiersza.
 //
-// GRANICA ATRAP: klient Supabase (rola serwisowa) i nadawca dzwonka
-// (`tenantAdminAlert.server`). Sam moduł nie wychodzi do sieci, więc nic
-// więcej podmieniać nie trzeba.
+// GRANICA ATRAP: klient Supabase (rola serwisowa), nadawca dzwonka
+// (`tenantAdminAlert.server`) i klient operatora - moduł pyta go WYŁĄCZNIE
+// o `billing_reason` faktury subskrypcji, gdy od niego zależy powiązanie
+// z zamówieniem, a ładunek go nie niesie.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import type { StripeEnv } from "@/lib/stripe.server";
@@ -44,6 +45,10 @@ import {
 const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
   notifyTenantAdmins: vi.fn(async (_input: Record<string, unknown>) => 1),
+  /** `billing_reason` faktur u operatora; `Error` = awaria odczytu. */
+  invoiceReasons: {} as Record<string, string | Error>,
+  /** Odczyty faktur u operatora: [środowisko, faktura]. */
+  invoiceLookups: [] as Array<[string, string]>,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -57,6 +62,26 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 
 vi.mock("@/lib/events/tenantAdminAlert.server", () => ({
   notifyTenantAdmins: h.notifyTenantAdmins,
+}));
+
+// Faktura nieznana atrapie to faktura nieznana operatorowi (`resource_missing`).
+vi.mock("@/lib/stripe.server", () => ({
+  getStripeClient: async (env: string) => ({
+    invoices: {
+      retrieve: async (id: string) => {
+        h.invoiceLookups.push([env, id]);
+        const reason = h.invoiceReasons[id];
+        if (reason instanceof Error) throw reason;
+        if (reason === undefined) {
+          throw Object.assign(new Error(`No such invoice: '${id}'`), {
+            code: "resource_missing",
+            statusCode: 404,
+          });
+        }
+        return { id, billing_reason: reason };
+      },
+    },
+  }),
 }));
 
 import {
@@ -158,6 +183,8 @@ beforeEach(() => {
   db = supabaseFromStub();
   h.db.current = { from: (table: string) => db.from(table) };
   h.notifyTenantAdmins.mockClear();
+  h.invoiceReasons = {};
+  h.invoiceLookups.length = 0;
   seed();
 });
 
@@ -688,6 +715,8 @@ describe("documentInputFromTransaction - odczyt payloadu operatora", () => {
       // `billedAt` ma pierwszeństwo: to data WYSTAWIENIA, nie utworzenia.
       issuedAt: "2026-08-18T10:00:00.000Z",
       environment: ENV,
+      // Normalizator faktury nie musi go nieść - wtedy pyta się operatora.
+      billingReason: null,
     });
   });
 
@@ -952,6 +981,8 @@ function seedLinking(options: {
   orders?: OrderFixture[];
   existing?: Record<string, unknown> | null;
   linkedElsewhere?: boolean;
+  /** Dokument TEJ transakcji jest już przypięty do zamówienia (ponowiona dostawa). */
+  linkedHere?: string;
   orderLookupFails?: boolean;
 }): void {
   const orders = options.orders ?? [];
@@ -970,7 +1001,14 @@ function seedLinking(options: {
   db.setResponse("billing_documents", (chain) => {
     if (chain.has("insert") || chain.has("update")) return ok(null);
     const byOrder = chain.calls.some((c) => c.method === "eq" && c.args[0] === "order_id");
-    if (byOrder) return ok(options.linkedElsewhere ? { id: "doc-wczesniejszy" } : null);
+    if (byOrder) {
+      const linked = [
+        ...(options.linkedHere ? [{ provider_document_id: options.linkedHere }] : []),
+        ...(options.linkedElsewhere ? [{ provider_document_id: "in_1Wczesniejsza" }] : []),
+      ];
+      // Kształt odpowiedzi jak w PostgREST: lista, a przy `maybeSingle` wiersz albo `null`.
+      return ok(chain.has("maybeSingle") ? (linked[0] ?? null) : linked);
+    }
     return ok(options.existing ?? null);
   });
 }
@@ -1003,6 +1041,7 @@ describe("S7 - dokument przykrywa zamówienie (4.3 / 5.4)", () => {
   });
 
   it("pierwsza faktura subskrypcji przykrywa zamówienie; właściciel z wiersza subskrypcji", async () => {
+    h.invoiceReasons[INVOICE] = "subscription_create";
     seedLinking({
       subscription: { user_id: OWNER.userId, tenant_id: OWNER.tenantId },
       orders: [subscriptionOrder()],
@@ -1024,6 +1063,100 @@ describe("S7 - dokument przykrywa zamówienie (4.3 / 5.4)", () => {
       ["id", ORDER],
       ["environment", ENV],
     ]);
+    // Przyczyna faktury - od operatora, w środowisku zdarzenia.
+    expect(h.invoiceLookups).toEqual([[ENV, INVOICE]]);
+  });
+
+  it("R2: ODNOWIENIE subskrypcji sprzed wdrożenia (zamówienie bez żadnego dokumentu) NIE przykrywa zamówienia", async () => {
+    // Zamówienie z czerwca nie ma powiązanego dokumentu: pierwsza faktura
+    // zapisała się przed powiązaniem (albo wcale). Dawniej pierwsze
+    // odnowienie po wdrożeniu było „pierwszym dokumentem" zamówienia -
+    // historia chowała zamówienie i pokazywała odnowienie z kuponem LATO.
+    h.invoiceReasons["in_1OdnowieniePazdziernik"] = "subscription_cycle";
+    seedLinking({
+      subscription: { user_id: OWNER.userId, tenant_id: OWNER.tenantId },
+      orders: [subscriptionOrder({ provider_intent_id: null, provider_subscription_id: null })],
+    });
+
+    const outcome = await recordTransactionDocument(
+      input({ transactionId: "in_1OdnowieniePazdziernik", subscriptionId: SUB, orderId: ORDER }),
+    );
+
+    expect(outcome).toBe("created");
+    expect(writtenRow("billing_documents", "insert")).toMatchObject({
+      user_id: OWNER.userId,
+      order_id: null,
+    });
+  });
+
+  it("`billing_reason` z ładunku rozstrzyga bez pytania operatora", async () => {
+    seedLinking({
+      subscription: { user_id: OWNER.userId, tenant_id: OWNER.tenantId },
+      orders: [subscriptionOrder()],
+    });
+
+    await recordTransactionDocument(
+      input({
+        transactionId: INVOICE,
+        subscriptionId: SUB,
+        orderId: ORDER,
+        billingReason: "subscription_create",
+      }),
+    );
+
+    expect(writtenRow("billing_documents", "insert").order_id).toBe(ORDER);
+    expect(h.invoiceLookups).toEqual([]);
+  });
+
+  it("ponowiona dostawa dokumentu JUŻ przypiętego nie pyta operatora", async () => {
+    seedLinking({
+      subscription: { user_id: OWNER.userId, tenant_id: OWNER.tenantId },
+      orders: [subscriptionOrder()],
+      linkedHere: INVOICE,
+      existing: { id: "doc-1", number: null, amount_cents: 4900, status: "paid", order_id: ORDER },
+    });
+
+    await recordTransactionDocument(
+      input({ transactionId: INVOICE, subscriptionId: SUB, orderId: ORDER }),
+    );
+
+    expect(h.invoiceLookups).toEqual([]);
+  });
+
+  it("faktura nieznana operatorowi (404): dokument bez powiązania, nie awaria", async () => {
+    seedLinking({
+      subscription: { user_id: OWNER.userId, tenant_id: OWNER.tenantId },
+      orders: [subscriptionOrder()],
+    });
+
+    const outcome = await recordTransactionDocument(
+      input({ transactionId: INVOICE, subscriptionId: SUB, orderId: ORDER }),
+    );
+
+    expect(outcome).toBe("created");
+    expect(writtenRow("billing_documents", "insert").order_id).toBeNull();
+  });
+
+  it("awaria odczytu faktury u operatora: `failed` (zdarzenie wróci), bez ślepego zapisu", async () => {
+    h.invoiceReasons[INVOICE] = new Error("connection reset");
+    seedLinking({
+      subscription: { user_id: OWNER.userId, tenant_id: OWNER.tenantId },
+      orders: [subscriptionOrder()],
+    });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const outcome = await recordTransactionDocument(
+      input({ transactionId: INVOICE, subscriptionId: SUB, orderId: ORDER }),
+    );
+
+    expect(outcome).toBe("failed");
+    expect(errorLog).toHaveBeenCalledWith(
+      "[payments] billing document owner lookup failed",
+      INVOICE,
+      expect.objectContaining({ message: expect.stringContaining("connection reset") }),
+    );
+    expect(db.chainsFor("billing_documents").some((c) => c.has("insert"))).toBe(false);
+    errorLog.mockRestore();
   });
 
   it("ODNOWIENIE (zamówienie ma już swój dokument) nie jest przypinane do zamówienia", async () => {
@@ -1101,6 +1234,7 @@ describe("S7 - właściciel pierwszej faktury przed `customer.subscription.creat
   it("brak wiersza subskrypcji: właściciel i najemca z NASZEGO zamówienia z metadanych", async () => {
     // `invoice.paid` wyprzedził `customer.subscription.created`. Dawniej:
     // `skipped`, zdarzenie `processed` i faktura nigdy nie trafiała do panelu.
+    h.invoiceReasons[INVOICE] = "subscription_create";
     seedLinking({
       subscription: null,
       orders: [subscriptionOrder({ provider_subscription_id: null })],
@@ -1165,5 +1299,12 @@ describe("S7 - właściciel pierwszej faktury przed `customer.subscription.creat
     expect(
       documentInputFromTransaction({ id: INVOICE, customData: ["nie", "obiekt"] }, ENV)?.orderId,
     ).toBeNull();
+  });
+
+  it("`billingReason` z ładunku trafia do wejścia", () => {
+    expect(
+      documentInputFromTransaction({ id: INVOICE, billingReason: "subscription_create" }, ENV)
+        ?.billingReason,
+    ).toBe("subscription_create");
   });
 });

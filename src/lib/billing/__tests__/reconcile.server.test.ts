@@ -586,6 +586,42 @@ describe("buildReconcileReport - sonda zamówień", () => {
     expect(report.scannedOrders).toBe(1);
   });
 
+  // S4: sesja subskrypcji BEZ pobrania (trial, rabat 100%) tylko stempluje
+  // identyfikatory - zamówienie domknie pierwsza OPŁACONA faktura. Dawniej
+  // każdy trial wracał co noc jako `order_paid_not_fulfilled`, a „naprawa"
+  // odtwarzała sesję, która niczego nie zmienia.
+  it.each([
+    ["sesja w trybie subskrypcji", { mode: "subscription" }, {}],
+    ["zamówienie rodzaju `subscription`", {}, { kind: "subscription" }],
+  ])("subskrypcja bez pobrania (%s) nie jest rozjazdem", async (_label, sessionOver, orderOver) => {
+    setRows("payment_orders", [{ ...order, ...orderOver }]);
+    stripe.sessionRetrieve.mockResolvedValue({
+      id: "cs_1",
+      payment_status: "no_payment_required",
+      ...sessionOver,
+    });
+
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
+
+    expect(report.issues).toEqual([]);
+    expect(report.scannedOrders).toBe(1);
+  });
+
+  it("zakup JEDNORAZOWY bez pobrania nadal jest rozjazdem (realizacja domyka go od razu)", async () => {
+    setRows("payment_orders", [{ ...order, kind: "content" }]);
+    stripe.sessionRetrieve.mockResolvedValue({
+      id: "cs_1",
+      mode: "payment",
+      payment_status: "no_payment_required",
+    });
+
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
+
+    expect(report.issues).toEqual([
+      expect.objectContaining({ reference: "ord_1", reason: "order_paid_not_fulfilled" }),
+    ]);
+  });
+
   it("nieczytelna sesja daje rozjazd NIENAPRAWIALNY z komunikatem operatora", async () => {
     setRows("payment_orders", [order, { ...order, id: "ord_2", provider_session_id: "cs_2" }]);
     stripe.sessionRetrieve
@@ -934,7 +970,14 @@ describe("repairReconcileIssue - korekty bez klienta Stripe", () => {
 
 describe("repairReconcileIssue - zamówienie", () => {
   const orderRow = { id: "ord_1", provider_session_id: "cs_1", environment: "sandbox" };
-  const session = { id: "cs_1", payment_status: "paid", amount_total: 12000 };
+  /** Zakup sprzed trzech dni - zamówienie wisiało od tamtej chwili. */
+  const PURCHASED_AT = Math.floor(Date.UTC(2026, 7, 3, 9, 15, 0) / 1000);
+  const session = {
+    id: "cs_1",
+    payment_status: "paid",
+    amount_total: 12000,
+    created: PURCHASED_AT,
+  };
 
   it("buduje syntetyczne checkout.session.completed z sesji zamówienia", async () => {
     setSingle("payment_orders", orderRow);
@@ -944,14 +987,40 @@ describe("repairReconcileIssue - zamówienie", () => {
 
     const stamp = Math.floor(NOW / 1000);
     expect(hook.normalize).toHaveBeenCalledWith({
+      // Sekunda NAPRAWY w identyfikatorze (PAY-15) ...
       id: `reconcile_cs_1_${stamp}`,
       type: "checkout.session.completed",
-      created: stamp,
+      // ... a czas zdarzenia to chwila ZAKUPU (4.5) - patrz przypadek niżej.
+      created: PURCHASED_AT,
       data: { object: session },
     });
     // Wynik jest raportowany pod identyfikatorem ZAMÓWIENIA, nie sesji.
     expect(outcome).toEqual({ reference: "ord_1", status: "processed", error: null });
     expect(hook.claim.mock.calls[0][0]).toMatchObject({ eventId: `reconcile_cs_1_${stamp}` });
+  });
+
+  // 4.5: dyspozytor przekazuje czas zdarzenia realizacji i domknięciu
+  // zamówienia jako `paidAt`. Naprawa zaległego zamówienia stemplowała go
+  // chwilą naprawy - stary przychód lądował w bieżącym okresie, a `paid_at`
+  // kłamał w panelu i eksportach.
+  it("czas zdarzenia (a więc `paid_at`) to chwila zakupu, nie naprawy", async () => {
+    setSingle("payment_orders", orderRow);
+    stripe.sessionRetrieve.mockResolvedValue(session);
+
+    await repairReconcileIssue("sandbox", "order", "ord_1", TENANT);
+
+    const purchasedIso = new Date(PURCHASED_AT * 1000).toISOString();
+    expect(hook.claim.mock.calls[0][0]).toMatchObject({ occurredAt: purchasedIso });
+    expect(hook.dispatch.mock.calls[0][0]).toMatchObject({ occurredAt: purchasedIso });
+  });
+
+  it("sesja bez czasu utworzenia (kształt spoza API): czas naprawy jak dawniej", async () => {
+    setSingle("payment_orders", orderRow);
+    stripe.sessionRetrieve.mockResolvedValue({ ...session, created: undefined });
+
+    await repairReconcileIssue("sandbox", "order", "ord_1", TENANT);
+
+    expect(hook.normalize.mock.calls[0][0]).toMatchObject({ created: Math.floor(NOW / 1000) });
   });
 
   it("zamówienie czytane jest tylko z własnego środowiska", async () => {
@@ -1044,6 +1113,34 @@ describe("repairReconcileIssue - subskrypcja", () => {
       data: { object: { id: "sub_1", status: "past_due" } },
     });
     expect(outcome).toEqual({ reference: "sub_1", status: "processed", error: null });
+  });
+
+  // 1.1: stan z odczytu jest prawdziwy na chwilę ODCZYTU. Znacznik wzięty po
+  // odczycie robił ze zdarzenia operatora z tej samej sekundy (opłacenie
+  // faktury tuż po odczycie) zdarzenie spóźnione - nowszy stan przepadał.
+  it("znacznik pochodzi z chwili PRZED odczytem, nawet gdy odczyt trwa ponad sekundę", async () => {
+    const before = Math.floor(NOW / 1000);
+    stripe.subscriptionRetrieve.mockImplementation(async () => {
+      vi.setSystemTime(NOW + 2_500);
+      return { id: "sub_1", status: "active" };
+    });
+
+    await repairReconcileIssue("sandbox", "subscription", "sub_1", TENANT);
+
+    expect(hook.normalize.mock.calls[0][0]).toMatchObject({
+      id: `reconcile_sub_1_active_${before}`,
+      created: before - 1,
+    });
+  });
+
+  it("subskrypcja anulowana u operatora idzie jako rezygnacja (`deleted`), nie zdarzenie stanu", async () => {
+    stripe.subscriptionRetrieve.mockResolvedValue({ id: "sub_1", status: "canceled" });
+
+    await repairReconcileIssue("sandbox", "subscription", "sub_1", TENANT);
+
+    expect(hook.normalize.mock.calls[0][0]).toMatchObject({
+      type: "customer.subscription.deleted",
+    });
   });
 
   it("rozjazd NIENAPRAWIALNY (subskrypcja nieczytelna) przerywa naprawę bez zapisu", async () => {

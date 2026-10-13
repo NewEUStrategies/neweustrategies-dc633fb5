@@ -17,9 +17,14 @@ import {
   type StripeInvoice,
   type StripeSubscription,
   LOCAL_PERIOD_TOLERANCE_S,
+  WEBHOOK_ENDPOINT_PATH,
   classifyLocalSync,
   classifyRenewal,
+  classifyWebhookEndpoints,
   combineOutcomes,
+  parseProbeStatus,
+  renderWebhookEndpointSummary,
+  withEndpointVerdict,
   renderLocalSyncSummary,
   formatUnix,
   isFailure,
@@ -481,5 +486,171 @@ describe("nasza strona: dziennik webhooków i wiersz subskrypcji", () => {
     expect(summary).toContain("✗ nasza strona nie nadąża");
     expect(summary).toContain("po zbrojeniu: 0");
     expect(summary).toContain(formatUnix(NEW_PERIOD_END));
+  });
+});
+
+// ─── Odpowiedź RPC sondy (przegląd 7.6) ─────────────────────────────────────
+
+describe("parseProbeStatus - kształt odpowiedzi `billing_probe_status`", () => {
+  const event = {
+    event_id: "evt_1",
+    event_type: "subscription.updated",
+    status: "processed",
+    error: null,
+    created_at: "2026-10-13T02:41:00+00:00",
+  };
+  const sub = {
+    provider_subscription_id: "sub_probe",
+    status: "active",
+    current_period_end: "2026-11-13T02:41:00+00:00",
+  };
+
+  it("poprawna odpowiedź daje wiersze dziennika i subskrypcję w kształcie klasyfikatora", () => {
+    expect(parseProbeStatus({ webhook_events: [event], subscription: sub })).toEqual({
+      webhookRows: [event],
+      subscription: sub,
+    });
+  });
+
+  it("brak wiersza subskrypcji (`null`) jest poprawnym stanem, nie błędem kontraktu", () => {
+    expect(parseProbeStatus({ webhook_events: [], subscription: null })).toEqual({
+      webhookRows: [],
+      subscription: null,
+    });
+  });
+
+  it.each([
+    ["nie obiekt", []],
+    ["brak listy zdarzeń", { subscription: null }],
+    ["zdarzenie bez statusu", { webhook_events: [{ ...event, status: 1 }], subscription: null }],
+    ["błąd nie-tekstowy", { webhook_events: [{ ...event, error: {} }], subscription: null }],
+    ["subskrypcja bez identyfikatora", { webhook_events: [], subscription: { status: "active" } }],
+  ])("odrzuca kształt spoza kontraktu (%s) - zamiast zgadywać", (_label, value) => {
+    expect(parseProbeStatus(value)).toBeNull();
+  });
+});
+
+// ─── Punkt odbioru webhooków piaskownicy (przegląd 7.12) ────────────────────
+
+describe("classifyWebhookEndpoints - punkt odbioru subskrybuje każdy obsługiwany typ", () => {
+  const EXPECTED = ["invoice.paid", "charge.dispute.closed", "checkout.session.expired"];
+  const ours = (
+    overrides: Partial<{ id: string; url: string; status: string; enabled_events: string[] }> = {},
+  ) => ({
+    id: "we_ours",
+    url: `https://app.example${WEBHOOK_ENDPOINT_PATH}?env=sandbox`,
+    status: "enabled",
+    enabled_events: [...EXPECTED],
+    ...overrides,
+  });
+
+  it("komplet typów (albo `*`) na włączonym punkcie piaskownicy przechodzi", () => {
+    for (const endpoint of [ours(), ours({ enabled_events: ["*"] })]) {
+      const verdict = classifyWebhookEndpoints({
+        endpoints: [endpoint],
+        expectedTypes: EXPECTED,
+        appBaseUrl: null,
+      });
+      expect(verdict).toMatchObject({ outcome: "ok", checked: 1, gaps: [] });
+    }
+  });
+
+  it("brakujące typy oblewają sondę i są wymienione z nazwy", () => {
+    const verdict = classifyWebhookEndpoints({
+      endpoints: [ours({ enabled_events: ["invoice.paid"] })],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.gaps).toEqual([
+      {
+        id: "we_ours",
+        url: ours().url,
+        problem: null,
+        missingTypes: ["charge.dispute.closed", "checkout.session.expired"],
+      },
+    ]);
+    expect(verdict.reason).toContain("`checkout.session.expired`");
+    expect(renderWebhookEndpointSummary(verdict)).toContain("✗ braki");
+  });
+
+  it("brak naszego punktu (tylko obce adresy) to porażka - nic do nas nie dociera", () => {
+    const verdict = classifyWebhookEndpoints({
+      endpoints: [ours({ url: "https://elsewhere.example/hooks" })],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+
+    expect(verdict).toMatchObject({ outcome: "failed", checked: 0 });
+    expect(verdict.reason).toContain("nie ma punktu odbioru");
+  });
+
+  it("punkt wyłączony albo z `env=live` w piaskownicy jest błędem, nawet z kompletem typów", () => {
+    const disabled = classifyWebhookEndpoints({
+      endpoints: [ours({ status: "disabled" })],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+    const wrongEnv = classifyWebhookEndpoints({
+      endpoints: [ours({ url: `https://app.example${WEBHOOK_ENDPOINT_PATH}?env=live` })],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+
+    expect(disabled.gaps[0]?.problem).toContain("disabled");
+    expect(wrongEnv.gaps[0]?.problem).toContain("env=live");
+  });
+
+  it("z adresem wdrożenia liczą się WYŁĄCZNIE jego punkty - stary podgląd nie oblewa sondy", () => {
+    const verdict = classifyWebhookEndpoints({
+      endpoints: [
+        ours(),
+        ours({
+          id: "we_preview",
+          url: `https://preview.example${WEBHOOK_ENDPOINT_PATH}?env=sandbox`,
+          enabled_events: [],
+        }),
+      ],
+      expectedTypes: EXPECTED,
+      appBaseUrl: "https://app.example",
+    });
+
+    expect(verdict).toMatchObject({ outcome: "ok", checked: 1 });
+  });
+
+  it("bez adresu wdrożenia KAŻDY punkt z naszą ścieżką musi być kompletny", () => {
+    const verdict = classifyWebhookEndpoints({
+      endpoints: [
+        ours(),
+        ours({
+          id: "we_preview",
+          url: `https://preview.example${WEBHOOK_ENDPOINT_PATH}?env=sandbox`,
+          enabled_events: [],
+        }),
+      ],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+
+    expect(verdict.outcome).toBe("failed");
+    expect(verdict.gaps.map((gap) => gap.id)).toEqual(["we_preview"]);
+  });
+
+  it("porażka punktu odbioru przesądza werdykt całości, sukces go nie zmienia", () => {
+    const failed = classifyWebhookEndpoints({
+      endpoints: [],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+    const ok = classifyWebhookEndpoints({
+      endpoints: [ours()],
+      expectedTypes: EXPECTED,
+      appBaseUrl: null,
+    });
+
+    expect(withEndpointVerdict("renewed", failed)).toBe("failed");
+    expect(withEndpointVerdict("renewed", ok)).toBe("renewed");
+    expect(withEndpointVerdict("pending", null)).toBe("pending");
   });
 });

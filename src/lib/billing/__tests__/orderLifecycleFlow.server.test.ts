@@ -28,6 +28,8 @@ const h = vi.hoisted(() => ({
   rpc: null as SupabaseRpcStub | null,
   /** `checkout.sessions.list({ payment_intent })` - sesje znane operatorowi. */
   sessionsByIntent: new Map<string, Record<string, unknown>>(),
+  /** Bieżący stan obciążenia intencji płatności (ostatnie dostarczone `charge.*`). */
+  charges: new Map<string, Record<string, unknown>>(),
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -59,6 +61,14 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => ({
     // Płatność jednorazowa nie opłaca faktury subskrypcji.
     invoicePayments: { list: async () => ({ data: [] }) },
     invoices: { retrieve: async (id: string) => ({ id }) },
+    // Stan zwrotów u operatora (`refunds.server` czyta go zamiast ładunku):
+    // obciążenie z ostatniego dostarczonego zdarzenia `charge.*` tej intencji.
+    paymentIntents: {
+      retrieve: async (id: string) => ({
+        id,
+        latest_charge: h.charges.get(id) ?? { id: "ch_brak", amount: 0, amount_refunded: 0 },
+      }),
+    },
     checkout: {
       sessions: {
         list: async (params: { payment_intent?: string }) => {
@@ -156,6 +166,8 @@ function fullRefund(): Record<string, unknown> {
 }
 
 async function deliver(type: string, object: Record<string, unknown>): Promise<void> {
+  const intent = object.payment_intent;
+  if (object.object === "charge" && typeof intent === "string") h.charges.set(intent, object);
   const event = stripeEvent(type, object);
   const normalized = normalizeStripeEvent(event);
   if (!normalized) throw new Error(`test: normalizator odrzucił ${type}`);
@@ -186,6 +198,7 @@ function activeAccess(): Row[] {
 
 beforeEach(() => {
   h.sessionsByIntent.clear();
+  h.charges.clear();
   h.sessionsByIntent.set(INTENT, { id: SESSION, metadata: { orderId: ORDER } });
   const rpc = supabaseRpcStub();
   rpc.setData("payments_apply_event_ticket_outcome", null);
