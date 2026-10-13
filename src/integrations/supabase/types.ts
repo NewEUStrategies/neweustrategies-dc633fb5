@@ -23394,6 +23394,10 @@ export type Database = {
         Args: { p_event_id: string; p_person_id: string; p_tenant: string }
         Returns: string
       }
+      _event_partner_consent_carry_withdrawal: {
+        Args: { p_person_id: string; p_tenant: string }
+        Returns: number
+      }
       _event_person_crm_sync: {
         Args: {
           p_audit_action?: string
