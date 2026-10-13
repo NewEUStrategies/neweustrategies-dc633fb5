@@ -22807,6 +22807,7 @@ export type Database = {
       }
       _event_checkin_evaluate: {
         Args: {
+          _at?: string
           _checkpoint_id: string
           _direction: string
           _event_id: string
@@ -23651,7 +23652,12 @@ export type Database = {
         }
       }
       _event_scanner_device_auth_sync: {
-        Args: { _device_at: string; _scope: string; _token: string }
+        Args: {
+          _device_at: string
+          _queue_marker?: string
+          _scope: string
+          _token: string
+        }
         Returns: {
           checkpoint_id: string | null
           created_at: string
@@ -23692,6 +23698,10 @@ export type Database = {
         }
       }
       _event_scanner_device_note_failure: {
+        Args: { _device_id: string }
+        Returns: boolean
+      }
+      _event_scanner_device_note_queue_failure: {
         Args: { _device_id: string }
         Returns: boolean
       }
