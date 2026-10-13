@@ -2093,12 +2093,14 @@ const UPGRADE_INVOICE = "in_1SyntetycznaDoplata";
 
 /**
  * Operator ze subskrypcją kończącą się datą `cancel_at` i opłaconą fakturą
- * dopłaty (`marker` = metadane zapisane przy odmowie). Pamięta zdjęcie daty,
- * więc ponowienie zdarzenia widzi stan PO nim - jak prawdziwy operator.
+ * dopłaty (`marker` = metadane zapisane przy odmowie, `paidAt` = chwila
+ * zapłaty). Pamięta zdjęcie daty, więc ponowienie zdarzenia widzi stan PO nim
+ * - jak prawdziwy operator.
  */
 function stripeWithCancelDate(o: {
   live: Record<string, unknown>;
   marker: Record<string, string>;
+  paidAt: string;
   failedUpdates?: number;
 }) {
   const state = structuredClone(o.live);
@@ -2133,6 +2135,7 @@ function stripeWithCancelDate(o: {
         status: "paid",
         billing_reason: "subscription_update",
         parent: { subscription_details: { subscription: SUB } },
+        status_transitions: { paid_at: unix(o.paidAt) },
         metadata: o.marker,
       };
     }),
@@ -2155,6 +2158,7 @@ describe("odrzucony upgrade przy dacie końca opłacony później: pending_updat
   const MARKER = {
     nes_upgrade_cancel_at: String(unix(end)),
     nes_upgrade_canceled_at: String(unix(cancelSetAt)),
+    nes_upgrade_price: "price_pro_monthly",
   };
 
   /** Plus kończący się datą; upgrade do Pro odrzucony, a potem opłacony - migawka z chwili zastosowania. */
@@ -2188,7 +2192,7 @@ describe("odrzucony upgrade przy dacie końca opłacony później: pending_updat
 
   it("data z chwili prośby schodzi u operatora (klient środowiska zdarzenia); lustro: Pro, odnawia się", async () => {
     const applied = await plusEndingOnDate();
-    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER });
+    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER, paidAt: appliedAt });
 
     expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
       "processed",
@@ -2238,7 +2242,7 @@ describe("odrzucony upgrade przy dacie końca opłacony później: pending_updat
     },
   ])("$name: data zostaje, lustro dalej „kończy się”", async ({ live }) => {
     const applied = { ...(await plusEndingOnDate()), ...live };
-    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER });
+    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER, paidAt: appliedAt });
     const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
@@ -2276,7 +2280,12 @@ describe("odrzucony upgrade przy dacie końca opłacony później: pending_updat
 
   it("odmowa operatora przy zdjęciu: zdarzenie wraca do ponowienia (500), ponowienie zdejmuje i domyka lustro", async () => {
     const applied = await plusEndingOnDate();
-    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER, failedUpdates: 1 });
+    const stripe = stripeWithCancelDate({
+      live: applied,
+      marker: MARKER,
+      paidAt: appliedAt,
+      failedUpdates: 1,
+    });
 
     await expect(
       deliver("customer.subscription.pending_update_applied", applied, appliedAt),
@@ -2303,6 +2312,7 @@ describe("odrzucony upgrade przy dacie końca opłacony później: pending_updat
     const stripe = stripeWithCancelDate({
       live: { ...applied, cancel_at: null, canceled_at: null },
       marker: MARKER,
+      paidAt: appliedAt,
     });
 
     expect(await deliver("customer.subscription.pending_update_applied", applied, appliedAt)).toBe(
@@ -2315,5 +2325,32 @@ describe("odrzucony upgrade przy dacie końca opłacony później: pending_updat
       cancel_at_period_end: false,
     });
     expect(entitlement()?.canceled_at).toBeNull();
+  });
+
+  it("dostawa później niż okno ponowień operatora od zapłaty (naprawa z panelu): data zostaje, lustro „kończy się” jak u klienta", async () => {
+    const applied = await plusEndingOnDate();
+    // Klient zapłacił 5 dni temu; zdarzenie dociera dopiero teraz.
+    const paidAt = relativeIso(-5 * DZIEN + 60 * SEKUNDA);
+    const stripe = stripeWithCancelDate({ live: applied, marker: MARKER, paidAt });
+    const warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(await deliver("customer.subscription.pending_update_applied", applied, paidAt)).toBe(
+      "processed",
+    );
+
+    expect(stripe.update).not.toHaveBeenCalled();
+    expect(stripe.state.cancel_at).toBe(unix(end));
+    expect(warned).toHaveBeenCalledWith(
+      "[payments] pending update paid later, cancel date kept",
+      "kept_stale",
+      SUB,
+      expect.stringContaining(`"paidAt":${unix(paidAt)}`),
+    );
+    expect(subscriptionRow()).toMatchObject({
+      price_id: "pro_monthly",
+      cancel_at_period_end: true,
+    });
+    expect(entitlement()?.canceled_at).toBeTruthy();
+    warned.mockRestore();
   });
 });

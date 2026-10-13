@@ -1068,9 +1068,11 @@ async function settleScheduleAfterAppliedUpdate(
  * opłacony później: po udanej dopłacie data schodzi od razu, a tu - dopiero
  * teraz, decyzją warstwy operatora na żywym stanie
  * (`clearCancelDateAfterAppliedUpgrade`). Zdejmuje ją wyłącznie wtedy, gdy to
- * data z chwili prośby o upgrade (znacznik na fakturze) i od tamtej pory się
- * nie zmieniła - inaczej zostaje. Migawka bez daty nie pyta operatora wcale:
- * data ustawiona po zastosowaniu zmiany to nowsza decyzja klienta.
+ * data z chwili prośby o upgrade (znacznik na fakturze), od tamtej pory się
+ * nie zmieniła, a od zapłaty nie minęło okno ponowień operatora - inaczej
+ * zostaje (`kept_stale`: dostawa spóźniona dłużej). Migawka bez daty nie pyta
+ * operatora wcale: data ustawiona po zastosowaniu zmiany to nowsza decyzja
+ * klienta.
  *
  * Błąd operatora RZUCA, jak przy harmonogramie.
  *

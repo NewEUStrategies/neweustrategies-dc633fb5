@@ -90,8 +90,12 @@ w aplikacji, i tylko gdy od tamtej pory się nie zmieniła.
 datą; odmowa zwrócona z `pending_update` - karta, 3DS - albo RZUCONA przez
 operatora z oczekującą zmianą) aplikacja zapisuje na FAKTURZE oczekującej
 zmiany znacznik z żywego stanu sprzed prośby: `nes_upgrade_cancel_at`
-(= `cancel_at`) i `nes_upgrade_canceled_at` (= `canceled_at`, chwila ustawienia
-końca). Klucz idempotencji z faktury i obu wartości. Faktura, nie subskrypcja:
+(= `cancel_at`), `nes_upgrade_canceled_at` (= `canceled_at`, chwila ustawienia
+końca) i `nes_upgrade_price` (cena docelowa prośby). Znakuje wyłącznie
+oczekującą zmianę, której `subscription_items` niosą tę cenę: odmowa rzucona
+mogła zostawić wcześniejszą oczekującą zmianę (dołożenie miejsc, zmiana spoza
+aplikacji), a jej zapłata nie znaczy „zostaję". Klucz idempotencji
+z subskrypcji, faktury, ceny i obu wartości. Faktura, nie subskrypcja:
 zapis metadanych faktury nie jest aktualizacją subskrypcji (nie dotyka
 oczekującej zmiany), a faktura wiąże znacznik z TĄ zapłatą - ponowna próba
 upgrade'u unieważnia starą fakturę i wystawia nową (nowy znacznik). Błąd zapisu
@@ -105,25 +109,39 @@ subskrypcji w `customData` transakcji (`mapTransactionFromInvoice`).
 `cancelAt`; migawka bez daty nie pyta operatora - data ustawiona po
 zastosowaniu to nowsza decyzja):
 
-| Żywy stan u operatora / faktura z migawki                                                                           | Skutek                                                                                                |
-| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| migawka bez `latest_invoice`, faktura bez znacznika albo nieznana                                                   | `not_marked` - data zostaje (panel, dołożenie miejsc, błąd zapisu)                                    |
-| subskrypcja `canceled` / `incomplete_expired`                                                                       | `ended` - bez zmian                                                                                   |
-| brak zaplanowanego końca                                                                                            | `not_scheduled` - bez mutacji (zdjęty wcześniej albo przez klienta)                                   |
-| flaga `cancel_at_period_end` albo data inna niż w migawce                                                           | `kept_changed` - nowsza decyzja klienta                                                               |
-| dołączony harmonogram                                                                                               | `kept_schedule` - datą steruje harmonogram (`end_behavior: cancel`)                                   |
-| faktura nie `paid` / nie `subscription_update` / innej subskrypcji; status nie `active` / `trialing`                | `kept_unverified`                                                                                     |
-| znacznik inny niż żywe `cancel_at` albo `canceled_at` (także ponowne ustawienie TEJ SAMEJ daty), brak `canceled_at` | `kept_changed`                                                                                        |
-| wszystko zgodne                                                                                                     | `cleared` - `cancel_at: ""` + licznik `nes_ops_rev`, klucz `cancel-at-clear-applied` z faktury i daty |
+| Żywy stan u operatora / faktura z migawki                                                                           | Skutek                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| migawka bez `latest_invoice`, faktura bez znacznika albo nieznana                                                   | `not_marked` - data zostaje (panel, dołożenie miejsc, błąd zapisu)                             |
+| subskrypcja `canceled` / `incomplete_expired`                                                                       | `ended` - bez zmian                                                                            |
+| brak zaplanowanego końca                                                                                            | `not_scheduled` - bez mutacji (zdjęty wcześniej albo przez klienta)                            |
+| flaga `cancel_at_period_end` albo data inna niż w migawce                                                           | `kept_changed` - nowsza decyzja klienta                                                        |
+| dołączony harmonogram                                                                                               | `kept_schedule` - datą steruje harmonogram (`end_behavior: cancel`)                            |
+| faktura nie `paid` / nie `subscription_update` / innej subskrypcji; status nie `active` / `trialing`                | `kept_unverified`                                                                              |
+| subskrypcja nie na cenie ze znacznika (`nes_upgrade_price`) albo znacznik bez ceny                                  | `kept_unverified` - zastosowana zmiana to nie upgrade z prośby                                 |
+| znacznik inny niż żywe `cancel_at` albo `canceled_at` (także ponowne ustawienie TEJ SAMEJ daty), brak `canceled_at` | `kept_changed`                                                                                 |
+| wszystko zgodne, ale od zapłaty (`status_transitions.paid_at`) minęło ponad 72 h albo brak `paid_at`                | `kept_stale` - dostawa spóźniona poza okno ponowień operatora                                  |
+| wszystko zgodne                                                                                                     | `cleared` - `cancel_at: ""` + licznik `nes_ops_rev`, klucz `cancel-at-clear-applied` (poniżej) |
+
+Klucz idempotencji zdjęcia (`cancel-at-clear-applied`) to skrót z subskrypcji,
+faktury, zdejmowanej daty i żywego `canceled_at`.
 
 Każde `kept_*` / `not_marked` to `console.warn` z wartościami (klient zapłacił
-za upgrade, a subskrypcja się skończy - do ręcznej oceny). Przy `cleared` i
-`not_scheduled` lustro dostaje migawkę bez zaplanowanego końca (stan operatora,
-jak `cancelAtPeriodEnd` ścieżki synchronicznej) - bez chwilowego „kończy się",
-przycisku „Wznów" i znacznika `canceled_at` uprawnienia. Zdjęcie emituje własne
-`customer.subscription.updated` z nowszym znacznikiem: ta sama cena (bez drugiego
-maila o upgradzie), status bez zmian (bez CRM i dzwonka), okres przedłużony,
-jeśli data skracała bieżący okres. Remis sekundy rozstrzyga żywy stan.
+za upgrade, a subskrypcja się skończy - do ręcznej oceny).
+
+Okno 72 h od zapłaty to horyzont ponowień operatora (do 3 dni). Po zapłacie
+lustro dostaje `customer.subscription.updated` z nową ceną i WCIĄŻ z datą, więc
+do obsługi `pending_update_applied` klient widzi „kończy się" (z przyciskiem
+„Wznów"). Dostawa spóźniona dłużej (naprawa z panelu uzgodnienia, ręczne
+ponowienie z dziennika) trafia na klienta, który od dni widzi ten koniec i mógł
+go przyjąć - takiej daty nie zdejmujemy bez człowieka (`kept_stale`).
+
+Przy `cleared` i `not_scheduled` lustro dostaje migawkę bez zaplanowanego końca
+(stan operatora, jak `cancelAtPeriodEnd` ścieżki synchronicznej) - bez
+chwilowego „kończy się", przycisku „Wznów" i znacznika `canceled_at`
+uprawnienia. Zdjęcie emituje własne `customer.subscription.updated` z nowszym
+znacznikiem: ta sama cena (bez drugiego maila o upgradzie), status bez zmian
+(bez CRM i dzwonka), okres przedłużony, jeśli data skracała bieżący okres.
+Remis sekundy rozstrzyga żywy stan.
 
 `customer.subscription.pending_update_expired` (zmiana wygasła bez zapłaty) to
 zwykła migawka stanu (`subscription.updated` / `past_due` / `paused` jak przy
@@ -150,9 +168,10 @@ Pozostałe zdarzenia bez zmian (m.in. `invoice.paid` / `invoice.payment_succeede
 - **Ponowienie po błędzie a nowsza decyzja klienta.** Okno między
   zastosowaniem zmiany a udaną obsługą zdarzenia bywa długie (zapamiętane 5xx
   pod kluczem zwolnienia przez dobę, ponowienia operatora do 3 dni, naprawa
-  z panelu). Harmonogram założony w tym czasie zostaje (`not_attached`), a
-  przepisany przez aplikację w miejscu - też (`superseded`, odcisk
-  `nes_basis`). Nie odróżnimy jedynie harmonogramu z odciskiem sprzed
+  z panelu; datę końca zdejmujemy tylko w pierwszych 72 h). Harmonogram
+  założony w tym czasie zostaje (`not_attached`), a przepisany przez aplikację
+  w miejscu - też (`superseded`, odcisk `nes_basis`). Nie odróżnimy jedynie
+  harmonogramu z odciskiem sprzed
   dopłaty, którego fazy przepisano w tym oknie RĘCZNIE w panelu operatora
   (panel nie pisze naszych metadanych) - wtedy rozstrzyga następna faza jak
   dla harmonogramu z odmowy. Harmonogram bez odcisku (panel, zapis sprzed tej
@@ -162,6 +181,11 @@ Pozostałe zdarzenia bez zmian (m.in. `invoice.paid` / `invoice.payment_succeede
   ponowienia dostaną ten sam błąd, aż klucz wygaśnie (operator ponawia
   zdarzenie do 3 dni). Odmowa sprzed wykonania (limit zapytań) i zgubiona
   odpowiedź nie są tym dotknięte.
+- **Znacznik a cena.** Odmowa rzucona znakuje tylko oczekującą zmianę z ceną
+  z prośby, a zdjęcie wymaga subskrypcji na cenie ze znacznika. Upgrade
+  ponowiony w oknie na TĘ SAMĄ cenę (odmowa rzucona, a operator zostawił
+  poprzednią oczekującą zmianę) przepisuje znacznik wartościami z chwili
+  ponownej prośby. To nadal prośba klienta o ten upgrade.
 - **Data końca a `canceled_at`.** Ponowne ustawienie TEJ SAMEJ daty po odmowie
   (portal: „wznów", potem „anuluj z końcem okresu") odróżnia wyłącznie
   `canceled_at`. Zakładamy, że operator wypełnia je przy zaplanowanym końcu
@@ -178,11 +202,32 @@ Pozostałe zdarzenia bez zmian (m.in. `invoice.paid` / `invoice.payment_succeede
 - **Data należąca do harmonogramu** (`end_behavior: cancel` z panelu) zostaje
   (`kept_schedule`), choć udany upgrade zwalnia każdy dołączony harmonogram -
   rozstrzygnięcie harmonogramu po zapłacie zwalnia wyłącznie sprzeczny.
-- **Zdjęcie daty w bieżącym okresie** przedłuża okres i tworzy prorację - tak
-  samo jak w ścieżce synchronicznej. Koniec okresu w lustrze domyka zdarzenie
-  `customer.subscription.updated` samego zdjęcia.
+- **Zdjęcie daty krótszej niż okres nowej ceny nie obciąża przedłużenia od
+  razu** (wspólne ze ścieżką synchroniczną `clearCancelDateAfterUpgrade`).
+  Katalog uznaje zmianę interwału za upgrade (`plus_monthly` -> `plus_annual`,
+  `business_2w` -> `business_quarterly`). Okres nowej ceny zaczyna się wtedy
+  w chwili zmiany i - wg dokumentacji operatora (data przed końcem okresu
+  skraca `items.current_period_end` do niej) - kończy w dniu daty, więc
+  faktura upgrade'u obejmuje tylko czas do daty. Zdjęcie daty przedłuża okres
+  i tworzy prorację przedłużenia, a ta bez
+  `proration_behavior: "always_invoice"` czeka na NASTĘPNĄ fakturę, czyli
+  zwykle odnowienie po roku (klient płaci wtedy ok. dwóch cen rocznych).
+  Natychmiastowe obciążenie (`always_invoice` albo osobna faktura) to
+  obciążenie poza sesją klienta, także z webhooka, z własną odmową i 3DS (bez
+  `pending_if_incomplete`, którego operator przy `cancel_at` nie przyjmuje).
+  To osobna decyzja rozliczeniowa dla obu ścieżek, dlatego jest poza zakresem
+  tej zmiany. Dziś każde zdjęcie
+  przedłużające okres zostawia `console.warn` („current period extended") ze
+  starym i nowym końcem okresu, do ręcznego zafakturowania. Koniec okresu
+  w lustrze domyka zdarzenie `customer.subscription.updated` samego zdjęcia.
 - **Zapamiętany błąd 5xx** zdjęcia daty - jak przy zwolnieniu harmonogramu
-  (klucz z faktury i daty).
+  (klucz z subskrypcji, faktury, daty i `canceled_at`). Operator pamięta go
+  przez dobę, a okno zdjęcia trwa 72 h, więc ponowienia po wygaśnięciu klucza
+  wciąż zdejmują datę.
+- **Okno 72 h** liczymy zegarem aplikacji od `paid_at` faktury. Dostawa po
+  oknie zostawia datę (`kept_stale`, log): klient, który zapłacił za upgrade,
+  a subskrypcja się kończy, wymaga wtedy ręcznej oceny (np. kontaktu
+  i zdjęcia daty w panelu operatora).
 - **Flaga `cancel_at_period_end`** schodzi razem z oczekującą zmianą tylko
   wtedy, gdy operator stosuje ją po zapłacie (dokumentacja wymienia ją wśród
   atrybutów oczekującej zmiany, obiekt `pending_update` jej nie pokazuje) - ta

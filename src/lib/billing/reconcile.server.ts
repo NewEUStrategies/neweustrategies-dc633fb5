@@ -28,7 +28,9 @@ const SUPPORTED_EVENT_TYPES = [
   // odmowie cofnąłby opłacony upgrade / dołożone miejsca przy odnowieniu, a
   // data końca `cancel_at` zakończyłaby opłacony upgrade, więc zgubiona
   // dostawa (np. punkt odbioru bez tego typu) ma być widoczna i naprawialna
-  // (odtworzenie z `events.retrieve` niesie fakturę dopłaty i datę). `pending_update_expired` - celowo nie: jego subskrypcja
+  // (odtworzenie z `events.retrieve` niesie fakturę dopłaty i datę; datę
+  // zdejmuje tylko w oknie ponowień operatora od zapłaty, później zostaje do
+  // ręcznej oceny). `pending_update_expired` - celowo nie: jego subskrypcja
   // jest opcjonalna, a zdarzenie niesie wyłącznie migawkę stanu (pozycje
   // zostały stare), którą domyka `customer.subscription.updated` - brak
   // dostawy nie jest rozjazdem, a w raporcie byłby fałszywym alarmem.

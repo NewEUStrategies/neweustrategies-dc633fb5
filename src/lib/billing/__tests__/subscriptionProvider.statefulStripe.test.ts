@@ -14,7 +14,7 @@
 // zwrócić przejściowe 5xx albo zgubić odpowiedź PO wykonaniu - kompensacja
 // musi rozstrzygać żywym stanem, a nie samym faktem błędu.
 import type Stripe from "stripe";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /** Kopia przez JSON - odpowiedź operatora to dane, nie żywe referencje. */
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -65,6 +65,10 @@ interface FakeInvoice {
   metadata?: Record<string, string>;
   created?: number;
   billing_reason?: string;
+  /** Chwila zapłaty (`status_transitions.paid_at`). */
+  paid_at?: number | null;
+  /** Subskrypcja faktury (`parent`) - domyślnie ta jedyna. */
+  subscription?: string;
   /** Status intencji płatności faktury (`requires_action` = 3DS). */
   intentStatus?: string;
 }
@@ -110,9 +114,11 @@ class FakeStripe {
   /**
    * Następna dopłata (`pending_if_incomplete`) nie przejdzie: `true` - odmowa
    * zwrócona z `pending_update`, `requires_action` - 3DS (też zwrócone),
-   * `thrown` - oczekująca zmiana powstaje, ale operator RZUCA `card_declined`.
+   * `thrown` - oczekująca zmiana powstaje, ale operator RZUCA `card_declined`,
+   * `thrown_unchanged` - operator RZUCA `card_declined`, a oczekująca zmiana
+   * (także wcześniejsza) i ostatnia faktura zostają, jakie były.
    */
-  declineNextPayment: boolean | "requires_action" | "thrown" = false;
+  declineNextPayment: boolean | "requires_action" | "thrown" | "thrown_unchanged" = false;
   /**
    * Następna aktualizacja subskrypcji kończy się tym błędem BEZ wykonania.
    * Operator zapamiętuje pod kluczem także 5xx, więc atrapa też - ponowienie
@@ -134,6 +140,11 @@ class FakeStripe {
   rejectNextUpdate: Error | null = null;
   /** Następny zapis metadanych faktury kończy się tym błędem (zapamiętanym pod kluczem). */
   failNextInvoiceUpdate: Error | null = null;
+  /**
+   * Koniec okresu bez daty końca: data krótsza niż okres nowej ceny (upgrade
+   * ze zmianą interwału) skraca okres do siebie, a jej zdjęcie go przedłuża.
+   */
+  uncappedPeriodEnd: number | null = null;
   private seq = 0;
   /** Zegar operatora - `tick` przesuwa go między krokami klienta. */
   private now = PERIOD_START + 3_600;
@@ -177,12 +188,18 @@ class FakeStripe {
       status: "paid",
       hosted_invoice_url: "https://invoice.stripe.test/i/period",
       billing_reason: "subscription_cycle",
+      paid_at: PERIOD_START,
     });
   }
 
   /** Kolejne kroki klienta dzieją się później niż poprzednie (sekundy). */
   tick(seconds: number): void {
     this.now += seconds;
+  }
+
+  /** Zegar operatora w milisekundach - do zrównania z zegarem aplikacji. */
+  nowMs(): number {
+    return this.now * 1000;
   }
 
   /**
@@ -273,7 +290,7 @@ class FakeStripe {
     }
     if (this.sub.latest_invoice) {
       const invoice = this.invoices.get(this.sub.latest_invoice);
-      if (invoice) invoice.status = "paid";
+      if (invoice) Object.assign(invoice, { status: "paid", paid_at: this.now });
     }
     this.sub.pending_update = null;
     this.emit();
@@ -375,12 +392,16 @@ class FakeStripe {
   private invoiceView(id: string): Raw | undefined {
     const invoice = this.invoices.get(id);
     if (!invoice) return undefined;
-    const { intentStatus, ...rest } = clone(invoice);
+    const { intentStatus, paid_at, subscription, ...rest } = clone(invoice);
     return {
       object: "invoice",
       metadata: {},
       ...rest,
-      parent: { type: "subscription_details", subscription_details: { subscription: this.sub.id } },
+      status_transitions: { paid_at: paid_at ?? null },
+      parent: {
+        type: "subscription_details",
+        subscription_details: { subscription: subscription ?? this.sub.id },
+      },
       payments: {
         data: intentStatus ? [{ payment: { payment_intent: { status: intentStatus } } }] : [],
       },
@@ -396,6 +417,7 @@ class FakeStripe {
       metadata: {},
       created: this.now,
       billing_reason: "subscription_update",
+      paid_at: status === "paid" ? this.now : null,
       ...(intentStatus ? { intentStatus } : {}),
     });
     this.sub.latest_invoice = id;
@@ -415,6 +437,9 @@ class FakeStripe {
     if (params.cancel_at === "") {
       this.sub.cancel_at = null;
       this.sub.canceled_at = null;
+      if (this.uncappedPeriodEnd !== null) {
+        this.sub.items.data[0].current_period_end = this.uncappedPeriodEnd;
+      }
     } else if (typeof params.cancel_at === "number") {
       this.sub.cancel_at = params.cancel_at;
       this.sub.canceled_at = this.now;
@@ -493,6 +518,9 @@ class FakeStripe {
             ) {
               const decline = this.declineNextPayment;
               this.declineNextPayment = false;
+              if (decline === "thrown_unchanged") {
+                throw stripeError("Your card was declined.", "card_error", "card_declined");
+              }
               this.newInvoice(
                 "open",
                 decline === "requires_action" ? "requires_action" : undefined,
@@ -1371,20 +1399,41 @@ describe("data końca `cancel_at` przy upgradzie opłaconym PÓŹNIEJ - zdjęta 
   const MARKER = {
     nes_upgrade_cancel_at: String(PERIOD_END),
     nes_upgrade_canceled_at: String(CANCEL_SET_AT),
+    nes_upgrade_price: priceIdOf("pro_monthly"),
   };
 
-  /** Webhook dostaje migawkę z chwili zastosowania: datę i fakturę jako identyfikator. */
-  const clearDate = (snapshot: Raw) =>
-    clearCancelDateAfterAppliedUpgrade("sandbox", "sub_1", {
+  /**
+   * Webhook dostaje migawkę z chwili zastosowania: datę i fakturę jako
+   * identyfikator. Zegar aplikacji = zegar operatora (okno od zapłaty).
+   */
+  const clearDate = (snapshot: Raw) => {
+    vi.setSystemTime(fake.nowMs());
+    return clearCancelDateAfterAppliedUpgrade("sandbox", "sub_1", {
       invoiceId: typeof snapshot.latest_invoice === "string" ? snapshot.latest_invoice : null,
       cancelAt: snapshot.cancel_at as number,
     });
+  };
 
   // Każda zostawiona data to głośny log (klient zapłacił, a subskrypcja się skończy).
   let warned: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     warned = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.useFakeTimers({ toFake: ["Date"] });
   });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Oczekująca zmiana spoza prośby o upgrade (więcej miejsc, np. z panelu) z własną fakturą. */
+  const foreignPendingUpdate = async () => {
+    fake.declineNextPayment = true;
+    await fake.client().subscriptions.update("sub_1", {
+      items: [{ id: "si_1", quantity: 2 }],
+      proration_behavior: "always_invoice",
+      payment_behavior: "pending_if_incomplete",
+    });
+    return String(fake.sub.latest_invoice);
+  };
 
   const pendingInvoice = () => fake.invoices.get(String(fake.sub.latest_invoice));
   const mutations = () =>
@@ -1393,7 +1442,7 @@ describe("data końca `cancel_at` przy upgradzie opłaconym PÓŹNIEJ - zdjęta 
     );
 
   const upgradeDeclined = async (
-    decline: true | "requires_action" | "thrown" = true,
+    decline: true | "requires_action" | "thrown" | "thrown_unchanged" = true,
     error: string = PAYMENT_FAILED,
   ) => {
     fake.declineNextPayment = decline;
@@ -1495,24 +1544,178 @@ describe("data końca `cancel_at` przy upgradzie opłaconym PÓŹNIEJ - zdjęta 
     expect(fake.sub).toMatchObject({ cancel_at_period_end: true, cancel_at: PERIOD_END });
   });
 
-  it("nieudany zapis znacznika: wynik odmowy bez zmian (link do faktury), a po zapłacie data zostaje", async () => {
-    useFake(endingOnDate());
-    fake.failNextInvoiceUpdate = stripeError("An unknown error occurred", "api_error");
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  it.each([
+    { name: "odmowa zwrócona", decline: true as const },
+    { name: "odmowa RZUCONA", decline: "thrown" as const },
+  ])(
+    "$name, nieudany zapis znacznika: wynik odmowy bez zmian (link do faktury), log z fakturą, a po zapłacie data zostaje",
+    async ({ decline }) => {
+      useFake(endingOnDate());
+      fake.failNextInvoiceUpdate = stripeError("An unknown error occurred", "api_error");
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await upgradeDeclined(decline);
+      // Faktura, której znacznik trzeba dopisać ręcznie - także przy odmowie
+      // rzuconej, gdzie odczytujemy ją dopiero z żywej subskrypcji.
+      expect(fake.sub.latest_invoice).toMatch(/^in_\d+$/);
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringContaining("cancel date marker not written"),
+        "sub_1",
+        fake.sub.latest_invoice,
+        expect.any(String),
+      );
+      expect(pendingInvoice()?.metadata).toEqual({});
+
+      const snapshot = fake.payPendingInvoice();
+      expect(await clearDate(snapshot)).toBe("not_marked");
+      expect(fake.sub.cancel_at).toBe(PERIOD_END);
+    },
+  );
+
+  it("data bez `canceled_at`: bez znacznika - ponownego ustawienia nie dałoby się odróżnić", async () => {
+    useFake(new FakeStripe({ cancel_at: PERIOD_END, canceled_at: null }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
     await upgradeDeclined();
-    expect(logged).toHaveBeenCalledWith(
-      expect.stringContaining("cancel date marker not written"),
-      "sub_1",
-      expect.any(String),
-      expect.any(String),
-    );
+    expect(fake.log.filter((l) => l.startsWith("invoice."))).toEqual([]);
     expect(pendingInvoice()?.metadata).toEqual({});
 
     const snapshot = fake.payPendingInvoice();
     expect(await clearDate(snapshot)).toBe("not_marked");
     expect(fake.sub.cancel_at).toBe(PERIOD_END);
   });
+
+  it("odmowa RZUCONA bez oczekującej zmiany: nic do znakowania, bez zapisu faktury i bez alarmu", async () => {
+    useFake(endingOnDate());
+    fake.declineNextPayment = "thrown_unchanged";
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await changePlan("pro_monthly")).toEqual({
+      ok: false,
+      error: PAYMENT_FAILED,
+      hostedInvoiceUrl: null,
+    });
+    // Żadna późniejsza zapłata niczego tu nie zastosuje - log „data zostanie" byłby fałszywy.
+    expect(logged).not.toHaveBeenCalled();
+    expect(fake.log.filter((l) => l.startsWith("invoice."))).toEqual([]);
+    expect(fake.invoices.get("in_period")?.metadata).toBeUndefined();
+    expect(fake.sub).toMatchObject({ cancel_at: PERIOD_END, pending_update: null });
+  });
+
+  it("odmowa RZUCONA przy wcześniejszej oczekującej zmianie spoza prośby: bez znacznika, jej zapłata nie zdejmuje daty", async () => {
+    useFake(endingOnDate());
+    const earlier = await foreignPendingUpdate();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Operator rzuca odmowę, a oczekuje wciąż zmiana sprzed prośby.
+    await upgradeDeclined("thrown_unchanged");
+    expect(fake.sub.latest_invoice).toBe(earlier);
+    expect(fake.log).not.toContain("invoice.update:EXEC");
+    expect(fake.invoices.get(earlier)?.metadata).toEqual({});
+    expect(logged).toHaveBeenCalledWith(
+      expect.stringContaining("cancel date marker not written"),
+      "sub_1",
+      null,
+      "pending update does not carry the requested price",
+    );
+
+    // Dawniej: znacznik trafiał na fakturę dołożenia miejsc, a jej zapłata zdejmowała datę.
+    const snapshot = fake.payPendingInvoice();
+    expect(fake.sub.items.data[0]).toMatchObject({
+      quantity: 2,
+      price: { lookup_key: "plus_monthly" },
+    });
+    expect(await clearDate(snapshot)).toBe("not_marked");
+    expect(fake.sub.cancel_at).toBe(PERIOD_END);
+    fake.renew();
+    expect(fake.sub.status).toBe("canceled");
+  });
+
+  it("pełny znacznik na fakturze zmiany innej niż upgrade z prośby (cena po zastosowaniu nie ta): data zostaje", async () => {
+    useFake(endingOnDate());
+    await foreignPendingUpdate();
+    Object.assign(pendingInvoice() ?? {}, { metadata: { ...MARKER } });
+    const snapshot = fake.payPendingInvoice();
+    const calls = mutations().length;
+
+    expect(await clearDate(snapshot)).toBe("kept_unverified");
+    expect(fake.sub.cancel_at).toBe(PERIOD_END);
+    expect(mutations()).toHaveLength(calls);
+    expect(warned).toHaveBeenCalledWith(
+      "[payments] pending update paid later, cancel date kept",
+      "kept_unverified",
+      "sub_1",
+      expect.stringContaining(`"livePrice":"${priceIdOf("plus_monthly")}"`),
+    );
+  });
+
+  it.each([
+    {
+      name: "faktura odnowienia (`subscription_cycle`), nie zmiany",
+      tamper: () => Object.assign(pendingInvoice() ?? {}, { billing_reason: "subscription_cycle" }),
+    },
+    {
+      name: "faktura innej subskrypcji",
+      tamper: () => Object.assign(pendingInvoice() ?? {}, { subscription: "sub_other" }),
+    },
+    {
+      name: "subskrypcja zaległa (`past_due`)",
+      tamper: () => Object.assign(fake.sub, { status: "past_due" }),
+    },
+  ])("$name: znacznik się zgadza, ale data zostaje (`kept_unverified`)", async ({ tamper }) => {
+    useFake(endingOnDate());
+    await upgradeDeclined();
+    const snapshot = fake.payPendingInvoice();
+    tamper();
+    const calls = mutations().length;
+
+    expect(await clearDate(snapshot)).toBe("kept_unverified");
+    expect(fake.sub.cancel_at).toBe(PERIOD_END);
+    expect(mutations()).toHaveLength(calls);
+  });
+
+  it.each([
+    // Ponowienia operatora (do 3 dni) i naprawa z panelu w tym oknie zdejmują datę.
+    { name: "tuż przed końcem okna ponowień", delay: 3 * DAY - 60, outcome: "cleared" },
+    // Później klient od dawna widzi „kończy się" i mógł ten koniec przyjąć.
+    { name: "po oknie ponowień (naprawa z panelu)", delay: 3 * DAY + 60, outcome: "kept_stale" },
+  ])("obsługa zdarzenia $name od zapłaty: $outcome", async ({ delay, outcome }) => {
+    useFake(endingOnDate());
+    await upgradeDeclined();
+    const snapshot = fake.payPendingInvoice();
+    fake.tick(delay);
+
+    expect(await clearDate(snapshot)).toBe(outcome);
+    expect(fake.sub.cancel_at).toBe(outcome === "cleared" ? null : PERIOD_END);
+  });
+
+  it.each([
+    { name: "opłacony od razu", decline: false },
+    { name: "opłacony później", decline: true },
+  ])(
+    "upgrade ze zmianą interwału, $name: zdjęcie daty przedłuża okres - log o proracji czekającej na następną fakturę",
+    async ({ decline }) => {
+      useFake(endingOnDate());
+      // Okres nowej ceny kończy się w dniu daty; bez niej - po roku od zmiany.
+      fake.uncappedPeriodEnd = PERIOD_START + 3_600 + 365 * DAY;
+      fake.declineNextPayment = decline;
+      const result = await changePlan("plus_annual");
+
+      if (decline) {
+        expect(result).toMatchObject({ ok: false, error: PAYMENT_FAILED });
+        expect(await clearDate(fake.payPendingInvoice())).toBe("cleared");
+      } else {
+        expect(result).toMatchObject({ ok: true, cancelAtPeriodEnd: false });
+      }
+      expect(fake.sub.cancel_at).toBeNull();
+      expect(warned).toHaveBeenCalledWith(
+        "[payments] cancel date removed, current period extended - its proration waits for the next invoice",
+        "sub_1",
+        PERIOD_END,
+        fake.uncappedPeriodEnd,
+      );
+    },
+  );
 
   it("oczekująca zmiana spoza aplikacji (panel operatora): faktura bez znacznika - data zostaje", async () => {
     useFake(endingOnDate());
