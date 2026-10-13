@@ -1331,6 +1331,13 @@
       "when": 1791917838506,
       "tag": "0189_event_registration_partner_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 190,
+      "version": "7",
+      "when": 1791918513931,
+      "tag": "0190_event_register_partner_consent",
+      "breakpoints": true
     }
   ]
 }
