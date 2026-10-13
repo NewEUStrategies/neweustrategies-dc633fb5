@@ -112,9 +112,11 @@ Cloudflare).
 - `tsgo --noEmit`, bramki `check:sql-*`, `check:ts-sql-contract`,
   `check:types-freshness` i pozostałe statyczne: zielone. `check:rpc-contract`
   odrzuca wyłącznie `event_speaker_detail` - tak samo na `main` przed zmianą.
-- Pełny `vitest run` w czterech częściach: 140 niezaliczonych testów w 48 plikach
-  poza zakresem zmian, identycznych co do nazwy z wynikiem na `main` przed zmianą;
-  żaden nowy test nie zawodzi.
+- Pełny `vitest run` w czterech częściach (stan przed domknięciem X6): 139
+  niezaliczonych testów, każdy obecny co do nazwy na `main` przed zmianą (tam 140;
+  test okna kodu w `EventCodesPanel` przechodzi po naprawie OPS-15). Po X6 testy
+  obszaru Wydarzeń, atomów UI i molekuł admina: 12 603 zaliczone, 6 niezaliczonych -
+  wszystkie z listy bazowej `main`. Żaden nowy test nie zawodzi.
 - Przegląd adwersaryjny w dwóch rundach (S1+S2, potem całość) z niezależną
   weryfikacją każdego zarzutu; potwierdzone usterki naprawiono z testem, który
   bez poprawki zawodzi.
