@@ -610,9 +610,10 @@ export async function inviteToMeeting(input: {
   message?: string | null;
   /**
    * Przypięcie do sponsora TEGO wydarzenia. Baza zapisuje je wyłącznie, gdy
-   * któraś strona jest ze sponsorem powiązana (firma albo osoba kontaktowa,
-   * OPS-10); inaczej spotkanie powstaje bez przypięcia, a odpowiedź niesie
-   * `sponsor_id: null`.
+   * któraś strona ma konto z potwierdzonym adresem osoby kontaktowej, którą
+   * organizator przypiął do tego sponsora (OPS-10, F6). Firma ani e-mail
+   * z profilu uczestnika tego nie dają, bo uczestnik ustawia je sam. Inaczej
+   * spotkanie powstaje bez przypięcia, a odpowiedź niesie `sponsor_id: null`.
    */
   sponsorId?: string | null;
 }): Promise<Json> {
