@@ -337,6 +337,9 @@ export const adminEventRegistrationPl = {
         // puli, bilet wymagający akceptacji albo zgłoszenie zamknięte - w każdym
         // z tych stanów ruch ma organizator (miejsce, decyzja albo zwrot).
         ticketPaidWaitlisted: "Opłacone - czeka na miejsce",
+        // Nieopłacony wiersz w kolejce (20261012150000): awans automatyczny
+        // bierze tylko rozliczonych - ten wchodzi, płacąc, albo decyzją.
+        ticketUnpaidWaitlisted: "Nieopłacone - awans dopiero po wpłacie",
         ticketPaidAwaitingDecision: "Opłacone - czeka na decyzję",
         ticketPaidClosed: "Opłacone - zgłoszenie zamknięte",
       },
@@ -465,6 +468,8 @@ export const adminEventRegistrationPl = {
         noShow: "Nieobecność zapisana",
         saved: "Uczestnik dopisany",
         promoted: "Awansowano {{count}} osób z kolejki",
+        promotedNone:
+          "Nikt nie awansował - brak wolnych miejsc albo w kolejce czekają tylko nieopłacone zgłoszenia",
         notified: "Oznaczono {{count}} zgłoszeń jako powiadomione",
         notifyFailed: "Decyzja zapisana, ale nie udało się wysłać wiadomości.",
         // BEZ SUFIKSÓW LICZBY MNOGIEJ. Ten słownik ma własną bramkę
@@ -1639,6 +1644,7 @@ export const adminEventRegistrationEn = {
         ticketAwaitingPayment: "Ticket after payment",
         ticketUndeliverable: "Ticket not delivered - address blocked",
         ticketPaidWaitlisted: "Paid - waiting for a seat",
+        ticketUnpaidWaitlisted: "Unpaid - promoted only after payment",
         ticketPaidAwaitingDecision: "Paid - awaiting decision",
         ticketPaidClosed: "Paid - registration closed",
       },
@@ -1764,6 +1770,7 @@ export const adminEventRegistrationEn = {
         noShow: "No show recorded",
         saved: "Participant added",
         promoted: "Promoted {{count}} people from the queue",
+        promotedNone: "No one was promoted - no free seats, or only unpaid entries are waiting",
         notified: "Marked {{count}} applications as notified",
         notifyFailed: "Decision saved, but the message could not be sent.",
         notifyFailedCount: "Messages that could not be sent: {{count}}",

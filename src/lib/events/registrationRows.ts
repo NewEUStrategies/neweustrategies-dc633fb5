@@ -121,6 +121,18 @@ export function registrationGroupLabel(
   return primary === "" ? (row.group_key ?? null) : primary;
 }
 
+/**
+ * Faktyczna liczba awansow z odpowiedzi `admin_event_waitlist_promote`
+ * (`promoted`). Od 20261012150000 awans bierze tylko rozliczonych, wiec
+ * liczba z pola formularza nie mowi, ilu awansowalo - komunikat panelu czyta
+ * odpowiedz bazy. Kazdy inny ksztalt to 0, a nie liczba zgadnieta.
+ */
+export function promotedCount(result: unknown): number {
+  if (result === null || typeof result !== "object" || !("promoted" in result)) return 0;
+  const value = result.promoted;
+  return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 0;
+}
+
 /** Awansowany z rezerwy, komu nie wyslano jeszcze wiadomosci. */
 export function isAwaitingWaitlistNotice(row: EventRegistrationRow): boolean {
   return (row.promoted_at ?? null) !== null && (row.waitlist_notified_at ?? null) === null;
@@ -173,6 +185,7 @@ export type TicketBadge =
   | "awaitingPayment"
   | "undeliverable"
   | "paidWaitlisted"
+  | "unpaidWaitlisted"
   | "paidAwaitingDecision"
   | "paidClosed";
 
@@ -217,12 +230,18 @@ function paidWithoutSeat(status: string, paymentStatus: string): TicketBadge | n
  *
  * WIERSZ BEZ MIEJSCA mowi, ze jest oplacony (`paidWithoutSeat`) - to jedyna
  * plakietka „biletu" poza statusami z miejscem.
+ *
+ * NIEOPLACONY W KOLEJCE (20261012150000, REG-07) mowi, ze NIE awansuje sam:
+ * awans automatyczny bierze tylko rozliczonych, wiec bez plakietki organizator
+ * czekalby na awans, ktory nie nastapi. Wchodzi, placac (przy wolnym miejscu),
+ * albo decyzja organizatora.
  */
 export function ticketBadge(
   status: string,
   link: RegistrationGroupLink | null,
 ): TicketBadge | null {
   if (link === null) return null;
+  if (status === "waitlist" && link.payment_status === "unpaid") return "unpaidWaitlisted";
   if (!holdsTicket(status)) return paidWithoutSeat(status, link.payment_status);
   if (TICKET_PAYMENTS.includes(link.payment_status)) {
     if (link.ticket_code_undeliverable_at !== null) return "undeliverable";

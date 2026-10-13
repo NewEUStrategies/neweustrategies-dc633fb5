@@ -63,7 +63,7 @@ const WYDARZENIE = "11111111-1111-4111-8111-111111111111";
 const BILET = "aaaaaaaa-1111-4111-8111-111111111111";
 const INNY_BILET = "aaaaaaaa-2222-4222-8222-222222222222";
 
-type Wynik = { onSuccess?: () => void; onError?: (error: unknown) => void };
+type Wynik = { onSuccess?: (data?: unknown) => void; onError?: (error: unknown) => void };
 
 const h = vi.hoisted(() => ({
   lang: "pl" as string,
@@ -83,6 +83,8 @@ const h = vi.hoisted(() => ({
   decidePending: false,
   promoteCalls: [] as unknown[],
   promoteError: null as unknown,
+  /** Odpowiedź `admin_event_waitlist_promote` - komunikat czyta z niej liczbę. */
+  promoteResult: { promoted: 0, registrations: [] } as unknown,
   promotePending: false,
   /** Wywołania server fn poczty, w kolejności - dowód SZEREGOWOŚCI. */
   notifyCalls: [] as { registrationId: string; notice: string }[],
@@ -105,6 +107,7 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastWarning: vi.fn(),
+  toastInfo: vi.fn(),
   /** Odczyt miejsc na sali dla WIDOCZNYCH wierszy (hook planu sali). */
   seatLookups: [] as unknown[] | undefined,
   seatLookupCalls: [] as { eventId: string; ids: readonly string[] }[],
@@ -131,7 +134,12 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
 vi.mock("sonner", () => ({
-  toast: { success: h.toastSuccess, error: h.toastError, warning: h.toastWarning },
+  toast: {
+    success: h.toastSuccess,
+    error: h.toastError,
+    warning: h.toastWarning,
+    info: h.toastInfo,
+  },
 }));
 // Słownik odmów bazy ma własny plik testowy; tutaj potrzebny jest wyłącznie
 // dowód, że odmowa DOCHODZI do organizatora zdaniem, a nie kodem `23514`.
@@ -349,7 +357,7 @@ vi.mock("@/lib/events/useEventRegistrations", () => ({
   usePromoteFromWaitlist: () => ({
     mutate: (input: WaitlistPromoteInput, wynik: Wynik) => {
       h.promoteCalls.push(input);
-      if (h.promoteError === null) wynik.onSuccess?.();
+      if (h.promoteError === null) wynik.onSuccess?.(h.promoteResult);
       else wynik.onError?.(h.promoteError);
     },
     isPending: h.promotePending,
@@ -558,6 +566,7 @@ beforeEach(() => {
   h.decidePending = false;
   h.promoteCalls = [];
   h.promoteError = null;
+  h.promoteResult = { promoted: 0, registrations: [] };
   h.promotePending = false;
   h.notifyCalls = [];
   h.notifyResults = {};
@@ -573,6 +582,7 @@ beforeEach(() => {
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
   h.toastWarning.mockClear();
+  h.toastInfo.mockClear();
   h.seatLookups = [];
   h.seatLookupCalls = [];
   h.exportSeats = [];
@@ -1328,6 +1338,7 @@ describe("decyzja organizatora", () => {
 describe("awans z rezerwy", () => {
   it("awans jedzie z wydarzeniem, filtrem biletu i LICZBĄ z pola", () => {
     h.tickets = [eventTicketRow()];
+    h.promoteResult = { promoted: 3, registrations: [] };
     panel();
     fireEvent.change(dropka(`${B}.filters.ticket`), { target: { value: BILET } });
     fireEvent.change(poleLiczbowe("adminEventRegistration.waitlist.promoteCountLabel"), {
@@ -1340,6 +1351,33 @@ describe("awans z rezerwy", () => {
       { eventId: WYDARZENIE, registrationId: null, ticketTypeId: BILET, count: 3 },
     ]);
     expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.promoted(count=3)`);
+  });
+
+  // KOMUNIKAT MÓWI, ILU NAPRAWDĘ AWANSOWAŁO. Od 20261012150000 awans bierze
+  // tylko rozliczonych: prośba o 3 przy jednym opłaconym w kolejce to awans 1,
+  // a „Awansowano 3 osób" byłoby nieprawdą (REG-07).
+  it("komunikat podaje liczbę z ODPOWIEDZI bazy, a nie z pola", () => {
+    h.promoteResult = { promoted: 1, registrations: [{ registration_id: "r-1" }] };
+    panel();
+    fireEvent.change(poleLiczbowe("adminEventRegistration.waitlist.promoteCountLabel"), {
+      target: { value: "3" },
+    });
+
+    fireEvent.click(przycisk("adminEventRegistration.actions.promote"));
+
+    expect((h.promoteCalls[0] as WaitlistPromoteInput).count).toBe(3);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${B}.toasts.promoted(count=1)`);
+    expect(h.toastSuccess).not.toHaveBeenCalledWith(`${B}.toasts.promoted(count=3)`);
+  });
+
+  it("zero awansów to osobny komunikat - nie „sukces” z liczbą z pola", () => {
+    h.promoteResult = { promoted: 0, registrations: [] };
+    panel();
+
+    fireEvent.click(przycisk("adminEventRegistration.actions.promote"));
+
+    expect(h.toastInfo).toHaveBeenCalledWith(`${B}.toasts.promotedNone`);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 
   // ZERO ALBO ŚMIECI W POLU LICZBOWYM to awans zera osób - operacja, która

@@ -101,6 +101,35 @@ describe("registerGroupGuests", () => {
 
     await expect(registerGroupGuests(LEAD, [GUEST])).rejects.toThrow("group_too_large");
   });
+
+  // Nowa baza (20261012150100) oddaje odmowę WARTOŚCIĄ, żeby licznik prób
+  // konta nie cofał się z wyjątkiem. Wołający dostaje ten sam komunikat
+  // „kod: ogon" co ze starej bazy - słownik gości nie zna różnicy.
+  it("odmowa-wartość {ok:false} rzuca tym samym komunikatem co RAISE", async () => {
+    h.rpc.mockResolvedValueOnce({
+      data: { ok: false, error: "already_registered", detail: "ewa@example.com" },
+      error: null,
+    });
+    await expect(registerGroupGuests(LEAD, [GUEST])).rejects.toThrow(
+      new Error("already_registered: ewa@example.com"),
+    );
+
+    h.rpc.mockResolvedValueOnce({ data: { ok: false, error: "rate_limited" }, error: null });
+    await expect(registerGroupGuests(LEAD, [GUEST])).rejects.toThrow(new Error("rate_limited"));
+  });
+
+  it("odmowa-wartość bez kodu to `unknown`, a nie cichy sukces z zerem", async () => {
+    h.rpc.mockResolvedValueOnce({ data: { ok: false }, error: null });
+    await expect(registerGroupGuests(LEAD, [GUEST])).rejects.toThrow(new Error("unknown"));
+  });
+
+  it("sukces nowej bazy {ok:true, added} oddaje liczbę dopisanych", async () => {
+    h.rpc.mockResolvedValueOnce({
+      data: { ok: true, added: 2, registration_ids: ["r-1", "r-2"] },
+      error: null,
+    });
+    await expect(registerGroupGuests(LEAD, [GUEST, GUEST])).resolves.toBe(2);
+  });
 });
 
 // Limit grupy odczytany od nowa po odmowie `group_too_large`. Liczba trafia do

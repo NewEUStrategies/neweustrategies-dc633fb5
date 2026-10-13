@@ -520,8 +520,11 @@ BEGIN
     '77/grupa: punkt wyjscia - prowadzacy i dwoch gosci oplaceni i przyjeci, sala pelna');
 END $$;
 
+-- ZMIANA 20261012 (REG-07): czolo kolejki jest ROZLICZONE - awans automatyczny
+-- bierze tylko rozliczonych (20261012150000). Ten przypadek sprawdza kolejnosc
+-- zwolnienia zapisow po awansie, nie platnosc.
 SELECT pg_temp.pf77_reg('wq', '77100000-0000-0000-0000-000000000003', '77200000-0000-0000-0000-000000000003',
-  'waitlist', 'unpaid');
+  'waitlist', 'paid');
 INSERT INTO public.event_session_signups (tenant_id, event_id, session_id, user_id, status, registered_at) VALUES
   ('77777777-7777-7777-7777-777777777777', '77100000-0000-0000-0000-000000000003',
    '77300000-0000-0000-0000-000000000003', '77000000-0000-0000-0000-000000000032', 'registered', now() - interval '3 hours'),

@@ -30,9 +30,12 @@
 // bundel angielski - ta sama technika, co w `eventErrorMapsI18n.gate.test.ts`.
 //
 // i18n jedzie PRAWDZIWE (ta sama instancja, którą widzi uczestnik). Lista
-// `GROUP_GUEST_REFUSALS` jest porównywana z ciałem funkcji w migracji
-// `20260922230000`: nowa odmowa w SQL bez wpisu na liście (albo wpis bez
+// `GROUP_GUEST_REFUSALS` jest porównywana z KOŃCOWYM ciałem funkcji w migracji
+// `20261012150100`: nowa odmowa w SQL bez wpisu na liście (albo wpis bez
 // odmowy) zapala pierwszy test, a wpis bez zdania w słowniku - testy per kod.
+// Od tej migracji odmowa to `RAISE EXCEPTION 'kod'` WEWNĄTRZ podtransakcji
+// (łapana i oddawana wartością) albo wprost wartość `'error', 'kod'` (brak
+// konta, kubełek prób) - liczymy obie postaci.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -46,7 +49,7 @@ import {
   type RegistrationFailure,
 } from "@/lib/events/publicRegistrationErrors";
 
-const MIGRATION = "supabase/migrations/20260922230000_event_ticket_tax_and_group.sql";
+const MIGRATION = "supabase/migrations/20261012150100_event_group_guests_hardening.sql";
 const LANGS = ["pl", "en"] as const;
 const DICTIONARIES: Record<(typeof LANGS)[number], ResourceTree> = {
   pl: eventRegistrationPl,
@@ -67,11 +70,13 @@ function render(failure: RegistrationFailure, lang: (typeof LANGS)[number]): str
 function refusalsInMigration(): string[] {
   const sql = readFileSync(MIGRATION, "utf8");
   const start = sql.indexOf("FUNCTION public.event_register_group_guests(");
-  const end = sql.indexOf("END $$;", start);
+  const end = sql.indexOf("$$;", sql.indexOf("AS $$", start) + "AS $$".length);
   expect(start).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
   const body = sql.slice(start, end);
-  const codes = [...body.matchAll(/RAISE EXCEPTION '([a-z_]+)/g)].map((match) => match[1] ?? "");
-  return [...new Set(codes)];
+  const raised = [...body.matchAll(/RAISE EXCEPTION '([a-z_]+)/g)].map((match) => match[1] ?? "");
+  const returned = [...body.matchAll(/'error', '([a-z_]+)'/g)].map((match) => match[1] ?? "");
+  return [...new Set([...raised, ...returned])];
 }
 
 describe("groupGuestsFailure - komplet odmów bazy", () => {
@@ -181,6 +186,14 @@ describe("groupGuestsFailure - zdania, które mówią, co zrobić", () => {
         pl: "Zaloguj się, aby dopisać gości do swojego zgłoszenia.",
         en: "Sign in to add guests to your registration.",
       },
+      rate_limited: {
+        pl: "Zbyt wiele prób dopisania gości. Twoje zgłoszenie jest zapisane - spróbuj ponownie za kilka minut.",
+        en: "Too many attempts to add guests. Your registration is saved - try again in a few minutes.",
+      },
+      event_ended: {
+        pl: "Wydarzenie już się odbyło - nie można dopisać do niego gości.",
+        en: "The event has already taken place - guests can no longer be added.",
+      },
       invalid_guests: {
         pl: "Lista gości ma nieprawidłowy format. Sprawdź dane i spróbuj ponownie.",
         en: "The guest list has an invalid format. Check the details and try again.",
@@ -219,10 +232,23 @@ describe("groupGuestsFailure - zdania, które mówią, co zrobić", () => {
 });
 
 describe("groupGuestsFailure - odmowy spoza funkcji gości", () => {
-  it("znana odmowa zapisu (np. limit prób) zostaje przy słowniku zapisu", () => {
-    expect(groupGuestsFailure(new Error("rate_limited: 5"))).toEqual({
-      key: "eventRegistration.errors.rateLimited",
-      params: { count: 5 },
+  it("znana odmowa zapisu spoza funkcji gości zostaje przy słowniku zapisu", () => {
+    expect(groupGuestsFailure(new Error("missing_required_fields: a,b"))).toEqual({
+      key: "eventRegistration.errors.missingRequiredFields",
+      params: { count: 2 },
+    });
+  });
+
+  it("limit prób i koniec wydarzenia mówią o GOŚCIACH, nie o zapisie prowadzącego", () => {
+    // Od 20261012150100 obie odmowy należą do funkcji gości: zgłoszenie
+    // prowadzącego już stoi, więc „Zbyt wiele prób zapisu" byłoby nieprawdą.
+    expect(groupGuestsFailure(new Error("rate_limited"))).toEqual({
+      key: "eventRegistration.group.errors.rateLimited",
+      params: {},
+    });
+    expect(groupGuestsFailure(new Error("event_ended"))).toEqual({
+      key: "eventRegistration.group.errors.eventEnded",
+      params: {},
     });
   });
 

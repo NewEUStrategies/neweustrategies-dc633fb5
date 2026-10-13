@@ -62,6 +62,7 @@ import {
   groupLeadName,
   hasMissingRequiredTerms,
   isAwaitingWaitlistNotice,
+  promotedCount,
   registrationGroupLabel,
   registrationOffsetForPage,
   registrationPageCount,
@@ -121,6 +122,7 @@ const TICKET_BADGE_KEYS: Record<TicketBadge, string> = {
   awaitingPayment: "ticketAwaitingPayment",
   undeliverable: "ticketUndeliverable",
   paidWaitlisted: "ticketPaidWaitlisted",
+  unpaidWaitlisted: "ticketUnpaidWaitlisted",
   paidAwaitingDecision: "ticketPaidAwaitingDecision",
   paidClosed: "ticketPaidClosed",
 };
@@ -136,6 +138,7 @@ const TICKET_BADGE_VARIANT: Record<TicketBadge, BadgeVariant> = {
   awaitingPayment: "outline",
   undeliverable: "destructive",
   paidWaitlisted: "secondary",
+  unpaidWaitlisted: "outline",
   paidAwaitingDecision: "secondary",
   paidClosed: "destructive",
 };
@@ -289,7 +292,13 @@ export function RegistrationsListPanel({
     promote.mutate(
       { eventId, registrationId: null, ticketTypeId, count: promoteCount },
       {
-        onSuccess: () => toast.success(t(`${base}.toasts.promoted`, { count: promoteCount })),
+        // Liczba z ODPOWIEDZI, nie z pola: awans bierze tylko rozliczonych
+        // (20261012150000), wiec prosba o 3 bywa awansem 1 albo 0.
+        onSuccess: (result) => {
+          const promoted = promotedCount(result);
+          if (promoted > 0) toast.success(t(`${base}.toasts.promoted`, { count: promoted }));
+          else toast.info(t(`${base}.toasts.promotedNone`));
+        },
         onError: fail,
       },
     );

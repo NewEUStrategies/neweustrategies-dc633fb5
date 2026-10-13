@@ -156,11 +156,20 @@ export async function registerGroupGuests(
     p_lead_registration_id: leadRegistrationId,
     p_guests: guestsToPayload(guests),
   });
+  // DWA KSZTAŁTY ODMOWY (wdrożenie „najpierw kod", 20261012150100). Stara baza
+  // rzuca `RAISE EXCEPTION 'kod: ogon'`, nowa oddaje WARTOŚĆ
+  // `{ok:false, error, detail?}` - wtedy licznik prób konta zostaje. Oba
+  // kończą się tym samym `Error("kod: ogon")`, więc słownik gości
+  // (`groupGuestsFailure`) nie wie, z której bazy przyszła odmowa.
   if (error) throw new Error(error.message);
   // `Json` zawęża się do obiektu samym sprawdzeniem typu - rzutowanie na
   // `Record<string, unknown>` niczego tu nie dodawało poza ślepą plamką.
-  if (data === null || typeof data !== "object" || Array.isArray(data) || !("added" in data)) {
-    return 0;
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return 0;
+  if ("ok" in data && data.ok === false) {
+    const code = "error" in data && typeof data.error === "string" ? data.error : "unknown";
+    const detail = "detail" in data && typeof data.detail === "string" ? data.detail : "";
+    throw new Error(detail ? `${code}: ${detail}` : code);
   }
+  if (!("added" in data)) return 0;
   return typeof data.added === "number" ? data.added : 0;
 }

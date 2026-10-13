@@ -177,9 +177,12 @@ export const eventRegistrationPl = {
       // momencie już STOI, więc zdania mówią o gościach, a nie o zapisie.
       errors: {
         accountRequired: "Zaloguj się, aby dopisać gości do swojego zgłoszenia.",
+        rateLimited:
+          "Zbyt wiele prób dopisania gości. Twoje zgłoszenie jest zapisane - spróbuj ponownie za kilka minut.",
         invalidGuests: "Lista gości ma nieprawidłowy format. Sprawdź dane i spróbuj ponownie.",
         notFound:
           "Nie znaleźliśmy Twojego zgłoszenia na tym koncie. Gości dopisuje osoba, która złożyła zgłoszenie, z tego samego konta.",
+        eventEnded: "Wydarzenie już się odbyło - nie można dopisać do niego gości.",
         registrationClosed:
           "Twoje zgłoszenie zostało odwołane lub odrzucone - nie można już dopisać do niego gości.",
         alreadySettled:
@@ -687,9 +690,12 @@ export const eventRegistrationEn = {
       },
       errors: {
         accountRequired: "Sign in to add guests to your registration.",
+        rateLimited:
+          "Too many attempts to add guests. Your registration is saved - try again in a few minutes.",
         invalidGuests: "The guest list has an invalid format. Check the details and try again.",
         notFound:
           "We could not find your registration on this account. Guests are added by the person who registered, from the same account.",
+        eventEnded: "The event has already taken place - guests can no longer be added.",
         registrationClosed:
           "Your registration has been cancelled or rejected - guests can no longer be added to it.",
         alreadySettled:
