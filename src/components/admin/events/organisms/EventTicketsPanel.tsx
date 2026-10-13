@@ -154,13 +154,18 @@ export function EventTicketsPanel({ eventId, eventSlug }: { eventId: string; eve
   /** Kopia zapisuje się od razu jako nieaktywna - organizator włącza ją świadomie. */
   const duplicate = async (row: EventTicketRow) => {
     // Profil podatkowy oryginału jedzie za kopią jak wygląd - kopia z inną
-    // stawką VAT rozjechałaby fakturę z kasą. Mapa jeszcze się wczytuje albo
-    // odczyt padł: czytamy ją teraz, a odmowa odczytu zatrzymuje kopię, zamiast
-    // po cichu zgubić stawkę. Baza bez migracji (`null`) - kopia bez profilu.
+    // stawką VAT rozjechałaby fakturę z kasą. Mapa jeszcze się wczytuje, odczyt
+    // padł albo mapa jest starsza od oryginału (RPC oddaje KAŻDY bilet
+    // wydarzenia, więc brak wiersza znaczy nieaktualną mapę, nie pusty profil):
+    // czytamy ją teraz, a odmowa odczytu zatrzymuje kopię, zamiast po cichu
+    // zgubić stawkę. Baza bez migracji (`null`) - kopia bez profilu.
     let profiles: TicketTaxProfiles;
     try {
+      const cached = taxProfilesQ.data;
       profiles =
-        taxProfilesQ.data !== undefined ? taxProfilesQ.data : await fetchTicketTaxProfiles(eventId);
+        cached === null || (cached !== undefined && cached.has(row.id))
+          ? cached
+          : await fetchTicketTaxProfiles(eventId);
     } catch (error: unknown) {
       fail(error);
       return;

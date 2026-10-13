@@ -856,6 +856,35 @@ describe("profil podatkowy biletu (TIX-09)", () => {
     expect(h.taxCalls).toEqual([{ ticketId: "kopia-id", value: ZW }]);
   });
 
+  it("kopia, gdy mapa jest starsza od oryginału: profil czytany od nowa i jedzie za kopią", async () => {
+    // Mapa w pamięci nie zna jeszcze tego biletu (lista odświeżyła się przed
+    // profilami) - brak wiersza to NIE pusty profil.
+    h.taxProfiles = new Map([["inny-bilet", ZW]]);
+    h.taxFetched = new Map([[SALES_IDS.ticket, ZW]]);
+    h.savedId = "kopia-id";
+    panel();
+    otworzMenu();
+
+    fireEvent.click(pozycja(`${S}.duplicate`));
+    await dokoncz();
+
+    expect(h.taxFetches).toBe(1);
+    expect(h.taxCalls).toEqual([{ ticketId: "kopia-id", value: ZW }]);
+  });
+
+  it("kopia z aktualnej mapy NIE czyta profili drugi raz", async () => {
+    h.taxProfiles = new Map([[SALES_IDS.ticket, ZW]]);
+    h.savedId = "kopia-id";
+    panel();
+    otworzMenu();
+
+    fireEvent.click(pozycja(`${S}.duplicate`));
+    await dokoncz();
+
+    expect(h.taxFetches).toBe(0);
+    expect(h.taxCalls).toEqual([{ ticketId: "kopia-id", value: ZW }]);
+  });
+
   it("kopia, gdy odczyt profilu pada: kopii NIE ma i organizator dostaje zdanie", async () => {
     h.taxProfiles = undefined;
     h.taxFetchError = new Error("forbidden");

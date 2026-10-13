@@ -282,10 +282,15 @@ export function RegistrationPayAction({
   const quoteBenefit = quote?.planBenefit ?? null;
   // Starszy serwer pola nie zna - wtedy nie ma odbioru z planu, jest kasa.
   const planRedemption = quote?.planRedemption === true;
+  // PODGLĄD MÓWI O KODZIE ZASTOSOWANYM. Inny kod wpisany w pole (jeszcze bez
+  // „Zastosuj") czyni rozbicie nieaktualnym: kwota pod przyciskiem mówiłaby
+  // o poprzednim kodzie, a kasa dostanie nowy. Rozbicie ustępuje wtedy zdaniu
+  // „zastosuj, żeby przeliczyć" - inaczej po kodzie 100% ekran pokazywałby
+  // „Do zapłaty: 0,00 zł" obok przycisku, który otworzy płatność.
+  const quoteStale = quote !== null && normalizeCode(promo) !== appliedCode;
   // Kod 100% (TIX-13a) - starszy serwer pola nie zna, wtedy jest zwykła kasa.
-  // Podgląd mówi o kodzie ZASTOSOWANYM: inny kod wpisany w pole (jeszcze bez
-  // „Zastosuj") wraca do zwykłej kasy - z fakturą i przyciskiem „Zapłać".
-  const freeWithCode = quote?.freeWithCode === true && normalizeCode(promo) === appliedCode;
+  // Nieaktualny podgląd wraca do zwykłej kasy - z fakturą i „Zapłać".
+  const freeWithCode = quote?.freeWithCode === true && !quoteStale;
 
   // KOD BEZ RABATU ANI KOD Z PAMIĘCI NIE BLOKUJĄ PŁATNOŚCI. Kod bez rabatu
   // (`no_discount`) nie ma czego odjąć, a kod z linku `?code=` odsłania zwykle
@@ -589,7 +594,12 @@ export function RegistrationPayAction({
       {showAmount && quote !== null && planRedemption && (
         <p className="text-sm text-foreground">{t("eventRegistration.payment.planIncludedBody")}</p>
       )}
-      {showAmount && quote !== null && !planRedemption && (
+      {showAmount && quote !== null && !planRedemption && quoteStale && (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t("eventRegistration.payment.quoteStaleCode")}
+        </p>
+      )}
+      {showAmount && quote !== null && !planRedemption && !quoteStale && (
         <div className="space-y-0.5 text-sm">
           {/* BENEFIT PLANU MA JEDNO MIEJSCE: członka. Grupa z benefitem mówi
               więc osobno „Twoje miejsce" i „Goście: N × cena z cennika" -

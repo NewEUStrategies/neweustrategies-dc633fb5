@@ -1293,5 +1293,38 @@ describe("RegistrationPayAction - kod 100% dotyczy kodu zastosowanego", () => {
     expect(
       screen.queryByText("eventRegistration.payment.quoteFreeWithCode"),
     ).not.toBeInTheDocument();
+    // Rozbicie dla starego kodu („Do zapłaty: 0,00 zł”) nie stoi obok „Zapłać” -
+    // zamiast niego zdanie, żeby przeliczyć kwotę dla nowego kodu.
+    expect(
+      screen.queryByText("eventRegistration.payment.amountDue(amount=0,00 zł)"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("eventRegistration.payment.quoteStaleCode")).toBeInTheDocument();
+  });
+
+  it("„Zastosuj” po zmianie kodu wraca do rozbicia dla NOWEGO kodu", async () => {
+    renderAction();
+    await screen.findByText("eventRegistration.payment.amountDue(amount=100,00 zł)");
+    type("MINUS20");
+    expect(screen.getByText("eventRegistration.payment.quoteStaleCode")).toBeInTheDocument();
+    quote.mockResolvedValue(
+      quoteResult({
+        coupon: {
+          code: "MINUS20",
+          kind: "fixed",
+          percent: null,
+          perSeatCents: 2000,
+          capped: false,
+        },
+        discountCents: 2000,
+        totalCents: 8000,
+      }),
+    );
+
+    click(APPLY);
+
+    expect(
+      await screen.findByText("eventRegistration.payment.amountDue(amount=80,00 zł)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("eventRegistration.payment.quoteStaleCode")).not.toBeInTheDocument();
   });
 });

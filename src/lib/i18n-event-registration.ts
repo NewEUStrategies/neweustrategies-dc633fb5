@@ -221,6 +221,9 @@ export const eventRegistrationPl = {
       quoteCodeCapped: "Kod {{code}}: -{{amount}} (do limitu łącznego rabatu)",
       // KOD 100% (TIX-13a): zero do zapłaty, kasa wydaje bilet bez płatności.
       quoteFreeWithCode: "Kod pokrywa całą kwotę - bilet bez płatności.",
+      // Kod w polu inny niż ten, dla którego policzono podgląd.
+      quoteStaleCode:
+        "Kod się zmienił - kliknij „Zastosuj”, żeby przeliczyć kwotę przed płatnością.",
       revealLabel: "Masz kod dostępu?",
       revealApply: "Pokaż bilety",
       revealFound: "Odsłonięto bilety: {{count}}.",
@@ -650,6 +653,8 @@ export const eventRegistrationEn = {
       quoteCodePercent: "Code {{code}}: -{{percent}}% (-{{amount}})",
       quoteCodeCapped: "Code {{code}}: -{{amount}} (up to the total discount cap)",
       quoteFreeWithCode: "The code covers the full price - no payment needed.",
+      quoteStaleCode:
+        "The code has changed - click “Apply” to recalculate the amount before paying.",
       revealLabel: "Have an access code?",
       revealApply: "Show tickets",
       revealFound: "Tickets revealed: {{count}}.",
