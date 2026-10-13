@@ -272,8 +272,9 @@ export async function notifyEventRegistration(input: EventNotifyInput): Promise<
         value: formatMoney(input.amountCents, input.currency ?? "PLN", lang),
       });
     }
-    // Numer biletu i numer transakcji - to po nich obsługa wydarzenia
-    // identyfikuje zakup, więc trafiają do maila zawsze, gdy są znane.
+    // Numer potwierdzenia (nie kod wejścia - REG-12) i numer transakcji - to po
+    // nich obsługa wydarzenia identyfikuje zakup, więc trafiają do maila zawsze,
+    // gdy są znane.
     const { ticketCodeFrom } = await import("@/lib/events/ticketCode");
     if (input.ticketSeed) {
       details.push({ label: copy.labels.ticketCode, value: ticketCodeFrom(input.ticketSeed) });

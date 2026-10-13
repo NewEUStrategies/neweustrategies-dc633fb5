@@ -60,6 +60,7 @@ import {
   type CheckinScanResult,
   type LeadScanResult,
 } from "@/lib/events/scannerApi";
+import { assertScannableCode } from "@/lib/events/ticketCode";
 import {
   appendRejected,
   dueItems,
@@ -936,6 +937,9 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       const activeToken = tokenRef.current;
       if (activeToken === null) throw new Error("invalid_device_token: no session");
       assertNotExpired();
+      // Numer potwierdzenia albo adres (REG-12) - odmowa PRZED kolejką offline:
+      // nie trafia do kolejki, do decyzji z listy ani do licznika urządzenia.
+      assertScannableCode(input.code);
       const id = newClientScanUid();
       const atMs = Date.now() + clockOffsetRef.current;
       const scannedAt = new Date(atMs).toISOString();
@@ -1035,6 +1039,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       const activeToken = tokenRef.current;
       if (activeToken === null) throw new Error("invalid_device_token: no session");
       assertNotExpired();
+      assertScannableCode(input.code);
       const scannedAt = correctedNowIso(clockOffsetRef.current);
       const item: OutboxItem = {
         id: newClientScanUid(),

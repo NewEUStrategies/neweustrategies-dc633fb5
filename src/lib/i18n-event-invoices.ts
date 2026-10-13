@@ -122,6 +122,9 @@ export const eventInvoicesPl = {
     errors: {
       unknown: "Nie udało się zapisać prośby o fakturę. Spróbuj ponownie.",
       authRequired: "Zaloguj się, żeby poprosić o fakturę.",
+      // Głowa pomocnika klucza samoobsługi (REG-17, `_event_manage_token_resolve`)
+      // osiągalna z `_event_registration_actor` - w praktyce błąd programisty.
+      invalidPayload: "Prośba o fakturę jest niekompletna. Odśwież stronę i spróbuj ponownie.",
       invalidSource: "Nie wiemy, którego zamówienia dotyczy prośba.",
       rateLimited: "Za dużo prób w krótkim czasie. Spróbuj za chwilę.",
       rateLimitHit: "Nie udało się sprawdzić limitu prób. Spróbuj ponownie.",
@@ -304,6 +307,7 @@ export const eventInvoicesEn = {
     errors: {
       unknown: "The invoice request could not be saved. Try again.",
       authRequired: "Sign in to request an invoice.",
+      invalidPayload: "The invoice request is incomplete. Refresh the page and try again.",
       invalidSource: "We do not know which order the request is for.",
       rateLimited: "Too many attempts in a short time. Try again in a moment.",
       rateLimitHit: "The attempt limit could not be checked. Try again.",

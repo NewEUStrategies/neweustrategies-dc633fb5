@@ -394,6 +394,10 @@ export const eventScannerPl = {
       rosterResyncRequired: "Lista offline wymaga pełnego pobrania od nowa.",
       deviceTimeOutOfRange:
         "Skan jest starszy niż tydzień - baza go nie przyjmie. Pokaż go organizatorowi.",
+      // Numer potwierdzenia `NES-…` albo adres zamiast kodu biletu (REG-12) -
+      // odmowa na urządzeniu, bez licznika nieznanych kodów.
+      notEntryCode:
+        "To numer potwierdzenia zakupu albo odnośnik, nie kod biletu. Poproś o mail „Twój bilet” albo znajdź osobę po nazwisku.",
       outboxOverflow:
         "Kolejka na urządzeniu była pełna - ten skan nie zmieścił się w niej. Przekaż go organizatorowi.",
       deviceMismatch:
@@ -705,6 +709,8 @@ export const eventScannerEn = {
       rosterResyncRequired: "The offline list needs a full download from scratch.",
       deviceTimeOutOfRange:
         "The scan is older than a week - the server will not accept it. Show it to the organiser.",
+      notEntryCode:
+        "This is a booking reference or a link, not a ticket code. Ask for the “Your ticket” e-mail or find the person by name.",
       outboxOverflow:
         "The queue on this device was full - this scan did not fit. Pass it on to the organiser.",
       deviceMismatch:

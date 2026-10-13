@@ -274,7 +274,7 @@ describe("RegistrationConfirmation - klucz zarzadzania zapisem", () => {
 
     expect(screen.getByText("eventFront.manage.manageLink").closest("a")).toHaveAttribute(
       "href",
-      `/events/kongres%20cee/manage?token=${MANAGE_TOKEN}`,
+      `/events/kongres%20cee/manage#token=${MANAGE_TOKEN}`,
     );
   });
 

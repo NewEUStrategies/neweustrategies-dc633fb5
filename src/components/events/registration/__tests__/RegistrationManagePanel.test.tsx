@@ -18,6 +18,11 @@
 // 7. PO ODWOŁANIU nie ma już czego odwoływać: przycisk znika, a jego miejsce
 //    zajmuje potwierdzenie (z informacją o osobie z listy rezerwowej).
 //
+// 10. KLUCZ POZA ADRESAMI, KTÓRE WYCHODZĄ (REG-17): „kopiuj" daje odnośnik
+//     z kluczem we FRAGMENCIE, adres powrotu z kasy jest BEZ klucza (klucz
+//     czeka w `sessionStorage`), a klucz wygasły z końcem wydarzenia (podgląd
+//     stanu `expired`) zostawia samo zdanie i gniazdo zgód.
+//
 // 9. ZGODY (REG-14): gniazdo wycofania zgód (`ManageConsentsSlot`, atrapa
 //    z `data-testid`) stoi pod panelem przy KAŻDYM kluczu, który nie jest
 //    nieznany - także przy kluczu wygasłym i po rezygnacji.
@@ -44,6 +49,10 @@ import type {
 import type { CancellationPreview } from "@/lib/events/cancellationPreview";
 import type { ManagePanelSlotProps } from "@/components/events/participant/slots/slotTypes";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { MANAGE_RETURN_STASH_KEY } from "@/lib/events/manageToken";
+
+/** Podgląd stanu mówi „klucz wygasł" (REG-17) zamiast zgłoszenia. */
+const widok = vi.hoisted(() => ({ wygasl: false }));
 
 /** Właściwości przekazane gniazdom torów - kontrakt BLK-5 (montaż + właściwości). */
 const gniazda = vi.hoisted(() => ({
@@ -133,7 +142,11 @@ vi.mock("@/lib/community/publicQueries", () => ({
 
 vi.mock("@/lib/events/publicRegistrationApi", () => ({
   cancelRegistration: (input: CancelRegistrationInput) => cancel(input),
-  fetchRegistrationManageView: (input: { manageToken?: string }) => manageView(input),
+  loadRegistrationManageView: async (input: { manageToken?: string }) => {
+    if (widok.wygasl) return { kind: "expired" as const };
+    const view = await manageView(input);
+    return view === null ? { kind: "not_found" as const } : { kind: "view" as const, view };
+  },
   fetchCancellationPreview: (input: { manageToken?: string }) => preview(input),
 }));
 
@@ -216,6 +229,8 @@ function manageState(over: Partial<RegistrationManageView> = {}): RegistrationMa
 
 beforeEach(() => {
   vi.clearAllMocks();
+  widok.wygasl = false;
+  window.sessionStorage.clear();
   gniazda.akcje.length = 0;
   gniazda.kalendarz.length = 0;
   gniazda.poWydarzeniu.length = 0;
@@ -447,18 +462,20 @@ describe("RegistrationManagePanel", () => {
     expect(await screen.findByText("eventFront.manage.cancelled")).toBeInTheDocument();
   });
 
-  it("kopiowanie odnośnika składa PEŁNY adres strony zarządzania z kluczem", async () => {
+  it("kopiowanie odnośnika składa PEŁNY adres strony zarządzania z kluczem WE FRAGMENCIE", async () => {
     // To jedyny sposób, w jaki uczestnik odzyska tę stronę bez konta. Adres bez
     // klucza (albo z uciętym kluczem) prowadzi do formularza „wklej klucz",
-    // którego nikt już nie ma.
+    // którego nikt już nie ma. Klucz stoi we fragmencie (REG-17): otwarcie
+    // skopiowanego adresu nie wysyła go serwerowi.
     renderPanel();
     fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.copyLink" }));
 
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(
-        `https://neweuropeanstrategies.com/events/${SLUG}/manage?token=${TOKEN}`,
+        `https://neweuropeanstrategies.com/events/${SLUG}/manage#token=${TOKEN}`,
       ),
     );
+    expect(writeText.mock.calls[0]?.[0]).not.toContain("?token=");
     expect(toast.success).toHaveBeenCalledWith("eventFront.manage.copied");
   });
 
@@ -511,9 +528,30 @@ describe("RegistrationManagePanel - stan zgłoszenia i powrót do kasy", () => {
     const payload = checkout.mock.calls[0]?.[0] as { data: Record<string, unknown> };
     expect(payload.data.registration_id).toBe("11111111-1111-1111-1111-111111111111");
     expect(payload.data.event_id).toBe("22222222-2222-2222-2222-222222222222");
-    // Powrót ma prowadzić NA TĘ STRONĘ, z kluczem - inaczej uczestnik wraca
-    // z kasy do formularza „wklej klucz", którego już nie ma.
-    expect(payload.data.success_path).toBe(`/events/${SLUG}/manage?token=${TOKEN}`);
+    // REG-17: powrót prowadzi NA TĘ STRONĘ, ale BEZ klucza - adres powrotu
+    // dostaje dostawca płatności. Klucz czeka w `sessionStorage` tej karty
+    // (odłożony PRZED otwarciem kasy), więc trasa odda go panelowi po powrocie.
+    expect(payload.data.success_path).toBe(`/events/${SLUG}/manage`);
+    expect(payload.data.cancel_path).toBe(`/events/${SLUG}/manage`);
+    expect(JSON.stringify(payload)).not.toContain(TOKEN);
+    const stash = JSON.parse(window.sessionStorage.getItem(MANAGE_RETURN_STASH_KEY) ?? "null") as {
+      slug: string;
+      token: string;
+    } | null;
+    expect(stash).toMatchObject({ slug: SLUG, token: TOKEN });
+  });
+
+  it("REG-17: kasa, która odmówiła, nie odkłada klucza", async () => {
+    manageView.mockResolvedValue(manageState());
+    checkout.mockResolvedValue({ ok: false, mode: "config", error: "provider_unavailable" });
+    renderPanel();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "eventRegistration.payment.resume" }),
+    );
+
+    await waitFor(() => expect(checkout).toHaveBeenCalledTimes(1));
+    expect(window.sessionStorage.getItem(MANAGE_RETURN_STASH_KEY)).toBeNull();
   });
 
   it("zapłacone zgłoszenie NIE pokazuje kasy drugi raz", async () => {
@@ -809,6 +847,41 @@ describe("RegistrationManagePanel - skutek finansowy rezygnacji (REG-03)", () =>
     expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();
     expect(screen.queryByText("eventFront.manage.confirmTitle")).toBeNull();
     expect(screen.queryByText("eventFront.manage.notFound")).toBeNull();
+  });
+
+  it("REG-17: wygaśnięcie z PODGLĄDU STANU (podgląd rezygnacji niedostępny) - zdanie, bez rezygnacji i kopiowania, z gniazdem zgód", async () => {
+    // Okno wdrożenia: `event_registration_cancel_preview` jeszcze nie istnieje
+    // (`unavailable`), ale `event_registration_manage_view` już mówi
+    // `{ok:false, reason:'expired'}`. Panel nie może wtedy pokazać „nie
+    // znaleziono" ani przycisku rezygnacji, który baza i tak odrzuci.
+    widok.wygasl = true;
+    preview.mockResolvedValue({ kind: "unavailable" });
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.notFound")).toBeNull();
+    expect(screen.queryByText("eventFront.manage.confirmTitle")).toBeNull();
+    expect(screen.queryByRole("button", { name: "eventFront.manage.confirm" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "eventFront.manage.copyLink" })).toBeNull();
+    expect(screen.queryByTestId("gniazdo-akcje-biletu")).toBeNull();
+    // Zgodę wycofuje się w dowolnej chwili - także kluczem wygasłym.
+    expect(await screen.findByTestId("gniazdo-zgody")).toBeInTheDocument();
+  });
+
+  it("REG-17: wygaśnięcie wygrywa z odmową z podglądu - bez przycisku kopiowania", async () => {
+    widok.wygasl = true;
+    preview.mockResolvedValue({
+      kind: "ok",
+      registrationId: "11111111-1111-1111-1111-111111111111",
+      status: "approved",
+      canCancel: false,
+      refusal: "event_ended",
+      refund: null,
+    });
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "eventFront.manage.copyLink" })).toBeNull();
   });
 
   it("odmowa `event_ended` po kliknięciu mówi zdaniem rezygnacji, nie zapisu", async () => {

@@ -24,6 +24,8 @@
 //  11. SKAN SPOD INNEGO POŚWIADCZENIA wyjeżdża pod bieżącym tokenem; kolejka
 //      unieważnionego urządzenia znika z widoku.
 //  12. WSTRZYMANIE W PANELU kasuje token i kolejkę, więc „Wznów" nie wraca.
+//  13. NUMER POTWIERDZENIA Z KARTY (REG-12) idzie do bazy albo do kolejki
+//      i nabija licznik blokady urządzenia.
 import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, waitFor } from "@testing-library/react";
@@ -55,6 +57,8 @@ import type {
 } from "@/lib/events/scannerRoster";
 import type { ScanConflict } from "@/lib/events/scannerSyncIssues";
 import type { ScannerSession } from "@/lib/events/scannerSession";
+import { ticketCodeFrom } from "@/lib/events/ticketCode";
+import { EVENT_IDS } from "@/test/events/fixtures";
 
 freezeClock();
 
@@ -1298,5 +1302,76 @@ describe("wstrzymanie urządzenia w panelu (`device_inactive`)", () => {
     expect(device.queue).toHaveLength(1);
     expect(result.current.rejected).toEqual([]);
     expect(store.wipes).toBe(0);
+  });
+});
+
+/* ------------------------------------- REG-12: numer z karty na bramce --- */
+
+// Kryterium audytu REG-12 „test skanu kodu z karty". Karta na stronie
+// wydarzenia rysowała QR z numerem potwierdzenia (`?ticket=NES-…`), którego
+// baza nie zna. Bramka urządzenia odmawia go PRZED siecią i PRZED kolejką
+// offline: skan nie trafia do bazy (licznik blokady urządzenia), do kolejki
+// (ponowienia, „wymaga uwagi") ani do decyzji z listy offline.
+describe("REG-12: numer potwierdzenia z karty nie wchodzi do bazy ani do kolejki", () => {
+  const NUMER = ticketCodeFrom(EVENT_IDS.order);
+  const STARY_QR = `https://neweuropeanstrategies.com/events/kongres?ticket=${NUMER}`;
+
+  it.each([
+    ["numer potwierdzenia", NUMER],
+    ["dawny QR karty", STARY_QR],
+  ])("odprawa ONLINE (%s): odmowa `not_entry_code`, bez RPC i bez kolejki", async (_opis, kod) => {
+    const { result } = await withRoster();
+    let error: unknown = null;
+    await act(async () => {
+      error = await result.current
+        .submitCheckin({ code: kod, checkpointId: CP, direction: "in" })
+        .catch((e: unknown) => e);
+    });
+    expect(String(error)).toMatch(/not_entry_code: /);
+    expect(api.recordCheckinScan).not.toHaveBeenCalled();
+    expect(result.current.outbox).toEqual([]);
+    expect(device.queue).toEqual([]);
+    expect(store.log).toEqual([]);
+  });
+
+  it("odprawa BEZ SIECI: odmowa zamiast kolejki i zamiast decyzji z listy", async () => {
+    const { result } = await withRoster();
+    goOffline();
+    let error: unknown = null;
+    await act(async () => {
+      error = await result.current
+        .submitCheckin({ code: STARY_QR, checkpointId: CP, direction: "in" })
+        .catch((e: unknown) => e);
+    });
+    expect(String(error)).toMatch(/not_entry_code: /);
+    expect(result.current.outbox).toEqual([]);
+    expect(device.queue).toEqual([]);
+    expect(store.log).toEqual([]);
+  });
+
+  it("skan leadu (online i bez sieci): ta sama odmowa, bez RPC i bez kolejki", async () => {
+    const { result } = await withRoster();
+    for (const go of [() => undefined, goOffline]) {
+      go();
+      let error: unknown = null;
+      await act(async () => {
+        error = await result.current
+          .submitLead({ code: NUMER, note: null, interestRating: null })
+          .catch((e: unknown) => e);
+      });
+      expect(String(error)).toMatch(/not_entry_code: /);
+    }
+    expect(api.recordLeadScan).not.toHaveBeenCalled();
+    expect(result.current.outbox).toEqual([]);
+  });
+
+  it("KONTROLA DODATNIA: prawdziwy kod biletu nadal idzie do bazy", async () => {
+    const { result } = await withRoster();
+    api.recordCheckinScan.mockResolvedValue(scanResult());
+    await act(async () => {
+      await result.current.submitCheckin({ code: CODE, checkpointId: CP, direction: "in" });
+    });
+    expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
+    expect(api.recordCheckinScan.mock.calls[0]?.[0].code).toBe(CODE);
   });
 });

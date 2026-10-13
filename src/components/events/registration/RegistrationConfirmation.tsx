@@ -18,8 +18,8 @@
 //
 // ODNOSNIK DO ZARZADZANIA JEST WAZNIEJSZY NIZ SAM KLUCZ. Goly napis do
 // przepisania z ekranu ginie razem z zakladka; adres `/events/<slug>/manage`
-// z kluczem w zapytaniu da sie zapisac, wyslac sobie mailem i otworzyc na
-// telefonie w dniu wydarzenia. Pokazujemy oba, bo klucz bywa wklejany recznie
+// z kluczem we fragmencie (`#token=` - nie trafia do logow serwera, REG-17) da
+// sie zapisac, wyslac sobie mailem i otworzyc na telefonie w dniu wydarzenia. Pokazujemy oba, bo klucz bywa wklejany recznie
 // w innej przegladarce niz ta, w ktorej powstal zapis.
 //
 // TEN EKRAN WIDZI TYLKO ZWERYFIKOWANY WLASCICIEL ADRESU (REG-04, decyzja D3).

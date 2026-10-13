@@ -201,7 +201,8 @@ const LABELS_PL: TxCopy["labels"] = {
   retryAt: "Kolejna próba",
   accessUntil: "Dostęp aktywny do",
   transaction: "Numer transakcji",
-  ticketCode: "Numer biletu",
+  // Numer `NES-…` to potwierdzenie zakupu, nie kod wejścia (REG-12).
+  ticketCode: "Numer potwierdzenia",
   ticketType: "Rodzaj wejściówki",
   waitlistPosition: "Miejsce w kolejce",
   participantReason: "Powód podany przez organizatora",
@@ -238,7 +239,7 @@ const LABELS_EN: TxCopy["labels"] = {
   retryAt: "Next attempt",
   accessUntil: "Access active until",
   transaction: "Transaction number",
-  ticketCode: "Ticket number",
+  ticketCode: "Booking reference",
   ticketType: "Ticket type",
   waitlistPosition: "Waiting list position",
   participantReason: "Reason given by the organiser",

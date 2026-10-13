@@ -16,11 +16,18 @@
 // oddaje adresu poczty ani telefonu: bramka ich nie potrzebuje, a urządzenie
 // bywa zgubione. Wyjątkiem jest skan leadu - tam dane kontaktowe wracają
 // WYŁĄCZNIE przy udzielonej i niewycofanej zgodzie, i tak też je pokazujemy.
+//
+// NUMER POTWIERDZENIA I ADRES NIE IDĄ DO BAZY (REG-12). Każda funkcja ze
+// skanowanym kodem pyta najpierw `assertScannableCode`: numer `NES-XXXX-XXXX`
+// i adres (dawny QR karty ze strony wydarzenia) baza i tak by odrzuciła jako
+// nieznany kod - liczony do blokady urządzenia. Odmowa `not_entry_code` jest
+// lokalna i nie zostawia śladu w dzienniku ani w liczniku.
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { CheckinDirection } from "@/lib/events/onsiteEnums";
 import { parseScannerSession, type ScannerSession } from "@/lib/events/scannerSession";
 import { parseRosterPage, type RosterPage } from "@/lib/events/scannerRoster";
+import { assertScannableCode } from "@/lib/events/ticketCode";
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
@@ -239,6 +246,7 @@ export interface CheckinScanInput {
  * nie potrzebuje klucza idempotencji.
  */
 export async function resolveCheckinScan(input: CheckinScanInput): Promise<CheckinScanResult> {
+  assertScannableCode(input.code);
   const { data, error } = await supabase.rpc("event_checkin_resolve", {
     p_payload: payload({
       device_token: input.deviceToken,
@@ -253,6 +261,7 @@ export async function resolveCheckinScan(input: CheckinScanInput): Promise<Check
 
 /** Zapis odprawy w dzienniku. Idempotentny po `client_scan_uid`. */
 export async function recordCheckinScan(input: CheckinScanInput): Promise<CheckinScanResult> {
+  assertScannableCode(input.code);
   const { data, error } = await supabase.rpc("event_checkin_record", {
     p_payload: payload({
       device_token: input.deviceToken,
@@ -319,6 +328,7 @@ export interface LeadScanInput {
 }
 
 export async function recordLeadScan(input: LeadScanInput): Promise<LeadScanResult> {
+  assertScannableCode(input.code);
   const { data, error } = await supabase.rpc("event_lead_scan_record", {
     p_payload: payload({
       device_token: input.deviceToken,
@@ -456,6 +466,7 @@ export interface BadgePrintScanInput {
 export async function recordBadgePrintScan(
   input: BadgePrintScanInput,
 ): Promise<BadgePrintScanResult> {
+  assertScannableCode(input.code);
   const { data, error } = await supabase.rpc("event_badge_print_record", {
     p_payload: payload({
       device_token: input.deviceToken,
