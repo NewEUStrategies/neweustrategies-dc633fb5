@@ -157,6 +157,7 @@ export function LegacyNonPaymentReconcileCard() {
                 ? t("adminLegacyNonPayment.simulated")
                 : t("adminLegacyNonPayment.writes", {
                     anchors: report.writes.anchors,
+                    paymentMarkers: report.writes.paymentMarkers,
                     entitlements: report.writes.entitlements,
                     teams: report.writes.teams,
                   })}

@@ -114,6 +114,12 @@ export type TransactionData = {
   billingReason?: string | null;
   /** Chwila zapłaty faktury u operatora (ISO) - data raty darowizny cyklicznej. */
   billedAt?: string | null;
+  /**
+   * Czy faktura obciąża za CAŁY okres (pozycja subskrypcji bez proraty,
+   * `invoiceFullPeriodStart`) - dopłata za zmianę interwału otwiera nim nowy
+   * okres. Brak = nieznane (stary dziennik) - jak zwykła dopłata.
+   */
+  chargesFullPeriod?: boolean | null;
 };
 
 /** Wynik obsługi: `skipped` = zdarzenie spoza zakresu integracji. */
@@ -1932,6 +1938,9 @@ async function handleTransaction(
     // Odnowienie czy dopłata za zmianę w trakcie okresu - windykacja dotyczy
     // wyłącznie zaległości, nie odrzuconej dopłaty do upgrade'u (SUB-16).
     billingReason: data.billingReason ?? null,
+    // Dopłata, która otworzyła nowy okres (zmiana interwału), opłaca okres
+    // jak odnowienie - przesuwa `last_payment_at`.
+    chargesFullPeriod: data.chargesFullPeriod ?? null,
   };
   const dunning = await import("@/lib/billing/dunning.server");
   if (kind === "failed") await dunning.applyPaymentFailedEffects(ctx);

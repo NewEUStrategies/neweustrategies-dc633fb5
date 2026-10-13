@@ -64,8 +64,12 @@ export type LegacyEvidence = "reason" | "invoice";
 
 /**
  * Skąd wiemy, że bieżący okres został jednak opłacony: ostatnia faktura
- * u operatora jest zapłacona (`invoice`) albo baza zaksięgowała zapłatę nie
- * wcześniej niż początek okresu (`ledger`, `subscriptions.last_payment_at`).
+ * u operatora jest zapłacona (`invoice`) albo w historii faktur operatora od
+ * początku okresu jest opłacona faktura OKRESU - odnowienie, pierwsza
+ * płatność albo dopłata za zmianę interwału, która ten okres otworzyła
+ * (`ledger`; nazwa klucza zostaje dla raportu i panelu). Chwila zapłaty
+ * w bazie (`subscriptions.last_payment_at`) dowodem nie jest: dawne wiersze
+ * niosą w niej dopłatę za zmianę w trakcie okresu.
  */
 export type LegacyPaymentProof = "invoice" | "ledger";
 
@@ -97,6 +101,11 @@ export interface LegacyReconcileRow {
 export interface LegacyReconcileWrites {
   /** Wiersze `subscriptions`, którym dopisano kotwicę karencji. */
   anchors: number;
+  /**
+   * Wiersze `subscriptions`, którym wyczyszczono `last_payment_at` z bieżącego
+   * okresu obalony historią faktur operatora (dawna dopłata, nie odnowienie).
+   */
+  paymentMarkers: number;
   /** Wiersze `user_subscriptions` przycięte do końca karencji. */
   entitlements: number;
   /** Organizacje planu Zespół zawieszone po karencji. */
@@ -143,6 +152,7 @@ export function mergeLegacyReconcileReports(
     counts,
     writes: {
       anchors: acc.writes.anchors + next.writes.anchors,
+      paymentMarkers: acc.writes.paymentMarkers + next.writes.paymentMarkers,
       entitlements: acc.writes.entitlements + next.writes.entitlements,
       teams: acc.writes.teams + next.writes.teams,
     },

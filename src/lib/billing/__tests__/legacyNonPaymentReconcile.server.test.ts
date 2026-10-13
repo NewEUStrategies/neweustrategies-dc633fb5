@@ -10,7 +10,15 @@
 //     (`cancellation_requested`) i anulowanie bez dowodu braku płatności
 //     zostają nietknięte; zwrot (`refunded`) jest ostateczny. Zaległa faktura
 //     zapłacona PO anulowaniu `payment_failed` (link z maila, zapłata poza
-//     operatorem) to opłacony okres - bez kotwicy, przycięcia i zawieszenia.
+//     operatorem) to opłacony okres - bez kotwicy, przycięcia i zawieszenia -
+//     także gdy ostatnią fakturą jest inna, a `last_payment_at` jest stary.
+//   * DOPŁATA ZAMIAST ODNOWIENIA. Opłacona dopłata za zmianę w trakcie okresu
+//     (`subscription_update`, także znacznik `last_payment_at` z niej) nie
+//     jest zapłatą za okres - dowodem jest wyłącznie opłacona faktura OKRESU
+//     w historii operatora (także dopłata za zmianę interwału, która ten
+//     okres otworzyła); błąd historii to `error` bez zapisów. Znacznik
+//     obalony historią zostaje wyczyszczony (zapis warunkowy), żeby webhook
+//     nie cofnął przycięcia przy kolejnym `deleted` bez powodu.
 //   * POZORNA SYMULACJA. `dry_run` ma nie wysłać ANI JEDNEGO zapisu.
 //   * PODWÓJNY SKUTEK. Drugi przebieg `apply` nie zmienia niczego.
 //   * PARTIE. Kursor po `subscriptions.id` przechodzi każdy wiersz raz.
@@ -18,11 +26,14 @@
 //     `external_ref` nie są ani podstawą decyzji, ani celem zapisu; partia
 //     czyta tylko swoje środowisko.
 //   * OPERATOR. `resource_missing` to pominięcie wiersza, nie awaria partii;
-//     odczyty idą sekwencyjnie.
+//     odczyty idą sekwencyjnie, a historię faktur czytamy tylko wtedy, gdy
+//     decyzja zależy od dowodu zapłaty.
 //
 // Baza jest PAMIĘCIOWA (filtry `eq`/`is`/`gt`/`in`, `order`, `limit`, `update`
 // na wierszach), bo idempotencji i kursora nie da się udowodnić na odpowiedzi
-// stałej. Operator - atrapa `subscriptions.retrieve`. Zegar zamrożony.
+// stałej. Operator - atrapa `subscriptions.retrieve` i `invoices.list`
+// (filtry `subscription`/`status`/`created.gte` jak u operatora, wynik jako
+// iterator stron). Zegar zamrożony.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -45,7 +56,12 @@ const h = vi.hoisted(() => ({
   remote: new Map<string, Record<string, unknown>>(),
   /** Wymuszony błąd operatora dla identyfikatora. */
   remoteErrors: new Map<string, unknown>(),
+  /** Historia faktur u operatora po identyfikatorze subskrypcji (surowe faktury). */
+  invoiceHistory: new Map<string, Array<Record<string, unknown>>>(),
+  /** Wymuszony błąd listy faktur dla subskrypcji. */
+  listErrors: new Map<string, unknown>(),
   retrieveCalls: [] as Array<{ id: string; params: unknown }>,
+  listCalls: [] as Array<Record<string, unknown>>,
   inFlight: 0,
   maxInFlight: 0,
 }));
@@ -77,13 +93,38 @@ vi.mock("@/lib/stripe.server", () => ({
         return sub;
       },
     },
+    invoices: {
+      // Jak `ApiListPromise` operatora: iterator, który sam doczytuje strony.
+      list: (params: Record<string, unknown>) => {
+        h.listCalls.push(params);
+        const subscription = params.subscription as string;
+        const gte = (params.created as { gte: number }).gte;
+        return {
+          async *[Symbol.asyncIterator]() {
+            h.inFlight += 1;
+            h.maxInFlight = Math.max(h.maxInFlight, h.inFlight);
+            await Promise.resolve();
+            h.inFlight -= 1;
+            const forced = h.listErrors.get(subscription);
+            if (forced) throw forced;
+            for (const invoice of h.invoiceHistory.get(subscription) ?? []) {
+              if (invoice.status !== params.status) continue;
+              if ((invoice.created as number) < gte) continue;
+              yield invoice;
+            }
+          },
+        };
+      },
+    },
   }),
   getStripeErrorMessage: (error: unknown) =>
     error instanceof Error ? error.message : "Stripe request failed",
 }));
 
 const {
+  PERIOD_INVOICE_SCAN_LIMIT,
   decideLegacyNonPayment,
+  needsPeriodInvoiceCheck,
   readLegacyStripeFacts,
   reconcileLegacyNonPaymentCancellations,
   triageLegacyCandidate,
@@ -187,8 +228,65 @@ interface RemoteInvoice {
   paidAt?: string | null;
   amountPaid?: number;
   amountDue?: number;
-  outOfBand?: boolean;
+  /** `amount_paid_off_stripe` (API dahlia) - kwota oznaczona jako zapłacona poza operatorem. */
+  amountPaidOffStripe?: number;
   billingReason?: string;
+  /** Chwila wystawienia (domyślnie początek okresu). */
+  created?: string;
+  /** Pozycje faktury (API Basil+: `parent.subscription_item_details`). */
+  lines?: Array<{ proration: boolean; start: string; end?: string }>;
+}
+
+/**
+ * Surowa faktura operatora - ostatnia albo z historii - w kształcie przypiętej
+ * wersji API (dahlia): bez `paid_out_of_band`, zapłata poza operatorem w
+ * `amount_paid` i `amount_paid_off_stripe`.
+ */
+function rawInvoice(id: string, invoice: RemoteInvoice, defaultCreated: string) {
+  return {
+    id,
+    object: "invoice",
+    status: invoice.status,
+    attempt_count: invoice.attempts,
+    created: unix(invoice.created ?? defaultCreated),
+    amount_due: invoice.amountDue ?? 49900,
+    amount_paid: invoice.amountPaid ?? 0,
+    ...(invoice.amountPaidOffStripe !== undefined
+      ? { amount_paid_off_stripe: invoice.amountPaidOffStripe }
+      : {}),
+    billing_reason: invoice.billingReason ?? "subscription_cycle",
+    status_transitions: {
+      finalized_at: invoice.finalizedAt ? unix(invoice.finalizedAt) : null,
+      paid_at: invoice.paidAt ? unix(invoice.paidAt) : null,
+    },
+    lines: {
+      object: "list",
+      data: (invoice.lines ?? []).map((line, i) => ({
+        id: `il_${id}_${i}`,
+        object: "line_item",
+        period: { start: unix(line.start), end: unix(line.end ?? relativeIso(360 * DZIEN)) },
+        parent: {
+          type: "subscription_item_details",
+          invoice_item_details: null,
+          subscription_item_details: {
+            invoice_item: line.proration ? `ii_${id}_${i}` : null,
+            proration: line.proration,
+            proration_details: null,
+            subscription: "sub_legacy",
+            subscription_item: "si_legacy",
+          },
+        },
+      })),
+    },
+  };
+}
+
+/** Historia faktur subskrypcji `n` u operatora (to, co zwraca `invoices.list`). */
+function history(n: number, invoices: RemoteInvoice[]) {
+  h.invoiceHistory.set(
+    providerId(n),
+    invoices.map((invoice, i) => rawInvoice(`in_${n}_h${i}`, invoice, relativeIso(-5 * DZIEN))),
+  );
 }
 
 interface RemoteOptions {
@@ -230,23 +328,7 @@ function remoteSub(n: number, o: RemoteOptions = {}): Record<string, unknown> {
         },
       ],
     },
-    latest_invoice: invoice
-      ? {
-          id: `in_${n}`,
-          object: "invoice",
-          status: invoice.status,
-          attempt_count: invoice.attempts,
-          created: unix(start),
-          amount_due: invoice.amountDue ?? 49900,
-          amount_paid: invoice.amountPaid ?? 0,
-          paid_out_of_band: invoice.outOfBand ?? false,
-          billing_reason: invoice.billingReason ?? "subscription_cycle",
-          status_transitions: {
-            finalized_at: invoice.finalizedAt ? unix(invoice.finalizedAt) : null,
-            paid_at: invoice.paidAt ? unix(invoice.paidAt) : null,
-          },
-        }
-      : null,
+    latest_invoice: invoice ? rawInvoice(`in_${n}`, invoice, start) : null,
   };
 }
 
@@ -276,7 +358,10 @@ beforeEach(() => {
   }
   h.remote.clear();
   h.remoteErrors.clear();
+  h.invoiceHistory.clear();
+  h.listErrors.clear();
   h.retrieveCalls.length = 0;
+  h.listCalls.length = 0;
   h.inFlight = 0;
   h.maxInFlight = 0;
 });
@@ -288,12 +373,17 @@ function decide(o: {
   ents?: Row[];
   remote?: RemoteOptions;
   teamActive?: boolean;
+  /** Wynik historii faktur okresu (domyślnie: nie sprawdzano). */
+  periodInvoicePaid?: boolean | null;
 }) {
   return decideLegacyNonPayment({
     subscription: subRow(1, o.sub) as unknown as LegacySubscriptionRow,
     entitlements: (o.ents ?? [entRow(1)]) as unknown as LegacyEntitlementRow[],
     teamActive: o.teamActive ?? false,
-    stripe: readLegacyStripeFacts(remoteSub(1, o.remote)),
+    stripe: {
+      ...readLegacyStripeFacts(remoteSub(1, o.remote)),
+      periodInvoicePaid: o.periodInvoicePaid ?? null,
+    },
     now: FIXED_NOW,
   });
 }
@@ -459,31 +549,77 @@ describe("decyzja - okres opłacony mimo anulowania za brak płatności", () => 
     });
   });
 
-  it("zapłata oznaczona poza operatorem (kwota 0, `paid_out_of_band`) też jest zapłatą", () => {
+  // ZMIANA FIXTURE'A: było `amount_paid: 0` z `paid_out_of_band: true` -
+  // kształtu, którego przypięta wersja API (dahlia) nie zwraca (Basil usunął
+  // `paid_out_of_band` z faktury, a zapłatę poza operatorem liczy w
+  // `amount_paid`; dahlia dokłada `amount_paid_off_stripe`).
+  it("zapłata oznaczona poza operatorem (`amount_paid` i `amount_paid_off_stripe`) też jest zapłatą", () => {
     const plan = decide({
-      remote: { invoice: { ...paidLate, amountPaid: 0, outOfBand: true } },
+      remote: { invoice: { ...paidLate, amountPaid: 49900, amountPaidOffStripe: 49900 } },
     });
 
     expect(plan.decision).toBe("paid");
     expect(plan.paymentProof).toBe("invoice");
   });
 
-  it("zapłata zaksięgowana w bieżącym okresie wystarcza, gdy faktura u operatora jej nie pokazuje", () => {
+  it("fakty faktury: kwota poza operatorem i początek pozycji za cały okres", () => {
+    const facts = readLegacyStripeFacts(
+      remoteSub(1, {
+        invoice: {
+          ...paidLate,
+          amountPaidOffStripe: 49900,
+          billingReason: "subscription_update",
+          lines: [
+            { proration: true, start: relativeIso(-5 * DZIEN), end: relativeIso(25 * DZIEN) },
+            { proration: false, start: relativeIso(-5 * DZIEN) },
+          ],
+        },
+      }),
+    ).invoice;
+
+    expect(facts).toMatchObject({
+      amountPaidOffStripe: 49900,
+      paidOutOfBand: false,
+      fullPeriodStart: relativeIso(-5 * DZIEN),
+    });
+    // Same proraty (zwykła dopłata) - pozycji za cały okres nie ma.
+    expect(
+      readLegacyStripeFacts(
+        remoteSub(1, {
+          invoice: { ...paidLate, lines: [{ proration: true, start: relativeIso(-3 * DZIEN) }] },
+        }),
+      ).invoice?.fullPeriodStart,
+    ).toBeNull();
+  });
+
+  // ZMIANA ASERCJI (Codex P1, PR #502): było „zapłata zaksięgowana w okresie
+  // wystarcza" - `last_payment_at` nie wcześniejszy niż początek okresu dawał
+  // dowód `ledger`. Dawne wiersze niosą tam chwilę opłaconej DOPŁATY za zmianę
+  // (windykacja przesuwała znacznik przy każdej zapłacie), więc sam znacznik
+  // zostawiał rok nieopłaconego dostępu. Dowodem jest opłacona faktura okresu
+  // w historii operatora (`periodInvoicePaid`).
+  it("sam `last_payment_at` w bieżącym okresie NIE jest dowodem zapłaty", () => {
     const plan = decide({ sub: { last_payment_at: relativeIso(-1 * DZIEN) } });
+
+    expect(plan).toMatchObject({ decision: "clamp", paymentProof: null, writeAnchor: true });
+  });
+
+  it("opłacona faktura okresu w historii operatora wystarcza, gdy ostatnia faktura jej nie pokazuje", () => {
+    const plan = decide({ periodInvoicePaid: true });
 
     expect(plan).toMatchObject({ decision: "paid", paymentProof: "ledger", clamp: [] });
   });
 
-  it("brak powodu: faktura nieopłacona, ale zapłata zaksięgowana w okresie - bez zmian", () => {
+  it("brak powodu: faktura nieopłacona, ale historia ma opłaconą fakturę okresu - bez zmian", () => {
     const plan = decide({
-      sub: { last_payment_at: relativeIso(-1 * DZIEN) },
       remote: { reason: null, invoice: { status: "void", attempts: 3 } },
+      periodInvoicePaid: true,
     });
 
     expect(plan).toMatchObject({ decision: "paid", evidence: "invoice", paymentProof: "ledger" });
   });
 
-  it("to NIE są dowody zapłaty: dopłata za zmianę, `paid` bez znacznika ani kwoty, zapłata sprzed okresu", () => {
+  it("to NIE są dowody zapłaty: dopłata za zmianę, `paid` bez znacznika ani kwoty, historia bez faktury okresu", () => {
     for (const invoice of [
       { ...paidLate, billingReason: "subscription_update" },
       { ...paidLate, paidAt: null },
@@ -494,20 +630,95 @@ describe("decyzja - okres opłacony mimo anulowania za brak płatności", () => 
         paymentProof: null,
       });
     }
-    // Zapłata sprzed początku okresu (za poprzedni) nie opłaca bieżącego.
-    expect(decide({ sub: { last_payment_at: relativeIso(-6 * DZIEN) } })).toMatchObject({
-      decision: "clamp",
-      paymentProof: null,
-    });
+    // Historia sprawdzona i bez opłaconej faktury okresu - zapłata sprzed
+    // początku okresu (za poprzedni) nie opłaca bieżącego.
+    expect(
+      decide({ sub: { last_payment_at: relativeIso(-6 * DZIEN) }, periodInvoicePaid: false }),
+    ).toMatchObject({ decision: "clamp", paymentProof: null });
+  });
+
+  it("znacznik zapłaty z okresu obalony historią operatora idzie do wyczyszczenia - i tylko on", () => {
+    // Dopłata zapisana przez dawną windykację: webhook uznałby z nią okres za
+    // opłacony i przy `deleted` bez powodu cofnął przycięcie.
+    const proration = relativeIso(-3 * DZIEN);
+    const clamped = decide({ sub: { last_payment_at: proration }, periodInvoicePaid: false });
+    expect(clamped).toMatchObject({ decision: "clamp", staleLastPaymentAt: proration });
+    expect(
+      decide({
+        sub: { last_payment_at: proration },
+        remote: { reason: null },
+        periodInvoicePaid: false,
+      }),
+    ).toMatchObject({ decision: "clamp", evidence: "invoice", staleLastPaymentAt: proration });
+    // Zapłata za poprzedni okres, historia niesprawdzona albo okres opłacony -
+    // znacznik zostaje.
+    expect(decide({ periodInvoicePaid: false }).staleLastPaymentAt).toBeNull();
+    expect(decide({ sub: { last_payment_at: proration } }).staleLastPaymentAt).toBeNull();
+    expect(
+      decide({ sub: { last_payment_at: proration }, periodInvoicePaid: true }).staleLastPaymentAt,
+    ).toBeNull();
   });
 
   it("spór o płatność dotyczy faktury opłaconej - zapłata nie znosi przycięcia", () => {
     const plan = decide({
       sub: { last_payment_at: relativeIso(-4 * DZIEN) },
       remote: { reason: "payment_disputed", invoice: paidLate },
+      periodInvoicePaid: true,
     });
 
     expect(plan).toMatchObject({ decision: "clamp", evidence: "reason", paymentProof: null });
+  });
+});
+
+describe("historia faktur okresu - kiedy pytać operatora (`needsPeriodInvoiceCheck`)", () => {
+  function needs(o: { sub?: Partial<Row>; remote?: RemoteOptions }) {
+    return needsPeriodInvoiceCheck(
+      subRow(1, o.sub) as unknown as LegacySubscriptionRow,
+      readLegacyStripeFacts(remoteSub(1, o.remote)),
+    );
+  }
+
+  it("anulowanie za brak płatności bez opłaconej ostatniej faktury - tak", () => {
+    expect(needs({})).toBe(true);
+    expect(needs({ remote: { reason: null, invoice: { status: "void", attempts: 2 } } })).toBe(
+      true,
+    );
+    // Opłacona dopłata za zmianę jako ostatnia faktura nie zwalnia z pytania.
+    expect(
+      needs({
+        remote: {
+          invoice: {
+            status: "paid",
+            attempts: 1,
+            paidAt: relativeIso(-2 * DZIEN),
+            amountPaid: 2500,
+            billingReason: "subscription_update",
+          },
+        },
+      }),
+    ).toBe(true);
+  });
+
+  it("ostatnia faktura dowodzi zapłaty, spór, rezygnacja, brak dowodu albo nieznany okres - nie", () => {
+    const paid: RemoteInvoice = {
+      status: "paid",
+      attempts: 1,
+      paidAt: relativeIso(-2 * DZIEN),
+      amountPaid: 49900,
+    };
+    expect(needs({ remote: { invoice: paid } })).toBe(false);
+    expect(needs({ remote: { reason: "payment_disputed" } })).toBe(false);
+    expect(needs({ remote: { reason: "cancellation_requested" } })).toBe(false);
+    expect(needs({ remote: { reason: null, invoice: paid } })).toBe(false);
+    expect(needs({ remote: { status: "active" } })).toBe(false);
+    // Bez początku okresu (ani od operatora, ani w bazie) nie ma od kiedy pytać.
+    const facts = { ...readLegacyStripeFacts(remoteSub(1)), periodStart: null };
+    expect(
+      needsPeriodInvoiceCheck(
+        subRow(1, { current_period_start: null }) as unknown as LegacySubscriptionRow,
+        facts,
+      ),
+    ).toBe(false);
   });
 });
 
@@ -558,7 +769,7 @@ describe("symulacja", () => {
       accessUntilAfter: relativeIso(9 * DZIEN + GODZINA),
       applied: false,
     });
-    expect(report.writes).toEqual({ anchors: 0, entitlements: 0, teams: 0 });
+    expect(report.writes).toEqual({ anchors: 0, paymentMarkers: 0, entitlements: 0, teams: 0 });
     expect(updates()).toEqual([]);
     expect(tables).toEqual(before);
     expect(consoleInfo).not.toHaveBeenCalled();
@@ -572,7 +783,7 @@ describe("zastosowanie", () => {
 
     const first = await run("apply");
 
-    expect(first.writes).toEqual({ anchors: 1, entitlements: 1, teams: 0 });
+    expect(first.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 });
     expect(first.rows[0]).toMatchObject({ decision: "clamp", applied: true });
     // Ślad partii w logu serwera - zastosowanie zmienia dostęp klientów.
     expect(consoleInfo).toHaveBeenCalledWith(
@@ -594,7 +805,7 @@ describe("zastosowanie", () => {
     const second = await run("apply");
 
     expect(second.rows[0]?.decision).toBe("already_clamped");
-    expect(second.writes).toEqual({ anchors: 0, entitlements: 0, teams: 0 });
+    expect(second.writes).toEqual({ anchors: 0, paymentMarkers: 0, entitlements: 0, teams: 0 });
     expect(updates()).toEqual([]);
     expect(tables).toEqual(after);
   });
@@ -760,10 +971,367 @@ describe("okres opłacony po anulowaniu - przebieg", () => {
         suspendTeam: false,
         applied: false,
       });
-      expect(report.writes).toEqual({ anchors: 0, entitlements: 0, teams: 0 });
+      expect(report.writes).toEqual({ anchors: 0, paymentMarkers: 0, entitlements: 0, teams: 0 });
     }
     expect(updates()).toEqual([]);
     expect(tables).toEqual(before);
+    // Ostatnia faktura już dowodzi zapłaty - historii nie trzeba.
+    expect(h.listCalls).toEqual([]);
+  });
+});
+
+describe("historia faktur okresu u operatora - przebieg (Codex P1, PR #502)", () => {
+  const start = relativeIso(-5 * DZIEN);
+  /** Zapytanie o historię: opłacone faktury tej subskrypcji od początku okresu (- 1 h). */
+  const listQuery = (n: number) => ({
+    subscription: providerId(n),
+    status: "paid",
+    created: { gte: unix(start) - 60 * 60 },
+    limit: 100,
+  });
+  /** Nieudane odnowienie: otwarte po 4 próbach, wystawione na początku okresu. */
+  const openRenewal: RemoteInvoice = {
+    status: "open",
+    attempts: 4,
+    finalizedAt: relativeIso(-5 * DZIEN + GODZINA),
+  };
+  /** Opłacona dopłata za upgrade w trakcie okresu (3 dni temu) - same proraty. */
+  const proration: RemoteInvoice = {
+    status: "paid",
+    attempts: 1,
+    created: relativeIso(-3 * DZIEN),
+    paidAt: relativeIso(-3 * DZIEN),
+    amountPaid: 2500,
+    amountDue: 2500,
+    billingReason: "subscription_update",
+    lines: [
+      { proration: true, start: relativeIso(-3 * DZIEN) },
+      { proration: true, start: relativeIso(-3 * DZIEN) },
+    ],
+  };
+  /** Odnowienie zapłacone już PO anulowaniu (sprzed doby), wystawione 30 min przed okresem. */
+  const renewalPaidLate: RemoteInvoice = {
+    status: "paid",
+    attempts: 4,
+    created: relativeIso(-5 * DZIEN - 30 * 60 * 1000),
+    finalizedAt: relativeIso(-5 * DZIEN + GODZINA),
+    paidAt: relativeIso(-12 * GODZINA),
+    amountPaid: 49900,
+  };
+
+  it("dopłata za zmianę w okresie (i `last_payment_at` z niej) NIE opłaca odnowienia: przycięcie", async () => {
+    // Porażka odnowienia nie dotarła (brak licznika), więc dawna windykacja
+    // zapisała `last_payment_at` z opłaconej dopłaty - w bieżącym okresie.
+    // 1: bez powodu, dowodem otwarte odnowienie; 2: `payment_failed`,
+    // a ostatnią fakturą jest opłacona dopłata.
+    seed({
+      subscriptions: [
+        subRow(1, { last_payment_at: proration.paidAt }),
+        subRow(2, { last_payment_at: proration.paidAt }),
+      ],
+      entitlements: [entRow(1), entRow(2)],
+    });
+    h.remote.set(providerId(1), remoteSub(1, { reason: null, invoice: openRenewal }));
+    h.remote.set(providerId(2), remoteSub(2, { invoice: proration }));
+    // Historia ma tylko dopłatę (odnowienie jest otwarte - nie `paid`).
+    history(1, [openRenewal, proration]);
+    history(2, [openRenewal, proration]);
+
+    const report = await run("apply");
+
+    expect(
+      report.rows.map((r) => [r.subscriptionId, r.decision, r.evidence, r.paymentProof]),
+    ).toEqual([
+      [providerId(1), "clamp", "invoice", null],
+      [providerId(2), "clamp", "reason", null],
+    ]);
+    expect(h.listCalls).toEqual([listQuery(1), listQuery(2)]);
+    expect(report.writes).toEqual({ anchors: 2, paymentMarkers: 2, entitlements: 2, teams: 0 });
+    expect(tables.user_subscriptions?.map((r) => r.current_period_end)).toEqual([
+      // 1: kotwica = pierwsza próba odnowienia; 2: ostatnia faktura opłacona,
+      // więc kotwicą jest początek okresu.
+      relativeIso(9 * DZIEN + GODZINA),
+      relativeIso(9 * DZIEN),
+    ]);
+    // Znacznik z dopłaty obalony historią - wyczyszczony, żeby webhook nie
+    // uznał okresu za opłacony. Zapis warunkowy na zaobserwowanej wartości.
+    expect(tables.subscriptions?.map((r) => r.last_payment_at)).toEqual([null, null]);
+    const markerClear = updates("subscriptions").find(
+      (c) => (c.argsOf("update")?.[0] as Row).last_payment_at === null,
+    );
+    expect(markerClear?.calls).toContainEqual({
+      method: "eq",
+      args: ["last_payment_at", proration.paidAt],
+    });
+    expect(markerClear?.calls).toContainEqual({ method: "eq", args: ["status", "canceled"] });
+
+    // Drugi przebieg: znacznik pusty, kotwica i przycięcie zapisane - zero zapisów.
+    db.chains.length = 0;
+    const second = await run("apply");
+    expect(second.rows.map((r) => r.decision)).toEqual(["already_clamped", "already_clamped"]);
+    expect(second.writes).toEqual({ anchors: 0, paymentMarkers: 0, entitlements: 0, teams: 0 });
+    expect(updates()).toEqual([]);
+  });
+
+  it("zapłata zaksięgowana w trakcie przebiegu (znacznik się zmienił): `error` bez zapisów", async () => {
+    seed({
+      subscriptions: [subRow(1, { last_payment_at: proration.paidAt })],
+      entitlements: [entRow(1)],
+    });
+    h.remote.set(providerId(1), remoteSub(1, { reason: null, invoice: openRenewal }));
+    history(1, [proration]);
+    // `invoice.paid` odnowienia dociera między odczytem partii a zapisem.
+    const paidNow = relativeIso(-1 * GODZINA);
+    db.setResponse("subscriptions", (chain) => {
+      if (chain.has("update")) {
+        const row = tables.subscriptions?.[0];
+        if (row) row.last_payment_at = paidNow;
+      }
+      return execute("subscriptions", chain);
+    });
+    const entitlementBefore = structuredClone(tables.user_subscriptions?.[0]);
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({ decision: "error", applied: false });
+    expect(report.rows[0]?.error).toMatch(/payment marker changed/);
+    expect(report.writes).toEqual({ anchors: 0, paymentMarkers: 0, entitlements: 0, teams: 0 });
+    expect(tables.subscriptions?.[0]).toMatchObject({
+      last_payment_at: paidNow,
+      first_payment_failed_at: null,
+    });
+    expect(tables.user_subscriptions?.[0]).toEqual(entitlementBefore);
+  });
+
+  it("dopłata za zmianę interwału, która OTWORZYŁA bieżący okres, opłaca go: bez zmian", async () => {
+    // Samoobsługowy upgrade z miesięcznego na roczny (`always_invoice`)
+    // resetuje okres: faktura `subscription_update` obciąża za cały nowy rok
+    // (pozycja bez proraty od początku okresu). Później odrzucona dopłata za
+    // miejsca zepchnęła subskrypcję w zaległość i operator ją anulował.
+    seed({ subscriptions: [subRow(1)], entitlements: [entRow(1)] });
+    const seatsFailed: RemoteInvoice = {
+      ...openRenewal,
+      created: relativeIso(-2 * DZIEN),
+      finalizedAt: relativeIso(-2 * DZIEN),
+      billingReason: "subscription_update",
+      lines: [{ proration: true, start: relativeIso(-2 * DZIEN) }],
+    };
+    h.remote.set(providerId(1), remoteSub(1, { invoice: seatsFailed }));
+    history(1, [
+      {
+        status: "paid",
+        attempts: 1,
+        created: start,
+        paidAt: start,
+        amountPaid: 47500,
+        amountDue: 47500,
+        billingReason: "subscription_update",
+        lines: [
+          { proration: true, start, end: relativeIso(20 * DZIEN) },
+          { proration: false, start },
+        ],
+      },
+    ]);
+    const before = structuredClone(tables);
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "paid",
+      evidence: "reason",
+      paymentProof: "ledger",
+    });
+    expect(updates()).toEqual([]);
+    expect(tables).toEqual(before);
+  });
+
+  it("zwykła dopłata dzień po początku okresu nie opłaca okresu - także z pozycją spoza tego okresu", async () => {
+    seed({ subscriptions: [subRow(1)], entitlements: [entRow(1)] });
+    h.remote.set(providerId(1), remoteSub(1, { invoice: openRenewal }));
+    const dayAfter = relativeIso(-4 * DZIEN);
+    history(1, [
+      // Same proraty za resztę okresu.
+      {
+        ...proration,
+        created: dayAfter,
+        paidAt: dayAfter,
+        lines: [{ proration: true, start: dayAfter }],
+      },
+      // Pozycja bez proraty, ale zaczyna się dobę po początku BIEŻĄCEGO okresu.
+      {
+        ...proration,
+        created: dayAfter,
+        paidAt: dayAfter,
+        lines: [{ proration: false, start: dayAfter }],
+      },
+    ]);
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({ decision: "clamp", paymentProof: null });
+    expect(tables.user_subscriptions?.[0]?.current_period_end).toBe(
+      relativeIso(9 * DZIEN + GODZINA),
+    );
+  });
+
+  it("odnowienie opłacone po anulowaniu, a ostatnią fakturą jest inna: dowód z historii, bez zmian", async () => {
+    seed({
+      subscriptions: [subRow(1, { last_payment_at: renewalPaidLate.paidAt })],
+      entitlements: [entRow(1)],
+    });
+    h.remote.set(providerId(1), remoteSub(1, { invoice: proration }));
+    history(1, [proration, renewalPaidLate]);
+    const before = structuredClone(tables);
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "paid",
+      evidence: "reason",
+      paymentProof: "ledger",
+      invoiceStatus: "paid",
+      anchor: null,
+      accessUntilAfter: null,
+      applied: false,
+    });
+    expect(h.listCalls).toEqual([listQuery(1)]);
+    expect(updates()).toEqual([]);
+    expect(tables).toEqual(before);
+  });
+
+  it("zgubione `invoice.paid` (stary `last_payment_at`), ale opłacone odnowienie u operatora: dostęp zostaje", async () => {
+    // `last_payment_at` z poprzedniego roku - według bazy okres nieopłacony.
+    seed({ subscriptions: [subRow(1)], entitlements: [entRow(1)] });
+    h.remote.set(providerId(1), remoteSub(1, { invoice: proration }));
+    history(1, [proration, renewalPaidLate]);
+    const before = structuredClone(tables);
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({
+      decision: "paid",
+      evidence: "reason",
+      paymentProof: "ledger",
+    });
+    expect(updates()).toEqual([]);
+    expect(tables).toEqual(before);
+  });
+
+  // ZMIANA FIXTURE'A: było `amount_paid: 0` z `paid_out_of_band: true` - kształt,
+  // którego przypięta wersja API (dahlia) nie zwraca. Zapłata poza operatorem
+  // jest w `amount_paid`, a jej część poza operatorem - w `amount_paid_off_stripe`.
+  it("odnowienie oznaczone jako opłacone poza operatorem (API dahlia) też jest dowodem", async () => {
+    seed({ subscriptions: [subRow(1)], entitlements: [entRow(1)] });
+    h.remote.set(providerId(1), remoteSub(1, { invoice: proration }));
+    history(1, [{ ...renewalPaidLate, amountPaid: 49900, amountPaidOffStripe: 49900 }]);
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({ decision: "paid", paymentProof: "ledger" });
+    expect(updates()).toEqual([]);
+  });
+
+  it("faktura ręczna, dopłata, `paid` bez zapłaty i odnowienie z POPRZEDNIEGO okresu nie są dowodem", async () => {
+    // `last_payment_at` z opłaconej faktury ręcznej w okresie - też nie dowód.
+    seed({
+      subscriptions: [subRow(1, { last_payment_at: relativeIso(-2 * DZIEN) })],
+      entitlements: [entRow(1)],
+    });
+    h.remote.set(providerId(1), remoteSub(1, { invoice: openRenewal }));
+    history(1, [
+      {
+        ...renewalPaidLate,
+        created: relativeIso(-2 * DZIEN),
+        paidAt: relativeIso(-2 * DZIEN),
+        billingReason: "manual",
+      },
+      proration,
+      { ...renewalPaidLate, paidAt: null, amountPaid: 0 },
+      // Odnowienie sprzed roku - operator odfiltrowuje je po `created`.
+      { ...renewalPaidLate, created: relativeIso(-370 * DZIEN), paidAt: relativeIso(-370 * DZIEN) },
+    ]);
+
+    const report = await run("apply");
+
+    expect(report.rows[0]).toMatchObject({ decision: "clamp", paymentProof: null });
+    expect(tables.user_subscriptions?.[0]?.current_period_end).toBe(
+      relativeIso(9 * DZIEN + GODZINA),
+    );
+    // Znacznik z faktury ręcznej też nie opłaca okresu - wyczyszczony.
+    expect(tables.subscriptions?.[0]?.last_payment_at).toBeNull();
+  });
+
+  it("błąd historii faktur u operatora: wiersz `error` bez zapisów, partia idzie dalej", async () => {
+    seed({
+      subscriptions: [subRow(1), subRow(2)],
+      entitlements: [entRow(1), entRow(2)],
+    });
+    h.remote.set(providerId(1), remoteSub(1));
+    h.remote.set(providerId(2), remoteSub(2));
+    h.listErrors.set(providerId(1), new Error("Stripe invoices are down"));
+    const untouchedRow = structuredClone(tables.user_subscriptions?.[0]);
+
+    const report = await run("apply");
+
+    expect(report.rows.map((r) => [r.subscriptionId, r.decision, r.error])).toEqual([
+      [providerId(1), "error", "Stripe invoices are down"],
+      [providerId(2), "clamp", null],
+    ]);
+    expect(report.rows[0]).toMatchObject({ applied: false, accessUntilAfter: null });
+    // Zapisy wyłącznie dla wiersza 2.
+    expect(report.writes).toEqual({ anchors: 1, paymentMarkers: 0, entitlements: 1, teams: 0 });
+    for (const chain of updates()) {
+      expect(chain.calls).not.toContainEqual({ method: "eq", args: ["id", subId(1)] });
+      expect(chain.calls).not.toContainEqual({ method: "eq", args: ["id", "us-1"] });
+    }
+    expect(tables.user_subscriptions?.[0]).toEqual(untouchedRow);
+    expect(tables.subscriptions?.[0]?.first_payment_failed_at).toBeNull();
+  });
+
+  it("historia ponad limit bez faktury okresu to `error`, a nie przycięcie", async () => {
+    seed({ subscriptions: [subRow(1)], entitlements: [entRow(1)] });
+    h.remote.set(providerId(1), remoteSub(1));
+    history(
+      1,
+      Array.from({ length: PERIOD_INVOICE_SCAN_LIMIT + 1 }, () => proration),
+    );
+
+    const report = await run("apply");
+
+    expect(report.rows[0]?.decision).toBe("error");
+    expect(report.rows[0]?.error).toMatch(/exceeds/);
+    expect(updates()).toEqual([]);
+  });
+
+  it("o historię pytamy tylko, gdy decyzja zależy od dowodu zapłaty", async () => {
+    const paid: RemoteInvoice = {
+      status: "paid",
+      attempts: 1,
+      paidAt: relativeIso(-2 * DZIEN),
+      amountPaid: 49900,
+    };
+    seed({
+      subscriptions: [subRow(1), subRow(2), subRow(3), subRow(4)],
+      entitlements: [entRow(1), entRow(2), entRow(3), entRow(4)],
+    });
+    // 1: rezygnacja; 2: bez powodu, ostatnia opłacona (brak dowodu braku
+    // płatności); 3: `payment_failed`, ostatnia opłacona (dowód z faktury);
+    // 4: spór o płatność - zapłata niczego nie dowodzi, nawet w historii.
+    h.remote.set(providerId(1), remoteSub(1, { reason: "cancellation_requested" }));
+    h.remote.set(providerId(2), remoteSub(2, { reason: null, invoice: paid }));
+    h.remote.set(providerId(3), remoteSub(3, { invoice: paid }));
+    h.remote.set(providerId(4), remoteSub(4, { reason: "payment_disputed", invoice: paid }));
+    for (const n of [1, 2, 3, 4]) history(n, [renewalPaidLate]);
+
+    const report = await run("dry_run");
+
+    expect(report.rows.map((r) => [r.decision, r.paymentProof])).toEqual([
+      ["voluntary", null],
+      ["no_evidence", null],
+      ["paid", "invoice"],
+      ["clamp", null],
+    ]);
+    expect(h.listCalls).toEqual([]);
   });
 });
 
@@ -850,7 +1418,7 @@ describe("operator i partie", () => {
     expect(empty).toMatchObject({ scanned: 0, nextCursor: null, done: true });
   });
 
-  it("odczyty operatora idą po kolei, z rozwiniętą ostatnią fakturą", async () => {
+  it("odczyty operatora idą po kolei, z rozwiniętą ostatnią fakturą - także historia faktur", async () => {
     seed({
       subscriptions: [subRow(1), subRow(2), subRow(3)],
       entitlements: [entRow(1), entRow(2), entRow(3)],
@@ -861,5 +1429,7 @@ describe("operator i partie", () => {
 
     expect(h.maxInFlight).toBe(1);
     expect(h.retrieveCalls[0]?.params).toEqual({ expand: ["latest_invoice"] });
+    // Każde z trzech odnowień jest nieopłacone - historia dla każdego, po kolei.
+    expect(h.listCalls.map((c) => c.subscription)).toEqual([1, 2, 3].map(providerId));
   });
 });

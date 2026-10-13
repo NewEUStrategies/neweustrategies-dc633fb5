@@ -27,14 +27,31 @@
 //   4. plan Zespół: organizacja, której karencja już minęła, zostaje
 //      zawieszona (reguła `subscriptionGrantsTeamAccess`); trwającą domknie
 //      dobowy `suspendTeamsPastPaymentGrace`, który po zapisaniu kotwicy
-//      rozpoznaje to anulowanie jako koniec windykacji.
+//      rozpoznaje to anulowanie jako koniec windykacji,
+//   5. `last_payment_at` z bieżącego okresu, który historia faktur operatora
+//      właśnie obaliła (brak opłaconej faktury okresu), zostaje wyczyszczony
+//      - patrz TRWAŁOŚĆ.
 //
-// TRWAŁOŚĆ. Zapisana kotwica to jedyny ślad decyzji widoczny dla webhooka:
-// kolejne `customer.subscription.deleted` (przycisk synchronizacji rozliczeń
-// klienta, odtworzenie zdarzenia, remis) przechodzi przez `handleCanceled`,
-// który anulowanie BEZ powodu z kotwicą i bez zapłaty za okres traktuje jak
-// koniec windykacji (`effectiveCancellationReason`) - więc liczy tę samą
-// karencję, zamiast oddać dostęp do końca nieopłaconego okresu.
+// TRWAŁOŚĆ. Zapisana kotwica to ślad decyzji widoczny dla webhooka: kolejne
+// `customer.subscription.deleted` (przycisk synchronizacji rozliczeń klienta,
+// odtworzenie zdarzenia, remis) przechodzi przez `handleCanceled`, który
+// anulowanie BEZ powodu z kotwicą i bez zapłaty za okres traktuje jak koniec
+// windykacji (`effectiveCancellationReason`) - więc liczy tę samą karencję,
+// zamiast oddać dostęp do końca nieopłaconego okresu. Drugi ślad to
+// `last_payment_at`: dawny wiersz niesie w nim chwilę opłaconej dopłaty
+// w okresie (zapis sprzed reguły w `applyPaymentRecoveredEffects`), z którą
+// webhook uznałby okres za opłacony (`paymentCoversPeriod`) i oddał dostęp do
+// końca okresu przy pierwszym kliknięciu synchronizacji. Dlatego decyzja
+// braku płatności na SPRAWDZONEJ historii (`periodInvoicePaid === false`)
+// czyści znacznik z bieżącego okresu - zapisem warunkowym na zaobserwowanej
+// wartości, PRZED kotwicą i przycięciem. Chybienie znaczy, że w trakcie
+// przebiegu zaksięgowano zapłatę za okres: wiersz to `error` bez zapisów.
+// Dla każdego czytelnika `null` znaczy to samo co prawdziwa chwila poprzedniej
+// zapłaty za okres (sprzed początku okresu): `paymentCoversPeriod` - `false`,
+// strażnik spóźnionej porażki przepuszcza porażki z okresu, a `neverPaid`
+// w `handleCanceled` wymaga statusu sprzed aktywacji, którego anulowany
+// wiersz nie ma. Późniejsza prawdziwa zapłata odnowienia zapisze nowy
+// znacznik i przywróci dostęp jak dotąd.
 //
 // CZEGO NIE ROBI - CELOWO:
 //   * rezygnacja klienta (`cancellation_requested`) i anulowanie bez dowodu
@@ -42,19 +59,26 @@
 //   * okres OPŁACONY mimo anulowania za brak płatności zostaje nietknięty:
 //     klient zapłacił zaległą fakturę już po anulowaniu (link z maila
 //     windykacyjnego, zapłata oznaczona poza operatorem). Operator zostawia
-//     wtedy `payment_failed`, ale ostatnia faktura jest `paid`, a webhook
-//     `invoice.paid` zapisał `last_payment_at` (i wyzerował kotwicę). Dowodem
-//     zapłaty jest jedno z dwóch (`periodPaymentProof`). Spór o płatność
-//     (`payment_disputed`) dotyczy faktury opłaconej, więc tam zapłata dowodem
-//     nie jest,
+//     wtedy `payment_failed`, ale faktura okresu jest `paid`. Dowodem zapłaty
+//     (`periodPaymentProof`) jest opłacona ostatnia faktura albo - gdy ostatnia
+//     jest inna (np. wystawiona już po anulowaniu) - opłacona faktura OKRESU
+//     (odnowienie albo pierwsza płatność) w historii operatora od początku
+//     okresu, także dopłata za zmianę interwału, która ten okres otworzyła.
+//     Sam `last_payment_at` dowodem NIE jest: dawne wiersze niosą w nim
+//     chwilę opłaconej dopłaty za zmianę w trakcie okresu (zapis sprzed reguły
+//     w `applyPaymentRecoveredEffects`), która nieudanego odnowienia nie
+//     spłaca, a przy zgubionym `invoice.paid` znacznik jest stary mimo zapłaty.
+//     Spór o płatność (`payment_disputed`) dotyczy faktury opłaconej, więc tam
+//     zapłata dowodem nie jest,
 //   * zwrot jest ostateczny (`syncEntitlementState`): uprawnienie `refunded`
 //     nie jest ani czytane do decyzji, ani zapisywane,
 //   * zadanie WYŁĄCZNIE SKRACA dostęp. Każdy zapis ma strażnika w `WHERE`
 //     (`current_period_end` później niż koniec karencji, organizacja
-//     `active`, pusta kotwica), więc ponowny przebieg niczego nie zmienia,
-//     a wyścig z webhookiem nie cofnie świeższego zapisu. Organizacji
-//     zawieszonej przez stary kod w chwili anulowania NIE wznawiamy, choć
-//     karencja mogłaby jeszcze trwać - uzgodnienie nie nadaje dostępu,
+//     `active`, pusta kotwica, zaobserwowany `last_payment_at`), więc ponowny
+//     przebieg niczego nie zmienia, a wyścig z webhookiem nie cofnie
+//     świeższego zapisu. Organizacji zawieszonej przez stary kod w chwili
+//     anulowania NIE wznawiamy, choć karencja mogłaby jeszcze trwać -
+//     uzgodnienie nie nadaje dostępu,
 //   * bez maili, CRM i dzwonka: skutki anulowania wyszły przy starym
 //     webhooku; ponowne `applyCancellationEffects` zdublowałoby je.
 //
@@ -72,8 +96,12 @@
 // do cudzego obszaru roboczego (kod pilnuje unikalności, baza nie).
 //
 // OPERATOR. Odczyt sekwencyjny (jedno żądanie naraz), tylko dla wierszy, które
-// jeszcze dają dostęp; `resource_missing` (subskrypcja usunięta w
-// piaskownicy) to `stripe_missing`, a nie błąd całej partii.
+// jeszcze dają dostęp. Historię opłaconych faktur okresu (`invoices.list`)
+// czytamy wyłącznie wtedy, gdy decyzja zależy od dowodu zapłaty, a ostatnia
+// faktura go nie daje (`needsPeriodInvoiceCheck`). `resource_missing` przy
+// odczycie subskrypcji (usunięta w piaskownicy) to `stripe_missing`, a nie
+// błąd całej partii; każdy inny błąd - także historii faktur - to `error` bez
+// zapisów: brak odpowiedzi operatora nie jest dowodem braku zapłaty.
 //
 // Moduł server-only (klient service_role + SDK operatora) - importuj
 // wyłącznie z handlerów (`legacyNonPaymentReconcile.functions.ts`).
@@ -81,6 +109,7 @@ import type Stripe from "stripe";
 
 import {
   accessActiveAt,
+  billingReasonPaysPeriod,
   isNonPaymentCancellation,
   paymentCoversPeriod,
   paymentGraceAnchor,
@@ -97,15 +126,16 @@ import {
   type LegacyReconcileRow,
   type LegacyReconcileWrites,
 } from "@/lib/billing/legacyNonPaymentReconcile";
-import { mapStripeSubscription } from "@/lib/billing/stripeEvents.server";
+import { invoiceFullPeriodStart, mapStripeSubscription } from "@/lib/billing/stripeEvents.server";
 import { isPerSeatPrice, subscriptionGrantsTeamAccess } from "@/lib/organizations/teamSeats.server";
 import type { StripeEnv } from "@/lib/stripe.server";
 
 /** Domyślna partia: tyle wierszy `subscriptions` czyta jedno wywołanie. */
 export const LEGACY_RECONCILE_DEFAULT_BATCH = 50;
 /**
- * Górna granica partii. Każdy kandydat to jedno żądanie do operatora,
- * a wywołanie z panelu musi zmieścić się w czasie żądania Workera.
+ * Górna granica partii. Każdy kandydat to jedno żądanie do operatora (drugie
+ * tylko po historię faktur okresu), a wywołanie z panelu musi zmieścić się
+ * w czasie żądania Workera.
  */
 export const LEGACY_RECONCILE_MAX_BATCH = 100;
 
@@ -116,6 +146,28 @@ export const LEGACY_RECONCILE_MAX_BATCH = 100;
  */
 const UNPAID_INVOICE_STATUSES: ReadonlySet<string> = new Set(["open", "uncollectible", "void"]);
 
+/**
+ * Zapas przy dopasowaniu dopłaty otwierającej okres: początek jej pozycji za
+ * cały okres i początek okresu na pozycji subskrypcji pochodzą z tej samej
+ * kotwicy, więc różnica to najwyżej sekundy. Dopłata za resztę okresu (prorata)
+ * powstaje dni po jego początku.
+ */
+const PERIOD_OPENING_TOLERANCE_SECONDS = 120;
+
+/**
+ * Zapas na znacznik `created` faktury odnowienia: operator wystawia ją
+ * w chwili przejścia okresu, ale znacznik nie musi być co do sekundy równy
+ * początkowi okresu na pozycji subskrypcji.
+ */
+const PERIOD_INVOICE_SLACK_SECONDS = 60 * 60;
+
+/**
+ * Górna granica przeglądanych opłaconych faktur okresu (strony po 100).
+ * Po jej przekroczeniu bez dowodu wiersz to `error`, a nie „nieopłacony" -
+ * nieprzejrzana historia nie jest dowodem braku zapłaty.
+ */
+export const PERIOD_INVOICE_SCAN_LIMIT = 300;
+
 /** Wiersz `subscriptions` czytany przez zadanie. */
 export interface LegacySubscriptionRow {
   id: string;
@@ -125,7 +177,11 @@ export interface LegacySubscriptionRow {
   current_period_start: string | null;
   current_period_end: string | null;
   first_payment_failed_at: string | null;
-  /** Ostatnia zaksięgowana zapłata (`invoice.paid` -> windykacja). */
+  /**
+   * Ostatnia zaksięgowana zapłata. Nie jest dowodem zapłaty - zadanie czyta ją
+   * wyłącznie po to, żeby wyczyścić znacznik, który historia operatora obaliła
+   * (`LegacyPlan.staleLastPaymentAt`).
+   */
   last_payment_at: string | null;
 }
 
@@ -151,12 +207,23 @@ export interface LegacyInvoiceFacts {
   attemptedAt: string | null;
   /** `status_transitions.paid_at` - chwila zapłaty (także poza operatorem). */
   paidAt: string | null;
+  /** `amount_paid` - od API Basil obejmuje też zapłatę poza operatorem. */
   amountPaid: number | null;
   amountDue: number | null;
-  /** Zapłata oznaczona ręcznie w panelu operatora (`paid_out_of_band`). */
+  /** `amount_paid_off_stripe` (API dahlia) - zapłata oznaczona poza operatorem. */
+  amountPaidOffStripe: number | null;
+  /**
+   * `paid_out_of_band` - wyłącznie ładunki sprzed API Basil (przypiętej wersji
+   * operator już go nie zwraca; tam zapłatę poza operatorem niesie `amount_paid`).
+   */
   paidOutOfBand: boolean;
   /** Po co faktura: odnowienie, pierwsza płatność albo dopłata za zmianę. */
   billingReason: string | null;
+  /**
+   * Początek okresu, za który faktura pobiera pełną opłatę
+   * (`invoiceFullPeriodStart`); `null` - same proraty albo brak pozycji.
+   */
+  fullPeriodStart: string | null;
 }
 
 /** To, co zadanie musi wiedzieć od operatora. */
@@ -168,6 +235,13 @@ export interface LegacyStripeFacts {
   /** `ended_at` (albo `canceled_at`) - nowa kotwica nigdy nie jest późniejsza. */
   endedAt: string | null;
   invoice: LegacyInvoiceFacts | null;
+  /**
+   * Czy w historii operatora od początku bieżącego okresu jest OPŁACONA
+   * faktura okresu (`invoicePaysPeriod`). `null` = nie sprawdzano: decyzja
+   * dowodu nie potrzebowała (`needsPeriodInvoiceCheck`) albo początek okresu
+   * jest nieznany. Uzupełnia ją przebieg, nie `readLegacyStripeFacts`.
+   */
+  periodInvoicePaid: boolean | null;
 }
 
 type Raw = Record<string, unknown>;
@@ -180,35 +254,44 @@ const isoFromUnix = (value: unknown): string | null =>
 const numberOf = (value: unknown): number | null =>
   typeof value === "number" && Number.isFinite(value) ? value : null;
 
+/** Fakty jednej surowej faktury operatora (ostatniej albo z historii okresu). */
+export function readLegacyInvoiceFacts(invoiceRaw: Raw): LegacyInvoiceFacts {
+  const transitions = isRecord(invoiceRaw.status_transitions)
+    ? invoiceRaw.status_transitions
+    : null;
+  return {
+    status: typeof invoiceRaw.status === "string" ? invoiceRaw.status : null,
+    attemptCount: typeof invoiceRaw.attempt_count === "number" ? invoiceRaw.attempt_count : 0,
+    attemptedAt: isoFromUnix(transitions?.finalized_at) ?? isoFromUnix(invoiceRaw.created),
+    paidAt: isoFromUnix(transitions?.paid_at),
+    amountPaid: numberOf(invoiceRaw.amount_paid),
+    amountDue: numberOf(invoiceRaw.amount_due),
+    amountPaidOffStripe: numberOf(invoiceRaw.amount_paid_off_stripe),
+    paidOutOfBand: invoiceRaw.paid_out_of_band === true,
+    billingReason: typeof invoiceRaw.billing_reason === "string" ? invoiceRaw.billing_reason : null,
+    fullPeriodStart: invoiceFullPeriodStart(invoiceRaw),
+  };
+}
+
 /** Fakty operatora z surowej subskrypcji (z rozwiniętym `latest_invoice`). */
 export function readLegacyStripeFacts(raw: Raw): LegacyStripeFacts {
   // Status, powód i okres - tą samą normalizacją co webhook (API Basil+:
   // okres żyje na pozycji subskrypcji).
   const normalized = mapStripeSubscription(raw);
-  const invoiceRaw = isRecord(raw.latest_invoice) ? raw.latest_invoice : null;
-  const transitions =
-    invoiceRaw && isRecord(invoiceRaw.status_transitions) ? invoiceRaw.status_transitions : null;
-  const invoice: LegacyInvoiceFacts | null = invoiceRaw
-    ? {
-        status: typeof invoiceRaw.status === "string" ? invoiceRaw.status : null,
-        attemptCount: typeof invoiceRaw.attempt_count === "number" ? invoiceRaw.attempt_count : 0,
-        attemptedAt: isoFromUnix(transitions?.finalized_at) ?? isoFromUnix(invoiceRaw.created),
-        paidAt: isoFromUnix(transitions?.paid_at),
-        amountPaid: numberOf(invoiceRaw.amount_paid),
-        amountDue: numberOf(invoiceRaw.amount_due),
-        paidOutOfBand: invoiceRaw.paid_out_of_band === true,
-        billingReason:
-          typeof invoiceRaw.billing_reason === "string" ? invoiceRaw.billing_reason : null,
-      }
-    : null;
   return {
     status: normalized.status,
     cancellationReason: normalized.cancellationReason ?? null,
     periodStart: normalized.currentBillingPeriod?.startsAt ?? null,
     periodEnd: normalized.currentBillingPeriod?.endsAt ?? null,
     endedAt: isoFromUnix(raw.ended_at) ?? isoFromUnix(raw.canceled_at),
-    invoice,
+    invoice: isRecord(raw.latest_invoice) ? readLegacyInvoiceFacts(raw.latest_invoice) : null,
+    periodInvoicePaid: null,
   };
+}
+
+/** Początek bieżącego okresu: od operatora, a bez niego z wiersza bazy. */
+function periodStartOf(sub: LegacySubscriptionRow, stripe: LegacyStripeFacts): string | null {
+  return stripe.periodStart ?? sub.current_period_start;
 }
 
 /** Czy ostatnia faktura dowodzi braku zapłaty po nieudanych próbach. */
@@ -222,32 +305,104 @@ export function invoiceProvesNonPayment(invoice: LegacyInvoiceFacts | null): boo
 }
 
 /**
- * Czy ostatnia faktura DOWODZI zapłaty: `paid` ze znacznikiem zapłaty i realną
- * kwotą (zapłacona kwota, faktura na zero po saldzie/kuponie albo zapłata
- * oznaczona poza operatorem). Opłacona dopłata za zmianę w trakcie okresu
- * (`subscription_update`) nie spłaca nieudanego odnowienia - ta sama reguła
- * co w windykacji (`dunning.server`), więc dowodem nie jest.
+ * Czy faktura jest REALNIE opłacona: `paid` ze znacznikiem zapłaty i realną
+ * kwotą - zapłacona kwota (od API Basil także poza operatorem), kwota
+ * oznaczona poza operatorem (`amount_paid_off_stripe`), faktura na zero po
+ * saldzie/kuponie albo - w ładunkach sprzed Basil - `paid_out_of_band`.
+ */
+function invoiceIsPaid(invoice: LegacyInvoiceFacts): boolean {
+  if (invoice.status !== "paid" || !invoice.paidAt) return false;
+  return (
+    (invoice.amountPaid ?? 0) > 0 ||
+    (invoice.amountPaidOffStripe ?? 0) > 0 ||
+    invoice.amountDue === 0 ||
+    invoice.paidOutOfBand
+  );
+}
+
+/**
+ * Czy ostatnia faktura DOWODZI zapłaty (`invoiceIsPaid`). Opłacona dopłata za
+ * zmianę w trakcie okresu (`subscription_update`) nie spłaca nieudanego
+ * odnowienia - ta sama reguła co w windykacji (`dunning.server`), więc
+ * dowodem nie jest. Dopłatę, która OTWORZYŁA bieżący okres (zmiana
+ * interwału), rozpoznaje historia faktur okresu (`invoicePaysPeriod`).
  */
 export function invoiceProvesPayment(invoice: LegacyInvoiceFacts | null): boolean {
-  if (!invoice || invoice.status !== "paid" || !invoice.paidAt) return false;
-  if (invoice.billingReason === "subscription_update") return false;
-  return invoice.paidOutOfBand || (invoice.amountPaid ?? 0) > 0 || invoice.amountDue === 0;
+  if (!invoice || invoice.billingReason === "subscription_update") return false;
+  return invoiceIsPaid(invoice);
+}
+
+/**
+ * Czy dopłata za zmianę OTWORZYŁA okres zaczynający się w `periodStart`: jej
+ * pozycja za cały okres (bez proraty) zaczyna się z początkiem okresu
+ * (`PERIOD_OPENING_TOLERANCE_SECONDS`). Zwykła dopłata ma same proraty, a te
+ * zaczynają się w chwili zmiany, nie okresu.
+ */
+function opensPeriodAt(invoice: LegacyInvoiceFacts, periodStart: string): boolean {
+  const opened = invoice.fullPeriodStart ? Date.parse(invoice.fullPeriodStart) : Number.NaN;
+  const start = Date.parse(periodStart);
+  if (Number.isNaN(opened) || Number.isNaN(start)) return false;
+  return Math.abs(opened - start) <= PERIOD_OPENING_TOLERANCE_SECONDS * 1000;
+}
+
+/**
+ * Czy faktura z historii opłaca OKRES zaczynający się w `periodStart`:
+ * odnowienie, pierwsza płatność albo dopłata za zmianę interwału, która ten
+ * okres otworzyła (`billingReasonPaysPeriod` - ta sama reguła co windykacja),
+ * realnie opłacona (`invoiceIsPaid`). Zwykła dopłata za resztę okresu
+ * i faktura ręczna - nigdy, nawet opłacone w trakcie okresu.
+ */
+export function invoicePaysPeriod(invoice: LegacyInvoiceFacts, periodStart: string): boolean {
+  return (
+    invoice.billingReason !== null &&
+    billingReasonPaysPeriod(invoice.billingReason, opensPeriodAt(invoice, periodStart)) &&
+    invoiceIsPaid(invoice)
+  );
+}
+
+/**
+ * Rozstrzygnięcie dowodu braku płatności (bez I/O): powód od operatora, gdy
+ * jest - koniec windykacji albo spór to brak płatności, każdy inny powód
+ * (`cancellation_requested`) to decyzja klienta. Dopiero BRAK powodu (stare
+ * anulowania, ręczne zamknięcie w panelu operatora) oddaje głos ostatniej
+ * fakturze.
+ */
+function nonPaymentEvidence(stripe: LegacyStripeFacts): LegacyEvidence | "voluntary" | null {
+  const reason = stripe.cancellationReason;
+  if (isNonPaymentCancellation(reason)) return "reason";
+  if (reason) return "voluntary";
+  return invoiceProvesNonPayment(stripe.invoice) ? "invoice" : null;
+}
+
+/**
+ * Czy decyzja zależy od historii faktur okresu: anulowanie za brak płatności
+ * (z dowodem), poza sporem o płatność, którego ostatnia faktura zapłaty NIE
+ * dowodzi, ze znanym początkiem okresu. Tylko wtedy przebieg pyta operatora
+ * drugi raz - dla pozostałych wierszy wynik i tak niczego by nie zmienił.
+ */
+export function needsPeriodInvoiceCheck(
+  sub: LegacySubscriptionRow,
+  stripe: LegacyStripeFacts,
+): boolean {
+  if (stripe.status !== "canceled") return false;
+  const evidence = nonPaymentEvidence(stripe);
+  if (evidence !== "reason" && evidence !== "invoice") return false;
+  if (stripe.cancellationReason === "payment_disputed") return false;
+  if (invoiceProvesPayment(stripe.invoice)) return false;
+  return periodStartOf(sub, stripe) !== null;
 }
 
 /**
  * Dowód, że bieżący okres został opłacony mimo anulowania za brak płatności:
- * opłacona ostatnia faktura u operatora albo zapłata zaksięgowana w bazie nie
- * wcześniej niż początek okresu (`paymentCoversPeriod` - tą samą regułą
- * webhook rozstrzyga anulowanie bez powodu). Błąd w tę stronę zostawia dostęp
- * jak dotąd, błąd w drugą odebrałby go płacącemu - stąd „którykolwiek".
+ * opłacona ostatnia faktura (`invoice`) albo opłacona faktura okresu w historii
+ * operatora od początku okresu (`ledger`, `periodInvoicePaid`). Sama chwila
+ * zapłaty w bazie (`last_payment_at`) dowodem NIE jest: dopłata za zmianę
+ * w trakcie okresu przesuwała ją, choć odnowienie zostawało nieopłacone.
+ * Historia bez rozstrzygnięcia (`null` - nie sprawdzano) dowodu nie daje.
  */
-export function periodPaymentProof(
-  sub: LegacySubscriptionRow,
-  stripe: LegacyStripeFacts,
-): LegacyPaymentProof | null {
+export function periodPaymentProof(stripe: LegacyStripeFacts): LegacyPaymentProof | null {
   if (invoiceProvesPayment(stripe.invoice)) return "invoice";
-  const periodStart = stripe.periodStart ?? sub.current_period_start;
-  return paymentCoversPeriod(sub.last_payment_at, periodStart) ? "ledger" : null;
+  return stripe.periodInvoicePaid === true ? "ledger" : null;
 }
 
 /** Uprawnienie, które na `now` jeszcze daje dostęp (`null` = bez końca). */
@@ -289,6 +444,13 @@ export interface LegacyPlan {
   evidence: LegacyEvidence | null;
   /** Dowód zapłaty za bieżący okres (decyzja `paid`). */
   paymentProof: LegacyPaymentProof | null;
+  /**
+   * `last_payment_at` z bieżącego okresu, który historia operatora obaliła
+   * (`periodInvoicePaid === false`) - do wyczyszczenia zapisem warunkowym na
+   * tej wartości. `null` = znacznik zostaje (sprzed okresu, pusty albo
+   * historii nie sprawdzano).
+   */
+  staleLastPaymentAt: string | null;
   anchor: string | null;
   /** Kotwicę trzeba dopisać (`first_payment_failed_at` był pusty). */
   writeAnchor: boolean;
@@ -305,6 +467,7 @@ function untouched(decision: LegacyDecision): LegacyPlan {
     decision,
     evidence: null,
     paymentProof: null,
+    staleLastPaymentAt: null,
     anchor: null,
     writeAnchor: false,
     accessUntil: null,
@@ -317,29 +480,25 @@ function untouched(decision: LegacyDecision): LegacyPlan {
 /**
  * Decyzja dla jednej anulowanej subskrypcji - czysta funkcja (zero I/O),
  * ta sama reguła co `handleCanceled` w webhooku, ale wyłącznie skracająca.
+ * Historię faktur okresu dostarcza przebieg (`stripe.periodInvoicePaid`,
+ * gdy `needsPeriodInvoiceCheck`); bez niej dowodem jest tylko ostatnia faktura.
  */
 export function decideLegacyNonPayment(input: LegacyDecisionInput): LegacyPlan {
   const { subscription: sub, stripe, now } = input;
   if (stripe.status !== "canceled") return untouched("stripe_not_canceled");
 
-  // Powód od operatora rozstrzyga, gdy jest: koniec windykacji albo spór to
-  // brak płatności, każdy inny powód (`cancellation_requested`) to decyzja
-  // klienta. Dopiero BRAK powodu (stare anulowania, ręczne zamknięcie
-  // w panelu operatora) oddaje głos ostatniej fakturze.
   const reason = stripe.cancellationReason;
   const invoiceFailed = invoiceProvesNonPayment(stripe.invoice);
-  let evidence: LegacyEvidence;
-  if (isNonPaymentCancellation(reason)) evidence = "reason";
-  else if (reason) return untouched("voluntary");
-  else if (invoiceFailed) evidence = "invoice";
-  else return untouched("no_evidence");
+  const evidence = nonPaymentEvidence(stripe);
+  if (evidence === "voluntary") return untouched("voluntary");
+  if (evidence === null) return untouched("no_evidence");
 
   // Okres opłacony po anulowaniu (zaległa faktura zapłacona z linku albo poza
   // operatorem): powód zostaje `payment_failed`, ale klient zapłacił za cały
   // okres - bez kotwicy, przycięcia i zawieszenia zespołu. Spór o płatność
   // dotyczy faktury opłaconej, więc tam zapłata niczego nie dowodzi.
   if (reason !== "payment_disputed") {
-    const paymentProof = periodPaymentProof(sub, stripe);
+    const paymentProof = periodPaymentProof(stripe);
     if (paymentProof) return { ...untouched("paid"), evidence, paymentProof };
   }
 
@@ -348,9 +507,10 @@ export function decideLegacyNonPayment(input: LegacyDecisionInput): LegacyPlan {
   // faktury, inaczej początek okresu - i nigdy później niż koniec subskrypcji
   // (windykacja kończy się anulowaniem, więc porażka była wcześniej).
   const stored = sub.first_payment_failed_at;
+  const periodStart = periodStartOf(sub, stripe);
   let anchor = paymentGraceAnchor({
     firstPaymentFailedAt: stored ?? (invoiceFailed ? (stripe.invoice?.attemptedAt ?? null) : null),
-    periodStart: stripe.periodStart ?? sub.current_period_start,
+    periodStart,
     now,
   });
   if (!stored && stripe.endedAt && Date.parse(anchor) > Date.parse(stripe.endedAt)) {
@@ -368,6 +528,15 @@ export function decideLegacyNonPayment(input: LegacyDecisionInput): LegacyPlan {
       grantsAccess(row, now) &&
       (row.current_period_end === null || Date.parse(row.current_period_end) > accessUntilMs),
   );
+
+  // Znacznik zapłaty z bieżącego okresu, choć historia operatora nie ma
+  // opłaconej faktury okresu: to dopłata zapisana przez dawną windykację.
+  // Webhook (`effectiveCancellationReason`) uznałby z nim okres za opłacony
+  // i przy kolejnym `deleted` bez powodu cofnął to przycięcie.
+  const staleLastPaymentAt =
+    stripe.periodInvoicePaid === false && paymentCoversPeriod(sub.last_payment_at, periodStart)
+      ? sub.last_payment_at
+      : null;
 
   // Zespół: ta sama reguła co webhook i dobowy przebieg. Bez powodu od
   // operatora dowodem jest faktura - dla reguły to `payment_failed`.
@@ -388,6 +557,7 @@ export function decideLegacyNonPayment(input: LegacyDecisionInput): LegacyPlan {
     decision,
     evidence,
     paymentProof: null,
+    staleLastPaymentAt,
     anchor,
     writeAnchor: !stored,
     accessUntil,
@@ -399,7 +569,12 @@ export function decideLegacyNonPayment(input: LegacyDecisionInput): LegacyPlan {
 
 /** Czy plan niesie jakikolwiek zapis. */
 function plansWrites(plan: LegacyPlan): boolean {
-  return (plan.writeAnchor && plan.anchor !== null) || plan.clamp.length > 0 || plan.suspendTeam;
+  return (
+    (plan.writeAnchor && plan.anchor !== null) ||
+    plan.staleLastPaymentAt !== null ||
+    plan.clamp.length > 0 ||
+    plan.suspendTeam
+  );
 }
 
 function isResourceMissing(error: unknown): boolean {
@@ -419,16 +594,72 @@ async function admin() {
 
 type AdminClient = Awaited<ReturnType<typeof admin>>;
 
-/** Subskrypcja u operatora; `null` = operator jej nie zna (`resource_missing`). */
-async function fetchStripeFacts(stripe: Stripe, id: string): Promise<LegacyStripeFacts | null> {
+/**
+ * Czy historia operatora ma OPŁACONĄ fakturę okresu (`invoicePaysPeriod`)
+ * wystawioną nie wcześniej niż początek okresu (z zapasem
+ * `PERIOD_INVOICE_SLACK_SECONDS`). Pyta wyłącznie o faktury `paid` tej
+ * subskrypcji; strony przechodzi automatycznie, najwyżej
+ * `PERIOD_INVOICE_SCAN_LIMIT` faktur - po przekroczeniu bez dowodu rzuca,
+ * bo nieprzejrzana historia nie dowodzi braku zapłaty. Błąd operatora też
+ * rzuca: wiersz to wtedy `error` bez zapisów, a nie przycięcie.
+ */
+async function hasPaidPeriodInvoice(
+  stripe: Stripe,
+  subscriptionId: string,
+  periodStart: string,
+): Promise<boolean> {
+  const startMs = Date.parse(periodStart);
+  if (Number.isNaN(startMs)) return false;
+  const gte = Math.floor(startMs / 1000) - PERIOD_INVOICE_SLACK_SECONDS;
+  let scanned = 0;
+  for await (const invoice of stripe.invoices.list({
+    subscription: subscriptionId,
+    status: "paid",
+    created: { gte },
+    limit: 100,
+  })) {
+    if (scanned >= PERIOD_INVOICE_SCAN_LIMIT) {
+      throw new Error(
+        `period invoice history exceeds ${PERIOD_INVOICE_SCAN_LIMIT} paid invoices without a period payment`,
+      );
+    }
+    scanned += 1;
+    if (invoicePaysPeriod(readLegacyInvoiceFacts(invoice as unknown as Raw), periodStart)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Subskrypcja u operatora; `null` = operator jej nie zna (`resource_missing`).
+ * Gdy decyzja potrzebuje dowodu zapłaty, którego ostatnia faktura nie daje
+ * (`needsPeriodInvoiceCheck`), dochodzi historia faktur okresu
+ * (`periodInvoicePaid`) - kolejne żądanie, nadal jedno naraz.
+ */
+async function fetchStripeFacts(
+  stripe: Stripe,
+  sub: LegacySubscriptionRow,
+): Promise<LegacyStripeFacts | null> {
   let raw: unknown;
   try {
-    raw = await stripe.subscriptions.retrieve(id, { expand: ["latest_invoice"] });
+    raw = await stripe.subscriptions.retrieve(sub.provider_subscription_id, {
+      expand: ["latest_invoice"],
+    });
   } catch (error) {
     if (isResourceMissing(error)) return null;
     throw error;
   }
-  return readLegacyStripeFacts(raw as Raw);
+  const facts = readLegacyStripeFacts(raw as Raw);
+  const periodStart = periodStartOf(sub, facts);
+  if (periodStart && needsPeriodInvoiceCheck(sub, facts)) {
+    facts.periodInvoicePaid = await hasPaidPeriodInvoice(
+      stripe,
+      sub.provider_subscription_id,
+      periodStart,
+    );
+  }
+  return facts;
 }
 
 /**
@@ -442,9 +673,38 @@ async function applyLegacyPlan(
   plan: LegacyPlan,
   now: Date,
 ): Promise<LegacyReconcileWrites> {
-  const writes: LegacyReconcileWrites = { anchors: 0, entitlements: 0, teams: 0 };
+  const writes: LegacyReconcileWrites = {
+    anchors: 0,
+    paymentMarkers: 0,
+    entitlements: 0,
+    teams: 0,
+  };
 
-  // 1. Kotwica - najpierw, bo z niej liczy karencję dobowy przebieg
+  // 1. Znacznik zapłaty obalony historią operatora - przed wszystkim innym,
+  //    bo to on (obok kotwicy) każe webhookowi liczyć tę samą karencję.
+  //    Zapis warunkowy na zaobserwowanej wartości. Chybienie znaczy, że
+  //    w międzyczasie zaksięgowano zapłatę za okres (windykacja zapisuje
+  //    znacznik wyłącznie wtedy): decyzja stoi na nieaktualnych danych, więc
+  //    wiersz kończy się błędem bez żadnego zapisu, a kolejny przebieg
+  //    rozstrzygnie go od nowa.
+  if (plan.staleLastPaymentAt) {
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .update({ last_payment_at: null })
+      .eq("id", sub.id)
+      .eq("tenant_id", sub.tenant_id)
+      .eq("environment", environment)
+      .eq("status", "canceled")
+      .eq("last_payment_at", plan.staleLastPaymentAt)
+      .select("id");
+    if (error) throw new Error(`payment marker clear failed: ${error.message}`);
+    if ((data ?? []).length === 0) {
+      throw new Error("payment marker changed during reconcile - run again");
+    }
+    writes.paymentMarkers += (data ?? []).length;
+  }
+
+  // 2. Kotwica - przed przycięciem, bo z niej liczy karencję dobowy przebieg
   //    zespołów, a kolejny przebieg tego zadania - koniec dostępu.
   if (plan.writeAnchor && plan.anchor) {
     const { data, error } = await supabase
@@ -460,7 +720,7 @@ async function applyLegacyPlan(
     writes.anchors += (data ?? []).length;
   }
 
-  // 2. Uprawnienia - wyłącznie skrócenie aktywnego dostępu w najemcy
+  // 3. Uprawnienia - wyłącznie skrócenie aktywnego dostępu w najemcy
   //    subskrypcji. `canceled_at` jak w `syncEntitlementState` (stan końcowy):
   //    zapisana data zostaje, brak - „teraz".
   if (plan.accessUntil && plan.entitlementStatus) {
@@ -486,7 +746,7 @@ async function applyLegacyPlan(
     }
   }
 
-  // 3. Zespół po karencji - tylko z `active` na `suspended`, w najemcy
+  // 4. Zespół po karencji - tylko z `active` na `suspended`, w najemcy
   //    subskrypcji. `applySubscriptionOrgState` umie też WZNOWIĆ organizację
   //    i nie filtruje najemcy, więc tu zapis jest węższy niż w webhooku.
   if (plan.suspendTeam) {
@@ -567,7 +827,7 @@ export async function reconcileLegacyNonPaymentCancellations(
     scanned: subs.length,
     candidates: 0,
     counts: emptyLegacyCounts(),
-    writes: { anchors: 0, entitlements: 0, teams: 0 },
+    writes: { anchors: 0, paymentMarkers: 0, entitlements: 0, teams: 0 },
     rows: [],
     nextCursor: subs.length === batchSize ? (subs[subs.length - 1]?.id ?? null) : null,
     done: subs.length < batchSize,
@@ -647,7 +907,7 @@ export async function reconcileLegacyNonPaymentCancellations(
         const { getStripeClient } = await import("@/lib/stripe.server");
         stripe = await getStripeClient(environment);
       }
-      facts = await fetchStripeFacts(stripe, sub.provider_subscription_id);
+      facts = await fetchStripeFacts(stripe, sub);
     } catch (error) {
       const { getStripeErrorMessage } = await import("@/lib/stripe.server");
       push({ ...row, decision: "error", error: getStripeErrorMessage(error) });
@@ -681,9 +941,11 @@ export async function reconcileLegacyNonPaymentCancellations(
       try {
         const writes = await applyLegacyPlan(supabase, environment, sub, plan, now);
         report.writes.anchors += writes.anchors;
+        report.writes.paymentMarkers += writes.paymentMarkers;
         report.writes.entitlements += writes.entitlements;
         report.writes.teams += writes.teams;
-        decided.applied = writes.anchors + writes.entitlements + writes.teams > 0;
+        decided.applied =
+          writes.anchors + writes.paymentMarkers + writes.entitlements + writes.teams > 0;
       } catch (error) {
         push({ ...decided, decision: "error", error: messageOf(error) });
         continue;

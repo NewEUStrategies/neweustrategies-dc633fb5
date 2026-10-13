@@ -19,7 +19,7 @@ const pl = {
     summary:
       "Sprawdzono {{scanned}} anulowanych subskrypcji, z dostępem do uzgodnienia: {{candidates}}.",
     writes:
-      "Zapisano: kotwice karencji {{anchors}}, uprawnienia {{entitlements}}, zespoły {{teams}}.",
+      "Zapisano: kotwice karencji {{anchors}}, wyczyszczone znaczniki zapłaty z dopłat {{paymentMarkers}}, uprawnienia {{entitlements}}, zespoły {{teams}}.",
     simulated: "Symulacja - niczego nie zapisano.",
     unfinished: "Przebieg zatrzymał się przed końcem listy - kontynuuj, aby przejść resztę.",
     empty: "Brak anulowanych subskrypcji z dostępem do uzgodnienia.",
@@ -38,7 +38,7 @@ const pl = {
     noEnd: "bez końca",
     paymentProof: {
       invoice: "faktura opłacona",
-      ledger: "zapłata zaksięgowana w okresie",
+      ledger: "opłacona faktura okresu u operatora",
     },
     decisions: {
       clamp: "Przycięte do końca karencji",
@@ -68,7 +68,8 @@ const en = {
       "This covers subscriptions of every organisation in this environment. It only ever shortens access and can be repeated safely. Customers are not notified.",
     summary:
       "Checked {{scanned}} canceled subscriptions, with access to reconcile: {{candidates}}.",
-    writes: "Written: grace anchors {{anchors}}, entitlements {{entitlements}}, teams {{teams}}.",
+    writes:
+      "Written: grace anchors {{anchors}}, cleared proration payment markers {{paymentMarkers}}, entitlements {{entitlements}}, teams {{teams}}.",
     simulated: "Simulation - nothing was written.",
     unfinished: "The run stopped before the end of the list - continue to process the rest.",
     empty: "No canceled subscriptions with access to reconcile.",
@@ -88,7 +89,7 @@ const en = {
     noEnd: "no end",
     paymentProof: {
       invoice: "invoice paid",
-      ledger: "payment recorded in the period",
+      ledger: "paid period invoice at the provider",
     },
     decisions: {
       clamp: "Clamped to the end of the grace period",

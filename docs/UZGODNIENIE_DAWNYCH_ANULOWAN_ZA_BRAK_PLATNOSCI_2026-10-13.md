@@ -31,13 +31,15 @@ uprawnienie (`user_subscriptions` po `external_ref`, **w najemcy tej
 subskrypcji**) nadal daje dostęp - albo którego organizacja planu Zespół jest
 aktywna - pobiera subskrypcję od operatora (`subscriptions.retrieve` z
 `expand: ["latest_invoice"]`, klient właściwego środowiska, jedno żądanie
-naraz) i decyduje:
+naraz), a gdy decyzja zależy od dowodu zapłaty, którego ostatnia faktura nie
+daje - także historię opłaconych faktur bieżącego okresu (`invoices.list`,
+patrz niżej) - i decyduje:
 
 | Decyzja               | Kiedy                                                                                                                                                                     | Skutek                                                                        |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `clamp`               | powód `payment_failed` / `payment_disputed` albo - bez powodu - ostatnia faktura `open` / `uncollectible` / `void` po co najmniej jednej próbie obciążenia; karencja trwa | uprawnienie `active` do końca karencji                                        |
 | `revoke`              | jak wyżej, karencja już minęła                                                                                                                                            | uprawnienie `canceled`, data = koniec karencji; organizacja Zespół zawieszona |
-| `already_clamped`     | uprawnienie już nie sięga dalej niż koniec karencji                                                                                                                       | najwyżej dopisanie kotwicy                                                    |
+| `already_clamped`     | uprawnienie już nie sięga dalej niż koniec karencji                                                                                                                       | najwyżej dopisanie kotwicy albo wyczyszczenie znacznika zapłaty z dopłaty     |
 | `voluntary`           | powód `cancellation_requested` (i każdy inny niż brak płatności)                                                                                                          | bez zmian                                                                     |
 | `paid`                | dowód braku płatności jest, ale bieżący okres został opłacony - zaległa faktura zapłacona po anulowaniu (patrz niżej); nie dotyczy `payment_disputed`                     | bez zmian (bez kotwicy, przycięcia i zawieszenia zespołu)                     |
 | `no_evidence`         | brak powodu, faktura opłacona albo bez próby obciążenia                                                                                                                   | bez zmian                                                                     |
@@ -50,17 +52,45 @@ naraz) i decyduje:
 `payment_failed` także wtedy, gdy klient zapłacił zaległą fakturę już po
 anulowaniu (link z maila windykacyjnego, zapłata oznaczona poza operatorem).
 Taki klient zapłacił za cały okres i dostępu nie traci. Dowodem zapłaty jest
-którekolwiek z dwóch:
+którekolwiek z dwóch (`periodPaymentProof`):
 
 - ostatnia faktura `paid` ze znacznikiem `status_transitions.paid_at` i realną
-  kwotą (`amount_paid > 0`, `amount_due = 0` albo `paid_out_of_band`), o ile nie
-  jest to dopłata za zmianę w trakcie okresu (`billing_reason`
-  `subscription_update` - ta nie spłaca odnowienia, jak w windykacji),
-- `subscriptions.last_payment_at` (zapis `invoice.paid`) nie wcześniejszy niż
-  początek bieżącego okresu (`paymentCoversPeriod` w `accessPeriod.ts`).
+  kwotą (`amount_paid > 0` - od API Basil obejmuje też zapłatę poza operatorem,
+  `amount_paid_off_stripe > 0`, `amount_due = 0`; `paid_out_of_band` czytamy
+  już tylko z ładunków sprzed Basil, przypięta wersja dahlia go nie zwraca),
+  o ile nie jest to dopłata za zmianę w trakcie okresu (`billing_reason`
+  `subscription_update` - ta nie spłaca odnowienia, jak w windykacji) - w
+  raporcie `invoice`,
+- opłacona faktura OKRESU w historii operatora: `invoices.list` z
+  `subscription`, `status: "paid"` i `created >= początek okresu - 1 h` (zapas na
+  znacznik faktury odnowienia), strony automatycznie, najwyżej 300 faktur.
+  Liczy się `billing_reason` `subscription_cycle` albo `subscription_create`,
+  a `subscription_update` wyłącznie wtedy, gdy ta dopłata OTWORZYŁA bieżący
+  okres: zmiana interwału (samoobsługowy upgrade z miesięcznego na roczny idzie
+  przez `always_invoice`, operator resetuje okres i obciąża za cały nowy) ma
+  pozycję subskrypcji bez proraty, która zaczyna się z początkiem okresu
+  (± 120 s). Zwykła dopłata za resztę okresu (same proraty od chwili zmiany)
+  i faktura ręczna (`manual`) - nigdy. Warunki zapłaty jak wyżej; reguła
+  powodu jest wspólna z windykacją (`billingReasonPaysPeriod` w
+  `accessPeriod.ts`). W raporcie `ledger` (etykieta „opłacona faktura okresu
+  u operatora"). Historię czytamy tylko dla wierszy, które bez dowodu zostałyby
+  przycięte (dowód braku płatności, nie spór, ostatnia faktura bez dowodu
+  zapłaty, znany początek okresu).
 
-Spór o płatność (`payment_disputed`) dotyczy faktury opłaconej, więc tam zapłata
-niczego nie dowodzi i obowiązuje karencja.
+`subscriptions.last_payment_at` dowodem NIE jest. Dawna windykacja przesuwała
+go przy KAŻDEJ zapłacie, także opłaconej dopłacie za upgrade w trakcie okresu,
+gdy porażka odnowienia nie dotarła (brak licznika) - więc wiersz z nieopłaconym
+odnowieniem wyglądał na opłacony i zostawał z rokiem dostępu. Odwrotnie: przy
+zgubionym `invoice.paid` znacznik jest stary, choć klient zapłacił. Od tej
+zmiany `applyPaymentRecoveredEffects` przesuwa `last_payment_at` wyłącznie przy
+zapłacie za okres (ta sama lista co wyżej; bez `billing_reason` - sesja
+checkout, stary dziennik - jak dotąd). Dawne wiersze, które zadanie przycina,
+porządkuje ono samo (patrz „Trwałość decyzji").
+
+Błąd operatora przy historii faktur (albo historia ponad limit bez faktury
+okresu) to wiersz `error` bez zapisów - brak odpowiedzi nie jest dowodem braku
+zapłaty. Spór o płatność (`payment_disputed`) dotyczy faktury opłaconej, więc
+tam zapłata niczego nie dowodzi i obowiązuje karencja.
 
 **Kotwica karencji** (ta sama kolejność co w webhooku `handleCanceled`):
 zapisana `first_payment_failed_at` → chwila pierwszej próby obciążenia
@@ -91,7 +121,20 @@ jedną regułą (`cancellationAccess`), która dla anulowania **bez powodu**
 z zapisaną kotwicą i bez zapłaty za bieżący okres przyjmuje `payment_failed`
 (`effectiveCancellationReason`), czyli liczy tę samą karencję co zadanie,
 zamiast oddać dostęp do końca nieopłaconego okresu. Zapłata za okres
-(`paymentCoversPeriod`) to wnioskowanie znosi - tak samo jak decyzja `paid`.
+(`paymentCoversPeriod`, czyli `last_payment_at` nie wcześniejszy niż początek
+okresu) to wnioskowanie znosi - dlatego dawny znacznik z dopłaty w okresie
+cofnąłby przycięcie przy pierwszym kliknięciu synchronizacji. Zadanie przy
+decyzji braku płatności na sprawdzonej historii (brak opłaconej faktury
+okresu) czyści `last_payment_at` z bieżącego okresu: zapis warunkowy na
+zaobserwowanej wartości (`eq("last_payment_at", odczytana)`), PRZED kotwicą
+i przycięciem. Chybienie znaczy, że w trakcie przebiegu zaksięgowano zapłatę
+za okres - wiersz kończy się `error` bez zapisów i rozstrzyga go kolejny
+przebieg. Dla czytelników znacznika `null` działa jak prawdziwa chwila
+poprzedniej zapłaty za okres (sprzed jego początku): `paymentCoversPeriod` -
+`false`, strażnik spóźnionej porażki przepuszcza porażki z okresu, `neverPaid`
+w `handleCanceled` wymaga statusu sprzed aktywacji. Prawdziwa zapłata
+odnowienia po anulowaniu zapisze nowy znacznik i kolejna synchronizacja odda
+dostęp do końca okresu, jak dotąd.
 
 ## Czego nie robi
 
@@ -116,7 +159,7 @@ zamiast oddać dostęp do końca nieopłaconego okresu. Zapłata za okres
    zapisuje. Przejrzyj liczniki i tabelę decyzji, szczególnie `clamp` /
    `revoke` (daty „Dostęp przed" → „Dostęp po") oraz `error`.
 4. **Zastosuj** → potwierdzenie → przebieg `apply`. Karta pokazuje zapisy:
-   kotwice, uprawnienia, zespoły.
+   kotwice, wyczyszczone znaczniki zapłaty z dopłat, uprawnienia, zespoły.
 5. Jeden przebieg przechodzi do 40 partii (2000 wierszy `subscriptions`). Gdy
    lista jest dłuższa albo przebieg przerwał błąd, przycisk **Kontynuuj** rusza
    od kursora z ostatniej partii, w tym samym trybie.
@@ -171,6 +214,16 @@ jak w bieżącym webhooku - i może się w tym zapytaniu pojawić.
   `deleted` z powodem `payment_failed` nadal liczy karencję (reguła z PR #495).
   Zadanie takich wierszy nie rusza (`paid`), ale ich nie naprawia - to osobna
   zmiana ścieżki webhooka.
+- **Wyczyszczony `last_payment_at`.** Zadanie zeruje znacznik zapłaty tylko
+  w wierszach, które samo przycina (albo już przycięte) na sprawdzonej
+  historii bez opłaconej faktury okresu, i tylko gdy znacznik leży w bieżącym
+  okresie. Prawdziwej chwili poprzedniej zapłaty za okres nie odtwarza (wymagałoby
+  to kolejnego zapytania o historię sprzed okresu) - `null` daje tym samym
+  czytelnikom ten sam wynik. Po zastosowaniu takich wierszy jest tyle, ile
+  „wyczyszczonych znaczników" w podsumowaniu karty.
+- **Dwa żądania na kandydata.** Wiersze, które bez dowodu zostałyby przycięte,
+  pytają operatora drugi raz (historia faktur) - partia 100 to do ~200 żądań
+  sekwencyjnie. Przy przekroczeniu czasu żądania zmniejsz partię.
 - **Dokładność kotwicy.** Pierwsza próba obciążenia to finalizacja faktury
   (pobór automatyczny). Faktura zapłacona ręcznie albo przelewem nie ma prób,
   więc nie jest dowodem - wtedy rozstrzyga wyłącznie powód operatora.

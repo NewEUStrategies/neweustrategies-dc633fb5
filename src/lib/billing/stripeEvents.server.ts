@@ -327,6 +327,35 @@ function mapTransactionFromCheckoutSession(
   };
 }
 
+/**
+ * Początek okresu, za który faktura pobiera PEŁNĄ opłatę: pierwsza pozycja
+ * subskrypcji, która nie jest proratą (API Basil+:
+ * `parent.subscription_item_details.proration`, starsze ładunki: `type:
+ * "subscription"` i `proration`). Dopłata za zmianę w trakcie okresu (upgrade
+ * planu, więcej miejsc) ma same pozycje proraty („Unused time" / „Remaining
+ * time"), a zmiana interwału (miesięczny -> roczny) resetuje okres i obciąża
+ * za cały nowy - jej pozycja zaczyna się z początkiem nowego okresu. `null` =
+ * faktura nie ma takiej pozycji (albo ładunek nie niesie pozycji).
+ */
+export function invoiceFullPeriodStart(invoice: Raw): string | null {
+  const lines =
+    isRecord(invoice.lines) && Array.isArray(invoice.lines.data) ? invoice.lines.data : [];
+  for (const line of lines) {
+    if (!isRecord(line)) continue;
+    const parent = isRecord(line.parent) ? line.parent : null;
+    const itemDetails = isRecord(parent?.subscription_item_details)
+      ? parent?.subscription_item_details
+      : null;
+    const fullPeriod = itemDetails
+      ? itemDetails.proration === false
+      : line.type === "subscription" && line.proration === false;
+    if (!fullPeriod) continue;
+    const start = isoFromUnix(isRecord(line.period) ? line.period.start : null);
+    if (start) return start;
+  }
+  return null;
+}
+
 /** Mapuje `invoice.*` na `TransactionData` - dokłada pola potrzebne do dokumentu rozliczeniowego. */
 function mapTransactionFromInvoice(
   invoice: Raw,
@@ -399,6 +428,10 @@ function mapTransactionFromInvoice(
     // jej odrzucenie zostawia subskrypcję `active` i NIE jest zaległością
     // odnowienia, więc windykacja musi ją odróżnić od `subscription_cycle`.
     billingReason: strOf(invoice.billing_reason),
+    // Czy faktura obciąża za CAŁY okres (pozycja subskrypcji bez proraty) -
+    // dopłata za zmianę interwału otwiera nim nowy, opłacony okres, a zwykła
+    // dopłata (same proraty) nie.
+    chargesFullPeriod: invoiceFullPeriodStart(invoice) !== null,
     // Pola dokumentu rozliczeniowego - odczytywane przez `billingDocuments.server`.
     // Stan to `invoice.status` operatora (draft/open/paid/void/uncollectible),
     // tłumaczony na stan rejestru w `billingDocumentStatus`. Wcześniej stało tu

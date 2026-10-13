@@ -101,6 +101,8 @@ interface SubRow {
   current_period_end: string | null;
   payment_failure_count: number;
   last_dunning_transaction_id: string | null;
+  first_payment_failed_at?: string | null;
+  last_payment_failed_at?: string | null;
   last_payment_at?: string | null;
 }
 
@@ -774,5 +776,170 @@ describe("SUB-16 + PAY-13 + 6.2 - windykacja per próba po scaleniu", () => {
     });
     expect(mails().filter((mail) => mail.type === "payment_failed")).toHaveLength(3);
     expect(h.invoiceLookups).toHaveLength(0);
+  });
+});
+
+describe("applyPaymentRecoveredEffects - `last_payment_at` tylko za okres", () => {
+  const POPRZEDNI_OKRES = relativeIso(-35 * DZIEN);
+
+  /** Wiersz żyje jak w bazie; zajęcie cyklu (`update ... select`) tylko przy liczniku > 0. */
+  function liveRow() {
+    db.setResponse("subscriptions", (chain) => {
+      if (chain.has("update")) {
+        const patch = chain.argsOf("update")?.[0] as Partial<SubRow>;
+        if (chain.has("select")) {
+          if (row().payment_failure_count === 0) return ok([]);
+          Object.assign(row(), patch);
+          return ok([{ id: "sub-row-1" }]);
+        }
+        Object.assign(row(), patch);
+        return ok(null);
+      }
+      return ok({ ...row() });
+    });
+  }
+
+  it("opłacona dopłata za zmianę bez otwartej windykacji niczego nie zapisuje", async () => {
+    row().last_payment_at = POPRZEDNI_OKRES;
+
+    await applyPaymentRecoveredEffects(
+      context({ transactionId: "in_doplata", billingReason: "subscription_update" }),
+    );
+
+    expect(db.chainsFor("subscriptions").filter((c) => c.has("update"))).toHaveLength(0);
+    expect(mails()).toHaveLength(0);
+  });
+
+  it("opłacone odnowienie nadal przesuwa `last_payment_at`", async () => {
+    row().last_payment_at = POPRZEDNI_OKRES;
+    const ctx = context({ transactionId: "in_odnowienie", billingReason: "subscription_cycle" });
+
+    await applyPaymentRecoveredEffects(ctx);
+
+    // Klucza deduplikacji nie zerujemy (PAY-13) - patch niesie sam znacznik zapłaty.
+    expect(subscriptionUpdate().patch).toEqual({
+      payment_failure_count: 0,
+      last_payment_failed_at: null,
+      last_payment_at: ctx.occurredAt,
+      updated_at: FIXED_NOW_ISO,
+    });
+  });
+
+  it("dopłata za zmianę interwału, która otworzyła NOWY okres, przesuwa `last_payment_at` jak odnowienie", async () => {
+    // Upgrade z miesięcznego na roczny resetuje okres - faktura
+    // `subscription_update` z pozycją za cały nowy rok opłaca ten okres.
+    row().last_payment_at = POPRZEDNI_OKRES;
+    const ctx = context({
+      transactionId: "in_interwal",
+      billingReason: "subscription_update",
+      chargesFullPeriod: true,
+    });
+
+    await applyPaymentRecoveredEffects(ctx);
+
+    expect(subscriptionUpdate().patch).toMatchObject({ last_payment_at: ctx.occurredAt });
+  });
+
+  it("opłacona faktura ręczna (poza okresem) nie przesuwa `last_payment_at`", async () => {
+    row().last_payment_at = POPRZEDNI_OKRES;
+
+    await applyPaymentRecoveredEffects(
+      context({ transactionId: "in_reczna", billingReason: "manual" }),
+    );
+
+    expect(db.chainsFor("subscriptions").filter((c) => c.has("update"))).toHaveLength(0);
+    expect(mails()).toHaveLength(0);
+  });
+
+  it("faktura ręczna nie zamyka cyklu otwartego przez odnowienie", async () => {
+    liveRow();
+    Object.assign(row(), {
+      status: "past_due",
+      payment_failure_count: 2,
+      last_dunning_transaction_id: "in_odnowienie:2",
+      first_payment_failed_at: relativeIso(-6 * DZIEN),
+      last_payment_failed_at: relativeIso(-3 * DZIEN),
+      last_payment_at: POPRZEDNI_OKRES,
+    });
+
+    await applyPaymentRecoveredEffects(
+      context({ transactionId: "in_reczna", billingReason: "manual" }),
+    );
+
+    expect(row()).toMatchObject({
+      payment_failure_count: 2,
+      first_payment_failed_at: relativeIso(-6 * DZIEN),
+      last_payment_at: POPRZEDNI_OKRES,
+    });
+    expect(mails()).toHaveLength(0);
+  });
+
+  it("porażka odnowienia dostarczona PO opłaconej dopłacie otwiera windykację", async () => {
+    // Odnowienie padło 3 dni temu, ale zdarzenie dotarło dopiero po zapłacie
+    // dopłaty za upgrade (wczoraj). Znacznik z dopłaty kazał strażnikowi
+    // uznać porażkę za „sprzed zapłaty" - bez licznika, kotwicy i maila.
+    liveRow();
+    row().last_payment_at = POPRZEDNI_OKRES;
+    const failedAt = relativeIso(-3 * DZIEN);
+
+    await applyPaymentRecoveredEffects(
+      context({
+        transactionId: "in_doplata",
+        billingReason: "subscription_update",
+        occurredAt: relativeIso(-1 * DZIEN),
+      }),
+    );
+    await applyPaymentFailedEffects(
+      context({
+        transactionId: "in_odnowienie",
+        attemptCount: 1,
+        billingReason: "subscription_cycle",
+        occurredAt: failedAt,
+      }),
+    );
+
+    expect(row()).toMatchObject({
+      payment_failure_count: 1,
+      first_payment_failed_at: failedAt,
+      last_dunning_transaction_id: "in_odnowienie:1",
+      last_payment_at: POPRZEDNI_OKRES,
+    });
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+
+  it("dopłata zamykająca WŁASNY cykl nie przesuwa `last_payment_at`, a spóźniona porażka tej faktury nie wraca", async () => {
+    // Subskrypcja zaległa, cykl otworzyła porażka dopłaty (`in_doplata:1`).
+    // Klucz zostaje po zamknięciu - tylko on (bez przesuniętego znacznika
+    // zapłaty) odrzuca ponowioną dostawę tamtej porażki.
+    liveRow();
+    Object.assign(row(), {
+      status: "past_due",
+      payment_failure_count: 1,
+      last_dunning_transaction_id: "in_doplata:1",
+      first_payment_failed_at: relativeIso(-2 * DZIEN),
+      last_payment_failed_at: relativeIso(-2 * DZIEN),
+      last_payment_at: POPRZEDNI_OKRES,
+    });
+    const doplata = { transactionId: "in_doplata", billingReason: "subscription_update" };
+
+    await applyPaymentRecoveredEffects(
+      context({ ...doplata, occurredAt: relativeIso(-1 * DZIEN) }),
+    );
+
+    expect(row()).toMatchObject({
+      payment_failure_count: 0,
+      first_payment_failed_at: null,
+      last_payment_failed_at: null,
+      last_payment_at: POPRZEDNI_OKRES,
+      last_dunning_transaction_id: "in_doplata:1",
+    });
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_recovered"]);
+
+    await applyPaymentFailedEffects(
+      context({ ...doplata, attemptCount: 1, occurredAt: relativeIso(-2 * DZIEN) }),
+    );
+
+    expect(row()).toMatchObject({ payment_failure_count: 0, first_payment_failed_at: null });
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_recovered"]);
   });
 });

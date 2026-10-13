@@ -6,6 +6,7 @@
 // Moduł jest czysty (importuje wyłącznie typy) - nie ma czego mockować.
 import { describe, expect, it, vi } from "vitest";
 import {
+  invoiceFullPeriodStart,
   isStripeDisputeStatus,
   mapStripeSubscription,
   normalizeStripeEvent,
@@ -1291,5 +1292,42 @@ describe("normalizeStripeEvent - powód wystawienia faktury", () => {
       transactionOf(event("invoice.payment_failed", { id: "in_1", billing_reason: 7 }))
         .billingReason,
     ).toBeNull();
+  });
+
+  // Codex P1 (PR #502): zmiana interwału (miesięczny -> roczny) idzie fakturą
+  // `subscription_update`, ale resetuje okres i obciąża za cały nowy - to
+  // zapłata ZA OKRES. Odróżnia ją pozycja subskrypcji bez proraty.
+  it("niesie, czy faktura obciąża za CAŁY okres (pozycja subskrypcji bez proraty)", () => {
+    const line = (proration: boolean, start = 1_800_000_000) => ({
+      period: { start, end: start + 365 * 86_400 },
+      parent: {
+        type: "subscription_item_details",
+        subscription_item_details: { proration, invoice_item: proration ? "ii_1" : null },
+      },
+    });
+    const charges = (lines: unknown[]) =>
+      transactionOf(
+        event("invoice.paid", {
+          id: "in_1",
+          billing_reason: "subscription_update",
+          lines: { data: lines },
+        }),
+      ).chargesFullPeriod;
+
+    // Zmiana interwału: kredyt za resztę starego okresu + pełny nowy okres.
+    expect(charges([line(true), line(false)])).toBe(true);
+    // Zwykła dopłata: same proraty.
+    expect(charges([line(true), line(true)])).toBe(false);
+    expect(charges([])).toBe(false);
+    // Ładunek sprzed Basil: `type` i `proration` na samej pozycji.
+    expect(
+      charges([{ type: "subscription", proration: false, period: { start: 1_800_000_000 } }]),
+    ).toBe(true);
+    expect(
+      charges([{ type: "invoiceitem", proration: false, period: { start: 1_800_000_000 } }]),
+    ).toBe(false);
+    expect(
+      invoiceFullPeriodStart({ lines: { data: [line(true, 1_700_000_000), line(false)] } }),
+    ).toBe(new Date(1_800_000_000 * 1000).toISOString());
   });
 });

@@ -829,7 +829,12 @@ describe("SUB-03: dostęp tylko za opłacony okres - karencja od pierwszej pora�
     // czterech nieudanych próbach - kotwica z pierwszej próby, dostęp do
     // kotwicy + karencja.
     const firstAttempt = new Date(Date.parse(renewalAt) + 60 * 60 * SEKUNDA).toISOString();
+    // Historia opłaconych faktur okresu - pusta: odnowienie nieopłacone.
+    const listInvoices = vi.fn((_params: Record<string, unknown>) => ({
+      async *[Symbol.asyncIterator]() {},
+    }));
     h.stripe.current = {
+      invoices: { list: listInvoices },
       subscriptions: {
         retrieve: async () => ({
           ...legacyCancel,
@@ -846,7 +851,7 @@ describe("SUB-03: dostęp tylko za opłacony okres - karencja od pierwszej pora�
           },
         }),
       },
-    };
+    } as unknown as typeof h.stripe.current;
     const { reconcileLegacyNonPaymentCancellations } =
       await import("@/lib/billing/legacyNonPaymentReconcile.server");
     vi.spyOn(console, "info").mockImplementation(() => undefined);
@@ -856,6 +861,9 @@ describe("SUB-03: dostęp tylko za opłacony okres - karencja od pierwszej pora�
     });
     const graceEnd = new Date(Date.parse(firstAttempt) + PAYMENT_GRACE_DAYS * DZIEN).toISOString();
     expect(report.rows[0]).toMatchObject({ decision: "clamp", evidence: "invoice", applied: true });
+    expect(listInvoices).toHaveBeenCalledWith(
+      expect.objectContaining({ subscription: SUB, status: "paid" }),
+    );
     expect(subscriptionRow()?.first_payment_failed_at).toBe(firstAttempt);
     expect(entitlement()).toMatchObject({ status: "active", current_period_end: graceEnd });
 
@@ -869,6 +877,120 @@ describe("SUB-03: dostęp tylko za opłacony okres - karencja od pierwszej pora�
     // Zaległa faktura zapłacona po anulowaniu: okres opłacony, więc kolejna
     // synchronizacja liczy dostęp jak po rezygnacji - do końca okresu.
     await deliver("invoice.paid", stripeInvoice({ attempt: 4 }), relativeIso(-1 * SEKUNDA));
+    await deliver("customer.subscription.deleted", legacyCancel, FIXED_NOW.toISOString());
+    expect(entitlement()).toMatchObject({ status: "active", current_period_end: nextYear });
+  });
+
+  it("przycięcie dawnego wiersza ze znacznikiem zapłaty z DOPŁATY przetrwa synchronizację klienta (Codex P1, PR #502)", async () => {
+    // Dawna windykacja (porażka odnowienia zgubiona, licznik 0) zapisała
+    // `last_payment_at` z opłaconej dopłaty za upgrade - w bieżącym okresie.
+    // Z tym znacznikiem webhook uznawał okres za opłacony
+    // (`paymentCoversPeriod`), więc pierwsze `deleted` bez powodu po
+    // przycięciu oddawało rok nieopłaconego dostępu.
+    const renewalAt = relativeIso(-5 * DZIEN);
+    const yearAgo = new Date(Date.parse(renewalAt) - 365 * DZIEN).toISOString();
+    const nextYear = new Date(Date.parse(renewalAt) + 365 * DZIEN).toISOString();
+    const annual = { priceKey: "plus_annual", periodStart: renewalAt, periodEnd: nextYear };
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({
+        status: "active",
+        priceKey: "plus_annual",
+        periodStart: yearAgo,
+        periodEnd: renewalAt,
+      }),
+      yearAgo,
+    );
+    await deliver(
+      "customer.subscription.updated",
+      stripeSubscription({ status: "active", ...annual }),
+      renewalAt,
+    );
+    const prorationPaidAt = relativeIso(-4 * DZIEN);
+    const row = subscriptionRow();
+    if (row) row.last_payment_at = prorationPaidAt;
+    const legacyCancel = stripeSubscription({ status: "canceled", ...annual });
+    await deliver("customer.subscription.deleted", legacyCancel, relativeIso(-3 * DZIEN));
+    expect(entitlement()?.current_period_end).toBe(nextYear);
+
+    // Operator: odnowienie otwarte po czterech próbach, a w historii okresu
+    // opłacona jest wyłącznie dopłata (same proraty).
+    const firstAttempt = new Date(Date.parse(renewalAt) + 60 * 60 * SEKUNDA).toISOString();
+    const paidProration = {
+      id: "in_1SyntetycznaDoplata",
+      status: "paid",
+      attempt_count: 1,
+      amount_due: 2500,
+      amount_paid: 2500,
+      billing_reason: "subscription_update",
+      created: unix(prorationPaidAt),
+      status_transitions: { finalized_at: unix(prorationPaidAt), paid_at: unix(prorationPaidAt) },
+      lines: {
+        data: [
+          {
+            period: { start: unix(prorationPaidAt), end: unix(nextYear) },
+            parent: {
+              type: "subscription_item_details",
+              subscription_item_details: { proration: true, invoice_item: "ii_1Syntetyczna" },
+            },
+          },
+        ],
+      },
+    };
+    h.stripe.current = {
+      invoices: {
+        list: () => ({
+          async *[Symbol.asyncIterator]() {
+            yield paidProration;
+          },
+        }),
+      },
+      subscriptions: {
+        retrieve: async () => ({
+          ...legacyCancel,
+          ended_at: unix(relativeIso(-3 * DZIEN)),
+          latest_invoice: {
+            id: "in_1SyntetycznaFaktura",
+            status: "open",
+            attempt_count: 4,
+            amount_due: 49900,
+            amount_paid: 0,
+            billing_reason: "subscription_cycle",
+            created: unix(renewalAt),
+            status_transitions: { finalized_at: unix(firstAttempt), paid_at: null },
+          },
+        }),
+      },
+    } as unknown as typeof h.stripe.current;
+    const { reconcileLegacyNonPaymentCancellations } =
+      await import("@/lib/billing/legacyNonPaymentReconcile.server");
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const report = await reconcileLegacyNonPaymentCancellations({
+      environment: "live",
+      mode: "apply",
+    });
+    const graceEnd = new Date(Date.parse(firstAttempt) + PAYMENT_GRACE_DAYS * DZIEN).toISOString();
+    expect(report.rows[0]).toMatchObject({ decision: "clamp", evidence: "invoice", applied: true });
+    expect(report.writes).toMatchObject({ anchors: 1, paymentMarkers: 1, entitlements: 1 });
+    expect(subscriptionRow()).toMatchObject({
+      first_payment_failed_at: firstAttempt,
+      last_payment_at: null,
+    });
+    expect(entitlement()).toMatchObject({ status: "active", current_period_end: graceEnd });
+
+    // Klient klika „synchronizuj rozliczenia": syntetyczne deleted bez powodu
+    // z czasem „teraz" - przycięcie zostaje.
+    expect(
+      await deliver("customer.subscription.deleted", legacyCancel, relativeIso(-2 * SEKUNDA)),
+    ).toBe("processed");
+    expect(entitlement()).toMatchObject({ status: "active", current_period_end: graceEnd });
+
+    // Prawdziwa zapłata odnowienia po anulowaniu nadal przywraca okres.
+    await deliver(
+      "invoice.paid",
+      stripeInvoice({ attempt: 4, billingReason: "subscription_cycle" }),
+      relativeIso(-1 * SEKUNDA),
+    );
     await deliver("customer.subscription.deleted", legacyCancel, FIXED_NOW.toISOString());
     expect(entitlement()).toMatchObject({ status: "active", current_period_end: nextYear });
   });
@@ -1906,6 +2028,149 @@ describe("dopłata za zmianę w trakcie okresu to nie windykacja odnowienia (#6,
       first_payment_failed_at: null,
     });
     expect(mails("payment_recovered")).toHaveLength(1);
+  });
+
+  it("opłacona dopłata nie udaje zapłaty za okres: spóźniona porażka odnowienia otwiera windykację, a deleted bez powodu liczy karencję (Codex P1, PR #502)", async () => {
+    // Odnowienie roczne przesunęło okres; porażka jego obciążenia dotarła
+    // dopiero PO opłaconej dopłacie za upgrade. Znacznik `last_payment_at`
+    // z dopłaty połykał tę porażkę (strażnik „sprzed zapłaty"), a anulowanie
+    // bez powodu uznawał za opłacony okres - rok dostępu bez zapłaty.
+    const renewalAt = relativeIso(-5 * DZIEN);
+    const yearAgo = new Date(Date.parse(renewalAt) - 365 * DZIEN).toISOString();
+    const nextYear = new Date(Date.parse(renewalAt) + 365 * DZIEN).toISOString();
+    const annual = { priceKey: "plus_annual", periodStart: renewalAt, periodEnd: nextYear };
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({
+        status: "active",
+        priceKey: "plus_annual",
+        periodStart: yearAgo,
+        periodEnd: renewalAt,
+      }),
+      yearAgo,
+    );
+    await deliver(
+      "customer.subscription.updated",
+      stripeSubscription({ status: "past_due", ...annual }),
+      renewalAt,
+    );
+    const prorationPaidAt = relativeIso(-3 * DZIEN);
+    await deliver(
+      "invoice.paid",
+      stripeInvoice({
+        id: "in_1SyntetycznaDoplata",
+        attempt: 1,
+        billingReason: "subscription_update",
+      }),
+      prorationPaidAt,
+    );
+    expect(subscriptionRow()?.last_payment_at ?? null).not.toBe(prorationPaidAt);
+
+    await deliver(
+      "invoice.payment_failed",
+      stripeInvoice({
+        id: "in_1SyntetyczneOdnowienie",
+        attempt: 1,
+        billingReason: "subscription_cycle",
+      }),
+      renewalAt,
+    );
+    expect(subscriptionRow()?.payment_failure_count).toBe(1);
+    expect(mails("payment_failed")).toHaveLength(1);
+
+    await deliver(
+      "customer.subscription.deleted",
+      stripeSubscription({ status: "canceled", ...annual }),
+      relativeIso(-1 * DZIEN),
+    );
+    const graceEnd = new Date(Date.parse(renewalAt) + PAYMENT_GRACE_DAYS * DZIEN).toISOString();
+    expect(entitlement()).toMatchObject({ status: "active", current_period_end: graceEnd });
+  });
+
+  it("dopłata za zmianę interwału otwiera NOWY opłacony okres: przesuwa `last_payment_at`, zwykła dopłata nie (Codex P1, PR #502)", async () => {
+    // Samoobsługowy upgrade z miesięcznego na roczny idzie przez
+    // `always_invoice`: operator resetuje okres i fakturą `subscription_update`
+    // obciąża za cały nowy rok (pozycja bez proraty od początku okresu).
+    const monthStart = relativeIso(-20 * DZIEN);
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({
+        status: "active",
+        periodStart: monthStart,
+        periodEnd: relativeIso(10 * DZIEN),
+      }),
+      monthStart,
+    );
+    await deliver(
+      "invoice.paid",
+      stripeInvoice({
+        id: "in_1SyntetyczneOdnowienie",
+        attempt: 1,
+        billingReason: "subscription_cycle",
+      }),
+      monthStart,
+    );
+    expect(subscriptionRow()?.last_payment_at).toBe(monthStart);
+
+    const upgradedAt = relativeIso(-2 * DZIEN);
+    const yearEnd = new Date(Date.parse(upgradedAt) + 365 * DZIEN).toISOString();
+    const subscriptionLine = (o: { start: string; end: string; proration: boolean }) => ({
+      period: { start: unix(o.start), end: unix(o.end) },
+      parent: {
+        type: "subscription_item_details",
+        subscription_item_details: {
+          proration: o.proration,
+          invoice_item: o.proration ? "ii_1Syntetyczna" : null,
+        },
+      },
+    });
+    await deliver(
+      "customer.subscription.updated",
+      stripeSubscription({
+        status: "active",
+        priceKey: "plus_annual",
+        periodStart: upgradedAt,
+        periodEnd: yearEnd,
+      }),
+      upgradedAt,
+    );
+    await deliver(
+      "invoice.paid",
+      {
+        ...stripeInvoice({
+          id: "in_1SyntetycznaZmianaInterwalu",
+          attempt: 1,
+          billingReason: "subscription_update",
+        }),
+        lines: {
+          data: [
+            subscriptionLine({ start: upgradedAt, end: relativeIso(10 * DZIEN), proration: true }),
+            subscriptionLine({ start: upgradedAt, end: yearEnd, proration: false }),
+          ],
+        },
+      },
+      upgradedAt,
+    );
+    expect(subscriptionRow()?.last_payment_at).toBe(upgradedAt);
+
+    // Dopłata za miejsca w nowym okresie (same proraty) - znacznik zostaje.
+    await deliver(
+      "invoice.paid",
+      {
+        ...stripeInvoice({
+          id: "in_1SyntetycznaDoplata",
+          attempt: 1,
+          billingReason: "subscription_update",
+        }),
+        lines: {
+          data: [
+            subscriptionLine({ start: relativeIso(-1 * DZIEN), end: yearEnd, proration: true }),
+          ],
+        },
+      },
+      relativeIso(-1 * DZIEN),
+    );
+    expect(subscriptionRow()?.last_payment_at).toBe(upgradedAt);
   });
 });
 

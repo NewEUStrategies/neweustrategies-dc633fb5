@@ -123,13 +123,45 @@ export function paymentGraceEnd(input: PaymentGraceInput): string {
 }
 
 /**
- * Czy zaksięgowana zapłata (`subscriptions.last_payment_at`, zapisywana przy
- * `invoice.paid`) pokrywa bieżący okres: nie jest wcześniejsza niż jego
- * początek. Przy nieudanym odnowieniu ostatnia zapłata pochodzi z POPRZEDNIEGO
- * okresu, więc ten warunek oddziela „windykacja się nie udała" od „klient
- * zapłacił zaległą fakturę już po anulowaniu" (link z maila windykacyjnego,
- * zapłata poza operatorem) - drugi przypadek ma opłacony okres i nie wolno mu
- * odbierać dostępu jak niepłacącemu. Bez którejkolwiek daty - `false`.
+ * `billing_reason` faktur, które opłacają OKRES rozliczeniowy: odnowienie
+ * i pierwsza płatność subskrypcji. Dopłata za zmianę w trakcie okresu
+ * (`subscription_update`), faktura ręczna (`manual`), próg zużycia i pozostałe
+ * powody nieudanego odnowienia nie spłacają.
+ */
+const PERIOD_INVOICE_BILLING_REASONS: ReadonlySet<string> = new Set([
+  "subscription_cycle",
+  "subscription_create",
+]);
+
+/**
+ * Czy faktura o tym `billing_reason` opłaca okres rozliczeniowy: odnowienie,
+ * pierwsza płatność albo dopłata za zmianę, która OTWORZYŁA nowy okres
+ * (`opensPeriod` - zmiana interwału resetuje okres i obciąża za cały nowy,
+ * np. samoobsługowy upgrade z miesięcznego na roczny). Zwykła dopłata
+ * (prorata za resztę okresu) i każdy inny powód - nie. Jedna reguła dla
+ * windykacji (`last_payment_at`) i uzgodnienia dawnych anulowań (historia
+ * faktur u operatora).
+ */
+export function billingReasonPaysPeriod(billingReason: string, opensPeriod: boolean): boolean {
+  if (PERIOD_INVOICE_BILLING_REASONS.has(billingReason)) return true;
+  return billingReason === "subscription_update" && opensPeriod;
+}
+
+/**
+ * Czy zaksięgowana zapłata (`subscriptions.last_payment_at`) pokrywa bieżący
+ * okres: nie jest wcześniejsza niż jego początek. Znacznik przesuwa wyłącznie
+ * zapłata faktury ZA OKRES (`billingReasonPaysPeriod`: odnowienie, pierwsza
+ * płatność, dopłata otwierająca nowy okres) - zwykła dopłata za zmianę
+ * w trakcie okresu ani faktura ręczna go nie ruszają
+ * (`applyPaymentRecoveredEffects`), bo nieudanego odnowienia nie spłacają.
+ * Przy nieudanym odnowieniu ostatnia zapłata pochodzi więc z POPRZEDNIEGO
+ * okresu i ten warunek oddziela „windykacja się nie udała" od „klient zapłacił
+ * zaległą fakturę już po anulowaniu" (link z maila windykacyjnego, zapłata
+ * poza operatorem) - drugi przypadek ma opłacony okres i nie wolno mu
+ * odbierać dostępu jak niepłacącemu. Dawne wiersze (sprzed tej reguły) mogą
+ * nieść chwilę dopłaty, dlatego uzgodnienie dawnych anulowań nie ufa samemu
+ * znacznikowi: sprawdza historię faktur u operatora, a znacznik, który ta
+ * historia obaliła, czyści. Bez którejkolwiek daty - `false`.
  */
 export function paymentCoversPeriod(
   lastPaymentAt: string | null | undefined,
@@ -162,8 +194,10 @@ export interface CancellationReasonInput {
  * (samoobsługowa synchronizacja, odtworzenie zdarzenia, remis rozstrzygany
  * żywym stanem) liczyło dostęp jak po rezygnacji, czyli do końca
  * nieopłaconego okresu, i cofało przycięcie. Zapłata pokrywająca okres
- * (`paymentCoversPeriod`) znosi to wnioskowanie - ta sama reguła co
- * w uzgodnieniu, więc oba miejsca rozstrzygają tak samo.
+ * (`paymentCoversPeriod`) znosi to wnioskowanie. Uzgodnienie dawnych anulowań
+ * rozstrzyga zapłatę okresu historią faktur u operatora, nie tym znacznikiem,
+ * a przy przycięciu czyści znacznik z dopłaty, który historia obaliła - więc
+ * kolejne `deleted` bez powodu rozstrzyga tak samo jak zadanie.
  */
 export function effectiveCancellationReason(input: CancellationReasonInput): string | null {
   if (input.reason) return input.reason;

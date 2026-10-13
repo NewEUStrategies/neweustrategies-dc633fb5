@@ -47,7 +47,7 @@ function batch(overrides: Partial<LegacyReconcileReport> = {}): LegacyReconcileR
     scanned: 50,
     candidates: 1,
     counts,
-    writes: { anchors: 0, entitlements: 0, teams: 0 },
+    writes: { anchors: 0, paymentMarkers: 0, entitlements: 0, teams: 0 },
     rows: [
       {
         subscriptionId: "sub_legacy_1",
