@@ -684,31 +684,6 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
     });
   });
 
-  it("mapuje rozstrzygnięcie sporu (dispute.closed) z SUROWYM statusem operatora", () => {
-    // Przegląd adwersaryjny, poz. 26: bez tej normalizacji wygrany spór nie
-    // miał żadnej drogi do przywrócenia dostępu ani wpłaty.
-    const result = normalized(
-      event("charge.dispute.closed", {
-        id: "dp_1",
-        charge: "ch_9",
-        payment_intent: "pi_9",
-        currency: "eur",
-        amount: 2500,
-        status: "won",
-      }),
-    );
-
-    expect(result.eventType).toBe("adjustment.updated");
-    expect(result.data).toEqual({
-      id: "dp_1",
-      transactionId: "pi_9",
-      subscriptionId: null,
-      action: "chargeback",
-      status: "won",
-      totals: { total: "2500", currencyCode: "EUR" },
-    });
-  });
-
   it("mapuje notę kredytową na korektę powiązaną z fakturą", () => {
     const data = adjustmentOf(
       event("credit_note.created", {
@@ -867,28 +842,5 @@ describe("normalizeStripeEvent - próby obciążenia faktury", () => {
     const data = transactionOf(event("invoice.payment_failed", { id: "in_1", attempt_count: "3" }));
     expect(data.attemptCount).toBeNull();
     expect(data.nextPaymentAttemptAt).toBeNull();
-  });
-});
-
-// Przegląd poprawek SUB-04/SUB-16: odrzucona dopłata do upgrade'u przy
-// `pending_if_incomplete` zostawia subskrypcję aktywną, a jej
-// `invoice.payment_failed` wyglądał dla windykacji jak zaległe odnowienie -
-// mapowanie nie niosło `billing_reason`, więc nic nie umiało ich odróżnić.
-describe("normalizeStripeEvent - powód wystawienia faktury", () => {
-  it("niesie `billing_reason` faktury - dopłatę za zmianę i odnowienie", () => {
-    for (const reason of ["subscription_update", "subscription_cycle", "subscription_create"]) {
-      for (const type of ["invoice.payment_failed", "invoice.paid"]) {
-        const data = transactionOf(event(type, { id: "in_1", billing_reason: reason }));
-        expect(data.billingReason).toBe(reason);
-      }
-    }
-  });
-
-  it("bez powodu (albo z wartością spoza słownika typów) zostawia `null`", () => {
-    expect(transactionOf(event("invoice.payment_failed", { id: "in_1" })).billingReason).toBeNull();
-    expect(
-      transactionOf(event("invoice.payment_failed", { id: "in_1", billing_reason: 7 }))
-        .billingReason,
-    ).toBeNull();
   });
 });

@@ -23,13 +23,10 @@ import {
 } from "@/lib/billing/checkoutSettings";
 import {
   catalogEntryByPriceId,
-  catalogCycleMismatch,
+  catalogRecurringFor,
   type CatalogPriceEntry,
 } from "@/lib/billing/catalog";
 import {
-  CHECKOUT_SUPERSEDED_ERROR,
-  PENDING_FIRST_PAYMENT_STATUS,
-  type PlanSubscriptionRecord,
   planSubscriptionHistory,
   SUBSCRIPTION_EXISTS_ERROR,
 } from "@/lib/billing/planSubscriptionGuard";
@@ -88,17 +85,6 @@ export function stripeCouponName(code: string): string {
 
 export type CheckoutSessionResult =
   { ok: true; clientSecret: string; sessionId: string } | { ok: false; error: string };
-
-/**
- * Wynik sesji PLANU. `supersededOrderIds` = zamówienia tego konta, których
- * otwarte sesje kasa właśnie wygasiła (patrz `expireOpenPlanSessions`) -
- * wołający oznacza je jako anulowane, bo webhook `checkout.session.expired`
- * nie jest obsługiwany i zamówienie zostałoby w `processing` na zawsze. Pole
- * pojawia się tylko, gdy coś wygaszono.
- */
-export type PlanCheckoutSessionResult = CheckoutSessionResult & {
-  supersededOrderIds?: string[];
-};
 
 /**
  * Metadane klienta: `userId` (właściciel - jedyne powiązanie klienta operatora
@@ -418,9 +404,16 @@ export function catalogPriceMismatch(
   if ((price.currency ?? "").toLowerCase() !== input.expectedCurrency.toLowerCase()) {
     return "currency";
   }
-  // Ta sama kontrola co w synchronizacji katalogu - cena, którą tu odrzucamy,
-  // tam jest odtwarzana w poprawnym cyklu.
-  if (catalogCycleMismatch(price, input.entry)) return "cycle";
+  const cycle = catalogRecurringFor(input.entry);
+  if (cycle === null) {
+    if (price.type !== "one_time") return "cycle";
+  } else if (
+    price.type !== "recurring" ||
+    price.recurring?.interval !== cycle.interval ||
+    (price.recurring?.interval_count ?? 1) !== cycle.interval_count
+  ) {
+    return "cycle";
+  }
   const amount = stripePriceAmountFor(price, input.quantity);
   if (amount === null) return "unverifiable_amount";
   if (amount !== Math.round(input.expectedAmountCents)) return "amount";
@@ -433,159 +426,20 @@ export const PRICE_MISMATCH_ERROR = "price_mismatch" as const;
 /** Maksymalna liczba subskrypcji klienta sprawdzanych przed sesją. */
 const CUSTOMER_SUBSCRIPTIONS_LIMIT = 100;
 
-/** Strony listy otwartych sesji klienta (po 100) - więcej to anomalia, odmawiamy. */
-const OPEN_SESSION_PAGES = 3;
-
-/**
- * Sesja, która po opłaceniu ZAŁOŻY subskrypcję planu: tryb `subscription`,
- * metadane planu z tej kasy i nie darowizna. Darowizny cykliczne też jadą
- * sesją subskrypcyjną na tym samym kliencie (`donations.server`) - nie są
- * planem, więc ich nie ruszamy.
- */
-function isPlanSubscriptionSession(session: Stripe.Checkout.Session): boolean {
-  const meta = session.metadata ?? {};
-  return (
-    session.mode === "subscription" &&
-    typeof meta["planId"] === "string" &&
-    meta["planId"] !== "" &&
-    meta["purpose"] !== "donation"
-  );
-}
-
-/** Otwarte sesje planu klienta. Nie da się przeczytać wszystkich = rzut (fail-closed). */
-async function listOpenPlanSessions(
-  stripe: Stripe,
-  customerId: string,
-): Promise<Stripe.Checkout.Session[]> {
-  const sessions: Stripe.Checkout.Session[] = [];
-  let startingAfter: string | undefined;
-  for (let page = 0; page < OPEN_SESSION_PAGES; page += 1) {
-    const result = await stripe.checkout.sessions.list({
-      customer: customerId,
-      status: "open",
-      limit: 100,
-      ...(startingAfter ? { starting_after: startingAfter } : {}),
-    });
-    sessions.push(...result.data.filter(isPlanSubscriptionSession));
-    const last = result.data.at(-1);
-    if (!result.has_more || !last) return sessions;
-    startingAfter = last.id;
-  }
-  throw new Error(`too many open checkout sessions for customer ${customerId}`);
-}
-
-/**
- * Wygasza otwartą sesję. `expired` = już nie da się jej opłacić, `completed` =
- * zdążyła się opłacić (subskrypcja istnieje), inny wynik rzuca - sesji, której
- * stanu nie znamy, nie wolno zostawić jako „pewnie wygasła".
- */
-async function expirePlanSession(
-  stripe: Stripe,
-  sessionId: string,
-): Promise<"expired" | "completed"> {
-  try {
-    await stripe.checkout.sessions.expire(sessionId);
-    return "expired";
-  } catch (error) {
-    const fresh = await stripe.checkout.sessions.retrieve(sessionId);
-    if (fresh.status === "expired") return "expired";
-    if (fresh.status === "complete") return "completed";
-    throw error;
-  }
-}
-
-/** Zamówienie TEGO konta stojące za sesją (metadane stempluje wyłącznie ta kasa). */
-function ownOrderId(session: Stripe.Checkout.Session, userId: string): string | null {
-  const meta = session.metadata ?? {};
-  const orderId = meta["orderId"];
-  return meta["userId"] === userId && typeof orderId === "string" && orderId ? orderId : null;
-}
-
-/** Porządek sesji: późniejsza wygrywa, przy tej samej sekundzie rozstrzyga identyfikator. */
-function isNewerSession(
-  a: Pick<Stripe.Checkout.Session, "id" | "created">,
-  b: Pick<Stripe.Checkout.Session, "id" | "created">,
-): boolean {
-  return a.created !== b.created ? a.created > b.created : a.id > b.id;
-}
-
-/**
- * Unieważnia pierwszą fakturę subskrypcji `incomplete` (porzucone albo
- * nieudane 3DS), zanim kasa otworzy nową sesję (reguła 3 strażnika).
- *
- * DLACZEGO FAKTURA, A NIE `subscriptions.cancel`. Anulowanie nie jest
- * warunkowe: 3DS dokończone sekundę wcześniej robi z subskrypcji `active`,
- * a `cancel` zamknąłby opłacony dostęp bez zwrotu. Unieważnienie faktury
- * działa jak compare-and-set po stronie operatora: przechodzi wyłącznie na
- * fakturze otwartej (płatność już nie dojdzie), a na opłaconej odmawia - wtedy
- * subskrypcja jest żywa i obowiązuje zwykła reguła drugiego zakupu. Bez
- * anulowania subskrypcja nie zmienia się w `canceled` (który zużyłby trial),
- * tylko wygasa u operatora sama (`incomplete_expired`) - tą samą drogą co
- * każde porzucone 3DS, więc webhook nie dostaje żadnego nowego stanu.
- *
- * @returns `true` = faktura unieważniona (subskrypcja nie wystartuje),
- *          `false` = faktura opłacona w międzyczasie (subskrypcja żywa).
- *          Każdy inny stan rzuca - kasa odmawia zamiast zgadywać.
- */
-async function voidAbandonedFirstInvoice(
-  stripe: Stripe,
-  subscription: Stripe.Subscription,
-): Promise<boolean> {
-  const latest = subscription.latest_invoice;
-  const invoiceId = typeof latest === "string" ? latest : (latest?.id ?? null);
-  if (!invoiceId) throw new Error(`incomplete subscription without invoice: ${subscription.id}`);
-  try {
-    await stripe.invoices.voidInvoice(
-      invoiceId,
-      {},
-      { idempotencyKey: `void-abandoned-first-invoice:${invoiceId}` },
-    );
-    return true;
-  } catch (error) {
-    // Odmowa operatora: faktura już unieważniona (poprzednia próba), opłacona
-    // spóźnionym 3DS albo w stanie, którego nie rozumiemy - rozstrzyga odczyt.
-    const invoice = await stripe.invoices.retrieve(invoiceId);
-    if (invoice.status === "void") return true;
-    if (invoice.status === "paid") return false;
-    throw error;
-  }
-}
-
 /**
  * Tworzy Embedded Checkout Session z ceny katalogowej. Tryb (subscription vs
  * payment) wynika z `price.type` - katalog może w przyszłości zawierać też
  * ceny jednorazowe.
  *
- * PRZED sesją, w tej kolejności:
+ * PRZED sesją, w tej kolejności (każdy krok odmawia bez skutków u operatora):
  *   1. `lookup_key` musi być pozycją `BILLING_CATALOG`,
  *   2. cena operatora musi dać kwotę zamówienia (`catalogPriceMismatch`),
- *   3. subskrypcja - kolejność kroków jest częścią dowodu:
- *      a. WYGASZENIE otwartych sesji planu tego klienta. Strażnik patrzy na
- *         subskrypcje, a te powstają dopiero przy opłaceniu sesji: dwie karty
- *         otwarte przed pierwszą płatnością przechodziły obie i obie dało się
- *         opłacić (dwa obciążenia co cykl, dwa triale). Wygaszamy PRZED
- *         odczytem subskrypcji - sesja opłacona sekundę wcześniej jest wtedy
- *         już subskrypcją w kroku b, a nie otwartą sesją, którą by pominął,
- *      b. pierwsza faktura subskrypcji `incomplete` unieważniona
- *         (`voidAbandonedFirstInvoice`), żeby porzucone 3DS nie zamykało kasy,
- *      c. żywa subskrypcja planu w konflikcie z zakupem odmawia, a trial
- *         dostaje tylko ten, kto nigdy jej nie miał (`planSubscriptionGuard`).
- * Po założeniu sesji (krok 4) drugi przegląd rozstrzyga wyścig z sesją
- * otwartą RÓWNOLEGLE: zostaje nowsza, starsza jest wygaszana - także nasza.
- *
- * KLUCZ IDEMPOTENCJI `plan-checkout-session:<orderId>`: ponowienie żądania
- * przez SDK po zerwanym połączeniu dostaje TĘ SAMĄ sesję zamiast drugiej.
- * Parametry sesji są stałe dla zamówienia (chwilę zgody wylicza wołający raz),
- * więc klucz nigdy nie trafia na inny ładunek. Świadomie BEZ `expires_at`:
- * minimum operatora to 30 minut, więc samo skrócenie życia sesji okna nie
- * zamyka, a parametr zależny od zegara łamałby tożsamość ponowienia.
+ *   3. subskrypcja: klient nie może mieć żywej subskrypcji planu, a trial
+ *      dostaje tylko ten, kto nigdy jej nie miał (`planSubscriptionGuard`).
  */
 export async function createPlanCheckoutSession(
   input: PlanCheckoutSessionInput,
-): Promise<PlanCheckoutSessionResult> {
-  const supersededOrderIds: string[] = [];
-  const withSuperseded = (result: CheckoutSessionResult): PlanCheckoutSessionResult =>
-    supersededOrderIds.length > 0 ? { ...result, supersededOrderIds } : result;
+): Promise<CheckoutSessionResult> {
   try {
     const entry = catalogEntryByPriceId(input.priceLookupKey);
     if (!entry) return { ok: false, error: "price_not_in_catalog" };
@@ -639,45 +493,15 @@ export async function createPlanCheckoutSession(
     // jednorazowy nie dubluje cyklu i nie ma triala.
     let trialAllowed = input.trialEligible !== false;
     if (mode === "subscription") {
-      // a. Otwarte sesje planu tego klienta - po opłaceniu każda byłaby drugą
-      //    subskrypcją. Zasięg = klient (konto) w środowisku tego klienta
-      //    operatora, a nie najemca: tak samo liczy strażnik niżej, więc
-      //    sesja planu najemcy A blokuje zakup u B tak samo jak subskrypcja.
-      for (const open of await listOpenPlanSessions(stripe, customerId)) {
-        if ((await expirePlanSession(stripe, open.id)) === "expired") {
-          const orderId = ownOrderId(open, input.userId);
-          if (orderId) supersededOrderIds.push(orderId);
-        }
-        // `completed`: sesja zdążyła się opłacić - jej subskrypcję widzi krok c.
-      }
-
       const remote = await stripe.subscriptions.list({
         customer: customerId,
         status: "all",
         limit: CUSTOMER_SUBSCRIPTIONS_LIMIT,
       });
-      const records: PlanSubscriptionRecord[] = [];
-      for (const sub of remote.data) {
-        const purpose = sub.metadata?.["purpose"];
-        let status: string = sub.status;
-        // b. Porzucone 3DS: po unieważnieniu faktury subskrypcja nie wystartuje,
-        //    więc nie blokuje i nie zużywa triala; opłacona w międzyczasie jest
-        //    żywa. Darowizn nie ruszamy - to nie plan.
-        if (purpose !== "donation" && status === PENDING_FIRST_PAYMENT_STATUS) {
-          status = (await voidAbandonedFirstInvoice(stripe, sub))
-            ? PENDING_FIRST_PAYMENT_STATUS
-            : "active";
-        }
-        records.push({
-          status,
-          purpose,
-          lookupKey: sub.items?.data?.[0]?.price?.lookup_key ?? null,
-        });
-      }
-      // c. Konflikt liczony względem KUPOWANEJ pozycji - osobny zakup (inny
-      //    model rozliczenia) przechodzi, ale bez triala, jeśli plan już był.
-      const history = planSubscriptionHistory(records, entry);
-      if (history.hasLive) return withSuperseded({ ok: false, error: SUBSCRIPTION_EXISTS_ERROR });
+      const history = planSubscriptionHistory(
+        remote.data.map((sub) => ({ status: sub.status, purpose: sub.metadata?.["purpose"] })),
+      );
+      if (history.hasLive) return { ok: false, error: SUBSCRIPTION_EXISTS_ERROR };
       if (history.hadAny) trialAllowed = false;
     }
 
@@ -750,48 +574,13 @@ export async function createPlanCheckoutSession(
       };
     }
 
-    const session = await stripe.checkout.sessions.create(params, {
-      idempotencyKey: `plan-checkout-session:${input.orderId}`,
-    });
-    if (!session.client_secret) {
-      return withSuperseded({ ok: false, error: "session_missing_client_secret" });
-    }
-
-    // 4. Wyścig z sesją otwartą RÓWNOLEGLE (druga karta kliknęła w tej samej
-    //    chwili, oba przeglądy z kroku a były puste). Każda strona po
-    //    założeniu przegląda ponownie i stosuje ten sam porządek: zostaje
-    //    NOWSZA sesja. W każdym przeplocie przynajmniej jedna strona widzi
-    //    drugą (późniejszy przegląd następuje po obu założeniach), więc
-    //    otwarta zostaje dokładnie jedna - nigdy dwie i nigdy żadna.
-    if (mode === "subscription") {
-      const rivals = (await listOpenPlanSessions(stripe, customerId)).filter(
-        (s) => s.id !== session.id,
-      );
-      const lost = rivals.some((s) => isNewerSession(s, session));
-      for (const rival of lost ? [] : rivals) {
-        if ((await expirePlanSession(stripe, rival.id)) === "completed") {
-          // Starsza sesja zdążyła się opłacić - nasza byłaby drugą subskrypcją.
-          await expirePlanSession(stripe, session.id);
-          return withSuperseded({ ok: false, error: SUBSCRIPTION_EXISTS_ERROR });
-        }
-        const orderId = ownOrderId(rival, input.userId);
-        if (orderId) supersededOrderIds.push(orderId);
-      }
-      if (lost) {
-        await expirePlanSession(stripe, session.id);
-        return withSuperseded({ ok: false, error: CHECKOUT_SUPERSEDED_ERROR });
-      }
-    }
-
-    return withSuperseded({
-      ok: true,
-      clientSecret: session.client_secret,
-      sessionId: session.id,
-    });
+    const session = await stripe.checkout.sessions.create(params);
+    if (!session.client_secret) return { ok: false, error: "session_missing_client_secret" };
+    return { ok: true, clientSecret: session.client_secret, sessionId: session.id };
   } catch (e) {
     const { getStripeErrorMessage } = await import("@/lib/stripe.server");
     console.error("[payments] plan checkout session failed", e);
-    return withSuperseded({ ok: false, error: getStripeErrorMessage(e) });
+    return { ok: false, error: getStripeErrorMessage(e) };
   }
 }
 

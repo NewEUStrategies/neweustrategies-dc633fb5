@@ -26,15 +26,7 @@
 --          biura/uczelni; jeden host z czyszczeniem cookies dostaje sufit
 --          zamiast nieskonczonosci);
 --        * odmowy goscia loguje sama baza (metering_event_log) - klient anon
---          nie ma juz czym wolac log_metering_event;
---        * odmowa ADRESOWEGO sufitu niesie requires_registration = true: gosc
---          nie wykorzystal wlasnego limitu (used < monthly_limit), wiec bez
---          tego sygnalu klient pokazywal goly paywall zamiast drogi wyjscia -
---          konta, ktore ma wlasny licznik i sufitu adresu nie dzieli;
---        * `remaining` goscia = min(wlasny limit, sufit adresu) takze przy
---          wydaniu body - zasiewa licznik "zostalo N", ktory nie moze obiecac
---          artykulu, ktorego adres juz nie wpusci (ta sama regula co
---          `_metering_state`).
+--          nie ma juz czym wolac log_metering_event.
 --   2. `consume_metered_view(_entity_type, _entity_id)` - TYLKO konto
 --      (auth.uid()); stara trzyargumentowa sygnatura zdjeta, anon bez EXECUTE.
 --      Klient nie podaje zadnej tozsamosci.
@@ -136,7 +128,6 @@ DECLARE
   v_ip_limit integer := 0;
   v_used integer := 0;
   v_ip_used integer := 0;
-  v_remaining integer := 0;
   v_already boolean := false;
   v_insert_count integer := 0;
   v_requires_registration boolean := false;
@@ -306,11 +297,7 @@ BEGIN
           (_tenant, NULL, _visitor_id, _entity_type::text, _entity_id, 'denied',
            'ip_limit_reached', v_used, v_limit,
            jsonb_build_object('ip_used', v_ip_used, 'ip_limit', v_ip_limit));
-        -- Osobny powod odmowy: wlasny limit goscia nie jest wyczerpany
-        -- (used < monthly_limit), wiec wariant "exhausted" nie pasuje,
-        -- a goly paywall nie mowi, co zrobic. requires_registration = true
-        -- kieruje na konto - ono ma wlasny licznik, poza sufitem adresu.
-        RETURN QUERY SELECT false, false, v_used, v_limit, 0, true, v_show_counter,
+        RETURN QUERY SELECT false, false, v_used, v_limit, 0, false, v_show_counter,
           NULL::text, NULL::text, NULL::jsonb, NULL::jsonb;
         RETURN;
       END IF;
@@ -331,21 +318,6 @@ BEGIN
     END IF;
   END IF;
 
-  -- "Zostalo N": konto - wlasny limit; gosc - mniejsza z dwoch liczb (wlasny
-  -- limit i sufit adresu), liczona POD ta sama blokada adresu i takze przy
-  -- ponownym czytaniu (v_already). Bez tego zasiew licznika z tego wiersza
-  -- obiecywal artykuly, ktorych adres juz nie wpusci (NAT biura, operatora).
-  v_remaining := GREATEST(v_limit - v_used, 0);
-  IF _uid IS NULL THEN
-    SELECT count(DISTINCT (mv.entity_type, mv.entity_id))::integer
-      INTO v_ip_used
-      FROM public.metered_views mv
-     WHERE mv.tenant_id = _tenant AND mv.user_id IS NULL
-       AND mv.ip_subject = _ip_subject
-       AND mv.period_month = v_period;
-    v_remaining := GREATEST(LEAST(v_remaining, v_ip_limit - v_ip_used), 0);
-  END IF;
-
   -- Wydanie body - identyczne ograniczenia jak get_entity_content.
   IF _entity_type = 'post' THEN
     SELECT p.content_pl, p.content_en, p.builder_data, p.blocks_data
@@ -364,7 +336,7 @@ BEGIN
   END IF;
 
   IF NOT v_body_found THEN
-    RETURN QUERY SELECT false, false, v_used, v_limit, v_remaining, false,
+    RETURN QUERY SELECT false, false, v_used, v_limit, GREATEST(v_limit - v_used, 0), false,
       v_show_counter, NULL::text, NULL::text, NULL::jsonb, NULL::jsonb;
     RETURN;
   END IF;
@@ -374,7 +346,7 @@ BEGIN
     (NOT v_already AND v_insert_count > 0),
     v_used,
     v_limit,
-    v_remaining,
+    GREATEST(v_limit - v_used, 0),
     false,
     v_show_counter,
     v_content_pl, v_content_en, v_builder, v_blocks;
@@ -386,9 +358,7 @@ REVOKE ALL ON FUNCTION public._metered_view_consume(uuid, uuid, uuid, text, publ
 COMMENT ON FUNCTION public._metered_view_consume(uuid, uuid, uuid, text, public.access_entity_type, uuid) IS
   'Wewnetrzny rdzen meteringu (bez EXECUTE dla klientow): limit miesieczny konta albo goscia, '
   'adresowy sufit gosci (5 x anon_monthly_limit), serializacja pg_advisory_xact_lock per '
-  '<najemca>:<podmiot> (i <najemca>:<skrot adresu>) PRZED zliczeniem. Odmowa sufitu adresu: '
-  'requires_registration = true (wlasny limit goscia nie wyczerpany); remaining goscia = '
-  'min(wlasny limit, sufit adresu). Woluja go consume_metered_view (konto) '
+  '<najemca>:<podmiot> (i <najemca>:<skrot adresu>). Woluja go consume_metered_view (konto) '
   'i consume_metered_view_visitor (service_role).';
 
 -- ----------------------------------------------------------------------------

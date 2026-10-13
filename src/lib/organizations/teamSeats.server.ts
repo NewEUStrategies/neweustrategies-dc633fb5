@@ -10,7 +10,6 @@ import {
   accessActiveAt,
   isDelinquentSubscriptionStatus,
   isEntitledSubscriptionStatus,
-  isNonPaymentCancellation,
   paymentGraceEnd,
 } from "@/lib/billing/accessPeriod";
 import { catalogEntryByPriceId } from "@/lib/billing/catalog";
@@ -73,30 +72,21 @@ export async function applySubscriptionSeats(input: {
 /**
  * Czy subskrypcja w danym stanie nadaje zespołowi uprawnienia - TA SAMA
  * reguła karencji co dla uprawnienia indywidualnego (`accessPeriod.ts`):
- * `active` / `trialing` zawsze; zaległość (`past_due` / `unpaid`) oraz
- * anulowanie ZA BRAK PŁATNOŚCI (`payment_failed` / `payment_disputed`, koniec
- * tego samego cyklu windykacji) - wyłącznie do końca karencji; reszta (pauza,
- * rezygnacja, `incomplete*`) - nie.
+ * `active` / `trialing` zawsze, zaległość (`past_due` / `unpaid`) wyłącznie
+ * do końca karencji, reszta (pauza, anulowanie, `incomplete*`) - nie.
  *
  * Wcześniej zespół tracił dostęp w chwili pierwszej nieudanej próby, a osoba
  * z planem indywidualnym miała go do końca (nieopłaconego) okresu - jedna
- * płatność, dwie reguły (audyt SUB-03). To samo działo się na końcu
- * windykacji: `deleted(payment_failed)` w trakcie karencji zawieszał zespół
- * od razu, choć osoba indywidualna (i mail do właściciela) miała dostęp do
- * końca karencji. Stan karencji bez podanej daty zostaje zawieszony: brak
- * danych nie może otwierać dostępu.
+ * płatność, dwie reguły (audyt SUB-03). Zaległość bez podanej daty karencji
+ * zostaje po staremu zawieszona: brak danych nie może otwierać dostępu.
  */
 export function subscriptionGrantsTeamAccess(
   status: string,
   accessUntil: string | null | undefined,
   now: Date = new Date(),
-  cancellationReason?: string | null,
 ): boolean {
   if (isEntitledSubscriptionStatus(status)) return true;
-  const graceState =
-    isDelinquentSubscriptionStatus(status) ||
-    (status === "canceled" && isNonPaymentCancellation(cancellationReason));
-  if (!graceState || !accessUntil) return false;
+  if (!isDelinquentSubscriptionStatus(status) || !accessUntil) return false;
   return accessActiveAt(accessUntil, now);
 }
 
@@ -112,21 +102,11 @@ export async function applySubscriptionOrgState(input: {
   subscriptionId: string;
   status: string;
   priceId: string | null;
-  /**
-   * Koniec karencji przy zaległości albo anulowaniu za brak płatności
-   * (`accessPeriodFromEvent().accessUntil`).
-   */
+  /** Koniec karencji przy zaległości (`accessPeriodFromEvent().accessUntil`). */
   accessUntil?: string | null;
-  /** `cancellation_details.reason` operatora - tylko przy `canceled`. */
-  cancellationReason?: string | null;
 }): Promise<{ changed: boolean }> {
   if (!isPerSeatPrice(input.priceId)) return { changed: false };
-  const entitled = subscriptionGrantsTeamAccess(
-    input.status,
-    input.accessUntil,
-    new Date(),
-    input.cancellationReason,
-  );
+  const entitled = subscriptionGrantsTeamAccess(input.status, input.accessUntil);
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
@@ -149,12 +129,7 @@ export async function applySubscriptionOrgState(input: {
  * `status`. Operator po ostatniej nieudanej próbie potrafi zostawić
  * subskrypcję w `past_due` bez kolejnego zdarzenia (ustawienie „leave
  * past-due"), więc bez tego przebiegu zespół zachowywał dostęp po karencji
- * aż do następnego webhooka. To samo dotyczy anulowania za brak płatności:
- * webhook zostawia zespół aktywny do końca karencji, a po niej nie przyjdzie
- * już żadne zdarzenie. Wiersz `canceled` rozpoznajemy po kotwicy karencji
- * (`first_payment_failed_at`, zapisywanej także przy samym anulowaniu) -
- * rezygnacja klienta jej nie ma i zawiesza zespół od razu w webhooku, więc
- * przebieg jej nie dotyka. Bezpieczne przy wielokrotnym uruchomieniu:
+ * aż do następnego webhooka. Bezpieczne przy wielokrotnym uruchomieniu:
  * zawiesza wyłącznie organizacje aktywne, a zapłata (`subscription.updated`
  * -> `active`) przywraca je tą samą ścieżką co zawsze. Nigdy nie rzuca.
  */
@@ -186,26 +161,27 @@ export async function suspendTeamsPastPaymentGrace(
       "provider_subscription_id, price_id, status, current_period_start, current_period_end, first_payment_failed_at",
     )
     .in("provider_subscription_id", linked)
-    .in("status", ["past_due", "unpaid", "canceled"]);
+    .in("status", ["past_due", "unpaid"]);
   if (subsError) {
     console.error("[orgs] payment grace sweep: subscriptions lookup failed", subsError.message);
     return { suspended: 0 };
   }
 
   const expired = (subs ?? [])
-    .filter((sub) => {
-      if (!isPerSeatPrice(sub.price_id)) return false;
-      // Anulowanie bez kotwicy karencji to rezygnacja (zespół zawieszony już
-      // w webhooku) albo stan, którego nie umiemy przypisać - nie ruszamy.
-      if (sub.status === "canceled" && !sub.first_payment_failed_at) return false;
-      const graceEnd = paymentGraceEnd({
-        firstPaymentFailedAt: sub.first_payment_failed_at,
-        periodStart: sub.current_period_start,
-        periodEnd: sub.current_period_end,
-        now,
-      });
-      return !accessActiveAt(graceEnd, now);
-    })
+    .filter(
+      (sub) =>
+        isPerSeatPrice(sub.price_id) &&
+        !subscriptionGrantsTeamAccess(
+          sub.status,
+          paymentGraceEnd({
+            firstPaymentFailedAt: sub.first_payment_failed_at,
+            periodStart: sub.current_period_start,
+            periodEnd: sub.current_period_end,
+            now,
+          }),
+          now,
+        ),
+    )
     .map((sub) => sub.provider_subscription_id);
   if (expired.length === 0) return { suspended: 0 };
 

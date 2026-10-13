@@ -16,13 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   subscriptions: { update: vi.fn(), retrieve: vi.fn() },
-  subscriptionSchedules: {
-    create: vi.fn(),
-    list: vi.fn(),
-    update: vi.fn(),
-    release: vi.fn(),
-    retrieve: vi.fn(),
-  },
+  subscriptionSchedules: { create: vi.fn(), list: vi.fn(), update: vi.fn(), release: vi.fn() },
   prices: { list: vi.fn() },
 }));
 
@@ -63,13 +57,6 @@ beforeEach(() => {
   h.subscriptionSchedules.create.mockResolvedValue({ id: "sched_1" });
   h.subscriptionSchedules.update.mockResolvedValue({ id: "sched_1" });
   h.subscriptionSchedules.release.mockResolvedValue({ id: "sched_1" });
-  // Założony harmonogram jest żywy - potwierdzenie odczytem (ochrona przed
-  // odpowiedzią z pamięci klucza) nie zmienia tu niczego.
-  h.subscriptionSchedules.retrieve.mockImplementation(async (id: string) => ({
-    id,
-    status: "active",
-    subscription: "sub_1",
-  }));
   h.subscriptions.update.mockResolvedValue({});
 });
 

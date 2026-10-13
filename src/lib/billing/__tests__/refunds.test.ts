@@ -75,39 +75,3 @@ describe("isDisputeReversed", () => {
     expect(isDisputeReversed({ ...base, status: "approved" })).toBe(false);
   });
 });
-
-// Przegląd adwersaryjny, poz. 26: statusy, które Stripe NAPRAWDĘ wysyła dla
-// sporu (`Dispute.status`) - normalizacja przekazuje je surowe.
-describe("spór Stripe - prawdziwe statusy Dispute", () => {
-  const dispute = (status: string | null): RefundEvent => ({
-    ...base,
-    action: "chargeback",
-    status,
-  });
-
-  it("formalny spór odbiera dostęp od otwarcia do przegranej", () => {
-    for (const status of ["needs_response", "under_review", "lost"]) {
-      expect(isRevokingAdjustment(dispute(status))).toBe(true);
-    }
-  });
-
-  it("zapytanie banku, spór zablokowany i wygrany NIE odbierają dostępu", () => {
-    for (const status of [
-      "warning_needs_response",
-      "warning_under_review",
-      "warning_closed",
-      "prevented",
-      "won",
-    ]) {
-      expect(isRevokingAdjustment(dispute(status))).toBe(false);
-    }
-  });
-
-  it("wygrana (`won`) przywraca dostęp; zamknięte zapytanie i przegrana - nie", () => {
-    expect(isDisputeReversed(dispute("won"))).toBe(true);
-    expect(isDisputeReversed(dispute("warning_closed"))).toBe(false);
-    expect(isDisputeReversed(dispute("lost"))).toBe(false);
-    // `won` dotyczy wyłącznie sporu - zwrot o tym statusie nic nie przywraca.
-    expect(isDisputeReversed({ ...base, action: "refund", status: "won" })).toBe(false);
-  });
-});

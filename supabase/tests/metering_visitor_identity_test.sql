@@ -23,23 +23,12 @@
 --      odmowa trafia do metering_event_log;
 --   5. surowy adres nie wchodzi do bazy (RPC i CHECK tabeli);
 --   6. uprawniony (zakup) - bez konsumpcji, bez wierszy licznika;
---   7. retencja: skrot adresu z poprzednich okresow jest zerowany;
---   8. odmowa ADRESOWEGO sufitu ma wlasny powod (requires_registration = true
---      przy used < monthly_limit - klient pokazuje droge przez konto, nie goly
---      paywall), a `remaining` goscia przy wydaniu body = min(wlasny limit,
---      sufit adresu) - zasiany licznik "zostalo N" nie obiecuje artykulu,
---      ktorego adres nie wpusci (przeglad adwersaryjny, poz. 29);
---   9. STRUKTURA: obie blokady doradcze stoja PRZED pierwszym zliczeniem
---      metered_views. Asercje pg_locks z punktu 2/3 przechodza GDZIEKOLWIEK
---      w ciele stoi blokada (trzymana do COMMIT, wspolbiezna w jednym
---      procesie), wiec przesuniecie jej za count(*) - powrot wyscigu SUB-17 -
---      zostawialo je zielone. Prawdziwa wspolbieznosc (dwie sesje dblink):
---      supabase/tests/metering_concurrency_test.sql (przeglad, poz. 30).
+--   7. retencja: skrot adresu z poprzednich okresow jest zerowany.
 --
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(45);
+SELECT plan(35);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -58,18 +47,17 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
 INSERT INTO public.pages (id, tenant_id, slug) VALUES
   ('a5000000-0000-0000-0000-00000000a0a0', 'a5000000-0000-0000-0000-0000000000aa', 'meter-identity-home');
 
--- Dwanascie platnych wpisow a5000000-...-0000000001p1 .. p12 (rozne byty
--- licznika; 9-12 dla sekcji 8 - sufit adresu przy limicie goscia 2).
+-- Osiem platnych wpisow a5000000-...-0000000001p1 .. p8 (rozne byty licznika).
 INSERT INTO public.posts (id, slug, author_id, status, tenant_id, parent_page_id, title_pl, content_pl)
 SELECT ('a5000000-0000-0000-0000-0000000001' || lpad(g::text, 2, '0'))::uuid,
        'meter-identity-' || g, 'a5000000-0000-0000-0000-000000000001', 'published',
        'a5000000-0000-0000-0000-0000000000aa', 'a5000000-0000-0000-0000-00000000a0a0',
        'Paid ' || g, '<p>Tresc ' || g || '</p>'
-  FROM generate_series(1, 12) AS g;
+  FROM generate_series(1, 8) AS g;
 INSERT INTO public.content_access (tenant_id, entity_type, entity_id, mode, plan_ids, metering_policy)
 SELECT 'a5000000-0000-0000-0000-0000000000aa', 'post',
        ('a5000000-0000-0000-0000-0000000001' || lpad(g::text, 2, '0'))::uuid, 'paid', '{}', 'inherit'
-  FROM generate_series(1, 12) AS g;
+  FROM generate_series(1, 8) AS g;
 
 -- Konto: 2 artykuly/mies.; gosc: 1 artykul/mies. -> sufit adresu 5 bytow.
 INSERT INTO public.metering_settings
@@ -87,7 +75,6 @@ INSERT INTO public.user_purchases (user_id, tenant_id, entity_type, entity_id, a
 -- Skrot adresu w ksztalcie requestRateSubject ('ip:' + 32 hex).
 SELECT set_config('test.ip_a', 'ip:' || substr(md5('adres-a'), 1, 32), true);
 SELECT set_config('test.ip_b', 'ip:' || substr(md5('adres-b'), 1, 32), true);
-SELECT set_config('test.ip_c', 'ip:' || substr(md5('adres-c'), 1, 32), true);
 
 -- Czy BIEZACA transakcja trzyma blokade doradcza o danym kluczu bigint.
 CREATE FUNCTION pg_temp.holds_advisory(p_key bigint) RETURNS boolean
@@ -305,102 +292,6 @@ SELECT ok(
      WHERE tenant_id = 'a5000000-0000-0000-0000-0000000000aa' AND user_id IS NULL
        AND period_month = (date_trunc('month', now()))::date AND ip_subject IS NULL),
   'scrub: biezacy okres nietkniety (limit adresowy nadal liczy)');
-
--- ── 8) Sufit adresu: wlasny powod odmowy i "zostalo N" = min(gosc, adres) ──
--- Limit goscia 2 -> sufit adresu 10 bytow. Adres C (NAT biura): dziewiec
--- roznych artykulow przeczytali juz inni goscie.
-UPDATE public.metering_settings SET anon_monthly_limit = 2
- WHERE tenant_id = 'a5000000-0000-0000-0000-0000000000aa';
-INSERT INTO public.metered_views (tenant_id, visitor_id, entity_type, entity_id, ip_subject)
-SELECT 'a5000000-0000-0000-0000-0000000000aa',
-       ('a5000000-0000-0000-0000-0000000c00' || lpad(g::text, 2, '0'))::uuid, 'post',
-       ('a5000000-0000-0000-0000-0000000001' || lpad(g::text, 2, '0'))::uuid,
-       current_setting('test.ip_c')
-  FROM generate_series(1, 9) AS g;
-
-SET LOCAL ROLE service_role;
-SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
--- Nowy gosc czyta 10. rozny artykul adresu: wlasny limit zostawia mu 1,
--- adres - 0. Licznik musi powiedziec 0 (nastepny rozny artykul odbije sufit).
-SELECT results_eq(
-  $$ SELECT granted, consumed, used, monthly_limit, remaining
-       FROM public.consume_metered_view_visitor('a5000000-0000-0000-0000-0000000000aa', 'post',
-         'a5000000-0000-0000-0000-000000000110', 'a5000000-0000-0000-0000-0000000000d1',
-         current_setting('test.ip_c')) $$,
-  $$ VALUES (true, true, 1, 2, 0) $$,
-  'wydanie body: remaining goscia = min(wlasny limit 1, sufit adresu 0)');
-SELECT results_eq(
-  $$ SELECT granted, consumed, remaining
-       FROM public.consume_metered_view_visitor('a5000000-0000-0000-0000-0000000000aa', 'post',
-         'a5000000-0000-0000-0000-000000000110', 'a5000000-0000-0000-0000-0000000000d1',
-         current_setting('test.ip_c')) $$,
-  $$ VALUES (true, false, 0) $$,
-  'ponowne czytanie: remaining tez liczy sufit adresu (zasiew licznika spojny)');
-SELECT results_eq(
-  $$ SELECT remaining
-       FROM public.metering_state_visitor('a5000000-0000-0000-0000-0000000000aa',
-         current_setting('test.ip_c'), 'a5000000-0000-0000-0000-0000000000d1') $$,
-  $$ VALUES (0) $$,
-  'stan bez konsumpcji mowi to samo co werdykt konsumpcji (0)');
--- Kolejny NOWY gosc z adresu C: wlasny limit nietkniety (0 z 2), odbija go
--- sufit adresu - osobny powod odmowy, nie "wyczerpany limit".
-SELECT results_eq(
-  $$ SELECT granted, consumed, used, monthly_limit, remaining, requires_registration, content_pl
-       FROM public.consume_metered_view_visitor('a5000000-0000-0000-0000-0000000000aa', 'post',
-         'a5000000-0000-0000-0000-000000000111', 'a5000000-0000-0000-0000-0000000000d2',
-         current_setting('test.ip_c')) $$,
-  $$ VALUES (false, false, 0, 2, 0, true, NULL::text) $$,
-  'odmowa sufitu adresu: used 0 < limit 2, requires_registration = true (droga przez konto)');
--- Ten sam gosc z innego adresu (B) czyta normalnie - dowod, ze odmowa byla
--- adresowa, a nie jego wlasnym limitem.
-SELECT results_eq(
-  $$ SELECT granted, consumed, used, requires_registration
-       FROM public.consume_metered_view_visitor('a5000000-0000-0000-0000-0000000000aa', 'post',
-         'a5000000-0000-0000-0000-000000000111', 'a5000000-0000-0000-0000-0000000000d2',
-         current_setting('test.ip_b')) $$,
-  $$ VALUES (true, true, 1, false) $$,
-  'ten sam gosc spoza adresu C dostaje artykul (odmowa byla adresowa)');
--- Wlasny limit wyczerpany (2 z 2) to dalej osobny przypadek: bez flagi
--- rejestracji, klient pokazuje "wykorzystano X z N".
-SELECT results_eq(
-  $$ SELECT granted, consumed, used, monthly_limit, requires_registration
-       FROM public.consume_metered_view_visitor('a5000000-0000-0000-0000-0000000000aa', 'post',
-         'a5000000-0000-0000-0000-000000000112', 'a5000000-0000-0000-0000-0000000000d2',
-         current_setting('test.ip_b')) $$,
-  $$ VALUES (true, true, 2, 2, false) $$,
-  'gosc z adresu B: drugi artykul w wlasnym limicie');
-SELECT results_eq(
-  $$ SELECT granted, used, monthly_limit, requires_registration
-       FROM public.consume_metered_view_visitor('a5000000-0000-0000-0000-0000000000aa', 'post',
-         'a5000000-0000-0000-0000-000000000109', 'a5000000-0000-0000-0000-0000000000d2',
-         current_setting('test.ip_b')) $$,
-  $$ VALUES (false, 2, 2, false) $$,
-  'wyczerpany WLASNY limit: bez flagi rejestracji (wariant "exhausted")');
-RESET ROLE;
-SELECT is(
-  (SELECT count(*)::int FROM public.metering_event_log
-    WHERE tenant_id = 'a5000000-0000-0000-0000-0000000000aa'
-      AND visitor_id = 'a5000000-0000-0000-0000-0000000000d2'
-      AND outcome = 'denied' AND reason = 'ip_limit_reached'),
-  1, 'odmowa sufitu adresu nowego goscia zalogowana z wlasnym powodem');
-
--- ── 9) Struktura: blokady PRZED pierwszym zliczeniem ──────────────────────
-SELECT ok(
-  strpos(pg_get_functiondef('public._metered_view_consume(uuid, uuid, uuid, text, public.access_entity_type, uuid)'::regprocedure),
-         'PERFORM pg_advisory_xact_lock(hashtextextended(_tenant::text || '':'' || v_subject, 0))') > 0
-  AND strpos(pg_get_functiondef('public._metered_view_consume(uuid, uuid, uuid, text, public.access_entity_type, uuid)'::regprocedure),
-             'PERFORM pg_advisory_xact_lock(hashtextextended(_tenant::text || '':'' || v_subject, 0))')
-    < strpos(pg_get_functiondef('public._metered_view_consume(uuid, uuid, uuid, text, public.access_entity_type, uuid)'::regprocedure),
-             'FROM public.metered_views mv'),
-  'blokada podmiotu stoi przed pierwszym zliczeniem metered_views');
-SELECT ok(
-  strpos(pg_get_functiondef('public._metered_view_consume(uuid, uuid, uuid, text, public.access_entity_type, uuid)'::regprocedure),
-         'PERFORM pg_advisory_xact_lock(hashtextextended(_tenant::text || '':'' || _ip_subject, 0))') > 0
-  AND strpos(pg_get_functiondef('public._metered_view_consume(uuid, uuid, uuid, text, public.access_entity_type, uuid)'::regprocedure),
-             'PERFORM pg_advisory_xact_lock(hashtextextended(_tenant::text || '':'' || _ip_subject, 0))')
-    < strpos(pg_get_functiondef('public._metered_view_consume(uuid, uuid, uuid, text, public.access_entity_type, uuid)'::regprocedure),
-             'FROM public.metered_views mv'),
-  'blokada adresu stoi przed pierwszym zliczeniem metered_views');
 
 SELECT * FROM finish();
 ROLLBACK;

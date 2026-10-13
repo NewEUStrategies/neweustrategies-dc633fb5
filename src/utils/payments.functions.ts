@@ -178,9 +178,8 @@ export const cancelStripeSubscription = createServerFn({ method: "POST" })
  * użytkownika - rozstrzyga ŻYWY stan (`resumeProviderSubscription`), nie
  * status z lustra:
  * - status `paused` (koniec triala bez metody płatności) -> `subscriptions.resume`,
- * - wstrzymany pobór (`pause_collection`)               -> zdjęcie pauzy, o ile bieżący
- *   okres jest opłacony (inaczej odmowa - pauzę zdejmuje operator),
- * - zaplanowany koniec (flaga albo data `cancel_at`)    -> cofnięcie, okres biegnie dalej.
+ * - wstrzymany pobór (`pause_collection`)               -> zdjęcie pauzy,
+ * - zaplanowane anulowanie                              -> cofnięcie, okres biegnie dalej.
  */
 export const resumeStripeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -206,13 +205,8 @@ export const resumeStripeSubscription = createServerFn({ method: "POST" })
     if (!result.ok) {
       return { error: result.error, hostedInvoiceUrl: result.hostedInvoiceUrl ?? null };
     }
-    // Obie pauzy to dla klienta ten sam komunikat („wznowiono dostęp"). Brak
-    // czegokolwiek do wznowienia u operatora (`already_active`) = lustro było
-    // spóźnione, a subskrypcja naprawdę się odnawia: warstwa operatora liczy
-    // zaplanowany koniec w OBU kształtach (flaga i data `cancel_at`), więc
-    // `already_active` nie przykrywa już końca, który operator i tak wykona -
-    // „wznowiono" opisuje stan prawdziwy. Pauza operatora przy nieopłaconym
-    // okresie wraca jako odmowa (`subscription_paused_by_operator`).
+    // Obie pauzy to dla klienta ten sam komunikat („wznowiono dostęp"); brak
+    // czegokolwiek do wznowienia u operatora = lustro było spóźnione.
     const mode =
       result.mode === "unpaused" || result.mode === "collection_resumed"
         ? ("unpaused" as const)
@@ -359,14 +353,12 @@ export const updateStripeSubscriptionSeats = createServerFn({ method: "POST" })
     }
     // Stan w bazie domknie webhook `customer.subscription.updated`; zwracamy
     // wartość docelową i moment wejścia wg OPERATORA (nie wg lustra, które
-    // przy spóźnionym webhooku dawało zły kierunek). `effectiveAt` - początek
-    // okresu, od którego obowiązuje zaplanowane zmniejszenie.
+    // przy spóźnionym webhooku dawało zły kierunek).
     return {
       ok: true as const,
       quantity: result.quantity,
       immediate: result.effect === "applied",
       effect: result.effect,
-      effectiveAt: result.effectiveAt,
     };
   });
 

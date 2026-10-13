@@ -45,12 +45,6 @@ import {
 
 import { clampSeats, seatsAtRisk, summarizeSeats } from "@/lib/organizations/teamSeats";
 import { billingKeys } from "@/lib/billing/keys";
-import { isPaymentOutcomeCode } from "@/lib/billing/planSwitch";
-import {
-  ProviderCallError,
-  providerErrorCode,
-  providerInvoiceUrl,
-} from "@/lib/billing/providerResult";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -868,72 +862,25 @@ function SeatsPane({
   const applySeats = useMutation({
     mutationFn: async () => {
       const res = await setSeats({ data: { org_id: orgId, seats: clampSeats(nextSeats) } });
-      if (!res.ok) {
-        // Odmowa dopłaty niesie kod i stronę faktury - `ProviderCallError`
-        // przenosi oba do `onError` (zwykły `Error` zgubiłby link).
-        if ("paymentOutcome" in res && res.paymentOutcome) {
-          throw new ProviderCallError(res.paymentOutcome, res.hostedInvoiceUrl ?? null);
-        }
-        throw new Error(res.error);
-      }
+      if (!res.ok) throw new Error(res.error);
       return res;
     },
     onSuccess: (res) => {
-      if (res.effect === "scheduled") {
-        // Operator zaplanował zmniejszenie od nowego okresu - limit i miejsca
-        // zostają do tego dnia, więc „zaktualizowano" byłoby nieprawdą.
-        toast.success(
-          res.effectiveAt
-            ? t("adminOrganizations.seatDecreaseScheduled", {
-                seats: res.scheduledSeats,
-                limit: res.seatsLimit,
-                date: new Date(res.effectiveAt).toLocaleDateString(uiLocale(i18n.language)),
-              })
-            : t("adminOrganizations.seatDecreaseScheduledPeriodEnd", {
-                seats: res.scheduledSeats,
-                limit: res.seatsLimit,
-              }),
-        );
-      } else {
-        toast.success(
-          t("adminOrganizations.seatLimitUpdated", {
-            limit: res.seatsLimit,
-            suspended: res.suspended,
-          }),
-        );
-      }
+      toast.success(
+        t("adminOrganizations.seatLimitUpdated", {
+          limit: res.seatsLimit,
+          suspended: res.suspended,
+        }),
+      );
       void qc.invalidateQueries({ queryKey: seatsKey });
       void qc.invalidateQueries({ queryKey: billingKeys.admin.memberOrg(orgId) });
     },
-    onError: (err: Error) => {
-      const code = providerErrorCode(err);
-      if (isPaymentOutcomeCode(code)) {
-        const url = providerInvoiceUrl(err);
-        const message = t(
-          code === "payment_requires_action"
-            ? "adminOrganizations.seatPaymentRequiresAction"
-            : "adminOrganizations.seatPaymentFailed",
-        );
-        toast.error(
-          message,
-          url
-            ? {
-                // Strona faktury operatora nie działa w iframe - nowa karta.
-                action: {
-                  label: t("adminOrganizations.openInvoice"),
-                  onClick: () => window.open(url, "_blank", "noopener,noreferrer"),
-                },
-              }
-            : undefined,
-        );
-        return;
-      }
+    onError: (err: Error) =>
       toast.error(
         err.message.includes("provider")
           ? t("adminOrganizations.paymentProviderRejectedChange")
           : t("adminOrganizations.couldChangeSeatLimit"),
-      );
-    },
+      ),
   });
 
   // Okres karencji: ile dni osoby ponad limit zachowują dostęp, zanim
@@ -1092,17 +1039,9 @@ function SeatsPane({
         </p>
         {atRisk.length > 0 ? (
           <p className="text-[10px] font-medium text-destructive">
-            {/* Przy subskrypcji zmniejszenie wchodzi od nowego okresu - „od
-                razu" straszyłoby utratą dostępu w opłaconym okresie. */}
-            {seatsSource === "subscription"
-              ? clampGraceDays(graceDays) > 0
-                ? t("adminOrganizations.willEnterGraceNextPeriod", {
-                    days: clampGraceDays(graceDays),
-                  })
-                : t("adminOrganizations.loseAccessNextPeriod")
-              : clampGraceDays(graceDays) > 0
-                ? t("adminOrganizations.willEnterGrace", { days: clampGraceDays(graceDays) })
-                : t("adminOrganizations.loseAccessImmediately")}{" "}
+            {clampGraceDays(graceDays) > 0
+              ? t("adminOrganizations.willEnterGrace", { days: clampGraceDays(graceDays) })
+              : t("adminOrganizations.loseAccessImmediately")}{" "}
             {atRisk.join(", ")}
           </p>
         ) : null}

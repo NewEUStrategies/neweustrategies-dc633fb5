@@ -76,17 +76,11 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
 
     // Druga subskrypcja i ponowny trial (ta sama reguła co w drugim silniku).
     // Lustro `subscriptions` pod RLS kupującego: konto i najemca z sesji.
-    // Konflikt liczony względem KUPOWANEJ pozycji: przejście między modelem
-    // za miejsce a indywidualnym to osobny zakup, nie zmiana planu.
     let trialEligible = true;
     if (!quote.entry.oneTime) {
       const { loadLocalPlanSubscriptionHistory, SUBSCRIPTION_EXISTS_ERROR } =
         await import("@/lib/billing/planSubscriptionGuard");
-      const history = await loadLocalPlanSubscriptionHistory(supabase, {
-        userId,
-        environment,
-        target: quote.entry,
-      });
+      const history = await loadLocalPlanSubscriptionHistory(supabase, { userId, environment });
       if (history.hasLive) return { ok: false as const, error: SUBSCRIPTION_EXISTS_ERROR };
       trialEligible = !history.hadAny;
     }
@@ -236,19 +230,6 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         ? { ...data.newsletterConsent, at: new Date().toISOString() }
         : null,
     });
-
-    // Zamówienia, których sesje kasa właśnie wygasiła (druga karta, poprzednia
-    // próba) - już nie zostaną opłacone, więc nie mogą wisieć w `processing`.
-    if (result.supersededOrderIds?.length) {
-      const { markOrderSession } = await import("@/lib/billing/markOrderSession.server");
-      for (const supersededId of result.supersededOrderIds) {
-        await markOrderSession(supabase, {
-          orderId: supersededId,
-          sessionId: null,
-          status: "canceled",
-        });
-      }
-    }
 
     if (!result.ok) {
       await (

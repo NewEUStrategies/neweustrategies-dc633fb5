@@ -11,32 +11,23 @@
 --   4. korekta zastanych par sesja/faktura pierwszej raty (oba kierunki
 --      kolejności zdarzeń) zostawia JEDEN opłacony wiersz, nie rusza drugiej
 --      raty ani par niejednoznacznych i jest idempotentna;
---   5. funkcja korekty jest wyłącznie dla service_role;
---   6. korekta sięga też danych z uzgodnienia w panelu sprzed poprawki:
---      kotwica z PUSTĄ intencją + `renewal:in_...` (para) oraz trójka
---      kotwica + `renewal:in_...` + `renewal:cs_...` - w obu zostaje jeden
---      opłacony wiersz z kluczem faktury (przegląd adwersaryjny, poz. 23);
---   7. przeliczenie statusu wspierającego liczy te same wiersze, które go
---      nadają: korekta testowej pary (`sandbox`) nie skraca ani nie odbiera
---      przydziału uzasadnionego wpłatą `live` (przegląd adwersaryjny, poz. 24).
+--   5. funkcja korekty jest wyłącznie dla service_role.
 BEGIN;
-SELECT plan(32);
+SELECT plan(20);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
 INSERT INTO auth.users (id, email) VALUES
   ('d1000000-0000-0000-0000-0000000000d1', 'darczynca-1@ledger.test'),
   ('d1000000-0000-0000-0000-0000000000d2', 'darczynca-2@ledger.test'),
-  ('d1000000-0000-0000-0000-0000000000d3', 'darczynca-3@ledger.test'),
-  ('d1000000-0000-0000-0000-0000000000d4', 'darczynca-4@ledger.test');
+  ('d1000000-0000-0000-0000-0000000000d3', 'darczynca-3@ledger.test');
 
 INSERT INTO public.profiles (id, tenant_id)
 SELECT u.id, (SELECT id FROM public.tenants WHERE slug = 'nes')
   FROM (VALUES
     ('d1000000-0000-0000-0000-0000000000d1'::uuid),
     ('d1000000-0000-0000-0000-0000000000d2'::uuid),
-    ('d1000000-0000-0000-0000-0000000000d3'::uuid),
-    ('d1000000-0000-0000-0000-0000000000d4'::uuid)) AS u(id)
+    ('d1000000-0000-0000-0000-0000000000d3'::uuid)) AS u(id)
 ON CONFLICT (id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id;
 
 SELECT public.seed_membership_tiers((SELECT id FROM public.tenants WHERE slug = 'nes'));
@@ -283,127 +274,6 @@ SELECT is(
 SET LOCAL ROLE service_role;
 SELECT is(public.donations_dedupe_session_invoice_pairs(), 0,
   'korekta jest idempotentna - drugi przebieg nie znajduje par');
-RESET ROLE;
-
--- ── 6. Dane z uzgodnienia w panelu sprzed poprawki ──────────────────────────
--- Uzgodnienie domykało kotwicę subskrypcji `settleDonation` z
--- `session.payment_intent` - w trybie subskrypcji null - więc kotwica zostawała
--- `paid` z PUSTĄ intencją. Ponowione `invoice.paid` dopisywało `renewal:in_...`,
--- a ponowiona sesja - `renewal:cs_...` (trzeci wiersz tej samej raty).
---
--- (D) para: kotwica bez intencji + faktura pierwszej raty.
-INSERT INTO public.donations
-  (id, tenant_id, amount_cents, currency, provider, provider_session_id,
-   provider_intent_id, provider_invoice_id, provider_subscription_id,
-   environment, recurring, status, paid_at)
-VALUES
-  ('d3000000-0000-0000-0000-0000000000d1', (SELECT id FROM public.tenants WHERE slug = 'nes'),
-   5000, 'PLN', 'stripe', 'cs_ledger_pair_d', NULL, NULL, 'sub_ledger_d',
-   'live', true, 'paid', now() - interval '20 days'),
-  ('d3000000-0000-0000-0000-0000000000d2', (SELECT id FROM public.tenants WHERE slug = 'nes'),
-   5000, 'PLN', 'stripe', 'renewal:in_ledger_d1', 'in_ledger_d1', 'in_ledger_d1', 'sub_ledger_d',
-   'live', true, 'paid', now() - interval '20 days' + interval '2 hours');
-
--- (E) trójka: kotwica bez intencji + `renewal:in_...` + `renewal:cs_...`.
-INSERT INTO public.donations
-  (id, tenant_id, amount_cents, currency, provider, provider_session_id,
-   provider_intent_id, provider_invoice_id, provider_subscription_id,
-   environment, recurring, status, paid_at)
-VALUES
-  ('d3000000-0000-0000-0000-0000000000e1', (SELECT id FROM public.tenants WHERE slug = 'nes'),
-   6000, 'PLN', 'stripe', 'cs_ledger_pair_e', NULL, NULL, 'sub_ledger_e',
-   'live', true, 'paid', now() - interval '15 days'),
-  ('d3000000-0000-0000-0000-0000000000e2', (SELECT id FROM public.tenants WHERE slug = 'nes'),
-   6000, 'PLN', 'stripe', 'renewal:in_ledger_e1', 'in_ledger_e1', 'in_ledger_e1', 'sub_ledger_e',
-   'live', true, 'paid', now() - interval '15 days' + interval '1 day'),
-  ('d3000000-0000-0000-0000-0000000000e3', (SELECT id FROM public.tenants WHERE slug = 'nes'),
-   6000, 'PLN', 'stripe', 'renewal:cs_ledger_pair_e', 'cs_ledger_pair_e', NULL, 'sub_ledger_e',
-   'live', true, 'paid', now() - interval '15 days' + interval '2 days');
-
--- ── 7. Korekta testowej pary nie skraca statusu z wpłaty `live` ─────────────
--- Darczyńca 4: testowa para sesja/faktura sprzed 13 miesięcy (migracja
--- przeklasyfikowała ją na `sandbox`) i realna wpłata `live` sprzed 2 tygodni.
--- Korekta kasuje duplikat z piaskownicy; przeliczenie z SAMYCH wierszy
--- piaskownicy dałoby koniec przydziału przed `now()` = odebranie statusu.
-INSERT INTO public.donations
-  (id, tenant_id, user_id, amount_cents, currency, provider, provider_session_id,
-   provider_intent_id, provider_invoice_id, provider_subscription_id,
-   environment, recurring, status, paid_at)
-VALUES
-  ('d3000000-0000-0000-0000-0000000000f1', (SELECT id FROM public.tenants WHERE slug = 'nes'),
-   'd1000000-0000-0000-0000-0000000000d4', 5000, 'PLN', 'stripe', 'cs_test_ledger_pair_f',
-   'cs_test_ledger_pair_f', NULL, 'sub_ledger_f', 'sandbox', true, 'paid',
-   now() - interval '13 months'),
-  ('d3000000-0000-0000-0000-0000000000f2', (SELECT id FROM public.tenants WHERE slug = 'nes'),
-   'd1000000-0000-0000-0000-0000000000d4', 5000, 'PLN', 'stripe', 'renewal:in_test_ledger_f1',
-   'in_test_ledger_f1', 'in_test_ledger_f1', 'sub_ledger_f', 'sandbox', true, 'paid',
-   now() - interval '13 months' + interval '1 minute'),
-  ('d3000000-0000-0000-0000-0000000000f3', (SELECT id FROM public.tenants WHERE slug = 'nes'),
-   'd1000000-0000-0000-0000-0000000000d4', 5000, 'PLN', 'stripe', 'cs_ledger_live_f',
-   'pi_ledger_live_f', NULL, NULL, 'live', false, 'paid', now() - interval '14 days');
-
-SET LOCAL ROLE service_role;
-SELECT is(public.donations_dedupe_session_invoice_pairs(), 4,
-  'korekta obejmuje parę z pustą intencją (1), trójkę (2) i testową parę (1)');
-RESET ROLE;
-
-SELECT is(
-  (SELECT count(*)::int FROM public.donations
-    WHERE provider_subscription_id = 'sub_ledger_d' AND status = 'paid'),
-  1,
-  '(D) kotwica z pustą intencją + faktura: zostaje jeden opłacony wiersz');
-SELECT is(
-  (SELECT provider_invoice_id || '|' || provider_intent_id FROM public.donations
-    WHERE id = 'd3000000-0000-0000-0000-0000000000d1'),
-  'in_ledger_d1|in_ledger_d1',
-  '(D) kotwica przejmuje klucz faktury (ponowione invoice.paid trafi w unikat)');
-SELECT is(
-  (SELECT status || '|' || provider_session_id FROM public.donations
-    WHERE id = 'd3000000-0000-0000-0000-0000000000d2'),
-  'canceled|duplicate:renewal:in_ledger_d1',
-  '(D) wiersz faktury oznaczony jako duplikat');
-
-SELECT is(
-  (SELECT count(*)::int FROM public.donations
-    WHERE provider_subscription_id = 'sub_ledger_e' AND status = 'paid'),
-  1,
-  '(E) trójka: zostaje jeden opłacony wiersz pierwszej raty');
-SELECT is(
-  (SELECT array_agg(id ORDER BY id) FROM public.donations
-    WHERE provider_subscription_id = 'sub_ledger_e' AND status = 'paid'),
-  ARRAY['d3000000-0000-0000-0000-0000000000e1'::uuid],
-  '(E) zostaje KOTWICA (wiersz z formularza)');
-SELECT is(
-  (SELECT provider_invoice_id FROM public.donations WHERE id = 'd3000000-0000-0000-0000-0000000000e1'),
-  'in_ledger_e1',
-  '(E) kotwica niesie klucz faktury');
-SELECT is(
-  (SELECT string_agg(status || '|' || provider_session_id, ',' ORDER BY id) FROM public.donations
-    WHERE id IN ('d3000000-0000-0000-0000-0000000000e2', 'd3000000-0000-0000-0000-0000000000e3')),
-  'canceled|duplicate:renewal:in_ledger_e1,canceled|duplicate:renewal:cs_ledger_pair_e',
-  '(E) oba dopisane wiersze (faktura i sesja) zostają jako ślad duplikatu');
-
-SELECT is(
-  (SELECT status FROM public.donations WHERE id = 'd3000000-0000-0000-0000-0000000000f2'),
-  'canceled',
-  '(F) testowa para w piaskownicy skorygowana');
-SELECT is(
-  (SELECT count(*)::int FROM public.membership_grants
-    WHERE user_id = 'd1000000-0000-0000-0000-0000000000d4' AND source = 'donation'
-      AND revoked_at IS NULL),
-  1,
-  '(F) korekta testowej pary NIE odbiera statusu uzasadnionego wpłatą live');
-SELECT is(
-  (SELECT expires_at FROM public.membership_grants
-    WHERE user_id = 'd1000000-0000-0000-0000-0000000000d4' AND source = 'donation'
-      AND revoked_at IS NULL),
-  (SELECT paid_at + interval '12 months' FROM public.donations
-    WHERE id = 'd3000000-0000-0000-0000-0000000000f3'),
-  '(F) przydział przeliczony ze WSZYSTKICH opłaconych wpłat: 12 miesięcy od wpłaty live');
-
-SET LOCAL ROLE service_role;
-SELECT is(public.donations_dedupe_session_invoice_pairs(), 0,
-  'korekta danych z uzgodnienia też jest idempotentna');
 RESET ROLE;
 
 SELECT * FROM finish();

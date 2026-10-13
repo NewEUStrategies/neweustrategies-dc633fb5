@@ -32,9 +32,6 @@ const SUPPORTED_EVENT_TYPES = [
   "invoice.payment_failed",
   "charge.refunded",
   "charge.dispute.created",
-  // Rozstrzygnięcie sporu (`won` przywraca dostęp i wpłatę) - zgubione
-  // zdarzenie ma być widoczne i naprawialne jak każde inne.
-  "charge.dispute.closed",
   "credit_note.created",
   "customer.updated",
 ] as const;

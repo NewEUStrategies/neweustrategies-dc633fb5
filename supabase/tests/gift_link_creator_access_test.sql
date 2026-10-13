@@ -13,12 +13,6 @@
 --   4. konto platace tworzy link, czyta jako wlasciciel bez slotu, a odbiorcy
 --      (konto i gosc) czytaja w granicach budzetu; trzeci odbija sie
 --      (exhausted);
---   4b. dane zastane (krok migracji `gift_links_revoke_without_creator_access`):
---      link sprzed poprawki (darmowe konto, platna tresc) zostaje COFNIETY -
---      gosc (tworca po wylogowaniu albo ktokolwiek z kodem) dostaje
---      reason='revoked' bez body; linki tworcow z dostepem zostaja; audyt
---      cofniecia bez aktora (system), tozsamosc wolajacego przywrocona,
---      funkcja tylko dla service_role (przeglad adwersaryjny, poz. 28);
 --   5. utrata dostepu (koniec subskrypcji): wlasciciel dostaje owner_no_access
 --      bez body, nie moze utworzyc nowego linku, popover nie obiecuje linku -
 --      a odbiorca, ktory juz zuzyl slot, czyta dalej (prezent wydany uczciwie).
@@ -26,7 +20,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(33);
+SELECT plan(24);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -189,65 +183,6 @@ SELECT results_eq(
        FROM public.redeem_gift_link('a6000000-0000-0000-0000-0000000000a1', current_setting('test.gift_code')) $$,
   $$ VALUES (false, 'exhausted'::text) $$,
   'trzeci odbiorca odbija sie od wyczerpanego budzetu');
-
--- ── 4b) Dane zastane: link sprzed poprawki cofniety krokiem migracji ───────
--- Kontrola luki: do kroku danych link legacy dziala dla GOSCIA - tworca po
--- wylogowaniu (albo ktokolwiek z kodem) czyta platna tresc sciezka odbiorcy.
-RESET ROLE;
-SET LOCAL ROLE anon;
-SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
-SELECT results_eq(
-  $$ SELECT valid, reason
-       FROM public.redeem_gift_link('a6000000-0000-0000-0000-0000000000a1', 'legacy_free_code_0123456',
-                                    'a6000000-0000-0000-0000-0000000000f9') $$,
-  $$ VALUES (true, 'ok'::text) $$,
-  'kontrola luki: przed krokiem danych gosc czyta tresc platna linkiem legacy');
-
-RESET ROLE;
-SELECT ok(
-  NOT has_function_privilege('anon', 'public.gift_links_revoke_without_creator_access()', 'EXECUTE')
-  AND NOT has_function_privilege('authenticated', 'public.gift_links_revoke_without_creator_access()', 'EXECUTE')
-  AND has_function_privilege('service_role', 'public.gift_links_revoke_without_creator_access()', 'EXECUTE'),
-  'korekta linkow: wylacznie service_role');
-
-SET LOCAL ROLE service_role;
-SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
-SELECT set_config('test.gift_revoked', public.gift_links_revoke_without_creator_access()::text, true);
-SELECT is(current_setting('request.jwt.claims', true), '{"role":"service_role"}',
-  'korekta przywraca tozsamosc wolajacego (tworca nie przecieka do transakcji)');
-RESET ROLE;
-
-SELECT cmp_ok(current_setting('test.gift_revoked')::int, '>=', 1,
-  'korekta cofa co najmniej link legacy');
-SELECT isnt(
-  (SELECT revoked_at FROM public.post_gift_links WHERE code = 'legacy_free_code_0123456'),
-  NULL, 'link legacy (tworca bez dostepu do tresci platnej) cofniety');
-SELECT is(
-  (SELECT count(*)::int FROM public.post_gift_links
-    WHERE tenant_id = 'a6000000-0000-0000-0000-0000000000aa'
-      AND code <> 'legacy_free_code_0123456' AND revoked_at IS NOT NULL),
-  0, 'linki tworcow Z dostepem (platny - tresc platna, darmowy - tresc members) zostaja');
-SELECT is(
-  (SELECT count(*)::int FROM public.gift_events e
-     JOIN public.post_gift_links l ON l.id = e.link_id
-    WHERE l.code = 'legacy_free_code_0123456' AND e.event_type = 'revoked' AND e.actor_id IS NULL),
-  1, 'audyt cofniecia: zdarzenie revoked bez aktora (system, nie tworca)');
-
-SET LOCAL ROLE anon;
-SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
-SELECT results_eq(
-  $$ SELECT valid, reason, content_pl
-       FROM public.redeem_gift_link('a6000000-0000-0000-0000-0000000000a1', 'legacy_free_code_0123456',
-                                    'a6000000-0000-0000-0000-0000000000fa') $$,
-  $$ VALUES (false, 'revoked'::text, NULL::text) $$,
-  'po kroku danych gosc dostaje revoked bez body (koniec luki sprzed poprawki)');
-
-RESET ROLE;
-SET LOCAL ROLE service_role;
-SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
-SELECT is(public.gift_links_revoke_without_creator_access(), 0,
-  'korekta linkow jest idempotentna');
-RESET ROLE;
 
 -- ── 5) Utrata dostepu przez darczynce ──────────────────────────────────────
 RESET ROLE;

@@ -9,20 +9,9 @@
 // subskrypcją trzeba NAJPIERW zmienić liczbę opłaconych miejsc u operatora
 // (klucze bramki są serwerowe), a dopiero potem limit w bazie - inaczej panel
 // twierdziłby, że klient ma miejsca, za które nikt nie zapłacił.
-//
-// ZMNIEJSZENIE U OPERATORA JEST ZAPLANOWANE, NIE NATYCHMIASTOWE. Operator
-// nalicza opłacone miejsca do końca okresu, a nową liczbę dopiero od
-// następnego (`effect: "scheduled"`). Limit w bazie zmienia wtedy webhook na
-// starcie nowego okresu (`applySubscriptionSeats` z nową ilością pozycji -
-// razem z karencją i mailami), a nie ta funkcja. Dawniej limit spadał tu od
-// razu: osoby ponad nowy limit wchodziły w karencję i dostawały maile
-// w okresie opłaconym za pełną liczbę miejsc, najbliższe zdarzenie
-// subskrypcji (np. dołączenie harmonogramu) przywracało stary limit, a
-// odnowienie odcinało ich ponownie - dostęp skakał, maile sobie przeczyły.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { isPaymentOutcomeCode } from "@/lib/billing/planSwitch";
 import {
   MAX_GRACE_DAYS,
   MAX_REMINDER_DAY,
@@ -51,8 +40,6 @@ const linkSchema = z.object({
 });
 
 export interface SeatsLimitResult {
-  /** Limit w bazie zmieniony teraz (i miejsca przeliczone). */
-  effect: "applied";
   seatsLimit: number;
   active: number;
   suspended: number;
@@ -60,22 +47,6 @@ export interface SeatsLimitResult {
   grace: number;
   /** Czy liczbę miejsc zmieniono także u operatora płatności. */
   providerSynced: boolean;
-}
-
-/**
- * Zmniejszenie zaplanowane u operatora od nowego okresu. Limit w bazie i
- * miejsca zostają bez zmian - przeliczy je webhook w dniu `effectiveAt`.
- */
-export interface ScheduledSeatsResult {
-  effect: "scheduled";
-  /** Limit obowiązujący do końca opłaconego okresu (bez zmian). */
-  seatsLimit: number;
-  /** Liczba miejsc od nowego okresu. */
-  scheduledSeats: number;
-  /** Początek nowego okresu (ISO); `null`, gdy operator go nie podał. */
-  effectiveAt: string | null;
-  source: "subscription";
-  providerSynced: true;
 }
 
 function readReconcile(value: unknown): {
@@ -95,9 +66,7 @@ function readReconcile(value: unknown): {
 
 /**
  * Zmiana liczby miejsc: u operatora (jeśli plan jest płatny za miejsce),
- * potem limit + zawieszenie/przywrócenie miejsc ponad limit. Zmniejszenie,
- * które operator zaplanował od nowego okresu, NIE rusza limitu ani miejsc
- * (wynik `effect: "scheduled"` z datą wejścia) - patrz nagłówek pliku.
+ * potem limit + zawieszenie/przywrócenie miejsc ponad limit.
  */
 export const setTeamSeatLimit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -136,33 +105,7 @@ export const setTeamSeatLimit = createServerFn({ method: "POST" })
         },
       );
       if (!res.ok) {
-        // Odmowa dopłaty za dołożone miejsca (karta, 3DS): miejsc nie
-        // przybywa, a panel dostaje stronę faktury operatora - bez niej
-        // administrator widział ogólne „operator odrzucił zmianę" i nie miał
-        // czego przekazać płatnikowi, który może zmianę dokończyć.
-        const paymentOutcome = isPaymentOutcomeCode(res.error) ? res.error : null;
-        return {
-          ok: false as const,
-          error: `provider: ${res.error}`.slice(0, 160),
-          ...(paymentOutcome
-            ? { paymentOutcome, hostedInvoiceUrl: res.hostedInvoiceUrl ?? null }
-            : {}),
-        };
-      }
-      if (res.effect === "scheduled") {
-        // Operator nalicza do końca okresu dotychczasową liczbę miejsc - limit
-        // i uprawnienia zespołu zostają. Nową ilość przyniesie
-        // `customer.subscription.updated` na starcie okresu
-        // (`applySubscriptionSeats`: limit, karencja i maile w jednym miejscu).
-        return {
-          ok: true as const,
-          effect: "scheduled" as const,
-          seatsLimit: org.seats_limit,
-          scheduledSeats: res.quantity,
-          effectiveAt: res.effectiveAt ?? null,
-          source: "subscription" as const,
-          providerSynced: true as const,
-        } satisfies { ok: true } & ScheduledSeatsResult;
+        return { ok: false as const, error: `provider: ${res.error}`.slice(0, 160) };
       }
       // Lustro `subscriptions.quantity` uzupełnia webhook operatora
       // (`customer.subscription.updated`, `webhookDispatch.server.ts`). Zapis
@@ -188,13 +131,9 @@ export const setTeamSeatLimit = createServerFn({ method: "POST" })
     await notifySeatAccessChanges({ orgId: data.org_id, reconcile: result }).catch(() => undefined);
 
     const summary = readReconcile(result);
-    return {
-      ok: true as const,
-      effect: "applied" as const,
-      ...summary,
-      source,
-      providerSynced,
-    } satisfies { ok: true } & SeatsLimitResult;
+    return { ok: true as const, ...summary, source, providerSynced } satisfies {
+      ok: true;
+    } & SeatsLimitResult;
   });
 
 /**

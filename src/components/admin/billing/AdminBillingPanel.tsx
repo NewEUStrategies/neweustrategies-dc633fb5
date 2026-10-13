@@ -69,30 +69,6 @@ const STATUS_TONE: Record<string, string> = {
   failed: "bg-destructive/10 text-destructive",
 };
 
-/**
- * Odmowa bramki `requirePlatformAdmin`, rozpoznana DOKŁADNIE.
- *
- * Bramka buduje każdy komunikat z tej samej etykiety („platform admin role
- * (super_admin)") - także wymóg drugiego składnika i nieudaną weryfikację
- * roli. Dawne `includes("platform admin role")` (a dla katalogu samo
- * `isError`) mówiło więc prawdziwemu operatorowi platformy z sesją `aal1`,
- * że „tylko operator platformy" może to zrobić, i chowało jedyny krok, który
- * działa: potwierdzenie drugiego składnika. Rozróżniamy:
- *   * `platform_only` - dokładny komunikat odmowy ROLI (kontrakt bramki
- *     przybity w `requireStaff.test.ts`): admin najemcy, operacja nie dla niego,
- *   * `mfa_required` - dosłowny token step-upu (też kontrakt bramki),
- *   * `null` - wszystko inne (awaria odczytu roli, sieć, baza): pokazujemy
- *     prawdziwy komunikat i NIE blokujemy przycisku - ponowienie może przejść.
- */
-const PLATFORM_ROLE_DENIAL = "Forbidden: platform admin role (super_admin) required";
-
-function platformGateDenial(error: unknown): "platform_only" | "mfa_required" | null {
-  const message = error instanceof Error ? error.message : "";
-  if (message.includes("mfa_required")) return "mfa_required";
-  if (message === PLATFORM_ROLE_DENIAL) return "platform_only";
-  return null;
-}
-
 function StatusBadge({ value }: { value: string }) {
   return (
     <Badge
@@ -154,19 +130,14 @@ export function AdminBillingPanel() {
         t("adminBilling.remindersQueued", { renewal: r.renewal, expiring: r.expiring }),
       ),
     // Przebieg jest operacją platformy (`requirePlatformAdmin`): admin najemcy
-    // dostaje zrozumiałą odmowę zamiast surowego komunikatu bramki, operator
-    // z sesją bez drugiego składnika - wskazówkę step-upu, a każdy inny błąd
-    // zostaje przy własnym komunikacie (`platformGateDenial`).
-    onError: (e: Error) => {
-      const denial = platformGateDenial(e);
+    // dostaje zrozumiałą odmowę zamiast surowego komunikatu bramki. Inne
+    // odmowy (np. wymóg drugiego składnika) zostają przy własnym komunikacie.
+    onError: (e: Error) =>
       toast.error(
-        denial === "platform_only"
+        e.message.includes("platform admin role")
           ? t("adminBilling.remindersPlatformOnly")
-          : denial === "mfa_required"
-            ? t("adminBilling.mfaStepUpRequired")
-            : e.message,
-      );
-    },
+          : e.message,
+      ),
   });
 
   // Stan automatu: po restarcie integracji (nowe konto operatora, rotacja
@@ -175,9 +146,7 @@ export function AdminBillingPanel() {
   // Katalog jest ZASOBEM INSTALACJI (jeden cennik operatora dla wszystkich
   // najemców), więc obie funkcje stoją za `requirePlatformAdmin`. Admin
   // najemcy dostaje odmowę - bez ponawiania i z wyjaśnieniem zamiast
-  // przycisku, który i tak skończyłby się błędem. Tylko ON: wymóg drugiego
-  // składnika i awaria odczytu stanu to inne sytuacje z innym krokiem, a
-  // przycisk zostaje aktywny (dawniej każdy błąd wyłączał go do przeładowania).
+  // przycisku, który i tak skończyłby się błędem.
   const loadCatalogState = useServerFn(getCatalogSyncState);
   const catalogStateQ = useQuery({
     queryKey: ["admin", "billing", "catalog-state"],
@@ -185,12 +154,7 @@ export function AdminBillingPanel() {
     staleTime: 60_000,
     retry: false,
   });
-  const catalogDenial = catalogStateQ.isError ? platformGateDenial(catalogStateQ.error) : null;
-  const catalogPlatformOnly = catalogDenial === "platform_only";
-  const catalogStateFailure =
-    catalogStateQ.isError && catalogDenial === null && catalogStateQ.error instanceof Error
-      ? catalogStateQ.error.message
-      : null;
+  const catalogPlatformOnly = catalogStateQ.isError;
 
   const syncCatalog = useServerFn(syncPaymentCatalogNow);
   const catalogM = useMutation({
@@ -205,16 +169,7 @@ export function AdminBillingPanel() {
         }),
       ),
 
-    onError: (e: Error) => {
-      const denial = platformGateDenial(e);
-      toast.error(
-        denial === "platform_only"
-          ? t("adminBilling.catalogPlatformOnly")
-          : denial === "mfa_required"
-            ? t("adminBilling.mfaStepUpRequired")
-            : e.message,
-      );
-    },
+    onError: (e: Error) => toast.error(e.message),
     onSettled: () => void catalogStateQ.refetch(),
   });
 
@@ -310,12 +265,6 @@ export function AdminBillingPanel() {
         <CardContent className="space-y-1 pt-0 text-[0.8125rem] text-muted-foreground">
           <p>{t("adminBilling.catalogRebuiltAutomaticallyAfterPayment")}</p>
           {catalogPlatformOnly ? <p>{t("adminBilling.catalogPlatformOnly")}</p> : null}
-          {catalogDenial === "mfa_required" ? <p>{t("adminBilling.mfaStepUpRequired")}</p> : null}
-          {catalogStateFailure ? (
-            <p className="text-destructive">
-              {t("adminBilling.catalogStateFailed", { message: catalogStateFailure })}
-            </p>
-          ) : null}
           {catalogStateQ.data ? (
             <div className="flex flex-wrap items-center gap-2">
               <Badge

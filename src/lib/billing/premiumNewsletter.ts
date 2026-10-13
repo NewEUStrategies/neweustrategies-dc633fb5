@@ -296,33 +296,6 @@ export function mergeNewsletterConsents(
 }
 
 /**
- * Chwila zapisu (`received_at`) zgody TEGO zakupu, jeśli wiersz już ją niesie:
- * ostatni wpis klucza jest udzieleniem z dowodem, z checkoutu i z tej samej
- * subskrypcji. Inaczej `null`.
- *
- * PO CO. Wpis w `consents` i wpis w rejestrze `crm_consent_log` to dwa zapisy
- * (wyzwalacz bazy loguje tylko INSERT wiersza, nie scalenie). Gdy padł drugi,
- * ponowione zdarzenie widzi już scalony wiersz (`appended: false`) i bez tej
- * funkcji nie wiedziałoby, że rejestr trzeba jeszcze uzupełnić - luka w
- * niezmiennym rejestrze zostawała na zawsze. Wpis innej subskrypcji albo
- * formularza nie jest nasz: jego rejestr domknął tamten zapis.
- */
-export function recordedCheckoutConsentAt(
-  existing: Json | undefined,
-  entry: NewsletterConsentEntry,
-): string | null {
-  if (!Array.isArray(existing)) return null;
-  const latest = existing
-    .filter(isRecord)
-    .filter((item) => item.key === entry.key)
-    .at(-1);
-  if (!latest || !isEvidencedGrant(latest)) return null;
-  if (latest.source !== PREMIUM_NEWSLETTER_CONSENT_SOURCE) return null;
-  if (latest.subscription_id !== entry.subscription_id) return null;
-  return typeof latest.received_at === "string" ? latest.received_at : null;
-}
-
-/**
  * Czy wolno zapisać adres na podstawie zgody z checkoutu. Tylko brak wiersza,
  * zapis oczekujący (`pending`) albo aktywny (`subscribed`). Świadome wypisanie
  * się jest nadrzędne: zgodę po wypisie przywraca wyłącznie double opt-in

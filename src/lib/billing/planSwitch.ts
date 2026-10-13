@@ -183,29 +183,8 @@ const PAYMENT_OUTCOMES = new Set(["payment_failed", "payment_requires_action"]);
  * sugeruje awarię, a klient ma tu konkretny krok do wykonania.
  */
 export function paymentOutcomeMessageKey(code: string | null | undefined): string | null {
-  if (!isPaymentOutcomeCode(code)) return null;
+  if (!code || !PAYMENT_OUTCOMES.has(code)) return null;
   return code === "payment_requires_action"
     ? "profile.subscription.payment.requiresAction"
     : "profile.subscription.payment.failed";
-}
-
-/** Czy kod wyniku to odmowa dopłaty (zmiana nie weszła, czeka faktura operatora). */
-export function isPaymentOutcomeCode(
-  code: string | null | undefined,
-): code is "payment_failed" | "payment_requires_action" {
-  return !!code && PAYMENT_OUTCOMES.has(code);
-}
-
-/**
- * Odmowy DOMENOWE z własnym komunikatem. Ogólne „nie udało się, spróbuj
- * ponownie" przy pauzie poboru ustawionej przez operatora odsyłało klienta do
- * ponowień, które nigdy nie przejdą - tę pauzę przy nieopłaconym okresie
- * zdejmuje wyłącznie operator (`resumeProviderSubscription`).
- */
-const DOMAIN_REFUSAL_KEYS: Readonly<Record<string, string>> = {
-  subscription_paused_by_operator: "profile.subscription.pausedByOperator",
-};
-
-export function subscriptionRefusalMessageKey(code: string | null | undefined): string | null {
-  return (code && DOMAIN_REFUSAL_KEYS[code]) || null;
 }

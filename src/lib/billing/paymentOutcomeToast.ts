@@ -7,18 +7,9 @@
 // potwierdzeniem 3DS), po czym operator sam dokończy zmianę. Ogólne „nie udało
 // się" przy pobranej próbie płatności wyglądało jak błąd systemu i odsyłało
 // do kontaktu, zamiast do zapłaty.
-//
-// Odmowa DOMENOWA z własnym komunikatem (np. pauza poboru ustawiona przez
-// operatora) też nie jest awarią - ponowienie nic nie da, więc komunikat
-// mówi, co dalej. Karta operatora niesie kod w `ProviderCallError`, karta
-// lokalna - w treści błędu rzuconego przez server fn.
 import { toast } from "sonner";
-import { paymentOutcomeMessageKey, subscriptionRefusalMessageKey } from "@/lib/billing/planSwitch";
+import { paymentOutcomeMessageKey } from "@/lib/billing/planSwitch";
 import { providerErrorCode, providerInvoiceUrl } from "@/lib/billing/providerResult";
-
-function refusalCodeOf(error: unknown): string | null {
-  return providerErrorCode(error) ?? (error instanceof Error ? error.message : null);
-}
 
 /**
  * @param fallbackKey klucz komunikatu dla każdej innej odmowy/awarii
@@ -31,7 +22,7 @@ export function toastSubscriptionFailure(
 ): boolean {
   const key = paymentOutcomeMessageKey(providerErrorCode(error));
   if (!key) {
-    toast.error(t(subscriptionRefusalMessageKey(refusalCodeOf(error)) ?? fallbackKey));
+    toast.error(t(fallbackKey));
     return false;
   }
   const url = providerInvoiceUrl(error);
