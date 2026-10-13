@@ -5,8 +5,9 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 // PŁASZCZYZNA DANYCH JEST ZAŚLEPIONA NA POZIOMIE SIECI, NIE MOCKA MODUŁU -
 // dokładnie jak w `scanner.spec.ts`. Formularz rozmawia z bazą przez dwa RPC
 // (`event_registration_form`, `event_register`), a kasę woła przez serwerowe
-// funkcje pod `/_serverFn/*` - podgląd kwoty (GET, tylko odczyt) i zamówienie
-// (POST). W CI nie ma ani bazy, ani operatora płatności,
+// funkcje pod `/_serverFn/*` - podgląd kwoty (tylko odczyt) i zamówienie.
+// Oba idą POST-em: podgląd niesie kod dostępu i kod rabatowy, które w GET
+// trafiłyby do adresu URL (TIX-11). W CI nie ma ani bazy, ani operatora płatności,
 // więc przechwytujemy dokładnie te adresy: test przechodzi przez PRAWDZIWĄ
 // trasę, prawdziwy SSR, prawdziwy formularz i prawdziwą molekułę kasy, a udaje
 // wyłącznie to, czego w CI nie ma. ŻADEN request nie wychodzi do sieci -
@@ -102,7 +103,7 @@ interface Calls {
   register: Array<Record<string, unknown>>;
   /** Każde wywołanie serwerowej funkcji - adres i ładunek, bez zgadywania. */
   serverFn: Array<{ url: string; body: string }>;
-  /** Wywołania podglądu kasy (`quoteEventTicketCheckout`) - odkodowany adres. */
+  /** Wywołania podglądu kasy (`quoteEventTicketCheckout`) - treść żądania. */
   quote: string[];
 }
 
@@ -154,16 +155,18 @@ async function stubRegistrationPlane(page: Page, priceCents: number): Promise<Ca
   });
 
   // Serwerowe funkcje kasy. NIE dotykamy operatora płatności.
-  // - PODGLĄD (GET, ładunek w adresie z `ticket_type_id`) dostaje wycenę -
-  //   odpowiedź w kształcie zamówienia nie ma kwoty, więc ekran nie miałby
-  //   czego pokazać;
-  // - ZAMÓWIENIE (POST) dostaje tryb mock, czyli tę samą odpowiedź, którą
-  //   daje środowisko bez dostawcy.
+  // - PODGLĄD (ładunek z `ticket_type_id`, ale bez `kind: "one_time"`) dostaje
+  //   wycenę - odpowiedź w kształcie zamówienia nie ma kwoty, więc ekran nie
+  //   miałby czego pokazać;
+  // - ZAMÓWIENIE (ładunek z `kind: "one_time"`) dostaje tryb mock, czyli tę
+  //   samą odpowiedź, którą daje środowisko bez dostawcy.
+  // Obie funkcje idą POST-em, więc rozróżnia je TREŚĆ, nie metoda ani adres
+  // (identyfikator funkcji w adresie zależy od builda).
   await page.route("**/_serverFn/**", async (route) => {
     const request = route.request();
-    const url = decodeURIComponent(request.url());
-    if (request.method() === "GET" && url.includes("ticket_type_id")) {
-      calls.quote.push(url);
+    const body = request.postData() ?? "";
+    if (body.includes("ticket_type_id") && !body.includes("one_time")) {
+      calls.quote.push(body);
       await json(route, { result: quote(priceCents) });
       return;
     }

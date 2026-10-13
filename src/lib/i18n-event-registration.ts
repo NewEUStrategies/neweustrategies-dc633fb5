@@ -156,6 +156,8 @@ export const eventRegistrationPl = {
           "Twoje zgłoszenie zostało odwołane lub odrzucone - nie można już dopisać do niego gości.",
         alreadySettled:
           "Twoje zgłoszenie jest już rozliczone - do opłaconego zamówienia nie dopiszemy gości. Zapisz ich osobnym zgłoszeniem.",
+        checkoutInProgress:
+          "Płatność za to zgłoszenie jest w toku, a jej kwota nie obejmie nowych gości. Dokończ ją i zapisz gości osobnym zgłoszeniem. Jeśli płatność została przerwana, spróbuj ponownie za 30 minut.",
         groupNotEnabled: "Ten bilet nie pozwala na zapis grupowy.",
         groupTooLarge: "Za dużo osób jak na limit grupy tego biletu. Usuń część gości.",
         groupTooLargeMax:
@@ -186,6 +188,12 @@ export const eventRegistrationPl = {
       promoHint:
         "Kod kwotowy schodzi z każdego miejsca w zamówieniu - kwotę po rabacie pokażemy przed płatnością.",
       promoError: "Ten kod nie obejmuje tego biletu albo jest już nieważny.",
+      // Reguła kumulacji kodu (TIX-13a): organizator nie pozwolił łączyć kodu
+      // z fazą sprzedaży ani zniżką z planu - albo promocje wyczerpały limit.
+      promoNotCombinable:
+        "Ten kod nie łączy się z obecną promocją biletu (cena z fazy sprzedaży albo zniżka z planu).",
+      promoTooLow:
+        "Po rabacie zostałaby kwota niższa niż minimalna płatność kartą - ten kod nie zadziała z tym biletem.",
       promoApply: "Zastosuj",
       // Pole kodu dostepu wejsciowki w kasie - tylko po odmowie
       // `ticket_access_code_invalid` (inna karta, kod spoza pamieci).
@@ -209,6 +217,10 @@ export const eventRegistrationPl = {
       quoteCodeFixed: "Kod {{code}}: -{{perSeat}} × {{count}}",
       quoteCodeAmount: "Kod {{code}}: -{{amount}}",
       quoteCodePercent: "Kod {{code}}: -{{percent}}% (-{{amount}})",
+      // Limit łącznego rabatu przyciął kod - procent kodu nie byłby prawdą.
+      quoteCodeCapped: "Kod {{code}}: -{{amount}} (do limitu łącznego rabatu)",
+      // KOD 100% (TIX-13a): zero do zapłaty, kasa wydaje bilet bez płatności.
+      quoteFreeWithCode: "Kod pokrywa całą kwotę - bilet bez płatności.",
       revealLabel: "Masz kod dostępu?",
       revealApply: "Pokaż bilety",
       revealFound: "Odsłonięto bilety: {{count}}.",
@@ -239,6 +251,20 @@ export const eventRegistrationPl = {
       planRedeemedTitle: "Bilet odebrany z planu",
       planRedeemedBody:
         "Wejściówka jest wydana - kod QR wysyłamy e-mailem. Znajdziesz go też w „Moich zgłoszeniach”.",
+      // ODBIÓR BILETU ZA KOD 100% - stan rozliczenia z kasy, nigdy optymistyczny.
+      redeemFree: "Odbierz bilet",
+      redeemingFree: "Odbieramy bilet...",
+      freeTitle: "Kod pokrył całą kwotę",
+      freeSeatedBody:
+        "Twoje miejsce jest potwierdzone - bilet z kodem QR wysłaliśmy e-mailem. Znajdziesz go też w „Moich zgłoszeniach”.",
+      freeAwaitingBody:
+        "Nic nie płacisz. Zgłoszenie czeka teraz na decyzję organizatora - odpowiedź przyjdzie e-mailem.",
+      freeProcessingBody:
+        "Nic nie płacisz. Potwierdzamy miejsce - bilet przyjdzie e-mailem w ciągu kilku minut.",
+      freeSoldOut:
+        "Ostatnie miejsce zostało właśnie zajęte. Kod wrócił do puli - nic nie pobraliśmy.",
+      freeNotSettled:
+        "Nie udało się wydać biletu za ten kod - nic nie pobraliśmy. Spróbuj ponownie albo napisz do organizatora.",
     },
     invite: {
       title: "Zaproszenie na miejsce z pakietu",
@@ -573,6 +599,8 @@ export const eventRegistrationEn = {
           "Your registration has been cancelled or rejected - guests can no longer be added to it.",
         alreadySettled:
           "Your registration is already settled - we cannot add guests to a paid order. Register them separately.",
+        checkoutInProgress:
+          "A payment for this registration is in progress and its amount does not cover new guests. Complete it and register the guests separately. If the payment was abandoned, try again in 30 minutes.",
         groupNotEnabled: "This ticket does not allow group registration.",
         groupTooLarge: "Too many people for this ticket's group limit. Remove some guests.",
         groupTooLargeMax:
@@ -601,6 +629,10 @@ export const eventRegistrationEn = {
       promoHint:
         "A fixed-amount code comes off every seat in the order - we show the discounted total before you pay.",
       promoError: "This code does not cover this ticket or is no longer valid.",
+      promoNotCombinable:
+        "This code cannot be combined with the ticket's current promotion (sales-phase price or plan discount).",
+      promoTooLow:
+        "After the discount the amount would be below the minimum card payment - this code does not work with this ticket.",
       promoApply: "Apply",
       accessCodeLabel: "Ticket access code",
       accessCodeApply: "Check code",
@@ -616,6 +648,8 @@ export const eventRegistrationEn = {
       quoteCodeFixed: "Code {{code}}: -{{perSeat}} × {{count}}",
       quoteCodeAmount: "Code {{code}}: -{{amount}}",
       quoteCodePercent: "Code {{code}}: -{{percent}}% (-{{amount}})",
+      quoteCodeCapped: "Code {{code}}: -{{amount}} (up to the total discount cap)",
+      quoteFreeWithCode: "The code covers the full price - no payment needed.",
       revealLabel: "Have an access code?",
       revealApply: "Show tickets",
       revealFound: "Tickets revealed: {{count}}.",
@@ -644,6 +678,19 @@ export const eventRegistrationEn = {
       planRedeemedTitle: "Ticket claimed from your plan",
       planRedeemedBody:
         "Your admission is issued - we are e-mailing you the QR code. You will also find it under “My registrations”.",
+      redeemFree: "Claim the ticket",
+      redeemingFree: "Claiming your ticket...",
+      freeTitle: "The code covers the full price",
+      freeSeatedBody:
+        "Your seat is confirmed - we have e-mailed you the ticket with its QR code. You will also find it under “My registrations”.",
+      freeAwaitingBody:
+        "There is nothing to pay. Your registration now awaits the organiser's decision - the answer will come by e-mail.",
+      freeProcessingBody:
+        "There is nothing to pay. We are confirming your seat - the ticket will arrive by e-mail within a few minutes.",
+      freeSoldOut:
+        "The last seat has just been taken. The code is back in the pool - nothing was charged.",
+      freeNotSettled:
+        "We could not issue the ticket for this code - nothing was charged. Try again or contact the organiser.",
     },
     invite: {
       title: "Invitation to a package seat",

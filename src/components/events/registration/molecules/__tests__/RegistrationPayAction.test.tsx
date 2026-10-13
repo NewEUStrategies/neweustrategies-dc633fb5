@@ -1108,3 +1108,190 @@ describe("RegistrationPayAction - odbiór biletu z planu", () => {
     expect(screen.getByRole("button", { name: REDEEM })).toBeEnabled();
   });
 });
+
+// KOD 100% (TIX-13a). Zero do zapłaty to nie odmowa: „Odbierz bilet", kasa
+// zakłada zamówienie za zero i mówi STAN rozliczenia - nigdy optymistyczny.
+describe("RegistrationPayAction - kod pokrywa całą kwotę", () => {
+  const FREE = quoteResult({
+    coupon: { code: "PRASA", kind: "percent", percent: 100, perSeatCents: null, capped: false },
+    discountCents: 10000,
+    totalCents: 0,
+    freeWithCode: true,
+  });
+  const REDEEM_FREE = "eventRegistration.payment.redeemFree";
+
+  // Kod 100% przychodzi z linku `?code=` - podgląd liczy go od montażu.
+  beforeEach(() => {
+    memory.code = "PRASA";
+  });
+
+  it("podgląd z kodem 100%: zdanie o braku płatności i „Odbierz bilet” zamiast „Zapłać”", async () => {
+    quote.mockResolvedValue(FREE);
+    renderAction();
+
+    expect(
+      await screen.findByText("eventRegistration.payment.quoteFreeWithCode"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: REDEEM_FREE })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: PAY })).not.toBeInTheDocument();
+    // Zero nie ma podatku do doliczenia - sama kwota.
+    expect(
+      screen.getByText("eventRegistration.payment.amountDue(amount=0,00 zł)"),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["seated", "eventRegistration.payment.freeSeatedBody"],
+    ["awaiting", "eventRegistration.payment.freeAwaitingBody"],
+    ["processing", "eventRegistration.payment.freeProcessingBody"],
+  ] as const)(
+    "rozliczenie „%s”: zdanie o stanie, odświeżenie i sygnał dla rodzica - bez strony płatności",
+    async (settlement, body) => {
+      quote.mockResolvedValue(FREE);
+      checkout.mockResolvedValue({
+        ok: true,
+        mode: "free",
+        url: "/events/kongres?order=o-9",
+        orderId: "o-9",
+        settlement,
+      });
+      const onSettled = vi.fn();
+      const { queryClient } = renderAction({ onSettled });
+      const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+      await screen.findByRole("button", { name: REDEEM_FREE });
+      click(REDEEM_FREE);
+
+      expect(await screen.findByText("eventRegistration.payment.freeTitle")).toBeInTheDocument();
+      expect(screen.getByText(body)).toBeInTheDocument();
+      expect(checkout.mock.calls[0]?.[0]).toHaveProperty("data.coupon_code", "PRASA");
+      expect(onSettled).toHaveBeenCalledTimes(1);
+      expect(invalidate).toHaveBeenCalledWith();
+      // Ani nakładki operatora, ani symulatora płatności (`mock: 1`).
+      expect(navigate).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("checkout-modal")).not.toBeInTheDocument();
+    },
+  );
+
+  it("sala pełna: zdanie, że kod wrócił i nic nie pobrano - przycisk zostaje", async () => {
+    quote.mockResolvedValue(FREE);
+    checkout.mockResolvedValue({
+      ok: true,
+      mode: "free",
+      url: "/x",
+      orderId: "o-9",
+      settlement: "sold_out",
+    });
+    const onSettled = vi.fn();
+    renderAction({ onSettled });
+
+    await screen.findByRole("button", { name: REDEEM_FREE });
+    click(REDEEM_FREE);
+
+    expect(await screen.findByText("eventRegistration.payment.freeSoldOut")).toBeInTheDocument();
+    expect(onSettled).not.toHaveBeenCalled();
+    expect(screen.queryByText("eventRegistration.payment.freeTitle")).not.toBeInTheDocument();
+  });
+
+  it("strażnik rozliczenia odrzucił zamówienie: zdanie bez obietnicy maila", async () => {
+    quote.mockResolvedValue(FREE);
+    checkout.mockResolvedValue({
+      ok: false,
+      mode: "free",
+      error: "free_ticket_not_settled",
+      orderId: "o-9",
+    });
+    renderAction();
+
+    await screen.findByRole("button", { name: REDEEM_FREE });
+    click(REDEEM_FREE);
+
+    expect(await screen.findByText("eventRegistration.payment.freeNotSettled")).toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("kasa wydaje bilet za zero, choć podgląd mówił o płatności - ten sam stan rozliczenia", async () => {
+    checkout.mockResolvedValue({
+      ok: true,
+      mode: "free",
+      url: "/x",
+      orderId: "o-9",
+      settlement: "seated",
+    });
+    renderAction();
+
+    await screen.findByText("eventRegistration.payment.amountDue(amount=100,00 zł)");
+    click(PAY);
+
+    expect(await screen.findByText("eventRegistration.payment.freeSeatedBody")).toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("RegistrationPayAction - reguła kumulacji kodu (TIX-13a)", () => {
+  it("podgląd: kod nie łączy się z promocją - własne zdanie zamiast „nieważny kod”", async () => {
+    renderAction();
+    await screen.findByText("eventRegistration.payment.amountDue(amount=100,00 zł)");
+    quote.mockResolvedValue(quoteResult({ couponError: "coupon_not_combinable" }));
+
+    type("LATO");
+    click(APPLY);
+
+    expect(
+      await screen.findByText("eventRegistration.payment.promoNotCombinable"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("eventRegistration.payment.promoError")).not.toBeInTheDocument();
+  });
+
+  it("kasa: kwota po kodzie poniżej minimum operatora - zdanie o minimum", async () => {
+    checkout.mockResolvedValue({ ok: false, mode: "coupon", error: "final_amount_too_low" });
+    renderAction();
+
+    type("PRAWIE");
+    click(PAY);
+
+    expect(await screen.findByText("eventRegistration.payment.promoTooLow")).toBeInTheDocument();
+  });
+
+  it("kod przycięty limitem łącznego rabatu mówi kwotę, a nie procent kodu", async () => {
+    quote.mockResolvedValue(
+      quoteResult({
+        coupon: { code: "PROC30", kind: "percent", percent: 30, perSeatCents: null, capped: true },
+        discountCents: 1000,
+        totalCents: 9000,
+      }),
+    );
+    renderAction();
+
+    expect(
+      await screen.findByText(
+        "eventRegistration.payment.quoteCodeCapped(amount=10,00 zł,code=PROC30)",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/quoteCodePercent/)).not.toBeInTheDocument();
+  });
+});
+
+describe("RegistrationPayAction - kod 100% dotyczy kodu zastosowanego", () => {
+  it("inny kod wpisany w pole po podglądzie 100% wraca do „Zapłać”", async () => {
+    memory.code = "PRASA";
+    quote.mockResolvedValue(
+      quoteResult({
+        coupon: { code: "PRASA", kind: "percent", percent: 100, perSeatCents: null, capped: false },
+        discountCents: 10000,
+        totalCents: 0,
+        freeWithCode: true,
+      }),
+    );
+    renderAction();
+
+    expect(
+      await screen.findByRole("button", { name: "eventRegistration.payment.redeemFree" }),
+    ).toBeInTheDocument();
+    type("INNY");
+    expect(screen.getByRole("button", { name: PAY })).toBeInTheDocument();
+    expect(
+      screen.queryByText("eventRegistration.payment.quoteFreeWithCode"),
+    ).not.toBeInTheDocument();
+  });
+});

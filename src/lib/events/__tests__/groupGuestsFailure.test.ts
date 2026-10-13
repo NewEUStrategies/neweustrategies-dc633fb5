@@ -30,10 +30,12 @@
 // bundel angielski - ta sama technika, co w `eventErrorMapsI18n.gate.test.ts`.
 //
 // i18n jedzie PRAWDZIWE (ta sama instancja, którą widzi uczestnik). Lista
-// `GROUP_GUEST_REFUSALS` jest porównywana z ciałem funkcji w migracji
-// `20260922230000`: nowa odmowa w SQL bez wpisu na liście (albo wpis bez
-// odmowy) zapala pierwszy test, a wpis bez zdania w słowniku - testy per kod.
-import { readFileSync } from "node:fs";
+// `GROUP_GUEST_REFUSALS` jest porównywana z ciałem funkcji w OSTATNIEJ
+// migracji, która ją definiuje (dziś `20261012130000`, TIX-03): nowa odmowa
+// w SQL bez wpisu na liście (albo wpis bez odmowy) zapala pierwszy test, a
+// wpis bez zdania w słowniku - testy per kod. Plik wybieramy po nazwie, a nie
+// na sztywno - inaczej kolejna redefinicja funkcji przeszłaby obok testu.
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import i18n from "@/lib/i18n";
@@ -46,7 +48,8 @@ import {
   type RegistrationFailure,
 } from "@/lib/events/publicRegistrationErrors";
 
-const MIGRATION = "supabase/migrations/20260922230000_event_ticket_tax_and_group.sql";
+const MIGRATIONS_DIR = "supabase/migrations";
+const DEFINITION = "FUNCTION public.event_register_group_guests(";
 const LANGS = ["pl", "en"] as const;
 const DICTIONARIES: Record<(typeof LANGS)[number], ResourceTree> = {
   pl: eventRegistrationPl,
@@ -63,13 +66,28 @@ function render(failure: RegistrationFailure, lang: (typeof LANGS)[number]): str
   return i18n.getFixedT(lang)(failure.key, failure.params);
 }
 
-/** Kody odmów z ciała `event_register_group_guests` w migracji. */
+/** Treść ostatniej migracji, która (re)definiuje `event_register_group_guests`. */
+function latestDefinition(): string {
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((name) => name.endsWith(".sql"))
+    .sort();
+  const sources = files
+    .map((name) => readFileSync(`${MIGRATIONS_DIR}/${name}`, "utf8"))
+    .filter((sql) => sql.includes(DEFINITION));
+  const latest = sources.at(-1);
+  expect(latest, "żadna migracja nie definiuje funkcji gości").toBeDefined();
+  return latest ?? "";
+}
+
+/** Kody odmów z ciała `event_register_group_guests` w ostatniej definicji. */
 function refusalsInMigration(): string[] {
-  const sql = readFileSync(MIGRATION, "utf8");
-  const start = sql.indexOf("FUNCTION public.event_register_group_guests(");
-  const end = sql.indexOf("END $$;", start);
+  const sql = latestDefinition();
+  const start = sql.indexOf(DEFINITION);
   expect(start).toBeGreaterThan(-1);
-  const body = sql.slice(start, end);
+  // Ciało kończy `END $$;` albo `END $function$;` - zależnie od cytowania.
+  const end = sql.slice(start).search(/END \$(?:function)?\$;/);
+  expect(end).toBeGreaterThan(-1);
+  const body = sql.slice(start, start + end);
   const codes = [...body.matchAll(/RAISE EXCEPTION '([a-z_]+)/g)].map((match) => match[1] ?? "");
   return [...new Set(codes)];
 }
@@ -192,6 +210,12 @@ describe("groupGuestsFailure - zdania, które mówią, co zrobić", () => {
       already_settled: {
         pl: "Twoje zgłoszenie jest już rozliczone - do opłaconego zamówienia nie dopiszemy gości. Zapisz ich osobnym zgłoszeniem.",
         en: "Your registration is already settled - we cannot add guests to a paid order. Register them separately.",
+      },
+      // TIX-03: kasa jest otwarta - mówimy, co zrobić teraz i kiedy spróbować znowu
+      // (zamówienie liczy się jako otwarte przez 30 minut).
+      checkout_in_progress: {
+        pl: "Płatność za to zgłoszenie jest w toku, a jej kwota nie obejmie nowych gości. Dokończ ją i zapisz gości osobnym zgłoszeniem. Jeśli płatność została przerwana, spróbuj ponownie za 30 minut.",
+        en: "A payment for this registration is in progress and its amount does not cover new guests. Complete it and register the guests separately. If the payment was abandoned, try again in 30 minutes.",
       },
       group_not_enabled: {
         pl: "Ten bilet nie pozwala na zapis grupowy.",

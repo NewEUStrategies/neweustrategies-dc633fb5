@@ -68,6 +68,18 @@
 // powierzchni, która je pokazuje - molekuła unieważnia zapytania i mówi o tym
 // rodzicowi (`onSettled`), bo ekran potwierdzenia nie ma zapytania do
 // odświeżenia.
+//
+// KOD 100% (TIX-13a). Kod, który zdejmuje całą kwotę, nie jest odmową: podgląd
+// mówi `freeWithCode`, przycisk to „Odbierz bilet", a kasa zakłada zamówienie
+// za zero i rozlicza je od razu (`mode: "free"`). Ekran mówi STAN rozliczenia
+// z kasy, nigdy optymistyczny sukces: miejsce potwierdzone, zgłoszenie czeka
+// na organizatora, rozliczenie w toku (dokończy je zadanie w tle) albo sala
+// pełna (kod wrócił, nic nie pobrano). Faktury nie ma czego dotyczyć.
+//
+// ODMOWA KODU MÓWI POWÓD, GDY GO ZNAMY. Kod, który nie łączy się z obecną
+// promocją biletu (`coupon_not_combinable`), albo zostawiłby kwotę poniżej
+// minimum operatora (`final_amount_too_low`) dostaje własne zdanie - ogólne
+// „kod nie obejmuje tego biletu" byłoby tu nieprawdą.
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -78,6 +90,7 @@ import { BadgeCheck, CreditCard, Loader2, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+import { couponRefusalMessageKey } from "@/lib/billing/couponRefusalMessage";
 import { quoteEventTicketCheckout } from "@/lib/billing/eventTicketQuote.functions";
 import { redeemEventTicketFromPlan } from "@/lib/billing/eventTicketPlanRedeem.functions";
 import { formatMoney } from "@/lib/billing/types";
@@ -121,6 +134,9 @@ interface DroppedCode {
   code: string;
   reason: "revealOnly" | "remembered";
 }
+
+/** Stan zamówienia za zero (kod 100%) po rozliczeniu w kasie. */
+type FreeSettlement = "seated" | "awaiting" | "processing";
 
 export interface RegistrationPayActionProps {
   registrationId: string;
@@ -177,13 +193,18 @@ export function RegistrationPayAction({
   const [refusal, setRefusal] = useState<TicketCheckoutRefusal | null>(null);
   /** Bilet odebrany z planu w tej molekule - zostaje tylko zdanie o tym. */
   const [redeemed, setRedeemed] = useState(false);
+  /** Zamówienie za zero (kod 100%) rozliczone w kasie - zostaje stan rozliczenia. */
+  const [freeSettled, setFreeSettled] = useState<FreeSettlement | null>(null);
+  /** Kasa nie wydała biletu za zero - sala pełna albo rozliczenie odrzucone. */
+  const [freeIssue, setFreeIssue] = useState<"sold_out" | "not_settled" | null>(null);
   // Kod rabatowy to tylko napis - rabat liczy validate_event_ticket_coupon
   // w `createCheckoutOrder`, a Stripe dostaje go jako kupon na różnicę ceny.
   const [promo, setPromo] = useState("");
   // Kod, dla którego liczymy PODGLĄD. Osobno od pola, bo podgląd nie pyta
   // bazy przy każdym znaku - dopiero „Zastosuj" albo „Zapłać".
   const [appliedCode, setAppliedCode] = useState("");
-  const [promoRejected, setPromoRejected] = useState(false);
+  /** Powód odmowy kodu z kasy (`coupon_not_combinable`, ...) albo `null`. */
+  const [promoRejected, setPromoRejected] = useState<string | null>(null);
   /**
    * Kod wpisany do pola Z PAMIĘCI (`recallEventCode`), dopóki nie zostanie
    * zdjęty. Kod o tej samej treści wpisany ręcznie PO zdjęciu jest już kodem
@@ -261,6 +282,10 @@ export function RegistrationPayAction({
   const quoteBenefit = quote?.planBenefit ?? null;
   // Starszy serwer pola nie zna - wtedy nie ma odbioru z planu, jest kasa.
   const planRedemption = quote?.planRedemption === true;
+  // Kod 100% (TIX-13a) - starszy serwer pola nie zna, wtedy jest zwykła kasa.
+  // Podgląd mówi o kodzie ZASTOSOWANYM: inny kod wpisany w pole (jeszcze bez
+  // „Zastosuj") wraca do zwykłej kasy - z fakturą i przyciskiem „Zapłać".
+  const freeWithCode = quote?.freeWithCode === true && normalizeCode(promo) === appliedCode;
 
   // KOD BEZ RABATU ANI KOD Z PAMIĘCI NIE BLOKUJĄ PŁATNOŚCI. Kod bez rabatu
   // (`no_discount`) nie ma czego odjąć, a kod z linku `?code=` odsłania zwykle
@@ -323,6 +348,27 @@ export function RegistrationPayAction({
     );
   }
 
+  // ZAMÓWIENIE ZA ZERO ROZLICZONE - zostaje stan z kasy, a nie przycisk.
+  if (freeSettled !== null) {
+    return (
+      <div
+        role="status"
+        className="space-y-1 rounded-[6px] border border-primary/40 bg-primary/5 p-3"
+      >
+        <p className="text-sm font-semibold text-foreground">
+          {t("eventRegistration.payment.freeTitle")}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {freeSettled === "seated"
+            ? t("eventRegistration.payment.freeSeatedBody")
+            : freeSettled === "awaiting"
+              ? t("eventRegistration.payment.freeAwaitingBody")
+              : t("eventRegistration.payment.freeProcessingBody")}
+        </p>
+      </div>
+    );
+  }
+
   // PO ODBIORZE zostaje samo zdanie. Rodzic z zapytaniem schowa molekułę po
   // odświeżeniu (zgłoszenie jest już `paid`); ekran potwierdzenia - nie.
   if (redeemed) {
@@ -343,7 +389,8 @@ export function RegistrationPayAction({
 
   function applyCode(): void {
     const code = normalizeCode(promo);
-    setPromoRejected(false);
+    setPromoRejected(null);
+    setFreeIssue(null);
     setDroppedCode(null);
     if (code === appliedCode) {
       void quoteQ.refetch();
@@ -379,13 +426,15 @@ export function RegistrationPayAction({
     // zapisu zatrzymuje kasę. Lejek liczy „rozpoczęcie płatności" DOPIERO po
     // zapisie (raz na sesję, bramka zgody w beaconie). Ponowienie bez kodu
     // (`override`) to ta sama płatność - bez drugiego zapisu i kroku lejka.
+    // Kod 100% nie ma płatności, więc nie ma też czego fakturować.
     if (override === undefined) {
-      if (!(await invoice.commit())) return;
+      if (!freeWithCode && !(await invoice.commit())) return;
       sendEventFunnelStep("checkout_start", { eventId: eventId as string });
     }
     setBusy(true);
     setRefusal(null);
-    setPromoRejected(false);
+    setPromoRejected(null);
+    setFreeIssue(null);
     const code = override ?? normalizeCode(promo);
     // Kod wpisany bez „Zastosuj" też trafia do podglądu - rozbicie pod
     // przyciskiem ma mówić o tym samym kodzie, który dostaje kasa.
@@ -426,7 +475,13 @@ export function RegistrationPayAction({
             await pay("");
             return;
           }
-          setPromoRejected(true);
+          setPromoRejected(result.error);
+          return;
+        }
+        if (result.mode === "free") {
+          // Strażnik rozliczenia odrzucił zamówienie za zero - nic nie pobrano,
+          // a ponowienie w tle też go nie rozliczy (żadnej obietnicy maila).
+          setFreeIssue("not_settled");
           return;
         }
         // Odmowa kuponu/konfiguracji wraca jako `ok: false` z własnym kodem;
@@ -436,6 +491,20 @@ export function RegistrationPayAction({
       }
       if (result.mode === "stripe") {
         setClientSecret(result.clientSecret);
+        return;
+      }
+      if (result.mode === "free") {
+        if (result.settlement === "sold_out") {
+          // Ostatnie miejsce zajęte - zamówienie anulowane, kod wrócił do puli.
+          setFreeIssue("sold_out");
+          void quoteQ.refetch();
+          return;
+        }
+        setFreeSettled(result.settlement);
+        // Zgłoszenie zmienia stan na każdej powierzchni, która je pokazuje -
+        // tak samo jak po odbiorze biletu z planu.
+        void queryClient.invalidateQueries();
+        onSettled?.();
         return;
       }
       // Tryb mock (brak dostawcy w dev) - ta sama trasa, co przy zakupie biletu.
@@ -486,12 +555,15 @@ export function RegistrationPayAction({
   const money = (cents: number, code: string): string => formatMoney(cents, code, i18n.language);
   // Odmowa kodu z pamięci nie jest błędem kupującego - efekt wyżej zdejmie go
   // z pola, więc zdanie o błędnym kodzie nie mignie nawet na jedną klatkę.
-  const codeRefused =
-    promoRejected ||
-    (quote !== null &&
-      quote.couponError !== null &&
-      quote.couponError !== "no_discount" &&
-      appliedCode !== memoryCode);
+  const quoteCodeRefused =
+    quote !== null &&
+    quote.couponError !== null &&
+    quote.couponError !== "no_discount" &&
+    appliedCode !== memoryCode;
+  const codeRefused = promoRejected !== null || quoteCodeRefused;
+  // Powód odmowy: po kliknięciu wygrywa kasa, przed nim mówi podgląd.
+  const codeRefusal =
+    promoRejected ?? (quoteCodeRefused && quote !== null ? quote.couponError : null);
   // Odmowa podglądu (zgłoszenie, bilet, liczba miejsc) to ta sama odmowa, którą
   // dałaby kasa - mówimy ją od razu, a po kliknięciu „Zapłać" wygrywa odmowa kasy.
   const shownRefusal = refusal ?? (quoteQ.isError ? ticketCheckoutRefusal(quoteQ.error) : null);
@@ -559,22 +631,28 @@ export function RegistrationPayAction({
                     perSeat: money(quote.coupon.perSeatCents, quote.currency),
                     count: quote.seats,
                   })
-                : quote.coupon.kind === "percent" && quote.coupon.percent !== null
-                  ? t("eventRegistration.payment.quoteCodePercent", {
+                : quote.coupon.capped === true
+                  ? t("eventRegistration.payment.quoteCodeCapped", {
                       code: quote.coupon.code,
-                      percent: quote.coupon.percent,
                       amount: money(quote.discountCents, quote.currency),
                     })
-                  : t("eventRegistration.payment.quoteCodeAmount", {
-                      code: quote.coupon.code,
-                      amount: money(quote.discountCents, quote.currency),
-                    })}
+                  : quote.coupon.kind === "percent" && quote.coupon.percent !== null
+                    ? t("eventRegistration.payment.quoteCodePercent", {
+                        code: quote.coupon.code,
+                        percent: quote.coupon.percent,
+                        amount: money(quote.discountCents, quote.currency),
+                      })
+                    : t("eventRegistration.payment.quoteCodeAmount", {
+                        code: quote.coupon.code,
+                        amount: money(quote.discountCents, quote.currency),
+                      })}
             </p>
           )}
           <p className="font-medium text-foreground">
             {/* PODATEK DOLICZANY dolicza Stripe do kwoty sesji - bez dopisku
-                „Do zapłaty" byłoby niższe niż obciążenie karty. */}
-            {quote.taxMode === "exclusive"
+                „Do zapłaty" byłoby niższe niż obciążenie karty. Zero nie ma
+                podatku, więc kod 100% mówi samą kwotę. */}
+            {quote.taxMode === "exclusive" && !freeWithCode
               ? t("eventRegistration.payment.amountDuePlusTax", {
                   amount: money(quote.totalCents, quote.currency),
                 })
@@ -616,7 +694,7 @@ export function RegistrationPayAction({
           )}
           {codeRefused && (
             <p role="status" className="text-sm text-destructive">
-              {t("eventRegistration.payment.promoError")}
+              {t(couponRefusalMessageKey(codeRefusal))}
             </p>
           )}
         </>
@@ -634,25 +712,44 @@ export function RegistrationPayAction({
         </Button>
       ) : (
         <>
-          {/* Faktura dotyczy płatności - bilet z planu nie ma kwoty do faktury. */}
-          <InvoiceRequestBlock controller={invoice} />
+          {/* Faktura dotyczy płatności - bilet z planu ani kod 100% nie mają
+              kwoty do faktury. */}
+          {!freeWithCode && <InvoiceRequestBlock controller={invoice} />}
+          {showAmount && freeWithCode && (
+            <p className="text-sm text-foreground">
+              {t("eventRegistration.payment.quoteFreeWithCode")}
+            </p>
+          )}
           <Button
             type="button"
-            disabled={busy || invoice.saving || !ready}
+            disabled={busy || (!freeWithCode && invoice.saving) || !ready}
             onClick={() => void pay()}
           >
             {busy ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+            ) : freeWithCode ? (
+              <BadgeCheck className="mr-2 h-4 w-4" aria-hidden="true" />
             ) : (
               <CreditCard className="mr-2 h-4 w-4" aria-hidden="true" />
             )}
             {busy
-              ? t("eventRegistration.payment.paying")
-              : intent === "resume"
-                ? t("eventRegistration.payment.resume")
-                : t("eventRegistration.payment.payNow")}
+              ? freeWithCode
+                ? t("eventRegistration.payment.redeemingFree")
+                : t("eventRegistration.payment.paying")
+              : freeWithCode
+                ? t("eventRegistration.payment.redeemFree")
+                : intent === "resume"
+                  ? t("eventRegistration.payment.resume")
+                  : t("eventRegistration.payment.payNow")}
           </Button>
         </>
+      )}
+      {freeIssue !== null && (
+        <p role="status" className="text-sm text-destructive">
+          {freeIssue === "sold_out"
+            ? t("eventRegistration.payment.freeSoldOut")
+            : t("eventRegistration.payment.freeNotSettled")}
+        </p>
       )}
       {shownRefusal !== null && (
         <p role="status" className="text-sm text-destructive">

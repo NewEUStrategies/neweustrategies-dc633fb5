@@ -21,6 +21,9 @@
 //   7. KOD KWOTOWY JEST „OD BILETU". Kasa zapisu grupowego i pakiet zdejmują
 //      kwotę z KAŻDEGO miejsca - kolumna działania mówi „/ bilet", a pod kwotą
 //      stoi podpowiedź. Samo „-50.00 PLN" czytało się jak rabat na zamówienie.
+//   8. REGUŁA KUMULACJI (TIX-13a). Kolumna działania mówi, że kod nie łączy się
+//      z promocjami albo ma limit łącznego rabatu; okno pokazuje oba pola przy
+//      rabacie, a baza bez tych kolumn nie dostaje ich ani w oknie, ani w zapisie.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Reguł szkicu (`eventCodeDraftIssue`,
 // `eventCodeDraftToPayload`, `eventCodeStatus`) - mają tabele przypadków
@@ -41,6 +44,7 @@ type Wynik = { onSuccess?: () => void; onError?: (error: unknown) => void };
 const h = vi.hoisted(() => ({
   lang: "pl" as string,
   rows: [] as EventCodeRow[] | undefined,
+  stackingAvailable: true,
   tickets: [] as { id: string; name_pl: string; name_en: string; currency: string }[] | undefined,
   saveCalls: [] as { id: string | null; draft: EventCodeDraft }[],
   saveError: null as Error | null,
@@ -93,7 +97,10 @@ vi.mock("@/lib/events/eventCodesApi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/events/eventCodesApi")>();
   return {
     ...actual,
-    useEventCodes: () => ({ data: h.rows }),
+    useEventCodes: () => ({
+      data:
+        h.rows === undefined ? undefined : { rows: h.rows, stackingAvailable: h.stackingAvailable },
+    }),
     useSaveEventCode: () => ({
       mutate: (args: { id: string | null; draft: EventCodeDraft }, wynik: Wynik) => {
         h.saveCalls.push(args);
@@ -143,6 +150,7 @@ function kod(patch: Partial<EventCodeRow> = {}): EventCodeRow {
     validFrom: null,
     validUntil: null,
     ticketTypeIds: [],
+    stacking: { stacksWithPromotions: true, maxTotalDiscountPercent: null },
     ...patch,
   };
 }
@@ -174,6 +182,7 @@ function kliknij(element: HTMLElement): void {
 beforeEach(() => {
   h.lang = "pl";
   h.rows = [kod()];
+  h.stackingAvailable = true;
   h.tickets = [
     { id: "t1", name_pl: "Standard", name_en: "Standard pass", currency: "EUR" },
     { id: "t2", name_pl: "", name_en: "Student", currency: "EUR" },
@@ -579,11 +588,11 @@ describe("pola rabatu w oknie", () => {
   it("wyłączenie rabatu chowa pola rabatu, a samo odsłonięcie biletów wystarcza do zapisu", () => {
     panel();
     kliknij(screen.getByRole("button", { name: `${C}.create` }));
-    const [rabat, odslona] = within(okno()).getAllByRole("switch");
-    if (rabat === undefined || odslona === undefined) throw new Error("brak przełączników");
-    kliknij(rabat);
+    kliknij(within(okno()).getByRole("switch", { name: `${C}.form.applyDiscount` }));
     expect(within(okno()).queryByLabelText(`${C}.form.amount`)).toBeNull();
-    kliknij(odslona);
+    // Reguła kumulacji dotyczy rabatu - bez rabatu jej pól nie ma.
+    expect(within(okno()).queryByLabelText(`${C}.form.maxTotal`)).toBeNull();
+    kliknij(within(okno()).getByRole("switch", { name: `${C}.form.revealHidden` }));
     wpisz(`${C}.form.code`, "ukryte");
     kliknij(within(okno()).getByRole("button", { name: `${C}.form.save` }));
     expect(h.saveCalls[0]?.draft).toMatchObject({ appliesDiscount: false, revealsHidden: true });
@@ -639,5 +648,70 @@ describe("zakres biletów w oknie", () => {
       ticketScope: "specific",
       ticketTypeIds: ["t2"],
     });
+  });
+});
+
+describe("reguła kumulacji kodu (TIX-13a)", () => {
+  it("kolumna działania mówi, że kod nie łączy się z promocjami i ma limit", () => {
+    h.rows = [kod({ stacking: { stacksWithPromotions: false, maxTotalDiscountPercent: 50 } })];
+    panel();
+    expect(
+      within(wiersz()).getByText(
+        `-10% · ${C}.effect.noStacking · ${C}.effect.maxTotal(percent=50) · ${C}.effect.all`,
+      ),
+    ).toBeTruthy();
+  });
+
+  it("domyślna reguła (łączy się, bez limitu) nie dokłada nic do opisu", () => {
+    panel();
+    expect(within(wiersz()).getByText(`-10% · ${C}.effect.all`)).toBeTruthy();
+  });
+
+  it("nowy kod z regułą: wyłączenie łączenia i limit idą do zapisu", () => {
+    panel();
+    kliknij(screen.getByRole("button", { name: `${C}.create` }));
+    wpisz(`${C}.form.code`, "prasa");
+    wpisz(`${C}.form.amount`, "100");
+    kliknij(within(okno()).getByRole("switch", { name: `${C}.form.stacks` }));
+    wpisz(`${C}.form.maxTotal`, "100");
+    kliknij(within(okno()).getByRole("button", { name: `${C}.form.save` }));
+    expect(h.saveCalls[0]?.draft.stacking).toEqual({
+      stacksWithPromotions: false,
+      maxTotalDiscountPercent: "100",
+    });
+  });
+
+  it("błędny limit zatrzymuje zapis i mówi, co poprawić", () => {
+    panel();
+    kliknij(screen.getByRole("button", { name: `${C}.create` }));
+    wpisz(`${C}.form.code`, "prasa");
+    wpisz(`${C}.form.amount`, "10");
+    wpisz(`${C}.form.maxTotal`, "150");
+    kliknij(within(okno()).getByRole("button", { name: `${C}.form.save` }));
+    expect(h.saveCalls).toEqual([]);
+    expect(within(okno()).getByRole("alert").textContent).toBe(`${C}.issues.maxTotal`);
+  });
+
+  it("edycja otwiera regułę kodu z wiersza", () => {
+    h.rows = [kod({ stacking: { stacksWithPromotions: false, maxTotalDiscountPercent: 40 } })];
+    panel();
+    kliknij(within(wiersz()).getByRole("button", { name: `${C}.edit` }));
+    expect(within(okno()).getByRole("switch", { name: `${C}.form.stacks` })).toHaveProperty(
+      "checked",
+      false,
+    );
+    expect(within(okno()).getByLabelText(`${C}.form.maxTotal`)).toHaveProperty("value", "40");
+  });
+
+  it("baza bez kolumn reguły: brak pól w oknie i brak reguły w szkicu", () => {
+    h.stackingAvailable = false;
+    h.rows = [kod({ stacking: null })];
+    panel();
+    kliknij(screen.getByRole("button", { name: `${C}.create` }));
+    expect(within(okno()).queryByLabelText(`${C}.form.maxTotal`)).toBeNull();
+    wpisz(`${C}.form.code`, "lato");
+    wpisz(`${C}.form.amount`, "10");
+    kliknij(within(okno()).getByRole("button", { name: `${C}.form.save` }));
+    expect(h.saveCalls[0]?.draft.stacking).toBeNull();
   });
 });
