@@ -78,6 +78,8 @@ import { adminEventCloneEn, adminEventClonePl } from "@/lib/i18n-admin-event-clo
 // najmniej dwie linie, których nikt nie zmienia - scalanie torów nie
 // konfliktuje na tym pliku.
 // >>> PF-A imports (begin)
+import { channelErrorKey } from "@/lib/events/registrationChannelsApi";
+import { participantTicketsEn, participantTicketsPl } from "@/lib/i18n-participant-tickets";
 // <<< PF-A imports (end)
 //
 // (separator bloków - tych dwóch linii nie edytuje żaden tor)
@@ -646,7 +648,27 @@ type PfExtraCode = readonly [mapName: string, code: string];
 
 // >>> PF-A codes (begin)
 const PF_A_EXTRA_CODES: readonly PfExtraCode[] = [];
-const PF_A_BEZ_INTERPOLACJI: readonly string[] = [];
+const PF_A_BEZ_INTERPOLACJI: readonly string[] = ["participantChannelErrors"];
+
+/**
+ * Kanały, przypomnienia i zgoda na SMS jednego zgłoszenia - `registrationChannelsApi`
+ * (`event_registration_set_channels`, `event_registration_preferences`;
+ * REG-09/REG-10, migracja 20261012110100).
+ */
+const KODY_KANALOW_UCZESTNIKA = [
+  // event_registration_set_channels - zgoda i numer przy włączaniu SMS-a
+  "sms_consent_required",
+  "phone_required",
+  // klucz samoobsługi przez `_event_manage_token_resolve` (cel act)
+  "manage_expired",
+  "already_closed",
+  "not_found",
+  "auth_required",
+  // ścisłe typy przełączników, pusty ładunek, cel resolvera
+  "invalid_payload",
+  // public_tenant_id() bez hosta
+  "invalid_tenant",
+] as const;
 // <<< PF-A codes (end)
 //
 // (separator bloków - tych dwóch linii nie edytuje żaden tor)
@@ -883,6 +905,17 @@ const MAPY: readonly BramkowanaMapa[] = [
     interpoluje: true,
   },
   // >>> PF-A maps (begin)
+  {
+    nazwa: "participantChannelErrors",
+    prefix: "participantTickets.channels.errors.",
+    klucz: (error) => channelErrorKey(error),
+    kody: KODY_KANALOW_UCZESTNIKA,
+    nakladka: "src/lib/i18n-participant-tickets.ts",
+    pl: participantTicketsPl,
+    en: participantTicketsEn,
+    moduly: ["registrationChannelsApi"],
+    interpoluje: false,
+  },
   // <<< PF-A maps (end)
   //
   // (separator bloków - tych dwóch linii nie edytuje żaden tor)
