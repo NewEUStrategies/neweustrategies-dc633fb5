@@ -170,11 +170,28 @@ interface SubscriptionsPlan {
 }
 
 /**
+ * Czy łańcuch to zajęcie strażnika kolejności (sam znacznik i identyfikator
+ * zdarzenia), a nie zapis stanu subskrypcji.
+ */
+function isGuardClaim(chain: RecordedChain): boolean {
+  const patch = chain.argsOf("update")?.[0];
+  return (
+    typeof patch === "object" &&
+    patch !== null &&
+    Object.keys(patch).every((key) => key === "last_event_at" || key === "last_event_id")
+  );
+}
+
+/** Zapis STANU subskrypcji (warunkowy względem zajęcia - ostatni krok obsługi). */
+const isStateWrite = (chain: RecordedChain): boolean => chain.has("update") && !isGuardClaim(chain);
+
+/**
  * Jeden responder na tabelę `subscriptions` rozróżnia CZTERY różne zapytania,
- * które robi ta ścieżka: warunkowy UPDATE strażnika kolejności
- * (`update(...).select("id")` - zwraca wiersze), odczyt stanu (`maybeSingle`),
- * wstawienie przy zakładaniu (`upsert ... ignoreDuplicates` z `select` -
- * zwraca wstawiony wiersz) i zwykły zapis stanu (`update`).
+ * które robi ta ścieżka: warunkowy UPDATE strażnika kolejności (sam znacznik
+ * i identyfikator, `update(...).select("id")` - zwraca wiersze), odczyt stanu
+ * (`maybeSingle`), wstawienie przy zakładaniu (`upsert ... ignoreDuplicates`
+ * z `select` - zwraca wstawiony wiersz) i zapis stanu (`update` warunkiem na
+ * zajęcie, z `select` - jeden wiersz = zajęcie wciąż nasze).
  *
  * Do pytań o SEMANTYKĘ strażnika (ponowienie, remis, wyścig) służy
  * `rowStore` - ten responder odpowiada tym, co test zaplanował.
@@ -184,7 +201,7 @@ function subscriptionsResponder(plan: SubscriptionsPlan): TableResponder {
     if (chain.has("upsert")) {
       return plan.writeError ? fail(plan.writeError) : ok([{ id: "sub-nowa" }]);
     }
-    if (chain.has("update") && chain.has("select")) {
+    if (chain.has("update") && isGuardClaim(chain)) {
       if (plan.claimError) return fail(plan.claimError);
       return ok(plan.claimed === false ? [] : [{ id: "row_dziennika" }]);
     }
@@ -193,7 +210,7 @@ function subscriptionsResponder(plan: SubscriptionsPlan): TableResponder {
       return ok(plan.row ?? null);
     }
     if (chain.has("update")) {
-      return plan.writeError ? fail(plan.writeError) : ok(null);
+      return plan.writeError ? fail(plan.writeError) : ok([{ id: "row_dziennika" }]);
     }
     return ok(null);
   };
@@ -340,10 +357,16 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
     });
     // Warunek atomowy: zajmujemy wyłącznie wiersz starszy niż zdarzenie.
     expect(claim?.argsOf("or")?.[0]).toBe(`last_event_at.is.null,last_event_at.lt.${OCCURRED_AT}`);
-    const stateWrite = db
-      .chainsFor("subscriptions")
-      .find((c) => c.has("update") && !c.has("select"));
+    const stateWrite = db.chainsFor("subscriptions").find(isStateWrite);
     expect(stateWrite?.argsOf("update")?.[0]).toMatchObject({ status: "past_due" });
+    // Zapis stanu jest WARUNKIEM na to zajęcie (1.0): nowsze zdarzenie, które
+    // przejęło wiersz w trakcie skutków, nie zostanie nadpisane.
+    expect(stateWrite?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["provider_subscription_id", "sub_atrapa_1"],
+      ["environment", "live"],
+      ["last_event_at", OCCURRED_AT],
+      ["last_event_id", "evt_past_due"],
+    ]);
   });
 
   // KRYTERIUM PAY-02. Strażnik zapisuje parę PRZED skutkami, więc dawniej
@@ -666,36 +689,151 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
     expect(writesOn("crm_leads")).toHaveLength(0);
   });
 
-  it("rezygnacja BEZ wiersza zostawia nagrobek - późniejsze `created` go nie wskrzesza", async () => {
-    // Operator dostarczył `deleted`, zanim `created` dotarło do nas (albo
-    // `created` padało). Bez śladu rezygnacji spóźnione `created` założyłoby
-    // aktywną subskrypcję, która u operatora już się skończyła.
-    const subscriptions = subscriptionsTable();
+  // PRZEGLĄD 1.4. Nagrobek dawniej nie nadawał NICZEGO („uprawnienia nigdy
+  // nie nadano"), a spóźnione `created` jest `stale` - klient, który zapłacił
+  // za okres i od razu zrezygnował (albo zrobił to support), nie dostawał
+  // dostępu wcale, choć ta sama rezygnacja na istniejącym wierszu trzyma go do
+  // końca okresu. Okres musi być OPŁACONY - rozstrzyga operator.
+  describe("rezygnacja BEZ wiersza (nagrobek)", () => {
+    const PAID_UNTIL = "2099-01-01T00:00:00.000Z";
 
-    expect(
-      await dispatchWebhookEvent({
-        eventId: "evt_usuniecie",
-        eventType: "subscription.canceled",
-        data: subscriptionEvent({ status: "canceled" }),
-        environment: "live",
-        occurredAt: LATER,
-      }),
-    ).toBe("processed");
-    expect(
-      await dispatchWebhookEvent({
-        eventId: "evt_utworzenie",
-        eventType: "subscription.created",
-        data: subscriptionEvent({ status: "active" }),
-        environment: "live",
-        occurredAt: OCCURRED_AT,
-      }),
-    ).toBe("skipped");
+    /** Usunięta subskrypcja w API operatora (kształt Basil, faktura rozwinięta). */
+    function canceledRemote(over: Record<string, unknown> = {}) {
+      return {
+        id: "sub_atrapa_1",
+        customer: "cus_atrapa_1",
+        status: "canceled",
+        metadata: { userId: "user-kupujacy" },
+        cancellation_details: { reason: "cancellation_requested" },
+        latest_invoice: { id: "in_pierwsza", status: "paid" },
+        items: {
+          data: [
+            {
+              quantity: 1,
+              current_period_start: Date.parse("2026-08-01T00:00:00.000Z") / 1000,
+              current_period_end: Date.parse(PAID_UNTIL) / 1000,
+              price: { id: "pri_atrapa", lookup_key: "pro_monthly", product: "prod_atrapa" },
+            },
+          ],
+        },
+        ...over,
+      };
+    }
 
-    expect(subscriptions.rows).toEqual([
-      expect.objectContaining({ status: "canceled", last_event_id: "evt_usuniecie" }),
-    ]);
-    // Nagrobek nie nadaje niczego - uprawnienia nigdy nie było.
-    expect(writesOn("user_subscriptions")).toHaveLength(0);
+    const deleted = {
+      eventId: "evt_usuniecie",
+      eventType: "subscription.canceled",
+      data: subscriptionEvent({
+        status: "canceled",
+        currentBillingPeriod: { startsAt: "2026-08-01T00:00:00.000Z", endsAt: PAID_UNTIL },
+      }),
+      environment: "live" as const,
+      occurredAt: LATER,
+    };
+    const lateCreated = {
+      eventId: "evt_utworzenie",
+      eventType: "subscription.created",
+      data: subscriptionEvent({ status: "active" }),
+      environment: "live" as const,
+      occurredAt: OCCURRED_AT,
+    };
+
+    let entitlements: RowStore;
+    beforeEach(() => {
+      db.setResponse("access_plans", ok(PLAN_PRO));
+      db.setResponse("profiles", ok({ email: "kupujacy@example.com", tenant_id: "tenant-alfa" }));
+      entitlements = rowStore({ unique: ["external_ref"] });
+      db.setResponse("user_subscriptions", (chain) => entitlements.respond(chain));
+    });
+
+    it("opłacony okres: nagrobek trzyma dostęp do końca okresu, późniejsze `created` go nie wskrzesza", async () => {
+      const subscriptions = subscriptionsTable();
+      stripeApi.retrieve = async () => canceledRemote();
+
+      expect(await dispatchWebhookEvent(deleted)).toBe("processed");
+      expect(await dispatchWebhookEvent(lateCreated)).toBe("skipped");
+
+      expect(subscriptions.rows).toEqual([
+        expect.objectContaining({ status: "canceled", last_event_id: "evt_usuniecie" }),
+      ]);
+      // Ta sama reguła co rezygnacja z istniejącego wiersza:
+      // `mapProviderStatus('canceled', koniec w przyszłości)` = dostęp do końca.
+      expect(entitlements.rows).toEqual([
+        expect.objectContaining({
+          external_ref: "sub_atrapa_1",
+          status: "active",
+          current_period_end: PAID_UNTIL,
+          plan_id: PLAN_PRO.id,
+        }),
+      ]);
+      expect(stripeApi.calls).toEqual([
+        { id: "sub_atrapa_1", params: { expand: ["latest_invoice"] } },
+      ]);
+      // Rezygnacja bez wiersza nie wysyła maili ani dzwonków.
+      expect(writesOn("notifications")).toHaveLength(0);
+    });
+
+    it.each([
+      ["nieopłacona faktura (subskrypcja `incomplete` anulowana)", { latest_invoice: { status: "open" } }],
+      [
+        "anulowanie po nieudanej płatności",
+        { cancellation_details: { reason: "payment_failed" } },
+      ],
+      ["anulowanie po sporze", { cancellation_details: { reason: "payment_disputed" } }],
+      ["faktura nierozwinięta (sam identyfikator)", { latest_invoice: "in_pierwsza" }],
+    ])("%s: nagrobek BEZ dostępu", async (_label, over) => {
+      const subscriptions = subscriptionsTable();
+      stripeApi.retrieve = async () => canceledRemote(over);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      expect(await dispatchWebhookEvent(deleted)).toBe("processed");
+
+      expect(subscriptions.rows).toHaveLength(1);
+      expect(writesOn("user_subscriptions")).toHaveLength(0);
+      warn.mockRestore();
+    });
+
+    it("okres już zakończony: nagrobek bez wiersza uprawnienia", async () => {
+      subscriptionsTable();
+      stripeApi.retrieve = async () =>
+        canceledRemote({
+          items: {
+            data: [
+              {
+                quantity: 1,
+                current_period_end: Date.parse("2020-01-01T00:00:00.000Z") / 1000,
+                price: { id: "pri_atrapa", lookup_key: "pro_monthly", product: "prod_atrapa" },
+              },
+            ],
+          },
+        });
+
+      expect(await dispatchWebhookEvent(deleted)).toBe("processed");
+      expect(writesOn("user_subscriptions")).toHaveLength(0);
+    });
+
+    it("operator nie odpowiada: wyjątek PRZED nagrobkiem - ponowienie rozstrzygnie to samo", async () => {
+      const subscriptions = subscriptionsTable();
+      stripeApi.retrieve = async () => {
+        throw new Error("gateway timeout");
+      };
+
+      await expect(dispatchWebhookEvent(deleted)).rejects.toThrow(
+        "subscription tombstone: provider read failed (sub_atrapa_1): gateway timeout",
+      );
+      // Bez nagrobka ponowienie znów trafi w `missing`, a nie w `replay`
+      // bez skutków.
+      expect(subscriptions.rows).toHaveLength(0);
+    });
+
+    it("bez planu najemcy (konto zamknięte) nie pyta operatora i nie nadaje niczego", async () => {
+      subscriptionsTable();
+      db.setResponse("profiles", ok(null));
+
+      expect(await dispatchWebhookEvent(deleted)).toBe("processed");
+      expect(stripeApi.calls).toHaveLength(0);
+      expect(writesOn("user_subscriptions")).toHaveLength(0);
+    });
   });
 
   it("rezygnacja po ZAMKNIĘCIU KONTA (właściciel usunięty) nie zapętla ponowień", async () => {
@@ -792,12 +930,34 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
   });
 
   it("równoległy zapis uprawnienia: przegrany wyścig (23505) aktualizuje TEN SAM wiersz", async () => {
-    // Drugi przeplot tego samego wyścigu: wiersz subskrypcji już jest, ale oba
-    // zdarzenia czytają „brak uprawnienia", zanim którekolwiek je wstawi.
-    // Indeks unikalny `external_ref` (20261012100300) odrzuca drugie
-    // wstawienie, a kod zamienia je w aktualizację - nie w drugi wiersz.
+    // Drugi przeplot tego samego wyścigu: oba zdarzenia czytają „brak
+    // uprawnienia", zanim którekolwiek je wstawi. Indeks unikalny
+    // `external_ref` (20261012100300) odrzuca drugie wstawienie, a kod zamienia
+    // je w aktualizację - nie w drugi wiersz.
+    //
+    // Skutki zakładania biegną PRZED wstawieniem wiersza (1.2), więc wiersz
+    // subskrypcji zakłada tu NOWSZE `updated`, a starsze `created` przegrywa
+    // wstawienie i jest spóźnione. Jego zapis uprawnienia wylądował jednak PO
+    // zapisie nowszego - stąd wyrównanie stanem z API operatora (1.0).
     const subscriptions = subscriptionsTable();
     const entitlements = rowStore({ unique: ["external_ref"] });
+    stripeApi.retrieve = async () => ({
+      id: "sub_atrapa_1",
+      customer: "cus_atrapa_1",
+      status: "active",
+      metadata: { userId: "user-kupujacy" },
+      items: {
+        data: [
+          {
+            quantity: 1,
+            current_period_start: Date.parse("2026-08-01T00:00:00.000Z") / 1000,
+            current_period_end: Date.parse("2026-09-01T00:00:00.000Z") / 1000,
+            price: { id: "pri_atrapa", lookup_key: "pro_monthly", product: "prod_atrapa" },
+          },
+        ],
+      },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     let inner: Promise<unknown> | null = null;
     db.setResponse("access_plans", ok(PLAN_PRO));
     db.setResponse("profiles", ok({ email: "kupujacy@example.com", tenant_id: "tenant-alfa" }));
@@ -827,7 +987,12 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
     expect(outer).toBe("processed");
     expect(await inner).toBe("processed");
     expect(subscriptions.rows).toHaveLength(1);
+    expect(subscriptions.rows[0]).toMatchObject({
+      last_event_at: LATER,
+      last_event_id: "evt_zmiana",
+    });
     expect(entitlements.rows).toHaveLength(1);
+    expect(entitlements.rows[0]).toMatchObject({ status: "active" });
     const chains = db.chainsFor("user_subscriptions");
     expect(chains.filter((c) => c.has("insert"))).toHaveLength(2);
     // Drugie wstawienie przegrało na indeksie i poszło aktualizacją po kluczu,
@@ -835,6 +1000,10 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
     const refresh = chains.find((c) => c.has("update"));
     expect(refresh?.argsOf("eq")).toEqual(["external_ref", "sub_atrapa_1"]);
     expect(refresh?.argsOf("neq")).toEqual(["status", "refunded"]);
+    // Spóźnione `created`, którego zapis uprawnienia już wylądował, pyta
+    // operatora o stan - nie zostawia własnego, starszego zapisu.
+    expect(stripeApi.calls).toHaveLength(1);
+    warn.mockRestore();
   });
 
   it("zdarzenie bez wiarygodnego czasu nie blokuje aktualizacji ISTNIEJĄCEJ subskrypcji", async () => {

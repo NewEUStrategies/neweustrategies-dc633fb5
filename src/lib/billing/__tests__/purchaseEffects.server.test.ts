@@ -902,3 +902,139 @@ describe("syncCrmSubscriptionState - wywołanie bezpośrednie", () => {
     error.mockRestore();
   });
 });
+
+// PRZEGLĄD S1. Uprawnienie `refunded` (zwrot albo spór BIEŻĄCEGO okresu,
+// `canceled_at` = chwila korekty) wraca do życia wyłącznie dla okresu zaczętego
+// PO korekcie. Skutki zakupu, zmiany planu i rezygnacji nie podawały początku
+// okresu, więc nawet kolejne OPŁACONE odnowienie zostawiało klienta bez dostępu.
+describe("S1 - początek okresu trafia do zapisu uprawnienia", () => {
+  const CORRECTED_AT = relativeIso(-10 * DZIEN);
+
+  beforeEach(() => {
+    db.setResponse("user_subscriptions", (chain) =>
+      chain.has("maybeSingle")
+        ? ok({ id: "us-1", status: "refunded", canceled_at: CORRECTED_AT })
+        : ok(null),
+    );
+  });
+
+  /** Ożywienie: aktualizacja WYŁĄCZNIE tej korekty, którą widział odczyt. */
+  function revive(): RecordedChain | undefined {
+    return db
+      .chainsFor("user_subscriptions")
+      .find(
+        (chain) =>
+          chain.has("update") &&
+          eqFilters(chain).some(([column, value]) => column === "status" && value === "refunded"),
+      );
+  }
+
+  it.each([
+    ["zakup (odnowienie po korekcie)", () => applyPurchaseEffects(purchase({ periodStart: FIXED_NOW_ISO }))],
+    ["zmiana planu", () => applyPlanChangeEffects(planChange({ periodStart: FIXED_NOW_ISO }))],
+    [
+      "rezygnacja w nowym okresie",
+      () => applyCancellationEffects(purchase({ periodStart: FIXED_NOW_ISO })),
+    ],
+  ])("%s: okres zaczęty PO korekcie ożywia uprawnienie", async (_label, run) => {
+    await run();
+
+    const revived = revive();
+    expect(revived).toBeDefined();
+    expect(eqFilters(revived as RecordedChain)).toContainEqual(["canceled_at", CORRECTED_AT]);
+  });
+
+  it("okres sprzed korekty (to samo zdarzenie okresu) zostawia `refunded`", async () => {
+    await applyPurchaseEffects(purchase({ periodStart: relativeIso(-20 * DZIEN) }));
+
+    expect(revive()).toBeUndefined();
+  });
+});
+
+// PRZEGLĄD 1.3 (dokładnie raz). Webhook zapisuje stan subskrypcji dopiero PO
+// skutkach, więc powtórka po porażce wykonuje je jeszcze raz. Maile mają ziarna
+// idempotencji, CRM jest zbieżny - dzwonek to zwykły INSERT i musi sam
+// rozpoznać, że już leży u odbiorcy od chwili zdarzenia.
+describe("dzwonek raz na zdarzenie (`eventAt`)", () => {
+  const EVENT_AT = relativeIso(-1 * DZIEN);
+
+  function bellLookup(): RecordedChain | undefined {
+    return db.chainsFor("notifications").find((chain) => chain.has("select"));
+  }
+
+  it("dzwonek z tym samym tytułem i adresem od chwili zdarzenia już jest: drugiego nie ma", async () => {
+    db.setResponse("notifications", (chain) =>
+      chain.has("select") ? ok([{ id: "dzwonek-1" }]) : ok(null),
+    );
+
+    await applyStatusTransitionEffects({
+      userId: BILLING_IDS.me,
+      tenantId: BILLING_IDS.tenant,
+      priceId: "plus_monthly",
+      subscriptionId: SUB,
+      periodEnd: relativeIso(20 * DZIEN),
+      previousStatus: "active",
+      status: "paused",
+      eventAt: EVENT_AT,
+    });
+
+    expect(written("notifications", "insert")).toBeUndefined();
+    const lookup = bellLookup();
+    expect(lookup).toBeDefined();
+    expect(eqFilters(lookup as RecordedChain)).toEqual([
+      ["user_id", BILLING_IDS.me],
+      ["tenant_id", BILLING_IDS.tenant],
+      ["kind", "billing"],
+      ["title_pl", "Subskrypcja wstrzymana"],
+      ["href", "/profile/plan"],
+    ]);
+    expect(lookup?.argsOf("gte")).toEqual(["created_at", EVENT_AT]);
+    // Mail idzie dalej - jego duplikat odsiewa ziarno idempotencji.
+    expect(mails()).toHaveLength(1);
+  });
+
+  it.each([
+    ["zakup", () => applyPurchaseEffects(purchase({ eventAt: EVENT_AT }))],
+    ["zmiana planu", () => applyPlanChangeEffects(planChange({ eventAt: EVENT_AT }))],
+    ["rezygnacja", () => applyCancellationEffects(purchase({ eventAt: EVENT_AT }))],
+  ])("%s: dzwonek już leży - drugiego nie ma", async (_label, run) => {
+    db.setResponse("notifications", (chain) =>
+      chain.has("select") ? ok([{ id: "dzwonek-1" }]) : ok(null),
+    );
+
+    await run();
+
+    expect(written("notifications", "insert")).toBeUndefined();
+  });
+
+  it("dzwonka jeszcze nie ma: pierwszy przebieg go zapisuje", async () => {
+    db.setResponse("notifications", (chain) => (chain.has("select") ? ok([]) : ok(null)));
+
+    await applyPurchaseEffects(purchase({ eventAt: EVENT_AT }));
+
+    expect(written("notifications", "insert")).toMatchObject({ title_pl: "Subskrypcja aktywna" });
+  });
+
+  it("nieudany odczyt deduplikacji nie wstrzymuje dzwonka - lepszy duplikat niż cisza", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    db.setResponse("notifications", (chain) =>
+      chain.has("select") ? fail("statement timeout") : ok(null),
+    );
+
+    await applyPurchaseEffects(purchase({ eventAt: EVENT_AT }));
+
+    expect(written("notifications", "insert")).toMatchObject({ title_pl: "Subskrypcja aktywna" });
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] notification dedupe lookup failed",
+      "statement timeout",
+    );
+    warn.mockRestore();
+  });
+
+  it("bez chwili zdarzenia (wołający spoza webhooka) dzwonek idzie bez odczytu", async () => {
+    await applyPurchaseEffects(purchase());
+
+    expect(bellLookup()).toBeUndefined();
+    expect(written("notifications", "insert")).toBeDefined();
+  });
+});

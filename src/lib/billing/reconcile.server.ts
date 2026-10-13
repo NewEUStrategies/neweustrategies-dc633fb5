@@ -174,7 +174,7 @@ export async function buildReconcileReport(
   const graceIso = new Date(Date.now() - 15 * 60_000).toISOString();
   const { data: orders, error: orderErr } = await supabase
     .from("payment_orders")
-    .select("id, status, provider_session_id, created_at")
+    .select("id, kind, status, provider_session_id, created_at")
     .eq("tenant_id", tenantId)
     .eq("environment", environment)
     .eq("provider", "stripe")
@@ -191,6 +191,17 @@ export async function buildReconcileReport(
     try {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       if (session.payment_status === "unpaid") continue;
+      // Sesja subskrypcji BEZ pobrania (trial, rabat 100%) świadomie zostawia
+      // zamówienie w toku - domknie je pierwsza opłacona faktura (S4). To nie
+      // jest rozjazd, a jego „naprawa" niczego by nie zmieniła. Zakup
+      // jednorazowy bez pobrania realizacja przestawia na `paid`, więc tam
+      // wiszące zamówienie nadal jest prawdziwym rozjazdem.
+      if (
+        session.payment_status === "no_payment_required" &&
+        (session.mode === "subscription" || order.kind === "subscription")
+      ) {
+        continue;
+      }
       issues.push({
         kind: "order",
         reference: order.id,
@@ -324,7 +335,8 @@ async function replayEvent(
 
 /**
  * Znacznik chwili naprawy (sekundy uniksowe) w identyfikatorze sztucznego
- * zdarzenia.
+ * zdarzenia. Przy naprawie subskrypcji bierzemy go PRZED odczytem stanu
+ * u operatora (1.1) - patrz `repairReconcileIssue`.
  *
  * Bez niego identyfikator zależał wyłącznie od obiektu (`reconcile_<sub>_<status>`),
  * więc DRUGA naprawa tego samego rozjazdu - np. subskrypcja wróciła do złego
@@ -643,17 +655,29 @@ export async function repairReconcileIssue(
     return replayEvent(synthetic, environment, reference);
   }
 
+  // Znacznik PRZED odczytem i o sekundę wcześniej (1.1): stan z odczytu jest
+  // prawdziwy na chwilę odczytu, a Stripe stempluje zdarzenia z dokładnością
+  // do sekundy. Znacznik wzięty PO odczycie robił ze zdarzenia operatora
+  // z tej samej sekundy (np. opłacenie faktury tuż po odczycie) zdarzenie
+  // spóźnione wobec naprawy - nowszy stan przepadał. Teraz każde zdarzenie
+  // z sekundy odczytu albo późniejszej jest od naprawy świeższe.
+  const stamp = repairStamp();
   const subscription = await stripe.subscriptions.retrieve(reference);
   const ownsSubscription = await belongsToTenant(environment, tenantId, {
     subscriptionId: reference,
     customerId: typeof subscription.customer === "string" ? subscription.customer : null,
   });
   if (!ownsSubscription) return { reference, status: "skipped", error: null };
-  const stamp = repairStamp();
   const synthetic: VerifiedWebhookEvent = {
     id: `reconcile_${subscription.id}_${subscription.status}_${stamp}`,
-    type: "customer.subscription.updated",
-    created: stamp,
+    // Anulowana u operatora = rezygnacja (mail, CRM, organizacja), tak jak
+    // w synchronizacji na żądanie - zdarzenie stanu z `canceled` pomijało
+    // skutki rezygnacji.
+    type:
+      subscription.status === "canceled"
+        ? "customer.subscription.deleted"
+        : "customer.subscription.updated",
+    created: stamp - 1,
     data: { object: subscription as unknown as Record<string, unknown> },
   } as VerifiedWebhookEvent;
   return replayEvent(synthetic, environment, reference);

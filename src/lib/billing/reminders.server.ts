@@ -12,6 +12,7 @@
 // Moduł server-only - importuj wyłącznie z handlera crona.
 import { notifyReminderEmail } from "@/lib/billing/notifications.server";
 import { resolvePlanForPrice } from "@/lib/billing/purchaseEffects.server";
+import { environmentGrantsAccess, type StripeEnv } from "@/lib/stripe.server";
 
 /** Domyślne wyprzedzenie przypomnienia (w dniach). */
 export const REMINDER_LEAD_DAYS = 3;
@@ -51,6 +52,19 @@ export function reminderSeed(subscriptionId: string, periodEnd: string): string 
   return `${subscriptionId}:${periodEnd.slice(0, 10)}`;
 }
 
+/**
+ * Środowiska, których subskrypcje dostają przypomnienia NA TYM wdrożeniu (S9,
+ * PAY-05). Produkcja trzyma subskrypcje piaskownicy wyłącznie jako ślad
+ * księgowy (`webhookDispatch.server`, „bookkeeping_only") - z prawdziwym
+ * `user_id` z metadanych karty testowej. Bez tego filtra cron wysyłał
+ * realnemu klientowi „Twoja subskrypcja się odnawia" za plan, którego nigdy
+ * nie kupił. Poza produkcją (podgląd, dev) oba tryby, jak w
+ * `environmentGrantsAccess`.
+ */
+function reminderEnvironments(): StripeEnv[] {
+  return (["live", "sandbox"] as const).filter((env) => environmentGrantsAccess(env));
+}
+
 async function loadDueSubscriptions(from: string, to: string, limit: number): Promise<SubRow[]> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
@@ -58,6 +72,7 @@ async function loadDueSubscriptions(from: string, to: string, limit: number): Pr
     .select(
       "user_id, tenant_id, price_id, status, current_period_end, cancel_at_period_end, provider_subscription_id",
     )
+    .in("environment", reminderEnvironments())
     .in("status", ["active", "trialing", "past_due", "canceled"])
     .gte("current_period_end", from)
     .lt("current_period_end", to)

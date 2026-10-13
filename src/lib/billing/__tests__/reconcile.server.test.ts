@@ -1006,7 +1006,9 @@ describe("repairReconcileIssue - subskrypcja", () => {
       // samej subskrypcji to nowe zdarzenie, a podwójne kliknięcie - ten sam wpis.
       id: `reconcile_sub_1_past_due_${stamp}`,
       type: "customer.subscription.updated",
-      created: stamp,
+      // Znacznik PRZED odczytem i o sekundę wcześniej (1.1): zdarzenie
+      // operatora z sekundy odczytu jest od naprawy świeższe.
+      created: stamp - 1,
       data: { object: { id: "sub_1", status: "past_due" } },
     });
     expect(outcome).toEqual({ reference: "sub_1", status: "processed", error: null });
@@ -1089,8 +1091,9 @@ describe("repairReconcileIssue - idempotencja", () => {
     expect(new Set(keys).size).toBe(2);
     // Druga naprawa niesie własną chwilę - strażnik kolejności subskrypcji
     // widzi ją jako NOWSZĄ od pierwszej.
+    // (o sekundę przed chwilą odczytu - patrz 1.1).
     expect(hook.dispatch.mock.calls[1][0]).toMatchObject({
-      occurredAt: new Date(NOW + 7 * 24 * 3600_000).toISOString(),
+      occurredAt: new Date(NOW + 7 * 24 * 3600_000 - 1000).toISOString(),
     });
   });
 

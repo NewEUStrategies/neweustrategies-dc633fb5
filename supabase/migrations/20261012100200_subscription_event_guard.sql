@@ -27,6 +27,15 @@
 --                                         z ta sekunda tez idzie po stan z API,
 --   * znacznik starszy                 -> `skipped`.
 --
+-- ZAJECIE PORZADKUJE ZAJECIA, NIE SKUTKI (przeglad 1.0 / 1.3). Stan
+-- subskrypcji (status, cena, okres) webhook zapisuje NA KONCU obslugi,
+-- warunkiem `last_event_at = <znacznik> AND last_event_id = <id zajecia>`.
+-- Zero trafionych wierszy = nowsze zdarzenie przejelo wiersz w trakcie
+-- skutkow; uprawnienie wyrownuje wtedy stan z API operatora. Powtorka po
+-- porazce skutkow widzi wiec POPRZEDNI status i cene (przejscia nie gina).
+-- Synchronizacja na zadanie zapisuje identyfikator `self-sync:<sub>:<sekunda>`
+-- ze znacznikiem o sekunde wczesniejszym niz jej odczyt u operatora.
+--
 -- UPRAWNIENIA BEZ ZMIAN. Pisarzem jest wylacznie webhook pod rola serwisowa
 -- (`GRANT ALL ... TO service_role`, 20260729072626); `authenticated` czyta
 -- wlasny wiersz polityka wlasciciela. Kolumna nie niesie danych osobowych -

@@ -16,6 +16,13 @@ export interface PurchaseContext {
   priceId: string;
   subscriptionId: string;
   periodEnd: string | null;
+  /**
+   * Początek okresu rozliczeniowego subskrypcji (`current_period_start`).
+   * Uprawnienie `refunded` ożywa wyłącznie dla okresu zaczętego PO korekcie
+   * (S1, `mayReviveRefunded`) - bez tego pola nawet kolejne opłacone
+   * odnowienie zostawiało klienta bez dostępu.
+   */
+  periodStart?: string | null;
   environment: "sandbox" | "live";
   /** Status subskrypcji u operatora; domyślnie `active`. */
   status?: ProviderSubscriptionStatus;
@@ -24,6 +31,13 @@ export interface PurchaseContext {
    * profilu przy odwzorowaniu ceny na plan (`PlanScope`).
    */
   tenantId?: string | null;
+  /**
+   * Chwila zdarzenia, które wywołało skutki (ISO) - próg deduplikacji dzwonka.
+   * Powtórka zdarzenia po porażce dalszych skutków (PAY-02) nie dokłada
+   * drugiego dzwonka, bo pierwszy powstał PO tej chwili. Bez wartości (wołający
+   * spoza webhooka) dzwonek idzie jak dawniej.
+   */
+  eventAt?: string | null;
 }
 
 interface ResolvedPlan {
@@ -133,9 +147,34 @@ async function pushAppNotification(params: {
   bodyEn: string;
   href: string;
   icon: string;
+  /** Próg deduplikacji (patrz `PurchaseContext.eventAt`). */
+  since?: string | null;
 }): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // RAZ NA ZDARZENIE. Webhook zapisuje stan subskrypcji dopiero po skutkach,
+    // więc powtórka po porażce (operator, zamiatarka, panel) wykonuje skutki
+    // jeszcze raz. Maile mają ziarna idempotencji, CRM jest zapisem zbieżnym -
+    // dzwonek to zwykły INSERT, więc pomijamy go, gdy ten sam dzwonek (tytuł
+    // + adres) leży już u odbiorcy od chwili zdarzenia. Awaria odczytu nie
+    // wstrzymuje dzwonka: lepszy duplikat niż cisza.
+    if (params.since) {
+      const { data: seen, error: seenError } = await supabaseAdmin
+        .from("notifications")
+        .select("id")
+        .eq("user_id", params.userId)
+        .eq("tenant_id", params.tenantId)
+        .eq("kind", "billing")
+        .eq("title_pl", params.titlePl)
+        .eq("href", params.href)
+        .gte("created_at", params.since)
+        .limit(1);
+      if (seenError) {
+        console.warn("[payments] notification dedupe lookup failed", seenError.message);
+      } else if ((seen ?? []).length > 0) {
+        return;
+      }
+    }
     const { error } = await supabaseAdmin.from("notifications").insert({
       user_id: params.userId,
       tenant_id: params.tenantId,
@@ -322,6 +361,7 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     externalRef: ctx.subscriptionId,
     status: ctx.status ?? "active",
     periodEnd: ctx.periodEnd,
+    periodStart: ctx.periodStart ?? null,
   });
 
   await notifySubscriptionEmail({
@@ -352,6 +392,7 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     bodyEn: "Access to premium content is now enabled.",
     href: PROFILE_PLAN_PATH,
     icon: "badge-check",
+    since: ctx.eventAt,
   });
 }
 
@@ -420,6 +461,7 @@ export async function applyPlanChangeEffects(
     externalRef: ctx.subscriptionId,
     status: ctx.status ?? "active",
     periodEnd: ctx.periodEnd,
+    periodStart: ctx.periodStart ?? null,
   });
 
   // Upgrade rozlicza się od razu: różnica cen za pozostałą część okresu to
@@ -457,6 +499,7 @@ export async function applyPlanChangeEffects(
         : "The lower plan starts once the paid period ends.",
     href: PROFILE_PLAN_PATH,
     icon: "arrow-up-right",
+    since: ctx.eventAt,
   });
 }
 
@@ -476,6 +519,7 @@ export async function applyCancellationEffects(ctx: PurchaseContext): Promise<vo
     externalRef: ctx.subscriptionId,
     status: "canceled",
     periodEnd: ctx.periodEnd,
+    periodStart: ctx.periodStart ?? null,
   });
 
   await notifySubscriptionEmail({
@@ -498,6 +542,7 @@ export async function applyCancellationEffects(ctx: PurchaseContext): Promise<vo
     bodyEn: "Access remains until the paid period ends. Tell us what we can improve.",
     href: `${PROFILE_PLAN_PATH}?retention=1`,
     icon: "message-circle-question",
+    since: ctx.eventAt,
   });
 }
 
@@ -511,6 +556,8 @@ export interface StatusTransitionContext {
   periodEnd: string | null;
   previousStatus: string | null;
   status: string;
+  /** Próg deduplikacji dzwonka (patrz `PurchaseContext.eventAt`). */
+  eventAt?: string | null;
 }
 
 /**
@@ -537,6 +584,7 @@ export async function applyStatusTransitionEffects(ctx: StatusTransitionContext)
       bodyEn: "Premium access is inactive until you resume the subscription.",
       href: PROFILE_PLAN_PATH,
       icon: "pause-circle",
+      since: ctx.eventAt,
     });
     await notifySubscriptionEmail({
       kind: "subscription_paused",
@@ -562,6 +610,7 @@ export async function applyStatusTransitionEffects(ctx: StatusTransitionContext)
         bodyEn: "Premium access is active again.",
         href: PROFILE_PLAN_PATH,
         icon: "badge-check",
+        since: ctx.eventAt,
       });
       await notifySubscriptionEmail({
         kind: "subscription_resumed",

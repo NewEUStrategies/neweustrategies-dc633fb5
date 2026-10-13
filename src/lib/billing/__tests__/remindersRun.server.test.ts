@@ -187,8 +187,43 @@ describe("zakres zapytania o subskrypcje do przypomnienia", () => {
     // Karencja (`past_due`) MUSI być w zestawie: to klient, który ma jeszcze
     // dostęp i którego da się uratować. `canceled` też - jemu należy się
     // przypomnienie o KOŃCU dostępu, nie o odnowieniu.
-    expect(chain?.argsOf("in")).toEqual(["status", ["active", "trialing", "past_due", "canceled"]]);
+    const inFilters = chain?.calls.filter((c) => c.method === "in").map((c) => c.args);
+    expect(inFilters).toContainEqual(["status", ["active", "trialing", "past_due", "canceled"]]);
     expect(chain?.argsOf("limit")).toEqual([200]);
+  });
+
+  // PRZEGLĄD 1.5 / 7.8 (S9). Produkcja trzyma subskrypcje piaskownicy jako
+  // ŚLAD KSIĘGOWY (`environment = 'sandbox'`) z prawdziwym `user_id`
+  // z metadanych karty testowej. Bez filtra środowiska cron wysyłał realnemu
+  // klientowi „Twoja subskrypcja się odnawia" za plan, którego nie kupił.
+  describe("środowisko wdrożenia", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    const environmentFilter = (stub: SupabaseFromStub) =>
+      stub
+        .lastChain("subscriptions")
+        ?.calls.filter((c) => c.method === "in" && c.args[0] === "environment")
+        .map((c) => c.args);
+
+    it("produkcja: przypomnienia WYŁĄCZNIE dla subskrypcji `live`", async () => {
+      vi.stubEnv("NODE_ENV", "production");
+      const stub = givenDb({ rows: [] });
+
+      await runBillingReminders(3, 200, NOW);
+
+      expect(environmentFilter(stub)).toEqual([["environment", ["live"]]]);
+    });
+
+    it("podgląd i dev: oba środowiska, jak w `environmentGrantsAccess`", async () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const stub = givenDb({ rows: [] });
+
+      await runBillingReminders(3, 200, NOW);
+
+      expect(environmentFilter(stub)).toEqual([["environment", ["live", "sandbox"]]]);
+    });
   });
 
   it("okno nigdy nie sięga w PRZESZŁOŚĆ - subskrypcja po terminie nie dostanie przypomnienia", async () => {
