@@ -1478,6 +1478,13 @@
       "when": 1791926831057,
       "tag": "0210_event_checkin_repeat_device_time",
       "breakpoints": true
+    },
+    {
+      "idx": 211,
+      "version": "7",
+      "when": 1791926936096,
+      "tag": "0211_events_discussion_club_cleared",
+      "breakpoints": true
     }
   ]
 }
