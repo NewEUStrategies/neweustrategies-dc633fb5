@@ -13021,6 +13021,8 @@ export type Database = {
       }
       event_wallet_passes: {
         Row: {
+          code_hash: string | null
+          content_hash: string | null
           created_at: string
           event_id: string
           first_issued_at: string
@@ -13030,10 +13032,18 @@ export type Database = {
           object_id: string
           platform: string
           registration_id: string
+          revoke_attempts: number
+          revoke_claimed_at: string | null
+          revoke_error: string | null
+          revoke_reason: string | null
+          revoke_requested_at: string | null
+          revoked_at: string | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
+          code_hash?: string | null
+          content_hash?: string | null
           created_at?: string
           event_id: string
           first_issued_at?: string
@@ -13043,10 +13053,18 @@ export type Database = {
           object_id: string
           platform: string
           registration_id: string
+          revoke_attempts?: number
+          revoke_claimed_at?: string | null
+          revoke_error?: string | null
+          revoke_reason?: string | null
+          revoke_requested_at?: string | null
+          revoked_at?: string | null
           tenant_id: string
           updated_at?: string
         }
         Update: {
+          code_hash?: string | null
+          content_hash?: string | null
           created_at?: string
           event_id?: string
           first_issued_at?: string
@@ -13056,6 +13074,12 @@ export type Database = {
           object_id?: string
           platform?: string
           registration_id?: string
+          revoke_attempts?: number
+          revoke_claimed_at?: string | null
+          revoke_error?: string | null
+          revoke_reason?: string | null
+          revoke_requested_at?: string | null
+          revoked_at?: string | null
           tenant_id?: string
           updated_at?: string
         }
@@ -24142,12 +24166,18 @@ export type Database = {
           }
       _event_wallet_pass_note: {
         Args: {
+          p_code_hash?: string
+          p_content_hash?: string
           p_object_id: string
           p_platform: string
           p_registration_id: string
           p_tenant: string
         }
         Returns: number
+      }
+      _event_wallet_pass_state: {
+        Args: { p_object_id: string; p_platform: string; p_tenant: string }
+        Returns: Json
       }
       _mention_public_company_ids: {
         Args: { _tenant: string }
