@@ -107,6 +107,30 @@ export function areConsentsWithdrawn(row: EventRegistrationRow): boolean {
   return (row.consent_withdrawn_at ?? null) !== null;
 }
 
+/** Stempel czasu z kolumny RPC; pusty napis i `null` to brak stempla. */
+function stampMs(value: string | null | undefined): number | null {
+  if (typeof value !== "string" || value === "") return null;
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/**
+ * Skuteczna zgoda na przekazanie danych partnerom Z TEGO ZGŁOSZENIA - lustro
+ * `_event_partner_consent_at` dla jednego wiersza: nadanie w zgłoszeniu
+ * późniejsze niż jego wycofanie i niż globalne wycofanie zgód osoby. Decyduje
+ * tylko o plakietce i przycisku wycofania; o danych dla sponsora rozstrzyga baza.
+ */
+export function hasPartnerConsent(row: EventRegistrationRow): boolean {
+  const granted = stampMs(row.consent_partner_sharing_at);
+  if (granted === null) return false;
+  const withdrawnHere = stampMs(row.consent_partner_withdrawn_at);
+  const withdrawnAll = stampMs(row.consent_withdrawn_at);
+  return (
+    (withdrawnHere === null || withdrawnHere < granted) &&
+    (withdrawnAll === null || withdrawnAll < granted)
+  );
+}
+
 // ---------------------------------------------------------------------------
 // GRUPA I BILET Z KODEM QR
 // ---------------------------------------------------------------------------

@@ -38,6 +38,9 @@ export const SCHEDULER_JOBS = [
   "event-participant-reminders",
   "event-ticket-lifecycle",
   "event-follow-up",
+  // Przepustki Google Wallet unieważnionych biletów -> INACTIVE (OPS-14):
+  // anulowanie, zwrot, nowy kod, odwołane wydarzenie.
+  "event-wallet-passes",
 ] as const;
 
 export type SchedulerJob = (typeof SCHEDULER_JOBS)[number];

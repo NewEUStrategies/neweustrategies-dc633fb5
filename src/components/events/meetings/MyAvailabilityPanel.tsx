@@ -22,6 +22,7 @@ import { uiLang } from "@/lib/i18n/format";
 import { meetingErrorI18nKey } from "@/lib/events/meetingsErrors";
 import {
   draftFromWindow,
+  windowZones,
   type WindowDraft,
   type WindowPayload,
 } from "@/lib/events/meetingWindowDraft";
@@ -127,7 +128,9 @@ export function MyAvailabilityPanel({
                       variant="ghost"
                       aria-label={t("eventMeetings.participant.availability.dialogEdit")}
                       onClick={() => {
-                        setDraft(draftFromWindow(row));
+                        // Szkic w strefie WYDARZENIA - dialog sam przepisze go
+                        // na strefe uczestnika, jesli ten ja wybral.
+                        setDraft(draftFromWindow(row, windowZones(timezone)));
                         setOpen(true);
                       }}
                     >

@@ -2,7 +2,7 @@
 //
 // Te same kontrakty, co atrapy w testach pozostałych ekranów modułu: natywna
 // droplista w miejsce `FormSelect` (Radix nie otwiera popupu pod happy-dom),
-// natywne pole ISO w miejsce `DateTimePicker` (kalendarz to popover) oraz
+// natywne pole zegara w miejsce `DateInput` (kalendarz to popover) oraz
 // wyszukiwarka członków zastąpiona przyciskiem, który „wybiera" konto.
 //
 // Bez JSX - moduł jest wciągany z wnętrza fabryk `vi.mock` (wzorzec
@@ -48,23 +48,34 @@ export function formSelectStubModule(react: ReactModule): Record<string, unknown
   return { FormSelect, default: FormSelect };
 }
 
-/** Moduł-atrapa `@/components/ui/datetime-picker`: napis ISO albo `""` = brak. */
-export function dateTimePickerStubModule(react: ReactModule): Record<string, unknown> {
+/**
+ * Moduł-atrapa `@/components/ui/date-input`: KONTRAKT atomu `DateInput` -
+ * napis zegara `YYYY-MM-DDTHH:mm` (w strefie wydarzenia, OPS-15) albo `""`
+ * = brak. Opis pola (`aria-describedby`) przechodzi dalej, żeby test widział
+ * podpowiedź strefy przypiętą do pola.
+ */
+export function dateInputStubModule(react: ReactModule): Record<string, unknown> {
   return {
-    DateTimePicker: ({
+    DateInput: ({
       id,
       value,
       onChange,
+      "aria-invalid": invalid,
+      "aria-describedby": describedBy,
     }: {
       id?: string;
-      value: string | null;
-      onChange: (iso: string | null) => void;
+      value?: string | null;
+      onChange?: (event: { target: { value: string } }) => void;
+      "aria-invalid"?: boolean;
+      "aria-describedby"?: string;
     }) =>
       react.createElement("input", {
         id,
         value: value ?? "",
+        "aria-invalid": invalid,
+        "aria-describedby": describedBy,
         onChange: (event: { target: { value: string } }) =>
-          onChange(event.target.value === "" ? null : event.target.value),
+          onChange?.({ target: { value: event.target.value } }),
       }),
   };
 }

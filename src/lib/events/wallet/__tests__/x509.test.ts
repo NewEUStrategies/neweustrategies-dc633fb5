@@ -8,11 +8,20 @@
 import { describe, expect, it } from "vitest";
 
 import { derChildren, derNull, derOid, derSequence, derSmallInteger, readDer } from "../der";
-import { toHex } from "../rsa";
-import { parseCertificate, parseCertificatePem, pemBlock, readPemBlocks } from "../x509";
+import { readRsaPrivateKeyParts, sameRsaPublicKey, toHex } from "../rsa";
+import {
+  nameAttribute,
+  parseCertificate,
+  parseCertificatePem,
+  pemBlock,
+  readCertificateDetails,
+  readPemBlocks,
+  X509_OID,
+} from "../x509";
 import {
   TEST_SIGNER_CERT_PEM,
   TEST_SIGNER_KEY_PKCS1_PEM,
+  TEST_SIGNER_KEY_PKCS8_PEM,
   TEST_SIGNER_SERIAL_HEX,
   TEST_WWDR_CERT_PEM,
 } from "@/test/fixtures/walletTestPki";
@@ -76,5 +85,47 @@ describe("parseCertificate", () => {
     expect(() =>
       parseCertificate(derSequence(derSequence(derSmallInteger(1), derNull(), derNull()))),
     ).toThrow("malformed");
+  });
+});
+
+describe("readCertificateDetails / nameAttribute", () => {
+  it("daty ważności, podmiot (UID, CN, OU), numer seryjny i klucz RSA certyfikatu Pass Type ID", () => {
+    const cert = readCertificateDetails(pemBlock(TEST_SIGNER_CERT_PEM, ["CERTIFICATE"]).der);
+    expect(cert.serialHex).toBe(TEST_SIGNER_SERIAL_HEX);
+    // `openssl x509 -dates`: notBefore=Sep 26 14:36:01 2026 GMT, notAfter=Sep  2 14:36:01 2126 GMT
+    expect(cert.notBefore.toISOString()).toBe("2026-09-26T14:36:01.000Z");
+    expect(cert.notAfter.toISOString()).toBe("2126-09-02T14:36:01.000Z");
+    expect(nameAttribute(cert.subject, X509_OID.userId)).toBe("pass.org.example.test");
+    expect(nameAttribute(cert.subject, X509_OID.commonName)).toBe(
+      "Pass Type ID: pass.org.example.test",
+    );
+    expect(nameAttribute(cert.subject, X509_OID.organizationalUnit)).toBe("TESTTEAM01");
+    expect(nameAttribute(cert.issuer, X509_OID.commonName)).toBe("NES Wallet TEST CA - NOT APPLE");
+    expect(nameAttribute(cert.issuer, X509_OID.userId)).toBeNull();
+    expect(cert.publicKeyAlgorithm).toBe(X509_OID.rsaEncryption);
+    expect(cert.rsaPublicKey?.modulus).toHaveLength(256);
+    expect(toHex(cert.rsaPublicKey!.exponent)).toBe("010001");
+  });
+
+  it("klucz publiczny certyfikatu == klucz z klucza prywatnego (PKCS#8 i PKCS#1); inny certyfikat - nie", () => {
+    const cert = readCertificateDetails(pemBlock(TEST_SIGNER_CERT_PEM, ["CERTIFICATE"]).der);
+    const ca = readCertificateDetails(pemBlock(TEST_WWDR_CERT_PEM, ["CERTIFICATE"]).der);
+    for (const pem of [TEST_SIGNER_KEY_PKCS8_PEM, TEST_SIGNER_KEY_PKCS1_PEM]) {
+      const key = readRsaPrivateKeyParts(pem);
+      expect(sameRsaPublicKey(cert.rsaPublicKey!, key)).toBe(true);
+      expect(sameRsaPublicKey(ca.rsaPublicKey!, key)).toBe(false);
+    }
+    // Wystawca podpisującego == podmiot CA (to sprawdza kontrola łańcucha).
+    expect(toHex(cert.issuer)).toBe(toHex(ca.subject));
+  });
+
+  it("certyfikat bez validity/subject/SPKI (v1 minimalny) jest odrzucany", () => {
+    const tbs = derSequence(
+      derSmallInteger(7),
+      derSequence(derOid("1.2.840.113549.1.1.11"), derNull()),
+      derSequence(derOid("2.5.4.3")),
+    );
+    expect(() => readCertificateDetails(derSequence(tbs))).toThrow("malformed tbsCertificate");
+    expect(() => readCertificateDetails(derNull())).toThrow("single DER SEQUENCE");
   });
 });

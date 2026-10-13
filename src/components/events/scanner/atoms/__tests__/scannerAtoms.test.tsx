@@ -38,7 +38,7 @@ describe("ScanOutcomeBanner - wynik skanu", () => {
     // Gdyby o wyniku decydował wyłącznie kolor pasa, bramka przestałaby
     // działać dla osoby nierozróżniającej barw - a to jest praca zmianowa,
     // obsadzana wolontariuszami z przypadku.
-    for (const tone of ["granted", "denied", "warning", "neutral"] as const) {
+    for (const tone of ["granted", "reentry", "denied", "warning", "neutral"] as const) {
       cleanup();
       const { container } = render(<ScanOutcomeBanner tone={tone} title={`wynik-${tone}`} />);
 
@@ -56,6 +56,20 @@ describe("ScanOutcomeBanner - wynik skanu", () => {
     const denied = render(<ScanOutcomeBanner tone="denied" title="Brak zapisu" />);
 
     expect(denied.getByRole("status").className).not.toBe(grantedClass);
+  });
+
+  it("PONOWNE wejście (OPS-08) ma WŁASNY kolor I WŁASNĄ ikonę - nie jest zwykłym „Wpuść”", () => {
+    // Kolor nie może być jedynym nośnikiem: ikona tonu ponownego wejścia też
+    // musi być inna niż ikona zwykłej zgody.
+    const granted = render(<ScanOutcomeBanner tone="granted" title="Wpuść" />);
+    const grantedClass = granted.getByRole("status").className;
+    const grantedIcon = granted.container.querySelector("svg")?.getAttribute("class");
+    cleanup();
+    const reentry = render(<ScanOutcomeBanner tone="reentry" title="Ponowne wejście - wpuść" />);
+
+    expect(reentry.getByRole("status")).toHaveAttribute("data-tone", "reentry");
+    expect(reentry.getByRole("status").className).not.toBe(grantedClass);
+    expect(reentry.container.querySelector("svg")?.getAttribute("class")).not.toBe(grantedIcon);
   });
 
   it("podpowiedź pojawia się tylko wtedy, gdy naprawdę coś mówi", () => {

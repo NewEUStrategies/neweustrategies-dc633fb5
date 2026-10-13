@@ -500,6 +500,26 @@ export async function decideRegistration(input: RegistrationDecisionInput): Prom
   return (data ?? {}) as Json;
 }
 
+/**
+ * Wycofanie zgody uczestnika na przekazanie danych partnerom wydarzenia - na
+ * prośbę złożoną innym kanałem niż strona samoobsługi. Baza stempluje
+ * wycofanie na wszystkich zgłoszeniach tej osoby na to wydarzenie, NIE kasuje
+ * stempla nadania i zapisuje aktora w `audit_log`. Zwraca `false`, gdy nie było
+ * czego wycofywać (powtórzenie jest bezpieczne).
+ */
+export async function withdrawRegistrationPartnerConsent(registrationId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("admin_event_registration_partner_consent_withdraw", {
+    p_registration_id: registrationId,
+  });
+  if (error) throw error;
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    !Array.isArray(data) &&
+    (data as { withdrawn?: unknown }).withdrawn === true
+  );
+}
+
 export interface RegistrationUpsertInput {
   id: string | null;
   eventId: string;

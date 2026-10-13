@@ -171,6 +171,7 @@ function wpis(overrides: Partial<EventCheckinRow> = {}): EventCheckinRow {
     operator_user_id: "55555555-5555-4555-8555-555555555555",
     person_id: "66666666-6666-4666-8666-666666666666",
     registration_id: "77777777-7777-4777-8777-777777777777",
+    reentry_override: false,
     registration_status: "approved",
     repeat_count: 1,
     result: "granted",
@@ -308,9 +309,12 @@ describe("filtry jadą do bazy", () => {
     expect(ostatnieZapytanie().q).toBe("Kowalska");
   });
 
-  it("droplista wyników oferuje komplet sześciu wartości bazy plus „wszystkie”", () => {
+  it("droplista wyników oferuje komplet ośmiu wartości bazy plus „wszystkie”", () => {
     panel();
 
+    // `denied_already_inside` od 20261013110500 (OPS-08, polityka `deny`);
+    // `denied_code_superseded` od 20261013111000 (R4: bramka bez sieci
+    // wpuściła kod martwy już w chwili skanu).
     expect(Array.from(filtr("result").options).map((option) => option.value)).toEqual([
       "__all__",
       "granted",
@@ -319,6 +323,8 @@ describe("filtry jadą do bazy", () => {
       "denied_direction",
       "denied_capacity",
       "denied_checkpoint_inactive",
+      "denied_already_inside",
+      "denied_code_superseded",
     ]);
   });
 
@@ -611,6 +617,43 @@ describe("decyzje skanera bez sieci", () => {
     const odznaka = within(wiersz()).getByText(`${T}.log.conflictDeniedBadge`);
     expect(odznaka.getAttribute("title")).toBe(`${T}.log.conflictDeniedHint`);
     expect(within(wiersz()).queryByText(`${T}.log.conflictBadge`)).toBeNull();
+  });
+
+  it("PODWÓJNE WEJŚCIE (dwa wejścia bez wyjścia przy blokadzie) ma własną odznakę z wyjaśnieniem", () => {
+    // Zgoda na wejście, więc bez rodzaju konfliktu wiersz wyglądałby jak
+    // zwykłe wpuszczenie - a to para, w której jeden kod mógł wpuścić dwie
+    // osoby (albo wyjście z innego urządzenia jeszcze nie dotarło).
+    h.rows = [wpis({ conflict: true, conflict_kind: "double_entry" })];
+    panel();
+
+    const odznaka = within(wiersz()).getByText(`${T}.log.conflictDoubleEntryBadge`);
+    expect(odznaka.getAttribute("title")).toBe(`${T}.log.conflictDoubleEntryHint`);
+    expect(within(wiersz()).queryByText(`${T}.log.conflictBadge`)).toBeNull();
+    expect(within(wiersz()).queryByText(`${T}.log.conflictDeniedBadge`)).toBeNull();
+  });
+
+  it("OBEJŚCIE na stanowisku ma spokojną odznakę i NIE jest konfliktem", () => {
+    h.rows = [
+      wpis({
+        source: "name_search",
+        device_id: BRAK,
+        device_label: BRAK,
+        reentry_override: true,
+      }),
+    ];
+    panel();
+
+    const odznaka = within(wiersz()).getByText(`${T}.log.reentryOverrideBadge`);
+    expect(odznaka.getAttribute("title")).toBe(`${T}.log.reentryOverrideHint`);
+    expect(within(wiersz()).queryByText(`${T}.log.conflictBadge`)).toBeNull();
+    expect(within(wiersz()).queryByText(`${T}.log.conflictDoubleEntryBadge`)).toBeNull();
+  });
+
+  it("zwykły wiersz nie ma odznaki obejścia", () => {
+    h.rows = [wpis()];
+    panel();
+
+    expect(within(wiersz()).queryByText(`${T}.log.reentryOverrideBadge`)).toBeNull();
   });
 
   it("filtr „tylko konflikty” jedzie do bazy i wraca na pierwszą stronę", () => {

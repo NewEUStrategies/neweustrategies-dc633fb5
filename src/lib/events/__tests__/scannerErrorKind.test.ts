@@ -36,6 +36,9 @@ const CASES: ReadonlyArray<readonly [string, ScanErrorKind]> = [
   // Odwracalne.
   ["device_locked: too many unknown codes", "locked"],
   ["device_inactive: paused by organizer", "paused"],
+  // Dławik: „jeszcze nie teraz", nie „nigdy" (OPS-05).
+  ["rate_limited: slow down", "throttled"],
+  ["too_many_requests: retry later", "throttled"],
   // Koniec sesji.
   ["invalid_device_token: unknown token", "session"],
   ["device_revoked: revoked in panel", "session"],

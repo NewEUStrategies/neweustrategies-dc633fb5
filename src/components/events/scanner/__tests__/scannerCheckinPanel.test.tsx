@@ -7,6 +7,10 @@
 // 2. odmowa niesie POWOD, a przy biletach z innego wydarzenia - jego nazwe,
 // 3. brak sieci mowi „w kolejce", a nie „blad",
 // 4. przypiety punkt kontrolny nie daje wyboru, ktorego baza i tak odrzuci.
+// 5. (OPS-04, OPS-08, recenzja R2) kod ZASTAPIONY jest bursztynowy, z powodem,
+//    chwila i samym imieniem i nazwiskiem (bez karty osoby); „juz w srodku" jest
+//    czerwone z chwila wejscia; PONOWNE wejscie ma WLASNY ton (nie zielony)
+//    i chwile poprzedniego wejscia - kazdy ton z wlasna ikona i slowem.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -86,6 +90,7 @@ const SESSION: ScannerSession = {
       kind: "event_entry",
       directionMode: "in_out",
       accessMode: "control",
+      reentryPolicy: "allow",
       capacity: null,
       dedupeWindowSeconds: 0,
       sortOrder: 1,
@@ -97,6 +102,7 @@ const SESSION: ScannerSession = {
       kind: "room",
       directionMode: "in_only",
       accessMode: "track",
+      reentryPolicy: "allow",
       capacity: 100,
       dedupeWindowSeconds: 0,
       sortOrder: 2,
@@ -122,12 +128,18 @@ function outcome(over: Partial<CheckinScanResult>): CheckinScanResult {
       kind: "event_entry",
       directionMode: "in_out",
       accessMode: "control",
+      reentryPolicy: null,
       capacity: null,
       occupancy: 12,
     },
     person: null,
     otherEventTitlePl: null,
     otherEventTitleEn: null,
+    reentry: false,
+    reentryPreviousAt: null,
+    credential: null,
+    superseded: null,
+    displayName: null,
     ...over,
     // Baza bez decyzji urządzenia ma to samo zdanie, chyba że test mówi inaczej.
     serverAdmit: over.serverAdmit ?? over.admit ?? true,
@@ -148,6 +160,8 @@ function runtimeStub(over: Partial<ScannerRuntime>): ScannerRuntime {
     outboxPersistent: true,
     flushing: false,
     flush: vi.fn(),
+    retry: vi.fn(),
+    retryAll: vi.fn(),
     discard: vi.fn(),
     sessionStale: false,
     clockOffsetMs: 0,
@@ -381,6 +395,7 @@ describe("ScannerCheckinPanel - kolor wyniku niesie decyzje", () => {
             kind: "event_entry",
             directionMode: "in_out",
             accessMode: "control",
+            reentryPolicy: null,
             capacity: null,
             occupancy: null,
           },
@@ -456,6 +471,7 @@ describe("ScannerCheckinPanel - wybor punktu i kierunku", () => {
           kind: "catering",
           directionMode: "in_only",
           accessMode: "track",
+          reentryPolicy: "allow",
           capacity: 250,
           dedupeWindowSeconds: 60,
           sortOrder: 1,
@@ -492,6 +508,8 @@ function rosterEntry(over: Partial<RosterEntry> = {}): RosterEntry {
   return {
     registrationId: "r1",
     hash: "a".repeat(64),
+    badgeHash: null,
+    supersededHashes: [],
     status: "approved",
     firstName: "Olga",
     lastName: "Offline",
@@ -513,6 +531,7 @@ function local(over: Partial<OfflineDecision> = {}): OfflineDecision {
     entry: rosterEntry(),
     rosterGeneratedAt: "2026-09-26T07:12:00.000Z",
     approximateCapacity: false,
+    reentryPreviousAt: null,
     ...over,
   };
 }
@@ -573,5 +592,145 @@ describe("ScannerCheckinPanel - decyzja bez sieci", () => {
     offlinePanel(local());
     await screen.findByText("eventScanner.outcomes.granted");
     expect(toast.info).not.toHaveBeenCalled();
+  });
+});
+
+describe("ScannerCheckinPanel - kod zastąpiony, „już w środku”, ponowne wejście (R2)", () => {
+  const status = () => screen.getByRole("status");
+
+  function onlinePanel(result: CheckinScanResult) {
+    const runtime = runtimeStub({
+      submitCheckin: vi.fn().mockResolvedValue({ queued: false, result }),
+    });
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+    scan("QR-R2");
+  }
+
+  it("kod ZASTĄPIONY: bursztyn, powód z chwilą, tylko imię i nazwisko - bez karty osoby", async () => {
+    onlinePanel(
+      outcome({
+        outcome: "code_superseded",
+        admit: false,
+        result: null,
+        superseded: {
+          credential: "badge",
+          reason: "reissued",
+          supersededAt: "2026-10-12T08:01:02Z",
+        },
+        displayName: "Ala Badge",
+        person: {
+          personId: null,
+          firstName: "Ala",
+          lastName: "Badge",
+          company: null,
+          jobTitle: null,
+          registrationId: null,
+          registrationStatus: null,
+          ticketNamePl: null,
+          ticketNameEn: null,
+          groupNamePl: null,
+          groupNameEn: null,
+          groupColor: null,
+          badgePrinted: false,
+          badgePrintedAt: null,
+          badgePrintedVersion: null,
+        },
+      }),
+    );
+    expect(await screen.findByText("eventScanner.outcomes.codeSuperseded")).toBeInTheDocument();
+    expect(status()).toHaveAttribute("data-tone", "warning");
+    expect(status().className).toContain("brand");
+    expect(
+      screen.getByText(
+        /eventScanner\.superseded\.badge\.reissued\(\{"when":"12 października 2026 10:01"\}\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('eventScanner.superseded.holder({"name":"Ala Badge"})'),
+    ).toBeInTheDocument();
+    // Karta osoby obok „nie wpuszczaj" zachęcałaby do wpuszczenia.
+    expect(screen.queryByText("eventScanner.person.ticket")).toBeNull();
+  });
+
+  it("„już w środku”: czerwień z chwilą poprzedniego wejścia", async () => {
+    onlinePanel(
+      outcome({
+        outcome: "denied_already_inside",
+        result: "denied_already_inside",
+        admit: false,
+        reentry: true,
+        reentryPreviousAt: "2026-10-12T07:30:00Z",
+      }),
+    );
+    expect(
+      await screen.findByText("eventScanner.outcomes.deniedAlreadyInside"),
+    ).toBeInTheDocument();
+    expect(status()).toHaveAttribute("data-tone", "denied");
+    expect(status().className).toContain("destructive");
+    expect(
+      screen.getByText(
+        /eventScanner\.outcomeHints\.deniedAlreadyInsideAt\(\{"when":"12 października 2026 09:30"\}\)/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("PONOWNE wejście ma WŁASNY ton (nie zielony), własny nagłówek i chwilę poprzedniego wejścia", async () => {
+    onlinePanel(outcome({ reentry: true, reentryPreviousAt: "2026-10-12T07:30:00Z" }));
+    expect(await screen.findByText("eventScanner.outcomes.grantedReentry")).toBeInTheDocument();
+    expect(status()).toHaveAttribute("data-tone", "reentry");
+    expect(status().className).toContain("sky");
+    expect(status().className).not.toContain("emerald");
+    expect(
+      screen.getByText(
+        /eventScanner\.outcomeHints\.grantedReentryAt\(\{"when":"12 października 2026 09:30"\}\)/,
+      ),
+    ).toBeInTheDocument();
+    // Zgoda nadal jest zgodą - karta osoby i nagłówek wpuszczenia zostają.
+    expect(screen.queryByText("eventScanner.outcomes.granted")).toBeNull();
+  });
+
+  it("offline: kod zastąpiony z listy - bursztyn, tylko imię i nazwisko z listy", async () => {
+    offlinePanel(local({ outcome: "code_superseded", admit: false }));
+    expect(await screen.findByText("eventScanner.outcomes.codeSuperseded")).toBeInTheDocument();
+    expect(banner()).toHaveAttribute("data-tone", "warning");
+    expect(screen.getByText(/^eventScanner\.outcomeHints\.codeSuperseded/)).toBeInTheDocument();
+    expect(
+      screen.getByText('eventScanner.superseded.holder({"name":"Olga Offline"})'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("eventScanner.offline.personFromRoster")).toBeNull();
+  });
+
+  it("offline: „już w środku” z dziennika urządzenia i ponowne wejście przy `allow`", async () => {
+    offlinePanel(
+      local({
+        outcome: "denied_already_inside",
+        admit: false,
+        reentryPreviousAt: "2026-09-26T07:00:00.000Z",
+      }),
+    );
+    expect(
+      await screen.findByText("eventScanner.outcomes.deniedAlreadyInside"),
+    ).toBeInTheDocument();
+    expect(banner()).toHaveAttribute("data-tone", "denied");
+    expect(
+      screen.getByText(
+        /eventScanner\.outcomeHints\.deniedAlreadyInsideAt\(\{"when":"26 września 2026 09:00"\}\)/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("offline: ponowne wejście (allow) - własny ton i chwila poprzedniego wejścia", async () => {
+    offlinePanel(local({ reentryPreviousAt: "2026-09-26T07:00:00.000Z" }));
+    expect(await screen.findByText("eventScanner.outcomes.grantedReentry")).toBeInTheDocument();
+    expect(banner()).toHaveAttribute("data-tone", "reentry");
+  });
+
+  it("punkt z polityką `deny` mówi o tym nad czytnikiem", () => {
+    const deny: ScannerSession = {
+      ...SESSION,
+      checkpoints: [{ ...SESSION.checkpoints[0], reentryPolicy: "deny" }],
+    };
+    render(<ScannerCheckinPanel runtime={runtimeStub({})} session={deny} />);
+    expect(screen.getByText("eventScanner.checkpoint.reentryDeny")).toBeInTheDocument();
   });
 });

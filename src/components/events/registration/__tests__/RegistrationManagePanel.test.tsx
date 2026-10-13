@@ -34,6 +34,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import type { EventPageHeader } from "@/lib/community/publicQueries";
 import type {
   CancelRegistrationInput,
+  PartnerConsentWithdrawResult,
   RegistrationCancelResult,
   RegistrationManageView,
 } from "@/lib/events/publicRegistrationApi";
@@ -70,6 +71,8 @@ const fetchHeader = vi.fn<(slug: string) => Promise<EventPageHeader | null>>();
 const cancel = vi.fn<(input: CancelRegistrationInput) => Promise<RegistrationCancelResult>>();
 const manageView =
   vi.fn<(input: { manageToken?: string }) => Promise<RegistrationManageView | null>>();
+const withdraw =
+  vi.fn<(input: { manageToken?: string }) => Promise<PartnerConsentWithdrawResult>>();
 const checkout = vi.fn();
 // Podgląd kasy (`quoteEventTicketCheckout`) - molekuła kasy pyta go o kwotę.
 const quote = vi.fn();
@@ -120,6 +123,7 @@ vi.mock("@/lib/community/publicQueries", () => ({
 vi.mock("@/lib/events/publicRegistrationApi", () => ({
   cancelRegistration: (input: CancelRegistrationInput) => cancel(input),
   fetchRegistrationManageView: (input: { manageToken?: string }) => manageView(input),
+  withdrawPartnerConsent: (input: { manageToken?: string }) => withdraw(input),
 }));
 
 const { toast } = await import("sonner");
@@ -171,6 +175,7 @@ function manageState(over: Partial<RegistrationManageView> = {}): RegistrationMa
     amountCents: 15000,
     currency: "PLN",
     ownedByCaller: true,
+    partnerConsent: false,
     ...over,
   };
 }
@@ -571,5 +576,59 @@ describe("RegistrationManagePanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
     expect(screen.queryByTestId("gniazdo-akcje-biletu")).toBeNull();
     expect(screen.queryByTestId("gniazdo-kalendarz-przypomnienia")).toBeNull();
     expect(screen.queryByTestId("gniazdo-po-wydarzeniu")).toBeNull();
+  });
+});
+
+// ZGODA NA PRZEKAZANIE DANYCH PARTNEROM (OPS-01, art. 7 ust. 3 RODO): udziela
+// się jej jednym kliknięciem w formularzu zapisu, więc tu wycofuje się ją tak
+// samo - bez konta i bez maila do organizatora.
+describe("RegistrationManagePanel - wycofanie zgody partnerskiej", () => {
+  const withdrawButton = () =>
+    screen.findByRole("button", { name: "eventFront.manage.partnerWithdraw" });
+
+  it("przy skutecznej zgodzie karta stoi, a samo otwarcie strony niczego nie wycofuje", async () => {
+    manageView.mockResolvedValue(manageState({ partnerConsent: true }));
+    renderPanel();
+
+    expect(await withdrawButton()).toBeInTheDocument();
+    expect(screen.getByText("eventFront.manage.partnerBody")).toBeInTheDocument();
+    expect(withdraw).not.toHaveBeenCalled();
+  });
+
+  it("bez zgody na to wydarzenie karty NIE ma - nie ma czego wycofywać", async () => {
+    manageView.mockResolvedValue(manageState({ partnerConsent: false }));
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.stateTitle")).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.partnerTitle")).toBeNull();
+  });
+
+  it("jedno kliknięcie wysyła SAM klucz i pokazuje potwierdzenie", async () => {
+    manageView.mockResolvedValueOnce(manageState({ partnerConsent: true }));
+    manageView.mockResolvedValue(manageState({ partnerConsent: false }));
+    withdraw.mockResolvedValue({ withdrawn: true, partnerConsent: false });
+    renderPanel();
+
+    fireEvent.click(await withdrawButton());
+
+    await waitFor(() => expect(withdraw).toHaveBeenCalledWith({ manageToken: TOKEN }));
+    expect(await screen.findByText("eventFront.manage.partnerWithdrawn")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "eventFront.manage.partnerWithdraw" })).toBeNull();
+    // Stan zgłoszenia czytany na nowo - baza mówi już „brak zgody".
+    await waitFor(() => expect(manageView).toHaveBeenCalledTimes(2));
+    // Wycofanie zgody NIE odwołuje udziału.
+    expect(cancel).not.toHaveBeenCalled();
+  });
+
+  it("odmowa bazy zostawia przycisk i mówi zdaniem uczestnika", async () => {
+    manageView.mockResolvedValue(manageState({ partnerConsent: true }));
+    withdraw.mockRejectedValue(new Error("not_found: registration does not exist"));
+    renderPanel();
+
+    fireEvent.click(await withdrawButton());
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(NOT_FOUND_PL));
+    expect(await withdrawButton()).toBeInTheDocument();
+    expect(screen.queryByText("eventFront.manage.partnerWithdrawn")).toBeNull();
   });
 });

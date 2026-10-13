@@ -21,6 +21,7 @@ import type {
   CheckpointAccessMode,
   CheckpointDirectionMode,
   CheckpointKind,
+  CheckpointReentryPolicy,
   ScannerScope,
 } from "@/lib/events/onsiteEnums";
 
@@ -46,6 +47,7 @@ export {
   CHECKPOINT_ACCESS_MODES,
   CHECKPOINT_DIRECTION_MODES,
   CHECKPOINT_KINDS,
+  CHECKPOINT_REENTRY_POLICIES,
   SCANNER_SCOPES,
   type BadgePrintReason,
   type CheckinDirection,
@@ -54,6 +56,7 @@ export {
   type CheckpointAccessMode,
   type CheckpointDirectionMode,
   type CheckpointKind,
+  type CheckpointReentryPolicy,
   type ScannerScope,
 } from "@/lib/events/onsiteEnums";
 
@@ -130,6 +133,8 @@ export interface CheckpointInput {
   sponsorId?: string | null;
   directionMode?: CheckpointDirectionMode;
   accessMode?: CheckpointAccessMode;
+  /** `deny` odmawia ponownego wejscia (tylko tryb `control`; w `track` baza wraca do `allow`). */
+  reentryPolicy?: CheckpointReentryPolicy;
   /** `null` = bez limitu pojemnosci. */
   capacity?: number | null;
   dedupeWindowSeconds?: number;
@@ -157,6 +162,7 @@ export async function saveCheckpoint(input: CheckpointInput): Promise<string> {
       sponsor_id: input.sponsorId,
       direction_mode: input.directionMode,
       access_mode: input.accessMode,
+      reentry_policy: input.reentryPolicy,
       capacity: input.capacity,
       dedupe_window_seconds: input.dedupeWindowSeconds,
       is_active: input.isActive,
@@ -209,6 +215,15 @@ export interface CheckinOutcome {
   occurredAt: string | null;
   repeatCount: number;
   previousCheckinAt: string | null;
+  /** Osoba była już „w środku" punktu (ten sam dzień czasu wydarzenia). */
+  reentry: boolean;
+  /** Chwila tamtego wejścia - zawsze NIE późniejsza niż ten skan. */
+  reentryPreviousAt: string | null;
+  /**
+   * Stanowisko jawnie obeszło odmowę ponownego wejścia (polityka `deny`):
+   * zgoda zapisana z operatorem i znacznikiem `reentry_override`.
+   */
+  reentryOverride: boolean;
   checkpoint: Record<string, unknown>;
   person: Record<string, unknown>;
 }
@@ -225,6 +240,9 @@ export function parseCheckinOutcome(value: unknown): CheckinOutcome {
     occurredAt: typeof row.occurred_at === "string" ? row.occurred_at : null,
     repeatCount: typeof repeat === "number" ? repeat : 0,
     previousCheckinAt: typeof row.previous_checkin_at === "string" ? row.previous_checkin_at : null,
+    reentry: row.reentry === true,
+    reentryPreviousAt: typeof row.reentry_previous_at === "string" ? row.reentry_previous_at : null,
+    reentryOverride: row.reentry_override === true,
     checkpoint: record(row.checkpoint),
     person: record(row.person),
   };
@@ -760,8 +778,10 @@ export interface BadgeBatchInput {
 
 /**
  * Wydaje partie identyfikatorow. WYWOLANIE ZMIENIA STAN: kazdy zapis dostaje
- * NOWY kod QR, wiec poprzedni wydruk przestaje wpuszczac. Dlatego to mutacja,
- * a nie zapytanie - i dlatego panel wola ja dopiero po potwierdzeniu druku.
+ * NOWY kod IDENTYFIKATORA (`badge_token_hash`), wiec poprzedni wydruk tej
+ * osoby przestaje wpuszczac - bilet z e-maila i portfela zostaje wazny.
+ * Dlatego to mutacja, a nie zapytanie - i dlatego panel wola ja dopiero po
+ * potwierdzeniu druku.
  */
 export async function issueBadgeBatch(input: BadgeBatchInput): Promise<BadgeBatch> {
   const { data, error } = await supabase.rpc("admin_event_badge_batch", {
@@ -773,6 +793,47 @@ export async function issueBadgeBatch(input: BadgeBatchInput): Promise<BadgeBatc
   });
   if (error !== null) throw new Error(error.message);
   return parseBadgeBatch(data);
+}
+
+/* ------------------------------------- uniewaznienie zgubionego kodu --- */
+
+export const REGISTRATION_CREDENTIALS = ["ticket", "badge"] as const;
+export type RegistrationCredential = (typeof REGISTRATION_CREDENTIALS)[number];
+
+export interface RegistrationCodeInvalidation {
+  registrationId: string;
+  credential: RegistrationCredential;
+  /**
+   * Nowy kod JAWNY biletu - wraca DOKLADNIE RAZ i tylko dla `ticket`. Dla
+   * `badge` zawsze `null`: kod identyfikatora jest zdjety, przedruk wyda nowy.
+   */
+  code: string | null;
+  invalidatedAt: string | null;
+}
+
+/**
+ * Jawne uniewaznienie zgubionego biletu albo identyfikatora. Stary kod nie
+ * staje sie "nieznany" - skaner pokazuje przy nim `code_superseded`, a seria
+ * takich skanow nie blokuje urzadzenia.
+ */
+export async function invalidateRegistrationCode(input: {
+  registrationId: string;
+  credential: RegistrationCredential;
+}): Promise<RegistrationCodeInvalidation> {
+  const { data, error } = await supabase.rpc("admin_event_registration_code_invalidate", {
+    p_payload: payload({
+      registration_id: input.registrationId,
+      credential: input.credential,
+    }),
+  });
+  if (error !== null) throw new Error(error.message);
+  const row = record(data);
+  return {
+    registrationId: typeof row.registration_id === "string" ? row.registration_id : "",
+    credential: row.credential === "ticket" ? "ticket" : "badge",
+    code: typeof row.code === "string" && row.code !== "" ? row.code : null,
+    invalidatedAt: typeof row.invalidated_at === "string" ? row.invalidated_at : null,
+  };
 }
 
 /* ----------------------------------------------- statystyki na zywo --- */

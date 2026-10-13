@@ -86,7 +86,14 @@ function sectionKey(title: string, taken: ReadonlySet<string>): string {
   return key;
 }
 
-export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
+export function SponsorSectionsBoard({
+  eventId,
+  timezone,
+}: {
+  eventId: string;
+  /** Strefa wydarzenia (`events.timezone`) - harmonogram reklam jest zegarem w niej. */
+  timezone: string | null;
+}) {
   const { t, i18n } = useTranslation();
   const en = i18n.language.startsWith("en");
   const tiersQ = useSponsorTiers(eventId);
@@ -219,7 +226,7 @@ export function SponsorSectionsBoard({ eventId }: { eventId: string }) {
         </div>
       </section>
 
-      <EventHomeAdsPanel eventId={eventId} />
+      <EventHomeAdsPanel eventId={eventId} timezone={timezone} />
 
       <AddSponsorSectionDialog
         open={adding}

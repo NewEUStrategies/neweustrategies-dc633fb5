@@ -14,9 +14,15 @@
 // odmowami poświadczenia - każda mówi, czy czekać, czy prosić o nowy kod.
 //
 // KLUCZE ODPOWIADAJĄ WARTOŚCIOM Z BAZY, JEDEN DO JEDNEGO:
-//   * `event_checkins.result` -> `eventScanner.outcomes.*` (sześć wartości
-//     z ograniczenia CHECK, plus `repeat`, `unknown_code` i `wrong_event`,
-//     które są WYNIKAMI RPC, a nie wierszami dziennika),
+//   * `event_checkins.result` -> `eventScanner.outcomes.*` (osiem wartości
+//     z ograniczenia CHECK, w tym `denied_already_inside` - OPS-08, oraz
+//     `denied_code_superseded` z 20261013111000 - wiersz konfliktu, gdy bramka
+//     offline wpuściła kod już zastąpiony; plus
+//     `repeat`, `unknown_code`, `wrong_event` i `code_superseded` - OPS-04,
+//     które są WYNIKAMI RPC, a nie wierszami dziennika); zgoda na PONOWNE
+//     wejście (`reentry`) ma własny nagłówek `grantedReentry`,
+//   * `superseded.{credential,reason}` odpowiedzi `code_superseded` ->
+//     `eventScanner.superseded.<ticket|badge>.<reissued|revoked|invalidated>`,
 //   * `event_checkpoints.direction_mode` -> `eventScanner.directions.*`,
 //   * `event_badge_prints.reason` -> `eventScanner.badge.reasons.*`,
 //   * odmowy `_event_scanner_device_auth` -> `eventScanner.errors.*`.
@@ -43,6 +49,13 @@ export const eventScannerPl = {
         "To nie wygląda na kod urządzenia. Sprawdź, czy nic się nie urwało przy kopiowaniu.",
       help: "Kod wydaje organizator w panelu: Wydarzenia → Na miejscu → Urządzenia.",
       offlineFirstRun: "Pierwsze podłączenie wymaga sieci. Później skaner działa też bez zasięgu.",
+      legacyLink:
+        "Ten link parowania ma stary format i NIE został użyty - kod urządzenia mógł trafić do historii przeglądarki. Poproś organizatora o nowy kod QR do parowania.",
+      relocating: "Przenoszę skaner pod jego własny adres…",
+      relocationBlocked:
+        "Nie udało się usunąć danych skanera spod tego adresu, więc urządzenie NIE zostało przeniesione na {{origin}}. Skaner może być otwarty w innej karcie - zamknij ją i spróbuj ponownie.",
+      relocationRetry: "Spróbuj ponownie",
+      relocationStay: "Pracuj dalej pod tym adresem",
     },
 
     // -----------------------------------------------------------------
@@ -59,7 +72,15 @@ export const eventScannerPl = {
       expired: "Kod urządzenia wygasł. Poproś organizatora o nowy.",
       disconnect: "Odłącz urządzenie",
       disconnectHint:
-        "Kod zniknie z tego telefonu. Skany czekające w kolejce zostaną wysłane wcześniej.",
+        "Kod, kolejka skanów, lista osób i lista do wyjaśnienia znikną z tego telefonu.",
+      disconnectTitle: "Odłączyć urządzenie i usunąć dane skanera?",
+      disconnectUnsent:
+        "Na tym telefonie są skany, które NIE trafiły do bazy, albo lista do wyjaśnienia z organizatorem. Odłączenie usunie je razem z kodem urządzenia. Najpierw wyślij kolejkę i pobierz plik dla organizatora.",
+      disconnectConfirm: "Odłącz i usuń",
+      disconnectCancel: "Anuluj",
+      relocation:
+        "Skaner ma własny adres: {{origin}}. Ta karta najpierw wyśle zaległe skany - potem przenieś urządzenie pod nowy adres.",
+      relocate: "Przejdź pod nowy adres",
       online: "Sieć dostępna",
       offline: "Brak sieci - skany czekają w kolejce",
       memoryOnly:
@@ -97,6 +118,8 @@ export const eventScannerPl = {
       occupancy: "Na miejscu: {{count}}",
       capacity: "Limit: {{count}}",
       trackMode: "Ten punkt tylko liczy wejścia - nikomu nie odmawia.",
+      reentryDeny:
+        "Ponowne wejście zablokowane - kto jest w środku, nie wejdzie drugi raz, dopóki nie wyjdzie.",
       dedupeWindow_one: "Powtórne piknięcie w ciągu {{count}} sekundy nie tworzy nowego wpisu.",
       dedupeWindow_few: "Powtórne piknięcie w ciągu {{count}} sekund nie tworzy nowego wpisu.",
       dedupeWindow_many: "Powtórne piknięcie w ciągu {{count}} sekund nie tworzy nowego wpisu.",
@@ -155,6 +178,10 @@ export const eventScannerPl = {
       deniedDirection: "Zły kierunek",
       deniedCapacity: "Brak miejsc",
       deniedCheckpointInactive: "Punkt nieaktywny",
+      deniedAlreadyInside: "Już w środku - nie wpuszczaj",
+      deniedCodeSuperseded: "Kod zastąpiony przed skanem",
+      codeSuperseded: "Kod zastąpiony",
+      grantedReentry: "Ponowne wejście - wpuść",
       saved: "Zapisano",
       replay: "Skan już zapisany",
       printed: "Wydruk zapisany",
@@ -170,8 +197,39 @@ export const eventScannerPl = {
       deniedDirection: "Ten punkt obsługuje inny kierunek ruchu.",
       deniedCapacity: "Punkt osiągnął limit obecności.",
       deniedCheckpointInactive: "Ten punkt został wyłączony w panelu.",
+      deniedAlreadyInside:
+        "Ta osoba jest już w środku, a punkt nie wpuszcza ponownie. Skieruj ją do koordynatora.",
+      deniedAlreadyInsideAt:
+        "Wejście zapisane {{when}}, bez wyjścia - punkt nie wpuszcza ponownie. Skieruj osobę do koordynatora.",
+      deniedCodeSuperseded:
+        "Bramka bez sieci wpuściła kod, który był już zastąpiony - organizator zobaczy to jako konflikt.",
+      codeSuperseded: "Ten kod już nie wpuszcza. Poproś o aktualny identyfikator albo bilet.",
+      grantedReentry: "Ta osoba była już w środku - punkt pozwala wejść ponownie.",
+      grantedReentryAt: "Poprzednie wejście: {{when}}. Punkt pozwala wejść ponownie.",
       replay: "Ten sam skan dotarł do bazy wcześniej - nic nie zostało zdublowane.",
       previousCheckin: "Poprzednia odprawa: {{when}}",
+    },
+
+    // -----------------------------------------------------------------
+    // Kod zastąpiony (OPS-04): poświadczenie × powód, z chwilą zastąpienia.
+    // Każde zdanie mówi, co zrobić - poprosić o aktualny kod albo odesłać.
+    // -----------------------------------------------------------------
+    superseded: {
+      holder: "Kod należał do: {{name}}",
+      badge: {
+        reissued:
+          "Wydrukowano nowy identyfikator ({{when}}) - ten jest nieważny. Poproś o aktualny.",
+        revoked:
+          "Identyfikator unieważniony ({{when}}) po zwrocie albo anulowaniu zgłoszenia. Skieruj do recepcji.",
+        invalidated:
+          "Identyfikator zgłoszony jako zgubiony i unieważniony ({{when}}). Poproś o aktualny.",
+      },
+      ticket: {
+        reissued: "Wydano nowy bilet ({{when}}) - ten jest nieważny. Poproś o aktualny.",
+        revoked:
+          "Bilet unieważniony ({{when}}) po zwrocie albo anulowaniu zgłoszenia. Skieruj do recepcji.",
+        invalidated: "Bilet zgłoszony jako zgubiony i unieważniony ({{when}}). Poproś o aktualny.",
+      },
     },
 
     person: {
@@ -251,8 +309,21 @@ export const eventScannerPl = {
       stuck_many: "{{count}} skanów wymaga uwagi",
       stuck_other: "{{count}} skanów wymaga uwagi",
       stuckHint:
-        "Nie udało się ich wysłać mimo wielu prób. Pokaż je organizatorowi przed odłączeniem urządzenia.",
+        "Baza ich nie przyjęła, a lista do wyjaśnienia nie zapisała się na tym urządzeniu. Pokaż je organizatorowi przed odłączeniem urządzenia.",
+      retrying_one: "{{count}} skan czeka na ponowienie",
+      retrying_few: "{{count}} skany czekają na ponowienie",
+      retrying_many: "{{count}} skanów czeka na ponowienie",
+      retrying_other: "{{count}} skanów czeka na ponowienie",
+      retryingHint:
+        "Ostatnia próba się nie udała. Skaner ponawia sam - najpóźniej co minutę i od razu po powrocie sieci. Możesz też ponowić teraz.",
+      retry: "Ponów",
+      retryAll: "Ponów wszystkie",
+      codePrefix: "Kod zaczyna się od {{prefix}}…",
       discard: "Usuń z kolejki",
+      discardTitle: "Usunąć skan z kolejki?",
+      discardDescription:
+        "Ten skan NIE trafi do bazy: osoba nie będzie miała zapisanej obecności, a partner nie dostanie leadu. Usuń go tylko, gdy organizator tak zdecydował.",
+      discardCancel: "Anuluj",
       queuedToast: "Brak sieci - skan czeka w kolejce.",
       flushedToast_one: "Wysłano {{count}} skan z kolejki.",
       flushedToast_few: "Wysłano {{count}} skany z kolejki.",
@@ -357,7 +428,8 @@ export const eventScannerPl = {
         serverResult: "Wynik serwera",
         person: "Osoba",
         registrationId: "Zgłoszenie",
-        code: "Kod",
+        code: "Początek kodu",
+        codeHash: "Skrót kodu (SHA-256)",
         reference: "Identyfikator",
         conflict: "konflikt",
         rejected: "odrzucony",
@@ -398,6 +470,10 @@ export const eventScannerPl = {
         "Kolejka na urządzeniu była pełna - ten skan nie zmieścił się w niej. Przekaż go organizatorowi.",
       deviceMismatch:
         "Skan zapisano pod innym kodem urządzenia - nie został wysłany pod bieżącym. Przekaż go organizatorowi.",
+      outboxSealed:
+        "Kodu z tego skanu nie da się odczytać na tym urządzeniu (zapisano go pod innym kodem urządzenia albo bez szyfrowania). Przekaż skan organizatorowi - plik ma skrót kodu.",
+      rateLimited: "Baza prosi o chwilę przerwy. Skan czeka w kolejce i pojedzie sam.",
+      tooManyRequests: "Baza prosi o chwilę przerwy. Skan czeka w kolejce i pojedzie sam.",
       offline: "Brak sieci. Skan czeka w kolejce i pojedzie, gdy zasięg wróci.",
       unknown: "Coś nie zadziałało. Spróbuj jeszcze raz.",
     },
@@ -421,6 +497,13 @@ export const eventScannerEn = {
       help: "The organiser issues the code in the panel: Events → On-site → Devices.",
       offlineFirstRun:
         "The first connection needs a network. After that the scanner works offline too.",
+      legacyLink:
+        "This pairing link uses the old format and was NOT used - the device code may have reached the browser history. Ask the organiser for a new pairing QR code.",
+      relocating: "Moving the scanner to its own address…",
+      relocationBlocked:
+        "The scanner data could not be removed from this address, so the device was NOT moved to {{origin}}. The scanner may be open in another tab - close it and try again.",
+      relocationRetry: "Try again",
+      relocationStay: "Keep working at this address",
     },
 
     session: {
@@ -433,7 +516,15 @@ export const eventScannerEn = {
       expired: "The device code has expired. Ask the organiser for a new one.",
       disconnect: "Disconnect device",
       disconnectHint:
-        "The code leaves this phone. Scans waiting in the queue are sent before that happens.",
+        "The code, the scan queue, the people list and the list to clear up leave this phone.",
+      disconnectTitle: "Disconnect the device and delete scanner data?",
+      disconnectUnsent:
+        "This phone holds scans that did NOT reach the server, or a list to clear up with the organiser. Disconnecting deletes them together with the device code. Send the queue and download the file for the organiser first.",
+      disconnectConfirm: "Disconnect and delete",
+      disconnectCancel: "Cancel",
+      relocation:
+        "The scanner has its own address: {{origin}}. This tab sends the queued scans first - then move the device to the new address.",
+      relocate: "Go to the new address",
       online: "Network available",
       offline: "No network - scans are queued",
       memoryOnly:
@@ -464,6 +555,7 @@ export const eventScannerEn = {
       occupancy: "On site: {{count}}",
       capacity: "Capacity: {{count}}",
       trackMode: "This checkpoint only counts entries - it never refuses anyone.",
+      reentryDeny: "Re-entry blocked - anyone inside cannot enter again until they leave.",
       dedupeWindow_one: "A repeat scan within {{count}} second does not create a new entry.",
       dedupeWindow_other: "A repeat scan within {{count}} seconds does not create a new entry.",
     },
@@ -514,6 +606,10 @@ export const eventScannerEn = {
       deniedDirection: "Wrong direction",
       deniedCapacity: "At capacity",
       deniedCheckpointInactive: "Checkpoint inactive",
+      deniedAlreadyInside: "Already inside - do not admit",
+      deniedCodeSuperseded: "Code replaced before the scan",
+      codeSuperseded: "Code replaced",
+      grantedReentry: "Re-entry - admit",
       replay: "Scan already recorded",
       saved: "Saved",
       printed: "Print recorded",
@@ -529,8 +625,33 @@ export const eventScannerEn = {
       deniedDirection: "This checkpoint handles the other direction of travel.",
       deniedCapacity: "The checkpoint reached its occupancy limit.",
       deniedCheckpointInactive: "This checkpoint was switched off in the panel.",
+      deniedAlreadyInside:
+        "This person is already inside and the checkpoint does not allow re-entry. Refer them to the coordinator.",
+      deniedAlreadyInsideAt:
+        "Entry recorded {{when}} with no exit - the checkpoint does not allow re-entry. Refer the person to the coordinator.",
+      deniedCodeSuperseded:
+        "The offline gate admitted a code that had already been replaced - the organiser sees it as a conflict.",
+      codeSuperseded: "This code no longer admits. Ask for the current badge or ticket.",
+      grantedReentry: "This person was already inside - the checkpoint allows re-entry.",
+      grantedReentryAt: "Previous entry: {{when}}. The checkpoint allows re-entry.",
       replay: "The same scan reached the server earlier - nothing was duplicated.",
       previousCheckin: "Previous check-in: {{when}}",
+    },
+
+    superseded: {
+      holder: "Code belonged to: {{name}}",
+      badge: {
+        reissued: "A new badge was printed ({{when}}) - this one is void. Ask for the current one.",
+        revoked:
+          "Badge revoked ({{when}}) after a refund or a cancelled registration. Send them to the desk.",
+        invalidated: "Badge reported lost and revoked ({{when}}). Ask for the current one.",
+      },
+      ticket: {
+        reissued: "A new ticket was issued ({{when}}) - this one is void. Ask for the current one.",
+        revoked:
+          "Ticket revoked ({{when}}) after a refund or a cancelled registration. Send them to the desk.",
+        invalidated: "Ticket reported lost and revoked ({{when}}). Ask for the current one.",
+      },
     },
 
     person: {
@@ -593,8 +714,19 @@ export const eventScannerEn = {
       stuck_one: "{{count}} scan needs attention",
       stuck_other: "{{count}} scans need attention",
       stuckHint:
-        "They could not be sent despite many attempts. Show them to the organiser before disconnecting the device.",
+        "The server rejected them and the list to clear up could not be stored on this device. Show them to the organiser before disconnecting the device.",
+      retrying_one: "{{count}} scan waiting to be retried",
+      retrying_other: "{{count}} scans waiting to be retried",
+      retryingHint:
+        "The last attempt failed. The scanner retries on its own - at least once a minute and right after the network returns. You can also retry now.",
+      retry: "Retry",
+      retryAll: "Retry all",
+      codePrefix: "Code starts with {{prefix}}…",
       discard: "Remove from the queue",
+      discardTitle: "Remove the scan from the queue?",
+      discardDescription:
+        "This scan will NOT reach the server: the person will have no recorded attendance and the partner will not get the lead. Only remove it when the organiser has decided so.",
+      discardCancel: "Cancel",
       queuedToast: "No network - the scan is queued.",
       flushedToast_one: "Sent {{count}} scan from the queue.",
       flushedToast_other: "Sent {{count}} scans from the queue.",
@@ -671,7 +803,8 @@ export const eventScannerEn = {
         serverResult: "Server result",
         person: "Person",
         registrationId: "Registration",
-        code: "Code",
+        code: "Code prefix",
+        codeHash: "Code hash (SHA-256)",
         reference: "Reference",
         conflict: "conflict",
         rejected: "rejected",
@@ -709,6 +842,11 @@ export const eventScannerEn = {
         "The queue on this device was full - this scan did not fit. Pass it on to the organiser.",
       deviceMismatch:
         "The scan was saved under another device code - it was not sent under the current one. Pass it on to the organiser.",
+      outboxSealed:
+        "The code of this scan cannot be read on this device (it was saved under another device code or without encryption). Pass the scan on to the organiser - the file carries the code hash.",
+      rateLimited: "The server asks for a short break. The scan is queued and goes out on its own.",
+      tooManyRequests:
+        "The server asks for a short break. The scan is queued and goes out on its own.",
       offline: "No network. The scan is queued and goes out when the signal returns.",
       unknown: "Something went wrong. Please try again.",
     },

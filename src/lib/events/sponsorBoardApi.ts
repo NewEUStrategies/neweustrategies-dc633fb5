@@ -119,7 +119,15 @@ export function validateHomeAd(input: HomeAdInput): HomeAdField[] {
   if (input.imageMobileUrl.trim() !== "" && !isHttpsUrl(input.imageMobileUrl))
     out.push("imageMobileUrl");
   if (input.linkUrl.trim() !== "" && !isHttpsUrl(input.linkUrl)) out.push("linkUrl");
-  if (input.startsAt !== "" && input.endsAt !== "" && input.endsAt <= input.startsAt)
+  // CHWILE, nie napisy: wiersz z bazy niesie `+00:00`, pole po edycji `.000Z`,
+  // a porządek leksykalny dwóch zapisów tej samej chwili bywa odwrotny
+  // („...10:00:00+00:00" < „...10:00:00.000Z") - koniec równy początkowi
+  // przechodził wtedy jako „późniejszy".
+  if (
+    input.startsAt !== "" &&
+    input.endsAt !== "" &&
+    !(Date.parse(input.endsAt) > Date.parse(input.startsAt))
+  )
     out.push("endsAt");
   return out;
 }

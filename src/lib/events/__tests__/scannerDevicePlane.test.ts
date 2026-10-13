@@ -109,7 +109,12 @@ describe("scannerApi - poświadczenie urządzenia", () => {
 
     // Najemca i wydarzenie są WYNIKIEM odszukania po haszu tokenu - ładunek
     // nie ma i nie może mieć argumentu z najemcą (patrz `50_onsite.sql`).
-    expect(payloadOf("event_scanner_bootstrap")).toEqual({ device_token: TOKEN_BRAMKI });
+    // Jedyny dodatek to deklaracja zdolności klienta (OPS-12): ten klient
+    // stempluje kolejkę znacznikiem, więc baza może go od niego wymagać.
+    expect(payloadOf("event_scanner_bootstrap")).toEqual({
+      device_token: TOKEN_BRAMKI,
+      client_caps: ["queue_marker"],
+    });
     expect(sesja.deviceId).toBe(SESJA.device_id);
     expect(sesja.event.id).toBe(SESJA.event.id);
     expect(sesja.pinnedCheckpointId).toBe(PUNKT);
@@ -703,6 +708,184 @@ describe("scannerApi - pola trybu offline przy zapisie", () => {
   });
 });
 
+describe("scannerApi - kontrakt 20261013110500 (OPS-04, OPS-08, OPS-12)", () => {
+  const MARKER = "AAAAAGkAAAA" + "q".repeat(43);
+  const VALID_UNTIL = "2026-10-13T08:00:00+00:00";
+
+  it("skan z kolejki odsyła znacznik kolejki dosłownie", async () => {
+    rpc().setData("event_checkin_record", { outcome: "granted", admit: true });
+    await api.recordCheckinScan({
+      deviceToken: TOKEN_BRAMKI,
+      code: KOD,
+      queued: true,
+      queueMarker: MARKER,
+    });
+    expect(payloadOf("event_checkin_record")).toMatchObject({ queued: true, queue_marker: MARKER });
+
+    rpc().setData("event_lead_scan_record", { outcome: "saved" });
+    await api.recordLeadScan({
+      deviceToken: TOKEN_STOISKA,
+      code: KOD,
+      queued: true,
+      queueMarker: MARKER,
+    });
+    expect(payloadOf("event_lead_scan_record")).toMatchObject({ queue_marker: MARKER });
+  });
+
+  it("`code_superseded`: poświadczenie, powód, chwila, imię i nazwisko - i świeży znacznik", async () => {
+    rpc().setData("event_checkin_record", {
+      outcome: "code_superseded",
+      admit: false,
+      result: null,
+      device_locked: false,
+      superseded: {
+        credential: "badge",
+        reason: "reissued",
+        superseded_at: "2026-10-12T08:01:02Z",
+      },
+      display_name: "Ala Badge",
+      person: { first_name: "Ala", last_name: "Badge" },
+      queue_marker: MARKER,
+      queue_marker_valid_until: VALID_UNTIL,
+    });
+    const result = await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD });
+    expect(result).toMatchObject({
+      outcome: "code_superseded",
+      admit: false,
+      serverAdmit: false,
+      deviceLocked: false,
+      superseded: { credential: "badge", reason: "reissued", supersededAt: "2026-10-12T08:01:02Z" },
+      displayName: "Ala Badge",
+      queueMarker: { value: MARKER, validUntil: VALID_UNTIL },
+    });
+  });
+
+  it("wartości spoza słownika w `superseded` są `null` - ekran mówi wtedy zdaniem ogólnym", async () => {
+    rpc().setData("event_checkin_record", {
+      outcome: "code_superseded",
+      admit: false,
+      superseded: { credential: "karta", reason: "zgubiony", superseded_at: "" },
+    });
+    const result = await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD });
+    expect(result.superseded).toEqual({ credential: null, reason: null, supersededAt: null });
+    expect(result.displayName).toBeNull();
+  });
+
+  it("`denied_already_inside` i ponowne wejście: `reentry`, chwila wejścia, poświadczenie i polityka punktu", async () => {
+    rpc().setData("event_checkin_record", {
+      outcome: "denied_already_inside",
+      result: "denied_already_inside",
+      admit: false,
+      server_admit: false,
+      reentry: true,
+      reentry_previous_at: "2026-10-12T09:30:00Z",
+      credential: "ticket",
+      checkpoint: { id: PUNKT, reentry_policy: "deny" },
+      person: { person_id: "p1", first_name: "Ola" },
+    });
+    expect(await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD })).toMatchObject({
+      outcome: "denied_already_inside",
+      admit: false,
+      reentry: true,
+      reentryPreviousAt: "2026-10-12T09:30:00Z",
+      credential: "ticket",
+      checkpoint: { id: PUNKT, reentryPolicy: "deny" },
+      superseded: null,
+    });
+
+    rpc().setData("event_checkin_record", {
+      outcome: "granted",
+      admit: true,
+      reentry: true,
+      reentry_previous_at: "2026-10-12T09:30:00Z",
+    });
+    expect(await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD })).toMatchObject({
+      outcome: "granted",
+      reentry: true,
+      reentryPreviousAt: "2026-10-12T09:30:00Z",
+    });
+  });
+
+  it("pierwsze wejście i odpowiedź bez pól OPS-08 - `reentry` false, bez znacznika", async () => {
+    rpc().setData("event_checkin_record", { outcome: "granted", admit: true });
+    expect(await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD })).toMatchObject({
+      reentry: false,
+      reentryPreviousAt: null,
+      credential: null,
+      queueMarker: null,
+    });
+  });
+
+  it("lead i wydruk: kod zastąpiony z powodem; lead niesie świeży znacznik", async () => {
+    rpc().setData("event_lead_scan_record", {
+      outcome: "code_superseded",
+      superseded: {
+        credential: "ticket",
+        reason: "revoked",
+        superseded_at: "2026-10-12T08:00:00Z",
+      },
+      display_name: null,
+      queue_marker: MARKER,
+      queue_marker_valid_until: VALID_UNTIL,
+    });
+    expect(await api.recordLeadScan({ deviceToken: TOKEN_STOISKA, code: KOD })).toMatchObject({
+      outcome: "code_superseded",
+      superseded: { credential: "ticket", reason: "revoked" },
+      queueMarker: { value: MARKER },
+    });
+
+    rpc().setData("event_badge_print_record", {
+      outcome: "code_superseded",
+      superseded: {
+        credential: "badge",
+        reason: "invalidated",
+        superseded_at: "2026-10-12T08:00:00Z",
+      },
+    });
+    expect(await api.recordBadgePrintScan({ deviceToken: TOKEN_BRAMKI, code: KOD })).toMatchObject({
+      outcome: "code_superseded",
+      superseded: { reason: "invalidated" },
+    });
+  });
+
+  it("konfiguracja: znacznik obok sesji i polityka ponownego wejścia punktu", async () => {
+    rpc().setData("event_scanner_bootstrap", {
+      ...SESJA,
+      checkpoints: [{ ...SESJA.checkpoints[0], reentry_policy: "deny" }],
+      queue_marker: MARKER,
+      queue_marker_valid_until: VALID_UNTIL,
+    });
+    const boot = await api.bootstrapScanner(TOKEN_BRAMKI);
+    expect(boot.queueMarker).toEqual({ value: MARKER, validUntil: VALID_UNTIL });
+    expect(boot.checkpoints[0].reentryPolicy).toBe("deny");
+
+    // Konfiguracja sprzed OPS-08 - polityka domyślna bazy, `allow`.
+    rpc().setData("event_scanner_bootstrap", SESJA);
+    const legacy = await api.bootstrapScanner(TOKEN_BRAMKI);
+    expect(legacy.queueMarker).toBeNull();
+    expect(legacy.checkpoints[0].reentryPolicy).toBe("allow");
+  });
+
+  it("strona listy offline: `bh`, `sh`, polityki punktów i znacznik", async () => {
+    rpc().setData("event_scanner_roster", {
+      generated_at: "2026-10-12T07:00:00.123456+00:00",
+      full: true,
+      rows: [{ r: "r1", h: null, bh: "b".repeat(64), sh: ["c".repeat(64)], s: "approved" }],
+      checkpoints: [{ id: PUNKT, reentry_policy: "deny" }, { reentry_policy: "deny" }],
+      queue_marker: MARKER,
+      queue_marker_valid_until: VALID_UNTIL,
+    });
+    const page = await api.fetchScannerRoster({ deviceToken: TOKEN_BRAMKI });
+    expect(page.rows[0]).toMatchObject({
+      hash: null,
+      badgeHash: "b".repeat(64),
+      supersededHashes: ["c".repeat(64)],
+    });
+    expect(page.checkpoints).toEqual([{ id: PUNKT, reentryPolicy: "deny" }]);
+    expect(page.queueMarker).toEqual({ value: MARKER, validUntil: VALID_UNTIL });
+  });
+});
+
 describe("scannerApi - lista offline", () => {
   it("strona listy: token w ciele, kursory przekazane, wersja zachowana dosłownie", async () => {
     rpc().setData("event_scanner_roster", {
@@ -725,6 +908,8 @@ describe("scannerApi - lista offline", () => {
       since: "2026-09-01T06:00:00Z",
       after: "r0",
       limit: 500,
+      // Deklaracja zdolności klienta (OPS-12) - jak w konfiguracji.
+      client_caps: ["queue_marker"],
     });
     expect(page.generatedAt).toBe("2026-09-01T07:00:00.123456+00:00");
     expect(page.rows).toHaveLength(1);
@@ -736,7 +921,10 @@ describe("scannerApi - lista offline", () => {
 
     await api.fetchScannerRoster({ deviceToken: TOKEN_BRAMKI });
 
-    expect(payloadOf("event_scanner_roster")).toEqual({ device_token: TOKEN_BRAMKI });
+    expect(payloadOf("event_scanner_roster")).toEqual({
+      device_token: TOKEN_BRAMKI,
+      client_caps: ["queue_marker"],
+    });
   });
 
   it("odpowiedź bez wersji to błąd, a nie pusta lista", async () => {

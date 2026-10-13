@@ -32,14 +32,26 @@ import {
 } from "@/lib/events/onsiteApi";
 import {
   CHECKIN_DIRECTIONS,
+  CHECKIN_RESULTS,
   CHECKIN_SOURCES,
   CHECKPOINT_ACCESS_MODES,
+  CHECKPOINT_REENTRY_POLICIES,
   OFFLINE_OUTCOMES,
   CHECKPOINT_DIRECTION_MODES,
 } from "@/lib/events/onsiteEnums";
 import { ARRANGEABLE_STATUSES } from "@/lib/events/meetingParticipants";
+import { adminEventRegistrationPl } from "@/lib/i18n-admin-event-registration";
 
 const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
+
+/**
+ * Etykiety zrodla osoby i zgloszenia. Slownik jest jedynym wyliczeniem tych
+ * wartosci po stronie klienta, a `package_invitation` zapisywala od
+ * 20260827221214 funkcja, ktorej CHECK tej wartosci nie znal (do
+ * 20261013111800) - wiec slownik jest wiazany z OBIEMA listami, zeby kazda
+ * droga wejscia miala etykiete i zeby rozjazd byl widoczny w CI.
+ */
+const SOURCE_LABEL_KEYS = Object.keys(adminEventRegistrationPl.adminEventRegistration.sources);
 
 /**
  * Wartosci dopuszczone przez KAZDE nazwane ograniczenie `CHECK (kol IN (...))`
@@ -91,12 +103,20 @@ const EQUAL: ReadonlyArray<readonly [string, string, readonly string[]]> = [
   ["CHECKIN_DIRECTIONS", "event_checkins_direction_values", CHECKIN_DIRECTIONS],
   ["CHECKIN_SOURCES", "event_checkins_source_values", CHECKIN_SOURCES],
   ["OFFLINE_OUTCOMES", "event_checkins_offline_outcome_values", OFFLINE_OUTCOMES],
+  ["CHECKIN_RESULTS", "event_checkins_result_values", CHECKIN_RESULTS],
   ["CHECKPOINT_ACCESS_MODES", "event_checkpoints_access_mode_values", CHECKPOINT_ACCESS_MODES],
+  [
+    "CHECKPOINT_REENTRY_POLICIES",
+    "event_checkpoints_reentry_policy_values",
+    CHECKPOINT_REENTRY_POLICIES,
+  ],
   [
     "CHECKPOINT_DIRECTION_MODES",
     "event_checkpoints_direction_mode_values",
     CHECKPOINT_DIRECTION_MODES,
   ],
+  ["adminEventRegistration.sources", "event_registrations_source_values", SOURCE_LABEL_KEYS],
+  ["adminEventRegistration.sources", "event_people_source_values", SOURCE_LABEL_KEYS],
 ];
 
 /** Pary, w ktorych panel CELOWO pokazuje mniej - z powodem. */

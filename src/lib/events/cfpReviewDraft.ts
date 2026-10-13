@@ -8,6 +8,8 @@ import type { CfpDecisionStatus, CfpRecommendation, CfpSessionFormat } from "@/l
 import type { CfpAcceptInput, CfpDecisionInput } from "@/lib/events/cfpApi";
 import type { CfpReviewInput } from "@/lib/events/cfpPublicApi";
 import type { CfpCriterion, CfpMyReview } from "@/lib/events/cfpSurface";
+import { eventLocalInputToIso } from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 
 // ------------------------------------------------------------ ocena recenzenta
 
@@ -96,23 +98,43 @@ export function cfpDecisionPayload(id: string, draft: CfpDecisionDraft): CfpDeci
 }
 
 // ---------------------------------------------------------- przyjęcie z planem
+//
+// TERMIN SESJI JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15) - tak jak
+// w dialogu sesji agendy, do której ten szkic trafia. Kalendarz czytał go
+// w strefie PRZEGLĄDARKI: „9:30" wpisane w Londynie dla kongresu w Warszawie
+// lądowało w programie o 10:30. Pola niosą `YYYY-MM-DDTHH:mm` w strefie
+// `timeZone`, a chwile liczy `eventLocalInputToIso` (reguła Postgresa dla
+// luki i zakładki). Szkic jest zawsze nowy, więc nie ma chwil z bazy.
 
 export interface CfpAcceptDraft {
   decisionNote: string;
   feedbackToSpeaker: string;
   register: boolean;
   schedule: boolean;
+  /** `YYYY-MM-DDTHH:mm` w strefie `timeZone` albo `""`. */
   startsAt: string;
   endsAt: string;
   roomId: string;
   trackId: string;
   format: CfpSessionFormat;
+  /** Strefa wydarzenia (IANA, zwalidowana), w której pola terminu są zegarem. */
+  timeZone: string;
+}
+
+/** Pole terminu sesji -> chwila w UTC albo `null` (pole puste albo niepełne). */
+export function cfpAcceptInstant(
+  draft: CfpAcceptDraft,
+  field: "startsAt" | "endsAt",
+): string | null {
+  return eventLocalInputToIso(draft[field], draft.timeZone);
 }
 
 export function cfpAcceptDraftFrom(input: {
   decisionNote: string;
   feedbackToSpeaker: string;
   trackId: string | null;
+  /** `events.timezone` - nieznana `Intl` degraduje do strefy domyślnej serwisu. */
+  timeZone: string | null | undefined;
 }): CfpAcceptDraft {
   return {
     decisionNote: input.decisionNote,
@@ -124,6 +146,7 @@ export function cfpAcceptDraftFrom(input: {
     roomId: "",
     trackId: input.trackId ?? "",
     format: "onsite",
+    timeZone: eventTimeZone({ timezone: input.timeZone }),
   };
 }
 
@@ -134,8 +157,12 @@ export function cfpAcceptIssue(draft: CfpAcceptDraft): string | null {
     return "adminEventCfp.detail.validation.tooLong";
   }
   if (!draft.schedule) return null;
-  const starts = Date.parse(draft.startsAt);
-  const ends = Date.parse(draft.endsAt);
+  // Chwile w strefie wydarzenia - te same, które pójdą do bazy. Długość sesji
+  // liczy się na chwilach, więc noc zmiany czasu nie skraca jej ani nie wydłuża.
+  const startsIso = cfpAcceptInstant(draft, "startsAt");
+  const endsIso = cfpAcceptInstant(draft, "endsAt");
+  const starts = startsIso === null ? Number.NaN : Date.parse(startsIso);
+  const ends = endsIso === null ? Number.NaN : Date.parse(endsIso);
   if (
     Number.isNaN(starts) ||
     Number.isNaN(ends) ||
@@ -153,10 +180,12 @@ export function cfpAcceptPayload(id: string, draft: CfpAcceptDraft): CfpAcceptIn
     decisionNote: draft.decisionNote.trim(),
     feedbackToSpeaker: draft.feedbackToSpeaker.trim(),
     register: draft.register,
+    // `cfpAcceptIssue` odcina plan bez obu chwil, więc `""` tu nie dociera;
+    // gdyby jednak dotarł, baza odmówi go jako nieczytelnej daty.
     schedule: draft.schedule
       ? {
-          startsAt: draft.startsAt,
-          endsAt: draft.endsAt,
+          startsAt: cfpAcceptInstant(draft, "startsAt") ?? "",
+          endsAt: cfpAcceptInstant(draft, "endsAt") ?? "",
           roomId: draft.roomId === "" ? null : draft.roomId,
           trackId: draft.trackId === "" ? null : draft.trackId,
           format: draft.format,

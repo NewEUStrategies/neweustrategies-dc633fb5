@@ -412,6 +412,7 @@ function registrationRow(overrides: Partial<EventRegistrationRow> = {}): EventRe
     consent_data_processing_at: "2026-08-02T10:00:00.000Z",
     consent_marketing_at: BRAK_NAPISU,
     consent_partner_sharing_at: BRAK_NAPISU,
+    consent_partner_withdrawn_at: BRAK_NAPISU,
     consent_withdrawn_at: BRAK_NAPISU,
     created_at: "2026-08-02T10:00:00.000Z",
     decided_at: BRAK_NAPISU,

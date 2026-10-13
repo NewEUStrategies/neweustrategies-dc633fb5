@@ -32,6 +32,9 @@ const SQL_KEYS = [
   // (`admin_event_sponsor_tier_set_layout`, 20260922200000 i 20260923100100).
   "banner_single_image",
   "invalid_layout",
+  // Usuniecie sponsora ze stanowiskiem firmy (`admin_event_sponsor_delete`,
+  // 20261013110900, OPS-11).
+  "sponsor_has_checkpoints",
 ] as const;
 
 describe("adminSponsorErrors", () => {
@@ -67,6 +70,16 @@ describe("adminSponsorErrors", () => {
     );
     expect(failure.params).toEqual({ count: 3, total: 5 });
     expect(adminSponsorErrorMessage(new Error("tier_in_use: 2 company(ies)"))).toContain("2");
+  });
+
+  it("stanowisko firmy blokujace usuniecie sponsora podaje liczbe stanowisk", () => {
+    const failure = adminSponsorFailure(
+      new Error(
+        "sponsor_has_checkpoints: 2 booth checkpoint(s) point at this sponsor - change their kind or delete them first",
+      ),
+    );
+    expect(failure.key).toBe("adminEventSponsors.errors.sponsorHasCheckpoints");
+    expect(failure.params).toEqual({ count: 2 });
   });
 
   it("nieznany klucz i szum sieciowy spadaja do `unknown`", () => {

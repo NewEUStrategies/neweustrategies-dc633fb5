@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   badgeTemplateDraftToInput,
+  checkpointDraftFromRow,
   checkpointDraftToInput,
   emptyBadgeTemplateDraft,
   emptyCheckpointDraft,
@@ -17,6 +18,7 @@ import {
 import { parseCheckinOutcome, parseOnsiteStats } from "@/lib/events/onsiteApi";
 
 const EVENT = "11111111-1111-1111-1111-111111111111";
+const WARSZAWA = "Europe/Warsaw";
 
 describe("konwersje pomocnicze", () => {
   it("pusty tekst to brak wartosci, a nie zero", () => {
@@ -34,11 +36,64 @@ describe("konwersje pomocnicze", () => {
   });
 
   it("datetime-local zamienia sie w ISO i wraca bez utraty minuty", () => {
-    const iso = localToIso("2026-09-01T10:30");
+    const iso = localToIso("2026-09-01T10:30", WARSZAWA);
     expect(typeof iso).toBe("string");
-    expect(isoToLocal(iso as string)).toBe("2026-09-01T10:30");
-    expect(localToIso("")).toBeNull();
-    expect(localToIso("nie-data")).toBe(false);
+    expect(isoToLocal(iso as string, WARSZAWA)).toBe("2026-09-01T10:30");
+    expect(localToIso("", WARSZAWA)).toBeNull();
+    expect(localToIso("nie-data", WARSZAWA)).toBe(false);
+    expect(localToIso("2026-02-30T10:00", WARSZAWA)).toBe(false);
+    expect(isoToLocal(null, WARSZAWA)).toBe("");
+    expect(isoToLocal("nie-data", WARSZAWA)).toBe("");
+  });
+});
+
+// TERMIN POSWIADCZENIA W STREFIE WYDARZENIA (OPS-15, przekazanie B3). Blok
+// biegnie przy `TZ=Europe/London` dla kongresu w Warszawie: dawna konwersja
+// (`new Date(napis)`) czytala pole zegarem Londynu.
+describe("termin poswiadczenia - zegar Warszawy przy przegladarce w Londynie", () => {
+  const ORIGINAL_TZ = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Europe/London";
+  });
+  afterAll(() => {
+    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = ORIGINAL_TZ;
+  });
+
+  it("kanarek: maszyna jest w Londynie, dawna konwersja dalaby 17:00Z", () => {
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe("Europe/London");
+    expect(new Date("2026-09-30T18:00").toISOString()).toBe("2026-09-30T17:00:00.000Z");
+  });
+
+  it("18:00 wpisane w Londynie to 18:00 w Warszawie (16:00Z latem, 17:00Z zima)", () => {
+    expect(localToIso("2026-09-30T18:00", WARSZAWA)).toBe("2026-09-30T16:00:00.000Z");
+    expect(localToIso("2026-12-01T18:00", WARSZAWA)).toBe("2026-12-01T17:00:00.000Z");
+  });
+
+  it("granica OPS-12 w kalendarzu to zegar Warszawy", () => {
+    expect(isoToLocal("2026-10-07T16:00:00.000Z", WARSZAWA)).toBe("2026-10-07T18:00");
+  });
+
+  it("LUKA 29.03 i ZAKLADKA 25.10 - regula Postgresa", () => {
+    expect(localToIso("2026-03-29T02:30", WARSZAWA)).toBe("2026-03-29T01:30:00.000Z");
+    expect(localToIso("2026-10-25T02:30", WARSZAWA)).toBe("2026-10-25T01:30:00.000Z");
+  });
+
+  it("wydanie wysyla chwile Warszawy, a walidacja przeszlosci liczy te sama chwile", () => {
+    const draft = {
+      ...emptyScannerDeviceDraft(),
+      label: "Brama",
+      expiresAtLocal: "2026-09-30T18:00",
+    };
+    expect(scannerDeviceDraftToInput(draft, EVENT, WARSZAWA).expiresAt).toBe(
+      "2026-09-30T16:00:00.000Z",
+    );
+    // 16:30Z: w Londynie 17:30 (dawniej "przed 18:00" = wazny), w Warszawie
+    // 18:30 - termin 18:00 czasu kongresu juz minal.
+    const now = new Date("2026-09-30T16:30:00Z");
+    expect(validateScannerDeviceDraft(draft, WARSZAWA, now).map((e) => e.field)).toEqual([
+      "expiresAtLocal",
+    ]);
   });
 });
 
@@ -81,6 +136,26 @@ describe("punkt kontrolny", () => {
     expect(checkpointDraftToInput({ ...draft, capacity: "0" }, EVENT).capacity).toBe(0);
   });
 
+  it("polityka ponownego wejscia: deny tylko w trybie control, zawsze jawnie", () => {
+    const draft = { ...emptyCheckpointDraft(), namePl: "Brama", nameEn: "Gate" };
+    expect(draft.denyReentry).toBe(false);
+    expect(checkpointDraftToInput(draft, EVENT).reentryPolicy).toBe("allow");
+    expect(checkpointDraftToInput({ ...draft, denyReentry: true }, EVENT).reentryPolicy).toBe(
+      "deny",
+    );
+    // Tryb `track` nie zna odmowy - baza ma na to CHECK reentry_needs_control.
+    expect(
+      checkpointDraftToInput({ ...draft, denyReentry: true, accessMode: "track" }, EVENT)
+        .reentryPolicy,
+    ).toBe("allow");
+  });
+
+  it("wiersz z polityka deny wraca do szkicu jako zaznaczona blokada", () => {
+    expect(checkpointDraftFromRow({ reentry_policy: "deny" }).denyReentry).toBe(true);
+    expect(checkpointDraftFromRow({ reentry_policy: "allow" }).denyReentry).toBe(false);
+    expect(checkpointDraftFromRow({}).denyReentry).toBe(false);
+  });
+
   it("edycja nie wysyla event_id", () => {
     const input = checkpointDraftToInput(
       { ...emptyCheckpointDraft(), id: "cp-1", namePl: "A1", nameEn: "A1" },
@@ -93,16 +168,18 @@ describe("punkt kontrolny", () => {
 
 describe("poswiadczenie urzadzenia", () => {
   it("wymaga nazwy i co najmniej jednego uprawnienia", () => {
-    const errors = validateScannerDeviceDraft({ ...emptyScannerDeviceDraft(), scopes: [] });
+    const errors = validateScannerDeviceDraft(
+      { ...emptyScannerDeviceDraft(), scopes: [] },
+      WARSZAWA,
+    );
     expect(errors.map((error) => error.field)).toEqual(["label", "scopes"]);
   });
 
   it("uprawnienie leadowe wymaga sponsora", () => {
-    const errors = validateScannerDeviceDraft({
-      ...emptyScannerDeviceDraft(),
-      label: "Stoisko 1",
-      scopes: ["lead"],
-    });
+    const errors = validateScannerDeviceDraft(
+      { ...emptyScannerDeviceDraft(), label: "Stoisko 1", scopes: ["lead"] },
+      WARSZAWA,
+    );
     expect(errors.map((error) => error.field)).toEqual(["sponsorId"]);
   });
 
@@ -110,11 +187,12 @@ describe("poswiadczenie urzadzenia", () => {
     const now = new Date("2026-09-01T12:00:00Z");
     const past = validateScannerDeviceDraft(
       { ...emptyScannerDeviceDraft(), label: "Brama", expiresAtLocal: "2026-08-01T10:00" },
+      WARSZAWA,
       now,
     );
     expect(past.map((error) => error.field)).toEqual(["expiresAtLocal"]);
     expect(
-      validateScannerDeviceDraft({ ...emptyScannerDeviceDraft(), label: "Brama" }, now),
+      validateScannerDeviceDraft({ ...emptyScannerDeviceDraft(), label: "Brama" }, WARSZAWA, now),
     ).toEqual([]);
   });
 
@@ -123,6 +201,7 @@ describe("poswiadczenie urzadzenia", () => {
     const withCheckin = scannerDeviceDraftToInput(
       { ...emptyScannerDeviceDraft(), label: "Brama", offlineRoster: true },
       EVENT,
+      WARSZAWA,
     );
     expect(withCheckin.offlineRoster).toBe(true);
     const leadOnly = scannerDeviceDraftToInput(
@@ -134,6 +213,7 @@ describe("poswiadczenie urzadzenia", () => {
         offlineRoster: true,
       },
       EVENT,
+      WARSZAWA,
     );
     expect(leadOnly.offlineRoster).toBe(false);
   });
@@ -142,6 +222,7 @@ describe("poswiadczenie urzadzenia", () => {
     const input = scannerDeviceDraftToInput(
       { ...emptyScannerDeviceDraft(), label: "Brama" },
       EVENT,
+      WARSZAWA,
     );
     expect(input.expiresAt).toBeUndefined();
     expect(input.scopes).toEqual(["checkin"]);

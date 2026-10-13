@@ -12,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { CMS_OID, signDetachedCms, signedAttributes } from "../cms";
 import {
@@ -26,6 +26,7 @@ import {
 } from "../der";
 import {
   importRsaSigningKey,
+  readRsaPrivateKeyParts,
   sha1Hex,
   sha256,
   signRsaSha256,
@@ -116,6 +117,38 @@ describe("rsa", () => {
 
   it("odrzuca PEM bez klucza prywatnego", async () => {
     await expect(importRsaSigningKey(TEST_SIGNER_CERT_PEM)).rejects.toThrow("no PRIVATE KEY");
+  });
+
+  it("importuje klucz RAZ na izolat i PEM (równoległe wołania też), nieudany import nie zostaje", async () => {
+    const importKey = vi.spyOn(crypto.subtle, "importKey");
+    // Świeży PEM (inny wpis pamięci niż w testach wyżej): ten sam klucz, inne łamanie linii.
+    const pem = TEST_SIGNER_KEY_PKCS8_PEM.replace(/\n/g, "\r\n");
+    const [a, b] = await Promise.all([importRsaSigningKey(pem), importRsaSigningKey(pem)]);
+    expect(a).toBe(b);
+    expect(await importRsaSigningKey(pem)).toBe(a);
+    expect(importKey).toHaveBeenCalledTimes(1);
+
+    const broken = "-----BEGIN PRIVATE KEY-----\nMAMCAQA=\n-----END PRIVATE KEY-----";
+    await expect(importRsaSigningKey(broken)).rejects.toThrow();
+    await expect(importRsaSigningKey(broken)).rejects.toThrow();
+    expect(importKey).toHaveBeenCalledTimes(3);
+    importKey.mockRestore();
+  });
+
+  it("moduł i wykładnik z klucza prywatnego; klucz nie-RSA i zły PEM odrzucone bez bajtów klucza", () => {
+    const parts = readRsaPrivateKeyParts(TEST_SIGNER_KEY_PKCS1_PEM);
+    expect(parts.modulus).toHaveLength(256);
+    expect(toHex(parts.exponent)).toBe("010001");
+    expect(readRsaPrivateKeyParts(TEST_SIGNER_KEY_PKCS8_PEM)).toEqual(parts);
+    // PKCS#8 z OID-em klucza EC (1.2.840.10045.2.1).
+    const ec = derSequence(
+      Uint8Array.of(0x02, 0x01, 0x00),
+      derSequence(derOid("1.2.840.10045.2.1")),
+      Uint8Array.of(0x04, 0x00),
+    );
+    const ecPem = `-----BEGIN PRIVATE KEY-----\n${Buffer.from(ec).toString("base64")}\n-----END PRIVATE KEY-----`;
+    expect(() => readRsaPrivateKeyParts(ecPem)).toThrow("rsa: private key is not an RSA key");
+    expect(() => readRsaPrivateKeyParts(TEST_SIGNER_CERT_PEM)).toThrow("no PRIVATE KEY");
   });
 
   it("skróty SHA-256 i SHA-1 (wektory dla „abc”)", async () => {

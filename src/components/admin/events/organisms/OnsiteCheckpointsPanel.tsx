@@ -169,6 +169,9 @@ export function OnsiteCheckpointsPanel({ eventId }: { eventId: string }) {
                     defaultValue: row.access_mode,
                   })}
                 </Badge>
+                {row.reentry_policy === "deny" ? (
+                  <Badge variant="outline">{t("adminEventOnsite.labels.reentryDenied")}</Badge>
+                ) : null}
                 <Badge variant="outline">
                   {`${t("adminEventOnsite.labels.occupancy")}: ${row.occupancy}${
                     row.capacity === null ? "" : ` / ${row.capacity}`

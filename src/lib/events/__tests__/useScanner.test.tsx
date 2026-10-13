@@ -39,12 +39,18 @@ import type { OutboxItem, RejectedScan } from "@/lib/events/scannerOutbox";
 import type { CachedSession } from "@/lib/events/scannerOfflineStorage";
 import type { LocalDecisionLogEntry, RosterPage, RosterSnapshot } from "@/lib/events/scannerRoster";
 import type { ScanConflict } from "@/lib/events/scannerSyncIssues";
+import type { DeviceQueueMarker, QueueMarker } from "@/lib/events/scannerQueueMarker";
 import type { ScannerSession } from "@/lib/events/scannerSession";
 import type {
   QueuedScanOutcome,
   SentCheckinOutcome,
   SentLeadOutcome,
 } from "@/lib/events/useScanner";
+// Atrapy magazynów są typowane kontraktem modułu (`satisfies`): funkcja, która
+// zmieni zwracany typ (np. `Promise<boolean>` zamiast `Promise<void>`), zatrzyma
+// typecheck, zamiast przejść cicho z atrapą oddającą `undefined`.
+import type * as ScannerStorageModule from "@/lib/events/scannerStorage";
+import type * as ScannerOfflineStorageModule from "@/lib/events/scannerOfflineStorage";
 
 /* --------------------------------------------------------------- atrapy --- */
 
@@ -62,6 +68,8 @@ vi.mock("@/lib/events/scannerApi", () => api);
 /** Pamięć trybu offline (sesja, lista, dziennik, odrzucone, konflikty) w RAM. */
 const store = vi.hoisted(() => ({
   session: null as CachedSession | null,
+  /** Znacznik kolejki urządzenia (w prawdziwym magazynie - zaszyfrowany). */
+  marker: null as DeviceQueueMarker | null,
   roster: null as RosterSnapshot | null,
   log: [] as LocalDecisionLogEntry[],
   rejected: [] as RejectedScan[],
@@ -72,59 +80,84 @@ const store = vi.hoisted(() => ({
   clears: 0,
 }));
 
-vi.mock("@/lib/events/scannerOfflineStorage", () => ({
-  isOfflineStoragePersistent: () => store.persistent,
-  saveCachedSession: (value: CachedSession) => {
-    store.session = value;
-    return Promise.resolve();
-  },
-  loadCachedSession: (hash: string) =>
-    Promise.resolve(
-      store.session !== null && store.session.tokenHash === hash ? store.session : null,
-    ),
-  saveRoster: (snapshot: RosterSnapshot | null) => {
-    store.roster = snapshot;
-    return Promise.resolve();
-  },
-  loadRoster: (deviceId: string) =>
-    Promise.resolve(
-      store.roster !== null && store.roster.deviceId === deviceId ? store.roster : null,
-    ),
-  saveDecisionLog: (log: LocalDecisionLogEntry[]) => {
-    store.log = [...log];
-    return Promise.resolve();
-  },
-  loadDecisionLog: () => Promise.resolve([...store.log]),
-  saveRejected: (list: RejectedScan[]) => {
-    store.rejected = [...list];
-    return Promise.resolve();
-  },
-  loadRejected: () => Promise.resolve([...store.rejected]),
-  saveConflicts: (list: ScanConflict[]) => {
-    store.conflicts = [...list];
-    return Promise.resolve();
-  },
-  loadConflicts: () => Promise.resolve([...store.conflicts]),
-  wipeOfflineSession: () => {
-    store.session = null;
-    store.roster = null;
-    store.log = [];
-    store.wipes += 1;
-    return Promise.resolve();
-  },
-  wipeRoster: () => {
-    store.roster = null;
-    store.log = [];
-    store.rosterWipes += 1;
-    return Promise.resolve();
-  },
-  clearSyncIssues: () => {
-    store.rejected = [];
-    store.conflicts = [];
-    store.clears += 1;
-    return Promise.resolve();
-  },
-}));
+vi.mock(
+  "@/lib/events/scannerOfflineStorage",
+  () =>
+    ({
+      isOfflineStoragePersistent: () => store.persistent,
+      saveCachedSession: (value: CachedSession) => {
+        store.session = value;
+        return Promise.resolve();
+      },
+      loadCachedSession: (hash: string) =>
+        Promise.resolve(
+          store.session !== null && store.session.tokenHash === hash ? store.session : null,
+        ),
+      saveRoster: (snapshot: RosterSnapshot | null) => {
+        store.roster = snapshot;
+        return Promise.resolve();
+      },
+      loadRoster: (deviceId: string) =>
+        Promise.resolve(
+          store.roster !== null && store.roster.deviceId === deviceId ? store.roster : null,
+        ),
+      saveDecisionLog: (log: readonly LocalDecisionLogEntry[]) => {
+        store.log = [...log];
+        return Promise.resolve();
+      },
+      loadDecisionLog: () => Promise.resolve([...store.log]),
+      saveRejected: (list: readonly RejectedScan[]) => {
+        store.rejected = [...list];
+        return Promise.resolve();
+      },
+      loadRejected: () => Promise.resolve([...store.rejected]),
+      saveConflicts: (list: readonly ScanConflict[]) => {
+        store.conflicts = [...list];
+        return Promise.resolve();
+      },
+      loadConflicts: () => Promise.resolve([...store.conflicts]),
+      wipeOfflineSession: () => {
+        store.session = null;
+        store.marker = null;
+        store.roster = null;
+        store.log = [];
+        store.wipes += 1;
+        return Promise.resolve();
+      },
+      wipeRoster: () => {
+        store.roster = null;
+        store.log = [];
+        store.rosterWipes += 1;
+        return Promise.resolve();
+      },
+      clearSyncIssues: () => {
+        store.rejected = [];
+        store.conflicts = [];
+        store.clears += 1;
+        return Promise.resolve();
+      },
+      // Odłączenie (OPS-06) kasuje wszystko naraz - także odrzucone i konflikty.
+      wipeAllOfflineData: () => {
+        store.session = null;
+        store.marker = null;
+        store.roster = null;
+        store.log = [];
+        store.rejected = [];
+        store.conflicts = [];
+        store.wipes += 1;
+        // Kontrakt `wipeAllOfflineData`: `true` = kasowanie dotarło na dysk.
+        return Promise.resolve(true);
+      },
+      purgeExpiredRoster: () => Promise.resolve(false),
+      // Znacznik kolejki (OPS-12) - sejf ma własne testy; tu pamięć w RAM.
+      saveQueueMarker: (deviceId: string, marker: QueueMarker) => {
+        store.marker = { deviceId, marker };
+        return Promise.resolve(true);
+      },
+      loadQueueMarker: (deviceId: string) =>
+        Promise.resolve(store.marker?.deviceId === deviceId ? store.marker.marker : null),
+    }) satisfies Partial<typeof ScannerOfflineStorageModule>,
+);
 
 /** Pamiec urzadzenia w RAM - bez localStorage i bez IndexedDB. */
 const device = vi.hoisted(() => ({
@@ -133,21 +166,32 @@ const device = vi.hoisted(() => ({
   persistent: true,
 }));
 
-vi.mock("@/lib/events/scannerStorage", () => ({
-  readStoredToken: () => device.token,
-  writeStoredToken: (token: string) => {
-    device.token = token;
-  },
-  clearStoredToken: () => {
-    device.token = null;
-  },
-  isOutboxPersistent: () => device.persistent,
-  loadOutbox: () => Promise.resolve([...device.queue]),
-  saveOutbox: (queue: readonly OutboxItem[]) => {
-    device.queue = [...queue];
-    return Promise.resolve();
-  },
-}));
+vi.mock(
+  "@/lib/events/scannerStorage",
+  () =>
+    ({
+      readStoredToken: () => device.token,
+      writeStoredToken: (token: string) => {
+        device.token = token;
+      },
+      clearStoredToken: () => {
+        device.token = null;
+      },
+      isOutboxPersistent: () => device.persistent,
+      loadOutbox: () => Promise.resolve([...device.queue]),
+      saveOutbox: (queue: readonly OutboxItem[]) => {
+        device.queue = [...queue];
+        return Promise.resolve(true);
+      },
+      // Sejf (OPS-06) ma własne testy - tu pamięć urządzenia trzyma pozycje jawnie.
+      openSealedItems: () => Promise.resolve(null),
+      // Kontrakt `clearOutbox`: `true` = kolejki nie ma już na dysku.
+      clearOutbox: () => {
+        device.queue = [];
+        return Promise.resolve(true);
+      },
+    }) satisfies Partial<typeof ScannerStorageModule>,
+);
 
 const { useScannerRuntime } = await import("@/lib/events/useScanner");
 
@@ -185,6 +229,7 @@ const SESSION: ScannerSession = {
       kind: "event_entry",
       directionMode: "in_only",
       accessMode: "control",
+      reentryPolicy: "allow",
       capacity: null,
       dedupeWindowSeconds: 0,
       sortOrder: 0,
@@ -210,12 +255,18 @@ function scanResult(over: Partial<CheckinScanResult> = {}): CheckinScanResult {
       kind: "event_entry",
       directionMode: "in_only",
       accessMode: "control",
+      reentryPolicy: null,
       capacity: null,
       occupancy: 12,
     },
     person: null,
     otherEventTitlePl: null,
     otherEventTitleEn: null,
+    reentry: false,
+    reentryPreviousAt: null,
+    credential: null,
+    superseded: null,
+    displayName: null,
     ...over,
     // Baza bez decyzji urządzenia ma to samo zdanie, chyba że test mówi inaczej.
     serverAdmit: over.serverAdmit ?? over.admit ?? true,
@@ -237,6 +288,7 @@ function leadResult(over: Partial<LeadScanResult> = {}): LeadScanResult {
       email: "anna@example.org",
       phone: "+48 600 100 200",
     },
+    superseded: null,
     ...over,
   };
 }
@@ -408,8 +460,8 @@ describe("useScannerRuntime - poswiadczenie urzadzenia", () => {
     const { result } = await connected();
     expect(device.token).toBe(TOKEN);
 
-    act(() => {
-      result.current.disconnect();
+    await act(async () => {
+      await result.current.disconnect();
     });
 
     expect(result.current.status).toBe("idle");
@@ -769,7 +821,13 @@ describe("useScannerRuntime - utrata polaczenia i powrot sieci", () => {
     // cichu, jak dawniej, gdy `withFailure` tylko je kasowalo.
     await waitFor(() => expect(result.current.rejected).toHaveLength(3));
     expect(result.current.outbox).toEqual([]);
-    expect(result.current.rejected.map((row) => row.item.code)).toEqual(["QR-A", "QR-B", "QR-C"]);
+    // Lista odrzuconych niesie POCZĄTEK kodu, nie cały kod (OPS-06).
+    expect(result.current.rejected.map((row) => row.item.codePrefix)).toEqual([
+      "QR-A",
+      "QR-B",
+      "QR-C",
+    ]);
+    expect(result.current.rejected.every((row) => !("code" in row.item))).toBe(true);
     expect(result.current.rejected.every((row) => row.error.startsWith("device_revoked"))).toBe(
       true,
     );
@@ -798,13 +856,16 @@ describe("useScannerRuntime - utrata polaczenia i powrot sieci", () => {
     await waitFor(() => expect(result.current.outboxPersistent).toBe(false));
   });
 
-  it("operator moze ZDJAC pozycje z kolejki, ktorej nie da sie wyslac", async () => {
+  it("operator moze ZDJAC pozycje z kolejki - nawet taka, ktora wciaz jest ponawiana", async () => {
+    // ZMIANA SWIADOMA (OPS-05): dawniej pozycja po osmiu probach wypadala do
+    // „wymaga uwagi” na zawsze. Pozycja z poprzedniej zmiany wraca teraz jako
+    // CZEKAJACA (start zeruje wycofanie), a usuniecie zostaje swiadoma
+    // decyzja operatora (ekran pyta o potwierdzenie).
     device.queue = [queuedItem({ id: "do-zdjecia", attempts: 8, lastError: "Failed to fetch" })];
     const { result } = render();
     await waitFor(() => expect(result.current.outbox).toHaveLength(1));
-    // Pozycja po ostatniej probie nie jest juz ponawiana - liczy sie jako
-    // „wymaga uwagi”, nie jako czekajaca.
-    expect(result.current.outboxCounts).toEqual({ pending: 0, stuck: 1 });
+    expect(result.current.outboxCounts).toEqual({ pending: 1, stuck: 0 });
+    expect(result.current.outbox[0]).toMatchObject({ attempts: 0, lastError: "Failed to fetch" });
 
     act(() => {
       result.current.discard("do-zdjecia");
@@ -1195,7 +1256,9 @@ describe("useScannerRuntime - odrzucona pozycja nie ginie między dwiema bazami"
       error: "invalid_payload: code is required",
       rejectedAt: "2026-08-01T07:05:00.000Z",
     });
-    expect(result.current.rejected[0].item.code).toBe("QR-S");
+    // Bez jawnego kodu (OPS-06) - zostaje jego początek.
+    expect(result.current.rejected[0].item.codePrefix).toBe("QR-S");
+    expect(result.current.rejected[0].item).not.toHaveProperty("code");
     await waitFor(() => expect(result.current.outbox).toEqual([]));
     expect(api.recordCheckinScan).not.toHaveBeenCalled();
   });

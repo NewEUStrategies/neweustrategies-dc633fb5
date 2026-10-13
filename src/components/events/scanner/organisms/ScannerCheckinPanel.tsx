@@ -20,6 +20,14 @@
 // kolorem - ale zawsze z dopiskiem, że to decyzja z listy offline z danej
 // chwili i że serwer potwierdzi ją po powrocie sieci. Bez listy skan tylko
 // czeka w kolejce, jak dotąd.
+//
+// WYNIKI Z KONTEKSTEM (OPS-04, OPS-08). Ton, nagłówek i zdanie pod nim liczy
+// jedna tabela (`scannerOutcomeView.ts`) - dla odpowiedzi bazy i decyzji
+// offline tak samo. Kod ZASTĄPIONY (bursztyn) mówi, które poświadczenie, kiedy
+// i dlaczego przestało wpuszczać, i podaje tylko imię i nazwisko właściciela -
+// pełna karta osoby obok „nie wpuszczaj" zachęcałaby do wpuszczenia. Odmowa
+// „już w środku" (czerwień) i PONOWNE wejście (osobny, niebieski ton) pokazują
+// chwilę poprzedniego wejścia.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -38,35 +46,41 @@ import {
   findCheckpoint,
   type ScannerSession,
 } from "@/lib/events/scannerSession";
-import { scanOutcomeKey, scannerErrorMessage } from "@/lib/events/scannerErrors";
-import type { ScannerRuntime } from "@/lib/events/useScanner";
+import { scannerErrorMessage } from "@/lib/events/scannerErrors";
 import {
-  ScanOutcomeBanner,
-  type ScanTone,
-} from "@/components/events/scanner/atoms/ScanOutcomeBanner";
+  scanContextHint,
+  scanTitleKey,
+  scanTone,
+  type ScanHint,
+} from "@/lib/events/scannerOutcomeView";
+import type { ScannerRuntime } from "@/lib/events/useScanner";
+import { ScanOutcomeBanner } from "@/components/events/scanner/atoms/ScanOutcomeBanner";
 import { ScanPersonCard } from "@/components/events/scanner/molecules/ScanPersonCard";
 import { ScannerCodeInput } from "@/components/events/scanner/molecules/ScannerCodeInput";
 import { ensureI18n as ensureScannerI18n } from "@/lib/i18n-event-scanner";
 
 ensureScannerI18n();
 
-function toneOf(result: CheckinScanResult): ScanTone {
-  if (result.admit && result.outcome === "repeat") return "warning";
-  if (result.admit) return "granted";
-  if (result.outcome === "unknown_code" || result.outcome === "wrong_event") return "warning";
-  return "denied";
-}
-
-/** Ten sam kolor, co dla wyniku bazy - decyzja offline mówi tym samym językiem. */
-function toneOfLocal(decision: OfflineDecision): ScanTone {
-  if (decision.admit && decision.outcome === "repeat") return "warning";
-  if (decision.admit) return "granted";
-  if (decision.outcome === "unknown_code") return "warning";
-  return "denied";
-}
-
 function camel(value: string): string {
   return value.replace(/_([a-z0-9])/g, (_all, chr: string) => chr.toUpperCase());
+}
+
+/** Decyzja offline w kształcie werdyktu bazy - ta sama tabela tonów i nagłówków. */
+function localVerdict(decision: OfflineDecision) {
+  return {
+    outcome: decision.outcome,
+    admit: decision.admit,
+    reentry: decision.reentryPreviousAt !== null,
+    reentryPreviousAt: decision.reentryPreviousAt,
+    superseded: null,
+  };
+}
+
+/** Imię i nazwisko z wiersza listy - przy kodzie zastąpionym tylko tyle. */
+function holderName(first: string | null, last: string | null): string {
+  return [first, last]
+    .filter((part): part is string => part !== null && part.trim() !== "")
+    .join(" ");
 }
 
 export function ScannerCheckinPanel({
@@ -124,8 +138,20 @@ export function ScannerCheckinPanel({
       });
   };
 
+  const when = (iso: string) => formatEventDateTime(iso, session.event.timezone, lang);
+  const sentence = (hint: ScanHint | null): string | null =>
+    hint === null ? null : t(hint.key, hint.params);
+
   const outcomeHintKey =
     result === null ? null : `eventScanner.outcomeHints.${camel(result.outcome)}`;
+  const resultContext = result === null ? null : sentence(scanContextHint(result, when));
+  const localContext = local === null ? null : sentence(scanContextHint(localVerdict(local), when));
+  const supersededHolder =
+    result?.outcome === "code_superseded" && result.displayName !== null
+      ? result.displayName
+      : local?.outcome === "code_superseded" && local.entry !== null
+        ? holderName(local.entry.firstName, local.entry.lastName)
+        : "";
   const otherEventTitle =
     result === null
       ? ""
@@ -198,6 +224,9 @@ export function ScannerCheckinPanel({
             {checkpoint.accessMode === "track" && (
               <span>{t("eventScanner.checkpoint.trackMode")}</span>
             )}
+            {checkpoint.accessMode === "control" && checkpoint.reentryPolicy === "deny" && (
+              <span>{t("eventScanner.checkpoint.reentryDeny")}</span>
+            )}
             {checkpoint.capacity !== null && (
               <span>{t("eventScanner.checkpoint.capacity", { count: checkpoint.capacity })}</span>
             )}
@@ -239,18 +268,26 @@ export function ScannerCheckinPanel({
       {queued && local !== null && (
         <div className="space-y-3">
           <ScanOutcomeBanner
-            tone={toneOfLocal(local)}
-            title={t(scanOutcomeKey(local.outcome))}
+            tone={scanTone(localVerdict(local))}
+            title={t(scanTitleKey(localVerdict(local)))}
             hint={t("eventScanner.offline.decisionHint", {
               time: formatEventDateTime(local.rosterGeneratedAt, session.event.timezone, lang),
             })}
           />
+          {localContext !== null && (
+            <p className="text-sm font-medium text-foreground">{localContext}</p>
+          )}
+          {supersededHolder !== "" && (
+            <p className="text-sm text-muted-foreground">
+              {t("eventScanner.superseded.holder", { name: supersededHolder })}
+            </p>
+          )}
           {local.approximateCapacity && (
             <p className="text-xs text-brand-ink dark:text-brand">
               {t("eventScanner.offline.approximateCapacity")}
             </p>
           )}
-          {local.entry !== null && (
+          {local.entry !== null && local.outcome !== "code_superseded" && (
             <div className="space-y-1">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
                 {t("eventScanner.offline.personFromRoster")}
@@ -267,16 +304,24 @@ export function ScannerCheckinPanel({
       {result !== null && (
         <div className="space-y-3">
           <ScanOutcomeBanner
-            tone={toneOf(result)}
-            title={t(scanOutcomeKey(result.outcome))}
+            tone={scanTone(result)}
+            title={t(scanTitleKey(result))}
             hint={
-              result.outcome === "wrong_event" && otherEventTitle !== ""
-                ? t("eventScanner.outcomeHints.wrongEvent", { event: otherEventTitle })
-                : outcomeHintKey !== null && i18n.exists(outcomeHintKey)
-                  ? t(outcomeHintKey)
-                  : null
+              resultContext !== null
+                ? resultContext
+                : result.outcome === "wrong_event" && otherEventTitle !== ""
+                  ? t("eventScanner.outcomeHints.wrongEvent", { event: otherEventTitle })
+                  : outcomeHintKey !== null && i18n.exists(outcomeHintKey)
+                    ? t(outcomeHintKey)
+                    : null
             }
           />
+
+          {supersededHolder !== "" && (
+            <p className="text-sm text-muted-foreground">
+              {t("eventScanner.superseded.holder", { name: supersededHolder })}
+            </p>
+          )}
 
           {result.previousCheckinAt !== null && (
             <p className="text-xs text-muted-foreground">
@@ -292,7 +337,7 @@ export function ScannerCheckinPanel({
             </p>
           )}
 
-          {result.person !== null && (
+          {result.person !== null && result.outcome !== "code_superseded" && (
             <ScanPersonCard person={result.person} timezone={session.event.timezone} />
           )}
         </div>

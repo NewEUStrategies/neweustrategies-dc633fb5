@@ -27,11 +27,13 @@ import { eventPackageRow } from "@/test/events/adminSalesRows";
 
 const EVENT = "11111111-2222-3333-4444-555555555555";
 const TICKET = "66666666-7777-8888-9999-000000000000";
+/** Strefa wydarzenia - okno sprzedaży jest zegarem w niej. */
+const STREFA = "Europe/Warsaw";
 const PACKAGE = "77777777-8888-4999-8000-111111111111";
 
 function valid(overrides: Partial<PackageDraft> = {}): PackageDraft {
   return {
-    ...emptyPackageDraft(100),
+    ...emptyPackageDraft(100, STREFA),
     key: "delegacja_10",
     ticketTypeId: TICKET,
     namePl: "Delegacja 10",
@@ -135,11 +137,13 @@ describe("cena w złotych (TIX-14a)", () => {
 
   it("wiersz z bazy wraca do pola w złotych - separator wg języka, kwota ta sama", () => {
     const row = eventPackageRow({ price_cents: 89_900 });
-    expect(packageDraftFromRow(row).price).toBe("899,00");
-    expect(packageDraftFromRow(row, null, ".").price).toBe("899.00");
+    expect(packageDraftFromRow(row, STREFA).price).toBe("899,00");
+    expect(packageDraftFromRow(row, STREFA, null, ".").price).toBe("899.00");
     // Obieg wiersz -> pole -> ładunek nie zmienia kwoty (przełącznik w panelu).
-    expect(packageDraftToInput(packageDraftFromRow(row), EVENT).priceCents).toBe(89_900);
-    expect(packageDraftToInput(packageDraftFromRow(row, null, "."), EVENT).priceCents).toBe(89_900);
+    expect(packageDraftToInput(packageDraftFromRow(row, STREFA), EVENT).priceCents).toBe(89_900);
+    expect(packageDraftToInput(packageDraftFromRow(row, STREFA, null, "."), EVENT).priceCents).toBe(
+      89_900,
+    );
   });
 });
 
@@ -264,7 +268,9 @@ describe("packageDraftToInput", () => {
   it("warunki NIEZNANE nie jadą - `terms: null`, a nie wartości domyślne", () => {
     expect(packageDraftToInput(valid(), EVENT).terms).toBeNull();
     // Szkic z samego wiersza (przełącznik „aktywny" w panelu) też ich nie zna.
-    expect(packageDraftToInput(packageDraftFromRow(eventPackageRow()), EVENT).terms).toBeNull();
+    expect(
+      packageDraftToInput(packageDraftFromRow(eventPackageRow(), STREFA), EVENT).terms,
+    ).toBeNull();
   });
 
   it("warunki ZNANE jadą liczbami, pusty limit jako jawny brak limitu", () => {

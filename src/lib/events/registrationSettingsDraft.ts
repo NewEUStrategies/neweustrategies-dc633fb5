@@ -41,7 +41,25 @@
 // istnieje w PL i EN; klucz sklejony z `${PREFIX}nazwa` jest dla niej
 // niewidzialny, wiec dopisany tutaj i zapomniany w slowniku przeszedlby CI.
 //
+// OTWARCIE ZAPISOW JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), tak jak
+// termin na „Informacjach ogolnych". Pole czytalo chwile w strefie
+// PRZEGLADARKI: „zapisy od 9:00" wpisane w Londynie dla kongresu w Warszawie
+// otwieraly je o 10:00 czasu kongresu. `rsvpOpensAt` niesie napis
+// `YYYY-MM-DDTHH:mm` w strefie `timeZone` (z wiersza, zwalidowanej), a chwile
+// liczy `lib/events/eventLocalInput.ts`; `savedTimes` oddaje nietkniete pole
+// co do milisekundy. Strefa i chwila z bazy jada w szkicu jako KONTEKST
+// odczytu pola, nie jako pola zapisu: ten ekran strefy nie edytuje, a ladunek
+// wypisuje swoje klucze jawnie, wiec `timezone` z tego ekranu do bazy nie
+// trafi (ta sama zasada, co z formatem nizej).
+//
 // GRANICA WARSTW: zero Reacta, zero i18next, zero klienta bazy.
+import {
+  canonicalInstant,
+  eventLocalInput,
+  eventLocalInputToIso,
+  type SavedInstants,
+} from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 import {
   EVENT_REGISTRATION_FLOWS,
   EVENT_REGISTRATION_MODES,
@@ -106,7 +124,10 @@ export interface RegistrationSettingsDraft {
   minTierRank: string;
   /** Pusty tekst = brak pierwszenstwa dla wyzszych warstw. */
   earlyRsvpRank: string;
-  /** ISO 8601 albo pusty tekst = zapisy otwarte od publikacji. */
+  /**
+   * `YYYY-MM-DDTHH:mm` w strefie `timeZone` (nie przegladarki) albo pusty
+   * tekst = zapisy otwarte od publikacji.
+   */
   rsvpOpensAt: string;
   chathamHouse: boolean;
   /** Pusty tekst = bez limitu miejsc. Zero jest NIEDOPUSZCZALNE (CHECK `> 0`). */
@@ -116,9 +137,16 @@ export interface RegistrationSettingsDraft {
   ticketCurrency: TicketCurrency;
   joinUrl: string;
   recordingUrl: string;
+  /** Strefa wydarzenia (IANA, zwalidowana) - kontekst odczytu `rsvpOpensAt`, nie pole zapisu. */
+  timeZone: string;
+  /** Chwila z bazy, z ktorej powstalo pole otwarcia zapisow. */
+  savedTimes: SavedInstants<"rsvpOpensAt">;
 }
 
-export type RegistrationSettingsField = keyof RegistrationSettingsDraft;
+export type RegistrationSettingsField = Exclude<
+  keyof RegistrationSettingsDraft,
+  "timeZone" | "savedTimes"
+>;
 
 const HTTPS_PATTERN = /^https:\/\/\S+$/i;
 const INTEGER_PATTERN = /^-?\d+$/;
@@ -195,11 +223,22 @@ function integerOrNull(value: string): number | null {
   return INTEGER_PATTERN.test(trimmed) ? Number(trimmed) : Number.NaN;
 }
 
+/** Pole otwarcia zapisow -> chwila w UTC albo `null` (pole puste albo niepelne). */
+export function registrationOpensInstant(draft: RegistrationSettingsDraft): string | null {
+  return eventLocalInputToIso(
+    draft.rsvpOpensAt,
+    draft.timeZone,
+    draft.savedTimes.rsvpOpensAt ?? null,
+  );
+}
+
 /** Szkic z wiersza RPC. Nieznane pole degraduje do pustego, a nie wywraca ekranu. */
 export function registrationSettingsDraftFromRow(
   row: Record<string, unknown>,
 ): RegistrationSettingsDraft {
   const cents = row["ticket_price_cents"];
+  const timeZone = eventTimeZone({ timezone: text(row["timezone"]) });
+  const rsvpOpensAt = canonicalInstant(text(row["rsvp_opens_at"]));
   return {
     registrationMode: asEventRegistrationMode(text(row["registration_mode"])),
     registrationFlow: asEventRegistrationFlow(text(row["registration_flow"])),
@@ -207,7 +246,7 @@ export function registrationSettingsDraftFromRow(
     visibility: asEventVisibility(text(row["visibility"])),
     minTierRank: integerText(row["min_tier_rank"]),
     earlyRsvpRank: integerText(row["early_rsvp_rank"]),
-    rsvpOpensAt: text(row["rsvp_opens_at"]),
+    rsvpOpensAt: eventLocalInput(rsvpOpensAt, timeZone),
     chathamHouse: row["chatham_house"] === true,
     capacity: integerText(row["capacity"]),
     ticketPrice:
@@ -220,6 +259,8 @@ export function registrationSettingsDraftFromRow(
     // slepo.
     joinUrl: text(row["join_url"]),
     recordingUrl: text(row["recording_url"]),
+    timeZone,
+    savedTimes: { rsvpOpensAt },
   };
 }
 
@@ -263,6 +304,15 @@ export function validateRegistrationSettingsDraft(
     errors.push({
       field: "earlyRsvpRank",
       messageKey: "adminEvents.studio.registrationSettings.errors.tierRankInvalid",
+    });
+  }
+
+  // Otwarcie podane, ale bez chwili (napis niepelny) wyslaloby pusty napis,
+  // czyli po cichu OTWORZYLOBY zapisy od publikacji.
+  if (draft.rsvpOpensAt.trim() !== "" && registrationOpensInstant(draft) === null) {
+    errors.push({
+      field: "rsvpOpensAt",
+      messageKey: "adminEvents.studio.registrationSettings.errors.rsvpOpensInvalid",
     });
   }
 
@@ -402,7 +452,8 @@ export function registrationSettingsPayload(
     capacity: draft.capacity.trim(),
     min_tier_rank: draft.minTierRank.trim(),
     early_rsvp_rank: draft.earlyRsvpRank.trim(),
-    rsvp_opens_at: draft.rsvpOpensAt.trim(),
+    // Chwila w UTC liczona w strefie wydarzenia; pusty napis = NULL (od publikacji).
+    rsvp_opens_at: registrationOpensInstant(draft) ?? "",
     // Pusty napis = `NULL` po stronie RPC, czyli „bezplatne". Kwota nieczytelna
     // nie ma tu wystapic - `validateRegistrationSettingsDraft` odcina zapis
     // wczesniej - ale gdyby wystapila, pusty napis jest bezpieczniejszy niz

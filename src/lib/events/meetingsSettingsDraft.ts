@@ -12,6 +12,21 @@
 // i pusta liste grup - i te bledy mapujemy w `meetingsErrors.ts`. Natomiast
 // "koniec dnia przed poczatkiem" baza przyjmie i wygeneruje ZERO slotow,
 // czyli gielda cicho nie zadziala. Takie pulapki lapiemy tutaj, przed zapisem.
+//
+// OKNO ZAPROSZEN JEST ZEGAREM W STREFIE GIELDY (klasa OPS-15, przekazanie z S6).
+// Pola `datetime-local` czytalismy w strefie PRZEGLADARKI - organizator
+// w Londynie, wpisujacy "zaproszenia od 9:00" dla kongresu w Warszawie,
+// otwieral gielde o 10:00 czasu kongresu. Strefa pol to strefa z TEGO
+// formularza (`timezone`, domyslnie strefa wydarzenia) - ta sama, w ktorej
+// dzien gieldy (`dayStartTime`/`dayEndTime`) liczy sie w bazie. Zmiana strefy
+// w formularzu czyta wiec napisy okna w nowej strefie, tak samo jak godziny
+// dnia. Nietkniete pole (w tej samej strefie) wraca do bazy co do milisekundy.
+import {
+  canonicalInstant,
+  eventLocalInput,
+  eventLocalInputToIso,
+  type SavedInstants,
+} from "@/lib/events/eventLocalInput";
 import type {
   MeetingSettings,
   MeetingSettingsInput,
@@ -27,8 +42,11 @@ export interface MeetingSettingsDraft {
   dayStartTime: string;
   dayEndTime: string;
   meetingDays: string[];
+  /** `datetime-local` w strefie `timezone` (strefa gieldy) albo pusty tekst. */
   invitesOpenAt: string;
   invitesCloseAt: string;
+  /** Chwile z bazy, z ktorych powstaly pola okna zaproszen. */
+  savedTimes: SavedInstants<"invitesOpenAt" | "invitesCloseAt">;
   inviteExpiresAfterHours: string;
   maxInvitesPerPerson: string;
   maxMeetingsPerDay: string;
@@ -77,22 +95,15 @@ function trimTime(value: string | null | undefined, fallback: string): string {
   return value.trim().slice(0, 5);
 }
 
-/** ISO z bazy -> wartosc `datetime-local` (bez strefy, bo pole jej nie zna). */
-function toLocalInput(value: string | null): string {
-  if (value === null) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (n: number): string => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-/** Wartosc `datetime-local` -> ISO; pusty napis znaczy "wyczysc" i idzie jako null. */
-function fromLocalInput(value: string): string | null {
-  const trimmed = value.trim();
-  if (trimmed.length === 0) return null;
-  const date = new Date(trimmed);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
+/**
+ * Pole okna zaproszen -> ISO w strefie szkicu; pusty napis znaczy "wyczysc"
+ * i idzie jako null. Pole zgodne z chwila z bazy oddaje te chwile.
+ */
+export function inviteWindowInstant(
+  draft: MeetingSettingsDraft,
+  field: "invitesOpenAt" | "invitesCloseAt",
+): string | null {
+  return eventLocalInputToIso(draft[field], draft.timezone, draft.savedTimes[field] ?? null);
 }
 
 function numberOrNull(value: string): number | null {
@@ -109,16 +120,20 @@ function numberOrNull(value: string): number | null {
  * wtedy wartosci domyslne, wiec formularz pokazuje propozycje, a nie pustke.
  */
 export function draftFromSettings(settings: MeetingSettings): MeetingSettingsDraft {
+  const timezone = settings.timezone || settings.event_timezone || "Europe/Warsaw";
+  const invitesOpenAt = canonicalInstant(settings.invites_open_at);
+  const invitesCloseAt = canonicalInstant(settings.invites_close_at);
   return {
     isEnabled: settings.is_enabled,
-    timezone: settings.timezone || settings.event_timezone || "Europe/Warsaw",
+    timezone,
     slotMinutes: String(settings.slot_minutes),
     breakMinutes: String(settings.break_minutes),
     dayStartTime: trimTime(settings.day_start_time, "09:00"),
     dayEndTime: trimTime(settings.day_end_time, "17:00"),
     meetingDays: [...settings.meeting_days].sort(),
-    invitesOpenAt: toLocalInput(settings.invites_open_at),
-    invitesCloseAt: toLocalInput(settings.invites_close_at),
+    invitesOpenAt: eventLocalInput(invitesOpenAt, timezone),
+    invitesCloseAt: eventLocalInput(invitesCloseAt, timezone),
+    savedTimes: { invitesOpenAt, invitesCloseAt },
     inviteExpiresAfterHours: String(settings.invite_expires_after_hours),
     maxInvitesPerPerson:
       settings.max_invites_per_person === null ? "" : String(settings.max_invites_per_person),
@@ -161,8 +176,8 @@ export function validateSettingsDraft(draft: MeetingSettingsDraft): MeetingSetti
 
   if (draft.isEnabled && draft.meetingDays.length === 0) errors.push("meetingDaysRequired");
 
-  const open = fromLocalInput(draft.invitesOpenAt);
-  const close = fromLocalInput(draft.invitesCloseAt);
+  const open = inviteWindowInstant(draft, "invitesOpenAt");
+  const close = inviteWindowInstant(draft, "invitesCloseAt");
   if (open !== null && close !== null && new Date(close) <= new Date(open)) {
     errors.push("windowOrder");
   }
@@ -214,8 +229,8 @@ export function settingsInputFromDraft(
     dayStartTime: draft.dayStartTime,
     dayEndTime: draft.dayEndTime,
     meetingDays: [...draft.meetingDays].sort(),
-    invitesOpenAt: fromLocalInput(draft.invitesOpenAt),
-    invitesCloseAt: fromLocalInput(draft.invitesCloseAt),
+    invitesOpenAt: inviteWindowInstant(draft, "invitesOpenAt"),
+    invitesCloseAt: inviteWindowInstant(draft, "invitesCloseAt"),
     inviteExpiresAfterHours: numberOrNull(draft.inviteExpiresAfterHours) ?? 72,
     maxInvitesPerPerson: numberOrNull(draft.maxInvitesPerPerson),
     maxMeetingsPerDay: numberOrNull(draft.maxMeetingsPerDay),

@@ -33,8 +33,13 @@ import {
   fetchEventCodes,
   type EventCodeRow,
 } from "@/lib/events/eventCodesApi";
+import { eventLocalInput } from "@/lib/events/eventLocalInput";
 
-const base = () => ({ ...emptyEventCodeDraft("PLN"), code: "vip10", amount: "10" });
+const base = () => ({
+  ...emptyEventCodeDraft("PLN", "Europe/Warsaw"),
+  code: "vip10",
+  amount: "10",
+});
 
 // `eventCodeStatus` czyta domyślnie prawdziwy zegar, więc plik zamraża
 // „teraz", a daty ważności kodu liczy względem niego.
@@ -59,11 +64,13 @@ describe("eventCodeDraftIssue", () => {
   });
   it("validates quantity, dates and tickets", () => {
     expect(eventCodeDraftIssue({ ...base(), quantity: "0" })).toBe("quantity");
+    // Pola to zegar `datetime-local` w strefie wydarzenia (F12/F15) - nie ISO.
+    const field = (offset: number) => eventLocalInput(relativeIso(offset), "Europe/Warsaw");
     expect(
       eventCodeDraftIssue({
         ...base(),
-        validFrom: relativeIso(10 * DZIEN),
-        validUntil: relativeIso(9 * DZIEN),
+        validFrom: field(10 * DZIEN),
+        validUntil: field(9 * DZIEN),
       }),
     ).toBe("dates");
     expect(eventCodeDraftIssue({ ...base(), ticketScope: "specific" })).toBe("tickets");
@@ -122,20 +129,25 @@ describe("status, url, round trip", () => {
     );
   });
   it("row to draft keeps scope", () => {
-    const d = eventCodeRowToDraft(row);
+    const d = eventCodeRowToDraft(row, "Europe/Warsaw");
     expect(d.ticketScope).toBe("specific");
     expect(d.amount).toBe("10");
   });
 });
 
-// TIX-10. Pole `datetime-local` mówi czasem przeglądarki, baza - UTC. Szkic
-// brał dotąd pierwsze 16 znaków napisu UTC, a zapis czytał je jako czas
-// lokalny: w Warszawie latem każda edycja cofała okno ważności o 2 godziny.
+// TIX-10. Pole `datetime-local` mówi zegarem, baza - UTC. Szkic brał dotąd
+// pierwsze 16 znaków napisu UTC, a zapis czytał je jako czas lokalny:
+// w Warszawie latem każda edycja cofała okno ważności o 2 godziny.
+//
+// Po OPS-15 (F12/F15) zegarem pola jest STREFA WYDARZENIA, nie przeglądarki,
+// więc te same przypadki biegną dla wydarzenia w Warszawie oglądanego
+// z przeglądarki w Nowym Jorku - wynik nie może zależeć od laptopa organizatora.
 describe("okno ważności kodu w strefie Europe/Warsaw (TIX-10)", () => {
+  const STREFA = "Europe/Warsaw";
   let previousTz: string | undefined;
   beforeAll(() => {
     previousTz = process.env.TZ;
-    process.env.TZ = "Europe/Warsaw";
+    process.env.TZ = "America/New_York";
   });
   afterAll(() => {
     if (previousTz === undefined) delete process.env.TZ;
@@ -165,6 +177,7 @@ describe("okno ważności kodu w strefie Europe/Warsaw (TIX-10)", () => {
   it("pole pokazuje czas warszawski: latem UTC+2, zimą UTC+1", () => {
     const draft = eventCodeRowToDraft(
       withWindow("2099-06-15T12:00:00.000Z", "2099-01-16T12:00:00.000Z"),
+      STREFA,
     );
     expect(draft.validFrom).toBe("2099-06-15T14:00");
     expect(draft.validUntil).toBe("2099-01-16T13:00");
@@ -172,7 +185,7 @@ describe("okno ważności kodu w strefie Europe/Warsaw (TIX-10)", () => {
 
   it("zapis bez zmian oddaje bazie dokładnie tę samą chwilę", () => {
     const row = withWindow("2099-06-15T12:00:00.000Z", "2099-06-30T21:59:00.000Z");
-    const payload = eventCodeDraftToPayload("ev1", eventCodeRowToDraft(row));
+    const payload = eventCodeDraftToPayload("ev1", eventCodeRowToDraft(row, STREFA));
     expect(payload.valid_from).toBe("2099-06-15T12:00:00.000Z");
     expect(payload.valid_until).toBe("2099-06-30T21:59:00.000Z");
   });
@@ -180,7 +193,7 @@ describe("okno ważności kodu w strefie Europe/Warsaw (TIX-10)", () => {
   it("kolejne edycje nie przesuwają okna (brak dryfu)", () => {
     let row = withWindow("2099-03-29T00:30:00.000Z", "2099-10-25T00:30:00.000Z");
     for (let edit = 0; edit < 3; edit += 1) {
-      const payload = eventCodeDraftToPayload("ev1", eventCodeRowToDraft(row));
+      const payload = eventCodeDraftToPayload("ev1", eventCodeRowToDraft(row, STREFA));
       row = { ...row, validFrom: payload.valid_from, validUntil: payload.valid_until };
     }
     expect(row.validFrom).toBe("2099-03-29T00:30:00.000Z");
@@ -207,11 +220,11 @@ describe("okno ważności kodu w strefie Europe/Warsaw (TIX-10)", () => {
 // TIX-13a. Kod niesie regułę kumulacji z innymi promocjami biletu.
 describe("reguła kumulacji kodu (TIX-13a)", () => {
   it("nowy kod: łączy się, bez limitu; baza bez kolumn - bez reguły", () => {
-    expect(emptyEventCodeDraft("PLN").stacking).toEqual({
+    expect(emptyEventCodeDraft("PLN", "Europe/Warsaw").stacking).toEqual({
       stacksWithPromotions: true,
       maxTotalDiscountPercent: "",
     });
-    expect(emptyEventCodeDraft("PLN", false).stacking).toBeNull();
+    expect(emptyEventCodeDraft("PLN", "Europe/Warsaw", false).stacking).toBeNull();
   });
 
   it("limit łącznego rabatu: puste albo liczba całkowita 1-100", () => {
@@ -244,25 +257,28 @@ describe("reguła kumulacji kodu (TIX-13a)", () => {
   });
 
   it("wiersz -> szkic przenosi regułę", () => {
-    const draft = eventCodeRowToDraft({
-      id: "c1",
-      code: "PRASA",
-      name: null,
-      description: null,
-      active: true,
-      appliesDiscount: true,
-      revealsHidden: false,
-      discountKind: "percent",
-      discountPercent: 100,
-      discountCents: null,
-      currency: null,
-      maxRedemptions: null,
-      redemptionsCount: 0,
-      validFrom: null,
-      validUntil: null,
-      ticketTypeIds: [],
-      stacking: { stacksWithPromotions: false, maxTotalDiscountPercent: 60 },
-    });
+    const draft = eventCodeRowToDraft(
+      {
+        id: "c1",
+        code: "PRASA",
+        name: null,
+        description: null,
+        active: true,
+        appliesDiscount: true,
+        revealsHidden: false,
+        discountKind: "percent",
+        discountPercent: 100,
+        discountCents: null,
+        currency: null,
+        maxRedemptions: null,
+        redemptionsCount: 0,
+        validFrom: null,
+        validUntil: null,
+        ticketTypeIds: [],
+        stacking: { stacksWithPromotions: false, maxTotalDiscountPercent: 60 },
+      },
+      "Europe/Warsaw",
+    );
     expect(draft.stacking).toEqual({ stacksWithPromotions: false, maxTotalDiscountPercent: "60" });
   });
 });

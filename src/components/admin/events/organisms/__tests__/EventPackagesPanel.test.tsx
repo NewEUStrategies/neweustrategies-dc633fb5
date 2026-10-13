@@ -498,7 +498,7 @@ function bilet(overrides: Partial<Bilet> = {}): Bilet {
 let widok: RenderResult | null = null;
 
 function panel(): RenderResult {
-  widok = render(<EventPackagesPanel eventId={WYDARZENIE} />);
+  widok = render(<EventPackagesPanel eventId={WYDARZENIE} timezone="Europe/Warsaw" />);
   return widok;
 }
 
@@ -881,6 +881,20 @@ describe("przelacznik „aktywny” wysyla CALY wiersz", () => {
       Date.parse("2026-09-10T08:30:00.000Z"),
     );
     expect(Date.parse(String(ostatniZapis().salesTo))).toBe(Date.parse("2026-09-30T20:00:00.000Z"));
+  });
+
+  it("OKNO SPRZEDAZY z sekundami przezywa przelaczenie CO DO MILISEKUNDY", () => {
+    // Szkic pamieta chwile z bazy (pola sa zegarem w strefie wydarzenia bez
+    // sekund) - przelacznik aktywnosci nie moze przycinac konca sprzedazy
+    // 23:59:59 do 23:59:00 ani przesuwac go o strefe.
+    h.pakiety = [
+      pakiet({ sales_from: "2026-09-10T06:30:30.000Z", sales_to: "2026-09-30T21:59:59.999Z" }),
+    ];
+    panel();
+    fireEvent.click(przelacznik());
+
+    expect(ostatniZapis().salesFrom).toBe("2026-09-10T06:30:30.000Z");
+    expect(ostatniZapis().salesTo).toBe("2026-09-30T21:59:59.999Z");
   });
 
   it("przelacznik dotyka DOKLADNIE swojego wiersza", () => {
@@ -1473,7 +1487,7 @@ describe("defekty zarejestrowane", () => {
 
     // Odswiezenie listy po skasowaniu: pakietu INNY_PAKIET juz nie ma.
     h.pakiety = [pakiet()];
-    rerender(<EventPackagesPanel eventId={WYDARZENIE} />);
+    rerender(<EventPackagesPanel eventId={WYDARZENIE} timezone="Europe/Warsaw" />);
 
     // Dwie strony tej samej prawdy, obie dzis nieprawdziwe: zapytanie ma
     // znowu objac cale wydarzenie, a kontrolka ma to pokazywac wpisem

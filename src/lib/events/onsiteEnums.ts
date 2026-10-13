@@ -17,7 +17,9 @@
 // wartości przepisany z migracji, a nie z pamięci.
 //
 // Źródła (najnowsze definicje):
-//   * `event_checkins_result_values`  -> 20260824101235_a8f6e612-…sql
+//   * `event_checkins_result_values`  -> 20261013111000_event_scanner_review_fixes.sql
+//   * `event_checkins_offline_outcome_values` -> 20261013110500_event_scanner_ops_hardening.sql
+//   * `event_checkpoints_reentry_policy_values` -> 20261013110500_event_scanner_ops_hardening.sql
 //   * `event_checkpoints_direction_mode` -> 20260824100844_29c02b4d-…sql
 //   * `event_badge_prints_reason_values` -> 20260824101451_98a0f340-…sql
 //   * zakresy poświadczenia urządzenia -> `_event_scanner_device_auth`
@@ -42,6 +44,19 @@ export type CheckpointDirectionMode = (typeof CHECKPOINT_DIRECTION_MODES)[number
 export const CHECKPOINT_ACCESS_MODES = ["control", "track"] as const;
 export type CheckpointAccessMode = (typeof CHECKPOINT_ACCESS_MODES)[number];
 
+/**
+ * Polityka ponownego wejścia punktu (OPS-08). `deny` - tylko w trybie
+ * `control` (CHECK `event_checkpoints_reentry_needs_control`) - odmawia
+ * wejścia osobie, która jest „w środku" TEGO punktu: jej ostatni skan zgody
+ * w tym punkcie, z tego samego dnia czasu wydarzenia (północ w strefie
+ * wydarzenia) i nie późniejszy niż oceniany, był wejściem. Wyjście w tym
+ * punkcie i północ zerują stan (bramka tylko-wejście: jedno wejście dziennie);
+ * punkty są od siebie niezależne. Ręczna odprawa na stanowisku omija odmowę
+ * jawnie (`reentry_override`). 20261013111000.
+ */
+export const CHECKPOINT_REENTRY_POLICIES = ["allow", "deny"] as const;
+export type CheckpointReentryPolicy = (typeof CHECKPOINT_REENTRY_POLICIES)[number];
+
 /** Zakresy poświadczenia urządzenia skanującego. */
 export const SCANNER_SCOPES = ["checkin", "lead", "badge_print"] as const;
 export type ScannerScope = (typeof SCANNER_SCOPES)[number];
@@ -49,7 +64,13 @@ export type ScannerScope = (typeof SCANNER_SCOPES)[number];
 export const CHECKIN_DIRECTIONS = ["in", "out"] as const;
 export type CheckinDirection = (typeof CHECKIN_DIRECTIONS)[number];
 
-/** Wyniki odprawy - dokładnie sześć wartości z ograniczenia CHECK. */
+/**
+ * Wyniki odprawy - dokładnie osiem wartości z ograniczenia CHECK.
+ * `denied_already_inside`: polityka `deny` punktu, osoba już w środku.
+ * `denied_code_superseded`: bramka bez sieci wpuściła kod, który w chwili
+ * skanu był już zastąpiony (przedruk, unieważnienie) - prawdziwa odmowa
+ * serwera, w dzienniku konflikt `admitted_offline`.
+ */
 export const CHECKIN_RESULTS = [
   "granted",
   "denied_not_registered",
@@ -57,13 +78,17 @@ export const CHECKIN_RESULTS = [
   "denied_direction",
   "denied_capacity",
   "denied_checkpoint_inactive",
+  "denied_already_inside",
+  "denied_code_superseded",
 ] as const;
 export type CheckinResult = (typeof CHECKIN_RESULTS)[number];
 
 /**
  * Wynik decyzji skanera BEZ SIECI (z listy offline) - lustro
- * `event_checkins_offline_outcome_values` z 20260926150000. Brak
- * `denied_capacity`: limit obecności offline jest przybliżony i nie odmawia.
+ * `event_checkins_offline_outcome_values`. Brak `denied_capacity`: limit
+ * obecności offline jest przybliżony i nie odmawia. `denied_already_inside`
+ * (20261013110500): bramka bez sieci przy polityce `deny` odesłała osobę,
+ * która według jej własnego dziennika jest w środku.
  */
 export const OFFLINE_OUTCOMES = [
   "granted",
@@ -71,6 +96,7 @@ export const OFFLINE_OUTCOMES = [
   "denied_registration_status",
   "unknown_code",
   "repeat",
+  "denied_already_inside",
 ] as const;
 export type OfflineOutcome = (typeof OFFLINE_OUTCOMES)[number];
 

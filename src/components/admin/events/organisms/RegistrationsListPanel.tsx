@@ -27,7 +27,15 @@ import { useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { BellRing, ChevronLeft, ChevronRight, Download, MailPlus, Search } from "lucide-react";
+import {
+  BellRing,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  MailPlus,
+  Search,
+  ShieldOff,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -58,6 +66,7 @@ import {
   canResendTicket,
   groupLeadName,
   hasMissingRequiredTerms,
+  hasPartnerConsent,
   isAwaitingWaitlistNotice,
   registrationGroupLabel,
   registrationOffsetForPage,
@@ -88,6 +97,7 @@ import {
   useRegistrationGroupLinks,
   useRegistrationsList,
   useResendEventTicket,
+  useWithdrawPartnerConsent,
 } from "@/lib/events/useEventRegistrations";
 
 ensureSeatingI18n();
@@ -193,6 +203,7 @@ export function RegistrationsListPanel({
   const promote = usePromoteFromWaitlist(eventId);
   const markNotified = useMarkRegistrationsNotified(eventId);
   const resend = useResendEventTicket(eventId);
+  const partnerWithdraw = useWithdrawPartnerConsent(eventId);
   // Wysylka maila zyje na serwerze (kolejka, idempotencja, lista wykluczen);
   // panel jest tylko wyzwalaczem i pokazuje wynik.
   const notifyDecision = useServerFn(notifyEventRegistrationDecision);
@@ -369,6 +380,22 @@ export function RegistrationsListPanel({
         onError: fail,
       },
     );
+  };
+
+  /**
+   * Wycofanie zgody partnerskiej na prosbe uczestnika zlozona innym kanalem
+   * (mail, telefon). Baza stempluje wycofanie na wszystkich zgloszeniach tej
+   * osoby na to wydarzenie i zapisuje, kto je wpisal; uczestnik ma te sama
+   * akcje na stronie samoobslugi.
+   */
+  const runPartnerWithdraw = (row: EventRegistrationRow) => {
+    partnerWithdraw.mutate(row.id, {
+      onSuccess: (withdrawn) =>
+        withdrawn
+          ? toast.success(t(`${base}.consents.partnerWithdrawn`))
+          : toast.info(t(`${base}.consents.partnerNothingToWithdraw`)),
+      onError: fail,
+    });
   };
 
   /**
@@ -679,6 +706,9 @@ export function RegistrationsListPanel({
                     {areConsentsWithdrawn(row) ? (
                       <Badge variant="destructive">{t(`${base}.consents.withdrawn`)}</Badge>
                     ) : null}
+                    {hasPartnerConsent(row) ? (
+                      <Badge variant="outline">{t(`${base}.consents.partnerSharing`)}</Badge>
+                    ) : null}
                   </div>
                 </div>
 
@@ -723,6 +753,17 @@ export function RegistrationsListPanel({
                       onClick={() => runResend(row, true)}
                     >
                       {t("adminEventRegistration.actions.resendGroupTickets")}
+                    </Button>
+                  ) : null}
+                  {hasPartnerConsent(row) ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={partnerWithdraw.isPending}
+                      onClick={() => runPartnerWithdraw(row)}
+                    >
+                      <ShieldOff className="mr-2 h-4 w-4" aria-hidden="true" />
+                      {t("adminEventRegistration.actions.withdrawPartnerConsent")}
                     </Button>
                   ) : null}
                 </div>

@@ -13,8 +13,43 @@
 // HASHTAG TRZYMAMY BEZ KRZYZYKA. Znak `#` jest prezentacja: w polu widac go jako
 // prefiks, w bazie go nie ma, a w stopce e-maila dokleja go szablon.
 //
+// TERMIN JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15). Kreator
+// (`EventCreateForm`) zapisuje godzine wpisana w strefie z droplisty, a ten
+// ekran czytal te sama chwile w strefie PRZEGLADARKI: organizator z Londynu
+// widzial kongres warszawski godzine wczesniej niz w kreatorze, a kazda edycja
+// godziny liczyla sie w jego strefie. Pola `startsAt`/`endsAt` niosa dzis napis
+// `YYYY-MM-DDTHH:mm` w strefie `timezone`, a chwile liczy wspolny
+// `lib/events/eventLocalInput.ts` (regula Postgresa dla luki i zakladki).
+// `savedTimes` pamieta chwile, z ktorych powstaly pola: nietkniety termin
+// wraca do bazy co do milisekundy (sekundy i pierwsze wystapienie jesiennej
+// godziny nie gina przy zapisie samego tytulu).
+//
+// ZMIANA STREFY ZOSTAWIA CHWILE, NIE GODZINE (`eventGeneralWithTimeZone`).
+// To swiadomie INNA regula niz w kreatorze i w klonie, i wynika z tego, co
+// dzieje sie z reszta wydarzenia. Przy zapisie tego ekranu baza nie przesuwa
+// NICZEGO poza wierszem `events` (`admin_event_general_save` zmienia kolumne
+// `timezone` i tyle): sesje, okna sprzedazy biletow, kody, okno zapisow,
+// nabor i reklamy zostaja w swoich chwilach. Gdyby pola zachowaly godzine
+// („09:00" przeczytane na nowo w nowej strefie), sam poczatek i koniec
+// wydarzenia odjechalyby od jego programu - sesja otwierajaca wypadlaby przed
+// startem, sprzedaz konczylaby sie po nim, a przypomnienia i pliki kalendarza
+// wyslane uczestnikom wskazywalyby inna chwile niz strona. Zmiana strefy jest
+// wiec PRZEPISANIEM ETYKIETY calej osi czasu wydarzenia: chwile zostaja, pola
+// pokazuja te same chwile w nowej strefie (podpowiedz pod droplista nazywa
+// obie strefy), a przesuniecie terminu wymaga swiadomej zmiany godziny.
+// Kreator nie ma jeszcze zaleznych terminow, a klon przesuwa je w bazie
+// o roznice zegarow lokalnych (`_event_clone_shift`) - tam zachowanie
+// godziny jest spojne, tu byloby rozjazdem.
+//
 // GRANICA WARSTW: zero Reacta, zero i18next, zero klienta bazy.
 import { eventAddressLine, type EventAddressParts } from "@/lib/events/eventAddress";
+import {
+  canonicalInstant,
+  eventLocalInput,
+  eventLocalInputToIso,
+  resolveEventLocalInput,
+  type SavedInstants,
+} from "@/lib/events/eventLocalInput";
 import { normalizeEventLanguages } from "@/lib/events/eventLanguages";
 import { asEventFormat, type EventFormat } from "@/lib/events/eventTypes";
 import {
@@ -74,8 +109,10 @@ export interface EventGeneralDraft {
   subtitlePl: string;
   subtitleEn: string;
   slug: string;
+  /** `YYYY-MM-DDTHH:mm` - zegar w strefie `timezone` (nie przegladarki) albo `""`. */
   startsAt: string;
   endsAt: string;
+  /** Nazwa IANA z wiersza; nieznana `Intl` czyta pola w strefie domyslnej serwisu. */
   timezone: string;
   coverUrl: string;
   videoPlatform: EventVideoPlatform;
@@ -92,9 +129,20 @@ export interface EventGeneralDraft {
   socialHashtag: string;
   languages: readonly string[];
   supportEmail: string;
+  /**
+   * Chwile, z ktorych powstaly pola terminu: z bazy, a po zmianie strefy -
+   * chwile przeliczone na nowa strefe. Pole zgodne z chwila (w strefie szkicu)
+   * oddaje ja bez zmian. To KONTEKST odczytu pol, nie pole zapisu - ladunek go
+   * nie wysyla.
+   */
+  savedTimes: SavedInstants<EventGeneralTimeField>;
 }
 
-export type EventGeneralField = keyof EventGeneralDraft;
+/** Pola terminu - zegar w strefie wydarzenia. */
+export const EVENT_GENERAL_TIME_FIELDS = ["startsAt", "endsAt"] as const;
+export type EventGeneralTimeField = (typeof EVENT_GENERAL_TIME_FIELDS)[number];
+
+export type EventGeneralField = Exclude<keyof EventGeneralDraft, "savedTimes">;
 
 /** Pola adresu - jeden zbior dla „Wyczysc lokalizacje" i dla walidacji. */
 export const EVENT_LOCATION_FIELDS = [
@@ -110,11 +158,55 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/**
+ * Pole terminu -> chwila w UTC (`toISOString()`) albo `null` dla pola pustego
+ * lub niepelnego. Pole zgodne z chwila z `savedTimes` oddaje ja co do
+ * milisekundy.
+ */
+export function eventGeneralInstant(
+  draft: EventGeneralDraft,
+  field: EventGeneralTimeField,
+): string | null {
+  return eventLocalInputToIso(draft[field], draft.timezone, draft.savedTimes[field] ?? null);
+}
+
+/**
+ * Szkic po zmianie strefy wydarzenia: CHWILE ZOSTAJA, pola pokazuja je
+ * w nowej strefie (uzasadnienie w naglowku pliku). Pole puste albo niepelne
+ * zostaje napisem - nie ma chwili, ktora daloby sie przeliczyc. Chwila
+ * przeliczona trafia do `savedTimes`, wiec powrot do poprzedniej strefy
+ * oddaje dokladnie poprzednie pola, a jesienna godzina, ktora w nowej strefie
+ * wypada dwa razy, nie przeskakuje na drugie wystapienie.
+ */
+export function eventGeneralWithTimeZone(
+  draft: EventGeneralDraft,
+  timezone: string,
+): EventGeneralDraft {
+  const next: EventGeneralDraft = { ...draft, timezone, savedTimes: { ...draft.savedTimes } };
+  for (const field of EVENT_GENERAL_TIME_FIELDS) {
+    const resolved = resolveEventLocalInput(
+      draft[field],
+      draft.timezone,
+      draft.savedTimes[field] ?? null,
+    );
+    if (resolved === null) continue;
+    next[field] = eventLocalInput(resolved.iso, timezone);
+    next.savedTimes[field] = resolved.iso;
+  }
+  return next;
+}
+
 /** Szkic z wiersza RPC. Nieznane pole degraduje do pustego, a nie wywraca ekranu. */
 export function eventGeneralDraftFromRow(row: Record<string, unknown>): EventGeneralDraft {
   const languages = Array.isArray(row["languages"])
     ? normalizeEventLanguages(row["languages"].filter((v): v is string => typeof v === "string"))
     : [];
+  const timezone = text(row["timezone"]);
+  // Chwila w postaci kanonicznej: baza oddaje `+00:00`, a porownanie szkicu
+  // z zapisanym idzie po ladunku - dwa zapisy tej samej chwili nie moga
+  // wygladac na zmiane.
+  const startsAt = canonicalInstant(text(row["starts_at"]));
+  const endsAt = canonicalInstant(text(row["ends_at"]));
   return {
     eventTypeId: text(row["event_type_id"]),
     titlePl: text(row["title_pl"]),
@@ -122,9 +214,9 @@ export function eventGeneralDraftFromRow(row: Record<string, unknown>): EventGen
     subtitlePl: text(row["subtitle_pl"]),
     subtitleEn: text(row["subtitle_en"]),
     slug: text(row["slug"]),
-    startsAt: text(row["starts_at"]),
-    endsAt: text(row["ends_at"]),
-    timezone: text(row["timezone"]),
+    startsAt: eventLocalInput(startsAt, timezone),
+    endsAt: eventLocalInput(endsAt, timezone),
+    timezone,
     coverUrl: text(row["cover_url"]),
     videoPlatform: asEventVideoPlatform(text(row["video_header_platform"])),
     videoId: text(row["video_header_id"]),
@@ -140,6 +232,7 @@ export function eventGeneralDraftFromRow(row: Record<string, unknown>): EventGen
     socialHashtag: text(row["social_hashtag"]),
     languages,
     supportEmail: text(row["support_email"]),
+    savedTimes: { startsAt, endsAt },
   };
 }
 
@@ -169,13 +262,18 @@ export function validateEventGeneralDraft(
   if (!SLUG_PATTERN.test(draft.slug.trim())) {
     errors.push({ field: "slug", messageKey: `${VALIDATION}slugInvalid` });
   }
-  if (draft.startsAt.trim() === "") {
+  // Chwile w strefie WYDARZENIA - te same, ktore pojda do bazy. Pole niepelne
+  // nie daje chwili; pusty poczatek i poczatek nieczytelny to ten sam brak.
+  const start = eventGeneralInstant(draft, "startsAt");
+  if (start === null) {
     errors.push({ field: "startsAt", messageKey: `${VALIDATION}startsAtRequired` });
   }
-  if (draft.endsAt.trim() !== "" && draft.startsAt.trim() !== "") {
-    const start = new Date(draft.startsAt).getTime();
-    const end = new Date(draft.endsAt).getTime();
-    if (Number.isFinite(start) && Number.isFinite(end) && end <= start) {
+  // Porownujemy CHWILE, nie napisy: w jesiennej zakladce 02:30 po 02:59 bywa
+  // pozniejsze. Koniec podany, ale nieczytelny, tez jest odrzucany - ladunek
+  // wyslalby wtedy pusty napis, czyli SKASOWALBY koniec po cichu.
+  if (draft.endsAt.trim() !== "") {
+    const end = eventGeneralInstant(draft, "endsAt");
+    if (end === null || (start !== null && Date.parse(end) <= Date.parse(start))) {
       errors.push({ field: "endsAt", messageKey: `${VALIDATION}endsBeforeStart` });
     }
   }
@@ -219,9 +317,10 @@ export function eventGeneralWarnings(draft: EventGeneralDraft): readonly string[
   if (draft.coverUrl.trim() === "") {
     warnings.push("adminEvents.general.warnings.coverMissing");
   }
-  if (draft.endsAt.trim() !== "" && draft.startsAt.trim() !== "") {
-    const days =
-      (new Date(draft.endsAt).getTime() - new Date(draft.startsAt).getTime()) / 86_400_000;
+  const start = eventGeneralInstant(draft, "startsAt");
+  const end = eventGeneralInstant(draft, "endsAt");
+  if (start !== null && end !== null) {
+    const days = (Date.parse(end) - Date.parse(start)) / 86_400_000;
     // Literowka w dacie konca („2027" zamiast „2026") kosztuje przypomnienia
     // wyslane do wszystkich zapisanych. Ostrzezenie, nie blokada - kongres
     // trwajacy miesiac jest dziwny, ale mozliwy.
@@ -268,8 +367,10 @@ export function eventGeneralPayload(
     subtitle_pl: draft.subtitlePl.trim(),
     subtitle_en: draft.subtitleEn.trim(),
     slug: draft.slug.trim().toLowerCase(),
-    starts_at: draft.startsAt.trim(),
-    ends_at: draft.endsAt.trim(),
+    // Chwile w UTC liczone w strefie szkicu; pusty napis = NULL po stronie RPC
+    // (dla konca: „bez konca", poczatek pusty odcina walidacja).
+    starts_at: eventGeneralInstant(draft, "startsAt") ?? "",
+    ends_at: eventGeneralInstant(draft, "endsAt") ?? "",
     timezone: draft.timezone.trim(),
     cover_url: draft.coverUrl.trim(),
     video_header_platform: videoId === "" ? "" : draft.videoPlatform,

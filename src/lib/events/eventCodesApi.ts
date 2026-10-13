@@ -11,12 +11,19 @@
 // osobno (`eventCodeReveal.functions.ts`): idzie przez serwer z limitem prób,
 // a import funkcji serwerowej stąd wciągałby ją do paczki panelu.
 //
-// OKNO WAŻNOŚCI W CZASIE LOKALNYM (TIX-10). Pole `datetime-local` mówi czasem
-// przeglądarki, a baza trzyma chwilę w UTC. Szkic dostawał dotąd pierwsze 16
-// znaków napisu UTC, a zapis czytał je jako czas lokalny - w Polsce latem
-// każda edycja przesuwała `valid_from` i `valid_until` o 2 godziny wstecz.
-// Konwersja idzie teraz przez `toLocalInput` / `fromLocalInput` - tę samą
-// parę, której używa okno biletu.
+// OKNO WAŻNOŚCI JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15, F12/F15).
+// Dotąd szkic wycinał z chwili bazy zegar UTC (`iso.slice(0, 16)`), a zapis
+// czytał go jako czas PRZEGLĄDARKI (`new Date(napis)`). Organizator
+// w Warszawie, który otworzył kod ważny 08:00Z-16:00Z i zapisał go bez zmian,
+// przesuwał okno o 2 h wcześniej - przy każdym kolejnym zapisie o następne
+// 2 h - a baza egzekwuje to okno (`redeem`/`validate`: `now() < valid_from`).
+// Teraz pola idą przez wspólne `eventLocalInput*` (jak bilet i pakiet):
+// zegar w strefie wydarzenia z regułą Postgresa dla nocy zmiany czasu,
+// a pole zgodne z chwilą z bazy oddaje TĘ chwilę co do milisekundy.
+// Wcześniejsza poprawka tej klasy (TIX-10) liczyła okno w strefie
+// PRZEGLĄDARKI; strefa wydarzenia ją zastępuje, bo organizator wpisuje czas
+// miejsca wydarzenia, nie swojego laptopa (dryf przy zapisie bez zmian nie
+// wraca: test „round-trip" w `eventCodesApi.test.ts`).
 //
 // KUMULACJA RABATÓW (TIX-13a, migracja 20261012130000). Kod niesie dwie
 // reguły: `stacks_with_promotions` (czy łączy się z fazą sprzedaży i benefitem
@@ -26,7 +33,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeCouponCode } from "@/lib/billing/coupons";
-import { fromLocalInput, toLocalInput } from "@/lib/events/ticketDraft";
+import {
+  canonicalInstant,
+  eventLocalInput,
+  resolveEventLocalInput,
+  type SavedInstants,
+} from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 
 /** „Baza nie zna jeszcze tej kolumny" - okno wdrożenia kodu przed migracją. */
 const COLUMN_PENDING_CODES: ReadonlySet<string> = new Set(["42703", "PGRST204"]);
@@ -68,10 +81,13 @@ export interface EventCodeList {
   stackingAvailable: boolean;
 }
 
+export type EventCodeTimeField = "validFrom" | "validUntil";
+
 export interface EventCodeDraft {
   code: string;
   name: string;
   description: string;
+  /** `YYYY-MM-DDTHH:mm` w strefie `timeZone` albo pusty tekst. */
   validFrom: string;
   validUntil: string;
   quantity: string;
@@ -82,6 +98,10 @@ export interface EventCodeDraft {
   revealsHidden: boolean;
   ticketScope: "all" | "specific";
   ticketTypeIds: string[];
+  /** Strefa wydarzenia (IANA, zwalidowana), w której pola ważności są zegarem. */
+  timeZone: string;
+  /** Chwile z bazy, z których powstały pola ważności (edycja); pusto dla nowego kodu. */
+  savedTimes: SavedInstants<EventCodeTimeField>;
   /** `null` = baza bez kolumn reguły - pola nie ma w oknie ani w zapisie. */
   stacking: { stacksWithPromotions: boolean; maxTotalDiscountPercent: string } | null;
 }
@@ -91,6 +111,7 @@ const DEFAULT_STACKING_DRAFT = { stacksWithPromotions: true, maxTotalDiscountPer
 
 export const emptyEventCodeDraft = (
   currency: string,
+  timeZone: string | null | undefined,
   stackingAvailable = true,
 ): EventCodeDraft => ({
   code: "",
@@ -106,6 +127,8 @@ export const emptyEventCodeDraft = (
   revealsHidden: false,
   ticketScope: "all",
   ticketTypeIds: [],
+  timeZone: eventTimeZone({ timezone: timeZone }),
+  savedTimes: {},
   stacking: stackingAvailable ? DEFAULT_STACKING_DRAFT : null,
 });
 
@@ -126,6 +149,20 @@ function parseAmount(raw: string): number {
   return Number.isFinite(n) ? n : Number.NaN;
 }
 
+/**
+ * Pole ważności -> chwila w UTC (`toISOString()`), z pamięcią chwili z bazy.
+ * Pusty napis daje `null` ("bez ograniczenia"); napis niepełny też `null`,
+ * ale `eventCodeDraftIssue` zatrzymuje go wcześniej jako `dates`.
+ */
+export function eventCodeDraftInstant(d: EventCodeDraft, field: EventCodeTimeField): string | null {
+  return resolveEventLocalInput(d[field], d.timeZone, d.savedTimes[field] ?? null)?.iso ?? null;
+}
+
+/** Pole wypełnione, ale nie daje chwili (niepełny albo nieistniejący zegar). */
+function unreadableTime(d: EventCodeDraft, field: EventCodeTimeField): boolean {
+  return d[field].trim() !== "" && eventCodeDraftInstant(d, field) === null;
+}
+
 /** Pierwszy błąd szkicu albo `null`. Czysta funkcja - testowana osobno. */
 export function eventCodeDraftIssue(d: EventCodeDraft): EventCodeIssue | null {
   if (normalizeCouponCode(d.code).length === 0) return "code";
@@ -140,9 +177,12 @@ export function eventCodeDraftIssue(d: EventCodeDraft): EventCodeIssue | null {
     const q = Number(d.quantity);
     if (!Number.isInteger(q) || q < 1) return "quantity";
   }
-  const from = fromLocalInput(d.validFrom);
-  const until = fromLocalInput(d.validUntil);
-  if (from !== null && until !== null && new Date(from) >= new Date(until)) return "dates";
+  // Porównanie CHWIL w strefie wydarzenia, nie napisów: w jesiennej zakładce
+  // "02:30" po "02:59" bywa późniejszą chwilą mimo mniejszego napisu.
+  if (unreadableTime(d, "validFrom") || unreadableTime(d, "validUntil")) return "dates";
+  const from = eventCodeDraftInstant(d, "validFrom");
+  const until = eventCodeDraftInstant(d, "validUntil");
+  if (from !== null && until !== null && Date.parse(from) >= Date.parse(until)) return "dates";
   if (d.ticketScope === "specific" && d.ticketTypeIds.length === 0) return "tickets";
   if (d.stacking !== null && parseMaxTotal(d.stacking.maxTotalDiscountPercent) === "invalid")
     return "maxTotal";
@@ -175,21 +215,27 @@ export function eventCodeDraftToPayload(eventId: string, d: EventCodeDraft) {
     discount_cents: fixed ? Math.round(a * 100) : null,
     currency: fixed ? d.currency.toUpperCase() : null,
     max_redemptions: d.quantity.trim() ? Number(d.quantity) : null,
-    valid_from: fromLocalInput(d.validFrom),
-    valid_until: fromLocalInput(d.validUntil),
+    valid_from: eventCodeDraftInstant(d, "validFrom"),
+    valid_until: eventCodeDraftInstant(d, "validUntil"),
     event_ids: [eventId],
     ticket_type_ids: d.ticketScope === "specific" ? d.ticketTypeIds : [],
     ...stacking,
   };
 }
 
-export function eventCodeRowToDraft(r: EventCodeRow): EventCodeDraft {
+export function eventCodeRowToDraft(
+  r: EventCodeRow,
+  timeZone: string | null | undefined,
+): EventCodeDraft {
+  const zone = eventTimeZone({ timezone: timeZone });
+  const validFrom = canonicalInstant(r.validFrom);
+  const validUntil = canonicalInstant(r.validUntil);
   return {
     code: r.code,
     name: r.name ?? "",
     description: r.description ?? "",
-    validFrom: toLocalInput(r.validFrom),
-    validUntil: toLocalInput(r.validUntil),
+    validFrom: eventLocalInput(validFrom, zone),
+    validUntil: eventLocalInput(validUntil, zone),
     quantity: r.maxRedemptions === null ? "" : String(r.maxRedemptions),
     appliesDiscount: r.appliesDiscount,
     discountKind: r.discountKind,
@@ -203,6 +249,8 @@ export function eventCodeRowToDraft(r: EventCodeRow): EventCodeDraft {
     revealsHidden: r.revealsHidden,
     ticketScope: r.ticketTypeIds.length > 0 ? "specific" : "all",
     ticketTypeIds: r.ticketTypeIds,
+    timeZone: zone,
+    savedTimes: { validFrom, validUntil },
     stacking:
       r.stacking === null
         ? null
