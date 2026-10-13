@@ -32,7 +32,27 @@
 //
 // Zmiany „od nowego okresu" (niższy plan, mniej miejsc) idą przez harmonogram
 // subskrypcji: bieżąca faza do końca opłaconego okresu, następna z nową
-// ceną/ilością. Opłacony okres należy się klientowi w całości.
+// ceną/ilością. Opłacony okres należy się klientowi w całości. Przepisanie
+// faz przenosi z subskrypcji rabaty, stawki podatku i trial w toku - operator
+// ZDEJMUJE każde pole fazy, którego nie podamy, więc „gołe" fazy kasowały
+// kupon z checkoutu (odnowienie po pełnej cenie) i kończyły trial od razu.
+//
+// ZAPLANOWANA ZMIANA A ZMIANA NATYCHMIASTOWA. Upgrade / dołożenie miejsc przy
+// dołączonym harmonogramie (zaplanowany downgrade, zmniejszenie miejsc)
+// zwalnia harmonogram DOPIERO po udanej dopłacie. Dawniej zwolnienie szło
+// przed aktualizacją: odrzucona karta kończyła się „zmiana nie weszła", ale
+// zaplanowanej zmiany już nie było i odnowienie szło po starej, wyższej cenie
+// albo liczbie miejsc - nadpłata, na którą klient się nie zgodził. Operator
+// przyjmuje aktualizację pozycji subskrypcji zarządzanej harmonogramem (także
+// oczekującą), a obie mutacje niosą wtedy NOWE pozycje: zdarzenie zwolnienia
+// z tej samej sekundy nie cofnie już w lustrze opłaconej zmiany do starej
+// ceny. Z tego samego powodu cofnięcie zaplanowanej rezygnacji przy upgradzie
+// jedzie W TEJ SAMEJ oczekującej aktualizacji (operator przyjmuje w niej
+// `cancel_at_period_end`) - jedno zdarzenie zamiast dwóch konkurujących.
+//
+// ZAPLANOWANY KONIEC to `cancel_at_period_end` ALBO data `cancel_at` (panel
+// operatora, portal klienta) - ta sama reguła co w lustrze
+// (`stripeEvents.mapScheduledChange`). Wznowienie i zmiana planu zdejmują oba.
 //
 // IDEMPOTENCJA. Każda mutacja ma deterministyczny `idempotencyKey` z odcisku
 // ŻYWEGO stanu (pozycja, cena, ilość, początek okresu, ostatnia faktura,
@@ -46,6 +66,15 @@
 // `metadata.nes_ops_rev` (subskrypcji albo harmonogramu) w TYM SAMYM
 // wywołaniu, a licznik wchodzi do odcisku - każda prawomocna nowa operacja ma
 // nowy klucz, a powtórzenie tej samej - stary.
+//
+// Wyjątek bez licznika: zakładanie harmonogramu (`from_subscription` nie
+// przyjmuje innych parametrów), a jego zwolnienie nie zmienia subskrypcji.
+// Cykl zmniejsz -> cofnij -> zmniejsz w ciągu doby wracał więc do
+// identycznego odcisku, `create` oddawał z pamięci harmonogram JUŻ zwolniony,
+// a aktualizacja faz - zapamiętane 200: wynik „zaplanowano", a odnowienie po
+// starej liczbie miejsc. Dlatego założony harmonogram potwierdzamy odczytem
+// (bez mutacji i bez zdarzenia), a nieżywy zakładamy ponownie kluczem
+// z jego identyfikatorem.
 import type Stripe from "stripe";
 import { BILLING_CATALOG, catalogEntryByPriceId } from "@/lib/billing/catalog";
 import { catalogSwitchRefusal } from "@/lib/billing/planSwitch";
@@ -74,6 +103,12 @@ export type SubscriptionOpResult<T extends object = {}> =
 export const PAYMENT_FAILED = "payment_failed";
 /** Dopłata czeka na potwierdzenie klienta (3DS/SCA) - zmiana NIE weszła. */
 export const PAYMENT_REQUIRES_ACTION = "payment_requires_action";
+/**
+ * Pobór wstrzymał operator (panel Stripe), a bieżący okres nie jest opłacony -
+ * samoobsługowe wznowienie oddałoby dostęp za darmo. Patrz
+ * `resumeProviderSubscription`.
+ */
+export const PAUSED_BY_OPERATOR = "subscription_paused_by_operator";
 
 /**
  * Kiedy zmiana obowiązuje: `applied` = pozycje subskrypcji niosą już nową
@@ -153,9 +188,48 @@ function attachedSchedule(sub: Stripe.Subscription): Stripe.SubscriptionSchedule
 /**
  * Żywy stan przed mutacją. Harmonogram rozwijamy, bo jego licznik operacji
  * i bieżąca faza wchodzą do klucza idempotencji i do aktualizacji faz.
+ * `extraExpand` dokłada pola potrzebne jednej operacji (wznowienie czyta
+ * status ostatniej faktury).
  */
-function retrieveLive(stripe: Stripe, subscriptionId: string): Promise<Stripe.Subscription> {
-  return stripe.subscriptions.retrieve(subscriptionId, { expand: ["schedule"] });
+function retrieveLive(
+  stripe: Stripe,
+  subscriptionId: string,
+  extraExpand: readonly string[] = [],
+): Promise<Stripe.Subscription> {
+  return stripe.subscriptions.retrieve(subscriptionId, { expand: ["schedule", ...extraExpand] });
+}
+
+/**
+ * Zaplanowany koniec subskrypcji u operatora. Dwa kształty, jak w lustrze
+ * (`stripeEvents.mapScheduledChange`): flaga `cancel_at_period_end` (nasze
+ * anulowanie) albo data `cancel_at` (panel operatora, portal klienta). Flaga
+ * ma pierwszeństwo: przy niej operator i tak wypełnia `cancel_at` końcem
+ * okresu, a jej zdjęcie zdejmuje oba pola. Operacje patrzyły dawniej
+ * wyłącznie na flagę - wznowienie subskrypcji z samą datą meldowało
+ * „wznowiono", a operator i tak ją kończył (SUB-14).
+ */
+type ScheduledCancellation = { kind: "period_end" } | { kind: "date"; at: number };
+
+function scheduledCancellation(sub: Stripe.Subscription): ScheduledCancellation | null {
+  if (sub.cancel_at_period_end === true) return { kind: "period_end" };
+  if (typeof sub.cancel_at === "number" && sub.cancel_at > 0) {
+    return { kind: "date", at: sub.cancel_at };
+  }
+  return null;
+}
+
+/**
+ * Zdjęcie zaplanowanego końca - TYM polem, którym go ustawiono. Pusty napis
+ * czyści datę (`Emptyable`); obu pól naraz nie wysyłamy, bo operator traktuje
+ * je jako alternatywne sposoby zapisu jednej decyzji.
+ */
+function cancellationRevert(c: ScheduledCancellation): Stripe.SubscriptionUpdateParams {
+  return c.kind === "period_end" ? { cancel_at_period_end: false } : { cancel_at: "" };
+}
+
+/** Przywrócenie zaplanowanego końca po nieudanej operacji - ten sam kształt. */
+function cancellationRestore(c: ScheduledCancellation): Stripe.SubscriptionUpdateParams {
+  return c.kind === "period_end" ? { cancel_at_period_end: true } : { cancel_at: c.at };
 }
 
 /**
@@ -219,6 +293,9 @@ function stateFingerprint(subscriptionId: string, sub: Stripe.Subscription): Key
     refOf(sub.schedule),
     revisionOf(attachedSchedule(sub)?.metadata),
     sub.cancel_at_period_end,
+    // Data końca z panelu/portalu to osobny stan: jej zdjęcie i ponowne
+    // ustawienie nie może trafić w klucz operacji sprzed zmiany.
+    sub.cancel_at ?? null,
     sub.pause_collection?.behavior ?? null,
     revisionOf(sub.metadata),
   ];
@@ -340,11 +417,12 @@ async function failureOf(
 
 /**
  * Zwolnienie dołączonego harmonogramu (zaplanowany downgrade / zmniejszenie
- * miejsc), zanim zmiana natychmiastowa albo anulowanie go zastąpi: operator
- * nie pozwala ustawić `cancel_at_period_end` na subskrypcji zarządzanej
- * harmonogramem, a pozostawiona faza nadpisałaby świeżo opłacony upgrade na
- * koniec okresu. Zwolnienie jest jednorazowe per harmonogram, więc klucz
- * z samego identyfikatora jest deterministyczny i bezpieczny.
+ * miejsc). Anulowanie zwalnia go PRZED ustawieniem flagi (operator nie
+ * pozwala ustawić `cancel_at_period_end` na subskrypcji zarządzanej
+ * harmonogramem), powrót do bieżącej liczby miejsc - zamiast zmiany, a zmiana
+ * natychmiastowa - dopiero PO udanej dopłacie (`releaseSupersededSchedule`).
+ * Zwolnienie jest jednorazowe per harmonogram, więc klucz z samego
+ * identyfikatora jest deterministyczny i bezpieczny.
  */
 async function releaseAttachedSchedule(stripe: Stripe, sub: Stripe.Subscription): Promise<void> {
   const scheduleId = refOf(sub.schedule);
@@ -357,6 +435,152 @@ async function releaseAttachedSchedule(stripe: Stripe, sub: Stripe.Subscription)
 }
 
 /**
+ * Zwolnienie harmonogramu, który opłacona właśnie zmiana natychmiastowa
+ * zastąpiła - jego następna faza cofnęłaby upgrade / dołożone miejsca na
+ * koniec okresu. Zmiana jest już opłacona i naliczana, więc błąd tego kroku
+ * NIE zmienia wyniku: odmowa kazałaby wywołującym nie zapisać planu, za który
+ * klient zapłacił. Logujemy go głośno do ręcznego zwolnienia - tak jak
+ * nieudaną kompensację w `restoreCancellation`.
+ */
+async function releaseSupersededSchedule(
+  stripe: Stripe,
+  subscriptionId: string,
+  current: Stripe.Subscription,
+): Promise<void> {
+  try {
+    await releaseAttachedSchedule(stripe, current);
+  } catch (e) {
+    console.error(
+      "[payments] change applied, superseded schedule release failed - release it manually",
+      subscriptionId,
+      refOf(current.schedule),
+      getStripeErrorMessage(e),
+    );
+  }
+}
+
+/** Statusy, w których harmonogram wciąż steruje subskrypcją. */
+const LIVE_SCHEDULE_STATUSES = new Set(["not_started", "active"]);
+
+/**
+ * Ile razy z rzędu `create` może oddać z pamięci nieżywy harmonogram. Każdy
+ * cykl zmniejsz -> cofnij z tego samego stanu w ciągu doby dokłada jedno
+ * ogniwo łańcucha; granica zamienia patologiczną pętlę w jawny błąd.
+ */
+const MAX_SCHEDULE_CREATE_ATTEMPTS = 10;
+
+/**
+ * Nowy harmonogram z subskrypcji - z potwierdzeniem, że odpowiedź operatora
+ * nie jest zapamiętanym harmonogramem już zwolnionym. Klucz `create` pochodzi
+ * z odcisku subskrypcji, a ani zwolnienie, ani `from_subscription` odcisku nie
+ * zmieniają: zmniejsz -> cofnij -> zmniejsz w ciągu doby trafiał w ten sam
+ * klucz i dostawał z pamięci harmonogram, którego już nie ma, a aktualizacja
+ * faz z identycznymi parametrami - zapamiętane 200 (wynik „zaplanowano",
+ * odnowienie po starej liczbie miejsc; inny cel - błąd przez całą dobę).
+ * Odczyt nie emituje zdarzenia, w przeciwieństwie do podbijania licznika
+ * dodatkową mutacją subskrypcji, i łapie także zwolnienie spoza aplikacji
+ * (panel operatora). Nieżywy harmonogram zakładamy ponownie kluczem z JEGO
+ * identyfikatorem - deterministycznym, więc dwuklik dalej trafia w jeden
+ * harmonogram.
+ *
+ * Zwracamy odpowiedź `create`, nie odczyt: przy prawomocnym powtórzeniu jej
+ * licznik i bieżąca faza dają ten sam klucz aktualizacji faz co pierwsze
+ * wywołanie, więc i aktualizacja przychodzi z pamięci, zamiast iść drugi raz.
+ */
+async function createOwnSchedule(
+  stripe: Stripe,
+  subscriptionId: string,
+  fingerprint: readonly KeyPart[],
+): Promise<Stripe.SubscriptionSchedule> {
+  let stale: string | null = null;
+  for (let attempt = 0; attempt < MAX_SCHEDULE_CREATE_ATTEMPTS; attempt += 1) {
+    const created: Stripe.SubscriptionSchedule = await stripe.subscriptionSchedules.create(
+      { from_subscription: subscriptionId },
+      {
+        idempotencyKey: await idempotencyKey(
+          "schedule-create",
+          stale ? [...fingerprint, stale] : fingerprint,
+        ),
+      },
+    );
+    const live = await stripe.subscriptionSchedules.retrieve(created.id);
+    if (LIVE_SCHEDULE_STATUSES.has(live.status) && refOf(live.subscription) === subscriptionId) {
+      return created;
+    }
+    stale = created.id;
+  }
+  throw new Error("schedule_create_replayed");
+}
+
+type PhaseParams = Stripe.SubscriptionScheduleUpdateParams.Phase;
+type PhaseItemParams = Stripe.SubscriptionScheduleUpdateParams.Phase.Item;
+type PhaseTerms = Pick<PhaseParams, "discounts" | "default_tax_rates" | "automatic_tax">;
+
+/** Identyfikatory z listy pól SDK (napis albo rozwinięty obiekt z `id`). */
+function idsOf(values: readonly unknown[] | null | undefined): string[] {
+  return (values ?? []).map(refOf).filter((id): id is string => id !== null);
+}
+
+/**
+ * Warunki rozliczenia, które przepisanie faz musi przenieść z subskrypcji.
+ * Operator zdejmuje KAŻDE pole fazy, którego aktualizacja nie poda: fazy
+ * z samymi pozycjami kasowały rabat z checkoutu (`allow_promotion_codes`,
+ * kupon B2B) - pominięte `discounts` znaczy „dziedzicz rabat KLIENTA", zwykle
+ * żaden - więc odnowienie szło po pełnej cenie. Rabat przenosimy do OBU faz
+ * jako odwołanie do istniejącego obiektu rabatu (`discount`), nie kuponu:
+ * kupon założyłby nowy rabat i od nowa liczył jego czas trwania, a odwołanie
+ * zachowuje datę końca. Pusta lista = pole pominięte, czyli dokładnie
+ * dotychczasowe zachowanie (rabat klienta, podatek z ustawień harmonogramu).
+ */
+function carriedPhaseTerms(sub: Stripe.Subscription): PhaseTerms {
+  const terms: PhaseTerms = {};
+  const discounts = idsOf(sub.discounts);
+  if (discounts.length > 0) terms.discounts = discounts.map((discount) => ({ discount }));
+  const taxRates = idsOf(sub.default_tax_rates);
+  if (taxRates.length > 0) terms.default_tax_rates = taxRates;
+  const tax = sub.automatic_tax;
+  if (tax?.enabled === true) {
+    const account = refOf(tax.liability?.account);
+    terms.automatic_tax = {
+      enabled: true,
+      ...(tax.liability
+        ? { liability: { type: tax.liability.type, ...(account ? { account } : {}) } }
+        : {}),
+    };
+  }
+  return terms;
+}
+
+/**
+ * Pozycja fazy z warunkami pozycji subskrypcji (stawki podatku, rabat na
+ * pozycji). Rabat pozycji przenosimy wyłącznie na TĘ SAMĄ cenę: na innym
+ * produkcie kupon ograniczony do produktu nie pasuje, a operator odrzuciłby
+ * całą aktualizację faz.
+ */
+function phaseItem(
+  price: string,
+  quantity: number | undefined,
+  source: Stripe.SubscriptionItem | undefined,
+): PhaseItemParams {
+  const item: PhaseItemParams = { price, quantity };
+  const taxRates = idsOf(source?.tax_rates);
+  if (taxRates.length > 0) item.tax_rates = taxRates;
+  const discounts = source && refOf(source.price) === price ? idsOf(source.discounts) : [];
+  if (discounts.length > 0) item.discounts = discounts.map((discount) => ({ discount }));
+  return item;
+}
+
+/**
+ * Trial w toku należy do bieżącej fazy. Faza bez `trial_end` jest dla
+ * operatora fazą PŁATNĄ: przepisanie jej przy zmniejszeniu miejsc albo
+ * downgradzie w trialu kończyło trial od razu i wystawiało fakturę.
+ */
+function trialTerms(sub: Stripe.Subscription, phaseEnd: number): Pick<PhaseParams, "trial_end"> {
+  if (sub.status !== "trialing" || !sub.trial_end) return {};
+  return { trial_end: phaseEnd > 0 ? Math.min(sub.trial_end, phaseEnd) : sub.trial_end };
+}
+
+/**
  * Zmiana od nowego okresu: bieżąca faza bez zmian do końca opłaconego okresu,
  * kolejna z `nextItems`. Dołączony harmonogram AKTUALIZUJEMY (drugi downgrade,
  * kolejne zmniejszenie miejsc) zamiast zakładać nowy - operator odrzuca
@@ -364,6 +588,9 @@ async function releaseAttachedSchedule(stripe: Stripe, sub: Stripe.Subscription)
  * harmonogramu zwróconego przez `create` / dołączonego do TEJ subskrypcji, a
  * nie „ostatniego" z listy po kliencie: równoległy harmonogram innej
  * subskrypcji (druga karta, portal operatora) zostawiłby nasz przypięty.
+ * Warunki rozliczenia (rabat, podatek, trial) czytamy z ŻYWEJ subskrypcji -
+ * to ją operator nalicza teraz, a obie ścieżki (nowy i dołączony
+ * harmonogram) mają ją w ręku bez dodatkowego odczytu.
  *
  * @returns koniec bieżącego okresu (sekundy) - moment wejścia zmiany.
  */
@@ -375,38 +602,43 @@ async function scheduleFromNextPeriod(
 ): Promise<number> {
   const items = sub.items.data;
   const fingerprint = stateFingerprint(subscriptionId, sub);
-  const currentPhase = items.map((i) => ({ price: refOf(i.price) ?? "", quantity: i.quantity }));
   const periodEnd = items[0]?.current_period_end ?? 0;
+  const terms = carriedPhaseTerms(sub);
 
   let schedule = attachedSchedule(sub);
   let scheduleId = refOf(sub.schedule);
   if (!scheduleId) {
-    schedule = await stripe.subscriptionSchedules.create(
-      { from_subscription: subscriptionId },
-      { idempotencyKey: await idempotencyKey("schedule-create", fingerprint) },
-    );
+    schedule = await createOwnSchedule(stripe, subscriptionId, fingerprint);
     scheduleId = schedule.id;
   }
   // Początek bieżącej fazy należy do harmonogramu (operator odrzuca jego
   // zmianę); bez rozwiniętego obiektu bierzemy początek okresu pozycji.
   const phaseStart = schedule?.current_phase?.start_date ?? items[0]?.current_period_start ?? 0;
+  const phases: PhaseParams[] = [
+    {
+      items: items.map((i) => phaseItem(refOf(i.price) ?? "", i.quantity, i)),
+      start_date: phaseStart,
+      end_date: periodEnd,
+      ...terms,
+      ...trialTerms(sub, periodEnd),
+    },
+    {
+      items: nextItems.map((next, index) => phaseItem(next.price, next.quantity, items[index])),
+      ...terms,
+    },
+  ];
 
   await stripe.subscriptionSchedules.update(
     scheduleId,
+    { end_behavior: "release", phases, metadata: nextRevision(schedule?.metadata) },
     {
-      end_behavior: "release",
-      phases: [
-        { items: currentPhase, start_date: phaseStart, end_date: periodEnd },
-        { items: nextItems },
-      ],
-      metadata: nextRevision(schedule?.metadata),
-    },
-    {
+      // Pełne fazy w kluczu: zmiana rabatu albo podatku między próbami to
+      // inna operacja, nie powtórzenie poprzedniej.
       idempotencyKey: await idempotencyKey("schedule-update", [
         scheduleId,
         revisionOf(schedule?.metadata),
         ...fingerprint,
-        ...nextItems.flatMap((i) => [i.price, i.quantity]),
+        JSON.stringify(phases),
       ]),
     },
   );
@@ -414,12 +646,19 @@ async function scheduleFromNextPeriod(
 }
 
 /**
- * Zmiana natychmiastowa z dopłatą proporcjonalną. Parametry ograniczone do
- * tych, które operator przyjmuje w aktualizacji oczekującej (`items`,
- * `proration_behavior`, `payment_behavior`, `expand`) - np. `metadata` czy
- * `cancel_at_period_end` razem z `pending_if_incomplete` operator odrzuca,
- * więc cofnięcie anulowania idzie osobnym wywołaniem DOPIERO po udanej
- * dopłacie (nieudany upgrade nie może po cichu odwołać rezygnacji).
+ * Zmiana natychmiastowa z dopłatą proporcjonalną (`pending_if_incomplete`):
+ * operator podmienia pozycje dopiero po opłaceniu faktury. `alongside` to
+ * pola, które mają wejść RAZEM z opłaconą zmianą - dziś cofnięcie
+ * zaplanowanej rezygnacji. Operator przyjmuje `cancel_at_period_end`
+ * w aktualizacji oczekującej, więc odmowa karty nie odwołuje rezygnacji, a
+ * udana dopłata zdejmuje ją w TYM SAMYM zdarzeniu co nową cenę. Dawniej szło
+ * to drugim wywołaniem, a dwa `customer.subscription.updated` z tej samej
+ * sekundy potrafiły zostawić w lustrze „kończy się" przy odnawiającej się
+ * subskrypcji (przegląd SUB-04). Daty `cancel_at` operator w oczekującej
+ * zmianie nie przyjmuje - tę zdejmuje wywołujący po sukcesie.
+ *
+ * Dołączony harmonogram zwalniamy DOPIERO po zastosowanej zmianie (nagłówek
+ * modułu): odmowa zostawia zaplanowaną wcześniej zmianę nietkniętą.
  */
 async function updateWithProration(
   stripe: Stripe,
@@ -427,13 +666,14 @@ async function updateWithProration(
   current: Stripe.Subscription,
   op: string,
   item: { id: string; price?: string; quantity: number },
+  alongside: Pick<Stripe.SubscriptionUpdateParams, "cancel_at_period_end"> = {},
 ): Promise<Stripe.Subscription | SubscriptionOpFailure> {
   const fingerprint = stateFingerprint(subscriptionId, current);
-  await releaseAttachedSchedule(stripe, current);
   const updated = await stripe.subscriptions.update(
     subscriptionId,
     {
       items: [item],
+      ...alongside,
       proration_behavior: "always_invoice",
       payment_behavior: "pending_if_incomplete",
       expand: ["latest_invoice.payments"],
@@ -444,10 +684,14 @@ async function updateWithProration(
         item.id,
         item.price,
         item.quantity,
+        alongside.cancel_at_period_end,
       ]),
     },
   );
+  // Odmowa / 3DS (zwrócona albo RZUCONA): nic nie weszło, a harmonogram
+  // zostaje - klient zapłaci przy odnowieniu to, na co się wcześniej umówił.
   if (updated.pending_update) return incompletePayment(stripe, updated);
+  await releaseSupersededSchedule(stripe, subscriptionId, current);
   return updated;
 }
 
@@ -456,19 +700,21 @@ function isFailure(value: unknown): value is SubscriptionOpFailure {
 }
 
 /**
- * Kompensacja nieudanego downgrade'u na subskrypcji, która miała zaplanowane
- * anulowanie: flaga wraca, a błąd kompensacji jest logowany głośno (stan
- * u operatora wymaga wtedy ręcznej korekty - wynik operacji i tak jest odmową).
+ * Kompensacja nieudanego downgrade'u na subskrypcji, która miała zaplanowany
+ * koniec: wraca ten sam kształt (flaga albo data), a błąd kompensacji jest
+ * logowany głośno (stan u operatora wymaga wtedy ręcznej korekty - wynik
+ * operacji i tak jest odmową).
  */
 async function restoreCancellation(
   stripe: Stripe,
   subscriptionId: string,
   sub: Stripe.Subscription,
+  cancellation: ScheduledCancellation,
 ): Promise<void> {
   try {
     await stripe.subscriptions.update(
       subscriptionId,
-      { cancel_at_period_end: true, metadata: nextRevision(sub.metadata) },
+      { ...cancellationRestore(cancellation), metadata: nextRevision(sub.metadata) },
       // Własna nazwa operacji: operator pamięta także ODMOWY pod kluczem, więc
       // wspólny klucz z `cancel` zablokowałby późniejszą zwykłą rezygnację
       // z tego samego stanu na dobę.
@@ -486,6 +732,52 @@ async function restoreCancellation(
       getStripeErrorMessage(e),
     );
   }
+}
+
+/**
+ * Zdjęcie daty końca (`cancel_at` z panelu/portalu) po OPŁACONYM upgradzie -
+ * klient zostaje, jak przy fladze. Osobne wywołanie, bo operator nie przyjmuje
+ * `cancel_at` w aktualizacji oczekującej. Błąd NIE cofa upgrade'u.
+ *
+ * @returns czy koniec WCIĄŻ jest zaplanowany - wywołujący lustrzą tę wartość
+ */
+async function clearCancelDateAfterUpgrade(
+  stripe: Stripe,
+  subscriptionId: string,
+  updated: Stripe.Subscription,
+): Promise<boolean> {
+  try {
+    const cleared = await stripe.subscriptions.update(
+      subscriptionId,
+      { cancel_at: "", metadata: nextRevision(updated.metadata) },
+      {
+        idempotencyKey: await idempotencyKey(
+          "cancel-at-clear",
+          stateFingerprint(subscriptionId, updated),
+        ),
+      },
+    );
+    return scheduledCancellation(cleared) !== null;
+  } catch (e) {
+    console.error(
+      "[payments] upgrade applied, cancel date removal failed",
+      subscriptionId,
+      getStripeErrorMessage(e),
+    );
+    return true;
+  }
+}
+
+/**
+ * Czy bieżący okres jest opłacony: ostatnia faktura subskrypcji ma status
+ * `paid`. Pauza poboru, w trakcie której minęło odnowienie, zostawia fakturę
+ * odnowienia `void` / `uncollectible` / `draft` (zależnie od `behavior`);
+ * pauza w środku opłaconego okresu - opłaconą fakturę z jego początku.
+ * Faktura nierozwinięta albo brak faktury = nie wiemy = nieopłacony.
+ */
+function currentPeriodPaid(sub: Stripe.Subscription): boolean {
+  const invoice = sub.latest_invoice;
+  return !!invoice && typeof invoice === "object" && invoice.status === "paid";
 }
 
 // --- operacje ----------------------------------------------------------------
@@ -547,8 +839,10 @@ export async function cancelSubscriptionImmediately(
  * Jak wznowiono: `unpaused` - status `paused` (koniec triala bez metody
  * płatności) wznowiony przez `subscriptions.resume`; `collection_resumed` -
  * zdjęta pauza poboru (`pause_collection`, status operatora zostaje
- * `active`); `cancellation_reverted` - cofnięte zaplanowane anulowanie;
- * `already_active` - u operatora nie było czego wznawiać.
+ * `active`); `cancellation_reverted` - cofnięty zaplanowany koniec (flaga
+ * albo data `cancel_at`); `already_active` - u operatora nie było czego
+ * wznawiać: brak pauzy, brak zaplanowanego końca w KTÓRYMKOLWIEK kształcie,
+ * czyli subskrypcja naprawdę się odnawia (lustro było spóźnione).
  */
 export type ResumeMode =
   "unpaused" | "collection_resumed" | "cancellation_reverted" | "already_active";
@@ -559,6 +853,24 @@ export type ResumeMode =
  * `paused` robiła `pause_collection: null`, co subskrypcji w statusie
  * `paused` nie wznawia (to inny mechanizm), a pauzy poboru ustawionej
  * w panelu operatora w ogóle nie widziała, bo lustro ma wtedy status `active`.
+ *
+ * Zaplanowany koniec to flaga ALBO data `cancel_at` (panel, portal). Lustro
+ * pokazuje obie jako „kończy się" i daje „Wznów", a wznowienie patrzyło tylko
+ * na flagę: przy samej dacie patch był pusty, wynik `already_active`, UI
+ * meldowało „wznowiono", a operator kończył subskrypcję w dniu `cancel_at`.
+ *
+ * PAUZA POBORU - REGUŁA SAMOOBSŁUGI. `pause_collection` ustawia wyłącznie
+ * operator w swoim panelu (aplikacja nie ma już kodu, który by ją zakładał),
+ * więc to decyzja operatora, nie klienta. Klient zdejmuje ją sam TYLKO wtedy,
+ * gdy bieżący okres jest opłacony (`currentPeriodPaid`) - zdjęcie wznawia
+ * wtedy wyłącznie przyszły pobór, a dostęp do końca okresu klientowi i tak
+ * się należy. Gdy w czasie pauzy minęło odnowienie (faktura `void`,
+ * `uncollectible` albo `draft`), samo zdjęcie pauzy oddawało dostęp do końca
+ * okresu, za który nikt nie zapłacił (rok na planie rocznym) i ignorowało
+ * `resumes_at` operatora - wynik to odmowa `PAUSED_BY_OPERATOR`. Celowo NIE
+ * pobieramy tu opłaty sami: przy `keep_as_draft` istnieje szkic faktury za
+ * ten okres, więc własne obciążenie groziłoby podwójnym rachunkiem, a o
+ * losie unieważnionej faktury (dług, prezent, spór) rozstrzyga operator.
  */
 export async function resumeProviderSubscription(
   env: StripeEnv,
@@ -567,7 +879,7 @@ export async function resumeProviderSubscription(
   let stripe: Stripe | null = null;
   try {
     stripe = await getStripeClient(env);
-    const current = await retrieveLive(stripe, subscriptionId);
+    const current = await retrieveLive(stripe, subscriptionId, ["latest_invoice"]);
     const fingerprint = stateFingerprint(subscriptionId, current);
 
     // Subskrypcja zakończona nie ma czego wznawiać - potrzebny nowy zakup.
@@ -594,10 +906,17 @@ export async function resumeProviderSubscription(
     }
 
     const patch: Stripe.SubscriptionUpdateParams = {};
-    // Pusty napis zdejmuje pauzę po stronie operatora (`Emptyable`); pole
-    // `undefined` zostałoby pominięte i pauza trwałaby mimo „ok" u nas.
-    if (current.pause_collection) patch.pause_collection = "";
-    if (current.cancel_at_period_end) patch.cancel_at_period_end = false;
+    if (current.pause_collection) {
+      // Pauza operatora przy nieopłaconym okresie: wznowienie bez płatności
+      // byłoby darmowym dostępem - odmowa całości (także cofnięcia końca),
+      // bo połowiczne „wznowienie" z trwającą pauzą wprowadzałoby w błąd.
+      if (!currentPeriodPaid(current)) return { ok: false, error: PAUSED_BY_OPERATOR };
+      // Pusty napis zdejmuje pauzę po stronie operatora (`Emptyable`); pole
+      // `undefined` zostałoby pominięte i pauza trwałaby mimo „ok" u nas.
+      patch.pause_collection = "";
+    }
+    const cancellation = scheduledCancellation(current);
+    if (cancellation) Object.assign(patch, cancellationRevert(cancellation));
     if (Object.keys(patch).length === 0) return { ok: true, mode: "already_active" };
 
     await stripe.subscriptions.update(
@@ -620,10 +939,11 @@ export interface PlanChangeOutcome {
   /** `applied`: koniec bieżącego okresu po zmianie; `scheduled`: moment wejścia nowej ceny. */
   currentPeriodEnd: string | null;
   /**
-   * Flaga `cancel_at_period_end` u operatora PO operacji. Zmiana planu
-   * zdejmuje zaplanowany koniec (klient zostaje), więc `true` zostaje tylko
-   * wtedy, gdy zdjęcie się nie udało. Wywołujący lustrzą TĘ wartość
-   * w `canceled_at` - stan operatora, nie własne założenie.
+   * Czy u operatora PO operacji wciąż jest zaplanowany koniec (flaga
+   * `cancel_at_period_end` albo data `cancel_at`). Zmiana planu zdejmuje go
+   * (klient zostaje), więc `true` zostaje tylko wtedy, gdy zdjęcie się nie
+   * udało. Wywołujący lustrzą TĘ wartość w `canceled_at` - stan operatora,
+   * nie własne założenie.
    */
   cancelAtPeriodEnd: boolean;
 }
@@ -666,41 +986,29 @@ export async function changeSubscriptionPrice(
 
     // Ilość 0 z odpowiedzi nie może wyzerować subskrypcji - minimum to jedno miejsce.
     const quantity = Math.max(1, item.quantity ?? 1);
-    const wasCanceling = current.cancel_at_period_end === true;
+    const cancellation = scheduledCancellation(current);
 
     if (target.rank > currentEntry.rank) {
-      const updated = await updateWithProration(stripe, subscriptionId, current, "plan-upgrade", {
-        id: item.id,
-        price: providerPriceId,
-        quantity,
-      });
+      // Flagę cofamy W oczekującej aktualizacji: wejdzie razem z opłaconą
+      // ceną (jedno zdarzenie), a odmowa karty zostawi rezygnację w mocy.
+      const updated = await updateWithProration(
+        stripe,
+        subscriptionId,
+        current,
+        "plan-upgrade",
+        { id: item.id, price: providerPriceId, quantity },
+        cancellation?.kind === "period_end" ? { cancel_at_period_end: false } : {},
+      );
       if (isFailure(updated)) return updated;
 
-      let cancelAtPeriodEnd = wasCanceling;
-      if (wasCanceling) {
-        // Dopłata przeszła, więc klient zostaje. Błąd tego kroku NIE cofa
-        // opłaconego upgrade'u - zgłaszamy go, a wywołujący nie czyści
-        // `canceled_at`, dopóki operator naprawdę nie zdjął flagi.
-        try {
-          await stripe.subscriptions.update(
-            subscriptionId,
-            { cancel_at_period_end: false, metadata: nextRevision(updated.metadata) },
-            {
-              idempotencyKey: await idempotencyKey(
-                "cancel-revert",
-                stateFingerprint(subscriptionId, updated),
-              ),
-            },
-          );
-          cancelAtPeriodEnd = false;
-        } catch (e) {
-          console.error(
-            "[payments] upgrade applied, cancellation revert failed",
-            subscriptionId,
-            getStripeErrorMessage(e),
-          );
-        }
-      }
+      // Dopłata przeszła, więc klient zostaje. Data końca nie mieści się
+      // w oczekującej zmianie - schodzi osobno, a jej błąd NIE cofa
+      // opłaconego upgrade'u: wywołujący nie czyści `canceled_at`, dopóki
+      // operator naprawdę nie zdjął końca.
+      const cancelAtPeriodEnd =
+        cancellation?.kind === "date"
+          ? await clearCancelDateAfterUpgrade(stripe, subscriptionId, updated)
+          : scheduledCancellation(updated) !== null;
       return {
         ok: true,
         direction: "upgrade",
@@ -711,17 +1019,17 @@ export async function changeSubscriptionPrice(
     }
 
     // Downgrade: bez proraty, zmiana obowiązuje dopiero od nowego okresu.
-    // Zaplanowane anulowanie zdejmujemy JAWNIE przed harmonogramem (operator
-    // nie łączy `cancel_at_period_end` z harmonogramem, a przejęcie końca
-    // subskrypcji przez fazy byłoby efektem ubocznym zamiast decyzji
-    // widocznej w historii). Gdy harmonogram się nie uda, przywracamy
-    // anulowanie - inaczej klient, który odchodził, zostałby przy wyższej
+    // Zaplanowany koniec (flagę albo datę) zdejmujemy JAWNIE przed
+    // harmonogramem (operator nie łączy `cancel_at_period_end` z harmonogramem,
+    // a przejęcie końca subskrypcji przez fazy byłoby efektem ubocznym zamiast
+    // decyzji widocznej w historii). Gdy harmonogram się nie uda, przywracamy
+    // ten sam koniec - inaczej klient, który odchodził, zostałby przy wyższej
     // cenie bez zaplanowanej zmiany i bez zgody na odnowienie.
     let base = current;
-    if (wasCanceling) {
+    if (cancellation) {
       const reverted = await stripe.subscriptions.update(
         subscriptionId,
-        { cancel_at_period_end: false, metadata: nextRevision(current.metadata) },
+        { ...cancellationRevert(cancellation), metadata: nextRevision(current.metadata) },
         {
           idempotencyKey: await idempotencyKey(
             "cancel-revert",
@@ -738,7 +1046,7 @@ export async function changeSubscriptionPrice(
         { price: providerPriceId, quantity },
       ]);
     } catch (e) {
-      if (wasCanceling) await restoreCancellation(stripe, subscriptionId, base);
+      if (cancellation) await restoreCancellation(stripe, subscriptionId, base, cancellation);
       throw e;
     }
     return {
@@ -754,6 +1062,17 @@ export async function changeSubscriptionPrice(
   }
 }
 
+export interface SeatChangeOutcome {
+  /** Liczba miejsc docelowa (po przycięciu do 1-500). */
+  quantity: number;
+  effect: ChangeEffect;
+  /**
+   * Tylko `scheduled`: początek nowego okresu (ISO), od którego operator
+   * nalicza nową liczbę miejsc; `null`, gdy operator nie podał końca okresu.
+   */
+  effectiveAt?: string | null;
+}
+
 /**
  * Zmiana LICZBY MIEJSC w planie za miejsce (plan Zespół). Cena zostaje ta sama,
  * zmienia się tylko ilość. Zwiększenie rozliczamy natychmiast proporcjonalnie
@@ -767,12 +1086,17 @@ export async function changeSubscriptionPrice(
  * w międzyczasie nie może zamienić się w ciche przełączenie ceny).
  * `previousQuantity` (lustro w bazie) zostaje w sygnaturze dla wywołujących,
  * ale o niczym nie rozstrzyga - spóźniony webhook dałby zły kierunek.
+ *
+ * Zmniejszenie to WYŁĄCZNIE plan u operatora: limit organizacji i miejsca
+ * zespołu zmienia dopiero webhook na starcie nowego okresu (`effectiveAt`),
+ * gdy pozycja subskrypcji naprawdę niesie nową ilość. Wywołujący nie mogą
+ * przy `scheduled` zapisywać nowej liczby w bazie.
  */
 export async function updateSubscriptionQuantity(
   env: StripeEnv,
   subscriptionId: string,
   params: { priceExternalId: string; quantity: number; previousQuantity?: number },
-): Promise<SubscriptionOpResult<{ quantity: number; effect: ChangeEffect }>> {
+): Promise<SubscriptionOpResult<SeatChangeOutcome>> {
   const quantity = Math.max(1, Math.min(500, Math.trunc(params.quantity)));
 
   let stripe: Stripe | null = null;
@@ -804,10 +1128,20 @@ export async function updateSubscriptionQuantity(
       return { ok: true, quantity, effect: "applied" };
     }
 
+    // Subskrypcja z zaplanowanym końcem nie ma „nowego okresu", od którego
+    // mniejsza liczba miejsc miałaby obowiązywać. Harmonogram z fazą
+    // otwartą i `end_behavior: release` przejąłby za to koniec subskrypcji
+    // i odnowił ją klientowi, który zrezygnował - odmowa zamiast cichego
+    // odwołania rezygnacji (downgrade planu cofa ją jawnie, bo zmiana planu
+    // znaczy „zostaję"; mniej miejsc tego nie znaczy).
+    if (scheduledCancellation(current)) return { ok: false, error: "subscription_canceling" };
+
     const priceId = refOf(item.price);
     if (!priceId) return { ok: false, error: "no_subscription_item" };
-    await scheduleFromNextPeriod(stripe, subscriptionId, current, [{ price: priceId, quantity }]);
-    return { ok: true, quantity, effect: "scheduled" };
+    const effectiveAt = await scheduleFromNextPeriod(stripe, subscriptionId, current, [
+      { price: priceId, quantity },
+    ]);
+    return { ok: true, quantity, effect: "scheduled", effectiveAt: isoFromUnix(effectiveAt) };
   } catch (e) {
     return failureOf(stripe, subscriptionId, e);
   }

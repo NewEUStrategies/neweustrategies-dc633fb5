@@ -543,6 +543,8 @@ const pl = {
       resume: "Wznów subskrypcję",
       resumed: "Subskrypcja wznowiona",
       resumeError: "Nie udało się wznowić subskrypcji.",
+      pausedByOperator:
+        "Płatności za tę subskrypcję wstrzymaliśmy po naszej stronie, a bieżący okres nie jest opłacony. Napisz do nas - wznowimy ją razem z rozliczeniem.",
       change: "Zmień plan",
       changePlan: {
         title: "Zmiana planu",
@@ -1356,6 +1358,8 @@ const en: ProfileEn = {
       resume: "Resume subscription",
       resumed: "Subscription resumed",
       resumeError: "Could not resume the subscription.",
+      pausedByOperator:
+        "We paused payments for this subscription on our side and the current period is unpaid. Contact us and we will resume it together with the billing.",
       change: "Change plan",
       changePlan: {
         title: "Change plan",

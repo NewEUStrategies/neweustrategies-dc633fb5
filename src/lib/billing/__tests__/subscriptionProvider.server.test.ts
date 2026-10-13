@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
   /** Środowiska, dla których zbudowano klienta bramki (kolejność wywołań). */
   envs: [] as string[],
   subscriptions: { update: vi.fn(), cancel: vi.fn(), retrieve: vi.fn(), resume: vi.fn() },
-  subscriptionSchedules: { create: vi.fn(), update: vi.fn(), release: vi.fn() },
+  subscriptionSchedules: { create: vi.fn(), update: vi.fn(), release: vi.fn(), retrieve: vi.fn() },
   paymentIntents: { retrieve: vi.fn() },
   prices: { list: vi.fn() },
 }));
@@ -115,6 +115,13 @@ beforeEach(() => {
   h.subscriptionSchedules.create.mockResolvedValue({ id: "sched_1", metadata: {} });
   h.subscriptionSchedules.update.mockResolvedValue({ id: "sched_1" });
   h.subscriptionSchedules.release.mockResolvedValue({ id: "sched_1", status: "released" });
+  // Świeżo założony harmonogram jest żywy i należy do tej subskrypcji -
+  // potwierdzenie odczytem chroni przed odpowiedzią z pamięci klucza.
+  h.subscriptionSchedules.retrieve.mockImplementation(async (id: string) => ({
+    id,
+    status: "active",
+    subscription: "sub_1",
+  }));
   h.paymentIntents.retrieve.mockResolvedValue({ status: "requires_payment_method" });
   h.prices.list.mockResolvedValue({ data: [{ id: "price_new" }] });
 });
@@ -259,9 +266,12 @@ describe("resumeProviderSubscription - żywy stan rozstrzyga mechanizm", () => {
     });
   });
 
-  it("pauza poboru (`pause_collection`, status `active`) jest zdejmowana pustym napisem", async () => {
+  it("pauza poboru (`pause_collection`, status `active`) przy OPŁACONYM okresie jest zdejmowana pustym napisem", async () => {
     h.subscriptions.retrieve.mockResolvedValue(
-      liveSub({ pause_collection: { behavior: "void", resumes_at: null } }),
+      liveSub({
+        pause_collection: { behavior: "void", resumes_at: null },
+        latest_invoice: { id: "in_prev", status: "paid" },
+      }),
     );
 
     const result = await resumeProviderSubscription("sandbox", "sub_1");
@@ -294,7 +304,11 @@ describe("resumeProviderSubscription - żywy stan rozstrzyga mechanizm", () => {
 
   it("pauza poboru I zaplanowany koniec schodzą jednym wywołaniem", async () => {
     h.subscriptions.retrieve.mockResolvedValue(
-      liveSub({ cancel_at_period_end: true, pause_collection: { behavior: "keep_as_draft" } }),
+      liveSub({
+        cancel_at_period_end: true,
+        pause_collection: { behavior: "keep_as_draft" },
+        latest_invoice: { id: "in_prev", status: "paid" },
+      }),
     );
 
     await resumeProviderSubscription("sandbox", "sub_1");
@@ -458,26 +472,38 @@ describe("changeSubscriptionPrice - upgrade: dopłata PRZED zmianą", () => {
     });
   });
 
-  it("zaplanowane anulowanie cofamy DOPIERO po udanej dopłacie, osobnym wywołaniem", async () => {
+  it("zaplanowane anulowanie schodzi W TEJ SAMEJ oczekującej aktualizacji co nowa cena", async () => {
     h.subscriptions.retrieve.mockResolvedValue(liveSub({ cancel_at_period_end: true }));
 
     const result = await upgrade();
 
     expect(result).toMatchObject({ ok: true, effect: "applied", cancelAtPeriodEnd: false });
-    expect(h.subscriptions.update).toHaveBeenCalledTimes(2);
-    expect(h.subscriptions.update.mock.calls[0]?.[1]).not.toHaveProperty("cancel_at_period_end");
-    expect(h.subscriptions.update.mock.calls[1]?.[1]).toEqual({
-      cancel_at_period_end: false,
-      metadata: { nes_ops_rev: "1" },
-    });
-    expect(optionsOf(h.subscriptions.update, 1).idempotencyKey).toMatch(/^nes-sub-cancel-revert-/);
+    // Dawniej drugie wywołanie (cofnięcie flagi) emitowało drugie
+    // `customer.subscription.updated` z tej samej sekundy - lustro potrafiło
+    // zostać przy „kończy się". Operator przyjmuje flagę w oczekującej zmianie,
+    // więc wejdzie ona dopiero razem z opłaconą ceną.
+    expect(h.subscriptions.update).toHaveBeenCalledTimes(1);
+    expect(h.subscriptions.update).toHaveBeenCalledWith(
+      "sub_1",
+      {
+        items: [{ id: "si_1", price: "price_new", quantity: 1 }],
+        cancel_at_period_end: false,
+        proration_behavior: "always_invoice",
+        payment_behavior: "pending_if_incomplete",
+        expand: ["latest_invoice.payments"],
+      },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-plan-upgrade-/) },
+    );
   });
 
-  it("upgrade opłacony, ale zdjęcie końca nieudane: wynik mówi, że koniec WCIĄŻ zaplanowany", async () => {
-    h.subscriptions.retrieve.mockResolvedValue(liveSub({ cancel_at_period_end: true }));
+  it("upgrade przy dacie końca (`cancel_at` z portalu): data schodzi po dopłacie; jej błąd = koniec WCIĄŻ zaplanowany", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ cancel_at: PERIOD_END }));
     h.subscriptions.update
       .mockResolvedValueOnce(
-        liveSub({ items: { data: [subscriptionItem({ price: { id: "price_new" } })] } }),
+        liveSub({
+          cancel_at: PERIOD_END,
+          items: { data: [subscriptionItem({ price: { id: "price_new" } })] },
+        }),
       )
       .mockRejectedValueOnce(providerError("rate limited"));
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -487,6 +513,16 @@ describe("changeSubscriptionPrice - upgrade: dopłata PRZED zmianą", () => {
       effect: "applied",
       cancelAtPeriodEnd: true,
     });
+    // Daty `cancel_at` operator w oczekującej zmianie nie przyjmuje - pierwsze
+    // wywołanie jej nie niesie, drugie (po dopłacie) czyści ją pustym napisem.
+    expect(h.subscriptions.update.mock.calls[0]?.[1]).not.toHaveProperty("cancel_at");
+    expect(h.subscriptions.update.mock.calls[1]?.[1]).toEqual({
+      cancel_at: "",
+      metadata: { nes_ops_rev: "1" },
+    });
+    expect(optionsOf(h.subscriptions.update, 1).idempotencyKey).toMatch(
+      /^nes-sub-cancel-at-clear-/,
+    );
     logged.mockRestore();
   });
 
@@ -498,7 +534,7 @@ describe("changeSubscriptionPrice - upgrade: dopłata PRZED zmianą", () => {
     expect(h.subscriptions.update).toHaveBeenCalledTimes(1);
   });
 
-  it("upgrade zwalnia zaplanowany downgrade, zanim podmieni pozycję", async () => {
+  it("upgrade zwalnia zaplanowany downgrade DOPIERO po udanej dopłacie", async () => {
     h.subscriptions.retrieve.mockResolvedValue(
       liveSub({ schedule: { id: "sched_down", metadata: {} } }),
     );
@@ -510,9 +546,23 @@ describe("changeSubscriptionPrice - upgrade: dopłata PRZED zmianą", () => {
       {},
       expect.objectContaining({ idempotencyKey: expect.any(String) }),
     );
-    expect(h.subscriptionSchedules.release.mock.invocationCallOrder[0]).toBeLessThan(
-      h.subscriptions.update.mock.invocationCallOrder[0],
+    // Odwrotna kolejność (przegląd #9/#41): odrzucona karta zostawiała klienta
+    // bez zaplanowanego downgrade'u, a odnowienie szło po wyższej cenie.
+    expect(h.subscriptions.update.mock.invocationCallOrder[0]).toBeLessThan(
+      h.subscriptionSchedules.release.mock.invocationCallOrder[0],
     );
+  });
+
+  it("odrzucona dopłata NIE zwalnia zaplanowanego downgrade'u", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({ schedule: { id: "sched_down", metadata: {} } }),
+    );
+    h.subscriptions.update.mockResolvedValue(
+      liveSub({ pending_update: {}, latest_invoice: { hosted_invoice_url: HOSTED } }),
+    );
+
+    expect(await upgrade()).toMatchObject({ ok: false, error: PAYMENT_FAILED });
+    expect(h.subscriptionSchedules.release).not.toHaveBeenCalled();
   });
 
   it("klucz: ponowienie z tego samego stanu - ten sam; po próbie z nową fakturą - nowy", async () => {
@@ -762,7 +812,12 @@ describe("updateSubscriptionQuantity", () => {
   });
 
   it("zdjęcie miejsc idzie HARMONOGRAMEM od nowego okresu, nie od razu", async () => {
-    expect(await seats(2)).toEqual({ ok: true, quantity: 2, effect: "scheduled" });
+    expect(await seats(2)).toEqual({
+      ok: true,
+      quantity: 2,
+      effect: "scheduled",
+      effectiveAt: PERIOD_END_ISO,
+    });
     // Dawniej: `update({ quantity: 2, proration_behavior: "none" })` - miejsca
     // znikały od razu, bez zwrotu, wbrew obietnicy „od kolejnego okresu".
     expect(h.subscriptions.update).not.toHaveBeenCalled();
@@ -799,7 +854,12 @@ describe("updateSubscriptionQuantity", () => {
     // Lustro mówi 4, operator ma już 8 (webhook w drodze): 6 to ZMNIEJSZENIE.
     h.subscriptions.retrieve.mockResolvedValue(liveSub({ items: { data: [teamItem(8)] } }));
 
-    expect(await seats(6)).toEqual({ ok: true, quantity: 6, effect: "scheduled" });
+    expect(await seats(6)).toEqual({
+      ok: true,
+      quantity: 6,
+      effect: "scheduled",
+      effectiveAt: PERIOD_END_ISO,
+    });
     expect(h.subscriptions.update).not.toHaveBeenCalled();
   });
 

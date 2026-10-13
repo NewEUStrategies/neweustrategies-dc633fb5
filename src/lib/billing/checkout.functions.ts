@@ -1029,8 +1029,12 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       throw new Error("subscription_period_ended");
     }
 
-    const { resumeProviderSubscription, isProviderSubscriptionRef, subscriptionEnvironment } =
-      await import("@/lib/billing/subscriptionProvider.server");
+    const {
+      resumeProviderSubscription,
+      isProviderSubscriptionRef,
+      subscriptionEnvironment,
+      PAUSED_BY_OPERATOR,
+    } = await import("@/lib/billing/subscriptionProvider.server");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
       const result = await resumeProviderSubscription(subscriptionEnvironment(), sub.external_ref);
@@ -1045,8 +1049,12 @@ export const resumeSubscription = createServerFn({ method: "POST" })
             hostedInvoiceUrl: result.hostedInvoiceUrl ?? null,
           };
         }
-        if (result.error === "subscription_not_resumable") {
-          throw new Error("subscription_not_resumable");
+        // Odmowy domenowe przechodzą pod własnym kodem: pauzę poboru przy
+        // nieopłaconym okresie zdejmuje operator, nie klient (reguła
+        // w `resumeProviderSubscription`) - UI kieruje wtedy do kontaktu
+        // zamiast udawać chwilową awarię.
+        if (result.error === "subscription_not_resumable" || result.error === PAUSED_BY_OPERATOR) {
+          throw new Error(result.error);
         }
         throw new Error("provider_resume_failed");
       }

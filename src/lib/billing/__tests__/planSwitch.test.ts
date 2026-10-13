@@ -4,8 +4,10 @@ import {
   buildPlanSwitchBoard,
   catalogSwitchRefusal,
   isKnownLookupKey,
+  isPaymentOutcomeCode,
   paymentOutcomeMessageKey,
   planSwitchRefusal,
+  subscriptionRefusalMessageKey,
   switchEntryForPlan,
   switchTargets,
 } from "@/lib/billing/planSwitch";
@@ -140,5 +142,23 @@ describe("paymentOutcomeMessageKey", () => {
     );
     expect(paymentOutcomeMessageKey("declined")).toBeNull();
     expect(paymentOutcomeMessageKey(null)).toBeNull();
+  });
+
+  it("kod odmowy dopłaty rozpoznaje ta sama reguła (panel organizacji, karta)", () => {
+    expect(isPaymentOutcomeCode("payment_failed")).toBe(true);
+    expect(isPaymentOutcomeCode("payment_requires_action")).toBe(true);
+    expect(isPaymentOutcomeCode("card declined")).toBe(false);
+    expect(isPaymentOutcomeCode(undefined)).toBe(false);
+  });
+});
+
+describe("subscriptionRefusalMessageKey", () => {
+  it("pauza operatora przy nieopłaconym okresie ma własny komunikat (nie „spróbuj ponownie”)", () => {
+    expect(subscriptionRefusalMessageKey("subscription_paused_by_operator")).toBe(
+      "profile.subscription.pausedByOperator",
+    );
+    expect(subscriptionRefusalMessageKey("provider_resume_failed")).toBeNull();
+    expect(subscriptionRefusalMessageKey("toString")).toBeNull();
+    expect(subscriptionRefusalMessageKey(null)).toBeNull();
   });
 });

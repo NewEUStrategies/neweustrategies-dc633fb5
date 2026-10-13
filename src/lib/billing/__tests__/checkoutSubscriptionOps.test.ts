@@ -109,6 +109,7 @@ type ProviderStub = Omit<ReturnType<typeof stripeStub>, "subscriptions"> & {
     create: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     release: ReturnType<typeof vi.fn>;
+    retrieve: ReturnType<typeof vi.fn>;
   };
 };
 let stripe: ProviderStub;
@@ -126,6 +127,11 @@ function providerStub(): ProviderStub {
       create: vi.fn(() => Promise.resolve({ id: "sched_1", metadata: {} })),
       update: vi.fn(() => Promise.resolve({ id: "sched_1" })),
       release: vi.fn(() => Promise.resolve({ id: "sched_1" })),
+      // Potwierdzenie, że założony harmonogram żyje (nie jest odpowiedzią
+      // z pamięci klucza dla harmonogramu już zwolnionego).
+      retrieve: vi.fn((id: string) =>
+        Promise.resolve({ id, status: "active", subscription: "sub_operator_1" }),
+      ),
     },
   };
 }
@@ -642,9 +648,12 @@ describe("changeSubscriptionPlan - upgrade i downgrade z samoobsługi", () => {
   });
 
   it("upgrade opłacony, ale operator NIE zdjął zaplanowanego końca: `canceled_at` zostaje", async () => {
+    // Data końca z portalu (`cancel_at`) schodzi osobnym wywołaniem po
+    // dopłacie - flaga jedzie już w samej oczekującej zmianie, więc „nie
+    // zdjął" da się dziś odtworzyć wyłącznie na dacie.
     stripe.subscriptions.retrieve.mockResolvedValue({
       ...providerSnapshot(),
-      cancel_at_period_end: true,
+      cancel_at: 1_790_000_000,
     });
     stripe.subscriptions.update
       .mockResolvedValueOnce({ items: { data: [{ current_period_end: 1_795_000_000 }] } })
@@ -1002,10 +1011,11 @@ describe("resumeSubscription - cofnięcie rezygnacji", () => {
       expect(writeChain("user_subscriptions")).toBeUndefined();
     });
 
-    it("pauza poboru (`pause_collection`) jest zdejmowana, nie `resume`", async () => {
+    it("pauza poboru (`pause_collection`) przy opłaconym okresie jest zdejmowana, nie `resume`", async () => {
       stripe.subscriptions.retrieve.mockResolvedValue({
         ...providerSnapshot(),
         pause_collection: { behavior: "void", resumes_at: null },
+        latest_invoice: { id: "in_prev", status: "paid" },
       });
 
       expect(await resume()).toEqual({ ok: true });
@@ -1016,6 +1026,22 @@ describe("resumeSubscription - cofnięcie rezygnacji", () => {
       );
       expect(stripe.subscriptions.resume).not.toHaveBeenCalled();
       expect(writeChain("user_subscriptions")).toBeUndefined();
+    });
+
+    it("pauza operatora przy NIEOPŁACONYM okresie (faktura `void`) to odmowa z własnym kodem, bez mutacji", async () => {
+      stripe.subscriptions.retrieve.mockResolvedValue({
+        ...providerSnapshot(),
+        pause_collection: { behavior: "void", resumes_at: null },
+        latest_invoice: { id: "in_renewal", status: "void" },
+      });
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      // Zdjęcie pauzy dałoby dostęp do końca okresu, którego faktura została
+      // unieważniona - za darmo. Kod domenowy, nie „provider_resume_failed".
+      await expect(resume()).rejects.toThrow("subscription_paused_by_operator");
+      expect(stripe.subscriptions.update).not.toHaveBeenCalled();
+      expect(writeChain("user_subscriptions")).toBeUndefined();
+      logged.mockRestore();
     });
 
     it("odrzucona faktura za wznowienie to wynik z fakturą, nie awaria i nie sukces", async () => {

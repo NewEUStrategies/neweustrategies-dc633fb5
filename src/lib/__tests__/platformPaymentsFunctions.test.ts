@@ -352,6 +352,22 @@ describe("plan changes and seats", () => {
       });
     },
   );
+  it("a scheduled seat decrease carries the provider's effective date to the card", async () => {
+    db.setResponse("subscriptions", ok({ ...sub, quantity: 10 }));
+    h.seats.mockResolvedValue({
+      ok: true,
+      quantity: 5,
+      effect: "scheduled",
+      effectiveAt: "2026-11-01T00:00:00.000Z",
+    });
+    expect(await invoke("updateStripeSubscriptionSeats", { ...input, quantity: 5 })).toEqual({
+      ok: true,
+      quantity: 5,
+      immediate: false,
+      effect: "scheduled",
+      effectiveAt: "2026-11-01T00:00:00.000Z",
+    });
+  });
   it("does not announce success when a seat update fails", async () => {
     h.seats.mockResolvedValue({ ok: false, error: "payment_failed", hostedInvoiceUrl: null });
     expect(await invoke("updateStripeSubscriptionSeats")).toEqual({
