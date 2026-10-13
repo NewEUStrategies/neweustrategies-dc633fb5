@@ -65,9 +65,7 @@ export type SmsInput = { to: string | null | undefined; body: string } & (
 );
 
 /** Rezerwacja klucza w dzienniku albo decyzja „nie wysyłaj". */
-type ClaimOutcome =
-  | { kind: "send"; claimId: string | null }
-  | { kind: "stop"; result: SmsResult };
+type ClaimOutcome = { kind: "send"; claimId: string | null } | { kind: "stop"; result: SmsResult };
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -130,7 +128,10 @@ async function finishClaim(tenantId: string, claimId: string, result: SmsResult)
     if (!result.ok) args.p_detail = result.error.slice(0, DETAIL_MAX);
     const { error } = await supabaseAdmin.rpc("sms_send_finish", args);
     if (error) {
-      console.error("[sms] idempotency finish failed", { code: error.code, message: error.message });
+      console.error("[sms] idempotency finish failed", {
+        code: error.code,
+        message: error.message,
+      });
     }
   } catch (err) {
     console.error("[sms] idempotency finish failed", { error: errorText(err) });

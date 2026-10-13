@@ -306,7 +306,11 @@ const CONSENT_AT = "2026-10-01T10:00:00.000Z";
  * wolno" kłamałaby o produkcji; przypadki o braku wiersza, braku zgody
  * i awarii odczytu ustawiają to jawnie (`MISSING`, wiersz bez stempla).
  */
-const CONSENTED: ChannelRow = { notify_email: true, notify_sms: true, remind_sms_consent_at: CONSENT_AT };
+const CONSENTED: ChannelRow = {
+  notify_email: true,
+  notify_sms: true,
+  remind_sms_consent_at: CONSENT_AT,
+};
 
 /** Zgłoszenia, dla których baza NIE ma wiersza w tym najemcy. */
 const MISSING = "missing" as const;
@@ -347,7 +351,9 @@ function givenDb(): SupabaseFromStub {
   // nie miałby czego pokazać.
   next.setResponse("event_registrations", (chain) => {
     const eqs = new Map(
-      chain.calls.filter((call) => call.method === "eq").map((call) => [call.args[0], call.args[1]]),
+      chain.calls
+        .filter((call) => call.method === "eq")
+        .map((call) => [call.args[0], call.args[1]]),
     );
     const id = typeof eqs.get("id") === "string" ? String(eqs.get("id")) : "";
     // Wiersz istnieje WYŁĄCZNIE w najemcy z ładunku - odczyt bez filtra
@@ -691,7 +697,11 @@ describe("preferencje kanałów zapisane na zgłoszeniu", () => {
   });
 
   it("wypisanie się z poczty wycisza mail, ale NIE SMS-a", async () => {
-    channelRows.set(REG, { notify_email: false, notify_sms: true, remind_sms_consent_at: CONSENT_AT });
+    channelRows.set(REG, {
+      notify_email: false,
+      notify_sms: true,
+      remind_sms_consent_at: CONSENT_AT,
+    });
     const result = await notifyTicketOutcome(payload());
 
     expect(result.emailed).toBe(false);
@@ -701,7 +711,11 @@ describe("preferencje kanałów zapisane na zgłoszeniu", () => {
   });
 
   it("wypisanie się z SMS-ów wycisza SMS, ale NIE mail", async () => {
-    channelRows.set(REG, { notify_email: true, notify_sms: false, remind_sms_consent_at: CONSENT_AT });
+    channelRows.set(REG, {
+      notify_email: true,
+      notify_sms: false,
+      remind_sms_consent_at: CONSENT_AT,
+    });
     const result = await notifyTicketOutcome(payload());
 
     expect(result.emailed).toBe(true);

@@ -46,9 +46,8 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
   useServerFn: () => async () => ({ smsEnabled: true }),
 }));
 
-const { ManageCalendarRemindersSlot } = await import(
-  "@/components/events/participant/slots/ManageCalendarRemindersSlot"
-);
+const { ManageCalendarRemindersSlot } =
+  await import("@/components/events/participant/slots/ManageCalendarRemindersSlot");
 
 /** 24 bajty w base64url - kształt klucza `manage_token`. */
 const MANAGE_TOKEN = "Ab3d_Xy9-Qw1zEr4TyU7iOp2AsDf1gHj";

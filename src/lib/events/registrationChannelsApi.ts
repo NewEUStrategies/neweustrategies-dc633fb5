@@ -243,4 +243,3 @@ export async function fetchRegistrationPreferences(input: {
   }
   return parseRegistrationPreferences(data);
 }
-

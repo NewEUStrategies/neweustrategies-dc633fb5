@@ -414,7 +414,9 @@ describe("ParticipantTicketsPanel - kanały powiadomień", () => {
     fireEvent.click(switches[1] as HTMLElement);
 
     // Sam przełącznik niczego nie zapisuje - pyta o zgodę.
-    expect(await screen.findByText("participantTickets.channels.smsConsent.bodyNoHint")).toBeTruthy();
+    expect(
+      await screen.findByText("participantTickets.channels.smsConsent.bodyNoHint"),
+    ).toBeTruthy();
     expect(setChannels).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText("participantTickets.channels.smsConsent.confirm"));

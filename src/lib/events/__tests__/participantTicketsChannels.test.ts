@@ -981,8 +981,6 @@ describe("fetchRegistrationPreferences (REG-09/REG-10)", () => {
       kind: "unavailable",
     });
     rpc().setError("event_registration_preferences", "boom", "XX000");
-    await expect(api.fetchRegistrationPreferences({ registrationId: REG })).rejects.toThrow(
-      /boom/,
-    );
+    await expect(api.fetchRegistrationPreferences({ registrationId: REG })).rejects.toThrow(/boom/);
   });
 });

@@ -51,7 +51,12 @@ function smsTransportImports(source: string): string[] {
     for (const match of source.matchAll(pattern)) {
       for (const raw of (match[1] ?? "").split(",")) {
         // `type SmsResult`, `sendSms as send` -> nazwa eksportu.
-        const name = raw.trim().replace(/^type\s+/, "").split(/\s+as\s+|:/)[0]?.trim() ?? "";
+        const name =
+          raw
+            .trim()
+            .replace(/^type\s+/, "")
+            .split(/\s+as\s+|:/)[0]
+            ?.trim() ?? "";
         if (name !== "") names.push(name);
       }
     }
@@ -100,9 +105,9 @@ describe("bramka jednego wyjścia SMS", () => {
     expect(smsTransportImports(`const m = await import("@/lib/notify/sms.server");`)).toEqual([
       "*",
     ]);
-    expect(smsTransportImports(`import { sendTxEmail } from "@/lib/email/transactional.server";`)).toEqual(
-      [],
-    );
+    expect(
+      smsTransportImports(`import { sendTxEmail } from "@/lib/email/transactional.server";`),
+    ).toEqual([]);
   });
 
   it("jedyny moduł z `sendSms` to participantNotify.server", () => {

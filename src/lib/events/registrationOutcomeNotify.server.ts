@@ -145,7 +145,8 @@ const SMS_BODIES: Readonly<Record<NoticeKind, Record<EmailLang, SmsTemplate>>> =
       `Payment for ${title} was declined - your seat is not confirmed. Details are in your inbox.`,
   },
   refunded: {
-    pl: () => (title) => `Bilet na ${title} zostal anulowany, platnosc zwrocona. Szczegoly w mailu.`,
+    pl: () => (title) =>
+      `Bilet na ${title} zostal anulowany, platnosc zwrocona. Szczegoly w mailu.`,
     en: () => (title) =>
       `Your ticket for ${title} was cancelled and refunded. Details are in your inbox.`,
   },

@@ -50,9 +50,8 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 }));
 
 const { toast } = await import("sonner");
-const { RegistrationCardRemindersSlot } = await import(
-  "@/components/events/participant/slots/RegistrationCardRemindersSlot"
-);
+const { RegistrationCardRemindersSlot } =
+  await import("@/components/events/participant/slots/RegistrationCardRemindersSlot");
 
 const REG = "3c4d0000-0000-4000-8000-000000000111";
 
@@ -186,7 +185,9 @@ describe("RegistrationCardRemindersSlot - karta przypomnień", () => {
     fireEvent.click(await screen.findByText("participantTickets.channels.smsConsent.cancel"));
 
     await waitFor(() =>
-      expect(screen.queryByText("participantTickets.channels.smsConsent.body(hint=200)")).toBeNull(),
+      expect(
+        screen.queryByText("participantTickets.channels.smsConsent.body(hint=200)"),
+      ).toBeNull(),
     );
     expect(rpc().callsFor("event_registration_set_channels")).toHaveLength(0);
   });

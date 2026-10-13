@@ -45,7 +45,12 @@ const log = vi.hoisted(() => {
         return { data: { claim_id: claimId, state: "claimed" }, error: null };
       }
       if (row.status === "failed" && row.attempts < 5) {
-        Object.assign(row, { status: "pending", attempts: row.attempts + 1, claimId, detail: null });
+        Object.assign(row, {
+          status: "pending",
+          attempts: row.attempts + 1,
+          claimId,
+          detail: null,
+        });
         return { data: { claim_id: claimId, state: "claimed" }, error: null };
       }
       const state =

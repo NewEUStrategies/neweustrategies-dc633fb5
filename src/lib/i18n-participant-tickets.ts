@@ -81,7 +81,8 @@ export const participantTicketsPl = {
       organizerOff: "Organizator wyłączył przypomnienia dla tego wydarzenia.",
       closed: "Zgłoszenie jest zamknięte - przypomnienia nie są wysyłane.",
       email: "Przypomnienia e-mailem",
-      emailOff: "E-mail jest wyłączony dla tego zgłoszenia - włącz go w powiadomieniach, aby dostawać przypomnienia.",
+      emailOff:
+        "E-mail jest wyłączony dla tego zgłoszenia - włącz go w powiadomieniach, aby dostawać przypomnienia.",
       push: "Powiadomienia w aplikacji",
       sms: "Przypomnienia SMS-em",
       smsHint: "Włączenie wymaga zgody na SMS-y o tym zgłoszeniu.",
@@ -204,7 +205,8 @@ export const participantTicketsEn = {
       organizerOff: "The organiser turned reminders off for this event.",
       closed: "This registration is closed - reminders are not sent.",
       email: "Email reminders",
-      emailOff: "Email is off for this registration - turn it on in notifications to receive reminders.",
+      emailOff:
+        "Email is off for this registration - turn it on in notifications to receive reminders.",
       push: "In-app notifications",
       sms: "Text message reminders",
       smsHint: "Turning this on requires consent to text messages about this registration.",

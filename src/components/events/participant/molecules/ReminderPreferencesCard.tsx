@@ -107,7 +107,9 @@ function PreferencesBody({
 }) {
   const { t } = useTranslation();
   if (CLOSED_STATUSES.has(prefs.status)) {
-    return <p className="text-sm text-muted-foreground">{t("participantTickets.reminders.closed")}</p>;
+    return (
+      <p className="text-sm text-muted-foreground">{t("participantTickets.reminders.closed")}</p>
+    );
   }
   if (!prefs.remindersEnabled) {
     return (
