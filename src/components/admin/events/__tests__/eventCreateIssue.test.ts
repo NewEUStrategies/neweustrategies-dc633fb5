@@ -69,6 +69,33 @@ describe("eventCreateIssue - termin, strefa i format", () => {
     );
   });
 
+  it("termin to zegar STREFY WYDARZENIA: koniec liczony na chwilach, nie na napisach", () => {
+    // 29.03.2026 w Warszawie nie ma 02:00-02:59: początek „02:30" to 03:30
+    // CEST (01:30Z), więc koniec „03:00" (01:00Z) jest PRZED nim, choć napis
+    // jest późniejszy. Przeglądarka w UTC czytała oba napisy jako UTC.
+    expect(
+      eventCreateIssue(
+        { ...READY, startsAt: "2026-03-29T02:30", endsAt: "2026-03-29T03:00" },
+        "rsvp",
+      ),
+    ).toBe("adminEvents.list.create.errors.endsAt");
+    expect(
+      eventCreateIssue(
+        { ...READY, startsAt: "2026-03-29T02:30", endsAt: "2026-03-29T03:31" },
+        "rsvp",
+      ),
+    ).toBeNull();
+  });
+
+  it("nieistniejąca albo niepełna data początku nie przechodzi", () => {
+    expect(eventCreateIssue({ ...READY, startsAt: "2026-02-30T10:00" }, "rsvp")).toBe(
+      "adminEvents.list.create.errors.startsAt",
+    );
+    expect(eventCreateIssue({ ...READY, startsAt: "2026-09-01" }, "rsvp")).toBe(
+      "adminEvents.list.create.errors.startsAt",
+    );
+  });
+
   it("koniec po początku i brak końca są równie poprawne", () => {
     expect(eventCreateIssue({ ...READY, endsAt: "2026-09-01T17:00" }, "rsvp")).toBeNull();
     expect(eventCreateIssue({ ...READY, endsAt: "" }, "rsvp")).toBeNull();

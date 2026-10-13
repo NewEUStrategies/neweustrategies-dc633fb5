@@ -363,6 +363,8 @@ const {
   useNoActivePopupsFromSsr,
   armCacheBusting,
 } = await import("@/routes/__root");
+const { armScannerLeftoverPurge, PORTAL_SCANNER_TOKEN_KEY } =
+  await import("@/lib/events/scannerLeftoverPurge");
 
 type Loader = (a: {
   context: { queryClient: QueryClient };
@@ -1715,6 +1717,98 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
       client.setQueryData(["site-settings"], { privacy: { cookie_banner: false } });
     });
     await rtl.waitFor(() => expect(banner()).not.toBeNull());
+  });
+});
+
+// ── RESZTKI SKANERA POD ORIGINEM PORTALU (OPS-13) ───────────────────────────
+//
+// `armScannerLeftoverPurge` z atrapą modułu przeniesienia i harmonogramu
+// (wstrzyknięte): boot portalu NIE pobiera modułu skanera, dopóki trzy tanie
+// warunki nie powiedzą, że jest co sprzątać - i nawet wtedy dopiero po
+// załadowaniu strony i bezczynności.
+describe("__root - armScannerLeftoverPurge (OPS-13)", () => {
+  const SCANNER = "https://scan.example.eu";
+
+  function harness(configured: string | undefined) {
+    const calls = { load: 0, purged: [] as string[], scheduled: 0, cancelled: 0 };
+    let scheduledTask: (() => void) | null = null;
+    const load = async () => {
+      calls.load += 1;
+      return {
+        purgeLeftoverScannerData: async (current: string) => {
+          calls.purged.push(current);
+          return true;
+        },
+      };
+    };
+    const schedule = (task: () => void) => {
+      calls.scheduled += 1;
+      scheduledTask = task;
+      return () => {
+        calls.cancelled += 1;
+      };
+    };
+    const background = createBackgroundScope();
+    const disarm = armScannerLeftoverPurge(background, configured, load, schedule);
+    const settle = () => new Promise((r) => setTimeout(r, 0));
+    return { calls, disarm, settle, run: () => scheduledTask?.(), background };
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    window.history.replaceState(null, "", "/artykul");
+  });
+
+  it("klucz poświadczenia jest KOPIĄ klucza z `scannerStorage` (parytet)", async () => {
+    const { SCANNER_TOKEN_STORAGE_KEY } = await import("@/lib/events/scannerStorage");
+    expect(PORTAL_SCANNER_TOKEN_KEY).toBe(SCANNER_TOKEN_STORAGE_KEY);
+  });
+
+  it("bez osobnego originu, pod originem skanera, na `/scanner` i bez tokenu - nic nie jest planowane ani pobierane", () => {
+    window.localStorage.setItem(PORTAL_SCANNER_TOKEN_KEY, "token-z-dawnych-czasow-0123");
+    expect(harness(undefined).calls.scheduled).toBe(0);
+    expect(harness("   ").calls.scheduled).toBe(0);
+    expect(harness(window.location.origin).calls.scheduled).toBe(0);
+    expect(harness(`${window.location.origin}/`).calls.scheduled).toBe(0);
+
+    window.history.replaceState(null, "", "/scanner");
+    expect(harness(SCANNER).calls.scheduled).toBe(0);
+
+    window.history.replaceState(null, "", "/artykul");
+    window.localStorage.clear();
+    const noToken = harness(SCANNER);
+    expect(noToken.calls.scheduled).toBe(0);
+    expect(noToken.calls.load).toBe(0);
+  });
+
+  it("token pod originem portalu: sprzątanie PO bezczynności, moduł pobierany dopiero wtedy", async () => {
+    window.localStorage.setItem(PORTAL_SCANNER_TOKEN_KEY, "token-z-dawnych-czasow-0123");
+    const t = harness(SCANNER);
+    await t.settle();
+    expect(t.calls.scheduled).toBe(1);
+    // Zamknięcie bootu bez modułu skanera - import czeka na harmonogram.
+    expect(t.calls.load).toBe(0);
+
+    t.run();
+    await t.settle();
+    await t.settle();
+    expect(t.calls.load).toBe(1);
+    expect(t.calls.purged).toEqual([window.location.origin]);
+
+    t.disarm();
+    expect(t.calls.cancelled).toBe(1);
+    t.background.dispose();
+  });
+
+  it("zablokowany `localStorage` (polityka przeglądarki) nie wywraca bootu", () => {
+    const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    try {
+      expect(harness(SCANNER).calls.scheduled).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

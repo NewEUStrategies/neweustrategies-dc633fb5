@@ -12,6 +12,18 @@
 // WALIDACJA ODCINA ZAPIS PRZED ŻĄDANIEM. Każdy warunek, który baza sprawdza
 // CHECK-iem albo `RAISE`, ma tu odpowiednik z kluczem komunikatu przy polu -
 // odmowa `23514` nie mówi organizatorowi, które z dwudziestu pól poprawić.
+//
+// GODZINY SĄ ZEGAREM W STREFIE WYDARZENIA, nie przeglądarki (klasa OPS-15).
+// Szkic niesie strefę (`timeZone`), w której pola `datetime-local` są
+// zapisane, i chwile z bazy (`savedTimes`) - nietknięte pole wraca do bazy co
+// do milisekundy. Konwersje: `lib/events/eventLocalInput.ts`.
+import {
+  canonicalInstant,
+  eventLocalInput,
+  eventLocalInputToIso,
+  type SavedInstants,
+} from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 import type {
   EventSessionDetailRow,
   EventSessionInput,
@@ -33,9 +45,13 @@ export interface SessionDraft {
   titleEn: string;
   descriptionPl: string;
   descriptionEn: string;
-  /** `datetime-local` - input HTML nie zna dat, tylko znaki. */
+  /** `datetime-local` w strefie `timeZone` - input HTML nie zna dat, tylko znaki. */
   startsAt: string;
   endsAt: string;
+  /** Strefa wydarzenia (IANA, zwalidowana), w której pola godzin są zegarem. */
+  timeZone: string;
+  /** Chwile z bazy, z których powstały pola godzin (edycja); pusto dla nowej sesji. */
+  savedTimes: SavedInstants<"startsAt" | "endsAt">;
   format: SessionFormat;
   status: SessionStatus;
   trackId: string | null;
@@ -56,7 +72,10 @@ export interface SessionDraft {
   sortOrder: string;
 }
 
-export function emptySessionDraft(sortOrder: number): SessionDraft {
+export function emptySessionDraft(
+  sortOrder: number,
+  timeZone: string | null | undefined,
+): SessionDraft {
   return {
     id: null,
     titlePl: "",
@@ -65,6 +84,8 @@ export function emptySessionDraft(sortOrder: number): SessionDraft {
     descriptionEn: "",
     startsAt: "",
     endsAt: "",
+    timeZone: eventTimeZone({ timezone: timeZone }),
+    savedTimes: {},
     format: "onsite",
     status: "draft",
     trackId: null,
@@ -85,23 +106,29 @@ export function emptySessionDraft(sortOrder: number): SessionDraft {
   };
 }
 
-/** ISO z bazy -> wartość `datetime-local` (bez sekund, w czasie przeglądarki). */
-export function toLocalInput(iso: string | null): string {
-  if (iso === null || iso === "") return "";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
+/** ISO z bazy -> wartość `datetime-local` w strefie wydarzenia (bez sekund). */
+export function toLocalInput(iso: string | null, timeZone: string | null | undefined): string {
+  return eventLocalInput(iso, timeZone);
 }
 
-/** `datetime-local` -> ISO albo `null`, gdy pole puste/niepełne. */
-export function fromLocalInput(value: string): string | null {
-  if (value.trim() === "") return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+/**
+ * `datetime-local` w strefie wydarzenia -> ISO albo `null`, gdy pole
+ * puste/niepełne. `saved` - chwila z bazy, którą nietknięte pole oddaje bez zmian.
+ */
+export function fromLocalInput(
+  value: string,
+  timeZone: string | null | undefined,
+  saved: string | null = null,
+): string | null {
+  return eventLocalInputToIso(value, timeZone, saved);
+}
+
+/** Obie godziny szkicu jako chwile - jedno miejsce dla walidacji i payloadu. */
+function draftInstants(draft: SessionDraft): { startsAt: string | null; endsAt: string | null } {
+  return {
+    startsAt: fromLocalInput(draft.startsAt, draft.timeZone, draft.savedTimes.startsAt ?? null),
+    endsAt: fromLocalInput(draft.endsAt, draft.timeZone, draft.savedTimes.endsAt ?? null),
+  };
 }
 
 function pick<T extends string>(allowed: readonly T[], value: string, fallback: T): T {
@@ -116,16 +143,24 @@ function numberOf(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-export function sessionDraftFromRow(row: EventSessionDetailRow): SessionDraft {
+export function sessionDraftFromRow(
+  row: EventSessionDetailRow,
+  timeZone: string | null | undefined,
+): SessionDraft {
   const capacity = row.capacity;
+  const zone = eventTimeZone({ timezone: timeZone });
+  const startsAt = canonicalInstant(textOf(row.starts_at));
+  const endsAt = canonicalInstant(textOf(row.ends_at));
   return {
     id: String(row.id),
     titlePl: textOf(row.title_pl),
     titleEn: textOf(row.title_en),
     descriptionPl: textOf(row.description_pl),
     descriptionEn: textOf(row.description_en),
-    startsAt: toLocalInput(textOf(row.starts_at) || null),
-    endsAt: toLocalInput(textOf(row.ends_at) || null),
+    startsAt: toLocalInput(startsAt, zone),
+    endsAt: toLocalInput(endsAt, zone),
+    timeZone: zone,
+    savedTimes: { startsAt, endsAt },
     format: pick(SESSION_FORMATS, textOf(row.format), "onsite"),
     status: pick(SESSION_STATUSES, textOf(row.status), "draft"),
     trackId: typeof row.track_id === "string" ? row.track_id : null,
@@ -169,8 +204,7 @@ export function validateSessionDraft(draft: SessionDraft): SessionFieldError[] {
   if (draft.titleEn.trim() === "")
     errors.push({ field: "titleEn", messageKey: `${V}titleRequired` });
 
-  const startsAt = fromLocalInput(draft.startsAt);
-  const endsAt = fromLocalInput(draft.endsAt);
+  const { startsAt, endsAt } = draftInstants(draft);
   if (startsAt === null) errors.push({ field: "startsAt", messageKey: `${V}timesRequired` });
   if (endsAt === null) errors.push({ field: "endsAt", messageKey: `${V}timesRequired` });
   if (startsAt !== null && endsAt !== null && Date.parse(endsAt) <= Date.parse(startsAt)) {
@@ -208,8 +242,7 @@ export function validateSessionDraft(draft: SessionDraft): SessionFieldError[] {
 
 /** Szkic -> payload RPC. Wołane TYLKO po pustej walidacji. */
 export function sessionDraftToInput(draft: SessionDraft, eventId: string): EventSessionInput {
-  const startsAt = fromLocalInput(draft.startsAt);
-  const endsAt = fromLocalInput(draft.endsAt);
+  const { startsAt, endsAt } = draftInstants(draft);
   if (startsAt === null || endsAt === null) {
     throw new Error("sessionDraftToInput: szkic bez godzin - najpierw walidacja");
   }

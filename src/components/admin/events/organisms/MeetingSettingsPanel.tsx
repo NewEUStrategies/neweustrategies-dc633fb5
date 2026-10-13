@@ -14,6 +14,11 @@ import { TimeInput } from "@/components/ui/time-input";
 //
 // GRUPY POKAZUJEMY TYLKO PRZY REGULE `groups`. Przy każdej innej regule baza
 // i tak ignoruje przydział, a widoczne pola sugerowałyby, że coś robią.
+//
+// OKNO ZAPROSZEŃ JEST ZEGAREM W STREFIE GIEŁDY (pole „Strefa czasowa" wyżej,
+// domyślnie strefa wydarzenia) - tej samej, w której baza liczy dzień giełdy.
+// Pod każdym polem stoi nazwa strefy albo zdanie o luce/zakładce zmiany czasu
+// (klasa OPS-15; dawniej pola czytała strefa przeglądarki).
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -33,7 +38,9 @@ import {
 } from "@/components/ui/select";
 import { AdminFormSection } from "@/components/admin/molecules/AdminFormSection";
 import { adminMeetingFailure } from "@/lib/events/adminMeetingErrors";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
 import { uiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { MEETING_VISIBILITIES, type MeetingRuleGroup } from "@/lib/events/meetingsApi";
 import {
   draftFromSettings,
@@ -63,6 +70,7 @@ function groupName(group: MeetingRuleGroup, lang: "pl" | "en"): string {
 }
 
 export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
+  ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const settingsQ = useMeetingSettings(eventId);
@@ -116,6 +124,9 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
 
   const patch = (next: Partial<MeetingSettingsDraft>) =>
     setDraft((prev) => (prev === null ? prev : { ...prev, ...next }));
+  const windowHint = (field: "invitesOpenAt" | "invitesCloseAt"): string =>
+    eventLocalInputHint(t, lang, draft[field], draft.timezone, draft.savedTimes[field] ?? null) ??
+    "";
 
   const addDay = () => {
     const day = newDay.trim();
@@ -295,8 +306,12 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
             id="invites-open"
             type="datetime-local"
             value={draft.invitesOpenAt}
+            aria-describedby="invites-open-zone"
             onChange={(event) => patch({ invitesOpenAt: event.target.value })}
           />
+          <p id="invites-open-zone" className="text-xs text-muted-foreground">
+            {windowHint("invitesOpenAt")}
+          </p>
           <p className="text-xs text-muted-foreground">
             {t("adminEventMeetings.settings.opensAtHint")}
           </p>
@@ -307,8 +322,12 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
             id="invites-close"
             type="datetime-local"
             value={draft.invitesCloseAt}
+            aria-describedby="invites-close-zone"
             onChange={(event) => patch({ invitesCloseAt: event.target.value })}
           />
+          <p id="invites-close-zone" className="text-xs text-muted-foreground">
+            {windowHint("invitesCloseAt")}
+          </p>
           <p className="text-xs text-muted-foreground">
             {t("adminEventMeetings.settings.closesAtHint")}
           </p>

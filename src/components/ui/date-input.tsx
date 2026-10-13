@@ -39,10 +39,16 @@ type DateInputProps = Omit<
   defaultValue?: string;
 };
 
-/** Dzień z lokalnego łańcucha "YYYY-MM-DD..." - lokalna północ, bez UTC. */
+/**
+ * Dzień z lokalnego łańcucha "YYYY-MM-DD..." - lokalne POŁUDNIE, bez UTC.
+ * Wartość to zegar ścienny (często strefy wydarzenia, nie przeglądarki -
+ * OPS-15), więc kalendarz dostaje wyłącznie dzień, a godzina zostaje tekstem.
+ * Południe, nie północ: w strefach, które przestawiają zegar o północy
+ * (np. America/Santiago), lokalna północ danego dnia nie istnieje.
+ */
 function parseLocalDay(input: unknown): Date | undefined {
   if (typeof input !== "string" || input.length < 10) return undefined;
-  const day = parse(input.slice(0, 10), "yyyy-MM-dd", new Date());
+  const day = parse(`${input.slice(0, 10)} 12`, "yyyy-MM-dd HH", new Date());
   return isValid(day) ? day : undefined;
 }
 

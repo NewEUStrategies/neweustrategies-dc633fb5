@@ -17,10 +17,16 @@ import {
 import type { EventSessionDetailRow } from "@/lib/events/sessionsApi";
 
 const EVENT = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+/**
+ * Strefa wydarzenia. Pola godzin są zegarem w NIEJ, nie w strefie maszyny -
+ * przypadki z obcą strefą przeglądarki i nocami zmiany czasu stoją
+ * w `eventLocalInputZone.test.ts` (TZ=Europe/London).
+ */
+const STREFA = "Europe/Warsaw";
 
 function draft(overrides: Partial<SessionDraft> = {}): SessionDraft {
   return {
-    ...emptySessionDraft(100),
+    ...emptySessionDraft(100, STREFA),
     titlePl: "Panel otwarcia",
     titleEn: "Opening panel",
     startsAt: "2026-09-01T10:00",
@@ -35,17 +41,18 @@ function fields(d: SessionDraft): string[] {
 
 describe("sessionDraft - konwersje", () => {
   it("ISO i `datetime-local` wracają do siebie bez przesunięcia", () => {
-    const local = toLocalInput("2026-09-01T10:30:00.000Z");
-    expect(local).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
-    expect(fromLocalInput(local)).toBe("2026-09-01T10:30:00.000Z");
+    const local = toLocalInput("2026-09-01T10:30:00.000Z", STREFA);
+    // Zegar wydarzenia (CEST = UTC+2), a nie maszyny, na której leci test.
+    expect(local).toBe("2026-09-01T12:30");
+    expect(fromLocalInput(local, STREFA)).toBe("2026-09-01T10:30:00.000Z");
   });
 
   it("puste i niepełne pole daty nie stają się `Invalid Date`", () => {
-    expect(fromLocalInput("")).toBeNull();
-    expect(fromLocalInput("   ")).toBeNull();
-    expect(fromLocalInput("2026-13-45T99:99")).toBeNull();
-    expect(toLocalInput(null)).toBe("");
-    expect(toLocalInput("nie-data")).toBe("");
+    expect(fromLocalInput("", STREFA)).toBeNull();
+    expect(fromLocalInput("   ", STREFA)).toBeNull();
+    expect(fromLocalInput("2026-13-45T99:99", STREFA)).toBeNull();
+    expect(toLocalInput(null, STREFA)).toBe("");
+    expect(toLocalInput("nie-data", STREFA)).toBe("");
   });
 
   it("brak limitu miejsc wraca z bazy jako PUSTE pole, nie zero", () => {
@@ -61,7 +68,7 @@ describe("sessionDraft - konwersje", () => {
       requires_signup: false,
       allow_overlap: false,
     } as unknown as EventSessionDetailRow;
-    const converted = sessionDraftFromRow(row);
+    const converted = sessionDraftFromRow(row, STREFA);
     expect(converted.capacity).toBe("");
     expect(converted.format).toBe("hybrid");
     expect(converted.status).toBe("published");
@@ -85,7 +92,7 @@ describe("sessionDraft - konwersje", () => {
       recording_url: "https://rec.example/xyz",
     } as unknown as EventSessionDetailRow;
 
-    const converted = sessionDraftFromRow(row);
+    const converted = sessionDraftFromRow(row, STREFA);
     expect(converted.streamUrl).toBe("https://stream.example/abc");
     expect(converted.recordingUrl).toBe("https://rec.example/xyz");
 
@@ -100,7 +107,7 @@ describe("sessionDraft - konwersje", () => {
       format: "teleport",
       status: "archived",
     } as unknown as EventSessionDetailRow;
-    const converted = sessionDraftFromRow(row);
+    const converted = sessionDraftFromRow(row, STREFA);
     expect(converted.format).toBe("onsite");
     expect(converted.status).toBe("draft");
   });

@@ -189,6 +189,7 @@ describe("registrationsCsv - dane, ktore opuszczaja system", () => {
       consent_data_processing_at: "2026-08-01T10:00:00Z",
       consent_marketing_at: "",
       consent_partner_sharing_at: "",
+      consent_partner_withdrawn_at: "",
       consent_withdrawn_at: "",
       ...over,
     } as EventRegistrationRow;
@@ -205,18 +206,39 @@ describe("registrationsCsv - dane, ktore opuszczaja system", () => {
     expect(csv).toContain("'=HYPERLINK");
   });
 
-  // Kolumna miejsca na sali jest OSTATNIA (starsze arkusze sie nie przesuwaja),
-  // a zgloszenie bez miejsca dostaje pusta komorke, nie "undefined".
-  it("miejsce na sali trafia do ostatniej kolumny, brak miejsca to pusta komorka", () => {
-    expect(REGISTRATION_CSV_COLUMNS.at(-1)).toBe("seat");
+  // Kolumny dokladane po pierwszym ukladzie ida NA KONIEC (starsze arkusze sie
+  // nie przesuwaja): miejsce na sali, a za nim wycofanie zgody partnerskiej
+  // zgloszenia (OPS-01). Zgloszenie bez miejsca dostaje pusta komorke, nie
+  // "undefined". Dawniej asercja mowila „seat jest ostatnia" - zmieniona
+  // celowo, regula (dopisywanie na koncu) zostaje ta sama.
+  it("miejsce na sali i wycofanie zgody partnerskiej ida na koniec, brak wartosci to pusta komorka", () => {
+    expect(REGISTRATION_CSV_COLUMNS.slice(-2)).toEqual(["seat", "consent_partner_withdrawn_at"]);
     const [, posadzony, bezMiejsca] = registrationsToCsv(
-      [row({ id: "a" }), row({ id: "b" })],
+      [row({ id: "a" }), row({ id: "b", consent_partner_withdrawn_at: "2026-08-03T09:00:00Z" })],
       "pl",
       new Map([["a", "Rzad A, miejsce 2"]]),
     ).split("\n");
-    expect(posadzony?.endsWith(',"Rzad A, miejsce 2"')).toBe(true);
-    expect(bezMiejsca?.endsWith(",")).toBe(true);
+    expect(posadzony?.endsWith(',"Rzad A, miejsce 2",')).toBe(true);
+    expect(bezMiejsca?.endsWith(",,2026-08-03T09:00:00Z")).toBe(true);
     expect(registrationsToCsv([row({ id: "a" })], "pl")).not.toContain("undefined");
+  });
+
+  it("zgoda partnerska jedzie jako daty nadania i wycofania z TEGO zgloszenia", () => {
+    const [naglowek, wiersz] = registrationsToCsv(
+      [
+        row({
+          // Bez przecinka w polu, zeby proste dzielenie wiersza trafialo w kolumny.
+          company_text: "Firma",
+          consent_partner_sharing_at: "2026-08-01T10:00:00Z",
+          consent_partner_withdrawn_at: "2026-08-05T12:00:00Z",
+        }),
+      ],
+      "pl",
+    ).split("\n");
+    const kolumny = naglowek?.split(",") ?? [];
+    const komorki = wiersz?.split(",") ?? [];
+    expect(komorki[kolumny.indexOf("consent_partner_sharing_at")]).toBe("2026-08-01T10:00:00Z");
+    expect(komorki[kolumny.indexOf("consent_partner_withdrawn_at")]).toBe("2026-08-05T12:00:00Z");
   });
 
   it("firma z kartoteki wygrywa nad wpisana recznie", () => {

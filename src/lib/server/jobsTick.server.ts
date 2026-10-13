@@ -28,6 +28,7 @@ import type { ParticipantJobResult } from "@/lib/events/jobs/types";
 import { recordJobRun } from "@/lib/server/jobScheduler.server";
 import type { PendingTicketRevocationsResult } from "@/lib/events/ticketRevokedNotify.server";
 import type { WebhookSweepResult } from "@/lib/billing/webhookReplay.server";
+import type { WalletRevocationsResult } from "@/lib/events/wallet/walletRevocationJob.server";
 
 type DbClient = SupabaseClient<Database>;
 
@@ -83,6 +84,14 @@ export interface JobsTickResult {
    * zapas) chroni joby po niej i zapis przebiegu przed zerwanym połączeniem.
    */
   webhookSweep: WebhookSweepResult | { error: string };
+  /**
+   * Przepustki Google Wallet unieważnionych biletów -> INACTIVE (OPS-14):
+   * anulowanie, zwrot, nowy kod, odwołane wydarzenie. Zgłasza je baza
+   * triggerami, ten krok woła Google. `skipped: "not_configured"` - portfel
+   * Google nie jest skonfigurowany (nic nie zajęto), `"migration_pending"` -
+   * baza nie ma jeszcze kolejki.
+   */
+  walletPassRevocations: WalletRevocationsResult | { error: string };
   /**
    * `archived`/`alerted`: skaner nie tylko raportuje martwe linki, ale też
    * dobiera im migawkę Internet Archive i - po przekroczeniu progu - powiadamia
@@ -216,6 +225,14 @@ const WEBHOOK_SWEEP_WINDOW_MS = 8_000;
  */
 const WEBHOOK_SWEEP_TAIL_RESERVE_MS = 2_000;
 
+/**
+ * Termin dezaktywacji przepustek Google Wallet - 2 s po zawiadomieniach.
+ * Partia jest mała (10), a każde wywołanie ma własny limit 8 s, więc krok
+ * zostawia budżet jobom sieciowym za nim; reszta kolejki wraca w następnej
+ * minucie (dzierżawa w bazie).
+ */
+const WALLET_REVOCATIONS_DEADLINE_MS = 22_000;
+
 /** Uruchamia krok joba tylko w ramach budżetu czasu; błąd/pominięcie łapie w
  *  wspólnym kształcie `{ error }` (każde pole JobsTickResult go dopuszcza). */
 async function runJobStep<T>(
@@ -331,6 +348,17 @@ export async function runJobsTick(
         });
       })
     : skipped;
+
+  // Przepustki Google Wallet unieważnionych biletów: wywołanie zewnętrznego
+  // API, więc ZA wysyłkami 1:1 i przed jobami kosztownymi sieciowo.
+  const walletPassRevocations = await runJobStep(overBudget, async () => {
+    const { runWalletPassRevocations } =
+      await import("@/lib/events/wallet/walletRevocationJob.server");
+    return runWalletPassRevocations(admin, {
+      limit: 10,
+      deadlineAt: startedAt + WALLET_REVOCATIONS_DEADLINE_MS,
+    });
+  });
   // Rotacyjny skan linków wychodzących (B7): 6 wpisów co 15 minut zamiast 3 co
   // minutę - ta sama przepustowość dzienna przy ~15x mniejszym ruchu HTTP.
   const linkCheck = everyNthMinute(15, tickTime)
@@ -408,6 +436,7 @@ export async function runJobsTick(
     eventTicketCodes,
     eventTicketRevocations,
     webhookSweep,
+    walletPassRevocations,
     linkCheck,
     integrations,
     semanticIndex,

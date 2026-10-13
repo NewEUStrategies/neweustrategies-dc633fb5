@@ -26,11 +26,37 @@
 // KAZDY TEST DOSTAJE SWIEZY MODUL (`vi.resetModules()`), bo `memoryQueue`
 // i `memoryOnly` to stan MODULOWY: bez tego pierwsza odmowa bazy zafarbowalaby
 // wszystkie kolejne przypadki w pliku.
+//
+// 4) JAWNY KOD NA DYSKU (OPS-06). Rekord pozycji niesie kod wyłącznie
+//    w bloku sejfu; bez klucza - wcale. Rekord sprzed sejfu (jawny `code`)
+//    jest przepisywany przy pierwszym odczycie.
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OutboxItem } from "@/lib/events/scannerOutbox";
+import { deriveVaultKey } from "@/lib/events/scannerVault";
 
 type StorageModule = typeof import("@/lib/events/scannerStorage");
+
+const sha = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
+
+/** Pola, które parser pozycji dopisuje pustymi wartościami (kolejki sprzed trybu offline). */
+const PARSED_DEFAULTS = {
+  offlineAdmitted: null,
+  offlineOutcome: null,
+  rosterGeneratedAt: null,
+  deviceId: null,
+} as const;
+
+/** Pozycja po odczycie rekordu sprzed sejfu: kod w pamięci + skrót i prefiks. */
+function restored(source: OutboxItem): OutboxItem {
+  return {
+    ...PARSED_DEFAULTS,
+    ...source,
+    codeHash: sha(source.code),
+    codePrefix: source.code.slice(0, 6),
+  };
+}
 
 /** Doslowny klucz poswiadczenia - patrz punkt 2 naglowka. */
 const TOKEN_KEY = "nes.scanner.device-token";
@@ -427,15 +453,51 @@ describe("otwarcie bazy kolejki", () => {
 describe("wczytanie kolejki", () => {
   it("czyta rekord spod umowionego klucza w trybie TYLKO DO ODCZYTU i zamyka baze", async () => {
     // Tryb `readonly` przy odczycie nie blokuje rownoleglego zapisu piknieciem,
-    // a zamkniecie polaczenia zwalnia baze pod przyszla migracje.
-    const stored = [item({ id: "a" })];
+    // a zamkniecie polaczenia zwalnia baze pod przyszla migracje. Rekord w
+    // formacie sejfu (bez bloku - zapisany bez klucza) nie wymaga przepisania.
+    const { code: _code, note: _note, ...meta } = item({ id: "a" });
+    const stored = [{ ...meta, v: 2, codeHash: sha("TCK-1"), codePrefix: "TCK-1", sealed: null }];
     const idb = installFakeIdb({ stored });
     const storage = await freshModule();
 
-    await expect(storage.loadOutbox()).resolves.toEqual(stored);
+    await expect(storage.loadOutbox()).resolves.toEqual([
+      {
+        ...PARSED_DEFAULTS,
+        ...meta,
+        code: "",
+        note: null,
+        codeHash: sha("TCK-1"),
+        codePrefix: "TCK-1",
+      },
+    ]);
     expect(idb.txCalls).toEqual([{ store: "outbox", mode: "readonly" }]);
     expect(idb.gets).toEqual(["queue"]);
     expect(idb.closes).toBe(1);
+  });
+
+  it("OPS-06: rekord z JAWNYM kodem (sprzed sejfu) jest od razu przepisywany - z blokiem albo bez kodu", async () => {
+    const stored = [item({ id: "a", code: "TCK-JAWNY-1" })];
+    const key = await deriveVaultKey("nes-dev-token-0123456789");
+    const idb = installFakeIdb({ stored });
+    const storage = await freshModule();
+
+    // W pamięci karty kod jest (pozycja ma wyjechać), na dysku - już nie.
+    await expect(storage.loadOutbox(key)).resolves.toEqual([restored(stored[0])]);
+    expect(idb.txCalls).toEqual([
+      { store: "outbox", mode: "readonly" },
+      { store: "outbox", mode: "readwrite" },
+    ]);
+    const [rewrite] = idb.puts;
+    expect(JSON.stringify(rewrite.value)).not.toContain("TCK-JAWNY-1");
+    expect(rewrite.value).toEqual([
+      expect.objectContaining({
+        v: 2,
+        id: "a",
+        codeHash: sha("TCK-JAWNY-1"),
+        codePrefix: "TCK-JA",
+        sealed: { iv: expect.any(String), data: expect.any(String) },
+      }),
+    ]);
   });
 
   it("PUSTA baza daje pusta kolejke, a trwalosc pozostaje obiecana", async () => {
@@ -479,23 +541,24 @@ describe("wczytanie kolejki", () => {
     });
     const storage = await freshModule();
 
-    await expect(storage.loadOutbox()).resolves.toEqual([first, last]);
+    await expect(storage.loadOutbox()).resolves.toEqual([restored(first), restored(last)]);
   });
 
-  it("PRZEPUSZCZA pozycje z nieznanym rodzajem i bez licznika prob (prawdopodobnie usterka)", async () => {
-    // Straznik sprawdza tylko `id`, `code` i `kind` jako NAPISY - nie sprawdza
-    // ani przynaleznosci do `OUTBOX_KINDS`, ani obecnosci `attempts`
-    // i `nextAttemptAt`. Skutek opisany w zgloszeniu: pozycja z rodzajem spoza
-    // zbioru trafia u wysylajacego do galezi `else`, czyli do RPC leadu zamiast
-    // odprawy, a pozycja bez `attempts` nigdy nie staje sie „do wyslania" ani
-    // „wymaga uwagi". Test opisuje stan OBECNY, zeby zmiana straznika byla
-    // widoczna, a nie cicha.
+  it("pozycja z nieznanym rodzajem wypada, a pozycja bez licznika prob dostaje wartosci domyslne", async () => {
+    // ZMIANA SWIADOMA (OPS-06): odczyt idzie teraz przez `parseOutboxItem`
+    // (ten sam parser co lista odrzuconych). Dawny straznik sprawdzal tylko
+    // `id`, `code` i `kind` jako NAPISY - pozycja z rodzajem spoza zbioru
+    // trafiala u wysylajacego do RPC leadu zamiast odprawy, a pozycja bez
+    // `attempts` nigdy nie stawala sie „do wyslania”. Ten test opisywal tamta
+    // usterke; teraz pilnuje naprawy.
     const alien = { ...item({ id: "obcy" }), kind: "wydruk" };
     const partial = { id: "kaleki", code: "TCK-K", kind: "checkin" };
     installFakeIdb({ stored: [alien, partial] });
     const storage = await freshModule();
 
-    await expect(storage.loadOutbox()).resolves.toEqual([alien, partial]);
+    await expect(storage.loadOutbox()).resolves.toEqual([
+      expect.objectContaining({ id: "kaleki", code: "TCK-K", attempts: 0, nextAttemptAt: "" }),
+    ]);
   });
 
   it("blad ODCZYTU rekordu schodzi do pamieci i mimo to zamyka baze", async () => {
@@ -537,16 +600,74 @@ describe("wczytanie kolejki", () => {
 
 describe("zapis kolejki", () => {
   it("zapisuje CALA kolejke pod jednym kluczem w trybie DO ZAPISU i zamyka baze", async () => {
-    const queue = [item({ id: "a" }), item({ id: "b" })];
+    const queue = [
+      item({ id: "a", code: "TCK-A-0001", note: "notatka a" }),
+      item({ id: "b", code: "TCK-B-0002" }),
+    ];
+    const key = await deriveVaultKey("nes-dev-token-0123456789");
     const idb = installFakeIdb();
     const storage = await freshModule();
 
-    await storage.saveOutbox(queue);
+    // `true` = transakcja zakończona, kolejka na dysku.
+    await expect(storage.saveOutbox(queue, key)).resolves.toBe(true);
 
     expect(idb.txCalls).toEqual([{ store: "outbox", mode: "readwrite" }]);
-    expect(idb.puts).toEqual([{ key: "queue", value: queue }]);
+    expect(idb.puts).toHaveLength(1);
+    expect(idb.puts[0].key).toBe("queue");
+    // OPS-06: rekord niesie metadane, skrót i prefiks - kod i notatka tylko w bloku.
+    const records = idb.puts[0].value as Array<Record<string, unknown>>;
+    expect(records.map((record) => [record.id, record.codeHash, record.codePrefix])).toEqual([
+      ["a", sha("TCK-A-0001"), "TCK-A-"],
+      ["b", sha("TCK-B-0002"), "TCK-B-"],
+    ]);
+    for (const record of records) {
+      expect(record).not.toHaveProperty("code");
+      expect(record).not.toHaveProperty("note");
+      expect(record.sealed).toEqual({ iv: expect.any(String), data: expect.any(String) });
+    }
+    expect(JSON.stringify(records)).not.toMatch(/TCK-A-0001|TCK-B-0002|notatka a/);
     expect(idb.closes).toBe(1);
     expect(storage.isOutboxPersistent()).toBe(true);
+  });
+
+  it("OPS-06: blok otwiera się TYM SAMYM kluczem - innym nie", async () => {
+    const queue = [item({ id: "a", code: "TCK-A-0001", note: "n", queueMarker: "m-1" })];
+    const key = await deriveVaultKey("nes-dev-token-0123456789");
+    const other = await deriveVaultKey("nes-dev-token-9876543210");
+    const write = installFakeIdb();
+    const storage = await freshModule();
+    await storage.saveOutbox(queue, key);
+    const stored = write.puts[0].value;
+
+    vi.unstubAllGlobals();
+    installFakeIdb({ stored });
+    const reader = await freshModule();
+    await expect(reader.loadOutbox(key)).resolves.toEqual([
+      expect.objectContaining({ id: "a", code: "TCK-A-0001", note: "n", queueMarker: "m-1" }),
+    ]);
+
+    vi.unstubAllGlobals();
+    installFakeIdb({ stored });
+    const stranger = await freshModule();
+    const [locked] = await stranger.loadOutbox(other);
+    // Obcy klucz: kod niedostępny, blok zostaje na pozycji do zapisu bez zmian.
+    expect(locked).toMatchObject({ id: "a", code: "", note: null });
+    expect(locked.sealed).toEqual((stored as Array<{ sealed: unknown }>)[0].sealed);
+    if (key === null) throw new Error("test: brak WebCrypto w środowisku testowym");
+    const reopened = await stranger.openSealedItems([locked], key);
+    expect(reopened?.[0]).toMatchObject({ code: "TCK-A-0001", note: "n" });
+  });
+
+  it("OPS-06: zapis BEZ klucza nie zapisuje kodu wcale - i nie obiecuje trwałości", async () => {
+    const idb = installFakeIdb();
+    const storage = await freshModule();
+
+    await storage.saveOutbox([item({ id: "a", code: "TCK-BEZ-KLUCZA" })]);
+
+    const [record] = idb.puts[0].value as Array<Record<string, unknown>>;
+    expect(record).toMatchObject({ id: "a", sealed: null, codeHash: sha("TCK-BEZ-KLUCZA") });
+    expect(JSON.stringify(record)).not.toContain("TCK-BEZ-KLUCZA");
+    expect(storage.isOutboxPersistent()).toBe(false);
   });
 
   it("PUSTA kolejka tez jest zapisywana - inaczej wyslane skany wracalyby po restarcie", async () => {
@@ -573,7 +694,9 @@ describe("zapis kolejki", () => {
     const idb = installFakeIdb({ tx: "error" });
     const storage = await freshModule();
 
-    await expect(storage.saveOutbox([item()])).resolves.toBeUndefined();
+    // `false` = zapis nie trafil na dysk (sprzatanie pod originem portalu
+    // nie kasuje wtedy tokenu - `purgeScannerData`).
+    await expect(storage.saveOutbox([item()])).resolves.toBe(false);
     expect(storage.isOutboxPersistent()).toBe(false);
     expect(idb.closes).toBe(1);
   });
@@ -588,13 +711,15 @@ describe("zapis kolejki", () => {
     expect(idb.closes).toBe(1);
   });
 
-  it("wyjatek z `transaction()` przy zapisie schodzi do pamieci, zostawiajac polaczenie (usterka)", async () => {
+  it("wyjatek z `transaction()` przy zapisie schodzi do pamieci i ZAMYKA polaczenie", async () => {
     const idb = installFakeIdb({ transactionThrows: true });
     const storage = await freshModule();
 
-    await expect(storage.saveOutbox([item()])).resolves.toBeUndefined();
+    await expect(storage.saveOutbox([item()])).resolves.toBe(false);
     expect(storage.isOutboxPersistent()).toBe(false);
-    expect(idb.closes).toBe(0); // stan obecny; poprawka powinna dac 1
+    // Wspolna sciezka porazki zapisu (`done(false)`) zamyka uchwyt - zwisajace
+    // polaczenie blokowaloby przyszla migracje (`onblocked`).
+    expect(idb.closes).toBe(1);
   });
 
   it("bez bazy zapis trafia do pamieci karty i tam DA sie go odczytac", async () => {
@@ -622,11 +747,12 @@ describe("sygnal trwalosci pokazywany operatorowi", () => {
   });
 
   it("udany odczyt i zapis NIE odbieraja trwalosci", async () => {
+    const key = await deriveVaultKey("nes-dev-token-0123456789");
     installFakeIdb({ stored: [item()] });
     const storage = await freshModule();
 
-    await storage.loadOutbox();
-    await storage.saveOutbox([item()]);
+    await storage.loadOutbox(key);
+    await storage.saveOutbox([item()], key);
 
     expect(storage.isOutboxPersistent()).toBe(true);
   });
@@ -650,21 +776,22 @@ describe("sygnal trwalosci pokazywany operatorowi", () => {
 
 /* ------------------------------------------------------- zgloszona usterka --- */
 
-describe("pamiec podreczna po udanym odczycie (prawdopodobnie usterka)", () => {
-  it("DRUGIE wczytanie bez bazy gubi kolejke wczytana za pierwszym razem", async () => {
-    // `loadOutbox` zwraca dane z IndexedDB, ale NIE przepisuje ich do
-    // `memoryQueue`. Gdy ekran skanera wmontuje sie ponownie (powrot na trase
-    // /scanner), a baza akurat odmowi, awaryjna kolejka jest PUSTA - mimo ze
-    // dwanascie skanow nadal lezy w IndexedDB. Pierwsze nastepne pikniecie
-    // zapisze kolejke jednoelementowa NA WIERZCHU tamtych dwunastu.
-    // Test opisuje stan OBECNY.
+describe("pamiec podreczna po udanym odczycie (usterka naprawiona przy OPS-05)", () => {
+  it("DRUGIE wczytanie bez bazy oddaje kolejke wczytana za pierwszym razem", async () => {
+    // ZMIANA SWIADOMA. Dawniej `loadOutbox` NIE przepisywal odczytu do
+    // `memoryQueue`: gdy ekran skanera wmontowal sie ponownie, a baza akurat
+    // odmowila, awaryjna kolejka byla PUSTA - mimo ze skany lezaly w IndexedDB,
+    // a pierwsze nastepne pikniecie zapisywalo kolejke jednoelementowa NA
+    // WIERZCHU tamtych. Ten test opisywal tamta usterke; teraz pilnuje naprawy
+    // (kolejka nie moze „zniknac” - OPS-05).
     const stored = [item({ id: "a" }), item({ id: "b" })];
     installFakeIdb({ stored });
     const storage = await freshModule();
 
-    await expect(storage.loadOutbox()).resolves.toEqual(stored);
+    const first = await storage.loadOutbox();
+    expect(first).toEqual(stored.map(restored));
 
     vi.unstubAllGlobals(); // baza znika miedzy jednym a drugim wczytaniem
-    await expect(storage.loadOutbox()).resolves.toEqual([]);
+    await expect(storage.loadOutbox()).resolves.toEqual(first);
   });
 });

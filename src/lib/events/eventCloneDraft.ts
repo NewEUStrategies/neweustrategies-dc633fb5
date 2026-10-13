@@ -14,6 +14,28 @@
 // i tak by podniosla (`invalid_titles`, `invalid_slug`, `invalid_code_suffix`,
 // `invalid_task_due_days`, `external_url_*`, `invalid_ends_at`) - formularz
 // mowi o niej ZANIM organizator kliknie, a nie zamiast bazy.
+//
+// TERMIN NOWEJ EDYCJI JEST ZEGAREM W JEJ STREFIE (klasa OPS-15). Pola niosa
+// napis `YYYY-MM-DDTHH:mm` w strefie `timezone` z droplisty formularza, a nie
+// w strefie przegladarki - tak jak kreator wydarzenia. Chwile liczy wspolny
+// `lib/events/eventLocalInput.ts` (regula Postgresa dla luki i zakladki).
+// Podpowiedz z bazy (`suggested_starts_at`) jest kotwica `savedTimes`:
+// nietkniety poczatek jedzie do bazy dokladnie ta chwila (z sekundami).
+//
+// ZMIANA STREFY ZOSTAWIA GODZINE, a przelicza chwile - jak w kreatorze i jak
+// w samym klonie: `admin_event_clone` przesuwa sesje, bilety i okna o roznice
+// ZEGAROW LOKALNYCH (`_event_clone_shift`: czas lokalny w strefie zrodla
+// + delta, czytany w strefie celu), a podpowiedz liczy jako „ta sama godzina
+// lokalna rok pozniej" w strefie celu. „09:00" przeczytane w nowej strefie daje
+// wiec edycje, w ktorej CALY program stoi o tych samych godzinach lokalnych.
+// (Inaczej niz „Informacje ogolne" istniejacego wydarzenia, gdzie baza
+// zaleznych terminow nie przesuwa - patrz `eventGeneralDraft.ts`.)
+import {
+  canonicalInstant,
+  eventLocalInput,
+  eventLocalInputToIso,
+  type SavedInstants,
+} from "@/lib/events/eventLocalInput";
 import type {
   CloneFlags,
   CloneInclude,
@@ -31,11 +53,13 @@ export interface EventCloneDraft {
   titleEn: string;
   /** Pusty = adres z tytulu PL (liczy baza). */
   slug: string;
-  /** ISO albo `""`. */
+  /** `YYYY-MM-DDTHH:mm` w strefie `timezone` albo `""`. */
   startsAt: string;
-  /** ISO albo `""` = koniec przesuniety jak reszta. */
+  /** Jak `startsAt`; `""` = koniec przesuniety jak reszta. */
   endsAt: string;
   timezone: string;
+  /** Chwila podpowiedzi z bazy, z ktorej powstal `startsAt` (kotwica nietknietego pola). */
+  savedTimes: SavedInstants<"startsAt" | "endsAt">;
   /** Uzywany tylko, gdy zrodlo zapisuje w obcym systemie. */
   externalRegistrationUrl: string;
   include: CloneInclude;
@@ -75,9 +99,23 @@ export function suggestEditionTitle(title: string): string {
   return title.replace(/\b(19|20)\d{2}\b/g, (year) => String(Number(year) + 1));
 }
 
+/**
+ * Pole terminu -> chwila w UTC albo `null` (pole puste albo niepelne). Pole
+ * zgodne z kotwica (w strefie szkicu) oddaje ja co do milisekundy.
+ */
+export function cloneDraftInstant(
+  draft: EventCloneDraft,
+  field: "startsAt" | "endsAt",
+): string | null {
+  return eventLocalInputToIso(draft[field], draft.timezone, draft.savedTimes[field] ?? null);
+}
+
 /** Szkic startowy z podgladu zrodla: tytuly z podbitym rokiem, termin z bazy. */
 export function cloneDraftFromPreview(preview: EventClonePreview): EventCloneDraft {
-  const startsAt = preview.target.suggestedStartsAt ?? "";
+  const suggested = canonicalInstant(preview.target.suggestedStartsAt);
+  // Podpowiedz liczy baza w strefie zrodla (podglad zrodla nie podaje strefy
+  // celu), wiec pole pokazuje ja jako zegar tej strefy.
+  const startsAt = eventLocalInput(suggested, preview.source.timezone);
   return {
     titlePl: suggestEditionTitle(preview.source.titlePl),
     titleEn: suggestEditionTitle(preview.source.titleEn),
@@ -85,6 +123,7 @@ export function cloneDraftFromPreview(preview: EventClonePreview): EventCloneDra
     startsAt,
     endsAt: "",
     timezone: preview.source.timezone,
+    savedTimes: { startsAt: suggested },
     externalRegistrationUrl: preview.source.externalRegistrationUrl ?? "",
     include: { ...preview.include },
     flags: {
@@ -96,7 +135,7 @@ export function cloneDraftFromPreview(preview: EventClonePreview): EventCloneDra
       crmRenewalTasks: preview.options.crmRenewalTasks,
       cfpReviewers: preview.options.cfpReviewers,
     },
-    // Przyrostek z roku nowej edycji: kod `VIP` staje sie `VIP-2027`.
+    // Przyrostek z roku nowej edycji (w jej strefie): kod `VIP` staje sie `VIP-2027`.
     codeSuffix: startsAt === "" ? "" : `-${startsAt.slice(0, 4)}`,
     crmTaskDueDays: String(preview.options.crmTaskDueDays),
   };
@@ -123,11 +162,14 @@ export function eventCloneIssue(
   if (titlePl.length > TITLE_MAX || titleEn.length > TITLE_MAX) {
     return "adminEventClone.issues.titleLength";
   }
-  const starts = Date.parse(draft.startsAt);
-  if (Number.isNaN(starts)) return "adminEventClone.issues.startsAt";
+  // Chwile w strefie nowej edycji - te same, ktore pojda do bazy. Porownujemy
+  // CHWILE: w jesiennej zakladce 02:30 po 02:59 bywa pozniejsze.
+  const startsIso = cloneDraftInstant(draft, "startsAt");
+  if (startsIso === null) return "adminEventClone.issues.startsAt";
+  const starts = Date.parse(startsIso);
   if (draft.endsAt.trim() !== "") {
-    const ends = Date.parse(draft.endsAt);
-    if (Number.isNaN(ends) || ends <= starts) return "adminEventClone.issues.endsAt";
+    const endsIso = cloneDraftInstant(draft, "endsAt");
+    if (endsIso === null || Date.parse(endsIso) <= starts) return "adminEventClone.issues.endsAt";
   }
   if (draft.timezone.trim() === "") return "adminEventClone.issues.timezone";
   const slug = draft.slug.trim().toLowerCase();
@@ -180,8 +222,10 @@ export function cloneDraftToInput(
 ): EventCloneInput {
   const suffix = draft.codeSuffix.trim().toUpperCase();
   const slug = draft.slug.trim().toLowerCase();
-  const endsAt = draft.endsAt.trim();
-  const startsAt = draft.startsAt.trim();
+  // Chwile w strefie szkicu; pole puste albo niepelne nie jedzie (baza bierze
+  // wtedy podpowiedz albo przesuwa koniec jak reszte).
+  const endsAt = cloneDraftInstant(draft, "endsAt") ?? "";
+  const startsAt = cloneDraftInstant(draft, "startsAt") ?? "";
   const timezone = draft.timezone.trim();
   const url = draft.externalRegistrationUrl.trim();
   const sendUrl = source.externalMode && url !== (source.externalUrl ?? "");

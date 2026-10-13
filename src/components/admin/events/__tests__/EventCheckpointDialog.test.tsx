@@ -123,6 +123,7 @@ const BAZOWY_WIERSZ: Record<string, unknown> = {
   sponsor_name: null,
   direction_mode: "in_only",
   access_mode: "control",
+  reentry_policy: "allow",
   capacity: null,
   dedupe_window_seconds: 120,
   is_active: true,
@@ -493,10 +494,46 @@ describe("EventCheckpointDialog - ładunek zapisu", () => {
       sponsorId: null,
       directionMode: "in_out",
       accessMode: "track",
+      // Polityka ponownego wejścia jedzie zawsze jawnie; tryb `track` jej nie
+      // zna, więc `allow` (OPS-08, CHECK reentry_needs_control).
+      reentryPolicy: "allow",
       capacity: null,
       dedupeWindowSeconds: 120,
       isActive: false,
       sortOrder: 30,
+    });
+  });
+
+  it("BLOKADA PONOWNEGO WEJŚCIA w trybie kontroli wysyła `deny`", () => {
+    const { onSubmit } = renderuj();
+    wypelnijNazwy();
+    const przelacznik = screen.getByRole("switch", { name: `${D}denyReentry` });
+    expect(przelacznik).not.toBeChecked();
+    expect(przelacznik).toBeEnabled();
+    fireEvent.click(przelacznik);
+    fireEvent.click(zapisz());
+
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      accessMode: "control",
+      reentryPolicy: "deny",
+    });
+  });
+
+  it("w trybie `track` blokada ponownego wejścia jest zgaszona i jedzie `allow`", () => {
+    const { onSubmit } = renderuj({
+      checkpoint: punkt({ access_mode: "control", reentry_policy: "deny" }),
+    });
+    expect(screen.getByRole("switch", { name: `${D}denyReentry` })).toBeChecked();
+
+    fireEvent.change(trybDostepu(), { target: { value: "track" } });
+    const przelacznik = screen.getByRole("switch", { name: `${D}denyReentry` });
+    expect(przelacznik).toBeDisabled();
+    expect(przelacznik).not.toBeChecked();
+    fireEvent.click(zapisz());
+
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      accessMode: "track",
+      reentryPolicy: "allow",
     });
   });
 

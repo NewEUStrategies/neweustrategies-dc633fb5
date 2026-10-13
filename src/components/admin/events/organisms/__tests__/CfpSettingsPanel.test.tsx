@@ -5,8 +5,11 @@
 // DOWODZIMY: (1) ładunek zapisu niesie KOMPLET pól w kształcie SQL-a
 // (`admin_event_cfp_settings_save`), (2) błędny szkic nie wychodzi do bazy
 // i mówi, które pole poprawić, (3) odmowa bazy trafia do toasta, (4) edytor
-// listy form/kryteriów podpowiada klucz z etykiety tylko do ręcznej zmiany.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// listy form/kryteriów podpowiada klucz z etykiety tylko do ręcznej zmiany,
+// (5) okno naboru jest zegarem STREFY WYDARZENIA (OPS-15, X6) także
+// u organizatora w Londynie: pola pokazują godzinę Warszawy, pod nimi stoi
+// strefa, a zapis bez dotykania dat oddaje chwile z bazy.
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
@@ -36,9 +39,12 @@ vi.mock("@/lib/events/adminCfpErrors", () => ({
 vi.mock("@/components/atoms/FormSelect", async () =>
   (await import("@/test/events/cfpStubs")).formSelectStubModule(await import("react")),
 );
-vi.mock("@/components/ui/datetime-picker", async () =>
-  (await import("@/test/events/cfpStubs")).dateTimePickerStubModule(await import("react")),
+vi.mock("@/components/ui/date-input", async () =>
+  (await import("@/test/events/cfpStubs")).dateInputStubModule(await import("react")),
 );
+// Podpowiedź strefy pod polami dat (`adminEvents.eventTime.*`) - słownik
+// wspólnej nakładki studia; atrapa i18n zwraca klucze, więc rejestracja zbędna.
+vi.mock("@/lib/i18n-admin-events", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/components/ui/switch", async () =>
   (await import("@/test/reactStubs")).radixSwitchStub(await import("react")),
 );
@@ -153,11 +159,12 @@ describe("CfpSettingsPanel - zapis", () => {
     fireEvent.change(screen.getByLabelText("adminEventCfp.settings.guidelinesEn"), {
       target: { value: "G" },
     });
+    // Zegar Warszawy (CEST, +2): 12:00 to 10:00Z.
     fireEvent.change(screen.getByLabelText("adminEventCfp.settings.opensAt"), {
-      target: { value: "2026-09-02T10:00:00.000Z" },
+      target: { value: "2026-09-02T12:00" },
     });
     fireEvent.change(screen.getByLabelText("adminEventCfp.settings.closesAt"), {
-      target: { value: "2026-10-02T10:00:00.000Z" },
+      target: { value: "2026-10-02T12:00" },
     });
 
     // Forma wystąpienia: klucz podpowiedziany z etykiety PL.
@@ -280,7 +287,7 @@ describe("CfpSettingsPanel - zapis", () => {
   it("błędny szkic nie wychodzi do bazy, pokazuje błąd przy polu i blokuje zapis; „odrzuć” wraca do bazy", async () => {
     await renderPanel();
     fireEvent.change(screen.getByLabelText("adminEventCfp.settings.closesAt"), {
-      target: { value: "2026-08-01T10:00:00.000Z" },
+      target: { value: "2026-08-01T12:00" },
     });
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.common.save" }));
     expect(await screen.findByText("adminEventCfp.settings.validation.window")).toBeInTheDocument();
@@ -289,7 +296,7 @@ describe("CfpSettingsPanel - zapis", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.common.discard" }));
     expect(screen.getByLabelText("adminEventCfp.settings.closesAt")).toHaveValue(
-      "2026-09-30T10:00:00.000Z",
+      "2026-09-30T12:00",
     );
     expect(screen.queryByText("adminEventCfp.settings.validation.window")).not.toBeInTheDocument();
   });
@@ -383,5 +390,68 @@ describe("CfpLabelledListEditor - przez ekran ustawień", () => {
     await renderPanel(settingsRow({ options: { tracks: [], rooms: [], groups: [], tickets: [] } }));
     expect(screen.getByText("adminEventCfp.settings.noTracks")).toBeInTheDocument();
     expect(screen.getByText("adminEventCfp.settings.noFormats")).toBeInTheDocument();
+  });
+});
+
+describe("CfpSettingsPanel - okno naboru w strefie wydarzenia (OPS-15)", () => {
+  const ORIGINAL_TZ = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Europe/London";
+  });
+  afterAll(() => {
+    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = ORIGINAL_TZ;
+  });
+
+  function podpis(label: string): string {
+    const ids = screen.getByLabelText(label).getAttribute("aria-describedby") ?? "";
+    return ids
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent ?? "")
+      .join(" ")
+      .trim();
+  }
+
+  it("kanarek: maszyna jest w Londynie", () => {
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe("Europe/London");
+  });
+
+  it("pola pokazują godzinę WARSZAWY, a podpis nazywa tę strefę", async () => {
+    await renderPanel(settingsRow({ closes_at: "2026-09-30T21:59:59+00:00" }));
+    // Dawny kalendarz pokazałby 22:59 (Londyn, BST) - czyli „do 22:59".
+    expect(screen.getByLabelText("adminEventCfp.settings.closesAt")).toHaveValue(
+      "2026-09-30T23:59",
+    );
+    expect(podpis("adminEventCfp.settings.closesAt")).toBe(
+      "adminEventCfp.settings.closesAtHint adminEvents.eventTime.zone(zone=Europe/Warsaw)",
+    );
+  });
+
+  it("zapis bez dotykania okna oddaje chwile z bazy co do sekundy", async () => {
+    await renderPanel(settingsRow({ closes_at: "2026-09-30T21:59:59+00:00" }));
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.introPl"), {
+      target: { value: "Wstęp" },
+    });
+    stub().setData("admin_event_cfp_settings_save", settingsRow());
+    fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.common.save" }));
+    await waitFor(() => expect(stub().callsFor("admin_event_cfp_settings_save")).toHaveLength(1));
+    expect(payload()).toMatchObject({
+      opens_at: "2026-09-01T10:00:00.000Z",
+      closes_at: "2026-09-30T21:59:59.000Z",
+    });
+  });
+
+  it("wpisany termin liczy się w Warszawie; zakładka 25.10 bierze drugie wystąpienie", async () => {
+    await renderPanel();
+    fireEvent.change(screen.getByLabelText("adminEventCfp.settings.closesAt"), {
+      target: { value: "2026-10-25T02:30" },
+    });
+    expect(podpis("adminEventCfp.settings.closesAt")).toMatch(
+      /^adminEventCfp\.settings\.closesAtHint adminEvents\.eventTime\.overlap\(/,
+    );
+    stub().setData("admin_event_cfp_settings_save", settingsRow());
+    fireEvent.click(screen.getByRole("button", { name: "adminEventCfp.common.save" }));
+    await waitFor(() => expect(stub().callsFor("admin_event_cfp_settings_save")).toHaveLength(1));
+    expect(payload()).toMatchObject({ closes_at: "2026-10-25T01:30:00.000Z" });
   });
 });

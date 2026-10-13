@@ -27,6 +27,9 @@
 //   5. OSTRZEZENIA NIE SA BLEDAMI. „Chatham House na stronie publicznej" ma
 //      zatrzymac wzrok, a nie zapis - pomylenie tych dwoch klas zamyka
 //      redaktorowi ekran, na ktorym nie ma nic niepoprawnego.
+//   6. OTWARCIE ZAPISOW JEST ZEGAREM STREFY WYDARZENIA (OPS-15, X6), takze
+//      u redaktora w Londynie: pole pokazuje godzine Warszawy, pod nim stoi
+//      strefa, a zapis bez dotykania daty oddaje chwile z bazy.
 //
 // CZEGO SWIADOMIE NIE DUBLUJE. (1) Tabel regul szkicu (walidacja, ladunek,
 // ostrzezenia, przeliczenie groszy) - `lib/events/__tests__/registrationSettingsDraft.test.ts`;
@@ -40,7 +43,7 @@
 // (`assert_editor_tenant`) i pilnuje go bramka `check:sql-tenant-scope`.
 //
 // RODO: zadnych prawdziwych danych osobowych, adresy wylacznie `example.org`.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
@@ -107,22 +110,29 @@ vi.mock("@/components/atoms/FormSelect", () => {
   return { FormSelect, default: FormSelect };
 });
 
-// Kalendarz jest popoverem Radiksa - atrapa zostawia z niego KONTRAKT: napis
-// ISO w srodku i pusty napis jako „nie podano".
-vi.mock("@/components/ui/datetime-picker", () => ({
-  DateTimePicker: ({
+// Kalendarz jest popoverem Radiksa - atrapa zostawia z niego KONTRAKT atomu
+// `DateInput`: napis zegara `YYYY-MM-DDTHH:mm` (w strefie wydarzenia, OPS-15)
+// i pusty napis jako „nie podano". Sam atom ma wlasne testy.
+vi.mock("@/components/ui/date-input", () => ({
+  DateInput: ({
     id,
     value,
     onChange,
+    "aria-invalid": invalid,
+    "aria-describedby": describedBy,
   }: {
     id?: string;
-    value: string | null;
-    onChange: (iso: string | null) => void;
+    value?: string | null;
+    onChange?: (event: { target: { value: string } }) => void;
+    "aria-invalid"?: boolean;
+    "aria-describedby"?: string;
   }) => (
     <input
       id={id}
       value={value ?? ""}
-      onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
+      aria-invalid={invalid}
+      aria-describedby={describedBy}
+      onChange={(event) => onChange?.({ target: { value: event.target.value } })}
     />
   ),
 }));
@@ -277,7 +287,8 @@ describe("EventRegistrationSettingsPanel - trzy stany ekranu", () => {
     expect(pole("priceLabel").value).toBe("250.00");
     expect(pole("minTierLabel").value).toBe("2");
     expect(pole("earlyRankLabel").value).toBe("1");
-    expect(pole("rsvpOpensLabel").value).toBe("2026-08-01T08:00:00.000Z");
+    // Zegar Warszawy (CEST, +2), nie chwila ISO.
+    expect(pole("rsvpOpensLabel").value).toBe("2026-08-01T10:00");
     expect(pole("joinUrlLabel").value).toBe("https://transmisja.example.org/kongres");
     expect(pole("recordingUrlLabel").value).toBe("https://nagrania.example.org/kongres");
     expect(screen.getByLabelText(`${R}currencyLabel`)).toHaveValue("EUR");
@@ -692,7 +703,7 @@ describe("EventRegistrationSettingsPanel - ostrzezenia", () => {
     panel({ rsvp_opens_at: "" });
     wpisz("earlyRankLabel", "2");
 
-    fireEvent.change(pole("rsvpOpensLabel"), { target: { value: "2026-08-01T08:00:00.000Z" } });
+    fireEvent.change(pole("rsvpOpensLabel"), { target: { value: "2026-08-01T10:00" } });
 
     expect(screen.queryByText(`${R}warnings.earlyRankWithoutOpening`)).toBeNull();
   });
@@ -916,5 +927,64 @@ describe("EventRegistrationSettingsPanel - dostepnosc", () => {
 
     const naruszenia = await axeViolations(container);
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
+  });
+});
+
+describe("EventRegistrationSettingsPanel - otwarcie zapisow w strefie wydarzenia (OPS-15)", () => {
+  const ORIGINAL_TZ = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Europe/London";
+  });
+  afterAll(() => {
+    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = ORIGINAL_TZ;
+  });
+
+  /** Podpis pola - opis przypiety przez `aria-describedby`. */
+  function podpis(klucz: string): string {
+    const ids = pole(klucz).getAttribute("aria-describedby") ?? "";
+    return ids
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent ?? "")
+      .join(" ")
+      .trim();
+  }
+
+  it("kanarek: maszyna jest w Londynie", () => {
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe("Europe/London");
+  });
+
+  it("pole pokazuje godzine WARSZAWY, a podpis nazywa te strefe", () => {
+    panel({ rsvp_opens_at: "2026-08-01T08:00:00+00:00" });
+    // Dawny kalendarz pokazalby 09:00 (Londyn, BST).
+    expect(pole("rsvpOpensLabel").value).toBe("2026-08-01T10:00");
+    expect(podpis("rsvpOpensLabel")).toBe(
+      `${R}rsvpOpensHint adminEvents.eventTime.zone(zone=Europe/Warsaw)`,
+    );
+  });
+
+  it("zapis BEZ dotykania daty oddaje chwile z bazy co do sekundy", async () => {
+    panel({ rsvp_opens_at: "2026-08-01T07:59:30+00:00" });
+    wpisz("capacityLabel", "150");
+    zapisz();
+    await czekajNaZapis();
+    expect(ladunek().rsvp_opens_at).toBe("2026-08-01T07:59:30.000Z");
+  });
+
+  it("wpisana godzina liczy sie w Warszawie, a nie w strefie przegladarki", async () => {
+    panel({ rsvp_opens_at: "" });
+    wpisz("rsvpOpensLabel", "2026-08-01T09:00");
+    zapisz();
+    await czekajNaZapis();
+    // Strefa maszyny (BST) dalaby 08:00Z.
+    expect(ladunek().rsvp_opens_at).toBe("2026-08-01T07:00:00.000Z");
+  });
+
+  it("wydarzenie w innej strefie: pole i podpis ida za strefa wiersza", () => {
+    panel({ rsvp_opens_at: "2026-08-01T08:00:00+00:00", timezone: "America/New_York" });
+    expect(pole("rsvpOpensLabel").value).toBe("2026-08-01T04:00");
+    expect(podpis("rsvpOpensLabel")).toBe(
+      `${R}rsvpOpensHint adminEvents.eventTime.zone(zone=America/New_York)`,
+    );
   });
 });

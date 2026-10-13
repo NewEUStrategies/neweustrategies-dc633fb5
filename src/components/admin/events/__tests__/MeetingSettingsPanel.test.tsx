@@ -502,7 +502,11 @@ describe("MeetingSettingsPanel - okno zaproszeń", () => {
 
     expect(bledy()).toHaveLength(0);
     fireEvent.click(przyciskZapisu());
-    expect(ostatniLadunek().invitesOpenAt).toBe(new Date("2026-09-01T09:00").toISOString());
+    // 09:00 w strefie giełdy (Europe/Warsaw, CEST = UTC+2). Dawniej oczekiwanie
+    // liczył `new Date(napis)`, czyli strefa maszyny - test utrwalał błąd klasy
+    // OPS-15 (okno w strefie organizatora). Obca strefa przeglądarki i noce
+    // zmiany czasu: `lib/events/__tests__/eventLocalInputZone.test.ts`.
+    expect(ostatniLadunek().invitesOpenAt).toBe("2026-09-01T07:00:00.000Z");
     expect(ostatniLadunek().invitesCloseAt).toBeNull();
   });
 
@@ -512,8 +516,25 @@ describe("MeetingSettingsPanel - okno zaproszeń", () => {
     wpisz("closesAtLabel", "2026-09-10T18:30");
     fireEvent.click(przyciskZapisu());
 
-    expect(ostatniLadunek().invitesOpenAt).toBe(new Date("2026-09-01T09:00").toISOString());
-    expect(ostatniLadunek().invitesCloseAt).toBe(new Date("2026-09-10T18:30").toISOString());
+    expect(ostatniLadunek().invitesOpenAt).toBe("2026-09-01T07:00:00.000Z");
+    expect(ostatniLadunek().invitesCloseAt).toBe("2026-09-10T16:30:00.000Z");
+  });
+
+  it("pod polami okna stoi strefa giełdy - i idzie za polem strefy", () => {
+    panel();
+    const opis = (id: string) =>
+      document.getElementById(
+        (document.getElementById(id)?.getAttribute("aria-describedby") ?? "").split(" ")[0],
+      )?.textContent;
+    expect(opis("invites-open")).toBe("adminEvents.eventTime.zone(zone=Europe/Warsaw)");
+    expect(opis("invites-close")).toBe("adminEvents.eventTime.zone(zone=Europe/Warsaw)");
+
+    // Zmiana strefy giełdy czyta napis okna w nowej strefie - jak godziny dnia.
+    wpisz("timezoneLabel", "Europe/Lisbon");
+    wpisz("opensAtLabel", "2026-09-01T09:00");
+    expect(opis("invites-open")).toBe("adminEvents.eventTime.zone(zone=Europe/Lisbon)");
+    fireEvent.click(przyciskZapisu());
+    expect(ostatniLadunek().invitesOpenAt).toBe("2026-09-01T08:00:00.000Z");
   });
 });
 

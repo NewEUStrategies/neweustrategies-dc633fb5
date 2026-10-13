@@ -123,10 +123,20 @@ function TicketsAndCodes({ row }: { row: AdminEventDetailRow }) {
         <TabsTrigger value="codes">{t("eventCodes.tabCodes")}</TabsTrigger>
       </TabsList>
       <TabsContent value="tickets">
-        <EventTicketsPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+        <EventTicketsPanel
+          key={row.id}
+          eventId={row.id}
+          eventSlug={row.slug}
+          timezone={row.timezone}
+        />
       </TabsContent>
       <TabsContent value="codes">
-        <EventCodesPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+        <EventCodesPanel
+          key={row.id}
+          eventId={row.id}
+          eventSlug={row.slug}
+          timezone={row.timezone}
+        />
       </TabsContent>
     </Tabs>
   );
@@ -136,7 +146,7 @@ export function EventRegistrationPackagesSection({ row }: { row: AdminEventDetai
   ensureRegistrationI18n();
   return (
     <ModuleScreen titleKey="adminEventRegistration.packages.title">
-      <EventPackagesPanel key={row.id} eventId={row.id} />
+      <EventPackagesPanel key={row.id} eventId={row.id} timezone={row.timezone} />
     </ModuleScreen>
   );
 }
@@ -367,7 +377,7 @@ export function EventSponsorsSection({ row }: { row: AdminEventDetailRow }) {
           <TabsTrigger value="tiers">{t("adminEventSponsors.nav.tiers")}</TabsTrigger>
         </TabsList>
         <TabsContent value="board">
-          <SponsorSectionsBoard key={eventId} eventId={eventId} />
+          <SponsorSectionsBoard key={eventId} eventId={eventId} timezone={row.timezone} />
         </TabsContent>
         <TabsContent value="sponsors">
           <SponsorsListPanel key={eventId} eventId={eventId} />

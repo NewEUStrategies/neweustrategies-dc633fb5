@@ -8,8 +8,10 @@
 // tylko na żądanie i tylko dla stanów, o których się pisze, oraz że ponowienie
 // CRM dotyczy osoby, a nie zgłoszenia. Przyjęte zgłoszenie da się COFNĄĆ (tylko
 // na rezerwę albo do odrzucenia, po potwierdzeniu), a panel mówi, czy
-// prelegenci są już ogłoszeni i co cofnięto.
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// prelegenci są już ogłoszeni i co cofnięto. Termin sesji przy przyjęciu jest
+// zegarem STREFY WYDARZENIA (OPS-15, X6): pod polami stoi strefa, a godzina
+// wpisana u organizatora w Londynie liczy się w Warszawie.
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
@@ -56,9 +58,12 @@ vi.mock("@tanstack/react-router", async () => ({
 vi.mock("@/components/atoms/FormSelect", async () =>
   (await import("@/test/events/cfpStubs")).formSelectStubModule(await import("react")),
 );
-vi.mock("@/components/ui/datetime-picker", async () =>
-  (await import("@/test/events/cfpStubs")).dateTimePickerStubModule(await import("react")),
+vi.mock("@/components/ui/date-input", async () =>
+  (await import("@/test/events/cfpStubs")).dateInputStubModule(await import("react")),
 );
+// Podpowiedź strefy pod polami dat (`adminEvents.eventTime.*`) - słownik
+// wspólnej nakładki studia; atrapa i18n zwraca klucze, więc rejestracja zbędna.
+vi.mock("@/lib/i18n-admin-events", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/components/ui/switch", async () =>
   (await import("@/test/reactStubs")).radixSwitchStub(await import("react")),
 );
@@ -585,11 +590,12 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     ).toBeInTheDocument();
     expect(stub().callsFor("admin_event_cfp_submission_accept")).toHaveLength(0);
 
+    // Zegar Warszawy (CEST, +2): 11:00-11:30 to 09:00Z-09:30Z.
     fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.startsAt"), {
-      target: { value: "2026-10-01T09:00:00.000Z" },
+      target: { value: "2026-10-01T11:00" },
     });
     fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.endsAt"), {
-      target: { value: "2026-10-01T09:30:00.000Z" },
+      target: { value: "2026-10-01T11:30" },
     });
     fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.room"), {
       target: { value: "r1" },
@@ -940,10 +946,10 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
       target: { value: "t1" },
     });
     fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.startsAt"), {
-      target: { value: "2026-10-01T09:00:00.000Z" },
+      target: { value: "2026-10-01T11:00" },
     });
     fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.endsAt"), {
-      target: { value: "2026-10-01T10:00:00.000Z" },
+      target: { value: "2026-10-01T12:00" },
     });
     stub().setResponse(
       "admin_event_cfp_submission_accept",
@@ -964,5 +970,45 @@ describe("CfpSubmissionSheet - szczegół i decyzja", () => {
     stub().setError("admin_event_cfp_submission_detail", "not_found: x");
     const sheet = await openSheet();
     expect(await within(sheet).findByText("odmowa:not_found: x")).toBeInTheDocument();
+  });
+});
+
+describe("CfpAcceptDialog - termin sesji w strefie wydarzenia (OPS-15)", () => {
+  const ORIGINAL_TZ = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Europe/London";
+  });
+  afterAll(() => {
+    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = ORIGINAL_TZ;
+  });
+
+  it("09:00-09:30 wpisane w Londynie to godziny programu w Warszawie; podpis nazywa strefę", async () => {
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe("Europe/London");
+    await renderPanel();
+    const sheet = await openSheet();
+    await within(sheet).findByRole("heading", { name: "Energia jutra" });
+    fireEvent.click(within(sheet).getByRole("button", { name: "adminEventCfp.detail.accept" }));
+    const dialog = await screen.findByRole("dialog", { name: "adminEventCfp.accept.title" });
+    fireEvent.click(within(dialog).getByLabelText("adminEventCfp.accept.schedule"));
+    const start = within(dialog).getByLabelText("adminEventCfp.accept.startsAt");
+    fireEvent.change(start, { target: { value: "2026-10-01T09:00" } });
+    fireEvent.change(within(dialog).getByLabelText("adminEventCfp.accept.endsAt"), {
+      target: { value: "2026-10-01T09:30" },
+    });
+    const hintId = start.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(hintId)?.textContent).toBe(
+      "adminEvents.eventTime.zone(zone=Europe/Warsaw)",
+    );
+
+    stub().setData("admin_event_cfp_submission_accept", { id: "s1", speakers_enrolled: 1 });
+    fireEvent.click(within(dialog).getByRole("button", { name: "adminEventCfp.accept.confirm" }));
+    await waitFor(() =>
+      expect(stub().callsFor("admin_event_cfp_submission_accept")).toHaveLength(1),
+    );
+    // Strefa maszyny (BST) dałaby 08:00Z-08:30Z.
+    expect(payload("admin_event_cfp_submission_accept")).toMatchObject({
+      schedule: { starts_at: "2026-10-01T07:00:00.000Z", ends_at: "2026-10-01T07:30:00.000Z" },
+    });
   });
 });

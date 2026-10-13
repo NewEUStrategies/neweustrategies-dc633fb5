@@ -44,6 +44,24 @@ import {
 } from "@/lib/events/ticketDraft";
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+// `DateInput` jest kalendarzem (przycisk + popover), a nie natywnym polem -
+// `fireEvent.change` go nie wypełni. Przedmiotem dowodu jest to, CO edytor robi
+// z wartością pola `datetime-local`, więc atrapa jest natywna, jak w
+// `MeetingSettingsPanel.test.tsx`. Bez niej trzy przypadki z oknem progu były
+// czerwone na bazie 3a98acb (od zamiany pola na kalendarz).
+vi.mock("@/components/ui/date-input", () => ({
+  DateInput: ({
+    onChange,
+    value,
+    type,
+    ...props
+  }: {
+    onChange: (event: { target: { value: string } }) => void;
+    value: string;
+    type: string;
+    id?: string;
+  }) => <input {...props} type={type} value={value} onChange={onChange} />,
+}));
 
 const onChange = vi.fn<(phases: TicketPhaseDraft[]) => void>();
 
@@ -69,6 +87,7 @@ function Harness({
     <EventTicketPhasesEditor
       phases={phases}
       error={error}
+      timeZone="Europe/Warsaw"
       currency={currency}
       onChange={(next) => {
         onChange(next);

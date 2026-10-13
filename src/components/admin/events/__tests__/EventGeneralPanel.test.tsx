@@ -23,6 +23,11 @@
 //   6. PODGLĄD NA ŻYWO DOSTAJE SZKIC, nie odpowiedź z bazy.
 //   7. OSTRZEŻENIA NIE BLOKUJĄ ZAPISU - brak adresu i brak okładki zmieniają
 //      to, co zobaczy uczestnik, ale nie są powodem do zatrzymania redaktora.
+//   8. TERMIN JEST ZEGAREM STREFY WYDARZENIA (OPS-15, X6), także u redaktora
+//      w innej strefie (`TZ=Europe/London` dla kongresu w Warszawie): pola
+//      pokazują godzinę Warszawy, pod nimi stoi strefa albo zdanie o luce
+//      i zakładce zmiany czasu, nietknięty zapis oddaje chwile z bazy, a zmiana
+//      strefy ZOSTAWIA chwile i przelicza godziny w polach.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Tabeli reguł szkicu
 // (`validateEventGeneralDraft`, `eventGeneralPayload`, `eventGeneralWarnings`,
@@ -33,7 +38,7 @@
 // odmów bazy (`adminEventStudioErrors`). (4) Wyboru okładki i kalendarza -
 // mają własne komponenty; pod happy-dom nie ma dla nich pełnego API wskaźnika,
 // więc stoją tu atrapy o tym samym kontrakcie.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { AdminEventDetailRow } from "@/lib/events/eventDetailApi";
@@ -130,25 +135,35 @@ vi.mock("@/components/atoms/FormSelect", () => {
   return { FormSelect, default: FormSelect };
 });
 
-// Kalendarz jest popoverem Radiksa - atrapa zostawia z niego KONTRAKT: napis
-// ISO w środku i pusty napis jako „nie podano".
-vi.mock("@/components/ui/datetime-picker", () => ({
-  DateTimePicker: ({
+// Kalendarz jest popoverem Radiksa - atrapa zostawia z niego KONTRAKT atomu
+// `DateInput`: napis zegara `YYYY-MM-DDTHH:mm` (w strefie wydarzenia, OPS-15)
+// i pusty napis jako „nie podano". Sam atom ma własne testy.
+vi.mock("@/components/ui/date-input", () => ({
+  DateInput: ({
     id,
     value,
     onChange,
+    min,
     disabled,
+    "aria-invalid": invalid,
+    "aria-describedby": describedBy,
   }: {
     id?: string;
-    value: string | null;
-    onChange: (iso: string | null) => void;
+    value?: string | null;
+    onChange?: (event: { target: { value: string } }) => void;
+    min?: string;
     disabled?: boolean;
+    "aria-invalid"?: boolean;
+    "aria-describedby"?: string;
   }) => (
     <input
       id={id}
       value={value ?? ""}
+      min={min}
       disabled={disabled}
-      onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
+      aria-invalid={invalid}
+      aria-describedby={describedBy}
+      onChange={(event) => onChange?.({ target: { value: event.target.value } })}
     />
   ),
 }));
@@ -523,7 +538,8 @@ describe("EventGeneralPanel - walidacja: każde pole osobno", () => {
 
   it("koniec PRZED początkiem nie dociera do warstwy zapisu", () => {
     panel();
-    wpisz("endsLabel", "2026-09-01T08:00:00.000Z");
+    // Początek z wiersza to 11:00 w Warszawie (09:00Z).
+    wpisz("endsLabel", "2026-09-01T10:00");
     zapiszKliknij();
 
     expect(h.payloads).toHaveLength(0);
@@ -825,7 +841,7 @@ describe("EventGeneralPanel - ostrzeżenia nie blokują zapisu", () => {
 
   it("wydarzenie dłuższe niż miesiąc ostrzega o literówce w dacie", () => {
     panel();
-    wpisz("endsLabel", "2026-12-01T15:00:00.000Z");
+    wpisz("endsLabel", "2026-12-01T16:00");
     expect(screen.getByText("adminEvents.general.warnings.veryLong")).toBeTruthy();
     zapiszKliknij();
     expect(h.payloads).toHaveLength(1);
@@ -998,5 +1014,99 @@ describe("EventGeneralPanel - identyfikator wydarzenia", () => {
       expect(h.toastError).toHaveBeenCalledWith(`${G}copyFailed`);
     });
     expect(document.querySelector(".lucide-check")).toBeNull();
+  });
+});
+
+describe("EventGeneralPanel - termin w strefie wydarzenia (OPS-15), redaktor w Londynie", () => {
+  const ORIGINAL_TZ = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Europe/London";
+  });
+  afterAll(() => {
+    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = ORIGINAL_TZ;
+  });
+
+  /** Podpowiedź pod polem - opis przypięty do pola przez `aria-describedby`. */
+  function podpis(labelKey: string): string {
+    const id = pole(labelKey).getAttribute("aria-describedby") ?? "";
+    return id
+      .split(" ")
+      .map((part) => document.getElementById(part)?.textContent ?? "")
+      .join(" ")
+      .trim();
+  }
+
+  it("kanarek: maszyna jest w Londynie, a 09:00Z to tu 10:00, w Warszawie 11:00", () => {
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe("Europe/London");
+    expect(new Date("2026-09-01T09:00:00.000Z").getHours()).toBe(10);
+  });
+
+  it("pola pokazują godzinę WARSZAWY, a podpis nazywa tę strefę", () => {
+    panel();
+    expect(pole("beginsLabel").value).toBe("2026-09-01T11:00");
+    expect(pole("endsLabel").value).toBe("2026-09-01T17:00");
+    expect(podpis("beginsLabel")).toBe("adminEvents.eventTime.zone(zone=Europe/Warsaw)");
+    expect(podpis("endsLabel")).toBe("adminEvents.eventTime.zone(zone=Europe/Warsaw)");
+    expect(screen.getByText(`${G}timeZoneKeepsInstants`)).toBeTruthy();
+  });
+
+  it("zapis BEZ dotykania terminu oddaje chwile z bazy, a nie godzinę Londynu", () => {
+    panel();
+    wpisz("nameLabel", "Kongres Energetyczny 2026");
+    zapiszKliknij();
+    expect(ostatniLadunek().starts_at).toBe("2026-09-01T09:00:00.000Z");
+    expect(ostatniLadunek().ends_at).toBe("2026-09-01T15:00:00.000Z");
+    expect(ostatniLadunek().timezone).toBe("Europe/Warsaw");
+  });
+
+  it("wpisana godzina liczy się w Warszawie; podgląd dostaje tę samą CHWILĘ", () => {
+    panel();
+    wpisz("beginsLabel", "2026-09-01T12:00");
+    expect(h.preview.at(-1)?.startsAt).toBe("2026-09-01T10:00:00.000Z");
+    zapiszKliknij();
+    // Strefa maszyny dałaby 11:00Z.
+    expect(ostatniLadunek().starts_at).toBe("2026-09-01T10:00:00.000Z");
+  });
+
+  it("wiosenna luka (29.03) i jesienna zakładka (25.10) - podpis mówi, co zapiszemy", () => {
+    panel({ ends_at: "2026-11-30T15:00:00.000Z" });
+    wpisz("beginsLabel", "2026-03-29T02:30");
+    expect(podpis("beginsLabel")).toBe("adminEvents.eventTime.gap(value=03:30,zone=Europe/Warsaw)");
+    expect(h.preview.at(-1)?.startsAt).toBe("2026-03-29T01:30:00.000Z");
+
+    wpisz("beginsLabel", "2026-10-25T02:30");
+    expect(podpis("beginsLabel")).toMatch(/^adminEvents\.eventTime\.overlap\(/);
+    zapiszKliknij();
+    // DRUGIE wystąpienie 02:30 (CET) - tak samo rozstrzyga baza.
+    expect(ostatniLadunek().starts_at).toBe("2026-10-25T01:30:00.000Z");
+  });
+
+  it("zmiana strefy ZOSTAWIA chwile: pola przeliczają się na nową strefę, podpis nazywa obie", () => {
+    panel();
+    fireEvent.change(droplista("timeZoneLabel"), { target: { value: "Europe/London" } });
+
+    expect(pole("beginsLabel").value).toBe("2026-09-01T10:00");
+    expect(pole("endsLabel").value).toBe("2026-09-01T16:00");
+    expect(podpis("beginsLabel")).toBe("adminEvents.eventTime.zone(zone=Europe/London)");
+    expect(
+      screen.getByText(`${G}timeZoneConverted(previous=Europe/Warsaw,zone=Europe/London)`),
+    ).toBeTruthy();
+
+    zapiszKliknij();
+    expect(ostatniLadunek().timezone).toBe("Europe/London");
+    expect(ostatniLadunek().starts_at).toBe("2026-09-01T09:00:00.000Z");
+    expect(ostatniLadunek().ends_at).toBe("2026-09-01T15:00:00.000Z");
+  });
+
+  it("powrót do strefy z bazy przywraca pola i chowa pasek zapisu", () => {
+    panel();
+    fireEvent.change(droplista("timeZoneLabel"), { target: { value: "Europe/London" } });
+    expect(przyciskZapisu()).toBeTruthy();
+    fireEvent.change(droplista("timeZoneLabel"), { target: { value: "Europe/Warsaw" } });
+
+    expect(pole("beginsLabel").value).toBe("2026-09-01T11:00");
+    expect(screen.getByText(`${G}timeZoneKeepsInstants`)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "adminEvents.studio.actions.save" })).toBeNull();
   });
 });

@@ -482,10 +482,22 @@ describe("decyzja i przyjęcie organizatora", () => {
   });
 
   it("przyjęcie bez planu jest poprawne; plan wymaga poprawnego okna do 48 h", () => {
-    const draft = cfpAcceptDraftFrom({ decisionNote: "n", feedbackToSpeaker: "f", trackId: null });
-    expect(draft).toMatchObject({ register: true, schedule: false, trackId: "", format: "onsite" });
+    const draft = cfpAcceptDraftFrom({
+      decisionNote: "n",
+      feedbackToSpeaker: "f",
+      trackId: null,
+      timeZone: "Europe/Warsaw",
+    });
+    expect(draft).toMatchObject({
+      register: true,
+      schedule: false,
+      trackId: "",
+      format: "onsite",
+      timeZone: "Europe/Warsaw",
+    });
     expect(
-      cfpAcceptDraftFrom({ decisionNote: "", feedbackToSpeaker: "", trackId: "t1" }).trackId,
+      cfpAcceptDraftFrom({ decisionNote: "", feedbackToSpeaker: "", trackId: "t1", timeZone: null })
+        .trackId,
     ).toBe("t1");
     expect(cfpAcceptIssue(draft)).toBeNull();
     expect(cfpAcceptIssue({ ...draft, decisionNote: "x".repeat(2001) })).toBe(
@@ -494,11 +506,12 @@ describe("decyzja i przyjęcie organizatora", () => {
     expect(cfpAcceptIssue({ ...draft, feedbackToSpeaker: "x".repeat(4001) })).toBe(
       "adminEventCfp.detail.validation.tooLong",
     );
+    // Termin sesji jest zegarem Warszawy (CEST, +2).
     const scheduled = {
       ...draft,
       schedule: true,
-      startsAt: "2026-10-01T09:00:00.000Z",
-      endsAt: "2026-10-01T09:30:00.000Z",
+      startsAt: "2026-10-01T11:00",
+      endsAt: "2026-10-01T11:30",
     };
     expect(cfpAcceptIssue(scheduled)).toBeNull();
     expect(cfpAcceptIssue({ ...scheduled, endsAt: "" })).toBe(
@@ -507,9 +520,10 @@ describe("decyzja i przyjęcie organizatora", () => {
     expect(cfpAcceptIssue({ ...scheduled, endsAt: scheduled.startsAt })).toBe(
       "adminEventCfp.accept.validation.schedule",
     );
-    expect(cfpAcceptIssue({ ...scheduled, endsAt: "2026-10-03T09:00:01.000Z" })).toBe(
+    expect(cfpAcceptIssue({ ...scheduled, endsAt: "2026-10-03T11:01" })).toBe(
       "adminEventCfp.accept.validation.schedule",
     );
+    expect(cfpAcceptIssue({ ...scheduled, endsAt: "2026-10-03T11:00" })).toBeNull();
     expect(cfpAcceptPayload("s1", draft)).toEqual({
       id: "s1",
       decisionNote: "n",

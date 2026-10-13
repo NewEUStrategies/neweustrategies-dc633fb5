@@ -22,14 +22,20 @@
 //   * poświadczenie unieważnione, nieznane albo po terminie - koniec sesji.
 // Każda inna rozpoznawalna głowa jest odmową TEJ pozycji: nie zacznie
 // przechodzić po dziesiątej próbie.
+//
+// DŁAWIK TO NIE ODMOWA (OPS-05). `rate_limited` / `too_many_requests` mówią
+// „jeszcze nie teraz", nie „nigdy" - klasa `throttled` jest przejściowa jak
+// blokada czasowa: skan na żywo idzie do kolejki, kolejka czeka z wycofaniem.
 
-export type ScanErrorKind = "transport" | "locked" | "paused" | "session" | "refused";
+export type ScanErrorKind = "transport" | "locked" | "throttled" | "paused" | "session" | "refused";
 
 const SESSION_HEADS: ReadonlySet<string> = new Set([
   "invalid_device_token",
   "device_revoked",
   "device_expired",
 ]);
+
+const THROTTLE_HEADS: ReadonlySet<string> = new Set(["rate_limited", "too_many_requests"]);
 
 const CODE = /^[a-z][a-z0-9_]*$/;
 
@@ -55,6 +61,7 @@ export function scanErrorKind(error: unknown): ScanErrorKind {
   const head = scannerErrorHead(message);
   if (!CODE.test(head)) return "transport";
   if (head === "device_locked") return "locked";
+  if (THROTTLE_HEADS.has(head)) return "throttled";
   if (head === "device_inactive") return "paused";
   if (SESSION_HEADS.has(head)) return "session";
   return "refused";
@@ -75,11 +82,11 @@ export function invalidatesSession(error: unknown): boolean {
 
 /**
  * Czy warto ponowić ten błąd - i czy skan może pójść ścieżką offline.
- * Ponawiamy błędy transportu oraz czasową blokadę urządzenia.
+ * Ponawiamy błędy transportu, czasową blokadę urządzenia i dławik.
  */
 export function isRetryableScanError(error: unknown): boolean {
   const kind = scanErrorKind(error);
-  return kind === "transport" || kind === "locked";
+  return kind === "transport" || kind === "locked" || kind === "throttled";
 }
 
 /**

@@ -92,25 +92,32 @@ vi.mock("@/components/atoms/FormSelect", () => {
   return { FormSelect, default: FormSelect };
 });
 
-// Kalendarz jest popoverem Radiksa - atrapa zostawia z niego KONTRAKT: napis
-// z chwilą w środku i pusty napis jako „nie podano".
-vi.mock("@/components/ui/datetime-picker", () => ({
-  DateTimePicker: ({
+// Kalendarz jest popoverem Radiksa - atrapa zostawia z niego KONTRAKT atomu
+// `DateInput`: napis zegara `YYYY-MM-DDTHH:mm` (w strefie wydarzenia, OPS-15)
+// i pusty napis jako „nie podano". Sam atom ma własne testy.
+vi.mock("@/components/ui/date-input", () => ({
+  DateInput: ({
     id,
     value,
     onChange,
+    min,
     disabled,
+    "aria-describedby": describedBy,
   }: {
     id?: string;
-    value: string | null;
-    onChange: (iso: string | null) => void;
+    value?: string | null;
+    onChange?: (event: { target: { value: string } }) => void;
+    min?: string;
     disabled?: boolean;
+    "aria-describedby"?: string;
   }) => (
     <input
       id={id}
       value={value ?? ""}
+      min={min}
       disabled={disabled}
-      onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
+      aria-describedby={describedBy}
+      onChange={(event) => onChange?.({ target: { value: event.target.value } })}
     />
   ),
 }));
@@ -409,6 +416,25 @@ describe("EventCreateForm - co dostaje warstwa zapisu", () => {
       country: "Belgia",
       externalRegistrationUrl: "",
     });
+  });
+
+  it("pod terminami stoi strefa wydarzenia z droplisty, a koniec zaczyna się od początku", () => {
+    formularz();
+    wpisz("startsAtLabel", "2026-09-01T09:00");
+    const hint = (id: string) => document.getElementById(`${id}-hint`)?.textContent ?? "";
+    expect(hint("event-create-starts-at")).toBe("adminEvents.eventTime.zone(zone=Europe/Warsaw)");
+    expect(hint("event-create-ends-at")).toBe(
+      `${C}startsAtHint adminEvents.eventTime.zone(zone=Europe/Warsaw)`,
+    );
+    expect(pole("endsAtLabel").getAttribute("min")).toBe("2026-09-01T09:00");
+  });
+
+  it("godzina z wiosennej luki strefy wydarzenia mówi, co zapiszemy", () => {
+    formularz();
+    wpisz("startsAtLabel", "2026-03-29T02:30");
+    expect(document.getElementById("event-create-starts-at-hint")?.textContent).toBe(
+      "adminEvents.eventTime.gap(value=03:30,zone=Europe/Warsaw)",
+    );
   });
 
   it("szkic idzie W GÓRĘ NA ŻYWO - nagłówek railu pokazuje wpisywany tytuł", () => {

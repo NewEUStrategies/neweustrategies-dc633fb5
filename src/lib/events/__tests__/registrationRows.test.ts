@@ -5,6 +5,7 @@ import {
   allowedRegistrationActions,
   areConsentsWithdrawn,
   hasMissingRequiredTerms,
+  hasPartnerConsent,
   isAwaitingWaitlistNotice,
   promotedCount,
   registrationGroupLabel,
@@ -145,6 +146,51 @@ describe("promotedCount", () => {
     ]) {
       expect(promotedCount(value), JSON.stringify(value)).toBe(0);
     }
+  });
+});
+
+// Lustro `_event_partner_consent_at` dla jednego wiersza (OPS-01): zgoda z TEGO
+// zgloszenia, skuteczna tylko wtedy, gdy jest pozniejsza niz kazde wycofanie.
+describe("zgoda partnerska zgloszenia", () => {
+  const granted = "2026-03-01T10:00:00Z";
+
+  it("brak stempla nadania (pusty, null) to brak zgody", () => {
+    expect(hasPartnerConsent(row({}))).toBe(false);
+    expect(hasPartnerConsent(row({ consent_partner_sharing_at: "" }))).toBe(false);
+  });
+
+  it("nadanie bez wycofania to skuteczna zgoda", () => {
+    expect(hasPartnerConsent(row({ consent_partner_sharing_at: granted }))).toBe(true);
+  });
+
+  it("wycofanie w zgloszeniu po nadaniu (albo w tej samej chwili) gasi zgode", () => {
+    expect(
+      hasPartnerConsent(
+        row({
+          consent_partner_sharing_at: granted,
+          consent_partner_withdrawn_at: "2026-03-02T10:00:00Z",
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      hasPartnerConsent(
+        row({ consent_partner_sharing_at: granted, consent_partner_withdrawn_at: granted }),
+      ),
+    ).toBe(false);
+  });
+
+  it("globalne wycofanie zgod osoby po nadaniu gasi zgode, wczesniejsze - nie", () => {
+    expect(
+      hasPartnerConsent(
+        row({ consent_partner_sharing_at: granted, consent_withdrawn_at: "2026-03-05T00:00:00Z" }),
+      ),
+    ).toBe(false);
+    // Zgoda zaznaczona PO wycofaniu jest nowa, jawna zgoda na TO wydarzenie.
+    expect(
+      hasPartnerConsent(
+        row({ consent_partner_sharing_at: granted, consent_withdrawn_at: "2026-02-01T00:00:00Z" }),
+      ),
+    ).toBe(true);
   });
 });
 

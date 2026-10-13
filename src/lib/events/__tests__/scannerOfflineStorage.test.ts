@@ -15,6 +15,7 @@
 //      których baza nie przyjęła).
 //   5. AWARIA IndexedDB WYWRACA SKANER zamiast przejść na pamięć karty
 //      (prywatne okno Safari, zablokowana baza, przerwana transakcja).
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ScannerSession } from "@/lib/events/scannerSession";
@@ -56,6 +57,8 @@ const ROSTER: RosterSnapshot = {
     {
       registrationId: "r1",
       hash: "a".repeat(64),
+      badgeHash: null,
+      supersededHashes: [],
       status: "approved",
       firstName: "Anna",
       lastName: null,
@@ -300,9 +303,10 @@ describe("lista, dziennik, odrzucone i konflikty", () => {
     await expect(storage.loadConflicts()).resolves.toEqual([]);
   });
 
-  it("odłączenie kasuje sesję, listę i dziennik - ale NIE odrzucone i konflikty", async () => {
+  it("odłączenie kasuje sesję, znacznik, listę i dziennik - ale NIE odrzucone i konflikty", async () => {
     const data = new Map<unknown, unknown>([
       ["session", {}],
+      ["marker", {}],
       ["roster", {}],
       ["log", []],
       ["rejected", ["x"]],
@@ -316,9 +320,12 @@ describe("lista, dziennik, odrzucone i konflikty", () => {
     expect([...data.keys()].sort()).toEqual(["conflicts", "rejected"]);
   });
 
-  it("wygaśnięcie kasuje listę i dziennik, zostawia sesję", async () => {
+  it("wygaśnięcie kasuje listę i dziennik, zostawia sesję i znacznik kolejki", async () => {
+    // Znacznik (OPS-12) nie jest daną osobową; pozycje w kolejce mają własny
+    // stempel, a nowego skanu po terminie i tak nie będzie.
     const data = new Map<unknown, unknown>([
       ["session", {}],
+      ["marker", {}],
       ["roster", {}],
       ["log", []],
     ]);
@@ -327,7 +334,7 @@ describe("lista, dziennik, odrzucone i konflikty", () => {
 
     await storage.wipeRoster();
 
-    expect([...data.keys()]).toEqual(["session"]);
+    expect([...data.keys()]).toEqual(["session", "marker"]);
   });
 
   it("świadome wyczyszczenie kasuje odrzucone i konflikty", async () => {
@@ -410,4 +417,173 @@ describe("brak trwałości to stan, nie awaria", () => {
       expect(storage.isOfflineStoragePersistent()).toBe(false);
     },
   );
+});
+
+/* ------------------------------------------- OPS-06: dane osobowe i kody --- */
+
+describe("OPS-06: lista osób ma termin, odrzucone nie mają kodu, odłączenie kasuje wszystko", () => {
+  const sha = (value: string) => createHash("sha256").update(value, "utf8").digest("hex");
+  const NOW = Date.parse("2026-09-26T12:00:00.000Z");
+
+  it("lista z terminem poświadczenia znika po nim - razem z dziennikiem zgód", async () => {
+    const data = new Map<unknown, unknown>([["log", [{ checkpointId: "c1" }]]]);
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+    await storage.saveRoster({ ...ROSTER, expiresAt: "2026-09-26T11:59:59.000Z" });
+    expect(data.get("roster")).toMatchObject({ expiresAt: "2026-09-26T11:59:59.000Z" });
+
+    await expect(storage.purgeExpiredRoster(NOW)).resolves.toBe(true);
+    expect(data.has("roster")).toBe(false);
+    expect(data.has("log")).toBe(false);
+    await expect(storage.purgeExpiredRoster(NOW)).resolves.toBe(false);
+  });
+
+  it("lista bez własnego terminu bierze go z sesji TEGO urządzenia; uszkodzona znika", async () => {
+    const data = new Map<unknown, unknown>();
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+    await storage.saveCachedSession({
+      tokenHash: "h",
+      session: SESSION,
+      serverOffsetMs: 0,
+      savedAt: "x",
+    });
+    await storage.saveRoster(ROSTER);
+
+    // SESSION.expiresAt = 2026-09-27T18:00Z - jeszcze ważna.
+    await expect(storage.purgeExpiredRoster(NOW)).resolves.toBe(false);
+    await expect(storage.purgeExpiredRoster(Date.parse("2026-09-28T00:00:00.000Z"))).resolves.toBe(
+      true,
+    );
+    expect(data.has("roster")).toBe(false);
+
+    data.set("roster", { nie: "lista" });
+    await expect(storage.purgeExpiredRoster(NOW)).resolves.toBe(true);
+    expect(data.has("roster")).toBe(false);
+  });
+
+  it("lista odrzuconych zapisuje skrót i prefiks - wpis sprzed sejfu jest przepisywany przy odczycie", async () => {
+    const data = new Map<unknown, unknown>([
+      [
+        "rejected",
+        [
+          {
+            item: {
+              id: "s1",
+              kind: "checkin",
+              code: "QR-JAWNY-KOD-1",
+              checkpointId: null,
+              direction: "in",
+              note: null,
+              interestRating: null,
+              deviceScannedAt: "x",
+              attempts: 0,
+              nextAttemptAt: "x",
+              lastError: null,
+            },
+            error: "device_revoked: x",
+            rejectedAt: "y",
+          },
+        ],
+      ],
+    ]);
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+
+    const [entry] = await storage.loadRejected();
+    expect(entry.item).toMatchObject({ codeHash: sha("QR-JAWNY-KOD-1"), codePrefix: "QR-JAW" });
+    expect(entry.item).not.toHaveProperty("code");
+    expect(JSON.stringify(data.get("rejected"))).not.toContain("QR-JAWNY-KOD-1");
+    expect(data.get("rejected")).toEqual([
+      expect.objectContaining({
+        item: expect.objectContaining({ codeHash: sha("QR-JAWNY-KOD-1") }),
+      }),
+    ]);
+  });
+
+  it("odłączenie kasuje sesję, znacznik, listę, dziennik, odrzucone i konflikty", async () => {
+    const data = new Map<unknown, unknown>([
+      ["session", {}],
+      ["marker", {}],
+      ["roster", {}],
+      ["log", []],
+      ["rejected", ["x"]],
+      ["conflicts", ["y"]],
+    ]);
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+
+    await storage.wipeAllOfflineData();
+
+    expect([...data.keys()]).toEqual([]);
+  });
+});
+
+describe("OPS-12: znacznik kolejki na dysku wyłącznie w sejfie", () => {
+  const MARKER = {
+    value: "AAAAAGkAAAA" + "x".repeat(43),
+    validUntil: "2026-09-27T08:00:00.000Z",
+  };
+
+  async function vaultKey(token: string): Promise<CryptoKey> {
+    const { deriveVaultKey } = await import("@/lib/events/scannerVault");
+    const derived = await deriveVaultKey(token);
+    if (derived === null) throw new Error("test: brak WebCrypto w środowisku testowym");
+    return derived;
+  }
+
+  it("zapis szyfruje znacznik kluczem tokenu, a odczyt oddaje go TYLKO temu urządzeniu", async () => {
+    const data = new Map<unknown, unknown>();
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+    const key = await vaultKey("token-urzadzenia-0123456789");
+
+    await expect(storage.saveQueueMarker("d1", MARKER, key)).resolves.toBe(true);
+
+    // Na dysku nie ma napisu znacznika - jest blok sejfu i urządzenie.
+    const stored = data.get("marker") as Record<string, unknown>;
+    expect(stored.deviceId).toBe("d1");
+    expect(stored.sealed).toMatchObject({ iv: expect.any(String), data: expect.any(String) });
+    expect(JSON.stringify([...data.values()])).not.toContain(MARKER.value);
+
+    await expect(storage.loadQueueMarker("d1", key)).resolves.toEqual(MARKER);
+    // Inne urządzenie i klucz innego poświadczenia nie dostają nic.
+    await expect(storage.loadQueueMarker("d2", key)).resolves.toBeNull();
+    await expect(
+      storage.loadQueueMarker("d1", await vaultKey("inny-token-urzadzenia-987654")),
+    ).resolves.toBeNull();
+  });
+
+  it("blok przełożony do innego urządzenia się nie otwiera (AAD wiąże go z urządzeniem)", async () => {
+    const data = new Map<unknown, unknown>();
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+    const key = await vaultKey("token-urzadzenia-0123456789");
+    await storage.saveQueueMarker("d1", MARKER, key);
+
+    const stored = data.get("marker") as Record<string, unknown>;
+    data.set("marker", { ...stored, deviceId: "d2" });
+
+    await expect(storage.loadQueueMarker("d2", key)).resolves.toBeNull();
+  });
+
+  it("bez klucza (brak WebCrypto) znacznik NIE trafia na dysk wcale", async () => {
+    const data = new Map<unknown, unknown>();
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+
+    await expect(storage.saveQueueMarker("d1", MARKER, null)).resolves.toBe(false);
+    await expect(storage.loadQueueMarker("d1", null)).resolves.toBeNull();
+    expect(data.has("marker")).toBe(false);
+  });
+
+  it("odłączenie w trakcie szyfrowania - zapis się nie odbywa", async () => {
+    const data = new Map<unknown, unknown>();
+    installFakeIdb({}, data);
+    const storage = await freshModule();
+    const key = await vaultKey("token-urzadzenia-0123456789");
+
+    await expect(storage.saveQueueMarker("d1", MARKER, key, () => false)).resolves.toBe(false);
+    expect(data.has("marker")).toBe(false);
+  });
 });

@@ -93,6 +93,8 @@ export const adminEventSponsorsPl = {
         "Baner mieści tylko jeden obraz, a w tej sekcji jest więcej firm. Zostaw jedną i spróbuj ponownie.",
       invalidLayout: "Nieznany układ sekcji. Wybierz baner albo siatkę logo.",
       sponsorTierRequired: "Opublikowany sponsor musi mieć przypisany poziom.",
+      sponsorHasCheckpoints:
+        "Do tego sponsora przypisano stanowiska firmy ({{count}}). Zmień ich rodzaj albo usuń je w module na miejscu, a potem usuń sponsora.",
       invalidColor: "Kolor akcentu musi mieć postać #RRGGBB.",
       invalidNumber: "Podaj liczbę całkowitą nie mniejszą niż zero.",
       invalidBenefits: "Każda korzyść potrzebuje treści po polsku i po angielsku.",
@@ -285,6 +287,8 @@ export const adminEventSponsorsEn = {
         "A banner holds only one image and this section has more companies. Keep one and try again.",
       invalidLayout: "Unknown section layout. Choose a banner or a grid of logos.",
       sponsorTierRequired: "A published sponsor must have a tier.",
+      sponsorHasCheckpoints:
+        "{{count}} booth checkpoint(s) point at this sponsor. Change their kind or delete them in the onsite module, then delete the sponsor.",
       invalidColor: "The accent colour must use the #RRGGBB form.",
       invalidNumber: "Provide a whole number that is zero or greater.",
       invalidBenefits: "Every benefit needs Polish and English wording.",

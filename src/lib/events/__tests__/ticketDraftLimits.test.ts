@@ -38,10 +38,12 @@ import { centsToMoneyInput } from "@/lib/billing/moneyInput";
 import { eventTicketRow } from "@/test/events/adminSalesRows";
 
 const EVENT_ID = "11111111-1111-4111-8111-111111111111";
+/** Strefa wydarzenia - terminy biletu są zegarem w niej (nie w strefie maszyny). */
+const STREFA = "Europe/Warsaw";
 
 function valid(overrides: Partial<TicketDraft> = {}): TicketDraft {
   return {
-    ...emptyTicketDraft(10),
+    ...emptyTicketDraft(10, STREFA),
     key: "vip_pass",
     namePl: "Karnet VIP",
     nameEn: "VIP pass",
@@ -239,8 +241,8 @@ describe("waluta biletu", () => {
     // Porownanie jest na wielkosc liter, wiec `pln` z importu NIE jest `PLN`.
     // Zapisane jako zachowanie, bo formularz oddalby wtedy zlotowki tam, gdzie
     // baza ma napis, ktorego CHECK i tak nie przyjmie.
-    expect(ticketDraftFromRow(eventTicketRow({ currency: "pln" })).currency).toBe("PLN");
-    expect(ticketDraftFromRow(eventTicketRow({ currency: "EUR" })).currency).toBe("EUR");
+    expect(ticketDraftFromRow(eventTicketRow({ currency: "pln" }), STREFA).currency).toBe("PLN");
+    expect(ticketDraftFromRow(eventTicketRow({ currency: "EUR" }), STREFA).currency).toBe("EUR");
   });
 });
 
@@ -254,6 +256,7 @@ describe("wiersz bazy -> formularz", () => {
         early_bird_until: "2026-09-01T08:30:00.000Z",
         price_cents: 1999,
       }),
+      STREFA,
     );
     expect(draft.earlyBirdPrice).toBe("9,90");
     expect(draft.price).toBe("19,99");
@@ -264,13 +267,14 @@ describe("wiersz bazy -> formularz", () => {
     // Termin ma wrocic do pola jako TA SAMA chwila. Sama niepustosc pola
     // przepuscilaby przesuniecie o strefe, czyli promocje konczaca sie
     // godzine za wczesnie albo za pozno - i cene inna niz w cenniku.
-    expect(fromLocalInput(draft.earlyBirdUntil)).toBe("2026-09-01T08:30:00.000Z");
+    expect(draft.earlyBirdUntil).toBe("2026-09-01T10:30");
+    expect(fromLocalInput(draft.earlyBirdUntil, STREFA)).toBe("2026-09-01T08:30:00.000Z");
   });
 
   it("bilet bez ceny promocyjnej ma puste pole, a nie zero", () => {
     // Zero znaczyloby „promocja za darmo", czyli bilet gratis dla kazdego,
     // kto zdazy przed terminem.
-    expect(ticketDraftFromRow(eventTicketRow()).earlyBirdPrice).toBe("");
+    expect(ticketDraftFromRow(eventTicketRow(), STREFA).earlyBirdPrice).toBe("");
   });
 });
 
@@ -279,13 +283,34 @@ describe("cennik fazowy z JSON-a bazy", () => {
     // `price_schedule` jest kolumna `jsonb` bez schematu - prog zapisany przez
     // starsza wersje panelu albo przez import nie ma etykiet. Redaktor ma go
     // zobaczyc i poprawic, a nie dostac pusty dialog.
-    const phases = phasesFromJson([
-      { price_cents: 12000 },
-      { price_cents: 9900, label_pl: 42, label_en: null, from: 17, to: false },
-    ]);
+    const phases = phasesFromJson(
+      [
+        { price_cents: 12000 },
+        { price_cents: 9900, label_pl: 42, label_en: null, from: 17, to: false },
+      ],
+      STREFA,
+    );
+    // `savedFrom`/`savedTo` niosa chwile z bazy (nietkniete pole wraca co do
+    // milisekundy); okno nieczytelne nie ma czego zapamietac.
     expect(phases).toEqual([
-      { labelPl: "", labelEn: "", from: "", to: "", price: "120,00" },
-      { labelPl: "", labelEn: "", from: "", to: "", price: "99,00" },
+      {
+        labelPl: "",
+        labelEn: "",
+        from: "",
+        to: "",
+        price: "120,00",
+        savedFrom: null,
+        savedTo: null,
+      },
+      {
+        labelPl: "",
+        labelEn: "",
+        from: "",
+        to: "",
+        price: "99,00",
+        savedFrom: null,
+        savedTo: null,
+      },
     ]);
   });
 
@@ -293,26 +318,29 @@ describe("cennik fazowy z JSON-a bazy", () => {
     // `from`/`to` sa w JSON-ie znacznikami ISO. Zgubione przy odczycie
     // zamienilyby prog bezterminowy w prog „od zawsze", czyli cena promocyjna
     // obowiazywalaby po terminie.
-    const [phase] = phasesFromJson([
-      {
-        price_cents: 9900,
-        label_pl: "Faza I",
-        label_en: "Phase I",
-        from: "2026-09-01T08:30:00.000Z",
-        to: "2026-09-10T08:30:00.000Z",
-      },
-    ]);
+    const [phase] = phasesFromJson(
+      [
+        {
+          price_cents: 9900,
+          label_pl: "Faza I",
+          label_en: "Phase I",
+          from: "2026-09-01T08:30:00.000Z",
+          to: "2026-09-10T08:30:00.000Z",
+        },
+      ],
+      STREFA,
+    );
     expect(phase.labelPl).toBe("Faza I");
     expect(phase.labelEn).toBe("Phase I");
     // Obie granice okna wracaja jako TE SAME chwile. Porownanie napisow
     // („from < to") przeszloby takze wtedy, gdyby obie przesunely sie o strefe,
     // a wtedy prog naliczalby sie poza wlasnym terminem.
-    expect(fromLocalInput(phase.from)).toBe("2026-09-01T08:30:00.000Z");
-    expect(fromLocalInput(phase.to)).toBe("2026-09-10T08:30:00.000Z");
+    expect(fromLocalInput(phase.from, STREFA)).toBe("2026-09-01T08:30:00.000Z");
+    expect(fromLocalInput(phase.to, STREFA)).toBe("2026-09-10T08:30:00.000Z");
   });
 
   it("prog bez ceny odpada, bo cennik bez kwoty nie ma czego naliczyc", () => {
-    expect(phasesFromJson([{ label_pl: "Faza I" }, { price_cents: "9900" }])).toEqual([]);
+    expect(phasesFromJson([{ label_pl: "Faza I" }, { price_cents: "9900" }], STREFA)).toEqual([]);
   });
 
   it("cena progu podlega temu samemu sufitowi co cena bazowa", () => {
@@ -351,12 +379,12 @@ describe("cennik fazowy z JSON-a bazy", () => {
   });
 
   it("cena progu przechodzi baza -> pole -> payload bez zmiany groszy", () => {
-    const [phase] = phasesFromJson([{ price_cents: 12_345, label_pl: "Faza I" }]);
+    const [phase] = phasesFromJson([{ price_cents: 12_345, label_pl: "Faza I" }], STREFA);
     expect(phase.price).toBe("123,45");
     const input = ticketDraftToInput(valid({ phases: [phase] }), EVENT_ID);
     expect(input.priceSchedule[0].priceCents).toBe(12_345);
     // Separator angielski czyta sie tak samo.
-    const [en] = phasesFromJson([{ price_cents: 12_345 }], ".");
+    const [en] = phasesFromJson([{ price_cents: 12_345 }], STREFA, ".");
     expect(en.price).toBe("123.45");
     expect(ticketDraftToInput(valid({ phases: [en] }), EVENT_ID).priceSchedule[0].priceCents).toBe(
       12_345,

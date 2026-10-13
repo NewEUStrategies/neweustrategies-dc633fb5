@@ -271,6 +271,19 @@ export interface RegistrationManageView {
   currency: string | null;
   /** Czy ZALOGOWANY wolajacy jest wlascicielem - decyduje o przycisku kasy. */
   ownedByCaller: boolean;
+  /**
+   * Czy zgoda na przekazanie danych partnerom TEGO wydarzenia jest skuteczna -
+   * decyduje o przycisku jej wycofania. Starszy backend nie zna klucza:
+   * `false`, czyli brak przycisku zamiast obietnicy bez pokrycia.
+   */
+  partnerConsent: boolean;
+}
+
+export interface PartnerConsentWithdrawResult {
+  /** `false`, gdy nie bylo czego wycofywac (powtorzenie jest bezpieczne). */
+  withdrawn: boolean;
+  /** Stan zgody PO wywolaniu - zawsze `false` przy poprawnej odpowiedzi. */
+  partnerConsent: boolean;
 }
 
 /**
@@ -322,7 +335,38 @@ export async function loadRegistrationManageView(input: {
       amountCents: optionalInt(source, "amount_cents"),
       currency: nullableText(source, "currency"),
       ownedByCaller: source.owned_by_caller === true,
+      partnerConsent: source.partner_consent === true,
     },
+  };
+}
+
+/**
+ * Wycofanie zgody na przekazanie danych partnerom wydarzenia - tak samo latwe
+ * jak jej udzielenie (art. 7 ust. 3 RODO). Ten sam klucz co rezygnacja; baza
+ * stempluje wycofanie i NIE kasuje stempla nadania (dowod potrzebuje obu dat).
+ */
+export async function withdrawPartnerConsent(input: {
+  manageToken?: string;
+  registrationId?: string;
+}): Promise<PartnerConsentWithdrawResult> {
+  const payload: Record<string, Json> = {};
+  if (input.manageToken !== undefined) payload.manage_token = input.manageToken;
+  if (input.registrationId !== undefined) payload.registration_id = input.registrationId;
+
+  const { data, error } = await supabase.rpc("event_registration_partner_consent_withdraw", {
+    p_payload: payload,
+  });
+  if (error) throw error;
+
+  const source = bag(data);
+  if (source === null || source.ok !== true) {
+    // Odpowiedz bez potwierdzenia NIE jest wycofana zgoda - lepiej powiedziec
+    // o bledzie niz pokazac komunikat, za ktorym nic nie stoi.
+    throw new Error("unknown: partner consent response is not readable");
+  }
+  return {
+    withdrawn: source.withdrawn === true,
+    partnerConsent: source.partner_consent === true,
   };
 }
 

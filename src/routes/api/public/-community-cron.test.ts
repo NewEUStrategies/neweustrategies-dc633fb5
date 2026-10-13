@@ -175,6 +175,21 @@ vi.mock("@/lib/events/jobs/followUpJob.server", () => ({
     jobs.run("eventFollowUp", [admin, opts], { claimed: 0, sent: 0, skipped: 0, failed: 0 }),
 }));
 
+// Przepustki Google Wallet unieważnionych biletów (OPS-14) - własny test w
+// `walletRevocationJob.server.test.ts`; tu liczy się miejsce i klient.
+vi.mock("@/lib/events/wallet/walletRevocationJob.server", () => ({
+  runWalletPassRevocations: (admin: unknown, opts: unknown) =>
+    jobs.run("walletPassRevocations", [admin, opts], {
+      claimed: 1,
+      revoked: 1,
+      failed: 0,
+      deferred: 0,
+      gaveUp: 0,
+      closed: 0,
+      reactivated: 0,
+    }),
+}));
+
 vi.mock("@/lib/server/careerCvRetention.server", () => ({
   runCareerCvRetention: () => jobs.run("careerCvRetention", [], { removed: 2, scanned: 9 }),
 }));
@@ -892,6 +907,7 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
     ["event-participant-reminders", "eventParticipantReminders", "eventParticipantReminders"],
     ["event-ticket-lifecycle", "eventTicketLifecycle", "eventTicketLifecycle"],
     ["event-follow-up", "eventFollowUp", "eventFollowUp"],
+    ["event-wallet-passes", "walletPassRevocations", "walletPassRevocations"],
     ["career-cv-retention", "careerCvRetention", "careerCvRetention"],
   ])("`?job=%s` uruchamia dokładnie jeden kanał", async (job, step, key) => {
     const res = await tick({ query: `?job=${job}` });
@@ -955,6 +971,7 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
       "eventTicketCodes",
       "eventTicketRevocations",
       "eventPlanSeatRelease",
+      "walletPassRevocations",
       "careerCvRetention",
       "reputationBadges",
     ]);
@@ -973,10 +990,19 @@ describe("wybór kanałów: `?job=`, ciało żądania i pierwszeństwo query", (
         "eventTicketCodes",
         "eventTicketRevocations",
         "eventPlanSeatRelease",
+        "walletPassRevocations",
         "careerCvRetention",
         "reputationBadges",
       ]),
     );
+  });
+
+  it("przepustki Google (OPS-14) dostają klienta service role i partię 25", async () => {
+    await tick({ query: "?job=event-wallet-passes" });
+
+    expect(jobs.calls).toEqual([
+      { step: "walletPassRevocations", args: [adminClient, { limit: 25 }] },
+    ]);
   });
 
   it("uzgadnianie odznak dostaje limit partii 250", async () => {
@@ -1139,7 +1165,9 @@ describe("uzbrojenie ścieżki podstawowej (`arm_job_runner`)", () => {
     // 8 -> 11: trzy zadania funkcji uczestnika F1-F5 (spec B.10) jadą w "all".
     // 11 -> 13: zawiadomienia o odwołanych biletach i zwrot porzuconych
     // biletów z puli planu (job `event-ticket-codes`).
-    expect(jobs.steps()).toHaveLength(13);
+    // 13 -> 14: dezaktywacja przepustek Google Wallet (OPS-14, job
+    // `event-wallet-passes`).
+    expect(jobs.steps()).toHaveLength(14);
   });
 });
 
@@ -1166,6 +1194,7 @@ describe("izolacja kanałów: awaria jednego nie zabiera pozostałych", () => {
       "eventTicketCodes",
       "eventTicketRevocations",
       "eventPlanSeatRelease",
+      "walletPassRevocations",
       "careerCvRetention",
       "reputationBadges",
     ]);
@@ -1275,6 +1304,7 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "eventTicketCodes",
       "eventTicketRevocations",
       "eventPlanSeatRelease",
+      "walletPassRevocations",
       "careerCvRetention",
       "reputationBadges",
     ]) {
@@ -1316,6 +1346,7 @@ describe("budżet czasu (COMMUNITY_CRON_DEADLINE_MS = 25 s)", () => {
       "eventTicketCodes",
       "eventTicketRevocations",
       "eventPlanSeatRelease",
+      "walletPassRevocations",
       "careerCvRetention",
       "reputationBadges",
     ]);

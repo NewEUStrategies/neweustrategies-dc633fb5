@@ -210,6 +210,19 @@ export const eventMeetingsPl = {
         dialogEdit: "Edycja okna dostępności",
         removeConfirm: "Usunąć to okno dostępności?",
         durationHint: "Okno musi trwać od 15 minut do 16 godzin.",
+        // STREFA POL (OPS-15). Domyslnie strefa wydarzenia - ta, w ktorej baza
+        // liczy siatke slotow. Zdanie o strefie stoi zawsze, przelacznik tylko
+        // wtedy, gdy strefa uczestnika jest inna.
+        zone: {
+          activeEvent: "Godziny podajesz w strefie wydarzenia: {{zone}}.",
+          activeMine: "Godziny podajesz w swojej strefie: {{zone}}.",
+          useMine: "Wpisuję godziny w mojej strefie ({{zone}})",
+          inEvent: "Czas wydarzenia ({{zone}}): {{value}}",
+          inMine: "U Ciebie ({{zone}}): {{value}}",
+          gap: "Tej godziny nie ma w strefie {{zone}} - zegar przestawia się wtedy o godzinę do przodu. Zapiszemy {{value}}.",
+          overlap:
+            "Ta godzina występuje w strefie {{zone}} dwa razy - zegar cofa się wtedy o godzinę. Przyjmujemy drugą: {{value}}.",
+        },
         validation: {
           order: "Koniec okna musi przypadać po jego początku.",
           tooShort: "Okno musi trwać co najmniej 15 minut.",
@@ -464,6 +477,16 @@ export const eventMeetingsEn = {
         dialogEdit: "Edit availability window",
         removeConfirm: "Remove this availability window?",
         durationHint: "A window must last between 15 minutes and 16 hours.",
+        zone: {
+          activeEvent: "Times are in the event's time zone: {{zone}}.",
+          activeMine: "Times are in your time zone: {{zone}}.",
+          useMine: "Enter times in my time zone ({{zone}})",
+          inEvent: "Event time ({{zone}}): {{value}}",
+          inMine: "Your time ({{zone}}): {{value}}",
+          gap: "This time does not exist in {{zone}} - clocks jump forward an hour. We will save {{value}}.",
+          overlap:
+            "This time occurs twice in {{zone}} - clocks go back an hour. We use the second one: {{value}}.",
+        },
         validation: {
           order: "The window must end after it starts.",
           tooShort: "The window must last at least 15 minutes.",

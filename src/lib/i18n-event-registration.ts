@@ -548,6 +548,9 @@ export const eventRegistrationPl = {
       invitationExpired: "Zaproszenie wygasło - poproś organizatora o nowe.",
       orderCancelled: "Zamówienie pakietu zostało anulowane.",
       orderRefunded: "Zamówienie pakietu zostało zwrócone - miejsce nie jest już dostępne.",
+      // Wyscig przy zakladaniu osoby z zaproszenia (20261013112700): ponowienie
+      // trafia juz w istniejaca kartoteke, wiec zdanie mowi „sprobuj ponownie".
+      personConflict: "Nie udało się przypisać zaproszenia do Twoich danych. Spróbuj ponownie.",
     },
   },
   // ZAKUP PAKIETU GRUPOWEGO oczami kupujacego. Slownictwo mowi „zestaw miejsc",
@@ -1155,6 +1158,7 @@ export const eventRegistrationEn = {
       invitationExpired: "The invitation has expired - ask the organiser for a new one.",
       orderCancelled: "The order behind this seat has been cancelled.",
       orderRefunded: "The package order was refunded - the seat is no longer available.",
+      personConflict: "We could not match the invitation to your details. Please try again.",
     },
   },
   eventPackages: {

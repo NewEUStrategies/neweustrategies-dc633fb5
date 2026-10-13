@@ -11,6 +11,11 @@
 // badge'a; wymuszanie notatki przed zapisem zamieniłoby stoisko w formularz.
 // Dlatego skan zapisuje się od razu, a notatkę i ocenę dopisuje się do TEGO
 // SAMEGO leadu drugim wywołaniem (baza scala je po parze partner-osoba).
+//
+// KOD ZASTĄPIONY TO NIE „NIEZNANY KOD" (OPS-04). Stary identyfikator po
+// dodruku albo bilet po zwrocie nie zapisuje leadu - ekran mówi, który kod
+// i dlaczego przestał działać, żeby partner poprosił o aktualny identyfikator,
+// zamiast uznać gościa za obcego. Na stoisku bez imienia i nazwiska.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -21,6 +26,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { LeadScanResult } from "@/lib/events/scannerApi";
 import { scannerErrorMessage } from "@/lib/events/scannerErrors";
+import { supersededHint, type ScanTone } from "@/lib/events/scannerOutcomeView";
+import { formatEventDateTime } from "@/lib/events/timezone";
+import { uiLang } from "@/lib/i18n/format";
 import type { ScannerRuntime } from "@/lib/events/useScanner";
 import { ScanOutcomeBanner } from "@/components/events/scanner/atoms/ScanOutcomeBanner";
 import { ScannerCodeInput } from "@/components/events/scanner/molecules/ScannerCodeInput";
@@ -30,8 +38,33 @@ ensureScannerI18n();
 
 const RATINGS = [1, 2, 3, 4, 5] as const;
 
-export function ScannerLeadPanel({ runtime }: { runtime: ScannerRuntime }) {
-  const { t } = useTranslation();
+/** Wynik skanu leadu -> nagłówek; reszta (nieznany kod) to „Nieznany kod". */
+const LEAD_TITLE: Readonly<Partial<Record<string, string>>> = {
+  saved: "eventScanner.outcomes.saved",
+  wrong_event: "eventScanner.outcomes.wrongEvent",
+  code_superseded: "eventScanner.outcomes.codeSuperseded",
+};
+
+/** Ton odmowy na stoisku: kod zastąpiony to „przeczytaj", reszta - odmowa. */
+const LEAD_REFUSED_TONE: Readonly<Partial<Record<string, ScanTone>>> = {
+  code_superseded: "warning",
+};
+
+function leadTone(result: LeadScanResult): ScanTone {
+  if (result.outcome === "saved") return result.consent ? "granted" : "warning";
+  return LEAD_REFUSED_TONE[result.outcome] ?? "denied";
+}
+
+export function ScannerLeadPanel({
+  runtime,
+  timezone = null,
+}: {
+  runtime: ScannerRuntime;
+  /** Strefa wydarzenia - chwila zastąpienia kodu w czasie wydarzenia. */
+  timezone?: string | null;
+}) {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [busy, setBusy] = useState(false);
   const [queued, setQueued] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -79,6 +112,12 @@ export function ScannerLeadPanel({ runtime }: { runtime: ScannerRuntime }) {
 
   const person = result?.person ?? null;
   const consent = result?.consent === true;
+  const supersededHintValue =
+    result?.outcome === "code_superseded"
+      ? supersededHint(result.superseded, (iso) => formatEventDateTime(iso, timezone, lang))
+      : null;
+  const supersededSentence =
+    supersededHintValue === null ? null : t(supersededHintValue.key, supersededHintValue.params);
 
   return (
     <div className="space-y-4">
@@ -103,20 +142,16 @@ export function ScannerLeadPanel({ runtime }: { runtime: ScannerRuntime }) {
       {result !== null && (
         <div className="space-y-3">
           <ScanOutcomeBanner
-            tone={result.outcome === "saved" ? (consent ? "granted" : "warning") : "denied"}
-            title={
-              result.outcome === "saved"
-                ? t("eventScanner.outcomes.saved")
-                : result.outcome === "wrong_event"
-                  ? t("eventScanner.outcomes.wrongEvent")
-                  : t("eventScanner.outcomes.unknownCode")
-            }
+            tone={leadTone(result)}
+            title={t(LEAD_TITLE[result.outcome] ?? "eventScanner.outcomes.unknownCode")}
             hint={
               result.outcome === "saved"
                 ? consent
                   ? t("eventScanner.lead.consentYes")
                   : t("eventScanner.lead.consentNoHint")
-                : null
+                : result.outcome === "code_superseded"
+                  ? supersededSentence
+                  : null
             }
           />
 

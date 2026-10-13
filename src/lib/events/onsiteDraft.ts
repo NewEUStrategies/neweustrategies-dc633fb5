@@ -15,6 +15,16 @@
 // do wydarzenia, limitu blokow szablonu i tego, ze punkt sesyjny wskazuje sesje;
 // formularz tylko oszczedza organizatorowi podrozy po odmowe - przy bramce ta
 // podroz kosztuje kolejke.
+//
+// TERMIN POSWIADCZENIA JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15,
+// przekazanie B3). Dotad `datetime-local` czytal sie przez `new Date(napis)`,
+// czyli w strefie PRZEGLADARKI: "wygasa 18:00" ustawione w Londynie dla
+// kongresu w Warszawie gaslo o 19:00 czasu kongresu, a granica OPS-12 (koniec
+// wydarzenia + 7 dni) pokazywala sie w trzeciej strefie. Konwersje ida teraz
+// przez wspolne `eventLocalInput*` z regula Postgresa dla nocy zmiany czasu;
+// strefa jest PARAMETREM, bo to cecha wydarzenia, nie szkicu - okno wydania
+// dostaje wiersz wydarzenia asynchronicznie.
+import { eventLocalInput, eventLocalInputToIso } from "@/lib/events/eventLocalInput";
 import {
   BADGE_ORIENTATIONS,
   BADGE_PAPER_FORMATS,
@@ -75,24 +85,22 @@ export function isOnsiteUrl(value: string): boolean {
   return /^https:\/\/[^\s]+\.[^\s]+/.test(trimmed);
 }
 
-/** `datetime-local` -> ISO w UTC; pusty tekst = brak terminu. */
-export function localToIso(value: string): string | null | false {
+/**
+ * `datetime-local` (zegar w strefie `zone`) -> ISO w UTC. Pusty tekst = brak
+ * terminu (`null`); napis niepelny albo nieistniejaca data = `false`.
+ */
+export function localToIso(value: string, zone: string | null | undefined): string | null | false {
   const trimmed = value.trim();
   if (trimmed === "") return null;
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return false;
-  return parsed.toISOString();
+  return eventLocalInputToIso(trimmed, zone) ?? false;
 }
 
-/** ISO -> `datetime-local` (lokalna strefa przegladarki organizatora). */
-export function isoToLocal(value: string | null | undefined): string {
-  if (typeof value !== "string" || value === "") return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(
-    parsed.getHours(),
-  )}:${pad(parsed.getMinutes())}`;
+/** ISO -> `datetime-local` w strefie `zone` (strefa wydarzenia, nie przegladarki). */
+export function isoToLocal(
+  value: string | null | undefined,
+  zone: string | null | undefined,
+): string {
+  return eventLocalInput(value, zone);
 }
 
 function isKind(value: string): value is CheckpointKind {
@@ -131,6 +139,11 @@ export interface CheckpointDraft {
   sponsorId: string;
   directionMode: string;
   accessMode: string;
+  /**
+   * Odmowa ponownego wejscia (`reentry_policy = deny`). Ma znaczenie tylko
+   * w trybie `control` - w `track` konwersja wysyla `allow`, jak baza.
+   */
+  denyReentry: boolean;
   /** Pusty tekst = bez limitu pojemnosci. */
   capacity: string;
   dedupeWindowSeconds: string;
@@ -148,6 +161,7 @@ export function emptyCheckpointDraft(): CheckpointDraft {
     sponsorId: "",
     directionMode: "in_only",
     accessMode: "control",
+    denyReentry: false,
     capacity: "",
     dedupeWindowSeconds: "120",
     isActive: true,
@@ -165,6 +179,7 @@ export function checkpointDraftFromRow(row: {
   sponsor_id?: string | null;
   direction_mode?: string | null;
   access_mode?: string | null;
+  reentry_policy?: string | null;
   capacity?: number | null;
   dedupe_window_seconds?: number | null;
   is_active?: boolean | null;
@@ -181,6 +196,7 @@ export function checkpointDraftFromRow(row: {
     sponsorId: row.sponsor_id ?? "",
     directionMode: row.direction_mode ?? base.directionMode,
     accessMode: row.access_mode ?? base.accessMode,
+    denyReentry: row.reentry_policy === "deny",
     capacity: typeof row.capacity === "number" ? String(row.capacity) : "",
     dedupeWindowSeconds:
       typeof row.dedupe_window_seconds === "number"
@@ -243,6 +259,7 @@ export function validateCheckpointDraft(
 export function checkpointDraftToInput(draft: CheckpointDraft, eventId: string): CheckpointInput {
   const capacity = intOrNull(draft.capacity);
   const kind = isKind(draft.kind) ? draft.kind : "event_entry";
+  const accessMode = isAccessMode(draft.accessMode) ? draft.accessMode : "control";
   return {
     id: draft.id,
     eventId: draft.id === undefined ? eventId : undefined,
@@ -255,7 +272,10 @@ export function checkpointDraftToInput(draft: CheckpointDraft, eventId: string):
     roomId: trimOrNull(draft.roomId),
     sponsorId: kind === "company_booth" ? trimOrNull(draft.sponsorId) : null,
     directionMode: isDirectionMode(draft.directionMode) ? draft.directionMode : "in_only",
-    accessMode: isAccessMode(draft.accessMode) ? draft.accessMode : "control",
+    accessMode,
+    // Polityka jedzie ZAWSZE jawnie: odznaczenie przelacznika ma zdjac `deny`
+    // z bazy, a tryb `track` nie zna odmowy (CHECK reentry_needs_control).
+    reentryPolicy: accessMode === "control" && draft.denyReentry ? "deny" : "allow",
     capacity: capacity === false ? null : capacity,
     dedupeWindowSeconds: intOr(draft.dedupeWindowSeconds, 120),
     isActive: draft.isActive,
@@ -270,7 +290,7 @@ export interface ScannerDeviceDraft {
   scopes: string[];
   checkpointId: string;
   sponsorId: string;
-  /** `datetime-local`; pusty = domyslny termin z bazy. */
+  /** `datetime-local` w strefie wydarzenia; pusty = domyslny termin z bazy. */
   expiresAtLocal: string;
   /** Lista offline na urzadzeniu - ma sens tylko z zakresem `checkin`. */
   offlineRoster: boolean;
@@ -291,6 +311,7 @@ export type ScannerDeviceField = "label" | "scopes" | "sponsorId" | "expiresAtLo
 
 export function validateScannerDeviceDraft(
   draft: ScannerDeviceDraft,
+  timeZone: string | null | undefined,
   now: Date = new Date(),
 ): OnsiteFieldError<ScannerDeviceField>[] {
   const errors: OnsiteFieldError<ScannerDeviceField>[] = [];
@@ -306,7 +327,7 @@ export function validateScannerDeviceDraft(
   if (scopes.includes("lead") && draft.sponsorId.trim() === "") {
     errors.push({ field: "sponsorId", messageKey: `${PREFIX}sponsorRequired` });
   }
-  const expires = localToIso(draft.expiresAtLocal);
+  const expires = localToIso(draft.expiresAtLocal, timeZone);
   if (expires === false || (expires !== null && new Date(expires).getTime() <= now.getTime())) {
     if (draft.expiresAtLocal.trim() !== "") {
       errors.push({ field: "expiresAtLocal", messageKey: `${PREFIX}invalidExpiry` });
@@ -318,8 +339,9 @@ export function validateScannerDeviceDraft(
 export function scannerDeviceDraftToInput(
   draft: ScannerDeviceDraft,
   eventId: string,
+  timeZone: string | null | undefined,
 ): ScannerDeviceIssueInput {
-  const expires = localToIso(draft.expiresAtLocal);
+  const expires = localToIso(draft.expiresAtLocal, timeZone);
   return {
     eventId,
     label: draft.label.trim(),

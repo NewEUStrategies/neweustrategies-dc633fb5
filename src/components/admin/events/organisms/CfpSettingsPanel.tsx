@@ -11,6 +11,11 @@
 //
 // ZAPIS JEST JAWNY (pasek zapisu), jak w całym studiu - studio nie zapisuje
 // samo. Po zapisie odpowiedź RPC staje się nowym stanem formularza.
+//
+// OKNO NABORU JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), tak jak termin
+// wydarzenia w kreatorze i na „Informacjach ogólnych": pola pokazują godzinę
+// kongresu, nie przeglądarki, a pod nimi stoi ta strefa albo zdanie o luce
+// lub zakładce zmiany czasu (`eventLocalInputHint`).
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -38,6 +43,7 @@ import {
   cfpSettingsDirty,
   cfpSettingsDraftFromSettings,
   cfpSettingsPayload,
+  type CfpWindowField,
   emptyCriterionDraft,
   emptyFormatDraft,
   toggleId,
@@ -46,9 +52,11 @@ import {
   type CfpSettingsField,
 } from "@/lib/events/cfpSettingsDraft";
 import type { CfpSettings } from "@/lib/events/cfpSurface";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
 import { useCfpSettings, useSaveCfpSettings } from "@/lib/events/useEventCfp";
 import { uiLang } from "@/lib/i18n/format";
 import { ensureAdminEventCfpI18n } from "@/lib/i18n-admin-event-cfp";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 /** Wartownik „brak" - Radix Select zabrania pustego `value`. */
 const NONE = "__none__";
@@ -67,6 +75,9 @@ const STATUS_HINT_KEYS: Record<CfpStatus, string> = {
 
 export function CfpSettingsPanel({ eventId }: { eventId: string }) {
   ensureAdminEventCfpI18n();
+  // Podpowiedź strefy pod oknem naboru (`adminEvents.eventTime.*`) mieszka we
+  // wspólnej nakładce formularzy studia wydarzenia.
+  ensureAdminEventsI18n();
   const { t } = useTranslation();
   const settingsQ = useCfpSettings(eventId);
   const settings = settingsQ.data;
@@ -132,6 +143,13 @@ function CfpSettingsForm({ eventId, settings }: { eventId: string; settings: Cfp
   const nameOf = (option: { namePl: string; nameEn: string }) =>
     localizedPair(lang, option.namePl, option.nameEn);
 
+  /** Podpowiedź pola okna: zdanie pola + strefa wydarzenia (albo luka/zakładka). */
+  const windowHint = (field: CfpWindowField, base: string): string =>
+    `${base} ${
+      eventLocalInputHint(t, lang, draft[field], draft.timeZone, draft.savedTimes[field] ?? null) ??
+      ""
+    }`.trim();
+
   const groupOptions = [NONE, ...settings.groups.map((group) => group.id)];
   const ticketOptions = [NONE, ...settings.tickets.map((ticket) => ticket.id)];
 
@@ -179,14 +197,14 @@ function CfpSettingsForm({ eventId, settings }: { eventId: string; settings: Cfp
             id="cfp-opens-at"
             label={t("adminEventCfp.settings.opensAt")}
             value={draft.opensAt}
-            hint={t("adminEventCfp.settings.opensAtHint")}
+            hint={windowHint("opensAt", t("adminEventCfp.settings.opensAtHint"))}
             onValueChange={(value) => set("opensAt", value)}
           />
           <AdminFormDateTimeRow
             id="cfp-closes-at"
             label={t("adminEventCfp.settings.closesAt")}
             value={draft.closesAt}
-            hint={t("adminEventCfp.settings.closesAtHint")}
+            hint={windowHint("closesAt", t("adminEventCfp.settings.closesAtHint"))}
             error={errorFor("window")}
             onValueChange={(value) => set("closesAt", value)}
           />

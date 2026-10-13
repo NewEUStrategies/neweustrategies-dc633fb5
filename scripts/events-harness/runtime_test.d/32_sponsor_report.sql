@@ -155,14 +155,27 @@ CREATE TEMP TABLE spr_q (k text PRIMARY KEY, u uuid, t text) ON COMMIT DROP;
 
 -- Wygodnik: jedno wywolanie zapisu ekspozycji (harness laczy sie jako
 -- superuzytkownik, wiec gra role `service_role` z endpointu).
+--
+-- OD 20261013111400 (OPS-09) sesje wydaje i podpisuje serwer, a ingest bierze
+-- zrodlo (solony skrot adresu) osobnym parametrem i oddaje jsonb. Etykieta
+-- sesji z tego pliku o poprawnym ksztalcie jest wiec zamieniana na PODPISANA
+-- sesje (nonce = md5 etykiety) - ta sama etykieta to ta sama sesja, jak
+-- dotad; etykieta spoza ksztaltu idzie bez zmian, zeby asercja odrzucenia
+-- ksztaltu dalej ja widziala. Jedno stale zrodlo: plik zostaje daleko ponizej
+-- limitu zapytan i sesji na zrodlo (limity sprawdza 34_sponsor_exposure_integrity).
 CREATE FUNCTION pg_temp.spr_ingest(
   _session text,
   _items jsonb,
   _slug text DEFAULT 'spr-forum',
   _tenant uuid DEFAULT '11111111-1111-1111-1111-111111111111'
 ) RETURNS integer LANGUAGE sql AS $$
-  SELECT public.event_sponsor_exposure_ingest(
-    _tenant, jsonb_build_object('event_slug', _slug, 'session', _session, 'items', _items))
+  SELECT (public.event_sponsor_exposure_ingest(
+    _tenant, 'ip:' || md5('32-spr-harness'),
+    jsonb_build_object('event_slug', _slug,
+      'session', CASE WHEN _session ~ '^[A-Za-z0-9_-]{16,64}$'
+                      THEN public._event_sponsor_exposure_token(_tenant, md5(_session))
+                      ELSE _session END,
+      'items', _items))->>'written')::integer
 $$;
 
 CREATE FUNCTION pg_temp.spr_item(_sponsor text, _placement text, _kind text,
@@ -444,20 +457,22 @@ BEGIN
     AND pg_temp.spr_ingest('sesja z$paciami!!', jsonb_build_array(pg_temp.spr_item(s1, 'home_strip', 'view'))) = 0,
     '32/ingest: identyfikator sesji spoza ksztaltu odrzucony');
   PERFORM pg_temp.assert(
-    public.event_sponsor_exposure_ingest('11111111-1111-1111-1111-111111111111',
-      jsonb_build_object('event_slug', 'spr-forum', 'session', 'sesja-spr-00000009', 'items', '{}'::jsonb)) = 0
-    AND public.event_sponsor_exposure_ingest(NULL,
+    (public.event_sponsor_exposure_ingest('11111111-1111-1111-1111-111111111111', 'ip:' || md5('32-spr-harness'),
+      jsonb_build_object('event_slug', 'spr-forum', 'session', 'sesja-spr-00000009', 'items', '{}'::jsonb))->>'written')::integer = 0
+    AND (public.event_sponsor_exposure_ingest(NULL, 'ip:' || md5('32-spr-harness'),
       jsonb_build_object('event_slug', 'spr-forum', 'session', 'sesja-spr-00000009',
-        'items', jsonb_build_array(pg_temp.spr_item(s1, 'home_strip', 'view')))) = 0
-    AND public.event_sponsor_exposure_ingest('11111111-1111-1111-1111-111111111111', '[]'::jsonb) = 0,
+        'items', jsonb_build_array(pg_temp.spr_item(s1, 'home_strip', 'view'))))->>'written')::integer = 0
+    AND (public.event_sponsor_exposure_ingest('11111111-1111-1111-1111-111111111111',
+      'ip:' || md5('32-spr-harness'), '[]'::jsonb)->>'written')::integer = 0,
     '32/ingest: pozycje nie-tablica, brak najemcy i ladunek nie-obiekt nie zapisuja niczego');
 END
 $do$;
 
+-- Sygnatura od 20261013111400: (najemca, zrodlo, ladunek).
 SELECT pg_temp.assert(
-  NOT has_function_privilege('anon', 'public.event_sponsor_exposure_ingest(uuid, jsonb)', 'EXECUTE')
-  AND NOT has_function_privilege('authenticated', 'public.event_sponsor_exposure_ingest(uuid, jsonb)', 'EXECUTE')
-  AND has_function_privilege('service_role', 'public.event_sponsor_exposure_ingest(uuid, jsonb)', 'EXECUTE'),
+  NOT has_function_privilege('anon', 'public.event_sponsor_exposure_ingest(uuid, text, jsonb)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.event_sponsor_exposure_ingest(uuid, text, jsonb)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public.event_sponsor_exposure_ingest(uuid, text, jsonb)', 'EXECUTE'),
   '32/granty: zapis ekspozycji wylacznie dla service_role');
 SELECT pg_temp.assert(
   NOT has_function_privilege('anon', 'public.event_sponsor_exposures_prune(integer)', 'EXECUTE')
@@ -517,6 +532,24 @@ INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, stat
    '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000001', 'approved', 'rsvp'),
   ('32900000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111',
    '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000002', 'approved', 'rsvp');
+
+-- ZGODA PARTNERSKA JEST PER ZGLOSZENIE (OPS-01, 20261013110000 i 20261013110200).
+-- Raport, link i historia firmy pytaja `_event_partner_consent_at()` - o stempel
+-- ZGLOSZENIA osoby na TO wydarzenie. Stemple osob z sekcji 1 sa juz tylko
+-- historyczne, wiec te same zgody odtwarzamy na zgloszeniach E1: P1 i P4 ze
+-- zgoda, P3 ze zgoda wycofana pozniej globalnie, P2 bez zgody. Liczby
+-- oczekiwane nizej (2 z 4 kontaktow ze zgoda) zostaja bez zmian.
+INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, status, registration_mode) VALUES
+  ('32900000-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111',
+   '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000003', 'approved', 'rsvp'),
+  ('32900000-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111',
+   '32e00000-0000-0000-0000-0000000000e1', '32b00000-0000-0000-0000-000000000004', 'approved', 'rsvp');
+UPDATE public.event_registrations r
+   SET consent_partner_sharing_at = p.consent_partner_sharing_at
+  FROM public.event_people p
+ WHERE p.tenant_id = r.tenant_id
+   AND p.id = r.person_id
+   AND r.event_id = '32e00000-0000-0000-0000-0000000000e1';
 ALTER TABLE public.event_meetings DISABLE TRIGGER USER;
 -- Kazdy stan gieldy raz: umowione to accepted + held + no_show (3), a NIE
 -- zaproszenie bez odpowiedzi, odmowa, odwolanie ani STARY wiersz przelozenia

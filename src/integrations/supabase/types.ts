@@ -6422,6 +6422,7 @@ export type Database = {
       }
       event_badge_prints: {
         Row: {
+          actor_deleted_at: string | null
           copies: number
           device_id: string | null
           event_id: string
@@ -6437,6 +6438,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          actor_deleted_at?: string | null
           copies?: number
           device_id?: string | null
           event_id: string
@@ -6452,6 +6454,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          actor_deleted_at?: string | null
           copies?: number
           device_id?: string | null
           event_id?: string
@@ -7197,6 +7200,7 @@ export type Database = {
       }
       event_checkins: {
         Row: {
+          actor_deleted_at: string | null
           checkpoint_id: string
           client_scan_uid: string | null
           dedupe_range: unknown
@@ -7206,6 +7210,7 @@ export type Database = {
           event_id: string
           id: string
           last_repeat_at: string | null
+          last_repeat_device_at: string | null
           note: string | null
           occurred_at: string | null
           offline_admitted: boolean | null
@@ -7213,6 +7218,7 @@ export type Database = {
           offline_server_result: string | null
           operator_user_id: string | null
           person_id: string
+          reentry_override: boolean
           registration_id: string | null
           repeat_count: number
           result: string
@@ -7222,6 +7228,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          actor_deleted_at?: string | null
           checkpoint_id: string
           client_scan_uid?: string | null
           dedupe_range: unknown
@@ -7231,6 +7238,7 @@ export type Database = {
           event_id: string
           id?: string
           last_repeat_at?: string | null
+          last_repeat_device_at?: string | null
           note?: string | null
           occurred_at?: string | null
           offline_admitted?: boolean | null
@@ -7238,6 +7246,7 @@ export type Database = {
           offline_server_result?: string | null
           operator_user_id?: string | null
           person_id: string
+          reentry_override?: boolean
           registration_id?: string | null
           repeat_count?: number
           result?: string
@@ -7247,6 +7256,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          actor_deleted_at?: string | null
           checkpoint_id?: string
           client_scan_uid?: string | null
           dedupe_range?: unknown
@@ -7256,6 +7266,7 @@ export type Database = {
           event_id?: string
           id?: string
           last_repeat_at?: string | null
+          last_repeat_device_at?: string | null
           note?: string | null
           occurred_at?: string | null
           offline_admitted?: boolean | null
@@ -7263,6 +7274,7 @@ export type Database = {
           offline_server_result?: string | null
           operator_user_id?: string | null
           person_id?: string
+          reentry_override?: boolean
           registration_id?: string | null
           repeat_count?: number
           result?: string
@@ -7330,6 +7342,7 @@ export type Database = {
           kind: string
           name_en: string
           name_pl: string
+          reentry_policy: string
           room_id: string | null
           session_id: string | null
           sort_order: number
@@ -7350,6 +7363,7 @@ export type Database = {
           kind?: string
           name_en: string
           name_pl: string
+          reentry_policy?: string
           room_id?: string | null
           session_id?: string | null
           sort_order?: number
@@ -7370,6 +7384,7 @@ export type Database = {
           kind?: string
           name_en?: string
           name_pl?: string
+          reentry_policy?: string
           room_id?: string | null
           session_id?: string | null
           sort_order?: number
@@ -8720,6 +8735,7 @@ export type Database = {
       }
       event_lead_scans: {
         Row: {
+          actor_deleted_at: string | null
           checkpoint_id: string | null
           consent_snapshot_at: string | null
           created_at: string
@@ -8739,6 +8755,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          actor_deleted_at?: string | null
           checkpoint_id?: string | null
           consent_snapshot_at?: string | null
           created_at?: string
@@ -8758,6 +8775,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          actor_deleted_at?: string | null
           checkpoint_id?: string | null
           consent_snapshot_at?: string | null
           created_at?: string
@@ -10488,8 +10506,12 @@ export type Database = {
         Row: {
           answers: Json
           attended_at: string | null
+          badge_issued_at: string | null
+          badge_token_hash: string | null
           cancel_reason: string | null
           cancelled_at: string | null
+          consent_partner_sharing_at: string | null
+          consent_partner_withdrawn_at: string | null
           created_at: string
           created_by: string | null
           decided_at: string | null
@@ -10546,8 +10568,12 @@ export type Database = {
         Insert: {
           answers?: Json
           attended_at?: string | null
+          badge_issued_at?: string | null
+          badge_token_hash?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
+          consent_partner_sharing_at?: string | null
+          consent_partner_withdrawn_at?: string | null
           created_at?: string
           created_by?: string | null
           decided_at?: string | null
@@ -10604,8 +10630,12 @@ export type Database = {
         Update: {
           answers?: Json
           attended_at?: string | null
+          badge_issued_at?: string | null
+          badge_token_hash?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
+          consent_partner_sharing_at?: string | null
+          consent_partner_withdrawn_at?: string | null
           created_at?: string
           created_by?: string | null
           decided_at?: string | null
@@ -10836,6 +10866,11 @@ export type Database = {
           last_seen_at: string | null
           locked_until: string | null
           offline_roster: boolean
+          queue_fail_window_count: number
+          queue_fail_window_started_at: string | null
+          queue_locked_until: string | null
+          queue_marker_required_at: string | null
+          queue_secret: string
           revoked_at: string | null
           revoked_by: string | null
           roster_download_count: number
@@ -10843,6 +10878,7 @@ export type Database = {
           scan_count: number
           scopes: string[]
           sponsor_id: string | null
+          superseded_scan_count: number
           tenant_id: string
           token_hash: string
           token_prefix: string
@@ -10864,6 +10900,11 @@ export type Database = {
           last_seen_at?: string | null
           locked_until?: string | null
           offline_roster?: boolean
+          queue_fail_window_count?: number
+          queue_fail_window_started_at?: string | null
+          queue_locked_until?: string | null
+          queue_marker_required_at?: string | null
+          queue_secret?: string
           revoked_at?: string | null
           revoked_by?: string | null
           roster_download_count?: number
@@ -10871,6 +10912,7 @@ export type Database = {
           scan_count?: number
           scopes?: string[]
           sponsor_id?: string | null
+          superseded_scan_count?: number
           tenant_id: string
           token_hash: string
           token_prefix: string
@@ -10892,6 +10934,11 @@ export type Database = {
           last_seen_at?: string | null
           locked_until?: string | null
           offline_roster?: boolean
+          queue_fail_window_count?: number
+          queue_fail_window_started_at?: string | null
+          queue_locked_until?: string | null
+          queue_marker_required_at?: string | null
+          queue_secret?: string
           revoked_at?: string | null
           revoked_by?: string | null
           roster_download_count?: number
@@ -10899,6 +10946,7 @@ export type Database = {
           scan_count?: number
           scopes?: string[]
           sponsor_id?: string | null
+          superseded_scan_count?: number
           tenant_id?: string
           token_hash?: string
           token_prefix?: string
@@ -12003,6 +12051,135 @@ export type Database = {
           },
         ]
       }
+      event_sponsor_exposure_anomalies: {
+        Row: {
+          day: string
+          event_id: string
+          first_at: string
+          hits: number
+          id: number
+          last_at: string
+          reason: string
+          source_hash: string
+          sponsor_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          day: string
+          event_id: string
+          first_at?: string
+          hits?: number
+          id?: never
+          last_at?: string
+          reason: string
+          source_hash: string
+          sponsor_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          day?: string
+          event_id?: string
+          first_at?: string
+          hits?: number
+          id?: never
+          last_at?: string
+          reason?: string
+          source_hash?: string
+          sponsor_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_exposure_anomalies_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_exposure_anomalies_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_exposure_anomalies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sponsor_exposure_keys: {
+        Row: {
+          created_at: string
+          secret: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          secret: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          secret?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_exposure_keys_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sponsor_exposure_sessions: {
+        Row: {
+          day: string
+          event_id: string
+          first_at: string
+          session_hash: string
+          source_hash: string
+          tenant_id: string
+        }
+        Insert: {
+          day: string
+          event_id: string
+          first_at?: string
+          session_hash: string
+          source_hash: string
+          tenant_id: string
+        }
+        Update: {
+          day?: string
+          event_id?: string
+          first_at?: string
+          session_hash?: string
+          source_hash?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_exposure_sessions_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_exposure_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_sponsor_exposures: {
         Row: {
           day: string
@@ -12473,6 +12650,64 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "event_sponsor_tiers"
             referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
+      event_superseded_codes: {
+        Row: {
+          code_hash: string
+          credential: string
+          event_id: string
+          id: string
+          issued_at: string | null
+          reason: string
+          registration_id: string
+          superseded_at: string
+          tenant_id: string
+        }
+        Insert: {
+          code_hash: string
+          credential: string
+          event_id: string
+          id?: string
+          issued_at?: string | null
+          reason: string
+          registration_id: string
+          superseded_at?: string
+          tenant_id: string
+        }
+        Update: {
+          code_hash?: string
+          credential?: string
+          event_id?: string
+          id?: string
+          issued_at?: string | null
+          reason?: string
+          registration_id?: string
+          superseded_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_superseded_codes_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_superseded_codes_registration_fk"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_superseded_codes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -13072,8 +13307,46 @@ export type Database = {
           },
         ]
       }
+      event_wallet_pass_tombstones: {
+        Row: {
+          attempts: number
+          claimed_at: string | null
+          error: string | null
+          id: string
+          object_id: string
+          reason: string
+          requested_at: string
+          tenant_id: string
+          valid_until: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_at?: string | null
+          error?: string | null
+          id?: string
+          object_id: string
+          reason: string
+          requested_at?: string
+          tenant_id: string
+          valid_until: string
+        }
+        Update: {
+          attempts?: number
+          claimed_at?: string | null
+          error?: string | null
+          id?: string
+          object_id?: string
+          reason?: string
+          requested_at?: string
+          tenant_id?: string
+          valid_until?: string
+        }
+        Relationships: []
+      }
       event_wallet_passes: {
         Row: {
+          code_hash: string | null
+          content_hash: string | null
           created_at: string
           event_id: string
           first_issued_at: string
@@ -13083,10 +13356,18 @@ export type Database = {
           object_id: string
           platform: string
           registration_id: string
+          revoke_attempts: number
+          revoke_claimed_at: string | null
+          revoke_error: string | null
+          revoke_reason: string | null
+          revoke_requested_at: string | null
+          revoked_at: string | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
+          code_hash?: string | null
+          content_hash?: string | null
           created_at?: string
           event_id: string
           first_issued_at?: string
@@ -13096,10 +13377,18 @@ export type Database = {
           object_id: string
           platform: string
           registration_id: string
+          revoke_attempts?: number
+          revoke_claimed_at?: string | null
+          revoke_error?: string | null
+          revoke_reason?: string | null
+          revoke_requested_at?: string | null
+          revoked_at?: string | null
           tenant_id: string
           updated_at?: string
         }
         Update: {
+          code_hash?: string | null
+          content_hash?: string | null
           created_at?: string
           event_id?: string
           first_issued_at?: string
@@ -13109,6 +13398,12 @@ export type Database = {
           object_id?: string
           platform?: string
           registration_id?: string
+          revoke_attempts?: number
+          revoke_claimed_at?: string | null
+          revoke_error?: string | null
+          revoke_reason?: string | null
+          revoke_requested_at?: string | null
+          revoked_at?: string | null
           tenant_id?: string
           updated_at?: string
         }
@@ -23055,8 +23350,24 @@ export type Database = {
         Args: { p_lang: string; p_status: string }
         Returns: string
       }
+      _event_checkin_crossed: {
+        Args: {
+          _a: string
+          _b: string
+          _checkpoint_id: string
+          _direction: string
+          _person_id: string
+          _tenant: string
+        }
+        Returns: boolean
+      }
+      _event_checkin_day_start: {
+        Args: { _at: string; _event_id: string; _tenant: string }
+        Returns: string
+      }
       _event_checkin_evaluate: {
         Args: {
+          _at?: string
           _checkpoint_id: string
           _direction: string
           _event_id: string
@@ -23065,10 +23376,22 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_checkin_inside_since: {
+        Args: {
+          _at: string
+          _checkpoint_id: string
+          _exclude_id?: string
+          _person_id: string
+          _tenant: string
+          _window: unknown
+        }
+        Returns: string
+      }
       _event_checkin_write: {
         Args: {
           _checkpoint_id: string
           _client_uid: string
+          _code_denied?: string
           _device_at: string
           _device_id: string
           _direction: string
@@ -23077,6 +23400,7 @@ export type Database = {
           _offline_denied?: string
           _operator: string
           _person_id: string
+          _reentry_override?: boolean
           _source: string
           _tenant: string
         }
@@ -23590,6 +23914,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      _event_meeting_sponsor_allowed: {
+        Args: {
+          p_event_id: string
+          p_invitee_registration_id: string
+          p_requester_registration_id: string
+          p_sponsor_id: string
+          p_tenant: string
+        }
+        Returns: boolean
+      }
       _event_meeting_take_seat: {
         Args: {
           _ends: string
@@ -23716,6 +24050,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      _event_partner_consent_at: {
+        Args: { p_event_id: string; p_person_id: string; p_tenant: string }
+        Returns: string
+      }
+      _event_partner_consent_carry_withdrawal: {
+        Args: { p_person_id: string; p_tenant: string }
+        Returns: number
+      }
       _event_person_crm_sync: {
         Args: {
           p_audit_action?: string
@@ -23828,6 +24170,19 @@ export type Database = {
         Returns: Json
       }
       _event_safe_timezone: { Args: { _tz: string }; Returns: string }
+      _event_scanner_code_lookup: {
+        Args: { _code: string; _tenant: string }
+        Returns: {
+          credential: string
+          event_id: string
+          issued_at: string
+          person_id: string
+          registration_id: string
+          superseded: boolean
+          superseded_at: string
+          superseded_reason: string
+        }[]
+      }
       _event_scanner_device_auth: {
         Args: { _scope: string; _token: string }
         Returns: {
@@ -23846,6 +24201,11 @@ export type Database = {
           last_seen_at: string | null
           locked_until: string | null
           offline_roster: boolean
+          queue_fail_window_count: number
+          queue_fail_window_started_at: string | null
+          queue_locked_until: string | null
+          queue_marker_required_at: string | null
+          queue_secret: string
           revoked_at: string | null
           revoked_by: string | null
           roster_download_count: number
@@ -23853,6 +24213,7 @@ export type Database = {
           scan_count: number
           scopes: string[]
           sponsor_id: string | null
+          superseded_scan_count: number
           tenant_id: string
           token_hash: string
           token_prefix: string
@@ -23866,7 +24227,12 @@ export type Database = {
         }
       }
       _event_scanner_device_auth_sync: {
-        Args: { _device_at: string; _scope: string; _token: string }
+        Args: {
+          _device_at: string
+          _queue_marker?: string
+          _scope: string
+          _token: string
+        }
         Returns: {
           checkpoint_id: string | null
           created_at: string
@@ -23883,6 +24249,11 @@ export type Database = {
           last_seen_at: string | null
           locked_until: string | null
           offline_roster: boolean
+          queue_fail_window_count: number
+          queue_fail_window_started_at: string | null
+          queue_locked_until: string | null
+          queue_marker_required_at: string | null
+          queue_secret: string
           revoked_at: string | null
           revoked_by: string | null
           roster_download_count: number
@@ -23890,6 +24261,7 @@ export type Database = {
           scan_count: number
           scopes: string[]
           sponsor_id: string | null
+          superseded_scan_count: number
           tenant_id: string
           token_hash: string
           token_prefix: string
@@ -23905,6 +24277,52 @@ export type Database = {
       _event_scanner_device_note_failure: {
         Args: { _device_id: string }
         Returns: boolean
+      }
+      _event_scanner_device_note_caps: {
+        Args: { _caps: Json; _device_id: string; _tenant: string }
+        Returns: string
+      }
+      _event_scanner_device_note_queue_failure: {
+        Args: { _device_id: string }
+        Returns: boolean
+      }
+      _event_scanner_expiry_limit: {
+        Args: { _event_id: string; _tenant: string }
+        Returns: string
+      }
+      _event_scanner_queue_marker: {
+        Args: { _device_id: string; _issued_at: string; _secret: string }
+        Returns: string
+      }
+      _event_scanner_queue_marker_at: {
+        Args: { _device_id: string; _marker: string; _secret: string }
+        Returns: string
+      }
+      _event_scanner_queue_marker_reply: {
+        Args: { _device_id: string; _expires_at: string; _secret: string }
+        Returns: Json
+      }
+      _event_scanner_scan_time_corroborated: {
+        Args: {
+          _code_issued_at: string
+          _device_at: string
+          _device_id: string
+          _marker: string
+          _tenant: string
+        }
+        Returns: boolean
+      }
+      _event_scanner_superseded_reply: {
+        Args: {
+          _credential: string
+          _device_id: string
+          _person_id: string
+          _reason: string
+          _superseded_at: string
+          _tenant: string
+          _with_person: boolean
+        }
+        Returns: Json
       }
       _event_seat_assign_problem: {
         Args: {
@@ -23993,6 +24411,10 @@ export type Database = {
           p_tenant: string
         }
         Returns: Json
+      }
+      _event_sponsor_exposure_token: {
+        Args: { p_nonce: string; p_tenant: string }
+        Returns: string
       }
       _event_sponsor_report_assert_filters: {
         Args: { p_from: string; p_placement: string; p_to: string }
@@ -24129,12 +24551,33 @@ export type Database = {
           }
       _event_wallet_pass_note: {
         Args: {
+          p_code_hash?: string
+          p_content_hash?: string
           p_object_id: string
           p_platform: string
           p_registration_id: string
           p_tenant: string
         }
         Returns: number
+      }
+      _event_wallet_pass_queue_legacy_google_objects: { Args: never; Returns: number }
+      _event_wallet_pass_revocations_claim: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      _event_wallet_pass_revocations_requeue: { Args: never; Returns: Json }
+      _event_wallet_pass_revocations_settle: {
+        Args: {
+          p_claimed_at: string
+          p_deferred?: string[]
+          p_failed?: Json
+          p_revoked: string[]
+        }
+        Returns: Json
+      }
+      _event_wallet_pass_state: {
+        Args: { p_object_id: string; p_platform: string; p_tenant: string }
+        Returns: Json
       }
       _mention_public_company_ids: {
         Args: { _tenant: string }
@@ -25319,6 +25762,7 @@ export type Database = {
           operator_name: string
           operator_user_id: string
           person_id: string
+          reentry_override: boolean
           registration_id: string
           registration_status: string
           repeat_count: number
@@ -25355,6 +25799,7 @@ export type Database = {
           name_en: string
           name_pl: string
           occupancy: number
+          reentry_policy: string
           repeat_count: number
           room_id: string
           room_name: string
@@ -25973,6 +26418,10 @@ export type Database = {
         Returns: Json
       }
       admin_event_refund_jobs: { Args: { p_event_id: string }; Returns: Json }
+      admin_event_registration_code_invalidate: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_registration_consent_detail: {
         Args: { p_registration_id: string }
         Returns: Json
@@ -26036,6 +26485,10 @@ export type Database = {
         Args: { p_payload: Json }
         Returns: Json
       }
+      admin_event_registration_partner_consent_withdraw: {
+        Args: { p_registration_id: string }
+        Returns: Json
+      }
       admin_event_registration_record_payment: {
         Args: { p_payload: Json }
         Returns: Json
@@ -26082,6 +26535,7 @@ export type Database = {
           consent_data_processing_at: string
           consent_marketing_at: string
           consent_partner_sharing_at: string
+          consent_partner_withdrawn_at: string
           consent_withdrawn_at: string
           created_at: string
           decided_at: string
@@ -26177,6 +26631,10 @@ export type Database = {
           lead_scans_count: number
           locked_until: string
           offline_roster: boolean
+          queue_fail_window_count: number
+          queue_fail_window_started_at: string
+          queue_locked_until: string
+          queue_marker_required_at: string
           revoked_at: string
           roster_download_count: number
           roster_downloaded_at: string
@@ -26185,6 +26643,7 @@ export type Database = {
           sponsor_id: string
           sponsor_name: string
           state: string
+          superseded_scan_count: number
           token_prefix: string
         }[]
       }
@@ -26570,6 +27029,20 @@ export type Database = {
           tier_name_pl: string
           tier_rank: number
           updated_at: string
+        }[]
+      }
+      admin_event_sponsor_exposure_anomalies: {
+        Args: {
+          p_event_id: string
+          p_from?: string
+          p_sponsor_id?: string
+          p_to?: string
+        }
+        Returns: {
+          day: string
+          hits: number
+          reason: string
+          sources: number
         }[]
       }
       admin_event_sponsor_links: {
@@ -30393,6 +30866,10 @@ export type Database = {
         Args: { _tenant_id: string; p_payload: Json }
         Returns: Json
       }
+      event_registration_partner_consent_withdraw: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       event_registration_payment_context: {
         Args: { p_registration_id: string }
         Returns: Json
@@ -30508,8 +30985,8 @@ export type Database = {
         }[]
       }
       event_sponsor_exposure_ingest: {
-        Args: { p_payload: Json; p_tenant: string }
-        Returns: number
+        Args: { p_payload: Json; p_source: string; p_tenant: string }
+        Returns: Json
       }
       event_sponsor_exposures_prune: {
         Args: { p_keep_days?: number }

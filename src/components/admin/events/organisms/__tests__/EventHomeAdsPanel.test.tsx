@@ -20,15 +20,18 @@
 //      a odmowa bazy go NIE zamyka - organizator nie traci wypełnionych pól.
 //   5. HARMONOGRAM PILNUJE KOLEJNOŚCI. Koniec emisji równy początkowi albo
 //      wcześniejszy blokuje zapis; wyczyszczenie daty zdejmuje ograniczenie
-//      (do zapisu idzie pusty napis, nie `null`). Daty liczą się od
-//      zamrożonego zegara, bo pole daty bierze „teraz" z `new Date()`.
+//      (do zapisu idzie pusty napis, nie `null`). Kalendarz otwiera się na
+//      miesiącu zamrożonego zegara, bo pole bez wartości bierze go z `new Date()`.
+//      HARMONOGRAM JEST ZEGAREM STREFY WYDARZENIA (OPS-15, X6): pola pokazują
+//      i zapisują godzinę Warszawy także u organizatora w Londynie, pod nimi
+//      stoi ta strefa, a zapis bez dotykania dat oddaje chwile z bazy.
 //   6. KAŻDE OTWARCIE OKNA ZACZYNA OD WŁAŚCIWEGO SZKICU. Nowa reklama - puste
 //      pola, aktywna, bez grup i dat; edycja - dane wiersza i jego
 //      identyfikator. Szkic i komunikaty błędów z poprzedniego otwarcia nie
 //      wracają.
-//   7. JĘZYK PANELU DOCIERA DO PÓL. Pola daty formatują i podpisują się po
-//      polsku albo po angielsku (także dla „en-GB"), a pola wyboru grup
-//      mają nazwy w języku panelu.
+//   7. JĘZYK PANELU DOCIERA DO PÓL. Kalendarz pola daty i jego przyciski
+//      (czyszczenie, „gotowe") podpisują się po polsku albo po angielsku (także
+//      dla „en-GB"), a pola wyboru grup mają nazwy w języku panelu.
 //   8. PANEL PRACUJE NA SWOIM WYDARZENIU - każdy hook dostaje jego
 //      identyfikator, a szkic zapisu niesie go dalej.
 //   9. WALIDUJE PANEL, NIE PRZEGLĄDARKA, A BŁĄD JEST PRZYPIĘTY DO POLA.
@@ -51,14 +54,18 @@
 // liczy się to, z czym panel je woła. Wnętrza `ImageUrlField` (trzy stany
 // podglądu, biblioteka mediów) - ma je `authAdminComponents.test.tsx`.
 //
-// ATRAPY. `ImageUrlField` i `DateTimePicker` są PRAWDZIWE (Radix Popover
-// i kalendarz działają pod happy-dom od `fireEvent.click`). Atrapą jest tylko:
+// ATRAPY. `ImageUrlField` i pole daty (`AdminFormDateTimeRow` z atomem
+// `DateInput`) są PRAWDZIWE (Radix Popover i kalendarz działają pod happy-dom
+// od `fireEvent.click`). Pole daty to natywny `<input type="datetime-local">`
+// z wartością zegara ściennego („2099-06-14T14:00"); kalendarz otwiera ikona
+// `[data-calendar-opener]` obok pola, a „Wyczyść"/„Gotowe" są w jego dymku.
+// Atrapą jest tylko:
 // `MediaPickerDialog` (sięga do biblioteki mediów przez Supabase), Radix
 // Switch (nie przełącza się pod happy-dom bez pełnego pointer API - atrapa
 // z `@/test/reactStubs`) i `confirmDialog` (okno potwierdzenia rysuje
 // `AppDialogHost` z korzenia aplikacji, którego tu nie ma).
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import type { ConfirmDialogRequest } from "@/lib/appDialogs";
@@ -92,6 +99,9 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
+// Podpowiedź strefy pod harmonogramem (`adminEvents.eventTime.*`) - atrapa i18n
+// zwraca klucze, więc rejestracja słownika jest zbędna.
+vi.mock("@/lib/i18n-admin-events", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/appDialogs", () => ({
   confirmDialog: async (pytanie: Pytanie) => {
     h.confirmCalls.push(pytanie);
@@ -172,9 +182,8 @@ vi.mock("@/lib/events/sponsorBoardApi", async (importOriginal) => {
 
 import { EventHomeAdsPanel } from "@/components/admin/events/organisms/EventHomeAdsPanel";
 
-// Pole daty bierze „teraz" z `new Date()` (przycisk „Teraz", dzień w kalendarzu
-// dziedziczy godzinę bieżącą), a kalendarz otwiera się na bieżącym miesiącu -
-// oba muszą widzieć tę samą, zamrożoną chwilę.
+// Kalendarz pustego pola otwiera się na bieżącym miesiącu (`new Date()`) -
+// musi to być miesiąc zamrożonej chwili.
 freezeClock();
 
 const A = "sponsorBoard.ads";
@@ -238,7 +247,7 @@ function grupa(id: string, name_pl: string, name_en: string): EventGroupRow {
 }
 
 function panel() {
-  return render(<EventHomeAdsPanel eventId="ev1" />);
+  return render(<EventHomeAdsPanel eventId="ev1" timezone="Europe/Warsaw" />);
 }
 
 const wiersze = (): HTMLElement[] => screen.queryAllByRole("row").slice(1);
@@ -277,9 +286,21 @@ const otworzNowa = () => kliknij(screen.getByRole("button", { name: `${A}.add` }
 const otworzEdycje = (index = 0) =>
   kliknij(within(wiersz(index)).getByRole("button", { name: `${A}.edit` }));
 
-/** Otwiera kalendarz pola daty i zwraca jego dymek. */
+/** Natywne pole daty o tej etykiecie (jedyna kontrolka etykiety w atomie). */
+const poleDaty = (etykieta: string): HTMLInputElement => {
+  const pole = screen.getByLabelText(etykieta);
+  if (!(pole instanceof HTMLInputElement)) throw new Error(`${etykieta} nie jest polem`);
+  return pole;
+};
+
+/**
+ * Otwiera kalendarz pola daty ikoną obok pola i zwraca jego dymek. Ikona jest
+ * dekoracyjna (`aria-hidden`), więc szukamy jej w otoczce pola, nie po roli.
+ */
 function kalendarz(etykieta: string): HTMLElement {
-  kliknij(screen.getByLabelText(etykieta));
+  const ikona = poleDaty(etykieta).parentElement?.querySelector("[data-calendar-opener]");
+  if (!(ikona instanceof HTMLElement)) throw new Error(`pole ${etykieta} nie ma ikony kalendarza`);
+  kliknij(ikona);
   const dymek = screen.getAllByRole("dialog").find((d) => d !== okno());
   if (dymek === undefined) throw new Error(`kalendarz pola ${etykieta} się nie otworzył`);
   return dymek;
@@ -294,30 +315,35 @@ function zamknijKalendarz(): void {
 
 // Napisy selektora daty idą przez i18n (`dateTimePicker.*`), a ten plik
 // zastępuje `react-i18next` atrapą zwracającą klucz z jawnym językiem.
-const PUSTE_PL = "dateTimePicker.placeholder(lng=pl)";
-const TERAZ_PL = "dateTimePicker.now(lng=pl)";
 const WYCZYSC_PL = "dateTimePicker.clear(lng=pl)";
+/** Podpis pola harmonogramu: strefa wydarzenia (`eventLocalInputHint`). */
+const STREFA = "adminEvents.eventTime.zone(zone=Europe/Warsaw)";
 
 /**
- * Przycisk czyszczenia pola daty. Stoi OBOK triggera (ten sam rodzic), nie
- * w nim - element interaktywny wewnątrz `<button>` to niepoprawny HTML.
+ * Przycisk czyszczenia pola daty - w dymku kalendarza tego pola (pole jest
+ * natywnym `<input>`, więc obok niego nie ma drugiej kontrolki).
  */
 function wyczyscPole(etykieta: string, nazwa = WYCZYSC_PL): HTMLElement {
-  const trigger = screen.getByLabelText(etykieta);
-  return within(trigger.parentElement as HTMLElement).getByRole("button", { name: nazwa });
+  return within(kalendarz(etykieta)).getByRole("button", { name: nazwa });
 }
 
-/** Ustawia pole daty na „teraz" przyciskiem w kalendarzu. */
-function ustawTeraz(etykieta: string, przycisk = TERAZ_PL): void {
-  kliknij(within(kalendarz(etykieta)).getByRole("button", { name: przycisk }));
-  zamknijKalendarz();
-}
-
-/** Wybiera dzień bieżącego miesiąca w kalendarzu pola daty. */
+/**
+ * Wybiera dzień czerwca 2099 (miesiąc zamrożonego zegara) w kalendarzu pola.
+ * Pole bez godziny dostaje 00:00 - ZEGAR STREFY WYDARZENIA, nie przeglądarki.
+ * Dzień szukamy po `data-day`: tekst „15" występuje też w opcjach godzin.
+ */
 function ustawDzien(etykieta: string, dzien: number): void {
-  kliknij(within(kalendarz(etykieta)).getByText(String(dzien)));
+  const dymek = kalendarz(etykieta);
+  const dzienCzerwca = `2099-06-${String(dzien).padStart(2, "0")}`;
+  const przycisk = dymek.querySelector(`[data-day="${dzienCzerwca}"] button`);
+  if (!(przycisk instanceof HTMLElement)) throw new Error(`brak dnia ${dzienCzerwca}`);
+  kliknij(przycisk);
   zamknijKalendarz();
 }
+
+// Północ w Warszawie (CEST, +2) w dniach czerwca 2099 jako chwile UTC.
+const POLNOC_15 = "2099-06-14T22:00:00.000Z";
+const POLNOC_16 = "2099-06-15T22:00:00.000Z";
 
 async function usun(index = 0): Promise<void> {
   await act(async () => {
@@ -538,8 +564,8 @@ describe("okno nowej reklamy", () => {
     for (const nazwa of ["Goście VIP", "Press", "Wolontariusze"]) {
       expect(grupaWOknie(nazwa).getAttribute("aria-checked")).toBe("false");
     }
-    expect(screen.getByLabelText(`${A}.startsAt`).textContent).toBe(PUSTE_PL);
-    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toBe(PUSTE_PL);
+    expect(poleDaty(`${A}.startsAt`).value).toBe("");
+    expect(poleDaty(`${A}.endsAt`).value).toBe("");
   });
 
   it("kadr podglądu obrazu komputerowego jest pionowym banerem, a mobilnego - ekranem telefonu", () => {
@@ -606,8 +632,8 @@ describe("okno nowej reklamy", () => {
     wpisz(poleObrazu(0), "http://cdn.example.org/baner.webp");
     wpisz(poleObrazu(1), "ftp://cdn.example.org/plansza.webp");
     wpisz(poleLinku(), "http://sponsor.example.org/oferta");
-    ustawTeraz(`${A}.startsAt`);
-    ustawTeraz(`${A}.endsAt`);
+    ustawDzien(`${A}.startsAt`, 15);
+    ustawDzien(`${A}.endsAt`, 15);
     zapisz();
     for (const pole of [poleObrazu(0), poleObrazu(1)]) {
       expect(pole).toHaveAccessibleDescription(`${A}.imageInvalid`);
@@ -615,7 +641,8 @@ describe("okno nowej reklamy", () => {
     }
     expect(poleLinku()).toHaveAccessibleDescription(`${A}.linkInvalid`);
     const koniec = screen.getByLabelText(`${A}.endsAt`);
-    expect(koniec).toHaveAccessibleDescription(`${A}.endsInvalid`);
+    // Komunikat najpierw, za nim podpis strefy - oba opisują TO pole.
+    expect(koniec).toHaveAccessibleDescription(`${A}.endsInvalid ${STREFA}`);
     expect(koniec.getAttribute("aria-invalid")).toBe("true");
     // Początek emisji nie jest błędny - komunikat o kolejności należy do końca.
     expect(screen.getByLabelText(`${A}.startsAt`).hasAttribute("aria-invalid")).toBe(false);
@@ -629,10 +656,14 @@ describe("okno nowej reklamy", () => {
     wpisz(poleLinku(), LINK);
     zapisz();
     expect(poleObrazu(0).getAttribute("aria-invalid")).toBe("true");
-    for (const pole of [poleObrazu(1), poleLinku(), screen.getByLabelText(`${A}.endsAt`)]) {
+    for (const pole of [poleObrazu(1), poleLinku()]) {
       expect(pole.hasAttribute("aria-invalid")).toBe(false);
       expect(pole).not.toHaveAccessibleDescription();
     }
+    // Pole końca ma podpis strefy - i NIC poza nim.
+    const koniec = screen.getByLabelText(`${A}.endsAt`);
+    expect(koniec.hasAttribute("aria-invalid")).toBe(false);
+    expect(koniec).toHaveAccessibleDescription(STREFA);
   });
 
   it("zły obraz mobilny blokuje zapis, choć obraz komputerowy jest poprawny", () => {
@@ -649,8 +680,8 @@ describe("okno nowej reklamy", () => {
     panel();
     otworzNowa();
     wpisz(poleObrazu(0), OBRAZ);
-    ustawTeraz(`${A}.startsAt`);
-    ustawTeraz(`${A}.endsAt`);
+    ustawDzien(`${A}.startsAt`, 15);
+    ustawDzien(`${A}.endsAt`, 15);
     zapisz();
     expect(within(okno()).getByText(`${A}.endsInvalid`)).toBeTruthy();
     expect(h.saveCalls).toEqual([]);
@@ -660,9 +691,9 @@ describe("okno nowej reklamy", () => {
     panel();
     otworzNowa();
     wpisz(poleObrazu(0), OBRAZ);
-    // FIXED_NOW to 15.06.2099 - początek jutro, koniec „teraz".
+    // FIXED_NOW to 15.06.2099 - początek jutro, koniec dziś.
     ustawDzien(`${A}.startsAt`, 16);
-    ustawTeraz(`${A}.endsAt`);
+    ustawDzien(`${A}.endsAt`, 15);
     zapisz();
     expect(within(okno()).getByText(`${A}.endsInvalid`)).toBeTruthy();
     expect(h.saveCalls).toEqual([]);
@@ -677,7 +708,7 @@ describe("okno nowej reklamy", () => {
     wpisz(within(okno()).getByLabelText(`${A}.alt`), "Baner partnera");
     kliknij(grupaWOknie("Goście VIP"));
     kliknij(grupaWOknie("Wolontariusze"));
-    ustawTeraz(`${A}.startsAt`);
+    ustawDzien(`${A}.startsAt`, 15);
     ustawDzien(`${A}.endsAt`, 16);
     kliknij(within(okno()).getByRole("switch", { name: `${A}.isActive` }));
     zapisz();
@@ -690,8 +721,9 @@ describe("okno nowej reklamy", () => {
         linkUrl: LINK,
         altText: "Baner partnera",
         groupIds: ["g1", "g3"],
-        startsAt: relativeIso(0),
-        endsAt: relativeIso(DZIEN),
+        // Północ w WARSZAWIE, nie w strefie maszyny.
+        startsAt: POLNOC_15,
+        endsAt: POLNOC_16,
         isActive: false,
         sponsorId: "",
       },
@@ -808,9 +840,10 @@ describe("okno edycji reklamy", () => {
       "checked",
       false,
     );
-    // FIXED_NOW to 15.06.2099, południe UTC: od wczoraj do za pięć dni.
-    expect(screen.getByLabelText(`${A}.startsAt`).textContent).toMatch(/^14 cze 2099/);
-    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toMatch(/^20 cze 2099/);
+    // FIXED_NOW to 15.06.2099, południe UTC: od wczoraj do za pięć dni -
+    // w zegarze WARSZAWY (CEST, +2), nie maszyny.
+    expect(poleDaty(`${A}.startsAt`).value).toBe("2099-06-14T14:00");
+    expect(poleDaty(`${A}.endsAt`).value).toBe("2099-06-20T14:00");
   });
 
   it("zapis bez zmian niesie identyfikator reklamy i jej dane", () => {
@@ -849,7 +882,7 @@ describe("okno edycji reklamy", () => {
     otworzEdycje();
     for (const etykieta of [`${A}.startsAt`, `${A}.endsAt`]) {
       kliknij(wyczyscPole(etykieta));
-      expect(screen.getByLabelText(etykieta).textContent).toBe(PUSTE_PL);
+      expect(poleDaty(etykieta).value).toBe("");
     }
     zapisz();
     expect(h.saveCalls[0]).toMatchObject({ startsAt: "", endsAt: "" });
@@ -886,18 +919,23 @@ describe("język panelu w oknie", () => {
     h.ads = [reklama({ starts_at: relativeIso(-DZIEN) })];
   });
 
-  it("po angielsku (także „en-GB”) daty mają format i podpisy angielskie", () => {
+  it("po angielsku (także „en-GB”) pola daty mają podpisy angielskie", () => {
     h.lang = "en-GB";
     panel();
     otworzEdycje();
-    expect(screen.getByLabelText(`${A}.startsAt`).textContent).toMatch(/^Jun 14, 2099/);
-    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toBe(
-      "dateTimePicker.placeholder(lng=en)",
-    );
-    expect(wyczyscPole(`${A}.startsAt`, "dateTimePicker.clear(lng=en)")).toBeTruthy();
-    ustawTeraz(`${A}.endsAt`, "dateTimePicker.now(lng=en)");
+    expect(poleDaty(`${A}.startsAt`).value).toBe("2099-06-14T14:00");
+    expect(poleDaty(`${A}.endsAt`).value).toBe("");
+    // Dymek kalendarza i jego przyciski mówią po angielsku.
+    const dymek = kalendarz(`${A}.startsAt`);
+    expect(dymek.getAttribute("aria-label")).toBe("dateTimePicker.openCalendar(lng=en)");
+    expect(
+      within(dymek).getByRole("button", { name: "dateTimePicker.clear(lng=en)" }),
+    ).toBeTruthy();
+    expect(within(dymek).getByRole("button", { name: "dateTimePicker.done(lng=en)" })).toBeTruthy();
+    zamknijKalendarz();
+    ustawDzien(`${A}.endsAt`, 16);
     zapisz();
-    expect(h.saveCalls[0]).toMatchObject({ startsAt: relativeIso(-DZIEN), endsAt: relativeIso(0) });
+    expect(h.saveCalls[0]).toMatchObject({ startsAt: relativeIso(-DZIEN), endsAt: POLNOC_16 });
   });
 
   it("po angielsku pola wyboru grup mają angielskie nazwy z przejściem na polską", () => {
@@ -915,5 +953,58 @@ describe("język panelu w oknie", () => {
     expect(grupaWOknie("Goście VIP")).toBeTruthy();
     expect(grupaWOknie("Press")).toBeTruthy();
     expect(within(okno()).queryByRole("checkbox", { name: "VIP guests" })).toBeNull();
+  });
+});
+
+describe("harmonogram w strefie wydarzenia (OPS-15) - organizator w Londynie", () => {
+  const ORIGINAL_TZ = process.env.TZ;
+  beforeAll(() => {
+    process.env.TZ = "Europe/London";
+  });
+  afterAll(() => {
+    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = ORIGINAL_TZ;
+  });
+
+  beforeEach(() => {
+    h.ads = [
+      reklama({
+        starts_at: "2099-06-14T12:00:00+00:00",
+        ends_at: "2099-06-20T21:59:59+00:00",
+      }),
+    ];
+  });
+
+  it("kanarek: maszyna jest w Londynie", () => {
+    expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe("Europe/London");
+  });
+
+  it("pola pokazują godzinę WARSZAWY, a podpis nazywa tę strefę", () => {
+    panel();
+    otworzEdycje();
+    // Dawny kalendarz pokazałby godzinę Londynu (13:00, 22:59).
+    expect(poleDaty(`${A}.startsAt`).value).toBe("2099-06-14T14:00");
+    expect(poleDaty(`${A}.endsAt`).value).toBe("2099-06-20T23:59");
+    expect(screen.getByLabelText(`${A}.startsAt`)).toHaveAccessibleDescription(STREFA);
+  });
+
+  it("zapis bez dotykania dat oddaje chwile z bazy co do sekundy", () => {
+    panel();
+    otworzEdycje();
+    wpisz(poleLinku(), "https://sponsor.example.org/nowa");
+    zapisz();
+    expect(h.saveCalls[0]).toMatchObject({
+      startsAt: "2099-06-14T12:00:00.000Z",
+      endsAt: "2099-06-20T21:59:59.000Z",
+    });
+  });
+
+  it("nowy dzień z kalendarza zostawia godzinę pola i liczy się w Warszawie, nie w Londynie", () => {
+    panel();
+    otworzEdycje();
+    ustawDzien(`${A}.endsAt`, 16);
+    zapisz();
+    // Kalendarz zostawia godzinę pola (23:59) i zmienia dzień - w Warszawie.
+    expect(h.saveCalls[0]).toMatchObject({ endsAt: "2099-06-16T21:59:00.000Z" });
   });
 });

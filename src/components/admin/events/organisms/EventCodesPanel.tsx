@@ -3,6 +3,11 @@ import { DateInput } from "@/components/ui/date-input";
 // Lista + okno tworzenia/edycji. Rabat liczy baza i nasza kasa (kod NIE jedzie
 // do pola kodów Stripe) - panel zapisuje tylko definicję kodu.
 //
+// OKNO WAŻNOŚCI JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15, F12/F15), jak
+// terminy biletów w zakładce obok: strefa przychodzi od rodzica (`timezone`),
+// tabela pokazuje okno w tej strefie, a pod polami daty stoi „Godzina
+// w strefie …" albo zdanie o luce/zakładce zmiany czasu.
+//
 // KOD KWOTOWY JEST „OD BILETU". Kasa zapisu grupowego i pakiet zdejmują kwotę
 // z KAŻDEGO miejsca (najwyżej do ceny miejsca), a jedno zamówienie zużywa
 // jedno użycie kodu. Kolumna działania i podpowiedzi formularza mówią to
@@ -47,20 +52,25 @@ import {
   useToggleEventCode,
   type EventCodeDraft,
   type EventCodeRow,
+  type EventCodeTimeField,
 } from "@/lib/events/eventCodesApi";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
+import { eventTimeZone, formatEventDateTime } from "@/lib/events/timezone";
+import type { UiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import "@/lib/i18n-admin-event-codes";
 
 interface Props {
   eventId: string;
   eventSlug: string;
+  /** Strefa wydarzenia (`events.timezone`) - okno ważności kodu jest zegarem w niej. */
+  timezone: string | null;
 }
 
-function fmtDate(iso: string | null, lang: string): string {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+/** Chwila z bazy w strefie wydarzenia; brak terminu to „-", nie „Invalid Date". */
+function fmtDate(iso: string | null, zone: string, lang: UiLang): string {
+  const text = formatEventDateTime(iso, zone, lang, { dateStyle: "medium", timeStyle: "short" });
+  return text === "" ? "-" : text;
 }
 
 async function copy(text: string, done: string) {
@@ -72,9 +82,10 @@ async function copy(text: string, done: string) {
   }
 }
 
-export function EventCodesPanel({ eventId, eventSlug }: Props) {
+export function EventCodesPanel({ eventId, eventSlug, timezone }: Props) {
   const { t, i18n } = useTranslation();
-  const lang = i18n.language.startsWith("en") ? "en" : "pl";
+  const lang: UiLang = i18n.language.startsWith("en") ? "en" : "pl";
+  const zone = eventTimeZone({ timezone });
   const codesQ = useEventCodes(eventId);
   const ticketsQ = useQuery({
     queryKey: ["admin", "event-tickets-for-codes", eventId],
@@ -188,8 +199,8 @@ export function EventCodesPanel({ eventId, eventSlug }: Props) {
                     <td className="px-3 py-2">
                       {r.redemptionsCount}/{r.maxRedemptions ?? "∞"}
                     </td>
-                    <td className="px-3 py-2">{fmtDate(r.validFrom, lang)}</td>
-                    <td className="px-3 py-2">{fmtDate(r.validUntil, lang)}</td>
+                    <td className="px-3 py-2">{fmtDate(r.validFrom, zone, lang)}</td>
+                    <td className="px-3 py-2">{fmtDate(r.validUntil, zone, lang)}</td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1">
                         <Switch
@@ -243,6 +254,7 @@ export function EventCodesPanel({ eventId, eventSlug }: Props) {
         <EventCodeDialog
           eventId={eventId}
           eventSlug={eventSlug}
+          zone={zone}
           row={editing.row}
           stackingAvailable={stackingAvailable}
           tickets={(ticketsQ.data ?? []).map((tk) => ({
@@ -260,6 +272,8 @@ export function EventCodesPanel({ eventId, eventSlug }: Props) {
 interface DialogProps {
   eventId: string;
   eventSlug: string;
+  /** Strefa wydarzenia, już zwalidowana (`eventTimeZone`). */
+  zone: string;
   row: EventCodeRow | null;
   /** Czy baza zna reguły kumulacji - decyduje o polach NOWEGO kodu. */
   stackingAvailable: boolean;
@@ -270,21 +284,26 @@ interface DialogProps {
 function EventCodeDialog({
   eventId,
   eventSlug,
+  zone,
   row,
   stackingAvailable,
   tickets,
   onClose,
 }: DialogProps) {
-  const { t } = useTranslation();
+  ensureAdminEventsI18n();
+  const { t, i18n } = useTranslation();
+  const uiLang: UiLang = i18n.language.startsWith("en") ? "en" : "pl";
   const save = useSaveEventCode(eventId);
   const [d, setD] = useState<EventCodeDraft>(() =>
     row
-      ? eventCodeRowToDraft(row)
-      : emptyEventCodeDraft(tickets[0]?.currency ?? "PLN", stackingAvailable),
+      ? eventCodeRowToDraft(row, zone)
+      : emptyEventCodeDraft(tickets[0]?.currency ?? "PLN", zone, stackingAvailable),
   );
   const [issue, setIssue] = useState<string | null>(null);
   const set = <K extends keyof EventCodeDraft>(k: K, v: EventCodeDraft[K]) =>
     setD((prev) => ({ ...prev, [k]: v }));
+  const timeHint = (field: EventCodeTimeField): string | undefined =>
+    eventLocalInputHint(t, uiLang, d[field], d.timeZone, d.savedTimes[field] ?? null);
 
   const submit = () => {
     const problem = eventCodeDraftIssue(d);
@@ -350,8 +369,12 @@ function EventCodeDialog({
                 id="ec-from"
                 type="datetime-local"
                 value={d.validFrom}
+                aria-describedby="ec-from-zone"
                 onChange={(e) => set("validFrom", e.target.value)}
               />
+              <p id="ec-from-zone" className="text-xs text-muted-foreground">
+                {timeHint("validFrom")}
+              </p>
             </div>
             <div className="space-y-1">
               <Label htmlFor="ec-until">{t("eventCodes.form.validUntil")}</Label>
@@ -359,8 +382,12 @@ function EventCodeDialog({
                 id="ec-until"
                 type="datetime-local"
                 value={d.validUntil}
+                aria-describedby="ec-until-zone"
                 onChange={(e) => set("validUntil", e.target.value)}
               />
+              <p id="ec-until-zone" className="text-xs text-muted-foreground">
+                {timeHint("validUntil")}
+              </p>
             </div>
             <div className="space-y-1">
               <Label htmlFor="ec-qty">{t("eventCodes.form.quantity")}</Label>

@@ -62,6 +62,12 @@ const PROTECTED_INTAKE_TABLES: ReadonlySet<string> = new Set([
   // Pomiar ekspozycji sponsorow wydarzen: zapis WYLACZNIE przez
   // event_sponsor_exposure_ingest (service_role, endpoint po zgodzie).
   "event_sponsor_exposures",
+  // Integralnosc pomiaru (OPS-09): klucz podpisu sesji, rejestr sesji na
+  // zrodlo i anomalie pisze wylacznie event_sponsor_exposure_ingest /
+  // _event_sponsor_exposure_token (SECURITY DEFINER, service_role).
+  "event_sponsor_exposure_keys",
+  "event_sponsor_exposure_sessions",
+  "event_sponsor_exposure_anomalies",
   // Lejek sprzedazy wydarzenia: kroki pisze wylacznie event_funnel_track
   // (service_role za /api/public/event-funnel), atrybucje - wylacznie
   // event_registration_attribution_attach (SECURITY DEFINER, manage_token).

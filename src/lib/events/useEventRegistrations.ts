@@ -37,6 +37,7 @@ import {
   saveEventTicket,
   saveRegistration,
   saveRegistrationField,
+  withdrawRegistrationPartnerConsent,
   type EventRegistrationFieldRow,
   type EventTicketInput,
   type EventTicketRow,
@@ -207,6 +208,17 @@ export function useDecideRegistration(
   const invalidate = useInvalidateEvent();
   return useMutation({
     mutationFn: decideRegistration,
+    onSuccess: () => invalidate(eventId),
+  });
+}
+
+/** Wycofanie zgody partnerskiej uczestnika z panelu. Wynik: czy było co wycofać. */
+export function useWithdrawPartnerConsent(
+  eventId: string,
+): UseMutationResult<boolean, Error, string> {
+  const invalidate = useInvalidateEvent();
+  return useMutation({
+    mutationFn: withdrawRegistrationPartnerConsent,
     onSuccess: () => invalidate(eventId),
   });
 }

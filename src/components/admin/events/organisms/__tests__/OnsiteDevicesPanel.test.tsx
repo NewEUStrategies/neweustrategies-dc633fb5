@@ -23,6 +23,11 @@
 //      Zero nieudanych skanów bez odznaki, pierwszy nieudany - z odznaką.
 //   6. UNIEWAŻNIENIE JEST ZA POTWIERDZENIEM i idzie z identyfikatorem TEGO
 //      urządzenia, nie pierwszego z listy.
+//   7. KOLEJKA MA WŁASNĄ BLOKADĘ (20261013111100). Wstrzymanie samej
+//      synchronizacji kolejki to osobna odznaka - stan na żywo zostaje
+//      `active`, bo telefon dalej wpuszcza ludzi. Liczniki kolejki i kodów
+//      zastąpionych pojawiają się dopiero, gdy jest co pokazać, a telefon ze
+//      starą wersją skanera (bez deklaracji znacznika kolejki) jest nazwany.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) FORMULARZA wydania i okienka poświadczenia -
 // mają własny plik `ScannerDeviceDialog.test.tsx` (walidacja etykiety, kod QR
@@ -282,6 +287,10 @@ function urzadzenie(overrides: Partial<ScannerDeviceRow> = {}): ScannerDeviceRow
     lead_scans_count: 0,
     locked_until: BRAK,
     offline_roster: false,
+    queue_fail_window_count: 0,
+    queue_fail_window_started_at: BRAK,
+    queue_locked_until: BRAK,
+    queue_marker_required_at: "2026-08-30T09:05:00.000Z",
     revoked_at: BRAK,
     roster_download_count: 0,
     roster_downloaded_at: BRAK,
@@ -290,6 +299,7 @@ function urzadzenie(overrides: Partial<ScannerDeviceRow> = {}): ScannerDeviceRow
     sponsor_id: BRAK,
     sponsor_name: BRAK,
     state: "active",
+    superseded_scan_count: 0,
     token_prefix: "sk_a1b2",
     ...overrides,
   };
@@ -476,6 +486,87 @@ describe("wiersz urządzenia", () => {
     panel();
 
     expect(wiersz().textContent).toContain(`${T}.labels.failedScans: 1`);
+  });
+
+  it("BLOKADA KOLEJKI to osobna czerwona odznaka z terminem - stan na żywo zostaje `active`", () => {
+    h.rows = [
+      urzadzenie({
+        queue_locked_until: "2026-09-01T09:30:00.000Z",
+        queue_fail_window_count: 100,
+        queue_fail_window_started_at: "2026-09-01T08:55:00.000Z",
+      }),
+    ];
+    panel();
+
+    const odznaka = within(wiersz()).getByText(/devices\.queueLocked\(when=.+\)/);
+    expect(odznaka.getAttribute("title")).toBe(`${T}.devices.queueLockedHint`);
+    expect(wiersz().textContent).toContain(`${T}.deviceStates.active`);
+    // Przy blokadzie licznik okna nic nie dodaje - jest progiem.
+    expect(wiersz().textContent).not.toContain(`${T}.devices.queueFailures`);
+  });
+
+  it("bez blokady kolejki nie ma jej odznaki", () => {
+    panel();
+
+    expect(wiersz().textContent).not.toContain(`${T}.devices.queueLocked`);
+  });
+
+  it("nieznane kody z kolejki w bieżącym oknie są policzone, zero - bez odznaki", () => {
+    h.rows = [
+      urzadzenie({
+        queue_fail_window_count: 37,
+        queue_fail_window_started_at: "2026-09-01T08:55:00.000Z",
+      }),
+      urzadzenie({ id: INNE_URZADZENIE, label: "Telefon bramka B" }),
+    ];
+    panel();
+
+    expect(within(wiersz(0)).getByText(`${T}.devices.queueFailures(count=37)`)).toBeTruthy();
+    expect(wiersz(1).textContent).not.toContain(`${T}.devices.queueFailures`);
+  });
+
+  it("skany kodów zastąpionych (stary identyfikator) są policzone osobno od nieudanych", () => {
+    h.rows = [urzadzenie({ superseded_scan_count: 25, failed_scan_count: 0 })];
+    panel();
+
+    const odznaka = within(wiersz()).getByText(`${T}.devices.supersededScans(count=25)`);
+    expect(odznaka.getAttribute("title")).toBe(`${T}.devices.supersededScansHint`);
+    expect(wiersz().textContent).not.toContain(`${T}.labels.failedScans`);
+  });
+
+  it("telefon z aktualnym skanerem (znacznik kolejki) ma odznakę, a stary klient - swoją", () => {
+    h.rows = [
+      urzadzenie(),
+      urzadzenie({
+        id: INNE_URZADZENIE,
+        label: "Telefon bramka B",
+        queue_marker_required_at: BRAK,
+      }),
+    ];
+    panel();
+
+    expect(within(wiersz(0)).getByText(`${T}.devices.queueMarker`)).toBeTruthy();
+    expect(wiersz(0).textContent).not.toContain(`${T}.devices.queueMarkerLegacy`);
+    const stary = within(wiersz(1)).getByText(`${T}.devices.queueMarkerLegacy`);
+    expect(stary.getAttribute("title")).toBe(`${T}.devices.queueMarkerLegacyHint`);
+  });
+
+  it("telefon, który nigdy się nie połączył, ani unieważniony, nie dostaje odznaki starego skanera", () => {
+    h.rows = [
+      urzadzenie({ queue_marker_required_at: BRAK, last_seen_at: BRAK }),
+      urzadzenie({
+        id: INNE_URZADZENIE,
+        label: "Telefon bramka B",
+        queue_marker_required_at: BRAK,
+        state: "revoked",
+        revoked_at: "2026-09-01T08:00:00.000Z",
+        is_active: false,
+      }),
+    ];
+    panel();
+
+    expect(wiersz(0).textContent).not.toContain(`${T}.devices.queueMarker`);
+    expect(wiersz(1).textContent).not.toContain(`${T}.devices.queueMarker`);
   });
 
   it("poświadczenie bezterminowe nie rysuje pustej daty wygaśnięcia", () => {

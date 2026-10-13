@@ -36,6 +36,10 @@ import {
   type SponsorReportSeriesRow,
   type SponsorReportSummaryRow,
 } from "@/lib/events/sponsorReportApi";
+import {
+  fetchSponsorExposureAnomalies,
+  type SponsorExposureAnomalyRow,
+} from "@/lib/events/sponsorExposureAnomalies";
 import { sponsorKeys } from "@/lib/events/useEventSponsors";
 
 export const sponsorReportKeys = {
@@ -47,6 +51,8 @@ export const sponsorReportKeys = {
   leadsSeries: (query: SponsorReportQuery) =>
     [...sponsorReportKeys.event(query.eventId), "leads-series", query] as const,
   links: (eventId: string) => [...sponsorReportKeys.event(eventId), "links"] as const,
+  anomalies: (query: SponsorReportQuery) =>
+    [...sponsorReportKeys.event(query.eventId), "anomalies", query] as const,
   companies: () => [...sponsorKeys.all, "company"] as const,
   company: (companyId: string) => [...sponsorReportKeys.companies(), companyId] as const,
 };
@@ -77,6 +83,17 @@ export function useSponsorReportLeadsSeries(
   return useQuery({
     queryKey: sponsorReportKeys.leadsSeries(query),
     queryFn: () => fetchSponsorReportLeadsSeries(query),
+    enabled: query.eventId !== "",
+  });
+}
+
+/** Anomalie pomiaru (OPS-09) w zakresie i dla sponsora z filtrów raportu. */
+export function useSponsorExposureAnomalies(
+  query: SponsorReportQuery,
+): UseQueryResult<SponsorExposureAnomalyRow[], Error> {
+  return useQuery({
+    queryKey: sponsorReportKeys.anomalies(query),
+    queryFn: () => fetchSponsorExposureAnomalies(query),
     enabled: query.eventId !== "",
   });
 }

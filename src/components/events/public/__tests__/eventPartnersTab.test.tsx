@@ -49,7 +49,8 @@ const { parseSponsorTiers } = await import("@/lib/events/sponsorsSurface");
 const SP_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const SP_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const SP_C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
-const SESSION = "f".repeat(32);
+/** Sesja serwera (OPS-09) już w magazynie - pozycje idą beaconem z sesją. */
+const SESSION = "f".repeat(64);
 const DIALOG_WAIT = { timeout: 5000 };
 const OPEN_NORDWIND = "eventFront.directory.openCompany(name=Nordwind Analytics)";
 
@@ -162,9 +163,9 @@ function trackerDeps() {
       sent.push(payload as unknown as { items: Record<string, string>[] });
       return true;
     },
+    exchange: async () => null,
     schedule: () => () => undefined,
-    storage: () => null,
-    randomId: () => SESSION,
+    storage: () => ({ getItem: () => SESSION }) as unknown as Storage,
   };
   return { deps, items: () => sent.flatMap((batch) => batch.items) };
 }

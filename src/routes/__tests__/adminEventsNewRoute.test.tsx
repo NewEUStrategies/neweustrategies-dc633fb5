@@ -429,8 +429,29 @@ describe("zapis - ładunek RPC `admin_event_create`", () => {
     const p = payload();
     expect(p.title_pl).toBe("Kongres Bezpieczeństwa Gospodarczego");
     expect(p.title_en).toBe("Economic Security Congress");
-    expect(p.starts_at).toBe(new Date("2027-03-11T09:00").toISOString());
+    // Pole jest zegarem STREFY WYDARZENIA (OPS-15): 09:00 w Warszawie (CET)
+    // to 08:00 UTC - niezależnie od strefy przeglądarki redaktora.
+    expect(p.starts_at).toBe("2027-03-11T08:00:00.000Z");
     expect(p.event_type_id).toBe("7b3e1d40-0000-4000-8000-000000000001");
+  });
+
+  it("chwile liczy STREFA Z DROPLISTY, nie przeglądarka (Nowy Jork: 09:00 EDT = 13:00Z)", async () => {
+    h.draft = pelnySzkic({
+      startsAt: "2027-03-15T09:00",
+      endsAt: "2027-03-15T17:00",
+      timezone: "America/New_York",
+    });
+    await zamontujJakoRedaktor();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "zapisz" }));
+    });
+
+    await waitFor(() => expect(stub().callsFor("admin_event_create")).toHaveLength(1));
+    const p = payload();
+    expect(p.starts_at).toBe("2027-03-15T13:00:00.000Z");
+    expect(p.ends_at).toBe("2027-03-15T21:00:00.000Z");
+    expect(p.timezone).toBe("America/New_York");
   });
 
   it("pola WYPEŁNIONE jadą w ładunku - baza nie ma ich skąd zgadnąć", async () => {
@@ -442,7 +463,7 @@ describe("zapis - ładunek RPC `admin_event_create`", () => {
 
     await waitFor(() => expect(stub().callsFor("admin_event_create")).toHaveLength(1));
     const p = payload();
-    expect(p.ends_at).toBe(new Date("2027-03-12T17:00").toISOString());
+    expect(p.ends_at).toBe("2027-03-12T16:00:00.000Z");
     expect(p.timezone).toBe("Europe/Warsaw");
     expect(p.format).toBe("hybrid");
     expect(p.city).toBe("Warszawa");

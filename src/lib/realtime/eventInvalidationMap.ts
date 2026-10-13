@@ -237,6 +237,8 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
   "event.registration.cancelled.v1": (event) => registrationInvoiceEventKeys(event),
   "event.registration.promoted.v1": (event) => registrationInvoiceEventKeys(event),
   "event.registration.payment.v1": (event) => registrationInvoiceEventKeys(event),
+  // Uniewaznienie kodu zmienia stan identyfikatora w module na miejscu.
+  "event.registration.code_invalidated.v1": (event) => onsiteEventKeys(event),
 
   // Nabor prelegentow: lista, liczniki i szczegol w panelu organizatora
   // (galaz `["event-cfp", eventId]`) oraz "moje zgloszenia", panel prelegenta

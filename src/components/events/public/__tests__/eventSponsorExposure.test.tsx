@@ -69,7 +69,8 @@ const SP_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const MAT = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const AD_1 = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const AD_2 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
-const SESSION = "f".repeat(32);
+/** Sesja serwera (OPS-09) już w magazynie - pozycje idą beaconem z sesją. */
+const SESSION = "f".repeat(64);
 
 // ---------------------------------------------------------------- atrapy ---
 
@@ -114,9 +115,9 @@ function trackerDeps(consent = true) {
       sent.push(payload as unknown as Sent);
       return true;
     },
+    exchange: async () => null,
     schedule: () => () => undefined,
-    storage: () => null,
-    randomId: () => SESSION,
+    storage: () => ({ getItem: () => SESSION }) as unknown as Storage,
   };
   return { deps, sent, items: () => sent.flatMap((batch) => batch.items) };
 }

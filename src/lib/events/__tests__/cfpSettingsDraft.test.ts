@@ -38,6 +38,7 @@ import { parseCfpSettings } from "@/lib/events/cfpSurface";
 function settings() {
   return parseCfpSettings({
     status: "open",
+    event_timezone: "Europe/Warsaw",
     opens_at: "2026-09-01T10:00:00+00:00",
     closes_at: null,
     intro_pl: "Wstęp",
@@ -66,8 +67,11 @@ describe("cfpSettingsDraftFromSettings / payload", () => {
     const draft = validDraft();
     expect(draft).toMatchObject({
       status: "open",
-      opensAt: "2026-09-01T10:00:00+00:00",
+      // Okno naboru jest zegarem Warszawy (CEST, +2), a chwila z bazy - kotwicą.
+      opensAt: "2026-09-01T12:00",
       closesAt: "",
+      timeZone: "Europe/Warsaw",
+      savedTimes: { opensAt: "2026-09-01T10:00:00.000Z", closesAt: null },
       maxPerSubmitter: "2",
       scoreMax: "5",
       minReviews: "2",
@@ -80,7 +84,7 @@ describe("cfpSettingsDraftFromSettings / payload", () => {
       formats: [{ key: " talk ", labelPl: " Wykład ", labelEn: " Talk ", durationMin: " 45 " }],
       criteria: [{ key: " rel ", labelPl: " T ", labelEn: " R ", weight: " 3 " }],
       opensAt: "",
-      closesAt: "2026-10-01T00:00:00.000Z",
+      closesAt: "2026-10-01T02:00",
     });
     expect(payload).toEqual({
       eventId: "e1",
@@ -113,8 +117,9 @@ describe("cfpSettingsDraftFromSettings / payload", () => {
     const payload = cfpSettingsPayload("e1", draft);
     expect(payload.opensAt).toBeNull();
     expect(payload.closesAt).toBeNull();
-    expect(cfpSettingsPayload("e1", { ...draft, opensAt: "2026-09-01T00:00:00Z" }).opensAt).toBe(
-      "2026-09-01T00:00:00Z",
+    // Bez `event_timezone` pole jest zegarem strefy domyślnej serwisu (Warszawa).
+    expect(cfpSettingsPayload("e1", { ...draft, opensAt: "2026-09-01T02:00" }).opensAt).toBe(
+      "2026-09-01T00:00:00.000Z",
     );
   });
 
@@ -130,12 +135,19 @@ describe("validateCfpSettingsDraft", () => {
     expect(validateCfpSettingsDraft(validDraft())).toEqual([]);
   });
 
-  it("okno: termin po otwarciu, porównanie CHWIL w różnych zapisach", () => {
+  it("okno: termin po otwarciu, porównanie CHWIL w strefie wydarzenia", () => {
     const draft = validDraft();
-    expect(fields({ ...draft, closesAt: "2026-09-01T10:00:00.000Z" })).toEqual(["window"]);
-    expect(fields({ ...draft, closesAt: "2026-08-31T10:00:00.000Z" })).toEqual(["window"]);
-    expect(fields({ ...draft, closesAt: "2026-09-01T10:00:01.000Z" })).toEqual([]);
-    expect(fields({ ...draft, opensAt: "", closesAt: "2026-08-01T00:00:00Z" })).toEqual([]);
+    // Otwarcie: 12:00 w Warszawie (10:00Z), zachowane w kotwicy z bazy.
+    expect(fields({ ...draft, closesAt: "2026-09-01T12:00" })).toEqual(["window"]);
+    expect(fields({ ...draft, closesAt: "2026-08-31T12:00" })).toEqual(["window"]);
+    expect(fields({ ...draft, closesAt: "2026-09-01T12:01" })).toEqual([]);
+    expect(fields({ ...draft, opensAt: "", closesAt: "2026-08-01T00:00" })).toEqual([]);
+  });
+
+  it("okno: pole bez chwili (napis niepełny) to błąd, a nie zdjęta granica", () => {
+    const draft = validDraft();
+    expect(fields({ ...draft, closesAt: "2026-09-30" })).toEqual(["window"]);
+    expect(fields({ ...draft, opensAt: "2026-02-30T10:00", closesAt: "" })).toEqual(["window"]);
   });
 
   it("teksty dłuższe niż 8000 znaków", () => {
@@ -180,7 +192,7 @@ describe("validateCfpSettingsDraft", () => {
   it("każda uwaga ma dosłowny klucz komunikatu", () => {
     const issues = validateCfpSettingsDraft({
       ...validDraft(),
-      closesAt: "2026-01-01T00:00:00Z",
+      closesAt: "2026-01-01T00:00",
       introPl: "x".repeat(9000),
       formats: [{ key: "", labelPl: "", labelEn: "", durationMin: "" }],
       maxPerSubmitter: "x",

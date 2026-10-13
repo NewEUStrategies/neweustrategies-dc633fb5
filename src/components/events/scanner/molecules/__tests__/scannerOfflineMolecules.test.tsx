@@ -105,13 +105,14 @@ function conflict(over: Partial<ScanConflict> = {}): ScanConflict {
 
 function rejectedScan(over: Partial<RejectedScan> = {}): RejectedScan {
   return {
+    // OPS-06: wpis listy odrzuconych nie ma jawnego kodu ani notatki - skrót i prefiks.
     item: {
       id: "scan-9",
       kind: "checkin",
-      code: "QR-ODRZUCONY",
+      codeHash: "e".repeat(64),
+      codePrefix: "QR-ODR",
       checkpointId: "c1",
       direction: "in",
-      note: null,
       interestRating: null,
       deviceScannedAt: "2026-09-26T08:30:00.000Z",
       attempts: 0,
@@ -311,9 +312,12 @@ describe("ScannerSyncIssuesPanel - konflikty i odrzucone skany", () => {
     expect(screen.queryByText(/eventScanner\.sync\.rejected/)).toBeNull();
   });
 
-  it("odrzucony skan pokazuje kod, czas i zdanie odmowy bazy", () => {
+  it("odrzucony skan pokazuje POCZĄTEK kodu, czas i zdanie odmowy bazy", () => {
     panel([], [rejectedScan()]);
-    const row = screen.getByText("QR-ODRZUCONY").closest("li") as HTMLElement;
+    const code = screen.getByText("QR-ODR…");
+    // Pełny skrót (ten sam co w bazie) jest w podpowiedzi - do odnalezienia zgłoszenia.
+    expect(code).toHaveAttribute("title", "e".repeat(64));
+    const row = code.closest("li") as HTMLElement;
     expect(
       within(row).getByText("Poświadczenie zostało unieważnione. Poproś organizatora o nowy kod."),
     ).toBeInTheDocument();
@@ -329,7 +333,10 @@ describe("ScannerSyncIssuesPanel - konflikty i odrzucone skany", () => {
     expect(file.mime).toBe("text/csv;charset=utf-8");
     expect(file.data).toContain("eventScanner.sync.columns.type");
     expect(file.data).toContain("eventScanner.sync.columns.conflict,admitted_offline");
-    expect(file.data).toContain("QR-ODRZUCONY");
+    // OPS-06: plik niesie prefiks i skrót - nie poświadczenie wejścia.
+    expect(file.data).toContain("eventScanner.sync.columns.codeHash");
+    expect(file.data).toContain("QR-ODR…");
+    expect(file.data).toContain("e".repeat(64));
   });
 
   it("JSON niesie urządzenie i wydarzenie", () => {

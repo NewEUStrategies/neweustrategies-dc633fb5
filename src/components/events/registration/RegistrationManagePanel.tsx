@@ -40,11 +40,24 @@
 // i partnerów (`ManageConsentsSlot`) - przy KAŻDYM kluczu, który nie jest
 // nieznany: także po anulowaniu zgłoszenia i po końcu wydarzenia, bo zgodę
 // wycofuje się w dowolnej chwili, a nie tylko do dnia wydarzenia.
+//
+// ZGODA NA PRZEKAZANIE DANYCH PARTNEROM WYCOFUJE SIĘ TU JEDNYM KLIKNIĘCIEM -
+// tak samo, jak się jej udziela w formularzu zapisu (art. 7 ust. 3 RODO).
+// Karta stoi tylko wtedy, gdy zgoda na TO wydarzenie jest skuteczna; samo
+// otwarcie strony niczego nie zmienia, więc skaner poczty jej nie wycofa.
 import { browserPublicOrigin } from "@/lib/http/host";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, CheckCircle2, Copy, Info, Loader2, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Copy,
+  Info,
+  Loader2,
+  ShieldOff,
+  XCircle,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -60,6 +73,7 @@ import {
   cancelRegistration,
   loadRegistrationManageView,
   type RegistrationCancelResult,
+  withdrawPartnerConsent,
 } from "@/lib/events/publicRegistrationApi";
 import {
   acknowledgedEffectFor,
@@ -80,6 +94,7 @@ import { ManageTicketActionsSlot } from "@/components/events/participant/slots/M
 import {
   cancellationErrorMessage,
   isRefundTermsChanged,
+  registrationErrorMessage,
 } from "@/lib/events/publicRegistrationErrors";
 import {
   isManageToken,
@@ -165,6 +180,16 @@ export function RegistrationManagePanel({
       }
       setConfirming(false);
       toast.error(cancellationErrorMessage(error));
+    },
+  });
+
+  const partnerM = useMutation({
+    mutationFn: (manageToken: string) => withdrawPartnerConsent({ manageToken }),
+    // Stan zgłoszenia czytamy na nowo - po wycofaniu baza mówi już „brak
+    // zgody", a karta zostaje tylko po to, żeby pokazać potwierdzenie.
+    onSuccess: () => void stateQuery.refetch(),
+    onError: (error: unknown) => {
+      toast.error(registrationErrorMessage(error));
     },
   });
 
@@ -340,6 +365,43 @@ export function RegistrationManagePanel({
               </Button>
             </div>
           )}
+
+          {activeToken !== null &&
+            state !== null &&
+            (state.partnerConsent || partnerM.isSuccess) && (
+              <div className="space-y-3 rounded-[6px] border border-border bg-card p-4">
+                <h2 className="text-sm font-semibold text-foreground">
+                  {t("eventFront.manage.partnerTitle")}
+                </h2>
+                {partnerM.isSuccess ? (
+                  <p role="status" className="flex items-center gap-2 text-sm text-foreground">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    {t("eventFront.manage.partnerWithdrawn")}
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      {t("eventFront.manage.partnerBody")}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={partnerM.isPending}
+                      onClick={() => partnerM.mutate(activeToken)}
+                    >
+                      {partnerM.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <ShieldOff className="mr-2 h-4 w-4" aria-hidden="true" />
+                      )}
+                      {partnerM.isPending
+                        ? t("eventFront.manage.partnerWithdrawing")
+                        : t("eventFront.manage.partnerWithdraw")}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
 
           {activeToken !== null && refusal === null && !keyExpired && !keyUnknown && (
             <div className="space-y-4 rounded-[6px] border border-destructive/40 bg-destructive/5 p-4">
