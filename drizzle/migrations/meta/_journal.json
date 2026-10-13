@@ -1198,6 +1198,13 @@
       "when": 1791841287963,
       "tag": "0170_payment_orders_shape_guard_and_free_ticket_settlement",
       "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1791881002229,
+      "tag": "0171_donations_ledger_integrity",
+      "breakpoints": true
     }
   ]
 }
