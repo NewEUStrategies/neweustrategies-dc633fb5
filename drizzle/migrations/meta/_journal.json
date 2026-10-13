@@ -1324,6 +1324,48 @@
       "when": 1791907515475,
       "tag": "0188_public_definer_views_read_only",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1791917838506,
+      "tag": "0189_event_registration_partner_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 190,
+      "version": "7",
+      "when": 1791918513931,
+      "tag": "0190_event_register_partner_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1791918896212,
+      "tag": "0191_event_partner_consent_readers",
+      "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1791919199198,
+      "tag": "0192_event_registrations_list_partner_consent",
+      "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1791921546038,
+      "tag": "0193_event_partner_consent_withdraw",
+      "breakpoints": true
+    },
+    {
+      "idx": 194,
+      "version": "7",
+      "when": 1791922008849,
+      "tag": "0194_event_scanner_ops_hardening",
+      "breakpoints": true
     }
   ]
 }
