@@ -43,6 +43,9 @@ const pl = {
     syncedYet: "Jeszcze nie synchronizowano",
     catalogPlatformOnly:
       "Katalog cen jest wspólny dla całej instalacji - synchronizuje go wyłącznie operator platformy (super admin najemcy domyślnego).",
+    mfaStepUpRequired:
+      "Ta operacja wymaga potwierdzenia drugim składnikiem (MFA). Wyloguj się i zaloguj ponownie z kodem z aplikacji uwierzytelniającej, a potem spróbuj jeszcze raz.",
+    catalogStateFailed: "Nie udało się odczytać stanu katalogu: {{message}}",
     status: "Status",
     subscriptions: "Subskrypcje",
     payments: "Płatności",
@@ -223,6 +226,9 @@ const en = {
     syncedYet: "Not synced yet",
     catalogPlatformOnly:
       "The price catalog is shared by the whole installation - only the platform operator (super admin of the default tenant) can sync it.",
+    mfaStepUpRequired:
+      "This action needs second-factor (MFA) verification. Sign out and sign in again with the code from your authenticator app, then try again.",
+    catalogStateFailed: "Could not read the catalog state: {{message}}",
     status: "Status",
     subscriptions: "Subscriptions",
     payments: "Payments",

@@ -16,7 +16,10 @@ const customersCreate = vi.fn();
 
 vi.mock("@/lib/stripe.server", () => ({
   getStripeClient: () => ({
-    checkout: { sessions: { create } },
+    // Otwarte sesje klienta (strażnik drugiej karty) - tu żadnych.
+    checkout: {
+      sessions: { create, list: vi.fn().mockResolvedValue({ data: [], has_more: false }) },
+    },
     prices: { list },
     customers: { search, list: vi.fn().mockResolvedValue({ data: [] }), create: customersCreate },
     // Historia subskrypcji klienta - kasa planu sprawdza ją przed sesją.

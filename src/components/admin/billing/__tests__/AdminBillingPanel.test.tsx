@@ -45,6 +45,8 @@ const h = vi.hoisted(() => ({
   catalogState: { current: null as Record<string, unknown> | null },
   /** Odmowa bramki operatora platformy przy odczycie stanu katalogu. */
   catalogStateDenied: { current: false },
+  /** Dowolny inny błąd odczytu stanu katalogu (step-up MFA, awaria bazy). */
+  catalogStateError: { current: null as Error | null },
   reminders: vi.fn(),
   syncCatalog: vi.fn(),
   resend: vi.fn(),
@@ -83,9 +85,11 @@ vi.mock("@/lib/billing/reminders.functions", () => ({
 
 vi.mock("@/lib/billing/catalogSync.functions", () => ({
   getCatalogSyncState: () =>
-    h.catalogStateDenied.current
-      ? Promise.reject(new Error("Forbidden: platform admin role (super_admin) required"))
-      : Promise.resolve(h.catalogState.current),
+    h.catalogStateError.current
+      ? Promise.reject(h.catalogStateError.current)
+      : h.catalogStateDenied.current
+        ? Promise.reject(new Error("Forbidden: platform admin role (super_admin) required"))
+        : Promise.resolve(h.catalogState.current),
   syncPaymentCatalogNow: (arg: unknown) => h.syncCatalog(arg),
 }));
 
@@ -158,6 +162,7 @@ beforeEach(() => {
     lastError: null,
   };
   h.catalogStateDenied.current = false;
+  h.catalogStateError.current = null;
   h.reminders.mockReset().mockResolvedValue({ renewal: 3, expiring: 1 });
   h.syncCatalog.mockReset().mockResolvedValue({ created: 2, updated: 1, archived: [], failed: 0 });
   h.resend.mockReset().mockResolvedValue({ ok: true, email: "syntetyczny@example.test" });
@@ -384,6 +389,37 @@ describe("AdminBillingPanel - stan automatu przypomnień", () => {
       expect(h.toastError).toHaveBeenCalledWith("adminBilling.remindersPlatformOnly"),
     );
   });
+
+  // Audyt #31: bramka buduje KAŻDĄ odmowę z etykiety „platform admin role
+  // (super_admin)". Dawne `includes("platform admin role")` mówiło operatorowi
+  // platformy z sesją `aal1`, że „tylko operator platformy" może to zrobić,
+  // i chowało jedyny działający krok - potwierdzenie drugiego składnika.
+  it("operator platformy z sesją bez MFA dostaje wskazówkę step-upu, nie „tylko operator platformy”", async () => {
+    h.reminders.mockRejectedValue(
+      new Error(
+        "Forbidden: mfa_required - verify your second factor (aal2) to perform platform admin role (super_admin) actions",
+      ),
+    );
+    render();
+
+    fireEvent.click(screen.getByText("adminBilling.sendReminders"));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminBilling.mfaStepUpRequired"),
+    );
+    expect(h.toastError).not.toHaveBeenCalledWith("adminBilling.remindersPlatformOnly");
+  });
+
+  it("nieudana weryfikacja roli (awaria bazy) pokazuje prawdziwy powód", async () => {
+    const message =
+      "Forbidden: could not verify platform admin role (super_admin) (permission denied for table tenants)";
+    h.reminders.mockRejectedValue(new Error(message));
+    render();
+
+    fireEvent.click(screen.getByText("adminBilling.sendReminders"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(message));
+  });
 });
 
 describe("AdminBillingPanel - stan katalogu cen", () => {
@@ -478,6 +514,46 @@ describe("AdminBillingPanel - stan katalogu cen", () => {
     const button = screen.getByText("adminBilling.syncCatalog").closest("button");
     expect(button?.disabled).toBe(true);
     expect(screen.queryByText("adminBilling.integrationSync")).toBeNull();
+  });
+
+  // Audyt #22: dawniej `catalogPlatformOnly = isError` - KAŻDY błąd odczytu
+  // stanu mówił „tylko operator platformy" i wyłączał przycisk do przeładowania.
+  it("wymóg drugiego składnika: wskazówka step-upu i AKTYWNY przycisk, bez „tylko operator platformy”", async () => {
+    h.catalogStateError.current = new Error(
+      "Forbidden: mfa_required - verify your second factor (aal2) to perform platform admin role (super_admin) actions",
+    );
+    render();
+
+    await waitFor(() => expect(screen.getByText("adminBilling.mfaStepUpRequired")).toBeTruthy());
+    expect(screen.queryByText("adminBilling.catalogPlatformOnly")).toBeNull();
+    const button = screen.getByText("adminBilling.syncCatalog").closest("button");
+    expect(button?.disabled).toBe(false);
+  });
+
+  it("chwilowa awaria odczytu stanu: prawdziwy powód i AKTYWNY przycisk", async () => {
+    h.catalogStateError.current = new Error("fetch failed");
+    render();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText('adminBilling.catalogStateFailed {"message":"fetch failed"}'),
+      ).toBeTruthy(),
+    );
+    expect(screen.queryByText("adminBilling.catalogPlatformOnly")).toBeNull();
+    const button = screen.getByText("adminBilling.syncCatalog").closest("button");
+    expect(button?.disabled).toBe(false);
+  });
+
+  it("odmowa roli przy RĘCZNEJ synchronizacji tłumaczy się zdaniem, nie surowym napisem bramki", async () => {
+    h.syncCatalog.mockRejectedValueOnce(
+      new Error("Forbidden: platform admin role (super_admin) required"),
+    );
+    render();
+
+    fireEvent.click(screen.getByText("adminBilling.syncCatalog"));
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("adminBilling.catalogPlatformOnly"),
+    );
   });
 
   it("awaria synchronizacji katalogu pokazuje powód", async () => {

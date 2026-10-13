@@ -151,9 +151,12 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           const { loadLocalPlanSubscriptionHistory, SUBSCRIPTION_EXISTS_ERROR } =
             await import("@/lib/billing/planSubscriptionGuard");
           const { resolveEnvironment: envForHistory } = await import("@/lib/stripe.server");
+          // Konflikt względem KUPOWANEJ pozycji (osobny zakup przy innym
+          // modelu rozliczenia przechodzi - zmiana planu by go odrzuciła).
           const history = await loadLocalPlanSubscriptionHistory(supabase, {
             userId,
             environment: envForHistory(data.environment),
+            target: quote.entry,
           });
           if (history.hasLive) {
             return {
@@ -546,6 +549,18 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           trialDays,
           trialEligible,
         });
+        // Sesje wygaszone przez kasę (poprzednia próba, druga karta) już nie
+        // zostaną opłacone - ich zamówienia nie mogą wisieć w `processing`.
+        if (createdSub.supersededOrderIds?.length) {
+          const { markOrderSession } = await import("@/lib/billing/markOrderSession.server");
+          for (const supersededId of createdSub.supersededOrderIds) {
+            await markOrderSession(supabase, {
+              orderId: supersededId,
+              sessionId: null,
+              status: "canceled",
+            });
+          }
+        }
         if (!createdSub.ok) {
           await (
             await import("@/lib/billing/markOrderSession.server")

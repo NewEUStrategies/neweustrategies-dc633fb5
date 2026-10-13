@@ -42,6 +42,8 @@ const h = vi.hoisted(() => {
     prices: [] as unknown[],
     /** Subskrypcje klienta u operatora (`subscriptions.list`). */
     remoteSubscriptions: [] as unknown[],
+    /** Otwarte sesje Checkout klienta (`checkout.sessions.list`, status `open`). */
+    openSessions: [] as { id: string }[],
     sessionError: null as Error | null,
     coupon: { id: "coupon_1" } as Record<string, unknown>,
   };
@@ -123,6 +125,16 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
               if (h.state.sessionError) throw h.state.sessionError;
               return { id: "cs_test_1", client_secret: "cs_test_1_secret" };
             }),
+            list: h.record("checkout.sessions.list", () => ({
+              data: h.state.openSessions,
+              has_more: false,
+            })),
+            // Wygaszona sesja znika z listy otwartych - jak u operatora.
+            expire: (id: string) => {
+              h.calls.push({ method: "checkout.sessions.expire", args: [id] });
+              h.state.openSessions = h.state.openSessions.filter((s) => s.id !== id);
+              return Promise.resolve({ id, status: "expired" });
+            },
           },
         },
       };
@@ -336,6 +348,7 @@ beforeEach(() => {
   h.calls.length = 0;
   h.state.prices = [stripePrice()];
   h.state.remoteSubscriptions = [];
+  h.state.openSessions = [];
   h.state.sessionError = null;
   h.state.coupon = { id: "coupon_1" };
 
@@ -931,6 +944,43 @@ describe("createPlanCheckoutSession - druga subskrypcja i ponowny trial (audyt S
     expect(stripeCall("checkout.sessions.create")).toBeUndefined();
     expect(rpcArgs("payment_order_mark_session")).toMatchObject({ _status: "failed" });
     logged.mockRestore();
+  });
+
+  it("otwarta sesja z poprzedniej karty jest wygaszana, a JEJ zamówienie anulowane (audyt #18)", async () => {
+    // Bez tego obie sesje dało się opłacić: dwie subskrypcje, dwa obciążenia.
+    h.state.openSessions = [
+      {
+        id: "cs_karta_1",
+        mode: "subscription",
+        status: "open",
+        created: 1,
+        metadata: { userId: "user-kupujacy", planId: PLAN_ID, orderId: "ord-karta-1" },
+      } as { id: string },
+    ];
+
+    const result = await planCall();
+
+    expect(result.ok).toBe(true);
+    expect(stripeCall("checkout.sessions.expire")?.args).toEqual(["cs_karta_1"]);
+    const marks = rpcCalls.filter((c) => c.fn === "payment_order_mark_session").map((c) => c.args);
+    expect(marks).toContainEqual({ _order_id: "ord-karta-1", _status: "canceled" });
+    // Nowe zamówienie idzie dalej normalnie.
+    expect(marks.at(-1)).toMatchObject({ _session_id: "cs_test_1", _status: "processing" });
+  });
+
+  it("Pro -> Zespół (inny model rozliczenia) nie jest blokowany przez lustro (audyt #19)", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "team", price_cents: 8900, trial_days: 14 })),
+    );
+    chain.setResponse("subscriptions", ok([{ status: "active", price_id: "pro_monthly" }]));
+    h.state.prices = [stripePrice({ lookup_key: "team_monthly_seat", unit_amount: 8900 })];
+
+    const result = await planCall({ priceId: "team_monthly_seat", quantity: 2 });
+
+    expect(result.ok).toBe(true);
+    // Plan już był - osobny zakup, ale bez drugiego triala.
+    expect(lastSession()?.subscription_data).not.toHaveProperty("trial_period_days");
   });
 
   it("subskrypcja DAROWIZNY u operatora nie blokuje zakupu planu", async () => {

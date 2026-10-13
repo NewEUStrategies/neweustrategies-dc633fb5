@@ -15,6 +15,7 @@ import {
   canAutoSubscribe,
   mergeNewsletterConsents,
   PREMIUM_NEWSLETTER_FORM_NAME,
+  recordedCheckoutConsentAt,
   type PremiumNewsletterConsentGrant,
 } from "@/lib/billing/premiumNewsletter";
 import {
@@ -39,9 +40,10 @@ export interface PurchaseContext {
   cancelAtPeriodEnd?: boolean;
   /**
    * Atomowe zajęcie potwierdzenia zakupu (`subscriptions.purchase_confirmed_at`)
-   * - wołane PO zapisie uprawnienia, tuż przed mailem, CRM, newsletterem
-   * i dzwonkiem. `false` = potwierdzenie już wyszło (powtórka, równoległe
-   * zdarzenie), więc efekty nie idą drugi raz. Brak = bez zajęcia.
+   * - wołane PO zapisie uprawnienia oraz idempotentnych skutkach (CRM, zgoda
+   * na newsletter), tuż przed mailem i dzwonkiem. `false` = potwierdzenie już
+   * wyszło (powtórka, równoległe zdarzenie), więc mail i dzwonek nie idą drugi
+   * raz. Brak = bez zajęcia.
    */
   claimConfirmation?: () => Promise<boolean>;
   /**
@@ -287,9 +289,149 @@ const syncCrmCustomer = (userId: string, tierKey: string) =>
 const NEWSLETTER_MERGE_ATTEMPTS = 3;
 
 /**
+ * Tolerancja zegarów (serwer aplikacji vs baza) przy szukaniu w rejestrze
+ * `crm_consent_log` wpisu dopisanego po scaleniu - `created_at` rejestru
+ * stempluje baza, `received_at` wpisu w wierszu stempluje serwer.
+ */
+const CONSENT_LOG_CLOCK_SKEW_MS = 10 * 60 * 1000;
+
+/**
+ * Klasy SQLSTATE, po których PONOWIENIE ma sens: połączenie (08), wycofana
+ * transakcja - serializacja i zakleszczenie (40), brak zasobów (53),
+ * przerwanie przez operatora i limit czasu zapytania (57), błąd systemu (58)
+ * i błąd wewnętrzny (XX). Kody PostgREST `PGRST000`-`PGRST003` to połączenie
+ * z bazą, pula i limit czasu. Brak kodu = błąd sieci po drodze (supabase-js
+ * zwraca wtedy `{ error }` z pustym `code`). Wszystko inne (uprawnienia,
+ * schemat, CHECK, dane) ponowienie tylko by powtórzyło.
+ */
+const TRANSIENT_SQLSTATE_CLASSES: ReadonlySet<string> = new Set([
+  "08",
+  "40",
+  "53",
+  "57",
+  "58",
+  "XX",
+]);
+
+function isTransientDbError(error: { code?: string | null } | null | undefined): boolean {
+  const code = typeof error?.code === "string" ? error.code : "";
+  if (!code) return true;
+  if (/^PGRST00[0-3]$/.test(code)) return true;
+  if (code === "55P03") return true; // lock_not_available
+  return TRANSIENT_SQLSTATE_CLASSES.has(code.slice(0, 2));
+}
+
+/**
+ * Przejściowa awaria zapisu zgody. Jedyny błąd, który `subscribePremiumNewsletter`
+ * wypuszcza na zewnątrz - webhook odpowiada wtedy błędem, operator ponawia
+ * zdarzenie, a zapis zgody wraca, ZANIM potwierdzenie zakupu zostanie zajęte.
+ */
+export class NewsletterOptInRetryableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NewsletterOptInRetryableError";
+  }
+}
+
+/** Błąd bazy przełożony na „ponów" (przejściowy) albo zwykły błąd (trwały). */
+function newsletterDbFailure(
+  what: string,
+  error: { message: string; code?: string | null },
+): Error {
+  const message = `${what}: ${error.message}`;
+  return isTransientDbError(error)
+    ? new NewsletterOptInRetryableError(message)
+    : new Error(message);
+}
+
+/**
+ * Wpis rejestru `crm_consent_log` dla zgody dopisanej do istniejącego wiersza.
+ * Wyzwalacz `newsletter_to_lead` loguje wyłącznie INSERT wiersza, więc przy
+ * scaleniu dowód do rejestru dopisujemy sami.
+ */
+async function insertCheckoutConsentLog(
+  supabaseAdmin: (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"],
+  input: {
+    tenantId: string;
+    email: string;
+    subscriberId: string;
+    consent: NonNullable<ReturnType<typeof buildPremiumNewsletterConsentEntry>>;
+  },
+): Promise<void> {
+  const { error } = await supabaseAdmin.from("crm_consent_log").insert({
+    tenant_id: input.tenantId,
+    email: input.email,
+    source_type: "newsletter",
+    source_id: input.subscriberId,
+    form_name: PREMIUM_NEWSLETTER_FORM_NAME,
+    consent_key: input.consent.key,
+    consent_text: input.consent.text,
+    consent_version: input.consent.version,
+    given: true,
+    lang: input.consent.lang,
+  });
+  if (error) throw newsletterDbFailure("newsletter consent log failed", error);
+}
+
+/**
+ * Domknięcie rejestru po przerwanym scaleniu: wiersz niesie już zgodę TEGO
+ * zakupu (`recordedAt`), więc rejestr musi mieć wpis tego klucza i wersji dla
+ * tego wiersza, dopisany nie wcześniej niż scalenie. Brak = poprzednia próba
+ * padła między dwoma zapisami - dopisujemy teraz. Zgody, która zdążyła trafić
+ * do rejestru, NIE dublujemy.
+ */
+async function ensureCheckoutConsentLogged(
+  supabaseAdmin: (typeof import("@/integrations/supabase/client.server"))["supabaseAdmin"],
+  input: {
+    tenantId: string;
+    email: string;
+    subscriberId: string;
+    recordedAt: string;
+    consent: NonNullable<ReturnType<typeof buildPremiumNewsletterConsentEntry>>;
+  },
+): Promise<void> {
+  const recorded = Date.parse(input.recordedAt);
+  const since = new Date(
+    (Number.isNaN(recorded) ? Date.now() : recorded) - CONSENT_LOG_CLOCK_SKEW_MS,
+  ).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("crm_consent_log")
+    .select("id")
+    .eq("tenant_id", input.tenantId)
+    .eq("source_type", "newsletter")
+    .eq("source_id", input.subscriberId)
+    .eq("consent_key", input.consent.key)
+    .eq("consent_version", input.consent.version)
+    .eq("given", true)
+    .gte("created_at", since)
+    .limit(1);
+  // Nieudany odczyt to NIE „brak wpisu" - dopisanie na ślepo dublowałoby dowód.
+  if (error) throw newsletterDbFailure("newsletter consent log lookup failed", error);
+  if (Array.isArray(data) && data.length > 0) return;
+  await insertCheckoutConsentLog(supabaseAdmin, input);
+}
+
+/**
  * Zapis płacącego klienta na newsletter premium - WYŁĄCZNIE po jawnej zgodzie
- * z pola w checkoucie (SUB-15). Nigdy nie rzuca.
+ * z pola w checkoucie (SUB-15).
  *
+ * ODPORNOŚĆ NA PONOWIENIE (audyt, SUB-15 #34). Dawniej funkcja szła PO zajęciu
+ * potwierdzenia zakupu i połykała każdy błąd: jedna chwilowa awaria odczytu
+ * profilu, listy wykluczeń albo zapisu i zaznaczona zgoda przepadała na
+ * zawsze - webhook kończył się 200, operator nie ponawiał, a ręczną powtórkę
+ * blokowało już zajęte potwierdzenie. Teraz:
+ *   * `applyPurchaseEffects` woła ją PRZED zajęciem potwierdzenia, a cały zapis
+ *     jest idempotentny (wstawienie bez nadpisywania, scalenie bez dublowania,
+ *     domknięcie rejestru bez dublowania), więc ponowienie zdarzenia jest
+ *     bezpieczne i nie dubluje maila ani dzwonka,
+ *   * awaria PRZEJŚCIOWA (sieć, limit czasu, serializacja, przegrany wyścig)
+ *     wychodzi jako `NewsletterOptInRetryableError` - webhook odpowiada
+ *     błędem i operator ponawia zdarzenie,
+ *   * awaria TRWAŁA (uprawnienia, schemat, CHECK) zostaje w logu, a zakup
+ *     biegnie dalej - ponowienie i tak by jej nie naprawiło, a blokowałoby
+ *     potwierdzenie zakupu przez trzy doby ponowień.
+ *
+ * Reguły zapisu:
  *  1. Bez zgody ani jednego zapytania: zakup nie jest zgodą marketingową.
  *     Zgoda nieważna (nieznana wersja treści, przeterminowana) - tak samo.
  *  2. Lista wykluczeń jak przy zapisie z formularza (`suppressionBlocksSignup`),
@@ -298,12 +440,15 @@ const NEWSLETTER_MERGE_ATTEMPTS = 3;
  *     i blokady trwałe zatrzymują zapis - zdejmuje je DOI albo operator.
  *  3. Świadome wypisanie się jest nadrzędne (`canAutoSubscribe`).
  *  4. Brak wiersza: wstawienie bez nadpisywania (`ignoreDuplicates`), a dowód
- *     do rejestru `crm_consent_log` dopisuje wyzwalacz `newsletter_to_lead`.
+ *     do rejestru `crm_consent_log` dopisuje wyzwalacz `newsletter_to_lead`
+ *     w tej samej transakcji co wiersz.
  *  5. Wiersz istnieje: SCALENIE. `consents` dostaje nowy wpis obok starych,
  *     `confirmed_at`, `source`, `created_at`, imię, język i `meta` zostają
  *     nietknięte; `pending` przechodzi w `subscribed` (zgodę złożył właściciel
  *     zalogowanego konta), a `confirmed_at` ustawiamy tylko, gdy go nie było.
- *     Wyzwalacz nie loguje UPDATE-u, więc dowód do rejestru dopisujemy sami.
+ *     Wyzwalacz nie loguje UPDATE-u, więc dowód do rejestru dopisujemy sami -
+ *     a gdy ten drugi zapis padnie, ponowienie widzi zgodę tego zakupu
+ *     w wierszu i domyka rejestr (`ensureCheckoutConsentLogged`).
  *  6. Wyścig: odczyt-scalenie-zapis jest warunkowy (`updated_at` z odczytu),
  *     więc równoległy zapis tego samego wiersza nie zginie - przegrany ponawia.
  */
@@ -333,7 +478,7 @@ async function subscribePremiumNewsletter(params: {
       .select("email, first_name, last_name")
       .eq("id", params.userId)
       .maybeSingle();
-    if (profileError) throw new Error(`newsletter profile read failed: ${profileError.message}`);
+    if (profileError) throw newsletterDbFailure("newsletter profile read failed", profileError);
     const email = profile?.email?.trim().toLowerCase();
     if (!email) return;
 
@@ -342,7 +487,7 @@ async function subscribePremiumNewsletter(params: {
       { p_tenant: params.tenantId, p_emails: [email] },
     );
     if (suppressionError) {
-      throw new Error(`newsletter suppression lookup failed: ${suppressionError.message}`);
+      throw newsletterDbFailure("newsletter suppression lookup failed", suppressionError);
     }
     const blocked = (suppressed ?? []).some(
       (hit) =>
@@ -365,7 +510,7 @@ async function subscribePremiumNewsletter(params: {
       // Nieudany odczyt to NIE „brak zapisu" - `canAutoSubscribe(null)` przepuszcza,
       // a zapis bez odczytu nadpisałby świadome wypisanie albo cudze dowody.
       if (existingError) {
-        throw new Error(`newsletter consent lookup failed: ${existingError.message}`);
+        throw newsletterDbFailure("newsletter consent lookup failed", existingError);
       }
 
       if (!canAutoSubscribe(existing)) return;
@@ -388,7 +533,7 @@ async function subscribePremiumNewsletter(params: {
           .from("newsletter_subscribers")
           .upsert(row, { onConflict: "tenant_id,email", ignoreDuplicates: true })
           .select("id");
-        if (error) throw new Error(`newsletter insert failed: ${error.message}`);
+        if (error) throw newsletterDbFailure("newsletter insert failed", error);
         if (inserted && inserted.length > 0) return;
         continue;
       }
@@ -400,7 +545,21 @@ async function subscribePremiumNewsletter(params: {
         });
         return;
       }
-      if (!merged.appended && existing.status === "subscribed") return;
+      if (!merged.appended && existing.status === "subscribed") {
+        // Zgoda tego zakupu już w wierszu (ponowienie po awarii między scaleniem
+        // a rejestrem) - domykamy rejestr. Zgoda z innego źródła: nic do zrobienia.
+        const recordedAt = recordedCheckoutConsentAt(existing.consents, consent);
+        if (recordedAt) {
+          await ensureCheckoutConsentLogged(supabaseAdmin, {
+            tenantId: params.tenantId,
+            email,
+            subscriberId: existing.id,
+            recordedAt,
+            consent,
+          });
+        }
+        return;
+      }
 
       const { data: updated, error } = await supabaseAdmin
         .from("newsletter_subscribers")
@@ -413,29 +572,27 @@ async function subscribePremiumNewsletter(params: {
         .eq("id", existing.id)
         .eq("updated_at", existing.updated_at)
         .select("id");
-      if (error) throw new Error(`newsletter consent merge failed: ${error.message}`);
+      if (error) throw newsletterDbFailure("newsletter consent merge failed", error);
       if (!updated || updated.length === 0) continue;
 
       if (merged.appended) {
-        const { error: logError } = await supabaseAdmin.from("crm_consent_log").insert({
-          tenant_id: params.tenantId,
+        await insertCheckoutConsentLog(supabaseAdmin, {
+          tenantId: params.tenantId,
           email,
-          source_type: "newsletter",
-          source_id: existing.id,
-          form_name: PREMIUM_NEWSLETTER_FORM_NAME,
-          consent_key: consent.key,
-          consent_text: consent.text,
-          consent_version: consent.version,
-          given: true,
-          lang: consent.lang,
+          subscriberId: existing.id,
+          consent,
         });
-        if (logError) throw new Error(`newsletter consent log failed: ${logError.message}`);
       }
       return;
     }
-    throw new Error("newsletter consent merge kept losing the race - nothing written");
+    // Ciągle przegrywany wyścig to rywalizacja, nie wada danych - ponowienie
+    // zdarzenia za chwilę trafi na spokojniejszy wiersz.
+    throw new NewsletterOptInRetryableError(
+      "newsletter consent merge kept losing the race - nothing written",
+    );
   } catch (err) {
     console.error("[payments] premium newsletter opt-in failed", err);
+    if (err instanceof NewsletterOptInRetryableError) throw err;
   }
 }
 
@@ -454,6 +611,14 @@ async function subscribePremiumNewsletter(params: {
  * - atomowe zajęcie `subscriptions.purchase_confirmed_at`. Zajęcie idzie PO
  * zapisie uprawnienia, więc awaria zapisu (wyjątek, operator ponawia
  * zdarzenie) nie „zużywa" potwierdzenia, a powtórka po sukcesie go nie dubluje.
+ *
+ * KOLEJNOŚĆ: IDEMPOTENTNE PRZED ZAJĘCIEM, JEDNORAZOWE PO NIM. CRM (stan
+ * leada) i zapis zgody na newsletter powtórzone dają ten sam wynik, więc idą
+ * PRZED zajęciem - przejściowa awaria zapisu zgody rzuca, webhook odpowiada
+ * błędem, a ponowienie zdarzenia (potwierdzenie wciąż wolne) wraca do niej.
+ * Po zajęciu zostają wyłącznie skutki, których nie wolno zdublować: mail
+ * i dzwonek. CRM stoi przed newsletterem jak dotąd: wyzwalacz listy zakłada
+ * leada, gdy go brak, a lead założony tu niesie źródło `paid_subscriber`.
  */
 export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> {
   const plan = await resolvePlanForPrice(ctx.priceId, {
@@ -476,6 +641,19 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
   });
 
   if (!isEntitledSubscriptionStatus(ctx.status ?? "active")) return;
+
+  await syncCrmCustomer(ctx.userId, plan.tierKey);
+
+  // Rzuca WYŁĄCZNIE przy przejściowej awarii (`NewsletterOptInRetryableError`)
+  // - przed zajęciem potwierdzenia, więc ponowienie zdarzenia wróci tutaj.
+  await subscribePremiumNewsletter({
+    userId: ctx.userId,
+    tenantId: plan.tenantId,
+    tierKey: plan.tierKey,
+    subscriptionId: ctx.subscriptionId,
+    consent: ctx.newsletterConsent ?? null,
+  });
+
   if (ctx.claimConfirmation && !(await ctx.claimConfirmation())) return;
 
   await notifySubscriptionEmail({
@@ -486,16 +664,6 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     amountCents: plan.priceCents,
     currency: plan.currency,
     idempotencySeed: ctx.subscriptionId,
-  });
-
-  await syncCrmCustomer(ctx.userId, plan.tierKey);
-
-  await subscribePremiumNewsletter({
-    userId: ctx.userId,
-    tenantId: plan.tenantId,
-    tierKey: plan.tierKey,
-    subscriptionId: ctx.subscriptionId,
-    consent: ctx.newsletterConsent ?? null,
   });
 
   await pushAppNotification({

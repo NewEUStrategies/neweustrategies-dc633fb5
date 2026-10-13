@@ -21,6 +21,10 @@ const h = vi.hoisted(() => {
     couponsCreate: vi.fn(),
     sessionsCreate: vi.fn(),
     sessionsRetrieve: vi.fn(),
+    sessionsList: vi.fn(),
+    sessionsExpire: vi.fn(),
+    invoicesVoid: vi.fn(),
+    invoicesRetrieve: vi.fn(),
   };
   const stripe = {
     customers: {
@@ -32,7 +36,15 @@ const h = vi.hoisted(() => {
     prices: { list: fns.pricesList },
     subscriptions: { list: fns.subscriptionsList },
     coupons: { create: fns.couponsCreate },
-    checkout: { sessions: { create: fns.sessionsCreate, retrieve: fns.sessionsRetrieve } },
+    invoices: { voidInvoice: fns.invoicesVoid, retrieve: fns.invoicesRetrieve },
+    checkout: {
+      sessions: {
+        create: fns.sessionsCreate,
+        retrieve: fns.sessionsRetrieve,
+        list: fns.sessionsList,
+        expire: fns.sessionsExpire,
+      },
+    },
   };
   /** Środowiska, dla których moduł poprosił o klienta operatora. */
   const envs: string[] = [];
@@ -144,6 +156,10 @@ beforeEach(() => {
     status: "open",
     client_secret: "cs_secret_1",
   });
+  // Otwarte sesje klienta: domyślnie żadnej (pierwsza i jedyna karta).
+  h.fns.sessionsList.mockResolvedValue({ data: [], has_more: false });
+  h.fns.sessionsExpire.mockResolvedValue({ status: "expired" });
+  h.fns.invoicesVoid.mockResolvedValue({ status: "void" });
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -904,8 +920,10 @@ describe("createPlanCheckoutSession - druga subskrypcja i trial raz na konto", (
     metadata,
   });
 
+  // `incomplete` był dawniej w tej pętli - przybijał defekt #39 (porzucone 3DS
+  // zamykało kasę). Jego obsługę opisuje describe „porzucone 3DS" niżej.
   it("ŻYWA subskrypcja planu u operatora: odmowa `subscription_exists`, sesja NIE powstaje", async () => {
-    for (const status of ["active", "trialing", "past_due", "unpaid", "paused", "incomplete"]) {
+    for (const status of ["active", "trialing", "past_due", "unpaid", "paused"]) {
       h.fns.sessionsCreate.mockClear();
       h.fns.subscriptionsList.mockResolvedValue({ data: [sub(status, { planId: "plan_plus" })] });
 
@@ -975,6 +993,354 @@ describe("createPlanCheckoutSession - druga subskrypcja i trial raz na konto", (
 
     expect(result.ok).toBe(true);
     expect(h.fns.subscriptionsList).not.toHaveBeenCalled();
+  });
+});
+
+// ── Audyt #18: dwie otwarte sesje = dwie subskrypcje ──────────────────────────
+// DEFEKT: strażnik patrzył wyłącznie na subskrypcje, a te powstają dopiero przy
+// opłaceniu sesji. Karta 1 otwiera sesję A, karta 2 sesję B - obie przechodzą
+// (nic jeszcze nie opłacono), obie dało się opłacić: dwa obciążenia co cykl
+// i dwa triale. Atrapa niżej to mały operator: sesje żyją, wygasają i są
+// listowane jak u Stripe.
+describe("createPlanCheckoutSession - otwarte sesje tego konta (audyt #18)", () => {
+  interface FakeSession {
+    id: string;
+    created: number;
+    mode: "subscription" | "payment";
+    status: "open" | "expired" | "complete";
+    metadata: Record<string, string>;
+    client_secret: string;
+  }
+  let sessions: FakeSession[];
+  let clock: number;
+
+  const openSession = (over: Partial<FakeSession> = {}): FakeSession => {
+    const session: FakeSession = {
+      id: `cs_${sessions.length + 1}`,
+      created: clock,
+      mode: "subscription",
+      status: "open",
+      metadata: { userId: "user-1", planId: "plan_pro", orderId: `ord_${sessions.length + 1}` },
+      client_secret: `secret_${sessions.length + 1}`,
+      ...over,
+    };
+    sessions.push(session);
+    return session;
+  };
+
+  beforeEach(() => {
+    sessions = [];
+    clock = 1_000;
+    h.fns.sessionsList.mockImplementation(async (params: { status?: string }) => ({
+      data: sessions.filter((s) => !params.status || s.status === params.status),
+      has_more: false,
+    }));
+    h.fns.sessionsCreate.mockImplementation(
+      async (params: { metadata: Record<string, string> }) => {
+        clock += 1;
+        return openSession({ metadata: params.metadata, mode: "subscription" });
+      },
+    );
+    h.fns.sessionsExpire.mockImplementation(async (id: string) => {
+      const session = sessions.find((s) => s.id === id);
+      if (!session || session.status !== "open") throw new Error(`cannot expire ${id}`);
+      session.status = "expired";
+      return session;
+    });
+    h.fns.sessionsRetrieve.mockImplementation(async (id: string) =>
+      sessions.find((s) => s.id === id),
+    );
+  });
+
+  it("karta 2 wygasza otwartą sesję karty 1 - opłacić da się tylko najnowszą", async () => {
+    const first = await createPlanCheckoutSession(plan({ orderId: "ord_A", trialDays: 14 }));
+    const second = await createPlanCheckoutSession(plan({ orderId: "ord_B", trialDays: 14 }));
+
+    expect(first).toMatchObject({ ok: true, sessionId: "cs_1" });
+    expect(second).toEqual({
+      ok: true,
+      clientSecret: "secret_2",
+      sessionId: "cs_2",
+      // Wołający oznacza to zamówienie jako anulowane - już nie zostanie opłacone.
+      supersededOrderIds: ["ord_A"],
+    });
+    expect(sessions.map((s) => [s.id, s.status])).toEqual([
+      ["cs_1", "expired"],
+      ["cs_2", "open"],
+    ]);
+  });
+
+  it("przegląd zamyka sesje planu NIEZALEŻNIE od najemcy, ale nie dotyka darowizn ani płatności jednorazowych", async () => {
+    openSession({
+      metadata: { userId: "user-1", planId: "plan_innego_najemcy", orderId: "ord_x" },
+    });
+    openSession({ metadata: { userId: "user-1", planId: "", purpose: "donation", orderId: "d" } });
+    openSession({
+      metadata: { userId: "user-1", purpose: "donation", planId: "p", orderId: "d2" },
+    });
+    openSession({
+      mode: "payment",
+      metadata: { userId: "user-1", planId: "plan_dl", orderId: "o" },
+    });
+
+    const result = await createPlanCheckoutSession(plan({ orderId: "ord_new" }));
+
+    expect(result).toMatchObject({ ok: true, supersededOrderIds: ["ord_x"] });
+    expect(sessions.map((s) => s.status)).toEqual(["expired", "open", "open", "open", "open"]);
+  });
+
+  it("sesja cudzego zamówienia na tym kliencie jest wygaszana, ale jej zamówienia nie zgłaszamy", async () => {
+    openSession({ metadata: { userId: "ktos-inny", planId: "plan_pro", orderId: "ord_obcy" } });
+
+    const result = await createPlanCheckoutSession(plan());
+
+    expect(result.ok).toBe(true);
+    expect(result).not.toHaveProperty("supersededOrderIds");
+    expect(sessions[0]?.status).toBe("expired");
+  });
+
+  it("sesja opłacona w trakcie przeglądu: jej subskrypcję widzi strażnik - odmowa, BEZ nowej sesji", async () => {
+    const paid = openSession({ metadata: { userId: "user-1", planId: "plan_pro", orderId: "A" } });
+    h.fns.sessionsExpire.mockImplementationOnce(async () => {
+      paid.status = "complete";
+      throw new Error("This Checkout Session is already complete");
+    });
+    h.fns.subscriptionsList.mockResolvedValue({
+      data: [
+        {
+          id: "sub_A",
+          status: "active",
+          metadata: {},
+          items: { data: [{ price: { lookup_key: "pro_monthly" } }] },
+        },
+      ],
+    });
+
+    const result = await createPlanCheckoutSession(plan());
+
+    expect(result).toEqual({ ok: false, error: "subscription_exists" });
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("sesja, której nie da się wygasić ani rozpoznać: odmowa fail-closed, bez nowej sesji", async () => {
+    openSession();
+    h.fns.sessionsExpire.mockRejectedValueOnce(new Error("api_down"));
+
+    const result = await createPlanCheckoutSession(plan());
+
+    expect(result).toEqual({ ok: false, error: "stripe_error:api_down" });
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("wyścig: sesja otwarta RÓWNOLEGLE jest nowsza - nasza wygasa i kasa mówi `checkout_superseded`", async () => {
+    // Oba przeglądy przed założeniem były puste; druga karta założyła sesję
+    // chwilę po nas (późniejszy `created`).
+    h.fns.sessionsCreate.mockImplementationOnce(
+      async (params: { metadata: Record<string, string> }) => {
+        const ours = openSession({ metadata: params.metadata, created: 2_000 });
+        openSession({
+          metadata: { userId: "user-1", planId: "plan_pro", orderId: "ord_rival" },
+          created: 2_001,
+        });
+        return ours;
+      },
+    );
+
+    const result = await createPlanCheckoutSession(plan({ orderId: "ord_ours" }));
+
+    expect(result).toEqual({ ok: false, error: "checkout_superseded" });
+    expect(sessions.map((s) => [s.metadata["orderId"], s.status])).toEqual([
+      ["ord_ours", "expired"],
+      ["ord_rival", "open"],
+    ]);
+  });
+
+  it("wyścig: równoległa sesja jest STARSZA - to ona wygasa, nasza zostaje", async () => {
+    h.fns.sessionsCreate.mockImplementationOnce(
+      async (params: { metadata: Record<string, string> }) => {
+        openSession({
+          metadata: { userId: "user-1", planId: "plan_pro", orderId: "ord_rival" },
+          created: 2_000,
+        });
+        return openSession({ metadata: params.metadata, created: 2_001 });
+      },
+    );
+
+    const result = await createPlanCheckoutSession(plan({ orderId: "ord_ours" }));
+
+    expect(result).toMatchObject({ ok: true, supersededOrderIds: ["ord_rival"] });
+    expect(sessions.map((s) => [s.metadata["orderId"], s.status])).toEqual([
+      ["ord_rival", "expired"],
+      ["ord_ours", "open"],
+    ]);
+  });
+
+  it("ta sama sekunda: rozstrzyga identyfikator, ten sam po obu stronach wyścigu", async () => {
+    h.fns.sessionsCreate.mockImplementationOnce(
+      async (params: { metadata: Record<string, string> }) => {
+        openSession({
+          id: "cs_b",
+          metadata: { userId: "user-1", planId: "plan_pro", orderId: "ord_rival" },
+          created: 3_000,
+        });
+        return openSession({ id: "cs_a", metadata: params.metadata, created: 3_000 });
+      },
+    );
+
+    const result = await createPlanCheckoutSession(plan({ orderId: "ord_ours" }));
+
+    // `cs_b` > `cs_a` - wygrywa rywal; on, widząc nas, nie wygasi sam siebie.
+    expect(result).toEqual({ ok: false, error: "checkout_superseded" });
+  });
+
+  it("sesja planu ma klucz idempotencji z zamówienia (ponowienie SDK = ta sama sesja)", async () => {
+    await createPlanCheckoutSession(plan({ orderId: "ord_42" }));
+
+    expect(h.fns.sessionsCreate).toHaveBeenCalledWith(expect.any(Object), {
+      idempotencyKey: "plan-checkout-session:ord_42",
+    });
+  });
+
+  it("zakup jednorazowy nie przegląda sesji (nie zakłada subskrypcji)", async () => {
+    h.fns.pricesList.mockResolvedValue({
+      data: [
+        stripePrice({
+          lookup_key: "decision_lab_seat",
+          type: "one_time",
+          recurring: null,
+          unit_amount: 1600000,
+        }),
+      ],
+    });
+
+    await createPlanCheckoutSession(
+      plan({ priceLookupKey: "decision_lab_seat", expectedAmountCents: 1600000 }),
+    );
+
+    expect(h.fns.sessionsList).not.toHaveBeenCalled();
+  });
+});
+
+// ── Audyt #19: konflikt liczy reguła zmiany planu ─────────────────────────────
+describe("createPlanCheckoutSession - inny model rozliczenia to osobny zakup (audyt #19)", () => {
+  const remoteSub = (status: string, lookupKey: string) => ({
+    id: `sub_${lookupKey}`,
+    status,
+    metadata: {},
+    items: { data: [{ price: { lookup_key: lookupKey } }] },
+  });
+
+  it("Pro -> Zespół (za miejsce): sesja powstaje, ale BEZ triala (plan już był)", async () => {
+    h.fns.pricesList.mockResolvedValue({
+      data: [stripePrice({ lookup_key: "team_monthly_seat", unit_amount: 8900 })],
+    });
+    h.fns.subscriptionsList.mockResolvedValue({ data: [remoteSub("active", "pro_monthly")] });
+
+    const result = await createPlanCheckoutSession(
+      plan({
+        priceLookupKey: "team_monthly_seat",
+        quantity: 3,
+        expectedAmountCents: 3 * 8900,
+        trialDays: 14,
+      }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(lastSession().subscription_data).not.toHaveProperty("trial_period_days");
+  });
+
+  it("Pro -> Partner Biznesowy (ten sam model): odmowa - drogą jest zmiana planu", async () => {
+    h.fns.pricesList.mockResolvedValue({
+      data: [stripePrice({ lookup_key: "business_monthly", unit_amount: 50000 })],
+    });
+    h.fns.subscriptionsList.mockResolvedValue({ data: [remoteSub("active", "pro_monthly")] });
+
+    const result = await createPlanCheckoutSession(
+      plan({ priceLookupKey: "business_monthly", expectedAmountCents: 50000 }),
+    );
+
+    expect(result).toEqual({ ok: false, error: "subscription_exists" });
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("subskrypcja bez ceny z katalogu blokuje (fail-closed)", async () => {
+    h.fns.subscriptionsList.mockResolvedValue({ data: [remoteSub("active", "legacy_xyz")] });
+
+    expect(await createPlanCheckoutSession(plan())).toEqual({
+      ok: false,
+      error: "subscription_exists",
+    });
+  });
+});
+
+// ── Audyt #39: porzucone 3DS nie zamyka kasy ──────────────────────────────────
+// DEFEKT: `incomplete` liczył się jako żywa subskrypcja - po porzuconym albo
+// nieudanym 3DS kupujący przez ~23 h (do `incomplete_expired`) widział
+// „Zmień plan", a zmiana planu odmawia subskrypcji w tym stanie.
+describe("createPlanCheckoutSession - porzucone 3DS (`incomplete`, audyt #39)", () => {
+  const incomplete = (over: Record<string, unknown> = {}) => ({
+    id: "sub_3ds",
+    status: "incomplete",
+    metadata: {},
+    latest_invoice: "in_3ds",
+    items: { data: [{ price: { lookup_key: "pro_monthly" } }] },
+    ...over,
+  });
+
+  it("pierwsza faktura jest unieważniana (spóźnione 3DS nie obciąży), a nowa sesja dostaje trial", async () => {
+    h.fns.subscriptionsList.mockResolvedValue({ data: [incomplete()] });
+
+    const result = await createPlanCheckoutSession({ ...plan(), trialDays: 14 });
+
+    expect(h.fns.invoicesVoid).toHaveBeenCalledWith(
+      "in_3ds",
+      {},
+      { idempotencyKey: "void-abandoned-first-invoice:in_3ds" },
+    );
+    expect(result.ok).toBe(true);
+    // Subskrypcja, która nigdy nie wystartowała, nie zużywa triala.
+    expect(lastSession().subscription_data?.trial_period_days).toBe(14);
+  });
+
+  it("faktura już unieważniona przez poprzednią próbę: zakup przechodzi", async () => {
+    h.fns.subscriptionsList.mockResolvedValue({ data: [incomplete()] });
+    h.fns.invoicesVoid.mockRejectedValue(new Error("Invoice is already void"));
+    h.fns.invoicesRetrieve.mockResolvedValue({ id: "in_3ds", status: "void" });
+
+    expect((await createPlanCheckoutSession(plan())).ok).toBe(true);
+  });
+
+  it("3DS dokończone w międzyczasie (faktura opłacona): subskrypcja żywa - odmowa jak przy aktywnej", async () => {
+    h.fns.subscriptionsList.mockResolvedValue({ data: [incomplete()] });
+    h.fns.invoicesVoid.mockRejectedValue(new Error("You can only void open invoices"));
+    h.fns.invoicesRetrieve.mockResolvedValue({ id: "in_3ds", status: "paid" });
+
+    expect(await createPlanCheckoutSession(plan())).toEqual({
+      ok: false,
+      error: "subscription_exists",
+    });
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("stan faktury nieznany (awaria operatora): odmowa zamiast zgadywania", async () => {
+    h.fns.subscriptionsList.mockResolvedValue({ data: [incomplete()] });
+    h.fns.invoicesVoid.mockRejectedValue(new Error("api_down"));
+    h.fns.invoicesRetrieve.mockResolvedValue({ id: "in_3ds", status: "open" });
+
+    expect(await createPlanCheckoutSession(plan())).toEqual({
+      ok: false,
+      error: "stripe_error:api_down",
+    });
+    expect(h.fns.sessionsCreate).not.toHaveBeenCalled();
+  });
+
+  it("niedokończona DAROWIZNA nie jest planem - jej faktury nie ruszamy", async () => {
+    h.fns.subscriptionsList.mockResolvedValue({
+      data: [incomplete({ metadata: { purpose: "donation" } })],
+    });
+
+    expect((await createPlanCheckoutSession(plan())).ok).toBe(true);
+    expect(h.fns.invoicesVoid).not.toHaveBeenCalled();
   });
 });
 

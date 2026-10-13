@@ -599,9 +599,13 @@ describe("trasa /checkout/$planId - i18n i waluta prezentacji", () => {
 });
 
 describe("trasa /checkout/$planId - istniejąca subskrypcja i trial raz na konto (audyt SUB-13)", () => {
+  // Fikstura miała dawniej `price_id: "pro_monthly"` - TEN SAM plan co kupowany
+  // - i żądała linku „Zmień plan", choć zmiana planu odmawia `same_plan` (defekt
+  // #19: CTA niezgodne z tym, co zmiana planu przyjmie). Ten sam plan ma teraz
+  // własny test niżej; tu subskrypcja, z której zmiana planu naprawdę prowadzi.
   it("ŻYWA subskrypcja: zamiast płatności - komunikat i link do zmiany planu", async () => {
     signedInBuyer();
-    h.mySubscription = { status: "active", price_id: "pro_monthly" };
+    h.mySubscription = { status: "active", price_id: "pro_annual" };
     await mount();
 
     expect(await screen.findByText(/Masz już aktywną subskrypcję/)).toBeInTheDocument();
@@ -632,6 +636,78 @@ describe("trasa /checkout/$planId - istniejąca subskrypcja i trial raz na konto
     await screen.findByText("Plan Pro");
     expect(screen.queryByText(/Masz już aktywną subskrypcję/)).not.toBeInTheDocument();
     expect(payButton()).toBeEnabled();
+  });
+
+  // ── Audyt #19: ścieżka zgodna z regułą zmiany planu ────────────────────────
+  it("ten sam plan: blokada z „Zarządzaj subskrypcją”, nie z „Zmień plan”", async () => {
+    signedInBuyer();
+    h.mySubscription = { status: "active", price_id: "pro_monthly" };
+    await mount();
+
+    expect(await screen.findByText(/Masz już ten plan/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Zarządzaj subskrypcją" })).toHaveAttribute(
+      "href",
+      "/profile/plan",
+    );
+    expect(screen.queryByRole("link", { name: "Zmień plan" })).not.toBeInTheDocument();
+    expect(payButton()).toBeDisabled();
+  });
+
+  it("Pro -> Zespół (za miejsce): OSOBNY zakup - płatność dostępna, uprzedzenie i portal do rezygnacji", async () => {
+    // Dawniej: blokada i „Zmień plan", a zmiana planu odrzuca to przejście
+    // (`plan_kind_mismatch`) - kupujący czekał do końca okresu.
+    signedInBuyer();
+    h.plan = plan({ tier_key: "team", name_pl: "Zespół", trial_days: 14 });
+    h.mySubscription = { status: "active", price_id: "pro_monthly" };
+    await mount();
+
+    expect(await screen.findByText(/kupujesz go osobno/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Otwórz portal płatności" })).toHaveAttribute(
+      "href",
+      "/profile/portal",
+    );
+    await waitFor(() => expect(payButton()).toBeEnabled());
+    // Plan już był - trial nie przysługuje, więc nakładka go nie obiecuje.
+    expect(screen.queryByText(/Pierwsze 14 dni za darmo/)).not.toBeInTheDocument();
+  });
+
+  it("subskrypcja z ceną spoza katalogu: blokada i portal płatności (zmiana planu jej nie obsłuży)", async () => {
+    signedInBuyer();
+    h.mySubscription = { status: "active", price_id: "legacy_price_2019" };
+    await mount();
+
+    expect(await screen.findByText(/nie da się zmienić w profilu/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Otwórz portal płatności" })).toHaveAttribute(
+      "href",
+      "/profile/portal",
+    );
+    expect(payButton()).toBeDisabled();
+  });
+
+  // ── Audyt #39: porzucone 3DS nie jest ślepym zaułkiem ──────────────────────
+  it("subskrypcja `incomplete` (porzucone 3DS) nie blokuje płatności - serwer unieważnia jej fakturę", async () => {
+    signedInBuyer();
+    h.mySubscription = { status: "incomplete", price_id: "pro_monthly" };
+    await mount();
+
+    await screen.findByText("Plan Pro");
+    await waitFor(() => expect(payButton()).toBeEnabled());
+    expect(screen.queryByText(/Masz już/)).not.toBeInTheDocument();
+  });
+
+  // ── Audyt #18: druga karta ─────────────────────────────────────────────────
+  it("płatność zastąpiona nowszą z innej karty mówi o tym wprost i nie osadza ramki", async () => {
+    signedInBuyer();
+    h.planCheckout.mockResolvedValue({ ok: false, error: "checkout_superseded" });
+    await mount();
+
+    await screen.findByText("Plan Pro");
+    fireEvent.click(payButton());
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringContaining("zastąpiona nowszą")),
+    );
+    expect(screen.queryByTestId("checkout-frame")).not.toBeInTheDocument();
   });
 
   it("odmowa serwera `subscription_exists` daje komunikat o zmianie planu, nie „brak konfiguracji”", async () => {

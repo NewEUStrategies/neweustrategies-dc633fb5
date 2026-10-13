@@ -768,6 +768,16 @@ const pl = {
     subscriptionExists:
       "Masz już aktywną subskrypcję. Zmień plan w profilu - druga subskrypcja oznaczałaby podwójne obciążenie.",
     changePlanCta: "Zmień plan",
+    subscriptionSamePlan:
+      "Masz już ten plan. Liczbę miejsc, odnowienie i rezygnację zmienisz w profilu - drugi zakup oznaczałby podwójne obciążenie.",
+    manageSubscriptionCta: "Zarządzaj subskrypcją",
+    subscriptionUnmanaged:
+      "Masz już aktywną subskrypcję, której nie da się zmienić w profilu. Zarządzaj nią w portalu płatności albo napisz do nas - drugi zakup oznaczałby podwójne obciążenie.",
+    billingPortalCta: "Otwórz portal płatności",
+    separatePurchase:
+      "Ten plan jest rozliczany inaczej niż Twoja obecna subskrypcja (za miejsce zamiast indywidualnie albo odwrotnie), więc kupujesz go osobno. Obecna subskrypcja zostaje aktywna i dalej się odnawia - jeśli nie jest już potrzebna, zrezygnujesz z niej w portalu płatności.",
+    sessionSuperseded:
+      "Ta płatność została zastąpiona nowszą, otwartą w innej karcie lub oknie. Dokończ ją tam albo zacznij od nowa.",
     promoHint: "Masz kupon? Kod rabatowy wpiszesz na bezpiecznej stronie płatności.",
     taxHint: "VAT zostanie naliczony automatycznie według Twojego adresu.",
     taxIdHint: "NIP/VAT ID do faktury podasz na stronie płatności.",
@@ -1575,6 +1585,16 @@ const en: ProfileEn = {
     subscriptionExists:
       "You already have an active subscription. Change your plan in your profile - a second subscription would mean being charged twice.",
     changePlanCta: "Change plan",
+    subscriptionSamePlan:
+      "You already have this plan. Change seats, renewal or cancellation in your profile - buying it again would mean being charged twice.",
+    manageSubscriptionCta: "Manage subscription",
+    subscriptionUnmanaged:
+      "You already have an active subscription that can't be changed in your profile. Manage it in the payment portal or contact us - a second purchase would mean being charged twice.",
+    billingPortalCta: "Open the payment portal",
+    separatePurchase:
+      "This plan is billed differently from your current subscription (per seat instead of individually, or the other way round), so you buy it separately. Your current subscription stays active and keeps renewing - if you no longer need it, cancel it in the payment portal.",
+    sessionSuperseded:
+      "This payment was replaced by a newer one opened in another tab or window. Finish it there or start again.",
     promoHint: "Have a coupon? Enter your promo code on the secure payment page.",
     taxHint: "VAT is calculated automatically based on your address.",
     taxIdHint: "You can provide your VAT ID for the invoice on the payment page.",

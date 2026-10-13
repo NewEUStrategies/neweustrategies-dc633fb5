@@ -31,6 +31,7 @@ import {
 } from "@/lib/billing/premiumNewsletter";
 import { BILLING_IDS, planLadder } from "@/test/billing/fixtures";
 import {
+  fail,
   ok,
   supabaseFromStub,
   type RecordedChain,
@@ -65,7 +66,8 @@ vi.mock("@/lib/email/transactional.server", async () => {
   return { ...actual, sendTxEmail: () => Promise.resolve({ ok: true }) };
 });
 
-const { applyPurchaseEffects } = await import("@/lib/billing/purchaseEffects.server");
+const { applyPurchaseEffects, NewsletterOptInRetryableError } =
+  await import("@/lib/billing/purchaseEffects.server");
 
 freezeClock();
 
@@ -331,9 +333,69 @@ describe("SUB-15: istniejący subskrybent - scalenie, nie nadpisanie", () => {
     expect(patchOf()?.consents).toEqual([DOI_CONSENT, withdrawn, EXPECTED_ENTRY]);
   });
 
+  // Dawniej ten test żądał, żeby ponowienie NIE zaglądało do rejestru
+  // (`chainsFor("crm_consent_log")` = 0) - to był mechanizm defektu #34: luka
+  // w rejestrze po awarii między scaleniem a wpisem zostawała na zawsze.
+  // Teraz ponowienie SPRAWDZA rejestr i niczego nie dubluje, gdy wpis jest.
   it("ponowione zdarzenie: zgoda już zapisana - zero zapisów, zostaje najwcześniejszy dowód", async () => {
     const earlier = { ...EXPECTED_ENTRY, received_at: relativeIso(-1 * DZIEN) };
     scene.reads = [subscriberRow({ consents: [DOI_CONSENT, earlier] })];
+    db.setResponse("crm_consent_log", (chain) =>
+      ok(chain.has("insert") ? null : [{ id: "log-1" }]),
+    );
+
+    await applyPurchaseEffects(purchase({ newsletterConsent: grant() }));
+
+    expect(newsletterWrites()).toHaveLength(0);
+    expect(consentLogInserts()).toHaveLength(0);
+  });
+
+  it("ponowienie po awarii rejestru: zgoda TEGO zakupu jest w wierszu, wpisu brak - rejestr domknięty", async () => {
+    const recordedAt = relativeIso(-1 * DZIEN);
+    const recorded = { ...EXPECTED_ENTRY, received_at: recordedAt };
+    scene.reads = [subscriberRow({ consents: [DOI_CONSENT, recorded] })];
+    db.setResponse("crm_consent_log", (chain) => ok(chain.has("insert") ? null : []));
+
+    await applyPurchaseEffects(purchase({ newsletterConsent: grant() }));
+
+    expect(newsletterWrites()).toHaveLength(0);
+    expect(consentLogInserts()).toEqual([
+      {
+        tenant_id: BILLING_IDS.tenant,
+        email: EMAIL,
+        source_type: "newsletter",
+        source_id: ROW_ID,
+        form_name: "Subskrypcja premium",
+        consent_key: PREMIUM_NEWSLETTER_CONSENT,
+        consent_text: TEXT_PL,
+        consent_version: PREMIUM_NEWSLETTER_CONSENT_VERSION,
+        given: true,
+        lang: "pl",
+      },
+    ]);
+    // Szukamy wpisu TEGO wiersza, klucza i wersji - nie wcześniejszego niż scalenie.
+    const lookup = db.chainsFor("crm_consent_log").find((c) => !c.has("insert"));
+    expect(lookup?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["tenant_id", BILLING_IDS.tenant],
+      ["source_type", "newsletter"],
+      ["source_id", ROW_ID],
+      ["consent_key", PREMIUM_NEWSLETTER_CONSENT],
+      ["consent_version", PREMIUM_NEWSLETTER_CONSENT_VERSION],
+      ["given", true],
+    ]);
+    expect(lookup?.argsOf("gte")).toEqual([
+      "created_at",
+      new Date(Date.parse(recordedAt) - 10 * MINUTA).toISOString(),
+    ]);
+  });
+
+  it("zgoda tej samej treści z INNEJ subskrypcji nie jest nasza - rejestru nie ruszamy", async () => {
+    const other = {
+      ...EXPECTED_ENTRY,
+      subscription_id: "sub_inna",
+      received_at: relativeIso(-DZIEN),
+    };
+    scene.reads = [subscriberRow({ consents: [DOI_CONSENT, other] })];
 
     await applyPurchaseEffects(purchase({ newsletterConsent: grant() }));
 
@@ -432,20 +494,99 @@ describe("SUB-15: nowy adres - wiersz z dowodem zgody", () => {
     expect(consentLogInserts()).toHaveLength(1);
   });
 
-  it("wyścig przegrany za każdym razem: nic nie zapisane, błąd w logu", async () => {
+  // Dawniej: `resolves.toBeUndefined()` - zgoda przepadała po cichu (defekt
+  // #34). Ciągle przegrywany wyścig to rywalizacja, więc wychodzi do ponowienia.
+  it("wyścig przegrany za każdym razem: nic nie zapisane, błąd do PONOWIENIA zdarzenia", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     scene.casMisses = 99;
     scene.reads = [subscriberRow()];
 
-    await expect(
-      applyPurchaseEffects(purchase({ newsletterConsent: grant() })),
-    ).resolves.toBeUndefined();
+    await expect(applyPurchaseEffects(purchase({ newsletterConsent: grant() }))).rejects.toThrow(
+      NewsletterOptInRetryableError,
+    );
 
     expect(db.chainsFor("crm_consent_log")).toHaveLength(0);
     expect(error).toHaveBeenCalledWith(
       "[payments] premium newsletter opt-in failed",
       expect.objectContaining({ message: expect.stringContaining("losing the race") }),
     );
+    error.mockRestore();
+  });
+});
+
+// ── Audyt #34: zaznaczona zgoda nie przepada po jednej chwilowej awarii ────────
+// DEFEKT: zapis zgody szedł PO zajęciu potwierdzenia zakupu i połykał każdy
+// błąd - webhook kończył się 200, operator nie ponawiał, a ręczną powtórkę
+// blokowało zajęte potwierdzenie. Teraz zapis idzie PRZED zajęciem, a awaria
+// przejściowa wychodzi do ponowienia zdarzenia.
+describe("SUB-15 / #34: odporność zapisu zgody na ponowienie", () => {
+  it("chwilowa awaria rejestru po scaleniu: błąd do ponowienia, potwierdzenie NIE zajęte, ponowienie domyka rejestr raz", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const claimConfirmation = vi.fn(async () => true);
+    scene.reads = [subscriberRow()];
+    let logFails = true;
+    const logRows: unknown[] = [];
+    db.setResponse("crm_consent_log", (chain) => {
+      if (chain.has("insert")) {
+        if (logFails) return fail("upstream connect error");
+        logRows.push(chain.argsOf("insert")?.[0]);
+        return ok(null);
+      }
+      return ok([...logRows]);
+    });
+
+    await expect(
+      applyPurchaseEffects(purchase({ newsletterConsent: grant(), claimConfirmation })),
+    ).rejects.toThrow(NewsletterOptInRetryableError);
+
+    // Mail i dzwonek nie wyszły, a potwierdzenie zostaje wolne dla ponowienia.
+    expect(claimConfirmation).not.toHaveBeenCalled();
+    expect(db.chainsFor("notifications").some((c) => c.has("insert"))).toBe(false);
+    const merged = patchOf()?.consents;
+    expect(merged).toEqual([DOI_CONSENT, EXPECTED_ENTRY]);
+
+    // Ponowienie zdarzenia: wiersz ma już zgodę tego zakupu, rejestr - nie.
+    logFails = false;
+    scene.reads = [subscriberRow({ consents: merged, updated_at: relativeIso(-1 * MINUTA) })];
+    await applyPurchaseEffects(purchase({ newsletterConsent: grant(), claimConfirmation }));
+
+    expect(logRows).toHaveLength(1);
+    expect(newsletterWrites()).toHaveLength(1); // jedno scalenie, bez drugiego
+    expect(claimConfirmation).toHaveBeenCalledTimes(1);
+    expect(db.chainsFor("notifications").filter((c) => c.has("insert"))).toHaveLength(1);
+    error.mockRestore();
+  });
+
+  it("chwilowa awaria odczytu profilu: zgoda wraca przy ponowieniu (a nie przepada)", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const claimConfirmation = vi.fn(async () => true);
+    const profile = {
+      email: "  Klientka@Example.com ",
+      first_name: "Anna",
+      last_name: "Nowak",
+      display_name: null,
+      tenant_id: BILLING_IDS.tenant,
+      prefs: { language: "pl" },
+    };
+    let profileFails = true;
+    db.setResponse("profiles", (chain) => {
+      const newsletterRead = chain.argsOf("select")?.[0] === "email, first_name, last_name";
+      if (newsletterRead && profileFails)
+        return fail("canceling statement due to statement timeout", "57014");
+      return ok(profile);
+    });
+
+    await expect(
+      applyPurchaseEffects(purchase({ newsletterConsent: grant(), claimConfirmation })),
+    ).rejects.toThrow(/newsletter profile read failed/);
+    expect(claimConfirmation).not.toHaveBeenCalled();
+    expect(newsletterWrites()).toHaveLength(0);
+
+    profileFails = false;
+    await applyPurchaseEffects(purchase({ newsletterConsent: grant(), claimConfirmation }));
+
+    expect(insertedRow()).toMatchObject({ email: EMAIL, status: "subscribed" });
+    expect(claimConfirmation).toHaveBeenCalledTimes(1);
     error.mockRestore();
   });
 });
@@ -483,11 +624,35 @@ describe("SUB-15: wypis i lista wykluczeń są nadrzędne wobec pola w checkouci
     expect(newsletterWrites().length > 0).toBe(!blocks);
   });
 
-  it("nieudany odczyt listy wykluczeń to brak zapisu (fail-closed), a zakup biegnie dalej", async () => {
+  // Dawniej ta sama awaria (bez kodu = sieć) kończyła się „zakup biegnie dalej"
+  // i zgoda przepadała na zawsze (defekt #34). Teraz: brak zapisu (fail-closed
+  // zostaje), ale błąd wychodzi do ponowienia, a mail i dzwonek czekają na nie.
+  it("nieudany odczyt listy wykluczeń (sieć) to brak zapisu (fail-closed) i ponowienie, nie zgubiona zgoda", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     rpc.setError("email_filter_suppressed", "test: lista wykluczeń niedostępna");
 
-    await applyPurchaseEffects(purchase({ newsletterConsent: grant() }));
+    await expect(applyPurchaseEffects(purchase({ newsletterConsent: grant() }))).rejects.toThrow(
+      NewsletterOptInRetryableError,
+    );
+
+    expect(newsletterWrites()).toHaveLength(0);
+    expect(error).toHaveBeenCalledWith(
+      "[payments] premium newsletter opt-in failed",
+      expect.objectContaining({ message: expect.stringContaining("suppression lookup failed") }),
+    );
+    // Dostęp już jest (uprawnienie przed zgodą); dzwonek wyjdzie przy ponowieniu.
+    expect(db.chainsFor("user_subscriptions").some(isWrite)).toBe(true);
+    expect(db.chainsFor("notifications").some((c) => c.has("insert"))).toBe(false);
+    error.mockRestore();
+  });
+
+  it("TRWAŁA odmowa listy wykluczeń (uprawnienia) to brak zapisu, a zakup biegnie dalej - ponowienie nic by nie dało", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    rpc.setError("email_filter_suppressed", "permission denied for function", "42501");
+
+    await expect(
+      applyPurchaseEffects(purchase({ newsletterConsent: grant() })),
+    ).resolves.toBeUndefined();
 
     expect(newsletterWrites()).toHaveLength(0);
     expect(error).toHaveBeenCalledWith(
