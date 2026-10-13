@@ -12,7 +12,10 @@
 --   R4      skan z kolejki kodu zastapionego PO chwili skanu jest zapisem kodu
 --           waznego (wiersz, obecnosc, polityka deny dziala dalej); kod martwy
 --           juz w chwili skanu, a wpuszczony offline, zostawia prawdziwa odmowe
---           denied_code_superseded (konflikt admitted_offline);
+--           denied_code_superseded (konflikt admitted_offline). Od F4
+--           (20261012150000) czas skanu musi potwierdzic znacznik kolejki
+--           urzadzenia - skany z kolejki w sekcji 3 go niosa; czasy
+--           podrobione sprawdza 57_scanner_final_fixes.sql;
 --   R5      identyfikator zapisu oczekujacego bez biletu nie przezywa
 --           anulowania (code_superseded, nie granted);
 --   R6      in -> out -> in (w oknie) -> in przy deny: trzecie to NOWE wejscie,
@@ -472,6 +475,21 @@ BEGIN
     'person_ids', jsonb_build_array('56700000-0000-0000-0000-000000000007')));
   INSERT INTO b2_codes VALUES ('olga_b2', v->'badges'->0->>'qr_code');
 
+  -- F4 (20261012150000): wyjatek R4 wymaga potwierdzonego czasu skanu. Scena
+  -- zgodna z czasem: pierwszy identyfikator Olgi wydrukowano godzine temu,
+  -- poswiadczenia bramki i stoiska wydano wczoraj, a pozycje kolejki niosa
+  -- znacznik z ostatniej odpowiedzi przed utrata sieci (20 minut temu).
+  UPDATE public.event_superseded_codes SET issued_at = now() - interval '1 hour'
+   WHERE code_hash = encode(extensions.digest(
+     (SELECT k.v FROM b2_codes k WHERE k.k = 'olga_b1'), 'sha256'), 'hex');
+  UPDATE public.event_scanner_devices SET created_at = now() - interval '1 day'
+   WHERE id IN ('56d00000-0000-0000-0000-000000000001', '56d00000-0000-0000-0000-000000000009');
+  INSERT INTO b2_codes
+  SELECT 'marker_' || d.id::text,
+         public._event_scanner_queue_marker(d.id, d.queue_secret, now() - interval '20 minutes')
+    FROM public.event_scanner_devices d
+   WHERE d.id IN ('56d00000-0000-0000-0000-000000000001', '56d00000-0000-0000-0000-000000000009');
+
   PERFORM pg_temp.act_as(NULL, NULL);
   -- Bramka bez sieci wpuscila Olge 10 minut temu starym identyfikatorem.
   v := public.event_checkin_record(jsonb_build_object(
@@ -479,7 +497,9 @@ BEGIN
     'code', (SELECT k.v FROM b2_codes k WHERE k.k = 'olga_b1'),
     'checkpoint_id', '56c00000-0000-0000-0000-0000000000c4', 'direction', 'in',
     'client_scan_uid', 'scan56-r4-olga-01', 'device_scanned_at', now() - interval '10 minutes',
-    'queued', true, 'offline_admitted', true, 'offline_outcome', 'granted'));
+    'queued', true, 'offline_admitted', true, 'offline_outcome', 'granted',
+    'queue_marker', (SELECT k.v FROM b2_codes k
+                      WHERE k.k = 'marker_56d00000-0000-0000-0000-000000000001')));
   PERFORM pg_temp.assert(v->>'outcome' = 'granted' AND (v->>'admit')::boolean
       AND v->>'credential' = 'badge'
       AND (SELECT result = 'granted' AND offline_admitted FROM public.event_checkins
@@ -501,7 +521,9 @@ BEGIN
   v := public.event_lead_scan_record(jsonb_build_object(
     'device_token', 'tok56-stoisko-000001',
     'code', (SELECT k.v FROM b2_codes k WHERE k.k = 'olga_b1'),
-    'device_scanned_at', now() - interval '10 minutes', 'queued', true));
+    'device_scanned_at', now() - interval '10 minutes', 'queued', true,
+    'queue_marker', (SELECT k.v FROM b2_codes k
+                      WHERE k.k = 'marker_56d00000-0000-0000-0000-000000000009')));
   PERFORM pg_temp.assert(v->>'outcome' = 'saved'
       AND EXISTS (SELECT 1 FROM public.event_lead_scans
                    WHERE person_id = '56700000-0000-0000-0000-000000000007'
@@ -1011,14 +1033,16 @@ $q$, 'event_badge_prints_actor_exactly_one',
 --   null_ok    - CHECK jest spelniony przy NULL w tej kolumnie;
 --   repaired   - trigger BEFORE UPDATE na tej kolumnie naprawia wiersz
 --                (sprawdzane nizej: trigger musi istniec);
---   handoff    - zagrozenie poza ta zmiana, zgloszone dalej.
+--   handoff    - zagrozenie poza ta zmiana, zgloszone dalej (dzis zaden
+--                wpis; ostatni - events / discussion_club_id - naprawiony
+--                w 20261012150200, dowod zachowania w 57, sekcja B2).
 -- Nowa para (nowy SET NULL na kolumnie z CHECK-iem albo nowy CHECK na
 -- kolumnie zerowanej) czerwieni bramke do czasu przegladu.
 CREATE TEMP TABLE b2_setnull_register (tbl text, chk text, col text, kind text) ON COMMIT DROP;
 INSERT INTO b2_setnull_register VALUES
   ('events', 'events_previous_edition_not_self', 'previous_edition_id', 'null_ok'),
   ('events', 'events_discussion_group_needs_club', 'discussion_group_id', 'null_ok'),
-  ('events', 'events_discussion_group_needs_club', 'discussion_club_id', 'handoff'),
+  ('events', 'events_discussion_group_needs_club', 'discussion_club_id', 'repaired'),
   ('b2b_coupon_redemptions', 'b2b_coupon_redemptions_one_order_kind', 'order_id', 'null_ok'),
   ('b2b_coupon_redemptions', 'b2b_coupon_redemptions_one_order_kind', 'package_order_id', 'null_ok'),
   ('event_registrations', 'event_registrations_decision_dated', 'decided_by', 'null_ok'),
