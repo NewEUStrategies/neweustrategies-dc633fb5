@@ -38,6 +38,55 @@ export interface PurchaseContext {
    * spoza webhooka) dzwonek idzie jak dawniej.
    */
   eventAt?: string | null;
+  /**
+   * Kolejka komunikatów odroczonych (patrz `AnnouncementQueue`). Bez niej mail,
+   * CRM, newsletter i dzwonek idą od razu, jak dawniej.
+   */
+  announcements?: AnnouncementQueue;
+}
+
+/**
+ * Komunikaty dla człowieka (mail, dzwonek, CRM, newsletter) odroczone do
+ * chwili, w której wołający ZAPISAŁ stan, z którego wynikają.
+ *
+ * DLACZEGO. Webhook zapisuje stan subskrypcji na końcu, warunkiem na zajęcie
+ * zdarzenia. Komunikat wysłany PRZED tym zapisem mówił klientowi o stanie,
+ * którego potem nie było: zapis padał (np. limit czasu zapytania) albo nowsze
+ * zdarzenie przejmowało wiersz, a to nowsze liczyło przejście od stanu SPRZED
+ * nas - klient słyszał „wstrzymana" i nigdy „wznowiona" (regresja A3). Dlatego
+ * tu zostają wyłącznie zapisy zbieżne, które RZUCAJĄ (plan, uprawnienie), a
+ * komunikaty - z planem rozwiązanym zawczasu - czekają w kolejce na
+ * `deliverAnnouncements` po udanym zapisie stanu.
+ */
+export type AnnouncementQueue = Array<() => Promise<void>>;
+
+/** Komunikat do kolejki wołającego albo - bez kolejki - od razu. */
+async function announce(
+  queue: AnnouncementQueue | undefined,
+  task: () => Promise<void>,
+): Promise<void> {
+  if (queue) {
+    queue.push(task);
+    return;
+  }
+  await task();
+}
+
+/**
+ * Wysyła komunikaty z kolejki. Nigdy nie rzuca: stan jest już zapisany, więc
+ * wyjątek oznaczałby zdarzenie `failed`, a jego ponowienie widziałoby nowy stan
+ * i przejścia nie ogłosiłoby wcale. Każdy komunikat jest i tak miękki
+ * (`notifySubscriptionEmail`, `pushAppNotification`, CRM i newsletter łapią
+ * własne błędy) - ten `catch` to ostatnia linia obrony.
+ */
+export async function deliverAnnouncements(queue: AnnouncementQueue): Promise<void> {
+  for (const task of queue.splice(0)) {
+    try {
+      await task();
+    } catch (err) {
+      console.error("[payments] subscription announcement failed", err);
+    }
+  }
 }
 
 interface ResolvedPlan {
@@ -152,9 +201,10 @@ async function pushAppNotification(params: {
 }): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // RAZ NA ZDARZENIE. Webhook zapisuje stan subskrypcji dopiero po skutkach,
-    // więc powtórka po porażce (operator, zamiatarka, panel) wykonuje skutki
-    // jeszcze raz. Maile mają ziarna idempotencji, CRM jest zapisem zbieżnym -
+    // RAZ NA ZDARZENIE. Ponowna dostawa zdarzenia już obsłużonego (operator,
+    // zamiatarka, panel) i powtórne założenie (`created` po zdarzeniu, które
+    // założyło wiersz) ogłaszają skutki jeszcze raz. Maile mają ziarna
+    // idempotencji, CRM jest zapisem zbieżnym -
     // dzwonek to zwykły INSERT, więc pomijamy go, gdy ten sam dzwonek (tytuł
     // + adres) leży już u odbiorcy od chwili zdarzenia. Awaria odczytu nie
     // wstrzymuje dzwonka: lepszy duplikat niż cisza.
@@ -364,35 +414,37 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     periodStart: ctx.periodStart ?? null,
   });
 
-  await notifySubscriptionEmail({
-    kind: "subscription_confirmed",
-    userId: ctx.userId,
-    planId: plan.planId,
-    periodEnd: ctx.periodEnd,
-    amountCents: plan.priceCents,
-    currency: plan.currency,
-    idempotencySeed: ctx.subscriptionId,
-  });
+  await announce(ctx.announcements, async () => {
+    await notifySubscriptionEmail({
+      kind: "subscription_confirmed",
+      userId: ctx.userId,
+      planId: plan.planId,
+      periodEnd: ctx.periodEnd,
+      amountCents: plan.priceCents,
+      currency: plan.currency,
+      idempotencySeed: ctx.subscriptionId,
+    });
 
-  await syncCrmCustomer(ctx.userId, plan.tierKey);
+    await syncCrmCustomer(ctx.userId, plan.tierKey);
 
-  await subscribePremiumNewsletter({
-    userId: ctx.userId,
-    tenantId: plan.tenantId,
-    tierKey: plan.tierKey,
-    subscriptionId: ctx.subscriptionId,
-  });
+    await subscribePremiumNewsletter({
+      userId: ctx.userId,
+      tenantId: plan.tenantId,
+      tierKey: plan.tierKey,
+      subscriptionId: ctx.subscriptionId,
+    });
 
-  await pushAppNotification({
-    userId: ctx.userId,
-    tenantId: plan.tenantId,
-    titlePl: "Subskrypcja aktywna",
-    titleEn: "Subscription active",
-    bodyPl: "Dostęp do treści premium został włączony.",
-    bodyEn: "Access to premium content is now enabled.",
-    href: PROFILE_PLAN_PATH,
-    icon: "badge-check",
-    since: ctx.eventAt,
+    await pushAppNotification({
+      userId: ctx.userId,
+      tenantId: plan.tenantId,
+      titlePl: "Subskrypcja aktywna",
+      titleEn: "Subscription active",
+      bodyPl: "Dostęp do treści premium został włączony.",
+      bodyEn: "Access to premium content is now enabled.",
+      href: PROFILE_PLAN_PATH,
+      icon: "badge-check",
+      since: ctx.eventAt,
+    });
   });
 }
 
@@ -472,34 +524,36 @@ export async function applyPlanChangeEffects(
       ? proratedDifferenceCents(previous, plan, ctx.periodEnd)
       : null;
 
-  await notifySubscriptionEmail({
-    kind: ctx.direction === "upgrade" ? "subscription_upgraded" : "subscription_downgraded",
-    userId: ctx.userId,
-    planId: plan.planId,
-    previousPlanId: previous?.planId ?? null,
-    periodEnd: ctx.periodEnd,
-    amountCents: plan.priceCents,
-    currency: plan.currency,
-    prorationCents,
-    idempotencySeed: `${ctx.subscriptionId}:${ctx.priceId}`,
-  });
+  await announce(ctx.announcements, async () => {
+    await notifySubscriptionEmail({
+      kind: ctx.direction === "upgrade" ? "subscription_upgraded" : "subscription_downgraded",
+      userId: ctx.userId,
+      planId: plan.planId,
+      previousPlanId: previous?.planId ?? null,
+      periodEnd: ctx.periodEnd,
+      amountCents: plan.priceCents,
+      currency: plan.currency,
+      prorationCents,
+      idempotencySeed: `${ctx.subscriptionId}:${ctx.priceId}`,
+    });
 
-  await pushAppNotification({
-    userId: ctx.userId,
-    tenantId: plan.tenantId,
-    titlePl: ctx.direction === "upgrade" ? "Plan podniesiony" : "Zmiana planu zaplanowana",
-    titleEn: ctx.direction === "upgrade" ? "Plan upgraded" : "Plan change scheduled",
-    bodyPl:
-      ctx.direction === "upgrade"
-        ? "Nowy plan działa od razu, rozliczyliśmy różnicę proporcjonalnie."
-        : "Niższy plan zacznie obowiązywać po zakończeniu opłaconego okresu.",
-    bodyEn:
-      ctx.direction === "upgrade"
-        ? "The new plan is active now; the difference was prorated."
-        : "The lower plan starts once the paid period ends.",
-    href: PROFILE_PLAN_PATH,
-    icon: "arrow-up-right",
-    since: ctx.eventAt,
+    await pushAppNotification({
+      userId: ctx.userId,
+      tenantId: plan.tenantId,
+      titlePl: ctx.direction === "upgrade" ? "Plan podniesiony" : "Zmiana planu zaplanowana",
+      titleEn: ctx.direction === "upgrade" ? "Plan upgraded" : "Plan change scheduled",
+      bodyPl:
+        ctx.direction === "upgrade"
+          ? "Nowy plan działa od razu, rozliczyliśmy różnicę proporcjonalnie."
+          : "Niższy plan zacznie obowiązywać po zakończeniu opłaconego okresu.",
+      bodyEn:
+        ctx.direction === "upgrade"
+          ? "The new plan is active now; the difference was prorated."
+          : "The lower plan starts once the paid period ends.",
+      href: PROFILE_PLAN_PATH,
+      icon: "arrow-up-right",
+      since: ctx.eventAt,
+    });
   });
 }
 
@@ -522,27 +576,29 @@ export async function applyCancellationEffects(ctx: PurchaseContext): Promise<vo
     periodStart: ctx.periodStart ?? null,
   });
 
-  await notifySubscriptionEmail({
-    kind: "subscription_canceled",
-    userId: ctx.userId,
-    planId: plan.planId,
-    periodEnd: ctx.periodEnd,
-    idempotencySeed: `cancel:${ctx.subscriptionId}`,
-  });
+  await announce(ctx.announcements, async () => {
+    await notifySubscriptionEmail({
+      kind: "subscription_canceled",
+      userId: ctx.userId,
+      planId: plan.planId,
+      periodEnd: ctx.periodEnd,
+      idempotencySeed: `cancel:${ctx.subscriptionId}`,
+    });
 
-  // CRM: kontakt przestaje być aktywnym klientem (lejek nie może pokazywać „won”).
-  await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "churned");
+    // CRM: kontakt przestaje być aktywnym klientem (lejek nie może pokazywać „won”).
+    await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "churned");
 
-  await pushAppNotification({
-    userId: ctx.userId,
-    tenantId: plan.tenantId,
-    titlePl: "Subskrypcja anulowana",
-    titleEn: "Subscription canceled",
-    bodyPl: "Dostęp działa do końca opłaconego okresu. Powiedz nam, co możemy poprawić.",
-    bodyEn: "Access remains until the paid period ends. Tell us what we can improve.",
-    href: `${PROFILE_PLAN_PATH}?retention=1`,
-    icon: "message-circle-question",
-    since: ctx.eventAt,
+    await pushAppNotification({
+      userId: ctx.userId,
+      tenantId: plan.tenantId,
+      titlePl: "Subskrypcja anulowana",
+      titleEn: "Subscription canceled",
+      bodyPl: "Dostęp działa do końca opłaconego okresu. Powiedz nam, co możemy poprawić.",
+      bodyEn: "Access remains until the paid period ends. Tell us what we can improve.",
+      href: `${PROFILE_PLAN_PATH}?retention=1`,
+      icon: "message-circle-question",
+      since: ctx.eventAt,
+    });
   });
 }
 
@@ -558,12 +614,16 @@ export interface StatusTransitionContext {
   status: string;
   /** Próg deduplikacji dzwonka (patrz `PurchaseContext.eventAt`). */
   eventAt?: string | null;
+  /** Kolejka komunikatów odroczonych (patrz `AnnouncementQueue`). */
+  announcements?: AnnouncementQueue;
 }
 
 /**
  * Zmiana samego stanu subskrypcji (pauza, wznowienie, zaległość, powrót do
  * rozliczeń). Uprawnienie synchronizuje webhook; tutaj domykamy warstwy
- * widoczne dla człowieka: CRM i powiadomienie w aplikacji.
+ * widoczne dla człowieka: CRM i powiadomienie w aplikacji. Plan rozwiązujemy
+ * od razu (odczyt może rzucić - wtedy przed zapisem stanu), komunikaty idą do
+ * kolejki wołającego, gdy ją podał.
  */
 export async function applyStatusTransitionEffects(ctx: StatusTransitionContext): Promise<void> {
   if (ctx.previousStatus === ctx.status) return;
@@ -574,33 +634,37 @@ export async function applyStatusTransitionEffects(ctx: StatusTransitionContext)
   if (!plan) return;
 
   if (ctx.status === "paused") {
-    await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "paused");
-    await pushAppNotification({
-      userId: ctx.userId,
-      tenantId: plan.tenantId,
-      titlePl: "Subskrypcja wstrzymana",
-      titleEn: "Subscription paused",
-      bodyPl: "Dostęp do treści premium jest nieaktywny do czasu wznowienia.",
-      bodyEn: "Premium access is inactive until you resume the subscription.",
-      href: PROFILE_PLAN_PATH,
-      icon: "pause-circle",
-      since: ctx.eventAt,
-    });
-    await notifySubscriptionEmail({
-      kind: "subscription_paused",
-      userId: ctx.userId,
-      planId: plan.planId,
-      periodEnd: ctx.periodEnd,
-      amountCents: plan.priceCents,
-      currency: plan.currency,
-      idempotencySeed: `${ctx.subscriptionId}:paused:${ctx.periodEnd ?? ""}`,
+    await announce(ctx.announcements, async () => {
+      await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "paused");
+      await pushAppNotification({
+        userId: ctx.userId,
+        tenantId: plan.tenantId,
+        titlePl: "Subskrypcja wstrzymana",
+        titleEn: "Subscription paused",
+        bodyPl: "Dostęp do treści premium jest nieaktywny do czasu wznowienia.",
+        bodyEn: "Premium access is inactive until you resume the subscription.",
+        href: PROFILE_PLAN_PATH,
+        icon: "pause-circle",
+        since: ctx.eventAt,
+      });
+      await notifySubscriptionEmail({
+        kind: "subscription_paused",
+        userId: ctx.userId,
+        planId: plan.planId,
+        periodEnd: ctx.periodEnd,
+        amountCents: plan.priceCents,
+        currency: plan.currency,
+        idempotencySeed: `${ctx.subscriptionId}:paused:${ctx.periodEnd ?? ""}`,
+      });
     });
     return;
   }
 
   if (ctx.status === "active" || ctx.status === "trialing") {
-    await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "customer");
-    if (ctx.previousStatus === "paused" || ctx.previousStatus === "past_due") {
+    const resumed = ctx.previousStatus === "paused" || ctx.previousStatus === "past_due";
+    await announce(ctx.announcements, async () => {
+      await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "customer");
+      if (!resumed) return;
       await pushAppNotification({
         userId: ctx.userId,
         tenantId: plan.tenantId,
@@ -621,6 +685,6 @@ export async function applyStatusTransitionEffects(ctx: StatusTransitionContext)
         currency: plan.currency,
         idempotencySeed: `${ctx.subscriptionId}:resumed:${ctx.periodEnd ?? ""}`,
       });
-    }
+    });
   }
 }

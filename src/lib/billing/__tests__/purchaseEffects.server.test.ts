@@ -87,6 +87,7 @@ const {
   applyPlanChangeEffects,
   applyPurchaseEffects,
   applyStatusTransitionEffects,
+  deliverAnnouncements,
   syncCrmSubscriptionState,
 } = await import("@/lib/billing/purchaseEffects.server");
 
@@ -1039,5 +1040,94 @@ describe("dzwonek raz na zdarzenie (`eventAt`)", () => {
 
     expect(bellLookup()).toBeUndefined();
     expect(written("notifications", "insert")).toBeDefined();
+  });
+});
+
+// WERYFIKACJA RUNDY 3 (A3). Webhook zapisuje stan subskrypcji NA KOŃCU,
+// warunkiem na zajęcie zdarzenia. Komunikat wysłany przed tym zapisem mówił
+// klientowi o stanie, którego potem nie było (zapis padł albo nowsze zdarzenie
+// przejęło wiersz) - „wstrzymana" bez „wznowiona". Z kolejką skutki dzielą się
+// na zapisy zbieżne, które RZUCAJĄ (plan, uprawnienie - od razu), i komunikaty
+// (mail, dzwonek, CRM, newsletter), które czekają na `deliverAnnouncements`.
+describe("kolejka komunikatów (`announcements`) - komunikaty po zapisie stanu", () => {
+  let queue: Array<() => Promise<void>> = [];
+  beforeEach(() => {
+    queue = [];
+  });
+
+  it.each([
+    ["zakup", () => applyPurchaseEffects(purchase({ announcements: queue }))],
+    ["zmiana planu", () => applyPlanChangeEffects(planChange({ announcements: queue }))],
+    ["rezygnacja", () => applyCancellationEffects(purchase({ announcements: queue }))],
+  ])(
+    "%s: uprawnienie od razu, mail, dzwonek i CRM dopiero po `deliverAnnouncements`",
+    async (_, run) => {
+      scene.lead = { id: "lead-1", tags: ["customer", "plan:member"] };
+
+      await run();
+
+      expect(writes("user_subscriptions")).toHaveLength(1);
+      expect(mails()).toHaveLength(0);
+      expect(writes("notifications")).toHaveLength(0);
+      expect(writes("crm_leads")).toHaveLength(0);
+      expect(queue).toHaveLength(1);
+
+      await deliverAnnouncements(queue);
+
+      expect(mails()).toHaveLength(1);
+      expect(writes("notifications")).toHaveLength(1);
+      expect(queue).toHaveLength(0);
+    },
+  );
+
+  it("zmiana stanu: plan rozwiązany od razu (porażka odczytu RZUCA przed zapisem stanu), komunikaty w kolejce", async () => {
+    const ctx = {
+      userId: BILLING_IDS.me,
+      tenantId: BILLING_IDS.tenant,
+      priceId: "plus_monthly",
+      subscriptionId: SUB,
+      periodEnd: relativeIso(20 * DZIEN),
+      previousStatus: "active",
+      status: "paused",
+      announcements: queue,
+    };
+
+    await applyStatusTransitionEffects(ctx);
+
+    expect(planLookups()).toHaveLength(1);
+    expect(mails()).toHaveLength(0);
+    expect(writes("notifications")).toHaveLength(0);
+
+    await deliverAnnouncements(queue);
+
+    expect(mails()[0]).toMatchObject({ type: "subscription_paused" });
+    expect(written("notifications", "insert")).toMatchObject({
+      title_pl: "Subskrypcja wstrzymana",
+    });
+    // Drugie doręczenie tej samej kolejki niczego nie powtarza.
+    await deliverAnnouncements(queue);
+    expect(mails()).toHaveLength(1);
+  });
+
+  it("wyjątek jednego komunikatu zostaje w logu, a pozostałe wychodzą - doręczenie nigdy nie rzuca", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const delivered: string[] = [];
+    queue.push(
+      async () => {
+        throw new Error("test: awaria komunikatu");
+      },
+      async () => {
+        delivered.push("drugi");
+      },
+    );
+
+    await expect(deliverAnnouncements(queue)).resolves.toBeUndefined();
+
+    expect(delivered).toEqual(["drugi"]);
+    expect(error).toHaveBeenCalledWith(
+      "[payments] subscription announcement failed",
+      expect.any(Error),
+    );
+    error.mockRestore();
   });
 });
