@@ -48,7 +48,6 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
   const { t } = useTranslation();
   const rf = (k: string) => t(`builder.richHtmlField.${k}`);
   const ref = useRef<HTMLDivElement>(null);
-  const savedSelection = useRef<Range | null>(null);
   const lastEmitted = useRef<string>(value);
 
   // Zsynchronizuj DOM tylko wtedy, gdy wartość przyszła z zewnątrz (np. zmiana
@@ -183,22 +182,12 @@ export function RichHtmlField({ value, onChange, rows = 4, ariaLabel }: Props) {
         <PlatformSelect
           title={rf("fontSize")}
           aria-label={rf("fontSize")}
-          value=""
-          onOpenChange={(open) => {
-            if (!open) return;
-            const selection = window.getSelection();
-            const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-            savedSelection.current = range && ref.current?.contains(range.commonAncestorContainer) ? range.cloneRange() : null;
-          }}
+          defaultValue=""
+          onMouseDown={(e) => e.preventDefault()}
           onChange={(e) => {
             const v = e.target.value;
-            ref.current?.focus();
-            const selection = window.getSelection();
-            if (selection && savedSelection.current) {
-              selection.removeAllRanges();
-              selection.addRange(savedSelection.current);
-            }
             applyFontSize(v);
+            e.currentTarget.selectedIndex = 0;
           }}
           className="h-6 rounded border border-border bg-background px-1 text-[11px] text-muted-foreground transition hover:text-foreground focus:outline-none"
         >

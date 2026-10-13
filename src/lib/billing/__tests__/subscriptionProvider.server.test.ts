@@ -3,14 +3,23 @@
 // wywołania: która metoda operatora, z jakimi argumentami i co się dzieje,
 // gdy operator odmówi. Reguła repo brzmi "NAJPIERW dostawca, potem baza",
 // więc połknięty błąd = wiersz w bazie kłamiący o stanie subskrypcji.
+//
+// Od audytu SUB-04/SUB-14 kontrakt obejmuje też:
+//   - dopłatę przed zmianą (`pending_if_incomplete`) i jej odmowę jako WYNIK
+//     (`payment_failed` / `payment_requires_action` + faktura), nie sukces,
+//   - klucz idempotencji na każdej mutacji: stały dla ponowienia tej samej
+//     operacji z tego samego stanu, inny dla prawomocnej nowej operacji,
+//   - wznowienie rozstrzygane ŻYWYM stanem (status `paused` -> `resume`,
+//     pauza poboru -> zdjęcie pauzy, zaplanowany koniec -> cofnięcie).
 import type Stripe from "stripe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   /** Środowiska, dla których zbudowano klienta bramki (kolejność wywołań). */
   envs: [] as string[],
-  subscriptions: { update: vi.fn(), cancel: vi.fn(), retrieve: vi.fn() },
-  subscriptionSchedules: { create: vi.fn(), update: vi.fn() },
+  subscriptions: { update: vi.fn(), cancel: vi.fn(), retrieve: vi.fn(), resume: vi.fn() },
+  subscriptionSchedules: { create: vi.fn(), update: vi.fn(), release: vi.fn(), retrieve: vi.fn() },
+  paymentIntents: { retrieve: vi.fn() },
   prices: { list: vi.fn() },
 }));
 
@@ -24,6 +33,7 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => ({
     return {
       subscriptions: h.subscriptions,
       subscriptionSchedules: h.subscriptionSchedules,
+      paymentIntents: h.paymentIntents,
       prices: h.prices,
     } as unknown as Stripe;
   },
@@ -34,12 +44,11 @@ import {
   cancelSubscriptionImmediately,
   catalogPriceFor,
   changeSubscriptionPrice,
-  fetchSubscriptionSnapshot,
   isProviderSubscriptionRef,
-  pauseSubscriptionCollection,
+  PAYMENT_FAILED,
+  PAYMENT_REQUIRES_ACTION,
   resolveProviderPriceId,
-  resumePausedSubscription,
-  resumeScheduledCancellation,
+  resumeProviderSubscription,
   subscriptionEnvironment,
   updateSubscriptionQuantity,
 } from "@/lib/billing/subscriptionProvider.server";
@@ -58,27 +67,87 @@ const NO_SUCH_SUB_TEXT =
 /** 2026-01-01T00:00:00Z w sekundach - operator liczy czas w unixie. */
 const PERIOD_END = 1_767_225_600;
 const PERIOD_END_ISO = "2026-01-01T00:00:00.000Z";
+const PERIOD_START = 1_764_547_200;
+const HOSTED = "https://invoice.stripe.test/i/acct_1/inv_proration";
 
 const subscriptionItem = (over: Record<string, unknown> = {}) => ({
   id: "si_1",
   quantity: 1,
-  current_period_start: 1_764_547_200,
+  current_period_start: PERIOD_START,
   current_period_end: PERIOD_END,
   price: { id: "price_old", lookup_key: "plus_monthly" },
   ...over,
 });
 
+/** Żywa subskrypcja operatora w kształcie, jaki zwraca `retrieve`. */
+const liveSub = (over: Record<string, unknown> = {}) => ({
+  id: "sub_1",
+  status: "active",
+  customer: "cus_1",
+  cancel_at_period_end: false,
+  pause_collection: null,
+  schedule: null,
+  latest_invoice: "in_prev",
+  metadata: {},
+  pending_update: null,
+  items: { data: [subscriptionItem()] },
+  ...over,
+});
+
+/**
+ * Odcisk pozycji, od których zaplanowano zmianę - zapisywany RAZEM z fazami,
+ * żeby webhook `pending_update_applied` odróżnił harmonogram zachowany przy
+ * odmowie dopłaty od nowszej decyzji klienta (skutek dowodzi stanowa atrapa).
+ */
+const BASIS = expect.stringMatching(/^[0-9a-f]{40}$/);
+
+const teamItem = (quantity: number) =>
+  subscriptionItem({ quantity, price: { id: "price_team", lookup_key: "team_monthly_seat" } });
+
+/**
+ * Harmonogram rozwinięty przez `expand: ["schedule"]` w kształcie operatora:
+ * bieżąca faza z planem zespołu (4 miejsca) do końca okresu, następna z `next`.
+ */
+const scheduleWithNext = (id: string, next: { price: string; quantity: number }) => ({
+  id,
+  metadata: {},
+  current_phase: { start_date: PERIOD_START, end_date: PERIOD_END },
+  phases: [
+    {
+      start_date: PERIOD_START,
+      end_date: PERIOD_END,
+      items: [{ price: "price_team", quantity: 4 }],
+    },
+    { start_date: PERIOD_END, end_date: PERIOD_END + 2_678_400, items: [next] },
+  ],
+});
+
+/** Trzeci argument (opcje żądania) n-tego wywołania mocka. */
+function optionsOf(mock: ReturnType<typeof vi.fn>, call = 0): { idempotencyKey?: string } {
+  const args = mock.mock.calls[call] as unknown[];
+  return (args[args.length - 1] ?? {}) as { idempotencyKey?: string };
+}
+
 beforeEach(() => {
   h.envs.length = 0;
   vi.clearAllMocks();
-  h.subscriptions.update.mockResolvedValue({ items: { data: [subscriptionItem()] } });
+  h.subscriptions.update.mockResolvedValue(
+    liveSub({ items: { data: [subscriptionItem({ price: { id: "price_new" } })] } }),
+  );
   h.subscriptions.cancel.mockResolvedValue({ status: "canceled" });
-  h.subscriptions.retrieve.mockResolvedValue({
-    customer: "cus_1",
-    items: { data: [subscriptionItem()] },
-  });
-  h.subscriptionSchedules.create.mockResolvedValue({ id: "sched_1" });
+  h.subscriptions.retrieve.mockResolvedValue(liveSub());
+  h.subscriptions.resume.mockResolvedValue(liveSub({ status: "active" }));
+  h.subscriptionSchedules.create.mockResolvedValue({ id: "sched_1", metadata: {} });
   h.subscriptionSchedules.update.mockResolvedValue({ id: "sched_1" });
+  h.subscriptionSchedules.release.mockResolvedValue({ id: "sched_1", status: "released" });
+  // Świeżo założony harmonogram jest żywy i należy do tej subskrypcji -
+  // potwierdzenie odczytem chroni przed odpowiedzią z pamięci klucza.
+  h.subscriptionSchedules.retrieve.mockImplementation(async (id: string) => ({
+    id,
+    status: "active",
+    subscription: "sub_1",
+  }));
+  h.paymentIntents.retrieve.mockResolvedValue({ status: "requires_payment_method" });
   h.prices.list.mockResolvedValue({ data: [{ id: "price_new" }] });
 });
 
@@ -88,11 +157,15 @@ afterEach(() => {
 });
 
 describe("cancelSubscriptionAtPeriodEnd", () => {
-  it("ustawia u operatora anulowanie na koniec opłaconego okresu", async () => {
+  it("ustawia u operatora anulowanie na koniec opłaconego okresu, z kluczem i licznikiem", async () => {
     const result = await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1");
 
     expect(result).toEqual({ ok: true });
-    expect(h.subscriptions.update).toHaveBeenCalledWith("sub_1", { cancel_at_period_end: true });
+    expect(h.subscriptions.update).toHaveBeenCalledWith(
+      "sub_1",
+      { cancel_at_period_end: true, metadata: { nes_ops_rev: "1" } },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-cancel-[0-9a-f]{48}$/) },
+    );
     // Anulowanie "na koniec okresu" NIE MOŻE ucinać dostępu natychmiast.
     expect(h.subscriptions.cancel).not.toHaveBeenCalled();
   });
@@ -100,6 +173,119 @@ describe("cancelSubscriptionAtPeriodEnd", () => {
   it("buduje klienta dla wskazanego środowiska bramki", async () => {
     await cancelSubscriptionAtPeriodEnd("live", "sub_1");
     expect(h.envs).toEqual(["live"]);
+  });
+
+  it("subskrypcja już kończąca się albo anulowana nie dostaje drugiej mutacji", async () => {
+    h.subscriptions.retrieve.mockResolvedValueOnce(liveSub({ cancel_at_period_end: true }));
+    expect(await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1")).toEqual({ ok: true });
+    h.subscriptions.retrieve.mockResolvedValueOnce(liveSub({ status: "canceled" }));
+    expect(await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1")).toEqual({ ok: true });
+
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
+  });
+
+  it("zaplanowany downgrade jest zwalniany PRZED rezygnacją (operator nie łączy obu)", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({ schedule: { id: "sched_down", metadata: {} } }),
+    );
+
+    expect(await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1")).toEqual({ ok: true });
+    expect(h.subscriptionSchedules.release).toHaveBeenCalledWith(
+      "sched_down",
+      {},
+      { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-release-/) },
+    );
+    expect(h.subscriptionSchedules.release.mock.invocationCallOrder[0]).toBeLessThan(
+      h.subscriptions.update.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("błąd flagi po zwolnieniu: zaplanowane zmniejszenie wraca nowym harmonogramem, wynik to PIERWOTNY błąd", async () => {
+    // Odczyt kompensacji (domyślny): harmonogram zwolniony, rezygnacji brak.
+    // Jedna wartość „once" - kod bez kompensacji czyta raz i nic nie zostaje
+    // w kolejce atrapy dla następnych testów.
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ items: { data: [teamItem(4)] } }));
+    h.subscriptions.retrieve.mockResolvedValueOnce(
+      liveSub({
+        items: { data: [teamItem(4)] },
+        schedule: scheduleWithNext("sched_seats", { price: "price_team", quantity: 2 }),
+      }),
+    );
+    h.subscriptions.update.mockRejectedValue(
+      providerError("An unknown error occurred", { type: "api_error" }),
+    );
+
+    expect(await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1")).toEqual({
+      ok: false,
+      error: "An unknown error occurred (api_error)",
+    });
+    expect(h.subscriptionSchedules.release).toHaveBeenCalledTimes(1);
+    expect(h.subscriptionSchedules.create).toHaveBeenCalledWith(
+      { from_subscription: "sub_1" },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-create-/) },
+    );
+    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith(
+      "sched_1",
+      {
+        end_behavior: "release",
+        phases: [
+          {
+            items: [{ price: "price_team", quantity: 4 }],
+            start_date: PERIOD_START,
+            end_date: PERIOD_END,
+          },
+          { items: [{ price: "price_team", quantity: 2 }] },
+        ],
+        metadata: { nes_ops_rev: "1", nes_basis: BASIS },
+      },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-update-/) },
+    );
+  });
+
+  it("nieudana kompensacja jest logowana do ręcznego odtworzenia, a wynik zostaje pierwotnym błędem", async () => {
+    h.subscriptions.retrieve.mockResolvedValueOnce(
+      liveSub({
+        items: { data: [teamItem(4)] },
+        schedule: scheduleWithNext("sched_seats", { price: "price_team", quantity: 2 }),
+      }),
+    );
+    h.subscriptions.update.mockRejectedValue(
+      providerError("An unknown error occurred", { type: "api_error" }),
+    );
+    h.subscriptionSchedules.create.mockRejectedValue(providerError("schedule create failed"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Błąd kompensacji nie zastępuje błędu rezygnacji - to on mówi, co nie weszło.
+    expect(await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1")).toEqual({
+      ok: false,
+      error: "An unknown error occurred (api_error)",
+    });
+    expect(logged).toHaveBeenCalledWith(
+      expect.stringContaining("released schedule restore failed"),
+      "sub_1",
+      "sched_seats",
+      JSON.stringify([{ price: "price_team", quantity: 2 }]),
+      expect.stringContaining("schedule create failed"),
+    );
+  });
+
+  it("ponowienie z tego samego stanu ma TEN SAM klucz; anuluj -> wznów -> anuluj - NOWY", async () => {
+    await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1");
+    await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1");
+    // Po wznowieniu stan wraca do „aktywna, bez końca" - ale z podbitym licznikiem.
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ metadata: { nes_ops_rev: "2" } }));
+    await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1");
+
+    const [first, retry, afterResume] = [0, 1, 2].map(
+      (i) => optionsOf(h.subscriptions.update, i).idempotencyKey,
+    );
+    expect(retry).toBe(first);
+    // Bez licznika trzecia rezygnacja dostałaby z pamięci operatora odpowiedź
+    // pierwszej, NIE wykonując się - a klient czytałby „anulowano".
+    expect(afterResume).not.toBe(first);
+    expect(h.subscriptions.update.mock.calls[2]?.[1]).toMatchObject({
+      metadata: { nes_ops_rev: "3" },
+    });
   });
 
   it("przekazuje odmowę operatora zamiast ją połknąć", async () => {
@@ -113,11 +299,15 @@ describe("cancelSubscriptionAtPeriodEnd", () => {
 });
 
 describe("cancelSubscriptionImmediately", () => {
-  it("kasuje subskrypcję od razu (usunięcie konta = koniec obciążeń)", async () => {
+  it("kasuje subskrypcję od razu (usunięcie konta = koniec obciążeń), z kluczem", async () => {
     const result = await cancelSubscriptionImmediately("sandbox", "sub_1");
 
     expect(result).toEqual({ ok: true });
-    expect(h.subscriptions.cancel).toHaveBeenCalledWith("sub_1");
+    expect(h.subscriptions.cancel).toHaveBeenCalledWith(
+      "sub_1",
+      {},
+      { idempotencyKey: expect.stringMatching(/^nes-sub-cancel-now-/) },
+    );
     // Nie wolno tu zejść do `cancel_at_period_end` - konto już nie istnieje,
     // więc nikt nie obsłuży końca okresu, a klient płaciłby dalej.
     expect(h.subscriptions.update).not.toHaveBeenCalled();
@@ -133,131 +323,126 @@ describe("cancelSubscriptionImmediately", () => {
   });
 });
 
-describe("resumeScheduledCancellation", () => {
-  it("cofa zaplanowane anulowanie", async () => {
-    const result = await resumeScheduledCancellation("sandbox", "sub_1");
+describe("resumeProviderSubscription - żywy stan rozstrzyga mechanizm", () => {
+  it("status `paused` (koniec triala bez metody) wznawia `subscriptions.resume`, nie `pause_collection`", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ status: "paused" }));
 
-    expect(result).toEqual({ ok: true });
-    expect(h.subscriptions.update).toHaveBeenCalledWith("sub_1", { cancel_at_period_end: false });
+    const result = await resumeProviderSubscription("sandbox", "sub_1");
+
+    expect(result).toEqual({ ok: true, mode: "unpaused" });
+    expect(h.subscriptions.resume).toHaveBeenCalledWith(
+      "sub_1",
+      { billing_cycle_anchor: "now", expand: ["latest_invoice.payments"] },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-resume-paused-/) },
+    );
+    // Dawna ścieżka: `update({ pause_collection: null })` - subskrypcji
+    // w statusie `paused` to nie wznawia, a UI meldowało sukces.
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
   });
 
-  it("przekazuje odmowę operatora zamiast ją połknąć", async () => {
-    h.subscriptions.update.mockRejectedValue(NO_SUCH_SUB);
-
-    expect(await resumeScheduledCancellation("sandbox", "sub_ghost")).toEqual({
-      ok: false,
-      error: NO_SUCH_SUB_TEXT,
-    });
-  });
-});
-
-describe("pauseSubscriptionCollection", () => {
-  it("wstrzymuje pobór płatności bez kasowania subskrypcji", async () => {
-    const result = await pauseSubscriptionCollection("sandbox", "sub_1");
-
-    expect(result).toEqual({ ok: true });
-    expect(h.subscriptions.update).toHaveBeenCalledWith("sub_1", {
-      pause_collection: { behavior: "void" },
-    });
-    expect(h.subscriptions.cancel).not.toHaveBeenCalled();
-  });
-
-  it("przekazuje odmowę operatora zamiast ją połknąć", async () => {
-    h.subscriptions.update.mockRejectedValue(
-      providerError("Cannot pause a canceled subscription", { code: "subscription_canceled" }),
+  it("wznowienie, którego faktura nie przeszła, zostawia pauzę i zwraca fakturę", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ status: "paused" }));
+    h.subscriptions.resume.mockResolvedValue(
+      liveSub({
+        status: "paused",
+        latest_invoice: {
+          id: "in_resume",
+          hosted_invoice_url: HOSTED,
+          payments: { data: [{ payment: { payment_intent: "pi_1" } }] },
+        },
+      }),
     );
 
-    expect(await pauseSubscriptionCollection("sandbox", "sub_1")).toEqual({
+    expect(await resumeProviderSubscription("sandbox", "sub_1")).toEqual({
       ok: false,
-      error: "Cannot pause a canceled subscription (invalid_request_error, subscription_canceled)",
+      error: PAYMENT_FAILED,
+      hostedInvoiceUrl: HOSTED,
     });
   });
-});
 
-describe("resumePausedSubscription", () => {
-  it("czyści wstrzymanie jawnym `null` (undefined zostałoby pominięte)", async () => {
-    const result = await resumePausedSubscription("sandbox", "sub_1");
+  it("pauza poboru (`pause_collection`, status `active`) przy OPŁACONYM okresie jest zdejmowana pustym napisem", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({
+        pause_collection: { behavior: "void", resumes_at: null },
+        latest_invoice: { id: "in_prev", status: "paid" },
+      }),
+    );
 
-    expect(result).toEqual({ ok: true });
-    const [, payload] = h.subscriptions.update.mock.calls[0] as [string, Record<string, unknown>];
-    // Rozróżnienie null vs undefined jest istotne: operator ignoruje pola
-    // `undefined`, więc pauza zostałaby aktywna mimo "ok" po naszej stronie.
-    expect(Object.prototype.hasOwnProperty.call(payload, "pause_collection")).toBe(true);
-    expect(payload["pause_collection"]).toBeNull();
+    const result = await resumeProviderSubscription("sandbox", "sub_1");
+
+    expect(result).toEqual({ ok: true, mode: "collection_resumed" });
+    const [, payload, options] = h.subscriptions.update.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+      { idempotencyKey: string },
+    ];
+    // Pusty napis (nie `undefined`) - pole pominięte zostawiłoby pauzę.
+    expect(payload).toEqual({ pause_collection: "", metadata: { nes_ops_rev: "1" } });
+    expect(options.idempotencyKey).toMatch(/^nes-sub-resume-/);
+    expect(h.subscriptions.resume).not.toHaveBeenCalled();
+  });
+
+  it("zaplanowany koniec jest cofany", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ cancel_at_period_end: true }));
+
+    expect(await resumeProviderSubscription("sandbox", "sub_1")).toEqual({
+      ok: true,
+      mode: "cancellation_reverted",
+    });
+    expect(h.subscriptions.update).toHaveBeenCalledWith(
+      "sub_1",
+      { cancel_at_period_end: false, metadata: { nes_ops_rev: "1" } },
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+  });
+
+  it("pauza poboru I zaplanowany koniec schodzą jednym wywołaniem", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({
+        cancel_at_period_end: true,
+        pause_collection: { behavior: "keep_as_draft" },
+        latest_invoice: { id: "in_prev", status: "paid" },
+      }),
+    );
+
+    await resumeProviderSubscription("sandbox", "sub_1");
+
+    expect(h.subscriptions.update).toHaveBeenCalledTimes(1);
+    expect(h.subscriptions.update.mock.calls[0]?.[1]).toMatchObject({
+      pause_collection: "",
+      cancel_at_period_end: false,
+    });
+  });
+
+  it.each(["canceled", "incomplete_expired"])(
+    "subskrypcja zakończona (%s) nie ma czego wznawiać - odmowa, nie „already_active”",
+    async (status) => {
+      h.subscriptions.retrieve.mockResolvedValue(liveSub({ status }));
+
+      expect(await resumeProviderSubscription("sandbox", "sub_1")).toEqual({
+        ok: false,
+        error: "subscription_not_resumable",
+      });
+      expect(h.subscriptions.update).not.toHaveBeenCalled();
+      expect(h.subscriptions.resume).not.toHaveBeenCalled();
+    },
+  );
+
+  it("bez niczego do wznowienia nie ma mutacji", async () => {
+    expect(await resumeProviderSubscription("sandbox", "sub_1")).toEqual({
+      ok: true,
+      mode: "already_active",
+    });
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
+    expect(h.subscriptions.resume).not.toHaveBeenCalled();
   });
 
   it("przekazuje odmowę operatora zamiast ją połknąć", async () => {
-    h.subscriptions.update.mockRejectedValue(NO_SUCH_SUB);
-
-    expect(await resumePausedSubscription("sandbox", "sub_ghost")).toEqual({
-      ok: false,
-      error: NO_SUCH_SUB_TEXT,
-    });
-  });
-});
-
-describe("fetchSubscriptionSnapshot", () => {
-  it("mapuje stan operatora na czytelny snapshot (lookup_key, ISO, ilość)", async () => {
-    h.subscriptions.retrieve.mockResolvedValue({
-      customer: "cus_1",
-      items: {
-        data: [
-          subscriptionItem({
-            quantity: 3,
-            price: { id: "price_team", lookup_key: "team_monthly_seat" },
-          }),
-        ],
-      },
-    });
-
-    const result = await fetchSubscriptionSnapshot("sandbox", "sub_1");
-
-    expect(h.subscriptions.retrieve).toHaveBeenCalledWith("sub_1", {
-      expand: ["items.data.price"],
-    });
-    expect(result).toEqual({
-      ok: true,
-      snapshot: {
-        priceId: "team_monthly_seat",
-        currentPeriodEnd: PERIOD_END_ISO,
-        quantity: 3,
-      },
-    });
-  });
-
-  it("nieistniejąca subskrypcja zwraca błąd operatora, nie pusty snapshot", async () => {
     h.subscriptions.retrieve.mockRejectedValue(NO_SUCH_SUB);
 
-    const result = await fetchSubscriptionSnapshot("sandbox", "sub_ghost");
-
-    expect(result).toEqual({ ok: false, error: NO_SUCH_SUB_TEXT });
-    expect(result).not.toHaveProperty("snapshot");
-  });
-
-  it("subskrypcja bez pozycji daje snapshot bez ceny i z ilością 1", async () => {
-    h.subscriptions.retrieve.mockResolvedValue({ customer: "cus_1", items: { data: [] } });
-
-    expect(await fetchSubscriptionSnapshot("sandbox", "sub_1")).toEqual({
-      ok: true,
-      snapshot: { priceId: null, currentPeriodEnd: null, quantity: 1 },
-    });
-  });
-
-  it("cena spoza katalogu (bez lookup_key) nie udaje planu", async () => {
-    h.subscriptions.retrieve.mockResolvedValue({
-      customer: "cus_1",
-      items: {
-        data: [
-          subscriptionItem({ price: { id: "price_adhoc" }, current_period_end: null, quantity: 0 }),
-        ],
-      },
-    });
-
-    expect(await fetchSubscriptionSnapshot("sandbox", "sub_1")).toEqual({
-      ok: true,
-      // Domyślne `?? 1` łapie wyłącznie brak pola - zero zgłoszone przez
-      // operatora przechodzi bez podmiany (świadomie utrwalone zachowanie).
-      snapshot: { priceId: null, currentPeriodEnd: null, quantity: 0 },
+    expect(await resumeProviderSubscription("sandbox", "sub_ghost")).toEqual({
+      ok: false,
+      error: NO_SUCH_SUB_TEXT,
     });
   });
 });
@@ -295,166 +480,559 @@ describe("resolveProviderPriceId", () => {
   });
 });
 
-describe("changeSubscriptionPrice", () => {
-  it("upgrade podmienia pozycję od razu i rozlicza proporcjonalnie", async () => {
-    h.subscriptions.update.mockResolvedValue({
-      items: { data: [subscriptionItem({ current_period_end: PERIOD_END })] },
-    });
+describe("changeSubscriptionPrice - upgrade: dopłata PRZED zmianą", () => {
+  const upgrade = () =>
+    changeSubscriptionPrice("sandbox", "sub_1", { newPriceExternalId: "pro_monthly" });
 
-    const result = await changeSubscriptionPrice("sandbox", "sub_1", {
-      newPriceExternalId: "pro_monthly",
-      quantity: 1,
+  it("podmienia pozycję z `pending_if_incomplete` - bez parametrów, których oczekująca zmiana nie przyjmuje", async () => {
+    const result = await upgrade();
+
+    expect(result).toEqual({
+      ok: true,
       direction: "upgrade",
+      effect: "applied",
+      currentPeriodEnd: PERIOD_END_ISO,
+      cancelAtPeriodEnd: false,
     });
-
-    expect(result).toEqual({ ok: true, currentPeriodEnd: PERIOD_END_ISO });
-    expect(h.subscriptions.update).toHaveBeenCalledWith("sub_1", {
-      items: [{ id: "si_1", price: "price_new", quantity: 1 }],
-      proration_behavior: "always_invoice",
-      cancel_at_period_end: false,
-    });
+    expect(h.subscriptions.update).toHaveBeenCalledTimes(1);
+    expect(h.subscriptions.update).toHaveBeenCalledWith(
+      "sub_1",
+      {
+        items: [{ id: "si_1", price: "price_new", quantity: 1 }],
+        proration_behavior: "always_invoice",
+        payment_behavior: "pending_if_incomplete",
+        expand: ["latest_invoice.payments"],
+      },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-plan-upgrade-[0-9a-f]{48}$/) },
+    );
     expect(h.subscriptionSchedules.create).not.toHaveBeenCalled();
   });
 
-  it("downgrade nie rusza bieżącej pozycji - wchodzi dopiero od nowego okresu", async () => {
-    const result = await changeSubscriptionPrice("sandbox", "sub_1", {
-      newPriceExternalId: "student_monthly",
-      quantity: 1,
-      direction: "downgrade",
-    });
-
-    expect(result).toEqual({ ok: true, currentPeriodEnd: PERIOD_END_ISO });
-    // Żadnej natychmiastowej podmiany: opłacony okres należy się klientowi.
-    expect(h.subscriptions.update).not.toHaveBeenCalled();
-    expect(h.subscriptionSchedules.create).toHaveBeenCalledWith({ from_subscription: "sub_1" });
-    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith("sched_1", {
-      end_behavior: "release",
-      phases: [
-        {
-          items: [{ price: "price_old", quantity: 1 }],
-          start_date: 1_764_547_200,
-          end_date: PERIOD_END,
+  it("ODRZUCONA DOPŁATA (`pending_update`): wynik `payment_failed` z fakturą, nie sukces", async () => {
+    h.subscriptions.update.mockResolvedValue(
+      liveSub({
+        // Pozycje oczekującej zmiany niosą STARĄ cenę - operator nic nie podmienił.
+        pending_update: { expires_at: PERIOD_END, subscription_items: [] },
+        latest_invoice: {
+          id: "in_proration",
+          hosted_invoice_url: HOSTED,
+          payments: { data: [{ payment: { payment_intent: "pi_declined" } }] },
         },
-        { items: [{ price: "price_new", quantity: 1 }] },
-      ],
+      }),
+    );
+
+    expect(await upgrade()).toEqual({
+      ok: false,
+      error: PAYMENT_FAILED,
+      hostedInvoiceUrl: HOSTED,
+    });
+    expect(h.paymentIntents.retrieve).toHaveBeenCalledWith("pi_declined");
+  });
+
+  it("3DS (`requires_action`) to osobny wynik - zmiana czeka na potwierdzenie", async () => {
+    h.subscriptions.update.mockResolvedValue(
+      liveSub({
+        pending_update: { expires_at: PERIOD_END },
+        latest_invoice: {
+          id: "in_proration",
+          hosted_invoice_url: HOSTED,
+          payments: { data: [{ payment: { payment_intent: { status: "requires_action" } } }] },
+        },
+      }),
+    );
+
+    expect(await upgrade()).toMatchObject({ ok: false, error: PAYMENT_REQUIRES_ACTION });
+    expect(h.paymentIntents.retrieve).not.toHaveBeenCalled();
+  });
+
+  it("odmowa RZUCONA przez operatora (`card_declined`) daje ten sam wynik domenowy", async () => {
+    h.subscriptions.update.mockRejectedValue(
+      Object.assign(new Error("Your card was declined"), {
+        type: "StripeCardError",
+        code: "card_declined",
+        raw: { type: "card_error", code: "card_declined" },
+      }),
+    );
+    h.subscriptions.retrieve
+      .mockResolvedValueOnce(liveSub())
+      .mockResolvedValueOnce(
+        liveSub({ pending_update: {}, latest_invoice: { hosted_invoice_url: HOSTED } }),
+      );
+
+    expect(await upgrade()).toEqual({
+      ok: false,
+      error: PAYMENT_FAILED,
+      hostedInvoiceUrl: HOSTED,
     });
   });
 
+  it("zaplanowane anulowanie schodzi W TEJ SAMEJ oczekującej aktualizacji co nowa cena", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ cancel_at_period_end: true }));
+
+    const result = await upgrade();
+
+    expect(result).toMatchObject({ ok: true, effect: "applied", cancelAtPeriodEnd: false });
+    // Dawniej drugie wywołanie (cofnięcie flagi) emitowało drugie
+    // `customer.subscription.updated` z tej samej sekundy - lustro potrafiło
+    // zostać przy „kończy się". Operator przyjmuje flagę w oczekującej zmianie,
+    // więc wejdzie ona dopiero razem z opłaconą ceną.
+    expect(h.subscriptions.update).toHaveBeenCalledTimes(1);
+    expect(h.subscriptions.update).toHaveBeenCalledWith(
+      "sub_1",
+      {
+        items: [{ id: "si_1", price: "price_new", quantity: 1 }],
+        cancel_at_period_end: false,
+        proration_behavior: "always_invoice",
+        payment_behavior: "pending_if_incomplete",
+        expand: ["latest_invoice.payments"],
+      },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-plan-upgrade-/) },
+    );
+  });
+
+  it("upgrade przy dacie końca (`cancel_at` z portalu): data schodzi po dopłacie; jej błąd = koniec WCIĄŻ zaplanowany", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ cancel_at: PERIOD_END }));
+    h.subscriptions.update
+      .mockResolvedValueOnce(
+        liveSub({
+          cancel_at: PERIOD_END,
+          items: { data: [subscriptionItem({ price: { id: "price_new" } })] },
+        }),
+      )
+      .mockRejectedValueOnce(providerError("rate limited"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await upgrade()).toMatchObject({
+      ok: true,
+      effect: "applied",
+      cancelAtPeriodEnd: true,
+    });
+    // Daty `cancel_at` operator w oczekującej zmianie nie przyjmuje - pierwsze
+    // wywołanie jej nie niesie, drugie (po dopłacie) czyści ją pustym napisem.
+    expect(h.subscriptions.update.mock.calls[0]?.[1]).not.toHaveProperty("cancel_at");
+    expect(h.subscriptions.update.mock.calls[1]?.[1]).toEqual({
+      cancel_at: "",
+      metadata: { nes_ops_rev: "1" },
+    });
+    expect(optionsOf(h.subscriptions.update, 1).idempotencyKey).toMatch(
+      /^nes-sub-cancel-at-clear-/,
+    );
+    logged.mockRestore();
+  });
+
+  it("nieudana dopłata NIE odwołuje rezygnacji", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ cancel_at_period_end: true }));
+    h.subscriptions.update.mockResolvedValue(liveSub({ pending_update: {} }));
+
+    expect(await upgrade()).toMatchObject({ ok: false, error: PAYMENT_FAILED });
+    expect(h.subscriptions.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("upgrade zwalnia zaplanowany downgrade DOPIERO po udanej dopłacie", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({ schedule: { id: "sched_down", metadata: {} } }),
+    );
+
+    await upgrade();
+
+    expect(h.subscriptionSchedules.release).toHaveBeenCalledWith(
+      "sched_down",
+      {},
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+    // Odwrotna kolejność (przegląd #9/#41): odrzucona karta zostawiała klienta
+    // bez zaplanowanego downgrade'u, a odnowienie szło po wyższej cenie.
+    expect(h.subscriptions.update.mock.invocationCallOrder[0]).toBeLessThan(
+      h.subscriptionSchedules.release.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("odrzucona dopłata NIE zwalnia zaplanowanego downgrade'u", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({ schedule: { id: "sched_down", metadata: {} } }),
+    );
+    h.subscriptions.update.mockResolvedValue(
+      liveSub({ pending_update: {}, latest_invoice: { hosted_invoice_url: HOSTED } }),
+    );
+
+    expect(await upgrade()).toMatchObject({ ok: false, error: PAYMENT_FAILED });
+    expect(h.subscriptionSchedules.release).not.toHaveBeenCalled();
+  });
+
+  it("klucz: ponowienie z tego samego stanu - ten sam; po próbie z nową fakturą - nowy", async () => {
+    await upgrade();
+    await upgrade();
+    // Nieudana pierwsza próba zostawia nową fakturę jako `latest_invoice` -
+    // ponowienie po dodaniu karty MUSI być nową operacją, nie odpowiedzią z pamięci.
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ latest_invoice: "in_proration" }));
+    await upgrade();
+
+    const keys = [0, 1, 2].map((i) => optionsOf(h.subscriptions.update, i).idempotencyKey);
+    expect(keys[1]).toBe(keys[0]);
+    expect(keys[2]).not.toBe(keys[0]);
+  });
+
+  it("A -> B -> A -> B w ciągu doby: kolejne B to inny okres, więc inny klucz", async () => {
+    await upgrade();
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({
+        items: { data: [subscriptionItem({ current_period_start: PERIOD_END })] },
+      }),
+    );
+    await upgrade();
+
+    expect(optionsOf(h.subscriptions.update, 1).idempotencyKey).not.toBe(
+      optionsOf(h.subscriptions.update, 0).idempotencyKey,
+    );
+  });
+});
+
+describe("changeSubscriptionPrice - downgrade od nowego okresu", () => {
+  it("nie rusza bieżącej pozycji - harmonogram z fazą do końca okresu", async () => {
+    const result = await changeSubscriptionPrice("sandbox", "sub_1", {
+      newPriceExternalId: "student_monthly",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      direction: "downgrade",
+      effect: "scheduled",
+      currentPeriodEnd: PERIOD_END_ISO,
+      cancelAtPeriodEnd: false,
+    });
+    // Żadnej natychmiastowej podmiany: opłacony okres należy się klientowi.
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.create).toHaveBeenCalledWith(
+      { from_subscription: "sub_1" },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-create-/) },
+    );
+    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith(
+      "sched_1",
+      {
+        end_behavior: "release",
+        phases: [
+          {
+            items: [{ price: "price_old", quantity: 1 }],
+            start_date: PERIOD_START,
+            end_date: PERIOD_END,
+          },
+          { items: [{ price: "price_new", quantity: 1 }] },
+        ],
+        metadata: { nes_ops_rev: "1", nes_basis: BASIS },
+      },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-update-/) },
+    );
+  });
+
+  it("kierunek liczy ŻYWA cena: operator ma już pro, więc zejście na plus to downgrade", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({
+        items: {
+          data: [subscriptionItem({ price: { id: "price_pro", lookup_key: "pro_monthly" } })],
+        },
+      }),
+    );
+
+    const result = await changeSubscriptionPrice("sandbox", "sub_1", {
+      newPriceExternalId: "plus_monthly",
+    });
+
+    expect(result).toMatchObject({ ok: true, direction: "downgrade", effect: "scheduled" });
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
+  });
+
+  it("dołączony harmonogram jest AKTUALIZOWANY (drugi downgrade), nie zakładany drugi raz", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({
+        schedule: {
+          id: "sched_existing",
+          metadata: { nes_ops_rev: "4" },
+          current_phase: { start_date: PERIOD_START - 60, end_date: PERIOD_END },
+        },
+      }),
+    );
+
+    await changeSubscriptionPrice("sandbox", "sub_1", { newPriceExternalId: "student_monthly" });
+
+    expect(h.subscriptionSchedules.create).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith(
+      "sched_existing",
+      expect.objectContaining({
+        // Początek bieżącej fazy należy do harmonogramu - operator odrzuca jego zmianę.
+        phases: [expect.objectContaining({ start_date: PERIOD_START - 60 }), expect.anything()],
+        metadata: { nes_ops_rev: "5", nes_basis: BASIS },
+      }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+  });
+
+  it("downgrade na subskrypcji kończącej się zdejmuje flagę jawnie, a porażka harmonogramu ją przywraca", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ cancel_at_period_end: true }));
+    h.subscriptions.update.mockResolvedValue(
+      liveSub({ cancel_at_period_end: false, metadata: { nes_ops_rev: "1" } }),
+    );
+    h.subscriptionSchedules.update.mockRejectedValue(providerError("schedule conflict"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await changeSubscriptionPrice("sandbox", "sub_1", {
+      newPriceExternalId: "student_monthly",
+    });
+
+    expect(result).toMatchObject({ ok: false });
+    expect(h.subscriptions.update.mock.calls.map((c) => c[1])).toEqual([
+      { cancel_at_period_end: false, metadata: { nes_ops_rev: "1" } },
+      // Klient, który odchodził, nie zostaje po cichu z odnawialną subskrypcją.
+      { cancel_at_period_end: true, metadata: { nes_ops_rev: "2" } },
+    ]);
+    expect(optionsOf(h.subscriptions.update, 1).idempotencyKey).toMatch(/^nes-sub-cancel-restore-/);
+    logged.mockRestore();
+  });
+});
+
+describe("changeSubscriptionPrice - cele i stany, których nie przełączamy", () => {
   it("brak ceny u operatora przerywa zmianę planu przed dotknięciem subskrypcji", async () => {
     h.prices.list.mockResolvedValue({ data: [] });
 
     expect(
-      await changeSubscriptionPrice("sandbox", "sub_1", {
-        newPriceExternalId: "ghost_plan",
-        quantity: 1,
-        direction: "upgrade",
-      }),
+      await changeSubscriptionPrice("sandbox", "sub_1", { newPriceExternalId: "ghost_plan" }),
     ).toEqual({ ok: false, error: "price_missing" });
     expect(h.subscriptions.retrieve).not.toHaveBeenCalled();
     expect(h.subscriptions.update).not.toHaveBeenCalled();
   });
 
   it("subskrypcja bez pozycji nie jest modyfikowana", async () => {
-    h.subscriptions.retrieve.mockResolvedValue({ customer: "cus_1", items: { data: [] } });
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ items: { data: [] } }));
 
     expect(
-      await changeSubscriptionPrice("sandbox", "sub_1", {
-        newPriceExternalId: "pro_monthly",
-        quantity: 1,
-        direction: "upgrade",
-      }),
+      await changeSubscriptionPrice("sandbox", "sub_1", { newPriceExternalId: "pro_monthly" }),
     ).toEqual({ ok: false, error: "no_subscription_item" });
     expect(h.subscriptions.update).not.toHaveBeenCalled();
   });
 
-  it("przekazuje odmowę operatora zamiast ją połknąć", async () => {
-    h.subscriptions.update.mockRejectedValue(
-      providerError("Your card was declined", { code: "card_declined" }),
+  it.each([
+    ["decision_lab_seat", "plan_not_switchable"],
+    ["team_monthly_seat", "plan_kind_mismatch"],
+    ["plus_monthly", "same_plan"],
+    ["ghost_plan", "plan_not_switchable"],
+  ])("cel %s jest odmową %s, bez mutacji", async (target, error) => {
+    expect(
+      await changeSubscriptionPrice("sandbox", "sub_1", { newPriceExternalId: target }),
+    ).toEqual({ ok: false, error });
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.create).not.toHaveBeenCalled();
+  });
+
+  it("cena spoza katalogu na subskrypcji (darowizna, cena ad-hoc) nie staje się planem", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({ items: { data: [subscriptionItem({ price: { id: "price_adhoc" } })] } }),
     );
 
     expect(
-      await changeSubscriptionPrice("sandbox", "sub_1", {
-        newPriceExternalId: "pro_monthly",
-        quantity: 1,
-        direction: "upgrade",
-      }),
-    ).toEqual({
-      ok: false,
-      error: "Your card was declined (invalid_request_error, card_declined)",
-    });
+      await changeSubscriptionPrice("sandbox", "sub_1", { newPriceExternalId: "pro_monthly" }),
+    ).toEqual({ ok: false, error: "subscription_not_switchable" });
+  });
+
+  it.each([
+    [{ status: "past_due" }, "subscription_not_active"],
+    [{ status: "paused" }, "subscription_not_active"],
+    [{ status: "incomplete" }, "subscription_not_active"],
+    [{ pause_collection: { behavior: "void" } }, "subscription_paused"],
+  ])("stan %o jest odmową %s - najpierw zapłata/wznowienie", async (over, error) => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub(over));
+
+    expect(
+      await changeSubscriptionPrice("sandbox", "sub_1", { newPriceExternalId: "pro_monthly" }),
+    ).toEqual({ ok: false, error });
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
+  });
+
+  it("odmowa operatora inna niż płatność wraca z treścią", async () => {
+    h.subscriptions.update.mockRejectedValue(NO_SUCH_SUB);
+
+    expect(
+      await changeSubscriptionPrice("sandbox", "sub_1", { newPriceExternalId: "pro_monthly" }),
+    ).toEqual({ ok: false, error: NO_SUCH_SUB_TEXT });
   });
 });
 
 describe("updateSubscriptionQuantity", () => {
-  it("brak zmiany liczby miejsc nie generuje ruchu do operatora", async () => {
-    const result = await updateSubscriptionQuantity("sandbox", "sub_1", {
+  const seats = (quantity: number) =>
+    updateSubscriptionQuantity("sandbox", "sub_1", {
       priceExternalId: "team_monthly_seat",
-      quantity: 4,
+      quantity,
       previousQuantity: 4,
     });
 
-    expect(result).toEqual({ ok: true, quantity: 4 });
-    expect(h.prices.list).not.toHaveBeenCalled();
+  beforeEach(() => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ items: { data: [teamItem(4)] } }));
+    h.subscriptions.update.mockResolvedValue(liveSub({ items: { data: [teamItem(6)] } }));
+  });
+
+  it("brak zmiany liczby miejsc nie generuje mutacji", async () => {
+    expect(await seats(4)).toEqual({ ok: true, quantity: 4, effect: "applied" });
     expect(h.subscriptions.update).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.create).not.toHaveBeenCalled();
   });
 
-  it("dołożenie miejsc rozlicza się natychmiast", async () => {
-    const result = await updateSubscriptionQuantity("sandbox", "sub_1", {
-      priceExternalId: "team_monthly_seat",
-      quantity: 6,
-      previousQuantity: 4,
-    });
+  it("dołożenie miejsc: tylko ilość, z dopłatą przed zmianą i kluczem", async () => {
+    expect(await seats(6)).toEqual({ ok: true, quantity: 6, effect: "applied" });
+    expect(h.subscriptions.update).toHaveBeenCalledWith(
+      "sub_1",
+      {
+        // Bez `price`: zmiana ilości nie może przy okazji przełączyć ceny.
+        items: [{ id: "si_1", quantity: 6 }],
+        proration_behavior: "always_invoice",
+        payment_behavior: "pending_if_incomplete",
+        expand: ["latest_invoice.payments"],
+      },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-seats-increase-/) },
+    );
+  });
 
-    expect(result).toEqual({ ok: true, quantity: 6 });
-    expect(h.subscriptions.update).toHaveBeenCalledWith("sub_1", {
-      items: [{ id: "si_1", price: "price_new", quantity: 6 }],
-      proration_behavior: "always_invoice",
+  it("odrzucona dopłata za miejsca: `payment_failed`, miejsc nie przybywa", async () => {
+    h.subscriptions.update.mockResolvedValue(
+      liveSub({
+        items: { data: [teamItem(4)] },
+        pending_update: {},
+        latest_invoice: { hosted_invoice_url: HOSTED },
+      }),
+    );
+
+    expect(await seats(6)).toEqual({
+      ok: false,
+      error: PAYMENT_FAILED,
+      hostedInvoiceUrl: HOSTED,
     });
   });
 
-  it("zdjęcie miejsc idzie bez proraty (opłacony okres należy się klientowi)", async () => {
-    const result = await updateSubscriptionQuantity("sandbox", "sub_1", {
-      priceExternalId: "team_monthly_seat",
+  it("zdjęcie miejsc idzie HARMONOGRAMEM od nowego okresu, nie od razu", async () => {
+    expect(await seats(2)).toEqual({
+      ok: true,
       quantity: 2,
-      previousQuantity: 4,
+      effect: "scheduled",
+      effectiveAt: PERIOD_END_ISO,
     });
+    // Dawniej: `update({ quantity: 2, proration_behavior: "none" })` - miejsca
+    // znikały od razu, bez zwrotu, wbrew obietnicy „od kolejnego okresu".
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith(
+      "sched_1",
+      expect.objectContaining({
+        phases: [
+          {
+            items: [{ price: "price_team", quantity: 4 }],
+            start_date: PERIOD_START,
+            end_date: PERIOD_END,
+          },
+          { items: [{ price: "price_team", quantity: 2 }] },
+        ],
+      }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+  });
 
-    expect(result).toEqual({ ok: true, quantity: 2 });
-    expect(h.subscriptions.update).toHaveBeenCalledWith("sub_1", {
-      items: [{ id: "si_1", price: "price_new", quantity: 2 }],
-      proration_behavior: "none",
+  it("powrót do bieżącej liczby zwalnia zaplanowane zmniejszenie", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({
+        items: { data: [teamItem(4)] },
+        schedule: scheduleWithNext("sched_seats", { price: "price_team", quantity: 2 }),
+      }),
+    );
+
+    expect(await seats(4)).toEqual({ ok: true, quantity: 4, effect: "applied" });
+    expect(h.subscriptionSchedules.release).toHaveBeenCalledWith(
+      "sched_seats",
+      {},
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
+  });
+
+  it("powrót do bieżącej liczby przy zaplanowanej zmianie SAMEJ ceny: harmonogram nietknięty", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({
+        items: { data: [teamItem(4)] },
+        schedule: scheduleWithNext("sched_price", { price: "price_team_next", quantity: 4 }),
+      }),
+    );
+
+    expect(await seats(4)).toEqual({ ok: true, quantity: 4, effect: "applied" });
+    // Dawniej: zwolnienie - odnowienie po starej cenie zamiast zaplanowanej.
+    expect(h.subscriptionSchedules.release).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.update).not.toHaveBeenCalled();
+  });
+
+  it("zmiana ceny razem ze zmianą miejsc: fazy przepisane - cena zostaje, ilość wraca do bieżącej", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({
+        items: { data: [teamItem(4)] },
+        schedule: {
+          ...scheduleWithNext("sched_mixed", { price: "price_team_next", quantity: 2 }),
+          metadata: { nes_ops_rev: "2" },
+        },
+      }),
+    );
+
+    expect(await seats(4)).toEqual({ ok: true, quantity: 4, effect: "applied" });
+    expect(h.subscriptionSchedules.release).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.create).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith(
+      "sched_mixed",
+      {
+        end_behavior: "release",
+        phases: [
+          {
+            items: [{ price: "price_team", quantity: 4 }],
+            start_date: PERIOD_START,
+            end_date: PERIOD_END,
+          },
+          { items: [{ price: "price_team_next", quantity: 4 }] },
+        ],
+        metadata: { nes_ops_rev: "3", nes_basis: BASIS },
+      },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-update-/) },
+    );
+  });
+
+  it("harmonogram bez czytelnej fazy następnej NIE jest zwalniany na ślepo", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({ items: { data: [teamItem(4)] }, schedule: { id: "sched_opaque", metadata: {} } }),
+    );
+
+    expect(await seats(4)).toEqual({ ok: true, quantity: 4, effect: "applied" });
+    expect(h.subscriptionSchedules.release).not.toHaveBeenCalled();
+  });
+
+  it("kierunek liczy ŻYWA ilość, nie lustro (`previousQuantity`)", async () => {
+    // Lustro mówi 4, operator ma już 8 (webhook w drodze): 6 to ZMNIEJSZENIE.
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ items: { data: [teamItem(8)] } }));
+
+    expect(await seats(6)).toEqual({
+      ok: true,
+      quantity: 6,
+      effect: "scheduled",
+      effectiveAt: PERIOD_END_ISO,
     });
+    expect(h.subscriptions.update).not.toHaveBeenCalled();
   });
 
   it("liczba miejsc jest przycinana do zakresu 1-500", async () => {
-    expect(
-      await updateSubscriptionQuantity("sandbox", "sub_1", {
-        priceExternalId: "team_monthly_seat",
-        quantity: 9_000,
-        previousQuantity: 4,
-      }),
-    ).toEqual({ ok: true, quantity: 500 });
-
-    expect(
-      await updateSubscriptionQuantity("sandbox", "sub_1", {
-        priceExternalId: "team_monthly_seat",
-        quantity: -3,
-        previousQuantity: 4,
-      }),
-    ).toEqual({ ok: true, quantity: 1 });
+    expect(await seats(9_000)).toMatchObject({ ok: true, quantity: 500 });
+    expect(await seats(-3)).toMatchObject({ ok: true, quantity: 1 });
   });
 
-  it("brak ceny u operatora przerywa zmianę liczby miejsc", async () => {
-    h.prices.list.mockResolvedValue({ data: [] });
+  it("subskrypcja na innej cenie niż deklarowana nie dostaje zmiany ilości", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(liveSub());
 
-    expect(
-      await updateSubscriptionQuantity("sandbox", "sub_1", {
-        priceExternalId: "ghost_plan",
-        quantity: 6,
-        previousQuantity: 4,
-      }),
-    ).toEqual({ ok: false, error: "price_missing" });
+    expect(await seats(6)).toEqual({ ok: false, error: "not_per_seat_plan" });
     expect(h.subscriptions.update).not.toHaveBeenCalled();
+  });
+
+  it("wstrzymana albo zaległa subskrypcja nie dostaje miejsc", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({ status: "past_due", items: { data: [teamItem(4)] } }),
+    );
+
+    expect(await seats(6)).toEqual({ ok: false, error: "subscription_not_active" });
   });
 });
 

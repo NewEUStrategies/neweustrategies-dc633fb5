@@ -16,7 +16,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
   subscriptions: { update: vi.fn(), retrieve: vi.fn() },
-  subscriptionSchedules: { create: vi.fn(), list: vi.fn(), update: vi.fn() },
+  subscriptionSchedules: {
+    create: vi.fn(),
+    list: vi.fn(),
+    update: vi.fn(),
+    release: vi.fn(),
+    retrieve: vi.fn(),
+  },
   prices: { list: vi.fn() },
 }));
 
@@ -46,17 +52,24 @@ const PERIOD_END = 1_767_225_600;
 const PERIOD_END_ISO = new Date(Date.UTC(2026, 0, 1)).toISOString();
 const PERIOD_START = 1_764_547_200;
 
-const downgrade = {
-  newPriceExternalId: "student_monthly",
-  quantity: 1,
-  direction: "downgrade" as const,
-};
+const downgrade = { newPriceExternalId: "student_monthly" };
+
+/** Cena bieżąca jako obiekt z `lookup_key` - tak SDK oddaje pozycję subskrypcji. */
+const plusPrice = (id = "price_old") => ({ id, lookup_key: "plus_monthly" });
 
 beforeEach(() => {
   vi.clearAllMocks();
   h.prices.list.mockResolvedValue({ data: [{ id: "price_new" }] });
   h.subscriptionSchedules.create.mockResolvedValue({ id: "sched_1" });
   h.subscriptionSchedules.update.mockResolvedValue({ id: "sched_1" });
+  h.subscriptionSchedules.release.mockResolvedValue({ id: "sched_1" });
+  // Założony harmonogram jest żywy - potwierdzenie odczytem (ochrona przed
+  // odpowiedzią z pamięci klucza) nie zmienia tu niczego.
+  h.subscriptionSchedules.retrieve.mockImplementation(async (id: string) => ({
+    id,
+    status: "active",
+    subscription: "sub_1",
+  }));
   h.subscriptions.update.mockResolvedValue({});
 });
 
@@ -71,31 +84,46 @@ describe("changeSubscriptionPrice - downgrade na rozwiniętych obiektach SDK", (
             quantity: 2,
             current_period_start: PERIOD_START,
             current_period_end: PERIOD_END,
-            price: "price_old_plain",
+            price: plusPrice("price_old_plain"),
           },
         ],
       },
     });
 
-    const result = await changeSubscriptionPrice("sandbox", "sub_1", { ...downgrade, quantity: 2 });
+    const result = await changeSubscriptionPrice("sandbox", "sub_1", downgrade);
 
-    expect(result).toEqual({ ok: true, currentPeriodEnd: PERIOD_END_ISO });
-    expect(h.subscriptionSchedules.create).toHaveBeenCalledWith({ from_subscription: "sub_1" });
+    expect(result).toEqual({
+      ok: true,
+      direction: "downgrade",
+      effect: "scheduled",
+      currentPeriodEnd: PERIOD_END_ISO,
+      cancelAtPeriodEnd: false,
+    });
+    expect(h.subscriptionSchedules.create).toHaveBeenCalledWith(
+      { from_subscription: "sub_1" },
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
     // Identyfikator harmonogramu znamy z `create` - lista po kliencie (z jego
     // kształtem obiektu) nie jest już potrzebna.
     expect(h.subscriptionSchedules.list).not.toHaveBeenCalled();
-    // Cena podana jako SAM identyfikator przechodzi do fazy bieżącej bez zmian.
-    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith("sched_1", {
-      end_behavior: "release",
-      phases: [
-        {
-          items: [{ price: "price_old_plain", quantity: 2 }],
-          start_date: PERIOD_START,
-          end_date: PERIOD_END,
-        },
-        { items: [{ price: "price_new", quantity: 2 }] },
-      ],
-    });
+    // Liczba miejsc z ŻYWEJ pozycji przechodzi do obu faz bez zmian.
+    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith(
+      "sched_1",
+      {
+        end_behavior: "release",
+        phases: [
+          {
+            items: [{ price: "price_old_plain", quantity: 2 }],
+            start_date: PERIOD_START,
+            end_date: PERIOD_END,
+          },
+          { items: [{ price: "price_new", quantity: 2 }] },
+        ],
+        // Odcisk pozycji, od których zaplanowano zmianę (`nes_basis`).
+        metadata: { nes_ops_rev: "1", nes_basis: expect.stringMatching(/^[0-9a-f]{40}$/) },
+      },
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
     // Downgrade NIE podmienia pozycji od razu - opłacony okres należy się klientowi.
     expect(h.subscriptions.update).not.toHaveBeenCalled();
   });
@@ -110,7 +138,7 @@ describe("changeSubscriptionPrice - downgrade na rozwiniętych obiektach SDK", (
             quantity: 1,
             current_period_start: PERIOD_START,
             current_period_end: PERIOD_END,
-            price: { id: "price_old" },
+            price: plusPrice(),
           },
         ],
       },
@@ -124,15 +152,17 @@ describe("changeSubscriptionPrice - downgrade na rozwiniętych obiektach SDK", (
 
     const result = await changeSubscriptionPrice("sandbox", "sub_1", downgrade);
 
-    expect(result).toEqual({ ok: true, currentPeriodEnd: PERIOD_END_ISO });
+    expect(result).toMatchObject({ ok: true, currentPeriodEnd: PERIOD_END_ISO });
     expect(h.subscriptionSchedules.update).toHaveBeenCalledTimes(1);
     expect(h.subscriptionSchedules.update).toHaveBeenCalledWith(
       "sched_mine",
       expect.objectContaining({ end_behavior: "release" }),
+      expect.anything(),
     );
     // Cudzy harmonogram nie może dostać faz tej subskrypcji.
     expect(h.subscriptionSchedules.update).not.toHaveBeenCalledWith(
       "sched_other",
+      expect.anything(),
       expect.anything(),
     );
   });
@@ -140,34 +170,36 @@ describe("changeSubscriptionPrice - downgrade na rozwiniętych obiektach SDK", (
   it("pozycja bez dat okresu: brak daty końca zamiast 1970-01-01", async () => {
     h.subscriptions.retrieve.mockResolvedValue({
       customer: "cus_1",
-      items: { data: [{ id: "si_1", quantity: 1, price: { id: "price_old" } }] },
+      items: { data: [{ id: "si_1", quantity: 1, price: plusPrice() }] },
     });
 
     const result = await changeSubscriptionPrice("sandbox", "sub_1", downgrade);
 
-    expect(result).toEqual({ ok: true, currentPeriodEnd: null });
+    expect(result).toMatchObject({ ok: true, currentPeriodEnd: null });
   });
 
   it("upgrade bez daty końca w odpowiedzi operatora zwraca `null`, nie zmyśloną datę", async () => {
     h.subscriptions.retrieve.mockResolvedValue({
       customer: "cus_1",
-      items: { data: [{ id: "si_1", quantity: 1, price: { id: "price_old" } }] },
+      items: { data: [{ id: "si_1", quantity: 0, price: plusPrice() }] },
     });
     h.subscriptions.update.mockResolvedValue({ items: { data: [] } });
 
     const result = await changeSubscriptionPrice("sandbox", "sub_1", {
       newPriceExternalId: "pro_monthly",
-      quantity: 0,
-      direction: "upgrade",
     });
 
-    expect(result).toEqual({ ok: true, currentPeriodEnd: null });
-    // Ilość 0 z wiersza nie może wyzerować subskrypcji - minimum to jedno miejsce.
-    expect(h.subscriptions.update).toHaveBeenCalledWith("sub_1", {
-      items: [{ id: "si_1", price: "price_new", quantity: 1 }],
-      proration_behavior: "always_invoice",
-      cancel_at_period_end: false,
-    });
+    expect(result).toMatchObject({ ok: true, effect: "applied", currentPeriodEnd: null });
+    // Ilość 0 z odpowiedzi nie może wyzerować subskrypcji - minimum to jedno miejsce.
+    expect(h.subscriptions.update).toHaveBeenCalledWith(
+      "sub_1",
+      expect.objectContaining({
+        items: [{ id: "si_1", price: "price_new", quantity: 1 }],
+        proration_behavior: "always_invoice",
+        payment_behavior: "pending_if_incomplete",
+      }),
+      expect.objectContaining({ idempotencyKey: expect.any(String) }),
+    );
   });
 });
 
@@ -185,10 +217,14 @@ describe("updateSubscriptionQuantity - odmowy i braki", () => {
     expect(h.subscriptions.update).not.toHaveBeenCalled();
   });
 
-  it("odmowa operatora przy dokładaniu miejsc wraca z treścią błędu, nie jako sukces", async () => {
+  it("odmowa karty przy dokładaniu miejsc wraca jako `payment_failed`, nie jako sukces", async () => {
     h.subscriptions.retrieve.mockResolvedValue({
       customer: "cus_1",
-      items: { data: [{ id: "si_1", quantity: 3, price: { id: "price_team" } }] },
+      items: {
+        data: [
+          { id: "si_1", quantity: 3, price: { id: "price_team", lookup_key: "team_monthly_seat" } },
+        ],
+      },
     });
     h.subscriptions.update.mockRejectedValue(
       Object.assign(new Error("Your card was declined"), {
@@ -203,10 +239,9 @@ describe("updateSubscriptionQuantity - odmowy i braki", () => {
       previousQuantity: 3,
     });
 
-    expect(result).toEqual({
-      ok: false,
-      error: "Your card was declined (card_error, card_declined)",
-    });
+    // Faktury nie ma (odczyt po odmowie nie pokazuje oczekującej zmiany) -
+    // wynik i tak mówi „zmiana nie weszła", a miejsc nie przybywa.
+    expect(result).toEqual({ ok: false, error: "payment_failed", hostedInvoiceUrl: null });
   });
 
   it("awaria odczytu subskrypcji też kończy się błędem, nie `ok`", async () => {

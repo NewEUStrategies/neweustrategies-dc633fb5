@@ -107,6 +107,7 @@ export const donatePl = {
     secure: "Płatność obsługuje operator kartowy - nie przechowujemy danych karty.",
     errors: {
       amount_out_of_range: "Kwota jest poza dozwolonym zakresem.",
+      amount_not_allowed: "Wybierz jedną z sugerowanych kwot.",
       donations_disabled: "Zbiórka jest chwilowo wyłączona.",
       recurring_disabled: "Wsparcie cykliczne jest wyłączone.",
       rate_limited: "Zbyt wiele prób. Spróbuj ponownie za kilka minut.",
@@ -219,6 +220,7 @@ export const donateEn = {
     secure: "Payments are processed by our card provider - we never store card data.",
     errors: {
       amount_out_of_range: "That amount is outside the allowed range.",
+      amount_not_allowed: "Please choose one of the suggested amounts.",
       donations_disabled: "Donations are temporarily closed.",
       recurring_disabled: "Recurring giving is disabled.",
       rate_limited: "Too many attempts. Please try again in a few minutes.",

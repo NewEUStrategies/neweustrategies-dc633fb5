@@ -411,9 +411,20 @@ export function EventPreviewCanvas({
     >
       {showMe ? (
         <EventPortalContent className={EVENT_PORTAL_CONTENT_WIDE_CLASS}>
-          <EventModuleHero module="me" eventTitle={title} moduleLabel={t("eventMe.tab")}
-            crumbs={[{ label: t("eventFront.header.breadcrumbEvents") }, { label: title }, { label: t("eventMe.tab") }]}
-            breadcrumbLinks={false} hasDocument={false}>{null}</EventModuleHero>
+          <EventModuleHero
+            module="me"
+            eventTitle={title}
+            moduleLabel={t("eventMe.tab")}
+            crumbs={[
+              { label: t("eventFront.header.breadcrumbEvents") },
+              { label: title },
+              { label: t("eventMe.tab") },
+            ]}
+            breadcrumbLinks={false}
+            hasDocument={false}
+          >
+            {null}
+          </EventModuleHero>
           <PreviewMePanel slug={model.slug} />
         </EventPortalContent>
       ) : page === null ? (

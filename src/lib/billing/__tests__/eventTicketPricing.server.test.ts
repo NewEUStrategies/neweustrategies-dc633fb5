@@ -43,6 +43,10 @@ vi.mock("@/lib/events/ticketAllowance.server", async () => {
 // wywołania `*_for_user` do TEJ SAMEJ tabeli odpowiedzi co klient kupującego.
 const couponAdmin = vi.hoisted(() => ({
   forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+  policy: null as null | {
+    stacks_with_promotions: boolean | null;
+    max_total_discount_percent: number | null;
+  },
 }));
 
 vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
@@ -50,15 +54,19 @@ vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
   resolveTenantIdForHost: async () => "tenant-alfa",
 }));
 
-vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: {
-    rpc: (fn: string, args: Record<string, unknown>) => {
-      if (couponAdmin.forward === null)
-        throw new Error("test: brak przekierowania roli serwisowej");
-      return couponAdmin.forward(fn, args);
+vi.mock("@/integrations/supabase/client.server", async () => {
+  const { couponPolicyAdminFrom } = await import("@/test/billing/fixtures");
+  return {
+    supabaseAdmin: {
+      rpc: (fn: string, args: Record<string, unknown>) => {
+        if (couponAdmin.forward === null)
+          throw new Error("test: brak przekierowania roli serwisowej");
+        return couponAdmin.forward(fn, args);
+      },
+      from: couponPolicyAdminFrom(() => couponAdmin.policy),
     },
-  },
-}));
+  };
+});
 
 const {
   applyEventTicketCoupon,
@@ -103,6 +111,7 @@ beforeEach(() => {
   rpcCalls = [];
   rpcResponses = new Map();
   couponAdmin.forward = recordedRpc;
+  couponAdmin.policy = null;
   rpcResponses.set(
     "event_ticket_checkout_quote_for_user",
     ok({
@@ -205,6 +214,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
       discountCents: 3000,
       finalCents: 27000,
       perSeatCents: null,
+      capped: false,
     });
   });
 
@@ -296,6 +306,7 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
       discountCents: 6000,
       finalCents: 24000,
       perSeatCents: 2000,
+      capped: false,
     });
     expect(fromObject).toEqual(fromRow);
   });
@@ -320,6 +331,7 @@ describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 202610012
       discountCents: 3000,
       finalCents: 27000,
       perSeatCents: null,
+      capped: false,
     });
   });
 
@@ -401,6 +413,7 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
       discountCents: 0,
       totalCents: 10000,
       couponError: null,
+      freeWithCode: false,
       // Bilet z podatkiem DOLICZANYM - ekran dopisuje „+ podatek" do sumy.
       taxMode: "exclusive",
       planRedemption: false,
@@ -483,6 +496,41 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
       coupon: { code: "PROC10", kind: "percent", percent: 10, perSeatCents: null },
       discountCents: 1000,
       totalCents: 9000,
+    });
+  });
+
+  it("limit łącznego rabatu przycina kod: podgląd mówi `capped`, a nie „-10%” (TIX-13a)", async () => {
+    rpcResponses.set(
+      "validate_event_ticket_coupon_for_user",
+      ok([
+        {
+          ok: true,
+          coupon_id: COUPON_ID,
+          discount_cents: 1000,
+          final_cents: 9000,
+          discount_kind: "percent",
+          discount_percent: 10,
+        },
+      ]),
+    );
+
+    // Cena regularna 120, faza last minute zdjęła już 20; limit 20% (24)
+    // zostawia kodowi -10% (10) tylko 4 - procent kodu przestaje być prawdą.
+    couponAdmin.policy = { stacks_with_promotions: true, max_total_discount_percent: 20 };
+
+    const quote = await quoteEventTicketOrder(client(), {
+      userId: USER_ID,
+      eventId: EVENT_ID,
+      ticketTypeId: TICKET_ID,
+      registrationId: null,
+      couponCode: "proc10",
+    });
+
+    expect(quote).toMatchObject({
+      coupon: { code: "PROC10", kind: "percent", perSeatCents: null, capped: true },
+      discountCents: 400,
+      totalCents: 9600,
+      freeWithCode: false,
     });
   });
 

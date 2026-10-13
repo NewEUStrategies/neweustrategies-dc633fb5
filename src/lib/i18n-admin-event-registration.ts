@@ -82,7 +82,7 @@ export const adminEventRegistrationPl = {
     refundJournal: {
       title: "Zwroty zgłoszeń",
       description:
-        "Ostatnie 100 zleceń. Odrzucenie i anulowanie opłaconego zgłoszenia oraz rezygnacja w terminie zwrotu zlecają zwrot automatycznie. Rezygnacja po terminie, wspólna wpłata grupy i wpłata poza operatorem czekają tu na Twoją decyzję.",
+        "Ostatnie 100 zwrotów. Odrzucenie opłaconego zgłoszenia zleca zwrot automatycznie. Zlecenie, które wymaga decyzji - wspólna płatność grupy, wyczerpane próby, zwrot odrzucony albo niepotwierdzony przez operatora - czeka tutaj, a administratorzy dostają powiadomienie.",
       refresh: "Odśwież zwroty",
       loadError: "Nie udało się pobrać zwrotów. Spróbuj ponownie.",
       loading: "Ładowanie zwrotów",
@@ -92,41 +92,31 @@ export const adminEventRegistrationPl = {
       manualOrder: "Wpłata poza operatorem płatności (bez zamówienia)",
       amount: "Kwota: {{amount}}",
       attempts: "Próby: {{count}}",
-      reviewNote: "Notatka decyzji: {{note}}",
+      // Zlecenie w `needs_review` bez powodu (sprzed 20261012120000) - powody
+      // niżej mają własne, konkretne wskazówki.
+      reviewHint: "To zlecenie wymaga decyzji organizatora. Sprawdź dziennik płatności.",
       failedHint:
-        "Operator płatności odrzucił zwrot. System ponawia do 10 prób - potem zdecyduj tutaj: ponów zwrot albo zamknij zlecenie z notatką.",
-      origin: {
-        organizer_rejected: "Odrzucenie przez organizatora",
-        organizer_cancelled: "Anulowanie przez organizatora",
-        participant_cancelled: "Rezygnacja uczestnika",
-        system: "Zamknięcie bez decyzji o zwrocie",
-      },
-      reason: {
-        outside_refund_window:
-          "Uczestnik zrezygnował po terminie zwrotu - zdecyduj, czy zwracasz wpłatę.",
-        refund_disabled: "Wydarzenie nie ma samodzielnych zwrotów - zdecyduj, czy zwracasz wpłatę.",
-        shared_payment:
-          "Ta wpłata obejmuje aktywne zgłoszenia grupy. Zwrot całości przez operatora jest zablokowany - rozlicz część w panelu płatności albo zamknij zlecenie z notatką.",
-        manual_payment:
-          "Wpłata przeszła poza operatorem płatności. Oddaj pieniądze poza systemem i oznacz zwrot albo zamknij zlecenie z notatką.",
-        organizer_waived: "Organizator zdecydował: bez zwrotu.",
-        closed_without_refund_decision:
-          "Opłacone zgłoszenie zamknięto bez decyzji o zwrocie - zdecyduj, czy zwracasz wpłatę.",
-      },
-      actions: {
-        refund: "Zwróć przez operatora",
-        markRefunded: "Oznacz jako zwrócone",
-        dismiss: "Nie zwracaj",
-        confirm: "Potwierdź decyzję",
-        back: "Wróć",
-      },
-      noteLabel: "Notatka wewnętrzna (opcjonalnie)",
-      noteRequiredLabel: "Notatka wewnętrzna - dlaczego bez zwrotu (wymagana)",
-      noteHint: "Widzą ją tylko organizatorzy. Nie trafia do uczestnika.",
-      toasts: {
-        refund: "Zwrot przekazany do operatora płatności.",
-        markRefunded: "Zwrot oznaczony jako wykonany.",
-        dismiss: "Zlecenie zamknięte bez zwrotu.",
+        "Sprawdź dziennik płatności. System ponawia do {{budget}} prób; po ostatniej nieudanej zlecenie przejdzie do decyzji, a administratorzy dostaną powiadomienie.",
+      lastError: "Ostatni błąd operatora: {{error}}",
+      escalated: "Administratorzy powiadomieni: {{date}}",
+      // Jeden wpis na każdą wartość CHECK-a `event_refund_jobs_review_reason_check`.
+      reasons: {
+        active_registrations_share_payment: {
+          label: "Wspólna płatność grupy",
+          hint: "Ta płatność obejmuje aktywne zgłoszenia. Rozlicz zwrot częściowy w panelu płatności.",
+        },
+        attempts_exhausted: {
+          label: "Wyczerpano próby zwrotu",
+          hint: "Automatyczny zwrot nie powiódł się przy żadnej próbie. Zleć zwrot ręcznie u operatora płatności.",
+        },
+        provider_refund_failed: {
+          label: "Operator odrzucił zwrot",
+          hint: "Operator płatności nie wykonał zwrotu - pieniądze nie wróciły do uczestnika. Zleć zwrot inną drogą.",
+        },
+        refund_unconfirmed: {
+          label: "Zwrot bez potwierdzenia",
+          hint: "Operator przyjął zlecenie ponad {{days}} dni temu i wciąż go nie potwierdził. Sprawdź status zwrotu w panelu operatora płatności.",
+        },
       },
       states: {
         pending: "Oczekuje",
@@ -731,6 +721,33 @@ export const adminEventRegistrationPl = {
     },
     // PAKIETY GRUPOWE. Jeden platnik, wiele imiennych miejsc - slownictwo
     // celowo mowi „miejsce", a nie „bilet": bilet kupuje sie dla siebie.
+    // Profil podatkowy biletu i pakietu (TIX-09, 20261012130200) - wspólna
+    // molekuła `TaxProfileFields` w oknie biletu i pakietu.
+    taxProfile: {
+      section: "Podatek na fakturze",
+      vatRate: "Stawka VAT",
+      vatRateHint:
+        "Stawka pozycji na fakturze i proformie. Stawkę liczoną w kasie Stripe ustala kod podatkowy poniżej.",
+      rateDefaultTenant: "Domyślna stawka organizatora",
+      rateDefaultTicket: "Jak bilet pakietu",
+      rates: {
+        "23": "23%",
+        "8": "8%",
+        "5": "5%",
+        "0": "0%",
+        zw: "zw - zwolniona",
+        np: "np - nie podlega",
+      },
+      vatExemptBasis: "Podstawa zwolnienia",
+      vatExemptBasisHint:
+        "Przepis zwalniający sprzedaż z VAT, np. art. 43 ust. 1 pkt 29 ustawy o VAT. Puste = podstawa z ustawień faktur.",
+      vatExemptBasisTooLong: "Podstawa ma {{length}} znaków - skróć ją do {{max}}.",
+      stripeTaxCode: "Kod podatkowy Stripe",
+      stripeTaxCodeHint: "Postać txcd_ i osiem cyfr. Puste = kod domyślny z ustawień Stripe Tax.",
+      stripeTaxCodeInvalid: "Kod podatkowy Stripe ma postać txcd_ i osiem cyfr, np. txcd_10000000.",
+      unavailable:
+        "Profil podatkowy będzie dostępny po aktualizacji bazy danych - pozostałe pola zapiszą się bez niego.",
+    },
     packages: {
       title: "Pakiety grupowe",
       subtitle:
@@ -782,7 +799,13 @@ export const adminEventRegistrationPl = {
         audience: "Odbiorca pakietu",
         seats: "Liczba miejsc",
         seatsHint: "Ile osób obejmuje jeden zakup pakietu.",
-        priceCents: "Cena pakietu (w groszach)",
+        // TIX-14a: cena w jednostce głównej waluty, nie w groszach.
+        price: "Cena pakietu",
+        priceHint: "Kwota w walucie pakietu, np. 899,00 albo 899 - nie w groszach.",
+        priceFormat: {
+          PLN: "Podaj cenę w złotych, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+          EUR: "Podaj cenę w euro, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+        },
         currency: "Waluta",
         quota: "Limit sprzedanych pakietów",
         quotaHint: "Puste pole = bez limitu.",
@@ -792,6 +815,27 @@ export const adminEventRegistrationPl = {
         requiresVerification: "Wymaga weryfikacji organizatora",
         active: "Aktywny",
         sortOrder: "Kolejność",
+        // TIX-07 / TIX-09: warunki zakupu i profil podatkowy pakietu.
+        termsSection: "Warunki zakupu",
+        admitBeforePayment: "Wpuszczaj przed opłaceniem zamówienia",
+        admitBeforePaymentHint:
+          "Wyłączone: delegat, który przyjmie zaproszenie, dostaje kod QR dopiero po opłaceniu zamówienia. Włączone: ufasz fakturze - kod QR wychodzi od razu.",
+        paymentTermsDays: "Termin płatności (dni)",
+        paymentTermsDaysHint:
+          "Ile dni kupujący ma na opłacenie zamówienia złożonego samodzielnie. Potem nieopłacone zamówienie wygasa, a miejsca wracają do puli - najpóźniej w chwili rozpoczęcia wydarzenia.",
+        paymentTermsDaysRange: "Termin płatności to pełna liczba dni od {{min}} do {{max}}.",
+        maxOpenOrders: "Nieopłacone zamówienia na kupującego",
+        maxOpenOrdersHint:
+          "Ile nieopłaconych zamówień na to wydarzenie jeden kupujący może mieć naraz, kupując ten pakiet. Puste pole = bez limitu.",
+        maxOpenOrdersRange:
+          "Limit to pełna liczba od {{min}} do {{max}} albo puste pole (bez limitu).",
+        termsLoading: "Wczytywanie warunków zakupu i profilu podatkowego…",
+        termsUnavailable:
+          "Warunki zakupu i profil podatkowy pakietu będą dostępne po aktualizacji bazy danych - pozostałe pola zapiszą się bez nich.",
+        termsLoadFailed:
+          "Nie udało się wczytać warunków zakupu i profilu podatkowego ({{reason}}) - zapis pakietu ich nie zmieni.",
+        termsMissing:
+          "Warunki zakupu i profil podatkowy tego pakietu nie są jeszcze wczytane - zapis pakietu ich nie zmieni.",
         save: "Zapisz pakiet",
         cancel: "Anuluj",
       },
@@ -824,8 +868,9 @@ export const adminEventRegistrationPl = {
         buyerName: "Nazwa płatnika",
         seatsTotal: "Liczba miejsc",
         seatsTotalHint: "Puste pole = tyle miejsc, ile daje pakiet.",
-        amountCents: "Kwota (w groszach)",
-        amountHint: "Puste pole = cena pakietu bez zmian.",
+        orderAmount: "Kwota zamówienia",
+        amountHint:
+          "W walucie pakietu, np. 899,00 - nie w groszach. Puste pole = cena pakietu bez zmian.",
         invoiceNote: "Notatka do faktury",
         save: "Utwórz zamówienie",
         cancel: "Anuluj",
@@ -921,7 +966,7 @@ export const adminEventRegistrationPl = {
         descriptionEn: "Opis (angielski)",
         priceCents: "Cena",
         priceHint:
-          "Cena w najmniejszej jednostce waluty - 15000 to 150,00. Zero znaczy wejściówkę bezpłatną, która nadal ma pulę i okno sprzedaży.",
+          "Kwota w walucie biletu, np. 899,00 albo 899 - nie w groszach. Zero znaczy wejściówkę bezpłatną, która nadal ma pulę i okno sprzedaży.",
         currency: "Waluta",
         quota: "Pula miejsc",
         quotaHint:
@@ -956,7 +1001,7 @@ export const adminEventRegistrationPl = {
         phaseLabelEn: "Nazwa progu (EN)",
         phaseFrom: "Obowiązuje od",
         phaseTo: "Obowiązuje do",
-        phasePrice: "Cena w groszach",
+        phasePrice: "Cena progu",
         phaseAdd: "Dodaj próg cenowy",
         phaseRemove: "Usuń próg",
         phaseMoveUp: "Przenieś próg wyżej",
@@ -976,6 +1021,19 @@ export const adminEventRegistrationPl = {
         waitlistEnabled: "Lista rezerwowa po wyczerpaniu puli",
         waitlistHint:
           "Wyłączona oznacza komunikat o wyprzedaniu zamiast kolejki - nikt nie czeka na miejsce, które nie wróci.",
+        // TIX-14a: ceny w jednostce głównej waluty; zapis niejednoznaczny
+        // („8,999", „1,299") jest odmową przy polu, nie zgadywaną kwotą.
+        moneyFormat: {
+          PLN: "Podaj cenę w złotych, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+          EUR: "Podaj cenę w euro, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+        },
+        phaseMoneyFormat: {
+          PLN: "Próg {{index}}: podaj cenę w złotych, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+          EUR: "Próg {{index}}: podaj cenę w euro, np. 899,00 - najwyżej dwie cyfry po przecinku.",
+        },
+        // TIX-09: profil podatkowy nie wczytał się z powodu innego niż brak migracji.
+        taxProfileLoadFailed:
+          "Nie udało się wczytać profilu podatkowego ({{reason}}) - zapis biletu go nie zmieni.",
       },
 
       studio: {
@@ -1359,7 +1417,8 @@ export const adminEventRegistrationPl = {
       packageSortRange: "Kolejność musi mieścić się w zakresie 0-10000.",
       packageOrderBuyerEmail: "Podaj prawidłowy adres poczty płatnika.",
       packageOrderSeats: "Liczba miejsc w zamówieniu jest poza zakresem.",
-      packageOrderAmount: "Kwota zamówienia jest poza zakresem.",
+      packageOrderAmount:
+        "Podaj kwotę w walucie pakietu, np. 899,00 - najwyżej dwie cyfry po przecinku i nie więcej niż 100 000.",
       packageSeatEmail: "Podaj prawidłowy adres poczty zapraszanego.",
       packageSeatValidDays: "Ważność zaproszenia musi mieścić się w zakresie 1-90 dni.",
 
@@ -1448,6 +1507,12 @@ export const adminEventRegistrationPl = {
       ticketAddressSuppressed:
         "Na ten adres poczta nie wyśle biletu (lista wykluczeń) - dotychczasowy bilet nadal działa. Przekaż go inną drogą.",
       packageSoldOut: "Pula pakietów tego rodzaju została wyczerpana.",
+      // Jedna księga miejsc (20261012130000): pakiet trzyma miejsca na sali.
+      seatsExhausted: "Na sali nie ma tylu wolnych miejsc - zmniejsz liczbę miejsc w pakiecie.",
+      // Profil podatkowy pakietu (20261012130200).
+      invalidVatRate: "Nieznana stawka VAT - wybierz 23%, 8%, 5%, 0%, zw albo np.",
+      invalidTaxCode: "Kod podatkowy Stripe ma postać txcd_ i 8 cyfr.",
+      invalidExemptBasis: "Podstawa zwolnienia z VAT może mieć najwyżej 300 znaków - skróć ją.",
       packageInUse: "Pakiet ma {{count}} zamówień - wyłącz go zamiast usuwać.",
       seatTaken: "To miejsce jest już zajęte przez uczestnika.",
       seatRevoked: "To miejsce zostało wycofane.",
@@ -1528,7 +1593,7 @@ export const adminEventRegistrationEn = {
     refundJournal: {
       title: "Registration refunds",
       description:
-        "Latest 100 requests. Rejecting or cancelling a paid registration and a participant cancelling within the refund window queue an automatic refund. Late cancellations, shared group payments and payments outside the provider wait here for your decision.",
+        "Latest 100 refunds. Rejecting a paid registration queues an automatic refund. A request that needs a decision - a shared group payment, exhausted attempts, a refund rejected or not confirmed by the provider - waits here, and administrators are notified.",
       refresh: "Refresh refunds",
       loadError: "Could not load refunds. Please retry.",
       loading: "Loading refunds",
@@ -1538,41 +1603,28 @@ export const adminEventRegistrationEn = {
       manualOrder: "Paid outside the payment provider (no order)",
       amount: "Amount: {{amount}}",
       attempts: "Attempts: {{count}}",
-      reviewNote: "Decision note: {{note}}",
+      reviewHint: "This request needs an organiser decision. Check the payment log.",
       failedHint:
-        "The payment provider rejected the refund. The system retries up to 10 times - then decide here: retry the refund or close the request with a note.",
-      origin: {
-        organizer_rejected: "Rejected by the organiser",
-        organizer_cancelled: "Cancelled by the organiser",
-        participant_cancelled: "Cancelled by the participant",
-        system: "Closed without a refund decision",
-      },
-      reason: {
-        outside_refund_window:
-          "The participant cancelled after the refund deadline - decide whether to refund.",
-        refund_disabled: "The event has no self-service refunds - decide whether to refund.",
-        shared_payment:
-          "This payment covers active group registrations. A full refund through the provider is blocked - settle a share in the payments panel or close the request with a note.",
-        manual_payment:
-          "The payment did not go through the payment provider. Return the money outside the system and mark it refunded, or close the request with a note.",
-        organizer_waived: "The organiser decided: no refund.",
-        closed_without_refund_decision:
-          "A paid registration was closed without a refund decision - decide whether to refund.",
-      },
-      actions: {
-        refund: "Refund through the provider",
-        markRefunded: "Mark as refunded",
-        dismiss: "Do not refund",
-        confirm: "Confirm decision",
-        back: "Back",
-      },
-      noteLabel: "Internal note (optional)",
-      noteRequiredLabel: "Internal note - why no refund (required)",
-      noteHint: "Only organisers see it. It never reaches the participant.",
-      toasts: {
-        refund: "The refund went to the payment provider.",
-        markRefunded: "The refund is marked as done.",
-        dismiss: "The request is closed without a refund.",
+        "Check the payment log. The system retries up to {{budget}} times; after the last failure the request moves to a decision and administrators are notified.",
+      lastError: "Last provider error: {{error}}",
+      escalated: "Administrators notified: {{date}}",
+      reasons: {
+        active_registrations_share_payment: {
+          label: "Shared group payment",
+          hint: "This payment covers active registrations. Arrange a partial refund in the payments panel.",
+        },
+        attempts_exhausted: {
+          label: "Refund attempts exhausted",
+          hint: "The automatic refund failed on every attempt. Issue the refund manually with the payment provider.",
+        },
+        provider_refund_failed: {
+          label: "Provider rejected the refund",
+          hint: "The payment provider did not complete the refund - the money did not reach the attendee. Refund them another way.",
+        },
+        refund_unconfirmed: {
+          label: "Refund not confirmed",
+          hint: "The provider accepted the request more than {{days}} days ago and still has not confirmed it. Check the refund status in the provider dashboard.",
+        },
       },
       states: {
         pending: "Pending",
@@ -2126,6 +2178,33 @@ export const adminEventRegistrationEn = {
         person_id: "Person",
       },
     },
+    taxProfile: {
+      section: "Tax on the invoice",
+      vatRate: "VAT rate",
+      vatRateHint:
+        "The line rate on the invoice and the pro forma. The tax code below sets the rate Stripe charges at checkout.",
+      rateDefaultTenant: "Organiser's default rate",
+      rateDefaultTicket: "Same as the package's ticket",
+      rates: {
+        "23": "23%",
+        "8": "8%",
+        "5": "5%",
+        "0": "0%",
+        zw: "exempt",
+        np: "not subject to VAT",
+      },
+      vatExemptBasis: "Exemption basis",
+      vatExemptBasisHint:
+        "The provision that exempts the sale from VAT, e.g. Art. 43(1)(29) of the VAT Act. Empty = the basis from the invoice settings.",
+      vatExemptBasisTooLong: "The basis has {{length}} characters - shorten it to {{max}}.",
+      stripeTaxCode: "Stripe tax code",
+      stripeTaxCodeHint:
+        "txcd_ followed by eight digits. Empty = the default code from Stripe Tax settings.",
+      stripeTaxCodeInvalid:
+        "A Stripe tax code is txcd_ followed by eight digits, e.g. txcd_10000000.",
+      unavailable:
+        "The tax profile becomes available after the database update - the other fields are saved without it.",
+    },
     packages: {
       title: "Group packages",
       subtitle:
@@ -2174,7 +2253,12 @@ export const adminEventRegistrationEn = {
         audience: "Package audience",
         seats: "Number of seats",
         seatsHint: "How many people one package purchase covers.",
-        priceCents: "Package price (in minor units)",
+        price: "Package price",
+        priceHint: "Amount in the package currency, e.g. 899.00 or 899 - not in cents.",
+        priceFormat: {
+          PLN: "Enter the price in złoty, e.g. 899.00 - at most two decimal places.",
+          EUR: "Enter the price in euro, e.g. 899.00 - at most two decimal places.",
+        },
         currency: "Currency",
         quota: "Limit of packages sold",
         quotaHint: "Empty = no limit.",
@@ -2184,6 +2268,27 @@ export const adminEventRegistrationEn = {
         requiresVerification: "Requires organiser verification",
         active: "Active",
         sortOrder: "Order",
+        termsSection: "Purchase terms",
+        admitBeforePayment: "Admit before the order is paid",
+        admitBeforePaymentHint:
+          "Off: a delegate who accepts an invitation gets the QR code only after the order is paid. On: you trust the invoice - the QR code is issued immediately.",
+        paymentTermsDays: "Payment terms (days)",
+        paymentTermsDaysHint:
+          "How many days a buyer has to pay a self-service order. After that an unpaid order expires and its seats return to the pool - at the latest when the event starts.",
+        paymentTermsDaysRange:
+          "Payment terms must be a whole number of days from {{min}} to {{max}}.",
+        maxOpenOrders: "Unpaid orders per buyer",
+        maxOpenOrdersHint:
+          "How many unpaid orders for this event one buyer may hold at once when buying this package. Empty = no limit.",
+        maxOpenOrdersRange:
+          "The limit must be a whole number from {{min}} to {{max}}, or empty for no limit.",
+        termsLoading: "Loading purchase terms and the tax profile…",
+        termsUnavailable:
+          "Purchase terms and the package tax profile become available after the database update - the other fields are saved without them.",
+        termsLoadFailed:
+          "Purchase terms and the tax profile could not be loaded ({{reason}}) - saving the package will not change them.",
+        termsMissing:
+          "The purchase terms and tax profile of this package are not loaded yet - saving the package will not change them.",
         save: "Save package",
         cancel: "Cancel",
       },
@@ -2213,8 +2318,9 @@ export const adminEventRegistrationEn = {
         buyerName: "Payer name",
         seatsTotal: "Number of seats",
         seatsTotalHint: "Empty = as many seats as the package gives.",
-        amountCents: "Amount (in minor units)",
-        amountHint: "Empty = package price unchanged.",
+        orderAmount: "Order amount",
+        amountHint:
+          "In the package currency, e.g. 899.00 - not in cents. Empty = package price unchanged.",
         invoiceNote: "Invoice note",
         save: "Create order",
         cancel: "Cancel",
@@ -2310,7 +2416,7 @@ export const adminEventRegistrationEn = {
         descriptionEn: "Description (English)",
         priceCents: "Price",
         priceHint:
-          "Price in the smallest currency unit - 15000 means 150.00. Zero means a free pass that still has a pool and a sales window.",
+          "Amount in the ticket currency, e.g. 899.00 or 899 - not in cents. Zero means a free pass that still has a pool and a sales window.",
         currency: "Currency",
         quota: "Seat pool",
         quotaHint:
@@ -2344,7 +2450,7 @@ export const adminEventRegistrationEn = {
         phaseLabelEn: "Phase name (EN)",
         phaseFrom: "Valid from",
         phaseTo: "Valid until",
-        phasePrice: "Price in cents",
+        phasePrice: "Tier price",
         phaseAdd: "Add pricing phase",
         phaseRemove: "Remove phase",
         phaseMoveUp: "Move phase up",
@@ -2364,6 +2470,16 @@ export const adminEventRegistrationEn = {
         waitlistEnabled: "Waiting list once the pool runs out",
         waitlistHint:
           "Turned off means a sold-out message instead of a queue - nobody waits for a seat that will not return.",
+        moneyFormat: {
+          PLN: "Enter the price in złoty, e.g. 899.00 - at most two decimal places.",
+          EUR: "Enter the price in euro, e.g. 899.00 - at most two decimal places.",
+        },
+        phaseMoneyFormat: {
+          PLN: "Tier {{index}}: enter the price in złoty, e.g. 899.00 - at most two decimal places.",
+          EUR: "Tier {{index}}: enter the price in euro, e.g. 899.00 - at most two decimal places.",
+        },
+        taxProfileLoadFailed:
+          "The tax profile could not be loaded ({{reason}}) - saving the ticket will not change it.",
       },
 
       studio: {
@@ -2741,7 +2857,8 @@ export const adminEventRegistrationEn = {
       packageSortRange: "The order must be between 0 and 10000.",
       packageOrderBuyerEmail: "Give a valid payer e-mail address.",
       packageOrderSeats: "The number of seats in the order is out of range.",
-      packageOrderAmount: "The order amount is out of range.",
+      packageOrderAmount:
+        "Enter the amount in the package currency, e.g. 899.00 - at most two decimal places and no more than 100,000.",
       packageSeatEmail: "Give a valid invitee e-mail address.",
       packageSeatValidDays: "Invitation validity must be between 1 and 90 days.",
 
@@ -2823,6 +2940,10 @@ export const adminEventRegistrationEn = {
       ticketAddressSuppressed:
         "E-mail will not deliver a ticket to this address (suppression list) - the existing ticket still works. Hand it over another way.",
       packageSoldOut: "The pool of packages of this kind is exhausted.",
+      seatsExhausted: "The venue does not have that many free seats - reduce the package's seats.",
+      invalidVatRate: "Unknown VAT rate - choose 23%, 8%, 5%, 0%, exempt or not subject to VAT.",
+      invalidTaxCode: "A Stripe tax code looks like txcd_ followed by 8 digits.",
+      invalidExemptBasis: "The VAT exemption basis can have at most 300 characters - shorten it.",
       packageInUse: "The package has {{count}} orders - disable it instead of deleting.",
       seatTaken: "This seat is already taken by a participant.",
       seatRevoked: "This seat has been withdrawn.",

@@ -284,12 +284,7 @@ describe("zakres materiału dowodowego", () => {
 
     expect(report.orders).toEqual([]);
     expect(report.webhooks).toEqual([]);
-    expect(report.totals).toEqual({
-      orders: 0,
-      paidCents: 0,
-      refundedCents: 0,
-      webhooksFailed: 0,
-    });
+    expect(report.totals).toEqual({ orders: 0, byCurrency: [], webhooksFailed: 0 });
     expect(report.truncated).toBe(false);
   });
 });
@@ -354,9 +349,10 @@ describe("każda operacja zmieniająca pieniądze zostawia wpis", () => {
     // Zamówienie ze zwrotem CZĘŚCIOWYM zostaje przychodem w pełnej kwocie -
     // kwota zwrotu jest raportowana osobną sumą, a nie odejmowana tutaj.
     // Zamówienie oczekujące (`pending`) nie jest jeszcze przychodem.
-    expect(report.totals.paidCents).toBe(4900 + 12000);
     // Suma zwrotów bierze WSZYSTKIE zwroty, niezależnie od statusu zamówienia.
-    expect(report.totals.refundedCents).toBe(2000 + 9900);
+    expect(report.totals.byCurrency).toEqual([
+      { currency: "PLN", orders: 4, paidCents: 4900 + 12000, refundedCents: 2000 + 9900 },
+    ]);
   });
 
   it("ramię `partially_refunded` w sumie przychodu jest dziś NIEOSIĄGALNE, ale nadal zlicza", async () => {
@@ -385,8 +381,9 @@ describe("każda operacja zmieniająca pieniądze zostawia wpis", () => {
     });
     const report = await buildAuditReport(QUERY);
 
-    expect(report.totals.paidCents).toBe(12000);
-    expect(report.totals.refundedCents).toBe(2000);
+    expect(report.totals.byCurrency).toEqual([
+      { currency: "PLN", orders: 1, paidCents: 12000, refundedCents: 2000 },
+    ]);
   });
 
   it("zamówienie bez kwoty nie psuje sumy przychodu", async () => {
@@ -399,7 +396,9 @@ describe("każda operacja zmieniająca pieniądze zostawia wpis", () => {
     const report = await buildAuditReport(QUERY);
 
     expect(report.orders[0]?.amountCents).toBeNull();
-    expect(report.totals.paidCents).toBe(4900);
+    expect(report.totals.byCurrency).toEqual([
+      { currency: "PLN", orders: 2, paidCents: 4900, refundedCents: 0 },
+    ]);
   });
 
   it("kwota niebędąca skończoną liczbą jest odrzucana, a nie przepisywana do arkusza", async () => {
@@ -415,7 +414,9 @@ describe("każda operacja zmieniająca pieniądze zostawia wpis", () => {
     expect(report.orders[0]?.refundedCents).toBe(0);
     expect(report.webhooks[0]?.durationMs).toBeNull();
     expect(report.webhooks[0]?.retryCount).toBe(0);
-    expect(report.totals.refundedCents).toBe(0);
+    expect(report.totals.byCurrency).toEqual([
+      { currency: "PLN", orders: 1, paidCents: 0, refundedCents: 0 },
+    ]);
   });
 
   it("puste kolumny opcjonalne mapują się na null, nie na undefined", async () => {
@@ -482,6 +483,85 @@ describe("każda operacja zmieniająca pieniądze zostawia wpis", () => {
 
     expect(report.totals.webhooksFailed).toBe(2);
     expect(report.webhooks).toHaveLength(4);
+  });
+});
+
+describe("sumy w podziale na waluty (INV-19a)", () => {
+  // CO BYŁO ZŁE. `totals.paidCents` i `totals.refundedCents` sumowały
+  // `amountCents` WSZYSTKICH zamówień okna, bez patrzenia na `currency`.
+  // Okno z zamówieniami w PLN i EUR dawało jedną liczbę, która nie jest kwotą
+  // w żadnej walucie - a raport idzie do zamknięcia miesiąca.
+
+  it("zamówienia w PLN i EUR dają DWIE sumy, każdą w swojej walucie - nigdy jedną zlepioną", async () => {
+    givenDb({
+      orders: [
+        orderRow({ id: "pln-1", currency: "PLN", amount_cents: 4900 }),
+        orderRow({ id: "eur-1", currency: "EUR", amount_cents: 2475, refunded_amount_cents: 475 }),
+        orderRow({
+          id: "pln-2",
+          currency: "PLN",
+          status: "refunded",
+          amount_cents: 9900,
+          refunded_amount_cents: 9900,
+        }),
+        orderRow({ id: "eur-2", currency: "EUR", amount_cents: 10000 }),
+      ],
+    });
+    const report = await buildAuditReport(QUERY);
+
+    expect(report.totals.byCurrency).toEqual([
+      { currency: "EUR", orders: 2, paidCents: 2475 + 10000, refundedCents: 475 },
+      { currency: "PLN", orders: 2, paidCents: 4900, refundedCents: 9900 },
+    ]);
+    // Kontrakt nie ma już pola, w którym mieszanka walut mogłaby się znaleźć.
+    expect(report.totals).not.toHaveProperty("paidCents");
+    expect(report.totals).not.toHaveProperty("refundedCents");
+    expect(report.totals.orders).toBe(4);
+  });
+
+  it("zapis waluty małymi literami, ze spacjami albo pusty to wciąż TA SAMA waluta", async () => {
+    // Zapisy kluczem serwisowym niosą kod prosto ze Stripe („pln"), a pusta
+    // kolumna oznacza wartość domyślną (`DEFAULT 'PLN'`). Bez normalizacji
+    // jedna waluta rozpadłaby się na trzy pozycje sumy.
+    givenDb({
+      orders: [
+        orderRow({ id: "a", currency: "pln", amount_cents: 1000 }),
+        orderRow({ id: "b", currency: " PLN ", amount_cents: 2000 }),
+        orderRow({ id: "c", currency: null, amount_cents: 3000 }),
+        orderRow({ id: "d", currency: "eur", amount_cents: 500 }),
+      ],
+    });
+    const report = await buildAuditReport(QUERY);
+
+    expect(report.totals.byCurrency).toEqual([
+      { currency: "EUR", orders: 1, paidCents: 500, refundedCents: 0 },
+      { currency: "PLN", orders: 3, paidCents: 6000, refundedCents: 0 },
+    ]);
+    // Wiersze eksportu zostają takie, jak w bazie - normalizujemy tylko klucz sumy.
+    expect(report.orders.map((o) => o.currency)).toEqual(["pln", " PLN ", null, "eur"]);
+  });
+
+  it("kolejność pozycji jest stała (po kodzie waluty), a waluta bez przychodu nadal ma swoją pozycję", async () => {
+    // Zamówienia przychodzą od najnowszego; kolejność pozycji nie może od tego
+    // zależeć, bo dwa wczytania tego samego okna mają dawać ten sam raport.
+    // Oczekujące zamówienie w USD nie jest przychodem, ale jest w zakresie -
+    // pozycja z zerem mówi operatorowi, że taka waluta w ogóle wystąpiła.
+    givenDb({
+      orders: [
+        orderRow({ id: "pln", currency: "PLN", amount_cents: 4900 }),
+        orderRow({ id: "usd", currency: "USD", status: "pending", amount_cents: 1500 }),
+        orderRow({ id: "eur", currency: "EUR", amount_cents: 2475 }),
+      ],
+    });
+    const report = await buildAuditReport(QUERY);
+
+    expect(report.totals.byCurrency.map((t) => t.currency)).toEqual(["EUR", "PLN", "USD"]);
+    expect(report.totals.byCurrency[2]).toEqual({
+      currency: "USD",
+      orders: 1,
+      paidCents: 0,
+      refundedCents: 0,
+    });
   });
 });
 
@@ -658,12 +738,7 @@ describe("izolacja najemcy w audycie rozliczeń", () => {
 
     expect(report.orders).toEqual([]);
     expect(report.webhooks).toEqual([]);
-    expect(report.totals).toEqual({
-      orders: 0,
-      paidCents: 0,
-      refundedCents: 0,
-      webhooksFailed: 0,
-    });
+    expect(report.totals).toEqual({ orders: 0, byCurrency: [], webhooksFailed: 0 });
     expect(stub.chains).toEqual([]);
   });
 

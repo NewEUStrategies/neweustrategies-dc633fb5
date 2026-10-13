@@ -19,6 +19,11 @@
 //      baza, a odmowa zapisu wyglądu dochodzi do organizatora zdaniem.
 //   6. WIERSZ POKAZUJE WYGLĄD: ukryty bilet mówi „ukryty", bilet z zapisem
 //      grupowym ma plakietkę, a nazwa grupy biletów idzie w języku interfejsu.
+//   7. PROFIL PODATKOWY (TIX-09) idzie do okna jako stan zapytania (wczytywanie,
+//      niedostępny przy migracji w toku, profil TEGO biletu), zapisuje się
+//      osobnym RPC pod identyfikatorem z upsertu tylko wtedy, gdy okno go
+//      oddało, a odmowa tego zapisu dochodzi do organizatora zdaniem. Kopia
+//      biletu zabiera niepusty profil oryginału.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Listy, przełącznika, kasowania i trasy
 // formularza - ma je `EventTicketsPanel.test.tsx`. Reguł klucza kopii
@@ -35,6 +40,8 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { createContext, useContext, type ReactNode } from "react";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
 import type { TicketPresentation } from "@/lib/events/ticketPresentation";
+import type { TaxProfileDraft } from "@/lib/events/taxProfileDraft";
+import type { TicketTaxProfileState } from "@/lib/events/ticketTaxProfileApi";
 
 type WynikZapisu = { onSuccess?: (ticketId: string) => void; onError?: (error: unknown) => void };
 type WynikWygladu = { onError?: (error: unknown) => void };
@@ -55,6 +62,18 @@ const h = vi.hoisted(() => ({
   clipboardFails: false,
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  // Profil podatkowy: odczyt (`null` = migracja w toku), zapis i to, co oddaje okno.
+  taxProfiles: new Map<string, TaxProfileDraft>() as
+    Map<string, TaxProfileDraft> | null | undefined,
+  taxProfilesError: null as Error | null,
+  taxCalls: [] as { ticketId: string; value: TaxProfileDraft }[],
+  taxError: null as Error | null,
+  formTaxProfile: null as TaxProfileDraft | null,
+  // Odświeżenie mapy po zapisie i odczyt na żądanie (kopia przy pustej mapie).
+  taxRefetch: vi.fn(),
+  taxFetched: new Map<string, TaxProfileDraft>() as Map<string, TaxProfileDraft> | null,
+  taxFetchError: null as Error | null,
+  taxFetches: 0,
 }));
 
 vi.mock("react-i18next", async () =>
@@ -110,20 +129,27 @@ vi.mock("@/components/ui/popover", () => {
 });
 
 // Formularz biletu ma własny plik testowy. Tu liczy się STYK: czy panel podaje
-// mu wygląd edytowanego biletu i czy daje mu „duplikuj" tylko przy edycji.
+// mu wygląd i profil podatkowy edytowanego biletu i czy daje mu „duplikuj"
+// tylko przy edycji.
 vi.mock("@/components/admin/events/molecules/EventTicketDialog", () => ({
   EventTicketDialog: ({
     open,
     ticket,
     onSubmit,
     presentation,
+    taxProfile,
     onDuplicate,
     eventId,
   }: {
     open: boolean;
     ticket: EventTicketRow | null;
-    onSubmit: (input: EventTicketInput, look: TicketPresentation) => void;
+    onSubmit: (
+      input: EventTicketInput,
+      look: TicketPresentation,
+      taxProfile: TaxProfileDraft | null,
+    ) => void;
     presentation?: TicketPresentation;
+    taxProfile: TicketTaxProfileState;
     onDuplicate?: () => void;
     eventId: string;
   }) =>
@@ -133,6 +159,11 @@ vi.mock("@/components/admin/events/molecules/EventTicketDialog", () => ({
         aria-label="formularz-biletu"
         data-bilet={ticket === null ? "nowy" : ticket.id}
         data-ukryty={presentation === undefined ? "brak" : String(presentation.isHidden)}
+        data-podatek={
+          taxProfile.status === "ready"
+            ? `ready:${taxProfile.value.vatRate}:${taxProfile.value.stripeTaxCode}`
+            : taxProfile.status
+        }
       >
         <button
           type="button"
@@ -141,6 +172,7 @@ vi.mock("@/components/admin/events/molecules/EventTicketDialog", () => ({
             onSubmit(
               { ...ladunek(), eventId, id: ticket === null ? null : ticket.id },
               { ...WYGLAD_UKRYTY, priceLabelPl: "od 99 zł" },
+              h.formTaxProfile,
             )
           }
         />
@@ -184,8 +216,33 @@ vi.mock("@/lib/events/ticketPresentation", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/events/ticketTaxProfileApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/events/ticketTaxProfileApi")>();
+  return {
+    ...actual,
+    useTicketTaxProfiles: () => ({
+      data: h.taxProfiles,
+      error: h.taxProfilesError,
+      refetch: h.taxRefetch,
+    }),
+    fetchTicketTaxProfiles: async () => {
+      h.taxFetches += 1;
+      if (h.taxFetchError !== null) throw h.taxFetchError;
+      return h.taxFetched;
+    },
+    useSaveTicketTaxProfile: () => ({
+      mutate: (args: { ticketId: string; value: TaxProfileDraft }, wynik: WynikWygladu) => {
+        h.taxCalls.push(args);
+        if (h.taxError !== null) wynik.onError?.(h.taxError);
+      },
+      isPending: false,
+    }),
+  };
+});
+
 import { EventTicketsPanel } from "@/components/admin/events/organisms/EventTicketsPanel";
 import { DEFAULT_TICKET_PRESENTATION } from "@/lib/events/ticketPresentation";
+import { EMPTY_TAX_PROFILE } from "@/lib/events/taxProfileDraft";
 import { SALES_IDS, eventTicketRow } from "@/test/events/adminSalesRows";
 
 const T = "adminEventRegistration.tickets";
@@ -275,6 +332,15 @@ beforeEach(() => {
   h.clipboardFails = false;
   h.toastSuccess.mockClear();
   h.toastError.mockClear();
+  h.taxProfiles = new Map();
+  h.taxProfilesError = null;
+  h.taxCalls = [];
+  h.taxError = null;
+  h.formTaxProfile = null;
+  h.taxRefetch.mockClear();
+  h.taxFetched = new Map();
+  h.taxFetchError = null;
+  h.taxFetches = 0;
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
     value: {
@@ -674,5 +740,200 @@ describe("zapis formularza razem z wyglądem", () => {
 
     expect(h.lookCalls).toEqual([]);
     expect(formularz()).toBeTruthy();
+  });
+});
+
+describe("profil podatkowy biletu (TIX-09)", () => {
+  const ZW: TaxProfileDraft = {
+    vatRate: "zw",
+    vatExemptBasis: "art. 43 ust. 1 pkt 29 ustawy o VAT",
+    stripeTaxCode: "txcd_20030000",
+  };
+  const edytuj = () =>
+    fireEvent.click(within(wiersz()).getByRole("button", { name: `${T}.editor.editTitle` }));
+
+  it("okno edycji dostaje profil TEGO biletu, a nowy bilet - pusty", () => {
+    h.taxProfiles = new Map([[SALES_IDS.ticket, ZW]]);
+    panel();
+
+    edytuj();
+    expect(formularz().getAttribute("data-podatek")).toBe("ready:zw:txcd_20030000");
+
+    fireEvent.click(screen.getByRole("button", { name: `${T}.addAction` }));
+    expect(formularz().getAttribute("data-podatek")).toBe("ready:default:");
+  });
+
+  it("migracja w toku, wczytywanie i awaria docierają do okna jako trzy różne stany", () => {
+    h.taxProfiles = null;
+    const { unmount } = panel();
+    edytuj();
+    expect(formularz().getAttribute("data-podatek")).toBe("unavailable");
+    unmount();
+
+    h.taxProfiles = undefined;
+    const drugi = panel();
+    edytuj();
+    expect(formularz().getAttribute("data-podatek")).toBe("loading");
+    drugi.unmount();
+
+    h.taxProfilesError = new Error("forbidden");
+    panel();
+    edytuj();
+    expect(formularz().getAttribute("data-podatek")).toBe("failed");
+  });
+
+  it("profil oddany przez okno zapisuje się pod identyfikatorem z upsertu", () => {
+    h.savedId = "zapisany-id";
+    h.formTaxProfile = { ...EMPTY_TAX_PROFILE, vatRate: "8" };
+    panel();
+    fireEvent.click(screen.getByRole("button", { name: `${T}.addAction` }));
+
+    fireEvent.click(screen.getByTestId("formularz-zapisz"));
+
+    expect(h.taxCalls).toEqual([
+      { ticketId: "zapisany-id", value: { ...EMPTY_TAX_PROFILE, vatRate: "8" } },
+    ]);
+    expect(h.toastSuccess).toHaveBeenCalledWith(`${T}.toasts.saved`);
+  });
+
+  it("okno bez profilu do zapisu (bez zmian, migracja) NIE woła drugiego RPC", () => {
+    h.formTaxProfile = null;
+    panel();
+    edytuj();
+
+    fireEvent.click(screen.getByTestId("formularz-zapisz"));
+
+    expect(h.saveCalls).toHaveLength(1);
+    expect(h.taxCalls).toEqual([]);
+  });
+
+  it("odmowa zapisu profilu po udanym bilecie dochodzi do organizatora zdaniem", () => {
+    h.formTaxProfile = ZW;
+    h.taxError = new Error("invalid_tax_code: the Stripe tax code looks like txcd_12345678");
+    panel();
+    edytuj();
+
+    fireEvent.click(screen.getByTestId("formularz-zapisz"));
+
+    expect(h.taxCalls).toHaveLength(1);
+    expect(h.toastError).toHaveBeenCalledWith(
+      "odmowa:invalid_tax_code: the Stripe tax code looks like txcd_12345678",
+    );
+  });
+
+  it("odmowa zapisu biletu NIE zapisuje profilu", () => {
+    h.formTaxProfile = ZW;
+    h.saveError = new Error("tickets: duplicate_key");
+    panel();
+    fireEvent.click(screen.getByRole("button", { name: `${T}.addAction` }));
+
+    fireEvent.click(screen.getByTestId("formularz-zapisz"));
+
+    expect(h.taxCalls).toEqual([]);
+    expect(formularz()).toBeTruthy();
+  });
+
+  it("kopia biletu zabiera niepusty profil oryginału pod NOWYM identyfikatorem", async () => {
+    h.taxProfiles = new Map([[SALES_IDS.ticket, ZW]]);
+    h.savedId = "kopia-id";
+    panel();
+    otworzMenu();
+
+    fireEvent.click(pozycja(`${S}.duplicate`));
+    await dokoncz();
+
+    expect(h.taxCalls).toEqual([{ ticketId: "kopia-id", value: ZW }]);
+  });
+
+  it("kopia biletu bez profilu albo przy migracji w toku nie woła zapisu profilu", async () => {
+    panel();
+    otworzMenu();
+    fireEvent.click(pozycja(`${S}.duplicate`));
+    await dokoncz();
+    expect(h.taxCalls).toEqual([]);
+
+    h.taxProfiles = null;
+    otworzMenu();
+    fireEvent.click(pozycja(`${S}.duplicate`));
+    await dokoncz();
+    expect(h.taxCalls).toEqual([]);
+  });
+  it("zapis biletu bez profilu odświeża mapę profili - nowy bilet nie czeka bez końca", () => {
+    h.formTaxProfile = null;
+    panel();
+    fireEvent.click(screen.getByRole("button", { name: `${T}.addAction` }));
+
+    fireEvent.click(screen.getByTestId("formularz-zapisz"));
+
+    expect(h.taxCalls).toEqual([]);
+    expect(h.taxRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("odmowa zapisu profilu też odświeża mapę - ma mówić to, co jest w bazie", () => {
+    h.formTaxProfile = ZW;
+    h.taxError = new Error("invalid_vat_rate: unknown VAT rate");
+    panel();
+    edytuj();
+
+    fireEvent.click(screen.getByTestId("formularz-zapisz"));
+
+    expect(h.taxRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("kopia, gdy mapa jeszcze się wczytuje: profil czytany teraz i jedzie za kopią", async () => {
+    h.taxProfiles = undefined;
+    h.taxFetched = new Map([[SALES_IDS.ticket, ZW]]);
+    h.savedId = "kopia-id";
+    panel();
+    otworzMenu();
+
+    fireEvent.click(pozycja(`${S}.duplicate`));
+    await dokoncz();
+
+    expect(h.taxFetches).toBe(1);
+    expect(h.taxCalls).toEqual([{ ticketId: "kopia-id", value: ZW }]);
+  });
+
+  it("kopia, gdy mapa jest starsza od oryginału: profil czytany od nowa i jedzie za kopią", async () => {
+    // Mapa w pamięci nie zna jeszcze tego biletu (lista odświeżyła się przed
+    // profilami) - brak wiersza to NIE pusty profil.
+    h.taxProfiles = new Map([["inny-bilet", ZW]]);
+    h.taxFetched = new Map([[SALES_IDS.ticket, ZW]]);
+    h.savedId = "kopia-id";
+    panel();
+    otworzMenu();
+
+    fireEvent.click(pozycja(`${S}.duplicate`));
+    await dokoncz();
+
+    expect(h.taxFetches).toBe(1);
+    expect(h.taxCalls).toEqual([{ ticketId: "kopia-id", value: ZW }]);
+  });
+
+  it("kopia z aktualnej mapy NIE czyta profili drugi raz", async () => {
+    h.taxProfiles = new Map([[SALES_IDS.ticket, ZW]]);
+    h.savedId = "kopia-id";
+    panel();
+    otworzMenu();
+
+    fireEvent.click(pozycja(`${S}.duplicate`));
+    await dokoncz();
+
+    expect(h.taxFetches).toBe(0);
+    expect(h.taxCalls).toEqual([{ ticketId: "kopia-id", value: ZW }]);
+  });
+
+  it("kopia, gdy odczyt profilu pada: kopii NIE ma i organizator dostaje zdanie", async () => {
+    h.taxProfiles = undefined;
+    h.taxFetchError = new Error("forbidden");
+    panel();
+    otworzMenu();
+
+    fireEvent.click(pozycja(`${S}.duplicate`));
+    await dokoncz();
+
+    expect(h.saveCalls).toEqual([]);
+    expect(h.taxCalls).toEqual([]);
+    expect(h.toastError).toHaveBeenCalledWith("odmowa:forbidden");
   });
 });

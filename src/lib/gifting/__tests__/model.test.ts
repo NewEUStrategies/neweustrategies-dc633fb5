@@ -265,6 +265,8 @@ describe("mapGiftError", () => {
     expect(mapGiftError("gift_disabled")).toBe("disabled");
     expect(mapGiftError("gift_post_not_found")).toBe("notFound");
     expect(mapGiftError("gift_post_not_gated")).toBe("notGated");
+    // SUB-06: darczynca bez wlasnego dostepu - ta sama droga wyjscia (plany).
+    expect(mapGiftError("gift_access_required")).toBe("subscriptionRequired");
     expect(mapGiftError("cokolwiek innego")).toBe("unknown");
     expect(mapGiftError(null)).toBe("unknown");
   });
@@ -316,6 +318,7 @@ describe("normalizeRedeemReason / giftBannerVariant", () => {
   it("zawezia powod z RPC (nieznany = invalid)", () => {
     expect(normalizeRedeemReason("exhausted")).toBe("exhausted");
     expect(normalizeRedeemReason("owner")).toBe("owner");
+    expect(normalizeRedeemReason("owner_no_access")).toBe("owner_no_access");
     expect(normalizeRedeemReason("kosmos")).toBe("invalid");
     expect(normalizeRedeemReason(undefined)).toBe("invalid");
   });
@@ -328,5 +331,8 @@ describe("normalizeRedeemReason / giftBannerVariant", () => {
     expect(giftBannerVariant("expired")).toBe("expired");
     expect(giftBannerVariant("revoked")).toBe("invalid");
     expect(giftBannerVariant("invalid")).toBe("invalid");
+    // Darczynca bez biezacego dostepu nie dostaje banera "podarowano" -
+    // tresc zostaje za paywallem z CTA planow (SUB-06).
+    expect(giftBannerVariant("owner_no_access")).toBe("invalid");
   });
 });

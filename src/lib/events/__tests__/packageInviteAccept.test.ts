@@ -217,43 +217,31 @@ describe("acceptPackageInvite - odczyt odpowiedzi", () => {
       eventId: EVENT_ID,
       eventSlug: "kongres-2026",
       status: "approved",
+      awaitingPayment: false,
       qrToken: QR_TOKEN,
       manageToken: MANAGE_TOKEN,
       accountLinked: true,
     });
   });
 
-  // `account_linked` mowi, czy zgloszenie trafilo do konta wolajacego (konto
-  // wiaze sie tylko z potwierdzonym adresem zaproszenia). Brak klucza = starsza
-  // baza, ktora tego nie wiedziala - `null`, a nie zgadywane `false`.
-  it("`account_linked` czyta sie doslownie, brak klucza jako `null`", async () => {
-    rpc().setData("event_package_invite_accept", { ...accepted, account_linked: false });
-    expect((await api.acceptPackageInvite(accepting)).accountLinked).toBe(false);
+  // TIX-07: pakiet jeszcze nieopłacony - zgłoszenie czeka, kodu wejścia nie ma.
+  it.each([
+    ["jawny znacznik bazy", { status: "pending", awaiting_payment: true }],
+    ["sam status oczekujący", { status: "pending" }],
+  ])(
+    "miejsce z nieopłaconego pakietu czyta się jako „czeka na płatność” (%s)",
+    async (_n, over) => {
+      rpc().setData("event_package_invite_accept", {
+        registration_id: REGISTRATION_ID,
+        event_id: EVENT_ID,
+        manage_token: MANAGE_TOKEN,
+        ...over,
+      });
 
-    const { account_linked: _pominiete, ...starsza } = accepted;
-    rpc().setData("event_package_invite_accept", starsza);
-    expect((await api.acceptPackageInvite(accepting)).accountLinked).toBeNull();
-  });
-
-  // Pudlo tokenu przychodzi WARTOSCIA (`{ok:false}`), bo wyjatek wycofalby
-  // licznik prob w bazie. Modul zamienia je na wyjatek z glowa kodu - mapa
-  // odmow tlumaczy oba okna wdrozenia tym samym slownikiem.
-  it.each(["invalid_token", "rate_limited"])(
-    "odmowa wartoscia `%s` konczy sie wyjatkiem z kodem w glowie",
-    async (kod) => {
-      rpc().setData("event_package_invite_accept", { ok: false, error: kod });
-
-      await expect(api.acceptPackageInvite(accepting)).rejects.toThrow(
-        new RegExp(`^${kod}: invitation refused$`),
-      );
+      const result = await api.acceptPackageInvite(accepting);
+      expect(result).toMatchObject({ status: "pending", awaitingPayment: true, qrToken: null });
     },
   );
-
-  it("odmowa wartoscia bez kodu nie udaje sukcesu - `unknown`", async () => {
-    rpc().setData("event_package_invite_accept", { ok: false, registration_id: REGISTRATION_ID });
-
-    await expect(api.acceptPackageInvite(accepting)).rejects.toThrow(/^unknown: /);
-  });
 
   // Pusty kod to BRAK kodu. Napis pusty przepuszczony dalej narysowalby pusta
   // ramke kodu QR i przycisk samoobslugi prowadzacy donikad - a zapraszany nie
@@ -270,9 +258,10 @@ describe("acceptPackageInvite - odczyt odpowiedzi", () => {
     expect(result.qrToken).toBeNull();
     expect(result.manageToken).toBeNull();
     expect(result.eventId).toBeNull();
-    // Miejsce oplacil platnik, wiec zapis wchodzi zatwierdzony
-    // (`20261012120200`) - brak statusu w odpowiedzi czyta sie tak samo.
+    // Baza sprzed 20261012130000 przyjmowala od razu - brak statusu w
+    // odpowiedzi czyta sie jako zatwierdzone, bez oczekiwania na platnosc.
     expect(result.status).toBe("approved");
+    expect(result.awaitingPayment).toBe(false);
   });
 
   // Miejsce moglo zostac przypisane, ale bez identyfikatora nie umiemy go ani

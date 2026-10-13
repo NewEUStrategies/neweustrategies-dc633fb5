@@ -1058,6 +1058,272 @@
       "when": 1791811680661,
       "tag": "0150_event_speaker_detail_safe_projection",
       "breakpoints": true
+    },
+    {
+      "idx": 151,
+      "version": "7",
+      "when": 1791835714319,
+      "tag": "0151_tenant_admin_alerts",
+      "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1791835985314,
+      "tag": "0152_event_invoice_compliance",
+      "breakpoints": true
+    },
+    {
+      "idx": 153,
+      "version": "7",
+      "when": 1791836189794,
+      "tag": "0153_event_invoice_compliance_part2",
+      "breakpoints": true
+    },
+    {
+      "idx": 154,
+      "version": "7",
+      "when": 1791836386218,
+      "tag": "0154_event_invoice_compliance_part3",
+      "breakpoints": true
+    },
+    {
+      "idx": 155,
+      "version": "7",
+      "when": 1791836481499,
+      "tag": "0155_event_invoice_compliance_part4",
+      "breakpoints": true
+    },
+    {
+      "idx": 156,
+      "version": "7",
+      "when": 1791836634876,
+      "tag": "0156_event_invoice_compliance_part5",
+      "breakpoints": true
+    },
+    {
+      "idx": 157,
+      "version": "7",
+      "when": 1791836767221,
+      "tag": "0157_event_invoice_compliance_part6",
+      "breakpoints": true
+    },
+    {
+      "idx": 158,
+      "version": "7",
+      "when": 1791836906697,
+      "tag": "0158_event_invoice_compliance_part7",
+      "breakpoints": true
+    },
+    {
+      "idx": 159,
+      "version": "7",
+      "when": 1791836937442,
+      "tag": "0159_billing_documents_snapshot",
+      "breakpoints": true
+    },
+    {
+      "idx": 160,
+      "version": "7",
+      "when": 1791837137311,
+      "tag": "0160_event_refund_jobs_escalation",
+      "breakpoints": true
+    },
+    {
+      "idx": 161,
+      "version": "7",
+      "when": 1791837269324,
+      "tag": "0161_accounting_retention_tax_limitation",
+      "breakpoints": true
+    },
+    {
+      "idx": 162,
+      "version": "7",
+      "when": 1791837278312,
+      "tag": "0162_billing_documents_follow_order_refund",
+      "breakpoints": true
+    },
+    {
+      "idx": 163,
+      "version": "7",
+      "when": 1791837331190,
+      "tag": "0163_event_speaker_detail_safe_projection_supabase_lane",
+      "breakpoints": true
+    },
+    {
+      "idx": 164,
+      "version": "7",
+      "when": 1791840524311,
+      "tag": "0164_event_ticket_seat_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 165,
+      "version": "7",
+      "when": 1791840745580,
+      "tag": "0165_event_ticket_seat_ledger_part2",
+      "breakpoints": true
+    },
+    {
+      "idx": 166,
+      "version": "7",
+      "when": 1791840828495,
+      "tag": "0166_event_ticket_seat_ledger_part3",
+      "breakpoints": true
+    },
+    {
+      "idx": 167,
+      "version": "7",
+      "when": 1791840896719,
+      "tag": "0167_event_ticket_payment_binding",
+      "breakpoints": true
+    },
+    {
+      "idx": 168,
+      "version": "7",
+      "when": 1791841099873,
+      "tag": "0168_event_ticket_tax_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1791841263705,
+      "tag": "0169_event_ticket_tax_profile_part2",
+      "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1791841287963,
+      "tag": "0170_payment_orders_shape_guard_and_free_ticket_settlement",
+      "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1791881002229,
+      "tag": "0171_donations_ledger_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1791881210366,
+      "tag": "0172_payment_webhook_events_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1791881410769,
+      "tag": "0173_tier_entitlement_seat_status_tenant",
+      "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1791881625374,
+      "tag": "0174_gift_link_creator_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 175,
+      "version": "7",
+      "when": 1791881906934,
+      "tag": "0175_metering_signed_visitor_ip_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 176,
+      "version": "7",
+      "when": 1791882015108,
+      "tag": "0176_subscription_payment_grace_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 177,
+      "version": "7",
+      "when": 1791882135386,
+      "tag": "0177_subscription_lifecycle_reconcile",
+      "breakpoints": true
+    },
+    {
+      "idx": 178,
+      "version": "7",
+      "when": 1791901227139,
+      "tag": "0178_checkout_settings_promo_default_off",
+      "breakpoints": true
+    },
+    {
+      "idx": 179,
+      "version": "7",
+      "when": 1791901232139,
+      "tag": "0179_subscription_event_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 180,
+      "version": "7",
+      "when": 1791901527330,
+      "tag": "0180_user_subscriptions_external_ref_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 181,
+      "version": "7",
+      "when": 1791901536887,
+      "tag": "0181_payment_orders_per_seat_plan_amount",
+      "breakpoints": true
+    },
+    {
+      "idx": 182,
+      "version": "7",
+      "when": 1791901544397,
+      "tag": "0182_billing_cron_own_secret",
+      "breakpoints": true
+    },
+    {
+      "idx": 183,
+      "version": "7",
+      "when": 1791901822962,
+      "tag": "0183_payment_webhook_sweep_candidates",
+      "breakpoints": true
+    },
+    {
+      "idx": 184,
+      "version": "7",
+      "when": 1791901836342,
+      "tag": "0184_billing_probe_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 185,
+      "version": "7",
+      "when": 1791903818002,
+      "tag": "0185_author_profiles_public_drop_contact_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1791903818003,
+      "tag": "0186_public_definer_views_read_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 187,
+      "version": "7",
+      "when": 1791907354553,
+      "tag": "0187_author_profiles_public_drop_contact_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 188,
+      "version": "7",
+      "when": 1791907515475,
+      "tag": "0188_public_definer_views_read_only",
+      "breakpoints": true
     }
   ]
 }

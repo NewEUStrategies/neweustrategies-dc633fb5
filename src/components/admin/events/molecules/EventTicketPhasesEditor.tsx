@@ -10,11 +10,15 @@ import { DateInput } from "@/components/ui/date-input";
 // zawsze", brak końca - „bezterminowo"; podstawienie bieżącej chwili zamieniłoby
 // próg zaplanowany na przyszłość w próg obowiązujący od razu.
 //
-// GROSZE, NIE ZŁOTÓWKI - tak jak w pozostałych polach cenowych biletu. Jedna
-// jednostka w całym module to brak pomyłki o dwa rzędy wielkości.
+// KWOTA W JEDNOSTCE GŁÓWNEJ WALUTY („899,00"), tak jak w pozostałych polach
+// cenowych biletu (TIX-14a). Jedna jednostka w całym oknie to brak pomyłki
+// o dwa rzędy wielkości; grosze liczy `ticketDraftToInput`, a podgląd obok
+// pola pokazuje kwotę tak, jak zobaczy ją kupujący. Edytor NIE ocenia wpisu -
+// werdykt (z numerem progu) wystawia `ticketDraftIssue` przy zapisie.
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { MoneyInputPreview } from "@/components/admin/events/atoms/MoneyInputPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,9 +33,16 @@ export interface EventTicketPhasesEditorProps {
   onChange: (phases: TicketPhaseDraft[]) => void;
   /** Komunikat walidacji dla CAŁEJ listy - baza też odrzuca ją w całości. */
   error: string | null;
+  /** Waluta biletu - podgląd kwoty progu mówi w niej, jak cena bazowa. */
+  currency?: string;
 }
 
-export function EventTicketPhasesEditor({ phases, onChange, error }: EventTicketPhasesEditorProps) {
+export function EventTicketPhasesEditor({
+  phases,
+  onChange,
+  error,
+  currency = "PLN",
+}: EventTicketPhasesEditorProps) {
   const { t } = useTranslation();
 
   const patch = (index: number, part: Partial<TicketPhaseDraft>) =>
@@ -151,12 +162,16 @@ export function EventTicketPhasesEditor({ phases, onChange, error }: EventTicket
                 <Label htmlFor={`phase-price-${index}`}>
                   {t("adminEventRegistration.tickets.editor.phasePrice")}
                 </Label>
-                <Input
-                  id={`phase-price-${index}`}
-                  inputMode="numeric"
-                  value={phase.priceCents}
-                  onChange={(event) => patch(index, { priceCents: event.target.value })}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    id={`phase-price-${index}`}
+                    inputMode="decimal"
+                    className="min-w-0 flex-1"
+                    value={phase.price}
+                    onChange={(event) => patch(index, { price: event.target.value })}
+                  />
+                  <MoneyInputPreview value={phase.price} currency={currency} />
+                </div>
               </div>
             </div>
           </li>

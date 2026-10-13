@@ -58,6 +58,25 @@ export interface AuditWebhookRow {
   error: string | null;
 }
 
+/**
+ * Sumy pieniężne JEDNEJ waluty zakresu.
+ *
+ * PRZYCZYNA. Raport niósł jedno `paidCents` i jedno `refundedCents` - sumy
+ * `amountCents` WSZYSTKICH zamówień, bez patrzenia na `currency`. Okno
+ * z zamówieniem 49,00 PLN i 24,75 EUR dawało 73,75, czyli kwotę w żadnej
+ * walucie, a panel musiał ją po swojej stronie przeliczać od nowa z wierszy.
+ * Kwot w różnych walutach nie wolno dodawać, więc kontrakt w ogóle nie ma
+ * już pola, w którym taka mieszanka mogłaby się znaleźć.
+ */
+export interface AuditCurrencyTotals {
+  /** Kod ISO 4217 wielkimi literami (patrz `currencyKey`). */
+  currency: string;
+  /** Zamówienia zakresu w tej walucie - wszystkie statusy. */
+  orders: number;
+  paidCents: number;
+  refundedCents: number;
+}
+
 export interface AuditReport {
   environment: AuditEnv;
   sinceIso: string;
@@ -66,8 +85,11 @@ export interface AuditReport {
   webhooks: AuditWebhookRow[];
   totals: {
     orders: number;
-    paidCents: number;
-    refundedCents: number;
+    /**
+     * Jedna pozycja na walutę obecną w zakresie, posortowane po kodzie waluty
+     * (kolejność stała, niezależna od kolejności wierszy i od locale).
+     */
+    byCurrency: AuditCurrencyTotals[];
     webhooksFailed: number;
   };
   /** Prawda, gdy trafiliśmy w limit - operator musi zawęzić okno. */
@@ -95,6 +117,45 @@ function num(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+/**
+ * „Zaksięgowane" liczymy z zamówień opłaconych i częściowo zwróconych - pełny
+ * zwrot nie jest przychodem, więc do sumy nie wchodzi.
+ */
+const PAID_STATUSES: ReadonlySet<string> = new Set(["paid", "partially_refunded"]);
+
+/**
+ * Klucz waluty - ten sam, którym grupuje pulpit administracyjny w SQL
+ * (`upper(coalesce(nullif(trim(currency), ''), 'PLN'))`). Zapisy z kluczem
+ * serwisowym potrafią nieść kod małymi literami („pln" prosto ze Stripe),
+ * a „pln" i „PLN" to ta sama waluta, nie dwie pozycje sumy. Pusta waluta to
+ * domyślna wartość kolumny (`payment_orders.currency DEFAULT 'PLN'`).
+ */
+function currencyKey(currency: string | null): string {
+  return (currency ?? "").trim().toUpperCase() || "PLN";
+}
+
+/**
+ * Redukcja zamówień do sum PER WALUTA. Zwrot liczymy w walucie zamówienia:
+ * operator zwraca w walucie obciążenia, a `refunded_amount_cents` leży
+ * w wierszu tego samego zamówienia - osobnej waluty zwrotu po prostu nie ma.
+ */
+function totalsByCurrency(orders: readonly AuditOrderRow[]): AuditCurrencyTotals[] {
+  const sums = new Map<string, AuditCurrencyTotals>();
+  for (const order of orders) {
+    const currency = currencyKey(order.currency);
+    const entry = sums.get(currency) ?? { currency, orders: 0, paidCents: 0, refundedCents: 0 };
+    entry.orders += 1;
+    if (PAID_STATUSES.has(order.status)) entry.paidCents += order.amountCents ?? 0;
+    entry.refundedCents += order.refundedCents;
+    sums.set(currency, entry);
+  }
+  // Porównanie kodów, nie `localeCompare`: kolejność raportu ma być ta sama
+  // na każdym serwerze, niezależnie od locale i wersji ICU.
+  return [...sums.values()].sort((a, b) =>
+    a.currency < b.currency ? -1 : a.currency > b.currency ? 1 : 0,
+  );
+}
+
 /** Pusty raport - odpowiedź na zakres, którego nie wolno rozszerzyć. */
 function emptyReport(environment: AuditEnv, sinceIso: string): AuditReport {
   return {
@@ -103,7 +164,7 @@ function emptyReport(environment: AuditEnv, sinceIso: string): AuditReport {
     generatedAt: new Date().toISOString(),
     orders: [],
     webhooks: [],
-    totals: { orders: 0, paidCents: 0, refundedCents: 0, webhooksFailed: 0 },
+    totals: { orders: 0, byCurrency: [], webhooksFailed: 0 },
     truncated: false,
   };
 }
@@ -194,12 +255,7 @@ export async function buildAuditReport(query: AuditQuery): Promise<AuditReport> 
     webhooks,
     totals: {
       orders: orders.length,
-      // „Zaksięgowane" liczymy z zamówień opłaconych i częściowo zwróconych -
-      // pełny zwrot nie jest przychodem, więc do sumy nie wchodzi.
-      paidCents: orders
-        .filter((o) => o.status === "paid" || o.status === "partially_refunded")
-        .reduce((sum, o) => sum + (o.amountCents ?? 0), 0),
-      refundedCents: orders.reduce((sum, o) => sum + o.refundedCents, 0),
+      byCurrency: totalsByCurrency(orders),
       webhooksFailed: webhooks.filter((w) => w.status === "failed").length,
     },
     truncated: orders.length >= ROW_LIMIT || webhooks.length >= ROW_LIMIT,

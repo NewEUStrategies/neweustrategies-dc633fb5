@@ -82,6 +82,14 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-anon-insert
 
+      - name: DEFINER views read-only for clients (both migration lanes)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:sql-definer-views
+
+      - name: Migration lanes (every drizzle journal entry has a decision)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:migration-lanes
+
       - name: SQL app_role literal invariant
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-app-role

@@ -4,8 +4,15 @@
 // domenowym (`SubscriptionData` / `TransactionData`), więc testujemy go jak
 // kontrakt: co wchodzi z bramki, co wychodzi do `dispatchWebhookEvent`.
 // Moduł jest czysty (importuje wyłącznie typy) - nie ma czego mockować.
-import { describe, expect, it } from "vitest";
-import { mapStripeSubscription, normalizeStripeEvent } from "@/lib/billing/stripeEvents.server";
+import { describe, expect, it, vi } from "vitest";
+import {
+  invoiceFullPeriodStart,
+  isStripeDisputeStatus,
+  mapStripeSubscription,
+  normalizeStripeEvent,
+  stripeDisputePhase,
+} from "@/lib/billing/stripeEvents.server";
+import { STRIPE_WEBHOOK_EVENT_TYPES } from "@/lib/billing/stripeEventTypes";
 import type { NormalizedStripeEvent } from "@/lib/billing/stripeEvents.server";
 import type { SubscriptionData, TransactionData } from "@/lib/billing/webhookDispatch.server";
 import type { VerifiedWebhookEvent } from "@/lib/stripe.server";
@@ -304,6 +311,66 @@ describe("normalizeStripeEvent - zdarzenia subskrypcji", () => {
     }
   });
 
+  it("zastosowana oczekująca zmiana niesie pozycje PO zmianie i harmonogram z chwili zastosowania", () => {
+    const applied = normalized(
+      event(
+        "customer.subscription.pending_update_applied",
+        stripeSubscription({ schedule: "sub_sched_1" }),
+      ),
+    );
+
+    expect(applied.eventType).toBe("subscription.pending_update_applied");
+    expect(applied.data).toMatchObject({
+      id: "sub_1",
+      status: "active",
+      scheduleId: "sub_sched_1",
+      items: [{ quantity: 2, price: { id: "price_1", externalId: "pro_monthly" } }],
+    });
+    const scheduleOf = (schedule: unknown) =>
+      (
+        normalized(
+          event("customer.subscription.pending_update_applied", stripeSubscription({ schedule })),
+        ).data as { scheduleId?: unknown }
+      ).scheduleId;
+    expect(scheduleOf({ id: "sub_sched_2", object: "subscription_schedule" })).toBe("sub_sched_2");
+    expect(scheduleOf(null)).toBeNull();
+    expect(scheduleOf(undefined)).toBeNull();
+  });
+
+  it("zastosowana oczekująca zmiana niesie fakturę dopłaty i datę końca `cancel_at` - tylko datę, nie flagę", () => {
+    const applied = (over: Record<string, unknown>) =>
+      normalized(event("customer.subscription.pending_update_applied", stripeSubscription(over)))
+        .data as { latestInvoiceId?: unknown; cancelAt?: unknown };
+
+    expect(applied({ latest_invoice: "in_upgrade", cancel_at: 1_702_000_000 })).toMatchObject({
+      latestInvoiceId: "in_upgrade",
+      cancelAt: 1_702_000_000,
+    });
+    expect(applied({ latest_invoice: { id: "in_obj", object: "invoice" } }).latestInvoiceId).toBe(
+      "in_obj",
+    );
+    expect(applied({ latest_invoice: null, cancel_at: null })).toMatchObject({
+      latestInvoiceId: null,
+      cancelAt: null,
+    });
+    // Flaga jedzie w oczekującej zmianie; zakończona subskrypcja nie ma planu końca.
+    expect(applied({ cancel_at_period_end: true, cancel_at: 1_702_000_000 }).cancelAt).toBeNull();
+    expect(applied({ status: "canceled", cancel_at: 1_702_000_000 }).cancelAt).toBeNull();
+  });
+
+  it("wygasła oczekująca zmiana to zwykła migawka stanu - typ z ZNORMALIZOWANEGO statusu", () => {
+    const expired = (over: Record<string, unknown> = {}) =>
+      normalized(event("customer.subscription.pending_update_expired", stripeSubscription(over)));
+
+    expect(expired().eventType).toBe("subscription.updated");
+    expect(expired({ status: "past_due" }).eventType).toBe("subscription.past_due");
+    expect(expired({ pause_collection: { behavior: "void" } }).eventType).toBe(
+      "subscription.paused",
+    );
+    // Pozycje się nie zmieniły, więc harmonogram nie ma czego cofać.
+    expect(expired({ schedule: "sub_sched_1" }).data).not.toHaveProperty("scheduleId");
+  });
+
   it("dokłada do każdego zdarzenia subskrypcji pełny model domenowy", () => {
     const data = subscriptionOf(event("customer.subscription.created", stripeSubscription()));
 
@@ -317,6 +384,7 @@ describe("normalizeStripeEvent - zdarzenia subskrypcji", () => {
 describe("normalizeStripeEvent - sesje checkout", () => {
   const session = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
     id: "cs_1",
+    mode: "payment",
     payment_status: "paid",
     amount_total: 12000,
     currency: "pln",
@@ -340,7 +408,76 @@ describe("normalizeStripeEvent - sesje checkout", () => {
       customer: { email: "kupujacy@example.com" },
       details: { totals: { grandTotal: "12000" } },
       billingPeriod: null,
+      source: "checkout_session",
+      amountSubtotalCents: null,
+      amountDiscountCents: null,
+      amountTaxCents: null,
+      promotionCodeIds: [],
+      // Pola dokumentu rozliczeniowego: bez stanu zapis dostawał `pending`,
+      // którego CHECK tabeli nie zna - zakup jednorazowy znikał z rejestru.
+      status: "paid",
+      documentKind: "receipt",
     });
+  });
+
+  it("sesja SUBSKRYPCJI nie jest osobnym dokumentem - opisuje ją pierwsza faktura", () => {
+    // `invoice.paid` tej samej płatności zakłada dokument `in_...`; drugi
+    // wiersz dla `cs_...` dublowałby te same pieniądze w panelu członka.
+    expect(
+      transactionOf(
+        event(
+          "checkout.session.completed",
+          session({ mode: "subscription", subscription: "sub_9" }),
+        ),
+      ).documentKind,
+    ).toBeNull();
+    // Sesja z subskrypcją bez pola `mode` (starszy kształt) - tak samo.
+    expect(
+      transactionOf(
+        event("checkout.session.completed", session({ mode: undefined, subscription: "sub_9" })),
+      ).documentKind,
+    ).toBeNull();
+  });
+
+  it("stan dokumentu to `payment_status` sesji; bez pola - zapłata dowiedziona zdarzeniem", () => {
+    expect(
+      transactionOf(
+        event("checkout.session.completed", session({ payment_status: "no_payment_required" })),
+      ).status,
+    ).toBe("no_payment_required");
+    expect(
+      transactionOf(event("checkout.session.completed", session({ payment_status: undefined })))
+        .status,
+    ).toBe("paid");
+    expect(
+      transactionOf(
+        event("checkout.session.async_payment_failed", session({ payment_status: "unpaid" })),
+      ).status,
+    ).toBe("unpaid");
+    // Porażka nie dowodzi niczego - brak pola zostaje brakiem.
+    expect(
+      transactionOf(
+        event("checkout.session.async_payment_failed", session({ payment_status: undefined })),
+      ).status,
+    ).toBeNull();
+  });
+
+  it("zbiera kody promocyjne operatora z `discounts`, pomijając NASZ kupon (bez kodu)", () => {
+    const data = transactionOf(
+      event(
+        "checkout.session.completed",
+        session({
+          discounts: [
+            { coupon: "co_ours", promotion_code: null },
+            { coupon: null, promotion_code: "promo_1" },
+            // Rozwinięty obiekt kodu i powtórka tego samego id - jedna pozycja.
+            { coupon: null, promotion_code: { id: "promo_2", object: "promotion_code" } },
+            { coupon: null, promotion_code: "promo_1" },
+          ],
+        }),
+      ),
+    );
+    expect(data.promotionCodeIds).toEqual(["promo_1", "promo_2"]);
   });
 
   it("ODRZUCA sesję nieopłaconą - pieniędzy jeszcze nie ma na koncie", () => {
@@ -422,6 +559,90 @@ describe("normalizeStripeEvent - sesje checkout", () => {
     const data = transactionOf(event("checkout.session.completed", session({ amount_total: 0 })));
     expect(data.details?.totals?.grandTotal).toBe("0");
   });
+
+  it("PAY-06: niesie rozbicie kwoty sesji - pozycje, rabat i podatek", () => {
+    // Realizacja porównuje `subtotal - rabat` z kwotą zamówienia. Sama suma
+    // końcowa tego nie rozstrzyga: podatek doliczany na wierzch i kod
+    // promocyjny operatora zmieniają ją w przeciwne strony.
+    const data = transactionOf(
+      event(
+        "checkout.session.completed",
+        session({
+          amount_subtotal: 10_000,
+          amount_total: 9_840,
+          total_details: { amount_discount: 2_000, amount_tax: 1_840, amount_shipping: 0 },
+        }),
+      ),
+    );
+
+    expect(data).toMatchObject({
+      amountSubtotalCents: 10_000,
+      amountDiscountCents: 2_000,
+      amountTaxCents: 1_840,
+      currencyCode: "PLN",
+      details: { totals: { grandTotal: "9840" } },
+    });
+  });
+
+  it("PAY-06: sesja Adaptive Pricing liczy się w walucie ZAMÓWIENIA (currency_conversion)", () => {
+    // Sesja sprzed 2025-03-31: pola główne w walucie kupującego (EUR), waluta
+    // zamówienia (PLN) w `currency_conversion`. Kupon 20% bez podatku na
+    // wierzch: rabat w PLN wynika DOKŁADNIE z różnicy sum źródłowych.
+    const data = transactionOf(
+      event(
+        "checkout.session.completed",
+        session({
+          currency: "eur",
+          amount_subtotal: 2_331,
+          amount_total: 1_865,
+          total_details: { amount_discount: 466, amount_tax: 0 },
+          currency_conversion: {
+            amount_subtotal: 10_000,
+            amount_total: 8_000,
+            fx_rate: "0.2331",
+            source_currency: "pln",
+          },
+        }),
+      ),
+    );
+
+    expect(data).toMatchObject({
+      currencyCode: "PLN",
+      details: { totals: { grandTotal: "8000" } },
+      amountSubtotalCents: 10_000,
+      amountDiscountCents: 2_000,
+      amountTaxCents: 0,
+    });
+  });
+
+  it("PAY-06: Adaptive Pricing z podatkiem na wierzch przelicza podatek proporcją sum pozycji", () => {
+    const data = transactionOf(
+      event(
+        "checkout.session.completed",
+        session({
+          currency: "eur",
+          amount_subtotal: 2_500,
+          amount_total: 2_460,
+          total_details: { amount_discount: 500, amount_tax: 460 },
+          currency_conversion: {
+            amount_subtotal: 10_000,
+            amount_total: 9_840,
+            fx_rate: "0.25",
+            source_currency: "pln",
+          },
+        }),
+      ),
+    );
+
+    // Podatek na wierzch: 460 EUR-centów * 4 = 1840 groszy; rabat = pozycje
+    // - (suma - podatek) = 10000 - (9840 - 1840) = 2000.
+    expect(data).toMatchObject({
+      currencyCode: "PLN",
+      amountSubtotalCents: 10_000,
+      amountDiscountCents: 2_000,
+      amountTaxCents: 1_840,
+    });
+  });
 });
 
 describe("normalizeStripeEvent - faktury", () => {
@@ -437,6 +658,7 @@ describe("normalizeStripeEvent - faktury", () => {
     invoice_pdf: "https://invoice.stripe.com/i/1.pdf",
     metadata: { orderId: "ord_1" },
     lines: { data: [{ period: { end: 1_800_000_000 } }] },
+    status: "paid",
     status_transitions: { paid_at: 1_790_000_000 },
     ...over,
   });
@@ -452,7 +674,8 @@ describe("normalizeStripeEvent - faktury", () => {
       customer: { email: "platnik@example.com" },
       details: { totals: { grandTotal: "2500" } },
       billingPeriod: { endsAt: "2027-01-15T08:00:00.000Z" },
-      status: "completed",
+      status: "paid",
+      documentKind: "invoice",
       invoiceNumber: "FV/2026/07/1",
       hostedInvoiceUrl: "https://invoice.stripe.com/i/1",
       invoicePdf: "https://invoice.stripe.com/i/1.pdf",
@@ -559,6 +782,20 @@ describe("normalizeStripeEvent - faktury", () => {
     expect(data.customData).toEqual({ purpose: "donation" });
   });
 
+  it("znacznik daty końca na fakturze dopłaty (`nes_*`) nie przykrywa metadanych subskrypcji", () => {
+    const data = transactionOf(
+      event(
+        "invoice.paid",
+        invoice({
+          metadata: { nes_upgrade_cancel_at: "1767225600", nes_upgrade_canceled_at: "1764547200" },
+          parent: { subscription_details: { metadata: { userId: "user-1" } } },
+        }),
+      ),
+    );
+
+    expect(data.customData).toEqual({ userId: "user-1" });
+  });
+
   it("mapuje nieudane obciążenie faktury na transaction.payment_failed", () => {
     expect(normalized(event("invoice.payment_failed", invoice({ amount_paid: 0 }))).eventType).toBe(
       "transaction.payment_failed",
@@ -591,10 +828,22 @@ describe("normalizeStripeEvent - faktury", () => {
     expect(data.details?.totals?.grandTotal).toBe("4500");
   });
 
-  it("stempluje nieudaną fakturę statusem 'completed'", () => {
-    // UWAGA: dokumentuje obecne zachowanie, patrz raport.
-    const data = transactionOf(event("invoice.payment_failed", invoice({ amount_paid: 0 })));
-    expect(data.status).toBe("completed");
+  it("stan faktury to `invoice.status` operatora - nieudana płatność nie jest 'completed'", () => {
+    // Dawniej każda faktura, także nieudana, dostawała stałe "completed".
+    const failed = transactionOf(
+      event("invoice.payment_failed", invoice({ amount_paid: 0, status: "open" })),
+    );
+    expect(failed.status).toBe("open");
+    expect(
+      transactionOf(event("invoice.payment_failed", invoice({ status: "uncollectible" }))).status,
+    ).toBe("uncollectible");
+    // Brak pola: `invoice.paid` dowodzi zapłaty, porażka - niczego.
+    expect(transactionOf(event("invoice.paid", invoice({ status: undefined }))).status).toBe(
+      "paid",
+    );
+    expect(
+      transactionOf(event("invoice.payment_failed", invoice({ status: undefined }))).status,
+    ).toBeNull();
   });
 
   it("nie wywraca się na fakturze bez pozycji i bez pól dokumentu", () => {
@@ -663,7 +912,7 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
     expect(data.totals).toEqual({ total: "0", captured: "0", currencyCode: null });
   });
 
-  it("mapuje obciążenie zwrotne (dispute)", () => {
+  it("mapuje obciążenie zwrotne (dispute) na słownik domenowy, z surowym statusem obok", () => {
     const data = adjustmentOf(
       event("charge.dispute.created", {
         id: "dp_1",
@@ -678,10 +927,169 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
       id: "dp_1",
       transactionId: "ch_9",
       subscriptionId: null,
-      action: "chargeback",
-      status: "needs_response",
+      action: "chargeback_warning",
+      status: "open",
+      providerStatus: "needs_response",
       totals: { total: "2500", currencyCode: "EUR" },
     });
+  });
+
+  it.each([
+    ["charge.dispute.created", "warning_needs_response", "chargeback_warning", "open"],
+    ["charge.dispute.created", "warning_under_review", "chargeback_warning", "open"],
+    ["charge.dispute.created", "needs_response", "chargeback_warning", "open"],
+    ["charge.dispute.created", "under_review", "chargeback_warning", "open"],
+    ["charge.dispute.closed", "won", "chargeback", "reversed"],
+    ["charge.dispute.closed", "warning_closed", "chargeback", "reversed"],
+    ["charge.dispute.closed", "lost", "chargeback", "approved"],
+  ])("PAY-03: %s ze statusem `%s` -> %s/%s", (type, providerStatus, action, status) => {
+    // Bez tego tłumaczenia żaden status Stripe nie przechodził przez bramki
+    // `refunds.server` (słownik Paddle: approved/reversed) - spór nie
+    // odbierał dostępu, nie alarmował i po wygranej niczego nie przywracał.
+    const data = adjustmentOf(
+      event(type, { id: "dp_2", payment_intent: "pi_2", status: providerStatus, amount: 100 }),
+    );
+
+    expect(data).toMatchObject({ transactionId: "pi_2", action, status, providerStatus });
+  });
+
+  it("2.3: `prevented` to spór zatrzymany AUTOMATYCZNYM ZWROTEM - jak przegrany (środki wróciły), nie wygrana", () => {
+    // Zapobieganie sporom (reguła Radar / RDR) działa przez zwrot płatności.
+    // Mapowanie na `reversed` przywracało dostęp klientowi, który miał już
+    // pieniądze z powrotem, a alert mówił „rozstrzygnięto na naszą korzyść".
+    const data = adjustmentOf(
+      event("charge.dispute.closed", { id: "dp_p", payment_intent: "pi_p", status: "prevented" }),
+    );
+
+    expect(data).toMatchObject({
+      action: "chargeback",
+      status: "approved",
+      providerStatus: "prevented",
+    });
+  });
+
+  it.each([
+    ["won", { action: "chargeback", status: "reversed" }],
+    ["warning_closed", { action: "chargeback", status: "reversed" }],
+    ["lost", { action: "chargeback", status: "approved" }],
+    ["prevented", { action: "chargeback", status: "approved" }],
+    ["needs_response", { action: "chargeback_warning", status: "open" }],
+    ["warning_under_review", { action: "chargeback_warning", status: "open" }],
+  ])(
+    "S2: `stripeDisputePhase(%s)` - ten sam słownik dla zdarzenia i dla stanu BIEŻĄCEGO sporu",
+    (status, phase) => {
+      // `refunds.server` liczy skutek z odczytu sporu u operatora tym samym
+      // eksportem - rozjazd słowników dałby inny skutek dla zdarzenia i dla
+      // jego ponowienia.
+      expect(stripeDisputePhase(status)).toEqual(phase);
+    },
+  );
+
+  it("2.11: `refund.failed` to korekta korekty - `adjustment.updated` ze zwrotem `failed`", () => {
+    const result = normalized(
+      event("refund.failed", {
+        id: "re_1",
+        object: "refund",
+        amount: 4900,
+        charge: "ch_1",
+        payment_intent: "pi_1",
+        currency: "pln",
+        status: "failed",
+        failure_reason: "expired_or_canceled_card",
+      }),
+    );
+
+    // Kształt wspólny z INV-19c: `refunds.server` przelicza zamówienie
+    // z obciążenia i eskaluje zlecenie zwrotu zgłoszenia - kwota zdarzenia
+    // (pojedynczy zwrot) celowo nie jedzie dalej.
+    expect(result.eventType).toBe("adjustment.updated");
+    expect(result.data).toEqual({
+      id: "re_1",
+      transactionId: "pi_1",
+      subscriptionId: null,
+      action: "refund",
+      status: "failed",
+      failureReason: "expired_or_canceled_card",
+    });
+  });
+
+  it("2.11: nieudany zwrot bez intencji wskazuje obciążenie; ładunek bez stanu to porażka", () => {
+    expect(
+      adjustmentOf(event("refund.failed", { id: "re_2", charge: { id: "ch_2" } })),
+    ).toMatchObject({ transactionId: "ch_2", status: "failed", failureReason: null });
+    expect(adjustmentOf(event("refund.failed", {}))).toMatchObject({
+      id: "",
+      transactionId: null,
+      action: "refund",
+      status: "failed",
+    });
+  });
+
+  it("PAY-03: NIEZNANY status sporu jest sporem otwartym - ale głośno, nie po cichu", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const data = adjustmentOf(
+      event("charge.dispute.closed", { id: "dp_3", charge: "ch_3", status: "nowy_status" }),
+    );
+
+    expect(data).toMatchObject({
+      action: "chargeback_warning",
+      status: "open",
+      providerStatus: "nowy_status",
+    });
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] unknown Stripe dispute status - treated as open",
+      "nowy_status",
+    );
+    warn.mockRestore();
+  });
+
+  it("mapuje rozstrzygnięcie sporu (dispute.closed) - surowy status w `providerStatus`", () => {
+    // Przegląd adwersaryjny #495, poz. 26: bez tej normalizacji wygrany spór
+    // nie miał żadnej drogi do przywrócenia dostępu ani wpłaty. ZMIANA ASERCJI
+    // przy scaleniu z PAY-03/S2: rozstrzygnięcie jedzie tym samym typem co
+    // otwarcie (`adjustment.created` - dyspozytor obsługuje oba typy tak samo),
+    // a status sporu dostaje słownik domenowy (`won` -> `reversed`); surowy
+    // status zostaje w `providerStatus`.
+    const result = normalized(
+      event("charge.dispute.closed", {
+        id: "dp_1",
+        charge: "ch_9",
+        payment_intent: "pi_9",
+        currency: "eur",
+        amount: 2500,
+        status: "won",
+      }),
+    );
+
+    expect(result.eventType).toBe("adjustment.created");
+    expect(result.data).toEqual({
+      id: "dp_1",
+      transactionId: "pi_9",
+      subscriptionId: null,
+      action: "chargeback",
+      status: "reversed",
+      providerStatus: "won",
+      totals: { total: "2500", currencyCode: "EUR" },
+    });
+  });
+
+  it("`isStripeDisputeStatus` rozpoznaje surowe statusy sporu, nie słownik domenowy", () => {
+    for (const status of [
+      "warning_needs_response",
+      "warning_under_review",
+      "warning_closed",
+      "needs_response",
+      "under_review",
+      "won",
+      "lost",
+      "prevented",
+    ]) {
+      expect(isStripeDisputeStatus(status)).toBe(true);
+    }
+    for (const status of ["open", "reversed", "approved", "succeeded", null]) {
+      expect(isStripeDisputeStatus(status)).toBe(false);
+    }
   });
 
   it("mapuje notę kredytową na korektę powiązaną z fakturą", () => {
@@ -706,9 +1114,16 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
   });
 
   it("każda korekta jedzie tym samym typem zdarzenia domenowego", () => {
-    for (const type of ["charge.refunded", "charge.dispute.created", "credit_note.created"]) {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const type of [
+      "charge.refunded",
+      "charge.dispute.created",
+      "charge.dispute.closed",
+      "credit_note.created",
+    ]) {
       expect(normalized(event(type, { id: "x" })).eventType).toBe("adjustment.created");
     }
+    warn.mockRestore();
   });
 
   it("zeruje kwotę korekty, gdy operator poda ją w nieliczbowej postaci", () => {
@@ -721,6 +1136,19 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
 });
 
 describe("normalizeStripeEvent - zakres integracji", () => {
+  it("każdy typ z `STRIPE_WEBHOOK_EVENT_TYPES` ma tłumaczenie (lista i normalizator się nie rozjeżdżają)", () => {
+    // Typ na liście, którego normalizator nie zna, kończy się w dzienniku
+    // jako `skipped` - uzgadnianie uznaje go za obsłużony, a skutek nie
+    // powstaje nigdy (tak było z `charge.dispute.closed`).
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const type of STRIPE_WEBHOOK_EVENT_TYPES) {
+      // `refund.failed` niesie stan porażki - stan sporu `won` go nie dotyczy.
+      const status = type === "refund.failed" ? "failed" : "won";
+      expect(normalizeStripeEvent(event(type, { id: "obj_1", status })), type).not.toBeNull();
+    }
+    warn.mockRestore();
+  });
+
   it("przekazuje customer.updated bez tłumaczenia (profil rozliczeniowy)", () => {
     const object = { id: "cus_1", email: "nowy@example.com" };
     const result = normalized(event("customer.updated", object));
@@ -737,7 +1165,6 @@ describe("normalizeStripeEvent - zakres integracji", () => {
       "customer.created",
       "charge.succeeded",
       "customer.subscription.trial_will_end",
-      "checkout.session.expired",
       "",
     ];
 
@@ -767,5 +1194,140 @@ describe("normalizeStripeEvent - zakres integracji", () => {
 
     expect(normalizeStripeEvent(e)).toEqual(normalizeStripeEvent(e));
     expect(e).toEqual(snapshot);
+  });
+});
+
+// Audyt SUB-03 / SUB-14 / SUB-16: pola, od których zależy dostęp i windykacja.
+describe("mapStripeSubscription - pauza poboru, powód anulowania, rezygnacja datą", () => {
+  it("pauza poboru przy statusie active to `paused` z zachowanym sposobem pauzy", () => {
+    const raw = stripeSubscription({
+      pause_collection: { behavior: "void", resumes_at: 1_710_000_000 },
+    });
+    const data = mapStripeSubscription(raw);
+
+    expect(data.status).toBe("paused");
+    expect(data.pauseCollection).toEqual({
+      behavior: "void",
+      resumesAt: "2024-03-09T16:00:00.000Z",
+    });
+    expect(normalized(event("customer.subscription.updated", raw)).eventType).toBe(
+      "subscription.paused",
+    );
+  });
+
+  it("zdjęta pauza poboru wraca do statusu operatora", () => {
+    const data = mapStripeSubscription(stripeSubscription({ pause_collection: null }));
+    expect(data.status).toBe("active");
+    expect(data.pauseCollection).toBeUndefined();
+  });
+
+  it("pauza poboru nie przykrywa subskrypcji zakończonej ani nieopłaconej", () => {
+    for (const status of ["canceled", "incomplete", "incomplete_expired"]) {
+      const data = mapStripeSubscription(
+        stripeSubscription({ status, pause_collection: { behavior: "keep_as_draft" } }),
+      );
+      expect(data.status, status).toBe(status);
+    }
+  });
+
+  it("przenosi `cancellation_details.reason` do modelu domenowego", () => {
+    const data = mapStripeSubscription(
+      stripeSubscription({
+        status: "canceled",
+        cancellation_details: { reason: "payment_failed" },
+      }),
+    );
+    expect(data.cancellationReason).toBe("payment_failed");
+  });
+
+  it("rezygnacja zaplanowana datą `cancel_at` jest zaplanowaną rezygnacją", () => {
+    expect(
+      mapStripeSubscription(stripeSubscription({ cancel_at: 1_702_000_000 })).scheduledChange,
+    ).toEqual({ action: "cancel", effectiveAt: "2023-12-08T01:46:40.000Z" });
+    // Po zakończeniu subskrypcji `cancel_at` jest historią, nie planem.
+    expect(
+      mapStripeSubscription(stripeSubscription({ status: "canceled", cancel_at: 1_702_000_000 }))
+        .scheduledChange,
+    ).toBeNull();
+  });
+});
+
+describe("normalizeStripeEvent - próby obciążenia faktury", () => {
+  it("niesie numer próby i termin kolejnej próby", () => {
+    const data = transactionOf(
+      event("invoice.payment_failed", {
+        id: "in_1",
+        attempt_count: 3,
+        next_payment_attempt: 1_800_000_000,
+      }),
+    );
+    expect(data.attemptCount).toBe(3);
+    expect(data.nextPaymentAttemptAt).toBe("2027-01-15T08:00:00.000Z");
+  });
+
+  it("bez pól próby zostawia puste wartości zamiast zgadywać", () => {
+    const data = transactionOf(event("invoice.payment_failed", { id: "in_1", attempt_count: "3" }));
+    expect(data.attemptCount).toBeNull();
+    expect(data.nextPaymentAttemptAt).toBeNull();
+  });
+});
+
+// Przegląd poprawek SUB-04/SUB-16: odrzucona dopłata do upgrade'u przy
+// `pending_if_incomplete` zostawia subskrypcję aktywną, a jej
+// `invoice.payment_failed` wyglądał dla windykacji jak zaległe odnowienie -
+// mapowanie nie niosło `billing_reason`, więc nic nie umiało ich odróżnić.
+describe("normalizeStripeEvent - powód wystawienia faktury", () => {
+  it("niesie `billing_reason` faktury - dopłatę za zmianę i odnowienie", () => {
+    for (const reason of ["subscription_update", "subscription_cycle", "subscription_create"]) {
+      for (const type of ["invoice.payment_failed", "invoice.paid"]) {
+        const data = transactionOf(event(type, { id: "in_1", billing_reason: reason }));
+        expect(data.billingReason).toBe(reason);
+      }
+    }
+  });
+
+  it("bez powodu (albo z wartością spoza słownika typów) zostawia `null`", () => {
+    expect(transactionOf(event("invoice.payment_failed", { id: "in_1" })).billingReason).toBeNull();
+    expect(
+      transactionOf(event("invoice.payment_failed", { id: "in_1", billing_reason: 7 }))
+        .billingReason,
+    ).toBeNull();
+  });
+
+  // Codex P1 (PR #502): zmiana interwału (miesięczny -> roczny) idzie fakturą
+  // `subscription_update`, ale resetuje okres i obciąża za cały nowy - to
+  // zapłata ZA OKRES. Odróżnia ją pozycja subskrypcji bez proraty.
+  it("niesie, czy faktura obciąża za CAŁY okres (pozycja subskrypcji bez proraty)", () => {
+    const line = (proration: boolean, start = 1_800_000_000) => ({
+      period: { start, end: start + 365 * 86_400 },
+      parent: {
+        type: "subscription_item_details",
+        subscription_item_details: { proration, invoice_item: proration ? "ii_1" : null },
+      },
+    });
+    const charges = (lines: unknown[]) =>
+      transactionOf(
+        event("invoice.paid", {
+          id: "in_1",
+          billing_reason: "subscription_update",
+          lines: { data: lines },
+        }),
+      ).chargesFullPeriod;
+
+    // Zmiana interwału: kredyt za resztę starego okresu + pełny nowy okres.
+    expect(charges([line(true), line(false)])).toBe(true);
+    // Zwykła dopłata: same proraty.
+    expect(charges([line(true), line(true)])).toBe(false);
+    expect(charges([])).toBe(false);
+    // Ładunek sprzed Basil: `type` i `proration` na samej pozycji.
+    expect(
+      charges([{ type: "subscription", proration: false, period: { start: 1_800_000_000 } }]),
+    ).toBe(true);
+    expect(
+      charges([{ type: "invoiceitem", proration: false, period: { start: 1_800_000_000 } }]),
+    ).toBe(false);
+    expect(
+      invoiceFullPeriodStart({ lines: { data: [line(true, 1_700_000_000), line(false)] } }),
+    ).toBe(new Date(1_800_000_000 * 1000).toISOString());
   });
 });

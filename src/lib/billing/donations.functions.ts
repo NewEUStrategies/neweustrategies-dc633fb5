@@ -23,6 +23,7 @@ const STATS_ROW_CAP = 20_000;
 const STATS_PAGE = 1_000;
 
 export interface DonationsPublicStats {
+  /** Suma NETTO (po zwrotach częściowych) opłaconych wpłat w walucie zbiórki. */
   totalCents: number;
   monthCents: number;
   count: number;
@@ -50,7 +51,10 @@ function emptyStats(currency: string): DonationsPublicStats {
  *
  * NIE wystawia PII (donor_email, message) - tylko sumy i kwoty ostatnich N
  * pozycji. Odczyt service-role (RLS nie dopuszcza anona), zawężony do tenantu
- * hosta i `status='paid'`.
+ * hosta, `status='paid'` i ŚRODOWISKA bramki tego wdrożenia (w produkcji
+ * `live`): wpłata kartą testową nie może podbijać paska zbiórki (audyt SUB-10).
+ * Kwota pozycji to kwota NETTO - zwrot częściowy zostawia wpłatę opłaconą
+ * (tak jak zamówienie), ale zwrócona część nie jest już zebranym wsparciem.
  *
  * Sumujemy WYŁĄCZNIE wpłaty w walucie zbiórki: rejestr bywa dwuwalutowy
  * (PLN historycznie, EUR po zmianie ustawień), a dodanie groszy do centów
@@ -59,15 +63,17 @@ function emptyStats(currency: string): DonationsPublicStats {
 export const getDonationsPublicStats = createServerFn({ method: "GET" }).handler(
   async (): Promise<DonationsPublicStats> => {
     return edgeTtlCache("donations:public-stats", PUBLIC_TTL_MS, async () => {
-      const [{ resolveTenantIdForHost }, { currentTenantHost }, { supabaseAdmin }, config] =
-        await Promise.all([
-          import("@/lib/server/tenant.server"),
-          import("@/lib/http/requestHost"),
-          import("@/integrations/supabase/client.server"),
-          loadConfigCached(),
-        ]);
-      const tenantId = await resolveTenantIdForHost(await currentTenantHost());
+      // Najemca przed konfiguracją: `loadConfigCached` rozstrzyga go tą samą
+      // funkcją, a dwa równoległe pierwsze importy modułu katalogu najemców
+      // potrafiły dać w testach dwie różne instancje.
+      const tenantId = await hostTenantId();
+      const [{ supabaseAdmin }, config] = await Promise.all([
+        import("@/integrations/supabase/client.server"),
+        loadConfigCached(),
+      ]);
       if (!tenantId) return emptyStats(config.currency);
+      const { resolveEnvironment } = await import("@/lib/stripe.server");
+      const environment = resolveEnvironment(null);
 
       // Początek bieżącego miesiąca w UTC - ta sama granica co w eksportach.
       const now = new Date();
@@ -79,8 +85,9 @@ export const getDonationsPublicStats = createServerFn({ method: "GET" }).handler
       for (let offset = 0; offset < STATS_ROW_CAP; offset += STATS_PAGE) {
         const { data, error } = await supabaseAdmin
           .from("donations")
-          .select("amount_cents,currency,created_at")
+          .select("amount_cents,refunded_amount_cents,currency,created_at")
           .eq("tenant_id", tenantId)
+          .eq("environment", environment)
           .eq("status", "paid")
           .eq("currency", config.currency)
           .order("created_at", { ascending: false })
@@ -91,15 +98,16 @@ export const getDonationsPublicStats = createServerFn({ method: "GET" }).handler
         }
         const rows = data ?? [];
         for (const row of rows) {
-          stats.totalCents += row.amount_cents;
+          const netCents = Math.max(0, row.amount_cents - (row.refunded_amount_cents ?? 0));
+          stats.totalCents += netCents;
           stats.count += 1;
           if (row.created_at >= monthStart) {
-            stats.monthCents += row.amount_cents;
+            stats.monthCents += netCents;
             stats.monthCount += 1;
           }
           if (stats.recent.length < 5) {
             stats.recent.push({
-              amount_cents: row.amount_cents,
+              amount_cents: netCents,
               currency: row.currency,
               created_at: row.created_at,
             });
@@ -113,11 +121,27 @@ export const getDonationsPublicStats = createServerFn({ method: "GET" }).handler
   },
 );
 
-/** Konfiguracja z cache per izolat - współdzielona przez stats i server fn. */
+/** Najemca hosta żądania (płaszczyzna treści) - `null`, gdy katalog milczy. */
+async function hostTenantId(): Promise<string | null> {
+  const [{ resolveTenantIdForHost }, { currentTenantHost }] = await Promise.all([
+    import("@/lib/server/tenant.server"),
+    import("@/lib/http/requestHost"),
+  ]);
+  return resolveTenantIdForHost(await currentTenantHost());
+}
+
+/**
+ * Konfiguracja z cache per izolat - współdzielona przez stats i server fn.
+ * Klucz `edgeTtlCache` jest zawężany do hosta, a host wyznacza najemcę, więc
+ * jeden wpis = konfiguracja jednego najemcy (nigdy „pierwszego wiersza").
+ */
 function loadConfigCached(): Promise<DonationsConfig> {
   return edgeTtlCache("donations:config", PUBLIC_TTL_MS, async () => {
-    const { loadDonationsConfig } = await import("@/lib/billing/donations.server");
-    return loadDonationsConfig();
+    const [{ loadDonationsConfig }, tenantId] = await Promise.all([
+      import("@/lib/billing/donations.server"),
+      hostTenantId(),
+    ]);
+    return loadDonationsConfig(tenantId);
   });
 }
 
@@ -140,6 +164,10 @@ export interface DonationCheckoutInput {
  * Otwiera sesję osadzonej kasy dla darowizny. Endpoint jest publiczny (wpłata
  * nie wymaga konta), więc kwota, waluta i limity są walidowane WYŁĄCZNIE po
  * stronie serwera, a próby limitowane per podmiot (skrót IP albo konto).
+ *
+ * ŚRODOWISKO od klienta jest tylko prośbą: rozstrzyga je `resolveEnvironment`
+ * (ta sama funkcja co checkout planów - w produkcji zawsze `live`). Wcześniej
+ * `getStripeClient(input.environment)` brał wartość z przeglądarki wprost.
  *
  * Tożsamość czytamy miękko: zalogowany darczyńca dostaje wpłatę w rejestrze
  * profilu i status wspierającego, anonimowy - pełną anonimowość.
@@ -173,6 +201,9 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
       import("@/lib/server/rateSubject.server"),
       import("@/lib/auth/optionalUser.server"),
     ]);
+    // Osobno, po module darowizn: ten sam moduł bramki ładowany równolegle
+    // dwiema ścieżkami importu dostawał w testach dwie różne instancje.
+    const { resolveEnvironment } = await import("@/lib/stripe.server");
 
     const userId = await optionalUserIdFromRequest();
     let headers: Headers | null = null;
@@ -183,7 +214,7 @@ export const createDonationCheckout = createServerFn({ method: "POST" })
     }
 
     return createDonationSession({
-      environment: data.environment,
+      environment: resolveEnvironment(data.environment),
       amountCents: data.amountCents,
       recurring: Boolean(data.recurring),
       donorEmail: data.donorEmail ?? null,

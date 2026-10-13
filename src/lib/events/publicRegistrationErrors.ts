@@ -119,44 +119,10 @@ export function cancellationErrorMessage(error: unknown): string {
 const INVITE_PREFIX = "eventRegistration.invite.errors.";
 
 /**
- * Odmowa PRZYJĘCIA ZAPROSZENIA pakietowego -> zdanie (REG-15). Ten sam słownik
- * co zapis, z wyjątkami w tonie zaproszenia: `event_ended` znaczy tu „zaproszenia
- * nie można przyjąć", a `already_registered` dotyczy osoby z zaproszenia, nie
- * wypełniającego formularz. Słowa z `invite.errors` wygrywają, reszta spada do
- * `registrationFailure`.
- */
-export function packageInviteFailure(error: unknown): RegistrationFailure {
-  ensureEventRegistrationI18n();
-  const { head } = splitMessage(error);
-  if (/^[a-z][a-z0-9_]*$/.test(head)) {
-    const candidate = `${INVITE_PREFIX}${camel(head)}`;
-    if (i18n.exists(candidate)) return { key: candidate, params: {} };
-  }
-  return registrationFailure(error);
-}
-
-/** Gotowe zdanie odmowy przyjęcia zaproszenia pakietowego. */
-export function packageInviteErrorMessage(error: unknown): string {
-  const failure = packageInviteFailure(error);
-  return i18n.t(failure.key, failure.params);
-}
-
-/** Czy odmowa rezygnacji mówi, że skutek finansowy się zmienił (podgląd do odświeżenia). */
-export function isRefundTermsChanged(error: unknown): boolean {
-  const { head } = splitMessage(error);
-  return head === "refund_terms_changed" || head === "refund_ack_required";
-}
-
-/**
- * Każda odmowa dopisania gości (rdzeń `_event_register_group_guests`, wejście
- * `event_register_group_guests_for_client` i wrapper zgodności w migracji
- * `20261012180300_event_group_guests_validation_first.sql`), w kolejności
- * sprawdzeń. Baza oddaje je WARTOŚCIĄ `{ok:false, error}` - bez ogona
- * (`rate_limited` - kubełki adresu i konta liczone przed pracą, `event_ended`
- * - po końcu wydarzenia, `duplicate_guest` - ten sam adres dwa razy albo adres
- * prowadzącego); funkcja serwerowa oddaje przeglądarce sam kod. Lista jest
- * jawna, a nie wyliczana z `i18n.exists`, żeby test mógł dowieść, że KAŻDA
- * odmowa tych funkcji ma zdanie w obu językach.
+ * Każdy `RAISE EXCEPTION` z `event_register_group_guests` (ostatnia definicja:
+ * migracja `20261012130000_event_ticket_seat_ledger.sql`), w kolejności
+ * sprawdzeń w funkcji. Lista jest jawna, a nie wyliczana z `i18n.exists`, żeby
+ * test mógł dowieść, że KAŻDA odmowa tej funkcji ma zdanie w obu językach.
  */
 export const GROUP_GUEST_REFUSALS = [
   "account_required",
@@ -170,6 +136,9 @@ export const GROUP_GUEST_REFUSALS = [
   "event_ended",
   "registration_closed",
   "already_settled",
+  // TIX-03: kasa tego zgłoszenia jest otwarta - jej kwota policzyła już
+  // miejsca, więc gość dopisany teraz nie byłby opłacony.
+  "checkout_in_progress",
   "group_not_enabled",
   "sold_out",
 ] as const;

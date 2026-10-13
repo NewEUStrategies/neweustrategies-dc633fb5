@@ -7,7 +7,10 @@
 //   * 2xx = „mam, nie ponawiaj". 200 na zdarzeniu, które PADŁO, gubi je na
 //     zawsze - klient zapłacił, uprawnienia nie dostał, nikt nie ponowi;
 //   * nie-2xx = „ponów". 500 na zdarzeniu, którego CELOWO nie obsługujemy,
-//     to trzy dni ponowień i fałszywe alarmy;
+//     to trzy dni ponowień i fałszywe alarmy - ale 409 na zdarzeniu, które
+//     właśnie obsługuje równoległa dostawa, i 503 przy nieczytelnym dzienniku
+//     są obowiązkowe: pierwsza obsługa może jeszcze paść, a 2xx zakończyłoby
+//     ponawianie na zawsze;
 //   * 400 dla zdarzenia bez ważnego podpisu albo z podpisem INNEGO
 //     środowiska - inaczej każdy mógłby wysłać „opłacono" i odblokować treść,
 //     a zdarzenie opłacone kartą testową przeszłoby jako live.
@@ -35,12 +38,22 @@ import {
   type SupabaseResult,
 } from "@/test/supabase/chain";
 import { routeServerHandlers } from "@/test/routeHarness";
-import { FIXED_NOW_ISO, FIXED_NOW_MS, SEKUNDA, freezeClock } from "@/test/time";
+import {
+  FIXED_NOW_ISO,
+  FIXED_NOW_MS,
+  MINUTA,
+  SEKUNDA,
+  freezeClock,
+  relativeIso,
+} from "@/test/time";
 
 const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
   afterResponse: [] as Promise<unknown>[],
   catalogSync: vi.fn<(env: string) => Promise<void>>(),
+  /** Odczyt subskrypcji u operatora (wyrównanie spóźnionego zdarzenia). */
+  retrieve: null as null | ((id: string) => Promise<unknown>),
+  retrieveCalls: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -58,6 +71,23 @@ vi.mock("@/lib/http/waitUntil.server", () => ({
 }));
 vi.mock("@/lib/billing/catalogAutoSync.server", () => ({
   ensureCatalogSynced: (env: string) => h.catalogSync(env),
+}));
+// Klient operatora: jedyne wyjście to odczyt subskrypcji przy wyrównaniu
+// spóźnionego zdarzenia. Weryfikacja podpisu zostaje PRAWDZIWA.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
+  getStripeClient: async () => {
+    const retrieve = h.retrieve;
+    if (!retrieve) throw new Error("test: żaden przypadek nie ma prawa wołać operatora");
+    return {
+      subscriptions: {
+        retrieve: (id: string) => {
+          h.retrieveCalls.push(id);
+          return retrieve(id);
+        },
+      },
+    };
+  },
 }));
 
 import { Route, __handleForTests as handle } from "./webhook";
@@ -161,6 +191,8 @@ beforeEach(() => {
   vi.stubEnv("PAYMENTS_SANDBOX_WEBHOOK_SECRET", SECRETS.sandbox);
   vi.stubEnv("PAYMENTS_LIVE_WEBHOOK_SECRET", SECRETS.live);
   vi.spyOn(console, "error").mockImplementation(() => {});
+  h.retrieve = null;
+  h.retrieveCalls = [];
   // Bez prawdziwej sieci: ścieżka ACK nie może wołać operatora ani maila
   // synchronicznie. Próba wyjścia do sieci = awaria dyspozytora = 500 w teście.
   vi.stubGlobal(
@@ -294,8 +326,26 @@ describe("webhook płatności - zdarzenia przyjęte przez trasę HTTP", () => {
     expect(logFinish()).toMatchObject({ status: "processed" });
   });
 
-  it("spóźnione zdarzenie subskrypcji (stan w bazie nowszy): 200 i `skipped`, bez nadpisania", async () => {
-    planDb({ subscriptionGuard: ok([]), subscriptionExists: ok({ id: "row-sub-1" }) });
+  it("spóźnione zdarzenie subskrypcji (stan w bazie nowszy): 200 i `processed`, stan nietknięty, wyrównanie z API", async () => {
+    // Strażnik czyta parę (znacznik, identyfikator) - wiersz bez porównywalnego
+    // znacznika nie jest „nowszy", tylko sporny, więc stan musi go nieść.
+    // Spóźnione zdarzenie nie stosuje ładunku, ale wyrównuje uprawnienie stanem
+    // z API (jego wcześniejsza próba mogła zapisać uprawnienie i paść - A1/A2).
+    h.retrieve = async (id) => ({
+      id,
+      customer: "cus_test_1",
+      status: "active",
+      items: { data: [] },
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    planDb({
+      subscriptionGuard: ok([]),
+      subscriptionExists: ok({
+        id: "row-sub-1",
+        last_event_at: relativeIso(MINUTA),
+        last_event_id: "evt_nowsze",
+      }),
+    });
 
     const res = await handle(signed(SUBSCRIPTION_UPDATED, "live"));
 
@@ -308,11 +358,16 @@ describe("webhook płatności - zdarzenia przyjęte przez trasę HTTP", () => {
       customer_id: "cus_test_1",
       user_id: "user-me",
     });
-    expect(logFinish()).toMatchObject({ status: "skipped", error: null });
+    expect(logFinish()).toMatchObject({ status: "processed", error: null });
+    expect(h.retrieveCalls).toEqual(["sub_test_1"]);
     // Jedyny zapis do `subscriptions` to warunkowy strażnik - żadnego upsertu.
     const writes = db.chainsFor("subscriptions").filter((c) => c.has("update") || c.has("upsert"));
     expect(writes).toHaveLength(1);
-    expect(writes[0]!.argsOf("update")?.[0]).toEqual({ last_event_at: FIXED_NOW_ISO });
+    expect(writes[0]!.argsOf("update")?.[0]).toEqual({
+      last_event_at: FIXED_NOW_ISO,
+      last_event_id: "evt_test_1",
+    });
+    warn.mockRestore();
   });
 });
 
@@ -354,17 +409,19 @@ describe("webhook płatności - ponowna dostawa tego samego zdarzenia", () => {
     ]);
   });
 
-  it("przegrany wyścig o przejęcie `failed`: 200 `duplicate`, bez drugiej obsługi i domknięcia", async () => {
-    // Naprawa z panelu (albo równoległa dostawa) przejęła ten sam wiersz chwilę
-    // wcześniej - warunkowy UPDATE nie dopasował żadnego wiersza. Obsługę
-    // wykonuje TYLKO zwycięzca; ta dostawa nie może jej powtórzyć ani nadpisać
-    // jego wyniku swoim domknięciem.
+  it("przegrany wyścig o przejęcie `failed`: 409 (operator ponowi), bez drugiej obsługi i domknięcia", async () => {
+    // Naprawa z panelu, zamiatarka albo równoległa dostawa przejęła ten sam
+    // wiersz chwilę wcześniej - warunkowy UPDATE nie dopasował żadnego wiersza.
+    // Obsługę wykonuje TYLKO zwycięzca; ta dostawa nie może jej powtórzyć ani
+    // nadpisać jego wyniku swoim domknięciem. Odpowiedź NIE jest 2xx: zwycięzca
+    // może jeszcze paść, a „duplikat" zakończyłby ponawianie u operatora.
     planDb({
       logInsert: fail('duplicate key value violates unique constraint "uq_event"', "23505"),
       logLookup: ok({
         id: "row-failed-1",
         status: "failed",
         created_at: FIXED_NOW_ISO,
+        last_retried_at: null,
         retry_count: 1,
       }),
       logReclaim: ok([]),
@@ -372,11 +429,60 @@ describe("webhook płatności - ponowna dostawa tego samego zdarzenia", () => {
 
     const res = await handle(signed(SUBSCRIPTION_UPDATED, "live"));
 
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ received: true, duplicate: true });
+    expect(res.status).toBe(409);
+    expect(res.headers.get("Retry-After")).toBe("60");
     expect(touchedTables()).toEqual([LOG]);
     expect(finishChain()).toBeUndefined();
     expect(h.afterResponse).toHaveLength(0);
+  });
+
+  // KRYTERIUM PAY-08: dostawa w toku -> nie-2xx.
+  it("dostawa w toku -> nie-2xx (409): równoległa obsługa trwa, operator MUSI ponowić", async () => {
+    // Pierwsza dostawa przejęła zdarzenie minutę temu i jeszcze pracuje (albo
+    // jej worker właśnie zginął). Dawne 200 `duplicate` kończyło ponawianie
+    // u operatora - gdy pierwsza obsługa padła, zdarzenie wisiało w
+    // `received` na zawsze, a klient zostawał bez uprawnienia.
+    planDb({
+      logInsert: fail('duplicate key value violates unique constraint "uq_event"', "23505"),
+      logLookup: ok({
+        id: "row-busy-1",
+        status: "received",
+        created_at: relativeIso(-MINUTA),
+        last_retried_at: null,
+        retry_count: 0,
+      }),
+    });
+
+    const res = await handle(signed(DONATION_RENEWAL_FAILED, "live"));
+
+    expect(res.status).toBe(409);
+    expect(res.ok).toBe(false);
+    expect(res.headers.get("Retry-After")).toBe("60");
+    expect(await res.text()).toBe("Webhook event in progress");
+    // Ani przejęcia, ani obsługi, ani domknięcia - wiersz należy do pierwszej dostawy.
+    expect(db.chainsFor(LOG).filter((c) => c.has("update"))).toHaveLength(0);
+    expect(touchedTables()).toEqual([LOG]);
+    expect(h.afterResponse).toHaveLength(0);
+  });
+
+  it("wiersz stary, ale ŚWIEŻO przejęty (`last_retried_at` minutę temu) też jest w toku - 409", async () => {
+    // Wiek liczony od `created_at` (godzina) uznałby go za porzucony i ta
+    // dostawa przejęłaby zdarzenie w trakcie obsługi przez poprzednią.
+    planDb({
+      logInsert: fail('duplicate key value violates unique constraint "uq_event"', "23505"),
+      logLookup: ok({
+        id: "row-busy-2",
+        status: "received",
+        created_at: relativeIso(-60 * MINUTA),
+        last_retried_at: relativeIso(-MINUTA),
+        retry_count: 1,
+      }),
+    });
+
+    const res = await handle(signed(DONATION_RENEWAL_FAILED, "live"));
+
+    expect(res.status).toBe(409);
+    expect(db.chainsFor(LOG).filter((c) => c.has("update"))).toHaveLength(0);
   });
 
   it("zdarzenie już domknięte: 200 `duplicate`, bez obsługi, domknięcia i pracy za odpowiedzią", async () => {
@@ -414,7 +520,11 @@ describe("webhook płatności - awarie", () => {
       processed_at: FIXED_NOW_ISO,
       duration_ms: 0,
     });
-    expect(console.error).toHaveBeenCalledWith("[payments] webhook error", expect.any(Error));
+    expect(console.error).toHaveBeenCalledWith(
+      "[payments] webhook error",
+      "evt_test_1",
+      expect.any(Error),
+    );
   });
 
   it("awaria spoza klasy Error (odrzucenie napisem) trafia do dziennika jako tekst", async () => {
@@ -426,20 +536,38 @@ describe("webhook płatności - awarie", () => {
     expect(logFinish()).toMatchObject({ status: "failed", error: "upstream connect error" });
   });
 
-  it("awaria dziennika nie blokuje obsługi: zdarzenie przetworzone mimo to (fail-open)", async () => {
-    // Lepiej przetworzyć zdarzenie dwa razy (dyspozytor ma własne strażniki)
-    // niż zgubić płatność, bo nie dało się zapisać wiersza audytu.
+  it("awaria dziennika: 503 i ZERO obsługi (fail-closed) - operator ponowi", async () => {
+    // Dawniej fail-open: obsługa szła bez rezerwacji. Bez wiersza nic nie
+    // chroni przed równoległą drugą dostawą tego samego zdarzenia, a obsługa,
+    // która padła, nie zostawia śladu, po którym zamiatarka by ją ponowiła.
+    // Pieniądze nie giną: 503 jest dla operatora sygnałem „ponów".
     planDb({ logInsert: fail("permission denied", "42501") });
 
     const res = await handle(signed(DONATION_RENEWAL_FAILED, "live"));
 
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ received: true });
-    expect(logFinish()).toMatchObject({ status: "processed" });
+    expect(res.status).toBe(503);
+    expect(res.headers.get("Retry-After")).toBe("60");
+    expect(await res.text()).toBe("Webhook log unavailable");
+    expect(touchedTables()).toEqual([LOG]);
+    expect(finishChain()).toBeUndefined();
+    expect(h.afterResponse).toHaveLength(0);
     expect(console.error).toHaveBeenCalledWith(
       "[payments] webhook log failed",
       expect.objectContaining({ message: "webhook log insert failed: permission denied" }),
     );
+  });
+
+  it("awaria ODCZYTU duplikatu też kończy się 503 bez obsługi", async () => {
+    planDb({
+      logInsert: fail('duplicate key value violates unique constraint "uq_event"', "23505"),
+      logLookup: fail("connection reset"),
+    });
+
+    const res = await handle(signed(DONATION_RENEWAL_FAILED, "live"));
+
+    expect(res.status).toBe(503);
+    expect(touchedTables()).toEqual([LOG]);
+    expect(finishChain()).toBeUndefined();
   });
 
   it("kontrola katalogu za odpowiedzią: jej awaria jest logowana i nie zmienia ACK", async () => {

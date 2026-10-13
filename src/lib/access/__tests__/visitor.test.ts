@@ -1,5 +1,6 @@
-// getVisitorId: pseudonimowy klucz przeglądarki dla meteringu anonimów i
-// budżetu kliknięć linku prezentowego. Hooki wołają go W RENDERZE, więc musi:
+// getVisitorId: pseudonimowy klucz przeglądarki dla budżetu kliknięć linku
+// prezentowego (metering gościa ma od SUB-17 podpisane cookie od serwera -
+// visitorToken.test.ts). Hook woła go W RENDERZE, więc musi:
 //  * nigdy nie rzucać - ani w SSR (brak `window`), ani przy zablokowanym
 //    storage (tryb prywatny: SecurityError już przy odczycie właściwości),
 //  * być stabilny - ten sam uuid przy każdym wywołaniu tej przeglądarki, a przy

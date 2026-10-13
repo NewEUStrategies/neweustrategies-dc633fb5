@@ -420,7 +420,7 @@ export interface StripeStub {
   readonly calls: { method: string; args: unknown[] }[];
   billingPortal: { sessions: { create: Mock } };
   invoices: { retrieve: Mock };
-  checkout: { sessions: { retrieve: Mock } };
+  checkout: { sessions: { retrieve: Mock; list: Mock; expire: Mock } };
   paymentIntents: { retrieve: Mock };
   subscriptions: { update: Mock; retrieve: Mock };
 }
@@ -467,6 +467,10 @@ export function stripeStub(): StripeStub {
             payment_intent: null,
           }),
         ),
+        // Kasa planu przegląda otwarte sesje klienta przed i po założeniu nowej
+        // (druga karta = druga subskrypcja) - domyślnie nie ma żadnej.
+        list: vi.fn(record("checkout.sessions.list", { data: [], has_more: false })),
+        expire: vi.fn(record("checkout.sessions.expire", { status: "expired" })),
       },
     },
     paymentIntents: {
@@ -480,5 +484,30 @@ export function stripeStub(): StripeStub {
       update: vi.fn(record("subscriptions.update", { id: "sub_stripe_1" })),
       retrieve: vi.fn(record("subscriptions.retrieve", { id: "sub_stripe_1" })),
     },
+  };
+}
+
+/** Reguły kumulacji kodu (`b2b_coupons`, TIX-13a) w kształcie wiersza bazy. */
+export interface CouponPolicyRow {
+  stacks_with_promotions: boolean | null;
+  max_total_discount_percent: number | null;
+}
+
+/**
+ * Atrapa `supabaseAdmin.from` dla odczytu reguł kumulacji kodu
+ * (`loadCouponStackingPolicy`). `null` = kod bez reguł (łączy się z promocjami,
+ * bez limitu), czyli zachowanie sprzed kolumn.
+ */
+export function couponPolicyAdminFrom(read: () => CouponPolicyRow | null = () => null) {
+  return (table: string) => {
+    if (table !== "b2b_coupons") {
+      throw new Error(`test: nieoczekiwana tabela roli serwisowej: ${table}`);
+    }
+    const query = {
+      select: () => query,
+      eq: () => query,
+      maybeSingle: () => Promise.resolve({ data: read(), error: null }),
+    };
+    return query;
   };
 }

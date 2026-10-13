@@ -42,6 +42,7 @@ import {
 const CHECK_LABEL_KEYS: Record<string, string> = {
   gateway_configured: "adminBilling.checks.gateway",
   webhook_endpoint: "adminBilling.checks.endpoint",
+  webhook_events: "adminBilling.checks.events",
   catalog: "adminBilling.checks.catalog",
   webhook_failures: "adminBilling.checks.failures",
   webhook_traffic: "adminBilling.checks.traffic",
@@ -95,6 +96,7 @@ export function AdminPaymentsDiagnosticsPanel() {
         t("adminBilling.couponsSynced", {
           created: r.created,
           existing: r.existing,
+          skipped: r.skipped,
           failed: r.failed,
         }),
       );
@@ -119,6 +121,8 @@ export function AdminPaymentsDiagnosticsPanel() {
         toast.error(t("adminBilling.pickPlanTest"));
         return;
       }
+      // Bramka panelu: plan bez DOKŁADNEGO odpowiednika (warstwa, cykl)
+      // w katalogu nie otwiera testu. Ceny nie wysyłamy - wyprowadza ją serwer.
       const entry = BILLING_CATALOG.find(
         (e) => e.tierKey === plan.tier_key && e.interval === plan.interval,
       );
@@ -128,7 +132,6 @@ export function AdminPaymentsDiagnosticsPanel() {
       }
       const res = await openPlanCheckout({
         planId: plan.id,
-        priceId: entry.priceId,
         returnUrl: `${window.location.origin}/checkout/success`,
       });
       if (!res.ok) {
@@ -142,6 +145,9 @@ export function AdminPaymentsDiagnosticsPanel() {
   };
 
   const diag = diagQ.data;
+  // Raport sprzed dodania kontroli zdarzeń (cache zapytania, starszy serwer)
+  // nie ma tego pola - brak listy to brak ostrzeżenia, nie wyjątek renderu.
+  const missingWebhookEvents = diag?.missingWebhookEvents ?? [];
   const missingPrices = useMemo(
     () => (diag?.catalog ?? []).filter((c) => !c.providerPriceId),
     [diag?.catalog],
@@ -219,6 +225,24 @@ export function AdminPaymentsDiagnosticsPanel() {
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* Brakujące typy zdarzeń na odbiorniku: operator włącza je w panelu
+              Stripe (Developers -> Webhooks). Bez nich porzucona kasa nie zwalnia
+              kuponu, a rozstrzygnięty spór nie przywraca ani nie zamyka dostępu. */}
+          {missingWebhookEvents.length > 0 && (
+            <p
+              role="alert"
+              className="flex items-start gap-2 rounded-[6px] border border-border/60 px-3 py-2 text-[0.8125rem]"
+            >
+              <StateIcon state="warn" />
+              <span>
+                {t("adminBilling.missingWebhookEvents", { count: missingWebhookEvents.length })}
+                <span className="block break-all font-mono text-xs text-muted-foreground">
+                  {missingWebhookEvents.join(", ")}
+                </span>
+              </span>
+            </p>
           )}
 
           {diag && (

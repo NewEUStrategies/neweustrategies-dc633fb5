@@ -36,6 +36,10 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
+// Nakładka `dateTimePicker.*` (wspólny DateInput) rejestruje się side-effectem
+// na REALNEJ instancji i18next, której atrapa wyżej nie wystawia.
+vi.mock("@/lib/i18n-datetime-picker", () => ({}));
+
 import { MeetingBookingView } from "../MeetingBookingView";
 import { EventSponsorsView } from "../EventSponsorsView";
 import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";

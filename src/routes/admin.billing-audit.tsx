@@ -14,12 +14,16 @@ import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { getBillingAudit, exportBillingAudit } from "@/lib/billing/audit.functions";
 import { retryWebhookEvent } from "@/lib/billing/webhookRetry.functions";
 import { useAuth } from "@/hooks/useAuth";
-import type { AuditOrderRow, AuditReport } from "@/lib/billing/audit.server";
+import type { AuditCurrencyTotals, AuditReport } from "@/lib/billing/audit.server";
 import { ensureI18n as ensureAuditI18n } from "@/lib/i18n-admin-billing-audit";
 import { WebhookHealthPanel } from "@/components/admin/billing/WebhookHealthPanel";
 
 export const Route = createFileRoute("/admin/billing-audit")({
-  head: () => adminPageHead("Billing audit", "Review orders and billing audit records. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Billing audit",
+      "Review orders and billing audit records. New European Strategies administration.",
+    ),
   component: AdminBillingAudit,
 });
 
@@ -30,33 +34,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /** Górna granica okna audytu - TA SAMA, którą wymusza schemat funkcji serwerowej. */
 const MAX_WINDOW_HOURS = 8760;
-
-/**
- * Statusy, które `buildAuditReport` wlicza do „Zaksięgowanych". Reguła jest tu
- * POWTÓRZONA świadomie i jest to jedyne jej powtórzenie po stronie klienta:
- * `AuditReport.totals` nie niesie waluty, a kafel musi ją podać. Rozbicie
- * liczymy z `report.orders`, czyli DOKŁADNIE z tej tablicy, którą serwer
- * redukuje do `totals` (patrz `audit.server.ts`) - sumy nie mają jak się
- * rozjechać, także wtedy, gdy raport został przycięty limitem wierszy.
- */
-const PAID_STATUSES: ReadonlySet<string> = new Set(["paid", "partially_refunded"]);
-
-/** Sumy pieniężne rozbite PO WALUCIE - pusta lista, gdy nic nie wchodzi do sumy. */
-function totalsByCurrency(
-  orders: readonly AuditOrderRow[],
-  pick: (row: AuditOrderRow) => number,
-): Array<{ currency: string; cents: number }> {
-  const sums = new Map<string, number>();
-  for (const row of orders) {
-    const cents = pick(row);
-    if (cents === 0) continue;
-    const currency = (row.currency ?? "PLN").toUpperCase();
-    sums.set(currency, (sums.get(currency) ?? 0) + cents);
-  }
-  return [...sums.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([currency, cents]) => ({ currency, cents }));
-}
 
 /** Treść błędu z granicy serwerowej - operator ma zobaczyć POWÓD, nie ciszę. */
 function errorText(error: unknown): string {
@@ -156,14 +133,20 @@ function AdminBillingAudit() {
    * (waluta wiersza), więc kafel i wiersze mówiły różne rzeczy o tym samym
    * zakresie - a kafel jest czytany pierwszy i bez tabeli.
    *
-   * Kafel rozbija więc sumę po walutach: jedna pozycja na walutę, złączone
-   * w jeden napis, żeby liczba dalej była jedną liczbą na walutę.
+   * Sumy per waluta liczy serwer (`AuditReport.totals.byCurrency`) - wcześniej
+   * kafel przeliczał je tu od nowa z `report.orders`, powtarzając regułę
+   * „co jest przychodem", bo serwer oddawał jedną zlepioną liczbę. Teraz
+   * kafel tylko formatuje: jedna pozycja na walutę (każda swoją walutą),
+   * złączone w jeden napis; waluty z zerem w tej sumie pomijamy.
    */
-  const summaryMoney = (orders: readonly AuditOrderRow[], pick: (row: AuditOrderRow) => number) => {
-    const parts = totalsByCurrency(orders, pick);
+  const summaryMoney = (
+    totals: readonly AuditCurrencyTotals[],
+    pick: (total: AuditCurrencyTotals) => number,
+  ) => {
+    const parts = totals.filter((total) => pick(total) !== 0);
     return parts.length === 0
       ? plainAmount(0)
-      : parts.map((part) => money(part.cents, part.currency)).join(" + ");
+      : parts.map((total) => money(pick(total), total.currency)).join(" + ");
   };
 
   const when = (iso: string | null) =>
@@ -263,13 +246,11 @@ function AdminBillingAudit() {
             {(
               [
                 ["orders", String(report.totals.orders)],
+                ["paid", summaryMoney(report.totals.byCurrency, (total) => total.paidCents)],
                 [
-                  "paid",
-                  summaryMoney(report.orders, (row) =>
-                    PAID_STATUSES.has(row.status) ? (row.amountCents ?? 0) : 0,
-                  ),
+                  "refunded",
+                  summaryMoney(report.totals.byCurrency, (total) => total.refundedCents),
                 ],
-                ["refunded", summaryMoney(report.orders, (row) => row.refundedCents)],
                 ["failed", String(report.totals.webhooksFailed)],
               ] as const
             ).map(([key, value]) => (

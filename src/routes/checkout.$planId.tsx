@@ -1,10 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchMyBillingProfile, fetchPlanById } from "@/lib/billing/queries";
 import { formatMoney, planDescription, planName } from "@/lib/billing/types";
+import { billingKeys } from "@/lib/billing/keys";
+import {
+  CHECKOUT_SUPERSEDED_ERROR,
+  isLivePlanSubscriptionStatus,
+  SUBSCRIPTION_EXISTS_ERROR,
+  visiblePlanPurchaseConflict,
+  type PlanPurchaseConflict,
+} from "@/lib/billing/planSubscriptionGuard";
+import { fetchMyStripeSubscription } from "@/lib/billing/subscriptionQueries";
+import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import {
   convertToDisplayCurrency,
   displayCurrencyForLang,
@@ -14,6 +24,7 @@ import {
 import { useCheckoutSettings } from "@/hooks/useCheckoutSettings";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { GuestCheckoutGate } from "@/components/checkout/GuestCheckoutGate";
 import { CheckoutAssurances } from "@/components/checkout/CheckoutAssurances";
 import { BillingProfileForm } from "@/components/billing/molecules/BillingProfileForm";
@@ -23,6 +34,10 @@ import { Lock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { catalogPriceForPlan } from "@/lib/billing/catalog";
+import {
+  normalizeNewsletterLanguage,
+  PREMIUM_NEWSLETTER_CONSENT_VERSION,
+} from "@/lib/billing/premiumNewsletter";
 import { useCheckout } from "@/hooks/useCheckout";
 // Ramka operatora wchodzi przez granicę `React.lazy` (patrz nagłówek
 // EmbeddedCheckoutFrame) - trasa checkoutu nie może być drugim statycznym
@@ -31,6 +46,35 @@ import { useCheckout } from "@/hooks/useCheckout";
 import { EmbeddedCheckoutFrame } from "@/components/checkout/EmbeddedCheckoutFrame";
 import { checkoutIntentHandlers } from "@/components/checkout/checkoutIntent";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
+import { PROFILE_PLAN_PATH, PROFILE_PORTAL_PATH } from "@/lib/profile/routes";
+
+/**
+ * Komunikat i JEDYNA ścieżka, która dla danego konfliktu naprawdę działa
+ * (`planPurchaseConflict` = reguła zmiany planu). Dawniej każdy konflikt
+ * odsyłał do „Zmień plan", także tam, gdzie zmiana planu odmawia (ten sam
+ * plan, cena spoza katalogu) - kupujący lądował w ślepym zaułku.
+ */
+const CONFLICT_PATH: Record<
+  PlanPurchaseConflict,
+  { message: string; cta: string; to: typeof PROFILE_PLAN_PATH | typeof PROFILE_PORTAL_PATH }
+> = {
+  change_plan: {
+    message: "checkout.subscriptionExists",
+    cta: "checkout.changePlanCta",
+    to: PROFILE_PLAN_PATH,
+  },
+  same_plan: {
+    message: "checkout.subscriptionSamePlan",
+    cta: "checkout.manageSubscriptionCta",
+    to: PROFILE_PLAN_PATH,
+  },
+  unmanaged: {
+    message: "checkout.subscriptionUnmanaged",
+    cta: "checkout.billingPortalCta",
+    to: PROFILE_PORTAL_PATH,
+  },
+};
+
 export const Route = createFileRoute("/checkout/$planId")({
   component: CheckoutPage,
   head: () => ({
@@ -50,6 +94,10 @@ function CheckoutPage() {
   const [busy, setBusy] = useState(false);
   const [coupon, setCoupon] = useState<{ code: string; discountCents: number } | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  // Zgoda na newsletter: pole NIEZAZNACZONE domyślnie i niezależne od zakupu
+  // (art. 7 ust. 4 RODO - zgoda nie jest warunkiem umowy). Tylko jawne
+  // zaznaczenie wysyła zgodę na serwer; bez niego zakup nie dotyka listy (SUB-15).
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
   // Po utworzeniu sesji przewijamy do ramki - inaczej na mobile formularz
   // płatności ląduje poza ekranem i wygląda, jakby przycisk nic nie zrobił.
   const frameRef = useRef<HTMLDivElement | null>(null);
@@ -57,6 +105,7 @@ function CheckoutPage() {
     if (clientSecret) frameRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [clientSecret]);
   const { openPlanCheckout } = useCheckout();
+  const queryClient = useQueryClient();
 
   const plan = useQuery({
     queryKey: ["plan", planId],
@@ -70,6 +119,18 @@ function CheckoutPage() {
   });
 
   const { data: checkoutSettings } = useCheckoutSettings();
+
+  // Subskrypcja kupującego w tym środowisku (lustro `subscriptions` pod RLS).
+  // To tylko PODPOWIEDŹ dla nakładki - serwer sprawdza to samo i odmawia
+  // (`subscription_exists`), ale klient ma się o tym dowiedzieć przed
+  // kliknięciem, a nie dopiero po nim. Ten sam klucz co profil, więc odczyt
+  // współdzieli cache z kartą subskrypcji.
+  const stripeEnv = getStripeEnvironmentSafe();
+  const mySubscription = useQuery({
+    queryKey: billingKeys.myStripeSubscription(session?.user?.id, stripeEnv),
+    queryFn: fetchMyStripeSubscription,
+    enabled: !!session,
+  });
 
   // IZOLACJA OBSZARÓW ROBOCZYCH. Autorytetem jest RLS i NIE WOLNO go tu dublować
   // porównaniem z tenantem z profilu (`useAuth().tenantId`). `access_plans` czyta
@@ -96,6 +157,10 @@ function CheckoutPage() {
   // `payment`, każdy cykliczny jako `subscription` (patrz `catalog.ts`).
   const checkoutMode: "payment" | "subscription" =
     planData?.interval === "one_time" ? "payment" : "subscription";
+  // Język etykiety zgody = język zapisany w dowodzie. Słownik bierze treść
+  // z tego samego rejestru wersji, z którego serwer odtworzy tekst.
+  const consentLang = normalizeNewsletterLanguage(i18n.language);
+  const offersNewsletterOptIn = checkoutMode === "subscription";
   const displayCurrency = displayCurrencyForLang(i18n.language);
   const planCurrency = planData?.currency ?? "PLN";
   // Kwoty do wyświetlenia po konwersji (parytet z /pricing i /support).
@@ -111,24 +176,66 @@ function CheckoutPage() {
   );
   const finalCentsDisplay = Math.max(originalDisplay.cents - discountDisplay.cents, 0);
 
+  const existingSubscription = mySubscription.data ?? null;
+  // Żywa subskrypcja planu blokuje drugi zakup TYLKO tam, gdzie istnieje
+  // działająca ścieżka obok (zmiana planu, zarządzanie, portal) - ta sama
+  // reguła co na serwerze (`planSubscriptionGuard`). `incomplete` (porzucone
+  // 3DS) nie blokuje: serwer unieważnia jego fakturę przed nową sesją.
+  const purchaseConflict: PlanPurchaseConflict | null =
+    checkoutMode === "subscription" && planData
+      ? visiblePlanPurchaseConflict(existingSubscription, catalogPriceForPlan(planData))
+      : null;
+  const blockedByExistingSubscription = purchaseConflict !== null;
+  const conflictPath = purchaseConflict ? CONFLICT_PATH[purchaseConflict] : null;
+  // Inny model rozliczenia (Zespół za miejsce <-> plan indywidualny) to OSOBNY
+  // zakup - zmiana planu go odrzuca. Obecna subskrypcja zostaje i dalej
+  // obciąża, więc kupujący ma to wiedzieć przed płatnością; profil pokazuje
+  // tylko najnowszą subskrypcję, dlatego jej rezygnacja idzie przez portal.
+  const separatePurchase =
+    checkoutMode === "subscription" &&
+    !purchaseConflict &&
+    isLivePlanSubscriptionStatus(existingSubscription?.status);
+  // Trial raz na konto: kto miał już subskrypcję planu, nie dostanie okresu
+  // próbnego, więc nakładka nie może go obiecywać. Wolimy nie obiecać triala,
+  // który by przysługiwał, niż obiecać taki, którego operator nie da.
+  const trialOffered =
+    !!planData &&
+    planData.trial_days > 0 &&
+    planData.interval !== "one_time" &&
+    mySubscription.isSuccess &&
+    existingSubscription === null;
+
   const submit = async () => {
     if (!planData || !hasBilling) return;
     setBusy(true);
     try {
-      const price = catalogPriceForPlan(planData);
-      if (!price) {
+      // Bramka wyłącznie interfejsu: plan bez ceny w katalogu nie otwiera kasy.
+      // Ceny nie wysyłamy - serwer wyprowadza ją z planu i odmawia, gdy cena
+      // u operatora nie pasuje do zamówienia.
+      if (!catalogPriceForPlan(planData)) {
         toast.error(t("checkout.paymentsNotConfigured"));
         setBusy(false);
         return;
       }
       const result = await openPlanCheckout({
         planId: planData.id,
-        priceId: price.priceId,
         couponCode: coupon?.code,
         returnUrl: `${window.location.origin}/checkout/success`,
+        newsletterConsent:
+          offersNewsletterOptIn && newsletterOptIn
+            ? { version: PREMIUM_NEWSLETTER_CONSENT_VERSION, lang: consentLang }
+            : undefined,
       });
       if (!result.ok) {
-        if (result.error === "not_found" || result.error === "limit_reached") {
+        if (result.error === SUBSCRIPTION_EXISTS_ERROR) {
+          // Serwer widzi pełną historię (i operatora) - nakładka tylko najnowszy
+          // wiersz lustra. Odświeżenie pokazuje kartę z właściwą ścieżką.
+          toast.error(t((conflictPath ?? CONFLICT_PATH.change_plan).message));
+          void queryClient.invalidateQueries({ queryKey: billingKeys.myStripeSubscriptionAll() });
+        } else if (result.error === CHECKOUT_SUPERSEDED_ERROR) {
+          // Równolegle otwarta płatność (druga karta) wygrała - ta jest wygaszona.
+          toast.error(t("checkout.sessionSuperseded"));
+        } else if (result.error === "not_found" || result.error === "limit_reached") {
           toast.error(t("checkout.applyFailed"));
         } else if (result.error === "rate_limited") {
           // Limit prób kodów - to nie brak konfiguracji płatności.
@@ -221,11 +328,25 @@ function CheckoutPage() {
                         </p>
                       )}
                     </div>
-                    {planData.trial_days > 0 && planData.interval !== "one_time" && (
+                    {conflictPath ? (
+                      <div className="space-y-2 rounded-md border px-3 py-2 text-xs">
+                        <p>{t(conflictPath.message)}</p>
+                        <Button asChild variant="link" className="h-auto p-0 text-xs">
+                          <Link to={conflictPath.to}>{t(conflictPath.cta)}</Link>
+                        </Button>
+                      </div>
+                    ) : separatePurchase ? (
+                      <div className="space-y-2 rounded-md border px-3 py-2 text-xs">
+                        <p>{t("checkout.separatePurchase")}</p>
+                        <Button asChild variant="link" className="h-auto p-0 text-xs">
+                          <Link to={PROFILE_PORTAL_PATH}>{t("checkout.billingPortalCta")}</Link>
+                        </Button>
+                      </div>
+                    ) : trialOffered ? (
                       <p className="rounded-md bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
                         {t("checkout.trialLine", { days: planData.trial_days })}
                       </p>
-                    )}
+                    ) : null}
                     <CouponInput
                       planId={planData.id}
                       amountCents={planData.price_cents}
@@ -267,10 +388,30 @@ function CheckoutPage() {
                         </span>
                       </div>
                     </div>
+                    {/* Po utworzeniu sesji pole jest zablokowane: decyzja już
+                        jedzie w metadanych tej sesji, a przełączenie po cichu
+                        rozjechałoby ekran z dowodem (nowa sesja = nowe
+                        zamówienie i druga rezerwacja kuponu). Wycofanie zgody
+                        to jeden klik w każdej wiadomości. */}
+                    {offersNewsletterOptIn && (
+                      <label
+                        htmlFor="checkout-newsletter-opt-in"
+                        className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground"
+                      >
+                        <Checkbox
+                          id="checkout-newsletter-opt-in"
+                          checked={newsletterOptIn}
+                          onCheckedChange={(value) => setNewsletterOptIn(value === true)}
+                          disabled={busy || !!clientSecret}
+                          className="mt-0.5 h-4 w-4"
+                        />
+                        <span>{t("checkout.newsletterOptIn")}</span>
+                      </label>
+                    )}
                     <Button
                       className="w-full"
                       size="lg"
-                      disabled={busy || !hasBilling}
+                      disabled={busy || !hasBilling || blockedByExistingSubscription}
                       onClick={submit}
                       {...checkoutIntentHandlers}
                     >

@@ -428,6 +428,48 @@ describe("adres kasy pochodzi z odpowiedzi serwera", () => {
     expect(screen.queryByTestId("checkout-dialog")).toBeNull();
   });
 
+  it("bilet za zero (kod 100%) prowadzi na potwierdzenie BEZ symulatora płatności", async () => {
+    h.checkout.mockResolvedValue({
+      ok: true,
+      mode: "free",
+      url: "https://example.org/checkout/success",
+      orderId: EVENT_IDS.order,
+      settlement: "seated",
+    });
+    renderPurchase();
+    fireEvent.click(await buyButton());
+    await waitFor(() =>
+      expect(h.navigate).toHaveBeenCalledWith({
+        to: "/checkout/success",
+        search: { order: EVENT_IDS.order, mock: undefined },
+      }),
+    );
+    expect(screen.queryByTestId("checkout-dialog")).toBeNull();
+  });
+
+  it.each([
+    ["sold_out", "toastError", "community.events.freeTicketSoldOut"],
+    ["awaiting", "toastSuccess", "community.events.freeTicketAwaiting"],
+    ["processing", "toastSuccess", "community.events.freeTicketProcessing"],
+  ] as const)(
+    "bilet za zero bez potwierdzonego miejsca (%s): komunikat zamiast potwierdzenia zakupu",
+    async (settlement, kind, key) => {
+      h.checkout.mockResolvedValue({
+        ok: true,
+        mode: "free",
+        url: "https://example.org/checkout/success",
+        orderId: EVENT_IDS.order,
+        settlement,
+      });
+      renderPurchase();
+      fireEvent.click(await buyButton());
+      await waitFor(() => expect(h[kind]).toHaveBeenCalledWith(realT("pl")(key)));
+      // Klucz istnieje w słowniku - inaczej `t()` oddałby sam klucz.
+      expect(realT("pl")(key)).not.toBe(key);
+      expect(h.navigate).not.toHaveBeenCalled();
+    },
+  );
+
   it("zamówienie niesie wydarzenie, ścieżki powrotu i środowisko bramki", async () => {
     h.stripeEnv = "live";
     renderPurchase();
@@ -493,6 +535,18 @@ describe("kod rabatowy: nasze pole, nie pole operatora", () => {
     expect(screen.queryByTestId("checkout-dialog")).toBeNull();
     // Poprawienie kodu zdejmuje odmowę - to już nie ten kod.
     fireEvent.change(codeInput(), { target: { value: "DOBRY" } });
+    expect(screen.queryByText(realT("pl")("eventRegistration.payment.promoError"))).toBeNull();
+  });
+
+  it("kod, który nie łączy się z promocją biletu, ma własne zdanie (TIX-13a)", async () => {
+    h.checkout.mockResolvedValue({ ok: false, mode: "coupon", error: "coupon_not_combinable" });
+    renderPurchase();
+    const button = await buyButton();
+    fireEvent.change(codeInput(), { target: { value: "LATO" } });
+    fireEvent.click(button);
+    expect(
+      await screen.findByText(realT("pl")("eventRegistration.payment.promoNotCombinable")),
+    ).toBeInTheDocument();
     expect(screen.queryByText(realT("pl")("eventRegistration.payment.promoError"))).toBeNull();
   });
 

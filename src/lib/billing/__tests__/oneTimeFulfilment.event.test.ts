@@ -26,14 +26,27 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
     rpc: async (fn: string, args: Record<string, unknown>) => {
       ticketOutcomes.push({ fn, ...args });
-      return { data: null, error: null };
+      // Miejsce zakupu bez zgłoszenia rozstrzyga baza pod blokadą (TIX-08).
+      if (fn === "_event_rsvp_claim_paid_seat") {
+        return {
+          data: seatsFull
+            ? { ok: false, reason: "event_full" }
+            : { ok: true, seated: true, already: false },
+          error: null,
+        };
+      }
+      // Zakup bez zgłoszenia z formularza - ścieżka RSVP.
+      return { data: { applied: false, reason: "registration_not_found" }, error: null };
     },
     from: (table: string) => ({
       select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: order, error: null }) }) }),
       update: (patch: Record<string, unknown>) => {
         updates.push({ table, ...patch });
         const done = async () => ({ error: null });
-        const eq = () => Object.assign(done(), { neq: done, eq });
+        // Warunkowe księgowanie (`.in("status", ...).select("id")`) oddaje
+        // przestawiony wiersz - pierwsza dostawa zmienia stan zamówienia.
+        const flipped = async () => ({ data: [{ id: order.id }], error: null });
+        const eq = () => Object.assign(done(), { neq: done, eq, in: () => ({ select: flipped }) });
         return { eq };
       },
       insert: async (row: Record<string, unknown>) => {
@@ -121,12 +134,12 @@ describe("fulfilOneTimeTransaction - bilet na wydarzenie", () => {
     expect(ticketOutcomes).toContainEqual(
       expect.objectContaining({ fn: "payments_apply_event_ticket_outcome", p_outcome: "paid" }),
     );
-    expect(rsvps[0]).toMatchObject({
-      table: "event_rsvps",
-      event_id: order.metadata.event_id,
-      user_id: order.user_id,
-      status: "going",
+    // RSVP „going" zapisuje baza pod blokadą wydarzenia - nie TS poza nią.
+    expect(ticketOutcomes).toContainEqual({
+      fn: "_event_rsvp_claim_paid_seat",
+      p_order_id: order.id,
     });
+    expect(rsvps).toHaveLength(0);
     expect(emails).toContain("event");
   });
 
@@ -183,10 +196,11 @@ describe("fulfilOneTimeTransaction - bilet na wydarzenie", () => {
 
     expect(outcome).toBe("oversold_refunded");
     expect(refunds).toEqual(["txn_789"]);
-    // Bez uprawnienia i bez RSVP - nikt nie dostaje wejścia, którego nie ma.
-    expect(grants).toHaveLength(0);
+    // Bez RSVP i bez maila o wydarzeniu - nikt nie dostaje wejścia, którego nie ma.
     expect(rsvps).toHaveLength(0);
     expect(emails).toContain("refund");
-    expect(updates[0]).toMatchObject({ table: "payment_orders", status: "refunded" });
+    expect(emails).not.toContain("event");
+    // Najpierw księga (wpłata jest faktem), potem zamknięcie zwrotem.
+    expect(updates.map((u) => u.status)).toEqual(["paid", "refunded"]);
   });
 });

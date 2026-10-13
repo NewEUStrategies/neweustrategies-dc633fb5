@@ -24,16 +24,29 @@
  */
 export class ProviderCallError extends Error {
   readonly code: string;
+  /**
+   * Strona faktury operatora przy odmowie DOPŁATY (`payment_failed` /
+   * `payment_requires_action`): zmiana nie weszła, a klient może ją dokończyć,
+   * płacąc fakturę. `null` dla każdej innej odmowy.
+   */
+  readonly hostedInvoiceUrl: string | null;
 
-  constructor(code: string) {
+  constructor(code: string, hostedInvoiceUrl: string | null = null) {
     super(`provider_error:${code}`);
     this.name = "ProviderCallError";
     this.code = code;
+    this.hostedInvoiceUrl = hostedInvoiceUrl;
   }
 }
 
 /** Arm odmowy w unii zwracanej przez server fn operatora. */
 type ProviderRefusal = { error: unknown };
+
+/** Adres faktury do opłacenia - wyłącznie https, inny kształt odrzucamy. */
+function invoiceUrlOf(result: object): string | null {
+  const url = (result as { hostedInvoiceUrl?: unknown }).hostedInvoiceUrl;
+  return typeof url === "string" && url.startsWith("https://") ? url : null;
+}
 
 /**
  * Rozpakowuje odpowiedź server fn operatora: sukces przepuszcza, odmowę RZUCA.
@@ -56,7 +69,7 @@ export function unwrapProviderResult<T>(result: T): Exclude<T, ProviderRefusal> 
     "error" in result &&
     (result as ProviderRefusal).error
   ) {
-    throw new ProviderCallError(String((result as ProviderRefusal).error));
+    throw new ProviderCallError(String((result as ProviderRefusal).error), invoiceUrlOf(result));
   }
   return result as Exclude<T, ProviderRefusal>;
 }
@@ -67,4 +80,9 @@ export function unwrapProviderResult<T>(result: T): Exclude<T, ProviderRefusal> 
  */
 export function providerErrorCode(error: unknown): string | null {
   return error instanceof ProviderCallError ? error.code : null;
+}
+
+/** Faktura do opłacenia z odmowy dopłaty; `null` dla każdego innego błędu. */
+export function providerInvoiceUrl(error: unknown): string | null {
+  return error instanceof ProviderCallError ? error.hostedInvoiceUrl : null;
 }

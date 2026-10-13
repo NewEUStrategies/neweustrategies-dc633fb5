@@ -30,6 +30,7 @@ import { Ticket, CheckCircle2, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+import { couponRefusalMessageKey } from "@/lib/billing/couponRefusalMessage";
 import { isCodeProbeRateLimited } from "@/lib/billing/coupons";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
@@ -82,7 +83,8 @@ export function EventTicketPurchase({
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [promo, setPromo] = useState("");
-  const [codeRefused, setCodeRefused] = useState(false);
+  /** Powód odmowy kodu z kasy (`coupon_not_combinable`, ...) albo `null`. */
+  const [codeRefusal, setCodeRefusal] = useState<string | null>(null);
 
   // Pula biletów wliczonych w plan. Awaria odczytu degraduje do PUSTEJ puli,
   // czyli do pełnej ceny - jedyny bezpieczny kierunek: w drugą stronę błąd
@@ -147,7 +149,7 @@ export function EventTicketPurchase({
     // `RegistrationPayAction`. Autorytetem płatności jest zamówienie w bazie.
     sendEventFunnelStep("checkout_start", { eventId });
     setBusy(true);
-    setCodeRefused(false);
+    setCodeRefusal(null);
     const code = promo.trim();
     try {
       const res = await checkout({
@@ -163,12 +165,32 @@ export function EventTicketPurchase({
       if (!res.ok) {
         // Odmowa KODU to nie awaria płatności: mówimy ją przy polu, a
         // kupujący może poprawić kod albo go usunąć i zapłacić pełną cenę.
-        if (res.mode === "coupon") setCodeRefused(true);
+        if (res.mode === "coupon") setCodeRefusal(res.error);
+        else if (res.mode === "free") toast.error(t("community.events.rsvpError"));
         else toast.error(t("checkout.paymentsNotConfigured"));
         return;
       }
       if (res.mode === "stripe") {
         setCheckoutSecret(res.clientSecret);
+        return;
+      }
+      // Kod 100%: zamówienie za zero rozlicza serwer - bez operatora i bez
+      // symulatora płatności. Potwierdzenie zakupu TYLKO przy potwierdzonym
+      // miejscu; przegrany wyścig o ostatnie miejsce (kod wrócił), decyzja
+      // organizatora i dokończenie w tle mają własne, prawdziwe komunikaty.
+      if (res.mode === "free") {
+        if (res.settlement === "seated") {
+          void navigate({
+            to: "/checkout/success",
+            search: { order: res.orderId, mock: undefined },
+          });
+        } else if (res.settlement === "sold_out") {
+          toast.error(t("community.events.freeTicketSoldOut"));
+        } else if (res.settlement === "awaiting") {
+          toast.success(t("community.events.freeTicketAwaiting"));
+        } else {
+          toast.success(t("community.events.freeTicketProcessing"));
+        }
         return;
       }
       void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
@@ -258,16 +280,16 @@ export function EventTicketPurchase({
               spellCheck={false}
               onChange={(event) => {
                 setPromo(event.target.value.toUpperCase());
-                setCodeRefused(false);
+                setCodeRefusal(null);
               }}
               placeholder={t("eventRegistration.payment.promoPlaceholder")}
               className="h-9 w-full rounded-[6px] border border-input bg-background px-3 text-sm uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </label>
         )}
-        {codeRefused && (
+        {codeRefusal !== null && (
           <p role="status" className="text-sm text-destructive">
-            {t("eventRegistration.payment.promoError")}
+            {t(couponRefusalMessageKey(codeRefusal))}
           </p>
         )}
       </div>

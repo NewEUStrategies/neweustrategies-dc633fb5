@@ -11,24 +11,87 @@
 //   3. cofnięcie potwierdzenia udziału w wydarzeniu (bilet),
 //   4. znacznik w CRM + powiadomienie w aplikacji + mail transakcyjny.
 //
-// Kontrakt błędów jak w pozostałych handlerach: rzucamy przy awarii zapisu,
-// żeby operator ponowił dostarczenie zdarzenia. Efekty miękkie (mail, CRM,
-// dzwonek) nigdy nie wywracają przetwarzania.
+// SUBSKRYPCJA (S1). Zwrot ani spór NIE anulują subskrypcji u operatora - kolejne
+// odnowienia nadal są pobierane. Dlatego korekta faktury za okres, który już
+// MINĄŁ (koniec okresu pozycji faktury <= teraz), nie zmienia dostępu (usługa
+// została skonsumowana) - zostaje księgowanie i alert dla zespołu. Tak samo
+// faktura DODATKOWA bieżącego okresu (dopłata proracyjna przy zmianie planu,
+// faktura ręczna, np. podwójne obciążenie): okres opłaciła inna faktura, więc
+// zwrot 12 zł dopłaty nie odbiera opłaconego miesiąca. Korekta faktury, która
+// OPŁACA bieżący okres (pełny zwrot, spór otwarty, przegrany albo zatrzymany
+// zwrotem), zapisuje `refunded` z `canceled_at` = chwila korekty, a
+// `syncEntitlementState` przywraca dostęp dopiero za NOWY opłacony okres albo
+// po rozstrzygnięciu na naszą korzyść (`force`).
+//
+// ZWROT (2.11). Kwotę zwrotu bierzemy z obciążenia W STANIE BIEŻĄCYM u
+// operatora, nie z ładunku `charge.refunded`: po nieudanym zwrocie operator
+// zmniejsza `amount_refunded`, a ponowione albo spóźnione stare zdarzenie
+// niosłoby kwotę, której już nie ma - i odbierało dostęp drugi raz.
+//
+// SPORY (S2). Skutek liczymy z BIEŻĄCEGO stanu sporu u operatora, nie ze stanu
+// w zdarzeniu - spóźnione `created` po `closed(won)` nie zawiesza ponownie
+// dostępu. Przywrócenie po wygranej sprawdza u operatora, czy obciążenie nie
+// zostało w międzyczasie ZWRÓCONE. Spór nie wysyła klientowi maila ani dzwonka
+// „zwrot płatności" - to potwierdzenie zwrotu, który się nie wydarzył (i dowód
+// dla banku przeciwko nam). Zespół dostaje jeden alert na spór i fazę.
+// Stripe przysyła surowy `Dispute.status` - słownik domenowy daje mu
+// `stripeDisputePhase` (normalizator i ten moduł mówią tym samym słownikiem).
+// `prevented` odbiera jak przegrana, gdy obciążenie wróciło do klienta
+// (zapobieganie sporom przez automatyczny zwrot) albo gdy jego stanu nie da się
+// potwierdzić; zatrzymany bez zwrotu działa jak wygrana - środki zostały
+// u nas (przegląd #495, poz. 26).
+//
+// DAROWIZNY (SUB-09). Jedna wpłata = jeden wiersz: wpłata jednorazowa trzyma
+// intencję (`provider_intent_id`), rata cykliczna - fakturę
+// (`provider_invoice_id`), wpłaty sprzed poprawki - sesję. Zwrot częściowy
+// podnosi licznik zwrotów i zostawia wpłatę opłaconą; formalny spór zamyka
+// wpłatę (środki pobrane z konta serwisu), wygrany - przywraca; zapytanie banku
+// (`warning_*`) nie rusza wpłaty, bo pieniądze nie zostały pobrane.
+//
+// KARENCJA (SUB-03). Przywrócenie subskrypcji liczy dostęp tą samą regułą co
+// webhook (`accessPeriodFromEvent`): zaległa subskrypcja odzyskuje dostęp
+// wyłącznie do końca karencji, nigdy do końca nieopłaconego okresu.
+//
+// Kontrakt błędów jak w pozostałych handlerach: rzucamy przy awarii zapisu
+// albo odczytu operatora, żeby operator ponowił dostarczenie zdarzenia.
+// Efekty miękkie (mail, CRM, dzwonek) nigdy nie wywracają przetwarzania.
 //
 // Moduł server-only (klient service_role) - importuj wyłącznie z handlerów.
 import type { Tables } from "@/integrations/supabase/types";
+import {
+  isStripeDisputeStatus,
+  mapStripeSubscription,
+  normalizeStripeEvent,
+  stripeDisputePhase,
+} from "@/lib/billing/stripeEvents.server";
+import type {
+  PaymentCheckoutSession,
+  PaymentInvoiceRef,
+  PaymentRefundState,
+} from "@/lib/billing/transactions.server";
 import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 
 /** Kwalifikacja zdarzenia korygującego przysłanego przez operatora. */
 export type AdjustmentAction = "refund" | "chargeback" | "chargeback_warning" | "credit" | "other";
 
 export interface RefundEvent {
-  /** Identyfikator korekty u operatora - klucz idempotencji maili. */
+  /**
+   * Identyfikator korekty u operatora - klucz idempotencji maili. Dla sporu
+   * Stripe to identyfikator sporu (`dp_...`), dla nieudanego zwrotu -
+   * identyfikator zwrotu (`re_...`).
+   */
   adjustmentId: string;
   transactionId: string | null;
   subscriptionId: string | null;
   action: AdjustmentAction;
-  /** `approved` / `pending_approval` / `rejected` / `reversed`. */
+  /**
+   * Status w słowniku domenowym: `approved` / `pending_approval` / `rejected` /
+   * `reversed` / `open`, a dla zwrotu Stripe - status obiektu Refund
+   * (`succeeded`, `failed`, ...). Spór Stripe przychodzi już przetłumaczony
+   * (`stripeDisputePhase` w normalizatorze); surowy `Dispute.status`
+   * (`needs_response`, `won`, ...) też jest przyjmowany - tłumaczy go
+   * `withDomainDisputeStatus`, więc oba kształty dają ten sam skutek.
+   */
   status: string | null;
   /**
    * Kwota korekty. Dla zwrotu Stripe to `amount_refunded` - wartość
@@ -41,6 +104,16 @@ export interface RefundEvent {
   capturedAmountCents?: number | null;
   currency: string | null;
   environment: "sandbox" | "live";
+  /**
+   * Surowy status operatora (np. `needs_response`, `won`, powód nieudanego
+   * zwrotu) - do logów i treści alertu. O skutku decydują `action` i `status`.
+   */
+  providerStatus?: string | null;
+  /**
+   * Kod porażki zwrotu u operatora (`expired_or_canceled_card`, …) - tylko
+   * dla zwrotu `failed`/`canceled` (`refund.failed`, `refund.updated`).
+   */
+  failureReason?: string | null;
 }
 
 export type RefundOutcome =
@@ -49,7 +122,28 @@ export type RefundOutcome =
   | "order_refunded"
   | "donation_refunded"
   | "subscription_restored"
-  | "order_restored";
+  | "order_restored"
+  | "donation_restored"
+  | "refund_failure_escalated";
+
+/**
+ * Spór w słowniku domenowym. Normalizator Stripe tłumaczy `Dispute.status`
+ * (`stripeDisputePhase`), ale korekta może nieść też SUROWY status sporu
+ * (kształt normalizatora wdrożonego z #495, testy, ręczne wywołania) -
+ * tłumaczymy go tu tym samym słownikiem, zamiast liczyć skutek na dwa sposoby.
+ * Surowy status zostaje w `providerStatus` (alert, rozróżnienie zapytania
+ * banku i `prevented`).
+ */
+function withDomainDisputeStatus(event: RefundEvent): RefundEvent {
+  if (!isDispute(event) || !isStripeDisputeStatus(event.status)) return event;
+  const phase = stripeDisputePhase(event.status);
+  return {
+    ...event,
+    action: phase.action,
+    status: phase.status,
+    providerStatus: event.providerStatus ?? event.status,
+  };
+}
 
 /**
  * Korekty, które odbierają dostęp.
@@ -57,10 +151,15 @@ export type RefundOutcome =
  * Spór (`chargeback_warning`) liczy się od chwili otwarcia: bank już wycofuje
  * środki, a rozstrzygnięcie trwa tygodniami. Trzymanie dostępu przez ten czas
  * oznaczałoby darmową treść na koszt serwisu - dlatego odbieramy od razu i
- * przywracamy, gdy spór zostanie wygrany (`reversed`).
+ * przywracamy, gdy spór zostanie wygrany (`reversed` / Stripe `won`,
+ * `warning_closed`). Zapytanie banku (`warning_*`) liczy się tu jak spór
+ * otwarty - dostęp wraca, gdy zostanie zamknięte bez obciążenia zwrotnego.
  */
-export function isRevokingAdjustment(event: RefundEvent): boolean {
+export function isRevokingAdjustment(input: RefundEvent): boolean {
+  const event = withDomainDisputeStatus(input);
   if (event.action === "credit" || event.action === "other") return false;
+  // Nieudany zwrot niczego nie odbiera - przywraca (patrz `applyRefundFailure`).
+  if (isFailedRefund(event)) return false;
   if (event.action === "chargeback_warning") {
     return event.status !== "reversed" && event.status !== "rejected";
   }
@@ -71,15 +170,51 @@ export function isRevokingAdjustment(event: RefundEvent): boolean {
   return event.status === null || event.status === "approved" || event.status === "succeeded";
 }
 
-/** Spór rozstrzygnięty na naszą korzyść - dostęp wraca. */
-export function isDisputeReversed(event: RefundEvent): boolean {
-  if (event.action !== "chargeback" && event.action !== "chargeback_warning") return false;
-  return event.status === "reversed";
+/** Korekta jest sporem płatniczym (otwartym albo rozstrzygniętym). */
+function isDispute(event: RefundEvent): boolean {
+  return event.action === "chargeback" || event.action === "chargeback_warning";
 }
 
-/** Mapuje akcję operatora na czytelny powód w dzienniku i CRM. */
-function reasonLabel(action: AdjustmentAction): string {
-  return action === "chargeback" ? "chargeback" : "refund";
+/**
+ * Zwrot, którego operator NIE wykonał (`refund.failed`, `refund.updated`
+ * ze stanem `failed`/`canceled`). Pieniądze zostały u nas: zamówienie wraca
+ * do stanu z obciążenia (`applyRefundFailure`), a zlecenie zwrotu zgłoszenia
+ * trafia do człowieka (`escalateFailedRefund`, INV-19c).
+ */
+export function isFailedRefund(event: RefundEvent): boolean {
+  return event.action === "refund" && (event.status === "failed" || event.status === "canceled");
+}
+
+/** Spór rozstrzygnięty na naszą korzyść - dostęp wraca (`reversed`, Stripe `won` / `warning_closed`). */
+export function isDisputeReversed(input: RefundEvent): boolean {
+  const event = withDomainDisputeStatus(input);
+  return isDispute(event) && event.status === "reversed";
+}
+
+/**
+ * Faza sporu - dla skutku, alertu i klucza deduplikacji alertu:
+ *   * `open` - spór w toku (`chargeback_warning`),
+ *   * `won` - bez utraty środków (`reversed`: `won`, `warning_closed`),
+ *   * `prevented` - zatrzymany przez zapobieganie sporom (skutek zależy od
+ *     tego, czy obciążenie zwrócono - `preventedByRefund`),
+ *   * `lost` - środki wróciły do banku.
+ */
+type DisputePhase = "open" | "won" | "lost" | "prevented";
+
+function disputePhase(event: RefundEvent): DisputePhase {
+  if (isDisputeReversed(event)) return "won";
+  if (event.action === "chargeback_warning") return "open";
+  return event.providerStatus === "prevented" ? "prevented" : "lost";
+}
+
+/**
+ * Zapytanie banku (inquiry, `warning_*`): środki NIE zostały pobrane z konta
+ * serwisu. Dostęp do treści zawieszamy jak przy sporze (wraca po zamknięciu),
+ * ale wpłaty darowizny nie ruszamy - jej status opisuje pieniądze, a te nie
+ * drgnęły (#495, poz. 26).
+ */
+function isBankInquiry(event: RefundEvent): boolean {
+  return typeof event.providerStatus === "string" && event.providerStatus.startsWith("warning_");
 }
 
 async function admin() {
@@ -94,17 +229,30 @@ async function admin() {
  */
 const PROVIDER_REFERENCE_SHAPE = /^[A-Za-z0-9_-]{1,255}$/;
 
+/** Identyfikator sporu Stripe - tylko taki da się odczytać u operatora. */
+const STRIPE_DISPUTE_SHAPE = /^(dp|du)_[A-Za-z0-9_]{1,250}$/;
+
+/** Płatność, o której stan da się zapytać operatora (`pi_` / `ch_`). */
+function isPaymentRef(value: string | null | undefined): value is string {
+  return (
+    typeof value === "string" &&
+    PROVIDER_REFERENCE_SHAPE.test(value) &&
+    (value.startsWith("pi_") || value.startsWith("ch_"))
+  );
+}
+
 /**
  * Kolumny zamówienia czytane przez OBIE ścieżki korekty. `status`
  * i `refunded_amount_cents` są tu regułą, nie wygodą: bez nich zwrot nie ma
  * jak stwierdzić, że zamówienie jest już w całości zwrócone (patrz bramka
- * powtórki w `revokeOrder`).
+ * powtórki w `revokeOrder`). Identyfikatory operatora - bo uprawnienie planu
+ * mogło zostać nadane pod każdym z nich (patrz `revokeOrderAccess`).
  */
 const ORDER_LOOKUP_COLUMNS =
-  "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata, amount_cents, refunded_amount_cents, currency, status";
+  "id, user_id, tenant_id, plan_id, kind, entity_type, entity_id, metadata, amount_cents, refunded_amount_cents, currency, status, provider_session_id, provider_intent_id, provider_payment_intent_id";
 
 /** Zamówienie w kształcie czytanym przez korektę - typ z wygenerowanych definicji bazy. */
-type AdjustmentOrder = Pick<
+export type AdjustmentOrder = Pick<
   Tables<"payment_orders">,
   | "id"
   | "user_id"
@@ -118,7 +266,57 @@ type AdjustmentOrder = Pick<
   | "refunded_amount_cents"
   | "currency"
   | "status"
+> &
+  Partial<
+    Pick<
+      Tables<"payment_orders">,
+      "provider_session_id" | "provider_intent_id" | "provider_payment_intent_id"
+    >
+  >;
+
+/** Faktura subskrypcji, którą opłaciła korygowana płatność. */
+interface InvoiceContext {
+  invoiceId: string;
+  /** Koniec okresu USŁUGI z pozycji faktury - rozstrzyga regułę „okres minął". */
+  periodEnd: string | null;
+  billingReason: string | null;
+  /** Pozycja subskrypcji bez proraty - faktura zmiany planu otwiera nowy cykl. */
+  fullPeriodLine: boolean;
+  /** `metadata.orderId` subskrypcji - zamówienie z pierwszej kasy (księgi). */
+  orderId: string | null;
+}
+
+/** Kolumny darowizny czytane przez korektę (zwrot, spór, wygrany spór, nieudany zwrot). */
+const DONATION_LOOKUP_COLUMNS = "id, tenant_id, amount_cents, refunded_amount_cents, status";
+
+/** Wiersz darowizny w kształcie czytanym przez korektę - typ z wygenerowanych definicji bazy. */
+type AdjustmentDonation = Pick<
+  Tables<"donations">,
+  "id" | "tenant_id" | "amount_cents" | "refunded_amount_cents" | "status"
 >;
+
+/**
+ * W co trafia korekta - rozstrzygane RAZ, przed alertem i przed skutkiem.
+ *
+ *   * `subscription` - płatność faktury subskrypcji (odnowienie albo pierwsza
+ *     faktura). Zamówienie subskrypcyjne nie zna intencji płatności faktur,
+ *     więc dopasowanie idzie przez operatora (`resolvePaymentInvoice`);
+ *   * `order` - nasze zamówienie; `persistIntent` = intencję płatności
+ *     znaleźliśmy dopiero przez sesję Checkout i trzeba ją utrwalić;
+ *   * `donation` - wiersz wpłaty z własnego formularza darowizn (jednorazowej
+ *     albo raty cyklicznej), znaleziony w środowisku korekty;
+ *   * `unmatched` - korekta bez rozpoznawalnej płatności.
+ */
+type AdjustmentTarget =
+  | { kind: "subscription"; subscriptionId: string; invoice: InvoiceContext | null }
+  | { kind: "order"; order: AdjustmentOrder; persistIntent: string | null }
+  | { kind: "donation"; donation: AdjustmentDonation }
+  | { kind: "unmatched" };
+
+type SubscriptionTarget = Extract<AdjustmentTarget, { kind: "subscription" }>;
+
+/** UUID zamówienia z metadanych sesji - tylko taki kształt wolno wpisać do `or(...)`. */
+const ORDER_ID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Zamówienie wskazane przez korektę operatora - JEDNO miejsce dla odebrania
@@ -160,74 +358,514 @@ async function findOrderForAdjustment(
   return matches?.[0] ?? null;
 }
 
-/** Odbiera uprawnienie subskrypcyjne powiązane z subskrypcją operatora. */
-async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
+/**
+ * Zamówienie sesji Checkout, która pobrała płatność - dla zwrotu, który
+ * WYPRZEDZIŁ realizację. Do tej chwili zamówienie zna wyłącznie identyfikator
+ * sesji (zapisany przy jej tworzeniu), a nie intencję płatności niesioną przez
+ * zwrot. Dopasowanie po sesji albo po `metadata.orderId` sesji, zawsze
+ * w środowisku korekty - ta sama reguła P0 co w `findOrderForAdjustment`.
+ */
+async function findOrderForCheckoutSession(
+  event: RefundEvent,
+  scope: "refund" | "dispute",
+  session: { sessionId: string; orderId: string | null },
+): Promise<AdjustmentOrder | null> {
+  if (!PROVIDER_REFERENCE_SHAPE.test(session.sessionId)) return null;
+  const filters = [`provider_session_id.eq.${session.sessionId}`];
+  if (session.orderId && ORDER_ID_SHAPE.test(session.orderId)) {
+    filters.push(`id.eq.${session.orderId}`);
+  }
+
   const supabase = await admin();
-  const subscriptionId = event.subscriptionId;
-  if (!subscriptionId) return "skipped";
-
-  const nowIso = new Date().toISOString();
-
-  const { data: sub, error: subErr } = await supabase
-    .from("subscriptions")
-    .select("user_id, tenant_id, price_id")
-    .eq("provider_subscription_id", subscriptionId)
+  const { data: matches, error } = await supabase
+    .from("payment_orders")
+    .select(ORDER_LOOKUP_COLUMNS)
+    .or(filters.join(","))
     .eq("environment", event.environment)
-    .maybeSingle();
-  if (subErr) throw new Error(`refund: subscription lookup failed: ${subErr.message}`);
-
-  const { revokeSubscriptionEntitlement } = await import("@/lib/billing/grant.server");
-  const revoked = await revokeSubscriptionEntitlement(subscriptionId, nowIso);
-
-  if (!sub?.user_id) return revoked ? "subscription_refunded" : "skipped";
-
-  const { resolvePlanForPrice, syncCrmSubscriptionState } =
-    await import("@/lib/billing/purchaseEffects.server");
-  const plan = sub.price_id
-    ? await resolvePlanForPrice(sub.price_id, { tenantId: sub.tenant_id, userId: sub.user_id })
-    : null;
-
-  // CRM: zwrot to utrata klienta, nie pauza.
-  const { catalogEntryByPriceId } = await import("@/lib/billing/catalog");
-  const tierKey = sub.price_id ? (catalogEntryByPriceId(sub.price_id)?.tierKey ?? null) : null;
-  if (tierKey) await syncCrmSubscriptionState(sub.user_id, tierKey, "churned");
-
-  const { notifyRefundEmail } = await import("@/lib/billing/notifications.server");
-  await notifyRefundEmail({
-    userId: sub.user_id,
-    planId: plan?.planId ?? null,
-    amountCents: event.amountCents,
-    currency: event.currency,
-    transactionId: event.transactionId,
-    accessUntil: nowIso,
-    idempotencySeed: event.adjustmentId,
-  });
-
-  await pushRefundNotification(sub.user_id, sub.tenant_id, reasonLabel(event.action));
-
-  return "subscription_refunded";
+    .limit(1);
+  if (error) throw new Error(`${scope}: order lookup failed: ${error.message}`);
+  return matches?.[0] ?? null;
 }
 
-/** Odbiera uprawnienie zakupu jednorazowego (odblokowanie treści, bilet). */
-async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
+/** Identyfikator wiersza darowizny z metadanych operatora (uuid) - bramka przed zapytaniem. */
+const DONATION_ID_SHAPE = ORDER_ID_SHAPE;
+
+/**
+ * Wiersz darowizny po jednej kolumnie, ZAWSZE w środowisku korekty (migracja
+ * `20260831140000_donations_environment_isolation`): zdarzenie z piaskownicy
+ * nie zamknie wpłaty produkcyjnej o tym samym identyfikatorze. Wartość
+ * przechodzi bramkę kształtu, zanim trafi do zapytania. Błąd odczytu RZUCA -
+ * korekta wraca do ponowienia zamiast udawać „nie nasze".
+ */
+async function donationBy(
+  column: "id" | "provider_intent_id" | "provider_invoice_id" | "provider_session_id",
+  value: string | null | undefined,
+  environment: RefundEvent["environment"],
+): Promise<AdjustmentDonation | null> {
+  if (!value) return null;
+  const shape = column === "id" ? DONATION_ID_SHAPE : PROVIDER_REFERENCE_SHAPE;
+  if (!shape.test(value)) return null;
   const supabase = await admin();
+  const { data, error } = await supabase
+    .from("donations")
+    .select(DONATION_LOOKUP_COLUMNS)
+    .eq(column, value)
+    .eq("environment", environment)
+    .limit(1);
+  if (error) throw new Error(`refund: donation lookup failed: ${error.message}`);
+  return (data?.[0] as AdjustmentDonation | undefined) ?? null;
+}
+
+/**
+ * Czy faktura operatora to RATA NASZEJ DAROWIZNY CYKLICZNEJ, której księga
+ * jeszcze nie zna (przegląd #495, poz. 25).
+ *
+ * Kolejność zdarzeń, której wcześniej nic nie łapało: `invoice.paid` raty
+ * pada (np. chwilowe 500) i czeka na ponowienie operatora, a w tym czasie
+ * ratę zwrócono. `charge.refunded` nie znajdował wiersza - kotwica nie ma
+ * jeszcze ani intencji, ani faktury, a sesja checkout w trybie subskrypcji
+ * ma `payment_intent = null`, więc most sesji też milczy - i kończył się
+ * `skipped`, czyli „przetworzony" bez ponowienia. Ponowione `invoice.paid`
+ * księgowało potem ratę jako opłaconą: zwrócone pieniądze w statystykach,
+ * eksporcie i w przedłużonym statusie wspierającego.
+ *
+ * Ratę rozpoznaje TA SAMA normalizacja, którą faktura przejdzie przy
+ * księgowaniu (`normalizeStripeEvent` dla `invoice.paid` - te same zapasowe
+ * pola API Basil), plus DOWÓD LOKALNY: wiersz darowizny tej subskrypcji albo
+ * kotwica z `metadata.donationId`, oba w środowisku korekty. Bez dowodu
+ * lokalnego faktura nie jest „nasza" (wspólne konto operatora, inne
+ * wdrożenie) i korekta nie może wisieć w ponowieniach. Faktura bez
+ * subskrypcji nie jest ratą.
+ */
+async function isUnbookedDonationInstallment(
+  environment: RefundEvent["environment"],
+  invoiceId: string,
+): Promise<boolean> {
+  const { getStripeClient, getStripeErrorMessage } = await import("@/lib/stripe.server");
+  let invoice: Record<string, unknown>;
+  try {
+    const stripe = await getStripeClient(environment);
+    invoice = (await stripe.invoices.retrieve(invoiceId)) as unknown as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`refund: operator lookup failed: ${getStripeErrorMessage(error)}`);
+  }
+  const normalized = normalizeStripeEvent({
+    id: `refund-bridge:${invoiceId}`,
+    type: "invoice.paid",
+    created: 0,
+    data: { object: invoice },
+  });
+  const tx = (normalized?.data ?? null) as {
+    subscriptionId?: unknown;
+    customData?: Record<string, unknown> | null;
+  } | null;
+  const subscriptionId = typeof tx?.subscriptionId === "string" ? tx.subscriptionId : null;
+  if (!subscriptionId || !PROVIDER_REFERENCE_SHAPE.test(subscriptionId)) return false;
+
+  const supabase = await admin();
+  const bySubscription = await supabase
+    .from("donations")
+    .select("id")
+    .eq("provider_subscription_id", subscriptionId)
+    .eq("environment", environment)
+    .limit(1);
+  if (bySubscription.error) {
+    throw new Error(`refund: donation lookup failed: ${bySubscription.error.message}`);
+  }
+  if ((bySubscription.data ?? []).length > 0) return true;
+
+  // Kotwica bez powiązanej subskrypcji (zawiodły też zdarzenia, które ją
+  // wiążą) - rozpoznawalna wyłącznie po metadanych subskrypcji darowizny.
+  const custom = tx?.customData ?? null;
+  const donationId = custom?.purpose === "donation" ? custom.donationId : null;
+  if (typeof donationId !== "string" || !DONATION_ID_SHAPE.test(donationId)) return false;
+  const byAnchor = await supabase
+    .from("donations")
+    .select("id")
+    .eq("id", donationId)
+    .eq("environment", environment)
+    .limit(1);
+  if (byAnchor.error) throw new Error(`refund: donation lookup failed: ${byAnchor.error.message}`);
+  return (byAnchor.data ?? []).length > 0;
+}
+
+/**
+ * Rata darowizny cyklicznej opłacona fakturą (`provider_invoice_id`, SUB-09).
+ * Rata NASZEJ darowizny, której faktura jeszcze się nie zaksięgowała, to
+ * WYJĄTEK, nie `null`: dziennik zapisze `failed`, operator ponowi
+ * `charge.refunded` w tym samym oknie co `invoice.paid`, a po zaksięgowaniu
+ * raty ponowienie trafi w nią zwykłą regułą zwrotu (pełny -> `refunded`,
+ * częściowy -> licznik). Oznaczenie oczekującej kotwicy jako zwróconej nie
+ * wystarcza: księgowanie widzi wtedy kotwicę „nie pending" i dopisuje świeży
+ * opłacony wiersz `renewal:in_...`.
+ */
+async function donationForInvoice(
+  event: RefundEvent,
+  invoice: PaymentInvoiceRef,
+): Promise<AdjustmentDonation | null> {
+  const byInvoice = await donationBy("provider_invoice_id", invoice.invoiceId, event.environment);
+  if (byInvoice) return byInvoice;
+  if (
+    invoice.subscriptionId &&
+    PROVIDER_REFERENCE_SHAPE.test(invoice.invoiceId) &&
+    (await isUnbookedDonationInstallment(event.environment, invoice.invoiceId))
+  ) {
+    throw new Error(`refund: donation installment ${invoice.invoiceId} not booked yet - retry`);
+  }
+  return null;
+}
+
+/**
+ * Wpłata jednorazowa po sesji Checkout, która pobrała płatność: wiersze sprzed
+ * SUB-09 nie mają intencji (trzymały sesję), a `metadata.donationId` sesji
+ * jednorazowej wskazuje DOKŁADNIE tę wpłatę. Sesja w trybie subskrypcji nie
+ * pobiera płatności `pi_`, więc kotwica darowizny cyklicznej tu nie trafi.
+ */
+async function donationForSession(
+  event: RefundEvent,
+  session: PaymentCheckoutSession,
+): Promise<AdjustmentDonation | null> {
+  const bySession = await donationBy("provider_session_id", session.sessionId, event.environment);
+  if (bySession) return bySession;
+  if (session.purpose !== "donation") return null;
+  return donationBy("id", session.donationId, event.environment);
+}
+
+/**
+ * Rozstrzyga, w co trafia korekta: (1) nasze zamówienie po identyfikatorach
+ * operatora, (2) subskrypcja planu, której fakturę opłaciła płatność, (3)
+ * darowizna - po intencji wprost (wpłata jednorazowa od SUB-09), po fakturze
+ * raty cyklicznej i po sesji Checkout (wiersze sprzed SUB-09), (4) zamówienie
+ * sesji Checkout, która płatność pobrała (zwrot przed realizacją).
+ *
+ * Operatora pytamy wyłącznie o płatność (`pi_`/`ch_`) i wyłącznie wtedy, gdy
+ * własna baza nie zna transakcji. Awaria operatora RZUCA: zwrot zgubiony
+ * „po cichu" zostawiałby dostęp klientowi, który odzyskał pieniądze.
+ */
+async function resolveAdjustmentTarget(
+  event: RefundEvent,
+  scope: "refund" | "dispute",
+): Promise<AdjustmentTarget> {
+  if (event.subscriptionId) {
+    return { kind: "subscription", subscriptionId: event.subscriptionId, invoice: null };
+  }
+
   const txnId = event.transactionId;
-  if (!txnId) return "skipped";
+  if (!txnId || !PROVIDER_REFERENCE_SHAPE.test(txnId)) return { kind: "unmatched" };
 
-  const nowIso = new Date().toISOString();
+  const order = await findOrderForAdjustment(event, scope);
+  if (order) return { kind: "order", order, persistIntent: null };
+  if (!isPaymentRef(txnId)) {
+    // Korekta bez płatności `pi_`/`ch_` (dawny operator) - operatora nie ma
+    // o co pytać, zostaje wpłata zapisana pod tym identyfikatorem.
+    const legacy = await donationBy("provider_intent_id", txnId, event.environment);
+    return legacy ? { kind: "donation", donation: legacy } : { kind: "unmatched" };
+  }
 
-  // Kształt identyfikatora bramkujemy PRZED zapytaniem - patrz
-  // `PROVIDER_REFERENCE_SHAPE`. Obcy kształt kończy korektę bez dotykania bazy.
-  if (!PROVIDER_REFERENCE_SHAPE.test(txnId)) return "skipped";
+  const { resolvePaymentInvoice, findCheckoutSessionForPayment } =
+    await import("@/lib/billing/transactions.server");
+  const invoice = await resolvePaymentInvoice(event.environment, txnId);
+  if (invoice?.subscriptionId && invoice.purpose !== "donation") {
+    return {
+      kind: "subscription",
+      subscriptionId: invoice.subscriptionId,
+      invoice: {
+        invoiceId: invoice.invoiceId,
+        periodEnd: invoice.periodEnd,
+        billingReason: invoice.billingReason,
+        fullPeriodLine: invoice.fullPeriodLine,
+        orderId: invoice.orderId,
+      },
+    };
+  }
 
-  const order = await findOrderForAdjustment(event, "refund");
-  if (!order) return await revokeDonation(event, txnId);
+  const direct = await donationBy("provider_intent_id", txnId, event.environment);
+  if (direct) return { kind: "donation", donation: direct };
+  if (invoice) {
+    const installment = await donationForInvoice(event, invoice);
+    if (installment) return { kind: "donation", donation: installment };
+    // Faktura subskrypcji darowizny bez naszego wiersza i bez dowodu lokalnego
+    // (wspólne konto operatora, inne wdrożenie) - nie nasza.
+    if (invoice.subscriptionId) return { kind: "unmatched" };
+  }
 
-  // Ile łącznie wróciło do kupującego. Operator liczy narastająco, więc bierzemy
-  // maksimum z zapisanego stanu - ponowione zdarzenie nie może cofnąć licznika.
+  const session = await findCheckoutSessionForPayment(event.environment, txnId);
+  if (!session) return { kind: "unmatched" };
+  const sessionOrder = await findOrderForCheckoutSession(event, scope, session);
+  if (sessionOrder) {
+    return {
+      kind: "order",
+      order: sessionOrder,
+      persistIntent:
+        txnId.startsWith("pi_") && !sessionOrder.provider_payment_intent_id ? txnId : null,
+    };
+  }
+  const bySession = await donationForSession(event, session);
+  return bySession ? { kind: "donation", donation: bySession } : { kind: "unmatched" };
+}
+
+/**
+ * Klucze `user_subscriptions`, pod którymi zamówienie mogło nadać plan.
+ *
+ * Uprawnienie planu bywa kluczowane różnie: finalizacja trybu mock nadaje je
+ * pod identyfikatorem zamówienia, realizacja z webhooka - pod identyfikatorem
+ * sesji Checkout, a przywrócenie po wygranym sporze - pod identyfikatorem
+ * transakcji. `revokeOrderEntitlement` zna wyłącznie klucz zamówienia, więc
+ * zwrot planu kupionego przez Stripe zostawiał aktywny wiersz pod kluczem
+ * sesji. Identyfikatory operatora są unikalne, więc dodatkowe klucze nie
+ * trafią w cudze uprawnienie. Pusta lista = zamówienie nie nadaje planu.
+ */
+async function planEntitlementRefs(
+  order: AdjustmentOrder,
+  extraRefs: ReadonlyArray<string | null | undefined> = [],
+): Promise<string[]> {
+  const { entitlementForOrder } = await import("@/lib/billing/entitlement");
+  const entitlement = entitlementForOrder({
+    kind: order.kind,
+    plan_id: order.plan_id,
+    entity_type: order.entity_type,
+    entity_id: order.entity_id,
+  });
+  if (entitlement.type !== "subscription") return [];
+  return [
+    ...new Set(
+      [
+        order.id,
+        order.provider_session_id,
+        order.provider_intent_id,
+        order.provider_payment_intent_id,
+        ...extraRefs,
+      ].filter((ref): ref is string => typeof ref === "string" && ref !== ""),
+    ),
+  ];
+}
+
+/**
+ * Odbiera dostęp nadany przez zamówienie OSTATECZNIE (zwrot, spór przegrany)
+ * - pod KAŻDYM kluczem, pod którym mógł zostać nadany (`planEntitlementRefs`).
+ */
+export async function revokeOrderAccess(
+  order: AdjustmentOrder,
+  revokedAt: string,
+  extraRefs: ReadonlyArray<string | null | undefined> = [],
+): Promise<void> {
+  const { revokeOrderEntitlement, revokeSubscriptionEntitlement } =
+    await import("@/lib/billing/grant.server");
+  await revokeOrderEntitlement(order, revokedAt);
+  for (const ref of await planEntitlementRefs(order, extraRefs)) {
+    if (ref !== order.id) await revokeSubscriptionEntitlement(ref, revokedAt);
+  }
+}
+
+/**
+ * Zawieszenie uprawnień planu ZAMÓWIENIA na czas otwartego sporu: dostęp
+ * znika od razu (`canceled`, okres kończy się teraz), ale - inaczej niż
+ * `refunded` - wraca, gdy spór zostanie wygrany (zwykły `grantEntitlement` traktuje
+ * `refunded` jako ostateczny). Klucze zamówienia (`cs_`, identyfikator
+ * zamówienia) nie są kluczami subskrypcji, więc żadne `subscription.*` ich
+ * nie odświeża. Dotyka wyłącznie wierszy aktywnych: zwrot ani rezygnacja nie
+ * są tu nadpisywane.
+ */
+async function suspendPlanEntitlements(
+  externalRefs: ReadonlyArray<string>,
+  suspendedAt: string,
+): Promise<boolean> {
+  if (externalRefs.length === 0) return false;
+  const supabase = await admin();
+  const { data, error } = await supabase
+    .from("user_subscriptions")
+    .update({ status: "canceled", current_period_end: suspendedAt, canceled_at: suspendedAt })
+    .in("external_ref", [...externalRefs])
+    .eq("status", "active")
+    .select("id");
+  if (error) {
+    throw new Error(
+      `dispute: user_subscriptions suspend failed (${externalRefs.join(",")}): ${error.message}`,
+    );
+  }
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Spór otwarty na ZAMÓWIENIU: plan zawieszony (wraca po wygranej), zakup
+ * pojedynczej treści odebrany jak przy zwrocie - `user_purchases` przywraca
+ * `grantEntitlement` zwykłym upsertem.
+ */
+async function suspendOrderAccess(order: AdjustmentOrder, suspendedAt: string): Promise<void> {
+  const refs = await planEntitlementRefs(order);
+  if (refs.length > 0) {
+    await suspendPlanEntitlements(refs, suspendedAt);
+    return;
+  }
+  const { revokeOrderEntitlement } = await import("@/lib/billing/grant.server");
+  await revokeOrderEntitlement(order, suspendedAt);
+}
+
+// --- kwoty -------------------------------------------------------------------
+
+/** Rozliczenie korekty w PODSTAWIE ZAMÓWIENIA (jego waluta i kwota). */
+interface OrderRefundAmounts {
+  /** Zapisany licznik zwrotów zamówienia. */
+  stored: number;
+  /** Ile łącznie wróciło do kupującego - to trafia do `refunded_amount_cents`. */
+  refundedSoFar: number;
+  /** Kwota, względem której zwrot jest „pełny" (kwota zamówienia). */
+  basis: number | null;
+  /** Licznik po korekcie przekroczył kwotę zamówienia i został zaciśnięty. */
+  clamped: boolean;
+  reported: number;
+  /** Zwrot częściowy: korekta ceny, dostęp zostaje. */
+  isPartial: boolean;
+}
+
+/**
+ * Kwoty korekty przeliczone na podstawę zamówienia.
+ *
+ * DLACZEGO PRZELICZENIE. Operator podaje kwoty w walucie i podstawie
+ * OBCIĄŻENIA (`amount`, `amount_refunded`), a `refunded_amount_cents` jest
+ * porównywane z `payment_orders.amount_cents` - przez raporty („przychód netto
+ * = amount_cents - refunded_amount_cents") i przez bazę
+ * (`payments_apply_event_ticket_outcome` uznaje zwrot za pełny, gdy licznik
+ * >= kwota zamówienia). Gdy obie podstawy się różnią (przewalutowanie
+ * Adaptive Pricing, podatek doliczony na wierzch w zamówieniach sprzed S5),
+ * zwrot zapisany wprost dawał przychód UJEMNY, a TS i baza rozstrzygały
+ * „częściowy czy pełny" różnie: TS zostawiał dostęp, baza odwoływała
+ * zgłoszenie i oddawała miejsce. Przeliczamy więc proporcją
+ * `amount_cents / captured` - zwrot pełny daje dokładnie kwotę zamówienia,
+ * częściowy - jej proporcjonalną część, i obie strony widzą to samo.
+ *
+ * SPÓR DOKŁADA, ZWROT NADPISUJE. `amount_refunded` zwrotu jest narastające
+ * (maksimum z zapisanym licznikiem nie liczy niczego podwójnie), a kwota sporu
+ * to środki wycofane przez bank PONAD wcześniejsze zwroty - stąd suma.
+ * Ponowienie sporu ani przegrana po otwarciu nie doliczają drugi raz:
+ * zamówienie jest już zamknięte, a licznik zaciśnięty do kwoty zamówienia.
+ */
+function orderRefundAmounts(event: RefundEvent, order: AdjustmentOrder): OrderRefundAmounts {
+  const stored = order.refunded_amount_cents ?? 0;
+  const orderAmount =
+    typeof order.amount_cents === "number" && order.amount_cents > 0 ? order.amount_cents : null;
+  // Kwota pobrana: z korekty, a bez niej - kwota zamówienia. Jawne zero od
+  // operatora znaczy „nie wiem" i NIE pozwala uznać zwrotu za częściowy.
   const captured = event.capturedAmountCents ?? order.amount_cents ?? null;
   const knownCaptured = typeof captured === "number" && captured > 0;
-  const reported = Math.max(order.refunded_amount_cents ?? 0, event.amountCents ?? 0);
+  const chargeCaptured =
+    typeof event.capturedAmountCents === "number" && event.capturedAmountCents > 0
+      ? event.capturedAmountCents
+      : null;
+  const toOrder = (cents: number): number =>
+    chargeCaptured !== null && orderAmount !== null && chargeCaptured !== orderAmount
+      ? Math.round((cents * orderAmount) / chargeCaptured)
+      : cents;
+
+  const eventCents = toOrder(Math.max(0, event.amountCents ?? 0));
+  // Spór na zamówieniu już zamkniętym (przegrana po otwarciu) nie wycofuje
+  // niczego ponad to, co zapisało otwarcie.
+  const incoming =
+    isDispute(event) && order.status !== "refunded" ? stored + eventCents : eventCents;
+  // Operator liczy narastająco, więc bierzemy maksimum z zapisanym stanem -
+  // ponowione zdarzenie nie może cofnąć licznika.
+  const reported = Math.max(stored, incoming);
+  const basis = orderAmount ?? (knownCaptured ? (captured as number) : null);
+  const clamped = basis !== null && reported > basis;
+  const refundedSoFar = clamped ? (basis as number) : reported;
+  return {
+    stored,
+    refundedSoFar,
+    basis,
+    clamped,
+    reported,
+    isPartial:
+      event.action === "refund" &&
+      knownCaptured &&
+      basis !== null &&
+      refundedSoFar > 0 &&
+      refundedSoFar < basis,
+  };
+}
+
+/** Licznik zwrotów obciążenia u operatora w podstawie zamówienia (z zaciskiem). */
+function orderCentsFromCharge(
+  order: Pick<AdjustmentOrder, "amount_cents">,
+  state: PaymentRefundState,
+): number {
+  const orderAmount =
+    typeof order.amount_cents === "number" && order.amount_cents > 0 ? order.amount_cents : null;
+  if (orderAmount === null) return state.refundedCents;
+  const scaled =
+    state.amountCents > 0 && state.amountCents !== orderAmount
+      ? Math.round((state.refundedCents * orderAmount) / state.amountCents)
+      : state.refundedCents;
+  return Math.min(orderAmount, Math.max(0, scaled));
+}
+
+/** Koniec okresu usługi faktury już minął - korekta nie zmienia dostępu (S1). */
+function invoicePeriodEnded(invoice: InvoiceContext | null): boolean {
+  if (!invoice?.periodEnd) return false;
+  const end = Date.parse(invoice.periodEnd);
+  return Number.isFinite(end) && end <= Date.now();
+}
+
+/**
+ * Przyczyny faktur, które okres usługi UZUPEŁNIAJĄ, a nie opłacają: dopłata
+ * proracyjna przy zmianie planu albo liczby miejsc (`always_invoice`
+ * w `subscriptionProvider.server`), próg zużycia, faktura ręczna (np.
+ * powtórzone obciążenie za ten sam okres) i faktura oczekujących pozycji.
+ */
+const SUPPLEMENTAL_INVOICE_REASONS: ReadonlySet<string> = new Set([
+  "subscription_update",
+  "subscription_threshold",
+  "manual",
+  "automatic_pending_invoice_item_invoice",
+]);
+
+/**
+ * Faktura OPŁACA bieżący okres usługi (2.1 / 6.1). Pełny zwrot liczymy
+ * względem obciążenia, więc bez tej reguły zwrot 12 zł dopłaty proracyjnej
+ * był „pełny" i odbierał resztę miesiąca opłaconego fakturą odnowienia
+ * (z mailem „dostęp zakończony"). Faktura dodatkowa opłaca okres wyłącznie
+ * wtedy, gdy niesie pozycję bez proraty (zmiana planu z nowym cyklem).
+ *
+ * Przyczyna nieznana (zdarzenie z samą subskrypcją, faktura bez
+ * `billing_reason`) zostaje przy dawnej regule - bezpieczniej odebrać niż
+ * zostawić opłacone uprawnienie po oddaniu pieniędzy.
+ */
+function invoicePaysPeriod(invoice: InvoiceContext | null): boolean {
+  if (!invoice?.billingReason || !SUPPLEMENTAL_INVOICE_REASONS.has(invoice.billingReason)) {
+    return true;
+  }
+  return invoice.fullPeriodLine;
+}
+
+/**
+ * Korekta tej faktury nie dotyka dostępu: okres minął (usługa skonsumowana)
+ * albo faktura nie opłaca okresu (opłaciła go inna). `null` = dotyka.
+ */
+function accessUnaffectedBy(invoice: InvoiceContext | null): "past_period" | "supplemental" | null {
+  if (invoicePeriodEnded(invoice)) return "past_period";
+  return invoicePaysPeriod(invoice) ? null : "supplemental";
+}
+
+// --- skutki: zamówienie ------------------------------------------------------
+
+/**
+ * Odbiera uprawnienie zakupu jednorazowego (odblokowanie treści, bilet) -
+ * zwrotem albo sporem (otwartym, przegranym, zatrzymanym zwrotem).
+ *
+ * `persistIntent`: zamówienie znalezione przez sesję Checkout (zwrot przed
+ * realizacją) dostaje intencję płatności razem ze stanem zwrotu - kolejne
+ * zdarzenia trafią w nie już bez pytania operatora, a późniejsza realizacja
+ * zobaczy `refunded` i odmówi (`oneTimeFulfilment.fulfilOrder`).
+ */
+async function revokeOrder(
+  event: RefundEvent,
+  order: AdjustmentOrder,
+  persistIntent: string | null,
+): Promise<RefundOutcome> {
+  const supabase = await admin();
+  const txnId = event.transactionId ?? order.id;
+  const nowIso = new Date().toISOString();
+  const amounts = orderRefundAmounts(event, order);
+  const { refundedSoFar, isPartial } = amounts;
 
   // ZACISK DO KWOTY ZAMÓWIENIA. `refunded_amount_cents` jest podstawą rachunku
   // „przychód netto = amount_cents - refunded_amount_cents", więc wartość
@@ -242,27 +880,21 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   // hipotetyczny (zmiana ceny, kupon dopisany po utworzeniu zamówienia, inna
   // waluta zdarzenia), więc gasi się go zapisem spójnym z księgami PLUS
   // ostrzeżeniem - bo jedyne, czego tu naprawdę brakowało, to ŚLAD.
-  const refundedSoFar = knownCaptured && reported > captured ? captured : reported;
-  if (knownCaptured && reported > captured) {
+  if (amounts.clamped && !isDispute(event)) {
     console.warn(
       "[payments] refund exceeds captured amount - clamped",
       event.adjustmentId,
       order.id,
-      { reported, captured },
+      { reported: amounts.reported, captured: amounts.basis },
     );
   }
-
-  // Zwrot częściowy tylko wtedy, gdy znamy kwotę pierwotną I jest ona wyższa.
-  // Bez tej wiedzy zakładamy pełny zwrot - bezpieczniej odebrać dostęp niż
-  // zostawić opłacone uprawnienie po oddaniu pieniędzy.
-  const isPartial =
-    event.action === "refund" && knownCaptured && refundedSoFar > 0 && refundedSoFar < captured;
 
   const { data: flipped, error: updateErr } = await supabase
     .from("payment_orders")
     .update({
       ...(isPartial ? {} : { status: "refunded" }),
       refunded_amount_cents: refundedSoFar,
+      ...(persistIntent ? { provider_payment_intent_id: persistIntent } : {}),
       updated_at: nowIso,
     })
     .eq("id", order.id)
@@ -270,7 +902,7 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
     .select("id");
   if (updateErr) throw new Error(`refund: order status flip failed: ${updateErr.message}`);
 
-  // BRAMKA POWTÓRZONEGO ZWROTU. Ten sam wzorzec co w `revokeDonation`
+  // BRAMKA POWTÓRZONEGO ZWROTU. Ten sam wzorzec co w `refundDonation`
   // i `revokeSubscriptionEntitlement`: po zapisie czytamy `.select("id")`, czyli
   // wiersze, które NAPRAWDĘ się zmieniły. Bez tego ponowione dostarczenie
   // webhooka przechodziło całą ścieżkę skutków (odebranie uprawnienia,
@@ -282,15 +914,27 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
   // (wtedy wolimy przebiec skutki drugi raz - wszystkie są idempotentne), a sam
   // odczyt mógł się zestarzeć. Powtórką nazywamy więc sytuację, w której zapis
   // nie objął żadnego wiersza I wiersz wejściowy jest już zamknięty zwrotem,
-  // I to zdarzenie nie podnosi licznika zwrotów.
+  // I to zdarzenie nie podnosi licznika zwrotów. Ta sama bramka zatrzymuje
+  // zwrot po samoczynnym zwrocie nadsprzedanego biletu (S3): zamówienie jest
+  // już `refunded` z pełną kwotą, więc bez drugiego maila i dzwonka.
   const changedRow = (flipped ?? []).length > 0;
   const settledBefore =
-    order.status === "refunded" ||
-    (knownCaptured && (order.refunded_amount_cents ?? 0) >= captured);
+    order.status === "refunded" || (amounts.basis !== null && amounts.stored >= amounts.basis);
   // Porównanie z kwotą, KTÓRĄ WŁAŚNIE ZAPISUJEMY (po zacisku), a nie z surową
   // kwotą zdarzenia: powtórka z zawyżoną kwotą też nie podnosi licznika.
-  const bringsNoMoney = (order.refunded_amount_cents ?? 0) >= refundedSoFar;
-  if (!changedRow && settledBefore && bringsNoMoney) return "skipped";
+  const bringsNoMoney = amounts.stored >= refundedSoFar;
+  if (!changedRow && settledBefore && bringsNoMoney) {
+    // Spór PRZEGRANY po sporze otwartym: zamówienie zamknięto już przy
+    // otwarciu, a plan był tylko zawieszony - teraz odbieramy go ostatecznie.
+    // Bez skutków miękkich: spór nie wysyła klientowi niczego.
+    //
+    // Zwrot na zamówieniu zamkniętym wcześniej (powtórka, zwrot nadsprzedanego
+    // biletu - S3, zwrot w trakcie zapytania banku) nie robi NIC: plan
+    // zawieszony przez spór domyka przywrócenie, które widzi zwrot
+    // u operatora (`restoreOrder`).
+    if (event.action === "chargeback") await revokeOrderAccess(order, nowIso);
+    return "skipped";
+  }
 
   const metadata = (order.metadata ?? {}) as Record<string, unknown>;
   const eventId = typeof metadata.event_id === "string" ? metadata.event_id : null;
@@ -303,8 +947,10 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
     return "order_refunded";
   }
 
-  const { revokeOrderEntitlement } = await import("@/lib/billing/grant.server");
-  await revokeOrderEntitlement(order, nowIso);
+  // Spór OTWARTY zawiesza (dostęp wraca po wygranej), zwrot i spór przegrany
+  // odbierają ostatecznie.
+  if (event.action === "chargeback_warning") await suspendOrderAccess(order, nowIso);
+  else await revokeOrderAccess(order, nowIso);
 
   // Bilet na wydarzenie: zwrot cofa potwierdzony udział. Wartość `cancelled`
   // (D0-1): CHECK `event_rsvps.status` zna wyłącznie tę pisownię - dawne
@@ -329,7 +975,12 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
     await applyTicketOutcome(order.id, "refunded", refundedSoFar);
   }
 
-  if (order.user_id) {
+  // Mail „Płatność została zwrócona" i dzwonek WYŁĄCZNIE dla zwrotu. Spór to
+  // nie zwrot: potwierdzenie zwrotu wysłane przy otwarciu sporu (także przy
+  // zapytaniu banku, gdy żadne środki nie ruszyły) klient mógł przekazać
+  // bankowi jako dowód przeciwko nam, a po wygranej obiecywało pieniądze,
+  // które nigdy nie przyszły.
+  if (order.user_id && !isDispute(event)) {
     const { notifyRefundEmail } = await import("@/lib/billing/notifications.server");
     await notifyRefundEmail({
       userId: order.user_id,
@@ -340,29 +991,566 @@ async function revokeOrder(event: RefundEvent): Promise<RefundOutcome> {
       accessUntil: nowIso,
       idempotencySeed: event.adjustmentId,
     });
-    await pushRefundNotification(order.user_id, order.tenant_id, reasonLabel(event.action));
+    await pushRefundNotification(order.user_id, order.tenant_id);
   }
 
   return "order_refunded";
 }
 
+/** Wynik skutku sporu albo nieudanego zwrotu: wynik dla dziennika + zdanie do alertu. */
+interface CorrectionResult {
+  outcome: RefundOutcome;
+  note: AccessNote;
+}
+
+/** Płatność zamówienia, o którą można zapytać operatora. */
+function orderPaymentRef(event: RefundEvent, order: AdjustmentOrder): string | null {
+  if (isPaymentRef(event.transactionId)) return event.transactionId;
+  return isPaymentRef(order.provider_payment_intent_id) ? order.provider_payment_intent_id : null;
+}
+
 /**
- * Zwrot darowizny - bez uprawnień, ale status musi się zgadzać z księgami.
+ * Przywrócenie zamówienia po sporze rozstrzygniętym bez utraty środków
+ * (`won`, `warning_closed`).
  *
- * FILTR ŚRODOWISKA jak w rodzeństwie (`revokeOrder`, `revokeSubscription`):
- * zdarzenie z piaskownicy nie może zamknąć wpłaty produkcyjnej o tym samym
- * identyfikatorze intencji. Kolumnę `donations.environment` dokłada migracja
- * `20260831140000_donations_environment_isolation` (NOT NULL DEFAULT 'live'
- * + CHECK + indeks); filtr działa dopiero po jej wdrożeniu i regeneracji
- * `src/integrations/supabase/types.ts` - kolejność: migracja ->
- * `bun run generate:types` -> filtr.
+ * O PRZYWRÓCENIU DECYDUJE OBCIĄŻENIE U OPERATORA, NIE NASZE KSIĘGI. Zamówienie
+ * zamknięte sporem wygląda tak samo jak zamknięte zwrotem (`refunded`), więc
+ * przywracanie „na ślepo" wskrzeszało zwrócone zamówienia: zwrot, a potem spór
+ * wygrany dowodem zwrotu; zapytanie banku rozwiązane pełnym zwrotem (Stripe
+ * zamyka je wtedy jako `warning_closed`); ponowiona wygrana po późniejszym
+ * zwrocie. Klient miał wtedy i pieniądze, i dostęp, a księgi mówiły `paid`.
+ *
+ *   * obciążenie zwrócone w całości -> dostęp NIE wraca: plan odbieramy
+ *     ostatecznie, a licznik zwrotów odpowiada operatorowi;
+ *   * inaczej -> `paid` z licznikiem = PRAWDZIWE zwroty (`amount_refunded`).
+ *     Kwota sporu zapisana przy otwarciu znika z księgi - bez tego wygrany
+ *     spór liczył się jako przychód zero, a kolejny drobny zwrot (maksimum
+ *     z pełną kwotą) odbierał cały dostęp.
+ *
+ * Stanu nie da się potwierdzić (płatność nieznana operatorowi) -> nic nie
+ * przywracamy, a alert prosi o ręczną weryfikację.
  */
-async function revokeDonation(event: RefundEvent, txnId: string): Promise<RefundOutcome> {
+async function restoreOrder(event: RefundEvent, order: AdjustmentOrder): Promise<CorrectionResult> {
+  const supabase = await admin();
+  const nowIso = new Date().toISOString();
+
+  // Spór przed realizacją (zamówienie w toku, anulowane) nie ma czego
+  // przywracać - opłacenie należy do realizacji, nie do sporu.
+  if (order.status !== "refunded" && order.status !== "paid") {
+    console.warn("[payments] dispute won on an unsettled order - nothing to restore", {
+      adjustmentId: event.adjustmentId,
+      orderId: order.id,
+      status: order.status,
+    });
+    return { outcome: "skipped", note: "none" };
+  }
+
+  const paymentRef = orderPaymentRef(event, order);
+  const { retrievePaymentRefundState } = await import("@/lib/billing/transactions.server");
+  const state = paymentRef ? await retrievePaymentRefundState(event.environment, paymentRef) : null;
+  if (!state) {
+    console.error("[payments] dispute won but the payment state is unknown - restore skipped", {
+      adjustmentId: event.adjustmentId,
+      orderId: order.id,
+    });
+    return { outcome: "skipped", note: "unverified" };
+  }
+  const refundedCents = orderCentsFromCharge(order, state);
+
+  if (state.fullyRefunded) {
+    // Zamówienie zamknięte sporem zostaje zamknięte - teraz już zwrotem.
+    // Zamówienia `paid` nie ruszamy: zwrot dojdzie własnym zdarzeniem
+    // (`charge.refunded`) razem z biletem, mailem i dzwonkiem.
+    if (order.status === "refunded") {
+      const { error } = await supabase
+        .from("payment_orders")
+        .update({ refunded_amount_cents: refundedCents, updated_at: nowIso })
+        .eq("id", order.id)
+        .eq("status", "refunded");
+      if (error) throw new Error(`dispute: order refund sync failed: ${error.message}`);
+      await revokeOrderAccess(order, nowIso);
+    }
+    return { outcome: "skipped", note: "refunded_kept" };
+  }
+
+  if (order.status === "refunded") {
+    const { error: flipErr } = await supabase
+      .from("payment_orders")
+      .update({ status: "paid", refunded_amount_cents: refundedCents, updated_at: nowIso })
+      .eq("id", order.id)
+      .eq("status", "refunded");
+    if (flipErr) throw new Error(`dispute: order status flip failed: ${flipErr.message}`);
+  }
+
+  // Ten sam klucz, pod którym nadała je realizacja (identyfikator transakcji
+  // zapisany jako `provider_intent_id`) - odświeżenie wiersza zamiast
+  // drugiego wiersza pod kluczem intencji płatności.
+  //
+  // `reviveRefunded`: operator potwierdził, że obciążenie NIE zostało zwrócone
+  // w całości, więc plan odebrany jako `refunded` zabrał spór, nie zwrot -
+  // np. realizacja, która ścigała się z otwarciem sporu, odbiera nadany plan
+  // ostatecznie (`oneTimeFulfilment`), a wygrana musi go oddać.
+  const { grantEntitlement } = await import("@/lib/billing/grant.server");
+  await grantEntitlement(order, order.provider_intent_id ?? event.transactionId, {
+    reviveRefunded: true,
+  });
+
+  const metadata = (order.metadata ?? {}) as Record<string, unknown>;
+  const eventId = typeof metadata.event_id === "string" ? metadata.event_id : null;
+  // TA SAMA REGUŁA CO PRZY ODBIERANIU (`revokeOrder`): RSVP dotykamy wyłącznie
+  // na starszej ścieżce, BEZ `registration_id`. Zamówienie związane ze
+  // zgłoszeniem oddało miejsce przez `payments_apply_event_ticket_outcome`
+  // (pula, lista rezerwowa), więc bezwarunkowe `going` dawało link wejścia
+  // osobie, której zgłoszenie jest odwołane, a miejsce mogło już przejść na
+  // kogoś z kolejki. Decyzja o takim zgłoszeniu idzie do organizatora
+  // (zdanie w alercie - `alertAdminsAboutDispute`).
+  const boundToRegistration =
+    typeof metadata.registration_id === "string" && metadata.registration_id.length > 0;
+  if (eventId && order.user_id && !boundToRegistration) {
+    const { error: rsvpErr } = await supabase
+      .from("event_rsvps")
+      .update({ status: "going", updated_at: nowIso })
+      .eq("event_id", eventId)
+      .eq("user_id", order.user_id);
+    if (rsvpErr) throw new Error(`dispute: rsvp restore failed: ${rsvpErr.message}`);
+  }
+  return { outcome: "order_restored", note: "restored" };
+}
+
+/**
+ * Nieudany zwrot ZAMÓWIENIA: licznik zwrotów wraca do stanu operatora, a gdy
+ * pozostałe zwroty nie są już zwrotem pełnym - zamówienie wraca na `paid`
+ * i dostęp wraca (także plan odebrany jako `refunded`: pieniądze są u nas).
+ *
+ * Bilet NIE wraca sam: zwrot odwołał zgłoszenie i oddał miejsce (być może
+ * komuś z listy rezerwowej), więc decyzja należy do organizatora - alert.
+ * Obciążenie objęte sporem zostawiamy ścieżce sporu.
+ */
+async function reopenOrderAfterFailedRefund(
+  order: AdjustmentOrder,
+  state: PaymentRefundState,
+): Promise<CorrectionResult> {
+  // Obciążenie objęte sporem: środki wycofane przez bank nie są zwrotem
+  // (`amount_refunded` ich nie zna), więc przeliczenie licznika z operatora
+  // wymazałoby z ksiąg spór przegrany. Decyduje ścieżka sporu.
+  if (state.disputed) return { outcome: "skipped", note: "disputed" };
+
+  const supabase = await admin();
+  const nowIso = new Date().toISOString();
+  const refundedCents = orderCentsFromCharge(order, state);
+  const reopen = !state.fullyRefunded && order.status === "refunded";
+
+  if (!reopen) {
+    const { error } = await supabase
+      .from("payment_orders")
+      .update({ refunded_amount_cents: refundedCents, updated_at: nowIso })
+      .eq("id", order.id);
+    if (error) throw new Error(`refund failed: order refund sync failed: ${error.message}`);
+    return { outcome: "skipped", note: state.fullyRefunded ? "refunded_kept" : "none" };
+  }
+
+  const { data: reopened, error: flipErr } = await supabase
+    .from("payment_orders")
+    .update({ status: "paid", refunded_amount_cents: refundedCents, updated_at: nowIso })
+    .eq("id", order.id)
+    .eq("status", "refunded")
+    .select("id");
+  if (flipErr) throw new Error(`refund failed: order status flip failed: ${flipErr.message}`);
+  if ((reopened ?? []).length === 0) return { outcome: "skipped", note: "none" };
+
+  const metadata = (order.metadata ?? {}) as Record<string, unknown>;
+  if (typeof metadata.event_id === "string") {
+    return { outcome: "order_restored", note: "ticket_review" };
+  }
+  const { grantEntitlement } = await import("@/lib/billing/grant.server");
+  await grantEntitlement(order, order.provider_intent_id ?? order.id, { reviveRefunded: true });
+  return { outcome: "order_restored", note: "restored" };
+}
+
+// --- skutki: subskrypcja -----------------------------------------------------
+
+/**
+ * Wiersz `subscriptions` w środowisku korekty (użytkownik, najemca, cena) oraz
+ * kotwica karencji (`first_payment_failed_at`, SUB-03) dla przywrócenia.
+ */
+async function loadSubscriptionRow(
+  event: RefundEvent,
+  subscriptionId: string,
+  scope: "refund" | "dispute",
+) {
+  const supabase = await admin();
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .select(
+      "user_id, tenant_id, price_id, status, current_period_start, current_period_end, first_payment_failed_at",
+    )
+    .eq("provider_subscription_id", subscriptionId)
+    .eq("environment", event.environment)
+    .maybeSingle();
+  if (error) throw new Error(`${scope}: subscription lookup failed: ${error.message}`);
+  return data;
+}
+
+/** CRM: zwrot albo spór przegrany to utrata klienta, nie pauza. Nigdy nie rzuca. */
+async function churnSubscriber(userId: string, priceId: string | null): Promise<void> {
+  if (!priceId) return;
+  const { catalogEntryByPriceId } = await import("@/lib/billing/catalog");
+  const tierKey = catalogEntryByPriceId(priceId)?.tierKey ?? null;
+  if (!tierKey) return;
+  const { syncCrmSubscriptionState } = await import("@/lib/billing/purchaseEffects.server");
+  await syncCrmSubscriptionState(userId, tierKey, "churned");
+}
+
+/**
+ * Księgi zamówienia, które opłaciła korygowana faktura subskrypcji (5.3).
+ *
+ * Zamówienie subskrypcji domyka pierwsza opłacona faktura (`subscription_create`
+ * albo - po okresie próbnym - faktura zapisana w `provider_intent_id`).
+ * Korekta TEJ faktury dotyczy pieniędzy z tego zamówienia, więc bez tego
+ * zapisu historia klienta i raporty pokazywały zwróconą płatność jako
+ * opłaconą. Dostęp NIE zależy od zamówienia (daje go subskrypcja) - to wyłącznie
+ * księgowanie. Zamówienie wskazuje `metadata.orderId` subskrypcji, a wiązanie
+ * pilnuje NASZ wiersz: ta sama subskrypcja, rodzaj i środowisko.
+ */
+async function recordSubscriptionOrderCorrection(
+  event: RefundEvent,
+  target: SubscriptionTarget,
+  correction: { kind: "adjustment" } | { kind: "refund_failed"; state: PaymentRefundState },
+): Promise<void> {
+  const invoice = target.invoice;
+  if (!invoice?.orderId || !ORDER_ID_SHAPE.test(invoice.orderId)) return;
+  const supabase = await admin();
+  const { data: order, error } = await supabase
+    .from("payment_orders")
+    .select(ORDER_LOOKUP_COLUMNS)
+    .eq("id", invoice.orderId)
+    .eq("kind", "subscription")
+    .eq("provider_subscription_id", target.subscriptionId)
+    .eq("environment", event.environment)
+    .maybeSingle();
+  if (error) throw new Error(`refund: subscription order lookup failed: ${error.message}`);
+  if (!order) return;
+  const settledByInvoice =
+    invoice.billingReason === "subscription_create" ||
+    order.provider_intent_id === invoice.invoiceId;
+  if (!settledByInvoice) return;
+
+  let patch: { refunded_amount_cents: number; status?: "refunded" | "paid" };
+  if (correction.kind === "refund_failed") {
+    // Jak w `reopenOrderAfterFailedRefund`: licznik obciążenia objętego
+    // sporem nie zna środków wycofanych przez bank.
+    if (correction.state.disputed) return;
+    const refunded = orderCentsFromCharge(order, correction.state);
+    patch = {
+      refunded_amount_cents: refunded,
+      ...(correction.state.fullyRefunded
+        ? {}
+        : order.status === "refunded"
+          ? { status: "paid" as const }
+          : {}),
+    };
+  } else {
+    const amounts = orderRefundAmounts(event, order);
+    patch = {
+      refunded_amount_cents: amounts.refundedSoFar,
+      ...(amounts.isPartial ? {} : { status: "refunded" as const }),
+    };
+  }
+  const { error: writeErr } = await supabase
+    .from("payment_orders")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", order.id);
+  if (writeErr) throw new Error(`refund: subscription order update failed: ${writeErr.message}`);
+}
+
+/**
+ * Zwrot płatności faktury subskrypcji.
+ *
+ *   * zwrot CZĘŚCIOWY - korekta ceny, dostęp zostaje (jak w `revokeOrder`);
+ *   * faktura za okres, który MINĄŁ, albo faktura DODATKOWA (proracja, faktura
+ *     ręczna) - dostęp zostaje; zespół dostaje ślad, klient nie dostaje
+ *     „dostęp zakończony";
+ *   * pełny zwrot faktury opłacającej bieżący okres - `refunded` (S1), mail,
+ *     dzwonek, CRM.
+ *     Subskrypcja u operatora trwa - kolejne opłacone odnowienie przywróci
+ *     dostęp (`syncEntitlementState`, nowy okres po korekcie).
+ */
+async function refundSubscription(
+  event: RefundEvent,
+  target: SubscriptionTarget,
+): Promise<RefundOutcome> {
+  const subscriptionId = target.subscriptionId;
+  await recordSubscriptionOrderCorrection(event, target, { kind: "adjustment" });
+
+  // Zwrot CZĘŚCIOWY faktury to korekta ceny, nie rezygnacja - ta sama reguła
+  // co dla zamówień (`revokeOrder`): dostęp zostaje. Pełny zwrot (albo zwrot
+  // bez znanej kwoty pierwotnej) odbiera dostęp, bo bezpieczniej odebrać niż
+  // zostawić opłacone uprawnienie po oddaniu pieniędzy.
+  const captured = event.capturedAmountCents ?? null;
+  const refunded = event.amountCents ?? 0;
+  if (typeof captured === "number" && captured > 0 && refunded > 0 && refunded < captured) {
+    console.warn("[payments] partial refund of a subscription payment - access kept", {
+      adjustmentId: event.adjustmentId,
+      subscriptionId,
+      refunded,
+      captured,
+    });
+    return "skipped";
+  }
+
+  const unaffected = accessUnaffectedBy(target.invoice);
+  if (unaffected) {
+    await alertAdminsAboutRefund(event, target, await adjustmentTenant(event, target), {
+      phase: unaffected,
+      note: unaffected,
+    });
+    return "skipped";
+  }
+
+  // ODCZYTY, KTÓRE MOGĄ RZUCIĆ, PRZED ODEBRANIEM (przegląd 6.2). Odebranie
+  // jest jednorazowe: ponowienie widzi `!revoked` i kończy się `skipped`, więc
+  // plan rozwiązywany PO nim, gdy rzucił, gubił na zawsze mail o zwrocie,
+  // dzwonek i CRM „churned". Po odebraniu zostają już tylko skutki miękkie,
+  // które nie rzucają.
+  const sub = await loadSubscriptionRow(event, subscriptionId, "refund");
+  const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
+  const plan =
+    sub?.user_id && sub.price_id
+      ? await resolvePlanForPrice(sub.price_id, { tenantId: sub.tenant_id, userId: sub.user_id })
+      : null;
+
+  const nowIso = new Date().toISOString();
+  const { revokeSubscriptionEntitlement } = await import("@/lib/billing/grant.server");
+  const revoked = await revokeSubscriptionEntitlement(subscriptionId, nowIso);
+
+  // Nic się nie zmieniło (uprawnienie odebrane już wcześniej - ponowiona
+  // dostawa zwrotu albo zwrot w trakcie sporu): skutki miękkie poszły przy
+  // pierwszym odebraniu albo nie należą się wcale.
+  if (!revoked) return "skipped";
+  if (!sub?.user_id) return "subscription_refunded";
+
+  await churnSubscriber(sub.user_id, sub.price_id);
+
+  const { notifyRefundEmail } = await import("@/lib/billing/notifications.server");
+  await notifyRefundEmail({
+    userId: sub.user_id,
+    planId: plan?.planId ?? null,
+    amountCents: event.amountCents,
+    currency: event.currency,
+    transactionId: event.transactionId,
+    accessUntil: nowIso,
+    idempotencySeed: event.adjustmentId,
+  });
+
+  await pushRefundNotification(sub.user_id, sub.tenant_id);
+
+  return "subscription_refunded";
+}
+
+/**
+ * Spór otwarty / przegrany / zatrzymany zwrotem na płatności faktury
+ * subskrypcji.
+ *
+ * DLACZEGO `refunded`, A NIE ZAWIESZENIE `canceled`. Zawieszenie było
+ * cofane przez KAŻDE kolejne `subscription.updated`: zmianę
+ * `cancel_at_period_end` w portalu, synchronizację na żądanie klienta,
+ * odnowienie - klient sam przywracał sobie dostęp w trakcie sporu.
+ * `refunded` z `canceled_at` = teraz trzyma przez cały okres, a wraca
+ * wyłącznie z nowym opłaconym okresem albo po wygranej (`force`).
+ *
+ * Spór przegrany po otwartym nie zmienia już wiersza - i nic nie wysyła:
+ * spór nie dostaje maila ani dzwonka klienta w żadnej fazie.
+ *
+ * Spór o fakturę za zakończony okres albo o fakturę dodatkową (dopłata
+ * proracyjna) nie odbiera okresu opłaconego inną fakturą - alert mówi
+ * zespołowi, że dostęp jest bez zmian.
+ */
+async function disputeSubscription(
+  event: RefundEvent,
+  target: SubscriptionTarget,
+  phase: Exclude<DisputePhase, "won">,
+): Promise<CorrectionResult> {
+  const final = phase !== "open";
+  if (final) await recordSubscriptionOrderCorrection(event, target, { kind: "adjustment" });
+  const unaffected = accessUnaffectedBy(target.invoice);
+  if (unaffected) return { outcome: "skipped", note: unaffected };
+
+  const { revokeSubscriptionEntitlement } = await import("@/lib/billing/grant.server");
+  const revoked = await revokeSubscriptionEntitlement(
+    target.subscriptionId,
+    new Date().toISOString(),
+  );
+  if (final) {
+    // CRM to skutek miękki - awaria odczytu nie może zatrzymać sporu.
+    try {
+      const sub = await loadSubscriptionRow(event, target.subscriptionId, "dispute");
+      if (sub?.user_id) await churnSubscriber(sub.user_id, sub.price_id);
+    } catch (err) {
+      console.error("[payments] dispute CRM churn failed", event.adjustmentId, err);
+    }
+  }
+  return {
+    outcome: revoked ? "subscription_refunded" : "skipped",
+    note: final ? "revoked" : "suspended",
+  };
+}
+
+/**
+ * Przywraca uprawnienie subskrypcji ze stanu U OPERATORA, z `force` - jedyną
+ * drogą, która nadpisuje korektę bieżącego okresu (`refunded`). Wiersz
+ * `subscriptions` daje wyłącznie użytkownika i najemcę: jego status mógł się
+ * zestarzeć (anulowanie w trakcie sporu), a nadpisanie korekty stanem
+ * nieaktualnym dałoby dostęp, którego operator już nie prowadzi.
+ *
+ * Koniec dostępu liczy TA SAMA reguła karencji co webhook (SUB-03,
+ * `accessPeriodFromEvent`): subskrypcja zaległa (`past_due`/`unpaid`) albo
+ * anulowana za brak płatności odzyskuje dostęp wyłącznie do końca karencji od
+ * pierwszej nieudanej płatności - wygrany spór ani nieudany zwrot nie dają
+ * dostępu do końca nieopłaconego okresu. Pauza poboru (`paused`) przechodzi
+ * jako status, który dostępu nie daje.
+ */
+async function reviveSubscription(
+  event: RefundEvent,
+  subscriptionId: string,
+  scope: "refund" | "dispute",
+): Promise<CorrectionResult> {
+  const sub = await loadSubscriptionRow(event, subscriptionId, scope);
+  if (!sub?.user_id) return { outcome: "skipped", note: "none" };
+
+  const { retrieveSubscriptionState } = await import("@/lib/billing/transactions.server");
+  const remote = await retrieveSubscriptionState(event.environment, subscriptionId);
+  if (!remote) {
+    console.error("[payments] subscription unknown to the provider - restore skipped", {
+      adjustmentId: event.adjustmentId,
+      subscriptionId,
+    });
+    return { outcome: "skipped", note: "unverified" };
+  }
+  const current = mapStripeSubscription(remote);
+  const priceId = current.items[0]?.price.externalId ?? sub.price_id;
+  if (!priceId) return { outcome: "skipped", note: "none" };
+
+  const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
+  const plan = await resolvePlanForPrice(priceId, { tenantId: sub.tenant_id, userId: sub.user_id });
+  // Cena spoza katalogu: nie ma czego nadać - wynik mówi to wprost, zamiast
+  // udawać przywrócenie.
+  if (!plan) return { outcome: "skipped", note: "none" };
+
+  const status = current.status || sub.status || "active";
+  const periodStart = current.currentBillingPeriod?.startsAt ?? sub.current_period_start ?? null;
+  const { accessPeriodFromEvent } = await import("@/lib/billing/accessPeriod");
+  const { accessUntil } = accessPeriodFromEvent({
+    kind: status === "canceled" ? "canceled" : "updated",
+    eventPeriodEnd: current.currentBillingPeriod?.endsAt ?? null,
+    storedPeriodEnd: sub.current_period_end ?? null,
+    status,
+    periodStart,
+    firstPaymentFailedAt: sub.first_payment_failed_at ?? null,
+    cancellationReason: current.cancellationReason ?? null,
+  });
+
+  const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
+  await syncEntitlementState({
+    userId: sub.user_id,
+    tenantId: plan.tenantId,
+    planId: plan.planId,
+    externalRef: subscriptionId,
+    status,
+    periodEnd: accessUntil,
+    periodStart: current.currentBillingPeriod?.startsAt ?? null,
+    force: true,
+  });
+  return { outcome: "subscription_restored", note: "restored" };
+}
+
+/**
+ * Spór na fakturze subskrypcji rozstrzygnięty bez utraty środków. Dostęp
+ * wraca tylko wtedy, gdy korekta w ogóle go zabrała (faktura opłacająca
+ * bieżący okres) i gdy obciążenie NIE zostało w międzyczasie zwrócone
+ * (zapytanie banku rozwiązane zwrotem) - pełny zwrot bieżącego okresu ma
+ * `refunded` na stałe. Wygrana na fakturze dodatkowej nie przywraca niczego:
+ * jeśli dostęp zniknął, zabrała go inna korekta.
+ */
+async function restoreSubscription(
+  event: RefundEvent,
+  target: SubscriptionTarget,
+): Promise<CorrectionResult> {
+  const unaffected = accessUnaffectedBy(target.invoice);
+  if (unaffected) return { outcome: "skipped", note: unaffected };
+  if (isPaymentRef(event.transactionId)) {
+    const { retrievePaymentRefundState } = await import("@/lib/billing/transactions.server");
+    const state = await retrievePaymentRefundState(event.environment, event.transactionId);
+    if (state?.fullyRefunded) return { outcome: "skipped", note: "refunded_kept" };
+  }
+  return reviveSubscription(event, target.subscriptionId, "dispute");
+}
+
+// --- skutki: darowizna -------------------------------------------------------
+
+/** Licznik zwrotów obciążenia u operatora w podstawie WPŁATY (z zaciskiem do jej kwoty). */
+function donationCentsFromCharge(
+  donation: Pick<AdjustmentDonation, "amount_cents">,
+  state: PaymentRefundState,
+): number {
+  return orderCentsFromCharge({ amount_cents: donation.amount_cents }, state);
+}
+
+/**
+ * Zwrot darowizny - bez uprawnień, ale status musi się zgadzać z księgami,
+ * a status wspierającego zniknąć razem z pieniędzmi (SUB-09).
+ *
+ * ZWROT CZĘŚCIOWY jak w `revokeOrder`: `amount_refunded` od operatora jest
+ * narastający, zapis zaciśnięty do kwoty wpłaty, a status `refunded` dopiero
+ * przy pełnym zwrocie - częściowy zostawia wpłatę opłaconą (statystyki liczą
+ * kwotę netto), więc nie odbiera statusu wspierającego. Licznik tylko rośnie
+ * (`refunded_amount_cents < nowa wartość`): spóźnione zdarzenie z mniejszą
+ * sumą nie cofa zapisu.
+ *
+ * Cofnięcie statusu wspierającego robi baza: `tg_donations_grant_supporter`
+ * przelicza przydział z pozostałych opłaconych wpłat i odbiera go, gdy żadna
+ * go już nie uzasadnia. Zapis wiąże ŚRODOWISKO korekty, jak odczyt.
+ */
+async function refundDonation(
+  event: RefundEvent,
+  donation: AdjustmentDonation,
+): Promise<RefundOutcome> {
+  const captured = event.capturedAmountCents ?? donation.amount_cents ?? null;
+  const knownCaptured = typeof captured === "number" && captured > 0;
+  const reported = Math.max(donation.refunded_amount_cents ?? 0, event.amountCents ?? 0);
+  const refundedSoFar = knownCaptured && reported > captured ? captured : reported;
+  const isPartial = knownCaptured && refundedSoFar > 0 && refundedSoFar < captured;
+
+  const supabase = await admin();
+  let flip = supabase
+    .from("donations")
+    .update({
+      ...(isPartial ? {} : { status: "refunded" }),
+      refunded_amount_cents: refundedSoFar,
+    })
+    .eq("id", donation.id)
+    .eq("environment", event.environment)
+    .neq("status", "refunded");
+  if (isPartial) flip = flip.lt("refunded_amount_cents", refundedSoFar);
+  const { data, error } = await flip.select("id");
+  if (error) throw new Error(`refund: donation status flip failed: ${error.message}`);
+  return data && data.length > 0 ? "donation_refunded" : "skipped";
+}
+
+/**
+ * Formalny spór o darowiznę (otwarty, przegrany, zatrzymany zwrotem): środki
+ * zostały pobrane z konta serwisu, więc wpłata przestaje się liczyć (status
+ * `refunded`), ale licznik ZWROTÓW zostaje nietknięty - spór nie jest zwrotem,
+ * a wygrana (`restoreDonation`) przywraca wpłatę bez zgadywania, ile „oddano".
+ */
+async function closeDonationForDispute(
+  event: RefundEvent,
+  donation: AdjustmentDonation,
+): Promise<RefundOutcome> {
   const supabase = await admin();
   const { data, error } = await supabase
     .from("donations")
     .update({ status: "refunded" })
-    .eq("provider_intent_id", txnId)
+    .eq("id", donation.id)
     .eq("environment", event.environment)
     .neq("status", "refunded")
     .select("id");
@@ -370,14 +1558,145 @@ async function revokeDonation(event: RefundEvent, txnId: string): Promise<Refund
   return data && data.length > 0 ? "donation_refunded" : "skipped";
 }
 
-/** Dzwonek w aplikacji. Nigdy nie rzuca. */
+/**
+ * Spór o darowiznę rozstrzygnięty bez utraty środków - wpłata wraca do ksiąg
+ * (a trigger przywraca status wspierającego).
+ *
+ * Przywracamy WYŁĄCZNIE wiersz zamknięty sporem, a o tym, czy pieniądze są
+ * u nas, decyduje OBCIĄŻENIE U OPERATORA (S2), jak przy zamówieniu: zwrot
+ * w trakcie sporu zostawia wpłatę zamkniętą (licznik zwrotów = operator).
+ * Inaczej `paid` z licznikiem = PRAWDZIWE zwroty. Stanu nie da się potwierdzić
+ * - nic nie przywracamy, alert prosi o ręczną weryfikację. Pełny zwrot zapisany
+ * już w wierszu (`refunded_amount_cents` >= kwota) to pieniądze oddane
+ * darczyńcy - bez pytania operatora.
+ */
+async function restoreDonation(
+  event: RefundEvent,
+  donation: AdjustmentDonation,
+): Promise<CorrectionResult> {
+  if (donation.status !== "refunded") return { outcome: "skipped", note: "none" };
+  if ((donation.refunded_amount_cents ?? 0) >= donation.amount_cents) {
+    return { outcome: "skipped", note: "refunded_kept" };
+  }
+  const { retrievePaymentRefundState } = await import("@/lib/billing/transactions.server");
+  const state = isPaymentRef(event.transactionId)
+    ? await retrievePaymentRefundState(event.environment, event.transactionId)
+    : null;
+  if (!state) {
+    console.error("[payments] dispute won but the donation payment state is unknown", {
+      adjustmentId: event.adjustmentId,
+      donationId: donation.id,
+    });
+    return { outcome: "skipped", note: "unverified" };
+  }
+  const refundedCents = donationCentsFromCharge(donation, state);
+
+  const supabase = await admin();
+  if (state.fullyRefunded) {
+    const { error } = await supabase
+      .from("donations")
+      .update({ refunded_amount_cents: refundedCents })
+      .eq("id", donation.id)
+      .eq("environment", event.environment)
+      .eq("status", "refunded");
+    if (error) throw new Error(`dispute: donation refund sync failed: ${error.message}`);
+    return { outcome: "skipped", note: "refunded_kept" };
+  }
+
+  const { data, error } = await supabase
+    .from("donations")
+    .update({ status: "paid", refunded_amount_cents: refundedCents })
+    .eq("id", donation.id)
+    .eq("environment", event.environment)
+    .eq("status", "refunded")
+    .select("id");
+  if (error) throw new Error(`dispute: donation restore failed: ${error.message}`);
+  return data && data.length > 0
+    ? { outcome: "donation_restored", note: "none" }
+    : { outcome: "skipped", note: "none" };
+}
+
+/**
+ * Nieudany zwrot darowizny: licznik zwrotów wraca do stanu operatora, a gdy
+ * pozostałe zwroty nie są już zwrotem pełnym - wpłata wraca na `paid`
+ * (pieniądze są u nas). Obciążenie objęte sporem zostawiamy ścieżce sporu.
+ */
+async function reopenDonation(
+  event: RefundEvent,
+  donation: AdjustmentDonation,
+  state: PaymentRefundState,
+): Promise<CorrectionResult> {
+  if (state.disputed) return { outcome: "skipped", note: "disputed" };
+  const refundedCents = donationCentsFromCharge(donation, state);
+  const reopen = !state.fullyRefunded && donation.status === "refunded";
+  const supabase = await admin();
+
+  if (!reopen) {
+    const { error } = await supabase
+      .from("donations")
+      .update({ refunded_amount_cents: refundedCents })
+      .eq("id", donation.id)
+      .eq("environment", event.environment);
+    if (error) throw new Error(`refund failed: donation refund sync failed: ${error.message}`);
+    return { outcome: "skipped", note: state.fullyRefunded ? "refunded_kept" : "none" };
+  }
+
+  const { data, error } = await supabase
+    .from("donations")
+    .update({ status: "paid", refunded_amount_cents: refundedCents })
+    .eq("id", donation.id)
+    .eq("environment", event.environment)
+    .eq("status", "refunded")
+    .select("id");
+  if (error) throw new Error(`refund failed: donation reopen failed: ${error.message}`);
+  return data && data.length > 0
+    ? { outcome: "donation_restored", note: "none" }
+    : { outcome: "skipped", note: "none" };
+}
+
+/**
+ * Darowizna wskazana przez korektę stwierdzoną POZA webhookiem (uzgodnienie
+ * w panelu, `donationsAdmin.server`): intencja wprost, a dla płatności
+ * `pi_`/`ch_` - ten sam most u operatora co webhook (faktura raty, sesja).
+ */
+async function findDonationForAdjustment(event: RefundEvent): Promise<AdjustmentDonation | null> {
+  const txnId = event.transactionId;
+  if (!txnId || !PROVIDER_REFERENCE_SHAPE.test(txnId)) return null;
+  const direct = await donationBy("provider_intent_id", txnId, event.environment);
+  if (direct || !isPaymentRef(txnId)) return direct;
+
+  const { resolvePaymentInvoice, findCheckoutSessionForPayment } =
+    await import("@/lib/billing/transactions.server");
+  const invoice = await resolvePaymentInvoice(event.environment, txnId);
+  if (invoice) {
+    const installment = await donationForInvoice(event, invoice);
+    if (installment || invoice.subscriptionId) return installment;
+  }
+  const session = await findCheckoutSessionForPayment(event.environment, txnId);
+  return session ? donationForSession(event, session) : null;
+}
+
+/**
+ * Zwrot darowizny stwierdzony POZA webhookiem (uzgodnienie w panelu,
+ * `donationsAdmin.server`) - ta sama reguła zwrotu częściowego i ten sam zapis
+ * co `charge.refunded`, bez przechodzenia przez ścieżkę zamówień.
+ */
+export async function applyDonationRefundEffects(event: RefundEvent): Promise<RefundOutcome> {
+  if (event.action !== "refund" || !isRevokingAdjustment(event)) return "skipped";
+  const donation = await findDonationForAdjustment(event);
+  return donation ? refundDonation(event, donation) : "skipped";
+}
+
+/**
+ * Dzwonek „Zwrot płatności" w aplikacji - wyłącznie dla zwrotu, nigdy dla
+ * sporu (patrz `revokeOrder`). Nigdy nie rzuca.
+ */
 async function pushRefundNotification(
   userId: string,
   // `tenant_id` jest `NOT NULL` na `subscriptions` i `payment_orders`, więc
   // wołający zawsze go mają - dawny strażnik `if (!tenantId) return` był
   // nieosiągalny, odkąd najemca nie pochodzi już z planu.
   tenantId: string,
-  reason: string,
 ): Promise<void> {
   try {
     const supabase = await admin();
@@ -385,8 +1704,8 @@ async function pushRefundNotification(
       user_id: userId,
       tenant_id: tenantId,
       kind: "billing",
-      title_pl: reason === "chargeback" ? "Obciążenie zwrotne" : "Zwrot płatności",
-      title_en: reason === "chargeback" ? "Chargeback" : "Payment refunded",
+      title_pl: "Zwrot płatności",
+      title_en: "Payment refunded",
       body_pl: "Dostęp powiązany ze zwróconą płatnością został zakończony.",
       body_en: "Access linked to the refunded payment has ended.",
       href: PROFILE_PLAN_PATH,
@@ -399,31 +1718,45 @@ async function pushRefundNotification(
   }
 }
 
+// --- alerty dla zespołu ------------------------------------------------------
+
 /**
- * Najemca, którego dotyczy spór - z wiersza subskrypcji, zamówienia albo
+ * Najemca, którego dotyczy korekta - z wiersza subskrypcji, zamówienia albo
  * darowizny wskazanego przez korektę (zawsze w środowisku korekty).
  *
  * Zdarzenie operatora NIE niesie `tenant_id`: jedno konto Stripe obsługuje
  * wiele obszarów roboczych, więc najemcę wyprowadzamy wyłącznie z NASZEGO
- * wiersza. `null` = sporu nie da się przypisać - wtedy nie ma komu wysłać
+ * wiersza. `null` = korekty nie da się przypisać - wtedy nie ma komu wysłać
  * alertu (patrz `alertAdminsAboutDispute`). Nigdy nie rzuca.
  */
-async function disputeTenant(event: RefundEvent): Promise<string | null> {
+async function adjustmentTenant(
+  event: RefundEvent,
+  target: AdjustmentTarget,
+): Promise<string | null> {
+  if (target.kind === "order") return target.order.tenant_id;
+  if (target.kind === "donation") return target.donation.tenant_id;
+  // Cel nierozpoznany: zamówienia ani wpłaty pod tą płatnością już szukano
+  // (`resolveAdjustmentTarget`) - nie ma czyjego najemcy alarmować.
+  if (target.kind === "unmatched") return null;
   try {
     const supabase = await admin();
-    if (event.subscriptionId) {
+    if (target.kind === "subscription") {
       const { data } = await supabase
         .from("subscriptions")
         .select("tenant_id")
-        .eq("provider_subscription_id", event.subscriptionId)
+        .eq("provider_subscription_id", target.subscriptionId)
         .eq("environment", event.environment)
         .maybeSingle();
       if (data) return data.tenant_id;
     }
     const txnId = event.transactionId;
+    // Subskrypcja nieznana lokalnie (inne środowisko, sprzed migracji) - spór
+    // może nieść też transakcję, a ta wskazuje zamówienie.
+    if (target.kind === "subscription" && txnId && PROVIDER_REFERENCE_SHAPE.test(txnId)) {
+      const order = await findOrderForAdjustment(event, "dispute");
+      if (order) return order.tenant_id;
+    }
     if (!txnId || !PROVIDER_REFERENCE_SHAPE.test(txnId)) return null;
-    const order = await findOrderForAdjustment(event, "dispute");
-    if (order) return order.tenant_id;
     const { data: donation } = await supabase
       .from("donations")
       .select("tenant_id")
@@ -439,16 +1772,147 @@ async function disputeTenant(event: RefundEvent): Promise<string | null> {
 }
 
 /**
+ * Zdanie o dostępie klienta w alercie - opisuje to, co NAPRAWDĘ się stało,
+ * a nie to, co faza sporu zwykle oznacza (wygrana bez przywrócenia, bo
+ * płatność zwrócono; spór o fakturę za zakończony okres).
+ */
+type AccessNote =
+  | "suspended"
+  | "revoked"
+  | "restored"
+  | "refunded_kept"
+  | "past_period"
+  | "supplemental"
+  | "unverified"
+  | "disputed"
+  | "ticket_review"
+  | "pending"
+  | "none";
+
+const ACCESS_NOTES: Record<AccessNote, { pl: string; en: string }> = {
+  suspended: {
+    pl: " Dostęp klienta został wstrzymany do rozstrzygnięcia.",
+    en: " Customer access is suspended until the dispute is resolved.",
+  },
+  revoked: {
+    pl: " Dostęp klienta pozostaje odebrany.",
+    en: " Customer access stays revoked.",
+  },
+  restored: {
+    pl: " Dostęp klienta przywrócono.",
+    en: " Customer access has been restored.",
+  },
+  refunded_kept: {
+    pl: " Płatność została zwrócona, więc dostęp klienta pozostaje odebrany.",
+    en: " The payment was refunded, so customer access stays revoked.",
+  },
+  past_period: {
+    pl: " Faktura dotyczy zakończonego okresu - dostęp klienta bez zmian.",
+    en: " The invoice covers a past period - customer access is unchanged.",
+  },
+  supplemental: {
+    pl: " Faktura dodatkowa (np. dopłata za zmianę planu) nie opłaca bieżącego okresu - dostęp klienta bez zmian.",
+    en: " A supplemental invoice (e.g. a plan-change proration) does not pay for the current period - customer access is unchanged.",
+  },
+  unverified: {
+    pl: " Nie udało się potwierdzić stanu płatności u operatora - sprawdź dostęp ręcznie.",
+    en: " The payment state could not be confirmed with the provider - check access manually.",
+  },
+  disputed: {
+    pl: " Płatność jest objęta sporem - o dostępie zdecyduje rozstrzygnięcie sporu.",
+    en: " The payment is disputed - access follows the dispute outcome.",
+  },
+  ticket_review: {
+    pl: " Zamówienie wróciło na opłacone; zgłoszenie na wydarzenie wymaga decyzji organizatora.",
+    en: " The order is paid again; the event registration needs an organiser decision.",
+  },
+  pending: {
+    pl: " Zmiana dostępu klienta nie powiodła się i zostanie ponowiona automatycznie.",
+    en: " Updating customer access failed and will be retried automatically.",
+  },
+  none: { pl: "", en: "" },
+};
+
+/**
+ * Faza w alercie: faza sporu, a dla `prevented` - z rozróżnieniem, czy
+ * obciążenie wróciło do klienta (`prevented`) czy zostało u nas
+ * (`prevented_kept`). Adres alertu zostaje `phase=prevented` w obu
+ * przypadkach: to jedna faza jednego sporu.
+ */
+type AlertPhase = DisputePhase | "prevented_kept";
+
+/** Treść alertu dla każdej fazy sporu - PL/EN, bez danych osobowych klienta. */
+function disputeAlertCopy(
+  phase: AlertPhase,
+  ref: string,
+  providerStatus: string,
+  access: { pl: string; en: string },
+): { titlePl: string; titleEn: string; bodyPl: string; bodyEn: string } {
+  switch (phase) {
+    case "open":
+      return {
+        titlePl: "Otwarto spór płatniczy",
+        titleEn: "Payment dispute opened",
+        bodyPl: `Bank otworzył spór dla ${ref}${providerStatus}.${access.pl} Przygotuj dowody w terminie.`,
+        bodyEn: `A dispute was opened for ${ref}${providerStatus}.${access.en} Prepare evidence before the deadline.`,
+      };
+    case "won":
+      return {
+        titlePl: "Spór płatniczy rozstrzygnięty",
+        titleEn: "Payment dispute resolved",
+        bodyPl: `Spór dla ${ref}${providerStatus} rozstrzygnięto na naszą korzyść.${access.pl}`,
+        bodyEn: `The dispute for ${ref}${providerStatus} was won.${access.en}`,
+      };
+    case "lost":
+      return {
+        titlePl: "Spór płatniczy przegrany",
+        titleEn: "Payment dispute lost",
+        bodyPl: `Spór dla ${ref}${providerStatus} rozstrzygnięto na korzyść klienta. Środki wróciły do banku.${access.pl}`,
+        bodyEn: `The dispute for ${ref}${providerStatus} was lost. The funds went back to the bank.${access.en}`,
+      };
+    case "prevented":
+      return {
+        titlePl: "Spór zakończony zwrotem płatności",
+        titleEn: "Dispute prevented - payment refunded",
+        bodyPl: `Spór dla ${ref}${providerStatus} zatrzymano automatycznym zwrotem płatności (zapobieganie sporom).${access.pl}`,
+        bodyEn: `The dispute for ${ref}${providerStatus} was prevented by an automatic refund.${access.en}`,
+      };
+    case "prevented_kept":
+      return {
+        titlePl: "Spór zatrzymany bez obciążenia zwrotnego",
+        titleEn: "Dispute prevented - no chargeback",
+        bodyPl: `Spór dla ${ref}${providerStatus} zatrzymano przed obciążeniem zwrotnym (zapobieganie sporom) - środki zostały na koncie.${access.pl}`,
+        bodyEn: `The dispute for ${ref}${providerStatus} was prevented before a chargeback - the funds stayed in the account.${access.en}`,
+      };
+  }
+}
+
+/** Ładunek wskazania alertu - identyfikator operatora w adresie, zakodowany. */
+function hrefParam(value: string): string {
+  return encodeURIComponent(value);
+}
+
+/**
  * Alert dla zespołu przy sporze. Spór wymaga ludzkiej reakcji (dowody dla
  * banku w terminie), więc zostawia ślad w panelu - ale WYŁĄCZNIE u
  * administratorów najemcy, którego spór dotyczy.
+ *
+ * KAŻDA FAZA, RAZ. Otwarcie, wygrana, przegrana i zatrzymanie zwrotem
+ * alarmują niezależnie od tego, czy było co odebrać albo przywrócić - termin
+ * na dowody biegnie także wtedy. Alert idzie PO skutku (treść mówi, co
+ * naprawdę stało się z dostępem), a przy awarii skutku - mimo wszystko, ze
+ * zdaniem „zostanie ponowione". Klucz deduplikacji to adres alertu:
+ * `/admin/billing?dispute=<spór>&phase=<faza>` + `once`. Wspólny
+ * `/admin/billing` sklejał w pięciominutowym oknie `enqueue_notification`
+ * DWA różne spory w jeden dzwonek, a ponowienie po kwadransie (redelivery,
+ * przegląd zaległych zdarzeń) dawało drugi dzwonek o tym samym sporze.
  *
  * DLACZEGO NIE `user_roles` CAŁEGO WDROŻENIA. Wcześniejsza wersja wybierała
  * każdego z rolą `admin`, bez warunku najemcy, i wstawiała mu dzwonek
  * z identyfikatorem cudzej transakcji (audyt wyd. 12, 16.8: „alert o sporze
  * najemcy A trafia do administratorów wszystkich najemców"). Odbiorców
- * zawęża teraz `notifyTenantAdmins` - rola W TYM najemcy i profil w tym
- * najemcy, każdy dzwonek przez `enqueue_notification`.
+ * zawęża `notifyTenantAdmins` - rola W TYM najemcy i profil w tym najemcy,
+ * każdy dzwonek przez `enqueue_notification`.
  *
  * Spór bez przypisanego najemcy nie idzie do nikogo: zostaje w dzienniku
  * webhooków i w logu serwera (`console.error` niżej), skąd odczyta go
@@ -457,141 +1921,445 @@ async function disputeTenant(event: RefundEvent): Promise<string | null> {
  */
 async function alertAdminsAboutDispute(
   event: RefundEvent,
-  phase: "opened" | "won",
+  target: AdjustmentTarget,
   tenantId: string | null,
-  options: { registrationNeedsReview?: boolean } = {},
+  phase: AlertPhase,
+  note: AccessNote,
 ): Promise<void> {
-  const ref = event.transactionId ?? event.subscriptionId ?? event.adjustmentId;
+  const ref =
+    event.transactionId ??
+    (target.kind === "subscription" ? target.subscriptionId : null) ??
+    event.adjustmentId;
   if (!tenantId) {
     console.error("[payments] dispute without resolvable tenant - no admin alert", {
       adjustmentId: event.adjustmentId,
       phase,
+      providerStatus: event.providerStatus ?? null,
     });
     return;
   }
   // Zgłoszenie odwołane przy otwarciu sporu baza zwolniła do puli (i mogła
   // oddać miejsce komuś z listy rezerwowej) - wygrany spór nie ma prawa go po
   // cichu wskrzesić, więc decyzja zostaje u organizatora.
-  const reviewPl = options.registrationNeedsReview
-    ? " Zgłoszenie na wydarzenie wymaga decyzji organizatora."
-    : "";
-  const reviewEn = options.registrationNeedsReview
-    ? " The event registration needs an organiser decision."
-    : "";
+  const metadata =
+    target.kind === "order" ? ((target.order.metadata ?? {}) as Record<string, unknown>) : {};
+  const registrationNeedsReview =
+    (phase === "won" || phase === "prevented_kept") &&
+    note === "restored" &&
+    typeof metadata.event_id === "string" &&
+    typeof metadata.registration_id === "string" &&
+    metadata.registration_id.length > 0;
+  const access = ACCESS_NOTES[note];
+  const copy = disputeAlertCopy(
+    phase,
+    ref,
+    event.providerStatus ? ` (${event.providerStatus})` : "",
+    registrationNeedsReview
+      ? {
+          pl: `${access.pl} Zgłoszenie na wydarzenie wymaga decyzji organizatora.`,
+          en: `${access.en} The event registration needs an organiser decision.`,
+        }
+      : access,
+  );
   const { notifyTenantAdmins } = await import("@/lib/events/tenantAdminAlert.server");
   await notifyTenantAdmins({
     tenantId,
     kind: "billing",
-    titlePl: phase === "opened" ? "Otwarto spór płatniczy" : "Spór płatniczy rozstrzygnięty",
-    titleEn: phase === "opened" ? "Payment dispute opened" : "Payment dispute resolved",
-    bodyPl:
-      phase === "opened"
-        ? `Bank otworzył spór dla ${ref}. Dostęp klienta został wstrzymany - przygotuj dowody.`
-        : `Spór dla ${ref} rozstrzygnięto na naszą korzyść. Dostęp klienta przywrócono.${reviewPl}`,
-    bodyEn:
-      phase === "opened"
-        ? `A dispute was opened for ${ref}. Customer access is suspended - prepare evidence.`
-        : `The dispute for ${ref} was won. Customer access has been restored.${reviewEn}`,
-    href: "/admin/billing",
+    ...copy,
+    href: `/admin/billing?dispute=${hrefParam(event.adjustmentId || ref)}&phase=${phase === "prevented_kept" ? "prevented" : phase}`,
     icon: "credit-card",
+    once: true,
   });
 }
 
 /**
- * Przywrócenie dostępu po wygranym sporze. Odwraca dokładnie to, co zrobiło
- * odebranie: status źródła płatności wraca na opłacony, a uprawnienie jest
- * nadawane ponownie na tych samych zasadach co przy pierwotnym zakupie.
+ * Alert dla zespołu przy zwrocie, który nie zrobił tego, czego można by się
+ * spodziewać: zwrot nieudany (pieniądze wróciły na saldo) albo zwrot faktury
+ * za zakończony okres lub faktury dodatkowej (dostęp bez zmian). Raz na zwrot
+ * i fazę (`once`). Nigdy nie rzuca.
  */
-async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
-  const supabase = await admin();
-  const nowIso = new Date().toISOString();
-
-  if (event.subscriptionId) {
-    const { data: sub, error } = await supabase
-      .from("subscriptions")
-      .select("user_id, tenant_id, price_id, status, current_period_end")
-      .eq("provider_subscription_id", event.subscriptionId)
-      .eq("environment", event.environment)
-      .maybeSingle();
-    if (error) throw new Error(`dispute: subscription lookup failed: ${error.message}`);
-    if (!sub?.user_id || !sub.price_id) return "skipped";
-
-    const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
-    const plan = await resolvePlanForPrice(sub.price_id, {
-      tenantId: sub.tenant_id,
-      userId: sub.user_id,
+async function alertAdminsAboutRefund(
+  event: RefundEvent,
+  target: AdjustmentTarget,
+  tenantId: string | null,
+  alert: { phase: "failed" | "past_period" | "supplemental"; note: AccessNote },
+): Promise<void> {
+  const ref =
+    event.transactionId ??
+    (target.kind === "subscription" ? target.subscriptionId : null) ??
+    event.adjustmentId;
+  if (!tenantId) {
+    console.error("[payments] refund alert without resolvable tenant", {
+      adjustmentId: event.adjustmentId,
+      phase: alert.phase,
     });
-    if (plan) {
-      const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
-      await syncEntitlementState({
-        userId: sub.user_id,
-        tenantId: plan.tenantId,
-        planId: plan.planId,
-        externalRef: event.subscriptionId,
-        status: sub.status ?? "active",
-        periodEnd: sub.current_period_end ?? null,
-      });
-    }
-    await alertAdminsAboutDispute(event, "won", sub.tenant_id);
-    return "subscription_restored";
+    return;
   }
-
-  if (!event.transactionId) return "skipped";
-
-  // TA SAMA funkcja wyszukująca co przy odbieraniu dostępu - inaczej zamówienie
-  // zapisane identyfikatorem sesji checkout jest znajdowane przy zwrocie
-  // i niewidoczne przy przywracaniu (spór wygrany, a klient bezpowrotnie bez
-  // dostępu i bez żadnego sygnału, bo wynikiem jest wtedy `skipped`).
-  const order = await findOrderForAdjustment(event, "dispute");
-  if (!order) return "skipped";
-
-  const { error: flipErr } = await supabase
-    .from("payment_orders")
-    .update({ status: "paid", updated_at: nowIso })
-    .eq("id", order.id);
-  if (flipErr) throw new Error(`dispute: order status flip failed: ${flipErr.message}`);
-
-  const { grantEntitlement } = await import("@/lib/billing/grant.server");
-  await grantEntitlement(order, event.transactionId);
-
-  const metadata = (order.metadata ?? {}) as Record<string, unknown>;
-  const eventId = typeof metadata.event_id === "string" ? metadata.event_id : null;
-  // TA SAMA REGUŁA CO PRZY ODBIERANIU (`revokeOrder`): RSVP dotykamy wyłącznie
-  // na starszej ścieżce, BEZ `registration_id`. Zamówienie związane ze
-  // zgłoszeniem oddało miejsce przez `payments_apply_event_ticket_outcome`
-  // (pula, lista rezerwowa), więc bezwarunkowe `going` dawało link wejścia
-  // osobie, której zgłoszenie jest odwołane, a miejsce mogło już przejść na
-  // kogoś z kolejki. Decyzja o takim zgłoszeniu idzie do organizatora.
-  const boundToRegistration =
-    typeof metadata.registration_id === "string" && metadata.registration_id.length > 0;
-  if (eventId && order.user_id && !boundToRegistration) {
-    const { error: rsvpErr } = await supabase
-      .from("event_rsvps")
-      .update({ status: "going", updated_at: nowIso })
-      .eq("event_id", eventId)
-      .eq("user_id", order.user_id);
-    if (rsvpErr) throw new Error(`dispute: rsvp restore failed: ${rsvpErr.message}`);
-  }
-
-  await alertAdminsAboutDispute(event, "won", order.tenant_id, {
-    registrationNeedsReview: Boolean(eventId) && boundToRegistration,
+  const access = ACCESS_NOTES[alert.note];
+  const failure = event.failureReason ?? event.providerStatus;
+  const reason = failure ? ` (${failure})` : "";
+  const invoiceReason =
+    target.kind === "subscription" && target.invoice?.billingReason
+      ? ` (${target.invoice.billingReason})`
+      : "";
+  const copy =
+    alert.phase === "failed"
+      ? {
+          titlePl: "Zwrot płatności nie powiódł się",
+          titleEn: "Refund failed",
+          bodyPl: `Zwrot ${event.adjustmentId} dla ${ref}${reason} nie doszedł do skutku - środki wróciły na saldo.${access.pl}`,
+          bodyEn: `Refund ${event.adjustmentId} for ${ref}${reason} failed - the funds returned to the balance.${access.en}`,
+        }
+      : alert.phase === "supplemental"
+        ? {
+            titlePl: "Zwrot faktury dodatkowej subskrypcji",
+            titleEn: "Refund of a supplemental subscription invoice",
+            bodyPl: `Zwrócono płatność ${ref} faktury dodatkowej${invoiceReason}.${access.pl} Jeśli zwrot cofa zmianę planu, popraw plan klienta ręcznie.`,
+            bodyEn: `Payment ${ref} of a supplemental invoice${invoiceReason} was refunded.${access.en} If the refund reverts a plan change, adjust the customer's plan manually.`,
+          }
+        : {
+            titlePl: "Zwrot faktury za zakończony okres",
+            titleEn: "Refund of a past-period invoice",
+            bodyPl: `Zwrócono płatność ${ref} za okres, który już minął.${access.pl}`,
+            bodyEn: `Payment ${ref} for an already finished period was refunded.${access.en}`,
+          };
+  const { notifyTenantAdmins } = await import("@/lib/events/tenantAdminAlert.server");
+  await notifyTenantAdmins({
+    tenantId,
+    kind: "billing",
+    ...copy,
+    href: `/admin/billing?refund=${hrefParam(event.adjustmentId || ref)}&phase=${alert.phase}`,
+    icon: "credit-card",
+    once: true,
   });
-  return "order_restored";
+}
+
+// --- wejście -----------------------------------------------------------------
+
+/**
+ * Spór w stanie BIEŻĄCYM u operatora (S2). Zdarzenia sporu nie mają strażnika
+ * kolejności, więc `created` ponowione po `closed(won)` zawieszało dostęp
+ * zwycięzcy - i nic go potem nie przywracało. Status, kwota i płatność
+ * pochodzą więc z odczytu sporu; awaria odczytu RZUCA (operator ponowi).
+ * Korekta spoza Stripe (identyfikator bez `dp_`) zostaje przy stanie
+ * ze zdarzenia.
+ */
+async function withCurrentDisputeState(event: RefundEvent): Promise<RefundEvent> {
+  if (!STRIPE_DISPUTE_SHAPE.test(event.adjustmentId)) return event;
+  const { retrieveDisputeState } = await import("@/lib/billing/transactions.server");
+  const current = await retrieveDisputeState(event.environment, event.adjustmentId);
+  if (!current) {
+    console.warn("[payments] dispute unknown to the provider - acting on the event payload", {
+      adjustmentId: event.adjustmentId,
+    });
+    return event;
+  }
+  const phase = stripeDisputePhase(current.status);
+  const paymentRef = current.paymentIntentId ?? current.chargeId;
+  return {
+    ...event,
+    action: phase.action,
+    status: phase.status,
+    providerStatus: current.status,
+    amountCents: current.amountCents ?? event.amountCents,
+    currency: current.currency ?? event.currency,
+    transactionId:
+      event.transactionId ??
+      (paymentRef && PROVIDER_REFERENCE_SHAPE.test(paymentRef) ? paymentRef : null),
+  };
 }
 
 /**
- * Jedno wejście dla zwrotów i sporów. Kieruje korektę do właściwego skutku:
- * wygrany spór -> przywrócenie; zwrot/spór otwarty -> odebranie dostępu
- * (subskrypcja -> zamówienie jednorazowe -> darowizna).
+ * Zwrot w stanie BIEŻĄCYM u operatora (2.11). `charge.refunded` niesie
+ * `amount_refunded` z chwili wysłania, a nieudany zwrot (`refund.failed`)
+ * cofa tę kwotę u operatora. Ponowione albo spóźnione stare zdarzenie
+ * (redelivery, przegląd zaległych, ponowienie z panelu, uzgodnienie) - także
+ * dostarczone PO `refund.failed` - zamykało więc zamówienie drugi raz, odbierało
+ * dostęp przywrócony po porażce i wysyłało drugi mail „Płatność została
+ * zwrócona". Kwoty bierzemy zatem z obciążenia, jak spór bierze stan sporu (S2).
+ *
+ *   * nic już nie jest zwrócone -> `null`: zwrot przepadł, nie ma czego odbierać;
+ *   * płatność nieznana operatorowi (404) -> stan ze zdarzenia, z ostrzeżeniem;
+ *   * awaria odczytu RZUCA, zanim cokolwiek zapiszemy (operator ponowi).
+ *
+ * Korekta bez płatności `pi_`/`ch_` (dawny Paddle) zostaje przy zdarzeniu.
  */
-export async function applyRefundEffects(event: RefundEvent): Promise<RefundOutcome> {
-  if (isDisputeReversed(event)) return restoreAccess(event);
-  if (!isRevokingAdjustment(event)) return "skipped";
-  if (event.action === "chargeback" || event.action === "chargeback_warning") {
-    await alertAdminsAboutDispute(event, "opened", await disputeTenant(event));
+async function withCurrentRefundState(event: RefundEvent): Promise<RefundEvent | null> {
+  if (!isPaymentRef(event.transactionId)) return event;
+  const { retrievePaymentRefundState } = await import("@/lib/billing/transactions.server");
+  const state = await retrievePaymentRefundState(event.environment, event.transactionId);
+  if (!state) {
+    console.warn("[payments] refunded payment unknown to the provider - acting on the event", {
+      adjustmentId: event.adjustmentId,
+      transactionId: event.transactionId,
+    });
+    return event;
   }
-  if (event.subscriptionId) return revokeSubscription(event);
-  if (event.transactionId) return revokeOrder(event);
-  console.warn("[payments] adjustment without transaction or subscription", event.adjustmentId);
+  if (state.refundedCents <= 0) {
+    console.warn("[payments] refund no longer in effect at the provider - skipped", {
+      adjustmentId: event.adjustmentId,
+      transactionId: event.transactionId,
+      eventAmountCents: event.amountCents,
+    });
+    return null;
+  }
+  return {
+    ...event,
+    amountCents: state.refundedCents,
+    capturedAmountCents: state.amountCents > 0 ? state.amountCents : event.capturedAmountCents,
+    currency: state.currency ?? event.currency,
+  };
+}
+
+/** Zwrot (pełny albo częściowy) - skutek według celu. */
+async function applyRefund(event: RefundEvent, target: AdjustmentTarget): Promise<RefundOutcome> {
+  switch (target.kind) {
+    case "subscription":
+      return refundSubscription(event, target);
+    case "order":
+      return revokeOrder(event, target.order, target.persistIntent);
+    case "donation":
+      return refundDonation(event, target.donation);
+    case "unmatched":
+      console.warn("[payments] adjustment without transaction or subscription", event.adjustmentId);
+      return "skipped";
+  }
+}
+
+/**
+ * `prevented` - spór zatrzymany przez zapobieganie sporom. Dwie różne
+ * rzeczywistości pod jednym statusem: zatrzymanie AUTOMATYCZNYM ZWROTEM
+ * (RDR - pieniądze wróciły do klienta, jak przy przegranej, S2) albo
+ * zatrzymanie bez obciążenia zwrotnego (środki zostały u nas - „nic się nie
+ * stało", #495 poz. 26). Rozstrzyga obciążenie U OPERATORA: zwrócone (w całości
+ * albo na kwotę sporu) -> skutek przegranej; niezwrócone -> skutek wygranej
+ * (cofa ewentualne zawieszenie z wcześniejszej fazy). Stanu nie da się
+ * potwierdzić -> jak dotąd przegrana: bezpieczniej odebrać niż zostawić
+ * opłacone uprawnienie po oddaniu pieniędzy.
+ */
+async function preventedByRefund(event: RefundEvent, target: AdjustmentTarget): Promise<boolean> {
+  const paymentRef =
+    target.kind === "order"
+      ? orderPaymentRef(event, target.order)
+      : isPaymentRef(event.transactionId)
+        ? event.transactionId
+        : null;
+  if (!paymentRef) return true;
+  const { retrievePaymentRefundState } = await import("@/lib/billing/transactions.server");
+  const state = await retrievePaymentRefundState(event.environment, paymentRef);
+  if (!state) return true;
+  const disputed = event.amountCents ?? 0;
+  return state.fullyRefunded || (disputed > 0 && state.refundedCents >= disputed);
+}
+
+/** Skutek sporu według celu i fazy - bez alertu (alert składa `applyDispute`). */
+async function disputeEffect(
+  event: RefundEvent,
+  target: AdjustmentTarget,
+  phase: DisputePhase,
+): Promise<CorrectionResult> {
+  switch (target.kind) {
+    case "subscription":
+      return phase === "won"
+        ? restoreSubscription(event, target)
+        : disputeSubscription(event, target, phase);
+    case "order": {
+      if (phase === "won") return restoreOrder(event, target.order);
+      const outcome = await revokeOrder(event, target.order, target.persistIntent);
+      return { outcome, note: phase === "open" ? "suspended" : "revoked" };
+    }
+    case "donation":
+      // Darowizna nie daje dostępu: status wpłaty opisuje PIENIĄDZE. Zapytanie
+      // banku (`warning_*`) niczego nie pobiera z konta, więc wpłaty nie rusza
+      // ani przy otwarciu, ani przy zamknięciu (#495, poz. 26). Formalny spór
+      // pobiera środki od otwarcia - wpłata przestaje się liczyć; wygrana ją
+      // przywraca (z weryfikacją obciążenia u operatora, S2).
+      if (isBankInquiry(event)) return { outcome: "skipped", note: "none" };
+      if (phase === "won") return restoreDonation(event, target.donation);
+      return { outcome: await closeDonationForDispute(event, target.donation), note: "none" };
+    case "unmatched":
+      console.warn("[payments] adjustment without transaction or subscription", event.adjustmentId);
+      return { outcome: "skipped", note: "none" };
+  }
+}
+
+/**
+ * Spór: najemca, skutek, alert. Alert idzie także wtedy, gdy skutek padł
+ * (termin na dowody nie czeka na naszą bazę) - a wyjątek leci dalej, żeby
+ * operator ponowił zdarzenie. Ponowienie nie dubluje alertu (`once`).
+ */
+async function applyDispute(event: RefundEvent, target: AdjustmentTarget): Promise<RefundOutcome> {
+  const phase = disputePhase(event);
+  const tenantId = await adjustmentTenant(event, target);
+  let alertPhase: AlertPhase = phase;
+  let result: CorrectionResult;
+  try {
+    // `prevented` bez zwrotu działa jak wygrana, ale alert mówi, co zaszło.
+    let effectPhase: DisputePhase = phase;
+    if (phase === "prevented" && !(await preventedByRefund(event, target))) {
+      effectPhase = "won";
+      alertPhase = "prevented_kept";
+    }
+    result = await disputeEffect(event, target, effectPhase);
+  } catch (err) {
+    await alertAdminsAboutDispute(event, target, tenantId, alertPhase, "pending");
+    throw err;
+  }
+  await alertAdminsAboutDispute(event, target, tenantId, alertPhase, result.note);
+  return result.outcome;
+}
+
+/** Skutek nieudanego zwrotu według celu - ze stanem obciążenia odczytanym od operatora. */
+async function refundFailureEffect(
+  event: RefundEvent,
+  target: AdjustmentTarget,
+): Promise<CorrectionResult> {
+  if (target.kind === "unmatched") return { outcome: "skipped", note: "none" };
+  const paymentRef =
+    target.kind === "order"
+      ? orderPaymentRef(event, target.order)
+      : isPaymentRef(event.transactionId)
+        ? event.transactionId
+        : null;
+  const { retrievePaymentRefundState } = await import("@/lib/billing/transactions.server");
+  const state = paymentRef ? await retrievePaymentRefundState(event.environment, paymentRef) : null;
+  if (!state) return { outcome: "skipped", note: "unverified" };
+
+  switch (target.kind) {
+    case "order":
+      return reopenOrderAfterFailedRefund(target.order, state);
+    case "subscription": {
+      await recordSubscriptionOrderCorrection(event, target, { kind: "refund_failed", state });
+      if (state.fullyRefunded) return { outcome: "skipped", note: "refunded_kept" };
+      if (state.disputed) return { outcome: "skipped", note: "disputed" };
+      // Zwrot, który przepadł, niczego nie zabrał (okres minął, faktura
+      // dodatkowa) - wymuszone ożywienie cofałoby korektę INNEJ faktury.
+      const unaffected = accessUnaffectedBy(target.invoice);
+      if (unaffected) return { outcome: "skipped", note: unaffected };
+      return reviveSubscription(event, target.subscriptionId, "refund");
+    }
+    case "donation":
+      return reopenDonation(event, target.donation, state);
+  }
+}
+
+/**
+ * Nieudany zwrot (`refund.failed`): pieniądze wróciły na saldo serwisu, więc
+ * korekta, która odebrała dostęp, przestaje być prawdą.
+ *
+ * Stan liczymy z obciążenia u operatora (`amount_refunded` po porażce), nie
+ * z kwoty zdarzenia: inne zwroty tego samego obciążenia mogły się udać.
+ * Dostęp wraca WYŁĄCZNIE wtedy, gdy pozostałe zwroty nie są już zwrotem
+ * pełnym; inaczej zostaje księgowanie. Zespół dostaje alert raz na zwrot -
+ * chyba że ten sam zwrot zgłosiła już eskalacja zlecenia zwrotu zgłoszenia
+ * (`alreadyAlerted`): RPC alarmuje tych samych administratorów najemcy o tym
+ * samym zwrocie, a drugi dzwonek o jednym zdarzeniu to szum.
+ */
+async function applyRefundFailure(
+  event: RefundEvent,
+  options: { alreadyAlerted: boolean },
+): Promise<RefundOutcome> {
+  const target = await resolveAdjustmentTarget(event, "refund");
+  const tenantId = options.alreadyAlerted ? null : await adjustmentTenant(event, target);
+  const alert = (note: AccessNote) =>
+    options.alreadyAlerted
+      ? Promise.resolve()
+      : alertAdminsAboutRefund(event, target, tenantId, { phase: "failed", note });
+  let result: CorrectionResult;
+  try {
+    result = await refundFailureEffect(event, target);
+  } catch (err) {
+    await alert("pending");
+    throw err;
+  }
+  await alert(result.note);
+  return result.outcome;
+}
+
+/**
+ * Zwrot, który nie doszedł do skutku u operatora (INV-19c).
+ *
+ * Do tej pory taka korekta kończyła się na `isRevokingAdjustment` jako
+ * `skipped`, więc zlecenie zwrotu za odrzucone zgłoszenie wisiało w
+ * `submitted` bez końca, a pieniądze nie wracały do uczestnika. RPC
+ * `_event_registration_refund_failed` przenosi zlecenie o tym identyfikatorze
+ * zwrotu do `needs_review` i w TEJ SAMEJ transakcji alarmuje administratorów
+ * najemcy - najemcę bierze z wiersza zlecenia, nie z ładunku operatora.
+ *
+ * Środowisko zdarzenia idzie do RPC jako filtr (ta sama reguła P0 co
+ * `findOrderForAdjustment`): zwrot z piaskownicy nie dotyka zlecenia
+ * produkcyjnego. Awaria zapisu RZUCA - operator ponowi dostarczenie, a RPC
+ * jest idempotentne (drugi `refund.updated` po `refund.failed` nic nie robi).
+ */
+async function escalateFailedRefund(event: RefundEvent): Promise<RefundOutcome> {
+  if (!PROVIDER_REFERENCE_SHAPE.test(event.adjustmentId)) return "skipped";
+  const supabase = await admin();
+  const { data, error } = await supabase.rpc("_event_registration_refund_failed", {
+    p_provider_refund_id: event.adjustmentId,
+    p_environment: event.environment,
+    p_reason: event.failureReason ?? event.status ?? "failed",
+  });
+  if (error) throw new Error(`refund failure: escalation failed: ${error.message}`);
+  if (data === true) return "refund_failure_escalated";
+  // Zwrot spoza zleceń zgłoszeń (np. nadliczbowa wpłata) albo zlecenie, które
+  // już czeka na decyzję. Ślad zostaje w dzienniku webhooków i w logu serwera.
+  console.warn("[payments] failed refund without escalation", {
+    adjustmentId: event.adjustmentId,
+    status: event.status,
+  });
   return "skipped";
+}
+
+/**
+ * Nieudany zwrot: obie strony tej samej porażki. Zlecenie zwrotu zgłoszenia
+ * o tym identyfikatorze zwrotu idzie do przeglądu (`escalateFailedRefund`,
+ * sama baza - PIERWSZE, żeby awaria operatora przy przeliczeniu nie
+ * wstrzymała sprawy dla człowieka), a zamówienie, subskrypcja albo darowizna
+ * wracają do stanu z obciążenia u operatora (`applyRefundFailure`). Obie
+ * ścieżki są idempotentne, więc ponowienie po awarii jednej z nich nie
+ * dubluje skutków drugiej.
+ */
+async function applyFailedRefund(event: RefundEvent): Promise<RefundOutcome> {
+  const escalated = await escalateFailedRefund(event);
+  const corrected = await applyRefundFailure(event, {
+    alreadyAlerted: escalated === "refund_failure_escalated",
+  });
+  return corrected !== "skipped" ? corrected : escalated;
+}
+
+/**
+ * Jedno wejście dla zwrotów, sporów i nieudanych zwrotów. Kolejność:
+ *   1. nieudany zwrot - osobna ścieżka: przeliczenie zamówienia z obciążenia
+ *      i eskalacja zlecenia zwrotu zgłoszenia (INV-19c), nic nie odbiera;
+ *   2. spór - stan BIEŻĄCY od operatora (S2);
+ *   3. bramka: korekta, która niczego nie odbiera ani nie przywraca (kredyt,
+ *      wniosek o zwrot) i nie jest sporem, kończy się bez dotykania bazy;
+ *   4. zwrot - kwota z obciążenia w stanie BIEŻĄCYM (2.11); zwrot, który
+ *      przepadł, kończy się bez dotykania bazy;
+ *   5. cel korekty - RAZ (zamówienie / subskrypcja przez operatora / sesja
+ *      Checkout / darowizna);
+ *   6. skutek; przy sporze - alert dla zespołu najemcy w każdej fazie.
+ *
+ * Zdarzenie kopiujemy na wejściu: cel, alert i skutek mają widzieć TE SAME
+ * identyfikatory, nawet gdy wołający zmieni swój obiekt w trakcie. Surowy
+ * status sporu Stripe tłumaczymy od razu na słownik domenowy - dalej istnieje
+ * już tylko jeden słownik.
+ */
+export async function applyRefundEffects(input: RefundEvent): Promise<RefundOutcome> {
+  let event: RefundEvent = withDomainDisputeStatus({ ...input });
+  if (isFailedRefund(event)) return applyFailedRefund(event);
+  if (isDispute(event)) event = await withCurrentDisputeState(event);
+
+  const dispute = isDispute(event);
+  const revoking = !isDisputeReversed(event) && isRevokingAdjustment(event);
+  if (!dispute && !revoking) return "skipped";
+
+  if (!dispute) {
+    const current = await withCurrentRefundState(event);
+    if (!current) return "skipped";
+    event = current;
+  }
+
+  const target = await resolveAdjustmentTarget(event, dispute ? "dispute" : "refund");
+  return dispute ? applyDispute(event, target) : applyRefund(event, target);
 }

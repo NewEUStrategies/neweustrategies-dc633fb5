@@ -4,12 +4,21 @@
 // (inaczej niż u poprzedniego dostawcy) NIE ma tu allowlisty IP. Podpis
 // kryptograficzny jest jedyną i wystarczającą warstwą autoryzacji.
 //
-// Sama obsługa zdarzeń mieszka w `webhookDispatch.server` - ten sam kod
-// wykonuje ponowne przetworzenie z panelu admina.
+// Sama obsługa zdarzeń mieszka w `webhookDispatch.server`, a jej wykonanie
+// i domknięcie dziennika we wspólnym rdzeniu `webhookReplay.server` - tym
+// samym, który odtwarza zdarzenia z panelu admina, z uzgadniania i z
+// automatycznej zamiatarki.
 import { createFileRoute } from "@tanstack/react-router";
 import { verifyWebhook, type StripeEnv } from "@/lib/stripe.server";
 import { normalizeStripeEvent } from "@/lib/billing/stripeEvents.server";
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
+
+/**
+ * Sugerowana przerwa przed ponowieniem (s) dla odpowiedzi „spróbuj później".
+ * Stripe i tak ponawia według własnego harmonogramu; nagłówek mówi pozostałym
+ * klientom (np. `curl --retry` przy ręcznej powtórce), że to stan chwilowy.
+ */
+const RETRY_AFTER_S = "60";
 
 async function handleWebhookRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
@@ -30,7 +39,7 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
   const normalized = normalizeStripeEvent(verified);
   const occurredAt = new Date(verified.created * 1000).toISOString();
 
-  const { claimWebhookEvent, finishWebhookEvent } = await import("@/lib/billing/webhookLog.server");
+  const { claimWebhookEvent } = await import("@/lib/billing/webhookLog.server");
   const eventType = normalized?.eventType ?? verified.type;
   const raw = (normalized?.data ?? {}) as Record<string, unknown>;
   const customData = raw.customData as { userId?: unknown } | null | undefined;
@@ -48,15 +57,33 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
   };
 
   // Idempotencja: Stripe ponawia dostarczenie tego samego zdarzenia.
-  const fresh = await claimWebhookEvent(ref).catch((e) => {
+  //
+  // Kod odpowiedzi jest tu decyzją o pieniądzach: 2xx znaczy dla operatora
+  // „mam, nie ponawiaj". Dlatego:
+  //   * dziennik nieczytelny -> 503 i ZERO obsługi (fail-closed). Obsługa bez
+  //     rezerwacji mogła biec równolegle z drugą dostawą tego samego zdarzenia,
+  //     a padnięta zostawała bez wiersza, którego zamiatarka by szukała,
+  //   * zdarzenie w toku -> 409: pierwsza obsługa może jeszcze paść, więc
+  //     operator MUSI ponowić. Dawne 200 „duplicate" kończyło ponawianie
+  //     i zdarzenie, którego obsługa zginęła z workerem, wisiało na zawsze,
+  //   * zdarzenie domknięte -> 200 `duplicate`.
+  let claim: Awaited<ReturnType<typeof claimWebhookEvent>>;
+  try {
+    claim = await claimWebhookEvent(ref);
+  } catch (e) {
     console.error("[payments] webhook log failed", e);
-    return true;
-  });
-  if (!fresh) return Response.json({ received: true, duplicate: true });
-
-  // Czas obsługi trafia do dziennika - w panelu widać od razu, czy handler
-  // zaczyna się ślimaczyć (Stripe ponawia po timeoucie).
-  const startedAt = Date.now();
+    return new Response("Webhook log unavailable", {
+      status: 503,
+      headers: { "Retry-After": RETRY_AFTER_S },
+    });
+  }
+  if (claim === "done") return Response.json({ received: true, duplicate: true });
+  if (claim === "in_progress") {
+    return new Response("Webhook event in progress", {
+      status: 409,
+      headers: { "Retry-After": RETRY_AFTER_S },
+    });
+  }
 
   // Zdarzenie od Stripe to najwcześniejszy sygnał, że integracja znowu żyje
   // (np. po podłączeniu nowego konta). Kontrola odcisku i ewentualne
@@ -67,33 +94,20 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
       .catch((e: unknown) => console.error("[payments] auto-sync check failed", e)),
   );
 
-  if (!normalized) {
-    // Zdarzenie spoza zakresu integracji (np. sesja "unpaid" albo typ, którego
-    // nie obsługujemy) - potwierdzamy odbiór, żeby Stripe przestał ponawiać.
-    await finishWebhookEvent(ref, "skipped", { durationMs: Date.now() - startedAt });
-    return Response.json({ received: true });
-  }
-
-  try {
-    const { dispatchWebhookEvent } = await import("@/lib/billing/webhookDispatch.server");
-    const outcome = await dispatchWebhookEvent({
-      eventType: normalized.eventType,
-      data: normalized.data,
-      environment: env,
-      occurredAt,
-    });
-    await finishWebhookEvent(ref, outcome === "processed" ? "processed" : "skipped", {
-      durationMs: Date.now() - startedAt,
-    });
-    return Response.json({ received: true });
-  } catch (e) {
-    console.error("[payments] webhook error", e);
-    await finishWebhookEvent(ref, "failed", {
-      error: e instanceof Error ? e.message : String(e),
-      durationMs: Date.now() - startedAt,
-    });
-    return new Response("Webhook error", { status: 500 });
-  }
+  // Obsługa i domknięcie wiersza (z czasem obsługi - w panelu widać od razu,
+  // czy handler zaczyna się ślimaczyć) idą wspólnym rdzeniem z panelem,
+  // uzgadnianiem i zamiatarką. Zdarzenie spoza zakresu integracji (np. sesja
+  // "unpaid" albo typ, którego nie obsługujemy) jest domykane jako `skipped`
+  // i potwierdzane, żeby Stripe przestał ponawiać.
+  const { processClaimedWebhookEvent } = await import("@/lib/billing/webhookReplay.server");
+  const outcome = await processClaimedWebhookEvent({
+    eventId: verified.id,
+    environment: env,
+    occurredAt,
+    normalized,
+  });
+  if (outcome.status === "failed") return new Response("Webhook error", { status: 500 });
+  return Response.json({ received: true });
 }
 
 /** Wejście dla testów - identyczna ścieżka jak trasa HTTP. */

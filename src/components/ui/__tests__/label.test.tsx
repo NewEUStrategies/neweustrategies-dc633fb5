@@ -1,6 +1,11 @@
 // Label to natywny `<label>` z Radiksa. Kontrakt: nadaje polu nazwę
 // dostępności przez `htmlFor`, kliknięcie przenosi ognisko na pole, a wygląd
 // wyłączonego pola sąsiada (`peer-disabled`) idzie z klasy prymitywu.
+// Geometria (`--form-label-height`) jest domyślną klasą, którą wywołujący może
+// nadpisać - nie bezwarstwową regułą w `styles.css`, która wygrywała z każdym
+// utility Tailwinda (`flex`, `inline-flex`, `leading-none`).
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -62,5 +67,32 @@ describe("Label", () => {
       "text-destructive",
     );
     expect(ref.current).not.toHaveClass("font-medium");
+  });
+
+  it("domyślnie trzyma wspólny token wysokości etykiety jako blok", () => {
+    render(<Label>Imię</Label>);
+    const label = screen.getByText("Imię");
+    expect(label).toHaveAttribute("data-slot", "form-label");
+    expect(label).toHaveClass(
+      "block",
+      "min-h-(--form-label-height)",
+      "leading-(--form-label-height)",
+    );
+  });
+
+  it("pozwala wywołującemu nadpisać blok i interlinię tokenu (`flex leading-none`)", () => {
+    render(<Label className="flex leading-none">Tytuł</Label>);
+    const label = screen.getByText("Tytuł");
+    expect(label).toHaveAttribute("data-slot", "form-label");
+    expect(label).toHaveClass("flex", "leading-none", "min-h-(--form-label-height)");
+    expect(label).not.toHaveClass("block");
+    expect(label).not.toHaveClass("leading-(--form-label-height)");
+  });
+
+  it("nie stylizuje slotu etykiety bezwarstwową regułą w styles.css", () => {
+    // Reguła poza `@layer` wygrywa z `@layer utilities` niezależnie od
+    // specyficzności, więc wyłączyłaby każde nadpisanie z `className`.
+    const css = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
+    expect(css).not.toContain('[data-slot="form-label"]');
   });
 });

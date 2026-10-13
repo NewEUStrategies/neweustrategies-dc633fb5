@@ -25,6 +25,8 @@ const h = vi.hoisted(() => ({
   billing: null as unknown,
   settings: null as unknown,
   coupon: null as unknown,
+  /** Subskrypcja kupującego z lustra `subscriptions` (`null` = brak historii). */
+  mySubscription: null as unknown,
   planCheckout: vi.fn(),
   toast: { error: vi.fn(), success: vi.fn() },
   preloadStripeSdk: vi.fn(),
@@ -51,6 +53,10 @@ vi.mock("@/lib/billing/queries", () => ({
     return h.plan;
   },
   fetchMyBillingProfile: async () => h.billing,
+}));
+// Granica sieci: subskrypcja kupującego (podpowiedź blokady i triala w nakładce).
+vi.mock("@/lib/billing/subscriptionQueries", () => ({
+  fetchMyStripeSubscription: async () => h.mySubscription,
 }));
 vi.mock("@/hooks/useCheckoutSettings", () => ({
   useCheckoutSettings: () => ({ data: h.settings }),
@@ -110,6 +116,10 @@ import i18n from "@/lib/i18n";
 import { formatMoney } from "@/lib/billing/types";
 import { renderRoute } from "@/test/routeHarness";
 import { Route as PlanRoute } from "@/routes/checkout.$planId";
+import {
+  PREMIUM_NEWSLETTER_CONSENT_TEXTS,
+  PREMIUM_NEWSLETTER_CONSENT_VERSION,
+} from "@/lib/billing/premiumNewsletter";
 
 const PATH = "/checkout/$planId";
 const PLAN_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -217,6 +227,7 @@ beforeEach(() => {
   h.billing = null;
   h.settings = DEFAULT_CHECKOUT_SETTINGS satisfies CheckoutSettings;
   h.coupon = couponResult();
+  h.mySubscription = null;
   h.planCheckout.mockReset().mockResolvedValue({
     ok: true,
     clientSecret: "cs_test_123",
@@ -276,6 +287,9 @@ describe("trasa /checkout/$planId - sklejenie i bramka tożsamości", () => {
 describe("trasa /checkout/$planId - podsumowanie zamówienia", () => {
   it("składa podsumowanie planu z ceną, opisem i obietnicami checkoutu", async () => {
     signedInBuyer();
+    // Pole kodu Stripe jest domyślnie wyłączone (PAY-06) - tenant je tu WŁĄCZA,
+    // żeby obietnica o kodzie rabatowym miała z czego wynikać.
+    h.settings = { ...DEFAULT_CHECKOUT_SETTINGS, allow_promotion_codes: true };
     await mount();
 
     expect(await screen.findByText("Plan Pro")).toBeInTheDocument();
@@ -409,17 +423,20 @@ describe("trasa /checkout/$planId - sesja płatności", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Zapłać/ }));
 
     await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
+    // Ceny NIE wysyłamy (audyt PAY-01): serwer wyprowadza wpis katalogu
+    // z planu, a żądanie niosące `priceId` mogłoby związać plan z cudzą ceną.
     expect(h.planCheckout).toHaveBeenCalledWith({
       data: {
         planId: PLAN_ID,
-        // `pro` + `month` -> wpis katalogu, a nie kwota z formularza klienta.
-        priceId: "pro_monthly",
         couponCode: undefined,
         returnUrl: `${window.location.origin}/checkout/success`,
         environment: "sandbox",
         locale: "pl",
       },
     });
+    const payload = (h.planCheckout.mock.calls[0]?.[0] as { data: Record<string, unknown> }).data;
+    expect(payload).not.toHaveProperty("priceId");
+    expect(payload).not.toHaveProperty("quantity");
   });
 
   it("osadza ramkę operatora z sekretem sesji i banerem trybu testowego", async () => {
@@ -587,6 +604,134 @@ describe("trasa /checkout/$planId - i18n i waluta prezentacji", () => {
   });
 });
 
+describe("trasa /checkout/$planId - istniejąca subskrypcja i trial raz na konto (audyt SUB-13)", () => {
+  // Fikstura miała dawniej `price_id: "pro_monthly"` - TEN SAM plan co kupowany
+  // - i żądała linku „Zmień plan", choć zmiana planu odmawia `same_plan` (defekt
+  // #19: CTA niezgodne z tym, co zmiana planu przyjmie). Ten sam plan ma teraz
+  // własny test niżej; tu subskrypcja, z której zmiana planu naprawdę prowadzi.
+  it("ŻYWA subskrypcja: zamiast płatności - komunikat i link do zmiany planu", async () => {
+    signedInBuyer();
+    h.mySubscription = { status: "active", price_id: "pro_annual" };
+    await mount();
+
+    expect(await screen.findByText(/Masz już aktywną subskrypcję/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Zmień plan" })).toHaveAttribute(
+      "href",
+      "/profile/plan",
+    );
+    expect(payButton()).toBeDisabled();
+  });
+
+  it("wcześniejsza (anulowana) subskrypcja: płatność dostępna, ale BEZ obietnicy triala", async () => {
+    signedInBuyer();
+    h.plan = plan({ trial_days: 14 });
+    h.mySubscription = { status: "canceled", price_id: "pro_monthly" };
+    await mount();
+
+    await screen.findByText("Plan Pro");
+    await waitFor(() => expect(payButton()).toBeEnabled());
+    expect(screen.queryByText(/Pierwsze 14 dni za darmo/)).not.toBeInTheDocument();
+  });
+
+  it("plan jednorazowy nie jest blokowany przez subskrypcję", async () => {
+    signedInBuyer();
+    h.plan = plan({ interval: "one_time" });
+    h.mySubscription = { status: "active", price_id: "pro_monthly" };
+    await mount();
+
+    await screen.findByText("Plan Pro");
+    expect(screen.queryByText(/Masz już aktywną subskrypcję/)).not.toBeInTheDocument();
+    expect(payButton()).toBeEnabled();
+  });
+
+  // ── Audyt #19: ścieżka zgodna z regułą zmiany planu ────────────────────────
+  it("ten sam plan: blokada z „Zarządzaj subskrypcją”, nie z „Zmień plan”", async () => {
+    signedInBuyer();
+    h.mySubscription = { status: "active", price_id: "pro_monthly" };
+    await mount();
+
+    expect(await screen.findByText(/Masz już ten plan/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Zarządzaj subskrypcją" })).toHaveAttribute(
+      "href",
+      "/profile/plan",
+    );
+    expect(screen.queryByRole("link", { name: "Zmień plan" })).not.toBeInTheDocument();
+    expect(payButton()).toBeDisabled();
+  });
+
+  it("Pro -> Zespół (za miejsce): OSOBNY zakup - płatność dostępna, uprzedzenie i portal do rezygnacji", async () => {
+    // Dawniej: blokada i „Zmień plan", a zmiana planu odrzuca to przejście
+    // (`plan_kind_mismatch`) - kupujący czekał do końca okresu.
+    signedInBuyer();
+    h.plan = plan({ tier_key: "team", name_pl: "Zespół", trial_days: 14 });
+    h.mySubscription = { status: "active", price_id: "pro_monthly" };
+    await mount();
+
+    expect(await screen.findByText(/kupujesz go osobno/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Otwórz portal płatności" })).toHaveAttribute(
+      "href",
+      "/profile/portal",
+    );
+    await waitFor(() => expect(payButton()).toBeEnabled());
+    // Plan już był - trial nie przysługuje, więc nakładka go nie obiecuje.
+    expect(screen.queryByText(/Pierwsze 14 dni za darmo/)).not.toBeInTheDocument();
+  });
+
+  it("subskrypcja z ceną spoza katalogu: blokada i portal płatności (zmiana planu jej nie obsłuży)", async () => {
+    signedInBuyer();
+    h.mySubscription = { status: "active", price_id: "legacy_price_2019" };
+    await mount();
+
+    expect(await screen.findByText(/nie da się zmienić w profilu/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Otwórz portal płatności" })).toHaveAttribute(
+      "href",
+      "/profile/portal",
+    );
+    expect(payButton()).toBeDisabled();
+  });
+
+  // ── Audyt #39: porzucone 3DS nie jest ślepym zaułkiem ──────────────────────
+  it("subskrypcja `incomplete` (porzucone 3DS) nie blokuje płatności - serwer unieważnia jej fakturę", async () => {
+    signedInBuyer();
+    h.mySubscription = { status: "incomplete", price_id: "pro_monthly" };
+    await mount();
+
+    await screen.findByText("Plan Pro");
+    await waitFor(() => expect(payButton()).toBeEnabled());
+    expect(screen.queryByText(/Masz już/)).not.toBeInTheDocument();
+  });
+
+  // ── Audyt #18: druga karta ─────────────────────────────────────────────────
+  it("płatność zastąpiona nowszą z innej karty mówi o tym wprost i nie osadza ramki", async () => {
+    signedInBuyer();
+    h.planCheckout.mockResolvedValue({ ok: false, error: "checkout_superseded" });
+    await mount();
+
+    await screen.findByText("Plan Pro");
+    fireEvent.click(payButton());
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringContaining("zastąpiona nowszą")),
+    );
+    expect(screen.queryByTestId("checkout-frame")).not.toBeInTheDocument();
+  });
+
+  it("odmowa serwera `subscription_exists` daje komunikat o zmianie planu, nie „brak konfiguracji”", async () => {
+    signedInBuyer();
+    h.planCheckout.mockResolvedValue({ ok: false, error: "subscription_exists" });
+    await mount();
+
+    await screen.findByText("Plan Pro");
+    fireEvent.click(payButton());
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        expect.stringContaining("Masz już aktywną subskrypcję"),
+      ),
+    );
+  });
+});
+
 describe("trasa /checkout/$planId - ustawienia checkoutu tenanta", () => {
   it("nie obiecuje kodów promocyjnych, gdy tenant je wyłączył", async () => {
     signedInBuyer();
@@ -627,5 +772,70 @@ describe("trasa /checkout/$planId - ustawienia checkoutu tenanta", () => {
     const summary = await screen.findByText("Podsumowanie");
     const card = summary.closest("div[class*='sticky']") ?? document.body;
     expect(within(card as HTMLElement).getByText(/VAT zostanie naliczony/)).toBeInTheDocument();
+  });
+});
+
+describe("trasa /checkout/$planId - zgoda na newsletter (SUB-15)", () => {
+  // Zakup nie jest zgodą marketingową. Jedyną drogą na newsletter z checkoutu
+  // jest jawne zaznaczenie pola - domyślnie pustego - a jego treść musi być
+  // dokładnie tą, którą serwer zapisze jako dowód (rejestr wersji).
+  const consentBox = () => screen.getByRole("checkbox", { name: /Wyrażam zgodę na otrzymywanie/ });
+  const registryText = (lang: "pl" | "en") =>
+    PREMIUM_NEWSLETTER_CONSENT_TEXTS[PREMIUM_NEWSLETTER_CONSENT_VERSION]?.[lang] ?? "∅";
+
+  it("pole jest NIEZAZNACZONE, a bez zaznaczenia sesja nie niesie zgody", async () => {
+    signedInBuyer();
+    await mount();
+    await screen.findByText("Plan Pro");
+
+    expect(consentBox()).toHaveAttribute("aria-checked", "false");
+    // Treść pola to pełny tekst z rejestru - ten sam, który trafi do dowodu.
+    expect(screen.getByText(registryText("pl"))).toBeInTheDocument();
+
+    fireEvent.click(payButton());
+    await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
+    expect(h.planCheckout.mock.calls[0][0].data.newsletterConsent).toBeUndefined();
+  });
+
+  it("zaznaczone pole jedzie do server function z wersją i językiem widzianej treści", async () => {
+    signedInBuyer();
+    await mount();
+    await screen.findByText("Plan Pro");
+
+    fireEvent.click(consentBox());
+    expect(consentBox()).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(payButton());
+
+    await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
+    expect(h.planCheckout.mock.calls[0][0].data.newsletterConsent).toEqual({
+      version: PREMIUM_NEWSLETTER_CONSENT_VERSION,
+      lang: "pl",
+    });
+  });
+
+  it("po angielsku: angielska treść z rejestru i `lang: en` w zgodzie", async () => {
+    await i18n.changeLanguage("en");
+    signedInBuyer();
+    await mount();
+    await screen.findByText("Pro plan");
+
+    expect(screen.getByText(registryText("en"))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: /I agree to receive/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Pay/ }));
+
+    await waitFor(() => expect(h.planCheckout).toHaveBeenCalledTimes(1));
+    expect(h.planCheckout.mock.calls[0][0].data.newsletterConsent).toEqual({
+      version: PREMIUM_NEWSLETTER_CONSENT_VERSION,
+      lang: "en",
+    });
+  });
+
+  it("plan jednorazowy nie pokazuje pola - bez subskrypcji nie ma zapisu na listę", async () => {
+    signedInBuyer();
+    h.plan = plan({ interval: "one_time" });
+    await mount();
+    await screen.findByText("Plan Pro");
+
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 });

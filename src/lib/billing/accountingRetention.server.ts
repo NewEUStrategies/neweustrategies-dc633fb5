@@ -2,8 +2,12 @@
 //
 // Prawo do usunięcia danych (art. 17 RODO) nie sięga danych, które musimy
 // przechowywać na podstawie obowiązku prawnego - art. 17 ust. 3 lit. b RODO
-// wprost to wyłącza, a art. 74 ust. 2 ustawy o rachunkowości każe trzymać
-// dowody księgowe 5 lat od początku roku po roku obrotowym.
+// wprost to wyłącza. Okres to przedawnienie zobowiązania podatkowego -
+// 31.12 szóstego roku po roku obrotowym (art. 70 § 1 i art. 86 § 1 Ordynacji
+// podatkowej; obejmuje 5 lat z art. 74 ust. 2 ustawy o rachunkowości).
+// Reguła, jej podstawa i status (do potwierdzenia przez doradcę podatkowego)
+// żyją w `accountingRetentionRule.ts`; baza liczy ją
+// `accounting_retention_until` (20261012121000).
 //
 // Domykane są DWA przeciwne naruszenia, każde w innej tabeli:
 //
