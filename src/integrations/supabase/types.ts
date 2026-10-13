@@ -7210,6 +7210,7 @@ export type Database = {
           event_id: string
           id: string
           last_repeat_at: string | null
+          last_repeat_device_at: string | null
           note: string | null
           occurred_at: string | null
           offline_admitted: boolean | null
@@ -7237,6 +7238,7 @@ export type Database = {
           event_id: string
           id?: string
           last_repeat_at?: string | null
+          last_repeat_device_at?: string | null
           note?: string | null
           occurred_at?: string | null
           offline_admitted?: boolean | null
@@ -7264,6 +7266,7 @@ export type Database = {
           event_id?: string
           id?: string
           last_repeat_at?: string | null
+          last_repeat_device_at?: string | null
           note?: string | null
           occurred_at?: string | null
           offline_admitted?: boolean | null
