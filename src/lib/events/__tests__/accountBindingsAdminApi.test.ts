@@ -127,7 +127,51 @@ describe("fetchAccountBindings", () => {
     expect(parsed.unverified[0]?.risk).toBe("self_created");
     expect(parsed.unbinds).toHaveLength(1);
     expect(parsed.unbinds[0]?.reason).toBe("admin_unbind");
-    expect(api.parseAccountBindings(null)).toEqual({ unverified: [], unbinds: [] });
+    expect(api.parseAccountBindings(null)).toEqual({ unverified: [], suspect: [], unbinds: [] });
+  });
+
+  it("lista przeglądu (R12): sygnały przejęcia, maskowany adres konta, stara baza bez klucza", () => {
+    const parsed = api.parseAccountBindings({
+      unverified: [],
+      suspect: [
+        {
+          person_id: PERSON,
+          first_name: "Vera",
+          last_name: "Victim",
+          email: "attacker@example.com",
+          account_email_hint: "a***@example.com",
+          risk: "suspect_takeover",
+          mails_elsewhere: 3,
+          registrations_by_others: 1,
+          account_email: "attacker@example.com",
+        },
+        { first_name: "Bez id", mails_elsewhere: 1 },
+      ],
+      unbinds: [],
+    });
+    expect(parsed.suspect).toEqual([
+      {
+        personId: PERSON,
+        firstName: "Vera",
+        lastName: "Victim",
+        email: "attacker@example.com",
+        accountEmailHint: "a***@example.com",
+        mailsElsewhere: 3,
+        registrationsByOthers: 1,
+      },
+    ]);
+    // Baza sprzed 20261012180650 nie zna klucza `suspect` - pusta lista, nie błąd.
+    expect(api.parseAccountBindings({ unverified: [], unbinds: [] }).suspect).toEqual([]);
+    // Nowe klasy ryzyka są znane modelowi - nie spadają do `self_created`.
+    const risks = api
+      .parseAccountBindings({
+        unverified: [
+          { person_id: PERSON, risk: "admin_provisioned" },
+          { person_id: UNBIND, risk: "suspect_takeover" },
+        ],
+      })
+      .unverified.map((row) => row.risk);
+    expect(risks).toEqual(["admin_provisioned", "suspect_takeover"]);
   });
 
   it("błąd bazy (np. `forbidden` redaktora) leci w całości", async () => {

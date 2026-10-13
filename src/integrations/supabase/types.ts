@@ -29155,6 +29155,10 @@ export type Database = {
         Args: { p_rows: Json; p_source?: string }
         Returns: Json
       }
+      crm_leads_marketing_consent_withdraw: {
+        Args: { p_lead_ids: string[] }
+        Returns: number
+      }
       crm_member_company_key: { Args: { p_name: string }; Returns: string }
       crm_normalize_phone: { Args: { _phone: string }; Returns: string }
       crm_score_touch_user: {

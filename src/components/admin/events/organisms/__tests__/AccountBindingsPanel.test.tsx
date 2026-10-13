@@ -20,6 +20,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type {
   AccountBindingsOverview,
   AccountUnbindEntry,
+  SuspectAccountBinding,
   UnverifiedAccountBinding,
 } from "@/lib/events/accountBindingsAdminApi";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
@@ -84,7 +85,7 @@ function wpis(over: Partial<AccountUnbindEntry> = {}): AccountUnbindEntry {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.pobierz.mockResolvedValue({ unverified: [], unbinds: [] });
+  h.pobierz.mockResolvedValue({ unverified: [], suspect: [], unbinds: [] });
   h.odwiaz.mockResolvedValue("u-new");
   h.przywroc.mockResolvedValue(undefined);
 });
@@ -98,7 +99,7 @@ describe("AccountBindingsPanel - listy", () => {
   });
 
   it("wiersz niezweryfikowany pokazuje ryzyko i ZAMASKOWANY adres konta", async () => {
-    h.pobierz.mockResolvedValue({ unverified: [niezweryfikowane()], unbinds: [] });
+    h.pobierz.mockResolvedValue({ unverified: [niezweryfikowane()], suspect: [], unbinds: [] });
     renderWithQueryClient(<AccountBindingsPanel />);
 
     expect(await screen.findByText("Lena Ofiara")).toBeTruthy();
@@ -114,10 +115,71 @@ describe("AccountBindingsPanel - listy", () => {
   });
 });
 
+function podejrzane(over: Partial<SuspectAccountBinding> = {}): SuspectAccountBinding {
+  return {
+    personId: "p-vera",
+    firstName: "Vera",
+    lastName: "Victim",
+    email: "attacker@example.com",
+    accountEmailHint: "a***@example.com",
+    mailsElsewhere: 2,
+    registrationsByOthers: 0,
+    ...over,
+  };
+}
+
+describe("AccountBindingsPanel - lista przeglądu (R12)", () => {
+  it("pusta lista przeglądu ma zdanie stanu", async () => {
+    renderWithQueryClient(<AccountBindingsPanel />);
+    expect(await screen.findByText("adminEventRegistration.bindings.suspectEmpty")).toBeTruthy();
+  });
+
+  it("wiersz z sygnałem przejęcia pokazuje sygnały i odwiązuje TĘ osobę za potwierdzeniem", async () => {
+    h.pobierz.mockResolvedValue({
+      unverified: [],
+      suspect: [podejrzane()],
+      unbinds: [],
+    });
+    renderWithQueryClient(<AccountBindingsPanel />);
+
+    const wiersz = (await screen.findByText("Vera Victim")).closest("li");
+    if (wiersz === null) throw new Error("test: brak wiersza Very");
+    expect(
+      within(wiersz).getByText("adminEventRegistration.bindings.risk.suspect_takeover"),
+    ).toBeTruthy();
+    expect(
+      within(wiersz).getByText(/adminEventRegistration\.bindings\.mailsElsewhere/),
+    ).toBeTruthy();
+    // Sygnał o wartości 0 nie dostaje wiersza - organizator widzi tylko to, co jest.
+    expect(within(wiersz).queryByText(/registrationsByOthers/)).toBeNull();
+
+    fireEvent.click(
+      within(wiersz).getByRole("button", { name: /adminEventRegistration\.bindings\.unbind/ }),
+    );
+    expect(h.odwiaz).not.toHaveBeenCalled();
+    const okno = await screen.findByRole("alertdialog");
+    fireEvent.click(
+      within(okno).getByRole("button", { name: /adminEventRegistration\.bindings\.unbind/ }),
+    );
+    await waitFor(() => expect(h.odwiaz).toHaveBeenCalledWith("p-vera"));
+  });
+
+  it("odpowiedź starej bazy bez listy przeglądu nie wywraca ekranu", async () => {
+    h.pobierz.mockResolvedValue({
+      unverified: [niezweryfikowane()],
+      unbinds: [],
+    } as unknown as AccountBindingsOverview);
+    renderWithQueryClient(<AccountBindingsPanel />);
+    expect(await screen.findByText("Lena Ofiara")).toBeTruthy();
+    expect(screen.getByText("adminEventRegistration.bindings.suspectEmpty")).toBeTruthy();
+  });
+});
+
 describe("AccountBindingsPanel - odwiązanie i przywrócenie za potwierdzeniem", () => {
   it("odwiązanie: kliknięcie w wierszu NIC nie wysyła, potwierdzenie wysyła TĘ osobę", async () => {
     h.pobierz.mockResolvedValue({
       unverified: [niezweryfikowane(), niezweryfikowane({ personId: "p-ewa", firstName: "Ewa" })],
+      suspect: [],
       unbinds: [],
     });
     renderWithQueryClient(<AccountBindingsPanel />);
@@ -142,7 +204,7 @@ describe("AccountBindingsPanel - odwiązanie i przywrócenie za potwierdzeniem",
   });
 
   it("anulowanie okna nie wysyła niczego", async () => {
-    h.pobierz.mockResolvedValue({ unverified: [niezweryfikowane()], unbinds: [] });
+    h.pobierz.mockResolvedValue({ unverified: [niezweryfikowane()], suspect: [], unbinds: [] });
     renderWithQueryClient(<AccountBindingsPanel />);
 
     fireEvent.click(
@@ -160,6 +222,7 @@ describe("AccountBindingsPanel - odwiązanie i przywrócenie za potwierdzeniem",
   it("przywrócenie: tylko wpis, który da się przywrócić, ma przycisk", async () => {
     h.pobierz.mockResolvedValue({
       unverified: [],
+      suspect: [],
       unbinds: [
         wpis({ id: "u-ok", firstName: "Otwarty" }),
         wpis({ id: "u-done", firstName: "Przywrocony", restoredAt: "2026-10-12T20:00:00Z" }),
@@ -190,7 +253,7 @@ describe("AccountBindingsPanel - odwiązanie i przywrócenie za potwierdzeniem",
 
   it("odmowa bazy przy przywróceniu to zdanie z mapy odmów", async () => {
     h.przywroc.mockRejectedValue(new Error("account_in_use: this account is linked elsewhere"));
-    h.pobierz.mockResolvedValue({ unverified: [], unbinds: [wpis()] });
+    h.pobierz.mockResolvedValue({ unverified: [], suspect: [], unbinds: [wpis()] });
     renderWithQueryClient(<AccountBindingsPanel />);
 
     fireEvent.click(
@@ -206,8 +269,12 @@ describe("AccountBindingsPanel - odwiązanie i przywrócenie za potwierdzeniem",
 });
 
 describe("AccountBindingsPanel - dostępność", () => {
-  it("obie listy z wierszami nie mają naruszeń axe", async () => {
-    h.pobierz.mockResolvedValue({ unverified: [niezweryfikowane()], unbinds: [wpis()] });
+  it("wszystkie listy z wierszami nie mają naruszeń axe", async () => {
+    h.pobierz.mockResolvedValue({
+      unverified: [niezweryfikowane()],
+      suspect: [podejrzane()],
+      unbinds: [wpis()],
+    });
     const { container } = renderWithQueryClient(<AccountBindingsPanel />);
     await screen.findByText("Lena Ofiara");
 

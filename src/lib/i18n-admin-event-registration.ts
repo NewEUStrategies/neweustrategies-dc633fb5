@@ -1303,6 +1303,12 @@ export const adminEventRegistrationPl = {
       unverifiedEmpty: "Wszystkie dowiązania kont mają potwierdzony adres kartoteki.",
       unbindsTitle: "Dziennik odwiązań",
       unbindsEmpty: "Nie odwiązano jeszcze żadnego konta.",
+      suspectTitle: "Do przeglądu: możliwe przejęcie kartoteki",
+      suspectLead:
+        "Konto ma potwierdzony adres kartoteki, ale ślady wskazują, że ten adres zmieniono po fakcie albo zgłoszenia tej osoby zakładało inne konto. Sprawdź, czy kartoteka należy do właściciela konta - jeśli nie, odwiąż konto.",
+      suspectEmpty: "Brak dowiązań z sygnałem przejęcia.",
+      mailsElsewhere: "Maile zgłoszeń wysłane na inny adres: {{count}}",
+      registrationsByOthers: "Zgłoszenia założone przez inne konto: {{count}}",
       person: "Uczestnik",
       email: "Adres kartoteki",
       account: "Konto",
@@ -1329,6 +1335,8 @@ export const adminEventRegistrationPl = {
         account_unconfirmed: "Konto bez potwierdzonego adresu",
         self_created: "Adres kartoteki inny niż adres konta",
         verified: "Adres potwierdzony",
+        admin_provisioned: "Adres konta potwierdził administrator, nie właściciel skrzynki",
+        suspect_takeover: "Podejrzenie przejęcia (adres zmieniony po fakcie)",
       },
       reason: {
         reg01_remediation: "Naprawa historii (REG-01)",
@@ -2670,6 +2678,12 @@ export const adminEventRegistrationEn = {
       unverifiedEmpty: "Every account link has the record's address confirmed.",
       unbindsTitle: "Unlink log",
       unbindsEmpty: "No account has been unlinked yet.",
+      suspectTitle: "To review: possible record takeover",
+      suspectLead:
+        "The account has the record's address confirmed, but traces suggest the address was changed afterwards or this person's registrations were made by another account. Check that the record belongs to the account owner - if not, unlink the account.",
+      suspectEmpty: "No account links with a takeover signal.",
+      mailsElsewhere: "Registration e-mails sent to another address: {{count}}",
+      registrationsByOthers: "Registrations made by another account: {{count}}",
       person: "Attendee",
       email: "Record address",
       account: "Account",
@@ -2696,6 +2710,9 @@ export const adminEventRegistrationEn = {
         account_unconfirmed: "Account without a confirmed address",
         self_created: "Record address differs from the account address",
         verified: "Address confirmed",
+        admin_provisioned:
+          "The account address was confirmed by an administrator, not the mailbox owner",
+        suspect_takeover: "Suspected takeover (address changed afterwards)",
       },
       reason: {
         reg01_remediation: "History repair (REG-01)",

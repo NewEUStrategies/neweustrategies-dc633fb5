@@ -87,7 +87,14 @@ CREATE TABLE IF NOT EXISTS auth.users (
   -- potrzebuje konta NIEPOTWIERDZONEGO, wstawia jawnie
   -- `email_confirmed_at = NULL` (pgTAP-owy stub platformy nie ma domyslnej
   -- wartosci i tam NULL jest stanem wyjsciowym).
-  email_confirmed_at timestamptz DEFAULT now()
+  email_confirmed_at timestamptz DEFAULT now(),
+  -- `app_metadata` konta (GoTrue: zmienia je wylacznie klucz serwisowy).
+  -- Czyta je `_event_account_admin_provisioned` (20261012180600, przeglad
+  -- R12): konto zalozone przez administratora z `email_confirm: true` niesie
+  -- `provisioned_by_admin` i NIE dowodzi skrzynki. Funkcja jest LANGUAGE sql,
+  -- wiec kolumna musi stac tu, zanim replay dojdzie do jej migracji.
+  -- Domyslnie pusty obiekt - jak konto z rejestracji wlasnej.
+  raw_app_meta_data jsonb DEFAULT '{}'::jsonb
 );
 
 -- Aktor sesji. Puste = anonim (`auth.uid()` zwraca NULL), dokladnie jak
@@ -2067,3 +2074,26 @@ ALTER TABLE public.user_consents ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_consents TO authenticated;
 GRANT ALL ON public.user_consents TO service_role;
 -- === /f6 ===
+
+-- === f7: dziennik wysylek poczty - sygnal przegladu przejec (20261012180650) ===
+-- PO CO. `event_people_account_binding_review` (przeglad R12, ustalenie 3)
+-- szuka maili wyslanych dla zgloszen osoby na adres INNY niz obecny adres
+-- kartoteki (przejecie z podmiana adresu). Funkcja jest LANGUAGE sql, wiec
+-- tabela musi istniec przy replayu. Ksztalt: kolumny, ktore czyta przeglad
+-- (najemca, adresat, klucz idempotencji w metadanych), z produkcji
+-- 20260728212941 + `tenant_id` z 20260913101000. Bez triggerow i polityk -
+-- pisze tu wylacznie fixture harnessu.
+CREATE TABLE IF NOT EXISTS public.email_send_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  message_id text,
+  template_name text NOT NULL,
+  recipient_email text NOT NULL,
+  status text NOT NULL,
+  error_message text,
+  metadata jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  tenant_id uuid REFERENCES public.tenants(id) ON DELETE CASCADE
+);
+ALTER TABLE public.email_send_log ENABLE ROW LEVEL SECURITY;
+GRANT ALL ON public.email_send_log TO service_role;
+-- === /f7 ===

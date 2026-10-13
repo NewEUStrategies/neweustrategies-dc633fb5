@@ -1,9 +1,12 @@
 // Organizm: DOWIAZANIA KONT DO KARTOTEK UCZESTNIKOW (REG-01, D14).
 //
-// DWIE LISTY, JEDNA DECYZJA NA WIERSZ. Gora - dowiazania, ktorych konto NIE
+// TRZY LISTY, JEDNA DECYZJA NA WIERSZ. Gora - dowiazania, ktorych konto NIE
 // potwierdzilo adresu kartoteki (po naprawie historii zwykle pusta; pojawia
-// sie tu np. kartoteka, ktorej adres organizator zmienil po dowiazaniu).
-// Dol - dziennik odwiazan: naprawa historii i decyzje organizatora,
+// sie tu np. konto, ktorego adres potwierdzil administrator). Srodek - lista
+// PRZEGLADU (przeglad R12): dowiazania zgodne z regula, ale z sygnalem
+// przejecia - adres kartoteki zmieniony po wysylce maili albo zgloszenia
+// zalozone przez inne konto. Baza ich nie odwiazuje sama; organizator
+// decyduje. Dol - dziennik odwiazan: naprawa historii i decyzje organizatora,
 // z przywroceniem. Przywrocenie to JAWNY, LOGOWANY atest - organizator
 // poswiadcza, ze konto nalezy do osoby, choc regula tego nie potwierdza.
 //
@@ -114,6 +117,8 @@ export function AccountBindingsPanel() {
   }
 
   const { unverified, unbinds } = list.data;
+  // Baza sprzed 20261012180650 nie zwraca listy przegladu.
+  const suspect = list.data.suspect ?? [];
 
   return (
     <div className="space-y-8">
@@ -153,6 +158,73 @@ export function AccountBindingsPanel() {
                           count: row.registrationsByAccount,
                         })}
                       </span>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() => setPending({ kind: "unbind", personId: row.personId, name })}
+                  >
+                    <Link2Off className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    {t("adminEventRegistration.bindings.unbind")}
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-3" aria-labelledby="account-bindings-suspect">
+        <div className="space-y-1">
+          <h2 id="account-bindings-suspect" className="text-base font-semibold text-foreground">
+            {t("adminEventRegistration.bindings.suspectTitle")}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {t("adminEventRegistration.bindings.suspectLead")}
+          </p>
+        </div>
+        {suspect.length === 0 ? (
+          <p className="rounded-[6px] border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+            {t("adminEventRegistration.bindings.suspectEmpty")}
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {suspect.map((row) => {
+              const name = fullName(row.firstName, row.lastName);
+              return (
+                <li
+                  key={row.personId}
+                  className="flex flex-wrap items-start justify-between gap-3 rounded-[6px] border border-border bg-card p-3"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-sm font-semibold text-foreground">{name}</p>
+                    <p className="break-all text-xs text-muted-foreground">
+                      {t("adminEventRegistration.bindings.email")}: {row.email ?? "-"}
+                    </p>
+                    <p className="break-all text-xs text-muted-foreground">
+                      {t("adminEventRegistration.bindings.account")}: {row.accountEmailHint ?? "-"}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">
+                        {t("adminEventRegistration.bindings.risk.suspect_takeover")}
+                      </Badge>
+                      {row.mailsElsewhere > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {t("adminEventRegistration.bindings.mailsElsewhere", {
+                            count: row.mailsElsewhere,
+                          })}
+                        </span>
+                      )}
+                      {row.registrationsByOthers > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          {t("adminEventRegistration.bindings.registrationsByOthers", {
+                            count: row.registrationsByOthers,
+                          })}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <Button
