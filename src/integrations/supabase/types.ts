@@ -10229,6 +10229,8 @@ export type Database = {
           attended_at: string | null
           cancel_reason: string | null
           cancelled_at: string | null
+          consent_partner_sharing_at: string | null
+          consent_partner_withdrawn_at: string | null
           created_at: string
           created_by: string | null
           decided_at: string | null
@@ -10280,6 +10282,8 @@ export type Database = {
           attended_at?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
+          consent_partner_sharing_at?: string | null
+          consent_partner_withdrawn_at?: string | null
           created_at?: string
           created_by?: string | null
           decided_at?: string | null
@@ -10331,6 +10335,8 @@ export type Database = {
           attended_at?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
+          consent_partner_sharing_at?: string | null
+          consent_partner_withdrawn_at?: string | null
           created_at?: string
           created_by?: string | null
           decided_at?: string | null
@@ -23383,6 +23389,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      _event_partner_consent_at: {
+        Args: { p_event_id: string; p_person_id: string; p_tenant: string }
+        Returns: string
       }
       _event_person_crm_sync: {
         Args: {
