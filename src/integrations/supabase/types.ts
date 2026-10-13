@@ -25182,6 +25182,7 @@ export type Database = {
           name_en: string
           name_pl: string
           occupancy: number
+          reentry_policy: string
           repeat_count: number
           room_id: string
           room_name: string
@@ -25784,6 +25785,10 @@ export type Database = {
         Returns: string[]
       }
       admin_event_refund_jobs: { Args: { p_event_id: string }; Returns: Json }
+      admin_event_registration_code_invalidate: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
       admin_event_registration_decide: {
         Args: { p_payload: Json }
         Returns: Json
