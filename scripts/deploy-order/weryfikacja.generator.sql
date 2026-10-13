@@ -1,14 +1,18 @@
 -- GENERATOR zapytania weryfikujacego po wdrozeniu. Uruchamiany przez
--- scripts/deploy-order-proof.sh na bazie `ref` (stan koncowy w kolejnosci
--- wersji); wypisuje SQL, ktory idzie na produkcje (tylko odczyt).
+-- scripts/deploy-order-proof.sh na bazie PELNEGO odtworzenia supabase/migrations
+-- w kolejnosci wersji (scripts/pgtap-local/run.sh migrate - stan koncowy
+-- repozytorium, jak w pgTAP CI); wypisuje SQL, ktory idzie na produkcje
+-- (tylko odczyt).
 --
 -- Zmienne psql (tablice tekstowe w skladni '{a,b}'):
---   :'fns'   funkcje zakladane przez pliki nowsze od linii
+--   :'fns'   funkcje zakladane przez pliki z zakresu (migracje modulu nowsze
+--            od linii + pliki z scripts/deploy-order/weryfikacja.zakres.txt)
 --   :'tabs'  tabele zakladane przez te pliki
 --   :'alts'  tabele istniejace, ktore te pliki zmieniaja (ALTER TABLE)
 --   :'cols'  kolumny dodawane przez ADD COLUMN w tych plikach
 --   :'trgs'  triggery zakladane przez te pliki
 --   :'src'   opis zrodla (plik kolejnosci, linia)
+--   :'ext'   pliki spoza selektora modulu dolaczone z weryfikacja.zakres.txt
 --
 -- Tresc funkcji porownujemy po md5 ZNORMALIZOWANEJ: bez komentarzy `--`
 -- i ze zwarta spacja. Kopie wdrozeniowe z panelu Lovable potrafia zgubic
@@ -17,9 +21,19 @@
 \pset tuples_only on
 \pset footer off
 
-SELECT '-- Weryfikacja po wdrozeniu migracji modulu Wydarzen (TYLKO ODCZYT).';
+SELECT '-- Weryfikacja po wdrozeniu migracji modulu Wydarzen (TYLKO ODCZYT: jedno zapytanie SELECT).';
 SELECT '-- Wygenerowane przez scripts/deploy-order-proof.sh (' || :'src' || ').';
-SELECT '-- PUSTY wynik = stan produkcji zgodny z repozytorium. Kazdy wiersz to rozjazd.';
+SELECT '-- Stan oczekiwany: pelne odtworzenie supabase/migrations w kolejnosci wersji';
+SELECT '-- (scripts/pgtap-local/run.sh migrate). Zakres: funkcje, tabele, kolumny i triggery';
+SELECT '-- zakladane przez migracje modulu nowsze od linii (selektor scripts/events-harness/run.sh)';
+SELECT '-- oraz przez pliki spoza selektora z scripts/deploy-order/weryfikacja.zakres.txt:';
+SELECT '--   ' || x FROM unnest(CASE WHEN cardinality(:'ext'::text[]) = 0 THEN '{(brak)}'::text[]
+                                    ELSE :'ext'::text[] END) x ORDER BY 1;
+SELECT '-- Ponowne wygenerowanie: DEPLOY_PROOF_VERIFY_ONLY=1 DEPLOY_PROOF_WRITE_VERIFY=' ||
+       'scripts/deploy-order/weryfikacja-po-wdrozeniu.sql';
+SELECT '--   bash scripts/deploy-order-proof.sh scripts/deploy-order/produkcja.txt';
+SELECT '-- PUSTY wynik = stan produkcji zgodny z repozytorium. Kazdy wiersz to rozjazd:';
+SELECT '-- ''brak'' - obiektu nie ma, ''inna tresc'' - cialo funkcji rozne od repozytorium.';
 SELECT 'WITH f(n, a, h) AS (VALUES';
 SELECT string_agg(format('  (%L, %L, %L)', p.proname, pg_get_function_identity_arguments(p.oid),
          md5(regexp_replace(regexp_replace(p.prosrc, '--[^\n]*', '', 'g'), '\s+', ' ', 'g'))),
