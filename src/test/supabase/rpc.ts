@@ -45,8 +45,15 @@ export interface RecordedRpc {
  * test moze odpowiedziec ROZNIE zaleznie od argumentow (inna strona dla innego
  * offsetu, kolizja slugu tylko dla konkretnej wartosci) bez budowania wlasnej
  * atrapy.
+ *
+ * Wolno oddac wynik SYNCHRONICZNIE albo obietnice - `rpc` jest asynchroniczne
+ * i rozwiazuje oba warianty (ta sama zasada co `TableResponder` w `./chain`).
+ * Wariant asynchroniczny odwzorowuje funkcje SQL, ktorej sprawdzenie i zapis
+ * nie sa atomowe (`IF EXISTS ... THEN RETURN; INSERT`): dwa rownolegle
+ * wywolania musza moc minac sie miedzy sprawdzeniem a zapisem, inaczej test
+ * wyscigu dowodzi atomowosci, ktorej baza nie daje.
  */
-export type RpcResponder = (call: RecordedRpc) => SupabaseResult;
+export type RpcResponder = (call: RecordedRpc) => SupabaseResult | Promise<SupabaseResult>;
 
 export interface SupabaseRpcStub {
   /** Podmienialna funkcja `rpc` do wstrzykniecia w atrape klienta. */
