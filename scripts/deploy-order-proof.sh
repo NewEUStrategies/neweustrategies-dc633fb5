@@ -38,10 +38,24 @@
 #   * stanu produkcji - to robi zapytanie weryfikujace z notatki wdrozenia
 #     (tylko odczyt); ten skrypt dowodzi, ze PLAN jest poprawny.
 #
+# ZAPYTANIE WERYFIKUJACE (scripts/deploy-order/weryfikacja-po-wdrozeniu.sql)
+# powstaje na koncu, z TRZECIEJ bazy: pelnego odtworzenia supabase/migrations
+# w kolejnosci wersji (scripts/pgtap-local/run.sh migrate - ta sama baza, co
+# pgTAP w CI). Zakres: obiekty migracji modulu nowszych od linii oraz plikow
+# spoza selektora z scripts/deploy-order/weryfikacja.zakres.txt. Zapytanie
+# nie zalezy od kolejnosci produkcyjnej - z pliku kolejnosci bierze tylko
+# LINIE - wiec DEPLOY_PROOF_VERIFY_ONLY=1 generuje je bez dowodu kolejnosci,
+# takze gdy plik kolejnosci nie wymienia jeszcze nowszych migracji modulu.
+#
 # UZYCIE
 #   bash scripts/deploy-order-proof.sh scripts/deploy-order/produkcja.txt
 #   DEPLOY_PROOF_DIR / DEPLOY_PROOF_PORT  klaster (domyslnie /tmp/nes-order-proof, 5482)
+#   DEPLOY_PROOF_FULL_DIR / DEPLOY_PROOF_FULL_PORT
+#                                         klaster pelnego odtworzenia (domyslnie
+#                                         <DEPLOY_PROOF_DIR>-pelna, port klastra + 1)
 #   DEPLOY_PROOF_SKIP_RUNTIME=1           bez asercji runtime
+#   DEPLOY_PROOF_WRITE_VERIFY=<plik>      kopia zapytania weryfikujacego do <plik>
+#   DEPLOY_PROOF_VERIFY_ONLY=1            tylko zapytanie weryfikujace (bez baz ref/nes)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,9 +63,13 @@ REPO="$(cd "$HERE/.." && pwd)"
 ORDER="${1:?Podaj plik kolejnosci (np. scripts/deploy-order/produkcja.txt)}"
 PGDIR="${DEPLOY_PROOF_DIR:-/tmp/nes-order-proof}"
 PGPORT_PROOF="${DEPLOY_PROOF_PORT:-5482}"
+FULLDIR="${DEPLOY_PROOF_FULL_DIR:-$PGDIR-pelna}"
+FULLPORT="${DEPLOY_PROOF_FULL_PORT:-$((PGPORT_PROOF + 1))}"
+VERIFY_ONLY="${DEPLOY_PROOF_VERIFY_ONLY:-0}"
 OUT="$PGDIR/out"
 MIG="$REPO/supabase/migrations"
 HARNESS="$REPO/scripts/events-harness"
+SCOPE="$HERE/deploy-order/weryfikacja.zakres.txt"
 
 fail() { echo "ODMOWA: $*" >&2; exit 2; }
 [ -f "$ORDER" ] || fail "brak pliku kolejnosci $ORDER"
@@ -70,26 +88,42 @@ while IFS= read -r raw; do
   [ -f "$MIG/$row" ] || fail "w pliku kolejnosci jest $row, ktorego nie ma w supabase/migrations"
   LISTED+=("$row")
 done < "$ORDER"
-[ "${#LISTED[@]}" -gt 0 ] || fail "plik kolejnosci nie wymienia zadnej migracji"
+# Tryb VERIFY_ONLY bierze z pliku kolejnosci tylko LINIE (naglowek).
+[ "$VERIFY_ONLY" = "1" ] || [ "${#LISTED[@]}" -gt 0 ] || fail "plik kolejnosci nie wymienia zadnej migracji"
 [[ "$LINE" =~ ^[0-9]{14}$ ]] || fail "LINIA musi byc wersja z 14 cyfr, jest '$LINE'"
 
 ALL=()
 while IFS= read -r f; do ALL+=("$(basename "$f")"); done < <(grep -lE "$SEL" "$MIG"/*.sql | sort -u)
 in_set() { local x; for x in "${ALL[@]}"; do [ "$x" = "$1" ] && return 0; done; return 1; }
-listed() { local x; for x in "${LISTED[@]}"; do [ "$x" = "$1" ] && return 0; done; return 1; }
+listed() { local x; for x in ${LISTED[@]+"${LISTED[@]}"}; do [ "$x" = "$1" ] && return 0; done; return 1; }
 
 BASE=()
 for b in "${ALL[@]}"; do
   if [[ "${b%%_*}" > "$LINE" ]]; then
-    listed "$b" || fail "$b (nowsza od linii $LINE) nie wystepuje w pliku kolejnosci"
+    [ "$VERIFY_ONLY" = "1" ] || listed "$b" || fail "$b (nowsza od linii $LINE) nie wystepuje w pliku kolejnosci"
   else
     BASE+=("$b")
   fi
 done
 PLAN=(); SKIPPED=()
-for b in "${LISTED[@]}"; do
+for b in ${LISTED[@]+"${LISTED[@]}"}; do
   if in_set "$b"; then PLAN+=("$b"); else SKIPPED+=("$b"); fi
 done
+
+# Zakres zapytania weryfikujacego PONAD selektor modulu: pliki, ktore selektor
+# harnessu pomija (SMS, wypis z maili, DLQ poczty, konta od administratora),
+# a ktorych obiekty sa czescia wdrozenia modulu. Plik lapany przez selektor
+# jest w zakresie bez wpisu, wiec wpis o nim to pomylka - odmowa.
+EXTRA=()
+if [ -f "$SCOPE" ]; then
+  while IFS= read -r raw; do
+    row="${raw%%#*}"; row="$(echo "$row" | tr -d '[:space:]')"
+    [ -n "$row" ] || continue
+    [ -f "$MIG/$row" ] || fail "w $SCOPE jest $row, ktorego nie ma w supabase/migrations"
+    in_set "$row" && fail "$row z $SCOPE lapie juz selektor modulu - usun wpis"
+    EXTRA+=("$row")
+  done < "$SCOPE"
+fi
 
 PGBIN=""
 for d in /usr/lib/postgresql/*/bin; do [ -x "$d/initdb" ] && PGBIN="$d"; done
@@ -101,14 +135,89 @@ if [ "$RUNAS" = "root" ]; then
   RUNAS=postgres
 fi
 run_as() { if [ "$(id -un)" = "root" ]; then su "$RUNAS" -c "PATH=$PGBIN:\$PATH $*"; else eval "$*"; fi; }
+# Kazdy klaster, ktory skrypt postawil, schodzi przy wyjsciu - takze po odmowie
+# i po bledzie. Pelne odtworzenie (scripts/pgtap-local/run.sh) zostawia serwer
+# wlaczony celowo (tryb `test`), wiec tu bez tej listy przezylby skrypt.
+CLUSTERS=()
+stop_clusters() {
+  local d
+  for d in ${CLUSTERS[@]+"${CLUSTERS[@]}"}; do run_as "pg_ctl -D $d stop" >/dev/null 2>&1 || true; done
+}
+trap stop_clusters EXIT
 run_as "pg_ctl -D $PGDIR/data stop" >/dev/null 2>&1 || true
 rm -rf "$PGDIR"; mkdir -p "$PGDIR/data" "$PGDIR/run" "$OUT"
 [ "$(id -un)" = "root" ] && chown -R "$RUNAS" "$PGDIR"
+: > "$OUT/summary.txt"
+say() { echo "$*" | tee -a "$OUT/summary.txt"; }
+
+# ZAPYTANIE WERYFIKUJACE PO WDROZENIU (tylko odczyt, na produkcje).
+# Stan oczekiwany = PELNE odtworzenie supabase/migrations w kolejnosci wersji
+# (scripts/pgtap-local/run.sh migrate, baza jak w pgTAP CI), nie `ref`: `ref`
+# ma tylko migracje modulu na atrapie, wiec brakuje w nim obiektow z plikow
+# spoza selektora (weryfikacja.zakres.txt - ich tabele platformy atrapa nie
+# zna), a funkcja modulu nadpisana kiedys przez migracje spoza selektora
+# mialaby w nim stara tresc. Zakres = obiekty zakladane przez migracje modulu
+# nowsze od linii + pliki z weryfikacja.zakres.txt
+# (generator: scripts/deploy-order/weryfikacja.generator.sql).
+#
+# Wolana w `verify_query || ...`, czyli BEZ `set -e` (bash wylacza go w ciele
+# funkcji z listy ||) - kazdy krok, ktory moze sie nie udac, sprawdza kod sam.
+verify_query() {
+  local files=() b bad=()
+  for b in "${ALL[@]}"; do [[ "${b%%_*}" > "$LINE" ]] && files+=("$b"); done
+  files+=(${EXTRA[@]+"${EXTRA[@]}"})
+  ( cd "$MIG" && sed 's/--.*//' "${files[@]}" ) | tr 'A-Z' 'a-z' > "$OUT/newer.sql" \
+    || { say "FAIL odczyt migracji z zakresu"; return 1; }
+  # Nazwy jako tablica tekstowa PostgreSQL: {a,b,c}.
+  names_of() {
+    { grep -oE "$1" "$OUT/newer.sql" || true; } | awk '{print $NF}' \
+      | sed -E 's/^public\.//' | sort -u | paste -sd, - | sed 's/^/{/; s/$/}/'
+  }
+  CLUSTERS+=("$FULLDIR/data")
+  if ! PGTAP_DIR="$FULLDIR" PGTAP_PORT="$FULLPORT" REPO="$REPO" \
+       bash "$REPO/scripts/pgtap-local/run.sh" migrate > "$OUT/pelna.log" 2>&1; then
+    say "FAIL pelne odtworzenie ($OUT/pelna.log)"; tail -5 "$OUT/pelna.log"; return 1
+  fi
+  # Blad pliku z zakresu = zly stan oczekiwany. Bledy poza zakresem (atrapa
+  # Supabase nie ma np. supabase_migrations) nie dotycza tych obiektow.
+  for b in "${files[@]}"; do grep -qxF "=== $b" "$FULLDIR/failures.txt" && bad+=("$b"); done
+  if [ "${#bad[@]}" -gt 0 ]; then
+    say "FAIL pelne odtworzenie: migracje z zakresu z bledem: ${bad[*]} ($FULLDIR/failures.txt)"
+    return 1
+  fi
+  say "pelne odtworzenie: $(grep -m1 '^migracje:' "$OUT/pelna.log") (poza zakresem: $(grep -c '^=== ' "$FULLDIR/failures.txt" || true))"
+  if ! psql -X -h "$FULLDIR/run" -p "$FULLPORT" -U postgres -d nes -q -v ON_ERROR_STOP=1 \
+    -v fns="$(names_of 'create +(or +replace +)?function +(public\.)?[a-z_0-9]+')" \
+    -v tabs="$(names_of 'create +table +(if +not +exists +)?(public\.)?[a-z_0-9]+')" \
+    -v alts="$(names_of 'alter +table +(if +exists +)?(only +)?(public\.)?[a-z_0-9]+')" \
+    -v cols="$(names_of 'add +column +(if +not +exists +)?[a-z_0-9]+')" \
+    -v trgs="$(names_of 'create +trigger +[a-z_0-9]+')" \
+    -v src="$(basename "$ORDER"), linia $LINE" \
+    -v ext="{$(IFS=,; echo "${EXTRA[*]-}")}" \
+    -f "$HERE/deploy-order/weryfikacja.generator.sql" > "$OUT/weryfikacja.sql" 2> "$OUT/generator.err"; then
+    say "FAIL generator zapytania weryfikujacego:"; head -5 "$OUT/generator.err"; return 1
+  fi
+  run_as "pg_ctl -D $FULLDIR/data stop" >/dev/null 2>&1 || true
+  say "zapytanie weryfikujace: $OUT/weryfikacja.sql ($(wc -c < "$OUT/weryfikacja.sql") B," \
+      "$((${#files[@]} - ${#EXTRA[@]})) migracji modulu od linii + ${#EXTRA[@]} z $(basename "$SCOPE"))"
+  if [ -n "${DEPLOY_PROOF_WRITE_VERIFY:-}" ]; then
+    cp "$OUT/weryfikacja.sql" "$DEPLOY_PROOF_WRITE_VERIFY" || { say "FAIL zapis $DEPLOY_PROOF_WRITE_VERIFY"; return 1; }
+    say "  zapisane do $DEPLOY_PROOF_WRITE_VERIFY"
+  fi
+}
+
+if [ "$VERIFY_ONLY" = "1" ]; then
+  say "tryb VERIFY_ONLY: bez dowodu kolejnosci; z $(basename "$ORDER") tylko linia $LINE"
+  verify_query || { say "ZAPYTANIE WERYFIKUJACE: CZERWONE"; exit 1; }
+  say "ZAPYTANIE WERYFIKUJACE: OK"
+  exit 0
+fi
+
+CLUSTERS+=("$PGDIR/data")
 run_as "initdb -D $PGDIR/data -U postgres --auth=trust -E UTF8 --locale=C" >/dev/null
 run_as "pg_ctl -D $PGDIR/data -o '-k $PGDIR/run -p $PGPORT_PROOF -c listen_addresses=\"\"' -l $PGDIR/pg.log start" >/dev/null
 sleep 2
 export PGHOST="$PGDIR/run" PGPORT="$PGPORT_PROOF" PGUSER=postgres
-trap 'run_as "pg_ctl -D $PGDIR/data stop" >/dev/null 2>&1 || true' EXIT
 
 psql -q -d postgres -c "CREATE DATABASE stub;" >/dev/null
 psql -q -d stub -v ON_ERROR_STOP=1 <<'SQL' >/dev/null
@@ -120,8 +229,6 @@ SQL
 psql -q -d stub -v ON_ERROR_STOP=1 -f "$HARNESS/harness.sql" >/dev/null
 psql -q -d postgres -c "CREATE DATABASE ref TEMPLATE stub;" -c "CREATE DATABASE nes TEMPLATE stub;" >/dev/null
 
-: > "$OUT/summary.txt"
-say() { echo "$*" | tee -a "$OUT/summary.txt"; }
 apply() { # baza, plik
   if ! psql -q -d "$1" -v ON_ERROR_STOP=1 -f "$MIG/$2" >> "$OUT/apply-$1.log" 2>&1; then
     say "FAIL $1: $2"
@@ -226,31 +333,11 @@ if [ "${DEPLOY_PROOF_SKIP_RUNTIME:-0}" != "1" ]; then
     verdict=1
   fi
 fi
-# ZAPYTANIE WERYFIKUJACE PO WDROZENIU (tylko odczyt, na produkcje). Stan
-# oczekiwany = baza `ref`, zakres = obiekty zakladane przez pliki nowsze od
-# linii (generator: scripts/deploy-order/weryfikacja.generator.sql).
+# Zapytanie weryfikujace tylko po zielonym dowodzie (funkcja verify_query wyzej).
+# Klaster dowodu nie jest juz potrzebny - schodzi przed pelnym odtworzeniem.
 if [ "$verdict" -eq 0 ]; then
-  NEWER=()
-  for b in "${ALL[@]}"; do [[ "${b%%_*}" > "$LINE" ]] && NEWER+=("$MIG/$b"); done
-  sed 's/--.*//' "${NEWER[@]}" | tr 'A-Z' 'a-z' > "$OUT/newer.sql"
-  # Nazwy jako tablica tekstowa PostgreSQL: {a,b,c}.
-  names_of() {
-    { grep -oE "$1" "$OUT/newer.sql" || true; } | awk '{print $NF}' \
-      | sed -E 's/^public\.//' | sort -u | paste -sd, - | sed 's/^/{/; s/$/}/'
-  }
-  psql -d ref -q -v ON_ERROR_STOP=1 \
-    -v fns="$(names_of 'create +(or +replace +)?function +(public\.)?[a-z_0-9]+')" \
-    -v tabs="$(names_of 'create +table +(if +not +exists +)?(public\.)?[a-z_0-9]+')" \
-    -v alts="$(names_of 'alter +table +(if +exists +)?(only +)?(public\.)?[a-z_0-9]+')" \
-    -v cols="$(names_of 'add +column +(if +not +exists +)?[a-z_0-9]+')" \
-    -v trgs="$(names_of 'create +trigger +[a-z_0-9]+')" \
-    -v src="$(basename "$ORDER"), linia $LINE" \
-    -f "$HERE/deploy-order/weryfikacja.generator.sql" > "$OUT/weryfikacja.sql"
-  say "zapytanie weryfikujace: $OUT/weryfikacja.sql ($(wc -c < "$OUT/weryfikacja.sql") B)"
-  if [ -n "${DEPLOY_PROOF_WRITE_VERIFY:-}" ]; then
-    cp "$OUT/weryfikacja.sql" "$DEPLOY_PROOF_WRITE_VERIFY"
-    say "  zapisane do $DEPLOY_PROOF_WRITE_VERIFY"
-  fi
+  run_as "pg_ctl -D $PGDIR/data stop" >/dev/null 2>&1 || true
+  verify_query || verdict=1
 fi
 if [ "$verdict" -eq 0 ]; then say "DOWOD KOLEJNOSCI: OK ($ORDER)"; else say "DOWOD KOLEJNOSCI: CZERWONY ($ORDER)"; fi
 exit "$verdict"

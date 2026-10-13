@@ -148,20 +148,53 @@ w obu bazach. Sprawdza go ręczna kontrola w 2.7.
 
 ### 2.7. Zapytanie weryfikujące po wdrożeniu
 
-`scripts/deploy-order/weryfikacja-po-wdrozeniu.sql`: tylko odczyt, wygenerowane przez skrypt
-dowodu z bazy `ref`. Obejmuje funkcje (md5 treści bez komentarzy `--`), tabele, kolumny
-i triggery zakładane przez pliki nowsze od `20260926140000`. **Pusty wynik = stan zgodny.**
+`scripts/deploy-order/weryfikacja-po-wdrozeniu.sql`: tylko odczyt (jedno zapytanie `SELECT`),
+wygenerowane przez skrypt dowodu. Obejmuje funkcje (md5 treści bez komentarzy `--`), tabele,
+kolumny i triggery zakładane przez pliki modułu nowsze od `20260926140000` oraz przez pliki
+spoza selektora harnessu z `scripts/deploy-order/weryfikacja.zakres.txt`.
+**Pusty wynik = stan zgodny.**
 
-- Przed krokiem 1 (stan z 16:10 UTC) zapytanie zwraca dokładnie obiekty pozostałych plików:
-  199 funkcji, 29 tabel, 9 kolumn i 26 triggerów brakuje, 11 funkcji ma inną treść (te, które
-  zmieniają kroki 3, 7, 8-13 i 24-25). Funkcje skanera, `180000`-`180002` i `000900` są zgodne.
+- Przed krokiem 1 (stan z 16:10 UTC) wersja pliku z 2026-09-27 zwracała dokładnie obiekty
+  pozostałych plików: 199 funkcji, 29 tabel, 9 kolumn i 26 triggerów brakowało, 11 funkcji
+  miało inną treść (te, które zmieniają kroki 3, 7, 8-13 i 24-25). Funkcje skanera,
+  `180000`-`180002` i `000900` były zgodne.
 - Ręcznie dla `153300`: `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname =
 'notifications_kind_check'` ma zawierać `'event'` i `'billing'`, a kolumna
   `notification_preferences.enabled_event` ma istnieć.
+- Ręcznie dla serii REG (zadania `pg_cron` generator pomija): `SELECT jobname FROM cron.job
+WHERE jobname IN ('sms-send-log-prune', 'email-dlq-prune')` ma zwrócić oba zadania.
 
-Plik jest wygenerowany ponownie z nowymi parami tego PR (sekcja 4), więc pusty wynik oznacza
-stan po WSZYSTKICH krokach: z 2.4 i z sekcji 4. Przy kolejnych zmianach migracji generujesz go tak:
-`DEPLOY_PROOF_WRITE_VERIFY=scripts/deploy-order/weryfikacja-po-wdrozeniu.sql bash scripts/deploy-order-proof.sh scripts/deploy-order/produkcja.txt`.
+Plik był wygenerowany ponownie z nowymi parami tego PR (sekcja 4), więc pusty wynik oznaczał
+stan po WSZYSTKICH krokach: z 2.4 i z sekcji 4.
+
+**Aktualizacja 2026-10-13 (PR #504, seria REG).** Plik wygenerowany na nowo dla drzewa PR #504:
+452 funkcje, 39 tabel, 61 kolumn i 54 triggery. Poprzednia wersja (z ręcznymi pozycjami B5)
+zwracała na pełnym odtworzeniu tego drzewa 37 wierszy „inna tresc”: jej hashe były sprzed
+późniejszych redefinicji (scalenie z `main`, poprawki przeglądów, FIX-R67, uzgodnienia
+`20261013900000`-`900900`). Zmiany w generatorze:
+
+- Stan oczekiwany to pełne odtworzenie `supabase/migrations` w kolejności wersji
+  (`scripts/pgtap-local/run.sh migrate`, baza jak w pgTAP CI), a nie baza `ref` dowodu, która
+  ma tylko migracje modułu na atrapie harnessu. Hashe wszystkich 442 funkcji modułu są w obu
+  bazach identyczne. Pełne odtworzenie dokłada obiekty plików spoza selektora.
+- `scripts/deploy-order/weryfikacja.zakres.txt` wymienia pliki serii REG, których selektor
+  harnessu nie łapie: dziennik SMS, wypis z maili, DLQ poczty, konta zakładane przez
+  administratora, zgoda marketingowa w CRM. Zastępuje ręczne pozycje B5, które każde ponowne
+  wygenerowanie by zgubiło. Pozostałe pliki serii REG (`20261012130500`-`190100`) i uzgodnień
+  łapie selektor, więc zapytanie obejmuje każdą funkcję, którą seria definiuje albo nadpisuje.
+- `DEPLOY_PROOF_VERIFY_ONLY=1` generuje samo zapytanie, bez dowodu kolejności. Z pliku
+  kolejności liczy się wtedy tylko `LINIA`.
+
+`scripts/deploy-order/produkcja.txt` zostaje bez zmian. To zapis kolejności z żywej bazy
+z 2026-09-27 i plan tamtego wdrożenia. Nie wymienia 83 późniejszych migracji modułu, więc pełny
+dowód kolejności (bez `VERIFY_ONLY`) kończy się odmową, dopóki ktoś nie dopisze ich w kolejności
+faktycznie zastosowanej na produkcji, sprawdzonej zapytaniem tylko do odczytu. Dopisanie ich
+w kolejności wersji bez takiego sprawdzenia byłoby zmyśleniem historii produkcji. Zapytanie
+weryfikujące od kolejności nie zależy.
+
+Przy kolejnych zmianach migracji generujesz je tak (około minuty, klastry skrypt zatrzymuje sam):
+`DEPLOY_PROOF_VERIFY_ONLY=1 DEPLOY_PROOF_WRITE_VERIFY=scripts/deploy-order/weryfikacja-po-wdrozeniu.sql bash scripts/deploy-order-proof.sh scripts/deploy-order/produkcja.txt`.
+Plik spoza selektora, który zakłada obiekty modułu, dopisz do `weryfikacja.zakres.txt`.
 
 ## 3. Zakres tego PR (lista kontrolna)
 

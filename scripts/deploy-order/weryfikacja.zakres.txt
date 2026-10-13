@@ -1,0 +1,31 @@
+# Zakres zapytania weryfikujacego PONAD selektor modulu Wydarzen.
+# Czytane przez scripts/deploy-order-proof.sh przy generowaniu
+# scripts/deploy-order/weryfikacja-po-wdrozeniu.sql: funkcje, tabele, kolumny
+# i triggery zakladane przez ponizsze pliki dochodza do zakresu tak samo, jak
+# obiekty migracji modulu nowszych od LINII z pliku kolejnosci.
+#
+# PO CO. Selektor (scripts/events-harness/run.sh, MIGRATIONS=) lapie migracje
+# po tresci (`admin_event_`, `FUNCTION public.event_*(`); pliki serii REG
+# (PR #504), ktore definiuja WYLACZNIE funkcje platformy uzywane przez modul -
+# dziennik SMS, wypis z maili, DLQ poczty, konta zakladane przez administratora,
+# zgoda marketingowa w CRM - sa dla niego niewidzialne. Wczesniej ich obiekty
+# dopisywano do zapytania recznie (B5, 2732f8db) i kazde ponowne wygenerowanie
+# by je gubilo. Ich tabel platformy atrapa harnessu nie zna, dlatego zapytanie
+# generuje sie z pelnego odtworzenia (scripts/pgtap-local/run.sh migrate).
+#
+# ZASADY. Jedna nazwa pliku z supabase/migrations/ w wierszu, `#` zaczyna
+# komentarz. Tylko pliki, ktorych selektor NIE lapie - wpis o pliku z selektora
+# konczy generator odmowa (taki plik jest w zakresie bez wpisu). Wpis obowiazuje
+# niezaleznie od LINII. NIE dopisuj tu migracji innych modulow: zapytanie ma
+# odpowiadac na pytanie, czy wdrozenie modulu Wydarzen jest kompletne.
+#
+# Seria REG 20261012130500-190100 i uzgodnienia 20261013900000-900900: wszystkie
+# pozostale pliki lapie selektor (sprawdzone na drzewie PR #504).
+20261012131000_sms_send_log.sql                                    # REG-11: sms_send_log + trigger, sms_send_claim/_finish/_log_prune
+20261012133200_email_unsubscribe_withdraws_event_consent.sql       # REG-14: email_unsubscribe_by_token
+20261012160100_email_dlq_redaction_retention.sql                   # REG-17: _email_dlq_redact, email_dlq_prune, move_to_dlq
+20261012180800_auth_admin_provisioned_accounts_backfill.sql        # REG-01 (R12): _auth_admin_provisioned_backfill
+20261012180900_marketing_consent_unsubscribe_contact_crm_staff.sql # REG-02/14 (R12): email_unsubscribe_by_token, contact_messages_to_lead, crm_leads_marketing_consent_withdraw
+20261012182200_email_dlq_redact_unsubscribe_url.sql                # REG-17 (R67): _email_dlq_redact, email_dlq_prune
+20261012190100_event_people_unbind_after_r12.sql                   # REG-01 (D14): tylko dane - obiektow katalogu brak
+20261013900900_reg_main_merge_unbind_rerun.sql                     # REG-01 (D14): tylko dane - obiektow katalogu brak
