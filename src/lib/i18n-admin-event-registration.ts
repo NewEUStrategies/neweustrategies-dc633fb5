@@ -1269,6 +1269,12 @@ export const adminEventRegistrationPl = {
       ticketAddressSuppressed:
         "Na ten adres poczta nie wyśle biletu (lista wykluczeń) - dotychczasowy bilet nadal działa. Przekaż go inną drogą.",
       packageSoldOut: "Pula pakietów tego rodzaju została wyczerpana.",
+      // Jedna księga miejsc (20261012130000): pakiet trzyma miejsca na sali.
+      seatsExhausted: "Na sali nie ma tylu wolnych miejsc - zmniejsz liczbę miejsc w pakiecie.",
+      // Profil podatkowy pakietu (20261012130200).
+      invalidVatRate: "Stawka VAT musi być liczbą od 0 do 100.",
+      invalidTaxCode: "Kod podatkowy Stripe ma postać txcd_ i 8 cyfr.",
+      invalidExemptBasis: "Podstawa zwolnienia z VAT może mieć najwyżej 300 znaków - skróć ją.",
       packageInUse: "Pakiet ma {{count}} zamówień - wyłącz go zamiast usuwać.",
       seatTaken: "To miejsce jest już zajęte przez uczestnika.",
       seatRevoked: "To miejsce zostało wycofane.",
@@ -2482,6 +2488,10 @@ export const adminEventRegistrationEn = {
       ticketAddressSuppressed:
         "E-mail will not deliver a ticket to this address (suppression list) - the existing ticket still works. Hand it over another way.",
       packageSoldOut: "The pool of packages of this kind is exhausted.",
+      seatsExhausted: "The venue does not have that many free seats - reduce the package's seats.",
+      invalidVatRate: "The VAT rate must be a number from 0 to 100.",
+      invalidTaxCode: "A Stripe tax code looks like txcd_ followed by 8 digits.",
+      invalidExemptBasis: "The VAT exemption basis can have at most 300 characters - shorten it.",
       packageInUse: "The package has {{count}} orders - disable it instead of deleting.",
       seatTaken: "This seat is already taken by a participant.",
       seatRevoked: "This seat has been withdrawn.",

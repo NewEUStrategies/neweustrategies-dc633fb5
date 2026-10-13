@@ -10,12 +10,15 @@
 //      Baza rozstrzyga przyjęcie pod blokadą i może zostawić wpłatę w kolejce
 //      albo w oczekiwaniu na decyzję - wtedy RSVP (link wejścia) i mail
 //      „miejsce zarezerwowane" byłyby nieprawdą.
-//   2. Zamówienie ze zgłoszeniem (`metadata.registration_id`) NIE przechodzi
-//      przez `refundIfOversold`: tamta bramka liczy RSVP, nie zgłoszenia, i
-//      zwróciłaby wpłatę, którą baza właśnie zakolejkowała jako opłaconą.
+//   2. Miejsce RSVP zakupu BEZ zgłoszenia rozstrzyga baza pod blokadą
+//      (`_event_rsvp_claim_paid_seat`, TIX-08) - dopiero gdy odpowiedź bazy
+//      mówi `registration_not_found`. Zamówienie ze zgłoszeniem nigdy nie
+//      jest zwracane z księgi RSVP: baza stawia wpłatę w kolejce opłaconej.
 //   3. Zakleszczenie (40P01) i konflikt serializacji (40001) dostają JEDNO
-//      ponowienie - bez niego zakleszczenie z decyzją organizatora kończyło
-//      się wpłatą bez zgłoszenia, bo błąd RPC jest tu połykany.
+//      ponowienie. Błąd RPC przy WPŁACIE rzuca (TIX-05) - połknięty dawał
+//      RSVP i link wejścia przy nieopłaconym zgłoszeniu.
+//   4. Odmowa bazy (cudze zgłoszenie, zła kwota, druga wpłata) nie daje RSVP
+//      ani „miejsce zarezerwowane" - idzie zawiadomienie o odmowie.
 //
 // Atrapowane są wyłącznie granice: klient service_role, operator zwrotów,
 // nadanie uprawnienia, poczta i moduł powiadomień. RODO: dane syntetyczne.
@@ -41,7 +44,21 @@ const h = vi.hoisted(() => ({
   rpcCalls: [] as Array<{ fn: string; args: Record<string, unknown> }>,
   /** Odpowiedzi RPC po kolei; pusta kolejka = `{ data: null, error: null }`. */
   rpcReplies: [] as RpcReply[],
-  seat: "free" as "free" | "full" | "broken" | "thrown-string",
+  /**
+   * Odpowiedź `_event_rsvp_claim_paid_seat`: `free`/`full` - decyzja bazy,
+   * `broken` - błąd RPC; `legacy-*` - funkcji jeszcze nie ma (migracja przed
+   * kodem), więc idzie dawny odczyt `assertSeatAvailable` z danym skutkiem.
+   */
+  seat: "free" as
+    | "free"
+    | "full"
+    | "broken"
+    | "legacy-free"
+    | "legacy-full"
+    | "legacy-broken"
+    | "legacy-thrown-string",
+  claimCalls: [] as Array<Record<string, unknown>>,
+  refusals: [] as unknown[],
   refund: { ok: true, adjustmentId: "adj_1" } as
     { ok: true; adjustmentId: string | null } | { ok: false; error: string },
   notifyPayloads: [] as unknown[],
@@ -63,9 +80,27 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       return h.stub.from(table);
     },
     rpc: async (fn: string, args: Record<string, unknown>) => {
+      if (fn === "_event_rsvp_claim_paid_seat") {
+        h.log.push("rpc:claim");
+        h.claimCalls.push(args);
+        if (h.seat === "full") return { data: { ok: false, reason: "event_full" }, error: null };
+        if (h.seat === "broken") {
+          return { data: null, error: { code: "XX000", message: "test: odczyt pojemności padł" } };
+        }
+        if (h.seat.startsWith("legacy-")) {
+          return { data: null, error: { code: "PGRST202", message: "test: brak funkcji" } };
+        }
+        return { data: { ok: true, seated: true, already: false }, error: null };
+      }
       h.log.push(`rpc:${String(args["p_outcome"])}`);
       h.rpcCalls.push({ fn, args });
-      return h.rpcReplies.shift() ?? { data: null, error: null };
+      // Domyślnie: zakup bez zgłoszenia z formularza (ścieżka RSVP).
+      return (
+        h.rpcReplies.shift() ?? {
+          data: { applied: false, reason: "registration_not_found" },
+          error: null,
+        }
+      );
     },
   },
 }));
@@ -79,9 +114,10 @@ vi.mock("@/lib/billing/grant.server", () => ({
 
 vi.mock("@/lib/events/ticket.server", () => ({
   assertSeatAvailable: async () => {
-    if (h.seat === "full") throw new Error("event_full");
-    if (h.seat === "broken") throw new Error("test: odczyt pojemności padł");
-    if (h.seat === "thrown-string") throw "test: rzut bez obiektu Error";
+    h.log.push("seat:legacy");
+    if (h.seat === "legacy-full") throw new Error("event_full");
+    if (h.seat === "legacy-broken") throw new Error("test: odczyt pojemności padł");
+    if (h.seat === "legacy-thrown-string") throw "test: rzut bez obiektu Error";
   },
 }));
 
@@ -124,6 +160,10 @@ vi.mock("@/lib/events/registrationOutcomeNotify.server", () => ({
     if (h.notifyThrows) throw new Error("test: powiadomienie padło");
     return { emailed: false, smsSent: false, promotedNotified: 0, organizerAlerted: 0 };
   },
+  notifyTicketRefusal: async (payload: unknown) => {
+    h.log.push("notify:refusal");
+    h.refusals.push(payload);
+  },
 }));
 
 vi.mock("@/lib/events/ticketCodeNotify.server", () => ({
@@ -145,6 +185,8 @@ import {
   applyTicketOutcome,
   fulfilOneTimeTransaction,
   markOneTimePaymentFailed,
+  runUnsettledFreeTicketOrders,
+  settleFreeTicketOrder,
   type OneTimeTransaction,
 } from "@/lib/billing/oneTimeFulfilment.server";
 
@@ -168,6 +210,8 @@ interface OrderRow {
   currency: string | null;
   metadata: Record<string, unknown> | null;
   environment?: string;
+  status?: string;
+  provider?: string;
 }
 
 function orderRow(over: Partial<OrderRow> = {}): OrderRow {
@@ -226,6 +270,8 @@ beforeEach(() => {
   h.rpcCalls.length = 0;
   h.rpcReplies.length = 0;
   h.seat = "free";
+  h.claimCalls.length = 0;
+  h.refusals.length = 0;
   h.refund = { ok: true, adjustmentId: "adj_1" };
   h.notifyPayloads.length = 0;
   h.notifyThrows = false;
@@ -386,6 +432,27 @@ describe("fulfilOrder - odczyt zamówienia", () => {
 
 // --- 3. księgowanie i zamówienie bez wydarzenia -----------------------------
 
+describe("fulfilOrder - zamówienie już zwrócone", () => {
+  it("ponowiony webhook NIE przestawia zwrotu z powrotem na opłacone ani nie wydaje skutków", async () => {
+    // Dyspozytor ponawia `transaction.completed` po błędzie zapisu dokumentu;
+    // zamówienie zdążyło już przejść zwrot (odmowa wpłaty, pełna sala).
+    givenOrder(orderRow({ status: "refunded" }));
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("skipped");
+    expect(h.grants).toHaveLength(0);
+    expect(paidPatch()).toBeUndefined();
+    expect(h.rpcCalls).toHaveLength(0);
+    expect(h.eventMails).toHaveLength(0);
+  });
+
+  it("anulowane zamówienie z opłaconą sesją JEST rozliczane - to realna wpłata", async () => {
+    givenOrder(orderRow({ status: "canceled" }));
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
+    expect(paidPatch()).toMatchObject({ status: "paid" });
+  });
+});
+
 describe("fulfilOrder - księgowanie", () => {
   it("brak kwoty i waluty w transakcji spada na zamówienie, a waluta idzie wielkimi literami", async () => {
     givenOrder(orderRow({ metadata: null, currency: "eur", amount_cents: 9_900 }));
@@ -493,19 +560,30 @@ describe("fulfilOrder - księgowanie", () => {
   });
 });
 
-// --- 4. bramka miejsc (krok 0) ----------------------------------------------
+// --- 4. miejsce RSVP zakupu bez zgłoszenia (TIX-08) -------------------------
 
-describe("krok 0 - bramka miejsc tylko dla zakupu bez zgłoszenia", () => {
+describe("miejsce RSVP zakupu bez zgłoszenia - decyzja bazy pod blokadą", () => {
   it("zamówienie ze zgłoszeniem NIE jest zwracane z księgi RSVP - decyduje baza", async () => {
-    // Pełna sala według RSVP, ale zamówienie niesie `registration_id`: baza
-    // rozstrzyga pod blokadą i stawia wpłatę w kolejce opłaconej.
+    // Baza rozstrzyga pod blokadą i stawia wpłatę w kolejce opłaconej - bez
+    // zajmowania miejsca RSVP i bez zwrotu.
     h.seat = "full";
     givenOrder(orderRow({ metadata: { event_id: EVENT, registration_id: REG } }));
     h.rpcReplies.push(rpcPaid({ registration_status: "waitlist", waitlist_position: 2 }));
 
     expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
     expect(h.log).not.toContain("refund");
+    expect(h.claimCalls).toHaveLength(0);
     expect(h.rpcCalls.map((c) => c.args["p_outcome"])).toEqual(["paid"]);
+  });
+
+  it("wolne miejsce: baza zajmuje je pod blokadą, potem mail o wydarzeniu", async () => {
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
+    expect(h.claimCalls).toEqual([{ p_order_id: ORDER_ID }]);
+    expect(h.log.indexOf("rpc:claim")).toBeGreaterThan(h.log.indexOf("rpc:paid"));
+    expect(h.log.indexOf("mail:event")).toBeGreaterThan(h.log.indexOf("rpc:claim"));
+    // RSVP zapisuje funkcja bazy - TS nie pisze go drugi raz poza blokadą.
+    expect(rsvpRows()).toHaveLength(0);
+    expect(h.eventMails).toHaveLength(1);
   });
 
   it("zakup bez zgłoszenia przy pełnej sali: zwrot, zamówienie zamknięte, bez dzwonka bez najemcy", async () => {
@@ -521,14 +599,14 @@ describe("krok 0 - bramka miejsc tylko dla zakupu bez zgłoszenia", () => {
     expect(flip?.argsOf("update")?.[0]).toMatchObject({ status: "refunded", provider: "stripe" });
     expect(flip?.argsOf("update")?.[0]).not.toHaveProperty("receipt_email");
     // Zgłoszenie (jeśli było) dostaje wynik `refunded` - kolejka rusza.
-    expect(h.rpcCalls.map((c) => c.args["p_outcome"])).toEqual(["refunded"]);
+    expect(h.rpcCalls.map((c) => c.args["p_outcome"])).toEqual(["paid", "refunded"]);
     expect(h.refundMails[0]).toMatchObject({
       userId: USER,
       idempotencySeed: `oversold:${ORDER_ID}`,
     });
     // Wpis dzwonka bez najemcy wyświetlałby się wszystkim albo nikomu.
     expect(stub().chainsFor("notifications")).toHaveLength(0);
-    expect(h.grants).toHaveLength(0);
+    expect(h.eventMails).toHaveLength(0);
   });
 
   it("zwrot przy pełnej sali z najemcą zostawia dzwonek i adres na rachunku", async () => {
@@ -546,18 +624,47 @@ describe("krok 0 - bramka miejsc tylko dla zakupu bez zgłoszenia", () => {
     });
   });
 
-  it.each([
-    ["inny błąd odczytu pojemności", "broken" as const, "test: odczyt pojemności padł"],
-    ["rzut bez obiektu Error", "thrown-string" as const, "test: rzut bez obiektu Error"],
-  ])("%s NIE jest pełną salą - rzuca dalej, bez zwrotu", async (_label, seat, message) => {
-    h.seat = seat;
+  it("błąd zajęcia miejsca NIE jest pełną salą - rzuca dalej, bez zwrotu", async () => {
+    h.seat = "broken";
 
-    await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toSatisfy((err: unknown) =>
-      err instanceof Error ? err.message === message : err === message,
+    await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toThrow(
+      `one-time: rsvp seat claim failed (${ORDER_ID}): test: odczyt pojemności padł`,
     );
     expect(h.log).not.toContain("refund");
-    expect(h.grants).toHaveLength(0);
+    expect(h.eventMails).toHaveLength(0);
   });
+
+  it("okno wdrożenia (brak funkcji w bazie): dawny odczyt miejsc i RSVP z kodu", async () => {
+    h.seat = "legacy-free";
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
+    expect(h.log).toContain("seat:legacy");
+    expect(rsvpRows()[0]).toMatchObject({ event_id: EVENT, user_id: USER, status: "going" });
+    expect(h.eventMails).toHaveLength(1);
+  });
+
+  it("okno wdrożenia przy pełnej sali: zwrot", async () => {
+    h.seat = "legacy-full";
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("oversold_refunded");
+    expect(h.log).toContain("refund");
+    expect(rsvpRows()).toHaveLength(0);
+  });
+
+  it.each([
+    ["inny błąd odczytu pojemności", "legacy-broken" as const, "test: odczyt pojemności padł"],
+    ["rzut bez obiektu Error", "legacy-thrown-string" as const, "test: rzut bez obiektu Error"],
+  ])(
+    "okno wdrożenia: %s NIE jest pełną salą - rzuca dalej, bez zwrotu",
+    async (_l, seat, message) => {
+      h.seat = seat;
+
+      await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toSatisfy((err: unknown) =>
+        err instanceof Error ? err.message === message : err === message,
+      );
+      expect(h.log).not.toContain("refund");
+    },
+  );
 
   it("odmowa zwrotu u operatora RZUCA - sprawa nie jest zamknięta", async () => {
     h.seat = "full";
@@ -569,7 +676,7 @@ describe("krok 0 - bramka miejsc tylko dla zakupu bez zgłoszenia", () => {
     expect(
       stub()
         .chainsFor("payment_orders")
-        .filter((c) => c.has("update")),
+        .filter((c) => c.has("update") && !c.has("neq")),
     ).toHaveLength(0);
   });
 
@@ -633,17 +740,42 @@ describe("kroki 4-5 - najpierw baza, potem RSVP i „miejsce zarezerwowane”", 
     },
   );
 
-  it("`applied: false` (zakup bez zgłoszenia): dotychczasowe RSVP i mail", async () => {
-    h.rpcReplies.push({ data: { applied: false, reason: "no_registration" }, error: null });
+  it("`registration_not_found` (zakup bez zgłoszenia): miejsce RSVP z bazy i mail", async () => {
+    h.rpcReplies.push({ data: { applied: false, reason: "registration_not_found" }, error: null });
 
     await fulfilOneTimeTransaction(txn(), "sandbox");
 
-    expect(rsvpRows()).toHaveLength(1);
+    expect(h.claimCalls).toHaveLength(1);
     expect(h.eventMails).toHaveLength(1);
     expect(h.issued).toHaveLength(0);
   });
 
+  it.each([
+    "already_settled_by_another_order",
+    "registration_not_owned",
+    "amount_mismatch",
+    "registration_mismatch",
+  ])(
+    "odmowa bazy (%s): bez RSVP, bez „miejsce zarezerwowane”, zawiadomienie o odmowie (TIX-05)",
+    async (reason) => {
+      givenOrder(orderRow({ metadata: { event_id: EVENT, registration_id: REG } }));
+      const refusal = { applied: false, refused: true, reason, refund_queued: true };
+      h.rpcReplies.push({ data: refusal, error: null });
+
+      expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
+      expect(rsvpRows()).toHaveLength(0);
+      expect(h.claimCalls).toHaveLength(0);
+      expect(h.eventMails).toHaveLength(0);
+      expect(h.issued).toHaveLength(0);
+      expect(h.refusals).toEqual([refusal]);
+      expect(h.notifyPayloads).toHaveLength(0);
+      // Księgi tak: wpłata jest pobrana, zwrot czeka w kolejce bazy.
+      expect(paidPatch()).toMatchObject({ status: "paid" });
+    },
+  );
+
   it("nieudane RSVP RZUCA - webhook ma dokończyć potwierdzenie", async () => {
+    h.rpcReplies.push(rpcPaid({ registration_status: "approved" }));
     rsvpResponse = fail("rsvp odrzucone");
 
     await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toThrow(
@@ -678,11 +810,15 @@ describe("applyTicketOutcome - jedno ponowienie przy zakleszczeniu", () => {
     expect(h.eventMails).toHaveLength(0);
   });
 
-  it("40001 dwa razy: `null`, ślad w logu, a webhook idzie starą ścieżką z RSVP", async () => {
+  it("40001 dwa razy przy WPŁACIE: wyjątek (webhook ponowi), bez RSVP i bez maila (TIX-05)", async () => {
+    // Dawniej `null` szło „starą ścieżką z RSVP": link wejścia i „miejsce
+    // zarezerwowane" przy nieopłaconym zgłoszeniu bez kodu QR.
     h.rpcReplies.push(rpcError("40001"));
     h.rpcReplies.push(rpcError("40001", "could not serialize access"));
 
-    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
+    await expect(fulfilOneTimeTransaction(txn(), "sandbox")).rejects.toThrow(
+      `one-time: ticket outcome failed (${ORDER_ID}): could not serialize access`,
+    );
     expect(h.rpcCalls).toHaveLength(2);
     expect(errorSpy).toHaveBeenCalledWith(
       "[payments] ticket outcome failed",
@@ -691,19 +827,32 @@ describe("applyTicketOutcome - jedno ponowienie przy zakleszczeniu", () => {
       "could not serialize access",
     );
     expect(h.notifyPayloads).toHaveLength(0);
-    expect(rsvpRows()).toHaveLength(1);
-    expect(h.eventMails).toHaveLength(1);
+    expect(rsvpRows()).toHaveLength(0);
+    expect(h.claimCalls).toHaveLength(0);
+    expect(h.eventMails).toHaveLength(0);
   });
 
   it.each([
     ["inny SQLSTATE", "23514"],
     ["błąd bez kodu", undefined],
-  ] as const)("%s: bez ponowienia, `null`", async (_label, code) => {
+  ] as const)("%s przy wpłacie: bez ponowienia, wyjątek", async (_label, code) => {
     h.rpcReplies.push(rpcError(code));
 
-    expect(await applyTicketOutcome(ORDER_ID, "paid")).toBeNull();
+    await expect(applyTicketOutcome(ORDER_ID, "paid")).rejects.toThrow(
+      "one-time: ticket outcome failed",
+    );
     expect(h.rpcCalls).toHaveLength(1);
     expect(h.issued).toHaveLength(0);
+  });
+
+  it.each([
+    ["inny SQLSTATE", "23514"],
+    ["błąd bez kodu", undefined],
+  ] as const)("%s przy zwrocie: bez ponowienia, `null` (miękki skutek)", async (_label, code) => {
+    h.rpcReplies.push(rpcError(code));
+
+    expect(await applyTicketOutcome(ORDER_ID, "refunded")).toBeNull();
+    expect(h.rpcCalls).toHaveLength(1);
   });
 });
 
@@ -713,12 +862,16 @@ describe("applyTicketOutcome - ładunek, powiadomienie i bilety", () => {
     ["tablica", [{ registration_id: REG }]],
     ["napis", "ok"],
   ] as const)(
-    "odpowiedź nie-obiekt (%s): powiadomienie dostaje `{}`, biletów nie ma",
+    "odpowiedź nie-obiekt (%s): przy wpłacie wyjątek, przy zwrocie `null` - bez powiadomień i biletów",
     async (_l, data) => {
       h.rpcReplies.push({ data, error: null });
+      await expect(applyTicketOutcome(ORDER_ID, "paid")).rejects.toThrow(
+        `one-time: ticket outcome unreadable (${ORDER_ID})`,
+      );
 
-      expect(await applyTicketOutcome(ORDER_ID, "paid")).toBeNull();
-      expect(h.notifyPayloads).toEqual([{}]);
+      h.rpcReplies.push({ data, error: null });
+      expect(await applyTicketOutcome(ORDER_ID, "refunded")).toBeNull();
+      expect(h.notifyPayloads).toHaveLength(0);
       expect(h.issued).toHaveLength(0);
     },
   );
@@ -798,5 +951,195 @@ describe("markOneTimePaymentFailed", () => {
     await markOneTimePaymentFailed(customData === null ? null : { ...customData });
 
     expect(h.rpcCalls).toHaveLength(0);
+  });
+});
+
+// --- 8. bilet za zero (kod 100%, TIX-13a) -------------------------------------
+
+describe("settleFreeTicketOrder - bilet za zero bez operatora", () => {
+  const COUPON = "66666666-ffff-4fff-8fff-666666666666";
+
+  function freeOrder(over: Partial<OrderRow> = {}): OrderRow {
+    return orderRow({
+      amount_cents: 0,
+      status: "pending",
+      provider: "coupon",
+      metadata: { event_id: EVENT, coupon_id: COUPON },
+      ...over,
+    });
+  }
+
+  it("rozlicza zamówienie tą samą ścieżką co wpłata: uprawnienie, księga, baza, miejsce", async () => {
+    givenOrder(freeOrder());
+
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({ outcome: "order", seated: true });
+    expect(paidPatch()).toMatchObject({
+      status: "paid",
+      provider: "coupon",
+      provider_intent_id: `free_${ORDER_ID}`,
+      amount_cents: 0,
+    });
+    expect(h.rpcCalls.map((c) => c.args["p_outcome"])).toEqual(["paid"]);
+    expect(h.claimCalls).toEqual([{ p_order_id: ORDER_ID }]);
+    expect(h.eventMails).toHaveLength(1);
+    expect(h.log).not.toContain("refund");
+  });
+
+  it("pełna sala: zamówienie anulowane i kod zwolniony - bez zwrotu u operatora", async () => {
+    givenOrder(freeOrder());
+    h.seat = "full";
+
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({
+      outcome: "oversold_refunded",
+      seated: false,
+    });
+    const flip = stub()
+      .chainsFor("payment_orders")
+      .find((c) => c.has("update") && !c.has("neq"));
+    expect(flip?.argsOf("update")?.[0]).toMatchObject({ status: "canceled" });
+    expect(h.log).not.toContain("refund");
+    expect(h.eventMails).toHaveLength(0);
+  });
+
+  it("zgłoszenie w kolejce: rozliczone, ale BEZ potwierdzonego miejsca - kasa nie obiecuje sukcesu", async () => {
+    givenOrder(
+      freeOrder({ metadata: { event_id: EVENT, coupon_id: COUPON, registration_id: REG } }),
+    );
+    h.rpcReplies.push(rpcPaid({ registration_status: "waitlist", waitlist_position: 2 }));
+
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({ outcome: "order", seated: false });
+    expect(h.eventMails).toHaveLength(0);
+  });
+
+  it("PONOWIENIE zamówienia już zaksięgowanego (rozliczenie urwane po księgowaniu) przechodzi idempotentnie", async () => {
+    // Darmowe zamówienie nie ma webhooka, który ponowiłby rozliczenie - robi to
+    // tick zadań, a zamówienie stoi już na `paid`.
+    givenOrder(freeOrder({ status: "paid" }));
+
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({ outcome: "order", seated: true });
+    expect(h.rpcCalls.map((c) => c.args["p_outcome"])).toEqual(["paid"]);
+    expect(h.claimCalls).toEqual([{ p_order_id: ORDER_ID }]);
+    // Księgowanie nie stempluje `paid_at` drugi raz (`.neq("status", "paid")`).
+    const flip = stub()
+      .chainsFor("payment_orders")
+      .find((c) => c.has("update") && c.has("neq"));
+    expect(flip?.argsOf("neq")).toEqual(["status", "paid"]);
+  });
+
+  it.each([
+    ["kwota dodatnia", { amount_cents: 100 }],
+    ["zamówienie anulowane (kod wrócił)", { status: "canceled" }],
+    ["zamówienie zwrócone", { status: "refunded" }],
+    ["zamówienie operatora", { provider: "stripe" }],
+    ["bez kodu w metadanych", { metadata: { event_id: EVENT } }],
+    ["bez wydarzenia", { metadata: { coupon_id: COUPON } }],
+    ["subskrypcja", { kind: "subscription" }],
+  ] as const)("%s: pominięte - nic nie jest oznaczane jako opłacone", async (_label, over) => {
+    givenOrder(freeOrder(over as Partial<OrderRow>));
+
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({ outcome: "skipped", seated: false });
+    expect(h.grants).toHaveLength(0);
+    expect(paidPatch()).toBeUndefined();
+    expect(h.rpcCalls).toHaveLength(0);
+  });
+
+  it("nieznane zamówienie: pominięte", async () => {
+    givenOrder(null);
+
+    expect(await settleFreeTicketOrder(ORDER_ID)).toEqual({ outcome: "skipped", seated: false });
+    expect(h.grants).toHaveLength(0);
+  });
+});
+
+// --- 9. ponowienia darmowych zamówień (tick zadań) ---------------------------
+
+describe("runUnsettledFreeTicketOrders - ponowienie urwanego rozliczenia", () => {
+  const COUPON = "66666666-ffff-4fff-8fff-666666666666";
+
+  /** Klient roli serwisowej ticka - tylko odczyt listy z bazy. */
+  function lister(reply: { data: unknown; error: { code?: string; message: string } | null }) {
+    const calls: Array<{ fn: string; args: unknown }> = [];
+    return {
+      calls,
+      client: {
+        rpc: async (fn: string, args: unknown) => {
+          calls.push({ fn, args });
+          return reply;
+        },
+      } as unknown as Parameters<typeof runUnsettledFreeTicketOrders>[0],
+    };
+  }
+
+  beforeEach(() => {
+    givenOrder(
+      orderRow({
+        amount_cents: 0,
+        status: "paid",
+        provider: "coupon",
+        metadata: { event_id: EVENT, coupon_id: COUPON },
+      }),
+    );
+  });
+
+  it("rozlicza każde wskazane zamówienie tą samą ścieżką i liczy wynik", async () => {
+    const { client, calls } = lister({ data: [ORDER_ID, ORDER_ID], error: null });
+
+    expect(await runUnsettledFreeTicketOrders(client, 7, Date.now() + 5_000)).toEqual({
+      claimed: 2,
+      settled: 2,
+      failed: 0,
+      deferred: 0,
+    });
+    expect(calls).toEqual([{ fn: "_event_free_ticket_orders_unsettled", args: { p_limit: 7 } }]);
+    expect(h.claimCalls).toHaveLength(2);
+  });
+
+  it("błąd jednego zamówienia nie zatrzymuje kolejnych - wróci w następnym ticku", async () => {
+    const { client } = lister({ data: [ORDER_ID, ORDER_ID], error: null });
+    h.rpcReplies.push(rpcError("XX000", "test: baza chwilowo niedostępna"));
+
+    expect(await runUnsettledFreeTicketOrders(client, 10, Date.now() + 5_000)).toEqual({
+      claimed: 2,
+      settled: 1,
+      failed: 1,
+      deferred: 0,
+    });
+    expect(errorMessages().some((m) => m.includes("free ticket order retry failed"))).toBe(true);
+  });
+
+  it("zamówienie odrzucone przez strażnika (np. anulowane w międzyczasie) to porażka, nie rozliczenie", async () => {
+    givenOrder(orderRow({ amount_cents: 0, status: "canceled", provider: "coupon" }));
+    const { client } = lister({ data: [ORDER_ID], error: null });
+
+    expect(await runUnsettledFreeTicketOrders(client)).toMatchObject({ settled: 0, failed: 1 });
+    expect(h.rpcCalls).toHaveLength(0);
+  });
+
+  it("po terminie nie pyta bazy; zamówienia ponad termin są odkładane", async () => {
+    const early = lister({ data: [ORDER_ID], error: null });
+    expect(await runUnsettledFreeTicketOrders(early.client, 10, Date.now() - 1)).toEqual({
+      claimed: 0,
+      settled: 0,
+      failed: 0,
+      deferred: 0,
+    });
+    expect(early.calls).toHaveLength(0);
+  });
+
+  it("brak funkcji w bazie (migracja przed kodem) to jawne pominięcie, nie cisza", async () => {
+    const { client } = lister({ data: null, error: { code: "PGRST202", message: "no function" } });
+
+    expect(await runUnsettledFreeTicketOrders(client)).toMatchObject({
+      claimed: 0,
+      skipped: "migration_pending",
+    });
+  });
+
+  it("inny błąd odczytu listy rzuca - tor zadań raportuje go w logu przebiegów", async () => {
+    const { client } = lister({ data: null, error: { code: "XX000", message: "boom" } });
+
+    await expect(runUnsettledFreeTicketOrders(client)).rejects.toThrow(
+      "free ticket orders lookup failed",
+    );
   });
 });

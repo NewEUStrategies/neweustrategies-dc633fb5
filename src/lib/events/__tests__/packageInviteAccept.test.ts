@@ -163,10 +163,30 @@ describe("acceptPackageInvite - odczyt odpowiedzi", () => {
       registrationId: REGISTRATION_ID,
       eventId: EVENT_ID,
       status: "approved",
+      awaitingPayment: false,
       qrToken: QR_TOKEN,
       manageToken: MANAGE_TOKEN,
     });
   });
+
+  // TIX-07: pakiet jeszcze nieopłacony - zgłoszenie czeka, kodu wejścia nie ma.
+  it.each([
+    ["jawny znacznik bazy", { status: "pending", awaiting_payment: true }],
+    ["sam status oczekujący", { status: "pending" }],
+  ])(
+    "miejsce z nieopłaconego pakietu czyta się jako „czeka na płatność” (%s)",
+    async (_n, over) => {
+      rpc().setData("event_package_invite_accept", {
+        registration_id: REGISTRATION_ID,
+        event_id: EVENT_ID,
+        manage_token: MANAGE_TOKEN,
+        ...over,
+      });
+
+      const result = await api.acceptPackageInvite(accepting);
+      expect(result).toMatchObject({ status: "pending", awaitingPayment: true, qrToken: null });
+    },
+  );
 
   // Pusty kod to BRAK kodu. Napis pusty przepuszczony dalej narysowalby pusta
   // ramke kodu QR i przycisk samoobslugi prowadzacy donikad - a zapraszany nie
@@ -183,9 +203,10 @@ describe("acceptPackageInvite - odczyt odpowiedzi", () => {
     expect(result.qrToken).toBeNull();
     expect(result.manageToken).toBeNull();
     expect(result.eventId).toBeNull();
-    // Miejsce oplacil platnik, wiec zapis wchodzi zatwierdzony
-    // (`20260827221214:688`) - brak statusu w odpowiedzi czyta sie tak samo.
+    // Baza sprzed 20261012130000 przyjmowala od razu - brak statusu w
+    // odpowiedzi czyta sie jako zatwierdzone, bez oczekiwania na platnosc.
     expect(result.status).toBe("approved");
+    expect(result.awaitingPayment).toBe(false);
   });
 
   // Miejsce moglo zostac przypisane, ale bez identyfikatora nie umiemy go ani

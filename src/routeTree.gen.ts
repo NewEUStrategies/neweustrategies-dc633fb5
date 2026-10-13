@@ -202,6 +202,7 @@ import { Route as AdminCommentsRouteImport } from './routes/admin.comments'
 import { Route as AdminCategoryColorsRouteImport } from './routes/admin.category-colors'
 import { Route as AdminCategoriesRouteImport } from './routes/admin.categories'
 import { Route as AdminCareersRouteImport } from './routes/admin.careers'
+import { Route as AdminBillingSettlementsRouteImport } from './routes/admin.billing-settlements'
 import { Route as AdminBillingReconcileRouteImport } from './routes/admin.billing-reconcile'
 import { Route as AdminBillingAuditRouteImport } from './routes/admin.billing-audit'
 import { Route as AdminBillingRouteImport } from './routes/admin.billing'
@@ -1397,6 +1398,11 @@ const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
 const AdminCareersRoute = AdminCareersRouteImport.update({
   id: '/careers',
   path: '/careers',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminBillingSettlementsRoute = AdminBillingSettlementsRouteImport.update({
+  id: '/billing-settlements',
+  path: '/billing-settlements',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminBillingReconcileRoute = AdminBillingReconcileRouteImport.update({
@@ -2693,6 +2699,7 @@ export interface FileRoutesByFullPath {
   '/admin/billing': typeof AdminBillingRoute
   '/admin/billing-audit': typeof AdminBillingAuditRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
+  '/admin/billing-settlements': typeof AdminBillingSettlementsRoute
   '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
@@ -3108,6 +3115,7 @@ export interface FileRoutesByTo {
   '/admin/billing': typeof AdminBillingRoute
   '/admin/billing-audit': typeof AdminBillingAuditRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
+  '/admin/billing-settlements': typeof AdminBillingSettlementsRoute
   '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
@@ -3517,6 +3525,7 @@ export interface FileRoutesById {
   '/admin/billing': typeof AdminBillingRoute
   '/admin/billing-audit': typeof AdminBillingAuditRoute
   '/admin/billing-reconcile': typeof AdminBillingReconcileRoute
+  '/admin/billing-settlements': typeof AdminBillingSettlementsRoute
   '/admin/careers': typeof AdminCareersRoute
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/category-colors': typeof AdminCategoryColorsRoute
@@ -3940,6 +3949,7 @@ export interface FileRouteTypes {
     | '/admin/billing'
     | '/admin/billing-audit'
     | '/admin/billing-reconcile'
+    | '/admin/billing-settlements'
     | '/admin/careers'
     | '/admin/categories'
     | '/admin/category-colors'
@@ -4355,6 +4365,7 @@ export interface FileRouteTypes {
     | '/admin/billing'
     | '/admin/billing-audit'
     | '/admin/billing-reconcile'
+    | '/admin/billing-settlements'
     | '/admin/careers'
     | '/admin/categories'
     | '/admin/category-colors'
@@ -4763,6 +4774,7 @@ export interface FileRouteTypes {
     | '/admin/billing'
     | '/admin/billing-audit'
     | '/admin/billing-reconcile'
+    | '/admin/billing-settlements'
     | '/admin/careers'
     | '/admin/categories'
     | '/admin/category-colors'
@@ -6605,6 +6617,13 @@ declare module '@tanstack/react-router' {
       path: '/careers'
       fullPath: '/admin/careers'
       preLoaderRoute: typeof AdminCareersRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/billing-settlements': {
+      id: '/admin/billing-settlements'
+      path: '/billing-settlements'
+      fullPath: '/admin/billing-settlements'
+      preLoaderRoute: typeof AdminBillingSettlementsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/billing-reconcile': {
@@ -8657,6 +8676,7 @@ interface AdminRouteChildren {
   AdminBillingRoute: typeof AdminBillingRoute
   AdminBillingAuditRoute: typeof AdminBillingAuditRoute
   AdminBillingReconcileRoute: typeof AdminBillingReconcileRoute
+  AdminBillingSettlementsRoute: typeof AdminBillingSettlementsRoute
   AdminCareersRoute: typeof AdminCareersRoute
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminCategoryColorsRoute: typeof AdminCategoryColorsRoute
@@ -8737,6 +8757,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminBillingRoute: AdminBillingRoute,
   AdminBillingAuditRoute: AdminBillingAuditRoute,
   AdminBillingReconcileRoute: AdminBillingReconcileRoute,
+  AdminBillingSettlementsRoute: AdminBillingSettlementsRoute,
   AdminCareersRoute: AdminCareersRoute,
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminCategoryColorsRoute: AdminCategoryColorsRoute,

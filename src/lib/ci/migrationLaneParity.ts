@@ -755,11 +755,11 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     twin: "20261012123000_event_speaker_detail_safe_projection.sql",
   },
   {
-    tag: "0164_author_profiles_public_drop_contact_email",
+    tag: "0171_author_profiles_public_drop_contact_email",
     twin: "20261012200000_author_profiles_public_drop_contact_email.sql",
   },
   {
-    tag: "0165_public_definer_views_read_only",
+    tag: "0172_public_definer_views_read_only",
     twin: "20261012210000_public_definer_views_read_only.sql",
   },
 ];

@@ -388,7 +388,7 @@ describe("createCheckoutOrder - odmowy na ścieżce planu", () => {
   it("plan za zero złotych nie zakłada zamówienia (`zero_amount`)", async () => {
     // Darmowy plan nie jest przedmiotem kasy - zamówienie na 0 zł przeszłoby
     // przez webhook jako opłacone i nadało uprawnienie bez płatności.
-    chain.setResponse("access_plans", ok(planQuote({ price_cents: 0 })));
+    chain.setResponse("access_plans", ok(planQuote({ price_cents: 0, interval: "one_time" })));
 
     await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("zero_amount");
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
@@ -523,7 +523,13 @@ describe("createCheckoutOrder - wycena planu", () => {
     // po co pytać katalogu operatora o cenę subskrypcyjną.
     chain.setResponse(
       "access_plans",
-      ok(planQuote({ tier_key: "warstwa-spoza-katalogu", price_cents: 29900 })),
+      ok(
+        planQuote({
+          tier_key: "warstwa-spoza-katalogu",
+          price_cents: 29900,
+          interval: "one_time",
+        }),
+      ),
     );
 
     const result = await call(planPayload({ kind: "one_time" }));
@@ -1036,5 +1042,77 @@ describe("createCheckoutOrder - walidacja wejścia", () => {
 
   it("waluta prezentacji spoza listy jest odrzucana", async () => {
     await expect(call(planPayload({ display_currency: "USD" }))).rejects.toThrow();
+  });
+});
+
+describe("createCheckoutOrder - jedna ścieżka wyceny na zamówienie (TIX-01, TIX-02, TIX-12)", () => {
+  const REGISTRATION_ID = "abababab-0000-4000-8000-000000000007";
+
+  /** Odmowa walidatora: żadnego odczytu z bazy, żadnego zamówienia. */
+  async function expectRefusedBeforeDb(payload: Record<string, unknown>, reason: string) {
+    await expect(call(payload)).rejects.toThrow(reason);
+    expect(chain.chains).toHaveLength(0);
+    expect(admin.rpcCalls).toHaveLength(0);
+  }
+
+  it("plan jednorazowy z biletem i cudzym zgłoszeniem: odmowa, zanim cokolwiek zostanie wycenione", async () => {
+    // Zamówienie wycenione planem, a w metadanych zgłoszenie VIP - webhook
+    // rozliczyłby nim cudzy bilet.
+    await expectRefusedBeforeDb(
+      planPayload({ kind: "one_time", event_id: EVENT_ID, registration_id: REGISTRATION_ID }),
+      "ticket_payload_conflict",
+    );
+  });
+
+  it("treść za 15 zł z biletem i zgłoszeniem: odmowa", async () => {
+    await expectRefusedBeforeDb(
+      entityPayload({
+        event_id: EVENT_ID,
+        ticket_type_id: TICKET_ID,
+        registration_id: REGISTRATION_ID,
+      }),
+      "ticket_payload_conflict",
+    );
+  });
+
+  it("zgłoszenie bez biletu z cennika: odmowa (własność sprawdza tylko gałąź cennika)", async () => {
+    await expectRefusedBeforeDb(
+      ticketPayload({ registration_id: REGISTRATION_ID }),
+      "registration_requires_ticket",
+    );
+  });
+
+  it("bilet z cennika bez wydarzenia: odmowa", async () => {
+    await expectRefusedBeforeDb(
+      entityPayload({ ticket_type_id: TICKET_ID }),
+      "ticket_requires_event",
+    );
+  });
+
+  it("subskrypcja z biletem: odmowa", async () => {
+    await expectRefusedBeforeDb(
+      planPayload({ event_id: EVENT_ID, ticket_type_id: TICKET_ID }),
+      "subscription_payload_conflict",
+    );
+  });
+
+  it("treść z planem: odmowa", async () => {
+    await expectRefusedBeforeDb(entityPayload({ plan_id: PLAN_ID }), "entity_payload_conflict");
+  });
+
+  it("bilet z walutą prezentacji: odmowa - cena biletu jest tylko w walucie cennika", async () => {
+    await expectRefusedBeforeDb(
+      ticketPayload({ ticket_type_id: TICKET_ID, display_currency: "EUR" }),
+      "display_currency_unsupported",
+    );
+  });
+
+  it("zakup jednorazowy planu MIESIĘCZNEGO: odmowa `plan_not_one_time`, bez zamówienia", async () => {
+    // Plan cykliczny kupiony jako `one_time` dawał dożywotni dostęp za cenę
+    // jednego miesiąca.
+    chain.setResponse("access_plans", ok(planQuote({ interval: "month" })));
+
+    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("plan_not_one_time");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
 });

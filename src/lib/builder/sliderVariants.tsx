@@ -189,7 +189,8 @@ const radiusMap: Record<NonNullable<SliderConfig["rounded"]>, string> = {
 const SLIDER_IMAGE_PLACEHOLDER =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 75" preserveAspectRatio="xMidYMid meet"><rect width="100" height="75" fill="hsl(0 0% 90%)"/><g fill="none" stroke="hsl(0 0% 60%)" stroke-width="1.4"><rect x="30" y="22" width="40" height="28" rx="2"/><circle cx="39" cy="32" r="3"/><path d="m70 50-12-12-22 18"/></g></svg>',
+    // Ikona w całości wewnątrz ramki: góry kończą się na jej dolnej krawędzi.
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 75" preserveAspectRatio="xMidYMid meet"><rect width="100" height="75" fill="hsl(30 8% 88%)"/><g fill="none" stroke="hsl(30 5% 58%)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="36" y="25.5" width="28" height="24" rx="2.5"/><circle cx="44" cy="33" r="2.4"/><path d="M36.6 47 46 38.5l5.5 5 4.5-4 7.4 7"/></g></svg>',
   );
 
 interface RenderProps {

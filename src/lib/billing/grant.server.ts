@@ -2,7 +2,11 @@
 // mock-mode finaliser so "a paid order unlocks content" lives in one place and
 // behaves identically in both paths. Uses the service-role client because
 // user_subscriptions / user_purchases are insert-locked to service_role.
-import { periodEndFor, entitlementForOrder } from "@/lib/billing/entitlement";
+import {
+  entitlementForOrder,
+  isLifetimePlanInterval,
+  periodEndFor,
+} from "@/lib/billing/entitlement";
 
 export interface GrantableOrder {
   id: string;
@@ -145,21 +149,24 @@ export async function grantEntitlement(
   const entitlement = entitlementForOrder(order);
 
   if (entitlement.type === "subscription") {
+    const { data: plan, error: planErr } = await supabaseAdmin
+      .from("access_plans")
+      .select("interval")
+      .eq("id", entitlement.planId)
+      .maybeSingle();
+    // A MISSING plan row is tolerated (periodEndFor(null) => safe default);
+    // a FAILED lookup is not - it would silently grant the default period
+    // instead of the one the customer paid for.
+    if (planErr) throw new Error(`grant: access_plans lookup failed: ${planErr.message}`);
     // Lifetime (one-time plan purchase) => no expiry; has_content_access()
-    // treats current_period_end IS NULL as never-expiring.
-    let periodEnd: string | null = null;
-    if (!entitlement.lifetime) {
-      const { data: plan, error: planErr } = await supabaseAdmin
-        .from("access_plans")
-        .select("interval")
-        .eq("id", entitlement.planId)
-        .maybeSingle();
-      // A MISSING plan row is tolerated (periodEndFor(null) => safe default);
-      // a FAILED lookup is not - it would silently grant the default period
-      // instead of the one the customer paid for.
-      if (planErr) throw new Error(`grant: access_plans lookup failed: ${planErr.message}`);
-      periodEnd = periodEndFor(plan?.interval ?? null, new Date()).toISOString();
-    }
+    // treats current_period_end IS NULL as never-expiring. ONLY a one-time
+    // plan: a recurring plan reaching this branch as `one_time` (an order
+    // placed before the checkout guard, TIX-02) gets the one period it paid
+    // for, never access without end.
+    const lifetime = entitlement.lifetime && isLifetimePlanInterval(plan?.interval ?? null);
+    const periodEnd: string | null = lifetime
+      ? null
+      : periodEndFor(plan?.interval ?? null, new Date()).toISOString();
     const ref = externalRef ?? order.id;
 
     // `order` + `limit(1)`: baza NIE egzekwuje unikalności `external_ref`

@@ -49,7 +49,7 @@
 -- DEFINER w pasie supabase bez jawnego REVOKE ALL oblewa ten test w CI.
 -- Widoku zalozonego tylko w pasie drizzle (panel Lovable) test nie widzi.
 --
--- Pas drizzle: drizzle/migrations/0165_public_definer_views_read_only.sql
+-- Pas drizzle: drizzle/migrations/0172_public_definer_views_read_only.sql
 -- (blizniak - ten sam SQL wykonywalny). Bez wpisu rejestru z pasa drizzle -
 -- powod jak w 20261012200000 (glowa rejestru nie moze wyprzedzic wersji
 -- 20261012095900..20261012123000, ktorych rejestr produkcji jeszcze nie ma).
