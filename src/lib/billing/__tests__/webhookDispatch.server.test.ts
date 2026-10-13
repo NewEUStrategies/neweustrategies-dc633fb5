@@ -774,11 +774,11 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
     });
 
     it.each([
-      ["nieopłacona faktura (subskrypcja `incomplete` anulowana)", { latest_invoice: { status: "open" } }],
       [
-        "anulowanie po nieudanej płatności",
-        { cancellation_details: { reason: "payment_failed" } },
+        "nieopłacona faktura (subskrypcja `incomplete` anulowana)",
+        { latest_invoice: { status: "open" } },
       ],
+      ["anulowanie po nieudanej płatności", { cancellation_details: { reason: "payment_failed" } }],
       ["anulowanie po sporze", { cancellation_details: { reason: "payment_disputed" } }],
       ["faktura nierozwinięta (sam identyfikator)", { latest_invoice: "in_pierwsza" }],
     ])("%s: nagrobek BEZ dostępu", async (_label, over) => {

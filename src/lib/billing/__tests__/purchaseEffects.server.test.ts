@@ -930,7 +930,10 @@ describe("S1 - początek okresu trafia do zapisu uprawnienia", () => {
   }
 
   it.each([
-    ["zakup (odnowienie po korekcie)", () => applyPurchaseEffects(purchase({ periodStart: FIXED_NOW_ISO }))],
+    [
+      "zakup (odnowienie po korekcie)",
+      () => applyPurchaseEffects(purchase({ periodStart: FIXED_NOW_ISO })),
+    ],
     ["zmiana planu", () => applyPlanChangeEffects(planChange({ periodStart: FIXED_NOW_ISO }))],
     [
       "rezygnacja w nowym okresie",

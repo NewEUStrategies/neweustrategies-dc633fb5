@@ -301,7 +301,9 @@ async function authoritativeSubscription(
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`subscription ${purpose}: provider read failed (${subscriptionId}): ${message}`);
+    throw new Error(
+      `subscription ${purpose}: provider read failed (${subscriptionId}): ${message}`,
+    );
   }
   const { mapStripeSubscription } = await import("@/lib/billing/stripeEvents.server");
   return mapStripeSubscription(remote as Record<string, unknown>);
@@ -419,7 +421,8 @@ async function commitSubscriptionState(
     .eq("environment", env);
   if (claim) {
     query = query.eq("last_event_at", claim.stamp);
-    query = claim.id === null ? query.is("last_event_id", null) : query.eq("last_event_id", claim.id);
+    query =
+      claim.id === null ? query.is("last_event_id", null) : query.eq("last_event_id", claim.id);
   }
   const { data: written, error } = await query.select("id");
   if (error) throw new Error(`${failure}: ${error.message}`);

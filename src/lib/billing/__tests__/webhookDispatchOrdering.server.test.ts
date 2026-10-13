@@ -79,7 +79,12 @@ const T0 = "2026-08-29T10:00:00.000Z";
 const T1 = "2026-08-30T10:00:00.000Z";
 const T2 = "2026-08-30T10:00:05.000Z";
 const PLAN_PRO = { id: "plan-pro-m", tenant_id: "tenant-alfa", price_cents: 9900, currency: "PLN" };
-const PLAN_PLUS = { id: "plan-plus-m", tenant_id: "tenant-alfa", price_cents: 4900, currency: "PLN" };
+const PLAN_PLUS = {
+  id: "plan-plus-m",
+  tenant_id: "tenant-alfa",
+  price_cents: 4900,
+  currency: "PLN",
+};
 
 /** Zdarzenie subskrypcji po normalizacji (`stripeEvents.server`). */
 function subscriptionEvent(overrides: Partial<SubscriptionData> = {}): SubscriptionData {
@@ -301,7 +306,11 @@ describe("1.0 - skutki starszego zdarzenia nie wygrywają z nowszym", () => {
     };
     beforeEntitlementWrite = async () => {
       // Nowsze zdarzenie przejmuje wiersz (samo zajęcie wystarczy).
-      subscriptions.rows[0] = { ...subscriptions.rows[0], last_event_at: T2, last_event_id: "evt_x" };
+      subscriptions.rows[0] = {
+        ...subscriptions.rows[0],
+        last_event_at: T2,
+        last_event_id: "evt_x",
+      };
     };
 
     await expect(

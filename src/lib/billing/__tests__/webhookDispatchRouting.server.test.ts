@@ -146,7 +146,10 @@ describe("S4 - domknięcie zamówienia subskrypcji", () => {
     );
     // Faktura jest cyklem: odzyskanie płatności i dokument - jak dotąd.
     expect(h.dunningRecovered).toHaveBeenCalledWith(
-      expect.objectContaining({ subscriptionId: "sub_kupujacy", transactionId: "in_live_pierwsza" }),
+      expect.objectContaining({
+        subscriptionId: "sub_kupujacy",
+        transactionId: "in_live_pierwsza",
+      }),
     );
     expect(h.recordDocument).toHaveBeenCalledWith({ transactionId: "in_live_pierwsza" });
   });
@@ -222,10 +225,16 @@ describe("S6 - nieudana płatność", () => {
   });
 
   it("nieudana FAKTURA odnowienia idzie do windykacji, zamówienia nie rusza", async () => {
-    await deliver("transaction.payment_failed", txn({ id: "in_live_odnowienie", source: "invoice" }));
+    await deliver(
+      "transaction.payment_failed",
+      txn({ id: "in_live_odnowienie", source: "invoice" }),
+    );
 
     expect(h.dunningFailed).toHaveBeenCalledWith(
-      expect.objectContaining({ subscriptionId: "sub_kupujacy", transactionId: "in_live_odnowienie" }),
+      expect.objectContaining({
+        subscriptionId: "sub_kupujacy",
+        transactionId: "in_live_odnowienie",
+      }),
     );
     expect(h.markFailed).not.toHaveBeenCalled();
   });
