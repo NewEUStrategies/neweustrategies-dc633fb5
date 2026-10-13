@@ -8,19 +8,48 @@
 // Cała logika jest idempotentna, więc powtórka nie dubluje skutków.
 //
 // Moduł server-only (klient service_role) - importuj wyłącznie z handlerów.
-import { catalogEntryByPriceId, planChangeDirection } from "@/lib/billing/catalog";
-import { accessPeriodFromEvent } from "@/lib/billing/accessPeriod";
-import type { OneTimeOutcome } from "@/lib/billing/oneTimeFulfilment.server";
-import { environmentGrantsAccess, type StripeEnv } from "@/lib/stripe.server";
-import type { Database } from "@/integrations/supabase/types";
+import { planChangeDirection } from "@/lib/billing/catalog";
+import {
+  accessPeriodFromEvent,
+  isDelinquentSubscriptionStatus,
+  isEntitledSubscriptionStatus,
+  isNonPaymentCancellation,
+  isPreActivationSubscriptionStatus,
+  paymentGraceAnchor,
+} from "@/lib/billing/accessPeriod";
+import type { StripeEnv } from "@/lib/stripe.server";
+import type { PremiumNewsletterConsentGrant } from "@/lib/billing/premiumNewsletter";
 
 export type SubscriptionData = {
   id: string;
   customerId: string;
+  /**
+   * Status ZNORMALIZOWANY: pauza poboru (`pause_collection`) przy statusie
+   * operatora `active` przychodzi tu jako `paused` (`stripeEvents.server`).
+   */
   status: string;
-  customData?: { userId?: string; purpose?: string; donationId?: string } | null;
+  customData?: {
+    userId?: string;
+    purpose?: string;
+    donationId?: string;
+    /** Zgoda z pola w checkoucie (metadane subskrypcji) - brak = pole niezaznaczone. */
+    newsletterConsent?: PremiumNewsletterConsentGrant | null;
+  } | null;
   currentBillingPeriod?: { startsAt?: string; endsAt?: string } | null;
-  scheduledChange?: { action?: string } | null;
+  /** Zaplanowana rezygnacja (`cancel_at_period_end` albo `cancel_at` u operatora). */
+  scheduledChange?: { action?: string; effectiveAt?: string | null } | null;
+  /**
+   * `cancellation_details.reason` operatora: `payment_failed` /
+   * `payment_disputed` (koniec windykacji) albo `cancellation_requested`.
+   */
+  cancellationReason?: string | null;
+  /**
+   * Surowa pauza poboru. `behavior` (`void` / `keep_as_draft` /
+   * `mark_uncollectible`) trafia do `subscriptions.pause_collection_behavior`:
+   * wznowienie takiej pauzy to `pause_collection: null`, a statusu `paused`
+   * bez niej - `subscriptions.resume`.
+   */
+  pauseCollection?: { behavior: string; resumesAt: string | null } | null;
   items: Array<{
     quantity?: number;
     /** Koniec okresu próbnego dla pozycji (operator podaje go per pozycja). */
@@ -46,27 +75,15 @@ export type TransactionData = {
   details?: { totals?: { grandTotal?: string | null } | null } | null;
   payments?: Array<{ errorCode?: string | null }> | null;
   billingPeriod?: { endsAt?: string | null } | null;
+  /** Numer próby obciążenia faktury (`invoice.attempt_count`) - klucz windykacji. */
+  attemptCount?: number | null;
+  /** Termin kolejnej próby (`invoice.next_payment_attempt`) - do maila windykacji. */
+  nextPaymentAttemptAt?: string | null;
   /**
-   * Skąd pochodzi transakcja: sesja Checkout (`cs_...`) albo faktura
-   * (`in_...`). Faktura subskrypcji niesie metadane subskrypcji, w tym
-   * `orderId` - domknięcie zamówienia idempotentnie domyka pierwsza opłacona
-   * faktura (trial), a windykacja dotyczy wyłącznie faktur. Ładunek sprzed
-   * wdrożenia nie ma tego pola - patrz `transactionSource`.
+   * `invoice.billing_reason` operatora (`subscription_cycle`, `subscription_create`,
+   * `subscription_update`, ...). Brak = nieznany (sesja checkout, stary dziennik).
    */
-  source?: "checkout_session" | "invoice" | null;
-  /** Suma pozycji przed rabatem i podatkiem (sesja Checkout: `amount_subtotal`). */
-  amountSubtotalCents?: number | null;
-  /** Rabat zdjęty przez operatora (`total_details.amount_discount`). */
-  amountDiscountCents?: number | null;
-  /** Podatek doliczony przez operatora (`total_details.amount_tax`). */
-  amountTaxCents?: number | null;
-  /**
-   * Kody promocyjne operatora wpisane przez kupującego w sesji
-   * (`discounts[].promotion_code`). NASZ kupon jedzie jako `discounts[].coupon`
-   * bez kodu, więc pusta lista = brak kodu spoza kasy. Realizacja sprawdza po
-   * nich, czy kod należy do najemcy zamówienia (konto operatora jest wspólne).
-   */
-  promotionCodeIds?: string[] | null;
+  billingReason?: string | null;
 };
 
 /** Wynik obsługi: `skipped` = zdarzenie spoza zakresu integracji. */
@@ -112,65 +129,53 @@ function eventStamp(occurredAt: string | null | undefined): string | null {
 }
 
 /**
- * Para (znacznik, identyfikator) zdarzenia, którego skutki właśnie startują -
- * to ona ląduje w `last_event_at` / `last_event_id` wiersza subskrypcji.
+ * Znacznik porządkowy `subscription.created`: sekunda zdarzenia MINUS 1 ms.
+ *
+ * Operator stempluje zdarzenia z dokładnością do SEKUNDY, a `created` i
+ * pierwsze `updated` (incomplete -> active po 3DS) lądują zwykle w tej samej
+ * sekundzie. Przy równych znacznikach strażnik (`<`) odrzucał `updated`
+ * dostarczone PO `created` - płacący zostawał w `incomplete`, czyli bez
+ * dostępu. `created` jest z definicji najstarszym stanem subskrypcji, więc
+ * każde inne zdarzenie z tej samej sekundy musi z nim wygrać - w obie strony
+ * dostawy (późne `created` przegrywa z zapisanym `updated` tak samo).
  */
-interface EventMark {
-  /** Znacznik czasu zdarzenia w ISO; `null` = czas nie do odczytania. */
-  stamp: string | null;
-  /** Identyfikator zdarzenia operatora; `null` u wołających bez niego. */
-  eventId: string | null;
+function createdEventStamp(occurredAt: string | null | undefined): string | null {
+  const stamp = eventStamp(occurredAt);
+  return stamp ? new Date(Date.parse(stamp) - 1).toISOString() : null;
 }
 
 /**
- * Zajęcie zdarzenia DOKŁADNIE w postaci, w jakiej leży w wierszu: znacznik
- * i wartość `last_event_id` (po remisie `tie:<id>`). Zapis stanu subskrypcji
- * jest warunkowy względem tej pary (PAY-02 / PAY-10, 1.0) - `null` to
- * zdarzenie bez wiarygodnego czasu, które strażnik przepuścił bez zajęcia.
+ * Wiersz widziany przez strażnika, gdy zajęcie nie trafiło: znacznik oraz
+ * DOKŁADNIE te kolumny, które zdarzenie stanu by zapisało - po nich remis
+ * znaczników rozstrzyga, czy zdarzenie w ogóle coś zmienia.
  */
-interface EventClaim {
-  stamp: string;
-  id: string | null;
+const GUARD_ROW_COLUMNS =
+  "id, last_event_at, status, price_id, quantity, current_period_start, current_period_end, trial_ends_at, cancel_at_period_end, pause_collection_behavior";
+
+interface GuardRow {
+  id: string;
+  last_event_at: string | null;
+  status: string | null;
+  price_id: string | null;
+  quantity: number | null;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  trial_ends_at: string | null;
+  cancel_at_period_end: boolean | null;
+  pause_collection_behavior: string | null;
 }
 
 /**
- * Najwcześniejsza z dwóch chwil (ISO) - próg deduplikacji dzwonka założenia:
- * `created` i zdarzenie stanu, które je wyprzedziło, opisują TO SAMO założenie
- * subskrypcji, więc oba szukają dzwonka od początku pierwszego okresu.
+ * Werdykt strażnika kolejności:
+ *  - `claimed`   - znacznik zdarzenia jest teraz zapisany, stosujemy je,
+ *  - `unguarded` - brak wiarygodnego czasu: nie blokujemy (i nie zajmujemy),
+ *  - `absent`    - wiersza jeszcze nie ma (zdarzenie wyprzedziło `created`),
+ *  - `stale`     - zapisany stan jest nowszy: pomijamy,
+ *  - `tie`       - zapisany znacznik jest RÓWNY naszemu: kolejności nie da się
+ *                  rozstrzygnąć z samego czasu (`row` = wiersz z tej chwili).
  */
-function earliestIso(...values: Array<string | null | undefined>): string | null {
-  const times = values
-    .map((value) => (value ? Date.parse(value) : Number.NaN))
-    .filter((time) => Number.isFinite(time));
-  return times.length > 0 ? new Date(Math.min(...times)).toISOString() : null;
-}
-
-/**
- * Werdykt strażnika kolejności zdarzeń subskrypcji:
- *  - `fresh`   - zdarzenie nowsze niż zapisany stan, zajęte,
- *  - `replay`  - TO SAMO zdarzenie (znacznik i identyfikator) - ponowienie po
- *                porażce skutków; przetwarzamy jeszcze raz,
- *  - `tie`     - INNE zdarzenie z tą samą sekundą; zajęte, stan z API operatora,
- *  - `stale`   - starsze niż zapisany stan, pomijamy,
- *  - `missing` - wiersza subskrypcji nie ma (ścieżka zakładania),
- *  - `untimed` - wiersz jest, a czasu zdarzenia nie da się odczytać.
- */
-type GuardVerdict = "fresh" | "replay" | "tie" | "stale" | "missing" | "untimed";
-
-/**
- * Ile razy strażnik powtarza odczyt i zajęcie, gdy równoległy zapis zmienił
- * wiersz między zapytaniami. Trzy próby wystarczają z zapasem - wyścig wymaga
- * dwóch zdarzeń tej samej subskrypcji w tych samych milisekundach.
- */
-const GUARD_MAX_ATTEMPTS = 3;
-
-/**
- * Prefiks `last_event_id` po remisie rozstrzygniętym stanem z API operatora.
- * Dzięki niemu KAŻDE kolejne zdarzenie z tą samą sekundą - także ponowienie
- * zdarzenia, które remis wygrało - znów idzie po stan z API, a nie po własny
- * ładunek, który mógłby być starszym z dwóch zdjęć tej samej sekundy.
- */
-const TIE_MARKER = "tie:";
+type ClaimOutcome =
+  { kind: "claimed" | "unguarded" | "absent" | "stale" } | { kind: "tie"; row: GuardRow };
 
 /**
  * Strażnik kolejności zdarzeń subskrypcji.
@@ -189,560 +194,373 @@ const TIE_MARKER = "tie:";
  * je przejąć, starsze wyrównuje uprawnienie do stanu z API operatora
  * (`resyncFromProvider`) zamiast zostawić własny, starszy zapis.
  *
- * DLACZEGO IDENTYFIKATOR. Para leży w wierszu PRZED skutkami, więc gdy skutki
- * padną, wiersz zostaje z tą samą parą. Bez identyfikatora ponowna dostawa
- * widziała równy znacznik i kończyła się `skipped`: klient tracił dostęp po
- * odnowieniu, bo jednorazowy błąd zapisu uprawnienia zamieniał się w zdarzenie
- * zgubione na zawsze. Z identyfikatorem to `replay` - skutki biegną jeszcze
- * raz (są idempotentne), a że stan subskrypcji czeka na koniec skutków,
- * powtórka widzi POPRZEDNI status i cenę, więc przejścia (pauza, wznowienie,
- * zmiana planu) nie giną (1.3).
+ * REMIS TO NIE „STARSZE". Operator stempluje zdarzenia z dokładnością do
+ * SEKUNDY, a jedna operacja potrafi wyemitować dwa różne `updated` w tej
+ * samej sekundzie (upgrade, a po nim cofnięcie zaplanowanej rezygnacji;
+ * zwolnienie harmonogramu, a po nim nowa cena). Ścisłe `<` odrzucało drugie
+ * z nich jako „spóźnione" i stan zostawał na pierwszym - klient z
+ * opłaconym upgrade'em widział stary plan albo „anulowanie zaplanowane" do
+ * następnego cyklu (audyt SUB-04/SUB-14). Dlatego równy znacznik wraca jako
+ * `tie`, a decyzję podejmuje `resolveTiedSubscriptionEvent`.
  *
- * REMIS. Stripe podaje czas z rozdzielczością sekundy, więc `created` i
- * `updated` jednej kasy mają często ten sam znacznik. Żadnego z nich nie wolno
- * po cichu porzucić, a który ładunek jest nowszy - nie wiadomo. Wygrywa więc
- * AUTORYTATYWNY stan z API operatora (patrz `authoritativeSubscription`).
+ * WIERSZ, KTÓRY POJAWIŁ SIĘ W TRAKCIE. Warunkowy UPDATE i odczyt istnienia to
+ * dwa zapytania. Gdy między nimi `created` wstawi wiersz (ze swoim, starszym
+ * znacznikiem), UPDATE nie trafił, a odczyt widzi wiersz - wcześniej to był
+ * werdykt „stan nowszy" i aktywacja po 3DS przepadała z odpowiedzią 200.
+ * Teraz znacznik starszy od naszego (albo pusty) każe ponowić zajęcie RAZ;
+ * prawdziwie nowszy zapis nadal daje `stale`.
  *
- * Bez nowej funkcji w bazie: zajęcie świeżego zdarzenia (droga typowa) to
- * jedno zapytanie; odczyt rozstrzyga tylko przypadki, w których warunkowy
- * UPDATE nie trafił, a każdy zapis po odczycie jest warunkowy względem stanu,
- * który odczyt widział.
+ * @param stamp znacznik z `eventStamp` (albo `createdEventStamp`); `null` =
+ *        brak wiarygodnego czasu - nie blokujemy.
  */
 async function claimSubscriptionEvent(
   subscriptionId: string,
   env: StripeEnv,
-  mark: EventMark,
-): Promise<GuardVerdict> {
+  stamp: string | null,
+): Promise<ClaimOutcome> {
+  if (!stamp) return { kind: "unguarded" };
+  const mine = Date.parse(stamp);
+
   const supabase = await admin();
-  const { stamp, eventId } = mark;
-
-  if (!stamp) {
-    // Brak wiarygodnego czasu - nie blokujemy (ponowienie wiersza dziennika
-    // bez czasu musi dać się wykonać), ale ścieżka zakładania musi wiedzieć,
-    // czy wiersz już jest.
-    const { data: exists, error } = await supabase
-      .from("subscriptions")
-      .select("id")
-      .eq("provider_subscription_id", subscriptionId)
-      .eq("environment", env)
-      .maybeSingle();
-    if (error) throw new Error(`subscription lookup failed: ${error.message}`);
-    return exists ? "untimed" : "missing";
-  }
-
-  for (let attempt = 1; attempt <= GUARD_MAX_ATTEMPTS; attempt += 1) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     const { data: claimed, error } = await supabase
       .from("subscriptions")
-      .update({ last_event_at: stamp, last_event_id: eventId })
+      .update({ last_event_at: stamp })
       .eq("provider_subscription_id", subscriptionId)
       .eq("environment", env)
       .or(`last_event_at.is.null,last_event_at.lt.${stamp}`)
       .select("id");
     if (error) throw new Error(`subscription event claim failed: ${error.message}`);
-    if (claimed && claimed.length > 0) return "fresh";
+    if (claimed && claimed.length > 0) return { kind: "claimed" };
 
-    // Zero zajętych wierszy: subskrypcji nie ma, zapisany stan jest nowszy,
-    // to samo zdarzenie wraca albo inne zdarzenie ma tę samą sekundę.
-    const { data: row, error: readErr } = await supabase
+    // Zero zaktualizowanych wierszy: subskrypcji jeszcze nie ma, zapisany
+    // stan jest nowszy, równy - albo wiersz zmienił się między zapytaniami.
+    const { data: row, error: rowErr } = await supabase
       .from("subscriptions")
-      .select("last_event_at, last_event_id")
+      .select(GUARD_ROW_COLUMNS)
       .eq("provider_subscription_id", subscriptionId)
       .eq("environment", env)
       .maybeSingle();
-    if (readErr) throw new Error(`subscription lookup failed: ${readErr.message}`);
-    if (!row) return "missing";
+    if (rowErr) throw new Error(`subscription lookup failed: ${rowErr.message}`);
+    if (!row) return { kind: "absent" };
 
     const stored = row.last_event_at ? Date.parse(row.last_event_at) : Number.NaN;
-    const incoming = Date.parse(stamp);
-    if (stored > incoming) return "stale";
-    if (stored === incoming) {
-      if (eventId !== null && row.last_event_id === eventId) return "replay";
-      // Remis: zajmujemy go warunkiem na SAM znacznik. Gdy między odczytem
-      // a zapisem wszedł nowszy stan, UPDATE nie trafi, a kolejna próba
-      // zobaczy `stale`.
-      const { data: tied, error: tieErr } = await supabase
-        .from("subscriptions")
-        .update({ last_event_id: `${TIE_MARKER}${eventId ?? "unknown"}` })
-        .eq("provider_subscription_id", subscriptionId)
-        .eq("environment", env)
-        .eq("last_event_at", stamp)
-        .select("id");
-      if (tieErr) throw new Error(`subscription event claim failed: ${tieErr.message}`);
-      if (tied && tied.length > 0) return "tie";
-    }
-    // Znacznik pusty albo starszy, a warunkowy UPDATE nie trafił: wiersz
-    // powstał lub zmienił się między zapytaniami - powtarzamy całość.
+    if (stored === mine) return { kind: "tie", row: row as GuardRow };
+    if (stored > mine) return { kind: "stale" };
+    // Pusty albo starszy znacznik po nietrafionym UPDATE: wiersz powstał (albo
+    // został zwolniony) między zapytaniami - zajmujemy jeszcze raz.
   }
-  throw new Error(`subscription event guard: contention (${subscriptionId})`);
+  // Dwa razy z rzędu „starszy, a jednak nie do zajęcia" - nie zgadujemy.
+  // Wyjątek zwraca zdarzenie operatorowi do ponowienia.
+  throw new Error(`subscription event claim could not settle: ${subscriptionId}`);
+}
+
+/** Ta sama chwila (z dokładnością do ms) albo obie puste. */
+function sameInstant(a: string | null | undefined, b: string | null | undefined): boolean {
+  const ta = a ? Date.parse(a) : Number.NaN;
+  const tb = b ? Date.parse(b) : Number.NaN;
+  if (Number.isNaN(ta) || Number.isNaN(tb)) return !a && !b;
+  return ta === tb;
 }
 
 /**
- * Stan subskrypcji z API operatora - rozstrzyga remis w obrębie sekundy
- * (`tie`) i wyrównuje uprawnienie po wyparciu przez nowsze zdarzenie
- * (`resync`, patrz `resyncFromProvider`).
- *
- * Kolejność jest stała: najpierw odczyt, potem zastosowanie, a porażka odczytu
- * to wyjątek (trasa odpowiada 500, operator ponawia, a ponowienie znów trafi
- * w remis - kolumna niesie `tie:`). Zastosowanie ładunku „na wszelki wypadek"
- * mogłoby cofnąć stan do starszego z dwóch zdjęć tej samej sekundy.
- * Produkt jest rozwijany, żeby mapowanie znało jego czytelny identyfikator.
+ * Czy zdarzenie z remisu znaczników NIE zmieniłoby niczego, co zapisujemy:
+ * ten sam status, cena, liczba miejsc, okres, koniec triala, zaplanowana
+ * rezygnacja i pauza poboru. Wtedy to powtórka (ponowienie z panelu,
+ * druga dostawa) albo zdarzenie równoważne - nie ma czego rozstrzygać.
+ * Każda różnica = dwa RÓŻNE stany z tej samej sekundy.
  */
-async function authoritativeSubscription(
+function eventMatchesStoredState(
+  row: GuardRow,
+  data: SubscriptionData,
+  kind: "updated" | "canceled",
+): boolean {
+  if (kind === "canceled") return row.status === "canceled";
+  const { priceId, quantity, trialEndsAt } = readIds(data);
+  const periodStart = data.currentBillingPeriod?.startsAt ?? null;
+  const periodEnd = data.currentBillingPeriod?.endsAt ?? trialEndsAt ?? null;
+  return (
+    row.status === data.status &&
+    (!priceId || row.price_id === priceId) &&
+    (row.quantity ?? 1) === quantity &&
+    (row.cancel_at_period_end ?? false) === (data.scheduledChange?.action === "cancel") &&
+    (row.pause_collection_behavior ?? null) === (data.pauseCollection?.behavior ?? null) &&
+    (!periodStart || sameInstant(row.current_period_start, periodStart)) &&
+    (!periodEnd || sameInstant(row.current_period_end, periodEnd)) &&
+    (data.status !== "trialing" || sameInstant(row.trial_ends_at, trialEndsAt))
+  );
+}
+
+/**
+ * Żywy stan subskrypcji u operatora - właściwym klientem środowiska
+ * zdarzenia (sandbox nie czyta produkcji). Błąd operatora RZUCA: zdarzenie
+ * wraca do ponowienia, zamiast zniknąć jako „pominięte". `null` = operator
+ * nie zna tej subskrypcji (usunięta w piaskownicy) - nie ma czego stosować.
+ */
+async function retrieveLiveSubscription(
   subscriptionId: string,
   env: StripeEnv,
-  purpose: "tie" | "resync" = "tie",
-): Promise<SubscriptionData> {
+): Promise<SubscriptionData | null> {
   const { getStripeClient } = await import("@/lib/stripe.server");
-  let remote: unknown;
+  const stripe = await getStripeClient(env);
+  let live: unknown;
   try {
-    const stripe = await getStripeClient(env);
-    remote = await stripe.subscriptions.retrieve(subscriptionId, {
+    live = await stripe.subscriptions.retrieve(subscriptionId, {
       expand: ["items.data.price.product"],
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `subscription ${purpose}: provider read failed (${subscriptionId}): ${message}`,
-    );
+    const failure = err as { code?: unknown; raw?: { code?: unknown } } | null;
+    if ((failure?.code ?? failure?.raw?.code) === "resource_missing") return null;
+    throw err;
   }
   const { mapStripeSubscription } = await import("@/lib/billing/stripeEvents.server");
-  return mapStripeSubscription(remote as Record<string, unknown>);
+  return mapStripeSubscription(live as Record<string, unknown>);
 }
 
-/** Pola wiersza `subscriptions` z ładunku albo `null`, gdy brakuje powiązań. */
-function subscriptionRowFrom(data: SubscriptionData, env: StripeEnv) {
+/**
+ * Remis znaczników: zapisany stan pochodzi ze zdarzenia z TEJ SAMEJ sekundy.
+ *
+ * Powtórka (zdarzenie nic by nie zmieniło) jest pomijana jak dotąd. Różny
+ * stan znaczy, że w jednej sekundzie zaszły dwie zmiany, a ich kolejności
+ * z czasu operatora nie odczytamy - więc NIE zgadujemy i nie wyrzucamy
+ * żadnej: stosujemy AUTORYTATYWNY żywy stan subskrypcji pobrany od
+ * operatora, który zawiera obie zmiany (i każdą wcześniejszą). Znacznik
+ * zostaje równy, więc każde kolejne zdarzenie z tej sekundy znów trafi tutaj
+ * i znów zastosuje żywy stan, a każde nowsze przejdzie zwykłym zajęciem.
+ *
+ * Zajęcia nie zwalniamy przy błędzie: znacznik należy do zdarzenia, które go
+ * zapisało. Wyjątek (operator niedostępny, błąd bazy) wraca do trasy, a ta
+ * odpowiada 500 - operator ponowi zdarzenie i remis rozstrzygnie się wtedy.
+ */
+async function resolveTiedSubscriptionEvent(
+  data: SubscriptionData,
+  env: StripeEnv,
+  stamp: string,
+  row: GuardRow,
+  kind: "updated" | "canceled",
+): Promise<DispatchOutcome> {
+  if (eventMatchesStoredState(row, data, kind)) return "skipped";
+  const live = await retrieveLiveSubscription(data.id, env);
+  if (!live) {
+    console.warn("[payments] tied subscription event: unknown at provider", data.id);
+    return "skipped";
+  }
+  if (live.status === "canceled") await handleCanceled(live, env);
+  else await handleUpdated(live, env, stamp);
+  return "processed";
+}
+
+/**
+ * Zdarzenie stanu subskrypcji pod strażnikiem kolejności - jedno wejście
+ * dla `updated`-podobnych, `canceled` i `created` stosowanego na istniejącym
+ * wierszu. Najwyżej dwie rundy: `absent` -> wstawienie, które zastało wiersz
+ * założony równolegle (`exists`) -> zajęcie jeszcze raz, już na wierszu.
+ */
+async function runGuardedSubscriptionEvent(
+  data: SubscriptionData,
+  env: StripeEnv,
+  stamp: string | null,
+  kind: "updated" | "canceled",
+): Promise<DispatchOutcome> {
+  for (let round = 0; round < 2; round += 1) {
+    const claim = await claimSubscriptionEvent(data.id, env, stamp);
+    if (claim.kind === "stale") return "skipped";
+    // Remis istnieje tylko przy wiarygodnym znaczniku (`unguarded` go nie ma).
+    if (claim.kind === "tie" && stamp) {
+      return resolveTiedSubscriptionEvent(data, env, stamp, claim.row, kind);
+    }
+    if (claim.kind === "absent" && kind === "updated" && data.customData?.userId) {
+      // Kolejność dostarczenia nie jest gwarantowana: `activated` potrafi
+      // wyprzedzić `created`. Zakładamy wiersz tą samą ścieżką co przy
+      // utworzeniu (wstawienie-jeśli-brak, ze znacznikiem TEGO zdarzenia).
+      const created = await underClaim(data.id, env, stamp, () => handleCreated(data, env, stamp));
+      if (created !== "exists") return "processed";
+      continue;
+    }
+    await underClaim(data.id, env, stamp, () =>
+      kind === "canceled" ? handleCanceled(data, env) : handleUpdated(data, env, stamp),
+    );
+    return "processed";
+  }
+  throw new Error(`subscription row raced its own creation twice: ${data.id}`);
+}
+
+/**
+ * Zwolnienie zajęcia po błędzie obsługi.
+ *
+ * Strażnik stempluje `last_event_at` PRZED obsługą, a operator ponawia
+ * zdarzenie, które padło - z TYM SAMYM znacznikiem. Bez zwolnienia ponowienie
+ * odbijało się od strażnika (`last_event_at < stamp` fałszywe) i kończyło jako
+ * `skipped`: płatność pobrana, uprawnienia brak aż do następnego zdarzenia.
+ * Cofamy znacznik o 1 ms - wyłącznie jeśli wciąż jest nasz - więc ponowienie
+ * przejdzie, a każde zdarzenie starsze od naszego nadal jest odrzucane.
+ * Nigdy nie rzuca: błąd obsługi, który tu trafił, jest ważniejszy.
+ */
+async function releaseSubscriptionEvent(
+  subscriptionId: string,
+  env: StripeEnv,
+  stamp: string | null,
+): Promise<void> {
+  if (!stamp) return;
+  try {
+    const supabase = await admin();
+    const { error } = await supabase
+      .from("subscriptions")
+      .update({ last_event_at: new Date(Date.parse(stamp) - 1).toISOString() })
+      .eq("provider_subscription_id", subscriptionId)
+      .eq("environment", env)
+      .eq("last_event_at", stamp);
+    if (error) throw new Error(error.message);
+  } catch (err) {
+    console.error("[payments] subscription event release failed", subscriptionId, err);
+  }
+}
+
+/** Obsługa pod zajęciem strażnika: błąd zwalnia zajęcie, żeby ponowienie przeszło. */
+async function underClaim<T>(
+  subscriptionId: string,
+  env: StripeEnv,
+  stamp: string | null,
+  work: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await work();
+  } catch (err) {
+    await releaseSubscriptionEvent(subscriptionId, env, stamp);
+    throw err;
+  }
+}
+
+/**
+ * Atomowe zajęcie potwierdzenia zakupu (`purchase_confirmed_at`): `true`
+ * DOKŁADNIE raz na subskrypcję. Wołane PO zapisie uprawnienia
+ * (`applyPurchaseEffects`), więc awaria zapisu go nie zużywa, a dwa
+ * równoległe zdarzenia (oba widzą pusty znacznik) nie wyślą potwierdzenia
+ * dwa razy.
+ */
+async function claimPurchaseConfirmation(subscriptionId: string, env: StripeEnv): Promise<boolean> {
+  const supabase = await admin();
+  const { data, error } = await supabase
+    .from("subscriptions")
+    .update({ purchase_confirmed_at: new Date().toISOString() })
+    .eq("provider_subscription_id", subscriptionId)
+    .eq("environment", env)
+    .is("purchase_confirmed_at", null)
+    .select("id");
+  if (error) throw new Error(`purchase confirmation claim failed: ${error.message}`);
+  return Array.isArray(data) && data.length > 0;
+}
+
+/** Wynik zakładania wiersza: `exists` = wiersz już był (nic nie zapisano). */
+type CreateOutcome = "inserted" | "exists" | "invalid";
+
+/**
+ * Zakłada wiersz subskrypcji WYŁĄCZNIE, gdy go jeszcze nie ma.
+ *
+ * DLACZEGO NIE UPSERT. Zwykły upsert nadpisywał istniejący wiersz stanem
+ * zdarzenia BEZ strażnika kolejności: spóźnione albo ponowione `created`
+ * (`incomplete`) po `updated` (`active`) cofało status i przesuwało
+ * `last_event_at` wstecz, a `incomplete` mapuje się na brak dostępu - płacący
+ * tracił uprawnienie (audyt SUB-02). PostgREST nie dokłada warunku do
+ * `ON CONFLICT DO UPDATE`, więc zapis jest dwuetapowy: tu `ON CONFLICT DO
+ * NOTHING` (`ignoreDuplicates`), a gdy wiersz już był, wołający przepuszcza
+ * zdarzenie przez strażnika (`runGuardedSubscriptionEvent`) i stosuje je jak
+ * aktualizację.
+ *
+ * Efekty zakupu (mail, CRM, newsletter, dzwonek) idą tylko w stanie
+ * `active|trialing` i tylko raz - po atomowym zajęciu `purchase_confirmed_at`
+ * (`claimPurchaseConfirmation`), które następuje dopiero po zapisie
+ * uprawnienia.
+ *
+ * @param stamp znacznik porządkowy zdarzenia (`created` -> `createdEventStamp`).
+ */
+async function handleCreated(
+  data: SubscriptionData,
+  env: StripeEnv,
+  stamp: string | null,
+): Promise<CreateOutcome> {
   const userId = data.customData?.userId;
   const { priceId, productId, quantity, trialEndsAt } = readIds(data);
   if (!userId) {
     console.error("[payments] missing customData.userId", data.id);
-    return null;
+    return "invalid";
   }
   if (!priceId || !productId) {
     console.warn("[payments] missing lookup_key/metadata.lovable_external_id", data.id);
-    return null;
+    return "invalid";
   }
-  return {
-    userId,
-    priceId,
-    quantity,
-    trialEndsAt,
-    row: {
-      user_id: userId,
-      provider_subscription_id: data.id,
-      provider_customer_id: data.customerId,
-      product_id: productId,
-      price_id: priceId,
-      status: data.status,
-      quantity,
-      current_period_start: data.currentBillingPeriod?.startsAt ?? null,
-      current_period_end: data.currentBillingPeriod?.endsAt ?? null,
-      // Okres próbny: zapisujemy datę końca, żeby profil i panel pokazywały
-      // "trial do ...", a przypomnienia potrafiły uprzedzić pierwsze obciążenie.
-      trial_ends_at: trialEndsAt,
-      environment: env,
-      updated_at: new Date().toISOString(),
-    },
-  };
-}
 
-type SubscriptionRowSource = NonNullable<ReturnType<typeof subscriptionRowFrom>>;
-
-/**
- * Zakłada wiersz `subscriptions` WYŁĄCZNIE, gdy go nie ma
- * (`ON CONFLICT (provider_subscription_id) DO NOTHING`).
- *
- * Dawny upsert nadpisywał istniejący wiersz razem z `last_event_at`, więc
- * spóźnione `created` (np. po `deleted`) cofało strażnika i wskrzeszało
- * anulowaną subskrypcję. Wstawienie niesie parę strażnika - wiersz od
- * pierwszej chwili zna zdarzenie, którego skutki wystartowały.
- *
- * @returns `inserted` - ten zapis założył wiersz; `exists` - przegraliśmy
- *          wyścig z równoległym zdarzeniem (wołający ponawia strażnika);
- *          `invalid` - właściciel już nie istnieje.
- */
-async function insertSubscriptionRow(
-  source: SubscriptionRowSource,
-  subscriptionId: string,
-  mark: EventMark,
-): Promise<"inserted" | "exists" | "invalid"> {
   const supabase = await admin();
+  const nowIso = new Date().toISOString();
+  // Wiersz zakładany przez zdarzenie zaległości (wyprzedziło `created`):
+  // kotwica karencji to chwila tego zdarzenia, nie „nigdy".
+  const firstPaymentFailedAt = isDelinquentSubscriptionStatus(data.status)
+    ? (stamp ?? nowIso)
+    : null;
+  const cancelAtPeriodEnd = data.scheduledChange?.action === "cancel";
   const { data: inserted, error } = await supabase
     .from("subscriptions")
     .upsert(
       {
-        ...source.row,
-        // Czas nie do odczytania pomijamy: strażnik przepuścił takie zdarzenie
-        // świadomie, a następne zdarzenie z poprawnym czasem i tak zajmie wiersz.
-        ...(mark.stamp ? { last_event_at: mark.stamp, last_event_id: mark.eventId } : {}),
+        user_id: userId,
+        provider_subscription_id: data.id,
+        provider_customer_id: data.customerId,
+        product_id: productId,
+        price_id: priceId,
+        status: data.status,
+        quantity,
+        current_period_start: data.currentBillingPeriod?.startsAt ?? null,
+        current_period_end: data.currentBillingPeriod?.endsAt ?? null,
+        // Okres próbny: zapisujemy datę końca, żeby profil i panel pokazywały
+        // "trial do ...", a przypomnienia potrafiły uprzedzić pierwsze obciążenie.
+        trial_ends_at: trialEndsAt,
+        cancel_at_period_end: cancelAtPeriodEnd,
+        pause_collection_behavior: data.pauseCollection?.behavior ?? null,
+        first_payment_failed_at: firstPaymentFailedAt,
+        environment: env,
+        // Znacznik ostatniego zastosowanego zdarzenia - podstawa strażnika
+        // kolejności przy późniejszych aktualizacjach. Czas nie do odczytania
+        // pomijamy: strażnik przepuścił takie zdarzenie świadomie, więc zapis
+        // nie ma prawa się na nim wywrócić (kolumna zostaje pusta, a następne
+        // zdarzenie z poprawnym czasem i tak ją zajmie).
+        ...(stamp ? { last_event_at: stamp } : {}),
+        updated_at: nowIso,
       },
       { onConflict: "provider_subscription_id", ignoreDuplicates: true },
     )
     .select("id");
-  // 23503: konto właściciela usunięte (`user_id` -> `auth.users`). Zdarzenie
-  // po zamknięciu konta (np. `deleted` subskrypcji anulowanej przy zamknięciu)
-  // nie ma komu zapisać śladu, a wyjątek skazałby je na ponowienia bez końca.
-  if (error?.code === "23503") {
-    console.warn("[payments] subscription owner no longer exists", subscriptionId);
-    return "invalid";
-  }
   if (error) throw new Error(`subscriptions upsert failed: ${error.message}`);
-  return inserted && inserted.length > 0 ? "inserted" : "exists";
-}
+  if (!inserted || inserted.length === 0) return "exists";
 
-/** Kolumny wiersza `subscriptions` zapisywane przez obsługę zdarzenia. */
-type SubscriptionPatch = Database["public"]["Tables"]["subscriptions"]["Update"];
-
-/**
- * Zapis stanu subskrypcji - OSTATNI krok obsługi zdarzenia, warunkowy
- * względem jego zajęcia (`last_event_at` + `last_event_id`).
- *
- * Dlaczego na końcu: skutki zależne od POPRZEDNIEGO stanu (przejście pauza ->
- * wznowienie, zmiana planu) czytają go z tego wiersza. Zapis przed skutkami
- * zostawiał powtórce po ich porażce wiersz już w nowym stanie - dzwonek, mail
- * i CRM przejścia nie szły nigdy (1.3 / 5.10 / 6.2).
- *
- * Dlaczego warunkowo: zero trafionych wierszy znaczy, że NOWSZE zdarzenie
- * przejęło wiersz w trakcie naszych skutków (1.0) - jego stan ma wygrać, a my
- * zwracamy `false`, żeby wołający wyrównał uprawnienie do stanu z API.
- * Bez zajęcia (czas nie do odczytania) zapis jest bezwarunkowy, jak dawniej.
- */
-async function commitSubscriptionState(
-  subscriptionId: string,
-  env: StripeEnv,
-  claim: EventClaim | null,
-  patch: SubscriptionPatch,
-  failure: string,
-): Promise<boolean> {
-  const supabase = await admin();
-  let query = supabase
-    .from("subscriptions")
-    .update(patch)
-    .eq("provider_subscription_id", subscriptionId)
-    .eq("environment", env);
-  if (claim) {
-    query = query.eq("last_event_at", claim.stamp);
-    query =
-      claim.id === null ? query.is("last_event_id", null) : query.eq("last_event_id", claim.id);
-  }
-  const { data: written, error } = await query.select("id");
-  if (error) throw new Error(`${failure}: ${error.message}`);
-  return claim === null || (written ?? []).length > 0;
-}
-
-/**
- * Uprawnienie, CRM i miejsca zespołu ze stanu operatora - wspólne dla obsługi
- * zdarzenia i dla wyrównania po wyparciu. Same zapisy zbieżne (stan, nie
- * komunikaty): mail i dzwonek należą do obsługi konkretnego zdarzenia.
- */
-async function applyEntitlementFromState(input: {
-  subscriptionId: string;
-  userId: string;
-  tenantId: string | null;
-  priceId: string;
-  status: string;
-  quantity: number | null;
-  accessUntil: string | null;
-  periodStart: string | null;
-}): Promise<{ planFound: boolean }> {
-  // Plan Zespół: liczba opłaconych miejsc oraz stan subskrypcji muszą
-  // natychmiast przełożyć się na limit i uprawnienia całego zespołu.
-  const { applySubscriptionSeats, applySubscriptionOrgState } =
-    await import("@/lib/organizations/teamSeats.server");
-  await applySubscriptionOrgState({
-    subscriptionId: input.subscriptionId,
-    status: input.status,
-    priceId: input.priceId,
-  });
-  if (input.quantity !== null) {
-    await applySubscriptionSeats({
-      subscriptionId: input.subscriptionId,
-      quantity: input.quantity,
-      priceId: input.priceId,
-    });
-  }
-
-  const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
-  const plan = await resolvePlanForPrice(input.priceId, {
-    tenantId: input.tenantId,
-    userId: input.userId,
-  });
-  if (!plan) return { planFound: false };
-  const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
-  await syncEntitlementState({
-    userId: input.userId,
-    tenantId: plan.tenantId,
-    planId: plan.planId,
-    externalRef: input.subscriptionId,
-    status: input.status,
-    periodEnd: input.accessUntil,
-    // S1: uprawnienie `refunded` ożywa wyłącznie dla okresu zaczętego PO korekcie.
-    periodStart: input.periodStart,
-  });
-  return { planFound: true };
-}
-
-/**
- * Wyrównanie po wyparciu (1.0): nasze skutki mogły nadpisać uprawnienie
- * zapisane przez NOWSZE zdarzenie, które przejęło wiersz w trakcie. Stan
- * bierzemy z API operatora (nie z naszego ładunku i nie z wiersza, którego
- * nowsze zdarzenie mogło jeszcze nie zapisać), właściciela - z NASZEGO wiersza.
- * Wiersza `subscriptions` nie ruszamy: należy do zdarzenia, które go zajęło.
- *
- * Komunikat też domykamy: nasze skutki mogły już powiedzieć klientowi
- * „wstrzymana" (`appliedStatus`), a nowsze zdarzenie - które czytało stan
- * SPRZED nas, bo naszego zapisu stanu nie było - nie widziało przejścia.
- * Przejście od naszego statusu do stanu z API (np. „wznowiona") wyrównuje to,
- * co klient usłyszał, z tym, co ma; dzwonek i mail są deduplikowane.
- *
- * Porażka odczytu u operatora to wyjątek (zdarzenie `failed`). Ponowienie
- * zobaczy wtedy `stale` - stan wyrówna najbliższe zdarzenie tej subskrypcji,
- * synchronizacja na żądanie albo uzgadnianie (podwójna awaria: wyścig
- * i niedostępny operator).
- */
-async function resyncFromProvider(
-  subscriptionId: string,
-  env: StripeEnv,
-  grantsAccess: boolean,
-  mark: EventMark,
-  appliedStatus: string | null,
-): Promise<void> {
-  // Zdarzenie piaskownicy na produkcji niczego nie nadało - nie ma czego wyrównać.
-  if (!grantsAccess) return;
-  console.warn("[payments] subscription event superseded - entitlement resynced from provider", {
-    subscriptionId,
-    eventId: mark.eventId,
-  });
-  const current = await authoritativeSubscription(subscriptionId, env, "resync");
-
-  const supabase = await admin();
-  const { data: row, error } = await supabase
-    .from("subscriptions")
-    .select("user_id, tenant_id, price_id, current_period_end")
-    .eq("provider_subscription_id", subscriptionId)
-    .eq("environment", env)
-    .maybeSingle();
-  if (error) throw new Error(`subscription lookup failed: ${error.message}`);
-  if (!row?.user_id) return;
-
-  const { priceId: currentPriceId, quantity, trialEndsAt } = readIds(current);
-  const priceId = currentPriceId ?? row.price_id ?? null;
-  if (!priceId) return;
-  const canceled = current.status === "canceled";
   const period = accessPeriodFromEvent({
-    kind: canceled ? "canceled" : "updated",
-    eventPeriodEnd: current.currentBillingPeriod?.endsAt ?? trialEndsAt ?? null,
-    storedPeriodEnd: row.current_period_end ?? null,
-    status: current.status,
-  });
-  await applyEntitlementFromState({
-    subscriptionId,
-    userId: row.user_id,
-    tenantId: row.tenant_id ?? null,
-    priceId,
-    status: current.status,
-    // Anulowanie nie zmienia limitu miejsc - tylko stan organizacji.
-    quantity: canceled ? null : quantity,
-    accessUntil: period.accessUntil,
-    periodStart: current.currentBillingPeriod?.startsAt ?? null,
+    kind: "created",
+    // W trialu dostęp trwa do końca okresu próbnego - dopiero pierwsze
+    // obciążenie przesuwa go na pełny cykl rozliczeniowy.
+    eventPeriodEnd: data.currentBillingPeriod?.endsAt ?? trialEndsAt ?? null,
+    status: data.status,
+    periodStart: data.currentBillingPeriod?.startsAt ?? null,
+    firstPaymentFailedAt,
   });
 
-  if (!appliedStatus || appliedStatus === current.status) return;
-  const { applyStatusTransitionEffects } = await import("@/lib/billing/purchaseEffects.server");
-  await applyStatusTransitionEffects({
-    userId: row.user_id,
-    tenantId: row.tenant_id ?? null,
-    priceId,
-    subscriptionId,
-    periodEnd: period.accessUntil,
-    previousStatus: appliedStatus,
-    status: current.status,
-    eventAt: mark.stamp,
-  });
-}
-
-/**
- * Skutki ZAŁOŻENIA subskrypcji: dostęp, mail, CRM, newsletter, dzwonek
- * i miejsca planu Zespół. Wołający pilnuje `grantsAccess` (zdarzenie
- * piaskownicy na produkcji zostawia wyłącznie ślad księgowy w `subscriptions`).
- */
-async function applyCreationEffects(
-  data: SubscriptionData,
-  env: StripeEnv,
-  source: SubscriptionRowSource,
-  mark: EventMark,
-): Promise<void> {
-  const periodStart = data.currentBillingPeriod?.startsAt ?? null;
+  // Uprawnienie zawsze (stan operatora wygrywa), potwierdzenie zakupu tylko
+  // w stanie uprawniającym i raz - bramkę i zajęcie trzyma `applyPurchaseEffects`.
   const { applyPurchaseEffects } = await import("@/lib/billing/purchaseEffects.server");
   await applyPurchaseEffects({
     userId: source.userId,
     priceId: source.priceId,
     subscriptionId: data.id,
-    // W trialu dostęp trwa do końca okresu próbnego - dopiero pierwsze
-    // obciążenie przesuwa go na pełny cykl rozliczeniowy.
-    periodEnd: data.currentBillingPeriod?.endsAt ?? source.trialEndsAt ?? null,
-    periodStart,
+    periodEnd: period.accessUntil,
     environment: env,
+    cancelAtPeriodEnd,
+    claimConfirmation: () => claimPurchaseConfirmation(data.id, env),
     status: data.status,
-    // `created` i zdarzenie, które je wyprzedziło, to TO SAMO założenie -
-    // dzwonek szukamy od początku pierwszego okresu.
-    eventAt: earliestIso(mark.stamp, periodStart),
+    newsletterConsent: data.customData?.newsletterConsent ?? null,
   });
 
   // Plan Zespół: liczba opłaconych miejsc ustala limit organizacji.
   const { applySubscriptionSeats } = await import("@/lib/organizations/teamSeats.server");
-  await applySubscriptionSeats({
-    subscriptionId: data.id,
-    quantity: source.quantity,
-    priceId: source.priceId,
-  });
-}
-
-/** Przyczyny anulowania u operatora, przy których okres NIE został opłacony. */
-const UNPAID_CANCELLATION_REASONS: ReadonlySet<string> = new Set([
-  "payment_failed",
-  "payment_disputed",
-]);
-
-/**
- * Dostęp z rezygnacji, która wyprzedziła założenie (nagrobek, 1.4).
- *
- * Ta sama reguła co przy rezygnacji z istniejącego wiersza: dostęp trwa do
- * końca OPŁACONEGO okresu (`mapProviderStatus('canceled', koniec)`). Spóźnione
- * `created` trafi potem w nowszy znacznik i niczego nie nada, więc bez tego
- * klient, który zapłacił za okres, nie dostawał dostępu wcale.
- *
- * Wiersza nie ma, więc nie ma też historii, z której wynikałoby, że okres
- * opłacono (subskrypcja `incomplete` anulowana po nieudanej płatności niesie
- * ten sam `current_period_end`). Rozstrzyga operator: ostatnia faktura
- * opłacona i przyczyna anulowania inna niż porażka płatności albo spór.
- * Koniec okresu też z API - zdarzenie usunięcia to stan końcowy, a odczyt
- * i tak jest potrzebny. Porażka odczytu RZUCA, zanim powstanie nagrobek, więc
- * ponowienie znów trafi w `missing` i rozstrzygnie to samo.
- *
- * @returns `true`, gdy zapisano uprawnienie (skutek wylądował).
- */
-async function applyTombstoneAccess(
-  data: SubscriptionData,
-  env: StripeEnv,
-  source: SubscriptionRowSource,
-): Promise<boolean> {
-  // Bez planu najemcy (konto zamknięte, cena spoza katalogu) nie ma czego
-  // nadać - i nie ma po co pytać operatora.
-  const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
-  const plan = await resolvePlanForPrice(source.priceId, { userId: source.userId });
-  if (!plan) return false;
-
-  const { getStripeClient } = await import("@/lib/stripe.server");
-  let remote: Record<string, unknown>;
-  try {
-    const stripe = await getStripeClient(env);
-    remote = (await stripe.subscriptions.retrieve(data.id, {
-      expand: ["latest_invoice"],
-    })) as unknown as Record<string, unknown>;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`subscription tombstone: provider read failed (${data.id}): ${message}`);
-  }
-  const details = remote["cancellation_details"] as { reason?: unknown } | null | undefined;
-  const reason = typeof details?.reason === "string" ? details.reason : null;
-  const invoice = remote["latest_invoice"] as { status?: unknown } | string | null | undefined;
-  const invoicePaid = typeof invoice === "object" && invoice !== null && invoice.status === "paid";
-  if (!invoicePaid || (reason !== null && UNPAID_CANCELLATION_REASONS.has(reason))) {
-    console.warn("[payments] canceled before created: period not paid - no access", {
-      subscriptionId: data.id,
-      reason,
-    });
-    return false;
-  }
-
-  const { mapStripeSubscription } = await import("@/lib/billing/stripeEvents.server");
-  const current = mapStripeSubscription(remote);
-  const period = accessPeriodFromEvent({
-    kind: "canceled",
-    eventPeriodEnd:
-      current.currentBillingPeriod?.endsAt ?? data.currentBillingPeriod?.endsAt ?? null,
-    storedPeriodEnd: null,
-    status: "canceled",
-  });
-  const { mapProviderStatus, syncEntitlementState } =
-    await import("@/lib/billing/entitlementSync.server");
-  // Okres już minął: dostępu nie ma czego trzymać, a wiersz `canceled` dla
-  // uprawnienia, którego nigdy nie było, tylko zaśmieca panel.
-  if (mapProviderStatus("canceled", period.accessUntil) !== "active") return false;
-  await syncEntitlementState({
-    userId: source.userId,
-    tenantId: plan.tenantId,
-    planId: plan.planId,
-    externalRef: data.id,
-    status: "canceled",
-    periodEnd: period.accessUntil,
-    periodStart:
-      current.currentBillingPeriod?.startsAt ?? data.currentBillingPeriod?.startsAt ?? null,
-  });
-  return true;
-}
-
-/**
- * Ścieżka zakładania (`missing`): SKUTKI, potem wstawienie wiersza (1.2).
- *
- * Wiersz `subscriptions` istnieje więc wyłącznie po skutkach założenia, które
- * się udały. Dawniej wstawienie szło pierwsze: gdy skutki padły, a przed
- * ponowieniem `created` przyszło inne zdarzenie, `created` było już `stale`
- * albo remisem - mail potwierdzenia, CRM, newsletter i dzwonek ginęły na
- * zawsze. Teraz porażka skutków zostawia „brak wiersza", a każde kolejne
- * zdarzenie tej subskrypcji (albo ponowione `created`) znów idzie tą ścieżką.
- * Skutki są idempotentne (klucz `external_ref`, ziarna maili, upserty CRM
- * i newslettera, dzwonek z progiem deduplikacji).
- *
- * Rezygnacja bez wiersza zostawia nagrobek (spóźnione `created` zobaczy
- * nowszy znacznik i nie wskrzesi subskrypcji), a dostęp do końca opłaconego
- * okresu ustala `applyTombstoneAccess`.
- *
- * @returns `outcome` wstawienia oraz `effectsLanded` - czy skutki zapisały
- *          uprawnienie (przegrane wstawienie wymaga wtedy wyrównania).
- */
-async function createSubscription(
-  kind: "created" | "updated" | "canceled",
-  data: SubscriptionData,
-  env: StripeEnv,
-  mark: EventMark,
-  grantsAccess: boolean,
-): Promise<{ outcome: "inserted" | "exists" | "invalid"; effectsLanded: boolean }> {
-  const row: SubscriptionData = kind === "canceled" ? { ...data, status: "canceled" } : data;
-  const source = subscriptionRowFrom(row, env);
-  if (!source) return { outcome: "invalid", effectsLanded: false };
-
-  let effectsLanded = false;
-  if (grantsAccess) {
-    if (kind === "canceled") {
-      effectsLanded = await applyTombstoneAccess(row, env, source);
-    } else {
-      await applyCreationEffects(row, env, source, mark);
-      effectsLanded = true;
-    }
-  }
-  const outcome = await insertSubscriptionRow(source, data.id, mark);
-  return { outcome, effectsLanded };
-}
-
-/**
- * `subscription.created` dla wiersza, który JUŻ jest (świeże zdarzenie albo
- * ponowienie tego samego `created`): skutki założenia biegną jeszcze raz -
- * są idempotentne - a stan z ładunku trafia do wiersza na końcu, warunkowo.
- *
- * @returns `false`, gdy nowsze zdarzenie przejęło wiersz w trakcie skutków.
- */
-async function handleCreated(
-  data: SubscriptionData,
-  env: StripeEnv,
-  mark: EventMark,
-  claim: EventClaim | null,
-  grantsAccess: boolean,
-): Promise<boolean> {
-  const source = subscriptionRowFrom(data, env);
-  if (!source) return true;
-  if (grantsAccess) await applyCreationEffects(data, env, source, mark);
-  return commitSubscriptionState(data.id, env, claim, source.row, "subscriptions update failed");
+  await applySubscriptionSeats({ subscriptionId: data.id, quantity, priceId });
+  return "inserted";
 }
 
 /**
@@ -751,51 +569,80 @@ async function handleCreated(
  * Operator wysyła je jako osobne typy, ale ładunek ma identyczny kształt, a
  * autorytatywne jest pole `status` - dlatego obsługa jest jedna i idempotentna.
  *
- * KOLEJNOŚĆ: odczyt POPRZEDNIEGO stanu -> skutki (uprawnienie, przejście
- * stanu, zmiana planu) -> zapis nowego stanu warunkiem na zajęcie.
- *
- * @returns `false`, gdy nowsze zdarzenie przejęło wiersz w trakcie skutków.
+ * Wołający przepuścił już zdarzenie przez strażnika kolejności
+ * (`runGuardedSubscriptionEvent`) - zajął je (`stamp`) albo rozstrzygnął
+ * remis żywym stanem operatora. `stamp === null` = zdarzenie bez
+ * wiarygodnego czasu, stosowane bez strażnika.
  */
 async function handleUpdated(
   data: SubscriptionData,
   env: StripeEnv,
-  mark: EventMark,
-  claim: EventClaim | null,
-  grantsAccess: boolean,
-): Promise<boolean> {
+  stamp: string | null,
+  opts: { retried?: boolean } = {},
+): Promise<void> {
   const supabase = await admin();
   const { priceId: eventPriceId, quantity, trialEndsAt } = readIds(data);
 
-  // Nieudany odczyt to NIE „brak wiersza": ścieżka zakładania niżej
-  // zakończyłaby zdarzenie bez zapisu stanu, a dziennik pokazałby `processed`.
-  const { data: existing, error: readErr } = await supabase
+  const { data: existing, error: existingErr } = await supabase
     .from("subscriptions")
-    .select("user_id, tenant_id, price_id, status, current_period_end")
+    .select(
+      "user_id, tenant_id, price_id, status, current_period_start, current_period_end, first_payment_failed_at, purchase_confirmed_at",
+    )
     .eq("provider_subscription_id", data.id)
     .eq("environment", env)
     .maybeSingle();
-  if (readErr) throw new Error(`subscription lookup failed: ${readErr.message}`);
+  // PostgREST nie rzuca, tylko oddaje `{ data: null, error }`. Połknięty błąd
+  // wyglądał jak „wiersza nie ma": ścieżka zakładania zastawała wiersz,
+  // ponowne zajęcie WŁASNEGO znacznika odbijało się od `<`, a zdarzenie
+  // kończyło się jako `processed` bez zastosowania - aktywacja po 3DS, pauza
+  // czy zaległość przepadały bez ponowienia. Wyjątek zwalnia zajęcie
+  // (`underClaim`), więc operator ponowi zdarzenie.
+  if (existingErr) throw new Error(`subscription lookup failed: ${existingErr.message}`);
 
-  // Wiersz zniknął między strażnikiem a odczytem. Bez wiersza zapis trafiłby
-  // w pustkę i zakup przepadłby po cichu - zakładamy go tą samą ścieżką co
-  // przy utworzeniu (skutki, potem WYŁĄCZNIE wstawienie: istniejącego,
-  // nowszego wiersza ten zapis nigdy nie nadpisze ani nie cofnie mu strażnika).
-  if (!existing) {
-    if (!data.customData?.userId) return true;
-    const created = await createSubscription("updated", data, env, mark, grantsAccess);
-    // Przegrane wstawienie: wiersz założyło równoległe zdarzenie, a nasze
-    // skutki mogły wylądować po jego - wołający wyrówna uprawnienie.
-    return created.outcome !== "exists";
+  // Brak wiersza tutaj: zdarzenie bez wiarygodnego czasu (strażnik nie mógł
+  // ani zająć, ani założyć wiersza) albo wiersz zniknął po zajęciu. Zakładamy
+  // go tą samą ścieżką co przy utworzeniu - wstawienie-jeśli-brak niczego nie
+  // zdubluje ani nie cofnie. Gdy wiersz jednak powstał w międzyczasie,
+  // zdarzenie przechodzi strażnika jeszcze raz, już na tym wierszu.
+  if (!existing && data.customData?.userId) {
+    const created = await handleCreated(data, env, stamp);
+    if (created !== "exists") return;
+    if (opts.retried) throw new Error(`subscription row vanished during update: ${data.id}`);
+    const claim = await claimSubscriptionEvent(data.id, env, stamp);
+    if (claim.kind === "stale") return;
+    if (claim.kind === "absent") {
+      throw new Error(`subscription row vanished during update: ${data.id}`);
+    }
+    if (claim.kind === "tie" && stamp) {
+      await resolveTiedSubscriptionEvent(data, env, stamp, claim.row, "updated");
+      return;
+    }
+    await handleUpdated(data, env, stamp, { retried: true });
+    return;
   }
+
+  const entitled = isEntitledSubscriptionStatus(data.status);
+  // Kotwica karencji: PIERWSZA porażka cyklu. Wejście w zaległość ją ustawia
+  // (jeśli windykacja jeszcze tego nie zrobiła), powrót do rozliczeń ją
+  // zeruje, a stany obok (pauza, anulowanie) zostawiają bez zmian.
+  const firstPaymentFailedAt = isDelinquentSubscriptionStatus(data.status)
+    ? (existing?.first_payment_failed_at ?? stamp ?? new Date().toISOString())
+    : entitled
+      ? null
+      : (existing?.first_payment_failed_at ?? null);
 
   // Zdarzenia stanu (pauza, wznowienie, past_due) bywają bez okresu
   // rozliczeniowego - wtedy zapisana data końca dostępu musi zostać nietknięta.
+  // Przy zaległości dostęp kończy karencja, nie (przesunięty już) okres.
   const period = accessPeriodFromEvent({
     kind: "updated",
     eventPeriodEnd: data.currentBillingPeriod?.endsAt ?? trialEndsAt ?? null,
     storedPeriodEnd: existing.current_period_end ?? null,
     status: data.status,
+    periodStart: data.currentBillingPeriod?.startsAt ?? existing?.current_period_start ?? null,
+    firstPaymentFailedAt,
   });
+  const cancelAtPeriodEnd = data.scheduledChange?.action === "cancel";
 
   // Zdarzenie piaskownicy na produkcji: wyłącznie ślad księgowy niżej -
   // karta testowa nie rusza miejsc zespołu, uprawnień, CRM ani maili.
@@ -826,7 +673,10 @@ async function handleUpdated(
       // Wyjście z triala (`activated`) czyści datę - zdarzenie nie niesie już
       // `trialDates`, a zostawiona data sugerowałaby trwający okres próbny.
       trial_ends_at: data.status === "trialing" ? trialEndsAt : null,
-      cancel_at_period_end: data.scheduledChange?.action === "cancel",
+      cancel_at_period_end: cancelAtPeriodEnd,
+      // Pauza poboru: sposób wznowienia zależy od tego, czym ją ustawiono.
+      pause_collection_behavior: data.pauseCollection?.behavior ?? null,
+      first_payment_failed_at: firstPaymentFailedAt,
       updated_at: new Date().toISOString(),
     },
     "subscriptions update failed",
@@ -857,8 +707,20 @@ async function applyUpdateEffects(input: {
   const { data, env, mark, existing, eventPriceId } = input;
   // Zdarzenia stanu (pauza, wznowienie, past_due) potrafią nie nieść pozycji
   // cennika - wtedy pracujemy na cenie zapisanej przy subskrypcji.
-  const priceId = eventPriceId ?? existing.price_id ?? null;
-  const periodStart = data.currentBillingPeriod?.startsAt ?? null;
+  const priceId = eventPriceId ?? existing?.price_id ?? null;
+
+  // Plan Zespół: zmiana liczby opłaconych miejsc oraz stanu subskrypcji musi
+  // natychmiast przełożyć się na limit i uprawnienia całego zespołu - z tą
+  // samą karencją przy zaległości co dla uprawnienia indywidualnego.
+  const { applySubscriptionSeats, applySubscriptionOrgState } =
+    await import("@/lib/organizations/teamSeats.server");
+  await applySubscriptionOrgState({
+    subscriptionId: data.id,
+    status: data.status,
+    priceId,
+    accessUntil: period.accessUntil,
+  });
+  await applySubscriptionSeats({ subscriptionId: data.id, quantity, priceId });
 
   if (!existing.user_id || !priceId) {
     // Bez właściciela albo ceny nie ma uprawnienia do przeliczenia - ale stan
@@ -867,6 +729,39 @@ async function applyUpdateEffects(input: {
       await import("@/lib/organizations/teamSeats.server");
     await applySubscriptionOrgState({ subscriptionId: data.id, status: data.status, priceId });
     await applySubscriptionSeats({ subscriptionId: data.id, quantity: input.quantity, priceId });
+    return;
+  }
+
+  // Stan uprawniający bez wysłanego potwierdzenia = ZAKUP do potwierdzenia:
+  // pierwsza zapłata subskrypcji założonej jako `incomplete` (3DS, przelew)
+  // albo ponowienie po awarii, która przerwała potwierdzenie PO zapisie
+  // statusu. Mail, CRM, newsletter i dzwonek idą raz (atomowe zajęcie
+  // `purchase_confirmed_at`), a uprawnienie synchronizuje ta sama ścieżka co
+  // przy wstawieniu.
+  //
+  // DLACZEGO SAM ZNACZNIK, A NIE „POPRZEDNI STATUS = incomplete". Zapis
+  // statusu `active` idzie wyżej, PRZED efektami zakupu. Gdy plan albo
+  // uprawnienie padły chwilowo, ponowienie zastawało już `active` i warunek
+  // na poprzedni status uznawał zakup za dawno potwierdzony - mail, CRM
+  // „won", dzwonek i jawna zgoda na newsletter z checkoutu przepadały na
+  // zawsze (tak samo, gdy `updated` wyprzedziło `created` albo inne zdarzenie
+  // wyprzedziło ponowienie `created`). Pusty znacznik jest jednoznaczny od
+  // migracji 20261013090600 (wiersze sprzed znacznika mają go uzupełnionego).
+  const activates = entitled && !existing.purchase_confirmed_at;
+  if (activates) {
+    const { applyPurchaseEffects } = await import("@/lib/billing/purchaseEffects.server");
+    await applyPurchaseEffects({
+      userId: existing.user_id,
+      tenantId: existing.tenant_id ?? null,
+      priceId,
+      subscriptionId: data.id,
+      periodEnd: period.accessUntil,
+      environment: env,
+      cancelAtPeriodEnd,
+      claimConfirmation: () => claimPurchaseConfirmation(data.id, env),
+      status: data.status,
+      newsletterConsent: data.customData?.newsletterConsent ?? null,
+    });
     return;
   }
 
@@ -882,6 +777,18 @@ async function applyUpdateEffects(input: {
     accessUntil: input.accessUntil,
     periodStart,
   });
+  if (plan) {
+    const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
+    await syncEntitlementState({
+      userId: existing.user_id,
+      tenantId: plan.tenantId,
+      planId: plan.planId,
+      externalRef: data.id,
+      status: data.status,
+      periodEnd: period.accessUntil,
+      cancelAtPeriodEnd,
+    });
+  }
 
   // CRM + powiadomienie użytkownika przy zmianie samego stanu.
   const { applyStatusTransitionEffects, applyPlanChangeEffects } =
@@ -910,10 +817,8 @@ async function applyUpdateEffects(input: {
     periodEnd: input.accessUntil,
     periodStart,
     environment: env,
-    // Ten sam stan operatora co wyżej - bez niego plan zmieniany w trakcie
-    // pauzy dostawał uprawnienie `active`.
     status: data.status,
-    eventAt: mark.stamp,
+    cancelAtPeriodEnd,
   });
 }
 
@@ -931,23 +836,76 @@ async function handleCanceled(
   grantsAccess: boolean,
 ): Promise<boolean> {
   const supabase = await admin();
-  const { data: existing, error: readErr } = await supabase
+  const { data: existing, error: existingErr } = await supabase
     .from("subscriptions")
-    .select("user_id, tenant_id, price_id, current_period_end")
+    .select(
+      "user_id, tenant_id, price_id, status, current_period_start, current_period_end, first_payment_failed_at, purchase_confirmed_at, last_payment_at",
+    )
     .eq("provider_subscription_id", data.id)
     .eq("environment", env)
     .maybeSingle();
-  // Bez odczytu nie wiadomo, komu odebrać dostęp - rezygnacja z `processed`
-  // zostawiłaby uprawnienie aktywne bez płatności.
-  if (readErr) throw new Error(`subscription lookup failed: ${readErr.message}`);
+  // Ten sam powód co w `handleUpdated`: błąd odczytu to nie „wiersza nie ma".
+  // Bez wiersza rezygnacja kończy się bez odebrania uprawnień i bez ponowienia.
+  if (existingErr) throw new Error(`subscription lookup failed: ${existingErr.message}`);
 
-  if (grantsAccess && existing?.user_id && existing.price_id) {
-    const canceledPeriod = accessPeriodFromEvent({
-      kind: "canceled",
-      eventPeriodEnd: data.currentBillingPeriod?.endsAt ?? null,
-      storedPeriodEnd: existing.current_period_end ?? null,
+  // NIGDY NIEOPŁACONA. Porzucone 3DS zostawia wiersz `incomplete` bez
+  // potwierdzenia zakupu i bez żadnej zapłaty; anulowanie go (panel operatora,
+  // zamknięcie konta, wygaśnięcie) nie jest rezygnacją klienta z opłaconego
+  // okresu. Wcześniej ta ścieżka brała koniec okresu ze zdarzenia (miesiąc albo
+  // ROK od checkoutu) i dawała go jako dostęp - plus mail „dostęp do końca
+  // opłaconego okresu", dzwonek i CRM „churned" dla kogoś, kto nigdy nie był
+  // klientem (audyt SUB-02). Trzy sygnały naraz, żeby nie odebrać dostępu
+  // płacącemu, którego aktywacja jeszcze nie dotarła: status sprzed zapłaty,
+  // brak potwierdzenia zakupu i brak zaksięgowanej płatności.
+  const neverPaid =
+    !!existing &&
+    !existing.purchase_confirmed_at &&
+    !existing.last_payment_at &&
+    (isPreActivationSubscriptionStatus(existing.status) ||
+      isPreActivationSubscriptionStatus(data.status));
+
+  const nonPayment = !neverPaid && isNonPaymentCancellation(data.cancellationReason);
+  const periodStart = data.currentBillingPeriod?.startsAt ?? existing?.current_period_start ?? null;
+  // Anulowanie za brak płatności daje dostęp WYŁĄCZNIE w karencji. Kotwicę,
+  // od której ją liczymy, zapisujemy w wierszu, gdy jeszcze jej nie było
+  // (zdarzenia windykacji nie dotarły) - dobowy przebieg zespołów liczy koniec
+  // TEJ SAMEJ karencji z wiersza, a bez kotwicy zostawiłby zespół aktywny.
+  const graceAnchor = nonPayment
+    ? paymentGraceAnchor({
+        firstPaymentFailedAt: existing?.first_payment_failed_at ?? null,
+        periodStart,
+      })
+    : null;
+
+  const { error } = await supabase
+    .from("subscriptions")
+    .update({
       status: "canceled",
-    });
+      trial_ends_at: null,
+      pause_collection_behavior: null,
+      ...(graceAnchor && !existing?.first_payment_failed_at
+        ? { first_payment_failed_at: graceAnchor }
+        : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("provider_subscription_id", data.id)
+    .eq("environment", env);
+  if (error) throw new Error(`subscriptions cancel failed: ${error.message}`);
+
+  // Rezygnacja klienta: dostęp do końca opłaconego okresu. Koniec windykacji
+  // (`payment_failed` / `payment_disputed`): okres nigdy nie został opłacony,
+  // więc dostęp kończy karencja od pierwszej nieudanej płatności - a gdy ta
+  // już minęła, dostępu nie ma wcale. Nigdy nieopłacona: żadnego dostępu.
+  const canceledPeriod = accessPeriodFromEvent({
+    kind: "canceled",
+    eventPeriodEnd: data.currentBillingPeriod?.endsAt ?? null,
+    storedPeriodEnd: existing?.current_period_end ?? null,
+    status: "canceled",
+    cancellationReason: data.cancellationReason ?? null,
+    periodStart,
+    firstPaymentFailedAt: graceAnchor ?? existing?.first_payment_failed_at ?? null,
+  });
+  const accessUntil = neverPaid ? null : canceledPeriod.accessUntil;
 
     // Anulowanie planu Zespół wstrzymuje organizację - miejsca zostają, ale
     // przestają nadawać uprawnienia.
@@ -958,26 +916,50 @@ async function handleCanceled(
       priceId: existing.price_id,
     });
 
-    const { applyCancellationEffects } = await import("@/lib/billing/purchaseEffects.server");
-    await applyCancellationEffects({
-      userId: existing.user_id,
+  // Plan Zespół: rezygnacja wstrzymuje organizację od razu (miejsca zostają,
+  // ale przestają nadawać uprawnienia), a anulowanie za brak płatności -
+  // dopiero z końcem karencji, jak uprawnienie indywidualne (`accessPeriod.ts`).
+  const { applySubscriptionOrgState } = await import("@/lib/organizations/teamSeats.server");
+  await applySubscriptionOrgState({
+    subscriptionId: data.id,
+    status: "canceled",
+    priceId: existing.price_id,
+    accessUntil,
+    cancellationReason: neverPaid ? null : (data.cancellationReason ?? null),
+  });
+
+  if (neverPaid) {
+    // Bez maila, CRM i dzwonka - nie było zakupu, więc nie ma rezygnacji.
+    // Uprawnienie dostaje jawny brak dostępu (wiersz `incomplete` miał je już
+    // wygaszone, ale zapis jest idempotentny i domyka każdą inną kolejność).
+    const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
+    const plan = await resolvePlanForPrice(existing.price_id, {
       tenantId: existing.tenant_id ?? null,
-      priceId: existing.price_id,
-      subscriptionId: data.id,
-      periodEnd: canceledPeriod.accessUntil,
-      periodStart: data.currentBillingPeriod?.startsAt ?? null,
-      environment: env,
-      eventAt: mark.stamp,
+      userId: existing.user_id,
     });
+    if (!plan) return;
+    const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
+    await syncEntitlementState({
+      userId: existing.user_id,
+      tenantId: plan.tenantId,
+      planId: plan.planId,
+      externalRef: data.id,
+      status: "canceled",
+      periodEnd: null,
+    });
+    return;
   }
 
-  return commitSubscriptionState(
-    data.id,
-    env,
-    claim,
-    { status: "canceled", trial_ends_at: null, updated_at: new Date().toISOString() },
-    "subscriptions cancel failed",
-  );
+  const { applyCancellationEffects } = await import("@/lib/billing/purchaseEffects.server");
+  await applyCancellationEffects({
+    userId: existing.user_id,
+    tenantId: existing.tenant_id ?? null,
+    priceId: existing.price_id,
+    subscriptionId: data.id,
+    periodEnd: accessUntil,
+    environment: env,
+    nonPayment,
+  });
 }
 
 function amountFromTransaction(data: TransactionData): number | null {
@@ -1159,19 +1141,38 @@ async function handleTransaction(
     if (RECORDED_ONE_TIME_OUTCOMES.has(outcome)) await reportPurchaseToGa4(data, env);
     return { path: "one_time", outcome };
   }
-
-  // Odnowienie darowizny cyklicznej: brak uprawnień i windykacji planów -
-  // każda opłacona faktura ma zostać zaksięgowana jako osobna wpłata.
+  // Darowizna cykliczna: brak uprawnień i windykacji planów - każda opłacona
+  // FAKTURA (także pierwsza, `subscription_create`) to osobna wpłata.
   if (data.customData?.purpose === "donation") {
-    if (kind !== "paid") return { path: "closed" };
-    const { recordRecurringDonationPayment } = await import("@/lib/billing/donations.server");
-    await recordRecurringDonationPayment({
-      donationId: (data.customData.donationId as string | undefined) ?? null,
+    if (kind !== "paid") return;
+    const donations = await import("@/lib/billing/donations.server");
+    const donationId =
+      typeof data.customData.donationId === "string" ? data.customData.donationId : null;
+    // `checkout.session.completed` w trybie subskrypcji niesie `subscriptionId`
+    // i `purpose=donation`, ale NIE jest ratą - tę samą pierwszą wpłatę opisze
+    // za chwilę `invoice.paid`. Księgowanie z obu dawało dwa wiersze jednej
+    // wpłaty (klucze `cs_...` i `in_...`, audyt SUB-09); sesja tylko wiąże
+    // subskrypcję z wierszem darowizny. Sesję poznajemy po identyfikatorze
+    // operatora (`cs_test_...`/`cs_live_...`), bo ten sam kształt ma wiersz
+    // dziennika odtwarzany z panelu.
+    if (typeof data.id === "string" && data.id.startsWith("cs_")) {
+      await donations.linkDonationSubscription({
+        donationId,
+        subscriptionId: data.subscriptionId,
+        environment: env,
+      });
+      return;
+    }
+    const billedAt = (data as { billedAt?: unknown }).billedAt;
+    await donations.recordRecurringDonationPayment({
+      environment: env,
+      donationId,
       subscriptionId: data.subscriptionId,
       invoiceId: data.id,
       amountCents: amountFromTransaction(data),
       currency: data.currencyCode ?? null,
       donorEmail: data.customer?.email ?? null,
+      paidAt: typeof billedAt === "string" ? billedAt : null,
     });
     return { path: "subscription", source };
   }
@@ -1222,9 +1223,16 @@ async function handleTransaction(
     occurredAt,
     amountCents: amountFromTransaction(data),
     currency: data.currencyCode ?? null,
-    // Klucz deduplikacji windykacji: `transaction.payment_failed` i
-    // `transaction.past_due` opisują TĘ SAMĄ nieudaną transakcję.
+    // Klucz deduplikacji windykacji: faktura + numer próby. Ponowienia jednej
+    // faktury mają ten sam identyfikator, więc dopiero `attempt_count`
+    // odróżnia kolejną porażkę od powtórki zdarzenia o tej samej próbie.
     transactionId: data.id,
+    attemptCount: data.attemptCount ?? null,
+    // Termin kolejnej próby obciążenia - trafia do maila o nieudanej płatności.
+    retryAt: data.nextPaymentAttemptAt ?? null,
+    // Odnowienie czy dopłata za zmianę w trakcie okresu - windykacja dotyczy
+    // wyłącznie zaległości, nie odrzuconej dopłaty do upgrade'u.
+    billingReason: data.billingReason ?? null,
   };
   const dunning = await import("@/lib/billing/dunning.server");
   if (kind === "failed") await dunning.applyPaymentFailedEffects(ctx);
@@ -1372,12 +1380,15 @@ function isDonationSubscription(data: SubscriptionData): boolean {
   return data.customData?.purpose === "donation";
 }
 
-async function handleDonationSubscription(data: SubscriptionData, status: string) {
+async function handleDonationSubscription(data: SubscriptionData, status: string, env: StripeEnv) {
   const { syncDonationSubscription } = await import("@/lib/billing/donations.server");
+  // Środowisko zdarzenia wiąże zapis: subskrypcja z piaskownicy nie zamyka
+  // ani nie przepina darowizny produkcyjnej (audyt SUB-10).
   await syncDonationSubscription({
     subscriptionId: data.id,
     donationId: data.customData?.donationId ?? null,
     status,
+    environment: env,
   });
 }
 
@@ -1533,6 +1544,7 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
       await handleDonationSubscription(
         sub,
         eventType === "subscription.canceled" ? "canceled" : (sub.status ?? "active"),
+        env,
       );
       return "processed";
     }
@@ -1541,6 +1553,39 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
   if (subscriptionKind) return handleSubscriptionEvent(subscriptionKind, input, grantsAccess);
 
   switch (eventType) {
+    case "subscription.created": {
+      const sub = input.data as SubscriptionData;
+      const stamp = createdEventStamp(occurredAt);
+      const created = await underClaim(sub.id, env, stamp, () => handleCreated(sub, env, stamp));
+      if (created !== "exists") return "processed";
+      // Wiersz już jest: powtórka `created` (np. ponowienie po błędzie, które
+      // zwolniło zajęcie) albo nowsze zdarzenie stanu, które je wyprzedziło.
+      // `created` niesie NAJSTARSZY stan subskrypcji, więc stosujemy go
+      // wyłącznie przez tego samego strażnika kolejności co każdą
+      // aktualizację - przy nowszym zapisie nie zmienia niczego. Bez
+      // wiarygodnego czasu nie da się tego rozstrzygnąć, a zgadywanie
+      // cofnęłoby stan: istniejący wiersz zostaje nietknięty.
+      if (!stamp) return "skipped";
+      return runGuardedSubscriptionEvent(sub, env, stamp, "updated");
+    }
+    // Wszystkie zdarzenia zmiany stanu subskrypcji dzielą jedną obsługę -
+    // operator wysyła je jako osobne typy, ale autorytatywny jest `status`.
+    case "subscription.updated":
+    case "subscription.activated":
+    case "subscription.trialing":
+    case "subscription.past_due":
+    case "subscription.paused":
+    case "subscription.resumed":
+    case "subscription.imported": {
+      // Spóźnione zdarzenie nie może cofnąć nowszego stanu subskrypcji, a
+      // zdarzenie z tej samej sekundy - zniknąć bez rozstrzygnięcia.
+      const sub = input.data as SubscriptionData;
+      return runGuardedSubscriptionEvent(sub, env, eventStamp(occurredAt), "updated");
+    }
+    case "subscription.canceled": {
+      const sub = input.data as SubscriptionData;
+      return runGuardedSubscriptionEvent(sub, env, eventStamp(occurredAt), "canceled");
+    }
     // Nieudane obciążenie: operator sygnalizuje je dwoma zdarzeniami
     // (`payment_failed` przy odrzuceniu, `past_due` przy wejściu transakcji w
     // zaległość). Obsługa jest ta sama, a warstwa windykacji odsiewa duplikat

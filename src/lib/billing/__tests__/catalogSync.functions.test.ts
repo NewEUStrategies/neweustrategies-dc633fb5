@@ -9,24 +9,31 @@
 // błąd wyświetlania - to jest zmiana cennika, po której klienci płacą inne
 // kwoty.
 //
-// CZTERY RZECZY, KTÓRYCH PILNUJE TEN PLIK:
+// PIĘĆ RZECZY, KTÓRYCH PILNUJE TEN PLIK:
 //   1. ENUM `environment` - wartość spoza listy MUSI być odrzucona.
-//   2. BEZPIECZNY DOMYŚLNY KIERUNEK. Brak środowiska w ładunku znaczy
-//      PIASKOWNICA, nigdy produkcja. Gdyby domyślną wartością było „live",
-//      zgubione pole w formularzu przepisywałoby prawdziwy cennik.
+//   2. BEZPIECZNY DOMYŚLNY KIERUNEK POZA PRODUKCJĄ. Brak środowiska w ładunku
+//      znaczy tam PIASKOWNICA. W produkcji o środowisku decyduje serwer
+//      (punkt 5) - przycisk panelu synchronizuje konto, na którym wdrożenie
+//      faktycznie pobiera płatności, a nie to, które podała przeglądarka.
 //   3. TO SAMO ŚRODOWISKO W OBU KROKACH. Handler robi dwie rzeczy: synchronizuje
 //      katalog i zapisuje odcisk integracji. Rozjazd środowisk między tymi
 //      krokami oznaczałby zapis „katalog aktualny" dla konta, którego nikt nie
 //      ruszał - a automat przestałby naprawiać to, co naprawdę jest nieaktualne.
-//   4. BRAMKA ROLI. Obie funkcje deklarują `requireAdmin` (admin/super_admin),
-//      a nie samo uwierzytelnienie ani szersze `requireStaff`.
+//   4. BRAMKA ROLI. Obie funkcje deklarują `requirePlatformAdmin` (super_admin
+//      NAJEMCY DOMYŚLNEGO + MFA), a nie `requireAdmin` - rola per najemca
+//      oddawała przepisywanie cennika całej instalacji adminowi dowolnej
+//      organizacji (audyt SUB-05).
+//   5. ŚRODOWISKO Z SERWERA. W produkcji `resolveEnvironment` zawsze daje
+//      `live` - klient nie wybiera konta operatora, na którym zmieniają się
+//      ceny (audyt SUB-05).
 //
 // CZEGO TEN PLIK NIE DOWODZI: AUTORYZACJI. Harness nie uruchamia middleware,
-// więc deklarację bramki przybijamy STRUKTURALNIE.
+// więc deklarację bramki przybijamy STRUKTURALNIE. Odmowę dla admina najemcy
+// spoza najemcy domyślnego dowodzi `requireStaff.test.ts` (requirePlatformAdmin).
 //
 // Atrapy stoją na GRANICACH: `catalogSync.server` (dotyka SDK operatora)
 // i `catalogAutoSync.server` (pisze do bazy). Schemat zod biegnie PRAWDZIWY.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ZodError } from "zod";
 
 import {
@@ -47,6 +54,7 @@ vi.mock("@tanstack/react-start", async () =>
 );
 vi.mock("@/integrations/supabase/require-staff", () => ({
   requireAdmin: { name: "requireAdmin" },
+  requirePlatformAdmin: { name: "requirePlatformAdmin" },
 }));
 vi.mock("@/lib/billing/catalogSync.server", () => ({ syncBillingCatalog: h.syncBillingCatalog }));
 vi.mock("@/lib/billing/catalogAutoSync.server", () => ({
@@ -77,13 +85,18 @@ beforeEach(() => {
   h.getIntegrationState.mockResolvedValue(STAN);
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("obudowa - bramka i metoda", () => {
-  it("obie funkcje wymagają roli administratora, a nie samego zalogowania", () => {
-    // `requireAdmin` to admin/super_admin PLUS step-up MFA. Zejście na
-    // `requireSupabaseAuth` albo `requireStaff` oddałoby przepisywanie cennika
-    // operatora autorom treści.
-    expect(serverFnMiddlewareNames(syncPaymentCatalogNow)).toEqual(["requireAdmin"]);
-    expect(serverFnMiddlewareNames(getCatalogSyncState)).toEqual(["requireAdmin"]);
+  it("obie funkcje wymagają operatora PLATFORMY, a nie admina dowolnego najemcy", () => {
+    // Zmienione zachowanie (audyt SUB-05): wcześniej `requireAdmin`, czyli
+    // admin/super_admin W SWOIM najemcy. Katalog operatora jest wspólny dla
+    // instalacji, więc admin najemcy B przepisywał ceny najemcy A.
+    // `requirePlatformAdmin` = super_admin najemcy domyślnego + step-up MFA.
+    expect(serverFnMiddlewareNames(syncPaymentCatalogNow)).toEqual(["requirePlatformAdmin"]);
+    expect(serverFnMiddlewareNames(getCatalogSyncState)).toEqual(["requirePlatformAdmin"]);
   });
 
   it("zapis idzie POST-em, a odczyt stanu GET-em", () => {
@@ -192,6 +205,23 @@ describe("handler synchronizacji - co robi z argumentami", () => {
     expect(h.syncBillingCatalog).toHaveBeenCalledWith("live");
   });
 
+  it("w PRODUKCJI środowisko rozstrzyga serwer - `sandbox` z ładunku nie wybiera konta", async () => {
+    // Audyt SUB-05: środowisko szło prosto z ładunku do wyboru klucza API.
+    // `resolveEnvironment` (ta sama reguła co w kasie) daje w produkcji
+    // zawsze `live`, więc ani synchronizacja, ani odcisk nie trafiają na
+    // konto wybrane przez przeglądarkę.
+    vi.stubEnv("NODE_ENV", "production");
+
+    await callServerFn(syncPaymentCatalogNow, {
+      data: { environment: "sandbox" },
+      context: kontekst(),
+    });
+    await callServerFn(syncPaymentCatalogNow, { data: {}, context: kontekst() });
+
+    expect(h.syncBillingCatalog.mock.calls).toEqual([["live"], ["live"]]);
+    expect(h.recordManualSync.mock.calls.map((c) => c[0])).toEqual(["live", "live"]);
+  });
+
   it("odcisk integracji zapisuje się dla TEGO SAMEGO środowiska i z tym samym raportem", async () => {
     // Rozjazd środowisk między krokami zapisałby „katalog aktualny" przy
     // koncie, którego nikt nie ruszał - automat przestałby leczyć to konto,
@@ -266,6 +296,17 @@ describe("handler stanu integracji - co robi z argumentami", () => {
 
     expect(h.getIntegrationState).toHaveBeenCalledWith("sandbox");
     expect(wynik).toBe(STAN);
+  });
+
+  it("w PRODUKCJI stan integracji dotyczy zawsze konta `live`", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+
+    await callServerFn(getCatalogSyncState, {
+      data: { environment: "sandbox" },
+      context: kontekst(),
+    });
+
+    expect(h.getIntegrationState).toHaveBeenCalledWith("live");
   });
 
   it("wskazane środowisko jedzie dalej bez zmian", async () => {

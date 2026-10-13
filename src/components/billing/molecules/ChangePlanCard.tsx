@@ -1,16 +1,21 @@
 // Samoobsługowa zmiana planu subskrypcji (upgrade/downgrade). Lista celów:
-// aktywne plany cykliczne (miesiąc/kwartał/rok) poza bieżącym; wykonanie
-// przez server fn changeSubscriptionPlan (Stripe-first, prorata rozliczana
-// od razu, nieudana dopłata nie zmienia planu). Po sukcesie inwalidacja
-// wszystkich kluczy uprawnień - warstwa, paywall i dokumenty odświeżają się
-// bez przeładowania; zdarzenie subscription.updated.v1 z szyny domyka
-// pozostałe karty.
+// ta sama reguła, którą serwer sprawdza przy zmianie (`switchTargets` ->
+// `planSwitchRefusal`: aktywny plan cykliczny ze ścisłym odpowiednikiem
+// w katalogu, ten sam model rozliczenia, poza bieżącym); wykonanie przez
+// server fn changeSubscriptionPlan (Stripe-first, prorata rozliczana od razu,
+// nieudana dopłata nie zmienia planu - klient dostaje fakturę do opłacenia).
+// Po sukcesie inwalidacja wszystkich kluczy uprawnień - warstwa, paywall
+// i dokumenty odświeżają się bez przeładowania; zdarzenie
+// subscription.updated.v1 z szyny domyka pozostałe karty.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowRightLeft, Loader2 } from "lucide-react";
 import { billingKeys } from "@/lib/billing/keys";
+import { catalogPriceForPlan } from "@/lib/billing/catalog";
+import { toastSubscriptionFailure } from "@/lib/billing/paymentOutcomeToast";
+import { switchTargets } from "@/lib/billing/planSwitch";
 import { changeMySubscriptionPlan, fetchActivePlans } from "@/lib/billing/queries";
 import {
   formatMoney,
@@ -27,13 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const RECURRING_INTERVALS = new Set<AccessPlan["interval"]>([
-  "two_weeks",
-  "month",
-  "quarter",
-  "year",
-]);
 
 function intervalSuffix(interval: AccessPlan["interval"], t: (key: string) => string): string {
   switch (interval) {
@@ -55,18 +53,24 @@ export function ChangePlanCard({ subscription }: { subscription: UserSubscriptio
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
 
   const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
+  const currentEntry = subscription.plan ? catalogPriceForPlan(subscription.plan) : null;
   const targets = useMemo(
     () =>
-      (plansQ.data ?? []).filter(
-        (plan) => RECURRING_INTERVALS.has(plan.interval) && plan.id !== subscription.plan_id,
-      ),
-    [plansQ.data, subscription.plan_id],
+      switchTargets(plansQ.data ?? [], currentEntry)
+        .map((option) => option.plan)
+        .filter((plan) => plan.id !== subscription.plan_id),
+    [plansQ.data, currentEntry, subscription.plan_id],
   );
 
   const changePlan = useMutation({
     mutationFn: (newPlanId: string) => changeMySubscriptionPlan(subscription.id, newPlanId),
-    onSuccess: () => {
-      toast.success(t("profile.subscription.changePlan.success"));
+    onSuccess: (result) => {
+      // Downgrade wchodzi od nowego okresu - bieżący plan zostaje do jego końca.
+      toast.success(
+        result?.effect === "scheduled"
+          ? t("profile.subscription.portal.downgradeScheduled")
+          : t("profile.subscription.changePlan.success"),
+      );
       setSelectedPlanId("");
       void qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
       void qc.invalidateQueries({ queryKey: billingKeys.currentTierAll() });
@@ -75,7 +79,9 @@ export function ChangePlanCard({ subscription }: { subscription: UserSubscriptio
       void qc.invalidateQueries({ queryKey: ["public", "resolved"] });
       void qc.invalidateQueries({ queryKey: ["unlocked-body"] });
     },
-    onError: () => toast.error(t("profile.subscription.changePlan.error")),
+    onError: (error) => {
+      toastSubscriptionFailure(t, error, "profile.subscription.changePlan.error");
+    },
   });
 
   if (targets.length === 0) return null;

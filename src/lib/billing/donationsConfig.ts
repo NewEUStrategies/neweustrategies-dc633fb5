@@ -81,6 +81,31 @@ export function normalizeDonationAmount(
   return value;
 }
 
+export type DonationAmountCheck =
+  | { ok: true; amountCents: number }
+  | { ok: false; error: "amount_out_of_range" | "amount_not_allowed" };
+
+/**
+ * Pełna serwerowa bramka kwoty: zakres ORAZ tryb kwot z ustawień redakcji.
+ *
+ * `allowCustom: false` znaczy „wyłącznie kwoty sugerowane" - formularz chowa
+ * wtedy pole własnej kwoty, ale endpoint jest publiczny, więc bez tej bramki
+ * dowolna kwota z zakresu i tak trafiała do operatora (audyt SUB-10). Kwota
+ * sugerowana też musi mieścić się w zakresie: preset poniżej twardego minimum
+ * operatora nie otwiera wpłat na grosz tylnymi drzwiami.
+ */
+export function checkDonationAmount(
+  config: DonationsConfig,
+  amountCents: number,
+): DonationAmountCheck {
+  const value = normalizeDonationAmount(config, amountCents);
+  if (value === null) return { ok: false, error: "amount_out_of_range" };
+  if (!config.allowCustom && !config.presetsCents.includes(value)) {
+    return { ok: false, error: "amount_not_allowed" };
+  }
+  return { ok: true, amountCents: value };
+}
+
 /** Formatowanie kwoty dla interfejsu (grosze -> waluta lokalna). */
 export function formatDonationAmount(
   amountCents: number,

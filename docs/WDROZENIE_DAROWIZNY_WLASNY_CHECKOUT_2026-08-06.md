@@ -99,8 +99,10 @@ podatkowego.
   rejestrem pomocniczym, nie księgą rachunkową; **[do potwierdzenia]** sposób
   ujęcia wpłat w księgach organizacji.
 - **Dowód wpłaty:** dla odliczenia liczy się dowód wpłaty na rachunek. Rejestr
-  trzyma `provider_intent_id`, `provider_session_id`, kwotę, walutę i
-  `paid_at` - komplet do uzgodnienia z wyciągiem operatora.
+  trzyma `provider_intent_id` (intencja `pi_...` wpłaty jednorazowej),
+  `provider_invoice_id` (faktura `in_...` raty cyklicznej),
+  `provider_session_id`, kwotę, walutę, `refunded_amount_cents` i `paid_at` -
+  komplet do uzgodnienia z wyciągiem operatora (§8).
 
 ### 1.5 Wsparcie miesięczne a prawo konsumenckie
 
@@ -110,18 +112,21 @@ odnawialne wymaga jasnej informacji przed zawarciem: formularz pokazuje w
 trybie miesięcznym komunikat o pobieraniu wpłaty **do momentu rezygnacji** i o
 możliwości odwołania w dowolnej chwili (`donate.recurringNote`, PL/EN).
 **[do potwierdzenia]** kanał rezygnacji - obecnie kontakt z redakcją;
-docelowo warto dać samoobsługę w profilu darczyńcy.
+docelowo warto dać samoobsługę w profilu darczyńcy. Od 2026-10-12 usunięcie
+konta **anuluje u operatora** także darowizny cykliczne darczyńcy (§8.3) -
+wcześniej karta była obciążana dalej po skasowaniu konta.
 
 ### 1.6 Dane osobowe (RODO)
 
-| Dana                 | Podstawa / decyzja techniczna                                                           |
-| -------------------- | --------------------------------------------------------------------------------------- |
-| `donor_email`        | Podawany dobrowolnie, na potwierdzenie wpłaty. Normalizowany (lowercase), limit 320 zn. |
-| `message`            | Dobrowolny, limit 500 zn.; **nigdy** nie trafia do publicznych statystyk                |
-| `user_id`            | Tylko dla zalogowanego darczyńcy (rejestr w profilu + status wspierającego)             |
-| Adres IP             | **Nie jest zapisywany.** Limit prób pracuje na solonym skrócie SHA-256 (§2.4)           |
-| Publiczne statystyki | Wyłącznie sumy i kwoty ostatnich pozycji - zero PII (`getDonationsPublicStats`)         |
-| Usunięcie konta      | `donations.user_id` ma `ON DELETE SET NULL` - dowód wpłaty zostaje, tożsamość znika     |
+| Dana                 | Podstawa / decyzja techniczna                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `donor_email`        | Podawany dobrowolnie, na potwierdzenie wpłaty. Normalizowany (lowercase), limit 320 zn.                                                           |
+| `message`            | Dobrowolny, limit 500 zn.; **nigdy** nie trafia do publicznych statystyk                                                                          |
+| `user_id`            | Tylko dla zalogowanego darczyńcy (rejestr w profilu + status wspierającego)                                                                       |
+| Adres IP             | **Nie jest zapisywany.** Limit prób pracuje na solonym skrócie SHA-256 (§2.4)                                                                     |
+| Publiczne statystyki | Wyłącznie sumy i kwoty ostatnich pozycji - zero PII (`getDonationsPublicStats`)                                                                   |
+| Usunięcie konta      | `donations.user_id` ma `ON DELETE SET NULL` - dowód wpłaty zostaje, tożsamość znika; darowizny cykliczne są najpierw anulowane u operatora (§8.3) |
+| Dziennik webhooków   | Pełny ładunek operatora 30 dni (`failed`/`received`: 90), potem pseudonimizacja; przy zamknięciu konta - od razu (§8.4)                           |
 
 ### 1.7 Przeciwdziałanie nadużyciom
 
@@ -295,3 +300,123 @@ sprawdzone na czystym drzewie przed zmianami.
 3. **[do potwierdzenia]** zakres tieru „supporter" - musi pozostać honorowy,
    inaczej darowizna staje się świadczeniem wzajemnym (§1.2).
 4. Samoobsługowa rezygnacja ze wsparcia miesięcznego w profilu darczyńcy (§1.5).
+
+## 8. Audyt rozliczeń 2026-10-12 (SUB-09, SUB-10, SUB-11)
+
+Migracje `20261013090000_donations_ledger_integrity` i
+`20261013090100_payment_webhook_events_retention`; dowody: pgTAP
+`donations_ledger_integrity_test.sql`, `payment_webhook_events_retention_test.sql`
+oraz testy jednostkowe `donationsLedger.server`, `donationRecurring`,
+`refunds.server`, `donations.functions`, `donationsAdmin.server`,
+`accountClosure.server`, `webhookRetry.functions`.
+
+### 8.1 Jedna wpłata = jeden wiersz (SUB-09)
+
+- **Ratę cykliczną - także pierwszą - księguje wyłącznie FAKTURA**
+  (`invoice.paid` / `invoice.payment_succeeded`), kluczem `provider_invoice_id`
+  z unikatem `(provider, environment, provider_invoice_id)`. Bliźniacze
+  zdarzenia tej samej faktury trafiają w unikat (`skipped`).
+- `checkout.session.completed` w trybie subskrypcji **tylko wiąże** subskrypcję
+  z wierszem (`linkDonationSubscription`). Wcześniej księgował pierwszą ratę
+  kluczem `cs_...`, a faktura dopisywała drugi wiersz `renewal:in_...` -
+  pierwsza wpłata liczyła się podwójnie (statystyki, eksport, uzgodnienie).
+- Uzgodnienie w panelu (`donationsAdmin.server`) księguje sesję subskrypcji
+  fakturą sesji (`session.invoice`) - tym samym kluczem co webhook.
+- **Dane zastane:** `donations_dedupe_session_invoice_pairs()` (wywołana raz
+  w migracji) koryguje WYŁĄCZNIE pary jednoznaczne: ta sama subskrypcja,
+  najemca, środowisko, kwota i waluta, oba wiersze `paid`, odstęp <= 7 dni
+  (interwał darowizny to miesiąc). Duplikat dostaje `canceled` i klucz
+  `duplicate:<stary>` (ślad zostaje), kotwica przejmuje klucz faktury. Pary
+  niejednoznaczne zostają nietknięte - do ręcznego przeglądu zapytaniem
+  o subskrypcje z więcej niż jednym wierszem w pierwszych 7 dniach.
+- Korekta obejmuje też ślady **uzgodnienia w panelu sprzed poprawki**:
+  `syncDonationsFromStripe` domykał kotwicę subskrypcji z
+  `session.payment_intent`, które w trybie subskrypcji jest `null`, więc
+  kotwica zostawała `paid` z PUSTĄ intencją - taka kotwica też jest stroną
+  „sesji" pary. Trójka kotwica + `renewal:in_...` + `renewal:cs_...`
+  (ponowione `invoice.paid` i ponowiona sesja) kończy się jednym opłaconym
+  wierszem: `renewal:cs_X` przy zaksięgowanej kotwicy `cs_X` jest duplikatem
+  z definicji (ten sam identyfikator sesji operatora), więc drugi przebieg
+  funkcji kasuje go bez okna czasowego.
+
+### 8.2 Zwrot trafia w darowiznę (SUB-09)
+
+- Wpłata jednorazowa zapisuje w `provider_intent_id` **intencję** (`pi_...`),
+  sesja zostaje w `provider_session_id`.
+- Zwrot i spór (`refunds.server`) szukają po intencji, a dla wierszy bez niej
+  (raty cykliczne, wpłaty sprzed poprawki z `cs_...` w polu intencji) idą
+  mostem u operatora: `invoicePayments.list` (intencja -> faktura) i
+  `checkout.sessions.list` (intencja -> sesja). Każde zapytanie wiąże
+  środowisko korekty.
+- **Zwrot częściowy** jak przy zamówieniach: wpłata zostaje `paid`,
+  `refunded_amount_cents` rośnie (narastająco, zaciśnięte do kwoty), statystyki
+  publiczne liczą kwotę netto. Pełny zwrot i spór -> `refunded`; wygrany spór
+  przywraca wpłatę zamkniętą sporem (nie pełny zwrot).
+- **Spór na prawdziwych statusach Stripe** (`Dispute.status`, przekazywany
+  surowo przez normalizację): `needs_response` / `under_review` (środki
+  pobrane) zamykają wpłatę i alarmują zespół najemcy; zapytania banku
+  (`warning_*`) i `prevented` niczego nie zmieniają; `charge.dispute.closed`
+  z `won` przywraca wpłatę zamkniętą sporem, z `lost` domyka ją (gdyby
+  otwarcie nie dotarło) bez fałszywego alertu „otwarto spór". Ta sama reguła
+  dotyczy zamówień. **Konfiguracja operatora:** punkt odbioru webhooków musi
+  subskrybować `charge.dispute.closed` (obok `charge.dispute.created`) -
+  uzgodnienie w panelu pokazuje zgubione zamknięcia sporu jako naprawialne.
+  Eskalacja zapytania do formalnego sporu bez nowego `charge.dispute.created`
+  zostaje wychwycona dopiero przy zamknięciu (`lost`).
+- **Zwrot raty, zanim jej faktura się zaksięgowała** (np. `invoice.paid` padło
+  i czeka na ponowienie): `charge.refunded` nie zostaje już „przetworzony" bez
+  skutku. Gdy most intencja -> faktura wskazuje fakturę subskrypcji, której
+  księga nie zna, a subskrypcja jest NASZĄ darowizną (wiersz tej subskrypcji
+  albo kotwica z `metadata.donationId`), korekta rzuca błąd i operator ją
+  ponawia; po zaksięgowaniu raty ponowienie trafia w nią zwykłą regułą zwrotu.
+  Oczekującej kotwicy celowo nie oznaczamy jako zwróconej - księgowanie
+  dopisałoby wtedy świeży opłacony wiersz `renewal:in_...`. Gdy rata nigdy się
+  nie zaksięguje (brak kotwicy), zdarzenie zostaje w dzienniku jako `failed`
+  po wyczerpaniu ponowień - do ręcznego przeglądu.
+- **Status wspierającego:** trigger `tg_donations_grant_supporter` przy
+  przejściu `paid -> *` przelicza przydział z POZOSTAŁYCH opłaconych wpłat
+  (ta sama reguła +12 miesięcy), może go wyłącznie skrócić, a odbiera, gdy
+  żadna wpłata go nie uzasadnia. `paid -> paid` (ponowiony zapis) nie
+  przedłuża już przydziału o kolejny rok. Przeliczenie liczy TE SAME wiersze,
+  które przydział nadają - bez filtra środowiska: zawężenie do środowiska
+  zmienianego wiersza sprawiało, że korekta testowej pary (`sandbox`)
+  skracała albo odbierała status uzasadniony wpłatami `live`.
+
+### 8.3 Środowisko i najemca (SUB-10) oraz zamknięcie konta (SUB-11)
+
+- Środowisko checkoutu rozstrzyga serwer (`resolveEnvironment`, w produkcji
+  zawsze `live`) i jest **zapisywane w wierszu**; każde księgowanie, wiązanie
+  i zwrot filtruje po środowisku zdarzenia. Wiersze sesji `cs_test_...`
+  stemplowane dotąd jako `live` przeklasyfikowano na `sandbox`.
+- Konfiguracja czytana po `(tenant_id, key)` - publicznie z najemcy hosta.
+  `allowCustom: false` jest egzekwowane serwerowo (`amount_not_allowed`),
+  kwota sugerowana też musi mieścić się w zakresie.
+- Zamknięcie konta (`accountClosure.server`) anuluje u operatora: plany,
+  darowizny cykliczne konta (środowisko wiersza) i subskrypcje znalezione
+  Search po `metadata.userId` (webhook mógł nie dotrzeć) - deduplikacja,
+  klucz idempotencji `account-closure:<sub>`, subskrypcja już zamknięta nie
+  jest błędem, każda inna porażka (także niedostępny Search) zatrzymuje
+  usunięcie konta. Search nie obejmuje klientów (`customers.search`): klient
+  bywa przypinany po e-mailu, więc anulowanie po kliencie mogłoby dotknąć
+  cudzej subskrypcji.
+
+### 8.4 Retencja dziennika webhooków (SUB-11)
+
+`payment_webhook_events_redact_expired` (pg_cron co godzinę, minuta 43):
+po **30 dniach** (zdarzenia domknięte) albo **90 dniach** (`failed` /
+`received`) zeruje w ładunku dane osobowe (e-mail, imię, adres, telefon, NIP,
+karta, IP, adresy faktur) i maskuje e-maile w napisach i w treści błędu;
+zostają identyfikatory, kwoty, statusy i metadane domenowe. 30 dni: operator
+ponawia najwyżej 3 doby, uzgodnienie sięga 30 dni i czyta zdarzenie od
+operatora. Zamknięcie konta pseudonimizuje zdarzenia konta od razu
+(`payment_webhook_events_redact_for_user`, także `userId`). Ładunek ze
+znacznikiem `_redacted` nie jest ponawiany z panelu (czytelna odmowa).
+
+**Świadomie poza zakresem:** zdarzenia, które operator wyśle PO zamknięciu
+konta (np. `customer.subscription.deleted` z anulowania), zapisują się
+w całości i znikają z retencją po 30 dniach; przydziały „supporter" nadane
+w przeszłości wpłatami testowymi na produkcji nie są cofane automatycznie
+(do przeglądu: `membership_grants.source_donation_id` wskazujący wiersz
+`environment = 'sandbox'`). Z tego samego powodu przeliczenie przydziału po
+zwrocie lub korekcie liczy wiersze obu środowisk - inaczej skracałoby status
+darczyńców z mieszanymi danymi historycznymi.

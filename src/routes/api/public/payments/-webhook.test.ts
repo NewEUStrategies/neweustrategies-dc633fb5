@@ -70,11 +70,17 @@ const h = vi.hoisted(() => {
     );
   };
 
-  const settle = (): QueryResult =>
+  const settle = (): QueryResult => {
+    // Wstawienie-jeśli-brak (`upsert(..., { ignoreDuplicates }).select(...)`)
+    // oddaje WSTAWIONE wiersze - w tym teście wiersza nigdy wcześniej nie ma.
+    if (state.current.includes("upsert") && state.current.includes("select")) {
+      return state.write.error ? state.write : { data: [{ id: "row_new" }], error: null };
+    }
     // `update(...).select(...)` to RETURNING - zwraca wiersze, nie pusty zapis.
-    state.current.includes("update") && state.current.includes("select")
+    return state.current.includes("update") && state.current.includes("select")
       ? state.claim
       : state.write;
+  };
 
   const terminals: Record<string, unknown> = {
     maybeSingle: lookup,
@@ -265,7 +271,12 @@ function seed(
   extra?: Partial<Record<string, QueryResult[]>>,
 ) {
   h.state.lookups = {
-    subscriptions: existing ? [{ data: existing, error: null }] : [{ data: null, error: null }],
+    // Istniejąca subskrypcja ma za sobą potwierdzenie zakupu (od migracji
+    // 20261013090600 pusty znacznik znaczy „zakup do potwierdzenia", a te
+    // przypadki opisują subskrypcję dawno kupioną).
+    subscriptions: existing
+      ? [{ data: { purchase_confirmed_at: "2026-06-01T00:00:00.000Z", ...existing }, error: null }]
+      : [{ data: null, error: null }],
     access_plans: [
       { data: PLAN, error: null },
       { data: PLAN, error: null },

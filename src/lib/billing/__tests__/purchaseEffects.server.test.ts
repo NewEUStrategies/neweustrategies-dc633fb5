@@ -11,8 +11,10 @@
 //     o dopłacie ma ZNIKNĄĆ, a nie pokazać kwotę niezgodną z fakturą operatora.
 //   * IZOLACJA NAJEMCY. Uprawnienie, mail i dzwonek dostają plan WŁASNEJ
 //     organizacji, nawet gdy obca ma plan o tym samym progu.
-//   * ZGODA NA NEWSLETTER. Świadome wypisanie się jest nadrzędne - automat nie
-//     zapisuje ponownie kogoś, kto zrezygnował.
+//   * ZGODA NA NEWSLETTER. Zapis na listę wyłącznie z jawną zgodą z checkoutu
+//     (pełny zestaw reguł SUB-15: `purchaseEffectsNewsletterConsent.server.test.ts`),
+//     a świadome wypisanie się jest nadrzędne - automat nie zapisuje ponownie
+//     kogoś, kto zrezygnował.
 //   * FAIL-SOFT. Awaria CRM, newslettera albo dzwonka nie może wywrócić
 //     webhooka (operator ponowiłby zdarzenie i zdublował mail) - ma zostać
 //     w logu, a pozostałe skutki mają dojść do końca. Atrapa modeluje awarię
@@ -51,7 +53,8 @@ import {
   type SupabaseFromStub,
   type SupabaseResult,
 } from "@/test/billing/fixtures";
-import { DZIEN, FIXED_NOW_ISO, freezeClock, relativeIso } from "@/test/time";
+import { DZIEN, FIXED_NOW_ISO, MINUTA, freezeClock, relativeIso } from "@/test/time";
+import { PREMIUM_NEWSLETTER_CONSENT_VERSION } from "@/lib/billing/premiumNewsletter";
 
 const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
@@ -65,6 +68,8 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       if (!h.db.current) throw new Error("test: atrapa bazy nieustawiona (beforeEach)");
       return h.db.current.from(table);
     },
+    // Lista wykluczeń (zapis na newsletter po zgodzie) - tu zawsze czysto.
+    rpc: () => Promise.resolve({ data: [], error: null }),
   },
 }));
 
@@ -94,6 +99,15 @@ freezeClock();
 
 const SUB = "sub_1SyntetycznaSubskrypcja";
 const EMAIL = "klientka@example.com";
+/** Zaznaczone pole zgody w checkoucie - bez niego zakup nie dotyka listy (SUB-15). */
+const WITH_CONSENT: Partial<PurchaseContext> = {
+  newsletterConsent: {
+    version: PREMIUM_NEWSLETTER_CONSENT_VERSION,
+    lang: "pl",
+    at: relativeIso(-2 * MINUTA),
+    orderId: "order-1",
+  },
+};
 
 // --- scena ------------------------------------------------------------------
 
@@ -205,7 +219,9 @@ beforeEach(() => {
   );
   db.setResponse(
     "newsletter_subscribers",
-    guarded("newsletter_subscribers", (chain) => ok(isWrite(chain) ? null : scene.newsletter)),
+    guarded("newsletter_subscribers", (chain) =>
+      ok(isWrite(chain) ? (chain.has("select") ? [{ id: "nl-1" }] : null) : scene.newsletter),
+    ),
   );
   db.setResponse(
     "notifications",
@@ -298,8 +314,8 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
     });
   });
 
-  it("klient bez leada trafia do CRM jako „won”, a na newsletter premium z adresem znormalizowanym", async () => {
-    await applyPurchaseEffects(purchase());
+  it("klient bez leada trafia do CRM jako „won”, a po zgodzie na newsletter premium z adresem znormalizowanym", async () => {
+    await applyPurchaseEffects(purchase(WITH_CONSENT));
 
     const lookup = db.chainsFor("crm_leads").find((c) => !isWrite(c));
     expect(eqFilters(lookup!)).toEqual([
@@ -324,8 +340,13 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       ["tenant_id", BILLING_IDS.tenant],
       ["email", EMAIL],
     ]);
+    // Wstawienie BEZ nadpisywania: wiersz, który pojawił się w międzyczasie,
+    // nie traci dowodów (SUB-15) - zostanie scalony.
     const upsert = db.chainsFor("newsletter_subscribers").find((c) => c.has("upsert"));
-    expect(upsert?.argsOf("upsert")?.[1]).toEqual({ onConflict: "tenant_id,email" });
+    expect(upsert?.argsOf("upsert")?.[1]).toEqual({
+      onConflict: "tenant_id,email",
+      ignoreDuplicates: true,
+    });
     expect(written("newsletter_subscribers", "upsert")).toMatchObject({
       tenant_id: BILLING_IDS.tenant,
       user_id: BILLING_IDS.me,
@@ -364,7 +385,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
     expect(written("crm_leads", "insert")).toBeUndefined();
   });
 
-  it("świadome wypisanie z newslettera jest nadrzędne - automat go nie odwraca", async () => {
+  it("świadome wypisanie z newslettera jest nadrzędne - nawet zgoda z checkoutu go nie odwraca", async () => {
     scene.newsletter = {
       id: "nl-1",
       status: "unsubscribed",
@@ -372,24 +393,23 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       language: "pl",
     };
 
-    await applyPurchaseEffects(purchase());
+    await applyPurchaseEffects(purchase(WITH_CONSENT));
 
     expect(writes("newsletter_subscribers")).toHaveLength(0);
     // Reszta skutków zakupu biegnie normalnie.
     expect(written("notifications", "insert")).toMatchObject({ title_pl: "Subskrypcja aktywna" });
   });
 
-  it("zapis na newsletter zachowuje język wybrany wcześniej i dane z profilu bez imienia", async () => {
+  it("nowy zapis na newsletter bierze dane z profilu bez imienia (istniejący wiersz jest scalany - SUB-15)", async () => {
     scene.profile = { ...scene.profile, first_name: null, last_name: "Nowak" };
-    scene.newsletter = { id: "nl-1", status: "subscribed", unsubscribed_at: null, language: "en" };
 
-    await applyPurchaseEffects(purchase());
+    await applyPurchaseEffects(purchase(WITH_CONSENT));
 
     expect(written("newsletter_subscribers", "upsert")).toMatchObject({
       email: EMAIL,
       first_name: null,
       last_name: "Nowak",
-      language: "en",
+      language: "pl",
     });
     expect(written("crm_leads", "insert")).toMatchObject({ first_name: null, last_name: "Nowak" });
   });
@@ -422,7 +442,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       const error = vi.spyOn(console, "error").mockImplementation(() => {});
       scene.broken = "crm_leads";
 
-      await expect(applyPurchaseEffects(purchase())).resolves.toBeUndefined();
+      await expect(applyPurchaseEffects(purchase(WITH_CONSENT))).resolves.toBeUndefined();
 
       expect(error).toHaveBeenCalledWith(
         "[payments] crm sync failed",
@@ -437,7 +457,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       const error = vi.spyOn(console, "error").mockImplementation(() => {});
       scene.broken = "newsletter_subscribers";
 
-      await expect(applyPurchaseEffects(purchase())).resolves.toBeUndefined();
+      await expect(applyPurchaseEffects(purchase(WITH_CONSENT))).resolves.toBeUndefined();
 
       expect(error).toHaveBeenCalledWith(
         "[payments] premium newsletter opt-in failed",
@@ -502,7 +522,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
         scene.lead = lead;
         scene.rejected = (t, chain) => t === table && chain.has(method);
 
-        await expect(applyPurchaseEffects(purchase())).resolves.toBeUndefined();
+        await expect(applyPurchaseEffects(purchase(WITH_CONSENT))).resolves.toBeUndefined();
 
         expect(error).toHaveBeenCalledWith(
           log,
@@ -536,7 +556,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       const error = vi.spyOn(console, "error").mockImplementation(() => {});
       scene.rejected = (table, chain) => table === "newsletter_subscribers" && !isWrite(chain);
 
-      await applyPurchaseEffects(purchase());
+      await applyPurchaseEffects(purchase(WITH_CONSENT));
 
       // Upsert po (tenant_id, email) ustawiłby `status: subscribed` na wierszu,
       // którego stanu zgody nie udało się przeczytać.
@@ -555,7 +575,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       scene.rejected = (table, chain) =>
         table === "profiles" && selectedColumns(chain) === "email, first_name, last_name";
 
-      await applyPurchaseEffects(purchase());
+      await applyPurchaseEffects(purchase(WITH_CONSENT));
 
       expect(db.chainsFor("newsletter_subscribers")).toHaveLength(0);
       expect(error).toHaveBeenCalledWith(

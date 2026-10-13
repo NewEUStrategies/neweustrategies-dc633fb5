@@ -65,6 +65,42 @@ function syntheticEvent(subscription: Stripe.Subscription): VerifiedWebhookEvent
   } as VerifiedWebhookEvent;
 }
 
+/** Identyfikator bezpieczny do interpolacji w zapytaniu Search (UUID-podobny). */
+export function isSearchableUserId(userId: string): boolean {
+  return /^[a-zA-Z0-9_-]+$/.test(userId);
+}
+
+/**
+ * Subskrypcje operatora z `metadata.userId` = `userId` - JEDNO zapytanie Search
+ * dla samoobsługowej synchronizacji i dla zamknięcia konta
+ * (`accountClosure.server`), które musi znaleźć subskrypcję także wtedy, gdy
+ * jej webhook nigdy nie dotarł. RZUCA przy błędzie operatora - to wołający
+ * decyduje, czy brak wyniku wolno przemilczeć. Identyfikator spoza bezpiecznego
+ * kształtu nie trafia do zapytania wcale (pusta lista).
+ */
+export async function searchSubscriptionsByUserId(
+  stripe: Stripe,
+  userId: string,
+  options: { limit?: number; maxPages?: number } = {},
+): Promise<Stripe.Subscription[]> {
+  if (!isSearchableUserId(userId)) return [];
+  const limit = options.limit ?? 20;
+  const maxPages = Math.max(1, options.maxPages ?? 1);
+  const found: Stripe.Subscription[] = [];
+  let page: string | undefined;
+  for (let i = 0; i < maxPages; i += 1) {
+    const result = await stripe.subscriptions.search({
+      query: `metadata['userId']:'${userId}'`,
+      limit,
+      ...(page ? { page } : {}),
+    });
+    found.push(...result.data);
+    if (!result.has_more || !result.next_page) break;
+    page = result.next_page;
+  }
+  return found;
+}
+
 /**
  * Zbiera identyfikatory subskrypcji użytkownika: lokalne (tabela
  * `subscriptions`) uzupełnione o wyszukiwanie po `metadata.userId` u operatora,
@@ -76,19 +112,12 @@ async function collectSubscriptionIds(
   localIds: string[],
 ): Promise<string[]> {
   const ids = new Set<string>(localIds.filter(isSubscriptionId));
-  // Zapytanie Search jest interpolowane - wpuszczamy wyłącznie UUID-podobne id.
-  if (/^[a-zA-Z0-9_-]+$/.test(userId)) {
-    try {
-      const found = await stripe.subscriptions.search({
-        query: `metadata['userId']:'${userId}'`,
-        limit: 20,
-      });
-      for (const sub of found.data) ids.add(sub.id);
-    } catch (error) {
-      // Search bywa niedostępny tuż po utworzeniu obiektu (indeks jest
-      // asynchroniczny) - lokalne identyfikatory wystarczą do synchronizacji.
-      console.error("[selfSync] subscriptions.search failed", error);
-    }
+  try {
+    for (const sub of await searchSubscriptionsByUserId(stripe, userId)) ids.add(sub.id);
+  } catch (error) {
+    // Search bywa niedostępny tuż po utworzeniu obiektu (indeks jest
+    // asynchroniczny) - lokalne identyfikatory wystarczą do synchronizacji.
+    console.error("[selfSync] subscriptions.search failed", error);
   }
   return [...ids];
 }

@@ -20,7 +20,29 @@ import { getStripeClient, type StripeEnv, type VerifiedWebhookEvent } from "@/li
 import { STRIPE_WEBHOOK_EVENT_TYPES } from "@/lib/billing/stripeEventTypes";
 
 /** Typy zdarzeń, które nasza integracja umie obsłużyć (reszta jest ignorowana). */
-const SUPPORTED_EVENT_TYPES = STRIPE_WEBHOOK_EVENT_TYPES;
+const SUPPORTED_EVENT_TYPES = [
+  "customer.subscription.created",
+  "customer.subscription.updated",
+  "customer.subscription.deleted",
+  "customer.subscription.resumed",
+  "checkout.session.completed",
+  "checkout.session.async_payment_succeeded",
+  "checkout.session.async_payment_failed",
+  "invoice.paid",
+  "invoice.payment_succeeded",
+  "invoice.payment_failed",
+  "charge.refunded",
+  // Zwrot, który nie doszedł (INV-19c): zgubione zdarzenie zostawiłoby zlecenie
+  // zwrotu w `submitted`, więc uzgadnianie ma je widzieć. `refund.updated` -
+  // celowo nie: większość jego dostaw to sukces, który niesie `charge.refunded`.
+  "refund.failed",
+  "charge.dispute.created",
+  // Rozstrzygnięcie sporu (`won` przywraca dostęp i wpłatę) - zgubione
+  // zdarzenie ma być widoczne i naprawialne jak każde inne.
+  "charge.dispute.closed",
+  "credit_note.created",
+  "customer.updated",
+] as const;
 
 export type ReconcileKind = "event" | "order" | "subscription";
 

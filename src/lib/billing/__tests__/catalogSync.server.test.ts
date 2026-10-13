@@ -9,6 +9,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface PlanRow {
+  /** Najemca planu - źródłem prawdy katalogu jest WYŁĄCZNIE najemca domyślny. */
+  tenant_id: string;
+  id?: string;
+  sort_order?: number | null;
+  created_at?: string | null;
   tier_key: string | null;
   interval: string | null;
   price_cents: number | null;
@@ -33,6 +38,12 @@ const h = vi.hoisted(() => ({
   plansError: null as { message: string } | null,
   /** Kolumny odpytane w bazie (liczba przebiegów synchronizacji). */
   selects: [] as string[],
+  /** Najemca domyślny instalacji (`tenants.is_default`); `null` = brak wiersza. */
+  defaultTenant: "tenant-domyslny" as string | null,
+  /** Wstrzyknięty błąd odczytu najemcy domyślnego. */
+  tenantError: null as { message: string } | null,
+  /** Filtry `eq` nałożone na odczyt `access_plans` (zawężenie do najemcy). */
+  planFilters: [] as Array<[string, unknown]>,
   /** Produkty widoczne u operatora, kluczowane po `lovable_external_id`. */
   remoteProducts: {} as Record<string, { id: string } | undefined>,
   /** Ceny widoczne u operatora, kluczowane po `lookup_key`. */
@@ -60,15 +71,44 @@ vi.mock("@/lib/stripe.server", () => ({
   },
 }));
 
+// Atrapa odwzorowuje DWA odczyty źródła prawdy: najemca domyślny
+// (`tenants.is_default`), potem jego plany (`access_plans.tenant_id`). Filtr
+// najemcy jest WYKONYWANY na wierszach, więc plany innych najemców w `h.plans`
+// realnie nie docierają do synchronizacji - test wielonajemcowy dowodzi
+// zawężenia, a nie tylko tego, że ktoś wywołał `.eq`.
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
-    from: () => ({
-      select: (columns: string) => {
-        h.selects.push(columns);
-        return Promise.resolve(
-          h.plansError ? { data: null, error: h.plansError } : { data: h.plans, error: null },
-        );
-      },
+    from: (table: string) => ({
+      select: (columns: string) => ({
+        eq: (column: string, value: unknown) => {
+          if (table === "tenants") {
+            return {
+              maybeSingle: () =>
+                Promise.resolve(
+                  h.tenantError
+                    ? { data: null, error: h.tenantError }
+                    : {
+                        data:
+                          column === "is_default" && value === true && h.defaultTenant
+                            ? { id: h.defaultTenant }
+                            : null,
+                        error: null,
+                      },
+                ),
+            };
+          }
+          h.selects.push(columns);
+          h.planFilters.push([column, value]);
+          return Promise.resolve(
+            h.plansError
+              ? { data: null, error: h.plansError }
+              : {
+                  data: h.plans.filter((row) => (row as Record<string, unknown>)[column] === value),
+                  error: null,
+                },
+          );
+        },
+      }),
     }),
   },
 }));
@@ -78,13 +118,10 @@ vi.mock("../catalogReap.server", () => ({
 }));
 
 import { BILLING_CATALOG } from "@/lib/billing/catalog";
-import {
-  healCatalogOnce,
-  syncBillingCatalog,
-  type CatalogSyncReport,
-} from "@/lib/billing/catalogSync.server";
+import { syncBillingCatalog, type CatalogSyncReport } from "@/lib/billing/catalogSync.server";
 
 const plan = (over: Partial<PlanRow> = {}): PlanRow => ({
+  tenant_id: "tenant-domyslny",
   tier_key: "member",
   interval: "month",
   price_cents: 4900,
@@ -103,6 +140,7 @@ const plan = (over: Partial<PlanRow> = {}): PlanRow => ({
 const remotePlusMonthly = (over: Record<string, unknown> = {}) => ({
   id: "price_plus_m",
   lookup_key: "plus_monthly",
+  type: "recurring",
   unit_amount: 4900,
   currency: "pln",
   recurring: { interval: "month", interval_count: 1 },
@@ -135,6 +173,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.envs.length = 0;
   h.selects.length = 0;
+  h.planFilters.length = 0;
+  h.defaultTenant = "tenant-domyslny";
+  h.tenantError = null;
   h.clientError = null;
   h.plans = [plan()];
   h.plansError = null;
@@ -219,6 +260,7 @@ describe("syncBillingCatalog - zakładanie brakujących pozycji", () => {
   it("mapuje interwały aplikacji na słownik cykli operatora", async () => {
     h.plans = [
       plan({ tier_key: "business", interval: "two_weeks", name_pl: "Partner" }),
+      plan({ tier_key: "business", interval: "month", name_pl: "Partner" }),
       plan({ tier_key: "business", interval: "quarter", name_pl: "Partner" }),
       plan({ tier_key: "member", interval: "year" }),
     ];
@@ -236,6 +278,24 @@ describe("syncBillingCatalog - zakładanie brakujących pozycji", () => {
     });
     expect(priceCreateFor("plus_annual")).toMatchObject({
       recurring: { interval: "year", interval_count: 1 },
+    });
+  });
+
+  it("pozycja BEZ planu w swoim cyklu NIE dostaje kwoty planu z innego cyklu", async () => {
+    // Zmienione zachowanie (audyt SUB-05): dawny zapasowy „pierwszy plan tego
+    // progu" zakładał `business_monthly` i `business_quarterly` z kwotą planu
+    // dwutygodniowego - cena kwartalna kosztowała u operatora tyle, co dwa
+    // tygodnie. Ten test wcześniej utrwalał to zachowanie jako poprawne.
+    h.plans = [plan({ tier_key: "business", interval: "two_weeks", price_cents: 59000 })];
+
+    const report = await syncBillingCatalog("sandbox");
+
+    expect(priceCreateFor("business_2w")).toMatchObject({ unit_amount: 59000 });
+    expect(priceCreateFor("business_monthly")).toBeUndefined();
+    expect(priceCreateFor("business_quarterly")).toBeUndefined();
+    expect(itemFor(report, "business_quarterly")).toMatchObject({
+      price: "skipped",
+      reason: "no_local_plan",
     });
   });
 
@@ -415,11 +475,11 @@ describe("syncBillingCatalog - korekta rozjechanych pozycji", () => {
     expect(itemFor(report, "plus_monthly")).toMatchObject({ product: "ok", price: "ok" });
   });
 
-  it("rozjechany cykl rozliczeniowy NIE jest wykrywany", async () => {
-    // DEFEKT UTRWALONY: komentarz modułu (linia 7) obiecuje korektę cyklu, ale
-    // `amountDrifted` porównuje wyłącznie kwotę i walutę. Cena rozliczana
-    // rocznie zostaje przy `plus_monthly` na zawsze - klient płaci w innym
-    // rytmie, niż pokazuje cennik.
+  // Ten test przybijał dawniej DEFEKT („rozjechany cykl NIE jest wykrywany"):
+  // kasa odmawiała takiej ceny (`catalogPriceMismatch` -> `cycle`), a sync
+  // raportował „ok", więc plan był niekupowalny do ręcznej interwencji u
+  // operatora (audyt #21). Teraz sync odtwarza cenę w cyklu z katalogu.
+  it("rozjechany cykl rozliczeniowy (rok pod kluczem miesięcznym) jest odtwarzany nową ceną", async () => {
     h.plans = [plan()];
     h.remotePrices["plus_monthly"] = remotePlusMonthly({
       recurring: { interval: "year", interval_count: 1 },
@@ -427,9 +487,101 @@ describe("syncBillingCatalog - korekta rozjechanych pozycji", () => {
 
     const report = await syncBillingCatalog("sandbox");
 
-    expect(priceCreateFor("plus_monthly")).toBeUndefined();
-    expect(h.priceUpdate).not.toHaveBeenCalled();
-    expect(itemFor(report, "plus_monthly")?.price).toBe("ok");
+    expect(priceCreateFor("plus_monthly")).toMatchObject({
+      unit_amount: 4900,
+      recurring: { interval: "month", interval_count: 1 },
+      lookup_key: "plus_monthly",
+      transfer_lookup_key: true,
+    });
+    expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", { active: false });
+    expect(itemFor(report, "plus_monthly")?.price).toBe("updated");
+  });
+});
+
+describe("syncBillingCatalog - dryf cyklu i kształtu ceny (audyt #21)", () => {
+  // Każda odmowa ceny w kasie (`catalogPriceMismatch`) musi mieć tu swoją
+  // naprawę - inaczej auto-sync i ręczna synchronizacja zostawiają plan
+  // niekupowalny, raportując „ok".
+  const decisionLabPlan = (): PlanRow =>
+    plan({
+      tier_key: "decision_lab",
+      interval: "one_time",
+      price_cents: 1_600_000,
+      name_pl: "Decision Lab - miejsce w cyklu",
+    });
+
+  it("miejsce w Decision Labie założone jako subskrypcja miesięczna: nowa cena JEDNORAZOWA", async () => {
+    // Dawny błąd `one_time -> month` zostawił pod kluczem cenę cykliczną.
+    h.plans = [decisionLabPlan()];
+    h.remotePrices["decision_lab_seat"] = {
+      id: "price_dl_recurring",
+      lookup_key: "decision_lab_seat",
+      type: "recurring",
+      unit_amount: 1_600_000,
+      currency: "pln",
+      recurring: { interval: "month", interval_count: 1 },
+      metadata: {},
+    };
+
+    const report = await syncBillingCatalog("sandbox");
+
+    const created = priceCreateFor("decision_lab_seat");
+    expect(created).toMatchObject({ unit_amount: 1_600_000, transfer_lookup_key: true });
+    expect(created).not.toHaveProperty("recurring");
+    expect(h.priceUpdate).toHaveBeenCalledWith("price_dl_recurring", { active: false });
+    expect(itemFor(report, "decision_lab_seat")?.price).toBe("updated");
+  });
+
+  it("kwartał zapisany u operatora jako miesiąc × 1: nowa cena miesiąc × 3", async () => {
+    h.plans = [plan({ tier_key: "business", interval: "quarter", price_cents: 90000 })];
+    h.remotePrices["business_quarterly"] = {
+      id: "price_biz_q",
+      lookup_key: "business_quarterly",
+      type: "recurring",
+      unit_amount: 90000,
+      currency: "pln",
+      recurring: { interval: "month", interval_count: 1 },
+      metadata: {},
+    };
+
+    const report = await syncBillingCatalog("sandbox");
+
+    expect(priceCreateFor("business_quarterly")).toMatchObject({
+      recurring: { interval: "month", interval_count: 3 },
+      transfer_lookup_key: true,
+    });
+    expect(h.priceUpdate).toHaveBeenCalledWith("price_biz_q", { active: false });
+    expect(itemFor(report, "business_quarterly")?.price).toBe("updated");
+  });
+
+  it("cena płaska z przekształcaniem ilości albo kwotą od klienta jest odtwarzana", async () => {
+    for (const drift of [
+      { transform_quantity: { divide_by: 10, round: "up" } },
+      { custom_unit_amount: { minimum: 100 } },
+    ]) {
+      h.priceCreate.mockClear();
+      h.priceUpdate.mockClear();
+      h.plans = [plan()];
+      h.remotePrices["plus_monthly"] = remotePlusMonthly(drift);
+
+      const report = await syncBillingCatalog("sandbox");
+
+      expect(itemFor(report, "plus_monthly")?.price, JSON.stringify(drift)).toBe("updated");
+      expect(h.priceUpdate).toHaveBeenCalledWith("price_plus_m", { active: false });
+    }
+  });
+
+  it("cena płaska bez `unit_amount` (sama kwota dziesiętna) jest dryfem także przy kwocie zero", async () => {
+    h.plans = [plan({ price_cents: 0 })];
+    h.remotePrices["plus_monthly"] = remotePlusMonthly({
+      unit_amount: null,
+      unit_amount_decimal: "0.5",
+    });
+
+    const report = await syncBillingCatalog("sandbox");
+
+    expect(priceCreateFor("plus_monthly")).toMatchObject({ unit_amount: 0 });
+    expect(itemFor(report, "plus_monthly")?.price).toBe("updated");
   });
 });
 
@@ -486,6 +638,9 @@ describe("syncBillingCatalog - brak planu w źródle prawdy", () => {
 
 describe("syncBillingCatalog - sprzątanie po czystym przebiegu", () => {
   it("przekazuje do archiwizacji tylko pozycje obecne w źródle prawdy", async () => {
+    // Plan roczny jest JAWNY: bez niego `plus_annual` nie ma już planu
+    // w źródle (brak zapasowego planu miesięcznego) i trafia do wyłączonych.
+    h.plans = [plan(), plan({ interval: "year", price_cents: 49000 })];
     h.reap.mockResolvedValue([
       { kind: "price", externalId: "stary_plan", providerId: "price_x", reason: "not_in_catalog" },
     ]);
@@ -518,7 +673,7 @@ describe("syncBillingCatalog - sprzątanie po czystym przebiegu", () => {
 describe("syncBillingCatalog - błędy operatora i konfiguracji", () => {
   it("błąd na jednej pozycji nie zatrzymuje pozostałych", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    h.plans = [plan(), plan({ tier_key: "pro", name_pl: "Pro" })];
+    h.plans = [plan(), plan({ interval: "year" }), plan({ tier_key: "pro", name_pl: "Pro" })];
     h.productSearchErrors["plan_plus"] = new Error("rate limited");
 
     const report = await syncBillingCatalog("sandbox");
@@ -572,6 +727,94 @@ describe("syncBillingCatalog - błędy operatora i konfiguracji", () => {
   });
 });
 
+// Audyt SUB-05: katalog operatora jest JEDEN na instalację (`lookup_key` bez
+// najemcy), a `access_plans` ma wiersze każdego najemcy. Źródłem prawdy jest
+// wyłącznie najemca domyślny - test wielonajemcowy dowodzi, że plany innych
+// najemców nie zmieniają kwoty ceny wspólnej ani nie archiwizują jej.
+describe("źródło prawdy - wyłącznie najemca domyślny", () => {
+  it("dwóch najemców z RÓŻNĄ ceną tego samego planu: cena wspólna idzie z najemcy domyślnego", async () => {
+    h.plans = [
+      plan({ tenant_id: "tenant-b", price_cents: 1900, name_pl: "Plus B" }),
+      plan({ tenant_id: "tenant-domyslny", price_cents: 4900 }),
+    ];
+
+    await syncBillingCatalog("live");
+
+    expect(h.planFilters).toEqual([["tenant_id", "tenant-domyslny"]]);
+    expect(priceCreateFor("plus_monthly")).toMatchObject({ unit_amount: 4900 });
+    expect(args(h.priceCreate).some((p) => p["unit_amount"] === 1900)).toBe(false);
+  });
+
+  it("zmiana ceny przez najemcę B NIE przepisuje ceny u operatora", async () => {
+    // Scenariusz z audytu: edytor najemcy B zmienia „member/month" i odpala
+    // synchronizację - operator ma już cenę zgodną z najemcą domyślnym.
+    h.remotePrices["plus_monthly"] = remotePlusMonthly();
+    h.plans = [
+      plan({ tenant_id: "tenant-b", price_cents: 9900 }),
+      plan({ tenant_id: "tenant-domyslny", price_cents: 4900 }),
+    ];
+
+    const report = await syncBillingCatalog("live");
+
+    expect(priceCreateFor("plus_monthly")).toBeUndefined();
+    expect(h.priceUpdate).not.toHaveBeenCalled();
+    expect(itemFor(report, "plus_monthly")?.price).toBe("ok");
+  });
+
+  it("plan WYŁĄCZONY u najemcy B nie archiwizuje ceny wspólnej", async () => {
+    h.plans = [
+      plan({ tenant_id: "tenant-b", active: false }),
+      plan({ tenant_id: "tenant-domyslny", active: true }),
+    ];
+
+    await syncBillingCatalog("live");
+
+    expect([...(reapInput()?.expectedPriceIds ?? [])]).toContain("plus_monthly");
+    expect([...(reapInput()?.inactivePriceIds ?? [])]).not.toContain("plus_monthly");
+  });
+
+  it("plan istniejący TYLKO u najemcy B nie zakłada ceny wspólnej", async () => {
+    h.plans = [plan({ tenant_id: "tenant-b", tier_key: "pro", name_pl: "Pro B" })];
+
+    const report = await syncBillingCatalog("live");
+
+    expect(priceCreateFor("pro_monthly")).toBeUndefined();
+    expect(itemFor(report, "pro_monthly")).toMatchObject({ reason: "no_local_plan" });
+  });
+
+  it("duplikat planu w najemcy domyślnym: aktywny wygrywa z wyłączonym (bez archiwizacji)", async () => {
+    h.plans = [
+      plan({ id: "a", sort_order: 1, active: false, price_cents: 1000 }),
+      plan({ id: "b", sort_order: 2, active: true, price_cents: 4900 }),
+    ];
+
+    await syncBillingCatalog("sandbox");
+
+    expect(priceCreateFor("plus_monthly")).toMatchObject({ unit_amount: 4900 });
+    expect([...(reapInput()?.expectedPriceIds ?? [])]).toContain("plus_monthly");
+  });
+
+  it("BRAK najemcy domyślnego przerywa synchronizację, zanim cokolwiek trafi do operatora", async () => {
+    // Pusta lista planów po „nie wiem, który najemca" wyglądałaby jak
+    // wyłączenie całej oferty - sprzątanie zarchiwizowałoby każdą cenę.
+    h.defaultTenant = null;
+
+    await expect(syncBillingCatalog("live")).rejects.toThrow("default tenant missing");
+    expect(h.priceCreate).not.toHaveBeenCalled();
+    expect(h.reap).not.toHaveBeenCalled();
+  });
+
+  it("błąd odczytu najemcy domyślnego też przerywa synchronizację", async () => {
+    h.tenantError = { message: "connection reset" };
+
+    await expect(syncBillingCatalog("live")).rejects.toThrow(
+      "default tenant lookup failed: connection reset",
+    );
+    expect(h.selects).toHaveLength(0);
+    expect(h.reap).not.toHaveBeenCalled();
+  });
+});
+
 describe("odczyt ceny u operatora", () => {
   it("sync pyta o cenę po `lookup_key` z rozwiniętymi progami", async () => {
     // Ten kontrakt pilnował wcześniej test `trialDaysForPrice` - pomocnika
@@ -590,16 +833,6 @@ describe("odczyt ceny u operatora", () => {
       limit: 1,
       expand: ["data.tiers"],
     });
-  });
-});
-
-describe("healCatalogOnce", () => {
-  it("równoległe samonaprawy dzielą jeden przebieg, kolejna rusza od nowa", async () => {
-    await Promise.all([healCatalogOnce("sandbox"), healCatalogOnce("sandbox")]);
-    expect(h.selects).toHaveLength(1);
-
-    await healCatalogOnce("sandbox");
-    expect(h.selects).toHaveLength(2);
   });
 });
 
@@ -639,6 +872,7 @@ describe("cena jednorazowa (interval one_time)", () => {
     h.remotePrices["decision_lab_seat"] = {
       id: "price_dl",
       lookup_key: "decision_lab_seat",
+      type: "one_time",
       unit_amount: 1_200_000,
       currency: "pln",
       metadata: {},
@@ -700,6 +934,7 @@ describe("cena schodkowa (próg wolumenowy Zespołu)", () => {
     h.remotePrices["team_monthly_seat"] = {
       id: "price_team",
       lookup_key: "team_monthly_seat",
+      type: "recurring",
       currency: "pln",
       billing_scheme: "tiered",
       tiers_mode: "volume",
@@ -725,6 +960,7 @@ describe("cena schodkowa (próg wolumenowy Zespołu)", () => {
     h.remotePrices["team_monthly_seat"] = {
       id: "price_team",
       lookup_key: "team_monthly_seat",
+      type: "recurring",
       currency: "pln",
       billing_scheme: "tiered",
       tiers_mode: "volume",
@@ -742,11 +978,48 @@ describe("cena schodkowa (próg wolumenowy Zespołu)", () => {
     expect(priceCreateFor("team_monthly_seat")).toBeUndefined();
   });
 
+  it("te same progi w trybie `graduated` albo z opłatą stałą to dryf (kasa liczy inną kwotę)", async () => {
+    const remoteTeam = (over: Record<string, unknown>) => ({
+      id: "price_team",
+      lookup_key: "team_monthly_seat",
+      type: "recurring",
+      currency: "pln",
+      billing_scheme: "tiered",
+      tiers_mode: "volume",
+      tiers: [
+        { up_to: 10, unit_amount: 8900 },
+        { up_to: null, unit_amount: 7900 },
+      ],
+      recurring: { interval: "month", interval_count: 1 },
+      metadata: {},
+      ...over,
+    });
+    for (const over of [
+      { tiers_mode: "graduated" },
+      {
+        tiers: [
+          { up_to: 10, unit_amount: 8900, flat_amount: 500 },
+          { up_to: null, unit_amount: 7900 },
+        ],
+      },
+    ]) {
+      h.priceCreate.mockClear();
+      h.plans = [teamPlan()];
+      h.remotePrices["team_monthly_seat"] = remoteTeam(over);
+
+      const report = await syncBillingCatalog("sandbox");
+
+      expect(itemFor(report, "team_monthly_seat")?.price, JSON.stringify(over)).toBe("updated");
+      expect(priceCreateFor("team_monthly_seat")?.["tiers_mode"]).toBe("volume");
+    }
+  });
+
   it("przejście z ceny płaskiej na schodkową jest wykrywane jako dryf", async () => {
     h.plans = [teamPlan()];
     h.remotePrices["team_monthly_seat"] = {
       id: "price_team_flat",
       lookup_key: "team_monthly_seat",
+      type: "recurring",
       unit_amount: 8900,
       currency: "pln",
       recurring: { interval: "month", interval_count: 1 },

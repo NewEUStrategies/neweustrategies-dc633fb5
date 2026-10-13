@@ -872,12 +872,15 @@ describe("getDonationsPublicStats", () => {
 
     const result = await stats();
 
+    // AUDYT SUB-10: bez najemcy nie ma CZYJEJ konfiguracji czytać - waluta
+    // pochodzi z domyślek, a nie z pierwszego lepszego wiersza `site_settings`
+    // (wcześniej: „EUR" cudzego najemcy).
     expect(result).toEqual({
       totalCents: 0,
       monthCents: 0,
       count: 0,
       monthCount: 0,
-      currency: "EUR",
+      currency: "PLN",
       recent: [],
       truncated: false,
     });
@@ -912,8 +915,11 @@ describe("getDonationsPublicStats", () => {
 
     const chain = db.state.current!.lastChain("donations")!;
     const eqs = chain.calls.filter((c) => c.method === "eq").map((c) => [c.args[0], c.args[1]]);
+    // Czwarty filtr (audyt SUB-10): środowisko bramki wdrożenia - wpłata kartą
+    // testową nie podbija paska zbiórki.
     expect(eqs).toEqual([
       ["tenant_id", "tenant-alfa"],
+      ["environment", "sandbox"],
       ["status", "paid"],
       ["currency", "EUR"],
     ]);
@@ -991,5 +997,129 @@ describe("getDonationsPublicStats", () => {
     expect(result.truncated).toBe(true);
     expect(result.count).toBe(20_000);
     expect(db.state.current!.chainsFor("donations")).toHaveLength(20);
+  });
+});
+
+// ===========================================================================
+// AUDYT SUB-10: środowisko od klienta i konfiguracja bez najemcy
+// ===========================================================================
+describe("SUB-10: środowisko rozstrzyga serwer", () => {
+  it("sesja `sandbox` zamówiona przez klienta w PRODUKCJI idzie do `live` i tak jest stemplowana", async () => {
+    // Wcześniej `getStripeClient(input.environment)` brał wartość z
+    // przeglądarki, a wiersz dostawał DEFAULT 'live' - sesja opłacona kartą
+    // testową oznaczała produkcyjną darowiznę jako zapłaconą.
+    vi.stubEnv("NODE_ENV", "production");
+
+    const result = await checkout({ environment: "sandbox" });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(stripe.envs).toEqual(["live"]);
+    expect(inserted()[0]).toMatchObject({ environment: "live" });
+  });
+
+  it("środowisko sesji trafia JAWNIE do wiersza (nie DEFAULT kolumny)", async () => {
+    await checkout({ environment: "sandbox" });
+
+    expect(stripe.envs).toEqual(["sandbox"]);
+    expect(inserted()[0]).toMatchObject({ environment: "sandbox" });
+  });
+});
+
+describe("SUB-10: konfiguracja PER NAJEMCA (PK site_settings = tenant_id, key)", () => {
+  function twoTenants(): void {
+    const byTenant: Record<string, unknown> = {
+      "tenant-alfa": { currency: "EUR", minCents: 2_000 },
+      "tenant-beta": { currency: "PLN", allowRecurring: false },
+    };
+    db.state.current!.setResponse("site_settings", (chain: RecordedChain) => {
+      const tenant = chain.calls.find((c) => c.method === "eq" && c.args[0] === "tenant_id")
+        ?.args[1];
+      const value = typeof tenant === "string" ? byTenant[tenant] : undefined;
+      return ok(value === undefined ? null : { value });
+    });
+  }
+
+  it("każdy najemca dostaje WŁASNĄ konfigurację, nie pierwszy wiersz tabeli", async () => {
+    twoTenants();
+
+    http.tenantId = "tenant-alfa";
+    await expect(config()).resolves.toMatchObject({ currency: "EUR", minCents: 2_000 });
+
+    http.tenantId = "tenant-beta";
+    await expect(config()).resolves.toMatchObject({ currency: "PLN", allowRecurring: false });
+  });
+
+  it("checkout najemcy B stosuje ustawienia B (waluta, wsparcie cykliczne)", async () => {
+    twoTenants();
+    http.tenantId = "tenant-beta";
+
+    await expect(checkout({ recurring: true })).resolves.toEqual({
+      ok: false,
+      error: "recurring_disabled",
+    });
+    const once = await checkout({ recurring: false });
+    expect(once).toMatchObject({ ok: true });
+    expect(priceData()).toMatchObject({ currency: "pln" });
+  });
+
+  it("checkout najemcy A stosuje minimum A, a nie domyślne", async () => {
+    twoTenants();
+    http.tenantId = "tenant-alfa";
+
+    await expect(checkout({ amountCents: 1_500 })).resolves.toEqual({
+      ok: false,
+      error: "amount_out_of_range",
+    });
+    expect(inserted()).toEqual([]);
+  });
+});
+
+describe("SUB-10: `allowCustom` egzekwowane PO STRONIE SERWERA", () => {
+  it("własna kwota przy `allowCustom: false` jest ODRZUCANA, zanim powstanie wiersz", async () => {
+    seed({ settings: { allowCustom: false, presetsCents: [2_500, 5_000] } });
+
+    const result = await checkout({ amountCents: 3_000 });
+
+    expect(result).toEqual({ ok: false, error: "amount_not_allowed" });
+    expect(inserted()).toEqual([]);
+    expect(stripe.params).toEqual([]);
+  });
+
+  it("kwota sugerowana przy `allowCustom: false` przechodzi", async () => {
+    seed({ settings: { allowCustom: false, presetsCents: [2_500, 5_000] } });
+
+    const result = await checkout({ amountCents: 5_000 });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(priceData()).toMatchObject({ unit_amount: 5_000 });
+  });
+
+  it("kwota sugerowana spoza zakresu nie otwiera wpłat tylnymi drzwiami", async () => {
+    seed({ settings: { allowCustom: false, presetsCents: [100, 5_000] } });
+
+    await expect(checkout({ amountCents: 100 })).resolves.toEqual({
+      ok: false,
+      error: "amount_out_of_range",
+    });
+  });
+});
+
+describe("SUB-09: statystyki liczą kwotę NETTO po zwrocie częściowym", () => {
+  it("zwrócona część wpłaty nie jest już zebranym wsparciem", async () => {
+    seed({
+      paid: [
+        { amount_cents: 10_000, currency: "PLN", created_at: "2026-08-10T12:00:00.000Z" },
+        {
+          amount_cents: 4_000,
+          currency: "PLN",
+          created_at: "2026-08-11T12:00:00.000Z",
+          refunded_amount_cents: 1_500,
+        } as DonationRow,
+      ],
+    });
+
+    const result = await stats();
+
+    expect(result).toMatchObject({ totalCents: 12_500, count: 2, monthCents: 12_500 });
   });
 });

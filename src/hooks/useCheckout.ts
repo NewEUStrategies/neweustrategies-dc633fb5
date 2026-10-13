@@ -27,6 +27,11 @@ export interface PlanCheckoutOptions {
   seats?: number;
   couponCode?: string;
   returnUrl: string;
+  /**
+   * Zgoda na newsletter z pola w checkoucie - tylko gdy kupujący je zaznaczył.
+   * Wersja i język wskazują treść, którą widział (rejestr w `premiumNewsletter`).
+   */
+  newsletterConsent?: { version: string; lang: "pl" | "en" };
 }
 
 /** Otwiera sesję Embedded Checkout dla planu z katalogu. */

@@ -858,114 +858,29 @@ describe("normalizeStripeEvent - korekty rozliczeniowe", () => {
     });
   });
 
-  it.each([
-    ["charge.dispute.created", "warning_needs_response", "chargeback_warning", "open"],
-    ["charge.dispute.created", "warning_under_review", "chargeback_warning", "open"],
-    ["charge.dispute.created", "needs_response", "chargeback_warning", "open"],
-    ["charge.dispute.created", "under_review", "chargeback_warning", "open"],
-    ["charge.dispute.closed", "won", "chargeback", "reversed"],
-    ["charge.dispute.closed", "warning_closed", "chargeback", "reversed"],
-    ["charge.dispute.closed", "lost", "chargeback", "approved"],
-  ])("PAY-03: %s ze statusem `%s` -> %s/%s", (type, providerStatus, action, status) => {
-    // Bez tego tłumaczenia żaden status Stripe nie przechodził przez bramki
-    // `refunds.server` (słownik Paddle: approved/reversed) - spór nie
-    // odbierał dostępu, nie alarmował i po wygranej niczego nie przywracał.
-    const data = adjustmentOf(
-      event(type, { id: "dp_2", payment_intent: "pi_2", status: providerStatus, amount: 100 }),
-    );
-
-    expect(data).toMatchObject({ transactionId: "pi_2", action, status, providerStatus });
-  });
-
-  it("2.3: `prevented` to spór zatrzymany AUTOMATYCZNYM ZWROTEM - jak przegrany (środki wróciły), nie wygrana", () => {
-    // Zapobieganie sporom (reguła Radar / RDR) działa przez zwrot płatności.
-    // Mapowanie na `reversed` przywracało dostęp klientowi, który miał już
-    // pieniądze z powrotem, a alert mówił „rozstrzygnięto na naszą korzyść".
-    const data = adjustmentOf(
-      event("charge.dispute.closed", { id: "dp_p", payment_intent: "pi_p", status: "prevented" }),
-    );
-
-    expect(data).toMatchObject({
-      action: "chargeback",
-      status: "approved",
-      providerStatus: "prevented",
-    });
-  });
-
-  it.each([
-    ["won", { action: "chargeback", status: "reversed" }],
-    ["warning_closed", { action: "chargeback", status: "reversed" }],
-    ["lost", { action: "chargeback", status: "approved" }],
-    ["prevented", { action: "chargeback", status: "approved" }],
-    ["needs_response", { action: "chargeback_warning", status: "open" }],
-    ["warning_under_review", { action: "chargeback_warning", status: "open" }],
-  ])(
-    "S2: `stripeDisputePhase(%s)` - ten sam słownik dla zdarzenia i dla stanu BIEŻĄCEGO sporu",
-    (status, phase) => {
-      // `refunds.server` liczy skutek z odczytu sporu u operatora tym samym
-      // eksportem - rozjazd słowników dałby inny skutek dla zdarzenia i dla
-      // jego ponowienia.
-      expect(stripeDisputePhase(status)).toEqual(phase);
-    },
-  );
-
-  it("2.11: `refund.failed` to korekta korekty - `adjustment.updated` ze zwrotem `failed`", () => {
+  it("mapuje rozstrzygnięcie sporu (dispute.closed) z SUROWYM statusem operatora", () => {
+    // Przegląd adwersaryjny, poz. 26: bez tej normalizacji wygrany spór nie
+    // miał żadnej drogi do przywrócenia dostępu ani wpłaty.
     const result = normalized(
-      event("refund.failed", {
-        id: "re_1",
-        object: "refund",
-        amount: 4900,
-        charge: "ch_1",
-        payment_intent: "pi_1",
-        currency: "pln",
-        status: "failed",
-        failure_reason: "expired_or_canceled_card",
+      event("charge.dispute.closed", {
+        id: "dp_1",
+        charge: "ch_9",
+        payment_intent: "pi_9",
+        currency: "eur",
+        amount: 2500,
+        status: "won",
       }),
     );
 
-    // Kształt wspólny z INV-19c: `refunds.server` przelicza zamówienie
-    // z obciążenia i eskaluje zlecenie zwrotu zgłoszenia - kwota zdarzenia
-    // (pojedynczy zwrot) celowo nie jedzie dalej.
     expect(result.eventType).toBe("adjustment.updated");
     expect(result.data).toEqual({
-      id: "re_1",
-      transactionId: "pi_1",
+      id: "dp_1",
+      transactionId: "pi_9",
       subscriptionId: null,
-      action: "refund",
-      status: "failed",
-      failureReason: "expired_or_canceled_card",
+      action: "chargeback",
+      status: "won",
+      totals: { total: "2500", currencyCode: "EUR" },
     });
-  });
-
-  it("2.11: nieudany zwrot bez intencji wskazuje obciążenie; ładunek bez stanu to porażka", () => {
-    expect(
-      adjustmentOf(event("refund.failed", { id: "re_2", charge: { id: "ch_2" } })),
-    ).toMatchObject({ transactionId: "ch_2", status: "failed", failureReason: null });
-    expect(adjustmentOf(event("refund.failed", {}))).toMatchObject({
-      id: "",
-      transactionId: null,
-      action: "refund",
-      status: "failed",
-    });
-  });
-
-  it("PAY-03: NIEZNANY status sporu jest sporem otwartym - ale głośno, nie po cichu", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    const data = adjustmentOf(
-      event("charge.dispute.closed", { id: "dp_3", charge: "ch_3", status: "nowy_status" }),
-    );
-
-    expect(data).toMatchObject({
-      action: "chargeback_warning",
-      status: "open",
-      providerStatus: "nowy_status",
-    });
-    expect(warn).toHaveBeenCalledWith(
-      "[payments] unknown Stripe dispute status - treated as open",
-      "nowy_status",
-    );
-    warn.mockRestore();
   });
 
   it("mapuje notę kredytową na korektę powiązaną z fakturą", () => {
@@ -1070,5 +985,103 @@ describe("normalizeStripeEvent - zakres integracji", () => {
 
     expect(normalizeStripeEvent(e)).toEqual(normalizeStripeEvent(e));
     expect(e).toEqual(snapshot);
+  });
+});
+
+// Audyt SUB-03 / SUB-14 / SUB-16: pola, od których zależy dostęp i windykacja.
+describe("mapStripeSubscription - pauza poboru, powód anulowania, rezygnacja datą", () => {
+  it("pauza poboru przy statusie active to `paused` z zachowanym sposobem pauzy", () => {
+    const raw = stripeSubscription({
+      pause_collection: { behavior: "void", resumes_at: 1_710_000_000 },
+    });
+    const data = mapStripeSubscription(raw);
+
+    expect(data.status).toBe("paused");
+    expect(data.pauseCollection).toEqual({
+      behavior: "void",
+      resumesAt: "2024-03-09T16:00:00.000Z",
+    });
+    expect(normalized(event("customer.subscription.updated", raw)).eventType).toBe(
+      "subscription.paused",
+    );
+  });
+
+  it("zdjęta pauza poboru wraca do statusu operatora", () => {
+    const data = mapStripeSubscription(stripeSubscription({ pause_collection: null }));
+    expect(data.status).toBe("active");
+    expect(data.pauseCollection).toBeUndefined();
+  });
+
+  it("pauza poboru nie przykrywa subskrypcji zakończonej ani nieopłaconej", () => {
+    for (const status of ["canceled", "incomplete", "incomplete_expired"]) {
+      const data = mapStripeSubscription(
+        stripeSubscription({ status, pause_collection: { behavior: "keep_as_draft" } }),
+      );
+      expect(data.status, status).toBe(status);
+    }
+  });
+
+  it("przenosi `cancellation_details.reason` do modelu domenowego", () => {
+    const data = mapStripeSubscription(
+      stripeSubscription({
+        status: "canceled",
+        cancellation_details: { reason: "payment_failed" },
+      }),
+    );
+    expect(data.cancellationReason).toBe("payment_failed");
+  });
+
+  it("rezygnacja zaplanowana datą `cancel_at` jest zaplanowaną rezygnacją", () => {
+    expect(
+      mapStripeSubscription(stripeSubscription({ cancel_at: 1_702_000_000 })).scheduledChange,
+    ).toEqual({ action: "cancel", effectiveAt: "2023-12-08T01:46:40.000Z" });
+    // Po zakończeniu subskrypcji `cancel_at` jest historią, nie planem.
+    expect(
+      mapStripeSubscription(stripeSubscription({ status: "canceled", cancel_at: 1_702_000_000 }))
+        .scheduledChange,
+    ).toBeNull();
+  });
+});
+
+describe("normalizeStripeEvent - próby obciążenia faktury", () => {
+  it("niesie numer próby i termin kolejnej próby", () => {
+    const data = transactionOf(
+      event("invoice.payment_failed", {
+        id: "in_1",
+        attempt_count: 3,
+        next_payment_attempt: 1_800_000_000,
+      }),
+    );
+    expect(data.attemptCount).toBe(3);
+    expect(data.nextPaymentAttemptAt).toBe("2027-01-15T08:00:00.000Z");
+  });
+
+  it("bez pól próby zostawia puste wartości zamiast zgadywać", () => {
+    const data = transactionOf(event("invoice.payment_failed", { id: "in_1", attempt_count: "3" }));
+    expect(data.attemptCount).toBeNull();
+    expect(data.nextPaymentAttemptAt).toBeNull();
+  });
+});
+
+// Przegląd poprawek SUB-04/SUB-16: odrzucona dopłata do upgrade'u przy
+// `pending_if_incomplete` zostawia subskrypcję aktywną, a jej
+// `invoice.payment_failed` wyglądał dla windykacji jak zaległe odnowienie -
+// mapowanie nie niosło `billing_reason`, więc nic nie umiało ich odróżnić.
+describe("normalizeStripeEvent - powód wystawienia faktury", () => {
+  it("niesie `billing_reason` faktury - dopłatę za zmianę i odnowienie", () => {
+    for (const reason of ["subscription_update", "subscription_cycle", "subscription_create"]) {
+      for (const type of ["invoice.payment_failed", "invoice.paid"]) {
+        const data = transactionOf(event(type, { id: "in_1", billing_reason: reason }));
+        expect(data.billingReason).toBe(reason);
+      }
+    }
+  });
+
+  it("bez powodu (albo z wartością spoza słownika typów) zostawia `null`", () => {
+    expect(transactionOf(event("invoice.payment_failed", { id: "in_1" })).billingReason).toBeNull();
+    expect(
+      transactionOf(event("invoice.payment_failed", { id: "in_1", billing_reason: 7 }))
+        .billingReason,
+    ).toBeNull();
   });
 });

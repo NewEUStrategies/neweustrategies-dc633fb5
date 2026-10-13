@@ -10,7 +10,7 @@
 
 /** Statusy subskrypcji zwracane przez operatora płatności. */
 export type ProviderSubscriptionStatus =
-  "active" | "trialing" | "past_due" | "paused" | "canceled" | string;
+  "active" | "trialing" | "past_due" | "unpaid" | "paused" | "canceled" | string;
 
 /** Status w `user_subscriptions` (enum `purchase_status`). */
 export type EntitlementStatus = "pending" | "active" | "refunded" | "canceled";
@@ -22,32 +22,36 @@ export interface EntitlementSyncInput {
   /** Identyfikator subskrypcji u operatora - klucz idempotencji (`external_ref`). */
   externalRef: string;
   status: ProviderSubscriptionStatus;
-  /** Koniec opłaconego okresu wg operatora; `null` = brak wygaśnięcia. */
+  /**
+   * Do kiedy uprawnienie daje dostęp; `null` = brak wygaśnięcia. Dla
+   * zaległości i anulowania za brak płatności to koniec KARENCJI, nie okresu
+   * operatora - wylicza go `accessPeriodFromEvent` (`accessPeriod.ts`).
+   */
   periodEnd: string | null;
   /**
-   * Początek okresu rozliczeniowego, którego dotyczy stan (`current_period_start`).
-   * Uprawnienie `refunded` (zwrot albo spór bieżącego okresu, `canceled_at` =
-   * chwila korekty) wraca do życia WYŁĄCZNIE dla okresu, który zaczął się PO
-   * korekcie - czyli po kolejnym opłaconym odnowieniu. Ten sam okres
-   * (`subscription.updated`, synchronizacja na żądanie) go nie wskrzesza.
+   * Czy u operatora jest zaplanowana rezygnacja (`cancel_at_period_end` /
+   * `cancel_at`). `true` utrzymuje `canceled_at`, `false` je czyści (klient
+   * wznowił), a brak wartości (wołający nie zna stanu operatora) zostawia
+   * zapisane `canceled_at` bez zmian.
    */
-  periodStart?: string | null;
-  /**
-   * Przywrócenie z rozstrzygnięcia na naszą korzyść (wygrany spór): stan
-   * operatora nadpisuje `refunded` niezależnie od okresu.
-   */
-  force?: boolean;
+  cancelAtPeriodEnd?: boolean;
 }
 
 /**
  * Mapuje status operatora na status uprawnienia.
  *
- * - `active` / `trialing` / `past_due` -> dostęp działa (przy past_due operator
- *   ponawia obciążenie, nie odbieramy dostępu przedwcześnie),
- * - `canceled` -> dostęp do końca opłaconego okresu: zostawiamy `active`
- *   z `current_period_end`, bo `has_content_access()` sam wygasza rekord;
- *   gdy okres już minął (lub go nie ma) - `canceled`,
- * - `paused` -> `canceled` (brak dostępu od razu, wznowienie doda go ponownie).
+ * - `active` / `trialing` -> dostęp działa do `periodEnd`,
+ * - `past_due` / `unpaid` -> dostęp działa, ale `periodEnd` to KONIEC
+ *   KARENCJI (wyliczony przez wołającego): operator ponawia obciążenie, więc
+ *   nie odbieramy dostępu przedwcześnie - i nie dajemy go za nieopłacony
+ *   okres; `has_content_access()` sam wygasza rekord po karencji, bez
+ *   czekania na kolejne zdarzenie operatora,
+ * - `canceled` -> dostęp do `periodEnd` (koniec opłaconego okresu albo, przy
+ *   anulowaniu za brak płatności, koniec karencji): zostawiamy `active`
+ *   z datą, bo `has_content_access()` sam wygasza rekord; gdy data już
+ *   minęła (lub jej nie ma) - `canceled`,
+ * - `paused` i reszta (`incomplete`, `incomplete_expired`) -> `canceled`
+ *   (brak dostępu od razu; wznowienie albo płatność doda go ponownie).
  */
 export function mapProviderStatus(
   status: ProviderSubscriptionStatus,
@@ -58,6 +62,7 @@ export function mapProviderStatus(
     case "active":
     case "trialing":
     case "past_due":
+    case "unpaid":
       return "active";
     case "canceled": {
       if (!periodEnd) return "canceled";
@@ -111,6 +116,27 @@ interface ExistingEntitlement {
 }
 
 /**
+ * Znacznik `canceled_at` uprawnienia: „rezygnacja zaplanowana albo dostęp
+ * zakończony". Na nim stoją przycisk „Wznów" w panelu klienta i lokalne
+ * `resumeSubscription`, więc:
+ *   - stan końcowy (`canceled`, `paused`) albo zaplanowana rezygnacja -> data
+ *     ZACHOWANA, jeśli już jest (np. ustawiło ją lokalne `cancelSubscription`),
+ *     a tylko przy jej braku - „teraz". Wcześniej każde zdarzenie stemplowało
+ *     „teraz" od nowa, a zdarzenie bez stanu końcowego ZERAWAŁO datę ustawioną
+ *     przez lokalne anulowanie - panel gubił „anulowanie zaplanowane" przy
+ *     pierwszym `subscription.updated` (audyt SUB-14),
+ *   - jawny brak planowanej rezygnacji -> `null` (klient wznowił),
+ *   - wołający nie zna stanu operatora -> bez zmian.
+ */
+function canceledAtFor(input: EntitlementSyncInput, stored: string | null): string | null {
+  const ending =
+    input.status === "canceled" || input.status === "paused" || input.cancelAtPeriodEnd === true;
+  if (ending) return stored ?? new Date().toISOString();
+  if (input.cancelAtPeriodEnd === false) return null;
+  return stored;
+}
+
+/**
  * Idempotentnie odwzorowuje stan subskrypcji operatora w `user_subscriptions`.
  * Klucz: `external_ref` = identyfikator subskrypcji u operatora - UNIKALNY
  * w bazie (`user_subscriptions_external_ref_key`, 20261012131300).
@@ -130,22 +156,38 @@ interface ExistingEntitlement {
 export async function syncEntitlementState(input: EntitlementSyncInput): Promise<void> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const status = mapProviderStatus(input.status, input.periodEnd);
-  const canceledAt =
-    input.status === "canceled" || input.status === "paused" ? new Date().toISOString() : null;
-  const patch = {
-    plan_id: input.planId,
-    status,
-    current_period_end: input.periodEnd,
-    canceled_at: canceledAt,
-  };
 
-  // Aktualizacja po kluczu operatora, nigdy wiersza odebranego korektą.
-  const refresh = async (): Promise<void> => {
+  // `order` + `limit(1)` - ten sam powód co w `grantEntitlement`: unikalności
+  // `external_ref` pilnuje tylko kod, więc duplikat nie może wywrócić odczytu
+  // (PGRST116) i zapętlić ponowień webhooka. Reguła „zwrot jest ostateczny"
+  // nie cierpi na tym: `revokeSubscriptionEntitlement` stempluje `refunded`
+  // na WSZYSTKICH wierszach z tym kluczem naraz.
+  const { data: existing, error: readErr } = await supabaseAdmin
+    .from("user_subscriptions")
+    .select("id, status, canceled_at")
+    .eq("external_ref", input.externalRef)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (readErr) {
+    throw new Error(`entitlement sync: lookup failed (${input.externalRef}): ${readErr.message}`);
+  }
+
+  if (existing) {
+    // Uprawnienie odebrane po zwrocie / obciążeniu zwrotnym jest ostateczne:
+    // spóźnione zdarzenie od operatora (retry, `subscription.updated` tuż po
+    // korekcie) nie może przywrócić płatnego dostępu. Ponowny zakup zakłada
+    // nową subskrypcję, czyli inny `external_ref`, więc nic nie tracimy.
+    if (existing.status === "refunded") return;
     const { error } = await supabaseAdmin
       .from("user_subscriptions")
-      .update(patch)
-      .eq("external_ref", input.externalRef)
-      .neq("status", "refunded");
+      .update({
+        plan_id: input.planId,
+        status,
+        current_period_end: input.periodEnd,
+        canceled_at: canceledAtFor(input, existing.canceled_at ?? null),
+      })
+      .eq("id", existing.id);
     if (error) {
       throw new Error(`entitlement sync: update failed (${input.externalRef}): ${error.message}`);
     }
@@ -202,7 +244,7 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
     status,
     external_ref: input.externalRef,
     current_period_end: input.periodEnd,
-    canceled_at: canceledAt,
+    canceled_at: canceledAtFor(input, null),
   });
   // Równoległe zdarzenie wstawiło wiersz między odczytem a zapisem - nasz stan
   // trafia w TEN wiersz według tej samej reguły co wyżej. Wiersz zwycięzcy

@@ -1,60 +1,89 @@
-// Jednorazowy link do portalu operatora płatności - 0 z 4 funkcji pokrytych
-// do 18.08.2026.
+// Portal operatora płatności - wejście mailem i sesja na żądanie.
 //
 // Portal to JEDYNE miejsce, w którym kupujący zmienia metodę płatności, pobiera
-// faktury i anuluje subskrypcję u operatora. Adresy są jednorazowe, więc nie da
-// się ich zapisać - powstają na żądanie i idą MAILEM na adres właściciela
-// subskrypcji. Administrator nigdy nie widzi samego linku.
+// faktury i anuluje subskrypcję u operatora. Sesje portalu są jednorazowe
+// i krótkotrwałe, więc mail niesie STAŁY adres aplikacji, a sesja powstaje
+// dopiero, gdy właściciel ten adres otworzy. Administrator nigdy nie widzi
+// samego linku.
 //
-// Cztery rzeczy pilnowane najmocniej:
+// Pięć rzeczy pilnowanych najmocniej:
 //
-//   1. ŚRODOWISKO. Link powstaje dla subskrypcji z TEGO środowiska, o które
-//      pytamy. Wysłanie klientowi produkcyjnemu linku do piaskownicy oznacza
-//      portal bez jego danych.
-//   2. NIGDY NIE RZUCA. Obie funkcje zwracają wynik z kodem odmowy - panel
-//      i profil pokazują komunikat, a nie białą stronę.
-//   3. IDEMPOTENCJA WYSYŁKI. Klucz niesie ziarno: przypadkowy dubel kliknięcia
-//      nie wysyła dwóch maili, a świadome powtórzenie po zgłoszeniu - tak,
-//      bo link z poprzedniego maila jest już zwykle zużyty.
-//   4. KOLEJNOŚĆ. Adresata sprawdzamy PRZED utworzeniem sesji portalu: link
-//      wygenerowany dla konta bez maila zostałby zużyty na nic.
+//   1. GRANICA NAJEMCY (SUB-08). Moduł pracuje kluczem serwisowym, więc jedyną
+//      granicą jest `tenantId` z sesji wołającego: konto i subskrypcja spoza
+//      najemcy dostają TEN SAM kod co konto bez subskrypcji - bez maila, bez
+//      sesji portalu i bez adresu e-mail w odpowiedzi.
+//   2. LINK Z MAILA DZIAŁA PO GODZINIE (SUB-19). W mailu jest adres aplikacji
+//      na hoście najemcy (`/profile/portal`), a NIE adres sesji operatora -
+//      przy wysyłce sesja portalu w ogóle nie powstaje.
+//   3. POWRÓT Z PORTALU NA ISTNIEJĄCĄ TRASĘ (SUB-19). `return_url` idzie przez
+//      bramkę `absoluteReturnUrl` na `/profile/plan` - nigdy `/profil`
+//      (404) ani `example.com`.
+//   4. ŚRODOWISKO. Link powstaje dla subskrypcji z TEGO środowiska, o które
+//      pytamy - i to środowisko jedzie w adresie wejścia.
+//   5. NIGDY NIE RZUCA. Obie funkcje zwracają wynik z kodem odmowy.
 //
 // ŻADNE żądanie nie wychodzi do Stripe ani do dostawcy poczty - oba klienty
 // wyłącznie przez atrapy.
+import { existsSync, readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { PROFILE_PLAN_PATH, PROFILE_PORTAL_PATH } from "@/lib/profile/routes";
+
+const TENANT_A = "tenant-a";
+const TENANT_B = "tenant-b";
 
 const h = vi.hoisted(() => {
   const state = {
-    /** Wiersz `subscriptions` zwracany przez atrapę, per środowisko. */
+    /** Wiersz `subscriptions` zwracany przez atrapę (gdy najemca się zgadza). */
     subscription: { current: null as Record<string, unknown> | null },
+    /** Najemca, do którego NALEŻY subskrypcja w atrapie bazy. */
+    subscriptionTenant: { current: "tenant-a" },
     /** Wiersz `profiles` - adresat maila. */
     profile: { current: null as Record<string, unknown> | null },
-    /** Filtry, z jakimi pytano o subskrypcję. */
-    subFilters: [] as Array<[string, unknown]>,
+    /** Najemca profilu docelowego w atrapie bazy (`null` = brak konta). */
+    profileTenant: { current: "tenant-a" as string | null },
+    /** Filtry zapytań, per tabela. */
+    filters: [] as Array<[string, string, unknown]>,
     portalThrows: { current: false },
     portalPayloads: [] as Array<Record<string, unknown>>,
     sendResult: { current: { ok: true } as { ok: boolean } },
     /** Dostawca poczty RZUCA (timeout, 5xx) zamiast oddać `{ ok: false }`. */
     sendThrows: { current: false },
     sentEmails: [] as Array<Record<string, unknown>>,
+    /** Nagłówki bieżącego żądania (host, origin) - dla bramki adresu powrotu. */
+    requestHeaders: { current: null as Headers | null },
   };
 
   const supabaseAdmin = {
     from: (table: string) => {
-      const link: Record<string, unknown> = {};
-      for (const method of ["select", "order", "limit", "ilike"]) link[method] = () => link;
-      link.eq = (column: string, value: unknown) => {
-        if (table === "subscriptions") state.subFilters.push([column, value]);
-        return link;
+      const chain: Record<string, unknown> = {};
+      const eqs = new Map<string, unknown>();
+      for (const method of ["select", "order", "limit", "ilike"]) chain[method] = () => chain;
+      chain.eq = (column: string, value: unknown) => {
+        eqs.set(column, value);
+        state.filters.push([table, column, value]);
+        return chain;
       };
-      link.maybeSingle = () =>
-        Promise.resolve({
-          data: table === "subscriptions" ? state.subscription.current : state.profile.current,
-          error: null,
-        });
-      link.then = (onFulfilled?: (value: unknown) => unknown) =>
+      chain.maybeSingle = () => {
+        if (table === "subscriptions") {
+          const owned = eqs.get("tenant_id") === state.subscriptionTenant.current;
+          return Promise.resolve({ data: owned ? state.subscription.current : null, error: null });
+        }
+        if (table === "profiles" && eqs.has("tenant_id")) {
+          // Kontrola przynależności: wiersz istnieje WYŁĄCZNIE w swoim najemcy.
+          const member =
+            state.profileTenant.current !== null &&
+            eqs.get("tenant_id") === state.profileTenant.current;
+          return Promise.resolve({ data: member ? { id: eqs.get("id") } : null, error: null });
+        }
+        if (table === "profiles") {
+          return Promise.resolve({ data: state.profile.current, error: null });
+        }
+        return Promise.resolve({ data: null, error: null });
+      };
+      chain.then = (onFulfilled?: (value: unknown) => unknown) =>
         Promise.resolve({ data: null, error: null }).then(onFulfilled);
-      return link;
+      return chain;
     },
   };
 
@@ -64,7 +93,7 @@ const h = vi.hoisted(() => {
         create: (payload: Record<string, unknown>) => {
           if (state.portalThrows.current) return Promise.reject(new Error("stripe padł"));
           state.portalPayloads.push(payload);
-          return Promise.resolve({ url: "https://portal.example.test/sesja-jednorazowa" });
+          return Promise.resolve({ url: "https://billing.stripe.test/p/session/jednorazowa" });
         },
       },
     },
@@ -96,11 +125,43 @@ vi.mock("@/lib/email/transactional.server", () => ({
     return Promise.resolve(h.sendResult.current);
   },
 }));
+// Kontekst żądania frameworka - jedyne źródło hosta dla bramki adresu powrotu.
+vi.mock("@tanstack/react-start/server", () => ({
+  getRequest: () => {
+    if (!h.requestHeaders.current) throw new Error("poza żądaniem");
+    return { headers: h.requestHeaders.current };
+  },
+}));
+// Katalog najemców (`tenants.domain`) - granica, z której PRAWDZIWY
+// `tenantPublicUrl` składa host linku w mailu.
+vi.mock("@/lib/server/tenant.server", () => {
+  const entries = [
+    { id: "tenant-a", slug: "a", domain: "klub-a.example.test", isDefault: false },
+    { id: "tenant-b", slug: "b", domain: "serwis-b.example.test", isDefault: true },
+  ];
+  return {
+    getTenantDirectory: () =>
+      Promise.resolve({
+        byDomain: new Map(entries.map((entry) => [entry.domain, entry])),
+        defaultTenant: entries[1],
+      }),
+  };
+});
 
-const { createPortalLinkForUser, sendPortalLinkEmail } =
+const { createPortalLinkForUser, portalEntryPath, sendPortalLinkEmail } =
   await import("@/lib/billing/portalLink.server");
 
 const USER = "11111111-2222-3333-4444-555555555555";
+
+function emailInput(over: Partial<Parameters<typeof sendPortalLinkEmail>[0]> = {}) {
+  return {
+    userId: USER,
+    environment: "sandbox" as const,
+    tenantId: TENANT_A,
+    idempotencySeed: "1",
+    ...over,
+  };
+}
 
 beforeEach(() => {
   // Wartości SYNTETYCZNE - prawdziwe klienty i tak są atrapami.
@@ -109,44 +170,54 @@ beforeEach(() => {
   vi.stubEnv("STRIPE_SANDBOX_API_KEY", "sk_test_syntetyczny");
   vi.stubEnv("STRIPE_LIVE_API_KEY", "sk_live_syntetyczny");
   vi.stubEnv("PUBLIC_SITE_URL", "https://serwis.example.test");
+  vi.stubEnv("BILLING_RETURN_HOSTS", "klub-a.example.test");
   // Transport klienta operatora idzie przez bramkę konektorów platformy -
   // `getStripeClient` wymaga tego klucza, więc test przechodzi przez
   // PRAWDZIWY wrapper razem z tą kontrolą.
   vi.stubEnv("LOVABLE_API_KEY", "platforma-syntetyczna");
   h.subscription.current = { provider_customer_id: "cus_test", provider_subscription_id: "sub_1" };
+  h.subscriptionTenant.current = TENANT_A;
   h.profile.current = {
     email: "klient@example.test",
     first_name: "Jan",
     prefs: { language: "pl" },
   };
-  h.subFilters.length = 0;
+  h.profileTenant.current = TENANT_A;
+  h.filters.length = 0;
   h.portalThrows.current = false;
   h.portalPayloads.length = 0;
   h.sendResult.current = { ok: true };
   h.sendThrows.current = false;
   h.sentEmails.length = 0;
+  h.requestHeaders.current = new Headers({ origin: "https://klub-a.example.test" });
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
-describe("createPortalLinkForUser - sesja portalu klienta", () => {
-  it("pyta o subskrypcję TEGO użytkownika i TEGO środowiska", async () => {
-    // Link do piaskownicy wysłany klientowi produkcyjnemu otwiera portal bez
-    // jego danych - filtr środowiska jest tu regułą, nie ozdobą.
-    await createPortalLinkForUser(USER, "live");
+/** Filtry zapytania o subskrypcję (kolumna -> wartość). */
+function subscriptionFilters(): Array<[string, unknown]> {
+  return h.filters.filter(([table]) => table === "subscriptions").map(([, c, v]) => [c, v]);
+}
 
-    expect(h.subFilters).toEqual([
+describe("createPortalLinkForUser - sesja portalu na żądanie", () => {
+  it("pyta o subskrypcję TEGO użytkownika, TEGO środowiska i TEGO najemcy", async () => {
+    // Link do piaskownicy wysłany klientowi produkcyjnemu otwiera portal bez
+    // jego danych, a subskrypcja obcego najemcy to cudzy klient operatora.
+    await createPortalLinkForUser(USER, "live", { tenantId: TENANT_A });
+
+    expect(subscriptionFilters()).toEqual([
       ["user_id", USER],
       ["environment", "live"],
+      ["tenant_id", TENANT_A],
     ]);
   });
 
   it("tworzy sesję dla identyfikatora klienta z subskrypcji", async () => {
-    const result = await createPortalLinkForUser(USER, "sandbox");
+    const result = await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A });
 
     expect(result).toEqual({
       ok: true,
       urls: {
-        overviewUrl: "https://portal.example.test/sesja-jednorazowa",
+        overviewUrl: "https://billing.stripe.test/p/session/jednorazowa",
         updatePaymentMethodUrl: null,
         cancelUrl: null,
       },
@@ -154,25 +225,75 @@ describe("createPortalLinkForUser - sesja portalu klienta", () => {
     expect(h.portalPayloads[0]).toMatchObject({ customer: "cus_test" });
   });
 
-  it("adres powrotu prowadzi na PROFIL tego serwisu, nie na przykładową domenę", async () => {
-    await createPortalLinkForUser(USER, "sandbox");
+  it("powrót z portalu: ISTNIEJĄCA trasa `/profile/plan` na hoście najemcy z żądania", async () => {
+    // DEFEKT SUB-19: było `${PUBLIC_SITE_URL}/profil` - trasy `/profil` nie ma
+    // (jest `/profile`), więc wyjście z portalu kończyło się 404.
+    await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A });
 
-    expect(h.portalPayloads[0].return_url).toBe("https://serwis.example.test/profil");
+    expect(h.portalPayloads[0].return_url).toBe(`https://klub-a.example.test${PROFILE_PLAN_PATH}`);
+    // Trasa docelowa istnieje w drzewie tras i nie jest przekierowaniem.
+    expect(existsSync("src/routes/profile.plan.tsx")).toBe(true);
+    expect(readFileSync("src/routeTree.gen.ts", "utf8")).toContain(`'${PROFILE_PLAN_PATH}': {`);
   });
 
-  it("BRAK zmiennej z adresem serwisu nie blokuje linku - jest wartość zapasowa", async () => {
-    vi.stubEnv("PUBLIC_SITE_URL", "");
+  it("host spoza serwisu w nagłówku NIE trafia do adresu powrotu", async () => {
+    // Bramka `absoluteReturnUrl`: podrobiony `origin` schodzi na origin
+    // kanoniczny wdrożenia, a nie na obcą domenę.
+    h.requestHeaders.current = new Headers({ origin: "https://atakujacy.example.org" });
 
-    const result = await createPortalLinkForUser(USER, "sandbox");
+    await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A });
+
+    expect(h.portalPayloads[0].return_url).toBe(`https://serwis.example.test${PROFILE_PLAN_PATH}`);
+  });
+
+  it("BRAK zmiennej z adresem serwisu nie prowadzi na `example.com`", async () => {
+    // Do 12.10.2026 wartość zapasowa brzmiała `https://example.com/profil` -
+    // cudza domena. Teraz zapasem jest origin kanoniczny serwisu.
+    vi.stubEnv("PUBLIC_SITE_URL", "");
+    h.requestHeaders.current = null;
+
+    const result = await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A });
 
     expect(result.ok).toBe(true);
-    expect(String(h.portalPayloads[0].return_url)).toContain("/profil");
+    const returnUrl = String(h.portalPayloads[0].return_url);
+    expect(returnUrl).not.toContain("example.com");
+    expect(new URL(returnUrl).pathname).toBe(PROFILE_PLAN_PATH);
+  });
+
+  it("konto z INNEGO najemcy dostaje `no_customer` - bez sesji portalu", async () => {
+    h.profileTenant.current = TENANT_B;
+
+    expect(await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A })).toEqual({
+      ok: false,
+      error: "no_customer",
+    });
+    expect(h.portalPayloads).toHaveLength(0);
+  });
+
+  it("subskrypcja należąca do INNEGO najemcy też jest `no_customer`", async () => {
+    // Profil w najemcy A, ale klient operatora zapisany w najemcy B - jedno
+    // konto operatora obsługuje wielu najemców, więc sam profil nie wystarcza.
+    h.subscriptionTenant.current = TENANT_B;
+
+    expect(await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A })).toEqual({
+      ok: false,
+      error: "no_customer",
+    });
+    expect(h.portalPayloads).toHaveLength(0);
+  });
+
+  it("pusty najemca to odmowa, nie zapytanie bez zakresu", async () => {
+    expect(await createPortalLinkForUser(USER, "sandbox", { tenantId: "" })).toEqual({
+      ok: false,
+      error: "no_customer",
+    });
+    expect(h.filters).toHaveLength(0);
   });
 
   it("użytkownik BEZ subskrypcji dostaje kod `no_customer`, a nie wyjątek", async () => {
     h.subscription.current = null;
 
-    expect(await createPortalLinkForUser(USER, "sandbox")).toEqual({
+    expect(await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A })).toEqual({
       ok: false,
       error: "no_customer",
     });
@@ -181,7 +302,7 @@ describe("createPortalLinkForUser - sesja portalu klienta", () => {
   it("subskrypcja BEZ identyfikatora klienta u operatora to też `no_customer`", async () => {
     h.subscription.current = { provider_customer_id: null, provider_subscription_id: "sub_1" };
 
-    expect(await createPortalLinkForUser(USER, "sandbox")).toEqual({
+    expect(await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A })).toEqual({
       ok: false,
       error: "no_customer",
     });
@@ -191,76 +312,91 @@ describe("createPortalLinkForUser - sesja portalu klienta", () => {
   it("ODMOWA operatora daje `portal_failed` - funkcja NIGDY nie rzuca", async () => {
     h.portalThrows.current = true;
 
-    const result = await createPortalLinkForUser(USER, "sandbox");
+    const result = await createPortalLinkForUser(USER, "sandbox", { tenantId: TENANT_A });
 
     expect(result).toEqual({ ok: false, error: "portal_failed" });
     expect(console.error).toHaveBeenCalled();
   });
 });
 
-describe("sendPortalLinkEmail - mail z linkiem", () => {
-  it("wysyła na adres WŁAŚCICIELA subskrypcji, w jego języku", async () => {
-    const result = await sendPortalLinkEmail({
-      userId: USER,
-      environment: "sandbox",
-      idempotencySeed: "1",
-    });
+describe("sendPortalLinkEmail - mail ze STAŁYM wejściem do portalu (SUB-19)", () => {
+  it("link w mailu to adres APLIKACJI na hoście najemcy, nie sesja operatora", async () => {
+    // Kryterium SUB-19: link działa po godzinie. Adres sesji operatora wygasa
+    // po kilku minutach; adres aplikacji nie wygasa nigdy - sesja powstaje
+    // dopiero po jego otwarciu.
+    const result = await sendPortalLinkEmail(emailInput({ environment: "live" }));
 
     expect(result).toEqual({ ok: true, email: "klient@example.test" });
+    const cta = new URL(String(h.sentEmails[0].ctaUrl));
+    expect(cta.origin).toBe("https://klub-a.example.test");
+    expect(cta.pathname).toBe(PROFILE_PORTAL_PATH);
+    expect(cta.searchParams.get("environment")).toBe("live");
+    expect(String(h.sentEmails[0].ctaUrl)).not.toContain("stripe");
+  });
+
+  it("przy wysyłce sesja portalu w ogóle NIE powstaje", async () => {
+    // Jednorazowej sesji nie ma czego „zużyć" przed kliknięciem - mail może
+    // leżeć w skrzynce dowolnie długo.
+    await sendPortalLinkEmail(emailInput());
+
+    expect(h.portalPayloads).toHaveLength(0);
+  });
+
+  it("adres wejścia prowadzi do ISTNIEJĄCEJ trasy aplikacji", () => {
+    expect(portalEntryPath("sandbox")).toBe(`${PROFILE_PORTAL_PATH}?environment=sandbox`);
+    expect(existsSync("src/routes/profile_.portal.tsx")).toBe(true);
+    expect(readFileSync("src/routeTree.gen.ts", "utf8")).toContain(
+      `fullPath: '${PROFILE_PORTAL_PATH}'`,
+    );
+  });
+
+  it("host linku wynika z najemcy WOŁAJĄCEGO, nie z najemcy domyślnego", async () => {
+    h.profileTenant.current = TENANT_B;
+    h.subscriptionTenant.current = TENANT_B;
+
+    await sendPortalLinkEmail(emailInput({ tenantId: TENANT_B }));
+
+    expect(new URL(String(h.sentEmails[0].ctaUrl)).origin).toBe("https://serwis-b.example.test");
+    // Najemca jedzie też do wysyłki (lista wykluczeń, redakcja treści).
+    expect(h.sentEmails[0].tenantId).toBe(TENANT_B);
+  });
+
+  it("wysyła na adres WŁAŚCICIELA subskrypcji, w jego języku", async () => {
+    await sendPortalLinkEmail(emailInput());
+
     expect(h.sentEmails[0]).toMatchObject({
       type: "customer_portal_link",
       to: "klient@example.test",
       lang: "pl",
-      ctaUrl: "https://portal.example.test/sesja-jednorazowa",
     });
   });
 
   it("klucz idempotencji niesie użytkownika I ziarno", async () => {
-    await sendPortalLinkEmail({ userId: USER, environment: "sandbox", idempotencySeed: "admin:7" });
+    await sendPortalLinkEmail(emailInput({ idempotencySeed: "admin:7" }));
 
     expect(h.sentEmails[0].idempotencyKey).toBe(`customer_portal_link:${USER}:admin:7`);
   });
 
   it("RÓŻNE ziarna dają różne klucze - świadome powtórzenie przechodzi", async () => {
-    // Link z poprzedniego maila jest zwykle zużyty; obsługa zgłoszeń musi móc
-    // wysłać nowy.
-    await sendPortalLinkEmail({ userId: USER, environment: "sandbox", idempotencySeed: "a" });
-    await sendPortalLinkEmail({ userId: USER, environment: "sandbox", idempotencySeed: "b" });
+    await sendPortalLinkEmail(emailInput({ idempotencySeed: "a" }));
+    await sendPortalLinkEmail(emailInput({ idempotencySeed: "b" }));
 
     expect(h.sentEmails[0].idempotencyKey).not.toBe(h.sentEmails[1].idempotencyKey);
   });
 
-  it("konto BEZ adresu e-mail daje `no_recipient` i NIE zużywa linku", async () => {
-    // Adresata sprawdzamy PRZED utworzeniem sesji - jednorazowy link
-    // wygenerowany dla konta bez maila przepadłby bez śladu.
+  it("konto BEZ adresu e-mail daje `no_recipient` i NIE wysyła maila", async () => {
     h.profile.current = { email: "", prefs: {} };
 
-    const result = await sendPortalLinkEmail({
-      userId: USER,
-      environment: "sandbox",
-      idempotencySeed: "1",
-    });
+    const result = await sendPortalLinkEmail(emailInput());
 
     expect(result).toEqual({ ok: false, error: "no_recipient" });
-    expect(h.portalPayloads).toHaveLength(0);
     expect(h.sentEmails).toHaveLength(0);
   });
 
-  it("brak subskrypcji przechodzi kodem `no_customer` z warstwy niżej", async () => {
+  it("brak subskrypcji daje `no_customer`", async () => {
     h.subscription.current = null;
 
-    expect(
-      await sendPortalLinkEmail({ userId: USER, environment: "sandbox", idempotencySeed: "1" }),
-    ).toEqual({ ok: false, error: "no_customer" });
-    expect(h.sentEmails).toHaveLength(0);
-  });
-
-  it("odmowa operatora przechodzi kodem `portal_failed`", async () => {
-    h.portalThrows.current = true;
-
-    expect(
-      await sendPortalLinkEmail({ userId: USER, environment: "sandbox", idempotencySeed: "1" }),
-    ).toEqual({ ok: false, error: "portal_failed" });
+    expect(await sendPortalLinkEmail(emailInput())).toEqual({ ok: false, error: "no_customer" });
     expect(h.sentEmails).toHaveLength(0);
   });
 
@@ -268,61 +404,76 @@ describe("sendPortalLinkEmail - mail z linkiem", () => {
     // Operator obsługi zgłoszeń musi wiedzieć, że klient linku NIE DOSTAŁ.
     h.sendResult.current = { ok: false };
 
-    expect(
-      await sendPortalLinkEmail({ userId: USER, environment: "sandbox", idempotencySeed: "1" }),
-    ).toEqual({ ok: false, error: "send_failed" });
-  });
-
-  it("wyjątek w środku schodzi na `send_failed` - funkcja NIGDY nie rzuca", async () => {
-    h.profile.current = null;
-    h.subscription.current = null;
-
-    const result = await sendPortalLinkEmail({
-      userId: USER,
-      environment: "sandbox",
-      idempotencySeed: "1",
-    });
-
-    expect(result.ok).toBe(false);
-    expect(["no_recipient", "send_failed"]).toContain((result as { error: string }).error);
+    expect(await sendPortalLinkEmail(emailInput())).toEqual({ ok: false, error: "send_failed" });
   });
 
   it("język adresata schodzi z jego preferencji, nie z domyślnego", async () => {
     h.profile.current = { email: "client@example.test", prefs: { language: "en" } };
 
-    await sendPortalLinkEmail({ userId: USER, environment: "sandbox", idempotencySeed: "1" });
+    await sendPortalLinkEmail(emailInput());
 
     expect(h.sentEmails[0].lang).toBe("en");
-  });
-});
-
-describe("brzegi, na których portal MUSI zadziałać albo odmówić spokojnie", () => {
-  it("brak zapisanego identyfikatora subskrypcji NIE blokuje linku", async () => {
-    // Wiersz `subscriptions` powstaje przy checkoucie, a `provider_subscription_id`
-    // dopisuje dopiero webhook. Klient, który trafi na profil w tym oknie, ma
-    // dostać portal - to jedyne miejsce, gdzie poprawi kartę po odrzuconej
-    // płatności. Odmowa byłaby tu najgorsza z możliwych.
-    h.subscription.current = { provider_customer_id: "cus_bez_subskrypcji" };
-
-    const result = await createPortalLinkForUser(USER, "sandbox");
-
-    expect(result.ok).toBe(true);
-    expect(h.portalPayloads[0]).toMatchObject({ customer: "cus_bez_subskrypcji" });
+    // Ścieżki `/profile` nie mają prefiksu języka - link EN to ten sam adres.
+    expect(new URL(String(h.sentEmails[0].ctaUrl)).pathname).toBe(PROFILE_PORTAL_PATH);
   });
 
   it("WYJĄTEK dostawcy poczty nie wychodzi na zewnątrz - odmowa `send_failed`", async () => {
-    // Kontrakt modułu brzmi „nigdy nie rzuca". Wyjątek z dostawcy poczty
-    // przebiłby się przez panel administratora jako biała strona, a link do
-    // portalu i tak byłby już zużyty.
     h.sendThrows.current = true;
 
-    const result = await sendPortalLinkEmail({
-      userId: USER,
-      environment: "sandbox",
-      idempotencySeed: "ziarno-1",
-    });
+    const result = await sendPortalLinkEmail(emailInput({ idempotencySeed: "ziarno-1" }));
 
     expect(result).toEqual({ ok: false, error: "send_failed" });
     expect(console.error).toHaveBeenCalled();
+  });
+});
+
+describe("sendPortalLinkEmail - odmowa ponad granicą najemcy (SUB-08)", () => {
+  it("konto INNEGO najemcy: brak maila, brak adresu w odpowiedzi, kod `no_customer`", async () => {
+    // Scenariusz z audytu: edytor najemcy B wysyłał linki kontom najemcy A
+    // i w odpowiedzi dostawał ich adresy e-mail.
+    h.profileTenant.current = TENANT_A;
+
+    const result = await sendPortalLinkEmail(emailInput({ tenantId: TENANT_B }));
+
+    expect(result).toEqual({ ok: false, error: "no_customer" });
+    expect(JSON.stringify(result)).not.toContain("klient@example.test");
+    expect(h.sentEmails).toHaveLength(0);
+    expect(h.portalPayloads).toHaveLength(0);
+  });
+
+  it("odmowa jest NIEODRÓŻNIALNA od konta, którego nie ma, i od konta bez subskrypcji", async () => {
+    // Trzy różne przyczyny, jedna odpowiedź - inaczej funkcja byłaby
+    // wyrocznią istnienia kont w obcym najemcy.
+    h.profileTenant.current = TENANT_A;
+    const obce = await sendPortalLinkEmail(emailInput({ tenantId: TENANT_B }));
+
+    h.profileTenant.current = null;
+    const nieistniejace = await sendPortalLinkEmail(emailInput({ tenantId: TENANT_B }));
+
+    h.profileTenant.current = TENANT_B;
+    h.subscriptionTenant.current = TENANT_A;
+    const bezSubskrypcji = await sendPortalLinkEmail(emailInput({ tenantId: TENANT_B }));
+
+    expect(obce).toEqual(nieistniejace);
+    expect(nieistniejace).toEqual(bezSubskrypcji);
+  });
+
+  it("obce konto BEZ adresu też dostaje `no_customer`, nie `no_recipient`", async () => {
+    // Kolejność kontroli jest wiążąca: najpierw granica najemcy, dopiero
+    // potem adresat - inaczej „brak adresu" zdradzałby istnienie konta.
+    h.profileTenant.current = TENANT_A;
+    h.profile.current = { email: "", prefs: {} };
+
+    expect(await sendPortalLinkEmail(emailInput({ tenantId: TENANT_B }))).toEqual({
+      ok: false,
+      error: "no_customer",
+    });
+  });
+
+  it("zapytanie o subskrypcję niesie najemcę wołającego, nie najemcę z bazy", async () => {
+    await sendPortalLinkEmail(emailInput({ tenantId: TENANT_A }));
+
+    expect(subscriptionFilters()).toContainEqual(["tenant_id", TENANT_A]);
+    expect(h.filters).toContainEqual(["profiles", "tenant_id", TENANT_A]);
   });
 });

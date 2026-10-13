@@ -420,7 +420,7 @@ export interface StripeStub {
   readonly calls: { method: string; args: unknown[] }[];
   billingPortal: { sessions: { create: Mock } };
   invoices: { retrieve: Mock };
-  checkout: { sessions: { retrieve: Mock } };
+  checkout: { sessions: { retrieve: Mock; list: Mock; expire: Mock } };
   paymentIntents: { retrieve: Mock };
   subscriptions: { update: Mock; retrieve: Mock };
 }
@@ -467,6 +467,10 @@ export function stripeStub(): StripeStub {
             payment_intent: null,
           }),
         ),
+        // Kasa planu przegląda otwarte sesje klienta przed i po założeniu nowej
+        // (druga karta = druga subskrypcja) - domyślnie nie ma żadnej.
+        list: vi.fn(record("checkout.sessions.list", { data: [], has_more: false })),
+        expire: vi.fn(record("checkout.sessions.expire", { status: "expired" })),
       },
     },
     paymentIntents: {

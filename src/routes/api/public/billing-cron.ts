@@ -108,7 +108,7 @@ export const Route = createFileRoute("/api/public/billing-cron")({
           const { runBillingReminders } = await import("@/lib/billing/reminders.server");
           // Ta sama doba: domykamy karencje miejsc zespołowych, którym minął
           // termin - dostęp gaśnie dopiero tutaj, wraz z mailem końcowym.
-          const { expireSeatGrace, sendSeatGraceReminders } =
+          const { expireSeatGrace, sendSeatGraceReminders, suspendTeamsPastPaymentGrace } =
             await import("@/lib/organizations/teamSeats.server");
 
           // KAŻDE Z TRZECH ZADAŃ JEST ODDZIELNE. Wcześniej `runBillingReminders`
@@ -137,19 +137,12 @@ export const Route = createFileRoute("/api/public/billing-cron")({
             perOrg: true,
           }));
           const seats = await expireSeatGrace().catch(() => ({ expired: 0, notified: 0 }));
-          // Dobowa siatka bezpieczeństwa zamiatarki dziennika płatności - na
-          // wypadek, gdyby tick zadań (pg_cron co minutę) stał. Zamiatarka nie
-          // rzuca, a jej wynik NIE zmienia kodu odpowiedzi: o 500 decydują
-          // wyłącznie przypomnienia, jak dotąd. Własny termin: jedno
-          // odtworzenie potrafi czekać na operatora (limit SDK 10 s), a
-          // reszta partii wróci w ticku zadań za kilka minut.
-          const webhookSweep = await import("@/lib/billing/webhookReplay.server")
-            .then(({ sweepWebhookEvents }) =>
-              sweepWebhookEvents({ deadlineAt: Date.now() + WEBHOOK_SWEEP_WINDOW_MS }),
-            )
-            .catch((err: unknown) => ({
-              error: err instanceof Error ? err.message : String(err),
-            }));
+          // Karencja PŁATNOŚCI planu Zespół: po ostatniej nieudanej próbie
+          // operator potrafi nie wysłać już żadnego zdarzenia, a organizacja
+          // (w odróżnieniu od uprawnienia indywidualnego) nie wygasa sama z daty.
+          const paymentGrace = await suspendTeamsPastPaymentGrace().catch(() => ({
+            suspended: 0,
+          }));
 
           // KONTRAKT ODPOWIEDZI ZOSTAJE BEZ ZMIAN: padnięcie przypomnień nadal
           // daje 500 `cron_failed`, bo zewnętrzny scheduler opiera na tym kodzie
@@ -167,7 +160,7 @@ export const Route = createFileRoute("/api/public/billing-cron")({
             ...result,
             seatGraceReminders: reminders,
             seatGrace: seats,
-            webhookSweep,
+            teamPaymentGrace: paymentGrace,
           });
         } catch (err) {
           console.error("[billing-cron] failed", err);

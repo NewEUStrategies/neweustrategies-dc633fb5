@@ -31,7 +31,10 @@ function staticPublicRoutes(): RouteFile[] {
     const source = readFileSync(join(ROUTES_DIR, file), "utf8");
     const match = /createFileRoute\("([^"]+)"\)/.exec(source);
     if (!match) continue;
-    out.push({ file, path: match[1].replace(/\/$/, "") || "/", source });
+    // `profile_.portal` -> `/profile_/portal`: podkreślnik na końcu segmentu
+    // to znacznik TanStack „bez layoutu rodzica", nie część adresu URL.
+    const path = match[1].replace(/_(?=\/|$)/g, "").replace(/\/$/, "") || "/";
+    out.push({ file, path, source });
   }
   return out;
 }

@@ -85,43 +85,26 @@ async function readState(env: StripeEnv): Promise<{
   };
 }
 
-interface PlanFingerprintRow {
-  tier_key: string | null;
-  interval: string | null;
-  price_cents: number | null;
-  currency: string | null;
-  name_pl: string | null;
-  name_en: string | null;
-  description_pl: string | null;
-  trial_days: number | null;
-  active: boolean | null;
-  volume_threshold_seats: number | null;
-  volume_price_cents: number | null;
-}
-
 /**
  * Odcisk treści cennika: mapowanie `BILLING_CATALOG` (kod, zmienia się przy
  * wdrożeniu) + wartości z `access_plans` (baza). Dzięki temu pierwsze zdarzenie
  * od operatora po wdrożeniu nowych planów odtwarza katalog samo.
  * Gdy odczyt bazy zawiedzie, zwracamy `null` - brak odcisku nie może wymuszać
  * synchronizacji w kółko.
+ *
+ * TO SAMO ŹRÓDŁO I TEN SAM WYBÓR PLANU CO SYNCHRONIZACJA (`loadCatalogSourcePlans`
+ * + `catalogPlanForEntry`): wyłącznie najemca domyślny, dokładna para
+ * (tier, cykl). Odcisk liczony z planów wszystkich najemców zmieniał się od
+ * edycji w dowolnym obszarze roboczym i budził automat, który - przy
+ * `find` pierwszego z brzegu - mógł przepisać cenę wspólną kwotą najemcy B.
  */
 export async function catalogFingerprint(): Promise<string | null> {
   try {
-    const supabase = await admin();
-    const { data, error } = await supabase
-      .from("access_plans")
-      .select(
-        "tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, trial_days, active, volume_threshold_seats, volume_price_cents",
-      );
-    if (error) return null;
-    const plans = (data ?? []) as PlanFingerprintRow[];
+    const { loadCatalogSourcePlans, catalogPlanForEntry } = await import("./catalogSync.server");
+    const plans = await loadCatalogSourcePlans();
 
     const entries: CatalogFingerprintEntry[] = BILLING_CATALOG.map((entry) => {
-      const plan =
-        plans.find(
-          (p) => p.tier_key === entry.tierKey && (p.interval ?? "month") === entry.interval,
-        ) ?? plans.find((p) => p.tier_key === entry.tierKey);
+      const plan = catalogPlanForEntry(plans, entry);
       return {
         priceId: entry.priceId,
         productId: entry.productId,

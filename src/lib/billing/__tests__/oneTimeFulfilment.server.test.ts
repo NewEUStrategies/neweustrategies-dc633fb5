@@ -430,15 +430,20 @@ describe("fulfilOneTimeTransaction - rozdział na skutek biznesowy", () => {
       txn({
         customData: { purpose: "donation", donationId: "don_1", sessionId: "cs_1" },
         customerEmail: "darczynca@example.com",
+        paymentIntentId: "pi_darowizna_1",
       }),
       "sandbox",
     );
 
     expect(outcome).toBe("donation");
+    // AUDYT SUB-09/SUB-10: w polu intencji ląduje INTENCJA płatności (po niej
+    // przychodzi zwrot), a nie identyfikator sesji/transakcji; środowisko
+    // zdarzenia bramkuje zapis tak samo jak przy zamówieniu.
     expect(h.donations[0]).toEqual({
+      environment: "sandbox",
       donationId: "don_1",
       sessionId: "cs_1",
-      intentId: "txn_test_1",
+      intentId: "pi_darowizna_1",
       amountCents: 12_000,
       currency: "pln",
       donorEmail: "darczynca@example.com",

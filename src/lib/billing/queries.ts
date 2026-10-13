@@ -4,6 +4,7 @@ import {
   changeSubscriptionPlan,
   resumeSubscription,
 } from "./checkout.functions";
+import { unwrapProviderResult } from "./providerResult";
 import type {
   AccessPlan,
   BillingDocument,
@@ -170,12 +171,19 @@ export async function fetchMyBillingDocuments(): Promise<BillingDocument[]> {
   return (data ?? []) as BillingDocument[];
 }
 
-/** Upgrade/downgrade planu (Stripe-first, prorata od razu) - patrz server fn. */
+/**
+ * Upgrade/downgrade planu (Stripe-first) - patrz server fn. Odmowa DOPŁATY
+ * wraca z serwera jako wynik (`{ ok: false, error, hostedInvoiceUrl }`), więc
+ * odpakowujemy ją do `ProviderCallError`: bez tego `useMutation` zgłosiłby
+ * sukces („plan zmieniony") przy zmianie, która nie weszła. `effect` mówi UI,
+ * czy plan zmienił się od razu, czy od nowego okresu.
+ */
 export async function changeMySubscriptionPlan(
   subscriptionId: string,
   newPlanId: string,
-): Promise<void> {
-  await changeSubscriptionPlan({ data: { subscriptionId, newPlanId } });
+): Promise<{ effect: "applied" | "scheduled" }> {
+  const result = await changeSubscriptionPlan({ data: { subscriptionId, newPlanId } });
+  return unwrapProviderResult(result);
 }
 
 export async function cancelMySubscription(subscriptionId: string): Promise<void> {
@@ -187,6 +195,8 @@ export async function cancelMySubscription(subscriptionId: string): Promise<void
 }
 
 export async function resumeMySubscription(subscriptionId: string): Promise<void> {
-  // Cofa cancel_at_period_end (Stripe + DB) dopóki opłacony okres trwa.
-  await resumeSubscription({ data: { subscriptionId } });
+  // Cofa cancel_at_period_end (Stripe + DB) dopóki opłacony okres trwa, albo
+  // wznawia pauzę u operatora. Odmowa faktury za wznowienie wraca jako wynik -
+  // odpakowujemy ją do `ProviderCallError`, żeby UI nie meldowało wznowienia.
+  unwrapProviderResult(await resumeSubscription({ data: { subscriptionId } }));
 }

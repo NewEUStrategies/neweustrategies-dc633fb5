@@ -61,7 +61,9 @@ const h = vi.hoisted(() => {
   });
   const state = {
     /** Cena katalogowa zwracana przez operatora (pusto = brak ceny). */
-    prices: [catalogPrice()] as unknown[],
+    prices: [] as unknown[],
+    /** Subskrypcje klienta u operatora (`subscriptions.list`). */
+    remoteSubscriptions: [] as unknown[],
     /** Wynik `checkout.sessions.create`; wyjątek symuluje odmowę operatora. */
     sessionError: null as Error | null,
     /** Wynik `coupons.create` - `{}` udaje odpowiedź bez identyfikatora. */
@@ -133,6 +135,10 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
       return {
         ...stub,
         prices: { list: h.record("prices.list", () => ({ data: h.state.prices })) },
+        subscriptions: {
+          ...stub.subscriptions,
+          list: h.record("subscriptions.list", () => ({ data: h.state.remoteSubscriptions })),
+        },
         customers: {
           search: h.record("customers.search", () => ({ data: [] })),
           list: h.record("customers.list", () => ({ data: [] })),
@@ -224,6 +230,20 @@ function planQuote(over: Partial<PlanQuote> = {}): PlanQuote {
     tier_key: "member",
     volume_threshold_seats: null,
     volume_price_cents: null,
+    ...over,
+  };
+}
+
+/** Cena katalogowa u operatora - domyślnie zgodna z `planQuote()` (49 zł / mies.). */
+function stripePrice(over: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: "price_1",
+    lookup_key: "plus_monthly",
+    type: "recurring",
+    billing_scheme: "per_unit",
+    unit_amount: 4900,
+    currency: "pln",
+    recurring: { interval: "month", interval_count: 1 },
     ...over,
   };
 }
@@ -334,7 +354,8 @@ function entityPayload(over: Record<string, unknown> = {}): Record<string, unkno
 
 beforeEach(() => {
   h.calls.length = 0;
-  h.state.prices = [h.catalogPrice()];
+  h.state.prices = [stripePrice()];
+  h.state.remoteSubscriptions = [];
   h.state.sessionError = null;
   h.state.coupon = { id: "coupon_1" };
   h.state.couponError = null;
@@ -356,6 +377,9 @@ beforeEach(() => {
   vi.stubEnv("STRIPE_SANDBOX_API_KEY", "klucz-testowy-piaskownicy");
 
   chain.setResponse("access_plans", ok(planQuote()));
+  // Kupujący bez historii subskrypcji planu (lustro `subscriptions` pod RLS) -
+  // kasa subskrypcji sprawdza ją przed zamówieniem (audyt SUB-13).
+  chain.setResponse("subscriptions", ok([]));
   chain.setResponse("payment_orders", ok({ id: "order-1", tenant_id: "tenant-alfa" }));
   chain.setResponse(
     "checkout_settings",
@@ -466,7 +490,7 @@ describe("createCheckoutOrder - subskrypcja idzie CENĄ KATALOGOWĄ", () => {
   it("liczba miejsc jedzie do pozycji sesji, a nie tylko do kwoty zamówienia", async () => {
     chain.setResponse("access_plans", ok(planQuote({ tier_key: "team", price_cents: 9900 })));
     h.state.prices = [
-      h.catalogPrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
+      stripePrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
     ];
 
     await call(planPayload({ seats: 7 }));
@@ -485,6 +509,145 @@ describe("createCheckoutOrder - subskrypcja idzie CENĄ KATALOGOWĄ", () => {
       "tenant_id",
       "tenant-beta",
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AUDYT SUB-05: kwota zamówienia (plan najemcy ZAMÓWIENIA) musi zgadzać się
+// z ceną wspólnego katalogu operatora - inaczej klient płaci inną kwotę niż ta
+// zapisana na zamówieniu.
+// ---------------------------------------------------------------------------
+
+describe("createCheckoutOrder - zgodność ceny operatora z zamówieniem (audyt SUB-05)", () => {
+  it("plan najemcy z ceną INNĄ niż cena wspólna: sesja NIE powstaje, zamówienie `failed`, kupon wraca", async () => {
+    // Najemca B przestawił „member/month" na 19 zł; cena `plus_monthly`
+    // u operatora (najemca domyślny) to 49 zł.
+    chain.setResponse("access_plans", ok(planQuote({ price_cents: 1900 })));
+    rpcResponses.set(
+      "validate_b2b_coupon_for_user",
+      ok([couponOk({ discount_cents: 500, final_cents: 1400 })]),
+    );
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await call(planPayload({ coupon_code: "PARTNER-CEE" }));
+
+    expect(result).toEqual({
+      ok: false,
+      mode: "stripe",
+      error: "price_mismatch",
+      orderId: "order-1",
+    });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    expect(rpcArgs("payment_order_mark_session")).toEqual({
+      _order_id: "order-1",
+      _status: "failed",
+    });
+    expect(rpcArgs("release_b2b_coupon_for_user")).toMatchObject({ _order_id: "order-1" });
+    logged.mockRestore();
+  });
+
+  it("porównanie idzie kwotą PRZED kuponem - rabat jedzie osobno jako rabat operatora", async () => {
+    // Zamówienie zapisuje 39 zł (po kuponie), cena operatora to 49 zł, a różnicę
+    // zdejmuje kupon operatora. Porównanie kwoty po kuponie odrzucałoby każdy
+    // zakup z kodem rabatowym.
+    const result = await call(planPayload({ coupon_code: "PARTNER-CEE" }));
+
+    expect(result.ok).toBe(true);
+    expect(lastSession()?.discounts).toEqual([{ coupon: "coupon_1" }]);
+  });
+
+  it("próg wolumenowy Zespołu: 12 miejsc po stawce progu zgadza się z ceną schodkową operatora", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(
+        planQuote({
+          tier_key: "team",
+          price_cents: 9900,
+          volume_threshold_seats: 11,
+          volume_price_cents: 7900,
+        }),
+      ),
+    );
+    h.state.prices = [
+      stripePrice({
+        lookup_key: "team_monthly_seat",
+        billing_scheme: "tiered",
+        tiers_mode: "volume",
+        unit_amount: null,
+        tiers: [
+          { up_to: 10, unit_amount: 9900, flat_amount: null },
+          { up_to: null, unit_amount: 7900, flat_amount: null },
+        ],
+      }),
+    ];
+
+    const result = await call(planPayload({ seats: 12 }));
+
+    expect(result.ok).toBe(true);
+    expect(lastSession()?.line_items[0]?.quantity).toBe(12);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AUDYT SUB-13: druga subskrypcja i trial raz na konto (pierwszy silnik kasy).
+// ---------------------------------------------------------------------------
+
+describe("createCheckoutOrder - druga subskrypcja i ponowny trial (audyt SUB-13)", () => {
+  it("ŻYWA subskrypcja planu: odmowa `subscription_exists` (UI kieruje do zmiany planu), bez zamówienia", async () => {
+    chain.setResponse("subscriptions", ok([{ status: "past_due" }]));
+
+    const result = await call(planPayload());
+
+    expect(result).toEqual({ ok: false, mode: "subscription", error: "subscription_exists" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+  });
+
+  it("drugi trial NIE przysługuje: po anulowanej subskrypcji sesja idzie bez okresu próbnego", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ trial_days: 14 })));
+    chain.setResponse("subscriptions", ok([{ status: "canceled" }]));
+
+    const result = await call(planPayload());
+
+    expect(result.ok).toBe(true);
+    expect(lastSession()?.subscription_data).not.toHaveProperty("trial_period_days");
+  });
+
+  it("żywa subskrypcja widoczna tylko u operatora (przed webhookiem): odmowa i zamówienie `failed`", async () => {
+    h.state.remoteSubscriptions = [{ id: "sub_1", status: "active", metadata: {} }];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await call(planPayload());
+
+    expect(result).toEqual({
+      ok: false,
+      mode: "stripe",
+      error: "subscription_exists",
+      orderId: "order-1",
+    });
+    expect(rpcArgs("payment_order_mark_session")).toMatchObject({ _status: "failed" });
+    logged.mockRestore();
+  });
+
+  it("subskrypcja DAROWIZNY u operatora nie blokuje planu i nie zużywa triala", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ trial_days: 14 })));
+    h.state.remoteSubscriptions = [
+      { id: "sub_don", status: "active", metadata: { purpose: "donation" } },
+    ];
+
+    const result = await call(planPayload());
+
+    expect(result.ok).toBe(true);
+    expect(lastSession()?.subscription_data?.trial_period_days).toBe(14);
+  });
+
+  it("zakupy jednorazowe (treść) w ogóle nie czytają historii subskrypcji", async () => {
+    chain.setResponse("subscriptions", ok([{ status: "active" }]));
+
+    const result = await call(entityPayload());
+
+    expect(result.ok).toBe(true);
+    expect(chain.chainsFor("subscriptions")).toHaveLength(0);
   });
 });
 
