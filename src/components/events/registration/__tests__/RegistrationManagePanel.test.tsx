@@ -18,6 +18,10 @@
 // 7. PO ODWOŁANIU nie ma już czego odwoływać: przycisk znika, a jego miejsce
 //    zajmuje potwierdzenie (z informacją o osobie z listy rezerwowej).
 //
+// 9. ZGODY (REG-14): gniazdo wycofania zgód (`ManageConsentsSlot`, atrapa
+//    z `data-testid`) stoi pod panelem przy KAŻDYM kluczu, który nie jest
+//    nieznany - także przy kluczu wygasłym i po rezygnacji.
+//
 // 8. GNIAZDA TORÓW F1-F5 (spec B.11, BLK-5). Pod kartą stanu zgłoszenia (gdy
 //    stan jest znany) stoją gniazda B (akcje biletu), A (przypomnienia
 //    i kalendarz) i C (po wydarzeniu). KAŻDY moduł gniazda stoi tu na atrapie
@@ -29,7 +33,7 @@
 // POZA Reactem, na prawdziwej instancji i18next, więc tam asercja czyta to,
 // co naprawdę zobaczy uczestnik w powiadomieniu.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
 import type { EventPageHeader } from "@/lib/community/publicQueries";
 import type {
@@ -46,6 +50,14 @@ const gniazda = vi.hoisted(() => ({
   akcje: [] as ManagePanelSlotProps[],
   kalendarz: [] as ManagePanelSlotProps[],
   poWydarzeniu: [] as ManagePanelSlotProps[],
+  zgody: [] as Array<{ token: string | null }>,
+}));
+
+vi.mock("@/components/events/participant/slots/ManageConsentsSlot", () => ({
+  ManageConsentsSlot: (props: { token: string | null }) => {
+    gniazda.zgody.push(props);
+    return <div data-testid="gniazdo-zgody" />;
+  },
 }));
 
 vi.mock("@/components/events/participant/slots/ManageTicketActionsSlot", () => ({
@@ -207,6 +219,7 @@ beforeEach(() => {
   gniazda.akcje.length = 0;
   gniazda.kalendarz.length = 0;
   gniazda.poWydarzeniu.length = 0;
+  gniazda.zgody.length = 0;
   quote.mockResolvedValue({
     seats: 1,
     unitCents: 15000,
@@ -573,6 +586,7 @@ describe("RegistrationManagePanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
       "gniazdo-kalendarz-przypomnienia",
       "gniazdo-po-wydarzeniu",
       "eventFront.manage.confirmTitle",
+      "gniazdo-zgody",
     ]);
     for (const props of [
       gniazda.akcje.at(-1),
@@ -593,6 +607,50 @@ describe("RegistrationManagePanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
 
     await screen.findByTestId("gniazdo-akcje-biletu");
     expect(gniazda.akcje.at(-1)?.token).toBe(TOKEN);
+  });
+
+  it("REG-14: gniazdo zgód dostaje WYŁĄCZNIE aktywny klucz", async () => {
+    manageView.mockResolvedValue(manageState({ status: "approved", paymentStatus: "paid" }));
+    renderPanel();
+
+    await screen.findByTestId("gniazdo-zgody");
+    expect(gniazda.zgody.at(-1)).toEqual({ token: TOKEN });
+  });
+
+  it("REG-14: klucz wygasły (po wydarzeniu) - stanu nie ma, ale wycofanie zgód JEST", async () => {
+    manageView.mockResolvedValue(null);
+    preview.mockResolvedValue({ kind: "expired" });
+    renderPanel();
+
+    expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();
+    expect(await screen.findByTestId("gniazdo-zgody")).toBeInTheDocument();
+    expect(screen.queryByTestId("gniazdo-akcje-biletu")).toBeNull();
+  });
+
+  it("REG-14: po rezygnacji gniazdo zgód zostaje (zgodę wycofuje się niezależnie)", async () => {
+    manageView.mockResolvedValue(
+      manageState({ status: "approved", paymentStatus: "not_required" }),
+    );
+    renderPanel();
+
+    fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));
+    await waitFor(() => expect(confirmButton()).toBeEnabled());
+    fireEvent.click(confirmButton());
+    expect(await screen.findByText("eventFront.manage.cancelled")).toBeInTheDocument();
+    expect(screen.getByTestId("gniazdo-zgody")).toBeInTheDocument();
+  });
+
+  it("REG-14: nieznany klucz i brak klucza - gniazda zgód NIE ma", async () => {
+    preview.mockResolvedValue({ kind: "not_found" });
+    renderPanel();
+    expect(await screen.findByText("eventFront.manage.notFound")).toBeInTheDocument();
+    await waitFor(() => expect(preview).toHaveBeenCalled());
+    expect(screen.queryByTestId("gniazdo-zgody")).toBeNull();
+
+    cleanup();
+    renderPanel(null);
+    expect(await screen.findByText("eventFront.manage.missingToken")).toBeInTheDocument();
+    expect(screen.queryByTestId("gniazdo-zgody")).toBeNull();
   });
 
   it("dopóki stanu zgłoszenia nie ma (nieznany klucz), gniazd NIE ma", async () => {

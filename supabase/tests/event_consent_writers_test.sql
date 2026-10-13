@@ -9,22 +9,21 @@
 -- wycofanie. Test sciezki szczesliwej lapie to tylko w funkcji, o ktorej ktos
 -- pomyslal - ten plik lapie KAZDA funkcje schematu public.
 --
--- REGULA:
+-- REGULA (BEZ WYJATKOW):
 --   1. kolumny zgod przypisuja WYLACZNIE `_event_person_consents_confirm`
---      i `_event_person_consents_withdraw` (+ tymczasowa lista nizej);
+--      i `_event_person_consents_withdraw`;
 --   2. zadna funkcja nie przypisuje `consent_withdrawn_at = NULL` (gole
 --      zerowanie wycofania); jedyne zdjecie wycofania to warunkowe CASE
 --      w `_event_person_consents_confirm` dla kanalu DOI.
 --
--- TYMCZASOWA LISTA (moze TYLKO malec). Dzisiejsze funkcje, ktore pisza stemple
--- wprost, naleza do innych jednostek naprawy, ktore przepinaja je na funkcje
--- rejestru: `_event_cfp_resolve_person` (B3). `event_register` (B1a) zniknal
--- z listy w 20261012140000 - rdzen `_event_register` pisze zgody wylacznie
--- przez funkcje rejestru; `event_package_invite_accept` (B2) zniknal
--- w 20261012120200 - przyjecie zaproszenia tez. Jednostka,
--- ktora naprawi swoja funkcje, USUWA jej nazwe z `pg_temp.ecw_pending()` -
--- asercja 5 czerwieni plik, dopoki martwy wpis zostaje (martwy wpis to
--- przyszla furtka).
+-- LISTA WYJATKOW JEST PUSTA I TAKA ZOSTAJE. Do serii 20261012 stemple pisaly
+-- wprost trzy funkcje; kazda przeszla na funkcje rejestru: `event_register`
+-- (rdzen `_event_register`, B1a, 20261012140000), `event_package_invite_accept`
+-- (B2, 20261012120200) i `_event_cfp_resolve_person` (B3, 20261012130100 -
+-- marketing przez `_event_person_consents_confirm('verified_account')`).
+-- Asercja 5 przypina, ze zadna z nich nie wrocila do pisania projekcji;
+-- nowa funkcja, ktora chcialaby pisac stemple, czerwieni asercje 4 - nie ma
+-- juz listy, na ktora dalo by sie ja dopisac.
 --
 -- JAK. Zrodlo kazdej funkcji (plpgsql/sql) z wycietymi komentarzami
 -- i literalami (lekser bajtowy jak w check_whitelist_writers_test.sql),
@@ -142,13 +141,6 @@ LANGUAGE sql STABLE AS $f$
      AND pg_temp.ecw_code(p.prosrc) ~ '(^|[^a-z0-9_.])consent_withdrawn_at\s*=\s*null\M'
 $f$;
 
--- TYMCZASOWA LISTA - patrz naglowek. Moze tylko malec.
-CREATE FUNCTION pg_temp.ecw_pending()
-RETURNS TABLE (proname name)
-LANGUAGE sql IMMUTABLE AS $f$
-  VALUES ('_event_cfp_resolve_person'::name)    -- B3: marketing przez _event_person_consents_confirm
-$f$;
-
 -- ── 1-2. Sondy: wzorce nie sa slepe ani nadgorliwe ──────────────────────────
 CREATE FUNCTION public.ecw_probe_update(p_id uuid) RETURNS void LANGUAGE plpgsql AS $p$
 BEGIN
@@ -206,19 +198,21 @@ SELECT set_eq(
   'funkcje rejestru sa pisarzami projekcji (analizator je widzi)');
 SELECT is_empty(
   $$SELECT proname FROM pg_temp.ecw_writers()
-    EXCEPT SELECT proname FROM pg_temp.ecw_pending()
     EXCEPT VALUES ('_event_person_consents_confirm'::name), ('_event_person_consents_withdraw'::name)$$,
-  'kolumny zgod event_people pisza WYLACZNIE _event_person_consents_confirm/_withdraw (+ tymczasowa lista)');
+  'kolumny zgod event_people pisza WYLACZNIE _event_person_consents_confirm/_withdraw - bez zadnych wyjatkow');
+-- Dawni pisarze stempli (do serii 20261012) - zaden nie wrocil do pisania
+-- projekcji obok ksiegi. Sama asercja 4 tez by to zlapala; ta nazywa ich
+-- wprost, zeby czerwony wynik mowil, KTORA naprawa sie cofnela.
 SELECT is_empty(
-  $$SELECT proname FROM pg_temp.ecw_pending()
-    EXCEPT SELECT proname FROM pg_temp.ecw_writers()$$,
-  'tymczasowa lista bez martwych wpisow (naprawiona funkcja znika z listy)');
+  $$SELECT proname FROM pg_temp.ecw_writers()
+     WHERE proname IN ('event_register', '_event_register',
+                       'event_package_invite_accept', '_event_cfp_resolve_person')$$,
+  'brak wyjatkow: event_register, event_package_invite_accept i _event_cfp_resolve_person nie pisza kolumn zgod');
 
 -- ── 6-7. Zerowanie wycofania ────────────────────────────────────────────────
 SELECT is_empty(
-  $$SELECT proname FROM pg_temp.ecw_withdrawal_nullers()
-    EXCEPT SELECT proname FROM pg_temp.ecw_pending()$$,
-  'zadna funkcja (poza tymczasowa lista) nie zeruje consent_withdrawn_at = NULL');
+  $$SELECT proname FROM pg_temp.ecw_withdrawal_nullers()$$,
+  'zadna funkcja nie zeruje consent_withdrawn_at = NULL - bez zadnych wyjatkow');
 SELECT ok(
   pg_temp.ecw_code((SELECT prosrc FROM pg_proc
                      WHERE oid = 'public._event_person_consents_confirm(uuid,uuid,text[],text,uuid,uuid,uuid,integer,text,text,text,uuid,text,boolean)'::regprocedure))

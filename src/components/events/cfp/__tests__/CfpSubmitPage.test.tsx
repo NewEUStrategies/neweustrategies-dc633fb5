@@ -273,9 +273,7 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
     fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.company"), {
       target: { value: "NES SA" },
     });
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: "eventCfp.submit.fields.marketingConsent" }),
-    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "eventRegistration.consents.marketing" }));
     stub().setData("event_cfp_submission_save", { id: ID, status: "draft" });
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" }));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("eventCfp.submit.saved"));
@@ -289,6 +287,9 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
         company_text: "NES SA",
         consent_data_processing: true,
         consent_marketing: true,
+        // REG-14: napis zgody to wersjonowany tekst formularza zapisu.
+        consent_text_version: 1,
+        lang: "pl",
       },
       talk_language: "pl",
       format_key: null,
@@ -502,7 +503,7 @@ describe("CfpSubmitPage - zgody i klauzula informacyjna (RODO)", () => {
       await screen.findByText("eventCfp.submit.fields.marketingConsentActive"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("checkbox", { name: "eventCfp.submit.fields.marketingConsent" }),
+      screen.queryByRole("checkbox", { name: "eventRegistration.consents.marketing" }),
     ).toBeNull();
     fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.titlePl"), {
       target: { value: "Tytuł" },
@@ -526,7 +527,7 @@ describe("CfpSubmitPage - zgody i klauzula informacyjna (RODO)", () => {
       await screen.findByText("eventCfp.submit.fields.marketingConsentWithdrawn"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("checkbox", { name: "eventCfp.submit.fields.marketingConsent" }),
+      screen.queryByRole("checkbox", { name: "eventRegistration.consents.marketing" }),
     ).toBeNull();
   });
 
@@ -534,7 +535,7 @@ describe("CfpSubmitPage - zgody i klauzula informacyjna (RODO)", () => {
     stub().setData("event_my_cfp_submissions", mine([], null));
     renderPage();
     expect(
-      await screen.findByRole("checkbox", { name: "eventCfp.submit.fields.marketingConsent" }),
+      await screen.findByRole("checkbox", { name: "eventRegistration.consents.marketing" }),
     ).not.toBeChecked();
   });
 });

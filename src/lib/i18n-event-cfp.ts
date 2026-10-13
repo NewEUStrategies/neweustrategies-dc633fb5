@@ -146,7 +146,6 @@ export const eventCfpPl = {
         topicsHint: "Oddziel przecinkami, najwyżej 10.",
         dataProcessingConsent:
           "Zgadzam się na przetwarzanie moich danych w celu rozpatrzenia zgłoszenia i kontaktu w jego sprawie.",
-        marketingConsent: "Chcę dostawać informacje o kolejnych wydarzeniach organizatora.",
         marketingConsentActive:
           "Masz już zgodę na informacje o kolejnych wydarzeniach organizatora - obowiązuje nadal. Ten formularz jej nie zmienia; jak ją wycofać, opisuje polityka prywatności.",
         marketingConsentWithdrawn:
@@ -339,6 +338,18 @@ export const eventCfpPl = {
         "Zaznacz zgodę na przetwarzanie danych - bez niej nie możemy przyjąć zgłoszenia.",
       emailInUse: "Ten adres e-mail należy do innego konta.",
       emailRequired: "Twoje konto nie ma adresu e-mail - uzupełnij go w ustawieniach konta.",
+      // Konto bez potwierdzonego adresu nie dostaje kartoteki osoby o tym adresie (REG-01, D1).
+      emailUnverified:
+        "Potwierdź adres e-mail swojego konta (link z wiadomości po rejestracji), a potem wróć do zgłoszenia.",
+      // Rejestr zgód (`_event_person_consents_confirm`) - zgoda marketingowa
+      // naboru idzie przez księgę; te odmowy nie powinny dotrzeć do formularza
+      // (funkcja naboru sprawdza warunki wcześniej), ale mają zdanie.
+      consentTextUnknown:
+        "Formularz pokazał nieaktualny tekst zgody. Odśwież stronę i zaznacz zgodę ponownie.",
+      consentWithdrawnRequiresReconfirmation:
+        "Wycofałeś wcześniej zgody - przywrócisz je tylko linkiem potwierdzającym z wiadomości e-mail.",
+      invalidConsentEvidence: "Nie udało się zapisać zgody. Odśwież stronę i spróbuj ponownie.",
+      invalidConsentPurpose: "Nie udało się zapisać zgody. Odśwież stronę i spróbuj ponownie.",
       invalidAbstract: "Streszczenie może mieć do 4000 znaków.",
       invalidAnswers:
         "Odpowiedź na jedno z pytań ma niewłaściwą postać. Sprawdź pytania organizatora.",
@@ -513,7 +524,6 @@ export const eventCfpEn = {
         topicsHint: "Separate with commas, at most 10.",
         dataProcessingConsent:
           "I agree to the processing of my data to review this submission and contact me about it.",
-        marketingConsent: "I want to hear about the organiser's future events.",
         marketingConsentActive:
           "You already agreed to hear about the organiser's future events - that consent still applies. This form does not change it; the privacy policy explains how to withdraw it.",
         marketingConsentWithdrawn:
@@ -708,6 +718,14 @@ export const eventCfpEn = {
         "Tick the consent to data processing - without it we cannot accept the submission.",
       emailInUse: "This e-mail address belongs to another account.",
       emailRequired: "Your account has no e-mail address - add one in your account settings.",
+      emailUnverified:
+        "Confirm the e-mail address of your account (link in the sign-up message), then come back to your submission.",
+      consentTextUnknown:
+        "The form showed an outdated consent text. Refresh the page and tick the consent again.",
+      consentWithdrawnRequiresReconfirmation:
+        "You withdrew your consents earlier - you can restore them only with the confirmation link from an e-mail.",
+      invalidConsentEvidence: "We could not save the consent. Refresh the page and try again.",
+      invalidConsentPurpose: "We could not save the consent. Refresh the page and try again.",
       invalidAbstract: "The abstract may have up to 4000 characters.",
       invalidAnswers:
         "An answer to one of the questions has the wrong form. Check the organiser's questions.",

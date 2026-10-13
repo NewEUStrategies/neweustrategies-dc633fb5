@@ -625,3 +625,188 @@ export async function promoteFromWaitlist(input: WaitlistPromoteInput): Promise<
   if (error) throw error;
   return (data ?? {}) as Json;
 }
+
+// ---------------------------------------------------------------------------
+// ZGODY I DANE Z ZAPISU (REG-02 / REG-14)
+//
+// Niezweryfikowany zapis na istniejaca osobe NIE przepisuje kartoteki - to, co
+// przyslal, laduje w `submitted_profile` zgloszenia. Organizator widzi to obok
+// kartoteki (lista roznic), razem z ksiega zgod osoby i otwartym linkiem DOI,
+// i moze dane PRZENIESC - swiadoma decyzja, a nie skutek uboczny formularza.
+// ---------------------------------------------------------------------------
+
+/** Pola tozsamosci, ktore niezweryfikowany zapis moze zostawic do wgladu. */
+export const SUBMITTED_PROFILE_FIELDS = [
+  "first_name",
+  "last_name",
+  "phone",
+  "job_title",
+  "company_text",
+  "social_profile_url",
+] as const;
+export type SubmittedProfileField = (typeof SUBMITTED_PROFILE_FIELDS)[number];
+
+export type SubmittedProfile = Partial<Record<SubmittedProfileField, string>>;
+
+export interface RegistrationConsentLedgerEntry {
+  id: string;
+  purpose: string;
+  status: string;
+  evidence: string;
+  createdAt: string;
+  textVersion: number | null;
+  textLang: string | null;
+  eventId: string | null;
+  registrationId: string | null;
+  ipSubject: string | null;
+  userAgent: string | null;
+  source: string | null;
+}
+
+export interface RegistrationConsentDetail {
+  registrationId: string;
+  personId: string;
+  eventId: string | null;
+  registrationSource: string | null;
+  groupId: string | null;
+  submittedProfile: SubmittedProfile | null;
+  current: Partial<Record<SubmittedProfileField | "email", string | null>>;
+  differs: boolean;
+  differences: SubmittedProfileField[];
+  consents: {
+    dataProcessingAt: string | null;
+    marketingAt: string | null;
+    partnerSharingAt: string | null;
+    withdrawnAt: string | null;
+  };
+  openConfirmation: {
+    purposes: string[];
+    createdAt: string | null;
+    expiresAt: string | null;
+  } | null;
+  ledger: RegistrationConsentLedgerEntry[];
+}
+
+type ConsentBag = { [key: string]: Json | undefined };
+
+function consentBagOf(value: Json | undefined): ConsentBag | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as ConsentBag)
+    : null;
+}
+
+function consentText(value: Json | undefined): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+function isProfileField(value: unknown): value is SubmittedProfileField {
+  return (
+    typeof value === "string" && (SUBMITTED_PROFILE_FIELDS as readonly string[]).includes(value)
+  );
+}
+
+/** `admin_event_registration_consent_detail` -> szczegol (nieznane pola pomijane). */
+export function parseRegistrationConsentDetail(data: Json): RegistrationConsentDetail {
+  const bag = consentBagOf(data) ?? {};
+  const submittedBag = consentBagOf(bag.submitted_profile);
+  let submitted: SubmittedProfile | null = null;
+  if (submittedBag !== null) {
+    submitted = {};
+    for (const [key, value] of Object.entries(submittedBag)) {
+      const text = consentText(value);
+      if (isProfileField(key) && text !== null) submitted[key] = text;
+    }
+  }
+  const currentBag = consentBagOf(bag.current) ?? {};
+  const current: RegistrationConsentDetail["current"] = {};
+  for (const key of [...SUBMITTED_PROFILE_FIELDS, "email"] as const) {
+    current[key] = consentText(currentBag[key]);
+  }
+  const consentsBag = consentBagOf(bag.consents) ?? {};
+  const openBag = consentBagOf(bag.open_confirmation);
+  const ledger: RegistrationConsentLedgerEntry[] = [];
+  for (const item of Array.isArray(bag.ledger) ? bag.ledger : []) {
+    const row = consentBagOf(item);
+    const id = row === null ? null : consentText(row.id);
+    const createdAt = row === null ? null : consentText(row.created_at);
+    if (row === null || id === null || createdAt === null) continue;
+    ledger.push({
+      id,
+      purpose: consentText(row.purpose) ?? "",
+      status: consentText(row.status) ?? "",
+      evidence: consentText(row.evidence) ?? "",
+      createdAt,
+      textVersion: typeof row.text_version === "number" ? row.text_version : null,
+      textLang: consentText(row.text_lang),
+      eventId: consentText(row.event_id),
+      registrationId: consentText(row.registration_id),
+      ipSubject: consentText(row.ip_subject),
+      userAgent: consentText(row.user_agent),
+      source: consentText(row.source),
+    });
+  }
+  return {
+    registrationId: consentText(bag.registration_id) ?? "",
+    personId: consentText(bag.person_id) ?? "",
+    eventId: consentText(bag.event_id),
+    registrationSource: consentText(bag.registration_source),
+    groupId: consentText(bag.group_id),
+    submittedProfile: submitted,
+    current,
+    differs: bag.differs === true,
+    differences: (Array.isArray(bag.differences) ? bag.differences : []).filter(isProfileField),
+    consents: {
+      dataProcessingAt: consentText(consentsBag.data_processing_at),
+      marketingAt: consentText(consentsBag.marketing_at),
+      partnerSharingAt: consentText(consentsBag.partner_sharing_at),
+      withdrawnAt: consentText(consentsBag.withdrawn_at),
+    },
+    openConfirmation:
+      openBag === null
+        ? null
+        : {
+            purposes: (Array.isArray(openBag.purposes) ? openBag.purposes : []).filter(
+              (purpose): purpose is string => typeof purpose === "string",
+            ),
+            createdAt: consentText(openBag.created_at),
+            expiresAt: consentText(openBag.expires_at),
+          },
+    ledger,
+  };
+}
+
+export async function fetchRegistrationConsentDetail(
+  registrationId: string,
+): Promise<RegistrationConsentDetail> {
+  const { data, error } = await supabase.rpc("admin_event_registration_consent_detail", {
+    p_registration_id: registrationId,
+  });
+  if (error) throw error;
+  return parseRegistrationConsentDetail((data ?? {}) as Json);
+}
+
+/**
+ * Przeniesienie danych z zapisu do kartoteki - przez TEN SAM zapis organizatora
+ * (`admin_event_registration_upsert`). Wysylamy WYLACZNIE roznice: brak klucza
+ * znaczy „zostaw jak bylo", wiec nic poza nimi sie nie zmienia. Zrodlo i grupa
+ * zgloszenia jada wprost ze szczegolu - bez nich zapis organizatora oznaczylby
+ * zgloszenie jako `organizer` i przepial je do grupy domyslnej.
+ */
+export async function applySubmittedProfile(detail: RegistrationConsentDetail): Promise<string> {
+  const submitted = detail.submittedProfile ?? {};
+  const changes: PayloadInput = {};
+  for (const field of detail.differences) {
+    const value = submitted[field];
+    if (value !== undefined) changes[field] = value;
+  }
+  const { data, error } = await supabase.rpc("admin_event_registration_upsert", {
+    p_payload: payload({
+      registration_id: detail.registrationId,
+      source: detail.registrationSource ?? undefined,
+      group_id: detail.groupId ?? undefined,
+      ...changes,
+    }),
+  });
+  if (error) throw error;
+  return String(data);
+}

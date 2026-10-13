@@ -58,6 +58,7 @@ import { Route as FeedRouteImport } from './routes/feed'
 import { Route as ExpertsRouteImport } from './routes/experts'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as ErrorRouteImport } from './routes/error'
+import { Route as EventConsentConfirmRouteImport } from './routes/event-consent.confirm'
 import { Route as DonateRouteImport } from './routes/donate'
 import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as ContributorsRouteImport } from './routes/contributors'
@@ -678,6 +679,11 @@ const EventsRoute = EventsRouteImport.update({
 const ErrorRoute = ErrorRouteImport.update({
   id: '/error',
   path: '/error',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventConsentConfirmRoute = EventConsentConfirmRouteImport.update({
+  id: '/event-consent/confirm',
+  path: '/event-consent/confirm',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DonateRoute = DonateRouteImport.update({
@@ -2641,6 +2647,7 @@ export interface FileRoutesByFullPath {
   '/cookies': typeof CookiesRoute
   '/donate': typeof DonateRoute
   '/error': typeof ErrorRoute
+  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
@@ -3061,6 +3068,7 @@ export interface FileRoutesByTo {
   '/cookies': typeof CookiesRoute
   '/donate': typeof DonateRoute
   '/error': typeof ErrorRoute
+  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
   '/glossary': typeof GlossaryRoute
@@ -3467,6 +3475,7 @@ export interface FileRoutesById {
   '/cookies': typeof CookiesRoute
   '/donate': typeof DonateRoute
   '/error': typeof ErrorRoute
+  '/event-consent/confirm': typeof EventConsentConfirmRoute
   '/events': typeof EventsRouteWithChildren
   '/experts': typeof ExpertsRoute
   '/feed': typeof FeedRoute
@@ -3891,6 +3900,7 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/donate'
     | '/error'
+    | '/event-consent/confirm'
     | '/events'
     | '/experts'
     | '/feed'
@@ -4311,6 +4321,7 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/donate'
     | '/error'
+    | '/event-consent/confirm'
     | '/experts'
     | '/feed'
     | '/glossary'
@@ -4716,6 +4727,7 @@ export interface FileRouteTypes {
     | '/cookies'
     | '/donate'
     | '/error'
+    | '/event-consent/confirm'
     | '/events'
     | '/experts'
     | '/feed'
@@ -5139,6 +5151,7 @@ export interface RootRouteChildren {
   CookiesRoute: typeof CookiesRoute
   DonateRoute: typeof DonateRoute
   ErrorRoute: typeof ErrorRoute
+  EventConsentConfirmRoute: typeof EventConsentConfirmRoute
   EventsRoute: typeof EventsRouteWithChildren
   ExpertsRoute: typeof ExpertsRoute
   FeedRoute: typeof FeedRoute
@@ -5610,6 +5623,13 @@ declare module '@tanstack/react-router' {
       path: '/error'
       fullPath: '/error'
       preLoaderRoute: typeof ErrorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/event-consent/confirm': {
+      id: '/event-consent/confirm'
+      path: '/event-consent/confirm'
+      fullPath: '/event-consent/confirm'
+      preLoaderRoute: typeof EventConsentConfirmRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/donate': {
@@ -9106,6 +9126,7 @@ const rootRouteChildren: RootRouteChildren = {
   CookiesRoute: CookiesRoute,
   DonateRoute: DonateRoute,
   ErrorRoute: ErrorRoute,
+  EventConsentConfirmRoute: EventConsentConfirmRoute,
   EventsRoute: EventsRouteWithChildren,
   ExpertsRoute: ExpertsRoute,
   FeedRoute: FeedRoute,

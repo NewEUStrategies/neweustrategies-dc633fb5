@@ -60,6 +60,13 @@ export interface CfpSubmissionSaveInput {
     consent_data_processing: boolean;
     /** `true` nadaje zgodę; `false` jej NIE wycofuje (to nie jest pole wycofania). */
     consent_marketing: boolean;
+    /**
+     * Wersja tekstu zgody marketingowej pokazanego w formularzu
+     * (`EVENT_CONSENT_TEXT_VERSION`) - wpis księgi zgód wskazuje tekst (REG-14).
+     */
+    consent_text_version?: number;
+    /** Język tego tekstu (`pl` | `en`). */
+    lang?: "pl" | "en";
   };
   titlePl?: string;
   titleEn?: string;

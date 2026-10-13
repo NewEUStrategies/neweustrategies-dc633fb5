@@ -337,6 +337,65 @@ export const eventRegistrationPl = {
       ticketHiddenOnly:
         "Bilety na to wydarzenie są dostępne z kodem od organizatora - wpisz go w polu powyżej.",
     },
+    // POTWIERDZENIE ZGÓD LINKIEM Z MAILA (REG-02 / REG-14, strona
+    // /event-consent/confirm). Otwarcie linku tylko POKAZUJE, czego dotyczy
+    // zgoda - udziela jej dopiero przycisk (skanery poczty otwierają każdy link).
+    consentConfirm: {
+      title: "Potwierdź zgody",
+      subtitle:
+        "Ktoś - najpewniej Ty - zaznaczył te zgody przy zapisie na wydarzenie. Zaczną działać dopiero, gdy potwierdzisz je tutaj.",
+      loading: "Sprawdzamy link…",
+      eventLabel: "Wydarzenie",
+      textsIntro: "Potwierdzasz dokładnie te zgody:",
+      purposes: {
+        marketing: "Informacje o kolejnych wydarzeniach",
+        partnerSharing: "Przekazanie danych partnerom wydarzenia",
+      },
+      expiresAt: "Link jest ważny do {{date}}.",
+      confirm: "Potwierdzam zgody",
+      confirming: "Potwierdzamy…",
+      withdrawHint:
+        "Zgodę możesz wycofać w każdej chwili - na stronie zarządzania zgłoszeniem (link z maila), w ustawieniach konta albo linkiem wypisu w stopce wiadomości.",
+      confirmedTitle: "Zgody potwierdzone",
+      confirmedBody: "Dziękujemy. Zapisaliśmy, kiedy i jakim kanałem je potwierdzono.",
+      alreadyTitle: "Zgody są już potwierdzone",
+      alreadyBody: "Ten link został już użyty - nic więcej nie trzeba robić.",
+      expiredTitle: "Link wygasł",
+      expiredBody:
+        "Link jest ważny 7 dni i przestaje działać, gdy zgody zostaną wycofane albo adres e-mail się zmieni. Zaznacz zgody przy kolejnym zapisie, a wyślemy nowy link.",
+      notFoundTitle: "Nie znaleźliśmy tego linku",
+      notFoundBody:
+        "Sprawdź, czy otwierasz pełny adres z wiadomości - link nie działa po skopiowaniu tylko części.",
+      errorTitle: "Nie udało się sprawdzić linku",
+      errorBody: "Spróbuj ponownie za chwilę.",
+      rateLimited: "Zbyt wiele prób w krótkim czasie. Odczekaj kilka minut i spróbuj ponownie.",
+      retry: "Spróbuj ponownie",
+      backHome: "Wróć na stronę główną",
+    },
+    // WYCOFANIE ZGÓD NA STRONIE SAMOOBSŁUGI (REG-14). Odpowiedź jest zawsze ta
+    // sama - strona nie mówi, czy jakaś zgoda była aktywna.
+    manage: {
+      consents: {
+        title: "Twoje zgody",
+        body: "Możesz w każdej chwili wycofać zgodę na informacje o kolejnych wydarzeniach i na przekazanie danych partnerom. Zgłoszenie zostaje bez zmian.",
+        withdrawMarketing: "Wycofaj informacje o wydarzeniach",
+        withdrawPartner: "Wycofaj przekazanie partnerom",
+        withdrawAll: "Wycofaj obie zgody",
+        confirmTitle: "Wycofać zgodę?",
+        confirmMarketing:
+          "Przestaniemy wysyłać informacje o kolejnych wydarzeniach organizatora. Zgodę możesz później udzielić ponownie przy zapisie.",
+        confirmPartner:
+          "Partnerzy wydarzeń przestaną otrzymywać Twoje dane kontaktowe. Zgodę możesz później udzielić ponownie przy zapisie.",
+        confirmAll:
+          "Wycofasz obie zgody: informacje o wydarzeniach i przekazanie danych partnerom. Zgody możesz później udzielić ponownie przy zapisie.",
+        confirm: "Wycofaj",
+        cancel: "Anuluj",
+        working: "Zapisujemy…",
+        done: "Zapisaliśmy Twoją decyzję. Jeśli zgoda była aktywna, przestała obowiązywać - także w naszym systemie kontaktów.",
+        rateLimited: "Zbyt wiele prób w krótkim czasie. Odczekaj kilka minut i spróbuj ponownie.",
+        failed: "Nie udało się zapisać decyzji. Spróbuj ponownie za chwilę.",
+      },
+    },
     // SKUTEK FINANSOWY REZYGNACJI (REG-03, decyzja D9). Uczestnik widzi, co
     // stanie się z wpłatą, ZANIM potwierdzi - a baza przyjmuje rezygnację
     // opłaconego zgłoszenia dopiero z tym samym skutkiem (`acknowledged_effect`).
@@ -864,6 +923,62 @@ export const eventRegistrationEn = {
       phoneLength: "The phone number must have between {{min}} and {{max}} characters.",
       ticketHiddenOnly:
         "Tickets for this event are available with a code from the organiser - enter it in the field above.",
+    },
+    // CONFIRMING CONSENTS WITH THE E-MAIL LINK (REG-02 / REG-14).
+    consentConfirm: {
+      title: "Confirm your consents",
+      subtitle:
+        "Someone - most likely you - ticked these consents when registering for an event. They take effect only once you confirm them here.",
+      loading: "Checking the link…",
+      eventLabel: "Event",
+      textsIntro: "You are confirming exactly these consents:",
+      purposes: {
+        marketing: "News about upcoming events",
+        partnerSharing: "Sharing your data with the event partners",
+      },
+      expiresAt: "The link is valid until {{date}}.",
+      confirm: "Confirm consents",
+      confirming: "Confirming…",
+      withdrawHint:
+        "You can withdraw consent at any time - on your registration management page (link in the e-mail), in your account settings or with the unsubscribe link in the e-mail footer.",
+      confirmedTitle: "Consents confirmed",
+      confirmedBody: "Thank you. We recorded when and how they were confirmed.",
+      alreadyTitle: "Consents already confirmed",
+      alreadyBody: "This link has already been used - there is nothing else to do.",
+      expiredTitle: "The link has expired",
+      expiredBody:
+        "The link is valid for 7 days and stops working when the consents are withdrawn or the e-mail address changes. Tick the consents when you next register and we will send a new link.",
+      notFoundTitle: "We could not find this link",
+      notFoundBody:
+        "Make sure you open the full address from the e-mail - the link does not work if only part of it is copied.",
+      errorTitle: "We could not check the link",
+      errorBody: "Please try again in a moment.",
+      rateLimited: "Too many attempts in a short time. Wait a few minutes and try again.",
+      retry: "Try again",
+      backHome: "Back to the home page",
+    },
+    // WITHDRAWING CONSENTS ON THE SELF-SERVICE PAGE (REG-14).
+    manage: {
+      consents: {
+        title: "Your consents",
+        body: "You can withdraw your consent to news about upcoming events and to sharing your data with partners at any time. Your registration stays as it is.",
+        withdrawMarketing: "Withdraw event news",
+        withdrawPartner: "Withdraw partner sharing",
+        withdrawAll: "Withdraw both consents",
+        confirmTitle: "Withdraw consent?",
+        confirmMarketing:
+          "We will stop sending news about the organiser's upcoming events. You can give consent again when you next register.",
+        confirmPartner:
+          "Event partners will no longer receive your contact details. You can give consent again when you next register.",
+        confirmAll:
+          "You will withdraw both consents: event news and sharing your data with partners. You can give consent again when you next register.",
+        confirm: "Withdraw",
+        cancel: "Cancel",
+        working: "Saving…",
+        done: "We have recorded your decision. If the consent was active, it no longer applies - including in our contact system.",
+        rateLimited: "Too many attempts in a short time. Wait a few minutes and try again.",
+        failed: "We could not save your decision. Please try again in a moment.",
+      },
     },
     // FINANCIAL EFFECT OF CANCELLING (REG-03, decision D9).
     cancelRefund: {

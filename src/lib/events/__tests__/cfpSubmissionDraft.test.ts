@@ -8,6 +8,7 @@
 // „pamięta" zgodę z bazy, udaje, że odznaczenie ją wycofuje, i wysyła zgodę
 // na przetwarzanie danych, której ta osoba w tym formularzu nie wyraziła.
 import { describe, expect, it } from "vitest";
+import { EVENT_CONSENT_TEXT_VERSION } from "@/lib/events/consentTexts";
 
 import {
   answerToDraft,
@@ -335,6 +336,10 @@ describe("szkic zgłoszenia", () => {
         company_text: "NES",
         consent_data_processing: true,
         consent_marketing: true,
+        // REG-14: wersja i język napisu zgody, który formularz pokazał - bez
+        // nich baza nie zapisze zgody marketingowej w księdze.
+        consent_text_version: EVENT_CONSENT_TEXT_VERSION,
+        lang: "en",
       },
       notifyLang: "en",
       formatKey: null,
@@ -371,6 +376,8 @@ describe("szkic zgłoszenia", () => {
     expect(saved.speaker).toMatchObject({
       consent_data_processing: true,
       consent_marketing: false,
+      consent_text_version: EVENT_CONSENT_TEXT_VERSION,
+      lang: "pl",
     });
   });
 

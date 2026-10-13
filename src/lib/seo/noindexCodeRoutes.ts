@@ -21,6 +21,7 @@ export const NOINDEX_CODE_ROUTE_PATHS: ReadonlySet<string> = new Set([
   "/club",
   "/contributors",
   "/error",
+  "/event-consent/confirm",
   "/events/saved",
   "/login",
   "/messages",

@@ -424,6 +424,15 @@ const KODY_NABORU_UCZESTNIK = [
   "not_editable",
   "email_required",
   "email_in_use",
+  // konto bez potwierdzonego adresu (`_event_cfp_resolve_person`, REG-01 / D1)
+  "email_unverified",
+  // rejestr zgod (`_event_person_consents_confirm`, REG-14) - marketing naboru
+  // idzie przez ksiege; funkcja naboru sprawdza warunki wczesniej, ale skan
+  // domyka sie po wywolaniach, wiec kody stoja na liscie (ze zdaniem)
+  "consent_text_unknown",
+  "consent_withdrawn_requires_reconfirmation",
+  "invalid_consent_evidence",
+  "invalid_consent_purpose",
   // zgoda na przetwarzanie danych tylko z jawnego zaznaczenia (`_event_cfp_resolve_person`)
   "consent_required",
   "invalid_name",
