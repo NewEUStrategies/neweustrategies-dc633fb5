@@ -134,11 +134,18 @@ BEGIN
     '26/grupa: goscie bezplatnego zapisu sa od razu potwierdzeni');
 END $$;
 
-SELECT pg_temp.assert_raises_like(
-  $sql$SELECT public.event_register_group_guests('c6400000-0000-0000-0000-000000000001',
-    '[{"first_name":"Gosc","last_name":"Trzy","email":"guest.extra@example.org"}]'::jsonb)$sql$,
-  'group_too_large',
-  '26/grupa: czwarta osoba przy limicie 3 jest odrzucona');
+-- ZMIANA 20261012 (REG-04, 20261012150100): odmowa wraca WARTOSCIA
+-- `{ok:false, error}` (kubelek konta liczony przed praca nie jest cofany
+-- wyjatkiem), a nie `RAISE` - asercja czyta wartosc i brak zapisu.
+DO $$
+DECLARE v jsonb;
+BEGIN
+  v := public.event_register_group_guests('c6400000-0000-0000-0000-000000000001',
+    '[{"first_name":"Gosc","last_name":"Trzy","email":"guest.extra@example.org"}]'::jsonb);
+  PERFORM pg_temp.assert(v = '{"ok": false, "error": "group_too_large"}'::jsonb
+    AND NOT EXISTS (SELECT 1 FROM public.event_people p WHERE p.email_norm = 'guest.extra@example.org'),
+    '26/grupa: czwarta osoba przy limicie 3 jest odrzucona (wartosc, bez zapisu)');
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- 3) BILET DLA KAZDEGO - ZAJECIE, WYSYLKA, POTWIERDZENIE

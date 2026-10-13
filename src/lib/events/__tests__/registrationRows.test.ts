@@ -6,6 +6,7 @@ import {
   areConsentsWithdrawn,
   hasMissingRequiredTerms,
   isAwaitingWaitlistNotice,
+  promotedCount,
   registrationGroupLabel,
   registrationOffsetForPage,
   registrationPageCount,
@@ -118,6 +119,32 @@ describe("znaczniki wymagajace uwagi organizatora", () => {
     expect(hasMissingRequiredTerms(row({}))).toBe(false);
     expect(areConsentsWithdrawn(row({ consent_withdrawn_at: "2026-02-02T00:00:00Z" }))).toBe(true);
     expect(areConsentsWithdrawn(row({}))).toBe(false);
+  });
+});
+
+// Komunikat po awansie z rezerwy czyta liczbe z ODPOWIEDZI bazy, a nie z pola
+// formularza: od 20261012150000 awans bierze tylko rozliczonych, wiec prosba
+// o 3 bywa awansem 1 albo 0 (REG-07).
+describe("promotedCount", () => {
+  it("oddaje faktyczna liczbe awansow z odpowiedzi", () => {
+    expect(promotedCount({ promoted: 2, registrations: [] })).toBe(2);
+    expect(promotedCount({ promoted: 0, registrations: [] })).toBe(0);
+  });
+
+  it("kazdy inny ksztalt to zero, a nie liczba zgadnieta", () => {
+    for (const value of [
+      null,
+      undefined,
+      3,
+      "2",
+      [],
+      {},
+      { promoted: "2" },
+      { promoted: -1 },
+      { promoted: 1.5 },
+    ]) {
+      expect(promotedCount(value), JSON.stringify(value)).toBe(0);
+    }
   });
 });
 

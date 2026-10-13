@@ -119,15 +119,21 @@ export function isRefundTermsChanged(error: unknown): boolean {
 }
 
 /**
- * Każdy `RAISE EXCEPTION` z `event_register_group_guests`
- * (migracja `20260922230000_event_ticket_tax_and_group.sql`), w kolejności
- * sprawdzeń w funkcji. Lista jest jawna, a nie wyliczana z `i18n.exists`, żeby
- * test mógł dowieść, że KAŻDA odmowa tej funkcji ma zdanie w obu językach.
+ * Każda odmowa `event_register_group_guests` (końcowe ciało w migracji
+ * `20261012150100_event_group_guests_hardening.sql`), w kolejności sprawdzeń
+ * w funkcji. Nowa baza oddaje je WARTOŚCIĄ `{ok:false, error, detail?}`
+ * (`rate_limited` - kubełek konta liczony przed pracą, `event_ended` - po
+ * końcu wydarzenia), stara rzucała `RAISE EXCEPTION`; `registerGroupGuests`
+ * sprowadza oba kształty do jednego komunikatu. Lista jest jawna, a nie
+ * wyliczana z `i18n.exists`, żeby test mógł dowieść, że KAŻDA odmowa tej
+ * funkcji ma zdanie w obu językach.
  */
 export const GROUP_GUEST_REFUSALS = [
   "account_required",
+  "rate_limited",
   "invalid_guests",
   "not_found",
+  "event_ended",
   "registration_closed",
   "already_settled",
   "group_not_enabled",

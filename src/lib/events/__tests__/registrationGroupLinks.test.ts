@@ -184,11 +184,19 @@ describe("ticketBadge - plakietka biletu", () => {
     expect(ticketBadge("rejected", link({ payment_status: "paid" }))).toBe("paidClosed");
   });
 
+  it("nieopłacony w kolejce: „awans dopiero po wpłacie” - sam nie awansuje (REG-07)", () => {
+    // Od 20261012150000 awans automatyczny bierze tylko rozliczonych. Bez
+    // plakietki organizator czekałby na awans, który nie nastąpi.
+    expect(ticketBadge("waitlist", link({ payment_status: "unpaid" }))).toBe("unpaidWaitlisted");
+    // Ta sama wpłata „unpaid” poza kolejką mówi co innego (albo nic).
+    expect(ticketBadge("pending", link({ payment_status: "unpaid" }))).toBeNull();
+    expect(ticketBadge("approved", link({ payment_status: "unpaid" }))).toBe("awaitingPayment");
+  });
+
   it("bez pieniędzy u organizatora wiersz bez miejsca nie ma plakietki „opłacone”", () => {
-    // Bezpłatny (`not_required`) albo nieopłacony wiersz w kolejce po prostu
-    // czeka - „opłacone" byłoby nieprawdą. `no_show` miał miejsce i jest
-    // rozliczony, więc nic na organizatora nie czeka.
-    expect(ticketBadge("waitlist", link({ payment_status: "unpaid" }))).toBeNull();
+    // Bezpłatny (`not_required`) wiersz w kolejce po prostu czeka na awans -
+    // „opłacone" byłoby nieprawdą. `no_show` miał miejsce i jest rozliczony,
+    // więc nic na organizatora nie czeka.
     expect(ticketBadge("waitlist", link({ payment_status: "not_required" }))).toBeNull();
     expect(ticketBadge("cancelled", link({ payment_status: "refunded" }))).toBeNull();
     expect(ticketBadge("no_show", link({ payment_status: "paid" }))).toBeNull();
