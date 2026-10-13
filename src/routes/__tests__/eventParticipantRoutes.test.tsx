@@ -153,9 +153,8 @@ vi.mock("@/components/error/FriendlyErrorPage", () => ({
 }));
 
 const { renderRoute, routeMeta, routeSearchValidator } = await import("@/test/routeHarness");
-const { stashManageTokenForReturn, takeStashedManageToken } = await import(
-  "@/lib/events/manageToken"
-);
+const { stashManageTokenForReturn, takeStashedManageToken } =
+  await import("@/lib/events/manageToken");
 
 const { Route: MeRoute } = await import("@/routes/events.$slug.me");
 const { Route: ManageRoute } = await import("@/routes/events.$slug_.manage");

@@ -543,18 +543,26 @@ describe("loadMyEventTicket", () => {
       ["brak zgłoszenia (RSVP sprzed formularza)", null, "guest_list"],
       ["zgłoszenie nieopłacone", { ...PAID, payment_status: "unpaid" }, "guest_list"],
       ["zgłoszenie po zwrocie", { ...PAID, payment_status: "refunded" }, "guest_list"],
-      ["kod wysłany mailem", { ...PAID, ticket_code_sent_at: "2026-09-01T10:00:00Z" }, "emailed_qr"],
+      [
+        "kod wysłany mailem",
+        { ...PAID, ticket_code_sent_at: "2026-09-01T10:00:00Z" },
+        "emailed_qr",
+      ],
       [
         "mail z kodem niedoręczony",
         { ...PAID, ticket_code_undeliverable_at: "2026-09-01T10:00:00Z" },
         "contact_organizer",
       ],
       ["rozliczone, kod jeszcze nie wyszedł", PAID, "qr_pending"],
-      ["bezpłatne (not_required), kod wyszedł", {
-        ...PAID,
-        payment_status: "not_required",
-        ticket_code_sent_at: "2026-09-01T10:00:00Z",
-      }, "emailed_qr"],
+      [
+        "bezpłatne (not_required), kod wyszedł",
+        {
+          ...PAID,
+          payment_status: "not_required",
+          ticket_code_sent_at: "2026-09-01T10:00:00Z",
+        },
+        "emailed_qr",
+      ],
     ] as const)("%s -> %s", async (_label, row, entry) => {
       const stub = withRegistration(row);
       const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
