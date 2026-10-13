@@ -25,6 +25,17 @@
 // (`/admin/events/new`), więc redaktor może je odświeżyć, wrócić „wstecz"
 // i przesłać link, a podgląd dziedziczenia rodzaju nie jest ściśnięty do
 // wysokości popupu.
+//
+// TERMIN JEST ZEGAREM W WYBRANEJ STREFIE WYDARZENIA (klasa OPS-15, przekazanie
+// B3). Dotąd kalendarz liczył strefą PRZEGLĄDARKI, choć tuż obok stała
+// droplista strefy wydarzenia: „początek 18:00" wpisany w Londynie dla
+// kongresu w Warszawie zapisywał 17:00Z, czyli 19:00 czasu kongresu. Teraz pola
+// trzymają napis `YYYY-MM-DDTHH:mm` w strefie z droplisty (wspólny atom
+// `DateInput`, ten sam co terminy biletów i kodów), podpowiedź nazywa tę
+// strefę albo mówi o luce/zakładce zmiany czasu, a chwilę liczy
+// `eventLocalInputToIso` - tu przy walidacji i w trasie przy zapisie. Zmiana
+// strefy po wpisaniu godziny zostawia GODZINĘ (to ona jest intencją
+// redaktora: „09:00 na miejscu"), a przelicza chwilę.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -40,9 +51,11 @@ import {
 } from "@/lib/lucide-shim";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { AdminFormDateTimeRow } from "@/components/admin/molecules/AdminFormDateTimeRow";
+import { DateInput } from "@/components/ui/date-input";
+import { Label } from "@/components/ui/label";
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
+import { eventLocalInputHint, eventLocalInputToIso } from "@/lib/events/eventLocalInput";
 import { uiLang } from "@/lib/i18n/format";
 import {
   EVENT_FORMATS,
@@ -64,11 +77,12 @@ export interface EventCreateDraft {
   eventTypeId: string;
   titlePl: string;
   titleEn: string;
+  /** `YYYY-MM-DDTHH:mm` - zegar w strefie `timezone` (nie przeglądarki). */
   startsAt: string;
   /**
-   * Koniec podany WPROST. Pusty napis znaczy „wylicz z czasu trwania rodzaju" -
-   * dokładnie to robi `admin_event_create`, więc formularz nie musi zgadywać
-   * długości wydarzenia za redaktora.
+   * Koniec podany WPROST, w tej samej postaci co `startsAt`. Pusty napis znaczy
+   * „wylicz z czasu trwania rodzaju" - dokładnie to robi `admin_event_create`,
+   * więc formularz nie musi zgadywać długości wydarzenia za redaktora.
    */
   endsAt: string;
   /** Nazwa IANA. Zapisywana zawsze - `events.timezone` jest NOT NULL. */
@@ -112,14 +126,18 @@ export function eventCreateIssue(
   if (draft.titlePl.trim() === "" || draft.titleEn.trim() === "") {
     return "adminEvents.list.create.errors.titles";
   }
-  if (draft.startsAt.trim() === "") return "adminEvents.list.create.errors.startsAt";
+  // Chwile w strefie wydarzenia, nie przeglądarki - te same, które trasa
+  // (`admin.events_.new.tsx`) wyśle do bazy. Napis niepełny albo nieistniejąca
+  // data nie daje chwili, więc nie przechodzi.
+  const starts = eventLocalInputToIso(draft.startsAt, draft.timezone);
+  if (starts === null) return "adminEvents.list.create.errors.startsAt";
   if (draft.eventTypeId === "") return "adminEvents.list.create.errors.type";
   // Ta sama reguła stoi w `admin_event_create` (`invalid_ends_at`): koniec przed
   // początkiem daje wydarzenie, którego nie da się ustawić w kalendarzu.
+  // Porównujemy CHWILE: w jesiennej zakładce 02:30 po 02:59 bywa późniejsze.
   if (draft.endsAt.trim() !== "") {
-    const starts = new Date(draft.startsAt).getTime();
-    const ends = new Date(draft.endsAt).getTime();
-    if (!Number.isFinite(ends) || !Number.isFinite(starts) || ends <= starts) {
+    const ends = eventLocalInputToIso(draft.endsAt, draft.timezone);
+    if (ends === null || Date.parse(ends) <= Date.parse(starts)) {
       return "adminEvents.list.create.errors.endsAt";
     }
   }
@@ -135,6 +153,41 @@ export function eventCreateIssue(
     }
   }
   return null;
+}
+
+/** Wiersz terminu: etykieta, wspólny atom `DateInput` i podpowiedź strefy. */
+function ZonedDateTimeRow({
+  id,
+  label,
+  value,
+  min,
+  hint,
+  onValueChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  min?: string;
+  hint: string;
+  onValueChange: (value: string) => void;
+}) {
+  const hintId = `${id}-hint`;
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <DateInput
+        id={id}
+        type="datetime-local"
+        value={value}
+        min={min}
+        aria-describedby={hintId}
+        onChange={(event) => onValueChange(event.target.value)}
+      />
+      <p id={hintId} className="text-xs leading-snug text-muted-foreground">
+        {hint}
+      </p>
+    </div>
+  );
 }
 
 export function EventCreateForm({
@@ -271,23 +324,27 @@ export function EventCreateForm({
             </FieldGroup>
 
             {/* Kalendarz jest NASZ, nie systemowy - `datetime-local` rysowałby
-                popup przeglądarki obok droplisty z naszymi tokenami. */}
+                popup przeglądarki obok droplisty z naszymi tokenami. Godziny są
+                zegarem strefy z droplisty niżej - patrz nagłówek pliku. */}
             <FieldGroup icon={CalendarDays} title={t("adminEvents.list.create.groups.schedule")}>
               <div className="grid gap-3 sm:grid-cols-2">
-                <AdminFormDateTimeRow
+                <ZonedDateTimeRow
                   id="event-create-starts-at"
                   label={t("adminEvents.list.create.startsAtLabel")}
                   value={draft.startsAt}
+                  hint={eventLocalInputHint(t, lang, draft.startsAt, draft.timezone) ?? ""}
                   onValueChange={(value) => setDraft({ ...draft, startsAt: value })}
                 />
                 {/* Koniec jest OPCJONALNY: rodzaj zna czas trwania i baza go doliczy.
                     Pole stoi tu dla wydarzeń trwających inaczej niż wzorzec rodzaju. */}
-                <AdminFormDateTimeRow
+                <ZonedDateTimeRow
                   id="event-create-ends-at"
                   label={t("adminEvents.list.create.endsAtLabel")}
-                  hint={t("adminEvents.list.create.startsAtHint")}
+                  hint={`${t("adminEvents.list.create.startsAtHint")} ${
+                    eventLocalInputHint(t, lang, draft.endsAt, draft.timezone) ?? ""
+                  }`.trim()}
                   value={draft.endsAt}
-                  minDate={draft.startsAt === "" ? undefined : new Date(draft.startsAt)}
+                  min={draft.startsAt === "" ? undefined : draft.startsAt}
                   onValueChange={(value) => setDraft({ ...draft, endsAt: value })}
                 />
               </div>

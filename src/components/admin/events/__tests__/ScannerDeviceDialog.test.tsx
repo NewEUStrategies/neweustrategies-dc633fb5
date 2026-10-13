@@ -24,6 +24,10 @@
 //      wydanie zdaniem `expiry_too_late` (tym samym, którym odmówiłaby baza),
 //      a po granicy - wydarzenie skończyło się ponad tydzień temu - wydania nie
 //      ma wcale. Bez dat wydarzenia granicę zna tylko baza.
+//   9. TERMIN JEST ZEGAREM W STREFIE WYDARZENIA (OPS-15, przekazanie B3): pole,
+//      granica w kalendarzu i chwila w żądaniu liczą się w `events.timezone`
+//      z wiersza wydarzenia, a podpowiedź nazywa strefę. Oczekiwania są
+//      wpisane na sztywno, więc nie zależą od strefy maszyny testowej.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Reguł wersji roboczej (długość etykiety,
 // zbiór uprawnień, konwersja `datetime-local` -> ISO) - tabele przypadków są
@@ -55,7 +59,11 @@ const h = vi.hoisted(() => ({
   /** Każde żądanie kodu QR czeka na jawne rozwiązanie - stąd kontrola wyścigu. */
   qrCalls: [] as { url: string; resolve: (dataUrl: string) => void }[],
   /** Wiersz wydarzenia z cache studia (`useAdminEventDetail`); `null` = brak dat. */
-  wydarzenie: null as { starts_at: string | null; ends_at: string | null } | null,
+  wydarzenie: null as {
+    starts_at: string | null;
+    ends_at: string | null;
+    timezone?: string | null;
+  } | null,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -388,37 +396,27 @@ describe("ScannerDeviceDialog - walidacja i ładunek", () => {
     expect(screen.queryByText(`${BLAD}invalidExpiry`)).not.toBeInTheDocument();
   });
 
-  it("TERMIN PRZYSZŁY jedzie w UTC z zachowaniem godziny z zegara organizatora", () => {
+  it("TERMIN PRZYSZŁY jedzie w UTC jako zegar strefy wydarzenia (domyślnie Warszawa)", () => {
     // Pole `datetime-local` nie niesie strefy; wysłanie napisu bez konwersji
-    // dałoby poświadczenie ważne o godzinę za krótko lub za długo.
+    // (albo konwersja zegarem przeglądarki) dałoby poświadczenie ważne
+    // o godzinę za krótko lub za długo. 23:45 CET = 22:45 UTC.
     const { onSubmit } = renderujWydanie();
     fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
     fireEvent.change(terminWaznosci(), { target: { value: "2099-12-31T23:45" } });
     fireEvent.click(wydaj());
 
-    const wyslany = onSubmit.mock.calls[0][0].expiresAt ?? "";
-    expect(wyslany).toMatch(/Z$/);
-    const odczytany = new Date(wyslany);
-    expect(odczytany.getFullYear()).toBe(2099);
-    expect(odczytany.getMonth()).toBe(11);
-    expect(odczytany.getDate()).toBe(31);
-    expect(odczytany.getHours()).toBe(23);
-    expect(odczytany.getMinutes()).toBe(45);
+    expect(onSubmit.mock.calls[0][0].expiresAt).toBe("2099-12-31T22:45:00.000Z");
   });
 });
 
 describe("ScannerDeviceDialog - granica terminu (OPS-12)", () => {
   // Koniec wydarzenia 2099-06-10 18:00 UTC -> granica 2099-06-17 18:00 UTC.
   const KONIEC = "2099-06-10T18:00:00.000Z";
-  const GRANICA = "2099-06-17T18:00:00.000Z";
-  /** Granica w zapisie pola `datetime-local` (zegar przeglądarki organizatora). */
-  const granicaLokalnie = () => {
-    const d = new Date(GRANICA);
-    const pad = (part: number) => String(part).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-      d.getHours(),
-    )}:${pad(d.getMinutes())}`;
-  };
+  /**
+   * Granica w zapisie pola `datetime-local` - zegar STREFY WYDARZENIA
+   * (domyślnie Warszawa, czerwiec = CEST, UTC+2), nie przeglądarki.
+   */
+  const granicaLokalnie = () => "2099-06-17T20:00";
 
   it("kalendarz kończy się 7 dni po wydarzeniu, a podpowiedź podaje granicę", () => {
     h.wydarzenie = { starts_at: "2099-06-09T08:00:00.000Z", ends_at: KONIEC };
@@ -475,7 +473,31 @@ describe("ScannerDeviceDialog - granica terminu (OPS-12)", () => {
   it("bez dat wydarzenia granicę zna tylko baza - kalendarz bez `max`, zwykła podpowiedź", () => {
     renderujWydanie();
     expect(terminWaznosci()).not.toHaveAttribute("max");
-    expect(document.getElementById("device-expires-at-hint")?.textContent).toBe(`${D}expiresHint`);
+    expect(document.getElementById("device-expires-at-hint")?.textContent).toBe(
+      `${D}expiresHint adminEvents.eventTime.zone(zone=Europe/Warsaw)`,
+    );
+  });
+
+  it("strefa wydarzenia z wiersza rządzi polem, granicą i żądaniem (Nowy Jork)", () => {
+    // Granica 2099-06-17 18:00 UTC to 14:00 EDT; wpisane 10:00 to 14:00 UTC.
+    h.wydarzenie = { starts_at: null, ends_at: KONIEC, timezone: "America/New_York" };
+    const { onSubmit } = renderujWydanie();
+    expect(terminWaznosci()).toHaveAttribute("max", "2099-06-17T14:00");
+    const podpowiedz = document.getElementById("device-expires-at-hint")?.textContent ?? "";
+    expect(podpowiedz).toContain("adminEvents.eventTime.zone(zone=America/New_York)");
+    fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
+    fireEvent.change(terminWaznosci(), { target: { value: "2099-06-15T10:00" } });
+    fireEvent.click(wydaj());
+    expect(onSubmit.mock.calls[0][0].expiresAt).toBe("2099-06-15T14:00:00.000Z");
+  });
+
+  it("wpisana godzina z wiosennej luki strefy wydarzenia mówi, co zapiszemy", () => {
+    h.wydarzenie = { starts_at: null, ends_at: null, timezone: "Europe/Warsaw" };
+    renderujWydanie();
+    fireEvent.change(terminWaznosci(), { target: { value: "2099-03-29T02:30" } });
+    expect(document.getElementById("device-expires-at-hint")?.textContent).toContain(
+      "adminEvents.eventTime.gap(value=03:30,zone=Europe/Warsaw)",
+    );
   });
 });
 

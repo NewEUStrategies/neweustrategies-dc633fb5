@@ -13,8 +13,13 @@ import {
   eventCodeStatus,
   type EventCodeRow,
 } from "@/lib/events/eventCodesApi";
+import { eventLocalInput } from "@/lib/events/eventLocalInput";
 
-const base = () => ({ ...emptyEventCodeDraft("PLN"), code: "vip10", amount: "10" });
+const base = () => ({
+  ...emptyEventCodeDraft("PLN", "Europe/Warsaw"),
+  code: "vip10",
+  amount: "10",
+});
 
 // `eventCodeStatus` czyta domyślnie prawdziwy zegar, więc plik zamraża
 // „teraz", a daty ważności kodu liczy względem niego.
@@ -39,11 +44,13 @@ describe("eventCodeDraftIssue", () => {
   });
   it("validates quantity, dates and tickets", () => {
     expect(eventCodeDraftIssue({ ...base(), quantity: "0" })).toBe("quantity");
+    // Pola to zegar `datetime-local` w strefie wydarzenia (F12/F15) - nie ISO.
+    const field = (offset: number) => eventLocalInput(relativeIso(offset), "Europe/Warsaw");
     expect(
       eventCodeDraftIssue({
         ...base(),
-        validFrom: relativeIso(10 * DZIEN),
-        validUntil: relativeIso(9 * DZIEN),
+        validFrom: field(10 * DZIEN),
+        validUntil: field(9 * DZIEN),
       }),
     ).toBe("dates");
     expect(eventCodeDraftIssue({ ...base(), ticketScope: "specific" })).toBe("tickets");
@@ -101,7 +108,7 @@ describe("status, url, round trip", () => {
     );
   });
   it("row to draft keeps scope", () => {
-    const d = eventCodeRowToDraft(row);
+    const d = eventCodeRowToDraft(row, "Europe/Warsaw");
     expect(d.ticketScope).toBe("specific");
     expect(d.amount).toBe("10");
   });

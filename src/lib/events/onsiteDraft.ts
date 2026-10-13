@@ -15,6 +15,16 @@
 // do wydarzenia, limitu blokow szablonu i tego, ze punkt sesyjny wskazuje sesje;
 // formularz tylko oszczedza organizatorowi podrozy po odmowe - przy bramce ta
 // podroz kosztuje kolejke.
+//
+// TERMIN POSWIADCZENIA JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15,
+// przekazanie B3). Dotad `datetime-local` czytal sie przez `new Date(napis)`,
+// czyli w strefie PRZEGLADARKI: "wygasa 18:00" ustawione w Londynie dla
+// kongresu w Warszawie gaslo o 19:00 czasu kongresu, a granica OPS-12 (koniec
+// wydarzenia + 7 dni) pokazywala sie w trzeciej strefie. Konwersje ida teraz
+// przez wspolne `eventLocalInput*` z regula Postgresa dla nocy zmiany czasu;
+// strefa jest PARAMETREM, bo to cecha wydarzenia, nie szkicu - okno wydania
+// dostaje wiersz wydarzenia asynchronicznie.
+import { eventLocalInput, eventLocalInputToIso } from "@/lib/events/eventLocalInput";
 import {
   BADGE_ORIENTATIONS,
   BADGE_PAPER_FORMATS,
@@ -75,24 +85,22 @@ export function isOnsiteUrl(value: string): boolean {
   return /^https:\/\/[^\s]+\.[^\s]+/.test(trimmed);
 }
 
-/** `datetime-local` -> ISO w UTC; pusty tekst = brak terminu. */
-export function localToIso(value: string): string | null | false {
+/**
+ * `datetime-local` (zegar w strefie `zone`) -> ISO w UTC. Pusty tekst = brak
+ * terminu (`null`); napis niepelny albo nieistniejaca data = `false`.
+ */
+export function localToIso(value: string, zone: string | null | undefined): string | null | false {
   const trimmed = value.trim();
   if (trimmed === "") return null;
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return false;
-  return parsed.toISOString();
+  return eventLocalInputToIso(trimmed, zone) ?? false;
 }
 
-/** ISO -> `datetime-local` (lokalna strefa przegladarki organizatora). */
-export function isoToLocal(value: string | null | undefined): string {
-  if (typeof value !== "string" || value === "") return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  const pad = (part: number) => String(part).padStart(2, "0");
-  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(
-    parsed.getHours(),
-  )}:${pad(parsed.getMinutes())}`;
+/** ISO -> `datetime-local` w strefie `zone` (strefa wydarzenia, nie przegladarki). */
+export function isoToLocal(
+  value: string | null | undefined,
+  zone: string | null | undefined,
+): string {
+  return eventLocalInput(value, zone);
 }
 
 function isKind(value: string): value is CheckpointKind {
@@ -282,7 +290,7 @@ export interface ScannerDeviceDraft {
   scopes: string[];
   checkpointId: string;
   sponsorId: string;
-  /** `datetime-local`; pusty = domyslny termin z bazy. */
+  /** `datetime-local` w strefie wydarzenia; pusty = domyslny termin z bazy. */
   expiresAtLocal: string;
   /** Lista offline na urzadzeniu - ma sens tylko z zakresem `checkin`. */
   offlineRoster: boolean;
@@ -303,6 +311,7 @@ export type ScannerDeviceField = "label" | "scopes" | "sponsorId" | "expiresAtLo
 
 export function validateScannerDeviceDraft(
   draft: ScannerDeviceDraft,
+  timeZone: string | null | undefined,
   now: Date = new Date(),
 ): OnsiteFieldError<ScannerDeviceField>[] {
   const errors: OnsiteFieldError<ScannerDeviceField>[] = [];
@@ -318,7 +327,7 @@ export function validateScannerDeviceDraft(
   if (scopes.includes("lead") && draft.sponsorId.trim() === "") {
     errors.push({ field: "sponsorId", messageKey: `${PREFIX}sponsorRequired` });
   }
-  const expires = localToIso(draft.expiresAtLocal);
+  const expires = localToIso(draft.expiresAtLocal, timeZone);
   if (expires === false || (expires !== null && new Date(expires).getTime() <= now.getTime())) {
     if (draft.expiresAtLocal.trim() !== "") {
       errors.push({ field: "expiresAtLocal", messageKey: `${PREFIX}invalidExpiry` });
@@ -330,8 +339,9 @@ export function validateScannerDeviceDraft(
 export function scannerDeviceDraftToInput(
   draft: ScannerDeviceDraft,
   eventId: string,
+  timeZone: string | null | undefined,
 ): ScannerDeviceIssueInput {
-  const expires = localToIso(draft.expiresAtLocal);
+  const expires = localToIso(draft.expiresAtLocal, timeZone);
   return {
     eventId,
     label: draft.label.trim(),

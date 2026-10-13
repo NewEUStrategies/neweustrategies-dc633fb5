@@ -10,9 +10,26 @@
 // Moduł jest PANELEM ORGANIZATORA. Publiczne odsłonięcie biletów kodem stoi
 // osobno (`eventCodeReveal.functions.ts`): idzie przez serwer z limitem prób,
 // a import funkcji serwerowej stąd wciągałby ją do paczki panelu.
+//
+// OKNO WAŻNOŚCI JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15, F12/F15).
+// Dotąd szkic wycinał z chwili bazy zegar UTC (`iso.slice(0, 16)`), a zapis
+// czytał go jako czas PRZEGLĄDARKI (`new Date(napis)`). Organizator
+// w Warszawie, który otworzył kod ważny 08:00Z-16:00Z i zapisał go bez zmian,
+// przesuwał okno o 2 h wcześniej - przy każdym kolejnym zapisie o następne
+// 2 h - a baza egzekwuje to okno (`redeem`/`validate`: `now() < valid_from`).
+// Teraz pola idą przez wspólne `eventLocalInput*` (jak bilet i pakiet):
+// zegar w strefie wydarzenia z regułą Postgresa dla nocy zmiany czasu,
+// a pole zgodne z chwilą z bazy oddaje TĘ chwilę co do milisekundy.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeCouponCode } from "@/lib/billing/coupons";
+import {
+  canonicalInstant,
+  eventLocalInput,
+  resolveEventLocalInput,
+  type SavedInstants,
+} from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 
 export type EventCodeDiscountKind = "percent" | "fixed";
 
@@ -35,10 +52,13 @@ export interface EventCodeRow {
   ticketTypeIds: string[];
 }
 
+export type EventCodeTimeField = "validFrom" | "validUntil";
+
 export interface EventCodeDraft {
   code: string;
   name: string;
   description: string;
+  /** `YYYY-MM-DDTHH:mm` w strefie `timeZone` albo pusty tekst. */
   validFrom: string;
   validUntil: string;
   quantity: string;
@@ -49,9 +69,16 @@ export interface EventCodeDraft {
   revealsHidden: boolean;
   ticketScope: "all" | "specific";
   ticketTypeIds: string[];
+  /** Strefa wydarzenia (IANA, zwalidowana), w której pola ważności są zegarem. */
+  timeZone: string;
+  /** Chwile z bazy, z których powstały pola ważności (edycja); pusto dla nowego kodu. */
+  savedTimes: SavedInstants<EventCodeTimeField>;
 }
 
-export const emptyEventCodeDraft = (currency: string): EventCodeDraft => ({
+export const emptyEventCodeDraft = (
+  currency: string,
+  timeZone: string | null | undefined,
+): EventCodeDraft => ({
   code: "",
   name: "",
   description: "",
@@ -65,6 +92,8 @@ export const emptyEventCodeDraft = (currency: string): EventCodeDraft => ({
   revealsHidden: false,
   ticketScope: "all",
   ticketTypeIds: [],
+  timeZone: eventTimeZone({ timezone: timeZone }),
+  savedTimes: {},
 });
 
 export type EventCodeIssue =
@@ -73,6 +102,20 @@ export type EventCodeIssue =
 function parseAmount(raw: string): number {
   const n = Number(raw.replace(",", ".").trim());
   return Number.isFinite(n) ? n : Number.NaN;
+}
+
+/**
+ * Pole ważności -> chwila w UTC (`toISOString()`), z pamięcią chwili z bazy.
+ * Pusty napis daje `null` ("bez ograniczenia"); napis niepełny też `null`,
+ * ale `eventCodeDraftIssue` zatrzymuje go wcześniej jako `dates`.
+ */
+export function eventCodeDraftInstant(d: EventCodeDraft, field: EventCodeTimeField): string | null {
+  return resolveEventLocalInput(d[field], d.timeZone, d.savedTimes[field] ?? null)?.iso ?? null;
+}
+
+/** Pole wypełnione, ale nie daje chwili (niepełny albo nieistniejący zegar). */
+function unreadableTime(d: EventCodeDraft, field: EventCodeTimeField): boolean {
+  return d[field].trim() !== "" && eventCodeDraftInstant(d, field) === null;
 }
 
 /** Pierwszy błąd szkicu albo `null`. Czysta funkcja - testowana osobno. */
@@ -89,8 +132,12 @@ export function eventCodeDraftIssue(d: EventCodeDraft): EventCodeIssue | null {
     const q = Number(d.quantity);
     if (!Number.isInteger(q) || q < 1) return "quantity";
   }
-  if (d.validFrom && d.validUntil && new Date(d.validFrom) >= new Date(d.validUntil))
-    return "dates";
+  // Porównanie CHWIL w strefie wydarzenia, nie napisów: w jesiennej zakładce
+  // "02:30" po "02:59" bywa późniejszą chwilą mimo mniejszego napisu.
+  if (unreadableTime(d, "validFrom") || unreadableTime(d, "validUntil")) return "dates";
+  const from = eventCodeDraftInstant(d, "validFrom");
+  const until = eventCodeDraftInstant(d, "validUntil");
+  if (from !== null && until !== null && Date.parse(from) >= Date.parse(until)) return "dates";
   if (d.ticketScope === "specific" && d.ticketTypeIds.length === 0) return "tickets";
   return null;
 }
@@ -110,21 +157,26 @@ export function eventCodeDraftToPayload(eventId: string, d: EventCodeDraft) {
     discount_cents: fixed ? Math.round(a * 100) : null,
     currency: fixed ? d.currency.toUpperCase() : null,
     max_redemptions: d.quantity.trim() ? Number(d.quantity) : null,
-    valid_from: d.validFrom ? new Date(d.validFrom).toISOString() : null,
-    valid_until: d.validUntil ? new Date(d.validUntil).toISOString() : null,
+    valid_from: eventCodeDraftInstant(d, "validFrom"),
+    valid_until: eventCodeDraftInstant(d, "validUntil"),
     event_ids: [eventId],
     ticket_type_ids: d.ticketScope === "specific" ? d.ticketTypeIds : [],
   };
 }
 
-export function eventCodeRowToDraft(r: EventCodeRow): EventCodeDraft {
-  const local = (iso: string | null) => (iso ? iso.slice(0, 16) : "");
+export function eventCodeRowToDraft(
+  r: EventCodeRow,
+  timeZone: string | null | undefined,
+): EventCodeDraft {
+  const zone = eventTimeZone({ timezone: timeZone });
+  const validFrom = canonicalInstant(r.validFrom);
+  const validUntil = canonicalInstant(r.validUntil);
   return {
     code: r.code,
     name: r.name ?? "",
     description: r.description ?? "",
-    validFrom: local(r.validFrom),
-    validUntil: local(r.validUntil),
+    validFrom: eventLocalInput(validFrom, zone),
+    validUntil: eventLocalInput(validUntil, zone),
     quantity: r.maxRedemptions === null ? "" : String(r.maxRedemptions),
     appliesDiscount: r.appliesDiscount,
     discountKind: r.discountKind,
@@ -138,6 +190,8 @@ export function eventCodeRowToDraft(r: EventCodeRow): EventCodeDraft {
     revealsHidden: r.revealsHidden,
     ticketScope: r.ticketTypeIds.length > 0 ? "specific" : "all",
     ticketTypeIds: r.ticketTypeIds,
+    timeZone: zone,
+    savedTimes: { validFrom, validUntil },
   };
 }
 

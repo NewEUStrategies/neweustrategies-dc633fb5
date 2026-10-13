@@ -27,11 +27,19 @@
 // okno o godzine. Pole porownujemy z chwila z bazy w BIEZACEJ strefie pol:
 // zgodny napis znaczy "nie ruszane" i oddaje chwile z bazy.
 //
+// JEDNA IMPLEMENTACJA "NIETKNIETEGO POLA". Regula pamieci chwili z bazy zyje
+// w `resolveEventLocalInput` (`lib/events/eventLocalInput.ts`), wspolnej dla
+// biletu, pakietu, sesji, kodow i gieldy; `resolveWindowField` tylko ja wola.
+// Dwie kopie tej samej reguly rozjechalyby sie przy pierwszej poprawce jednej
+// z nich - a wtedy to samo pole edycji oddawaloby inna chwile w dwoch
+// formularzach.
+//
 // WALIDACJA ODWZOROWUJE OGRANICZENIA Z MIGRACJI (`15 minutes`-`16 hours`,
 // `ends_at > starts_at`) - nie zeby zastapic baze, ale zeby uczestnik dowiedzial
 // sie o bledzie przed wyslaniem. Dlugosc liczy sie z CHWIL, nie z napisow, wiec
 // okno 01:00-04:00 w noc wiosennej zmiany czasu trwa 2 godziny. Ostatnie slowo
 // ma `CHECK`.
+import { canonicalInstant, resolveEventLocalInput } from "@/lib/events/eventLocalInput";
 import {
   browserTimeZone,
   eventTimeZone,
@@ -115,30 +123,17 @@ export function localInputToIso(value: string, zone: string): string | null {
   return instantFromWallClock(value, zone)?.iso ?? null;
 }
 
-function canonicalIso(value: string | null | undefined): string | null {
-  if (value === null || value === undefined || value === "") return null;
-  const ms = new Date(value).getTime();
-  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
-}
-
 /**
  * Pole szkicu -> chwila. Pole zgodne z chwila z bazy (w strefie pol) oddaje
  * te chwile bez zmian; kazde inne przechodzi przez regule luki i zakladki.
+ * Jedna implementacja z formularzami panelu - patrz naglowek.
  */
 export function resolveWindowField(
   value: string,
   saved: string | null,
   zone: string,
 ): ZonedInstant | null {
-  const savedIso = canonicalIso(saved);
-  if (
-    savedIso !== null &&
-    value.trim() !== "" &&
-    wallClockInZone(savedIso, zone) === value.trim()
-  ) {
-    return { iso: savedIso, resolution: "exact" };
-  }
-  return instantFromWallClock(value, zone);
+  return resolveEventLocalInput(value, zone, saved);
 }
 
 export function draftFromWindow(
@@ -158,8 +153,8 @@ export function draftFromWindow(
     startsAtLocal: isoToLocalInput(row.startsAt, zone),
     endsAtLocal: isoToLocalInput(row.endsAt, zone),
     inputZone,
-    startsAtSaved: canonicalIso(row.startsAt),
-    endsAtSaved: canonicalIso(row.endsAt),
+    startsAtSaved: canonicalInstant(row.startsAt),
+    endsAtSaved: canonicalInstant(row.endsAt),
     isOpen: row.isOpen,
     note: row.note ?? "",
   };

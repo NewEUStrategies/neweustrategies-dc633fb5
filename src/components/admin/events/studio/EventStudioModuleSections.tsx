@@ -131,7 +131,12 @@ function TicketsAndCodes({ row }: { row: AdminEventDetailRow }) {
         />
       </TabsContent>
       <TabsContent value="codes">
-        <EventCodesPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+        <EventCodesPanel
+          key={row.id}
+          eventId={row.id}
+          eventSlug={row.slug}
+          timezone={row.timezone}
+        />
       </TabsContent>
     </Tabs>
   );
