@@ -87,6 +87,13 @@ function jsonRequest(body: unknown): Request {
   });
 }
 
+/** Ładunek „chudego” JWT `savetowallet` z linku zapisu. */
+function jwtPayload(saveUrl: string): Record<string, unknown> {
+  const segment = saveUrl.split("/").pop()?.split(".")[1] ?? "";
+  const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(Buffer.from(base64, "base64").toString("utf8")) as Record<string, unknown>;
+}
+
 function expectPrivateHeaders(response: Response) {
   expect(response.headers.get("cache-control")).toBe("no-store, private");
   expect(response.headers.get("x-content-type-options")).toBe("nosniff");
@@ -491,27 +498,109 @@ describe("googleWalletPost", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("baza sprzed migracji 20261012130000 -> dziennik wraca do czterech argumentów", async () => {
+  it("baza sprzed migracji 20261012130000 -> obiekt w STARYM kształcie i dziennik z czterema argumentami (F8)", async () => {
+    // Stara funkcja dziennika trzyma jeden wiersz na zgłoszenie i nadpisuje
+    // jego `object_id`. Obiekt z kodem nadpisałby wiersz obiektu sprzed OPS-14,
+    // który wtedy nigdy nie trafiłby do dezaktywacji.
     stubGoogle();
-    stubGoogleApi();
+    const fetches: string[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      fetches.push(`${String(init.method)} ${url}`);
+      return url.startsWith("https://oauth2.googleapis.com")
+        ? new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 })
+        : new Response("{}", { status: 200 });
+    });
     let noteCalls = 0;
     h.adminRpc.mockImplementation(async (name: string) => {
-      if (name !== "_event_wallet_pass_note") return { data: null, error: null };
+      const pending = { data: null, error: { code: "PGRST202", message: "no function" } };
+      if (name === "_event_wallet_pass_state") return pending;
       noteCalls += 1;
-      return noteCalls === 1
-        ? { data: null, error: { code: "PGRST202", message: "no function with these args" } }
-        : { data: 1, error: null };
+      return noteCalls === 1 ? pending : { data: 1, error: null };
     });
-    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+    const response = await googleWalletPost(jsonRequest({ token: WALLET_QR }));
+    expect(response.status).toBe(200);
+
+    const legacyId = `${GOOGLE_CONFIG_FIXTURE.issuerId}.reg_52b00000-0000-0000-0000-0000000000a1`;
+    // Zapis jak przed OPS-14: PATCH obiektu w starym kształcie (bez wstawienia od razu).
+    expect(fetches.filter((f) => f.includes("/eventTicketObject"))).toEqual([
+      `PATCH https://walletobjects.googleapis.com/walletobjects/v1/eventTicketObject/${encodeURIComponent(legacyId)}`,
+    ]);
+    const { saveUrl } = (await response.json()) as { saveUrl: string };
+    expect(jwtPayload(saveUrl)).toMatchObject({
+      payload: { eventTicketObjects: [{ id: legacyId }] },
+    });
     const notes = h.adminRpc.mock.calls.filter(([name]) => name === "_event_wallet_pass_note");
     expect(notes).toHaveLength(2);
-    expect(Object.keys(notes[1][1] as object).sort()).toEqual([
-      "p_object_id",
-      "p_platform",
-      "p_registration_id",
-      "p_tenant",
-    ]);
-    expect(warn).not.toHaveBeenCalledWith("[wallet] google issue log failed:", expect.anything());
+    expect(notes[0][1]).toMatchObject({ p_object_id: legacyId, p_code_hash: QR_HASH });
+    expect(notes[1][1]).toEqual({
+      p_tenant: "52000000-0000-0000-0000-0000000000a0",
+      p_registration_id: "52b00000-0000-0000-0000-0000000000a1",
+      p_platform: "google",
+      p_object_id: legacyId,
+    });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("obiekt z kodem nigdy nie trafia do starej sygnatury dziennika - ostrzeżenie zamiast nadpisania", async () => {
+    // Funkcja stanu jest (migracja weszła), a dziennik z kodem zwraca PGRST202
+    // (np. nieodświeżony cache schematu). Czteroargumentowy upsert po
+    // zgłoszeniu nadpisałby wiersz innego obiektu.
+    stubGoogle();
+    stubGoogleApi();
+    h.adminRpc.mockImplementation(async (name: string) =>
+      name === "_event_wallet_pass_state"
+        ? { data: null, error: null }
+        : { data: null, error: { code: "PGRST202", message: "no function" } },
+    );
+    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+    const notes = h.adminRpc.mock.calls.filter(([name]) => name === "_event_wallet_pass_note");
+    expect(notes).toHaveLength(1);
+    expect((notes[0][1] as { p_object_id: string }).p_object_id).toBe(
+      `${GOOGLE_CONFIG_FIXTURE.issuerId}.reg_52b00000-0000-0000-0000-0000000000a1.${await walletObjectSuffix(WALLET_QR)}`,
+    );
+    expect(warn).toHaveBeenCalledWith("[wallet] google issue log skipped: migration pending");
+  });
+
+  it("Apple przed migracją -> dziennik z czterema argumentami (identyfikator = numer zgłoszenia)", async () => {
+    stubApple();
+    let noteCalls = 0;
+    h.adminRpc.mockImplementation(async () => {
+      noteCalls += 1;
+      return noteCalls === 1
+        ? { data: null, error: { code: "PGRST202", message: "no function" } }
+        : { data: 1, error: null };
+    });
+    expect((await appleWalletPost(form({ token: WALLET_QR }))).status).toBe(200);
+    const notes = h.adminRpc.mock.calls.filter(([name]) => name === "_event_wallet_pass_note");
+    expect(notes).toHaveLength(2);
+    expect(notes[1][1]).toEqual({
+      p_tenant: "52000000-0000-0000-0000-0000000000a0",
+      p_registration_id: "52b00000-0000-0000-0000-0000000000a1",
+      p_platform: "apple",
+      p_object_id: "52b00000-0000-0000-0000-0000000000a1",
+    });
+  });
+
+  it("obiekt aktywny bez skrótu treści (zgłoszenie dezaktywacji zamknięte po próbie) -> zapis obiektu (F7)", async () => {
+    // Baza czyści `content_hash`, gdy PATCH INACTIVE mógł dojść do Google;
+    // ponowne dodanie nie może wtedy pominąć zapisu (stan ACTIVE w treści).
+    stubGoogle();
+    const bodies: { url: string; body: string }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+      bodies.push({ url, body: String(init.body) });
+      return url.startsWith("https://oauth2.googleapis.com")
+        ? new Response(JSON.stringify({ access_token: "tok", expires_in: 3600 }), { status: 200 })
+        : new Response("{}", { status: 200 });
+    });
+    h.adminRpc.mockImplementation(async (name: string) =>
+      name === "_event_wallet_pass_state"
+        ? { data: { content_hash: null, active: true }, error: null }
+        : { data: 2, error: null },
+    );
+    expect((await googleWalletPost(jsonRequest({ token: WALLET_QR }))).status).toBe(200);
+    const objectWrites = bodies.filter((b) => b.url.includes("/eventTicketObject"));
+    expect(objectWrites).toHaveLength(1);
+    expect(JSON.parse(objectWrites[0].body)).toMatchObject({ state: "ACTIVE" });
   });
 });
 

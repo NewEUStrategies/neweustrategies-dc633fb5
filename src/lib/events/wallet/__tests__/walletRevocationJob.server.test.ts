@@ -3,12 +3,15 @@
 //
 // CO KONKRETNIE PSUJE SIĘ BEZ TYCH TESTÓW. Zadanie, które zajmuje kolejkę bez
 // konfiguracji Google, spala próby (po ośmiu baza przestaje ponawiać) i obiekty
-// zostają ACTIVE na zawsze. Zadanie, które 404 liczy jako błąd, ponawia
-// w nieskończoność obiekt, którego nie ma. Rozliczenie bez dzierżawy albo
-// z kodem odpowiedzi Google w treści błędu to odpowiednio podwójna praca
-// i wyciek treści odpowiedzi do bazy. Sieć jest tu zamockowana w całości,
-// baza - atrapą RPC (`supabaseRpcStub`) z odpowiedziami w kształcie migracji
-// 20261012130100 (ich prawdziwe zachowanie dowodzi harness 55).
+// zostają ACTIVE na zawsze - tak samo zadanie, które nieudaną wymianę tokenu
+// (klucz usunięty albo wyłączony w GCP) liczy każdemu obiektowi jako próbę.
+// Zadanie, które 404 liczy jako błąd, ponawia w nieskończoność obiekt, którego
+// nie ma. Rozliczenie bez dzierżawy albo z kodem odpowiedzi Google w treści
+// błędu to odpowiednio podwójna praca i wyciek treści odpowiedzi do bazy.
+// Zadanie, które pomija `reactivate` z zajęcia, zostawia INACTIVE przepustkę
+// biletu znów ważnego. Sieć jest tu zamockowana w całości, baza - atrapą RPC
+// (`supabaseRpcStub`) z odpowiedziami w kształcie migracji 20261012170100
+// (ich prawdziwe zachowanie dowodzą harness 55 i 55_wallet_revocation_robustness).
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -66,12 +69,24 @@ function stubGoogleConfig() {
   );
 }
 
-function claim(passes: { id: string; object_id: string }[], closed = 0) {
+function claim(
+  passes: { id: string; object_id: string; reason?: string }[],
+  closed = 0,
+  reactivate: string[] = [],
+) {
   rpc.setData("_event_wallet_pass_revocations_claim", {
     claimed_at: CLAIMED_AT,
-    passes: passes.map((p, i) => ({ ...p, reason: "code_changed", attempt: i + 1 })),
+    passes: passes.map((p, i) => ({ reason: "code_changed", ...p, attempt: i + 1 })),
     closed,
+    reactivate,
   });
+}
+
+/** Ciało PATCH-a stanu obiektu (`{ state }`) albo `null` dla wymiany tokenu. */
+function patchedState(call: Call): string | null {
+  return call.url === TOKEN_URL
+    ? null
+    : ((JSON.parse(call.body) as { state?: string }).state ?? null);
 }
 
 /** Rozliczenie odpowiada tym, co dostało (jak funkcja w bazie dla świeżej dzierżawy). */
@@ -227,20 +242,43 @@ describe("runWalletPassRevocations - partia", () => {
     expect(result).toMatchObject({ revoked: 1, deferred: 2 });
   });
 
-  it("nieudany token -> cała partia jako błąd tokenu, bez wywołań obiektów", async () => {
+  it("nieudany token -> partia oddana jako deferred (próby nie przepadają), przebieg rzuca", async () => {
+    // F10: klucz konta usługi parsuje się, ale Google go odrzuca (usunięty,
+    // wyłączony, obrócony). To awaria zadania, nie obiektu - gdyby każdy obiekt
+    // dostał `failed`, po ~10,6 h awarii cała kolejka doszłaby do sufitu 8 prób.
     claim([
       { id: "w-1", object_id: "o-1" },
       { id: "w-2", object_id: "o-2" },
     ]);
     settleEcho();
     responder = () => json(401, { error: "invalid_grant" });
-    const result = await runWalletPassRevocations(admin());
+    await expect(runWalletPassRevocations(admin())).rejects.toThrow(
+      "google wallet token failed: http 401",
+    );
     expect(calls.map((c) => c.url)).toEqual([TOKEN_URL]);
-    expect(rpc.lastCall("_event_wallet_pass_revocations_settle")?.arg("p_failed")).toEqual([
-      { id: "w-1", error: "token http 401" },
-      { id: "w-2", error: "token http 401" },
-    ]);
-    expect(result).toMatchObject({ failed: 2, revoked: 0 });
+    expect(rpc.lastCall("_event_wallet_pass_revocations_settle")?.args).toEqual({
+      p_claimed_at: CLAIMED_AT,
+      p_revoked: [],
+      p_failed: [],
+      p_deferred: ["w-1", "w-2"],
+    });
+  });
+
+  it("nieudany token i nieudane rozliczenie -> nadal błąd tokenu (dzierżawa wygaśnie sama)", async () => {
+    claim([{ id: "w-1", object_id: "o-1" }]);
+    rpc.setResponse("_event_wallet_pass_revocations_settle", fail("connection reset"));
+    responder = () => {
+      const timeout = new Error("The operation was aborted due to timeout");
+      timeout.name = "TimeoutError";
+      throw timeout;
+    };
+    await expect(runWalletPassRevocations(admin())).rejects.toThrow(
+      "google wallet token failed: timeout",
+    );
+    expect(error).toHaveBeenCalledWith(
+      "[wallet] google revocations settle failed:",
+      "connection reset",
+    );
   });
 
   it("ósma nieudana próba -> gaveUp z rozliczenia w wyniku przebiegu", async () => {
@@ -272,6 +310,73 @@ describe("runWalletPassRevocations - partia", () => {
     expect(reactivations.map((c) => c.url)).toEqual([itemUrl("o-1"), itemUrl("o-2")]);
     expect(result.reactivated).toBe(1);
     expect(warn).toHaveBeenCalledWith("[wallet] google reactivation failed:", "http 502");
+  });
+
+  it("zajęcie zamknęło nieaktualne zgłoszenie PO próbie -> ACTIVE bez rozliczenia (F7)", async () => {
+    // Pusta partia, ale obiekt mógł zostać INACTIVE w Google: PATCH INACTIVE
+    // doszedł, a nie został odnotowany (timeout, awaria rozliczenia).
+    claim([], 1, ["o-stale"]);
+    const result = await runWalletPassRevocations(admin());
+    expect(calls.map((c) => `${c.method} ${c.url} ${patchedState(c) ?? ""}`.trim())).toEqual([
+      `POST ${TOKEN_URL}`,
+      `PATCH ${itemUrl("o-stale")} ACTIVE`,
+    ]);
+    expect(rpc.names()).toEqual(["_event_wallet_pass_revocations_claim"]);
+    expect(result).toEqual({
+      claimed: 0,
+      revoked: 0,
+      failed: 0,
+      deferred: 0,
+      gaveUp: 0,
+      closed: 1,
+      reactivated: 1,
+    });
+  });
+
+  it("reaktywacje z zajęcia i z rozliczenia razem, każdy obiekt raz, po unieważnieniach", async () => {
+    claim([{ id: "w-1", object_id: "o-1" }], 1, ["o-stale", "o-again"]);
+    settleEcho(["o-again", "o-re-added"]);
+    const result = await runWalletPassRevocations(admin());
+    expect(calls.map((c) => `${c.method} ${c.url} ${patchedState(c) ?? ""}`.trim())).toEqual([
+      `POST ${TOKEN_URL}`,
+      `PATCH ${itemUrl("o-1")} INACTIVE`,
+      `PATCH ${itemUrl("o-stale")} ACTIVE`,
+      `PATCH ${itemUrl("o-again")} ACTIVE`,
+      `PATCH ${itemUrl("o-re-added")} ACTIVE`,
+    ]);
+    expect(result).toMatchObject({ revoked: 1, reactivated: 3 });
+  });
+
+  it("nieudany token przy samych reaktywacjach -> rzuca, bez rozliczenia (skrót treści już wyczyszczony)", async () => {
+    claim([], 1, ["o-stale"]);
+    responder = () => json(400, { error: "invalid_grant" });
+    await expect(runWalletPassRevocations(admin())).rejects.toThrow(
+      "google wallet token failed: http 400",
+    );
+    expect(rpc.names()).toEqual(["_event_wallet_pass_revocations_claim"]);
+    expect(warn).toHaveBeenCalledWith("[wallet] google reactivations skipped:", 1);
+  });
+
+  it("nagrobek usuniętego wydarzenia/zgłoszenia unieważniany jak obiekt dziennika (F9)", async () => {
+    claim([
+      { id: "t-1", object_id: "3388.reg_gone.aaa", reason: "event_deleted" },
+      { id: "t-2", object_id: "3388.reg_gone2.bbb", reason: "registration_deleted" },
+    ]);
+    settleEcho();
+    responder = (call) => {
+      if (call.url === TOKEN_URL) return json(200, { access_token: "tok-rev", expires_in: 3600 });
+      return call.url === itemUrl("3388.reg_gone2.bbb") ? json(404) : json(200);
+    };
+    const result = await runWalletPassRevocations(admin());
+    expect(calls.filter((c) => c.url !== TOKEN_URL).map((c) => patchedState(c))).toEqual([
+      "INACTIVE",
+      "INACTIVE",
+    ]);
+    expect(rpc.lastCall("_event_wallet_pass_revocations_settle")?.arg("p_revoked")).toEqual([
+      "t-1",
+      "t-2",
+    ]);
+    expect(result).toMatchObject({ claimed: 2, revoked: 2, failed: 0 });
   });
 
   it("błąd rozliczenia -> wynik z własnych list, log; dzierżawa w bazie wygaśnie sama", async () => {
