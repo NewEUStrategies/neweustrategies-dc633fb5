@@ -1,5 +1,6 @@
 -- pgTAP: kod dostepu do wejsciowki - limit prob, ktory wiaze
--- (migracja 20261007140400_ticket_access_code_probe).
+-- (migracja 20261007140400_ticket_access_code_probe; zapis od 20261012140100
+-- przez `event_register_for_client`).
 --
 -- DEFEKT. Kod dostepu (prasa, partnerzy, zaproszenia) mial dwie wyrocznie:
 -- `event_ticket_checkout_quote` (authenticated, bez licznika) i `event_register`
@@ -7,18 +8,22 @@
 -- sie wyjatkiem wycofujacym zapis licznika.
 --
 -- CO PRZYPINA:
---   * ACL - wycena kasy tylko dla service_role, zapis publiczny zostaje anon;
+--   * ACL - wycena kasy tylko dla service_role; zapis tylko z serwera
+--     (`event_register` i `event_register_for_client` wylacznie service_role,
+--     REG-04: przegladarka nie ma juz drogi z pominieciem kubelka adresu);
 --   * wycena: pudlo wraca WARTOSCIA i jest zliczone w kubelku biletu, konta
 --     i adresu; pusty kod nie jest proba; dobry kod nie zjada kubelka; pelny
 --     kubelek konta, adresu (farma kont) albo biletu odmawia takze dobremu
 --     kodowi;
---   * zapis: pudlo wraca wartoscia, zlicza kubelek biletu, licznik zapisu
---     zostaje (bez wycofania), zgloszenie nie powstaje; pelny kubelek biletu
---     odmawia takze dobremu kodowi.
+--   * zapis (`event_register_for_client`, gosc za solonym skrotem adresu):
+--     pudlo wraca wartoscia `client.error`, zlicza kubelek biletu i ADRESU,
+--     licznik zapisu (`event_register.ip`) zostaje (bez wycofania),
+--     zgloszenie nie powstaje; pelny kubelek biletu odmawia takze dobremu
+--     kodowi.
 --
 -- now() jest staly w transakcji, wiec wszystkie proby siedza w jednym oknie.
 BEGIN;
-SELECT plan(26);
+SELECT plan(27);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -71,8 +76,18 @@ SELECT ok(
   AND NOT has_function_privilege('anon', 'public._access_code_probe_miss(uuid,uuid,text)', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public._access_code_probe_miss(uuid,uuid,text)', 'EXECUTE'),
   'kubelki kodu dostepu niedostepne dla klienta');
-SELECT ok(has_function_privilege('anon', 'public.event_register(jsonb)', 'EXECUTE'),
-  'event_register zostaje publiczny (zapis bez konta to jego zadanie)');
+-- ZMIANA 20261012 (REG-04): dotad ta asercja przypinala `event_register` jako
+-- publiczny (anon). Zapis bez konta nadal jest jego zadaniem, ale idzie przez
+-- funkcje serwerowa - baza zna wtedy solony skrot adresu, a odpowiedz nie
+-- zdradza, czy adres jest zapisany. Teza (kto moze wolac zapis) zostaje,
+-- odpowiedz sie odwraca.
+SELECT ok(
+  NOT has_function_privilege('anon', 'public.event_register(jsonb)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.event_register(jsonb)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public.event_register_for_client(uuid,uuid,text,text,jsonb)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.event_register_for_client(uuid,uuid,text,text,jsonb)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public.event_register_for_client(uuid,uuid,text,text,jsonb)', 'EXECUTE'),
+  'zapis tylko z serwera: event_register i event_register_for_client bez EXECUTE dla anon i authenticated');
 
 -- ── 7-13. Wycena kasy (service_role, konto u1, adres A) ───────────────────
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
@@ -166,22 +181,28 @@ SELECT throws_like(
   'podmiot adresu musi byc solonym skrotem (ip:<32 hex>), nie surowym adresem');
 RESET ROLE;
 
--- ── 19-26. Zapis publiczny (anon) ──────────────────────────────────────────
-SELECT set_config('request.headers', '{"x-tenant-host":"tacp-a.example"}', true);
-SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
-SET LOCAL ROLE anon;
+-- ── 19-27. Zapis publiczny z serwera (gosc za adresem C) ──────────────────
+-- ZMIANA 20261012 (REG-04): sciezka produkcyjna to funkcja serwerowa, ktora
+-- woluje `event_register_for_client` kluczem serwisowym - z najemca hosta
+-- i solonym skrotem adresu. Teza bez zmian: pudlo wraca WARTOSCIA (teraz
+-- `client.error`), jest zliczone, licznik zapisu zostaje; dochodzi kubelek
+-- ADRESU, ktorego zapis bez konta dotad nie mial.
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SET LOCAL ROLE service_role;
 SELECT is(
-  public.event_register(jsonb_build_object(
+  public.event_register_for_client('ac0a0000-0000-0000-0000-0000000000aa', NULL,
+    'ip:cccccccccccccccccccccccccccccccc', 'pgtap/1.0', jsonb_build_object(
     'event_slug', 'tacp-event', 'ticket_type_id', 'ac200000-0000-0000-0000-0000000000f1',
     'first_name', 'Anna', 'last_name', 'Proba', 'email', 'tacp-guess@example.org',
-    'consent_data_processing', true, 'access_code', 'GUESS')) ->> 'error',
+    'consent_data_processing', true, 'access_code', 'GUESS')) -> 'client' ->> 'error',
   'invalid_access_code',
   'zapis: pudlo wraca wartoscia, nie wyjatkiem');
 SELECT is(
-  public.event_register(jsonb_build_object(
+  public.event_register_for_client('ac0a0000-0000-0000-0000-0000000000aa', NULL,
+    'ip:cccccccccccccccccccccccccccccccc', 'pgtap/1.0', jsonb_build_object(
     'event_slug', 'tacp-event', 'ticket_type_id', 'ac200000-0000-0000-0000-0000000000f1',
     'first_name', 'Anna', 'last_name', 'Proba', 'email', 'tacp-guess2@example.org',
-    'consent_data_processing', true)) ->> 'error',
+    'consent_data_processing', true)) -> 'client' ->> 'error',
   'invalid_access_code',
   'zapis bez kodu: odmowa');
 RESET ROLE;
@@ -190,21 +211,26 @@ SELECT is(
      AND subject_id = 'ticket:ac200000-0000-0000-0000-0000000000f1'),
   1, 'zapis: pudlo zliczone w kubelku biletu (klucz z bazy, nie z ladunku); brak kodu nie liczy sie');
 SELECT is(
-  (SELECT sum(count)::int FROM public.rate_limits WHERE scope = 'event_register'
-     AND subject_id LIKE 'ac0a0000-0000-0000-0000-0000000000aa:%'),
-  2, 'licznik zapisu ZOSTAJE po pudle (wyjatek go wycofywal)');
+  (SELECT count FROM public.rate_limits WHERE scope = 'coupon_probe_miss.ip'
+     AND subject_id = 'ip:cccccccccccccccccccccccccccccccc'),
+  1, 'zapis: pudlo zliczone takze w kubelku ADRESU (solony skrot od serwera)');
+SELECT is(
+  (SELECT count FROM public.rate_limits WHERE scope = 'event_register.ip'
+     AND subject_id = 'ip:cccccccccccccccccccccccccccccccc'),
+  2, 'licznik zapisu (kubelek adresu event_register.ip) ZOSTAJE po pudle (wyjatek go wycofywal)');
 SELECT is(
   (SELECT count(*)::int FROM public.event_registrations
     WHERE ticket_type_id = 'ac200000-0000-0000-0000-0000000000f1'),
   0, 'pudlo nie tworzy zgloszenia');
 
-SET LOCAL ROLE anon;
+SET LOCAL ROLE service_role;
 SELECT ok(
-  (public.event_register(jsonb_build_object(
+  (public.event_register_for_client('ac0a0000-0000-0000-0000-0000000000aa', NULL,
+    'ip:cccccccccccccccccccccccccccccccc', 'pgtap/1.0', jsonb_build_object(
     'event_slug', 'tacp-event', 'ticket_type_id', 'ac200000-0000-0000-0000-0000000000f1',
     'first_name', 'Piotr', 'last_name', 'Prasa', 'email', 'tacp-press@example.org',
-    'consent_data_processing', true, 'access_code', 'press2026')) ->> 'registration_id') IS NOT NULL,
-  'zapis z dobrym kodem przechodzi');
+    'consent_data_processing', true, 'access_code', 'press2026')) -> 'delivery' ->> 'registration_id') IS NOT NULL,
+  'zapis z dobrym kodem przechodzi (zgloszenie w dostawie dla serwera)');
 RESET ROLE;
 SELECT is(
   (SELECT count FROM public.rate_limits WHERE scope = 'access_code_miss.ticket'
@@ -213,14 +239,15 @@ SELECT is(
 
 UPDATE public.rate_limits SET count = 60
  WHERE scope = 'access_code_miss.ticket' AND subject_id = 'ticket:ac200000-0000-0000-0000-0000000000f1';
-SET LOCAL ROLE anon;
-SELECT throws_like(
-  $$SELECT public.event_register(jsonb_build_object(
-      'event_slug', 'tacp-event', 'ticket_type_id', 'ac200000-0000-0000-0000-0000000000f1',
-      'first_name', 'Ewa', 'last_name', 'Prasa', 'email', 'tacp-press2@example.org',
-      'consent_data_processing', true, 'access_code', 'PRESS2026'))$$,
-  'rate_limited%',
-  'pelny kubelek biletu: zapis z DOBRYM kodem tez odmowiony (rotacja e-maili nie pomaga)');
+SET LOCAL ROLE service_role;
+SELECT is(
+  public.event_register_for_client('ac0a0000-0000-0000-0000-0000000000aa', NULL,
+    'ip:dddddddddddddddddddddddddddddddd', 'pgtap/1.0', jsonb_build_object(
+    'event_slug', 'tacp-event', 'ticket_type_id', 'ac200000-0000-0000-0000-0000000000f1',
+    'first_name', 'Ewa', 'last_name', 'Prasa', 'email', 'tacp-press2@example.org',
+    'consent_data_processing', true, 'access_code', 'PRESS2026')) -> 'client',
+  '{"ok": false, "error": "rate_limited"}'::jsonb,
+  'pelny kubelek biletu: zapis z DOBRYM kodem tez odmowiony, takze z nowego adresu (wartoscia)');
 RESET ROLE;
 
 SELECT set_config('request.headers', '', true);
