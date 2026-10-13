@@ -81,8 +81,17 @@ describe("loadRegistrationManageView", () => {
         amountCents: 5000,
         currency: "PLN",
         ownedByCaller: false,
+        // SCALENIE Z MAIN (runda 4): flaga zgody partnerskiej (main OPS-01,
+        // 20261013110400) w widoku REG-17; odpowiedź bez klucza -> `false`.
+        partnerConsent: false,
       },
     });
+  });
+
+  it("OPS-01 (main) w widoku REG-17: `partner_consent: true` -> `partnerConsent`", async () => {
+    rpc().setData("event_registration_manage_view", { ...ROW, partner_consent: true });
+    const result = await api.loadRegistrationManageView({ manageToken: TOKEN });
+    expect(result.kind === "view" && result.view.partnerConsent).toBe(true);
   });
 
   it("REG-17: `{ok:false, reason:'expired'}` -> `expired`, nie „nie znaleziono”", async () => {
