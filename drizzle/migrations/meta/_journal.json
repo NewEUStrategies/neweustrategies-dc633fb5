@@ -1443,6 +1443,13 @@
       "when": 1791925843779,
       "tag": "0205_event_wallet_pass_revocation",
       "breakpoints": true
+    },
+    {
+      "idx": 206,
+      "version": "7",
+      "when": 1791926115512,
+      "tag": "0206_event_wallet_pass_revocation_part2",
+      "breakpoints": true
     }
   ]
 }

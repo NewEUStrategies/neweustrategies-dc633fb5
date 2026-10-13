@@ -24175,6 +24175,19 @@ export type Database = {
         }
         Returns: number
       }
+      _event_wallet_pass_revocations_claim: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      _event_wallet_pass_revocations_settle: {
+        Args: {
+          p_claimed_at: string
+          p_deferred?: string[]
+          p_failed?: Json
+          p_revoked: string[]
+        }
+        Returns: Json
+      }
       _event_wallet_pass_state: {
         Args: { p_object_id: string; p_platform: string; p_tenant: string }
         Returns: Json
