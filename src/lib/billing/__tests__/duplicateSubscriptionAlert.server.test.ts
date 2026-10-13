@@ -59,7 +59,10 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 
 // Bezpiecznik: alarm NIGDY nie anuluje subskrypcji u operatora. Gdyby którakolwiek
 // ścieżka sięgnęła po klienta Stripe, test poleci z jawnym komunikatem.
-vi.mock("@/lib/stripe.server", () => ({
+// `environmentGrantsAccess` zostaje PRAWDZIWE (czysta funkcja bramki PAY-05,
+// poza produkcją oba środowiska nadają dostęp) - jak w teście cyklu życia.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   getConnectionApiKey: () => "test_klucz_atrapy",
   getWebhookSecret: () => "test_sekret_atrapy",
   getStripeClient: async () => {
