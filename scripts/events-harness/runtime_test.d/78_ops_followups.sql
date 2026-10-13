@@ -104,6 +104,9 @@ VALUES ('78800000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-1111111
         '78e00000-0000-0000-0000-0000000000a1', '78900000-0000-0000-0000-0000000000a1',
         'kupujacy.78@example.org', 3, 'paid', now());
 
+-- SCALENIE Z MAIN (PR #504, runda 4): tokeny zaproszen w ksztalcie generatora
+-- (32 znaki base64url) - przyjecie REG-15 (20261012132200, unia 20261013900400)
+-- odrzuca inny ksztalt wartoscia `invalid_token`, bez szukania i bez licznika.
 -- Miejsce N: zaproszenie dla adresu, ktorego kartoteka nie zna (nowa osoba).
 -- Miejsce W: zaproszenie dla osoby, ktora wczesniej WYCOFALA zgody.
 -- Miejsce Z: zaproszenie, ktore zostaje niezuzyte (para nadal e-mail + token).
@@ -114,17 +117,17 @@ VALUES
   ('78600000-0000-0000-0000-0000000000a1', '11111111-1111-1111-1111-111111111111',
    '78e00000-0000-0000-0000-0000000000a1', '78800000-0000-0000-0000-0000000000a1',
    'nowa.78@example.org', 'Nowa',
-   encode(extensions.digest('zaproszenie-78-nowa-00000001', 'sha256'), 'hex'),
+   encode(extensions.digest('zaproszenie-78-nowa-00000001xxxx', 'sha256'), 'hex'),
    now() - interval '1 day', now() + interval '29 days'),
   ('78600000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111',
    '78e00000-0000-0000-0000-0000000000a1', '78800000-0000-0000-0000-0000000000a1',
    'wycofana.78@example.org', 'Wycofana',
-   encode(extensions.digest('zaproszenie-78-wycofana-0001', 'sha256'), 'hex'),
+   encode(extensions.digest('zaproszenie-78-wycofana-0001xxxx', 'sha256'), 'hex'),
    now() - interval '1 day', now() + interval '29 days'),
   ('78600000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111',
    '78e00000-0000-0000-0000-0000000000a1', '78800000-0000-0000-0000-0000000000a1',
    'czeka.78@example.org', 'Czeka',
-   encode(extensions.digest('zaproszenie-78-czeka-0000001', 'sha256'), 'hex'),
+   encode(extensions.digest('zaproszenie-78-czeka-0000001xxxx', 'sha256'), 'hex'),
    now() - interval '1 day', now() + interval '29 days');
 
 -- Osoba z wycofaniem: zgoda marketingowa i partnerska nadane, potem wycofane.
@@ -149,7 +152,7 @@ DECLARE
   v_person uuid;
 BEGIN
   v := public.event_package_invite_accept(jsonb_build_object(
-    'token', 'zaproszenie-78-nowa-00000001', 'first_name', 'Nina', 'last_name', 'Nowa',
+    'token', 'zaproszenie-78-nowa-00000001xxxx', 'first_name', 'Nina', 'last_name', 'Nowa',
     'job_title', 'Analityczka', 'consent_data_processing', true));
   v_reg := (v->>'registration_id')::uuid;
   INSERT INTO z78_q VALUES ('reg_nowa', v_reg);
@@ -195,11 +198,13 @@ END
 $do$;
 
 -- Jednorazowosc: skrot tokenu zniknal, wiec drugie uzycie linku to zly token.
-SELECT pg_temp.assert_raises_like(
-  $q$SELECT public.event_package_invite_accept(jsonb_build_object(
-       'token', 'zaproszenie-78-nowa-00000001', 'first_name', 'Nina', 'last_name', 'Nowa',
-       'consent_data_processing', true))$q$,
-  'invalid_token',
+-- SCALENIE Z MAIN (PR #504, runda 4): pudlo tokenu jest WARTOSCIA
+-- `{ok:false, error:invalid_token}` (REG-15, 20261012132200; unia
+-- 20261013900400) - wyjatek wycofalby zliczenie proby w kubelku.
+SELECT pg_temp.assert(
+  public.event_package_invite_accept(jsonb_build_object(
+    'token', 'zaproszenie-78-nowa-00000001xxxx', 'first_name', 'Nina', 'last_name', 'Nowa',
+    'consent_data_processing', true)) ->> 'error' = 'invalid_token',
   '78/pakiet/ODMOWA: drugie uzycie tego samego linku zaproszenia');
 
 -- GWARANCJA S1 (OPS-01): przyjecie przez osobe z wycofaniem nie czysci
@@ -212,7 +217,7 @@ DECLARE
 BEGIN
   SELECT * INTO v_before FROM public.event_people p WHERE p.id = v_person;
   v := public.event_package_invite_accept(jsonb_build_object(
-    'token', 'zaproszenie-78-wycofana-0001', 'first_name', 'Wanda', 'last_name', 'Wycofana',
+    'token', 'zaproszenie-78-wycofana-0001xxxx', 'first_name', 'Wanda', 'last_name', 'Wycofana',
     'consent_data_processing', true));
   INSERT INTO z78_q VALUES ('reg_wycofana', (v->>'registration_id')::uuid);
 
@@ -562,12 +567,12 @@ SELECT s.id, '11111111-1111-1111-1111-111111111111', '78e00000-0000-0000-0000-00
        encode(extensions.digest(s.token, 'sha256'), 'hex'),
        now() - interval '1 day', now() + interval '29 days'
   FROM (VALUES
-    ('78600000-0000-0000-0000-0000000000d1'::uuid, 'kolega.f14.78@example.org', 'f14-kolega-78-000000000000001'),
-    ('78600000-0000-0000-0000-0000000000d2'::uuid, 'sluzbowy.f14.78@example.org', 'f14-sluzbowy-78-0000000000001'),
-    ('78600000-0000-0000-0000-0000000000d3'::uuid, 'michalina.f14.78@example.org', 'f14-michalina-78-000000000001'),
-    ('78600000-0000-0000-0000-0000000000d4'::uuid, 'niepotwierdzona.f14.78@example.org', 'f14-niepotw-78-00000000000001'),
-    ('78600000-0000-0000-0000-0000000000d5'::uuid, 'nowy.f14.78@example.org', 'f14-nowy-78-00000000000000001'),
-    ('78600000-0000-0000-0000-0000000000d6'::uuid, 'wyscig.f14.78@example.org', 'f14-wyscig-78-000000000000001')
+    ('78600000-0000-0000-0000-0000000000d1'::uuid, 'kolega.f14.78@example.org', 'f14-kolega-78-000000000000001xxx'),
+    ('78600000-0000-0000-0000-0000000000d2'::uuid, 'sluzbowy.f14.78@example.org', 'f14-sluzbowy-78-0000000000001xxx'),
+    ('78600000-0000-0000-0000-0000000000d3'::uuid, 'michalina.f14.78@example.org', 'f14-michalina-78-000000000001xxx'),
+    ('78600000-0000-0000-0000-0000000000d4'::uuid, 'niepotwierdzona.f14.78@example.org', 'f14-niepotw-78-00000000000001xxx'),
+    ('78600000-0000-0000-0000-0000000000d5'::uuid, 'nowy.f14.78@example.org', 'f14-nowy-78-00000000000000001xxx'),
+    ('78600000-0000-0000-0000-0000000000d6'::uuid, 'wyscig.f14.78@example.org', 'f14-wyscig-78-000000000000001xxx')
   ) AS s(id, email, token);
 
 -- Wolajacy -> nowa osoba. `ip_hash` rozdziela kubelki limitu prob, zeby
@@ -592,7 +597,7 @@ BEGIN
   -- (1) Kupujacy z potwierdzonym kontem otwiera link kolegi. Dotad osoba
   -- `kolega@` powstawala z `user_id` kupujacego.
   v_person := pg_temp.z78_accept('78a00000-0000-0000-0000-0000000000d1',
-                                 'f14-kolega-78-000000000000001', 'Kamil', 'Kolega');
+                                 'f14-kolega-78-000000000000001xxx', 'Kamil', 'Kolega');
   PERFORM pg_temp.assert(
     (SELECT p.user_id IS NULL AND p.email_norm = 'kolega.f14.78@example.org'
             AND p.source = 'package_invitation'
@@ -608,7 +613,7 @@ BEGIN
   -- (2) Konto z osoba pod innym adresem. Dotad: surowe 23505
   -- (`event_people_tenant_user_uniq`) zamiast zgloszenia.
   v_person := pg_temp.z78_accept('78a00000-0000-0000-0000-0000000000d2',
-                                 'f14-sluzbowy-78-0000000000001', 'Piotr', 'Sluzbowy');
+                                 'f14-sluzbowy-78-0000000000001xxx', 'Piotr', 'Sluzbowy');
   PERFORM pg_temp.assert(
     v_person IS NOT NULL AND v_person <> '78b00000-0000-0000-0000-0000000000d2'
     AND (SELECT p.user_id IS NULL AND p.email_norm = 'sluzbowy.f14.78@example.org'
@@ -621,7 +626,7 @@ BEGIN
   -- (3) Zaproszona z POTWIERDZONYM adresem rownym zaproszeniu (normalizacja
   -- wielkosci liter i spacji) i bez innej osoby - konto przypiete.
   v_person := pg_temp.z78_accept('78a00000-0000-0000-0000-0000000000d3',
-                                 'f14-michalina-78-000000000001', 'Michalina', 'Zaproszona');
+                                 'f14-michalina-78-000000000001xxx', 'Michalina', 'Zaproszona');
   PERFORM pg_temp.assert(
     (SELECT p.user_id = '78a00000-0000-0000-0000-0000000000d3'
             AND p.email_norm = 'michalina.f14.78@example.org'
@@ -630,7 +635,7 @@ BEGIN
 
   -- (4) Adres zgodny, ale NIEPOTWIERDZONY - nie jest dowodem tozsamosci.
   v_person := pg_temp.z78_accept('78a00000-0000-0000-0000-0000000000d4',
-                                 'f14-niepotw-78-00000000000001', 'Nina', 'Niepotwierdzona');
+                                 'f14-niepotw-78-00000000000001xxx', 'Nina', 'Niepotwierdzona');
   PERFORM pg_temp.assert(
     (SELECT p.user_id IS NULL FROM public.event_people p WHERE p.id = v_person),
     '78/F14: adres konta niepotwierdzony - osoba bez konta');
@@ -638,7 +643,7 @@ BEGIN
   -- (5) Potwierdzony adres rowny zaproszeniu, ale konto ma juz INNA osobe
   -- w najemcy - regula `event_register` (jedna osoba na konto) wygrywa.
   v_person := pg_temp.z78_accept('78a00000-0000-0000-0000-0000000000d5',
-                                 'f14-nowy-78-00000000000000001', 'Olga', 'Nowa');
+                                 'f14-nowy-78-00000000000000001xxx', 'Olga', 'Nowa');
   PERFORM pg_temp.assert(
     (SELECT p.user_id IS NULL AND p.email_norm = 'nowy.f14.78@example.org'
        FROM public.event_people p WHERE p.id = v_person)
@@ -667,7 +672,7 @@ SELECT set_config('z78.race', 'on', true);
 SELECT pg_temp.act_as('78a00000-0000-0000-0000-0000000000d6', '11111111-1111-1111-1111-111111111111');
 SELECT pg_temp.assert_raises_like(
   $q$SELECT public.event_package_invite_accept(jsonb_build_object(
-       'token', 'f14-wyscig-78-000000000000001', 'first_name', 'Wiktor', 'last_name', 'Wyscig',
+       'token', 'f14-wyscig-78-000000000000001xxx', 'first_name', 'Wiktor', 'last_name', 'Wyscig',
        'consent_data_processing', true, 'ip_hash', 'f14-wyscig'))$q$,
   'person_conflict',
   '78/F14/ODMOWA: kolizja unikalnosci osoby w wyscigu -> odmowa modulu person_conflict, nie 23505');
@@ -689,7 +694,7 @@ SELECT pg_temp.assert(
 DO $do$
 DECLARE
   v_person uuid := pg_temp.z78_accept('78a00000-0000-0000-0000-0000000000d6',
-                                      'f14-wyscig-78-000000000000001', 'Wiktor', 'Wyscig');
+                                      'f14-wyscig-78-000000000000001xxx', 'Wiktor', 'Wyscig');
 BEGIN
   PERFORM pg_temp.assert(
     (SELECT p.user_id = '78a00000-0000-0000-0000-0000000000d6'

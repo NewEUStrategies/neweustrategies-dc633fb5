@@ -53,7 +53,8 @@
 --   `invalid_token` i liczy sie w `_event_invite_probe_miss`, jak kazdy
 --   nieznany token); `person_conflict` z main 20261013112700. Wiazanie konta
 --   zostaje WYLACZNIE przez `_event_bind_uid_for_email` (D1) - ta sama regula
---   co F14, bez drugiej kopii warunku w ciele.
+--   co F14, bez drugiej kopii warunku w ciele. `search_path` = regula modulu
+--   main (`public, pg_temp`; `extensions.digest` kwalifikowany).
 --
 -- CZEGO TO NIE ZAMYKA. Zapis `event_people.user_id` dalej wylacznie przez
 --   `_event_bind_uid_for_email`; naprawa historii REG-01 biegnie po tej
@@ -78,7 +79,9 @@ RETURNS jsonb
 LANGUAGE plpgsql
 VOLATILE
 SECURITY DEFINER
-SET search_path = public, extensions, pg_temp
+-- ZMIANA (scalenie z main, 20261013111800): regula modulu - `public, pg_temp`,
+-- a `digest` kwalifikowany schematem `extensions` (kazde wywolanie nizej).
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_tenant uuid := public.public_tenant_id();

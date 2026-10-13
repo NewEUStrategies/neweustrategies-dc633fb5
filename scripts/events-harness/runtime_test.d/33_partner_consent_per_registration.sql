@@ -26,6 +26,20 @@
 --     wycofuja zgode, nie kasujac stempla nadania; bramki i granty;
 --   * przyjecie zaproszenia z pakietu nie czysci wycofania.
 --
+-- SCALENIE Z MAIN (PR #504, runda 4; unia 20261013900700). Zapis idzie
+-- droga REG (D2: `event_register_for_client`, wrapper `event_register` tylko
+-- dla serwera), a zgoda marketingu/partnerow liczy sie wylacznie kanalem
+-- zweryfikowanym (D5): konto z potwierdzonym adresem zgloszenia albo link
+-- double opt-in z maila. Dlatego `pg_temp.z33_reg` zapisuje Z KONTA osoby
+-- (atrapa harnessu potwierdza adresy) i - gdy rejestr wydal link DOI, bo osoba
+-- wycofala zgody - klika go od razu (`event_consent_confirm_for_request`).
+-- Intencja OPS-01 bez zmian: zgoda NA TO wydarzenie w zgloszeniu, wycofanie
+-- przenoszone na zgloszenia przed jego zdjeciem, czytelnicy przez
+-- `_event_partner_consent_at`. Inaczej niz w ciele main: DOI zdejmuje globalne
+-- wycofanie i zeruje cele spoza linku (rejestr REG), a konto wiaze sie
+-- z osoba tylko przy potwierdzonym adresie (D1) - asercje, ktore to widza,
+-- maja komentarz `SCALENIE Z MAIN (runda 4)`.
+--
 -- CZAS. Plik biegnie w JEDNEJ transakcji, wiec `now()` stoi w miejscu.
 -- `pg_temp.z33_age` przesuwa wszystkie stemple osoby o godzine wstecz - tak
 -- kolejne kroki dzieja sie „pozniej" niz poprzednie, a najnowsze zgloszenie
@@ -56,7 +70,14 @@ INSERT INTO public.tenants (id, name, slug) VALUES
 INSERT INTO auth.users (id, email) VALUES
   ('33a00000-0000-0000-0000-0000000000a1', 'zgoda33.admin@example.org'),
   ('33a00000-0000-0000-0000-0000000000a2', 'zgoda33.konto@example.org'),
-  ('33a00000-0000-0000-0000-0000000000b1', 'zgoda33.admin.b@example.org');
+  ('33a00000-0000-0000-0000-0000000000b1', 'zgoda33.admin.b@example.org'),
+  -- SCALENIE Z MAIN (runda 4): konta uczestnikow z potwierdzonym adresem
+  -- zgloszenia - zgoda partnerska tylko kanalem zweryfikowanym (D5); kamil
+  -- wycofuje zgode po identyfikatorze jako wlasciciel konta (D1).
+  ('33a00000-0000-0000-0000-0000000000c1', 'ola.33@example.org'),
+  ('33a00000-0000-0000-0000-0000000000c2', 'ewa.33@example.org'),
+  ('33a00000-0000-0000-0000-0000000000c3', 'piotr.33@example.org'),
+  ('33a00000-0000-0000-0000-0000000000a3', 'kamil.33@example.org');
 
 INSERT INTO public.user_roles (user_id, role) VALUES
   ('33a00000-0000-0000-0000-0000000000a1', 'admin');
@@ -118,15 +139,35 @@ CREATE TEMP TABLE z33_q (k text PRIMARY KEY, u uuid, t text) ON COMMIT DROP;
 
 -- Zapis z formularza publicznego. Zgoda na przetwarzanie zawsze, partnerska
 -- i marketingowa - tylko gdy jawnie zaznaczone.
+-- SCALENIE Z MAIN (runda 4): zapis przez wejscie serwera REG z KONTA osoby
+-- (potwierdzony adres = adres zgloszenia), a link DOI - wydany, gdy osoba
+-- wycofala zgody - od razu potwierdzony, jak klikniecie w mailu. Wynik: pola
+-- odpowiedzi klienta (registration_id, person_id, manage_token).
 CREATE FUNCTION pg_temp.z33_reg(_slug text, _email text, _first text,
                                 _partner boolean, _marketing boolean)
-RETURNS jsonb LANGUAGE sql AS $$
-  SELECT public.event_register(jsonb_build_object(
-    'event_slug', _slug, 'email', _email, 'first_name', _first, 'last_name', 'Zgodna',
-    'phone', '+48 600 330 000', 'job_title', 'Analityk', 'company_text', 'Firma ' || _first,
-    'consent_data_processing', true,
-    'consent_partner_sharing', _partner,
-    'consent_marketing', _marketing))
+RETURNS jsonb LANGUAGE plpgsql AS $$
+DECLARE
+  v jsonb;
+  v_uid uuid;
+  v_token text;
+BEGIN
+  SELECT u.id INTO v_uid FROM auth.users u WHERE lower(u.email) = lower(_email);
+  v := public.event_register_for_client(
+    '11111111-1111-1111-1111-111111111111', v_uid, 'ip:' || md5(_email), 'harness/33',
+    jsonb_build_object(
+      'event_slug', _slug, 'email', _email, 'first_name', _first, 'last_name', 'Zgodna',
+      'phone', '+48 600 330 000', 'job_title', 'Analityk', 'company_text', 'Firma ' || _first,
+      'consent_data_processing', true,
+      'consent_partner_sharing', _partner,
+      'consent_marketing', _marketing,
+      'lang', 'pl'));
+  v_token := v #>> '{delivery,consent_confirmation,token}';
+  IF v_token IS NOT NULL THEN
+    PERFORM public.event_consent_confirm_for_request(
+      '11111111-1111-1111-1111-111111111111', v_uid, 'ip:' || md5(_email), 'harness/33', v_token);
+  END IF;
+  RETURN v->'client';
+END
 $$;
 
 -- Uplyw czasu: wszystkie stemple osoby godzine wstecz.
@@ -427,26 +468,32 @@ BEGIN
     pg_temp.z33_consent('33e00000-0000-0000-0000-0000000000b1', v_person) = now()
     AND pg_temp.z33_consent('33e00000-0000-0000-0000-0000000000a1', v_person) IS NULL,
     '33/zgoda po wycofaniu: jawna zgoda przy B skuteczna dla B, A zostaje wycofana');
+  -- SCALENIE Z MAIN (runda 4): ponowna zgoda po wycofaniu idzie linkiem DOI
+  -- (D5), a DOI REG zdejmuje globalne wycofanie i ZERUJE cele spoza linku -
+  -- main zostawial wycofanie i stary stempel marketingu. Skutek dla CRM ten sam:
+  -- most liczy zgode tylko przy `consent_marketing_at IS NOT NULL AND
+  -- consent_withdrawn_at IS NULL`, a tego nie ma w zadnym z modeli.
   PERFORM pg_temp.assert(
-    (SELECT p.consent_withdrawn_at = v_withdrawn AND p.consent_marketing_at = v_marketing
+    (SELECT NOT (p.consent_marketing_at IS NOT NULL AND p.consent_withdrawn_at IS NULL)
        FROM public.event_people p WHERE p.id = v_person),
-    '33/zgoda po wycofaniu: bez marketingu wycofanie i stary stempel marketingu zostaja (CRM nie widzi zgody)');
+    '33/zgoda po wycofaniu: bez marketingu most CRM nie widzi zgody marketingowej');
 
-  -- Przeniesienie wycofania wprost: dotyka tylko zgloszenia ze zgoda sprzed
-  -- wycofania (A), zgoda pozniejsza (B) zostaje nietknieta.
+  -- Przeniesienie wycofania: DOI przeniosl je PRZED zdjeciem wycofania osoby
+  -- (`_event_person_consents_confirm`, unia 20261013900700) - tylko na
+  -- zgloszenie ze zgoda sprzed wycofania (A); zgoda pozniejsza (B) nietknieta.
   PERFORM pg_temp.z33_age(v_person);
   -- Wynik funkcji osobno: zmiany funkcji VOLATILE nie sa widoczne dla
   -- podzapytan TEGO SAMEGO wyrazenia (jedna migawka polecenia).
   v := to_jsonb(public._event_partner_consent_carry_withdrawal(
          '11111111-1111-1111-1111-111111111111', v_person));
   PERFORM pg_temp.assert(
-    v = to_jsonb(1)
+    v = to_jsonb(0)
     AND (SELECT r.consent_partner_withdrawn_at IS NOT NULL FROM public.event_registrations r
           WHERE r.id = pg_temp.z33('ewa_a'))
     AND (SELECT r.consent_partner_withdrawn_at IS NULL FROM public.event_registrations r
           WHERE r.id = pg_temp.z33('ewa_b'))
     AND pg_temp.z33_consent('33e00000-0000-0000-0000-0000000000b1', v_person) IS NOT NULL,
-    '33/przeniesienie: wycofanie trafia tylko na zgode sprzed niego (A), zgoda B zostaje');
+    '33/przeniesienie: wycofanie trafilo tylko na zgode sprzed niego (A), zgoda B zostaje');
   PERFORM pg_temp.assert(
     public._event_partner_consent_carry_withdrawal('11111111-1111-1111-1111-111111111111', v_person) = 0,
     '33/przeniesienie: powtorzenie nic nie zmienia');
@@ -525,7 +572,10 @@ $q$, pg_temp.z33('ola_c2')), 'forbidden',
   '33/samoobsluga: sam identyfikator zgloszenia bez klucza i bez konta osoby - odmowa');
 
 -- Zgloszenie z konta: wlasciciel wycofuje po identyfikatorze, inne konto nie.
-SELECT pg_temp.act_as('33a00000-0000-0000-0000-0000000000a2', '11111111-1111-1111-1111-111111111111');
+-- SCALENIE Z MAIN (runda 4): wlascicielem jest konto z POTWIERDZONYM adresem
+-- zgloszenia (D1, `_event_bind_uid_for_email`) - konto a2 z innym adresem nie
+-- przypina sie do kartoteki kamil@ (cialo main 20261013110100 przypinalo).
+SELECT pg_temp.act_as('33a00000-0000-0000-0000-0000000000a3', '11111111-1111-1111-1111-111111111111');
 DO $do$
 DECLARE
   v jsonb;
@@ -608,7 +658,9 @@ INSERT INTO public.event_package_seats
 VALUES ('33600000-0000-0000-0000-0000000000d1', '11111111-1111-1111-1111-111111111111',
         '33e00000-0000-0000-0000-0000000000d1', '33800000-0000-0000-0000-0000000000d1',
         'ewa.33@example.org',
-        encode(extensions.digest('zaproszenie-33-ewa-000000001', 'sha256'), 'hex'));
+        -- SCALENIE Z MAIN (runda 4): token w ksztalcie generatora (32 znaki
+        -- base64url) - przyjecie REG-15 odrzuca inny ksztalt bez liczenia.
+        encode(extensions.digest('zaproszenie-33-ewa-0000000000001', 'sha256'), 'hex'));
 
 SELECT pg_temp.act_as(NULL, NULL);
 
@@ -626,11 +678,16 @@ DECLARE
   v_person uuid := pg_temp.z33('ewa');
   v_withdrawn timestamptz;
 BEGIN
+  -- SCALENIE Z MAIN (runda 4): ewa wyszla z wycofania linkiem DOI (sekcja 3),
+  -- wiec wycofanie wszystkiego zapisujemy jedyna droga REG - rejestrem zgod.
+  PERFORM public._event_person_consents_withdraw(
+    '11111111-1111-1111-1111-111111111111', v_person, ARRAY['marketing', 'partner_sharing'],
+    'manage_token', NULL, NULL, NULL, 'harness/33');
   SELECT p.consent_withdrawn_at INTO v_withdrawn FROM public.event_people p WHERE p.id = v_person;
   PERFORM pg_temp.assert(v_withdrawn IS NOT NULL,
     '33/pakiet: osoba z zaproszenia ma wycofanie zgod przed przyjeciem');
   v := public.event_package_invite_accept(jsonb_build_object(
-    'token', 'zaproszenie-33-ewa-000000001', 'first_name', 'Ewa', 'last_name', 'Zgodna',
+    'token', 'zaproszenie-33-ewa-0000000000001', 'first_name', 'Ewa', 'last_name', 'Zgodna',
     'consent_data_processing', true));
   PERFORM pg_temp.assert(
     (SELECT p.consent_withdrawn_at = v_withdrawn FROM public.event_people p WHERE p.id = v_person),

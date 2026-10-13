@@ -411,7 +411,15 @@ BEGIN
 
   -- (b) P1 wpisuje sobie adres osoby kontaktowej S1 (L5), a most CRM - wolany
   -- przez kazda akcje uczestnika (nabor, odprawa) - przepina go na L5.
-  v_res := pg_temp.msb_profile_set(1, jsonb_build_object('email', 'msb.kontakt@example.org'));
+  -- SCALENIE Z MAIN (PR #504, runda 4): REG-01 (20261012132000, D1) zamyka ten
+  -- wektor WCZESNIEJ - profil przyjmuje tylko POTWIERDZONY adres konta. Stan
+  -- z cudzym adresem (np. wpisany przed REG-01) wstawiamy wprost, zeby bramka
+  -- F6 nadal miala co odrzucic.
+  PERFORM pg_temp.assert_raises_like(
+    $q$SELECT pg_temp.msb_profile_set(1, jsonb_build_object('email', 'msb.kontakt@example.org'))$q$,
+    'email_unverified',
+    '61/F6+REG-01: uczestnik NIE wpisze sobie adresu osoby kontaktowej sponsora (tylko potwierdzony adres konta)');
+  UPDATE public.event_people SET email = 'msb.kontakt@example.org' WHERE id = p1;
   v_lead := public._event_person_crm_sync(t, p1, 'event', 'event:msb-gielda:checkin');
   PERFORM pg_temp.assert(
     v_lead = '61100000-0000-0000-0000-000000000005'

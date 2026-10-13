@@ -20,8 +20,18 @@
 --      z chwili zapisu (REG-16).
 --   F. Granty kolumnowe kolumn main (20261013900600) i naprawa REG-01 po
 --      uzgodnieniach (20261013900900): audyt = 0.
+--   Runda 4 (origin/main @ 6733f8ef, 28 migracji 20261013110000..112700):
+--   G. Skaner (20261013900720/900730): bramka platnosci D11 w 6-arg. ocenie
+--      main, `not_entry_code` R67 w czterech RPC na wyszukaniu main (bilet,
+--      identyfikator, kod zastapiony), lista offline i druk identyfikatorow
+--      z predykatem rozliczenia REG na cialach main.
+--   H. Zgoda partnerska per zgloszenie (20261013900700/900710): stempel
+--      zgloszenia tylko kanalem zweryfikowanym (D5), przeniesienie wycofania
+--      przed DOI, wycofanie z rejestru gasi zgode zgloszenia, samoobsluga
+--      i lista zgloszen z polami obu stron.
+--   I. Zaproszenie z pakietu (20261013900400) i granty (20261013900600).
 BEGIN;
-SELECT plan(24);
+SELECT plan(39);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -372,6 +382,313 @@ SELECT ok(
   AND has_column_privilege('authenticated', 'public.event_registrations', 'status', 'SELECT')
   AND NOT has_table_privilege('authenticated', 'public.event_registrations', 'SELECT'),
   'F3 (REG-06/R45 x INV-14): konto organizatora, ktory zaksiegowal wplate, prywatne jak decided_by; kwota czytelna');
+
+-- ═════════════════════════════════════════════════════════════════════════════
+-- RUNDA 4 (origin/main @ 6733f8ef): G. SKANER (20261013900720/900730),
+-- H. ZGODA PARTNERSKA PER ZGLOSZENIE I WIDOKI (20261013900700/900710),
+-- I. ZAPROSZENIE Z PAKIETU I GRANTY (20261013900400/900600 - poprawione
+-- w miejscu). Wywolania, ktore na ciele jednej ze stron rzucaja (np. ciala
+-- R67 wolaja sygnatury usuniete przez main), ida przez `pg_temp.mm4_try` -
+-- blad jest wtedy wartoscia, a asercja pada zamiast urywac plik.
+-- ═════════════════════════════════════════════════════════════════════════════
+CREATE FUNCTION pg_temp.mm4_try(_sql text) RETURNS jsonb
+LANGUAGE plpgsql AS $$
+DECLARE
+  v jsonb;
+BEGIN
+  EXECUTE _sql INTO v;
+  RETURN v;
+EXCEPTION WHEN OTHERS THEN
+  RETURN jsonb_build_object('error', SQLSTATE || ': ' || SQLERRM);
+END
+$$;
+-- Skaner i samoobsluga woluja RPC jako anon (token urzadzenia / klucz z maila).
+GRANT ALL ON mm_out TO anon;
+
+INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, starts_at, ends_at, status,
+                           registration_mode, registration_flow) VALUES
+  ('9e610000-0000-0000-0000-000000000005', '9e000000-0000-0000-0000-0000000000aa', 'mm-e05',
+   'Zgoda A MM', 'Consent A MM', now() + interval '20 days', NULL, 'published', 'form', 'instant'),
+  ('9e610000-0000-0000-0000-000000000006', '9e000000-0000-0000-0000-0000000000aa', 'mm-e06',
+   'Zgoda B MM', 'Consent B MM', now() + interval '21 days', NULL, 'published', 'form', 'instant'),
+  ('9e610000-0000-0000-0000-000000000007', '9e000000-0000-0000-0000-0000000000aa', 'mm-e07',
+   'Po koncu MM', 'Ended MM', now() - interval '2 days', now() - interval '1 hour', 'published', 'form', 'instant'),
+  ('9e610000-0000-0000-0000-000000000008', '9e000000-0000-0000-0000-0000000000aa', 'mm-e08',
+   'Skaner MM', 'Scanner MM', now() + interval '2 days', NULL, 'published', 'form', 'instant');
+
+INSERT INTO auth.users (id, email, email_confirmed_at) VALUES
+  ('9e000000-0000-0000-0000-0000000000d1', 'mm-h-owner@example.org', now()),
+  ('9e000000-0000-0000-0000-0000000000d2', 'mm-h-keep@example.org', now());
+
+-- ── G. SKANER ────────────────────────────────────────────────────────────────
+-- b1 rozliczone (bilet i identyfikator), b2 przyjete przez system bez wplaty
+-- (stary kod biletu sprzed REG-07), b3 furtka organizatora (unpaid + organizer).
+INSERT INTO public.event_people (id, tenant_id, user_id, email, first_name, last_name) VALUES
+  ('9e630000-0000-0000-0000-0000000000b1', '9e000000-0000-0000-0000-0000000000aa', NULL, 'mm-scan-paid@example.org', 'Sara', 'Rozliczona'),
+  ('9e630000-0000-0000-0000-0000000000b2', '9e000000-0000-0000-0000-0000000000aa', NULL, 'mm-scan-unpaid@example.org', 'Nina', 'Nierozliczona'),
+  ('9e630000-0000-0000-0000-0000000000b3', '9e000000-0000-0000-0000-0000000000aa', NULL, 'mm-scan-org@example.org', 'Olga', 'Furtka');
+INSERT INTO public.event_registrations
+  (id, tenant_id, event_id, person_id, status, registration_mode, payment_status, decided_at, decision_source,
+   qr_token_hash, qr_issued_at, badge_token_hash, badge_issued_at) VALUES
+  ('9e640000-0000-0000-0000-0000000000b1', '9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+   '9e630000-0000-0000-0000-0000000000b1', 'approved', 'form', 'not_required', now(), 'system',
+   encode(extensions.digest('mmScanQrSettled00000000000000001', 'sha256'), 'hex'), now(),
+   encode(extensions.digest('mmScanBadgeSettled00000000000001', 'sha256'), 'hex'), now()),
+  ('9e640000-0000-0000-0000-0000000000b2', '9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+   '9e630000-0000-0000-0000-0000000000b2', 'approved', 'form', 'unpaid', now(), 'system',
+   encode(extensions.digest('mmScanQrUnsettled000000000000001', 'sha256'), 'hex'), now(), NULL, NULL),
+  ('9e640000-0000-0000-0000-0000000000b3', '9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+   '9e630000-0000-0000-0000-0000000000b3', 'approved', 'form', 'unpaid', now(), 'organizer', NULL, NULL, NULL, NULL);
+INSERT INTO public.event_checkpoints (id, tenant_id, event_id, name_pl, name_en, kind, direction_mode,
+                                      access_mode, dedupe_window_seconds, reentry_policy) VALUES
+  ('9e650000-0000-0000-0000-000000000001', '9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+   'Brama MM', 'Gate MM', 'event_entry', 'in_out', 'control', 60, 'deny');
+INSERT INTO public.crm_companies (id, tenant_id, name) VALUES
+  ('9e660000-0000-0000-0000-000000000001', '9e000000-0000-0000-0000-0000000000aa', 'MM Sponsor');
+INSERT INTO public.event_badge_templates (id, tenant_id, event_id, name, is_default) VALUES
+  ('9e690000-0000-0000-0000-000000000001', '9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+   'MM domyslny', true);
+INSERT INTO public.event_sponsors (id, tenant_id, event_id, company_id, snapshot_name) VALUES
+  ('9e670000-0000-0000-0000-000000000001', '9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+   '9e660000-0000-0000-0000-000000000001', 'MM Sponsor');
+INSERT INTO public.event_scanner_devices (id, tenant_id, event_id, checkpoint_id, sponsor_id, label, token_hash,
+                                          token_prefix, scopes, is_active, expires_at, revoked_at, offline_roster) VALUES
+  ('9e680000-0000-0000-0000-000000000001', '9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+   '9e650000-0000-0000-0000-000000000001', NULL, 'MM brama',
+   encode(extensions.digest('tok-mm4-gate-000001', 'sha256'), 'hex'), 'tok-mm4-', ARRAY['checkin', 'badge_print']::text[],
+   true, now() + interval '2 days', NULL, true),
+  ('9e680000-0000-0000-0000-000000000002', '9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+   NULL, '9e670000-0000-0000-0000-000000000001', 'MM stoisko',
+   encode(extensions.digest('tok-mm4-lead-000001', 'sha256'), 'hex'), 'tok-mm4-', ARRAY['lead']::text[],
+   true, now() + interval '2 days', NULL, false);
+
+SELECT ok(
+  public._event_checkin_evaluate('9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+    '9e650000-0000-0000-0000-000000000001', '9e630000-0000-0000-0000-0000000000b2', 'in', now())->>'result'
+    = 'denied_registration_status'
+  AND public._event_checkin_evaluate('9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+    '9e650000-0000-0000-0000-000000000001', '9e630000-0000-0000-0000-0000000000b3', 'in', now())->>'result' = 'granted'
+  AND public._event_checkin_evaluate('9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000008',
+    '9e650000-0000-0000-0000-000000000001', '9e630000-0000-0000-0000-0000000000b1', 'in', now())->>'reentry_policy' = 'deny'
+  AND to_regprocedure('public._event_checkin_evaluate(uuid,uuid,uuid,uuid,text)') IS NULL,
+  'G1 (REG-07/D11 x OPS-08): 6-arg. ocena odprawy - nierozliczony nie wchodzi, furtka organizatora wchodzi, polityka ponownego wejscia main; jedno przeciazenie');
+
+SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+SET LOCAL ROLE anon;
+INSERT INTO mm_out VALUES
+  ('g_rec_nes', pg_temp.mm4_try($$SELECT public.event_checkin_record(jsonb_build_object(
+     'device_token', 'tok-mm4-gate-000001', 'code', 'NES-AB12-CD34', 'client_scan_uid', 'mm4-scan-1'))$$)),
+  ('g_res_nes', pg_temp.mm4_try($$SELECT public.event_checkin_resolve(jsonb_build_object(
+     'device_token', 'tok-mm4-gate-000001', 'code', 'https://mm-a.example/events/mm-e08?ticket=NES-AB12-CD34'))$$)),
+  ('g_lead_nes', pg_temp.mm4_try($$SELECT public.event_lead_scan_record(jsonb_build_object(
+     'device_token', 'tok-mm4-lead-000001', 'code', 'NES-AB12-CD34'))$$)),
+  ('g_print_nes', pg_temp.mm4_try($$SELECT public.event_badge_print_record(jsonb_build_object(
+     'device_token', 'tok-mm4-gate-000001', 'code', 'nes-ab12-cd34'))$$)),
+  ('g_res_badge', pg_temp.mm4_try($$SELECT public.event_checkin_resolve(jsonb_build_object(
+     'device_token', 'tok-mm4-gate-000001', 'code', 'mmScanBadgeSettled00000000000001'))$$)),
+  ('g_rec_badge', pg_temp.mm4_try($$SELECT public.event_checkin_record(jsonb_build_object(
+     'device_token', 'tok-mm4-gate-000001', 'code', 'mmScanBadgeSettled00000000000001',
+     'client_scan_uid', 'mm4-scan-2'))$$)),
+  ('g_lead_badge', pg_temp.mm4_try($$SELECT public.event_lead_scan_record(jsonb_build_object(
+     'device_token', 'tok-mm4-lead-000001', 'code', 'mmScanBadgeSettled00000000000001'))$$)),
+  ('g_print_badge', pg_temp.mm4_try($$SELECT public.event_badge_print_record(jsonb_build_object(
+     'device_token', 'tok-mm4-gate-000001', 'code', 'mmScanBadgeSettled00000000000001'))$$)),
+  ('g_roster', pg_temp.mm4_try($$SELECT public.event_scanner_roster(jsonb_build_object(
+     'device_token', 'tok-mm4-gate-000001'))$$));
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '', true);
+
+SELECT ok(
+  (SELECT v->>'outcome' = 'not_entry_code' FROM mm_out WHERE k = 'g_rec_nes')
+  AND (SELECT v->>'outcome' = 'granted' AND v->>'credential' = 'badge' FROM mm_out WHERE k = 'g_rec_badge'),
+  'G2 (R67 x OPS-04/R0): zapis odprawy - numer z karty not_entry_code, identyfikator (main) rozpoznany i wpuszczony');
+SELECT ok(
+  (SELECT v->>'outcome' = 'not_entry_code' FROM mm_out WHERE k = 'g_res_nes')
+  AND (SELECT v->>'outcome' IS DISTINCT FROM 'unknown_code' AND v ? 'reentry' FROM mm_out WHERE k = 'g_res_badge'),
+  'G3 (R67 x OPS-08): podglad odprawy - adres karty not_entry_code, identyfikator rozpoznany z polami ponownego wejscia');
+SELECT ok(
+  (SELECT v->>'outcome' = 'not_entry_code' FROM mm_out WHERE k = 'g_lead_nes')
+  AND (SELECT v->>'outcome' IS DISTINCT FROM 'unknown_code' AND NOT v ? 'error' FROM mm_out WHERE k = 'g_lead_badge'),
+  'G4 (R67 x OPS-04): lead na stoisku - numer z karty not_entry_code, identyfikator rozpoznany');
+SELECT ok(
+  (SELECT v->>'outcome' = 'not_entry_code' FROM mm_out WHERE k = 'g_print_nes')
+  AND (SELECT v->>'outcome' = 'printed' FROM mm_out WHERE k = 'g_print_badge')
+  AND (SELECT failed_scan_count = 0 AND fail_window_count = 0 FROM public.event_scanner_devices
+        WHERE id = '9e680000-0000-0000-0000-000000000001'),
+  'G5 (R67 x OPS-04): wydruk - numer potwierdzenia not_entry_code bez licznika blokady, identyfikator drukuje');
+SELECT ok(
+  (SELECT bool_or(r->>'r' = '9e640000-0000-0000-0000-0000000000b1' AND r ? 'bh')
+          AND NOT bool_or(r->>'r' = '9e640000-0000-0000-0000-0000000000b2')
+          AND bool_or(r->>'r' = '9e640000-0000-0000-0000-0000000000b1')
+     FROM mm_out, jsonb_array_elements(v->'rows') r WHERE k = 'g_roster')
+  AND (SELECT (v->>'total')::int = 1 FROM mm_out WHERE k = 'g_roster'),
+  'G6 (R45/D11 x OPS-05): lista offline - rozliczony ze skrotem identyfikatora (bh), nierozliczony spoza furtki poza lista, total liczy to samo');
+
+-- `request.jwt.claim.sub` wyczyszczony w sekcji D wygrywa w atrapie auth.uid()
+-- z `request.jwt.claims` - ustawiamy oba.
+SELECT set_config('request.jwt.claims', '{"sub":"9e000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+SELECT set_config('request.jwt.claim.sub', '9e000000-0000-0000-0000-0000000000a1', true);
+SET LOCAL ROLE authenticated;
+INSERT INTO mm_out VALUES
+  ('g_batch', pg_temp.mm4_try($$SELECT public.admin_event_badge_batch(jsonb_build_object(
+     'event_id', '9e610000-0000-0000-0000-000000000008',
+     'person_ids', jsonb_build_array('9e630000-0000-0000-0000-0000000000b1', '9e630000-0000-0000-0000-0000000000b2')))$$));
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '', true);
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT ok(
+  (SELECT bool_and(CASE b->>'person_id'
+                     WHEN '9e630000-0000-0000-0000-0000000000b1' THEN b->>'qr_code' IS NOT NULL AND b->>'credential' = 'badge'
+                     ELSE b->'qr_code' = 'null'::jsonb
+                   END)
+     FROM mm_out, jsonb_array_elements(v->'badges') b WHERE k = 'g_batch')
+  AND (SELECT qr_token_hash = encode(extensions.digest('mmScanQrSettled00000000000000001', 'sha256'), 'hex')
+              AND badge_token_hash <> encode(extensions.digest('mmScanBadgeSettled00000000000001', 'sha256'), 'hex')
+         FROM public.event_registrations WHERE id = '9e640000-0000-0000-0000-0000000000b1'),
+  'G7 (R45/D11 x OPS-04): druk identyfikatorow - kod tylko rozliczonemu, rotuje identyfikator, bilet z e-maila zostaje');
+
+-- ── H. ZGODA PARTNERSKA PER ZGLOSZENIE ───────────────────────────────────────
+-- H1: wrapper zgodnosci (najemca z hosta, bez konta) - niezweryfikowane
+-- zaznaczenie NIE daje stempla zgloszenia, tylko link DOI (D5).
+SELECT set_config('request.headers', '{"x-tenant-host":"mm-a.example"}', true);
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+INSERT INTO mm_out VALUES
+  ('h1', pg_temp.mm4_try($$SELECT public.event_register(jsonb_build_object(
+     'event_slug', 'mm-e05', 'email', 'mm-h-anon@example.org', 'first_name', 'Hania', 'last_name', 'Anonim',
+     'consent_data_processing', true, 'consent_partner_sharing', true, 'lang', 'pl'))$$));
+SELECT set_config('request.jwt.claims', '', true);
+SELECT ok(
+  (SELECT r.consent_partner_sharing_at IS NULL
+     FROM public.event_registrations r JOIN public.event_people p ON p.id = r.person_id
+    WHERE p.tenant_id = '9e000000-0000-0000-0000-0000000000aa' AND p.email_norm = 'mm-h-anon@example.org'
+      AND r.event_id = '9e610000-0000-0000-0000-000000000005')
+  AND EXISTS (SELECT 1 FROM public.event_consent_confirmations c JOIN public.event_people p ON p.id = c.person_id
+               WHERE p.email_norm = 'mm-h-anon@example.org' AND 'partner_sharing' = ANY (c.purposes)
+                 AND c.confirmed_at IS NULL),
+  'H1 (D5 x OPS-01): zapis bez weryfikacji z zaznaczona zgoda partnerska - brak stempla zgloszenia, czeka link DOI');
+
+-- H2: zweryfikowany wlasciciel (potwierdzony adres = adres zgloszenia).
+INSERT INTO mm_out VALUES
+  ('h2', public.event_register_for_client('9e000000-0000-0000-0000-0000000000aa',
+     '9e000000-0000-0000-0000-0000000000d1', 'ip:' || repeat('d1', 16), 'pgtap/mm4',
+     jsonb_build_object('event_slug', 'mm-e05', 'email', 'mm-h-owner@example.org', 'first_name', 'Olek',
+                        'last_name', 'Wlasciciel', 'consent_data_processing', true,
+                        'consent_partner_sharing', true, 'lang', 'pl')));
+SELECT ok(
+  public._event_partner_consent_at('9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000005',
+    (SELECT (v#>>'{client,person_id}')::uuid FROM mm_out WHERE k = 'h2')) = now()
+  AND public._event_partner_consent_at('9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000006',
+    (SELECT (v#>>'{client,person_id}')::uuid FROM mm_out WHERE k = 'h2')) IS NULL,
+  'H2 (OPS-01 x D5): zgoda kanalem zweryfikowanym stempluje ZGLOSZENIE - skuteczna przy tym wydarzeniu, nie przy innym');
+
+-- H3: osoba po globalnym wycofaniu (stan main: wycofanie tylko na osobie,
+-- stara zgoda zgloszenia A sprzed niego) zaznacza zgode przy B i klika link.
+INSERT INTO public.event_people (id, tenant_id, user_id, email, first_name, last_name,
+                                 consent_partner_sharing_at, consent_withdrawn_at) VALUES
+  ('9e630000-0000-0000-0000-0000000000d3', '9e000000-0000-0000-0000-0000000000aa', NULL,
+   'mm-h-doi@example.org', 'Dora', 'Doi', now() - interval '2 hours', now() - interval '1 hour');
+INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, status, registration_mode,
+                                       payment_status, consent_partner_sharing_at, created_at) VALUES
+  ('9e640000-0000-0000-0000-0000000000d3', '9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000005',
+   '9e630000-0000-0000-0000-0000000000d3', 'approved', 'form', 'not_required', now() - interval '2 hours',
+   now() - interval '2 hours');
+INSERT INTO mm_out VALUES
+  ('h3', public.event_register_for_client('9e000000-0000-0000-0000-0000000000aa', NULL, 'ip:' || repeat('d3', 16),
+     'pgtap/mm4', jsonb_build_object('event_slug', 'mm-e06', 'email', 'mm-h-doi@example.org', 'first_name', 'Dora',
+                                     'last_name', 'Doi', 'consent_data_processing', true,
+                                     'consent_partner_sharing', true, 'lang', 'pl')));
+INSERT INTO mm_out VALUES
+  ('h3c', public.event_consent_confirm_for_request('9e000000-0000-0000-0000-0000000000aa', NULL,
+     'ip:' || repeat('d3', 16), 'pgtap/mm4', (SELECT v#>>'{delivery,consent_confirmation,token}' FROM mm_out WHERE k = 'h3')));
+SELECT ok(
+  (SELECT v->>'state' = 'confirmed' FROM mm_out WHERE k = 'h3c')
+  AND public._event_partner_consent_at('9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000006',
+        '9e630000-0000-0000-0000-0000000000d3') IS NOT NULL
+  AND public._event_partner_consent_at('9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000005',
+        '9e630000-0000-0000-0000-0000000000d3') IS NULL
+  AND (SELECT consent_partner_withdrawn_at = now() - interval '1 hour' FROM public.event_registrations
+        WHERE id = '9e640000-0000-0000-0000-0000000000d3'),
+  'H3 (OPS-01 x D5): link DOI po wycofaniu - zgoda przy B skuteczna, wycofanie przeniesione na A (stara zgoda nie wraca)');
+
+-- H4: wycofanie celu partner_sharing z rejestru przy zachowanym marketingu.
+INSERT INTO mm_out VALUES
+  ('h4', public.event_register_for_client('9e000000-0000-0000-0000-0000000000aa',
+     '9e000000-0000-0000-0000-0000000000d2', 'ip:' || repeat('d2', 16), 'pgtap/mm4',
+     jsonb_build_object('event_slug', 'mm-e05', 'email', 'mm-h-keep@example.org', 'first_name', 'Kasia',
+                        'last_name', 'Marketing', 'consent_data_processing', true,
+                        'consent_partner_sharing', true, 'consent_marketing', true, 'lang', 'pl')));
+UPDATE public.event_registrations SET consent_partner_sharing_at = now() - interval '1 hour'
+ WHERE id = (SELECT (v#>>'{client,registration_id}')::uuid FROM mm_out WHERE k = 'h4');
+INSERT INTO mm_out VALUES
+  ('h4w', to_jsonb(public._event_person_consents_withdraw('9e000000-0000-0000-0000-0000000000aa',
+     (SELECT (v#>>'{client,person_id}')::uuid FROM mm_out WHERE k = 'h4'), ARRAY['partner_sharing'],
+     'manage_token', NULL, NULL, NULL, 'pgtap/mm4')));
+SELECT ok(
+  public._event_partner_consent_at('9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000005',
+    (SELECT (v#>>'{client,person_id}')::uuid FROM mm_out WHERE k = 'h4')) IS NULL
+  AND (SELECT r.consent_partner_withdrawn_at = now() AND r.consent_partner_sharing_at = now() - interval '1 hour'
+         FROM public.event_registrations r
+        WHERE r.id = (SELECT (v#>>'{client,registration_id}')::uuid FROM mm_out WHERE k = 'h4'))
+  AND (SELECT p.consent_withdrawn_at IS NULL AND p.consent_marketing_at IS NOT NULL FROM public.event_people p
+        WHERE p.id = (SELECT (v#>>'{client,person_id}')::uuid FROM mm_out WHERE k = 'h4')),
+  'H4 (REG-14 x OPS-01): wycofanie partnerow z rejestru gasi zgode zgloszenia (stempel nadania zostaje), marketing nietkniety');
+
+-- H5: strona samoobslugi - klucz REG-17 i flaga zgody main.
+INSERT INTO public.event_people (id, tenant_id, user_id, email, first_name, last_name) VALUES
+  ('9e630000-0000-0000-0000-0000000000e7', '9e000000-0000-0000-0000-0000000000aa', NULL, 'mm-h-ended@example.org', 'Ela', 'Po Koncu');
+INSERT INTO public.event_registrations (id, tenant_id, event_id, person_id, status, registration_mode,
+                                       payment_status, manage_token_hash) VALUES
+  ('9e640000-0000-0000-0000-0000000000e7', '9e000000-0000-0000-0000-0000000000aa', '9e610000-0000-0000-0000-000000000007',
+   '9e630000-0000-0000-0000-0000000000e7', 'approved', 'form', 'not_required',
+   encode(extensions.digest(rpad('mm4-ended', 32, 'x'), 'sha256'), 'hex'));
+SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
+SET LOCAL ROLE anon;
+INSERT INTO mm_out VALUES
+  ('h5', public.event_registration_manage_view(jsonb_build_object(
+     'manage_token', (SELECT v#>>'{client,manage_token}' FROM mm_out WHERE k = 'h2')))),
+  ('h5e', public.event_registration_manage_view(jsonb_build_object('manage_token', rpad('mm4-ended', 32, 'x'))));
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '', true);
+SELECT ok(
+  (SELECT v->>'partner_consent' = 'true' AND v->>'price_source' = 'current' FROM mm_out WHERE k = 'h5')
+  AND (SELECT v = '{"ok": false, "reason": "expired"}'::jsonb FROM mm_out WHERE k = 'h5e'),
+  'H5 (REG-17 x OPS-01): samoobsluga - flaga zgody partnerskiej (main) i wygasly klucz po koncu wydarzenia (REG)');
+
+-- H6: lista zgloszen panelu - zgoda zgloszenia (main) i powod dla uczestnika (REG).
+SELECT set_config('request.jwt.claims', '{"sub":"9e000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
+SELECT set_config('request.jwt.claim.sub', '9e000000-0000-0000-0000-0000000000a1', true);
+SET LOCAL ROLE authenticated;
+INSERT INTO mm_out VALUES
+  ('h6', pg_temp.mm4_try(format($$SELECT jsonb_build_object(
+       'withdrawn', r.consent_partner_withdrawn_at IS NOT NULL,
+       'granted', r.consent_partner_sharing_at IS NOT NULL,
+       'reason_null', r.participant_reason IS NULL)
+     FROM public.admin_event_registrations_list('9e610000-0000-0000-0000-000000000005') r
+    WHERE r.id = %L$$, (SELECT v#>>'{client,registration_id}' FROM mm_out WHERE k = 'h4'))));
+RESET ROLE;
+SELECT set_config('request.jwt.claims', '', true);
+SELECT set_config('request.jwt.claim.sub', '', true);
+SELECT set_config('request.headers', '', true);
+SELECT is(
+  (SELECT v FROM mm_out WHERE k = 'h6'),
+  '{"granted": true, "withdrawn": true, "reason_null": true}'::jsonb,
+  'H6 (OPS-01 x REG-06): lista zgloszen - nadanie i wycofanie zgody ZGLOSZENIA oraz kolumna participant_reason');
+
+-- ── I. ZAPROSZENIE Z PAKIETU I GRANTY ────────────────────────────────────────
+SELECT ok(
+  pg_get_functiondef('public.event_package_invite_accept(jsonb)'::regprocedure) LIKE '%person_conflict%'
+  AND pg_get_functiondef('public.event_package_invite_accept(jsonb)'::regprocedure) LIKE '%invite_email = NULL%'
+  AND pg_get_functiondef('public.event_package_invite_accept(jsonb)'::regprocedure) LIKE '%_event_bind_uid_for_email(v_tenant, v_uid, v_seat.invite_email)%'
+  AND pg_get_functiondef('public.event_package_invite_accept(jsonb)'::regprocedure) NOT LIKE '%email_confirmed_at%',
+  'I1 (F14/111800 x REG-01/D1): przyjecie zaproszenia - person_conflict i zerowanie pary (main), konto tylko przez _event_bind_uid_for_email (REG)');
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.event_registrations', 'badge_token_hash', 'SELECT')
+  AND has_column_privilege('authenticated', 'public.event_registrations', 'badge_issued_at', 'SELECT')
+  AND has_column_privilege('authenticated', 'public.event_registrations', 'consent_partner_withdrawn_at', 'SELECT')
+  AND NOT has_function_privilege('anon', 'public.event_register(jsonb)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.event_register(jsonb)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public.event_register(jsonb)', 'EXECUTE'),
+  'I2 (REG-06/D2 x OPS-04/OPS-01): skrot identyfikatora prywatny jak qr_token_hash, stemple zgody czytelne; event_register tylko serwer');
 
 SELECT set_config('request.jwt.claims', '', true);
 SELECT * FROM finish();

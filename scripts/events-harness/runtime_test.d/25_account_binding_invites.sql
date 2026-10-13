@@ -23,8 +23,9 @@
 --      odrzucony.
 --   4. Zaproszenie: pudlo tokenu jako wartosc z licznikiem, ktory zostaje;
 --      regulamin i pola obowiazkowe; pierwsze udane przyjecie (zrodlo
---      `package_invitation` po scaleniu z main, para adres + skrot tokenu zachowana, akceptacja
---      regulaminu z wersja); ponowne uzycie -> `seat_taken`; cudza kartoteka
+--      `package_invitation` po scaleniu z main, para adres + skrot tokenu
+--      wyzerowana razem - main 20261013111800, akceptacja regulaminu
+--      z wersja); ponowne uzycie zuzytego linku -> `invalid_token`; cudza kartoteka
 --      nietknieta, a konto niezaproszonego nie wiaze sie.
 --
 -- CZEGO NIE SPRAWDZA: pelnego ACL, synchronizacji z kontem (atrapa
@@ -260,10 +261,14 @@ SELECT pg_temp.act_as('c5b00000-0000-0000-0000-000000000007', 'c5b2c5b2-c5b2-c5b
 SET ROLE authenticated;
 INSERT INTO bind25 VALUES
   ('acc_d', public.event_package_invite_accept(pg_temp.bind25_p('del', true, '{"sektor":"energia"}'::jsonb)));
-SELECT pg_temp.assert_raises_like(
-  $q$SELECT public.event_package_invite_accept(pg_temp.bind25_p('del', true, '{"sektor":"energia"}'::jsonb))$q$,
-  'seat_taken',
-  '25/zaproszenie: ponowne uzycie linku -> seat_taken');
+-- SCALENIE Z MAIN (PR #504, runda 4): main 20261013111800 zeruje przy
+-- zuzyciu OBA pola pary (minimalizacja danych); REG 20261012132200 zostawial
+-- skrot, zeby ponowienie dawalo `seat_taken`. Unia 20261013900400 = regula
+-- main: zuzyty link to nieznany token (wartosc, nie wyjatek).
+SELECT pg_temp.assert(
+  public.event_package_invite_accept(pg_temp.bind25_p('del', true, '{"sektor":"energia"}'::jsonb))
+    ->> 'error' = 'invalid_token',
+  '25/zaproszenie: ponowne uzycie zuzytego linku -> invalid_token (wartosc)');
 -- W (wlasna kartoteka) przyjmuje miejsce zaproszone na other@.
 SELECT pg_temp.act_as('c5b00000-0000-0000-0000-000000000008', 'c5b2c5b2-c5b2-c5b2-c5b2-c5b2c5b2c5b2');
 INSERT INTO bind25 VALUES
@@ -289,9 +294,10 @@ SELECT pg_temp.assert(
      FROM public.event_registrations r
     WHERE r.id = (SELECT (v->>'registration_id')::uuid FROM bind25 WHERE k = 'acc_d'))
   AND (SELECT s.registration_id = (SELECT (v->>'registration_id')::uuid FROM bind25 WHERE k = 'acc_d')
-          AND s.invite_email = 'del.bind@example.org' AND s.invite_token_hash IS NOT NULL
+          AND s.invite_email IS NULL AND s.invite_token_hash IS NULL
      FROM public.event_package_seats s WHERE s.id = 'c5b90000-0000-0000-0000-000000000001'),
-  '25/zaproszenie: zgloszenie z zaproszenia (package_invitation, form, odpowiedzi), miejsce zachowuje adres i skrot tokenu');
+  -- SCALENIE Z MAIN (PR #504, runda 4): para zerowana razem (main 20261013111800).
+  '25/zaproszenie: zgloszenie z zaproszenia (package_invitation, form, odpowiedzi), adres i skrot tokenu miejsca wyzerowane');
 SELECT pg_temp.assert(
   EXISTS (SELECT 1 FROM public.event_term_acceptances a
            WHERE a.term_id = 'c5b40000-0000-0000-0000-000000000001'
