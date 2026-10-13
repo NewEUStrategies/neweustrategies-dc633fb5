@@ -97,7 +97,9 @@ describe("odczyt dziennika", () => {
 
   it("mówi, kto zamknął zgłoszenie i dlaczego zwrot czeka na decyzję", async () => {
     open();
-    expect(await screen.findByText(`${base}.reasons.shared_payment.hint(days=7)`)).toBeInTheDocument();
+    expect(
+      await screen.findByText(`${base}.reasons.shared_payment.hint(days=7)`),
+    ).toBeInTheDocument();
     expect(screen.getByText(`${base}.reasons.shared_payment.label`)).toBeInTheDocument();
     expect(
       screen.getByText(`${base}.states.needs_review · ${base}.origin.participant_cancelled`),
@@ -140,12 +142,7 @@ describe("odczyt dziennika", () => {
 
   it("keeps a generic hint for a legacy review row without a reason", async () => {
     // Starsze RPC (bez kluczy powodu, pochodzenia i alarmu) nie może wywrócić panelu.
-    const {
-      review_reason: _reason,
-      escalated_at: _escalated,
-      origin: _origin,
-      ...legacy
-    } = row;
+    const { review_reason: _reason, escalated_at: _escalated, origin: _origin, ...legacy } = row;
     h.rpc?.setData("admin_event_refund_jobs", [legacy]);
     open();
     expect(await screen.findByText(`${base}.reviewHint`)).toBeInTheDocument();
@@ -245,11 +242,7 @@ describe("wejście z alarmu dla administratorów", () => {
   });
 
   it("ignores a malformed refund_job parameter", () => {
-    window.history.replaceState(
-      null,
-      "",
-      "/admin/events/event-1/registration/list?refund_job=x'y",
-    );
+    window.history.replaceState(null, "", "/admin/events/event-1/registration/list?refund_job=x'y");
     renderWithQueryClient(<RegistrationRefundJournal eventId="event-1" />);
     expect(screen.getByRole("button", { name: `${base}.title` })).toHaveAttribute(
       "aria-expanded",
