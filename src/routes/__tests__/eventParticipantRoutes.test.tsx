@@ -1,7 +1,7 @@
 // PIĘĆ TRAS POWIERZCHNI UCZESTNIKA - sklejenie adresu z ekranem.
 //
 //   `/events/<slug>/me`            - prywatny panel „Moje” na wydarzeniu,
-//   `/events/<slug>/manage?token=` - samoobsługa zgłoszenia Z KLUCZEM w adresie,
+//   `/events/<slug>/manage#token=` - samoobsługa zgłoszenia Z KLUCZEM we fragmencie,
 //   `/events/invite/<token>`       - przyjęcie miejsca z pakietu, KLUCZ w ścieżce,
 //   `/events/<slug>/participants`  - publiczna zakładka katalogu uczestników,
 //   `/profile/events`              - historia wydarzeń w globalnym profilu.
@@ -25,9 +25,14 @@
 //     publicznego RPC wołanego z przeglądarki.
 //
 //  3. LITERÓWKA W ADRESIE ZUŻYWA PRÓBĘ W BAZIE. Kształt klucza sprawdza
-//     `validateSearch` (manage) i `readPackageInviteToken` (zaproszenie), więc
-//     adres z błędem dochodzi do ekranu jako BRAK KLUCZA, a nie jako klucz,
-//     który zaraz wywoła odmowę.
+//     trasa (manage: fragment i stare zapytanie) i `readPackageInviteToken`
+//     (zaproszenie), więc adres z błędem dochodzi do ekranu jako BRAK KLUCZA,
+//     a nie jako klucz, który zaraz wywoła odmowę.
+//
+//  3a. KLUCZ W ZAPYTANIU TRAFIA DO LOGÓW (REG-17). Samoobsługa czyta klucz
+//     z FRAGMENTU (`#token=`), stary odnośnik `?token=` przepisuje na fragment
+//     (`navigate` z `replace` - zapytanie znika z adresu i historii), a po
+//     powrocie z kasy bierze klucz odłożony w `sessionStorage`.
 //
 //  4. PRYWATNY PANEL UCZESTNIKA TRAFIA DO INDEKSU. `/events/<slug>/me` to
 //     jedyna zakładka powłoki, która nie jest stroną CMS-a organizatora - i
@@ -148,6 +153,9 @@ vi.mock("@/components/error/FriendlyErrorPage", () => ({
 }));
 
 const { renderRoute, routeMeta, routeSearchValidator } = await import("@/test/routeHarness");
+const { stashManageTokenForReturn, takeStashedManageToken } = await import(
+  "@/lib/events/manageToken"
+);
 
 const { Route: MeRoute } = await import("@/routes/events.$slug.me");
 const { Route: ManageRoute } = await import("@/routes/events.$slug_.manage");
@@ -189,6 +197,7 @@ function ssrTrasy(route: { options: { ssr?: unknown } }): unknown {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  window.sessionStorage.clear();
   h.panelMoje.length = 0;
   h.zakladkaMoje.length = 0;
   h.zmienZakladke = null;
@@ -418,14 +427,48 @@ describe("Montowanie tras - co ekran dostaje z adresu", () => {
     }
   });
 
-  it("samoobsługa zgłoszenia dostaje slug ORAZ klucz z adresu", async () => {
-    await renderRoute({
+  it("samoobsługa zgłoszenia dostaje slug ORAZ klucz z FRAGMENTU adresu", async () => {
+    const { hash, searchStr } = await renderRoute({
+      route: ManageRoute,
+      path: "/events/$slug/manage",
+      initialEntry: `/events/${SLUG}/manage#token=${MANAGE_TOKEN}`,
+    });
+
+    await waitFor(() => expect(screen.getByTestId("panel-zgloszenia")).toBeTruthy());
+    expect(h.panelZgloszenia.at(-1)).toEqual({ slug: SLUG, token: MANAGE_TOKEN });
+    // Fragment zostaje w pasku adresu (zakładka), zapytania nie ma.
+    expect(hash()).toBe(`token=${MANAGE_TOKEN}`);
+    expect(searchStr()).toBe("");
+  });
+
+  it("REG-17: STARY odnośnik `?token=` działa, ale adres jest przepisany na fragment", async () => {
+    // Maile wysłane przed zmianą niosą klucz w zapytaniu. Klucz musi działać
+    // (do końca wydarzenia), ale zapytanie ma zniknąć z adresu - `replace`,
+    // więc nie zostaje też w historii przeglądarki ani w zakładce.
+    const { hash, search, searchStr } = await renderRoute({
       route: ManageRoute,
       path: "/events/$slug/manage",
       initialEntry: `/events/${SLUG}/manage?token=${MANAGE_TOKEN}`,
     });
 
-    await waitFor(() => expect(screen.getByTestId("panel-zgloszenia")).toBeTruthy());
+    await waitFor(() => expect(hash()).toBe(`token=${MANAGE_TOKEN}`));
+    expect(searchStr()).toBe("");
+    expect(search()).toEqual({});
+    expect(h.panelZgloszenia.at(-1)).toEqual({ slug: SLUG, token: MANAGE_TOKEN });
+    // Panel nigdy nie dostał innego klucza niż ten z adresu.
+    expect(new Set(h.panelZgloszenia.map((wpis) => wpis.token))).toEqual(new Set([MANAGE_TOKEN]));
+  });
+
+  it("REG-17: zapytanie i fragment naraz - wygrywa fragment, zapytanie znika", async () => {
+    const STARY = "Zz9z_Xx8-Yy7wVv6uUt5sSr4qQp3oOn2";
+    const { hash, searchStr } = await renderRoute({
+      route: ManageRoute,
+      path: "/events/$slug/manage",
+      initialEntry: `/events/${SLUG}/manage?token=${STARY}#token=${MANAGE_TOKEN}`,
+    });
+
+    await waitFor(() => expect(searchStr()).toBe(""));
+    expect(hash()).toBe(`token=${MANAGE_TOKEN}`);
     expect(h.panelZgloszenia.at(-1)).toEqual({ slug: SLUG, token: MANAGE_TOKEN });
   });
 
@@ -440,47 +483,62 @@ describe("Montowanie tras - co ekran dostaje z adresu", () => {
     expect(h.panelZgloszenia.at(-1)).toEqual({ slug: SLUG, token: null });
   });
 
-  it("STAN FAKTYCZNY: literówka w kluczu DOJEŻDŻA do panelu mimo walidatora", async () => {
-    // Router SKLEJA wynik `validateSearch` z parametrami, które przepuścił
-    // rodzic. Ani korzeń (`__root.tsx`), ani układ `/events` nie mają własnego
-    // `validateSearch`, więc surowe `token=ABC` przeżywa, a `{}` zwrócone przez
-    // trasę niczego nie kasuje. Ten przypadek utrwala TO, CO JEST - żeby zmiana
-    // zachowania (naprawa albo regres) była widoczna, a nie cicha.
-    const { search } = await renderRoute({
+  it("fragment z kluczem o złym kształcie daje panelowi `null` (pole „wklej klucz”)", async () => {
+    await renderRoute({
+      route: ManageRoute,
+      path: "/events/$slug/manage",
+      initialEntry: `/events/${SLUG}/manage#token=ABC`,
+    });
+
+    await waitFor(() => expect(screen.getByTestId("panel-zgloszenia")).toBeTruthy());
+    expect(h.panelZgloszenia.at(-1)).toEqual({ slug: SLUG, token: null });
+  });
+
+  it("literówka w STARYM zapytaniu nie dojeżdża do panelu i znika z adresu", async () => {
+    // Dawniej router sklejał wynik `validateSearch` z surowymi parametrami, więc
+    // `token=ABC` przeżywał walidator i panel pytał bazę o literówkę (zużywając
+    // próbę limitu). Trasa sprawdza kształt jeszcze raz i czyści zapytanie.
+    const { searchStr } = await renderRoute({
       route: ManageRoute,
       path: "/events/$slug/manage",
       initialEntry: `/events/${SLUG}/manage?token=ABC`,
     });
 
+    await waitFor(() => expect(searchStr()).toBe(""));
     await waitFor(() => expect(screen.getByTestId("panel-zgloszenia")).toBeTruthy());
-    expect(search()).toEqual({ token: "ABC" });
-    expect(h.panelZgloszenia.at(-1)?.token).toBe("ABC");
+    expect(h.panelZgloszenia.every((wpis) => wpis.token === null)).toBe(true);
   });
 
-  it.fails(
-    "DEFEKT: klucz o złym kształcie z adresu i tak dojeżdża do panelu - zużyje próbę limitu w bazie",
-    async () => {
-      // Nagłówek trasy mówi wprost: „adres z literówką ma dojechać do strony
-      // jako brak klucza, a nie jako klucz, który zaraz wywoła odmowę z bazy”.
-      // `validateSearch` jako funkcja rzeczywiście oddaje `{}` (dowód wyżej),
-      // ale router MERGUJE go z parametrami rodzica - a żaden przodek tej trasy
-      // nie waliduje własnego adresu, więc surowe `token=ABC` przeżywa.
-      // `RegistrationManagePanel` bierze je jako `activeToken` i WŁĄCZA
-      // zapytanie (`enabled: activeToken !== null`), czyli robi dokładnie to,
-      // czego trasa miała zabronić: pyta bazę o literówkę i zużywa próbę
-      // limitu na kluczu, który nie ma prawa istnieć.
-      await renderRoute({
-        route: ManageRoute,
-        path: "/events/$slug/manage",
-        initialEntry: `/events/${SLUG}/manage?token=ABC`,
-      });
+  it("REG-17: powrót z kasy (adres BEZ klucza) bierze klucz odłożony w `sessionStorage`", async () => {
+    stashManageTokenForReturn(SLUG, MANAGE_TOKEN);
+    const { hash } = await renderRoute({
+      route: ManageRoute,
+      path: "/events/$slug/manage",
+      initialEntry: `/events/${SLUG}/manage`,
+    });
 
-      await waitFor(() => expect(screen.getByTestId("panel-zgloszenia")).toBeTruthy());
+    // Klucz wraca do fragmentu - zakładka po płatności dalej działa.
+    await waitFor(() => expect(hash()).toBe(`token=${MANAGE_TOKEN}`));
+    await waitFor(() =>
+      expect(h.panelZgloszenia.at(-1)).toEqual({ slug: SLUG, token: MANAGE_TOKEN }),
+    );
+    // Zanim trasa sprawdziła przechowalnię, panel nie mignął polem „wklej klucz”.
+    expect(h.panelZgloszenia.some((wpis) => wpis.token === null)).toBe(false);
+    // Przechowalnia jest jednorazowa.
+    expect(takeStashedManageToken(SLUG)).toBeNull();
+  });
 
-      // ASERCJA DOCELOWA: do panelu ma dojechać BRAK klucza, nie literówka.
-      expect(h.panelZgloszenia.at(-1)?.token).toBeNull();
-    },
-  );
+  it("REG-17: klucz odłożony dla INNEGO wydarzenia nie trafia do panelu", async () => {
+    stashManageTokenForReturn("inne-wydarzenie", MANAGE_TOKEN);
+    await renderRoute({
+      route: ManageRoute,
+      path: "/events/$slug/manage",
+      initialEntry: `/events/${SLUG}/manage`,
+    });
+
+    await waitFor(() => expect(screen.getByTestId("panel-zgloszenia")).toBeTruthy());
+    expect(h.panelZgloszenia.at(-1)).toEqual({ slug: SLUG, token: null });
+  });
 
   it("zaproszenie dostaje token ze ŚCIEŻKI, a nie z zapytania", async () => {
     await renderRoute({
@@ -534,7 +592,7 @@ describe("Trasy uczestnika - dostępność", () => {
     const { container } = await renderRoute({
       route: ManageRoute,
       path: "/events/$slug/manage",
-      initialEntry: `/events/${SLUG}/manage?token=${MANAGE_TOKEN}`,
+      initialEntry: `/events/${SLUG}/manage#token=${MANAGE_TOKEN}`,
     });
 
     await waitFor(() => expect(screen.getByTestId("panel-zgloszenia")).toBeTruthy());

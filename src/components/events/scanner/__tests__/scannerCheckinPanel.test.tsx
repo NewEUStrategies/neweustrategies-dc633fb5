@@ -231,6 +231,29 @@ describe("ScannerCheckinPanel", () => {
     );
   });
 
+  it("REG-12: numer potwierdzenia z karty - zdanie dla operatora, bez toastu blokady", async () => {
+    // Bramka urzadzenia (`assertScannableCode` w `submitCheckin`) odmawia
+    // `not_entry_code` przed siecia; panel ma powiedziec operatorowi, co to
+    // za kod i co zrobic, a nie straszyc blokada urzadzenia.
+    const { toast } = await import("sonner");
+    const { ensureI18n } = await import("@/lib/i18n-event-scanner");
+    const i18n = (await import("@/lib/i18n")).default;
+    ensureI18n();
+    const runtime = runtimeStub({
+      submitCheckin: vi
+        .fn()
+        .mockRejectedValue(
+          new Error("not_entry_code: booking reference or link, not a ticket code"),
+        ),
+    });
+    render(<ScannerCheckinPanel runtime={runtime} session={SESSION} />);
+    scan("NES-1A2B-3C4D");
+    const sentence = i18n.t("eventScanner.errors.notEntryCode");
+    expect(sentence).not.toBe("eventScanner.errors.notEntryCode");
+    expect(await screen.findByText(sentence)).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("przypiety punkt NIE daje wyboru - baza i tak odmowilaby zmiany", () => {
     const pinned: ScannerSession = { ...SESSION, pinnedCheckpointId: "c2" };
     render(<ScannerCheckinPanel runtime={runtimeStub({ session: pinned })} session={pinned} />);

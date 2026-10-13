@@ -522,6 +522,59 @@ describe("loadMyEventTicket", () => {
     return stub;
   }
 
+  // REG-12: karta mówi, GDZIE jest prawdziwy kod wejścia - z własnego
+  // zgłoszenia (RLS `event_registrations_self_read`), nie z numeru
+  // potwierdzenia, którego skaner nie zna.
+  describe("tryb wejścia (`entry`) z własnego zgłoszenia", () => {
+    function withRegistration(row: Record<string, unknown> | null): SupabaseClientStub {
+      const stub = ticketScenario({});
+      stub.db.setResponse("event_registrations", ok(row));
+      return stub;
+    }
+
+    const PAID = {
+      status: "approved",
+      payment_status: "paid",
+      ticket_code_sent_at: null,
+      ticket_code_undeliverable_at: null,
+    };
+
+    it.each([
+      ["brak zgłoszenia (RSVP sprzed formularza)", null, "guest_list"],
+      ["zgłoszenie nieopłacone", { ...PAID, payment_status: "unpaid" }, "guest_list"],
+      ["zgłoszenie po zwrocie", { ...PAID, payment_status: "refunded" }, "guest_list"],
+      ["kod wysłany mailem", { ...PAID, ticket_code_sent_at: "2026-09-01T10:00:00Z" }, "emailed_qr"],
+      [
+        "mail z kodem niedoręczony",
+        { ...PAID, ticket_code_undeliverable_at: "2026-09-01T10:00:00Z" },
+        "contact_organizer",
+      ],
+      ["rozliczone, kod jeszcze nie wyszedł", PAID, "qr_pending"],
+      ["bezpłatne (not_required), kod wyszedł", {
+        ...PAID,
+        payment_status: "not_required",
+        ticket_code_sent_at: "2026-09-01T10:00:00Z",
+      }, "emailed_qr"],
+    ] as const)("%s -> %s", async (_label, row, entry) => {
+      const stub = withRegistration(row);
+      const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+      expect(ticket?.entry).toBe(entry);
+    });
+
+    it("zgłoszenie czyta TO wydarzenie, tylko stany z prawem wejścia, najnowsze", async () => {
+      const stub = withRegistration(PAID);
+      await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+      const chain = stub.db.lastChain("event_registrations");
+      expect(chain?.argsOf("select")?.[0]).toBe(
+        "status, payment_status, ticket_code_sent_at, ticket_code_undeliverable_at",
+      );
+      expect(chain?.argsOf("eq")).toEqual(["event_id", EVENT_IDS.event]);
+      expect(chain?.argsOf("in")).toEqual(["status", ["approved", "attended"]]);
+      expect(chain?.argsOf("order")).toEqual(["created_at", { ascending: false }]);
+      expect(chain?.argsOf("limit")).toEqual([1]);
+    });
+  });
+
   it("bez wiersza RSVP nie ma biletu", async () => {
     const stub = ticketScenario({ rsvp: null });
     await expect(

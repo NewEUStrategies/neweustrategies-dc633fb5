@@ -39,9 +39,9 @@ describe("manageToken - poswiadczenie samoobslugi", () => {
     expect(readManageToken(42)).toBeNull();
   });
 
-  it("sklada adres strony zarzadzania ze slugiem i kluczem", () => {
+  it("sklada adres strony zarzadzania ze slugiem i kluczem WE FRAGMENCIE (REG-17)", () => {
     expect(manageLinkPath("kongres 2026", TOKEN)).toBe(
-      `/events/kongres%202026/manage?token=${TOKEN}`,
+      `/events/kongres%202026/manage#token=${TOKEN}`,
     );
   });
 });
@@ -126,7 +126,8 @@ describe("registrationNotify - tresc maila o zgloszeniu", () => {
   it("potwierdzenie z kluczem samoobslugi prowadzi na strone zgloszenia, nie na opis wydarzenia", () => {
     const token = "A".repeat(32);
     const withToken = buildRegistrationNotice("received", payload, token);
-    expect(withToken.ctaPath).toBe(`/events/kongres/manage?token=${token}`);
+    // Klucz we fragmencie (REG-17): klikniecie w mail nie wysyla go serwerowi.
+    expect(withToken.ctaPath).toBe(`/events/kongres/manage#token=${token}`);
     // Napis MUSI sie zmienic razem z celem - „Szczegoly wydarzenia" pod adresem
     // rezygnacji wprowadzaloby w blad.
     expect(withToken.ctaLabel).toBe("Zarządzaj zgłoszeniem");
