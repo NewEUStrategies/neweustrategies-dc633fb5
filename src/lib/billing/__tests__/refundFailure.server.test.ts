@@ -13,14 +13,16 @@
 //   * dyspozycja: korekta trafia do `_event_registration_refund_failed` z
 //     identyfikatorem zwrotu, ŚRODOWISKIEM zdarzenia i kodem - bez najemcy
 //     z ładunku (najemcę bierze baza z wiersza zlecenia);
-//   * porażka nie dotyka żadnej tabeli (nic nie odbiera, nic nie przywraca);
+//   * porażka niczego nie odbiera; bez dopasowanego zamówienia, subskrypcji
+//     ani darowizny nie ZAPISUJE niczego (przeliczenie z obciążenia - przegląd
+//     2.11 - dotyczy wyłącznie znalezionego celu, patrz refunds.server.test);
 //   * awaria RPC rzuca (Stripe ponowi), `false` to zwykłe `skipped`.
 //
 // Samą eskalację w bazie (stan, powód, alarm, brak drugiego alarmu) dowodzi
 // scripts/events-harness/runtime_test.d/24b_refund_jobs_escalation.sql.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
+import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import type { VerifiedWebhookEvent } from "@/lib/stripe.server";
 
@@ -34,11 +36,23 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 
+// Operator bez śladu tej płatności: brak faktury i sesji Checkout - zwrot
+// nie ma celu po naszej stronie poza zleceniem zwrotu zgłoszenia.
 vi.mock("@/lib/stripe.server", () => ({
-  getStripeClient: () => {
-    throw new Error("test: porażka zwrotu nie ma prawa wołać operatora");
-  },
+  getStripeClient: async () => ({
+    invoicePayments: { list: async () => ({ data: [] }) },
+    checkout: { sessions: { list: async () => ({ data: [] }) } },
+    // Stan obciążenia po porażce: zwrot nie doszedł, nic nie jest zwrócone.
+    paymentIntents: {
+      retrieve: async (id: string) => ({
+        id,
+        latest_charge: { id: "ch_3InvNineteenC", amount: 10000, amount_refunded: 0 },
+      }),
+    },
+  }),
   getStripeErrorMessage: (error: unknown) => String(error),
+  // Bramka środowiska dyspozytora (PAY-05) - poza produkcją każde środowisko.
+  environmentGrantsAccess: () => true,
 }));
 
 const { normalizeStripeEvent } = await import("@/lib/billing/stripeEvents.server");
@@ -67,6 +81,9 @@ function stripeRefund(over: Record<string, unknown> = {}): Record<string, unknow
 
 beforeEach(() => {
   db = supabaseFromStub();
+  // Zwrot zlecony przez zgłoszenie bez zamówienia i darowizny w tym środowisku.
+  db.setResponse("payment_orders", ok(null));
+  db.setResponse("donations", (chain) => (chain.has("update") ? ok([]) : ok(null)));
   rpc = supabaseRpcStub();
   rpc.setData(RPC, true);
 });
@@ -157,8 +174,17 @@ describe("dyspozycja porażki zwrotu", () => {
     });
     // Najemca NIGDY nie jedzie z ładunku operatora - wyprowadza go baza.
     expect(rpc.lastCall(RPC)?.has("p_tenant_id")).toBe(false);
-    // Porażka niczego nie odbiera ani nie przywraca: zero zapytań tabelarycznych.
-    expect(db.chains).toHaveLength(0);
+    // Porażka bez celu po naszej stronie niczego nie odbiera ani nie
+    // przywraca: tabele są wyłącznie czytane (szukanie celu), zero zapisów.
+    // ZMIANA ASERCJI przy scaleniu z #495 (SUB-09): korekta najpierw znajduje
+    // WIERSZ wpłaty (intencja, faktura raty, sesja) i dopiero jego wznawia -
+    // dawny warunkowy zapis „na ślepo" po `or(...)` zniknął, więc bez
+    // darowizny tej płatności nie ma już ani jednego zapisu.
+    const writes = db.chains.filter((chain) =>
+      ["insert", "update", "upsert", "delete"].some((op) => chain.has(op)),
+    );
+    expect(writes.map((chain) => chain.table)).toEqual([]);
+    expect(db.chains.some((chain) => chain.table === "donations")).toBe(true);
   });
 
   it("refund.updated -> canceled bez kodu operatora przekazuje stan jako powód", async () => {

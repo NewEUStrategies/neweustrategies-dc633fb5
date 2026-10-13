@@ -63,7 +63,8 @@ beforeEach(() => {
     data: [{ id: "cus_1", email: "buyer@example.com", metadata: { userId: "user-1" } }],
   });
   customersCreate.mockResolvedValue({ id: "cus_new" });
-  // Cena w pełnym kształcie: kasa porównuje ją z kwotą zamówienia przed sesją.
+  // Cena w pełnym kształcie operatora - kasa porównuje typ, walutę, cykl
+  // i kwotę z zamówieniem przed sesją (PAY-01, SUB-05).
   list.mockResolvedValue({
     data: [
       {
@@ -74,7 +75,7 @@ beforeEach(() => {
         billing_scheme: "per_unit",
         unit_amount: 12900,
         currency: "pln",
-        recurring: { interval: "month", interval_count: 1 },
+        recurring: { interval: "month", interval_count: 1, usage_type: "licensed" },
       },
     ],
   });
@@ -128,7 +129,8 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
 
     const payload = lastSessionPayload();
     expect(payload.managed_payments).toEqual({ enabled: true });
-    expect(payload.allow_promotion_codes).toBe(true);
+    // Domyślne bez pola kodu Stripe (PAY-06) - kod spoza bazy omija limity.
+    expect(payload.allow_promotion_codes).toBeUndefined();
     expect(payload.tax_id_collection).toBeUndefined();
   });
 
@@ -181,24 +183,16 @@ describe("createAdhocCheckoutSession - flagi tenantu w sesji", () => {
     expect(payload.invoice_creation).toEqual({ enabled: true });
   });
 
-  it.each([["content_unlock" as const], ["donation" as const]])(
-    "%s z tym samym tenantem ZOSTAJE przy polu kodu Stripe",
-    async (purpose) => {
-      const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
-      await createAdhocCheckoutSession({ ...base, purpose, settings: SETTINGS.managed });
-      expect(lastSessionPayload().allow_promotion_codes).toBe(true);
+  it("odblokowanie treści z tym samym tenantem ZOSTAJE przy polu kodu Stripe", async () => {
+    const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
+    await createAdhocCheckoutSession({ ...base, settings: SETTINGS.managed });
+    expect(lastSessionPayload().allow_promotion_codes).toBe(true);
+  });
 
-      // Bez ustawień - domyślne, które pole kodu włączają.
-      await createAdhocCheckoutSession({ ...base, purpose });
-      expect(lastSessionPayload().allow_promotion_codes).toBe(true);
-    },
-  );
-
-  it("darowizna anonimowa na płaszczyźnie MoR nie tworzy klienta sprzedawcy", async () => {
+  it("kupujący bez konta na płaszczyźnie MoR nie tworzy klienta sprzedawcy", async () => {
     const { createAdhocCheckoutSession } = await import("../adhocCheckout.server");
     await createAdhocCheckoutSession({
       ...base,
-      purpose: "donation",
       userId: null,
       settings: SETTINGS.managed,
     });

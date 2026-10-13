@@ -24,7 +24,7 @@
 // operatora platformy.
 import { notifyReminderEmail } from "@/lib/billing/notifications.server";
 import { resolvePlanForPrice } from "@/lib/billing/purchaseEffects.server";
-import { resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
+import { environmentGrantsAccess, resolveEnvironment, type StripeEnv } from "@/lib/stripe.server";
 
 /** Domyślne wyprzedzenie przypomnienia (w dniach). */
 export const REMINDER_LEAD_DAYS = 3;
@@ -128,6 +128,14 @@ async function loadDueSubscriptions(query: DueQuery): Promise<SubRow[]> {
  * Wysyła przypomnienia dla subskrypcji kończących okres za `leadDays` dni.
  * Fail-soft per rekord: błąd jednego odbiorcy nie przerywa całego przebiegu.
  *
+ * ŚRODOWISKO, KTÓRE NIE NADAJE DOSTĘPU, NIE DOSTAJE PRZYPOMNIEŃ (S9, PAY-05).
+ * Produkcja trzyma subskrypcje piaskownicy wyłącznie jako ślad księgowy
+ * (`webhookDispatch.server`, „bookkeeping_only") - z prawdziwym `user_id`
+ * z metadanych karty testowej. Przebieg z jawnym `environment = 'sandbox'`
+ * na produkcji wysłałby realnemu klientowi „Twoja subskrypcja się odnawia"
+ * za plan, którego nigdy nie kupił - więc kończy się pustym wynikiem bez
+ * jednego zapytania (`environmentGrantsAccess`, ta sama bramka co webhook).
+ *
  * @param batchSize   rozmiar partii odczytu (przebieg czyta WSZYSTKIE partie),
  * @param environment środowisko operatora; domyślnie rozstrzygane po stronie
  *                    serwera - nigdy z ładunku żądania.
@@ -138,6 +146,10 @@ export async function runBillingReminders(
   now: Date = new Date(),
   environment: StripeEnv = resolveEnvironment(null),
 ): Promise<ReminderRunResult> {
+  if (!environmentGrantsAccess(environment)) {
+    console.warn("[billing-reminders] environment grants no access here - skipped", environment);
+    return { renewal: 0, expiring: 0, skipped: 0 };
+  }
   const { from, to } = reminderWindow(now, leadDays);
   const limit = Math.max(1, Math.floor(batchSize));
 

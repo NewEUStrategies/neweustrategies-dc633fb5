@@ -760,11 +760,11 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
       "Zestawienie dwóch plików supabase z panelu Lovable: SQL wykonywalny to dokładnie 20261012130300_payment_orders_purchase_shape_guard.sql, a po nim 20261012130400_event_free_ticket_settlement.sql (zmierzone executableSql 2026-10-13). Jeden plik dla dwóch wersji, więc pojedynczego bliźniaka nie ma.",
   },
   {
-    tag: "0178_author_profiles_public_drop_contact_email",
+    tag: "0185_author_profiles_public_drop_contact_email",
     twin: "20261012200000_author_profiles_public_drop_contact_email.sql",
   },
   {
-    tag: "0179_public_definer_views_read_only",
+    tag: "0186_public_definer_views_read_only",
     twin: "20261012210000_public_definer_views_read_only.sql",
   },
 ];

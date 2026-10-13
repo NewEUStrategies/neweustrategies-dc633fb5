@@ -351,7 +351,8 @@ describe("metering and checkout settings writes", () => {
         ?.argsOf("upsert"),
     ).toEqual([
       {
-        allow_promotion_codes: false,
+        // Przełącznik odwraca DOMYŚLNE pole kodu Stripe (od PAY-06 wyłączone).
+        allow_promotion_codes: !DEFAULT_CHECKOUT_SETTINGS.allow_promotion_codes,
         automatic_tax: true,
         tax_id_collection: false,
         invoice_creation: false,

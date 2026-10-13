@@ -13,15 +13,16 @@
 //     wymaga wskazania biletu z cennika (`ticket_type_id`) - tylko ta gałąź
 //     sprawdza własność zgłoszenia (`event_registration_payment_context`);
 //   * subskrypcja nie niesie biletu ani treści;
-//   * treść wyklucza plan;
+//   * treść wyklucza plan - także samo `entity_type` bez `entity_id`
+//     (przegląd PAY-01: plan, treść i bilet to trzy rozłączne przedmioty);
 //   * bilet nie przyjmuje waluty prezentacji (TIX-12): cena regularna i cena
 //     po fazie sprzedaży szłyby w różnych walutach, a nakładka pokazywałaby
 //     fikcyjną cenę przekreśloną.
 //
 // Baza pilnuje tego samego przy zapisie zamówienia (`payment_orders_secure_insert`,
-// 20261012130300) i przy rozliczeniu (`payments_apply_event_ticket_outcome`,
-// 20261012130100) - ten plik daje kupującemu powód odmowy, zanim powstanie
-// zamówienie.
+// 20261012130300, obecne ciało: 20261013100400) i przy rozliczeniu
+// (`payments_apply_event_ticket_outcome`, 20261012130100) - ten plik daje
+// kupującemu powód odmowy, zanim powstanie zamówienie.
 
 /** Pola ładunku, które decydują o ścieżce wyceny. */
 export interface CheckoutPayloadShape {
@@ -69,7 +70,7 @@ export function checkoutPayloadIssue(data: CheckoutPayloadShape): CheckoutPayloa
   if (event && (plan || entity)) return "ticket_payload_conflict";
   if (ticket && !event) return "ticket_requires_event";
   if (registration && !ticket) return "registration_requires_ticket";
-  if (present(data.entity_id) && plan) return "entity_payload_conflict";
+  if (entity && plan) return "entity_payload_conflict";
   if (event && present(data.display_currency)) return "display_currency_unsupported";
   return null;
 }

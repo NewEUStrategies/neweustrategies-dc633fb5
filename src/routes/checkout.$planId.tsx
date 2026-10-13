@@ -209,15 +209,16 @@ function CheckoutPage() {
     if (!planData || !hasBilling) return;
     setBusy(true);
     try {
-      const price = catalogPriceForPlan(planData);
-      if (!price) {
+      // Bramka wyłącznie interfejsu: plan bez ceny w katalogu nie otwiera kasy.
+      // Ceny nie wysyłamy - serwer wyprowadza ją z planu i odmawia, gdy cena
+      // u operatora nie pasuje do zamówienia.
+      if (!catalogPriceForPlan(planData)) {
         toast.error(t("checkout.paymentsNotConfigured"));
         setBusy(false);
         return;
       }
       const result = await openPlanCheckout({
         planId: planData.id,
-        priceId: price.priceId,
         couponCode: coupon?.code,
         returnUrl: `${window.location.origin}/checkout/success`,
         newsletterConsent:

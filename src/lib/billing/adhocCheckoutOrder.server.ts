@@ -1,18 +1,24 @@
-// Logika zamówień ad-hoc (odblokowanie treści, bilet, darowizna) dla Stripe
-// Embedded Checkout. Plik serwerowy - `stripeCheckout.functions.ts` pozostaje
-// cienkim wrapperem `createServerFn` (patrz dyrektywy repo).
+// Logika zamówień ad-hoc (odblokowanie treści, bilet) dla Stripe Embedded
+// Checkout. Plik serwerowy - `stripeCheckout.functions.ts` pozostaje cienkim
+// wrapperem `createServerFn` (patrz dyrektywy repo).
+//
+// DAROWIZNY TU NIE MA. Gałąź `purpose: "donation"` brała kwotę od klienta,
+// zakładała zamówienie `payment_orders` i sesję z `metadata.purpose =
+// "donation"` - a webhook księguje darowizny WYŁĄCZNIE po wierszu `donations`
+// (`settleDonation`), którego ta ścieżka nigdy nie zakładała. Pieniądze
+// wpływały, a rozliczenie kończyło się `skipped`: bez zapisu w rejestrze, bez
+// potwierdzenia, bez śladu w eksporcie (audyt PAY-16b). Darowizny idą przez
+// `donations.server.ts`.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { StripeEnv } from "@/lib/stripe.server";
 import type { CheckoutLocale } from "@/lib/billing/checkoutLocale";
 import { markOrderSession } from "@/lib/billing/markOrderSession.server";
 
 export interface AdhocOrderInput {
-  purpose: "content_unlock" | "event_ticket" | "donation";
+  purpose: "content_unlock" | "event_ticket";
   entityType?: "post" | "page";
   entityId?: string;
   eventId?: string;
-  amountCents?: number;
-  currency?: "PLN" | "EUR";
   returnUrl: string;
 }
 
@@ -39,9 +45,8 @@ interface ResolvedAmount {
 }
 
 /**
- * Kwota NIGDY nie pochodzi z klienta dla treści i biletów - jest doczytywana
- * serwerowo z reguły dostępu / wydarzenia. Dla darowizny kwotę podaje
- * ofiarodawca, ale walidujemy minimum operatora (50 gr / 0,50 EUR).
+ * Kwota NIGDY nie pochodzi z klienta - jest doczytywana serwerowo z reguły
+ * dostępu (treść) albo z wiersza wydarzenia (bilet).
  */
 async function resolveAmount(
   supabase: SupabaseClient,
@@ -103,47 +108,37 @@ async function resolveAmount(
     };
   }
 
-  if (data.purpose === "content_unlock") {
-    if (!data.entityType || !data.entityId) return { error: "entity_required" };
-    const { data: rule, error } = await supabase
-      .from("content_access_public")
-      .select("mode, one_time_price_cents, one_time_currency")
-      .eq("entity_type", data.entityType)
-      .eq("entity_id", data.entityId)
-      .maybeSingle();
-    if (error) throw error;
-    if (
-      !rule ||
-      rule.mode !== "paid" ||
-      !rule.one_time_price_cents ||
-      Number(rule.one_time_price_cents) <= 0
-    ) {
-      return { error: "one_time_not_available" };
-    }
-    const table = data.entityType === "post" ? "posts" : "pages";
-    const { data: row } = await supabase
-      .from(table)
-      .select("title_pl, title_en")
-      .eq("id", data.entityId)
-      .maybeSingle();
-    return {
-      amountCents: Number(rule.one_time_price_cents),
-      currency: String(rule.one_time_currency ?? "PLN"),
-      name: String(row?.title_pl || row?.title_en || "Dostęp do treści"),
-      metadata: {},
-      entityType: data.entityType,
-      entityId: data.entityId,
-    };
+  // Odblokowanie treści - jedyny cel poza biletem (walidator server fn nie
+  // przepuszcza innych).
+  if (!data.entityType || !data.entityId) return { error: "entity_required" };
+  const { data: rule, error } = await supabase
+    .from("content_access_public")
+    .select("mode, one_time_price_cents, one_time_currency")
+    .eq("entity_type", data.entityType)
+    .eq("entity_id", data.entityId)
+    .maybeSingle();
+  if (error) throw error;
+  if (
+    !rule ||
+    rule.mode !== "paid" ||
+    !rule.one_time_price_cents ||
+    Number(rule.one_time_price_cents) <= 0
+  ) {
+    return { error: "one_time_not_available" };
   }
-
-  if (!data.amountCents || data.amountCents < 50) return { error: "amount_too_low" };
+  const table = data.entityType === "post" ? "posts" : "pages";
+  const { data: row } = await supabase
+    .from(table)
+    .select("title_pl, title_en")
+    .eq("id", data.entityId)
+    .maybeSingle();
   return {
-    amountCents: Math.round(data.amountCents),
-    currency: data.currency ?? "PLN",
-    name: "Darowizna",
+    amountCents: Number(rule.one_time_price_cents),
+    currency: String(rule.one_time_currency ?? "PLN"),
+    name: String(row?.title_pl || row?.title_en || "Dostęp do treści"),
     metadata: {},
-    entityType: null,
-    entityId: null,
+    entityType: data.entityType,
+    entityId: data.entityId,
   };
 }
 

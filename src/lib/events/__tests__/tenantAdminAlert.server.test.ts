@@ -21,6 +21,9 @@ const db = vi.hoisted(() => {
     rolesNull: false,
     profilesNull: false,
     broken: false,
+    /** Dzwonki już wysłane - odczyt `once` (user_id, tenant_id, kind, href). */
+    notifications: [] as { user_id: string; tenant_id: string; kind: string; href: string }[],
+    notificationsError: null as { message: string } | null,
     calls: [] as { table: string; filters: [string, string, unknown][] }[],
   };
   const rpc = vi.fn();
@@ -37,7 +40,26 @@ const db = vi.hoisted(() => {
         call.filters.push(["in", column, values]);
         return builder;
       },
+      limit: (count: number) => {
+        call.filters.push(["limit", "", count]);
+        return builder;
+      },
       then: (resolve: (value: unknown) => unknown) => {
+        if (table === "notifications") {
+          const value = (column: string) => call.filters.find((f) => f[1] === column)?.[2];
+          return resolve({
+            data: state.notificationsError
+              ? null
+              : state.notifications.filter(
+                  (n) =>
+                    n.user_id === value("user_id") &&
+                    n.tenant_id === value("tenant_id") &&
+                    n.kind === value("kind") &&
+                    n.href === value("href"),
+                ),
+            error: state.notificationsError,
+          });
+        }
         if (table === "user_roles") {
           const roles = call.filters.find((f) => f[1] === "role")?.[2] as string[];
           // Atrapa odwzorowuje filtr najemcy TYLKO wtedy, gdy kod go wysłał -
@@ -119,6 +141,8 @@ beforeEach(() => {
   db.state.rolesNull = false;
   db.state.profilesNull = false;
   db.state.broken = false;
+  db.state.notifications = [];
+  db.state.notificationsError = null;
   db.state.calls = [];
   db.rpc.mockResolvedValue({ data: "n1", error: null });
 });
@@ -210,5 +234,64 @@ describe("notifyTenantAdmins", () => {
     expect(console.error).toHaveBeenCalledWith("[tenantAdminAlert] alert failed", {
       error: "offline",
     });
+  });
+});
+
+describe("notifyTenantAdmins - once", () => {
+  const ONCE = { ...INPUT, href: "/admin/billing?dispute=dp_1&phase=open", once: true };
+
+  it("pierwsze zdarzenie: dzwonek dla każdego administratora najemcy", async () => {
+    await expect(notifyTenantAdmins(ONCE)).resolves.toBe(2);
+    expect(db.rpc).toHaveBeenCalledTimes(2);
+    const lookups = db.state.calls.filter((c) => c.table === "notifications");
+    // Odczyt po indeksie odbiorcy: user_id + tenant_id, do tego rodzaj i href.
+    expect(lookups[0]?.filters).toEqual(
+      expect.arrayContaining([
+        ["eq", "user_id", "admin-a"],
+        ["eq", "tenant_id", A],
+        ["eq", "kind", "billing"],
+        ["eq", "href", ONCE.href],
+      ]),
+    );
+  });
+
+  it("ponowienie tego samego zdarzenia (po oknie deduplikacji RPC): bez drugiego dzwonka", async () => {
+    db.state.notifications = [
+      { user_id: "admin-a", tenant_id: A, kind: "billing", href: ONCE.href },
+      { user_id: "super-a", tenant_id: A, kind: "billing", href: ONCE.href },
+    ];
+    await expect(notifyTenantAdmins(ONCE)).resolves.toBe(2);
+    expect(db.rpc).not.toHaveBeenCalled();
+  });
+
+  it("inny spór (inny href) w tym samym oknie: osobny dzwonek", async () => {
+    db.state.notifications = [
+      { user_id: "admin-a", tenant_id: A, kind: "billing", href: ONCE.href },
+    ];
+    await notifyTenantAdmins({ ...ONCE, href: "/admin/billing?dispute=dp_2&phase=open" });
+    expect(db.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("dzwonek tylko u części odbiorców: brakujący dostaje swój", async () => {
+    db.state.notifications = [
+      { user_id: "admin-a", tenant_id: A, kind: "billing", href: ONCE.href },
+    ];
+    await expect(notifyTenantAdmins(ONCE)).resolves.toBe(2);
+    expect(db.rpc).toHaveBeenCalledTimes(1);
+    expect(db.rpc).toHaveBeenCalledWith(
+      "enqueue_notification",
+      expect.objectContaining({ p_user_id: "super-a" }),
+    );
+  });
+
+  it("awaria odczytu: alert i tak wychodzi (duplikat lepszy niż cisza)", async () => {
+    db.state.notificationsError = { message: "boom" };
+    await expect(notifyTenantAdmins(ONCE)).resolves.toBe(2);
+    expect(db.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("bez `once`: brak odczytu dzwonków (zachowanie dotychczasowe)", async () => {
+    await notifyTenantAdmins(INPUT);
+    expect(db.state.calls.some((c) => c.table === "notifications")).toBe(false);
   });
 });

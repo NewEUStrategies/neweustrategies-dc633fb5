@@ -71,15 +71,19 @@ const h = vi.hoisted(() => {
   };
 
   const settle = (): QueryResult => {
-    // Wstawienie-jeśli-brak (`upsert(..., { ignoreDuplicates }).select(...)`)
-    // oddaje WSTAWIONE wiersze - w tym teście wiersza nigdy wcześniej nie ma.
-    if (state.current.includes("upsert") && state.current.includes("select")) {
-      return state.write.error ? state.write : { data: [{ id: "row_new" }], error: null };
-    }
     // `update(...).select(...)` to RETURNING - zwraca wiersze, nie pusty zapis.
-    return state.current.includes("update") && state.current.includes("select")
-      ? state.claim
-      : state.write;
+    if (state.current.includes("update") && state.current.includes("select")) return state.claim;
+    // Wstawienie wiersza subskrypcji (`upsert ... ignoreDuplicates` z RETURNING)
+    // zwraca wstawiony wiersz. Pusty wynik znaczy „przegrany wyścig" - obsługa
+    // rozstrzyga wtedy zdarzenie od nowa, a nie kończy ścieżkę zakładania.
+    if (
+      state.current.includes("upsert") &&
+      state.current.includes("select") &&
+      !state.write.error
+    ) {
+      return { data: [{ id: "row_1" }], error: null };
+    }
+    return state.write;
   };
 
   const terminals: Record<string, unknown> = {
@@ -122,7 +126,11 @@ const h = vi.hoisted(() => {
 });
 
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: h.client }));
-vi.mock("@/lib/stripe.server", () => ({
+// Reszta modułu operatora (np. `environmentGrantsAccess`) zostaje PRAWDZIWA -
+// to czyste funkcje, z których korzysta dyspozytor; podmieniamy wyłącznie
+// weryfikację podpisu i klucz bramki.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   verifyWebhook: async () => h.event.value,
   // catalogAutoSync liczy odcisk integracji na starcie handlera.
   getConnectionApiKey: () => "test_key",
@@ -291,7 +299,9 @@ const opsOn = (table: string, method: string) =>
 const isClaimOnly = (arg: unknown): boolean =>
   typeof arg === "object" &&
   arg !== null &&
-  Object.keys(arg as Record<string, unknown>).every((k) => k === "last_event_at");
+  Object.keys(arg as Record<string, unknown>).every(
+    (k) => k === "last_event_at" || k === "last_event_id",
+  );
 const payload = <T>(table: string, method: string): T =>
   (opsOn(table, method)
     .map((o) => o.args[0])
@@ -301,6 +311,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   beforeEach(() => {
     h.state.ops = [];
     h.state.write = { data: null, error: null };
+    h.state.claim = { data: [{ id: "row_1" }], error: null };
     h.emails.subscription.mockClear();
     h.emails.payment.mockClear();
     h.afterResponse.length = 0;
@@ -404,6 +415,9 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
 
   it("aktywacja przed utworzeniem subskrypcji zakłada wiersz zamiast go zgubić", async () => {
     seed(null);
+    // Wiersza nie ma: warunkowe zajęcie strażnika nie trafia w nic, a odczyt
+    // potwierdza brak - ścieżka zakładania.
+    h.state.claim = { data: [], error: null };
     h.event.value = subEvent("customer.subscription.updated", {
       status: "active",
       userId: "u1",
@@ -411,11 +425,15 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
       endsAt: "2026-08-01T00:00:00Z",
     });
 
-    await handle(req());
+    const res = await handle(req());
 
+    expect(res.status).toBe(200);
     const up = payload<{ user_id: string; status: string }>("subscriptions", "upsert");
     expect(up.user_id).toBe("u1");
     expect(up.status).toBe("active");
+    // Skutki zakładania (1.2) biegną PRZED wstawieniem wiersza: dostęp jest.
+    const ent = payload<{ status: string }>("user_subscriptions", "update");
+    expect(ent.status).toBe("active");
   });
 
   it("uprawnienie po zwrocie nie wraca do życia na spóźnionym zdarzeniu", async () => {
@@ -534,7 +552,25 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("duplikat zdarzenia nie dotyka żadnej warstwy", async () => {
-    seed({ user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" });
+    seed(
+      { user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" },
+      {
+        // Wiersz dziennika DOMKNIĘTY - dopiero to czyni dostawę duplikatem.
+        // Konflikt klucza bez widocznego wiersza to „w toku" (409), nie duplikat.
+        payment_webhook_events: [
+          {
+            data: {
+              id: "row_done",
+              status: "processed",
+              created_at: "2026-07-29T10:00:01.000Z",
+              last_retried_at: null,
+              retry_count: 0,
+            },
+            error: null,
+          },
+        ],
+      },
+    );
     h.state.write = { data: null, error: { code: "23505", message: "duplicate" } };
     h.event.value = subEvent("customer.subscription.updated", { status: "paused" });
 

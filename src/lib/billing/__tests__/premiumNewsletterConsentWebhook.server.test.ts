@@ -38,7 +38,10 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 
-vi.mock("@/lib/stripe.server", () => ({
+// `environmentGrantsAccess` (bramka środowisk PAY-05) zostaje prawdziwe -
+// poza produkcją oba środowiska nadają skutki zakupu.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   getStripeClient: () => {
     throw new Error("test: żaden przypadek nie ma prawa wołać operatora");
   },

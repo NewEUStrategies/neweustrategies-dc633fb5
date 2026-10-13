@@ -257,6 +257,7 @@ function tickResult(): JobsTickResult {
     crmTaskReminders: 0,
     eventTicketCodes: { registrations: 2, sent: 2, deferred: 0 },
     eventTicketRevocations: { notices: 1, sent: 1, failed: 0, deferred: 0 },
+    webhookSweep: { error: "skipped_duty_cycle" },
     linkCheck: { postsScanned: 5, linksChecked: 41, broken: 0, archived: 0, alerted: 0 },
     integrations: { claimed: 0, delivered: 0, failed: 0 },
     semanticIndex: { scanned: 8, embedded: 8 },

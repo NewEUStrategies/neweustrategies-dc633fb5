@@ -23,6 +23,9 @@ import {
  * Ustawienia checkoutu dla tenantu zamówienia. Nigdy nie rzuca: awaria odczytu
  * konfiguracji nie może wywrócić płatności, więc spadamy na bezpieczne
  * domyślne (`DEFAULT_CHECKOUT_SETTINGS`) i zostawiamy ślad w logu.
+ *
+ * „Bezpieczne" znaczy tu fail-closed dla rabatów: domyślne NIE pokazują pola
+ * kodu Stripe, więc błąd odczytu nie otwiera ścieżki rabatu poza bazą.
  */
 export async function loadCheckoutSettings(
   supabase: SupabaseClient,
