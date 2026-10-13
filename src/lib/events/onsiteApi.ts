@@ -215,6 +215,15 @@ export interface CheckinOutcome {
   occurredAt: string | null;
   repeatCount: number;
   previousCheckinAt: string | null;
+  /** Osoba była już „w środku" punktu (ten sam dzień czasu wydarzenia). */
+  reentry: boolean;
+  /** Chwila tamtego wejścia - zawsze NIE późniejsza niż ten skan. */
+  reentryPreviousAt: string | null;
+  /**
+   * Stanowisko jawnie obeszło odmowę ponownego wejścia (polityka `deny`):
+   * zgoda zapisana z operatorem i znacznikiem `reentry_override`.
+   */
+  reentryOverride: boolean;
   checkpoint: Record<string, unknown>;
   person: Record<string, unknown>;
 }
@@ -231,6 +240,9 @@ export function parseCheckinOutcome(value: unknown): CheckinOutcome {
     occurredAt: typeof row.occurred_at === "string" ? row.occurred_at : null,
     repeatCount: typeof repeat === "number" ? repeat : 0,
     previousCheckinAt: typeof row.previous_checkin_at === "string" ? row.previous_checkin_at : null,
+    reentry: row.reentry === true,
+    reentryPreviousAt: typeof row.reentry_previous_at === "string" ? row.reentry_previous_at : null,
+    reentryOverride: row.reentry_override === true,
     checkpoint: record(row.checkpoint),
     person: record(row.person),
   };

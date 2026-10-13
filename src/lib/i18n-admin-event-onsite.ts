@@ -62,6 +62,7 @@ export const adminEventOnsitePl = {
       denied_capacity: "Brak miejsc",
       denied_checkpoint_inactive: "Punkt nieaktywny",
       denied_already_inside: "Już w środku",
+      denied_code_superseded: "Kod zastąpiony",
     },
     sources: {
       qr_code: "Skan kodu",
@@ -222,7 +223,7 @@ export const adminEventOnsitePl = {
           "Kontrola dostępu odmawia wejścia bez zatwierdzonego zapisu. Tylko liczenie zapisuje każde wejście.",
         denyReentry: "Blokuj ponowne wejście",
         denyReentryHint:
-          "Drugie wejście tej samej osoby bez wyjścia pomiędzy zostanie odrzucone - jeden kod nie wpuści dwóch osób. Powtórzone piknięcie w oknie powtórzeń to nadal to samo wejście. Działa tylko w trybie kontroli dostępu.",
+          "Osoba, której ostatnie wejście w TYM punkcie nie zostało zamknięte wyjściem w tym samym punkcie, nie wejdzie ponownie tego samego dnia - jeden kod nie wpuści dwóch osób. Stan zeruje wyjście w tym punkcie oraz północ w strefie czasowej wydarzenia, więc na bramce tylko-wejście oznacza to jedno wejście dziennie. Wyjście przez inny punkt go nie zeruje - każdy punkt liczy się osobno. Powtórzone piknięcie w oknie powtórzeń to nadal to samo wejście. Ręczna odprawa na stanowisku może świadomie ominąć blokadę - wpis zostaje w dzienniku z operatorem jako obejście. Działa tylko w trybie kontroli dostępu.",
         capacity: "Pojemność",
         capacityHint: "Pusto = bez limitu.",
         dedupeWindowSeconds: "Okno powtórzeń (sekundy)",
@@ -249,6 +250,10 @@ export const adminEventOnsitePl = {
         granted: "Wpuszczono: {{name}}",
         denied: "Odmowa: {{reason}}",
         repeat: "Powtórzone piknięcie ({{count}}).",
+        reentryOverride:
+          "Wpuszczono mimo blokady ponownego wejścia: {{name}} (w środku od {{since}}). Wpis zostaje w dzienniku jako obejście.",
+        reentryOverrideBadge: "Obejście blokady ponownego wejścia",
+        reentrySince: "W środku od {{since}}",
       },
       toasts: {
         badgePrinted: "Wydruk identyfikatora zapisany.",
@@ -268,6 +273,12 @@ export const adminEventOnsitePl = {
       conflictDeniedBadge: "odesłany offline",
       conflictDeniedHint:
         "Urządzenie bez sieci odesłało tę osobę, a bilet jest ważny. Obecność nie została zapisana - odszukaj ją (np. w recepcji) i odpraw ponownie.",
+      conflictDoubleEntryBadge: "podwójne wejście",
+      conflictDoubleEntryHint:
+        "Dwa wejścia tej osoby w punkcie z blokadą ponownego wejścia tego samego dnia, bez wyjścia pomiędzy. Często to wyjście z innego urządzenia, które jeszcze nie zsynchronizowało kolejki - wtedy oznaczenie zniknie samo. Jeśli zostaje, jeden kod mógł wpuścić dwie osoby.",
+      reentryOverrideBadge: "obejście na stanowisku",
+      reentryOverrideHint:
+        "Obsługa stanowiska świadomie wpuściła osobę, która według dziennika była już w środku. Wpis ma operatora - to nie jest konflikt.",
       offlineOutcome: "Decyzja urządzenia bez sieci: {{outcome}}",
     },
     offlineOutcomes: {
@@ -288,6 +299,21 @@ export const adminEventOnsitePl = {
       offlineBadge: "Lista offline",
       rosterDownloaded: "Lista pobrana {{when}}",
       rosterNever: "Lista jeszcze niepobrana",
+      queueLocked: "Kolejka wstrzymana do {{when}}",
+      queueLockedHint:
+        "Po 100 nieznanych kodach z kolejki w godzinę synchronizacja kolejki czeka 30 minut. Skanowanie na żywo działa dalej. „Wznów” zdejmuje blokadę od razu.",
+      queueFailures: "Nieznane z kolejki: {{count}}",
+      queueFailuresHint:
+        "Nieznane kody ze skanów offline w bieżącym oknie 60 minut (od {{when}}). Próg 100 wstrzymuje kolejkę.",
+      supersededScans: "Kody zastąpione: {{count}}",
+      supersededScansHint:
+        "Ile razy urządzenie zeskanowało stary identyfikator albo bilet (po przedruku lub unieważnieniu). Nie blokuje urządzenia.",
+      queueMarker: "Aktualny skaner",
+      queueMarkerHint:
+        "Telefon działa na aktualnej wersji skanera (od {{when}}): po terminie poświadczenia baza przyjmuje skany z kolejki wyłącznie z podpisanym znacznikiem.",
+      queueMarkerLegacy: "Stara wersja skanera",
+      queueMarkerLegacyHint:
+        "Telefon nie zgłosił jeszcze aktualnej wersji skanera. Po terminie poświadczenia jego kolejka przechodzi według starej reguły (skan sprzed terminu, do 72 h). Odśwież aplikację skanera na telefonie.",
       offlineConfirmTitle: "Włączyć listę offline na tym urządzeniu?",
       dialog: {
         createTitle: "Wydaj poświadczenie urządzenia",
@@ -503,6 +529,7 @@ export const adminEventOnsiteEn = {
       denied_capacity: "At capacity",
       denied_checkpoint_inactive: "Checkpoint inactive",
       denied_already_inside: "Already inside",
+      denied_code_superseded: "Code replaced",
     },
     sources: {
       qr_code: "QR scan",
@@ -660,7 +687,7 @@ export const adminEventOnsiteEn = {
           "Access control refuses entry without an approved registration. Count only records every entry.",
         denyReentry: "Block re-entry",
         denyReentryHint:
-          "A second entry by the same person without an exit in between is refused - one code cannot admit two people. A repeated scan inside the repeat window is still the same entry. Works in access-control mode only.",
+          "A person whose last entry at THIS checkpoint was not closed by an exit at the same checkpoint cannot enter again on the same day - one code cannot admit two people. An exit at this checkpoint resets the state, and so does midnight in the event's time zone, so on an entry-only gate this means one entry per day. An exit through another checkpoint does not reset it - every checkpoint counts on its own. A repeated scan inside the repeat window is still the same entry. A manual check-in at the desk can deliberately override the block - it is logged with the operator as an override. Works in access-control mode only.",
         capacity: "Capacity",
         capacityHint: "Empty = no limit.",
         dedupeWindowSeconds: "Repeat window (seconds)",
@@ -687,6 +714,10 @@ export const adminEventOnsiteEn = {
         granted: "Admitted: {{name}}",
         denied: "Refused: {{reason}}",
         repeat: "Duplicate scan ({{count}}).",
+        reentryOverride:
+          "Admitted despite the re-entry block: {{name}} (inside since {{since}}). The entry is logged as an override.",
+        reentryOverrideBadge: "Re-entry block overridden",
+        reentrySince: "Inside since {{since}}",
       },
       toasts: {
         badgePrinted: "Badge print recorded.",
@@ -706,6 +737,12 @@ export const adminEventOnsiteEn = {
       conflictDeniedBadge: "turned away offline",
       conflictDeniedHint:
         "The device turned this person away without a network, but the ticket is valid. Attendance was not recorded - find them (e.g. at the desk) and check them in again.",
+      conflictDoubleEntryBadge: "double entry",
+      conflictDoubleEntryHint:
+        "Two entries by this person at a checkpoint that blocks re-entry on the same day, with no exit in between. Often the exit is still waiting in another device's queue - then the flag clears by itself. If it stays, one code may have admitted two people.",
+      reentryOverrideBadge: "desk override",
+      reentryOverrideHint:
+        "Desk staff deliberately admitted a person who, according to the log, was already inside. The entry names the operator - it is not a conflict.",
       offlineOutcome: "Device decision without network: {{outcome}}",
     },
     offlineOutcomes: {
@@ -726,6 +763,21 @@ export const adminEventOnsiteEn = {
       offlineBadge: "Offline list",
       rosterDownloaded: "List downloaded {{when}}",
       rosterNever: "List not downloaded yet",
+      queueLocked: "Queue sync paused until {{when}}",
+      queueLockedHint:
+        "After 100 unknown codes from the offline queue within an hour, queue sync waits 30 minutes. Live scanning keeps working. \u201cResume\u201d lifts the pause immediately.",
+      queueFailures: "Unknown queued codes: {{count}}",
+      queueFailuresHint:
+        "Unknown codes from offline scans in the current 60-minute window (since {{when}}). A threshold of 100 pauses the queue.",
+      supersededScans: "Replaced codes: {{count}}",
+      supersededScansHint:
+        "How many times the device scanned an old badge or ticket (after a reprint or invalidation). It does not lock the device.",
+      queueMarker: "Current scanner app",
+      queueMarkerHint:
+        "The phone runs the current scanner app (since {{when}}): after the credential expires, the database accepts queued scans only with a signed queue marker.",
+      queueMarkerLegacy: "Old scanner app",
+      queueMarkerLegacyHint:
+        "The phone has not reported the current scanner app yet. After the credential expires, its queue follows the old rule (scans made before expiry, up to 72 h). Refresh the scanner app on the phone.",
       offlineConfirmTitle: "Turn on the offline list on this device?",
       dialog: {
         createTitle: "Issue a device credential",

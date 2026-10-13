@@ -16,6 +16,15 @@
 // listę uczestników, a linia pod nią - kiedy ostatnio ją pobrało (każde
 // pobranie jest też zdarzeniem audytowym). Włączenie przechodzi przez
 // potwierdzenie z ostrzeżeniem RODO, wyłączenie działa od razu.
+//
+// KOLEJKA MA WŁASNĄ BLOKADĘ (20261012111100). `state` mówi o skanowaniu NA
+// ŻYWO; wstrzymanie samej synchronizacji kolejki (100 nieznanych kodów
+// z kolejki w godzinę) to osobna plakietka z terminem - telefon dalej
+// wpuszcza ludzi, a „Wznów" zdejmuje obie blokady. Obok: licznik nieznanych
+// kodów z kolejki w bieżącym oknie, licznik kodów zastąpionych (stary
+// identyfikator po przedruku) i to, czy telefon zgłosił aktualną wersję
+// skanera (znacznik kolejki) - urządzenie ze starą wersją zachowuje po
+// terminie starą regułę synchronizacji, więc organizator ma je widzieć.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -245,6 +254,58 @@ export function OnsiteDevicesPanel({ eventId }: { eventId: string }) {
                 <Badge variant="outline">{`${t("adminEventOnsite.labels.scans")}: ${row.scan_count}`}</Badge>
                 {row.failed_scan_count > 0 ? (
                   <Badge variant="outline">{`${t("adminEventOnsite.labels.failedScans")}: ${row.failed_scan_count}`}</Badge>
+                ) : null}
+                {row.queue_locked_until === null ? null : (
+                  <Badge
+                    variant="destructive"
+                    title={t("adminEventOnsite.devices.queueLockedHint")}
+                  >
+                    {t("adminEventOnsite.devices.queueLocked", {
+                      when: formatEventDateTime(row.queue_locked_until, null, lang),
+                    })}
+                  </Badge>
+                )}
+                {row.queue_locked_until === null && row.queue_fail_window_count > 0 ? (
+                  <Badge
+                    variant="outline"
+                    title={t("adminEventOnsite.devices.queueFailuresHint", {
+                      when:
+                        row.queue_fail_window_started_at === null
+                          ? ""
+                          : formatEventDateTime(row.queue_fail_window_started_at, null, lang),
+                    })}
+                  >
+                    {t("adminEventOnsite.devices.queueFailures", {
+                      count: row.queue_fail_window_count,
+                    })}
+                  </Badge>
+                ) : null}
+                {row.superseded_scan_count > 0 ? (
+                  <Badge
+                    variant="outline"
+                    title={t("adminEventOnsite.devices.supersededScansHint")}
+                  >
+                    {t("adminEventOnsite.devices.supersededScans", {
+                      count: row.superseded_scan_count,
+                    })}
+                  </Badge>
+                ) : null}
+                {row.queue_marker_required_at !== null ? (
+                  <Badge
+                    variant="secondary"
+                    title={t("adminEventOnsite.devices.queueMarkerHint", {
+                      when: formatEventDateTime(row.queue_marker_required_at, null, lang),
+                    })}
+                  >
+                    {t("adminEventOnsite.devices.queueMarker")}
+                  </Badge>
+                ) : row.state !== "revoked" && row.last_seen_at !== null ? (
+                  <Badge
+                    variant="outline"
+                    title={t("adminEventOnsite.devices.queueMarkerLegacyHint")}
+                  >
+                    {t("adminEventOnsite.devices.queueMarkerLegacy")}
+                  </Badge>
                 ) : null}
                 {row.expires_at === null ? null : (
                   <span className="text-xs text-muted-foreground">
