@@ -1,6 +1,6 @@
 // Metering gościa po stronie SERWERA (server-only) - druga połowa kontraktu
 // z `src/lib/access/visitorToken.ts` (format tokenu) i migracji
-// 20261012110200_metering_signed_visitor_ip_limit.sql (funkcje tylko dla
+// 20261013090400_metering_signed_visitor_ip_limit.sql (funkcje tylko dla
 // `service_role`).
 //
 // SKĄD TOŻSAMOŚĆ (żadna z wartości nie pochodzi z ładunku klienta):

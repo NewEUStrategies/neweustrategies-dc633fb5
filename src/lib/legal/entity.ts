@@ -23,6 +23,14 @@ export const LEGAL_CONTACT_EMAIL = "office@neweuropeanstrategies.com";
 export const LEGAL_SITE_URL = "https://neweuropeanstrategies.com";
 /** Data ostatniej aktualizacji dokumentów prawnych (ISO, wyświetlana wprost). */
 export const LEGAL_UPDATED = "2026-07-30";
+/**
+ * Data ostatniej zmiany TREŚCI polityki prywatności - osobno od
+ * `LEGAL_UPDATED`, bo regulamin i polityka zwrotów nie zmieniły się wtedy
+ * ani jednym zdaniem (uzasadnienie przy `COMPLIANCE_PACK_UPDATED`
+ * w `registration.ts`). 2026-10-12: okres przechowywania dowodów księgowych
+ * zgodny z regułą retencji (`accountingRetentionRule.ts`, INV-13).
+ */
+export const PRIVACY_UPDATED = "2026-10-12";
 /** Liczba dni na odstąpienie / zwrot bez podania przyczyny. */
 export const REFUND_WINDOW_DAYS = 30;
 /** Warunki kupującego operatora płatności (Stripe / Link). */

@@ -684,7 +684,7 @@ async function handleUpdated(
   // „won", dzwonek i jawna zgoda na newsletter z checkoutu przepadały na
   // zawsze (tak samo, gdy `updated` wyprzedziło `created` albo inne zdarzenie
   // wyprzedziło ponowienie `created`). Pusty znacznik jest jednoznaczny od
-  // migracji 20261012170000 (wiersze sprzed znacznika mają go uzupełnionego).
+  // migracji 20261013090600 (wiersze sprzed znacznika mają go uzupełnionego).
   const activates = entitled && !existing.purchase_confirmed_at;
   if (activates) {
     const { applyPurchaseEffects } = await import("@/lib/billing/purchaseEffects.server");
@@ -1077,22 +1077,33 @@ async function handleAdjustment(data: Record<string, unknown>, env: StripeEnv): 
     capturedAmountCents: Number.isFinite(capturedCents) ? capturedCents : null,
     currency: str("currencyCode") ?? totals?.currencyCode ?? null,
     environment: env,
+    // Tylko zwrot, który nie doszedł (`refund.failed`) - kod trafia do
+    // dziennika zwrotów i alarmu, patrz `escalateFailedRefund`.
+    failureReason: str("failureReason"),
   });
 }
 
 /**
  * Zapis faktury dla transakcji. Zwraca `true`, gdy coś faktycznie zapisano -
  * `transaction.updated` bez zmian traktujemy jako pominięte zdarzenie.
+ *
+ * NIEUDANY ZAPIS TO BŁĄD ZDARZENIA, nie „pominięte". Rejestr dokumentów jest
+ * dowodem sprzedaży dla członka i księgowości; zdarzenie zamknięte jako
+ * przetworzone mimo braku dokumentu nigdy by nie wróciło (Stripe ponawia
+ * wyłącznie po odpowiedzi innej niż 2xx). Rzucamy więc - trasa webhooka
+ * oznacza zdarzenie jako `failed`, oddaje 500, a operator dostarcza je
+ * ponownie (zapis jest idempotentny). Alarm dla administratorów najemcy
+ * wysyła już `recordTransactionDocument`.
  */
 async function recordDocument(data: unknown, env: StripeEnv): Promise<boolean> {
   const { documentInputFromTransaction, recordTransactionDocument } =
     await import("@/lib/billing/billingDocuments.server");
   const input = documentInputFromTransaction(data, env);
   if (!input) return false;
-  const outcome = await recordTransactionDocument(input).catch((e: unknown) => {
-    console.error("[payments] billing document failed", input.transactionId, e);
-    return "skipped" as const;
-  });
+  const outcome = await recordTransactionDocument(input);
+  if (outcome === "failed") {
+    throw new Error(`billing document not recorded: ${input.transactionId}`);
+  }
   return outcome !== "skipped";
 }
 
@@ -1208,9 +1219,12 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
     case "transaction.past_due":
       await handleTransaction(input.data as TransactionData, env, occurredAt, "failed");
       return "processed";
+    // Najpierw skutki płatności, potem dokument: awaria rejestru dokumentów
+    // (ponowienie zdarzenia) nie może wstrzymać odblokowania konta po
+    // zapłacie. Skutki są idempotentne po identyfikatorze transakcji.
     case "transaction.completed":
-      await recordDocument(input.data, env);
       await handleTransaction(input.data as TransactionData, env, occurredAt, "paid");
+      await recordDocument(input.data, env);
       return "processed";
     // Operator nadaje numer faktury i domyka kwoty osobnym zdarzeniem - bez
     // niego dokument w panelu klienta zostałby bez numeru.

@@ -181,14 +181,29 @@ function subscriptionEventType(status: string | null): string {
   }
 }
 
-/** Mapuje `checkout.session.*` na `TransactionData` (transakcja jednorazowa lub pierwsza faktura). */
-function mapTransactionFromCheckoutSession(session: Raw): TransactionData {
+/**
+ * Stan płatności, który zdarzenie samo w sobie dowodzi - na wypadek ładunku
+ * bez pola stanu. `invoice.paid` i opłacona sesja to zapłata z definicji;
+ * zdarzenie porażki niczego takiego nie dowodzi.
+ */
+type ImpliedStatus = "paid" | null;
+
+/**
+ * Mapuje `checkout.session.*` na `TransactionData` (transakcja jednorazowa lub
+ * pierwsza faktura) - z polami dokumentu rozliczeniowego dla `billingDocuments.server`.
+ */
+function mapTransactionFromCheckoutSession(
+  session: Raw,
+  impliedStatus: ImpliedStatus,
+): TransactionData & Raw {
   const amountTotal = typeof session.amount_total === "number" ? session.amount_total : null;
   const customerDetails = isRecord(session.customer_details) ? session.customer_details : null;
+  const subscriptionId = idOf(session.subscription);
+  const subscriptionMode = strOf(session.mode) === "subscription" || subscriptionId !== null;
 
   return {
     id: idOf(session.id) ?? "",
-    subscriptionId: idOf(session.subscription),
+    subscriptionId,
     customerId: idOf(session.customer),
     // Sesja checkout i intencja płatności to DWA różne identyfikatory. Zwroty
     // przychodzą z identyfikatorem intencji, więc bez zapisania go przy
@@ -199,11 +214,22 @@ function mapTransactionFromCheckoutSession(session: Raw): TransactionData {
     customer: { email: strOf(customerDetails?.email) ?? strOf(session.customer_email) },
     details: { totals: { grandTotal: amountTotal !== null ? String(amountTotal) : null } },
     billingPeriod: null,
+    // Pola dokumentu rozliczeniowego. Bez stanu zapis dostawał domyślne
+    // `pending`, którego CHECK tabeli nie zna - bilet, darowizna i dostęp do
+    // treści nie trafiały do rejestru członka WCALE (audyt INV-04).
+    // Sesja SUBSKRYPCJI nie jest osobnym dokumentem: tę samą płatność opisuje
+    // jej pierwsza faktura (`invoice.paid`, `in_...`), a drugi wiersz dla
+    // `cs_...` dublowałby te same pieniądze w panelu członka.
+    status: strOf(session.payment_status) ?? impliedStatus,
+    documentKind: subscriptionMode ? null : "receipt",
   };
 }
 
 /** Mapuje `invoice.*` na `TransactionData` - dokłada pola potrzebne do dokumentu rozliczeniowego. */
-function mapTransactionFromInvoice(invoice: Raw): TransactionData & Raw {
+function mapTransactionFromInvoice(
+  invoice: Raw,
+  impliedStatus: ImpliedStatus,
+): TransactionData & Raw {
   const amountPaid = typeof invoice.amount_paid === "number" ? invoice.amount_paid : null;
   const amountDue = typeof invoice.total === "number" ? invoice.total : null;
   // `amount_paid` jest ZEROWE na nieudanej płatności - i zero nie jest nullish,
@@ -265,7 +291,11 @@ function mapTransactionFromInvoice(invoice: Raw): TransactionData & Raw {
     // odnowienia, więc windykacja musi ją odróżnić od `subscription_cycle`.
     billingReason: strOf(invoice.billing_reason),
     // Pola dokumentu rozliczeniowego - odczytywane przez `billingDocuments.server`.
-    status: "completed",
+    // Stan to `invoice.status` operatora (draft/open/paid/void/uncollectible),
+    // tłumaczony na stan rejestru w `billingDocumentStatus`. Wcześniej stało tu
+    // stałe "completed" - także dla nieudanej płatności.
+    status: strOf(invoice.status) ?? impliedStatus,
+    documentKind: "invoice",
     invoiceNumber: strOf(invoice.number),
     hostedInvoiceUrl: strOf(invoice.hosted_invoice_url),
     invoicePdf: strOf(invoice.invoice_pdf),
@@ -329,6 +359,41 @@ function mapAdjustment(
   };
 }
 
+/** Stany obiektu Refund, w których pieniądze NIE wrócą do kupującego. */
+const UNSUCCESSFUL_REFUND_STATUSES = new Set(["failed", "canceled"]);
+
+/**
+ * Zwrot, którego operator nie wykonał: `refund.failed` albo `refund.updated`
+ * (i starszy `charge.refund.updated`) ze stanem `failed`/`canceled`.
+ *
+ * DLACZEGO TYLKO PORAŻKA. Sukces zwrotu przychodzi jako `charge.refunded`
+ * z kwotą NARASTAJĄCĄ (`amount_refunded`), na której stoi rachunek zwrotów
+ * częściowych w `refunds.server`. Obiekt Refund niesie kwotę POJEDYNCZEGO
+ * zwrotu - wpuszczony tą samą ścieżką cofnąłby licznik po drugim zwrocie
+ * częściowym. Stąd `totals` celowo NIE ma: ta korekta niczego nie księguje,
+ * tylko oddaje sprawę człowiekowi (zlecenie zwrotu -> `needs_review`).
+ *
+ * `null` = aktualizacja zwrotu bez porażki (np. `pending` -> `succeeded`).
+ */
+function mapRefundFailure(refund: Raw, eventType: string): Record<string, unknown> | null {
+  // `refund.failed` jest porażką z definicji typu - nawet gdy ładunek
+  // (np. odtworzony z dziennika) nie niesie pola `status`.
+  const status = strOf(refund.status) ?? (eventType === "refund.failed" ? "failed" : null);
+  if (!status || !UNSUCCESSFUL_REFUND_STATUSES.has(status)) return null;
+  return {
+    // Identyfikator ZWROTU (`re_…`/`pyr_…`) - ten sam, który zlecenie zwrotu
+    // zapisało w `provider_refund_id` po `stripe.refunds.create`.
+    id: idOf(refund.id) ?? "",
+    transactionId: idOf(refund.payment_intent) ?? idOf(refund.charge),
+    subscriptionId: null,
+    action: "refund",
+    status,
+    // Kod operatora (`expired_or_canceled_card`, `lost_or_stolen_card`, …)
+    // trafia do dziennika zwrotów i alarmu dla administratorów najemcy.
+    failureReason: strOf(refund.failure_reason),
+  };
+}
+
 /**
  * Mapuje zweryfikowane zdarzenie Stripe na kształt oczekiwany przez
  * `dispatchWebhookEvent`. Zwraca `null` dla zdarzeń spoza zakresu integracji
@@ -360,20 +425,20 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
       if (strOf(object.payment_status) === "unpaid") return null;
       return {
         eventType: "transaction.completed",
-        data: mapTransactionFromCheckoutSession(object),
+        data: mapTransactionFromCheckoutSession(object, "paid"),
       };
     }
 
     case "checkout.session.async_payment_succeeded":
       return {
         eventType: "transaction.completed",
-        data: mapTransactionFromCheckoutSession(object),
+        data: mapTransactionFromCheckoutSession(object, "paid"),
       };
 
     case "checkout.session.async_payment_failed":
       return {
         eventType: "transaction.payment_failed",
-        data: mapTransactionFromCheckoutSession(object),
+        data: mapTransactionFromCheckoutSession(object, null),
       };
 
     // Oba zdarzenia opisują TĘ SAMĄ opłaconą fakturę i oba zostają: lista
@@ -387,13 +452,26 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
     // ma już czego zamknąć.
     case "invoice.paid":
     case "invoice.payment_succeeded":
-      return { eventType: "transaction.completed", data: mapTransactionFromInvoice(object) };
+      return {
+        eventType: "transaction.completed",
+        data: mapTransactionFromInvoice(object, "paid"),
+      };
 
     case "invoice.payment_failed":
-      return { eventType: "transaction.payment_failed", data: mapTransactionFromInvoice(object) };
+      return {
+        eventType: "transaction.payment_failed",
+        data: mapTransactionFromInvoice(object, null),
+      };
 
     case "charge.refunded":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "refund") };
+
+    case "refund.failed":
+    case "refund.updated":
+    case "charge.refund.updated": {
+      const failure = mapRefundFailure(object, event.type);
+      return failure ? { eventType: "adjustment.updated", data: failure } : null;
+    }
 
     case "charge.dispute.created":
       return { eventType: "adjustment.created", data: mapAdjustment(object, "chargeback") };

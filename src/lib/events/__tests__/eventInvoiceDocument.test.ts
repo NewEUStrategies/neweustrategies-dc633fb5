@@ -207,10 +207,111 @@ describe("parseInvoiceDocument", () => {
       id: INVOICE_IDS.proforma,
       number: "FV/2026/09/0001",
       issueDate: "2026-09-10",
+      ksefNumber: null,
     });
     expect(doc?.corrections).toEqual([
       { id: INVOICE_IDS.correction, number: null, status: "draft", correctionMode: "full" },
     ]);
+  });
+
+  it("zgodnosc podatkowa: podsumowanie stawek, kurs NBP, np, VIES, dziennik KSeF, potrzeba kursu", () => {
+    const doc = parseInvoiceDocument(
+      invoiceDocumentJson({
+        invoice: {
+          currency: "EUR",
+          fx_rate: 4.2731,
+          fx_table_no: "195/A/NBP/2026",
+          fx_effective_date: "2026-10-09",
+          vat_pln_cents: 19657,
+          np_basis: "art. 28b",
+          np_basis_effective: "art. 28b",
+          reverse_charge: true,
+          reverse_charge_effective: true,
+          buyer_vies_subject: "DE123456789",
+          buyer_vies_valid: true,
+          buyer_vies_request_id: "WAPI1",
+          buyer_vies_checked_at: "2026-10-10T10:00:00.000Z",
+          buyer_notified_at: "2026-10-11T08:00:00.000Z",
+          buyer_downloaded_at: null,
+        },
+        vat_summary: [
+          { vat_rate: "23", net_cents: 149, vat_cents: 34, gross_cents: 183, vat_pln_cents: 145 },
+          { vat_rate: "xx", net_cents: 1, vat_cents: 1, gross_cents: 2 },
+        ],
+        corrects: {
+          id: INVOICE_IDS.invoice,
+          number: "FV/2026/09/0001",
+          issue_date: "2026-09-20",
+          ksef_number: "7011278375-20260920-0123456789AB-CD",
+        },
+        ksef_events: [
+          {
+            from_status: "pending",
+            to_status: "accepted",
+            from_number: null,
+            to_number: "7011278375-20260920-0123456789AB-CD",
+            note: "UPO",
+            created_at: "2026-09-20T12:00:00.000Z",
+          },
+        ],
+        rate_gross_before: { "23": 183, xx: 5, "8": "x" },
+        fx_need: { currency: "EUR", rate_date: "2026-10-09", loaded: true },
+      }),
+    );
+    expect(doc?.vatSummary).toEqual([
+      { vatRate: "23", netCents: 149, vatCents: 34, grossCents: 183, vatPlnCents: 145 },
+    ]);
+    expect(doc?.fx).toEqual({
+      rate: 4.2731,
+      tableNo: "195/A/NBP/2026",
+      effectiveDate: "2026-10-09",
+      vatPlnCents: 19657,
+    });
+    expect(doc).toMatchObject({
+      npBasis: "art. 28b",
+      npBasisEffective: "art. 28b",
+      reverseCharge: true,
+      reverseChargeEffective: true,
+      buyerVies: {
+        subject: "DE123456789",
+        valid: true,
+        requestId: "WAPI1",
+        checkedAt: "2026-10-10T10:00:00.000Z",
+      },
+      buyerNotifiedAt: "2026-10-11T08:00:00.000Z",
+      buyerDownloadedAt: null,
+      rateGrossBefore: { "23": 183 },
+      fxNeed: { currency: "EUR", rateDate: "2026-10-09", loaded: true },
+    });
+    expect(doc?.corrects?.ksefNumber).toBe("7011278375-20260920-0123456789AB-CD");
+    expect(doc?.ksefEvents).toEqual([
+      {
+        fromStatus: "pending",
+        toStatus: "accepted",
+        fromNumber: null,
+        toNumber: "7011278375-20260920-0123456789AB-CD",
+        note: "UPO",
+        createdAt: "2026-09-20T12:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("dokument w PLN i bez decyzji: brak kursu, VIES i potrzeby kursu; decyzja null = auto", () => {
+    const doc = parseInvoiceDocument(invoiceDocumentJson());
+    expect(doc).toMatchObject({
+      fx: null,
+      buyerVies: null,
+      fxNeed: null,
+      reverseCharge: null,
+      reverseChargeEffective: false,
+      npBasis: "",
+      ksefEvents: [],
+      rateGrossBefore: {},
+    });
+    expect(
+      parseInvoiceDocument(invoiceDocumentJson({ invoice: { fx_rate: 0, fx_table_no: "1/A" } }))
+        ?.fx,
+    ).toBeNull();
   });
 
   it("brak identyfikatora = null (nie polowa dokumentu)", () => {

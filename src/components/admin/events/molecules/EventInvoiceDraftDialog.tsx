@@ -7,12 +7,23 @@
 // dokumentu nie da sie juz zmienic (tylko korekta) i dostaje on numer.
 //
 // ROZJAZD Z ZAMOWIENIAMI. Faktura z zamowien powinna sumowac sie do kwot
-// tych zamowien; edytor ostrzega, gdy suma pozycji sie z nimi rozjezdza
-// (np. po recznej zmianie ceny), ale nie blokuje - bywa to swiadoma decyzja.
+// tych zamowien; edytor ostrzega, gdy suma pozycji sie z nimi rozjezdza.
+// Faktury za OPLACONE zamowienia baza nie wystawi z inna kwota niz wplaty
+// (`amount_mismatch`, INV-14) - proforma i zamowienia nieoplacone moga sie
+// roznic swiadomie.
+//
+// PODATEK (INV-12, INV-06). Sekcja "Podatek" pojawia sie przy pozycji "np"
+// albo nabywcy-firmie spoza Polski: podstawa prawna (pusta = z ustawien),
+// decyzja o odwrotnym obciazeniu i weryfikacja numeru VAT UE w VIES - wynik
+// zapisuje serwer, panel tylko go pokazuje. Dokument w walucie obcej mowi,
+// z ktorego dnia kurs NBP trafi na fakture; pobiera go wystawienie.
+//
+// KOREKTA. Podglad sum korekty liczy podatek od sum w stawce przed i po
+// korekcie (`doc.rateGrossBefore`) - tak samo jak baza przy wystawieniu.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, ShieldCheck, Trash2 } from "lucide-react";
 
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow";
@@ -41,11 +52,14 @@ import {
   documentDraftFromDocument,
   documentDraftPreview,
   documentDraftToUpdate,
+  draftNeedsTaxSection,
+  draftReverseChargeEffective,
   hasDocumentErrors,
   isDocumentDraftDirty,
   lineDraftAmounts,
   newLineDraft,
   validateDocumentDraft,
+  INVOICE_REVERSE_CHARGE_CHOICES,
   type InvoiceDocumentDraft,
   type InvoiceLineDraft,
 } from "@/lib/events/eventInvoiceDraft";
@@ -61,7 +75,9 @@ import {
   useEventInvoice,
   useIssueInvoice,
   useUpdateInvoiceDraft,
+  useVerifyInvoiceVies,
 } from "@/lib/events/useEventInvoices";
+import { EU_COUNTRIES } from "@/lib/tracker/euCountries";
 import { ensureAdminEventInvoicesI18n } from "@/lib/i18n-admin-event-invoices";
 import { ensureEventInvoicesI18n } from "@/lib/i18n-event-invoices";
 
@@ -134,19 +150,29 @@ function DraftEditor({
   const { t, i18n } = useTranslation();
   const update = useUpdateInvoiceDraft(eventId);
   const issue = useIssueInvoice(eventId);
+  const vies = useVerifyInvoiceVies(eventId);
   const [initial, setInitial] = useState(() => documentDraftFromDocument(doc));
   const [draft, setDraft] = useState<InvoiceDocumentDraft>(initial);
   const [ordinal, setOrdinal] = useState(1);
   const [showErrors, setShowErrors] = useState(false);
   const errors = validateDocumentDraft(draft, doc.kind);
-  const preview = documentDraftPreview(draft);
+  const preview = documentDraftPreview(
+    draft,
+    doc.kind === "correction" ? doc.rateGrossBefore : undefined,
+  );
   const money = (cents: number) => formatMoney(cents, doc.currency, i18n.language);
   const sourcesGross = sourcesGrossCents(doc);
   const mismatch =
     doc.kind !== "correction" &&
     doc.sources.length > 0 &&
     preview.totals.grossCents !== sourcesGross;
-  const busy = update.isPending || issue.isPending;
+  const busy = update.isPending || issue.isPending || vies.isPending;
+  const showTax = doc.kind !== "correction" && draftNeedsTaxSection(draft);
+  const reverseCharge = draftReverseChargeEffective(draft);
+  const euBuyer =
+    draft.buyer.isCompany &&
+    draft.buyer.country !== "PL" &&
+    EU_COUNTRIES.some((country) => country.code === draft.buyer.country);
 
   function setLine(key: string, patch: Partial<InvoiceLineDraft>): void {
     setDraft((current) => ({
@@ -173,6 +199,18 @@ function DraftEditor({
 
   async function save(): Promise<void> {
     if (await persist()) toast.success(t("adminEventInvoices.toasts.saved"));
+  }
+
+  async function verifyVies(): Promise<void> {
+    // VIES pyta o nabywce ZAPISANEGO szkicu - niezapisana zmiana najpierw idzie do bazy.
+    if (isDocumentDraftDirty(draft, initial) && !(await persist())) return;
+    try {
+      const result = await vies.mutateAsync(doc.id);
+      if (result.valid) toast.success(t("adminEventInvoices.draft.tax.viesValid"));
+      else toast.error(t("adminEventInvoices.draft.tax.viesInvalid"));
+    } catch (failure: unknown) {
+      toast.error(adminEventInvoiceErrorMessage(failure));
+    }
   }
 
   async function issueNow(): Promise<void> {
@@ -282,6 +320,30 @@ function DraftEditor({
         />
       </section>
 
+      {showTax ? (
+        <TaxSection
+          doc={doc}
+          draft={draft}
+          reverseCharge={reverseCharge}
+          euBuyer={euBuyer}
+          buyerDirty={JSON.stringify(draft.buyer) !== JSON.stringify(initial.buyer)}
+          busy={busy}
+          verifying={vies.isPending}
+          onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+          onVerify={() => void verifyVies()}
+        />
+      ) : null}
+      {doc.fxNeed !== null ? (
+        <p role="status" className="rounded-md border border-border bg-muted/30 p-3 text-sm">
+          {t(
+            doc.fxNeed.loaded
+              ? "adminEventInvoices.draft.fx.loaded"
+              : "adminEventInvoices.draft.fx.pending",
+            { currency: doc.fxNeed.currency, date: doc.fxNeed.rateDate },
+          )}
+        </p>
+      ) : null}
+
       <section className="space-y-3">
         <h3 className="text-sm font-semibold">{t("adminEventInvoices.draft.linesSection")}</h3>
         <ol className="space-y-3">
@@ -383,6 +445,117 @@ function DraftEditor({
     </div>
   );
 }
+
+function TaxSection({
+  doc,
+  draft,
+  reverseCharge,
+  euBuyer,
+  buyerDirty,
+  busy,
+  verifying,
+  onChange,
+  onVerify,
+}: {
+  doc: EventInvoiceDocument;
+  draft: InvoiceDocumentDraft;
+  reverseCharge: boolean;
+  euBuyer: boolean;
+  buyerDirty: boolean;
+  busy: boolean;
+  verifying: boolean;
+  onChange: (patch: Partial<InvoiceDocumentDraft>) => void;
+  onVerify: () => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const hasNp = draft.lines.some((line) => line.vatRate === "np");
+  const settingsBasis = doc.npBasis.trim() === "" ? doc.npBasisEffective : "";
+  // Wynik VIES dotyczy nabywcy ZAPISANEGO szkicu; zmiana danych nabywcy
+  // uniewaznia go w bazie przy zapisie.
+  const viesResult = buyerDirty ? null : doc.buyerVies;
+  const checkedAt =
+    viesResult === null ? "" : new Date(viesResult.checkedAt).toLocaleString(i18n.language);
+  return (
+    <section className="space-y-3">
+      <h3 className="text-sm font-semibold">{t("adminEventInvoices.draft.tax.section")}</h3>
+      <AdminFormTextRow
+        label={t("adminEventInvoices.draft.tax.npBasis")}
+        hint={
+          settingsBasis === ""
+            ? t("adminEventInvoices.draft.tax.npBasisHint")
+            : t("adminEventInvoices.draft.tax.npBasisFromSettings", { basis: settingsBasis })
+        }
+        value={draft.npBasis}
+        maxLength={300}
+        disabled={busy}
+        onValueChange={(npBasis) => onChange({ npBasis })}
+      />
+      {hasNp && draft.npBasis.trim() === "" && settingsBasis === "" ? (
+        <p role="alert" className="text-sm text-destructive">
+          {t("adminEventInvoices.errors.vatNpBasisRequired")}
+        </p>
+      ) : null}
+      <div className="space-y-1.5">
+        <Label htmlFor={`invoice-reverse-charge-${doc.id}`}>
+          {t("adminEventInvoices.draft.tax.reverseCharge")}
+        </Label>
+        <FormSelect
+          id={`invoice-reverse-charge-${doc.id}`}
+          value={draft.reverseCharge}
+          disabled={busy}
+          onValueChange={(value) =>
+            onChange({ reverseCharge: pickEnum(INVOICE_REVERSE_CHARGE_CHOICES, value) })
+          }
+          options={INVOICE_REVERSE_CHARGE_CHOICES.map((choice) => ({
+            value: choice,
+            label: t(REVERSE_CHARGE_LABEL_KEYS[choice]),
+          }))}
+        />
+        <p className="text-xs text-muted-foreground">
+          {reverseCharge
+            ? t("adminEventInvoices.draft.tax.reverseChargeOn")
+            : t("adminEventInvoices.draft.tax.reverseChargeOff")}
+        </p>
+      </div>
+      {reverseCharge && euBuyer ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border border-border p-3 text-sm">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy || draft.buyer.taxId.trim() === ""}
+            onClick={onVerify}
+          >
+            <ShieldCheck className="mr-1 h-4 w-4" aria-hidden="true" />
+            {verifying
+              ? t("adminEventInvoices.draft.tax.viesChecking")
+              : t("adminEventInvoices.draft.tax.viesVerify")}
+          </Button>
+          <p role="status" className="min-w-0 flex-1">
+            {viesResult === null
+              ? t("adminEventInvoices.draft.tax.viesNone")
+              : viesResult.valid
+                ? t("adminEventInvoices.draft.tax.viesStatusValid", {
+                    subject: viesResult.subject,
+                    at: checkedAt,
+                    request: viesResult.requestId ?? "-",
+                  })
+                : t("adminEventInvoices.draft.tax.viesStatusInvalid", {
+                    subject: viesResult.subject,
+                    at: checkedAt,
+                  })}
+          </p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+const REVERSE_CHARGE_LABEL_KEYS = {
+  auto: "adminEventInvoices.draft.tax.reverseChargeAuto",
+  yes: "adminEventInvoices.draft.tax.reverseChargeYes",
+  no: "adminEventInvoices.draft.tax.reverseChargeNo",
+} as const;
 
 function LineEditor({
   line,

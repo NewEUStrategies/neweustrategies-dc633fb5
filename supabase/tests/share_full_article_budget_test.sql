@@ -3,7 +3,7 @@
 --
 -- Weryfikuje mechanike serwerowa, na ktorej stoi cale UI:
 --   1. eligibility='registered': zwykle konto (bez subskrypcji) generuje link,
---      a anonim nie. Od 20261012110100 darczynca musi sam miec dostep do
+--      a anonim nie. Od 20261013090300 darczynca musi sam miec dostep do
 --      darowanej tresci (has_content_access) - nadawca czyta wpis platny dzieki
 --      zakupowi jednorazowemu, wiec nadal NIE ma subskrypcji (bramka
 --      can_gift_articles = false), a mimo to moze darowac to, co kupil

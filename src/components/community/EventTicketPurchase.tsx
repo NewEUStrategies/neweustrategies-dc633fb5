@@ -164,11 +164,31 @@ export function EventTicketPurchase({
         // Odmowa KODU to nie awaria płatności: mówimy ją przy polu, a
         // kupujący może poprawić kod albo go usunąć i zapłacić pełną cenę.
         if (res.mode === "coupon") setCodeRefused(true);
+        else if (res.mode === "free") toast.error(t("community.events.rsvpError"));
         else toast.error(t("checkout.paymentsNotConfigured"));
         return;
       }
       if (res.mode === "stripe") {
         setCheckoutSecret(res.clientSecret);
+        return;
+      }
+      // Kod 100%: zamówienie za zero rozlicza serwer - bez operatora i bez
+      // symulatora płatności. Potwierdzenie zakupu TYLKO przy potwierdzonym
+      // miejscu; przegrany wyścig o ostatnie miejsce (kod wrócił), decyzja
+      // organizatora i dokończenie w tle mają własne, prawdziwe komunikaty.
+      if (res.mode === "free") {
+        if (res.settlement === "seated") {
+          void navigate({
+            to: "/checkout/success",
+            search: { order: res.orderId, mock: undefined },
+          });
+        } else if (res.settlement === "sold_out") {
+          toast.error(t("community.events.freeTicketSoldOut"));
+        } else if (res.settlement === "awaiting") {
+          toast.success(t("community.events.freeTicketAwaiting"));
+        } else {
+          toast.success(t("community.events.freeTicketProcessing"));
+        }
         return;
       }
       void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });

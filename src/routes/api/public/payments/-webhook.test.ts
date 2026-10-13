@@ -268,7 +268,7 @@ function seed(
 ) {
   h.state.lookups = {
     // Istniejąca subskrypcja ma za sobą potwierdzenie zakupu (od migracji
-    // 20261012170000 pusty znacznik znaczy „zakup do potwierdzenia", a te
+    // 20261013090600 pusty znacznik znaczy „zakup do potwierdzenia", a te
     // przypadki opisują subskrypcję dawno kupioną).
     subscriptions: existing
       ? [{ data: { purchase_confirmed_at: "2026-06-01T00:00:00.000Z", ...existing }, error: null }]

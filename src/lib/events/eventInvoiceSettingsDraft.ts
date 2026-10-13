@@ -34,6 +34,7 @@ export interface InvoiceSettingsDraft {
   paymentDays: string;
   defaultVatRate: EventInvoiceVatRate;
   vatExemptBasis: string;
+  vatNpBasis: string;
   footerNote: string;
   defaultLocale: EventInvoiceLocale;
 }
@@ -49,6 +50,7 @@ export const SETTINGS_ERROR_KEYS = {
   seriesDistinct: "adminEventInvoices.settings.errors.seriesDistinct",
   paymentDays: "adminEventInvoices.settings.errors.paymentDays",
   exemptBasis: "adminEventInvoices.settings.errors.exemptBasis",
+  npBasis: "adminEventInvoices.settings.errors.npBasis",
   confirm: "adminEventInvoices.settings.errors.confirm",
   tooLong: "adminEventInvoices.settings.errors.tooLong",
 } as const;
@@ -70,6 +72,7 @@ type LimitedField =
   | "sellerBankAccount"
   | "sellerBankSwift"
   | "vatExemptBasis"
+  | "vatNpBasis"
   | "footerNote";
 
 const LIMITS: ReadonlyArray<readonly [LimitedField, number]> = [
@@ -82,6 +85,7 @@ const LIMITS: ReadonlyArray<readonly [LimitedField, number]> = [
   ["sellerBankAccount", 64],
   ["sellerBankSwift", 20],
   ["vatExemptBasis", 300],
+  ["vatNpBasis", 300],
   ["footerNote", 500],
 ];
 
@@ -105,6 +109,7 @@ export function settingsDraftFromSettings(settings: EventInvoiceSettings): Invoi
     paymentDays: String(settings.paymentDays),
     defaultVatRate: settings.defaultVatRate,
     vatExemptBasis: settings.vatExemptBasis,
+    vatNpBasis: settings.vatNpBasis,
     footerNote: settings.footerNote,
     defaultLocale: settings.defaultLocale,
   };
@@ -145,6 +150,10 @@ export function validateSettingsDraft(
   }
   if (draft.defaultVatRate === "zw" && draft.vatExemptBasis.trim() === "") {
     errors.vatExemptBasis = SETTINGS_ERROR_KEYS.exemptBasis;
+  }
+  // INV-12: stawka "np" bez podstawy prawnej - baza odmowi (vat_np_basis_required).
+  if (draft.defaultVatRate === "np" && draft.vatNpBasis.trim() === "") {
+    errors.vatNpBasis = SETTINGS_ERROR_KEYS.npBasis;
   }
   if (draft.enabled) {
     for (const field of [
@@ -187,6 +196,7 @@ export function settingsDraftToInput(draft: InvoiceSettingsDraft): EventInvoiceS
     paymentDays: Number(draft.paymentDays.trim()),
     defaultVatRate: draft.defaultVatRate,
     vatExemptBasis: draft.vatExemptBasis.trim(),
+    vatNpBasis: draft.vatNpBasis.trim(),
     footerNote: draft.footerNote.trim(),
     defaultLocale: draft.defaultLocale,
   };

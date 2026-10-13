@@ -1,6 +1,6 @@
 -- pgTAP: metering - PRAWDZIWA wspolbieznosc dwoch sesji (audyt billingowy
 -- SUB-17, kryterium "rownolegle zadania nie przekraczaja limitu"; przeglad
--- adwersaryjny, poz. 30). Migracja 20261012110200_metering_signed_visitor_ip_limit.sql.
+-- adwersaryjny, poz. 30). Migracja 20261013090400_metering_signed_visitor_ip_limit.sql.
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- metering_visitor_identity_test.sql dowodzi blokady przez pg_locks PO

@@ -1,5 +1,5 @@
 -- pgTAP: kolumny cyklu zycia subskrypcji (migracja
--- 20261012120000_subscription_payment_grace_lifecycle; audyt SUB-02/03/14/16).
+-- 20261013090500_subscription_payment_grace_lifecycle; audyt SUB-02/03/14/16).
 --
 -- KONTRAKT, NA KTORYM STOI KOD WEBHOOKA:
 --   * `first_payment_failed_at`, `purchase_confirmed_at` (timestamptz) i

@@ -21,9 +21,16 @@ import {
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/components/ui/date-input", () => ({
-  DateInput: ({ onChange, value, type, ...props }: {
+  DateInput: ({
+    onChange,
+    value,
+    type,
+    ...props
+  }: {
     onChange: (event: { target: { value: string } }) => void;
-    value: string; type: string; id?: string;
+    value: string;
+    type: string;
+    id?: string;
   }) => <input {...props} type={type} value={value} onChange={onChange} />,
 }));
 vi.mock("@/components/atoms/FormSelect", () => ({

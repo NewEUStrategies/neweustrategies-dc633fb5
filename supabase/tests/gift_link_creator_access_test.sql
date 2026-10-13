@@ -1,5 +1,5 @@
 -- pgTAP: link podarunkowy wymaga dostepu DARCZYNCY do darowanej tresci
--- (audyt billingowy SUB-06, migracja 20261012110100_gift_link_creator_access.sql).
+-- (audyt billingowy SUB-06, migracja 20261013090300_gift_link_creator_access.sql).
 --
 -- Kryterium zakonczenia audytu: darmowe konto nie tworzy linku do platnej
 -- tresci i nie odczytuje jej jako wlasciciel. Dodatkowo:

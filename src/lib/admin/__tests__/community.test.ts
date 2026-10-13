@@ -944,6 +944,8 @@ describe("fetchEventSpeakers", () => {
         // oddaje NULL i puste listy, nigdy `undefined`.
         headline_pl: null,
         headline_en: null,
+        bio_pl: null,
+        bio_en: null,
         card_photo_url: null,
         card_cta_label_pl: null,
         card_cta_label_en: null,

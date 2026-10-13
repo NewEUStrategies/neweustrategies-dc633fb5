@@ -157,7 +157,8 @@ export function eventBrandingCss(branding: unknown): string {
   const draft = eventBrandingFromJson(branding);
   const lines: string[] = [];
   for (const slot of EVENT_BRANDING_COLOR_SLOTS) {
-    const value = slot === "main_action" ? resolveBrandAccent(draft.colors[slot]) ?? "" : draft.colors[slot];
+    const value =
+      slot === "main_action" ? (resolveBrandAccent(draft.colors[slot]) ?? "") : draft.colors[slot];
     if (value === "") continue;
     for (const variable of SLOT_VARIABLES[slot]) lines.push(`${variable}:${value};`);
   }

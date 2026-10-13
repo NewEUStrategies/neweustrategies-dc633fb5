@@ -1,5 +1,5 @@
 -- pgTAP: retencja dziennika webhooków płatności
--- (migracja 20261012101000_payment_webhook_events_retention, audyt SUB-11).
+-- (migracja 20261013090100_payment_webhook_events_retention, audyt SUB-11).
 --
 -- CO PRZYPINA:
 --   1. zdarzenie domknięte starsze niż 30 dni traci dane osobowe (e-mail, imię,

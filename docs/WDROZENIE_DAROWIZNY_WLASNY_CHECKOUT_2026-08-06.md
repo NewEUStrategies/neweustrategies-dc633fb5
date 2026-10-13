@@ -303,8 +303,8 @@ sprawdzone na czystym drzewie przed zmianami.
 
 ## 8. Audyt rozliczeń 2026-10-12 (SUB-09, SUB-10, SUB-11)
 
-Migracje `20261012100000_donations_ledger_integrity` i
-`20261012101000_payment_webhook_events_retention`; dowody: pgTAP
+Migracje `20261013090000_donations_ledger_integrity` i
+`20261013090100_payment_webhook_events_retention`; dowody: pgTAP
 `donations_ledger_integrity_test.sql`, `payment_webhook_events_retention_test.sql`
 oraz testy jednostkowe `donationsLedger.server`, `donationRecurring`,
 `refunds.server`, `donations.functions`, `donationsAdmin.server`,

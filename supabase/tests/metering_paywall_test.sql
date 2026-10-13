@@ -8,7 +8,7 @@
 --   5. polityka 'exempt' (per wpis) wyklucza z meteringu mimo wolnego limitu;
 --   6. gość przy anon_monthly_limit=0 dostaje ścianę rejestracji
 --      (requires_registration), a po podniesieniu limitu - body. Od
---      20261012110200 tożsamość gościa podaje WYŁĄCZNIE serwer
+--      20261013090400 tożsamość gościa podaje WYŁĄCZNIE serwer
 --      (consume_metered_view_visitor, service_role; uuid z podpisanego cookie,
 --      skrót adresu z requestRateSubject) - klient nie ma ścieżki z kluczem
 --      gościa (dowód: metering_visitor_identity_test.sql);

@@ -1,5 +1,5 @@
 -- pgTAP: księga darowizn po audycie SUB-09/SUB-10
--- (migracja 20261012100000_donations_ledger_integrity).
+-- (migracja 20261013090000_donations_ledger_integrity).
 --
 -- CO PRZYPINA:
 --   1. unikat faktury: ta sama faktura (`invoice.paid` + `invoice.payment_succeeded`)

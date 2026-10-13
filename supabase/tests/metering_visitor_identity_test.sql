@@ -1,6 +1,6 @@
 -- pgTAP: metering - tozsamosc goscia wylacznie od serwera, adresowy limit
 -- i serializacja licznika (audyt billingowy SUB-17, migracja
--- 20261012110200_metering_signed_visitor_ip_limit.sql).
+-- 20261013090400_metering_signed_visitor_ip_limit.sql).
 --
 -- Kryterium zakonczenia audytu: rownolegle zadania nie przekraczaja limitu,
 -- a niepodpisany identyfikator jest odrzucony. Dowodzimy:

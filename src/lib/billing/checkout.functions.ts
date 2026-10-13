@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { checkoutPayloadIssue, checkoutPurchase } from "@/lib/billing/checkoutPayload";
 import { codeProbeRpcError, parseCouponVerdict } from "@/lib/billing/coupons";
 import { periodEndFor } from "@/lib/billing/entitlement";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
@@ -15,42 +16,50 @@ import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
 // fail-closed (mockCheckoutAllowed) - błędna konfiguracja nie rozdaje płatnego
 // dostępu.
 
-const createOrderSchema = z.object({
-  kind: z.enum(["subscription", "one_time"]),
-  plan_id: z.string().uuid().nullable().optional(),
-  entity_type: z.enum(["post", "page"]).nullable().optional(),
-  entity_id: z.string().uuid().nullable().optional(),
-  success_path: z.string().min(1),
-  cancel_path: z.string().min(1),
-  // Kupon B2B: kod aplikowany przy zamówieniu. Rabat wyliczamy WYŁĄCZNIE
-  // serwerowo (validate_b2b_coupon → atomowe redeem_b2b_coupon), więc klient
-  // nigdy nie może obniżyć unit_amount ręcznie.
-  coupon_code: z.string().trim().max(64).optional(),
-  // Waluta prezentacji/rozliczenia. Dla EN pobieramy EUR (parytet 1 EUR = 2 PLN,
-  // spójne z cennikiem i /support). Konwersja liczona jest serwerowo, więc
-  // klient nie może zmienić kwoty - jedynie wybrać docelową walutę z listy.
-  display_currency: z.enum(["PLN", "EUR"]).optional(),
-  // Bilet na płatne wydarzenie - webhook po zapłacie potwierdza RSVP.
-  event_id: z.string().uuid().nullable().optional(),
-  // Rodzaj wejściówki z cennika wydarzenia. Kwotę i tak liczy baza
-  // (`event_ticket_checkout_quote`) - klient wskazuje wyłącznie pozycję.
-  ticket_type_id: z.string().uuid().nullable().optional(),
-  // Zgłoszenie etapu 4, za które płacimy. Klient WSKAZUJE wiersz, więc serwer
-  // musi sprawdzić, że należy do wołającego i do tego samego wydarzenia -
-  // robi to `event_registration_payment_context` (baza, nie ten plik).
-  // Bez tego klucza webhook dopasowuje wpłatę PO OSOBIE, a uczestnik z dwoma
-  // zgłoszeniami na to samo wydarzenie dostaje bilet przypięty do najnowszego
-  // wiersza, niekoniecznie tego, za który zapłacił.
-  registration_id: z.string().uuid().nullable().optional(),
-  // Kod z zaproszenia. Porównuje go baza ze skrótem SHA-256; serwer aplikacji
-  // nie zna kodu i nie może go obejść.
-  access_code: z.string().trim().max(64).optional(),
-  // Liczba miejsc dla planów rozliczanych za miejsce (Zespół). Ignorowana dla
-  // pozostałych planów - autorytetem jest wpis katalogu (`perSeat`).
-  seats: z.number().int().min(1).max(100).optional(),
-  // Środowisko bramki wyprowadzone po stronie klienta z prefiksu tokenu.
-  environment: z.enum(["sandbox", "live"]).optional(),
-});
+const createOrderSchema = z
+  .object({
+    kind: z.enum(["subscription", "one_time"]),
+    plan_id: z.string().uuid().nullable().optional(),
+    entity_type: z.enum(["post", "page"]).nullable().optional(),
+    entity_id: z.string().uuid().nullable().optional(),
+    success_path: z.string().min(1),
+    cancel_path: z.string().min(1),
+    // Kupon B2B: kod aplikowany przy zamówieniu. Rabat wyliczamy WYŁĄCZNIE
+    // serwerowo (validate_b2b_coupon → atomowe redeem_b2b_coupon), więc klient
+    // nigdy nie może obniżyć unit_amount ręcznie.
+    coupon_code: z.string().trim().max(64).optional(),
+    // Waluta prezentacji/rozliczenia. Dla EN pobieramy EUR (parytet 1 EUR = 2 PLN,
+    // spójne z cennikiem i /support). Konwersja liczona jest serwerowo, więc
+    // klient nie może zmienić kwoty - jedynie wybrać docelową walutę z listy.
+    display_currency: z.enum(["PLN", "EUR"]).optional(),
+    // Bilet na płatne wydarzenie - webhook po zapłacie potwierdza RSVP.
+    event_id: z.string().uuid().nullable().optional(),
+    // Rodzaj wejściówki z cennika wydarzenia. Kwotę i tak liczy baza
+    // (`event_ticket_checkout_quote`) - klient wskazuje wyłącznie pozycję.
+    ticket_type_id: z.string().uuid().nullable().optional(),
+    // Zgłoszenie etapu 4, za które płacimy. Klient WSKAZUJE wiersz, więc serwer
+    // musi sprawdzić, że należy do wołającego i do tego samego wydarzenia -
+    // robi to `event_registration_payment_context` (baza, nie ten plik).
+    // Bez tego klucza webhook dopasowuje wpłatę PO OSOBIE, a uczestnik z dwoma
+    // zgłoszeniami na to samo wydarzenie dostaje bilet przypięty do najnowszego
+    // wiersza, niekoniecznie tego, za który zapłacił.
+    registration_id: z.string().uuid().nullable().optional(),
+    // Kod z zaproszenia. Porównuje go baza ze skrótem SHA-256; serwer aplikacji
+    // nie zna kodu i nie może go obejść.
+    access_code: z.string().trim().max(64).optional(),
+    // Liczba miejsc dla planów rozliczanych za miejsce (Zespół). Ignorowana dla
+    // pozostałych planów - autorytetem jest wpis katalogu (`perSeat`).
+    seats: z.number().int().min(1).max(100).optional(),
+    // Środowisko bramki wyprowadzone po stronie klienta z prefiksu tokenu.
+    environment: z.enum(["sandbox", "live"]).optional(),
+  })
+  // JEDNA ŚCIEŻKA WYCENY NA ZAMÓWIENIE (TIX-01, TIX-12) - mieszanka biletu
+  // z planem albo treścią, zgłoszenie bez biletu z cennika i waluta prezentacji
+  // przy bilecie są odrzucane, zanim handler przeczyta cokolwiek z bazy.
+  .superRefine((data, ctx) => {
+    const issue = checkoutPayloadIssue(data);
+    if (issue !== null) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
+  });
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -101,13 +110,30 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // i przed założeniem zamówienia.
     const registrationId = data.registration_id ?? null;
 
-    // Zakup jednorazowy PLANU: kind=one_time z plan_id i bez encji. Cena
-    // pochodzi z planu, płatność jest jednorazowa, a uprawnienie dożywotnie
-    // (patrz entitlementForOrder).
-    const isOneTimePlan = data.kind === "one_time" && !!data.plan_id && !data.entity_id;
-    // Bilet na płatne wydarzenie: kind=one_time z event_id i bez planu/encji.
-    const isEventTicket =
-      data.kind === "one_time" && !!data.event_id && !data.plan_id && !data.entity_id;
+    // ŚCIEŻKA WYCENY wynika z ładunku jednoznacznie - walidator odrzucił już
+    // każdą mieszankę (`checkoutPayloadIssue`).
+    //   * zakup jednorazowy PLANU: kind=one_time z plan_id i bez encji - cena
+    //     z planu, uprawnienie dożywotnie (patrz entitlementForOrder), więc
+    //     wyłącznie plan jednorazowy (TIX-02);
+    //   * bilet na płatne wydarzenie: kind=one_time z event_id.
+    const purchase = checkoutPurchase(data);
+    const isOneTimePlan = purchase === "plan";
+    const isEventTicket = purchase === "ticket";
+    /**
+     * Metadane biletu - ustawiane WYŁĄCZNIE w gałęzi, która bilet wyceniła.
+     * Do zamówienia trafiają tylko z niej (TIX-01): `event_id` i
+     * `registration_id` z żądania nie przyklejają się już do zamówienia
+     * wycenionego jako plan albo treść.
+     */
+    let ticketMeta: {
+      eventId: string;
+      ticketTypeId: string | null;
+      registrationId: string | null;
+    } | null = null;
+    /** Kod podatkowy produktu Stripe z biletu (TIX-09). */
+    let ticketTaxCode: string | null = null;
+    /** Cena regularna przed benefitem planu i fazą - reguła kumulacji kodu. */
+    let ticketPromoActive = false;
 
     if (data.kind === "subscription" || isOneTimePlan) {
       if (!data.plan_id) throw new Error("plan_id_required");
@@ -120,6 +146,13 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         .maybeSingle();
       if (error) throw error;
       if (!plan || !plan.active) throw new Error("plan_not_found");
+      // Zakup jednorazowy daje dostęp DOŻYWOTNI (`current_period_end = NULL`),
+      // więc wolno nim kupić wyłącznie plan jednorazowy. Plan miesięczny
+      // kupiony tą ścieżką był subskrypcją bez końca za cenę jednego okresu
+      // (TIX-02). Baza odmawia tego samego przy zapisie zamówienia.
+      if (isOneTimePlan && String(plan.interval) !== "one_time") {
+        throw new Error("plan_not_one_time");
+      }
       amountCents = Number(plan.price_cents);
       currency = String(plan.currency);
       label = String(plan.name_pl || plan.name_en);
@@ -199,9 +232,16 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       ticketListPriceCents = price.listCents;
       ticketPhaseLabel = price.phaseLabel;
       ticketTaxMode = price.taxMode;
+      ticketTaxCode = price.taxCode;
       ticketSeats = price.seats;
       ticketLineName = price.label;
       label = price.seats > 1 ? `${price.label} × ${price.seats}` : price.label;
+      ticketPromoActive = price.planBenefit !== null || price.amountCents < price.listCents;
+      ticketMeta = {
+        eventId: data.event_id as string,
+        ticketTypeId: data.ticket_type_id,
+        registrationId,
+      };
     } else if (isEventTicket) {
       // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
       // klient przekazuje wyłącznie identyfikator wydarzenia.
@@ -233,6 +273,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       amountCents = ticketPrice.amountCents;
       currency = String(ev.ticket_currency ?? "PLN");
       label = String(ev.title_pl || ev.title_en || "");
+      ticketPromoActive = ticketPrice.amountCents < Number(ev.ticket_price_cents);
+      // Bilet z wiersza wydarzenia nie zna zgłoszeń etapu 4 - walidator
+      // odrzucił `registration_id` bez `ticket_type_id`.
+      ticketMeta = { eventId: String(ev.id), ticketTypeId: null, registrationId: null };
     } else {
       if (!data.entity_type || !data.entity_id) throw new Error("entity_required");
       // Price is taken from the per-entity access rule server-side, so the
@@ -279,7 +323,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let couponPerSeatCents: number | null = null;
     if (data.coupon_code && data.coupon_code.trim().length > 0) {
       const normalizedCode = data.coupon_code.trim().toUpperCase();
-      if (data.event_id) {
+      if (ticketMeta !== null) {
         // Bilet wydarzenia: kod sprawdzany z zakresem wydarzenia i biletu
         // (kody tworzone w studiu wydarzenia), a kod kwotowy schodzi z KAŻDEGO
         // miejsca - ta sama funkcja liczy podgląd kasy.
@@ -287,12 +331,16 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         const applied = await applyEventTicketCoupon(supabase, {
           userId,
           code: normalizedCode,
-          eventId: data.event_id,
-          ticketTypeId: data.ticket_type_id ?? null,
+          eventId: ticketMeta.eventId,
+          ticketTypeId: ticketMeta.ticketTypeId,
           amountCents,
           currency,
           seats: ticketSeats,
           leadCents: ticketLeadCents,
+          // Reguła kumulacji (TIX-13a): cena regularna całego zamówienia
+          // i czy działa już inna promocja (faza sprzedaży, benefit planu).
+          listCents: Math.max(ticketListPriceCents, amountCents),
+          promoActive: ticketPromoActive,
         });
         if (!applied.ok) {
           return { ok: false as const, mode: "coupon" as const, error: applied.error };
@@ -340,6 +388,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       couponCode = normalizedCode;
     }
 
+    // Kod 100% na bilet (TIX-13a): zamówienie za zero idzie ścieżką bez
+    // płatności - dotąd taki kod (voucher dla prasy) kończył się odmową
+    // `final_amount_too_low` i organizator musiał tworzyć ukryty bilet 0 zł.
+    const freeTicket = ticketMeta !== null && couponId !== null && amountCents === 0;
+
     // Konwersja waluty prezentacji (EN → EUR) PO wyliczeniu kuponu, żeby
     // walidacja kuponu B2B odbyła się w oryginalnej walucie planu (kupony
     // są zdefiniowane per waluta). Koszyk u dostawcy widzi już walutę
@@ -355,37 +408,24 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // Subskrypcja idzie z ceny katalogowej, więc walutę rozstrzyga operator
     // (`unit_price_overrides` EUR + lokalizacja) - lokalna konwersja tylko
     // rozjechałaby zamówienie z faktyczną kwotą obciążenia.
+    // Bilet nie dochodzi tutaj z walutą prezentacji (`display_currency_unsupported`,
+    // TIX-12) - przeliczamy wyłącznie kwoty, bez metadanych miejsc.
     if (data.display_currency && !catalogPriceId) {
-      const [{ convertToDisplayCurrency, couponAuditInDisplayCurrency }, { ensureFxRateLoaded }] =
-        await Promise.all([
-          import("@/lib/billing/displayCurrency"),
-          import("@/lib/billing/fxRate"),
-        ]);
+      const [{ couponAuditInDisplayCurrency }, { ensureFxRateLoaded }] = await Promise.all([
+        import("@/lib/billing/displayCurrency"),
+        import("@/lib/billing/fxRate"),
+      ]);
       await ensureFxRateLoaded();
-      const pricedCurrency = currency;
-      const target = data.display_currency;
-      const conv = couponAuditInDisplayCurrency(originalCents, amountCents, currency, target);
+      const conv = couponAuditInDisplayCurrency(
+        originalCents,
+        amountCents,
+        currency,
+        data.display_currency,
+      );
       originalCents = conv.originalCents;
       amountCents = conv.finalCents;
       couponDiscountCents = conv.discountCents;
       currency = conv.currency;
-      // Metadane miejsc w walucie ZAMÓWIENIA. Ceny miejsc przeliczamy osobno
-      // (bez proporcji - zaokrąglenie z proporcji rozjeżdża „N × cena"),
-      // a rabat na miejsce liczymy od przeliczonego rabatu, jak przed
-      // rozbiciem kodu na miejsca.
-      if (currency !== pricedCurrency) {
-        if (ticketPlan !== null) {
-          ticketPlan = {
-            benefit: ticketPlan.benefit,
-            leadCents: convertToDisplayCurrency(ticketPlan.leadCents, pricedCurrency, target).cents,
-            guestCents: convertToDisplayCurrency(ticketPlan.guestCents, pricedCurrency, target)
-              .cents,
-          };
-        }
-        if (couponPerSeatCents !== null) {
-          couponPerSeatCents = Math.floor(couponDiscountCents / ticketSeats);
-        }
-      }
     }
 
     // Fail-closed ZANIM powstanie zamówienie: produkcja bez działającej
@@ -393,7 +433,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // wpaść w tryb mock i rozdać dostęp za darmo.
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     const paymentsReady = paymentsConfiguredServer();
-    if (!paymentsReady && !mockCheckoutAllowed()) {
+    if (!freeTicket && !paymentsReady && !mockCheckoutAllowed()) {
       console.error("[checkout] billing unconfigured: refusing mock checkout in production");
       return {
         ok: false as const,
@@ -406,8 +446,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     // Bilet na płatne wydarzenie: rozpoznawany po metadanych zamówienia -
     // webhook po zaksięgowaniu potwierdza RSVP i wysyła mail rejestracyjny.
-    const eventId = data.event_id ?? null;
-    const ticketTypeId = data.ticket_type_id ?? null;
+    // WYŁĄCZNIE z gałęzi, która bilet wyceniła (TIX-01).
+    const eventId = ticketMeta?.eventId ?? null;
+    const ticketTypeId = ticketMeta?.ticketTypeId ?? null;
+    const boundRegistrationId = ticketMeta?.registrationId ?? null;
 
     // Środowisko jest rozstrzygane SERWEROWO (w produkcji zawsze 'live') i
     // stemplowane na zamówieniu, żeby webhook zrealizował je wyłącznie zdarzeniem
@@ -428,7 +470,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         plan_id: data.plan_id ?? null,
         entity_type: data.entity_type ?? null,
         entity_id: data.entity_id ?? null,
-        provider: paymentsReady ? "stripe" : "mock",
+        provider: freeTicket ? "coupon" : paymentsReady ? "stripe" : "mock",
         receipt_email: receiptEmail,
         // `environment`: kolumna z migracji 20260731220000, jeszcze nie w
         // wygenerowanym types.ts - stąd cast całego payloadu (konwencja repo).
@@ -443,7 +485,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           // `registration_id` jest KLUCZEM DOWIĄZANIA wpłaty do zgłoszenia
           // (`payments_apply_event_ticket_outcome`). Bez niego zostaje
           // dopasowanie po osobie z `LIMIT 1` po dacie utworzenia.
-          ...(registrationId ? { registration_id: registrationId } : {}),
+          ...(boundRegistrationId ? { registration_id: boundRegistrationId } : {}),
           // Benefit planu członka i ceny miejsc - „200 zł za trzy miejsca"
           // da się wtedy sprawdzić jako 0 zł (bilet z puli) + 2 × 100 zł.
           ...(ticketPlan
@@ -499,6 +541,56 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           error: "limit_reached" as const,
         };
       }
+    }
+
+    // ZAMÓWIENIE ZA ZERO (kod 100% na bilet): rozliczenie bez operatora -
+    // ta sama ścieżka co webhook (zgłoszenie, kod QR, RSVP, maile).
+    if (freeTicket) {
+      const { settleFreeTicketOrder } = await import("@/lib/billing/oneTimeFulfilment.server");
+      // Stan rozliczenia, który kupujący zobaczy - nigdy optymistyczny sukces:
+      //   * `seated`     - miejsce potwierdzone (RSVP albo zgłoszenie z miejscem);
+      //   * `sold_out`   - ostatnie miejsce zajęte, zamówienie anulowane, kod wrócił;
+      //   * `awaiting`   - zgłoszenie czeka (decyzja organizatora, lista rezerwowa)
+      //                    albo baza odmówiła - kupujący dostał już zawiadomienie;
+      //   * `processing` - rozliczenie urwało się; dokończy je tick zadań
+      //                    (`runUnsettledFreeTicketOrders`), bilet przyjdzie mailem.
+      let settlement: "seated" | "sold_out" | "awaiting" | "processing";
+      try {
+        const settled = await settleFreeTicketOrder(order.id);
+        if (settled.outcome === "skipped") {
+          // Strażnik odrzucił świeżo założone zamówienie - ponowienie też go nie
+          // rozliczy, więc żadnej obietnicy „bilet przyjdzie mailem".
+          console.error("[checkout] free ticket order rejected by settlement guard", order.id);
+          return {
+            ok: false as const,
+            mode: "free" as const,
+            error: "free_ticket_not_settled" as const,
+            orderId: order.id,
+          };
+        }
+        settlement =
+          settled.outcome === "oversold_refunded"
+            ? "sold_out"
+            : settled.seated
+              ? "seated"
+              : "awaiting";
+      } catch (err) {
+        console.error(
+          "[checkout] free ticket settlement failed - left to the job retry",
+          order.id,
+          err instanceof Error ? err.message : String(err),
+        );
+        settlement = "processing";
+      }
+      const freeUrl = new URL(resolveReturnUrl(data.success_path));
+      freeUrl.searchParams.set("order", order.id);
+      return {
+        ok: true as const,
+        mode: "free" as const,
+        url: freeUrl.toString(),
+        orderId: order.id,
+        settlement,
+      };
     }
 
     if (paymentsReady) {
@@ -662,6 +754,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         ...(perSeatLine ? { quantity: ticketSeats } : {}),
         discount: ticketDiscount,
         ...(ticketTaxMode ? { taxBehavior: ticketTaxMode } : {}),
+        // Kod podatkowy produktu z biletu (TIX-09) - Stripe Tax liczy z niego
+        // stawkę zgodną z fakturą organizatora.
+        ...(ticketTaxCode ? { taxCode: ticketTaxCode } : {}),
         currency,
         orderId: order.id,
         purpose: eventId ? "event_ticket" : "content_unlock",
@@ -672,7 +767,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           ? {
               event_id: eventId,
               ...(ticketTypeId ? { ticket_type_id: ticketTypeId } : {}),
-              ...(registrationId ? { registration_id: registrationId } : {}),
+              ...(boundRegistrationId ? { registration_id: boundRegistrationId } : {}),
             }
           : {},
         // BILET NIE DOSTAJE POLA KODU STRIPE - ale tej reguły NIE egzekwujemy

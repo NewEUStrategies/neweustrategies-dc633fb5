@@ -31,6 +31,10 @@ const SUPPORTED_EVENT_TYPES = [
   "invoice.payment_succeeded",
   "invoice.payment_failed",
   "charge.refunded",
+  // Zwrot, który nie doszedł (INV-19c): zgubione zdarzenie zostawiłoby zlecenie
+  // zwrotu w `submitted`, więc uzgadnianie ma je widzieć. `refund.updated` -
+  // celowo nie: większość jego dostaw to sukces, który niesie `charge.refunded`.
+  "refund.failed",
   "charge.dispute.created",
   // Rozstrzygnięcie sporu (`won` przywraca dostęp i wpłatę) - zgubione
   // zdarzenie ma być widoczne i naprawialne jak każde inne.

@@ -53,7 +53,7 @@ COMMENT ON COLUMN public.subscriptions.first_payment_failed_at IS
   'Pierwsza nieudana platnosc biezacego cyklu windykacji - kotwica karencji (PAYMENT_GRACE_DAYS, src/lib/billing/accessPeriod.ts). Dostep przy past_due/unpaid i po anulowaniu za brak platnosci trwa do min(current_period_end, ta data + karencja). NULL = brak otwartego cyklu.';
 
 COMMENT ON COLUMN public.subscriptions.purchase_confirmed_at IS
-  'Chwila wyslania efektow zakupu (mail potwierdzenia, CRM, newsletter premium, dzwonek). Ustawiana raz: przy wstawieniu wiersza w stanie active|trialing albo atomowym zajeciem przy przejsciu incomplete -> active|trialing. NULL przy wierszach sprzed 20261012120000 nie oznacza braku potwierdzenia.';
+  'Chwila wyslania efektow zakupu (mail potwierdzenia, CRM, newsletter premium, dzwonek). Ustawiana raz: przy wstawieniu wiersza w stanie active|trialing albo atomowym zajeciem przy przejsciu incomplete -> active|trialing. NULL przy wierszach sprzed 20261013090500 nie oznacza braku potwierdzenia.';
 
 COMMENT ON COLUMN public.subscriptions.pause_collection_behavior IS
   'pause_collection.behavior operatora (void / keep_as_draft / mark_uncollectible); NULL = brak pauzy poboru. Pauze poboru zdejmuje pause_collection: null, a status paused bez tej wartosci - subscriptions.resume.';

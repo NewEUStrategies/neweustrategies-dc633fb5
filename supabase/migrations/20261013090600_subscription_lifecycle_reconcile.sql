@@ -1,7 +1,7 @@
 -- ============================================================================
 -- SUBSKRYPCJE: UZGODNIENIE DANYCH POD JEDNOZNACZNE POTWIERDZENIE ZAKUPU I
 -- KARENCJE ZALEGLYCH PLANOW INDYWIDUALNYCH (przeglad poprawek audytu
--- rozliczen SUB-02, SUB-03 po migracji 20261012120000).
+-- rozliczen SUB-02, SUB-03 po migracji 20261013090500).
 --
 -- DEFEKTY.
 --   SUB-02  `purchase_confirmed_at` mial dwa znaczenia NULL: „potwierdzenie
@@ -16,7 +16,7 @@
 --           „potwierdzenie nie wyszlo" i webhook potwierdza kazdy wiersz
 --           w stanie active|trialing z pustym znacznikiem - dokladnie raz,
 --           atomowym zajeciem.
---   SUB-03  migracja 20261012120000 zakotwiczyla karencje subskrypcji JUZ
+--   SUB-03  migracja 20261013090500 zakotwiczyla karencje subskrypcji JUZ
 --           zaleglych, ale zostawila ich uprawnienia indywidualne
 --           (`user_subscriptions.current_period_end`) na koncu nowego,
 --           nieoplaconego okresu - przy planie rocznym rok dostepu. Kolejne
@@ -42,7 +42,7 @@
 --
 -- UPRAWNIENIA. Bez zmian (zapis do obu tabel: rola serwisowa - webhook).
 --
--- KOLEJNOSC WDROZENIA: po 20261012120000, przed kodem z nowym warunkiem
+-- KOLEJNOSC WDROZENIA: po 20261013090500, przed kodem z nowym warunkiem
 -- potwierdzenia (kod bez tego uzgodnienia potwierdzalby wiersze sprzed
 -- znacznika drugi raz - mail odsiewa log wysylek, dzwonek nie).
 -- IDEMPOTENTNA: oba UPDATE dotykaja wylacznie wierszy jeszcze nieuzgodnionych
@@ -75,4 +75,4 @@ UPDATE public.user_subscriptions us
              COALESCE(s.current_period_end, 'infinity'::timestamptz)));
 
 COMMENT ON COLUMN public.subscriptions.purchase_confirmed_at IS
-  'Chwila wyslania efektow zakupu (mail potwierdzenia, CRM, newsletter premium, dzwonek). Ustawiana raz, atomowym zajeciem (UPDATE ... WHERE purchase_confirmed_at IS NULL) po zapisie uprawnienia, przy pierwszym zdarzeniu w stanie active|trialing. NULL = potwierdzenie jeszcze nie wyszlo (wiersze sprzed 20261012120000 uzupelnia 20261012170000).';
+  'Chwila wyslania efektow zakupu (mail potwierdzenia, CRM, newsletter premium, dzwonek). Ustawiana raz, atomowym zajeciem (UPDATE ... WHERE purchase_confirmed_at IS NULL) po zapisie uprawnienia, przy pierwszym zdarzeniu w stanie active|trialing. NULL = potwierdzenie jeszcze nie wyszlo (wiersze sprzed 20261013090500 uzupelnia 20261013090600).';

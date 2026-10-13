@@ -16,6 +16,16 @@ function addMonthsClamped(d: Date, months: number): void {
 export type PlanInterval =
   "day" | "week" | "two_weeks" | "month" | "quarter" | "year" | "one_time" | string;
 
+/**
+ * Czy plan wolno nadać DOŻYWOTNIO (zakup jednorazowy). Tylko plan
+ * jednorazowy - plan cykliczny kupiony „jednorazowo" był subskrypcją bez końca
+ * za cenę jednego okresu (audyt TIX-02). Kasa i baza odmawiają takiego
+ * zamówienia; grant nie ufa, że nikt go nie złożył wcześniej.
+ */
+export function isLifetimePlanInterval(interval: PlanInterval | null | undefined): boolean {
+  return interval === "one_time";
+}
+
 export function periodEndFor(interval: PlanInterval | null | undefined, from: Date): Date {
   const d = new Date(from.getTime());
   switch (interval) {

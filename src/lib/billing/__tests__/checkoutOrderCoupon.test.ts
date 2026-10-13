@@ -641,6 +641,8 @@ describe("createCheckoutOrder - waluta prezentacji", () => {
    * cennik operatora) i ma osobny przypadek na końcu bloku.
    */
   function oneTimePlanPayload(over: Record<string, unknown> = {}): Record<string, unknown> {
+    // Zakup jednorazowy przyjmuje tylko plan jednorazowy (TIX-02).
+    chain.setResponse("access_plans", ok(planQuote({ interval: "one_time" })));
     return planPayload({ kind: "one_time", ...over });
   }
 

@@ -16,7 +16,7 @@ type Result = { data: Row[] | Row | null; error: { message: string; code?: strin
 
 /**
  * Unikaty z migracji: `provider_session_id`, `(provider, provider_intent_id)`
- * oraz `(provider, environment, provider_invoice_id)` (20261012100000).
+ * oraz `(provider, environment, provider_invoice_id)` (20261013090000).
  */
 function uniqueViolation(rows: Row[], candidate: Row): boolean {
   return rows.some(

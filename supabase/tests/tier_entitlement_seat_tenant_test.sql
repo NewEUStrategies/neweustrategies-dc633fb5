@@ -1,5 +1,5 @@
 -- pgTAP: uprawnienia warstwy respektuja STATUS MIEJSCA i NAJEMCE TRESCI
--- (audyt billingowy SUB-07, migracja 20261012110000_tier_entitlement_seat_status_tenant.sql).
+-- (audyt billingowy SUB-07, migracja 20261013090200_tier_entitlement_seat_status_tenant.sql).
 --
 -- Kryterium zakonczenia audytu: miejsce 'suspended' i subskrypcja z DRUGIEGO
 -- najemcy zwracaja brak dostepu. Dowodzimy obu na samej bramce tresci

@@ -822,6 +822,13 @@ export interface AdhocCheckoutSessionInput {
   discount?: { coupon: string } | null;
   /** Podatek wliczony w cenę (`inclusive`) albo doliczany (`exclusive`). */
   taxBehavior?: "inclusive" | "exclusive";
+  /**
+   * Kod podatkowy produktu Stripe (`txcd_########`) z biletu (TIX-09). Bez
+   * niego Stripe Tax liczył bilet jak produkt ogólny, a faktura organizatora
+   * brała stawkę z ustawień - stawki rozjeżdżały się dla wydarzeń 8% i zw.
+   * Treść cyfrowa zawsze dostaje `ADHOC_DIGITAL_TAX_CODE`.
+   */
+  taxCode?: string;
 }
 
 /**
@@ -865,6 +872,15 @@ export const ADHOC_DIGITAL_TAX_CODE = "txcd_10000000";
  */
 export function adhocAllowsManagedPayments(purpose: AdhocCheckoutSessionInput["purpose"]): boolean {
   return purpose === "content_unlock";
+}
+
+/** Kod podatkowy pozycji: treść cyfrowa (MoR) albo kod z biletu wydarzenia. */
+function adhocTaxCode(input: AdhocCheckoutSessionInput): { tax_code?: string } {
+  if (adhocAllowsManagedPayments(input.purpose)) return { tax_code: ADHOC_DIGITAL_TAX_CODE };
+  if (input.purpose === "event_ticket" && input.taxCode && /^txcd_[0-9]{8}$/.test(input.taxCode)) {
+    return { tax_code: input.taxCode };
+  }
+  return {};
 }
 
 function adhocFlags(input: AdhocCheckoutSessionInput, hasCustomer: boolean): SessionCreateParams {
@@ -928,9 +944,7 @@ export async function createAdhocCheckoutSession(
             product_data: {
               name: input.name.slice(0, 200),
               ...(input.description ? { description: input.description.slice(0, 200) } : {}),
-              ...(adhocAllowsManagedPayments(input.purpose)
-                ? { tax_code: ADHOC_DIGITAL_TAX_CODE }
-                : {}),
+              ...adhocTaxCode(input),
             },
           },
         },

@@ -372,7 +372,7 @@ export async function settleDonation(settlement: DonationSettlement): Promise<bo
 // a pierwsza wpłata liczyła się podwójnie (audyt SUB-09).
 //
 // Idempotencja stoi na fakturze: unikat `(provider, environment,
-// provider_invoice_id)` (20261012100000), a pomocniczo unikalny
+// provider_invoice_id)` (20261013090000), a pomocniczo unikalny
 // `provider_session_id` (`renewal:<invoiceId>`) i `(provider,
 // provider_intent_id)`. `invoice.paid` i `invoice.payment_succeeded` opisują
 // tę samą fakturę - drugie z nich trafia w unikat i kończy się `skipped`.

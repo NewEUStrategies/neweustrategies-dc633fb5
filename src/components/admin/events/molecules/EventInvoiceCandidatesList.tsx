@@ -19,6 +19,13 @@
 // Masowe wystawienie go pomija, a wiersz niesie te sama plakietke co lista
 // zgloszen (slownik zgloszen, bez nowych zdan), zeby organizator fakturujacy
 // ze szkicu (np. zaliczke) wiedzial, ze moze potrzebowac korekty.
+//
+// KWOTA Z CENNIKA TO NIE WPLATA (INV-14). Zapis oplacony przelewem albo
+// gotowka nie ma kwoty od operatora platnosci, a faktura musi dokumentowac to,
+// co wplynelo. Baza odmawia wystawienia faktury za taki zapis, dopoki
+// organizator nie zaksieguje wplaty (`payment_amount_unbooked`) - wiersz
+// pokazuje wiec "Zaksieguj wplate" z kwota z cennika do potwierdzenia albo
+// poprawy, a po zapisie plakietke "kwota zaksiegowanej wplaty".
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -27,6 +34,7 @@ import { MoneyText } from "@/components/billing/atoms/MoneyText";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { confirmDialog } from "@/lib/appDialogs";
 import { adminEventInvoiceErrorMessage } from "@/lib/events/adminEventInvoiceErrors";
 import type {
@@ -45,7 +53,12 @@ import {
   useCreateInvoiceDraft,
   useInvoiceCandidates,
   useIssuePendingInvoices,
+  useRecordRegistrationPayment,
 } from "@/lib/events/useEventInvoices";
+import {
+  registrationPriceCents,
+  registrationPriceInput,
+} from "@/lib/events/registrationSettingsDraft";
 import { ensureAdminEventInvoicesI18n } from "@/lib/i18n-admin-event-invoices";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 
@@ -233,6 +246,7 @@ export function EventInvoiceCandidatesList({
                   {group.rows.map((row) => (
                     <CandidateRow
                       key={row.source_id}
+                      eventId={eventId}
                       row={row}
                       checked={selected.has(row.source_id)}
                       onToggle={(on) => toggle([row.source_id], on)}
@@ -277,16 +291,32 @@ export function EventInvoiceCandidatesList({
   );
 }
 
+/** Oplacony poza kasa zapis bez faktury - jego wplate ksieguje organizator. */
+function canBookPayment(row: EventInvoiceCandidateRow): boolean {
+  return (
+    row.source_kind === "registration" &&
+    row.invoice_id === null &&
+    row.paid_via !== "card" &&
+    (row.payment_state === "paid" || row.payment_state === "partially_refunded") &&
+    (row.amount_source === "price_list" ||
+      row.amount_source === "price_list_net" ||
+      row.amount_source === "booked")
+  );
+}
+
 function CandidateRow({
+  eventId,
   row,
   checked,
   onToggle,
 }: {
+  eventId: string;
   row: EventInvoiceCandidateRow;
   checked: boolean;
   onToggle: (on: boolean) => void;
 }) {
   const { t, i18n } = useTranslation();
+  const [booking, setBooking] = useState(false);
   const english = i18n.language.startsWith("en");
   const itemName = english && row.label_en !== "" ? row.label_en : row.label_pl;
   const label =
@@ -339,6 +369,23 @@ function CandidateRow({
           <p className="text-xs text-brand-ink">
             {t("adminEventInvoices.candidates.priceListNet")}
           </p>
+        ) : row.amount_source === "booked" ? (
+          <p className="text-xs text-muted-foreground">
+            {t("adminEventInvoices.candidates.booked")}
+          </p>
+        ) : null}
+        {canBookPayment(row) && !booking ? (
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onClick={() => setBooking(true)}
+          >
+            {row.amount_source === "booked"
+              ? t("adminEventInvoices.candidates.bookPaymentEdit")
+              : t("adminEventInvoices.candidates.bookPayment")}
+          </Button>
         ) : null}
       </div>
       <div className="text-xs">
@@ -360,6 +407,78 @@ function CandidateRow({
           </span>
         )}
       </div>
+      {booking ? (
+        <BookPaymentForm eventId={eventId} row={row} onDone={() => setBooking(false)} />
+      ) : null}
     </li>
+  );
+}
+
+function BookPaymentForm({
+  eventId,
+  row,
+  onDone,
+}: {
+  eventId: string;
+  row: EventInvoiceCandidateRow;
+  onDone: () => void;
+}) {
+  const { t } = useTranslation();
+  const record = useRecordRegistrationPayment(eventId);
+  const [amount, setAmount] = useState(() => registrationPriceInput(row.gross_cents));
+  const cents = registrationPriceCents(amount);
+  const valid = cents !== null && !Number.isNaN(cents) && cents <= 99_999_999_999;
+  const inputId = `book-payment-${row.source_id}`;
+
+  function submit(): void {
+    if (!valid || cents === null) return;
+    record.mutate(
+      {
+        registrationId: row.source_id,
+        amountCents: cents,
+        currency: row.currency === "EUR" ? "EUR" : "PLN",
+      },
+      {
+        onSuccess: () => {
+          toast.success(t("adminEventInvoices.toasts.paymentBooked"));
+          onDone();
+        },
+        onError: (failure) => toast.error(adminEventInvoiceErrorMessage(failure)),
+      },
+    );
+  }
+
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2 rounded-md bg-muted/40 p-2 sm:col-span-full"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <div className="space-y-1">
+        <label htmlFor={inputId} className="text-xs font-medium">
+          {t("adminEventInvoices.candidates.bookPaymentAmount", { currency: row.currency })}
+        </label>
+        <Input
+          id={inputId}
+          value={amount}
+          inputMode="decimal"
+          className="h-8 w-36"
+          disabled={record.isPending}
+          aria-invalid={!valid}
+          onChange={(event) => setAmount(event.target.value)}
+        />
+      </div>
+      <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+        {t("adminEventInvoices.candidates.bookPaymentHint")}
+      </p>
+      <Button type="button" variant="ghost" size="sm" onClick={onDone}>
+        {t("adminEventInvoices.candidates.bookPaymentCancel")}
+      </Button>
+      <Button type="submit" size="sm" disabled={!valid || record.isPending}>
+        {t("adminEventInvoices.candidates.bookPaymentSave")}
+      </Button>
+    </form>
   );
 }

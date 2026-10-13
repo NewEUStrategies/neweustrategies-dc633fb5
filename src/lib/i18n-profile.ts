@@ -301,8 +301,10 @@ const pl = {
         retentionTitle: "Co zostaje po usunięciu konta",
         retentionBody:
           "Historia płatności (kwoty, waluty, daty, numery transakcji u operatora) oraz zapisy o wykupionym dostępie zostają jako dowód księgowy, ale tracisz z nimi związek: usuwamy identyfikator konta, adres e-mail do potwierdzeń i dane opisowe, a w ich miejsce wchodzi nieodwracalny pseudonim. Darmowe przyznania dostępu, które nic nie dowodzą, usuwamy razem z kontem.",
+        // `{{years}}` = ACCOUNTING_RETENTION_YEARS_AFTER_FISCAL_YEAR - ta sama stała
+        // co reguła purge'a w bazie (INV-13), więc nota nie obiecuje innego terminu.
         retentionBasis:
-          "Podstawa: art. 74 ust. 2 ustawy o rachunkowości (5 lat od końca roku obrotowego) w związku z art. 17 ust. 3 lit. b RODO. Po tym terminie zapisy usuwamy automatycznie.",
+          "Podstawa: art. 74 ust. 2 ustawy o rachunkowości oraz art. 70 § 1 i art. 86 § 1 Ordynacji podatkowej (do przedawnienia zobowiązania podatkowego: 31 grudnia, {{years}} lat po końcu roku transakcji) w związku z art. 17 ust. 3 lit. b RODO. Po tym terminie zapisy usuwamy automatycznie.",
       },
       tip: {
         currentPassword: "Podaj obecne hasło, aby potwierdzić, że to Ty.",
@@ -1128,7 +1130,7 @@ const en: ProfileEn = {
         retentionBody:
           "Your payment history (amounts, currencies, dates, provider transaction ids) and the records of access you purchased stay on file as accounting evidence, but they can no longer be traced to you: we drop the account id, the receipt e-mail address and descriptive fields, and put an irreversible pseudonym in their place. Free access grants prove nothing, so they are deleted along with the account.",
         retentionBasis:
-          "Legal basis: Article 74(2) of the Polish Accounting Act (5 years from the end of the financial year) read with Article 17(3)(b) GDPR. Records are purged automatically once that period lapses.",
+          "Legal basis: Article 74(2) of the Polish Accounting Act and Articles 70 § 1 and 86 § 1 of the Polish Tax Ordinance (until the tax liability is time-barred: 31 December, {{years}} years after the end of the transaction year) read with Article 17(3)(b) GDPR. Records are purged automatically once that period lapses.",
       },
       tip: {
         currentPassword: "Enter your current password to confirm it's you.",

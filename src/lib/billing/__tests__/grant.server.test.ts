@@ -132,9 +132,9 @@ describe("grantEntitlement", () => {
     expect(new Date(row.current_period_end as string).getTime()).toBeGreaterThan(Date.now());
   });
 
-  it("plan lifetime (one_time + plan_id, bez encji) pomija lookup interwalu i zapisuje bez wygasania", async () => {
-    // Galaz `!entitlement.lifetime` == false: zero zapytan o access_plans,
-    // current_period_end zostaje NULL (has_content_access: nigdy nie wygasa).
+  it("plan lifetime (one_time + plan jednorazowy, bez encji) zapisuje bez wygasania", async () => {
+    // Dożywotni dostęp tylko wtedy, gdy PLAN jest jednorazowy - interwał
+    // czytany z wiersza planu, nie z rodzaju zamówienia (TIX-02).
     const lifetimeOrder: GrantableOrder = {
       ...subOrder,
       id: "ord_life",
@@ -143,18 +143,42 @@ describe("grantEntitlement", () => {
       entity_type: null,
       entity_id: null,
     };
-    // Jedyny maybeSingle to sprawdzenie istniejacej subskrypcji.
-    h.state.maybeSingleQueue = [{ data: null, error: null }];
+    h.state.maybeSingleQueue = [
+      { data: { interval: "one_time" }, error: null },
+      { data: null, error: null },
+    ];
 
     await grantEntitlement(lifetimeOrder, "cs_lifetime_1");
 
-    expect(tables()).not.toContain("access_plans");
+    expect(tables()).toContain("access_plans");
     const insert = find("insert");
     expect(insert).toBeTruthy();
     const row = insert!.args[0] as Record<string, unknown>;
     expect(row.status).toBe("active");
     expect(row.current_period_end).toBeNull();
     expect(row.external_ref).toBe("cs_lifetime_1");
+  });
+
+  it("zamówienie `one_time` na plan MIESIĘCZNY dostaje jeden okres, nie dostęp bez końca", async () => {
+    // Zamówienie sprzed bramki kasy (TIX-02): plan cykliczny kupiony jako
+    // jednorazowy. Uprawnienie wygasa po opłaconym okresie.
+    const order: GrantableOrder = {
+      ...subOrder,
+      id: "ord_month_once",
+      kind: "one_time",
+      plan_id: "plan_month",
+      entity_type: null,
+      entity_id: null,
+    };
+    h.state.maybeSingleQueue = [
+      { data: { interval: "month" }, error: null },
+      { data: null, error: null },
+    ];
+
+    await grantEntitlement(order, "cs_month_once");
+
+    const row = find("insert")!.args[0] as Record<string, unknown>;
+    expect(typeof row.current_period_end).toBe("string");
   });
 
   it("refreshes an existing subscription instead of duplicating it (Stripe replay)", async () => {
