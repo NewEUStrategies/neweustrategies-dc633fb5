@@ -8,7 +8,9 @@
 //     minęła - brak dostępu.
 //   * ODEBRANIE DOSTĘPU KLIENTOWI, KTÓRY ZAPŁACIŁ. Rezygnacja klienta
 //     (`cancellation_requested`) i anulowanie bez dowodu braku płatności
-//     zostają nietknięte; zwrot (`refunded`) jest ostateczny.
+//     zostają nietknięte; zwrot (`refunded`) jest ostateczny. Zaległa faktura
+//     zapłacona PO anulowaniu `payment_failed` (link z maila, zapłata poza
+//     operatorem) to opłacony okres - bez kotwicy, przycięcia i zawieszenia.
 //   * POZORNA SYMULACJA. `dry_run` ma nie wysłać ANI JEDNEGO zapisu.
 //   * PODWÓJNY SKUTEK. Drugi przebieg `apply` nie zmienia niczego.
 //   * PARTIE. Kursor po `subscriptions.id` przechodzi każdy wiersz raz.
@@ -158,6 +160,8 @@ function subRow(n: number, overrides: Partial<Row> = {}): Row {
     current_period_start: relativeIso(-5 * DZIEN),
     current_period_end: relativeIso(360 * DZIEN),
     first_payment_failed_at: null,
+    // Ostatnia zapłata - za POPRZEDNI rok (odnowienie się nie udało).
+    last_payment_at: relativeIso(-370 * DZIEN),
     ...overrides,
   };
 }
@@ -175,13 +179,25 @@ function entRow(n: number, overrides: Partial<Row> = {}): Row {
   };
 }
 
+interface RemoteInvoice {
+  status: string;
+  attempts: number;
+  finalizedAt?: string | null;
+  /** `status_transitions.paid_at`. */
+  paidAt?: string | null;
+  amountPaid?: number;
+  amountDue?: number;
+  outOfBand?: boolean;
+  billingReason?: string;
+}
+
 interface RemoteOptions {
   reason?: string | null;
   status?: string;
   start?: string;
   end?: string;
   endedAt?: string;
-  invoice?: { status: string; attempts: number; finalizedAt?: string | null } | null;
+  invoice?: RemoteInvoice | null;
 }
 
 /** Surowa subskrypcja operatora (API Basil+: okres na pozycji). */
@@ -221,8 +237,13 @@ function remoteSub(n: number, o: RemoteOptions = {}): Record<string, unknown> {
           status: invoice.status,
           attempt_count: invoice.attempts,
           created: unix(start),
+          amount_due: invoice.amountDue ?? 49900,
+          amount_paid: invoice.amountPaid ?? 0,
+          paid_out_of_band: invoice.outOfBand ?? false,
+          billing_reason: invoice.billingReason ?? "subscription_cycle",
           status_transitions: {
             finalized_at: invoice.finalizedAt ? unix(invoice.finalizedAt) : null,
+            paid_at: invoice.paidAt ? unix(invoice.paidAt) : null,
           },
         }
       : null,
@@ -405,6 +426,88 @@ describe("decyzja - bez zmian", () => {
         FIXED_NOW,
       ),
     ).toBe("skip");
+  });
+});
+
+describe("decyzja - okres opłacony mimo anulowania za brak płatności", () => {
+  /** Zaległa faktura odnowienia zapłacona 2 dni temu - już po anulowaniu. */
+  const paidLate: RemoteInvoice = {
+    status: "paid",
+    attempts: 4,
+    finalizedAt: relativeIso(-5 * DZIEN + GODZINA),
+    paidAt: relativeIso(-2 * DZIEN),
+    amountPaid: 49900,
+  };
+
+  it("`payment_failed`, a faktura opłacona po anulowaniu: bez kotwicy, przycięcia i zawieszenia", () => {
+    // `invoice.paid` wyzerował kotwicę i zapisał zapłatę - baza też to wie.
+    const plan = decide({
+      sub: { price_id: "team_monthly_seat", last_payment_at: relativeIso(-2 * DZIEN) },
+      remote: { invoice: paidLate },
+      teamActive: true,
+    });
+
+    expect(plan).toMatchObject({
+      decision: "paid",
+      evidence: "reason",
+      paymentProof: "invoice",
+      anchor: null,
+      writeAnchor: false,
+      accessUntil: null,
+      clamp: [],
+      suspendTeam: false,
+    });
+  });
+
+  it("zapłata oznaczona poza operatorem (kwota 0, `paid_out_of_band`) też jest zapłatą", () => {
+    const plan = decide({
+      remote: { invoice: { ...paidLate, amountPaid: 0, outOfBand: true } },
+    });
+
+    expect(plan.decision).toBe("paid");
+    expect(plan.paymentProof).toBe("invoice");
+  });
+
+  it("zapłata zaksięgowana w bieżącym okresie wystarcza, gdy faktura u operatora jej nie pokazuje", () => {
+    const plan = decide({ sub: { last_payment_at: relativeIso(-1 * DZIEN) } });
+
+    expect(plan).toMatchObject({ decision: "paid", paymentProof: "ledger", clamp: [] });
+  });
+
+  it("brak powodu: faktura nieopłacona, ale zapłata zaksięgowana w okresie - bez zmian", () => {
+    const plan = decide({
+      sub: { last_payment_at: relativeIso(-1 * DZIEN) },
+      remote: { reason: null, invoice: { status: "void", attempts: 3 } },
+    });
+
+    expect(plan).toMatchObject({ decision: "paid", evidence: "invoice", paymentProof: "ledger" });
+  });
+
+  it("to NIE są dowody zapłaty: dopłata za zmianę, `paid` bez znacznika ani kwoty, zapłata sprzed okresu", () => {
+    for (const invoice of [
+      { ...paidLate, billingReason: "subscription_update" },
+      { ...paidLate, paidAt: null },
+      { ...paidLate, amountPaid: 0 },
+    ]) {
+      expect(decide({ remote: { invoice } })).toMatchObject({
+        decision: "clamp",
+        paymentProof: null,
+      });
+    }
+    // Zapłata sprzed początku okresu (za poprzedni) nie opłaca bieżącego.
+    expect(decide({ sub: { last_payment_at: relativeIso(-6 * DZIEN) } })).toMatchObject({
+      decision: "clamp",
+      paymentProof: null,
+    });
+  });
+
+  it("spór o płatność dotyczy faktury opłaconej - zapłata nie znosi przycięcia", () => {
+    const plan = decide({
+      sub: { last_payment_at: relativeIso(-4 * DZIEN) },
+      remote: { reason: "payment_disputed", invoice: paidLate },
+    });
+
+    expect(plan).toMatchObject({ decision: "clamp", evidence: "reason", paymentProof: null });
   });
 });
 
@@ -616,6 +719,51 @@ describe("zastosowanie", () => {
       ["org-1", "suspended"],
       ["org-x", "active"],
     ]);
+  });
+});
+
+describe("okres opłacony po anulowaniu - przebieg", () => {
+  it("symulacja i zastosowanie: dostęp, zespół i kotwica nietknięte, raport mówi dlaczego", async () => {
+    const paidAt = relativeIso(-2 * DZIEN);
+    seed({
+      subscriptions: [subRow(1, { price_id: "team_monthly_seat", last_payment_at: paidAt })],
+      entitlements: [entRow(1)],
+      orgs: [
+        {
+          id: "org-1",
+          tenant_id: TENANT,
+          provider_subscription_id: providerId(1),
+          status: "active",
+        },
+      ],
+    });
+    h.remote.set(
+      providerId(1),
+      remoteSub(1, {
+        invoice: { status: "paid", attempts: 4, paidAt, amountPaid: 49900 },
+      }),
+    );
+    const before = structuredClone(tables);
+
+    for (const mode of ["dry_run", "apply"] as const) {
+      const report = await run(mode);
+
+      expect(report.counts).toMatchObject({ paid: 1, clamp: 0, revoke: 0 });
+      expect(report.rows[0]).toMatchObject({
+        decision: "paid",
+        paymentProof: "invoice",
+        cancellationReason: "payment_failed",
+        invoiceStatus: "paid",
+        anchor: null,
+        accessUntilBefore: relativeIso(360 * DZIEN),
+        accessUntilAfter: null,
+        suspendTeam: false,
+        applied: false,
+      });
+      expect(report.writes).toEqual({ anchors: 0, entitlements: 0, teams: 0 });
+    }
+    expect(updates()).toEqual([]);
+    expect(tables).toEqual(before);
   });
 });
 

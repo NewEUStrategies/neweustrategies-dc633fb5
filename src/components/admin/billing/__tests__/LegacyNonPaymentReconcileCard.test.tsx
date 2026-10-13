@@ -54,6 +54,7 @@ function batch(overrides: Partial<LegacyReconcileReport> = {}): LegacyReconcileR
         tenantId: "tenant-alfa",
         decision: "clamp",
         evidence: "reason",
+        paymentProof: null,
         cancellationReason: "payment_failed",
         invoiceStatus: "open",
         anchor: "2026-01-01T00:00:00.000Z",
@@ -101,6 +102,25 @@ describe("LegacyNonPaymentReconcileCard", () => {
     expect(screen.getByText("sub_legacy_1")).toBeTruthy();
     expect(screen.getByText("sub_legacy_2")).toBeTruthy();
     expect(screen.getByText("adminLegacyNonPayment.decisions.voluntary")).toBeTruthy();
+  });
+
+  it("okres opłacony po anulowaniu: wiersz mówi, czym zapłata została udowodniona", async () => {
+    const paidRow = {
+      ...batch().rows[0]!,
+      decision: "paid" as const,
+      paymentProof: "invoice" as const,
+      invoiceStatus: "paid",
+      accessUntilAfter: null,
+    };
+    h.run.mockResolvedValueOnce(batch({ rows: [paidRow] }));
+    renderWithQueryClient(<LegacyNonPaymentReconcileCard />);
+
+    fireEvent.click(screen.getByText("adminLegacyNonPayment.dryRun"));
+
+    await waitFor(() =>
+      expect(screen.getByText("adminLegacyNonPayment.decisions.paid")).toBeTruthy(),
+    );
+    expect(screen.getByText("adminLegacyNonPayment.paymentProof.invoice")).toBeTruthy();
   });
 
   it("„Zastosuj” niczego nie wysyła przed potwierdzeniem, a potem wysyła `apply`", async () => {

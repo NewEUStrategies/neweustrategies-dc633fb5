@@ -122,6 +122,55 @@ export function paymentGraceEnd(input: PaymentGraceInput): string {
   return new Date(bounded).toISOString();
 }
 
+/**
+ * Czy zaksięgowana zapłata (`subscriptions.last_payment_at`, zapisywana przy
+ * `invoice.paid`) pokrywa bieżący okres: nie jest wcześniejsza niż jego
+ * początek. Przy nieudanym odnowieniu ostatnia zapłata pochodzi z POPRZEDNIEGO
+ * okresu, więc ten warunek oddziela „windykacja się nie udała" od „klient
+ * zapłacił zaległą fakturę już po anulowaniu" (link z maila windykacyjnego,
+ * zapłata poza operatorem) - drugi przypadek ma opłacony okres i nie wolno mu
+ * odbierać dostępu jak niepłacącemu. Bez którejkolwiek daty - `false`.
+ */
+export function paymentCoversPeriod(
+  lastPaymentAt: string | null | undefined,
+  periodStart: string | null | undefined,
+): boolean {
+  const paid = iso(lastPaymentAt);
+  const start = iso(periodStart);
+  return paid !== null && start !== null && Date.parse(paid) >= Date.parse(start);
+}
+
+export interface CancellationReasonInput {
+  /** `cancellation_details.reason` operatora (pusty = nie podał). */
+  reason?: string | null;
+  /** Zapisana kotwica karencji (`subscriptions.first_payment_failed_at`). */
+  firstPaymentFailedAt?: string | null;
+  /** Ostatnia zaksięgowana zapłata (`subscriptions.last_payment_at`). */
+  lastPaymentAt?: string | null;
+  /** Początek bieżącego okresu. */
+  periodStart?: string | null;
+}
+
+/**
+ * Powód anulowania, z którym liczymy dostęp. Powód operatora wygrywa, gdy
+ * jest. Gdy go NIE MA (anulowania sprzed `cancellation_details`, stare wersje
+ * API), zapisana kotwica karencji znaczy, że subskrypcja weszła w windykację
+ * (zaległość, koniec windykacji albo dowód z faktury zapisany przez
+ * uzgodnienie dawnych anulowań, SUB-03), a zapłata, która by ją zamknęła, nie
+ * wpłynęła - to anulowanie za brak płatności, jak w dobowym
+ * `suspendTeamsPastPaymentGrace`. Bez tego każde ponowne `deleted` bez powodu
+ * (samoobsługowa synchronizacja, odtworzenie zdarzenia, remis rozstrzygany
+ * żywym stanem) liczyło dostęp jak po rezygnacji, czyli do końca
+ * nieopłaconego okresu, i cofało przycięcie. Zapłata pokrywająca okres
+ * (`paymentCoversPeriod`) znosi to wnioskowanie - ta sama reguła co
+ * w uzgodnieniu, więc oba miejsca rozstrzygają tak samo.
+ */
+export function effectiveCancellationReason(input: CancellationReasonInput): string | null {
+  if (input.reason) return input.reason;
+  if (!iso(input.firstPaymentFailedAt)) return null;
+  return paymentCoversPeriod(input.lastPaymentAt, input.periodStart) ? null : "payment_failed";
+}
+
 export interface AccessPeriodInput {
   kind: SubscriptionEventKind;
   /** `currentBillingPeriod.endsAt` ze zdarzenia (bywa puste). */

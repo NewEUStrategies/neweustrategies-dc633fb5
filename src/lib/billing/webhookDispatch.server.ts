@@ -11,6 +11,7 @@
 import { planChangeDirection } from "@/lib/billing/catalog";
 import {
   accessPeriodFromEvent,
+  effectiveCancellationReason,
   isDelinquentSubscriptionStatus,
   isEntitledSubscriptionStatus,
   isNonPaymentCancellation,
@@ -783,8 +784,22 @@ async function handleCanceled(data: SubscriptionData, env: StripeEnv) {
     (isPreActivationSubscriptionStatus(existing.status) ||
       isPreActivationSubscriptionStatus(data.status));
 
-  const nonPayment = !neverPaid && isNonPaymentCancellation(data.cancellationReason);
   const periodStart = data.currentBillingPeriod?.startsAt ?? existing?.current_period_start ?? null;
+  // Powód bez podanego przez operatora: zapisana kotwica karencji bez zapłaty
+  // za bieżący okres to koniec windykacji - także kotwica dopisana przez
+  // uzgodnienie dawnych anulowań na dowodzie z faktury. Bez tego kolejne
+  // `deleted` bez powodu (przycisk synchronizacji rozliczeń klienta,
+  // odtworzenie zdarzenia, remis) liczyło dostęp jak po rezygnacji i cofało
+  // przycięcie do końca nieopłaconego okresu.
+  const cancellationReason = neverPaid
+    ? null
+    : effectiveCancellationReason({
+        reason: data.cancellationReason,
+        firstPaymentFailedAt: existing?.first_payment_failed_at ?? null,
+        lastPaymentAt: existing?.last_payment_at ?? null,
+        periodStart,
+      });
+  const nonPayment = isNonPaymentCancellation(cancellationReason);
   // Anulowanie za brak płatności daje dostęp WYŁĄCZNIE w karencji. Kotwicę,
   // od której ją liczymy, zapisujemy w wierszu, gdy jeszcze jej nie było
   // (zdarzenia windykacji nie dotarły) - dobowy przebieg zespołów liczy koniec
@@ -820,7 +835,7 @@ async function handleCanceled(data: SubscriptionData, env: StripeEnv) {
     eventPeriodEnd: data.currentBillingPeriod?.endsAt ?? null,
     storedPeriodEnd: existing?.current_period_end ?? null,
     status: "canceled",
-    cancellationReason: data.cancellationReason ?? null,
+    cancellationReason,
     periodStart,
     firstPaymentFailedAt: graceAnchor ?? existing?.first_payment_failed_at ?? null,
   });
@@ -837,7 +852,7 @@ async function handleCanceled(data: SubscriptionData, env: StripeEnv) {
     status: "canceled",
     priceId: existing.price_id,
     accessUntil,
-    cancellationReason: neverPaid ? null : (data.cancellationReason ?? null),
+    cancellationReason,
   });
 
   if (neverPaid) {

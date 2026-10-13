@@ -23,6 +23,9 @@ export type LegacyReconcileMode = "dry_run" | "apply";
  *                           (najwyżej brakowało kotwicy w wierszu subskrypcji),
  * - `voluntary`           - rezygnacja klienta (`cancellation_requested`) -
  *                           dostęp do końca okresu zostaje, bez zmian,
+ * - `paid`                - powód mówi o braku płatności, ale bieżący okres
+ *                           JEST opłacony (zaległa faktura zapłacona po
+ *                           anulowaniu) - bez zmian,
  * - `no_evidence`         - operator nie podał powodu, a ostatnia faktura nie
  *                           dowodzi nieudanej płatności - bez zmian,
  * - `refunded`            - uprawnienie odebrane zwrotem (stan ostateczny),
@@ -36,6 +39,7 @@ export type LegacyDecision =
   | "revoke"
   | "already_clamped"
   | "voluntary"
+  | "paid"
   | "no_evidence"
   | "refunded"
   | "stripe_missing"
@@ -47,6 +51,7 @@ export const LEGACY_DECISIONS: readonly LegacyDecision[] = [
   "revoke",
   "already_clamped",
   "voluntary",
+  "paid",
   "no_evidence",
   "refunded",
   "stripe_missing",
@@ -57,12 +62,21 @@ export const LEGACY_DECISIONS: readonly LegacyDecision[] = [
 /** Skąd wiemy, że to anulowanie za brak płatności. */
 export type LegacyEvidence = "reason" | "invoice";
 
+/**
+ * Skąd wiemy, że bieżący okres został jednak opłacony: ostatnia faktura
+ * u operatora jest zapłacona (`invoice`) albo baza zaksięgowała zapłatę nie
+ * wcześniej niż początek okresu (`ledger`, `subscriptions.last_payment_at`).
+ */
+export type LegacyPaymentProof = "invoice" | "ledger";
+
 export interface LegacyReconcileRow {
   /** Identyfikator subskrypcji u operatora (`external_ref` uprawnienia). */
   subscriptionId: string;
   tenantId: string;
   decision: LegacyDecision;
   evidence: LegacyEvidence | null;
+  /** Dowód zapłaty za bieżący okres - tylko przy decyzji `paid`. */
+  paymentProof: LegacyPaymentProof | null;
   /** `cancellation_details.reason` operatora (null = nie podał). */
   cancellationReason: string | null;
   /** Status ostatniej faktury u operatora. */

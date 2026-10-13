@@ -694,6 +694,104 @@ describe("SUB-03: dostęp tylko za opłacony okres - karencja od pierwszej pora�
     expect(entitlement()).toMatchObject({ status: "active", current_period_end: end });
   });
 
+  it("deleted BEZ powodu po windykacji (stara wersja API): karencja z kotwicy, nie koniec roku", async () => {
+    // Kotwica w wierszu i brak zapłaty za nowy okres = koniec windykacji -
+    // ten sam sygnał, po którym dobowy przebieg zespołów rozpoznaje anulowanie.
+    const renewalAt = relativeIso(-5 * DZIEN);
+    const { nextYear } = await annualRenewalFails(renewalAt);
+
+    await deliver(
+      "customer.subscription.deleted",
+      stripeSubscription({
+        status: "canceled",
+        priceKey: "plus_annual",
+        periodStart: renewalAt,
+        periodEnd: nextYear,
+      }),
+      relativeIso(-1 * DZIEN),
+    );
+
+    const graceEnd = new Date(Date.parse(renewalAt) + PAYMENT_GRACE_DAYS * DZIEN).toISOString();
+    expect(entitlement()).toMatchObject({ status: "active", current_period_end: graceEnd });
+    expect(grantsAccess(entitlement(), new Date(Date.parse(graceEnd) + SEKUNDA))).toBe(false);
+  });
+
+  it("przycięcie z uzgodnienia dawnych anulowań (dowód z faktury) przetrwa ponowne deleted bez powodu, a zapłata je znosi", async () => {
+    // Stan sprzed reguły karencji: odnowienie roczne przesunęło okres, a
+    // anulowanie bez powodu dało dostęp do końca nowego, nieopłaconego roku -
+    // bez kotwicy w wierszu.
+    const renewalAt = relativeIso(-5 * DZIEN);
+    const yearAgo = new Date(Date.parse(renewalAt) - 365 * DZIEN).toISOString();
+    const nextYear = new Date(Date.parse(renewalAt) + 365 * DZIEN).toISOString();
+    const annual = { priceKey: "plus_annual", periodStart: renewalAt, periodEnd: nextYear };
+    await deliver(
+      "customer.subscription.created",
+      stripeSubscription({
+        status: "active",
+        priceKey: "plus_annual",
+        periodStart: yearAgo,
+        periodEnd: renewalAt,
+      }),
+      yearAgo,
+    );
+    await deliver(
+      "customer.subscription.updated",
+      stripeSubscription({ status: "active", ...annual }),
+      renewalAt,
+    );
+    const legacyCancel = stripeSubscription({ status: "canceled", ...annual });
+    await deliver("customer.subscription.deleted", legacyCancel, relativeIso(-3 * DZIEN));
+    expect(subscriptionRow()?.first_payment_failed_at).toBeNull();
+    expect(entitlement()?.current_period_end).toBe(nextYear);
+
+    // Uzgodnienie: operator nie podał powodu, ostatnia faktura otwarta po
+    // czterech nieudanych próbach - kotwica z pierwszej próby, dostęp do
+    // kotwicy + karencja.
+    const firstAttempt = new Date(Date.parse(renewalAt) + 60 * 60 * SEKUNDA).toISOString();
+    h.stripe.current = {
+      subscriptions: {
+        retrieve: async () => ({
+          ...legacyCancel,
+          ended_at: unix(relativeIso(-3 * DZIEN)),
+          latest_invoice: {
+            id: "in_1SyntetycznaFaktura",
+            status: "open",
+            attempt_count: 4,
+            amount_due: 49900,
+            amount_paid: 0,
+            billing_reason: "subscription_cycle",
+            created: unix(renewalAt),
+            status_transitions: { finalized_at: unix(firstAttempt), paid_at: null },
+          },
+        }),
+      },
+    };
+    const { reconcileLegacyNonPaymentCancellations } =
+      await import("@/lib/billing/legacyNonPaymentReconcile.server");
+    vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const report = await reconcileLegacyNonPaymentCancellations({
+      environment: "live",
+      mode: "apply",
+    });
+    const graceEnd = new Date(Date.parse(firstAttempt) + PAYMENT_GRACE_DAYS * DZIEN).toISOString();
+    expect(report.rows[0]).toMatchObject({ decision: "clamp", evidence: "invoice", applied: true });
+    expect(subscriptionRow()?.first_payment_failed_at).toBe(firstAttempt);
+    expect(entitlement()).toMatchObject({ status: "active", current_period_end: graceEnd });
+
+    // Klient klika „synchronizuj rozliczenia": syntetyczne deleted (bez
+    // powodu) z czasem „teraz" przechodzi strażnika i trafia do rezygnacji.
+    const resync = () =>
+      deliver("customer.subscription.deleted", legacyCancel, relativeIso(-2 * SEKUNDA));
+    expect(await resync()).toBe("processed");
+    expect(entitlement()).toMatchObject({ status: "active", current_period_end: graceEnd });
+
+    // Zaległa faktura zapłacona po anulowaniu: okres opłacony, więc kolejna
+    // synchronizacja liczy dostęp jak po rezygnacji - do końca okresu.
+    await deliver("invoice.paid", stripeInvoice({ attempt: 4 }), relativeIso(-1 * SEKUNDA));
+    await deliver("customer.subscription.deleted", legacyCancel, FIXED_NOW.toISOString());
+    expect(entitlement()).toMatchObject({ status: "active", current_period_end: nextYear });
+  });
+
   it("odzyskanie płatności zamyka cykl: kotwica karencji gaśnie, dostęp wraca na pełny okres", async () => {
     const renewalAt = relativeIso(-4 * DZIEN);
     const { nextYear } = await annualRenewalFails(renewalAt);

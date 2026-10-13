@@ -221,6 +221,11 @@ export function LegacyNonPaymentReconcileCard() {
                                 {row.cancellationReason ?? row.invoiceStatus}
                               </span>
                             ) : null}
+                            {row.paymentProof ? (
+                              <span className="text-muted-foreground">
+                                {t(`adminLegacyNonPayment.paymentProof.${row.paymentProof}`)}
+                              </span>
+                            ) : null}
                             {row.error ? (
                               <span className="text-destructive">{row.error}</span>
                             ) : null}

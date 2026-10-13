@@ -36,11 +36,16 @@ const pl = {
       detail: "Szczegóły",
     },
     noEnd: "bez końca",
+    paymentProof: {
+      invoice: "faktura opłacona",
+      ledger: "zapłata zaksięgowana w okresie",
+    },
     decisions: {
       clamp: "Przycięte do końca karencji",
       revoke: "Karencja minęła - dostęp odebrany",
       already_clamped: "Już zgodne z karencją",
       voluntary: "Rezygnacja klienta - bez zmian",
+      paid: "Okres opłacony po anulowaniu - bez zmian",
       no_evidence: "Brak dowodu braku płatności - bez zmian",
       refunded: "Zwrot - bez zmian",
       stripe_missing: "Nieznana operatorowi - pominięta",
@@ -81,11 +86,16 @@ const en = {
       detail: "Details",
     },
     noEnd: "no end",
+    paymentProof: {
+      invoice: "invoice paid",
+      ledger: "payment recorded in the period",
+    },
     decisions: {
       clamp: "Clamped to the end of the grace period",
       revoke: "Grace period over - access removed",
       already_clamped: "Already within the grace period",
       voluntary: "Customer cancellation - unchanged",
+      paid: "Period paid after cancellation - unchanged",
       no_evidence: "No evidence of non-payment - unchanged",
       refunded: "Refunded - unchanged",
       stripe_missing: "Unknown to the provider - skipped",

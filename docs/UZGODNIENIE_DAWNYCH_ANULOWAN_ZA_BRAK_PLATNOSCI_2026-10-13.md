@@ -39,11 +39,28 @@ naraz) i decyduje:
 | `revoke`              | jak wyżej, karencja już minęła                                                                                                                                            | uprawnienie `canceled`, data = koniec karencji; organizacja Zespół zawieszona |
 | `already_clamped`     | uprawnienie już nie sięga dalej niż koniec karencji                                                                                                                       | najwyżej dopisanie kotwicy                                                    |
 | `voluntary`           | powód `cancellation_requested` (i każdy inny niż brak płatności)                                                                                                          | bez zmian                                                                     |
+| `paid`                | dowód braku płatności jest, ale bieżący okres został opłacony - zaległa faktura zapłacona po anulowaniu (patrz niżej); nie dotyczy `payment_disputed`                     | bez zmian (bez kotwicy, przycięcia i zawieszenia zespołu)                     |
 | `no_evidence`         | brak powodu, faktura opłacona albo bez próby obciążenia                                                                                                                   | bez zmian                                                                     |
 | `refunded`            | uprawnienie po zwrocie (stan ostateczny)                                                                                                                                  | bez zmian, bez pytania operatora                                              |
 | `stripe_missing`      | operator nie zna subskrypcji (`resource_missing`)                                                                                                                         | pominięta                                                                     |
 | `stripe_not_canceled` | u operatora subskrypcja nie jest anulowana (rozjazd stanu - patrz /admin/billing-reconcile)                                                                               | pominięta                                                                     |
 | `error`               | błąd odczytu u operatora albo zapisu                                                                                                                                      | bez zmian w tym wierszu, partia idzie dalej                                   |
+
+**Okres opłacony po anulowaniu** (`paid`). Operator zostawia powód
+`payment_failed` także wtedy, gdy klient zapłacił zaległą fakturę już po
+anulowaniu (link z maila windykacyjnego, zapłata oznaczona poza operatorem).
+Taki klient zapłacił za cały okres i dostępu nie traci. Dowodem zapłaty jest
+którekolwiek z dwóch:
+
+- ostatnia faktura `paid` ze znacznikiem `status_transitions.paid_at` i realną
+  kwotą (`amount_paid > 0`, `amount_due = 0` albo `paid_out_of_band`), o ile nie
+  jest to dopłata za zmianę w trakcie okresu (`billing_reason`
+  `subscription_update` - ta nie spłaca odnowienia, jak w windykacji),
+- `subscriptions.last_payment_at` (zapis `invoice.paid`) nie wcześniejszy niż
+  początek bieżącego okresu (`paymentCoversPeriod` w `accessPeriod.ts`).
+
+Spór o płatność (`payment_disputed`) dotyczy faktury opłaconej, więc tam zapłata
+niczego nie dowodzi i obowiązuje karencja.
 
 **Kotwica karencji** (ta sama kolejność co w webhooku `handleCanceled`):
 zapisana `first_payment_failed_at` → chwila pierwszej próby obciążenia
@@ -63,6 +80,16 @@ duplikat.
 karencja minęła (`subscriptionGrantsTeamAccess`), przechodzi z `active` na
 `suspended`. Trwającą karencję domknie dobowy przebieg - po zapisaniu kotwicy
 rozpoznaje to anulowanie jako koniec windykacji.
+
+**Trwałość decyzji.** Zapisana kotwica to ślad, który widzi webhook. Każde
+kolejne `customer.subscription.deleted` - przycisk synchronizacji rozliczeń
+klienta (`syncMyBillingFromProvider` buduje syntetyczne zdarzenie z czasem
+„teraz"), odtworzenie zdarzenia, remis rozstrzygany żywym stanem - przechodzi
+przez `handleCanceled`. Ten dla anulowania **bez powodu** z zapisaną kotwicą
+i bez zapłaty za bieżący okres przyjmuje `payment_failed`
+(`effectiveCancellationReason`), czyli liczy tę samą karencję co zadanie,
+zamiast oddać dostęp do końca nieopłaconego okresu. Zapłata za okres
+(`paymentCoversPeriod`) to wnioskowanie znosi - tak samo jak decyzja `paid`.
 
 ## Czego nie robi
 
@@ -137,6 +164,11 @@ jak w bieżącym webhooku - i może się w tym zapytaniu pojawić.
 - **Komunikacja.** Klienci objęci `clamp` / `revoke` dostali kiedyś mail starego
   kodu „dostęp do końca opłaconego okresu". Zadanie odbiera dostęp po cichu;
   jeśli to potrzebne, komunikat wysyła się osobno (lista: tabela decyzji).
+- **Zapłata po anulowaniu w bieżącym webhooku.** `invoice.paid` dla subskrypcji
+  już anulowanej zapisuje zapłatę, ale nie przelicza uprawnienia, a ponowne
+  `deleted` z powodem `payment_failed` nadal liczy karencję (reguła z PR #495).
+  Zadanie takich wierszy nie rusza (`paid`), ale ich nie naprawia - to osobna
+  zmiana ścieżki webhooka.
 - **Dokładność kotwicy.** Pierwsza próba obciążenia to finalizacja faktury
   (pobór automatyczny). Faktura zapłacona ręcznie albo przelewem nie ma prób,
   więc nie jest dowodem - wtedy rozstrzyga wyłącznie powód operatora.
