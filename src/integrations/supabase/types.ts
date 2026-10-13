@@ -11766,6 +11766,135 @@ export type Database = {
           },
         ]
       }
+      event_sponsor_exposure_anomalies: {
+        Row: {
+          day: string
+          event_id: string
+          first_at: string
+          hits: number
+          id: number
+          last_at: string
+          reason: string
+          source_hash: string
+          sponsor_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          day: string
+          event_id: string
+          first_at?: string
+          hits?: number
+          id?: never
+          last_at?: string
+          reason: string
+          source_hash: string
+          sponsor_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          day?: string
+          event_id?: string
+          first_at?: string
+          hits?: number
+          id?: never
+          last_at?: string
+          reason?: string
+          source_hash?: string
+          sponsor_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_exposure_anomalies_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_exposure_anomalies_sponsor_fk"
+            columns: ["tenant_id", "event_id", "sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "event_sponsors"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_exposure_anomalies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sponsor_exposure_keys: {
+        Row: {
+          created_at: string
+          secret: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          secret: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          secret?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_exposure_keys_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_sponsor_exposure_sessions: {
+        Row: {
+          day: string
+          event_id: string
+          first_at: string
+          session_hash: string
+          source_hash: string
+          tenant_id: string
+        }
+        Insert: {
+          day: string
+          event_id: string
+          first_at?: string
+          session_hash: string
+          source_hash: string
+          tenant_id: string
+        }
+        Update: {
+          day?: string
+          event_id?: string
+          first_at?: string
+          session_hash?: string
+          source_hash?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_sponsor_exposure_sessions_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_sponsor_exposure_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_sponsor_exposures: {
         Row: {
           day: string
@@ -12892,6 +13021,8 @@ export type Database = {
       }
       event_wallet_passes: {
         Row: {
+          code_hash: string | null
+          content_hash: string | null
           created_at: string
           event_id: string
           first_issued_at: string
@@ -12901,10 +13032,18 @@ export type Database = {
           object_id: string
           platform: string
           registration_id: string
+          revoke_attempts: number
+          revoke_claimed_at: string | null
+          revoke_error: string | null
+          revoke_reason: string | null
+          revoke_requested_at: string | null
+          revoked_at: string | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
+          code_hash?: string | null
+          content_hash?: string | null
           created_at?: string
           event_id: string
           first_issued_at?: string
@@ -12914,10 +13053,18 @@ export type Database = {
           object_id: string
           platform: string
           registration_id: string
+          revoke_attempts?: number
+          revoke_claimed_at?: string | null
+          revoke_error?: string | null
+          revoke_reason?: string | null
+          revoke_requested_at?: string | null
+          revoked_at?: string | null
           tenant_id: string
           updated_at?: string
         }
         Update: {
+          code_hash?: string | null
+          content_hash?: string | null
           created_at?: string
           event_id?: string
           first_issued_at?: string
@@ -12927,6 +13074,12 @@ export type Database = {
           object_id?: string
           platform?: string
           registration_id?: string
+          revoke_attempts?: number
+          revoke_claimed_at?: string | null
+          revoke_error?: string | null
+          revoke_reason?: string | null
+          revoke_requested_at?: string | null
+          revoked_at?: string | null
           tenant_id?: string
           updated_at?: string
         }
@@ -23387,6 +23540,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      _event_meeting_sponsor_allowed: {
+        Args: {
+          p_event_id: string
+          p_invitee_registration_id: string
+          p_requester_registration_id: string
+          p_sponsor_id: string
+          p_tenant: string
+        }
+        Returns: boolean
+      }
       _event_meeting_take_seat: {
         Args: {
           _ends: string
@@ -23864,6 +24027,10 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_sponsor_exposure_token: {
+        Args: { p_nonce: string; p_tenant: string }
+        Returns: string
+      }
       _event_sponsor_report_assert_filters: {
         Args: { p_from: string; p_placement: string; p_to: string }
         Returns: undefined
@@ -23999,12 +24166,31 @@ export type Database = {
           }
       _event_wallet_pass_note: {
         Args: {
+          p_code_hash?: string
+          p_content_hash?: string
           p_object_id: string
           p_platform: string
           p_registration_id: string
           p_tenant: string
         }
         Returns: number
+      }
+      _event_wallet_pass_revocations_claim: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
+      _event_wallet_pass_revocations_settle: {
+        Args: {
+          p_claimed_at: string
+          p_deferred?: string[]
+          p_failed?: Json
+          p_revoked: string[]
+        }
+        Returns: Json
+      }
+      _event_wallet_pass_state: {
+        Args: { p_object_id: string; p_platform: string; p_tenant: string }
+        Returns: Json
       }
       _mention_public_company_ids: {
         Args: { _tenant: string }
@@ -25189,6 +25375,7 @@ export type Database = {
           operator_name: string
           operator_user_id: string
           person_id: string
+          reentry_override: boolean
           registration_id: string
           registration_status: string
           repeat_count: number
@@ -26032,6 +26219,10 @@ export type Database = {
           lead_scans_count: number
           locked_until: string
           offline_roster: boolean
+          queue_fail_window_count: number
+          queue_fail_window_started_at: string
+          queue_locked_until: string
+          queue_marker_required_at: string
           revoked_at: string
           roster_download_count: number
           roster_downloaded_at: string
@@ -26040,6 +26231,7 @@ export type Database = {
           sponsor_id: string
           sponsor_name: string
           state: string
+          superseded_scan_count: number
           token_prefix: string
         }[]
       }
@@ -26425,6 +26617,20 @@ export type Database = {
           tier_name_pl: string
           tier_rank: number
           updated_at: string
+        }[]
+      }
+      admin_event_sponsor_exposure_anomalies: {
+        Args: {
+          p_event_id: string
+          p_from?: string
+          p_sponsor_id?: string
+          p_to?: string
+        }
+        Returns: {
+          day: string
+          hits: number
+          reason: string
+          sources: number
         }[]
       }
       admin_event_sponsor_links: {
@@ -30291,8 +30497,8 @@ export type Database = {
         }[]
       }
       event_sponsor_exposure_ingest: {
-        Args: { p_payload: Json; p_tenant: string }
-        Returns: number
+        Args: { p_payload: Json; p_source: string; p_tenant: string }
+        Returns: Json
       }
       event_sponsor_exposures_prune: {
         Args: { p_keep_days?: number }
