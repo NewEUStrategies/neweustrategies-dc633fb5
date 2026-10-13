@@ -56,18 +56,21 @@ describe("ManageConsentsSlot - wycofanie zgód kluczem samoobsługi (REG-14)", (
     ["withdrawMarketing", "marketing", "confirmMarketing"],
     ["withdrawPartner", "partner_sharing", "confirmPartner"],
     ["withdrawAll", "all", "confirmAll"],
-  ] as const)("%s: okno z opisem skutku, potem wycofanie z kluczem i zakresem %s", async (button, purposes, sentence) => {
-    renderWithQueryClient(<ManageConsentsSlot token={MANAGE_TOKEN} />);
+  ] as const)(
+    "%s: okno z opisem skutku, potem wycofanie z kluczem i zakresem %s",
+    async (button, purposes, sentence) => {
+      renderWithQueryClient(<ManageConsentsSlot token={MANAGE_TOKEN} />);
 
-    fireEvent.click(screen.getByRole("button", { name: `${K}.${button}` }));
-    expect(await screen.findByText(`${K}.${sentence}`)).toBeInTheDocument();
-    expect(h.withdraw).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: `${K}.${button}` }));
+      expect(await screen.findByText(`${K}.${sentence}`)).toBeInTheDocument();
+      expect(h.withdraw).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: `${K}.confirm` }));
-    expect(await screen.findByText(`${K}.done`)).toBeInTheDocument();
-    expect(h.withdraw).toHaveBeenCalledTimes(1);
-    expect(h.withdraw).toHaveBeenCalledWith({ data: { purposes, manageToken: MANAGE_TOKEN } });
-  });
+      fireEvent.click(screen.getByRole("button", { name: `${K}.confirm` }));
+      expect(await screen.findByText(`${K}.done`)).toBeInTheDocument();
+      expect(h.withdraw).toHaveBeenCalledTimes(1);
+      expect(h.withdraw).toHaveBeenCalledWith({ data: { purposes, manageToken: MANAGE_TOKEN } });
+    },
+  );
 
   it("anulowanie okna niczego nie wysyła", async () => {
     renderWithQueryClient(<ManageConsentsSlot token={MANAGE_TOKEN} />);

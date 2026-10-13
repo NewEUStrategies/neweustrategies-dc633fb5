@@ -628,7 +628,9 @@ describe("RegistrationManagePanel - gniazda torów F1-F5 (kontrakt BLK-5)", () =
   });
 
   it("REG-14: po rezygnacji gniazdo zgód zostaje (zgodę wycofuje się niezależnie)", async () => {
-    manageView.mockResolvedValue(manageState({ status: "approved", paymentStatus: "not_required" }));
+    manageView.mockResolvedValue(
+      manageState({ status: "approved", paymentStatus: "not_required" }),
+    );
     renderPanel();
 
     fireEvent.click(await screen.findByRole("button", { name: "eventFront.manage.confirm" }));

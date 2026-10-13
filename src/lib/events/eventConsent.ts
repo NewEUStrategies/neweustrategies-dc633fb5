@@ -115,8 +115,7 @@ export interface MyEventConsentState {
 }
 
 export type MyEventConsentStateResult =
-  | { ok: true; state: MyEventConsentState }
-  | { ok: false; reason: "unavailable" | "error" };
+  { ok: true; state: MyEventConsentState } | { ok: false; reason: "unavailable" | "error" };
 
 /** Ścieżka strony potwierdzenia: `/event-consent/confirm#token=<token>` (mail B1b). */
 export function eventConsentConfirmPath(token: string): string {
@@ -158,8 +157,7 @@ function oneOf<T extends string>(list: readonly T[], value: unknown): T | null {
 function grantPurposes(value: unknown): EventConsentGrantPurpose[] {
   if (!Array.isArray(value)) return [];
   return value.filter(
-    (item): item is EventConsentGrantPurpose =>
-      item === "marketing" || item === "partner_sharing",
+    (item): item is EventConsentGrantPurpose => item === "marketing" || item === "partner_sharing",
   );
 }
 

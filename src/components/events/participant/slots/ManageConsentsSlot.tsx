@@ -135,7 +135,9 @@ export function ManageConsentsSlot({ token }: ManageConsentsSlotProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("eventRegistration.manage.consents.confirmTitle")}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("eventRegistration.manage.consents.confirmTitle")}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {asked === null ? "" : t(SCOPE_COPY[asked].confirm)}
             </AlertDialogDescription>

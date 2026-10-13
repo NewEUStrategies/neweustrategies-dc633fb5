@@ -60,10 +60,13 @@ describe("parsery odpowiedzi bazy", () => {
   });
 
   it("potwierdzenie: tylko confirmed/already to sukces; reszta to stan odmowy", () => {
-    expect(parseEventConsentConfirm({ ok: true, state: "confirmed", purposes: ["marketing"] })).toEqual(
-      { ok: true, state: "confirmed", purposes: ["marketing"] },
-    );
-    expect(parseEventConsentConfirm({ ok: true, state: "open" })).toEqual({ ok: false, state: "error" });
+    expect(
+      parseEventConsentConfirm({ ok: true, state: "confirmed", purposes: ["marketing"] }),
+    ).toEqual({ ok: true, state: "confirmed", purposes: ["marketing"] });
+    expect(parseEventConsentConfirm({ ok: true, state: "open" })).toEqual({
+      ok: false,
+      state: "error",
+    });
     expect(parseEventConsentConfirm(null)).toEqual({ ok: false, state: "error" });
   });
 

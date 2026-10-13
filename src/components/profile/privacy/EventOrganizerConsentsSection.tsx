@@ -44,8 +44,8 @@ import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 
 const BASE = "profile.privacy.eventConsents";
 
-/** Klucz zapytania - eksportowany dla testów i odświeżenia po wycofaniu. */
-export const MY_EVENT_CONSENTS_KEY = ["my-event-consents"] as const;
+/** Klucz zapytania - odświeżany po wycofaniu. */
+const MY_EVENT_CONSENTS_KEY = ["my-event-consents"] as const;
 
 const PURPOSE_KEYS: Record<EventConsentPurpose, string> = {
   data_processing: `${BASE}.purposes.dataProcessing`,
@@ -240,7 +240,9 @@ export function EventOrganizerConsentsSection() {
             <AlertDialogDescription>{t(`${BASE}.confirmBody`)}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={withdrawM.isPending}>{t(`${BASE}.cancel`)}</AlertDialogCancel>
+            <AlertDialogCancel disabled={withdrawM.isPending}>
+              {t(`${BASE}.cancel`)}
+            </AlertDialogCancel>
             <AlertDialogAction
               disabled={withdrawM.isPending}
               onClick={(event) => {

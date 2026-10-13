@@ -700,7 +700,9 @@ function consentText(value: Json | undefined): string | null {
 }
 
 function isProfileField(value: unknown): value is SubmittedProfileField {
-  return typeof value === "string" && (SUBMITTED_PROFILE_FIELDS as readonly string[]).includes(value);
+  return (
+    typeof value === "string" && (SUBMITTED_PROFILE_FIELDS as readonly string[]).includes(value)
+  );
 }
 
 /** `admin_event_registration_consent_detail` -> szczegol (nieznane pola pomijane). */

@@ -80,10 +80,17 @@ describe("EventOrganizerConsentsSection - zgody dla organizatora wydarzeń (REG-
     renderWithQueryClient(<EventOrganizerConsentsSection />);
 
     expect(await screen.findByText(`${K}.inactive`)).toBeInTheDocument();
-    expect(screen.getByText(/profile\.privacy\.eventConsents\.activeSince\(date=/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/profile\.privacy\.eventConsents\.activeSince\(date=/),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
-        new RegExp(`${K}.purposes.marketing · ${K}.statuses.confirmed · ${K}.evidences.emailDoubleOptIn · Kongres CEE`.replace(/\./g, "\\.")),
+        new RegExp(
+          `${K}.purposes.marketing · ${K}.statuses.confirmed · ${K}.evidences.emailDoubleOptIn · Kongres CEE`.replace(
+            /\./g,
+            "\\.",
+          ),
+        ),
       ),
     ).toBeInTheDocument();
     // Tylko aktywny cel ma przycisk; „obie" - dopiero przy dwóch aktywnych.

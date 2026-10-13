@@ -36,8 +36,8 @@ ensureAdminEventRegistrationI18n();
 
 const BASE = "adminEventRegistration.consentDetail";
 
-/** Klucz zapytania szczegolu - eksportowany dla testow i odswiezenia. */
-export function registrationConsentDetailKey(registrationId: string) {
+/** Klucz zapytania szczegolu (jeden na zgloszenie - odswiezany po przeniesieniu). */
+function registrationConsentDetailKey(registrationId: string) {
   return ["admin-event-registration-consent-detail", registrationId] as const;
 }
 
@@ -121,7 +121,9 @@ export function RegistrationConsentDetail({
                     {t(`${BASE}.fields.${field}`)}
                   </th>
                   <td className="py-1 pr-2 text-foreground">{detail.current[field] ?? "-"}</td>
-                  <td className="py-1 text-foreground">{detail.submittedProfile?.[field] ?? "-"}</td>
+                  <td className="py-1 text-foreground">
+                    {detail.submittedProfile?.[field] ?? "-"}
+                  </td>
                 </tr>
               ))}
             </tbody>

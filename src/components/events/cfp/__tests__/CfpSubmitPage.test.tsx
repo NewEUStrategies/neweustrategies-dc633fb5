@@ -273,9 +273,7 @@ describe("CfpSubmitPage - nowe zgłoszenie", () => {
     fireEvent.change(screen.getByLabelText("eventCfp.submit.fields.company"), {
       target: { value: "NES SA" },
     });
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: "eventRegistration.consents.marketing" }),
-    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "eventRegistration.consents.marketing" }));
     stub().setData("event_cfp_submission_save", { id: ID, status: "draft" });
     fireEvent.click(screen.getByRole("button", { name: "eventCfp.submit.saveDraft" }));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("eventCfp.submit.saved"));

@@ -32,7 +32,8 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 }));
 vi.mock("@tanstack/react-start", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-start")>()),
-  useServerFn: (fn: { name?: string }) => (fn.name === "confirmEventConsent" ? h.confirm : h.preview),
+  useServerFn: (fn: { name?: string }) =>
+    fn.name === "confirmEventConsent" ? h.confirm : h.preview,
 }));
 vi.mock("@/lib/events/eventConsent.functions", () => ({
   previewEventConsent: { name: "previewEventConsent" },
@@ -86,8 +87,7 @@ afterEach(() => {
 describe("event-consent.confirm - metadane trasy", () => {
   it("bez SSR (token we fragmencie), `noindex, nofollow`, `no-referrer`", () => {
     const head = Route.options.head?.({} as never) as
-      | { meta: Array<Record<string, string>> }
-      | undefined;
+      { meta: Array<Record<string, string>> } | undefined;
     const meta = head?.meta ?? [];
     expect(Route.options.ssr).toBe(false);
     expect(meta.find((entry) => entry.name === "robots")?.content).toBe("noindex, nofollow");

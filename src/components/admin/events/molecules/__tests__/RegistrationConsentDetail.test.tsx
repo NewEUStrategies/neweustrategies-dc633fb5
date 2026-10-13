@@ -87,7 +87,9 @@ describe("RegistrationConsentDetail - dane z zapisu i księga zgód (REG-02 / RE
     expect(screen.queryByText(`${K}.fields.first_name`)).toBeNull();
     expect(screen.getByText(/consentDetail\.pending\(date=/)).toBeInTheDocument();
     expect(
-      screen.getByText(/consentDetail\.purposes\.marketing · .*statuses\.pending · .*ledgerEvidence/),
+      screen.getByText(
+        /consentDetail\.purposes\.marketing · .*statuses\.pending · .*ledgerEvidence/,
+      ),
     ).toBeInTheDocument();
   });
 

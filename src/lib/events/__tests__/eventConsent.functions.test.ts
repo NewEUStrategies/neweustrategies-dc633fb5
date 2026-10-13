@@ -202,10 +202,22 @@ describe("confirmEventConsent - potwierdzenie (POST z przycisku)", () => {
   });
 
   it.each([
-    [{ ok: false, state: "expired" }, { ok: false, state: "expired" }],
-    [{ ok: false, state: "not_found" }, { ok: false, state: "not_found" }],
-    [{ ok: false, state: "rate_limited" }, { ok: false, state: "rate_limited" }],
-    [{ ok: false, state: "cos" }, { ok: false, state: "error" }],
+    [
+      { ok: false, state: "expired" },
+      { ok: false, state: "expired" },
+    ],
+    [
+      { ok: false, state: "not_found" },
+      { ok: false, state: "not_found" },
+    ],
+    [
+      { ok: false, state: "rate_limited" },
+      { ok: false, state: "rate_limited" },
+    ],
+    [
+      { ok: false, state: "cos" },
+      { ok: false, state: "error" },
+    ],
   ])("odpowiedź bazy %j -> %j", async (data, expected) => {
     h.rpc.mockResolvedValue({ data, error: null });
     expect(await call(confirmEventConsent, { token: TOKEN })).toEqual(expected);
