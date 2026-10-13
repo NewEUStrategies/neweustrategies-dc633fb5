@@ -123,7 +123,9 @@ zastosowaniu to nowsza decyzja):
 | wszystko zgodne                                                                                                     | `cleared` - `cancel_at: ""` + licznik `nes_ops_rev`, klucz `cancel-at-clear-applied` (poniżej) |
 
 Klucz idempotencji zdjęcia (`cancel-at-clear-applied`) to skrót z subskrypcji,
-faktury, zdejmowanej daty i żywego `canceled_at`.
+faktury, zdejmowanej daty, żywego `canceled_at` i licznika `nes_ops_rev`, który
+jedzie w parametrach zdjęcia - inna operacja w międzyczasie daje nowy klucz
+zamiast odmowy operatora za ten sam klucz z innymi parametrami.
 
 Każde `kept_*` / `not_marked` to `console.warn` z wartościami (klient zapłacił
 za upgrade, a subskrypcja się skończy - do ręcznej oceny).
@@ -221,7 +223,7 @@ Pozostałe zdarzenia bez zmian (m.in. `invoice.paid` / `invoice.payment_succeede
   starym i nowym końcem okresu, do ręcznego zafakturowania. Koniec okresu
   w lustrze domyka zdarzenie `customer.subscription.updated` samego zdjęcia.
 - **Zapamiętany błąd 5xx** zdjęcia daty - jak przy zwolnieniu harmonogramu
-  (klucz z subskrypcji, faktury, daty i `canceled_at`). Operator pamięta go
+  (klucz z subskrypcji, faktury, daty, `canceled_at` i `nes_ops_rev`). Operator pamięta go
   przez dobę, a okno zdjęcia trwa 72 h, więc ponowienia po wygaśnięciu klucza
   wciąż zdejmują datę.
 - **Okno 72 h** liczymy zegarem aplikacji od `paid_at` faktury. Dostawa po

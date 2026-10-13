@@ -1850,14 +1850,17 @@ export async function clearCancelDateAfterAppliedUpgrade(
     subscriptionId,
     { ...cancellationRevert(cancellation), metadata: nextRevision(live.metadata) },
     {
-      // Klucz z subskrypcji, faktury, której zapłata zastosowała zmianę, oraz
-      // zdejmowanej daty i jej `canceled_at` - ponowienie zdarzenia trafia
-      // w tę samą operację.
+      // Klucz z subskrypcji, faktury, której zapłata zastosowała zmianę,
+      // zdejmowanej daty, jej `canceled_at` i licznika operacji, który jedzie
+      // w parametrach (`nextRevision`) - ponowienie zdarzenia trafia w tę samą
+      // operację, a inna operacja w międzyczasie nie zostawia klucza
+      // z innymi parametrami (odmowa operatora do wygaśnięcia klucza).
       idempotencyKey: await idempotencyKey("cancel-at-clear-applied", [
         subscriptionId,
         invoiceId,
         cancellation.at,
         live.canceled_at,
+        revisionOf(live.metadata),
       ]),
     },
   );

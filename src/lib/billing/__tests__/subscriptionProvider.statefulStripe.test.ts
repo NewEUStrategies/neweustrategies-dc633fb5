@@ -1662,6 +1662,10 @@ describe("data końca `cancel_at` przy upgradzie opłaconym PÓŹNIEJ - zdjęta 
       name: "subskrypcja zaległa (`past_due`)",
       tamper: () => Object.assign(fake.sub, { status: "past_due" }),
     },
+    {
+      name: "faktura zmiany nieopłacona (`open`)",
+      tamper: () => Object.assign(pendingInvoice() ?? {}, { status: "open" }),
+    },
   ])("$name: znacznik się zgadza, ale data zostaje (`kept_unverified`)", async ({ tamper }) => {
     useFake(endingOnDate());
     await upgradeDeclined();
@@ -1779,6 +1783,25 @@ describe("data końca `cancel_at` przy upgradzie opłaconym PÓŹNIEJ - zdjęta 
       "sub.update:REJECTED",
       "sub.update:EXEC",
     ]);
+  });
+
+  it("zapamiętany 5xx zdjęcia, potem inna operacja (licznik `nes_ops_rev`): ponowienie idzie nowym kluczem i zdejmuje", async () => {
+    useFake(endingOnDate());
+    await upgradeDeclined();
+    const snapshot = fake.payPendingInvoice();
+    fake.failNextUpdate = stripeError("An unknown error occurred", "api_error");
+
+    await expect(clearDate(snapshot)).rejects.toThrow(/unknown error/);
+    expect(fake.sub.cancel_at).toBe(PERIOD_END);
+
+    // Inna operacja aplikacji podbija licznik, nie ruszając daty ani `canceled_at`.
+    // Dawniej klucz go pomijał: ponowienie trafiało w zapamiętany błąd (u operatora
+    // - odmowa za ten sam klucz z innymi parametrami) aż do wygaśnięcia klucza.
+    const revision = Number.parseInt(fake.sub.metadata.nes_ops_rev ?? "0", 10);
+    fake.sub.metadata.nes_ops_rev = String(revision + 1);
+
+    expect(await clearDate(snapshot)).toBe("cleared");
+    expect(fake.sub.cancel_at).toBeNull();
   });
 
   it("zdjęcie weszło, a odpowiedź zginęła: wyjątek, a ponowienie widzi brak daty - bez drugiej mutacji", async () => {
