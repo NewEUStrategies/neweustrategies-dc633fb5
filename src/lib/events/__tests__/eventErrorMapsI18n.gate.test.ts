@@ -573,6 +573,9 @@ const KODY_PROSBY_O_FAKTURE = [
   "operator_invoice",
   "request_foreign",
   "source_plan_ticket",
+  // REG-17: `_event_registration_actor` pyta `_event_manage_token_resolve`
+  // (cel spoza listy = `invalid_payload`).
+  "invalid_payload",
 ] as const;
 
 /**
