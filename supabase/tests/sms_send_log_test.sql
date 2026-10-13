@@ -1,4 +1,4 @@
--- pgTAP: dziennik idempotencji SMS (REG-11, migracja 20261012110000_sms_send_log).
+-- pgTAP: dziennik idempotencji SMS (REG-11, migracja 20261012131000_sms_send_log).
 --
 -- CO PRZYPINA:
 --   * „wyslane" dopiero po zamknieciu rezerwacji jako sent; blad operatora

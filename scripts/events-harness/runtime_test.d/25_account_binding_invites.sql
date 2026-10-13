@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 25_account_binding_invites - KARTOTEKA I KONTO, ZAPROSZENIA PAKIETOWE
--- (B2: 20261012120000..120200, 20261012190000; REG-01, REG-15)
+-- (B2: 20261012132000..132200, 20261012190000; REG-01, REG-15)
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- pgTAP (event_people_account_binding_test.sql,

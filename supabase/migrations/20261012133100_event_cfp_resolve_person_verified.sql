@@ -11,7 +11,7 @@
 --      `_event_bind_uid_for_email` lamie inwariant D1.
 --   2. Zgoda marketingowa stawiana wprost w kolumnie (`consent_marketing_at`,
 --      :345 i :360-363) - bez wpisu ksiegi, bez tekstu i wersji, ktore osoba
---      widziala. Most CRM od 20261012100300 czyta dowod z ksiegi, wiec taki
+--      widziala. Most CRM od 20261012130800 czyta dowod z ksiegi, wiec taki
 --      stempel jest dowodem bez pokrycia (art. 7 ust. 1 RODO).
 --
 -- ZMIANA 20261012 (cialo z 20260927000101:292-370, zmiany oznaczone w kodzie):

@@ -1,7 +1,7 @@
 -- pgTAP: konto wiaze sie z kartoteka uczestnika wydarzen WYLACZNIE przez
 -- potwierdzony adres, a dowiazania sprzed poprawki da sie wykryc, odwiazac
 -- i - jawnie, z dziennikiem - przywrocic (REG-01, decyzja D14; migracje
--- 20261012120000, 20261012120100, 20261012190000).
+-- 20261012132000, 20261012132100, 20261012190000).
 --
 -- DEFEKT
 --   * `event_my_event_profile_set` (20260828140004:127) przestawial adres

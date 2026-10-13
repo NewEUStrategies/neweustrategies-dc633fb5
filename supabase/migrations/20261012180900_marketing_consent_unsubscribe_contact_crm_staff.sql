@@ -4,7 +4,7 @@
 -- (PRZEGLAD R12: USTALENIA 1, 5, 6; REG-02 / REG-14).
 --
 -- DEFEKT
---   1. `email_unsubscribe_by_token` (20261012130200:91, :158): token globalny
+--   1. `email_unsubscribe_by_token` (20261012133200:91, :158): token globalny
 --      ze stopki kazdego maila systemowego nie niesie najemcy; najemca
 --      rozstrzygany z adresu (`email_resolve_tenant_for_address` - newsletter,
 --      profil, inaczej najemca domyslny). Uczestnik obszaru B bez newslettera
@@ -20,13 +20,13 @@
 --   3. Odznaczenie zgody w CRM (src/lib/crm.functions.ts, `bulkUpdateCrmLeads`)
 --      to goly UPDATE `crm_leads` bez wiersza `crm_consent_log` given=false
 --      (rola authenticated nie moze go dopisac). Most wydarzen
---      (`_event_person_crm_sync`, 20261012100300:286-300) widzial dowod
+--      (`_event_person_crm_sync`, 20261012130800:286-300) widzial dowod
 --      z ksiegi i brak wiersza given=false - przy nastepnym wywolaniu
 --      (zameldowanie, atrybucja, nabor, ponowienie) wlaczal zgode z powrotem
 --      i dopisywal given=true (p3_crm_resurrect.sql).
 --
 -- ZMIANA 20261012 (R12)
---   A. `email_unsubscribe_by_token` (cialo z 20261012130200, zmiana
+--   A. `email_unsubscribe_by_token` (cialo z 20261012133200, zmiana
 --      oznaczona): token globalny wycofuje marketing wydarzen
 --      (`_event_consent_withdraw_by_email`, dowod `unsubscribe_link`)
 --      w KAZDYM najemcy, ktory ma osobe o tym `email_norm` - wycofanie to
@@ -45,7 +45,7 @@
 --      `crm_consent_log` given=false (`consent_key = 'marketing'`,
 --      `source_type = 'other'`, `form_id = 'crm_staff:withdraw'`,
 --      `form_name = 'staff'`) dla kazdego kontaktu najemcy z listy. Most
---      wydarzen przestaje wtedy wskrzeszac zgode (warunek 20261012100300:
+--      wydarzen przestaje wtedy wskrzeszac zgode (warunek 20261012130800:
 --      wiersz given=false nie starszy niz dowod). Najemca z
 --      `current_tenant_id()`, nigdy z ladunku; kontakty innego najemcy sa
 --      pomijane (0 zmian), a nie zdradzane.
@@ -73,7 +73,7 @@
 -- ============================================================================
 
 -- A) WYPIS Z MAILA ------------------------------------------------------------------
--- Cialo z 20261012130200:44-163; zmiana oznaczona `ZMIANA 20261012 (R12...)`.
+-- Cialo z 20261012133200:44-163; zmiana oznaczona `ZMIANA 20261012 (R12...)`.
 CREATE OR REPLACE FUNCTION public.email_unsubscribe_by_token(p_token text)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -224,7 +224,7 @@ END;
 $fn$;
 
 COMMENT ON FUNCTION public.email_unsubscribe_by_token(text) IS
-  'Wypis jednym kliknieciem (token globalny lub per subskrybent): w JEDNEJ transakcji wypisuje subskrybenta (status + uniewaznienie tokenu potwierdzenia), zuzywa token globalny, stawia blokade unsubscribe w tenancie wlasciciela wiersza i (od 20261012130200, REG-14) wycofuje zgode marketingowa osoby wydarzen o tym adresie (_event_consent_withdraw_by_email, dowod unsubscribe_link: ksiega, projekcja, CRM) - dla tokenu globalnego w KAZDYM najemcy z osoba o tym adresie (R12), dla tokenu subskrybenta w jego najemcy. Nieudana blokada wycofuje calosc. Idempotentny; already_unsubscribed odzwierciedla stan sprzed wywolania.';
+  'Wypis jednym kliknieciem (token globalny lub per subskrybent): w JEDNEJ transakcji wypisuje subskrybenta (status + uniewaznienie tokenu potwierdzenia), zuzywa token globalny, stawia blokade unsubscribe w tenancie wlasciciela wiersza i (od 20261012133200, REG-14) wycofuje zgode marketingowa osoby wydarzen o tym adresie (_event_consent_withdraw_by_email, dowod unsubscribe_link: ksiega, projekcja, CRM) - dla tokenu globalnego w KAZDYM najemcy z osoba o tym adresie (R12), dla tokenu subskrybenta w jego najemcy. Nieudana blokada wycofuje calosc. Idempotentny; already_unsubscribed odzwierciedla stan sprzed wywolania.';
 
 REVOKE ALL ON FUNCTION public.email_unsubscribe_by_token(text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.email_unsubscribe_by_token(text) TO service_role;

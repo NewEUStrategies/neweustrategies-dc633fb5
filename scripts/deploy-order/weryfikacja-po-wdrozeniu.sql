@@ -2,7 +2,7 @@
 -- Wygenerowane przez scripts/deploy-order-proof.sh (produkcja.txt, linia 20260926140000).
 -- PUSTY wynik = stan produkcji zgodny z repozytorium. Kazdy wiersz to rozjazd.
 -- Uzupelnione recznie w formacie generatora (B5, REG-09/10/11, migracje
--- 20261012110000-110200): sms_send_log, set_channels, preferences,
+-- 20261012131000-131200): sms_send_log, set_channels, preferences,
 -- _event_reminder_candidates, trigger zgody na numer. Hash = md5 tresci po
 -- normalizacji generatora (pg_proc.prosrc z bazy po pelnym odtworzeniu).
 WITH f(n, a, h) AS (VALUES

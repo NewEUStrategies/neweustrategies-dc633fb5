@@ -2,7 +2,7 @@
 -- 23_consent_ledger - REJESTR ZGOD UCZESTNIKOW (REG-02 / REG-14)
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracje 20261012100100..100300 robia z czterech stempli zgod w
+-- Migracje 20261012130600..130800 robia z czterech stempli zgod w
 -- `event_people` PROJEKCJE ksiegi append-only `event_consent_records`
 -- (teksty wersjonowane, linki double opt-in, wycofanie do CRM). Pelny dowod
 -- siedzi w supabase/tests/event_consent_ledger_test.sql (pgTAP, pelny

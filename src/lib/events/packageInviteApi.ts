@@ -1,5 +1,5 @@
 // Przyjecie zaproszenia na miejsce z pakietu: `event_package_invite_preview`
-// i `event_package_invite_accept` (REG-15, migracja 20261012120200).
+// i `event_package_invite_accept` (REG-15, migracja 20261012132200).
 //
 // TOKEN JEST POSWIADCZENIEM, NIE IDENTYFIKATOREM. Baza trzyma wylacznie jego
 // SHA-256 i przyjmuje go od kazdego, kto go zna - traktujemy go jak haslo:

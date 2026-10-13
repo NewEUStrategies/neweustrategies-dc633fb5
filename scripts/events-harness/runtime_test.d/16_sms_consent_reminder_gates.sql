@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 16_sms_consent_reminder_gates - ZGODA NA SMS I BRAMKI KANALOW PRZYPOMNIEN
--- (REG-09 / REG-10, migracje 20261012110100 i 20261012110200)
+-- (REG-09 / REG-10, migracje 20261012131100 i 20261012131200)
 --
 -- PO CO TEN PLIK ISTNIEJE
 -- pgTAP (supabase/tests/event_registration_sms_consent_test.sql,

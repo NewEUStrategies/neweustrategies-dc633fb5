@@ -1,5 +1,5 @@
 // Dowiazania kont do kartotek uczestnikow - ekran organizatora (REG-01, D14;
-// migracja 20261012120100).
+// migracja 20261012132100).
 //
 // KONTO WIAZE SIE Z KARTOTEKA TYLKO PRZEZ POTWIERDZONY ADRES. Naprawa historii
 // (20261012190000) odwiazala kazde dowiazanie, ktore tej reguly nie spelnialo,

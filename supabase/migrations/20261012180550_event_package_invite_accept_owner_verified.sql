@@ -20,7 +20,7 @@
 --   20261012180500 (ta sama regula w `_event_register`).
 --
 -- CZEGO TO NIE ZAMYKA: token zaproszenia nadal nie dowodzi skrzynki (opis
---   w 20261012120200); wspolny kubelek pudel najemcy (300 / 10 min) -
+--   w 20261012132200); wspolny kubelek pudel najemcy (300 / 10 min) -
 --   notatka R12-fix-notes.md.
 -- KOLEJNOSC WDROZENIA: dowolna wzgledem kodu (sygnatura i odpowiedz bez
 --   zmian). PRZED 20261012190000/190100.

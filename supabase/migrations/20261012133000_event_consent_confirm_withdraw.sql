@@ -11,7 +11,7 @@
 --      marketing albo udostepnianie partnerom, a `crm_leads.marketing_consent`
 --      tylko rosnie (most 20260927001400:328). Art. 7 ust. 3 RODO: wycofanie
 --      ma byc rownie latwe jak udzielenie.
---   2. REG-02: rejestr zgod (A2, 20261012100100..100300) i rdzen zapisu (B1a,
+--   2. REG-02: rejestr zgod (A2, 20261012130600..130800) i rdzen zapisu (B1a,
 --      20261012140000) wydaja niezweryfikowanemu zapisujacemu link double
 --      opt-in (`/event-consent/confirm#token=`), ale nie ma funkcji, ktora ten
 --      link POTWIERDZA - zgoda marketingu/partnerow z formularza zostaje na
@@ -51,14 +51,14 @@
 --      (admin albo super_admin), nigdy z argumentu.
 --
 -- CZEGO TO NIE ZAMYKA: wypis z maila (`email_unsubscribe_by_token`) -
---   20261012130200; nabor prelegentow (`_event_cfp_resolve_person`) -
---   20261012130100. Wysylka maila DOI i stempel `mailed_at` naleza do sciezki
+--   20261012133200; nabor prelegentow (`_event_cfp_resolve_person`) -
+--   20261012133100. Wysylka maila DOI i stempel `mailed_at` naleza do sciezki
 --   zapisu (B1b). Zgoda na przetwarzanie danych nie jest tu wycofywana - jej
 --   koniec to rezygnacja albo usuniecie danych. Wlasciciel klucza samoobslugi
 --   moze wycofac zgody osoby, ktorej klucz dotyczy (bezpieczne w skutkach:
 --   wycofanie niczego nie udziela, opisane w raporcie jako znane ryzyko).
 --
--- KOLEJNOSC WDROZENIA: po 20261012100100..100300 (rejestr) i 20261012100000
+-- KOLEJNOSC WDROZENIA: po 20261012130600..130800 (rejestr) i 20261012130500
 --   (resolver klucza). Nowe funkcje - dowolna wzgledem kodu (TS przy
 --   PGRST202/42883 pokazuje stan "niedostepne", nie wola niczego innego).
 -- IDEMPOTENTNA: CREATE OR REPLACE, bezstanowe REVOKE/GRANT, COMMENT.

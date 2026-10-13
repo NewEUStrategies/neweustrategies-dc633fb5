@@ -1,4 +1,4 @@
--- pgTAP: fundamenty naprawy zapisow REG (migracja 20261012100000_reg_foundations).
+-- pgTAP: fundamenty naprawy zapisow REG (migracja 20261012130500_reg_foundations).
 --
 -- PO CO TEN PLIK. Migracja stawia reguly, na ktorych stoja pozniejsze poprawki
 -- serii REG: wiazanie konta tylko przez POTWIERDZONY adres (REG-01), jedna

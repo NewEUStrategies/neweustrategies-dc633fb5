@@ -4,7 +4,7 @@
 // CO JEST PRAWDZIWE: `deliverReminder` (zadanie F2), `sendParticipantSms`
 // (wyłącznik, GSM-7, budżet) i `sendSms` (dziennik `sms_send_log` + operator).
 // ATRAPY: klient service_role z dziennikiem SMS w pamięci (semantyka
-// `sms_send_claim`/`sms_send_finish` z migracji 20261012110000), licznik
+// `sms_send_claim`/`sms_send_finish` z migracji 20261012131000), licznik
 // budżetu (przepuszcza) i `fetch` operatora (500, potem 200).
 //
 // Łańcuch sprzed naprawy: pierwsza próba `sms_http_500` -> wpis dziennika

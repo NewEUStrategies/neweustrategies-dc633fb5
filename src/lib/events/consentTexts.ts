@@ -2,7 +2,7 @@
 //
 // DLACZEGO WERSJA. Napis checkboxa, który widzi uczestnik, żyje w i18n
 // (`eventRegistration.consents.*`), a jego kopia - w bazie
-// (`event_consent_texts`, migracja 20261012100100). Każdy wpis księgi zgód
+// (`event_consent_texts`, migracja 20261012130600). Każdy wpis księgi zgód
 // (`event_consent_records`) wskazuje wersję i język tekstu, więc art. 7 ust. 1
 // RODO („administrator musi być w stanie wykazać") działa tylko wtedy, gdy ta
 // stała mówi prawdę o tym, co formularz pokazał. Bramka

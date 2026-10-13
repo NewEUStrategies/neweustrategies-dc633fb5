@@ -6,7 +6,7 @@
 -- DEFEKT. Do 20261012 kazdy zapis wiazal konto wolajacego z osoba o adresie
 -- z ladunku (`event_register` 20261007140400:507-516, :535), a profil
 -- uczestnika pozwalal przestawic adres kartoteki na cudzy (20260828140004:127,
--- 20260828105751:494). Poprawki pisarzy (20261012120000, 20261012140000,
+-- 20260828105751:494). Poprawki pisarzy (20261012132000, 20261012140000,
 -- seria B3) zamykaja nowe przejecia, ale dowiazania zrobione wczesniej
 -- zostaja: konto napastnika dalej widzi „Moje zgloszenia", panel, platnosci
 -- i rezygnacje ofiary (wlasnosc to wszedzie `user_id = auth.uid()`).

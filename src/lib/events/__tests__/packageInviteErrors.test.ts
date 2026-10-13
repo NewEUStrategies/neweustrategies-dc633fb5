@@ -3,7 +3,7 @@
 // CO TU PILNUJEMY.
 //
 // 1) KODY NOWEGO CIAŁA MAJĄ ZDANIA. `event_package_invite_accept`
-//    (20261012120200) odmawia teraz także `event_ended`, `order_refunded`,
+//    (20261012132200) odmawia teraz także `event_ended`, `order_refunded`,
 //    `terms_required`, `missing_required_fields` i `missing_required_consents`.
 //    Każdy z nich ma trafić w klucz, który stoi w słowniku PL i EN - inaczej
 //    delegat zobaczy zdanie zapasowe i nie dowie się, co zrobić.

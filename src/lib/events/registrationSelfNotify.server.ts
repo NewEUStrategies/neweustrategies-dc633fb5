@@ -8,7 +8,7 @@
 // idempotencji nie mogą się rozjechać.
 //
 // NAJEMCA Z ARGUMENTU, NIE Z NAGŁÓWKA. `event_registration_notify_payload_for_
-// tenant` (A1, 20261012100000, tylko `service_role`) dostaje najemcę jawnie
+// tenant` (A1, 20261012130500, tylko `service_role`) dostaje najemcę jawnie
 // i rozstrzyga klucz JEDNĄ regułą (`_event_manage_token_resolve`, cel
 // `contact`): klucz wygasły z końcem wydarzenia i klucz zgłoszenia anulowanego
 // nie oddają adresu. Stara funkcja (`event_registration_notify_payload`, anon,

@@ -1,5 +1,5 @@
 -- pgTAP: przypomnienia respektuja glowne przelaczniki kanalow zgloszenia
--- (REG-09, migracja 20261012110200_event_reminder_channel_gates).
+-- (REG-09, migracja 20261012131200_event_reminder_channel_gates).
 --
 -- KRYTERIUM AUDYTU REG-09: „notify_email=false -> brak kandydata e-mail".
 -- Dotyczy przypomnienia o WYDARZENIU i o SESJI; dzwonek (inapp) zostaje, bo

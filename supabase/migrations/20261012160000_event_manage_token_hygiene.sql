@@ -26,7 +26,7 @@
 --
 -- ZMIANA (ciala z podanych migracji, zmiany oznaczone `ZMIANA 20261012`):
 --   A. `event_registration_manage_view`: galaz klucza przez
---      `_event_manage_token_resolve(..., 'view')` (A1, 20261012100000):
+--      `_event_manage_token_resolve(..., 'view')` (A1, 20261012130500):
 --      wygasly -> `{ok:false, reason:'expired'}`, nieznany -> `not_found` jak
 --      dotad, anulowany -> status 'cancelled' (podglad zostaje). Kwota przez
 --      `_event_registration_unit_price` (oferta z chwili zapisu albo cena

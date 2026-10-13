@@ -133,7 +133,7 @@ describe("fetchMyAgenda", () => {
   });
 });
 
-// ADRES KARTOTEKI = POTWIERDZONY ADRES KONTA (REG-01, 20261012120000). Baza
+// ADRES KARTOTEKI = POTWIERDZONY ADRES KONTA (REG-01, 20261012132000). Baza
 // odmawia zmiany adresu trzema kodami; kazdy ma trafic w zdanie formularza
 // profilu w OBU jezykach, a inne odmowy zostaja przy zdaniu ogolnym.
 describe("myEventProfileErrorKey", () => {

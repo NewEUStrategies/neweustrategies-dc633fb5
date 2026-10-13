@@ -43,7 +43,7 @@
 --
 -- CZEGO TO NIE ZAMYKA: historycznych dowiazan (naprawa w 20261012190000 po
 -- wszystkich poprawkach zapisujacych), przyjecia zaproszenia pakietowego
--- (20261012120200) ani zapisu przez formularz (`_event_register`, B1a).
+-- (20261012132200) ani zapisu przez formularz (`_event_register`, B1a).
 -- Odczyt `event_my_event_profile` (konto -> osoba po `user_id`) zostaje.
 --
 -- KOLEJNOSC WDROZENIA: dowolna. Formularz profilu (myEventProfileApi.ts)

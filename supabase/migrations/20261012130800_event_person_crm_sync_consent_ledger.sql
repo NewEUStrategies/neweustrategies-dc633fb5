@@ -35,12 +35,12 @@
 --   zgoda (kontakt, tagi, segment, os czasu, stan per intencja) bez zmian.
 --
 -- CZEGO TO NIE ZAMYKA: zgoda kontaktu nadal nie spada w moscie - spada
---   wylacznie przez `_event_person_consent_crm_withdraw` (20261012100200).
+--   wylacznie przez `_event_person_consent_crm_withdraw` (20261012130700).
 --   Przelacznik zgody w panelu CRM (src/lib/crm.functions.ts) nie pisze
 --   wiersza given=false, wiec reczne odznaczenie przez personel nie zatrzyma
 --   mostu, dopoki CRM tego nie loguje (opisane w raporcie, poza modulem).
 --
--- KOLEJNOSC WDROZENIA: po 20261012100100 (ksiega, teksty). Dowolna wzgledem
+-- KOLEJNOSC WDROZENIA: po 20261012130600 (ksiega, teksty). Dowolna wzgledem
 --   kodu - sygnatura bez zmian.
 -- IDEMPOTENTNA: CREATE OR REPLACE, bezstanowe REVOKE/GRANT, COMMENT.
 -- DOWOD: supabase/tests/event_consent_ledger_test.sql (wycofanie nie wraca do

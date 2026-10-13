@@ -272,7 +272,7 @@ export async function saveMyEventProfile(input: MyEventProfileInput): Promise<My
 }
 
 /**
- * ODMOWY ZMIANY ADRESU KARTOTEKI (REG-01, migracja 20261012120000). Adres
+ * ODMOWY ZMIANY ADRESU KARTOTEKI (REG-01, migracja 20261012132000). Adres
  * profilu wydarzenia może być wyłącznie POTWIERDZONYM adresem konta - baza
  * odmawia `email_unverified`, `email_in_use` albo `email_required`. Głowa
  * komunikatu plpgsql -> klucz `eventMe.errors.<camel>`; inne odmowy zostają

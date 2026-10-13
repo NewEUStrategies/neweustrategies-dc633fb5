@@ -43,7 +43,7 @@
 --   danych (`data_processing`) nie da sie tu wycofac - to podstawa obslugi
 --   zapisu, jej koniec to rezygnacja albo usuniecie danych.
 --
--- KOLEJNOSC WDROZENIA: po 20261012100100 (tabele). Kod TS jeszcze tego nie
+-- KOLEJNOSC WDROZENIA: po 20261012130600 (tabele). Kod TS jeszcze tego nie
 --   wola - dowolna wzgledem kodu.
 -- IDEMPOTENTNA: CREATE OR REPLACE, bezstanowe REVOKE/GRANT, COMMENT.
 -- DOWOD: supabase/tests/event_consent_ledger_test.sql,

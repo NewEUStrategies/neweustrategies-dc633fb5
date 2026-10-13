@@ -1,5 +1,5 @@
 -- pgTAP: przyjecie zaproszenia na miejsce z pakietu (REG-15, REG-01;
--- migracja 20261012120200_event_package_invite_accept_verified).
+-- migracja 20261012132200_event_package_invite_accept_verified).
 --
 -- DEFEKT (20260827221214:561-742). Funkcja byla martwa (zrodlo
 -- 'package_invitation' spoza list CHECK, zerowanie skrotu tokenu wbrew parze

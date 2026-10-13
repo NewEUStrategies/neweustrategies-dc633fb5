@@ -1,8 +1,8 @@
 -- ============================================================================
--- 22_reg_foundations - FUNDAMENTY NAPRAWY ZAPISOW REG (20261012100000)
+-- 22_reg_foundations - FUNDAMENTY NAPRAWY ZAPISOW REG (20261012130500)
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracja 20261012100000 stawia reguly, na ktorych stoi reszta serii REG:
+-- Migracja 20261012130500 stawia reguly, na ktorych stoi reszta serii REG:
 -- wiazanie konta tylko przez POTWIERDZONY adres (REG-01), jedna regula klucza
 -- samoobslugi i dane do maila po najemcy z serwera (REG-17) oraz migawka ceny
 -- zgloszenia (REG-16). pgTAP (supabase/tests/reg_foundations_test.sql)

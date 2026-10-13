@@ -4,7 +4,7 @@
 -- POROWNYWANY BEZ UNICODE-OWEGO ZWIJANIA WIELKOSCI LITER
 -- (PRZEGLAD R12: USTALENIE 4 I UWAGA O ZWIJANIU; REG-01, decyzja D1).
 --
--- DEFEKT (latest: `_event_uid_owns_email`, 20261012100000:89-102)
+-- DEFEKT (latest: `_event_uid_owns_email`, 20261012130500:89-102)
 --   1. D1 zaklada, ze `auth.users.email_confirmed_at` znaczy „wlasciciel
 --      kliknal link w tej skrzynce". Administrator obszaru zaklada jednak
 --      konta z `email_confirm: true` (src/lib/admin/invitations.functions.ts:
@@ -129,7 +129,7 @@ COMMENT ON FUNCTION public._event_account_admin_provisioned(uuid) IS
   'R12 (D1): true, gdy potwierdzenie OBECNEGO adresu konta nadal administrator (app_metadata.provisioned_by_admin + provisioned_email albo wiersz auth_admin_provisioned_accounts). Potwierdzona zmiana adresu konta zdejmuje blokade dla nowego adresu. Pomocnicza: tylko service_role i funkcje SECURITY DEFINER.';
 
 -- C) KONTO MA POTWIERDZONY TEN ADRES ------------------------------------------------
--- Cialo z 20261012100000:89-102; zmiany oznaczone.
+-- Cialo z 20261012130500:89-102; zmiany oznaczone.
 CREATE OR REPLACE FUNCTION public._event_uid_owns_email(p_uid uuid, p_email text)
 RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp
@@ -157,7 +157,7 @@ COMMENT ON FUNCTION public._event_uid_owns_email(uuid, text) IS
   'REG-01 (D1): true wtedy i tylko wtedy, gdy konto ma POTWIERDZONY (auth.users.email_confirmed_at) adres rowny podanemu po btrim i zwinieciu wielkosci liter WYLACZNIE A-Z (COLLATE "C", R12) i to potwierdzenie nie zostalo nadane przez administratora (_event_account_admin_provisioned, R12). Brak konta, adresu lub potwierdzenia -> false (nigdy NULL). Pomocnicza: tylko service_role i funkcje SECURITY DEFINER.';
 
 -- D) KLASYFIKACJA DOWIAZANIA ----------------------------------------------------------
--- Cialo z 20261012120100:129-143; nowa galaz oznaczona.
+-- Cialo z 20261012132100:129-143; nowa galaz oznaczona.
 CREATE OR REPLACE FUNCTION public._event_person_account_risk(p_user_id uuid, p_email_norm text, p_created_by uuid)
 RETURNS text
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp

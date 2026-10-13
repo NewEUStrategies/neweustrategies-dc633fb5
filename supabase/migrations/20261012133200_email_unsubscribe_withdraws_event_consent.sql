@@ -13,7 +13,7 @@
 --
 -- ZMIANA 20261012 (REG-14): cialo z 20261002190100:45-164 bez zmian poza
 --   JEDNYM wywolaniem `_event_consent_withdraw_by_email(najemca, adres,
---   'unsubscribe_link')` (rejestr zgod A2, 20261012100200) PO udanej blokadzie
+--   'unsubscribe_link')` (rejestr zgod A2, 20261012130700) PO udanej blokadzie
 --   - w tej samej transakcji: wpis 'withdrawn' w ksiedze (dowod
 --   `unsubscribe_link`), zgaszona projekcja, zastapione otwarte linki DOI
 --   z marketingiem, CRM `marketing_consent = false` + wiersz given=false.
@@ -27,7 +27,7 @@
 --   `public.event_*`: harness wydarzen nie ma tabel poczty (blokady, tokeny
 --   globalne) - dowodem jest pgTAP na pelnym schemacie.
 --
--- KOLEJNOSC WDROZENIA: po 20261012100200 (funkcje rejestru). Wzgledem kodu
+-- KOLEJNOSC WDROZENIA: po 20261012130700 (funkcje rejestru). Wzgledem kodu
 --   dowolna (sygnatura i odpowiedz bez zmian).
 -- IDEMPOTENTNA: CREATE OR REPLACE, bezstanowe REVOKE/GRANT, COMMENT.
 -- DOWOD: supabase/tests/event_consent_confirm_withdraw_test.sql (wypis
@@ -165,7 +165,7 @@ END;
 $fn$;
 
 COMMENT ON FUNCTION public.email_unsubscribe_by_token(text) IS
-  'Wypis jednym kliknieciem (token globalny lub per subskrybent): w JEDNEJ transakcji wypisuje subskrybenta (status + uniewaznienie tokenu potwierdzenia), zuzywa token globalny, stawia blokade unsubscribe w tenancie wlasciciela wiersza i (od 20261012130200, REG-14) wycofuje zgode marketingowa osoby wydarzen o tym adresie (_event_consent_withdraw_by_email, dowod unsubscribe_link: ksiega, projekcja, CRM). Nieudana blokada wycofuje calosc. Idempotentny; already_unsubscribed odzwierciedla stan sprzed wywolania.';
+  'Wypis jednym kliknieciem (token globalny lub per subskrybent): w JEDNEJ transakcji wypisuje subskrybenta (status + uniewaznienie tokenu potwierdzenia), zuzywa token globalny, stawia blokade unsubscribe w tenancie wlasciciela wiersza i (od 20261012133200, REG-14) wycofuje zgode marketingowa osoby wydarzen o tym adresie (_event_consent_withdraw_by_email, dowod unsubscribe_link: ksiega, projekcja, CRM). Nieudana blokada wycofuje calosc. Idempotentny; already_unsubscribed odzwierciedla stan sprzed wywolania.';
 
 REVOKE ALL ON FUNCTION public.email_unsubscribe_by_token(text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.email_unsubscribe_by_token(text) TO service_role;

@@ -1,5 +1,5 @@
 -- pgTAP: zgoda na SMS per zgloszenie i pisarz preferencji (REG-09 / REG-10,
--- migracja 20261012110100_event_registration_sms_consent).
+-- migracja 20261012131100_event_registration_sms_consent).
 --
 -- CO PRZYPINA:
 --   * notify_sms domyslnie false, backfill bez stempla na false, CHECK

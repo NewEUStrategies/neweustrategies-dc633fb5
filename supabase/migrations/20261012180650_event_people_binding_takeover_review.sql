@@ -5,7 +5,7 @@
 -- (PRZEGLAD R12: USTALENIE 3 I UWAGA O LIMICIE; REG-01, decyzja D14).
 --
 -- DEFEKT
---   1. (20261012120100:129-143, naprawa 20261012190000) Przejecie z audytu
+--   1. (20261012132100:129-143, naprawa 20261012190000) Przejecie z audytu
 --      REG-01 mialo drugi krok: napastnik T dowiazany do kartoteki ofiary
 --      przestawial jej adres starym edytorem profilu (dowolny adres) na
 --      SWOJ potwierdzony adres - zeby bilety szly do niego. Po tym kroku
@@ -15,7 +15,7 @@
 --      (powtorzone: review/R12-identity-consents/p2_identity.sql, czesc A).
 --      Baza nie zapisywala, KIEDY zmienil sie adres osoby, wiec regula nie
 --      odrozni tego od goscia, ktory pozniej zalozyl konto.
---   2. (20261012120100:287-289) `admin_event_people_account_bindings` bral
+--   2. (20261012132100:287-289) `admin_event_people_account_bindings` bral
 --      200 wierszy audytu po `person_id`, a dopiero potem sortowal po ryzyku -
 --      przy ponad 200 niezweryfikowanych dowiazaniach `foreign_record`
 --      (podpis przejecia) mogl wypasc z ekranu.
@@ -145,7 +145,7 @@ COMMENT ON FUNCTION public.event_people_account_binding_review(uuid) IS
   'R12 (REG-01, D14): SYGNAL DO PRZEGLADU, bez odwiazania - dowiazania spelniajace D1 na kartotece zalozonej przez kogos innego niz konto, gdy mail zgloszenia osoby poszedl na adres inny niz obecny (mails_elsewhere) albo zgloszenia osoby zalozylo inne konto spoza personelu i nie lider grupy (registrations_by_others). Ryzyko suspect_takeover. Bez przywroconych przez administratora dla tego stanu. p_tenant NULL = wszyscy najemcy. Tylko service_role.';
 
 -- B) EKRAN ORGANIZATORA --------------------------------------------------------------
--- Cialo z 20261012120100:259-321; zmiany oznaczone.
+-- Cialo z 20261012132100:259-321; zmiany oznaczone.
 CREATE OR REPLACE FUNCTION public.admin_event_people_account_bindings(p_payload jsonb DEFAULT '{}'::jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -246,7 +246,7 @@ COMMENT ON FUNCTION public.admin_event_people_account_bindings(jsonb) IS
   'REG-01 (D14), ekran organizatora: niezweryfikowane dowiazania kont najemcy (audyt; 200 wierszy PO uporzadkowaniu wedlug ryzyka, foreign_record najpierw), lista przegladu suspect (R12: dowiazania spelniajace D1 z sygnalem przejecia - mails_elsewhere, registrations_by_others; najwyzej 200) i dziennik odwiazan (najnowsze 200). Imie, nazwisko, adres osoby, zamaskowany adres konta. Najemca z assert_event_admin_tenant() (admin albo super_admin), nigdy z ladunku.';
 
 -- C) ODWIAZANIE PRZEZ ORGANIZATORA ---------------------------------------------------
--- Cialo z 20261012120100:326-380; zmiana oznaczona.
+-- Cialo z 20261012132100:326-380; zmiana oznaczona.
 CREATE OR REPLACE FUNCTION public.admin_event_person_account_unbind(p_payload jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql

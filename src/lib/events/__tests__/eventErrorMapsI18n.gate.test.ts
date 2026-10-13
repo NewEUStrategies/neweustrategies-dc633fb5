@@ -696,7 +696,7 @@ const PF_A_BEZ_INTERPOLACJI: readonly string[] = ["participantChannelErrors"];
 /**
  * Kanały, przypomnienia i zgoda na SMS jednego zgłoszenia - `registrationChannelsApi`
  * (`event_registration_set_channels`, `event_registration_preferences`;
- * REG-09/REG-10, migracja 20261012110100).
+ * REG-09/REG-10, migracja 20261012131100).
  */
 const KODY_KANALOW_UCZESTNIKA = [
   // event_registration_set_channels - zgoda i numer przy włączaniu SMS-a

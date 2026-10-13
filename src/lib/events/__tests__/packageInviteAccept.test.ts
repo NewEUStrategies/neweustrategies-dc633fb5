@@ -20,7 +20,7 @@
 //    bledem, bo bez identyfikatora zgloszenia nie da sie ani pokazac, ani
 //    odwolac - a ekran „jestes zapisany" bez zapisu jest gorszy niz awaria.
 // 4) KOD WEJSCIA WRACA RAZ. Udane wywolanie przypisuje miejsce (ponowne uzycie
-//    linku to `seat_taken`, 20261012120200), wiec `qr_token` i `manage_token`
+//    linku to `seat_taken`, 20261012132200), wiec `qr_token` i `manage_token`
 //    maja dojechac do komponentu w calosci; pusty napis ma sie czytac jako
 //    BRAK, a nie jako kod, ktory da sie pokazac na bramce.
 // 6) ODMOWA WARTOSCIA TO TEZ ODMOWA (REG-15). Baza odpowiada na nieznany token
@@ -88,7 +88,7 @@ const accepting: import("@/lib/events/packageInviteApi").PackageInviteAcceptInpu
   consentDataProcessing: true,
 };
 
-/** Odpowiedz w ksztalcie z `20261012120200` (przyjecie zaproszenia, REG-15). */
+/** Odpowiedz w ksztalcie z `20261012132200` (przyjecie zaproszenia, REG-15). */
 const accepted = {
   ok: true,
   registration_id: REGISTRATION_ID,

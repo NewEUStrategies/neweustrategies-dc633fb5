@@ -3,7 +3,7 @@
 -- PRZEZ POTWIERDZONY ADRES (REG-02 / REG-14, JEDNOSTKA B3)
 --
 -- PO CO TEN PLIK ISTNIEJE
--- Migracje 20261012130000 i 20261012130100 domykaja rejestr zgod (A2): link
+-- Migracje 20261012133000 i 20261012133100 domykaja rejestr zgod (A2): link
 -- double opt-in z maila wreszcie POTWIERDZA zgody, wycofanie dziala kluczem
 -- samoobslugi (takze wygaslym i po anulowaniu) i z konta, a nabor prelegentow
 -- wiaze konto tylko przez potwierdzony adres i zapisuje marketing przez

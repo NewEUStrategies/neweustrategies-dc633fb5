@@ -608,7 +608,7 @@ BEGIN
     format($$SELECT public.event_cfp_submission_save('{"slug":"cfp-42","speaker":{"first_name":"%s","last_name":"P","consent_data_processing":true}}')$$, repeat('x', 81)),
     'invalid_speaker', '42/(f): zbyt dlugie imie odrzucone nazwanym bledem');
 
-  -- ZMIANA 20261012130100 (REG-14): zgoda marketingowa naboru idzie przez
+  -- ZMIANA 20261012133100 (REG-14): zgoda marketingowa naboru idzie przez
   -- rejestr zgod, wiec formularz wysyla wersje i jezyk tekstu, ktory pokazal
   -- (ten sam wersjonowany napis co formularz zapisu). Bez nich zgoda nie jest
   -- zapisywana - brak dowodu, co osoba widziala.

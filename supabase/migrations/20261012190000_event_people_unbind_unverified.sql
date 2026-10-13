@@ -12,7 +12,7 @@
 -- i platnosci osoby, ktorej adresu konto nigdy nie potwierdzilo.
 --
 -- ZMIANA. Jedno wywolanie `_event_people_unbind_unverified('reg01_remediation')`
--- (20261012120100): kazdy wiersz `event_people_account_binding_audit()`
+-- (20261012132100): kazdy wiersz `event_people_account_binding_audit()`
 -- dostaje `user_id = NULL` i wpis w `event_person_account_unbinds` (ryzyko,
 -- adres osoby i konta, liczba zgloszen zalozonych przez konto). Nic nie jest
 -- usuwane. Po tej migracji audyt zwraca 0 wierszy (kryterium REG-01).
@@ -25,8 +25,8 @@
 -- i wlasnosc platnosci po `created_by` dzialaja dalej.
 --
 -- KOLEJNOSC WDROZENIA: OSTATNIA w serii REG - PO poprawkach WSZYSTKICH
--- pisarzy `event_people.user_id` (20261012120000 profil, 20261012120200
--- zaproszenie, slot 20261012130000 nabor, 20261012140000 zapis). Wczesniej
+-- pisarzy `event_people.user_id` (20261012132000 profil, 20261012132200
+-- zaproszenie, slot 20261012133000 nabor, 20261012140000 zapis). Wczesniej
 -- niepoprawiony pisarz dowiazalby konto ponownie. Przed wdrozeniem liczby
 -- z `SELECT tenant_id, risk, count(*) FROM
 -- public.event_people_account_binding_audit() GROUP BY 1, 2` (runbook REG);

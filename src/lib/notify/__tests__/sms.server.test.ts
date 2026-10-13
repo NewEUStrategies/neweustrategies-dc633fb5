@@ -3,7 +3,7 @@
 // i dziennika idempotencji (`sms_send_log`, REG-11).
 //
 // DZIENNIK JEST ATRAPĄ Z SEMANTYKĄ SQL. `sms_send_claim`/`sms_send_finish`
-// odtwarzają reguły migracji 20261012110000 (claimed/sent/in_flight/exhausted,
+// odtwarzają reguły migracji 20261012131000 (claimed/sent/in_flight/exhausted,
 // nowy claim_id przy każdym przejęciu, „wysłane" tylko po finish 'sent') -
 // atrapa „zawsze claimed" przepuszczałaby każdą powtórkę i test idempotencji
 // byłby zielony niezależnie od kodu. Regułę SQL przypina

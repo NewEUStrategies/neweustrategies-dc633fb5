@@ -1,7 +1,7 @@
 -- pgTAP: rejestr zgod uczestnikow wydarzen (REG-02 / REG-14, infrastruktura)
--- - migracje 20261012100100_event_consent_ledger,
--- 20261012100200_event_consent_helpers i
--- 20261012100300_event_person_crm_sync_consent_ledger.
+-- - migracje 20261012130600_event_consent_ledger,
+-- 20261012130700_event_consent_helpers i
+-- 20261012130800_event_person_crm_sync_consent_ledger.
 --
 -- DEFEKT. Zgody osoby byly golymi stemplami w `event_people`, ktore stawial
 -- kazdy, kto wpisal cudzy adres w formularz; wycofania nie pisal nikt, a most

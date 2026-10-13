@@ -18,7 +18,7 @@
 --      v_evidence` i wiersz `crm_consent_log` z tekstem zmyslonym przez most.
 --      Zgoda w CRM jest monotoniczna - wycofanie nigdy tam nie dociera.
 --
--- ZMIANA (ta migracja i dwie nastepne w slocie 20261012100100..100999):
+-- ZMIANA (ta migracja i dwie nastepne w slocie 20261012130600..130999):
 --   A. `event_consent_texts` - globalne, wersjonowane teksty checkboxow
 --      formularza (PL/EN) z odciskiem sha256. Wersja 1 = DOKLADNIE napisy
 --      renderowane dzis przez PublicRegistrationForm.tsx
@@ -47,8 +47,8 @@
 --      (idempotentna `_event_consent_backfill_legacy()`, wolana tu raz).
 --      Projekcja (kolumny `event_people`) zostaje bez zmian.
 --   F. `_event_consent_text_check` - jedyna walidacja (cel, wersja, jezyk).
---   Pomocnicze funkcje zapisu (20261012100200) i most CRM czytajacy ksiege
---   (20261012100300) - w osobnych plikach, kazdy < 45 KiB (limit Lovable).
+--   Pomocnicze funkcje zapisu (20261012130700) i most CRM czytajacy ksiege
+--   (20261012130800) - w osobnych plikach, kazdy < 45 KiB (limit Lovable).
 --
 -- CZEGO TO NIE ZAMYKA: `event_register`, `_event_cfp_resolve_person`
 --   i `event_package_invite_accept` nadal pisza stemple zgod wprost (ich
@@ -473,7 +473,7 @@ BEGIN
     tenant_id, person_id, email_norm, purpose, status, evidence, source, created_at
   )
   SELECT p.tenant_id, p.id, p.email_norm, c.purpose, 'confirmed', 'legacy_single_opt_in',
-         'backfill:20261012100100', c.stamp
+         'backfill:20261012130600', c.stamp
     FROM public.event_people p
    CROSS JOIN LATERAL (
      VALUES ('marketing'::text, p.consent_marketing_at),

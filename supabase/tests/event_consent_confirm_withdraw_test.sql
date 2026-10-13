@@ -1,9 +1,9 @@
 -- pgTAP: potwierdzenie double opt-in, wycofanie zgod (klucz samoobslugi,
 -- konto, link wypisu) i nabor prelegentow przez potwierdzony adres konta
 -- (REG-02 / REG-14, jednostka B3) - migracje
--- 20261012130000_event_consent_confirm_withdraw,
--- 20261012130100_event_cfp_resolve_person_verified i
--- 20261012130200_email_unsubscribe_withdraws_event_consent.
+-- 20261012133000_event_consent_confirm_withdraw,
+-- 20261012133100_event_cfp_resolve_person_verified i
+-- 20261012133200_email_unsubscribe_withdraws_event_consent.
 --
 -- DEFEKT. Rejestr zgod (A2) i rdzen zapisu (B1a) wydawaly niezweryfikowanemu
 -- zapisujacemu link DOI, ale nic go nie potwierdzalo; zgody nie dalo sie

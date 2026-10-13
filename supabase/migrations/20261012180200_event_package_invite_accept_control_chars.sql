@@ -3,7 +3,7 @@
 -- ZAPROSZENIE NA MIEJSCE Z PAKIETU - POPRAWKA PO PRZEGLADZIE R38: ZNAKI
 -- STERUJACE ODRZUCANE JAK PRZY ZAPISIE.
 --
--- DEFEKT (latest: `event_package_invite_accept`, 20261012120200_event_package_invite_accept_verified.sql:141-537)
+-- DEFEKT (latest: `event_package_invite_accept`, 20261012132200_event_package_invite_accept_verified.sql:141-537)
 --   Sufity pol (:203-218) liczyly znaki, ale przepuszczaly znaki sterujace.
 --   Posiadacz linku, ktory nie jest wlascicielem kartoteki zaproszonego,
 --   zapisuje dane do `submitted_profile` (:417-433); znak sterujacy zajmuje
@@ -13,13 +13,13 @@
 --   jakosci danych (nowa linia w nazwisku na identyfikatorze).
 --
 -- ZMIANA: `event_package_invite_accept` (CREATE OR REPLACE na ciele
--- 20261012120200, jedyna zmiana oznaczona `ZMIANA 20261012 (R38, REG-04)`):
+-- 20261012132200, jedyna zmiana oznaczona `ZMIANA 20261012 (R38, REG-04)`):
 -- znak sterujacy w imieniu, nazwisku, stanowisku albo firmie to
 -- `invalid_name` / `invalid_job_title` / `invalid_company` - przed tokenem,
 -- jak pozostale bledy formularza. Regula: `_event_text_has_control`
 -- (20261012180000).
 --
--- CZEGO TO NIE ZAMYKA: token nadal nie dowodzi skrzynki (opis w 20261012120200).
+-- CZEGO TO NIE ZAMYKA: token nadal nie dowodzi skrzynki (opis w 20261012132200).
 -- KOLEJNOSC WDROZENIA: po 20261012180000 (pomocnik); kody odmow juz
 -- tlumaczone (`eventRegistration.invite.errors` -> slownik zapisu).
 -- IDEMPOTENTNA: CREATE OR REPLACE, bezstanowe REVOKE/GRANT, COMMENT ON.

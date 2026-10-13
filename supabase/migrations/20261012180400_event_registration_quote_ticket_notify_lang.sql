@@ -4,7 +4,7 @@
 -- PRZYPIETA DO BILETU, JEZYK MAILA POTWIERDZENIA = JEZYK ZGLOSZENIA.
 --
 -- DEFEKT
---   1. REG-16 (latest: `_event_registration_unit_price`, 20261012100000:403-436).
+--   1. REG-16 (latest: `_event_registration_unit_price`, 20261012130500:403-436).
 --      Oferta zgloszenia (`quoted_price_cents/quoted_currency/
 --      quote_valid_until`) sprawdzala tylko walute biletu, a nie TOZSAMOSC
 --      biletu. Organizator przenoszacy zgloszenie z biletu za 50 zl na VIP za
@@ -13,7 +13,7 @@
 --      (`event_registration_payment_context` -> `priceEventTicket`), zrodlo
 --      faktury i „Moje zgloszenia" sprzedawaly VIP za 50 zl do konca waznosci
 --      oferty.
---   2. `event_registration_notify_payload_for_tenant` (20261012100000:251-336)
+--   2. `event_registration_notify_payload_for_tenant` (20261012130500:251-336)
 --      liczyl `lang` wlasna kaskada (profil -> newsletter -> pl) bez
 --      `event_registrations.lang`. Nowa osoba wypelniajaca formularz po
 --      angielsku dostawala potwierdzenie z linkiem samoobslugi po polsku,
@@ -31,7 +31,7 @@
 --      (`admin_event_registration_upsert`, kaskada platnosci, przyszle
 --      sciezki) zamiast poprawiania kazdego osobno.
 --   B. `event_registration_notify_payload_for_tenant` (CREATE OR REPLACE na
---      ciele 20261012100000, zmiana oznaczona `ZMIANA 20261012 (R38)`): `lang`
+--      ciele 20261012130500, zmiana oznaczona `ZMIANA 20261012 (R38)`): `lang`
 --      z `public._event_registration_lang(r.tenant_id, r.id)` - jedyna droga
 --      odczytu jezyka w SQL (zgloszenie -> profil -> newsletter -> prowadzacy
 --      grupy -> pl). Obwodka `event_registration_notify_payload` (B7,
@@ -83,7 +83,7 @@ CREATE TRIGGER event_registrations_02_quote_follows_ticket
   EXECUTE FUNCTION public._tg_event_registration_quote_follows_ticket();
 
 -- B) JEZYK MAILA = JEZYK ZGLOSZENIA ----------------------------------------------------
--- Cialo z 20261012100000:251-336; jedyna zmiana - `lang` z helpera kaskady.
+-- Cialo z 20261012130500:251-336; jedyna zmiana - `lang` z helpera kaskady.
 CREATE OR REPLACE FUNCTION public.event_registration_notify_payload_for_tenant(_tenant_id uuid, p_payload jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql

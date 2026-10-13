@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS auth.users (
   id    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text,
   -- Potwierdzenie adresu (GoTrue). Czyta je regula wiazania konta z osoba
-  -- (`_event_uid_owns_email` / `_event_bind_uid_for_email`, 20261012100000:
+  -- (`_event_uid_owns_email` / `_event_bind_uid_for_email`, 20261012130500:
   -- konto wiaze sie z kartoteka TYLKO przy POTWIERDZONYM adresie) i akceptacja
   -- przekazania biletu. Kolumna stoi TU, w ksztalcie tabeli, a nie dopisana
   -- pozniej: obie funkcje sa LANGUAGE sql, a takie cialo Postgres waliduje przy

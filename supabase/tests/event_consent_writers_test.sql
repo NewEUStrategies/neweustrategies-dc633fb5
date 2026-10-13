@@ -1,8 +1,8 @@
 -- pgTAP: kto PISZE zgody osoby wydarzenia (REG-02 / REG-14) - straznik
--- statyczny na PELNYM katalogu funkcji (migracja 20261012100200).
+-- statyczny na PELNYM katalogu funkcji (migracja 20261012130700).
 --
 -- PO CO. Kolumny `event_people.consent_marketing_at`,
--- `consent_partner_sharing_at` i `consent_withdrawn_at` sa od 20261012100100
+-- `consent_partner_sharing_at` i `consent_withdrawn_at` sa od 20261012130600
 -- PROJEKCJA ksiegi `event_consent_records`. Projekcja pisana obok ksiegi
 -- (stempel bez wpisu, `consent_withdrawn_at = NULL` przy kazdym zapisie) to
 -- dokladnie defekt REG-02: anonim stawial zgody cudzej osobie i zdejmowal jej
@@ -19,7 +19,7 @@
 -- LISTA WYJATKOW JEST PUSTA I TAKA ZOSTAJE. Do serii 20261012 stemple pisaly
 -- wprost trzy funkcje; kazda przeszla na funkcje rejestru: `event_register`
 -- (rdzen `_event_register`, B1a, 20261012140000), `event_package_invite_accept`
--- (B2, 20261012120200) i `_event_cfp_resolve_person` (B3, 20261012130100 -
+-- (B2, 20261012132200) i `_event_cfp_resolve_person` (B3, 20261012133100 -
 -- marketing przez `_event_person_consents_confirm('verified_account')`).
 -- Asercja 5 przypina, ze zadna z nich nie wrocila do pisania projekcji;
 -- nowa funkcja, ktora chcialaby pisac stemple, czerwieni asercje 4 - nie ma
