@@ -13,10 +13,12 @@ import {
 
 const EVENT = "11111111-2222-3333-4444-555555555555";
 const TICKET = "66666666-7777-8888-9999-000000000000";
+/** Strefa wydarzenia - okno sprzedaży jest zegarem w niej. */
+const STREFA = "Europe/Warsaw";
 
 function valid(overrides: Partial<PackageDraft> = {}): PackageDraft {
   return {
-    ...emptyPackageDraft(100),
+    ...emptyPackageDraft(100, STREFA),
     key: "delegacja_10",
     ticketTypeId: TICKET,
     namePl: "Delegacja 10",

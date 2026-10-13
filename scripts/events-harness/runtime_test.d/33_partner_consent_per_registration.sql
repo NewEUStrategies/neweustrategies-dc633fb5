@@ -612,37 +612,13 @@ VALUES ('33600000-0000-0000-0000-0000000000d1', '11111111-1111-1111-1111-1111111
 
 SELECT pg_temp.act_as(NULL, NULL);
 
--- DEFEKTY ZASTANE (poza zakresem OPS-01): `event_package_invite_accept` od
--- 20260827221214 pada przy KAZDYM wywolaniu (23514), na dwoch ograniczeniach:
---   1. zapisuje `source = 'package_invitation'`, czego nie dopuszczaja
---      `event_registrations_source_values` ani `event_people_source_values`
---      (20260824085456);
---   2. zuzywajac zaproszenie zeruje `invite_token_hash`, a zostawia
---      `invite_email` - lamie `event_package_seats_invite_pair`.
--- Wpisy rejestru zapala sie na czerwono w dniu naprawy; do tego czasu zgody
--- sprawdzamy po zdjeciu obu ograniczen w tej (wycofywanej) transakcji.
-CREATE FUNCTION pg_temp.z33_invite_error() RETURNS text LANGUAGE plpgsql AS $$
-BEGIN
-  BEGIN
-    PERFORM public.event_package_invite_accept(jsonb_build_object(
-      'token', 'zaproszenie-33-ewa-000000001', 'first_name', 'Ewa', 'last_name', 'Zgodna',
-      'consent_data_processing', true));
-  EXCEPTION WHEN check_violation THEN
-    RETURN SQLERRM;
-  END;
-  RETURN NULL;
-END
-$$;
-SELECT pg_temp.assert_known_defect(
-  pg_temp.z33_invite_error() LIKE '%event_registrations_source_values%',
-  '33/pakiet: event_package_invite_accept zapisuje source spoza event_registrations_source_values',
-  'dopisac package_invitation do ograniczen zrodla zgloszenia i osoby albo zapisywac invitation');
-ALTER TABLE public.event_registrations DROP CONSTRAINT event_registrations_source_values;
-SELECT pg_temp.assert_known_defect(
-  pg_temp.z33_invite_error() LIKE '%event_package_seats_invite_pair%',
-  '33/pakiet: event_package_invite_accept zeruje invite_token_hash bez invite_email (event_package_seats_invite_pair)',
-  'zuzycie zaproszenia ma zerowac obie kolumny pary albo ograniczenie ma dopuszczac zuzyte zaproszenie');
-ALTER TABLE public.event_package_seats DROP CONSTRAINT event_package_seats_invite_pair;
+-- Przyjecie zaproszenia biegnie na NIETKNIETYCH ograniczeniach. Do
+-- 20261012140000 funkcja padala tu przy kazdym wywolaniu (zrodlo
+-- `package_invitation` spoza list CHECK, e-mail zaproszenia bez tokenu) i ten
+-- plik zdejmowal oba ograniczenia w wycofywanej transakcji, z wpisami
+-- `assert_known_defect`. Defekt jest naprawiony; pozytywne asercje o samym
+-- przyjeciu (zrodlo, para e-mail/token, wycofanie zgod) stoja w
+-- 78_ops_followups.sql, sekcja 1.
 
 DO $do$
 DECLARE

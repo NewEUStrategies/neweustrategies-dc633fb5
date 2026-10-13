@@ -18,10 +18,12 @@ import {
 import { parseRegistrationForm } from "@/lib/events/registrationFormSurface";
 
 const EVENT = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+/** Strefa wydarzenia - granice progów są zegarem w niej. */
+const STREFA = "Europe/Warsaw";
 
 function draft(overrides: Partial<TicketDraft> = {}): TicketDraft {
   return {
-    ...emptyTicketDraft(0),
+    ...emptyTicketDraft(0, STREFA),
     key: "standard",
     namePl: "Standard",
     nameEn: "Standard",
@@ -86,11 +88,14 @@ describe("progi cenowe", () => {
   });
 
   it("czyta progi z JSON-a i pomija wpisy bez ceny", () => {
-    const rows = phasesFromJson([
-      { label_pl: "Early", label_en: "Early", from: null, to: null, price_cents: 9000 },
-      { label_pl: "Bełkot", price_cents: "dużo" },
-      "nie obiekt",
-    ]);
+    const rows = phasesFromJson(
+      [
+        { label_pl: "Early", label_en: "Early", from: null, to: null, price_cents: 9000 },
+        { label_pl: "Bełkot", price_cents: "dużo" },
+        "nie obiekt",
+      ],
+      STREFA,
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0].priceCents).toBe("9000");
   });

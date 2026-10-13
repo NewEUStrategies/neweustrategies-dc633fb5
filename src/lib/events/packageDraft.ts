@@ -9,6 +9,12 @@
 // pakiet na zero miejsc to oferta, której nie da się zrealizować, a jedno
 // miejsce to zwykły bilet - dopuszczamy je, bo bywa etapem przejściowym przy
 // przenoszeniu cennika, ale limit górny trzyma literówki w ryzach.
+//
+// OKNO SPRZEDAŻY JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), jak terminy
+// biletu: szkic niesie strefę i chwile z bazy, więc przełącznik aktywności
+// w tabeli pakietów nie przesuwa ani nie przycina okna.
+import { canonicalInstant, type SavedInstants } from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 import {
   fromLocalInput,
   toLocalInput,
@@ -44,12 +50,17 @@ export interface PackageDraft {
   currency: TicketCurrency;
   /** Pusty tekst = bez limitu sprzedanych pakietów. */
   quota: string;
+  /** `datetime-local` w strefie `timeZone` albo pusty tekst. */
   salesFrom: string;
   salesTo: string;
   minTierRank: string;
   requiresVerification: boolean;
   isActive: boolean;
   sortOrder: string;
+  /** Strefa wydarzenia (IANA, zwalidowana), w której pola okna są zegarem. */
+  timeZone: string;
+  /** Chwile z bazy, z których powstały pola okna (edycja); pusto dla nowego pakietu. */
+  savedTimes: SavedInstants<"salesFrom" | "salesTo">;
 }
 
 export type PackageDraftField = keyof PackageDraft;
@@ -59,7 +70,10 @@ export interface PackageDraftIssue {
   errorKey: string;
 }
 
-export function emptyPackageDraft(sortOrder: number): PackageDraft {
+export function emptyPackageDraft(
+  sortOrder: number,
+  timeZone: string | null | undefined,
+): PackageDraft {
   return {
     id: null,
     key: "",
@@ -79,10 +93,18 @@ export function emptyPackageDraft(sortOrder: number): PackageDraft {
     requiresVerification: false,
     isActive: true,
     sortOrder: String(sortOrder),
+    timeZone: eventTimeZone({ timezone: timeZone }),
+    savedTimes: {},
   };
 }
 
-export function packageDraftFromRow(row: EventPackageRow): PackageDraft {
+export function packageDraftFromRow(
+  row: EventPackageRow,
+  timeZone: string | null | undefined,
+): PackageDraft {
+  const zone = eventTimeZone({ timezone: timeZone });
+  const salesFrom = canonicalInstant(row.sales_from);
+  const salesTo = canonicalInstant(row.sales_to);
   return {
     id: row.id,
     key: row.key,
@@ -100,13 +122,20 @@ export function packageDraftFromRow(row: EventPackageRow): PackageDraft {
       ? (row.currency as TicketCurrency)
       : "PLN",
     quota: row.quota === null || row.quota === undefined ? "" : String(row.quota),
-    salesFrom: toLocalInput(row.sales_from ?? null),
-    salesTo: toLocalInput(row.sales_to ?? null),
+    salesFrom: toLocalInput(salesFrom, zone),
+    salesTo: toLocalInput(salesTo, zone),
     minTierRank: String(row.min_tier_rank ?? 0),
     requiresVerification: row.requires_verification,
     isActive: row.is_active,
     sortOrder: String(row.sort_order ?? 100),
+    timeZone: zone,
+    savedTimes: { salesFrom, salesTo },
   };
+}
+
+/** Pole okna sprzedaży -> chwila (z pamięcią chwili z bazy). */
+function draftInstant(draft: PackageDraft, field: "salesFrom" | "salesTo"): string | null {
+  return fromLocalInput(draft[field], draft.timeZone, draft.savedTimes[field] ?? null);
 }
 
 /** Liczba całkowita z pola tekstowego; `null` przy pustym/niepoprawnym. */
@@ -160,8 +189,8 @@ export function packageDraftIssue(draft: PackageDraft): PackageDraftIssue | null
     return { field: "minTierRank", errorKey: "packageTierRange" };
   }
 
-  const from = fromLocalInput(draft.salesFrom);
-  const to = fromLocalInput(draft.salesTo);
+  const from = draftInstant(draft, "salesFrom");
+  const to = draftInstant(draft, "salesTo");
   if (from !== null && to !== null && new Date(from) >= new Date(to)) {
     return { field: "salesTo", errorKey: "packageSalesWindow" };
   }
@@ -189,8 +218,8 @@ export function packageDraftToInput(draft: PackageDraft, eventId: string): Event
     priceCents: intOrNull(draft.priceCents) ?? 0,
     currency: draft.currency,
     quota: draft.quota.trim() === "" ? null : (intOrNull(draft.quota) ?? null),
-    salesFrom: fromLocalInput(draft.salesFrom),
-    salesTo: fromLocalInput(draft.salesTo),
+    salesFrom: draftInstant(draft, "salesFrom"),
+    salesTo: draftInstant(draft, "salesTo"),
     minTierRank: intOrNull(draft.minTierRank) ?? 0,
     requiresVerification: draft.requiresVerification,
     isActive: draft.isActive,

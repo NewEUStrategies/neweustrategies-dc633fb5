@@ -25,9 +25,11 @@
 // polu. (2) Molekuł `AdminForm*` i atomu `FormSelect` - mają własne pliki.
 //
 // DETERMINIZM: żadnego `Date.now()`; terminy wpisujemy wprost, a oczekiwane ISO
-// liczymy tym samym `new Date(...)`, co przeglądarka - asercja nie zakłada
-// strefy maszyny. Radix Dialog i Select nie działają pod happy-dom bez pełnego
-// pointer API.
+// to zegar w STREFIE WYDARZENIA (`timezone`, tu Europe/Warsaw). Dawniej test
+// liczył je tym samym `new Date(...)`, co przeglądarka - i tym samym utrwalał
+// błąd klasy OPS-15 (okno sprzedaży w strefie organizatora, nie kongresu).
+// Konwersja nie czyta strefy maszyny, więc asercja też jej nie zakłada.
+// Radix Dialog i Select nie działają pod happy-dom bez pełnego pointer API.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -121,6 +123,9 @@ interface Wejscie {
   isSaving?: boolean;
 }
 
+/** Strefa wydarzenia - pola okna sprzedaży są zegarem w niej. */
+const STREFA = "Europe/Warsaw";
+
 function renderuj(props: Wejscie = {}) {
   const pelne = (wejscie: Wejscie) => (
     <EventPackageDialog
@@ -132,6 +137,7 @@ function renderuj(props: Wejscie = {}) {
       nextSortOrder={wejscie.nextSortOrder ?? 110}
       isSaving={wejscie.isSaving ?? false}
       onSubmit={onSubmit}
+      timezone={STREFA}
     />
   );
   const wynik = render(pelne(props));
@@ -414,8 +420,17 @@ describe("EventPackageDialog - limity, okno i kolejność", () => {
     fireEvent.change(pole("salesFrom"), { target: { value: "2026-09-01T10:00" } });
     fireEvent.click(przyciskZapisu());
 
-    expect(ladunek().salesFrom).toBe(new Date("2026-09-01T10:00").toISOString());
+    // 10:00 w Warszawie (CEST, UTC+2), niezależnie od strefy maszyny testu.
+    expect(ladunek().salesFrom).toBe("2026-09-01T08:00:00.000Z");
     expect(ladunek().salesTo).toBeNull();
+  });
+
+  it("pod polem okna stoi strefa wydarzenia, w której jest zegar", () => {
+    renderuj();
+    const opisy = (pole("salesFrom").getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent ?? "");
+    expect(opisy).toContain("adminEvents.eventTime.zone(zone=Europe/Warsaw)");
   });
 
   it("kolejność wpisana literami zatrzymuje zapis - liczba nie może być NaN", () => {

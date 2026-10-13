@@ -107,6 +107,7 @@ export const adminEventRegistrationPl = {
       crm: "Baza CRM",
       partner: "Partner",
       scan: "Skan na miejscu",
+      package_invitation: "Zaproszenie z pakietu",
     },
 
     // event_registration_fields.field_type.
@@ -1357,6 +1358,7 @@ export const adminEventRegistrationEn = {
       crm: "CRM database",
       partner: "Partner",
       scan: "On-site scan",
+      package_invitation: "Package invitation",
     },
 
     fieldTypes: {

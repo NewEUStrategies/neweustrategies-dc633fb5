@@ -8,6 +8,10 @@
 // GRUPY NIE WYBIERAMY TUTAJ. Katalog grup wydarzenia ma własny ekran; do czasu
 // jego powstania edycja biletu PRZENOSI istniejące przypisanie bez zmian,
 // zamiast po cichu je zerować przy każdym zapisie nazwy.
+//
+// TERMINY SĄ ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15). Strefa przychodzi
+// od rodzica (`timezone`), szkic ją niesie, a pod każdym polem daty stoi
+// „Godzina w strefie …" - albo zdanie o luce/zakładce zmiany czasu.
 import { clampGroupSize } from "@/lib/events/ticketTaxGroup";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -55,6 +59,9 @@ import {
 import { formatMoney } from "@/lib/billing/types";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 
 const NO_GROUP = "__none";
 
@@ -96,6 +103,8 @@ interface EventTicketDialogProps {
   presentation?: TicketPresentation;
   /** Duplikacja z poziomu edycji (jak w szufladzie biletu). */
   onDuplicate?: () => void;
+  /** Strefa wydarzenia (`events.timezone`); pola dat są zegarem w niej. */
+  timezone: string | null;
 }
 
 export function EventTicketDialog({
@@ -109,11 +118,14 @@ export function EventTicketDialog({
   eventSlug,
   presentation,
   onDuplicate,
+  timezone,
 }: EventTicketDialogProps) {
   ensureRegistrationI18n();
+  ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const uiLang: "pl" | "en" = i18n.language.startsWith("en") ? "en" : "pl";
-  const [draft, setDraft] = useState<TicketDraft>(() => emptyTicketDraft(nextSortOrder));
+  const zone = eventTimeZone({ timezone });
+  const [draft, setDraft] = useState<TicketDraft>(() => emptyTicketDraft(nextSortOrder, zone));
   const [touched, setTouched] = useState(false);
   const [look, setLook] = useState<TicketPresentation>(DEFAULT_TICKET_PRESENTATION);
   const [contentLang, setContentLang] = useState<"pl" | "en">("pl");
@@ -136,13 +148,18 @@ export function EventTicketDialog({
   nextSortOrderRef.current = nextSortOrder;
   const ticketRef = useRef(ticket);
   ticketRef.current = ticket;
+  // Strefa liczy się w chwili otwarcia, tak jak kolejność.
+  const zoneRef = useRef(zone);
+  zoneRef.current = zone;
   const ticketId = ticket === null ? null : ticket.id;
 
   useEffect(() => {
     if (!open) return;
     const row = ticketRef.current;
     const next =
-      row === null ? emptyTicketDraft(nextSortOrderRef.current) : ticketDraftFromRow(row);
+      row === null
+        ? emptyTicketDraft(nextSortOrderRef.current, zoneRef.current)
+        : ticketDraftFromRow(row, zoneRef.current);
     setDraft(next);
     setPaid(next.priceCents.trim() !== "" && next.priceCents.trim() !== "0");
     setLook(presentationRef.current ?? DEFAULT_TICKET_PRESENTATION);
@@ -156,6 +173,8 @@ export function EventTicketDialog({
 
   const set = <K extends keyof TicketDraft>(key: K, value: TicketDraft[K]) =>
     setDraft((previous) => ({ ...previous, [key]: value }));
+  const timeHint = (field: "salesFrom" | "salesTo" | "earlyBirdUntil"): string | undefined =>
+    eventLocalInputHint(t, uiLang, draft[field], draft.timeZone, draft.savedTimes[field] ?? null);
 
   const submit = () => {
     setTouched(true);
@@ -313,12 +332,14 @@ export function EventTicketDialog({
                 value={draft.salesFrom}
                 onValueChange={(value) => set("salesFrom", value)}
                 type="datetime-local"
+                hint={timeHint("salesFrom")}
               />
               <AdminFormTextRow
                 label={t("adminEventRegistration.tickets.editor.salesTo")}
                 value={draft.salesTo}
                 onValueChange={(value) => set("salesTo", value)}
                 type="datetime-local"
+                hint={timeHint("salesTo")}
                 error={errorFor("salesTo")}
               />
               <AdminFormTextRow
@@ -424,6 +445,7 @@ export function EventTicketDialog({
                 value={draft.earlyBirdUntil}
                 onValueChange={(value) => set("earlyBirdUntil", value)}
                 type="datetime-local"
+                hint={timeHint("earlyBirdUntil")}
                 error={errorFor("earlyBirdUntil")}
               />
             </AdminFormSection>
@@ -435,6 +457,7 @@ export function EventTicketDialog({
                 phases={draft.phases}
                 onChange={(phases) => set("phases", phases)}
                 error={errorFor("phases")}
+                timeZone={draft.timeZone}
               />
             </AdminFormSection>
 
@@ -572,6 +595,8 @@ export function EventTicketDialog({
                 Number(draft.priceCents) > 0
               }
               salesTo={draft.salesTo}
+              salesToSaved={draft.savedTimes.salesTo ?? null}
+              timeZone={draft.timeZone}
               lang={contentLang}
             />
             {registrationUrl !== null ? (

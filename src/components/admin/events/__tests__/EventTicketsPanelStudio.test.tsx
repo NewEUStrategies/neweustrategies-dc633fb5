@@ -228,7 +228,13 @@ function ladunek(): EventTicketInput {
 
 /** `null` = panel NIE zna adresu wydarzenia (np. wydarzenie jeszcze bez adresu). */
 function panel(eventSlug: string | null = "forum") {
-  return render(<EventTicketsPanel eventId={SALES_IDS.event} eventSlug={eventSlug ?? undefined} />);
+  return render(
+    <EventTicketsPanel
+      eventId={SALES_IDS.event}
+      eventSlug={eventSlug ?? undefined}
+      timezone="Europe/Warsaw"
+    />,
+  );
 }
 
 const wiersze = (): HTMLElement[] => screen.queryAllByRole("row").slice(1);

@@ -123,7 +123,12 @@ function TicketsAndCodes({ row }: { row: AdminEventDetailRow }) {
         <TabsTrigger value="codes">{t("eventCodes.tabCodes")}</TabsTrigger>
       </TabsList>
       <TabsContent value="tickets">
-        <EventTicketsPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
+        <EventTicketsPanel
+          key={row.id}
+          eventId={row.id}
+          eventSlug={row.slug}
+          timezone={row.timezone}
+        />
       </TabsContent>
       <TabsContent value="codes">
         <EventCodesPanel key={row.id} eventId={row.id} eventSlug={row.slug} />
@@ -136,7 +141,7 @@ export function EventRegistrationPackagesSection({ row }: { row: AdminEventDetai
   ensureRegistrationI18n();
   return (
     <ModuleScreen titleKey="adminEventRegistration.packages.title">
-      <EventPackagesPanel key={row.id} eventId={row.id} />
+      <EventPackagesPanel key={row.id} eventId={row.id} timezone={row.timezone} />
     </ModuleScreen>
   );
 }

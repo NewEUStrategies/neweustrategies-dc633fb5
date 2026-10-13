@@ -35,8 +35,11 @@
 // dojeżdża do ładunku.
 //
 // DETERMINIZM: żadnego `Date.now()`. Terminy wpisujemy jako `datetime-local`
-// i oczekujemy ISO policzonego w teście tym samym `new Date(...)`, co
-// przeglądarka - dzięki temu asercja nie zakłada strefy maszyny.
+// i oczekujemy ISO zegara w STREFIE WYDARZENIA (`timezone`, tu Europe/Warsaw).
+// Dawniej oczekiwane ISO liczył ten sam `new Date(...)`, co przeglądarka - test
+// utrwalał więc błąd klasy OPS-15 (termin w strefie organizatora, nie
+// kongresu). Konwersja nie czyta strefy maszyny, więc asercja też jej nie
+// zakłada; obca strefa przeglądarki: `lib/events/__tests__/eventLocalInputZone`.
 // Radix Dialog i Select nie działają pod happy-dom bez pełnego pointer API.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentProps, ReactNode } from "react";
@@ -45,6 +48,24 @@ import { SALES_IDS, eventTicketRow } from "@/test/events/adminSalesRows";
 import type { EventTicketInput, EventTicketRow } from "@/lib/events/registrationsApi";
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+// `DateInput` jest kalendarzem (przycisk + popover), a nie natywnym polem -
+// `fireEvent.change` go nie wypełni. Przedmiotem dowodu jest to, CO edytor robi
+// z wartością pola `datetime-local`, więc atrapa jest natywna, jak w
+// `MeetingSettingsPanel.test.tsx`. Bez niej trzy przypadki z oknem progu były
+// czerwone na bazie 3a98acb (od zamiany pola na kalendarz).
+vi.mock("@/components/ui/date-input", () => ({
+  DateInput: ({
+    onChange,
+    value,
+    type,
+    ...props
+  }: {
+    onChange: (event: { target: { value: string } }) => void;
+    value: string;
+    type: string;
+    id?: string;
+  }) => <input {...props} type={type} value={value} onChange={onChange} />,
+}));
 
 // Atrapa Radixa: `Root` renderuje dzieci zawsze, ale `Content` istnieje TYLKO
 // przy otwartym dialogu (portal nie jest montowany). Bez tego „dialog zamknięty
@@ -134,9 +155,13 @@ interface Wejscie {
   presentation?: TicketPresentation;
 }
 
+/** Strefa wydarzenia - terminy biletu są zegarem w niej. */
+const STREFA = "Europe/Warsaw";
+
 function renderuj(props: Wejscie = {}) {
   const pelne = (wejscie: Wejscie) => (
     <EventTicketDialog
+      timezone={STREFA}
       open={wejscie.open ?? true}
       onOpenChange={onOpenChange}
       eventId={SALES_IDS.event}
@@ -411,7 +436,28 @@ describe("EventTicketDialog - pula, próg i okno sprzedaży", () => {
     fireEvent.click(przyciskZapisu());
 
     expect(ladunek().salesFrom).toBeNull();
-    expect(ladunek().salesTo).toBe(new Date("2026-09-10T18:30").toISOString());
+    // 18:30 w Warszawie (CEST, UTC+2).
+    expect(ladunek().salesTo).toBe("2026-09-10T16:30:00.000Z");
+  });
+
+  it("pod polami terminów stoi strefa wydarzenia, w której jest zegar", () => {
+    renderuj();
+    const opisy = (nazwa: string) =>
+      (pole(nazwa).getAttribute("aria-describedby") ?? "")
+        .split(" ")
+        .map((id) => document.getElementById(id)?.textContent ?? "");
+    for (const nazwa of ["salesFrom", "salesTo", "earlyBirdUntil"]) {
+      expect(opisy(nazwa)).toContain("adminEvents.eventTime.zone(zone=Europe/Warsaw)");
+    }
+  });
+
+  it("nietknięty termin z sekundami wraca do bazy co do milisekundy", () => {
+    // Pole `datetime-local` nie pokazuje sekund. Bez pamięci chwili z bazy zapis
+    // samej nazwy przycinałby koniec sprzedaży 23:59:59 do 23:59:00.
+    renderuj({ ticket: eventTicketRow({ sales_to: "2026-09-30T21:59:59.000Z" }) });
+    expect(pole("salesTo")).toHaveValue("2026-09-30T23:59");
+    fireEvent.click(przyciskZapisu());
+    expect(ladunek().salesTo).toBe("2026-09-30T21:59:59.000Z");
   });
 });
 
@@ -463,7 +509,7 @@ describe("EventTicketDialog - cena promocyjna", () => {
     fireEvent.change(pole("earlyBirdUntil"), { target: { value: "2026-09-01T10:00" } });
     fireEvent.click(przyciskZapisu());
     expect(ladunek().earlyBirdPriceCents).toBe(15_000);
-    expect(ladunek().earlyBirdUntil).toBe(new Date("2026-09-01T10:00").toISOString());
+    expect(ladunek().earlyBirdUntil).toBe("2026-09-01T08:00:00.000Z");
   });
 
   it("bilet bez ceny promocyjnej wysyła oba pola jako null", () => {
@@ -574,7 +620,8 @@ describe("EventTicketDialog - korzyści, progi i przełączniki", () => {
         labelPl: "Early bird",
         labelEn: "",
         from: null,
-        to: new Date("2026-09-01T23:59").toISOString(),
+        // 23:59 w Warszawie (CEST, UTC+2).
+        to: "2026-09-01T21:59:00.000Z",
         priceCents: 9900,
       },
     ]);
