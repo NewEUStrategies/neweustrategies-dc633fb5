@@ -429,10 +429,12 @@ SELECT ok(EXISTS (
 -- ----------------------------------------------------------------------------
 -- 2. Schemat: zero naruszeń
 -- ----------------------------------------------------------------------------
--- Ostatni znany wyjątek - event_package_invite_accept (20260827221214), który
--- pisał source='package_invitation' do event_people i event_registrations -
--- zniknął w 20261012120200 (REG-15: źródło 'invitation', miejsce zachowuje
--- parę adres + skrót tokenu). Od tej chwili lista wyjątków jest pusta.
+-- Dawny wyjatek - `event_package_invite_accept` (20260827221214) pisal
+-- source='package_invitation' do list, ktore tej wartosci nie znaly. Zamknely
+-- go dwie zmiany: na main migracja 20261012130000 (listy CHECK znaja zrodlo
+-- zaproszenia, konsumpcja zachowuje pare `event_package_seats_invite_pair`),
+-- w REG-15 przyjecie zaproszenia (scalone cialo w migracji uzgadniajacej
+-- 20261013900xxx). Wyjatkow nie ma.
 SELECT is_empty(
   $$ SELECT fn, tbl, col, lit FROM wl_found WHERE fn NOT LIKE 'wl\_probe%' $$,
   'żadna funkcja nie zapisuje literału spoza białej listy CHECK');

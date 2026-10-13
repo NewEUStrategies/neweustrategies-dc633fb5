@@ -261,6 +261,12 @@ export function buildAdminNavGroups({
           keywords: ["webhook", "stripe", "rekoncyliacja"],
         },
         {
+          to: "/admin/billing-settlements",
+          icon: CreditCard,
+          label: t("admin.nav.billingSettlements"),
+          keywords: ["zwroty", "refunds", "rozliczenia", "settlements", "status"],
+        },
+        {
           to: "/admin/billing-audit",
           icon: CreditCard,
           label: t("admin.nav.billingAudit"),

@@ -61,7 +61,11 @@ const READING_DEFAULTS: Reading = {
 };
 
 export const Route = createFileRoute("/admin/pages")({
-  head: () => adminPageHead("Pages", "Manage pages and publication schedules. New European Strategies administration."),
+  head: () =>
+    adminPageHead(
+      "Pages",
+      "Manage pages and publication schedules. New European Strategies administration.",
+    ),
   component: PagesLayout,
 });
 

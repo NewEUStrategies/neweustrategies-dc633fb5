@@ -79,6 +79,17 @@ describe("invoice CRM recovery", () => {
     );
     expect(h.success).not.toHaveBeenCalled();
   });
+  it("names a tax ID conflict instead of a generic failure", async () => {
+    // „Zapisz w CRM" odmawia scalenia z firmą o tej samej nazwie i innym NIP-ie
+    // (INV-10). Członek musi wiedzieć, że to NIP, a nie awaria do ponowienia.
+    h.push.mockResolvedValue({ ok: false, error: "tax_id_conflict" });
+    renderWithQueryClient(<InvoiceCrmSyncCard />);
+    fireEvent.click(screen.getByRole("button", { name: "invoices.crm.push" }));
+    await waitFor(() =>
+      expect(h.error).toHaveBeenCalledWith("invoices.crm.errors.tax_id_conflict"),
+    );
+    expect(h.success).not.toHaveBeenCalled();
+  });
   it("does not fetch company data without a session", () => {
     h.signedIn = false;
     renderWithQueryClient(<InvoiceCrmSyncCard />);

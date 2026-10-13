@@ -82,7 +82,7 @@ export const adminEventRegistrationPl = {
     refundJournal: {
       title: "Zwroty zgłoszeń",
       description:
-        "Ostatnie 100 zleceń. Odrzucenie i anulowanie opłaconego zgłoszenia oraz rezygnacja w terminie zwrotu zlecają zwrot automatycznie. Rezygnacja po terminie, wspólna wpłata grupy i wpłata poza operatorem czekają tu na Twoją decyzję.",
+        "Ostatnie 100 zleceń. Odrzucenie i anulowanie opłaconego zgłoszenia oraz rezygnacja w terminie zwrotu zlecają zwrot automatycznie. Rezygnacja po terminie, wspólna wpłata grupy, wpłata poza operatorem, wyczerpane próby oraz zwrot odrzucony albo niepotwierdzony przez operatora czekają tu na Twoją decyzję - administratorzy dostają powiadomienie.",
       refresh: "Odśwież zwroty",
       loadError: "Nie udało się pobrać zwrotów. Spróbuj ponownie.",
       loading: "Ładowanie zwrotów",
@@ -93,25 +93,65 @@ export const adminEventRegistrationPl = {
       amount: "Kwota: {{amount}}",
       attempts: "Próby: {{count}}",
       reviewNote: "Notatka decyzji: {{note}}",
+      // Zlecenie w `needs_review` bez powodu (sprzed 20261012120000) - powody
+      // niżej mają własne, konkretne wskazówki.
+      reviewHint: "To zlecenie wymaga decyzji organizatora. Sprawdź dziennik płatności.",
       failedHint:
-        "Operator płatności odrzucił zwrot. System ponawia do 10 prób - potem zdecyduj tutaj: ponów zwrot albo zamknij zlecenie z notatką.",
+        "Operator płatności odrzucił zwrot. System ponawia do {{budget}} prób; po ostatniej nieudanej zlecenie przejdzie do decyzji, a administratorzy dostaną powiadomienie. Możesz też zdecydować od razu: ponów zwrot albo zamknij zlecenie z notatką.",
+      lastError: "Ostatni błąd operatora: {{error}}",
+      escalated: "Administratorzy powiadomieni: {{date}}",
       origin: {
         organizer_rejected: "Odrzucenie przez organizatora",
         organizer_cancelled: "Anulowanie przez organizatora",
         participant_cancelled: "Rezygnacja uczestnika",
         system: "Zamknięcie bez decyzji o zwrocie",
       },
-      reason: {
-        outside_refund_window:
-          "Uczestnik zrezygnował po terminie zwrotu - zdecyduj, czy zwracasz wpłatę.",
-        refund_disabled: "Wydarzenie nie ma samodzielnych zwrotów - zdecyduj, czy zwracasz wpłatę.",
-        shared_payment:
-          "Ta wpłata obejmuje aktywne zgłoszenia grupy. Zwrot całości przez operatora jest zablokowany - rozlicz część w panelu płatności albo zamknij zlecenie z notatką.",
-        manual_payment:
-          "Wpłata przeszła poza operatorem płatności. Oddaj pieniądze poza systemem i oznacz zwrot albo zamknij zlecenie z notatką.",
-        organizer_waived: "Organizator zdecydował: bez zwrotu.",
-        closed_without_refund_decision:
-          "Opłacone zgłoszenie zamknięto bez decyzji o zwrocie - zdecyduj, czy zwracasz wpłatę.",
+      // Jeden wpis na każdą wartość CHECK-a `event_refund_jobs_review_reason_values`
+      // (scalenie z main: powody zamknięcia z REG-03 i powody eskalacji
+      // z 20261012120000 - wspólna wpłata ma dwa źródła: decyzję przy
+      // zamknięciu `shared_payment` i wykrycie przez kolejkę z alarmem
+      // `active_registrations_share_payment`).
+      reasons: {
+        outside_refund_window: {
+          label: "Rezygnacja po terminie zwrotu",
+          hint: "Uczestnik zrezygnował po terminie zwrotu - zdecyduj, czy zwracasz wpłatę.",
+        },
+        refund_disabled: {
+          label: "Wydarzenie bez samodzielnych zwrotów",
+          hint: "Wydarzenie nie ma samodzielnych zwrotów - zdecyduj, czy zwracasz wpłatę.",
+        },
+        shared_payment: {
+          label: "Wspólna wpłata grupy",
+          hint: "Ta wpłata obejmuje aktywne zgłoszenia grupy. Zwrot całości przez operatora jest zablokowany - rozlicz część w panelu płatności albo zamknij zlecenie z notatką.",
+        },
+        manual_payment: {
+          label: "Wpłata poza operatorem",
+          hint: "Wpłata przeszła poza operatorem płatności. Oddaj pieniądze poza systemem i oznacz zwrot albo zamknij zlecenie z notatką.",
+        },
+        organizer_waived: {
+          label: "Bez zwrotu",
+          hint: "Organizator zdecydował: bez zwrotu.",
+        },
+        closed_without_refund_decision: {
+          label: "Zamknięcie bez decyzji o zwrocie",
+          hint: "Opłacone zgłoszenie zamknięto bez decyzji o zwrocie - zdecyduj, czy zwracasz wpłatę.",
+        },
+        active_registrations_share_payment: {
+          label: "Wspólna płatność grupy",
+          hint: "Ta płatność obejmuje aktywne zgłoszenia. Rozlicz zwrot częściowy w panelu płatności.",
+        },
+        attempts_exhausted: {
+          label: "Wyczerpano próby zwrotu",
+          hint: "Automatyczny zwrot nie powiódł się przy żadnej próbie. Zleć zwrot ręcznie u operatora płatności.",
+        },
+        provider_refund_failed: {
+          label: "Operator odrzucił zwrot",
+          hint: "Operator płatności nie wykonał zwrotu - pieniądze nie wróciły do uczestnika. Zleć zwrot inną drogą.",
+        },
+        refund_unconfirmed: {
+          label: "Zwrot bez potwierdzenia",
+          hint: "Operator przyjął zlecenie ponad {{days}} dni temu i wciąż go nie potwierdził. Sprawdź status zwrotu w panelu operatora płatności.",
+        },
       },
       actions: {
         refund: "Zwróć przez operatora",
@@ -1448,6 +1488,12 @@ export const adminEventRegistrationPl = {
       ticketAddressSuppressed:
         "Na ten adres poczta nie wyśle biletu (lista wykluczeń) - dotychczasowy bilet nadal działa. Przekaż go inną drogą.",
       packageSoldOut: "Pula pakietów tego rodzaju została wyczerpana.",
+      // Jedna księga miejsc (20261012130000): pakiet trzyma miejsca na sali.
+      seatsExhausted: "Na sali nie ma tylu wolnych miejsc - zmniejsz liczbę miejsc w pakiecie.",
+      // Profil podatkowy pakietu (20261012130200).
+      invalidVatRate: "Stawka VAT musi być liczbą od 0 do 100.",
+      invalidTaxCode: "Kod podatkowy Stripe ma postać txcd_ i 8 cyfr.",
+      invalidExemptBasis: "Podstawa zwolnienia z VAT może mieć najwyżej 300 znaków - skróć ją.",
       packageInUse: "Pakiet ma {{count}} zamówień - wyłącz go zamiast usuwać.",
       seatTaken: "To miejsce jest już zajęte przez uczestnika.",
       seatRevoked: "To miejsce zostało wycofane.",
@@ -1528,7 +1574,7 @@ export const adminEventRegistrationEn = {
     refundJournal: {
       title: "Registration refunds",
       description:
-        "Latest 100 requests. Rejecting or cancelling a paid registration and a participant cancelling within the refund window queue an automatic refund. Late cancellations, shared group payments and payments outside the provider wait here for your decision.",
+        "Latest 100 requests. Rejecting or cancelling a paid registration and a participant cancelling within the refund window queue an automatic refund. Late cancellations, shared group payments, payments outside the provider, exhausted attempts and refunds rejected or not confirmed by the provider wait here for your decision - administrators are notified.",
       refresh: "Refresh refunds",
       loadError: "Could not load refunds. Please retry.",
       loading: "Loading refunds",
@@ -1539,25 +1585,58 @@ export const adminEventRegistrationEn = {
       amount: "Amount: {{amount}}",
       attempts: "Attempts: {{count}}",
       reviewNote: "Decision note: {{note}}",
+      reviewHint: "This request needs an organiser decision. Check the payment log.",
       failedHint:
-        "The payment provider rejected the refund. The system retries up to 10 times - then decide here: retry the refund or close the request with a note.",
+        "The payment provider rejected the refund. The system retries up to {{budget}} times; after the last failure the request moves to a decision and administrators are notified. You can also decide now: retry the refund or close the request with a note.",
+      lastError: "Last provider error: {{error}}",
+      escalated: "Administrators notified: {{date}}",
       origin: {
         organizer_rejected: "Rejected by the organiser",
         organizer_cancelled: "Cancelled by the organiser",
         participant_cancelled: "Cancelled by the participant",
         system: "Closed without a refund decision",
       },
-      reason: {
-        outside_refund_window:
-          "The participant cancelled after the refund deadline - decide whether to refund.",
-        refund_disabled: "The event has no self-service refunds - decide whether to refund.",
-        shared_payment:
-          "This payment covers active group registrations. A full refund through the provider is blocked - settle a share in the payments panel or close the request with a note.",
-        manual_payment:
-          "The payment did not go through the payment provider. Return the money outside the system and mark it refunded, or close the request with a note.",
-        organizer_waived: "The organiser decided: no refund.",
-        closed_without_refund_decision:
-          "A paid registration was closed without a refund decision - decide whether to refund.",
+      reasons: {
+        outside_refund_window: {
+          label: "Cancelled after the refund deadline",
+          hint: "The participant cancelled after the refund deadline - decide whether to refund.",
+        },
+        refund_disabled: {
+          label: "No self-service refunds",
+          hint: "The event has no self-service refunds - decide whether to refund.",
+        },
+        shared_payment: {
+          label: "Shared group payment",
+          hint: "This payment covers active group registrations. A full refund through the provider is blocked - settle a share in the payments panel or close the request with a note.",
+        },
+        manual_payment: {
+          label: "Paid outside the provider",
+          hint: "The payment did not go through the payment provider. Return the money outside the system and mark it refunded, or close the request with a note.",
+        },
+        organizer_waived: {
+          label: "No refund",
+          hint: "The organiser decided: no refund.",
+        },
+        closed_without_refund_decision: {
+          label: "Closed without a refund decision",
+          hint: "A paid registration was closed without a refund decision - decide whether to refund.",
+        },
+        active_registrations_share_payment: {
+          label: "Shared group payment",
+          hint: "This payment covers active registrations. Arrange a partial refund in the payments panel.",
+        },
+        attempts_exhausted: {
+          label: "Refund attempts exhausted",
+          hint: "The automatic refund failed on every attempt. Issue the refund manually with the payment provider.",
+        },
+        provider_refund_failed: {
+          label: "Provider rejected the refund",
+          hint: "The payment provider did not complete the refund - the money did not reach the attendee. Refund them another way.",
+        },
+        refund_unconfirmed: {
+          label: "Refund not confirmed",
+          hint: "The provider accepted the request more than {{days}} days ago and still has not confirmed it. Check the refund status in the provider dashboard.",
+        },
       },
       actions: {
         refund: "Refund through the provider",
@@ -2823,6 +2902,10 @@ export const adminEventRegistrationEn = {
       ticketAddressSuppressed:
         "E-mail will not deliver a ticket to this address (suppression list) - the existing ticket still works. Hand it over another way.",
       packageSoldOut: "The pool of packages of this kind is exhausted.",
+      seatsExhausted: "The venue does not have that many free seats - reduce the package's seats.",
+      invalidVatRate: "The VAT rate must be a number from 0 to 100.",
+      invalidTaxCode: "A Stripe tax code looks like txcd_ followed by 8 digits.",
+      invalidExemptBasis: "The VAT exemption basis can have at most 300 characters - shorten it.",
       packageInUse: "The package has {{count}} orders - disable it instead of deleting.",
       seatTaken: "This seat is already taken by a participant.",
       seatRevoked: "This seat has been withdrawn.",

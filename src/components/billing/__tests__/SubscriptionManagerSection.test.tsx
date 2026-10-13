@@ -28,6 +28,7 @@ import {
   providerSubscription,
   userSubscription,
 } from "@/test/billing/fixtures";
+import { billingKeys } from "@/lib/billing/keys";
 import type { MembershipGrantRow } from "@/lib/billing/membership";
 import type { StripeSubscriptionRow } from "@/lib/billing/subscriptionQueries";
 import type { PaymentOrder, UserSubscriptionRow } from "@/lib/billing/types";
@@ -38,6 +39,7 @@ const h = vi.hoisted(() => ({
   orders: { current: [] as PaymentOrder[] },
   grants: { current: [] as MembershipGrantRow[] },
   providerSub: { current: null as StripeSubscriptionRow | null },
+  providerLoading: { current: false },
   tier: { current: null as { key: string; name_pl: string; name_en: string } | null },
   cancel: vi.fn(),
   resume: vi.fn(),
@@ -87,7 +89,10 @@ vi.mock("sonner", () => ({
 // --- atrapy kart potomnych ---------------------------------------------------
 
 vi.mock("@/components/billing/organisms/SubscriptionCard", () => ({
-  useMySubscriptionProvider: () => ({ data: h.providerSub.current }),
+  useMySubscriptionProvider: () => ({
+    data: h.providerSub.current,
+    isLoading: h.providerLoading.current,
+  }),
   SubscriptionCard: () => <div data-testid="karta-operatora" />,
 }));
 
@@ -148,6 +153,7 @@ beforeEach(() => {
   h.orders.current = [];
   h.grants.current = [];
   h.providerSub.current = null;
+  h.providerLoading.current = false;
   h.tier.current = null;
   h.cancel.mockReset().mockResolvedValue(undefined);
   h.resume.mockReset().mockResolvedValue(undefined);
@@ -164,6 +170,25 @@ describe("SubscriptionManagerSection - który ekran", () => {
 
     await waitFor(() => expect(screen.getByTestId("karta-operatora")).toBeTruthy());
     expect(screen.queryByText("profile.subscription.title")).toBeNull();
+  });
+
+  it("dopóki lustro operatora się wczytuje, karta lokalna NIE wystawia akcji drugiej ścieżki", async () => {
+    // SUB-14: w tym oknie klient klikał „anuluj/zmień plan" przez
+    // `user_subscriptions` na subskrypcji, którą za chwilę przejmie karta
+    // operatora - dwie implementacje tej samej operacji naraz.
+    h.providerLoading.current = true;
+    h.subscription.current = userSubscription();
+    const { container, queryClient } = render();
+
+    // Własna subskrypcja zdążyła się wczytać - a mimo to karta milczy.
+    await waitFor(() =>
+      expect(queryClient.getQueryState(billingKeys.mySubscription("user-me"))?.status).toBe(
+        "success",
+      ),
+    );
+    expect(container.textContent).toBe("");
+    expect(screen.queryByText("profile.subscription.cancel")).toBeNull();
+    expect(screen.queryByTestId("karta-zmiany-planu")).toBeNull();
   });
 
   it("bez subskrypcji i bez nadania mówi wprost, że planu nie ma", async () => {

@@ -32,7 +32,7 @@ import {
   TX_OVERRIDES_DEFAULTS,
   type TxOverrides,
 } from "@/lib/email/txOverrides";
-import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
+import { PROFILE_PLAN_PATH, PROFILE_PORTAL_PATH } from "@/lib/profile/routes";
 import { ticketLinkPath } from "@/lib/events/manageToken";
 
 export const TX_EMAIL_TYPES: readonly TxEmailType[] = [
@@ -565,7 +565,9 @@ function demoData(type: TxEmailType, lang: EmailLang): DemoData {
           { label: l.plan, value: plan },
           { label: l.renewsAt, value: lang === "pl" ? "29 sierpnia 2026" : "29 August 2026" },
         ],
-        ctaUrl: `${SITE_URL}${PROFILE_PLAN_PATH}`,
+        // Ten sam stały adres wejścia, który niesie prawdziwy mail
+        // (`portalLink.server` -> `portalEntryPath`).
+        ctaUrl: `${SITE_URL}${PROFILE_PORTAL_PATH}?environment=live`,
       };
     case "team_seat_grace":
       return {

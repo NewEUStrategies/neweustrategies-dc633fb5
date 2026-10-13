@@ -1,9 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { checkoutPayloadIssue, checkoutPurchase } from "@/lib/billing/checkoutPayload";
 import { codeProbeRpcError, parseCouponVerdict } from "@/lib/billing/coupons";
+import { isBelowMinimumCharge, minimumChargeCents } from "@/lib/billing/chargeMinimum";
 import { periodEndFor } from "@/lib/billing/entitlement";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
+import { planCheckoutPricing, type PlanCheckoutPricing } from "@/lib/billing/planPricing";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
 
@@ -15,42 +18,50 @@ import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
 // fail-closed (mockCheckoutAllowed) - błędna konfiguracja nie rozdaje płatnego
 // dostępu.
 
-const createOrderSchema = z.object({
-  kind: z.enum(["subscription", "one_time"]),
-  plan_id: z.string().uuid().nullable().optional(),
-  entity_type: z.enum(["post", "page"]).nullable().optional(),
-  entity_id: z.string().uuid().nullable().optional(),
-  success_path: z.string().min(1),
-  cancel_path: z.string().min(1),
-  // Kupon B2B: kod aplikowany przy zamówieniu. Rabat wyliczamy WYŁĄCZNIE
-  // serwerowo (validate_b2b_coupon → atomowe redeem_b2b_coupon), więc klient
-  // nigdy nie może obniżyć unit_amount ręcznie.
-  coupon_code: z.string().trim().max(64).optional(),
-  // Waluta prezentacji/rozliczenia. Dla EN pobieramy EUR (parytet 1 EUR = 2 PLN,
-  // spójne z cennikiem i /support). Konwersja liczona jest serwerowo, więc
-  // klient nie może zmienić kwoty - jedynie wybrać docelową walutę z listy.
-  display_currency: z.enum(["PLN", "EUR"]).optional(),
-  // Bilet na płatne wydarzenie - webhook po zapłacie potwierdza RSVP.
-  event_id: z.string().uuid().nullable().optional(),
-  // Rodzaj wejściówki z cennika wydarzenia. Kwotę i tak liczy baza
-  // (`event_ticket_checkout_quote`) - klient wskazuje wyłącznie pozycję.
-  ticket_type_id: z.string().uuid().nullable().optional(),
-  // Zgłoszenie etapu 4, za które płacimy. Klient WSKAZUJE wiersz, więc serwer
-  // musi sprawdzić, że należy do wołającego i do tego samego wydarzenia -
-  // robi to `event_registration_payment_context` (baza, nie ten plik).
-  // Bez tego klucza webhook dopasowuje wpłatę PO OSOBIE, a uczestnik z dwoma
-  // zgłoszeniami na to samo wydarzenie dostaje bilet przypięty do najnowszego
-  // wiersza, niekoniecznie tego, za który zapłacił.
-  registration_id: z.string().uuid().nullable().optional(),
-  // Kod z zaproszenia. Porównuje go baza ze skrótem SHA-256; serwer aplikacji
-  // nie zna kodu i nie może go obejść.
-  access_code: z.string().trim().max(64).optional(),
-  // Liczba miejsc dla planów rozliczanych za miejsce (Zespół). Ignorowana dla
-  // pozostałych planów - autorytetem jest wpis katalogu (`perSeat`).
-  seats: z.number().int().min(1).max(100).optional(),
-  // Środowisko bramki wyprowadzone po stronie klienta z prefiksu tokenu.
-  environment: z.enum(["sandbox", "live"]).optional(),
-});
+const createOrderSchema = z
+  .object({
+    kind: z.enum(["subscription", "one_time"]),
+    plan_id: z.string().uuid().nullable().optional(),
+    entity_type: z.enum(["post", "page"]).nullable().optional(),
+    entity_id: z.string().uuid().nullable().optional(),
+    success_path: z.string().min(1),
+    cancel_path: z.string().min(1),
+    // Kupon B2B: kod aplikowany przy zamówieniu. Rabat wyliczamy WYŁĄCZNIE
+    // serwerowo (validate_b2b_coupon → atomowe redeem_b2b_coupon), więc klient
+    // nigdy nie może obniżyć unit_amount ręcznie.
+    coupon_code: z.string().trim().max(64).optional(),
+    // Waluta prezentacji/rozliczenia. Dla EN pobieramy EUR (parytet 1 EUR = 2 PLN,
+    // spójne z cennikiem i /support). Konwersja liczona jest serwerowo, więc
+    // klient nie może zmienić kwoty - jedynie wybrać docelową walutę z listy.
+    display_currency: z.enum(["PLN", "EUR"]).optional(),
+    // Bilet na płatne wydarzenie - webhook po zapłacie potwierdza RSVP.
+    event_id: z.string().uuid().nullable().optional(),
+    // Rodzaj wejściówki z cennika wydarzenia. Kwotę i tak liczy baza
+    // (`event_ticket_checkout_quote`) - klient wskazuje wyłącznie pozycję.
+    ticket_type_id: z.string().uuid().nullable().optional(),
+    // Zgłoszenie etapu 4, za które płacimy. Klient WSKAZUJE wiersz, więc serwer
+    // musi sprawdzić, że należy do wołającego i do tego samego wydarzenia -
+    // robi to `event_registration_payment_context` (baza, nie ten plik).
+    // Bez tego klucza webhook dopasowuje wpłatę PO OSOBIE, a uczestnik z dwoma
+    // zgłoszeniami na to samo wydarzenie dostaje bilet przypięty do najnowszego
+    // wiersza, niekoniecznie tego, za który zapłacił.
+    registration_id: z.string().uuid().nullable().optional(),
+    // Kod z zaproszenia. Porównuje go baza ze skrótem SHA-256; serwer aplikacji
+    // nie zna kodu i nie może go obejść.
+    access_code: z.string().trim().max(64).optional(),
+    // Liczba miejsc dla planów rozliczanych za miejsce (Zespół). Ignorowana dla
+    // pozostałych planów - autorytetem jest wpis katalogu (`perSeat`).
+    seats: z.number().int().min(1).max(100).optional(),
+    // Środowisko bramki wyprowadzone po stronie klienta z prefiksu tokenu.
+    environment: z.enum(["sandbox", "live"]).optional(),
+  })
+  // JEDNA ŚCIEŻKA WYCENY NA ZAMÓWIENIE (TIX-01, TIX-12) - mieszanka biletu
+  // z planem albo treścią, zgłoszenie bez biletu z cennika i waluta prezentacji
+  // przy bilecie są odrzucane, zanim handler przeczyta cokolwiek z bazy.
+  .superRefine((data, ctx) => {
+    const issue = checkoutPayloadIssue(data);
+    if (issue !== null) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
+  });
 
 export const createCheckoutOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -88,24 +99,48 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     /** Cena miejsca prowadzącego dla rozbicia kodu kwotowego (tylko cennik wejściówek). */
     let ticketLeadCents: number | undefined;
     let trialDays = 0;
-    /** Czytelny identyfikator ceny katalogowej dla subskrypcji (cykl + trial). */
-    let catalogPriceId: string | null = null;
-    let catalogQuantity = 1;
+    /**
+     * Wycena planu (`planPricing.ts`) - jedyne źródło ceny katalogowej, ilości,
+     * kwoty, rodzaju zamówienia, trybu sesji i cyklu ceny. `null` poza zakupem
+     * planu (treść, bilet - kwota osadzona w pozycji sesji).
+     */
+    let planPricing: PlanCheckoutPricing | null = null;
+    /** Trial raz na konto: `false`, gdy kupujący miał już subskrypcję planu. */
+    let trialEligible = true;
 
     // Zgłoszenie etapu 4 wskazane przez klienta. Deklaracja stoi TU, a nie przy
     // metadanych niżej, bo walidacja własności musi się odbyć PRZED wyceną
     // i przed założeniem zamówienia.
     const registrationId = data.registration_id ?? null;
 
-    // Zakup jednorazowy PLANU: kind=one_time z plan_id i bez encji. Cena
-    // pochodzi z planu, płatność jest jednorazowa, a uprawnienie dożywotnie
-    // (patrz entitlementForOrder).
-    const isOneTimePlan = data.kind === "one_time" && !!data.plan_id && !data.entity_id;
-    // Bilet na płatne wydarzenie: kind=one_time z event_id i bez planu/encji.
-    const isEventTicket =
-      data.kind === "one_time" && !!data.event_id && !data.plan_id && !data.entity_id;
+    // ŚCIEŻKA WYCENY wynika z ładunku jednoznacznie - walidator odrzucił już
+    // każdą mieszankę (`checkoutPayloadIssue`): JEDNO ZAMÓWIENIE = JEDEN
+    // PRZEDMIOT. Plan, treść i bilet wydarzenia wykluczają się wzajemnie
+    // (TIX-01, przegląd PAY-01): ręcznie złożone żądanie łączące je dawało
+    // zamówienie wycenione jednym przedmiotem i zrealizowane drugim.
+    //   * zakup PLANU (subskrypcja albo plan jednorazowy) - RODZAJ ZAMÓWIENIA
+    //     WYNIKA Z PLANU, nie z żądania (TIX-02, przegląd PAY-01 0.0/7.0);
+    //   * bilet na płatne wydarzenie: kind=one_time z event_id.
+    const purchase = checkoutPurchase(data);
+    const isPlanPurchase = purchase === "subscription" || purchase === "plan";
+    const isEventTicket = purchase === "ticket";
+    /**
+     * Metadane biletu - ustawiane WYŁĄCZNIE w gałęzi, która bilet wyceniła.
+     * Do zamówienia trafiają tylko z niej (TIX-01): `event_id` i
+     * `registration_id` z żądania nie przyklejają się już do zamówienia
+     * wycenionego jako plan albo treść.
+     */
+    let ticketMeta: {
+      eventId: string;
+      ticketTypeId: string | null;
+      registrationId: string | null;
+    } | null = null;
+    /** Kod podatkowy produktu Stripe z biletu (TIX-09). */
+    let ticketTaxCode: string | null = null;
+    /** Cena regularna przed benefitem planu i fazą - reguła kumulacji kodu. */
+    let ticketPromoActive = false;
 
-    if (data.kind === "subscription" || isOneTimePlan) {
+    if (isPlanPurchase) {
       if (!data.plan_id) throw new Error("plan_id_required");
       const { data: plan, error } = await supabase
         .from("access_plans")
@@ -116,35 +151,58 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         .maybeSingle();
       if (error) throw error;
       if (!plan || !plan.active) throw new Error("plan_not_found");
-      amountCents = Number(plan.price_cents);
+      // Zakup jednorazowy daje dostęp DOŻYWOTNI (`current_period_end = NULL`),
+      // więc wolno nim kupić wyłącznie plan jednorazowy. Plan miesięczny
+      // kupiony tą ścieżką był subskrypcją bez końca za cenę jednego okresu
+      // (TIX-02). Baza odmawia tego samego przy zapisie zamówienia (ten sam
+      // kod `plan_not_one_time` w `payment_orders_secure_insert`).
+      if (data.kind === "one_time" && String(plan.interval) !== "one_time") {
+        throw new Error("plan_not_one_time");
+      }
+      // Plan MUSI iść ceną katalogową dostawcy - subskrypcja tylko tak dostaje
+      // cykl rozliczeniowy, trial i zdarzenia `subscription.*` (odnowienia,
+      // dunning, anulowanie), a plan jednorazowy tę samą cenę, z której
+      // synchronizacja katalogu buduje produkt (jak w drugim silniku).
+      //
+      // Wpis katalogu (wyłącznie dokładna para warstwa-cykl), liczba miejsc,
+      // próg wolumenowy, rodzaj, tryb sesji i cykl liczy JEDNA funkcja wspólna
+      // z drugim silnikiem (`planPricing.ts`) - dwie kopie tej reguły to dwie
+      // różne kwoty za ten sam plan. Odmowa zapada PRZED kuponem i zamówieniem;
+      // `kind_mismatch` łapie kierunek odwrotny do TIX-02 (`kind=subscription`
+      // z planem jednorazowym dawało miesięczny dostęp za produkt jednorazowy).
+      const pricing = planCheckoutPricing(plan, data.seats);
+      if (!pricing) throw new Error("plan_price_missing");
+      if (pricing.kind !== data.kind) throw new Error("kind_mismatch");
+      planPricing = pricing;
+      amountCents = pricing.amountCents;
       currency = String(plan.currency);
       label = String(plan.name_pl || plan.name_en);
-      trialDays = data.kind === "subscription" ? Math.max(0, Number(plan.trial_days ?? 0)) : 0;
-      // Subskrypcja MUSI powstać z ceny katalogowej dostawcy - tylko wtedy
-      // operator zakłada cykl rozliczeniowy, trial i wysyła zdarzenia
-      // `subscription.*` (odnowienia, dunning, anulowanie). Cena ad-hoc dałaby
-      // pojedyncze obciążenie bez odnowienia.
-      if (data.kind === "subscription") {
-        const { catalogPriceForPlan } = await import("@/lib/billing/catalog");
-        const entry = catalogPriceForPlan({
-          tier_key: plan.tier_key as string | null,
-          interval: plan.interval as string | null,
+      trialDays = pricing.mode === "subscription" ? Math.max(0, Number(plan.trial_days ?? 0)) : 0;
+      // Druga subskrypcja = drugie obciążenie co cykl za ten sam dostęp;
+      // ponowny trial = dostęp bez płatności („anuluj w trialu, kup znowu"),
+      // audyt SUB-13. Lustro `subscriptions` pod RLS kupującego (konto
+      // i najemca z sesji); historię u operatora sprawdza jeszcze
+      // `createPlanCheckoutSession`. Plan jednorazowy (Decision Lab) nie
+      // zakłada cyklu - bez strażnika. Odmowa PRZED kuponem i zamówieniem.
+      if (pricing.kind === "subscription") {
+        const { loadLocalPlanSubscriptionHistory, SUBSCRIPTION_EXISTS_ERROR } =
+          await import("@/lib/billing/planSubscriptionGuard");
+        const { resolveEnvironment: envForHistory } = await import("@/lib/stripe.server");
+        // Konflikt względem KUPOWANEJ pozycji (osobny zakup przy innym
+        // modelu rozliczenia przechodzi - zmiana planu by go odrzuciła).
+        const history = await loadLocalPlanSubscriptionHistory(supabase, {
+          userId,
+          environment: envForHistory(data.environment),
+          target: pricing.entry,
         });
-        if (!entry) throw new Error("plan_price_missing");
-        catalogPriceId = entry.priceId;
-        catalogQuantity = entry.perSeat ? Math.min(Math.max(data.seats ?? 1, 1), 100) : 1;
-        // Próg wolumenowy (katalog v6.1: Zespół od 11 miejsc po 79 zł). Cena
-        // u operatora jest schodkowa w trybie `volume`, czyli po osiągnięciu
-        // progu WSZYSTKIE miejsca liczą się niżej - podsumowanie zamówienia
-        // musi liczyć tak samo, inaczej klient zobaczy w kasie inną kwotę niż
-        // na fakturze.
-        const volumeThreshold = Number(plan.volume_threshold_seats ?? 0);
-        const volumeUnit = Number(plan.volume_price_cents ?? 0);
-        const unitCents =
-          entry.perSeat && volumeThreshold >= 2 && catalogQuantity >= volumeThreshold
-            ? volumeUnit
-            : amountCents;
-        amountCents = unitCents * catalogQuantity;
+        if (history.hasLive) {
+          return {
+            ok: false as const,
+            mode: "subscription" as const,
+            error: SUBSCRIPTION_EXISTS_ERROR,
+          };
+        }
+        trialEligible = !history.hadAny;
       }
     } else if (isEventTicket && data.ticket_type_id) {
       // WYCENA WEJŚCIÓWKI Z CENNIKA żyje w `eventTicketPricing.server.ts`, bo
@@ -177,9 +235,16 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       ticketListPriceCents = price.listCents;
       ticketPhaseLabel = price.phaseLabel;
       ticketTaxMode = price.taxMode;
+      ticketTaxCode = price.taxCode;
       ticketSeats = price.seats;
       ticketLineName = price.label;
       label = price.seats > 1 ? `${price.label} × ${price.seats}` : price.label;
+      ticketPromoActive = price.planBenefit !== null || price.amountCents < price.listCents;
+      ticketMeta = {
+        eventId: data.event_id as string,
+        ticketTypeId: data.ticket_type_id,
+        registrationId,
+      };
     } else if (isEventTicket) {
       // Cena biletu pochodzi z wiersza wydarzenia (RLS jako użytkownik), więc
       // klient przekazuje wyłącznie identyfikator wydarzenia.
@@ -211,6 +276,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       amountCents = ticketPrice.amountCents;
       currency = String(ev.ticket_currency ?? "PLN");
       label = String(ev.title_pl || ev.title_en || "");
+      ticketPromoActive = ticketPrice.amountCents < Number(ev.ticket_price_cents);
+      // Bilet z wiersza wydarzenia nie zna zgłoszeń etapu 4 - walidator
+      // odrzucił `registration_id` bez `ticket_type_id`.
+      ticketMeta = { eventId: String(ev.id), ticketTypeId: null, registrationId: null };
     } else {
       if (!data.entity_type || !data.entity_id) throw new Error("entity_required");
       // Price is taken from the per-entity access rule server-side, so the
@@ -257,7 +326,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     let couponPerSeatCents: number | null = null;
     if (data.coupon_code && data.coupon_code.trim().length > 0) {
       const normalizedCode = data.coupon_code.trim().toUpperCase();
-      if (data.event_id) {
+      if (ticketMeta !== null) {
         // Bilet wydarzenia: kod sprawdzany z zakresem wydarzenia i biletu
         // (kody tworzone w studiu wydarzenia), a kod kwotowy schodzi z KAŻDEGO
         // miejsca - ta sama funkcja liczy podgląd kasy.
@@ -265,12 +334,16 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         const applied = await applyEventTicketCoupon(supabase, {
           userId,
           code: normalizedCode,
-          eventId: data.event_id,
-          ticketTypeId: data.ticket_type_id ?? null,
+          eventId: ticketMeta.eventId,
+          ticketTypeId: ticketMeta.ticketTypeId,
           amountCents,
           currency,
           seats: ticketSeats,
           leadCents: ticketLeadCents,
+          // Reguła kumulacji (TIX-13a): cena regularna całego zamówienia
+          // i czy działa już inna promocja (faza sprzedaży, benefit planu).
+          listCents: Math.max(ticketListPriceCents, amountCents),
+          promoActive: ticketPromoActive,
         });
         if (!applied.ok) {
           return { ok: false as const, mode: "coupon" as const, error: applied.error };
@@ -305,9 +378,15 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         couponDiscountCents = row.discount_cents;
         amountCents = row.final_cents;
         // Bezpiecznik: rabat 100% (final=0) traktujemy jak darmowy przydział -
-        // i tak nie przejdzie minimalnej kwoty transakcji, więc odrzucamy < 50 gr.
-        // Bilet wydarzenia ma ten sam bezpiecznik w `applyEventTicketCoupon`.
-        if (amountCents < 50) {
+        // i tak nie przejdzie minimalnej kwoty transakcji, więc odrzucamy
+        // kwotę poniżej minimum operatora W WALUCIE ZAMÓWIENIA (2,00 zł,
+        // 0,50 EUR). Reguła i kod odmowy są wspólne z drugim silnikiem
+        // (`chargeMinimum.ts`, przegląd PAY-01, 0.3) - kupon 100% i kwota tuż
+        // pod minimum kończą się tak samo w obu kasach, przed zamówieniem
+        // i rezerwacją kuponu. Bilet wydarzenia ma bezpiecznik
+        // w `applyEventTicketCoupon`; kwotę poniżej minimum, która go minie,
+        // zatrzymuje jeszcze `createAdhocCheckoutSession` (`amount_too_low`).
+        if (isBelowMinimumCharge(amountCents, currency)) {
           return {
             ok: false as const,
             mode: "coupon" as const,
@@ -317,6 +396,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       }
       couponCode = normalizedCode;
     }
+
+    // Kod 100% na bilet (TIX-13a): zamówienie za zero idzie ścieżką bez
+    // płatności - dotąd taki kod (voucher dla prasy) kończył się odmową
+    // `final_amount_too_low` i organizator musiał tworzyć ukryty bilet 0 zł.
+    const freeTicket = ticketMeta !== null && couponId !== null && amountCents === 0;
 
     // Konwersja waluty prezentacji (EN → EUR) PO wyliczeniu kuponu, żeby
     // walidacja kuponu B2B odbyła się w oryginalnej walucie planu (kupony
@@ -330,40 +414,28 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // wyprowadzamy z ich RÓŻNICY, dzięki czemu niezmiennik
     // `original = final + discount` trzyma się dokładnie w walucie docelowej
     // (bez dryfu zaokrągleń między osobno konwertowanymi wartościami).
-    // Subskrypcja idzie z ceny katalogowej, więc walutę rozstrzyga operator
-    // (`unit_price_overrides` EUR + lokalizacja) - lokalna konwersja tylko
-    // rozjechałaby zamówienie z faktyczną kwotą obciążenia.
-    if (data.display_currency && !catalogPriceId) {
-      const [{ convertToDisplayCurrency, couponAuditInDisplayCurrency }, { ensureFxRateLoaded }] =
-        await Promise.all([
-          import("@/lib/billing/displayCurrency"),
-          import("@/lib/billing/fxRate"),
-        ]);
+    // Plan (subskrypcja i plan jednorazowy) idzie z ceny katalogowej, więc
+    // walutę rozstrzyga operator (`unit_price_overrides` EUR + lokalizacja) -
+    // lokalna konwersja tylko rozjechałaby zamówienie z faktyczną kwotą
+    // obciążenia. Bilet nie dochodzi tutaj z walutą prezentacji
+    // (`display_currency_unsupported`, TIX-12) - przeliczamy wyłącznie kwoty,
+    // bez metadanych miejsc.
+    if (data.display_currency && !planPricing) {
+      const [{ couponAuditInDisplayCurrency }, { ensureFxRateLoaded }] = await Promise.all([
+        import("@/lib/billing/displayCurrency"),
+        import("@/lib/billing/fxRate"),
+      ]);
       await ensureFxRateLoaded();
-      const pricedCurrency = currency;
-      const target = data.display_currency;
-      const conv = couponAuditInDisplayCurrency(originalCents, amountCents, currency, target);
+      const conv = couponAuditInDisplayCurrency(
+        originalCents,
+        amountCents,
+        currency,
+        data.display_currency,
+      );
       originalCents = conv.originalCents;
       amountCents = conv.finalCents;
       couponDiscountCents = conv.discountCents;
       currency = conv.currency;
-      // Metadane miejsc w walucie ZAMÓWIENIA. Ceny miejsc przeliczamy osobno
-      // (bez proporcji - zaokrąglenie z proporcji rozjeżdża „N × cena"),
-      // a rabat na miejsce liczymy od przeliczonego rabatu, jak przed
-      // rozbiciem kodu na miejsca.
-      if (currency !== pricedCurrency) {
-        if (ticketPlan !== null) {
-          ticketPlan = {
-            benefit: ticketPlan.benefit,
-            leadCents: convertToDisplayCurrency(ticketPlan.leadCents, pricedCurrency, target).cents,
-            guestCents: convertToDisplayCurrency(ticketPlan.guestCents, pricedCurrency, target)
-              .cents,
-          };
-        }
-        if (couponPerSeatCents !== null) {
-          couponPerSeatCents = Math.floor(couponDiscountCents / ticketSeats);
-        }
-      }
     }
 
     // Fail-closed ZANIM powstanie zamówienie: produkcja bez działającej
@@ -371,7 +443,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
     // wpaść w tryb mock i rozdać dostęp za darmo.
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     const paymentsReady = paymentsConfiguredServer();
-    if (!paymentsReady && !mockCheckoutAllowed()) {
+    if (!freeTicket && !paymentsReady && !mockCheckoutAllowed()) {
       console.error("[checkout] billing unconfigured: refusing mock checkout in production");
       return {
         ok: false as const,
@@ -384,8 +456,10 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
 
     // Bilet na płatne wydarzenie: rozpoznawany po metadanych zamówienia -
     // webhook po zaksięgowaniu potwierdza RSVP i wysyła mail rejestracyjny.
-    const eventId = data.event_id ?? null;
-    const ticketTypeId = data.ticket_type_id ?? null;
+    // WYŁĄCZNIE z gałęzi, która bilet wyceniła (TIX-01).
+    const eventId = ticketMeta?.eventId ?? null;
+    const ticketTypeId = ticketMeta?.ticketTypeId ?? null;
+    const boundRegistrationId = ticketMeta?.registrationId ?? null;
 
     // Środowisko jest rozstrzygane SERWEROWO (w produkcji zawsze 'live') i
     // stemplowane na zamówieniu, żeby webhook zrealizował je wyłącznie zdarzeniem
@@ -399,14 +473,16 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       .from("payment_orders")
       .insert({
         user_id: userId,
-        kind: data.kind,
+        // Rodzaj z WYCENY dla planu (równy deklaracji - rozbieżność odmówiła
+        // wyżej), dla treści i biletu - zakup jednorazowy.
+        kind: planPricing?.kind ?? data.kind,
         status: "pending",
         amount_cents: amountCents,
         currency,
         plan_id: data.plan_id ?? null,
         entity_type: data.entity_type ?? null,
         entity_id: data.entity_id ?? null,
-        provider: paymentsReady ? "stripe" : "mock",
+        provider: freeTicket ? "coupon" : paymentsReady ? "stripe" : "mock",
         receipt_email: receiptEmail,
         // `environment`: kolumna z migracji 20260731220000, jeszcze nie w
         // wygenerowanym types.ts - stąd cast całego payloadu (konwencja repo).
@@ -421,7 +497,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           // `registration_id` jest KLUCZEM DOWIĄZANIA wpłaty do zgłoszenia
           // (`payments_apply_event_ticket_outcome`). Bez niego zostaje
           // dopasowanie po osobie z `LIMIT 1` po dacie utworzenia.
-          ...(registrationId ? { registration_id: registrationId } : {}),
+          ...(boundRegistrationId ? { registration_id: boundRegistrationId } : {}),
           // Benefit planu członka i ceny miejsc - „200 zł za trzy miejsca"
           // da się wtedy sprawdzić jako 0 zł (bilet z puli) + 2 × 100 zł.
           ...(ticketPlan
@@ -479,8 +555,81 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       }
     }
 
+    // ZAMÓWIENIE ZA ZERO (kod 100% na bilet): rozliczenie bez operatora -
+    // ta sama ścieżka co webhook (zgłoszenie, kod QR, RSVP, maile).
+    if (freeTicket) {
+      const { settleFreeTicketOrder } = await import("@/lib/billing/oneTimeFulfilment.server");
+      // Stan rozliczenia, który kupujący zobaczy - nigdy optymistyczny sukces:
+      //   * `seated`     - miejsce potwierdzone (RSVP albo zgłoszenie z miejscem);
+      //   * `sold_out`   - ostatnie miejsce zajęte, zamówienie anulowane, kod wrócił;
+      //   * `awaiting`   - zgłoszenie czeka (decyzja organizatora, lista rezerwowa)
+      //                    albo baza odmówiła - kupujący dostał już zawiadomienie;
+      //   * `processing` - rozliczenie urwało się; dokończy je tick zadań
+      //                    (`runUnsettledFreeTicketOrders`), bilet przyjdzie mailem.
+      let settlement: "seated" | "sold_out" | "awaiting" | "processing";
+      try {
+        const settled = await settleFreeTicketOrder(order.id);
+        if (settled.outcome === "skipped") {
+          // Strażnik odrzucił świeżo założone zamówienie - ponowienie też go nie
+          // rozliczy, więc żadnej obietnicy „bilet przyjdzie mailem".
+          console.error("[checkout] free ticket order rejected by settlement guard", order.id);
+          return {
+            ok: false as const,
+            mode: "free" as const,
+            error: "free_ticket_not_settled" as const,
+            orderId: order.id,
+          };
+        }
+        settlement =
+          settled.outcome === "oversold_refunded"
+            ? "sold_out"
+            : settled.seated
+              ? "seated"
+              : "awaiting";
+      } catch (err) {
+        console.error(
+          "[checkout] free ticket settlement failed - left to the job retry",
+          order.id,
+          err instanceof Error ? err.message : String(err),
+        );
+        settlement = "processing";
+      }
+      const freeUrl = new URL(resolveReturnUrl(data.success_path));
+      freeUrl.searchParams.set("order", order.id);
+      return {
+        ok: true as const,
+        mode: "free" as const,
+        url: freeUrl.toString(),
+        orderId: order.id,
+        settlement,
+      };
+    }
+
     if (paymentsReady) {
       const returnUrl = resolveReturnUrl(data.success_path);
+      const { markOrderSession } = await import("@/lib/billing/markOrderSession.server");
+
+      // Odmowa PO założeniu zamówienia: zamówienie dostaje `failed` (nigdy
+      // wiszące `pending` bez sesji - na takie nie przyjdzie
+      // `checkout.session.expired`), a zarezerwowane użycie kuponu wraca do
+      // puli - inaczej limit przepadałby za zamówienie, którego nikt nigdy nie
+      // opłaci. Ten sam kształt co `failOrder` w drugim silniku.
+      const failOrder = async (error: string) => {
+        await markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
+        if (couponId) {
+          const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
+          const { error: releaseErr } = await releaseCouponForUser(supabase, {
+            tenantId: order.tenant_id,
+            userId,
+            couponId,
+            orderId: order.id,
+          });
+          if (releaseErr) {
+            console.error("[checkout] coupon release failed", order.id, releaseErr.message);
+          }
+        }
+        return { ok: false as const, mode: "stripe" as const, error, orderId: order.id };
+      };
 
       // Flagi checkoutu TENANTA ZAMÓWIENIA (kupony, Stripe Tax, NIP, faktury).
       // Zawężamy je do `order.tenant_id`, a nie do tenantu żądania - sesja u
@@ -488,30 +637,53 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       const { loadCheckoutSettings } = await import("@/lib/billing/checkoutSettings.server");
       const settings = await loadCheckoutSettings(supabase, order.tenant_id);
 
-      // Subskrypcja: sesja z CENY KATALOGOWEJ (cykl rozliczeniowy, trial,
+      // Plan: sesja z CENY KATALOGOWEJ (cykl rozliczeniowy, trial,
       // lokalizacja waluty przez ceny Stripe). Tylko taka sesja zakłada u
       // operatora subskrypcję, a więc odnowienia, dunning i zdarzenia
-      // `customer.subscription.*`. Rabat kuponu przekazujemy jako rabat
-      // operatora - kwota nadal nie pochodzi od klienta.
-      if (catalogPriceId) {
-        const { createPlanCheckoutSession } = await import("@/lib/billing/adhocCheckout.server");
+      // `customer.subscription.*`; plan jednorazowy idzie tą samą ceną
+      // w trybie `payment`. Rabat kuponu przekazujemy jako rabat operatora -
+      // kwota nadal nie pochodzi od klienta.
+      if (planPricing) {
+        const { createPlanCheckoutSession, createAdhocDiscountForCoupon } =
+          await import("@/lib/billing/adhocCheckout.server");
+        // Rabat u operatora powstaje DOPIERO PO zamówieniu (klucz idempotencji
+        // z `order.id`). Rabat, którego operator nie założył - wyjątek albo
+        // odpowiedź bez identyfikatora - to sesja po cenie BEZ zniżki przy
+        // zamówieniu zapisanym po zniżce: kupujący zapłaciłby więcej, niż
+        // pokazała kasa, a realizacja oflagowałaby rozjazd kwot dopiero po
+        // pobraniu pieniędzy. Dotąd wyjątek wylatywał z handlera i zostawiał
+        // zamówienie `pending` bez sesji z zajętym użyciem kuponu (przegląd
+        // PAY-16a, 0.2) - teraz zamykamy je tak samo jak drugi silnik.
         let discount: { coupon: string } | null = null;
         if (couponCode && couponDiscountCents > 0) {
-          const { getStripeClient } = await import("@/lib/stripe.server");
-          const { createAdhocDiscountForCoupon } =
-            await import("@/lib/billing/adhocCheckout.server");
-          const stripe = await getStripeClient(environment);
-          const couponRef = await createAdhocDiscountForCoupon(stripe, {
-            code: couponCode,
-            discountCents: couponDiscountCents,
-            currency,
-          });
-          if (couponRef) discount = { coupon: couponRef };
+          try {
+            const { getStripeClient } = await import("@/lib/stripe.server");
+            const stripe = await getStripeClient(environment);
+            const couponRef = await createAdhocDiscountForCoupon(stripe, {
+              code: couponCode,
+              discountCents: couponDiscountCents,
+              currency,
+              orderId: order.id,
+            });
+            if (!couponRef) return await failOrder("discount_unavailable");
+            discount = { coupon: couponRef };
+          } catch (e) {
+            const { getStripeErrorMessage } = await import("@/lib/stripe.server");
+            console.error("[checkout] provider coupon failed", order.id, e);
+            return await failOrder(getStripeErrorMessage(e));
+          }
         }
-        const createdSub = await createPlanCheckoutSession({
+        const createdPlan = await createPlanCheckoutSession({
           environment,
-          priceLookupKey: catalogPriceId,
-          quantity: catalogQuantity,
+          priceLookupKey: planPricing.entry.priceId,
+          quantity: planPricing.quantity,
+          // Kwota BRUTTO z wyceny (PRZED kuponem - kupon jedzie wyżej jako
+          // rabat operatora) i waluta zamówienia. Cena u operatora innego
+          // typu, w innej walucie, w innym cyklu albo z inną kwotą za tę
+          // liczbę sztuk niż zamówienie kończy się odmową `price_mismatch`,
+          // a nie sesją na coś innego.
+          expectedAmountCents: planPricing.amountCents,
+          expectedCurrency: currency,
           planId: data.plan_id as string,
           orderId: order.id,
           userId,
@@ -521,49 +693,36 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           // Bez tego okres próbny planu jest martwy: metadane ceny w katalogu
           // operatora niczego nie wymuszają, a karta zostaje obciążona od razu.
           trialDays,
+          trialEligible,
+          settings,
         });
-        if (!createdSub.ok) {
-          await (
-            await import("@/lib/billing/markOrderSession.server")
-          ).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
-          if (couponId) {
-            const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
-            const { error: releaseErr } = await releaseCouponForUser(supabase, {
-              tenantId: order.tenant_id,
-              userId,
-              couponId,
-              orderId: order.id,
-            });
-            if (releaseErr) {
-              console.error("[checkout] coupon release failed", order.id, releaseErr.message);
-            }
-          }
-          return {
-            ok: false as const,
-            mode: "stripe" as const,
-            error: createdSub.error,
-            orderId: order.id,
-          };
+        // Sesje wygaszone przez kasę (poprzednia próba, druga karta) już nie
+        // zostaną opłacone - ich zamówienia nie mogą wisieć w `processing`.
+        for (const supersededId of createdPlan.supersededOrderIds ?? []) {
+          await markOrderSession(supabase, {
+            orderId: supersededId,
+            sessionId: null,
+            status: "canceled",
+          });
         }
-        await (
-          await import("@/lib/billing/markOrderSession.server")
-        ).markOrderSession(supabase, {
+        if (!createdPlan.ok) return await failOrder(createdPlan.error);
+        await markOrderSession(supabase, {
           orderId: order.id,
-          sessionId: createdSub.sessionId,
+          sessionId: createdPlan.sessionId,
           status: "processing",
         });
         return {
           ok: true as const,
           mode: "stripe" as const,
-          clientSecret: createdSub.clientSecret,
+          clientSecret: createdPlan.clientSecret,
           orderId: order.id,
         };
       }
 
-      // Kwota jest wyliczona serwerowo (plan / reguła dostępu / kupon /
+      // Kwota jest wyliczona serwerowo (reguła dostępu / bilet / kupon /
       // waluta prezentacji), więc zamiast ceny katalogowej tworzymy sesję z
       // ceną osadzoną (`price_data`) i zwracamy `clientSecret` do nakładki.
-      const { createAdhocCheckoutSession, MAX_LINE_QUANTITY, MIN_ADHOC_AMOUNT_CENTS } =
+      const { createAdhocCheckoutSession, MAX_LINE_QUANTITY } =
         await import("@/lib/billing/adhocCheckout.server");
 
       // Rabat fazy sprzedaży (early bird / last minute) i benefit planu widoczne
@@ -573,7 +732,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       let ticketDiscount: { coupon: string } | null = null;
       let lineAmountCents = amountCents;
       const phaseDiscountCents = ticketListPriceCents - amountCents;
-      if (eventId && phaseDiscountCents > 0 && amountCents >= 50) {
+      if (eventId && phaseDiscountCents > 0 && !isBelowMinimumCharge(amountCents, currency)) {
         const { getStripeClient } = await import("@/lib/stripe.server");
         const { createAdhocDiscountForCoupon } = await import("@/lib/billing/adhocCheckout.server");
         const couponRef = await createAdhocDiscountForCoupon(await getStripeClient(environment), {
@@ -587,6 +746,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
               .join(" + ") || "Rabat",
           discountCents: phaseDiscountCents,
           currency,
+          orderId: order.id,
         }).catch((err: unknown) => {
           console.error("[checkout] phase discount failed", order.id, err);
           return null;
@@ -614,7 +774,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         ticketSeats > 1 &&
         ticketSeats <= MAX_LINE_QUANTITY &&
         lineAmountCents % ticketSeats === 0 &&
-        lineAmountCents / ticketSeats >= MIN_ADHOC_AMOUNT_CENTS;
+        lineAmountCents / ticketSeats >= minimumChargeCents(currency);
 
       const created = await createAdhocCheckoutSession({
         environment,
@@ -623,6 +783,9 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         ...(perSeatLine ? { quantity: ticketSeats } : {}),
         discount: ticketDiscount,
         ...(ticketTaxMode ? { taxBehavior: ticketTaxMode } : {}),
+        // Kod podatkowy produktu z biletu (TIX-09) - Stripe Tax liczy z niego
+        // stawkę zgodną z fakturą organizatora.
+        ...(ticketTaxCode ? { taxCode: ticketTaxCode } : {}),
         currency,
         orderId: order.id,
         purpose: eventId ? "event_ticket" : "content_unlock",
@@ -633,7 +796,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
           ? {
               event_id: eventId,
               ...(ticketTypeId ? { ticket_type_id: ticketTypeId } : {}),
-              ...(registrationId ? { registration_id: registrationId } : {}),
+              ...(boundRegistrationId ? { registration_id: boundRegistrationId } : {}),
             }
           : {},
         // BILET NIE DOSTAJE POLA KODU STRIPE - ale tej reguły NIE egzekwujemy
@@ -643,36 +806,11 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         // bez zmian, a odblokowanie treści zachowuje z nich pole kodu.
         settings,
       });
-      if (!created.ok) {
-        await (
-          await import("@/lib/billing/markOrderSession.server")
-        ).markOrderSession(supabase, { orderId: order.id, sessionId: null, status: "failed" });
-        // Kupon został zarezerwowany PRZED utworzeniem sesji. Skoro dostawca
-        // odmówił, użycie musi wrócić do puli - inaczej limit przepadłby za
-        // zamówienie, którego nikt nigdy nie opłaci.
-        if (couponId) {
-          const { releaseCouponForUser } = await import("@/lib/billing/couponRpc.server");
-          const { error: releaseErr } = await releaseCouponForUser(supabase, {
-            tenantId: order.tenant_id,
-            userId,
-            couponId,
-            orderId: order.id,
-          });
-          if (releaseErr) {
-            console.error("[checkout] coupon release failed", order.id, releaseErr.message);
-          }
-        }
-        return {
-          ok: false as const,
-          mode: "stripe" as const,
-          error: created.error,
-          orderId: order.id,
-        };
-      }
+      // Kupon został zarezerwowany PRZED utworzeniem sesji - odmowa dostawcy
+      // zamyka zamówienie i oddaje użycie do puli (`failOrder`).
+      if (!created.ok) return await failOrder(created.error);
 
-      await (
-        await import("@/lib/billing/markOrderSession.server")
-      ).markOrderSession(supabase, {
+      await markOrderSession(supabase, {
         orderId: order.id,
         sessionId: created.sessionId,
         status: "processing",
@@ -811,12 +949,41 @@ const changePlanSchema = z.object({
   newPlanId: z.string().uuid(),
 });
 
+// Kody odmowy DOPŁATY z warstwy operatora. Te jedyne wracają jako wynik
+// (`{ ok: false, error, hostedInvoiceUrl }`), a nie wyjątek: to nie awaria,
+// tylko decyzja klienta/banku, a UI potrzebuje adresu faktury, żeby klient
+// mógł dokończyć zmianę - wyjątek na granicy RPC by go zgubił.
+const PAYMENT_OUTCOMES = new Set(["payment_failed", "payment_requires_action"]);
+
+// Odmowy DOMENOWE liczone przez operację u dostawcy na żywym stanie (reguła
+// katalogu, status subskrypcji). Przechodzą do UI pod własnym kodem - to nie
+// awaria operatora, tylko odpowiedź „tej zmiany nie wykonamy, bo...".
+const DOMAIN_REFUSALS = new Set([
+  "same_plan",
+  "plan_kind_mismatch",
+  "plan_not_switchable",
+  "subscription_not_switchable",
+  "subscription_not_active",
+  "subscription_paused",
+]);
+
 // Samoobsługowy upgrade/downgrade planu. Kolejność jak przy cancel/resume:
 // najpierw operator, potem baza. Reguła biznesowa: upgrade rozlicza się od
 // razu z proratą, downgrade wchodzi dopiero od nowego okresu. Nieudana dopłata
-// NIE zmienia planu (on_payment_failure=prevent_change). Zmiana planu czyści
-// zaplanowane anulowanie - klient zostaje. Cena i waluta pochodzą z katalogu
+// NIE zmienia planu: operacja u dostawcy idzie z `pending_if_incomplete`
+// (pozycje subskrypcji podmieniają się dopiero po opłaceniu faktury), a baza
+// zapisuje nowy plan WYŁĄCZNIE dla zmiany, którą operator potwierdził jako
+// zastosowaną (`effect: "applied"`). Downgrade (`scheduled`) zostawia bieżący
+// plan - klient zapłacił za niego do końca okresu, a przejście na nową cenę
+// domknie webhook na starcie nowego okresu. Zmiana planu czyści zaplanowane
+// anulowanie - klient zostaje - ale `canceled_at` czyścimy dopiero, gdy
+// operator flagę faktycznie zdjął. Cena i waluta pochodzą z katalogu
 // dostawcy (stały cennik per plan), więc nic nie przeliczamy tutaj.
+//
+// Cel (plan aktywny w ofercie najemcy WOŁAJĄCEGO, cykliczny, ścisły
+// odpowiednik w katalogu, ten sam model rozliczenia) sprawdza ta sama bramka,
+// co kartę operatora (`planSwitch.server.ts`) - także w trybie mock, żeby
+// środowisko deweloperskie nie przepuszczało celów, których produkcja odmówi.
 export const changeSubscriptionPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => changePlanSchema.parse(input))
@@ -825,7 +992,9 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
 
     const { data: sub, error: loadError } = await supabaseAdmin
       .from("user_subscriptions")
-      .select("id, tenant_id, plan_id, status, external_ref, canceled_at, current_period_end")
+      .select(
+        "id, tenant_id, plan_id, status, external_ref, canceled_at, current_period_end, plan:access_plans(tier_key, interval)",
+      )
       .eq("id", data.subscriptionId)
       .eq("user_id", context.userId)
       .maybeSingle();
@@ -838,61 +1007,69 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
     }
     if (sub.plan_id === data.newPlanId) throw new Error("same_plan");
 
-    const { data: newPlan, error: planErr } = await supabaseAdmin
-      .from("access_plans")
-      .select("id, tenant_id, active, price_cents, currency, interval, tier_key, name_pl, name_en")
-      .eq("id", data.newPlanId)
-      .maybeSingle();
-    if (planErr) throw new Error(planErr.message);
-    if (!newPlan || !newPlan.active) throw new Error("plan_not_found");
-    if (newPlan.tenant_id !== sub.tenant_id) throw new Error("plan_not_found");
-    const interval = String(newPlan.interval);
-    if (
-      interval !== "two_weeks" &&
-      interval !== "month" &&
-      interval !== "quarter" &&
-      interval !== "year"
-    ) {
-      // Przepustki/plany jednorazowe nie są celem zmiany subskrypcji.
-      throw new Error("plan_not_recurring");
-    }
+    // Bieżąca cena wg planu w bazie - tylko do wczesnej odmowy (ten sam plan,
+    // inny model rozliczenia, także w trybie mock); regułę na żywym stanie
+    // liczy jeszcze raz operacja u dostawcy.
+    const { switchEntryForPlan } = await import("@/lib/billing/planSwitch");
+    const { resolveOfferedSwitchTarget } = await import("@/lib/billing/planSwitch.server");
+    const offered = await resolveOfferedSwitchTarget({
+      userId: context.userId,
+      subscriptionTenantId: sub.tenant_id,
+      currentLookupKey: sub.plan ? (switchEntryForPlan(sub.plan)?.priceId ?? null) : null,
+      target: { planId: data.newPlanId },
+    });
+    if (!offered.ok) throw new Error(offered.error);
+    const target = offered.target;
 
-    const {
-      changeSubscriptionPrice,
-      catalogPriceFor,
-      fetchSubscriptionSnapshot,
-      isProviderSubscriptionRef,
-      subscriptionEnvironment,
-    } = await import("@/lib/billing/subscriptionProvider.server");
-    const { planChangeDirection } = await import("@/lib/billing/catalog");
+    const { changeSubscriptionPrice, isProviderSubscriptionRef, subscriptionEnvironment } =
+      await import("@/lib/billing/subscriptionProvider.server");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
 
     const providerConfigured = paymentsConfiguredServer();
     let providerPeriodEnd: string | null = null;
+    let cancellationCleared = true;
 
     if (providerConfigured && isProviderSubscriptionRef(sub.external_ref)) {
-      const env = subscriptionEnvironment();
-      const snap = await fetchSubscriptionSnapshot(env, sub.external_ref);
-      if (!snap.ok) {
-        console.error("[billing] subscription snapshot failed", sub.external_ref, snap.error);
-        throw new Error("provider_plan_change_failed");
-      }
-
-      const targetPriceId = catalogPriceFor(newPlan.tier_key, interval);
-      if (!targetPriceId) throw new Error("plan_not_switchable");
-      const direction = planChangeDirection(snap.snapshot.priceId, targetPriceId);
-      if (direction === "same") throw new Error("same_plan");
-
-      const changeRes = await changeSubscriptionPrice(env, sub.external_ref, {
-        newPriceExternalId: targetPriceId,
-        quantity: snap.snapshot.quantity,
-        direction,
+      const changeRes = await changeSubscriptionPrice(subscriptionEnvironment(), sub.external_ref, {
+        newPriceExternalId: target.lookupKey,
       });
       if (!changeRes.ok) {
         console.error("[billing] provider plan change failed", sub.external_ref, changeRes.error);
+        if (DOMAIN_REFUSALS.has(changeRes.error)) throw new Error(changeRes.error);
+        if (PAYMENT_OUTCOMES.has(changeRes.error)) {
+          // Dopłata nie przeszła: plan, uprawnienie i anulowanie zostają
+          // nietknięte. Klient dostaje fakturę do opłacenia - po zapłacie
+          // operator sam zastosuje zmianę, a webhook ją odwzoruje.
+          return {
+            ok: false as const,
+            error: changeRes.error,
+            hostedInvoiceUrl: changeRes.hostedInvoiceUrl ?? null,
+          };
+        }
         throw new Error("provider_plan_change_failed");
       }
-      providerPeriodEnd = changeRes.currentPeriodEnd ?? snap.snapshot.currentPeriodEnd;
+      if (changeRes.effect === "scheduled") {
+        // Downgrade od nowego okresu: bieżący plan zostaje w bazie do końca
+        // opłaconego okresu. Jedyny zapis to cofnięte anulowanie (operator je
+        // potwierdził) - inaczej panel pokazywałby „wygasa" przy subskrypcji,
+        // która przejdzie na niższy plan i będzie się odnawiać.
+        if (!changeRes.cancelAtPeriodEnd && sub.canceled_at) {
+          const { error: clearErr } = await supabaseAdmin
+            .from("user_subscriptions")
+            .update({ canceled_at: null })
+            .eq("id", sub.id);
+          if (clearErr) throw new Error(clearErr.message);
+        }
+        return {
+          ok: true as const,
+          effect: "scheduled" as const,
+          effectiveAt: changeRes.currentPeriodEnd,
+        };
+      }
+      providerPeriodEnd = changeRes.currentPeriodEnd;
+      // Lustro flagi operatora: jeśli zdjęcie zaplanowanego końca się nie
+      // udało, `canceled_at` zostaje - UI nie może obiecać odnowienia.
+      cancellationCleared = !changeRes.cancelAtPeriodEnd;
     } else if (providerConfigured) {
       // Subskrypcja bez identyfikatora u dostawcy (np. dożywotnia z zakupu
       // jednorazowego) nie ma czego przełączać po stronie operatora.
@@ -905,27 +1082,35 @@ export const changeSubscriptionPlan = createServerFn({ method: "POST" })
     const { data: updated, error: updateErr } = await supabaseAdmin
       .from("user_subscriptions")
       .update({
-        plan_id: newPlan.id,
-        canceled_at: null,
+        plan_id: target.planId,
+        ...(cancellationCleared ? { canceled_at: null } : {}),
         // Operator jest źródłem prawdy o kotwicy okresu; mock liczy od teraz.
         current_period_end:
           providerPeriodEnd ??
           (providerConfigured
             ? (sub.current_period_end ?? undefined)
-            : periodEndFor(interval, new Date()).toISOString()),
+            : periodEndFor(target.interval, new Date()).toISOString()),
       })
       .eq("id", sub.id)
       .select("id")
       .maybeSingle();
     if (updateErr) throw new Error(updateErr.message);
     if (!updated) throw new Error("subscription_not_found");
-    return { ok: true as const };
+    return { ok: true as const, effect: "applied" as const };
   });
 
 // Wznowienie subskrypcji anulowanej "na koniec okresu": dopóki opłacony okres
 // trwa, operator pozwala cofnąć zaplanowaną zmianę. Lustrzane do
 // cancelSubscription - najpierw operator, potem baza, żeby UI nigdy nie
 // pokazywał wznowienia, którego operator nie wykonał.
+//
+// O tym, CO wznowić, rozstrzyga żywy stan u operatora
+// (`resumeProviderSubscription`: zaplanowane anulowanie, pauza poboru), a nie
+// samo lokalne `canceled_at`: synchronizacja uprawnień potrafiła je wyzerować
+// przy subskrypcji, która dalej miała zaplanowany koniec, i wtedy wznowienie
+// było odmawiane, choć operator miał co cofnąć. Lokalne `canceled_at` zostaje
+// warunkiem dla subskrypcji bez operatora (mock, zakup dożywotni) i dla
+// przypadku, w którym u operatora nie ma już czego wznawiać.
 export const resumeSubscription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => cancelSubscriptionSchema.parse(input))
@@ -939,23 +1124,71 @@ export const resumeSubscription = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .maybeSingle();
     if (loadError) throw new Error(loadError.message);
-    if (!sub || sub.canceled_at === null || sub.status !== "active") {
+    if (!sub) throw new Error("subscription_not_resumable");
+    // Wstrzymana subskrypcja (status `paused` albo pauza poboru u operatora)
+    // ma uprawnienie `canceled` z ustawionym `canceled_at` - to osobna gałąź:
+    // o wznowieniu decyduje wyłącznie operator, a dostęp przywraca webhook
+    // (`syncEntitlementState`), nie zapis stąd. Okresu nie sprawdzamy: po
+    // triale bez metody płatności okres już minął, a `resume` zaczyna nowy.
+    const pausedEntitlement = sub.status === "canceled" && sub.canceled_at !== null;
+    if (sub.status !== "active" && !pausedEntitlement) {
       throw new Error("subscription_not_resumable");
     }
-    if (sub.current_period_end && new Date(sub.current_period_end).getTime() < Date.now()) {
+    if (
+      !pausedEntitlement &&
+      sub.current_period_end &&
+      new Date(sub.current_period_end).getTime() < Date.now()
+    ) {
       // Okres wygasł - odnowienia nie ma czego reaktywować; potrzebny nowy checkout.
       throw new Error("subscription_period_ended");
     }
 
-    const { resumeScheduledCancellation, isProviderSubscriptionRef, subscriptionEnvironment } =
-      await import("@/lib/billing/subscriptionProvider.server");
+    const {
+      resumeProviderSubscription,
+      isProviderSubscriptionRef,
+      subscriptionEnvironment,
+      PAUSED_BY_OPERATOR,
+    } = await import("@/lib/billing/subscriptionProvider.server");
     const { paymentsConfiguredServer } = await import("@/lib/billing/mockMode.server");
     if (paymentsConfiguredServer() && isProviderSubscriptionRef(sub.external_ref)) {
-      const result = await resumeScheduledCancellation(subscriptionEnvironment(), sub.external_ref);
+      const result = await resumeProviderSubscription(subscriptionEnvironment(), sub.external_ref);
       if (!result.ok) {
         console.error("[billing] provider resume failed", sub.external_ref, result.error);
+        // Wznowienie po pauzie wystawia fakturę - jej odmowa to wynik z adresem
+        // faktury (pauza trwa), a nie awaria.
+        if (PAYMENT_OUTCOMES.has(result.error)) {
+          return {
+            ok: false as const,
+            error: result.error,
+            hostedInvoiceUrl: result.hostedInvoiceUrl ?? null,
+          };
+        }
+        // Odmowy domenowe przechodzą pod własnym kodem: pauzę poboru przy
+        // nieopłaconym okresie zdejmuje operator, nie klient (reguła
+        // w `resumeProviderSubscription`) - UI kieruje wtedy do kontaktu
+        // zamiast udawać chwilową awarię.
+        if (result.error === "subscription_not_resumable" || result.error === PAUSED_BY_OPERATOR) {
+          throw new Error(result.error);
+        }
         throw new Error("provider_resume_failed");
       }
+      if (pausedEntitlement) {
+        // Wiersz `canceled` nie może sam sobie przywrócić dostępu - zrobi to
+        // webhook po potwierdzeniu operatora. Brak czegokolwiek do wznowienia
+        // u operatora = subskrypcja naprawdę się skończyła.
+        if (result.mode === "already_active") throw new Error("subscription_not_resumable");
+        return { ok: true as const };
+      }
+      if (result.mode === "already_active" && sub.canceled_at === null) {
+        throw new Error("subscription_not_resumable");
+      }
+      // Operator cofnął zaplanowany koniec / pauzę, a lokalnego znacznika już
+      // nie ma - nic do zapisania, stan domknie webhook.
+      if (sub.canceled_at === null) return { ok: true as const };
+    } else if (sub.canceled_at === null || pausedEntitlement) {
+      // Bez operatora (mock, zakup dożywotni) wznawia się wyłącznie zaplanowany
+      // koniec na wierszu aktywnym - wiersz `canceled` nie odzyskuje dostępu.
+      throw new Error("subscription_not_resumable");
     }
 
     const { data: updated, error } = await supabaseAdmin

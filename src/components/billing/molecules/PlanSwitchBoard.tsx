@@ -15,6 +15,7 @@ import { billingKeys } from "@/lib/billing/keys";
 import { useAuth } from "@/hooks/useAuth";
 import { changeMySubscriptionPlan, fetchActivePlans } from "@/lib/billing/queries";
 import { buildPlanSwitchBoard, type PlanSwitchOption } from "@/lib/billing/planSwitch";
+import { toastSubscriptionFailure } from "@/lib/billing/paymentOutcomeToast";
 import {
   formatMoney,
   planName,
@@ -59,8 +60,13 @@ export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
   const changePlan = useMutation({
     mutationFn: ({ subscriptionId, planId }: { subscriptionId: string; planId: string }) =>
       changeMySubscriptionPlan(subscriptionId, planId),
-    onSuccess: () => {
-      toast.success(t("profile.subscription.changePlan.success"));
+    onSuccess: (result) => {
+      // Downgrade wchodzi od nowego okresu - bieżący plan zostaje do jego końca.
+      toast.success(
+        result?.effect === "scheduled"
+          ? t("profile.subscription.portal.downgradeScheduled")
+          : t("profile.subscription.changePlan.success"),
+      );
       void qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
       void qc.invalidateQueries({ queryKey: billingKeys.currentTierAll() });
       void qc.invalidateQueries({ queryKey: billingKeys.myOrdersAll() });
@@ -68,7 +74,10 @@ export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
       void qc.invalidateQueries({ queryKey: ["public", "resolved"] });
       void qc.invalidateQueries({ queryKey: ["unlocked-body"] });
     },
-    onError: () => toast.error(t("profile.subscription.changePlan.error")),
+    // Odrzucona dopłata: plan bez zmian, klient dostaje link do faktury.
+    onError: (error) => {
+      toastSubscriptionFailure(t, error, "profile.subscription.changePlan.error");
+    },
   });
 
   const renderRow = (option: PlanSwitchOption) => {

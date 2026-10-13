@@ -4,8 +4,14 @@ import type { Database } from "@/integrations/supabase/types";
 import { supabaseRpcStub } from "@/test/supabase/rpc";
 import { runEventTicketLifecycle } from "@/lib/events/jobs/ticketLifecycleJob.server";
 
-const h = vi.hoisted(() => ({ refund: vi.fn() }));
+const h = vi.hoisted(() => ({ refund: vi.fn(), freeRetries: vi.fn() }));
 vi.mock("@/lib/billing/refundProvider.server", () => ({ refundTransactionFully: h.refund }));
+// Ponowienia darmowych zamówień biletowych mają własny test
+// (`oneTimeFulfilment.server.test.ts`); tu liczy się, że tor je woła z tym
+// samym klientem, limitem i terminem, a ich bilans dokłada do bilansu zwrotów.
+vi.mock("@/lib/billing/oneTimeFulfilment.server", () => ({
+  runUnsettledFreeTicketOrders: h.freeRetries,
+}));
 const job = {
   id: "job-1",
   claim_token: "lease-1",
@@ -25,6 +31,7 @@ beforeEach(() => {
   stub.setData("_event_registration_refunds_claim", [job]);
   stub.setData("_event_registration_refunds_settle", true);
   h.refund.mockReset().mockResolvedValue({ ok: true, adjustmentId: "re_test_refund" });
+  h.freeRetries.mockReset().mockResolvedValue({ claimed: 0, settled: 0, failed: 0, deferred: 0 });
 });
 afterEach(() => vi.useRealTimers());
 
@@ -120,5 +127,50 @@ describe("registration rejection refund worker", () => {
     });
     expect(stub.calls).toHaveLength(0);
     expect(h.refund).not.toHaveBeenCalled();
+  });
+});
+
+describe("free (100% code) ticket order retries", () => {
+  it("runs after the refunds with the same client, limit and deadline", async () => {
+    const deadlineAt = Date.now() + 6_000;
+    const admin = client();
+    await runEventTicketLifecycle(admin, { deadlineAt, limit: 5 });
+    expect(h.freeRetries).toHaveBeenCalledWith(admin, 5, deadlineAt);
+    expect(stub.names()).toContain("_event_registration_refunds_claim");
+  });
+
+  it("adds the retried orders to the job balance and names them in the note", async () => {
+    h.freeRetries.mockResolvedValue({ claimed: 3, settled: 2, failed: 1, deferred: 0 });
+    expect(await run()).toEqual({
+      claimed: 4,
+      sent: 3,
+      skipped: 0,
+      failed: 1,
+      note: "registration_refunds,free_ticket_orders",
+    });
+  });
+
+  it("reports a missing migration instead of a silent zero", async () => {
+    h.freeRetries.mockResolvedValue({
+      claimed: 0,
+      settled: 0,
+      failed: 0,
+      deferred: 0,
+      skipped: "migration_pending",
+    });
+    expect((await run()).note).toBe("registration_refunds,free_ticket_orders:migration_pending");
+  });
+
+  it("a failing retry lookup keeps the refund balance and is counted as one failure", async () => {
+    h.freeRetries.mockRejectedValue(new Error("free ticket orders lookup failed: boom"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(await run()).toEqual({
+      claimed: 1,
+      sent: 1,
+      skipped: 0,
+      failed: 1,
+      note: "registration_refunds,free_ticket_orders:error",
+    });
+    logged.mockRestore();
   });
 });

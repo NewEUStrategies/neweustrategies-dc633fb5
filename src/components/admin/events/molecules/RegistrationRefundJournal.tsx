@@ -1,16 +1,20 @@
-// Molekuła: dziennik zwrotów zgłoszeń wydarzenia (REG-03).
+// Molekuła: dziennik zwrotów zgłoszeń wydarzenia (REG-03; eskalacja INV-19c).
 //
 // KAŻDE ZAMKNIĘCIE OPŁACONEGO ZGŁOSZENIA STOI TU Z POWODEM. Organizator widzi,
 // kto zamknął zgłoszenie (odrzucenie, anulowanie, rezygnacja uczestnika,
 // zamknięcie bez decyzji), co stało się z pieniędzmi i - przy `needs_review` -
 // DLACZEGO zwrot czeka na niego (po terminie, bez samodzielnych zwrotów,
-// wspólna wpłata grupy, wpłata poza operatorem).
+// wspólna wpłata grupy, wpłata poza operatorem, wyczerpane próby, odmowa albo
+// brak potwierdzenia operatora) oraz kiedy administratorzy dostali alarm.
 //
-// DECYZJA W TYM SAMYM MIEJSCU. Wiersz w przeglądzie (albo po ostatecznej
-// porażce operatora) ma przyciski: zwrot przez operatora, oznaczenie zwrotu
-// zrobionego poza systemem, albo „nie zwracaj" z wymaganą notatką. Każda
-// decyzja wymaga drugiego kliknięcia - to pieniądze uczestnika.
-import { useId, useState } from "react";
+// DECYZJA W TYM SAMYM MIEJSCU. Wiersz w przeglądzie (albo po porażce
+// operatora) ma przyciski: zwrot przez operatora, oznaczenie zwrotu zrobionego
+// poza systemem, albo „nie zwracaj" z wymaganą notatką. Każda decyzja wymaga
+// drugiego kliknięcia - to pieniądze uczestnika.
+//
+// WEJŚCIE Z ALARMU. Powiadomienie dla administratorów niesie
+// `?refund_job=<id>`: dziennik otwiera się sam i przewija do tego zlecenia.
+import { useEffect, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -20,8 +24,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatMoney } from "@/lib/billing/types";
 import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
 import {
+  REFUND_ATTEMPT_BUDGET,
   REFUND_DISMISS_NOTE_MIN_LENGTH,
   REFUND_NOTE_MAX_LENGTH,
+  REFUND_UNCONFIRMED_DAYS,
   decideRefundJob,
   fetchRegistrationRefundJournal,
   refundJobDecisions,
@@ -29,11 +35,25 @@ import {
   type RefundJournalRow,
 } from "@/lib/events/registrationRefundJournal";
 import { registrationKeys } from "@/lib/events/useEventRegistrations";
-import { uiLang } from "@/lib/i18n/format";
+import { formatDateTime, uiLang } from "@/lib/i18n/format";
 import { ensureI18n } from "@/lib/i18n-admin-event-registration";
+import { cn } from "@/lib/utils";
 
 ensureI18n();
 const base = "adminEventRegistration.refundJournal";
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Zlecenie wskazane przez alarm dla administratorów (`?refund_job=<id>`,
+ * href z `_event_refund_job_escalate`). Kształt bramkujemy, bo wartość
+ * trafia do selektora DOM. Czytane po zamontowaniu - SSR nie zna adresu
+ * z przeglądarki, a pierwszy render ma być identyczny po obu stronach.
+ */
+function focusedJobFromUrl(): string | null {
+  if (typeof window === "undefined") return null;
+  const value = new URLSearchParams(window.location.search).get("refund_job");
+  return value && UUID_SHAPE.test(value) ? value.toLowerCase() : null;
+}
 
 const DECISION_KEYS: Record<RefundJobDecision, string> = {
   refund: "adminEventRegistration.refundJournal.actions.refund",
@@ -52,6 +72,7 @@ export function RegistrationRefundJournal({ eventId }: { eventId: string }) {
   const lang = uiLang(i18n.language);
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [focusedJob, setFocusedJob] = useState<string | null>(null);
   const [deciding, setDeciding] = useState<{ jobId: string; action: RefundJobDecision } | null>(
     null,
   );
@@ -80,6 +101,22 @@ export function RegistrationRefundJournal({ eventId }: { eventId: string }) {
     setDeciding({ jobId: row.id, action });
     setNote("");
   };
+
+  // Wejście z powiadomienia: dziennik otwiera się sam, bez szukania sekcji.
+  useEffect(() => {
+    const job = focusedJobFromUrl();
+    if (!job) return;
+    setFocusedJob(job);
+    setOpen(true);
+  }, []);
+
+  const focusedLoaded = Boolean(focusedJob && query.data?.some((row) => row.id === focusedJob));
+  useEffect(() => {
+    if (!focusedLoaded || !focusedJob) return;
+    document
+      .getElementById(`${id}-job-${focusedJob}`)
+      ?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  }, [focusedLoaded, focusedJob, id]);
 
   return (
     <div className="space-y-3 rounded-md border p-3">
@@ -111,6 +148,7 @@ export function RegistrationRefundJournal({ eventId }: { eventId: string }) {
           ) : (
             <ul className="space-y-3">
               {query.data.map((row) => {
+                const focused = row.id === focusedJob;
                 const decisions = refundJobDecisions(row);
                 const active = deciding !== null && deciding.jobId === row.id ? deciding : null;
                 const noteTrimmed = note.trim();
@@ -120,13 +158,26 @@ export function RegistrationRefundJournal({ eventId }: { eventId: string }) {
                     noteTrimmed.length < REFUND_DISMISS_NOTE_MIN_LENGTH) ||
                     note.length > REFUND_NOTE_MAX_LENGTH);
                 return (
-                  <li key={row.id} className="space-y-1 rounded-md border p-3 text-sm">
+                  <li
+                    key={row.id}
+                    id={`${id}-job-${row.id}`}
+                    aria-current={focused ? "true" : undefined}
+                    className={cn(
+                      "space-y-1 rounded-md border p-3 text-sm",
+                      focused && "border-primary ring-2 ring-primary/40",
+                    )}
+                  >
                     <p className="font-medium">{row.person_name || t(`${base}.unnamed`)}</p>
                     <p>
                       {t(`${base}.states.${row.state}`)}
                       {" · "}
                       {t(`${base}.origin.${row.origin}`)}
                     </p>
+                    {row.review_reason !== null && (
+                      <p className="font-medium">
+                        {t(`${base}.reasons.${row.review_reason}.label`)}
+                      </p>
+                    )}
                     {row.amount_cents !== null && row.currency !== null && (
                       <p>
                         {t(`${base}.amount`, {
@@ -140,10 +191,32 @@ export function RegistrationRefundJournal({ eventId }: { eventId: string }) {
                         : t(`${base}.order`, { id: row.payment_order_id })}
                     </p>
                     <p>{t(`${base}.attempts`, { count: row.attempts })}</p>
-                    {row.review_reason !== null && (
-                      <p>{t(`${base}.reason.${row.review_reason}`)}</p>
+                    {/* Wskazówka mówi, co zrobić - tylko gdy zlecenie czeka na decyzję.
+                        Zamknięte zlecenie zostaje z samą etykietą powodu. */}
+                    {row.state === "needs_review" && (
+                      <p>
+                        {row.review_reason !== null
+                          ? t(`${base}.reasons.${row.review_reason}.hint`, {
+                              days: REFUND_UNCONFIRMED_DAYS,
+                            })
+                          : t(`${base}.reviewHint`)}
+                      </p>
                     )}
-                    {row.state === "failed" && <p>{t(`${base}.failedHint`)}</p>}
+                    {row.state === "failed" && (
+                      <p>{t(`${base}.failedHint`, { budget: REFUND_ATTEMPT_BUDGET })}</p>
+                    )}
+                    {row.last_error && (
+                      <p className="break-all text-muted-foreground">
+                        {t(`${base}.lastError`, { error: row.last_error })}
+                      </p>
+                    )}
+                    {row.escalated_at && (
+                      <p className="text-muted-foreground">
+                        {t(`${base}.escalated`, {
+                          date: formatDateTime(row.escalated_at, i18n.language),
+                        })}
+                      </p>
+                    )}
                     {row.review_note !== null && row.review_note !== "" && (
                       <p className="text-muted-foreground">
                         {t(`${base}.reviewNote`, { note: row.review_note })}

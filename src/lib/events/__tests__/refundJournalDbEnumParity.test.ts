@@ -14,7 +14,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { REFUND_REVIEW_REASONS } from "@/lib/events/cancellationPreview";
-import { REFUND_JOB_ORIGINS, REFUND_JOB_STATES } from "@/lib/events/registrationRefundJournal";
+import {
+  REFUND_JOB_ORIGINS,
+  REFUND_JOB_REVIEW_REASONS,
+  REFUND_JOB_STATES,
+} from "@/lib/events/registrationRefundJournal";
 import {
   DECISION_NOTE_MAX_LENGTH,
   DECISION_NOTE_MIN_LENGTH,
@@ -61,10 +65,17 @@ describe("dziennik zwrotów - parytet z CHECK", () => {
     );
   });
 
-  it("powód przeglądu: dokładnie wartości `event_refund_jobs_review_reason_values`", () => {
-    expect([...REFUND_REVIEW_REASONS].sort()).toEqual(
+  it("powód przeglądu w dzienniku: dokładnie wartości `event_refund_jobs_review_reason_values`", () => {
+    // Scalenie z main (20261012120000): jeden CHECK zna powody zamknięcia
+    // (REG-03) i powody eskalacji kolejki - dziennik czyta oba.
+    expect([...REFUND_JOB_REVIEW_REASONS].sort()).toEqual(
       constraintValues("event_refund_jobs_review_reason_values").sort(),
     );
+  });
+
+  it("powód z podglądu rezygnacji jest wartością, którą baza zapisze w zleceniu", () => {
+    const allowed = constraintValues("event_refund_jobs_review_reason_values");
+    for (const reason of REFUND_REVIEW_REASONS) expect(allowed).toContain(reason);
   });
 
   it("stan zlecenia: dokładnie wartości CHECK kolumny `state`", () => {

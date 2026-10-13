@@ -124,6 +124,7 @@ export function EventInvoiceDocumentsList({
     } else {
       const answer = await promptDialog({
         title: t("adminEventInvoices.documents.cancelTitle"),
+        description: t("adminEventInvoices.documents.cancelIssuedBody"),
         label: t("adminEventInvoices.documents.cancelReasonLabel"),
         confirmLabel: t("adminEventInvoices.documents.cancelConfirm"),
         cancelLabel: t("adminEventInvoices.documents.keep"),

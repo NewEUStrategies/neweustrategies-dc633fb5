@@ -11,8 +11,10 @@
 //     o dopłacie ma ZNIKNĄĆ, a nie pokazać kwotę niezgodną z fakturą operatora.
 //   * IZOLACJA NAJEMCY. Uprawnienie, mail i dzwonek dostają plan WŁASNEJ
 //     organizacji, nawet gdy obca ma plan o tym samym progu.
-//   * ZGODA NA NEWSLETTER. Świadome wypisanie się jest nadrzędne - automat nie
-//     zapisuje ponownie kogoś, kto zrezygnował.
+//   * ZGODA NA NEWSLETTER. Zapis na listę wyłącznie z jawną zgodą z checkoutu
+//     (pełny zestaw reguł SUB-15: `purchaseEffectsNewsletterConsent.server.test.ts`),
+//     a świadome wypisanie się jest nadrzędne - automat nie zapisuje ponownie
+//     kogoś, kto zrezygnował.
 //   * FAIL-SOFT. Awaria CRM, newslettera albo dzwonka nie może wywrócić
 //     webhooka (operator ponowiłby zdarzenie i zdublował mail) - ma zostać
 //     w logu, a pozostałe skutki mają dojść do końca. Atrapa modeluje awarię
@@ -51,7 +53,8 @@ import {
   type SupabaseFromStub,
   type SupabaseResult,
 } from "@/test/billing/fixtures";
-import { DZIEN, FIXED_NOW_ISO, freezeClock, relativeIso } from "@/test/time";
+import { DZIEN, FIXED_NOW_ISO, MINUTA, freezeClock, relativeIso } from "@/test/time";
+import { PREMIUM_NEWSLETTER_CONSENT_VERSION } from "@/lib/billing/premiumNewsletter";
 
 const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
@@ -65,6 +68,8 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       if (!h.db.current) throw new Error("test: atrapa bazy nieustawiona (beforeEach)");
       return h.db.current.from(table);
     },
+    // Lista wykluczeń (zapis na newsletter po zgodzie) - tu zawsze czysto.
+    rpc: () => Promise.resolve({ data: [], error: null }),
   },
 }));
 
@@ -87,6 +92,9 @@ const {
   applyPlanChangeEffects,
   applyPurchaseEffects,
   applyStatusTransitionEffects,
+  deliverAnnouncements,
+  NewsletterOptInRetryableError,
+  RetryableAnnouncementError,
   syncCrmSubscriptionState,
 } = await import("@/lib/billing/purchaseEffects.server");
 
@@ -94,6 +102,15 @@ freezeClock();
 
 const SUB = "sub_1SyntetycznaSubskrypcja";
 const EMAIL = "klientka@example.com";
+/** Zaznaczone pole zgody w checkoucie - bez niego zakup nie dotyka listy (SUB-15). */
+const WITH_CONSENT: Partial<PurchaseContext> = {
+  newsletterConsent: {
+    version: PREMIUM_NEWSLETTER_CONSENT_VERSION,
+    lang: "pl",
+    at: relativeIso(-2 * MINUTA),
+    orderId: "order-1",
+  },
+};
 
 // --- scena ------------------------------------------------------------------
 
@@ -205,7 +222,9 @@ beforeEach(() => {
   );
   db.setResponse(
     "newsletter_subscribers",
-    guarded("newsletter_subscribers", (chain) => ok(isWrite(chain) ? null : scene.newsletter)),
+    guarded("newsletter_subscribers", (chain) =>
+      ok(isWrite(chain) ? (chain.has("select") ? [{ id: "nl-1" }] : null) : scene.newsletter),
+    ),
   );
   db.setResponse(
     "notifications",
@@ -298,8 +317,8 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
     });
   });
 
-  it("klient bez leada trafia do CRM jako „won”, a na newsletter premium z adresem znormalizowanym", async () => {
-    await applyPurchaseEffects(purchase());
+  it("klient bez leada trafia do CRM jako „won”, a po zgodzie na newsletter premium z adresem znormalizowanym", async () => {
+    await applyPurchaseEffects(purchase(WITH_CONSENT));
 
     const lookup = db.chainsFor("crm_leads").find((c) => !isWrite(c));
     expect(eqFilters(lookup!)).toEqual([
@@ -324,8 +343,13 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       ["tenant_id", BILLING_IDS.tenant],
       ["email", EMAIL],
     ]);
+    // Wstawienie BEZ nadpisywania: wiersz, który pojawił się w międzyczasie,
+    // nie traci dowodów (SUB-15) - zostanie scalony.
     const upsert = db.chainsFor("newsletter_subscribers").find((c) => c.has("upsert"));
-    expect(upsert?.argsOf("upsert")?.[1]).toEqual({ onConflict: "tenant_id,email" });
+    expect(upsert?.argsOf("upsert")?.[1]).toEqual({
+      onConflict: "tenant_id,email",
+      ignoreDuplicates: true,
+    });
     expect(written("newsletter_subscribers", "upsert")).toMatchObject({
       tenant_id: BILLING_IDS.tenant,
       user_id: BILLING_IDS.me,
@@ -364,7 +388,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
     expect(written("crm_leads", "insert")).toBeUndefined();
   });
 
-  it("świadome wypisanie z newslettera jest nadrzędne - automat go nie odwraca", async () => {
+  it("świadome wypisanie z newslettera jest nadrzędne - nawet zgoda z checkoutu go nie odwraca", async () => {
     scene.newsletter = {
       id: "nl-1",
       status: "unsubscribed",
@@ -372,24 +396,23 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       language: "pl",
     };
 
-    await applyPurchaseEffects(purchase());
+    await applyPurchaseEffects(purchase(WITH_CONSENT));
 
     expect(writes("newsletter_subscribers")).toHaveLength(0);
     // Reszta skutków zakupu biegnie normalnie.
     expect(written("notifications", "insert")).toMatchObject({ title_pl: "Subskrypcja aktywna" });
   });
 
-  it("zapis na newsletter zachowuje język wybrany wcześniej i dane z profilu bez imienia", async () => {
+  it("nowy zapis na newsletter bierze dane z profilu bez imienia (istniejący wiersz jest scalany - SUB-15)", async () => {
     scene.profile = { ...scene.profile, first_name: null, last_name: "Nowak" };
-    scene.newsletter = { id: "nl-1", status: "subscribed", unsubscribed_at: null, language: "en" };
 
-    await applyPurchaseEffects(purchase());
+    await applyPurchaseEffects(purchase(WITH_CONSENT));
 
     expect(written("newsletter_subscribers", "upsert")).toMatchObject({
       email: EMAIL,
       first_name: null,
       last_name: "Nowak",
-      language: "en",
+      language: "pl",
     });
     expect(written("crm_leads", "insert")).toMatchObject({ first_name: null, last_name: "Nowak" });
   });
@@ -422,7 +445,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       const error = vi.spyOn(console, "error").mockImplementation(() => {});
       scene.broken = "crm_leads";
 
-      await expect(applyPurchaseEffects(purchase())).resolves.toBeUndefined();
+      await expect(applyPurchaseEffects(purchase(WITH_CONSENT))).resolves.toBeUndefined();
 
       expect(error).toHaveBeenCalledWith(
         "[payments] crm sync failed",
@@ -437,7 +460,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       const error = vi.spyOn(console, "error").mockImplementation(() => {});
       scene.broken = "newsletter_subscribers";
 
-      await expect(applyPurchaseEffects(purchase())).resolves.toBeUndefined();
+      await expect(applyPurchaseEffects(purchase(WITH_CONSENT))).resolves.toBeUndefined();
 
       expect(error).toHaveBeenCalledWith(
         "[payments] premium newsletter opt-in failed",
@@ -502,7 +525,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
         scene.lead = lead;
         scene.rejected = (t, chain) => t === table && chain.has(method);
 
-        await expect(applyPurchaseEffects(purchase())).resolves.toBeUndefined();
+        await expect(applyPurchaseEffects(purchase(WITH_CONSENT))).resolves.toBeUndefined();
 
         expect(error).toHaveBeenCalledWith(
           log,
@@ -536,7 +559,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       const error = vi.spyOn(console, "error").mockImplementation(() => {});
       scene.rejected = (table, chain) => table === "newsletter_subscribers" && !isWrite(chain);
 
-      await applyPurchaseEffects(purchase());
+      await applyPurchaseEffects(purchase(WITH_CONSENT));
 
       // Upsert po (tenant_id, email) ustawiłby `status: subscribed` na wierszu,
       // którego stanu zgody nie udało się przeczytać.
@@ -555,7 +578,7 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       scene.rejected = (table, chain) =>
         table === "profiles" && selectedColumns(chain) === "email, first_name, last_name";
 
-      await applyPurchaseEffects(purchase());
+      await applyPurchaseEffects(purchase(WITH_CONSENT));
 
       expect(db.chainsFor("newsletter_subscribers")).toHaveLength(0);
       expect(error).toHaveBeenCalledWith(
@@ -899,6 +922,279 @@ describe("syncCrmSubscriptionState - wywołanie bezpośrednie", () => {
       "[payments] crm sync failed",
       expect.objectContaining({ message: expect.stringContaining("(profiles)") }),
     );
+    error.mockRestore();
+  });
+});
+
+// PRZEGLĄD S1. Uprawnienie `refunded` (zwrot albo spór BIEŻĄCEGO okresu,
+// `canceled_at` = chwila korekty) wraca do życia wyłącznie dla okresu zaczętego
+// PO korekcie. Skutki zakupu, zmiany planu i rezygnacji nie podawały początku
+// okresu, więc nawet kolejne OPŁACONE odnowienie zostawiało klienta bez dostępu.
+describe("S1 - początek okresu trafia do zapisu uprawnienia", () => {
+  const CORRECTED_AT = relativeIso(-10 * DZIEN);
+
+  beforeEach(() => {
+    db.setResponse("user_subscriptions", (chain) =>
+      chain.has("maybeSingle")
+        ? ok({ id: "us-1", status: "refunded", canceled_at: CORRECTED_AT })
+        : ok(null),
+    );
+  });
+
+  /** Ożywienie: aktualizacja WYŁĄCZNIE tej korekty, którą widział odczyt. */
+  function revive(): RecordedChain | undefined {
+    return db
+      .chainsFor("user_subscriptions")
+      .find(
+        (chain) =>
+          chain.has("update") &&
+          eqFilters(chain).some(([column, value]) => column === "status" && value === "refunded"),
+      );
+  }
+
+  it.each([
+    [
+      "zakup (odnowienie po korekcie)",
+      () => applyPurchaseEffects(purchase({ periodStart: FIXED_NOW_ISO })),
+    ],
+    ["zmiana planu", () => applyPlanChangeEffects(planChange({ periodStart: FIXED_NOW_ISO }))],
+    [
+      "rezygnacja w nowym okresie",
+      () => applyCancellationEffects(purchase({ periodStart: FIXED_NOW_ISO })),
+    ],
+  ])("%s: okres zaczęty PO korekcie ożywia uprawnienie", async (_label, run) => {
+    await run();
+
+    const revived = revive();
+    expect(revived).toBeDefined();
+    expect(eqFilters(revived as RecordedChain)).toContainEqual(["canceled_at", CORRECTED_AT]);
+  });
+
+  it("okres sprzed korekty (to samo zdarzenie okresu) zostawia `refunded`", async () => {
+    await applyPurchaseEffects(purchase({ periodStart: relativeIso(-20 * DZIEN) }));
+
+    expect(revive()).toBeUndefined();
+  });
+});
+
+// PRZEGLĄD 1.3 (dokładnie raz). Webhook zapisuje stan subskrypcji dopiero PO
+// skutkach, więc powtórka po porażce wykonuje je jeszcze raz. Maile mają ziarna
+// idempotencji, CRM jest zbieżny - dzwonek to zwykły INSERT i musi sam
+// rozpoznać, że już leży u odbiorcy od chwili zdarzenia.
+describe("dzwonek raz na zdarzenie (`eventAt`)", () => {
+  const EVENT_AT = relativeIso(-1 * DZIEN);
+
+  function bellLookup(): RecordedChain | undefined {
+    return db.chainsFor("notifications").find((chain) => chain.has("select"));
+  }
+
+  it("dzwonek z tym samym tytułem i adresem od chwili zdarzenia już jest: drugiego nie ma", async () => {
+    db.setResponse("notifications", (chain) =>
+      chain.has("select") ? ok([{ id: "dzwonek-1" }]) : ok(null),
+    );
+
+    await applyStatusTransitionEffects({
+      userId: BILLING_IDS.me,
+      tenantId: BILLING_IDS.tenant,
+      priceId: "plus_monthly",
+      subscriptionId: SUB,
+      periodEnd: relativeIso(20 * DZIEN),
+      previousStatus: "active",
+      status: "paused",
+      eventAt: EVENT_AT,
+    });
+
+    expect(written("notifications", "insert")).toBeUndefined();
+    const lookup = bellLookup();
+    expect(lookup).toBeDefined();
+    expect(eqFilters(lookup as RecordedChain)).toEqual([
+      ["user_id", BILLING_IDS.me],
+      ["tenant_id", BILLING_IDS.tenant],
+      ["kind", "billing"],
+      ["title_pl", "Subskrypcja wstrzymana"],
+      ["href", "/profile/plan"],
+    ]);
+    expect(lookup?.argsOf("gte")).toEqual(["created_at", EVENT_AT]);
+    // Mail idzie dalej - jego duplikat odsiewa ziarno idempotencji.
+    expect(mails()).toHaveLength(1);
+  });
+
+  it.each([
+    ["zakup", () => applyPurchaseEffects(purchase({ eventAt: EVENT_AT }))],
+    ["zmiana planu", () => applyPlanChangeEffects(planChange({ eventAt: EVENT_AT }))],
+    ["rezygnacja", () => applyCancellationEffects(purchase({ eventAt: EVENT_AT }))],
+  ])("%s: dzwonek już leży - drugiego nie ma", async (_label, run) => {
+    db.setResponse("notifications", (chain) =>
+      chain.has("select") ? ok([{ id: "dzwonek-1" }]) : ok(null),
+    );
+
+    await run();
+
+    expect(written("notifications", "insert")).toBeUndefined();
+  });
+
+  it("dzwonka jeszcze nie ma: pierwszy przebieg go zapisuje", async () => {
+    db.setResponse("notifications", (chain) => (chain.has("select") ? ok([]) : ok(null)));
+
+    await applyPurchaseEffects(purchase({ eventAt: EVENT_AT }));
+
+    expect(written("notifications", "insert")).toMatchObject({ title_pl: "Subskrypcja aktywna" });
+  });
+
+  it("nieudany odczyt deduplikacji nie wstrzymuje dzwonka - lepszy duplikat niż cisza", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    db.setResponse("notifications", (chain) =>
+      chain.has("select") ? fail("statement timeout") : ok(null),
+    );
+
+    await applyPurchaseEffects(purchase({ eventAt: EVENT_AT }));
+
+    expect(written("notifications", "insert")).toMatchObject({ title_pl: "Subskrypcja aktywna" });
+    expect(warn).toHaveBeenCalledWith(
+      "[payments] notification dedupe lookup failed",
+      "statement timeout",
+    );
+    warn.mockRestore();
+  });
+
+  it("bez chwili zdarzenia (wołający spoza webhooka) dzwonek idzie bez odczytu", async () => {
+    await applyPurchaseEffects(purchase());
+
+    expect(bellLookup()).toBeUndefined();
+    expect(written("notifications", "insert")).toBeDefined();
+  });
+});
+
+// WERYFIKACJA RUNDY 3 (A3). Webhook zapisuje stan subskrypcji NA KOŃCU,
+// warunkiem na zajęcie zdarzenia. Komunikat wysłany przed tym zapisem mówił
+// klientowi o stanie, którego potem nie było (zapis padł albo nowsze zdarzenie
+// przejęło wiersz) - „wstrzymana" bez „wznowiona". Z kolejką skutki dzielą się
+// na zapisy zbieżne, które RZUCAJĄ (plan, uprawnienie - od razu), i komunikaty
+// (mail, dzwonek, CRM, newsletter), które czekają na `deliverAnnouncements`.
+describe("kolejka komunikatów (`announcements`) - komunikaty po zapisie stanu", () => {
+  let queue: Array<() => Promise<void>> = [];
+  beforeEach(() => {
+    queue = [];
+  });
+
+  it.each([
+    ["zakup", () => applyPurchaseEffects(purchase({ announcements: queue }))],
+    ["zmiana planu", () => applyPlanChangeEffects(planChange({ announcements: queue }))],
+    ["rezygnacja", () => applyCancellationEffects(purchase({ announcements: queue }))],
+  ])(
+    "%s: uprawnienie od razu, mail, dzwonek i CRM dopiero po `deliverAnnouncements`",
+    async (_, run) => {
+      scene.lead = { id: "lead-1", tags: ["customer", "plan:member"] };
+
+      await run();
+
+      expect(writes("user_subscriptions")).toHaveLength(1);
+      expect(mails()).toHaveLength(0);
+      expect(writes("notifications")).toHaveLength(0);
+      expect(writes("crm_leads")).toHaveLength(0);
+      expect(queue).toHaveLength(1);
+
+      await deliverAnnouncements(queue);
+
+      expect(mails()).toHaveLength(1);
+      expect(writes("notifications")).toHaveLength(1);
+      expect(queue).toHaveLength(0);
+    },
+  );
+
+  it("zmiana stanu: plan rozwiązany od razu (porażka odczytu RZUCA przed zapisem stanu), komunikaty w kolejce", async () => {
+    const ctx = {
+      userId: BILLING_IDS.me,
+      tenantId: BILLING_IDS.tenant,
+      priceId: "plus_monthly",
+      subscriptionId: SUB,
+      periodEnd: relativeIso(20 * DZIEN),
+      previousStatus: "active",
+      status: "paused",
+      announcements: queue,
+    };
+
+    await applyStatusTransitionEffects(ctx);
+
+    expect(planLookups()).toHaveLength(1);
+    expect(mails()).toHaveLength(0);
+    expect(writes("notifications")).toHaveLength(0);
+
+    await deliverAnnouncements(queue);
+
+    expect(mails()[0]).toMatchObject({ type: "subscription_paused" });
+    expect(written("notifications", "insert")).toMatchObject({
+      title_pl: "Subskrypcja wstrzymana",
+    });
+    // Drugie doręczenie tej samej kolejki niczego nie powtarza.
+    await deliverAnnouncements(queue);
+    expect(mails()).toHaveLength(1);
+  });
+
+  it("wyjątek jednego komunikatu zostaje w logu, a pozostałe wychodzą - doręczenie nigdy nie rzuca", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const delivered: string[] = [];
+    queue.push(
+      async () => {
+        throw new Error("test: awaria komunikatu");
+      },
+      async () => {
+        delivered.push("drugi");
+      },
+    );
+
+    await expect(deliverAnnouncements(queue)).resolves.toBeUndefined();
+
+    expect(delivered).toEqual(["drugi"]);
+    expect(error).toHaveBeenCalledWith(
+      "[payments] subscription announcement failed",
+      expect.any(Error),
+    );
+    error.mockRestore();
+  });
+
+  // SCALENIE SUB-15 (#34) Z A3. Potwierdzenie zakupu (zgoda z checkoutu,
+  // zajęcie `purchase_confirmed_at`, mail, dzwonek) jest komunikatem w kolejce,
+  // a jego przejściowa porażka nie może zniknąć w logu: zdarzenie ma paść,
+  // operator je ponowi, a pusty znacznik potwierdzenia każe ogłosić zakup
+  // jeszcze raz. Reszta kolejki wychodzi PRZED wyjątkiem.
+  it("porażka do ponowienia (`RetryableAnnouncementError`) wraca PO doręczeniu reszty kolejki", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const delivered: string[] = [];
+    const transient = new NewsletterOptInRetryableError("test: zapis zgody - reset połączenia");
+    queue.push(
+      async () => {
+        throw transient;
+      },
+      async () => {
+        delivered.push("drugi");
+      },
+      async () => {
+        throw new RetryableAnnouncementError("test: druga porażka do ponowienia");
+      },
+    );
+
+    await expect(deliverAnnouncements(queue)).rejects.toBe(transient);
+
+    expect(delivered).toEqual(["drugi"]);
+    expect(queue).toHaveLength(0);
+    error.mockRestore();
+  });
+
+  it("zakup: awaria zajęcia potwierdzenia to porażka do ponowienia - mail i dzwonek nie wychodzą", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await applyPurchaseEffects(
+      purchase({
+        announcements: queue,
+        claimConfirmation: () => Promise.reject(new Error("connection reset")),
+      }),
+    );
+
+    await expect(deliverAnnouncements(queue)).rejects.toThrow(
+      "purchase confirmation claim failed: connection reset",
+    );
+    expect(mails()).toHaveLength(0);
+    expect(writes("notifications")).toHaveLength(0);
     error.mockRestore();
   });
 });

@@ -897,6 +897,7 @@ export type Database = {
           lead_score_bonus: number
           max_redemptions: number | null
           max_redemptions_per_user: number | null
+          max_total_discount_percent: number | null
           metadata: Json
           name: string | null
           newsletter_segment: string | null
@@ -906,6 +907,7 @@ export type Database = {
           prefix: string | null
           redemptions_count: number
           reveals_hidden: boolean
+          stacks_with_promotions: boolean
           tenant_id: string
           ticket_type_ids: string[]
           updated_at: string
@@ -933,6 +935,7 @@ export type Database = {
           lead_score_bonus?: number
           max_redemptions?: number | null
           max_redemptions_per_user?: number | null
+          max_total_discount_percent?: number | null
           metadata?: Json
           name?: string | null
           newsletter_segment?: string | null
@@ -942,6 +945,7 @@ export type Database = {
           prefix?: string | null
           redemptions_count?: number
           reveals_hidden?: boolean
+          stacks_with_promotions?: boolean
           tenant_id?: string
           ticket_type_ids?: string[]
           updated_at?: string
@@ -969,6 +973,7 @@ export type Database = {
           lead_score_bonus?: number
           max_redemptions?: number | null
           max_redemptions_per_user?: number | null
+          max_total_discount_percent?: number | null
           metadata?: Json
           name?: string | null
           newsletter_segment?: string | null
@@ -978,6 +983,7 @@ export type Database = {
           prefix?: string | null
           redemptions_count?: number
           reveals_hidden?: boolean
+          stacks_with_promotions?: boolean
           tenant_id?: string
           ticket_type_ids?: string[]
           updated_at?: string
@@ -1032,6 +1038,8 @@ export type Database = {
       billing_documents: {
         Row: {
           amount_cents: number
+          billing_plane: string | null
+          buyer_snapshot: Json | null
           created_at: string
           currency: string
           hosted_url: string | null
@@ -1043,6 +1051,7 @@ export type Database = {
           pdf_url: string | null
           provider: string
           provider_document_id: string
+          seller_snapshot: Json | null
           status: string
           subscription_id: string | null
           tenant_id: string
@@ -1051,6 +1060,8 @@ export type Database = {
         }
         Insert: {
           amount_cents?: number
+          billing_plane?: string | null
+          buyer_snapshot?: Json | null
           created_at?: string
           currency?: string
           hosted_url?: string | null
@@ -1062,6 +1073,7 @@ export type Database = {
           pdf_url?: string | null
           provider?: string
           provider_document_id: string
+          seller_snapshot?: Json | null
           status?: string
           subscription_id?: string | null
           tenant_id: string
@@ -1070,6 +1082,8 @@ export type Database = {
         }
         Update: {
           amount_cents?: number
+          billing_plane?: string | null
+          buyer_snapshot?: Json | null
           created_at?: string
           currency?: string
           hosted_url?: string | null
@@ -1081,6 +1095,7 @@ export type Database = {
           pdf_url?: string | null
           provider?: string
           provider_document_id?: string
+          seller_snapshot?: Json | null
           status?: string
           subscription_id?: string | null
           tenant_id?: string
@@ -1110,6 +1125,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      billing_probe_credentials: {
+        Row: {
+          id: number
+          rotated_at: string | null
+          token_sha256: string | null
+        }
+        Insert: {
+          id?: number
+          rotated_at?: string | null
+          token_sha256?: string | null
+        }
+        Update: {
+          id?: number
+          rotated_at?: string | null
+          token_sha256?: string | null
+        }
+        Relationships: []
       }
       billing_profiles: {
         Row: {
@@ -5567,9 +5600,11 @@ export type Database = {
           paid_at: string | null
           provider: string
           provider_intent_id: string | null
+          provider_invoice_id: string | null
           provider_session_id: string
           provider_subscription_id: string | null
           recurring: boolean
+          refunded_amount_cents: number
           status: string
           tenant_id: string
           user_id: string | null
@@ -5585,9 +5620,11 @@ export type Database = {
           paid_at?: string | null
           provider?: string
           provider_intent_id?: string | null
+          provider_invoice_id?: string | null
           provider_session_id: string
           provider_subscription_id?: string | null
           recurring?: boolean
+          refunded_amount_cents?: number
           status?: string
           tenant_id?: string
           user_id?: string | null
@@ -5603,9 +5640,11 @@ export type Database = {
           paid_at?: string | null
           provider?: string
           provider_intent_id?: string | null
+          provider_invoice_id?: string | null
           provider_session_id?: string
           provider_subscription_id?: string | null
           recurring?: boolean
+          refunded_amount_cents?: number
           status?: string
           tenant_id?: string
           user_id?: string | null
@@ -7997,6 +8036,60 @@ export type Database = {
           },
         ]
       }
+      event_invoice_ksef_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          from_number: string | null
+          from_status: string | null
+          id: string
+          invoice_id: string
+          note: string
+          tenant_id: string
+          to_number: string | null
+          to_status: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          from_number?: string | null
+          from_status?: string | null
+          id?: string
+          invoice_id: string
+          note?: string
+          tenant_id: string
+          to_number?: string | null
+          to_status: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          from_number?: string | null
+          from_status?: string | null
+          id?: string
+          invoice_id?: string
+          note?: string
+          tenant_id?: string
+          to_number?: string | null
+          to_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_invoice_ksef_events_invoice_fk"
+            columns: ["tenant_id", "invoice_id"]
+            isOneToOne: false
+            referencedRelation: "event_invoices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_invoice_ksef_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_invoice_lines: {
         Row: {
           corrects_line_id: string | null
@@ -8217,6 +8310,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           vat_exempt_basis: string
+          vat_np_basis: string
         }
         Insert: {
           confirmed_at?: string | null
@@ -8244,6 +8338,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           vat_exempt_basis?: string
+          vat_np_basis?: string
         }
         Update: {
           confirmed_at?: string | null
@@ -8271,6 +8366,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           vat_exempt_basis?: string
+          vat_np_basis?: string
         }
         Relationships: [
           {
@@ -8374,13 +8470,19 @@ export type Database = {
           buyer_address: string
           buyer_city: string
           buyer_country: string
+          buyer_downloaded_at: string | null
           buyer_email: string
           buyer_is_company: boolean
           buyer_name: string
+          buyer_notified_at: string | null
           buyer_person_id: string | null
           buyer_postal_code: string
           buyer_tax_id: string
           buyer_user_id: string | null
+          buyer_vies_checked_at: string | null
+          buyer_vies_request_id: string | null
+          buyer_vies_subject: string | null
+          buyer_vies_valid: boolean | null
           cancel_reason: string
           cancelled_at: string | null
           cancelled_by: string | null
@@ -8396,6 +8498,9 @@ export type Database = {
           event_slug: string
           event_title_en: string
           event_title_pl: string
+          fx_effective_date: string | null
+          fx_rate: number | null
+          fx_table_no: string | null
           gross_cents: number
           id: string
           issue_date: string | null
@@ -8408,6 +8513,7 @@ export type Database = {
           locale: string
           net_cents: number
           note: string
+          np_basis: string
           number: string | null
           paid_at: string | null
           payment_method: string
@@ -8415,6 +8521,7 @@ export type Database = {
           po_number: string
           recipient_address: string
           recipient_name: string
+          reverse_charge: boolean | null
           sale_date: string | null
           seller: Json | null
           seq: number | null
@@ -8425,18 +8532,26 @@ export type Database = {
           updated_at: string
           vat_cents: number
           vat_exempt_basis: string
+          vat_pln_cents: number | null
+          vat_summary: Json | null
         }
         Insert: {
           buyer_address?: string
           buyer_city?: string
           buyer_country?: string
+          buyer_downloaded_at?: string | null
           buyer_email?: string
           buyer_is_company?: boolean
           buyer_name?: string
+          buyer_notified_at?: string | null
           buyer_person_id?: string | null
           buyer_postal_code?: string
           buyer_tax_id?: string
           buyer_user_id?: string | null
+          buyer_vies_checked_at?: string | null
+          buyer_vies_request_id?: string | null
+          buyer_vies_subject?: string | null
+          buyer_vies_valid?: boolean | null
           cancel_reason?: string
           cancelled_at?: string | null
           cancelled_by?: string | null
@@ -8452,6 +8567,9 @@ export type Database = {
           event_slug?: string
           event_title_en?: string
           event_title_pl?: string
+          fx_effective_date?: string | null
+          fx_rate?: number | null
+          fx_table_no?: string | null
           gross_cents?: number
           id?: string
           issue_date?: string | null
@@ -8464,6 +8582,7 @@ export type Database = {
           locale?: string
           net_cents?: number
           note?: string
+          np_basis?: string
           number?: string | null
           paid_at?: string | null
           payment_method?: string
@@ -8471,6 +8590,7 @@ export type Database = {
           po_number?: string
           recipient_address?: string
           recipient_name?: string
+          reverse_charge?: boolean | null
           sale_date?: string | null
           seller?: Json | null
           seq?: number | null
@@ -8481,18 +8601,26 @@ export type Database = {
           updated_at?: string
           vat_cents?: number
           vat_exempt_basis?: string
+          vat_pln_cents?: number | null
+          vat_summary?: Json | null
         }
         Update: {
           buyer_address?: string
           buyer_city?: string
           buyer_country?: string
+          buyer_downloaded_at?: string | null
           buyer_email?: string
           buyer_is_company?: boolean
           buyer_name?: string
+          buyer_notified_at?: string | null
           buyer_person_id?: string | null
           buyer_postal_code?: string
           buyer_tax_id?: string
           buyer_user_id?: string | null
+          buyer_vies_checked_at?: string | null
+          buyer_vies_request_id?: string | null
+          buyer_vies_subject?: string | null
+          buyer_vies_valid?: boolean | null
           cancel_reason?: string
           cancelled_at?: string | null
           cancelled_by?: string | null
@@ -8508,6 +8636,9 @@ export type Database = {
           event_slug?: string
           event_title_en?: string
           event_title_pl?: string
+          fx_effective_date?: string | null
+          fx_rate?: number | null
+          fx_table_no?: string | null
           gross_cents?: number
           id?: string
           issue_date?: string | null
@@ -8520,6 +8651,7 @@ export type Database = {
           locale?: string
           net_cents?: number
           note?: string
+          np_basis?: string
           number?: string | null
           paid_at?: string | null
           payment_method?: string
@@ -8527,6 +8659,7 @@ export type Database = {
           po_number?: string
           recipient_address?: string
           recipient_name?: string
+          reverse_charge?: boolean | null
           sale_date?: string | null
           seller?: Json | null
           seq?: number | null
@@ -8537,6 +8670,8 @@ export type Database = {
           updated_at?: string
           vat_cents?: number
           vat_exempt_basis?: string
+          vat_pln_cents?: number | null
+          vat_summary?: Json | null
         }
         Relationships: [
           {
@@ -9401,6 +9536,7 @@ export type Database = {
           invoice_note: string
           package_id: string
           paid_at: string | null
+          pay_by: string | null
           payment_order_id: string | null
           seats_assigned: number
           seats_total: number
@@ -9427,6 +9563,7 @@ export type Database = {
           invoice_note?: string
           package_id: string
           paid_at?: string | null
+          pay_by?: string | null
           payment_order_id?: string | null
           seats_assigned?: number
           seats_total: number
@@ -9453,6 +9590,7 @@ export type Database = {
           invoice_note?: string
           package_id?: string
           paid_at?: string | null
+          pay_by?: string | null
           payment_order_id?: string | null
           seats_assigned?: number
           seats_total?: number
@@ -10253,6 +10391,7 @@ export type Database = {
           currency: string | null
           decided_at: string | null
           decided_by: string | null
+          escalated_at: string | null
           event_id: string
           id: string
           last_error: string | null
@@ -10278,6 +10417,7 @@ export type Database = {
           currency?: string | null
           decided_at?: string | null
           decided_by?: string | null
+          escalated_at?: string | null
           event_id: string
           id?: string
           last_error?: string | null
@@ -10303,6 +10443,7 @@ export type Database = {
           currency?: string | null
           decided_at?: string | null
           decided_by?: string | null
+          escalated_at?: string | null
           event_id?: string
           id?: string
           last_error?: string | null
@@ -10364,6 +10505,10 @@ export type Database = {
           manage_token_hash: string | null
           notify_email: boolean
           notify_sms: boolean
+          paid_amount_cents: number | null
+          paid_amount_currency: string | null
+          paid_amount_recorded_at: string | null
+          paid_amount_recorded_by: string | null
           paid_at: string | null
           participant_reason: string | null
           payment_order_id: string | null
@@ -10418,6 +10563,10 @@ export type Database = {
           manage_token_hash?: string | null
           notify_email?: boolean
           notify_sms?: boolean
+          paid_amount_cents?: number | null
+          paid_amount_currency?: string | null
+          paid_amount_recorded_at?: string | null
+          paid_amount_recorded_by?: string | null
           paid_at?: string | null
           participant_reason?: string | null
           payment_order_id?: string | null
@@ -10472,6 +10621,10 @@ export type Database = {
           manage_token_hash?: string | null
           notify_email?: boolean
           notify_sms?: boolean
+          paid_amount_cents?: number | null
+          paid_amount_currency?: string | null
+          paid_amount_recorded_at?: string | null
+          paid_amount_recorded_by?: string | null
           paid_at?: string | null
           participant_reason?: string | null
           payment_order_id?: string | null
@@ -12465,6 +12618,7 @@ export type Database = {
       }
       event_ticket_packages: {
         Row: {
+          admit_before_payment: boolean
           audience: string
           created_at: string
           currency: string
@@ -12474,9 +12628,11 @@ export type Database = {
           id: string
           is_active: boolean
           key: string
+          max_open_orders_per_buyer: number | null
           min_tier_rank: number
           name_en: string
           name_pl: string
+          payment_terms_days: number
           price_cents: number
           quota: number | null
           requires_verification: boolean
@@ -12485,11 +12641,15 @@ export type Database = {
           seats: number
           sold_count: number
           sort_order: number
+          stripe_tax_code: string | null
           tenant_id: string
           ticket_type_id: string
           updated_at: string
+          vat_exempt_basis: string
+          vat_rate: string | null
         }
         Insert: {
+          admit_before_payment?: boolean
           audience?: string
           created_at?: string
           currency?: string
@@ -12499,9 +12659,11 @@ export type Database = {
           id?: string
           is_active?: boolean
           key: string
+          max_open_orders_per_buyer?: number | null
           min_tier_rank?: number
           name_en: string
           name_pl: string
+          payment_terms_days?: number
           price_cents?: number
           quota?: number | null
           requires_verification?: boolean
@@ -12510,11 +12672,15 @@ export type Database = {
           seats: number
           sold_count?: number
           sort_order?: number
+          stripe_tax_code?: string | null
           tenant_id: string
           ticket_type_id: string
           updated_at?: string
+          vat_exempt_basis?: string
+          vat_rate?: string | null
         }
         Update: {
+          admit_before_payment?: boolean
           audience?: string
           created_at?: string
           currency?: string
@@ -12524,9 +12690,11 @@ export type Database = {
           id?: string
           is_active?: boolean
           key?: string
+          max_open_orders_per_buyer?: number | null
           min_tier_rank?: number
           name_en?: string
           name_pl?: string
+          payment_terms_days?: number
           price_cents?: number
           quota?: number | null
           requires_verification?: boolean
@@ -12535,9 +12703,12 @@ export type Database = {
           seats?: number
           sold_count?: number
           sort_order?: number
+          stripe_tax_code?: string | null
           tenant_id?: string
           ticket_type_id?: string
           updated_at?: string
+          vat_exempt_basis?: string
+          vat_rate?: string | null
         }
         Relationships: [
           {
@@ -12600,9 +12771,12 @@ export type Database = {
           show_price_label: boolean
           sold_count: number
           sort_order: number
+          stripe_tax_code: string | null
           tax_mode: string
           tenant_id: string
           updated_at: string
+          vat_exempt_basis: string
+          vat_rate: string | null
           waitlist_enabled: boolean
         }
         Insert: {
@@ -12641,9 +12815,12 @@ export type Database = {
           show_price_label?: boolean
           sold_count?: number
           sort_order?: number
+          stripe_tax_code?: string | null
           tax_mode?: string
           tenant_id: string
           updated_at?: string
+          vat_exempt_basis?: string
+          vat_rate?: string | null
           waitlist_enabled?: boolean
         }
         Update: {
@@ -12682,9 +12859,12 @@ export type Database = {
           show_price_label?: boolean
           sold_count?: number
           sort_order?: number
+          stripe_tax_code?: string | null
           tax_mode?: string
           tenant_id?: string
           updated_at?: string
+          vat_exempt_basis?: string
+          vat_rate?: string | null
           waitlist_enabled?: boolean
         }
         Relationships: [
@@ -13925,6 +14105,7 @@ export type Database = {
         Row: {
           auto_armed_at: string | null
           base_url: string
+          billing_secret: string
           community_last_tick_at: string | null
           community_last_tick_error: string | null
           community_last_tick_status: string | null
@@ -13946,6 +14127,7 @@ export type Database = {
         Insert: {
           auto_armed_at?: string | null
           base_url?: string
+          billing_secret?: string
           community_last_tick_at?: string | null
           community_last_tick_error?: string | null
           community_last_tick_status?: string | null
@@ -13967,6 +14149,7 @@ export type Database = {
         Update: {
           auto_armed_at?: string | null
           base_url?: string
+          billing_secret?: string
           community_last_tick_at?: string | null
           community_last_tick_error?: string | null
           community_last_tick_status?: string | null
@@ -15035,6 +15218,7 @@ export type Database = {
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id: string
+          ip_subject: string | null
           period_month: string
           tenant_id: string
           user_id: string | null
@@ -15045,6 +15229,7 @@ export type Database = {
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id?: string
+          ip_subject?: string | null
           period_month?: string
           tenant_id: string
           user_id?: string | null
@@ -15055,6 +15240,7 @@ export type Database = {
           entity_id?: string
           entity_type?: Database["public"]["Enums"]["access_entity_type"]
           id?: string
+          ip_subject?: string | null
           period_month?: string
           tenant_id?: string
           user_id?: string | null
@@ -15263,6 +15449,33 @@ export type Database = {
           updated_at?: string
           vocative_en?: string | null
           vocative_pl?: string | null
+        }
+        Relationships: []
+      }
+      nbp_exchange_rates: {
+        Row: {
+          currency: string
+          effective_date: string
+          fetched_at: string
+          mid: number
+          rate_date: string
+          table_no: string
+        }
+        Insert: {
+          currency: string
+          effective_date: string
+          fetched_at?: string
+          mid: number
+          rate_date: string
+          table_no: string
+        }
+        Update: {
+          currency?: string
+          effective_date?: string
+          fetched_at?: string
+          mid?: number
+          rate_date?: string
+          table_no?: string
         }
         Relationships: []
       }
@@ -16368,6 +16581,7 @@ export type Database = {
         Row: {
           amount_cents: number
           anonymized_at: string | null
+          billing_plane: string | null
           created_at: string
           currency: string
           entity_id: string | null
@@ -16377,6 +16591,7 @@ export type Database = {
           invoice_url: string | null
           kind: Database["public"]["Enums"]["order_kind"]
           metadata: Json
+          operator_invoice: boolean | null
           paid_at: string | null
           plan_id: string | null
           provider: string
@@ -16399,6 +16614,7 @@ export type Database = {
         Insert: {
           amount_cents?: number
           anonymized_at?: string | null
+          billing_plane?: string | null
           created_at?: string
           currency?: string
           entity_id?: string | null
@@ -16408,6 +16624,7 @@ export type Database = {
           invoice_url?: string | null
           kind: Database["public"]["Enums"]["order_kind"]
           metadata?: Json
+          operator_invoice?: boolean | null
           paid_at?: string | null
           plan_id?: string | null
           provider?: string
@@ -16430,6 +16647,7 @@ export type Database = {
         Update: {
           amount_cents?: number
           anonymized_at?: string | null
+          billing_plane?: string | null
           created_at?: string
           currency?: string
           entity_id?: string | null
@@ -16439,6 +16657,7 @@ export type Database = {
           invoice_url?: string | null
           kind?: Database["public"]["Enums"]["order_kind"]
           metadata?: Json
+          operator_invoice?: boolean | null
           paid_at?: string | null
           plan_id?: string | null
           provider?: string
@@ -20652,17 +20871,21 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           environment: string
+          first_payment_failed_at: string | null
           id: string
           last_dunning_at: string | null
           last_dunning_transaction_id: string | null
           last_event_at: string | null
+          last_event_id: string | null
           last_payment_at: string | null
           last_payment_failed_at: string | null
+          pause_collection_behavior: string | null
           payment_failure_count: number
           price_id: string
           product_id: string
           provider_customer_id: string
           provider_subscription_id: string
+          purchase_confirmed_at: string | null
           quantity: number
           status: string
           tenant_id: string
@@ -20676,17 +20899,21 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           environment?: string
+          first_payment_failed_at?: string | null
           id?: string
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
           last_event_at?: string | null
+          last_event_id?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
+          pause_collection_behavior?: string | null
           payment_failure_count?: number
           price_id: string
           product_id: string
           provider_customer_id: string
           provider_subscription_id: string
+          purchase_confirmed_at?: string | null
           quantity?: number
           status?: string
           tenant_id?: string
@@ -20700,17 +20927,21 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           environment?: string
+          first_payment_failed_at?: string | null
           id?: string
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
           last_event_at?: string | null
+          last_event_id?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
+          pause_collection_behavior?: string | null
           payment_failure_count?: number
           price_id?: string
           product_id?: string
           provider_customer_id?: string
           provider_subscription_id?: string
+          purchase_confirmed_at?: string | null
           quantity?: number
           status?: string
           tenant_id?: string
@@ -22682,6 +22913,10 @@ export type Database = {
               ok: boolean
             }[]
           }
+      _b2b_coupon_window_open: {
+        Args: { p_at?: string; p_valid_from: string; p_valid_until: string }
+        Returns: boolean
+      }
       _caller_tenant: { Args: never; Returns: string }
       _club_slugify: { Args: { p_text: string }; Returns: string }
       _club_unique_slug: {
@@ -23028,6 +23263,10 @@ export type Database = {
         Args: { _ends: string; _starts: string }
         Returns: string
       }
+      _event_free_ticket_orders_unsettled: {
+        Args: { p_limit?: number }
+        Returns: string[]
+      }
       _event_group_admit_guest: {
         Args: {
           p_guest: Database["public"]["Tables"]["event_registrations"]["Row"]
@@ -23102,6 +23341,17 @@ export type Database = {
         Args: { p_order: string; p_tenant: string }
         Returns: string
       }
+      _event_invoice_correction_build: {
+        Args: {
+          p_actor: string
+          p_changes: Json
+          p_invoice: string
+          p_mode: string
+          p_reason: string
+          p_tenant: string
+        }
+        Returns: string
+      }
       _event_invoice_correction_hint: {
         Args: { p_invoice: string; p_tenant: string }
         Returns: string
@@ -23122,6 +23372,14 @@ export type Database = {
         Args: { p_actor: string; p_payload: Json; p_tenant: string }
         Returns: string
       }
+      _event_invoice_eu_country: {
+        Args: { p_country: string }
+        Returns: boolean
+      }
+      _event_invoice_fx_basis: {
+        Args: { p_issue: string; p_paid: string; p_sale: string }
+        Returns: string
+      }
       _event_invoice_gross_from_net: {
         Args: { p_net: number; p_rate: string }
         Returns: number
@@ -23129,6 +23387,18 @@ export type Database = {
       _event_invoice_issue_core: {
         Args: { p_actor: string; p_invoice: string; p_tenant: string }
         Returns: Json
+      }
+      _event_invoice_ksef_number_valid: {
+        Args: {
+          p_issue_date: string
+          p_number: string
+          p_seller_tax_id: string
+        }
+        Returns: boolean
+      }
+      _event_invoice_ksef_transition_ok: {
+        Args: { p_from: string; p_to: string }
+        Returns: boolean
       }
       _event_invoice_net_from_gross: {
         Args: { p_gross: number; p_rate: string }
@@ -23146,9 +23416,28 @@ export type Database = {
         Args: { p_digits: string }
         Returns: boolean
       }
+      _event_invoice_pln: {
+        Args: { p_cents: number; p_rate: number }
+        Returns: number
+      }
+      _event_invoice_rate_gross: {
+        Args: { p_draft: string; p_target: string; p_tenant: string }
+        Returns: {
+          gross_cents: number
+          vat_rate: string
+        }[]
+      }
       _event_invoice_recalc: {
         Args: { p_invoice: string; p_tenant: string }
         Returns: undefined
+      }
+      _event_invoice_refund_followup: {
+        Args: { p_invoice: string; p_tenant: string }
+        Returns: string
+      }
+      _event_invoice_refund_shortfall: {
+        Args: { p_invoice: string; p_tenant: string }
+        Returns: Json
       }
       _event_invoice_registration_owner: {
         Args: { p_registration_id: string; p_tenant: string; p_uid: string }
@@ -23167,6 +23456,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      _event_invoice_request_deadline: {
+        Args: { p_paid: string; p_service: string }
+        Returns: string
+      }
       _event_invoice_resolve_source: {
         Args: {
           p_event_id: string
@@ -23178,10 +23471,21 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_invoice_reverse_charge: {
+        Args: { p_invoice: string; p_tenant: string }
+        Returns: boolean
+      }
       _event_invoice_seller_json: { Args: { p_tenant: string }; Returns: Json }
       _event_invoice_settings_json: {
         Args: { p_tenant: string }
         Returns: Json
+      }
+      _event_invoice_source_tax_profile: {
+        Args: { p_id: string; p_kind: string; p_tenant: string }
+        Returns: {
+          vat_exempt_basis: string
+          vat_rate: string
+        }[]
       }
       _event_invoice_state: {
         Args: { p_draft: string; p_invoice: string; p_tenant: string }
@@ -23200,6 +23504,24 @@ export type Database = {
       }
       _event_invoice_tax_key: { Args: { p_raw: string }; Returns: string }
       _event_invoice_vat_percent: { Args: { p_rate: string }; Returns: number }
+      _event_invoice_vat_summary: {
+        Args: { p_fx: number; p_invoice: string; p_tenant: string }
+        Returns: Json
+      }
+      _event_invoice_vies_record: {
+        Args: {
+          p_invoice: string
+          p_request_id: string
+          p_subject: string
+          p_tenant: string
+          p_valid: boolean
+        }
+        Returns: Json
+      }
+      _event_invoice_vies_subject: {
+        Args: { p_country: string; p_tax_id: string }
+        Returns: string
+      }
       _event_issue_ticket_codes: {
         Args: { p_registration_id: string }
         Returns: Json
@@ -23309,9 +23631,29 @@ export type Database = {
         Returns: Json
       }
       _event_package_coupon_link_backfill: { Args: never; Returns: Json }
+      _event_package_order_set_status_core: {
+        Args: { p_expire_only?: boolean; p_payload: Json; p_tenant: string }
+        Returns: boolean
+      }
+      _event_package_orders_expire: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
       _event_package_purchase: {
         Args: { p_ip_subject: string; p_payload: Json }
         Returns: Json
+      }
+      _event_package_seats_held: {
+        Args: {
+          p_event_id: string
+          p_tenant: string
+          p_ticket_type_id?: string
+        }
+        Returns: number
+      }
+      _event_package_sold_recount: {
+        Args: { p_package_id: string; p_tenant: string }
+        Returns: number
       }
       _event_page_chain_published: {
         Args: { _page_id: string }
@@ -23408,6 +23750,12 @@ export type Database = {
         Args: { p_lapsed_order?: string; p_registration_id: string }
         Returns: string
       }
+      _event_refund_attempt_budget: { Args: never; Returns: number }
+      _event_refund_job_escalate: {
+        Args: { p_error?: string; p_job_id: string; p_reason: string }
+        Returns: boolean
+      }
+      _event_refund_unconfirmed_days: { Args: never; Returns: number }
       _event_registration_actor: {
         Args: {
           _manage_token: string
@@ -23416,6 +23764,10 @@ export type Database = {
           _uid: string
         }
         Returns: Json
+      }
+      _event_registration_checkout_open: {
+        Args: { p_registration_id: string; p_tenant: string }
+        Returns: boolean
       }
       _event_registration_lang: {
         Args: { _registration_id: string; _tenant: string }
@@ -23427,6 +23779,14 @@ export type Database = {
           p_ticket_type_id: string
         }
         Returns: string
+      }
+      _event_registration_refund_failed: {
+        Args: {
+          p_environment: string
+          p_provider_refund_id: string
+          p_reason: string
+        }
+        Returns: boolean
       }
       _event_registration_refunds_claim: {
         Args: { p_limit?: number }
@@ -23464,6 +23824,10 @@ export type Database = {
       }
       _event_reminders_claim: {
         Args: { p_limit?: number; p_sms?: boolean }
+        Returns: Json
+      }
+      _event_rsvp_claim_paid_seat: {
+        Args: { p_order_id: string }
         Returns: Json
       }
       _event_safe_timezone: { Args: { _tz: string }; Returns: string }
@@ -23678,6 +24042,27 @@ export type Database = {
         }
         Returns: number
       }
+      _event_ticket_floor_cents: {
+        Args: { p_tenant: string; p_ticket_type_id: string }
+        Returns: number
+      }
+      _event_ticket_order_mismatch: {
+        Args: {
+          p_check_amount: boolean
+          p_order: Database["public"]["Tables"]["payment_orders"]["Row"]
+          p_reg: Database["public"]["Tables"]["event_registrations"]["Row"]
+        }
+        Returns: string
+      }
+      _event_ticket_payment_refused: {
+        Args: {
+          p_event_id: string
+          p_order: Database["public"]["Tables"]["payment_orders"]["Row"]
+          p_reason: string
+          p_registration_id: string
+        }
+        Returns: boolean
+      }
       _event_ticket_phase: {
         Args: {
           p_at?: string
@@ -23697,12 +24082,28 @@ export type Database = {
         }
         Returns: number
       }
+      _event_ticket_refusal_payload: {
+        Args: {
+          p_event_id: string
+          p_order: Database["public"]["Tables"]["payment_orders"]["Row"]
+          p_outcome: string
+          p_reason: string
+          p_refund_queued: boolean
+          p_refunded: number
+          p_registration_id: string
+        }
+        Returns: Json
+      }
       _event_ticket_revoked_notices_claim: {
         Args: { p_limit?: number }
         Returns: Json
       }
       _event_ticket_revoked_notices_settle: {
         Args: { p_claimed_at: string; p_done: string[]; p_retry: string[] }
+        Returns: number
+      }
+      _event_ticket_sold_recount: {
+        Args: { p_tenant: string; p_ticket_type_id: string }
         Returns: number
       }
       _event_unique_page_slug: {
@@ -23746,6 +24147,45 @@ export type Database = {
       }
       _menu_items_prune_dead: { Args: { _item_ids: string[] }; Returns: number }
       _menu_items_repair_category_links: { Args: never; Returns: number }
+      _metered_view_consume: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _ip_subject: string
+          _tenant: string
+          _uid: string
+          _visitor_id: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          consumed: boolean
+          content_en: string
+          content_pl: string
+          granted: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
+      _metering_state: {
+        Args: {
+          _ip_subject: string
+          _tenant: string
+          _uid: string
+          _visitor_id: string
+        }
+        Returns: {
+          enabled: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
       _pages_unpublish_test_content: { Args: never; Returns: number }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
       _redeem_b2b_coupon: {
@@ -23779,6 +24219,17 @@ export type Database = {
       }
       _suggest_score: {
         Args: { _a: string; _b: string; _q: string }
+        Returns: number
+      }
+      _tenant_admins_alert: {
+        Args: {
+          p_body_en: string
+          p_body_pl: string
+          p_href: string
+          p_tenant: string
+          p_title_en: string
+          p_title_pl: string
+        }
         Returns: number
       }
       _validate_b2b_coupon: {
@@ -25138,6 +25589,7 @@ export type Database = {
         Args: { p_id: string }
         Returns: string
       }
+      admin_event_invoice_fx_needs: { Args: { p_payload: Json }; Returns: Json }
       admin_event_invoice_get: { Args: { p_id: string }; Returns: Json }
       admin_event_invoice_issue: { Args: { p_id: string }; Returns: Json }
       admin_event_invoice_issue_pending: {
@@ -25146,6 +25598,10 @@ export type Database = {
       }
       admin_event_invoice_ksef_update: {
         Args: { p_payload: Json }
+        Returns: string
+      }
+      admin_event_invoice_mark_notified: {
+        Args: { p_id: string }
         Returns: string
       }
       admin_event_invoice_notify_payload: {
@@ -25159,6 +25615,10 @@ export type Database = {
       admin_event_invoice_settings_get: { Args: never; Returns: Json }
       admin_event_invoice_settings_save: {
         Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_invoice_vies_subject: {
+        Args: { p_id: string }
         Returns: Json
       }
       admin_event_invoices_list: {
@@ -25422,6 +25882,7 @@ export type Database = {
           state: string
         }[]
       }
+      admin_event_package_terms: { Args: { p_event_id: string }; Returns: Json }
       admin_event_package_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_packages_list: {
         Args: { p_event_id: string }
@@ -25575,6 +26036,10 @@ export type Database = {
         Returns: number
       }
       admin_event_registration_notify_payload: {
+        Args: { p_payload: Json }
+        Returns: Json
+      }
+      admin_event_registration_record_payment: {
         Args: { p_payload: Json }
         Returns: Json
       }
@@ -26405,6 +26870,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      admin_event_ticket_set_tax_profile: {
+        Args: { p_payload: Json; p_ticket_id: string }
+        Returns: boolean
+      }
       admin_event_ticket_tax_group: {
         Args: { p_event_id: string }
         Returns: {
@@ -26412,6 +26881,10 @@ export type Database = {
           id: string
           tax_mode: string
         }[]
+      }
+      admin_event_ticket_tax_profile: {
+        Args: { p_event_id: string }
+        Returns: Json
       }
       admin_event_ticket_upsert: { Args: { p_payload: Json }; Returns: string }
       admin_event_tickets_list: {
@@ -27213,6 +27686,11 @@ export type Database = {
       }
       b64url_decode: { Args: { p_value: string }; Returns: string }
       b64url_encode: { Args: { p_value: string }; Returns: string }
+      billing_probe_rotate_token: { Args: never; Returns: string }
+      billing_probe_status: {
+        Args: { p_since: string; p_subscription_id: string; p_token: string }
+        Returns: Json
+      }
       book_meeting_slot: {
         Args: { p_note?: string; p_slot_id: string }
         Returns: Json
@@ -28975,7 +29453,28 @@ export type Database = {
         Args: {
           _entity_id: string
           _entity_type: Database["public"]["Enums"]["access_entity_type"]
-          _visitor_id?: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          consumed: boolean
+          content_en: string
+          content_pl: string
+          granted: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
+      consume_metered_view_visitor: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _ip_subject: string
+          _tenant: string
+          _visitor_id: string
         }
         Returns: {
           blocks_data: Json
@@ -29255,6 +29754,7 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: boolean
       }
+      donations_dedupe_session_invoice_pairs: { Args: never; Returns: number }
       early_access_window: { Args: never; Returns: string }
       editor_inline_author_lookup: {
         Args: { p_id?: string; p_limit?: number; p_query?: string }
@@ -30743,6 +31243,7 @@ export type Database = {
           used: number
         }[]
       }
+      gift_links_revoke_without_creator_access: { Args: never; Returns: number }
       gift_share_eligibility: { Args: never; Returns: string }
       guess_gender_from_name: {
         Args: { _name: string }
@@ -31038,6 +31539,7 @@ export type Database = {
           period_start: string
         }[]
       }
+      metered_views_scrub_ip: { Args: { p_limit?: number }; Returns: number }
       metering_impact_preview: {
         Args: { _proposed_member_limit: number }
         Returns: {
@@ -31053,7 +31555,18 @@ export type Database = {
         }[]
       }
       metering_state: {
-        Args: { _visitor_id?: string }
+        Args: never
+        Returns: {
+          enabled: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
+      metering_state_visitor: {
+        Args: { _ip_subject: string; _tenant: string; _visitor_id?: string }
         Returns: {
           enabled: boolean
           monthly_limit: number
@@ -31418,6 +31931,43 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      payment_webhook_events_redact_expired: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
+      payment_webhook_events_redact_for_user: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
+      payment_webhook_payload_redact: {
+        Args: { p_payload: Json; p_reason: string; p_strip_user_ref?: boolean }
+        Returns: Json
+      }
+      payment_webhook_payload_scrub: {
+        Args: { p_payload: Json; p_strip_user_ref?: boolean }
+        Returns: Json
+      }
+      payment_webhook_sweep_candidates: {
+        Args: {
+          p_backoff_base_ms: number
+          p_horizon_ms: number
+          p_limit: number
+          p_max_attempts: number
+          p_stuck_after_ms: number
+        }
+        Returns: {
+          created_at: string
+          environment: string
+          event_id: string
+          event_type: string
+          id: string
+          last_retried_at: string
+          occurred_at: string
+          processed_at: string
+          retry_count: number
+          status: string
+        }[]
       }
       payments_apply_event_ticket_outcome: {
         Args: {
@@ -32276,10 +32826,12 @@ export type Database = {
       }
       unaccent: { Args: { "": string }; Returns: string }
       unendorse_skill: { Args: { p_skill_id: string }; Returns: undefined }
-      user_has_tier_feature: {
-        Args: { _feature: string; p_user: string }
-        Returns: boolean
-      }
+      user_has_tier_feature:
+        | { Args: { _feature: string; p_user: string }; Returns: boolean }
+        | {
+            Args: { _feature: string; p_tenant: string; p_user: string }
+            Returns: boolean
+          }
       user_is_editorial: { Args: { p_user: string }; Returns: boolean }
       user_tier_rank: {
         Args: { p_tenant?: string; p_user: string }

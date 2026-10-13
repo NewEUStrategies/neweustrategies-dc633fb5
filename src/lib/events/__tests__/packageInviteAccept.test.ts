@@ -217,6 +217,7 @@ describe("acceptPackageInvite - odczyt odpowiedzi", () => {
       eventId: EVENT_ID,
       eventSlug: "kongres-2026",
       status: "approved",
+      awaitingPayment: false,
       qrToken: QR_TOKEN,
       manageToken: MANAGE_TOKEN,
       accountLinked: true,
@@ -255,6 +256,25 @@ describe("acceptPackageInvite - odczyt odpowiedzi", () => {
     await expect(api.acceptPackageInvite(accepting)).rejects.toThrow(/^unknown: /);
   });
 
+  // TIX-07: pakiet jeszcze nieopłacony - zgłoszenie czeka, kodu wejścia nie ma.
+  it.each([
+    ["jawny znacznik bazy", { status: "pending", awaiting_payment: true }],
+    ["sam status oczekujący", { status: "pending" }],
+  ])(
+    "miejsce z nieopłaconego pakietu czyta się jako „czeka na płatność” (%s)",
+    async (_n, over) => {
+      rpc().setData("event_package_invite_accept", {
+        registration_id: REGISTRATION_ID,
+        event_id: EVENT_ID,
+        manage_token: MANAGE_TOKEN,
+        ...over,
+      });
+
+      const result = await api.acceptPackageInvite(accepting);
+      expect(result).toMatchObject({ status: "pending", awaitingPayment: true, qrToken: null });
+    },
+  );
+
   // Pusty kod to BRAK kodu. Napis pusty przepuszczony dalej narysowalby pusta
   // ramke kodu QR i przycisk samoobslugi prowadzacy donikad - a zapraszany nie
   // dowiedzialby sie, ze ma napisac do organizatora.
@@ -270,9 +290,11 @@ describe("acceptPackageInvite - odczyt odpowiedzi", () => {
     expect(result.qrToken).toBeNull();
     expect(result.manageToken).toBeNull();
     expect(result.eventId).toBeNull();
-    // Miejsce oplacil platnik, wiec zapis wchodzi zatwierdzony
-    // (`20261012120200`) - brak statusu w odpowiedzi czyta sie tak samo.
+    // Brak statusu w odpowiedzi czyta sie jako zatwierdzone, bez oczekiwania
+    // na platnosc: baza sprzed 20261012130000 przyjmowala od razu, a miejsce
+    // z oplaconego pakietu wchodzi zatwierdzone takze po scaleniu z REG-15.
     expect(result.status).toBe("approved");
+    expect(result.awaitingPayment).toBe(false);
   });
 
   // Miejsce moglo zostac przypisane, ale bez identyfikatora nie umiemy go ani

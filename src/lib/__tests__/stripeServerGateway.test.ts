@@ -16,8 +16,13 @@
 //      awaria ładowania SDK albo konstruktora nie może zostać zapamiętana -
 //      izolat Workera żyje minutami i trwale odmawiałby płatności.
 //   3. PODPIS WEBHOOKA. Zdarzenie bez podpisu, z podpisem innego środowiska,
-//      ze zmienioną treścią albo spoza okna 300 s musi zostać ODRZUCONE - to
-//      jedyna warstwa autoryzacji odbiornika, a zdarzenie nadaje dostęp.
+//      ze zmienioną treścią, z nieliczbowym znacznikiem czasu albo spoza okna
+//      300 s musi zostać ODRZUCONE - to jedyna warstwa autoryzacji odbiornika,
+//      a zdarzenie nadaje dostęp. Porównanie podpisów idzie przez
+//      `crypto.subtle.verify` (czas stały), nie przez porównanie napisów.
+//   4. LIMITY TRANSPORTU. Domyślne SDK to 80 s na żądanie i 2 ponowienia - do
+//      ~4 min jednego wywołania wewnątrz webhooka. Klient ma 10 s i jedno
+//      ponowienie, a ponowiony zapis niesie TEN SAM klucz idempotencji.
 //
 // GRANICE ATRAP: wyłącznie sieć (`fetch`) i - tam, gdzie trzeba zasymulować
 // awarię - opakowanie modułu `stripe`. SDK operatora biegnie PRAWDZIWE, więc
@@ -41,6 +46,8 @@ const h = vi.hoisted(() => {
     ctorFailsForKey: null as string | null,
     /** Klucze, z którymi zbudowano klienta - po jednym wpisie na KONSTRUKCJĘ. */
     constructedWith: [] as string[],
+    /** Konfiguracja przekazana konstruktorowi SDK - po jednym wpisie na KONSTRUKCJĘ. */
+    constructedConfig: [] as unknown[],
   };
 
   /**
@@ -59,6 +66,7 @@ const h = vi.hoisted(() => {
     const RealStripe = actual.default;
     function GatewayAwareStripe(key: string, config: ConstructorParameters<typeof RealStripe>[1]) {
       state.constructedWith.push(key);
+      state.constructedConfig.push(config);
       if (state.ctorFailsForKey === key) {
         throw new Error(`Stripe: invalid configuration for ${key}`);
       }
@@ -105,6 +113,7 @@ beforeEach(() => {
   h.sdkLoads = 0;
   h.ctorFailsForKey = null;
   h.constructedWith.length = 0;
+  h.constructedConfig.length = 0;
   fetchMock.mockReset();
   fetchMock.mockImplementation(async () =>
     stripeJson({ id: "cus_test_1", object: "customer", email: "anna@example.com" }),
@@ -172,6 +181,44 @@ describe("getStripeClient - transport przez bramkę konektorów", () => {
     expect(headers.get("Idempotency-Key")).toBe("idem_test_1");
     expect(headers.get("X-Connection-Api-Key")).toBe("conn_sandbox_test_1");
     expect(headers.get("Lovable-API-Key")).toBe("lovable_test_1");
+  });
+});
+
+describe("getStripeClient - limity transportu (PAY-14b)", () => {
+  it("klient ma JAWNY limit 10 s na żądanie i jedno ponowienie", async () => {
+    configureKeys();
+    const { getStripeClient, STRIPE_REQUEST_TIMEOUT_MS, STRIPE_MAX_NETWORK_RETRIES } =
+      await freshModule();
+
+    const stripe = await getStripeClient("live");
+
+    expect(STRIPE_REQUEST_TIMEOUT_MS).toBe(10_000);
+    expect(STRIPE_MAX_NETWORK_RETRIES).toBe(1);
+    expect(h.constructedConfig[0]).toMatchObject({ timeout: 10_000, maxNetworkRetries: 1 });
+    // Odczyt z PRAWDZIWEGO klienta SDK - konfiguracja dotarła, a nie tylko
+    // została przekazana.
+    expect(stripe.getApiField("timeout")).toBe(10_000);
+    expect(stripe.getMaxNetworkRetries()).toBe(1);
+  });
+
+  it("zerwane połączenie przy zapisie: DOKŁADNIE jedno ponowienie, z tym samym kluczem idempotencji", async () => {
+    // Ponowienie zapisu bez klucza idempotencji to drugie obciążenie albo
+    // drugi klient u operatora. SDK klucze każdy POST sam - ten test pilnuje,
+    // że ponowienie (włączone jawnie) niesie ten SAM klucz, a nie nowy.
+    configureKeys();
+    const { getStripeClient } = await freshModule();
+    fetchMock.mockReset();
+    fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+
+    const stripe = await getStripeClient("sandbox");
+    await expect(stripe.customers.create({ email: "anna@example.com" })).rejects.toThrow();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const keys = fetchMock.mock.calls.map(([, init]) =>
+      new Headers(init?.headers).get("Idempotency-Key"),
+    );
+    expect(keys[0]).toMatch(/^stripe-node-retry-/);
+    expect(keys[1]).toBe(keys[0]);
   });
 });
 
@@ -444,6 +491,88 @@ describe("verifyWebhook - podpis zdarzenia od operatora", () => {
     await expect(
       verifyWebhook(delivery(`t=${NOW_S},v1=${v1(SANDBOX_SECRET, NOW_S, "")}`, ""), "sandbox"),
     ).rejects.toThrow("Missing signature or body");
+  });
+
+  // KRYTERIUM PAY-14a: znacznik czasu, który nie jest liczbą.
+  it.each([
+    ["napis", "abc"],
+    ["pusty po znaku równości", ""],
+    ["liczba z ułamkiem", `${NOW_S}.5`],
+    ["liczba ujemna", `-${NOW_S}`],
+    ["zapis wykładniczy", "1e9"],
+    ["cyfry poza zakresem liczb skończonych", "9".repeat(400)],
+  ])(
+    "nieliczbowy znacznik czasu (%s) jest odrzucany jako zły format - także z POPRAWNYM podpisem",
+    async (_label, t) => {
+      // Dawniej `Number("abc")` dawało `NaN`, a `Math.abs(NaN) > 300` jest
+      // fałszem - podpis policzony nad `abc.<treść>` przechodził okno powtórki
+      // i dało się go odtwarzać bez limitu czasu.
+      const { verifyWebhook } = await import("@/lib/stripe.server");
+      const forged = createHmac("sha256", SANDBOX_SECRET).update(`${t}.${BODY}`).digest("hex");
+
+      await expect(verifyWebhook(delivery(`t=${t},v1=${forged}`), "sandbox")).rejects.toThrow(
+        "Invalid signature format",
+      );
+    },
+  );
+
+  it("podrobiony podpis (jeden bajt różnicy) jest odrzucany", async () => {
+    const { verifyWebhook } = await import("@/lib/stripe.server");
+    const valid = v1(SANDBOX_SECRET, NOW_S);
+    const tampered = `${valid.slice(0, -2)}${valid.endsWith("00") ? "01" : "00"}`;
+
+    await expect(verifyWebhook(delivery(`t=${NOW_S},v1=${tampered}`), "sandbox")).rejects.toThrow(
+      "Invalid webhook signature",
+    );
+  });
+
+  it("uszkodzony wpis v1 (nie-hex, zła długość) jest pomijany, a poprawny obok przechodzi", async () => {
+    const { verifyWebhook } = await import("@/lib/stripe.server");
+    const header = [
+      `t=${NOW_S}`,
+      "v1=zzzz-to-nie-jest-hex",
+      `v1=${v1(SANDBOX_SECRET, NOW_S).slice(0, 40)}`,
+      `v1=${v1(SANDBOX_SECRET, NOW_S)}`,
+    ].join(",");
+
+    await expect(verifyWebhook(delivery(header), "sandbox")).resolves.toEqual(EVENT);
+  });
+
+  it("same uszkodzone wpisy v1: odmowa podpisu, nie wyjątek parsera", async () => {
+    const { verifyWebhook } = await import("@/lib/stripe.server");
+
+    await expect(
+      verifyWebhook(delivery(`t=${NOW_S},v1=nie-hex,v1=${"g".repeat(64)}`), "sandbox"),
+    ).rejects.toThrow("Invalid webhook signature");
+  });
+
+  it("podpisy porównuje `crypto.subtle.verify` (czas stały), nie porównanie napisów", async () => {
+    // Porównanie napisów kończy się na pierwszym różnym znaku - czas odpowiedzi
+    // zdradza, ile początkowych znaków podrobionego podpisu się zgadza. Dowód
+    // jest strukturalny: każdy poprawnie zbudowany kandydat przechodzi przez
+    // WebCrypto `verify` kluczem o użyciu `verify` (a nie `sign` + `===`).
+    const { verifyWebhook } = await import("@/lib/stripe.server");
+    const importKey = vi.spyOn(crypto.subtle, "importKey");
+    const verify = vi.spyOn(crypto.subtle, "verify");
+    const sign = vi.spyOn(crypto.subtle, "sign");
+    const header = [
+      `t=${NOW_S}`,
+      `v1=${v1("whsec_poprzedni_sekret", NOW_S)}`,
+      `v1=${v1(SANDBOX_SECRET, NOW_S)}`,
+    ].join(",");
+
+    try {
+      await expect(verifyWebhook(delivery(header), "sandbox")).resolves.toEqual(EVENT);
+
+      expect(importKey.mock.calls[0]?.[4]).toEqual(["verify"]);
+      expect(verify).toHaveBeenCalledTimes(2);
+      expect(verify.mock.calls.every(([algorithm]) => algorithm === "HMAC")).toBe(true);
+      expect(sign).not.toHaveBeenCalled();
+    } finally {
+      importKey.mockRestore();
+      verify.mockRestore();
+      sign.mockRestore();
+    }
   });
 
   it("nagłówek bez znacznika czasu albo bez podpisu v1 ma zły format", async () => {

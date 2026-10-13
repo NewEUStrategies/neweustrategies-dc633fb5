@@ -9,6 +9,8 @@
 // z cennika ma wlasna adnotacje (VAT doliczany). Oplacony zapis BEZ miejsca
 // (lista rezerwowa, czeka na decyzje) niesie plakietke listy zgloszen - masowe
 // wystawienie go pomija, a faktura ze szkicu moze potem wymagac korekty.
+// Oplacony przelewem zapis z kwota z cennika ma akcje "Zaksieguj wplate"
+// (INV-14): faktura dokumentuje wplate, a baza bez niej odmawia wystawienia.
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -36,6 +38,7 @@ const api = vi.hoisted(() => ({
   fetchInvoiceCandidates: vi.fn(),
   createInvoiceDraft: vi.fn(),
   issuePendingInvoices: vi.fn(),
+  recordRegistrationPayment: vi.fn(),
 }));
 vi.mock("@/lib/events/eventInvoicesApi", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/events/eventInvoicesApi")>()),
@@ -411,6 +414,73 @@ describe("EventInvoiceCandidatesList", () => {
       screen.getByRole("button", { name: "adminEventInvoices.candidates.issuePending" }),
     );
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("zaksiegowanie wplaty przelewem: kwota z cennika do potwierdzenia, odmowa = toast", async () => {
+    api.fetchInvoiceCandidates.mockResolvedValue([
+      invoiceCandidateRow({
+        source_id: "przelew",
+        person_name: "Piotr Przelew",
+        paid_via: "transfer",
+        amount_source: "price_list",
+        gross_cents: 12300,
+      }),
+      invoiceCandidateRow({ source_id: "karta", person_name: "Karol Karta" }),
+      invoiceCandidateRow({
+        source_id: "nieoplacony",
+        person_name: "Nina Nieoplacona",
+        paid_via: "transfer",
+        payment_state: "unpaid",
+        amount_source: "price_list",
+      }),
+    ]);
+    api.recordRegistrationPayment.mockResolvedValueOnce({ amountCents: 9900, currency: "PLN" });
+    renderList();
+    const book = await screen.findAllByRole("button", {
+      name: "adminEventInvoices.candidates.bookPayment",
+    });
+    // Tylko oplacony przelewem zapis: karta ma kwote operatora, nieoplacony nie ma wplaty.
+    expect(book).toHaveLength(1);
+    fireEvent.click(book[0]);
+    const amount = screen.getByLabelText(
+      "adminEventInvoices.candidates.bookPaymentAmount(currency=PLN)",
+    );
+    expect((amount as HTMLInputElement).value).toBe("123.00");
+    fireEvent.change(amount, { target: { value: "abc" } });
+    expect(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.bookPaymentSave" }),
+    ).toHaveProperty("disabled", true);
+    fireEvent.change(amount, { target: { value: "99,00" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.bookPaymentSave" }),
+    );
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("adminEventInvoices.toasts.paymentBooked"),
+    );
+    expect(api.recordRegistrationPayment.mock.calls[0]?.[0]).toEqual({
+      registrationId: "przelew",
+      amountCents: 9900,
+      currency: "PLN",
+    });
+    api.recordRegistrationPayment.mockRejectedValueOnce(new Error("registration_not_paid: x"));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "adminEventInvoices.candidates.bookPayment" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.bookPaymentSave" }),
+    );
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+  });
+
+  it("zaksiegowana wplata: plakietka i poprawka", async () => {
+    api.fetchInvoiceCandidates.mockResolvedValue([
+      invoiceCandidateRow({ paid_via: "transfer", amount_source: "booked" }),
+    ]);
+    renderList();
+    expect(await screen.findByText("adminEventInvoices.candidates.booked")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "adminEventInvoices.candidates.bookPaymentEdit" }),
+    ).toBeTruthy();
   });
 
   it("dostepnosc: brak naruszen axe", async () => {

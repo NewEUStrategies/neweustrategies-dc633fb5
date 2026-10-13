@@ -14,7 +14,9 @@ import {
   EVENT_INVOICE_CORRECTION_MODES,
   EVENT_INVOICE_KINDS,
   EVENT_INVOICE_KSEF_STATUSES,
+  EVENT_INVOICE_KSEF_TRANSITIONS,
   EVENT_INVOICE_LOCALES,
+  KSEF_NUMBER_PATTERN,
   EVENT_INVOICE_PAYMENT_METHODS,
   EVENT_INVOICE_REQUEST_BLOCKS,
   EVENT_INVOICE_REQUEST_STATUSES,
@@ -115,6 +117,49 @@ describe("parytet podpowiedzi korekty i miejsca oplaconego zapisu", () => {
   it("wycinki umieja odmowic (brak fragmentu to blad, nie pusta lista)", () => {
     expect(() => correctionHintValues("SELECT 1")).toThrow(/Brak podpowiedzi/);
     expect(() => admissionValues("SELECT 1")).toThrow(/Brak miejsca/);
+  });
+});
+
+// Przejscia stanu KSeF (INV-02) i format numeru KSeF (INV-17) - migracja
+// 20261012100000. Panel oferuje w polu wyboru WYLACZNIE przejscia, ktore baza
+// przyjmie; rozjazd = organizator wybiera stan i dostaje `invalid_transition`.
+const COMPLIANCE = readLogicalMigration(
+  "supabase/migrations",
+  "20261012100000_event_invoice_compliance.sql",
+);
+
+function ksefTransitionPairs(sql: string): string[] {
+  const at = sql.indexOf("FUNCTION public._event_invoice_ksef_transition_ok");
+  if (at === -1) throw new Error("Brak funkcji przejsc KSeF w migracji");
+  const slice = sql.slice(sql.indexOf("IN (", at), sql.indexOf("$$;", at));
+  return [...slice.matchAll(/\('([a-z_]+)', '([a-z_]+)'\)/g)]
+    .map((match) => `${match[1]}>${match[2]}`)
+    .sort();
+}
+
+describe("parytet przejsc stanu KSeF i formatu numeru (INV-02, INV-17)", () => {
+  it("TS zna dokladnie przejscia, ktore przyjmuje baza (accepted i not_applicable terminalne)", () => {
+    const ts = Object.entries(EVENT_INVOICE_KSEF_TRANSITIONS)
+      .flatMap(([from, targets]) => targets.map((to) => `${from}>${to}`))
+      .sort();
+    expect(ksefTransitionPairs(COMPLIANCE)).toEqual(ts);
+    expect(EVENT_INVOICE_KSEF_TRANSITIONS.accepted).toEqual([]);
+    expect(Object.keys(EVENT_INVOICE_KSEF_TRANSITIONS).sort()).toEqual(
+      [...EVENT_INVOICE_KSEF_STATUSES].sort(),
+    );
+  });
+
+  it("wzorzec numeru KSeF = wzorzec bazy", () => {
+    expect(COMPLIANCE).toContain(
+      "'^([0-9]{10})-([0-9]{4})([0-9]{2})([0-9]{2})-[0-9A-F]{12}-[0-9A-F]{2}$'",
+    );
+    expect(KSEF_NUMBER_PATTERN.test("7011278375-20260920-0123456789AB-CD")).toBe(true);
+    expect(KSEF_NUMBER_PATTERN.test("7011278375-20260920-0123456789ab-CD")).toBe(false);
+    expect(KSEF_NUMBER_PATTERN.test("KSEF-1")).toBe(false);
+  });
+
+  it("wycinek umie odmowic", () => {
+    expect(() => ksefTransitionPairs("SELECT 1")).toThrow(/Brak funkcji/);
   });
 });
 

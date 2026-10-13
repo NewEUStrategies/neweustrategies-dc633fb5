@@ -276,6 +276,9 @@ beforeEach(() => {
   vi.stubEnv("BILLING_ALLOW_MOCK", "");
 
   chain.setResponse("access_plans", ok(planQuote()));
+  // Kupujący bez historii subskrypcji planu (lustro `subscriptions` pod RLS) -
+  // kasa subskrypcji sprawdza ją przed zamówieniem (audyt SUB-13).
+  chain.setResponse("subscriptions", ok([]));
   chain.setResponse("payment_orders", ok({ id: "order-1", tenant_id: "tenant-alfa" }));
   chain.setResponse("content_access_public", ok(accessRule()));
   chain.setResponse("posts", ok({ title_pl: "Analiza CEE", title_en: "CEE analysis" }));
@@ -385,12 +388,22 @@ describe("createCheckoutOrder - odmowy na ścieżce planu", () => {
     await expect(call(planPayload())).rejects.toThrow("plan_price_missing");
   });
 
+  it("plan KWARTALNY bez pozycji w katalogu NIE spada na cenę miesięczną progu (audyt SUB-05)", async () => {
+    // Dawny zapasowy „pierwszy wpis progu" dobierał planowi `pro/quarter`
+    // cenę `pro_monthly`: zamówienie mówiło o kwartale, operator zakładał
+    // subskrypcję miesięczną po cenie miesięcznej.
+    chain.setResponse("access_plans", ok(planQuote({ tier_key: "pro", interval: "quarter" })));
+
+    await expect(call(planPayload())).rejects.toThrow("plan_price_missing");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
   it("plan za zero złotych nie zakłada zamówienia (`zero_amount`)", async () => {
     // Darmowy plan nie jest przedmiotem kasy - zamówienie na 0 zł przeszłoby
     // przez webhook jako opłacone i nadało uprawnienie bez płatności.
     chain.setResponse("access_plans", ok(planQuote({ price_cents: 0 })));
 
-    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("zero_amount");
+    await expect(call(planPayload())).rejects.toThrow("zero_amount");
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
 
@@ -518,19 +531,44 @@ describe("createCheckoutOrder - wycena planu", () => {
     expect(insertedOrder()?.amount_cents).toBe(4900);
   });
 
-  it("JEDNORAZOWY zakup planu omija katalog cen i idzie ceną wiersza", async () => {
-    // `kind=one_time` z planem to zakup dożywotni - nie ma cyklu, więc nie ma
-    // po co pytać katalogu operatora o cenę subskrypcyjną.
+  it("JEDNORAZOWY zakup planu spoza katalogu NIE omija wyceny - `plan_price_missing`", async () => {
+    // Do 12.10.2026 `kind=one_time` z planem omijał katalog i szedł ceną
+    // wiersza - także dla planu, którego katalog nie zna. Zakup planu idzie
+    // teraz ZAWSZE wyceną wspólną z drugim silnikiem (przegląd PAY-01, 0.0).
     chain.setResponse(
       "access_plans",
-      ok(planQuote({ tier_key: "warstwa-spoza-katalogu", price_cents: 29900 })),
+      ok(
+        planQuote({ tier_key: "warstwa-spoza-katalogu", interval: "one_time", price_cents: 29900 }),
+      ),
     );
 
-    const result = await call(planPayload({ kind: "one_time" }));
+    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("plan_price_missing");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  // `kind=one_time` z planem MIESIĘCZNYM (`plan_not_one_time`, TIX-02) - patrz
+  // blok „jedna ścieżka wyceny na zamówienie" niżej. Tu kierunek odwrotny.
+  it("`kind=subscription` z planem JEDNORAZOWYM też jest odmową (`kind_mismatch`)", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),
+    );
+
+    await expect(call(planPayload())).rejects.toThrow("kind_mismatch");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("plan JEDNORAZOWY z katalogu: zamówienie `one_time` z kwotą WYCENY", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),
+    );
+
+    const result = await call(planPayload({ kind: "one_time", seats: 5 }));
 
     expect(result.ok).toBe(true);
-    expect(insertedOrder()?.amount_cents).toBe(29900);
     expect(insertedOrder()?.kind).toBe("one_time");
+    expect(insertedOrder()?.amount_cents).toBe(1600000);
   });
 });
 
@@ -1036,5 +1074,78 @@ describe("createCheckoutOrder - walidacja wejścia", () => {
 
   it("waluta prezentacji spoza listy jest odrzucana", async () => {
     await expect(call(planPayload({ display_currency: "USD" }))).rejects.toThrow();
+  });
+});
+
+describe("createCheckoutOrder - jedna ścieżka wyceny na zamówienie (TIX-01, TIX-02, TIX-12)", () => {
+  const REGISTRATION_ID = "abababab-0000-4000-8000-000000000007";
+
+  /** Odmowa walidatora: żadnego odczytu z bazy, żadnego zamówienia. */
+  async function expectRefusedBeforeDb(payload: Record<string, unknown>, reason: string) {
+    await expect(call(payload)).rejects.toThrow(reason);
+    expect(chain.chains).toHaveLength(0);
+    expect(admin.rpcCalls).toHaveLength(0);
+  }
+
+  it("plan jednorazowy z biletem i cudzym zgłoszeniem: odmowa, zanim cokolwiek zostanie wycenione", async () => {
+    // Zamówienie wycenione planem, a w metadanych zgłoszenie VIP - webhook
+    // rozliczyłby nim cudzy bilet.
+    await expectRefusedBeforeDb(
+      planPayload({ kind: "one_time", event_id: EVENT_ID, registration_id: REGISTRATION_ID }),
+      "ticket_payload_conflict",
+    );
+  });
+
+  it("treść za 15 zł z biletem i zgłoszeniem: odmowa", async () => {
+    await expectRefusedBeforeDb(
+      entityPayload({
+        event_id: EVENT_ID,
+        ticket_type_id: TICKET_ID,
+        registration_id: REGISTRATION_ID,
+      }),
+      "ticket_payload_conflict",
+    );
+  });
+
+  it("zgłoszenie bez biletu z cennika: odmowa (własność sprawdza tylko gałąź cennika)", async () => {
+    await expectRefusedBeforeDb(
+      ticketPayload({ registration_id: REGISTRATION_ID }),
+      "registration_requires_ticket",
+    );
+  });
+
+  it("bilet z cennika bez wydarzenia: odmowa", async () => {
+    await expectRefusedBeforeDb(
+      entityPayload({ ticket_type_id: TICKET_ID }),
+      "ticket_requires_event",
+    );
+  });
+
+  it("subskrypcja z biletem: odmowa", async () => {
+    await expectRefusedBeforeDb(
+      planPayload({ event_id: EVENT_ID, ticket_type_id: TICKET_ID }),
+      "subscription_payload_conflict",
+    );
+  });
+
+  it("treść z planem: odmowa", async () => {
+    await expectRefusedBeforeDb(entityPayload({ plan_id: PLAN_ID }), "entity_payload_conflict");
+  });
+
+  it("bilet z walutą prezentacji: odmowa - cena biletu jest tylko w walucie cennika", async () => {
+    await expectRefusedBeforeDb(
+      ticketPayload({ ticket_type_id: TICKET_ID, display_currency: "EUR" }),
+      "display_currency_unsupported",
+    );
+  });
+
+  it("zakup jednorazowy planu MIESIĘCZNEGO: odmowa `plan_not_one_time`, bez zamówienia", async () => {
+    // Plan cykliczny kupiony jako `one_time` dawał dożywotni dostęp za cenę
+    // jednego miesiąca (TIX-02, przegląd PAY-01 0.0). Tryb mock nadałby go od
+    // ręki - odmowa zapada przed zamówieniem, więc nie ma czego finalizować.
+    chain.setResponse("access_plans", ok(planQuote({ interval: "month" })));
+
+    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("plan_not_one_time");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
 });

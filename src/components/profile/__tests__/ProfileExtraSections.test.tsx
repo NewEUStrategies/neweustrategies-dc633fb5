@@ -167,6 +167,8 @@ vi.mock("react-i18next", () => ({
 // i18next, której atrapa `react-i18next` wyżej nie wystawia - a `t()` i tak
 // zwraca tu sam klucz.
 vi.mock("@/lib/i18n-upload-area", () => ({}));
+// To samo dotyczy nakładki `dateTimePicker.*`, którą wnosi wspólny DateInput.
+vi.mock("@/lib/i18n-datetime-picker", () => ({}));
 
 import {
   AwardsSection,

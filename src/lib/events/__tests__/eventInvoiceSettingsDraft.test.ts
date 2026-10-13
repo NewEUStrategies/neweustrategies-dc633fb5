@@ -46,6 +46,7 @@ describe("settingsDraftFromSettings", () => {
       paymentDays: "14",
       defaultVatRate: "23",
       vatExemptBasis: "",
+      vatNpBasis: "",
       footerNote: "",
       defaultLocale: "pl",
     });
@@ -142,6 +143,19 @@ describe("validateSettingsDraft", () => {
     ).toEqual({});
   });
 
+  it("domyslne np wymaga podstawy prawnej (INV-12)", () => {
+    expect(validateSettingsDraft(draft({ defaultVatRate: "np" }), CONFIRMED)).toEqual({
+      vatNpBasis: SETTINGS_ERROR_KEYS.npBasis,
+    });
+    expect(
+      validateSettingsDraft(draft({ defaultVatRate: "np", vatNpBasis: "art. 28b" }), CONFIRMED),
+    ).toEqual({});
+    expect(validateSettingsDraft(draft({ vatNpBasis: "b".repeat(301) }), CONFIRMED)).toEqual({
+      vatNpBasis: SETTINGS_ERROR_KEYS.tooLong,
+    });
+    expect(settingsDraftToInput(draft({ vatNpBasis: " art. 28b " })).vatNpBasis).toBe("art. 28b");
+  });
+
   it("dlugosci pol jak w bazie", () => {
     expect(
       validateSettingsDraft(
@@ -202,6 +216,7 @@ describe("settingsDraftToInput", () => {
       paymentDays: 30,
       defaultVatRate: "23",
       vatExemptBasis: "",
+      vatNpBasis: "",
       footerNote: "Stopka",
       defaultLocale: "pl",
     });

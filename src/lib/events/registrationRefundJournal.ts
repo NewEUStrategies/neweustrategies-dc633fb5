@@ -1,10 +1,12 @@
-// Dziennik zwrotów zgłoszeń wydarzenia (REG-03, decyzja D9).
+// Dziennik zwrotów zgłoszeń wydarzenia (REG-03, decyzja D9; eskalacja INV-19c).
 //
 // KAŻDE ZAMKNIĘCIE OPŁACONEGO ZGŁOSZENIA ZOSTAWIA TU WIERSZ: odrzucenie,
 // anulowanie przez organizatora, rezygnacja uczestnika i zamknięcie bez
 // decyzji (siatka bezpieczeństwa w bazie). `pending` idzie do operatora
 // płatności sam, `needs_review` czeka na decyzję organizatora z powodem
-// (`review_reason`).
+// (`review_reason`) - powodem zamknięcia (REG-03) albo eskalacji kolejki
+// (wyczerpane próby, odmowa albo brak potwierdzenia operatora, 20261012120000),
+// po której administratorzy dostają alarm (`escalated_at`).
 //
 // WPŁATA RĘCZNA NIE MA ZAMÓWIENIA. Przelew przyjęty przez organizatora (akcja
 // „opłacone") zostawia wiersz z `payment_order_id = null` - parser go przyjmuje,
@@ -14,7 +16,7 @@
 // a nie pusty dziennik - pusty dziennik obiecywałby, że nic nie czeka na zwrot.
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
-import { REFUND_REVIEW_REASONS, type RefundReviewReason } from "@/lib/events/cancellationPreview";
+import { REFUND_REVIEW_REASONS } from "@/lib/events/cancellationPreview";
 
 export const REFUND_JOB_STATES = [
   "pending",
@@ -40,6 +42,47 @@ export type RefundJobOrigin = (typeof REFUND_JOB_ORIGINS)[number];
 export const REFUND_JOB_DECISIONS = ["refund", "mark_refunded", "dismiss"] as const;
 export type RefundJobDecision = (typeof REFUND_JOB_DECISIONS)[number];
 
+/**
+ * Powody eskalacji kolejki - jedyne wejścia helpera `_event_refund_job_escalate`
+ * (20261012120000), który przenosi zlecenie do `needs_review` RAZEM z alarmem
+ * dla administratorów. Wspólna płatność ma tu własną nazwę
+ * (`active_registrations_share_payment`): to kolejka wykryła ją przy próbie
+ * zwrotu, a nie organizator przy zamknięciu (`shared_payment`).
+ */
+export const REFUND_ESCALATION_REASONS = [
+  "active_registrations_share_payment",
+  "attempts_exhausted",
+  "provider_refund_failed",
+  "refund_unconfirmed",
+] as const;
+
+/**
+ * Dlaczego zlecenie czeka na człowieka (albo dlaczego zwrotu nie ma) - każda
+ * wartość CHECK-a `event_refund_jobs_review_reason_values`: powody zamknięcia
+ * (te same, które widzi podgląd rezygnacji) i powody eskalacji. Każda ma
+ * etykietę i wskazówkę w `adminEventRegistration.refundJournal.reasons`.
+ */
+export const REFUND_JOB_REVIEW_REASONS = [
+  ...REFUND_REVIEW_REASONS,
+  ...REFUND_ESCALATION_REASONS,
+] as const;
+export type RefundJobReviewReason = (typeof REFUND_JOB_REVIEW_REASONS)[number];
+
+/**
+ * Budżet prób zlecenia zwrotu - LUSTRO `public._event_refund_attempt_budget()`.
+ * Porażka numer budżet przenosi zlecenie do `needs_review` z alarmem dla
+ * administratorów. Panel podaje tę liczbę w podpowiedzi, więc rozjazd z bazą
+ * byłby obietnicą prób, których nie będzie - pilnuje tego test parzystości.
+ */
+export const REFUND_ATTEMPT_BUDGET = 10;
+
+/**
+ * Po ilu dniach zlecenie przyjęte przez operatora, ale niepotwierdzone,
+ * eskaluje jako `refund_unconfirmed` - LUSTRO
+ * `public._event_refund_unconfirmed_days()` (ten sam test parzystości).
+ */
+export const REFUND_UNCONFIRMED_DAYS = 7;
+
 export interface RefundJournalRow {
   id: string;
   registration_id: string | null;
@@ -48,7 +91,8 @@ export interface RefundJournalRow {
   person_name: string;
   state: RefundJobState;
   origin: RefundJobOrigin;
-  review_reason: RefundReviewReason | null;
+  /** Powód przeglądu; `null` poza `needs_review` (albo przed eskalacją). */
+  review_reason: RefundJobReviewReason | null;
   amount_cents: number | null;
   currency: string | null;
   refund_deadline_at: string | null;
@@ -57,6 +101,8 @@ export interface RefundJournalRow {
   decided_at: string | null;
   attempts: number;
   last_error: string | null;
+  /** Kiedy administratorzy dostali alarm o tym zleceniu; `null` = nigdy. */
+  escalated_at: string | null;
   next_attempt_at: string;
   created_at: string;
 }
@@ -65,6 +111,7 @@ function invalid(): never {
   throw new Error("invalid_refund_journal");
 }
 
+/** Pole opcjonalne kontraktu: brak klucza (starsze RPC) czytamy jak `null`. */
 function optionalText(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "string") invalid();
@@ -111,7 +158,9 @@ export async function fetchRegistrationRefundJournal(eventId: string): Promise<R
       // odrzuceniem (jedyna droga do dziennika).
       origin:
         row.origin === undefined ? "organizer_rejected" : oneOf(REFUND_JOB_ORIGINS, row.origin),
-      review_reason: reason === null ? null : oneOf(REFUND_REVIEW_REASONS, reason),
+      // Nieznany powód to ten sam błąd co nieznany stan: panel nie zgaduje
+      // etykiety, tylko mówi, że odczyt się nie udał.
+      review_reason: reason === null ? null : oneOf(REFUND_JOB_REVIEW_REASONS, reason),
       amount_cents: optionalCents(row.amount_cents),
       currency: optionalText(row.currency),
       refund_deadline_at: optionalText(row.refund_deadline_at),
@@ -119,6 +168,7 @@ export async function fetchRegistrationRefundJournal(eventId: string): Promise<R
       decided_at: optionalText(row.decided_at),
       attempts,
       last_error: optionalText(row.last_error),
+      escalated_at: optionalText(row.escalated_at),
       next_attempt_at,
       created_at,
     };
@@ -131,9 +181,16 @@ export async function fetchRegistrationRefundJournal(eventId: string): Promise<R
  * operator - `manual_payment`) dostaje „oznacz jako zwrócone": zwrot
  * zamówienia Stripe idzie przez operatora, żeby księga i operator się nie
  * rozjechały. Baza i tak odmawia niepasującej decyzji.
+ *
+ * Zwrot przyjęty przez operatora, ale niepotwierdzony (`refund_unconfirmed`),
+ * może jeszcze dojść - żadna decyzja nie jest wtedy bezpieczna (drugi zwrot,
+ * „nie zwracaj" przy pieniądzach w drodze). Organizator sprawdza status
+ * u operatora; webhook domknie zlecenie albo przeniesie je do
+ * `provider_refund_failed`, gdzie decyzja znów jest możliwa.
  */
 export function refundJobDecisions(row: RefundJournalRow): readonly RefundJobDecision[] {
   if (row.state !== "needs_review" && row.state !== "failed") return [];
+  if (row.review_reason === "refund_unconfirmed") return [];
   return row.payment_order_id === null || row.review_reason === "manual_payment"
     ? ["mark_refunded", "dismiss"]
     : ["refund", "dismiss"];

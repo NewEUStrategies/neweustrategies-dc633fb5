@@ -22,6 +22,39 @@ export const EVENT_INVOICE_KSEF_STATUSES = [
 ] as const;
 export type EventInvoiceKsefStatus = (typeof EVENT_INVOICE_KSEF_STATUSES)[number];
 
+/**
+ * Dozwolone przejscia stanu KSeF (INV-02) - lustro `_event_invoice_ksef_transition_ok`
+ * (migracja 20261012100000, parytet pilnuje `eventInvoicesDbEnumParity.test.ts`).
+ * Ruch WYLACZNIE do przodu; `accepted` i `not_applicable` sa terminalne, wiec
+ * dokumentu przyjetego w KSeF nie da sie "cofnac" do stanu, w ktorym wolno go
+ * anulowac. Panel proponuje tylko te stany.
+ */
+export const EVENT_INVOICE_KSEF_TRANSITIONS: Readonly<
+  Record<EventInvoiceKsefStatus, readonly EventInvoiceKsefStatus[]>
+> = {
+  not_applicable: [],
+  pending: ["sent", "accepted", "rejected"],
+  sent: ["accepted", "rejected"],
+  accepted: [],
+  rejected: ["pending", "sent", "accepted"],
+};
+
+/** Stany do wyboru w panelu: obecny + osiagalne z niego. */
+export function ksefNextStatuses(current: EventInvoiceKsefStatus): EventInvoiceKsefStatus[] {
+  return [current, ...EVENT_INVOICE_KSEF_TRANSITIONS[current]];
+}
+
+/**
+ * Numer KSeF (INV-17): NIP sprzedawcy - data przyjecia RRRRMMDD - 12 znakow
+ * szesnastkowych - 2 znaki sumy. Panel normalizuje (spacje, wielkie litery)
+ * i podpowiada format; NIP sprzedawcy i date sprawdza baza.
+ */
+export const KSEF_NUMBER_PATTERN = /^[0-9]{10}-[0-9]{8}-[0-9A-F]{12}-[0-9A-F]{2}$/;
+
+export function normalizeKsefNumber(value: string): string {
+  return value.trim().toUpperCase();
+}
+
 export const EVENT_INVOICE_PAYMENT_METHODS = ["card", "transfer", "other"] as const;
 export type EventInvoicePaymentMethod = (typeof EVENT_INVOICE_PAYMENT_METHODS)[number];
 

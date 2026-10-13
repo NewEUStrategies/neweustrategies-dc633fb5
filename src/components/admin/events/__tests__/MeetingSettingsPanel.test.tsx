@@ -51,15 +51,27 @@ const h = vi.hoisted(() => ({
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/components/ui/date-input", () => ({
-  DateInput: ({ onChange, value, type, ...props }: {
+  DateInput: ({
+    onChange,
+    value,
+    type,
+    ...props
+  }: {
     onChange: (event: { target: { value: string } }) => void;
-    value: string; type: string; id?: string;
+    value: string;
+    type: string;
+    id?: string;
   }) => <input {...props} type={type} value={value} onChange={onChange} />,
 }));
 vi.mock("@/components/ui/time-input", () => ({
-  TimeInput: ({ onChange, value, ...props }: {
+  TimeInput: ({
+    onChange,
+    value,
+    ...props
+  }: {
     onChange: (event: { target: { value: string } }) => void;
-    value: string; id?: string;
+    value: string;
+    id?: string;
   }) => <input {...props} type="time" value={value} onChange={onChange} />,
 }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));

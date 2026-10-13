@@ -16,6 +16,19 @@
 /** Plan i subskrypcja: status, aktywny plan, portal operatora, zmiana planu. */
 export const PROFILE_PLAN_PATH = "/profile/plan";
 
+/**
+ * Wejście do portalu operatora płatności z maila - STAŁY adres aplikacji, który
+ * dopiero po otwarciu (przez zalogowanego właściciela) tworzy świeżą sesję
+ * portalu i przekierowuje. Sesja portalu żyje kilka minut, więc wysłana w mailu
+ * wprost przestawała działać, zanim adresat zdążył ją kliknąć.
+ *
+ * Plik trasy to `profile_.portal.tsx` (poza powłoką `/profile`): powłoka dla
+ * gościa rysuje ekran 401 z linkiem do `/login`, który po zalogowaniu wraca na
+ * stronę główną - wejście z maila logowałoby więc w próżnię. Własna bramka trasy
+ * otwiera logowanie w miejscu i kontynuuje otwarcie portalu.
+ */
+export const PROFILE_PORTAL_PATH = "/profile/portal";
+
 /** Płatności i faktury: scalona historia, zamówienia, dokumenty, odzyskanie faktury. */
 export const PROFILE_PAYMENTS_PATH = "/profile/payments";
 

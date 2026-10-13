@@ -34,10 +34,20 @@ vi.mock("@/lib/billing/oneTimeFulfilment.server", () => ({
   fulfilOneTimeTransaction: (...args: unknown[]) => h.fulfil(...args),
   markOneTimePaymentFailed: vi.fn(),
 }));
+// Rejestr dokumentow nie jest przedmiotem tego testu: od audytu INV-04
+// nieudany zapis dokumentu konczy zdarzenie bledem (ponowienie Stripe), a ta
+// atrapa bazy go nie planuje.
+vi.mock("@/lib/billing/billingDocuments.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/billing/billingDocuments.server")>()),
+  recordTransactionDocument: async () => "created" as const,
+}));
 vi.mock("@/lib/analytics/ga4Mp.server", () => ({
   sendGa4Purchase: (input: unknown) => h.sendGa4Purchase(input),
 }));
-vi.mock("@/lib/stripe.server", () => ({
+// Reszta modułu (`environmentGrantsAccess`) zostaje PRAWDZIWA - dyspozytor
+// pyta ją o każde zdarzenie, a poza produkcją przepuszcza oba środowiska.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
   getStripeClient: () => {
     throw new Error("test: żaden przypadek nie ma prawa wołać operatora");
   },

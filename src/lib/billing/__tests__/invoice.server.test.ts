@@ -12,6 +12,10 @@
 // w naszej bazie i identyfikator klienta z subskrypcji. Każda ma tu swój test,
 // razem z przypadkiem, w którym ŻADNA nie potwierdza własności.
 //
+// Panel administratora (SUB-08 / INV-11) nie ma już wariantu „bez kontroli":
+// pyta w zakresie NAJEMCY wołającego, a transakcja obcego najemcy (albo innego
+// środowiska) jest dla niego `not_found` - nieodróżnialna od nieistniejącej.
+//
 // Izolacji tenanta w storage pilnuje pgTAP
 // (`tenant_isolation_billing_storage_test.sql`) - tu jest strona TypeScriptu.
 //
@@ -30,8 +34,14 @@ const h = vi.hoisted(() => ({
   /** Odpowiedzi atrapy PostgREST kolejno dla `payment_orders` i `subscriptions`. */
   orderRow: { current: null as { id: string } | null },
   subscriptionRow: { current: null as { id: string } | null },
+  /** Profil z `metadata.userId` (ścieżka najemcy) - `null` = spoza najemcy. */
+  profileRow: { current: null as { id: string } | null },
+  /** Wszystkie subskrypcje klienta operatora (ścieżka najemcy, bez `maybeSingle`). */
+  customerRows: { current: [] as Array<{ tenant_id: string }> },
   tables: [] as string[],
   filters: [] as Array<[string, unknown]>,
+  /** Filtry per zapytanie - dla asercji „to KONKRETNE zapytanie miało zakres". */
+  queries: [] as Array<{ table: string; eqs: Array<[string, unknown]> }>,
   invoice: {
     current: {
       hosted_invoice_url: "https://invoice.example.test/hosted",
@@ -83,17 +93,28 @@ vi.mock("@/lib/billing/transactions.server", () => ({
 vi.mock("@/integrations/supabase/client.server", () => {
   const chain = (table: string) => {
     h.tables.push(table);
+    const query = { table, eqs: [] as Array<[string, unknown]> };
+    h.queries.push(query);
     const link: Record<string, unknown> = {};
     for (const method of ["select", "limit"]) link[method] = () => link;
     link.eq = (column: string, value: unknown) => {
       h.filters.push([column, value]);
+      query.eqs.push([column, value]);
       return link;
     };
     link.maybeSingle = () =>
       Promise.resolve({
-        data: table === "payment_orders" ? h.orderRow.current : h.subscriptionRow.current,
+        data:
+          table === "payment_orders"
+            ? h.orderRow.current
+            : table === "profiles"
+              ? h.profileRow.current
+              : h.subscriptionRow.current,
         error: null,
       });
+    // Odczyt listy (bez ogniwa terminalnego) - subskrypcje klienta operatora.
+    link.then = (onFulfilled?: (value: unknown) => unknown) =>
+      Promise.resolve({ data: h.customerRows.current, error: null }).then(onFulfilled);
     return link;
   };
   return { supabaseAdmin: { from: (table: string) => chain(table) } };
@@ -108,8 +129,11 @@ beforeEach(() => {
   h.ownersThrows.current = false;
   h.orderRow.current = null;
   h.subscriptionRow.current = null;
+  h.profileRow.current = null;
+  h.customerRows.current = [];
   h.tables.length = 0;
   h.filters.length = 0;
+  h.queries.length = 0;
   h.invoice.current = {
     hosted_invoice_url: "https://invoice.example.test/hosted",
     invoice_pdf: null,
@@ -231,23 +255,200 @@ describe("invoiceUrlForTransaction - WŁASNOŚĆ transakcji", () => {
     expect(h.tables).not.toContain("subscriptions");
   });
 
-  // Ścieżka administratora: `userId: null` POMIJA kontrolę własności. Tak jest
-  // zaprojektowana obsługa zgłoszeń (admin dostaje sam numer transakcji od
-  // klienta i nie zna jego konta), a dostępu pilnuje middleware
-  // `requireAdminEditor` na server fn. Test przypina ten kontrakt, żeby nikt nie
-  // przestawił go przypadkiem: wywołanie z `userId` ustawionym MUSI sprawdzać
-  // własność, wywołanie z `null` - nie.
-  it("ścieżka administratora (`userId: null`) świadomie pomija kontrolę własności", async () => {
+  // DEFEKT SUB-08 / INV-11 (naprawiony 12.10.2026). Ten test przypinał
+  // wcześniej kontrakt „`userId: null` POMIJA kontrolę własności" - panel
+  // administratora dowolnego najemcy pobierał nim fakturę KAŻDEJ transakcji
+  // na wspólnym koncie operatora (NIP, adres nabywcy). Teraz wejście bez
+  // zakresu jest odmową, i to zanim padnie jakiekolwiek pytanie do operatora.
+  it("wejście BEZ zakresu (stare `userId: null`) jest odmową bez pytania operatora", async () => {
     h.owners.current = { customerId: "cus_obcy", subscriptionId: null, userId: "user-other" };
 
     const result = await invoiceUrlForTransaction({
       transactionId: VALID_ID,
       environment: "sandbox",
       userId: null,
+    } as unknown as Parameters<typeof invoiceUrlForTransaction>[0]);
+
+    expect(result).toEqual({ ok: false, error: "forbidden" });
+    expect(h.stripeCalls).toHaveLength(0);
+    expect(h.tables).toHaveLength(0);
+  });
+
+  it("pusty `userId` też nie jest zakresem", async () => {
+    const result = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "sandbox",
+      userId: "",
+    });
+
+    expect(result).toEqual({ ok: false, error: "forbidden" });
+    expect(h.stripeCalls).toHaveLength(0);
+  });
+});
+
+describe("invoiceUrlForTransaction - panel administratora: granica NAJEMCY (SUB-08)", () => {
+  const TENANT = "tenant-alfa";
+
+  /** Zapytania do `table` z ich filtrami równościowymi. */
+  function queriesOf(table: string): Array<Array<[string, unknown]>> {
+    return h.queries.filter((q) => q.table === table).map((q) => q.eqs);
+  }
+
+  it("transakcja OBCEGO najemcy to `not_found` i adres dokumentu NIE jest pobierany", async () => {
+    // Scenariusz z audytu: edytor najemcy B pyta o transakcję klienta
+    // najemcy A. Żadna ścieżka dowodu nie trafia w jego najemcę.
+    h.owners.current = { customerId: "cus_obcy", subscriptionId: "sub_obcy", userId: "user-a" };
+    h.customerRows.current = [{ tenant_id: "tenant-beta" }];
+
+    const result = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "sandbox",
+      tenantId: TENANT,
+    });
+
+    expect(result).toEqual({ ok: false, error: "not_found" });
+    // Najważniejsza asercja: żadnego zapytania o dokument.
+    expect(h.stripeCalls).toHaveLength(0);
+  });
+
+  it("odmowa jest NIEODRÓŻNIALNA od transakcji, której operator nie zna", async () => {
+    h.owners.current = { customerId: "cus_obcy", subscriptionId: null, userId: null };
+    const obca = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "sandbox",
+      tenantId: TENANT,
+    });
+
+    h.owners.current = null;
+    const nieznana = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "sandbox",
+      tenantId: TENANT,
+    });
+
+    expect(obca).toEqual(nieznana);
+  });
+
+  it("zamówienie w bazie NAJEMCY i ŚRODOWISKA potwierdza przynależność", async () => {
+    h.owners.current = { customerId: null, subscriptionId: null, userId: null };
+    h.orderRow.current = { id: "order-1" };
+
+    const result = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "sandbox",
+      tenantId: TENANT,
+    });
+
+    expect(result).toMatchObject({ ok: true, url: "https://invoice.example.test/hosted" });
+    expect(queriesOf("payment_orders")).toEqual([
+      [
+        ["provider_intent_id", VALID_ID],
+        ["tenant_id", TENANT],
+        ["environment", "sandbox"],
+      ],
+    ]);
+  });
+
+  it("subskrypcja operatora z transakcji, zapisana w najemcy, potwierdza przynależność", async () => {
+    h.owners.current = { customerId: null, subscriptionId: "sub_alfa", userId: null };
+    h.subscriptionRow.current = { id: "sub-row-1" };
+
+    const result = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "sandbox",
+      tenantId: TENANT,
     });
 
     expect(result).toMatchObject({ ok: true });
-    expect(h.tables).toHaveLength(0);
+    expect(queriesOf("subscriptions")).toEqual([
+      [
+        ["provider_subscription_id", "sub_alfa"],
+        ["tenant_id", TENANT],
+        ["environment", "sandbox"],
+      ],
+    ]);
+  });
+
+  it("`metadata.userId` liczy się wyłącznie, gdy PROFIL tej osoby jest w najemcy", async () => {
+    h.owners.current = { customerId: null, subscriptionId: null, userId: "user-alfa" };
+    h.profileRow.current = { id: "user-alfa" };
+
+    const result = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "sandbox",
+      tenantId: TENANT,
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(queriesOf("profiles")).toEqual([
+      [
+        ["id", "user-alfa"],
+        ["tenant_id", TENANT],
+      ],
+    ]);
+  });
+
+  it("klient operatora WSPÓŁDZIELONY z innym najemcą nie przesądza przynależności", async () => {
+    // Jedno konto operatora obsługuje wielu najemców, a ten sam klient bywa
+    // w obu. Sam identyfikator klienta nie mówi, czyja jest ta płatność.
+    h.owners.current = { customerId: "cus_wspolny", subscriptionId: null, userId: null };
+    h.customerRows.current = [{ tenant_id: TENANT }, { tenant_id: "tenant-beta" }];
+
+    const result = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "sandbox",
+      tenantId: TENANT,
+    });
+
+    expect(result).toEqual({ ok: false, error: "not_found" });
+    expect(h.stripeCalls).toHaveLength(0);
+  });
+
+  it("klient operatora obecny WYŁĄCZNIE w najemcy wołającego potwierdza przynależność", async () => {
+    h.owners.current = { customerId: "cus_alfa", subscriptionId: null, userId: null };
+    h.customerRows.current = [{ tenant_id: TENANT }, { tenant_id: TENANT }];
+
+    const result = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "sandbox",
+      tenantId: TENANT,
+    });
+
+    expect(result).toMatchObject({ ok: true });
+    expect(queriesOf("subscriptions")).toContainEqual([
+      ["provider_customer_id", "cus_alfa"],
+      ["environment", "sandbox"],
+    ]);
+  });
+
+  it("transakcja z INNEGO środowiska nie należy do najemcy", async () => {
+    // Filtr środowiska jest częścią każdego zapytania ścieżki najemcy:
+    // zamówienie z piaskownicy nie potwierdza transakcji produkcyjnej.
+    h.owners.current = { customerId: null, subscriptionId: "sub_x", userId: null };
+
+    const result = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "live",
+      tenantId: TENANT,
+    });
+
+    expect(result).toEqual({ ok: false, error: "not_found" });
+    for (const eqs of [...queriesOf("payment_orders"), ...queriesOf("subscriptions")]) {
+      expect(eqs).toContainEqual(["environment", "live"]);
+    }
+  });
+
+  it("klient operatora BEZ żadnej subskrypcji w środowisku to odmowa", async () => {
+    h.owners.current = { customerId: "cus_pusty", subscriptionId: null, userId: null };
+    h.customerRows.current = [];
+
+    const result = await invoiceUrlForTransaction({
+      transactionId: VALID_ID,
+      environment: "sandbox",
+      tenantId: TENANT,
+    });
+
+    expect(result).toEqual({ ok: false, error: "not_found" });
   });
 });
 

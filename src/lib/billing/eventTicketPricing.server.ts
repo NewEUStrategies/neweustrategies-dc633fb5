@@ -43,7 +43,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/integrations/supabase/types";
 import { codeProbeRpcError, parseCouponVerdict } from "@/lib/billing/coupons";
-import { validateEventTicketCouponForUser } from "@/lib/billing/couponRpc.server";
+import {
+  loadCouponStackingPolicy,
+  validateEventTicketCouponForUser,
+} from "@/lib/billing/couponRpc.server";
 import { groupCouponDiscount } from "@/lib/events/groupOrderPricing";
 import { ticketAmountCents } from "@/lib/events/ticketAllowance";
 import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
@@ -67,6 +70,9 @@ export const REGISTRATION_QUOTE_PHASE_LABEL = {
 } as const;
 
 const NO_TICKET_TYPE = "00000000-0000-0000-0000-000000000000";
+
+/** Kształt kodu podatkowego produktu Stripe - ten sam CHECK co w bazie. */
+export const STRIPE_TAX_CODE_PATTERN = /^txcd_[0-9]{8}$/;
 
 export interface EventTicketPriceInput {
   /**
@@ -123,6 +129,11 @@ export interface EventTicketPrice {
   /** Etykieta aktywnej fazy sprzedaży (pusta poza promocją). */
   phaseLabel: string;
   taxMode: TicketTaxMode | null;
+  /**
+   * Kod podatkowy produktu Stripe z biletu (`txcd_########`, TIX-09) - kasa
+   * przekazuje go do `price_data.product_data.tax_code`. `null` = bez kodu.
+   */
+  taxCode: string | null;
 }
 
 function objectOf(value: unknown): Record<string, unknown> | null {
@@ -265,12 +276,18 @@ export async function priceEventTicket(
             ? "Faza sprzedaży"
             : "");
 
-  // PODATEK. Tryb (wliczony/doliczany) pochodzi z biletu; stawkę liczy Stripe.
+  // PODATEK. Tryb (wliczony/doliczany) i kod podatkowy produktu pochodzą
+  // z biletu; stawkę liczy Stripe z kodu - ta sama, którą bilet niesie na
+  // fakturę (`vat_rate`, 20261012130200).
   const { data: opts } = await supabase.rpc("event_ticket_public_options", {
     p_ticket_type_id: input.ticketTypeId,
   });
-  const mode = objectOf(opts)?.tax_mode;
+  const options = objectOf(opts);
+  const mode = options?.tax_mode;
   const taxMode: TicketTaxMode | null = mode === "inclusive" || mode === "exclusive" ? mode : null;
+  const rawTaxCode = options?.stripe_tax_code;
+  const taxCode =
+    typeof rawTaxCode === "string" && STRIPE_TAX_CODE_PATTERN.test(rawTaxCode) ? rawTaxCode : null;
 
   // GRUPA. Rejestracja grupowa płaci jednym zamówieniem za prowadzącego
   // i wszystkich nieopłaconych gości - liczbę miejsc zna tylko baza.
@@ -345,6 +362,7 @@ export async function priceEventTicket(
     label: ticketName === "" ? eventTitle : `${eventTitle} - ${ticketName}`,
     phaseLabel,
     taxMode,
+    taxCode,
   };
 }
 
@@ -365,6 +383,13 @@ export interface EventTicketCouponInput {
    * (benefit planu). Brak = wszystkie miejsca po tej samej cenie.
    */
   leadCents?: number;
+  /**
+   * Cena REGULARNA całego zamówienia (przed fazą sprzedaży i benefitem planu)
+   * - podstawa limitu łącznego rabatu kodu (TIX-13a). Brak = `amountCents`.
+   */
+  listCents?: number;
+  /** Działa już inna promocja (faza sprzedaży, benefit planu). */
+  promoActive?: boolean;
 }
 
 export type EventTicketCouponResult =
@@ -376,7 +401,7 @@ export type EventTicketCouponResult =
       percent: number | null;
       /** Rabat na CAŁE zamówienie (dla kodu kwotowego: kwota × miejsca). */
       discountCents: number;
-      /** Kwota do zapłaty po kodzie. */
+      /** Kwota do zapłaty po kodzie; 0 = kod 100% (bilet bez płatności). */
       finalCents: number;
       /**
        * Rabat na jedno miejsce - tylko dla kodu kwotowego, gdy KAŻDE miejsce
@@ -391,6 +416,16 @@ export type EventTicketCouponResult =
  * (`validate_event_ticket_coupon`), rozbicie kodu kwotowego na miejsca -
  * `groupCouponDiscount`. NIE rezerwuje użycia: robi to kasa po założeniu
  * zamówienia (`redeem_b2b_coupon`), a podgląd nie robi tego nigdy.
+ *
+ * KUMULACJA (TIX-13a). Faza sprzedaży, benefit planu i kod sumowały się bez
+ * żadnej reguły. Kod niesie teraz dwie: `stacks_with_promotions = false` -
+ * przy aktywnej promocji odmowa `coupon_not_combinable`; limit łącznego rabatu
+ * (`max_total_discount_percent` od ceny regularnej) - kod schodzi najwyżej do
+ * limitu, a gdy promocje już go wyczerpały, kodu nie ma z czego dać.
+ *
+ * KOD 100%. Zero do zapłaty nie jest odmową: kasa rozlicza takie zamówienie
+ * bez płatności (`settleFreeTicketOrder`). Odmową zostaje kwota DODATNIA
+ * poniżej minimum operatora (`final_amount_too_low`).
  */
 export async function applyEventTicketCoupon(
   supabase: Client,
@@ -422,10 +457,31 @@ export async function applyEventTicketCoupon(
     seats: input.seats,
     leadCents: input.leadCents,
   });
-  // Bezpiecznik: rabat 100% (final=0) traktujemy jak darmowy przydział - i tak
-  // nie przejdzie minimalnej kwoty transakcji, więc odrzucamy < 50 gr.
-  if (split.finalCents < MIN_TICKET_TOTAL_CENTS)
+  const policy = await loadCouponStackingPolicy(row.coupon_id);
+  if (!policy.stacksWithPromotions && input.promoActive === true) {
+    return { ok: false, error: "coupon_not_combinable" };
+  }
+  let discountCents = split.discountCents;
+  let finalCents = split.finalCents;
+  let perSeatCents = split.perSeatCents;
+  if (policy.maxTotalDiscountPercent !== null) {
+    const listCents = Math.max(input.listCents ?? input.amountCents, input.amountCents);
+    const allowedTotal = Math.floor((listCents * policy.maxTotalDiscountPercent) / 100);
+    const promoCents = listCents - input.amountCents;
+    const allowedCode = Math.max(allowedTotal - promoCents, 0);
+    if (allowedCode === 0) return { ok: false, error: "coupon_not_combinable" };
+    if (discountCents > allowedCode) {
+      discountCents = allowedCode;
+      finalCents = input.amountCents - allowedCode;
+      // Rabat przycięty do limitu nie schodzi już „po równo z każdego miejsca".
+      perSeatCents = null;
+    }
+  }
+  // Kod 100% - bilet bez płatności (kasa). Dodatnia kwota poniżej minimum
+  // operatora nie przejdzie transakcji, więc to odmowa.
+  if (finalCents > 0 && finalCents < MIN_TICKET_TOTAL_CENTS) {
     return { ok: false, error: "final_amount_too_low" };
+  }
   const kind = row.discount_kind === "fixed" ? "fixed" : "percent";
   return {
     ok: true,
@@ -433,9 +489,9 @@ export async function applyEventTicketCoupon(
     kind,
     percent:
       kind === "percent" && typeof row.discount_percent === "number" ? row.discount_percent : null,
-    discountCents: split.discountCents,
-    finalCents: split.finalCents,
-    perSeatCents: split.perSeatCents,
+    discountCents,
+    finalCents,
+    perSeatCents,
   };
 }
 
@@ -480,6 +536,11 @@ export interface EventTicketQuote {
    * ekran zamiast „Zapłać" daje „Odbierz bilet z planu" (suma zero, bez kodu).
    */
   planRedemption: boolean;
+  /**
+   * Kod 100% (TIX-13a): suma zero po kodzie. Ekran daje „Odbierz bilet"
+   * zamiast „Zapłać" - kasa rozlicza zamówienie bez płatności.
+   */
+  freeWithCode: boolean;
 }
 
 /**
@@ -507,6 +568,7 @@ export async function quoteEventTicketOrder(
     taxMode: price.taxMode,
     // Cena zero przechodzi przez wycenę WYŁĄCZNIE jako bilet z puli.
     planRedemption: price.amountCents === 0,
+    freeWithCode: false,
   };
   const code = (input.couponCode ?? "").trim().toUpperCase();
   // Bilet z planu nie ma kwoty, z której kod mógłby zejść - kodu nie
@@ -521,6 +583,8 @@ export async function quoteEventTicketOrder(
     currency: price.currency,
     seats: price.seats,
     leadCents: price.leadUnitCents,
+    listCents: Math.max(price.listCents, price.amountCents),
+    promoActive: price.planBenefit !== null || price.amountCents < price.listCents,
   });
   if (!applied.ok) return { ...base, couponError: applied.error };
   return {
@@ -533,5 +597,6 @@ export async function quoteEventTicketOrder(
     },
     discountCents: applied.discountCents,
     totalCents: applied.finalCents,
+    freeWithCode: applied.finalCents === 0,
   };
 }

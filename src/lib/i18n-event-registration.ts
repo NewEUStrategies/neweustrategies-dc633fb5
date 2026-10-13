@@ -289,6 +289,11 @@ export const eventRegistrationPl = {
         "Odnośnik z zaproszenia jest niepełny albo został skopiowany z błędem. Poproś organizatora o nowy.",
       successTitle: "Miejsce jest Twoje",
       successBody: "Zgłoszenie zostało zatwierdzone - potwierdzenie wysyłamy e-mailem.",
+      // Pakiet jeszcze nieopłacony (`admit_before_payment = false`): miejsce
+      // czeka na płatność firmy, bilet z kodem wejścia przychodzi po zaksięgowaniu.
+      awaitingTitle: "Miejsce zarezerwowane - czeka na płatność",
+      awaitingBody:
+        "Firma nie opłaciła jeszcze pakietu. Bilet z kodem wejścia wyślemy e-mailem, gdy płatność zostanie zaksięgowana.",
       qrTitle: "Kod wejścia",
       qrHint: "Zapisz go teraz - pokazujemy go tylko raz.",
       backToEvents: "Przejdź do listy wydarzeń",
@@ -884,6 +889,9 @@ export const eventRegistrationEn = {
         "The invitation link is incomplete or was copied with an error. Ask the organiser for a new one.",
       successTitle: "The seat is yours",
       successBody: "Your registration is approved - we send the confirmation by e-mail.",
+      awaitingTitle: "Seat reserved - awaiting payment",
+      awaitingBody:
+        "The company has not paid for the package yet. We will e-mail your ticket with the entry code once the payment is booked.",
       qrTitle: "Entry code",
       qrHint: "Save it now - we show it only once.",
       backToEvents: "Go to the event list",

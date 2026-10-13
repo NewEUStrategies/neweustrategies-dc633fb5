@@ -3,8 +3,9 @@
 // Faktur nie trzymamy u siebie - operator (Merchant of Record) wystawia je i
 // udostępnia pod krótkotrwałym adresem. Użytkownik wkleja numer `txn_...` z
 // maila, serwer sprawdza własność transakcji i zwraca jednorazowy link.
-// Drugi przycisk wysyła na adres konta jednorazowy link do portalu klienta
-// (zmiana metody płatności, faktury, anulowanie).
+// Drugi przycisk wysyła na adres konta stałe wejście do portalu klienta
+// (zmiana metody płatności, faktury, anulowanie) - sesję portalu tworzy
+// dopiero kliknięcie w mailu, więc link nie wygasa w skrzynce.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";

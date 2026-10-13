@@ -85,6 +85,15 @@ const pl = {
     squareIcon32512px: "Kwadratowa ikona (32-512px)",
     usedEmailsExports: "Używane w emailach i eksporcie.",
     seatLimitUpdated: "Limit miejsc: {{limit}} (zawieszone: {{suspended}})",
+    seatDecreaseScheduled:
+      "Zmniejszenie do {{seats}} miejsc zaplanowane od {{date}}. Do tego dnia limit zostaje: {{limit}}.",
+    seatDecreaseScheduledPeriodEnd:
+      "Zmniejszenie do {{seats}} miejsc zaplanowane od nowego okresu rozliczeniowego. Do tego czasu limit zostaje: {{limit}}.",
+    seatPaymentFailed:
+      "Dopłata za dodatkowe miejsca nie przeszła - liczba miejsc bez zmian. Płatnik może opłacić fakturę inną kartą.",
+    seatPaymentRequiresAction:
+      "Bank płatnika prosi o potwierdzenie dopłaty - miejsca dojdą po potwierdzeniu na stronie faktury.",
+    openInvoice: "Otwórz fakturę",
     paymentProviderRejectedChange: "Operator odrzucił zmianę liczby miejsc",
     couldChangeSeatLimit: "Nie udało się zmienić limitu miejsc",
     gracePeriodUpdated: "Okres karencji: {{days}} dni",
@@ -111,6 +120,8 @@ const pl = {
       "Miejsca ponad limit zostają w organizacji, ale tracą uprawnienia warstwy.",
     willEnterGrace: "Wejdą w karencję ({{days}} dni):",
     loseAccessImmediately: "Stracą dostęp od razu:",
+    willEnterGraceNextPeriod: "Od nowego okresu rozliczeniowego wejdą w karencję ({{days}} dni):",
+    loseAccessNextPeriod: "Od nowego okresu rozliczeniowego stracą dostęp:",
     gracePeriodDays: "Okres karencji w dniach",
     applyGracePeriod: "Ustaw karencję",
     closeOverdue: "Domknij zaległe",
@@ -228,6 +239,15 @@ const en = {
     squareIcon32512px: "Square icon (32-512px)",
     usedEmailsExports: "Used in emails and exports.",
     seatLimitUpdated: "Seat limit: {{limit}} (suspended: {{suspended}})",
+    seatDecreaseScheduled:
+      "Decrease to {{seats}} seats scheduled from {{date}}. Until then the limit stays at {{limit}}.",
+    seatDecreaseScheduledPeriodEnd:
+      "Decrease to {{seats}} seats scheduled from the next billing period. Until then the limit stays at {{limit}}.",
+    seatPaymentFailed:
+      "The payment for the extra seats failed - the seat count is unchanged. The payer can pay the invoice with another card.",
+    seatPaymentRequiresAction:
+      "The payer's bank asks to confirm the payment - the seats are added once it is confirmed on the invoice page.",
+    openInvoice: "Open invoice",
     paymentProviderRejectedChange: "The payment provider rejected the change",
     couldChangeSeatLimit: "Could not change the seat limit",
     gracePeriodUpdated: "Grace period: {{days}} days",
@@ -254,6 +274,8 @@ const en = {
       "Seats above the limit stay in the organisation but lose their tier entitlements.",
     willEnterGrace: "Will enter grace ({{days}} days):",
     loseAccessImmediately: "Will lose access immediately:",
+    willEnterGraceNextPeriod: "From the next billing period will enter grace ({{days}} days):",
+    loseAccessNextPeriod: "From the next billing period will lose access:",
     gracePeriodDays: "Grace period in days",
     applyGracePeriod: "Apply grace period",
     closeOverdue: "Close overdue",
