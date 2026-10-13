@@ -10,7 +10,9 @@
 // subskrypcji emituje `customer.subscription.updated` z migawką stanu - w
 // jednej sekundzie, jak dwa wywołania jedno po drugim - więc test widzi, czy
 // któraś migawka niesie stan sprzeczny z wynikiem operacji (strażnik
-// webhooka po sekundach może przepuścić dowolną z nich).
+// webhooka po sekundach może przepuścić dowolną z nich). Atrapa umie też
+// zwrócić przejściowe 5xx albo zgubić odpowiedź PO wykonaniu - kompensacja
+// musi rozstrzygać żywym stanem, a nie samym faktem błędu.
 import type Stripe from "stripe";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -94,6 +96,17 @@ class FakeStripe {
   events: SubscriptionEvent[] = [];
   /** Następna dopłata (`pending_if_incomplete`) zostanie odrzucona. */
   declineNextPayment = false;
+  /**
+   * Następna aktualizacja subskrypcji kończy się tym błędem BEZ wykonania.
+   * Operator zapamiętuje pod kluczem także 5xx, więc atrapa też - ponowienie
+   * tym samym kluczem dostałoby ten sam błąd z pamięci.
+   */
+  failNextUpdate: Error | null = null;
+  /**
+   * Następne wywołanie tej metody WYKONUJE się (i trafia do pamięci klucza),
+   * ale odpowiedź ginie - zerwane połączenie po stronie klienta.
+   */
+  loseResponseOf: "sub.update" | "schedule.release" | null = null;
   private seq = 0;
   private readonly now = PERIOD_START + 3_600;
 
@@ -141,6 +154,46 @@ class FakeStripe {
   liveSchedule(): FakeSchedule | null {
     const s = this.sub.schedule ? this.schedules.get(this.sub.schedule) : undefined;
     return s && (s.status === "active" || s.status === "not_started") ? s : null;
+  }
+
+  /**
+   * Harmonogram ustawiony w panelu operatora (migracja cennika, zmiana
+   * uzgodniona przez obsługę): bieżąca faza = żywe pozycje do końca okresu,
+   * następna = `next`. Daty faz wypełnione tak jak w odpowiedzi operatora.
+   */
+  seedSchedule(next: { price: string; quantity: number }[]): string {
+    const item = this.sub.items.data[0];
+    const id = this.nextId("sched");
+    const length = item.current_period_end - item.current_period_start;
+    this.schedules.set(id, {
+      id,
+      object: "subscription_schedule",
+      status: "active",
+      subscription: this.sub.id,
+      metadata: {},
+      end_behavior: "release",
+      current_phase: { start_date: item.current_period_start, end_date: item.current_period_end },
+      phases: [
+        {
+          start_date: item.current_period_start,
+          end_date: item.current_period_end,
+          items: [{ price: item.price.id, quantity: item.quantity }],
+        },
+        {
+          start_date: item.current_period_end,
+          end_date: item.current_period_end + length,
+          items: next,
+        },
+      ],
+    });
+    this.sub.schedule = id;
+    return id;
+  }
+
+  private delivered<T>(name: "sub.update" | "schedule.release", value: T): T {
+    if (this.loseResponseOf !== name) return value;
+    this.loseResponseOf = null;
+    throw stripeError("Connection reset by peer", "StripeConnectionError");
   }
 
   private nextId(prefix: string): string {
@@ -221,8 +274,13 @@ class FakeStripe {
       paymentIntents: { retrieve: async () => ({ status: "requires_payment_method" }) },
       subscriptions: {
         retrieve: async (_id: string, p?: { expand?: string[] }) => this.view(p?.expand ?? []),
-        update: async (_id: string, params: Raw, opts?: { idempotencyKey?: string }) =>
-          this.idem("sub.update", opts?.idempotencyKey, () => {
+        update: async (_id: string, params: Raw, opts?: { idempotencyKey?: string }) => {
+          const result = this.idem("sub.update", opts?.idempotencyKey, () => {
+            if (this.failNextUpdate) {
+              const error = this.failNextUpdate;
+              this.failNextUpdate = null;
+              throw error;
+            }
             const touchesCancel = "cancel_at_period_end" in params || "cancel_at" in params;
             if (touchesCancel && this.sub.schedule) {
               throw stripeError(
@@ -256,7 +314,9 @@ class FakeStripe {
             if (params.metadata) Object.assign(this.sub.metadata, params.metadata);
             this.emit();
             return this.view(items ? ["latest_invoice"] : []);
-          }),
+          });
+          return this.delivered("sub.update", result);
+        },
         resume: async () => this.view(),
       },
       subscriptionSchedules: {
@@ -311,17 +371,20 @@ class FakeStripe {
             return schedule;
           }),
         release: async (id: string, _p: Raw, opts?: { idempotencyKey?: string }) =>
-          this.idem("schedule.release", opts?.idempotencyKey, () => {
-            const schedule = this.schedules.get(id);
-            if (!schedule || schedule.status !== "active") {
-              throw stripeError("You cannot release this schedule.", "invalid_request_error");
-            }
-            schedule.status = "released";
-            schedule.subscription = null;
-            this.sub.schedule = null;
-            this.emit();
-            return schedule;
-          }),
+          this.delivered(
+            "schedule.release",
+            this.idem("schedule.release", opts?.idempotencyKey, () => {
+              const schedule = this.schedules.get(id);
+              if (!schedule || schedule.status !== "active") {
+                throw stripeError("You cannot release this schedule.", "invalid_request_error");
+              }
+              schedule.status = "released";
+              schedule.subscription = null;
+              this.sub.schedule = null;
+              this.emit();
+              return schedule;
+            }),
+          ),
       },
     } as unknown as Stripe;
   }
@@ -335,6 +398,7 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => ({
 }));
 
 import {
+  cancelSubscriptionAtPeriodEnd,
   changeSubscriptionPrice,
   PAUSED_BY_OPERATOR,
   PAYMENT_FAILED,
@@ -361,6 +425,8 @@ const seats = (quantity: number) =>
 
 const changePlan = (lookupKey: string) =>
   changeSubscriptionPrice("sandbox", "sub_1", { newPriceExternalId: lookupKey });
+
+const cancel = () => cancelSubscriptionAtPeriodEnd("sandbox", "sub_1");
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -469,6 +535,146 @@ describe("odrzucona dopłata NIE kasuje zaplanowanej wcześniej zmiany (przeglą
     expect(await seats(12)).toEqual({ ok: true, quantity: 12, effect: "applied" });
     expect(fake.liveSchedule()).toBeNull();
     expect(fake.sub.items.data[0].quantity).toBe(12);
+  });
+});
+
+describe("nieudana rezygnacja NIE kasuje zaplanowanej zmiany (przegląd #495, P1)", () => {
+  /** Przejściowy błąd operatora (5xx) - zapamiętany pod kluczem jak u operatora. */
+  const transient = () => stripeError("An unknown error occurred", "api_error");
+
+  it("błąd flagi po zwolnieniu: zaplanowane zmniejszenie miejsc wraca, a ponowienie rezygnuje nowym kluczem", async () => {
+    useFake(new FakeStripe({}, teamItem(10)));
+    await seats(5);
+    const released = fake.sub.schedule;
+    fake.failNextUpdate = transient();
+
+    expect(await cancel()).toEqual({
+      ok: false,
+      error: "An unknown error occurred (api_error)",
+    });
+
+    // Dawniej: harmonogram zwolniony, flaga nie weszła - odnowienie po 10
+    // miejscach, choć ani rezygnacja, ani zmniejszenie nie weszły.
+    const restored = fake.liveSchedule();
+    expect(restored?.id).not.toBe(released);
+    expect(restored?.phases).toEqual([
+      expect.objectContaining({
+        items: [{ price: priceIdOf("team_monthly_seat"), quantity: 10 }],
+        end_date: PERIOD_END,
+      }),
+      expect.objectContaining({ items: [{ price: priceIdOf("team_monthly_seat"), quantity: 5 }] }),
+    ]);
+    expect(fake.sub).toMatchObject({ cancel_at_period_end: false, cancel_at: null });
+    expect(fake.sub.items.data[0].quantity).toBe(10);
+
+    // Stan po kompensacji ma inny odcisk (inny harmonogram), więc rezygnacja
+    // idzie świeżym kluczem zamiast dostać z pamięci zapamiętane 5xx.
+    expect(await cancel()).toEqual({ ok: true });
+    expect(fake.sub.cancel_at_period_end).toBe(true);
+    expect(fake.liveSchedule()).toBeNull();
+    expect(fake.log.filter((l) => l.startsWith("sub.update"))).toEqual([
+      "sub.update:EXEC",
+      "sub.update:EXEC",
+    ]);
+  });
+
+  it("błąd flagi przy zaplanowanym downgradzie: niższy plan wraca z rabatem - odnowienie po cenie, na którą klient się umówił", async () => {
+    useFake(
+      new FakeStripe(
+        { discounts: ["di_promo"] },
+        { price: { id: priceIdOf("pro_monthly"), lookup_key: "pro_monthly" } },
+      ),
+    );
+    expect(await changePlan("plus_monthly")).toMatchObject({ ok: true, effect: "scheduled" });
+    fake.failNextUpdate = transient();
+
+    expect(await cancel()).toMatchObject({ ok: false });
+
+    expect(fake.liveSchedule()?.phases[1]).toMatchObject({
+      items: [{ price: priceIdOf("plus_monthly"), quantity: 1 }],
+      discounts: [{ discount: "di_promo" }],
+    });
+    expect(fake.sub.items.data[0].price.lookup_key).toBe("pro_monthly");
+    expect(fake.sub.cancel_at_period_end).toBe(false);
+  });
+
+  it("flaga weszła, a odpowiedź zginęła: harmonogramu NIE odtwarzamy - nie odwołałby rezygnacji", async () => {
+    useFake(new FakeStripe({}, teamItem(10)));
+    await seats(5);
+    fake.loseResponseOf = "sub.update";
+
+    expect(await cancel()).toMatchObject({ ok: false });
+
+    // Kompensacja najpierw czyta żywy stan: koniec już zaplanowany, więc
+    // nowy harmonogram z `end_behavior: release` byłby odnowieniem klienta,
+    // który zrezygnował.
+    expect(fake.sub.cancel_at_period_end).toBe(true);
+    expect(fake.liveSchedule()).toBeNull();
+    expect(fake.log.filter((l) => l === "schedule.create:EXEC")).toHaveLength(1);
+    // Ponowienie trafia w „już się kończy" - bez drugiej mutacji.
+    expect(await cancel()).toEqual({ ok: true });
+    expect(fake.log.filter((l) => l.startsWith("sub.update"))).toEqual(["sub.update:EXEC"]);
+  });
+
+  it("zwolnienie weszło, a jego odpowiedź zginęła: zaplanowana zmiana też wraca", async () => {
+    useFake(new FakeStripe({}, teamItem(10)));
+    await seats(5);
+    fake.loseResponseOf = "schedule.release";
+
+    expect(await cancel()).toMatchObject({ ok: false });
+
+    // Flaga nie poszła wcale, a harmonogram zniknął - ten sam stan co po
+    // błędzie flagi, więc i ta sama kompensacja.
+    expect(fake.liveSchedule()?.phases[1]).toMatchObject({ items: [{ quantity: 5 }] });
+    expect(fake.sub.cancel_at_period_end).toBe(false);
+    expect(fake.log.filter((l) => l.startsWith("sub.update"))).toEqual([]);
+  });
+});
+
+describe("powrót do bieżącej liczby miejsc NIE kasuje zaplanowanej zmiany planu (przegląd #495, P1)", () => {
+  /** Cena za miejsce, na którą operator przenosi subskrypcję od odnowienia (panel, migracja cennika). */
+  const NEXT_PRICE = "price_team_monthly_seat_2027";
+
+  it("sama zaplanowana zmiana ceny zostaje nietknięta", async () => {
+    useFake(new FakeStripe({}, teamItem(10)));
+    const scheduleId = fake.seedSchedule([{ price: NEXT_PRICE, quantity: 10 }]);
+
+    expect(await seats(10)).toEqual({ ok: true, quantity: 10, effect: "applied" });
+
+    // Dawniej: zwolnienie - ponowny zapis tej samej liczby miejsc i odnowienie
+    // po starej cenie zamiast zaplanowanej.
+    expect(fake.liveSchedule()?.id).toBe(scheduleId);
+    expect(fake.liveSchedule()?.phases[1]).toMatchObject({
+      items: [{ price: NEXT_PRICE, quantity: 10 }],
+    });
+    expect(fake.log.filter((l) => l.startsWith("schedule."))).toEqual([]);
+  });
+
+  it("zmiana ceny RAZEM ze zmniejszeniem miejsc: schodzi tylko zmniejszenie, nowa cena zostaje", async () => {
+    useFake(new FakeStripe({}, teamItem(10)));
+    const scheduleId = fake.seedSchedule([{ price: NEXT_PRICE, quantity: 5 }]);
+
+    expect(await seats(10)).toEqual({ ok: true, quantity: 10, effect: "applied" });
+
+    const live = fake.liveSchedule();
+    expect(live?.id).toBe(scheduleId);
+    expect(live?.phases).toEqual([
+      expect.objectContaining({
+        items: [{ price: priceIdOf("team_monthly_seat"), quantity: 10 }],
+        start_date: PERIOD_START,
+        end_date: PERIOD_END,
+      }),
+      expect.objectContaining({ items: [{ price: NEXT_PRICE, quantity: 10 }] }),
+    ]);
+    expect(fake.log).not.toContain("schedule.release:EXEC");
+  });
+
+  it("czysta zmiana miejsc z panelu (ta sama cena) jest zwalniana jak dotąd", async () => {
+    useFake(new FakeStripe({}, teamItem(10)));
+    fake.seedSchedule([{ price: priceIdOf("team_monthly_seat"), quantity: 7 }]);
+
+    expect(await seats(10)).toEqual({ ok: true, quantity: 10, effect: "applied" });
+    expect(fake.liveSchedule()).toBeNull();
   });
 });
 

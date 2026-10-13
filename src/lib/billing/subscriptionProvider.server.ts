@@ -50,6 +50,15 @@
 // jedzie W TEJ SAMEJ oczekującej aktualizacji (operator przyjmuje w niej
 // `cancel_at_period_end`) - jedno zdarzenie zamiast dwóch konkurujących.
 //
+// Ta sama zasada - nieudana operacja nie kasuje zaplanowanej zmiany - dotyczy
+// rezygnacji i powrotu do bieżącej liczby miejsc. Rezygnacja MUSI zwolnić
+// harmonogram przed flagą (operator nie łączy obu), więc gdy flaga się nie
+// ustawi, odtwarzamy harmonogram z fazy odczytanej przed zwolnieniem
+// (`restoreReleasedSchedule`). Powrót do bieżącej liczby miejsc odwołuje
+// WYŁĄCZNIE oczekującą zmianę miejsc - zaplanowana zmiana ceny zostaje
+// (`dropPendingSeatChange`); dawniej ponowny zapis tej samej liczby zwalniał
+// każdy harmonogram i odnowienie szło po starym, droższym planie.
+//
 // ZAPLANOWANY KONIEC to `cancel_at_period_end` ALBO data `cancel_at` (panel
 // operatora, portal klienta) - ta sama reguła co w lustrze
 // (`stripeEvents.mapScheduledChange`). Wznowienie i zmiana planu zdejmują oba.
@@ -419,8 +428,10 @@ async function failureOf(
  * Zwolnienie dołączonego harmonogramu (zaplanowany downgrade / zmniejszenie
  * miejsc). Anulowanie zwalnia go PRZED ustawieniem flagi (operator nie
  * pozwala ustawić `cancel_at_period_end` na subskrypcji zarządzanej
- * harmonogramem), powrót do bieżącej liczby miejsc - zamiast zmiany, a zmiana
- * natychmiastowa - dopiero PO udanej dopłacie (`releaseSupersededSchedule`).
+ * harmonogramem) i odtwarza, gdy flaga się nie ustawi
+ * (`restoreReleasedSchedule`), powrót do bieżącej liczby miejsc - tylko gdy
+ * harmonogram niesie wyłącznie zmianę miejsc (`dropPendingSeatChange`), a
+ * zmiana natychmiastowa - dopiero PO udanej dopłacie (`releaseSupersededSchedule`).
  * Zwolnienie jest jednorazowe per harmonogram, więc klucz z samego
  * identyfikatora jest deterministyczny i bezpieczny.
  */
@@ -515,6 +526,8 @@ async function createOwnSchedule(
 type PhaseParams = Stripe.SubscriptionScheduleUpdateParams.Phase;
 type PhaseItemParams = Stripe.SubscriptionScheduleUpdateParams.Phase.Item;
 type PhaseTerms = Pick<PhaseParams, "discounts" | "default_tax_rates" | "automatic_tax">;
+/** Pozycja fazy sprowadzona do tego, co porównujemy z subskrypcją i odtwarzamy. */
+type PhaseLine = { price: string; quantity: number };
 
 /** Identyfikatory z listy pól SDK (napis albo rozwinięty obiekt z `id`). */
 function idsOf(values: readonly unknown[] | null | undefined): string[] {
@@ -598,7 +611,7 @@ async function scheduleFromNextPeriod(
   stripe: Stripe,
   subscriptionId: string,
   sub: Stripe.Subscription,
-  nextItems: { price: string; quantity: number }[],
+  nextItems: readonly PhaseLine[],
 ): Promise<number> {
   const items = sub.items.data;
   const fingerprint = stateFingerprint(subscriptionId, sub);
@@ -643,6 +656,124 @@ async function scheduleFromNextPeriod(
     },
   );
   return periodEnd;
+}
+
+/**
+ * Pozycje fazy, która wejdzie przy odnowieniu: następnej po bieżącej
+ * w harmonogramie dołączonym do subskrypcji. `retrieveLive` rozwija
+ * harmonogram, więc fazy mamy z tego samego odczytu co decyzję - bez
+ * osobnego `retrieve`, który mógłby już widzieć inny stan. Bieżącą fazę
+ * wskazuje data początku z `current_phase`: lista bywa poprzedzona fazami
+ * minionymi, więc „druga z listy" nie jest regułą.
+ *
+ * `null` = brak harmonogramu, brak fazy po bieżącej albo kształt, którego nie
+ * umiemy odczytać (cena bez identyfikatora). Wywołujący czytają to jako „nie
+ * wiemy, co jest zaplanowane", nigdy jako zgodę na zwolnienie.
+ */
+function pendingPhaseLines(sub: Stripe.Subscription): PhaseLine[] | null {
+  const schedule = attachedSchedule(sub);
+  const current = schedule?.current_phase;
+  const phases = schedule?.phases;
+  if (!current || !Array.isArray(phases)) return null;
+  const index = phases.findIndex((phase) => phase.start_date === current.start_date);
+  const next = index >= 0 ? phases[index + 1] : undefined;
+  if (!next?.items?.length) return null;
+  const lines: PhaseLine[] = [];
+  for (const item of next.items) {
+    const price = refOf(item.price);
+    if (!price) return null;
+    // Pozycja licencjonowana bez ilości to dla operatora jedna sztuka.
+    lines.push({ price, quantity: item.quantity ?? 1 });
+  }
+  return lines;
+}
+
+/**
+ * Powrót do BIEŻĄCEJ liczby miejsc (ponowny zapis tej samej liczby albo
+ * cofnięcie zaplanowanego zmniejszenia) odwołuje WYŁĄCZNIE oczekującą zmianę
+ * miejsc. Dawniej zwalniał każdy dołączony harmonogram, więc administrator,
+ * który tylko zapisał formularz bez zmian, kasował zaplanowaną zmianę PLANU
+ * (downgrade, migracja ceny z panelu operatora) - odnowienie szło po
+ * starej, droższej cenie. Rozstrzyga faza następna (`pendingPhaseLines`):
+ *
+ * - te same ceny, inna ilość - czysta zmiana miejsc: zwolnienie, jak dawniej
+ *   (harmonogram w kształcie tego modułu nie niesie wtedy nic innego);
+ * - inna cena i inna ilość: przepisanie faz tym samym budowniczym co
+ *   downgrade (`scheduleFromNextPeriod` - rabat, podatek, trial z żywej
+ *   subskrypcji, klucz z odcisku i licznika), nowa cena zostaje, ilość wraca
+ *   do bieżącej;
+ * - ta sama ilość (sama zmiana ceny albo nic), inna liczba pozycji niż na
+ *   subskrypcji (bez pary pozycja-pozycja nie wiadomo, czyjej ilości dotyczy
+ *   zmiana) albo kształt nieczytelny: harmonogram nietknięty - nic, czego
+ *   administrator nie zmieniał, nie znika po cichu.
+ */
+async function dropPendingSeatChange(
+  stripe: Stripe,
+  subscriptionId: string,
+  sub: Stripe.Subscription,
+): Promise<void> {
+  const pending = pendingPhaseLines(sub);
+  const items = sub.items.data;
+  if (!pending || pending.length !== items.length) return;
+  const liveQuantity = (index: number) => Math.max(1, items[index]?.quantity ?? 1);
+  if (pending.every((line, index) => line.quantity === liveQuantity(index))) return;
+  if (pending.every((line, index) => line.price === refOf(items[index]?.price))) {
+    await releaseAttachedSchedule(stripe, sub);
+    return;
+  }
+  await scheduleFromNextPeriod(
+    stripe,
+    subscriptionId,
+    sub,
+    pending.map((line, index) => ({ price: line.price, quantity: liveQuantity(index) })),
+  );
+}
+
+/**
+ * Kompensacja nieudanej rezygnacji przy zaplanowanej zmianie. Rezygnacja
+ * zwalnia harmonogram PRZED flagą (operator odrzuca flagę na subskrypcji
+ * zarządzanej harmonogramem), więc błąd flagi (przejściowe 5xx, limit
+ * zapytań) zostawiał subskrypcję bez rezygnacji I bez zaplanowanego
+ * downgrade'u / zmniejszenia miejsc: odnowienie po starej, droższej cenie,
+ * choć żadna z dwóch decyzji klienta nie weszła. Zakładamy więc równoważny
+ * harmonogram tymi samymi pomocnikami co zmiana od nowego okresu
+ * (`createOwnSchedule` z potwierdzeniem odczytem, warunki rozliczenia
+ * z żywej subskrypcji, deterministyczne klucze z odcisku stanu PO
+ * zwolnieniu - inny niż sprzed niego, więc ponowiona rezygnacja dostaje
+ * świeży klucz zamiast zapamiętanego 5xx), z fazą następną odczytaną przed
+ * zwolnieniem.
+ *
+ * Najpierw odczyt, bo błąd bywa niejednoznaczny (zwolnienie albo flaga
+ * weszły, odpowiedź zginęła). Subskrypcji z zaplanowanym końcem, z wciąż
+ * dołączonym albo innym harmonogramem (zwolnienie nie weszło, równoległa
+ * operacja, panel) albo zakończonej NIE ruszamy: harmonogram przy
+ * zaplanowanym końcu operator odrzuci albo (fazy z `end_behavior: release`)
+ * odwoła nim rezygnację, która jednak weszła, a drugiego harmonogramu obok
+ * żywego operator nie założy. Wynik operacji zostaje pierwotnym błędem:
+ * wywołujący nie zapisuje rezygnacji, tę, która mimo błędu weszła,
+ * przyniesie webhook, a ponowienie trafi w „już się kończy". Błąd samej
+ * kompensacji logujemy głośno do ręcznego odtworzenia - jak
+ * w `restoreCancellation`.
+ */
+async function restoreReleasedSchedule(
+  stripe: Stripe,
+  subscriptionId: string,
+  releasedScheduleId: string | null,
+  pending: readonly PhaseLine[],
+): Promise<void> {
+  try {
+    const live = await retrieveLive(stripe, subscriptionId);
+    if (live.status === "canceled" || refOf(live.schedule) || scheduledCancellation(live)) return;
+    await scheduleFromNextPeriod(stripe, subscriptionId, live, pending);
+  } catch (e) {
+    console.error(
+      "[payments] cancellation failed AND released schedule restore failed - recreate it manually",
+      subscriptionId,
+      releasedScheduleId,
+      JSON.stringify(pending),
+      getStripeErrorMessage(e),
+    );
+  }
 }
 
 /**
@@ -785,7 +916,24 @@ function currentPeriodPaid(sub: Stripe.Subscription): boolean {
 /**
  * Anulowanie z zachowaniem opłaconego okresu (`cancel_at_period_end`).
  * Zaplanowana zmiana (harmonogram) traci sens przy rezygnacji i blokowałaby
- * flagę po stronie operatora, więc zwalniamy ją najpierw.
+ * flagę po stronie operatora, więc zwalniamy ją najpierw - a gdy flaga się
+ * nie ustawi, odtwarzamy (`restoreReleasedSchedule`): odmowa nie może
+ * skasować zmiany, na którą klient się wcześniej umówił.
+ *
+ * DLACZEGO NIE JEDNO WYWOŁANIE. Operator nie ma mutacji, która atomowo
+ * zwalnia harmonogram i ustawia flagę: `release` przyjmuje tylko
+ * `preserve_cancel_date` (zachowuje koniec ustawiony PRZEZ harmonogram),
+ * a flagę na subskrypcji z harmonogramem odrzuca. Rezygnację da się zapisać
+ * samym harmonogramem (faza bieżąca do końca okresu, `end_behavior:
+ * "cancel"`), ale wtedy koniec należy do harmonogramu, nie do subskrypcji:
+ * flaga `cancel_at_period_end` zostaje `false`, a to, czy operator
+ * odzwierciedli koniec w `cancel_at` (drugim polu, z którego lustro
+ * `mapScheduledChange` czyta rezygnację), zależy od harmonogramu, nie od
+ * nas. Wznowienie (`cancellationRevert` na subskrypcji) operator odrzuciłby
+ * wtedy jako zmianę końca subskrypcji zarządzanej harmonogramem -
+ * rezygnacja bez drogi powrotu z aplikacji. Zostają dwa kroki
+ * z kompensacją, która nie zmienia kształtu stanu, na którym opierają się
+ * webhook i wznowienie.
  */
 export async function cancelSubscriptionAtPeriodEnd(
   env: StripeEnv,
@@ -799,12 +947,25 @@ export async function cancelSubscriptionAtPeriodEnd(
     // mutacja podbiłaby tylko licznik i zdarzenie u operatora.
     if (current.status === "canceled" || current.cancel_at_period_end === true) return { ok: true };
     const fingerprint = stateFingerprint(subscriptionId, current);
-    await releaseAttachedSchedule(stripe, current);
-    await stripe.subscriptions.update(
-      subscriptionId,
-      { cancel_at_period_end: true, metadata: nextRevision(current.metadata) },
-      { idempotencyKey: await idempotencyKey("cancel", fingerprint) },
-    );
+    // Zaplanowaną zmianę bierzemy z odczytu PRZED zwolnieniem (rozwinięty
+    // harmonogram) - po zwolnieniu subskrypcja już go nie wskazuje.
+    const pending = pendingPhaseLines(current);
+    try {
+      // Zwolnienie też w bloku kompensacji: jego odpowiedź może zginąć PO
+      // wykonaniu. Kompensacja i tak najpierw czyta żywy stan, więc
+      // harmonogram, który jednak został, nie dostaje drugiego.
+      await releaseAttachedSchedule(stripe, current);
+      await stripe.subscriptions.update(
+        subscriptionId,
+        { cancel_at_period_end: true, metadata: nextRevision(current.metadata) },
+        { idempotencyKey: await idempotencyKey("cancel", fingerprint) },
+      );
+    } catch (e) {
+      if (pending) {
+        await restoreReleasedSchedule(stripe, subscriptionId, refOf(current.schedule), pending);
+      }
+      throw e;
+    }
     return { ok: true };
   } catch (e) {
     return failureOf(null, subscriptionId, e);
@@ -1114,8 +1275,9 @@ export async function updateSubscriptionQuantity(
 
     const liveQuantity = Math.max(1, item.quantity ?? 1);
     if (quantity === liveQuantity) {
-      // Powrót do bieżącej liczby = rezygnacja z zaplanowanego zmniejszenia.
-      await releaseAttachedSchedule(stripe, current);
+      // Powrót do bieżącej liczby = rezygnacja z zaplanowanej zmiany MIEJSC,
+      // nie z zaplanowanej zmiany planu - ta zostaje (`dropPendingSeatChange`).
+      await dropPendingSeatChange(stripe, subscriptionId, current);
       return { ok: true, quantity, effect: "applied" };
     }
 

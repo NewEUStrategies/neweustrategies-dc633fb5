@@ -97,6 +97,24 @@ const liveSub = (over: Record<string, unknown> = {}) => ({
 const teamItem = (quantity: number) =>
   subscriptionItem({ quantity, price: { id: "price_team", lookup_key: "team_monthly_seat" } });
 
+/**
+ * Harmonogram rozwinięty przez `expand: ["schedule"]` w kształcie operatora:
+ * bieżąca faza z planem zespołu (4 miejsca) do końca okresu, następna z `next`.
+ */
+const scheduleWithNext = (id: string, next: { price: string; quantity: number }) => ({
+  id,
+  metadata: {},
+  current_phase: { start_date: PERIOD_START, end_date: PERIOD_END },
+  phases: [
+    {
+      start_date: PERIOD_START,
+      end_date: PERIOD_END,
+      items: [{ price: "price_team", quantity: 4 }],
+    },
+    { start_date: PERIOD_END, end_date: PERIOD_END + 2_678_400, items: [next] },
+  ],
+});
+
 /** Trzeci argument (opcje żądania) n-tego wywołania mocka. */
 function optionsOf(mock: ReturnType<typeof vi.fn>, call = 0): { idempotencyKey?: string } {
   const args = mock.mock.calls[call] as unknown[];
@@ -172,6 +190,75 @@ describe("cancelSubscriptionAtPeriodEnd", () => {
     );
     expect(h.subscriptionSchedules.release.mock.invocationCallOrder[0]).toBeLessThan(
       h.subscriptions.update.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("błąd flagi po zwolnieniu: zaplanowane zmniejszenie wraca nowym harmonogramem, wynik to PIERWOTNY błąd", async () => {
+    // Odczyt kompensacji (domyślny): harmonogram zwolniony, rezygnacji brak.
+    // Jedna wartość „once" - kod bez kompensacji czyta raz i nic nie zostaje
+    // w kolejce atrapy dla następnych testów.
+    h.subscriptions.retrieve.mockResolvedValue(liveSub({ items: { data: [teamItem(4)] } }));
+    h.subscriptions.retrieve.mockResolvedValueOnce(
+      liveSub({
+        items: { data: [teamItem(4)] },
+        schedule: scheduleWithNext("sched_seats", { price: "price_team", quantity: 2 }),
+      }),
+    );
+    h.subscriptions.update.mockRejectedValue(
+      providerError("An unknown error occurred", { type: "api_error" }),
+    );
+
+    expect(await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1")).toEqual({
+      ok: false,
+      error: "An unknown error occurred (api_error)",
+    });
+    expect(h.subscriptionSchedules.release).toHaveBeenCalledTimes(1);
+    expect(h.subscriptionSchedules.create).toHaveBeenCalledWith(
+      { from_subscription: "sub_1" },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-create-/) },
+    );
+    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith(
+      "sched_1",
+      {
+        end_behavior: "release",
+        phases: [
+          {
+            items: [{ price: "price_team", quantity: 4 }],
+            start_date: PERIOD_START,
+            end_date: PERIOD_END,
+          },
+          { items: [{ price: "price_team", quantity: 2 }] },
+        ],
+        metadata: { nes_ops_rev: "1" },
+      },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-update-/) },
+    );
+  });
+
+  it("nieudana kompensacja jest logowana do ręcznego odtworzenia, a wynik zostaje pierwotnym błędem", async () => {
+    h.subscriptions.retrieve.mockResolvedValueOnce(
+      liveSub({
+        items: { data: [teamItem(4)] },
+        schedule: scheduleWithNext("sched_seats", { price: "price_team", quantity: 2 }),
+      }),
+    );
+    h.subscriptions.update.mockRejectedValue(
+      providerError("An unknown error occurred", { type: "api_error" }),
+    );
+    h.subscriptionSchedules.create.mockRejectedValue(providerError("schedule create failed"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    // Błąd kompensacji nie zastępuje błędu rezygnacji - to on mówi, co nie weszło.
+    expect(await cancelSubscriptionAtPeriodEnd("sandbox", "sub_1")).toEqual({
+      ok: false,
+      error: "An unknown error occurred (api_error)",
+    });
+    expect(logged).toHaveBeenCalledWith(
+      expect.stringContaining("released schedule restore failed"),
+      "sub_1",
+      "sched_seats",
+      JSON.stringify([{ price: "price_team", quantity: 2 }]),
+      expect.stringContaining("schedule create failed"),
     );
   });
 
@@ -839,7 +926,10 @@ describe("updateSubscriptionQuantity", () => {
 
   it("powrót do bieżącej liczby zwalnia zaplanowane zmniejszenie", async () => {
     h.subscriptions.retrieve.mockResolvedValue(
-      liveSub({ items: { data: [teamItem(4)] }, schedule: { id: "sched_seats", metadata: {} } }),
+      liveSub({
+        items: { data: [teamItem(4)] },
+        schedule: scheduleWithNext("sched_seats", { price: "price_team", quantity: 2 }),
+      }),
     );
 
     expect(await seats(4)).toEqual({ ok: true, quantity: 4, effect: "applied" });
@@ -848,6 +938,61 @@ describe("updateSubscriptionQuantity", () => {
       {},
       expect.objectContaining({ idempotencyKey: expect.any(String) }),
     );
+  });
+
+  it("powrót do bieżącej liczby przy zaplanowanej zmianie SAMEJ ceny: harmonogram nietknięty", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({
+        items: { data: [teamItem(4)] },
+        schedule: scheduleWithNext("sched_price", { price: "price_team_next", quantity: 4 }),
+      }),
+    );
+
+    expect(await seats(4)).toEqual({ ok: true, quantity: 4, effect: "applied" });
+    // Dawniej: zwolnienie - odnowienie po starej cenie zamiast zaplanowanej.
+    expect(h.subscriptionSchedules.release).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.update).not.toHaveBeenCalled();
+  });
+
+  it("zmiana ceny razem ze zmianą miejsc: fazy przepisane - cena zostaje, ilość wraca do bieżącej", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({
+        items: { data: [teamItem(4)] },
+        schedule: {
+          ...scheduleWithNext("sched_mixed", { price: "price_team_next", quantity: 2 }),
+          metadata: { nes_ops_rev: "2" },
+        },
+      }),
+    );
+
+    expect(await seats(4)).toEqual({ ok: true, quantity: 4, effect: "applied" });
+    expect(h.subscriptionSchedules.release).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.create).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith(
+      "sched_mixed",
+      {
+        end_behavior: "release",
+        phases: [
+          {
+            items: [{ price: "price_team", quantity: 4 }],
+            start_date: PERIOD_START,
+            end_date: PERIOD_END,
+          },
+          { items: [{ price: "price_team_next", quantity: 4 }] },
+        ],
+        metadata: { nes_ops_rev: "3" },
+      },
+      { idempotencyKey: expect.stringMatching(/^nes-sub-schedule-update-/) },
+    );
+  });
+
+  it("harmonogram bez czytelnej fazy następnej NIE jest zwalniany na ślepo", async () => {
+    h.subscriptions.retrieve.mockResolvedValue(
+      liveSub({ items: { data: [teamItem(4)] }, schedule: { id: "sched_opaque", metadata: {} } }),
+    );
+
+    expect(await seats(4)).toEqual({ ok: true, quantity: 4, effect: "applied" });
+    expect(h.subscriptionSchedules.release).not.toHaveBeenCalled();
   });
 
   it("kierunek liczy ŻYWA ilość, nie lustro (`previousQuantity`)", async () => {
