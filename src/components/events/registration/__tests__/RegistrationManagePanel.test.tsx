@@ -870,7 +870,14 @@ describe("RegistrationManagePanel - skutek finansowy rezygnacji (REG-03)", () =>
 
   it("REG-17: wygaśnięcie wygrywa z odmową z podglądu - bez przycisku kopiowania", async () => {
     widok.wygasl = true;
-    preview.mockResolvedValue({ ...okPreview(), canCancel: false, refusal: "event_ended" });
+    preview.mockResolvedValue({
+      kind: "ok",
+      registrationId: "11111111-1111-1111-1111-111111111111",
+      status: "approved",
+      canCancel: false,
+      refusal: "event_ended",
+      refund: null,
+    });
     renderPanel();
 
     expect(await screen.findByText("eventFront.manage.expired")).toBeInTheDocument();

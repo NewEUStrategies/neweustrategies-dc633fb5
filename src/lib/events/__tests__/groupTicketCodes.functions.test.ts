@@ -64,7 +64,10 @@ const LEAD = "11111111-1111-4111-8111-111111111111";
 const TENANT = "22222222-2222-4222-8222-222222222222";
 
 function send(manageToken: string = TOKEN): Promise<Result> {
-  return callServerFn<Result>(sendGroupTicketCodes, { data: { manageToken }, context: {} });
+  return callServerFn<Result>(sendGroupTicketCodes, {
+    data: { manageToken },
+    context: { supabase: null },
+  });
 }
 
 async function run(row: unknown, error: { message: string; code?: string } | null = null) {
