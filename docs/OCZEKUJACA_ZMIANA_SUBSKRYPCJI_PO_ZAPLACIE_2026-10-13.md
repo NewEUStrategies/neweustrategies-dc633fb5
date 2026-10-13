@@ -81,10 +81,10 @@ bieżąca faza harmonogramu z odmowy też niesie już nowe pozycje.
    raporcie uzgodnienia jako `event_missing` z przyciskiem „Napraw"
    (odtworzenie tą samą ścieżką co webhook: zdarzenie z `events.retrieve`, więc
    z fakturą i datą), a diagnostyka płatności ostrzega o punkcie odbioru, który
-   tego typu nie subskrybuje (nocna sonda piaskownicy - `classifyWebhookEndpoints`
-   - też). Ponowienie z dziennika też normalizuje zapisane surowe zdarzenie od
-     nowa. `pending_update_expired` - celowo nie (opcjonalne, sama migawka stanu):
-     jego brak w punkcie odbioru byłby fałszywym alarmem.
+   tego typu nie subskrybuje (także nocna sonda piaskownicy,
+   `classifyWebhookEndpoints`). Ponowienie z dziennika też normalizuje zapisane
+   surowe zdarzenie od nowa. `pending_update_expired` - celowo nie (opcjonalne,
+   sama migawka stanu): jego brak w punkcie odbioru byłby fałszywym alarmem.
 
 ### Data końca `cancel_at` po upgradzie opłaconym później
 
