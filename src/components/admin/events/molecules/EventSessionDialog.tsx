@@ -16,9 +16,17 @@
 // SESJA NADRZĘDNA NIE MOŻE BYĆ TĄ SESJĄ ani podsesją innej (`parent_depth`),
 // więc lista kandydatów jest już odfiltrowana - odmowa bazy to ostatnia linia,
 // nie pierwsza.
+//
+// GODZINY SĄ ZEGAREM W STREFIE WYDARZENIA. Zdanie nad polami mówiło to od
+// zawsze, ale konwersja szła w strefie przeglądarki - organizator w Londynie
+// wpisujący 9:30 z programu warszawskiego kongresu zapisywał 10:30 (klasa
+// OPS-15). Szkic niesie strefę (`sessionDraftFromRow(row, strefa)`), a pod
+// polem stoi zdanie o luce/zakładce zmiany czasu, gdy wpisana godzina na nią
+// trafia - o samej strefie mówi już nagłówek sekcji.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-event-agenda";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,6 +42,8 @@ import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitch
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import { SessionSpeakersEditor } from "@/components/admin/events/molecules/SessionSpeakersEditor";
 import { useSessionDetail } from "@/lib/events/useEventSessions";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
 import {
   SESSION_MAX_DESCRIPTION,
   SESSION_MAX_AFFILIATION,
@@ -68,7 +78,11 @@ interface EventSessionDialogProps {
   /** Kandydaci na sesję nadrzędną - pełna lista sesji wydarzenia. */
   sessions: readonly EventSessionRow[];
   sponsorCandidates?: readonly EventSponsorRow[];
-  /** Strefa wydarzenia; godziny wpisuje się w niej, nie w UTC. */
+  /**
+   * Strefa wydarzenia (identyfikator IANA, mimo nazwy propa - patrz
+   * `AgendaSessionsPanel.timeLabel`). Pola godzin są zegarem w TEJ strefie,
+   * nie w strefie przeglądarki i nie w UTC.
+   */
   timeZoneLabel: string;
   nextSortOrder: number;
   /**
@@ -95,9 +109,13 @@ export function EventSessionDialog({
   isSaving,
   onSubmit,
 }: EventSessionDialogProps) {
+  ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language.startsWith("en") ? "en" : "pl";
-  const [draft, setDraft] = useState<SessionDraft>(() => emptySessionDraft(nextSortOrder));
+  // Zwalidowana strefa: identyfikator nieznany `Intl` degraduje do strefy
+  // serwisu, więc podpis nad polami i konwersja nie mogą się rozjechać.
+  const zone = eventTimeZone({ timezone: timeZoneLabel });
+  const [draft, setDraft] = useState<SessionDraft>(() => emptySessionDraft(nextSortOrder, zone));
   const [touched, setTouched] = useState(false);
   // Niezapisana obsada blokuje glowne „Zapisz": zapis sesji zamyka dialog,
   // a obsada ma wlasny zapis - zamkniecie wyrzucaloby ja bez slowa.
@@ -131,6 +149,10 @@ export function EventSessionDialog({
   defaultTrackIdRef.current = defaultTrackId;
   const detailRef = useRef(detail);
   detailRef.current = detail;
+  // Strefa liczy się w chwili otwarcia, jak kolejność - zmiana strefy
+  // wydarzenia w innej karcie nie przepisuje pól w trakcie edycji.
+  const zoneRef = useRef(zone);
+  zoneRef.current = zone;
   const sessionId = session === null ? null : session.id;
   const detailId = detail === null ? null : detail.id;
 
@@ -138,7 +160,7 @@ export function EventSessionDialog({
     if (!open) return;
     if (sessionId === null) {
       setDraft({
-        ...emptySessionDraft(nextSortOrderRef.current),
+        ...emptySessionDraft(nextSortOrderRef.current, zoneRef.current),
         trackId: defaultTrackIdRef.current,
       });
       setTouched(false);
@@ -150,7 +172,11 @@ export function EventSessionDialog({
     // o sesję B w polach stała sesja A: ekran kłamał, a organizator czytał
     // tytuł, godziny i adres transmisji zupełnie innego punktu programu.
     const row = detailRef.current;
-    setDraft(row === null ? emptySessionDraft(nextSortOrderRef.current) : sessionDraftFromRow(row));
+    setDraft(
+      row === null
+        ? emptySessionDraft(nextSortOrderRef.current, zoneRef.current)
+        : sessionDraftFromRow(row, zoneRef.current),
+    );
     setTouched(false);
   }, [open, sessionId, detailId]);
 
@@ -247,7 +273,7 @@ export function EventSessionDialog({
             )}
           </DialogTitle>
           <DialogDescription>
-            {t("adminEventAgenda.sessionDialog.timeZoneHint", { zone: timeZoneLabel })}
+            {t("adminEventAgenda.sessionDialog.timeZoneHint", { zone: draft.timeZone })}
           </DialogDescription>
         </DialogHeader>
 
@@ -299,7 +325,7 @@ export function EventSessionDialog({
 
           <AdminFormSection
             title={t("adminEventAgenda.sessionDialog.startsAt")}
-            hint={t("adminEventAgenda.sessionDialog.timeZoneHint", { zone: timeZoneLabel })}
+            hint={t("adminEventAgenda.sessionDialog.timeZoneHint", { zone: draft.timeZone })}
             columns={2}
           >
             <AdminFormTextRow
@@ -307,6 +333,14 @@ export function EventSessionDialog({
               value={draft.startsAt}
               onValueChange={(value) => set("startsAt", value)}
               type="datetime-local"
+              hint={eventLocalInputHint(
+                t,
+                lang,
+                draft.startsAt,
+                draft.timeZone,
+                draft.savedTimes.startsAt ?? null,
+                { quietWhenExact: true },
+              )}
               error={errorFor("startsAt")}
             />
             <AdminFormTextRow
@@ -314,6 +348,14 @@ export function EventSessionDialog({
               value={draft.endsAt}
               onValueChange={(value) => set("endsAt", value)}
               type="datetime-local"
+              hint={eventLocalInputHint(
+                t,
+                lang,
+                draft.endsAt,
+                draft.timeZone,
+                draft.savedTimes.endsAt ?? null,
+                { quietWhenExact: true },
+              )}
               error={errorFor("endsAt")}
             />
             <AdminFormEnumRow

@@ -213,8 +213,9 @@ function textOrNull(value: unknown): string | null {
 }
 
 /**
- * Chwila z `jsonb` (`2027-04-02T07:00:00+00:00`) jako ISO w UTC - ten sam
- * ksztalt, ktory oddaje i przyjmuje nasz kalendarz (`AdminFormDateTimeRow`).
+ * Chwila z `jsonb` (`2027-04-02T07:00:00+00:00`) jako ISO w UTC (`toISOString`).
+ * Formularz klonu pokazuje ja jako zegar strefy edycji (`eventCloneDraft`),
+ * a do bazy oddaje znow chwile ISO.
  */
 function instant(value: unknown): string | null {
   if (typeof value !== "string") return null;

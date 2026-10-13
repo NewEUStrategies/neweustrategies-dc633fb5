@@ -41,8 +41,9 @@
 //      (wpis nawigacji w Performance API; bez wpisu, jak w Safari < 15, liczy
 //      się bieżący adres). Adres załadowania jest odporny na
 //      `history.replaceState` bez `_v` w nowym dokumencie (AutoLoadNextPost,
-//      ClubHub, /scanner?t). Router nie jest `search.strict`, a przekierowania
-//      serwera zachowują query, więc `_v` przeżywa przeładowanie bez magazynu.
+//      ClubHub, /scanner - zdejmuje z adresu token `#t=` i stary `?t=`, OPS-07).
+//      Router nie jest `search.strict`, a przekierowania serwera zachowują
+//      query, więc `_v` przeżywa przeładowanie bez magazynu.
 //   d) `sessionStorage["__lov_cb_reload"]`: dotychczasowy strażnik, ten sam
 //      klucz, format i TTL. Odczyt i zapis są best-effort. Wyjątek (zablokowane
 //      cookies, WebView bez DOM storage, pełna quota, prywatne Safari <= 10,

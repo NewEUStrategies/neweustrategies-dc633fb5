@@ -34,6 +34,7 @@ import {
   EventCreateForm,
   type EventCreateDraft,
 } from "@/components/admin/events/organisms/EventCreateForm";
+import { eventLocalInputToIso } from "@/lib/events/eventLocalInput";
 import { EventCloneSourcePicker } from "@/components/admin/events/molecules/EventCloneSourcePicker";
 import { EventCloneScreen } from "@/components/admin/events/organisms/EventCloneScreen";
 import { EventStudioCreateShell } from "@/components/admin/events/studio/EventStudioCreateShell";
@@ -79,6 +80,7 @@ function CreateFromTypePage() {
   // jest już wpisany - czyli kłamać o stanie, który redaktor ma przed oczami.
   const [railTitle, setRailTitle] = useState("");
   const [railStartsAt, setRailStartsAt] = useState("");
+  const [railTimeZone, setRailTimeZone] = useState("");
 
   const backToList = () => void navigate({ to: "/admin/events/list" });
 
@@ -94,18 +96,26 @@ function CreateFromTypePage() {
   }
 
   const submit = (draft: EventCreateDraft) => {
+    const timezone = draft.timezone.trim() === "" ? null : draft.timezone.trim();
+    // Szkic trzyma ZEGAR w strefie wydarzenia (klasa OPS-15), nie chwilę -
+    // chwilę liczy wspólny `eventLocalInputToIso` w strefie z droplisty, tak jak
+    // `eventCreateIssue` przy walidacji. Formularz nie wypuszcza szkicu bez
+    // czytelnego początku; ta odmowa jest bezpiecznikiem, nie ścieżką.
+    const startsAt = eventLocalInputToIso(draft.startsAt, timezone);
+    if (startsAt === null) {
+      toast.error(t("adminEvents.list.create.errors.startsAt"));
+      return;
+    }
     create.mutate(
       {
         eventTypeId: draft.eventTypeId,
         titlePl: draft.titlePl.trim(),
         titleEn: draft.titleEn.trim(),
-        // Szkic trzyma już chwilę w ISO (nasz picker liczy strefę przeglądarki),
-        // więc tutaj nie ma żadnej ponownej interpretacji czasu lokalnego.
-        startsAt: new Date(draft.startsAt).toISOString(),
+        startsAt,
         // Koniec pusty znaczy „nie podano" - wtedy koniec liczy rodzaj po stronie
         // bazy, a nie formularz zgadujacy dlugosc wydarzenia.
-        endsAt: draft.endsAt.trim() === "" ? null : new Date(draft.endsAt).toISOString(),
-        timezone: draft.timezone.trim() === "" ? null : draft.timezone.trim(),
+        endsAt: eventLocalInputToIso(draft.endsAt, timezone),
+        timezone,
         format: draft.format.trim() === "" ? null : draft.format.trim(),
         city: draft.city.trim() === "" ? null : draft.city.trim(),
         country: draft.country.trim() === "" ? null : draft.country.trim(),
@@ -130,17 +140,16 @@ function CreateFromTypePage() {
     );
   };
 
-  // Strefa przeglądarki, nie wydarzenia: rodzaj jeszcze nie przepisał strefy,
-  // więc jedyna, jaką znamy na tym ekranie, to strefa osoby wypełniającej.
+  // Strefa WYDARZENIA z droplisty kreatora: pole jest zegarem w niej, więc rail
+  // pokazuje tę samą godzinę, którą redaktor wpisał, a po zapisie - tę samą,
+  // którą zobaczy uczestnik.
   const lang = uiLang(i18n.language);
-  const railDate =
-    railStartsAt.trim() === ""
-      ? ""
-      : formatEventDateTime(
-          new Date(railStartsAt).toISOString(),
-          Intl.DateTimeFormat().resolvedOptions().timeZone,
-          lang,
-        );
+  const railZone = railTimeZone.trim() === "" ? null : railTimeZone.trim();
+  const railDate = formatEventDateTime(
+    eventLocalInputToIso(railStartsAt, railZone),
+    railZone,
+    lang,
+  );
 
   return (
     <EventStudioCreateShell eventTitle={railTitle} startsAtLabel={railDate}>
@@ -160,6 +169,7 @@ function CreateFromTypePage() {
           onDraftChange={(draft) => {
             setRailTitle(lang === "en" ? draft.titleEn || draft.titlePl : draft.titlePl);
             setRailStartsAt(draft.startsAt);
+            setRailTimeZone(draft.timezone);
           }}
         />
       </div>

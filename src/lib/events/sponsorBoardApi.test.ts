@@ -69,6 +69,34 @@ describe("sponsorBoardApi", () => {
       validateHomeAd({ ...base, startsAt: "2026-10-02T10:00:00Z", endsAt: "2026-10-01T10:00:00Z" }),
     ).toContain("endsAt");
   });
+
+  it("kolejność dat to porządek CHWIL, nie napisów", () => {
+    // Wiersz z bazy niesie `+00:00`, pole po edycji `.000Z`. Leksykalnie
+    // „...10:00:00+00:00" < „...10:00:00.000Z", więc koniec RÓWNY początkowi
+    // przechodził jako późniejszy; a „...09:30:00.000Z" > „...09:30:00+00:00"
+    // przy końcu wcześniejszym o pół godziny - też.
+    expect(
+      validateHomeAd({
+        ...base,
+        startsAt: "2026-10-01T10:00:00+00:00",
+        endsAt: "2026-10-01T10:00:00.000Z",
+      }),
+    ).toEqual(["endsAt"]);
+    expect(
+      validateHomeAd({
+        ...base,
+        startsAt: "2026-10-01T10:00:00+02:00",
+        endsAt: "2026-10-01T09:30:00.000Z",
+      }),
+    ).toEqual([]);
+    expect(
+      validateHomeAd({
+        ...base,
+        startsAt: "2026-10-01T12:00:00+02:00",
+        endsAt: "2026-10-01T09:30:00.000Z",
+      }),
+    ).toEqual(["endsAt"]);
+  });
 });
 
 // ZMIANA UKLADU ODSWIEZA LISTE SEKCJI. Od migracji 20260923100100 uklad

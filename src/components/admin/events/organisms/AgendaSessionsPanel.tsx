@@ -9,7 +9,9 @@
 //
 // USUNIĘCIE SESJI Z ZAPISAMI JEST ODMAWIANE (`session_has_signups`). Dlatego
 // obok kasowania stoi „Odwołaj sesję" - to jest właściwa operacja dla sesji,
-// na którą ktoś już przyszedł.
+// na którą ktoś już przyszedł. Sesja (albo jej podsesja) z punktem kontrolnym
+// też nie znika (`session_has_checkpoints`) - zdanie z `adminAgendaErrors`
+// odsyła do modułu na miejscu.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";

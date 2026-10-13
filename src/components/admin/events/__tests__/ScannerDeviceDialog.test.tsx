@@ -19,6 +19,15 @@
 //   6. TERMIN WAŻNOŚCI JEST OPCJONALNY, ale wpisany musi być PRZYSZŁY i jedzie
 //      w UTC - poświadczenie z terminem wstecz jest martwe w chwili wydania.
 //   7. NIEPEŁNY FORMULARZ NIE WOŁA WARSTWY WYDANIA - asercja na atrapie.
+//   8. TERMIN MA GÓRNĄ GRANICĘ (OPS-12): koniec wydarzenia + 7 dni. Kalendarz
+//      się na niej kończy (`max`), podpowiedź ją podaje, termin po niej blokuje
+//      wydanie zdaniem `expiry_too_late` (tym samym, którym odmówiłaby baza),
+//      a po granicy - wydarzenie skończyło się ponad tydzień temu - wydania nie
+//      ma wcale. Bez dat wydarzenia granicę zna tylko baza.
+//   9. TERMIN JEST ZEGAREM W STREFIE WYDARZENIA (OPS-15, przekazanie B3): pole,
+//      granica w kalendarzu i chwila w żądaniu liczą się w `events.timezone`
+//      z wiersza wydarzenia, a podpowiedź nazywa strefę. Oczekiwania są
+//      wpisane na sztywno, więc nie zależą od strefy maszyny testowej.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Reguł wersji roboczej (długość etykiety,
 // zbiór uprawnień, konwersja `datetime-local` -> ISO) - tabele przypadków są
@@ -49,6 +58,12 @@ const h = vi.hoisted(() => ({
   writeText: vi.fn<(text: string) => Promise<void>>(),
   /** Każde żądanie kodu QR czeka na jawne rozwiązanie - stąd kontrola wyścigu. */
   qrCalls: [] as { url: string; resolve: (dataUrl: string) => void }[],
+  /** Wiersz wydarzenia z cache studia (`useAdminEventDetail`); `null` = brak dat. */
+  wydarzenie: null as {
+    starts_at: string | null;
+    ends_at: string | null;
+    timezone?: string | null;
+  } | null,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -56,6 +71,11 @@ vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError
 // Klient bazy nie jest przedmiotem dowodu, a jego moduł domaga się konfiguracji
 // środowiska przy imporcie - okno bierze z `onsiteApi` wyłącznie SŁOWNIK zakresów.
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
+// Granica terminu (OPS-12) liczy się z wiersza wydarzenia, który studio i tak
+// trzyma w cache - tu jest atrapą, bo przedmiotem dowodu jest okno, nie zapytanie.
+vi.mock("@/lib/events/useAdminEventDetail", () => ({
+  useAdminEventDetail: () => ({ data: h.wydarzenie }),
+}));
 vi.mock("qrcode", () => ({
   default: {
     toDataURL: (url: string) =>
@@ -186,6 +206,7 @@ const anuluj = () => screen.getByRole("button", { name: "adminEventOnsite.action
 beforeEach(() => {
   vi.clearAllMocks();
   h.qrCalls = [];
+  h.wydarzenie = null;
   h.writeText.mockResolvedValue(undefined);
   Object.defineProperty(navigator, "clipboard", {
     configurable: true,
@@ -375,22 +396,108 @@ describe("ScannerDeviceDialog - walidacja i ładunek", () => {
     expect(screen.queryByText(`${BLAD}invalidExpiry`)).not.toBeInTheDocument();
   });
 
-  it("TERMIN PRZYSZŁY jedzie w UTC z zachowaniem godziny z zegara organizatora", () => {
+  it("TERMIN PRZYSZŁY jedzie w UTC jako zegar strefy wydarzenia (domyślnie Warszawa)", () => {
     // Pole `datetime-local` nie niesie strefy; wysłanie napisu bez konwersji
-    // dałoby poświadczenie ważne o godzinę za krótko lub za długo.
+    // (albo konwersja zegarem przeglądarki) dałoby poświadczenie ważne
+    // o godzinę za krótko lub za długo. 23:45 CET = 22:45 UTC.
     const { onSubmit } = renderujWydanie();
     fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
     fireEvent.change(terminWaznosci(), { target: { value: "2099-12-31T23:45" } });
     fireEvent.click(wydaj());
 
-    const wyslany = onSubmit.mock.calls[0][0].expiresAt ?? "";
-    expect(wyslany).toMatch(/Z$/);
-    const odczytany = new Date(wyslany);
-    expect(odczytany.getFullYear()).toBe(2099);
-    expect(odczytany.getMonth()).toBe(11);
-    expect(odczytany.getDate()).toBe(31);
-    expect(odczytany.getHours()).toBe(23);
-    expect(odczytany.getMinutes()).toBe(45);
+    expect(onSubmit.mock.calls[0][0].expiresAt).toBe("2099-12-31T22:45:00.000Z");
+  });
+});
+
+describe("ScannerDeviceDialog - granica terminu (OPS-12)", () => {
+  // Koniec wydarzenia 2099-06-10 18:00 UTC -> granica 2099-06-17 18:00 UTC.
+  const KONIEC = "2099-06-10T18:00:00.000Z";
+  /**
+   * Granica w zapisie pola `datetime-local` - zegar STREFY WYDARZENIA
+   * (domyślnie Warszawa, czerwiec = CEST, UTC+2), nie przeglądarki.
+   */
+  const granicaLokalnie = () => "2099-06-17T20:00";
+
+  it("kalendarz kończy się 7 dni po wydarzeniu, a podpowiedź podaje granicę", () => {
+    h.wydarzenie = { starts_at: "2099-06-09T08:00:00.000Z", ends_at: KONIEC };
+    renderujWydanie();
+    expect(terminWaznosci()).toHaveAttribute("max", granicaLokalnie());
+    const podpowiedz = document.getElementById("device-expires-at-hint");
+    expect(podpowiedz?.textContent).toContain(`${D}expiresHint`);
+    expect(podpowiedz?.textContent).toContain(`${BLAD}expiryTooLate`);
+    expect(podpowiedz?.textContent).toContain("2099");
+  });
+
+  it("wydarzenie bez końca liczy granicę od startu + 1 dzień (lustro bazy)", () => {
+    h.wydarzenie = { starts_at: "2099-06-09T18:00:00.000Z", ends_at: null };
+    renderujWydanie();
+    expect(terminWaznosci()).toHaveAttribute("max", granicaLokalnie());
+  });
+
+  it("TERMIN PO GRANICY blokuje wydanie zdaniem `expiry_too_late` - tym samym, którym odmówiłaby baza", () => {
+    h.wydarzenie = { starts_at: null, ends_at: KONIEC };
+    const { onSubmit } = renderujWydanie();
+    fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
+    fireEvent.change(terminWaznosci(), { target: { value: "2099-06-20T10:00" } });
+    fireEvent.click(wydaj());
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(`${BLAD}expiryTooLate`);
+  });
+
+  it("termin W GRANICY przechodzi i jedzie w żądaniu", () => {
+    h.wydarzenie = { starts_at: null, ends_at: KONIEC };
+    const { onSubmit } = renderujWydanie();
+    fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
+    fireEvent.change(terminWaznosci(), { target: { value: "2099-06-15T10:00" } });
+    fireEvent.click(wydaj());
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0].expiresAt).toMatch(/^2099-06-15T/);
+    expect(screen.queryByText(`${BLAD}expiryTooLate`)).not.toBeInTheDocument();
+  });
+
+  it("PO GRANICY (koniec ponad tydzień temu) wydania nie ma wcale - powód widać od razu", () => {
+    h.wydarzenie = { starts_at: "2020-01-01T08:00:00.000Z", ends_at: "2020-01-02T18:00:00.000Z" };
+    const { onSubmit } = renderujWydanie();
+    // Bez kliknięcia „Wydaj": powód jest na ekranie, zanim operator wypełni formularz.
+    expect(screen.getByRole("alert")).toHaveTextContent(`${BLAD}expiryTooLate`);
+    expect(terminWaznosci()).toBeDisabled();
+    expect(wydaj()).toBeDisabled();
+
+    fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
+    fireEvent.click(wydaj());
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("bez dat wydarzenia granicę zna tylko baza - kalendarz bez `max`, zwykła podpowiedź", () => {
+    renderujWydanie();
+    expect(terminWaznosci()).not.toHaveAttribute("max");
+    expect(document.getElementById("device-expires-at-hint")?.textContent).toBe(
+      `${D}expiresHint adminEvents.eventTime.zone(zone=Europe/Warsaw)`,
+    );
+  });
+
+  it("strefa wydarzenia z wiersza rządzi polem, granicą i żądaniem (Nowy Jork)", () => {
+    // Granica 2099-06-17 18:00 UTC to 14:00 EDT; wpisane 10:00 to 14:00 UTC.
+    h.wydarzenie = { starts_at: null, ends_at: KONIEC, timezone: "America/New_York" };
+    const { onSubmit } = renderujWydanie();
+    expect(terminWaznosci()).toHaveAttribute("max", "2099-06-17T14:00");
+    const podpowiedz = document.getElementById("device-expires-at-hint")?.textContent ?? "";
+    expect(podpowiedz).toContain("adminEvents.eventTime.zone(zone=America/New_York)");
+    fireEvent.change(etykieta(), { target: { value: "Telefon Ani" } });
+    fireEvent.change(terminWaznosci(), { target: { value: "2099-06-15T10:00" } });
+    fireEvent.click(wydaj());
+    expect(onSubmit.mock.calls[0][0].expiresAt).toBe("2099-06-15T14:00:00.000Z");
+  });
+
+  it("wpisana godzina z wiosennej luki strefy wydarzenia mówi, co zapiszemy", () => {
+    h.wydarzenie = { starts_at: null, ends_at: null, timezone: "Europe/Warsaw" };
+    renderujWydanie();
+    fireEvent.change(terminWaznosci(), { target: { value: "2099-03-29T02:30" } });
+    expect(document.getElementById("device-expires-at-hint")?.textContent).toContain(
+      "adminEvents.eventTime.gap(value=03:30,zone=Europe/Warsaw)",
+    );
   });
 });
 
@@ -488,7 +595,10 @@ describe("ScannerCredentialDialog - pokaz tokenu", () => {
     // Wolontariusz nie przepisze trzydziestu dwóch znaków base64url bez
     // pomyłki, a `+` i `/` w tokenie bez zakodowania rozpadłyby się w adresie.
     const { container } = renderujToken();
-    expect(h.qrCalls[0].url).toBe(`${window.location.origin}/scanner?t=tok_abc%2Bdef%2F123`);
+    // OPS-07: token jedzie we FRAGMENCIE - przeglądarka nie wysyła go na serwer,
+    // więc nie trafia do logów pierwszego żądania HTML.
+    expect(h.qrCalls[0].url).toBe(`${window.location.origin}/scanner#t=tok_abc%2Bdef%2F123`);
+    expect(new URL(h.qrCalls[0].url).search).toBe("");
     expect(container.querySelector("img")).toBeNull();
 
     await wydajKod(0, "data:image/png;base64,PIERWSZY");
@@ -560,7 +670,7 @@ describe("ScannerCredentialDialog - schowek", () => {
 
     await waitFor(() =>
       expect(h.writeText).toHaveBeenCalledWith(
-        `${window.location.origin}/scanner?t=tok_abc%2Bdef%2F123`,
+        `${window.location.origin}/scanner#t=tok_abc%2Bdef%2F123`,
       ),
     );
     expect(h.toastSuccess).toHaveBeenCalledWith(`${C}copied`);
@@ -631,5 +741,22 @@ describe("ScannerDeviceDialog - lista offline na urządzeniu", () => {
     fireEvent.click(wydaj());
 
     expect(onSubmit.mock.calls[0][0].offlineRoster).toBe(false);
+  });
+});
+
+describe("ScannerCredentialDialog - osobny origin skanera (OPS-13)", () => {
+  it("z `VITE_SCANNER_ORIGIN` link i kod QR prowadzą pod origin skanera, nie panelu", async () => {
+    // Token w `localStorage` pod originem skanera nie sąsiaduje z treściami CMS.
+    vi.stubEnv("VITE_SCANNER_ORIGIN", "https://scan.example.eu");
+    vi.resetModules();
+    try {
+      const { ScannerCredentialDialog: Dialog } =
+        await import("@/components/admin/events/molecules/ScannerDeviceDialog");
+      render(<Dialog credential={poswiadczenie()} onClose={vi.fn()} />);
+      expect(h.qrCalls.at(-1)?.url).toBe("https://scan.example.eu/scanner#t=tok_abc%2Bdef%2F123");
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 });

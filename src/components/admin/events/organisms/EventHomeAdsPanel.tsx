@@ -15,6 +15,11 @@
 // wpisywaniu, a nie przy wysyłce, więc `noValidate` go nie wyłącza. Każdy
 // komunikat błędu jest związany ze swoim polem (`aria-invalid` plus
 // `aria-describedby`), żeby czytnik ekranu przeczytał go razem z nazwą pola.
+//
+// HARMONOGRAM EMISJI JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15) - tej
+// samej, w której studio pokazuje termin wydarzenia. Pola stoją na wspólnej
+// molekule `AdminFormDateTimeRow` (atom `DateInput`), pod każdym jest strefa
+// albo zdanie o luce/zakładce zmiany czasu, a chwile liczy `homeAdDraft.ts`.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -22,7 +27,6 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DateTimePicker } from "@/components/ui/datetime-picker";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ImageUrlField } from "@/components/admin/auth/organisms/ImageUrlField";
+import { AdminFormDateTimeRow } from "@/components/admin/molecules/AdminFormDateTimeRow";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { confirmDialog } from "@/lib/appDialogs";
 import { brandedMediaUrl } from "@/lib/media/publicUrl";
@@ -45,8 +50,15 @@ import {
   validateHomeAd,
   type EventHomeAdRow,
   type HomeAdField,
-  type HomeAdInput,
 } from "@/lib/events/sponsorBoardApi";
+import {
+  homeAdDraftFromRow,
+  homeAdInputFromDraft,
+  type HomeAdDraft,
+  type HomeAdTimeField,
+} from "@/lib/events/homeAdDraft";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { useEventGroups } from "@/lib/events/useEventTermsGroups";
 import { useSponsors } from "@/lib/events/useEventSponsors";
 import "@/lib/i18n-admin-event-sponsor-board";
@@ -55,24 +67,17 @@ import { ensureSponsorReportI18n } from "@/lib/i18n-admin-event-sponsor-report";
 /** Wartość selektora „bez sponsora" - Radix nie przyjmuje pustego napisu. */
 const NO_SPONSOR = "none";
 
-function draftFrom(eventId: string, row: EventHomeAdRow | null): HomeAdInput {
-  return {
-    id: row?.id,
-    eventId,
-    imageUrl: row?.image_url ?? "",
-    imageMobileUrl: row?.image_mobile_url ?? "",
-    linkUrl: row?.link_url ?? "",
-    altText: row?.alt_text ?? "",
-    groupIds: row?.group_ids ?? [],
-    startsAt: row?.starts_at ?? "",
-    endsAt: row?.ends_at ?? "",
-    isActive: row?.is_active ?? true,
-    sponsorId: row?.sponsor_id ?? "",
-  };
-}
-
-export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
+export function EventHomeAdsPanel({
+  eventId,
+  timezone,
+}: {
+  eventId: string;
+  /** Strefa wydarzenia (`events.timezone`) - harmonogram emisji jest zegarem w niej. */
+  timezone: string | null;
+}) {
   ensureSponsorReportI18n();
+  // Podpowiedź strefy pod harmonogramem (`adminEvents.eventTime.*`).
+  ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = i18n.language.startsWith("en") ? "en" : "pl";
   const adsQ = useHomeAds(eventId);
@@ -81,14 +86,20 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
   const save = useSaveHomeAd(eventId);
   const remove = useDeleteHomeAd(eventId);
   const [editing, setEditing] = useState<EventHomeAdRow | null | undefined>(undefined);
-  const [draft, setDraft] = useState<HomeAdInput>(() => draftFrom(eventId, null));
+  const [draft, setDraft] = useState<HomeAdDraft>(() =>
+    homeAdDraftFromRow(eventId, null, timezone),
+  );
   const [errors, setErrors] = useState<HomeAdField[]>([]);
 
   useEffect(() => {
     if (editing === undefined) return;
-    setDraft(draftFrom(eventId, editing));
+    setDraft(homeAdDraftFromRow(eventId, editing, timezone));
     setErrors([]);
-  }, [editing, eventId]);
+  }, [editing, eventId, timezone]);
+
+  const timeHint = (field: HomeAdTimeField): string =>
+    eventLocalInputHint(t, lang, draft[field], draft.timeZone, draft.savedTimes[field] ?? null) ??
+    "";
 
   const groups = groupsQ.data ?? [];
   const groupName = (id: string) => {
@@ -217,10 +228,12 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
             noValidate
             onSubmit={(e) => {
               e.preventDefault();
-              const found = validateHomeAd(draft);
+              // Walidacja i zapis widzą CHWILE w UTC - to samo, co dostanie baza.
+              const input = homeAdInputFromDraft(draft);
+              const found = validateHomeAd(input);
               setErrors(found);
               if (found.length > 0) return;
-              save.mutate(draft, {
+              save.mutate(input, {
                 onSuccess: () => {
                   toast.success(t("sponsorBoard.ads.saved"));
                   setEditing(undefined);
@@ -317,31 +330,21 @@ export function EventHomeAdsPanel({ eventId }: { eventId: string }) {
               </div>
             </fieldset>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="ad-from">{t("sponsorBoard.ads.startsAt")}</Label>
-                <DateTimePicker
-                  id="ad-from"
-                  lang={lang}
-                  value={draft.startsAt || null}
-                  onChange={(v) => setDraft({ ...draft, startsAt: v ?? "" })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ad-to">{t("sponsorBoard.ads.endsAt")}</Label>
-                <DateTimePicker
-                  id="ad-to"
-                  lang={lang}
-                  value={draft.endsAt || null}
-                  onChange={(v) => setDraft({ ...draft, endsAt: v ?? "" })}
-                  aria-invalid={endsInvalid || undefined}
-                  aria-describedby={endsInvalid ? "ad-to-error" : undefined}
-                />
-                {endsInvalid ? (
-                  <p id="ad-to-error" className="text-xs text-destructive">
-                    {t("sponsorBoard.ads.endsInvalid")}
-                  </p>
-                ) : null}
-              </div>
+              <AdminFormDateTimeRow
+                id="ad-from"
+                label={t("sponsorBoard.ads.startsAt")}
+                value={draft.startsAt}
+                hint={timeHint("startsAt")}
+                onValueChange={(value) => setDraft({ ...draft, startsAt: value })}
+              />
+              <AdminFormDateTimeRow
+                id="ad-to"
+                label={t("sponsorBoard.ads.endsAt")}
+                value={draft.endsAt}
+                hint={timeHint("endsAt")}
+                error={endsInvalid ? t("sponsorBoard.ads.endsInvalid") : null}
+                onValueChange={(value) => setDraft({ ...draft, endsAt: value })}
+              />
             </div>
             <label className="flex items-center gap-2 text-sm">
               <Switch

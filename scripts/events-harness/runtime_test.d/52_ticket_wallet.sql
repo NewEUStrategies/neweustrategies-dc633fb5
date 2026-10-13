@@ -411,10 +411,13 @@ SELECT pg_temp.assert_raises_like(
        '52b00000-0000-0000-0000-0000000000b1', 'apple', 'x')$q$,
   'not_found', '52/dziennik: zgloszenie najemcy B podane z najemca A -> not_found');
 
+-- Sygnatura od 20261013111600: + skrot kodu i skrot tresci (DEFAULT NULL), wiec
+-- wywolania czterema argumentami wyzej dzialaja bez zmian; granty sprawdzamy na
+-- biezacej sygnaturze (stara zostala usunieta).
 SELECT pg_temp.assert(
-  NOT has_function_privilege('anon', 'public._event_wallet_pass_note(uuid,uuid,text,text)', 'EXECUTE')
-  AND NOT has_function_privilege('authenticated', 'public._event_wallet_pass_note(uuid,uuid,text,text)', 'EXECUTE')
-  AND has_function_privilege('service_role', 'public._event_wallet_pass_note(uuid,uuid,text,text)', 'EXECUTE'),
+  NOT has_function_privilege('anon', 'public._event_wallet_pass_note(uuid,uuid,text,text,text,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_wallet_pass_note(uuid,uuid,text,text,text,text)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public._event_wallet_pass_note(uuid,uuid,text,text,text,text)', 'EXECUTE'),
   '52/granty: dziennik pisze WYLACZNIE service_role');
 
 SELECT pg_temp.act_as('52a00000-0000-0000-0000-0000000000a1', '52000000-0000-0000-0000-0000000000a0');

@@ -36,9 +36,12 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   toastWarning: vi.fn(),
+  /** Odpowiedź okna potwierdzenia odłączenia. */
+  confirm: vi.fn<(options: Record<string, unknown>) => Promise<boolean>>(),
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("@/lib/appDialogs", () => ({ confirmDialog: h.confirm }));
 
 vi.mock("sonner", () => ({
   toast: { success: h.toastSuccess, error: h.toastError, info: vi.fn(), warning: h.toastWarning },
@@ -120,6 +123,7 @@ function session(over: Partial<ScannerSession> = {}): ScannerSession {
         kind: "event_entry",
         directionMode: "in_only",
         accessMode: "control",
+        reentryPolicy: "allow",
         capacity: null,
         dedupeWindowSeconds: 0,
         sortOrder: 0,
@@ -160,6 +164,8 @@ function runtimeStub(over: Partial<ScannerRuntime> = {}): ScannerRuntime {
     outboxPersistent: true,
     flushing: false,
     flush: vi.fn(),
+    retry: vi.fn(),
+    retryAll: vi.fn(),
     discard: vi.fn(),
     sessionStale: false,
     clockOffsetMs: 0,
@@ -199,6 +205,7 @@ function codeInput(): HTMLElement | null {
 beforeEach(() => {
   cleanup();
   vi.clearAllMocks();
+  h.confirm.mockResolvedValue(true);
   h.initialTokens = [];
   h.readinessActive = [];
 });
@@ -554,5 +561,90 @@ describe("ScannerApp - tryb offline", () => {
     expect(h.toastSuccess).not.toHaveBeenCalled();
     expect(h.toastWarning).not.toHaveBeenCalled();
     expect(h.toastError).not.toHaveBeenCalled();
+  });
+
+  it("„Wyślij teraz” i „Ponów” zerują wycofanie środowiska (OPS-05)", () => {
+    const view = mount({
+      outbox: [outboxItem({ id: "o1", code: "PONOW1-A", lastError: "Failed to fetch" })],
+      outboxCounts: { pending: 1, stuck: 0 },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /eventScanner.outbox.sync$/ }));
+    expect(view.runtime.retryAll).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /eventScanner.outbox.retry$/ }));
+    expect(view.runtime.retry).toHaveBeenCalledWith("o1");
+  });
+});
+
+describe("ScannerApp - odłączenie pyta, gdy jest co stracić (OPS-06)", () => {
+  it("niewysłane skany: odmowa w oknie potwierdzenia NIE odłącza", async () => {
+    const view = mount({ outbox: [outboxItem()], outboxCounts: { pending: 1, stuck: 0 } });
+    h.confirm.mockResolvedValue(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "eventScanner.session.disconnect" }));
+
+    await vi.waitFor(() => expect(h.confirm).toHaveBeenCalledTimes(1));
+    expect(h.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        destructive: true,
+        title: "eventScanner.session.disconnectTitle",
+        description: "eventScanner.session.disconnectUnsent",
+      }),
+    );
+    expect(view.runtime.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("lista do wyjaśnienia też wymaga zgody - po zgodzie środowisko kasuje wszystko", async () => {
+    const view = mount({
+      rejected: [{ item: outboxItem(), error: "device_revoked: x", rejectedAt: "t" }],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "eventScanner.session.disconnect" }));
+
+    await vi.waitFor(() => expect(view.runtime.disconnect).toHaveBeenCalledTimes(1));
+    expect(h.confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("bez niczego do stracenia odłącza od razu, bez pytania", () => {
+    const view = mount();
+    fireEvent.click(screen.getByRole("button", { name: "eventScanner.session.disconnect" }));
+    expect(view.runtime.disconnect).toHaveBeenCalledTimes(1);
+    expect(h.confirm).not.toHaveBeenCalled();
+  });
+});
+
+describe("ScannerApp - stary link i nowy adres skanera", () => {
+  it("stary link `?t=` (OPS-07) daje jasne zdanie na ekranie parowania", () => {
+    runtime = runtimeStub({ status: "idle", session: null, token: null });
+    render(<ScannerApp initialToken={null} notice="legacy_link" />);
+    expect(screen.getByRole("alert")).toHaveTextContent("eventScanner.pairing.legacyLink");
+    expect(screen.getByRole("heading", { name: "eventScanner.pairing.title" })).toBeInTheDocument();
+  });
+
+  it("pod originem portalu (OPS-13): przeniesienie czeka na pustą kolejkę, potem jedzie z tokenem we fragmencie", async () => {
+    const replace = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...original, replace },
+    });
+    try {
+      runtime = runtimeStub({ outbox: [outboxItem()], outboxCounts: { pending: 1, stuck: 0 } });
+      const view = render(<ScannerApp initialToken={null} relocateTo="https://scan.example.eu" />);
+      const move = () => screen.getByRole("button", { name: /eventScanner.session.relocate$/ });
+      expect(screen.getByText(/eventScanner.session.relocation/)).toBeInTheDocument();
+      expect(move()).toBeDisabled();
+
+      runtime = runtimeStub({ outbox: [], outboxCounts: { pending: 0, stuck: 0 } });
+      view.rerender(<ScannerApp initialToken={null} relocateTo="https://scan.example.eu" />);
+      expect(move()).toBeEnabled();
+      fireEvent.click(move());
+
+      await vi.waitFor(() =>
+        expect(replace).toHaveBeenCalledWith(`https://scan.example.eu/scanner#t=${TOKEN}`),
+      );
+      expect(runtime.disconnect).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(window, "location", { configurable: true, value: original });
+    }
   });
 });

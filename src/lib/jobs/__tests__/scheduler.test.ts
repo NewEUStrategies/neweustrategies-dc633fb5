@@ -98,6 +98,15 @@ describe("parseSchedulerJob", () => {
     }
   });
 
+  it("zna job przepustek Google Wallet (OPS-14) i workflow pozwala go uruchomić ręcznie", () => {
+    expect(SCHEDULER_JOBS).toContain("event-wallet-passes");
+    expect(parseSchedulerJob("event-wallet-passes")).toBe("event-wallet-passes");
+    const workflow = readFileSync(".github/workflows/scheduler.yml", "utf8");
+    expect(workflow).toMatch(/\n\s+- event-wallet-passes\n/);
+    const driver = readFileSync("scripts/scheduler-tick.mjs", "utf8");
+    expect(driver).toContain("event-wallet-passes");
+  });
+
   it("nieznany job to null - endpoint musi zwrócić 400, nie cicho zrobić 'all'", () => {
     expect(parseSchedulerJob("drop-database")).toBeNull();
     expect(parseSchedulerJob("push;all")).toBeNull();

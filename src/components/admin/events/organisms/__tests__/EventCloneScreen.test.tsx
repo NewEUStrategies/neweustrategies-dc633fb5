@@ -91,8 +91,10 @@ vi.mock("@/components/admin/events/organisms/EventCloneForm", () => ({
             onDraftChange?.({
               titlePl: "Kongres 2027",
               titleEn: "Congress 2027",
-              startsAt: "2100-03-20T08:00:00.000Z",
+              // Pole szkicu jest zegarem strefy edycji (OPS-15), nie chwilą ISO.
+              startsAt: "2100-03-20T09:00",
               timezone: "Europe/Warsaw",
+              savedTimes: {},
             } as EventCloneDraft)
           }
         >
@@ -181,7 +183,11 @@ describe("EventCloneScreen", () => {
     await ready();
     fireEvent.click(screen.getByRole("button", { name: "raportuj" }));
     await waitFor(() => expect(h.rail.at(-1)?.title).toBe("Kongres 2027"));
-    expect(h.rail.at(-1)?.date).not.toBe("");
+    // Rail formatuje CHWILĘ zegara Warszawy w jej strefie: 09:00, niezależnie
+    // od strefy maszyny (pole czytane jako `new Date(napis)` dałoby inną godzinę
+    // w każdej strefie poza Warszawą).
+    expect(h.rail.at(-1)?.date).toContain("09:00");
+    expect(h.rail.at(-1)?.date).toContain("2100");
     cleanup();
     h.lang = "en";
     await ready();

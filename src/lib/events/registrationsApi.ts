@@ -519,36 +519,23 @@ export async function decideRegistration(input: RegistrationDecisionInput): Prom
 }
 
 /**
- * Skutek finansowy anulowania zgłoszenia przez organizatora (REG-03): ta sama
- * reguła, którą baza zastosuje przy `cancel`, plus oś płatności zgłoszenia
- * (wiersz listy zgłoszeń jej nie niesie).
+ * Wycofanie zgody uczestnika na przekazanie danych partnerom wydarzenia - na
+ * prośbę złożoną innym kanałem niż strona samoobsługi. Baza stempluje
+ * wycofanie na wszystkich zgłoszeniach tej osoby na to wydarzenie, NIE kasuje
+ * stempla nadania i zapisuje aktora w `audit_log`. Zwraca `false`, gdy nie było
+ * czego wycofywać (powtórzenie jest bezpieczne).
  */
-export interface RegistrationRefundPreview extends CancellationRefund {
-  /** `pending` = zwrot automatyczny, `needs_review` = decyzja w dzienniku, `null` = brak zlecenia. */
-  jobState: "pending" | "needs_review" | null;
-  paymentStatus: string | null;
-}
-
-export async function fetchRegistrationRefundPreview(
-  registrationId: string,
-): Promise<RegistrationRefundPreview> {
-  const { data, error } = await supabase.rpc("admin_event_registration_refund_preview", {
+export async function withdrawRegistrationPartnerConsent(registrationId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("admin_event_registration_partner_consent_withdraw", {
     p_registration_id: registrationId,
   });
   if (error) throw error;
-  const source =
-    typeof data === "object" && data !== null && !Array.isArray(data)
-      ? (data as Record<string, unknown>)
-      : {};
-  // Odpowiedź bez skutku traktujemy jak „decyduje organizator" - okno decyzji
-  // nie może z niej wywnioskować, że pieniędzy nie ma.
-  const refund = parseCancellationRefund(source) ?? parseCancellationRefund({});
-  const jobState = source.job_state;
-  return {
-    ...(refund as CancellationRefund),
-    jobState: jobState === "pending" || jobState === "needs_review" ? jobState : null,
-    paymentStatus: typeof source.payment_status === "string" ? source.payment_status : null,
-  };
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    !Array.isArray(data) &&
+    (data as { withdrawn?: unknown }).withdrawn === true
+  );
 }
 
 export interface RegistrationUpsertInput {

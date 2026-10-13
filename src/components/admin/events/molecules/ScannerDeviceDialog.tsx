@@ -17,6 +17,18 @@
 // telefon listę uczestników (bez e-maili i telefonów, ze skrótami kodów zamiast
 // kodów), więc pole jest domyślnie puste, stoi obok ostrzeżenia i działa tylko
 // razem z uprawnieniem do odprawy.
+//
+// TERMIN MA GÓRNĄ GRANICĘ (OPS-12): koniec wydarzenia + 7 dni
+// (`scannerExpiryLimit`, lustro `_event_scanner_expiry_limit`). Kalendarz nie
+// pozwala wybrać później, podpowiedź podaje granicę, wpisana ręcznie później
+// data blokuje wydanie zdaniem `expiry_too_late` - tym samym, którym odmówiłaby
+// baza - a po granicy (wydarzenie skończyło się ponad tydzień temu) wydania nie
+// ma wcale. Granicę liczymy z wiersza wydarzenia, który studio i tak trzyma
+// w cache (`useAdminEventDetail`); bez dat wydarzenia granicę zna tylko baza.
+//
+// TERMIN JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15), jak terminy biletów:
+// pole, granica w kalendarzu i granica w podpowiedzi mówią tą samą strefą
+// (`events.timezone` z tego samego wiersza), a podpowiedź ją nazywa.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -50,11 +62,26 @@ import {
   validateScannerDeviceDraft,
   type ScannerDeviceDraft,
 } from "@/lib/events/onsiteDraft";
+import { isoToLocal, localToIso } from "@/lib/events/onsiteDraft";
+import {
+  isExpiryTooLate,
+  isIssueWindowClosed,
+  scannerExpiryLimit,
+} from "@/lib/events/scannerExpiryLimit";
+import { scannerOriginFor, scannerPairingUrl } from "@/lib/events/scannerLink";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
+import { eventTimeZone } from "@/lib/events/timezone";
+import { useAdminEventDetail } from "@/lib/events/useAdminEventDetail";
+import { formatDate, uiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 import { ensureOnsiteI18n } from "@/lib/i18n-admin-event-onsite";
 
 ensureOnsiteI18n();
+ensureAdminEventsI18n();
 
 const NONE = "__none__";
+
+const EXPIRY_TOO_LATE = "adminEventOnsite.errors.expiryTooLate";
 
 export interface ScannerRelationOption {
   id: string;
@@ -80,9 +107,11 @@ export function ScannerDeviceDialog({
   isSaving,
   onSubmit,
 }: ScannerDeviceDialogProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [draft, setDraft] = useState<ScannerDeviceDraft>(() => emptyScannerDeviceDraft());
   const [touched, setTouched] = useState(false);
+  const eventQ = useAdminEventDetail(eventId);
 
   useEffect(() => {
     if (!open) return;
@@ -90,7 +119,38 @@ export function ScannerDeviceDialog({
     setTouched(false);
   }, [open]);
 
-  const errors = validateScannerDeviceDraft(draft);
+  // Granica terminu (OPS-12) i strefa pola (OPS-15) - patrz nagłówek.
+  const zone = eventTimeZone({ timezone: eventQ.data?.timezone });
+  const expiryLimit = scannerExpiryLimit(eventQ.data);
+  const issueClosed = isIssueWindowClosed(expiryLimit, Date.now());
+  const chosenExpiry = localToIso(draft.expiresAtLocal, zone);
+  const tooLate = isExpiryTooLate(
+    typeof chosenExpiry === "string" ? chosenExpiry : null,
+    expiryLimit,
+  );
+  const errors = [
+    ...validateScannerDeviceDraft(draft, zone),
+    ...(tooLate ? [{ field: "expiresAtLocal", messageKey: EXPIRY_TOO_LATE }] : []),
+  ];
+  // „Godzina w strefie …" albo zdanie o luce/zakładce (to drugie ma już kropkę).
+  const zoneHint = eventLocalInputHint(t, lang, draft.expiresAtLocal, zone) ?? "";
+  const zoneSentence = /[.!?]$/.test(zoneHint) ? zoneHint : `${zoneHint}.`;
+  const expiryHint =
+    expiryLimit === null
+      ? `${t("adminEventOnsite.devices.dialog.expiresHint")} ${zoneHint}`
+      : `${t("adminEventOnsite.devices.dialog.expiresHint")} ${zoneSentence} ${t(EXPIRY_TOO_LATE)} (${formatDate(
+          expiryLimit,
+          lang,
+          {
+            year: "numeric",
+            month: "numeric",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            // Pole mówi zegarem strefy wydarzenia - granica też.
+            timeZone: zone,
+          },
+        )})`;
   const hasCheckin = draft.scopes.includes("checkin");
   const errorFor = (field: string): string | null => {
     if (!touched) return null;
@@ -108,8 +168,8 @@ export function ScannerDeviceDialog({
 
   const submit = () => {
     setTouched(true);
-    if (errors.length > 0) return;
-    onSubmit(scannerDeviceDraftToInput(draft, eventId));
+    if (errors.length > 0 || issueClosed) return;
+    onSubmit(scannerDeviceDraftToInput(draft, eventId, zone));
   };
 
   const options = (items: ScannerRelationOption[], noneLabel: string) => [
@@ -212,13 +272,18 @@ export function ScannerDeviceDialog({
             </p>
           </div>
 
+          {/* Po granicy baza nie wyda poświadczenia z żadnym terminem - mówimy
+              to od razu, bez czekania na „Wydaj". */}
           <AdminFormTextRow
+            id="device-expires-at"
             label={t("adminEventOnsite.devices.dialog.expiresAt")}
-            hint={t("adminEventOnsite.devices.dialog.expiresHint")}
+            hint={expiryHint}
             value={draft.expiresAtLocal}
             onValueChange={(value) => setDraft((prev) => ({ ...prev, expiresAtLocal: value }))}
             type="datetime-local"
-            error={errorFor("expiresAtLocal")}
+            max={expiryLimit === null ? undefined : isoToLocal(expiryLimit, zone)}
+            disabled={issueClosed}
+            error={issueClosed ? t(EXPIRY_TOO_LATE) : errorFor("expiresAtLocal")}
           />
         </AdminFormSection>
 
@@ -226,7 +291,7 @@ export function ScannerDeviceDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
             {t("adminEventOnsite.actions.cancel")}
           </Button>
-          <Button onClick={submit} disabled={isSaving}>
+          <Button onClick={submit} disabled={isSaving || issueClosed}>
             <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("adminEventOnsite.actions.issueDevice")}
           </Button>
@@ -247,12 +312,18 @@ interface ScannerCredentialDialogProps {
  * KOD QR JEST TU NAJWAŻNIEJSZY. Wolontariusz nie przepisze trzydziestu dwóch
  * znaków base64url z ekranu laptopa na telefon bez pomyłki, a przepisany
  * z pomyłką token wygląda jak awaria systemu. Kod prowadzi wprost do
- * `/scanner?t=…`, więc telefon jest sparowany w jednym geście - a trasa
+ * `/scanner#t=…`, więc telefon jest sparowany w jednym geście - a trasa
  * skanera natychmiast czyści token z paska adresu.
  *
- * ADRES POWSTAJE W PRZEGLĄDARCE, NIE NA SERWERZE. `window.location.origin`
- * daje tę samą domenę, na której stoi organizator - a przy wielu domenach
- * najemców to jest jedyna wartość, która na pewno wskaże właściwą.
+ * TOKEN WE FRAGMENCIE, NIE W ZAPYTANIU (OPS-07). Fragmentu przeglądarka nie
+ * wysyła na serwer - poświadczenie nie trafia do logów Cloudflare/Workers.
+ *
+ * ADRES POWSTAJE W PRZEGLĄDARCE, NIE NA SERWERZE. Bez osobnego originu skanera
+ * `window.location.origin` daje tę samą domenę, na której stoi organizator -
+ * a przy wielu domenach najemców to jest jedyna wartość, która na pewno wskaże
+ * właściwą. Wdrożenie z `VITE_SCANNER_ORIGIN` (OPS-13) paruje telefony pod
+ * originem skanera: tam token w `localStorage` nie sąsiaduje z treściami CMS,
+ * a najemcę i wydarzenie i tak wyznacza sam token.
  */
 export function ScannerCredentialDialog({ credential, onClose }: ScannerCredentialDialogProps) {
   const { t } = useTranslation();
@@ -262,7 +333,7 @@ export function ScannerCredentialDialog({ credential, onClose }: ScannerCredenti
   const pairingUrl =
     credential === null || typeof window === "undefined"
       ? null
-      : `${window.location.origin}/scanner?t=${encodeURIComponent(credential.token)}`;
+      : scannerPairingUrl(scannerOriginFor(window.location.origin), credential.token);
 
   useEffect(() => {
     if (pairingUrl === null) {

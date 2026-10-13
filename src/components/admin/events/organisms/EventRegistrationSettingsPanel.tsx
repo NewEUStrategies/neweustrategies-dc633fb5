@@ -25,6 +25,12 @@
 // redaktora w tenancie domowym. Zwyklym zapytaniem redaktor moglby je zapisac
 // na slepo, ale nie odczytac.
 //
+// OTWARCIE ZAPISOW JEST ZEGAREM W STREFIE WYDARZENIA (klasa OPS-15) - tej samej,
+// w ktorej „Informacje ogolne" i kreator pokazuja termin. Pod polem stoi ta
+// strefa (albo zdanie o luce/zakladce zmiany czasu); strefy ten ekran nie
+// zmienia - zmiana na „Informacjach ogolnych" zostawia chwile, wiec po niej
+// pole pokazuje te sama chwile w nowej strefie.
+//
 // POLE ADRESU ZEWNETRZNEGO POJAWIA SIE W TRYBIE `external` - ORAZ WSZEDZIE TAM,
 // GDZIE TEN ADRES BLOKUJE ZAPIS. Pole, ktorego nikt nigdy nie czyta, jest polem,
 // ktore ktos kiedys wypelni przez pomylke - a wtedy zapis ma sie udac, bo baza
@@ -76,7 +82,9 @@ import {
   type EventRegistrationFlow,
   type EventRegistrationMode,
 } from "@/lib/events/eventTypes";
+import { eventLocalInputHint } from "@/lib/events/eventLocalInput";
 import { useSaveEventGeneral } from "@/lib/events/useAdminEventDetail";
+import { uiLang } from "@/lib/i18n/format";
 import { ensureI18n as ensureAdminEventsI18n } from "@/lib/i18n-admin-events";
 
 /**
@@ -90,7 +98,8 @@ const FLOW_ORDER: readonly EventRegistrationFlow[] = ["instant", "approval"];
 
 export function EventRegistrationSettingsPanel({ row }: { row: AdminEventDetailRow }) {
   ensureAdminEventsI18n();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
 
   // Wiersz RPC jest typem generowanym (alias literalu obiektu), wiec wchodzi
   // wprost tam, gdzie modul czysty prosi o `Record<string, unknown>` - bez
@@ -256,7 +265,15 @@ export function EventRegistrationSettingsPanel({ row }: { row: AdminEventDetailR
           id="event-rsvp-opens-at"
           label={t("adminEvents.studio.registrationSettings.rsvpOpensLabel")}
           value={draft.rsvpOpensAt}
-          hint={t("adminEvents.studio.registrationSettings.rsvpOpensHint")}
+          hint={`${t("adminEvents.studio.registrationSettings.rsvpOpensHint")} ${
+            eventLocalInputHint(
+              t,
+              lang,
+              draft.rsvpOpensAt,
+              draft.timeZone,
+              draft.savedTimes.rsvpOpensAt ?? null,
+            ) ?? ""
+          }`.trim()}
           error={errorFor("rsvpOpensAt")}
           onValueChange={(value) => set("rsvpOpensAt", value)}
         />

@@ -1,5 +1,13 @@
 // Atom: podgląd karty biletu tak, jak zobaczy ją osoba rejestrująca się.
+//
+// TERMIN SPRZEDAŻY CZYTAMY W STREFIE WYDARZENIA. Pole formularza jest zegarem
+// w tej strefie (`ticketDraft`), a karta publiczna pokazuje go w niej - dawne
+// `new Date(pole)` czytało napis w strefie przeglądarki i pokazywało go
+// w strefie serwisu (inna godzina w Londynie). Napis nieczytelny jako data
+// (`2026-13-45T99:99`) rzucał przy tym `RangeError` z `toISOString()` w trakcie
+// renderu; teraz wiersz terminu po prostu znika.
 import { useTranslation } from "react-i18next";
+import { eventLocalInputToIso } from "@/lib/events/eventLocalInput";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import { ensureI18n as ensureRegistrationI18n } from "@/lib/i18n-admin-event-registration";
 
@@ -9,6 +17,8 @@ export function EventTicketPreview({
   priceLabel,
   taxAdded = false,
   salesTo,
+  salesToSaved = null,
+  timeZone,
   lang,
 }: {
   name: string;
@@ -17,18 +27,27 @@ export function EventTicketPreview({
   priceLabel: string | null;
   /** Podatek doliczany w kasie - karta publiczna dopisuje wtedy „+ podatek". */
   taxAdded?: boolean;
-  /** Wartość pola datetime-local lub pusty napis. */
+  /** Wartość pola datetime-local (zegar w `timeZone`) lub pusty napis. */
   salesTo: string;
+  /** Chwila z bazy, z której powstało pole (nietknięte pole oddaje ją bez zmian). */
+  salesToSaved?: string | null;
+  /** Strefa wydarzenia (IANA) - w niej jest pole i w niej pokazujemy termin. */
+  timeZone: string;
   lang: "pl" | "en";
 }) {
   ensureRegistrationI18n();
   const { t } = useTranslation();
+  const untilIso = eventLocalInputToIso(salesTo, timeZone, salesToSaved);
+  // Napis niepełny (w trakcie wpisywania) nie jest ani terminem, ani „zawsze" -
+  // wiersz terminu znika, dopóki pole nie da się odczytać.
   const until =
     salesTo.trim() === ""
       ? t("adminEventRegistration.tickets.studio.previewAlways")
-      : t("adminEventRegistration.tickets.studio.previewUntil", {
-          date: formatEventDateTime(new Date(salesTo).toISOString(), null, lang),
-        });
+      : untilIso === null
+        ? null
+        : t("adminEventRegistration.tickets.studio.previewUntil", {
+            date: formatEventDateTime(untilIso, timeZone, lang),
+          });
   return (
     <section
       aria-label={t("adminEventRegistration.tickets.studio.preview")}
@@ -59,7 +78,7 @@ export function EventTicketPreview({
         {description.trim() !== "" ? (
           <p className="line-clamp-3 text-xs text-muted-foreground">{description}</p>
         ) : null}
-        <p className="text-xs text-muted-foreground">{until}</p>
+        {until === null ? null : <p className="text-xs text-muted-foreground">{until}</p>}
       </div>
     </section>
   );

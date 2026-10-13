@@ -99,6 +99,7 @@ describe("onsiteApi - kontrakt wywolan bazy", () => {
       sponsorId: null,
       directionMode: "in_out",
       accessMode: "control",
+      reentryPolicy: "deny",
       capacity: 200,
       dedupeWindowSeconds: 30,
       isActive: true,
@@ -116,11 +117,51 @@ describe("onsiteApi - kontrakt wywolan bazy", () => {
       "kind",
       "name_en",
       "name_pl",
+      "reentry_policy",
       "room_id",
       "session_id",
       "sort_order",
       "sponsor_id",
     ]);
+    expect(payloadOf("admin_event_checkpoint_save").reentry_policy).toBe("deny");
+  });
+
+  it("uniewaznienie zgubionego kodu niesie zapis i rodzaj poswiadczenia, kod jawny wraca RAZ", async () => {
+    rpc().setData("admin_event_registration_code_invalidate", {
+      registration_id: PERSON_ID,
+      credential: "ticket",
+      code: "nowy-kod-biletu",
+      invalidated_at: "2026-10-12T10:00:00.000Z",
+    });
+
+    const wynik = await api.invalidateRegistrationCode({
+      registrationId: PERSON_ID,
+      credential: "ticket",
+    });
+
+    expect(payloadOf("admin_event_registration_code_invalidate")).toEqual({
+      registration_id: PERSON_ID,
+      credential: "ticket",
+    });
+    expect(wynik).toEqual({
+      registrationId: PERSON_ID,
+      credential: "ticket",
+      code: "nowy-kod-biletu",
+      invalidatedAt: "2026-10-12T10:00:00.000Z",
+    });
+
+    rpc().setData("admin_event_registration_code_invalidate", {
+      registration_id: PERSON_ID,
+      credential: "badge",
+      code: null,
+      invalidated_at: "2026-10-12T10:05:00.000Z",
+    });
+    const identyfikator = await api.invalidateRegistrationCode({
+      registrationId: PERSON_ID,
+      credential: "badge",
+    });
+    expect(identyfikator.code).toBeNull();
+    expect(identyfikator.credential).toBe("badge");
   });
 
   it("`undefined` znaczy „nie dotykaj”, a jawny `null` jedzie do bazy jako „wyczysc”", async () => {
@@ -349,6 +390,50 @@ describe("onsiteApi - decyzja odprawy", () => {
     expect(outcome.previousCheckinAt).toBe("2026-09-01T08:00:00.000Z");
     expect(outcome.admit).toBe(true);
     expect(outcome.checkinId).toBe("55555555-5555-4555-8555-555555555555");
+  });
+
+  it("OBEJŚCIE ODMOWY (20261013111100): stanowisko widzi, że wpuściło osobę „już w środku” i od kiedy", async () => {
+    // Odprawa ręczna omija politykę `deny` JAWNIE - baza zapisuje zgodę
+    // z operatorem i znacznikiem `reentry_override`. Panel musi to przenieść
+    // bez zmian: inaczej obsługa nie wie, że właśnie obeszła blokadę.
+    rpc().setData("admin_event_checkin_manual", {
+      outcome: "granted",
+      admit: true,
+      result: "granted",
+      checkin_id: "77777777-7777-4777-8777-777777777777",
+      direction: "in",
+      occurred_at: "2026-09-01T10:00:00.000Z",
+      repeat_count: 0,
+      previous_checkin_at: "2026-09-01T08:00:00.000Z",
+      reentry: true,
+      reentry_previous_at: "2026-09-01T08:00:00.000Z",
+      reentry_override: true,
+      checkpoint: { id: CHECKPOINT_ID, reentry_policy: "deny" },
+      person: { person_id: PERSON_ID },
+    });
+
+    const outcome = await api.recordManualCheckin({
+      eventId: EVENT_ID,
+      checkpointId: CHECKPOINT_ID,
+      personId: PERSON_ID,
+      clientScanUid: "scan-uid-obejscie",
+    });
+
+    expect(outcome.reentryOverride).toBe(true);
+    expect(outcome.reentry).toBe(true);
+    expect(outcome.reentryPreviousAt).toBe("2026-09-01T08:00:00.000Z");
+  });
+
+  it("brak pól ponownego wejścia (stara odpowiedź) to NIE obejście i NIE ponowne wejście", () => {
+    const parsed = api.parseCheckinOutcome({
+      outcome: "granted",
+      admit: true,
+      reentry_override: "true",
+      reentry: 1,
+    });
+    expect(parsed.reentryOverride).toBe(false);
+    expect(parsed.reentry).toBe(false);
+    expect(parsed.reentryPreviousAt).toBeNull();
   });
 
   // -------------------------------------------------------------------------

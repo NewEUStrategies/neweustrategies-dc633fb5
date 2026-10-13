@@ -26,7 +26,7 @@
  *                             event-reminders | crm-task-reminders |
  *                             event-ticket-codes |
  *                             event-participant-reminders | event-ticket-lifecycle |
- *                             event-follow-up
+ *                             event-follow-up | event-wallet-passes
  *   SCHEDULER_SOURCE          domyślnie github_actions (ląduje w logu przebiegów)
  *   SCHEDULER_TICKS           liczba ticków w jednym przebiegu (domyślnie 1)
  *   SCHEDULER_INTERVAL_MS     odstęp między tickami (domyślnie 60000)
@@ -173,6 +173,20 @@ function summarize(payload) {
       `odwołane bilety (zawiadomienia): ${revoked.sent ?? 0}/${revoked.notices ?? 0}` +
         (revoked.deferred ? ` (odłożone: ${revoked.deferred})` : ""),
     );
+  }
+  // Przepustki Google Wallet uniewaznionych biletow (OPS-14) - linia tylko,
+  // gdy byla praca; `skipped` (brak konfiguracji, migracja w drodze) milczy.
+  const wallet = payload.walletPassRevocations;
+  if (wallet && typeof wallet === "object" && !wallet.error && !wallet.skipped) {
+    const done = (wallet.revoked ?? 0) + (wallet.failed ?? 0) + (wallet.closed ?? 0);
+    if (done > 0 || (wallet.deferred ?? 0) > 0) {
+      parts.push(
+        `przepustki Google: ${wallet.revoked ?? 0}/${wallet.claimed ?? 0}` +
+          (wallet.closed ? ` (zamknięte bez wywołania: ${wallet.closed})` : "") +
+          (wallet.failed ? ` (błędy: ${wallet.failed})` : "") +
+          (wallet.gaveUp ? ` (porzucone po 8 próbach: ${wallet.gaveUp})` : ""),
+      );
+    }
   }
   // Bilety z puli planu porzuconych kas - linia tylko, gdy cos wrocilo.
   const seats = payload.eventPlanSeatRelease;

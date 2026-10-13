@@ -22,29 +22,15 @@
 // i kalendarz), C (ankieta, certyfikat). Tory wypełniają swoje pliki gniazd;
 // linie montażu są dla nich nietykalne.
 //
-// SKUTEK FINANSOWY PRZED POTWIERDZENIEM (REG-03, decyzja D9). Drugie kliknięcie
-// pokazuje, co stanie się z wpłatą (`event_registration_cancel_preview`),
-// i dopiero z wczytanym skutkiem wolno potwierdzić; rezygnacja odsyła skutek,
-// który uczestnik zobaczył (`acknowledged_effect`). Odmowy znane z góry
-// (zgłoszenie zamknięte, wydarzenie zakończone - REG-13, klucz wygasły) chowają
-// przycisk i mówią zdaniem, zamiast czekać na błąd bazy.
-//
-// KLUCZ POZA ADRESAMI, KTÓRE WYCHODZĄ (REG-17). Przycisk „kopiuj" daje odnośnik
-// z kluczem we fragmencie (`#token=`), a adres powrotu z kasy - samą stronę bez
-// klucza: klucz czeka na powrót w `sessionStorage` karty (`onBeforeCheckout`).
-// Klucz wygasły z końcem wydarzenia (podgląd `expired`) zostawia tylko zdanie,
-// kartę wyłączenia SMS-ów i e-maili (przegląd R67: wycofanie zgody musi być
-// możliwe zawsze) i gniazdo zgód - bez przycisków rezygnacji i kopiowania.
-//
-// ZGODY (REG-14). Pod resztą panelu stoi gniazdo wycofania zgód marketingu
-// i partnerów (`ManageConsentsSlot`) - przy KAŻDYM kluczu, który nie jest
-// nieznany: także po anulowaniu zgłoszenia i po końcu wydarzenia, bo zgodę
-// wycofuje się w dowolnej chwili, a nie tylko do dnia wydarzenia.
+// ZGODA NA PRZEKAZANIE DANYCH PARTNEROM WYCOFUJE SIĘ TU JEDNYM KLIKNIĘCIEM -
+// tak samo, jak się jej udziela w formularzu zapisu (art. 7 ust. 3 RODO).
+// Karta stoi tylko wtedy, gdy zgoda na TO wydarzenie jest skuteczna; samo
+// otwarcie strony niczego nie zmienia, więc skaner poczty jej nie wycofa.
 import { browserPublicOrigin } from "@/lib/http/host";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, CheckCircle2, Copy, Info, Loader2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Loader2, ShieldOff, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -58,8 +44,8 @@ import { formatMoney } from "@/lib/billing/types";
 import { fetchEventPageHeader } from "@/lib/community/publicQueries";
 import {
   cancelRegistration,
-  loadRegistrationManageView,
-  type RegistrationCancelResult,
+  fetchRegistrationManageView,
+  withdrawPartnerConsent,
 } from "@/lib/events/publicRegistrationApi";
 import {
   acknowledgedEffectFor,
@@ -165,6 +151,16 @@ export function RegistrationManagePanel({
       }
       setConfirming(false);
       toast.error(cancellationErrorMessage(error));
+    },
+  });
+
+  const partnerM = useMutation({
+    mutationFn: (manageToken: string) => withdrawPartnerConsent({ manageToken }),
+    // Stan zgłoszenia czytamy na nowo - po wycofaniu baza mówi już „brak
+    // zgody", a karta zostaje tylko po to, żeby pokazać potwierdzenie.
+    onSuccess: () => void stateQuery.refetch(),
+    onError: (error: unknown) => {
+      toast.error(registrationErrorMessage(error));
     },
   });
 
@@ -328,20 +324,44 @@ export function RegistrationManagePanel({
             </>
           )}
 
-          {activeToken !== null && refusal !== null && !keyExpired && (
-            <div className="space-y-3 rounded-[6px] border border-border bg-card p-4">
-              <p className="flex items-start gap-2 text-sm text-foreground">
-                <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                {t(REFUSAL_KEYS[refusal])}
-              </p>
-              <Button type="button" variant="secondary" onClick={() => void copyManageLink()}>
-                <Copy className="mr-2 h-4 w-4" aria-hidden="true" />
-                {t("eventFront.manage.copyLink")}
-              </Button>
-            </div>
-          )}
+          {activeToken !== null &&
+            state !== null &&
+            (state.partnerConsent || partnerM.isSuccess) && (
+              <div className="space-y-3 rounded-[6px] border border-border bg-card p-4">
+                <h2 className="text-sm font-semibold text-foreground">
+                  {t("eventFront.manage.partnerTitle")}
+                </h2>
+                {partnerM.isSuccess ? (
+                  <p role="status" className="flex items-center gap-2 text-sm text-foreground">
+                    <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    {t("eventFront.manage.partnerWithdrawn")}
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      {t("eventFront.manage.partnerBody")}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={partnerM.isPending}
+                      onClick={() => partnerM.mutate(activeToken)}
+                    >
+                      {partnerM.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <ShieldOff className="mr-2 h-4 w-4" aria-hidden="true" />
+                      )}
+                      {partnerM.isPending
+                        ? t("eventFront.manage.partnerWithdrawing")
+                        : t("eventFront.manage.partnerWithdraw")}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
 
-          {activeToken !== null && refusal === null && !keyExpired && !keyUnknown && (
+          {activeToken !== null && (
             <div className="space-y-4 rounded-[6px] border border-destructive/40 bg-destructive/5 p-4">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">

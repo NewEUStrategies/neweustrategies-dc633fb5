@@ -25,6 +25,10 @@ import {
   derTime,
   derTlv,
   readDer,
+  readDirectoryString,
+  readOid,
+  readTime,
+  readUnsignedInteger,
 } from "../der";
 import { toHex } from "../rsa";
 
@@ -140,5 +144,59 @@ describe("readDer / derChildren / derSlice", () => {
     // SEQUENCE deklaruje 2 bajty treści, ale jej dziecko ma 3 (reszta bufora istnieje).
     const bytes = Uint8Array.of(0x30, 0x02, 0x04, 0x01, 0xaa, 0x00);
     expect(() => derChildren(bytes, readDer(bytes))).toThrow("overflows parent");
+  });
+});
+
+describe("czytniki pod kontrolę konfiguracji", () => {
+  const node = (bytes: Uint8Array) => readDer(bytes);
+
+  it("readOid odwraca derOid (także łuk ponad 127 i pierwszy łuk 2)", () => {
+    for (const oid of ["1.2.840.113549.1.1.1", "0.9.2342.19200300.100.1.1", "2.999.3", "2.5.4.3"]) {
+      const bytes = derOid(oid);
+      expect(readOid(bytes, node(bytes))).toBe(oid);
+    }
+    expect(() => readOid(derNull(), node(derNull()))).toThrow("expected OBJECT IDENTIFIER");
+    const truncated = Uint8Array.of(0x06, 0x01, 0x88);
+    expect(() => readOid(truncated, node(truncated))).toThrow("truncated oid");
+  });
+
+  it("readUnsignedInteger zdejmuje wiodące zera i odrzuca liczby ujemne", () => {
+    const padded = Uint8Array.of(0x02, 0x03, 0x00, 0x80, 0x01);
+    expect(hex(readUnsignedInteger(padded, node(padded)))).toBe("8001");
+    const zero = derSmallInteger(0);
+    expect(hex(readUnsignedInteger(zero, node(zero)))).toBe("00");
+    const negative = Uint8Array.of(0x02, 0x01, 0xff);
+    expect(() => readUnsignedInteger(negative, node(negative))).toThrow("negative");
+    const empty = Uint8Array.of(0x02, 0x00);
+    expect(() => readUnsignedInteger(empty, node(empty))).toThrow("empty");
+  });
+
+  it("readTime odwraca derTime w obu formach i odrzuca czas spoza RFC 5280", () => {
+    for (const iso of [
+      "2026-09-26T08:05:09.000Z",
+      "1950-01-01T00:00:00.000Z",
+      "2099-06-15T12:00:00.000Z",
+    ]) {
+      const bytes = derTime(new Date(iso));
+      expect(readTime(bytes, node(bytes)).toISOString()).toBe(iso);
+    }
+    const enc = (tag: number, text: string) => derTlv(tag, new TextEncoder().encode(text));
+    const local = enc(0x17, "2609260805Z");
+    expect(() => readTime(local, node(local))).toThrow("malformed UTCTime");
+    const offset = enc(0x18, "20990615120000+0100");
+    expect(() => readTime(offset, node(offset))).toThrow("malformed GeneralizedTime");
+    const feb30 = enc(0x17, "260230120000Z");
+    expect(() => readTime(feb30, node(feb30))).toThrow("invalid calendar time");
+    expect(() => readTime(derNull(), node(derNull()))).toThrow("expected UTCTime");
+  });
+
+  it("readDirectoryString czyta UTF8, Printable, IA5 i BMPString", () => {
+    const utf8 = derTlv(0x0c, new TextEncoder().encode("Zażółć"));
+    expect(readDirectoryString(utf8, node(utf8))).toBe("Zażółć");
+    const printable = derTlv(0x13, new TextEncoder().encode("TESTTEAM01"));
+    expect(readDirectoryString(printable, node(printable))).toBe("TESTTEAM01");
+    const bmp = derTlv(0x1e, Uint8Array.of(0x00, 0x41, 0x01, 0x7c));
+    expect(readDirectoryString(bmp, node(bmp))).toBe("Aż");
+    expect(() => readDirectoryString(derNull(), node(derNull()))).toThrow("unsupported string");
   });
 });

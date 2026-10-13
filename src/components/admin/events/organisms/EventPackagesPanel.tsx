@@ -7,7 +7,8 @@
 //
 // USUNIĘCIE DZIAŁA TYLKO BEZ ZAMÓWIEŃ (baza odmawia inaczej), więc podstawowym
 // narzędziem wycofania oferty jest przełącznik „aktywny" - tak samo jak przy
-// biletach.
+// biletach. Przełącznik przechodzi przez szkic w strefie wydarzenia, który
+// pamięta chwile z bazy - okno sprzedaży wraca bez zmian, co do milisekundy.
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -64,7 +65,14 @@ function orderStatus(value: string): PackageOrderStatus {
     : "pending";
 }
 
-export function EventPackagesPanel({ eventId }: { eventId: string }) {
+export function EventPackagesPanel({
+  eventId,
+  timezone,
+}: {
+  eventId: string;
+  /** Strefa wydarzenia (`events.timezone`) - okno sprzedaży jest zegarem w niej. */
+  timezone: string | null;
+}) {
   const { t, i18n } = useTranslation();
   const packagesQ = useEventPackages(eventId);
   const ticketsQ = useEventTickets(eventId);
@@ -121,7 +129,7 @@ export function EventPackagesPanel({ eventId }: { eventId: string }) {
   // zostawia je bez zmian - wycofanie oferty nie dotyka terminu platnosci.
   const toggleActive = (row: EventPackageRow, next: boolean) => {
     save.mutate(
-      { ...packageDraftToInput(packageDraftFromRow(row), eventId), isActive: next },
+      { ...packageDraftToInput(packageDraftFromRow(row, timezone), eventId), isActive: next },
       { onError: fail },
     );
   };
@@ -392,6 +400,7 @@ export function EventPackagesPanel({ eventId }: { eventId: string }) {
         nextSortOrder={nextSortOrder}
         isSaving={save.isPending}
         onSubmit={submit}
+        timezone={timezone}
         packageTerms={packageTerms}
       />
 

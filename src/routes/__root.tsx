@@ -4,6 +4,7 @@ import { CommandPaletteHost } from "../components/search/CommandPaletteHost";
 import { ExpertRequestDialogHost } from "../components/chat/ExpertRequestDialogHost";
 import { widgetPreloadHeaders } from "../lib/seo/widgetPreloads";
 import { createBackgroundScope } from "@/lib/backgroundScope";
+import { armScannerLeftoverPurge } from "@/lib/events/scannerLeftoverPurge";
 import { RouteLoadingSkeleton } from "../lib/ssr/RouteLoadingSkeleton";
 import { QueryClient, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { isServer } from "@tanstack/router-core/isServer";
@@ -1505,6 +1506,10 @@ function RootComponent() {
     // w punkcie ciszy P0.3, siatka wczesnych błędów - `armCacheBusting` niżej.
     const disarmCacheBusting = armCacheBusting(background, router);
 
+    // Resztki skanera pod originem portalu (OPS-13) - po bezczynności i tylko,
+    // gdy jest co sprzątać; patrz `armScannerLeftoverPurge`.
+    const disarmScannerPurge = armScannerLeftoverPurge(background);
+
     // Heartbeat sesji podglądu: iframe podglądu potrafi stracić połączenie z
     // sandboxem (uśpienie, przebudowa po merge, restart dev servera) i zostaje
     // biały aż do ręcznego „Reload preview". Ten moduł wykrywa milczenie pulsu
@@ -1532,6 +1537,7 @@ function RootComponent() {
       background.dispose();
       unsub();
       disarmCacheBusting();
+      disarmScannerPurge();
       cancelHeartbeatIdle?.();
     };
   }, [router]);

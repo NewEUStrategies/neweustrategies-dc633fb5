@@ -350,12 +350,15 @@ describe("widok samoobslugi zgloszenia", () => {
 
     const view = await api.fetchRegistrationManageView({ registrationId: REG });
     expect(view).not.toBeNull();
+    // `partnerConsent` to FLAGA stanu zgody na przekazanie danych partnerom
+    // (przycisk jej wycofania) - bez dat i bez danych osoby.
     expect(Object.keys(view ?? {}).sort()).toEqual([
       "amountCents",
       "currency",
       "eventId",
       "eventSlug",
       "ownedByCaller",
+      "partnerConsent",
       "paymentStatus",
       "registrationId",
       "status",
@@ -458,6 +461,70 @@ describe("rezygnacja", () => {
     // zarzadzania zostal juz zuzyty w jego oczach.
     h.rpc?.setData("event_registration_cancel", null);
     await expect(api.cancelRegistration({ manageToken: MANAGE })).rejects.toThrow(
+      /response is not readable/,
+    );
+  });
+});
+
+describe("wycofanie zgody na przekazanie danych partnerom", () => {
+  it("strona samoobslugi zna zgode tylko z literalnego `true`", async () => {
+    h.rpc?.setData("event_registration_manage_view", {
+      ok: true,
+      registration_id: REG,
+      partner_consent: true,
+    });
+    expect((await api.fetchRegistrationManageView({ manageToken: MANAGE }))?.partnerConsent).toBe(
+      true,
+    );
+    // Starszy backend (bez klucza) i napis zamiast flagi to BRAK przycisku -
+    // nie obiecujemy wycofania, za ktorym nic nie stoi.
+    h.rpc?.setData("event_registration_manage_view", {
+      ok: true,
+      registration_id: REG,
+      partner_consent: "true",
+    });
+    expect((await api.fetchRegistrationManageView({ manageToken: MANAGE }))?.partnerConsent).toBe(
+      false,
+    );
+  });
+
+  it("jedzie z SAMYM kluczem z linku i czyta wynik bazy", async () => {
+    h.rpc?.setData("event_registration_partner_consent_withdraw", {
+      ok: true,
+      registration_id: REG,
+      withdrawn: true,
+      partner_consent: false,
+    });
+    const result = await api.withdrawPartnerConsent({ manageToken: MANAGE });
+    expect(payloadOf("event_registration_partner_consent_withdraw")).toEqual({
+      manage_token: MANAGE,
+    });
+    expect(result).toEqual({ withdrawn: true, partnerConsent: false });
+  });
+
+  it("powtorzenie (nic do wycofania) nie jest bledem", async () => {
+    h.rpc?.setData("event_registration_partner_consent_withdraw", {
+      ok: true,
+      withdrawn: false,
+      partner_consent: false,
+    });
+    await expect(api.withdrawPartnerConsent({ registrationId: REG })).resolves.toEqual({
+      withdrawn: false,
+      partnerConsent: false,
+    });
+    expect(payloadOf("event_registration_partner_consent_withdraw")).toEqual({
+      registration_id: REG,
+    });
+  });
+
+  it("odmowa bazy nie wyglada na wycofana zgode", async () => {
+    h.rpc?.setError("event_registration_partner_consent_withdraw", "forbidden: cudze zgloszenie");
+    await expect(api.withdrawPartnerConsent({ registrationId: REG })).rejects.toThrow(/forbidden/);
+  });
+
+  it("odpowiedz nieczytelna nie wyglada na wycofana zgode", async () => {
+    h.rpc?.setData("event_registration_partner_consent_withdraw", null);
+    await expect(api.withdrawPartnerConsent({ manageToken: MANAGE })).rejects.toThrow(
       /response is not readable/,
     );
   });

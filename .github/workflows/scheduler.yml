@@ -70,6 +70,9 @@ on:
           - event-participant-reminders
           - event-ticket-lifecycle
           - event-follow-up
+          # Przepustki Google Wallet unieważnionych biletów -> INACTIVE (OPS-14);
+          # ten sam krok biegnie co minutę w jobs-tick.
+          - event-wallet-passes
           - billing
       ticks:
         description: Liczba ticków w przebiegu (1-10)
