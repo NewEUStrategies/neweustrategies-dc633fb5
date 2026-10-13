@@ -72,8 +72,11 @@ export const participantTicketsPl = {
       errors: {
         smsConsentRequired: "Włączenie SMS-ów wymaga Twojej zgody.",
         phoneRequired: "Zgłoszenie nie ma numeru telefonu - SMS-ów nie ma dokąd wysłać.",
-        manageExpired: "Link do zgłoszenia wygasł wraz z końcem wydarzenia.",
-        alreadyClosed: "Zgłoszenie jest już zamknięte - powiadomień nie można zmienić.",
+        manageExpired:
+          "Link do zgłoszenia wygasł wraz z końcem wydarzenia - powiadomienia można już tylko wyłączyć.",
+        alreadyClosed: "Zgłoszenie jest już zamknięte - powiadomienia można już tylko wyłączyć.",
+        phoneChanged:
+          "Numer telefonu w zgłoszeniu zmienił się, gdy okno zgody było otwarte. Odśwież stronę i sprawdź numer przed zgodą.",
         notFound: "Nie znaleźliśmy tego zgłoszenia.",
         authRequired: "Zaloguj się albo otwórz link z maila, aby zmienić powiadomienia.",
         invalidPayload: "Nie udało się zapisać tej zmiany. Odśwież stronę i spróbuj ponownie.",
@@ -100,6 +103,20 @@ export const participantTicketsPl = {
       smsNoPhone: "Zgłoszenie nie ma numeru telefonu.",
       sessions: "Przypomnienia o sesjach z mojego planu",
       saved: "Przypomnienia zapisane.",
+    },
+    // Przegląd R67: zgłoszenie zamknięte albo link po końcu wydarzenia - zgodę
+    // na SMS i e-maile da się już tylko WYCOFAĆ (baza odmawia włączenia).
+    withdraw: {
+      title: "Wyłącz powiadomienia o tym zgłoszeniu",
+      closedBody:
+        "Zgłoszenie jest zamknięte. Możesz w każdej chwili wyłączyć SMS-y i e-maile o nim - włączyć ich stąd już się nie da.",
+      expiredBody:
+        "Wydarzenie się zakończyło. Możesz w każdej chwili wyłączyć SMS-y i e-maile o tym zgłoszeniu - włączyć ich stąd już się nie da.",
+      smsOff: "Wyłącz SMS-y",
+      emailOff: "Wyłącz e-maile",
+      smsDone: "SMS-y o tym zgłoszeniu są wyłączone - zgoda wycofana.",
+      emailDone: "E-maile o tym zgłoszeniu są wyłączone.",
+      saved: "Powiadomienia wyłączone.",
     },
     webhooks: {
       title: "Historia zdarzeń płatności",
@@ -205,8 +222,11 @@ export const participantTicketsEn = {
       errors: {
         smsConsentRequired: "Turning text messages on requires your consent.",
         phoneRequired: "This registration has no phone number - there is nowhere to send texts.",
-        manageExpired: "The registration link expired when the event ended.",
-        alreadyClosed: "This registration is closed - notifications can no longer be changed.",
+        manageExpired:
+          "The registration link expired when the event ended - notifications can now only be turned off.",
+        alreadyClosed: "This registration is closed - notifications can now only be turned off.",
+        phoneChanged:
+          "The phone number in this registration changed while the consent window was open. Refresh the page and check the number before agreeing.",
         notFound: "We could not find this registration.",
         authRequired: "Sign in or open the link from your email to change notifications.",
         invalidPayload: "We could not save this change. Refresh the page and try again.",
@@ -233,6 +253,18 @@ export const participantTicketsEn = {
       smsNoPhone: "This registration has no phone number.",
       sessions: "Reminders about sessions in my plan",
       saved: "Reminders saved.",
+    },
+    withdraw: {
+      title: "Turn off notifications about this registration",
+      closedBody:
+        "This registration is closed. You can turn off text messages and emails about it at any time - they can no longer be turned on here.",
+      expiredBody:
+        "The event has ended. You can turn off text messages and emails about this registration at any time - they can no longer be turned on here.",
+      smsOff: "Turn off text messages",
+      emailOff: "Turn off emails",
+      smsDone: "Text messages about this registration are off - consent withdrawn.",
+      emailDone: "Emails about this registration are off.",
+      saved: "Notifications turned off.",
     },
     webhooks: {
       title: "Payment event history",

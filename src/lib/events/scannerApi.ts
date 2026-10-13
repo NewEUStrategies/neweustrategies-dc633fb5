@@ -22,17 +22,28 @@
 // i adres (dawny QR karty ze strony wydarzenia) baza i tak by odrzuciła jako
 // nieznany kod - liczony do blokady urządzenia. Odmowa `not_entry_code` jest
 // lokalna i nie zostawia śladu w dzienniku ani w liczniku.
+//
+// BAZA MÓWI TO SAMO (przegląd R67). Cztery RPC skanu rozpoznają te same napisy
+// przed wyszukaniem kodu i oddają wynik `outcome: 'not_entry_code'` bez
+// licznika blokady (stara aplikacja bez bramki lokalnej też nie zablokuje
+// urządzenia). Gdyby taki wynik tu dotarł, zamieniamy go na tę samą odmowę co
+// bramka lokalna - jedna klasyfikacja, jedno zdanie przy bramce.
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import type { CheckinDirection } from "@/lib/events/onsiteEnums";
 import { parseScannerSession, type ScannerSession } from "@/lib/events/scannerSession";
 import { parseRosterPage, type RosterPage } from "@/lib/events/scannerRoster";
-import { assertScannableCode } from "@/lib/events/ticketCode";
+import { assertScannableCode, NOT_ENTRY_CODE_ERROR } from "@/lib/events/ticketCode";
 
 function record(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : {};
+}
+
+/** Wynik `not_entry_code` z bazy -> ta sama odmowa, co `assertScannableCode`. */
+function rejectNotEntryCode(row: Record<string, unknown>): void {
+  if (row.outcome === "not_entry_code") throw new Error(NOT_ENTRY_CODE_ERROR);
 }
 
 function text(value: unknown): string | null {
@@ -199,6 +210,7 @@ export interface CheckinScanResult {
 
 function parseCheckinScan(value: unknown): CheckinScanResult {
   const row = record(value);
+  rejectNotEntryCode(row);
   const other = record(row.other_event);
   const direction = text(row.direction);
   return {
@@ -341,6 +353,7 @@ export async function recordLeadScan(input: LeadScanInput): Promise<LeadScanResu
   });
   if (error !== null) throw new Error(error.message);
   const row = record(data);
+  rejectNotEntryCode(row);
   return {
     outcome: text(row.outcome) ?? "unknown",
     leadId: text(row.lead_id),
@@ -478,6 +491,7 @@ export async function recordBadgePrintScan(
   });
   if (error !== null) throw new Error(error.message);
   const row = record(data);
+  rejectNotEntryCode(row);
   return {
     outcome: text(row.outcome) ?? "unknown",
     printId: text(row.print_id),

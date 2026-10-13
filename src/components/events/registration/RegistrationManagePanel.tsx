@@ -32,8 +32,9 @@
 // KLUCZ POZA ADRESAMI, KTÓRE WYCHODZĄ (REG-17). Przycisk „kopiuj" daje odnośnik
 // z kluczem we fragmencie (`#token=`), a adres powrotu z kasy - samą stronę bez
 // klucza: klucz czeka na powrót w `sessionStorage` karty (`onBeforeCheckout`).
-// Klucz wygasły z końcem wydarzenia (podgląd `expired`) zostawia tylko zdanie
-// i gniazdo zgód - bez przycisków rezygnacji i kopiowania.
+// Klucz wygasły z końcem wydarzenia (podgląd `expired`) zostawia tylko zdanie,
+// kartę wyłączenia SMS-ów i e-maili (przegląd R67: wycofanie zgody musi być
+// możliwe zawsze) i gniazdo zgód - bez przycisków rezygnacji i kopiowania.
 //
 // ZGODY (REG-14). Pod resztą panelu stoi gniazdo wycofania zgód marketingu
 // i partnerów (`ManageConsentsSlot`) - przy KAŻDYM kluczu, który nie jest
@@ -71,6 +72,7 @@ import {
 } from "@/lib/events/useCancellationPreview";
 import { CancellationFinancialEffect } from "@/components/events/registration/molecules/CancellationFinancialEffect";
 import { RegistrationPayAction } from "@/components/events/registration/molecules/RegistrationPayAction";
+import { ChannelWithdrawCard } from "@/components/events/participant/molecules/ChannelWithdrawCard";
 import { ManageCalendarRemindersSlot } from "@/components/events/participant/slots/ManageCalendarRemindersSlot";
 import { ManageConsentsSlot } from "@/components/events/participant/slots/ManageConsentsSlot";
 import { ManageFollowUpSlot } from "@/components/events/participant/slots/ManageFollowUpSlot";
@@ -404,6 +406,13 @@ export function RegistrationManagePanel({
         </>
       )}
 
+      {/* WYCOFANIE PO KONCU WYDARZENIA (przeglad R67). Klucz wygasly nie
+          otwiera widoku zgloszenia, wiec gniazda nie rysuja sie wcale - a zgode
+          na SMS-y i e-maile trzeba moc wycofac zawsze (baza przyjmuje na takim
+          kluczu wylacznie wylaczenie). */}
+      {activeToken !== null && keyExpired && (
+        <ChannelWithdrawCard manageToken={activeToken} reason="expired" />
+      )}
       {activeToken !== null && !keyUnknown && <ManageConsentsSlot token={activeToken} />}
     </section>
   );

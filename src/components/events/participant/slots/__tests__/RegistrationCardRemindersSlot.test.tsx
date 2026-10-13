@@ -7,7 +7,8 @@
 //   2. KAŻDY PRZEŁĄCZNIK WYSYŁA TYLKO SWÓJ KLUCZ (baza czyta obecność klucza).
 //   3. SMS TYLKO ZA ZGODĄ: włączenie otwiera okno zgody z trzema ostatnimi
 //      cyframi numeru; „Zgadzam się" wysyła `sms_consent: true` (i kanał SMS,
-//      gdy był wyłączony), „Anuluj" nie wysyła nic.
+//      gdy był wyłączony), „Anuluj" nie wysyła nic. Zgoda odsyła podpowiedź numeru,
+//      którą pokazała (`phone_hint`, przegląd R67).
 //   4. POLA ZALEŻĄ OD STANU: SMS ukryty bez SMS-ów platformy albo organizatora,
 //      nieaktywny bez numeru; dzwonek tylko dla konta; e-mail nieaktywny przy
 //      wyłączonym kanale; komunikat, gdy organizator wyłączył przypomnienia.
@@ -155,6 +156,7 @@ describe("RegistrationCardRemindersSlot - karta przypomnień", () => {
         remind_sms: true,
         notify_sms: true,
         sms_consent: true,
+        phone_hint: "200",
       }),
     );
   });
@@ -174,6 +176,7 @@ describe("RegistrationCardRemindersSlot - karta przypomnień", () => {
         registration_id: REG,
         remind_sms: true,
         sms_consent: true,
+        phone_hint: "200",
       }),
     );
   });

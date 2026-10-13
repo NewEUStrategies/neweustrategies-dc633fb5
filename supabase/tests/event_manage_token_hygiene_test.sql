@@ -10,7 +10,8 @@
 --   * `event_registration_notify_payload(_for_tenant)` -> manage_expired
 --   * `_event_registration_actor`              -> klucz nie czyni posiadaczem
 --   * kontrola krzyzowa: `event_registration_cancel` (B4)
---     i `event_registration_set_channels` (B5) -> manage_expired.
+--     i `event_registration_set_channels` (B5, kazde wlaczenie; samo
+--     wylaczenie przechodzi - przeglad R67) -> manage_expired.
 -- Klucz zgloszenia anulowanego: podglad statusu dziala, kazda akcja nie.
 --
 -- Plus: ACL (obwodka `event_registration_notify_payload` bez anon
@@ -238,18 +239,18 @@ SELECT throws_ok(
   'rezygnacja: klucz po ends_at -> manage_expired');
 SELECT throws_ok(
   format('SELECT public.event_registration_set_channels(%L::jsonb)',
-         jsonb_build_object('manage_token', pg_temp.k('ended'), 'remind_email', false)),
+         jsonb_build_object('manage_token', pg_temp.k('ended'), 'remind_email', true)),
   'P0001', 'manage_expired: this management link expired when the event ended',
-  'kanaly: klucz po ends_at -> manage_expired');
+  'kanaly: klucz po ends_at, wlaczenie -> manage_expired (samo wylaczenie przechodzi - przeglad R67)');
 SELECT throws_ok(
   format('SELECT public.event_registration_cancel(%L::jsonb)', jsonb_build_object('manage_token', pg_temp.k('cancel'))),
   'P0001', 'already_closed: this registration is already closed',
   'rezygnacja: klucz zgloszenia anulowanego -> already_closed');
 SELECT throws_ok(
   format('SELECT public.event_registration_set_channels(%L::jsonb)',
-         jsonb_build_object('manage_token', pg_temp.k('cancel'), 'remind_email', false)),
+         jsonb_build_object('manage_token', pg_temp.k('cancel'), 'remind_email', true)),
   'P0001', 'already_closed: this registration is already closed',
-  'kanaly: klucz zgloszenia anulowanego -> already_closed');
+  'kanaly: klucz zgloszenia anulowanego, wlaczenie -> already_closed (samo wylaczenie przechodzi - przeglad R67)');
 SELECT throws_ok(
   format('SELECT public.event_registration_notify_payload(%L::jsonb)', jsonb_build_object('manage_token', pg_temp.k('ok'))),
   '42501', NULL, 'notify_payload: anon nie wywola obwodki (permission denied)');

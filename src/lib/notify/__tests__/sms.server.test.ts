@@ -131,6 +131,34 @@ describe("normalizePhone", () => {
     expect(normalizePhone("")).toBeNull();
     expect(normalizePhone(null)).toBeNull();
   });
+
+  // LUSTRO W BAZIE (przegląd R67). Zgoda na SMS jest związana z ADRESATEM:
+  // trigger `event_people_phone_revokes_sms` liczy go funkcją
+  // `_event_phone_sms_destination` (migracja 20261012182000) i musi dawać to
+  // samo co ta funkcja. Ta tabela to DOKŁADNIE przypadki z pgTAP
+  // `event_sms_scanner_r67_test.sql` (asercja 3) - zmiana reguły tu bez
+  // zmiany tam (albo odwrotnie) rozjeżdża zgodę z faktycznym adresatem.
+  it.each([
+    ["+48 600-100-200", "+48600100200"],
+    ["0048600100200", "+48600100200"],
+    ["600100200", "+48600100200"],
+    ["(600) 100 200", "+48600100200"],
+    ["600\t100\u00a0200", "+48600100200"],
+    ["\u2009+48 600 100 200\ufeff", "+48600100200"],
+    ["+601234567", "+601234567"],
+    // „+" w lewo albo w prawo to INNY abonent - stąd zgoda wiąże się z adresatem.
+    ["601234567", "+48601234567"],
+    ["+44 20 7946 0958", "+442079460958"],
+    ["12345", null],
+    ["", null],
+    [null, null],
+    ["+0123456789", null],
+    ["6001002001", null],
+    ["+48 600 100 200 ext 5", null],
+    ["600.100.200", null],
+  ])("adresat %j -> %j (ta sama tabela co lustro SQL)", (input, expected) => {
+    expect(normalizePhone(input)).toBe(expected);
+  });
 });
 
 describe("trimSmsBody", () => {

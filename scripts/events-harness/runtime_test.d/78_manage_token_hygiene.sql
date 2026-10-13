@@ -134,8 +134,8 @@ SELECT pg_temp.assert_raises_like(
   format('SELECT public.event_registration_cancel(%L::jsonb)', pg_temp.mth_tok('b')),
   'manage_expired', '78/po koncu: rezygnacja kluczem - manage_expired');
 SELECT pg_temp.assert_raises_like(
-  format('SELECT public.event_registration_set_channels(%L::jsonb)', pg_temp.mth_tok('b') || '{"remind_email": false}'::jsonb),
-  'manage_expired', '78/po koncu: kanaly kluczem - manage_expired');
+  format('SELECT public.event_registration_set_channels(%L::jsonb)', pg_temp.mth_tok('b') || '{"remind_email": true}'::jsonb),
+  'manage_expired', '78/po koncu: kanaly kluczem (wlaczenie) - manage_expired; samo wylaczenie przechodzi (przeglad R67)');
 SELECT pg_temp.assert_raises_like(
   format('SELECT public.event_registration_notify_payload_for_tenant(%L, %L::jsonb)',
          'b7b7b7b7-b7b7-b7b7-b7b7-b7b7b7b7b7b7', pg_temp.mth_tok('b')),

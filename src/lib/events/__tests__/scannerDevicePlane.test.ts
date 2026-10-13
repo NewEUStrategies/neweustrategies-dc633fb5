@@ -821,6 +821,30 @@ describe("scannerApi - numer potwierdzenia z karty nie dociera do bazy", () => {
     expect(isRetryableScanError(error)).toBe(false);
   });
 
+  // PRZEGLĄD R67: RPC skanu rozpoznają numer potwierdzenia i adres także po
+  // stronie bazy (`outcome: 'not_entry_code'`, bez licznika blokady). Taki
+  // wynik jest tą samą odmową co bramka lokalna - nie „nieznanym wynikiem".
+  it("wynik `not_entry_code` z bazy daje tę samą odmowę, co bramka lokalna", async () => {
+    rpc().setData("event_checkin_record", { outcome: "not_entry_code", admit: false });
+    rpc().setData("event_checkin_resolve", { outcome: "not_entry_code", admit: false });
+    rpc().setData("event_lead_scan_record", { outcome: "not_entry_code", device_locked: false });
+    rpc().setData("event_badge_print_record", { outcome: "not_entry_code", device_locked: false });
+
+    const errors = await Promise.all([
+      api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD }).catch((e: unknown) => e),
+      api.resolveCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD }).catch((e: unknown) => e),
+      api.recordLeadScan({ deviceToken: TOKEN_STOISKA, code: KOD }).catch((e: unknown) => e),
+      api.recordBadgePrintScan({ deviceToken: TOKEN_BRAMKI, code: KOD }).catch((e: unknown) => e),
+    ]);
+    for (const error of errors) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toMatch(/^not_entry_code: /);
+      expect(scanErrorKind(error)).toBe("refused");
+    }
+    // Kod przeszedł bramkę lokalną - pytanie poszło do bazy, odmowa przyszła z niej.
+    expect(rpc().calls).toHaveLength(4);
+  });
+
   it("KONTROLA DODATNIA: prawdziwy kod biletu nadal idzie do bazy", async () => {
     rpc().setData("event_checkin_record", { outcome: "granted", admit: true });
     await api.recordCheckinScan({ deviceToken: TOKEN_BRAMKI, code: KOD, checkpointId: PUNKT });

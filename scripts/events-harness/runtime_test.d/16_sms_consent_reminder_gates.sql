@@ -12,7 +12,8 @@
 -- CO SPRAWDZA
 --   1. `event_registration_set_channels` kluczem (gosc): wlaczenie SMS bez
 --      zgody -> sms_consent_required, ze zgoda -> stempel via token; osoba bez
---      numeru -> phone_required; klucz po koncu wydarzenia -> manage_expired;
+--      numeru -> phone_required; klucz po koncu wydarzenia przy wlaczaniu ->
+--      manage_expired;
 --      scisle typy; klucz drugiego najemcy -> not_found (kontrapunkt: wlasny
 --      najemca dziala).
 --   2. To samo po koncie (via account) i pisarz remind_*.
@@ -21,6 +22,11 @@
 --   5. `_event_reminder_candidates`: notify_email=false -> brak kandydata
 --      e-mail (KRYTERIUM REG-09), SMS tylko przy notify_sms AND remind_sms AND
 --      stemplu.
+--   6. Przeglad R67: gosc, ktory wlaczyl SMS kluczem i zrezygnowal (prawdziwa
+--      rezygnacja kluczem), oraz gosc po koncu wydarzenia WYLACZAJA SMS i
+--      e-maile tym samym kluczem (wlaczenie nadal odmowa); zgoda dotyczy
+--      numeru z okna zgody (`phone_hint`, zmiana numeru w tle -> phone_changed);
+--      zmiana ADRESATA ('+' toggle) zdejmuje zgode, zmiana zapisu - nie.
 --
 -- CZEGO NIE SPRAWDZA: ACL i przypomnien o sesjach (pgTAP), wysylki (vitest).
 -- SPRZATANIE: caly plik w BEGIN ... ROLLBACK.
@@ -118,8 +124,8 @@ SELECT pg_temp.assert_raises_like(
   'phone_required', '16/REG-10: zgoda bez numeru odrzucona (phone_required)');
 SELECT pg_temp.assert_raises_like(
   format('SELECT public.event_registration_set_channels(%L::jsonb)',
-         jsonb_build_object('manage_token', (SELECT token FROM s16 WHERE k = 'po_koncu'), 'notify_email', false)),
-  'manage_expired', '16/REG-17: klucz po koncu wydarzenia -> manage_expired');
+         jsonb_build_object('manage_token', (SELECT token FROM s16 WHERE k = 'po_koncu'), 'notify_email', true)),
+  'manage_expired', '16/REG-17: klucz po koncu wydarzenia, wlaczenie -> manage_expired');
 SELECT pg_temp.assert_raises_like(
   format('SELECT public.event_registration_set_channels(%L::jsonb)',
          jsonb_build_object('manage_token', (SELECT token FROM s16 WHERE k = 'obcy'), 'notify_email', false)),
@@ -210,6 +216,107 @@ SELECT pg_temp.assert(pg_temp.s16_cand('konto', 'sms') = 0,
 UPDATE public.event_registrations SET notify_sms = false WHERE id = (SELECT reg FROM s16 WHERE k = 'gosc');
 SELECT pg_temp.assert(pg_temp.s16_cand('gosc', 'sms') = 0,
   '16/REG-09: notify_sms=false gasi przypomnienie SMS mimo remind_sms i stempla');
+
+-- ---------------------------------------------------------------------------
+-- 6. Przeglad R67: wycofanie zawsze, zgoda na pokazany numer, adresat SMS-a
+-- ---------------------------------------------------------------------------
+SELECT pg_temp.s16_reg('anulowany', '11111111-1111-1111-1111-111111111111', '16100000-0000-4000-8000-000000000001',
+                       '606 111 222', NULL, true);
+SELECT pg_temp.s16_reg('okno', '11111111-1111-1111-1111-111111111111', '16100000-0000-4000-8000-000000000001',
+                       '+48 607 000 111', NULL, true);
+SELECT pg_temp.s16_reg('plus', '11111111-1111-1111-1111-111111111111', '16100000-0000-4000-8000-000000000001',
+                       '+601234567', NULL, true);
+-- Zgoda gosci po koncu wydarzenia (zebrana, zanim sie skonczylo).
+UPDATE public.event_registrations
+   SET notify_sms = true, remind_sms = true, remind_sms_consent_at = now() - interval '3 days',
+       remind_sms_consent_via = 'token'
+ WHERE id = (SELECT reg FROM s16 WHERE k = 'po_koncu');
+
+SELECT pg_temp.act_as(NULL, NULL);
+SELECT set_config('nes.public_tenant', '11111111-1111-1111-1111-111111111111', false);
+SET ROLE anon;
+
+-- Gosc wlacza SMS kluczem (zgoda na numer z okna), potem rezygnuje tym kluczem.
+SELECT pg_temp.assert(
+  (SELECT (v->>'notify_sms')::boolean AND v->>'sms_consent_via' = 'token'
+     FROM (SELECT public.event_registration_set_channels(jsonb_build_object(
+             'manage_token', (SELECT token FROM s16 WHERE k = 'anulowany'),
+             'notify_sms', true, 'remind_sms', true, 'sms_consent', true, 'phone_hint', '222')) AS v) x),
+  '16/R67: zgoda kluczem z podpowiedzia z okna (phone_hint zgodny) -> stempel via token');
+SELECT pg_temp.assert(
+  public.event_registration_cancel(jsonb_build_object(
+    'manage_token', (SELECT token FROM s16 WHERE k = 'anulowany'))) IS NOT NULL,
+  '16/R67: rezygnacja tym samym kluczem');
+SELECT pg_temp.assert(
+  public.event_registration_preferences(jsonb_build_object(
+    'manage_token', (SELECT token FROM s16 WHERE k = 'anulowany'))) ->> 'status' = 'cancelled',
+  '16/R67: podglad preferencji (cel view) widzi zgloszenie anulowane');
+SELECT pg_temp.assert(
+  (SELECT NOT (v->>'notify_sms')::boolean AND NOT (v->>'remind_sms')::boolean
+     FROM (SELECT public.event_registration_set_channels(jsonb_build_object(
+             'manage_token', (SELECT token FROM s16 WHERE k = 'anulowany'),
+             'notify_sms', false, 'remind_sms', false)) AS v) x),
+  '16/R67 (REG-10/17): klucz zgloszenia anulowanego WYLACZA SMS (bylo: already_closed)');
+SELECT pg_temp.assert(
+  public.event_registration_set_channels(jsonb_build_object(
+    'manage_token', (SELECT token FROM s16 WHERE k = 'anulowany'), 'notify_email', false)) ->> 'notify_email' = 'false',
+  '16/R67: klucz zgloszenia anulowanego wylacza e-maile');
+SELECT pg_temp.assert_raises_like(
+  format('SELECT public.event_registration_set_channels(%L::jsonb)',
+         jsonb_build_object('manage_token', (SELECT token FROM s16 WHERE k = 'anulowany'),
+                            'notify_sms', true, 'sms_consent', true, 'phone_hint', '222')),
+  'already_closed', '16/R67: klucz zgloszenia anulowanego - ponowne wlaczenie SMS nadal odmowa');
+
+SELECT pg_temp.assert(
+  (SELECT NOT (v->>'notify_sms')::boolean AND NOT (v->>'remind_sms')::boolean
+     FROM (SELECT public.event_registration_set_channels(jsonb_build_object(
+             'manage_token', (SELECT token FROM s16 WHERE k = 'po_koncu'),
+             'notify_sms', false, 'remind_sms', false)) AS v) x),
+  '16/R67 (REG-10/17): klucz po koncu wydarzenia WYLACZA SMS (bylo: manage_expired)');
+SELECT pg_temp.assert_raises_like(
+  format('SELECT public.event_registration_set_channels(%L::jsonb)',
+         jsonb_build_object('manage_token', (SELECT token FROM s16 WHERE k = 'po_koncu'),
+                            'remind_sms', true, 'sms_consent', true)),
+  'manage_expired', '16/R67: klucz po koncu wydarzenia - wlaczenie nadal odmowa');
+
+-- TOCTOU: okno zgody pokazuje „111", organizator zmienia numer w tle.
+SELECT pg_temp.assert(
+  public.event_registration_preferences(jsonb_build_object(
+    'manage_token', (SELECT token FROM s16 WHERE k = 'okno'))) ->> 'phone_hint' = '111',
+  '16/R67: okno zgody pokazuje podpowiedz numeru');
+RESET ROLE;
+UPDATE public.event_people SET phone = '+48 607 000 222' WHERE id = (SELECT person FROM s16 WHERE k = 'okno');
+SET ROLE anon;
+SELECT pg_temp.assert_raises_like(
+  format('SELECT public.event_registration_set_channels(%L::jsonb)',
+         jsonb_build_object('manage_token', (SELECT token FROM s16 WHERE k = 'okno'),
+                            'notify_sms', true, 'sms_consent', true, 'phone_hint', '111')),
+  'phone_changed', '16/R67 (REG-10): numer zmieniony miedzy oknem a zgoda -> phone_changed');
+SELECT pg_temp.assert(
+  public.event_registration_set_channels(jsonb_build_object(
+    'manage_token', (SELECT token FROM s16 WHERE k = 'okno'),
+    'notify_sms', true, 'sms_consent', true, 'phone_hint', '222')) ->> 'notify_sms' = 'true',
+  '16/R67: zgoda na numer, ktory okno pokazuje teraz -> przechodzi');
+
+-- Adresat SMS-a: '+601234567' i '601234567' to rozni abonenci (+48601234567).
+SELECT pg_temp.assert(
+  public.event_registration_set_channels(jsonb_build_object(
+    'manage_token', (SELECT token FROM s16 WHERE k = 'plus'),
+    'notify_sms', true, 'remind_sms', true, 'sms_consent', true, 'phone_hint', '567')) ->> 'notify_sms' = 'true',
+  '16/R67: zgoda na +601234567');
+RESET ROLE;
+UPDATE public.event_people SET phone = '+60 123 4567' WHERE id = (SELECT person FROM s16 WHERE k = 'plus');
+SELECT pg_temp.assert(
+  (SELECT notify_sms AND remind_sms_consent_at IS NOT NULL
+     FROM public.event_registrations WHERE id = (SELECT reg FROM s16 WHERE k = 'plus')),
+  '16/R67: zmiana zapisu tego samego adresata (+60 123 4567) zostawia zgode');
+UPDATE public.event_people SET phone = '601234567' WHERE id = (SELECT person FROM s16 WHERE k = 'plus');
+SELECT pg_temp.assert(
+  (SELECT NOT notify_sms AND NOT remind_sms AND remind_sms_consent_at IS NULL
+     FROM public.event_registrations WHERE id = (SELECT reg FROM s16 WHERE k = 'plus')),
+  '16/R67 (REG-10): ''+601234567'' -> ''601234567'' (te same cyfry, inny adresat) zdejmuje zgode');
+SELECT pg_temp.assert(pg_temp.s16_cand('plus', 'sms') = 0,
+  '16/R67: po zmianie adresata brak kandydata przypomnienia SMS');
 
 SELECT set_config('nes.public_tenant', '', false);
 ROLLBACK;

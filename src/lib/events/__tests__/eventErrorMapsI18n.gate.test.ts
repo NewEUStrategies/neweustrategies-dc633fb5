@@ -705,6 +705,8 @@ const KODY_KANALOW_UCZESTNIKA = [
   // event_registration_set_channels - zgoda i numer przy włączaniu SMS-a
   "sms_consent_required",
   "phone_required",
+  // przegląd R67: numer zmieniony po pokazaniu okna zgody (`phone_hint`)
+  "phone_changed",
   // klucz samoobsługi przez `_event_manage_token_resolve` (cel act)
   "manage_expired",
   "already_closed",
