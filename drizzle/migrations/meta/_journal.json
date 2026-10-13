@@ -1310,6 +1310,13 @@
       "when": 1791903818003,
       "tag": "0186_public_definer_views_read_only",
       "breakpoints": true
+    },
+    {
+      "idx": 187,
+      "version": "7",
+      "when": 1791907354553,
+      "tag": "0187_author_profiles_public_drop_contact_email",
+      "breakpoints": true
     }
   ]
 }
