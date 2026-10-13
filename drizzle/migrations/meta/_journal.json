@@ -1492,6 +1492,34 @@
       "when": 1791926954968,
       "tag": "0212_event_meeting_sponsor_verified_contact",
       "breakpoints": true
+    },
+    {
+      "idx": 213,
+      "version": "7",
+      "when": 1791927019018,
+      "tag": "0213_event_wallet_pass_tombstones",
+      "breakpoints": true
+    },
+    {
+      "idx": 214,
+      "version": "7",
+      "when": 1791927162049,
+      "tag": "0214_event_wallet_pass_queue_robustness",
+      "breakpoints": true
+    },
+    {
+      "idx": 215,
+      "version": "7",
+      "when": 1791927282596,
+      "tag": "0215_event_session_delete_subtree_signups",
+      "breakpoints": true
+    },
+    {
+      "idx": 216,
+      "version": "7",
+      "when": 1791927315565,
+      "tag": "0216_event_package_invite_accept_account_binding",
+      "breakpoints": true
     }
   ]
 }
