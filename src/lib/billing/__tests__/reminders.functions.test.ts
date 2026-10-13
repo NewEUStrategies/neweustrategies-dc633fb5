@@ -15,8 +15,12 @@
 //   * DOMYŚLNA WARTOŚĆ. Brak `leadDays` MUSI oznaczać stałą modułu
 //      przypomnień, a nie liczbę wpisaną drugi raz w tym pliku - inaczej
 //      przycisk w panelu wysyła według innej reguły niż cron.
-//   * BRAMKA ROLI. Deklaracja `requireAdmin` (nie samo uwierzytelnienie):
-//      masowa wysyłka jest operacją administracyjną.
+//   * BRAMKA ROLI. Deklaracja `requirePlatformAdmin` (nie samo
+//      uwierzytelnienie i nie `requireAdmin` najemcy): przebieg obejmuje
+//      subskrypcje WSZYSTKICH najemców, więc jest operacją instalacji.
+//      Do 12.10.2026 (SUB-08) wystarczał admin dowolnego najemcy.
+//   * ŚRODOWISKO Z SERWERA. Ładunek nie wybiera środowiska operatora -
+//      przebieg bierze je z `resolveEnvironment()` po stronie serwera.
 //
 // CZEGO TEN PLIK NIE DOWODZI: AUTORYZACJI. Harness (`src/test/serverFnHarness.ts`)
 // świadomie NIE uruchamia middleware - deklarację bramki przybijamy
@@ -45,7 +49,7 @@ vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFnHarness")).serverFnStubModule(),
 );
 vi.mock("@/integrations/supabase/require-staff", () => ({
-  requireAdmin: { name: "requireAdmin" },
+  requirePlatformAdmin: { name: "requirePlatformAdmin" },
 }));
 vi.mock("@/lib/billing/reminders.server", () => ({
   REMINDER_LEAD_DAYS: 7,
@@ -73,12 +77,14 @@ beforeEach(() => {
 });
 
 describe("obudowa - bramka i metoda", () => {
-  it("wymaga roli administratora, nie samego zalogowania", () => {
+  it("wymaga operatora PLATFORMY, nie admina najemcy ani samego zalogowania", () => {
     // Dowód STRUKTURALNY: harness nie uruchamia middleware, więc zieleń
-    // pozostałych testów mówi o logice handlera. Gdyby ta deklaracja spadła do
-    // `requireSupabaseAuth`, dowolny zalogowany rozsyłałby maile do wszystkich
-    // subskrybentów z kończącym się okresem.
-    expect(serverFnMiddlewareNames(runBillingRemindersNow)).toEqual(["requireAdmin"]);
+    // pozostałych testów mówi o logice handlera. DEFEKT SUB-08: deklaracja
+    // brzmiała `requireAdmin`, więc admin najemcy B rozsyłał przypomnienia
+    // klientom najemcy A (i piaskownicy). Odmowę dla admina najemcy dowodzi
+    // `require-staff` (najemca domyślny + super_admin) - tu przybijamy, że
+    // funkcja stoi właśnie za tą bramką.
+    expect(serverFnMiddlewareNames(runBillingRemindersNow)).toEqual(["requirePlatformAdmin"]);
   });
 
   it("jest operacją zapisu (POST), nie odczytem", () => {
@@ -147,6 +153,13 @@ describe("walidator wejścia", () => {
       leadDays: 5,
     });
   });
+
+  it("środowiska operatora NIE da się wybrać z ładunku", () => {
+    // Przycisk w panelu produkcji nie może wysłać przypomnień klientom
+    // testowym (ani odwrotnie) - środowisko rozstrzyga serwer.
+    expect(waliduj({ environment: "sandbox" })).toEqual({});
+    expect(waliduj({ leadDays: 3, environment: "live" })).toEqual({ leadDays: 3 });
+  });
 });
 
 describe("uruchomienie przebiegu", () => {
@@ -155,6 +168,17 @@ describe("uruchomienie przebiegu", () => {
 
     expect(h.run).toHaveBeenCalledWith(STALA_MODULU);
     expect(wynik).toEqual({ leadDays: STALA_MODULU, ...WYNIK });
+  });
+
+  it("handler nie przekazuje przebiegowi środowiska ani rozmiaru partii z zewnątrz", async () => {
+    // Jedyny argument to wyprzedzenie: środowisko (`resolveEnvironment`),
+    // partia i kursor żyją w `reminders.server` i nie mają wejścia z panelu.
+    await callServerFn(runBillingRemindersNow, {
+      data: { leadDays: 30, environment: "sandbox" },
+      context: KONTEKST,
+    });
+
+    expect(h.run.mock.calls.at(-1)).toEqual([30]);
   });
 
   it("podana wartość ma pierwszeństwo nad domyślną", async () => {

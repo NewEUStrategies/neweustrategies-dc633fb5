@@ -1,7 +1,10 @@
-// Ponowna wysyłka jednorazowego linku do portalu klienta - obsługa zgłoszeń.
+// Ponowna wysyłka wejścia do portalu klienta - obsługa zgłoszeń.
 //
-// Administrator nigdy nie widzi samego linku (jest jednorazowy i wrażliwy) -
-// mail trafia wyłącznie na adres właściciela subskrypcji.
+// Administrator nigdy nie widzi samego linku - mail trafia wyłącznie na adres
+// właściciela subskrypcji, i tylko wtedy, gdy konto należy do najemcy
+// administratora (inaczej serwer odpowiada `no_customer`, tak samo jak dla
+// konta bez subskrypcji). Mail niesie stały adres aplikacji: sesję portalu
+// operatora tworzy dopiero kliknięcie zalogowanego właściciela.
 //
 // Komunikaty pochodzą ze słownika (`adminBilling.resendPortal`). Do 19.08.2026
 // istniały wyłącznie w kodzie tego pliku, jako pary `pl ? "..." : "..."` - poza

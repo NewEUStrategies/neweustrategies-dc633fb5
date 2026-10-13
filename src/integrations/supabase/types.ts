@@ -5582,9 +5582,11 @@ export type Database = {
           paid_at: string | null
           provider: string
           provider_intent_id: string | null
+          provider_invoice_id: string | null
           provider_session_id: string
           provider_subscription_id: string | null
           recurring: boolean
+          refunded_amount_cents: number
           status: string
           tenant_id: string
           user_id: string | null
@@ -5600,9 +5602,11 @@ export type Database = {
           paid_at?: string | null
           provider?: string
           provider_intent_id?: string | null
+          provider_invoice_id?: string | null
           provider_session_id: string
           provider_subscription_id?: string | null
           recurring?: boolean
+          refunded_amount_cents?: number
           status?: string
           tenant_id?: string
           user_id?: string | null
@@ -5618,9 +5622,11 @@ export type Database = {
           paid_at?: string | null
           provider?: string
           provider_intent_id?: string | null
+          provider_invoice_id?: string | null
           provider_session_id?: string
           provider_subscription_id?: string | null
           recurring?: boolean
+          refunded_amount_cents?: number
           status?: string
           tenant_id?: string
           user_id?: string | null
@@ -14909,6 +14915,7 @@ export type Database = {
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id: string
+          ip_subject: string | null
           period_month: string
           tenant_id: string
           user_id: string | null
@@ -14919,6 +14926,7 @@ export type Database = {
           entity_id: string
           entity_type: Database["public"]["Enums"]["access_entity_type"]
           id?: string
+          ip_subject?: string | null
           period_month?: string
           tenant_id: string
           user_id?: string | null
@@ -14929,6 +14937,7 @@ export type Database = {
           entity_id?: string
           entity_type?: Database["public"]["Enums"]["access_entity_type"]
           id?: string
+          ip_subject?: string | null
           period_month?: string
           tenant_id?: string
           user_id?: string | null
@@ -20509,17 +20518,20 @@ export type Database = {
           current_period_end: string | null
           current_period_start: string | null
           environment: string
+          first_payment_failed_at: string | null
           id: string
           last_dunning_at: string | null
           last_dunning_transaction_id: string | null
           last_event_at: string | null
           last_payment_at: string | null
           last_payment_failed_at: string | null
+          pause_collection_behavior: string | null
           payment_failure_count: number
           price_id: string
           product_id: string
           provider_customer_id: string
           provider_subscription_id: string
+          purchase_confirmed_at: string | null
           quantity: number
           status: string
           tenant_id: string
@@ -20533,17 +20545,20 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           environment?: string
+          first_payment_failed_at?: string | null
           id?: string
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
           last_event_at?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
+          pause_collection_behavior?: string | null
           payment_failure_count?: number
           price_id: string
           product_id: string
           provider_customer_id: string
           provider_subscription_id: string
+          purchase_confirmed_at?: string | null
           quantity?: number
           status?: string
           tenant_id?: string
@@ -20557,17 +20572,20 @@ export type Database = {
           current_period_end?: string | null
           current_period_start?: string | null
           environment?: string
+          first_payment_failed_at?: string | null
           id?: string
           last_dunning_at?: string | null
           last_dunning_transaction_id?: string | null
           last_event_at?: string | null
           last_payment_at?: string | null
           last_payment_failed_at?: string | null
+          pause_collection_behavior?: string | null
           payment_failure_count?: number
           price_id?: string
           product_id?: string
           provider_customer_id?: string
           provider_subscription_id?: string
+          purchase_confirmed_at?: string | null
           quantity?: number
           status?: string
           tenant_id?: string
@@ -23773,6 +23791,45 @@ export type Database = {
       }
       _menu_items_prune_dead: { Args: { _item_ids: string[] }; Returns: number }
       _menu_items_repair_category_links: { Args: never; Returns: number }
+      _metered_view_consume: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _ip_subject: string
+          _tenant: string
+          _uid: string
+          _visitor_id: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          consumed: boolean
+          content_en: string
+          content_pl: string
+          granted: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
+      _metering_state: {
+        Args: {
+          _ip_subject: string
+          _tenant: string
+          _uid: string
+          _visitor_id: string
+        }
+        Returns: {
+          enabled: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
       _pages_unpublish_test_content: { Args: never; Returns: number }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
       _redeem_b2b_coupon: {
@@ -29010,7 +29067,28 @@ export type Database = {
         Args: {
           _entity_id: string
           _entity_type: Database["public"]["Enums"]["access_entity_type"]
-          _visitor_id?: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          consumed: boolean
+          content_en: string
+          content_pl: string
+          granted: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
+      consume_metered_view_visitor: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _ip_subject: string
+          _tenant: string
+          _visitor_id: string
         }
         Returns: {
           blocks_data: Json
@@ -29286,6 +29364,7 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: boolean
       }
+      donations_dedupe_session_invoice_pairs: { Args: never; Returns: number }
       early_access_window: { Args: never; Returns: string }
       editor_inline_author_lookup: {
         Args: { p_id?: string; p_limit?: number; p_query?: string }
@@ -30997,6 +31076,7 @@ export type Database = {
           period_start: string
         }[]
       }
+      metered_views_scrub_ip: { Args: { p_limit?: number }; Returns: number }
       metering_impact_preview: {
         Args: { _proposed_member_limit: number }
         Returns: {
@@ -31012,7 +31092,18 @@ export type Database = {
         }[]
       }
       metering_state: {
-        Args: { _visitor_id?: string }
+        Args: never
+        Returns: {
+          enabled: boolean
+          monthly_limit: number
+          remaining: number
+          requires_registration: boolean
+          show_counter: boolean
+          used: number
+        }[]
+      }
+      metering_state_visitor: {
+        Args: { _ip_subject: string; _tenant: string; _visitor_id?: string }
         Returns: {
           enabled: boolean
           monthly_limit: number
@@ -31377,6 +31468,22 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      payment_webhook_events_redact_expired: {
+        Args: { p_limit?: number }
+        Returns: number
+      }
+      payment_webhook_events_redact_for_user: {
+        Args: { p_user_id: string }
+        Returns: number
+      }
+      payment_webhook_payload_redact: {
+        Args: { p_payload: Json; p_reason: string; p_strip_user_ref?: boolean }
+        Returns: Json
+      }
+      payment_webhook_payload_scrub: {
+        Args: { p_payload: Json; p_strip_user_ref?: boolean }
+        Returns: Json
       }
       payments_apply_event_ticket_outcome: {
         Args: {
@@ -32221,10 +32328,12 @@ export type Database = {
       }
       unaccent: { Args: { "": string }; Returns: string }
       unendorse_skill: { Args: { p_skill_id: string }; Returns: undefined }
-      user_has_tier_feature: {
-        Args: { _feature: string; p_user: string }
-        Returns: boolean
-      }
+      user_has_tier_feature:
+        | { Args: { _feature: string; p_user: string }; Returns: boolean }
+        | {
+            Args: { _feature: string; p_tenant: string; p_user: string }
+            Returns: boolean
+          }
       user_is_editorial: { Args: { p_user: string }; Returns: boolean }
       user_tier_rank: {
         Args: { p_tenant?: string; p_user: string }

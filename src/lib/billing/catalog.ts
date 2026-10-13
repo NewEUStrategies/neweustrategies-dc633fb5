@@ -121,7 +121,17 @@ function normalizeInterval(interval: string | null | undefined): PlanBillingInte
   return "month";
 }
 
-/** Znajdź cenę dostawcy dla planu z `access_plans`. */
+/**
+ * Znajdź cenę dostawcy dla planu z `access_plans` - WYŁĄCZNIE po parze
+ * (tier, cykl).
+ *
+ * BEZ ZAPASOWEGO „PIERWSZEGO WPISU TEGO PROGU". Dawny fallback
+ * `find((e) => e.tierKey === tier)` dobierał planowi bez własnej pozycji
+ * katalogu (np. kwartalny Pro) cenę MIESIĘCZNĄ tego progu: kasa zakładała
+ * subskrypcję miesięczną, zamówienie mówiło o kwartale, a webhook odwzorowywał
+ * cenę z powrotem na inny plan. Brak pozycji to brak oferty - wołający odmawia
+ * (`plan_price_missing`), zamiast obciążać kartę inną kwotą w innym cyklu.
+ */
 export function catalogPriceForPlan(plan: {
   tier_key?: string | null;
   interval?: string | null;
@@ -129,11 +139,120 @@ export function catalogPriceForPlan(plan: {
   const tier = plan.tier_key ?? "";
   if (!tier) return null;
   const interval = normalizeInterval(plan.interval);
+  return BILLING_CATALOG.find((e) => e.tierKey === tier && e.interval === interval) ?? null;
+}
+
+/** Cykl rozliczeniowy w słowniku operatora (Stripe zna tylko day/week/month/year). */
+export interface CatalogRecurring {
+  interval: "week" | "month" | "year";
+  interval_count: number;
+}
+
+/**
+ * Cykl ceny u operatora dla pozycji katalogu. Interwały aplikacji mapują się
+ * na krotności: two_weeks -> week x2, quarter -> month x3. `null` = cena
+ * jednorazowa (bez cyklu).
+ *
+ * JEDNA FUNKCJA DLA ZAKŁADANIA I DLA KONTROLI. Synchronizacja zakłada cenę
+ * z tym cyklem, a kasa przed sesją sprawdza, że cena pod `lookup_key` ma
+ * dokładnie ten cykl - dwie kopie mapowania to dwa różne słowniki.
+ */
+export function catalogRecurringFor(entry: CatalogPriceEntry): CatalogRecurring | null {
+  // Cena jednorazowa NIE MA cyklu. Bez tej gałęzi `one_time` wpadało w
+  // `default` i lądowało u operatora jako subskrypcja miesięczna - miejsce
+  // w Decision Labie odnawiałoby się co miesiąc.
+  if (entry.oneTime || entry.interval === "one_time") return null;
+  switch (entry.interval) {
+    case "two_weeks":
+      return { interval: "week", interval_count: 2 };
+    case "quarter":
+      return { interval: "month", interval_count: 3 };
+    case "year":
+      return { interval: "year", interval_count: 1 };
+    default:
+      return { interval: "month", interval_count: 1 };
+  }
+}
+
+/** Minimalny kształt ceny operatora, jakiego potrzebuje kontrola cyklu. */
+export interface CatalogPriceCycleShape {
+  type?: string | null;
+  recurring?: { interval?: string | null; interval_count?: number | null } | null;
+}
+
+/**
+ * Czy cena operatora ma INNY cykl niż pozycja katalogu (albo cykl tam, gdzie
+ * pozycja jest jednorazowa). Typ ceny musi się zgadzać jawnie - brak `type`
+ * to też rozjazd, bo nie wiemy, co operator obciąży.
+ *
+ * JEDNA KONTROLA DLA KASY I SYNCHRONIZACJI. Kasa przed sesją odmawia ceny
+ * w złym cyklu (`catalogPriceMismatch`), a synchronizacja porównywała dotąd
+ * tylko kwotę, walutę i trial - cena w złym rytmie (np. miejsce w Decision
+ * Labie założone kiedyś jako miesięczna subskrypcja albo kwartał zapisany
+ * jako miesiąc × 1) dostawała od synchronizacji „ok" i blokowała każdy zakup
+ * planu na zawsze. Ten sam predykat po obu stronach sprawia, że to, co kasa
+ * odrzuca, synchronizacja odtwarza.
+ */
+export function catalogCycleMismatch(
+  price: CatalogPriceCycleShape,
+  entry: CatalogPriceEntry,
+): boolean {
+  const cycle = catalogRecurringFor(entry);
+  if (cycle === null) return price.type !== "one_time" || !!price.recurring;
   return (
-    BILLING_CATALOG.find((e) => e.tierKey === tier && e.interval === interval) ??
-    BILLING_CATALOG.find((e) => e.tierKey === tier) ??
-    null
+    price.type !== "recurring" ||
+    price.recurring?.interval !== cycle.interval ||
+    (price.recurring?.interval_count ?? 1) !== cycle.interval_count
   );
+}
+
+/** Wycena planu z katalogu: pozycja operatora, ilość i kwota PRZED kuponem. */
+export interface CatalogPlanQuote {
+  entry: CatalogPriceEntry;
+  /** Ilość na pozycji sesji (miejsca dla `perSeat`, inaczej zawsze 1). */
+  quantity: number;
+  /** Stawka za jednostkę po progu wolumenowym. */
+  unitCents: number;
+  /** `unitCents × quantity` - kwota, którą MUSI dać cena operatora. */
+  amountCents: number;
+}
+
+/** Górny limit miejsc w jednym zamówieniu planu (zgodny z limitem pozycji sesji). */
+export const MAX_PLAN_SEATS = 100;
+
+/**
+ * Kwota zamówienia planu z katalogu - JEDNA reguła dla obu silników kasy.
+ *
+ * Ilość: miejsca wyłącznie dla planu rozliczanego za miejsce (`perSeat`);
+ * każdy inny plan idzie w jednej sztuce, niezależnie od tego, co przyszło
+ * w żądaniu. Wcześniej drugi silnik (`stripeCheckout.functions.ts`) przekazywał
+ * ilość z żądania wprost do pozycji sesji przy kwocie zamówienia za jedną
+ * sztukę - operator pobierał N × cena, zamówienie zapisywało 1 × cena.
+ *
+ * Próg wolumenowy (katalog v6.1: Zespół od 11 miejsc po 79 zł) jest w trybie
+ * `volume`: po osiągnięciu progu WSZYSTKIE miejsca liczą się niżej - tak samo
+ * jak cena schodkowa zakładana przez synchronizację katalogu.
+ */
+export function catalogPlanQuote(
+  plan: {
+    tier_key?: string | null;
+    interval?: string | null;
+    price_cents?: number | null;
+    volume_threshold_seats?: number | null;
+    volume_price_cents?: number | null;
+  },
+  seats?: number | null,
+): CatalogPlanQuote | null {
+  const entry = catalogPriceForPlan(plan);
+  if (!entry) return null;
+  const requested = Number.isFinite(seats) ? Math.trunc(seats as number) : 1;
+  const quantity = entry.perSeat ? Math.min(Math.max(requested, 1), MAX_PLAN_SEATS) : 1;
+  const baseCents = Math.round(Number(plan.price_cents ?? 0));
+  const volumeThreshold = Number(plan.volume_threshold_seats ?? 0);
+  const volumeUnit = Math.round(Number(plan.volume_price_cents ?? 0));
+  const unitCents =
+    entry.perSeat && volumeThreshold >= 2 && quantity >= volumeThreshold ? volumeUnit : baseCents;
+  return { entry, quantity, unitCents, amountCents: unitCents * quantity };
 }
 
 /** Odwrotne mapowanie: czytelny identyfikator ceny -> wpis katalogu. */

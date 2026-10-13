@@ -257,6 +257,9 @@ beforeEach(() => {
   );
 
   chain.setResponse("access_plans", ok(planQuote()));
+  // Kupujący bez historii subskrypcji planu (lustro `subscriptions` pod RLS) -
+  // kasa subskrypcji sprawdza ją przed zamówieniem (audyt SUB-13).
+  chain.setResponse("subscriptions", ok([]));
   chain.setResponse("payment_orders", ok({ id: "order-1", tenant_id: "tenant-alfa" }));
   chain.setResponse(
     "content_access_public",

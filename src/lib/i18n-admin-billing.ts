@@ -41,6 +41,11 @@ const pl = {
     pricingChangedSyncQueued: "Zmiana cennika - sync w kolejce",
     lastSync: "Ostatnia synchronizacja",
     syncedYet: "Jeszcze nie synchronizowano",
+    catalogPlatformOnly:
+      "Katalog cen jest wspólny dla całej instalacji - synchronizuje go wyłącznie operator platformy (super admin najemcy domyślnego).",
+    mfaStepUpRequired:
+      "Ta operacja wymaga potwierdzenia drugim składnikiem (MFA). Wyloguj się i zaloguj ponownie z kodem z aplikacji uwierzytelniającej, a potem spróbuj jeszcze raz.",
+    catalogStateFailed: "Nie udało się odczytać stanu katalogu: {{message}}",
     status: "Status",
     subscriptions: "Subskrypcje",
     payments: "Płatności",
@@ -160,6 +165,8 @@ const pl = {
     key: "klucz",
     retries: "brak ponowień",
     remindersQueued: "Przypomnienia: {{renewal}} odnowień, {{expiring}} wygaśnięć",
+    remindersPlatformOnly:
+      "Ręczną wysyłkę przypomnień uruchamia operator platformy - obejmuje ona wszystkie organizacje. Przypomnienia wychodzą automatycznie raz na dobę.",
     catalogSynced:
       "Katalog zsynchronizowany: {{created}} nowych, {{updated}} zaktualizowanych, {{archived}} zarchiwizowanych, {{failed}} błędów",
     ordersWithoutSession:
@@ -217,6 +224,11 @@ const en = {
     pricingChangedSyncQueued: "Pricing changed - sync queued",
     lastSync: "Last sync",
     syncedYet: "Not synced yet",
+    catalogPlatformOnly:
+      "The price catalog is shared by the whole installation - only the platform operator (super admin of the default tenant) can sync it.",
+    mfaStepUpRequired:
+      "This action needs second-factor (MFA) verification. Sign out and sign in again with the code from your authenticator app, then try again.",
+    catalogStateFailed: "Could not read the catalog state: {{message}}",
     status: "Status",
     subscriptions: "Subscriptions",
     payments: "Payments",
@@ -333,6 +345,8 @@ const en = {
     key: "key",
     retries: "no retries",
     remindersQueued: "Reminders: {{renewal}} renewals, {{expiring}} expirations",
+    remindersPlatformOnly:
+      "Manual reminder runs are started by the platform operator - they cover every organisation. Reminders go out automatically once a day.",
     catalogSynced:
       "Catalog synced: {{created}} created, {{updated}} updated, {{archived}} archived, {{failed}} failed",
     ordersWithoutSession:

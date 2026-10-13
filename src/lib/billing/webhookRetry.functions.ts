@@ -111,6 +111,15 @@ export const retryWebhookEvent = createServerFn({ method: "POST" })
     //   * całe zdarzenie po normalizacji (`{ eventType, data }` z uzgadniania),
     //   * sam obiekt danych (wiersze historyczne).
     const payload = isRecord(row.payload) ? row.payload : null;
+    // Ładunek po retencji (`payment_webhook_events_redact_expired`, 30/90 dni)
+    // albo po zamknięciu konta nie ma już e-maila, adresu ani danych karty -
+    // odtworzenie z niego zapisałoby w księgach puste pola zamiast prawdziwych.
+    // Zdarzenie żywe u operatora odtwarza uzgadnianie (`reconcile`), nie dziennik.
+    if (payload && isRecord(payload._redacted)) {
+      throw new Error(
+        "Ładunek zdarzenia został zanonimizowany (retencja danych) - ponowienie z dziennika nie jest możliwe. Użyj uzgodnienia ze Stripe.",
+      );
+    }
     const verified = payload ? asVerifiedStripeEvent(payload) : null;
     const normalized = verified
       ? (await import("@/lib/billing/stripeEvents.server")).normalizeStripeEvent(verified)

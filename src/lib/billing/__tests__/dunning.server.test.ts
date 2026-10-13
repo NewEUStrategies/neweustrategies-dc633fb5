@@ -117,7 +117,15 @@ beforeEach(() => {
 
   db = supabaseFromStub();
   h.db.current = db;
-  db.setResponse("subscriptions", (chain) => ok(chain.has("update") || !sub ? null : { ...sub }));
+  db.setResponse("subscriptions", (chain) => {
+    // Atomowe zamknięcie cyklu windykacji (`update ... gt(count, 0) ...
+    // select("id")`) oddaje zajęte wiersze - jak RETURNING w bazie: wiersz
+    // jest zajęty tylko wtedy, gdy cykl był otwarty.
+    if (chain.has("update") && chain.has("select")) {
+      return ok(sub && sub.payment_failure_count > 0 ? [{ id: "sub-row-1" }] : []);
+    }
+    return ok(chain.has("update") || !sub ? null : { ...sub });
+  });
   db.setResponse("access_plans", plansResponder);
   db.setResponse(
     "profiles",
@@ -241,6 +249,9 @@ describe("applyPaymentFailedEffects - nieudane obciążenie", () => {
       last_payment_failed_at: ctx.occurredAt,
       last_dunning_transaction_id: "txn_1",
       last_dunning_at: ctx.occurredAt,
+      // Kotwica karencji (audyt SUB-03): wiersz bez niej dostaje chwilę TEJ
+      // porażki - pierwszej znanej w cyklu.
+      first_payment_failed_at: ctx.occurredAt,
       updated_at: FIXED_NOW_ISO,
     });
     expect(filters).toEqual([
@@ -257,10 +268,15 @@ describe("applyPaymentFailedEffects - nieudane obciążenie", () => {
     expect(mail?.idempotencyKey).toBe(`payment_failed:${SUB}:txn_1`);
     expect(mail?.bodyVars).toMatchObject({ planName: "Członek", graceDays: PAYMENT_GRACE_DAYS });
     expect(mail?.bodyVars?.amount).toMatch(moneyPattern(4900));
-    // Termin kolejnej próby ze zdarzenia, a dostęp do końca OPŁACONEGO okresu
-    // z wiersza subskrypcji - dwie różne daty, których nie wolno zamienić.
+    // Termin kolejnej próby ze zdarzenia, a dostęp do końca KARENCJI - dwie
+    // różne daty, których nie wolno zamienić. ZMIANA ASERCJI (audyt SUB-03):
+    // było „do końca okresu z wiersza" (+20 dni), czyli obietnica dostępu,
+    // którego uprawnienie nie daje - przy odnowieniu operator przesunął już
+    // okres o cały nieopłacony cykl. Karencja: porażka sprzed doby + 14 dni.
     expect(mail?.bodyVars?.retryAt).toBe(formatDate(relativeIso(3 * DZIEN), "pl"));
-    expect(mail?.bodyVars?.accessUntil).toBe(formatDate(relativeIso(20 * DZIEN), "pl"));
+    expect(mail?.bodyVars?.accessUntil).toBe(
+      formatDate(relativeIso((PAYMENT_GRACE_DAYS - 1) * DZIEN), "pl"),
+    );
 
     expect(notification()).toEqual({
       user_id: BILLING_IDS.me,
@@ -410,6 +426,8 @@ describe("applyPaymentRecoveredEffects - płatność zaksięgowana po porażce",
       last_payment_failed_at: null,
       last_payment_at: ctx.occurredAt,
       last_dunning_transaction_id: null,
+      // Zamknięty cykl zamyka też kotwicę karencji (audyt SUB-03).
+      first_payment_failed_at: null,
       updated_at: FIXED_NOW_ISO,
     });
     expect(filters).toEqual([

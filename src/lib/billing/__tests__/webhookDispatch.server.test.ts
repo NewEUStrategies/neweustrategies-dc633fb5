@@ -45,6 +45,8 @@ import type { SubscriptionData, TransactionData } from "@/lib/billing/webhookDis
 
 let db: SupabaseFromStub;
 let rpc: SupabaseRpcStub;
+/** Klient operatora wyłącznie dla remisu znaczników - domyślnie brak (bezpiecznik). */
+let stripeClient: { subscriptions: { retrieve: (id: string) => Promise<unknown> } } | null = null;
 
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
@@ -59,8 +61,9 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 vi.mock("@/lib/stripe.server", () => ({
   getConnectionApiKey: () => "test_klucz_atrapy",
   getWebhookSecret: () => "test_sekret_atrapy",
-  getStripeClient: () => {
-    throw new Error("test: żaden przypadek nie ma prawa wołać operatora");
+  getStripeClient: async () => {
+    if (!stripeClient) throw new Error("test: żaden przypadek nie ma prawa wołać operatora");
+    return stripeClient;
   },
   getStripeErrorMessage: (error: unknown) => String(error),
   resolveEnvironment: () => "sandbox",
@@ -142,16 +145,27 @@ interface SubscriptionsPlan {
   claimError?: string;
   lookupError?: string;
   writeError?: string;
+  /**
+   * Czy wstawienie-jeśli-brak (`upsert(..., { ignoreDuplicates })
+   * .select("id")`) zapisało wiersz. Domyślnie tak (wiersza nie było);
+   * `false` = konflikt, wiersz już istnieje.
+   */
+  inserted?: boolean;
 }
 
 /**
- * Jeden responder na tabelę `subscriptions` rozróżnia TRZY różne zapytania,
+ * Jeden responder na tabelę `subscriptions` rozróżnia CZTERY różne zapytania,
  * które robi ta ścieżka: warunkowy UPDATE strażnika kolejności
- * (`update(...).select("id")` - zwraca wiersze), odczyt stanu (`maybeSingle`)
- * i zwykły zapis (`update` / `upsert`).
+ * (`update(...).select("id")` - zwraca wiersze), wstawienie-jeśli-brak
+ * (`upsert(...).select("id")` - zwraca wstawione wiersze), odczyt stanu
+ * (`maybeSingle`) i zwykły zapis (`update`).
  */
 function subscriptionsResponder(plan: SubscriptionsPlan): TableResponder {
   return (chain: RecordedChain) => {
+    if (chain.has("upsert") && chain.has("select")) {
+      if (plan.writeError) return fail(plan.writeError);
+      return ok(plan.inserted === false ? [] : [{ id: "row_nowy" }]);
+    }
     if (chain.has("update") && chain.has("select")) {
       if (plan.claimError) return fail(plan.claimError);
       return ok(plan.claimed === false ? [] : [{ id: "row_dziennika" }]);
@@ -182,6 +196,7 @@ function writePayload(table: string, method: "update" | "insert" | "upsert"): un
 }
 
 beforeEach(() => {
+  stripeClient = null;
   db = supabaseFromStub();
   rpc = supabaseRpcStub();
   for (const table of TABLES) db.setResponse(table, ok(null));
@@ -276,11 +291,23 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
     // przebiegu tego samego zdarzenia znacznik jest już równy, więc warunkowy
     // UPDATE nie zajmuje wiersza. Bez tej gałęzi ponowna dostawa (albo
     // ponowienie z panelu admina) przeliczałaby uprawnienia i CRM po raz drugi.
+    // Wiersz po PIERWSZYM przebiegu: znacznik tego zdarzenia i jego stan.
     db.setResponse(
       "subscriptions",
       subscriptionsResponder({
         claimed: false,
-        row: { id: "sub-baza-1" },
+        row: {
+          id: "sub-baza-1",
+          last_event_at: OCCURRED_AT,
+          status: "active",
+          price_id: "pro_monthly",
+          quantity: 1,
+          current_period_start: "2026-08-01T00:00:00.000Z",
+          current_period_end: "2026-09-01T00:00:00.000Z",
+          trial_ends_at: null,
+          cancel_at_period_end: false,
+          pause_collection_behavior: null,
+        },
       }),
     );
 
@@ -304,13 +331,55 @@ describe("strażnik kolejności zdarzeń subskrypcji (idempotencja)", () => {
     expect(writesOn("notifications")).toHaveLength(0);
   });
 
+  it("remis znaczników z RÓŻNYM stanem pyta operatora; subskrypcji nieznanej operatorowi nie stosuje", async () => {
+    // Dwa różne zdarzenia z tej samej sekundy: kolejności nie da się odczytać
+    // z czasu, więc decyduje żywy stan operatora. Gdy operator już jej nie zna
+    // (np. usunięta w piaskownicy), nie ma czego stosować - bez zgadywania.
+    db.setResponse(
+      "subscriptions",
+      subscriptionsResponder({
+        claimed: false,
+        row: {
+          id: "sub-baza-1",
+          last_event_at: OCCURRED_AT,
+          status: "active",
+          price_id: "pro_monthly",
+          quantity: 1,
+          current_period_start: "2026-08-01T00:00:00.000Z",
+          current_period_end: "2026-09-01T00:00:00.000Z",
+          trial_ends_at: null,
+          cancel_at_period_end: true,
+          pause_collection_behavior: null,
+        },
+      }),
+    );
+    const retrieve = vi.fn(async () => {
+      throw Object.assign(new Error("No such subscription"), { code: "resource_missing" });
+    });
+    stripeClient = { subscriptions: { retrieve } };
+
+    const outcome = await dispatchWebhookEvent({
+      eventType: "subscription.updated",
+      data: subscriptionEvent(),
+      environment: "sandbox",
+      occurredAt: OCCURRED_AT,
+    });
+
+    expect(outcome).toBe("skipped");
+    expect(retrieve).toHaveBeenCalledWith("sub_atrapa_1", { expand: ["items.data.price.product"] });
+    const stateWrites = db
+      .chainsFor("subscriptions")
+      .filter((c) => c.has("update") && !c.has("select"));
+    expect(stateWrites).toHaveLength(0);
+  });
+
   it("SPÓŹNIONA rezygnacja nie cofa nowszego stanu subskrypcji", async () => {
     // `subscription.canceled` sprzed godziny dostarczone PO wznowieniu
     // skasowałoby dostęp klientowi, który właśnie zapłacił. Ta sama bramka co
     // wyżej, ale osobna gałąź w `switch` - i osobne pieniądze.
     db.setResponse(
       "subscriptions",
-      subscriptionsResponder({ claimed: false, row: { id: "sub-baza-1" } }),
+      subscriptionsResponder({ claimed: false, row: { id: "sub-baza-1", last_event_at: LATER } }),
     );
 
     const outcome = await dispatchWebhookEvent({
@@ -524,6 +593,8 @@ describe("aktualizacja stanu subskrypcji - odmowy i przypadki brzegowe", () => {
           price_id: "plus_monthly",
           status: "active",
           current_period_end: "2026-09-01T00:00:00.000Z",
+          // Subskrypcja dawno kupiona: zmiana planu, nie zakup do potwierdzenia.
+          purchase_confirmed_at: "2026-07-01T00:00:00.000Z",
         },
       }),
     );

@@ -29,10 +29,19 @@ import { fail, ok, supabaseFromStub, type RecordedChain } from "@/test/supabaseC
 
 const db = vi.hoisted(() => ({
   current: null as ReturnType<typeof import("@/test/supabaseChain").supabaseFromStub> | null,
+  /** Wywołania RPC (pseudonimizacja dziennika webhooków). */
+  rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
+  rpcError: null as { message: string } | null,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
-  supabaseAdmin: { from: (table: string) => db.current!.from(table) },
+  supabaseAdmin: {
+    from: (table: string) => db.current!.from(table),
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      db.rpcCalls.push({ fn, args });
+      return Promise.resolve({ data: db.rpcError ? null : 0, error: db.rpcError });
+    },
+  },
 }));
 
 const provider = vi.hoisted(() => ({
@@ -40,8 +49,16 @@ const provider = vi.hoisted(() => ({
   envs: [] as unknown[],
   /** Identyfikatory, które realnie poszły do `subscriptions.cancel`. */
   canceled: [] as unknown[],
-  /** Identyfikatory, dla których operator ma ODMÓWIĆ. */
+  /** Klucze idempotencji przekazane do `subscriptions.cancel`. */
+  idempotencyKeys: [] as unknown[],
+  /** Identyfikatory, dla których operator ma ODMÓWIĆ (subskrypcja dalej żyje). */
   refuse: new Set<string>(),
+  /** Subskrypcje JUŻ zamknięte u operatora (anulowanie odbija się, odczyt: `canceled`). */
+  alreadyCanceled: new Set<string>(),
+  /** Wyniki Search po `metadata.userId`, per środowisko. */
+  searchResults: {} as Record<string, unknown[]>,
+  /** Search ma paść (np. indeks niedostępny). */
+  searchFails: false,
 }));
 
 // Podmieniamy WYŁĄCZNIE budowę klienta. `getStripeErrorMessage` zostaje
@@ -58,8 +75,8 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
       provider.envs.push(env);
       return {
         subscriptions: {
-          cancel: (id: string) => {
-            if (provider.refuse.has(id)) {
+          cancel: (id: string, _params?: unknown, options?: { idempotencyKey?: string }) => {
+            if (provider.refuse.has(id) || provider.alreadyCanceled.has(id)) {
               return Promise.reject(
                 Object.assign(new Error(`No such subscription: ${id}`), {
                   type: "invalid_request_error",
@@ -68,8 +85,24 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
               );
             }
             provider.canceled.push(id);
+            provider.idempotencyKeys.push(options?.idempotencyKey);
             return Promise.resolve({ id, status: "canceled" });
           },
+          // Odczyt po odmowie: zamknięta wcześniej subskrypcja to nie błąd,
+          // a odmowa przy ŻYWEJ subskrypcji - tak.
+          retrieve: (id: string) =>
+            Promise.resolve({
+              id,
+              status: provider.alreadyCanceled.has(id) ? "canceled" : "active",
+            }),
+          search: () =>
+            provider.searchFails
+              ? Promise.reject(new Error("search index unavailable"))
+              : Promise.resolve({
+                  data: provider.searchResults[env] ?? [],
+                  has_more: false,
+                  next_page: null,
+                }),
         },
       };
     },
@@ -120,8 +153,17 @@ function subscription(overrides: Partial<SubRow> = {}): SubRow {
   };
 }
 
+interface DonationSubRow {
+  user_id: string;
+  environment: string;
+  provider_subscription_id: string | null;
+  recurring: boolean;
+}
+
 interface SeedOptions {
   rows?: SubRow[];
+  /** Wiersze `donations` z subskrypcją darowizny cyklicznej. */
+  donations?: DonationSubRow[];
   /** Odczyt bez błędu, ale z `data: null` - PostgREST tak potrafi odpowiedzieć. */
   rowsNull?: boolean;
   /** Odczyt subskrypcji ma paść. */
@@ -154,6 +196,23 @@ function seed(options: SeedOptions = {}): void {
     const allowed = Array.isArray(statuses) ? statuses : [];
     return ok(
       rows.filter((r) => r.user_id === user && r.environment === env && allowed.includes(r.status)),
+    );
+  });
+
+  const donationRows = options.donations ?? [];
+  stub.setResponse("donations", (chain: RecordedChain) => {
+    if (chain.has("update")) return ok(null);
+    const user = chain.calls.find((c) => c.method === "eq" && c.args[0] === "user_id")?.args[1];
+    const envs = chain.calls.find((c) => c.method === "in" && c.args[0] === "environment")?.args[1];
+    const allowedEnvs = Array.isArray(envs) ? envs : [];
+    return ok(
+      donationRows.filter(
+        (r) =>
+          r.user_id === user &&
+          r.recurring &&
+          r.provider_subscription_id !== null &&
+          allowedEnvs.includes(r.environment),
+      ),
     );
   });
 
@@ -218,7 +277,13 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   provider.envs.length = 0;
   provider.canceled.length = 0;
+  provider.idempotencyKeys.length = 0;
   provider.refuse.clear();
+  provider.alreadyCanceled.clear();
+  provider.searchResults = {};
+  provider.searchFails = false;
+  db.rpcCalls.length = 0;
+  db.rpcError = null;
   mail.sent.length = 0;
   mail.throws = false;
   seed();
@@ -581,5 +646,183 @@ describe("mail potwierdzający - ścieżka poboczna, nie krytyczna", () => {
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain("@");
     expect(serialized).not.toContain(ME);
+  });
+});
+
+// ===========================================================================
+// AUDYT SUB-11: darowizny cykliczne i subskrypcje bez wiersza
+//
+// Przed poprawką zamknięcie konta anulowało WYŁĄCZNIE wiersze `subscriptions`.
+// Subskrypcja darowizny żyje tylko w `donations` (dyspozytor celowo omija dla
+// niej ścieżkę planów), więc po usunięciu konta karta darczyńcy była dalej
+// obciążana co miesiąc, a rezygnacja szła wyłącznie „przez redakcję".
+// ===========================================================================
+function donationSub(overrides: Partial<DonationSubRow> = {}): DonationSubRow {
+  return {
+    user_id: ME,
+    environment: "sandbox",
+    provider_subscription_id: "sub_darowizna_1",
+    recurring: true,
+    ...overrides,
+  };
+}
+
+function stubOperatorKeys(): void {
+  vi.stubEnv("STRIPE_SANDBOX_API_KEY", "sk_test_atrapa");
+  vi.stubEnv("LOVABLE_API_KEY", "lovable_atrapa");
+}
+
+describe("SUB-11: aktywna darowizna cykliczna", () => {
+  it("zamknięcie konta z aktywną darowizną cykliczną ANULUJE ją u operatora", async () => {
+    seed({ rows: [], donations: [donationSub()] });
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result).toEqual({ canceled: 1, failed: [] });
+    expect(provider.canceled).toEqual(["sub_darowizna_1"]);
+    // Środowisko WIERSZA darowizny, nie zgadywane.
+    expect(provider.envs).toEqual(["sandbox"]);
+    // Rejestr: zamyka się wyłącznie wiersz oczekujący tej subskrypcji, w tym
+    // środowisku - opłacone raty zostają jako dowody wpłat.
+    const donationUpdate = db.current!.chainsFor("donations").find((c) => c.has("update"))!;
+    expect(donationUpdate.argsOf("update")?.[0]).toEqual({ status: "canceled" });
+    const eqs = donationUpdate.calls.filter((c) => c.method === "eq").map((c) => [...c.args]);
+    expect(eqs).toEqual([
+      ["provider_subscription_id", "sub_darowizna_1"],
+      ["environment", "sandbox"],
+      ["status", "pending"],
+    ]);
+    // Darowizna nie jest planem: bez zapisu w `subscriptions` i bez maila
+    // „Twoja subskrypcja została anulowana".
+    expect(updates()).toEqual([]);
+    expect(mail.sent).toEqual([]);
+  });
+
+  it("wiele rat tej samej subskrypcji to JEDNO anulowanie", async () => {
+    seed({ rows: [], donations: [donationSub(), donationSub(), donationSub()] });
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result.canceled).toBe(1);
+    expect(provider.canceled).toEqual(["sub_darowizna_1"]);
+  });
+
+  it("plan i darowizna są anulowane OBA, każde z deterministycznym kluczem idempotencji", async () => {
+    seed({ donations: [donationSub()] });
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result).toEqual({ canceled: 2, failed: [] });
+    expect(provider.canceled).toEqual(["sub_stripe_1", "sub_darowizna_1"]);
+    expect(provider.idempotencyKeys).toEqual([
+      "account-closure:sub_stripe_1",
+      "account-closure:sub_darowizna_1",
+    ]);
+  });
+
+  it("darowizna JUŻ zamknięta u operatora nie blokuje usunięcia konta", async () => {
+    // Rezygnacja przez redakcję albo poprzednia, przerwana próba usunięcia:
+    // operator odbija anulowanie, ale odczyt potwierdza stan końcowy.
+    provider.alreadyCanceled.add("sub_darowizna_1");
+    seed({ rows: [], donations: [donationSub()] });
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result).toEqual({ canceled: 0, failed: [] });
+  });
+
+  it("odmowa przy ŻYWEJ darowiźnie zatrzymuje usunięcie konta", async () => {
+    provider.refuse.add("sub_darowizna_1");
+    seed({ rows: [], donations: [donationSub()] });
+
+    await expect(closeBillingForUser(ME, MY_EMAIL)).rejects.toThrow(/konto nie zostało usunięte/);
+  });
+
+  it("w produkcji darowizna z piaskownicy nie jest ruszana - test nie pobiera pieniędzy", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    seed({
+      rows: [],
+      donations: [
+        donationSub({ environment: "sandbox", provider_subscription_id: "sub_testowa" }),
+        donationSub({ environment: "live", provider_subscription_id: "sub_prawdziwa" }),
+      ],
+    });
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result.canceled).toBe(1);
+    expect(provider.canceled).toEqual(["sub_prawdziwa"]);
+    expect(provider.envs).toEqual(["live"]);
+  });
+});
+
+describe("SUB-11: subskrypcja, której webhook nie dotarł (Search po metadata.userId)", () => {
+  it("subskrypcja znana WYŁĄCZNIE operatorowi też jest anulowana", async () => {
+    stubOperatorKeys();
+    provider.searchResults.sandbox = [
+      { id: "sub_zgubiona", status: "active", metadata: { userId: ME, purpose: "donation" } },
+      // Ten sam identyfikator co wiersz lokalny - deduplikacja, nie drugie anulowanie.
+      { id: "sub_stripe_1", status: "active", metadata: { userId: ME } },
+    ];
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(result).toEqual({ canceled: 2, failed: [] });
+    expect(provider.canceled).toEqual(["sub_stripe_1", "sub_zgubiona"]);
+  });
+
+  it("cudza albo już zamknięta subskrypcja z wyniku Search NIE jest anulowana", async () => {
+    stubOperatorKeys();
+    provider.searchResults.sandbox = [
+      { id: "sub_cudza", status: "active", metadata: { userId: SOMEONE_ELSE } },
+      { id: "sub_zamknieta", status: "canceled", metadata: { userId: ME } },
+    ];
+
+    const result = await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(provider.canceled).toEqual(["sub_stripe_1"]);
+    expect(result.canceled).toBe(1);
+  });
+
+  it("niedostępny Search ZATRZYMUJE usunięcie konta - niewiadoma to nie „nic nie ma”", async () => {
+    stubOperatorKeys();
+    provider.searchFails = true;
+
+    await expect(closeBillingForUser(ME, MY_EMAIL)).rejects.toThrow(/konto nie zostało usunięte/);
+    // Dziennik webhooków zostaje w całości do diagnozy przerwanego zamknięcia.
+    expect(db.rpcCalls).toEqual([]);
+  });
+
+  it("instalacja BEZ operatora (brak poświadczeń) nie pyta Search i nie blokuje usunięcia", async () => {
+    provider.searchFails = true;
+    seed({ rows: [] });
+
+    await expect(closeBillingForUser(ME, MY_EMAIL)).resolves.toEqual({ canceled: 0, failed: [] });
+    expect(provider.envs).toEqual([]);
+  });
+});
+
+describe("SUB-11: dziennik webhooków zamykanego konta", () => {
+  it("po komplecie anulowań dziennik konta jest pseudonimizowany", async () => {
+    await closeBillingForUser(ME, MY_EMAIL);
+
+    expect(db.rpcCalls).toEqual([
+      { fn: "payment_webhook_events_redact_for_user", args: { p_user_id: ME } },
+    ]);
+  });
+
+  it("odmowa operatora przerywa zamknięcie PRZED pseudonimizacją", async () => {
+    provider.refuse.add("sub_stripe_1");
+
+    await expect(closeBillingForUser(ME, MY_EMAIL)).rejects.toThrow(/Nie udało się anulować/);
+    expect(db.rpcCalls).toEqual([]);
+  });
+
+  it("awaria pseudonimizacji zatrzymuje zamknięcie z czytelnym powodem", async () => {
+    db.rpcError = { message: "function timed out" };
+
+    await expect(closeBillingForUser(ME, MY_EMAIL)).rejects.toThrow(
+      "account closure: webhook log pseudonymisation failed: function timed out",
+    );
   });
 });

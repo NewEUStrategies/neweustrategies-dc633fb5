@@ -6,6 +6,15 @@
 //     przetworzyliśmy i handler może je bezpiecznie pominąć,
 //  2. audyt - panel `/admin/billing` czyta tę tabelę (RLS: tylko admin).
 //
+// RETENCJA (audyt SUB-11, art. 5 ust. 1 lit. e RODO): pełny ładunek operatora
+// (e-mail, adres, dane karty) żyje tu tylko tyle, ile potrzebują ponowienia
+// i diagnostyka - 30 dni dla zdarzeń domkniętych, 90 dla `failed`/`received`.
+// Potem `payment_webhook_events_redact_expired` (pg_cron, co godzinę) zostawia
+// identyfikatory, kwoty i statusy, a dane osobowe zeruje i znaczy ładunek
+// polem `_redacted`; zamknięcie konta robi to od razu
+// (`payment_webhook_events_redact_for_user`). Przejęcie zdarzenia poniżej
+// zapisuje ŚWIEŻY ładunek, więc znacznik znika razem ze starą treścią.
+//
 // Moduł server-only (klient service_role) - importuj wyłącznie z handlerów.
 import type { Json } from "@/integrations/supabase/types";
 
