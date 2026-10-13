@@ -6422,6 +6422,7 @@ export type Database = {
       }
       event_badge_prints: {
         Row: {
+          actor_deleted_at: string | null
           copies: number
           device_id: string | null
           event_id: string
@@ -6437,6 +6438,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          actor_deleted_at?: string | null
           copies?: number
           device_id?: string | null
           event_id: string
@@ -6452,6 +6454,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          actor_deleted_at?: string | null
           copies?: number
           device_id?: string | null
           event_id?: string
@@ -7197,6 +7200,7 @@ export type Database = {
       }
       event_checkins: {
         Row: {
+          actor_deleted_at: string | null
           checkpoint_id: string
           client_scan_uid: string | null
           dedupe_range: unknown
@@ -7213,6 +7217,7 @@ export type Database = {
           offline_server_result: string | null
           operator_user_id: string | null
           person_id: string
+          reentry_override: boolean
           registration_id: string | null
           repeat_count: number
           result: string
@@ -7222,6 +7227,7 @@ export type Database = {
           tenant_id: string
         }
         Insert: {
+          actor_deleted_at?: string | null
           checkpoint_id: string
           client_scan_uid?: string | null
           dedupe_range: unknown
@@ -7238,6 +7244,7 @@ export type Database = {
           offline_server_result?: string | null
           operator_user_id?: string | null
           person_id: string
+          reentry_override?: boolean
           registration_id?: string | null
           repeat_count?: number
           result?: string
@@ -7247,6 +7254,7 @@ export type Database = {
           tenant_id: string
         }
         Update: {
+          actor_deleted_at?: string | null
           checkpoint_id?: string
           client_scan_uid?: string | null
           dedupe_range?: unknown
@@ -7263,6 +7271,7 @@ export type Database = {
           offline_server_result?: string | null
           operator_user_id?: string | null
           person_id?: string
+          reentry_override?: boolean
           registration_id?: string | null
           repeat_count?: number
           result?: string
@@ -8486,6 +8495,7 @@ export type Database = {
       }
       event_lead_scans: {
         Row: {
+          actor_deleted_at: string | null
           checkpoint_id: string | null
           consent_snapshot_at: string | null
           created_at: string
@@ -8505,6 +8515,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          actor_deleted_at?: string | null
           checkpoint_id?: string | null
           consent_snapshot_at?: string | null
           created_at?: string
@@ -8524,6 +8535,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          actor_deleted_at?: string | null
           checkpoint_id?: string | null
           consent_snapshot_at?: string | null
           created_at?: string
@@ -10571,6 +10583,8 @@ export type Database = {
           offline_roster: boolean
           queue_fail_window_count: number
           queue_fail_window_started_at: string | null
+          queue_locked_until: string | null
+          queue_marker_required_at: string | null
           queue_secret: string
           revoked_at: string | null
           revoked_by: string | null
@@ -10603,6 +10617,8 @@ export type Database = {
           offline_roster?: boolean
           queue_fail_window_count?: number
           queue_fail_window_started_at?: string | null
+          queue_locked_until?: string | null
+          queue_marker_required_at?: string | null
           queue_secret?: string
           revoked_at?: string | null
           revoked_by?: string | null
@@ -10635,6 +10651,8 @@ export type Database = {
           offline_roster?: boolean
           queue_fail_window_count?: number
           queue_fail_window_started_at?: string | null
+          queue_locked_until?: string | null
+          queue_marker_required_at?: string | null
           queue_secret?: string
           revoked_at?: string | null
           revoked_by?: string | null
@@ -22805,6 +22823,21 @@ export type Database = {
         Args: { p_lang: string; p_status: string }
         Returns: string
       }
+      _event_checkin_crossed: {
+        Args: {
+          _a: string
+          _b: string
+          _checkpoint_id: string
+          _direction: string
+          _person_id: string
+          _tenant: string
+        }
+        Returns: boolean
+      }
+      _event_checkin_day_start: {
+        Args: { _at: string; _event_id: string; _tenant: string }
+        Returns: string
+      }
       _event_checkin_evaluate: {
         Args: {
           _at?: string
@@ -23630,6 +23663,8 @@ export type Database = {
           offline_roster: boolean
           queue_fail_window_count: number
           queue_fail_window_started_at: string | null
+          queue_locked_until: string | null
+          queue_marker_required_at: string | null
           queue_secret: string
           revoked_at: string | null
           revoked_by: string | null
@@ -23676,6 +23711,8 @@ export type Database = {
           offline_roster: boolean
           queue_fail_window_count: number
           queue_fail_window_started_at: string | null
+          queue_locked_until: string | null
+          queue_marker_required_at: string | null
           queue_secret: string
           revoked_at: string | null
           revoked_by: string | null
@@ -23696,6 +23733,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      _event_scanner_device_note_caps: {
+        Args: { _caps: Json; _device_id: string; _tenant: string }
+        Returns: string
       }
       _event_scanner_device_note_failure: {
         Args: { _device_id: string }
