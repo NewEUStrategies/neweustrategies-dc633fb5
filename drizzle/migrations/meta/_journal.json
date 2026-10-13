@@ -1296,6 +1296,34 @@
       "when": 1791901836342,
       "tag": "0184_billing_probe_status",
       "breakpoints": true
+    },
+    {
+      "idx": 185,
+      "version": "7",
+      "when": 1791903818002,
+      "tag": "0185_author_profiles_public_drop_contact_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 186,
+      "version": "7",
+      "when": 1791903818003,
+      "tag": "0186_public_definer_views_read_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 187,
+      "version": "7",
+      "when": 1791907354553,
+      "tag": "0187_author_profiles_public_drop_contact_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 188,
+      "version": "7",
+      "when": 1791907515475,
+      "tag": "0188_public_definer_views_read_only",
+      "breakpoints": true
     }
   ]
 }
