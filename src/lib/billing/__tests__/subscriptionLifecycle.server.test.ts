@@ -957,10 +957,18 @@ describe("SUB-16: windykacja liczy każdą próbę i podaje jej termin", () => {
     await deliver("invoice.payment_failed", stripeInvoice({ attempt: 1 }), relativeIso(-1 * DZIEN));
 
     const paidAt = relativeIso(-1 * DZIEN + 60 * SEKUNDA);
-    await Promise.all([
-      deliver("invoice.paid", stripeInvoice({ attempt: 2 }), paidAt),
-      deliver("invoice.payment_succeeded", stripeInvoice({ attempt: 2 }), paidAt),
-    ]);
+    // Drugie zdarzenie startuje po jednym obrocie pętli zdarzeń. Start w tym
+    // samym takcie trafiał w wyścig atrapy modułów vitest: równoległe
+    // `import()` modułu z `vi.mock` potrafiło zwrócić PRAWDZIWY
+    // `client.server` (bez zmiennych środowiskowych) - artefakt środowiska
+    // testowego, bez odpowiednika w produkcji. Przy bazie w pamięci pierwsze
+    // zdarzenie może się domknąć przed startem drugiego, więc test pilnuje,
+    // że druga zapłata tej samej próby nie otwiera odzyskania ponownie;
+    // równoległość w produkcji rozstrzyga warunkowy UPDATE w `claimRecovery`.
+    const first = deliver("invoice.paid", stripeInvoice({ attempt: 2 }), paidAt);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const second = deliver("invoice.payment_succeeded", stripeInvoice({ attempt: 2 }), paidAt);
+    await Promise.all([first, second]);
 
     expect(mails("payment_recovered")).toHaveLength(1);
     expect(bells("Płatność zaksięgowana")).toHaveLength(1);
