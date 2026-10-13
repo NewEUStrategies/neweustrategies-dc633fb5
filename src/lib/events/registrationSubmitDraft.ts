@@ -18,8 +18,15 @@
 // SUFITY DŁUGOŚCI TO TE SAME LICZBY CO W BAZIE (`REGISTRATION_FIELD_LIMITS`).
 // Za długi tekst jest błędem pod polem - nigdy nie przycinamy go po cichu
 // (AGENTS.md): organizator widziałby w kartotece coś innego, niż wpisano.
+//
+// ZNAKI STERUJĄCE TEŻ (R38). Tabulator albo nowa linia wklejone w środek imienia,
+// firmy czy adresu to dla bazy odmowa kodem pola (`_event_text_has_control`)
+// - mówimy o tym pod polem, zamiast oddawać formularz z ogólnym błędem.
 import type { RegistrationAnswer } from "@/lib/events/registrationPayload";
-import { REGISTRATION_FIELD_LIMITS as LIMITS } from "@/lib/events/registrationFieldLimits";
+import {
+  REGISTRATION_FIELD_LIMITS as LIMITS,
+  hasControlCharacters,
+} from "@/lib/events/registrationFieldLimits";
 import {
   hasHiddenTickets,
   isTicketSelectable,
@@ -110,6 +117,11 @@ export function draftErrorMessageKey(error: RegistrationDraftError): string {
 /** Ten sam wzorzec, co w `event_register()` - ani ostrzejszy, ani luźniejszy. */
 const EMAIL = /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/;
 
+/** Znak sterujący w polu (`hasControlCharacters` - ta sama reguła co baza). */
+function controlChars(field: RegistrationDraftField, value: string): RegistrationDraftError | null {
+  return hasControlCharacters(value.trim()) ? { field, errorKey: "controlChars" } : null;
+}
+
 /** Błąd sufitu długości, gdy przycięty tekst go przekracza. */
 function tooLong(
   field: RegistrationDraftField,
@@ -146,13 +158,14 @@ export function validateRegistrationDraft(
 
   const firstName = draft.firstName.trim();
   if (firstName === "") errors.push({ field: "firstName", errorKey: "firstName" });
-  else push(tooLong("firstName", firstName, LIMITS.name));
+  else push(tooLong("firstName", firstName, LIMITS.name) ?? controlChars("firstName", firstName));
   const lastName = draft.lastName.trim();
   if (lastName === "") errors.push({ field: "lastName", errorKey: "lastName" });
-  else push(tooLong("lastName", lastName, LIMITS.name));
+  else push(tooLong("lastName", lastName, LIMITS.name) ?? controlChars("lastName", lastName));
 
   const email = draft.email.trim();
   if (email.length > LIMITS.email) push(tooLong("email", email, LIMITS.email));
+  else if (hasControlCharacters(email)) push(controlChars("email", email));
   else if (!EMAIL.test(email)) errors.push({ field: "email", errorKey: "email" });
 
   // Telefon jest dobrowolny, ale podany musi zmieścić się w CHECK-u bazy
@@ -164,13 +177,23 @@ export function validateRegistrationDraft(
       errorKey: "phoneLength",
       params: { min: LIMITS.phoneMin, max: LIMITS.phoneMax },
     });
+  } else {
+    push(controlChars("phone", phone));
   }
-  push(tooLong("jobTitle", draft.jobTitle, LIMITS.jobTitle));
-  push(tooLong("companyText", draft.companyText, LIMITS.companyText));
+  push(
+    tooLong("jobTitle", draft.jobTitle, LIMITS.jobTitle) ??
+      controlChars("jobTitle", draft.jobTitle),
+  );
+  push(
+    tooLong("companyText", draft.companyText, LIMITS.companyText) ??
+      controlChars("companyText", draft.companyText),
+  );
 
   const social = draft.socialProfileUrl.trim();
   if (social.length > LIMITS.socialProfileUrl) {
     push(tooLong("socialProfileUrl", social, LIMITS.socialProfileUrl));
+  } else if (hasControlCharacters(social)) {
+    push(controlChars("socialProfileUrl", social));
   } else if (social !== "" && !social.startsWith("https://")) {
     errors.push({ field: "socialProfileUrl", errorKey: "socialProfile" });
   }

@@ -748,6 +748,39 @@ describe("submitEventRegistration (deklaracja)", () => {
     }
   });
 
+  // R38: znak sterujący w danych osoby to odmowa schematu - ta sama reguła co
+  // baza (`_event_text_has_control`). Kod dostępu i kod odsłaniający jej nie
+  // podlegają: baza porównuje ich skrót, nie zapisuje ich w kartotece.
+  it("znak sterujący w polu osoby to odmowa, nie przycięcie; kody tylko z sufitem", () => {
+    for (const over of [
+      { firstName: "Ja\u0001n" },
+      { lastName: "Kow\u007falski" },
+      { email: "anna\u0001@example.com" },
+      { phone: "+48 600\n100 200" },
+      { jobTitle: "Dyrektor\u0085" },
+      { companyText: "NES\tSA" },
+      { socialProfileUrl: "https://exa\u0001mple.org" },
+    ]) {
+      expect(
+        () => validateServerFnInput(submitEventRegistration, { ...valid, ...over }),
+        JSON.stringify(over),
+      ).toThrow();
+    }
+    // Białe znaki wokół (także nowa linia na końcu) zdejmuje `trim()` - to nie treść.
+    expect(
+      validateServerFnInput<Record<string, unknown>>(submitEventRegistration, {
+        ...valid,
+        firstName: "Anna\n",
+      }).firstName,
+    ).toBe("Anna");
+    expect(
+      validateServerFnInput<Record<string, unknown>>(submitEventRegistration, {
+        ...valid,
+        accessCode: "KOD\u0001",
+      }).accessCode,
+    ).toBe("KOD\u0001");
+  });
+
   it("zła atrybucja zdejmuje WYŁĄCZNIE atrybucję - zapis nie przepada przez UTM", () => {
     const parsed = validateServerFnInput<Record<string, unknown>>(submitEventRegistration, {
       ...valid,

@@ -11,8 +11,10 @@
 //   2. `not_found` MÓWI O ZGŁOSZENIU, NIE O WYDARZENIU. Dla gości znaczy „nie ma
 //      zgłoszenia prowadzącego na tym koncie"; stare „Nie znaleźliśmy tego
 //      wydarzenia." było nieprawdą.
-//   3. `already_registered: <email>` MÓWI, KTÓRY GOŚĆ. Adres z ogona komunikatu
-//      trafia do zdania - bez niego kupujący zgaduje, kogo usunąć z listy.
+//   3. ADRES GOŚCIA Z ZAPISEM NIE WYCHODZI (przegląd R38). Nowa baza gościa
+//      z zapisem pomija bez śladu; stara (okno wdrożenia) odpowiadała
+//      `already_registered: <email>` - zdanie NIE powtarza adresu, nawet gdy
+//      ogon dotrze (to była wyrocznia członkostwa).
 //   4. `group_too_large` PODAJE LIMIT BILETU, gdy wołający go zna, i nie wstawia
 //      pustego miejsca, gdy nie zna.
 //   5. NIEZNANA ODMOWA NIE UDAJE ZNANEJ: najpierw słownik zapisu prowadzącego
@@ -30,26 +32,49 @@
 // bundel angielski - ta sama technika, co w `eventErrorMapsI18n.gate.test.ts`.
 //
 // i18n jedzie PRAWDZIWE (ta sama instancja, którą widzi uczestnik). Lista
-// `GROUP_GUEST_REFUSALS` jest porównywana z KOŃCOWYM ciałem funkcji w migracji
-// `20261012150100`: nowa odmowa w SQL bez wpisu na liście (albo wpis bez
-// odmowy) zapala pierwszy test, a wpis bez zdania w słowniku - testy per kod.
-// Od tej migracji odmowa to `RAISE EXCEPTION 'kod'` WEWNĄTRZ podtransakcji
-// (łapana i oddawana wartością) albo wprost wartość `'error', 'kod'` (brak
-// konta, kubełek prób) - liczymy obie postaci.
-import { readFileSync } from "node:fs";
+// `GROUP_GUEST_REFUSALS` jest porównywana z KOŃCOWYMI ciałami funkcji gości
+// w NAJNOWSZEJ migracji, która definiuje rdzeń `_event_register_group_guests`
+// (rdzeń, wejście serwerowe i wrapper zgodności): nowa odmowa w SQL bez wpisu
+// na liście (albo wpis bez odmowy) zapala pierwszy test, a wpis bez zdania
+// w słowniku - testy per kod. Odmowa to `RAISE EXCEPTION 'kod'` WEWNĄTRZ
+// podtransakcji (łapana i oddawana wartością) albo wprost wartość
+// `'error', 'kod'` (brak konta, kubełki prób) - liczymy obie postaci.
+import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import i18n from "@/lib/i18n";
 import { readKey, type ResourceTree } from "@/lib/ci/i18nParity";
 import { eventRegistrationEn, eventRegistrationPl } from "@/lib/i18n-event-registration";
 import {
+  GROUP_GUEST_LEGACY_REFUSALS,
   GROUP_GUEST_REFUSALS,
   groupGuestsFailure,
   isGroupTooLarge,
   type RegistrationFailure,
 } from "@/lib/events/publicRegistrationErrors";
 
-const MIGRATION = "supabase/migrations/20261012150100_event_group_guests_hardening.sql";
+const MIGRATIONS_DIR = "supabase/migrations";
+/** Funkcje gości, których odmowy widzi przeglądarka (przez funkcję serwerową). */
+const GUEST_FUNCTIONS = [
+  "_event_register_group_guests",
+  "event_register_group_guests_for_client",
+  "event_register_group_guests",
+] as const;
+
+/** Najnowsza migracja z rdzeniem gości - tam stoją końcowe ciała wszystkich trzech. */
+function latestGuestsMigration(): string {
+  const files = readdirSync(MIGRATIONS_DIR)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .filter((name) =>
+      readFileSync(`${MIGRATIONS_DIR}/${name}`, "utf8").includes(
+        "FUNCTION public._event_register_group_guests(",
+      ),
+    );
+  const latest = files.at(-1);
+  expect(latest).toBeDefined();
+  return `${MIGRATIONS_DIR}/${latest ?? ""}`;
+}
 const LANGS = ["pl", "en"] as const;
 const DICTIONARIES: Record<(typeof LANGS)[number], ResourceTree> = {
   pl: eventRegistrationPl,
@@ -66,17 +91,20 @@ function render(failure: RegistrationFailure, lang: (typeof LANGS)[number]): str
   return i18n.getFixedT(lang)(failure.key, failure.params);
 }
 
-/** Kody odmów z ciała `event_register_group_guests` w migracji. */
+/** Kody odmów z ciał funkcji gości w najnowszej migracji. */
 function refusalsInMigration(): string[] {
-  const sql = readFileSync(MIGRATION, "utf8");
-  const start = sql.indexOf("FUNCTION public.event_register_group_guests(");
-  const end = sql.indexOf("$$;", sql.indexOf("AS $$", start) + "AS $$".length);
-  expect(start).toBeGreaterThan(-1);
-  expect(end).toBeGreaterThan(start);
-  const body = sql.slice(start, end);
-  const raised = [...body.matchAll(/RAISE EXCEPTION '([a-z_]+)/g)].map((match) => match[1] ?? "");
-  const returned = [...body.matchAll(/'error', '([a-z_]+)'/g)].map((match) => match[1] ?? "");
-  return [...new Set([...raised, ...returned])];
+  const sql = readFileSync(latestGuestsMigration(), "utf8");
+  const codes = new Set<string>();
+  for (const name of GUEST_FUNCTIONS) {
+    const start = sql.indexOf(`FUNCTION public.${name}(`);
+    const end = sql.indexOf("$$;", sql.indexOf("AS $$", start) + "AS $$".length);
+    expect(start, name).toBeGreaterThan(-1);
+    expect(end, name).toBeGreaterThan(start);
+    const body = sql.slice(start, end);
+    for (const match of body.matchAll(/RAISE EXCEPTION '([a-z_]+)/g)) codes.add(match[1] ?? "");
+    for (const match of body.matchAll(/'error', '([a-z_]+)'/g)) codes.add(match[1] ?? "");
+  }
+  return [...codes];
 }
 
 describe("groupGuestsFailure - komplet odmów bazy", () => {
@@ -101,6 +129,18 @@ describe("groupGuestsFailure - komplet odmów bazy", () => {
     }
   }
 
+  it("odmowa starej bazy (`already_registered`) nie należy do nowych funkcji, ale ma zdanie", () => {
+    const current = refusalsInMigration();
+    for (const code of GROUP_GUEST_LEGACY_REFUSALS) {
+      expect(current, code).not.toContain(code);
+      for (const lang of LANGS) {
+        const failure = groupGuestsFailure(new Error(code));
+        expect(failure.key.startsWith("eventRegistration.group.errors."), code).toBe(true);
+        expect(ownText(lang, failure.key), `${lang}:${failure.key}`).not.toBeNull();
+      }
+    }
+  });
+
   it("każda odmowa dostaje INNY klucz - żadne dwie nie zlewają się w jedno zdanie", () => {
     const keys = GROUP_GUEST_REFUSALS.map((code) => groupGuestsFailure(new Error(code)).key);
     expect(new Set(keys).size).toBe(GROUP_GUEST_REFUSALS.length);
@@ -121,19 +161,16 @@ describe("groupGuestsFailure - zdania, które mówią, co zrobić", () => {
     expect(render(failure, "pl")).not.toBe("Nie znaleźliśmy tego wydarzenia.");
   });
 
-  it("already_registered podaje adres gościa z ogona komunikatu", () => {
+  it("R38: already_registered starej bazy NIE powtarza adresu z ogona komunikatu", () => {
     const failure = groupGuestsFailure({ message: "already_registered: gosc.dwa@example.com" });
 
     expect(failure).toEqual({
-      key: "eventRegistration.group.errors.alreadyRegistered",
-      params: { email: "gosc.dwa@example.com" },
+      key: "eventRegistration.group.errors.alreadyRegisteredUnknown",
+      params: {},
     });
-    expect(render(failure, "pl")).toBe(
-      "Osoba z adresem gosc.dwa@example.com ma już aktywny zapis na to wydarzenie. Usuń ją z listy gości.",
-    );
-    expect(render(failure, "en")).toBe(
-      "The person with the address gosc.dwa@example.com already has an active registration for this event. Remove them from the guest list.",
-    );
+    for (const lang of LANGS) {
+      expect(render(failure, lang)).not.toContain("gosc.dwa@example.com");
+    }
   });
 
   it("already_registered bez adresu nie zostawia dziury w zdaniu", () => {
@@ -221,6 +258,10 @@ describe("groupGuestsFailure - zdania, które mówią, co zrobić", () => {
       invalid_email: {
         pl: "Adres e-mail jednego z gości jest niepoprawny.",
         en: "The e-mail address of one of the guests is not valid.",
+      },
+      duplicate_guest: {
+        pl: "Ten sam adres e-mail jest na liście dwa razy albo to Twój adres. Każdy gość potrzebuje własnego adresu.",
+        en: "The same e-mail address is on the list twice, or it is your own address. Each guest needs their own address.",
       },
     };
     for (const [code, text] of Object.entries(expected)) {

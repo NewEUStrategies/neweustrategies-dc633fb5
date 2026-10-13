@@ -15,10 +15,14 @@
 // ODMOWY DOPISANIA GOŚCI MAJĄ WŁASNY SŁOWNIK (`groupGuestsFailure`).
 // `event_register_group_guests` używa części tych samych słów co
 // `event_register`, ale mówi nimi o czym innym: `not_found` znaczy tam „nie ma
-// zgłoszenia prowadzącego na TYM koncie", a nie „nie ma wydarzenia", a
-// `already_registered: <email>` dotyczy jednego z gości, nie kupującego.
+// zgłoszenia prowadzącego na TYM koncie", a nie „nie ma wydarzenia".
 // Słownik zapisu prowadzącego podsuwał więc zdanie nieprawdziwe albo ogólne
 // „Nie udało się zapisać" - choć zgłoszenie kupującego już stało w bazie.
+//
+// ADRES GOŚCIA NIE WYCHODZI NIGDY (R38). Gość z zapisem na wydarzenie jest
+// pomijany bez śladu w odpowiedzi; stara baza (okno wdrożenia) odpowiadała
+// `already_registered: <email>` - zdanie nie powtarza adresu, nawet gdy ogon
+// dotrze.
 import i18n from "@/lib/i18n";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
 
@@ -144,30 +148,39 @@ export function isRefundTermsChanged(error: unknown): boolean {
 }
 
 /**
- * Każda odmowa `event_register_group_guests` (końcowe ciało w migracji
- * `20261012150100_event_group_guests_hardening.sql`), w kolejności sprawdzeń
- * w funkcji. Nowa baza oddaje je WARTOŚCIĄ `{ok:false, error, detail?}`
- * (`rate_limited` - kubełek konta liczony przed pracą, `event_ended` - po
- * końcu wydarzenia), stara rzucała `RAISE EXCEPTION`; `registerGroupGuests`
- * sprowadza oba kształty do jednego komunikatu. Lista jest jawna, a nie
- * wyliczana z `i18n.exists`, żeby test mógł dowieść, że KAŻDA odmowa tej
- * funkcji ma zdanie w obu językach.
+ * Każda odmowa dopisania gości (rdzeń `_event_register_group_guests`, wejście
+ * `event_register_group_guests_for_client` i wrapper zgodności w migracji
+ * `20261012180300_event_group_guests_validation_first.sql`), w kolejności
+ * sprawdzeń. Baza oddaje je WARTOŚCIĄ `{ok:false, error}` - bez ogona
+ * (`rate_limited` - kubełki adresu i konta liczone przed pracą, `event_ended`
+ * - po końcu wydarzenia, `duplicate_guest` - ten sam adres dwa razy albo adres
+ * prowadzącego); funkcja serwerowa oddaje przeglądarce sam kod. Lista jest
+ * jawna, a nie wyliczana z `i18n.exists`, żeby test mógł dowieść, że KAŻDA
+ * odmowa tych funkcji ma zdanie w obu językach.
  */
 export const GROUP_GUEST_REFUSALS = [
   "account_required",
   "rate_limited",
   "invalid_guests",
+  "group_too_large",
+  "invalid_name",
+  "invalid_email",
+  "duplicate_guest",
   "not_found",
   "event_ended",
   "registration_closed",
   "already_settled",
   "group_not_enabled",
-  "group_too_large",
   "sold_out",
-  "invalid_name",
-  "invalid_email",
-  "already_registered",
 ] as const;
+
+/**
+ * Odmowy STAREJ bazy (okno wdrożenia „najpierw kod", przed 20261012180300):
+ * `already_registered: <email>`. Nowa baza ich nie zna - gościa z zapisem
+ * pomija - ale funkcja serwerowa woła starą funkcję przy PGRST202/42883, więc
+ * kod ma zdanie, które NIE powtarza adresu.
+ */
+export const GROUP_GUEST_LEGACY_REFUSALS = ["already_registered"] as const;
 
 export type GroupGuestRefusal = (typeof GROUP_GUEST_REFUSALS)[number];
 
@@ -210,7 +223,7 @@ export function groupGuestsFailure(
   context: GroupGuestsFailureContext = {},
 ): RegistrationFailure {
   ensureEventRegistrationI18n();
-  const { head, tail } = splitMessage(error);
+  const { head } = splitMessage(error);
 
   if (isGroupGuestRefusal(head)) {
     if (head === "group_too_large") {
@@ -219,14 +232,12 @@ export function groupGuestsFailure(
         ? { key: `${GROUP_PREFIX}groupTooLargeMax`, params: { max } }
         : { key: `${GROUP_PREFIX}groupTooLarge`, params: {} };
     }
-    if (head === "already_registered") {
-      // Ogon to adres gościa (`RAISE EXCEPTION 'already_registered: %', v_email`)
-      // - bez niego kupujący zgadywałby, którą osobę z listy usunąć.
-      return tail === ""
-        ? { key: `${GROUP_PREFIX}alreadyRegisteredUnknown`, params: {} }
-        : { key: `${GROUP_PREFIX}alreadyRegistered`, params: { email: tail } };
-    }
     return { key: `${GROUP_PREFIX}${camel(head)}`, params: {} };
+  }
+  // Stara baza: adres gościa z ogona NIE trafia do zdania (R38) - adres
+  // czyjegoś zapisu to dokładnie to, czego odpowiedź nie może zdradzać.
+  if (head === "already_registered") {
+    return { key: `${GROUP_PREFIX}alreadyRegisteredUnknown`, params: {} };
   }
 
   const fallback = registrationFailure(error);

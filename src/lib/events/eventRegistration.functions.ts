@@ -19,9 +19,10 @@
 // POST, bo każde wywołanie liczy się do limitu i zmienia stan.
 //
 // SCHEMAT Z TYMI SAMYMI SUFITAMI CO BAZA I FORMULARZ
-// (`REGISTRATION_FIELD_LIMITS`). Tekst za długi to odmowa całego żądania,
-// nigdy przycięcie (AGENTS.md); formularz mówi o tym pod polem, zanim cokolwiek
-// wyjdzie. `.strict()`: klucz spoza listy (`ip_hash`, `user_agent`,
+// (`REGISTRATION_FIELD_LIMITS`). Tekst za długi albo ze znakiem sterującym
+// (`hasControlCharacters` - lustro `_event_text_has_control`) to odmowa całego
+// żądania, nigdy przycięcie (AGENTS.md); formularz mówi o tym pod polem, zanim
+// cokolwiek wyjdzie. `.strict()`: klucz spoza listy (`ip_hash`, `user_agent`,
 // `tenant_id`, `person_id`) nie dochodzi nawet do serwera.
 //
 // Moduł zawiera WYŁĄCZNIE deklarację server function + importy (wymóg
@@ -29,11 +30,24 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { REGISTRATION_FIELD_LIMITS as LIMITS } from "@/lib/events/registrationFieldLimits";
+import {
+  REGISTRATION_FIELD_LIMITS as LIMITS,
+  hasControlCharacters,
+} from "@/lib/events/registrationFieldLimits";
 import type { EventRegisterClient } from "@/lib/events/registrationPayload";
 
-/** Napis przycięty z białych znaków, ale NIGDY skrócony - za długi to odmowa. */
-const text = (max: number) => z.string().trim().max(max);
+/**
+ * Napis przycięty z białych znaków, ale NIGDY skrócony - za długi to odmowa.
+ * Znak sterujący w środku (tabulator, nowa linia, C1) też: baza odrzuca go
+ * kodem pola przed wyszukaniem osoby (R38), a formularz mówi o tym pod polem.
+ */
+const text = (max: number) =>
+  code(max).refine((value) => !hasControlCharacters(value), { message: "control_characters" });
+
+/** Kod dostępu i kod odsłaniający: sam sufit - baza porównuje skrót, nie dane osoby. */
+function code(max: number) {
+  return z.string().trim().max(max);
+}
 
 /**
  * Odpowiedź na pytanie organizatora. Sufity są luźniejsze od ładunku bazy
@@ -77,8 +91,8 @@ const Input = z
     companyText: text(LIMITS.companyText).nullable().optional(),
     socialProfileUrl: text(LIMITS.socialProfileUrl).nullable().optional(),
     ticketTypeId: z.string().uuid().nullable().optional(),
-    accessCode: text(LIMITS.code).nullable().optional(),
-    revealCode: text(LIMITS.code).nullable().optional(),
+    accessCode: code(LIMITS.code).nullable().optional(),
+    revealCode: code(LIMITS.code).nullable().optional(),
     answers: z
       .array(z.object({ key: z.string().max(200), value: answerValue }).strict())
       .max(200)

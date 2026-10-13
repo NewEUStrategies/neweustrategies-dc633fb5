@@ -172,6 +172,8 @@ export const eventRegistrationPl = {
         name: "Podaj imię i nazwisko (do 80 znaków).",
         email: "Podaj poprawny adres e-mail.",
         duplicate: "Ten adres e-mail już jest na liście.",
+        control:
+          "Usuń niewidoczne znaki (np. tabulator albo nową linię) z imienia, nazwiska lub adresu.",
       },
       // Odmowy `event_register_group_guests`. Zgłoszenie kupującego w tym
       // momencie już STOI, więc zdania mówią o gościach, a nie o zapisie.
@@ -194,8 +196,11 @@ export const eventRegistrationPl = {
         soldOut: "Nie ma już tylu wolnych miejsc na tym bilecie. Usuń część gości.",
         invalidName: "Każdy gość musi mieć imię i nazwisko (do 80 znaków).",
         invalidEmail: "Adres e-mail jednego z gości jest niepoprawny.",
-        alreadyRegistered:
-          "Osoba z adresem {{email}} ma już aktywny zapis na to wydarzenie. Usuń ją z listy gości.",
+        // Duplikat w liście albo adres kupującego - baza odmawia, zanim
+        // spojrzy, kto z gości ma już zapis (R38).
+        duplicateGuest:
+          "Ten sam adres e-mail jest na liście dwa razy albo to Twój adres. Każdy gość potrzebuje własnego adresu.",
+        // Odmowa starej bazy (okno wdrożenia): bez adresu - serwer go nie oddaje.
         alreadyRegisteredUnknown:
           "Jedna z osób ma już aktywny zapis na to wydarzenie. Usuń ją z listy gości.",
         unknown: "Nie udało się dopisać gości. Twoje zgłoszenie jest zapisane - spróbuj ponownie.",
@@ -333,6 +338,9 @@ export const eventRegistrationPl = {
       number: "Podaj liczbę.",
       // Sufity z `REGISTRATION_FIELD_LIMITS` - te same, co w bazie.
       tooLong: "Za długie - najwyżej {{max}} znaków.",
+      // Tabulator, nowa linia i inne znaki sterujące - baza odrzuca je kodem
+      // pola (R38, `_event_text_has_control`).
+      controlChars: "Usuń niewidoczne znaki (np. tabulator albo nową linię).",
       phoneLength: "Numer telefonu musi mieć od {{min}} do {{max}} znaków.",
       ticketHiddenOnly:
         "Bilety na to wydarzenie są dostępne z kodem od organizatora - wpisz go w polu powyżej.",
@@ -778,6 +786,8 @@ export const eventRegistrationEn = {
         name: "Enter first and last name (up to 80 characters).",
         email: "Enter a valid email address.",
         duplicate: "This email address is already on the list.",
+        control:
+          "Remove invisible characters (such as a tab or a line break) from the name or the address.",
       },
       errors: {
         accountRequired: "Sign in to add guests to your registration.",
@@ -798,8 +808,8 @@ export const eventRegistrationEn = {
         soldOut: "There are not that many seats left on this ticket. Remove some guests.",
         invalidName: "Every guest needs a first and last name (up to 80 characters).",
         invalidEmail: "The e-mail address of one of the guests is not valid.",
-        alreadyRegistered:
-          "The person with the address {{email}} already has an active registration for this event. Remove them from the guest list.",
+        duplicateGuest:
+          "The same e-mail address is on the list twice, or it is your own address. Each guest needs their own address.",
         alreadyRegisteredUnknown:
           "One of the people already has an active registration for this event. Remove them from the guest list.",
         unknown: "We could not add the guests. Your registration is saved - please try again.",
@@ -920,6 +930,7 @@ export const eventRegistrationEn = {
       dataProcessing: "Without consent to data processing we cannot accept the registration.",
       number: "Enter a number.",
       tooLong: "Too long - at most {{max}} characters.",
+      controlChars: "Remove invisible characters (such as a tab or a line break).",
       phoneLength: "The phone number must have between {{min}} and {{max}} characters.",
       ticketHiddenOnly:
         "Tickets for this event are available with a code from the organiser - enter it in the field above.",
