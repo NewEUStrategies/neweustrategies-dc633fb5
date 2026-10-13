@@ -7330,6 +7330,7 @@ export type Database = {
           kind: string
           name_en: string
           name_pl: string
+          reentry_policy: string
           room_id: string | null
           session_id: string | null
           sort_order: number
@@ -7350,6 +7351,7 @@ export type Database = {
           kind?: string
           name_en: string
           name_pl: string
+          reentry_policy?: string
           room_id?: string | null
           session_id?: string | null
           sort_order?: number
@@ -7370,6 +7372,7 @@ export type Database = {
           kind?: string
           name_en?: string
           name_pl?: string
+          reentry_policy?: string
           room_id?: string | null
           session_id?: string | null
           sort_order?: number
@@ -10227,6 +10230,8 @@ export type Database = {
         Row: {
           answers: Json
           attended_at: string | null
+          badge_issued_at: string | null
+          badge_token_hash: string | null
           cancel_reason: string | null
           cancelled_at: string | null
           consent_partner_sharing_at: string | null
@@ -10280,6 +10285,8 @@ export type Database = {
         Insert: {
           answers?: Json
           attended_at?: string | null
+          badge_issued_at?: string | null
+          badge_token_hash?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
           consent_partner_sharing_at?: string | null
@@ -10333,6 +10340,8 @@ export type Database = {
         Update: {
           answers?: Json
           attended_at?: string | null
+          badge_issued_at?: string | null
+          badge_token_hash?: string | null
           cancel_reason?: string | null
           cancelled_at?: string | null
           consent_partner_sharing_at?: string | null
@@ -10560,6 +10569,9 @@ export type Database = {
           last_seen_at: string | null
           locked_until: string | null
           offline_roster: boolean
+          queue_fail_window_count: number
+          queue_fail_window_started_at: string | null
+          queue_secret: string
           revoked_at: string | null
           revoked_by: string | null
           roster_download_count: number
@@ -10567,6 +10579,7 @@ export type Database = {
           scan_count: number
           scopes: string[]
           sponsor_id: string | null
+          superseded_scan_count: number
           tenant_id: string
           token_hash: string
           token_prefix: string
@@ -10588,6 +10601,9 @@ export type Database = {
           last_seen_at?: string | null
           locked_until?: string | null
           offline_roster?: boolean
+          queue_fail_window_count?: number
+          queue_fail_window_started_at?: string | null
+          queue_secret?: string
           revoked_at?: string | null
           revoked_by?: string | null
           roster_download_count?: number
@@ -10595,6 +10611,7 @@ export type Database = {
           scan_count?: number
           scopes?: string[]
           sponsor_id?: string | null
+          superseded_scan_count?: number
           tenant_id: string
           token_hash: string
           token_prefix: string
@@ -10616,6 +10633,9 @@ export type Database = {
           last_seen_at?: string | null
           locked_until?: string | null
           offline_roster?: boolean
+          queue_fail_window_count?: number
+          queue_fail_window_started_at?: string | null
+          queue_secret?: string
           revoked_at?: string | null
           revoked_by?: string | null
           roster_download_count?: number
@@ -10623,6 +10643,7 @@ export type Database = {
           scan_count?: number
           scopes?: string[]
           sponsor_id?: string | null
+          superseded_scan_count?: number
           tenant_id?: string
           token_hash?: string
           token_prefix?: string
@@ -12197,6 +12218,61 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "event_sponsor_tiers"
             referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+        ]
+      }
+      event_superseded_codes: {
+        Row: {
+          code_hash: string
+          credential: string
+          event_id: string
+          id: string
+          reason: string
+          registration_id: string
+          superseded_at: string
+          tenant_id: string
+        }
+        Insert: {
+          code_hash: string
+          credential: string
+          event_id: string
+          id?: string
+          reason: string
+          registration_id: string
+          superseded_at?: string
+          tenant_id: string
+        }
+        Update: {
+          code_hash?: string
+          credential?: string
+          event_id?: string
+          id?: string
+          reason?: string
+          registration_id?: string
+          superseded_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_superseded_codes_event_fk"
+            columns: ["tenant_id", "event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "event_superseded_codes_registration_fk"
+            columns: ["tenant_id", "event_id", "registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["tenant_id", "event_id", "id"]
+          },
+          {
+            foreignKeyName: "event_superseded_codes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -22739,6 +22815,17 @@ export type Database = {
         }
         Returns: Json
       }
+      _event_checkin_inside_since: {
+        Args: {
+          _at: string
+          _checkpoint_id: string
+          _exclude_id?: string
+          _person_id: string
+          _tenant: string
+          _window: string
+        }
+        Returns: string
+      }
       _event_checkin_write: {
         Args: {
           _checkpoint_id: string
@@ -23510,6 +23597,18 @@ export type Database = {
         Returns: Json
       }
       _event_safe_timezone: { Args: { _tz: string }; Returns: string }
+      _event_scanner_code_lookup: {
+        Args: { _code: string; _tenant: string }
+        Returns: {
+          credential: string
+          event_id: string
+          person_id: string
+          registration_id: string
+          superseded: boolean
+          superseded_at: string
+          superseded_reason: string
+        }[]
+      }
       _event_scanner_device_auth: {
         Args: { _scope: string; _token: string }
         Returns: {
@@ -23528,6 +23627,9 @@ export type Database = {
           last_seen_at: string | null
           locked_until: string | null
           offline_roster: boolean
+          queue_fail_window_count: number
+          queue_fail_window_started_at: string | null
+          queue_secret: string
           revoked_at: string | null
           revoked_by: string | null
           roster_download_count: number
@@ -23535,6 +23637,7 @@ export type Database = {
           scan_count: number
           scopes: string[]
           sponsor_id: string | null
+          superseded_scan_count: number
           tenant_id: string
           token_hash: string
           token_prefix: string
@@ -23565,6 +23668,9 @@ export type Database = {
           last_seen_at: string | null
           locked_until: string | null
           offline_roster: boolean
+          queue_fail_window_count: number
+          queue_fail_window_started_at: string | null
+          queue_secret: string
           revoked_at: string | null
           revoked_by: string | null
           roster_download_count: number
@@ -23572,6 +23678,7 @@ export type Database = {
           scan_count: number
           scopes: string[]
           sponsor_id: string | null
+          superseded_scan_count: number
           tenant_id: string
           token_hash: string
           token_prefix: string
@@ -23587,6 +23694,34 @@ export type Database = {
       _event_scanner_device_note_failure: {
         Args: { _device_id: string }
         Returns: boolean
+      }
+      _event_scanner_expiry_limit: {
+        Args: { _event_id: string; _tenant: string }
+        Returns: string
+      }
+      _event_scanner_queue_marker: {
+        Args: { _device_id: string; _issued_at: string; _secret: string }
+        Returns: string
+      }
+      _event_scanner_queue_marker_at: {
+        Args: { _device_id: string; _marker: string; _secret: string }
+        Returns: string
+      }
+      _event_scanner_queue_marker_reply: {
+        Args: { _device_id: string; _expires_at: string; _secret: string }
+        Returns: Json
+      }
+      _event_scanner_superseded_reply: {
+        Args: {
+          _credential: string
+          _device_id: string
+          _person_id: string
+          _reason: string
+          _superseded_at: string
+          _tenant: string
+          _with_person: boolean
+        }
+        Returns: Json
       }
       _event_seat_assign_problem: {
         Args: {
