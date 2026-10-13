@@ -620,12 +620,25 @@ BEGIN
   PERFORM pg_temp.assert(pg_temp.gla_issue_all(v_lead) = 4,
     '28/zwrot_czesciowy: punkt wyjscia - cztery bilety wyslane');
 
-  v := pg_temp.gla_decide(pg_temp.gla('z_g3'), 'refund');
+  -- Pelny zwrot SAMEGO goscia Z3 - fikstura wprost: od przegladu R45
+  -- (20261012181300) decyzja 'refund' na wplacie dzielonej z aktywna grupa
+  -- jest odrzucana (`refund_order_shared`), a ponowne przyjecie zwroconego
+  -- zgloszenia nie wydaje kodu QR (tylko rozliczonym).
+  PERFORM pg_temp.assert_raises_like(
+    format('SELECT pg_temp.gla_decide(%L::uuid, %L)', pg_temp.gla('z_g3'), 'refund'),
+    'refund_order_shared',
+    '28/zwrot_czesciowy: oznaczenie zwrotu goscia przy aktywnej grupie odrzucone (R45)');
+  PERFORM pg_temp.act_as();
+  UPDATE public.event_registrations r
+     SET payment_status = 'refunded', status = 'cancelled', cancelled_at = now(),
+         decided_at = now(), decision_source = 'organizer',
+         qr_token_hash = NULL, qr_issued_at = NULL
+   WHERE r.id = pg_temp.gla('z_g3');
   v := pg_temp.gla_decide(pg_temp.gla('z_g3'), 'approve');
   PERFORM pg_temp.assert(
-    (SELECT status = 'approved' AND payment_status = 'refunded' AND qr_token_hash IS NOT NULL
+    (SELECT status = 'approved' AND payment_status = 'refunded' AND qr_token_hash IS NULL
        FROM public.event_registrations WHERE id = pg_temp.gla('z_g3')),
-    '28/zwrot_czesciowy: punkt wyjscia - gosc Z3 po pelnym zwrocie wpuszczony przez organizatora');
+    '28/zwrot_czesciowy: punkt wyjscia - gosc Z3 po pelnym zwrocie wpuszczony przez organizatora (bez kodu QR, R45)');
 
   v := public.payments_apply_event_ticket_outcome('c9600000-0000-0000-0000-000000000003', 'partial_refund', 10000);
   PERFORM pg_temp.assert((v->>'applied')::boolean AND v->>'outcome' = 'partial_refund',
