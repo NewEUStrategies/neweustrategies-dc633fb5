@@ -323,14 +323,17 @@ CREATE TABLE IF NOT EXISTS pgmq.q_messages (
 );
 CREATE OR REPLACE FUNCTION pgmq.create(queue_name text) RETURNS void
   LANGUAGE sql VOLATILE AS $$ SELECT NULL::void $$;
+-- SETOF jak w prawdziwym pgmq (>= 1.4): atrapa skalarna przepuszczala
+-- `UPDATE ... SET x = pgmq.send(...)`, ktore Supabase odrzuca
+-- („set-returning functions are not allowed in UPDATE").
 CREATE OR REPLACE FUNCTION pgmq.send(queue_name text, msg jsonb, delay integer DEFAULT 0)
-  RETURNS bigint LANGUAGE plpgsql VOLATILE AS $$
+  RETURNS SETOF bigint LANGUAGE plpgsql VOLATILE AS $$
 DECLARE v_id bigint;
 BEGIN
   INSERT INTO pgmq.q_messages (queue_name, message, vt)
   VALUES (queue_name, msg, now() + make_interval(secs => COALESCE(delay, 0)))
   RETURNING msg_id INTO v_id;
-  RETURN v_id;
+  RETURN NEXT v_id;
 END $$;
 CREATE OR REPLACE FUNCTION pgmq.read(queue_name text, vt integer, qty integer)
   RETURNS TABLE(msg_id bigint, read_ct integer, enqueued_at timestamptz,

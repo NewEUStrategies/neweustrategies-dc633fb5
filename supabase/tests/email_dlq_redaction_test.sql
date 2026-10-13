@@ -70,7 +70,10 @@ INSERT INTO b7dlq (k, payload) VALUES ('ticket', jsonb_build_object(
   'html', '<a href="https://example.org/events/x/ticket#t=QRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQR&m=MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM">Bilet</a>',
   'text', 'Kod: QRQRQRQRQRQRQRQRQRQRQRQRQRQRQRQR',
   'unsubscribe_token', 'UNSUBUNSUBUNSUB'));
-UPDATE b7dlq SET msg_id = pgmq.send('transactional_emails', payload) WHERE k = 'ticket';
+-- `pgmq.send` zwraca SETOF bigint (pgmq >= 1.4); w UPDATE ... SET funkcja
+-- zwracajaca zbior jest niedozwolona, wiec identyfikator czytamy podzapytaniem.
+UPDATE b7dlq SET msg_id = (SELECT s.id FROM pgmq.send('transactional_emails', payload) AS s(id))
+ WHERE k = 'ticket';
 
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
 SET LOCAL ROLE service_role;
