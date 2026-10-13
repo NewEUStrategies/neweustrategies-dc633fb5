@@ -3,11 +3,13 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 // E2E ŚCIEŻKI PIENIĘDZY ZAPISU NA WYDARZENIE (`/events/<slug>/register`).
 //
 // PŁASZCZYZNA DANYCH JEST ZAŚLEPIONA NA POZIOMIE SIECI, NIE MOCKA MODUŁU -
-// dokładnie jak w `scanner.spec.ts`. Formularz rozmawia z bazą przez dwa RPC
-// (`event_registration_form`, `event_register`), a kasę woła przez serwerowe
-// funkcje pod `/_serverFn/*` - podgląd kwoty (tylko odczyt) i zamówienie.
-// Oba idą POST-em: podgląd niesie kod dostępu i kod rabatowy, które w GET
-// trafiłyby do adresu URL (TIX-11). W CI nie ma ani bazy, ani operatora płatności,
+// dokładnie jak w `scanner.spec.ts`. Formularz czyta bazę przez RPC
+// `event_registration_form`, a ZAPIS wysyła przez serwerową funkcję
+// `submitEventRegistration` (REG-04, decyzja D2: kubełek adresu IP liczy
+// serwer, przeglądarka nie woła już `event_register`). Kasę woła przez
+// serwerowe funkcje pod `/_serverFn/*` - podgląd kwoty (tylko odczyt)
+// i zamówienie. Wszystkie idą POST-em: podgląd niesie kod dostępu i kod
+// rabatowy, które w GET trafiłyby do adresu URL (TIX-11). W CI nie ma ani bazy, ani operatora płatności,
 // więc przechwytujemy dokładnie te adresy: test przechodzi przez PRAWDZIWĄ
 // trasę, prawdziwy SSR, prawdziwy formularz i prawdziwą molekułę kasy, a udaje
 // wyłącznie to, czego w CI nie ma. ŻADEN request nie wychodzi do sieci -
@@ -100,7 +102,10 @@ const REGISTERED_UNPAID = {
 };
 
 interface Calls {
-  register: Array<Record<string, unknown>>;
+  /** Treść żądań serwerowej funkcji zapisu (`submitEventRegistration`). */
+  register: string[];
+  /** Bezpośrednie RPC `event_register` z przeglądarki - po D2 ma ich nie być. */
+  directRegisterRpc: number;
   /** Każde wywołanie serwerowej funkcji - adres i ładunek, bez zgadywania. */
   serverFn: Array<{ url: string; body: string }>;
   /** Wywołania podglądu kasy (`quoteEventTicketCheckout`) - treść żądania. */
@@ -110,7 +115,7 @@ interface Calls {
 /**
  * Podgląd kasy dla JEDNEGO miejsca bez kodu - kształt `EventTicketQuote`
  * (`src/lib/billing/eventTicketPricing.server.ts`). Tę kwotę ekran
- * potwierdzenia pokazuje jako „Do zapłaty": cena jednego miejsca z `event_register`
+ * potwierdzenia pokazuje jako „Do zapłaty": cena jednego miejsca z odpowiedzi zapisu
  * nie stoi już w nagłówku, bo przy grupie i kodzie kwotowym byłaby nieprawdziwa.
  */
 function quote(priceCents: number) {
@@ -129,7 +134,7 @@ function quote(priceCents: number) {
 
 /** Zaślepia płaszczyznę danych zapisu i kasę; zwraca ślad wywołań. */
 async function stubRegistrationPlane(page: Page, priceCents: number): Promise<Calls> {
-  const calls: Calls = { register: [], serverFn: [], quote: [] };
+  const calls: Calls = { register: [], directRegisterRpc: 0, serverFn: [], quote: [] };
 
   const json = (route: Route, body: unknown) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
@@ -148,10 +153,12 @@ async function stubRegistrationPlane(page: Page, priceCents: number): Promise<Ca
     json(route, form(priceCents)),
   );
 
+  // Dawna droga zapisu. Liczymy ją, żeby test UDOWODNIŁ, że przeglądarka nią
+  // nie idzie (D2) - odpowiedź jest tylko po to, by ewentualny regres nie
+  // zawiesił ekranu, lecz padł na asercji.
   await page.route("**/rest/v1/rpc/event_register*", async (route) => {
-    const raw = route.request().postDataJSON() as { p_payload?: Record<string, unknown> } | null;
-    calls.register.push(raw?.p_payload ?? {});
-    await json(route, REGISTERED_UNPAID);
+    calls.directRegisterRpc += 1;
+    await json(route, null);
   });
 
   // Serwerowe funkcje kasy. NIE dotykamy operatora płatności.
@@ -165,6 +172,14 @@ async function stubRegistrationPlane(page: Page, priceCents: number): Promise<Ca
   await page.route("**/_serverFn/**", async (route) => {
     const request = route.request();
     const body = request.postData() ?? "";
+    // ZAPIS (`submitEventRegistration`): jedyny ładunek ze zgodą na
+    // przetwarzanie danych. Odpowiedź w kształcie `EventRegisterClient`
+    // dla zweryfikowanego właściciela adresu - z kluczami zgłoszenia.
+    if (body.includes("consentDataProcessing")) {
+      calls.register.push(body);
+      await json(route, { result: { ok: true, outcome: "registered", ...REGISTERED_UNPAID } });
+      return;
+    }
     if (body.includes("ticket_type_id") && !body.includes("one_time")) {
       calls.quote.push(body);
       await json(route, { result: quote(priceCents) });
@@ -246,7 +261,8 @@ test("gość na PŁATNEJ wejściówce dostaje powód, a nie martwy przycisk", as
 
   const submit = page.getByRole("button", { name: /Zapisz/i });
   await expect(submit).toBeDisabled();
-  expect(calls.register, "żaden zapis nie poszedł do bazy").toHaveLength(0);
+  expect(calls.register, "żaden zapis nie poszedł do serwera").toHaveLength(0);
+  expect(calls.directRegisterRpc, "ani do bazy").toBe(0);
 });
 
 test("gość na wejściówce BEZPŁATNEJ przechodzi bez żadnej przeszkody", async ({ page }) => {
@@ -270,9 +286,14 @@ test("zalogowany kończy zapis i dostaje KWOTĘ oraz drogę do kasy", async ({ p
   await page.getByRole("checkbox").first().click();
   await page.getByRole("button", { name: /Zapisz/i }).click();
 
-  // Zapis DOSZEDŁ do bazy z wybraną wejściówką.
+  // Zapis DOSZEDŁ do serwera z wybraną wejściówką - i NIE poszedł obok niego.
+  // Ładunek jest zserializowany przez TanStack Start (seroval), więc
+  // sprawdzamy klucz i wartość w treści: jedyne pole niosące identyfikator
+  // wejściówki to `ticketTypeId` (wydarzenie wskazuje slug, nie identyfikator).
   await expect.poll(() => calls.register.length).toBeGreaterThan(0);
-  expect(calls.register[0]?.["ticket_type_id"]).toBe(TICKET_ID);
+  expect(calls.register[0]).toContain("ticketTypeId");
+  expect(calls.register[0]).toContain(TICKET_ID);
+  expect(calls.directRegisterRpc, "przeglądarka nie woła RPC zapisu (D2)").toBe(0);
 
   // Ekran potwierdzenia MÓWI KWOTĘ, nie obiecuje wejściówki i DAJE przycisk.
   // Do migracji `20260830090000` kończył się na zdaniu „nie masz jeszcze
