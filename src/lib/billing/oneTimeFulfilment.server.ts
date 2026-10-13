@@ -19,20 +19,35 @@
 // nie kończy się płatnością, MUSI zamknąć zamówienie i oddać rezerwację kuponu
 // (inaczej limitowany kod wyczerpują same porzucone kasy):
 //   - sesja wygasła (`expireCheckoutOrder`) -> `canceled`,
-//   - płatność asynchroniczna odrzucona (`markOneTimePaymentFailed`) -> `failed`,
-//   - pierwsza sesja subskrypcji (`settleSubscriptionCheckoutOrder`) -> `paid`
-//     BEZ uprawnienia (to nadaje ścieżka `subscription.*`).
+//   - płatność asynchroniczna odrzucona (`markOneTimePaymentFailed`) -> `failed`
+//     - także zamówienie subskrypcji z sesji w trybie `subscription` (S6),
+//   - zamówienie subskrypcji (`settleSubscriptionCheckoutOrder`) -> `paid`
+//     dopiero przy PIERWSZYM pobraniu pieniędzy (sesja albo pierwsza opłacona
+//     faktura po okresie próbnym), BEZ uprawnienia (to nadaje ścieżka
+//     `subscription.*`). Trial i sesja bez pobrania tylko stemplują
+//     identyfikatory operatora (S4) - nie są przychodem i nie odpalają kuponu.
 //
-// Kwota: zamówienie przechowuje kwotę PO naszym kuponie, PRZED podatkiem.
-// Realizacja porównuje ją z sesją operatora (`subtotal - rabat`); rozjazd nie
-// blokuje księgowania (pieniądze już pobrano), ale oznacza zamówienie do
-// weryfikacji i alarmuje administratorów najemcy.
+// Kwota (S5): `amount_cents` opłaconego zamówienia to kwota POBRANA brutto
+// (suma sesji / faktury z doliczonym podatkiem) - tak czytają ją zwroty,
+// faktury wydarzeń i przychód. Porównanie z zamówieniem idzie natomiast po
+// `subtotal - rabat` (kwota po NASZYM kuponie, przed podatkiem), a bez tego
+// rozbicia (stary ładunek, faktura) nie idzie wcale. Rozjazd nie blokuje
+// księgowania (pieniądze już pobrano), ale oznacza zamówienie do weryfikacji
+// i alarmuje administratorów najemcy. Kod promocyjny obcego najemcy albo spoza
+// zakresu kuponu WSTRZYMUJE nadanie (S8, `promotionCodeScope.server`).
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/integrations/supabase/types";
 import type { StripeEnv } from "@/lib/stripe.server";
 import type { TicketOutcomePayload } from "@/lib/events/registrationOutcomeNotify.server";
 import { paidSeatConfirmed } from "@/lib/events/paidAdmission";
+import { entitlementForOrder } from "@/lib/billing/entitlement";
+import {
+  NO_PROMOTION_CODE_REVIEW,
+  reviewPromotionCodes,
+  type PromotionCodeReview,
+  type PromotionHoldReason,
+} from "@/lib/billing/promotionCodeScope.server";
 
 export interface OneTimeTransaction {
   /** Identyfikator transakcji u dostawcy - klucz idempotencji. */
@@ -66,11 +81,79 @@ export interface OneTimeTransaction {
   paidAt?: string | null;
 }
 
-export type OneTimeOutcome = "skipped" | "order" | "donation" | "oversold_refunded";
+/**
+ * Skutek realizacji. `held` - pieniądze pobrane i zaksięgowane (`paid`), ale
+ * dostępu NIE nadano: kod promocyjny spoza najemcy albo zakresu kuponu (S8);
+ * decyzja (zwrot albo ręczne nadanie) należy do administratora.
+ */
+export type OneTimeOutcome = "skipped" | "order" | "donation" | "oversold_refunded" | "held";
+
+/**
+ * Skutek domknięcia zamówienia subskrypcji: `settled` - to wywołanie przestawiło
+ * zamówienie na `paid`; `stamped` - sesja bez pobrania (trial, rabat 100%)
+ * zapisała wyłącznie identyfikatory operatora; `skipped` - nic się nie zmieniło.
+ */
+export type SubscriptionSettleOutcome = "settled" | "stamped" | "skipped";
 
 function str(source: Record<string, unknown> | null, key: string): string | null {
   const v = source?.[key];
   return typeof v === "string" && v.trim() ? v.trim() : null;
+}
+
+function positiveCents(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+/** Kwota POBRANA brutto (S5): `amount_total` sesji albo `amount_paid` faktury. */
+function collectedCentsOf(txn: OneTimeTransaction): number | null {
+  return typeof txn.amountCents === "number" && Number.isFinite(txn.amountCents)
+    ? txn.amountCents
+    : null;
+}
+
+/** Waluta księgowania: ze zdarzenia, potem z zamówienia, zawsze wielkimi literami. */
+function currencyOf(txn: OneTimeTransaction, order: { currency: string | null }): string {
+  return (txn.currency ?? order.currency ?? "PLN").toUpperCase();
+}
+
+/**
+ * Chwila pobrania wg operatora (czas zdarzenia). Powtórka z uzgadniania albo
+ * przeglądu zaległych zdarzeń nie może przenieść starego przychodu na „dziś";
+ * nieczytelny znacznik spada na teraz.
+ */
+function paidAtOf(txn: OneTimeTransaction): string {
+  const at = txn.paidAt ? Date.parse(txn.paidAt) : Number.NaN;
+  return new Date(Number.isFinite(at) ? at : Date.now()).toISOString();
+}
+
+/**
+ * Źródło transakcji. Ładunek sprzed wdrożenia (dziennik webhooków, powtórka)
+ * nie niesie `source` - rozpoznajemy je po identyfikatorze (S6): `in_...` to
+ * faktura, wszystko inne to sesja Checkout.
+ */
+function sourceOf(txn: OneTimeTransaction): "checkout_session" | "invoice" {
+  if (txn.source === "checkout_session" || txn.source === "invoice") return txn.source;
+  return txn.id.startsWith("in_") ? "invoice" : "checkout_session";
+}
+
+/**
+ * Zwrot, który wyprzedził realizację, blokuje ją WYŁĄCZNIE wtedy, gdy oddał
+ * całość (2.8 / 5.9). Zwrot częściowy to korekta ceny (`refunds.server` nie
+ * zmienia wtedy statusu): odmowa zostawiała klienta, który zapłacił resztę,
+ * bez dostępu na zawsze, a naprawa uzgadniania odbijała się od tej samej
+ * bramki. Licznik zwrotów `refunds.server` zapisuje w podstawie kwoty
+ * zamówienia, więc z nią porównujemy; bez znanej kwoty każdy zwrot jest pełny.
+ */
+function refundedInFull(order: {
+  status: string | null;
+  refunded_amount_cents: number | null;
+  amount_cents: number | null;
+}): boolean {
+  if (order.status === "refunded") return true;
+  const refunded = Number(order.refunded_amount_cents ?? 0);
+  if (!(refunded > 0)) return false;
+  const basis = positiveCents(order.amount_cents);
+  return basis === null || refunded >= basis;
 }
 
 /**
@@ -101,10 +184,12 @@ interface LifecycleOrder {
   metadata: Record<string, unknown> | null;
   environment?: string;
   provider_session_id: string | null;
+  provider_intent_id: string | null;
+  provider_subscription_id: string | null;
 }
 
 const LIFECYCLE_COLUMNS =
-  "id, user_id, tenant_id, plan_id, kind, status, amount_cents, currency, refunded_amount_cents, metadata, environment, provider_session_id";
+  "id, user_id, tenant_id, plan_id, kind, status, amount_cents, currency, refunded_amount_cents, metadata, environment, provider_session_id, provider_intent_id, provider_subscription_id";
 
 function orderIdOf(customData: Record<string, unknown> | null): string | null {
   return str(customData, "orderId") ?? str(customData, "order_id");
@@ -191,108 +276,177 @@ async function releaseOrderCoupon(order: LifecycleOrder, scope: string): Promise
   return data === true;
 }
 
-/** Wynik porównania kwoty pobranej przez operatora z kwotą zamówienia. */
-interface AmountReview {
-  /** Kwota pobrana za pozycje po rabacie, przed podatkiem; `null` = brak danych. */
-  chargedCents: number | null;
-  /** Waluta pobrania (wielkie litery). */
+/** Rozjazd kwoty pobranej przez operatora z kwotą zamówienia. */
+interface AmountMismatch {
+  expected_cents: number;
+  expected_currency: string;
+  /** Kwota za pozycje po rabacie, PRZED podatkiem (`subtotal - rabat`). */
+  charged_cents: number;
   currency: string;
-  /** Flaga do `metadata.review`, gdy kwota albo waluta się nie zgadza. */
-  mismatch: {
-    reason: "amount_mismatch";
-    expected_cents: number;
-    expected_currency: string;
-    charged_cents: number;
-    currency: string;
-    flagged_at: string;
-  } | null;
 }
 
-/**
- * Kwota porównywalna z zamówieniem: `subtotal - rabat` (niezależnie od tego,
- * czy podatek jest wliczony, czy doliczany na wierzch). Bez rozbicia (stary
- * ładunek) - suma końcowa minus podatek.
- */
-function chargedCentsOf(txn: OneTimeTransaction): number | null {
-  if (typeof txn.amountSubtotalCents === "number") {
-    return txn.amountSubtotalCents - (txn.amountDiscountCents ?? 0);
-  }
-  if (typeof txn.amountCents === "number") return txn.amountCents - (txn.amountTaxCents ?? 0);
-  return null;
+/** Powód przeglądu zamówienia (`payment_orders.metadata.review.reason`). */
+type ReviewReason = "amount_mismatch" | PromotionHoldReason;
+
+/** Flaga do `metadata.review` - dla administratora i dla uzgadniania. */
+interface OrderReview extends Partial<AmountMismatch> {
+  reason: ReviewReason;
+  promotion_code_ids?: string[];
+  flagged_at: string;
 }
 
 /**
  * Porównanie kwoty z zamówieniem. Zamówienie przechowuje kwotę PO naszym
- * kuponie, PRZED podatkiem (kontrakt obu silników kasy). Rozjazd oznacza, że
- * u operatora zadziałało coś, czego nasza baza nie kontroluje: kod promocyjny
- * Stripe spoza `b2b_coupons`, cena podmieniona w katalogu albo inna waluta.
+ * kuponie, PRZED podatkiem (kontrakt obu silników kasy), więc porównujemy
+ * `subtotal - rabat` niezależnie od tego, czy podatek jest wliczony, czy
+ * doliczany na wierzch. Rozjazd oznacza, że u operatora zadziałało coś, czego
+ * nasza baza nie kontroluje: kod promocyjny Stripe spoza `b2b_coupons`, cena
+ * podmieniona w katalogu albo inna waluta.
+ *
+ * BEZ ROZBICIA KWOTY NIE MA PORÓWNANIA (S5, 4.7). Ładunek sprzed wdrożenia
+ * (powtórka z dziennika webhooków) i faktura nie niosą `amount_subtotal`;
+ * dawny zapas „suma minus podatek" dawał przy podatku doliczanym na wierzch
+ * fałszywy rozjazd, alert i nadpisaną kwotę.
  */
-function reviewAmount(
+function amountMismatch(
   txn: OneTimeTransaction,
   order: { amount_cents: number | null; currency: string | null },
-): AmountReview {
-  const chargedCents = chargedCentsOf(txn);
-  const expectedCurrency = (order.currency ?? "PLN").toUpperCase();
-  const currency = (txn.currency ?? order.currency ?? "PLN").toUpperCase();
+): AmountMismatch | null {
+  if (typeof txn.amountSubtotalCents !== "number") return null;
   const expected = order.amount_cents;
-  const differs =
-    chargedCents !== null &&
-    typeof expected === "number" &&
-    (currency !== expectedCurrency || Math.abs(chargedCents - expected) > AMOUNT_TOLERANCE_CENTS);
+  if (typeof expected !== "number") return null;
+  const charged = txn.amountSubtotalCents - (txn.amountDiscountCents ?? 0);
+  const expectedCurrency = (order.currency ?? "PLN").toUpperCase();
+  const currency = currencyOf(txn, order);
+  if (currency === expectedCurrency && Math.abs(charged - expected) <= AMOUNT_TOLERANCE_CENTS) {
+    return null;
+  }
   return {
-    chargedCents,
+    expected_cents: expected,
+    expected_currency: expectedCurrency,
+    charged_cents: charged,
     currency,
-    mismatch: differs
-      ? {
-          reason: "amount_mismatch",
-          expected_cents: expected,
-          expected_currency: expectedCurrency,
-          charged_cents: chargedCents,
-          currency,
-          flagged_at: new Date().toISOString(),
-        }
-      : null,
   };
 }
 
-function withReviewFlag(
+/** Flaga przeglądu: kod spoza zakresu wygrywa z samym rozjazdem kwoty (który wyjaśnia). */
+function orderReview(
+  mismatch: AmountMismatch | null,
+  promo: PromotionCodeReview,
+): OrderReview | null {
+  const flagged_at = new Date().toISOString();
+  if (promo.hold) {
+    return {
+      reason: promo.hold.reason,
+      promotion_code_ids: [...promo.hold.promotionCodeIds],
+      ...(mismatch ?? {}),
+      flagged_at,
+    };
+  }
+  return mismatch ? { reason: "amount_mismatch", ...mismatch, flagged_at } : null;
+}
+
+/**
+ * Metadane po przeglądzie (`null` = bez zmian). Kod operatora bez najemcy
+ * (`promotion_code_unscoped`) nie jest powodem przeglądu, ale zostawia ślad
+ * w księgach - inaczej rabat, którego nie dał żaden kupon z bazy, byłby
+ * nie do wyjaśnienia.
+ */
+function reviewedMetadata(
   metadata: Record<string, unknown> | null,
-  mismatch: NonNullable<AmountReview["mismatch"]>,
-): Json {
-  return { ...(metadata ?? {}), review: mismatch } as Json;
+  review: OrderReview | null,
+  unscopedIds: readonly string[],
+): Json | null {
+  if (!review && unscopedIds.length === 0) return null;
+  return {
+    ...(metadata ?? {}),
+    ...(review ? { review } : {}),
+    ...(unscopedIds.length > 0 ? { promotion_code_unscoped: [...unscopedIds] } : {}),
+  } as Json;
 }
 
 function formatCents(cents: number, currency: string): string {
   return `${(cents / 100).toFixed(2)} ${currency}`;
 }
 
+interface ReviewCopy {
+  titlePl: string;
+  titleEn: string;
+  bodyPl: string;
+  bodyEn: string;
+}
+
+/** Treść alertu - wyłącznie identyfikatory i kwoty, bez danych osobowych. */
+function reviewCopy(orderId: string, review: OrderReview, held: boolean): ReviewCopy {
+  if (review.reason === "amount_mismatch") {
+    const expected = formatCents(review.expected_cents ?? 0, review.expected_currency ?? "PLN");
+    const charged = formatCents(review.charged_cents ?? 0, review.currency ?? "PLN");
+    return {
+      titlePl: "Płatność do weryfikacji",
+      titleEn: "Payment needs review",
+      bodyPl: `Zamówienie ${orderId}: operator pobrał ${charged} zamiast ${expected}. Płatność zaksięgowano, zamówienie oznaczono do weryfikacji.`,
+      bodyEn: `Order ${orderId}: the provider charged ${charged} instead of ${expected}. The payment was recorded and the order flagged for review.`,
+    };
+  }
+  const codes = (review.promotion_code_ids ?? []).join(", ");
+  const foreign = review.reason === "foreign_promotion_code";
+  const whatPl = foreign
+    ? `kodem promocyjnym innego serwisu (${codes})`
+    : `kodem promocyjnym spoza zakresu kuponu (${codes})`;
+  const whatEn = foreign
+    ? `a promotion code of another site (${codes})`
+    : `a promotion code outside its coupon scope (${codes})`;
+  return held
+    ? {
+        titlePl: "Płatność wstrzymana do weryfikacji",
+        titleEn: "Payment held for review",
+        bodyPl: `Zamówienie ${orderId} opłacono ${whatPl}. Płatność zaksięgowano, dostępu nie nadano - zdecyduj o zwrocie albo ręcznym nadaniu.`,
+        bodyEn: `Order ${orderId} was paid with ${whatEn}. The payment was recorded and access was not granted - refund or grant it manually.`,
+      }
+    : {
+        titlePl: "Płatność do weryfikacji",
+        titleEn: "Payment needs review",
+        bodyPl: `Zamówienie ${orderId} opłacono ${whatPl}. Płatność zaksięgowano, zamówienie oznaczono do weryfikacji.`,
+        bodyEn: `Order ${orderId} was paid with ${whatEn}. The payment was recorded and the order flagged for review.`,
+      };
+}
+
 /**
  * Alarm dla administratorów najemcy: zamówienie wymaga weryfikacji. Ślad
  * w logu zawsze, dzwonek - tylko w najemcy zamówienia. Nigdy nie rzuca:
  * księgowanie płatności już się odbyło i nie może się na alercie wywrócić.
+ *
+ * RAZ NA INCYDENT (6.7 / 7.4). Wspólny `/admin/billing` sklejał w oknie
+ * deduplikacji `enqueue_notification` różne zamówienia (i spory) w jeden
+ * dzwonek, a ponowienie po kwadransie dawało drugi. Href jest unikalny dla
+ * zamówienia i powodu (kontrakt `notifyTenantAdmins({ once })`), więc każdy
+ * incydent dochodzi dokładnie raz, także przy powtórce zdarzenia.
  */
 async function alertOrderReview(
   order: { id: string; tenant_id: string | null },
-  mismatch: NonNullable<AmountReview["mismatch"]>,
+  review: OrderReview,
+  held = false,
 ): Promise<void> {
-  console.error("[payments] amount mismatch - order flagged for review", order.id, mismatch);
+  console.error(
+    review.reason === "amount_mismatch"
+      ? "[payments] amount mismatch - order flagged for review"
+      : "[payments] promotion code outside order scope - order flagged for review",
+    order.id,
+    review,
+  );
   if (!order.tenant_id) return;
   try {
-    const expected = formatCents(mismatch.expected_cents, mismatch.expected_currency);
-    const charged = formatCents(mismatch.charged_cents, mismatch.currency);
     const { notifyTenantAdmins } = await import("@/lib/events/tenantAdminAlert.server");
     await notifyTenantAdmins({
       tenantId: order.tenant_id,
       kind: "billing",
-      titlePl: "Płatność do weryfikacji",
-      titleEn: "Payment needs review",
-      bodyPl: `Zamówienie ${order.id}: operator pobrał ${charged} zamiast ${expected}. Płatność zaksięgowano, zamówienie oznaczono do weryfikacji.`,
-      bodyEn: `Order ${order.id}: the provider charged ${charged} instead of ${expected}. The payment was recorded and the order flagged for review.`,
-      href: "/admin/billing",
+      ...reviewCopy(order.id, review, held),
+      href: `/admin/billing?order=${encodeURIComponent(order.id)}&review=${review.reason}`,
       icon: "credit-card",
+      once: true,
     });
   } catch (err) {
-    console.error("[payments] amount review alert failed", order.id, err);
+    console.error("[payments] order review alert failed", order.id, err);
   }
 }
 
@@ -319,6 +473,14 @@ const TRANSIENT_SQLSTATES: ReadonlySet<string> = new Set(["40P01", "40001"]);
  * płatności a webhookiem ostatnie miejsce może zająć ktoś inny. Zamiast
  * sprzedać nieistniejące wejście zwracamy całą kwotę i zostawiamy zamówienie
  * jako zwrócone. Zwraca `true`, gdy zamówienie zostało zamknięte zwrotem.
+ *
+ * KSIĘGI ZWROTU NA ZAMÓWIENIU (S3, 5.2 / 7.7). Stripe dosyła potem własne
+ * `charge.refunded` tego samego zwrotu, a `refunds.server` znajduje zamówienie
+ * przez sesję płatności. Zamknięcie bez `refunded_amount_cents` wyglądało tam
+ * jak NOWY zwrot: drugi mail o zwrocie, drugi dzwonek, drugi wynik biletu.
+ * Zapisujemy więc pobraną kwotę brutto jako zwróconą (pełny zwrot oddaje
+ * całą intencję płatności) i intencję płatności - korekta operatora trafia
+ * wtedy w bramkę powtórki i nie robi nic.
  */
 async function refundIfOversold(
   txn: OneTimeTransaction,
@@ -357,6 +519,10 @@ async function refundIfOversold(
       status: "refunded",
       provider: "stripe",
       provider_intent_id: txn.id,
+      ...(txn.paymentIntentId ? { provider_payment_intent_id: txn.paymentIntentId } : {}),
+      ...(typeof amountCents === "number"
+        ? { amount_cents: amountCents, refunded_amount_cents: amountCents, currency }
+        : {}),
       updated_at: nowIso,
       ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
     })
@@ -416,8 +582,13 @@ export async function applyTicketOutcome(
    * `notify: false` - zapis bez maila/SMS-a do uczestnika. Porzucona kasa
    * oddaje bilet z puli (`unpaid`), ale nie jest „odrzuconą płatnością" -
    * mail z takim tytułem mówiłby nieprawdę komuś, kto po prostu zamknął okno.
+   *
+   * `throwOnError: true` - błąd RPC RZUCA zamiast zwracać `null`. Dla
+   * zamknięcia kasy (wygaśnięcie, odrzucona płatność) ten zapis jest JEDYNYM
+   * skutkiem dla zgłoszenia i biletu z puli planu: połknięty błąd kończył
+   * zdarzenie jako `processed`, a miejsce członka przepadało (4.6).
    */
-  options: { notify?: boolean } = {},
+  options: { notify?: boolean; throwOnError?: boolean } = {},
 ): Promise<TicketOutcomePayload | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const args = {
@@ -434,6 +605,9 @@ export async function applyTicketOutcome(
   }
   if (error) {
     console.error("[payments] ticket outcome failed", orderId, outcome, error.message);
+    if (options.throwOnError) {
+      throw new Error(`ticket outcome failed (${orderId}, ${outcome}): ${error.message}`);
+    }
     return null;
   }
   const payload = asPayload(data);
@@ -460,13 +634,28 @@ export async function applyTicketOutcome(
   return payload;
 }
 
+/** Zamówienie zamknięte bez płatności - teraz albo przez wcześniejszą dostawę. */
+function closedUnpaid(order: LifecycleOrder, closedNow: boolean): boolean {
+  return closedNow || order.status === "failed" || order.status === "canceled";
+}
+
 /**
- * Nieudana płatność jednorazowa (`checkout.session.async_payment_failed`):
- * zamówienie -> `failed`, rezerwacja kuponu wraca do puli, zgłoszenie na
- * wydarzenie -> nieopłacone (z mailem - to JEST odrzucona płatność).
+ * Nieudana płatność asynchroniczna sesji Checkout
+ * (`checkout.session.async_payment_failed`): zamówienie -> `failed`,
+ * rezerwacja kuponu wraca do puli, zgłoszenie na wydarzenie -> nieopłacone
+ * (z mailem - to JEST odrzucona płatność).
  *
- * Bez środowiska (stary wołający) zostaje wyłącznie wynik biletu - zamówienia
- * nie wolno zamknąć zdarzeniem, którego środowiska nie znamy.
+ * DOWOLNY RODZAJ ZAMÓWIENIA (S6, 4.8 / 5.8 / 7.11). Sesja w trybie
+ * `subscription` z metodą odroczoną (SEPA, Bacs) kończy się tym samym
+ * zdarzeniem; subskrypcja u operatora nigdy nie wystartuje, a sesja nie
+ * wygaśnie (została ukończona). Bez zamknięcia zamówienie wisiało jako
+ * `processing`, a limitowany kod trzymał zajęte użycie na zawsze.
+ *
+ * Wynik biletu tylko dla zamówienia z wydarzeniem, które właśnie albo
+ * wcześniej zamknięto bez płatności - zamówienie opłacone inną sesją nie
+ * oddaje miejsca. Bez środowiska (stary wołający) zostaje wyłącznie wynik
+ * biletu - zamówienia nie wolno zamknąć zdarzeniem, którego środowiska nie
+ * znamy. Błąd zapisu wyniku biletu RZUCA (4.6), więc webhook wróci.
  */
 export async function markOneTimePaymentFailed(
   customData: Record<string, unknown> | null,
@@ -478,14 +667,15 @@ export async function markOneTimePaymentFailed(
   const order = env ? await loadLifecycleOrder(orderId, "payment failed") : null;
   if (order && env && !sameEnvironment(order, env, "payment failed")) return;
   const closed = order ? await closeOpenOrder(order, "failed", "payment failed") : false;
+  const unpaid = order ? closedUnpaid(order, closed) : false;
 
-  await applyTicketOutcome(orderId, "unpaid");
+  if (!order || (unpaid && str(order.metadata, "event_id"))) {
+    await applyTicketOutcome(orderId, "unpaid", null, { throwOnError: true });
+  }
 
   // Zwolnienie przy KAŻDEJ dostawie zamkniętego zamówienia, nie tylko przy tej,
   // która zmieniła status: ponowienie po awarii zwolnienia musi je dokończyć.
-  if (order && (closed || order.status === "failed" || order.status === "canceled")) {
-    await releaseOrderCoupon(order, "payment failed");
-  }
+  if (order && unpaid) await releaseOrderCoupon(order, "payment failed");
 }
 
 /**
@@ -495,8 +685,12 @@ export async function markOneTimePaymentFailed(
  * powiadomienia - patrz `applyTicketOutcome`).
  *
  * Idempotentne: zamówienie opłacone, zwrócone albo już zamknięte zostaje
- * nietknięte, a zwolnienie kuponu baza wykonuje najwyżej raz. Zwraca `true`,
- * gdy TO wywołanie coś zmieniło (dziennik webhooków: `processed`).
+ * nietknięte, a zwolnienie kuponu baza wykonuje najwyżej raz. Wynik biletu
+ * (też idempotentny w bazie) idzie przy KAŻDEJ dostawie zamkniętego
+ * zamówienia, a jego błąd RZUCA (4.6): dawniej szedł tylko z dostawą, która
+ * zamknęła status, więc połknięty błąd RPC przepadał - ponowienie widziało
+ * zamówienie już zamknięte i nie próbowało drugi raz. Zwraca `true`, gdy TO
+ * wywołanie zmieniło status albo oddało kupon (dziennik webhooków: `processed`).
  */
 export async function expireCheckoutOrder(
   txn: OneTimeTransaction,
@@ -516,33 +710,48 @@ export async function expireCheckoutOrder(
   }
 
   const closed = await closeOpenOrder(order, "canceled", "expire");
-  if (closed && str(order.metadata, "event_id")) {
-    await applyTicketOutcome(order.id, "unpaid", null, { notify: false });
+  const unpaid = closedUnpaid(order, closed);
+  if (unpaid && str(order.metadata, "event_id")) {
+    await applyTicketOutcome(order.id, "unpaid", null, { notify: false, throwOnError: true });
   }
-  const released =
-    closed || order.status === "canceled" || order.status === "failed"
-      ? await releaseOrderCoupon(order, "expire")
-      : false;
+  const released = unpaid ? await releaseOrderCoupon(order, "expire") : false;
   return closed || released;
 }
 
 /**
- * Pierwsza sesja Checkout subskrypcji została opłacona (albo zaczęła trial):
- * domyka NASZE zamówienie `kind=subscription` - status `paid`, identyfikatory
- * operatora, efekty kuponu - i porównuje pobraną kwotę z zamówieniem.
+ * Domknięcie NASZEGO zamówienia `kind=subscription` (S4). Woła je dyspozytor
+ * dla opłaconej transakcji z subskrypcją i `orderId` w metadanych - zarówno
+ * dla sesji Checkout, jak i dla faktury (pierwsza opłacona faktura domyka
+ * zamówienie po okresie próbnym; odnowienia trafiają w zamówienie już
+ * opłacone i nic nie zmieniają). Idempotentne.
+ *
+ *   - POBRANIE (kwota > 0): `pending` / `processing` / `failed` -> `paid`,
+ *     `paid_at` = chwila pobrania wg operatora, `amount_cents` = kwota pobrana
+ *     brutto (S5), efekty kuponu B2B - WYŁĄCZNIE przy tym przejściu (albo
+ *     przy powtórce zdarzenia, które je wykonało).
+ *   - BEZ POBRANIA (trial, rabat 100%): tylko identyfikatory operatora
+ *     (subskrypcja, klient, sesja). Status, kwota i `paid_at` zostają, efektów
+ *     kuponu nie ma (4.0 / 4.1 / 5.3): `apply_b2b_coupon_effects` nadaje
+ *     warstwę członkostwa każdemu zamówieniu `paid`, a nic jej nie odbiera
+ *     przy anulowaniu w trakcie trialu - darmowy trial z kuponem dawał
+ *     warstwę premium na zawsze, a pulpit liczył każdy trial jako przychód
+ *     w cenie planu. Identyfikatory chronią zamówienie przed zamknięciem
+ *     cudzym wygaśnięciem sesji i przed usunięciem jako porzucony szkic.
+ *
+ * Faktura NIE nadpisuje `provider_session_id` (to identyfikator sesji, nie
+ * faktury) i nie przechodzi porównania kwoty - nie ma rozbicia `subtotal -
+ * rabat`, a pierwsze porównanie zrobiła już sesja. Kod promocyjny obcego
+ * najemcy albo spoza zakresu kuponu oznacza zamówienie do przeglądu
+ * z alertem, ale niczego nie wstrzymuje: dostęp daje `subscription.*` (S8).
  *
  * UPRAWNIENIA TU NIE MA. Nadaje je ścieżka `subscription.*` pod kluczem
  * subskrypcji operatora; grant stąd założyłby DRUGI wiersz `user_subscriptions`
  * pod kluczem sesji, którego anulowanie subskrypcji nigdy nie odbierze.
- *
- * Bez tego domknięcia zamówienie subskrypcji wisiało jako `processing` na
- * zawsze: uzgadnianie co noc zgłaszało `order_paid_not_fulfilled`, a jego
- * naprawa (powtórka sesji) niczego nie zmieniała.
  */
 export async function settleSubscriptionCheckoutOrder(
   txn: OneTimeTransaction,
   env: StripeEnv,
-): Promise<"settled" | "skipped"> {
+): Promise<SubscriptionSettleOutcome> {
   const orderId = orderIdOf(txn.customData);
   if (!orderId) return "skipped";
   const order = await loadLifecycleOrder(orderId, "subscription settle");
@@ -552,51 +761,112 @@ export async function settleSubscriptionCheckoutOrder(
     console.warn("[payments] subscription settle: order is not a subscription", orderId);
     return "skipped";
   }
-  if (
-    order.status === "refunded" ||
-    order.status === "canceled" ||
-    (order.refunded_amount_cents ?? 0) > 0
-  ) {
+  if (order.status === "canceled" || refundedInFull(order)) {
     console.warn("[payments] subscription settle: order closed - refusing", orderId, order.status);
     return "skipped";
   }
+  // Zamówienie domknięte już INNĄ subskrypcją: metadane tej transakcji nie
+  // mają prawa go przestawić (identyfikator zapisujemy wyłącznie my).
+  if (
+    txn.subscriptionId &&
+    order.provider_subscription_id &&
+    order.provider_subscription_id !== txn.subscriptionId
+  ) {
+    console.warn("[payments] subscription settle: subscription mismatch - skipping", orderId);
+    return "skipped";
+  }
 
-  // Trial (i każda sesja bez pobrania): operator nie pobrał NIC, więc nie ma
-  // czego porównywać, a zero w `amount_cents` skasowałoby cenę planu, z której
-  // czytają historia płatności i raporty.
-  const noCharge = txn.amountCents === 0 && (txn.amountSubtotalCents ?? 0) === 0;
-  const review = noCharge ? null : reviewAmount(txn, order);
+  const fromSession = sourceOf(txn) === "checkout_session";
+  // Odnowienie: zamówienie opłaciła wcześniej INNA transakcja, a faktura nie
+  // niesie niczego do przeglądu - jeden odczyt, bez zapisu.
+  if (!fromSession && order.status === "paid" && order.provider_intent_id !== txn.id) {
+    return "skipped";
+  }
+  const charged = positiveCents(collectedCentsOf(txn));
+  // Trial: sesja bez pozycji do zapłaty (`subtotal` = 0) - porównywać nie ma
+  // czego. Rabat 100% na pozycji ma `subtotal` > 0 i porównanie przechodzi.
+  const trial = charged === null && (txn.amountSubtotalCents ?? 0) === 0;
+  const promo = fromSession
+    ? await reviewPromotionCodes(env, txn.promotionCodeIds, {
+        id: order.id,
+        tenantId: order.tenant_id,
+        planId: order.plan_id,
+        eventId: null,
+      })
+    : NO_PROMOTION_CODE_REVIEW;
+  // Porównanie kwoty tylko z zamówieniem NIEOPŁACONYM: po domknięciu
+  // `amount_cents` to już kwota pobrana brutto, nie oczekiwana - sesja
+  // spóźniona za fakturą dawałaby fałszywy rozjazd przy każdym podatku.
+  const review = orderReview(
+    fromSession && !trial && order.status !== "paid" ? amountMismatch(txn, order) : null,
+    promo,
+  );
+  const metadata = reviewedMetadata(order.metadata, review, promo.unscopedIds);
   const nowIso = new Date().toISOString();
+  const providerIds = {
+    provider: "stripe",
+    ...(fromSession ? { provider_session_id: txn.sessionId ?? txn.id } : {}),
+    ...(txn.subscriptionId ? { provider_subscription_id: txn.subscriptionId } : {}),
+    ...(txn.customerId ? { provider_customer_id: txn.customerId } : {}),
+    ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
+    ...(metadata ? { metadata } : {}),
+    updated_at: nowIso,
+  };
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  if (charged === null) {
+    const { data: stamped, error } = await supabaseAdmin
+      .from("payment_orders")
+      .update(providerIds)
+      .eq("id", order.id)
+      .in("status", [...PAYABLE_STATUSES])
+      .select("id");
+    if (error) throw new Error(`subscription settle: provider ids stamp failed: ${error.message}`);
+    const changed = (stamped ?? []).length > 0;
+    if (changed && review) await alertOrderReview(order, review);
+    return changed ? "stamped" : "skipped";
+  }
+
   const { data: settled, error } = await supabaseAdmin
     .from("payment_orders")
     .update({
+      ...providerIds,
       status: "paid",
-      paid_at: nowIso,
-      provider: "stripe",
+      paid_at: paidAtOf(txn),
       provider_intent_id: txn.id,
-      provider_session_id: txn.sessionId ?? txn.id,
-      ...(txn.subscriptionId ? { provider_subscription_id: txn.subscriptionId } : {}),
       ...(txn.paymentIntentId ? { provider_payment_intent_id: txn.paymentIntentId } : {}),
-      ...(txn.customerId ? { provider_customer_id: txn.customerId } : {}),
-      ...(review && review.chargedCents !== null
-        ? { amount_cents: review.chargedCents, currency: review.currency }
-        : {}),
-      ...(review?.mismatch ? { metadata: withReviewFlag(order.metadata, review.mismatch) } : {}),
-      ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
-      updated_at: nowIso,
+      amount_cents: charged,
+      currency: currencyOf(txn, order),
     })
     .eq("id", order.id)
     .in("status", [...PAYABLE_STATUSES])
     .select("id");
   if (error) throw new Error(`subscription settle: order paid flip failed: ${error.message}`);
   const changed = (settled ?? []).length > 0;
-  if (changed && review?.mismatch) await alertOrderReview(order, review.mismatch);
+  // Powtórka TEGO SAMEGO zdarzenia, które opłaciło zamówienie (np. po awarii
+  // procesu między zapisem a efektami) - dokańcza efekty kuponu. Odnowienie
+  // (inna faktura) trafia w zamówienie opłacone wcześniej i nie robi nic.
+  const replay = !changed && order.status === "paid" && order.provider_intent_id === txn.id;
+  if (!changed && !replay) {
+    // Sesja przyszła PO fakturze, która już domknęła zamówienie (Stripe wysyła
+    // zdarzenia równolegle). Kody promocyjne i rozbicie kwoty niesie wyłącznie
+    // sesja, więc jej flaga i tak musi trafić do opłaconego zamówienia.
+    if (fromSession && metadata) {
+      const { data: flagged, error: flagErr } = await supabaseAdmin
+        .from("payment_orders")
+        .update({ metadata, updated_at: nowIso })
+        .eq("id", order.id)
+        .eq("status", "paid")
+        .select("id");
+      if (flagErr) throw new Error(`subscription settle: review flag failed: ${flagErr.message}`);
+      if ((flagged ?? []).length > 0 && review) await alertOrderReview(order, review);
+    }
+    return "skipped";
+  }
+  if (review) await alertOrderReview(order, review);
 
   // Efekty kuponu B2B - fail-closed na `status='paid'` i idempotentne po
-  // stronie bazy, więc także przy powtórce: dokończą to, czego nie dokończyła
-  // poprzednia dostawa.
+  // stronie bazy (zatrzask `effects_applied_at`).
   const { applyCouponEffectsForOrder } = await import("@/lib/billing/couponEffects.server");
   await applyCouponEffectsForOrder(order.id);
   return changed ? "settled" : "skipped";
@@ -638,13 +908,20 @@ async function fulfilOrder(
     return "skipped";
   }
 
-  // BRAMKA ZWROTU - PRZED uprawnieniem. Zwrot, który wyprzedził realizację
-  // (albo powtórka realizacji po zwrocie), zastaje zamówienie `refunded` lub
-  // z zaksięgowaną kwotą zwrotu. Grant w tym miejscu wskrzeszał dostęp
-  // klientowi, który ma już pieniądze z powrotem - a `.neq("status","paid")`
-  // przestawiało przy okazji zwrócone zamówienie z powrotem na opłacone.
+  // BRAMKA ZWROTU - PRZED uprawnieniem. Zwrot PEŁNY, który wyprzedził
+  // realizację (albo powtórka realizacji po zwrocie), zastaje zamówienie
+  // `refunded` lub z licznikiem zwrotów równym kwocie. Grant w tym miejscu
+  // wskrzeszał dostęp klientowi, który ma już pieniądze z powrotem. Zwrot
+  // CZĘŚCIOWY (korekta ceny) realizacji nie blokuje - patrz `refundedInFull`.
   const orderStatus = typeof order.status === "string" ? order.status : null;
-  if (orderStatus === "refunded" || Number(order.refunded_amount_cents ?? 0) > 0) {
+  const refundedSoFar = Number(order.refunded_amount_cents ?? 0);
+  if (
+    refundedInFull({
+      status: orderStatus,
+      refunded_amount_cents: refundedSoFar,
+      amount_cents: typeof order.amount_cents === "number" ? order.amount_cents : null,
+    })
+  ) {
     console.warn("[payments] one-time: order already refunded - fulfilment refused", order.id);
     return "skipped";
   }
@@ -656,13 +933,15 @@ async function fulfilOrder(
     return "skipped";
   }
 
-  // Kwota PO kuponie, PRZED podatkiem - ta sama semantyka co zamówienie.
-  // Rozjazd NIE blokuje realizacji: operator przyjął płatność, więc klient
-  // dostaje to, za co zapłacił, a księgi - prawdziwą kwotę. Zamówienie
-  // dostaje flagę do weryfikacji, a administratorzy najemcy alert.
-  const review = reviewAmount(txn, order);
-  const amountCents = review.chargedCents ?? order.amount_cents;
-  const currency = review.currency;
+  // Księgi dostają kwotę POBRANĄ brutto (S5) - zwroty, faktury wydarzeń
+  // i przychód czytają `amount_cents` jako pieniądze, które wpłynęły.
+  // Porównanie z zamówieniem idzie po `subtotal - rabat`; rozjazd NIE blokuje
+  // realizacji (operator przyjął płatność), ale daje flagę i alert.
+  const amountCents = collectedCentsOf(txn) ?? order.amount_cents;
+  const currency = currencyOf(txn, order);
+  // Powtórka opłaconego zamówienia nie porównuje: `amount_cents` jest już
+  // kwotą pobraną brutto, a nie oczekiwaną kwotą netto.
+  const mismatch = orderStatus === "paid" ? null : amountMismatch(txn, order);
 
   const preMetadata = (order.metadata ?? {}) as Record<string, unknown>;
   const ticketEventId = str(preMetadata, "event_id");
@@ -688,27 +967,56 @@ async function fulfilOrder(
     if (refunded) return "oversold_refunded";
   }
 
+  // 0b. Kody promocyjne operatora (S8). Kod obcego najemcy albo spoza zakresu
+  // kuponu: pieniądze pobrane, więc zamówienie jest `paid` (księgi muszą się
+  // zgadzać z operatorem), ale dostępu NIE nadajemy - decyduje administrator.
+  const promo = await reviewPromotionCodes(env, txn.promotionCodeIds, {
+    id: order.id,
+    tenantId: order.tenant_id,
+    planId: order.plan_id,
+    eventId: ticketEventId,
+  });
+  const review = orderReview(mismatch, promo);
+  const metadata = reviewedMetadata(preMetadata, review, promo.unscopedIds);
+  const paidPatch = {
+    status: "paid" as const,
+    paid_at: paidAtOf(txn),
+    provider: "stripe",
+    provider_intent_id: txn.id,
+    provider_session_id: txn.sessionId ?? txn.id,
+    ...(txn.paymentIntentId ? { provider_payment_intent_id: txn.paymentIntentId } : {}),
+    ...(txn.customerId ? { provider_customer_id: txn.customerId } : {}),
+    ...(typeof amountCents === "number" ? { amount_cents: amountCents } : {}),
+    currency,
+    ...(metadata ? { metadata } : {}),
+    ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
+  };
+
+  if (promo.hold && review) {
+    const { data: held, error: holdErr } = await supabaseAdmin
+      .from("payment_orders")
+      .update(paidPatch)
+      .eq("id", order.id)
+      .in("status", [...PAYABLE_STATUSES])
+      .select("id");
+    if (holdErr) throw new Error(`one-time: order hold flip failed: ${holdErr.message}`);
+    // Zero przestawionych wierszy przy zamówieniu nieopłaconym = zwrot albo
+    // zamknięcie wyprzedziło zapis; dostępu i tak nie ma, alarmu też nie.
+    if ((held ?? []).length === 0 && orderStatus !== "paid") return "skipped";
+    await alertOrderReview(order, review, true);
+    return "held";
+  }
+
   // 1. Uprawnienie (idempotentne) - zanim cokolwiek uzna zamówienie za opłacone.
   await grantEntitlement({ ...order, amount_cents: amountCents }, txn.id);
 
   // 2. Księgowanie - `paid_at` stemplowane dokładnie raz mimo ponowień,
   // i WYŁĄCZNIE z kasy w toku (`PAYABLE_STATUSES`): zwrócone albo zamknięte
-  // zamówienie nie wraca na opłacone.
+  // zamówienie nie wraca na opłacone. Licznika zwrotów nie dotykamy - zwrot
+  // częściowy sprzed realizacji zostaje w księgach.
   const { data: flipped, error: updateErr } = await supabaseAdmin
     .from("payment_orders")
-    .update({
-      status: "paid",
-      paid_at: new Date().toISOString(),
-      provider: "stripe",
-      provider_intent_id: txn.id,
-      provider_session_id: txn.sessionId ?? txn.id,
-      ...(txn.paymentIntentId ? { provider_payment_intent_id: txn.paymentIntentId } : {}),
-      ...(txn.customerId ? { provider_customer_id: txn.customerId } : {}),
-      amount_cents: amountCents,
-      currency,
-      ...(review.mismatch ? { metadata: withReviewFlag(preMetadata, review.mismatch) } : {}),
-      ...(txn.customerEmail ? { receipt_email: txn.customerEmail } : {}),
-    })
+    .update(paidPatch)
     .eq("id", order.id)
     .in("status", [...PAYABLE_STATUSES])
     .select("id");
@@ -736,16 +1044,15 @@ async function fulfilOrder(
       await revokeOrderAccess(order, new Date().toISOString(), [txn.id]);
       return "skipped";
     }
-  } else if (review.mismatch) {
-    await alertOrderReview(order, review.mismatch);
+  } else if (review) {
+    await alertOrderReview(order, review);
   }
 
   // 3. Efekty kuponu B2B - fail-closed na `status='paid'`, więc dopiero teraz.
   const { applyCouponEffectsForOrder } = await import("@/lib/billing/couponEffects.server");
   await applyCouponEffectsForOrder(order.id);
 
-  const metadata = (order.metadata ?? {}) as Record<string, unknown>;
-  const eventId = str(metadata, "event_id");
+  const eventId = ticketEventId;
 
   // Zamówienie zanonimizowane (konto usunięte, dowód księgowy został -
   // migracja 20260803090002): punkty 1-3 wciąż mają sens, bo dotyczą ksiąg.
@@ -784,12 +1091,21 @@ async function fulfilOrder(
       );
       if (rsvpErr) throw new Error(`one-time: rsvp confirm failed: ${rsvpErr.message}`);
     }
+    // Zwrot częściowy sprzed realizacji (2.8 / 5.9): wpłata dała miejsce,
+    // a rozliczenie zgłoszenia ma pokazać korektę ceny. Bez powiadomienia -
+    // klient dostał już mail o zwrocie z obsługi korekty.
+    if (refundedSoFar > 0) {
+      await applyTicketOutcome(order.id, "partial_refund", refundedSoFar, { notify: false });
+    }
   }
 
-  // 5. Powiadomienia (fail-soft, idempotentne po id zamówienia).
+  // 5. Powiadomienia (fail-soft, idempotentne po id zamówienia). Potwierdzenie
+  // planu idzie za KAŻDYM zamówieniem, które daje uprawnienie planu - także
+  // za planem jednorazowym (dożywotnim) kupionym przez `/checkout/$planId`,
+  // który od PAY-01 ma `kind = one_time` i tracił mail (5.12).
   const { notifySubscriptionEmail, notifyEventRegistration } =
     await import("@/lib/billing/notifications.server");
-  if (order.kind === "subscription") {
+  if (entitlementForOrder(order).type === "subscription") {
     await notifySubscriptionEmail({
       kind: "subscription_confirmed",
       userId: order.user_id,

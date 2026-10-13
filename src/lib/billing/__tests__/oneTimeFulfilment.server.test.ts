@@ -63,6 +63,12 @@ const h = vi.hoisted(() => ({
   couponReleaseReply: { data: true, error: null } as RpcReply,
   /** Dzwonki administratorów najemcy (`enqueue_notification`). */
   adminBells: [] as Array<Record<string, unknown>>,
+  /** Argumenty zlecenia zwrotu przy pełnej sali (środowisko, transakcja, powód). */
+  refundCalls: [] as unknown[][],
+  /** Kody promocyjne operatora po identyfikatorze (S8); `Error` = awaria odczytu. */
+  promotionCodes: {} as Record<string, { metadata: Record<string, string> } | Error>,
+  /** Środowiska, w których realizacja sięgnęła po klienta operatora. */
+  stripeEnvs: [] as string[],
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -115,10 +121,30 @@ vi.mock("@/lib/events/ticket.server", () => ({
 }));
 
 vi.mock("@/lib/billing/refundProvider.server", () => ({
-  refundTransactionFully: async (env: string) => {
+  refundTransactionFully: async (env: string, ...rest: unknown[]) => {
     h.log.push("refund");
     h.refundEnvs.push(env);
+    h.refundCalls.push([env, ...rest]);
     return h.refund;
+  },
+}));
+
+// Granica operatora dla kodów promocyjnych (S8): odczyt kodu po identyfikatorze.
+// Nieznany kod to błąd testu, a nie „kod bez metadanych".
+vi.mock("@/lib/stripe.server", () => ({
+  getStripeClient: async (env: string) => {
+    h.stripeEnvs.push(env);
+    return {
+      promotionCodes: {
+        retrieve: async (id: string) => {
+          h.log.push(`promo:${id}`);
+          const reply = h.promotionCodes[id];
+          if (reply instanceof Error) throw reply;
+          if (!reply) throw new Error(`test: nieznany kod promocyjny ${id}`);
+          return { id, ...reply };
+        },
+      },
+    };
   },
 }));
 
@@ -207,6 +233,7 @@ interface OrderRow {
   refunded_amount_cents?: number;
   provider_session_id?: string | null;
   provider_intent_id?: string | null;
+  provider_subscription_id?: string | null;
 }
 
 function orderRow(over: Partial<OrderRow> = {}): OrderRow {
@@ -260,6 +287,8 @@ let oversoldFlipResponse: SupabaseResult;
 /** Ponowny odczyt statusu po pustym przestawieniu (`select("status")`). */
 let stateResponse: SupabaseResult;
 let rsvpResponse: SupabaseResult;
+/** Kupon z bazy, do którego odsyła kod promocyjny najemcy (`b2b_coupons`). */
+let couponResponse: SupabaseResult;
 let errorSpy: MockInstance<typeof console.error>;
 let warnSpy: MockInstance<typeof console.warn>;
 
@@ -288,12 +317,16 @@ beforeEach(() => {
   h.couponReleases.length = 0;
   h.couponReleaseReply = { data: true, error: null };
   h.adminBells.length = 0;
+  h.refundCalls.length = 0;
+  h.promotionCodes = {};
+  h.stripeEnvs.length = 0;
 
   givenOrder(orderRow());
   paidFlipResponse = ok([{ id: ORDER_ID }]);
   oversoldFlipResponse = ok(null);
   stateResponse = ok({ status: "paid" });
   rsvpResponse = ok(null);
+  couponResponse = ok(null);
 
   const next = supabaseFromStub();
   // Jedna tabela, cztery różne zapytania: odczyt zamówienia, warunkowe
@@ -309,6 +342,7 @@ beforeEach(() => {
   // Alert „płatność do weryfikacji" (PAY-06) - administrator najemcy zamówienia.
   next.setResponse("user_roles", ok([{ user_id: "admin-1" }]));
   next.setResponse("profiles", ok([{ id: "admin-1" }]));
+  next.setResponse("b2b_coupons", () => couponResponse);
   h.stub = next;
 
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -541,6 +575,32 @@ describe("fulfilOrder - księgowanie", () => {
     ]);
   });
 
+  it("5.12: plan JEDNORAZOWY (dożywotni, `kind = one_time`) też dostaje mail potwierdzenia planu", async () => {
+    // Od PAY-01 kasa `/checkout/$planId` stempluje `kind = one_time` dla planu
+    // z interwałem jednorazowym; warunek `kind === "subscription"` gubił mail.
+    givenOrder(orderRow({ kind: "one_time", plan_id: "plan_decision_lab", metadata: null }));
+
+    await fulfilOneTimeTransaction(txn(), "sandbox");
+
+    expect(h.subscriptionMails).toEqual([
+      expect.objectContaining({
+        kind: "subscription_confirmed",
+        planId: "plan_decision_lab",
+        idempotencySeed: ORDER_ID,
+      }),
+    ]);
+  });
+
+  it("zakup pojedynczej treści (encja, bez planu) nie dostaje maila o planie", async () => {
+    givenOrder(
+      orderRow({ kind: "one_time", entity_type: "post", entity_id: "post-1", metadata: null }),
+    );
+
+    await fulfilOneTimeTransaction(txn(), "sandbox");
+
+    expect(h.subscriptionMails).toHaveLength(0);
+  });
+
   it("zamówienie zanonimizowane: księgi tak, adresata nie ma - bez bramki miejsc, RSVP i maili", async () => {
     // Bez właściciela nie ma czyich RSVP liczyć ani komu zwracać uwagi o sali.
     h.seat = "full";
@@ -609,6 +669,46 @@ describe("krok 0 - bramka miejsc tylko dla zakupu bez zgłoszenia", () => {
       tenant_id: TENANT,
       href: "/profile/tickets",
     });
+  });
+
+  it("S3 / 5.2 / 7.7: zamknięcie zwrotem zapisuje kwotę zwróconą brutto i intencję płatności", async () => {
+    // Stripe dosyła potem `charge.refunded` tego samego zwrotu, a obsługa
+    // korekt znajduje zamówienie przez sesję. Bez licznika zwrotów i intencji
+    // wyglądało to tam jak NOWY zwrot: drugi mail, drugi dzwonek, drugi wynik
+    // biletu. Z licznikiem równym kwocie korekta trafia w bramkę powtórki.
+    h.seat = "full";
+    givenOrder(orderRow({ amount_cents: 8_000, environment: "live" }));
+    expect(
+      await fulfilOneTimeTransaction(
+        txn({
+          id: "cs_pelna_sala",
+          sessionId: "cs_pelna_sala",
+          paymentIntentId: "pi_pelna_sala",
+          amountCents: 9_840,
+          amountSubtotalCents: 8_000,
+          amountDiscountCents: 0,
+          amountTaxCents: 1_840,
+        }),
+        "live",
+      ),
+    ).toBe("oversold_refunded");
+
+    const flip = stub()
+      .chainsFor("payment_orders")
+      .find((c) => c.has("update") && !c.has("in"));
+    expect(flip?.argsOf("update")?.[0]).toMatchObject({
+      status: "refunded",
+      provider_intent_id: "cs_pelna_sala",
+      provider_payment_intent_id: "pi_pelna_sala",
+      amount_cents: 9_840,
+      refunded_amount_cents: 9_840,
+      currency: "PLN",
+    });
+    // PAY-14b: zwrot całej sesji, w środowisku zdarzenia, z powodem domenowym
+    // (klucz idempotencji składa `refundProvider` z tej trójki).
+    expect(h.refundCalls).toEqual([["live", "cs_pelna_sala", "oversold"]]);
+    // Mail o zwrocie podaje kwotę, która naprawdę wróciła (brutto).
+    expect(h.refundMails[0]).toMatchObject({ amountCents: 9_840, currency: "PLN" });
   });
 
   it.each([
@@ -883,11 +983,36 @@ describe("PAY-07 - realizacja nie wskrzesza zwróconego zamówienia", () => {
     );
   });
 
-  it("PAY-07: zwrot częściowy zaksięgowany przed realizacją też blokuje nadanie", async () => {
-    givenOrder(orderRow({ metadata: {}, status: "processing", refunded_amount_cents: 500 }));
+  it("2.8 / 5.9: zwrot CZĘŚCIOWY przed realizacją nie blokuje nadania - korekta ceny zostaje w księgach", async () => {
+    // Webhook realizacji padł i czekał na ponowienie, a w tym czasie obsługa
+    // oddała 10 zł z 120 zł (`refunds.server` zapisał licznik bez zmiany
+    // statusu). Klient zapłacił resztę - odmowa zostawiała go bez dostępu na
+    // zawsze, a naprawa uzgadniania odbijała się od tej samej bramki.
+    givenOrder(orderRow({ status: "processing", refunded_amount_cents: 1_000 }));
+    h.rpcReplies.push(rpcPaid({ registration_status: "approved" }));
+
+    expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("order");
+
+    expect(h.grants).toHaveLength(1);
+    const patch = paidPatch() ?? {};
+    expect(patch).toMatchObject({ status: "paid" });
+    // Licznik zwrotów nie jest nadpisywany przez realizację.
+    expect(patch).not.toHaveProperty("refunded_amount_cents");
+    // Najpierw wpłata (miejsce), potem korekta ceny na zgłoszeniu - bez
+    // drugiego powiadomienia (mail o zwrocie wysłała obsługa korekty).
+    expect(h.rpcCalls.map((c) => c.args)).toEqual([
+      { p_order_id: ORDER_ID, p_outcome: "paid", p_refunded_cents: undefined },
+      { p_order_id: ORDER_ID, p_outcome: "partial_refund", p_refunded_cents: 1_000 },
+    ]);
+    expect(h.notifyPayloads).toHaveLength(1);
+  });
+
+  it("2.8 / 5.9: zwrot PEŁNY przed realizacją (licznik = kwota zamówienia) nadal blokuje nadanie", async () => {
+    givenOrder(orderRow({ metadata: {}, status: "processing", refunded_amount_cents: 12_000 }));
 
     expect(await fulfilOneTimeTransaction(txn(), "sandbox")).toBe("skipped");
     expect(h.grants).toHaveLength(0);
+    expect(paidPatch()).toBeUndefined();
   });
 
   it("PAY-07: realizacja -> zwrot -> POWTÓRKA realizacji kończy się bez dostępu, status zostaje `refunded`", async () => {
@@ -977,9 +1102,12 @@ describe("PAY-07 - realizacja nie wskrzesza zwróconego zamówienia", () => {
 // --- 9. PAY-06: kwota pobrana kontra kwota zamówienia -------------------------
 
 describe("PAY-06 - porównanie kwoty z zamówieniem", () => {
-  it("kwota zgodna: `subtotal - rabat` = kwota zamówienia, podatek na wierzch nie jest rozjazdem", async () => {
+  it("S5 / 4.2: kwota zgodna (`subtotal - rabat`), a księgi dostają kwotę POBRANĄ brutto z podatkiem", async () => {
     // Zamówienie 80 zł po kuponie (brutto 100 zł). Operator: pozycje 100 zł,
-    // rabat 20 zł, VAT doliczony 18,40 zł - suma 98,40 zł.
+    // rabat 20 zł, VAT doliczony 18,40 zł - suma 98,40 zł. Porównanie
+    // przechodzi, ale `amount_cents` to pieniądze, które wpłynęły: zwrot
+    // pełny (9 840), faktura wydarzenia i przychód czytają tę kolumnę jako
+    // brutto - zapis 8 000 dawał przychód -18,40 zł po pełnym zwrocie.
     givenOrder(orderRow({ metadata: { coupon_id: "kupon-1" }, amount_cents: 8_000 }));
 
     await fulfilOneTimeTransaction(
@@ -993,9 +1121,50 @@ describe("PAY-06 - porównanie kwoty z zamówieniem", () => {
     );
 
     const patch = paidPatch();
-    expect(patch).toMatchObject({ status: "paid", amount_cents: 8_000, currency: "PLN" });
+    expect(patch).toMatchObject({ status: "paid", amount_cents: 9_840, currency: "PLN" });
     expect(patch).not.toHaveProperty("metadata");
     expect(h.adminBells).toHaveLength(0);
+    // Uprawnienie (`user_purchases.amount_cents`) też widzi brutto.
+    expect(h.grants[0]).toMatchObject({ amount_cents: 9_840 });
+  });
+
+  it("4.7: ładunek BEZ rozbicia kwoty (sprzed wdrożenia) nie jest porównywany - suma minus podatek to nie podstawa", async () => {
+    // Powtórka wiersza dziennika sprzed wdrożenia: jest suma i podatek, nie
+    // ma `amount_subtotal`. Dawny zapas `suma - podatek` przy podatku
+    // doliczanym na wierzch dawał fałszywy rozjazd z alertem.
+    givenOrder(orderRow({ metadata: {}, amount_cents: 8_000 }));
+
+    await fulfilOneTimeTransaction(txn({ amountCents: 9_840, amountTaxCents: 1_000 }), "sandbox");
+
+    const patch = paidPatch();
+    expect(patch).toMatchObject({ status: "paid", amount_cents: 9_840 });
+    expect(patch).not.toHaveProperty("metadata");
+    expect(h.adminBells).toHaveLength(0);
+    expect(errorMessages()).not.toContain("[payments] amount mismatch - order flagged for review");
+  });
+
+  it("6.7 / 7.4: alert przeglądu ma href unikalny dla zamówienia i powodu i idzie RAZ na odbiorcę", async () => {
+    givenOrder(orderRow({ metadata: {}, amount_cents: 12_000 }));
+
+    await fulfilOneTimeTransaction(
+      txn({ amountCents: 7_000, amountSubtotalCents: 7_000, amountDiscountCents: 0 }),
+      "sandbox",
+    );
+
+    const href = `/admin/billing?order=${ORDER_ID}&review=amount_mismatch`;
+    expect(h.adminBells).toEqual([expect.objectContaining({ p_href: href, p_kind: "billing" })]);
+    // `once`: przed dzwonkiem sprawdzamy, czy odbiorca nie ma już dzwonka
+    // z tym href - ponowienie zdarzenia po oknie deduplikacji nie dubluje.
+    const seen = stub()
+      .chainsFor("notifications")
+      .find((c) => c.calls.some((call) => call.method === "eq" && call.args[0] === "href"));
+    expect(seen?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual(
+      expect.arrayContaining([
+        ["user_id", "admin-1"],
+        ["tenant_id", TENANT],
+        ["href", href],
+      ]),
+    );
   });
 
   it("PAY-06: rozjazd kwoty kończy się flagą do weryfikacji i alertem, a nie cichym `paid`", async () => {
@@ -1094,6 +1263,174 @@ describe("PAY-14b - środowisko zwrotu", () => {
   });
 });
 
+// --- 10b. S8: kody promocyjne operatora (7.5, 0.5) ------------------------------
+
+describe("S8 - kod promocyjny operatora a najemca i zakres zamówienia", () => {
+  const COUPON = "66666666-ffff-4fff-8fff-666666666666";
+  const promoTxn = (ids: string[]): OneTimeTransaction =>
+    txn({
+      amountCents: 0,
+      amountSubtotalCents: 12_000,
+      amountDiscountCents: 12_000,
+      promotionCodeIds: ids,
+    });
+
+  it("7.5: kod OBCEGO najemcy -> zamówienie `paid` (pieniądze pobrane), dostęp WSTRZYMANY, alert raz", async () => {
+    // Najemca A zsynchronizował FREE100; kupujący najemcy B wpisał go
+    // w kasie B (konto Stripe jest wspólne). Dawniej: flaga rozjazdu
+    // i mimo to nadanie - kod A otwierał płatne treści B.
+    h.promotionCodes["promo_free100"] = {
+      metadata: { source: "b2b_coupon_sync", tenant_id: "najemca-a", coupon_id: COUPON },
+    };
+    givenOrder(orderRow({ metadata: { label: "Wpis premium" } }));
+
+    expect(await fulfilOneTimeTransaction(promoTxn(["promo_free100"]), "sandbox")).toBe("held");
+
+    expect(h.grants).toHaveLength(0);
+    expect(h.log).not.toContain("coupon");
+    expect(h.subscriptionMails).toHaveLength(0);
+    expect(h.eventMails).toHaveLength(0);
+    expect(paidPatch()).toMatchObject({
+      status: "paid",
+      amount_cents: 0,
+      metadata: {
+        label: "Wpis premium",
+        review: {
+          reason: "foreign_promotion_code",
+          promotion_code_ids: ["promo_free100"],
+          expected_cents: 12_000,
+          charged_cents: 0,
+        },
+      },
+    });
+    expect(h.adminBells).toEqual([
+      expect.objectContaining({
+        p_title_pl: "Płatność wstrzymana do weryfikacji",
+        p_href: `/admin/billing?order=${ORDER_ID}&review=foreign_promotion_code`,
+      }),
+    ]);
+    // Treść niesie identyfikator kodu, nie identyfikator cudzego najemcy.
+    expect(String(h.adminBells[0]?.["p_body_pl"])).toContain("promo_free100");
+    expect(String(h.adminBells[0]?.["p_body_pl"])).not.toContain("najemca-a");
+    // Bez kuponu z bazy nie ma czego sprawdzać.
+    expect(stub().chainsFor("b2b_coupons")).toHaveLength(0);
+  });
+
+  it("powtórka wstrzymanego zamówienia (już `paid`) nadal nie nadaje dostępu", async () => {
+    h.promotionCodes["promo_free100"] = { metadata: { tenant_id: "najemca-a" } };
+    givenOrder(orderRow({ status: "paid" }));
+    paidFlipResponse = ok([]);
+
+    expect(await fulfilOneTimeTransaction(promoTxn(["promo_free100"]), "sandbox")).toBe("held");
+    expect(h.grants).toHaveLength(0);
+  });
+
+  it("kod operatora BEZ najemcy (zrobiony ręcznie w panelu Stripe): nadanie + ślad w metadanych", async () => {
+    h.promotionCodes["promo_operator"] = { metadata: {} };
+    givenOrder(orderRow({ metadata: {} }));
+
+    expect(
+      await fulfilOneTimeTransaction(
+        txn({ promotionCodeIds: ["promo_operator"], amountSubtotalCents: 12_000 }),
+        "sandbox",
+      ),
+    ).toBe("order");
+
+    expect(h.grants).toHaveLength(1);
+    const patch = paidPatch() ?? {};
+    expect(patch).toMatchObject({ metadata: { promotion_code_unscoped: ["promo_operator"] } });
+    expect((patch["metadata"] as Record<string, unknown>)["review"]).toBeUndefined();
+    expect(h.adminBells).toHaveLength(0);
+  });
+
+  it("0.5: kod najemcy, ale kupon planowy NIE obejmuje planu zamówienia -> wstrzymanie `out_of_scope`", async () => {
+    // MIESIAC50 zawężony w bazie do planu miesięcznego; Stripe przepuszcza go
+    // w kasie planu rocznego, bo oba interwały dzielą produkt.
+    h.promotionCodes["promo_miesiac50"] = {
+      metadata: { source: "b2b_coupon_sync", tenant_id: TENANT, coupon_id: COUPON },
+    };
+    couponResponse = ok({ id: COUPON, active: true, plan_ids: ["plan_monthly"], event_ids: [] });
+    givenOrder(orderRow({ kind: "one_time", plan_id: "plan_annual", metadata: {} }));
+
+    expect(await fulfilOneTimeTransaction(promoTxn(["promo_miesiac50"]), "sandbox")).toBe("held");
+
+    expect(h.grants).toHaveLength(0);
+    expect(paidPatch()).toMatchObject({
+      metadata: { review: { reason: "promotion_code_out_of_scope" } },
+    });
+    // Kupon czytany W NAJEMCY ZAMÓWIENIA (R-TS), nie po samym identyfikatorze.
+    const lookup = stub().lastChain("b2b_coupons");
+    expect(lookup?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toEqual([
+      ["id", COUPON],
+      ["tenant_id", TENANT],
+    ]);
+    expect(h.adminBells).toEqual([
+      expect.objectContaining({
+        p_href: `/admin/billing?order=${ORDER_ID}&review=promotion_code_out_of_scope`,
+      }),
+    ]);
+  });
+
+  it.each([
+    ["kupon usunięty z bazy", ok(null)],
+    ["kupon wyłączony w panelu", ok({ id: COUPON, active: false, plan_ids: [], event_ids: [] })],
+  ])("0.5: %s, a kopia w Stripe wciąż działa -> wstrzymanie", async (_label, coupon) => {
+    h.promotionCodes["promo_lato"] = { metadata: { tenant_id: TENANT, coupon_id: COUPON } };
+    couponResponse = coupon;
+    givenOrder(orderRow({ metadata: {} }));
+
+    expect(await fulfilOneTimeTransaction(promoTxn(["promo_lato"]), "sandbox")).toBe("held");
+  });
+
+  it("kod najemcy w zakresie kuponu (plan na liście): zwykłe nadanie", async () => {
+    h.promotionCodes["promo_roczny"] = { metadata: { tenant_id: TENANT, coupon_id: COUPON } };
+    couponResponse = ok({ id: COUPON, active: true, plan_ids: ["plan_annual"], event_ids: [] });
+    givenOrder(orderRow({ kind: "one_time", plan_id: "plan_annual", metadata: {} }));
+
+    expect(
+      await fulfilOneTimeTransaction(
+        txn({ promotionCodeIds: ["promo_roczny"], amountSubtotalCents: 12_000 }),
+        "sandbox",
+      ),
+    ).toBe("order");
+    expect(h.grants).toHaveLength(1);
+  });
+
+  it("kupon wydarzenia obejmuje wyłącznie swoje wydarzenia", async () => {
+    h.promotionCodes["promo_gala"] = { metadata: { tenant_id: TENANT, coupon_id: COUPON } };
+    couponResponse = ok({ id: COUPON, active: true, plan_ids: [], event_ids: ["inne-wydarzenie"] });
+
+    expect(await fulfilOneTimeTransaction(promoTxn(["promo_gala"]), "sandbox")).toBe("held");
+  });
+
+  it("awaria odczytu kodu u operatora RZUCA przed nadaniem i zapisem - webhook wróci", async () => {
+    h.promotionCodes["promo_x"] = new Error("connection reset");
+
+    await expect(fulfilOneTimeTransaction(promoTxn(["promo_x"]), "sandbox")).rejects.toThrow(
+      "promotion code scope: lookup failed (promo_x): connection reset",
+    );
+    expect(h.grants).toHaveLength(0);
+    expect(paidPatch()).toBeUndefined();
+  });
+
+  it("awaria odczytu kuponu z bazy RZUCA", async () => {
+    h.promotionCodes["promo_lato"] = { metadata: { tenant_id: TENANT, coupon_id: COUPON } };
+    couponResponse = fail("statement timeout");
+
+    await expect(fulfilOneTimeTransaction(promoTxn(["promo_lato"]), "sandbox")).rejects.toThrow(
+      `promotion code scope: coupon lookup failed (${COUPON}): statement timeout`,
+    );
+    expect(h.grants).toHaveLength(0);
+  });
+
+  it("sesja bez kodów (nasz kupon jedzie bez kodu) nie pyta operatora", async () => {
+    await fulfilOneTimeTransaction(txn({ promotionCodeIds: [] }), "sandbox");
+
+    expect(h.stripeEnvs).toHaveLength(0);
+    expect(h.grants).toHaveLength(1);
+  });
+});
+
 // --- 11. PAY-09: cykl życia zamówienia poza „opłacone" -------------------------
 
 describe("PAY-09 - wygaśnięcie sesji Checkout", () => {
@@ -1142,8 +1479,38 @@ describe("PAY-09 - wygaśnięcie sesji Checkout", () => {
 
     expect(await expireCheckoutOrder(expired(), "sandbox")).toBe(true);
     expect(h.couponReleases).toHaveLength(1);
-    // Wynik biletu tylko przy zamknięciu - powtórka go nie dubluje.
+    // Zamówienie bez wydarzenia nie ma wyniku biletu do zapisania.
     expect(h.rpcCalls).toHaveLength(0);
+  });
+
+  it("4.6: błąd zapisu wyniku biletu przy wygaśnięciu RZUCA - miejsce z puli planu nie przepada", async () => {
+    // `payments_apply_event_ticket_outcome` oddaje bilet z puli planu
+    // (`_event_plan_seat_settle`). Połknięty błąd kończył zdarzenie jako
+    // `processed` - operator nie ponawiał, a członek tracił wejściówkę.
+    givenOrder(
+      orderRow({ metadata: { event_id: EVENT, coupon_id: "kupon-1" }, status: "pending" }),
+    );
+    h.rpcReplies.push(rpcError("57014", "canceling statement due to statement timeout"));
+
+    await expect(expireCheckoutOrder(expired(), "sandbox")).rejects.toThrow(
+      `ticket outcome failed (${ORDER_ID}, unpaid): canceling statement due to statement timeout`,
+    );
+  });
+
+  it("4.6: ponowienie na zamówieniu JUŻ zamkniętym dokańcza wynik biletu (idempotentny w bazie)", async () => {
+    // Pierwsza dostawa zamknęła status i padła na zapisie biletu. Dawniej
+    // ponowienie widziało `canceled`, uznawało, że nie ono zamknęło - i biletu
+    // nie oddawało już nigdy.
+    givenOrder(orderRow({ metadata: { event_id: EVENT }, status: "canceled" }));
+    paidFlipResponse = ok([]);
+
+    await expireCheckoutOrder(expired(), "sandbox");
+
+    expect(h.rpcCalls.map((c) => c.args)).toEqual([
+      { p_order_id: ORDER_ID, p_outcome: "unpaid", p_refunded_cents: undefined },
+    ]);
+    // Porzucona kasa to nie odrzucona płatność - bez maila do uczestnika.
+    expect(h.notifyPayloads).toHaveLength(0);
   });
 
   it("zamówienie OPŁACONE nie jest zamykane ani pozbawiane kuponu; wynik `false`", async () => {
@@ -1223,6 +1590,57 @@ describe("PAY-09 - odrzucona płatność asynchroniczna", () => {
     expect(paidPatch()).toBeUndefined();
     expect(h.rpcCalls.map((c) => c.args["p_outcome"])).toEqual(["unpaid"]);
   });
+
+  it("S6 / 4.8 / 5.8 / 7.11: sesja SUBSKRYPCJI z odrzuconą płatnością -> zamówienie `failed`, kupon wraca", async () => {
+    // SEPA w trybie `subscription`: sesja się ukończyła (nie wygaśnie), a
+    // subskrypcja u operatora nigdy nie wystartuje. Bez zamknięcia zamówienie
+    // wisiało jako `processing`, a limitowany kod trzymał użycie na zawsze.
+    givenOrder(
+      orderRow({
+        kind: "subscription",
+        plan_id: "plan_pro",
+        metadata: { coupon_id: "kupon-1" },
+        status: "processing",
+      }),
+    );
+
+    await markOneTimePaymentFailed({ orderId: ORDER_ID }, "sandbox");
+
+    expect(paidPatch()).toMatchObject({ status: "failed" });
+    expect(
+      stub()
+        .chainsFor("payment_orders")
+        .find((c) => c.has("update"))
+        ?.argsOf("in"),
+    ).toEqual(["status", ["pending", "processing"]]);
+    expect(h.couponReleases).toEqual([
+      { _tenant_id: TENANT, _user_id: USER, _coupon_id: "kupon-1", _order_id: ORDER_ID },
+    ]);
+    // Zamówienie planu nie ma zgłoszenia - wyniku biletu nie wołamy wcale.
+    expect(h.rpcCalls).toHaveLength(0);
+  });
+
+  it("porażka dla zamówienia JUŻ opłaconego (inną sesją) nie oddaje miejsca ani kuponu", async () => {
+    givenOrder(orderRow({ metadata: { event_id: EVENT, coupon_id: "kupon-1" }, status: "paid" }));
+    paidFlipResponse = ok([]);
+
+    await markOneTimePaymentFailed({ orderId: ORDER_ID }, "sandbox");
+
+    expect(h.rpcCalls).toHaveLength(0);
+    expect(h.couponReleases).toHaveLength(0);
+  });
+
+  it("4.6: błąd zapisu wyniku biletu po odrzuconej płatności RZUCA, zanim kupon wróci", async () => {
+    givenOrder(
+      orderRow({ metadata: { event_id: EVENT, coupon_id: "kupon-1" }, status: "processing" }),
+    );
+    h.rpcReplies.push(rpcError("57014", "statement timeout"));
+
+    await expect(markOneTimePaymentFailed({ orderId: ORDER_ID }, "sandbox")).rejects.toThrow(
+      `ticket outcome failed (${ORDER_ID}, unpaid): statement timeout`,
+    );
+    expect(h.couponReleases).toHaveLength(0);
+  });
 });
 
 describe("PAY-09 - domknięcie zamówienia pierwszej sesji subskrypcji", () => {
@@ -1277,41 +1695,286 @@ describe("PAY-09 - domknięcie zamówienia pierwszej sesji subskrypcji", () => {
     expect(h.subscriptionMails).toHaveLength(0);
   });
 
-  it("trial (operator nie pobrał nic): domknięcie BEZ nadpisania kwoty zerem i bez flagi", async () => {
+  it("S4 / 4.0 / 4.1 / 5.3: trial (sesja bez pobrania) tylko stempluje identyfikatory - bez `paid`, bez kuponu", async () => {
+    // Trial 14 dni z kuponem PARTNER (warstwa premium). Sesja kończy się
+    // `no_payment_required`, operator nie pobrał nic. Dawniej zamówienie
+    // stawało się `paid` w cenie planu (pulpit liczył to jako przychód),
+    // a `apply_b2b_coupon_effects` nadawało warstwę, której nic nie odbiera
+    // przy anulowaniu w trakcie trialu.
+    givenOrder(subscriptionOrder());
+
+    expect(
+      await settleSubscriptionCheckoutOrder(
+        session({ amountCents: 0, amountSubtotalCents: 0, amountDiscountCents: 0 }),
+        "sandbox",
+      ),
+    ).toBe("stamped");
+
+    const patch = paidPatch() ?? {};
+    expect(patch).toMatchObject({
+      provider: "stripe",
+      provider_session_id: "cs_sub",
+      provider_subscription_id: "sub_nowa",
+      provider_customer_id: "cus_1",
+    });
+    for (const column of [
+      "status",
+      "paid_at",
+      "amount_cents",
+      "provider_intent_id",
+      "provider_payment_intent_id",
+      "metadata",
+    ]) {
+      expect(patch).not.toHaveProperty(column);
+    }
+    expect(
+      stub()
+        .chainsFor("payment_orders")
+        .find((c) => c.has("update"))
+        ?.argsOf("in"),
+    ).toEqual(["status", ["pending", "processing", "failed"]]);
+    expect(h.log).not.toContain("coupon");
+    expect(h.adminBells).toHaveLength(0);
+  });
+
+  it("S4: pierwsza OPŁACONA faktura po trialu domyka zamówienie - `paid_at` operatora, brutto, bez nadpisania sesji", async () => {
+    // Po 14 dniach Stripe pobiera 49 zł + 11,27 zł VAT fakturą `in_...`.
+    // Faktura nie niesie rozbicia kwoty - porównania nie ma, a sesja zapisana
+    // na zamówieniu zostaje (identyfikator faktury to nie sesja).
+    givenOrder(subscriptionOrder({ provider_session_id: "cs_sub" }));
+
+    expect(
+      await settleSubscriptionCheckoutOrder(
+        txn({
+          id: "in_po_trialu",
+          sessionId: "in_po_trialu",
+          source: "invoice",
+          paidAt: "2026-10-01T08:30:00.000Z",
+          subscriptionId: "sub_nowa",
+          customerId: "cus_1",
+          amountCents: 6_027,
+          currency: "pln",
+          customData: { orderId: ORDER_ID },
+        }),
+        "sandbox",
+      ),
+    ).toBe("settled");
+
+    const patch = paidPatch() ?? {};
+    expect(patch).toMatchObject({
+      status: "paid",
+      paid_at: "2026-10-01T08:30:00.000Z",
+      provider_intent_id: "in_po_trialu",
+      provider_subscription_id: "sub_nowa",
+      amount_cents: 6_027,
+      currency: "PLN",
+    });
+    expect(patch).not.toHaveProperty("provider_session_id");
+    expect(patch).not.toHaveProperty("metadata");
+    expect(h.adminBells).toHaveLength(0);
+    // Efekty kuponu - dopiero przy tym przejściu, za prawdziwe pieniądze.
+    expect(h.log).toContain("coupon");
+  });
+
+  it("S4: odnowienie (inna faktura) na zamówieniu już opłaconym nic nie zmienia i nie powtarza kuponu", async () => {
+    givenOrder(subscriptionOrder({ status: "paid", provider_intent_id: "cs_sub" }));
+    paidFlipResponse = ok([]);
+
+    expect(
+      await settleSubscriptionCheckoutOrder(
+        session({ id: "in_odnowienie", sessionId: "in_odnowienie", source: "invoice" }),
+        "sandbox",
+      ),
+    ).toBe("skipped");
+    expect(h.log).not.toContain("coupon");
+  });
+
+  it("S4: powtórka TEGO SAMEGO zdarzenia, które opłaciło zamówienie, dokańcza efekty kuponu", async () => {
+    givenOrder(subscriptionOrder({ status: "paid", provider_intent_id: "cs_sub" }));
+    paidFlipResponse = ok([]);
+
+    expect(await settleSubscriptionCheckoutOrder(session(), "sandbox")).toBe("skipped");
+    expect(h.log).toContain("coupon");
+    expect(h.adminBells).toHaveLength(0);
+  });
+
+  it("S5: sesja z podatkiem doliczonym na wierzch - księgi brutto, porównanie netto bez flagi", async () => {
     givenOrder(subscriptionOrder());
 
     await settleSubscriptionCheckoutOrder(
-      session({ amountCents: 0, amountSubtotalCents: 0, amountDiscountCents: 0 }),
+      session({ amountCents: 6_027, amountSubtotalCents: 4_900, amountTaxCents: 1_127 }),
       "sandbox",
     );
 
-    const patch = paidPatch();
-    expect(patch).toMatchObject({ status: "paid" });
-    expect(patch).not.toHaveProperty("amount_cents");
+    const patch = paidPatch() ?? {};
+    expect(patch).toMatchObject({ status: "paid", amount_cents: 6_027 });
     expect(patch).not.toHaveProperty("metadata");
   });
 
-  it("rozjazd kwoty pierwszej faktury -> flaga do weryfikacji i alert", async () => {
+  it("rozjazd kwoty pierwszej faktury -> flaga do weryfikacji i alert z adresem incydentu", async () => {
     givenOrder(subscriptionOrder());
 
     await settleSubscriptionCheckoutOrder(
-      session({ amountCents: 0, amountSubtotalCents: 4_900, amountDiscountCents: 4_900 }),
+      session({ amountCents: 3_900, amountSubtotalCents: 4_900, amountDiscountCents: 1_000 }),
       "sandbox",
     );
 
     expect(paidPatch()).toMatchObject({
-      amount_cents: 0,
-      metadata: { coupon_id: "kupon-1", review: { reason: "amount_mismatch", charged_cents: 0 } },
+      status: "paid",
+      amount_cents: 3_900,
+      metadata: {
+        coupon_id: "kupon-1",
+        review: { reason: "amount_mismatch", charged_cents: 3_900, expected_cents: 4_900 },
+      },
+    });
+    expect(h.adminBells).toEqual([
+      expect.objectContaining({
+        p_href: `/admin/billing?order=${ORDER_ID}&review=amount_mismatch`,
+      }),
+    ]);
+  });
+
+  it("rabat 100% spoza bazy (sesja bez pobrania, `subtotal` > 0): flaga i alert, ale bez `paid`", async () => {
+    givenOrder(subscriptionOrder());
+
+    expect(
+      await settleSubscriptionCheckoutOrder(
+        session({ amountCents: 0, amountSubtotalCents: 4_900, amountDiscountCents: 4_900 }),
+        "sandbox",
+      ),
+    ).toBe("stamped");
+
+    const patch = paidPatch() ?? {};
+    expect(patch).not.toHaveProperty("status");
+    expect(patch).toMatchObject({
+      metadata: { review: { reason: "amount_mismatch", charged_cents: 0 } },
     });
     expect(h.adminBells).toHaveLength(1);
+    expect(h.log).not.toContain("coupon");
+  });
+
+  it("ładunek sprzed wdrożenia bez `source`: `cs_...` to sesja, `in_...` to faktura (S6)", async () => {
+    givenOrder(subscriptionOrder());
+    await settleSubscriptionCheckoutOrder(session({ source: undefined }), "sandbox");
+    expect(paidPatch()).toMatchObject({ provider_session_id: "cs_sub" });
+
+    stub().reset();
+    stub().setResponse("payment_orders", (chain) =>
+      chain.has("update") ? paidFlipResponse : orderResponse,
+    );
+    await settleSubscriptionCheckoutOrder(
+      session({ id: "in_stary", sessionId: "in_stary", source: undefined }),
+      "sandbox",
+    );
+    expect(paidPatch()).not.toHaveProperty("provider_session_id");
+  });
+
+  it("nieczytelny `paidAt` spada na chwilę obecną", async () => {
+    givenOrder(subscriptionOrder());
+    const before = Date.now();
+
+    await settleSubscriptionCheckoutOrder(session({ paidAt: "nie-data" }), "sandbox");
+
+    expect(Date.parse(String(paidPatch()?.["paid_at"]))).toBeGreaterThanOrEqual(before);
+  });
+
+  it("S8: kod promocyjny OBCEGO najemcy w sesji subskrypcji -> flaga i alert, bez wstrzymania", async () => {
+    h.promotionCodes["promo_obcy"] = {
+      metadata: { source: "b2b_coupon_sync", tenant_id: "inny-najemca", coupon_id: "x" },
+    };
+    givenOrder(subscriptionOrder());
+
+    expect(
+      await settleSubscriptionCheckoutOrder(
+        session({ promotionCodeIds: ["promo_obcy"], amountCents: 2_450 }),
+        "sandbox",
+      ),
+    ).toBe("settled");
+
+    expect(paidPatch()).toMatchObject({
+      status: "paid",
+      metadata: {
+        review: { reason: "foreign_promotion_code", promotion_code_ids: ["promo_obcy"] },
+      },
+    });
+    expect(h.adminBells).toEqual([
+      expect.objectContaining({
+        p_href: `/admin/billing?order=${ORDER_ID}&review=foreign_promotion_code`,
+        p_title_pl: "Płatność do weryfikacji",
+      }),
+    ]);
+    // Dostęp daje `subscription.*`; zamówienie jest opłacone, kupon działa.
+    expect(h.log).toContain("coupon");
+    expect(h.stripeEnvs).toEqual(["sandbox"]);
+  });
+
+  it("S8: sesja z obcym kodem przychodzi PO fakturze, która już domknęła zamówienie -> flaga i alert mimo to", async () => {
+    // `invoice.paid` i `checkout.session.completed` lecą równolegle. Kody
+    // promocyjne niesie tylko sesja - przegrany wyścig nie może zgubić flagi.
+    h.promotionCodes["promo_obcy"] = { metadata: { tenant_id: "inny-najemca" } };
+    givenOrder(
+      subscriptionOrder({ status: "paid", provider_intent_id: "in_pierwsza", amount_cents: 6_027 }),
+    );
+    paidFlipResponse = ok([]);
+    oversoldFlipResponse = ok([{ id: ORDER_ID }]);
+
+    expect(
+      await settleSubscriptionCheckoutOrder(
+        session({
+          promotionCodeIds: ["promo_obcy"],
+          amountCents: 6_027,
+          amountSubtotalCents: 4_900,
+          amountTaxCents: 1_127,
+        }),
+        "sandbox",
+      ),
+    ).toBe("skipped");
+
+    const flag = stub()
+      .chainsFor("payment_orders")
+      .find((c) => c.has("update") && !c.has("in"));
+    expect(flag?.argsOf("eq")).toEqual(["id", ORDER_ID]);
+    expect(flag?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toContainEqual([
+      "status",
+      "paid",
+    ]);
+    const review = (
+      flag?.argsOf("update")?.[0] as { metadata: { review: Record<string, unknown> } }
+    ).metadata.review;
+    // Kwota opłaconego zamówienia to już brutto (6 027) - sesja netto (4 900)
+    // NIE może dać fałszywego rozjazdu.
+    expect(review).toMatchObject({ reason: "foreign_promotion_code" });
+    expect(review).not.toHaveProperty("expected_cents");
+    expect(h.adminBells).toHaveLength(1);
+    expect(h.log).not.toContain("coupon");
+  });
+
+  it("sesja z podatkiem PO fakturze bez kodów: bez zapisu i bez fałszywego rozjazdu", async () => {
+    givenOrder(
+      subscriptionOrder({ status: "paid", provider_intent_id: "in_pierwsza", amount_cents: 6_027 }),
+    );
+    paidFlipResponse = ok([]);
+
+    await settleSubscriptionCheckoutOrder(
+      session({ amountCents: 6_027, amountSubtotalCents: 4_900, amountTaxCents: 1_127 }),
+      "sandbox",
+    );
+
+    expect(
+      stub()
+        .chainsFor("payment_orders")
+        .filter((c) => c.has("update") && !c.has("in")),
+    ).toHaveLength(0);
+    expect(h.adminBells).toHaveLength(0);
   });
 
   it.each([
     ["zwrócone", { status: "refunded" }],
     ["anulowane", { status: "canceled" }],
-    ["z kwotą zwrotu", { refunded_amount_cents: 100 }],
+    ["zwrócone w całości (licznik = kwota)", { refunded_amount_cents: 4_900 }],
     ["jednorazowe (idzie przez fulfilOrder)", { kind: "one_time" }],
     ["z innego środowiska", { environment: "live" }],
+    ["domknięte inną subskrypcją", { provider_subscription_id: "sub_inna" }],
   ])("zamówienie %s nie jest domykane", async (_label, over) => {
     givenOrder(subscriptionOrder(over));
 
@@ -1320,13 +1983,10 @@ describe("PAY-09 - domknięcie zamówienia pierwszej sesji subskrypcji", () => {
     expect(h.log).not.toContain("coupon");
   });
 
-  it("powtórka (zamówienie już `paid`): `skipped`, ale efekty kuponu dokańczają się", async () => {
-    givenOrder(subscriptionOrder({ status: "paid" }));
-    paidFlipResponse = ok([]);
+  it("zwrot CZĘŚCIOWY przed domknięciem nie blokuje księgowania (2.8 / 5.9)", async () => {
+    givenOrder(subscriptionOrder({ refunded_amount_cents: 100 }));
 
-    expect(await settleSubscriptionCheckoutOrder(session(), "sandbox")).toBe("skipped");
-    expect(h.log).toContain("coupon");
-    expect(h.adminBells).toHaveLength(0);
+    expect(await settleSubscriptionCheckoutOrder(session(), "sandbox")).toBe("settled");
   });
 
   it("sesja bez `orderId` (spoza naszej kasy) nie dotyka bazy", async () => {
@@ -1343,5 +2003,17 @@ describe("PAY-09 - domknięcie zamówienia pierwszej sesji subskrypcji", () => {
     await expect(settleSubscriptionCheckoutOrder(session(), "sandbox")).rejects.toThrow(
       "subscription settle: order paid flip failed: zapis odrzucony",
     );
+  });
+
+  it("odmowa zapisu identyfikatorów trialu RZUCA", async () => {
+    givenOrder(subscriptionOrder());
+    paidFlipResponse = fail("zapis odrzucony");
+
+    await expect(
+      settleSubscriptionCheckoutOrder(
+        session({ amountCents: 0, amountSubtotalCents: 0 }),
+        "sandbox",
+      ),
+    ).rejects.toThrow("subscription settle: provider ids stamp failed: zapis odrzucony");
   });
 });

@@ -43,6 +43,9 @@ import { DZIEN, FIXED_NOW_ISO, GODZINA, freezeClock, relativeIso } from "@/test/
 const h = vi.hoisted(() => ({
   db: { current: null as { from: (table: string) => unknown } | null },
   emails: [] as unknown[],
+  /** Status faktur u operatora (4.5); `Error` = awaria odczytu. */
+  invoices: {} as Record<string, { status: string } | Error>,
+  invoiceLookups: [] as Array<{ env: string; id: string }>,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -52,6 +55,23 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       return h.db.current.from(table);
     },
   },
+}));
+
+// Granica operatora: odczyt faktury, której dotyczy porażka (4.5). Nieznana
+// faktura to błąd testu - przypadek, który nie planuje odczytu, nie ma go robić.
+vi.mock("@/lib/stripe.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/stripe.server")>()),
+  getStripeClient: async (env: string) => ({
+    invoices: {
+      retrieve: async (id: string) => {
+        h.invoiceLookups.push({ env, id });
+        const reply = h.invoices[id];
+        if (reply instanceof Error) throw reply;
+        if (!reply) throw new Error(`test: nieplanowany odczyt faktury ${id}`);
+        return { id, ...reply };
+      },
+    },
+  }),
 }));
 
 vi.mock("@/lib/email/transactional.server", async () => {
@@ -106,6 +126,8 @@ function plansResponder(chain: RecordedChain): SupabaseResult {
 
 beforeEach(() => {
   h.emails.length = 0;
+  h.invoices = {};
+  h.invoiceLookups.length = 0;
   notificationsBroken = false;
   sub = {
     user_id: BILLING_IDS.me,
@@ -512,21 +534,97 @@ describe("PAY-13 - porażka, która przyszła PO odzyskaniu płatności", () => 
     expect(row().payment_failure_count).toBe(0);
   });
 
-  it("porażka STARSZA niż ostatnia udana płatność (inny identyfikator) też jest pomijana", async () => {
+  it("4.5: porażka spoza kolejności, której faktura JEST już opłacona -> pominięta (decyduje faktura)", async () => {
+    // Pierwsza dostawa `invoice.payment_failed` przyszła PO `invoice.paid`
+    // tej samej faktury - klucz deduplikacji jest pusty, więc rozstrzyga
+    // stan faktury u operatora, a nie znacznik czasu.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     row().last_payment_at = relativeIso(-1 * GODZINA);
+    h.invoices["in_stara"] = { status: "paid" };
 
     await applyPaymentFailedEffects(
       context({ transactionId: "in_stara", occurredAt: relativeIso(-5 * GODZINA) }),
     );
 
+    expect(h.invoiceLookups).toEqual([{ env: "live", id: "in_stara" }]);
     expect(mails()).toHaveLength(0);
     expect(subscriptionUpdate().patch).toBeUndefined();
     expect(warn).toHaveBeenCalledWith(
-      "[payments] stale payment failure after a successful payment - ignored",
+      "[payments] stale payment failure of an already paid invoice - ignored",
       expect.objectContaining({ subscriptionId: SUB, transactionId: "in_stara" }),
     );
     warn.mockRestore();
+  });
+
+  it("4.5: porażka INNEJ, wciąż nieopłaconej faktury starsza niż znacznik płatności -> pełna windykacja", async () => {
+    // Naprawa z uzgadniania powtórzyła sesję Checkout subskrypcji i przesunęła
+    // `last_payment_at` na „teraz". Wczorajsze odnowienie `in_R` nadal nie
+    // jest zapłacone - dawna bramka czasowa zjadała jego porażkę i klient
+    // nie dostawał żadnego wezwania aż do utraty dostępu.
+    row().last_payment_at = relativeIso(-5 * 60 * 1000);
+    row().last_dunning_transaction_id = "in_poprzednia";
+    h.invoices["in_R"] = { status: "open" };
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_R", occurredAt: relativeIso(-1 * DZIEN) }),
+    );
+
+    expect(subscriptionUpdate().patch).toMatchObject({
+      payment_failure_count: 1,
+      last_dunning_transaction_id: "in_R",
+    });
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+
+  it("4.5: awaria odczytu faktury RZUCA przed licznikiem, mailem i dzwonkiem - zdarzenie wróci", async () => {
+    row().last_payment_at = relativeIso(-1 * GODZINA);
+    h.invoices["in_stara"] = new Error("connection reset");
+
+    await expect(
+      applyPaymentFailedEffects(
+        context({ transactionId: "in_stara", occurredAt: relativeIso(-5 * GODZINA) }),
+      ),
+    ).rejects.toThrow("dunning: invoice status lookup failed (in_stara): connection reset");
+
+    expect(subscriptionUpdate().patch).toBeUndefined();
+    expect(mails()).toHaveLength(0);
+    expect(db.chainsFor("notifications")).toHaveLength(0);
+  });
+
+  it("4.5: faktura nieznana operatorowi w tym środowisku nie jest opłacona - porażka przechodzi", async () => {
+    row().last_payment_at = relativeIso(-1 * GODZINA);
+    h.invoices["in_zgubiona"] = Object.assign(new Error("No such invoice"), {
+      code: "resource_missing",
+      statusCode: 404,
+    });
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_zgubiona", occurredAt: relativeIso(-5 * GODZINA) }),
+    );
+
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+
+  it("porażka w kolejności (nowsza niż ostatnia płatność) nie pyta operatora", async () => {
+    row().last_payment_at = relativeIso(-30 * DZIEN);
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "in_nowa", occurredAt: relativeIso(-1 * DZIEN) }),
+    );
+
+    expect(h.invoiceLookups).toHaveLength(0);
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
+  });
+
+  it("identyfikator spoza faktur (`txn_...`) spoza kolejności: nie ma czego sprawdzić, porażka przechodzi", async () => {
+    row().last_payment_at = relativeIso(-1 * GODZINA);
+
+    await applyPaymentFailedEffects(
+      context({ transactionId: "txn_stary", occurredAt: relativeIso(-5 * GODZINA) }),
+    );
+
+    expect(h.invoiceLookups).toHaveLength(0);
+    expect(mails().map((mail) => mail.type)).toEqual(["payment_failed"]);
   });
 
   it("NOWA porażka po odzyskaniu (nowsza faktura) uruchamia pełną windykację", async () => {

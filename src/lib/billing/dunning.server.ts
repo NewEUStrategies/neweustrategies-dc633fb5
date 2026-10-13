@@ -130,6 +130,37 @@ function isNotAfter(occurredAt: string, reference: string | null): boolean {
   return Number.isFinite(event) && Number.isFinite(ref) && event <= ref;
 }
 
+/** Brak obiektu u operatora (404 / `resource_missing`) - to nie awaria odczytu. */
+function isMissingResource(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const e = error as { code?: unknown; statusCode?: unknown };
+  return e.code === "resource_missing" || e.statusCode === 404;
+}
+
+/**
+ * Czy faktura, której dotyczy porażka, jest JUŻ opłacona u operatora (PAY-13,
+ * 4.5). Odpowiedź daje sama faktura - nie znacznik ostatniej płatności
+ * subskrypcji, bo ten opisuje DOWOLNĄ fakturę (i przesuwa go też powtórka
+ * sesji z uzgadniania). Identyfikator spoza faktur (`in_...`) nie ma czego
+ * sprawdzić - wtedy porażka jest prawdziwa. Faktura nieznana operatorowi
+ * w tym środowisku też nie jest opłacona; każdy inny błąd RZUCA, żeby
+ * zdarzenie wróciło, zanim cokolwiek wyjdzie do klienta.
+ */
+async function invoiceAlreadyPaid(ctx: DunningContext): Promise<boolean> {
+  const invoiceId = ctx.transactionId;
+  if (!invoiceId || !invoiceId.startsWith("in_")) return false;
+  try {
+    const { getStripeClient } = await import("@/lib/stripe.server");
+    const stripe = await getStripeClient(ctx.environment);
+    const invoice = await stripe.invoices.retrieve(invoiceId);
+    return invoice.status === "paid";
+  } catch (error) {
+    if (isMissingResource(error)) return false;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`dunning: invoice status lookup failed (${invoiceId}): ${message}`);
+  }
+}
+
 /** Nieudane obciążenie: licznik prób + mail + powiadomienie. */
 export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<void> {
   const sub = await loadSubscription(ctx);
@@ -145,13 +176,17 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
     return;
   }
 
-  // Porażka STARSZA niż ostatnia udana płatność: spóźniona albo powtórzona
-  // dostawa `invoice.payment_failed` faktury, która w międzyczasie przeszła.
-  // Bez tej bramki licznik rósł, a klient z opłaconą subskrypcją dostawał
-  // mail „płatność nie powiodła się". Kolejna PRAWDZIWA porażka ma nowszy
-  // znacznik niż odzyskana płatność, więc przechodzi.
-  if (isNotAfter(ctx.occurredAt, sub.last_payment_at ?? null)) {
-    console.warn("[payments] stale payment failure after a successful payment - ignored", {
+  // Porażka, która dochodzi PO udanej płatności (spóźniona albo pierwsza
+  // dostawa `invoice.payment_failed` poza kolejnością): pomijamy ją WYŁĄCZNIE
+  // wtedy, gdy TA faktura jest już opłacona (4.5). Sama kolejność czasu to
+  // tylko powód, żeby zapytać operatora: dawna bramka czasowa zjadała porażkę
+  // KAŻDEJ starszej faktury - także wciąż nieopłaconego odnowienia, gdy
+  // znacznik przesunęła płatność innej faktury albo powtórka sesji
+  // z uzgadniania - i klient nie dostawał żadnego wezwania aż do utraty
+  // dostępu. Ta sama porażka powtórzona po odzyskaniu odpada wcześniej, na
+  // kluczu deduplikacji.
+  if (isNotAfter(ctx.occurredAt, sub.last_payment_at ?? null) && (await invoiceAlreadyPaid(ctx))) {
+    console.warn("[payments] stale payment failure of an already paid invoice - ignored", {
       subscriptionId: ctx.subscriptionId,
       transactionId: ctx.transactionId ?? null,
       occurredAt: ctx.occurredAt,
