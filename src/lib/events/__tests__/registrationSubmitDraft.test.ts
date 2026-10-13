@@ -441,6 +441,27 @@ describe("wspólne sufity pól (REGISTRATION_FIELD_LIMITS)", () => {
     ).toEqual([{ field: "accessCode", errorKey: "tooLong", params: { max: L.code } }]);
   });
 
+  // R38: baza odrzuca znak sterujący kodem POLA, zanim spojrzy na adres
+  // (`_event_text_has_control`) - formularz mówi to pod polem, zamiast oddać
+  // ogólny błąd. Zakres: C0, DEL i C1; polskie litery i spacja nierozdzielająca - nie.
+  it.each([
+    ["firstName", "firstName" as const, "Ja\tn"],
+    ["lastName", "lastName" as const, "Kow\u007falski"],
+    ["email", "email" as const, "ania\u0001@example.com"],
+    ["phone", "phone" as const, "+48 600\n100 200"],
+    ["jobTitle", "jobTitle" as const, "Dyrektor\u0085"],
+    ["companyText", "companyText" as const, "NES\u0001SA"],
+    ["socialProfileUrl", "socialProfileUrl" as const, "https://exa\tmple.org/in/x"],
+  ])("%s: znak sterujący w środku to `controlChars` przy tym polu", (_label, key, value) => {
+    expect(errorsOf({ [key]: value })).toEqual([{ field: key, errorKey: "controlChars" }]);
+  });
+
+  it("polskie znaki, spacja nierozdzielająca i znaki spoza C0/C1 nie są znakami sterującymi", () => {
+    expect(
+      errorsOf({ firstName: "Zażółć", lastName: "Gęślą Jaźń", companyText: "NES – Łódź" }),
+    ).toEqual([]);
+  });
+
   it("klucz zdania: walidacja pod `validation.*`, ścieżka z kropką pod `eventRegistration.*`", () => {
     expect(draftErrorMessageKey({ field: "phone", errorKey: "phoneLength" })).toBe(
       "eventRegistration.validation.phoneLength",
