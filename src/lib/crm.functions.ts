@@ -15,6 +15,7 @@ import {
 } from "@/lib/crm/leadTimeline";
 import { z } from "zod";
 import { looseClient, looseTable, rowsOf, fetchRows } from "@/lib/supabase/looseQuery";
+import { isMigrationPending } from "@/lib/supabase/migrationPending";
 import {
   chunked,
   emailLookupValues,
@@ -929,15 +930,45 @@ const BulkUpdateInput = z.object({
 // crm_leads); tutaj tylko przygotowujemy patch pól poza tagami i - jeśli są -
 // operujemy na tagach per rekord (add_tags/remove_tags). Wartości poza
 // tagami idą jednym UPDATE ... IN (...) dla wydajności.
+//
+// ODZNACZENIE ZGODY MARKETINGOWEJ to nie zwykła kolumna (przegląd R12,
+// ustalenie 6). Gołe `marketing_consent = false` nie zostawiało śladu
+// w `crm_consent_log`, więc most wydarzeń (`_event_person_crm_sync`) przy
+// następnym wywołaniu widział dowód z księgi zgód i włączał zgodę z powrotem.
+// Dlatego `false` idzie przez RPC `crm_leads_marketing_consent_withdraw`:
+// UPDATE i wiersz given=false (źródło: personel) w JEDNEJ transakcji, najemca
+// z profilu wołającego. Przy starej bazie (42883/PGRST202 - kod przed
+// migracją) wracamy do dotychczasowego UPDATE.
 export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
   .middleware([requireCrmStaff])
   .validator((d) => BulkUpdateInput.parse(d))
   .handler(async ({ data, context }) => {
-    const { ids, add_tags: addTags, remove_tags: removeTags, owner_id: ownerId, ...rest } = data;
+    const {
+      ids,
+      add_tags: addTags,
+      remove_tags: removeTags,
+      owner_id: ownerId,
+      marketing_consent: marketingConsent,
+      ...rest
+    } = data;
 
     const flatPatch: Record<string, unknown> = { ...rest };
     if (typeof ownerId !== "undefined") flatPatch.owner_id = ownerId;
+    if (marketingConsent === true) flatPatch.marketing_consent = true;
     let touched = 0;
+
+    if (marketingConsent === false) {
+      const { error: withdrawError } = await context.supabase.rpc(
+        "crm_leads_marketing_consent_withdraw",
+        { p_lead_ids: ids },
+      );
+      if (withdrawError) {
+        if (!isMigrationPending(withdrawError)) throw new Error(withdrawError.message);
+        flatPatch.marketing_consent = false;
+      } else {
+        touched = ids.length;
+      }
+    }
 
     if (Object.keys(flatPatch).length > 0) {
       const res = await looseTable(context, "crm_leads").update(flatPatch).in("id", ids);
@@ -973,7 +1004,11 @@ export const bulkUpdateCrmLeads = createServerFn({ method: "POST" })
         entity_id: null,
         metadata: {
           count: touched,
-          fields: Object.keys(flatPatch),
+          // Odznaczenie zgody idzie RPC, nie łatką - pole i tak trafia do śladu.
+          fields:
+            marketingConsent === false && !("marketing_consent" in flatPatch)
+              ? [...Object.keys(flatPatch), "marketing_consent"]
+              : Object.keys(flatPatch),
           add_tags: addTags ?? [],
           remove_tags: removeTags ?? [],
         },

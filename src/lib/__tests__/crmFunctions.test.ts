@@ -747,6 +747,77 @@ describe("operacje zbiorcze", () => {
     expect(write?.argsOf("update")).toEqual([{ tags: null }]);
   });
 
+  it("odznaczenie zgody marketingowej idzie RPC z wierszem given=false, nie gołym UPDATE (R12)", async () => {
+    // Gołe `marketing_consent = false` nie zostawiało śladu w rejestrze zgód
+    // i most wydarzeń włączał zgodę z powrotem przy następnym wywołaniu.
+    rpcResults.crm_leads_marketing_consent_withdraw = ok(2);
+    lead.setResponse("crm_leads", () => ok(null));
+    lead.setResponse("audit_log", () => ok(null));
+    const result = await callServerFn<{ updated: number }>(crm.bulkUpdateCrmLeads, {
+      data: { ids: [LEAD_ID, OTHER_ID], marketing_consent: false },
+      context: context(),
+    });
+    expect(rpcCalls).toEqual([
+      { fn: "crm_leads_marketing_consent_withdraw", args: { p_lead_ids: [LEAD_ID, OTHER_ID] } },
+    ]);
+    // Żadnej łatki `crm_leads` z polem zgody - RPC robi UPDATE i wpis rejestru.
+    expect(lead.chainsFor("crm_leads").filter((c) => c.has("update"))).toHaveLength(0);
+    expect(result.updated).toBe(2);
+    const audit = lead.lastChain("audit_log")?.argsOf("insert")?.[0] as {
+      metadata: { fields: string[] };
+    };
+    expect(audit.metadata.fields).toEqual(["marketing_consent"]);
+  });
+
+  it("odznaczenie razem z etapem: etap łatką, zgoda RPC", async () => {
+    rpcResults.crm_leads_marketing_consent_withdraw = ok(1);
+    lead.setResponse("crm_leads", () => ok(null));
+    lead.setResponse("audit_log", () => ok(null));
+    await callServerFn(crm.bulkUpdateCrmLeads, {
+      data: { ids: [LEAD_ID], stage: "contacted", marketing_consent: false },
+      context: context(),
+    });
+    expect(rpcCalls.map((call) => call.fn)).toEqual(["crm_leads_marketing_consent_withdraw"]);
+    expect(lead.lastChain("crm_leads")?.argsOf("update")).toEqual([{ stage: "contacted" }]);
+  });
+
+  it("zaznaczenie zgody zostaje zwykłą łatką - bez RPC wycofania", async () => {
+    lead.setResponse("crm_leads", () => ok(null));
+    lead.setResponse("audit_log", () => ok(null));
+    await callServerFn(crm.bulkUpdateCrmLeads, {
+      data: { ids: [LEAD_ID], marketing_consent: true },
+      context: context(),
+    });
+    expect(rpcCalls).toEqual([]);
+    expect(lead.lastChain("crm_leads")?.argsOf("update")).toEqual([{ marketing_consent: true }]);
+  });
+
+  it.each(["PGRST202", "42883"])(
+    "okno wdrożenia (%s): baza bez RPC - dotychczasowy UPDATE",
+    async (code) => {
+      rpcResults.crm_leads_marketing_consent_withdraw = fail("function not found", code);
+      lead.setResponse("crm_leads", () => ok(null));
+      lead.setResponse("audit_log", () => ok(null));
+      await callServerFn(crm.bulkUpdateCrmLeads, {
+        data: { ids: [LEAD_ID], marketing_consent: false },
+        context: context(),
+      });
+      expect(lead.lastChain("crm_leads")?.argsOf("update")).toEqual([{ marketing_consent: false }]);
+    },
+  );
+
+  it("inny błąd RPC wycofania wychodzi na zewnątrz - bez cichej łatki", async () => {
+    rpcResults.crm_leads_marketing_consent_withdraw = fail("forbidden: CRM staff role required");
+    lead.setResponse("crm_leads", () => ok(null));
+    await expect(
+      callServerFn(crm.bulkUpdateCrmLeads, {
+        data: { ids: [LEAD_ID], marketing_consent: false },
+        context: context(),
+      }),
+    ).rejects.toThrow("forbidden");
+    expect(lead.chainsFor("crm_leads")).toHaveLength(0);
+  });
+
   it("błąd zapisu zbiorczego wychodzi na zewnątrz", async () => {
     lead.setResponse("crm_leads", () => fail("bulk failed"));
     await expect(

@@ -69,7 +69,7 @@
 -- DOWOD: supabase/tests/event_identity_consents_r12_test.sql (token globalny
 --   + uczestnik najemcy spoza domyslnego; formularz kontaktowy po wycofaniu;
 --   odznaczenie personelu zatrzymuje most; obcy najemca pominiety),
---   src/lib/__tests__/crmBulkMarketingWithdraw.test.ts.
+--   src/lib/__tests__/crmFunctions.test.ts (odznaczenie przez RPC, okno wdrozenia).
 -- ============================================================================
 
 -- A) WYPIS Z MAILA ------------------------------------------------------------------
