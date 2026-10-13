@@ -1,12 +1,13 @@
-# Odrzucona dopłata opłacona później - harmonogram po `pending_update_applied` (2026-10-13)
+# Odrzucona dopłata opłacona później - harmonogram i data końca po `pending_update_applied` (2026-10-13)
 
 Domknięcie luki po regule z PR #495 (przegląd #9/#41, audyt SUB-04): odrzucona
-dopłata za zmianę natychmiastową **nie kasuje** zaplanowanej wcześniej zmiany.
-Kod: `src/lib/billing/stripeEvents.server.ts` (mapowanie zdarzeń),
-`src/lib/billing/webhookDispatch.server.ts` (gałąź
+dopłata za zmianę natychmiastową **nie kasuje** zaplanowanej wcześniej zmiany
+ani zaplanowanego końca. Kod: `src/lib/billing/stripeEvents.server.ts`
+(mapowanie zdarzeń), `src/lib/billing/webhookDispatch.server.ts` (gałąź
 `subscription.pending_update_applied`),
 `src/lib/billing/subscriptionProvider.server.ts`
-(`reconcileScheduleWithAppliedUpdate`).
+(`reconcileScheduleWithAppliedUpdate`, `markUpgradeCancelDate`,
+`clearCancelDateAfterAppliedUpgrade`).
 
 ## Po co
 
@@ -23,15 +24,27 @@ nowej cenie / liczbie miejsc, ale zachowany harmonogram na koniec okresu
 zastosowałby STARĄ decyzję - klient płaciłby mniej, niż wybrał, a plan po cichu
 spadałby przy odnowieniu.
 
+To samo dotyczy daty końca `cancel_at` (panel operatora, portal klienta) przy
+upgradzie PLANU. Udany upgrade zdejmuje ją od razu (`clearCancelDateAfterUpgrade`,
+„zmiana planu = zostaję"), ale operator nie przyjmuje `cancel_at`
+w oczekującej zmianie. Po odmowie i późniejszej zapłacie data zostawała, a
+subskrypcja kończyła się w niej mimo opłaconego upgrade'u. Flaga
+`cancel_at_period_end` tego problemu nie ma - jej zdjęcie jedzie w oczekującej
+zmianie.
+
 ## Co robi
 
 1. `customer.subscription.pending_update_applied` mapuje się na
-   `subscription.pending_update_applied`: zwykły `SubscriptionData` plus
-   `scheduleId` - harmonogram dołączony **w chwili zastosowania**.
-2. Dyspozytor najpierw rozstrzyga harmonogram u operatora (klient środowiska
-   zdarzenia, żywy stan), potem stosuje stan tym samym strażnikiem kolejności
-   co każde `subscription.updated` (`claimSubscriptionEvent`, remis
-   rozstrzygany żywym stanem).
+   `subscription.pending_update_applied`: zwykły `SubscriptionData` plus, **w
+   chwili zastosowania**: `scheduleId` (dołączony harmonogram),
+   `latestInvoiceId` (faktura, której zapłata zastosowała zmianę) i `cancelAt`
+   (data końca w sekundach, tylko gdy koniec zaplanowano DATĄ - przy fladze
+   albo subskrypcji zakończonej `null`).
+2. Dyspozytor najpierw rozstrzyga harmonogram, potem datę końca u operatora
+   (klient środowiska zdarzenia, żywy stan), na końcu stosuje stan tym samym
+   strażnikiem kolejności co każde `subscription.updated`
+   (`claimSubscriptionEvent`, remis rozstrzygany żywym stanem). Zdarzenie jest
+   `processed`, gdy cokolwiek zmieniło się u operatora.
 3. Decyzja na następnej fazie harmonogramu (para pozycja-pozycja):
 
 | Następna faza                                                  | Skutek                                                           |
@@ -54,16 +67,63 @@ opłaconych pozycji. Kształt faz tego nie rozstrzyga: zmiana `items` na
 subskrypcji z harmonogramem potrafi podzielić bieżącą fazę u operatora, więc
 bieżąca faza harmonogramu z odmowy też niesie już nowe pozycje.
 
-4. Błąd operatora (odmowa, zgubiona odpowiedź) **rzuca**: trasa odpowiada 500,
+4. Data końca `cancel_at` - osobna sekcja niżej.
+5. Błąd operatora (odmowa, zgubiona odpowiedź) **rzuca**: trasa odpowiada 500,
    zdarzenie w dzienniku zostaje `failed`, operator je ponawia. Ponowienie czyta
-   żywy stan od nowa - zwolnienie, które jednak weszło, nie idzie drugi raz, a
-   znacznik strażnika nie jest zajęty, więc lustro też się domyka.
-5. Uzgodnienie (`reconcile.server.ts`, `SUPPORTED_EVENT_TYPES`) zna typ
+   żywy stan od nowa - zwolnienie / zdjęcie daty, które jednak weszło, nie idzie
+   drugi raz, a znacznik strażnika nie jest zajęty, więc lustro też się domyka.
+6. Uzgodnienie (`reconcile.server.ts`, `SUPPORTED_EVENT_TYPES`) zna typ
    `customer.subscription.pending_update_applied`: zdarzenie, którego nie ma
    w dzienniku (punkt odbioru bez tego typu, nieudana dostawa), wychodzi w
    raporcie jako `event_missing` z przyciskiem „Napraw" (odtworzenie tą samą
-   ścieżką co webhook). `pending_update_expired` - celowo nie (opcjonalne, sama
-   migawka stanu).
+   ścieżką co webhook: zdarzenie z `events.retrieve`, więc z fakturą i datą).
+   Ponowienie z dziennika też normalizuje zapisane surowe zdarzenie od nowa.
+   `pending_update_expired` - celowo nie (opcjonalne, sama migawka stanu).
+
+### Data końca `cancel_at` po upgradzie opłaconym później
+
+Zdjęcie złej daty jest gorsze niż ten błąd: obciąża klienta, który zdecydował
+się odejść. Dlatego schodzi WYŁĄCZNIE data, której dotyczyła prośba o upgrade
+w aplikacji, i tylko gdy od tamtej pory się nie zmieniła.
+
+**Przy odmowie** (`changeSubscriptionPrice`, gałąź upgrade, koniec zaplanowany
+datą; odmowa zwrócona z `pending_update` - karta, 3DS - albo RZUCONA przez
+operatora z oczekującą zmianą) aplikacja zapisuje na FAKTURZE oczekującej
+zmiany znacznik z żywego stanu sprzed prośby: `nes_upgrade_cancel_at`
+(= `cancel_at`) i `nes_upgrade_canceled_at` (= `canceled_at`, chwila ustawienia
+końca). Klucz idempotencji z faktury i obu wartości. Faktura, nie subskrypcja:
+zapis metadanych faktury nie jest aktualizacją subskrypcji (nie dotyka
+oczekującej zmiany), a faktura wiąże znacznik z TĄ zapłatą - ponowna próba
+upgrade'u unieważnia starą fakturę i wystawia nową (nowy znacznik). Błąd zapisu
+jest logowany i **nie zmienia wyniku** (odmowa z linkiem do faktury); bez
+znacznika data po zapłacie zostaje. Daty bez `canceled_at` nie znakujemy.
+Dołożenie miejsc nigdy nie znakuje (więcej miejsc to nie „zostaję", tak jak
+w ścieżce synchronicznej). Klucze `nes_*` faktury nie przesłaniają metadanych
+subskrypcji w `customData` transakcji (`mapTransactionFromInvoice`).
+
+**Po zapłacie** (`clearCancelDateAfterAppliedUpgrade`, tylko gdy migawka ma
+`cancelAt`; migawka bez daty nie pyta operatora - data ustawiona po
+zastosowaniu to nowsza decyzja):
+
+| Żywy stan u operatora / faktura z migawki                                                                           | Skutek                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| migawka bez `latest_invoice`, faktura bez znacznika albo nieznana                                                   | `not_marked` - data zostaje (panel, dołożenie miejsc, błąd zapisu)                                    |
+| subskrypcja `canceled` / `incomplete_expired`                                                                       | `ended` - bez zmian                                                                                   |
+| brak zaplanowanego końca                                                                                            | `not_scheduled` - bez mutacji (zdjęty wcześniej albo przez klienta)                                   |
+| flaga `cancel_at_period_end` albo data inna niż w migawce                                                           | `kept_changed` - nowsza decyzja klienta                                                               |
+| dołączony harmonogram                                                                                               | `kept_schedule` - datą steruje harmonogram (`end_behavior: cancel`)                                   |
+| faktura nie `paid` / nie `subscription_update` / innej subskrypcji; status nie `active` / `trialing`                | `kept_unverified`                                                                                     |
+| znacznik inny niż żywe `cancel_at` albo `canceled_at` (także ponowne ustawienie TEJ SAMEJ daty), brak `canceled_at` | `kept_changed`                                                                                        |
+| wszystko zgodne                                                                                                     | `cleared` - `cancel_at: ""` + licznik `nes_ops_rev`, klucz `cancel-at-clear-applied` z faktury i daty |
+
+Każde `kept_*` / `not_marked` to `console.warn` z wartościami (klient zapłacił
+za upgrade, a subskrypcja się skończy - do ręcznej oceny). Przy `cleared` i
+`not_scheduled` lustro dostaje migawkę bez zaplanowanego końca (stan operatora,
+jak `cancelAtPeriodEnd` ścieżki synchronicznej) - bez chwilowego „kończy się",
+przycisku „Wznów" i znacznika `canceled_at` uprawnienia. Zdjęcie emituje własne
+`customer.subscription.updated` z nowszym znacznikiem: ta sama cena (bez drugiego
+maila o upgradzie), status bez zmian (bez CRM i dzwonka), okres przedłużony,
+jeśli data skracała bieżący okres. Remis sekundy rozstrzyga żywy stan.
 
 `customer.subscription.pending_update_expired` (zmiana wygasła bez zapłaty) to
 zwykła migawka stanu (`subscription.updated` / `past_due` / `paused` jak przy
@@ -77,7 +137,8 @@ Punkt odbioru webhooków (`/api/public/payments/webhook?env=live` i
 
 - `customer.subscription.pending_update_applied` - **wymagane**; bez niego
   harmonogram zachowany przy odmowie przeżyje opłacenie faktury i cofnie
-  upgrade / dołożone miejsca przy odnowieniu,
+  upgrade / dołożone miejsca przy odnowieniu, a data końca z portalu zakończy
+  subskrypcję mimo opłaconego upgrade'u,
 - `customer.subscription.pending_update_expired` - opcjonalne (tylko lustro
   stanu).
 
@@ -101,14 +162,30 @@ Pozostałe zdarzenia bez zmian (m.in. `invoice.paid` / `invoice.payment_succeede
   ponowienia dostaną ten sam błąd, aż klucz wygaśnie (operator ponawia
   zdarzenie do 3 dni). Odmowa sprzed wykonania (limit zapytań) i zgubiona
   odpowiedź nie są tym dotknięte.
-- **Data końca `cancel_at` przy upgradzie opłaconym później (poza zakresem
-  tej zmiany).** Synchroniczny upgrade zdejmuje datę końca z portalu/panelu
-  (`clearCancelDateAfterUpgrade` - „zmiana planu = zostaję"), ale operator nie
-  przyjmuje `cancel_at` w oczekującej zmianie, a gałąź `pending_update_applied`
-  rozstrzyga wyłącznie harmonogram: po odmowie i późniejszej zapłacie data
-  zostaje i subskrypcja kończy się w niej mimo opłaconego upgrade'u. Flaga
-  `cancel_at_period_end` tego problemu nie ma (jedzie w oczekującej zmianie).
-  Bezpieczna naprawa wymaga zapamiętania daty z chwili odmowy, żeby nie zdjąć
-  daty ustawionej przez klienta już po niej - osobne zadanie.
+- **Data końca a `canceled_at`.** Ponowne ustawienie TEJ SAMEJ daty po odmowie
+  (portal: „wznów", potem „anuluj z końcem okresu") odróżnia wyłącznie
+  `canceled_at`. Zakładamy, że operator wypełnia je przy zaplanowanym końcu
+  i przesuwa przy każdym jego ustawieniu (dokumentacja opisuje to dla
+  `cancel_at_period_end`: „czas ostatniego żądania"). Gdy założenie nie
+  zachodzi, kod zawodzi BEZPIECZNIE: bez `canceled_at` nie ma znacznika ani
+  zdjęcia, a `canceled_at` przesunięte przez samo zastosowanie zmiany daje
+  `kept_changed` - data zostaje, jak przed tą zmianą (z logiem).
+- **Znacznik na otwartej fakturze.** Zakładamy, że operator przyjmuje
+  metadane faktury po finalizacji (dokumentacja blokuje po finalizacji kwoty
+  i pola rozliczenia). Odrzucony zapis = brak znacznika = data zostaje.
+  Faktura opłacona, zanim znacznik zdążył się zapisać, też kończy się
+  `not_marked`.
+- **Data należąca do harmonogramu** (`end_behavior: cancel` z panelu) zostaje
+  (`kept_schedule`), choć udany upgrade zwalnia każdy dołączony harmonogram -
+  rozstrzygnięcie harmonogramu po zapłacie zwalnia wyłącznie sprzeczny.
+- **Zdjęcie daty w bieżącym okresie** przedłuża okres i tworzy prorację - tak
+  samo jak w ścieżce synchronicznej. Koniec okresu w lustrze domyka zdarzenie
+  `customer.subscription.updated` samego zdjęcia.
+- **Zapamiętany błąd 5xx** zdjęcia daty - jak przy zwolnieniu harmonogramu
+  (klucz z faktury i daty).
+- **Flaga `cancel_at_period_end`** schodzi razem z oczekującą zmianą tylko
+  wtedy, gdy operator stosuje ją po zapłacie (dokumentacja wymienia ją wśród
+  atrybutów oczekującej zmiany, obiekt `pending_update` jej nie pokazuje) - ta
+  ścieżka jest bez zmian.
 - **Cena spoza katalogu** w następnej fazie nie ma rangi: przy tej samej lub
   większej liczbie miejsc harmonogram zostaje (nie zwalniamy na domysł).

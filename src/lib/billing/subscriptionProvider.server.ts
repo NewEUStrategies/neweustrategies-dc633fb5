@@ -58,6 +58,11 @@
 // wtedy webhook (`reconcileScheduleWithAppliedUpdate`), ale tylko dla
 // harmonogramu, którego następna faza zmianie przeczy, a fazy zaplanowano od
 // pozycji sprzed niej (odcisk `nes_basis` w metadanych harmonogramu).
+// Tak samo z datą końca `cancel_at` przy upgradzie planu: operator nie
+// przyjmuje jej w oczekującej zmianie, więc odmowa zapisuje na fakturze tej
+// zmiany datę z chwili prośby (`markUpgradeCancelDate`), a webhook zdejmuje ją
+// po zapłacie wyłącznie wtedy, gdy u operatora jest wciąż ta sama, niezmieniona
+// data (`clearCancelDateAfterAppliedUpgrade`).
 //
 // Ta sama zasada - nieudana operacja nie kasuje zaplanowanej zmiany - dotyczy
 // rezygnacji i powrotu do bieżącej liczby miejsc. Rezygnacja MUSI zwolnić
@@ -70,7 +75,8 @@
 //
 // ZAPLANOWANY KONIEC to `cancel_at_period_end` ALBO data `cancel_at` (panel
 // operatora, portal klienta) - ta sama reguła co w lustrze
-// (`stripeEvents.mapScheduledChange`). Wznowienie i zmiana planu zdejmują oba.
+// (`stripeEvents.mapScheduledChange`). Wznowienie i zmiana planu zdejmują oba -
+// upgrade dopiero po opłaconej dopłacie (także opłaconej później).
 //
 // IDEMPOTENCJA. Każda mutacja ma deterministyczny `idempotencyKey` z odcisku
 // ŻYWEGO stanu (pozycja, cena, ilość, początek okresu, ostatnia faktura,
@@ -830,7 +836,9 @@ async function restoreReleasedSchedule(
  * to drugim wywołaniem, a dwa `customer.subscription.updated` z tej samej
  * sekundy potrafiły zostawić w lustrze „kończy się" przy odnawiającej się
  * subskrypcji (przegląd SUB-04). Daty `cancel_at` operator w oczekującej
- * zmianie nie przyjmuje - tę zdejmuje wywołujący po sukcesie.
+ * zmianie nie przyjmuje - tę zdejmuje wywołujący po sukcesie, a przy odmowie
+ * (`markCancelDate`) zapisujemy ją na fakturze oczekującej zmiany, żeby
+ * zdjął ją webhook po zapłacie opłaconej później (`markUpgradeCancelDate`).
  *
  * Dołączony harmonogram zwalniamy DOPIERO po zastosowanej zmianie (nagłówek
  * modułu): odmowa zostawia zaplanowaną wcześniej zmianę nietkniętą.
@@ -841,31 +849,50 @@ async function updateWithProration(
   current: Stripe.Subscription,
   op: string,
   item: { id: string; price?: string; quantity: number },
-  alongside: Pick<Stripe.SubscriptionUpdateParams, "cancel_at_period_end"> = {},
+  options: {
+    alongside?: Pick<Stripe.SubscriptionUpdateParams, "cancel_at_period_end">;
+    markCancelDate?: boolean;
+  } = {},
 ): Promise<Stripe.Subscription | SubscriptionOpFailure> {
+  const alongside = options.alongside ?? {};
   const fingerprint = stateFingerprint(subscriptionId, current);
-  const updated = await stripe.subscriptions.update(
-    subscriptionId,
-    {
-      items: [item],
-      ...alongside,
-      proration_behavior: "always_invoice",
-      payment_behavior: "pending_if_incomplete",
-      expand: ["latest_invoice.payments"],
-    },
-    {
-      idempotencyKey: await idempotencyKey(op, [
-        ...fingerprint,
-        item.id,
-        item.price,
-        item.quantity,
-        alongside.cancel_at_period_end,
-      ]),
-    },
-  );
+  let updated: Stripe.Subscription;
+  try {
+    updated = await stripe.subscriptions.update(
+      subscriptionId,
+      {
+        items: [item],
+        ...alongside,
+        proration_behavior: "always_invoice",
+        payment_behavior: "pending_if_incomplete",
+        expand: ["latest_invoice.payments"],
+      },
+      {
+        idempotencyKey: await idempotencyKey(op, [
+          ...fingerprint,
+          item.id,
+          item.price,
+          item.quantity,
+          alongside.cancel_at_period_end,
+        ]),
+      },
+    );
+  } catch (e) {
+    // Odmowa RZUCONA: oczekująca zmiana i jej faktura mogły mimo to powstać
+    // (`declinedPayment`) - znacznik idzie tak samo jak przy zwróconej.
+    if (options.markCancelDate && declineOf(e)) {
+      await markUpgradeCancelDate(stripe, subscriptionId, current, null);
+    }
+    throw e;
+  }
   // Odmowa / 3DS (zwrócona albo RZUCONA): nic nie weszło, a harmonogram
   // zostaje - klient zapłaci przy odnowieniu to, na co się wcześniej umówił.
-  if (updated.pending_update) return incompletePayment(stripe, updated);
+  if (updated.pending_update) {
+    if (options.markCancelDate) {
+      await markUpgradeCancelDate(stripe, subscriptionId, current, refOf(updated.latest_invoice));
+    }
+    return incompletePayment(stripe, updated);
+  }
   await releaseSupersededSchedule(stripe, subscriptionId, current);
   return updated;
 }
@@ -912,7 +939,9 @@ async function restoreCancellation(
 /**
  * Zdjęcie daty końca (`cancel_at` z panelu/portalu) po OPŁACONYM upgradzie -
  * klient zostaje, jak przy fladze. Osobne wywołanie, bo operator nie przyjmuje
- * `cancel_at` w aktualizacji oczekującej. Błąd NIE cofa upgrade'u.
+ * `cancel_at` w aktualizacji oczekującej. Błąd NIE cofa upgrade'u. Dopłatę
+ * opłaconą później (odmowa, 3DS) rozstrzyga webhook -
+ * `clearCancelDateAfterAppliedUpgrade`.
  *
  * @returns czy koniec WCIĄŻ jest zaplanowany - wywołujący lustrzą tę wartość
  */
@@ -940,6 +969,83 @@ async function clearCancelDateAfterUpgrade(
       getStripeErrorMessage(e),
     );
     return true;
+  }
+}
+
+/**
+ * Znacznik daty końca na FAKTURZE oczekującej zmiany - pola operatora pod
+ * ich własnymi nazwami, odczytane z ŻYWEGO stanu, na którym klient poprosił
+ * o upgrade: `cancel_at` (data) i `canceled_at` (chwila ustawienia końca -
+ * „czas ostatniego żądania" wg dokumentacji operatora, więc ponowne ustawienie,
+ * także tej samej daty, ją przesuwa). Webhook zdejmuje datę po zapłacie tylko
+ * przy obu wartościach niezmienionych (`clearCancelDateAfterAppliedUpgrade`);
+ * gdyby operator przesuwał `canceled_at` także przy innych zmianach, wynikiem
+ * jest data zostawiona, nigdy zdjęta.
+ *
+ * DLACZEGO FAKTURA, NIE SUBSKRYPCJA. Zapis metadanych faktury nie jest
+ * aktualizacją subskrypcji, więc nie dotyka oczekującej zmiany (metadane
+ * subskrypcji z `pending_if_incomplete` jechałyby W niej i weszły dopiero po
+ * zapłacie), a faktura wiąże znacznik z TĄ zapłatą: ponowna próba upgrade'u
+ * unieważnia starą fakturę i wystawia nową. Operator blokuje po finalizacji
+ * kwoty i pola rozliczenia, metadanych - nie.
+ */
+const UPGRADE_CANCEL_AT_KEY = "nes_upgrade_cancel_at";
+const UPGRADE_CANCELED_AT_KEY = "nes_upgrade_canceled_at";
+
+/**
+ * Upgrade przy dacie końca z odrzuconą dopłatą (odmowa, 3DS): znacznik daty
+ * na fakturze oczekującej zmiany. Fakturę podaje odpowiedź (odmowa zwrócona)
+ * albo żywa subskrypcja z `pending_update` (odmowa RZUCONA).
+ *
+ * Błąd zapisu logujemy głośno i NIE zmienia on wyniku operacji (zmiana i tak
+ * nie weszła). Bez znacznika data po późniejszej zapłacie zostaje - jak przed
+ * tą ścieżką, nigdy odwrotnie. Z tego samego powodu daty bez `canceled_at`
+ * nie znakujemy: ponownego ustawienia tej samej daty po odmowie nie dałoby się
+ * odróżnić od daty sprzed prośby.
+ */
+async function markUpgradeCancelDate(
+  stripe: Stripe,
+  subscriptionId: string,
+  current: Stripe.Subscription,
+  invoiceId: string | null,
+): Promise<void> {
+  const cancellation = scheduledCancellation(current);
+  if (cancellation?.kind !== "date") return;
+  try {
+    if (typeof current.canceled_at !== "number") {
+      throw new Error("cancel date without canceled_at");
+    }
+    let id = invoiceId;
+    if (!id) {
+      const live = await stripe.subscriptions.retrieve(subscriptionId);
+      id = live.pending_update ? refOf(live.latest_invoice) : null;
+      // Odmowa bez oczekującej zmiany: nie ma faktury, której zapłata coś zastosuje.
+      if (!id) return;
+    }
+    await stripe.invoices.update(
+      id,
+      {
+        metadata: {
+          [UPGRADE_CANCEL_AT_KEY]: String(cancellation.at),
+          [UPGRADE_CANCELED_AT_KEY]: String(current.canceled_at),
+        },
+      },
+      {
+        idempotencyKey: await idempotencyKey("upgrade-cancel-mark", [
+          subscriptionId,
+          id,
+          cancellation.at,
+          current.canceled_at,
+        ]),
+      },
+    );
+  } catch (e) {
+    console.error(
+      "[payments] upgrade payment pending, cancel date marker not written - a later payment keeps the date",
+      subscriptionId,
+      invoiceId,
+      getStripeErrorMessage(e),
+    );
   }
 }
 
@@ -1196,13 +1302,18 @@ export async function changeSubscriptionPrice(
     if (target.rank > currentEntry.rank) {
       // Flagę cofamy W oczekującej aktualizacji: wejdzie razem z opłaconą
       // ceną (jedno zdarzenie), a odmowa karty zostawi rezygnację w mocy.
+      // Datę odmowa też zostawia, ale znakuje ją na fakturze oczekującej
+      // zmiany - zdejmie ją webhook, jeśli klient zapłaci później.
       const updated = await updateWithProration(
         stripe,
         subscriptionId,
         current,
         "plan-upgrade",
         { id: item.id, price: providerPriceId, quantity },
-        cancellation?.kind === "period_end" ? { cancel_at_period_end: false } : {},
+        {
+          alongside: cancellation?.kind === "period_end" ? { cancel_at_period_end: false } : {},
+          markCancelDate: cancellation?.kind === "date",
+        },
       );
       if (isFailure(updated)) return updated;
 
@@ -1326,6 +1437,8 @@ export async function updateSubscriptionQuantity(
     }
 
     if (quantity > liveQuantity) {
+      // Więcej miejsc nie znaczy „zostaję": zaplanowanego końca nie zdejmujemy
+      // ani tu, ani po dopłacie opłaconej później (faktura bez znacznika).
       const updated = await updateWithProration(stripe, subscriptionId, current, "seats-increase", {
         id: item.id,
         quantity,
@@ -1518,4 +1631,172 @@ export async function reconcileScheduleWithAppliedUpdate(
     return "rewritten";
   }
   return "kept";
+}
+
+/**
+ * Co stało się z datą końca `cancel_at` po zastosowanej później oczekującej
+ * zmianie (upgrade planu z odrzuconą dopłatą, opłacony w oknie operatora):
+ * - `cleared`         - data zdjęta: ta sama i niezmieniona od prośby o upgrade,
+ * - `not_scheduled`   - u operatora nie ma już zaplanowanego końca (zdjęty przy
+ *                       wcześniejszej próbie albo przez klienta),
+ * - `ended`           - subskrypcja już się zakończyła,
+ * - `not_marked`      - faktura bez znacznika z chwili prośby: zmiana spoza
+ *                       aplikacji (panel), dołożenie miejsc, nieudany zapis
+ *                       znacznika albo migawka bez faktury,
+ * - `kept_changed`    - koniec zmieniony po prośbie: inna data, flaga
+ *                       `cancel_at_period_end` albo ponowne ustawienie (nowsze
+ *                       `canceled_at`) - nowsza decyzja klienta,
+ * - `kept_schedule`   - datą steruje dołączony harmonogram (`end_behavior: cancel`),
+ * - `kept_unverified` - faktura nie jest opłaconą fakturą zmiany TEJ
+ *                       subskrypcji albo stan subskrypcji nie pozwala tego
+ *                       rozstrzygnąć,
+ * - `missing`         - operator nie zna subskrypcji.
+ */
+export type AppliedUpgradeCancelDateOutcome =
+  | "cleared"
+  | "not_scheduled"
+  | "ended"
+  | "not_marked"
+  | "kept_changed"
+  | "kept_schedule"
+  | "kept_unverified"
+  | "missing";
+
+/**
+ * Data zostaje - z głośnym logiem: klient zapłacił oczekującą zmianę, a
+ * subskrypcja się skończy (do ręcznej oceny, gdy to był upgrade planu).
+ */
+function keepCancelDate(
+  outcome: AppliedUpgradeCancelDateOutcome,
+  subscriptionId: string,
+  details: Record<string, unknown>,
+): AppliedUpgradeCancelDateOutcome {
+  console.warn(
+    "[payments] pending update paid later, cancel date kept",
+    outcome,
+    subscriptionId,
+    JSON.stringify(details),
+  );
+  return outcome;
+}
+
+/**
+ * Data końca po odrzuconym upgradzie opłaconym PÓŹNIEJ
+ * (`customer.subscription.pending_update_applied`). Po udanej dopłacie
+ * ścieżka synchroniczna zdejmuje datę od razu (`clearCancelDateAfterUpgrade`
+ * - „zmiana planu = zostaję"), ale operator nie przyjmuje `cancel_at`
+ * w oczekującej zmianie: bez tego kroku subskrypcja kończyła się w dniu daty
+ * mimo opłaconego upgrade'u.
+ *
+ * ZDJĘCIE ZŁEJ DATY JEST GORSZE NIŻ BŁĄD: obciąża klienta, który zdecydował
+ * się odejść. Zdejmujemy więc WYŁĄCZNIE datę, której dotyczyła prośba
+ * o upgrade, i tylko gdy od tamtej pory się nie zmieniła - na ŻYWYM stanie
+ * i przy wszystkich warunkach naraz:
+ * - subskrypcja `active` / `trialing`, bez flagi `cancel_at_period_end` i bez
+ *   dołączonego harmonogramu (data harmonogramu należy do niego),
+ * - data u operatora = data z migawki zdarzenia = data ze znacznika faktury
+ *   (`markUpgradeCancelDate`),
+ * - `canceled_at` u operatora = `canceled_at` ze znacznika: ponowne ustawienie
+ *   końca po odmowie (także tej samej daty, np. „wznów" i „anuluj" w portalu)
+ *   je przesuwa; bez tej wartości nie rozstrzygamy wcale,
+ * - faktura z migawki (`latest_invoice`) jest opłaconą fakturą zmiany
+ *   (`subscription_update`) tej subskrypcji.
+ * Wszystko inne zostawia datę (wynik `kept_*` / `not_marked` z logiem).
+ *
+ * Jak `reconcileScheduleWithAppliedUpdate` ta funkcja RZUCA: błąd operatora
+ * (także zgubiona odpowiedź) wraca do webhooka, który odpowiada 500 i dostaje
+ * zdarzenie ponownie. Ponowienie czyta żywy stan od nowa, więc data, która
+ * jednak zeszła, nie schodzi drugi raz (`not_scheduled`).
+ */
+export async function clearCancelDateAfterAppliedUpgrade(
+  env: StripeEnv,
+  subscriptionId: string,
+  applied: { invoiceId: string | null; cancelAt: number },
+): Promise<AppliedUpgradeCancelDateOutcome> {
+  const { invoiceId, cancelAt } = applied;
+  if (!invoiceId) return keepCancelDate("not_marked", subscriptionId, { cancelAt });
+  const stripe = await getStripeClient(env);
+  let live: Stripe.Subscription;
+  try {
+    live = await retrieveLive(stripe, subscriptionId);
+  } catch (e) {
+    if (isResourceMissing(e)) return "missing";
+    throw e;
+  }
+
+  if (live.status === "canceled" || live.status === "incomplete_expired") return "ended";
+  const cancellation = scheduledCancellation(live);
+  if (!cancellation) return "not_scheduled";
+  const seen = {
+    invoiceId,
+    snapshotCancelAt: cancelAt,
+    cancelAtPeriodEnd: live.cancel_at_period_end,
+    cancelAt: live.cancel_at,
+    canceledAt: live.canceled_at,
+  };
+  if (cancellation.kind !== "date" || cancellation.at !== cancelAt) {
+    return keepCancelDate("kept_changed", subscriptionId, seen);
+  }
+  if (refOf(live.schedule)) {
+    return keepCancelDate("kept_schedule", subscriptionId, {
+      ...seen,
+      scheduleId: refOf(live.schedule),
+    });
+  }
+
+  let invoice: Stripe.Invoice;
+  try {
+    invoice = await stripe.invoices.retrieve(invoiceId);
+  } catch (e) {
+    if (isResourceMissing(e)) return keepCancelDate("not_marked", subscriptionId, seen);
+    throw e;
+  }
+  const markedCancelAt = invoice.metadata?.[UPGRADE_CANCEL_AT_KEY] ?? null;
+  const markedCanceledAt = invoice.metadata?.[UPGRADE_CANCELED_AT_KEY] ?? null;
+  if (markedCancelAt === null) return keepCancelDate("not_marked", subscriptionId, seen);
+  const paidUpgradeInvoice =
+    invoice.status === "paid" &&
+    invoice.billing_reason === "subscription_update" &&
+    refOf(invoice.parent?.subscription_details?.subscription) === subscriptionId;
+  if (!paidUpgradeInvoice || (live.status !== "active" && live.status !== "trialing")) {
+    return keepCancelDate("kept_unverified", subscriptionId, {
+      ...seen,
+      status: live.status,
+      invoiceStatus: invoice.status,
+      billingReason: invoice.billing_reason,
+    });
+  }
+  if (
+    markedCancelAt !== String(cancellation.at) ||
+    typeof live.canceled_at !== "number" ||
+    markedCanceledAt !== String(live.canceled_at)
+  ) {
+    return keepCancelDate("kept_changed", subscriptionId, {
+      ...seen,
+      markedCancelAt,
+      markedCanceledAt,
+    });
+  }
+
+  const cleared = await stripe.subscriptions.update(
+    subscriptionId,
+    { ...cancellationRevert(cancellation), metadata: nextRevision(live.metadata) },
+    {
+      // Klucz z faktury, której zapłata zastosowała zmianę, i z daty, którą
+      // zdejmujemy - ponowienie zdarzenia trafia w tę samą operację.
+      idempotencyKey: await idempotencyKey("cancel-at-clear-applied", [
+        subscriptionId,
+        invoiceId,
+        cancellation.at,
+        live.canceled_at,
+      ]),
+    },
+  );
+  if (scheduledCancellation(cleared)) {
+    return keepCancelDate("kept_unverified", subscriptionId, {
+      ...seen,
+      after: { cancelAtPeriodEnd: cleared.cancel_at_period_end, cancelAt: cleared.cancel_at },
+    });
+  }
+  return "cleared";
 }

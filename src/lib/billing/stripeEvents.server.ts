@@ -12,7 +12,11 @@
 // oznacza brak dopasowania do `BILLING_CATALOG` - dyspozytor i tak odrzuci
 // takie zdarzenie (patrz `readIds` w `webhookDispatch.server.ts`).
 import type { VerifiedWebhookEvent } from "@/lib/stripe.server";
-import type { SubscriptionData, TransactionData } from "@/lib/billing/webhookDispatch.server";
+import type {
+  PendingUpdateAppliedData,
+  SubscriptionData,
+  TransactionData,
+} from "@/lib/billing/webhookDispatch.server";
 import { readPremiumNewsletterConsentMetadata } from "@/lib/billing/premiumNewsletter";
 
 /** Znormalizowane zdarzenie - gotowe do przekazania do `dispatchWebhookEvent`. */
@@ -121,6 +125,18 @@ function mapScheduledChange(sub: Raw, status: string): SubscriptionData["schedul
   const cancelAt = isoFromUnix(sub.cancel_at);
   if (cancelAt && status !== "canceled") return { action: "cancel", effectiveAt: cancelAt };
   return null;
+}
+
+/**
+ * Koniec zaplanowany DATĄ (`cancel_at` bez flagi) w sekundach operatora - ta
+ * sama reguła co `mapScheduledChange`, bez przejścia przez ISO, bo dyspozytor
+ * porównuje ją co do sekundy ze stanem operatora. `null` = brak daty, flaga
+ * (jej zdjęcie jedzie w oczekującej zmianie) albo subskrypcja zakończona.
+ */
+function scheduledCancelDate(sub: Raw): number | null {
+  if (sub.cancel_at_period_end === true || strOf(sub.status) === "canceled") return null;
+  const at = sub.cancel_at;
+  return typeof at === "number" && Number.isFinite(at) && at > 0 ? at : null;
 }
 
 /** Mapuje obiekt subskrypcji Stripe (API Basil) na `SubscriptionData`. */
@@ -259,8 +275,11 @@ function mapTransactionFromInvoice(
     idOf(invoice.subscription) ??
     idOf(subDetails?.subscription) ??
     idOf(lineSubDetails?.subscription);
+  // Klucze operacyjne aplikacji (`nes_*` - znacznik daty końca na fakturze
+  // odrzuconego upgrade'u) to nie dane zakupu: same nie mogą przesłonić
+  // metadanych subskrypcji (`userId`, `purpose`), jak niepusta lista faktury.
   const metadata =
-    isRecord(invoice.metadata) && Object.keys(invoice.metadata).length > 0
+    isRecord(invoice.metadata) && Object.keys(invoice.metadata).some((k) => !k.startsWith("nes_"))
       ? invoice.metadata
       : isRecord(subDetails?.metadata) && Object.keys(subDetails.metadata as Raw).length > 0
         ? (subDetails.metadata as Raw)
@@ -424,12 +443,17 @@ export function normalizeStripeEvent(event: VerifiedWebhookEvent): NormalizedStr
     // Osobny typ, bo poza lustrem stanu dyspozytor rozstrzyga harmonogram
     // zachowany przy odmowie - dlatego jedzie tu harmonogram dołączony W
     // CHWILI zastosowania (`PendingUpdateAppliedData`), zanim ktokolwiek
-    // zdąży założyć nowy.
-    case "customer.subscription.pending_update_applied":
-      return {
-        eventType: "subscription.pending_update_applied",
-        data: { ...mapStripeSubscription(object), scheduleId: idOf(object.schedule) },
+    // zdąży założyć nowy - i datę końca `cancel_at` zachowaną przy odmowie
+    // upgrade'u: faktura, której zapłata zastosowała zmianę, i sama data.
+    case "customer.subscription.pending_update_applied": {
+      const data: PendingUpdateAppliedData = {
+        ...mapStripeSubscription(object),
+        scheduleId: idOf(object.schedule),
+        latestInvoiceId: idOf(object.latest_invoice),
+        cancelAt: scheduledCancelDate(object),
       };
+      return { eventType: "subscription.pending_update_applied", data };
+    }
 
     // Oczekująca zmiana wygasła bez zapłaty: pozycje zostały stare, a
     // harmonogram (zaplanowana wcześniej zmiana) jest dokładnie tym, na co

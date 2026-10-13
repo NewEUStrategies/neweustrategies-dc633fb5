@@ -21,6 +21,7 @@ import {
 import type { StripeEnv } from "@/lib/stripe.server";
 import type { PremiumNewsletterConsentGrant } from "@/lib/billing/premiumNewsletter";
 import type { UnmirroredPlanSubscriptionInput } from "@/lib/billing/duplicateSubscriptionAlert.server";
+import type { AppliedUpgradeCancelDateOutcome } from "@/lib/billing/subscriptionProvider.server";
 
 export type SubscriptionData = {
   id: string;
@@ -1020,10 +1021,17 @@ async function handleCanceled(data: SubscriptionData, env: StripeEnv) {
 
 /**
  * Migawka `customer.subscription.pending_update_applied`: stan subskrypcji
- * PO zastosowaniu oczekującej zmiany plus harmonogram dołączony W TEJ
- * CHWILI (`stripeEvents.server`) - `null` = żadnego.
+ * PO zastosowaniu oczekującej zmiany plus, z TEJ CHWILI (`stripeEvents.server`):
+ * dołączony harmonogram, ostatnia faktura (ta, której zapłata zastosowała
+ * zmianę) i data końca zaplanowana datą `cancel_at` (sekundy, bez flagi) -
+ * `null` = brak. Wpisy dziennika sprzed tych pól ich nie mają: bez nich
+ * dyspozytor operatora o datę nie pyta.
  */
-export type PendingUpdateAppliedData = SubscriptionData & { scheduleId?: string | null };
+export type PendingUpdateAppliedData = SubscriptionData & {
+  scheduleId?: string | null;
+  latestInvoiceId?: string | null;
+  cancelAt?: number | null;
+};
 
 /**
  * Odrzucona dopłata (upgrade, więcej miejsc) opłacona później: operator
@@ -1053,6 +1061,32 @@ async function settleScheduleAfterAppliedUpdate(
     })),
   });
   return outcome === "released" || outcome === "rewritten";
+}
+
+/**
+ * Odrzucony upgrade planu przy dacie końca `cancel_at` (panel, portal),
+ * opłacony później: po udanej dopłacie data schodzi od razu, a tu - dopiero
+ * teraz, decyzją warstwy operatora na żywym stanie
+ * (`clearCancelDateAfterAppliedUpgrade`). Zdejmuje ją wyłącznie wtedy, gdy to
+ * data z chwili prośby o upgrade (znacznik na fakturze) i od tamtej pory się
+ * nie zmieniła - inaczej zostaje. Migawka bez daty nie pyta operatora wcale:
+ * data ustawiona po zastosowaniu zmiany to nowsza decyzja klienta.
+ *
+ * Błąd operatora RZUCA, jak przy harmonogramie.
+ *
+ * @returns wynik warstwy operatora; `null` = migawka bez daty końca
+ */
+async function settleCancelDateAfterAppliedUpdate(
+  data: PendingUpdateAppliedData,
+  env: StripeEnv,
+): Promise<AppliedUpgradeCancelDateOutcome | null> {
+  if (typeof data.cancelAt !== "number") return null;
+  const { clearCancelDateAfterAppliedUpgrade } =
+    await import("@/lib/billing/subscriptionProvider.server");
+  return clearCancelDateAfterAppliedUpgrade(env, data.id, {
+    invoiceId: data.latestInvoiceId ?? null,
+    cancelAt: data.cancelAt,
+  });
 }
 
 function amountFromTransaction(data: TransactionData): number | null {
@@ -1394,21 +1428,30 @@ export async function dispatchWebhookEvent(input: DispatchInput): Promise<Dispat
       return runGuardedSubscriptionEvent(sub, env, eventStamp(occurredAt), "canceled");
     }
     // Oczekująca zmiana zastosowana po późniejszej zapłacie. NAJPIERW
-    // harmonogram u operatora (żywy stan - niezależnie od werdyktu strażnika,
-    // bo spóźniona migawka nie czyni sprzecznego harmonogramu mniej żywym),
-    // potem lustro tym samym strażnikiem co każda aktualizacja. Błąd
-    // harmonogramu zostawia znacznik nietknięty, więc ponowienie zdarzenia
-    // przejdzie strażnika i rozstrzygnie oba kroki od nowa.
+    // harmonogram i data końca u operatora (żywy stan - niezależnie od
+    // werdyktu strażnika, bo spóźniona migawka nie czyni sprzecznego
+    // harmonogramu ani opłaconej rezygnacji mniej żywymi), potem lustro tym
+    // samym strażnikiem co każda aktualizacja. Błąd operatora zostawia
+    // znacznik nietknięty, więc ponowienie zdarzenia przejdzie strażnika
+    // i rozstrzygnie wszystkie kroki od nowa.
     case "subscription.pending_update_applied": {
       const sub = input.data as PendingUpdateAppliedData;
       const settled = await settleScheduleAfterAppliedUpdate(sub, env);
+      const cancelDate = await settleCancelDateAfterAppliedUpdate(sub, env);
+      // Migawka niesie datę z chwili zastosowania. Gdy u operatora końca już
+      // nie ma (zdjęty teraz albo przy wcześniejszej próbie), lustro dostaje
+      // stan operatora - jak `cancelAtPeriodEnd` ścieżki synchronicznej - bez
+      // chwilowego „kończy się" przy subskrypcji, która się odnowi. Okres
+      // (przedłużony po zdjęciu daty w bieżącym okresie) domyka zdarzenie
+      // `customer.subscription.updated` tego zdjęcia.
+      const endGone = cancelDate === "cleared" || cancelDate === "not_scheduled";
       const mirrored = await runGuardedSubscriptionEvent(
-        sub,
+        endGone ? { ...sub, scheduledChange: null } : sub,
         env,
         eventStamp(occurredAt),
         "updated",
       );
-      return settled ? "processed" : mirrored;
+      return settled || cancelDate === "cleared" ? "processed" : mirrored;
     }
     // Nieudane obciążenie: operator sygnalizuje je dwoma zdarzeniami
     // (`payment_failed` przy odrzuceniu, `past_due` przy wejściu transakcji w

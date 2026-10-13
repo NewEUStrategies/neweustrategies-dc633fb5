@@ -330,6 +330,27 @@ describe("normalizeStripeEvent - zdarzenia subskrypcji", () => {
     expect(scheduleOf(undefined)).toBeNull();
   });
 
+  it("zastosowana oczekująca zmiana niesie fakturę dopłaty i datę końca `cancel_at` - tylko datę, nie flagę", () => {
+    const applied = (over: Record<string, unknown>) =>
+      normalized(event("customer.subscription.pending_update_applied", stripeSubscription(over)))
+        .data as { latestInvoiceId?: unknown; cancelAt?: unknown };
+
+    expect(applied({ latest_invoice: "in_upgrade", cancel_at: 1_702_000_000 })).toMatchObject({
+      latestInvoiceId: "in_upgrade",
+      cancelAt: 1_702_000_000,
+    });
+    expect(applied({ latest_invoice: { id: "in_obj", object: "invoice" } }).latestInvoiceId).toBe(
+      "in_obj",
+    );
+    expect(applied({ latest_invoice: null, cancel_at: null })).toMatchObject({
+      latestInvoiceId: null,
+      cancelAt: null,
+    });
+    // Flaga jedzie w oczekującej zmianie; zakończona subskrypcja nie ma planu końca.
+    expect(applied({ cancel_at_period_end: true, cancel_at: 1_702_000_000 }).cancelAt).toBeNull();
+    expect(applied({ status: "canceled", cancel_at: 1_702_000_000 }).cancelAt).toBeNull();
+  });
+
   it("wygasła oczekująca zmiana to zwykła migawka stanu - typ z ZNORMALIZOWANEGO statusu", () => {
     const expired = (over: Record<string, unknown> = {}) =>
       normalized(event("customer.subscription.pending_update_expired", stripeSubscription(over)));
@@ -645,6 +666,20 @@ describe("normalizeStripeEvent - faktury", () => {
     );
 
     expect(data.customData).toEqual({ purpose: "donation" });
+  });
+
+  it("znacznik daty końca na fakturze dopłaty (`nes_*`) nie przykrywa metadanych subskrypcji", () => {
+    const data = transactionOf(
+      event(
+        "invoice.paid",
+        invoice({
+          metadata: { nes_upgrade_cancel_at: "1767225600", nes_upgrade_canceled_at: "1764547200" },
+          parent: { subscription_details: { metadata: { userId: "user-1" } } },
+        }),
+      ),
+    );
+
+    expect(data.customData).toEqual({ userId: "user-1" });
   });
 
   it("mapuje nieudane obciążenie faktury na transaction.payment_failed", () => {
