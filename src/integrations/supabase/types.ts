@@ -1126,6 +1126,24 @@ export type Database = {
           },
         ]
       }
+      billing_probe_credentials: {
+        Row: {
+          id: number
+          rotated_at: string | null
+          token_sha256: string | null
+        }
+        Insert: {
+          id?: number
+          rotated_at?: string | null
+          token_sha256?: string | null
+        }
+        Update: {
+          id?: number
+          rotated_at?: string | null
+          token_sha256?: string | null
+        }
+        Relationships: []
+      }
       billing_profiles: {
         Row: {
           address_line1: string | null
@@ -27311,6 +27329,11 @@ export type Database = {
       }
       b64url_decode: { Args: { p_value: string }; Returns: string }
       b64url_encode: { Args: { p_value: string }; Returns: string }
+      billing_probe_rotate_token: { Args: never; Returns: string }
+      billing_probe_status: {
+        Args: { p_since: string; p_subscription_id: string; p_token: string }
+        Returns: Json
+      }
       book_meeting_slot: {
         Args: { p_note?: string; p_slot_id: string }
         Returns: Json
