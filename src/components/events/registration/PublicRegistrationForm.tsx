@@ -31,15 +31,16 @@
 // wpasc do cache zapytan, dlatego wynik zapisu trzymamy w stanie lokalnym.
 //
 // ODMOWA GOSCI NIE GUBI LISTY. Zgloszenie prowadzacego stoi juz w bazie, gdy
-// `event_register_group_guests` odmawia, wiec ekran przechodzi na
+// dopisanie gosci (funkcja serwerowa `registerEventGroupGuests` przez
+// `registerGroupGuests`, przeglad R38) odmawia, wiec ekran przechodzi na
 // potwierdzenie - ale z lista gosci w `GroupGuestsRetryPanel`, a nie z samym
 // komunikatem. Ponowny zapis z formularza konczylby sie `already_registered`.
 // Po odmowie `group_too_large` panel czyta limit biletu od nowa - osobnym
 // wywolaniem `fetchRegistrationForm`, a nie przez `formQuery`: porazka tego
 // odczytu nie moze przelaczyc strony w „zapisy niedostepne".
 //
-// SESJA ZGASLA, GOSCIE WPISANI - ZATRZYMUJEMY ZAPIS. Bez konta
-// `event_register_group_guests` odmawia (`account_required`), wiec formularz
+// SESJA ZGASLA, GOSCIE WPISANI - ZATRZYMUJEMY ZAPIS. Bez konta dopisanie
+// gosci odmawia (`account_required`), wiec formularz
 // wysylal pusta liste gosci i pokazywal sukces samego prowadzacego. Goscie nie
 // istnieli w bazie, a kupujacy byl przekonany, ze zapisal cala grupe.
 import { useEffect, useMemo, useState } from "react";

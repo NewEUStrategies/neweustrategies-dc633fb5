@@ -211,8 +211,12 @@ function consentConfirmationOf(value: Json | undefined): RegistrationConsentConf
   return { token, purposes: [...new Set(purposes)], lang: langOf(bag.lang) };
 }
 
-/** `delivery` z bazy albo `null`, gdy nie ma czego dostarczyć. */
-function deliveryOf(value: Json | undefined): RegistrationDelivery | null {
+/**
+ * `delivery` z bazy albo `null`, gdy nie ma czego dostarczyć. Ten sam kształt
+ * oddaje dopisanie gości (`groupGuests.server.ts`) dla gościa, który ma już
+ * zapis - jedna definicja, jeden parser.
+ */
+export function parseRegistrationDelivery(value: Json | undefined): RegistrationDelivery | null {
   const bag = bagOf(value);
   if (bag === null) return null;
   const kind = bag.kind === "created" || bag.kind === "already_registered" ? bag.kind : null;
@@ -327,7 +331,7 @@ export async function submitEventRegistrationForRequest(
     outcome = await legacyRegister(payload, userId);
   } else {
     const bag = bagOf(data);
-    outcome = { client: clientOf(bag?.client), delivery: deliveryOf(bag?.delivery) };
+    outcome = { client: clientOf(bag?.client), delivery: parseRegistrationDelivery(bag?.delivery) };
   }
 
   // Baza zamienia nieoczekiwany wyjątek rdzenia na `unknown` (z RAISE WARNING) -

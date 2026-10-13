@@ -4,7 +4,8 @@
 // CO TEN PLIK DOWODZI.
 //   1. SEKCJA GOŚCI ISTNIEJE TYLKO PRZY BILECIE Z ZAPISEM GRUPOWYM. Zwykły bilet
 //      jej nie rysuje, a gość bez konta widzi zdanie o logowaniu zamiast pól -
-//      `event_register_group_guests` ma GRANT wyłącznie dla `authenticated`.
+//      dopisanie gości (funkcja serwerowa `registerEventGroupGuests`) wymaga
+//      konta z sesji.
 //   2. GOŚCIE JADĄ DO BAZY DOPIERO PO ZAPISIE PROWADZĄCEGO, przypięci jego
 //      identyfikatorem, z danymi przyciętymi i adresem małymi literami.
 //   3. BŁĘDNY GOŚĆ ZATRZYMUJE WYSŁANIE U SIEBIE: brak nazwiska, zły adres albo
@@ -37,7 +38,9 @@
 //
 // ATRAPUJEMY WYŁĄCZNIE GRANICE, jak w pliku zachowań: klienta Supabase (RPC),
 // server fn zapisu (`registrationServerFnStub` - prawdziwy `p_payload`,
-// odpowiedź planowana pod `event_register_for_client`), poczty i kasy,
+// odpowiedź planowana pod `event_register_for_client`), server fn gości
+// (`groupGuestsServerFnStub` - prawdziwy ładunek gości, odpowiedź planowana pod
+// `event_register_group_guests_for_client`), poczty i kasy,
 // tożsamość, język, toasty i modal Stripe. Parser
 // formularza i wszystkie komponenty potomne jadą prawdziwe. Wyjątkiem jest
 // punkt 8 - kształt, którego parser nie oddaje, podajemy z pominięciem parsera.
@@ -51,6 +54,7 @@ import type { Json } from "@/integrations/supabase/types";
 import type { RegistrationForm } from "@/lib/events/registrationFormSurface";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import { REGISTER_FOR_CLIENT_RPC } from "@/test/events/registrationServerFn";
+import { GROUP_GUESTS_FOR_CLIENT_RPC } from "@/test/events/groupGuestsServerFn";
 
 interface TestUser {
   id: string;
@@ -90,6 +94,10 @@ vi.mock("@tanstack/react-router", async () => ({
 
 vi.mock("@/lib/events/eventRegistration.functions", async () =>
   (await import("@/test/events/registrationServerFn")).registrationServerFnStub(() => h.rpc),
+);
+
+vi.mock("@/lib/events/groupGuests.functions", async () =>
+  (await import("@/test/events/groupGuestsServerFn")).groupGuestsServerFnStub(() => h.rpc),
 );
 
 vi.mock("@/lib/events/registrationSelfNotify.functions", () => ({
@@ -151,7 +159,8 @@ const MANAGE_TOKEN = "Ab3d_Xy9-Qw1zEr4TyU7iOp2AsDf1gHj";
 const FORM_RPC = "event_registration_form";
 /** Odpowiedź funkcji serwerowej zapisu - planowana w atrapie pod tą nazwą. */
 const REGISTER_RPC = REGISTER_FOR_CLIENT_RPC;
-const GUESTS_RPC = "event_register_group_guests";
+/** Odpowiedź funkcji serwerowej gości - planowana w atrapie pod tą nazwą. */
+const GUESTS_RPC = GROUP_GUESTS_FOR_CLIENT_RPC;
 
 const G = "eventRegistration.group";
 
@@ -309,10 +318,7 @@ beforeEach(() => {
   h.rpc = supabaseRpcStub();
   h.rpc.setData(FORM_RPC, formPayload([ticketRow()]));
   h.rpc.setData(REGISTER_RPC, registerPayload());
-  h.rpc.setData(GUESTS_RPC, {
-    added: 1,
-    registration_ids: ["33333333-3333-3333-3333-333333333333"],
-  });
+  h.rpc.setData(GUESTS_RPC, { ok: true, added: 1 });
   h.user = null;
   h.lang = "pl";
   h.formOverride = null;
@@ -457,7 +463,7 @@ describe("zapis grupowy - zalogowany prowadzący", () => {
   });
 
   it("odmowa dopisania gości NIE cofa zapisu prowadzącego - powód stoi nad potwierdzeniem", async () => {
-    stub().setError(GUESTS_RPC, "already_registered: ewa.nowak@example.org");
+    stub().setData(GUESTS_RPC, { ok: false, error: "invalid_email" });
     h.user = LEAD;
     renderForm();
     await screen.findByText(`${G}.title`);
@@ -468,14 +474,13 @@ describe("zapis grupowy - zalogowany prowadzący", () => {
     submitForm();
 
     expect(await screen.findByText(MANAGE_TOKEN)).toBeInTheDocument();
-    // ZMIANA 2026-09-23: odmowa gości ma WŁASNE zdanie, które nazywa gościa
-    // (`groupGuestsFailure`), zamiast zdania o zapisie prowadzącego. Panel
-    // ponowienia na ekranie potwierdzenia rysuje je przez `t()`, więc w tym
-    // pliku widać klucz z parametrem - treść PL/EN pilnuje
-    // `groupGuestsFailure.test.ts`. Lista gości zostaje do poprawienia.
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      `${G}.errors.alreadyRegistered(email=ewa.nowak@example.org)`,
-    );
+    // ZMIANA 2026-09-23: odmowa gości ma WŁASNE zdanie (`groupGuestsFailure`),
+    // zamiast zdania o zapisie prowadzącego. Panel ponowienia na ekranie
+    // potwierdzenia rysuje je przez `t()`, więc w tym pliku widać klucz - treść
+    // PL/EN pilnuje `groupGuestsFailure.test.ts`. Lista gości zostaje do
+    // poprawienia. ZMIANA R38: odmowa nie niesie adresu gościa (gościa z zapisem
+    // baza pomija bez śladu), więc przykładem jest odmowa formatu adresu.
+    expect(screen.getByRole("alert").textContent).toBe(`${G}.errors.invalidEmail`);
     expect(screen.getByDisplayValue("ewa.nowak@example.org")).toBeInTheDocument();
     expect(stub().callsFor(GUESTS_RPC)).toHaveLength(1);
     // Potwierdzenie prowadzącego wysłał serwer razem z zapisem (REG-04) -
@@ -615,14 +620,11 @@ describe("zapis grupowy - kiedy goście dostaną bilety", () => {
   });
 
   it("goście dopisani ponownie z ekranu potwierdzenia też dostają zdanie o biletach", async () => {
-    stub().setError(GUESTS_RPC, "sold_out");
+    stub().setData(GUESTS_RPC, { ok: false, error: "sold_out" });
     await registerWithGuest();
     expect(screen.queryByText(/ticketsSent/)).not.toBeInTheDocument();
 
-    stub().setData(GUESTS_RPC, {
-      added: 1,
-      registration_ids: ["33333333-3333-3333-3333-333333333333"],
-    });
+    stub().setData(GUESTS_RPC, { ok: true, added: 1 });
     fireEvent.click(screen.getByRole("button", { name: `${G}.retry.submit` }));
 
     expect(await screen.findByText(`${G}.ticketsSent(count=1)`)).toBeInTheDocument();

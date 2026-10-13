@@ -34,3 +34,22 @@ export const REGISTRATION_FIELD_LIMITS = {
 } as const;
 
 export type RegistrationFieldLimits = typeof REGISTRATION_FIELD_LIMITS;
+
+/**
+ * Czy tekst zawiera znak sterujący (U+0001..U+001F, U+007F..U+009F) - lustro
+ * `_event_text_has_control` (20261012180000). Baza odrzuca taki znak w imieniu,
+ * nazwisku, adresie, telefonie, stanowisku, firmie, profilu i danych gościa
+ * kodem POLA, zanim spojrzy na adres (R38): w tekście jsonb każdy znak
+ * sterujący rośnie do sześciu (`\u0001`) i rozsadzał sufit `submitted_profile`
+ * wyłącznie dla adresów znanych kartotece - wyrocznia członkostwa.
+ *
+ * Kody znaków, nie wyrażenie regularne: ten sam zakres co w bazie, bez reguły
+ * `no-control-regex` i bez zależności od flag silnika.
+ */
+export function hasControlCharacters(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1f || (code >= 0x7f && code <= 0x9f)) return true;
+  }
+  return false;
+}

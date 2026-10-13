@@ -26,10 +26,12 @@
 //    funkcja serwerowa zapisu PO odpowiedzi, wiec ekran nie zalezy od poczty,
 //    a atrybucja jedzie z zapisem osobnym argumentem. Odpowiedz neutralna
 //    („sprawdz skrzynke") nie pokazuje klucza, rezygnacji ani kasy.
-// 8. ODMOWA DOPISANIA GOSCI MOWI O GOSCIACH. `event_register_group_guests`
-//    odmawia wlasnymi kodami (`group_too_large`, `already_registered: <email>`),
-//    a do tej naprawy szly one przez slownik zapisu prowadzacego i konczyly sie
-//    ogolnym „Nie udalo sie zapisac" - choc zgloszenie kupujacego juz stalo.
+// 8. ODMOWA DOPISANIA GOSCI MOWI O GOSCIACH. Funkcja serwerowa gosci
+//    (`registerEventGroupGuests` -> `event_register_group_guests_for_client`)
+//    odmawia wlasnymi kodami (`group_too_large`, `duplicate_guest`), a do tej
+//    naprawy szly one przez slownik zapisu prowadzacego i konczyly sie ogolnym
+//    „Nie udalo sie zapisac" - choc zgloszenie kupujacego juz stalo. Adresu
+//    goscia z zapisem odpowiedz nie niesie nigdy (przeglad R38).
 // 9. ODMOWA GOSCI NIE GUBI LISTY. Zgloszenie prowadzacego zostaje potwierdzone,
 //    a goscie wracaja do edycji na ekranie potwierdzenia z przyciskiem
 //    ponowienia - ponowny zapis z formularza konczylby sie
@@ -124,6 +126,21 @@ vi.mock("@/lib/events/eventRegistration.functions", async () => {
     submitEventRegistration: async (call: Parameters<typeof server.submitEventRegistration>[0]) => {
       if (rpcGate.current !== null) await rpcGate.current;
       return server.submitEventRegistration(call);
+    },
+  };
+});
+
+// Dopisanie gosci tez idzie funkcja serwerowa (R38) - atrapa planuje odpowiedz
+// pod nazwa wejscia serwerowego, z ta sama zapora `rpcGate`.
+vi.mock("@/lib/events/groupGuests.functions", async () => {
+  const { groupGuestsServerFnStub } = await import("@/test/events/groupGuestsServerFn");
+  const server = groupGuestsServerFnStub(() => h.rpc);
+  return {
+    registerEventGroupGuests: async (
+      call: Parameters<typeof server.registerEventGroupGuests>[0],
+    ) => {
+      if (rpcGate.current !== null) await rpcGate.current;
+      return server.registerEventGroupGuests(call);
     },
   };
 });
@@ -1676,7 +1693,8 @@ describe("PublicRegistrationForm - dostepnosc", () => {
 });
 
 describe("PublicRegistrationForm - zapis grupowy", () => {
-  const GROUP_RPC = "event_register_group_guests";
+  // Odpowiedz funkcji serwerowej gosci planowana pod nazwa jej wejscia w bazie.
+  const GROUP_RPC = "event_register_group_guests_for_client";
   const USER: TestUser = { id: "u-lead", email: "anna.kowalska@example.com" };
 
   function groupForm(over: Record<string, Json> = {}): void {
@@ -1733,7 +1751,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
   it("zapis dopisuje gości i wysyła bilety z kodem QR kluczem prowadzącego", async () => {
     h.user = USER;
     groupForm();
-    stub().setData(GROUP_RPC, { added: 2, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 2 });
     renderForm();
     await fillPerson();
     fireEvent.click(addButton());
@@ -1755,7 +1773,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
   it("awaria wysyłki biletów nie unieważnia zapisu grupy", async () => {
     h.user = USER;
     groupForm();
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     h.sendTicketCodes.mockRejectedValue(new Error("network"));
     renderForm();
     await fillPerson();
@@ -1849,7 +1867,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
   async function submitAfterLimitLowered(): Promise<void> {
     h.user = USER;
     groupForm();
-    stub().setError(GROUP_RPC, "group_too_large");
+    stub().setData(GROUP_RPC, { ok: false, error: "group_too_large" });
     renderForm();
     await fillPerson();
     fireEvent.click(addButton());
@@ -1900,7 +1918,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     expect(retryButton()).not.toBeDisabled();
     expect(addButton()).toBeDisabled();
 
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     fireEvent.click(retryButton());
     expect(
       await screen.findByText("eventRegistration.group.retry.added(count=1)"),
@@ -1913,7 +1931,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
   it("nieudany odczyt limitu nie zmyśla liczby i NIE zamyka strony zapisu", async () => {
     h.user = USER;
     groupForm();
-    stub().setError(GROUP_RPC, "group_too_large");
+    stub().setData(GROUP_RPC, { ok: false, error: "group_too_large" });
     renderForm();
     await fillPerson();
     fireEvent.click(addButton());
@@ -1945,7 +1963,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     register: Record<string, Json> = {},
   ): Promise<void> {
     h.user = USER;
-    stub().setError(GROUP_RPC, refusal);
+    stub().setData(GROUP_RPC, { ok: false, error: refusal });
     stub().setData(REGISTER_RPC, registerPayload(register));
     renderForm();
     await fillPerson();
@@ -1961,14 +1979,14 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
 
   it("odmowa gości NIE gubi listy: potwierdzenie stoi, a goście wracają do edycji", async () => {
     groupForm();
-    await submitWithRefusedGuest("already_registered: gosc.jeden@example.com");
+    await submitWithRefusedGuest("duplicate_guest");
 
     // Zgłoszenie prowadzącego jest potwierdzone mimo odmowy gości.
     expect(screen.getByText("eventRegistration.result.approved")).toBeInTheDocument();
     expect(screen.getByText(MANAGE_TOKEN)).toBeInTheDocument();
-    // Odmowa mówi, KTÓRY gość ma już zapis.
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "eventRegistration.group.errors.alreadyRegistered(email=gosc.jeden@example.com)",
+    // Odmowa mówi o gościach - bez adresu kogokolwiek (R38).
+    expect(screen.getByRole("alert").textContent).toBe(
+      "eventRegistration.group.errors.duplicateGuest",
     );
     // Lista wpisana w formularzu stoi w polach, edytowalna, w limicie biletu.
     expect(guestInput(0, "first")).toHaveValue("Gość");
@@ -1983,11 +2001,11 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
 
   it("ponowienie dopisuje gości do TEGO SAMEGO zgłoszenia i wysyła bilety kluczem", async () => {
     groupForm();
-    await submitWithRefusedGuest("already_registered: gosc.jeden@example.com");
+    await submitWithRefusedGuest("duplicate_guest");
     expect(h.sendTicketCodes).not.toHaveBeenCalled();
 
     fireEvent.change(guestInput(0, "email"), { target: { value: "gosc.nowy@example.com" } });
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     fireEvent.click(retryButton());
 
     expect(
@@ -2015,7 +2033,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     await submitWithRefusedGuest("sold_out");
     expect(screen.getByRole("alert")).toHaveTextContent("eventRegistration.group.errors.soldOut");
     let release: () => void = () => {};
-    stub().setResponse(GROUP_RPC, { data: { added: 1, registration_ids: [] }, error: null });
+    stub().setResponse(GROUP_RPC, { data: { ok: true, added: 1 }, error: null });
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
@@ -2038,7 +2056,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     h.sendTicketCodes.mockRejectedValue(new Error("network"));
     await submitWithRefusedGuest("group_too_large");
 
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     fireEvent.click(retryButton());
 
     expect(
@@ -2052,7 +2070,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     groupForm();
     await submitWithRefusedGuest("group_too_large", { manage_token: null });
 
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     fireEvent.click(retryButton());
 
     expect(
@@ -2077,7 +2095,7 @@ describe("PublicRegistrationForm - zapis grupowy", () => {
     // Podgląd kasy przed dopisaniem gości: jedno miejsce.
     await waitFor(() => expect(h.quote).toHaveBeenCalledTimes(1));
     h.quote.mockResolvedValue({ ...(await h.quote.mock.results[0]?.value), seats: 2 });
-    stub().setData(GROUP_RPC, { added: 1, registration_ids: [] });
+    stub().setData(GROUP_RPC, { ok: true, added: 1 });
     fireEvent.click(retryButton());
     await screen.findByText("eventRegistration.group.retry.added(count=1)");
     // Dopisanie gości zmienia liczbę miejsc - rozbicie pod przyciskiem musi się

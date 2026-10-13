@@ -1,9 +1,10 @@
 // Organizm: ponowne dopisanie gości do zgłoszenia, które JUŻ stoi w bazie.
 //
-// PO CO TO ISTNIEJE. Zapis grupowy to dwa wywołania: `event_register` zakłada
-// zgłoszenie prowadzącego, a `event_register_group_guests` dopisuje do niego
-// gości. Gdy drugie odmówi, pierwsze jest już faktem - formularz przechodził
-// wtedy na ekran potwierdzenia, a lista gości znikała razem z formularzem.
+// PO CO TO ISTNIEJE. Zapis grupowy to dwa wywołania: zapis zakłada
+// zgłoszenie prowadzącego, a dopisanie gości (`registerGroupGuests` - funkcja
+// serwerowa `registerEventGroupGuests`) dopisuje do niego gości. Gdy drugie
+// odmówi, pierwsze jest już faktem - formularz przechodził wtedy na ekran
+// potwierdzenia, a lista gości znikała razem z formularzem.
 // Powrót do formularza nic nie dawał, bo ponowny zapis kończy się
 // `already_registered` na prowadzącym, więc kupujący tracił drogę do
 // dopisania (i opłacenia) osób, po które przyszedł.
@@ -66,7 +67,7 @@ export interface GroupGuestsRetryPanelProps {
   loadMaxSize: () => Promise<number | null>;
   /** Goście wpisani w formularzu - odmowa bazy ich nie kasuje. */
   initialGuests: readonly GroupGuest[];
-  /** Pierwsza odmowa `event_register_group_guests` (surowy błąd). */
+  /** Pierwsza odmowa dopisania gości (surowy błąd). */
   initialError: unknown;
   /** Zgłoszenie czeka na zapłatę - gości trzeba dopisać przed kasą. */
   paymentRequired: boolean;

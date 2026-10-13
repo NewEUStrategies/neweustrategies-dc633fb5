@@ -7,8 +7,12 @@
 // żądania zniknęłaby razem z edytorem po sukcesie, więc pola są wtedy
 // zablokowane, a nie tylko przycisk.
 //
-// BEZ KONTA - ZDANIE I DROGA DO LOGOWANIA. `event_register_group_guests`
-// odmawia anonimowi (`account_required`), więc gość bez konta zapisałby tylko
+// ZNAK STERUJĄCY (`control`) OZNACZA WSZYSTKIE TRZY POLA. Tabulatora albo nowej
+// linii nie widać w polu, więc nie wskazujemy jednego - zdanie mówi, czego
+// szukać (R38: baza odrzuca je przed sprawdzeniem gości).
+//
+// BEZ KONTA - ZDANIE I DROGA DO LOGOWANIA. Dopisanie gości (funkcja serwerowa
+// `registerEventGroupGuests`) odmawia anonimowi (`account_required`), więc gość bez konta zapisałby tylko
 // siebie. Samo szare zdanie nie mówiło, co z tym zrobić; odnośnik jest ten sam,
 // co przy płatnej wejściówce (`PaidTicketAccountNotice`).
 import { Link } from "@tanstack/react-router";
@@ -88,7 +92,7 @@ export function GroupGuestsEditor({
                     id={`${base}-first`}
                     value={guest.firstName}
                     disabled={disabled}
-                    aria-invalid={issue === "name"}
+                    aria-invalid={issue === "name" || issue === "control"}
                     onChange={(e) => update(index, { firstName: e.target.value })}
                   />
                 </div>
@@ -98,7 +102,7 @@ export function GroupGuestsEditor({
                     id={`${base}-last`}
                     value={guest.lastName}
                     disabled={disabled}
-                    aria-invalid={issue === "name"}
+                    aria-invalid={issue === "name" || issue === "control"}
                     onChange={(e) => update(index, { lastName: e.target.value })}
                   />
                 </div>
@@ -109,7 +113,7 @@ export function GroupGuestsEditor({
                     type="email"
                     value={guest.email}
                     disabled={disabled}
-                    aria-invalid={issue === "email" || issue === "duplicate"}
+                    aria-invalid={issue === "email" || issue === "duplicate" || issue === "control"}
                     onChange={(e) => update(index, { email: e.target.value })}
                   />
                 </div>
