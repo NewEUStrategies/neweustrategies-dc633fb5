@@ -7,14 +7,17 @@
 // których zależy kwota zamówienia: miejsca tylko dla planów `perSeat`,
 // próg wolumenowy na WSZYSTKIE miejsca, plan jednorazowy jako `payment`.
 //
-// Moduł jest czysty - bez atrap. `catalogPriceForPlan` jedzie prawdziwy, bo
-// to jego wybór wpisu jest częścią kontraktu.
+// Moduł jest czysty - bez atrap. `BILLING_CATALOG` jedzie prawdziwy, bo to
+// wybór wpisu (wyłącznie DOKŁADNA para warstwa-cykl, przegląd PAY-01 0.1) jest
+// częścią kontraktu.
 import { describe, expect, it } from "vitest";
 
-import { BILLING_CATALOG } from "@/lib/billing/catalog";
+import { BILLING_CATALOG, type PlanBillingInterval } from "@/lib/billing/catalog";
 import {
   MAX_PLAN_SEATS,
+  exactCatalogEntryForPlan,
   planCheckoutPricing,
+  stripeRecurringForInterval,
   type PlanPricingRow,
 } from "@/lib/billing/planPricing";
 
@@ -73,9 +76,9 @@ describe("planCheckoutPricing - plan jednorazowy", () => {
   });
 
   it("plan JEDNORAZOWY warstwy bez ceny jednorazowej nie schodzi na subskrypcję", () => {
-    // `catalogPriceForPlan` bez pary (warstwa, cykl) bierze pierwszy wpis
-    // warstwy - tu `pro_monthly`. Sesja pobrałaby wtedy subskrypcję za plan,
-    // który obiecuje zakup jednorazowy.
+    // `catalogPriceForPlan` (interfejs) bez pary (warstwa, cykl) bierze
+    // pierwszy wpis warstwy - tu `pro_monthly`. Sesja pobrałaby wtedy
+    // subskrypcję za plan, który obiecuje zakup jednorazowy.
     expect(planCheckoutPricing(plan({ tier_key: "pro", interval: "one_time" }))).toBeNull();
   });
 
@@ -143,5 +146,77 @@ describe("planCheckoutPricing - miejsca i próg wolumenowy", () => {
     const flat = plan({ volume_threshold_seats: 2, volume_price_cents: 100 });
 
     expect(planCheckoutPricing(flat, 5)?.amountCents).toBe(4900);
+  });
+});
+
+const ALL_INTERVALS: PlanBillingInterval[] = ["two_weeks", "month", "quarter", "year", "one_time"];
+
+describe("planCheckoutPricing - wyłącznie DOKŁADNA para (warstwa, cykl) (przegląd PAY-01, 0.1)", () => {
+  // CO BYŁO ZŁE. Bez dokładnej pary wycena brała PIERWSZY wpis warstwy, a cykl
+  // spoza słownika czytała jako miesiąc. „Pro kwartalny" (129 zł / kwartał)
+  // otwierał subskrypcję `pro_monthly`, „Biznes roczny" - `business_2w`.
+  // Zamówienie zapisywało kwotę planu, Stripe pobierał coś innego, w innym
+  // cyklu, a rozjazd wychodził dopiero po pobraniu pieniędzy.
+  it.each([
+    ["pro", "quarter", "dawniej pro_monthly"],
+    ["business", "year", "dawniej business_2w"],
+    ["member", "two_weeks", "dawniej plus_monthly"],
+    ["member", "quarter", "dawniej plus_monthly"],
+    ["team", "year", "dawniej team_monthly_seat"],
+    ["student", "year", "dawniej student_monthly"],
+  ])("plan %s/%s bez wpisu katalogu nie ma ceny (%s)", (tier, interval) => {
+    expect(planCheckoutPricing(plan({ tier_key: tier, interval }))).toBeNull();
+    expect(exactCatalogEntryForPlan({ tier_key: tier, interval })).toBeNull();
+  });
+
+  it("KAŻDA para (warstwa katalogu × cykl aplikacji): wpis tylko dla pary z katalogu, poza nią `null`", () => {
+    // Pętla po CAŁEJ siatce, nie tylko po wpisach katalogu - poprzedni test
+    // iterował wyłącznie pary istniejące, więc ścieżka schodzenia na pierwszy
+    // wpis warstwy nigdy nie była sprawdzana.
+    const tiers = [...new Set(BILLING_CATALOG.map((e) => e.tierKey))];
+    for (const tier of tiers) {
+      for (const interval of ALL_INTERVALS) {
+        const exact = BILLING_CATALOG.find((e) => e.tierKey === tier && e.interval === interval);
+        const pricing = planCheckoutPricing(plan({ tier_key: tier, interval }));
+        expect(pricing?.entry.priceId ?? null, `${tier}/${interval}`).toBe(exact?.priceId ?? null);
+      }
+    }
+  });
+
+  it("cykl spoza słownika albo jego brak NIE jest czytany jako miesiąc", () => {
+    expect(planCheckoutPricing(plan({ interval: "week" }))).toBeNull();
+    expect(planCheckoutPricing(plan({ interval: "day" }))).toBeNull();
+    expect(planCheckoutPricing(plan({ interval: null }))).toBeNull();
+    expect(planCheckoutPricing(plan({ interval: "" }))).toBeNull();
+  });
+});
+
+describe("planCheckoutPricing - cykl i stawka, które MUSI mieć cena u operatora", () => {
+  it("słownik cykli operatora: dwa tygodnie = week×2, kwartał = month×3, jednorazowy = brak", () => {
+    expect(stripeRecurringForInterval("two_weeks")).toEqual({ interval: "week", intervalCount: 2 });
+    expect(stripeRecurringForInterval("month")).toEqual({ interval: "month", intervalCount: 1 });
+    expect(stripeRecurringForInterval("quarter")).toEqual({ interval: "month", intervalCount: 3 });
+    expect(stripeRecurringForInterval("year")).toEqual({ interval: "year", intervalCount: 1 });
+    expect(stripeRecurringForInterval("one_time")).toBeNull();
+  });
+
+  it("każdy wpis katalogu niesie cykl zgodny ze swoim typem ceny", () => {
+    for (const entry of BILLING_CATALOG) {
+      const pricing = planCheckoutPricing(
+        plan({ tier_key: entry.tierKey, interval: entry.interval }),
+      );
+      expect(pricing?.recurring ?? null, entry.priceId).toEqual(
+        stripeRecurringForInterval(entry.interval),
+      );
+      expect(pricing?.recurring === null, entry.priceId).toBe(entry.oneTime === true);
+    }
+  });
+
+  it("stawka za sztukę to stawka po progu wolumenowym - z niej bramka liczy kwotę ceny", () => {
+    const tiered = team({ volume_threshold_seats: 11, volume_price_cents: 7900 });
+
+    expect(planCheckoutPricing(tiered, 10)).toMatchObject({ unitCents: 9900, quantity: 10 });
+    expect(planCheckoutPricing(tiered, 11)).toMatchObject({ unitCents: 7900, quantity: 11 });
+    expect(planCheckoutPricing(plan())).toMatchObject({ unitCents: 4900, amountCents: 4900 });
   });
 });

@@ -55,6 +55,8 @@ beforeEach(() => {
   create.mockResolvedValue({ id: "cs_1", client_secret: "cs_secret" });
   search.mockResolvedValue({ data: [{ id: "cus_1" }] });
   customersCreate.mockResolvedValue({ id: "cus_new" });
+  // Cena w pełnym kształcie operatora - bramka spójności (PAY-01) porównuje
+  // typ, walutę, cykl i kwotę z oczekiwaniami zamówienia.
   list.mockResolvedValue({
     data: [
       {
@@ -62,6 +64,9 @@ beforeEach(() => {
         lookup_key: "pro_monthly",
         type: "recurring",
         currency: "pln",
+        billing_scheme: "per_unit",
+        unit_amount: 4900,
+        recurring: { interval: "month", interval_count: 1, usage_type: "licensed" },
         product: null,
       },
     ],
@@ -197,6 +202,8 @@ describe("createPlanCheckoutSession - flagi tenantu w sesji", () => {
     priceLookupKey: "pro_monthly",
     expectedMode: "subscription" as const,
     expectedCurrency: "PLN",
+    expectedRecurring: { interval: "month" as const, intervalCount: 1 },
+    expectedAmountCents: 4900,
     planId: "plan-1",
     orderId: "order-2",
     userId: "user-1",

@@ -43,10 +43,23 @@ const RETURN_URL = "https://kasa.example.org/checkout/sukces";
 
 const h = vi.hoisted(() => {
   const calls: { method: string; args: unknown[] }[] = [];
+  /**
+   * Cena katalogowa w kształcie operatora: `plus_monthly` - 49 zł za sztukę,
+   * co miesiąc, rozliczana za ilość. Bramka spójności (PAY-01) porównuje typ,
+   * walutę, cykl i kwotę z wyceną planu, więc atrapa niesie wszystkie cztery.
+   */
+  const catalogPrice = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: "price_1",
+    lookup_key: "plus_monthly",
+    type: "recurring",
+    currency: "pln",
+    billing_scheme: "per_unit",
+    unit_amount: 4900,
+    recurring: { interval: "month", interval_count: 1, usage_type: "licensed" },
+    ...over,
+  });
   const state = {
-    prices: [
-      { id: "price_1", lookup_key: "plus_monthly", type: "recurring", currency: "pln" },
-    ] as unknown[],
+    prices: [catalogPrice()] as unknown[],
     sessionError: null as Error | null,
     couponError: null as Error | null,
     coupon: { id: "coupon_1" } as Record<string, unknown>,
@@ -61,7 +74,7 @@ const h = vi.hoisted(() => {
       }
     };
   };
-  return { calls, state, record };
+  return { calls, state, record, catalogPrice };
 });
 
 vi.mock("@tanstack/react-start", async () =>
@@ -139,6 +152,7 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
 
 const { callServerFn } = await import("@/test/serverFn");
 const { asServerFn } = await import("@/test/serverFnHarness");
+const { minimumChargeCents } = await import("@/lib/billing/chargeMinimum");
 const { createPlanCheckoutSession, createAdhocCheckoutSession } =
   await import("@/lib/billing/stripeCheckout.functions");
 
@@ -334,9 +348,7 @@ function adhocCall(over: Record<string, unknown> = {}): Promise<SessionResult> {
 
 beforeEach(() => {
   h.calls.length = 0;
-  h.state.prices = [
-    { id: "price_1", lookup_key: "plus_monthly", type: "recurring", currency: "pln" },
-  ];
+  h.state.prices = [h.catalogPrice()];
   h.state.sessionError = null;
   h.state.couponError = null;
   h.state.coupon = { id: "coupon_1" };
@@ -684,9 +696,7 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
 
   it("kwota zamówienia pochodzi Z PLANU - żądanie nie zawiera i nie może zawierać ceny", async () => {
     chain.setResponse("access_plans", ok(planQuote({ price_cents: 29900, currency: "EUR" })));
-    h.state.prices = [
-      { id: "price_1", lookup_key: "plus_monthly", type: "recurring", currency: "eur" },
-    ];
+    h.state.prices = [h.catalogPrice({ currency: "eur", unit_amount: 29900 })];
 
     await planCall({ amountCents: 1, currency: "PLN" });
 
@@ -725,7 +735,7 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
   it("liczba miejsc planu ZA MIEJSCE jedzie do pozycji sesji i do kwoty zamówienia", async () => {
     chain.setResponse("access_plans", ok(planQuote({ tier_key: "team", price_cents: 9900 })));
     h.state.prices = [
-      { id: "price_team", lookup_key: "team_monthly_seat", type: "recurring", currency: "pln" },
+      h.catalogPrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
     ];
 
     await planCall({ seats: 5 });
@@ -754,8 +764,19 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
         }),
       ),
     );
+    // Cena u operatora jest schodkowa (`volume`) - tak ją zakłada catalogSync.
     h.state.prices = [
-      { id: "price_team", lookup_key: "team_monthly_seat", type: "recurring", currency: "pln" },
+      h.catalogPrice({
+        id: "price_team",
+        lookup_key: "team_monthly_seat",
+        billing_scheme: "tiered",
+        tiers_mode: "volume",
+        unit_amount: null,
+        tiers: [
+          { up_to: 10, unit_amount: 9900, flat_amount: null },
+          { up_to: null, unit_amount: 7900, flat_amount: null },
+        ],
+      }),
     ];
 
     await planCall({ seats: 11 });
@@ -946,9 +967,7 @@ describe("createPlanCheckoutSession - cena wiązana z planem (audyt PAY-01)", ()
     // Pod `lookup_key` planu cyklicznego operator trzyma cenę JEDNORAZOWĄ
     // (ręczna edycja, przeniesiony klucz). Sesja pobrałaby jednorazowo kwotę
     // planu, a zamówienie czekałoby na subskrypcję, która nigdy nie powstanie.
-    h.state.prices = [
-      { id: "price_1", lookup_key: "plus_monthly", type: "one_time", currency: "pln" },
-    ];
+    h.state.prices = [h.catalogPrice({ type: "one_time", recurring: null })];
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const result = await planCall({ couponCode: "PARTNER-CEE" });
@@ -969,9 +988,7 @@ describe("createPlanCheckoutSession - cena wiązana z planem (audyt PAY-01)", ()
   });
 
   it("cena w INNEJ WALUCIE niż plan -> odmowa `price_mismatch`", async () => {
-    h.state.prices = [
-      { id: "price_1", lookup_key: "plus_monthly", type: "recurring", currency: "eur" },
-    ];
+    h.state.prices = [h.catalogPrice({ currency: "eur" })];
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const result = await planCall();
@@ -1010,13 +1027,13 @@ describe("createPlanCheckoutSession - cena wiązana z planem (audyt PAY-01)", ()
       ok(planQuote({ tier_key: "decision_lab", interval: "one_time", trial_days: 14 })),
     );
     h.state.prices = [
-      {
+      h.catalogPrice({
         id: "price_lab",
         lookup_key: "decision_lab_seat",
         type: "one_time",
-        currency: "pln",
+        recurring: null,
         product: { id: "prod_lab", name: "Decision Lab" },
-      },
+      }),
     ];
 
     const result = await planCall();
@@ -1038,7 +1055,7 @@ describe("createPlanCheckoutSession - cena wiązana z planem (audyt PAY-01)", ()
   it("kupon jest walidowany od kwoty BRUTTO wyceny (miejsca), nie od `price_cents`", async () => {
     chain.setResponse("access_plans", ok(planQuote({ tier_key: "team", price_cents: 9900 })));
     h.state.prices = [
-      { id: "price_team", lookup_key: "team_monthly_seat", type: "recurring", currency: "pln" },
+      h.catalogPrice({ id: "price_team", lookup_key: "team_monthly_seat", unit_amount: 9900 }),
     ];
     rpcResponses.set(
       "validate_b2b_coupon_for_user",
@@ -1064,6 +1081,164 @@ describe("createPlanCheckoutSession - cena wiązana z planem (audyt PAY-01)", ()
     expect(result).toEqual({ ok: false, error: "zero_amount" });
     expect(rpcCalls).toHaveLength(0);
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+});
+
+describe("createPlanCheckoutSession - dokładna para i cena zgodna z planem (przegląd PAY-01, 0.1)", () => {
+  // CO BYŁO ZŁE. Plan bez dokładnej pary (warstwa, cykl) w katalogu dostawał
+  // pierwszą cenę warstwy, a bramka sesji porównywała wyłącznie typ i walutę.
+  // „Pro kwartalny" otwierał subskrypcję `pro_monthly` (co miesiąc, inną
+  // kwotą), a cena z dryfem kwoty albo cyklu przechodziła - rozjazd wychodził
+  // dopiero w realizacji, po pobraniu pieniędzy.
+  it("plan Pro KWARTALNY bez wpisu katalogu: `plan_price_missing`, bez schodzenia na `pro_monthly`", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "pro", interval: "quarter", price_cents: 12900 })),
+    );
+
+    const result = await planCall({ couponCode: "PARTNER-CEE" });
+
+    expect(result).toEqual({ ok: false, error: "plan_price_missing" });
+    expect(rpcCalls).toHaveLength(0);
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it("plan Biznes ROCZNY nie dostaje ceny co dwa tygodnie (`business_2w`)", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ tier_key: "business", interval: "year" })));
+
+    expect(await planCall()).toEqual({ ok: false, error: "plan_price_missing" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("DRYF KWOTY u operatora (99 zł za plan 49 zł): `price_mismatch`, zamówienie `failed`, kupon zwolniony", async () => {
+    h.state.prices = [h.catalogPrice({ unit_amount: 9900 })];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await planCall({ couponCode: "PARTNER-CEE" });
+
+    expect(result).toEqual({ ok: false, error: "price_mismatch" });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    expect(rpcArgs("payment_order_mark_session")).toEqual({
+      _order_id: "order-1",
+      _status: "failed",
+    });
+    expect(rpcArgs("release_b2b_coupon_for_user")).toMatchObject({
+      _coupon_id: COUPON_ID,
+      _order_id: "order-1",
+    });
+    logged.mockRestore();
+  });
+
+  it("cena planu ROCZNEGO rozliczana co dwa tygodnie u operatora: `price_mismatch`", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ interval: "year", price_cents: 49000 })));
+    h.state.prices = [
+      h.catalogPrice({
+        lookup_key: "plus_annual",
+        unit_amount: 49000,
+        recurring: { interval: "week", interval_count: 2, usage_type: "licensed" },
+      }),
+    ];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await planCall();
+
+    expect(result).toEqual({ ok: false, error: "price_mismatch" });
+    expect(stripeCall("prices.list")?.args[0]).toMatchObject({ lookup_keys: ["plus_annual"] });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    logged.mockRestore();
+  });
+
+  it("cena schodkowa Zespołu z INNYM progiem niż plan: `price_mismatch` przed sesją", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(
+        planQuote({
+          tier_key: "team",
+          price_cents: 9900,
+          volume_threshold_seats: 11,
+          volume_price_cents: 7900,
+        }),
+      ),
+    );
+    h.state.prices = [
+      h.catalogPrice({
+        id: "price_team",
+        lookup_key: "team_monthly_seat",
+        billing_scheme: "tiered",
+        tiers_mode: "volume",
+        unit_amount: null,
+        tiers: [
+          { up_to: 20, unit_amount: 9900, flat_amount: null },
+          { up_to: null, unit_amount: 7900, flat_amount: null },
+        ],
+      }),
+    ];
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await planCall({ seats: 11 })).toEqual({ ok: false, error: "price_mismatch" });
+    expect(stripeCall("checkout.sessions.create")).toBeUndefined();
+    logged.mockRestore();
+  });
+});
+
+describe("createPlanCheckoutSession - minimum operatora po kuponie (przegląd PAY-01, 0.3)", () => {
+  // CO BYŁO ZŁE. Ten silnik nie miał progu: kupon 100% zakładał zamówienie na
+  // 0 zł (plan jednorazowy = dożywotni dostęp za darmo), a kwota poniżej
+  // minimum padała u operatora PO zamówieniu i rezerwacji. Drugi silnik od
+  // zawsze odmawiał `final_amount_too_low` - teraz oba liczą jedną regułą
+  // (`chargeMinimum.ts`), a te same przypadki stoją w `checkoutOrderCoupon`.
+  const minimum = minimumChargeCents("PLN");
+
+  it.each([
+    ["kupon 100% (0 zł)", 0],
+    ["1 grosz", 1],
+    ["49 groszy (dawny próg pierwszego silnika)", 49],
+    ["grosz pod minimum (1,99 zł)", minimum - 1],
+  ])(
+    "%s po kuponie: `final_amount_too_low`, bez zamówienia, rezerwacji i rabatu u operatora",
+    async (_label, finalCents) => {
+      rpcResponses.set(
+        "validate_b2b_coupon_for_user",
+        ok([couponOk({ discount_cents: 4900 - finalCents, final_cents: finalCents })]),
+      );
+
+      const result = await planCall({ couponCode: "PARTNER-CEE" });
+
+      expect(result).toEqual({ ok: false, error: "final_amount_too_low" });
+      expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon_for_user");
+      expect(stripeCall("coupons.create")).toBeUndefined();
+    },
+  );
+
+  it("kupon 100% na plan JEDNORAZOWY też jest odmową - nie ma darmowego dożywotniego zakupu", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),
+    );
+    rpcResponses.set(
+      "validate_b2b_coupon_for_user",
+      ok([couponOk({ discount_cents: 1600000, final_cents: 0 })]),
+    );
+
+    expect(await planCall({ couponCode: "PARTNER-CEE" })).toEqual({
+      ok: false,
+      error: "final_amount_too_low",
+    });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("kwota równa minimum przechodzi - granica jest po stronie dozwolonej", async () => {
+    rpcResponses.set(
+      "validate_b2b_coupon_for_user",
+      ok([couponOk({ discount_cents: 4900 - minimum, final_cents: minimum })]),
+    );
+
+    const result = await planCall({ couponCode: "PARTNER-CEE" });
+
+    expect(result.ok).toBe(true);
+    expect(insertedOrder()?.amount_cents).toBe(minimum);
   });
 });
 

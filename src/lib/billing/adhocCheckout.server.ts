@@ -27,6 +27,8 @@ import {
   type CheckoutSessionParams,
   type CheckoutSettings,
 } from "@/lib/billing/checkoutSettings";
+import { isBelowMinimumCharge } from "@/lib/billing/chargeMinimum";
+import type { StripeRecurringCycle } from "@/lib/billing/planPricing";
 
 // SDK Stripe (esm) nie eksportuje `Stripe.Checkout.SessionCreateParams` jako
 // nazwanego typu - wyprowadzamy go z sygnatury metody, żeby nie duplikować
@@ -57,15 +59,22 @@ function sessionFlags(
 export { resolveEnvironment };
 export type { StripeEnv };
 
-/** Minimalna kwota dopuszczana przez Stripe dla obciążeń kartą (50 groszy/centów). */
-export const MIN_ADHOC_AMOUNT_CENTS = 50;
-
 /**
  * Górny limit ilości na pozycji sesji. Wołający, który rozbija sumę na
  * „N × cena", MUSI go znać - ilość ucięta tutaj po cichu dałaby w nakładce
  * inną kwotę niż zamówienie.
  */
 export const MAX_LINE_QUANTITY = 100;
+
+/**
+ * Liczba sztuk pozycji sesji: całkowita, 1..`MAX_LINE_QUANTITY`. Wartość
+ * nieliczbowa schodzi na jedną sztukę - `NaN` przechodził dotąd do operatora
+ * jako ilość pozycji, a bramka minimum liczy kwotę od tej samej liczby.
+ */
+function lineQuantityOf(quantity: number | undefined): number {
+  if (typeof quantity !== "number" || !Number.isFinite(quantity)) return 1;
+  return Math.min(Math.max(Math.trunc(quantity), 1), MAX_LINE_QUANTITY);
+}
 
 /**
  * Stripe przyjmuje nazwę kuponu do 40 znaków i ODRZUCA dłuższą. Nazwa fazy
@@ -116,7 +125,14 @@ export async function resolveOrCreateCustomer(
   return created.id;
 }
 
-/** Ceny katalogowe rozwiązane hurtowo po czytelnym `lookup_key`. */
+/**
+ * Ceny katalogowe rozwiązane hurtowo po czytelnym `lookup_key`.
+ *
+ * `data.tiers` jest rozwijane jawnie: operator NIE oddaje progów ceny
+ * schodkowej bez rozwinięcia, a bramka kasy (`planPriceMismatch`) liczy z nich
+ * kwotę za zamówioną liczbę miejsc. Bez progów cena Zespołu wyglądałaby jak
+ * cena bez kwoty i każda sesja kończyłaby się odmową.
+ */
 export async function resolvePricesByLookupKeys(
   stripe: Stripe,
   lookupKeys: string[],
@@ -125,7 +141,7 @@ export async function resolvePricesByLookupKeys(
   const result = await stripe.prices.list({
     lookup_keys: lookupKeys,
     active: true,
-    expand: ["data.product"],
+    expand: ["data.product", "data.tiers"],
   });
   const map = new Map<string, Stripe.Price>();
   for (const price of result.data) {
@@ -185,6 +201,18 @@ export interface PlanCheckoutSessionInput {
   expectedMode: "payment" | "subscription";
   /** Waluta zamówienia - cena u operatora w innej walucie to też `price_mismatch`. */
   expectedCurrency: string;
+  /**
+   * Cykl planu w słowniku operatora (`planPricing.ts`); `null` dla planu
+   * jednorazowego. Cena rozliczana w innym cyklu (co dwa tygodnie zamiast co
+   * rok) to `price_mismatch`.
+   */
+  expectedRecurring: StripeRecurringCycle | null;
+  /**
+   * Kwota BRUTTO pozycji za `quantity` sztuk, przed rabatem i podatkiem - ta,
+   * którą zapisało zamówienie (wycena planu). Cena, która za tę ilość naliczy
+   * cokolwiek innego (dryf kwoty, inne progi), to `price_mismatch`.
+   */
+  expectedAmountCents: number;
   planId: string;
   orderId: string;
   userId: string;
@@ -207,16 +235,78 @@ export interface PlanCheckoutSessionInput {
 }
 
 /**
+ * Kwota, którą operator naliczy za `quantity` sztuk tej ceny - przed rabatem
+ * i podatkiem. `null`, gdy cena liczy w sposób, którego kasa nie wycenia
+ * (kwota dowolna, przekształcenie ilości, stawka ułamkowa, schodki inne niż
+ * `volume`, brak rozwiniętych progów) - bramka traktuje to jak niezgodność.
+ */
+export function stripePriceAmountCents(price: Stripe.Price, quantity: number): number | null {
+  if (price.custom_unit_amount || price.transform_quantity) return null;
+  if (price.billing_scheme === "tiered") {
+    // Katalog zakłada wyłącznie schodki `volume` (catalogSync): WSZYSTKIE
+    // sztuki po stawce progu, który osiągnęła ilość.
+    if (price.tiers_mode !== "volume" || !Array.isArray(price.tiers)) return null;
+    const tier = price.tiers.find((t) => t.up_to === null || quantity <= t.up_to);
+    if (!tier || typeof tier.unit_amount !== "number") return null;
+    return tier.unit_amount * quantity + (tier.flat_amount ?? 0);
+  }
+  return typeof price.unit_amount === "number" ? price.unit_amount * quantity : null;
+}
+
+/** Oczekiwania zamówienia wobec ceny pod `lookup_key` (z wyceny planu). */
+export interface PlanPriceExpectation {
+  mode: "payment" | "subscription";
+  currency: string;
+  recurring: StripeRecurringCycle | null;
+  amountCents: number;
+  quantity: number;
+}
+
+/**
+ * Powód niezgodności ceny u operatora z zamówieniem albo `null`, gdy cena
+ * pobierze dokładnie to, co zapisało zamówienie: ten sam typ (cykliczna /
+ * jednorazowa), waluta, cykl (`interval` + `interval_count`, rozliczanie za
+ * ilość, nie za zużycie) i kwota za zamówioną liczbę sztuk.
+ */
+export function planPriceMismatch(
+  price: Stripe.Price,
+  expected: PlanPriceExpectation,
+): "mode" | "currency" | "interval" | "amount" | null {
+  const mode = price.type === "recurring" ? "subscription" : "payment";
+  if (mode !== expected.mode) return "mode";
+  if ((price.currency ?? "").toLowerCase() !== expected.currency.toLowerCase()) {
+    return "currency";
+  }
+  const recurring = price.recurring ?? null;
+  if (expected.recurring === null) {
+    if (recurring !== null) return "interval";
+  } else if (
+    recurring === null ||
+    recurring.interval !== expected.recurring.interval ||
+    recurring.interval_count !== expected.recurring.intervalCount ||
+    (recurring.usage_type ?? "licensed") !== "licensed"
+  ) {
+    return "interval";
+  }
+  if (stripePriceAmountCents(price, expected.quantity) !== expected.amountCents) return "amount";
+  return null;
+}
+
+/**
  * Tworzy Embedded Checkout Session z ceny katalogowej. Tryb (subscription vs
  * payment) wynika z `price.type` - katalog zawiera też ceny jednorazowe.
  *
- * BRAMKA SPÓJNOŚCI CENY Z ZAMÓWIENIEM. Wołający podaje tryb i walutę, które
- * wynikają z planu zamówienia. Cena pod `lookup_key` jest u operatora obiektem
- * zmiennym (synchronizacja katalogu, ręczna edycja w panelu, przeniesiony
- * klucz) - gdy jej typ albo waluta nie zgadza się z zamówieniem, sesja
- * pobrałaby pieniądze za coś innego, niż zapisaliśmy (subskrypcja zamiast
- * zakupu jednorazowego, euro zamiast złotych). Odmawiamy wtedy ZANIM powstanie
- * klient i sesja, a wołający zamyka zamówienie jako `failed` i zwalnia kupon.
+ * BRAMKA SPÓJNOŚCI CENY Z ZAMÓWIENIEM. Wołający podaje tryb, walutę, cykl
+ * i kwotę brutto, które wynikają z planu zamówienia. Cena pod `lookup_key` jest
+ * u operatora obiektem zmiennym (synchronizacja katalogu, ręczna edycja
+ * w panelu, przeniesiony klucz, cena zbudowana z planu innego najemcy na
+ * wspólnym koncie) - gdy cokolwiek z tego się nie zgadza, sesja pobrałaby
+ * pieniądze za coś innego, niż zapisaliśmy: subskrypcję zamiast zakupu
+ * jednorazowego, euro zamiast złotych, rozliczenie co dwa tygodnie zamiast
+ * co rok albo inną kwotę (przegląd PAY-01, 0.1 - dotąd bramka sprawdzała
+ * wyłącznie typ i walutę, a resztę wykrywała realizacja PO pobraniu pieniędzy).
+ * Odmawiamy ZANIM powstanie klient i sesja, a wołający zamyka zamówienie jako
+ * `failed` i zwalnia kupon.
  */
 export async function createPlanCheckoutSession(
   input: PlanCheckoutSessionInput,
@@ -234,15 +324,32 @@ export async function createPlanCheckoutSession(
     // Zawężamy u ŹRÓDŁA - to nasz kontrakt, nie kontrakt SDK.
     const mode: "payment" | "subscription" =
       price.type === "recurring" ? "subscription" : "payment";
-    const priceCurrency = (price.currency ?? "").toLowerCase();
-    if (mode !== input.expectedMode || priceCurrency !== input.expectedCurrency.toLowerCase()) {
+    // Ilość liczona PRZED bramką - kwotę ceny sprawdzamy dokładnie dla tej
+    // liczby sztuk, która pójdzie w pozycji sesji.
+    const quantity = lineQuantityOf(input.quantity);
+    const mismatch = planPriceMismatch(price, {
+      mode: input.expectedMode,
+      currency: input.expectedCurrency,
+      recurring: input.expectedRecurring,
+      amountCents: input.expectedAmountCents,
+      quantity,
+    });
+    if (mismatch) {
       console.error("[payments] plan price mismatch", {
         orderId: input.orderId,
         lookupKey: input.priceLookupKey,
+        reason: mismatch,
         expectedMode: input.expectedMode,
         priceMode: mode,
         expectedCurrency: input.expectedCurrency,
-        priceCurrency,
+        priceCurrency: (price.currency ?? "").toLowerCase(),
+        expectedRecurring: input.expectedRecurring,
+        priceRecurring: price.recurring
+          ? { interval: price.recurring.interval, intervalCount: price.recurring.interval_count }
+          : null,
+        expectedAmountCents: input.expectedAmountCents,
+        priceAmountCents: stripePriceAmountCents(price, quantity),
+        quantity,
       });
       return { ok: false, error: "price_mismatch" };
     }
@@ -251,8 +358,6 @@ export async function createPlanCheckoutSession(
       userId: input.userId,
       email: input.customerEmail,
     });
-
-    const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), MAX_LINE_QUANTITY);
 
     const productName =
       typeof price.product === "object" && price.product && "name" in price.product
@@ -416,17 +521,24 @@ function adhocFlags(input: AdhocCheckoutSessionInput, hasCustomer: boolean): Ses
 /**
  * Tworzy Embedded Checkout Session z ceną osadzoną w pozycji (`price_data`) -
  * jedyny sposób na kwotę wyliczoną dynamicznie serwerowo (kupon, waluta
- * prezentacji, cena wydarzenia). Odrzuca kwoty poniżej minimum operatora.
+ * prezentacji, cena wydarzenia). Odrzuca kwoty poniżej minimum operatora
+ * W WALUCIE POZYCJI (`chargeMinimum.ts` - 2,00 zł, 0,50 EUR), liczone od sumy
+ * za wszystkie sztuki, bo minimum dotyczy obciążenia, nie stawki.
  */
 export async function createAdhocCheckoutSession(
   input: AdhocCheckoutSessionInput,
 ): Promise<CheckoutSessionResult> {
-  if (!Number.isFinite(input.amountCents) || input.amountCents < MIN_ADHOC_AMOUNT_CENTS) {
+  const lineQuantity = lineQuantityOf(input.quantity);
+  if (
+    !Number.isFinite(input.amountCents) ||
+    input.amountCents <= 0 ||
+    isBelowMinimumCharge(Math.round(input.amountCents) * lineQuantity, input.currency)
+  ) {
     return { ok: false, error: "amount_too_low" };
   }
   try {
     const stripe = await getStripeClient(input.environment);
-    const quantity = Math.min(Math.max(Math.trunc(input.quantity ?? 1), 1), MAX_LINE_QUANTITY);
+    const quantity = lineQuantity;
 
     let customerId: string | undefined;
     if (input.userId) {

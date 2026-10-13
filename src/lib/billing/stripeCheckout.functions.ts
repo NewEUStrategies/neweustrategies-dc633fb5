@@ -3,6 +3,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { isBelowMinimumCharge } from "@/lib/billing/chargeMinimum";
 import { CHECKOUT_LOCALES } from "@/lib/billing/checkoutLocale";
 import { isCodeProbeRateLimited, parseCouponVerdict } from "@/lib/billing/coupons";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
@@ -36,10 +37,12 @@ const planCheckoutSchema = z.object({
 /**
  * Sesja Embedded Checkout dla planu z katalogu (`lookup_key`). Cena katalogowa,
  * ilość, kwota i tryb (subskrypcja / jednorazowa) wynikają z WIERSZA PLANU
- * (`planCheckoutPricing`), a sesja odmawia, gdy cena u operatora ma inny typ
- * albo walutę niż zamówienie (`price_mismatch`). Kupon B2B jest walidowany tym
- * samym mechanizmem co w drugim silniku (`validate_b2b_coupon`) od kwoty
- * brutto wyliczonej tutaj; rabat trafia do operatora jako jednorazowy kupon
+ * (`planCheckoutPricing`, wyłącznie dokładna para warstwa-cykl), a sesja
+ * odmawia, gdy cena u operatora ma inny typ, walutę, cykl albo kwotę niż
+ * zamówienie (`price_mismatch`). Kupon B2B jest walidowany tym samym
+ * mechanizmem co w drugim silniku (`validate_b2b_coupon`) od kwoty brutto
+ * wyliczonej tutaj, z tym samym minimum operatora po rabacie
+ * (`final_amount_too_low`); rabat trafia do operatora jako jednorazowy kupon
  * Stripe o tej samej kwocie.
  *
  * KWOTA ZAMÓWIENIA = kwota PO kuponie, PRZED podatkiem - ta sama semantyka co
@@ -120,6 +123,15 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       couponCode = normalizedCode;
       couponDiscountCents = row.discount_cents;
       amountCents = row.final_cents;
+      // MINIMUM OPERATORA PO KUPONIE - ta sama reguła i ten sam kod odmowy co
+      // w `checkout.functions.ts` (`chargeMinimum.ts`). Dotąd ten silnik nie
+      // miał progu: kupon 100% zakładał zamówienie na 0 zł (dla planu
+      // jednorazowego - dożywotni dostęp za darmo), a kwota poniżej minimum
+      // padała dopiero u operatora, PO zamówieniu i rezerwacji kuponu
+      // (przegląd PAY-01, 0.3). Odmowa zapada przed jednym i drugim.
+      if (isBelowMinimumCharge(amountCents, currency)) {
+        return { ok: false as const, error: "final_amount_too_low" };
+      }
     }
 
     const { data: order, error: insertErr } = await supabase
@@ -252,10 +264,13 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       environment,
       priceLookupKey: pricing.entry.priceId,
       quantity: pricing.quantity,
-      // Oczekiwania z wyceny: cena u operatora innego typu albo w innej
-      // walucie niż zamówienie kończy się `price_mismatch`, nie sesją.
+      // Oczekiwania z wyceny: cena u operatora innego typu, w innej walucie,
+      // w innym cyklu albo z inną kwotą za tę liczbę sztuk niż zamówienie
+      // kończy się `price_mismatch`, nie sesją.
       expectedMode: pricing.mode,
       expectedCurrency: currency,
+      expectedRecurring: pricing.recurring,
+      expectedAmountCents: grossCents,
       planId: data.planId,
       orderId: order.id,
       userId,

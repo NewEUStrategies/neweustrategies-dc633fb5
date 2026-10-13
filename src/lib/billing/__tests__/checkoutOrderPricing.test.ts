@@ -390,7 +390,7 @@ describe("createCheckoutOrder - odmowy na ścieżce planu", () => {
     // przez webhook jako opłacone i nadało uprawnienie bez płatności.
     chain.setResponse("access_plans", ok(planQuote({ price_cents: 0 })));
 
-    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("zero_amount");
+    await expect(call(planPayload())).rejects.toThrow("zero_amount");
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
 
@@ -518,19 +518,50 @@ describe("createCheckoutOrder - wycena planu", () => {
     expect(insertedOrder()?.amount_cents).toBe(4900);
   });
 
-  it("JEDNORAZOWY zakup planu omija katalog cen i idzie ceną wiersza", async () => {
-    // `kind=one_time` z planem to zakup dożywotni - nie ma cyklu, więc nie ma
-    // po co pytać katalogu operatora o cenę subskrypcyjną.
+  it("JEDNORAZOWY zakup planu spoza katalogu NIE omija wyceny - `plan_price_missing`", async () => {
+    // Do 12.10.2026 `kind=one_time` z planem omijał katalog i szedł ceną
+    // wiersza - także dla planu, którego katalog nie zna. Zakup planu idzie
+    // teraz ZAWSZE wyceną wspólną z drugim silnikiem (przegląd PAY-01, 0.0).
     chain.setResponse(
       "access_plans",
-      ok(planQuote({ tier_key: "warstwa-spoza-katalogu", price_cents: 29900 })),
+      ok(
+        planQuote({ tier_key: "warstwa-spoza-katalogu", interval: "one_time", price_cents: 29900 }),
+      ),
     );
 
-    const result = await call(planPayload({ kind: "one_time" }));
+    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("plan_price_missing");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("`kind=one_time` z planem MIESIĘCZNYM nie kupuje dożywocia ceną jednego okresu (`kind_mismatch`)", async () => {
+    // Zamówienie `one_time` z `plan_id` realizacja zamienia w dostęp
+    // dożywotni. Tryb mock nadałby go od ręki - odmowa zapada przed
+    // zamówieniem, więc nie ma czego finalizować.
+    await expect(call(planPayload({ kind: "one_time" }))).rejects.toThrow("kind_mismatch");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("`kind=subscription` z planem JEDNORAZOWYM też jest odmową (`kind_mismatch`)", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),
+    );
+
+    await expect(call(planPayload())).rejects.toThrow("kind_mismatch");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("plan JEDNORAZOWY z katalogu: zamówienie `one_time` z kwotą WYCENY", async () => {
+    chain.setResponse(
+      "access_plans",
+      ok(planQuote({ tier_key: "decision_lab", interval: "one_time", price_cents: 1600000 })),
+    );
+
+    const result = await call(planPayload({ kind: "one_time", seats: 5 }));
 
     expect(result.ok).toBe(true);
-    expect(insertedOrder()?.amount_cents).toBe(29900);
     expect(insertedOrder()?.kind).toBe("one_time");
+    expect(insertedOrder()?.amount_cents).toBe(1600000);
   });
 });
 

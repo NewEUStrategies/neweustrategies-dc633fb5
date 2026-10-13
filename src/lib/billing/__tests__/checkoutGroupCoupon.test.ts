@@ -764,17 +764,19 @@ describe("createCheckoutOrder - pozycja w Stripe i pole kodu operatora", () => {
   });
 
   it("cena miejsca poniżej minimum operatora zostaje jedną linią za całość", async () => {
+    // Minimum operatora dla złotówek to 2,00 zł (`chargeMinimum.ts`): miejsce
+    // za 1 zł nie przechodzi go samo, ale suma za trzy (3 zł) - tak.
     rpcResponses.set(
       "event_ticket_checkout_quote_for_user",
-      ok(quote({ amount_cents: 40, list_price_cents: 40 })),
+      ok(quote({ amount_cents: 100, list_price_cents: 100 })),
     );
 
     await call();
 
-    expect(orderInsert().amount_cents).toBe(120);
+    expect(orderInsert().amount_cents).toBe(300);
     expect(session().line_items[0]).toMatchObject({
       quantity: 1,
-      price_data: { unit_amount: 120 },
+      price_data: { unit_amount: 300 },
     });
   });
 
