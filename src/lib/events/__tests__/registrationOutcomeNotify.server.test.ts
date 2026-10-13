@@ -21,11 +21,18 @@
 //      PRZED sprawdzeniem szablonu. To nie jest szczegół implementacyjny:
 //      decyduje, kto dostanie wiadomość, gdy karta nie przeszła - i płacący,
 //      i osoby, które właśnie weszły na zwolnione miejsce.
-//   3. PREFERENCJE KANAŁÓW są PER ZGŁOSZENIE i mają semantykę opt-out
+//   3. PREFERENCJE KANAŁÓW są PER ZGŁOSZENIE. E-mail ma semantykę opt-out
 //      (NULL znaczy „wysyłaj"), a błąd bazy nie może wyciszyć wiadomości
-//      o pieniądzach.
-//   4. SMS-Y SĄ BEZ OGONKÓW CELOWO. Jeden znak poza GSM-7 przełącza całą
-//      wiadomość na UCS-2, połowi długość segmentu i podwaja koszt wysyłki.
+//      o pieniądzach. SMS (REG-10, D12) jest OPT-IN i FAIL-CLOSED: wychodzi
+//      tylko przy `notify_sms = true` ORAZ stemplu zgody, a brak wiersza, błąd
+//      i rzut to brak dowodu zgody - czyli brak SMS-a.
+//   4. SMS-Y SĄ W GSM-7 I W JEDNYM SEGMENCIE. Jeden znak poza GSM-7 przełącza
+//      całą wiadomość na UCS-2, połowi długość segmentu i podwaja koszt
+//      wysyłki - ogonki z tytułu zdejmuje `composeSmsBody`.
+//   4a. KAŻDY SMS PRZEZ `sendParticipantSms` (REG-10). Moduł biegnie z
+//      PRAWDZIWĄ bramką uczestnika (wyłącznik `EVENT_SMS_ENABLED`, GSM-7,
+//      budżet najemcy); atrapą jest wyłącznie transport `sendSms` i licznik
+//      budżetu.
 //   5. FAIL-SOFT CAŁOŚCI. Pieniądze i miejsce są już zaksięgowane; wyjątek
 //      z bramy poczty czy SMS skazywałby webhooka na wieczne ponowienia,
 //      czyli na wysyłanie tego samego maila w kółko.
@@ -36,6 +43,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 
 import type { TxSendInput, TxSendResult } from "@/lib/email/transactional.server";
+import { gsm7Septets, isGsm7 } from "@/lib/events/gsm7";
 import type { SmsInput, SmsResult } from "@/lib/notify/sms.server";
 import { fail, ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabaseChain";
 
@@ -202,6 +210,28 @@ const sms = vi.hoisted(() => {
 
 vi.mock("@/lib/notify/sms.server", () => ({ sendSms: sms.sendSms }));
 
+/**
+ * Budżet najemcy (`rate_limits`, zakres 'event.sms.tenant') - jedyny licznik,
+ * przez który przechodzi PRAWDZIWY `sendParticipantSms`. `deny` symuluje
+ * wyczerpany budżet dobowy.
+ */
+const budget = vi.hoisted(() => {
+  let allowed = true;
+  const rateLimit = vi.fn(async () => allowed);
+  return {
+    rateLimit,
+    deny(): void {
+      allowed = false;
+    },
+    reset(): void {
+      allowed = true;
+      rateLimit.mockClear();
+    },
+  };
+});
+
+vi.mock("@/lib/server/rate-limit.server", () => ({ rateLimit: budget.rateLimit }));
+
 // UWAGA: `@/lib/billing/notifications.server` NIE jest atrapowany, choć da się.
 // `resolveRecipient` nie jest granicą systemu - to zwykły odczyt tabeli
 // `profiles` przez PODANY mu klient, czyli przez atrapę, która i tak tu stoi.
@@ -264,9 +294,24 @@ function promotedRow(over: Record<string, unknown> = {}): Record<string, unknown
 interface ChannelRow {
   notify_email: boolean | null;
   notify_sms: boolean | null;
+  remind_sms_consent_at: string | null;
 }
 
-const channelRows = new Map<string, ChannelRow>();
+/** Stempel zgody na SMS (`remind_sms_consent_at`, REG-10). */
+const CONSENT_AT = "2026-10-01T10:00:00.000Z";
+
+/**
+ * Wiersz, który atrapa oddaje dla zgłoszenia BEZ jawnego wpisu: oba kanały
+ * ze ZGODĄ na SMS. SMS jest opt-in, więc atrapa „brak wiersza = wszystko
+ * wolno" kłamałaby o produkcji; przypadki o braku wiersza, braku zgody
+ * i awarii odczytu ustawiają to jawnie (`MISSING`, wiersz bez stempla).
+ */
+const CONSENTED: ChannelRow = { notify_email: true, notify_sms: true, remind_sms_consent_at: CONSENT_AT };
+
+/** Zgłoszenia, dla których baza NIE ma wiersza w tym najemcy. */
+const MISSING = "missing" as const;
+
+const channelRows = new Map<string, ChannelRow | typeof MISSING>();
 
 /** Wiersz `profiles` w kształcie, jaki czyta `resolveRecipient`. */
 interface ProfileRow {
@@ -301,9 +346,15 @@ function givenDb(): SupabaseFromStub {
   // rozróżniać wiersze - inaczej test asymetrii kanałów (płacący vs awansowany)
   // nie miałby czego pokazać.
   next.setResponse("event_registrations", (chain) => {
-    const args = chain.argsOf("eq");
-    const id = typeof args?.[1] === "string" ? args[1] : "";
-    return ok(channelRows.get(id) ?? null);
+    const eqs = new Map(
+      chain.calls.filter((call) => call.method === "eq").map((call) => [call.args[0], call.args[1]]),
+    );
+    const id = typeof eqs.get("id") === "string" ? String(eqs.get("id")) : "";
+    // Wiersz istnieje WYŁĄCZNIE w najemcy z ładunku - odczyt bez filtra
+    // najemcy (albo z obcym) nie dostaje nic.
+    if (eqs.get("tenant_id") !== TENANT) return ok(null);
+    const row = channelRows.get(id) ?? CONSENTED;
+    return ok(row === MISSING ? null : row);
   });
   // Profil odbiorcy czyta prawdziwy `resolveRecipient` - też po identyfikatorze,
   // więc atrapa musi rozróżniać konta. Inaczej płacący i awansowany dostawaliby
@@ -351,14 +402,19 @@ beforeEach(() => {
   db.reset();
   mail.reset();
   sms.reset();
+  budget.reset();
   profileRows.clear();
   channelRows.clear();
   stub = givenDb();
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  // Platforma z operatorem i z wyłącznikiem SMS-ów uczestnika (R-6).
+  vi.stubEnv("SMSAPI_TOKEN", "token-testowy");
+  vi.stubEnv("EVENT_SMS_ENABLED", "1");
 });
 
 afterEach(() => {
   errorSpy.mockRestore();
+  vi.unstubAllEnvs();
 });
 
 // --- 1. idempotencja przy ponowieniu webhooka -------------------------------
@@ -440,18 +496,21 @@ describe("idempotencja wobec ponowionego webhooka", () => {
     expect(key.replace(REG_PROMOTED, "<zgloszenie>")).not.toMatch(/\d{10,}/);
   });
 
-  it("DEFEKT: ponowiony webhook wysyła DRUGI SMS - kanał SMS nie ma klucza idempotencji", async () => {
+  it("ponowiony webhook nie wysyła drugiego SMS-a - klucz zdarzenia i najemca idą do transportu", async () => {
     // `NotifyOptions` opisuje kontrakt wprost: „webhook nadal nie może wysłać
-    // tej samej wiadomości dwa razy". Dla poczty pilnuje tego
-    // `idempotencyKey`, ale `sendSms` (`lib/notify/sms.server`) nie przyjmuje
-    // żadnego klucza, a `notifyTicketOutcome` (:312-319) woła go bezwarunkowo.
-    // Skutek: każde ponowienie webhooka przez operatora płatności to kolejny
-    // SMS do tej samej osoby, bez żadnej bariery - i bez śladu w
-    // `email_send_log`, bo SMS-y w nim nie siedzą.
-    await notifyTicketOutcome(payload());
-    await notifyTicketOutcome(payload());
+    // tej samej wiadomości dwa razy". Klucz jest funkcją zdarzenia, a najemca
+    // jest kluczem dziennika `sms_send_log` (REG-11) - dopiero razem dają
+    // pamięć „ten SMS już wyszedł".
+    const first = await notifyTicketOutcome(payload());
+    const second = await notifyTicketOutcome(payload());
 
+    expect(first.smsSent).toBe(true);
+    expect(second.smsSent).toBe(false);
     expect(sms.sent).toHaveLength(1);
+    expect(sms.sendSms.mock.calls[0]?.[0]).toMatchObject({
+      idempotencyKey: `event-ticket-sms:${REG}:paid:0`,
+      tenantId: TENANT,
+    });
   });
 });
 
@@ -589,31 +648,50 @@ describe("preferencje kanałów zapisane na zgłoszeniu", () => {
     // rozstrzygnięty przez najemcę w SQL (pilnuje tego bramka
     // `check:sql-tenant-scope`). Ten odczyt biegnie na service_role, więc
     // brak filtra `id` oznaczałby czytanie cudzych preferencji.
-    expect(stub.lastChain("event_registrations")?.argsOf("eq")).toEqual(["id", REG]);
-    expect(stub.lastChain("event_registrations")?.argsOf("select")).toEqual([
-      "notify_email, notify_sms",
+    const chain = stub.lastChain("event_registrations");
+    const eqs = chain?.calls.filter((call) => call.method === "eq").map((call) => call.args);
+    // REG-10: odczyt idzie spod service_role (RLS nie działa), więc filtr
+    // najemcy z wyniku RPC jest jedyną granicą - obok klucza zgłoszenia.
+    expect(eqs).toEqual([
+      ["id", REG],
+      ["tenant_id", TENANT],
     ]);
+    expect(chain?.argsOf("select")).toEqual(["notify_email, notify_sms, remind_sms_consent_at"]);
   });
 
-  it("NULL znaczy „wysyłaj”: zgłoszenie bez decyzji dostaje oba kanały", async () => {
-    // Semantyka jest opt-out (`notify_email !== false`), bo formularz zapisu
-    // nie wymusza decyzji, a powiadomienie o pieniądzach musi dojść domyślnie.
-    channelRows.set(REG, { notify_email: null, notify_sms: null });
+  it("NULL e-maila znaczy „wysyłaj”, NULL SMS-a - brak zgody", async () => {
+    // E-mail: opt-out (`notify_email !== false`), bo powiadomienie
+    // o pieniądzach musi dojść domyślnie. SMS: opt-in (REG-10) - NULL to nie
+    // zgoda.
+    channelRows.set(REG, { notify_email: null, notify_sms: null, remind_sms_consent_at: null });
     const result = await notifyTicketOutcome(payload());
 
     expect(result.emailed).toBe(true);
-    expect(result.smsSent).toBe(true);
+    expect(result.smsSent).toBe(false);
+    expect(sms.sendSms).not.toHaveBeenCalled();
   });
 
-  it("brak wiersza preferencji też znaczy „wysyłaj”", async () => {
+  it("brak wiersza preferencji: mail idzie, SMS nie (brak dowodu zgody)", async () => {
+    channelRows.set(REG, MISSING);
     const result = await notifyTicketOutcome(payload());
 
     expect(result.emailed).toBe(true);
-    expect(result.smsSent).toBe(true);
+    expect(result.smsSent).toBe(false);
+    expect(sms.sendSms).not.toHaveBeenCalled();
+  });
+
+  it("REG-10: notify_sms = true BEZ stempla zgody nie wysyła SMS-a", async () => {
+    // Dawny DEFAULT true nie był zgodą - zgoda to stempel z jawnego włączenia.
+    channelRows.set(REG, { notify_email: true, notify_sms: true, remind_sms_consent_at: null });
+    const result = await notifyTicketOutcome(payload());
+
+    expect(result.emailed).toBe(true);
+    expect(result.smsSent).toBe(false);
+    expect(sms.sendSms).not.toHaveBeenCalled();
   });
 
   it("wypisanie się z poczty wycisza mail, ale NIE SMS-a", async () => {
-    channelRows.set(REG, { notify_email: false, notify_sms: true });
+    channelRows.set(REG, { notify_email: false, notify_sms: true, remind_sms_consent_at: CONSENT_AT });
     const result = await notifyTicketOutcome(payload());
 
     expect(result.emailed).toBe(false);
@@ -623,7 +701,7 @@ describe("preferencje kanałów zapisane na zgłoszeniu", () => {
   });
 
   it("wypisanie się z SMS-ów wycisza SMS, ale NIE mail", async () => {
-    channelRows.set(REG, { notify_email: true, notify_sms: false });
+    channelRows.set(REG, { notify_email: true, notify_sms: false, remind_sms_consent_at: CONSENT_AT });
     const result = await notifyTicketOutcome(payload());
 
     expect(result.emailed).toBe(true);
@@ -631,22 +709,28 @@ describe("preferencje kanałów zapisane na zgłoszeniu", () => {
     expect(sms.sent).toHaveLength(0);
   });
 
-  it("błąd odczytu preferencji otwiera OBA kanały, a nie zamyka", async () => {
-    // Awaria bazy nie może wyciszyć wiadomości o pieniądzach - cisza jest tu
-    // gorsza niż wiadomość wysłana wbrew wypisaniu.
+  it("błąd odczytu preferencji: mail idzie (fail-open), SMS nie (fail-closed)", async () => {
+    // Awaria bazy nie może wyciszyć MAILA o pieniądzach. SMS-a nie wysyłamy:
+    // błąd PostgREST to brak dowodu zgody (dotąd `error` nie był nawet
+    // czytany, a `data: null` dawało „oba kanały").
     stub.setResponse("event_registrations", fail("bramka preferencji odmówiła"));
     const result = await notifyTicketOutcome(payload());
 
     expect(result.emailed).toBe(true);
-    expect(result.smsSent).toBe(true);
+    expect(result.smsSent).toBe(false);
+    expect(sms.sendSms).not.toHaveBeenCalled();
+    expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
+      "[events] channel preferences read failed",
+    );
   });
 
-  it("rzut klienta Supabase przy odczycie preferencji też otwiera oba kanały", async () => {
+  it("rzut klienta Supabase przy odczycie preferencji: mail idzie, SMS nie", async () => {
     db.breakTable("event_registrations");
     const result = await notifyTicketOutcome(payload());
 
     expect(result.emailed).toBe(true);
-    expect(result.smsSent).toBe(true);
+    expect(result.smsSent).toBe(false);
+    expect(sms.sendSms).not.toHaveBeenCalled();
     expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
       "[events] channel preferences read failed",
     );
@@ -665,7 +749,11 @@ describe("preferencje kanałów zapisane na zgłoszeniu", () => {
     // ma pod ręką wszystko, czego trzeba, żeby tego nie robić. Dokumentacja
     // `readChannels` (:226-231) nazywa preferencje kontraktem PER
     // ZGŁOSZENIE bez żadnego wyjątku dla listy rezerwowej.
-    channelRows.set(REG_PROMOTED, { notify_email: false, notify_sms: false });
+    channelRows.set(REG_PROMOTED, {
+      notify_email: false,
+      notify_sms: false,
+      remind_sms_consent_at: CONSENT_AT,
+    });
     await notifyTicketOutcome(
       payload({
         outcome: "refunded",
@@ -1113,11 +1201,10 @@ describe("fail-soft: webhook nie może wpaść w wieczne ponowienia", () => {
     );
   });
 
-  it("rzut z bramy SMS w środku kolejki przerywa resztę awansów", async () => {
-    // `notifyPromoted` NIE osłania `sendSms` (:202-209), bo produkcyjna brama
-    // jest udokumentowana jako „nigdy nie rzuca". Ten test pilnuje tego
-    // założenia: gdyby brama zaczęła rzucać, pierwszy wiersz zabiera całą
-    // resztę kolejki i wynik pokazuje zero awansów, choć mail już poszedł.
+  it("rzut z bramy SMS przy awansie nie zabiera reszty kolejki", async () => {
+    // ZMIANA 20261012 (REG-10): SMS awansu idzie przez `sendOutcomeSms`, który
+    // nigdy nie rzuca. Dotąd rzut transportu przy pierwszym wierszu zabierał
+    // całą resztę kolejki, a wynik pokazywał zero awansów, choć mail poszedł.
     sms.breakGateway(new Error("brama SMS odmówiła"));
     const result = await notifyTicketOutcome(
       payload({
@@ -1136,8 +1223,11 @@ describe("fail-soft: webhook nie może wpaść w wieczne ponowienia", () => {
       }),
     );
 
-    expect(result.promotedNotified).toBe(0);
-    expect(attemptsOfType("event_waitlist_promoted")).toHaveLength(1);
+    expect(result.promotedNotified).toBe(2);
+    expect(attemptsOfType("event_waitlist_promoted")).toHaveLength(2);
+    expect(errorSpy.mock.calls.map((call) => String(call[0]))).toContain(
+      "[events] waitlist promotion sms failed",
+    );
   });
 });
 
@@ -1662,5 +1752,174 @@ describe("dzwonek kupującego przy ponowionym webhooku", () => {
 
     expect(new Set(bodies).size).toBe(6);
     expect(bodies.every((body) => body.includes(TITLE_PL))).toBe(true);
+  });
+});
+
+// --- 11. REG-10: każdy SMS przez bramkę uczestnika ---------------------------
+
+describe("REG-10: SMS o wyniku płatności i awansie tylko przez sendParticipantSms", () => {
+  /** Tytuł z polskimi znakami - dotąd przełączał SMS na UCS-2 (kilka segmentów). */
+  const TITLE_DIACRITICS = "Kongres Bezpieczeństwa Łódź";
+
+  it("UKOŃCZENIE: wyłączony EVENT_SMS_ENABLED -> brak SMS (płacący i awansowany), mail idzie", async () => {
+    // Stary kod sprawdzał wyłącznie SMSAPI_TOKEN: SMS o płatności i awansie
+    // wychodził na platformie, której polityka prywatności nie wymienia
+    // jeszcze operatora SMS. Zgoda jest na obu zgłoszeniach - jedyną bramką,
+    // która ma tu zadziałać, jest wyłącznik platformy.
+    vi.stubEnv("EVENT_SMS_ENABLED", "");
+    const result = await notifyTicketOutcome(
+      payload({
+        outcome: "refunded",
+        refunded_cents: 24_900,
+        waitlist: { promoted: 1, registrations: [promotedRow()] },
+      }),
+    );
+
+    expect(sms.sendSms).not.toHaveBeenCalled();
+    expect(result.smsSent).toBe(false);
+    expect(result.emailed).toBe(true);
+    expect(result.promotedNotified).toBe(1);
+    // Wyłączony kanał nie zjada budżetu najemcy.
+    expect(budget.rateLimit).not.toHaveBeenCalled();
+  });
+
+  it("wyczerpany budżet najemcy -> brak SMS, mail idzie", async () => {
+    budget.deny();
+    const result = await notifyTicketOutcome(payload());
+
+    expect(result.emailed).toBe(true);
+    expect(result.smsSent).toBe(false);
+    expect(sms.sendSms).not.toHaveBeenCalled();
+    expect(budget.rateLimit).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "event.sms.tenant", subjectId: TENANT, failClosed: true }),
+    );
+  });
+
+  it("ładunek bez najemcy -> brak SMS i brak odczytu preferencji bez filtra najemcy", async () => {
+    const result = await notifyTicketOutcome(payload({ tenant_id: null }));
+
+    expect(result.smsSent).toBe(false);
+    expect(sms.sendSms).not.toHaveBeenCalled();
+    // Mail o pieniądzach nadal idzie (fail-open e-maila).
+    expect(result.emailed).toBe(true);
+    expect(stub.chainsFor("event_registrations")).toHaveLength(0);
+  });
+
+  it("awansowany bez zgody na SWOIM zgłoszeniu nie dostaje SMS-a, choć płacący ją ma", async () => {
+    channelRows.set(REG_PROMOTED, {
+      notify_email: true,
+      notify_sms: true,
+      remind_sms_consent_at: null,
+    });
+    await notifyTicketOutcome(
+      payload({
+        outcome: "refunded",
+        refunded_cents: 24_900,
+        waitlist: { promoted: 1, registrations: [promotedRow()] },
+      }),
+    );
+
+    expect(sms.sent.map((entry) => entry.to)).toEqual(["+48500100200"]);
+    expect(attemptsOfType("event_waitlist_promoted")).toHaveLength(1);
+  });
+
+  it("SMS awansu niesie klucz awansu i najemcę", async () => {
+    await notifyTicketOutcome(
+      payload({
+        outcome: "refunded",
+        refunded_cents: 24_900,
+        contact: null,
+        waitlist: { promoted: 1, registrations: [promotedRow()] },
+      }),
+    );
+
+    expect(sms.sendSms.mock.calls[0]?.[0]).toMatchObject({
+      to: "+48500100201",
+      idempotencyKey: `event-ticket-promoted-sms:${REG_PROMOTED}`,
+      tenantId: TENANT,
+    });
+  });
+
+  const withTitle = (over: Partial<TicketOutcomePayload> = {}): TicketOutcomePayload =>
+    payload({ event_title_pl: TITLE_DIACRITICS, event_title_en: TITLE_DIACRITICS, ...over });
+
+  const KINDS: Array<[string, () => TicketOutcomePayload]> = [
+    ["paid", () => withTitle()],
+    [
+      "paid_waitlisted",
+      () => withTitle({ registration_status: "waitlist", waitlist_position: 9_999 }),
+    ],
+    ["paid_pending", () => withTitle({ registration_status: "pending" })],
+    ["unpaid", () => withTitle({ outcome: "unpaid" })],
+    ["refunded", () => withTitle({ outcome: "refunded", refunded_cents: 24_900 })],
+    ["partial_refund", () => withTitle({ outcome: "partial_refund", refunded_cents: 5_000 })],
+  ];
+
+  for (const [kind, variant] of KINDS) {
+    for (const lang of ["pl", "en"] as const) {
+      it(`${kind}/${lang}: tytuł z ogonkami -> GSM-7, jeden segment, tytuł transliterowany`, async () => {
+        givenAdmins([]);
+        if (lang === "en") givenProfileLang(USER, "en");
+        const result = await notifyTicketOutcome(variant());
+
+        // Bez tego sprawdzenia „brak SMS-a" (np. bramka not_gsm7) przechodziłby
+        // przez obie siatki - pusty napis jest w GSM-7.
+        expect(result.smsSent).toBe(true);
+        const body = sms.sent[0]?.body ?? "";
+        expect(isGsm7(body)).toBe(true);
+        expect(gsm7Septets(body)).toBeLessThanOrEqual(160);
+        // Najdłuższy szkielet (kolejka/en z pozycją 9999) zostawia tytułowi ~24
+        // septety - tytuł bywa tam przycięty, ale zawsze transliterowany.
+        expect(body).toContain("Kongres Bezpieczenstw");
+      });
+    }
+  }
+
+  it("bardzo długi tytuł jest przycinany z `...`, a szkielet zostaje cały", async () => {
+    givenAdmins([]);
+    givenProfileLang(USER, "en");
+    const result = await notifyTicketOutcome(
+      queuedPayment({
+        event_title_en: `Kongres ${"Bezpieczeństwa ".repeat(20)}`,
+        waitlist_position: 9_999,
+      }),
+    );
+
+    expect(result.smsSent).toBe(true);
+    const body = sms.sent[0]?.body ?? "";
+    expect(gsm7Septets(body)).toBeLessThanOrEqual(160);
+    expect(body).toContain("...");
+    expect(body).toContain("(position 9999). We will send your ticket when a seat opens up.");
+  });
+
+  it("SMS awansu z tytułem z ogonkami też jest w GSM-7, w obu językach", async () => {
+    givenProfileLang(USER_PROMOTED, "en");
+    const other = "11111111-7777-4777-8777-111111111111";
+    await notifyTicketOutcome(
+      withTitle({
+        outcome: "refunded",
+        refunded_cents: 24_900,
+        contact: null,
+        waitlist: {
+          promoted: 2,
+          registrations: [
+            promotedRow(),
+            promotedRow({
+              registration_id: "22222222-8888-4888-8888-222222222222",
+              user_id: other,
+              email: "rezerwa2@example.com",
+              phone: "+48500100202",
+            }),
+          ],
+        },
+      }),
+    );
+
+    expect(sms.sent).toHaveLength(2);
+    for (const entry of sms.sent) {
+      expect(isGsm7(entry.body)).toBe(true);
+      expect(gsm7Septets(entry.body)).toBeLessThanOrEqual(160);
+      expect(entry.body).toContain("Kongres Bezpieczenstwa Lodz");
+    }
   });
 });
