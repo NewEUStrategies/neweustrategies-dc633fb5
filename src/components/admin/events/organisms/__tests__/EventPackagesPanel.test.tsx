@@ -47,10 +47,18 @@
 // CALY wiersz i nic po drodze nie ginie. (5) Warstwy `packagesApi` - ladunek RPC
 // ma swoj plik; tutaj konczymy na wejsciu do hooka.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within, type RenderResult } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+  type RenderResult,
+} from "@testing-library/react";
 import type { MouseEventHandler, ReactNode } from "react";
 import { axeViolations, summarize } from "@/test/axe";
 import { radixSwitchStub } from "@/test/reactStubs";
+import type { PackageTermsLookup } from "@/lib/events/packageDraft";
 import {
   PACKAGE_ORDER_STATUSES,
   type EventPackageInput,
@@ -88,6 +96,8 @@ const h = vi.hoisted(() => ({
   zamowieniaBlad: null as unknown,
   bilety: [] as unknown[] | undefined,
   biletyBlad: null as unknown,
+  // Warunki zakupu i podatek (TIX-07/09) - stan, ktory hook oddaje panelowi.
+  warunki: { status: "loading" } as PackageTermsLookup,
   wydarzeniaHookow: [] as string[],
   zapytaniaZamowien: [] as { eventId: string; packageId: string | null }[],
   zapisy: [] as unknown[],
@@ -211,6 +221,7 @@ vi.mock("@/components/admin/events/molecules/EventPackageDialog", () => ({
     nextSortOrder,
     isSaving,
     onSubmit,
+    packageTerms,
   }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -220,6 +231,7 @@ vi.mock("@/components/admin/events/molecules/EventPackageDialog", () => ({
     nextSortOrder: number;
     isSaving: boolean;
     onSubmit: (input: EventPackageInput) => void;
+    packageTerms: PackageTermsLookup;
   }) =>
     !open ? null : (
       <div
@@ -230,6 +242,10 @@ vi.mock("@/components/admin/events/molecules/EventPackageDialog", () => ({
         data-kolejnosc={String(nextSortOrder)}
         data-bilety={tickets.map((ticket) => ticket.id).join(",")}
         data-zapis={String(isSaving)}
+        data-warunki={packageTerms.status}
+        data-warunki-pakiety={
+          packageTerms.status === "ready" ? [...packageTerms.byPackage.keys()].join(",") : ""
+        }
       >
         <button
           type="button"
@@ -384,6 +400,13 @@ vi.mock("@/lib/events/useEventPackages", () => ({
       },
       isPending: false,
     };
+  },
+}));
+
+vi.mock("@/lib/events/usePackageTerms", () => ({
+  usePackageTerms: (eventId: string) => {
+    h.wydarzeniaHookow.push(`usePackageTerms:${eventId}`);
+    return h.warunki;
   },
 }));
 
@@ -550,6 +573,7 @@ beforeEach(() => {
   h.zamowieniaBlad = null;
   h.bilety = [bilet()];
   h.biletyBlad = null;
+  h.warunki = { status: "loading" };
   h.wydarzeniaHookow = [];
   h.zapytaniaZamowien = [];
   h.zapisy = [];
@@ -777,6 +801,9 @@ describe("przelacznik „aktywny” wysyla CALY wiersz", () => {
       requiresVerification: true,
       isActive: false,
       sortOrder: 20,
+      // Warunki zakupu i podatek NIE jada: szkic z samego wiersza ich nie zna,
+      // a obecny klucz bylby dla bazy poleceniem zmiany kolumny.
+      terms: null,
     });
   });
 
@@ -786,6 +813,44 @@ describe("przelacznik „aktywny” wysyla CALY wiersz", () => {
     fireEvent.click(przelacznik());
 
     expect(ostatniZapis().isActive).toBe(true);
+  });
+
+  it("przelacznik NIE niesie warunkow zakupu ani podatku, nawet gdy panel je zna", () => {
+    // Upsert zmienia kolumne warunkow tylko przy kluczu obecnym w ladunku.
+    // Przelacznik nie widzi formularza warunkow, wiec jedyne bezpieczne
+    // zachowanie to ich nie dotykac - inaczej wycofanie oferty cofaloby
+    // termin platnosci do wartosci domyslnej.
+    h.warunki = {
+      status: "ready",
+      byPackage: new Map([
+        [
+          PAKIET,
+          {
+            id: PAKIET,
+            admit_before_payment: true,
+            payment_terms_days: 45,
+            max_open_orders_per_buyer: null,
+            vat_rate: "8",
+            vat_exempt_basis: "",
+            stripe_tax_code: null,
+          },
+        ],
+      ]),
+    };
+    panel();
+    fireEvent.click(przelacznik());
+
+    expect(ostatniZapis().terms).toBeNull();
+  });
+
+  it("cena przechodzi przez pole w zlotych bez zmiany kwoty - takze nieokragla", () => {
+    // Przelacznik sklada ladunek przez szkic, ktory trzyma cene jako tekst
+    // w zlotych (TIX-14a). Grosze niepelnych zlotych nie moga zginac po drodze.
+    h.pakiety = [pakiet({ price_cents: 129_999 })];
+    panel();
+    fireEvent.click(przelacznik());
+
+    expect(ostatniZapis().priceCents).toBe(129_999);
   });
 
   it("pakiet BEZ limitu zostaje bez limitu - przelacznik nie wpisuje mu zera", () => {
@@ -880,6 +945,44 @@ describe("formularz pakietu - styk z panelem", () => {
     fireEvent.click(przycisk(`${T}.addAction`));
 
     expect(formularzPakietu()).toHaveAttribute("data-bilety", "");
+  });
+
+  it("formularz dostaje STAN warunkow zakupu z hooka wydarzenia - takze „niedostepne”", () => {
+    // Formularz rozroznia „wczytywanie", „baza bez migracji" i „odczyt padl"
+    // tylko zdaniem; o tym, czy warunki pojada do bazy, decyduje to, czy sa
+    // ZNANE. Panel nie moze ich wiec zgubic ani podmienic po drodze.
+    panel();
+    fireEvent.click(przycisk(`${T}.addAction`));
+    expect(formularzPakietu()).toHaveAttribute("data-warunki", "loading");
+    cleanup();
+
+    h.warunki = { status: "unavailable" };
+    panel();
+    fireEvent.click(przycisk(`${T}.addAction`));
+    expect(formularzPakietu()).toHaveAttribute("data-warunki", "unavailable");
+    cleanup();
+
+    h.warunki = {
+      status: "ready",
+      byPackage: new Map([
+        [
+          PAKIET,
+          {
+            id: PAKIET,
+            admit_before_payment: false,
+            payment_terms_days: 14,
+            max_open_orders_per_buyer: 3,
+            vat_rate: null,
+            vat_exempt_basis: "",
+            stripe_tax_code: null,
+          },
+        ],
+      ]),
+    };
+    panel();
+    fireEvent.click(within(wierszPakietu()).getByRole("button", { name: `${T}.editAction` }));
+    expect(formularzPakietu()).toHaveAttribute("data-warunki", "ready");
+    expect(formularzPakietu()).toHaveAttribute("data-warunki-pakiety", PAKIET);
   });
 
   it("zapis w toku dojezdza do formularza - to on gasi swoje przyciski", () => {
@@ -1212,6 +1315,7 @@ describe("zawezenie wydarzeniem", () => {
         "useDeleteEventPackage",
         "useEventPackages",
         "useEventTickets",
+        "usePackageTerms",
         "useSaveEventPackage",
         "useSetPackageOrderStatus",
       ]

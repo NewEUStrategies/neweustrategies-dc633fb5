@@ -15,6 +15,14 @@
 // cyfrach - takiej kwoty nie zgadujemy, tylko jej odmawiamy (`null`).
 // Podgląd pod polem i tak pokazuje kwotę tak, jak zobaczy ją kupujący.
 
+/** Separator dziesiętny pola kwoty - polski przecinek albo angielska kropka. */
+export type MoneyDecimalSeparator = "," | ".";
+
+/** Separator pola kwoty dla języka panelu: angielski - kropka, każdy inny - przecinek. */
+export function moneyDecimalSeparator(language: string): MoneyDecimalSeparator {
+  return language.startsWith("en") ? "." : ",";
+}
+
 /** Spacje grupujące tysiące: zwykła, twarda (U+00A0) i wąska twarda (U+202F). */
 const GROUPING_SPACES = /[\s\u00a0\u202f]/g;
 
@@ -41,7 +49,7 @@ export function parseMoneyInput(value: string): number | null {
  */
 export function centsToMoneyInput(
   cents: number | null | undefined,
-  decimalSeparator: "," | "." = ",",
+  decimalSeparator: MoneyDecimalSeparator = ",",
 ): string {
   if (cents === null || cents === undefined || !Number.isFinite(cents)) return "";
   const whole = Math.trunc(Math.abs(cents) / 100);
