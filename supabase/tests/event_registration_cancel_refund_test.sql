@@ -1,6 +1,6 @@
 -- pgTAP: rezygnacja, anulowanie przez organizatora i zwroty (REG-03, REG-13
--- czesc rezygnacji, REG-17 czesc rezygnacji). Migracje 20261012170000
--- i 20261012170100.
+-- czesc rezygnacji, REG-17 czesc rezygnacji). Migracje 20261012170000,
+-- 20261012170050 i 20261012170100.
 --
 -- KRYTERIUM AUDYTU REG-03: „oplacone + rezygnacja -> zlecenie albo
 -- needs_review". Kazde zamkniecie oplaconego zgloszenia - w terminie zwrotu,
@@ -20,7 +20,7 @@
 -- refund_terms_changed), podglad bez wyroczni, decyzje organizatora o zleceniu,
 -- straznik ponownego przyjecia i ACL nowych funkcji.
 BEGIN;
-SELECT plan(67);
+SELECT plan(69);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -31,12 +31,14 @@ INSERT INTO public.tenants (id, slug, name, domain) VALUES
 INSERT INTO auth.users (id, email, email_confirmed_at) VALUES
   ('b4000000-0000-0000-0000-0000000000a1', 'b4-admin-a@example.org', now()),
   ('b4000000-0000-0000-0000-0000000000b1', 'b4-admin-b@example.org', now()),
-  ('b4000000-0000-0000-0000-0000000000c1', 'b4-participant@example.org', now());
+  ('b4000000-0000-0000-0000-0000000000c1', 'b4-participant@example.org', now()),
+  ('b4000000-0000-0000-0000-0000000000c2', 'b4-stranger@example.org', now());
 
 INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
   ('b4000000-0000-0000-0000-0000000000a1', 'b4-admin-a@example.org', 'Admin A', 'b40a0000-0000-0000-0000-0000000000aa'),
   ('b4000000-0000-0000-0000-0000000000b1', 'b4-admin-b@example.org', 'Admin B', 'b40b0000-0000-0000-0000-0000000000bb'),
-  ('b4000000-0000-0000-0000-0000000000c1', 'b4-participant@example.org', 'Uczestnik', 'b40a0000-0000-0000-0000-0000000000aa');
+  ('b4000000-0000-0000-0000-0000000000c1', 'b4-participant@example.org', 'Uczestnik', 'b40a0000-0000-0000-0000-0000000000aa'),
+  ('b4000000-0000-0000-0000-0000000000c2', 'b4-stranger@example.org', 'Obcy', 'b40a0000-0000-0000-0000-0000000000aa');
 
 INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
   ('b4000000-0000-0000-0000-0000000000a1', 'admin', 'b40a0000-0000-0000-0000-0000000000aa'),
@@ -422,6 +424,25 @@ SELECT is(
 RESET ROLE;
 SELECT is((SELECT payment_status FROM public.event_registrations WHERE id = 'b4400000-0000-0000-0000-000000000008'),
   'refunded', 'oznaczenie zwrotu recznego ustawia payment_status refunded');
+
+-- ── Wlasnosc bez NULL: obcy zalogowany kontra zgloszenie osoby BEZ konta ───────
+-- Stare `person_user_id = v_uid` dawalo NULL dla osoby bez konta, a
+-- `IF NOT (false OR NULL)` nie rzucalo - obcy odwolywal cudze zgloszenie po
+-- samym identyfikatorze i widzial skutek finansowy w podgladzie.
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b4000000-0000-0000-0000-0000000000c2","role":"authenticated"}', true);
+SET LOCAL ROLE authenticated;
+SELECT throws_like(
+  $$SELECT public.event_registration_cancel(jsonb_build_object('registration_id', 'b4400000-0000-0000-0000-000000000093',
+    'acknowledged_effect', 'full_refund'))$$,
+  'forbidden%', 'obcy zalogowany NIE odwoluje zgloszenia osoby bez konta (wlasnosc bez NULL)');
+SELECT is(
+  public.event_registration_cancel_preview(jsonb_build_object('registration_id', 'b4400000-0000-0000-0000-000000000093')),
+  '{"ok": false, "reason": "not_found"}'::jsonb,
+  'obcy zalogowany nie widzi skutku finansowego cudzego zgloszenia');
+RESET ROLE;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"b4000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
 
 -- ── 42-48. Anulowanie przez organizatora ────────────────────────────────────────
 SET LOCAL ROLE authenticated;

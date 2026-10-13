@@ -17,6 +17,9 @@
 --      organizatora awansuje po koncu tak samo (20260829071947:652-656).
 --   3. REG-17 (czesc rezygnacji). Klucz samoobslugi nie wygasa: rezygnacja
 --      liczy hash sama, bez `_event_manage_token_resolve` (A1).
+--   3a. Wlasnosc po koncie liczona `person_user_id = v_uid` daje NULL dla osoby
+--      BEZ konta, a `IF NOT (false OR NULL)` nie rzuca - zalogowany obcy
+--      odwolywal cudze zgloszenie goscia po samym identyfikatorze (:579-584).
 --   4. REG-06. Jedno pole `note` decyzji trafia do `decision_note`, ktore
 --      `event_my_registrations` i mail o odrzuceniu pokazywaly uczestnikowi -
 --      notatka wewnetrzna nie miala gdzie byc wewnetrzna.
@@ -162,7 +165,11 @@ BEGIN
     RAISE EXCEPTION 'not_found: registration does not exist';
   END IF;
 
-  v_owner := v_uid IS NOT NULL AND v_reg.person_user_id = v_uid;
+  -- ZMIANA 20261012 (wlasnosc bez NULL): stare `v_uid IS NOT NULL AND
+  -- person_user_id = v_uid` dawalo NULL dla osoby BEZ konta, a `NOT (false OR
+  -- NULL)` to NULL - IF go pomijal i zalogowany obcy odwolywal cudze zgloszenie
+  -- po samym identyfikatorze. Wlasnosc jest prawda albo falszem, nigdy NULL.
+  v_owner := v_uid IS NOT NULL AND v_reg.person_user_id IS NOT DISTINCT FROM v_uid;
 
   -- Klucz podany obok identyfikatora dowodzi wlasnosci tylko TEGO zgloszenia.
   IF NOT v_token_ok AND v_key_id IS NOT DISTINCT FROM v_reg.id AND v_key_id IS NOT NULL THEN
@@ -289,6 +296,7 @@ DECLARE
   v_key_id uuid;
   v_key_verdict text;
   v_token_ok boolean := false;
+  v_owner boolean;
   v_reg record;
   v_refusal text;
   v_assess jsonb;
@@ -328,15 +336,18 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'reason', 'not_found');
   END IF;
 
+  -- Wlasnosc bez NULL - jak w rezygnacji (osoba bez konta to nie „moje").
+  v_owner := v_uid IS NOT NULL AND v_reg.person_user_id IS NOT DISTINCT FROM v_uid;
+
   IF NOT v_token_ok AND v_key_id IS NOT NULL AND v_key_id = v_reg.id THEN
     IF v_key_verdict = 'ok' THEN
       v_token_ok := true;
-    ELSIF v_key_verdict = 'expired' AND NOT (v_uid IS NOT NULL AND v_reg.person_user_id = v_uid) THEN
+    ELSIF v_key_verdict = 'expired' AND NOT v_owner THEN
       RETURN jsonb_build_object('ok', false, 'reason', 'expired');
     END IF;
   END IF;
 
-  IF NOT (v_token_ok OR (v_uid IS NOT NULL AND v_reg.person_user_id = v_uid)) THEN
+  IF NOT (v_token_ok OR v_owner) THEN
     RETURN jsonb_build_object('ok', false, 'reason', 'not_found');
   END IF;
 
