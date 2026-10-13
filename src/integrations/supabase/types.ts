@@ -13025,6 +13025,42 @@ export type Database = {
           },
         ]
       }
+      event_wallet_pass_tombstones: {
+        Row: {
+          attempts: number
+          claimed_at: string | null
+          error: string | null
+          id: string
+          object_id: string
+          reason: string
+          requested_at: string
+          tenant_id: string
+          valid_until: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_at?: string | null
+          error?: string | null
+          id?: string
+          object_id: string
+          reason: string
+          requested_at?: string
+          tenant_id: string
+          valid_until: string
+        }
+        Update: {
+          attempts?: number
+          claimed_at?: string | null
+          error?: string | null
+          id?: string
+          object_id?: string
+          reason?: string
+          requested_at?: string
+          tenant_id?: string
+          valid_until?: string
+        }
+        Relationships: []
+      }
       event_wallet_passes: {
         Row: {
           code_hash: string | null
@@ -24190,6 +24226,10 @@ export type Database = {
           p_registration_id: string
           p_tenant: string
         }
+        Returns: number
+      }
+      _event_wallet_pass_queue_legacy_google_objects: {
+        Args: never
         Returns: number
       }
       _event_wallet_pass_revocations_claim: {

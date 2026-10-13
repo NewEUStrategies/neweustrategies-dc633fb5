@@ -1492,6 +1492,13 @@
       "when": 1791926954968,
       "tag": "0212_event_meeting_sponsor_verified_contact",
       "breakpoints": true
+    },
+    {
+      "idx": 213,
+      "version": "7",
+      "when": 1791927019018,
+      "tag": "0213_event_wallet_pass_tombstones",
+      "breakpoints": true
     }
   ]
 }
