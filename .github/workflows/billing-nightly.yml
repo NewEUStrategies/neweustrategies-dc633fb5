@@ -7,6 +7,10 @@ name: Rozliczenia (nocna sonda odnowienia i dunningu)
 # stanem subskrypcji. Potem sprawdza NASZĄ stronę: dziennik webhooków ma
 # przetworzone zdarzenie `subscription.*` tej subskrypcji (i żadnej porażki)
 # z okna po zbrojeniu, a wiersz `subscriptions` ma przesunięty okres.
+# Sprawdza też, czy punkt odbioru webhooków piaskownicy subskrybuje KAŻDY typ
+# zdarzenia, który integracja obsługuje (STRIPE_WEBHOOK_EVENT_TYPES) - brak
+# np. `charge.dispute.closed` nie wywraca żadnego testu, a spór wygrany nie
+# przywraca wtedy dostępu (przegląd 7.12).
 #
 # HISTORIA TEGO PLIKU (nie usuwać - to uzasadnienie trybu ścisłego):
 # do 2026-08 job eksportował sekret pod nazwą poprzedniego operatora płatności,
@@ -22,16 +26,31 @@ name: Rozliczenia (nocna sonda odnowienia i dunningu)
 #                                               adres projektu Supabase wdrożenia,
 #                                               do którego Stripe sandbox wysyła
 #                                               webhooki
-#   secrets.PROBE_SUPABASE_SERVICE_ROLE_KEY   - WYŁĄCZNIE krok weryfikacji:
-#                                               klucz `service_role` tego projektu
-#                                               (sonda tylko CZYTA dziennik
-#                                               webhooków i `subscriptions`)
+#   secrets.PROBE_SUPABASE_PUBLISHABLE_KEY    - WYŁĄCZNIE krok weryfikacji:
+#                                               klucz PUBLIKOWALNY (anon) tego
+#                                               projektu - ten sam, który dostaje
+#                                               przeglądarka
+#   secrets.BILLING_PROBE_TOKEN               - WYŁĄCZNIE krok weryfikacji: token
+#                                               sondy z `SELECT public.
+#                                               billing_probe_rotate_token();`
+#                                               (w bazie leży tylko jego skrót)
+#   vars.APP_BASE_URL                         - adres wdrożenia; zawęża kontrolę
+#                                               punktu odbioru webhooków do tego
+#                                               wdrożenia (bez niej: każdy punkt
+#                                               z naszą ścieżką)
+#
+# BEZ KLUCZA `service_role` (przegląd 7.6). Sonda czytała dwie tabele kluczem
+# `service_role` PRODUKCJI - kluczem, który omija RLS w całej bazie, a sekret
+# repozytorium czyta każdy workflow wypchnięty na gałąź. Teraz klucz
+# publikowalny otwiera wyłącznie RPC `billing_probe_status`, a ta po
+# sprawdzeniu tokenu zwraca tylko pola sondy z PIASKOWNICY jednej subskrypcji.
+# Sekret `PROBE_SUPABASE_SERVICE_ROLE_KEY` usuń z ustawień repozytorium.
 #
 # SEKRETY SĄ W ENV KROKÓW, NIE JOBA. Env joba widzi każdy krok, także akcje
-# zewnętrzne (`oven-sh/setup-bun`, `actions/upload-artifact`) - klucz
-# `service_role` produkcji nie ma czego szukać w kodzie instalatora Buna.
-# Z tego samego powodu akcje są przypięte do SHA commita, a nie do tagu:
-# przesunięty tag podmieniłby kod uruchamiany obok sekretów bez śladu w repo.
+# zewnętrzne (`oven-sh/setup-bun`, `actions/upload-artifact`) - token sondy
+# nie ma czego szukać w kodzie instalatora Buna. Z tego samego powodu akcje
+# są przypięte do SHA commita, a nie do tagu: przesunięty tag podmieniłby kod
+# uruchamiany obok sekretów bez śladu w repo.
 #
 # UWAGA (naprawa 06.08): workflow eksportował `PADDLE_SANDBOX_API_KEY`, a skrypt
 # czyta `STRIPE_SANDBOX_API_KEY` od czasu migracji na Stripe. `keys()` zwracało
@@ -107,7 +126,9 @@ jobs:
           STRIPE_SANDBOX_API_KEY: ${{ secrets.STRIPE_SANDBOX_API_KEY }}
           LOVABLE_API_KEY: ${{ secrets.LOVABLE_API_KEY }}
           PROBE_SUPABASE_URL: ${{ secrets.PROBE_SUPABASE_URL }}
-          PROBE_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROBE_SUPABASE_SERVICE_ROLE_KEY }}
+          PROBE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PROBE_SUPABASE_PUBLISHABLE_KEY }}
+          BILLING_PROBE_TOKEN: ${{ secrets.BILLING_PROBE_TOKEN }}
+          PROBE_APP_BASE_URL: ${{ vars.APP_BASE_URL }}
         run: bun scripts/billing-renewal-probe.ts verify
 
       - name: Zachowaj raport sondy

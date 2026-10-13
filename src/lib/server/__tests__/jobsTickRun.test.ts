@@ -123,6 +123,7 @@ const fixtures = vi.hoisted(() => ({
     busy: 0,
     errors: 0,
     deferred: 0,
+    timedOut: 0,
   } as import("@/lib/billing/webhookReplay.server").WebhookSweepResult,
   linkCheck: { postsScanned: 6, linksChecked: 41, broken: 2, archived: 1, alerted: 1 },
   integrations: { claimed: 7, delivered: 6, failed: 1 },
@@ -805,7 +806,7 @@ describe("zawiadomienia o odwołanych biletach (TICKET_REVOCATIONS_DEADLINE_MS =
 // ===========================================================================
 // ZAMIATARKA DZIENNIKA PŁATNOŚCI
 // ===========================================================================
-describe("zamiatarka dziennika płatności (co 5 minut, okno 8 s w budżecie ticku)", () => {
+describe("zamiatarka dziennika płatności (co 5 minut, termin = koniec budżetu ticku minus zapas)", () => {
   it("biegnie PO wysyłkach i PRZED jobami kosztownymi sieciowo", async () => {
     // Zdarzenie, które padło, to klient, który zapłacił i czeka na dostęp -
     // nie może być pomijane jako pierwsze razem ze skanerem linków. Ale mail
@@ -816,16 +817,21 @@ describe("zamiatarka dziennika płatności (co 5 minut, okno 8 s w budżecie tic
     expect(orderOf("webhookSweep")).toBeLessThan(Math.min(...NETWORK_COSTLY.map(orderOf)));
   });
 
-  it("dostaje termin 8 s od SWOJEGO startu, przycięty do budżetu ticku", async () => {
+  // KRYTERIUM przeglądu 3.0. Termin to chwila, do której KAŻDY zaczęty wiersz
+  // ma się skończyć: koniec budżetu ticku (25 s = timeout pg_net) minus 2 s na
+  // zapis przebiegu. Dawne „8 s od startu zamiatarki, przycięte do 25 s"
+  // pilnowało tylko startu - wiersz zaczęty o 24,9 s ginął z zerwanym
+  // połączeniem. Budżet wiersza pilnuje sama zamiatarka (webhookReplay).
+  it("dostaje termin = start ticku + 25 s - 2 s, niezależnie od chwili własnego startu", async () => {
     await tickAt(0);
-    expect(jobs.argsOf("webhookSweep")).toEqual([{ deadlineAt: at(0).getTime() + 8_000 }]);
+    expect(jobs.argsOf("webhookSweep")).toEqual([{ deadlineAt: at(0).getTime() + 23_000 }]);
 
-    // Start po 20 s ticku: 20 + 8 = 28 s wykracza poza budżet 25 s - termin
-    // przycina się do końca budżetu, żeby joby po zamiatarce nie wypadły.
+    // Start po 20 s ticku: termin się NIE przesuwa (zostały 3 s - zamiatarka
+    // nie zacznie wiersza bez pełnego budżetu i odda je następnemu ticku).
     jobs.reset();
     slowJob("eventTicketRevocations", 20_000);
     await tickAt(5);
-    expect(jobs.argsOf("webhookSweep")).toEqual([{ deadlineAt: at(5).getTime() + 25_000 }]);
+    expect(jobs.argsOf("webhookSweep")).toEqual([{ deadlineAt: at(5).getTime() + 23_000 }]);
   });
 
   it("poza piątą minutą: `skipped_duty_cycle`, bez wywołania", async () => {

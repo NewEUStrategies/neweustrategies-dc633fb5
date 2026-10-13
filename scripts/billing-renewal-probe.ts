@@ -13,11 +13,14 @@
  *            `ready`). Zastępuje ślepe `sleep 40m`: Stripe kończy zwykle
  *            w kilkadziesiąt sekund, a przy awarii i tak mamy twardy termin,
  *   verify - sprawdza, czy powstała NOWA faktura cykliczna, czy okres poszedł
- *            do przodu i czy stan faktury jest spójny ze stanem subskrypcji,
- *            a potem - przez REST Supabase kluczem `service_role` - czy NASZA
- *            strona odebrała odnowienie: przetworzone zdarzenie `subscription.*`
- *            w dzienniku webhooków, brak porażek w oknie po zbrojeniu i koniec
- *            okresu w `subscriptions` co najmniej taki jak u operatora. Dostawa
+ *            do przodu i czy stan faktury jest spójny ze stanem subskrypcji;
+ *            czy punkt odbioru webhooków piaskownicy subskrybuje KAŻDY
+ *            obsługiwany typ zdarzenia (przegląd 7.12); a potem - przez RPC
+ *            `billing_probe_status` (klucz publikowalny + token sondy, NIE
+ *            klucz `service_role`, przegląd 7.6) - czy NASZA strona odebrała
+ *            odnowienie: przetworzone zdarzenie `subscription.*` w dzienniku
+ *            webhooków, brak porażek w oknie po zbrojeniu i koniec okresu
+ *            w `subscriptions` co najmniej taki jak u operatora. Dostawa
  *            webhooka jest asynchroniczna, więc naszą stronę ODPYTUJEMY do
  *            terminu (domyślnie 3 min).
  *
@@ -25,39 +28,47 @@
  * mogą wywracać CI). W trybie ścisłym (`PROBE_STRICT=true`, ustawianym dla
  * przebiegów z harmonogramu w repozytorium właściciela) brak konfiguracji jest
  * BŁĘDEM - nocna sonda, która nic nie sprawdza, nie ma prawa świecić na zielono.
- * Dotyczy to także dostępu do NASZEJ bazy w kroku `verify` (PROBE_SUPABASE_*):
- * bez niego sonda widzi tylko operatora, czyli przegapia awarię naszego
- * webhooka - w trybie ścisłym to błąd, ręcznie ostrzeżenie.
+ * Dotyczy to także dostępu do NASZEJ bazy w kroku `verify` (PROBE_SUPABASE_URL,
+ * PROBE_SUPABASE_PUBLISHABLE_KEY, BILLING_PROBE_TOKEN): bez niego sonda widzi
+ * tylko operatora, czyli przegapia awarię naszego webhooka - w trybie ścisłym
+ * to błąd, ręcznie ostrzeżenie.
  *
  * Zmienne: STRIPE_SANDBOX_API_KEY, LOVABLE_API_KEY, PROBE_STATE_FILE,
  *          PROBE_REPORT_FILE, PROBE_STRICT, PROBE_REQUIRE_CONFIG,
  *          PROBE_SUBSCRIPTION_ID, PROBE_WAIT_TIMEOUT_MS, PROBE_WAIT_TIMEOUT_S,
  *          PROBE_WAIT_POLL_MS, PROBE_REQUEST_TIMEOUT_MS, PROBE_GATEWAY_URL,
- *          PROBE_SUPABASE_URL, PROBE_SUPABASE_SERVICE_ROLE_KEY (tylko `verify`),
+ *          PROBE_SUPABASE_URL, PROBE_SUPABASE_PUBLISHABLE_KEY,
+ *          BILLING_PROBE_TOKEN, PROBE_APP_BASE_URL (tylko `verify`),
  *          PROBE_DB_WAIT_TIMEOUT_MS, PROBE_DB_POLL_MS
  */
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
-  type LocalSubscriptionRow,
   type LocalSyncVerdict,
-  type LocalWebhookRow,
   type ProbeOutcome,
   type ProbeState,
+  type ProbeStatus,
   type StripeInvoice,
   type StripeSubscription,
   type StripeTestClock,
+  type StripeWebhookEndpoint,
+  type WebhookEndpointVerdict,
   classifyLocalSync,
   classifyRenewal,
+  classifyWebhookEndpoints,
   combineOutcomes,
   isFailure,
   parseProbeState,
+  parseProbeStatus,
   periodEndOf,
   renderArmSummary,
   renderLocalSyncSummary,
   renderVerifySummary,
+  renderWebhookEndpointSummary,
   selectRenewalCandidate,
+  withEndpointVerdict,
 } from "../src/lib/ci/billingRenewalProbe";
+import { STRIPE_WEBHOOK_EVENT_TYPES } from "../src/lib/billing/stripeEventTypes";
 
 /**
  * Bramka konektorów platformy - SDK ani skrypt nigdy nie widzą prawdziwego
@@ -90,10 +101,16 @@ interface Auth {
   readonly platform: string;
 }
 
-/** Dostęp do NASZEJ bazy (REST Supabase, klucz `service_role`) - tylko `verify`. */
+/**
+ * Dostęp do NASZEJ bazy - tylko `verify`. Klucz PUBLIKOWALNY (ten sam, który
+ * ma przeglądarka) otwiera wyłącznie RPC `billing_probe_status`, a ta oddaje
+ * dane dopiero po sprawdzeniu tokenu sondy. Klucz `service_role` produkcji
+ * nie ma tu czego szukać (przegląd 7.6).
+ */
 interface DbAuth {
   readonly url: string;
-  readonly serviceRoleKey: string;
+  readonly publishableKey: string;
+  readonly token: string;
 }
 
 /**
@@ -158,9 +175,10 @@ function keys(): Auth | null {
 
 function dbKeys(): DbAuth | null {
   const url = process.env.PROBE_SUPABASE_URL?.trim().replace(/\/+$/, "");
-  const serviceRoleKey = process.env.PROBE_SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!url || !serviceRoleKey) return null;
-  return { url, serviceRoleKey };
+  const publishableKey = process.env.PROBE_SUPABASE_PUBLISHABLE_KEY?.trim();
+  const token = process.env.BILLING_PROBE_TOKEN?.trim();
+  if (!url || !publishableKey || !token) return null;
+  return { url, publishableKey, token };
 }
 
 /** Stripe przyjmuje wyłącznie `application/x-www-form-urlencoded`. */
@@ -175,7 +193,8 @@ function form(body: Record<string, string | number>): string {
  * pojedynczy 502 na odczycie nie może oznaczać „odnowienie nie działa" -
  * inaczej bramka generuje fałszywe alarmy i przestaje być czytana.
  *
- * Ponawiane są WYŁĄCZNIE odczyty (GET). `POST .../advance` nie jest idempotentny
+ * Ponawiane są WYŁĄCZNIE odczyty (GET i jawnie oznaczone `idempotent` - RPC
+ * sondy jest funkcją STABLE, która niczego nie zapisuje). `POST .../advance` nie jest idempotentny
  * i nie ma klucza idempotencji: przy błędzie sieciowym nie wiadomo, czy operator
  * przesunął już zegar, a ponowienie w tym stanie zwraca 400 „clock is currently
  * advancing" - czyli zamienia jedną usterkę przejściową w czerwony przebieg
@@ -184,9 +203,14 @@ function form(body: Record<string, string | number>): string {
 async function requestJson<T>(
   url: string,
   label: string,
-  init: { method: "GET" | "POST"; headers: Record<string, string>; body?: string },
+  init: {
+    method: "GET" | "POST";
+    headers: Record<string, string>;
+    body?: string;
+    idempotent?: boolean;
+  },
 ): Promise<T> {
-  const attempts = init.method === "GET" ? RETRY_DELAYS_MS.length : 0;
+  const attempts = init.method === "GET" || init.idempotent ? RETRY_DELAYS_MS.length : 0;
   let lastError = "";
 
   for (let attempt = 0; attempt <= attempts; attempt += 1) {
@@ -233,19 +257,53 @@ async function api<T>(
 }
 
 /**
- * Odczyt z NASZEJ bazy przez REST Supabase (PostgREST). Wyłącznie GET -
- * sonda niczego u nas nie zapisuje; klucz `service_role` jest potrzebny tylko
- * dlatego, że dziennik webhooków jest zamknięty RLS-em dla wszystkich innych.
- * Błąd przy odczycie nie ujawnia klucza: etykieta to sama ścieżka tabeli.
+ * Stan NASZEJ strony przez RPC `billing_probe_status` (PostgREST). Token idzie
+ * w CIELE żądania, nie w adresie - adresy lądują w logach pośredników. Funkcja
+ * jest STABLE i tylko czyta, więc żądanie wolno ponowić jak GET. Błąd nie
+ * ujawnia tokenu ani klucza: etykieta to sama ścieżka RPC.
  */
-async function restGet<T>(db: DbAuth, table: string, query: string): Promise<T> {
-  return requestJson<T>(`${db.url}/rest/v1/${table}?${query}`, `/rest/v1/${table}`, {
-    method: "GET",
-    headers: {
-      apikey: db.serviceRoleKey,
-      Authorization: `Bearer ${db.serviceRoleKey}`,
-      Accept: "application/json",
+async function probeStatus(db: DbAuth, state: ProbeState): Promise<ProbeStatus> {
+  const raw = await requestJson<unknown>(
+    `${db.url}/rest/v1/rpc/billing_probe_status`,
+    "/rest/v1/rpc/billing_probe_status",
+    {
+      method: "POST",
+      idempotent: true,
+      headers: {
+        apikey: db.publishableKey,
+        Authorization: `Bearer ${db.publishableKey}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        p_token: db.token,
+        p_subscription_id: state.subscriptionId,
+        p_since: state.armedAt,
+      }),
     },
+  );
+  const parsed = parseProbeStatus(raw);
+  if (!parsed) {
+    throw new Error(
+      "billing_probe_status zwróciła nieoczekiwany kształt - sprawdź migrację `billing_probe_status`.",
+    );
+  }
+  return parsed;
+}
+
+/**
+ * Punkty odbioru webhooków w piaskownicy Stripe (przegląd 7.12): czy nasz
+ * odbiornik subskrybuje KAŻDY typ, który integracja obsługuje.
+ */
+async function verifyWebhookEndpoints(auth: Auth): Promise<WebhookEndpointVerdict> {
+  const listed = await api<StripeList<StripeWebhookEndpoint>>("/webhook_endpoints?limit=100", {
+    auth,
+  });
+  return classifyWebhookEndpoints({
+    endpoints: listed.data ?? [],
+    expectedTypes: STRIPE_WEBHOOK_EVENT_TYPES,
+    // Niezdefiniowana zmienna repozytorium dociera tu jako pusty łańcuch.
+    appBaseUrl: process.env.PROBE_APP_BASE_URL?.trim() || null,
   });
 }
 
@@ -407,33 +465,16 @@ async function awaitLocalSync(
   stripePeriodEnd: number | null,
 ): Promise<LocalSyncVerdict> {
   const startedAt = Date.now();
-  const subscription = encodeURIComponent(state.subscriptionId);
 
   for (;;) {
-    const [webhookRows, subscriptions] = await Promise.all([
-      restGet<LocalWebhookRow[]>(
-        db,
-        "payment_webhook_events",
-        "select=event_id,event_type,status,error,created_at" +
-          `&environment=eq.sandbox&subscription_id=eq.${subscription}` +
-          `&created_at=gte.${encodeURIComponent(state.armedAt)}` +
-          "&order=created_at.asc&limit=200",
-      ),
-      restGet<LocalSubscriptionRow[]>(
-        db,
-        "subscriptions",
-        "select=provider_subscription_id,status,current_period_end" +
-          `&provider_subscription_id=eq.${subscription}&environment=eq.sandbox` +
-          "&order=updated_at.desc&limit=1",
-      ),
-    ]);
+    const { webhookRows, subscription } = await probeStatus(db, state);
 
     const deadlineReached = Date.now() - startedAt >= DB_WAIT_TIMEOUT_MS;
     const verdict = classifyLocalSync({
       state,
       stripePeriodEnd,
       webhookRows,
-      subscription: subscriptions[0] ?? null,
+      subscription,
       deadlineReached,
     });
     if (verdict.outcome !== "waiting") return verdict;
@@ -472,6 +513,9 @@ async function verify(auth: Auth): Promise<StepOutcome> {
 
   summary(renderVerifySummary({ state, subscription, verdict, dunningCensus }));
 
+  const endpoint = await verifyWebhookEndpoints(auth);
+  summary(renderWebhookEndpointSummary(endpoint));
+
   // Nasza strona ma sens wyłącznie wtedy, gdy operator potwierdził odnowienie
   // albo dunning - przy porażce operatora nie ma czego u nas szukać.
   let local: LocalSyncVerdict | null = null;
@@ -488,11 +532,13 @@ async function verify(auth: Auth): Promise<StepOutcome> {
       annotate(
         "warning",
         "Sonda nie widzi naszej strony",
-        "Ustaw PROBE_SUPABASE_URL oraz PROBE_SUPABASE_SERVICE_ROLE_KEY - bez nich sonda " +
-          "potwierdza wyłącznie stan u operatora, a nie odbiór odnowienia przez nasz webhook.",
+        "Ustaw PROBE_SUPABASE_URL, PROBE_SUPABASE_PUBLISHABLE_KEY oraz BILLING_PROBE_TOKEN - " +
+          "bez nich sonda potwierdza wyłącznie stan u operatora, a nie odbiór odnowienia " +
+          "przez nasz webhook.",
       );
     }
   }
+  outcome = withEndpointVerdict(outcome, endpoint);
 
   writeJson(REPORT_FILE, {
     generatedAt: new Date().toISOString(),
@@ -507,6 +553,12 @@ async function verify(auth: Auth): Promise<StepOutcome> {
     periodEnd: verdict.periodEnd,
     periodMoved: verdict.periodMoved,
     dunningCensus,
+    webhookEndpoint: {
+      outcome: endpoint.outcome,
+      reason: endpoint.reason,
+      checked: endpoint.checked,
+      gaps: endpoint.gaps,
+    },
     local: local
       ? {
           outcome: local.outcome,
@@ -518,6 +570,13 @@ async function verify(auth: Auth): Promise<StepOutcome> {
       : null,
   });
 
+  if (endpoint.outcome === "failed") {
+    annotate(
+      "error",
+      "Punkt odbioru webhooków piaskownicy nie subskrybuje obsługiwanych zdarzeń",
+      endpoint.reason,
+    );
+  }
   if (verdict.outcome === "failed") {
     annotate("error", "Regresja odnowienia lub dunningu", verdict.reason);
   } else if (verdict.outcome === "pending") {
@@ -559,7 +618,8 @@ async function main(): Promise<void> {
     annotate(
       "error",
       "Sonda rozliczeń nieskonfigurowana",
-      "Ustaw PROBE_SUPABASE_URL oraz PROBE_SUPABASE_SERVICE_ROLE_KEY (krok weryfikacji).",
+      "Ustaw PROBE_SUPABASE_URL, PROBE_SUPABASE_PUBLISHABLE_KEY oraz BILLING_PROBE_TOKEN " +
+        "(krok weryfikacji; token z `SELECT public.billing_probe_rotate_token();`).",
     );
     setOutput("outcome", "skipped");
     process.exitCode = 1;
