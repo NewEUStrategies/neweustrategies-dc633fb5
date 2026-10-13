@@ -46,7 +46,7 @@
 //
 // Radix Select i Dialog nie działają pod happy-dom bez pełnego pointer API.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { MouseEventHandler, ReactNode } from "react";
 import type { RegistrationCounts } from "@/lib/events/registrationCounts";
 import type {
