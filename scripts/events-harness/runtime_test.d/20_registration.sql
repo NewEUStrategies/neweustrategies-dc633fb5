@@ -1033,18 +1033,32 @@ BEGIN
     (SELECT registration_id FROM public.event_term_acceptances WHERE person_id = v_person)
       = (SELECT u FROM reg_q WHERE k = 'anna_reg'),
     'zgody: akceptacja wskazuje zapis, przy ktorym powstala');
+  -- ZMIANA 20261012 (REG-14, B1a). Dotad ta asercja sprawdzala, ze `ip_hash`
+  -- i `user_agent` z LADUNKU trafiaja do akceptacji regulaminu - czyli
+  -- utrwalala defekt: „warstwa serwerowa" byla tu kazdym, kto wolal RPC.
+  -- Teza (dowod adresu i przegladarki pochodzi z serwera) zostaje, odpowiedz
+  -- sie odwraca: ladunek jest ignorowany, a wrapper zgodnosci nie zna
+  -- zaufanego adresu, wiec dowodu nie ma wcale (NULL). Sciezke serwerowa
+  -- (`event_register_for_client`, solony skrot `ip:<32 hex>` -> 32 hex
+  -- w akceptacji) dowodzi 21_register_entry_hardening.sql.
   PERFORM pg_temp.assert(
-    (SELECT ip_hash FROM public.event_term_acceptances WHERE person_id = v_person)
-      = 'abcdef0123456789'
-    AND (SELECT user_agent FROM public.event_term_acceptances WHERE person_id = v_person)
-      = 'harness/1.0',
-    'zgody: hasz adresu i przegladarka jada z warstwy serwerowej do rejestru');
-  -- Stempel zgody osoby: pierwsze nadanie, nie nadpisanie.
+    (SELECT ip_hash IS NULL AND user_agent IS NULL
+       FROM public.event_term_acceptances WHERE person_id = v_person),
+    'zgody: hasz adresu i przegladarka z ladunku sa ignorowane (dowod tylko z serwera)');
+  -- ZMIANA 20261012 (REG-02/REG-14, B1a). Dotad: anonimowy zapis stawial
+  -- stempel marketingu od razu. Teza (trzy stemple sa NIEZALEZNE) zostaje:
+  -- przetwarzanie danych - tak (nowa osoba, wpis `registration_form`),
+  -- marketing - zaznaczony, ale bez kanalu zweryfikowanego czeka na link
+  -- double opt-in (wpis `pending`, bez projekcji), partnerzy - nie.
   PERFORM pg_temp.assert(
-    (SELECT consent_data_processing_at IS NOT NULL AND consent_marketing_at IS NOT NULL
+    (SELECT consent_data_processing_at IS NOT NULL AND consent_marketing_at IS NULL
        AND consent_partner_sharing_at IS NULL
-     FROM public.event_people WHERE id = v_person),
-    'zgody: trzy stemple zgody osoby sa NIEZALEZNE (marketing tak, partner nie)');
+     FROM public.event_people WHERE id = v_person)
+    AND EXISTS (SELECT 1 FROM public.event_consent_records c
+                 WHERE c.person_id = v_person AND c.purpose = 'marketing' AND c.status = 'pending')
+    AND NOT EXISTS (SELECT 1 FROM public.event_consent_records c
+                     WHERE c.person_id = v_person AND c.purpose = 'partner_sharing'),
+    'zgody: trzy stemple zgody osoby sa NIEZALEZNE (dane tak, marketing czeka na DOI, partner nie)');
   -- Adres poczty zostal ZNORMALIZOWANY do klucza dopasowania.
   PERFORM pg_temp.assert(
     (SELECT email_norm FROM public.event_people WHERE id = v_person) = 'anna.kowalska@example.org',

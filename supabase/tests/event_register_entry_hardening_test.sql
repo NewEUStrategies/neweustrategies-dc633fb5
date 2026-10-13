@@ -83,9 +83,10 @@ INSERT INTO public.event_ticket_types
   ('b1a20000-0000-0000-0000-0000000000f8', 'b1a0a000-0000-0000-0000-0000000000aa',
    'b1a10000-0000-0000-0000-0000000000e6', 'erh_soon', 'Jutro', 'Tomorrow', 3000, 'PLN', NULL, NULL, NULL, true, false, NULL);
 
-INSERT INTO public.event_terms (id, tenant_id, event_id, key, label_pl, label_en, is_required, display) VALUES
+INSERT INTO public.event_terms (id, tenant_id, event_id, key, label_pl, label_en, body_pl, is_required, display) VALUES
   ('b1a40000-0000-0000-0000-0000000000a1', 'b1a0a000-0000-0000-0000-0000000000aa',
-   'b1a10000-0000-0000-0000-0000000000e7', 'erh_reg', 'Regulamin ERH', 'ERH terms', true, 'registration');
+   'b1a10000-0000-0000-0000-0000000000e7', 'erh_reg', 'Regulamin ERH', 'ERH terms', 'Tresc regulaminu ERH.',
+   true, 'registration');
 
 -- Zajete jedyne miejsce biletu f2 (adres zapisany przed testem).
 INSERT INTO public.event_people (id, tenant_id, email, first_name, last_name) VALUES
@@ -117,7 +118,7 @@ RETURNS jsonb LANGUAGE sql AS $$
            'email', p_email, 'consent_data_processing', true) || p_extra
 $$;
 CREATE TEMP TABLE erh_r (k text PRIMARY KEY, v jsonb);
-GRANT ALL ON erh_r TO service_role;
+GRANT ALL ON erh_r TO service_role, authenticated;
 
 -- ── 1-5. Uprawnienia ────────────────────────────────────────────────────────
 SELECT ok(
@@ -328,7 +329,7 @@ SELECT ok(
     WHERE p.email_norm = 'erh-x@example.org' AND r.tenant_id = 'b1a0a000-0000-0000-0000-0000000000aa'),
   'bezplatne zgloszenie nie ma oferty cenowej');
 
--- ── 30-43. REG-05: bilety ukryte ────────────────────────────────────────────
+-- ── 30-44. REG-05: bilety ukryte ────────────────────────────────────────────
 SELECT set_config('request.headers', '{"x-tenant-host":"erh-a.example"}', true);
 SELECT set_config('request.jwt.claims', '{"role":"anon"}', true);
 SET LOCAL ROLE anon;
@@ -365,8 +366,12 @@ INSERT INTO erh_r (k, v) VALUES
   ('h2', pg_temp.erh(NULL, 'ip:' || repeat('d2', 16), pg_temp.erh_p('erh-event', 'erh-h2@example.org',
       '{"ticket_type_id": "b1a20000-0000-0000-0000-0000000000f4", "reveal_code": "WRONG"}'::jsonb)));
 RESET ROLE;
-SELECT is((SELECT v->'client' FROM erh_r WHERE k = 'h1'),
-  '{"ok": false, "error": "not_found"}'::jsonb,
+SELECT ok(
+  (SELECT v->'client' = '{"ok": false, "error": "not_found"}'::jsonb AND v->'delivery' = 'null'::jsonb
+     FROM erh_r WHERE k = 'h1')
+  AND NOT EXISTS (SELECT 1 FROM public.event_people
+                   WHERE tenant_id = 'b1a0a000-0000-0000-0000-0000000000aa'
+                     AND email_norm = 'erh-h1@example.org'),
   'ukryty bilet bez kodu -> odmowa');
 SELECT is((SELECT (v->'client')::text FROM erh_r WHERE k = 'h1'),
           (SELECT (v->'client')::text FROM erh_r WHERE k = 'h0'),
@@ -439,7 +444,7 @@ SELECT is(
   'kasa: posiadacz zgloszenia na ukryty bilet wycenia go dalej');
 RESET ROLE;
 
--- ── 44-49. REG-13: koniec wydarzenia ────────────────────────────────────────
+-- ── 45-49. REG-13: koniec wydarzenia ────────────────────────────────────────
 SET LOCAL ROLE service_role;
 INSERT INTO erh_r (k, v) VALUES
   ('e1', pg_temp.erh(NULL, 'ip:' || repeat('e1', 16), pg_temp.erh_p('erh-ended', 'erh-e1@example.org'))),
@@ -502,6 +507,9 @@ SELECT is(
 UPDATE public.event_ticket_types SET early_bird_until = now() - interval '1 second'
  WHERE id = 'b1a20000-0000-0000-0000-0000000000f3';
 SELECT set_config('request.headers', '{"x-tenant-host":"erh-a.example"}', true);
+-- `request.jwt.claim.sub` tez: wejscie serwerowe odtwarza po sobie poprzednia
+-- tozsamosc, a atrapa auth.uid() czyta najpierw te zmienna.
+SELECT set_config('request.jwt.claim.sub', 'b1a00000-0000-0000-0000-0000000000a6', true);
 SELECT set_config('request.jwt.claims',
   '{"sub":"b1a00000-0000-0000-0000-0000000000a6","role":"authenticated"}', true);
 SET LOCAL ROLE authenticated;
@@ -542,6 +550,7 @@ SELECT is(
   'LEAST: obnizka ceny po zapisie przechodzi na uczestnika (oferta 5000, cena 4000)');
 RESET ROLE;
 SELECT set_config('request.headers', '', true);
+SELECT set_config('request.jwt.claim.sub', '', true);
 SELECT is(
   (SELECT r.quote_valid_until FROM public.event_registrations r
     WHERE r.id = (SELECT (v->'client'->>'registration_id')::uuid FROM erh_r WHERE k = 'q2')),
@@ -627,5 +636,6 @@ SELECT is(
 
 SELECT set_config('request.headers', '', true);
 SELECT set_config('request.jwt.claims', '', true);
+SELECT set_config('request.jwt.claim.sub', '', true);
 SELECT * FROM finish();
 ROLLBACK;
