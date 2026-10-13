@@ -18,9 +18,10 @@
 --      jedna reguła okna kodu, kontrakt `_event_seats_left`.
 --   E. Źródło faktury (20261013900500): kwota zaksięgowana (main INV-14) i cena
 --      z chwili zapisu (REG-16).
---   F. Naprawa REG-01 po uzgodnieniach (20261013900900): audyt = 0.
+--   F. Granty kolumnowe kolumn main (20261013900600) i naprawa REG-01 po
+--      uzgodnieniach (20261013900900): audyt = 0.
 BEGIN;
-SELECT plan(23);
+SELECT plan(24);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -363,6 +364,14 @@ SELECT ok(
   AND has_function_privilege('authenticated', 'public.admin_event_refund_job_decide(jsonb)', 'EXECUTE')
   AND has_function_privilege('service_role', 'public._event_ticket_payment_refused(public.payment_orders,uuid,uuid,text)', 'EXECUTE'),
   'F2: granty funkcji uzgodnionych - pomocnicze tylko service_role, decyzja organizatora dla authenticated');
+
+SELECT ok(
+  NOT has_column_privilege('authenticated', 'public.event_registrations', 'paid_amount_recorded_by', 'SELECT')
+  AND NOT has_column_privilege('authenticated', 'public.event_registrations', 'decided_by', 'SELECT')
+  AND has_column_privilege('authenticated', 'public.event_registrations', 'paid_amount_cents', 'SELECT')
+  AND has_column_privilege('authenticated', 'public.event_registrations', 'status', 'SELECT')
+  AND NOT has_table_privilege('authenticated', 'public.event_registrations', 'SELECT'),
+  'F3 (REG-06/R45 x INV-14): konto organizatora, ktory zaksiegowal wplate, prywatne jak decided_by; kwota czytelna');
 
 SELECT set_config('request.jwt.claims', '', true);
 SELECT * FROM finish();
